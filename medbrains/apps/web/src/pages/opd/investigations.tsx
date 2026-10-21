@@ -1,10 +1,10 @@
-// OPD InvestigationsTab — split from opd.tsx (pure move).
+// OPD InvestigationsTab — this visit's orders plus the patient's earlier and
+// direct (walk-in) orders, each openable to its results.
 
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
   Card,
   Group,
-  Loader,
   Modal,
   Select,
   SimpleGrid,
@@ -21,7 +21,6 @@ import type {
   DuplicateOrderInfo,
   LabOrder,
   LabOrderListResponse,
-  LabResult,
   LabTestCatalog,
   PatientLabOrderRow,
   RadiologyDicomStudy,
@@ -29,9 +28,16 @@ import type {
 import { P } from "@medbrains/types";
 import { IconAlertTriangle, IconEye, IconFlask, IconPlus, IconX } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useMemo, useState } from "react";
+import { Fragment, useMemo, useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { useClinicalEmit } from "@/components";
+import {
+  LabOrderHistoryTable,
+  ResultsToggle,
+  useToggleSet,
+} from "@/components/Lab/LabOrderHistoryTable";
+import { LabOrderResults } from "@/components/Lab/LabOrderResults";
+import { RadiologyReportList } from "@/components/Radiology/RadiologyReportList";
 import { Alert, Badge, type BadgeTone, Button, IconButton, Table, toast } from "@/components/ui";
 import {
   DEFAULT_OPD_LAB_ORDER_FORM_VALUES,
@@ -52,15 +58,6 @@ const LAB_STATUS_COLORS: Record<string, BadgeTone> = {
   completed: "success",
   verified: "success",
   cancelled: "danger",
-};
-
-const LAB_RESULT_FLAG_COLORS: Record<string, BadgeTone> = {
-  normal: "success",
-  low: "warning",
-  high: "warning",
-  critical_low: "danger",
-  critical_high: "danger",
-  abnormal: "warning",
 };
 
 const STATUS_COLOR_TO_BADGE_TONE: Record<string, BadgeTone> = {
@@ -92,90 +89,8 @@ function priorityBadgeTone(color: string | null | undefined): BadgeTone {
  * not be taken, may be in the analyser, or may be waiting on a pathologist,
  * and from the consulting room all three mean the same thing: no answer yet.
  */
-/**
- * How far this value has moved since the patient's last one.
- *
- * A reference range answers "is this normal for a population". A delta
- * answers "is this normal for this person", and the two disagree in the case
- * that matters: a creatinine going 0.7 to 1.2 sits inside the range at both
- * ends and is a kidney changing. The lab already computes `previous_value`,
- * `delta_percent` and `is_delta_flagged` on every result and nothing showed
- * them.
- *
- * `is_delta_flagged` is the lab's own judgement against that analyte's
- * threshold — a 20% move means something different for sodium than for a
- * white count — so the flag is trusted rather than recomputed from the
- * percentage here.
- */
-function DeltaCell({ result }: { result: LabResult }) {
-  if (result.previous_value === null || result.delta_percent === null) {
-    // No prior value is not a zero change. First results are common and
-    // rendering "0%" would assert a comparison that was never made.
-    return (
-      <Text size="sm" c="dimmed">
-        First result
-      </Text>
-    );
-  }
-
-  const pct = Number(result.delta_percent);
-  const arrow = pct > 0 ? "\u2191" : pct < 0 ? "\u2193" : "";
-  const label = `${arrow}${Math.abs(pct).toFixed(0)}%`;
-
-  return (
-    <Stack gap={0}>
-      {result.is_delta_flagged ? (
-        // Not colour alone — "changed" carries it in words.
-        <Badge size="xs" tone="warning">
-          Changed {label}
-        </Badge>
-      ) : (
-        <Text size="sm">{label}</Text>
-      )}
-      <Text size="xs" c="dimmed">
-        was {result.previous_value}
-        {result.unit ? ` ${result.unit}` : ""}
-      </Text>
-    </Stack>
-  );
-}
-
 function isOutstanding(order: PatientLabOrderRow): boolean {
   return order.status !== "verified" && order.status !== "cancelled";
-}
-
-/**
- * Where an order has got to, in the words a clinician would use.
- *
- * Elapsed time is shown against the catalogue's expected turnaround rather
- * than as a bare timestamp. At a weekly camp the only question that matters
- * is whether the result arrives before this patient leaves, and "38 min —
- * expected 30" answers it where "ordered at 10:42" does not.
- */
-function orderProgress(order: PatientLabOrderRow): string {
-  // A rejected sample is a note on the order, not a status: it can be
-  // re-collected and the order carries on. It is shown first regardless of
-  // status, because somebody has to go and draw blood again.
-  if (order.rejection_reason) {
-    return `Sample rejected — ${order.rejection_reason}`;
-  }
-  if (order.status === "cancelled") {
-    return "Cancelled";
-  }
-  if (order.status === "verified") {
-    const when = order.verified_at ?? order.updated_at;
-    return `Verified ${new Date(when).toLocaleString()} · ${order.result_count ?? 0} value(s)`;
-  }
-
-  const startedAt = order.collected_at ?? order.created_at;
-  const mins = Math.max(0, Math.round((Date.now() - new Date(startedAt).getTime()) / 60000));
-  const elapsed = mins < 60 ? `${mins} min` : `${(mins / 60).toFixed(1)} h`;
-  const stage = order.collected_at ? "In the lab" : "Sample not collected";
-  // Only compared when the catalogue actually states one. An expectation
-  // nobody set is not a deadline anybody missed.
-  const target = order.expected_tat_minutes;
-  const against = target ? ` · expected ${target} min${mins > target ? " — overdue" : ""}` : "";
-  return `${stage} · ${elapsed}${against}`;
 }
 
 export function InvestigationsTab({
@@ -194,7 +109,10 @@ export function InvestigationsTab({
   // its count in a badge — so "Imaging 0" on a doctor's investigations tab
   // would have stated that the patient has never been imaged.
   const canViewImaging = useHasPermission(P.RADIOLOGY.ORDERS_LIST);
-  const canViewLabReport = useHasPermission(P.LAB.ORDERS_VIEW);
+  // `/patients/{id}/lab-orders` answers `lab.orders.list`; without it the
+  // query is not issued and the card says so rather than "nothing ordered".
+  const canListLabOrders = useHasPermission(P.LAB.ORDERS_LIST);
+  const [openVisitOrders, toggleVisitOrder] = useToggleSet();
   const [formOpened, formHandlers] = useDisclosure(false);
   const [labDupeWarning, setLabDupeWarning] = useState<DuplicateOrderInfo[]>(NO_DUPES);
   const [dupeCheckUnavailable, setDupeCheckUnavailable] = useState(false);
@@ -202,7 +120,6 @@ export function InvestigationsTab({
     setLabDupeWarning(next.findings);
     setDupeCheckUnavailable(next.unavailable);
   };
-  const [selectedLabReportId, setSelectedLabReportId] = useState<string | null>(null);
   const {
     control,
     handleSubmit,
@@ -227,21 +144,18 @@ export function InvestigationsTab({
   });
   const orders = ordersResponse?.orders ?? [];
 
-  const { data: patientLabOrders = [] } = useQuery<PatientLabOrderRow[]>({
+  const { data: patientLabOrders = [], isError: patientLabOrdersFailed } = useQuery<
+    PatientLabOrderRow[]
+  >({
     queryKey: ["patient-lab-orders", patientId],
     queryFn: () => opdService.listPatientLabOrders(patientId),
+    enabled: canListLabOrders,
   });
 
   const { data: imagingStudies = [] } = useQuery<RadiologyDicomStudy[]>({
     queryKey: ["patient-dicom-studies", patientId],
     queryFn: () => opdService.getPriorRadiologyDicomStudies(patientId),
     enabled: canViewImaging,
-  });
-
-  const { data: selectedLabReport, isLoading: selectedLabReportLoading } = useQuery({
-    queryKey: ["lab-order-detail", selectedLabReportId],
-    queryFn: () => opdService.getLabOrder(selectedLabReportId ?? ""),
-    enabled: selectedLabReportId !== null && canViewLabReport,
   });
 
   // Everything ordered for this patient, not only what has come back.
@@ -255,14 +169,25 @@ export function InvestigationsTab({
   //
   // Outstanding orders sort first: they are the ones that still need a
   // decision before this patient leaves.
-  const recentLabReports = [...patientLabOrders]
+  //
+  // This visit's orders are listed (with their results) in the visit table
+  // below, so this section holds everything else: earlier visits and orders
+  // placed directly at the lab desk with no encounter at all — the walk-in
+  // result a doctor otherwise never sees.
+  const visitOrderIds = useMemo(() => new Set(orders.map((o) => o.id)), [orders]);
+  const resultCountById = useMemo(
+    () => new Map(patientLabOrders.map((o) => [o.id, o.result_count ?? 0])),
+    [patientLabOrders],
+  );
+  const earlierLabOrders = patientLabOrders.filter((o) => !visitOrderIds.has(o.id));
+  const recentLabReports = [...earlierLabOrders]
     .sort((a, b) => {
       const pending = (o: PatientLabOrderRow) => (isOutstanding(o) ? 0 : 1);
       return pending(a) - pending(b) || +new Date(b.updated_at) - +new Date(a.updated_at);
     })
-    .slice(0, 8);
+    .slice(0, 10);
 
-  const outstandingCount = patientLabOrders.filter(isOutstanding).length;
+  const outstandingCount = earlierLabOrders.filter(isOutstanding).length;
 
   const recentImagingStudies = imagingStudies.slice(0, 5);
 
@@ -277,6 +202,7 @@ export function InvestigationsTab({
     mutationFn: opdService.createLabOrder,
     onSuccess: (result) => {
       void queryClient.invalidateQueries({ queryKey: ["lab-orders", encounterId] });
+      void queryClient.invalidateQueries({ queryKey: ["patient-lab-orders", patientId] });
       toast.success("Lab order placed successfully", { title: "Investigation ordered" });
       emit("order.created", {
         encounter_id: result.encounter_id,
@@ -299,6 +225,7 @@ export function InvestigationsTab({
     mutationFn: (id: string) => opdService.cancelLabOrder(id),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["lab-orders", encounterId] });
+      void queryClient.invalidateQueries({ queryKey: ["patient-lab-orders", patientId] });
       toast.warning("Lab order has been cancelled", { title: "Order cancelled" });
     },
   });
@@ -472,73 +399,64 @@ export function InvestigationsTab({
 
       <Stack gap="sm">
         <Group justify="space-between" align="center">
-          <div>
-            <Text fw={600}>Reports & Imaging</Text>
+          <Stack gap={0}>
+            <Text fw={600}>Earlier and direct orders for this patient</Text>
             <Text size="xs" c="dimmed">
-              Doctor view for completed lab reports and X-ray/CT/MRI prior imaging.
+              Lab and imaging results from earlier visits and from orders placed directly at the lab
+              or radiology desk.
             </Text>
-          </div>
+          </Stack>
           <Badge tone="primary">Patient history</Badge>
         </Group>
 
-        <SimpleGrid cols={{ base: 1, lg: 2 }}>
-          <Card padding="xs" radius="md" withBorder>
-            <Stack gap="xs">
-              <Group justify="space-between">
-                <Text size="sm" fw={600}>
-                  Lab Reports
-                </Text>
+        <Card padding="xs" radius="md" withBorder>
+          <Stack gap="xs">
+            <Group justify="space-between">
+              <Text size="sm" fw={600}>
+                Lab results
+              </Text>
+              {canListLabOrders && !patientLabOrdersFailed && (
                 <Badge size="xs" tone={outstandingCount > 0 ? "warning" : "info"}>
                   {outstandingCount > 0
                     ? `${outstandingCount} awaiting`
                     : `${recentLabReports.length}`}
                 </Badge>
-              </Group>
-              {recentLabReports.length > 0 ? (
-                <Table striped highlightOnHover>
-                  <Table.Tbody>
-                    {recentLabReports.map((report) => (
-                      <Table.Tr key={report.id}>
-                        <Table.Td>
-                          <Text size="sm" fw={500}>
-                            {report.test_name ?? "Lab test"}
-                          </Text>
-                          <Text size="xs" c="dimmed">
-                            {orderProgress(report)}
-                          </Text>
-                        </Table.Td>
-                        <Table.Td>
-                          <Badge size="xs" tone={LAB_STATUS_COLORS[report.status] ?? "neutral"}>
-                            {report.status.replace(/_/g, " ")}
-                          </Badge>
-                        </Table.Td>
-                        <Table.Td>
-                          {(report.result_count ?? 0) > 0 ? (
-                            <Button
-                              tone="secondary"
-                              size="xs"
-                              leftSection={<IconEye size={14} />}
-                              onClick={() => setSelectedLabReportId(report.id)}
-                            >
-                              View
-                            </Button>
-                          ) : (
-                            // Nothing to open yet. A View button that shows an
-                            // empty report teaches the clinician not to press it.
-                            <Text size="xs" c="dimmed">
-                              Awaiting result
-                            </Text>
-                          )}
-                        </Table.Td>
-                      </Table.Tr>
-                    ))}
-                  </Table.Tbody>
-                </Table>
-              ) : (
-                <Text size="sm" c="dimmed">
-                  Nothing ordered for this patient yet.
-                </Text>
               )}
+            </Group>
+            {!canListLabOrders ? (
+              <Text size="sm" c="dimmed">
+                You do not have permission to see this patient's lab orders. This is not the same as
+                having none.
+              </Text>
+            ) : patientLabOrdersFailed ? (
+              <Alert tone="danger" title="Lab orders could not be loaded">
+                This does not mean the patient has none. Try again in a moment.
+              </Alert>
+            ) : recentLabReports.length > 0 ? (
+              <>
+                <LabOrderHistoryTable orders={recentLabReports} />
+                {earlierLabOrders.length > recentLabReports.length && (
+                  <Text size="xs" c="dimmed">
+                    Showing {recentLabReports.length} of {earlierLabOrders.length}. Every order is
+                    on the patient's Lab Orders tab.
+                  </Text>
+                )}
+              </>
+            ) : (
+              <Text size="sm" c="dimmed">
+                No other lab orders for this patient.
+              </Text>
+            )}
+          </Stack>
+        </Card>
+
+        <SimpleGrid cols={{ base: 1, lg: 2 }}>
+          <Card padding="xs" radius="md" withBorder>
+            <Stack gap="xs">
+              <Text size="sm" fw={600}>
+                Radiology reports
+              </Text>
+              <RadiologyReportList patientId={patientId} />
             </Stack>
           </Card>
 
@@ -621,6 +539,7 @@ export function InvestigationsTab({
         </SimpleGrid>
       </Stack>
 
+      {orders.length > 0 && <Text fw={600}>Ordered in this visit</Text>}
       {orders.length > 0 && (
         <Table striped highlightOnHover>
           <Table.Thead>
@@ -629,62 +548,79 @@ export function InvestigationsTab({
               <Table.Th>Priority</Table.Th>
               <Table.Th>Status</Table.Th>
               <Table.Th>Ordered</Table.Th>
+              <Table.Th>Results</Table.Th>
               <Table.Th w={40} />
             </Table.Tr>
           </Table.Thead>
           <Table.Tbody>
             {orders.map((order: LabOrder) => (
-              <Table.Tr key={order.id}>
-                <Table.Td>
-                  <Text size="sm" fw={500}>
-                    {getTestName(order.test_id)}
-                  </Text>
-                  {order.notes && (
-                    <Text size="xs" c="dimmed">
-                      {order.notes}
+              <Fragment key={order.id}>
+                <Table.Tr>
+                  <Table.Td>
+                    <Text size="sm" fw={500}>
+                      {getTestName(order.test_id)}
                     </Text>
-                  )}
-                </Table.Td>
-                <Table.Td>
-                  <Badge size="xs" tone={priorityBadgeTone(statusColor(order.priority))}>
-                    {order.priority.toUpperCase()}
-                  </Badge>
-                </Table.Td>
-                <Table.Td>
-                  <Badge size="xs" tone={LAB_STATUS_COLORS[order.status] ?? "neutral"}>
-                    {order.status.replace(/_/g, " ")}
-                  </Badge>
-                </Table.Td>
-                <Table.Td>
-                  <Text size="xs" c="dimmed">
-                    {new Date(order.created_at).toLocaleString()}
-                  </Text>
-                </Table.Td>
-                <Table.Td>
-                  {canUpdate &&
-                    (order.status === "ordered" || order.status === "sample_collected") && (
-                      <Tooltip label="Cancel order">
-                        <IconButton
-                          tone="danger"
-                          size="xs"
-                          onClick={() =>
-                            confirmDestructive({
-                              title: "Cancel order",
-                              message: "Cancel this order? This cannot be undone.",
-                              confirmLabel: "Cancel order",
-                              cancelLabel: "Keep",
-                              onConfirm: () => cancelMutation.mutate(order.id),
-                            })
-                          }
-                          loading={cancelMutation.isPending}
-                          aria-label="Cancel order"
-                        >
-                          <IconX size={12} />
-                        </IconButton>
-                      </Tooltip>
+                    {order.notes && (
+                      <Text size="xs" c="dimmed">
+                        {order.notes}
+                      </Text>
                     )}
-                </Table.Td>
-              </Table.Tr>
+                  </Table.Td>
+                  <Table.Td>
+                    <Badge size="xs" tone={priorityBadgeTone(statusColor(order.priority))}>
+                      {order.priority.toUpperCase()}
+                    </Badge>
+                  </Table.Td>
+                  <Table.Td>
+                    <Badge size="xs" tone={LAB_STATUS_COLORS[order.status] ?? "neutral"}>
+                      {order.status.replace(/_/g, " ")}
+                    </Badge>
+                  </Table.Td>
+                  <Table.Td>
+                    <Text size="xs" c="dimmed">
+                      {new Date(order.created_at).toLocaleString()}
+                    </Text>
+                  </Table.Td>
+                  <Table.Td>
+                    <ResultsToggle
+                      count={resultCountById.get(order.id) ?? 0}
+                      isOpen={openVisitOrders.has(order.id)}
+                      onToggle={() => toggleVisitOrder(order.id)}
+                    />
+                  </Table.Td>
+                  <Table.Td>
+                    {canUpdate &&
+                      (order.status === "ordered" || order.status === "sample_collected") && (
+                        <Tooltip label="Cancel order">
+                          <IconButton
+                            tone="danger"
+                            size="xs"
+                            onClick={() =>
+                              confirmDestructive({
+                                title: "Cancel order",
+                                message: "Cancel this order? This cannot be undone.",
+                                confirmLabel: "Cancel order",
+                                cancelLabel: "Keep",
+                                onConfirm: () => cancelMutation.mutate(order.id),
+                              })
+                            }
+                            loading={cancelMutation.isPending}
+                            aria-label="Cancel order"
+                          >
+                            <IconX size={12} />
+                          </IconButton>
+                        </Tooltip>
+                      )}
+                  </Table.Td>
+                </Table.Tr>
+                {openVisitOrders.has(order.id) && (
+                  <Table.Tr>
+                    <Table.Td colSpan={6}>
+                      <LabOrderResults orderId={order.id} />
+                    </Table.Td>
+                  </Table.Tr>
+                )}
+              </Fragment>
             ))}
           </Table.Tbody>
         </Table>
@@ -695,83 +631,6 @@ export function InvestigationsTab({
           No investigations ordered yet.
         </Text>
       )}
-
-      <Modal
-        opened={selectedLabReportId !== null}
-        onClose={() => setSelectedLabReportId(null)}
-        title="Lab Report"
-        size="lg"
-      >
-        {selectedLabReportLoading ? (
-          <Loader size="sm" />
-        ) : selectedLabReport?.results.length ? (
-          <Table striped highlightOnHover>
-            <Table.Thead>
-              <Table.Tr>
-                <Table.Th>Parameter</Table.Th>
-                <Table.Th>Result</Table.Th>
-                <Table.Th>Range</Table.Th>
-                <Table.Th>Since last</Table.Th>
-                <Table.Th>Flag</Table.Th>
-              </Table.Tr>
-            </Table.Thead>
-            <Table.Tbody>
-              {selectedLabReport.results.map((result: LabResult) => (
-                <Table.Tr key={result.id}>
-                  <Table.Td>
-                    <Text size="sm" fw={500}>
-                      {result.parameter_name}
-                    </Text>
-                    {result.notes && (
-                      <Text size="xs" c="dimmed">
-                        {result.notes}
-                      </Text>
-                    )}
-                  </Table.Td>
-                  <Table.Td>
-                    <Text size="sm">
-                      {result.value}
-                      {result.unit ? ` ${result.unit}` : ""}
-                    </Text>
-                  </Table.Td>
-                  <Table.Td>
-                    <Text size="sm" c="dimmed">
-                      {result.normal_range ?? "—"}
-                    </Text>
-                  </Table.Td>
-                  <Table.Td>
-                    {/* The delta. A value inside its reference range that has
-                        moved sharply since last time is the finding a range
-                        cannot show — a creatinine going 0.7 → 1.2 is still
-                        "normal" and is still a kidney changing. The lab
-                        already computes and stores this; nothing rendered it. */}
-                    <DeltaCell result={result} />
-                  </Table.Td>
-                  <Table.Td>
-                    {result.flag ? (
-                      <Badge size="xs" tone={LAB_RESULT_FLAG_COLORS[result.flag] ?? "neutral"}>
-                        {result.flag.replace(/_/g, " ")}
-                      </Badge>
-                    ) : (
-                      <Text size="sm" c="dimmed">
-                        —
-                      </Text>
-                    )}
-                  </Table.Td>
-                </Table.Tr>
-              ))}
-            </Table.Tbody>
-          </Table>
-        ) : canViewLabReport ? (
-          <Text size="sm" c="dimmed">
-            No structured result values are available for this report.
-          </Text>
-        ) : (
-          <Text size="sm" c="dimmed">
-            You do not have permission to view lab report values.
-          </Text>
-        )}
-      </Modal>
     </Stack>
   );
 }
