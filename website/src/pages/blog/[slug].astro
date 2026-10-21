@@ -23,6 +23,8 @@ import {
   relatedPosts,
   tagSlug,
   type Post,
+  istDate,
+  wordCount,
 } from "../../lib/blog";
 
 export async function getStaticPaths() {
@@ -50,6 +52,15 @@ const share = shareSrc ? await getImage({ src: shareSrc, width: 1200, height: 63
 const image = share
   ? { url: absolute(share.src, Astro.site), width: 1200, height: 630, alt: cover?.alt ?? title }
   : undefined;
+// Google's article images: 16:9, 4:3 and 1:1, each at least 1200px wide.
+const crops = shareSrc
+  ? await Promise.all(
+      [[1200, 675], [1200, 900], [1200, 1200]].map(async ([w, h]) => {
+        const img = await getImage({ src: shareSrc, width: w, height: h, fit: "cover", format: "jpg" });
+        return { "@type": "ImageObject", url: absolute(img.src, Astro.site), width: w, height: h };
+      }),
+    )
+  : [];
 
 const authorNode = {
   "@type": author.data.type,
@@ -69,9 +80,12 @@ const page = {
   headline: title.slice(0, 110),
   description,
   url,
-  image: image?.url ?? absolute("/og.png", Astro.site),
-  datePublished: date.toISOString(),
-  dateModified: modified.toISOString(),
+  image: crops.length ? crops : absolute("/og.png", Astro.site),
+  ...(crops.length ? { thumbnailUrl: crops[0].url } : {}),
+  datePublished: istDate(date),
+  dateModified: istDate(modified),
+  wordCount: wordCount(post),
+  isAccessibleForFree: true,
   author: authorNode,
   publisher: organization(Astro.site),
   mainEntityOfPage: { "@type": "WebPage", "@id": url },
@@ -82,7 +96,7 @@ const page = {
   ...(medical
     ? {
         about: tags.map((t) => ({ "@type": "Thing", name: t })),
-        ...(reviewerNode ? { reviewedBy: reviewerNode, lastReviewed: modified.toISOString().slice(0, 10) } : {}),
+        ...(reviewerNode ? { reviewedBy: reviewerNode, lastReviewed: istDate(modified).slice(0, 10) } : {}),
       }
     : {}),
 };
@@ -109,7 +123,7 @@ const schema = [
   description={description}
   schema={schema}
   image={image}
-  article={{ published: date, modified, section: topic.name, tags }}
+  article={{ published: date, modified, section: topic.name, tags, author: { name: author.data.name, url: authorUrl } }}
 >
   <article>
     <header class="head" style={`--tint:${topic.tint}`}>

@@ -3,7 +3,7 @@ title: "Heat stroke: the signs to know and what to do in the first minutes"
 description: "Heat exhaustion can turn into heat stroke quickly. Learn the warning signs and simple first aid that can save a life while you get to a hospital."
 date: 2026-10-10
 category: patient-education
-tags: ["Public health", "First aid"]
+tags: ["Public health", "First aid", "Heatwave", "Summer health"]
 sources:
   - title: "NDMA — Heat wave"
     url: "https://ndma.gov.in/Natural-Hazards/Heat-Wave"
