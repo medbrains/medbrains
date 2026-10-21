@@ -7,7 +7,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Stipend processing with attendance-based calculation
 > As a **specialist**, I want **stipend processing with attendance-based calculation**.
 
-`Pending · Platforms: Web, Mobile · Source: RFC+ACMSRC · RFC: CL-21 H`
+`Pending · Platforms: Web, Mobile · Source: RFC+NABH checklist · RFC: CL-21 H`
 
 **Acceptance criteria**
 - [ ] The specialist can stipend processing with attendance-based calculation from the relevant screen, with clear loading / empty / error states.
@@ -22,7 +22,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Service bond tracking (amount, period, completion, forfeiture)
 > As a **specialist**, I want **service bond tracking (amount, period, completion, forfeiture)**.
 
-`Pending · Platforms: Web, Mobile · Source: RFC+ACMSRC · RFC: CL-21 H`
+`Pending · Platforms: Web, Mobile · Source: RFC+NABH checklist · RFC: CL-21 H`
 
 **Acceptance criteria**
 - [ ] The specialist can service bond tracking (amount, period, completion, forfeiture) from the relevant screen, with clear loading / empty / error states.
@@ -37,7 +37,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Scholarship/fee waiver management with utilization certificates
 > As a **specialist**, I want **scholarship/fee waiver management with utilization certificates**.
 
-`Pending · Platforms: Web, Mobile · Source: RFC+ACMSRC · RFC: CL-21 H`
+`Pending · Platforms: Web, Mobile · Source: RFC+NABH checklist · RFC: CL-21 H`
 
 **Acceptance criteria**
 - [ ] The specialist can scholarship/fee waiver management with utilization certificates from the relevant screen, with clear loading / empty / error states.
@@ -52,7 +52,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### NMC NARF self-assessment with evidence auto-compilation
 > As a **specialist**, I want **nmc narf self-assessment with evidence auto-compilation**.
 
-`Pending · Platforms: Web, Mobile · Source: RFC+ACMSRC · RFC: CL-21 H`
+`Pending · Platforms: Web, Mobile · Source: RFC+NABH checklist · RFC: CL-21 H`
 
 **Acceptance criteria**
 - [ ] The specialist can nMC NARF self-assessment with evidence auto-compilation from the relevant screen, with clear loading / empty / error states.
@@ -67,7 +67,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### NAAC SSR data aggregation
 > As a **specialist**, I want **naac ssr data aggregation**.
 
-`Pending · Platforms: Web, Mobile · Source: RFC+ACMSRC · RFC: CL-21 H`
+`Pending · Platforms: Web, Mobile · Source: RFC+NABH checklist · RFC: CL-21 H`
 
 **Acceptance criteria**
 - [ ] The specialist can nAAC SSR data aggregation from the relevant screen, with clear loading / empty / error states.
@@ -82,7 +82,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Inspection readiness dashboard with Red/Yellow/Green indicators
 > As a **specialist**, I want **inspection readiness dashboard with red/yellow/green indicators**.
 
-`Pending · Platforms: Web, Mobile · Source: RFC+ACMSRC · RFC: CL-21 H`
+`Pending · Platforms: Web, Mobile · Source: RFC+NABH checklist · RFC: CL-21 H`
 
 **Acceptance criteria**
 - [ ] The specialist can inspection readiness dashboard with Red/Yellow/Green indicators from the relevant screen, with clear loading / empty / error states.
@@ -97,7 +97,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Faculty-student ratio reporting
 > As a **specialist**, I want **faculty-student ratio reporting**.
 
-`Pending · Platforms: Web, Mobile · Source: RFC+ACMSRC · RFC: CL-21 H`
+`Pending · Platforms: Web, Mobile · Source: RFC+NABH checklist · RFC: CL-21 H`
 
 **Acceptance criteria**
 - [ ] The specialist can faculty-student ratio reporting from the relevant screen, with clear loading / empty / error states.
@@ -112,7 +112,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Research/thesis tracking
 > As a **specialist**, I want **research/thesis tracking**.
 
-`Pending · Platforms: Web, Mobile · Source: RFC+ACMSRC · RFC: CL-21 H`
+`Pending · Platforms: Web, Mobile · Source: RFC+NABH checklist · RFC: CL-21 H`
 
 **Acceptance criteria**
 - [ ] The specialist can research/thesis tracking from the relevant screen, with clear loading / empty / error states.
@@ -127,7 +127,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### NMC inspection report generation (one-click)
 > As a **specialist**, I want **nmc inspection report generation (one-click)**.
 
-`Pending · Platforms: Web, Mobile · Source: RFC+ACMSRC · RFC: CL-21 H`
+`Pending · Platforms: Web, Mobile · Source: RFC+NABH checklist · RFC: CL-21 H`
 
 **Acceptance criteria**
 - [ ] The specialist can nMC inspection report generation (one-click) from the relevant screen, with clear loading / empty / error states.
@@ -142,7 +142,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Patient consent for teaching
 > As a **specialist**, I want **patient consent for teaching**.
 
-`Pending · Platforms: Web, Mobile · Source: RFC+ACMSRC · RFC: CL-21 H`
+`Pending · Platforms: Web, Mobile · Source: RFC+NABH checklist · RFC: CL-21 H`
 
 **Acceptance criteria**
 - [ ] The specialist can patient consent for teaching from the relevant screen, with clear loading / empty / error states.
@@ -157,7 +157,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Anonymized patient data for students (ABAC-filtered)
 > As a **specialist**, I want **anonymized patient data for students (abac-filtered)**.
 
-`Pending · Platforms: Web, Mobile · Source: RFC+ACMSRC · RFC: CL-21 H`
+`Pending · Platforms: Web, Mobile · Source: RFC+NABH checklist · RFC: CL-21 H`
 
 **Acceptance criteria**
 - [ ] The specialist can anonymized patient data for students (ABAC-filtered) from the relevant screen, with clear loading / empty / error states.
@@ -339,7 +339,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### CME event management with certificate generation (QR verified)
 > As a **specialist**, I want **cme event management with certificate generation (qr verified)**.
 
-`Pending · Platforms: Web · Source: ACMSRC · RFC: CL-21 F`
+`Pending · Platforms: Web · Source: NABH checklist · RFC: CL-21 F`
 
 **Acceptance criteria**
 - [ ] The specialist can cME event management with certificate generation (QR verified) from the relevant screen, with clear loading / empty / error states.
@@ -353,7 +353,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### CME credit hours tracking per doctor (State Medical Council compliance)
 > As a **specialist**, I want **cme credit hours tracking per doctor (state medical council compliance)**.
 
-`Pending · Platforms: Web, Mobile · Source: ACMSRC · RFC: CL-21 F`
+`Pending · Platforms: Web, Mobile · Source: NABH checklist · RFC: CL-21 F`
 
 **Acceptance criteria**
 - [ ] The specialist can cME credit hours tracking per doctor (State Medical Council compliance) from the relevant screen, with clear loading / empty / error states.
@@ -368,7 +368,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### FDP tracking (BCME/ACMET completion with renewal alerts)
 > As a **specialist**, I want **fdp tracking (bcme/acmet completion with renewal alerts)**.
 
-`Pending · Platforms: Web · Source: ACMSRC · RFC: CL-21 F`
+`Pending · Platforms: Web · Source: NABH checklist · RFC: CL-21 F`
 
 **Acceptance criteria**
 - [ ] The specialist can fDP tracking (BCME/ACMET completion with renewal alerts) from the relevant screen, with clear loading / empty / error states.
@@ -382,7 +382,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Faculty teaching hours per week tracking (NMC minimum)
 > As a **specialist**, I want **faculty teaching hours per week tracking (nmc minimum)**.
 
-`Pending · Platforms: Web, Mobile · Source: ACMSRC · RFC: CL-21 F`
+`Pending · Platforms: Web, Mobile · Source: NABH checklist · RFC: CL-21 F`
 
 **Acceptance criteria**
 - [ ] The specialist can faculty teaching hours per week tracking (NMC minimum) from the relevant screen, with clear loading / empty / error states.
@@ -397,7 +397,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Conference abstract submission and review workflow
 > As a **specialist**, I want **conference abstract submission and review workflow**.
 
-`Pending · Platforms: Web, Mobile · Source: ACMSRC · RFC: CL-21 F`
+`Pending · Platforms: Web, Mobile · Source: NABH checklist · RFC: CL-21 F`
 
 **Acceptance criteria**
 - [ ] The specialist can conference abstract submission and review workflow from the relevant screen, with clear loading / empty / error states.
@@ -414,7 +414,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ STEMI pathway with door-to-balloon time tracking (target <90 min)
 > As a **specialist**, I want **stemi pathway with door-to-balloon time tracking (target <90 min)**.
 
-`Done · Platforms: Web, Mobile · Source: ACMSRC · RFC: CL-25 A`
+`Done · Platforms: Web, Mobile · Source: NABH checklist · RFC: CL-25 A`
 
 **Acceptance criteria**
 - [x] The specialist can sTEMI pathway with door-to-balloon time tracking (target <90 min) from the relevant screen, with clear loading / empty / error states.
@@ -429,7 +429,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ Hemodynamic recording (pressures, saturations, gradients)
 > As a **specialist**, I want **hemodynamic recording (pressures, saturations, gradients)**.
 
-`Done · Platforms: Web, Mobile · Source: ACMSRC · RFC: CL-25 A`
+`Done · Platforms: Web, Mobile · Source: NABH checklist · RFC: CL-25 A`
 
 **Acceptance criteria**
 - [x] The specialist can hemodynamic recording (pressures, saturations, gradients) from the relevant screen, with clear loading / empty / error states.
@@ -444,7 +444,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Stent/device barcode tracking (every device scanned)
 > As a **specialist**, I want **stent/device barcode tracking (every device scanned)**.
 
-`Partial · Platforms: Web, Mobile · Source: ACMSRC · RFC: CL-25 A`
+`Partial · Platforms: Web, Mobile · Source: NABH checklist · RFC: CL-25 A`
 
 **Acceptance criteria**
 - [ ] The specialist can stent/device barcode tracking (every device scanned) from the relevant screen, with clear loading / empty / error states.
@@ -459,7 +459,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ Contrast volume tracking (cumulative nephrotoxicity risk)
 > As a **specialist**, I want **contrast volume tracking (cumulative nephrotoxicity risk)**.
 
-`Done · Platforms: Web, Mobile · Source: ACMSRC · RFC: CL-25 A`
+`Done · Platforms: Web, Mobile · Source: NABH checklist · RFC: CL-25 A`
 
 **Acceptance criteria**
 - [x] The specialist can contrast volume tracking (cumulative nephrotoxicity risk) from the relevant screen, with clear loading / empty / error states.
@@ -474,7 +474,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ Radiation dose tracking (fluoroscopy time, DAP, air kerma — AERB)
 > As a **specialist**, I want **radiation dose tracking (fluoroscopy time, dap, air kerma — aerb)**.
 
-`Done · Platforms: Web, Mobile · Source: ACMSRC · RFC: CL-25 A`
+`Done · Platforms: Web, Mobile · Source: NABH checklist · RFC: CL-25 A`
 
 **Acceptance criteria**
 - [x] The specialist can radiation dose tracking (fluoroscopy time, DAP, air kerma — AERB) from the relevant screen, with clear loading / empty / error states.
@@ -489,7 +489,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ Consignment stock management (vendor-owned, billed on use)
 > As a **specialist**, I want **consignment stock management (vendor-owned, billed on use)**.
 
-`Done · Platforms: Web, Mobile · Source: ACMSRC · RFC: CL-25 A`
+`Done · Platforms: Web, Mobile · Source: NABH checklist · RFC: CL-25 A`
 
 **Acceptance criteria**
 - [x] The specialist can consignment stock management (vendor-owned, billed on use) from the relevant screen, with clear loading / empty / error states.
@@ -504,7 +504,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ Post-procedure monitoring (sheath removal, hemostasis, ambulation)
 > As a **specialist**, I want **post-procedure monitoring (sheath removal, hemostasis, ambulation)**.
 
-`Done · Platforms: Web, Mobile · Source: ACMSRC · RFC: CL-25 A`
+`Done · Platforms: Web, Mobile · Source: NABH checklist · RFC: CL-25 A`
 
 **Acceptance criteria**
 - [x] The specialist can post-procedure monitoring (sheath removal, hemostasis, ambulation) from the relevant screen, with clear loading / empty / error states.
@@ -519,7 +519,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ECG viewer, Echo data integration, stress test templates
 > As a **specialist**, I want **ecg viewer, echo data integration, stress test templates**.
 
-`Partial · Platforms: Web, Mobile · Source: ACMSRC · RFC: CL-25 A`
+`Partial · Platforms: Web, Mobile · Source: NABH checklist · RFC: CL-25 A`
 
 **Acceptance criteria**
 - [ ] The specialist can eCG viewer, Echo data integration, stress test templates from the relevant screen, with clear loading / empty / error states.
@@ -596,7 +596,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ Critical value alert (lab → doctor) with acknowledgment tracking
 > As a **specialist**, I want **critical value alert (lab → doctor) with acknowledgment tracking**.
 
-`Done · Platforms: Web, Mobile · Source: RFC+ACMSRC · RFC: CL-26 B`
+`Done · Platforms: Web, Mobile · Source: RFC+NABH checklist · RFC: CL-26 B`
 
 **Acceptance criteria**
 - [x] The specialist can critical value alert (lab → doctor) with acknowledgment tracking from the relevant screen, with clear loading / empty / error states.
@@ -611,7 +611,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Secure clinical messaging (in-app, NOT WhatsApp for clinical data)
 > As a **specialist**, I want **secure clinical messaging (in-app, not whatsapp for clinical data)**.
 
-`Partial · Platforms: Web, Mobile · Source: RFC+ACMSRC · RFC: CL-26 B`
+`Partial · Platforms: Web, Mobile · Source: RFC+NABH checklist · RFC: CL-26 B`
 
 **Acceptance criteria**
 - [ ] The specialist can secure clinical messaging (in-app, NOT WhatsApp for clinical data) from the relevant screen, with clear loading / empty / error states.
@@ -626,7 +626,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ SBAR handover communication between shifts
 > As a **specialist**, I want **sbar handover communication between shifts**.
 
-`Done · Platforms: Web, Mobile · Source: RFC+ACMSRC · RFC: CL-26 B`
+`Done · Platforms: Web, Mobile · Source: RFC+NABH checklist · RFC: CL-26 B`
 
 **Acceptance criteria**
 - [x] The specialist can sBAR handover communication between shifts from the relevant screen, with clear loading / empty / error states.
@@ -641,7 +641,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ Referral communication with bi-directional messaging
 > As a **specialist**, I want **referral communication with bi-directional messaging**.
 
-`Done · Platforms: Web · Source: RFC+ACMSRC · RFC: CL-26 B`
+`Done · Platforms: Web · Source: RFC+NABH checklist · RFC: CL-26 B`
 
 **Acceptance criteria**
 - [x] The specialist can referral communication with bi-directional messaging from the relevant screen, with clear loading / empty / error states.
@@ -655,7 +655,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ Discharge communication to referring doctor/GP
 > As a **specialist**, I want **discharge communication to referring doctor/gp**.
 
-`Done · Platforms: Web, Mobile · Source: RFC+ACMSRC · RFC: CL-26 B`
+`Done · Platforms: Web, Mobile · Source: RFC+NABH checklist · RFC: CL-26 B`
 
 **Acceptance criteria**
 - [x] The specialist can discharge communication to referring doctor/GP from the relevant screen, with clear loading / empty / error states.
@@ -670,7 +670,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ Masked communication (Uber model — staff-to-staff)
 > As a **specialist**, I want **masked communication (uber model — staff-to-staff)**.
 
-`Done · Platforms: Web · Source: RFC+ACMSRC · RFC: CL-26 B`
+`Done · Platforms: Web · Source: RFC+NABH checklist · RFC: CL-26 B`
 
 **Acceptance criteria**
 - [x] The specialist can masked communication (Uber model — staff-to-staff) from the relevant screen, with clear loading / empty / error states.
@@ -684,7 +684,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ Intercom code system
 > As a **specialist**, I want **intercom code system**.
 
-`Done · Platforms: Web · Source: RFC+ACMSRC · RFC: CL-26 B`
+`Done · Platforms: Web · Source: RFC+NABH checklist · RFC: CL-26 B`
 
 **Acceptance criteria**
 - [x] The specialist can intercom code system from the relevant screen, with clear loading / empty / error states.
@@ -698,7 +698,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ Critical result escalation chain
 > As a **specialist**, I want **critical result escalation chain**.
 
-`Done · Platforms: Web · Source: RFC+ACMSRC · RFC: CL-26 B`
+`Done · Platforms: Web · Source: RFC+NABH checklist · RFC: CL-26 B`
 
 **Acceptance criteria**
 - [x] The specialist can critical result escalation chain from the relevant screen, with clear loading / empty / error states.
@@ -712,7 +712,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ Auto-escalation (doctor not responding → HOD → MS)
 > As a **specialist**, I want **auto-escalation (doctor not responding → hod → ms)**.
 
-`Done · Platforms: Web, Mobile · Source: RFC+ACMSRC · RFC: CL-26 B`
+`Done · Platforms: Web, Mobile · Source: RFC+NABH checklist · RFC: CL-26 B`
 
 **Acceptance criteria**
 - [x] The specialist can auto-escalation (doctor not responding → HOD → MS) from the relevant screen, with clear loading / empty / error states.
@@ -729,7 +729,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ Resuscitation bay allocation with real-time timer
 > As a **specialist**, I want **resuscitation bay allocation with real-time timer**.
 
-`Done · Platforms: Web · Source: ACMSRC · RFC: CL-2 B`
+`Done · Platforms: Web · Source: NABH checklist · RFC: CL-2 B`
 
 **Acceptance criteria**
 - [x] The specialist can resuscitation bay allocation with real-time timer from the relevant screen, with clear loading / empty / error states.
@@ -743,7 +743,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ Real-time medication and fluid documentation during resuscitation
 > As a **specialist**, I want **real-time medication and fluid documentation during resuscitation**.
 
-`Done · Platforms: Web · Source: ACMSRC · RFC: CL-2 B`
+`Done · Platforms: Web · Source: NABH checklist · RFC: CL-2 B`
 
 **Acceptance criteria**
 - [x] The specialist can real-time medication and fluid documentation during resuscitation from the relevant screen, with clear loading / empty / error states.
@@ -757,7 +757,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Code Blue activation and response team auto-assembly
 > As a **specialist**, I want **code blue activation and response team auto-assembly**.
 
-`Partial · Platforms: Web, TV · Source: ACMSRC · RFC: CL-2 B`
+`Partial · Platforms: Web, TV · Source: NABH checklist · RFC: CL-2 B`
 
 **Acceptance criteria**
 - [ ] The specialist can code Blue activation and response team auto-assembly from the relevant screen, with clear loading / empty / error states.
@@ -772,7 +772,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ Crash cart medication/equipment checklist integration
 > As a **specialist**, I want **crash cart medication/equipment checklist integration**.
 
-`Done · Platforms: Web, Mobile · Source: ACMSRC · RFC: CL-2 B`
+`Done · Platforms: Web, Mobile · Source: NABH checklist · RFC: CL-2 B`
 
 **Acceptance criteria**
 - [x] The specialist can crash cart medication/equipment checklist integration from the relevant screen, with clear loading / empty / error states.
@@ -787,7 +787,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ Handover documentation (SBAR format) for shift change
 > As a **specialist**, I want **handover documentation (sbar format) for shift change**.
 
-`Done · Platforms: Web, Mobile · Source: ACMSRC · RFC: CL-2 B`
+`Done · Platforms: Web, Mobile · Source: NABH checklist · RFC: CL-2 B`
 
 **Acceptance criteria**
 - [x] The specialist can handover documentation (SBAR format) for shift change from the relevant screen, with clear loading / empty / error states.
@@ -802,7 +802,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ Seamless transition to IPD/OT/ICU admission from ER
 > As a **specialist**, I want **seamless transition to ipd/ot/icu admission from er**.
 
-`Done · Platforms: Web · Source: ACMSRC · RFC: CL-2 B`
+`Done · Platforms: Web · Source: NABH checklist · RFC: CL-2 B`
 
 **Acceptance criteria**
 - [x] The specialist can seamless transition to IPD/OT/ICU admission from ER from the relevant screen, with clear loading / empty / error states.
@@ -879,7 +879,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Aadhaar-based e-Sign (legally valid under IT Act)
 > As a **specialist**, I want **aadhaar-based e-sign (legally valid under it act)**.
 
-`Partial · Platforms: Web, Mobile · Source: ACMSRC · RFC: CL-24 B`
+`Partial · Platforms: Web, Mobile · Source: NABH checklist · RFC: CL-24 B`
 
 **Acceptance criteria**
 - [ ] The specialist can aadhaar-based e-Sign (legally valid under IT Act) from the relevant screen, with clear loading / empty / error states.
@@ -894,7 +894,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Biometric consent (thumbprint with witness)
 > As a **specialist**, I want **biometric consent (thumbprint with witness)**.
 
-`Partial · Platforms: Web · Source: ACMSRC · RFC: CL-24 B`
+`Partial · Platforms: Web · Source: NABH checklist · RFC: CL-24 B`
 
 **Acceptance criteria**
 - [ ] The specialist can biometric consent (thumbprint with witness) from the relevant screen, with clear loading / empty / error states.
@@ -908,7 +908,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Digital pen signature on tablet
 > As a **specialist**, I want **digital pen signature on tablet**.
 
-`Partial · Platforms: Web · Source: ACMSRC · RFC: CL-24 B`
+`Partial · Platforms: Web · Source: NABH checklist · RFC: CL-24 B`
 
 **Acceptance criteria**
 - [ ] The specialist can digital pen signature on tablet from the relevant screen, with clear loading / empty / error states.
@@ -922,7 +922,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Video consent recording for high-risk procedures
 > As a **specialist**, I want **video consent recording for high-risk procedures**.
 
-`Partial · Platforms: Web, Mobile · Source: ACMSRC · RFC: CL-24 B`
+`Partial · Platforms: Web, Mobile · Source: NABH checklist · RFC: CL-24 B`
 
 **Acceptance criteria**
 - [ ] The specialist can video consent recording for high-risk procedures from the relevant screen, with clear loading / empty / error states.
@@ -937,7 +937,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ Consent verification HARD-BLOCK before procedure (system-enforced)
 > As a **specialist**, I want **consent verification hard-block before procedure (system-enforced)**.
 
-`Done · Platforms: Web · Source: ACMSRC · RFC: CL-24 B`
+`Done · Platforms: Web · Source: NABH checklist · RFC: CL-24 B`
 
 **Acceptance criteria**
 - [x] The specialist can consent verification HARD-BLOCK before procedure (system-enforced) from the relevant screen, with clear loading / empty / error states.
@@ -951,7 +951,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ Consent revocation by patient at any time (instant system update)
 > As a **specialist**, I want **consent revocation by patient at any time (instant system update)**.
 
-`Done · Platforms: Web · Source: ACMSRC · RFC: CL-24 B`
+`Done · Platforms: Web · Source: NABH checklist · RFC: CL-24 B`
 
 **Acceptance criteria**
 - [x] The specialist can consent revocation by patient at any time (instant system update) from the relevant screen, with clear loading / empty / error states.
@@ -967,7 +967,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ Scope tracking by serial number with HLD reprocessing log per use
 > As a **specialist**, I want **scope tracking by serial number with hld reprocessing log per use**.
 
-`Done · Platforms: Web, Mobile · Source: ACMSRC · RFC: CL-25 B`
+`Done · Platforms: Web, Mobile · Source: NABH checklist · RFC: CL-25 B`
 
 **Acceptance criteria**
 - [x] The specialist can scope tracking by serial number with HLD reprocessing log per use from the relevant screen, with clear loading / empty / error states.
@@ -982,7 +982,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ Scope leak testing documentation before reprocessing
 > As a **specialist**, I want **scope leak testing documentation before reprocessing**.
 
-`Done · Platforms: Web, Mobile · Source: ACMSRC · RFC: CL-25 B`
+`Done · Platforms: Web, Mobile · Source: NABH checklist · RFC: CL-25 B`
 
 **Acceptance criteria**
 - [x] The specialist can scope leak testing documentation before reprocessing from the relevant screen, with clear loading / empty / error states.
@@ -997,7 +997,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ HLD parameters tracking (chemical, concentration, soak time, temperature)
 > As a **specialist**, I want **hld parameters tracking (chemical, concentration, soak time, temperature)**.
 
-`Done · Platforms: Web, Mobile · Source: ACMSRC · RFC: CL-25 B`
+`Done · Platforms: Web, Mobile · Source: NABH checklist · RFC: CL-25 B`
 
 **Acceptance criteria**
 - [x] The specialist can hLD parameters tracking (chemical, concentration, soak time, temperature) from the relevant screen, with clear loading / empty / error states.
@@ -1012,7 +1012,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ Scope culture surveillance result tracking
 > As a **specialist**, I want **scope culture surveillance result tracking**.
 
-`Done · Platforms: Web, Mobile · Source: ACMSRC · RFC: CL-25 B`
+`Done · Platforms: Web, Mobile · Source: NABH checklist · RFC: CL-25 B`
 
 **Acceptance criteria**
 - [x] The specialist can scope culture surveillance result tracking from the relevant screen, with clear loading / empty / error states.
@@ -1027,7 +1027,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ Sedation documentation (pre-assessment, drugs, monitoring, Aldrete recovery)
 > As a **specialist**, I want **sedation documentation (pre-assessment, drugs, monitoring, aldrete recovery)**.
 
-`Done · Platforms: Web, Mobile · Source: ACMSRC · RFC: CL-25 B`
+`Done · Platforms: Web, Mobile · Source: NABH checklist · RFC: CL-25 B`
 
 **Acceptance criteria**
 - [x] The specialist can sedation documentation (pre-assessment, drugs, monitoring, Aldrete recovery) from the relevant screen, with clear loading / empty / error states.
@@ -1042,7 +1042,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ Biopsy specimen tracking with chain-of-custody to pathology
 > As a **specialist**, I want **biopsy specimen tracking with chain-of-custody to pathology**.
 
-`Done · Platforms: Web, Mobile · Source: ACMSRC · RFC: CL-25 B`
+`Done · Platforms: Web, Mobile · Source: NABH checklist · RFC: CL-25 B`
 
 **Acceptance criteria**
 - [x] The specialist can biopsy specimen tracking with chain-of-custody to pathology from the relevant screen, with clear loading / empty / error states.
@@ -1151,7 +1151,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ Bedside/kiosk feedback (emoji-based, NABH domains)
 > As a **specialist**, I want **bedside/kiosk feedback (emoji-based, nabh domains)**.
 
-`Done · Platforms: Web, Mobile · Source: RFC+ACMSRC · RFC: CL-26 C`
+`Done · Platforms: Web, Mobile · Source: RFC+NABH checklist · RFC: CL-26 C`
 
 **Acceptance criteria**
 - [x] The specialist can bedside/kiosk feedback (emoji-based, NABH domains) from the relevant screen, with clear loading / empty / error states.
@@ -1166,7 +1166,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Post-discharge feedback via SMS/WhatsApp (24 hrs after discharge)
 > As a **specialist**, I want **post-discharge feedback via sms/whatsapp (24 hrs after discharge)**.
 
-`Partial · Platforms: Web, Mobile · Source: RFC+ACMSRC · RFC: CL-26 C`
+`Partial · Platforms: Web, Mobile · Source: RFC+NABH checklist · RFC: CL-26 C`
 
 **Acceptance criteria**
 - [ ] The specialist can post-discharge feedback via SMS/WhatsApp (24 hrs after discharge) from the relevant screen, with clear loading / empty / error states.
@@ -1181,7 +1181,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ NPS (Net Promoter Score) calculation
 > As a **specialist**, I want **nps (net promoter score) calculation**.
 
-`Done · Platforms: Web · Source: RFC+ACMSRC · RFC: CL-26 C`
+`Done · Platforms: Web · Source: RFC+NABH checklist · RFC: CL-26 C`
 
 **Acceptance criteria**
 - [x] The specialist can nPS (Net Promoter Score) calculation from the relevant screen, with clear loading / empty / error states.
@@ -1195,7 +1195,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Multi-channel complaint intake (kiosk, portal, WhatsApp, email, phone)
 > As a **specialist**, I want **multi-channel complaint intake (kiosk, portal, whatsapp, email, phone)**.
 
-`Partial · Platforms: Web, Mobile · Source: RFC+ACMSRC · RFC: CL-26 C`
+`Partial · Platforms: Web, Mobile · Source: RFC+NABH checklist · RFC: CL-26 C`
 
 **Acceptance criteria**
 - [ ] The specialist can multi-channel complaint intake (kiosk, portal, WhatsApp, email, phone) from the relevant screen, with clear loading / empty / error states.
@@ -1210,7 +1210,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ SLA-based escalation (24hr dept → 48hr Quality → 72hr MS → 7d Grievance Committee)
 > As a **specialist**, I want **sla-based escalation (24hr dept → 48hr quality → 72hr ms → 7d grievance committee)**.
 
-`Done · Platforms: Web · Source: RFC+ACMSRC · RFC: CL-26 C`
+`Done · Platforms: Web · Source: RFC+NABH checklist · RFC: CL-26 C`
 
 **Acceptance criteria**
 - [x] The specialist can sLA-based escalation (24hr dept → 48hr Quality → 72hr MS → 7d Grievance Committee) from the relevant screen, with clear loading / empty / error states.
@@ -1224,7 +1224,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ Complaint resolution tracking with patient notification
 > As a **specialist**, I want **complaint resolution tracking with patient notification**.
 
-`Done · Platforms: Web · Source: RFC+ACMSRC · RFC: CL-26 C`
+`Done · Platforms: Web · Source: RFC+NABH checklist · RFC: CL-26 C`
 
 **Acceptance criteria**
 - [x] The specialist can complaint resolution tracking with patient notification from the relevant screen, with clear loading / empty / error states.
@@ -1238,7 +1238,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ Department-wise complaint trend analytics
 > As a **specialist**, I want **department-wise complaint trend analytics**.
 
-`Done · Platforms: Web, Mobile · Source: RFC+ACMSRC · RFC: CL-26 C`
+`Done · Platforms: Web, Mobile · Source: RFC+NABH checklist · RFC: CL-26 C`
 
 **Acceptance criteria**
 - [x] The specialist can department-wise complaint trend analytics from the relevant screen, with clear loading / empty / error states.
@@ -1253,7 +1253,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Google review integration
 > As a **specialist**, I want **google review integration**.
 
-`Partial · Platforms: Web · Source: RFC+ACMSRC · RFC: CL-26 C`
+`Partial · Platforms: Web · Source: RFC+NABH checklist · RFC: CL-26 C`
 
 **Acceptance criteria**
 - [ ] The specialist can google review integration from the relevant screen, with clear loading / empty / error states.
@@ -1267,7 +1267,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Patient education material delivery
 > As a **specialist**, I want **patient education material delivery**.
 
-`Partial · Platforms: Web, Mobile, TV · Source: RFC+ACMSRC · RFC: CL-26 C`
+`Partial · Platforms: Web, Mobile, TV · Source: RFC+NABH checklist · RFC: CL-26 C`
 
 **Acceptance criteria**
 - [ ] The specialist can patient education material delivery from the relevant screen, with clear loading / empty / error states.
@@ -1283,7 +1283,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ Waiting time analytics
 > As a **specialist**, I want **waiting time analytics**.
 
-`Done · Platforms: Web · Source: RFC+ACMSRC · RFC: CL-26 C`
+`Done · Platforms: Web · Source: RFC+NABH checklist · RFC: CL-26 C`
 
 **Acceptance criteria**
 - [x] The specialist can waiting time analytics from the relevant screen, with clear loading / empty / error states.
@@ -1297,7 +1297,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ Service recovery alerts (unhappy patient → immediate action)
 > As a **specialist**, I want **service recovery alerts (unhappy patient → immediate action)**.
 
-`Done · Platforms: Web · Source: RFC+ACMSRC · RFC: CL-26 C`
+`Done · Platforms: Web · Source: RFC+NABH checklist · RFC: CL-26 C`
 
 **Acceptance criteria**
 - [x] The specialist can service recovery alerts (unhappy patient → immediate action) from the relevant screen, with clear loading / empty / error states.
@@ -1839,7 +1839,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Hostel room allocation and mess management
 > As a **specialist**, I want **hostel room allocation and mess management**.
 
-`Pending · Platforms: Web, Mobile · Source: ACMSRC · RFC: CL-21 G`
+`Pending · Platforms: Web, Mobile · Source: NABH checklist · RFC: CL-21 G`
 
 **Acceptance criteria**
 - [ ] The specialist can hostel room allocation and mess management from the relevant screen, with clear loading / empty / error states.
@@ -1854,7 +1854,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Hostel attendance with biometric/app and parent notification
 > As a **specialist**, I want **hostel attendance with biometric/app and parent notification**.
 
-`Pending · Platforms: Web, Mobile · Source: ACMSRC · RFC: CL-21 G`
+`Pending · Platforms: Web, Mobile · Source: NABH checklist · RFC: CL-21 G`
 
 **Acceptance criteria**
 - [ ] The specialist can hostel attendance with biometric/app and parent notification from the relevant screen, with clear loading / empty / error states.
@@ -1869,7 +1869,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Anti-ragging complaint system (anonymous + UGC portal integration)
 > As a **specialist**, I want **anti-ragging complaint system (anonymous + ugc portal integration)**.
 
-`Pending · Platforms: Web, Mobile · Source: ACMSRC · RFC: CL-21 G`
+`Pending · Platforms: Web, Mobile · Source: NABH checklist · RFC: CL-21 G`
 
 **Acceptance criteria**
 - [ ] The specialist can anti-ragging complaint system (anonymous + UGC portal integration) from the relevant screen, with clear loading / empty / error states.
@@ -1884,7 +1884,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ICC/POSH Act sexual harassment complaint management
 > As a **specialist**, I want **icc/posh act sexual harassment complaint management**.
 
-`Pending · Platforms: Web, Mobile · Source: ACMSRC · RFC: CL-21 G`
+`Pending · Platforms: Web, Mobile · Source: NABH checklist · RFC: CL-21 G`
 
 **Acceptance criteria**
 - [ ] The specialist can iCC/POSH Act sexual harassment complaint management from the relevant screen, with clear loading / empty / error states.
@@ -1899,7 +1899,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Student counseling cell with encrypted session records (ZERO external visibility)
 > As a **specialist**, I want **student counseling cell with encrypted session records (zero external visibility)**.
 
-`Pending · Platforms: Web, Mobile · Source: ACMSRC · RFC: CL-21 G`
+`Pending · Platforms: Web, Mobile · Source: NABH checklist · RFC: CL-21 G`
 
 **Acceptance criteria**
 - [ ] The specialist can student counseling cell with encrypted session records (ZERO external visibility) from the relevant screen, with clear loading / empty / error states.
@@ -1914,7 +1914,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Mentor-mentee tracking (quarterly meetings per NMC)
 > As a **specialist**, I want **mentor-mentee tracking (quarterly meetings per nmc)**.
 
-`Pending · Platforms: Web, Mobile · Source: ACMSRC · RFC: CL-21 G`
+`Pending · Platforms: Web, Mobile · Source: NABH checklist · RFC: CL-21 G`
 
 **Acceptance criteria**
 - [ ] The specialist can mentor-mentee tracking (quarterly meetings per NMC) from the relevant screen, with clear loading / empty / error states.
@@ -1929,7 +1929,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Disability accommodation plan management (RPWD Act)
 > As a **specialist**, I want **disability accommodation plan management (rpwd act)**.
 
-`Pending · Platforms: Web, Mobile · Source: ACMSRC · RFC: CL-21 G`
+`Pending · Platforms: Web, Mobile · Source: NABH checklist · RFC: CL-21 G`
 
 **Acceptance criteria**
 - [ ] The specialist can disability accommodation plan management (RPWD Act) from the relevant screen, with clear loading / empty / error states.
@@ -1978,7 +1978,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Cadaver management (receipt, embalming, allocation, disposal, Anatomy Act compliance)
 > As a **specialist**, I want **cadaver management (receipt, embalming, allocation, disposal, anatomy act compliance)**.
 
-`Pending · Platforms: Web · Source: ACMSRC · RFC: CL-21 B`
+`Pending · Platforms: Web · Source: NABH checklist · RFC: CL-21 B`
 
 **Acceptance criteria**
 - [ ] The specialist can cadaver management (receipt, embalming, allocation, disposal, Anatomy Act compliance) from the relevant screen, with clear loading / empty / error states.
@@ -1992,7 +1992,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Teaching lab scheduling (batch-wise) across Physio/Biochem/Pharma/Micro/Pathology
 > As a **specialist**, I want **teaching lab scheduling (batch-wise) across physio/biochem/pharma/micro/pathology**.
 
-`Pending · Platforms: Web · Source: ACMSRC · RFC: CL-21 B`
+`Pending · Platforms: Web · Source: NABH checklist · RFC: CL-21 B`
 
 **Acceptance criteria**
 - [ ] The specialist can teaching lab scheduling (batch-wise) across Physio/Biochem/Pharma/Micro/Pathology from the relevant screen, with clear loading / empty / error states.
@@ -2006,7 +2006,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Reagent and chemical inventory with MSDS tracking
 > As a **specialist**, I want **reagent and chemical inventory with msds tracking**.
 
-`Pending · Platforms: Web, Mobile · Source: ACMSRC · RFC: CL-21 B`
+`Pending · Platforms: Web, Mobile · Source: NABH checklist · RFC: CL-21 B`
 
 **Acceptance criteria**
 - [ ] The specialist can reagent and chemical inventory with MSDS tracking from the relevant screen, with clear loading / empty / error states.
@@ -2021,7 +2021,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Teaching equipment maintenance (120+ microscopes, analyzers, etc.)
 > As a **specialist**, I want **teaching equipment maintenance (120+ microscopes, analyzers, etc.)**.
 
-`Pending · Platforms: Web, Mobile · Source: ACMSRC · RFC: CL-21 B`
+`Pending · Platforms: Web, Mobile · Source: NABH checklist · RFC: CL-21 B`
 
 **Acceptance criteria**
 - [ ] The specialist can teaching equipment maintenance (120+ microscopes, analyzers, etc.) from the relevant screen, with clear loading / empty / error states.
@@ -2036,7 +2036,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Student practical attendance and marks
 > As a **specialist**, I want **student practical attendance and marks**.
 
-`Pending · Platforms: Web, Mobile · Source: ACMSRC · RFC: CL-21 B`
+`Pending · Platforms: Web, Mobile · Source: NABH checklist · RFC: CL-21 B`
 
 **Acceptance criteria**
 - [ ] The specialist can student practical attendance and marks from the relevant screen, with clear loading / empty / error states.
@@ -2051,7 +2051,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### IAEC/CPCSEA compliance for animal experiments (Pharmacology)
 > As a **specialist**, I want **iaec/cpcsea compliance for animal experiments (pharmacology)**.
 
-`Pending · Platforms: Web · Source: ACMSRC · RFC: CL-21 B`
+`Pending · Platforms: Web · Source: NABH checklist · RFC: CL-21 B`
 
 **Acceptance criteria**
 - [ ] The specialist can iAEC/CPCSEA compliance for animal experiments (Pharmacology) from the relevant screen, with clear loading / empty / error states.
@@ -2067,7 +2067,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### OPAC (Online Public Access Catalog) with search and availability
 > As a **specialist**, I want **opac (online public access catalog) with search and availability**.
 
-`Pending · Platforms: Web, Mobile · Source: ACMSRC · RFC: CL-21 E`
+`Pending · Platforms: Web, Mobile · Source: NABH checklist · RFC: CL-21 E`
 
 **Acceptance criteria**
 - [ ] The specialist can oPAC (Online Public Access Catalog) with search and availability from the relevant screen, with clear loading / empty / error states.
@@ -2082,7 +2082,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Circulation (issue, return, renewal, reservation, fine calculation)
 > As a **specialist**, I want **circulation (issue, return, renewal, reservation, fine calculation)**.
 
-`Pending · Platforms: Web, Mobile · Source: ACMSRC · RFC: CL-21 E`
+`Pending · Platforms: Web, Mobile · Source: NABH checklist · RFC: CL-21 E`
 
 **Acceptance criteria**
 - [ ] The specialist can circulation (issue, return, renewal, reservation, fine calculation) from the relevant screen, with clear loading / empty / error states.
@@ -2097,7 +2097,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### E-resource management with INFLIBNET/NLIST integration
 > As a **specialist**, I want **e-resource management with inflibnet/nlist integration**.
 
-`Pending · Platforms: Web, Mobile · Source: ACMSRC · RFC: CL-21 E`
+`Pending · Platforms: Web, Mobile · Source: NABH checklist · RFC: CL-21 E`
 
 **Acceptance criteria**
 - [ ] The specialist can e-resource management with INFLIBNET/NLIST integration from the relevant screen, with clear loading / empty / error states.
@@ -2112,7 +2112,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### NMC compliance tracking (minimum books per student per subject)
 > As a **specialist**, I want **nmc compliance tracking (minimum books per student per subject)**.
 
-`Pending · Platforms: Web, Mobile · Source: ACMSRC · RFC: CL-21 E`
+`Pending · Platforms: Web, Mobile · Source: NABH checklist · RFC: CL-21 E`
 
 **Acceptance criteria**
 - [ ] The specialist can nMC compliance tracking (minimum books per student per subject) from the relevant screen, with clear loading / empty / error states.
@@ -2127,7 +2127,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Digital repository for theses, dissertations, faculty publications
 > As a **specialist**, I want **digital repository for theses, dissertations, faculty publications**.
 
-`Pending · Platforms: Web, Mobile · Source: ACMSRC · RFC: CL-21 E`
+`Pending · Platforms: Web, Mobile · Source: NABH checklist · RFC: CL-21 E`
 
 **Acceptance criteria**
 - [ ] The specialist can digital repository for theses, dissertations, faculty publications from the relevant screen, with clear loading / empty / error states.
@@ -2144,7 +2144,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ MLC registration with case numbering and police intimation auto-trigger
 > As a **specialist**, I want **mlc registration with case numbering and police intimation auto-trigger**.
 
-`Done · Platforms: Web · Source: ACMSRC · RFC: CL-24 C`
+`Done · Platforms: Web · Source: NABH checklist · RFC: CL-24 C`
 
 **Acceptance criteria**
 - [x] The specialist can mLC registration with case numbering and police intimation auto-trigger from the relevant screen, with clear loading / empty / error states.
@@ -2158,7 +2158,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ Wound certificate generation with body diagram
 > As a **specialist**, I want **wound certificate generation with body diagram**.
 
-`Done · Platforms: Web, Mobile · Source: ACMSRC · RFC: CL-24 C`
+`Done · Platforms: Web, Mobile · Source: NABH checklist · RFC: CL-24 C`
 
 **Acceptance criteria**
 - [x] The specialist can wound certificate generation with body diagram from the relevant screen, with clear loading / empty / error states.
@@ -2173,7 +2173,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Age estimation documentation template
 > As a **specialist**, I want **age estimation documentation template**.
 
-`Partial · Platforms: Web · Source: ACMSRC · RFC: CL-24 C`
+`Partial · Platforms: Web · Source: NABH checklist · RFC: CL-24 C`
 
 **Acceptance criteria**
 - [ ] The specialist can age estimation documentation template from the relevant screen, with clear loading / empty / error states.
@@ -2187,7 +2187,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ Sexual assault documentation (POCSO Act compliance)
 > As a **specialist**, I want **sexual assault documentation (pocso act compliance)**.
 
-`Done · Platforms: Web · Source: ACMSRC · RFC: CL-24 C`
+`Done · Platforms: Web · Source: NABH checklist · RFC: CL-24 C`
 
 **Acceptance criteria**
 - [x] The specialist can sexual assault documentation (POCSO Act compliance) from the relevant screen, with clear loading / empty / error states.
@@ -2201,7 +2201,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ Death certificate generation (Form 4/4A)
 > As a **specialist**, I want **death certificate generation (form 4/4a)**.
 
-`Done · Platforms: Web · Source: ACMSRC · RFC: CL-24 C`
+`Done · Platforms: Web · Source: NABH checklist · RFC: CL-24 C`
 
 **Acceptance criteria**
 - [x] The specialist can death certificate generation (Form 4/4A) from the relevant screen, with clear loading / empty / error states.
@@ -2215,7 +2215,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Court summons tracking and response documentation
 > As a **specialist**, I want **court summons tracking and response documentation**.
 
-`Partial · Platforms: Web · Source: ACMSRC · RFC: CL-24 C`
+`Partial · Platforms: Web · Source: NABH checklist · RFC: CL-24 C`
 
 **Acceptance criteria**
 - [ ] The specialist can court summons tracking and response documentation from the relevant screen, with clear loading / empty / error states.
@@ -2229,7 +2229,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ Medico-legal opinion documentation
 > As a **specialist**, I want **medico-legal opinion documentation**.
 
-`Done · Platforms: Web · Source: ACMSRC · RFC: CL-24 C`
+`Done · Platforms: Web · Source: NABH checklist · RFC: CL-24 C`
 
 **Acceptance criteria**
 - [x] The specialist can medico-legal opinion documentation from the relevant screen, with clear loading / empty / error states.
@@ -2245,7 +2245,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ MLC register with auto-numbering
 > As a **specialist**, I want **mlc register with auto-numbering**.
 
-`Done · Platforms: Web · Source: RFC+ACMSRC · RFC: §3.20, CL-2 D`
+`Done · Platforms: Web · Source: RFC+NABH checklist · RFC: §3.20, CL-2 D`
 
 **Acceptance criteria**
 - [x] The specialist can mLC register with auto-numbering from the relevant screen, with clear loading / empty / error states.
@@ -2259,7 +2259,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ Wound certificate generation with body diagram
 > As a **specialist**, I want **wound certificate generation with body diagram**.
 
-`Done · Platforms: Web, Mobile · Source: RFC+ACMSRC · RFC: §3.20, CL-2 D`
+`Done · Platforms: Web, Mobile · Source: RFC+NABH checklist · RFC: §3.20, CL-2 D`
 
 **Acceptance criteria**
 - [x] The specialist can wound certificate generation with body diagram from the relevant screen, with clear loading / empty / error states.
@@ -2274,7 +2274,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ Age estimation documentation
 > As a **specialist**, I want **age estimation documentation**.
 
-`Done · Platforms: Web · Source: RFC+ACMSRC · RFC: §3.20, CL-2 D`
+`Done · Platforms: Web · Source: RFC+NABH checklist · RFC: §3.20, CL-2 D`
 
 **Acceptance criteria**
 - [x] The specialist can age estimation documentation from the relevant screen, with clear loading / empty / error states.
@@ -2288,7 +2288,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ Sexual assault documentation (POCSO compliance)
 > As a **specialist**, I want **sexual assault documentation (pocso compliance)**.
 
-`Done · Platforms: Web · Source: RFC+ACMSRC · RFC: §3.20, CL-2 D`
+`Done · Platforms: Web · Source: RFC+NABH checklist · RFC: §3.20, CL-2 D`
 
 **Acceptance criteria**
 - [x] The specialist can sexual assault documentation (POCSO compliance) from the relevant screen, with clear loading / empty / error states.
@@ -2302,7 +2302,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ Police intimation tracking with receipt confirmation
 > As a **specialist**, I want **police intimation tracking with receipt confirmation**.
 
-`Done · Platforms: Web · Source: RFC+ACMSRC · RFC: §3.20, CL-2 D`
+`Done · Platforms: Web · Source: RFC+NABH checklist · RFC: §3.20, CL-2 D`
 
 **Acceptance criteria**
 - [x] The specialist can police intimation tracking with receipt confirmation from the relevant screen, with clear loading / empty / error states.
@@ -2316,7 +2316,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ Court summons tracking
 > As a **specialist**, I want **court summons tracking**.
 
-`Done · Platforms: Web · Source: RFC+ACMSRC · RFC: §3.20, CL-2 D`
+`Done · Platforms: Web · Source: RFC+NABH checklist · RFC: §3.20, CL-2 D`
 
 **Acceptance criteria**
 - [x] The specialist can court summons tracking from the relevant screen, with clear loading / empty / error states.
@@ -2332,7 +2332,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ Code Yellow (mass casualty) activation workflow
 > As a **specialist**, I want **code yellow (mass casualty) activation workflow**.
 
-`Done · Platforms: Web, Mobile, TV · Source: ACMSRC · RFC: CL-2 C`
+`Done · Platforms: Web, Mobile, TV · Source: NABH checklist · RFC: CL-2 C`
 
 **Acceptance criteria**
 - [x] The specialist can code Yellow (mass casualty) activation workflow from the relevant screen, with clear loading / empty / error states.
@@ -2348,7 +2348,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Auto-notification to all on-call consultants, admin, blood bank
 > As a **specialist**, I want **auto-notification to all on-call consultants, admin, blood bank**.
 
-`Partial · Platforms: Web, Mobile, TV · Source: ACMSRC · RFC: CL-2 C`
+`Partial · Platforms: Web, Mobile, TV · Source: NABH checklist · RFC: CL-2 C`
 
 **Acceptance criteria**
 - [ ] The specialist can auto-notification to all on-call consultants, admin, blood bank from the relevant screen, with clear loading / empty / error states.
@@ -2364,7 +2364,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ Batch registration for multiple casualties
 > As a **specialist**, I want **batch registration for multiple casualties**.
 
-`Done · Platforms: Web, Mobile, TV · Source: ACMSRC · RFC: CL-2 C`
+`Done · Platforms: Web, Mobile, TV · Source: NABH checklist · RFC: CL-2 C`
 
 **Acceptance criteria**
 - [x] The specialist can batch registration for multiple casualties from the relevant screen, with clear loading / empty / error states.
@@ -2380,7 +2380,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ Triage tagging system for mass casualty
 > As a **specialist**, I want **triage tagging system for mass casualty**.
 
-`Done · Platforms: Web, Mobile, TV · Source: ACMSRC · RFC: CL-2 C`
+`Done · Platforms: Web, Mobile, TV · Source: NABH checklist · RFC: CL-2 C`
 
 **Acceptance criteria**
 - [x] The specialist can triage tagging system for mass casualty from the relevant screen, with clear loading / empty / error states.
@@ -2396,7 +2396,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ Resource tracking during disaster (beds, ventilators, blood units)
 > As a **specialist**, I want **resource tracking during disaster (beds, ventilators, blood units)**.
 
-`Done · Platforms: Web, Mobile, TV · Source: ACMSRC · RFC: CL-2 C`
+`Done · Platforms: Web, Mobile, TV · Source: NABH checklist · RFC: CL-2 C`
 
 **Acceptance criteria**
 - [x] The specialist can resource tracking during disaster (beds, ventilators, blood units) from the relevant screen, with clear loading / empty / error states.
@@ -2414,7 +2414,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ Antenatal registration & visit tracking
 > As a **specialist**, I want **antenatal registration & visit tracking**.
 
-`Done · Platforms: Web · Source: RFC+ACMSRC · RFC: §3.5`
+`Done · Platforms: Web · Source: RFC+NABH checklist · RFC: §3.5`
 
 **Acceptance criteria**
 - [x] The specialist can antenatal registration & visit tracking from the relevant screen, with clear loading / empty / error states.
@@ -2428,7 +2428,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ LMP/EDD calculator, ANC chart
 > As a **specialist**, I want **lmp/edd calculator, anc chart**.
 
-`Done · Platforms: Web · Source: RFC+ACMSRC · RFC: §3.5`
+`Done · Platforms: Web · Source: RFC+NABH checklist · RFC: §3.5`
 
 **Acceptance criteria**
 - [x] The specialist can lMP/EDD calculator, ANC chart from the relevant screen, with clear loading / empty / error states.
@@ -2442,7 +2442,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### USG report integration & tracking
 > As a **specialist**, I want **usg report integration & tracking**.
 
-`Partial · Platforms: Web, Mobile · Source: RFC+ACMSRC · RFC: §3.5`
+`Partial · Platforms: Web, Mobile · Source: RFC+NABH checklist · RFC: §3.5`
 
 **Acceptance criteria**
 - [ ] The specialist can uSG report integration & tracking from the relevant screen, with clear loading / empty / error states.
@@ -2457,7 +2457,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ Labor monitoring (partograph)
 > As a **specialist**, I want **labor monitoring (partograph)**.
 
-`Done · Platforms: Web, Mobile · Source: RFC+ACMSRC · RFC: §3.5`
+`Done · Platforms: Web, Mobile · Source: RFC+NABH checklist · RFC: §3.5`
 
 **Acceptance criteria**
 - [x] The specialist can labor monitoring (partograph) from the relevant screen, with clear loading / empty / error states.
@@ -2472,7 +2472,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ Delivery documentation
 > As a **specialist**, I want **delivery documentation**.
 
-`Done · Platforms: Web · Source: RFC+ACMSRC · RFC: §3.5`
+`Done · Platforms: Web · Source: RFC+NABH checklist · RFC: §3.5`
 
 **Acceptance criteria**
 - [x] The specialist can delivery documentation from the relevant screen, with clear loading / empty / error states.
@@ -2486,7 +2486,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ Newborn registration
 > As a **specialist**, I want **newborn registration**.
 
-`Done · Platforms: Web · Source: RFC+ACMSRC · RFC: §3.5`
+`Done · Platforms: Web · Source: RFC+NABH checklist · RFC: §3.5`
 
 **Acceptance criteria**
 - [x] The specialist can newborn registration from the relevant screen, with clear loading / empty / error states.
@@ -2500,7 +2500,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ Birth certificate generation
 > As a **specialist**, I want **birth certificate generation**.
 
-`Done · Platforms: Web · Source: RFC+ACMSRC · RFC: §3.5`
+`Done · Platforms: Web · Source: RFC+NABH checklist · RFC: §3.5`
 
 **Acceptance criteria**
 - [x] The specialist can birth certificate generation from the relevant screen, with clear loading / empty / error states.
@@ -2514,7 +2514,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ Postnatal care documentation
 > As a **specialist**, I want **postnatal care documentation**.
 
-`Done · Platforms: Web, Mobile · Source: RFC+ACMSRC · RFC: §3.5`
+`Done · Platforms: Web, Mobile · Source: RFC+NABH checklist · RFC: §3.5`
 
 **Acceptance criteria**
 - [x] The specialist can postnatal care documentation from the relevant screen, with clear loading / empty / error states.
@@ -2529,7 +2529,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ NICU admission integration
 > As a **specialist**, I want **nicu admission integration**.
 
-`Done · Platforms: Web · Source: RFC+ACMSRC · RFC: §3.5`
+`Done · Platforms: Web · Source: RFC+NABH checklist · RFC: §3.5`
 
 **Acceptance criteria**
 - [x] The specialist can nICU admission integration from the relevant screen, with clear loading / empty / error states.
@@ -2543,7 +2543,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ PCPNDT Form F (ultrasound record — mandatory for all USG on pregnant women)
 > As a **specialist**, I want **pcpndt form f (ultrasound record — mandatory for all usg on pregnant women)**.
 
-`Done · Platforms: Web, Mobile · Source: RFC+ACMSRC · RFC: §3.5`
+`Done · Platforms: Web, Mobile · Source: RFC+NABH checklist · RFC: §3.5`
 
 **Acceptance criteria**
 - [x] The specialist can pCPNDT Form F (ultrasound record — mandatory for all USG on pregnant women) from the relevant screen, with clear loading / empty / error states.
@@ -2785,7 +2785,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ Multi-disciplinary rehab (PT, OT, Speech, Prosthetics) with outcome scoring (FIM/Barthel)
 > As a **specialist**, I want **multi-disciplinary rehab (pt, ot, speech, prosthetics) with outcome scoring (fim/barthel)**.
 
-`Done · Platforms: Web, Mobile · Source: RFC+ACMSRC · RFC: CL-25 D`
+`Done · Platforms: Web, Mobile · Source: RFC+NABH checklist · RFC: CL-25 D`
 
 **Acceptance criteria**
 - [x] The specialist can multi-disciplinary rehab (PT, OT, Speech, Prosthetics) with outcome scoring (FIM/Barthel) from the relevant screen, with clear loading / empty / error states.
@@ -2800,7 +2800,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ Disability certificate generation per RPWD Act 2016
 > As a **specialist**, I want **disability certificate generation per rpwd act 2016**.
 
-`Done · Platforms: Web, Mobile · Source: RFC+ACMSRC · RFC: CL-25 D`
+`Done · Platforms: Web, Mobile · Source: RFC+NABH checklist · RFC: CL-25 D`
 
 **Acceptance criteria**
 - [x] The specialist can disability certificate generation per RPWD Act 2016 from the relevant screen, with clear loading / empty / error states.
@@ -2815,7 +2815,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Audiometric testing workflow (PTA, BERA, OAE) with equipment integration
 > As a **specialist**, I want **audiometric testing workflow (pta, bera, oae) with equipment integration**.
 
-`Partial · Platforms: Web, Mobile · Source: RFC+ACMSRC · RFC: CL-25 D`
+`Partial · Platforms: Web, Mobile · Source: RFC+NABH checklist · RFC: CL-25 D`
 
 **Acceptance criteria**
 - [ ] The specialist can audiometric testing workflow (PTA, BERA, OAE) with equipment integration from the relevant screen, with clear loading / empty / error states.
@@ -2830,7 +2830,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ Newborn Hearing Screening Program (NHSP) with referral tracking
 > As a **specialist**, I want **newborn hearing screening program (nhsp) with referral tracking**.
 
-`Done · Platforms: Web · Source: RFC+ACMSRC · RFC: CL-25 D`
+`Done · Platforms: Web · Source: RFC+NABH checklist · RFC: CL-25 D`
 
 **Acceptance criteria**
 - [x] The specialist can newborn Hearing Screening Program (NHSP) with referral tracking from the relevant screen, with clear loading / empty / error states.
@@ -2844,7 +2844,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ Psychometric test result security (raw data NEVER shared, only interpreted reports)
 > As a **specialist**, I want **psychometric test result security (raw data never shared, only interpreted reports)**.
 
-`Done · Platforms: Web · Source: RFC+ACMSRC · RFC: CL-25 D`
+`Done · Platforms: Web · Source: RFC+NABH checklist · RFC: CL-25 D`
 
 **Acceptance criteria**
 - [x] The specialist can psychometric test result security (raw data NEVER shared, only interpreted reports) from the relevant screen, with clear loading / empty / error states.
@@ -2858,7 +2858,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ Therapy session documentation (CBT/DBT) with outcome tracking (PHQ-9, GAD-7)
 > As a **specialist**, I want **therapy session documentation (cbt/dbt) with outcome tracking (phq-9, gad-7)**.
 
-`Done · Platforms: Web · Source: RFC+ACMSRC · RFC: CL-25 D`
+`Done · Platforms: Web · Source: RFC+NABH checklist · RFC: CL-25 D`
 
 **Acceptance criteria**
 - [x] The specialist can therapy session documentation (CBT/DBT) with outcome tracking (PHQ-9, GAD-7) from the relevant screen, with clear loading / empty / error states.
@@ -2872,7 +2872,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ Therapy plan creation & session tracking
 > As a **specialist**, I want **therapy plan creation & session tracking**.
 
-`Done · Platforms: Web · Source: RFC+ACMSRC · RFC: CL-25 D`
+`Done · Platforms: Web · Source: RFC+NABH checklist · RFC: CL-25 D`
 
 **Acceptance criteria**
 - [x] The specialist can therapy plan creation & session tracking from the relevant screen, with clear loading / empty / error states.
@@ -2886,7 +2886,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ Progress documentation & outcome measurement tools
 > As a **specialist**, I want **progress documentation & outcome measurement tools**.
 
-`Done · Platforms: Web · Source: RFC+ACMSRC · RFC: CL-25 D`
+`Done · Platforms: Web · Source: RFC+NABH checklist · RFC: CL-25 D`
 
 **Acceptance criteria**
 - [x] The specialist can progress documentation & outcome measurement tools from the relevant screen, with clear loading / empty / error states.
@@ -2900,7 +2900,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Home exercise program generation
 > As a **specialist**, I want **home exercise program generation**.
 
-`Partial · Platforms: Web · Source: RFC+ACMSRC · RFC: CL-25 D`
+`Partial · Platforms: Web · Source: RFC+NABH checklist · RFC: CL-25 D`
 
 **Acceptance criteria**
 - [ ] The specialist can home exercise program generation from the relevant screen, with clear loading / empty / error states.
@@ -2993,7 +2993,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ DNR/DNAR order workflow (clearly visible on dashboard, 48-hr review, revocable anytime)
 > As a **specialist**, I want **dnr/dnar order workflow (clearly visible on dashboard, 48-hr review, revocable anytime)**.
 
-`Done · Platforms: Web, Mobile · Source: ACMSRC · RFC: CL-25 E`
+`Done · Platforms: Web, Mobile · Source: NABH checklist · RFC: CL-25 E`
 
 **Acceptance criteria**
 - [x] The specialist can dNR/DNAR order workflow (clearly visible on dashboard, 48-hr review, revocable anytime) from the relevant screen, with clear loading / empty / error states.
@@ -3008,7 +3008,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ Pain assessment (WHO ladder) with opioid dose escalation tracking (NDPS compliance)
 > As a **specialist**, I want **pain assessment (who ladder) with opioid dose escalation tracking (ndps compliance)**.
 
-`Done · Platforms: Web, Mobile · Source: ACMSRC · RFC: CL-25 E`
+`Done · Platforms: Web, Mobile · Source: NABH checklist · RFC: CL-25 E`
 
 **Acceptance criteria**
 - [x] The specialist can pain assessment (WHO ladder) with opioid dose escalation tracking (NDPS compliance) from the relevant screen, with clear loading / empty / error states.
@@ -3023,7 +3023,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Organ donation ROTTO/SOTTO notification integration
 > As a **specialist**, I want **organ donation rotto/sotto notification integration**.
 
-`Partial · Platforms: Web, Mobile · Source: ACMSRC · RFC: CL-25 E`
+`Partial · Platforms: Web, Mobile · Source: NABH checklist · RFC: CL-25 E`
 
 **Acceptance criteria**
 - [ ] The specialist can organ donation ROTTO/SOTTO notification integration from the relevant screen, with clear loading / empty / error states.
@@ -3038,7 +3038,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ Mortuary — body receipt, cold storage slot tracking, temperature monitoring
 > As a **specialist**, I want **mortuary — body receipt, cold storage slot tracking, temperature monitoring**.
 
-`Done · Platforms: Web, Mobile · Source: ACMSRC · RFC: CL-25 E`
+`Done · Platforms: Web, Mobile · Source: NABH checklist · RFC: CL-25 E`
 
 **Acceptance criteria**
 - [x] The specialist can mortuary — body receipt, cold storage slot tracking, temperature monitoring from the relevant screen, with clear loading / empty / error states.
@@ -3053,7 +3053,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ MLC body flow (police inquest → PM scheduling → viscera chain-of-custody)
 > As a **specialist**, I want **mlc body flow (police inquest → pm scheduling → viscera chain-of-custody)**.
 
-`Done · Platforms: Web, Mobile · Source: ACMSRC · RFC: CL-25 E`
+`Done · Platforms: Web, Mobile · Source: NABH checklist · RFC: CL-25 E`
 
 **Acceptance criteria**
 - [x] The specialist can mLC body flow (police inquest → PM scheduling → viscera chain-of-custody) from the relevant screen, with clear loading / empty / error states.
@@ -3068,7 +3068,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ Unclaimed body protocol (72hr → newspaper → municipal → disposal/anatomy dept)
 > As a **specialist**, I want **unclaimed body protocol (72hr → newspaper → municipal → disposal/anatomy dept)**.
 
-`Done · Platforms: Web, Mobile · Source: ACMSRC · RFC: CL-25 E`
+`Done · Platforms: Web, Mobile · Source: NABH checklist · RFC: CL-25 E`
 
 **Acceptance criteria**
 - [x] The specialist can unclaimed body protocol (72hr → newspaper → municipal → disposal/anatomy dept) from the relevant screen, with clear loading / empty / error states.
@@ -3083,7 +3083,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ Nuclear medicine — radiopharmaceutical mgmt, AERB source inventory, patient dose tracking
 > As a **specialist**, I want **nuclear medicine — radiopharmaceutical mgmt, aerb source inventory, patient dose tracking**.
 
-`Done · Platforms: Web, Mobile · Source: ACMSRC · RFC: CL-25 E`
+`Done · Platforms: Web, Mobile · Source: NABH checklist · RFC: CL-25 E`
 
 **Acceptance criteria**
 - [x] The specialist can nuclear medicine — radiopharmaceutical mgmt, AERB source inventory, patient dose tracking from the relevant screen, with clear loading / empty / error states.
@@ -3100,7 +3100,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### SMS gateway integration (appointments, reports ready, bill generated)
 > As a **specialist**, I want **sms gateway integration (appointments, reports ready, bill generated)**.
 
-`Partial · Platforms: Web, Mobile · Source: RFC+ACMSRC · RFC: CL-26 A`
+`Partial · Platforms: Web, Mobile · Source: RFC+NABH checklist · RFC: CL-26 A`
 
 **Acceptance criteria**
 - [ ] The specialist can sMS gateway integration (appointments, reports ready, bill generated) from the relevant screen, with clear loading / empty / error states.
@@ -3115,7 +3115,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### WhatsApp Business API (report delivery, follow-up reminders, education)
 > As a **specialist**, I want **whatsapp business api (report delivery, follow-up reminders, education)**.
 
-`Partial · Platforms: Web, Mobile · Source: RFC+ACMSRC · RFC: CL-26 A`
+`Partial · Platforms: Web, Mobile · Source: RFC+NABH checklist · RFC: CL-26 A`
 
 **Acceptance criteria**
 - [ ] The specialist can whatsApp Business API (report delivery, follow-up reminders, education) from the relevant screen, with clear loading / empty / error states.
@@ -3130,7 +3130,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Push notifications via mobile app
 > As a **specialist**, I want **push notifications via mobile app**.
 
-`Partial · Platforms: Web, Mobile · Source: RFC+ACMSRC · RFC: CL-26 A`
+`Partial · Platforms: Web, Mobile · Source: RFC+NABH checklist · RFC: CL-26 A`
 
 **Acceptance criteria**
 - [ ] The specialist can push notifications via mobile app from the relevant screen, with clear loading / empty / error states.
@@ -3145,7 +3145,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### IVR for automated appointment booking and report status
 > As a **specialist**, I want **ivr for automated appointment booking and report status**.
 
-`Partial · Platforms: Web, Mobile · Source: RFC+ACMSRC · RFC: CL-26 A`
+`Partial · Platforms: Web, Mobile · Source: RFC+NABH checklist · RFC: CL-26 A`
 
 **Acceptance criteria**
 - [ ] The specialist can iVR for automated appointment booking and report status from the relevant screen, with clear loading / empty / error states.
@@ -3160,7 +3160,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ Patient portal (view reports, appointments, bills, consents)
 > As a **specialist**, I want **patient portal (view reports, appointments, bills, consents)**.
 
-`Done · Platforms: Web, Mobile · Source: RFC+ACMSRC · RFC: CL-26 A`
+`Done · Platforms: Web, Mobile · Source: RFC+NABH checklist · RFC: CL-26 A`
 
 **Acceptance criteria**
 - [x] The specialist can patient portal (view reports, appointments, bills, consents) from the relevant screen, with clear loading / empty / error states.
@@ -3329,7 +3329,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### COMPLETE DATA ISOLATION from main hospital records (Rule PSY-001)
 > As a **specialist**, I want **complete data isolation from main hospital records (rule psy-001)**.
 
-`Partial · Platforms: Web · Source: RFC+ACMSRC · RFC: CL-25 C`
+`Partial · Platforms: Web · Source: RFC+NABH checklist · RFC: CL-25 C`
 
 **Acceptance criteria**
 - [ ] The specialist can cOMPLETE DATA ISOLATION from main hospital records (Rule PSY-001) from the relevant screen, with clear loading / empty / error states.
@@ -3343,7 +3343,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ Admission categories (Independent / Supported) per MHCA
 > As a **specialist**, I want **admission categories (independent / supported) per mhca**.
 
-`Done · Platforms: Web · Source: RFC+ACMSRC · RFC: CL-25 C`
+`Done · Platforms: Web · Source: RFC+NABH checklist · RFC: CL-25 C`
 
 **Acceptance criteria**
 - [x] The specialist can admission categories (Independent / Supported) per MHCA from the relevant screen, with clear loading / empty / error states.
@@ -3357,7 +3357,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Advance Directive storage with Mental Health Board verification
 > As a **specialist**, I want **advance directive storage with mental health board verification**.
 
-`Partial · Platforms: Web, Mobile · Source: RFC+ACMSRC · RFC: CL-25 C`
+`Partial · Platforms: Web, Mobile · Source: RFC+NABH checklist · RFC: CL-25 C`
 
 **Acceptance criteria**
 - [ ] The specialist can advance Directive storage with Mental Health Board verification from the relevant screen, with clear loading / empty / error states.
@@ -3372,7 +3372,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Nominated Representative management with notification workflow
 > As a **specialist**, I want **nominated representative management with notification workflow**.
 
-`Partial · Platforms: Web · Source: RFC+ACMSRC · RFC: CL-25 C`
+`Partial · Platforms: Web · Source: RFC+NABH checklist · RFC: CL-25 C`
 
 **Acceptance criteria**
 - [ ] The specialist can nominated Representative management with notification workflow from the relevant screen, with clear loading / empty / error states.
@@ -3386,7 +3386,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ ECT register (consent, sessions, laterality, stimulus, response scores)
 > As a **specialist**, I want **ect register (consent, sessions, laterality, stimulus, response scores)**.
 
-`Done · Platforms: Web · Source: RFC+ACMSRC · RFC: CL-25 C`
+`Done · Platforms: Web · Source: RFC+NABH checklist · RFC: CL-25 C`
 
 **Acceptance criteria**
 - [x] The specialist can eCT register (consent, sessions, laterality, stimulus, response scores) from the relevant screen, with clear loading / empty / error states.
@@ -3400,7 +3400,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ Seclusion & restraint documentation (max 4 hrs without review, continuous monitoring)
 > As a **specialist**, I want **seclusion & restraint documentation (max 4 hrs without review, continuous monitoring)**.
 
-`Done · Platforms: Web, Mobile · Source: RFC+ACMSRC · RFC: CL-25 C`
+`Done · Platforms: Web, Mobile · Source: RFC+NABH checklist · RFC: CL-25 C`
 
 **Acceptance criteria**
 - [x] The specialist can seclusion & restraint documentation (max 4 hrs without review, continuous monitoring) from the relevant screen, with clear loading / empty / error states.
@@ -3415,7 +3415,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Substance abuse records — additional isolation layer (Rule PSY-002)
 > As a **specialist**, I want **substance abuse records — additional isolation layer (rule psy-002)**.
 
-`Partial · Platforms: Web, Mobile · Source: RFC+ACMSRC · RFC: CL-25 C`
+`Partial · Platforms: Web, Mobile · Source: RFC+NABH checklist · RFC: CL-25 C`
 
 **Acceptance criteria**
 - [ ] The specialist can substance abuse records — additional isolation layer (Rule PSY-002) from the relevant screen, with clear loading / empty / error states.
@@ -3430,7 +3430,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ Mental Health Review Board notification auto-generation
 > As a **specialist**, I want **mental health review board notification auto-generation**.
 
-`Done · Platforms: Web · Source: RFC+ACMSRC · RFC: CL-25 C`
+`Done · Platforms: Web · Source: RFC+NABH checklist · RFC: CL-25 C`
 
 **Acceptance criteria**
 - [x] The specialist can mental Health Review Board notification auto-generation from the relevant screen, with clear loading / empty / error states.
@@ -3444,7 +3444,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ Psychiatric assessment forms & Mental status examination
 > As a **specialist**, I want **psychiatric assessment forms & mental status examination**.
 
-`Done · Platforms: Web, Mobile · Source: RFC+ACMSRC · RFC: CL-25 C`
+`Done · Platforms: Web, Mobile · Source: RFC+NABH checklist · RFC: CL-25 C`
 
 **Acceptance criteria**
 - [x] The specialist can psychiatric assessment forms & Mental status examination from the relevant screen, with clear loading / empty / error states.
@@ -3459,7 +3459,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ Counseling session tracking
 > As a **specialist**, I want **counseling session tracking**.
 
-`Done · Platforms: Web · Source: RFC+ACMSRC · RFC: CL-25 C`
+`Done · Platforms: Web · Source: RFC+NABH checklist · RFC: CL-25 C`
 
 **Acceptance criteria**
 - [x] The specialist can counseling session tracking from the relevant screen, with clear loading / empty / error states.
@@ -3473,7 +3473,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ HAM-D/BPRS scales
 > As a **specialist**, I want **ham-d/bprs scales**.
 
-`Done · Platforms: Web · Source: RFC+ACMSRC · RFC: CL-25 C`
+`Done · Platforms: Web · Source: RFC+NABH checklist · RFC: CL-25 C`
 
 **Acceptance criteria**
 - [x] The specialist can hAM-D/BPRS scales from the relevant screen, with clear loading / empty / error states.
@@ -3487,7 +3487,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Restricted access (ABAC — psychiatry notes hidden from non-psychiatry)
 > As a **specialist**, I want **restricted access (abac — psychiatry notes hidden from non-psychiatry)**.
 
-`Partial · Platforms: Web · Source: RFC+ACMSRC · RFC: CL-25 C`
+`Partial · Platforms: Web · Source: RFC+NABH checklist · RFC: CL-25 C`
 
 **Acceptance criteria**
 - [ ] The specialist can restricted access (ABAC — psychiatry notes hidden from non-psychiatry) from the relevant screen, with clear loading / empty / error states.
@@ -3598,7 +3598,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Research proposal submission portal
 > As a **specialist**, I want **research proposal submission portal**.
 
-`Pending · Platforms: Web, Mobile · Source: ACMSRC · RFC: CL-21 D`
+`Pending · Platforms: Web, Mobile · Source: NABH checklist · RFC: CL-21 D`
 
 **Acceptance criteria**
 - [ ] The specialist can research proposal submission portal from the relevant screen, with clear loading / empty / error states.
@@ -3613,7 +3613,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### IEC review workflow (initial → expedited → continuing → amendment)
 > As a **specialist**, I want **iec review workflow (initial → expedited → continuing → amendment)**.
 
-`Pending · Platforms: Web · Source: ACMSRC · RFC: CL-21 D`
+`Pending · Platforms: Web · Source: NABH checklist · RFC: CL-21 D`
 
 **Acceptance criteria**
 - [ ] The specialist can iEC review workflow (initial → expedited → continuing → amendment) from the relevant screen, with clear loading / empty / error states.
@@ -3627,7 +3627,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ICMR Bioethics Guidelines 2017 compliance
 > As a **specialist**, I want **icmr bioethics guidelines 2017 compliance**.
 
-`Pending · Platforms: Web · Source: ACMSRC · RFC: CL-21 D`
+`Pending · Platforms: Web · Source: NABH checklist · RFC: CL-21 D`
 
 **Acceptance criteria**
 - [ ] The specialist can iCMR Bioethics Guidelines 2017 compliance from the relevant screen, with clear loading / empty / error states.
@@ -3641,7 +3641,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### SAE (Serious Adverse Event) reporting and review
 > As a **specialist**, I want **sae (serious adverse event) reporting and review**.
 
-`Pending · Platforms: Web · Source: ACMSRC · RFC: CL-21 D`
+`Pending · Platforms: Web · Source: NABH checklist · RFC: CL-21 D`
 
 **Acceptance criteria**
 - [ ] The specialist can sAE (Serious Adverse Event) reporting and review from the relevant screen, with clear loading / empty / error states.
@@ -3655,7 +3655,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### CTRI registration tracking
 > As a **specialist**, I want **ctri registration tracking**.
 
-`Pending · Platforms: Web · Source: ACMSRC · RFC: CL-21 D`
+`Pending · Platforms: Web · Source: NABH checklist · RFC: CL-21 D`
 
 **Acceptance criteria**
 - [ ] The specialist can cTRI registration tracking from the relevant screen, with clear loading / empty / error states.
@@ -3669,7 +3669,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Plagiarism detection integration (Turnitin/iThenticate)
 > As a **specialist**, I want **plagiarism detection integration (turnitin/ithenticate)**.
 
-`Pending · Platforms: Web · Source: ACMSRC · RFC: CL-21 D`
+`Pending · Platforms: Web · Source: NABH checklist · RFC: CL-21 D`
 
 **Acceptance criteria**
 - [ ] The specialist can plagiarism detection integration (Turnitin/iThenticate) from the relevant screen, with clear loading / empty / error states.
@@ -3683,7 +3683,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Faculty publication tracking (H-index, i10-index, NMC promotion criteria)
 > As a **specialist**, I want **faculty publication tracking (h-index, i10-index, nmc promotion criteria)**.
 
-`Pending · Platforms: Web, Mobile · Source: ACMSRC · RFC: CL-21 D`
+`Pending · Platforms: Web, Mobile · Source: NABH checklist · RFC: CL-21 D`
 
 **Acceptance criteria**
 - [ ] The specialist can faculty publication tracking (H-index, i10-index, NMC promotion criteria) from the relevant screen, with clear loading / empty / error states.
@@ -3852,7 +3852,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Mannequin/simulator inventory with usage tracking
 > As a **specialist**, I want **mannequin/simulator inventory with usage tracking**.
 
-`Pending · Platforms: Web · Source: ACMSRC · RFC: CL-21 C`
+`Pending · Platforms: Web · Source: NABH checklist · RFC: CL-21 C`
 
 **Acceptance criteria**
 - [ ] The specialist can mannequin/simulator inventory with usage tracking from the relevant screen, with clear loading / empty / error states.
@@ -3866,7 +3866,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Scenario library mapped to CBME competencies
 > As a **specialist**, I want **scenario library mapped to cbme competencies**.
 
-`Pending · Platforms: Web, Mobile · Source: ACMSRC · RFC: CL-21 C`
+`Pending · Platforms: Web, Mobile · Source: NABH checklist · RFC: CL-21 C`
 
 **Acceptance criteria**
 - [ ] The specialist can scenario library mapped to CBME competencies from the relevant screen, with clear loading / empty / error states.
@@ -3881,7 +3881,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### OSCE station setup, randomized student rotation, real-time scoring
 > As a **specialist**, I want **osce station setup, randomized student rotation, real-time scoring**.
 
-`Pending · Platforms: Web, Mobile · Source: ACMSRC · RFC: CL-21 C`
+`Pending · Platforms: Web, Mobile · Source: NABH checklist · RFC: CL-21 C`
 
 **Acceptance criteria**
 - [ ] The specialist can oSCE station setup, randomized student rotation, real-time scoring from the relevant screen, with clear loading / empty / error states.
@@ -3896,7 +3896,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Session video recording and structured debriefing documentation
 > As a **specialist**, I want **session video recording and structured debriefing documentation**.
 
-`Pending · Platforms: Web · Source: ACMSRC · RFC: CL-21 C`
+`Pending · Platforms: Web · Source: NABH checklist · RFC: CL-21 C`
 
 **Acceptance criteria**
 - [ ] The specialist can session video recording and structured debriefing documentation from the relevant screen, with clear loading / empty / error states.
@@ -3910,7 +3910,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Competency tracking dashboard (knows → shows how → does)
 > As a **specialist**, I want **competency tracking dashboard (knows → shows how → does)**.
 
-`Pending · Platforms: Web · Source: ACMSRC · RFC: CL-21 C`
+`Pending · Platforms: Web · Source: NABH checklist · RFC: CL-21 C`
 
 **Acceptance criteria**
 - [ ] The specialist can competency tracking dashboard (knows → shows how → does) from the relevant screen, with clear loading / empty / error states.
@@ -3926,7 +3926,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Student admission, enrollment, and batch management
 > As a **specialist**, I want **student admission, enrollment, and batch management**.
 
-`Pending · Platforms: Web, Mobile · Source: ACMSRC · RFC: CL-21 A`
+`Pending · Platforms: Web, Mobile · Source: NABH checklist · RFC: CL-21 A`
 
 **Acceptance criteria**
 - [ ] The specialist can student admission, enrollment, and batch management from the relevant screen, with clear loading / empty / error states.
@@ -3941,7 +3941,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### CBME competency mapping per subject and year
 > As a **specialist**, I want **cbme competency mapping per subject and year**.
 
-`Pending · Platforms: Web, Mobile · Source: ACMSRC · RFC: CL-21 A`
+`Pending · Platforms: Web, Mobile · Source: NABH checklist · RFC: CL-21 A`
 
 **Acceptance criteria**
 - [ ] The specialist can cBME competency mapping per subject and year from the relevant screen, with clear loading / empty / error states.
@@ -3956,7 +3956,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Internal assessment tracking (formative + summative)
 > As a **specialist**, I want **internal assessment tracking (formative + summative)**.
 
-`Pending · Platforms: Web, Mobile · Source: ACMSRC · RFC: CL-21 A`
+`Pending · Platforms: Web, Mobile · Source: NABH checklist · RFC: CL-21 A`
 
 **Acceptance criteria**
 - [ ] The specialist can internal assessment tracking (formative + summative) from the relevant screen, with clear loading / empty / error states.
@@ -3971,7 +3971,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Examination management (scheduling, hall ticket, result processing)
 > As a **specialist**, I want **examination management (scheduling, hall ticket, result processing)**.
 
-`Pending · Platforms: Web, Mobile · Source: ACMSRC · RFC: CL-21 A`
+`Pending · Platforms: Web, Mobile · Source: NABH checklist · RFC: CL-21 A`
 
 **Acceptance criteria**
 - [ ] The specialist can examination management (scheduling, hall ticket, result processing) from the relevant screen, with clear loading / empty / error states.
@@ -3986,7 +3986,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### PG logbook with HMS-integrated case auto-population
 > As a **specialist**, I want **pg logbook with hms-integrated case auto-population**.
 
-`Pending · Platforms: Web, Mobile · Source: ACMSRC · RFC: CL-21 A`
+`Pending · Platforms: Web, Mobile · Source: NABH checklist · RFC: CL-21 A`
 
 **Acceptance criteria**
 - [ ] The specialist can pG logbook with HMS-integrated case auto-population from the relevant screen, with clear loading / empty / error states.
@@ -4001,7 +4001,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Intern rotation tracking with NMC mandatory posting enforcement
 > As a **specialist**, I want **intern rotation tracking with nmc mandatory posting enforcement**.
 
-`Pending · Platforms: Web, Mobile · Source: ACMSRC · RFC: CL-21 A`
+`Pending · Platforms: Web, Mobile · Source: NABH checklist · RFC: CL-21 A`
 
 **Acceptance criteria**
 - [ ] The specialist can intern rotation tracking with NMC mandatory posting enforcement from the relevant screen, with clear loading / empty / error states.
@@ -4016,7 +4016,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Intern logbook with supervisor assessment per rotation
 > As a **specialist**, I want **intern logbook with supervisor assessment per rotation**.
 
-`Pending · Platforms: Web, Mobile · Source: ACMSRC · RFC: CL-21 A`
+`Pending · Platforms: Web, Mobile · Source: NABH checklist · RFC: CL-21 A`
 
 **Acceptance criteria**
 - [ ] The specialist can intern logbook with supervisor assessment per rotation from the relevant screen, with clear loading / empty / error states.
@@ -4031,7 +4031,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Completion certificate generation with SMC registration recommendation
 > As a **specialist**, I want **completion certificate generation with smc registration recommendation**.
 
-`Pending · Platforms: Web, Mobile · Source: ACMSRC · RFC: CL-21 A`
+`Pending · Platforms: Web, Mobile · Source: NABH checklist · RFC: CL-21 A`
 
 **Acceptance criteria**
 - [ ] The specialist can completion certificate generation with SMC registration recommendation from the relevant screen, with clear loading / empty / error states.
@@ -4108,7 +4108,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ Minimal data registration (name/unknown, age estimate, gender, brought-by)
 > As a **specialist**, I want **minimal data registration (name/unknown, age estimate, gender, brought-by)**.
 
-`Done · Platforms: Web, Mobile, TV · Source: RFC+ACMSRC · RFC: §3.4, CL-2`
+`Done · Platforms: Web, Mobile, TV · Source: RFC+NABH checklist · RFC: §3.4, CL-2`
 
 **Acceptance criteria**
 - [x] The specialist can minimal data registration (name/unknown, age estimate, gender, brought-by) from the relevant screen, with clear loading / empty / error states.
@@ -4124,7 +4124,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ Temporary UHID with EMERGENCY prefix
 > As a **specialist**, I want **temporary uhid with emergency prefix**.
 
-`Done · Platforms: Web, Mobile, TV · Source: RFC+ACMSRC · RFC: §3.4, CL-2`
+`Done · Platforms: Web, Mobile, TV · Source: RFC+NABH checklist · RFC: §3.4, CL-2`
 
 **Acceptance criteria**
 - [x] The specialist can temporary UHID with EMERGENCY prefix from the relevant screen, with clear loading / empty / error states.
@@ -4140,7 +4140,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ Triage scoring system (START/ESI) with color coding (Red/Yellow/Green)
 > As a **specialist**, I want **triage scoring system (start/esi) with color coding (red/yellow/green)**.
 
-`Done · Platforms: Web, Mobile, TV · Source: RFC+ACMSRC · RFC: §3.4, CL-2`
+`Done · Platforms: Web, Mobile, TV · Source: RFC+NABH checklist · RFC: §3.4, CL-2`
 
 **Acceptance criteria**
 - [x] The specialist can triage scoring system (START/ESI) with color coding (Red/Yellow/Green) from the relevant screen, with clear loading / empty / error states.
@@ -4156,7 +4156,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Auto-notification to casualty MO, duty doctor, and administration
 > As a **specialist**, I want **auto-notification to casualty mo, duty doctor, and administration**.
 
-`Partial · Platforms: Web, Mobile, TV · Source: RFC+ACMSRC · RFC: §3.4, CL-2`
+`Partial · Platforms: Web, Mobile, TV · Source: RFC+NABH checklist · RFC: §3.4, CL-2`
 
 **Acceptance criteria**
 - [ ] The specialist can auto-notification to casualty MO, duty doctor, and administration from the relevant screen, with clear loading / empty / error states.
@@ -4172,7 +4172,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ MLC flag with auto-police intimation (SMS + system alert)
 > As a **specialist**, I want **mlc flag with auto-police intimation (sms + system alert)**.
 
-`Done · Platforms: Web, Mobile, TV · Source: RFC+ACMSRC · RFC: §3.4, CL-2`
+`Done · Platforms: Web, Mobile, TV · Source: RFC+NABH checklist · RFC: §3.4, CL-2`
 
 **Acceptance criteria**
 - [x] The specialist can mLC flag with auto-police intimation (SMS + system alert) from the relevant screen, with clear loading / empty / error states.
@@ -4188,7 +4188,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ Timer tracking from arrival to first doctor contact
 > As a **specialist**, I want **timer tracking from arrival to first doctor contact**.
 
-`Done · Platforms: Web, Mobile, TV · Source: RFC+ACMSRC · RFC: §3.4, CL-2`
+`Done · Platforms: Web, Mobile, TV · Source: RFC+NABH checklist · RFC: §3.4, CL-2`
 
 **Acceptance criteria**
 - [x] The specialist can timer tracking from arrival to first doctor contact from the relevant screen, with clear loading / empty / error states.
@@ -4206,7 +4206,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ General consent (admission), surgical consent, anesthesia consent, blood transfusion consent
 > As a **specialist**, I want **general consent (admission), surgical consent, anesthesia consent, blood transfusion consent**.
 
-`Done · Platforms: Web · Source: ACMSRC · RFC: CL-24 A`
+`Done · Platforms: Web · Source: NABH checklist · RFC: CL-24 A`
 
 **Acceptance criteria**
 - [x] The specialist can general consent (admission), surgical consent, anesthesia consent, blood transfusion consent from the relevant screen, with clear loading / empty / error states.
@@ -4220,7 +4220,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ HIV testing consent, high-risk procedure consent, research consent
 > As a **specialist**, I want **hiv testing consent, high-risk procedure consent, research consent**.
 
-`Done · Platforms: Web · Source: ACMSRC · RFC: CL-24 A`
+`Done · Platforms: Web · Source: NABH checklist · RFC: CL-24 A`
 
 **Acceptance criteria**
 - [x] The specialist can hIV testing consent, high-risk procedure consent, research consent from the relevant screen, with clear loading / empty / error states.
@@ -4234,7 +4234,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ Informed refusal documentation (more detailed than consent)
 > As a **specialist**, I want **informed refusal documentation (more detailed than consent)**.
 
-`Done · Platforms: Web · Source: ACMSRC · RFC: CL-24 A`
+`Done · Platforms: Web · Source: NABH checklist · RFC: CL-24 A`
 
 **Acceptance criteria**
 - [x] The specialist can informed refusal documentation (more detailed than consent) from the relevant screen, with clear loading / empty / error states.
@@ -4248,7 +4248,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ DAMA/LAMA consent with acknowledgment workflow
 > As a **specialist**, I want **dama/lama consent with acknowledgment workflow**.
 
-`Done · Platforms: Web · Source: ACMSRC · RFC: CL-24 A`
+`Done · Platforms: Web · Source: NABH checklist · RFC: CL-24 A`
 
 **Acceptance criteria**
 - [x] The specialist can dAMA/LAMA consent with acknowledgment workflow from the relevant screen, with clear loading / empty / error states.
@@ -4262,7 +4262,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ Photography/video consent, teaching/student observation consent
 > As a **specialist**, I want **photography/video consent, teaching/student observation consent**.
 
-`Done · Platforms: Web, Mobile · Source: ACMSRC · RFC: CL-24 A`
+`Done · Platforms: Web, Mobile · Source: NABH checklist · RFC: CL-24 A`
 
 **Acceptance criteria**
 - [x] The specialist can photography/video consent, teaching/student observation consent from the relevant screen, with clear loading / empty / error states.
@@ -4277,7 +4277,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ ABDM/ABHA data sharing consent, DPDP Act data processing consent
 > As a **specialist**, I want **abdm/abha data sharing consent, dpdp act data processing consent**.
 
-`Done · Platforms: Web · Source: ACMSRC · RFC: CL-24 A`
+`Done · Platforms: Web · Source: NABH checklist · RFC: CL-24 A`
 
 **Acceptance criteria**
 - [x] The specialist can aBDM/ABHA data sharing consent, DPDP Act data processing consent from the relevant screen, with clear loading / empty / error states.
@@ -4291,7 +4291,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ DNR consent and advance directive recording
 > As a **specialist**, I want **dnr consent and advance directive recording**.
 
-`Done · Platforms: Web, Mobile · Source: ACMSRC · RFC: CL-24 A`
+`Done · Platforms: Web, Mobile · Source: NABH checklist · RFC: CL-24 A`
 
 **Acceptance criteria**
 - [x] The specialist can dNR consent and advance directive recording from the relevant screen, with clear loading / empty / error states.
@@ -4306,7 +4306,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Multi-language consent generation (English, Hindi, Tamil, Telugu, etc.)
 > As a **specialist**, I want **multi-language consent generation (english, hindi, tamil, telugu, etc.)**.
 
-`Partial · Platforms: Web · Source: ACMSRC · RFC: CL-24 A`
+`Partial · Platforms: Web · Source: NABH checklist · RFC: CL-24 A`
 
 **Acceptance criteria**
 - [ ] The specialist can multi-language consent generation (English, Hindi, Tamil, Telugu, etc.) from the relevant screen, with clear loading / empty / error states.
@@ -4320,7 +4320,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Read-aloud option for illiterate patients (audio + witness signature)
 > As a **specialist**, I want **read-aloud option for illiterate patients (audio + witness signature)**.
 
-`Partial · Platforms: Web · Source: ACMSRC · RFC: CL-24 A`
+`Partial · Platforms: Web · Source: NABH checklist · RFC: CL-24 A`
 
 **Acceptance criteria**
 - [ ] The specialist can read-aloud option for illiterate patients (audio + witness signature) from the relevant screen, with clear loading / empty / error states.
@@ -4334,7 +4334,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ Organ donation consent (THOA compliance)
 > As a **specialist**, I want **organ donation consent (thoa compliance)**.
 
-`Done · Platforms: Web · Source: ACMSRC · RFC: CL-24 A`
+`Done · Platforms: Web · Source: NABH checklist · RFC: CL-24 A`
 
 **Acceptance criteria**
 - [x] The specialist can organ donation consent (THOA compliance) from the relevant screen, with clear loading / empty / error states.

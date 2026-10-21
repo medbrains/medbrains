@@ -36,14 +36,14 @@ Labels: P0-critical, area:infra · Milestone: M1 — Week 1: Critical security &
 
 ## Move standalone terraform state to S3 with locking
 
-> As a **devops engineer**, I want S3 backend + DynamoDB lock for standalone/alagappa state, so that state is encrypted, shared, and protected from concurrent applies.
+> As a **devops engineer**, I want S3 backend + DynamoDB lock for standalone hospital state, so that state is encrypted, shared, and protected from concurrent applies.
 
 **Acceptance criteria**
 - [ ] Backend block + migration of existing state
 - [ ] Documented in infra README
 
 **Audit ref:** P0 #15 (ENTERPRISE_READINESS_AUDIT.md)
-**Files:** `infra/terraform/envs/standalone/alagappa/main.tf:25-27`
+**Files:** `infra/terraform/envs/standalone/<hospital>/main.tf`
 **Effort:** S (<1 day)
 
 Labels: P0-critical, area:infra · Milestone: M1 — Week 1: Critical security & infra

@@ -117,7 +117,7 @@ On the host and in AWS:
 
 ```sh
 sudo sh -c 'for h in /root /home/*; do [ -f "$h/.ssh/authorized_keys" ] && { echo "== $h"; ssh-keygen -lf "$h/.ssh/authorized_keys"; }; done'
-aws ec2 describe-security-groups --group-ids sg-08b3b592a3c603029 --region ap-south-1 \
+aws ec2 describe-security-groups --group-ids sg-0123456789abcdef0 --region ap-south-1 \
   --query 'SecurityGroups[].IpPermissions[?FromPort==`22`]'
 ```
 

@@ -9,7 +9,7 @@ instruments; confirm current text and commencement with counsel before relying o
 | Owner | [ORG: name, role] |
 | Approved by / date | [ORG] |
 | Next review | [ORG: ≤ 12 months, and after every SEV1] |
-| Scope | the MedBrains product, the production host (`app.medbrains.in`, EC2 `i-08e9496a3e110ebdc`, ap-south-1), the AWS account, the GitHub repository, `medbrains.in` mail and DNS |
+| Scope | the MedBrains product, the production host (`app.medbrains.in`, EC2 `i-0123456789abcdef0`, ap-south-1), the AWS account, the GitHub repository, `medbrains.in` mail and DNS |
 
 ## 1. Who we are in each regime
 

@@ -27,7 +27,7 @@ Labels: P0-critical, area:clinical-safety · Milestone: M2 — Weeks 2-4: Reliab
 
 **Acceptance criteria**
 - [ ] Checklist template/instance/response schema with scoring
-- [ ] Seed from ACMSRC evaluation checklists; department dashboards
+- [ ] Seed from NABH department checklists; department dashboards
 
 **Audit ref:** P0 #17 (ENTERPRISE_READINESS_AUDIT.md)
 **Files:** `new module`

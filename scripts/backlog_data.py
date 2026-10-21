@@ -340,11 +340,11 @@ EPICS = [
             story(
                 "Move standalone terraform state to S3 with locking",
                 "devops engineer",
-                "S3 backend + DynamoDB lock for standalone/alagappa state",
+                "S3 backend + DynamoDB lock for standalone hospital state",
                 "state is encrypted, shared, and protected from concurrent applies",
                 ["Backend block + migration of existing state", "Documented in infra README"],
                 "P0 #15",
-                ["infra/terraform/envs/standalone/alagappa/main.tf:25-27"],
+                ["infra/terraform/envs/standalone/<hospital>/main.tf"],
                 "S", "P0-critical", "area:infra", M1,
             ),
             story(
@@ -410,7 +410,7 @@ EPICS = [
                 "quality manager",
                 "a checklist schema + templates covering the 34 department checklists (700+ criteria)",
                 "accreditation compliance is tracked in-system instead of on paper",
-                ["Checklist template/instance/response schema with scoring", "Seed from ACMSRC evaluation checklists; department dashboards"],
+                ["Checklist template/instance/response schema with scoring", "Seed from NABH department checklists; department dashboards"],
                 "P0 #17",
                 ["new module"],
                 "XL", "P0-critical", "area:clinical-safety", M4,

@@ -7,7 +7,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Access denied events logged
 > As a **system administrator**, I want **access denied events logged**.
 
-`Pending · Platforms: Web · Source: ACMSRC · RFC: CL-31 E`
+`Pending · Platforms: Web · Source: NABH checklist · RFC: CL-31 E`
 
 **Acceptance criteria**
 - [ ] The system administrator can access denied events logged from the relevant screen, with clear loading / empty / error states.
@@ -21,7 +21,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ ABAC policy change audit trail
 > As a **system administrator**, I want **abac policy change audit trail**.
 
-`Done · Platforms: Web · Source: ACMSRC · RFC: CL-31 E`
+`Done · Platforms: Web · Source: NABH checklist · RFC: CL-31 E`
 
 **Acceptance criteria**
 - [x] The system administrator can aBAC policy change audit trail from the relevant screen, with clear loading / empty / error states.
@@ -35,7 +35,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ Role assignment audit
 > As a **system administrator**, I want **role assignment audit**.
 
-`Done · Platforms: Web · Source: ACMSRC · RFC: CL-31 E`
+`Done · Platforms: Web · Source: NABH checklist · RFC: CL-31 E`
 
 **Acceptance criteria**
 - [x] The system administrator can role assignment audit from the relevant screen, with clear loading / empty / error states.
@@ -49,7 +49,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Privilege escalation detection
 > As a **system administrator**, I want **privilege escalation detection**.
 
-`Pending · Platforms: Web · Source: ACMSRC · RFC: CL-31 E`
+`Pending · Platforms: Web · Source: NABH checklist · RFC: CL-31 E`
 
 **Acceptance criteria**
 - [ ] The system administrator can privilege escalation detection from the relevant screen, with clear loading / empty / error states.
@@ -63,7 +63,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Segregation of duties monitoring (e.g., PO create vs PO approve)
 > As a **system administrator**, I want **segregation of duties monitoring (e.g., po create vs po approve)**.
 
-`Pending · Platforms: Web · Source: ACMSRC · RFC: CL-31 E`
+`Pending · Platforms: Web · Source: NABH checklist · RFC: CL-31 E`
 
 **Acceptance criteria**
 - [ ] The system administrator can segregation of duties monitoring (e.g., PO create vs PO approve) from the relevant screen, with clear loading / empty / error states.
@@ -77,7 +77,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Time-based access compliance (vendor access expired but still active)
 > As a **system administrator**, I want **time-based access compliance (vendor access expired but still active)**.
 
-`Pending · Platforms: Web · Source: ACMSRC · RFC: CL-31 E`
+`Pending · Platforms: Web · Source: NABH checklist · RFC: CL-31 E`
 
 **Acceptance criteria**
 - [ ] The system administrator can time-based access compliance (vendor access expired but still active) from the relevant screen, with clear loading / empty / error states.
@@ -91,7 +91,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### External user access monitoring (police, auditor, vendor — time-limited)
 > As a **system administrator**, I want **external user access monitoring (police, auditor, vendor — time-limited)**.
 
-`Pending · Platforms: Web · Source: ACMSRC · RFC: CL-31 E`
+`Pending · Platforms: Web · Source: NABH checklist · RFC: CL-31 E`
 
 **Acceptance criteria**
 - [ ] The system administrator can external user access monitoring (police, auditor, vendor — time-limited) from the relevant screen, with clear loading / empty / error states.
@@ -324,7 +324,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ RBAC (role-based access control)
 > As a **system administrator**, I want **rbac (role-based access control)**.
 
-`Done · Platforms: Web · Source: RFC+ACMSRC · RFC: §6, CL-19/31`
+`Done · Platforms: Web · Source: RFC+NABH checklist · RFC: §6, CL-19/31`
 
 **Acceptance criteria**
 - [x] The system administrator can rBAC (role-based access control) from the relevant screen, with clear loading / empty / error states.
@@ -338,7 +338,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ABAC (attribute-based access control) per RFC §6.1
 > As a **system administrator**, I want **abac (attribute-based access control) per rfc §6.1**.
 
-`Pending · Platforms: Web · Source: RFC+ACMSRC · RFC: §6, CL-19/31`
+`Pending · Platforms: Web · Source: RFC+NABH checklist · RFC: §6, CL-19/31`
 
 **Acceptance criteria**
 - [ ] The system administrator can aBAC (attribute-based access control) per RFC §6.1 from the relevant screen, with clear loading / empty / error states.
@@ -352,7 +352,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ Data access lifetime (context-aware sessions)
 > As a **system administrator**, I want **data access lifetime (context-aware sessions)**.
 
-`Done · Platforms: Web, Mobile · Source: RFC+ACMSRC · RFC: §6, CL-19/31`
+`Done · Platforms: Web, Mobile · Source: RFC+NABH checklist · RFC: §6, CL-19/31`
 
 **Acceptance criteria**
 - [x] The system administrator can data access lifetime (context-aware sessions) from the relevant screen, with clear loading / empty / error states.
@@ -367,7 +367,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ Break-glass emergency access with full audit trail
 > As a **system administrator**, I want **break-glass emergency access with full audit trail**.
 
-`Done · Platforms: Web · Source: RFC+ACMSRC · RFC: §6, CL-19/31`
+`Done · Platforms: Web · Source: RFC+NABH checklist · RFC: §6, CL-19/31`
 
 **Acceptance criteria**
 - [x] The system administrator can break-glass emergency access with full audit trail from the relevant screen, with clear loading / empty / error states.
@@ -381,7 +381,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Field-level access control
 > As a **system administrator**, I want **field-level access control**.
 
-`Pending · Platforms: Web · Source: RFC+ACMSRC · RFC: §6, CL-19/31`
+`Pending · Platforms: Web · Source: RFC+NABH checklist · RFC: §6, CL-19/31`
 
 **Acceptance criteria**
 - [ ] The system administrator can field-level access control from the relevant screen, with clear loading / empty / error states.
@@ -395,7 +395,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### IP address whitelisting
 > As a **system administrator**, I want **ip address whitelisting**.
 
-`Pending · Platforms: Web · Source: RFC+ACMSRC · RFC: §6, CL-19/31`
+`Pending · Platforms: Web · Source: RFC+NABH checklist · RFC: §6, CL-19/31`
 
 **Acceptance criteria**
 - [ ] The system administrator can iP address whitelisting from the relevant screen, with clear loading / empty / error states.
@@ -409,7 +409,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ Single-session enforcement
 > As a **system administrator**, I want **single-session enforcement**.
 
-`Done · Platforms: Web · Source: RFC+ACMSRC · RFC: §6, CL-19/31`
+`Done · Platforms: Web · Source: RFC+NABH checklist · RFC: §6, CL-19/31`
 
 **Acceptance criteria**
 - [x] The system administrator can single-session enforcement from the relevant screen, with clear loading / empty / error states.
@@ -423,7 +423,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Multi-factor authentication (TOTP) — at minimum: admin, DBA, break-glass
 > As a **system administrator**, I want **multi-factor authentication (totp) — at minimum: admin, dba, break-glass**.
 
-`Pending · Platforms: Web · Source: RFC+ACMSRC · RFC: §6, CL-19/31`
+`Pending · Platforms: Web · Source: RFC+NABH checklist · RFC: §6, CL-19/31`
 
 **Acceptance criteria**
 - [ ] The system administrator can multi-factor authentication (TOTP) — at minimum: admin, DBA, break-glass from the relevant screen, with clear loading / empty / error states.
@@ -437,7 +437,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ Session timeout management (configurable per role)
 > As a **system administrator**, I want **session timeout management (configurable per role)**.
 
-`Done · Platforms: Web · Source: RFC+ACMSRC · RFC: §6, CL-19/31`
+`Done · Platforms: Web · Source: RFC+NABH checklist · RFC: §6, CL-19/31`
 
 **Acceptance criteria**
 - [x] The system administrator can session timeout management (configurable per role) from the relevant screen, with clear loading / empty / error states.
@@ -451,7 +451,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ Password policy enforcement (length, complexity, expiry, history)
 > As a **system administrator**, I want **password policy enforcement (length, complexity, expiry, history)**.
 
-`Done · Platforms: Web · Source: RFC+ACMSRC · RFC: §6, CL-19/31`
+`Done · Platforms: Web · Source: RFC+NABH checklist · RFC: §6, CL-19/31`
 
 **Acceptance criteria**
 - [x] The system administrator can password policy enforcement (length, complexity, expiry, history) from the relevant screen, with clear loading / empty / error states.
@@ -465,7 +465,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ Login audit trail
 > As a **system administrator**, I want **login audit trail**.
 
-`Done · Platforms: Web · Source: RFC+ACMSRC · RFC: §6, CL-19/31`
+`Done · Platforms: Web · Source: RFC+NABH checklist · RFC: §6, CL-19/31`
 
 **Acceptance criteria**
 - [x] The system administrator can login audit trail from the relevant screen, with clear loading / empty / error states.
@@ -479,7 +479,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ Failed login lockout with IP logging
 > As a **system administrator**, I want **failed login lockout with ip logging**.
 
-`Done · Platforms: Web · Source: RFC+ACMSRC · RFC: §6, CL-19/31`
+`Done · Platforms: Web · Source: RFC+NABH checklist · RFC: §6, CL-19/31`
 
 **Acceptance criteria**
 - [x] The system administrator can failed login lockout with IP logging from the relevant screen, with clear loading / empty / error states.
@@ -493,7 +493,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ Audit log (all operations) — IMMUTABLE, cannot be modified even by admin
 > As a **system administrator**, I want **audit log (all operations) — immutable, cannot be modified even by admin**.
 
-`Done · Platforms: Web · Source: RFC+ACMSRC · RFC: §6, CL-19/31`
+`Done · Platforms: Web · Source: RFC+NABH checklist · RFC: §6, CL-19/31`
 
 **Acceptance criteria**
 - [x] The system administrator can audit log (all operations) — IMMUTABLE, cannot be modified even by admin from the relevant screen, with clear loading / empty / error states.
@@ -507,7 +507,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Tamper-evident audit chain (SHA-256)
 > As a **system administrator**, I want **tamper-evident audit chain (sha-256)**.
 
-`Pending · Platforms: Web · Source: RFC+ACMSRC · RFC: §6, CL-19/31`
+`Pending · Platforms: Web · Source: RFC+NABH checklist · RFC: §6, CL-19/31`
 
 **Acceptance criteria**
 - [ ] The system administrator can tamper-evident audit chain (SHA-256) from the relevant screen, with clear loading / empty / error states.
@@ -521,7 +521,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Break-glass review workflow
 > As a **system administrator**, I want **break-glass review workflow**.
 
-`Pending · Platforms: Web · Source: RFC+ACMSRC · RFC: §6, CL-19/31`
+`Pending · Platforms: Web · Source: RFC+NABH checklist · RFC: §6, CL-19/31`
 
 **Acceptance criteria**
 - [ ] The system administrator can break-glass review workflow from the relevant screen, with clear loading / empty / error states.
@@ -535,7 +535,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Address-based conflict detection (staff vs patient)
 > As a **system administrator**, I want **address-based conflict detection (staff vs patient)**.
 
-`Pending · Platforms: Web · Source: RFC+ACMSRC · RFC: §6, CL-19/31`
+`Pending · Platforms: Web · Source: RFC+NABH checklist · RFC: §6, CL-19/31`
 
 **Acceptance criteria**
 - [ ] The system administrator can address-based conflict detection (staff vs patient) from the relevant screen, with clear loading / empty / error states.
@@ -549,7 +549,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Sensitive case escalation (HIV, psychiatry)
 > As a **system administrator**, I want **sensitive case escalation (hiv, psychiatry)**.
 
-`Pending · Platforms: Web · Source: RFC+ACMSRC · RFC: §6, CL-19/31`
+`Pending · Platforms: Web · Source: RFC+NABH checklist · RFC: §6, CL-19/31`
 
 **Acceptance criteria**
 - [ ] The system administrator can sensitive case escalation (HIV, psychiatry) from the relevant screen, with clear loading / empty / error states.
@@ -563,7 +563,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ Data export control (print/export permissions)
 > As a **system administrator**, I want **data export control (print/export permissions)**.
 
-`Done · Platforms: Web · Source: RFC+ACMSRC · RFC: §6, CL-19/31`
+`Done · Platforms: Web · Source: RFC+NABH checklist · RFC: §6, CL-19/31`
 
 **Acceptance criteria**
 - [x] The system administrator can data export control (print/export permissions) from the relevant screen, with clear loading / empty / error states.
@@ -577,7 +577,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Anonymized data access (students)
 > As a **system administrator**, I want **anonymized data access (students)**.
 
-`Pending · Platforms: Web · Source: RFC+ACMSRC · RFC: §6, CL-19/31`
+`Pending · Platforms: Web · Source: RFC+NABH checklist · RFC: §6, CL-19/31`
 
 **Acceptance criteria**
 - [ ] The system administrator can anonymized data access (students) from the relevant screen, with clear loading / empty / error states.
@@ -591,7 +591,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ Psychiatric data isolation (separate encrypted partition per Rule PSY-001)
 > As a **system administrator**, I want **psychiatric data isolation (separate encrypted partition per rule psy-001)**.
 
-`Done · Platforms: Web · Source: RFC+ACMSRC · RFC: §6, CL-19/31`
+`Done · Platforms: Web · Source: RFC+NABH checklist · RFC: §6, CL-19/31`
 
 **Acceptance criteria**
 - [x] The system administrator can psychiatric data isolation (separate encrypted partition per Rule PSY-001) from the relevant screen, with clear loading / empty / error states.
@@ -605,7 +605,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ Concurrent session detection
 > As a **system administrator**, I want **concurrent session detection**.
 
-`Done · Platforms: Web · Source: RFC+ACMSRC · RFC: §6, CL-19/31`
+`Done · Platforms: Web · Source: RFC+NABH checklist · RFC: §6, CL-19/31`
 
 **Acceptance criteria**
 - [x] The system administrator can concurrent session detection from the relevant screen, with clear loading / empty / error states.
@@ -619,7 +619,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### VPN requirement for remote access
 > As a **system administrator**, I want **vpn requirement for remote access**.
 
-`Pending · Platforms: Web · Source: RFC+ACMSRC · RFC: §6, CL-19/31`
+`Pending · Platforms: Web · Source: RFC+NABH checklist · RFC: §6, CL-19/31`
 
 **Acceptance criteria**
 - [ ] The system administrator can vPN requirement for remote access from the relevant screen, with clear loading / empty / error states.
@@ -635,7 +635,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ Login/logout timestamp logging for every session
 > As a **system administrator**, I want **login/logout timestamp logging for every session**.
 
-`Done · Platforms: Web · Source: ACMSRC · RFC: CL-31 B`
+`Done · Platforms: Web · Source: NABH checklist · RFC: CL-31 B`
 
 **Acceptance criteria**
 - [x] The system administrator can login/logout timestamp logging for every session from the relevant screen, with clear loading / empty / error states.
@@ -649,7 +649,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ Failed login attempt logging with IP and lockout
 > As a **system administrator**, I want **failed login attempt logging with ip and lockout**.
 
-`Done · Platforms: Web · Source: ACMSRC · RFC: CL-31 B`
+`Done · Platforms: Web · Source: NABH checklist · RFC: CL-31 B`
 
 **Acceptance criteria**
 - [x] The system administrator can failed login attempt logging with IP and lockout from the relevant screen, with clear loading / empty / error states.
@@ -663,7 +663,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ Concurrent session detection (same user, multiple devices)
 > As a **system administrator**, I want **concurrent session detection (same user, multiple devices)**.
 
-`Done · Platforms: Web · Source: ACMSRC · RFC: CL-31 B`
+`Done · Platforms: Web · Source: NABH checklist · RFC: CL-31 B`
 
 **Acceptance criteria**
 - [x] The system administrator can concurrent session detection (same user, multiple devices) from the relevant screen, with clear loading / empty / error states.
@@ -677,7 +677,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ Session timeout logging
 > As a **system administrator**, I want **session timeout logging**.
 
-`Done · Platforms: Web · Source: ACMSRC · RFC: CL-31 B`
+`Done · Platforms: Web · Source: NABH checklist · RFC: CL-31 B`
 
 **Acceptance criteria**
 - [x] The system administrator can session timeout logging from the relevant screen, with clear loading / empty / error states.
@@ -691,7 +691,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ Password change/reset logging
 > As a **system administrator**, I want **password change/reset logging**.
 
-`Done · Platforms: Web · Source: ACMSRC · RFC: CL-31 B`
+`Done · Platforms: Web · Source: NABH checklist · RFC: CL-31 B`
 
 **Acceptance criteria**
 - [x] The system administrator can password change/reset logging from the relevant screen, with clear loading / empty / error states.
@@ -705,7 +705,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Role change logging (who changed, old vs new, approver)
 > As a **system administrator**, I want **role change logging (who changed, old vs new, approver)**.
 
-`Pending · Platforms: Web · Source: ACMSRC · RFC: CL-31 B`
+`Pending · Platforms: Web · Source: NABH checklist · RFC: CL-31 B`
 
 **Acceptance criteria**
 - [ ] The system administrator can role change logging (who changed, old vs new, approver) from the relevant screen, with clear loading / empty / error states.
@@ -719,7 +719,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ New user creation and deactivation logging
 > As a **system administrator**, I want **new user creation and deactivation logging**.
 
-`Done · Platforms: Web · Source: ACMSRC · RFC: CL-31 B`
+`Done · Platforms: Web · Source: NABH checklist · RFC: CL-31 B`
 
 **Acceptance criteria**
 - [x] The system administrator can new user creation and deactivation logging from the relevant screen, with clear loading / empty / error states.
@@ -733,7 +733,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Access card/biometric provisioning logs
 > As a **system administrator**, I want **access card/biometric provisioning logs**.
 
-`Pending · Platforms: Web · Source: ACMSRC · RFC: CL-31 B`
+`Pending · Platforms: Web · Source: NABH checklist · RFC: CL-31 B`
 
 **Acceptance criteria**
 - [ ] The system administrator can access card/biometric provisioning logs from the relevant screen, with clear loading / empty / error states.
@@ -1314,7 +1314,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Every data CREATE logged (who, what, when, IP/device)
 > As a **system administrator**, I want **every data create logged (who, what, when, ip/device)**.
 
-`Pending · Platforms: Web · Source: ACMSRC · RFC: CL-31 A`
+`Pending · Platforms: Web · Source: NABH checklist · RFC: CL-31 A`
 
 **Acceptance criteria**
 - [ ] The system administrator can every data CREATE logged (who, what, when, IP/device) from the relevant screen, with clear loading / empty / error states.
@@ -1328,7 +1328,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Every data READ/VIEW logged (who viewed which patient record)
 > As a **system administrator**, I want **every data read/view logged (who viewed which patient record)**.
 
-`Pending · Platforms: Web · Source: ACMSRC · RFC: CL-31 A`
+`Pending · Platforms: Web · Source: NABH checklist · RFC: CL-31 A`
 
 **Acceptance criteria**
 - [ ] The system administrator can every data READ/VIEW logged (who viewed which patient record) from the relevant screen, with clear loading / empty / error states.
@@ -1342,7 +1342,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Every data UPDATE logged (old value vs new value, timestamp)
 > As a **system administrator**, I want **every data update logged (old value vs new value, timestamp)**.
 
-`Pending · Platforms: Web · Source: ACMSRC · RFC: CL-31 A`
+`Pending · Platforms: Web · Source: NABH checklist · RFC: CL-31 A`
 
 **Acceptance criteria**
 - [ ] The system administrator can every data UPDATE logged (old value vs new value, timestamp) from the relevant screen, with clear loading / empty / error states.
@@ -1356,7 +1356,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Every data DELETE logged (soft-delete only, confirm deletion not allowed)
 > As a **system administrator**, I want **every data delete logged (soft-delete only, confirm deletion not allowed)**.
 
-`Pending · Platforms: Web · Source: ACMSRC · RFC: CL-31 A`
+`Pending · Platforms: Web · Source: NABH checklist · RFC: CL-31 A`
 
 **Acceptance criteria**
 - [ ] The system administrator can every data DELETE logged (soft-delete only, confirm deletion not allowed) from the relevant screen, with clear loading / empty / error states.
@@ -1370,7 +1370,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ Audit log is IMMUTABLE — cannot be modified/deleted even by DBA
 > As a **system administrator**, I want **audit log is immutable — cannot be modified/deleted even by dba**.
 
-`Done · Platforms: Web · Source: ACMSRC · RFC: CL-31 A`
+`Done · Platforms: Web · Source: NABH checklist · RFC: CL-31 A`
 
 **Acceptance criteria**
 - [x] The system administrator can audit log is IMMUTABLE — cannot be modified/deleted even by DBA from the relevant screen, with clear loading / empty / error states.
@@ -1384,7 +1384,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ Audit log stored separately from application database (tamper-proof)
 > As a **system administrator**, I want **audit log stored separately from application database (tamper-proof)**.
 
-`Done · Platforms: Web · Source: ACMSRC · RFC: CL-31 A`
+`Done · Platforms: Web · Source: NABH checklist · RFC: CL-31 A`
 
 **Acceptance criteria**
 - [x] The system administrator can audit log stored separately from application database (tamper-proof) from the relevant screen, with clear loading / empty / error states.
@@ -1398,7 +1398,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ Audit log includes: User ID, Role, IP, Device, Timestamp (ms), Module, Action, Record ID, Before/After
 > As a **system administrator**, I want **audit log includes: user id, role, ip, device, timestamp (ms), module, action, record id, before/after**.
 
-`Done · Platforms: Web · Source: ACMSRC · RFC: CL-31 A`
+`Done · Platforms: Web · Source: NABH checklist · RFC: CL-31 A`
 
 **Acceptance criteria**
 - [x] The system administrator can audit log includes: User ID, Role, IP, Device, Timestamp (ms), Module, Action, Record ID, Before/After from the relevant screen, with clear loading / empty / error states.
@@ -1412,7 +1412,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ Audit log retention: minimum 7 years for healthcare
 > As a **system administrator**, I want **audit log retention: minimum 7 years for healthcare**.
 
-`Done · Platforms: Web · Source: ACMSRC · RFC: CL-31 A`
+`Done · Platforms: Web · Source: NABH checklist · RFC: CL-31 A`
 
 **Acceptance criteria**
 - [x] The system administrator can audit log retention: minimum 7 years for healthcare from the relevant screen, with clear loading / empty / error states.
@@ -1426,7 +1426,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ Audit log search/filter (by user, date, module, action, patient ID)
 > As a **system administrator**, I want **audit log search/filter (by user, date, module, action, patient id)**.
 
-`Done · Platforms: Web · Source: ACMSRC · RFC: CL-31 A`
+`Done · Platforms: Web · Source: NABH checklist · RFC: CL-31 A`
 
 **Acceptance criteria**
 - [x] The system administrator can audit log search/filter (by user, date, module, action, patient ID) from the relevant screen, with clear loading / empty / error states.
@@ -1440,7 +1440,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ Audit log export for legal/compliance/forensics (CSV/PDF)
 > As a **system administrator**, I want **audit log export for legal/compliance/forensics (csv/pdf)**.
 
-`Done · Platforms: Web · Source: ACMSRC · RFC: CL-31 A`
+`Done · Platforms: Web · Source: NABH checklist · RFC: CL-31 A`
 
 **Acceptance criteria**
 - [x] The system administrator can audit log export for legal/compliance/forensics (CSV/PDF) from the relevant screen, with clear loading / empty / error states.
@@ -1487,7 +1487,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Break-glass access fully logged (who, reason, duration, data accessed)
 > As a **system administrator**, I want **break-glass access fully logged (who, reason, duration, data accessed)**.
 
-`Pending · Platforms: Web · Source: ACMSRC · RFC: CL-31 D`
+`Pending · Platforms: Web · Source: NABH checklist · RFC: CL-31 D`
 
 **Acceptance criteria**
 - [ ] The system administrator can break-glass access fully logged (who, reason, duration, data accessed) from the relevant screen, with clear loading / empty / error states.
@@ -1501,7 +1501,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Auto-notification to data owner, HOD, IT Security, Medical Superintendent
 > As a **system administrator**, I want **auto-notification to data owner, hod, it security, medical superintendent**.
 
-`Pending · Platforms: Web · Source: ACMSRC · RFC: CL-31 D`
+`Pending · Platforms: Web · Source: NABH checklist · RFC: CL-31 D`
 
 **Acceptance criteria**
 - [ ] The system administrator can auto-notification to data owner, HOD, IT Security, Medical Superintendent from the relevant screen, with clear loading / empty / error states.
@@ -1515,7 +1515,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Break-glass auto-expires after configurable time
 > As a **system administrator**, I want **break-glass auto-expires after configurable time**.
 
-`Pending · Platforms: Web · Source: ACMSRC · RFC: CL-31 D`
+`Pending · Platforms: Web · Source: NABH checklist · RFC: CL-31 D`
 
 **Acceptance criteria**
 - [ ] The system administrator can break-glass auto-expires after configurable time from the relevant screen, with clear loading / empty / error states.
@@ -1529,7 +1529,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Post-break-glass review workflow
 > As a **system administrator**, I want **post-break-glass review workflow**.
 
-`Pending · Platforms: Web · Source: ACMSRC · RFC: CL-31 D`
+`Pending · Platforms: Web · Source: NABH checklist · RFC: CL-31 D`
 
 **Acceptance criteria**
 - [ ] The system administrator can post-break-glass review workflow from the relevant screen, with clear loading / empty / error states.
@@ -1543,7 +1543,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Break-glass abuse detection (repeated triggers → alert)
 > As a **system administrator**, I want **break-glass abuse detection (repeated triggers → alert)**.
 
-`Pending · Platforms: Web · Source: ACMSRC · RFC: CL-31 D`
+`Pending · Platforms: Web · Source: NABH checklist · RFC: CL-31 D`
 
 **Acceptance criteria**
 - [ ] The system administrator can break-glass abuse detection (repeated triggers → alert) from the relevant screen, with clear loading / empty / error states.
@@ -1557,7 +1557,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Break-glass monthly report for NABH audit
 > As a **system administrator**, I want **break-glass monthly report for nabh audit**.
 
-`Pending · Platforms: Web · Source: ACMSRC · RFC: CL-31 D`
+`Pending · Platforms: Web · Source: NABH checklist · RFC: CL-31 D`
 
 **Acceptance criteria**
 - [ ] The system administrator can break-glass monthly report for NABH audit from the relevant screen, with clear loading / empty / error states.
@@ -2070,7 +2070,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Patient record access log — which staff accessed which patient
 > As a **system administrator**, I want **patient record access log — which staff accessed which patient**.
 
-`Pending · Platforms: Web · Source: ACMSRC · RFC: CL-31 C`
+`Pending · Platforms: Web · Source: NABH checklist · RFC: CL-31 C`
 
 **Acceptance criteria**
 - [ ] The system administrator can patient record access log — which staff accessed which patient from the relevant screen, with clear loading / empty / error states.
@@ -2084,7 +2084,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### VIP/celebrity patient access alerting (unusual access pattern)
 > As a **system administrator**, I want **vip/celebrity patient access alerting (unusual access pattern)**.
 
-`Pending · Platforms: Web · Source: ACMSRC · RFC: CL-31 C`
+`Pending · Platforms: Web · Source: NABH checklist · RFC: CL-31 C`
 
 **Acceptance criteria**
 - [ ] The system administrator can vIP/celebrity patient access alerting (unusual access pattern) from the relevant screen, with clear loading / empty / error states.
@@ -2098,7 +2098,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Cross-department access tracking
 > As a **system administrator**, I want **cross-department access tracking**.
 
-`Pending · Platforms: Web · Source: ACMSRC · RFC: CL-31 C`
+`Pending · Platforms: Web · Source: NABH checklist · RFC: CL-31 C`
 
 **Acceptance criteria**
 - [ ] The system administrator can cross-department access tracking from the relevant screen, with clear loading / empty / error states.
@@ -2112,7 +2112,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### After-hours access alerting
 > As a **system administrator**, I want **after-hours access alerting**.
 
-`Pending · Platforms: Web · Source: ACMSRC · RFC: CL-31 C`
+`Pending · Platforms: Web · Source: NABH checklist · RFC: CL-31 C`
 
 **Acceptance criteria**
 - [ ] The system administrator can after-hours access alerting from the relevant screen, with clear loading / empty / error states.
@@ -2126,7 +2126,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Bulk data access detection (abnormal download volume)
 > As a **system administrator**, I want **bulk data access detection (abnormal download volume)**.
 
-`Pending · Platforms: Web · Source: ACMSRC · RFC: CL-31 C`
+`Pending · Platforms: Web · Source: NABH checklist · RFC: CL-31 C`
 
 **Acceptance criteria**
 - [ ] The system administrator can bulk data access detection (abnormal download volume) from the relevant screen, with clear loading / empty / error states.
@@ -2140,7 +2140,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Psychiatric record access monitoring (Rule PSY-001)
 > As a **system administrator**, I want **psychiatric record access monitoring (rule psy-001)**.
 
-`Pending · Platforms: Web · Source: ACMSRC · RFC: CL-31 C`
+`Pending · Platforms: Web · Source: NABH checklist · RFC: CL-31 C`
 
 **Acceptance criteria**
 - [ ] The system administrator can psychiatric record access monitoring (Rule PSY-001) from the relevant screen, with clear loading / empty / error states.
@@ -2154,7 +2154,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Substance abuse record access monitoring (Rule PSY-002)
 > As a **system administrator**, I want **substance abuse record access monitoring (rule psy-002)**.
 
-`Pending · Platforms: Web · Source: ACMSRC · RFC: CL-31 C`
+`Pending · Platforms: Web · Source: NABH checklist · RFC: CL-31 C`
 
 **Acceptance criteria**
 - [ ] The system administrator can substance abuse record access monitoring (Rule PSY-002) from the relevant screen, with clear loading / empty / error states.
@@ -2168,7 +2168,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Counseling record access monitoring (Rule STU-002: ZERO visibility)
 > As a **system administrator**, I want **counseling record access monitoring (rule stu-002: zero visibility)**.
 
-`Pending · Platforms: Web · Source: ACMSRC · RFC: CL-31 C`
+`Pending · Platforms: Web · Source: NABH checklist · RFC: CL-31 C`
 
 **Acceptance criteria**
 - [ ] The system administrator can counseling record access monitoring (Rule STU-002: ZERO visibility) from the relevant screen, with clear loading / empty / error states.
@@ -2182,7 +2182,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Print/export/download tracking
 > As a **system administrator**, I want **print/export/download tracking**.
 
-`Pending · Platforms: Web · Source: ACMSRC · RFC: CL-31 C`
+`Pending · Platforms: Web · Source: NABH checklist · RFC: CL-31 C`
 
 **Acceptance criteria**
 - [ ] The system administrator can print/export/download tracking from the relevant screen, with clear loading / empty / error states.
@@ -4510,7 +4510,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ Incident report audit trail — NEVER deletable (Rule INC-002)
 > As a **system administrator**, I want **incident report audit trail — never deletable (rule inc-002)**.
 
-`Done · Platforms: Web, Mobile · Source: ACMSRC · RFC: CL-31 F`
+`Done · Platforms: Web, Mobile · Source: NABH checklist · RFC: CL-31 F`
 
 **Acceptance criteria**
 - [x] The system administrator can incident report audit trail — NEVER deletable (Rule INC-002) from the relevant screen, with clear loading / empty / error states.
@@ -4525,7 +4525,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Anonymous incident reporter identity encryption audit (Rule INC-001)
 > As a **system administrator**, I want **anonymous incident reporter identity encryption audit (rule inc-001)**.
 
-`Pending · Platforms: Web, Mobile · Source: ACMSRC · RFC: CL-31 F`
+`Pending · Platforms: Web, Mobile · Source: NABH checklist · RFC: CL-31 F`
 
 **Acceptance criteria**
 - [ ] The system administrator can anonymous incident reporter identity encryption audit (Rule INC-001) from the relevant screen, with clear loading / empty / error states.
@@ -4540,7 +4540,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Medication error report auto-notification log (Rule INC-003)
 > As a **system administrator**, I want **medication error report auto-notification log (rule inc-003)**.
 
-`Pending · Platforms: Web, Mobile · Source: ACMSRC · RFC: CL-31 F`
+`Pending · Platforms: Web, Mobile · Source: NABH checklist · RFC: CL-31 F`
 
 **Acceptance criteria**
 - [ ] The system administrator can medication error report auto-notification log (Rule INC-003) from the relevant screen, with clear loading / empty / error states.
@@ -4555,7 +4555,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Consent form access and modification audit
 > As a **system administrator**, I want **consent form access and modification audit**.
 
-`Pending · Platforms: Web · Source: ACMSRC · RFC: CL-31 F`
+`Pending · Platforms: Web · Source: NABH checklist · RFC: CL-31 F`
 
 **Acceptance criteria**
 - [ ] The system administrator can consent form access and modification audit from the relevant screen, with clear loading / empty / error states.
@@ -4569,7 +4569,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Consent revocation real-time logging
 > As a **system administrator**, I want **consent revocation real-time logging**.
 
-`Pending · Platforms: Web · Source: ACMSRC · RFC: CL-31 F`
+`Pending · Platforms: Web · Source: NABH checklist · RFC: CL-31 F`
 
 **Acceptance criteria**
 - [ ] The system administrator can consent revocation real-time logging from the relevant screen, with clear loading / empty / error states.
@@ -4583,7 +4583,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Form printing audit (reprint detection with DUPLICATE watermark)
 > As a **system administrator**, I want **form printing audit (reprint detection with duplicate watermark)**.
 
-`Pending · Platforms: Web · Source: ACMSRC · RFC: CL-31 F`
+`Pending · Platforms: Web · Source: NABH checklist · RFC: CL-31 F`
 
 **Acceptance criteria**
 - [ ] The system administrator can form printing audit (reprint detection with DUPLICATE watermark) from the relevant screen, with clear loading / empty / error states.
@@ -5331,7 +5331,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### TLS 1.3 (transit encryption)
 > As a **system administrator**, I want **tls 1.3 (transit encryption)**.
 
-`Pending · Platforms: Web · Source: RFC+ACMSRC · RFC: §6, CL-33 F`
+`Pending · Platforms: Web · Source: RFC+NABH checklist · RFC: §6, CL-33 F`
 
 **Acceptance criteria**
 - [ ] The system administrator can tLS 1.3 (transit encryption) from the relevant screen, with clear loading / empty / error states.
@@ -5345,7 +5345,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Database encryption at rest (AES-256)
 > As a **system administrator**, I want **database encryption at rest (aes-256)**.
 
-`Pending · Platforms: Web · Source: RFC+ACMSRC · RFC: §6, CL-33 F`
+`Pending · Platforms: Web · Source: RFC+NABH checklist · RFC: §6, CL-33 F`
 
 **Acceptance criteria**
 - [ ] The system administrator can database encryption at rest (AES-256) from the relevant screen, with clear loading / empty / error states.
@@ -5359,7 +5359,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Field-level encryption (Aadhaar, phone, HIV status)
 > As a **system administrator**, I want **field-level encryption (aadhaar, phone, hiv status)**.
 
-`Pending · Platforms: Web · Source: RFC+ACMSRC · RFC: §6, CL-33 F`
+`Pending · Platforms: Web · Source: RFC+NABH checklist · RFC: §6, CL-33 F`
 
 **Acceptance criteria**
 - [ ] The system administrator can field-level encryption (Aadhaar, phone, HIV status) from the relevant screen, with clear loading / empty / error states.
@@ -5373,7 +5373,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Per-patient encryption keys (PDK)
 > As a **system administrator**, I want **per-patient encryption keys (pdk)**.
 
-`Pending · Platforms: Web · Source: RFC+ACMSRC · RFC: §6, CL-33 F`
+`Pending · Platforms: Web · Source: RFC+NABH checklist · RFC: §6, CL-33 F`
 
 **Acceptance criteria**
 - [ ] The system administrator can per-patient encryption keys (PDK) from the relevant screen, with clear loading / empty / error states.
@@ -5387,7 +5387,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Key hierarchy (MK → KEK → PDK → field keys)
 > As a **system administrator**, I want **key hierarchy (mk → kek → pdk → field keys)**.
 
-`Pending · Platforms: Web · Source: RFC+ACMSRC · RFC: §6, CL-33 F`
+`Pending · Platforms: Web · Source: RFC+NABH checklist · RFC: §6, CL-33 F`
 
 **Acceptance criteria**
 - [ ] The system administrator can key hierarchy (MK → KEK → PDK → field keys) from the relevant screen, with clear loading / empty / error states.
@@ -5401,7 +5401,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Consent-based encryption (HIV, psychiatry — patient must consent)
 > As a **system administrator**, I want **consent-based encryption (hiv, psychiatry — patient must consent)**.
 
-`Pending · Platforms: Web · Source: RFC+ACMSRC · RFC: §6, CL-33 F`
+`Pending · Platforms: Web · Source: RFC+NABH checklist · RFC: §6, CL-33 F`
 
 **Acceptance criteria**
 - [ ] The system administrator can consent-based encryption (HIV, psychiatry — patient must consent) from the relevant screen, with clear loading / empty / error states.
@@ -5415,7 +5415,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ Password hashing (Argon2id)
 > As a **system administrator**, I want **password hashing (argon2id)**.
 
-`Done · Platforms: Web · Source: RFC+ACMSRC · RFC: §6, CL-33 F`
+`Done · Platforms: Web · Source: RFC+NABH checklist · RFC: §6, CL-33 F`
 
 **Acceptance criteria**
 - [x] The system administrator can password hashing (Argon2id) from the relevant screen, with clear loading / empty / error states.
@@ -5429,7 +5429,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ JWT signing (Ed25519)
 > As a **system administrator**, I want **jwt signing (ed25519)**.
 
-`Done · Platforms: Web · Source: RFC+ACMSRC · RFC: §6, CL-33 F`
+`Done · Platforms: Web · Source: RFC+NABH checklist · RFC: §6, CL-33 F`
 
 **Acceptance criteria**
 - [x] The system administrator can jWT signing (Ed25519) from the relevant screen, with clear loading / empty / error states.
@@ -5443,7 +5443,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Certificate pinning (mobile app)
 > As a **system administrator**, I want **certificate pinning (mobile app)**.
 
-`Pending · Platforms: Web · Source: RFC+ACMSRC · RFC: §6, CL-33 F`
+`Pending · Platforms: Web · Source: RFC+NABH checklist · RFC: §6, CL-33 F`
 
 **Acceptance criteria**
 - [ ] The system administrator can certificate pinning (mobile app) from the relevant screen, with clear loading / empty / error states.
@@ -5457,7 +5457,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### mTLS for ABDM/TPA API calls
 > As a **system administrator**, I want **mtls for abdm/tpa api calls**.
 
-`Pending · Platforms: Web · Source: RFC+ACMSRC · RFC: §6, CL-33 F`
+`Pending · Platforms: Web · Source: RFC+NABH checklist · RFC: §6, CL-33 F`
 
 **Acceptance criteria**
 - [ ] The system administrator can mTLS for ABDM/TPA API calls from the relevant screen, with clear loading / empty / error states.
@@ -5471,7 +5471,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Key rotation (MK annual, KEK quarterly)
 > As a **system administrator**, I want **key rotation (mk annual, kek quarterly)**.
 
-`Pending · Platforms: Web · Source: RFC+ACMSRC · RFC: §6, CL-33 F`
+`Pending · Platforms: Web · Source: RFC+NABH checklist · RFC: §6, CL-33 F`
 
 **Acceptance criteria**
 - [ ] The system administrator can key rotation (MK annual, KEK quarterly) from the relevant screen, with clear loading / empty / error states.
@@ -5485,7 +5485,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### DPDPA compliance (right to erasure, consent management)
 > As a **system administrator**, I want **dpdpa compliance (right to erasure, consent management)**.
 
-`Pending · Platforms: Web · Source: RFC+ACMSRC · RFC: §6, CL-33 F`
+`Pending · Platforms: Web · Source: RFC+NABH checklist · RFC: §6, CL-33 F`
 
 **Acceptance criteria**
 - [ ] The system administrator can dPDPA compliance (right to erasure, consent management) from the relevant screen, with clear loading / empty / error states.
@@ -5499,7 +5499,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Key management (HSM, KMS, vault)
 > As a **system administrator**, I want **key management (hsm, kms, vault)**.
 
-`Pending · Platforms: Web · Source: RFC+ACMSRC · RFC: §6, CL-33 F`
+`Pending · Platforms: Web · Source: RFC+NABH checklist · RFC: §6, CL-33 F`
 
 **Acceptance criteria**
 - [ ] The system administrator can key management (HSM, KMS, vault) from the relevant screen, with clear loading / empty / error states.
@@ -5513,7 +5513,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Backup encryption (at rest + during transfer)
 > As a **system administrator**, I want **backup encryption (at rest + during transfer)**.
 
-`Pending · Platforms: Web · Source: RFC+ACMSRC · RFC: §6, CL-33 F`
+`Pending · Platforms: Web · Source: RFC+NABH checklist · RFC: §6, CL-33 F`
 
 **Acceptance criteria**
 - [ ] The system administrator can backup encryption (at rest + during transfer) from the relevant screen, with clear loading / empty / error states.
@@ -5527,7 +5527,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### DICOM traffic encryption (TLS for DICOM associations)
 > As a **system administrator**, I want **dicom traffic encryption (tls for dicom associations)**.
 
-`Pending · Platforms: Web · Source: RFC+ACMSRC · RFC: §6, CL-33 F`
+`Pending · Platforms: Web · Source: RFC+NABH checklist · RFC: §6, CL-33 F`
 
 **Acceptance criteria**
 - [ ] The system administrator can dICOM traffic encryption (TLS for DICOM associations) from the relevant screen, with clear loading / empty / error states.
@@ -5824,7 +5824,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ Real-time security dashboard (active sessions, failed logins, break-glass, anomalies)
 > As a **system administrator**, I want **real-time security dashboard (active sessions, failed logins, break-glass, anomalies)**.
 
-`Done · Platforms: Web · Source: ACMSRC · RFC: CL-31 G`
+`Done · Platforms: Web · Source: NABH checklist · RFC: CL-31 G`
 
 **Acceptance criteria**
 - [x] The system administrator can real-time security dashboard (active sessions, failed logins, break-glass, anomalies) from the relevant screen, with clear loading / empty / error states.
@@ -5838,7 +5838,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Automated anomaly detection (unusual access patterns)
 > As a **system administrator**, I want **automated anomaly detection (unusual access patterns)**.
 
-`Pending · Platforms: Web · Source: ACMSRC · RFC: CL-31 G`
+`Pending · Platforms: Web · Source: NABH checklist · RFC: CL-31 G`
 
 **Acceptance criteria**
 - [ ] The system administrator can automated anomaly detection (unusual access patterns) from the relevant screen, with clear loading / empty / error states.
@@ -5852,7 +5852,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### SIEM integration (Splunk, ELK, Wazuh)
 > As a **system administrator**, I want **siem integration (splunk, elk, wazuh)**.
 
-`Pending · Platforms: Web · Source: ACMSRC · RFC: CL-31 G`
+`Pending · Platforms: Web · Source: NABH checklist · RFC: CL-31 G`
 
 **Acceptance criteria**
 - [ ] The system administrator can sIEM integration (Splunk, ELK, Wazuh) from the relevant screen, with clear loading / empty / error states.
@@ -5866,7 +5866,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Log forwarding to centralized log management (syslog, JSON, CEF)
 > As a **system administrator**, I want **log forwarding to centralized log management (syslog, json, cef)**.
 
-`Pending · Platforms: Web · Source: ACMSRC · RFC: CL-31 G`
+`Pending · Platforms: Web · Source: NABH checklist · RFC: CL-31 G`
 
 **Acceptance criteria**
 - [ ] The system administrator can log forwarding to centralized log management (syslog, JSON, CEF) from the relevant screen, with clear loading / empty / error states.
@@ -5880,7 +5880,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Alert engine for security events
 > As a **system administrator**, I want **alert engine for security events**.
 
-`Pending · Platforms: Web · Source: ACMSRC · RFC: CL-31 G`
+`Pending · Platforms: Web · Source: NABH checklist · RFC: CL-31 G`
 
 **Acceptance criteria**
 - [ ] The system administrator can alert engine for security events from the relevant screen, with clear loading / empty / error states.
@@ -5894,7 +5894,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Periodic security audit reports (monthly/quarterly)
 > As a **system administrator**, I want **periodic security audit reports (monthly/quarterly)**.
 
-`Pending · Platforms: Web · Source: ACMSRC · RFC: CL-31 G`
+`Pending · Platforms: Web · Source: NABH checklist · RFC: CL-31 G`
 
 **Acceptance criteria**
 - [ ] The system administrator can periodic security audit reports (monthly/quarterly) from the relevant screen, with clear loading / empty / error states.
@@ -5908,7 +5908,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### DPDP Act compliance reporting (data access logs for data subject requests)
 > As a **system administrator**, I want **dpdp act compliance reporting (data access logs for data subject requests)**.
 
-`Pending · Platforms: Web · Source: ACMSRC · RFC: CL-31 G`
+`Pending · Platforms: Web · Source: NABH checklist · RFC: CL-31 G`
 
 **Acceptance criteria**
 - [ ] The system administrator can dPDP Act compliance reporting (data access logs for data subject requests) from the relevant screen, with clear loading / empty / error states.
@@ -5922,7 +5922,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Forensic investigation support (reconstruct complete user activity timeline)
 > As a **system administrator**, I want **forensic investigation support (reconstruct complete user activity timeline)**.
 
-`Pending · Platforms: Web · Source: ACMSRC · RFC: CL-31 G`
+`Pending · Platforms: Web · Source: NABH checklist · RFC: CL-31 G`
 
 **Acceptance criteria**
 - [ ] The system administrator can forensic investigation support (reconstruct complete user activity timeline) from the relevant screen, with clear loading / empty / error states.

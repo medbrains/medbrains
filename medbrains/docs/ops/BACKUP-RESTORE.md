@@ -6,10 +6,10 @@ Last reviewed 2026-10-12. Read before any prod change, and before you need it.
 
 | | |
 |---|---|
-| Host | one EC2, `i-08e9496a3e110ebdc`, ap-south-1 (`TF_VAR_tier=attach` in `infra/.env`) |
+| Host | one EC2, `i-0123456789abcdef0`, ap-south-1 (`TF_VAR_tier=attach` in `infra/.env`) |
 | Database | the host's own **native Postgres 17** (`TF_VAR_attach_reuse_postgres=true`), not a container |
 | Front | Caddy on the host (`TF_VAR_attach_reuse_tls=true`) |
-| Deploy | `deploy/standalone/install.sh`, driven by terraform (`envs/clients/alagappa`, formerly `envs/standalone/alagappa`) |
+| Deploy | `deploy/standalone/install.sh`, driven by the hospital's terraform env (`DEPLOY_ENV_DIR` in `infra/.env`) |
 
 The attach tier deliberately creates **no AWS resources** (`modules/standalone-vm/existing-host`). That matters here: the
 S3 backup bucket, Object Lock, DLM snapshots and EC2 alarms in `modules/standalone-vm/aws-ec2/main.tf` belong to the
@@ -42,7 +42,7 @@ Check what the hospital host has besides (read-only, operator credentials):
 
 ```sh
 aws ec2 describe-volumes --region ap-south-1 \
-  --filters Name=attachment.instance-id,Values=i-08e9496a3e110ebdc \
+  --filters Name=attachment.instance-id,Values=i-0123456789abcdef0 \
   --query 'Volumes[].{id:VolumeId,encrypted:Encrypted,kms:KmsKeyId,size:Size}'
 aws dlm get-lifecycle-policies --region ap-south-1
 aws ec2 describe-snapshots --owner-ids self --region ap-south-1 \

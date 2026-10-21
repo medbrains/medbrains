@@ -7,7 +7,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ IP admission form
 > As a **clinician**, I want **ip admission form**.
 
-`Done · Platforms: Web, Mobile · Source: RFC+ACMSRC · RFC: §3.3, WF-IPD-001`
+`Done · Platforms: Web, Mobile · Source: RFC+NABH checklist · RFC: §3.3, WF-IPD-001`
 
 **Acceptance criteria**
 - [x] The clinician can iP admission form from the relevant screen, with clear loading / empty / error states.
@@ -22,7 +22,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ Emergency admission (fast-track)
 > As a **clinician**, I want **emergency admission (fast-track)**.
 
-`Done · Platforms: Web · Source: RFC+ACMSRC · RFC: §3.3, WF-IPD-001`
+`Done · Platforms: Web · Source: RFC+NABH checklist · RFC: §3.3, WF-IPD-001`
 
 **Acceptance criteria**
 - [x] The clinician can emergency admission (fast-track) from the relevant screen, with clear loading / empty / error states.
@@ -36,7 +36,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ Planned admission from OPD
 > As a **clinician**, I want **planned admission from opd**.
 
-`Done · Platforms: Web · Source: RFC+ACMSRC · RFC: §3.3, WF-IPD-001`
+`Done · Platforms: Web · Source: RFC+NABH checklist · RFC: §3.3, WF-IPD-001`
 
 **Acceptance criteria**
 - [x] The clinician can planned admission from OPD from the relevant screen, with clear loading / empty / error states.
@@ -50,7 +50,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ Admission from OPD/ER with bed selection (ward/room/bed picker with real-time availability)
 > As a **clinician**, I want **admission from opd/er with bed selection (ward/room/bed picker with real-time availability)**.
 
-`Done · Platforms: Web · Source: RFC+ACMSRC · RFC: §3.3, WF-IPD-001`
+`Done · Platforms: Web · Source: RFC+NABH checklist · RFC: §3.3, WF-IPD-001`
 
 **Acceptance criteria**
 - [x] The clinician can admission from OPD/ER with bed selection (ward/room/bed picker with real-time availability) from the relevant screen, with clear loading / empty / error states.
@@ -64,7 +64,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ Auto-transfer of OPD history and demographics to IPD casesheet
 > As a **clinician**, I want **auto-transfer of opd history and demographics to ipd casesheet**.
 
-`Done · Platforms: Web · Source: RFC+ACMSRC · RFC: §3.3, WF-IPD-001`
+`Done · Platforms: Web · Source: RFC+NABH checklist · RFC: §3.3, WF-IPD-001`
 
 **Acceptance criteria**
 - [x] The clinician can auto-transfer of OPD history and demographics to IPD casesheet from the relevant screen, with clear loading / empty / error states.
@@ -78,7 +78,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ Admission checklist validation
 > As a **clinician**, I want **admission checklist validation**.
 
-`Done · Platforms: Web, Mobile · Source: RFC+ACMSRC · RFC: §3.3, WF-IPD-001`
+`Done · Platforms: Web, Mobile · Source: RFC+NABH checklist · RFC: §3.3, WF-IPD-001`
 
 **Acceptance criteria**
 - [x] The clinician can admission checklist validation from the relevant screen, with clear loading / empty / error states.
@@ -93,7 +93,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ Attender/next-of-kin capture
 > As a **clinician**, I want **attender/next-of-kin capture**.
 
-`Done · Platforms: Web · Source: RFC+ACMSRC · RFC: §3.3, WF-IPD-001`
+`Done · Platforms: Web · Source: RFC+NABH checklist · RFC: §3.3, WF-IPD-001`
 
 **Acceptance criteria**
 - [x] The clinician can attender/next-of-kin capture from the relevant screen, with clear loading / empty / error states.
@@ -107,7 +107,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ Admission slip/form print
 > As a **clinician**, I want **admission slip/form print**.
 
-`Done · Platforms: Web · Source: RFC+ACMSRC · RFC: §3.3, WF-IPD-001`
+`Done · Platforms: Web · Source: RFC+NABH checklist · RFC: §3.3, WF-IPD-001`
 
 **Acceptance criteria**
 - [x] The clinician can admission slip/form print from the relevant screen, with clear loading / empty / error states.
@@ -121,7 +121,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ IP type configuration (general, semi-private, private, ICU, NICU, etc.)
 > As a **clinician**, I want **ip type configuration (general, semi-private, private, icu, nicu, etc.)**.
 
-`Done · Platforms: Web · Source: RFC+ACMSRC · RFC: §3.3, WF-IPD-001`
+`Done · Platforms: Web · Source: RFC+NABH checklist · RFC: §3.3, WF-IPD-001`
 
 **Acceptance criteria**
 - [x] The clinician can iP type configuration (general, semi-private, private, ICU, NICU, etc.) from the relevant screen, with clear loading / empty / error states.
@@ -135,7 +135,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ Estimated cost for admission
 > As a **clinician**, I want **estimated cost for admission**.
 
-`Done · Platforms: Web · Source: RFC+ACMSRC · RFC: §3.3, WF-IPD-001`
+`Done · Platforms: Web · Source: RFC+NABH checklist · RFC: §3.3, WF-IPD-001`
 
 **Acceptance criteria**
 - [x] The clinician can estimated cost for admission from the relevant screen, with clear loading / empty / error states.
@@ -149,7 +149,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ Advance payment collection
 > As a **clinician**, I want **advance payment collection**.
 
-`Done · Platforms: Web · Source: RFC+ACMSRC · RFC: §3.3, WF-IPD-001`
+`Done · Platforms: Web · Source: RFC+NABH checklist · RFC: §3.3, WF-IPD-001`
 
 **Acceptance criteria**
 - [x] The clinician can advance payment collection from the relevant screen, with clear loading / empty / error states.
@@ -163,7 +163,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ Pre-authorization for insurance
 > As a **clinician**, I want **pre-authorization for insurance**.
 
-`Done · Platforms: Web, Mobile · Source: RFC+ACMSRC · RFC: §3.3, WF-IPD-001`
+`Done · Platforms: Web, Mobile · Source: RFC+NABH checklist · RFC: §3.3, WF-IPD-001`
 
 **Acceptance criteria**
 - [x] The clinician can pre-authorization for insurance from the relevant screen, with clear loading / empty / error states.
@@ -178,7 +178,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ MLC registration at admission
 > As a **clinician**, I want **mlc registration at admission**.
 
-`Done · Platforms: Web · Source: RFC+ACMSRC · RFC: §3.3, WF-IPD-001`
+`Done · Platforms: Web · Source: RFC+NABH checklist · RFC: §3.3, WF-IPD-001`
 
 **Acceptance criteria**
 - [x] The clinician can mLC registration at admission from the relevant screen, with clear loading / empty / error states.
@@ -510,7 +510,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ Central line bundle compliance (insertion checklist, daily necessity review)
 > As a **clinician**, I want **central line bundle compliance (insertion checklist, daily necessity review)**.
 
-`P2 · Done · Platforms: Web, Mobile · Source: ACMSRC · RFC: CL-14`
+`P2 · Done · Platforms: Web, Mobile · Source: NABH checklist · RFC: CL-14`
 
 **Acceptance criteria**
 - [x] The clinician can central line bundle compliance (insertion checklist, daily necessity review) from the relevant screen, with clear loading / empty / error states.
@@ -525,7 +525,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ Central line days tracking (auto-calculated from insertion date)
 > As a **clinician**, I want **central line days tracking (auto-calculated from insertion date)**.
 
-`P2 · Done · Platforms: Web, Mobile · Source: ACMSRC · RFC: CL-14`
+`P2 · Done · Platforms: Web, Mobile · Source: NABH checklist · RFC: CL-14`
 
 **Acceptance criteria**
 - [x] The clinician can central line days tracking (auto-calculated from insertion date) from the relevant screen, with clear loading / empty / error states.
@@ -540,7 +540,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ Urinary catheter days tracking with daily necessity review
 > As a **clinician**, I want **urinary catheter days tracking with daily necessity review**.
 
-`P2 · Done · Platforms: Web, Mobile · Source: ACMSRC · RFC: CL-14`
+`P2 · Done · Platforms: Web, Mobile · Source: NABH checklist · RFC: CL-14`
 
 **Acceptance criteria**
 - [x] The clinician can urinary catheter days tracking with daily necessity review from the relevant screen, with clear loading / empty / error states.
@@ -555,7 +555,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ Ventilator days tracking with VAP bundle compliance
 > As a **clinician**, I want **ventilator days tracking with vap bundle compliance**.
 
-`P2 · Done · Platforms: Web · Source: ACMSRC · RFC: CL-14`
+`P2 · Done · Platforms: Web · Source: NABH checklist · RFC: CL-14`
 
 **Acceptance criteria**
 - [x] The clinician can ventilator days tracking with VAP bundle compliance from the relevant screen, with clear loading / empty / error states.
@@ -569,7 +569,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ Restraint documentation with 4-hour review cycle
 > As a **clinician**, I want **restraint documentation with 4-hour review cycle**.
 
-`P2 · Done · Platforms: Web, Mobile · Source: ACMSRC · RFC: CL-14`
+`P2 · Done · Platforms: Web, Mobile · Source: NABH checklist · RFC: CL-14`
 
 **Acceptance criteria**
 - [x] The clinician can restraint documentation with 4-hour review cycle from the relevant screen, with clear loading / empty / error states.
@@ -584,7 +584,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ Device-related infection rate auto-calculation
 > As a **clinician**, I want **device-related infection rate auto-calculation**.
 
-`P2 · Done · Platforms: Web · Source: ACMSRC · RFC: CL-14`
+`P2 · Done · Platforms: Web · Source: NABH checklist · RFC: CL-14`
 
 **Acceptance criteria**
 - [x] The clinician can device-related infection rate auto-calculation from the relevant screen, with clear loading / empty / error states.
@@ -729,7 +729,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ Drug-drug interaction alerts at prescription time
 > As a **clinician**, I want **drug-drug interaction alerts at prescription time**.
 
-`P1 · Done · Platforms: Web, Mobile · Source: ACMSRC · RFC: CL-1`
+`P1 · Done · Platforms: Web, Mobile · Source: NABH checklist · RFC: CL-1`
 
 **Acceptance criteria**
 - [x] The clinician can drug-drug interaction alerts at prescription time from the relevant screen, with clear loading / empty / error states.
@@ -744,7 +744,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ Allergy alerts (drug, food, latex) prominently displayed
 > As a **clinician**, I want **allergy alerts (drug, food, latex) prominently displayed**.
 
-`P1 · Done · Platforms: Web, Mobile · Source: ACMSRC · RFC: CL-1`
+`P1 · Done · Platforms: Web, Mobile · Source: NABH checklist · RFC: CL-1`
 
 **Acceptance criteria**
 - [x] The clinician can allergy alerts (drug, food, latex) prominently displayed from the relevant screen, with clear loading / empty / error states.
@@ -759,7 +759,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ Duplicate order detection (same investigation within configurable period)
 > As a **clinician**, I want **duplicate order detection (same investigation within configurable period)**.
 
-`P1 · Done · Platforms: Web, Mobile · Source: ACMSRC · RFC: CL-1`
+`P1 · Done · Platforms: Web, Mobile · Source: NABH checklist · RFC: CL-1`
 
 **Acceptance criteria**
 - [x] The clinician can duplicate order detection (same investigation within configurable period) from the relevant screen, with clear loading / empty / error states.
@@ -774,7 +774,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ Renal dose adjustment alerts based on creatinine/GFR
 > As a **clinician**, I want **renal dose adjustment alerts based on creatinine/gfr**.
 
-`P1 · Done · Platforms: Web, Mobile · Source: ACMSRC · RFC: CL-1`
+`P1 · Done · Platforms: Web, Mobile · Source: NABH checklist · RFC: CL-1`
 
 **Acceptance criteria**
 - [x] The clinician can renal dose adjustment alerts based on creatinine/GFR from the relevant screen, with clear loading / empty / error states.
@@ -789,7 +789,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ Critical value alerts from lab directly on doctor's dashboard
 > As a **clinician**, I want **critical value alerts from lab directly on doctor's dashboard**.
 
-`P1 · Done · Platforms: Web, Mobile · Source: ACMSRC · RFC: CL-1`
+`P1 · Done · Platforms: Web, Mobile · Source: NABH checklist · RFC: CL-1`
 
 **Acceptance criteria**
 - [x] The clinician can critical value alerts from lab directly on doctor's dashboard from the relevant screen, with clear loading / empty / error states.
@@ -804,7 +804,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ Clinical protocol/guideline integration (e.g., sepsis bundle, DVT prophylaxis)
 > As a **clinician**, I want **clinical protocol/guideline integration (e.g., sepsis bundle, dvt prophylaxis)**.
 
-`P1 · Done · Platforms: Web, Mobile · Source: ACMSRC · RFC: CL-1`
+`P1 · Done · Platforms: Web, Mobile · Source: NABH checklist · RFC: CL-1`
 
 **Acceptance criteria**
 - [x] The clinician can clinical protocol/guideline integration (e.g., sepsis bundle, DVT prophylaxis) from the relevant screen, with clear loading / empty / error states.
@@ -819,7 +819,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ Antibiotic stewardship — restricted antibiotic approval workflow
 > As a **clinician**, I want **antibiotic stewardship — restricted antibiotic approval workflow**.
 
-`P1 · Done · Platforms: Web, Mobile · Source: ACMSRC · RFC: CL-1`
+`P1 · Done · Platforms: Web, Mobile · Source: NABH checklist · RFC: CL-1`
 
 **Acceptance criteria**
 - [x] The clinician can antibiotic stewardship — restricted antibiotic approval workflow from the relevant screen, with clear loading / empty / error states.
@@ -836,7 +836,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ Digital case sheet entry
 > As a **clinician**, I want **digital case sheet entry**.
 
-`Done · Platforms: Web · Source: RFC+ACMSRC · RFC: §3.3`
+`Done · Platforms: Web · Source: RFC+NABH checklist · RFC: §3.3`
 
 **Acceptance criteria**
 - [x] The clinician can digital case sheet entry from the relevant screen, with clear loading / empty / error states.
@@ -850,7 +850,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ Doctor rounds notes (daily progress notes) with timestamped entries
 > As a **clinician**, I want **doctor rounds notes (daily progress notes) with timestamped entries**.
 
-`Done · Platforms: Web, Mobile · Source: RFC+ACMSRC · RFC: §3.3`
+`Done · Platforms: Web, Mobile · Source: RFC+NABH checklist · RFC: §3.3`
 
 **Acceptance criteria**
 - [x] The clinician can doctor rounds notes (daily progress notes) with timestamped entries from the relevant screen, with clear loading / empty / error states.
@@ -865,7 +865,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ Nursing notes
 > As a **clinician**, I want **nursing notes**.
 
-`Done · Platforms: Web · Source: RFC+ACMSRC · RFC: §3.3`
+`Done · Platforms: Web · Source: RFC+NABH checklist · RFC: §3.3`
 
 **Acceptance criteria**
 - [x] The clinician can nursing notes from the relevant screen, with clear loading / empty / error states.
@@ -879,7 +879,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ Vitals monitoring (periodic charting) with graphical trending
 > As a **clinician**, I want **vitals monitoring (periodic charting) with graphical trending**.
 
-`Done · Platforms: Web, Mobile · Source: RFC+ACMSRC · RFC: §3.3`
+`Done · Platforms: Web, Mobile · Source: RFC+NABH checklist · RFC: §3.3`
 
 **Acceptance criteria**
 - [x] The clinician can vitals monitoring (periodic charting) with graphical trending from the relevant screen, with clear loading / empty / error states.
@@ -894,7 +894,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ I/O (Intake/Output) charting with auto-calculation of balance
 > As a **clinician**, I want **i/o (intake/output) charting with auto-calculation of balance**.
 
-`Done · Platforms: Web · Source: RFC+ACMSRC · RFC: §3.3`
+`Done · Platforms: Web · Source: RFC+NABH checklist · RFC: §3.3`
 
 **Acceptance criteria**
 - [x] The clinician can i/O (Intake/Output) charting with auto-calculation of balance from the relevant screen, with clear loading / empty / error states.
@@ -908,7 +908,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ Medication administration record (MAR)
 > As a **clinician**, I want **medication administration record (mar)**.
 
-`Done · Platforms: Web, Mobile · Source: RFC+ACMSRC · RFC: §3.3`
+`Done · Platforms: Web, Mobile · Source: RFC+NABH checklist · RFC: §3.3`
 
 **Acceptance criteria**
 - [x] The clinician can medication administration record (MAR) from the relevant screen, with clear loading / empty / error states.
@@ -923,7 +923,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ Diet chart management
 > As a **clinician**, I want **diet chart management**.
 
-`Done · Platforms: Web · Source: RFC+ACMSRC · RFC: §3.3`
+`Done · Platforms: Web · Source: RFC+NABH checklist · RFC: §3.3`
 
 **Acceptance criteria**
 - [x] The clinician can diet chart management from the relevant screen, with clear loading / empty / error states.
@@ -937,7 +937,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ Wound care documentation with photo upload
 > As a **clinician**, I want **wound care documentation with photo upload**.
 
-`Done · Platforms: Web, Mobile · Source: RFC+ACMSRC · RFC: §3.3`
+`Done · Platforms: Web, Mobile · Source: RFC+NABH checklist · RFC: §3.3`
 
 **Acceptance criteria**
 - [x] The clinician can wound care documentation with photo upload from the relevant screen, with clear loading / empty / error states.
@@ -952,7 +952,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ Fall risk assessment (Morse Fall Scale) with auto-alert for high-risk
 > As a **clinician**, I want **fall risk assessment (morse fall scale) with auto-alert for high-risk**.
 
-`Done · Platforms: Web, Mobile · Source: RFC+ACMSRC · RFC: §3.3`
+`Done · Platforms: Web, Mobile · Source: RFC+NABH checklist · RFC: §3.3`
 
 **Acceptance criteria**
 - [x] The clinician can fall risk assessment (Morse Fall Scale) with auto-alert for high-risk from the relevant screen, with clear loading / empty / error states.
@@ -967,7 +967,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ Pain assessment scoring (NRS/VAS) with trending
 > As a **clinician**, I want **pain assessment scoring (nrs/vas) with trending**.
 
-`Done · Platforms: Web, Mobile · Source: RFC+ACMSRC · RFC: §3.3`
+`Done · Platforms: Web, Mobile · Source: RFC+NABH checklist · RFC: §3.3`
 
 **Acceptance criteria**
 - [x] The clinician can pain assessment scoring (NRS/VAS) with trending from the relevant screen, with clear loading / empty / error states.
@@ -982,7 +982,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ Pressure ulcer risk (Braden Scale) with prevention protocol trigger
 > As a **clinician**, I want **pressure ulcer risk (braden scale) with prevention protocol trigger**.
 
-`Done · Platforms: Web, Mobile · Source: RFC+ACMSRC · RFC: §3.3`
+`Done · Platforms: Web, Mobile · Source: RFC+NABH checklist · RFC: §3.3`
 
 **Acceptance criteria**
 - [x] The clinician can pressure ulcer risk (Braden Scale) with prevention protocol trigger from the relevant screen, with clear loading / empty / error states.
@@ -997,7 +997,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ Glasgow Coma Scale tracking
 > As a **clinician**, I want **glasgow coma scale tracking**.
 
-`Done · Platforms: Web, Mobile · Source: RFC+ACMSRC · RFC: §3.3`
+`Done · Platforms: Web, Mobile · Source: RFC+NABH checklist · RFC: §3.3`
 
 **Acceptance criteria**
 - [x] The clinician can glasgow Coma Scale tracking from the relevant screen, with clear loading / empty / error states.
@@ -1012,7 +1012,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ ICU care bundle compliance
 > As a **clinician**, I want **icu care bundle compliance**.
 
-`Done · Platforms: Web · Source: RFC+ACMSRC · RFC: §3.3`
+`Done · Platforms: Web · Source: RFC+NABH checklist · RFC: §3.3`
 
 **Acceptance criteria**
 - [x] The clinician can iCU care bundle compliance from the relevant screen, with clear loading / empty / error states.
@@ -1026,7 +1026,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ Ventilator settings & monitoring
 > As a **clinician**, I want **ventilator settings & monitoring**.
 
-`Done · Platforms: Web · Source: RFC+ACMSRC · RFC: §3.3`
+`Done · Platforms: Web · Source: RFC+NABH checklist · RFC: §3.3`
 
 **Acceptance criteria**
 - [x] The clinician can ventilator settings & monitoring from the relevant screen, with clear loading / empty / error states.
@@ -1040,7 +1040,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ Central line care checklist
 > As a **clinician**, I want **central line care checklist**.
 
-`Done · Platforms: Web, Mobile · Source: RFC+ACMSRC · RFC: §3.3`
+`Done · Platforms: Web, Mobile · Source: RFC+NABH checklist · RFC: §3.3`
 
 **Acceptance criteria**
 - [x] The clinician can central line care checklist from the relevant screen, with clear loading / empty / error states.
@@ -1055,7 +1055,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ Catheter care checklist
 > As a **clinician**, I want **catheter care checklist**.
 
-`Done · Platforms: Web, Mobile · Source: RFC+ACMSRC · RFC: §3.3`
+`Done · Platforms: Web, Mobile · Source: RFC+NABH checklist · RFC: §3.3`
 
 **Acceptance criteria**
 - [x] The clinician can catheter care checklist from the relevant screen, with clear loading / empty / error states.
@@ -1070,7 +1070,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ Restraint documentation
 > As a **clinician**, I want **restraint documentation**.
 
-`Done · Platforms: Web, Mobile · Source: RFC+ACMSRC · RFC: §3.3`
+`Done · Platforms: Web, Mobile · Source: RFC+NABH checklist · RFC: §3.3`
 
 **Acceptance criteria**
 - [x] The clinician can restraint documentation from the relevant screen, with clear loading / empty / error states.
@@ -1085,7 +1085,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ Transfusion documentation
 > As a **clinician**, I want **transfusion documentation**.
 
-`Done · Platforms: Web · Source: RFC+ACMSRC · RFC: §3.3`
+`Done · Platforms: Web · Source: RFC+NABH checklist · RFC: §3.3`
 
 **Acceptance criteria**
 - [x] The clinician can transfusion documentation from the relevant screen, with clear loading / empty / error states.
@@ -1099,7 +1099,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ Consent forms (procedure-specific)
 > As a **clinician**, I want **consent forms (procedure-specific)**.
 
-`Done · Platforms: Web · Source: RFC+ACMSRC · RFC: §3.3`
+`Done · Platforms: Web · Source: RFC+NABH checklist · RFC: §3.3`
 
 **Acceptance criteria**
 - [x] The clinician can consent forms (procedure-specific) from the relevant screen, with clear loading / empty / error states.
@@ -1113,7 +1113,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ Investigation result inline display (lab/radiology) within casesheet
 > As a **clinician**, I want **investigation result inline display (lab/radiology) within casesheet**.
 
-`Done · Platforms: Web · Source: RFC+ACMSRC · RFC: §3.3`
+`Done · Platforms: Web · Source: RFC+NABH checklist · RFC: §3.3`
 
 **Acceptance criteria**
 - [x] The clinician can investigation result inline display (lab/radiology) within casesheet from the relevant screen, with clear loading / empty / error states.
@@ -1127,7 +1127,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ Inter-department transfer with clinical summary carryover
 > As a **clinician**, I want **inter-department transfer with clinical summary carryover**.
 
-`Done · Platforms: Web · Source: RFC+ACMSRC · RFC: §3.3`
+`Done · Platforms: Web · Source: RFC+NABH checklist · RFC: §3.3`
 
 **Acceptance criteria**
 - [x] The clinician can inter-department transfer with clinical summary carryover from the relevant screen, with clear loading / empty / error states.
@@ -1237,7 +1237,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ Doctor queue/worklist
 > As a **clinician**, I want **doctor queue/worklist**.
 
-`Done · Platforms: Web, Mobile · Source: RFC+ACMSRC · RFC: §3.2, WF-OPD-001`
+`Done · Platforms: Web, Mobile · Source: RFC+NABH checklist · RFC: §3.2, WF-OPD-001`
 
 **Acceptance criteria**
 - [x] The clinician can doctor queue/worklist from the relevant screen, with clear loading / empty / error states.
@@ -1252,7 +1252,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ Queue/token integration — doctor can call next patient from screen
 > As a **clinician**, I want **queue/token integration — doctor can call next patient from screen**.
 
-`Done · Platforms: Web, Mobile · Source: RFC+ACMSRC · RFC: §3.2, WF-OPD-001`
+`Done · Platforms: Web, Mobile · Source: RFC+NABH checklist · RFC: §3.2, WF-OPD-001`
 
 **Acceptance criteria**
 - [x] The clinician can queue/token integration — doctor can call next patient from screen from the relevant screen, with clear loading / empty / error states.
@@ -1267,7 +1267,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ Patient history view (previous visits, labs, prescriptions)
 > As a **clinician**, I want **patient history view (previous visits, labs, prescriptions)**.
 
-`Done · Platforms: Web, Mobile · Source: RFC+ACMSRC · RFC: §3.2, WF-OPD-001`
+`Done · Platforms: Web, Mobile · Source: RFC+NABH checklist · RFC: §3.2, WF-OPD-001`
 
 **Acceptance criteria**
 - [x] The clinician can patient history view (previous visits, labs, prescriptions) from the relevant screen, with clear loading / empty / error states.
@@ -1282,7 +1282,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ Auto-load previous history, allergies, current medications on casesheet open
 > As a **clinician**, I want **auto-load previous history, allergies, current medications on casesheet open**.
 
-`Done · Platforms: Web, Mobile · Source: RFC+ACMSRC · RFC: §3.2, WF-OPD-001`
+`Done · Platforms: Web, Mobile · Source: RFC+NABH checklist · RFC: §3.2, WF-OPD-001`
 
 **Acceptance criteria**
 - [x] The clinician can auto-load previous history, allergies, current medications on casesheet open from the relevant screen, with clear loading / empty / error states.
@@ -1297,7 +1297,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ Chief complaints entry
 > As a **clinician**, I want **chief complaints entry**.
 
-`Done · Platforms: Web, Mobile · Source: RFC+ACMSRC · RFC: §3.2, WF-OPD-001`
+`Done · Platforms: Web, Mobile · Source: RFC+NABH checklist · RFC: §3.2, WF-OPD-001`
 
 **Acceptance criteria**
 - [x] The clinician can chief complaints entry from the relevant screen, with clear loading / empty / error states.
@@ -1312,7 +1312,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ History of present illness (HPI)
 > As a **clinician**, I want **history of present illness (hpi)**.
 
-`Done · Platforms: Web, Mobile · Source: RFC+ACMSRC · RFC: §3.2, WF-OPD-001`
+`Done · Platforms: Web, Mobile · Source: RFC+NABH checklist · RFC: §3.2, WF-OPD-001`
 
 **Acceptance criteria**
 - [x] The clinician can history of present illness (HPI) from the relevant screen, with clear loading / empty / error states.
@@ -1327,7 +1327,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ Past medical history
 > As a **clinician**, I want **past medical history**.
 
-`Done · Platforms: Web, Mobile · Source: RFC+ACMSRC · RFC: §3.2, WF-OPD-001`
+`Done · Platforms: Web, Mobile · Source: RFC+NABH checklist · RFC: §3.2, WF-OPD-001`
 
 **Acceptance criteria**
 - [x] The clinician can past medical history from the relevant screen, with clear loading / empty / error states.
@@ -1342,7 +1342,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ Family history
 > As a **clinician**, I want **family history**.
 
-`Done · Platforms: Web, Mobile · Source: RFC+ACMSRC · RFC: §3.2, WF-OPD-001`
+`Done · Platforms: Web, Mobile · Source: RFC+NABH checklist · RFC: §3.2, WF-OPD-001`
 
 **Acceptance criteria**
 - [x] The clinician can family history from the relevant screen, with clear loading / empty / error states.
@@ -1357,7 +1357,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ Pre-consultation nursing vitals (BP, pulse, temp, SpO2, weight, height) visible to doctor
 > As a **clinician**, I want **pre-consultation nursing vitals (bp, pulse, temp, spo2, weight, height) visible to doctor**.
 
-`Done · Platforms: Web, Mobile · Source: RFC+ACMSRC · RFC: §3.2, WF-OPD-001`
+`Done · Platforms: Web, Mobile · Source: RFC+NABH checklist · RFC: §3.2, WF-OPD-001`
 
 **Acceptance criteria**
 - [x] The clinician can pre-consultation nursing vitals (BP, pulse, temp, SpO2, weight, height) visible to doctor from the relevant screen, with clear loading / empty / error states.
@@ -1372,7 +1372,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ Clinical examination notes
 > As a **clinician**, I want **clinical examination notes**.
 
-`Done · Platforms: Web, Mobile · Source: RFC+ACMSRC · RFC: §3.2, WF-OPD-001`
+`Done · Platforms: Web, Mobile · Source: RFC+NABH checklist · RFC: §3.2, WF-OPD-001`
 
 **Acceptance criteria**
 - [x] The clinician can clinical examination notes from the relevant screen, with clear loading / empty / error states.
@@ -1387,7 +1387,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ Diagnosis entry with ICD-10 auto-suggestion
 > As a **clinician**, I want **diagnosis entry with icd-10 auto-suggestion**.
 
-`Done · Platforms: Web, Mobile · Source: RFC+ACMSRC · RFC: §3.2, WF-OPD-001`
+`Done · Platforms: Web, Mobile · Source: RFC+NABH checklist · RFC: §3.2, WF-OPD-001`
 
 **Acceptance criteria**
 - [x] The clinician can diagnosis entry with ICD-10 auto-suggestion from the relevant screen, with clear loading / empty / error states.
@@ -1402,7 +1402,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ Differential diagnosis documentation support
 > As a **clinician**, I want **differential diagnosis documentation support**.
 
-`Done · Platforms: Web, Mobile · Source: RFC+ACMSRC · RFC: §3.2, WF-OPD-001`
+`Done · Platforms: Web, Mobile · Source: RFC+NABH checklist · RFC: §3.2, WF-OPD-001`
 
 **Acceptance criteria**
 - [x] The clinician can differential diagnosis documentation support from the relevant screen, with clear loading / empty / error states.
@@ -1417,7 +1417,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ SNOMED CT coded findings
 > As a **clinician**, I want **snomed ct coded findings**.
 
-`Done · Platforms: Web, Mobile · Source: RFC+ACMSRC · RFC: §3.2, WF-OPD-001`
+`Done · Platforms: Web, Mobile · Source: RFC+NABH checklist · RFC: §3.2, WF-OPD-001`
 
 **Acceptance criteria**
 - [x] The clinician can sNOMED CT coded findings from the relevant screen, with clear loading / empty / error states.
@@ -1432,7 +1432,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ Clinical notes (free text + structured)
 > As a **clinician**, I want **clinical notes (free text + structured)**.
 
-`Done · Platforms: Web, Mobile · Source: RFC+ACMSRC · RFC: §3.2, WF-OPD-001`
+`Done · Platforms: Web, Mobile · Source: RFC+NABH checklist · RFC: §3.2, WF-OPD-001`
 
 **Acceptance criteria**
 - [x] The clinician can clinical notes (free text + structured) from the relevant screen, with clear loading / empty / error states.
@@ -1447,7 +1447,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ Specialty-specific casesheet templates (16 specialties per RFC §3.2.2)
 > As a **clinician**, I want **specialty-specific casesheet templates (16 specialties per rfc §3.2.2)**.
 
-`Done · Platforms: Web, Mobile · Source: RFC+ACMSRC · RFC: §3.2, WF-OPD-001`
+`Done · Platforms: Web, Mobile · Source: RFC+NABH checklist · RFC: §3.2, WF-OPD-001`
 
 **Acceptance criteria**
 - [x] The clinician can specialty-specific casesheet templates (16 specialties per RFC §3.2.2) from the relevant screen, with clear loading / empty / error states.
@@ -1462,7 +1462,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ Template builder (admin-configurable)
 > As a **clinician**, I want **template builder (admin-configurable)**.
 
-`Done · Platforms: Web, Mobile · Source: RFC+ACMSRC · RFC: §3.2, WF-OPD-001`
+`Done · Platforms: Web, Mobile · Source: RFC+NABH checklist · RFC: §3.2, WF-OPD-001`
 
 **Acceptance criteria**
 - [x] The clinician can template builder (admin-configurable) from the relevant screen, with clear loading / empty / error states.
@@ -1477,7 +1477,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ Automatic EMR prompts (drug allergies, chronic conditions)
 > As a **clinician**, I want **automatic emr prompts (drug allergies, chronic conditions)**.
 
-`Done · Platforms: Web, Mobile · Source: RFC+ACMSRC · RFC: §3.2, WF-OPD-001`
+`Done · Platforms: Web, Mobile · Source: RFC+NABH checklist · RFC: §3.2, WF-OPD-001`
 
 **Acceptance criteria**
 - [x] The clinician can automatic EMR prompts (drug allergies, chronic conditions) from the relevant screen, with clear loading / empty / error states.
@@ -1492,7 +1492,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ Patient timeline view during consultation
 > As a **clinician**, I want **patient timeline view during consultation**.
 
-`Done · Platforms: Web, Mobile · Source: RFC+ACMSRC · RFC: §3.2, WF-OPD-001`
+`Done · Platforms: Web, Mobile · Source: RFC+NABH checklist · RFC: §3.2, WF-OPD-001`
 
 **Acceptance criteria**
 - [x] The clinician can patient timeline view during consultation from the relevant screen, with clear loading / empty / error states.
@@ -1507,7 +1507,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Voice-to-text option for ward round documentation
 > As a **clinician**, I want **voice-to-text option for ward round documentation**.
 
-`Partial · Platforms: Web, Mobile · Source: RFC+ACMSRC · RFC: §3.2, WF-OPD-001`
+`Partial · Platforms: Web, Mobile · Source: RFC+NABH checklist · RFC: §3.2, WF-OPD-001`
 
 **Acceptance criteria**
 - [ ] The clinician can voice-to-text option for ward round documentation from the relevant screen, with clear loading / empty / error states.
@@ -1626,7 +1626,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ Discharge summary auto-generation from clinical entries with editable template
 > As a **clinician**, I want **discharge summary auto-generation from clinical entries with editable template**.
 
-`Done · Platforms: Web, Mobile · Source: RFC+ACMSRC · RFC: §3.3, WF-IPD-004`
+`Done · Platforms: Web, Mobile · Source: RFC+NABH checklist · RFC: §3.3, WF-IPD-004`
 
 **Acceptance criteria**
 - [x] The clinician can discharge summary auto-generation from clinical entries with editable template from the relevant screen, with clear loading / empty / error states.
@@ -1641,7 +1641,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ Discharge checklist
 > As a **clinician**, I want **discharge checklist**.
 
-`Done · Platforms: Web, Mobile · Source: RFC+ACMSRC · RFC: §3.3, WF-IPD-004`
+`Done · Platforms: Web, Mobile · Source: RFC+NABH checklist · RFC: §3.3, WF-IPD-004`
 
 **Acceptance criteria**
 - [x] The clinician can discharge checklist from the relevant screen, with clear loading / empty / error states.
@@ -1656,7 +1656,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ Final billing at discharge
 > As a **clinician**, I want **final billing at discharge**.
 
-`Done · Platforms: Web, Mobile · Source: RFC+ACMSRC · RFC: §3.3, WF-IPD-004`
+`Done · Platforms: Web, Mobile · Source: RFC+NABH checklist · RFC: §3.3, WF-IPD-004`
 
 **Acceptance criteria**
 - [x] The clinician can final billing at discharge from the relevant screen, with clear loading / empty / error states.
@@ -1671,7 +1671,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ Discharge medication list with instructions (in patient's language with pictograms)
 > As a **clinician**, I want **discharge medication list with instructions (in patient's language with pictograms)**.
 
-`Done · Platforms: Web, Mobile · Source: RFC+ACMSRC · RFC: §3.3, WF-IPD-004`
+`Done · Platforms: Web, Mobile · Source: RFC+NABH checklist · RFC: §3.3, WF-IPD-004`
 
 **Acceptance criteria**
 - [x] The clinician can discharge medication list with instructions (in patient's language with pictograms) from the relevant screen, with clear loading / empty / error states.
@@ -1686,7 +1686,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ Follow-up appointment scheduling
 > As a **clinician**, I want **follow-up appointment scheduling**.
 
-`Done · Platforms: Web, Mobile · Source: RFC+ACMSRC · RFC: §3.3, WF-IPD-004`
+`Done · Platforms: Web, Mobile · Source: RFC+NABH checklist · RFC: §3.3, WF-IPD-004`
 
 **Acceptance criteria**
 - [x] The clinician can follow-up appointment scheduling from the relevant screen, with clear loading / empty / error states.
@@ -1701,7 +1701,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ DAMA/LAMA documentation workflow with consent
 > As a **clinician**, I want **dama/lama documentation workflow with consent**.
 
-`Done · Platforms: Web, Mobile · Source: RFC+ACMSRC · RFC: §3.3, WF-IPD-004`
+`Done · Platforms: Web, Mobile · Source: RFC+NABH checklist · RFC: §3.3, WF-IPD-004`
 
 **Acceptance criteria**
 - [x] The clinician can dAMA/LAMA documentation workflow with consent from the relevant screen, with clear loading / empty / error states.
@@ -1716,7 +1716,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ Absconding patient workflow
 > As a **clinician**, I want **absconding patient workflow**.
 
-`Done · Platforms: Web, Mobile · Source: RFC+ACMSRC · RFC: §3.3, WF-IPD-004`
+`Done · Platforms: Web, Mobile · Source: RFC+NABH checklist · RFC: §3.3, WF-IPD-004`
 
 **Acceptance criteria**
 - [x] The clinician can absconding patient workflow from the relevant screen, with clear loading / empty / error states.
@@ -1731,7 +1731,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ Death summary auto-generation from IPD records
 > As a **clinician**, I want **death summary auto-generation from ipd records**.
 
-`Done · Platforms: Web, Mobile · Source: RFC+ACMSRC · RFC: §3.3, WF-IPD-004`
+`Done · Platforms: Web, Mobile · Source: RFC+NABH checklist · RFC: §3.3, WF-IPD-004`
 
 **Acceptance criteria**
 - [x] The clinician can death summary auto-generation from IPD records from the relevant screen, with clear loading / empty / error states.
@@ -1746,7 +1746,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ Death certificate generation (Form 4/4A)
 > As a **clinician**, I want **death certificate generation (form 4/4a)**.
 
-`Done · Platforms: Web, Mobile · Source: RFC+ACMSRC · RFC: §3.3, WF-IPD-004`
+`Done · Platforms: Web, Mobile · Source: RFC+NABH checklist · RFC: §3.3, WF-IPD-004`
 
 **Acceptance criteria**
 - [x] The clinician can death certificate generation (Form 4/4A) from the relevant screen, with clear loading / empty / error states.
@@ -1761,7 +1761,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ Birth certificate generation (maternity)
 > As a **clinician**, I want **birth certificate generation (maternity)**.
 
-`Done · Platforms: Web, Mobile · Source: RFC+ACMSRC · RFC: §3.3, WF-IPD-004`
+`Done · Platforms: Web, Mobile · Source: RFC+NABH checklist · RFC: §3.3, WF-IPD-004`
 
 **Acceptance criteria**
 - [x] The clinician can birth certificate generation (maternity) from the relevant screen, with clear loading / empty / error states.
@@ -1776,7 +1776,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ Transfer summary (inter-hospital clinical handover)
 > As a **clinician**, I want **transfer summary (inter-hospital clinical handover)**.
 
-`Done · Platforms: Web, Mobile · Source: RFC+ACMSRC · RFC: §3.3, WF-IPD-004`
+`Done · Platforms: Web, Mobile · Source: RFC+NABH checklist · RFC: §3.3, WF-IPD-004`
 
 **Acceptance criteria**
 - [x] The clinician can transfer summary (inter-hospital clinical handover) from the relevant screen, with clear loading / empty / error states.
@@ -1791,7 +1791,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ Dept-wise billing configuration at discharge
 > As a **clinician**, I want **dept-wise billing configuration at discharge**.
 
-`Done · Platforms: Web, Mobile · Source: RFC+ACMSRC · RFC: §3.3, WF-IPD-004`
+`Done · Platforms: Web, Mobile · Source: RFC+NABH checklist · RFC: §3.3, WF-IPD-004`
 
 **Acceptance criteria**
 - [x] The clinician can dept-wise billing configuration at discharge from the relevant screen, with clear loading / empty / error states.
@@ -1806,7 +1806,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ Billing threshold control
 > As a **clinician**, I want **billing threshold control**.
 
-`Done · Platforms: Web, Mobile · Source: RFC+ACMSRC · RFC: §3.3, WF-IPD-004`
+`Done · Platforms: Web, Mobile · Source: RFC+NABH checklist · RFC: §3.3, WF-IPD-004`
 
 **Acceptance criteria**
 - [x] The clinician can billing threshold control from the relevant screen, with clear loading / empty / error states.
@@ -1821,7 +1821,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ TAT tracking for discharge process
 > As a **clinician**, I want **tat tracking for discharge process**.
 
-`Done · Platforms: Web, Mobile · Source: RFC+ACMSRC · RFC: §3.3, WF-IPD-004`
+`Done · Platforms: Web, Mobile · Source: RFC+NABH checklist · RFC: §3.3, WF-IPD-004`
 
 **Acceptance criteria**
 - [x] The clinician can tAT tracking for discharge process from the relevant screen, with clear loading / empty / error states.
@@ -1836,7 +1836,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ Patient feedback at discharge
 > As a **clinician**, I want **patient feedback at discharge**.
 
-`Done · Platforms: Web, Mobile · Source: RFC+ACMSRC · RFC: §3.3, WF-IPD-004`
+`Done · Platforms: Web, Mobile · Source: RFC+NABH checklist · RFC: §3.3, WF-IPD-004`
 
 **Acceptance criteria**
 - [x] The clinician can patient feedback at discharge from the relevant screen, with clear loading / empty / error states.
@@ -1853,7 +1853,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ Hourly ICU flowsheet (vitals, ventilator settings, drugs, I/O)
 > As a **clinician**, I want **hourly icu flowsheet (vitals, ventilator settings, drugs, i/o)**.
 
-`P2 · Done · Platforms: Web, Mobile · Source: ACMSRC · RFC: CL-14`
+`P2 · Done · Platforms: Web, Mobile · Source: NABH checklist · RFC: CL-14`
 
 **Acceptance criteria**
 - [x] The clinician can hourly ICU flowsheet (vitals, ventilator settings, drugs, I/O) from the relevant screen, with clear loading / empty / error states.
@@ -1868,7 +1868,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ Ventilator parameter tracking (mode, FiO2, PEEP, TV, RR, ABG correlation)
 > As a **clinician**, I want **ventilator parameter tracking (mode, fio2, peep, tv, rr, abg correlation)**.
 
-`P2 · Done · Platforms: Web · Source: ACMSRC · RFC: CL-14`
+`P2 · Done · Platforms: Web · Source: NABH checklist · RFC: CL-14`
 
 **Acceptance criteria**
 - [x] The clinician can ventilator parameter tracking (mode, FiO2, PEEP, TV, RR, ABG correlation) from the relevant screen, with clear loading / empty / error states.
@@ -1882,7 +1882,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ Hemodynamic monitoring integration (arterial line, CVP, cardiac output)
 > As a **clinician**, I want **hemodynamic monitoring integration (arterial line, cvp, cardiac output)**.
 
-`P2 · Done · Platforms: Web, Mobile · Source: ACMSRC · RFC: CL-14`
+`P2 · Done · Platforms: Web, Mobile · Source: NABH checklist · RFC: CL-14`
 
 **Acceptance criteria**
 - [x] The clinician can hemodynamic monitoring integration (arterial line, CVP, cardiac output) from the relevant screen, with clear loading / empty / error states.
@@ -1897,7 +1897,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ Infusion pump tracking (drug, rate, duration)
 > As a **clinician**, I want **infusion pump tracking (drug, rate, duration)**.
 
-`P2 · Done · Platforms: Web · Source: ACMSRC · RFC: CL-14`
+`P2 · Done · Platforms: Web · Source: NABH checklist · RFC: CL-14`
 
 **Acceptance criteria**
 - [x] The clinician can infusion pump tracking (drug, rate, duration) from the relevant screen, with clear loading / empty / error states.
@@ -1911,7 +1911,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ Sedation scoring (RASS/Richmond) and sedation vacation documentation
 > As a **clinician**, I want **sedation scoring (rass/richmond) and sedation vacation documentation**.
 
-`P2 · Done · Platforms: Web · Source: ACMSRC · RFC: CL-14`
+`P2 · Done · Platforms: Web · Source: NABH checklist · RFC: CL-14`
 
 **Acceptance criteria**
 - [x] The clinician can sedation scoring (RASS/Richmond) and sedation vacation documentation from the relevant screen, with clear loading / empty / error states.
@@ -1925,7 +1925,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ Nutrition tracking (enteral/parenteral with calorie calculation)
 > As a **clinician**, I want **nutrition tracking (enteral/parenteral with calorie calculation)**.
 
-`P2 · Done · Platforms: Web, Mobile · Source: ACMSRC · RFC: CL-14`
+`P2 · Done · Platforms: Web, Mobile · Source: NABH checklist · RFC: CL-14`
 
 **Acceptance criteria**
 - [x] The clinician can nutrition tracking (enteral/parenteral with calorie calculation) from the relevant screen, with clear loading / empty / error states.
@@ -2701,7 +2701,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ Neonatal vital signs (with normative ranges by gestational age)
 > As a **clinician**, I want **neonatal vital signs (with normative ranges by gestational age)**.
 
-`P2 · Done · Platforms: Web, Mobile, TV · Source: ACMSRC · RFC: CL-14`
+`P2 · Done · Platforms: Web, Mobile, TV · Source: NABH checklist · RFC: CL-14`
 
 **Acceptance criteria**
 - [x] The clinician can neonatal vital signs (with normative ranges by gestational age) from the relevant screen, with clear loading / empty / error states.
@@ -2717,7 +2717,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ Breast milk management (labeling, storage, administration)
 > As a **clinician**, I want **breast milk management (labeling, storage, administration)**.
 
-`P2 · Done · Platforms: Web, Mobile, TV · Source: ACMSRC · RFC: CL-14`
+`P2 · Done · Platforms: Web, Mobile, TV · Source: NABH checklist · RFC: CL-14`
 
 **Acceptance criteria**
 - [x] The clinician can breast milk management (labeling, storage, administration) from the relevant screen, with clear loading / empty / error states.
@@ -2733,7 +2733,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ Phototherapy monitoring and bilirubin trending
 > As a **clinician**, I want **phototherapy monitoring and bilirubin trending**.
 
-`P2 · Done · Platforms: Web, Mobile, TV · Source: ACMSRC · RFC: CL-14`
+`P2 · Done · Platforms: Web, Mobile, TV · Source: NABH checklist · RFC: CL-14`
 
 **Acceptance criteria**
 - [x] The clinician can phototherapy monitoring and bilirubin trending from the relevant screen, with clear loading / empty / error states.
@@ -2749,7 +2749,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ Neonatal sepsis screening protocol
 > As a **clinician**, I want **neonatal sepsis screening protocol**.
 
-`P2 · Done · Platforms: Web, Mobile, TV · Source: ACMSRC · RFC: CL-14`
+`P2 · Done · Platforms: Web, Mobile, TV · Source: NABH checklist · RFC: CL-14`
 
 **Acceptance criteria**
 - [x] The clinician can neonatal sepsis screening protocol from the relevant screen, with clear loading / empty / error states.
@@ -2765,7 +2765,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ Mother-baby identification matching (Code Pink security)
 > As a **clinician**, I want **mother-baby identification matching (code pink security)**.
 
-`P2 · Done · Platforms: Web, Mobile, TV · Source: ACMSRC · RFC: CL-14`
+`P2 · Done · Platforms: Web, Mobile, TV · Source: NABH checklist · RFC: CL-14`
 
 **Acceptance criteria**
 - [x] The clinician can mother-baby identification matching (Code Pink security) from the relevant screen, with clear loading / empty / error states.
@@ -2781,7 +2781,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ Newborn Hearing Screening Program (NHSP) integration
 > As a **clinician**, I want **newborn hearing screening program (nhsp) integration**.
 
-`P2 · Done · Platforms: Web, Mobile, TV · Source: ACMSRC · RFC: CL-14`
+`P2 · Done · Platforms: Web, Mobile, TV · Source: NABH checklist · RFC: CL-14`
 
 **Acceptance criteria**
 - [x] The clinician can newborn Hearing Screening Program (NHSP) integration from the relevant screen, with clear loading / empty / error states.
@@ -2799,7 +2799,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ Initial nursing assessment at admission (head-to-toe)
 > As a **clinician**, I want **initial nursing assessment at admission (head-to-toe)**.
 
-`Done · Platforms: Web · Source: ACMSRC · RFC: CL-3`
+`Done · Platforms: Web · Source: NABH checklist · RFC: CL-3`
 
 **Acceptance criteria**
 - [x] The clinician can initial nursing assessment at admission (head-to-toe) from the relevant screen, with clear loading / empty / error states.
@@ -2813,7 +2813,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ Nursing care plan creation and modification
 > As a **clinician**, I want **nursing care plan creation and modification**.
 
-`Done · Platforms: Web · Source: ACMSRC · RFC: CL-3`
+`Done · Platforms: Web · Source: NABH checklist · RFC: CL-3`
 
 **Acceptance criteria**
 - [x] The clinician can nursing care plan creation and modification from the relevant screen, with clear loading / empty / error states.
@@ -2827,7 +2827,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Barcode scanning for medication verification (right patient, right drug)
 > As a **clinician**, I want **barcode scanning for medication verification (right patient, right drug)**.
 
-`Partial · Platforms: Web · Source: ACMSRC · RFC: CL-3`
+`Partial · Platforms: Web · Source: NABH checklist · RFC: CL-3`
 
 **Acceptance criteria**
 - [ ] The clinician can barcode scanning for medication verification (right patient, right drug) from the relevant screen, with clear loading / empty / error states.
@@ -2841,7 +2841,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ Medication administration timestamp with nurse ID
 > As a **clinician**, I want **medication administration timestamp with nurse id**.
 
-`Done · Platforms: Web, Mobile · Source: ACMSRC · RFC: CL-3`
+`Done · Platforms: Web, Mobile · Source: NABH checklist · RFC: CL-3`
 
 **Acceptance criteria**
 - [x] The clinician can medication administration timestamp with nurse ID from the relevant screen, with clear loading / empty / error states.
@@ -2856,7 +2856,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ PRN medication documentation with reason
 > As a **clinician**, I want **prn medication documentation with reason**.
 
-`Done · Platforms: Web · Source: ACMSRC · RFC: CL-3`
+`Done · Platforms: Web · Source: NABH checklist · RFC: CL-3`
 
 **Acceptance criteria**
 - [x] The clinician can pRN medication documentation with reason from the relevant screen, with clear loading / empty / error states.
@@ -2870,7 +2870,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ Missed dose documentation with reason
 > As a **clinician**, I want **missed dose documentation with reason**.
 
-`Done · Platforms: Web · Source: ACMSRC · RFC: CL-3`
+`Done · Platforms: Web · Source: NABH checklist · RFC: CL-3`
 
 **Acceptance criteria**
 - [x] The clinician can missed dose documentation with reason from the relevant screen, with clear loading / empty / error states.
@@ -2884,7 +2884,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ High-alert medication double-check workflow
 > As a **clinician**, I want **high-alert medication double-check workflow**.
 
-`Done · Platforms: Web · Source: ACMSRC · RFC: CL-3`
+`Done · Platforms: Web · Source: NABH checklist · RFC: CL-3`
 
 **Acceptance criteria**
 - [x] The clinician can high-alert medication double-check workflow from the relevant screen, with clear loading / empty / error states.
@@ -2898,7 +2898,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ Chemotherapy administration (requires chemo certification — ABAC check)
 > As a **clinician**, I want **chemotherapy administration (requires chemo certification — abac check)**.
 
-`Done · Platforms: Web · Source: ACMSRC · RFC: CL-3`
+`Done · Platforms: Web · Source: NABH checklist · RFC: CL-3`
 
 **Acceptance criteria**
 - [x] The clinician can chemotherapy administration (requires chemo certification — ABAC check) from the relevant screen, with clear loading / empty / error states.
@@ -2912,7 +2912,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ SBAR (Situation, Background, Assessment, Recommendation) handover format
 > As a **clinician**, I want **sbar (situation, background, assessment, recommendation) handover format**.
 
-`Done · Platforms: Web, Mobile · Source: ACMSRC · RFC: CL-3`
+`Done · Platforms: Web, Mobile · Source: NABH checklist · RFC: CL-3`
 
 **Acceptance criteria**
 - [x] The clinician can sBAR (Situation, Background, Assessment, Recommendation) handover format from the relevant screen, with clear loading / empty / error states.
@@ -2927,7 +2927,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ Pending task carryover between shifts
 > As a **clinician**, I want **pending task carryover between shifts**.
 
-`Done · Platforms: Web, Mobile · Source: ACMSRC · RFC: CL-3`
+`Done · Platforms: Web, Mobile · Source: NABH checklist · RFC: CL-3`
 
 **Acceptance criteria**
 - [x] The clinician can pending task carryover between shifts from the relevant screen, with clear loading / empty / error states.
@@ -2942,7 +2942,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ Critical patient flagging for incoming shift
 > As a **clinician**, I want **critical patient flagging for incoming shift**.
 
-`Done · Platforms: Web, Mobile · Source: ACMSRC · RFC: CL-3`
+`Done · Platforms: Web, Mobile · Source: NABH checklist · RFC: CL-3`
 
 **Acceptance criteria**
 - [x] The clinician can critical patient flagging for incoming shift from the relevant screen, with clear loading / empty / error states.
@@ -2957,7 +2957,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ Nurse call system integration with response time tracking
 > As a **clinician**, I want **nurse call system integration with response time tracking**.
 
-`Done · Platforms: Web · Source: ACMSRC · RFC: CL-3`
+`Done · Platforms: Web · Source: NABH checklist · RFC: CL-3`
 
 **Acceptance criteria**
 - [x] The clinician can nurse call system integration with response time tracking from the relevant screen, with clear loading / empty / error states.
@@ -2971,7 +2971,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Escalation if nurse call unresponded > 2 min → charge nurse, > 5 min → supervisor
 > As a **clinician**, I want **escalation if nurse call unresponded > 2 min → charge nurse, > 5 min → supervisor**.
 
-`Partial · Platforms: Web · Source: ACMSRC · RFC: CL-3`
+`Partial · Platforms: Web · Source: NABH checklist · RFC: CL-3`
 
 **Acceptance criteria**
 - [ ] The clinician can escalation if nurse call unresponded > 2 min → charge nurse, > 5 min → supervisor from the relevant screen, with clear loading / empty / error states.
@@ -2985,7 +2985,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Patient identification wristband verification (barcode scan)
 > As a **clinician**, I want **patient identification wristband verification (barcode scan)**.
 
-`Partial · Platforms: Web · Source: ACMSRC · RFC: CL-3`
+`Partial · Platforms: Web · Source: NABH checklist · RFC: CL-3`
 
 **Acceptance criteria**
 - [ ] The clinician can patient identification wristband verification (barcode scan) from the relevant screen, with clear loading / empty / error states.
@@ -2999,7 +2999,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Consent verification before procedure (scan patient + consent barcode)
 > As a **clinician**, I want **consent verification before procedure (scan patient + consent barcode)**.
 
-`Partial · Platforms: Web · Source: ACMSRC · RFC: CL-3`
+`Partial · Platforms: Web · Source: NABH checklist · RFC: CL-3`
 
 **Acceptance criteria**
 - [ ] The clinician can consent verification before procedure (scan patient + consent barcode) from the relevant screen, with clear loading / empty / error states.
@@ -3013,7 +3013,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ Blood transfusion checklist and reaction monitoring
 > As a **clinician**, I want **blood transfusion checklist and reaction monitoring**.
 
-`Done · Platforms: Web · Source: ACMSRC · RFC: CL-3`
+`Done · Platforms: Web · Source: NABH checklist · RFC: CL-3`
 
 **Acceptance criteria**
 - [x] The clinician can blood transfusion checklist and reaction monitoring from the relevant screen, with clear loading / empty / error states.
@@ -3027,7 +3027,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ Incident reporting (anonymous option available)
 > As a **clinician**, I want **incident reporting (anonymous option available)**.
 
-`Done · Platforms: Web, Mobile · Source: ACMSRC · RFC: CL-3`
+`Done · Platforms: Web, Mobile · Source: NABH checklist · RFC: CL-3`
 
 **Acceptance criteria**
 - [x] The clinician can incident reporting (anonymous option available) from the relevant screen, with clear loading / empty / error states.
@@ -3042,7 +3042,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ Restraint monitoring log (every 30 min for psychiatric patients)
 > As a **clinician**, I want **restraint monitoring log (every 30 min for psychiatric patients)**.
 
-`Done · Platforms: Web, Mobile · Source: ACMSRC · RFC: CL-3`
+`Done · Platforms: Web, Mobile · Source: NABH checklist · RFC: CL-3`
 
 **Acceptance criteria**
 - [x] The clinician can restraint monitoring log (every 30 min for psychiatric patients) from the relevant screen, with clear loading / empty / error states.
@@ -3057,7 +3057,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ Elopement risk assessment for psychiatric/MLC patients
 > As a **clinician**, I want **elopement risk assessment for psychiatric/mlc patients**.
 
-`Done · Platforms: Web, Mobile · Source: ACMSRC · RFC: CL-3`
+`Done · Platforms: Web, Mobile · Source: NABH checklist · RFC: CL-3`
 
 **Acceptance criteria**
 - [x] The clinician can elopement risk assessment for psychiatric/MLC patients from the relevant screen, with clear loading / empty / error states.
@@ -3072,7 +3072,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ ICU nursing flowsheet (hourly documentation)
 > As a **clinician**, I want **icu nursing flowsheet (hourly documentation)**.
 
-`Done · Platforms: Web · Source: ACMSRC · RFC: CL-3`
+`Done · Platforms: Web · Source: NABH checklist · RFC: CL-3`
 
 **Acceptance criteria**
 - [x] The clinician can iCU nursing flowsheet (hourly documentation) from the relevant screen, with clear loading / empty / error states.
@@ -3086,7 +3086,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ NICU nursing — neonatal assessment, feeding chart, phototherapy log
 > As a **clinician**, I want **nicu nursing — neonatal assessment, feeding chart, phototherapy log**.
 
-`Done · Platforms: Web, Mobile · Source: ACMSRC · RFC: CL-3`
+`Done · Platforms: Web, Mobile · Source: NABH checklist · RFC: CL-3`
 
 **Acceptance criteria**
 - [x] The clinician can nICU nursing — neonatal assessment, feeding chart, phototherapy log from the relevant screen, with clear loading / empty / error states.
@@ -3101,7 +3101,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ OT nursing — surgical safety checklist (WHO), instrument count, specimen log
 > As a **clinician**, I want **ot nursing — surgical safety checklist (who), instrument count, specimen log**.
 
-`Done · Platforms: Web · Source: ACMSRC · RFC: CL-3`
+`Done · Platforms: Web · Source: NABH checklist · RFC: CL-3`
 
 **Acceptance criteria**
 - [x] The clinician can oT nursing — surgical safety checklist (WHO), instrument count, specimen log from the relevant screen, with clear loading / empty / error states.
@@ -3115,7 +3115,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ Dialysis nursing — pre/intra/post dialysis documentation
 > As a **clinician**, I want **dialysis nursing — pre/intra/post dialysis documentation**.
 
-`Done · Platforms: Web · Source: ACMSRC · RFC: CL-3`
+`Done · Platforms: Web · Source: NABH checklist · RFC: CL-3`
 
 **Acceptance criteria**
 - [x] The clinician can dialysis nursing — pre/intra/post dialysis documentation from the relevant screen, with clear loading / empty / error states.
@@ -3129,7 +3129,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ Endoscopy nursing — sedation monitoring, recovery (Aldrete score)
 > As a **clinician**, I want **endoscopy nursing — sedation monitoring, recovery (aldrete score)**.
 
-`Done · Platforms: Web, Mobile · Source: ACMSRC · RFC: CL-3`
+`Done · Platforms: Web, Mobile · Source: NABH checklist · RFC: CL-3`
 
 **Acceptance criteria**
 - [x] The clinician can endoscopy nursing — sedation monitoring, recovery (Aldrete score) from the relevant screen, with clear loading / empty / error states.
@@ -3146,7 +3146,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ OT scheduling calendar with slot management
 > As a **clinician**, I want **ot scheduling calendar with slot management**.
 
-`Done · Platforms: Web, Mobile, TV · Source: RFC+ACMSRC · RFC: §3.6, CL-15`
+`Done · Platforms: Web, Mobile, TV · Source: RFC+NABH checklist · RFC: §3.6, CL-15`
 
 **Acceptance criteria**
 - [x] The clinician can oT scheduling calendar with slot management from the relevant screen, with clear loading / empty / error states.
@@ -3162,7 +3162,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ Emergency OT booking with priority override
 > As a **clinician**, I want **emergency ot booking with priority override**.
 
-`Done · Platforms: Web, Mobile, TV · Source: RFC+ACMSRC · RFC: §3.6, CL-15`
+`Done · Platforms: Web, Mobile, TV · Source: RFC+NABH checklist · RFC: §3.6, CL-15`
 
 **Acceptance criteria**
 - [x] The clinician can emergency OT booking with priority override from the relevant screen, with clear loading / empty / error states.
@@ -3178,7 +3178,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ Pre-operative assessment checklist (anesthesia fitness, investigations, consent)
 > As a **clinician**, I want **pre-operative assessment checklist (anesthesia fitness, investigations, consent)**.
 
-`Done · Platforms: Web, Mobile, TV · Source: RFC+ACMSRC · RFC: §3.6, CL-15`
+`Done · Platforms: Web, Mobile, TV · Source: RFC+NABH checklist · RFC: §3.6, CL-15`
 
 **Acceptance criteria**
 - [x] The clinician can pre-operative assessment checklist (anesthesia fitness, investigations, consent) from the relevant screen, with clear loading / empty / error states.
@@ -3194,7 +3194,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ Pre-anesthesia check-up (PAC) documentation
 > As a **clinician**, I want **pre-anesthesia check-up (pac) documentation**.
 
-`Done · Platforms: Web, Mobile, TV · Source: RFC+ACMSRC · RFC: §3.6, CL-15`
+`Done · Platforms: Web, Mobile, TV · Source: RFC+NABH checklist · RFC: §3.6, CL-15`
 
 **Acceptance criteria**
 - [x] The clinician can pre-anesthesia check-up (PAC) documentation from the relevant screen, with clear loading / empty / error states.
@@ -3210,7 +3210,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ Blood reservation request to blood bank
 > As a **clinician**, I want **blood reservation request to blood bank**.
 
-`Done · Platforms: Web, Mobile, TV · Source: RFC+ACMSRC · RFC: §3.6, CL-15`
+`Done · Platforms: Web, Mobile, TV · Source: RFC+NABH checklist · RFC: §3.6, CL-15`
 
 **Acceptance criteria**
 - [x] The clinician can blood reservation request to blood bank from the relevant screen, with clear loading / empty / error states.
@@ -3226,7 +3226,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ OT preparation checklist (equipment, instruments, positioning)
 > As a **clinician**, I want **ot preparation checklist (equipment, instruments, positioning)**.
 
-`Done · Platforms: Web, Mobile, TV · Source: RFC+ACMSRC · RFC: §3.6, CL-15`
+`Done · Platforms: Web, Mobile, TV · Source: RFC+NABH checklist · RFC: §3.6, CL-15`
 
 **Acceptance criteria**
 - [x] The clinician can oT preparation checklist (equipment, instruments, positioning) from the relevant screen, with clear loading / empty / error states.
@@ -3242,7 +3242,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ WHO Surgical Safety Checklist (Sign In, Time Out, Sign Out) with HARD-BLOCK if incomplete
 > As a **clinician**, I want **who surgical safety checklist (sign in, time out, sign out) with hard-block if incomplete**.
 
-`Done · Platforms: Web, Mobile, TV · Source: RFC+ACMSRC · RFC: §3.6, CL-15`
+`Done · Platforms: Web, Mobile, TV · Source: RFC+NABH checklist · RFC: §3.6, CL-15`
 
 **Acceptance criteria**
 - [x] The clinician can wHO Surgical Safety Checklist (Sign In, Time Out, Sign Out) with HARD-BLOCK if incomplete from the relevant screen, with clear loading / empty / error states.
@@ -3258,7 +3258,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ Anesthesia record (drugs, airway, vitals, fluid balance)
 > As a **clinician**, I want **anesthesia record (drugs, airway, vitals, fluid balance)**.
 
-`Done · Platforms: Web, Mobile, TV · Source: RFC+ACMSRC · RFC: §3.6, CL-15`
+`Done · Platforms: Web, Mobile, TV · Source: RFC+NABH checklist · RFC: §3.6, CL-15`
 
 **Acceptance criteria**
 - [x] The clinician can anesthesia record (drugs, airway, vitals, fluid balance) from the relevant screen, with clear loading / empty / error states.
@@ -3274,7 +3274,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ Surgeon's operative note template
 > As a **clinician**, I want **surgeon's operative note template**.
 
-`Done · Platforms: Web, Mobile, TV · Source: RFC+ACMSRC · RFC: §3.6, CL-15`
+`Done · Platforms: Web, Mobile, TV · Source: RFC+NABH checklist · RFC: §3.6, CL-15`
 
 **Acceptance criteria**
 - [x] The clinician can surgeon's operative note template from the relevant screen, with clear loading / empty / error states.
@@ -3290,7 +3290,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ Instrument and sponge count (pre/post procedure) with mismatch alert
 > As a **clinician**, I want **instrument and sponge count (pre/post procedure) with mismatch alert**.
 
-`Done · Platforms: Web, Mobile, TV · Source: RFC+ACMSRC · RFC: §3.6, CL-15`
+`Done · Platforms: Web, Mobile, TV · Source: RFC+NABH checklist · RFC: §3.6, CL-15`
 
 **Acceptance criteria**
 - [x] The clinician can instrument and sponge count (pre/post procedure) with mismatch alert from the relevant screen, with clear loading / empty / error states.
@@ -3306,7 +3306,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Implant/prosthesis tracking with barcode scan and patient linkage
 > As a **clinician**, I want **implant/prosthesis tracking with barcode scan and patient linkage**.
 
-`Partial · Platforms: Web, Mobile, TV · Source: RFC+ACMSRC · RFC: §3.6, CL-15`
+`Partial · Platforms: Web, Mobile, TV · Source: RFC+NABH checklist · RFC: §3.6, CL-15`
 
 **Acceptance criteria**
 - [ ] The clinician can implant/prosthesis tracking with barcode scan and patient linkage from the relevant screen, with clear loading / empty / error states.
@@ -3322,7 +3322,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ Specimen collection documentation with chain-of-custody to pathology
 > As a **clinician**, I want **specimen collection documentation with chain-of-custody to pathology**.
 
-`Done · Platforms: Web, Mobile, TV · Source: RFC+ACMSRC · RFC: §3.6, CL-15`
+`Done · Platforms: Web, Mobile, TV · Source: RFC+NABH checklist · RFC: §3.6, CL-15`
 
 **Acceptance criteria**
 - [x] The clinician can specimen collection documentation with chain-of-custody to pathology from the relevant screen, with clear loading / empty / error states.
@@ -3338,7 +3338,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ Blood product usage documentation
 > As a **clinician**, I want **blood product usage documentation**.
 
-`Done · Platforms: Web, Mobile, TV · Source: RFC+ACMSRC · RFC: §3.6, CL-15`
+`Done · Platforms: Web, Mobile, TV · Source: RFC+NABH checklist · RFC: §3.6, CL-15`
 
 **Acceptance criteria**
 - [x] The clinician can blood product usage documentation from the relevant screen, with clear loading / empty / error states.
@@ -3354,7 +3354,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ Post-Anesthesia Care Unit (PACU) monitoring (Aldrete score)
 > As a **clinician**, I want **post-anesthesia care unit (pacu) monitoring (aldrete score)**.
 
-`Done · Platforms: Web, Mobile, TV · Source: RFC+ACMSRC · RFC: §3.6, CL-15`
+`Done · Platforms: Web, Mobile, TV · Source: RFC+NABH checklist · RFC: §3.6, CL-15`
 
 **Acceptance criteria**
 - [x] The clinician can post-Anesthesia Care Unit (PACU) monitoring (Aldrete score) from the relevant screen, with clear loading / empty / error states.
@@ -3370,7 +3370,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ Post-operative order set generation
 > As a **clinician**, I want **post-operative order set generation**.
 
-`Done · Platforms: Web, Mobile, TV · Source: RFC+ACMSRC · RFC: §3.6, CL-15`
+`Done · Platforms: Web, Mobile, TV · Source: RFC+NABH checklist · RFC: §3.6, CL-15`
 
 **Acceptance criteria**
 - [x] The clinician can post-operative order set generation from the relevant screen, with clear loading / empty / error states.
@@ -3386,7 +3386,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ Handover from OT to ward/ICU with documentation
 > As a **clinician**, I want **handover from ot to ward/icu with documentation**.
 
-`Done · Platforms: Web, Mobile, TV · Source: RFC+ACMSRC · RFC: §3.6, CL-15`
+`Done · Platforms: Web, Mobile, TV · Source: RFC+NABH checklist · RFC: §3.6, CL-15`
 
 **Acceptance criteria**
 - [x] The clinician can handover from OT to ward/ICU with documentation from the relevant screen, with clear loading / empty / error states.
@@ -3402,7 +3402,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ Surgical site marking verification
 > As a **clinician**, I want **surgical site marking verification**.
 
-`Done · Platforms: Web, Mobile, TV · Source: RFC+ACMSRC · RFC: §3.6, CL-15`
+`Done · Platforms: Web, Mobile, TV · Source: RFC+NABH checklist · RFC: §3.6, CL-15`
 
 **Acceptance criteria**
 - [x] The clinician can surgical site marking verification from the relevant screen, with clear loading / empty / error states.
@@ -3418,7 +3418,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ OT turnaround time tracking (room cleaning, preparation)
 > As a **clinician**, I want **ot turnaround time tracking (room cleaning, preparation)**.
 
-`Done · Platforms: Web, Mobile, TV · Source: RFC+ACMSRC · RFC: §3.6, CL-15`
+`Done · Platforms: Web, Mobile, TV · Source: RFC+NABH checklist · RFC: §3.6, CL-15`
 
 **Acceptance criteria**
 - [x] The clinician can oT turnaround time tracking (room cleaning, preparation) from the relevant screen, with clear loading / empty / error states.
@@ -3434,7 +3434,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ OT consumable tracking
 > As a **clinician**, I want **ot consumable tracking**.
 
-`Done · Platforms: Web, Mobile, TV · Source: RFC+ACMSRC · RFC: §3.6, CL-15`
+`Done · Platforms: Web, Mobile, TV · Source: RFC+NABH checklist · RFC: §3.6, CL-15`
 
 **Acceptance criteria**
 - [x] The clinician can oT consumable tracking from the relevant screen, with clear loading / empty / error states.
@@ -3450,7 +3450,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ OT utilization report (scheduled vs actual time, cancellation rate)
 > As a **clinician**, I want **ot utilization report (scheduled vs actual time, cancellation rate)**.
 
-`Done · Platforms: Web, Mobile, TV · Source: RFC+ACMSRC · RFC: §3.6, CL-15`
+`Done · Platforms: Web, Mobile, TV · Source: RFC+NABH checklist · RFC: §3.6, CL-15`
 
 **Acceptance criteria**
 - [x] The clinician can oT utilization report (scheduled vs actual time, cancellation rate) from the relevant screen, with clear loading / empty / error states.
@@ -3466,7 +3466,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ Surgeon-wise case load analysis
 > As a **clinician**, I want **surgeon-wise case load analysis**.
 
-`Done · Platforms: Web, Mobile, TV · Source: RFC+ACMSRC · RFC: §3.6, CL-15`
+`Done · Platforms: Web, Mobile, TV · Source: RFC+NABH checklist · RFC: §3.6, CL-15`
 
 **Acceptance criteria**
 - [x] The clinician can surgeon-wise case load analysis from the relevant screen, with clear loading / empty / error states.
@@ -3482,7 +3482,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ Anesthesia complication tracking
 > As a **clinician**, I want **anesthesia complication tracking**.
 
-`Done · Platforms: Web, Mobile, TV · Source: RFC+ACMSRC · RFC: §3.6, CL-15`
+`Done · Platforms: Web, Mobile, TV · Source: RFC+NABH checklist · RFC: §3.6, CL-15`
 
 **Acceptance criteria**
 - [x] The clinician can anesthesia complication tracking from the relevant screen, with clear loading / empty / error states.
@@ -3498,7 +3498,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ Surgical site infection correlation with OT environment data
 > As a **clinician**, I want **surgical site infection correlation with ot environment data**.
 
-`Done · Platforms: Web, Mobile, TV · Source: RFC+ACMSRC · RFC: §3.6, CL-15`
+`Done · Platforms: Web, Mobile, TV · Source: RFC+NABH checklist · RFC: §3.6, CL-15`
 
 **Acceptance criteria**
 - [x] The clinician can surgical site infection correlation with OT environment data from the relevant screen, with clear loading / empty / error states.
@@ -3516,7 +3516,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ Investigation ordering (lab/radiology) with electronic routing — no paper requisition
 > As a **clinician**, I want **investigation ordering (lab/radiology) with electronic routing — no paper requisition**.
 
-`Done · Platforms: Web · Source: RFC+ACMSRC · RFC: §3.2`
+`Done · Platforms: Web · Source: RFC+NABH checklist · RFC: §3.2`
 
 **Acceptance criteria**
 - [x] The clinician can investigation ordering (lab/radiology) with electronic routing — no paper requisition from the relevant screen, with clear loading / empty / error states.
@@ -3530,7 +3530,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ Procedure ordering
 > As a **clinician**, I want **procedure ordering**.
 
-`Done · Platforms: Web, Mobile · Source: RFC+ACMSRC · RFC: §3.2`
+`Done · Platforms: Web, Mobile · Source: RFC+NABH checklist · RFC: §3.2`
 
 **Acceptance criteria**
 - [x] The clinician can procedure ordering from the relevant screen, with clear loading / empty / error states.
@@ -3545,7 +3545,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ Inter-department referral with reason, urgency, bi-directional communication
 > As a **clinician**, I want **inter-department referral with reason, urgency, bi-directional communication**.
 
-`Done · Platforms: Web, Mobile · Source: RFC+ACMSRC · RFC: §3.2`
+`Done · Platforms: Web, Mobile · Source: RFC+NABH checklist · RFC: §3.2`
 
 **Acceptance criteria**
 - [x] The clinician can inter-department referral with reason, urgency, bi-directional communication from the relevant screen, with clear loading / empty / error states.
@@ -3560,7 +3560,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ External referral letter generation
 > As a **clinician**, I want **external referral letter generation**.
 
-`Done · Platforms: Web, Mobile · Source: RFC+ACMSRC · RFC: §3.2`
+`Done · Platforms: Web, Mobile · Source: RFC+NABH checklist · RFC: §3.2`
 
 **Acceptance criteria**
 - [x] The clinician can external referral letter generation from the relevant screen, with clear loading / empty / error states.
@@ -3575,7 +3575,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ Follow-up scheduling with SMS/WhatsApp auto-reminders
 > As a **clinician**, I want **follow-up scheduling with sms/whatsapp auto-reminders**.
 
-`Done · Platforms: Web, Mobile · Source: RFC+ACMSRC · RFC: §3.2`
+`Done · Platforms: Web, Mobile · Source: RFC+NABH checklist · RFC: §3.2`
 
 **Acceptance criteria**
 - [x] The clinician can follow-up scheduling with SMS/WhatsApp auto-reminders from the relevant screen, with clear loading / empty / error states.
@@ -3590,7 +3590,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ Cost estimation for ordered services
 > As a **clinician**, I want **cost estimation for ordered services**.
 
-`Done · Platforms: Web · Source: RFC+ACMSRC · RFC: §3.2`
+`Done · Platforms: Web · Source: RFC+NABH checklist · RFC: §3.2`
 
 **Acceptance criteria**
 - [x] The clinician can cost estimation for ordered services from the relevant screen, with clear loading / empty / error states.
@@ -3604,7 +3604,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ Pre-authorization request (insurance patients)
 > As a **clinician**, I want **pre-authorization request (insurance patients)**.
 
-`Done · Platforms: Web, Mobile · Source: RFC+ACMSRC · RFC: §3.2`
+`Done · Platforms: Web, Mobile · Source: RFC+NABH checklist · RFC: §3.2`
 
 **Acceptance criteria**
 - [x] The clinician can pre-authorization request (insurance patients) from the relevant screen, with clear loading / empty / error states.
@@ -3619,7 +3619,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ Auto-generation of billing for consultation + ordered investigations
 > As a **clinician**, I want **auto-generation of billing for consultation + ordered investigations**.
 
-`Done · Platforms: Web, Mobile · Source: RFC+ACMSRC · RFC: §3.2`
+`Done · Platforms: Web, Mobile · Source: RFC+NABH checklist · RFC: §3.2`
 
 **Acceptance criteria**
 - [x] The clinician can auto-generation of billing for consultation + ordered investigations from the relevant screen, with clear loading / empty / error states.
@@ -3636,7 +3636,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ PG logbook auto-entry from cases seen/procedures performed
 > As a **clinician**, I want **pg logbook auto-entry from cases seen/procedures performed**.
 
-`Done · Platforms: Web, Mobile · Source: ACMSRC · RFC: CL-1 D`
+`Done · Platforms: Web, Mobile · Source: NABH checklist · RFC: CL-1 D`
 
 **Acceptance criteria**
 - [x] The clinician can pG logbook auto-entry from cases seen/procedures performed from the relevant screen, with clear loading / empty / error states.
@@ -3651,7 +3651,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ Intern case logging with supervisor verification
 > As a **clinician**, I want **intern case logging with supervisor verification**.
 
-`Done · Platforms: Web, Mobile · Source: ACMSRC · RFC: CL-1 D`
+`Done · Platforms: Web, Mobile · Source: NABH checklist · RFC: CL-1 D`
 
 **Acceptance criteria**
 - [x] The clinician can intern case logging with supervisor verification from the relevant screen, with clear loading / empty / error states.
@@ -3666,7 +3666,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ Medical student view-only access with anonymization option
 > As a **clinician**, I want **medical student view-only access with anonymization option**.
 
-`Done · Platforms: Web, Mobile · Source: ACMSRC · RFC: CL-1 D`
+`Done · Platforms: Web, Mobile · Source: NABH checklist · RFC: CL-1 D`
 
 **Acceptance criteria**
 - [x] The clinician can medical student view-only access with anonymization option from the relevant screen, with clear loading / empty / error states.
@@ -3681,7 +3681,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ Supervision hierarchy enforcement (intern → resident → consultant)
 > As a **clinician**, I want **supervision hierarchy enforcement (intern → resident → consultant)**.
 
-`Done · Platforms: Web, Mobile · Source: ACMSRC · RFC: CL-1 D`
+`Done · Platforms: Web, Mobile · Source: NABH checklist · RFC: CL-1 D`
 
 **Acceptance criteria**
 - [x] The clinician can supervision hierarchy enforcement (intern → resident → consultant) from the relevant screen, with clear loading / empty / error states.
@@ -3696,7 +3696,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ Co-signature workflow for resident orders (consultant approval)
 > As a **clinician**, I want **co-signature workflow for resident orders (consultant approval)**.
 
-`Done · Platforms: Web, Mobile · Source: ACMSRC · RFC: CL-1 D`
+`Done · Platforms: Web, Mobile · Source: NABH checklist · RFC: CL-1 D`
 
 **Acceptance criteria**
 - [x] The clinician can co-signature workflow for resident orders (consultant approval) from the relevant screen, with clear loading / empty / error states.
@@ -3927,7 +3927,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ E-prescription with drug search
 > As a **clinician**, I want **e-prescription with drug search**.
 
-`Done · Platforms: Web, Mobile · Source: RFC+ACMSRC · RFC: §3.2`
+`Done · Platforms: Web, Mobile · Source: RFC+NABH checklist · RFC: §3.2`
 
 **Acceptance criteria**
 - [x] The clinician can e-prescription with drug search from the relevant screen, with clear loading / empty / error states.
@@ -3942,7 +3942,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ Drug formulary master
 > As a **clinician**, I want **drug formulary master**.
 
-`Done · Platforms: Web, Mobile · Source: RFC+ACMSRC · RFC: §3.2`
+`Done · Platforms: Web, Mobile · Source: RFC+NABH checklist · RFC: §3.2`
 
 **Acceptance criteria**
 - [x] The clinician can drug formulary master from the relevant screen, with clear loading / empty / error states.
@@ -3957,7 +3957,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ Dosage, frequency, duration, route
 > As a **clinician**, I want **dosage, frequency, duration, route**.
 
-`Done · Platforms: Web, Mobile · Source: RFC+ACMSRC · RFC: §3.2`
+`Done · Platforms: Web, Mobile · Source: RFC+NABH checklist · RFC: §3.2`
 
 **Acceptance criteria**
 - [x] The clinician can dosage, frequency, duration, route from the relevant screen, with clear loading / empty / error states.
@@ -3972,7 +3972,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ Prescription with drug interaction alerts, allergy cross-check, formulary enforcement
 > As a **clinician**, I want **prescription with drug interaction alerts, allergy cross-check, formulary enforcement**.
 
-`Done · Platforms: Web, Mobile · Source: RFC+ACMSRC · RFC: §3.2`
+`Done · Platforms: Web, Mobile · Source: RFC+NABH checklist · RFC: §3.2`
 
 **Acceptance criteria**
 - [x] The clinician can prescription with drug interaction alerts, allergy cross-check, formulary enforcement from the relevant screen, with clear loading / empty / error states.
@@ -3987,7 +3987,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ Favourite prescriptions (doctor-specific templates)
 > As a **clinician**, I want **favourite prescriptions (doctor-specific templates)**.
 
-`Done · Platforms: Web, Mobile · Source: RFC+ACMSRC · RFC: §3.2`
+`Done · Platforms: Web, Mobile · Source: RFC+NABH checklist · RFC: §3.2`
 
 **Acceptance criteria**
 - [x] The clinician can favourite prescriptions (doctor-specific templates) from the relevant screen, with clear loading / empty / error states.
@@ -4002,7 +4002,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ Prescription print (standard format with doctor Reg No, qualifications, digital signature)
 > As a **clinician**, I want **prescription print (standard format with doctor reg no, qualifications, digital signature)**.
 
-`Done · Platforms: Web, Mobile · Source: RFC+ACMSRC · RFC: §3.2`
+`Done · Platforms: Web, Mobile · Source: RFC+NABH checklist · RFC: §3.2`
 
 **Acceptance criteria**
 - [x] The clinician can prescription print (standard format with doctor Reg No, qualifications, digital signature) from the relevant screen, with clear loading / empty / error states.
@@ -4017,7 +4017,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ Prescription forwarding to in-house pharmacy
 > As a **clinician**, I want **prescription forwarding to in-house pharmacy**.
 
-`Done · Platforms: Web, Mobile · Source: RFC+ACMSRC · RFC: §3.2`
+`Done · Platforms: Web, Mobile · Source: RFC+NABH checklist · RFC: §3.2`
 
 **Acceptance criteria**
 - [x] The clinician can prescription forwarding to in-house pharmacy from the relevant screen, with clear loading / empty / error states.
@@ -4032,7 +4032,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ External pharmacy prescription print
 > As a **clinician**, I want **external pharmacy prescription print**.
 
-`Done · Platforms: Web, Mobile · Source: RFC+ACMSRC · RFC: §3.2`
+`Done · Platforms: Web, Mobile · Source: RFC+NABH checklist · RFC: §3.2`
 
 **Acceptance criteria**
 - [x] The clinician can external pharmacy prescription print from the relevant screen, with clear loading / empty / error states.
@@ -4047,7 +4047,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ Prescription history view
 > As a **clinician**, I want **prescription history view**.
 
-`Done · Platforms: Web, Mobile · Source: RFC+ACMSRC · RFC: §3.2`
+`Done · Platforms: Web, Mobile · Source: RFC+NABH checklist · RFC: §3.2`
 
 **Acceptance criteria**
 - [x] The clinician can prescription history view from the relevant screen, with clear loading / empty / error states.
@@ -4064,7 +4064,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ Quick patient registration form (name, age, gender, phone, address)
 > As a **clinician**, I want **quick patient registration form (name, age, gender, phone, address)**.
 
-`Done · Platforms: Web · Source: RFC+ACMSRC · RFC: §3.1`
+`Done · Platforms: Web · Source: RFC+NABH checklist · RFC: §3.1`
 
 **Acceptance criteria**
 - [x] The clinician can quick patient registration form (name, age, gender, phone, address) from the relevant screen, with clear loading / empty / error states.
@@ -4075,13 +4075,13 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 - [x] Mutations are audit-logged (who / when / what); PHI access is audited where applicable.
 - [x] Tests: CRUD + integration; `make check-all` (check-api / check-ui-api / check-types) passes; smoke test for any new endpoint.
 
-### ✅ UHID auto-generation (ACMS-YYYY-NNNNNN format)
-> As a **clinician**, I want **uhid auto-generation (acms-yyyy-nnnnnn format)**.
+### ✅ UHID auto-generation (MB-YYYY-NNNNNN format)
+> As a **clinician**, I want **uhid auto-generation (mb-yyyy-nnnnnn format)**.
 
-`Done · Platforms: Web · Source: RFC+ACMSRC · RFC: §3.1`
+`Done · Platforms: Web · Source: RFC+NABH checklist · RFC: §3.1`
 
 **Acceptance criteria**
-- [x] The clinician can uHID auto-generation (ACMS-YYYY-NNNNNN format) from the relevant screen, with clear loading / empty / error states.
+- [x] The clinician can uHID auto-generation (MB-YYYY-NNNNNN format) from the relevant screen, with clear loading / empty / error states.
 - [x] Backend: tenant-scoped endpoint(s) with RLS (`set_tenant_context`) and typed errors; new entities get a migration with `tenant_id` + RLS + indexes; `cargo clippy` clean.
 - [x] Web: built from the `@/components/ui` seam, page-guarded via `useRequirePermission`, data through TanStack Query, inputs Zod-validated.
 - [x] Access is permission-gated (`P.<module>.<action>`) at page and element level; unauthorized users are redirected/hidden.
@@ -4092,7 +4092,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ QR code generation per patient
 > As a **clinician**, I want **qr code generation per patient**.
 
-`Done · Platforms: Web · Source: RFC+ACMSRC · RFC: §3.1`
+`Done · Platforms: Web · Source: RFC+NABH checklist · RFC: §3.1`
 
 **Acceptance criteria**
 - [x] The clinician can qR code generation per patient from the relevant screen, with clear loading / empty / error states.
@@ -4106,7 +4106,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ Aadhaar-based deduplication
 > As a **clinician**, I want **aadhaar-based deduplication**.
 
-`Done · Platforms: Web · Source: RFC+ACMSRC · RFC: §3.1`
+`Done · Platforms: Web · Source: RFC+NABH checklist · RFC: §3.1`
 
 **Acceptance criteria**
 - [x] The clinician can aadhaar-based deduplication from the relevant screen, with clear loading / empty / error states.
@@ -4120,7 +4120,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ABHA ID creation & linking (ABDM M1)
 > As a **clinician**, I want **abha id creation & linking (abdm m1)**.
 
-`Partial · Platforms: Web · Source: RFC+ACMSRC · RFC: §3.1`
+`Partial · Platforms: Web · Source: RFC+NABH checklist · RFC: §3.1`
 
 **Acceptance criteria**
 - [ ] The clinician can aBHA ID creation & linking (ABDM M1) from the relevant screen, with clear loading / empty / error states.
@@ -4134,7 +4134,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ Photo capture (webcam/upload)
 > As a **clinician**, I want **photo capture (webcam/upload)**.
 
-`Done · Platforms: Web · Source: RFC+ACMSRC · RFC: §3.1`
+`Done · Platforms: Web · Source: RFC+NABH checklist · RFC: §3.1`
 
 **Acceptance criteria**
 - [x] The clinician can photo capture (webcam/upload) from the relevant screen, with clear loading / empty / error states.
@@ -4148,7 +4148,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ Emergency registration (minimal fields, complete later)
 > As a **clinician**, I want **emergency registration (minimal fields, complete later)**.
 
-`Done · Platforms: Web · Source: RFC+ACMSRC · RFC: §3.1`
+`Done · Platforms: Web · Source: RFC+NABH checklist · RFC: §3.1`
 
 **Acceptance criteria**
 - [x] The clinician can emergency registration (minimal fields, complete later) from the relevant screen, with clear loading / empty / error states.
@@ -4162,7 +4162,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ Temporary UHID with EMERGENCY prefix
 > As a **clinician**, I want **temporary uhid with emergency prefix**.
 
-`Done · Platforms: Web · Source: RFC+ACMSRC · RFC: §3.1`
+`Done · Platforms: Web · Source: RFC+NABH checklist · RFC: §3.1`
 
 **Acceptance criteria**
 - [x] The clinician can temporary UHID with EMERGENCY prefix from the relevant screen, with clear loading / empty / error states.
@@ -4176,7 +4176,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ Family linking (spouse, parent, child relationships)
 > As a **clinician**, I want **family linking (spouse, parent, child relationships)**.
 
-`Done · Platforms: Web · Source: RFC+ACMSRC · RFC: §3.1`
+`Done · Platforms: Web · Source: RFC+NABH checklist · RFC: §3.1`
 
 **Acceptance criteria**
 - [x] The clinician can family linking (spouse, parent, child relationships) from the relevant screen, with clear loading / empty / error states.
@@ -4190,7 +4190,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ Patient merge (duplicate resolution)
 > As a **clinician**, I want **patient merge (duplicate resolution)**.
 
-`Done · Platforms: Web · Source: RFC+ACMSRC · RFC: §3.1`
+`Done · Platforms: Web · Source: RFC+NABH checklist · RFC: §3.1`
 
 **Acceptance criteria**
 - [x] The clinician can patient merge (duplicate resolution) from the relevant screen, with clear loading / empty / error states.
@@ -4204,7 +4204,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ Patient search (name, phone, UHID, ABHA, Aadhaar)
 > As a **clinician**, I want **patient search (name, phone, uhid, abha, aadhaar)**.
 
-`Done · Platforms: Web · Source: RFC+ACMSRC · RFC: §3.1`
+`Done · Platforms: Web · Source: RFC+NABH checklist · RFC: §3.1`
 
 **Acceptance criteria**
 - [x] The clinician can patient search (name, phone, UHID, ABHA, Aadhaar) from the relevant screen, with clear loading / empty / error states.
@@ -4218,7 +4218,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ Fuzzy/typo-tolerant search (name + phone + DOB fuzzy matching)
 > As a **clinician**, I want **fuzzy/typo-tolerant search (name + phone + dob fuzzy matching)**.
 
-`Done · Platforms: Web · Source: RFC+ACMSRC · RFC: §3.1`
+`Done · Platforms: Web · Source: RFC+NABH checklist · RFC: §3.1`
 
 **Acceptance criteria**
 - [x] The clinician can fuzzy/typo-tolerant search (name + phone + DOB fuzzy matching) from the relevant screen, with clear loading / empty / error states.
@@ -4232,7 +4232,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ Patient history timeline (all visits, labs, prescriptions)
 > As a **clinician**, I want **patient history timeline (all visits, labs, prescriptions)**.
 
-`Done · Platforms: Web · Source: RFC+ACMSRC · RFC: §3.1`
+`Done · Platforms: Web · Source: RFC+NABH checklist · RFC: §3.1`
 
 **Acceptance criteria**
 - [x] The clinician can patient history timeline (all visits, labs, prescriptions) from the relevant screen, with clear loading / empty / error states.
@@ -4246,7 +4246,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Patient portal (self-service appointment, reports)
 > As a **clinician**, I want **patient portal (self-service appointment, reports)**.
 
-`Partial · Platforms: Web, Mobile · Source: RFC+ACMSRC · RFC: §3.1`
+`Partial · Platforms: Web, Mobile · Source: RFC+NABH checklist · RFC: §3.1`
 
 **Acceptance criteria**
 - [ ] The clinician can patient portal (self-service appointment, reports) from the relevant screen, with clear loading / empty / error states.
@@ -4261,7 +4261,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ Digital consent forms (registration consent, treatment consent)
 > As a **clinician**, I want **digital consent forms (registration consent, treatment consent)**.
 
-`Done · Platforms: Web · Source: RFC+ACMSRC · RFC: §3.1`
+`Done · Platforms: Web · Source: RFC+NABH checklist · RFC: §3.1`
 
 **Acceptance criteria**
 - [x] The clinician can digital consent forms (registration consent, treatment consent) from the relevant screen, with clear loading / empty / error states.
@@ -4275,7 +4275,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ Multi-language support (form labels, consent text)
 > As a **clinician**, I want **multi-language support (form labels, consent text)**.
 
-`Done · Platforms: Web · Source: RFC+ACMSRC · RFC: §3.1`
+`Done · Platforms: Web · Source: RFC+NABH checklist · RFC: §3.1`
 
 **Acceptance criteria**
 - [x] The clinician can multi-language support (form labels, consent text) from the relevant screen, with clear loading / empty / error states.
@@ -4289,7 +4289,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ Patient card printing with QR code (UHID + ABHA)
 > As a **clinician**, I want **patient card printing with qr code (uhid + abha)**.
 
-`Done · Platforms: Web · Source: RFC+ACMSRC · RFC: §3.1`
+`Done · Platforms: Web · Source: RFC+NABH checklist · RFC: §3.1`
 
 **Acceptance criteria**
 - [x] The clinician can patient card printing with QR code (UHID + ABHA) from the relevant screen, with clear loading / empty / error states.
@@ -4303,7 +4303,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Patient wristband — IPD (Name, UHID, DOB, Blood Group, Allergy flag, Barcode)
 > As a **clinician**, I want **patient wristband — ipd (name, uhid, dob, blood group, allergy flag, barcode)**.
 
-`Partial · Platforms: Web · Source: RFC+ACMSRC · RFC: §3.1`
+`Partial · Platforms: Web · Source: RFC+NABH checklist · RFC: §3.1`
 
 **Acceptance criteria**
 - [ ] The clinician can patient wristband — IPD (Name, UHID, DOB, Blood Group, Allergy flag, Barcode) from the relevant screen, with clear loading / empty / error states.
@@ -4317,7 +4317,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Infant wristband — NICU (Mother name, Baby ID, DOB, Gender, RFID tag)
 > As a **clinician**, I want **infant wristband — nicu (mother name, baby id, dob, gender, rfid tag)**.
 
-`Partial · Platforms: Web · Source: RFC+ACMSRC · RFC: §3.1`
+`Partial · Platforms: Web · Source: RFC+NABH checklist · RFC: §3.1`
 
 **Acceptance criteria**
 - [ ] The clinician can infant wristband — NICU (Mother name, Baby ID, DOB, Gender, RFID tag) from the relevant screen, with clear loading / empty / error states.
@@ -4379,7 +4379,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ APACHE II/IV score calculation
 > As a **clinician**, I want **apache ii/iv score calculation**.
 
-`P2 · Done · Platforms: Web, Mobile · Source: ACMSRC · RFC: CL-14`
+`P2 · Done · Platforms: Web, Mobile · Source: NABH checklist · RFC: CL-14`
 
 **Acceptance criteria**
 - [x] The clinician can aPACHE II/IV score calculation from the relevant screen, with clear loading / empty / error states.
@@ -4394,7 +4394,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ SOFA score daily tracking
 > As a **clinician**, I want **sofa score daily tracking**.
 
-`P2 · Done · Platforms: Web · Source: ACMSRC · RFC: CL-14`
+`P2 · Done · Platforms: Web · Source: NABH checklist · RFC: CL-14`
 
 **Acceptance criteria**
 - [x] The clinician can sOFA score daily tracking from the relevant screen, with clear loading / empty / error states.
@@ -4408,7 +4408,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ GCS tracking with trend
 > As a **clinician**, I want **gcs tracking with trend**.
 
-`P2 · Done · Platforms: Web, Mobile · Source: ACMSRC · RFC: CL-14`
+`P2 · Done · Platforms: Web, Mobile · Source: NABH checklist · RFC: CL-14`
 
 **Acceptance criteria**
 - [x] The clinician can gCS tracking with trend from the relevant screen, with clear loading / empty / error states.
@@ -4423,7 +4423,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ PRISM score (PICU), SNAPPE (NICU)
 > As a **clinician**, I want **prism score (picu), snappe (nicu)**.
 
-`P2 · Done · Platforms: Web · Source: ACMSRC · RFC: CL-14`
+`P2 · Done · Platforms: Web · Source: NABH checklist · RFC: CL-14`
 
 **Acceptance criteria**
 - [x] The clinician can pRISM score (PICU), SNAPPE (NICU) from the relevant screen, with clear loading / empty / error states.
@@ -4437,7 +4437,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ Predicted mortality vs actual outcome comparison
 > As a **clinician**, I want **predicted mortality vs actual outcome comparison**.
 
-`P2 · Done · Platforms: Web · Source: ACMSRC · RFC: CL-14`
+`P2 · Done · Platforms: Web · Source: NABH checklist · RFC: CL-14`
 
 **Acceptance criteria**
 - [x] The clinician can predicted mortality vs actual outcome comparison from the relevant screen, with clear loading / empty / error states.
@@ -4451,7 +4451,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ ICU length of stay and readmission tracking
 > As a **clinician**, I want **icu length of stay and readmission tracking**.
 
-`P2 · Done · Platforms: Web · Source: ACMSRC · RFC: CL-14`
+`P2 · Done · Platforms: Web · Source: NABH checklist · RFC: CL-14`
 
 **Acceptance criteria**
 - [x] The clinician can iCU length of stay and readmission tracking from the relevant screen, with clear loading / empty / error states.

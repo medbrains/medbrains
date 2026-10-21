@@ -55,7 +55,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ Internal audit scheduler with NABH compliance scoring per department
 > As a **compliance officer**, I want **internal audit scheduler with nabh compliance scoring per department**.
 
-`Done · Platforms: Web · Source: ACMSRC · RFC: §Reg`
+`Done · Platforms: Web · Source: NABH checklist · RFC: §Reg`
 
 **Acceptance criteria**
 - [x] The compliance officer can internal audit scheduler with NABH compliance scoring per department from the relevant screen, with clear loading / empty / error states.
@@ -180,7 +180,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ Drug schedule compliance (Schedule H, H1, X marking on prescriptions)
 > As a **compliance officer**, I want **drug schedule compliance (schedule h, h1, x marking on prescriptions)**.
 
-`Done · Platforms: Web · Source: Reg+ACMSRC · RFC: §Reg`
+`Done · Platforms: Web · Source: Reg+NABH checklist · RFC: §Reg`
 
 **Acceptance criteria**
 - [x] The compliance officer can drug schedule compliance (Schedule H, H1, X marking on prescriptions) from the relevant screen, with clear loading / empty / error states.
@@ -256,7 +256,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ NABH readiness dashboard — chapter-wise completion percentage
 > As a **compliance officer**, I want **nabh readiness dashboard — chapter-wise completion percentage**.
 
-`Done · Platforms: Web · Source: ACMSRC · RFC: §Reg`
+`Done · Platforms: Web · Source: NABH checklist · RFC: §Reg`
 
 **Acceptance criteria**
 - [x] The compliance officer can nABH readiness dashboard — chapter-wise completion percentage from the relevant screen, with clear loading / empty / error states.
@@ -449,7 +449,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ NABH mandatory document generation (policies, SOPs, formats per chapter)
 > As a **compliance officer**, I want **nabh mandatory document generation (policies, sops, formats per chapter)**.
 
-`Done · Platforms: Web · Source: ACMSRC · RFC: §Reg`
+`Done · Platforms: Web · Source: NABH checklist · RFC: §Reg`
 
 **Acceptance criteria**
 - [x] The compliance officer can nABH mandatory document generation (policies, SOPs, formats per chapter) from the relevant screen, with clear loading / empty / error states.
@@ -545,7 +545,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ PCPNDT Act compliance — Form F mandatory for all ultrasounds on pregnant women
 > As a **compliance officer**, I want **pcpndt act compliance — form f mandatory for all ultrasounds on pregnant women**.
 
-`Done · Platforms: Web · Source: ACMSRC · RFC: §Reg`
+`Done · Platforms: Web · Source: NABH checklist · RFC: §Reg`
 
 **Acceptance criteria**
 - [x] The compliance officer can pCPNDT Act compliance — Form F mandatory for all ultrasounds on pregnant women from the relevant screen, with clear loading / empty / error states.
@@ -559,7 +559,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ PCPNDT auto-block gender disclosure fields in fetal imaging reports
 > As a **compliance officer**, I want **pcpndt auto-block gender disclosure fields in fetal imaging reports**.
 
-`Done · Platforms: Web · Source: ACMSRC · RFC: §Reg`
+`Done · Platforms: Web · Source: NABH checklist · RFC: §Reg`
 
 **Acceptance criteria**
 - [x] The compliance officer can pCPNDT auto-block gender disclosure fields in fetal imaging reports from the relevant screen, with clear loading / empty / error states.
@@ -624,7 +624,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ NABL accreditation compliance tracking for laboratory
 > As a **compliance officer**, I want **nabl accreditation compliance tracking for laboratory**.
 
-`Done · Platforms: Web, Mobile · Source: ACMSRC · RFC: §Reg`
+`Done · Platforms: Web, Mobile · Source: NABH checklist · RFC: §Reg`
 
 **Acceptance criteria**
 - [x] The compliance officer can nABL accreditation compliance tracking for laboratory from the relevant screen, with clear loading / empty / error states.
@@ -639,7 +639,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ NABL document control — SOPs, calibration records, proficiency testing
 > As a **compliance officer**, I want **nabl document control — sops, calibration records, proficiency testing**.
 
-`Done · Platforms: Web, Mobile · Source: ACMSRC · RFC: §Reg`
+`Done · Platforms: Web, Mobile · Source: NABH checklist · RFC: §Reg`
 
 **Acceptance criteria**
 - [x] The compliance officer can nABL document control — SOPs, calibration records, proficiency testing from the relevant screen, with clear loading / empty / error states.
@@ -804,7 +804,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ Quality indicator tracking (NABH 32 indicators — mortality, infection, falls, etc.)
 > As a **compliance officer**, I want **quality indicator tracking (nabh 32 indicators — mortality, infection, falls, etc.)**.
 
-`Done · Platforms: Web, Mobile · Source: ACMSRC · RFC: §Reg`
+`Done · Platforms: Web, Mobile · Source: NABH checklist · RFC: §Reg`
 
 **Acceptance criteria**
 - [x] The compliance officer can quality indicator tracking (NABH 32 indicators — mortality, infection, falls, etc.) from the relevant screen, with clear loading / empty / error states.
@@ -851,7 +851,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### AERB (Atomic Energy Regulatory Board) compliance for radiology/nuclear medicine
 > As a **compliance officer**, I want **aerb (atomic energy regulatory board) compliance for radiology/nuclear medicine**.
 
-`Partial · Platforms: Web · Source: ACMSRC · RFC: §Reg`
+`Partial · Platforms: Web · Source: NABH checklist · RFC: §Reg`
 
 **Acceptance criteria**
 - [ ] The compliance officer can aERB (Atomic Energy Regulatory Board) compliance for radiology/nuclear medicine from the relevant screen, with clear loading / empty / error states.
@@ -865,7 +865,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Radiation dose tracking and personnel TLD badge monitoring
 > As a **compliance officer**, I want **radiation dose tracking and personnel tld badge monitoring**.
 
-`Partial · Platforms: Web · Source: ACMSRC · RFC: §Reg`
+`Partial · Platforms: Web · Source: NABH checklist · RFC: §Reg`
 
 **Acceptance criteria**
 - [ ] The compliance officer can radiation dose tracking and personnel TLD badge monitoring from the relevant screen, with clear loading / empty / error states.
@@ -881,7 +881,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ ADR reporting to PvPI (Pharmacovigilance Programme of India)
 > As a **compliance officer**, I want **adr reporting to pvpi (pharmacovigilance programme of india)**.
 
-`Done · Platforms: Web · Source: Reg+ACMSRC · RFC: §Reg`
+`Done · Platforms: Web · Source: Reg+NABH checklist · RFC: §Reg`
 
 **Acceptance criteria**
 - [x] The compliance officer can aDR reporting to PvPI (Pharmacovigilance Programme of India) from the relevant screen, with clear loading / empty / error states.
@@ -895,7 +895,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ Materiovigilance reporting (medical device adverse events)
 > As a **compliance officer**, I want **materiovigilance reporting (medical device adverse events)**.
 
-`Done · Platforms: Web · Source: Reg+ACMSRC · RFC: §Reg`
+`Done · Platforms: Web · Source: Reg+NABH checklist · RFC: §Reg`
 
 **Acceptance criteria**
 - [x] The compliance officer can materiovigilance reporting (medical device adverse events) from the relevant screen, with clear loading / empty / error states.
@@ -909,7 +909,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Hemovigilance reporting (blood transfusion adverse events)
 > As a **compliance officer**, I want **hemovigilance reporting (blood transfusion adverse events)**.
 
-`Partial · Platforms: Web · Source: Reg+ACMSRC · RFC: §Reg`
+`Partial · Platforms: Web · Source: Reg+NABH checklist · RFC: §Reg`
 
 **Acceptance criteria**
 - [ ] The compliance officer can hemovigilance reporting (blood transfusion adverse events) from the relevant screen, with clear loading / empty / error states.
@@ -1064,7 +1064,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ NABH 5th edition standards mapping — all 10 chapters with criteria checklist
 > As a **compliance officer**, I want **nabh 5th edition standards mapping — all 10 chapters with criteria checklist**.
 
-`Done · Platforms: Web · Source: ACMSRC · RFC: §Reg`
+`Done · Platforms: Web · Source: NABH checklist · RFC: §Reg`
 
 **Acceptance criteria**
 - [x] The compliance officer can nABH 5th edition standards mapping — all 10 chapters with criteria checklist from the relevant screen, with clear loading / empty / error states.
@@ -1078,7 +1078,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ NABH entry-level vs full accreditation criteria tracking
 > As a **compliance officer**, I want **nabh entry-level vs full accreditation criteria tracking**.
 
-`Done · Platforms: Web, Mobile · Source: ACMSRC · RFC: §Reg`
+`Done · Platforms: Web, Mobile · Source: NABH checklist · RFC: §Reg`
 
 **Acceptance criteria**
 - [x] The compliance officer can nABH entry-level vs full accreditation criteria tracking from the relevant screen, with clear loading / empty / error states.

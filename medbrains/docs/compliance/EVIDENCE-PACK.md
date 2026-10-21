@@ -1,7 +1,7 @@
 # SOC 2 / ISO 27001:2022 evidence pack — engineering view
 
 Last reviewed 2026-10-12. Scope: the MedBrains product and the single production host (`app.medbrains.in`, attach tier,
-EC2 `i-08e9496a3e110ebdc`, ap-south-1).
+EC2 `i-0123456789abcdef0`, ap-south-1).
 
 This maps criteria to **what exists in this repository**. It is not an audit opinion. Code proves a control is
 *designed*; SOC 2 Type II and ISO certification also need proof it *operated* over a period (logs, tickets, sign-offs,

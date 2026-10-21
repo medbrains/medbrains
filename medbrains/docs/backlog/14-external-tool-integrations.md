@@ -2,7 +2,7 @@
 
 Pull two reusable assets from sibling local projects into MedBrains. Both were assessed 2026-06-17.
 
-_Source: `/Users/apple/alagappa-tools` (Rust ZKTeco attendance puller) and `/Users/apple/Projects/sir` (OPD case-sheet renderer). Idea-pull only — not the ML handwriting model from sir._
+_Source: a sibling Rust ZKTeco attendance-puller project and a sibling OPD case-sheet renderer. Idea-pull only — not the ML handwriting model from sir._
 
 Priority: P2 · Area: area:integration, area:hr · Milestone: M-later
 
@@ -12,7 +12,7 @@ Priority: P2 · Area: area:integration, area:hr · Milestone: M-later
 
 > As an **HR admin**, I want faculty/staff biometric punches pulled from on-prem ZKTeco devices into MedBrains automatically, so that attendance is captured without manual entry.
 
-**Source asset:** `alagappa-tools/src-tauri/src/{zkteco_client.rs (1181 lines), device_scanner.rs, erp_sync.rs}` — pure-Tokio ZKTeco TCP/IP client (port 4370), reverse-engineered from pyzk, **no vendor SDK, zero unwrap/expect/panic** (clean for strict clippy). Deps overlap MedBrains (tokio/serde/chrono/reqwest); only `pnet`+`ipnetwork` new (LAN IP detection — can be simplified out).
+**Source asset:** `attendance-tools/src-tauri/src/{zkteco_client.rs (1181 lines), device_scanner.rs, erp_sync.rs}` — pure-Tokio ZKTeco TCP/IP client (port 4370), reverse-engineered from pyzk, **no vendor SDK, zero unwrap/expect/panic** (clean for strict clippy). Deps overlap MedBrains (tokio/serde/chrono/reqwest); only `pnet`+`ipnetwork` new (LAN IP detection — can be simplified out).
 
 **Approach:** extract the device core into a new workspace crate `crates/medbrains-attendance` (Tauri-free lib: `connect_and_fetch_attendance(ip,port)`, `scan_network()`, `AttendanceRecord{user_id,timestamp,status,punch,date,time}`, `DeviceInfo`). Add a headless `medbrains-attendance-sync` binary (DeviceBridge surface): config (device IPs, MedBrains API URL, service token, poll interval) → scan/fetch → POST to a new bulk-ingest endpoint. Reuse `erp_sync.rs` POST pattern, re-pointed to MedBrains.
 

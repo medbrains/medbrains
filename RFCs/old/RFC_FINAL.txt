@@ -39,7 +39,7 @@ Target market: 766 medical colleges, 70,000+ hospitals in India. International e
 
 Epic Systems — the world's largest EMR — runs on InterSystems Caché (MUMPS/M family, same as YottaDB). Their architecture uses Chronicles (Caché for real-time clinical) + Clarity (SQL Server for analytics/reporting with nightly ETL). This is not accidental. Hierarchical databases are naturally suited for patient data because clinical data IS hierarchical: Patient → Visits → within each visit: Vitals, Orders, Notes, Prescriptions.
 
-Getting a full patient record in SQL requires 8+ table JOINs across patients, encounters, vitals, lab_orders, lab_results, prescriptions, diagnoses, and allergies. In YottaDB, the same operation is a single tree traversal of ^EPT("ACMS-2026-001234") — walking from root to leaves. The database structure matches clinical reality.
+Getting a full patient record in SQL requires 8+ table JOINs across patients, encounters, vitals, lab_orders, lab_results, prescriptions, diagnoses, and allergies. In YottaDB, the same operation is a single tree traversal of ^EPT("MB-2026-001234") — walking from root to leaves. The database structure matches clinical reality.
 
 YottaDB runs IN-PROCESS — no separate database server, no network hop, no connection pool, no TCP overhead. It loads as a library inside the Rust process and provides direct memory access. This is comparable to SQLite's deployment model but with ACID transactions, journaling, encryption at rest, and replication built in.
 
@@ -516,13 +516,13 @@ PUBLIC (TV display, intercom, public queue board):
 
 PRIVATE (SMS/WhatsApp to patient's registered number):
   UHID allowed, no clinical details.
-  "Patient ID ACMS-2026-001234, your lab results are ready. Visit Counter 5."
-  "Patient ID ACMS-2026-001234, your appointment is confirmed for 10:30 AM, OPD Room 3."
+  "Patient ID MB-2026-001234, your lab results are ready. Visit Counter 5."
+  "Patient ID MB-2026-001234, your appointment is confirmed for 10:30 AM, OPD Room 3."
   NEVER: diagnosis, test names, drug names in SMS.
 
 SECURE (authenticated EMR screens, in-app notifications):
   Full information, ABAC filtered.
-  Doctor sees: "Ravi Kumar (ACMS-2026-001234) — CBC result: Hb 8.2 g/dL (LOW) — Critical alert"
+  Doctor sees: "Ravi Kumar (MB-2026-001234) — CBC result: Hb 8.2 g/dL (LOW) — Critical alert"
   Nurse sees: same if authorized for this patient.
   Student sees: "Case #2026-MED-0342, 45/M — CBC result: Hb 8.2 g/dL (LOW)" (anonymized)
 
@@ -569,7 +569,7 @@ Flow:
 5. Doctor's phone shows call context on screen:
    "HOSPITAL — CRITICAL LAB
     From: Nursing Station 3B
-    Re: Patient ACMS-2026-001234
+    Re: Patient MB-2026-001234
     Alert: Potassium 6.8 mEq/L"
 6. Call logged: patient context, duration, response time — for analytics
 
@@ -786,7 +786,7 @@ Nursing Student  | Vitals + basic care plan only   | Posting period   | Most res
 Same patient, different ABAC policy, same authorization table — different rows. The student and the treating doctor access the same patient record but see completely different views based on their role. No separate system, no data duplication.
 
 Student data anonymization:
-  Doctor sees: "Ravi Kumar, 45/M, ACMS-2026-001234, Ward 2B Bed 12, Dengue Fever, treatment plan, all labs, phone: 98xxx, address: K. Pudur"
+  Doctor sees: "Ravi Kumar, 45/M, MB-2026-001234, Ward 2B Bed 12, Dengue Fever, treatment plan, all labs, phone: 98xxx, address: K. Pudur"
   Student sees: "Case #2026-MED-0342, 45/M, Ward 2B Bed 12, Dengue Fever, treatment plan, labs" — no name, no phone, no address, no billing, no Aadhaar
 
 Address conflict detection applies to students too. Student from same village as patient → flagged, especially for sensitive cases.
@@ -1053,7 +1053,7 @@ One Saudi hospital = ten Indian hospitals in revenue.
 ──────────────────────────────
 
 Scenario 1 — Bootstrapped (60% probability):
-  Year 1: Alagappa + 2-3 external → ₹1-1.5 Cr
+  Year 1: launch customer + 2-3 external → ₹1-1.5 Cr
   Year 2: 10 hospitals + 3 medical colleges → ₹5-7 Cr
   Year 3: 25 hospitals + 5 colleges + GCC pilot → ₹10-15 Cr
   Year 5: 100+ hospitals, 20+ colleges → ₹30-45 Cr
@@ -1087,7 +1087,7 @@ Architecture is export-ready: Master files enable country-specific configuration
 13.1 Phase 1 — Base Version (April 2026)
 ─────────────────────────────────────────
 
-Target: Demoable product at Alagappa Group.
+Target: Demoable product at the launch customer.
 Database: PostgreSQL only (YottaDB architecture designed but deferred).
 Real-time: WebSocket polling (NATS deferred).
 Search: PostgreSQL full-text (Meilisearch deferred).
@@ -1106,7 +1106,7 @@ Security: HTTPS, Argon2id, RBAC, JWT, audit log, LUKS disk.
 13.2 Phase 2 — Production (May-August 2026)
 ────────────────────────────────────────────
 
-Target: Alagappa 420-bed hospital live. First external pilots.
+Target: launch customer (420-bed hospital) live. First external pilots.
 
 Infrastructure:
   Add YottaDB for clinical data
@@ -1173,7 +1173,7 @@ Risk                           | Impact | Probability | Mitigation
 -------------------------------|--------|-------------|----------------------------------
 Solo developer bottleneck      | HIGH   | HIGH        | AI-assisted 10x dev speed,
                                |        |             | hire 2-3 Rust devs by Dec 2026
-Hospital sales cycle (6-12 mo) | HIGH   | HIGH        | Alagappa captive customer,
+Hospital sales cycle (6-12 mo) | HIGH   | HIGH        | Captive launch customer,  
                                |        |             | compliance story shortens cycle
 24/7 hospital support burden   | MED    | HIGH        | Auto-monitoring, community
                                |        |             | support tier, cloud managed option

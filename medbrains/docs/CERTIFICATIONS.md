@@ -101,7 +101,7 @@ The quality programme is non-negotiable and roughly 18–30 months:
 | **ABDM Milestone M2** — link records as HIP | NHA | not started |
 | **ABDM Milestone M3** — consume as HIU | NHA | not started |
 | **HFR / HPR registration** | NHA | facility and professional registries; ABDM prerequisites |
-| **NABH Digital Health Standards** | NABH | helps *customers* pass accreditation — a sales argument; we already carry the ACMSRC checklists |
+| **NABH Digital Health Standards** | NABH | helps *customers* pass accreditation — a sales argument; we already carry NABH department checklists |
 | **STQC certification** | MeitY | needed for government hospital deployments |
 | **MeitY / GeM empanelment** | MeitY | government procurement channel |
 | **GIGW 3.0** | MeitY | accessibility for government-facing sites |

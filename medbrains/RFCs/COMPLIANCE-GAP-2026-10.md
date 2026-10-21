@@ -4,7 +4,7 @@ Date: 2026-10-12. Scope: the `medbrains/` codebase (crates/, migrations, apps/we
 
 **Status rules.** **Met** needs three things: a concrete code pointer, a writer for the data, and a web screen that calls it. A table nothing writes, or an endpoint with no screen, is at most **Partly**. **N/A** is used only for vendor-process or contract questions (checklist §29–30) and items that don't apply.
 
-**Criteria source.** NABH criteria come from `RFCs/old/ACMSRC_HMS_Evaluation_Checklists.docx` (text extract `…_EXTRACTED.txt`), which has 34 department checklists and 1,405 numbered rows. That checklist is the ACMSRC evaluation instrument mapped to NABH/JCI. It is **not** the NABH 5th-edition standard text, so passing it is necessary but not sufficient for NABH accreditation. DPDP and ABDM criteria were built from the current Rules and ABDM/NRCeS sources; see the Sources list in each section.
+**Criteria source.** NABH criteria come from a hospital evaluation checklist (not published in this repository) with 34 department checklists and 1,405 numbered rows, mapped to NABH/JCI; the criteria below are paraphrased in short form. It is **not** the NABH 5th-edition standard text, so passing it is necessary but not sufficient for NABH accreditation. DPDP and ABDM criteria were built from the current Rules and ABDM/NRCeS sources; see the Sources list in each section.
 
 **Method.** Nine sub-agents assessed the NABH sections in parallel, plus one for DPDP and one for ABDM. Eight high-impact findings were then re-checked by hand against the code; all eight held (quality `create_incident` binds `reported_by` for anonymous reports; pharmacy `review_prescription` hard-sets `interaction_check_done = true`; ABDM `hip_relay` list/ack take no claims and read `tenant_id` from the query; the NHCX submit handler is not registered in `main.rs`).
 
@@ -12,7 +12,7 @@ Date: 2026-10-12. Scope: the `medbrains/` codebase (crates/, migrations, apps/we
 
 | Framework | Criteria | Met | Partly | Missing | N/A | Met % (excl. N/A) |
 |---|---|---|---|---|---|---|
-| NABH / ACMSRC checklist (34 depts) | 1,405 | 494 | 610 | 209 | 92 | 37.6% |
+| NABH checklist (34 depts) | 1,405 | 494 | 610 | 209 | 92 | 37.6% |
 | DPDP Act 2023 + Rules 2025 | 32 | 2 | 19 | 11 | 0 | 6.3% |
 | ABDM (M1/M2/M3, HFR/HPR, FHIR, NHCX, certification) | 39 | 0 | 17 | 22 | 0 | 0% |
 
@@ -84,7 +84,7 @@ Patient-safety items come first, then legal and regulatory exposure, then certif
 | 15 | **DPDP data-principal rights desk.** Add access summary, export, correction requests, erasure with 48-hour prior notice (respecting medical-record retention law), nominee, and a privacy grievance category with a 90-day timer. Wire up the placeholder iOS tiles. | Act s.11–14, Rule 14; due ~May 2027. | patient portal `pages/*portal*`, `/portal/*` routes; `comm_complaints`; `apps/ios/MedBrainsPatient/Features/PatientHomeView.swift:74-76`; Android patient app | L |
 | 16 | **Isolate psychiatric records (PSY-001/002, MHCA 2017).**<br>• Honour `is_restricted` and `substance_abuse_flag` on reads.<br>• Stop `SELECT *` returning `raw_data_encrypted`.<br>• Require break-glass for out-of-team access.<br>• Add create forms for the ECT, seclusion/restraint and MHRB notice registers. | MHCA 2017 s.23 confidentiality; mandatory registers. | `crates/medbrains-specialty/src/specialty_psychiatry.rs`; `crates/medbrains-specialty-other/src/lib.rs` (~550); `medbrains-authz-gate`; `psych_*` (`0380_specialty.sql`); `pages/specialty/psychiatry.tsx` | M |
 | 17 | **Audit integrity and coverage.**<br>• Log 403 denials and every failed login with IP (today `audit_layer` drops non-2xx and failed logins aren't recorded).<br>• REVOKE UPDATE and DELETE on audit tables.<br>• Connect the S3 Object Lock `AuditSink` archive.<br>• Hash-chain `billing_audit_log`.<br>• Keep logs ≥1 year; CloudWatch currently keeps 30 days. | DPDP Rule 6 (1-year logs); NABH IMS; forensic value of the audit trail. | `middleware/audit.rs` (:79); `crates/medbrains-auth/src/lib.rs` (61-100, 455); `crates/medbrains-core/src/audit_sink`; `billing_audit_log` (`0050_billing.sql:177`); `infra/terraform/modules/observability/main.tf:66`; `pages/audit.tsx` | M |
-| 18 | **Data residency and processors.**<br>• Move the `alagappa` client env off us-east-1.<br>• Redact patient data before calls to the US-hosted LLM, or route them to an India region.<br>• Keep a processor and sub-processor register with DPA references. | DPDP s.16 cross-border transfer, s.8(2) processor contracts; NABH/IT Act expectations. | `infra/terraform/envs/clients/alagappa/main.tf:59`; `crates/medbrains-server-services/src/llm.rs`; new processor register under admin | M |
+| 18 | **Data residency and processors.**<br>• Move the client env that runs in us-east-1 to an India region.<br>• Redact patient data before calls to the US-hosted LLM, or route them to an India region.<br>• Keep a processor and sub-processor register with DPA references. | DPDP s.16 cross-border transfer, s.8(2) processor contracts; NABH/IT Act expectations. | the client env's `main.tf` (kept outside this repository); `crates/medbrains-server-services/src/llm.rs`; new processor register under admin | M |
 | 19 | **Backups and DR in production.** Add WAL archiving / PITR (pgBackRest template exists) and schedule and prove the restore test. Today recovery is a nightly `pg_dump` (up to 24h of data lost) whose restore has never been tested. | Data loss on clinical records; NABH IMS continuity. | `deploy/standalone/medbrains-pg-backup` (:120-130); `infra/packer` `pgbackrest.conf.tmpl`; `backup_history` (never written) | M |
 | 20 | **Radiation dose capture.** Add screens for `recordRadiationDose`, cath-lab DAP/air kerma and the STEMI door-to-balloon time. Today the cumulative-dose check reads an empty table. | AERB dose records; cardiac quality KPI. | `crates/medbrains-radiology` (`record_dose` ~1553); `crates/medbrains-specialty-interventional` `cath_*`; `pages/radiology/order-detail-drawer.tsx`, `pages/specialty/cath-lab.tsx` | M |
 | 21 | **Drug recall and vigilance reporting.**<br>• Add a recall screen for the existing `medbrains-pharmacy-safety` endpoints.<br>• Generate real PvPI, haemovigilance and materiovigilance forms; today `submit_adr_to_pvpi` only sets a flag. | CDSCO recall and PvPI obligations. | `crates/medbrains-pharmacy-safety/src/lib.rs`; `crates/medbrains-regulatory/src/lib.rs` (~952); print-data; `pages/regulatory/adr-tab.tsx`, pharmacy screens | M |
@@ -106,7 +106,7 @@ Lower-priority but wide gaps:
 
 ---
 
-# 3. NABH / ACMSRC checklist — per-criterion tables
+# 3. NABH checklist — per-criterion tables
 
 ### 1. Medical Department (Doctors)
 
@@ -1486,7 +1486,7 @@ Note on print rendering: two paths exist. (a) Server Tera+Gotenberg templates (m
 | 103 | Breach notification (CERT-In 6h) | Missing | CERTIFICATION-READINESS.md:185 "not built" | | M |
 | 104 | Responsible disclosure | Met | ../SECURITY.md (3-day ack) | | |
 | 105 | Security patch SLA | Partly | SECURITY.md 7-day assessment | no patch SLA | S |
-| 106 | India data residency | Partly | envs/clients/alagappa/main.tf:59 region us-east-1 | client tenant outside India | M |
+| 106 | India data residency | Partly | a client env's region is us-east-1 | client tenant outside India | M |
 | 107 | Sub-processor list | Missing | — | | S |
 | 108 | Uptime SLA | Missing | — | | S |
 | 109 | Maintenance window | Missing | — | | S |
