@@ -88,6 +88,7 @@ export function CreateOrderDrawer({ opened, onClose }: { opened: boolean; onClos
   const pickExam = (next: RadiologyExamListItem | null) => {
     setExam(next);
     if (!next) return;
+    setValue("modality_id", next.modality_id, { shouldValidate: true });
     const defaults = examOrderDefaults(next);
     if (defaults.site) {
       setSite(defaults.site);

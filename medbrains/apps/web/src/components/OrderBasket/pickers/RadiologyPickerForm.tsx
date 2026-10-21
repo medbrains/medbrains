@@ -64,6 +64,8 @@ export function RadiologyPickerForm({ onAdd }: RadiologyPickerFormProps) {
   const pickExam = (next: RadiologyExamListItem | null) => {
     setExam(next);
     if (!next) return;
+    // Searching every modality: the exam decides it, so the doctor never has to.
+    setValue("modality_id", next.modality_id, { shouldValidate: true });
     const defaults = examOrderDefaults(next);
     if (defaults.site) {
       setSite(defaults.site);
@@ -112,6 +114,7 @@ export function RadiologyPickerForm({ onAdd }: RadiologyPickerFormProps) {
 
   return (
     <Stack component="form" gap="xs" onSubmit={handleSubmit(handleAdd)}>
+      <RadiologyExamSelect modalityId={modalityId} value={exam?.id ?? ""} onChange={pickExam} />
       <Controller
         control={control}
         name="modality_id"
@@ -135,7 +138,6 @@ export function RadiologyPickerForm({ onAdd }: RadiologyPickerFormProps) {
           />
         )}
       />
-      <RadiologyExamSelect modalityId={modalityId} value={exam?.id ?? ""} onChange={pickExam} />
       {exam?.preparation && (
         <Alert tone="info" title="Patient preparation">
           {exam.preparation}

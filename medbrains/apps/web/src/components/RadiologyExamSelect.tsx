@@ -30,19 +30,17 @@ export function RadiologyExamSelect({ modalityId, value, onChange }: RadiologyEx
     queryKey: ["radiology-exam-search", modalityId, query],
     queryFn: () =>
       clinicalSupportService.listRadiologyExams({
-        modality_id: modalityId,
+        modality_id: modalityId || undefined,
         search: query || undefined,
         limit: SEARCH_LIMIT,
       }),
-    enabled: Boolean(modalityId),
     staleTime: 60_000,
   });
 
   return (
     <SearchOrCreate<RadiologyExamListItem>
       label="Exam"
-      placeholder={modalityId ? "Search exam, e.g. CT brain, NCCT head" : "Pick a modality first"}
-      disabled={!modalityId}
+      placeholder="Search exam, e.g. CT brain, USG abdomen, knee MRI"
       value={value}
       items={data ?? []}
       searchText={search}
@@ -55,8 +53,8 @@ export function RadiologyExamSelect({ modalityId, value, onChange }: RadiologyEx
       onSelect={onChange}
       onClear={() => onChange(null)}
       leftSection={<IconRadar size={14} />}
-      emptyLabel="No exam by that name for this modality — order by body part instead"
-      typeToSearchLabel="No exams set up for this modality"
+      emptyLabel="No exam by that name — order by modality and body part instead"
+      typeToSearchLabel="No exams set up yet — add them under Radiology › Exams"
       renderItem={(exam) => (
         <Group gap={8} wrap="nowrap" justify="space-between">
           <Box flex={1}>
