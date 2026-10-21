@@ -17,6 +17,14 @@ REPO_ROOT := ../../../../..
 include $(ENV_FILE)
 export
 
+# Ship what THIS tree built. The .env once pinned these to another checkout,
+# so `make apply` from a worktree built a fresh SPA and then uploaded a stale
+# one from elsewhere ("0 changes", fix not live). The tree you run in is the
+# tree you deploy; `override` beats both the .env and the command line.
+override TF_VAR_binaries_dir   = $(abspath $(REPO_ROOT)/target/$(STARTER_TARGET)/release)
+override TF_VAR_spa_dist_dir   = $(abspath $(REPO_ROOT)/apps/web/dist)
+override TF_VAR_deploy_kit_dir = $(abspath $(REPO_ROOT)/deploy/standalone)
+
 # Tier comes from TF_VAR_tier (default "starter" if unset).
 TIER ?= $(TF_VAR_tier)
 TIER := $(if $(TIER),$(TIER),starter)
@@ -194,6 +202,7 @@ plan: check init
 apply: check init build pre-apply-backup
 	terraform plan -out=$(PLAN_FILE)
 	terraform show -no-color $(PLAN_FILE)
+	terraform show -json $(PLAN_FILE) | python3 plan_guard.py
 	@if [ "$${CONFIRM_APPLY:-}" != "$(APPLY_CONFIRMATION)" ]; then \
 		echo; \
 		echo "Refusing to apply without reviewed-plan confirmation."; \
