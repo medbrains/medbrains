@@ -1,106 +1,35 @@
 // PATIENT ImagingTab — split from patient-detail.tsx (pure move).
 
-import { Card, Group, Loader, Stack, Text } from "@mantine/core";
+import { Group, Loader, Stack, Text } from "@mantine/core";
 import { useHasPermission } from "@medbrains/stores";
 import type { RadiologyDicomStudy } from "@medbrains/types";
 import { P } from "@medbrains/types";
 import { IconEye } from "@tabler/icons-react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Badge, Button, Table, toast } from "@/components/ui";
+import { useQuery } from "@tanstack/react-query";
+import { RadiologyReportList } from "@/components/Radiology/RadiologyReportList";
+import { Badge, Button, Table } from "@/components/ui";
 import { patientDetailService } from "@/services/patientDetail.service";
 
 export function ImagingTab({ patientId }: { patientId: string }) {
-  const imagingQueryClient = useQueryClient();
-  // Prior DICOM studies are `radiology.orders.list`; acknowledging a critical
-  // finding is `radiology.reports.verify`. Neither was gated, and an empty
-  // study list on an imaging tab reads as "this patient has had no imaging".
+  // Prior DICOM studies are `radiology.orders.list`. An empty study list on an
+  // imaging tab reads as "this patient has had no imaging", so it is gated.
   const canListRadiologyOrders = useHasPermission(P.RADIOLOGY.ORDERS_LIST);
-  const canVerifyReports = useHasPermission(P.RADIOLOGY.REPORTS_VERIFY);
   const { data: studies = [], isLoading } = useQuery({
     queryKey: ["patient-dicom-studies", patientId],
     queryFn: () => patientDetailService.getPriorRadiologyDicomStudies(patientId),
     enabled: canListRadiologyOrders,
   });
-  const { data: reports = [] } = useQuery({
-    queryKey: ["patient-radiology-reports", patientId],
-    queryFn: () => patientDetailService.listRadiologyReports(patientId),
-  });
-  const acknowledgeAlert = useMutation({
-    mutationFn: (alertId: string) =>
-      patientDetailService.acknowledgeRadiologyCriticalAlert(alertId),
-    onSuccess: () => {
-      toast.success("Critical finding acknowledged.", { title: "Acknowledged" });
-      void imagingQueryClient.invalidateQueries({
-        queryKey: ["patient-radiology-reports", patientId],
-      });
-    },
-    onError: (error: Error) => toast.error(error.message, { title: "Could not acknowledge" }),
-  });
 
   if (isLoading) return <Loader size="sm" />;
 
-  if (studies.length === 0 && reports.length === 0) {
-    return (
-      <Text c="dimmed" ta="center" py="xl">
-        No imaging studies or reports found.
-      </Text>
-    );
-  }
-
   return (
     <Stack gap="lg">
-      {reports.length > 0 && (
-        <Stack gap="xs">
-          <Text fw={600} size="sm">
-            Reports
-          </Text>
-          {reports.map((report) => (
-            <Card key={report.report_id} withBorder p="sm">
-              <Group justify="space-between" wrap="nowrap">
-                <Group gap="xs">
-                  <Text size="sm" fw={600}>
-                    {report.modality ?? "Imaging report"}
-                  </Text>
-                  {report.is_critical && <Badge tone="danger">Critical</Badge>}
-                  <Badge tone={report.verified_at ? "success" : "neutral"} size="sm">
-                    {report.verified_at ? "Verified" : report.status}
-                  </Badge>
-                  {report.is_critical &&
-                    report.alert_id &&
-                    (report.alert_acknowledged_at || !canVerifyReports ? (
-                      <Badge tone={report.alert_acknowledged_at ? "success" : "warning"} size="sm">
-                        {report.alert_acknowledged_at ? "Acknowledged" : "Unacknowledged"}
-                      </Badge>
-                    ) : (
-                      <Button
-                        size="xs"
-                        tone="danger"
-                        loading={acknowledgeAlert.isPending}
-                        onClick={() => report.alert_id && acknowledgeAlert.mutate(report.alert_id)}
-                      >
-                        Acknowledge
-                      </Button>
-                    ))}
-                </Group>
-                <Text size="xs" c="dimmed">
-                  {new Date(report.ordered_at).toLocaleDateString()}
-                </Text>
-              </Group>
-              <Text size="sm" mt={6} style={{ whiteSpace: "pre-wrap" }}>
-                {report.findings}
-              </Text>
-              {report.impression && (
-                <Text size="sm" mt={6}>
-                  <Text span fw={600}>
-                    Impression:{" "}
-                  </Text>
-                  {report.impression}
-                </Text>
-              )}
-            </Card>
-          ))}
-        </Stack>
-      )}
+      <Stack gap="xs">
+        <Text fw={600} size="sm">
+          Reports
+        </Text>
+        <RadiologyReportList patientId={patientId} />
+      </Stack>
       {studies.length > 0 && (
         <Table striped highlightOnHover>
           <Table.Thead>
@@ -179,5 +108,3 @@ export function ImagingTab({ patientId }: { patientId: string }) {
     </Stack>
   );
 }
-
-// ── Billing Tab ────────────────────────────────────────────
