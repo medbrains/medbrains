@@ -44,6 +44,10 @@ export interface RazorpayMock {
   refuseOrders: boolean;
   /** Counter UPI QR codes made, newest last: id and amount in paise. */
   qrCodes: Array<{ id: string; amount: number }>;
+  /** Payment links made (#4871): id → what was asked. */
+  links: Map<string, Record<string, unknown>>;
+  /** Payment links cancelled. */
+  cancelledLinks: Set<string>;
 }
 
 const state: RazorpayMock = {
@@ -53,6 +57,8 @@ const state: RazorpayMock = {
   extraCaptured: 0,
   refuseOrders: false,
   qrCodes: [],
+  links: new Map(),
+  cancelledLinks: new Set(),
 };
 let server: Server | null = null;
 
@@ -96,6 +102,20 @@ async function answer(req: IncomingMessage): Promise<[number, unknown]> {
         close_by: body.close_by,
       },
     ];
+  }
+  if (req.method === "POST" && path === "/v1/payment_links") {
+    const body = await readJson(req);
+    const id = `plink_${randomUUID().replaceAll("-", "").slice(0, 14)}`;
+    state.links.set(id, body);
+    return [200, { id, short_url: `https://rzp.io/l/${id}`, status: "created" }];
+  }
+  const cancel = path.match(/^\/v1\/payment_links\/([^/]+)\/cancel$/);
+  if (req.method === "POST" && cancel?.[1]) {
+    if (state.cancelledLinks.has(cancel[1])) {
+      return [400, { error: { description: "Payment link is already cancelled" } }];
+    }
+    state.cancelledLinks.add(cancel[1]);
+    return [200, { id: cancel[1], status: "cancelled" }];
   }
   const refund = path.match(/^\/v1\/payments\/([^/]+)\/refund$/);
   if (req.method === "POST" && refund?.[1]) {
@@ -252,6 +272,24 @@ export function qrCreditedEvent(qr: { id: string; amount: number }): unknown {
         entity: {
           id: `pay_${randomUUID().replaceAll("-", "").slice(0, 14)}`,
           amount: qr.amount,
+          method: "upi",
+          status: "captured",
+        },
+      },
+    },
+  };
+}
+
+/** Razorpay's notice that `paise` was paid on a payment link (#4871). */
+export function linkPaidEvent(link: string, paise: number, whole: boolean): unknown {
+  return {
+    event: whole ? "payment_link.paid" : "payment_link.partially_paid",
+    payload: {
+      payment_link: { entity: { id: link } },
+      payment: {
+        entity: {
+          id: `pay_${randomUUID().replaceAll("-", "").slice(0, 14)}`,
+          amount: paise,
           method: "upi",
           status: "captured",
         },

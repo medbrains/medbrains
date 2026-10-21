@@ -39,7 +39,7 @@ use hmac::{Hmac, Mac};
 use serde_json::{Value, json};
 use sha2::Sha256;
 
-use super::http::{client, send};
+use super::http::{client, close, send};
 use super::{
     Capabilities, Checkout, CheckoutAsk, ClientProof, Ctx, KeyField, Keys, LinkAsk, LinkMade,
     Located, Notice, OnlineProvider, Opened, PaymentRecord, PaymentState, ProviderError,
@@ -249,9 +249,13 @@ impl OnlineProvider for Cashfree {
             "link_purpose": ask.description,
             "customer_details": { "customer_phone": ask.contact.unwrap_or(NO_PHONE) },
             "link_notify": { "send_sms": false, "send_email": false },
-            "link_partial_payments": false,
+            "link_partial_payments": ask.accept_partial,
+            "link_auto_reminders": ask.remind,
             "link_notes": { "internal_payment_id": ask.txn_id.to_string() },
         });
+        if let Some(min) = ask.min_part_paise.filter(|_| ask.accept_partial) {
+            body["link_minimum_partial_amount"] = json!(rupees_text(min));
+        }
         if let Some(at) = ask
             .expire_by
             .and_then(|t| chrono::DateTime::from_timestamp(t, 0))
@@ -266,6 +270,16 @@ impl OnlineProvider for Cashfree {
             order_ref: link_id,
             url: url.to_owned(),
         })
+    }
+
+    /// `POST /links/{link_id}/cancel`.
+    async fn cancel_payment_link(
+        &self,
+        ctx: &Ctx<'_>,
+        order_ref: &str,
+    ) -> Result<(), ProviderError> {
+        let path = format!("/links/{}/cancel", urlencoding::encode(order_ref));
+        close(request(ctx, reqwest::Method::POST, &path)?, WHO).await
     }
 
     async fn refund(&self, ctx: &Ctx<'_>, ask: &RefundAsk<'_>) -> Result<String, ProviderError> {
@@ -368,21 +382,28 @@ fn notice_of(v: &Value) -> Notice {
         ),
         "PAYMENT_LINK_EVENT" => {
             let status = d["link_status"].as_str().unwrap_or_default();
-            let event = if status == "PAID" {
-                ProviderEvent::Captured {
+            let txn = text(&d["order"]["transaction_id"]).unwrap_or_default();
+            let event = match status {
+                // Inferred: a part pays the link's `order` (`order_amount`);
+                // `link_amount_paid` is the running total, the whole of a link
+                // paid in one go.
+                "PAID" | "PARTIALLY_PAID" => ProviderEvent::Captured {
                     via: Via::Link,
-                    payment_id: text(&d["order"]["transaction_id"]).unwrap_or_default(),
-                    amount_paise: paise_of(&d["link_amount_paid"]),
+                    payment_id: txn.clone(),
+                    amount_paise: paise_of(&d["order"]["order_amount"])
+                        .or_else(|| paise_of(&d["link_amount_paid"])),
                     // The link event does not say how it was paid: its order does.
                     method: None,
                     lookup: d["order"]["order_id"].as_str().map(ToOwned::to_owned),
-                }
-            } else {
-                ProviderEvent::Ignored(format!("link {status}"))
+                },
+                "EXPIRED" => ProviderEvent::LinkClosed { expired: true },
+                "CANCELLED" => ProviderEvent::LinkClosed { expired: false },
+                other => ProviderEvent::Ignored(format!("link {other}")),
             };
+            // Each part is its own event: the payment names it.
             (
                 format!(
-                    "{kind}:{}:{status}",
+                    "{kind}:{}:{status}:{txn}",
                     d["link_id"].as_str().unwrap_or_default()
                 ),
                 event,

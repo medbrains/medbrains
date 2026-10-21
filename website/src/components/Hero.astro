@@ -49,7 +49,8 @@ const waHref = `https://wa.me/${WHATSAPP.number}?text=${encodeURIComponent(WHATS
     background-size: 48px 48px;
     mask-image: radial-gradient(ellipse at 50% 30%, #000 30%, transparent 75%);
   }
-  .ecg { position: absolute; left: 50%; translate: -50% 0; top: -120px; width: 100vw; height: 200px; }
+  /* Decoration: it overlaps the buttons, so clicks must pass through it. */
+  .ecg { position: absolute; left: 50%; translate: -50% 0; top: -120px; width: 100vw; height: 200px; pointer-events: none; }
   .trace { fill: none; stroke-width: 2.5; stroke-linejoin: round; }
   .ghost { stroke: rgb(66 190 101 / 14%); }
   .live {

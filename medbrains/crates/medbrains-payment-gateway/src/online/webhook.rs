@@ -154,6 +154,10 @@ async fn apply(
     payload: &Value,
 ) -> Result<(), AppError> {
     let code = provider.code();
+    // A balance link (#4871) takes its parts and its end itself.
+    if crate::balance_link::parts::on_event(tx, row, &event, payload).await? {
+        return Ok(());
+    }
     match event {
         ProviderEvent::Captured {
             payment_id,
@@ -243,6 +247,13 @@ async fn apply(
                 provider = code,
                 reference,
                 "payout notice: payouts are not made from here"
+            );
+        }
+        ProviderEvent::LinkClosed { expired } => {
+            tracing::info!(
+                provider = code,
+                expired,
+                "a booking or delivery link closed unpaid"
             );
         }
         ProviderEvent::Ignored(what) => {

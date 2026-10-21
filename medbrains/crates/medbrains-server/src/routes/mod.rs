@@ -12,6 +12,7 @@ pub mod health;
 pub mod nhcx_onboarding;
 pub mod portal;
 pub mod portal_deliveries;
+pub mod portal_pay;
 pub mod portal_privacy;
 pub mod portal_refills;
 pub mod portal_store;
@@ -898,6 +899,7 @@ pub fn build_router(state: AppState) -> Router {
     //    satisfy the staff one; the two shapes are mutually undecodable.
     let portal_routes = Router::new()
         .route("/api/portal/bills", get(portal::portal_bills))
+        .route("/api/portal/bills/{id}/pay", post(portal_pay::portal_pay_bill))
         .route("/api/portal/lab-reports", get(portal::portal_lab_reports))
         .route(
             "/api/portal/prescriptions",

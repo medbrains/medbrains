@@ -1,4 +1,4 @@
-import type { CollectRequest, CollectResult, PatientDues } from "@medbrains/types";
+import type { CollectRequest, CollectResult, PatientDues, PaymentLinkView } from "@medbrains/types";
 import { act } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { render, screen, userEvent, waitFor, within } from "@/test/test-utils";
@@ -17,6 +17,10 @@ const billing = vi.hoisted(() => ({
 vi.mock("@/services/billing.service", () => ({ billingService: billing }));
 const payments = vi.hoisted(() => ({
   getPaymentCapabilities: vi.fn(),
+  createPaymentLink: vi.fn(),
+  getPaymentLink: vi.fn(),
+  resendPaymentLink: vi.fn(),
+  cancelPaymentLink: vi.fn(),
   listPaymentTerminals: vi.fn(async () => []),
   listUnresolvedCardSales: vi.fn(async () => []),
 }));
@@ -43,6 +47,40 @@ const CHECKOUT_ONLY = {
   station_override: false,
   fallback: null,
 };
+/** A Razorpay counter: it makes payment links. */
+const WITH_LINKS = {
+  ...CHECKOUT_ONLY,
+  active: {
+    ...CHECKOUT_ONLY.active,
+    provider: "razorpay",
+    label: "Razorpay",
+    capabilities: { ...CHECKOUT_ONLY.active.capabilities, payment_links: true },
+  },
+};
+
+const LINK: PaymentLinkView = {
+  id: "l1",
+  patient_id: "p1",
+  invoice_ids: ["lab"],
+  scope: "all",
+  lane: null,
+  amount: "500.00",
+  amount_paid: "0.00",
+  accept_partial: true,
+  min_part_amount: "100.00",
+  status: "created",
+  provider: "razorpay",
+  short_url: "https://rzp.io/l/plink_1",
+  expires_at: "2026-10-27T10:00:00Z",
+  channel: "sms",
+  sent_count: 1,
+  last_sent_at: "2026-10-20T10:00:00Z",
+  replaces_id: null,
+  end_reason: null,
+  error: null,
+  created_at: "2026-10-20T10:00:00Z",
+};
+
 vi.mock("@/hooks/usePatientContext", () => ({
   usePatientContext: () => ({ data: undefined }),
 }));
@@ -143,9 +181,56 @@ describe("the Collect drawer", () => {
     for (const p of CASHIER) held.add(p);
     const dialog = await openDrawer({ patientId: "p1", lane: "lab" });
     expect(await within(dialog).findByRole("radio", { name: /Online/ })).toBeInTheDocument();
-    expect(within(dialog).queryByRole("radio", { name: /Payment link/ })).toBeNull();
+    const link = within(dialog).getByRole("radio", { name: /Payment link/ });
+    expect(link).toBeDisabled();
+    expect(within(dialog).getByText("Not supported by this provider")).toBeInTheDocument();
     expect(within(dialog).getByText("PhonePe")).toBeInTheDocument();
     expect(payments.getPaymentCapabilities).toHaveBeenCalledWith(null);
+  });
+
+  it("key 4 sends a link for the amount typed, and its part payment shows live", async () => {
+    for (const p of CASHIER) held.add(p);
+    payments.getPaymentCapabilities.mockResolvedValue(WITH_LINKS);
+    payments.createPaymentLink.mockResolvedValue(LINK);
+    payments.getPaymentLink.mockResolvedValue({
+      ...LINK,
+      status: "partially_paid",
+      amount_paid: "300.00",
+    });
+    const dialog = await openDrawer({ patientId: "p1", lane: "lab" });
+    const amount = await within(dialog).findByRole("textbox", { name: /Amount/ });
+    await userEvent.clear(amount);
+    await userEvent.type(amount, "500");
+    await userEvent.click(within(dialog).getByRole("radio", { name: /Payment link/ }));
+    await userEvent.click(within(dialog).getByRole("button", { name: "Send link for ₹500.00" }));
+    await waitFor(() => expect(payments.createPaymentLink).toHaveBeenCalledTimes(1));
+    expect(payments.createPaymentLink.mock.calls[0]?.[0]).toMatchObject({
+      patient_id: "p1",
+      scope: "all",
+      invoice_ids: ["lab"],
+      amount: 500,
+      channel: "sms",
+    });
+    expect(await within(dialog).findByText("₹300.00 of ₹500.00 paid")).toBeInTheDocument();
+    expect(within(dialog).getByTestId("payment-link-status")).toHaveTextContent("Part paid");
+    expect(within(dialog).getByTestId("payment-link-url")).toHaveTextContent(LINK.short_url);
+  });
+
+  it("a refused link says why and sends nothing", async () => {
+    for (const p of CASHIER) held.add(p);
+    payments.getPaymentCapabilities.mockResolvedValue(WITH_LINKS);
+    payments.createPaymentLink.mockRejectedValue(
+      new Error("The patient has not agreed to WhatsApp messages — send it by SMS"),
+    );
+    const dialog = await openDrawer({ patientId: "p1", lane: "lab" });
+    await userEvent.click(await within(dialog).findByRole("radio", { name: /Payment link/ }));
+    await userEvent.click(within(dialog).getByText("WhatsApp"));
+    await userEvent.click(within(dialog).getByRole("button", { name: /Send link/ }));
+    expect(await within(dialog).findByTestId("alert-link-error")).toHaveTextContent(
+      /send it by SMS/,
+    );
+    expect(payments.createPaymentLink.mock.calls[0]?.[0]).toMatchObject({ channel: "whatsapp" });
+    expect(payments.getPaymentLink).not.toHaveBeenCalled();
   });
 
   it("a counter whose provider cannot be read says so, and offers no online way", async () => {

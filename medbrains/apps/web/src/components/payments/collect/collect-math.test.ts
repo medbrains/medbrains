@@ -145,12 +145,18 @@ describe("which ways of paying a desk is offered", () => {
     expect(hint(noQr)).toBe("Enter the UTR");
   });
 
-  it("the payment link shows only where the provider makes links, and waits for its endpoint", () => {
+  it("the payment link is offered where the provider makes links, and says so where it does not", () => {
     const gateway = { ...DESK, canUseGateway: true };
-    const link = usableTiles(gateway).find((t) => t.tile === "link");
-    expect(link).toMatchObject({ disabled: true, hint: "Coming soon (#4871)" });
+    const tile = (c: TileContext) => usableTiles(c).find((t) => t.tile === "link");
+    expect(tile(gateway)).toMatchObject({ disabled: false, hint: "All or part, by SMS" });
     const noLinks = { ...gateway, capabilities: { ...CAPS, payment_links: false } };
-    expect(shown(noLinks)).not.toContain("link");
+    expect(tile(noLinks)).toMatchObject({ disabled: true, hint: "Not supported by this provider" });
+    // A draft can still change: issue it first.
+    expect(tile({ ...gateway, hasDraft: true })).toMatchObject({ disabled: true });
+    // No provider, no gateway, or a counter sale with no bill: no link tile at all.
+    expect(shown({ ...gateway, capabilities: null })).not.toContain("link");
+    expect(shown(DESK)).not.toContain("link");
+    expect(shown({ ...gateway, isSale: true })).not.toContain("link");
   });
 
   it("a deposit is offered with a balance, and refused on draft bills", () => {
@@ -169,7 +175,12 @@ describe("which ways of paying a desk is offered", () => {
 
   it("starts on the tile last used at this counter", () => {
     expect(startTile(usableTiles(DESK), "upi")).toBe("upi");
-    expect(startTile(usableTiles({ ...DESK, canUseGateway: true }), "link")).toBe("cash");
+    const noLinks = {
+      ...DESK,
+      canUseGateway: true,
+      capabilities: { ...CAPS, payment_links: false },
+    };
+    expect(startTile(usableTiles(noLinks), "link")).toBe("cash");
   });
 });
 
