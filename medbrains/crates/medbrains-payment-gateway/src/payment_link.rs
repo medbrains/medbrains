@@ -61,6 +61,33 @@ pub async fn link_provider(
         .filter(|c| c.keys.missing(provider).is_empty()))
 }
 
+/// How a link may be paid: whole, or in parts (#4871).
+#[derive(Debug, Clone, Copy)]
+pub struct LinkTerms {
+    /// The payer may pay part of the amount, several times over.
+    pub accept_partial: bool,
+    /// The least the first part may be, when parts are accepted.
+    pub min_part: Option<Decimal>,
+    /// The provider reminds the payer until the link is paid or expires.
+    pub remind: bool,
+}
+
+impl LinkTerms {
+    /// Paid in one go, no reminders — a booking or a delivery.
+    pub const WHOLE: Self = Self {
+        accept_partial: false,
+        min_part: None,
+        remind: false,
+    };
+}
+
+fn paise(amount: Decimal) -> Option<i64> {
+    (amount * Decimal::ONE_HUNDRED)
+        .round()
+        .to_i64()
+        .filter(|p| *p > 0)
+}
+
 /// Ask the provider for a link. No answer is transient (the worker
 /// retries); any other refusal is an answer.
 pub async fn request_link(
@@ -68,18 +95,28 @@ pub async fn request_link(
     chosen: &Chosen,
     req: &LinkRequest,
 ) -> Result<Link, HandlerError> {
-    let paise = (req.amount * Decimal::ONE_HUNDRED)
-        .round()
-        .to_i64()
-        .filter(|p| *p > 0)
+    request_link_on(ctx, chosen, req, LinkTerms::WHOLE).await
+}
+
+/// [`request_link`], on the given terms.
+pub async fn request_link_on(
+    ctx: &HandlerCtx,
+    chosen: &Chosen,
+    req: &LinkRequest,
+    terms: LinkTerms,
+) -> Result<Link, HandlerError> {
+    let amount = paise(req.amount)
         .ok_or_else(|| HandlerError::Permanent(format!("no amount to pay: {}", req.amount)))?;
     let ask = LinkAsk {
         txn_id: req.payment_transaction_id,
         tenant_id: ctx.tenant_id,
-        amount_paise: paise,
+        amount_paise: amount,
         description: &req.description,
         expire_by: req.expire_by,
         contact: req.contact.as_deref(),
+        accept_partial: terms.accept_partial,
+        min_part_paise: terms.min_part.and_then(paise),
+        remind: terms.remind,
     };
     match chosen
         .provider
@@ -96,6 +133,20 @@ pub async fn request_link(
             chosen.provider.label(),
             e.words()
         ))),
+    }
+}
+
+/// Stop a link so it can no longer be paid. An outage is transient: until
+/// the provider says so the link may still be paid.
+pub async fn cancel_link(chosen: &Chosen, order_ref: &str) -> Result<(), HandlerError> {
+    match chosen
+        .provider
+        .cancel_payment_link(&chosen.ctx(), order_ref)
+        .await
+    {
+        Ok(()) => Ok(()),
+        Err(ProviderError::Unavailable(w)) => Err(transient(w)),
+        Err(e) => Err(HandlerError::Permanent(e.words())),
     }
 }
 

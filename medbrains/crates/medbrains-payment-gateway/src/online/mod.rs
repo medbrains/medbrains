@@ -214,6 +214,12 @@ pub struct LinkAsk<'a> {
     /// When the link stops working (Unix seconds).
     pub expire_by: Option<i64>,
     pub contact: Option<&'a str>,
+    /// The payer may pay part of it, several times over (#4871).
+    pub accept_partial: bool,
+    /// The least the first part may be, when parts are accepted.
+    pub min_part_paise: Option<i64>,
+    /// The provider reminds the payer until it is paid or expires.
+    pub remind: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -283,6 +289,8 @@ pub enum ProviderEvent {
         amount_paise: Option<i64>,
         reason: String,
     },
+    /// A payment link stopped taking money without being paid in full.
+    LinkClosed { expired: bool },
     /// Verified, but nothing MedBrains acts on.
     Ignored(String),
 }
@@ -340,6 +348,15 @@ pub trait OnlineProvider: Send + Sync {
         _ctx: &Ctx<'_>,
         _ask: &LinkAsk<'_>,
     ) -> Result<LinkMade, ProviderError> {
+        Err(ProviderError::Unsupported("payment_links"))
+    }
+    /// Stop a payment link (its `order_ref`). `Ok` when it can no longer be
+    /// paid — cancelled now, or already paid, expired or cancelled.
+    async fn cancel_payment_link(
+        &self,
+        _ctx: &Ctx<'_>,
+        _order_ref: &str,
+    ) -> Result<(), ProviderError> {
         Err(ProviderError::Unsupported("payment_links"))
     }
     /// Refund (part of) a payment; the provider's refund id.

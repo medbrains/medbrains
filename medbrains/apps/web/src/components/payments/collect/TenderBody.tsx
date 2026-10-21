@@ -22,7 +22,8 @@ import { CashTender } from "./CashTender";
 import { rupees, type TenderPart } from "./collect-math";
 import { useDisplayFeed } from "./customer-display";
 import { DepositTender } from "./DepositTender";
-import { LINK_PENDING, type TenderTile } from "./tender-tiles";
+import { LinkTender } from "./LinkTender";
+import type { TenderTile } from "./tender-tiles";
 
 export interface TenderBodyProps {
   tile: TenderTile;
@@ -236,6 +237,6 @@ export function TenderBody(props: TenderBodyProps) {
     case "credit":
       return <CreditTender {...props} />;
     case "link":
-      return <Text size="sm">{LINK_PENDING}</Text>;
+      return <LinkTender {...props} />;
   }
 }

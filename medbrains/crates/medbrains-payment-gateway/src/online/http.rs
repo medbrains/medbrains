@@ -68,6 +68,27 @@ pub(crate) async fn send(
     Ok(answer)
 }
 
+/// Ask `who` to stop something that takes money (a payment link). `Ok`
+/// once it can no longer be paid: stopped now, or a 400/404/409 — already
+/// paid, expired or cancelled (inferred: providers answer a closed link that
+/// way). Refused keys and no answer leave it open, so they are errors.
+pub(crate) async fn close(
+    request: reqwest::RequestBuilder,
+    who: &str,
+) -> Result<(), ProviderError> {
+    let response = request
+        .send()
+        .await
+        .map_err(|e| ProviderError::Unavailable(format!("{who} did not answer: {e}")))?;
+    match response.status().as_u16() {
+        200..=299 | 400 | 404 | 409 => Ok(()),
+        401 | 403 => Err(ProviderError::NotSetUp(format!("{who} refused the keys"))),
+        other => Err(ProviderError::Unavailable(format!(
+            "{who} is unavailable: {other}"
+        ))),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::reason;

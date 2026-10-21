@@ -247,6 +247,7 @@ export {
 } from "./patient-journey-mobile-targets.js";
 export { patientJourneyActionRoute } from "./patient-journey-routes.js";
 export * from "./patient-registration";
+export * from "./payment-links";
 export type { PermissionDef } from "./permissions.js";
 export {
   P,

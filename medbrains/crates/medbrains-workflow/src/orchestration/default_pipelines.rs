@@ -95,11 +95,6 @@ pub const PIPELINES: &[Pipeline] = &[
         run: |p, t, v| Box::pin(on_lab_result_posted(p, t, v)),
     },
     Pipeline {
-        event: ClinicalEventName::BillingInvoiceFinalized,
-        description: "Payment link to the patient (WhatsApp) once the bill is issued",
-        run: |p, t, v| Box::pin(on_billing_invoice_finalized(p, t, v)),
-    },
-    Pipeline {
         event: ClinicalEventName::BillingPaymentReceived,
         description: "Receipt email to patient",
         run: |p, t, v| Box::pin(on_billing_payment_received(p, t, v)),
@@ -512,63 +507,12 @@ async fn on_lab_result_posted(
     Ok(())
 }
 
-// ── 4. Invoice issued → payment-link to patient ───────────────────
-
-/// A payment link goes out when the bill is issued, not when the draft is
-/// opened: a draft is created with a zero total and only gains lines as
-/// charges land. The finalised event carries no amount, and an amount in
-/// a payload would only ever be a copy — the invoice row is the fact.
-async fn on_billing_invoice_finalized(
-    pool: &PgPool,
-    tenant_id: Uuid,
-    payload: &Value,
-) -> Result<(), sqlx::Error> {
-    let Some(inv) = uuid_from_payload(payload, "invoice_id") else {
-        return Ok(());
-    };
-    let mut tx = pool.begin().await?;
-
-    let row = sqlx::query!(
-        "SELECT patient_id, total_amount FROM invoices WHERE id = $1 AND tenant_id = $2",
-        inv,
-        tenant_id,
-    )
-    .fetch_optional(&mut *tx)
-    .await?;
-    let Some((patient_id, total)) = row.map(|r| (r.patient_id, r.total_amount)) else {
-        return Ok(());
-    };
-    if total <= rust_decimal::Decimal::ZERO {
-        return Ok(()); // Nothing to pay → no link.
-    }
-    // The WhatsApp handler refuses a row with no `to`; this one shipped
-    // without it, so every payment link dead-lettered.
-    let Some(to) = patient_phone(&mut tx, tenant_id, patient_id).await? else {
-        return Ok(());
-    };
-
-    let _ = enqueue(
-        &mut tx,
-        tenant_id,
-        "invoice",
-        Some(inv),
-        "whatsapp.payment_link",
-        json!({
-            "to": to,
-            "invoice_id": inv,
-            "patient_id": patient_id,
-            "amount": total.to_string(),
-            "template_name": "payment_link",
-            "language": "en",
-            "sms_fallback_body": format!("Your bill of Rs {total} is ready. Pay at the billing desk or in the patient portal."),
-        }),
-        Some(format!("paylink:{inv}")),
-    )
-    .await;
-
-    tx.commit().await?;
-    Ok(())
-}
+// ── 4. Payment links ───────────────────────────────────────────────
+//
+// An issued bill used to send `whatsapp.payment_link` here with no link in
+// it, to patients who had never agreed to WhatsApp. The message now goes out
+// with a link's real short URL, from the link itself, checked against the
+// patient's contact consent (`medbrains_payment_gateway::balance_link`, #4871).
 
 // ── 5. Payment received → email/whatsapp receipt ───────────────────
 
@@ -1221,87 +1165,6 @@ pub(super) async fn enqueue(
     .await
 }
 
-#[cfg(test)]
-mod tests {
-    use medbrains_core::clinical_events::ClinicalEventName;
-    use serde_json::json;
-
-    use super::{PIPELINES, domain_payload, e164, token_call_body};
-
-    #[test]
-    fn phones_are_normalised_to_e164_or_refused() {
-        assert_eq!(e164("9876543210").as_deref(), Some("+919876543210"));
-        assert_eq!(e164("+91 98765 43210").as_deref(), Some("+919876543210"));
-        assert_eq!(e164("+1-555-0100-123").as_deref(), Some("+15550100123"));
-        assert_eq!(e164("12345"), None);
-        assert_eq!(e164(""), None);
-    }
-
-    #[test]
-    fn a_decimal_serialises_as_a_string_so_payload_amounts_are_not_numbers() {
-        // The workspace enables rust_decimal's serde-with-str: any pipeline
-        // that reads an amount from a payload with `as_f64` reads nothing.
-        let v = json!({ "t": rust_decimal::Decimal::new(150_000, 2) });
-        assert_eq!(v["t"], json!("1500.00"));
-    }
-
-    #[test]
-    fn an_envelope_is_unwrapped_and_a_bare_payload_is_not() {
-        let envelope = json!({
-            "event_name": "emergency.code_blue.activated",
-            "tenant_id": "00000000-0000-0000-0000-000000000001",
-            "payload": { "code_blue_id": "abc" }
-        });
-        assert_eq!(domain_payload(&envelope)["code_blue_id"], "abc");
-        let bare = json!({ "code_blue_id": "abc" });
-        assert_eq!(domain_payload(&bare)["code_blue_id"], "abc");
-        let odd = json!({ "event_name": "x", "payload": "not an object" });
-        assert!(domain_payload(&odd).get("event_name").is_some());
-    }
-
-    #[test]
-    fn critical_lab_default_pipeline_follows_result_posting() {
-        // Asserted against the registry that actually dispatches, not a
-        // description array beside it — the point of merging the two.
-        assert!(
-            PIPELINES
-                .iter()
-                .any(|p| p.event == ClinicalEventName::LabResultPosted)
-        );
-        assert!(
-            !PIPELINES
-                .iter()
-                .any(|p| p.event == ClinicalEventName::LabOrderCompleted)
-        );
-    }
-
-    /// `opd.queue.called` was in the vocabulary from the start and nothing
-    /// ever emitted it, so nothing could subscribe to it either. Calling a
-    /// patient reached the board over a WebSocket and went no further.
-    #[test]
-    fn a_called_token_has_somewhere_to_go() {
-        assert!(
-            PIPELINES
-                .iter()
-                .any(|p| p.event == ClinicalEventName::OpdQueueCalled),
-            "the token-call event needs a subscriber or emitting it changes nothing"
-        );
-    }
-
-    /// The message has to name the room. "You have been called" leaves a
-    /// patient standing in a corridor looking for a door.
-    #[test]
-    fn the_token_sms_names_where_to_go() {
-        let with_room = token_call_body("A-42", Some("Room 3"));
-        assert!(with_room.contains("A-42") && with_room.contains("Room 3"));
-        let without = token_call_body("A-42", None);
-        assert!(
-            without.contains("counter"),
-            "no room known still has to send them somewhere: {without}"
-        );
-    }
-}
-
 /// `blood.transfusion_reaction.reported` — haemovigilance.
 ///
 /// A reaction implicates the donation, not only the bag that caused it. The
@@ -1437,4 +1300,85 @@ async fn on_transfusion_reaction(
 
     tx.commit().await?;
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use medbrains_core::clinical_events::ClinicalEventName;
+    use serde_json::json;
+
+    use super::{PIPELINES, domain_payload, e164, token_call_body};
+
+    #[test]
+    fn phones_are_normalised_to_e164_or_refused() {
+        assert_eq!(e164("9876543210").as_deref(), Some("+919876543210"));
+        assert_eq!(e164("+91 98765 43210").as_deref(), Some("+919876543210"));
+        assert_eq!(e164("+1-555-0100-123").as_deref(), Some("+15550100123"));
+        assert_eq!(e164("12345"), None);
+        assert_eq!(e164(""), None);
+    }
+
+    #[test]
+    fn a_decimal_serialises_as_a_string_so_payload_amounts_are_not_numbers() {
+        // The workspace enables rust_decimal's serde-with-str: any pipeline
+        // that reads an amount from a payload with `as_f64` reads nothing.
+        let v = json!({ "t": rust_decimal::Decimal::new(150_000, 2) });
+        assert_eq!(v["t"], json!("1500.00"));
+    }
+
+    #[test]
+    fn an_envelope_is_unwrapped_and_a_bare_payload_is_not() {
+        let envelope = json!({
+            "event_name": "emergency.code_blue.activated",
+            "tenant_id": "00000000-0000-0000-0000-000000000001",
+            "payload": { "code_blue_id": "abc" }
+        });
+        assert_eq!(domain_payload(&envelope)["code_blue_id"], "abc");
+        let bare = json!({ "code_blue_id": "abc" });
+        assert_eq!(domain_payload(&bare)["code_blue_id"], "abc");
+        let odd = json!({ "event_name": "x", "payload": "not an object" });
+        assert!(domain_payload(&odd).get("event_name").is_some());
+    }
+
+    #[test]
+    fn critical_lab_default_pipeline_follows_result_posting() {
+        // Asserted against the registry that actually dispatches, not a
+        // description array beside it — the point of merging the two.
+        assert!(
+            PIPELINES
+                .iter()
+                .any(|p| p.event == ClinicalEventName::LabResultPosted)
+        );
+        assert!(
+            !PIPELINES
+                .iter()
+                .any(|p| p.event == ClinicalEventName::LabOrderCompleted)
+        );
+    }
+
+    /// `opd.queue.called` was in the vocabulary from the start and nothing
+    /// ever emitted it, so nothing could subscribe to it either. Calling a
+    /// patient reached the board over a WebSocket and went no further.
+    #[test]
+    fn a_called_token_has_somewhere_to_go() {
+        assert!(
+            PIPELINES
+                .iter()
+                .any(|p| p.event == ClinicalEventName::OpdQueueCalled),
+            "the token-call event needs a subscriber or emitting it changes nothing"
+        );
+    }
+
+    /// The message has to name the room. "You have been called" leaves a
+    /// patient standing in a corridor looking for a door.
+    #[test]
+    fn the_token_sms_names_where_to_go() {
+        let with_room = token_call_body("A-42", Some("Room 3"));
+        assert!(with_room.contains("A-42") && with_room.contains("Room 3"));
+        let without = token_call_body("A-42", None);
+        assert!(
+            without.contains("counter"),
+            "no room known still has to send them somewhere: {without}"
+        );
+    }
 }

@@ -201,6 +201,25 @@ fn validate_billing_amount_write_access(
     ))
 }
 
+/// Refuse a caller whose field access hides or locks bill amounts — for
+/// money moved outside this crate (payment links, #4871).
+///
+/// # Errors
+/// `BadRequest` when amounts are not writable; a database fault.
+pub async fn require_amount_write(state: &AppState, claims: &Claims) -> Result<(), AppError> {
+    validate_billing_amount_write_access(&resolve_billing_restricted_fields(state, claims).await?)
+}
+
+/// Whether bill amounts are masked or hidden from the caller.
+///
+/// # Errors
+/// A database fault.
+pub async fn amounts_hidden(state: &AppState, claims: &Claims) -> Result<bool, AppError> {
+    Ok(should_scrub_billing_amount(
+        &resolve_billing_restricted_fields(state, claims).await?,
+    ))
+}
+
 fn filter_invoice_amounts(
     mut row: Invoice,
     restricted: &HashMap<String, FieldAccessLevel>,

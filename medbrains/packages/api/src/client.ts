@@ -631,6 +631,7 @@ import type {
   CreateLinenCondemnationRequest,
   CreateLinenItemRequest,
   CreateLinenMovementRequest,
+  CreateLinkRequest,
   CreateMarketingClinicalCohortRequest,
   CreateMarketingContactRequest,
   CreateMarketingDistributionRequest,
@@ -1609,6 +1610,7 @@ import type {
   PaymentGatewayTransaction,
   PaymentInstallment,
   PaymentInstallmentItem,
+  PaymentLinkView,
   PaymentMethodRow,
   PaymentProvidersResponse,
   PaymentStatusResponse,
@@ -1691,6 +1693,7 @@ import type {
   PortalDeliveryOffer,
   PortalInvoice,
   PortalLabReport,
+  PortalPayRequest,
   PortalPrescriptionItem,
   PortalPrivacy,
   PortalPrivacyRequestInput,
@@ -1869,6 +1872,7 @@ import type {
   RescheduleAppointmentRequest,
   ResearchConsentPrintData,
   ResearchProposalFormPrintData,
+  ResendLinkRequest,
   ResolveCommAlertRequest,
   ResolveCommComplaintRequest,
   ResolveExceptionRequest,
@@ -16199,6 +16203,23 @@ export const api = {
     request<CapabilitiesView>(
       `/payments/capabilities?${new URLSearchParams(stationId ? { station_id: stationId } : {})}`,
     ),
+  /** Make a balance link (or send the live one again) for a patient's dues (#4871). */
+  createPaymentLink: (data: CreateLinkRequest) =>
+    request<PaymentLinkView>("/payments/links", { method: "POST", body: JSON.stringify(data) }),
+  listPaymentLinks: (params: { patient_id?: string; invoice_id?: string }) =>
+    request<PaymentLinkView[]>(
+      `/payments/links?${new URLSearchParams(
+        Object.entries(params).filter((e): e is [string, string] => Boolean(e[1])),
+      )}`,
+    ),
+  getPaymentLink: (id: string) => request<PaymentLinkView>(`/payments/links/${id}`),
+  resendPaymentLink: (id: string, data: ResendLinkRequest) =>
+    request<PaymentLinkView>(`/payments/links/${id}/resend`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  cancelPaymentLink: (id: string) =>
+    request<PaymentLinkView>(`/payments/links/${id}/cancel`, { method: "POST" }),
   getOnlineSettings: () => request<OnlineSettings>("/payments/online-settings"),
   updateOnlineSettings: (data: ChooseProviders) =>
     request<ChooseProviders>("/payments/online-settings", {
@@ -17665,6 +17686,13 @@ export const api = {
       body: JSON.stringify(data),
     }),
   getPortalBills: (token: string) => request<PortalInvoice[]>("/portal/bills", portalAuth(token)),
+  /** A link to pay the patient's own bill, in full or in part (#4871). */
+  payPortalBill: (token: string, invoiceId: string, data: PortalPayRequest) =>
+    request<PaymentLinkView>(`/portal/bills/${invoiceId}/pay`, {
+      ...portalAuth(token),
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
   getPortalLabReports: (token: string) =>
     request<PortalLabReport[]>("/portal/lab-reports", portalAuth(token)),
   getPortalPrescriptions: (token: string) =>
