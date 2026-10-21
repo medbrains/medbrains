@@ -214,6 +214,16 @@ for key in MEDBRAINS_IDENTIFIER_HMAC_KEY MEDBRAINS_ABDM_SECRET_KEY; do
     fi
 done
 
+# The body-site picker loads its 3D model from the company CDN; the CSP must
+# name it or the browser refuses the fetch ("The body model is unavailable").
+# A default, not a rule: an offline install that serves the model itself
+# keeps whatever its env already says.
+if [[ -z "$(env_value ANATOMY_CDN_ORIGIN)" ]]; then
+    sed -i "/^ANATOMY_CDN_ORIGIN=/d" /etc/medbrains/env
+    echo "ANATOMY_CDN_ORIGIN=${ANATOMY_CDN_ORIGIN:-https://d1jxozdwctz92m.cloudfront.net}" >> /etc/medbrains/env
+    echo "    set ANATOMY_CDN_ORIGIN in /etc/medbrains/env"
+fi
+
 # The first administrator's password: production refuses to seed admin123. Only
 # on a new install (the seed reads it once, when it creates the first hospital);
 # kept root-only for the operator, who changes it at first sign-in.
