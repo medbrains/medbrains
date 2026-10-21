@@ -27,6 +27,7 @@ MedBrains is an open-source project led by its founder and maintainers, with the
 - **Branch protection on `main`:** no direct pushes, no force-pushes or deletion, linear history, reviewed pull requests only.
 - **Security:** private vulnerability reporting ([SECURITY.md](./SECURITY.md)), secret scanning with push protection, and Dependabot alerts.
 - **Patient data:** never in issues, pull requests, tests or fixtures — synthetic data only.
+- **Telemetry:** none today; any future usage signal is anonymous, documented and switchable off ([TELEMETRY.md](./TELEMETRY.md)).
 
 ## Code of conduct
 
