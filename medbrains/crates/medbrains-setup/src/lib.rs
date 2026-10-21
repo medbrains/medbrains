@@ -234,13 +234,13 @@ pub struct TenantByHostQuery {
 /// domain (login-page branding + SSO scoping). Prefers the explicit `?domain=`
 /// the frontend sends (its own hostname), falling back to the Pingora-forwarded
 /// `X-Forwarded-Host` then `Host`. Returns only non-sensitive branding, never
-/// secrets. 404 when the host isn't a custom domain (the caller then renders
-/// the default MedBrains login).
+/// secrets. `null` when the host isn't a custom domain (the caller then renders
+/// the default MedBrains login) — a 200, not a 404, so no console error.
 pub async fn tenant_by_host(
     State(state): State<AppState>,
     Query(query): Query<TenantByHostQuery>,
     headers: axum::http::HeaderMap,
-) -> Result<Json<PublicTenant>, AppError> {
+) -> Result<Json<Option<PublicTenant>>, AppError> {
     let header_host = headers
         .get("x-forwarded-host")
         .or_else(|| headers.get(axum::http::header::HOST))
@@ -263,7 +263,7 @@ pub async fn tenant_by_host(
         .fetch_optional(&state.db)
         .await?
         {
-            return Ok(Json(tenant));
+            return Ok(Json(Some(tenant)));
         }
     }
 
@@ -271,11 +271,11 @@ pub async fn tenant_by_host(
     // `MEDBRAINS_TENANT_ID` in the backend env (stable, host-independent), so
     // the sign-in page brands correctly without a custom-domain match.
     if let Some(tenant) = env_bound_tenant(&state).await? {
-        return Ok(Json(tenant));
+        return Ok(Json(Some(tenant)));
     }
 
     // Neither matched — the caller renders the default MedBrains login.
-    Err(AppError::NotFound)
+    Ok(Json(None))
 }
 
 /// The deployment's primary tenant, pinned in the backend env. `*_NAME`/`*_LOGO`

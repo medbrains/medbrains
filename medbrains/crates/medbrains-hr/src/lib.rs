@@ -1560,13 +1560,13 @@ async fn build_my_shift(
 pub async fn get_my_shift(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
-) -> Result<Json<MyShiftResponse>, AppError> {
+) -> Result<Json<Option<MyShiftResponse>>, AppError> {
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
     // Non-clinical logins (e.g. super_admin / hospital_admin) have no employee
     // record and therefore no shift. The navbar widget polls this on every page,
-    // so return an empty state instead of a 400 — clocking in (the POST actions)
-    // still requires a linked employee.
+    // so answer `null` instead of a 400 — and not an empty shift, which showed a
+    // "Start shift" button the server would then refuse.
     let employee_id = sqlx::query_scalar::<_, Uuid>(
         "SELECT id FROM employees WHERE tenant_id = $1 AND user_id = $2 LIMIT 1",
     )
@@ -1576,20 +1576,9 @@ pub async fn get_my_shift(
     .await?;
     let resp = match employee_id {
         Some(employee_id) => {
-            build_my_shift(&mut tx, &claims.tenant_id, employee_id, claims.sub).await?
+            Some(build_my_shift(&mut tx, &claims.tenant_id, employee_id, claims.sub).await?)
         }
-        None => MyShiftResponse {
-            scheduled: None,
-            session: None,
-            fatigue: FatigueState {
-                flags: Vec::new(),
-                continuous_h: 0.0,
-                rest_h: None,
-                week_h: 0.0,
-                acknowledged: false,
-            },
-            punch: None,
-        },
+        None => None,
     };
     tx.commit().await?;
     Ok(Json(resp))

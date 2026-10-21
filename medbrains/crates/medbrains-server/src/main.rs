@@ -487,11 +487,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         HeaderValue::from_static("strict-origin-when-cross-origin"),
     );
 
-    // Permissions-Policy — disable powerful browser APIs the app doesn't use.
+    // Permissions-Policy — only what the app uses: location for the attendance
+    // geofence and campus-fence setup (weather only when already granted), and
+    // payment for Razorpay checkout. Everything else stays off for every origin.
     let permissions_policy = SetResponseHeaderLayer::overriding(
         HeaderName::from_static("permissions-policy"),
         HeaderValue::from_static(
-            "camera=(), microphone=(), geolocation=(), payment=(), \
+            "camera=(), microphone=(), geolocation=(self), payment=(self \"https://api.razorpay.com\"), \
              usb=(), magnetometer=(), accelerometer=(), gyroscope=(), \
              interest-cohort=()",
         ),
@@ -1085,7 +1087,7 @@ fn content_security_policy(anatomy_origin: Option<&str>) -> HeaderValue {
              style-src-elem 'self' 'unsafe-inline' https://fonts.googleapis.com; \
              img-src 'self' data: blob: https:; \
              font-src 'self' data: https://fonts.gstatic.com; \
-             connect-src 'self' https://*.razorpay.com https://*.cashfree.com wss:{anatomy}; \
+             connect-src 'self' https://*.razorpay.com https://*.cashfree.com https://api.open-meteo.com wss:{anatomy}; \
              worker-src 'self' blob:; \
              manifest-src 'self'; \
              object-src 'none'; \
@@ -1117,7 +1119,7 @@ mod csp_tests {
     fn the_anatomy_cdn_joins_connect_src() {
         assert_eq!(
             connect_src(Some("https://d111.cloudfront.net")),
-            "connect-src 'self' https://*.razorpay.com https://*.cashfree.com wss: \
+            "connect-src 'self' https://*.razorpay.com https://*.cashfree.com https://api.open-meteo.com wss: \
              https://d111.cloudfront.net"
         );
     }
@@ -1132,7 +1134,7 @@ mod csp_tests {
         ] {
             assert_eq!(
                 connect_src(Some(bad)),
-                "connect-src 'self' https://*.razorpay.com https://*.cashfree.com wss:",
+                "connect-src 'self' https://*.razorpay.com https://*.cashfree.com https://api.open-meteo.com wss:",
                 "{bad}"
             );
         }

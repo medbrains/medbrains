@@ -123,7 +123,7 @@ export function MyShiftWidget() {
     onError: onErr,
   });
 
-  // No employee record linked (e.g. super_admin) → don't show the widget.
+  // null = no employee record linked (e.g. super_admin) → no shift to clock.
   if (isError || !data) return null;
 
   const session = data.session;
