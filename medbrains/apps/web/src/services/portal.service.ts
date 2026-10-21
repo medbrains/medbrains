@@ -13,6 +13,8 @@ export const portalService = {
     api.requestPortalOtp(data),
   verifyPortalOtp: (data: Parameters<typeof api.verifyPortalOtp>[0]) => api.verifyPortalOtp(data),
   getPortalBills: (token: string) => api.getPortalBills(token),
+  payPortalBill: (token: string, invoiceId: string, amount?: number) =>
+    api.payPortalBill(token, invoiceId, { amount }),
   getPortalLabReports: (token: string) => api.getPortalLabReports(token),
   getPortalPrescriptions: (token: string) => api.getPortalPrescriptions(token),
   getPortalAppointments: (token: string) => api.getPortalAppointments(token),

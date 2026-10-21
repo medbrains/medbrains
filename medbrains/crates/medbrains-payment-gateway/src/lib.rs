@@ -1,3 +1,4 @@
+pub mod balance_link;
 pub mod checkout;
 pub mod online;
 pub mod payment_link;
@@ -1196,6 +1197,19 @@ pub fn router() -> axum::Router<AppState> {
         .route("/api/payments/upi-deep-link", post(upi_deep_link))
         .route("/api/payments/refund", post(refund::initiate_refund))
         .route("/api/payments/razorpay/status", get(razorpay_status))
+        .route(
+            "/api/payments/links",
+            get(balance_link::routes::list_links).post(balance_link::routes::create_link),
+        )
+        .route("/api/payments/links/{id}", get(balance_link::routes::get_link))
+        .route(
+            "/api/payments/links/{id}/resend",
+            post(balance_link::routes::resend_link),
+        )
+        .route(
+            "/api/payments/links/{id}/cancel",
+            post(balance_link::routes::cancel_balance_link),
+        )
         .route("/api/payments/providers", get(list_payment_providers))
         .route(
             "/api/payments/capabilities",

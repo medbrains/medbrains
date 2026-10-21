@@ -16,7 +16,7 @@ use axum::http::HeaderMap;
 use medbrains_doctor_payouts::provider::{PayoutProvider, PayoutRequest, RazorpayX, Sent};
 use serde_json::{Value, json};
 
-use super::http::{client, send};
+use super::http::{client, close, send};
 use super::{
     Capabilities, Checkout, CheckoutAsk, ClientProof, Ctx, KeyField, Keys, LinkAsk, LinkMade,
     Located, Notice, OnlineProvider, Opened, PaymentRecord, PaymentState, ProviderError,
@@ -234,10 +234,10 @@ impl OnlineProvider for Razorpay {
         ask: &LinkAsk<'_>,
     ) -> Result<LinkMade, ProviderError> {
         let mut body = json!({
-            "amount": ask.amount_paise, "currency": "INR", "accept_partial": false,
+            "amount": ask.amount_paise, "currency": "INR", "accept_partial": ask.accept_partial,
             "reference_id": ask.txn_id.to_string(), "description": ask.description,
             // The payer sees the link in their app; Razorpay sends nothing of its own.
-            "notify": { "sms": false, "email": false }, "reminder_enable": false,
+            "notify": { "sms": false, "email": false }, "reminder_enable": ask.remind,
             "notes": { "tenant_id": ask.tenant_id.to_string(),
                        "internal_payment_id": ask.txn_id.to_string() },
         });
@@ -246,6 +246,9 @@ impl OnlineProvider for Razorpay {
         }
         if let Some(contact) = ask.contact {
             body["customer"] = json!({ "contact": contact });
+        }
+        if let Some(min) = ask.min_part_paise.filter(|_| ask.accept_partial) {
+            body["first_min_partial_amount"] = json!(min);
         }
         let v = call(ctx, "/payment_links", Some(&body)).await?;
         match (v["id"].as_str(), v["short_url"].as_str()) {
@@ -257,6 +260,23 @@ impl OnlineProvider for Razorpay {
                 "Razorpay's answer named no link".to_owned(),
             )),
         }
+    }
+
+    /// `POST /v1/payment_links/{id}/cancel`.
+    async fn cancel_payment_link(
+        &self,
+        ctx: &Ctx<'_>,
+        order_ref: &str,
+    ) -> Result<(), ProviderError> {
+        let url = format!(
+            "{}/payment_links/{}/cancel",
+            ctx.base,
+            urlencoding::encode(order_ref)
+        );
+        let request = client()
+            .post(url)
+            .basic_auth(ctx.keys.need("key_id")?, Some(ctx.keys.need("key_secret")?));
+        close(request, WHO).await
     }
 
     async fn refund(&self, ctx: &Ctx<'_>, ask: &RefundAsk<'_>) -> Result<String, ProviderError> {
@@ -357,7 +377,9 @@ fn event_of(v: &Value) -> ProviderEvent {
     let event = v["event"].as_str().unwrap_or_default();
     match event {
         "payment.captured" | "order.paid" => captured(Via::Checkout, payment),
-        "payment_link.paid" => captured(Via::Link, payment),
+        "payment_link.paid" | "payment_link.partially_paid" => captured(Via::Link, payment),
+        "payment_link.expired" => ProviderEvent::LinkClosed { expired: true },
+        "payment_link.cancelled" => ProviderEvent::LinkClosed { expired: false },
         "qr_code.credited" => captured(Via::Qr, payment),
         "payment.failed" => ProviderEvent::Failed {
             code: payment["error_code"].as_str().map(ToOwned::to_owned),

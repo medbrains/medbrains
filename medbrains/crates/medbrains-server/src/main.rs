@@ -797,6 +797,8 @@ fn build_outbox_registry() -> Arc<medbrains_outbox::Registry> {
     // Online orders and refunds, for every provider, are made in the request
     // through medbrains_payment_gateway::online; only payment links are queued.
     registry.register(medbrains_payment_gateway::payment_link::PaymentLinkHandler);
+    // A balance link (#4871) the bill no longer owes: cancel it, send the new balance.
+    registry.register(medbrains_payment_gateway::balance_link::refresh::BalanceLinkRefreshHandler);
     // Counter card machines are driven in the request and by the site bridge
     // (medbrains_payment_gateway::pos), not here.
     // RazorpayX Smart Collect — bank virtual account (runs only for payment.razorpayx.*)
@@ -823,6 +825,8 @@ fn build_outbox_registry() -> Arc<medbrains_outbox::Registry> {
     registry.register(twilio::SmsSendHandler::new("sms.pharmacy_delivery_code"));
     // SMS counterparts for WhatsApp fallback targets that had none.
     registry.register(twilio::SmsSendHandler::new("sms.lab_report_ready"));
+    // Balance links (#4871) are texted under this name too
+    // (medbrains_payment_gateway::balance_link::message::SMS_EVENT).
     registry.register(twilio::SmsSendHandler::new("sms.payment_link"));
     // The opt-in "your token has been called" message. The pipeline enqueued it
     // from the start, but with no handler it fell to the user-pipeline
@@ -1044,6 +1048,16 @@ mod tests {
         let registry = super::build_outbox_registry();
         let handler = registry.lookup("sms.token_called");
         assert_eq!(handler.map(|h| h.event_type()), Some("sms.token_called"));
+    }
+
+    /// A balance link (#4871) is refreshed when the bill changes and texted to
+    /// the patient — one handler each, registered once (a second registration
+    /// panics the server at boot).
+    #[test]
+    fn balance_links_have_a_refresher_and_a_sender() {
+        let registry = super::build_outbox_registry();
+        let sms = medbrains_payment_gateway::balance_link::message::SMS_EVENT;
+        assert_eq!(registry.lookup(sms).map(|h| h.event_type()), Some(sms));
     }
 
     /// A portal sign-in code and a delivery code are texted, not swallowed

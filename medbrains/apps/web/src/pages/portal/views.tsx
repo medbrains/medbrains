@@ -19,6 +19,7 @@ import { Badge, Card } from "@/components/ui";
 import { portalService } from "@/services/portal.service";
 import { flagTone, isOutsideRange, portalDate } from "./portal-format";
 import { PortalList } from "./portal-list";
+import { canPayOnline, PortalPayBill } from "./portal-pay";
 
 export function PortalReports({ token }: { token: string }) {
   const query = useQuery({
@@ -122,6 +123,7 @@ export function PortalBills({ token }: { token: string }) {
               <Text size="xs" c="dimmed">
                 {row.total_amount} total · {row.paid_amount} paid · {portalDate(row.created_at)}
               </Text>
+              {canPayOnline(row) && <PortalPayBill token={token} bill={row} />}
             </Stack>
           </Card>
         ))

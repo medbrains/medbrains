@@ -3,8 +3,7 @@
 //! Ordering a test writes a charge keyed to the order; cancelling writes one
 //! negative line with `reversal_of_id` set and restores the total, and a
 //! second cancel is refused and reverses nothing more. Issuing the bill
-//! queues one WhatsApp payment link for the amount on the invoice row —
-//! the event carries no amount, and a draft's zero total queues nothing.
+//! queues no link-less "payment link" message (#4871).
 
 mod common;
 
@@ -121,23 +120,16 @@ async fn an_order_is_charged_once_reversed_once_and_the_issued_bill_queues_one_p
     .expect("invoice");
     assert!(total_before > rust_decimal::Decimal::ZERO);
 
-    // A draft carries its total, but no link goes out for a bill nobody has issued.
+    // Issuing a bill sends no URL-less "payment link": a link message goes out
+    // from the link itself, with its real short URL (#4871).
     let event = json!({ "invoice_id": invoice_id, "patient_id": patient_id });
     app.dispatch(tenant_id, "billing.invoice.finalized", &event)
         .await;
-    assert_eq!(
+    assert!(
         app.outbox_rows("whatsapp.payment_link", &invoice_id.to_string())
             .await
-            .len(),
-        1
+            .is_empty()
     );
-    app.dispatch(tenant_id, "billing.invoice.finalized", &event)
-        .await;
-    let links = app
-        .outbox_rows("whatsapp.payment_link", &invoice_id.to_string())
-        .await;
-    assert_eq!(links.len(), 1, "delivered twice, queued once");
-    assert_eq!(links[0]["amount"], json!(total_before.to_string()));
 
     assert_eq!(cancel(&app, &csrf, &order_id).await, 200);
     let after = items(&app, order_uuid).await;
@@ -154,27 +146,6 @@ async fn an_order_is_charged_once_reversed_once_and_the_issued_bill_queues_one_p
             .await
             .expect("total");
     assert_eq!(total_after, total_before - charged[0].1);
-
-    // A bill with nothing on it queues no link, even when issued.
-    let empty = post(
-        &app,
-        &csrf,
-        "/api/billing/invoices",
-        json!({ "patient_id": patient_id, "encounter_id": encounter_id }),
-    )
-    .await;
-    let empty_id = empty["id"].as_str().expect("invoice id").to_owned();
-    app.dispatch(
-        tenant_id,
-        "billing.invoice.finalized",
-        &json!({ "invoice_id": empty_id, "patient_id": patient_id }),
-    )
-    .await;
-    assert!(
-        app.outbox_rows("whatsapp.payment_link", &empty_id)
-            .await
-            .is_empty()
-    );
 
     // Cancelling again names why it can't (409 since #4758), rather than pretending the order is gone.
     assert_eq!(

@@ -10,6 +10,7 @@ import { billingService } from "@/services/billing.service";
 import { ExchangeRatesSection } from "./exchange-rates-section";
 import { BillingLanesSettings } from "./lanes-settings";
 import { NonPayablesCard } from "./NonPayablesCard";
+import { PaymentLinkSettingsCard } from "./PaymentLinkSettingsCard";
 import { RevisitWindowCard } from "./RevisitWindowCard";
 
 const AUTO_BILLING_KEYS = [
@@ -192,6 +193,18 @@ function BillingTenantSettings() {
           }
         />
       </Group>
+
+      <PaymentLinkSettingsCard
+        value={paymentSettings.find((s: TenantSettingsRow) => s.key === "balance_link")?.value}
+        canManage={canManage}
+        saving={updateMutation.isPending}
+        onSave={(value) =>
+          updateMutation.mutate(
+            { category: "payments", key: "balance_link", value },
+            { onSuccess: () => toast.success("Payment link terms saved", { title: "Billing" }) },
+          )
+        }
+      />
 
       <Text fw={600} mt="lg">
         Advance Settings
