@@ -1,157 +1,225 @@
-<div align="center">
-
 # MedBrains
 
-### Hospital Management System — built as health infrastructure, not a product demo.
+A multi-tenant hospital information system, built for Indian hospitals first and designed to work in other countries.
 
-A multi-tenant HMS covering **67+ clinical, diagnostic, financial and administrative modules**, engineered for the safety, compliance and scale a real hospital demands. Rust on the backend, React on the front, regulatory rules baked in from the schema up.
-
-[![License: Proprietary](https://img.shields.io/badge/License-Proprietary-1F4332.svg)](./LICENSE)
-[![Commercial license available](https://img.shields.io/badge/Commercial_license-available-B8924A.svg)](./COMMERCIAL-LICENSE.md)
-[![Rust](https://img.shields.io/badge/Rust-2024_·_MSRV_1.85-CE412B?logo=rust&logoColor=white)](#tech-stack)
-[![React](https://img.shields.io/badge/React-18_·_TypeScript-149ECA?logo=react&logoColor=white)](#tech-stack)
-[![PRs welcome](https://img.shields.io/badge/PRs-welcome-success.svg)](./CONTRIBUTING.md)
+[![Licence: AGPL-3.0 or commercial](https://img.shields.io/badge/licence-AGPL--3.0_or_commercial-blue.svg)](#licensing)
+[![Rust edition 2024](https://img.shields.io/badge/Rust-edition_2024-CE412B?logo=rust&logoColor=white)](#architecture)
 [![Code of Conduct](https://img.shields.io/badge/Code_of_Conduct-2.1-5B4BC4.svg)](./CODE_OF_CONDUCT.md)
 
-[**Why MedBrains**](#why-medbrains) · [**Features**](#features) · [**Architecture**](#architecture) · [**Quickstart**](#quickstart) · [**Compliance**](#regulatory--compliance) · [**Roadmap**](#roadmap) · [**Contributing**](#contributing) · [**Funding**](./GRANTS.md)
+MedBrains runs the day of a hospital: registration and queues, OPD and wards, lab, imaging, pharmacy, billing and payments, insurance claims, and the records and audits that accreditation and the law ask for. It is one system for many hospitals — each hospital is a tenant, isolated by PostgreSQL row-level security — with a web app for every desk and native apps for staff and patients. We build it in the open because the rules that keep patients safe (medication checks, consent, who may see a record) should be readable by the people who depend on them.
 
-</div>
+**Status:** in active development. Interfaces and schemas still change between releases. See the [roadmap](./ROADMAP.md).
 
 ---
 
-> [!NOTE]
-> **MedBrains is positioned as a Digital Public Good for health.** Hospital software is some of the most expensive, most locked-in, least auditable software a country buys — and the institutions that need it most (district hospitals, NGO clinics, public health systems) can least afford the licence fees. We think the patient-safety logic of a hospital (medication checks, consent, infection control, statutory reporting) should be **open, inspectable, and free to run**. See [GRANTS.md](./GRANTS.md) for the public-good thesis and the programs we're aligning to.
+## What it does
 
-## Why MedBrains
+A summary of what is in the code today. Each area has more detail in the RFCs and in the [user guide](./medbrains/apps/docs).
 
-Most HMS products are closed boxes: you can't see how they decide a drug interaction, you can't audit how patient data flows, and you can't extend them without a vendor contract. MedBrains is the opposite:
+### Clinical
 
-- **Patient safety is in the code, not the brochure.** Drug-schedule enforcement (NDPS / Schedule H/H1/X), allergy & DDI cross-checks, LASA flags, dose validation, the WHO surgical checklist, critical-value lab alerts and notifiable-disease (IDSP) reporting are implemented as enforced rules — not optional add-ons.
-- **Compliance-first schema.** Regulatory fields exist from the first migration: `drug_schedule`, `inn_name`, `atc_code`, `loinc_code`, `icd_code`, RLS `tenant_id` on every tenant-scoped table. NABH / JCI / ABDM alignment is a design constraint, not a retrofit.
-- **Multi-tenant by construction.** PostgreSQL Row-Level Security with per-request, transaction-scoped tenant context — one deployment safely serves many hospitals.
-- **Built to be run cheaply and audited freely.** Compile-time-checked SQL, strict linting, a small Rust footprint, and a fully open stack mean a district hospital can self-host it and a security researcher can read every line.
+- OPD with token queues, priority lanes, counters and waiting-room boards; walk-ins, appointments, referrals to a named colleague and back.
+- One case sheet per visit or admission: every clinician's note is a dated, signed entry; a resident's note waits for countersignature; unsigned notes hold the medical-record packet.
+- IPD and nursing: admissions, ward rounds, a bed board with holds and out-of-service reasons, the drug chart, and a discharge gate that waits for charges and decisions.
+- Emergency with medico-legal cases (injuries recorded on a body map), operating theatre, ICU, dialysis (machine booking, dialyzer reuse limits), dental odontogram, eye OPD with spectacle prescriptions, home visits and health camps.
+- Video consultations that are real visits: the doctor sees them in the queue and the bill counts them.
+- AI-assisted drafts are always labelled as AI and only enter the record when a clinician accepts them. Patient identities are removed before anything goes to an outside model.
 
-## Features
+### Diagnostics
 
-67+ modules across the hospital. A selection of what's implemented or in active development:
+- Laboratory from order to verified report: collection, worklists, critical values, analyzer orders and ASTM results through an on-site bridge.
+- Imaging through a PACS (Orthanc): worklist out, study back to its order; an on-site PACS kit with a nightly cloud copy. A PC-PNDT Form F opens with every pregnancy ultrasound and holds the report until it is complete.
+- Blood bank, CSSD and infection control.
 
-| Domain | Modules |
-|--------|---------|
-| **Clinical** | OPD, IPD/nursing (eMAR, IV infusions), perioperative (WHO checklist, OT handoffs), telemedicine, prescriptions (rx-suite), clinical knowledge base |
-| **Diagnostics** | Laboratory (LOINC, critical-value alerts, NABL), radiology (DICOM, AERB/PCPNDT), blood bank |
-| **Pharmacy** | Formulary/DTC, NDPS register + dual-lock, AWaRe stewardship, FEFO expiry, batch/lot tracking, dead-stock & indents |
-| **Financial** | Billing (GST, CGHS/ECHS, TPA), multi-provider payments, insurance revenue integrity, cashier flows |
-| **Administrative** | Multi-tenant onboarding, 111-permission RBAC, roles & per-user overrides, HR shift sessions & fatigue guard, MRD (paperless, deficiency gate, ROI) |
-| **Quality & Safety** | Incident/CAPA, RCA, accreditation compliance, notifiable-disease (IDSP) reporting, consent management (digital signatures, witness, read-aloud) |
-| **Surfaces** | Web console, mobile (React Native), TV queue/status displays, kiosk/workstation |
+### Pharmacy
 
-> The full module ledger (2,030+ tracked features across 12 domains) lives in the feature tracker and per-module RFCs.
+- Formulary with drug schedule (H, H1, X), NDPS register, LASA flags, allergy and interaction checks, FEFO batches and expiry.
+- Counter billing, returns at their real price, day close, transfers between stores, supplier bills scanned into GRNs.
+- Refills authorised by the doctor, prescription expiry, repeat-last-prescription.
+- An online storefront for the hospital pharmacy, with home delivery by runner or courier and tracking for the patient.
+
+### Billing and payments
+
+- Bills for OPD, IPD and pharmacy, with revisit windows, each doctor's own fee, and insurer/patient splits on one screen.
+- Collect anywhere: one Collect drawer, opened from a due chip at any desk, that posts the money exactly once.
+- A provider-neutral payments layer: online checkout through Razorpay, Cashfree, PhonePe or PayU; card machines (Pine Labs, Ezetap, Razorpay POS) through the site bridge, with a simulator; self-confirming UPI QR; payment links that allow part payment online and the rest in cash; a customer display at the counter.
+- Doctor payouts for visiting and day doctors: agreements, sharing rules, approval, and payment with TDS.
+
+### Interoperability
+
+- ABDM: ABHA verification and linking, M1–M3 (linking records to ABHA and sharing them with consent; requesting records from other hospitals), Scan & Share at the counter, and a dashboard of what ABDM earns and where it fails. **Built to integrate and waiting on go-live keys — not certified.**
+- NHCX insurance claims: eligibility, pre-auth with payer queries, final claims with summary, bill and lab PDFs, and payment posting. Built to integrate; not certified.
+- UHI provider: teleconsult booking, ambulance and blood availability for patient apps.
+- HL7 FHIR R4: case sheets as Compositions, lab and imaging reports as DiagnosticReport, and a patient's own record export.
+- SNOMED CT terminology service (import, search, hierarchy), ICD-10/11 through the WHO ICD-API, LOINC for lab tests.
+- Signed webhooks to partner systems, a request budget per API key, and a published OpenAPI description.
+
+### Patient and staff apps
+
+- **Web app** for every desk and role, in light and dark themes, built to WCAG 2.2 AA.
+- **Native staff app** (SwiftUI on iOS, Jetpack Compose on Android): front office, doctor and nurse modules, ABHA at reception, Scan & Share, sticky notes; bound to a hospital by a signed QR code.
+- **Native patient app** (iOS and Android): refills, pharmacy delivery and tracking, privacy controls.
+- Patient portal, bedside portal, waiting-room displays that pair themselves, and a desktop shell (Tauri).
+- Alerts with three sounds (calm, attention, urgent) across web and native.
+
+The React Native apps under `medbrains/apps/mobile-*` and `medbrains/apps/tv` are being replaced by the native apps and are kept for reference only.
+
+### Administration and compliance
+
+- Self-service onboarding: a 30-day trial sign-up, or set up a hospital from one Excel workbook.
+- A custom domain per hospital, proved by DNS before it takes effect.
+- HR, rosters and attendance with a per-campus geofence; assets, facilities, diet kitchen, housekeeping.
+- Management dashboards that read each department against its usual day; a widget menu filtered by permission.
+- Marketing CRM: website enquiries arrive as leads, with campaign attribution.
+- DPDP: privacy notice at registration, consent recorded purpose by purpose, a rights desk with its 90-day clock, a register of data processors.
+- NABH checklists assessed on screen and scored by the server; incidents and CAPA; printed documents read what the hospital recorded and carry a signature or a DRAFT mark.
+
+### Platform and security
+
+- Multi-tenant PostgreSQL with transaction-scoped row-level security on every tenant table.
+- Over 1,100 permissions, defined in Rust and generated into the TypeScript catalogue; relationship-based checks on patient records (SpiceDB); break-the-glass access that alerts reviewers at once.
+- Authorisation has three outcomes — allow, deny, unknown — and a fault never shows up as "no data".
+- Append-only audit trail; refusals and failed sign-ins are audited; high-volume audit tables are partitioned by month.
+- A module licence gate per hospital that closes, rather than opens, on a fault.
+- Print delivery to real printers (ZPL, ESC/POS, PDF) through the site bridge; an edge appliance for offline running.
 
 ## Architecture
 
+```mermaid
+flowchart LR
+  subgraph Clients
+    W[Web app<br/>React 18 + Mantine v7]
+    I[iOS apps<br/>SwiftUI]
+    A[Android apps<br/>Jetpack Compose]
+    D[Desktop shell<br/>Tauri 2]
+  end
+  subgraph Site["Hospital site (optional)"]
+    B[Bridge<br/>printers, card machines,<br/>lab analyzers]
+    P[PACS<br/>Orthanc]
+    E[Edge appliance<br/>offline mode]
+  end
+  W & I & A & D -->|HTTPS, WebSocket| X[medbrains-server<br/>Rust, Axum 0.8]
+  B & P & E --> X
+  X --> PG[(PostgreSQL<br/>row-level security)]
+  X --> Z[SpiceDB<br/>relationships]
+  X --> G[Gotenberg<br/>PDF rendering]
+  X --> O[Object storage<br/>scans, PDFs, images]
+  X --> N[ABDM, NHCX, UHI,<br/>payment providers]
 ```
-┌─────────────┐   ┌─────────────┐   ┌──────────────┐
-│  Web (React │   │   Mobile    │   │  TV / Kiosk  │
-│  + Mantine) │   │ (RN + Paper)│   │ (RN Android) │
-└──────┬──────┘   └──────┬──────┘   └──────┬───────┘
-       └─────────────────┼─────────────────┘
-                   HTTPS / JSON
-                         │
-              ┌──────────▼───────────┐
-              │  Axum 0.8 + Tower    │  Rust, edition 2024
-              │  JWT (Ed25519)       │  Argon2id, RBAC
-              │  Per-request RLS ctx │  111 permissions
-              └──────────┬───────────┘
-                         │
-              ┌──────────▼───────────┐   ┌──────────────┐
-              │   PostgreSQL 16+     │   │ object store │
-              │   single source of   │   │ (DICOM/PDF/  │
-              │   truth · RLS · SQLx │   │  scans/blobs)│
-              │   partition + shard  │   └──────────────┘
-              │   ready (Citus path) │
-              └──────────────────────┘
+
+- **Backend:** Rust (edition 2024, MSRV 1.85) on Axum 0.8 and Tokio, split into about 140 crates under `medbrains/crates` — one per module or concern, assembled by `medbrains-server`. SQL through SQLx; errors with `thiserror`; structured logs with `tracing`. Ed25519 JWTs, Argon2id passwords. `unsafe` is forbidden and clippy is strict.
+- **Database:** PostgreSQL 16 or newer (the dev stack runs 17) is the single source of truth, including configuration, sequences and bed state. Migrations are embedded in the binary.
+- **Web:** React 18, strict TypeScript, Vite, Mantine v7, SCSS modules, React Router, TanStack Query, Zustand, React Hook Form and Zod. The look follows the IBM Carbon-based rules in [`medbrains/docs/DESIGN-RULES.md`](./medbrains/docs/DESIGN-RULES.md).
+- **Native:** Swift 6 + SwiftUI and Kotlin + Jetpack Compose (Material 3), sharing offline and sync logic through a Rust core via UniFFI. See [`RFCs/RFC-NATIVE-MOBILE.md`](./RFCs/RFC-NATIVE-MOBILE.md).
+- **Website:** Astro site and blog in `website/`.
+- **Monorepo:** pnpm workspaces and Turborepo; Biome for lint and format.
+
+## Repository layout
+
+```
+.
+├── README.md, ROADMAP.md, CONTRIBUTING.md, SECURITY.md, …
+├── Makefile                 # forwards every target to medbrains/Makefile
+├── RFCs/                    # design specs: authorisation, native apps, modules, …
+├── website/                 # Astro marketing site and blog
+└── medbrains/
+    ├── Cargo.toml           # Rust workspace
+    ├── Makefile             # dev, build, checks, tests (`make help`)
+    ├── docker-compose.yml   # Postgres, SpiceDB, Gotenberg, Orthanc, mail, ICD-API
+    ├── crates/              # backend crates; medbrains-server is the binary
+    ├── apps/
+    │   ├── web/             # main web app
+    │   ├── ios/             # SwiftUI: MedBrainsStaff, MedBrainsPatient, shared packages
+    │   ├── android/         # Compose: app-staff, app-patient, core/kit/ui modules
+    │   ├── desktop/         # Tauri shell around the web app
+    │   ├── docs/            # in-app user guide (Docusaurus)
+    │   ├── edge/            # offline edge appliance
+    │   └── mobile-*, tv/    # React Native — outgoing, reference only
+    ├── packages/            # shared TS packages: types, api, stores, schemas, design-system, …
+    ├── deploy/              # standalone server, on-prem, PACS and Helm kits
+    ├── infra/               # Terraform and Packer
+    ├── docs/                # design rules, accessibility, ops, compliance, SOPs
+    └── RFCs/                # more RFCs: data, onboarding, notifications, …
 ```
 
-**Key patterns:** multi-tenancy via PostgreSQL Row-Level Security (keyed on `tenant_id`, which is also the future Citus shard key) · declarative range-partitioning + retention for high-volume clinical/audit tables · JSONB-defined workflow engine · compile-time-checked SQL (SQLx) · a typed permission system shared between backend enforcement and frontend visibility. Large binaries (DICOM, scans, PDFs) live in object storage, never in the database.
+## Quick start
 
-### Tech stack
-
-| Layer | Technology |
-|-------|------------|
-| Backend | **Rust** (edition 2024, MSRV 1.85), Axum 0.8 + Tower, Tokio, SQLx, `thiserror`/`anyhow`, `tracing` |
-| Auth | JWT (Ed25519), Argon2id, transaction-scoped Row-Level Security |
-| Database | PostgreSQL 16+ — single source of truth; declarative partitioning + retention, Citus-ready sharding by `tenant_id` for scale |
-| Web | React 18 + TypeScript, Vite, **Mantine v7**, SCSS, TanStack Query, Zustand, React Hook Form + Zod |
-| Mobile / TV | React Native (New Architecture) + Paper v5; React Native for Android TV |
-| Tooling | pnpm + Turborepo, Biome (lint/format), compile-time SQL, response compression |
-
-## Quickstart
-
-> **Prerequisites:** Rust 1.85+, Node 20+, pnpm, Docker (for PostgreSQL).
+You need Rust (stable — `rust-toolchain.toml` pins the components), Node 24+, pnpm 10+ and Docker.
 
 ```bash
-# 1. Clone
 git clone https://github.com/DomnicAmalan/MedBrains.git
 cd MedBrains/medbrains
 
-# 2. Start the database (PostgreSQL 16)
-docker compose up -d
-
-# 3. Backend (migrations apply automatically on startup)
-make dev-backend          # Axum server on :8080
-
-# 4. Frontend
+cp .env.example .env     # local defaults; read the comments
 pnpm install
-pnpm --filter=@medbrains/web dev   # Vite dev server on :5173
+
+make doctor              # looks for common dev traps; changes nothing
+make db                  # Postgres, SpiceDB, Gotenberg and mail in Docker
+make dev-db-roles        # once per dev database: passwords for the app and worker roles
+make dev-backend         # the API server; migrations run on start
+make dev-frontend        # in a second terminal: the web app on http://localhost:5173
 ```
 
-The default seed creates a `super_admin` account for local development. Production deployments **must** set `MEDBRAINS_SEED_ADMIN_PASSWORD` and the JWT signing keys — the server refuses default credentials when `MEDBRAINS_ENV=production`.
+A fresh database is seeded with a development login, `admin` / `admin123`. When `MEDBRAINS_ENV=production` the seed refuses that default and needs `MEDBRAINS_SEED_ADMIN_PASSWORD`.
 
-See [`medbrains/CLAUDE.md`](./medbrains/CLAUDE.md) for the full architecture, coding standards, and module build workflow, and the [`RFCs/`](./medbrains/RFCs) directory for module specifications.
+`make dev` starts the whole stack behind a local HTTPS proxy at `https://medbrains.localhost`, with a local WHO ICD-11 service. `make help` lists every target.
 
-## Regulatory & compliance
+A backend build is large (well over a thousand dependencies). Point `CARGO_TARGET_DIR` at a disk with room to spare, and do not run two cargo builds at once on a laptop — `medbrains/scripts/build_guard.sh` tells you whether the machine is free.
 
-MedBrains treats compliance as a first-class engineering concern. Implemented or scaffolded:
+Native apps:
 
-- **Indian law:** NDPS Act 1985, Drugs & Cosmetics Act 1940 (Schedule H/H1/X/G), Clinical Establishments Act, PCPNDT, MTP, Mental Healthcare Act 2017, BMW Rules 2016.
-- **Accreditation:** NABH / JCI checklists (34 department checklists, 700+ criteria); IPSG patient-safety goals.
-- **Clinical coding:** ICD-10/11 (diagnoses), LOINC (labs), ATC + INN + RxNorm (drugs), CPT (procedures).
-- **Interoperability:** HL7 FHIR R4, ABDM Health ID, DICOM, HL7 v2 (planned/partial).
-- **Statutory reporting:** notifiable-disease (IDSP/IHIP) worklist + audit trail.
+```bash
+make native-ios          # generate the Xcode project and build MedBrainsStaff for the simulator
+make native-android      # build the Android staff app and run the kit unit tests
+```
 
-Security disclosures: see [SECURITY.md](./SECURITY.md). MedBrains is health software — please report vulnerabilities privately.
+## Tests and checks
 
-## Roadmap
+| Command | What it runs |
+|---|---|
+| `make test-unit` | Rust unit tests that need no database |
+| `make test-rust` | all Rust tests (needs the dev database) |
+| `make test-ts` | TypeScript unit tests (Vitest) |
+| `make test-e2e` | Playwright scenario tests against a running app |
+| `make smoke-test` | API smoke tests against a running backend |
+| `make native-ios-test` | Swift package tests |
+| `make lint` | Biome lint and format check |
+| `make check-all` | the static gates: API contract, permissions, row-level security, soft-delete filters, UI seam, secrets and more |
+| `make gate` | the pre-merge gate: Biome, typecheck, `check-all`, targeted clippy and tests |
 
-- [x] Multi-tenant core, RBAC (111 permissions), auth (Ed25519 JWT)
-- [x] OPD, billing, lab, pharmacy, IPD/nursing, perioperative
-- [x] Telemedicine, consent management, MRD, quality/CAPA
-- [x] Clinical knowledge base + notifiable-disease reporting
-- [ ] HL7 FHIR R4 export/import surface
-- [ ] ABDM (ABHA) full integration
-- [ ] Compliance dashboard (NABH/JCI evidence tracking)
-- [ ] AI clinical-decision-support conclusion layer (pluggable, audited)
+## Documentation
 
-Track progress in [Issues](https://github.com/DomnicAmalan/MedBrains/issues) and [Discussions](https://github.com/DomnicAmalan/MedBrains/discussions).
+- [Roadmap](./ROADMAP.md) — what is in progress and what is planned.
+- [Contributing](./CONTRIBUTING.md) — setup, branches, gates, the CLA.
+- [`CLAUDE.md`](./CLAUDE.md) — the full coding standards and module build workflow, written for people and coding agents alike.
+- [`RFCs/RFC-AUTHZ-2026-001-Design-and-Grammar.md`](./RFCs/RFC-AUTHZ-2026-001-Design-and-Grammar.md) — how authorisation works.
+- [`RFCs/RFC-NATIVE-MOBILE.md`](./RFCs/RFC-NATIVE-MOBILE.md) — the native apps.
+- [`medbrains/docs/DESIGN-RULES.md`](./medbrains/docs/DESIGN-RULES.md) and [`medbrains/docs/WCAG-2.2-RULES.md`](./medbrains/docs/WCAG-2.2-RULES.md) — design and accessibility rules.
+- [`medbrains/docs/ops/`](./medbrains/docs/ops) — database roles, backup, restore, monitoring.
+- [`medbrains/deploy/standalone/README.md`](./medbrains/deploy/standalone/README.md) — deploying on one server.
+- [`medbrains/apps/docs`](./medbrains/apps/docs) — the user guide shipped inside the app at `/help`.
 
-## Contributing
+## Licensing
 
-We welcome contributions — from a typo fix to a whole module. Start with [CONTRIBUTING.md](./CONTRIBUTING.md) and our [Code of Conduct](./CODE_OF_CONDUCT.md). Because MedBrains is dual-licensed, contributors sign off on the [Contributor License Agreement](./CLA.md) (a one-time, automated check on your first PR).
+MedBrains is offered under **the GNU AGPL-3.0 or a commercial licence**, at your choice.
 
-Good first issues are labelled [`good first issue`](https://github.com/DomnicAmalan/MedBrains/labels/good%20first%20issue).
+- Under the AGPL-3.0 you may use, change and host MedBrains free of charge. If you let others use a modified version over a network, you must offer them its source under the same licence.
+- A commercial licence is for those who cannot meet that condition — a closed product, or a hosted service whose changes stay private — and can include support. See [COMMERCIAL-LICENSE.md](./COMMERCIAL-LICENSE.md).
 
-## License
+Contributors sign the [Contributor Licence Agreement](./CLA.md) so that their work can be offered under both licences. You keep your copyright.
 
-MedBrains is **proprietary software**. Copyright © 2026 MedBrains. All rights reserved — see [LICENSE](./LICENSE).
+The MedBrains name and logo are trademarks and are not covered by the code licence. A fork must not present itself as MedBrains.
 
-The source is visible here for review only; using, hosting, copying or modifying it needs a written licence from MedBrains. Versions published before 28 September 2026 under the GNU AGPL-3.0 stay under that licence for those who received them.
+## Security
 
-## Funding & public-good status
+MedBrains holds patient data. Report vulnerabilities privately, as described in [SECURITY.md](./SECURITY.md) — never in a public issue.
 
-MedBrains is built to qualify as a **Digital Public Good**. If you represent a funder, ministry, or health programme, see [GRANTS.md](./GRANTS.md) for the thesis, eligibility status, and how to support the project. Individual sponsors: see [`.github/FUNDING.yml`](./.github/FUNDING.yml).
+Never put real patient data in an issue, a commit, a test or a fixture.
 
----
+## Community
 
-<div align="center">
-<sub>Built in the open for hospitals that can't afford to be locked in. ⭐ Star the repo if you believe health software should be a public good.</sub>
-</div>
+- Read [CONTRIBUTING.md](./CONTRIBUTING.md) and the [Code of Conduct](./CODE_OF_CONDUCT.md).
+- Bugs and feature requests go in [issues](https://github.com/DomnicAmalan/MedBrains/issues), using the templates.
+- Clinicians, pharmacists and hospital administrators: telling us where a workflow or a rule is wrong is worth as much as code.
+- General questions: hello@medbrains.in.
+- Funders and public-health programmes: see [GRANTS.md](./GRANTS.md).
