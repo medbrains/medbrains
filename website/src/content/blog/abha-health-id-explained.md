@@ -9,6 +9,9 @@ sources:
     url: "https://abdm.gov.in/"
   - title: "Create your ABHA number"
     url: "https://abha.abdm.gov.in/"
+cover:
+  src: ./images/abha.png
+  alt: "A soft 3D illustration of a blank health ID card with a QR pattern, a phone showing a security shield, a padlock and a folder of health records"
 ---
 
 If you have changed doctors or moved cities, you know the problem: your reports
