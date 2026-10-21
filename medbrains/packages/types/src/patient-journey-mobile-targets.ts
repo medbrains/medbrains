@@ -195,6 +195,9 @@ export function patientFlowMobileTarget(
 ): PatientJourneyMobileTarget {
   switch (module) {
     case "patient":
+    // ponytail: no mobile lab/radiology order screen exists; the chart lists both.
+    case "lab":
+    case "radiology":
       return { screen: "PatientDetail", params: { patientId: context.patientId } };
     case "opd":
       return {

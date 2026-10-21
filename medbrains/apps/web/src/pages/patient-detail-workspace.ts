@@ -2,7 +2,9 @@ import type {
   PatientFlowContextInput,
   PatientLabOrderRow,
   PatientRadiologyReport,
+  PharmacyOrder,
   PrescriptionHistoryItem,
+  RadiologyOrder,
 } from "@medbrains/types";
 import {
   activePatientLabOrderIdForJourney,
@@ -25,6 +27,10 @@ export interface PatientDetailJourneyContextInput
   prescriptions: readonly PrescriptionHistoryItem[];
   labOrders?: readonly PatientLabOrderRow[];
   radiologyReports?: readonly PatientRadiologyReport[];
+  /** Includes walk-in orders booked at the radiology desk with no encounter. */
+  radiologyOrders?: readonly Pick<RadiologyOrder, "id" | "status">[];
+  /** Includes direct counter sales that never had a prescription. */
+  pharmacyOrders?: readonly Pick<PharmacyOrder, "id" | "status">[];
 }
 
 export const PATIENT_DETAIL_TAB_VALUES = [
@@ -84,13 +90,23 @@ export function patientDetailOrderBasketRoute(
 export function patientDetailJourneyContext(input: PatientDetailJourneyContextInput) {
   // Defaulted: a caller with no lab list means this chart has no lab order,
   // which is a fact about the patient, not a reason to throw.
-  const { prescriptions, labOrders = [], radiologyReports = [], ...context } = input;
+  const {
+    prescriptions,
+    labOrders = [],
+    radiologyReports = [],
+    radiologyOrders = [],
+    pharmacyOrders = [],
+    ...context
+  } = input;
 
   return patientFlowJourneyContext({
     ...context,
     activeLabOrderId: activePatientLabOrderIdForJourney(labOrders),
-    activeRadiologyOrderId: activePatientRadiologyOrderIdForJourney(radiologyReports),
-    activePharmacyOrderId: activePatientPharmacyOrderIdForJourney(prescriptions),
+    activeRadiologyOrderId: activePatientRadiologyOrderIdForJourney(
+      radiologyReports,
+      radiologyOrders,
+    ),
+    activePharmacyOrderId: activePatientPharmacyOrderIdForJourney(prescriptions, pharmacyOrders),
     activePharmacyRxQueueId: activePatientPharmacyRxQueueIdForJourney(prescriptions),
   });
 }

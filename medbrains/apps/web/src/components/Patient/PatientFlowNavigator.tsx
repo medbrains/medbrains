@@ -17,7 +17,9 @@ import {
   IconBuildingStore,
   IconFileInvoice,
   IconFirstAidKit,
+  IconFlask,
   IconPill,
+  IconRadioactive,
   IconStethoscope,
   IconUser,
 } from "@tabler/icons-react";
@@ -52,6 +54,10 @@ interface PatientFlowNavigatorProps {
   activeInvoiceId?: string | null;
   activePharmacyOrderId?: string | null;
   activePharmacyRxQueueId?: string | null;
+  /** Leave undefined on a surface that did not look the patient's orders up:
+   *  the Lab / Radiology chips then stay hidden rather than claim "no order". */
+  activeLabOrderId?: string | null;
+  activeRadiologyOrderId?: string | null;
   activeOrderContext?: ClinicalOrderContext | null;
   completedEvents?: readonly ClinicalEventName[];
   isDeceased?: boolean;
@@ -74,6 +80,8 @@ const FLOW_VISUALS: Record<PatientFlowModule, FlowVisual> = {
   ipd: { color: "indigo", icon: <IconBed size={14} /> },
   emergency: { color: "red", icon: <IconFirstAidKit size={14} /> },
   camp: { color: "green", icon: <IconBuildingStore size={14} /> },
+  lab: { color: "cyan", icon: <IconFlask size={14} /> },
+  radiology: { color: "violet", icon: <IconRadioactive size={14} /> },
   pharmacy: { color: "lime", icon: <IconPill size={14} /> },
   billing: { color: "orange", icon: <IconFileInvoice size={14} /> },
 };
@@ -145,6 +153,8 @@ export function PatientFlowNavigator({
   activeInvoiceId,
   activePharmacyOrderId,
   activePharmacyRxQueueId,
+  activeLabOrderId,
+  activeRadiologyOrderId,
   activeOrderContext,
   completedEvents,
   isDeceased = false,
@@ -171,6 +181,8 @@ export function PatientFlowNavigator({
     activeInvoiceId,
     activePharmacyOrderId,
     activePharmacyRxQueueId,
+    activeLabOrderId,
+    activeRadiologyOrderId,
     activeAdmissionStatus,
     activeOrderContext,
     completedEvents,

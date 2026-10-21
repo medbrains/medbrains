@@ -27,6 +27,11 @@ export const patientDetailService = {
     api.setPatientDpdpConsent(...args),
   getClinicalTimeline: (patientId: string) => api.getPatientClinicalTimeline(patientId),
   listRadiologyReports: (patientId: string) => api.listPatientRadiologyReports(patientId),
+  // Every order for the patient, encounter or not — a desk walk-in included.
+  listPatientRadiologyOrders: (patientId: string) =>
+    api.listRadiologyOrders({ patient_id: patientId }),
+  listPatientPharmacyOrders: (patientId: string) =>
+    api.listPharmacyOrders({ patient_id: patientId }),
   acknowledgeRadiologyCriticalAlert: (alertId: string) =>
     api.acknowledgeRadiologyCriticalAlert(alertId),
   listPatients: (params: ListPatientsInput) => api.listPatients(params),

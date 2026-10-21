@@ -1,6 +1,11 @@
 // @vitest-environment node
 
-import { type PrescriptionHistoryItem, patientJourneyActionRoute } from "@medbrains/types";
+import {
+  buildPatientFlowReadiness,
+  type ClinicalJourneyContext,
+  type PrescriptionHistoryItem,
+  patientJourneyActionRoute,
+} from "@medbrains/types";
 import { describe, expect, it } from "vitest";
 import {
   isPatientDetailTabValue,
@@ -132,5 +137,80 @@ describe("patient-detail workspace routing", () => {
     expect(patientJourneyActionRoute("pharmacy.open_patient_queue", context)).toBe(
       "/pharmacy?tab=rx-queue&rx_queue_id=rx-queue-1&patient_id=patient-1",
     );
+  });
+});
+
+describe("patient flow bar for orders raised outside an encounter", () => {
+  // No encounter, no admission, no prescription: the patient walked up to the
+  // lab, radiology and pharmacy desks directly. Each desk must still show up.
+  const walkInContext = () =>
+    patientDetailJourneyContext({
+      patientId: "patient-1",
+      prescriptions: [],
+      labOrders: [
+        { id: "lab-cancelled", status: "cancelled", collected_at: null, verified_at: null },
+        { id: "lab-walk-in", status: "ordered", collected_at: null, verified_at: null },
+      ] as never,
+      radiologyReports: [],
+      radiologyOrders: [
+        { id: "rad-cancelled", status: "cancelled" },
+        { id: "rad-walk-in", status: "scheduled" },
+      ],
+      pharmacyOrders: [
+        { id: "ph-cancelled", status: "cancelled" },
+        { id: "ph-counter-sale", status: "ordered" },
+      ],
+    });
+  const flowItem = (context: ClinicalJourneyContext, id: string) =>
+    buildPatientFlowReadiness(context, () => true).items.find((item) => item.id === id);
+
+  it("links lab to the walk-in lab order, skipping the cancelled one", () => {
+    const context = walkInContext();
+    expect(context.activeLabOrderId).toBe("lab-walk-in");
+    expect(flowItem(context, "lab")).toMatchObject({
+      enabled: true,
+      href: "/lab/orders/lab-walk-in",
+    });
+  });
+
+  it("links radiology to an order that has no report yet", () => {
+    const context = walkInContext();
+    expect(context.activeRadiologyOrderId).toBe("rad-walk-in");
+    expect(flowItem(context, "radiology")).toMatchObject({
+      enabled: true,
+      href: "/radiology?tab=orders&order_id=rad-walk-in",
+    });
+  });
+
+  it("lights pharmacy for a direct counter sale with no prescription", () => {
+    const context = walkInContext();
+    expect(context.activePharmacyOrderId).toBe("ph-counter-sale");
+    expect(flowItem(context, "pharmacy")).toMatchObject({
+      enabled: true,
+      href: "/pharmacy/orders/ph-counter-sale",
+    });
+  });
+
+  it("says so plainly when the patient has only cancelled orders", () => {
+    const context = patientDetailJourneyContext({
+      patientId: "patient-1",
+      prescriptions: [],
+      labOrders: [
+        { id: "lab-cancelled", status: "cancelled", collected_at: null, verified_at: null },
+      ] as never,
+      radiologyOrders: [{ id: "rad-cancelled", status: "cancelled" }],
+    });
+    expect(flowItem(context, "lab")).toMatchObject({
+      enabled: false,
+      blockedReason: "context",
+      disabledReasonKey: "patientJourney.blockers.noLabOrder",
+      href: "/patients/patient-1#lab",
+    });
+    expect(flowItem(context, "radiology")).toMatchObject({
+      enabled: false,
+      blockedReason: "context",
+      disabledReasonKey: "patientJourney.blockers.noRadiologyOrder",
+      href: "/patients/patient-1#imaging",
+    });
   });
 });

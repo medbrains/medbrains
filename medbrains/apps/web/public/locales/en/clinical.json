@@ -224,6 +224,8 @@
       "linkInvoiceBeforeCollectingPayment": "Link an invoice before collecting payment",
       "linkPharmacyOrderBeforeDispensingMedicines": "Link the pharmacy order before dispensing medicines",
       "noActiveIpdAdmission": "No active IPD admission for this patient",
+      "noLabOrder": "No lab order for this patient",
+      "noRadiologyOrder": "No radiology order for this patient",
       "patientAlreadyHasActiveAdmission": "Patient already has an active admission",
       "permissionRequired": "Permission required",
       "requiresOneOfPermissions": "Requires one of {{permissions}}",
@@ -355,6 +357,10 @@
           "label": "IPD",
           "startDescription": "Start an IPD admission."
         },
+        "lab": {
+          "description": "Open the patient's current lab order.",
+          "label": "Lab"
+        },
         "opd": {
           "activeDescription": "Open active OPD encounter.",
           "label": "OPD",
@@ -367,6 +373,10 @@
         "pharmacy": {
           "description": "Open patient pharmacy review, orders, and dispensing queue.",
           "label": "Pharmacy"
+        },
+        "radiology": {
+          "description": "Open the patient's current radiology order.",
+          "label": "Radiology"
         }
       },
       "readySummary": "{{enabled}}/{{total}} ready",
