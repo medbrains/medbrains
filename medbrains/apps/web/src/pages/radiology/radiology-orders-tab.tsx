@@ -13,6 +13,7 @@ import { useSearchParams } from "react-router";
 import { DataTable, PageHeader, StatusDot, useClinicalEmit } from "@/components";
 import { PatientNameCell } from "@/components/PatientNameCell";
 import { Badge, Button, IconButton } from "@/components/ui";
+import { useCanCancelOrder } from "@/hooks/useCanCancelOrder";
 import { confirmDestructive } from "@/lib/confirm";
 import { statusColor } from "@/lib/status-colors";
 import { radiologyService } from "@/services/radiology.service";
@@ -24,7 +25,8 @@ export function RadiologyOrdersTab() {
   const canCreate = useHasPermission(P.RADIOLOGY.ORDERS_CREATE);
   const canReport = useHasPermission(P.RADIOLOGY.REPORTS_CREATE);
   const canVerify = useHasPermission(P.RADIOLOGY.REPORTS_VERIFY);
-  const canCancel = useHasPermission(P.RADIOLOGY.ORDERS_CANCEL);
+  // The server lets the ordering doctor or the radiology desk cancel.
+  const canCancel = useCanCancelOrder(P.RADIOLOGY.ORDERS_CANCEL, P.RADIOLOGY.ORDERS_CANCEL_ANY);
   const canPrintReports = useHasPermission(P.RADIOLOGY.ORDERS_VIEW);
   const qc = useQueryClient();
   const emit = useClinicalEmit();
@@ -145,7 +147,7 @@ export function RadiologyOrdersTab() {
               <IconEye size={16} />
             </IconButton>
           </Tooltip>
-          {o.status === "ordered" && canCancel && (
+          {o.status === "ordered" && canCancel(o.ordered_by) && (
             <Tooltip label="Cancel">
               <IconButton
                 tone="danger"

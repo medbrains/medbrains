@@ -345,6 +345,8 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
             permissions::patients::notes::VIEW,
             permissions::radiology::orders::CANCEL,
             permissions::radiology::orders::CREATE,
+            // A doctor who orders imaging has to be able to read the report.
+            permissions::radiology::orders::VIEW,
             permissions::radiology::reports::CREATE,
             permissions::radiology::reports::VERIFY,
             permissions::specialty::cath_lab::devices::MANAGE,
@@ -777,6 +779,9 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
             permissions::patients::FIND,
             permissions::patients::CREATE,
             permissions::lab::orders::DIRECT,
+            // The lab desk cancels orders it cannot run, whoever placed
+            // them; a doctor cancels only their own.
+            permissions::lab::orders::CANCEL_ANY,
             // Lab tests patients ask for from a patient app (UHI) wait on
             // the UHI requests screen for the lab to accept or decline.
             permissions::uhi::requests::VIEW,
@@ -1621,6 +1626,9 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
             permissions::radiology::orders::CREATE,
             permissions::radiology::reports::CREATE,
             permissions::radiology::reports::VERIFY,
+            // The radiology desk cancels orders it cannot perform, whoever
+            // placed them; a doctor cancels only their own.
+            permissions::radiology::orders::CANCEL_ANY,
         ],
     },
     BuiltInRole {

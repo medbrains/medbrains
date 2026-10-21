@@ -12,7 +12,9 @@
 //! `bulk_check` (N→1) rather than a per-object loop.
 
 mod handoff;
+mod order_cancel;
 pub use handoff::{BILLING, HandOff, PATHOLOGY, PHARMACY, hand_off, hand_visit_to_billing};
+pub use order_cancel::require_order_cancel;
 
 use uuid::Uuid;
 

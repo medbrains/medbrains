@@ -17,7 +17,7 @@ export interface PermissionDef {
   module: string;
 }
 
-/** 1127 permissions, one per constant in the Rust source. */
+/** 1129 permissions, one per constant in the Rust source. */
 export const PERMISSIONS: PermissionDef[] = [
   // dashboard
   {
@@ -469,6 +469,12 @@ export const PERMISSIONS: PermissionDef[] = [
     code: "lab.orders.direct",
     label: "Register a walk-in lab order",
     description: "For a patient who comes to the laboratory without a doctor's order in this hospital — self-referred, or carrying an outside prescription. Opens the lab visit, records who referred them (a hospital doctor, an outside doctor, or self) and raises the bill, in one step at the lab counter.",
+    module: "lab",
+  },
+  {
+    code: "lab.orders.cancel_any",
+    label: "Cancel any lab order, not only your own",
+    description: "A doctor cancels the tests they ordered. Cancelling somebody else's order is the laboratory's call — a duplicate, a rejected sample, a test the lab cannot run — so it is held by the lab desk, not by every doctor who can see the patient.",
     module: "lab",
   },
   {
@@ -1813,6 +1819,12 @@ export const PERMISSIONS: PermissionDef[] = [
     code: "radiology.orders.cancel",
     label: "Cancel Radiology Order",
     description: "Cancel pending radiology orders",
+    module: "radiology",
+  },
+  {
+    code: "radiology.orders.cancel_any",
+    label: "Cancel any imaging order, not only your own",
+    description: "A doctor cancels the studies they ordered. Cancelling somebody else's order is the radiology department's call — a duplicate, a contraindication, a study the modality cannot perform — so it is held by the radiology desk, not by every doctor on the case.",
     module: "radiology",
   },
   {
@@ -8608,11 +8620,13 @@ export const P = {
     DISPATCH_LIST: "lab.dispatch.list",
     DISPATCH_MANAGE: "lab.dispatch.manage",
     ORDERS: {
+      CANCEL_ANY: "lab.orders.cancel_any",
       CREATE: "lab.orders.create",
       DIRECT: "lab.orders.direct",
       LIST: "lab.orders.list",
       VIEW: "lab.orders.view",
     },
+    ORDERS_CANCEL_ANY: "lab.orders.cancel_any",
     ORDERS_CREATE: "lab.orders.create",
     ORDERS_DIRECT: "lab.orders.direct",
     ORDERS_LIST: "lab.orders.list",
@@ -9635,11 +9649,13 @@ export const P = {
     MODALITIES_MANAGE: "radiology.modalities.manage",
     ORDERS: {
       CANCEL: "radiology.orders.cancel",
+      CANCEL_ANY: "radiology.orders.cancel_any",
       CREATE: "radiology.orders.create",
       LIST: "radiology.orders.list",
       VIEW: "radiology.orders.view",
     },
     ORDERS_CANCEL: "radiology.orders.cancel",
+    ORDERS_CANCEL_ANY: "radiology.orders.cancel_any",
     ORDERS_CREATE: "radiology.orders.create",
     ORDERS_LIST: "radiology.orders.list",
     ORDERS_VIEW: "radiology.orders.view",
@@ -10467,6 +10483,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.PHARMACY.VALIDATION.BYPASS,
       P.RADIOLOGY.ORDERS.CANCEL,
       P.RADIOLOGY.ORDERS.CREATE,
+      P.RADIOLOGY.ORDERS.VIEW,
       P.RADIOLOGY.REPORTS.CREATE,
       P.RADIOLOGY.REPORTS.VERIFY,
       P.REGULATORY.ADR.CREATE,
@@ -10883,6 +10900,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.LAB.CATALOG.MANAGE,
       P.LAB.DISPATCH.LIST,
       P.LAB.DISPATCH.MANAGE,
+      P.LAB.ORDERS.CANCEL_ANY,
       P.LAB.ORDERS.CREATE,
       P.LAB.ORDERS.DIRECT,
       P.LAB.ORDERS.LIST,
@@ -11608,6 +11626,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.RADIOLOGY.EXAMS.MANAGE,
       P.RADIOLOGY.MODALITIES.MANAGE,
       P.RADIOLOGY.ORDERS.CANCEL,
+      P.RADIOLOGY.ORDERS.CANCEL_ANY,
       P.RADIOLOGY.ORDERS.CREATE,
       P.RADIOLOGY.ORDERS.LIST,
       P.RADIOLOGY.ORDERS.VIEW,

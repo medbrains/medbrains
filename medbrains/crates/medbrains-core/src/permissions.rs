@@ -265,6 +265,13 @@ pub mod lab {
         /// (a hospital doctor, an outside doctor, or self) and raises the
         /// bill, in one step at the lab counter.
         pub const DIRECT: &str = "lab.orders.direct";
+        /// Cancel any lab order, not only your own.
+        ///
+        /// A doctor cancels the tests they ordered. Cancelling somebody
+        /// else's order is the laboratory's call — a duplicate, a rejected
+        /// sample, a test the lab cannot run — so it is held by the lab desk,
+        /// not by every doctor who can see the patient.
+        pub const CANCEL_ANY: &str = "lab.orders.cancel_any";
     }
 
     /// The test catalogue: which tests exist, and what they mean.
@@ -1063,6 +1070,13 @@ pub mod radiology {
         pub const VIEW: &str = "radiology.orders.view";
         pub const CREATE: &str = "radiology.orders.create";
         pub const CANCEL: &str = "radiology.orders.cancel";
+        /// Cancel any imaging order, not only your own.
+        ///
+        /// A doctor cancels the studies they ordered. Cancelling somebody
+        /// else's order is the radiology department's call — a duplicate, a
+        /// contraindication, a study the modality cannot perform — so it is
+        /// held by the radiology desk, not by every doctor on the case.
+        pub const CANCEL_ANY: &str = "radiology.orders.cancel_any";
     }
 
     pub mod reports {

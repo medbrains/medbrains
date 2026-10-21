@@ -1423,6 +1423,20 @@ pub async fn cancel_order(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
+    // Seeing the patient is not cancelling somebody else's tests.
+    let ordered_by: Uuid =
+        sqlx::query_scalar("SELECT ordered_by FROM lab_orders WHERE id = $1 AND tenant_id = $2")
+            .bind(id)
+            .bind(claims.tenant_id)
+            .fetch_optional(&mut *tx)
+            .await?
+            .ok_or(AppError::NotFound)?;
+    medbrains_authz_gate::require_order_cancel(
+        &claims,
+        ordered_by,
+        permissions::lab::orders::CANCEL_ANY,
+    )?;
+
     let order = sqlx::query_as::<_, LabOrder>(
         "UPDATE lab_orders SET \
          status = 'cancelled'::lab_order_status, updated_at = now() \
