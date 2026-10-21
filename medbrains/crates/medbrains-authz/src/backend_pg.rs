@@ -85,16 +85,36 @@ impl AuthzBackend for PgAuthzBackend {
         // rewrites) is intentionally NOT added: the SpiceDB schema — the source
         // of truth the durable backend must agree with — models none of them
         // (`department` has only `member: user`, `access_group_members` is flat,
-        // and no `tuple_set` subject grants are ever written). Adding traversal
-        // here would make the PG fallback MORE permissive than SpiceDB, i.e. a
-        // security divergence. Caveated tuples are denied (the caveat evaluator
-        // is not run in SQL).
+        // and the only `tuple_set` subjects written are the parent pointers
+        // below). Adding traversal here would make the PG fallback MORE
+        // permissive than SpiceDB, i.e. a security divergence. Caveated tuples
+        // are denied (the caveat evaluator is not run in SQL).
+        //
+        // The one hop the schema does model — the `<parent>->view` arrow (schema.zed: `permission view = … +
+        // patient->view`) rides in the same query: the order's parent-pointer
+        // tuple names the patient, and the subject match runs against the
+        // patient too. NULL when the type has no arrow or `relation` is not
+        // view — edit/cancel never traverse it, exactly as in the schema.
+        let arrow = view_arrow(object_type, relation);
         let dept_strs: Vec<String> = ctx.department_ids.iter().map(Uuid::to_string).collect();
         let allowed: bool = sqlx::query_scalar(
             "SELECT EXISTS (
                  SELECT 1 FROM relation_tuples rt
                  WHERE rt.tenant_id = $1
-                   AND rt.object_type = $2 AND rt.object_id = $3
+                   AND (
+                        (rt.object_type = $2 AND rt.object_id = $3)
+                     OR (rt.object_type = $9 AND rt.object_id IN (
+                            SELECT substr(a.subject_id, length($9) + 2)::uuid
+                            FROM relation_tuples a
+                            WHERE a.tenant_id = $1
+                              AND a.object_type = $2 AND a.object_id = $3
+                              AND a.relation = $9
+                              AND a.subject_type = 'tuple_set'
+                              AND a.subject_id LIKE $9 || ':%'
+                              AND a.status = 'active'
+                              AND (a.expires_at IS NULL OR a.expires_at > now())
+                         ))
+                   )
                    AND rt.relation = ANY($4)
                    AND rt.status = 'active'
                    AND (rt.expires_at IS NULL OR rt.expires_at > now())
@@ -121,6 +141,7 @@ impl AuthzBackend for PgAuthzBackend {
         .bind(&ctx.role)
         .bind(&dept_strs)
         .bind(ctx.user_id)
+        .bind(arrow)
         .fetch_one(&mut *tx)
         .await?;
 
@@ -211,24 +232,40 @@ impl AuthzBackend for PgAuthzBackend {
 
         let dept_strs: Vec<String> = ctx.department_ids.iter().map(Uuid::to_string).collect();
 
+        // Same arrow as `check`: the objects reached directly, plus those whose
+        // parent pointer names a parent reached directly.
+        let arrow = view_arrow(object_type, relation);
         let rows: Vec<(Uuid,)> = sqlx::query_as(
-            "SELECT DISTINCT object_id FROM relation_tuples
-             WHERE tenant_id = $1
-               AND object_type = $2
-	               AND relation = ANY($3)
-	               AND status = 'active'
-	               AND (expires_at IS NULL OR expires_at > now())
-	               AND caveat IS NULL
-	               AND (
-                  (subject_type = 'user' AND subject_id = $4)
-                  OR (subject_type = 'role' AND subject_id = $5)
-                  OR (subject_type = 'department' AND subject_id = ANY($6))
-                  OR (subject_type = 'group' AND subject_id IN (
-                       SELECT group_id::text FROM access_group_members
-                       WHERE tenant_id = $1 AND user_id = $7
-                         AND (expires_at IS NULL OR expires_at > now())
-                  ))
-               )
+            "WITH direct AS (
+                 SELECT DISTINCT object_type, object_id FROM relation_tuples
+                 WHERE tenant_id = $1
+                   AND (object_type = $2 OR object_type = $9)
+                   AND relation = ANY($3)
+                   AND status = 'active'
+                   AND (expires_at IS NULL OR expires_at > now())
+                   AND caveat IS NULL
+                   AND (
+                      (subject_type = 'user' AND subject_id = $4)
+                      OR (subject_type = 'role' AND subject_id = $5)
+                      OR (subject_type = 'department' AND subject_id = ANY($6))
+                      OR (subject_type = 'group' AND subject_id IN (
+                           SELECT group_id::text FROM access_group_members
+                           WHERE tenant_id = $1 AND user_id = $7
+                             AND (expires_at IS NULL OR expires_at > now())
+                      ))
+                   )
+             )
+             SELECT object_id FROM direct WHERE object_type = $2
+             UNION
+             SELECT a.object_id FROM relation_tuples a
+             JOIN direct d ON d.object_type = $9
+                          AND a.subject_id = $9 || ':' || d.object_id::text
+             WHERE a.tenant_id = $1
+               AND a.object_type = $2
+               AND a.relation = $9
+               AND a.subject_type = 'tuple_set'
+               AND a.status = 'active'
+               AND (a.expires_at IS NULL OR a.expires_at > now())
              LIMIT $8",
         )
         .bind(ctx.tenant_id)
@@ -241,6 +278,7 @@ impl AuthzBackend for PgAuthzBackend {
         // One past the cap, so a full page tells us the set is larger without
         // a second COUNT over the same predicate.
         .bind(i64::try_from(LIST_ACCESSIBLE_CAP + 1).unwrap_or(i64::MAX))
+        .bind(arrow)
         .fetch_all(&mut *tx)
         .await?;
 
@@ -425,12 +463,12 @@ fn parse_source(s: &str) -> TupleSource {
 }
 
 /// The tuple relations that satisfy a check for `relation` — the enum
-/// relations implying it, plus the raw membership relations the SpiceDB
+/// relations implying it, plus the raw membership relations the `SpiceDB`
 /// schema folds into `permission view` (`infra/spicedb/schema.zed`:
 /// `view = … + dept_member + ward_member + …`, never `edit`). The routes
 /// write those as `department#member` subjects (`dept_member` on encounters
 /// and admissions, `ward_member` on admissions); without them here the
-/// fallback refuses every department-based read SpiceDB would allow, and a
+/// fallback refuses every department-based read `SpiceDB` would allow, and a
 /// nurse is told the arrival she just registered does not exist.
 pub(crate) fn candidate_relation_codes(relation: Relation) -> Vec<&'static str> {
     let mut codes: Vec<&'static str> = relation.implied_by().iter().map(|r| r.as_code()).collect();
@@ -442,3 +480,43 @@ pub(crate) fn candidate_relation_codes(relation: Relation) -> Vec<&'static str> 
 
 /// Raw relations (no `Relation` variant) that grant `view` in the schema.
 pub(crate) const RAW_VIEW_RELATIONS: &[&str] = &["dept_member", "ward_member"];
+
+/// The `<parent>->view` arrows of schema.zed, as (child type, parent type).
+/// The parent-pointer relation is named after the parent type and its tuple
+/// is `child:<id>#<parent>@tuple_set:<parent>:<parent_id>` — what `SpiceDB`
+/// reads as `child:<id>#patient@patient:<parent_id>`.
+///
+/// ponytail: one hop — no parent listed here has an arrow of its own. A
+/// chained arrow needs a recursive CTE here, and a schema change to want it.
+const VIEW_ARROWS: &[(&str, &str)] = &[("lab_order", "patient"), ("radiology_order", "patient")];
+
+/// The parent type whose `view` grants `view` on `object_type`, if any.
+/// Only `view` traverses the arrow: edit, cancel and results stay with the
+/// order's own relations, as in the schema.
+fn view_arrow(object_type: &str, relation: Relation) -> Option<&'static str> {
+    if relation != Relation::Viewer {
+        return None;
+    }
+    VIEW_ARROWS
+        .iter()
+        .find(|(child, _)| *child == object_type)
+        .map(|(_, parent)| *parent)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn only_view_traverses_the_order_to_patient_arrow() {
+        assert_eq!(view_arrow("lab_order", Relation::Viewer), Some("patient"));
+        assert_eq!(
+            view_arrow("radiology_order", Relation::Viewer),
+            Some("patient")
+        );
+        assert_eq!(view_arrow("lab_order", Relation::Editor), None);
+        assert_eq!(view_arrow("lab_order", Relation::Owner), None);
+        assert_eq!(view_arrow("patient", Relation::Viewer), None);
+        assert_eq!(view_arrow("pharmacy_order", Relation::Viewer), None);
+    }
+}
