@@ -289,31 +289,22 @@ if [[ -d "$migrations_dir" ]]; then
   previous_migrations_hash="$(cat "$migration_stamp" 2>/dev/null || true)"
 
   if [[ "$current_migrations_hash" != "$previous_migrations_hash" ]]; then
-    echo "Migration files changed; refreshing backend embedded migration cache..."
-    cargo clean -p medbrains-db >/dev/null
-    cargo clean -p medbrains-server >/dev/null
+    # medbrains-db-migrations' build.rs reruns on src/migrations, so a changed
+    # migration rebuilds just what embeds it. `cargo clean` here used to throw
+    # away medbrains-db and its 115 dependents for nothing.
+    echo "Migration files changed; the backend rebuild picks them up."
     printf "%s\n" "$current_migrations_hash" >"$migration_stamp"
     backend_needs_build=true
   fi
 fi
 
-# Parallel rustc front-end: cargo already parallelizes across crates, but
-# `medbrains-server` is one ~226k-line crate whose front-end (parse/typeck/borrowck/
-# MIR) is the serial bottleneck on stable. `-Zthreads` multi-threads it. RUSTC_BOOTSTRAP=1
-# unlocks the flag on the *pinned stable* compiler (same codegen as CI, just threaded),
-# so we don't drift onto nightly. Opt out with MB_RUSTC_THREADS=1; tune with e.g. =10.
-MB_RUSTC_THREADS="${MB_RUSTC_THREADS:-8}"
+# One plain build, the same flags every other build in this target dir uses.
+# RUSTC_BOOTSTRAP/-Zthreads/CARGO_INCREMENTAL=0 here alternated with `make dev`
+# and the proxy build, so each evicted the other's artefacts; the crate it was
+# meant to speed up is now ~17k lines with a 12 s front-end.
 if [[ "$SKIP_BACKEND_BUILD" != "true" || "$backend_needs_build" == "true" || ! -x "$BACKEND_BIN" ]]; then
-  echo "Compiling backend before launch (parallel front-end: ${MB_RUSTC_THREADS} threads)..."
-  # CARGO_INCREMENTAL=0 is load-bearing, not tuning: the threaded front-end and
-  # the incremental dep-graph encoder disagree, and rustc 1.94.1 ICEs with
-  # "trying to encode a dep node twice" partway through medbrains-server.
-  # Clearing target/debug/incremental does not help -- the two features simply
-  # cannot both be on. Incremental buys little here anyway, since this builds
-  # one crate that has just changed.
-  RUSTC_BOOTSTRAP=1 CARGO_INCREMENTAL=0 \
-    RUSTFLAGS="${RUSTFLAGS:-} -Zthreads=${MB_RUSTC_THREADS}" \
-    cargo build -p medbrains-server --bin medbrains-server
+  echo "Compiling backend before launch..."
+  cargo build -p medbrains-server --bin medbrains-server
 fi
 
 echo "Compiling Pingora proxy before launch..."
