@@ -149,6 +149,12 @@ pub const REBAC_RESOURCES: &[ResourceDef] = &[
                 name: "editor",
                 subject_types: USER,
             },
+            // Parent pointer for `patient->view`: whoever may view the
+            // patient may read the order.
+            RebacRelation {
+                name: "patient",
+                subject_types: &["patient"],
+            },
         ],
         permissions: &["view", "edit", "cancel", "add_results", "share"],
     },
@@ -202,6 +208,12 @@ pub const REBAC_RESOURCES: &[ResourceDef] = &[
             RebacRelation {
                 name: "editor",
                 subject_types: USER,
+            },
+            // Parent pointer for `patient->view`: whoever may view the
+            // patient may read the order.
+            RebacRelation {
+                name: "patient",
+                subject_types: &["patient"],
             },
         ],
         permissions: &["view", "edit", "share"],

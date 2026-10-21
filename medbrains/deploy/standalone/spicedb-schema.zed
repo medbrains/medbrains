@@ -157,7 +157,13 @@ definition lab_order {
     relation viewer: user
     relation editor: user
 
-    permission view = ordering_provider + dept_member + group_member + viewer + editor
+    // FK: lab_orders.patient_id. Whoever may view the patient may read the
+    // patient's orders, including a walk-in order placed at the lab desk
+    // with no doctor's encounter behind it. Read only: edit, cancel and
+    // add_results stay with the order's own relations.
+    relation patient: patient
+
+    permission view = ordering_provider + dept_member + group_member + viewer + editor + patient->view
     permission edit = ordering_provider + editor
     permission cancel = ordering_provider
     permission add_results = ordering_provider + dept_member
@@ -196,7 +202,11 @@ definition radiology_order {
     relation viewer: user
     relation editor: user
 
-    permission view = ordering_provider + dept_member + group_member + viewer + editor
+    // FK: radiology_orders.patient_id — read access for whoever may view the
+    // patient, as on lab_order.
+    relation patient: patient
+
+    permission view = ordering_provider + dept_member + group_member + viewer + editor + patient->view
     permission edit = ordering_provider + editor
     permission share = ordering_provider
 }
