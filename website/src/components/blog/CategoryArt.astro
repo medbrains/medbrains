@@ -1,0 +1,35 @@
+---
+// The topic's illustration: a soft 3D object on its pastel tint. Stands in
+// for a cover wherever a post has none, so no post ever needs a stock photo.
+import { Image } from "astro:assets";
+import { getCategory, type CategorySlug } from "../../data/blog-categories";
+import { topicImage } from "../../data/topic-images";
+
+interface Props {
+  slug: CategorySlug;
+  size?: "sm" | "lg";
+  /** Above the fold: load at once. */
+  eager?: boolean;
+}
+const { slug, size = "sm", eager = false } = Astro.props;
+const c = getCategory(slug);
+---
+
+<div class:list={["art", size]} style={`--tint:${c.tint}`} aria-hidden="true">
+  <Image
+    src={topicImage(slug)}
+    alt=""
+    widths={size === "lg" ? [320, 480, 640] : [240, 360, 480]}
+    sizes={size === "lg" ? "(max-width: 760px) 60vw, 320px" : "(max-width: 760px) 50vw, 240px"}
+    loading={eager ? "eager" : "lazy"}
+  />
+</div>
+
+<style>
+  .art {
+    position: relative; overflow: hidden; display: grid; place-items: center;
+    aspect-ratio: 16 / 9; border-radius: inherit; background: var(--tint);
+  }
+  .art :global(img) { height: 100%; width: auto; max-width: 100%; object-fit: contain; }
+  .lg { aspect-ratio: 1; max-width: 320px; border-radius: 28px; }
+</style>

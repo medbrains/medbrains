@@ -1,0 +1,76 @@
+---
+import PageHead from "../../components/blog/PageHead.astro";
+import SearchForm from "../../components/blog/SearchForm.astro";
+import { SITE } from "../../consts";
+import BlogLayout from "../../layouts/BlogLayout.astro";
+import { breadcrumbs } from "../../lib/blog";
+---
+
+<BlogLayout
+  title={`Search the blog | ${SITE.brand}`}
+  description={`Search every article on the ${SITE.brand} blog.`}
+  schema={[breadcrumbs(Astro.site, [{ name: "Blog", path: "/blog" }, { name: "Search", path: "/blog/search" }])]}
+  noindex
+>
+  <PageHead crumbs={[{ name: "Blog", href: "/blog" }, { name: "Search" }]} eyebrow="Search" title="Search the blog" />
+  <section class="wrap body">
+    <div class="box"><SearchForm id="page-search" size="lg" /></div>
+    <p class="status" role="status" aria-live="polite" data-status></p>
+    <ol class="results" data-results></ol>
+    <noscript><p>Search needs JavaScript. Browse the <a href="/blog">latest articles</a> instead.</p></noscript>
+  </section>
+</BlogLayout>
+
+<script>
+  // Pagefind's index is written into /pagefind after `astro build`, so it
+  // exists in a built site and not in `astro dev`.
+  interface Hit { url: string; excerpt: string; meta: { title?: string } }
+  type Pagefind = { search: (q: string) => Promise<{ results: { data: () => Promise<Hit> }[] }> };
+
+  const q = new URLSearchParams(location.search).get("q")?.trim() ?? "";
+  const input = document.querySelector<HTMLInputElement>("#page-search");
+  const status = document.querySelector("[data-status]");
+  const list = document.querySelector("[data-results]");
+  if (input) input.value = q;
+
+  async function run() {
+    if (!q || !status || !list) return;
+    status.textContent = "Searching…";
+    try {
+      const path = "/pagefind/pagefind.js";
+      const pagefind = (await import(/* @vite-ignore */ path)) as Pagefind;
+      const found = await pagefind.search(q);
+      const hits = await Promise.all(found.results.slice(0, 20).map((r) => r.data()));
+      status.textContent = hits.length
+        ? `${hits.length} ${hits.length === 1 ? "article" : "articles"} found for “${q}”.`
+        : `No articles found for “${q}”. Try a shorter or different word.`;
+      list.replaceChildren(
+        ...hits.map((h) => {
+          const li = document.createElement("li");
+          const a = document.createElement("a");
+          a.href = h.url.replace(/\/index\.html$|\.html$/, "").replace(/\/$/, "") || "/";
+          a.textContent = h.meta.title ?? h.url;
+          const p = document.createElement("p");
+          // The excerpt is our own article text with <mark> around the match.
+          p.innerHTML = h.excerpt;
+          li.append(a, p);
+          return li;
+        }),
+      );
+    } catch {
+      status.textContent = "Search is not available right now. Browse the latest articles instead.";
+    }
+  }
+  run();
+</script>
+
+<style>
+  .body { padding-block: 0 96px; max-width: 820px; margin-inline: auto; }
+  .box { margin-top: -8px; }
+  .status { margin: 24px 0 8px; color: var(--ink-2); }
+  .results { margin: 0; padding: 0; list-style: none; display: grid; gap: 12px; }
+  .results :global(li) { padding: 20px 24px; border: 1px solid var(--line); border-radius: var(--radius-lg); box-shadow: var(--shadow-soft); }
+  .results :global(a) { font-weight: 700; font-size: 1.15rem; color: var(--ink); }
+  .results :global(p) { margin: 8px 0 0; color: var(--ink-2); }
+  .results :global(mark) { background: var(--blue-tint); color: var(--ink); padding: 0 2px; border-radius: 3px; }
+</style>

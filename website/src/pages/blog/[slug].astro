@@ -1,103 +1,373 @@
 ---
-import { getCollection, render, type CollectionEntry } from "astro:content";
-import Footer from "../../components/Footer.astro";
-import Header from "../../components/Header.astro";
-import WhatsAppFloat from "../../components/WhatsAppFloat.astro";
+import { Image, getImage } from "astro:assets";
+import { getEntry, render } from "astro:content";
+import AuthorCard from "../../components/blog/AuthorCard.astro";
+import CategoryBadge from "../../components/blog/CategoryBadge.astro";
+import Icon from "../../components/blog/Icon.astro";
+import PostGrid from "../../components/blog/PostGrid.astro";
+import ShareBar from "../../components/blog/ShareBar.astro";
+import Toc from "../../components/blog/Toc.astro";
 import { SITE } from "../../consts";
-import Base from "../../layouts/Base.astro";
+import { getCategory } from "../../data/blog-categories";
+import BlogLayout from "../../layouts/BlogLayout.astro";
+import {
+  absolute,
+  breadcrumbs,
+  formatDate,
+  getAuthorNames,
+  getPosts,
+  isMedical,
+  organization,
+  postPath,
+  readingTime,
+  relatedPosts,
+  tagSlug,
+  type Post,
+  istDate,
+  wordCount,
+} from "../../lib/blog";
 
 export async function getStaticPaths() {
-  const posts = await getCollection("blog");
-  return posts.map((post) => ({ params: { slug: post.id }, props: { post } }));
+  const posts = await getPosts();
+  return posts.map((post) => ({ params: { slug: post.id }, props: { post, all: posts } }));
 }
 
-const { post } = Astro.props as { post: CollectionEntry<"blog"> };
-const { Content } = await render(post);
-const { title, description, date, tags, sources } = post.data;
-const url = new URL(`/blog/${post.id}`, Astro.site).href;
-const day = new Intl.DateTimeFormat("en-IN", { dateStyle: "long" });
+const { post, all } = Astro.props as { post: Post; all: Post[] };
+const { Content, headings } = await render(post);
+const { title, seoTitle, description, date, updated, tags, sources, category, reviewer, cover, ogImage, faq } = post.data;
+const author = await getEntry(post.data.author);
+if (!author) throw new Error(`Post ${post.id} names an author that does not exist`);
+const topic = getCategory(category);
+const medical = isMedical(post);
+const modified = updated ?? date;
+const url = absolute(postPath(post), Astro.site);
+const authorUrl = absolute(`/blog/author/${author.id}`, Astro.site);
+const related = relatedPosts(post, all);
+const authorNames = await getAuthorNames();
+const minutes = readingTime(post);
+
+// Share image: the post's own, else its cover, else the site card (Base default).
+const shareSrc = ogImage ?? cover?.src;
+const share = shareSrc ? await getImage({ src: shareSrc, width: 1200, height: 630, fit: "cover", format: "jpg" }) : undefined;
+const image = share
+  ? { url: absolute(share.src, Astro.site), width: 1200, height: 630, alt: cover?.alt ?? title }
+  : undefined;
+// Google's article images: 16:9, 4:3 and 1:1, each at least 1200px wide.
+const crops = shareSrc
+  ? await Promise.all(
+      [[1200, 675], [1200, 900], [1200, 1200]].map(async ([w, h]) => {
+        const img = await getImage({ src: shareSrc, width: w, height: h, fit: "cover", format: "jpg" });
+        return { "@type": "ImageObject", url: absolute(img.src, Astro.site), width: w, height: h };
+      }),
+    )
+  : [];
+
+const authorNode = {
+  "@type": author.data.type,
+  name: author.data.name,
+  url: authorUrl,
+  ...(author.data.credentials ? { honorificSuffix: author.data.credentials } : {}),
+};
+const reviewerNode = reviewer && {
+  "@type": "Person",
+  name: reviewer.name,
+  honorificSuffix: reviewer.credentials,
+  ...(reviewer.url ? { url: reviewer.url } : {}),
+};
+const page = {
+  "@type": medical ? "MedicalWebPage" : "BlogPosting",
+  "@id": `${url}#article`,
+  headline: title.slice(0, 110),
+  description,
+  url,
+  image: crops.length ? crops : absolute("/og.png", Astro.site),
+  ...(crops.length ? { thumbnailUrl: crops[0].url } : {}),
+  datePublished: istDate(date),
+  dateModified: istDate(modified),
+  wordCount: wordCount(post),
+  isAccessibleForFree: true,
+  author: authorNode,
+  publisher: organization(Astro.site),
+  mainEntityOfPage: { "@type": "WebPage", "@id": url },
+  inLanguage: "en-IN",
+  articleSection: topic.name,
+  keywords: tags.join(", "),
+  citation: sources.map((s) => ({ "@type": "CreativeWork", name: s.title, url: s.url })),
+  ...(medical
+    ? {
+        about: tags.map((t) => ({ "@type": "Thing", name: t })),
+        ...(reviewerNode ? { reviewedBy: reviewerNode, lastReviewed: istDate(modified).slice(0, 10) } : {}),
+      }
+    : {}),
+};
 const schema = [
-  {
-    "@type": "BlogPosting",
-    headline: title,
-    description,
-    datePublished: date.toISOString(),
-    url,
-    author: { "@type": "Organization", name: SITE.brand },
-    publisher: { "@type": "Organization", name: SITE.brand },
-    citation: sources.map((s) => s.url),
-  },
-  {
-    "@type": "BreadcrumbList",
-    itemListElement: [
-      { "@type": "ListItem", position: 1, name: SITE.brand, item: new URL("/", Astro.site).href },
-      { "@type": "ListItem", position: 2, name: "Blog", item: new URL("/blog", Astro.site).href },
-      { "@type": "ListItem", position: 3, name: title, item: url },
-    ],
-  },
+  page,
+  breadcrumbs(Astro.site, [
+    { name: "Blog", path: "/blog" },
+    { name: topic.name, path: `/blog/category/${topic.slug}` },
+    { name: title, path: postPath(post) },
+  ]),
+  ...(faq?.length
+    ? [
+        {
+          "@type": "FAQPage",
+          mainEntity: faq.map((f) => ({ "@type": "Question", name: f.q, acceptedAnswer: { "@type": "Answer", text: f.a } })),
+        },
+      ]
+    : []),
 ];
 ---
 
-<Base title={`${title} | ${SITE.brand}`} description={description} schema={schema}>
-  <Header />
-  <main id="main">
-    <article>
-      <header class="hero">
-        <div class="wrap narrow">
-          <nav class="crumbs" aria-label="Breadcrumb"><a href="/blog">Health blog</a> / <span>{tags.join(" · ")}</span></nav>
-          <h1>{title}</h1>
-          <p class="meta">By the {SITE.brand} team · <time datetime={date.toISOString()}>{day.format(date)}</time></p>
-        </div>
-      </header>
-      <div class="body">
-        <div class="wrap narrow prose">
-          <Content />
-          <aside class="cta" aria-label="MedBrains for hospitals">
-            <p><strong>Run a hospital or clinic?</strong> MedBrains puts OPD, wards, lab, pharmacy and billing on one system.</p>
-            <a class="btn btn-primary" href="/?from=blog#demo">Book a demo <span aria-hidden="true">→</span></a>
-          </aside>
-          <aside class="sources" aria-label="Sources">
-            <h2>Sources</h2>
-            <ul>{sources.map((s) => <li><a href={s.url} target="_blank" rel="noopener">{s.title}</a></li>)}</ul>
-          </aside>
-          <a class="back" href="/blog">← All articles</a>
+<BlogLayout
+  title={seoTitle ?? `${title} | ${SITE.brand}`}
+  description={description}
+  schema={schema}
+  image={image}
+  article={{ published: date, modified, section: topic.name, tags, author: { name: author.data.name, url: authorUrl } }}
+>
+  <article>
+    <header class="head" style={`--tint:${topic.tint}`}>
+      <div class="wrap head-in">
+        <nav aria-label="Breadcrumb">
+          <ol class="crumbs">
+            <li><a href="/blog">Blog</a></li>
+            <li><a href={`/blog/category/${topic.slug}`}>{topic.name}</a></li>
+            <li><span aria-current="page">{title}</span></li>
+          </ol>
+        </nav>
+        <CategoryBadge slug={category} />
+        <h1>{title}</h1>
+        <p class="lede">{description}</p>
+        <div class="byline">
+          <p>
+            By <a href={`/blog/author/${author.id}`}>{author.data.name}</a>
+            {reviewer && (
+              <span class="reviewed">
+                <Icon name="rosette-discount-check" size={18} />
+                Medically reviewed by{" "}
+                {reviewer.url ? <a href={reviewer.url}>{reviewer.name}</a> : reviewer.name}, {reviewer.credentials}
+                {reviewer.registration && ` (Reg. ${reviewer.registration})`}
+              </span>
+            )}
+          </p>
+          <p class="facts">
+            <span><Icon name="calendar" size={16} />Published <time datetime={date.toISOString()}>{formatDate(date)}</time></span>
+            {updated && <span>Updated <time datetime={updated.toISOString()}>{formatDate(updated)}</time></span>}
+            <span><Icon name="clock" size={16} />{minutes} min read</span>
+          </p>
         </div>
       </div>
-    </article>
-  </main>
-  <Footer />
-  <WhatsAppFloat />
-</Base>
+    </header>
+
+    {cover && (
+      <div class="wrap cover">
+        <Image src={cover.src} alt={cover.alt} width={1200} height={630} fit="cover" loading="eager" fetchpriority="high" />
+      </div>
+    )}
+
+    <div class="wrap layout">
+      <div class="main">
+        {headings.length > 1 && (
+          <details class="toc-mobile">
+            <summary><Icon name="list" size={18} />On this page</summary>
+            <nav aria-label="On this page"><Toc headings={headings} /></nav>
+          </details>
+        )}
+
+        {medical && (
+          <aside class="disclaimer" aria-label="Medical disclaimer">
+            <Icon name="alert-triangle" size={22} />
+            <p>
+              <strong>General information, not medical advice.</strong> Talk to a doctor about your own health. In an
+              emergency, call <a href="tel:112">112</a>.
+            </p>
+          </aside>
+        )}
+
+        <div class="prose" data-pagefind-body>
+          <Content />
+
+          {faq && faq.length > 0 && (
+            <section class="faq" aria-labelledby="faq-title">
+              <h2 id="faq-title">Frequently asked questions</h2>
+              {faq.map((f) => (
+                <>
+                  <h3>{f.q}</h3>
+                  <p>{f.a}</p>
+                </>
+              ))}
+            </section>
+          )}
+        </div>
+
+        <ul class="tags" aria-label="Tags">
+          {tags.map((t) => <li><a href={`/blog/tag/${tagSlug(t)}`}>#{t}</a></li>)}
+        </ul>
+
+        <ShareBar url={url} title={title} />
+
+        <section class="sources" aria-labelledby="sources-title">
+          <h2 id="sources-title">Sources</h2>
+          <ol>
+            {sources.map((s) => (
+              <li><a href={s.url} target="_blank" rel="noopener">{s.title}</a> <span class="host">{new URL(s.url).hostname.replace(/^www\./, "")}</span></li>
+            ))}
+          </ol>
+        </section>
+
+        {!medical && (
+          <aside class="cta" aria-label={`${SITE.brand} for hospitals`}>
+            <p><strong>Run a hospital or clinic?</strong> {SITE.brand} puts OPD, wards, lab, pharmacy and billing on one system.</p>
+            <a class="btn btn-primary" href="/?from=blog#demo">Book a demo <span aria-hidden="true">→</span></a>
+          </aside>
+        )}
+
+        <aside class="contact" aria-label="Contact us">
+          <p><strong>Questions about this article, or a topic you'd like us to cover?</strong> Write to us at <a href={`mailto:${SITE.email}?subject=${encodeURIComponent(`About: ${title}`)}`}>{SITE.email}</a>.</p>
+        </aside>
+
+        <AuthorCard author={author} />
+      </div>
+
+      {headings.length > 1 && (
+        <aside class="toc-side">
+          <nav aria-label="On this page">
+            <p class="toc-title">On this page</p>
+            <Toc headings={headings} />
+          </nav>
+        </aside>
+      )}
+    </div>
+  </article>
+
+  {related.length > 0 && (
+    <section class="related" aria-labelledby="related-title">
+      <div class="wrap">
+        <h2 id="related-title">Keep reading</h2>
+        <PostGrid posts={related} authorNames={authorNames} />
+      </div>
+    </section>
+  )}
+</BlogLayout>
 
 <style lang="scss">
-  .hero {
-    padding: 64px 0 56px;
-    background: radial-gradient(900px 500px at 80% -20%, rgb(15 98 254 / 35%), transparent 60%), var(--night);
-    h1 { font: 900 clamp(1.9rem, 4.2vw, 3.2rem) var(--display); letter-spacing: -.03em; line-height: 1.08; margin: 0 0 18px; }
+  @use "../../styles/mixins" as *;
+
+  .head { background: linear-gradient(180deg, var(--tint), var(--paper)); padding: 36px 0 40px; }
+  .head-in { max-width: 920px; }
+  .crumbs { margin-bottom: 24px; }
+  .crumbs li:last-child { max-width: 40ch; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  h1 { font: 800 clamp(2rem, 4.6vw, 3.2rem)/1.08 var(--display); letter-spacing: -.03em; margin: 18px 0 16px; max-width: 24ch; }
+  .lede { font-size: 1.2rem; color: var(--ink-2); margin: 0 0 24px; max-width: 62ch; }
+  .byline {
+    display: grid; gap: 8px; font-size: .95rem; color: var(--ink-2);
+    p { margin: 0; display: flex; flex-wrap: wrap; gap: 6px 16px; align-items: center; }
+    a { color: var(--ink); font-weight: 600; }
   }
-  .narrow { max-width: 760px; }
-  .crumbs { margin-bottom: 24px; font-size: .88rem; color: var(--night-text); a { color: #fff; } }
-  .meta { margin: 0; color: var(--night-text); font-size: .95rem; }
-  .body { background: var(--paper); color: var(--ink); padding: 56px 0 96px; }
+  .reviewed, .facts span { display: inline-flex; align-items: center; gap: 6px; }
+  .reviewed { color: var(--ink); :global(svg) { color: #0e6027; } }
+  .facts { color: var(--muted); }
+  .cover { margin-top: 8px; :global(img) { width: 100%; height: auto; border-radius: var(--radius-lg); } }
+
+  .layout {
+    display: grid; grid-template-columns: minmax(0, 68ch) 240px; gap: 72px; justify-content: center;
+    padding-top: 40px; padding-bottom: 72px;
+  }
+  .main { min-width: 0; }
+  .toc-side { position: relative; }
+  .toc-side nav { position: sticky; top: 96px; max-height: calc(100vh - 120px); overflow-y: auto; }
+  .toc-title { margin: 0 0 12px; font: 600 .72rem var(--mono); letter-spacing: .14em; text-transform: uppercase; color: var(--muted); }
+  .toc-mobile {
+    display: none; margin-bottom: 24px; padding: 4px 16px; border: 1px solid var(--line); border-radius: 16px;
+    summary { display: flex; align-items: center; gap: 8px; min-height: 44px; font-weight: 600; cursor: pointer; }
+    nav { padding: 4px 0 12px; }
+  }
+
+  .disclaimer {
+    display: flex; gap: 12px; align-items: flex-start; margin-bottom: 32px; padding: 16px 20px;
+    border-radius: 16px; background: #fff6e0; border: 1px solid #f1c21b; color: var(--ink);
+    :global(svg) { flex: none; color: #8e4b00; margin-top: 2px; }
+    p { margin: 0; font-size: .98rem; }
+    a { font-weight: 700; }
+  }
+
   .prose {
-    font-size: 1.08rem; line-height: 1.7;
-    :global(h2) { font: 800 1.45rem/1.25 var(--display); letter-spacing: -.02em; margin: 48px 0 12px; }
-    :global(p), :global(li) { color: var(--ink-2); }
-    :global(li) { margin-bottom: 8px; }
+    font-size: 1.125rem; line-height: 1.75; color: var(--ink-2);
+    > :global(:first-child) { margin-top: 0; }
+    :global(p), :global(ul), :global(ol), :global(blockquote), :global(table), :global(pre) { margin: 0 0 1.4em; }
+    :global(h2) {
+      font: 800 1.6rem/1.25 var(--display); letter-spacing: -.02em; color: var(--ink); margin: 2.2em 0 .6em;
+    }
+    :global(h3) { font: 700 1.25rem/1.35 var(--sans); color: var(--ink); margin: 1.8em 0 .5em; }
     :global(strong) { color: var(--ink); }
-    :global(a) { color: var(--blue-deep); }
-    :global(code) { font: 500 .92em var(--mono); background: var(--paper-2); padding: 1px 6px; border-radius: 4px; }
+    :global(a) { color: var(--blue-deep); text-underline-offset: 3px; text-decoration-thickness: 1px; }
+    :global(a:hover) { text-decoration-thickness: 2px; }
+    :global(ul), :global(ol) { padding-left: 1.4em; }
+    :global(li) { margin-bottom: .5em; padding-left: .2em; }
+    :global(li::marker) { color: var(--blue); }
+    :global(blockquote) {
+      padding: 4px 0 4px 24px; border-left: 4px solid var(--blue); color: var(--ink);
+      font-size: 1.2rem; font-style: italic;
+    }
+    :global(code) { font: 500 .88em var(--mono); background: var(--paper-2); padding: 2px 6px; border-radius: 6px; }
+    :global(pre) {
+      padding: 20px; border-radius: 16px; overflow-x: auto; background: var(--night) !important; color: var(--night-text);
+      font-size: .9rem; line-height: 1.6;
+    }
+    :global(pre code) { background: none; padding: 0; color: inherit; }
+    :global(table) {
+      display: block; max-width: 100%; overflow-x: auto; border-collapse: collapse; font-size: 1rem;
+    }
+    :global(th), :global(td) { padding: 10px 14px; border-bottom: 1px solid var(--line); text-align: left; vertical-align: top; }
+    :global(th) { color: var(--ink); background: var(--paper-2); font-weight: 600; }
+    :global(hr) { border: 0; border-top: 1px solid var(--line); margin: 2.5em 0; }
+    :global(img) { border-radius: 16px; height: auto; }
   }
+  .faq { margin-top: 2.5em; }
+
+  .tags {
+    display: flex; flex-wrap: wrap; gap: 8px; margin: 32px 0 0; padding: 0; list-style: none;
+    a {
+      display: inline-flex; align-items: center; min-height: 32px; padding: 0 12px; border-radius: 999px;
+      background: var(--paper-2); color: var(--ink-2); font-size: .88rem; text-decoration: none;
+    }
+    a:hover { color: var(--blue-deep); text-decoration: underline; }
+  }
+
+  .sources {
+    margin-top: 40px;
+    h2 { margin: 0 0 12px; font: 600 .74rem var(--mono); letter-spacing: .14em; text-transform: uppercase; color: var(--muted); }
+    ol { margin: 0; padding-left: 1.6em; font-size: .98rem; color: var(--ink-2); }
+    li { margin-bottom: 8px; }
+    a { color: var(--blue-deep); }
+    .host { color: var(--muted); font-size: .86rem; }
+  }
+
   .cta {
     display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 16px;
-    margin-top: 48px; padding: 24px 28px; border-radius: var(--radius); background: var(--blue-tint);
-    p { margin: 0; flex: 1 1 320px; }
+    margin-top: 40px; padding: 24px 28px; border-radius: var(--radius-lg); background: var(--blue-tint);
+    p { margin: 0; flex: 1 1 280px; }
     :global(a.btn) { color: #fff; }
   }
-  .sources {
-    margin-top: 48px; padding: 24px 28px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--paper-2);
-    h2 { margin-top: 0; font-size: 1rem; }
-    ul { margin: 0; padding-left: 20px; }
+
+  .contact {
+    margin-top: 24px; padding: 20px 24px; border-radius: var(--radius-lg); border: 1px solid var(--line);
+    p { margin: 0; }
+    a { font-weight: 700; overflow-wrap: anywhere; }
   }
-  .back { display: inline-block; margin-top: 32px; font-weight: 600; }
+
+  .related {
+    padding: 64px 0 96px; background: var(--paper-2);
+    h2 { font: 800 clamp(1.5rem, 3vw, 2rem) var(--display); letter-spacing: -.025em; margin: 0 0 24px; }
+  }
+
+  @media (max-width: 1100px) {
+    .layout { grid-template-columns: minmax(0, 68ch); gap: 0; }
+    .toc-side { display: none; }
+    .toc-mobile { display: block; }
+  }
+  @include below(md) {
+    .prose { font-size: 1.0625rem; }
+    .crumbs li:last-child { max-width: 24ch; }
+  }
 </style>

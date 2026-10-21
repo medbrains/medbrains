@@ -2,12 +2,16 @@
 title: "Your ABHA health ID, explained: what it is and why it helps"
 description: "ABHA is India's digital health ID under the Ayushman Bharat Digital Mission. What it does, how it keeps your records with you, and how consent works."
 date: 2026-10-03
-tags: ["Health tech", "ABDM"]
+category: technology
+tags: ["ABHA", "ABDM", "Digital health ID", "Health tech"]
 sources:
   - title: "Ayushman Bharat Digital Mission"
     url: "https://abdm.gov.in/"
   - title: "Create your ABHA number"
     url: "https://abha.abdm.gov.in/"
+cover:
+  src: ./images/abha.png
+  alt: "A soft 3D illustration of a blank health ID card with a QR pattern, a phone showing a security shield, a padlock and a folder of health records"
 ---
 
 If you have changed doctors or moved cities, you know the problem: your reports
