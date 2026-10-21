@@ -6,8 +6,8 @@
 //! health-information request reaches the HIU as a Fidelius-encrypted NRCeS
 //! bundle it can decrypt; staff without the permissions are refused.
 
-mod abdm_hip_world;
-mod common;
+use crate::abdm_hip_world;
+use crate::common;
 
 use abdm_hip_world::{Call, world};
 use axum::http::StatusCode;

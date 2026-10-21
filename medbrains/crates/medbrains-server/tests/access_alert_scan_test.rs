@@ -3,7 +3,7 @@
 //! someone not on shift, and one person opening dozens of patients in an
 //! hour. One alert per person, patient and kind per day.
 
-mod common;
+use crate::common;
 
 use medbrains_server::services::access_alert_scan::{BULK_PATIENTS, scan_once};
 use uuid::Uuid;

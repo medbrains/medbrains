@@ -5,7 +5,7 @@
 //! so two hospitals that both had a `nurse1` signed one of them into — or sent
 //! the other's reset code for — the wrong account.
 
-mod common;
+use crate::common;
 
 use reqwest::StatusCode;
 use serde_json::{Value, json};

@@ -8,7 +8,7 @@
 //! `ABDM_*_BASE_URL_OVERRIDE` and a ready `ABDM_GATEWAY_TOKEN_OVERRIDE`, so
 //! no ABDM sandbox or credentials are involved.
 
-mod common;
+use crate::common;
 
 use axum::{Json, Router, http::StatusCode as MockStatus, routing::post};
 use medbrains_abdm::registry::{HFR_SEARCH_PATH, HPR_SEARCH_PATH};

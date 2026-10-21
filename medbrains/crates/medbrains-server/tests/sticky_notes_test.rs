@@ -1,8 +1,8 @@
 //! Sticky notes: private until shared, readable by whom they are shared with,
 //! editable only by the author, and gone once they clear themselves.
 
-mod common;
-mod notes_support;
+use crate::common;
+use crate::notes_support;
 
 use notes_support::{department, ids, nurse};
 use reqwest::StatusCode;

@@ -2,7 +2,7 @@
 //! live rows only. And a master an admin deleted stays deleted — the boot
 //! seeds do not bring it back.
 
-mod common;
+use crate::common;
 
 use reqwest::StatusCode;
 use serde_json::{Value, json};

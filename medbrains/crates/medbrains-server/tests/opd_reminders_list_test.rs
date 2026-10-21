@@ -2,7 +2,7 @@
 //! back. The list bound the permitted-patient set to a single-uuid filter
 //! and answered 500 to every call, so reminders were made and never seen.
 
-mod common;
+use crate::common;
 
 use reqwest::StatusCode;
 use serde_json::{Value, json};

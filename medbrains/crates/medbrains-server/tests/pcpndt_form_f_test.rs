@@ -5,7 +5,7 @@
 //! declarations; the completed form prints with no sex of the foetus anywhere.
 //! An ultrasound of a woman who is not pregnant opens nothing.
 
-mod common;
+use crate::common;
 
 use reqwest::{Method, StatusCode};
 use serde_json::{Value, json};

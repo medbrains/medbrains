@@ -4,7 +4,7 @@
 //! filter `deleted_at` keeps showing it. These walk create → delete → list
 //! through the API, the way the screens do.
 
-mod common;
+use crate::common;
 
 use reqwest::StatusCode;
 use serde_json::{Value, json};

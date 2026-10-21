@@ -7,7 +7,7 @@
 //! Run both ways: `cargo test --test trial_signup_test` proves the door is
 //! shut; with `TRIAL_SIGNUP=open` it proves the trial.
 
-mod common;
+use crate::common;
 
 use reqwest::StatusCode;
 use serde_json::{Value, json};

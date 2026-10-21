@@ -2,7 +2,7 @@
 //! token had been called: the longest-wait column came back from Postgres as
 //! `numeric` and the row type reads `f64`.
 
-mod common;
+use crate::common;
 
 use uuid::Uuid;
 

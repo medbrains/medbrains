@@ -4,7 +4,7 @@
 //! not follow the domain. Once proven it is allowed; naming a different
 //! domain starts over.
 
-mod common;
+use crate::common;
 
 use reqwest::{Method, StatusCode};
 use serde_json::{Value, json};

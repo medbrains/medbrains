@@ -4,7 +4,7 @@
 //! told to use the payer's portal instead of seeing "Queued" for a claim that
 //! would silently go nowhere.
 
-mod common;
+use crate::common;
 
 use reqwest::StatusCode;
 use serde_json::json;

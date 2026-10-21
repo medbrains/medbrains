@@ -4,7 +4,7 @@
 //! what their Results screen shows. Another patient's token gets their own
 //! record, never this one.
 
-mod common;
+use crate::common;
 
 use reqwest::StatusCode;
 use serde_json::{Value, json};

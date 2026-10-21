@@ -2,7 +2,7 @@
 //! repeat visit inside the hospital's free-revisit window bills nothing and
 //! says so — the counter never has to remember who came back.
 
-mod common;
+use crate::common;
 
 use rust_decimal::Decimal;
 use serde_json::{Value, json};

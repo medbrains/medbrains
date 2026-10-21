@@ -2,7 +2,7 @@
 //! version never changes, staff fill in the live version, and a consent
 //! keeps the version it was answered on.
 
-mod common;
+use crate::common;
 
 use reqwest::StatusCode;
 use serde_json::{Value, json};

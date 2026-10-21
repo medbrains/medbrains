@@ -7,7 +7,7 @@
 //! the same release again changes nothing; and staff without the permission
 //! are refused.
 
-mod common;
+use crate::common;
 
 use std::io::{Cursor, Write};
 use std::path::{Path, PathBuf};

@@ -8,7 +8,7 @@
 //! the tables and the consume half by dispatching the event twice: one
 //! summary, one file request.
 
-mod common;
+use crate::common;
 
 use serde_json::{Value, json};
 use uuid::Uuid;

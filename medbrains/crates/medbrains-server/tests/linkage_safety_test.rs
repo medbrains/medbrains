@@ -6,7 +6,7 @@
 //! the emit half with a SELECT and the consume half by dispatching the
 //! stored envelope directly — and dispatching it again.
 
-mod common;
+use crate::common;
 
 use serde_json::{Value, json};
 use uuid::Uuid;

@@ -2,7 +2,7 @@
 //! one into its queue no sooner than the interval, never past the
 //! prescription's expiry, and never for a controlled drug.
 
-mod common;
+use crate::common;
 
 use chrono::{Duration, Utc};
 use reqwest::StatusCode;

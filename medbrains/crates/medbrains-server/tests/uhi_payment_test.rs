@@ -4,8 +4,7 @@
 //! with a fee is held until the payment link is paid: the gateway's webhook
 //! confirms it, bills it and tells the app; an unpaid hold is let go.
 
-mod common;
-mod uhi_world;
+use crate::uhi_world;
 
 use axum::http::StatusCode;
 use chrono::{Duration, Utc};

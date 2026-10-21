@@ -3,7 +3,7 @@
 //! 20:00 UTC on 11 Oct is 01:30 IST on 12 Oct — the wrong date as well as the
 //! wrong hour on a legal document if the zone is ignored.
 
-mod common;
+use crate::common;
 
 use reqwest::StatusCode;
 use serde_json::Value;

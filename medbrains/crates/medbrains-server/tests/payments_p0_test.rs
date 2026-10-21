@@ -6,8 +6,7 @@
 //! balance check, money that cannot honestly post goes to finance, refunds
 //! come off the bill once, and a forged signature is refused.
 
-mod common;
-mod payments_world;
+use crate::payments_world;
 
 use std::sync::atomic::Ordering;
 

@@ -1,7 +1,7 @@
 //! Integration tests for digital signature endpoints + signing module.
 //! Per RFCs/sprints/SPRINT-doctor-activities.md §7.
 
-mod common;
+use crate::common;
 
 use reqwest::StatusCode;
 use serde_json::json;

@@ -2,7 +2,7 @@
 //! name real events; its secret is shown once; each event it subscribes to
 //! is queued for it once, carrying identifiers and never clinical text.
 
-mod common;
+use crate::common;
 
 use reqwest::StatusCode;
 use serde_json::{Value, json};

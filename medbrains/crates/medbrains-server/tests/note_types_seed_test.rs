@@ -1,7 +1,7 @@
 //! Every hospital can write a clinical note from its first day (#4906): the
 //! default note types arrive with the tenant row, whichever path creates it.
 
-mod common;
+use crate::common;
 
 use uuid::Uuid;
 

@@ -1,8 +1,8 @@
 //! Notifications flowing into sticky notes: pinned or made automatically,
 //! read-only, never shared, and cleared when the item behind them is resolved.
 
-mod common;
-mod notes_support;
+use crate::common;
+use crate::notes_support;
 
 use notes_support::{Staff, department, nurse};
 use reqwest::StatusCode;

@@ -9,7 +9,7 @@
 //! a few places down. These tests pin both, and pin that the position promised
 //! is the position `call_next` actually honours.
 
-mod common;
+use crate::common;
 
 use reqwest::StatusCode;
 use std::sync::LazyLock;

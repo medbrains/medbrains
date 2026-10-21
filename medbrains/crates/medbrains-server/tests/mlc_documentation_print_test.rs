@@ -2,7 +2,7 @@
 //! police intimation as a police visit, each MLC document as a certificate
 //! issued, and both on the timeline of important dates.
 
-mod common;
+use crate::common;
 
 use reqwest::StatusCode;
 use serde_json::{Value, json};

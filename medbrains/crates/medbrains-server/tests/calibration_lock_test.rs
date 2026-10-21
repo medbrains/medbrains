@@ -3,7 +3,7 @@
 //! service, a hand unlock is refused, an analyser linked to it cannot post
 //! lab results — and recording a passing calibration lifts the lock.
 
-mod common;
+use crate::common;
 
 use reqwest::StatusCode;
 use serde_json::{Value, json};

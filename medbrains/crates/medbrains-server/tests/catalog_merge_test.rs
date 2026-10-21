@@ -2,8 +2,7 @@
 //! a merge moves every reference and the stock onto the drug kept, and two
 //! drugs that differ in schedule are never merged.
 
-mod common;
-mod grn_world;
+use crate::grn_world;
 
 use grn_world::{send, user, world};
 use reqwest::StatusCode;

@@ -6,8 +6,8 @@
 //! valid gateway JWT, lands on the claim; a callback with a forged JWT is
 //! refused and changes nothing.
 
-mod common;
-mod nhcx_support;
+use crate::common;
+use crate::nhcx_support;
 
 use std::time::Duration;
 

@@ -3,7 +3,7 @@
 //! outbox event, not the HTTP audit row. A named report still names its
 //! reporter, so the checks below would see one if it leaked.
 
-mod common;
+use crate::common;
 
 use reqwest::StatusCode;
 use serde_json::{Value, json};

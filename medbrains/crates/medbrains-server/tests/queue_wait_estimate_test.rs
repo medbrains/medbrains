@@ -10,7 +10,7 @@
 //! fixed assertion can pin without freezing the clock — so it is checked for
 //! self-consistency rather than an exact figure.
 
-mod common;
+use crate::common;
 
 use reqwest::StatusCode;
 use uuid::Uuid;

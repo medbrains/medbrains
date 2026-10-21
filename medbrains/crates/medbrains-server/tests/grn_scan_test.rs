@@ -4,8 +4,7 @@
 //! field is kept as original-vs-final, a confirmed item match is remembered
 //! for the supplier's next bill, and one bill is entered once.
 
-mod common;
-mod grn_world;
+use crate::grn_world;
 
 use grn_world::{User, World, parse_result, send, user, world};
 use reqwest::StatusCode;

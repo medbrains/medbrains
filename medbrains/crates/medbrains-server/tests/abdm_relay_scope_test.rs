@@ -3,7 +3,7 @@
 //! callback cannot be read or acknowledged (404, as if absent); and staff
 //! without the relay permission are refused.
 
-mod common;
+use crate::common;
 
 use reqwest::StatusCode;
 use serde_json::{Value, json};

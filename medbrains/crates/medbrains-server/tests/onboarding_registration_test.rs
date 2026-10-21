@@ -4,7 +4,7 @@
 //! first organisation exists — so it was reachable by anyone and minted a
 //! tenant and a super admin on a server already holding a hospital's patients.
 
-mod common;
+use crate::common;
 
 use reqwest::StatusCode;
 use serde_json::{Value, json};

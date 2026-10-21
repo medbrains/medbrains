@@ -9,7 +9,7 @@
 //! half is a SELECT on outbox_events, and the consume half is a direct call
 //! into the pipeline dispatcher — deterministic, no polling.
 
-mod common;
+use crate::common;
 
 use reqwest::StatusCode;
 use serde_json::{Value, json};

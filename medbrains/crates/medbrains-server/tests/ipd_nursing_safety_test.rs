@@ -4,7 +4,7 @@
 //! a PRN dose is not recorded without its reason; a high Morse score flags
 //! the admission and opens the fall-prevention plan and task, once.
 
-mod common;
+use crate::common;
 
 use reqwest::StatusCode;
 use serde_json::{Value, json};

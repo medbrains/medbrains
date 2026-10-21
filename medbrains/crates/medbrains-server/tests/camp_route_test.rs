@@ -1,7 +1,7 @@
 //! A camp run as a route of stations
 //! (RFCs/modules/RFC-MODULE-token-queues.md, P4a, scenarios 5 and 6).
 
-mod common;
+use crate::common;
 
 use reqwest::StatusCode;
 use serde_json::{Value, json};

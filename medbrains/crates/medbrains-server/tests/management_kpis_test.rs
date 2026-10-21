@@ -1,7 +1,7 @@
 //! Management KPIs read a past day against what was usual for it, through the
 //! dashboard's own batch call — the path the management dashboard takes.
 
-mod common;
+use crate::common;
 
 use chrono::{Duration, NaiveDate};
 use reqwest::StatusCode;

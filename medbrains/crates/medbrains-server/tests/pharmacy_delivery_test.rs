@@ -3,7 +3,7 @@
 //! leaves only when the bill is settled; the runner hands it over against the
 //! code texted to the patient, and sees only their own deliveries.
 
-mod common;
+use crate::common;
 
 use reqwest::{Client, StatusCode};
 use serde_json::{Value, json};

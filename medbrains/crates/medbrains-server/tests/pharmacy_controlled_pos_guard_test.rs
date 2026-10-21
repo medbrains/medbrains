@@ -1,4 +1,4 @@
-mod common;
+use crate::common;
 
 use reqwest::StatusCode;
 use uuid::Uuid;

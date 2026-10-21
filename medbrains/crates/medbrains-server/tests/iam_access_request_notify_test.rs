@@ -4,7 +4,7 @@
 //! security guard, whose door-access rights once doubled as approval — and the
 //! requester is not told about their own request.
 
-mod common;
+use crate::common;
 
 use reqwest::{Client, StatusCode};
 use serde_json::{Value, json};

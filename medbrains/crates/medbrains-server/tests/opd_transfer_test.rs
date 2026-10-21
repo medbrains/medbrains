@@ -1,7 +1,7 @@
 //! Moving a waiting visit to another department
 //! (RFCs/modules/RFC-MODULE-token-queues.md, P2, scenario 33).
 
-mod common;
+use crate::common;
 
 use reqwest::StatusCode;
 use serde_json::{Value, json};

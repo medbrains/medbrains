@@ -3,7 +3,7 @@
 //! is named but not offered; a first-timer has none; and only staff who start
 //! visits may ask.
 
-mod common;
+use crate::common;
 
 use reqwest::{Client, StatusCode};
 use serde_json::{Value, json};

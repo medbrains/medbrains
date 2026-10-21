@@ -2,8 +2,7 @@
 //! their acknowledged switches, every screen's permission, and a doctor's
 //! own earnings and nobody else's.
 
-mod common;
-mod doctor_payouts_world;
+use crate::doctor_payouts_world;
 
 use doctor_payouts_world::{SERIAL, fixed, pay_cash, tag, world};
 use reqwest::StatusCode;

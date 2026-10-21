@@ -3,7 +3,7 @@
 //! legal retention says so, and an answered request cannot be answered again.
 //! The data summary answers an access request with what is held.
 
-mod common;
+use crate::common;
 
 use reqwest::{Method, StatusCode};
 use serde_json::{Value, json};

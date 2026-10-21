@@ -4,7 +4,7 @@
 //! billing, lab and pharmacy all go through it — so these tests cover both the
 //! new behaviour and the modules that must be untouched by it.
 
-mod common;
+use crate::common;
 
 use reqwest::StatusCode;
 use uuid::Uuid;

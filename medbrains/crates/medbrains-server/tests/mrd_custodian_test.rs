@@ -3,7 +3,7 @@
 //! the MRD officer's packet list held only patients they had treated —
 //! none — while a single packet opened by id was checked for no one.
 
-mod common;
+use crate::common;
 
 use reqwest::{Client, StatusCode};
 use serde_json::{Value, json};

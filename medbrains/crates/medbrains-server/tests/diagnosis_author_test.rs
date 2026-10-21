@@ -1,7 +1,7 @@
 //! A diagnosis says who made it, and an edit says who changed it and when
 //! (RFC-MODULE-clinical-notes, phase 1c).
 
-mod common;
+use crate::common;
 
 use reqwest::StatusCode;
 use serde_json::{Value, json};

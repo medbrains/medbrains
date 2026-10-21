@@ -1,7 +1,7 @@
 //! A waiting-room board is sent no names
 //! (RFCs/modules/RFC-MODULE-token-queues.md, P3, scenario 34).
 
-mod common;
+use crate::common;
 
 use reqwest::StatusCode;
 use serde_json::{Value, json};

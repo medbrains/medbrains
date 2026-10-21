@@ -4,7 +4,7 @@
 //! each test proves the emit half with a SELECT and the consume half by
 //! dispatching the stored envelope directly, twice.
 
-mod common;
+use crate::common;
 
 use reqwest::StatusCode;
 use serde_json::{Value, json};

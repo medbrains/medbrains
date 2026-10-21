@@ -2,7 +2,7 @@
 //! issued while an order performed for the stay is missing from it, and the
 //! checklist shows what the advance leaves to collect.
 
-mod common;
+use crate::common;
 
 use reqwest::StatusCode;
 use serde_json::Value;

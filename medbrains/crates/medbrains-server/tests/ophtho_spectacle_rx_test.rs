@@ -2,7 +2,7 @@
 //! the trial set are refused, a prescription cannot be signed without what an
 //! optician needs, and once signed it is fixed.
 
-mod common;
+use crate::common;
 
 use serde_json::{Value, json};
 use uuid::Uuid;

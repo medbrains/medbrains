@@ -1,7 +1,7 @@
 //! An MLC's documents and injuries are read only by those on the case —
 //! holding the module permission is not being on that case.
 
-mod common;
+use crate::common;
 
 use reqwest::{Client, StatusCode};
 use serde_json::{Value, json};

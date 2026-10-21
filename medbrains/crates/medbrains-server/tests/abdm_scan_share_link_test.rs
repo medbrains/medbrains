@@ -2,8 +2,8 @@
 //! finds them by search and links the share, instead of registering a second
 //! UHID for the same person.
 
-mod abdm_hip_world;
-mod common;
+use crate::abdm_hip_world;
+use crate::common;
 
 use abdm_hip_world::{
     World,

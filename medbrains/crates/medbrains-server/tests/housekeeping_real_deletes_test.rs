@@ -2,7 +2,7 @@
 //! catalogue sync DELETE from them; under the soft-delete guardrail those
 //! deletes kept every row forever.
 
-mod common;
+use crate::common;
 
 /// The tables the retention purge and the catalogue sync delete from.
 const HOUSEKEEPING: [&str; 6] = [

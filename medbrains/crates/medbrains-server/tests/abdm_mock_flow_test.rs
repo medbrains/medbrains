@@ -6,7 +6,7 @@
 //! The mock decrypts what we send with its private key, so a wrong padding or
 //! a field sent in clear fails here exactly as it would at ABDM.
 
-mod common;
+use crate::common;
 
 use std::sync::Arc;
 

@@ -1,7 +1,7 @@
 //! A patient's visit count and last visit follow their encounters: the
 //! patient page reads them, and they were never maintained.
 
-mod common;
+use crate::common;
 
 use reqwest::StatusCode;
 use serde_json::{Value, json};

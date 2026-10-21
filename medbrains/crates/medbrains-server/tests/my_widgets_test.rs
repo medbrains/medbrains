@@ -2,7 +2,7 @@
 //! only those their permissions allow, and always as the catalogue defines
 //! them: the client names a code, never a data source or a permission.
 
-mod common;
+use crate::common;
 
 use reqwest::{Client, StatusCode};
 use serde_json::{Value, json};

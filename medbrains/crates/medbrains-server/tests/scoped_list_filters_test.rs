@@ -4,7 +4,7 @@
 //! filters sent the array to a scalar placeholder, and every filtered list a
 //! doctor or pharmacist opened answered 500.
 
-mod common;
+use crate::common;
 
 use reqwest::{Client, StatusCode};
 use serde_json::json;

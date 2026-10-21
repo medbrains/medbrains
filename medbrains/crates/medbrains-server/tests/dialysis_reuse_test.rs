@@ -4,7 +4,7 @@
 //! dialyzer is single-use and they go only on a machine kept for their
 //! serology; a machine takes one patient per shift.
 
-mod common;
+use crate::common;
 
 use reqwest::{Method, StatusCode};
 use serde_json::{Value, json};

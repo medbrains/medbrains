@@ -10,7 +10,7 @@
 //! anyone holding it, so it must answer for exactly one token and disclose
 //! nothing the waiting-room board does not already show to the whole room.
 
-mod common;
+use crate::common;
 
 use reqwest::StatusCode;
 use uuid::Uuid;

@@ -2,7 +2,7 @@
 //! the same visit; the opinion sends them back; the visit stays the first
 //! doctor's to close (RFC-MODULE-opd-referral-journey, slice 1).
 
-mod common;
+use crate::common;
 
 use reqwest::StatusCode;
 use serde_json::{Value, json};

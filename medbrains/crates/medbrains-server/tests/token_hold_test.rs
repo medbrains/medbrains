@@ -1,6 +1,6 @@
 //! Hold (RFCs/modules/RFC-MODULE-token-queues.md, P2b, scenario 31).
 
-mod common;
+use crate::common;
 
 use reqwest::StatusCode;
 use serde_json::{Value, json};

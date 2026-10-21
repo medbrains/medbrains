@@ -10,8 +10,8 @@
 //! its amount. The IRDAI clock flips after an hour (three at discharge), and
 //! staff without the NHCX permissions are refused.
 
-mod common;
-mod nhcx_support;
+use crate::common;
+use crate::nhcx_support;
 
 use axum::http::StatusCode;
 use medbrains_core::nhcx::NhcxOperation;

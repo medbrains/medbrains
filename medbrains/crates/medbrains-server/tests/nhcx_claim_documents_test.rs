@@ -8,8 +8,7 @@
 //! as `valueAttachment`. A file over the per-file cap is left out and said
 //! so; with the PDF service down the claim is refused and nothing is queued.
 
-mod common;
-mod nhcx_support;
+use crate::nhcx_support;
 
 use axum::http::StatusCode;
 use base64::Engine;

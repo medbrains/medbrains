@@ -4,7 +4,7 @@
 //! agreement ending before it was signed, or an unknown data category, is
 //! refused; a processor cannot be its own sub-processor.
 
-mod common;
+use crate::common;
 
 use reqwest::{Method, StatusCode};
 use serde_json::{Value, json};

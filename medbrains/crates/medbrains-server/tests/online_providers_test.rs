@@ -6,9 +6,7 @@
 //! provider: money settles once through `settle.rs`, whichever of the
 //! browser and the provider's notice says so first.
 
-mod common;
-mod online_world;
-mod payments_world;
+use crate::online_world;
 
 use axum::http::StatusCode;
 use online_world::notices::{

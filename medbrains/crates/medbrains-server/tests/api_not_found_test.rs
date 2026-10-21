@@ -1,7 +1,7 @@
 //! An API path nothing answers is a JSON 404 — never the web app's page,
 //! which the static fallback serves with a 200 for the app's own routes.
 
-mod common;
+use crate::common;
 
 use reqwest::StatusCode;
 use serde_json::Value;

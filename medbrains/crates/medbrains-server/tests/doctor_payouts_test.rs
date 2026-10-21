@@ -2,8 +2,7 @@
 //! is priced, when it is earned, how it is reversed, and how a statement is
 //! approved (by someone else) and paid with TDS.
 
-mod common;
-mod doctor_payouts_world;
+use crate::doctor_payouts_world;
 
 use doctor_payouts_world::{SERIAL, d, fixed, percent, tag, world};
 use reqwest::StatusCode;

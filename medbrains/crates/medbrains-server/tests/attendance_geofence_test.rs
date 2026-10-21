@@ -5,7 +5,7 @@
 //! punch is clean; the punch is dated by the hospital's clock; and only the
 //! geofence permission may draw the fence or change the mode.
 
-mod common;
+use crate::common;
 
 use chrono::{Duration, NaiveDate, Timelike, Utc};
 use reqwest::{RequestBuilder, StatusCode};

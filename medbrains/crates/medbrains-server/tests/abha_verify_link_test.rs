@@ -4,7 +4,7 @@
 //! The ABDM calls themselves need live sandbox keys; these tests start from a
 //! verification row as the OTP step leaves it.
 
-mod common;
+use crate::common;
 
 use reqwest::StatusCode;
 use serde_json::{Value, json};

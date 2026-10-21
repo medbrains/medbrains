@@ -9,7 +9,7 @@
 //! signed consent for another operation does not clear it — plus an
 //! anaesthesia consent when an anaesthetist is on the case.
 
-mod common;
+use crate::common;
 
 use reqwest::StatusCode;
 use serde_json::{Value, json};

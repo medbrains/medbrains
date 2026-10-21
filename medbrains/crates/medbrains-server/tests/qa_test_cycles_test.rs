@@ -2,7 +2,7 @@
 //! needs a reason; answering again replaces the answer; a closed cycle takes
 //! no more results.
 
-mod common;
+use crate::common;
 
 use serde_json::{Value, json};
 

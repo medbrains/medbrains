@@ -4,7 +4,7 @@
 //! consent to an old notice, or to a purpose the notice does not name, is
 //! refused.
 
-mod common;
+use crate::common;
 
 use reqwest::{Method, StatusCode};
 use serde_json::{Value, json};

@@ -1,7 +1,7 @@
 //! Pairing a waiting-room screen (RFCs/modules/RFC-MODULE-token-queues.md,
 //! P3b, scenario 38).
 
-mod common;
+use crate::common;
 
 use reqwest::StatusCode;
 use serde_json::{Value, json};

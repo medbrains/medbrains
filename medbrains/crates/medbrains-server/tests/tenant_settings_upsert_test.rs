@@ -2,7 +2,7 @@
 //! used to update the soft-deleted row's value and leave it deleted, so the
 //! save "worked" and every reader that honours soft-delete still saw nothing.
 
-mod common;
+use crate::common;
 
 use serde_json::{Value, json};
 
