@@ -111,7 +111,7 @@ jobs:
       # apply to them — so every path here is root-relative even though the
       # steps below run in `medbrains/`. There is an untracked `.nvmrc` at the
       # root that would resolve locally and not exist on a runner.
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@v6
         with:
           package_json_file: medbrains/package.json
       - uses: actions/setup-node@v4
@@ -143,7 +143,7 @@ jobs:
         working-directory: medbrains
     steps:
       - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@v6
         with:
           package_json_file: medbrains/package.json
       - uses: actions/setup-node@v4
@@ -163,7 +163,7 @@ jobs:
         working-directory: medbrains
     steps:
       - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@v6
         with:
           package_json_file: medbrains/package.json
       - uses: actions/setup-node@v4
