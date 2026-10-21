@@ -54,3 +54,13 @@ goals/
 **/envs/standalone/*/
 *.log
 *.trace
+
+# Build output and test-run artefacts — rebuilt, never committed.
+**/target/
+**/dist/
+*.tsbuildinfo
+*.a
+allure-results/
+allure-report/
+allure-combined/
+medbrains/apps/web/e2e/smoke/latency-report.jsonl
