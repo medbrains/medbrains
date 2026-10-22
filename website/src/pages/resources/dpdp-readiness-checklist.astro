@@ -1,0 +1,149 @@
+---
+import Resource from "../../layouts/Resource.astro";
+
+// Every item cites the section of the DPDP Act, 2023 (s) or the DPDP Rules, 2025
+// (Rule) it comes from — the same reading as the DPDP post on the blog.
+const groups: { title: string; items: [string, string][] }[] = [
+  {
+    title: "Ownership and data map",
+    items: [
+      ["Name an owner for data protection and publish their contact on the website and patient app", "Rule 9"],
+      ["Map each department's data: what is collected, why, where it is stored, who sees it and who receives it", "Good practice"],
+      ["Set a lawful basis for each purpose — consent, or a legitimate use under section 7", "s 4, s 7"],
+      ["Rely on the emergency exception only for a threat to life or an immediate threat to health", "s 7(f)"],
+    ],
+  },
+  {
+    title: "Notice and consent",
+    items: [
+      ["Registration notice stands on its own, itemises the data and purposes in plain language", "Rule 3"],
+      ["Notice says how to withdraw consent, exercise rights and complain to the Board", "Rule 3"],
+      ["Notice and consent available in English and the Eighth Schedule languages your patients use", "s 5(3), 6(3)"],
+      ["Plan a fresh notice for patients who consented before the Act", "s 5(2)"],
+      ["Withdrawing is as easy as agreeing, and processing stops after withdrawal", "s 6(4), 6(6)"],
+      ["Keep consent records: notice version, what was agreed, when, and any withdrawal", "s 6(10)"],
+    ],
+  },
+  {
+    title: "Children and guardians",
+    items: [
+      ["Children's data used only to provide health services, within the Fourth Schedule exemption", "s 9, Sch. 4"],
+      ["Verifiable parental consent for anything else, such as marketing", "s 9(1), Rule 10"],
+      ["Guardians of adults with a disability verified as court- or authority-appointed", "Rule 11"],
+    ],
+  },
+  {
+    title: "Security safeguards",
+    items: [
+      ["Encryption, masking or tokenisation of personal data", "Rule 6"],
+      ["Access control on every system, including processors' systems", "Rule 6"],
+      ["Access logs monitored and reviewed to detect unauthorised access", "Rule 6"],
+      ["Backups so care continues if data is lost or locked", "Rule 6"],
+      ["Logs and processing records kept for at least one year", "Rule 6, 8(3)"],
+    ],
+  },
+  {
+    title: "Breaches",
+    items: [
+      ["A written breach procedure that treats loss of access (e.g. ransomware) as a breach", "s 2(u)"],
+      ["Inform affected patients and the Data Protection Board without delay", "Rule 7"],
+      ["Detailed report to the Board within 72 hours of becoming aware", "Rule 7"],
+      ["Templates for the Board and for patients, and a drill run against the 72-hour clock", "Rule 7"],
+    ],
+  },
+  {
+    title: "Vendors and partners",
+    items: [
+      ["List processors (cloud host, transcription, outsourced labs) and hold a valid contract with each", "s 8(2)"],
+      ["Contracts carry security, breach and erasure clauses", "s 8, Rule 6"],
+      ["Decide whether each TPA and insurer is your processor or a separate fiduciary", "s 2(i), 2(k)"],
+    ],
+  },
+  {
+    title: "Retention and erasure",
+    items: [
+      ["A retention schedule linking each record type to the law that requires it", "s 8(7), 12(3)"],
+      ["Indoor patients' records kept at least three years (IMC Regulations, 2002)", "IMC 1.3.1"],
+      ["Secure erasure once the purpose is served and no law requires the record", "s 8(7)"],
+    ],
+  },
+  {
+    title: "Patients' rights and grievances",
+    items: [
+      ["A way to ask for access, correction, erasure and to nominate someone", "s 11–14"],
+      ["A published response period of no more than ninety days", "Rule 14"],
+      ["A grievance process patients use before going to the Board", "s 13"],
+    ],
+  },
+  {
+    title: "Scale and people",
+    items: [
+      ["Large chains and diagnostic networks: assess whether you may be notified as a Significant Data Fiduciary", "s 10, Rule 13"],
+      ["Train front desk, ward, MRD, billing and IT staff", "Good practice"],
+    ],
+  },
+];
+const id = (g: number, i: number) => `c${g}-${i}`;
+---
+
+<Resource
+  title="DPDP readiness checklist for hospitals (free PDF) | MedBrains"
+  description="A printable DPDP Act 2023 and Rules 2025 checklist for Indian hospitals: notice and consent, security, 72-hour breach reporting, retention, rights and vendors."
+  h1="DPDP readiness checklist for hospitals"
+  intro="Thirty-three things to have in place before the main duties of the Digital Personal Data Protection Act, 2023 and Rules, 2025 apply. Each line cites the section or rule it comes from."
+  pdf="/downloads/dpdp-readiness-checklist.pdf"
+  guide={{ href: "/dpdp-readiness", name: "DPDP readiness" }}
+>
+  <section class="note" aria-labelledby="when-title">
+    <h2 id="when-title">The dates</h2>
+    <p>The Rules were notified on 13 November 2025. Consent Manager provisions apply after one year (November 2026). Notice, consent, security, breach reporting, retention and patients' rights apply after eighteen months (May 2027). Lawyers count the dates slightly differently — plan to 12 May 2027.</p>
+  </section>
+
+  {groups.map((g, gi) => (
+    <section class="group" aria-labelledby={`g${gi}`}>
+      <h2 id={`g${gi}`}>{g.title}</h2>
+      <ul>
+        {g.items.map(([text, ref], i) => (
+          <li>
+            <input type="checkbox" id={id(gi, i)} />
+            <label for={id(gi, i)}>{text}</label>
+            <span class="ref">{ref}</span>
+          </li>
+        ))}
+      </ul>
+    </section>
+  ))}
+
+  <section class="note" aria-labelledby="src-title">
+    <h2 id="src-title">Sources</h2>
+    <p>The Digital Personal Data Protection Act, 2023 (No. 22 of 2023) — meity.gov.in</p>
+    <p>Digital Personal Data Protection Rules, 2025, G.S.R. 846(E), 13 November 2025 — meity.gov.in</p>
+    <p>Indian Medical Council (Professional Conduct, Etiquette and Ethics) Regulations, 2002</p>
+    <p>AZB &amp; Partners, phased rollout and compliance milestones (November 2025)</p>
+  </section>
+</Resource>
+
+<style lang="scss">
+  .note h2 { margin-top: 0; }
+  .group ul { list-style: none; margin: 0; padding: 0; border-top: 1px solid var(--line); }
+  .group li {
+    display: grid; grid-template-columns: 24px 1fr auto; gap: 12px; align-items: start;
+    padding: 10px 0; border-bottom: 1px solid var(--line);
+  }
+  input { width: 24px; height: 24px; margin: 0; accent-color: var(--blue); }
+  label { cursor: pointer; padding-top: 1px; }
+  .ref { font: 500 .78rem var(--mono); color: var(--muted); white-space: nowrap; padding-top: 4px; }
+  .note { margin: 24px 0; }
+
+  @media print {
+    .group { break-inside: avoid; }
+    .group li { padding: 3pt 0; gap: 8pt; grid-template-columns: 11pt 1fr auto; font-size: 9.5pt; }
+    input { width: 11pt; height: 11pt; margin-top: 1pt; }
+    .ref { font-size: 7.5pt; color: #444; padding-top: 1pt; }
+    .note { margin: 8pt 0; padding: 6pt 8pt; font-size: 9pt; break-inside: avoid; }
+  }
+</style>
+
+<style is:global>
+  @page { size: A4; margin: 14mm; }
+</style>

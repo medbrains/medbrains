@@ -1,0 +1,97 @@
+---
+// A printable resource (checklist, audit sheet): light page on screen, clean A4
+// on paper. Each page sets its own @page size; the PDF in /downloads is this page
+// printed to A4.
+import Footer from "../components/Footer.astro";
+import Header from "../components/Header.astro";
+import { SITE } from "../consts";
+import { breadcrumbs } from "../lib/blog";
+import Base from "./Base.astro";
+
+interface Props {
+  title: string;
+  description: string;
+  h1: string;
+  intro: string;
+  /** /downloads/<slug>.pdf */
+  pdf: string;
+  /** The landing page this resource belongs to. */
+  guide: { href: string; name: string };
+}
+const { title, description, h1, intro, pdf, guide } = Astro.props;
+const schema = [
+  breadcrumbs(Astro.site, [
+    { name: guide.name, path: guide.href },
+    { name: h1, path: Astro.url.pathname },
+  ]),
+];
+---
+
+<Base title={title} description={description} schema={schema} light>
+  <Header light />
+  <main id="main" class="resource">
+    <div class="wrap">
+      <nav aria-label="Breadcrumb" class="no-print">
+        <ol class="crumbs">
+          <li><a href="/">{SITE.brand}</a></li>
+          <li><a href={guide.href}>{guide.name}</a></li>
+          <li><span aria-current="page">{h1}</span></li>
+        </ol>
+      </nav>
+      <header class="head">
+        <p class="eyebrow">Free resource · {SITE.brand}</p>
+        <h1>{h1}</h1>
+        <p class="lede">{intro}</p>
+        <div class="actions no-print">
+          <a class="btn btn-primary" href={pdf} download>Download PDF <span aria-hidden="true">↓</span></a>
+          <button class="btn btn-ghost" type="button" data-print>Print this page</button>
+        </div>
+      </header>
+      <slot />
+      <p class="foot">{SITE.brand} · {SITE.domain} · General information, not legal advice. Check the sources for the current text.</p>
+    </div>
+  </main>
+  <div class="no-print"><Footer /></div>
+</Base>
+
+<script>
+  document.querySelector("[data-print]")?.addEventListener("click", () => window.print());
+</script>
+
+<style lang="scss" is:global>
+  @use "../styles/mixins" as *;
+
+  .resource {
+    background: var(--paper); color: var(--ink); padding: 32px 0 80px;
+    .wrap { max-width: 1040px; }
+    .crumbs { margin-bottom: 24px; }
+    .head { margin-bottom: 32px; }
+    .eyebrow { color: var(--blue-deep); }
+    h1 { font: 800 clamp(1.9rem, 4.2vw, 2.8rem)/1.08 var(--display); letter-spacing: -.03em; margin: 0 0 14px; max-width: 26ch; }
+    .lede { font-size: 1.1rem; color: var(--ink-2); max-width: 70ch; margin: 0 0 24px; }
+    .actions { display: flex; flex-wrap: wrap; gap: 12px; }
+    .btn-ghost { color: var(--ink); }
+    .btn-ghost:hover { background: var(--paper-2); }
+    h2 { font: 800 1.25rem/1.25 var(--display); letter-spacing: -.02em; margin: 32px 0 12px; }
+    .note { padding: 16px 20px; border-radius: var(--radius); background: var(--paper-2); color: var(--ink-2); font-size: .95rem; }
+    .note p { margin: 0 0 6px; }
+    .note p:last-child { margin: 0; }
+    .foot { margin-top: 40px; font-size: .85rem; color: var(--muted); }
+    a { color: var(--blue-deep); }
+    .btn-primary { color: #fff; }
+  }
+
+  @media print {
+    body { background: #fff !important; color: #000; font-size: 10.5pt; }
+    .header, .no-print, .wa, .consent { display: none !important; }
+    .resource { padding: 0; }
+    .resource .wrap { max-width: none; padding: 0; }
+    .resource h1 { font-size: 20pt; margin-bottom: 6pt; }
+    .resource .lede { font-size: 10.5pt; margin-bottom: 10pt; }
+    .resource .head { margin-bottom: 10pt; }
+    .resource h2 { font-size: 12pt; margin: 12pt 0 6pt; break-after: avoid; }
+    .resource .foot { margin-top: 12pt; font-size: 8pt; }
+    .resource a { color: #000; text-decoration: none; }
+    * { box-shadow: none !important; print-color-adjust: exact; -webkit-print-color-adjust: exact; }
+  }
+</style>
