@@ -132,6 +132,10 @@ build-starter:
 		echo "    note: medbrains-edge-app not in the workspace - edge binary not built"; \
 	fi
 	cd $(REPO_ROOT) && pnpm --filter "@medbrains/types" --filter "@medbrains/utils" --filter "@medbrains/schemas" --filter "@medbrains/api" --filter "@medbrains/stores" --filter "@medbrains/expressions" --filter "@medbrains/crdt" build
+	@# The app answers / with the website, copied in by the vite build from
+	@# website/dist. Without this step that copy was whatever was last built by
+	@# hand, and the app served a stale site (no analytics, missing posts).
+	cd $(REPO_ROOT)/../website && pnpm install --frozen-lockfile && PUBLIC_SIGN_IN_URL=/login pnpm build
 	cd $(REPO_ROOT) && pnpm --filter @medbrains/web exec vite build
 	@echo "==> starter build OK (target=$(STARTER_TARGET))"
 
