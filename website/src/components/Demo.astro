@@ -1,6 +1,12 @@
 ---
 import { ENQUIRY_TENANT, SITE, WHATSAPP } from "../consts";
 
+interface Props {
+  /** Which page the lead came from, when the URL carries no ?from= or utm_source. */
+  source?: string;
+}
+const { source = "website" } = Astro.props;
+
 const waBase = `https://wa.me/${WHATSAPP.number}`;
 const waHref = `${waBase}?text=${encodeURIComponent(WHATSAPP.prefilledText)}`;
 const enquiryUrl = ENQUIRY_TENANT ? `${SITE.app}/api/public/marketing/enquiry` : undefined;
@@ -19,7 +25,7 @@ const enquiryUrl = ENQUIRY_TENANT ? `${SITE.app}/api/public/marketing/enquiry` :
       </ul>
       <p class="alt">Rather talk now? <a href={waHref} target="_blank" rel="noopener">WhatsApp us</a> or write to <a href={`mailto:${SITE.email}`}>{SITE.email}</a>.</p>
     </div>
-    <form class="form reveal" data-clarity-mask="true" action={waBase} method="GET" data-whatsapp={waBase} data-enquiry={enquiryUrl} data-tenant={ENQUIRY_TENANT || undefined}>
+    <form class="form reveal" data-clarity-mask="true" action={waBase} method="GET" data-whatsapp={waBase} data-enquiry={enquiryUrl} data-tenant={ENQUIRY_TENANT || undefined} data-source={source}>
       <!-- Honeypot: people never see or fill this; bots that do are dropped by the server. -->
       <input class="trap" name="website" tabindex="-1" autocomplete="off" aria-hidden="true" />
       <label>Your name<input name="name" required autocomplete="name" /></label>
@@ -84,7 +90,7 @@ const enquiryUrl = ENQUIRY_TENANT ? `${SITE.app}/api/public/marketing/enquiry` :
           name: data.get("name"),
           phone: data.get("phone"),
           message: summary(data),
-          source: params.get("from") ?? params.get("utm_source") ?? "website",
+          source: params.get("from") ?? params.get("utm_source") ?? form.dataset.source,
           campaign_ref: params.get("utm_campaign"),
           external_ref: track.length ? new URLSearchParams(track).toString() : null,
           website: data.get("website"),

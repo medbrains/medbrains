@@ -30,12 +30,16 @@
   --shadow-soft: 0 1px 2px rgb(11 18 32 / 4%), 0 8px 24px rgb(11 18 32 / 6%);
   --shadow-lift: 0 2px 4px rgb(11 18 32 / 5%), 0 18px 40px rgb(11 18 32 / 10%);
   --wrap: 1200px;
-  --display: "Archivo Expanded", "Archivo", system-ui, sans-serif;
+  // Google serves Archivo Expanded as Archivo's width axis, not a family of its
+  // own; the old family name 404'd silently and headings fell back to system-ui.
+  --display: "Archivo", system-ui, sans-serif;
   --sans: "IBM Plex Sans", system-ui, sans-serif;
   --mono: "IBM Plex Mono", ui-monospace, monospace;
 }
 * { box-sizing: border-box; }
-html { scroll-behavior: smooth; scroll-padding-top: 80px; }
+// Selects Archivo's expanded width wherever --display is used; Plex has no
+// width axis, so body text is unaffected.
+html { scroll-behavior: smooth; scroll-padding-top: 80px; font-stretch: 125%; }
 body {
   margin: 0; background: var(--night); color: #fff;
   font-family: var(--sans); font-size: 17px; line-height: 1.55;

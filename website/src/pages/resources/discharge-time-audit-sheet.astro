@@ -1,0 +1,128 @@
+---
+import Resource from "../../layouts/Resource.astro";
+
+// Each hand-off the discharge post says to time, in order. The letters mark the
+// four times the two totals are computed from.
+const steps = [
+  { label: "Fit for discharge", sub: "consultant approves (A)" },
+  { label: "Summary drafted", sub: "" },
+  { label: "Summary signed", sub: "" },
+  { label: "Pharmacy returns done", sub: "" },
+  { label: "Final bill ready", sub: "" },
+  { label: "TPA request sent", sub: "(S)" },
+  { label: "TPA approval received", sub: "(R)" },
+  { label: "Patient left unit", sub: "(L)" },
+];
+const rows = Array.from({ length: 12 }, (_, i) => i + 1);
+const payers = ["Cash", "Insurance / TPA", "PM-JAY or state scheme", "CGHS / ECHS", "All discharges"];
+---
+
+<Resource
+  title="Discharge time audit sheet (free PDF) | MedBrains"
+  description="A printable sheet to time every step of discharge — fit-for-discharge decision to patient leaving — using NABH's time-taken-for-discharge definition and IRDAI's 3-hour rule."
+  h1="Discharge time audit sheet"
+  intro="Time every hand-off of a discharge on one sheet: from the consultant's decision to the patient leaving the ward. The total uses NABH's definition of time taken for discharge; the insurer column shows IRDAI's three-hour clock."
+  pdf="/downloads/discharge-time-audit-sheet.pdf"
+  guide={{ href: "/cashless-discharge", name: "Cashless discharge" }}
+>
+
+  <h2 id="log-title">Discharge log</h2>
+  <p class="meta">Ward: ____________________ &nbsp; Month: ____________ &nbsp; Recorded by: ____________________</p>
+  <div class="scroll" role="region" aria-labelledby="log-title" tabindex="0">
+    <table class="sheet">
+      <thead>
+        <tr>
+          <th scope="col">#</th>
+          <th scope="col">UHID / bed</th>
+          <th scope="col">Payer</th>
+          {steps.map((s) => <th scope="col">{s.label}{s.sub && <span>{s.sub}</span>}</th>)}
+          <th scope="col">Discharge min<span>L − A</span></th>
+          <th scope="col">Insurer min<span>R − S</span></th>
+          <th scope="col" class="wide">Main delay / notes</th>
+        </tr>
+      </thead>
+      <tbody>
+        {rows.map((n) => (
+          <tr>
+            <th scope="row">{n}</th>
+            {Array.from({ length: steps.length + 5 }, () => <td />)}
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  </div>
+
+  <section class="note how page-break" aria-labelledby="how-title">
+    <h2 id="how-title">How to fill it</h2>
+    <p>Write each time in the 24-hour clock (e.g. 14:35) as the step finishes. Leave out day-care patients.</p>
+    <p><strong>Discharge minutes = L − A.</strong> NABH's indicator runs from the consultant's formal approval of discharge to the patient leaving the clinical unit, reported monthly in minutes. Extra time the patient asks for is not counted: note it and subtract it.</p>
+    <p><strong>Insurer minutes = R − S</strong> (cashless patients only). IRDAI's Master Circular of 29 May 2024 gives the insurer three hours (180 minutes) from receiving the final discharge request. Keep the sent and received times exactly — they decide who bears charges beyond three hours.</p>
+  </section>
+
+  <h2 id="sum-title">Monthly summary</h2>
+  <div class="scroll" role="region" aria-labelledby="sum-title" tabindex="0">
+    <table class="sheet summary">
+      <thead>
+        <tr>
+          <th scope="col">Payer</th>
+          <th scope="col">Discharges</th>
+          <th scope="col">Median discharge min</th>
+          <th scope="col">Longest</th>
+          <th scope="col">Within our target</th>
+          <th scope="col">Insurer over 180 min</th>
+          <th scope="col" class="wide">Slowest step this month</th>
+        </tr>
+      </thead>
+      <tbody>
+        {payers.map((p) => (
+          <tr><th scope="row">{p}</th><td /><td /><td /><td /><td /><td /></tr>
+        ))}
+      </tbody>
+    </table>
+  </div>
+  <p class="meta">NABH asks each hospital to set its own benchmark and improve on it. Our target: ________ minutes.</p>
+
+  <section class="note" aria-labelledby="src-title">
+    <h2 id="src-title">Sources</h2>
+    <p>NABH, Accreditation Standards for Hospitals, 6th edition (effective 1 January 2025): AAC.12 and the indicator "time taken for discharge" — portal.nabh.co</p>
+    <p>IRDAI, Master Circular on Health Insurance Business, IRDAI/HLT/CIR/PRO/84/5/2024, 29 May 2024 — irdai.gov.in</p>
+  </section>
+</Resource>
+
+<style lang="scss">
+  @use "../../styles/mixins" as *;
+
+  .how { margin-top: 32px; }
+  .how h2, .note h2 { margin-top: 0; }
+  .meta { color: var(--ink-2); font-size: .95rem; }
+  .scroll { overflow-x: auto; border: 1px solid var(--line); border-radius: var(--radius); }
+  .sheet {
+    width: 100%; min-width: 960px; border-collapse: collapse; font-size: .82rem;
+    th, td { border: 1px solid var(--line); padding: 6px; text-align: left; vertical-align: top; }
+    thead th { background: var(--paper-2); font-weight: 600; line-height: 1.25; }
+    thead th span { display: block; font: 500 .72rem var(--mono); color: var(--muted); }
+    tbody td { height: 34px; }
+    tbody th { width: 28px; font-weight: 500; color: var(--muted); }
+    .wide { min-width: 150px; }
+  }
+  .summary { min-width: 720px; }
+  .note { margin-top: 32px; }
+
+  @media print {
+    .scroll { overflow: visible; border: 0; border-radius: 0; }
+    .sheet { min-width: 0; font-size: 7.5pt; table-layout: fixed; }
+    .sheet th, .sheet td { border-color: #999; padding: 3pt; }
+    .sheet thead th span { font-size: 6.5pt; color: #444; }
+    .sheet tbody td { height: 22pt; }
+    .sheet tbody th { width: 16pt; }
+    .sheet .wide { width: 34mm; min-width: 0; }
+    .how, .note { break-inside: avoid; padding: 6pt 8pt; font-size: 8.5pt; }
+    .note { margin-top: 10pt; }
+    .meta { font-size: 9pt; margin: 4pt 0; }
+    .page-break { break-before: page; margin-top: 0 !important; }
+  }
+</style>
+
+<style is:global>
+  @page { size: A4 landscape; margin: 10mm; }
+</style>

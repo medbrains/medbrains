@@ -49,6 +49,15 @@ assert.ok(results[0].types.includes("CollectionPage"), "/blog: CollectionPage");
 for (const r of results.slice(2)) {
   assert.ok(r.types.some((t) => t === "BlogPosting" || t === "MedicalWebPage"), `${r.path}: article schema`);
 }
+// The landing pages for hospitals and their printable resources (src/data/guides.ts).
+const guides = ["abdm-incentive", "cashless-discharge", "dpdp-readiness"].map(checkPage);
+const resources = ["resources/dpdp-readiness-checklist", "resources/discharge-time-audit-sheet"].map(checkPage);
+for (const g of guides) assert.ok(g.types.includes("FAQPage"), `${g.path}: FAQPage`);
+for (const r of resources) {
+  const pdf = join(dist, "downloads", `${r.path.split("/").pop()}.pdf`);
+  assert.ok(existsSync(pdf), `${r.path}: its PDF is in /downloads`);
+}
+results.push(...guides, ...resources);
 assert.ok(existsSync(join(dist, "pagefind", "pagefind.js")), "Pagefind index built");
 assert.ok(existsSync(join(dist, "blog", "rss.xml")), "RSS feed built");
 

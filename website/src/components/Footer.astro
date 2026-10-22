@@ -1,5 +1,6 @@
 ---
 import { ANALYTICS, SITE, SOCIAL, WHATSAPP } from "../consts";
+import { GUIDE_LIST, RESOURCES } from "../data/guides";
 import { MODULE_PAGES } from "../data/modules";
 
 const links = [
@@ -31,6 +32,11 @@ const links = [
       <p>Solutions</p>
       {MODULE_PAGES.map((m) => <a href={`/${m.slug}`}>{m.eyebrow}</a>)}
     </nav>
+    <nav aria-label="For hospitals">
+      <p>For hospitals</p>
+      {GUIDE_LIST.map((g) => <a href={`/${g.slug}`}>{g.eyebrow}</a>)}
+      {RESOURCES.map((r) => <a href={r.page}>{r.title}</a>)}
+    </nav>
     <nav aria-label="Social">
       <p>Follow</p>
       {links.map((l) => <a href={l.href} target="_blank" rel="noopener">{l.label}</a>)}
@@ -38,6 +44,7 @@ const links = [
   </div>
   <div class="wrap legal">
     © {new Date().getFullYear()} {SITE.brand}. Made in India for Indian hospitals.
+    <a class="choice" href="/privacy">Privacy policy</a>
     {ANALYTICS.clarityId && <button type="button" class="choice" data-analytics-choice>Analytics choice</button>}
   </div>
 </footer>
@@ -46,7 +53,7 @@ const links = [
   @use "../styles/mixins" as *;
 
   .footer { background: var(--night); color: var(--night-text); padding: 72px 0 32px; }
-  .cols { display: grid; grid-template-columns: 2fr 1fr 1fr 1fr; gap: 40px; }
+  .cols { display: grid; grid-template-columns: 2fr 1fr 1fr 1fr 1fr; gap: 40px; }
   .brand { display: inline-flex; gap: 10px; align-items: center; color: #fff; text-decoration: none; font: 900 1.2rem var(--display); }
   .cols > div p { max-width: 36ch; }
   .mail { color: #fff; font-weight: 600; }
@@ -59,5 +66,6 @@ const links = [
     margin-left: 12px; padding: 0; border: 0; background: none; color: inherit;
     font: inherit; text-decoration: underline; cursor: pointer; min-height: 24px;
   }
+  @include below(lg) { .cols { grid-template-columns: repeat(3, 1fr); } .cols > div { grid-column: 1 / -1; } }
   @include below(md) { .cols { grid-template-columns: 1fr 1fr; } .cols > div { grid-column: 1 / -1; } }
 </style>

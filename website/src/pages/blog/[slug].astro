@@ -9,6 +9,7 @@ import ShareBar from "../../components/blog/ShareBar.astro";
 import Toc from "../../components/blog/Toc.astro";
 import { SITE } from "../../consts";
 import { getCategory } from "../../data/blog-categories";
+import { guideForPost } from "../../data/guides";
 import BlogLayout from "../../layouts/BlogLayout.astro";
 import {
   absolute,
@@ -45,6 +46,7 @@ const authorUrl = absolute(`/blog/author/${author.id}`, Astro.site);
 const related = relatedPosts(post, all);
 const authorNames = await getAuthorNames();
 const minutes = readingTime(post);
+const guide = guideForPost(post.id);
 
 // Share image: the post's own, else its cover, else the site card (Base default).
 const shareSrc = ogImage ?? cover?.src;
@@ -215,7 +217,20 @@ const schema = [
           </ol>
         </section>
 
-        {!medical && (
+        {guide && (
+          <aside class="for-hospitals" aria-labelledby="for-hospitals-title">
+            <p class="eyebrow">For hospitals</p>
+            <h2 id="for-hospitals-title"><a href={`/${guide.slug}`}>{guide.h1}</a></h2>
+            <p>{guide.boxText}</p>
+            <div class="fh-actions">
+              <a class="btn btn-primary" href={`/${guide.slug}`}>See how {SITE.brand} helps <span aria-hidden="true">→</span></a>
+              {guide.resource && <a class="btn btn-ghost" href={guide.resource.page}>{guide.resource.title}</a>}
+              {guide.resource && <a class="pdf" href={guide.resource.pdf} download>Download the PDF</a>}
+            </div>
+          </aside>
+        )}
+
+        {!medical && !guide && (
           <aside class="cta" aria-label={`${SITE.brand} for hospitals`}>
             <p><strong>Run a hospital or clinic?</strong> {SITE.brand} puts OPD, wards, lab, pharmacy and billing on one system.</p>
             <a class="btn btn-primary" href="/?from=blog#demo">Book a demo <span aria-hidden="true">→</span></a>
@@ -349,6 +364,19 @@ const schema = [
     p { margin: 0; flex: 1 1 280px; }
     :global(a.btn) { color: #fff; }
   }
+
+  .for-hospitals {
+    margin-top: 40px; padding: 28px; border-radius: var(--radius-lg); background: var(--blue-tint);
+    .eyebrow { color: var(--blue-deep); }
+    h2 { margin: 0 0 8px; font: 800 1.35rem/1.25 var(--display); letter-spacing: -.02em; }
+    h2 a { color: var(--ink); text-decoration: none; }
+    h2 a:hover { text-decoration: underline; }
+    p { margin: 0 0 16px; color: var(--ink-2); }
+    :global(a.btn-primary) { color: #fff; }
+    :global(a.btn-ghost) { color: var(--ink); }
+  }
+  .fh-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 16px; }
+  .pdf { color: var(--blue-deep); font-weight: 600; min-height: 24px; display: inline-flex; align-items: center; }
 
   .contact {
     margin-top: 24px; padding: 20px 24px; border-radius: var(--radius-lg); border: 1px solid var(--line);
