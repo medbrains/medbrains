@@ -59,7 +59,9 @@ const id = ANALYTICS.clarityId;
 
 <style lang="scss">
   .consent {
-    position: fixed; z-index: 50; left: 16px; right: 16px; bottom: 16px;
+    /* Clear of the WhatsApp button (56px at right/bottom 20px, above this):
+       it covered "No thanks", so a visitor could not cleanly decline. */
+    position: fixed; z-index: 50; left: 16px; right: 88px; bottom: 16px;
     max-width: 560px; margin-left: auto;
     display: flex; flex-wrap: wrap; align-items: center; gap: 12px 20px;
     padding: 16px 20px; border-radius: var(--radius-lg);
@@ -69,4 +71,7 @@ const id = ANALYTICS.clarityId;
     .actions { display: flex; gap: 8px; }
   }
   .consent[hidden] { display: none; }
+  @media (max-width: 520px) {
+    .consent { right: 16px; bottom: 88px; }
+  }
 </style>
