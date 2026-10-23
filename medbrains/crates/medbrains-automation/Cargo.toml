@@ -3,7 +3,7 @@ name = "medbrains-automation"
 publish = false
 version = "0.1.0"
 edition = "2024"
-rust-version = "1.85"
+rust-version.workspace = true
 
 # Workflow automation for MedBrains, built on the r8r engine.
 #

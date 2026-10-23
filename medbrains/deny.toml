@@ -18,13 +18,11 @@ unmaintained = "workspace"
 # re-decided. scripts/check_audit_ignores.py fails CI once an expiry passes.
 # cargo-audit reads this same list (security.yml), so there is one source.
 ignore = [
-    { id = "RUSTSEC-2026-0367", reason = "zip: ZipArchive::extract only; terminology reads entries, never calls extract. Cleared by zip 9. expires 2026-11-30" },
-    { id = "RUSTSEC-2026-0368", reason = "zip: extract() symlink creation; never called. Cleared by zip 9. expires 2026-11-30" },
-    { id = "RUSTSEC-2026-0369", reason = "zip: extract() unix permissions; never called. Cleared by zip 9. expires 2026-11-30" },
-    { id = "RUSTSEC-2026-0194", reason = "quick-xml: only via r8r-formats, linked into no binary. Cleared by bumping r8r. expires 2026-11-30" },
-    { id = "RUSTSEC-2026-0195", reason = "quick-xml: only via r8r-formats, linked into no binary. Cleared by bumping r8r. expires 2026-11-30" },
-    { id = "RUSTSEC-2026-0119", reason = "hickory-proto: quadratic name compression when encoding; we only encode our own short TXT/MX queries. Cleared by hickory 0.26 + iroh 1.x. expires 2026-11-30" },
-    { id = "RUSTSEC-2026-0253", reason = "lru: pop() panic-safety; offline-core never pops while a user callback can panic. Cleared by lru 0.18 (offline-core) + iroh 1.x; pingora-cache copy waits on pingora 0.9. expires 2026-12-31" },
+    { id = "RUSTSEC-2026-0367", reason = "zip 4 now only via tauri-plugin-updater 2.14 (latest), which extracts an update only after its signature verifies. Re-check on the next updater release. expires 2026-12-31" },
+    { id = "RUSTSEC-2026-0368", reason = "zip 4 via tauri-plugin-updater only, after signature verification; see 0367. expires 2026-12-31" },
+    { id = "RUSTSEC-2026-0369", reason = "zip 4 via tauri-plugin-updater only, after signature verification; see 0367. expires 2026-12-31" },
+    { id = "RUSTSEC-2026-0119", reason = "hickory-proto 0.25 via iroh 0.92 only (server is on 0.26): quadratic name compression when encoding our own queries. Cleared by iroh 1.x. expires 2026-11-30" },
+    { id = "RUSTSEC-2026-0253", reason = "lru 0.13/0.16 remain via iroh 0.92 and pingora 0.8 (offline-core is on 0.18): pop() panic-safety, no user callback runs inside pop. Cleared by iroh 1.x and pingora 0.9. expires 2026-12-31" },
     { id = "RUSTSEC-2026-0118", reason = "hickory-proto 0.25 (iroh): loop only with DNSSEC validation, which iroh does not enable. Cleared by iroh 1.x. expires 2026-11-30" },
 ]
 

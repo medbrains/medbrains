@@ -71,7 +71,10 @@ pub fn inspect(zip_path: &Path) -> Result<PackageLayout, PackageError> {
         let entry = archive.by_index_raw(index)?;
         let Some(path) = entry.enclosed_name() else {
             return Err(PackageError::UnsafeEntry(
-                entry.name().chars().take(120).collect(),
+                entry.name().map_or_else(
+                    |_| "(name is not valid text)".to_owned(),
+                    |name| name.chars().take(120).collect(),
+                ),
             ));
         };
         if entry.is_dir() {

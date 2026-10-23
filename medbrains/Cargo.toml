@@ -169,7 +169,7 @@ default-members = [
 [workspace.package]
 version = "0.1.0"
 edition = "2024"
-rust-version = "1.85"
+rust-version = "1.95"
 license-file = "../LICENSE"
 
 [workspace.dependencies]
@@ -223,7 +223,7 @@ base64 = "0.22"
 flate2 = "1"
 # SNOMED CT RF2 release packages arrive as zip files. Read-only use: no
 # encryption, no legacy codecs.
-zip = { version = "4.6", default-features = false, features = ["deflate-flate2-zlib-rs"] }
+zip = { version = "9", default-features = false, features = ["deflate-flate2-zlib-rs"] }
 
 # Validation
 regex = "1"
