@@ -6,7 +6,7 @@ import { Controller, useForm } from "react-hook-form";
 import { z } from "zod";
 import { DoctorSearchSelect } from "@/components/DoctorSearchSelect";
 import { PatientSearchSelect } from "@/components/PatientSearchSelect";
-import { Alert, Input, Modal, Select, Switch, TextArea } from "@/components/ui";
+import { Alert, Modal, Select, Switch, TextArea } from "@/components/ui";
 import { psychiatryService } from "@/services/psychiatry.service";
 import { ADMISSION_CATEGORIES, blankToUndefined } from "./labels";
 
@@ -14,10 +14,6 @@ const schema = z.object({
   patient_id: z.string().min(1, "Choose the patient"),
   admission_category: z.enum(["independent", "supported", "minor_supported", "emergency"]),
   treating_psychiatrist_id: z.string(),
-  nominated_rep_name: z.string().max(200),
-  nominated_rep_relation: z.string().max(100),
-  nominated_rep_contact: z.string().max(100),
-  advance_directive_text: z.string().max(5000),
   substance_abuse_flag: z.boolean(),
   notes: z.string().max(5000),
 });
@@ -43,10 +39,6 @@ export function RegisterPsychPatientModal({
       patient_id: initialPatientId ?? "",
       admission_category: "independent",
       treating_psychiatrist_id: "",
-      nominated_rep_name: "",
-      nominated_rep_relation: "",
-      nominated_rep_contact: "",
-      advance_directive_text: "",
       substance_abuse_flag: false,
       notes: "",
     },
@@ -57,10 +49,6 @@ export function RegisterPsychPatientModal({
         patient_id: v.patient_id,
         admission_category: v.admission_category,
         treating_psychiatrist_id: blankToUndefined(v.treating_psychiatrist_id),
-        nominated_rep_name: blankToUndefined(v.nominated_rep_name),
-        nominated_rep_relation: blankToUndefined(v.nominated_rep_relation),
-        nominated_rep_contact: blankToUndefined(v.nominated_rep_contact),
-        advance_directive_text: blankToUndefined(v.advance_directive_text),
         substance_abuse_flag: v.substance_abuse_flag,
         notes: blankToUndefined(v.notes),
       }),
@@ -88,7 +76,8 @@ export function RegisterPsychPatientModal({
       <Stack gap="sm">
         <Text size="sm" c="dimmed">
           The record is restricted from the start: only the treating psychiatrist, people your
-          hospital has authorised, and an emergency (break-glass) session can open it.
+          hospital has authorised, and an emergency (break-glass) session can open it. Record the
+          nominated representative, advance directive and admission section on the record.
         </Text>
         <Controller
           control={control}
@@ -126,30 +115,6 @@ export function RegisterPsychPatientModal({
               value={field.value}
               onChange={field.onChange}
             />
-          )}
-        />
-        <Controller
-          control={control}
-          name="nominated_rep_name"
-          render={({ field, fieldState }) => (
-            <Input label="Nominated representative" error={fieldState.error?.message} {...field} />
-          )}
-        />
-        <Controller
-          control={control}
-          name="nominated_rep_relation"
-          render={({ field }) => <Input label="Relationship to the patient" {...field} />}
-        />
-        <Controller
-          control={control}
-          name="nominated_rep_contact"
-          render={({ field }) => <Input label="Representative's contact" {...field} />}
-        />
-        <Controller
-          control={control}
-          name="advance_directive_text"
-          render={({ field }) => (
-            <TextArea label="Advance directive" autosize minRows={2} {...field} />
           )}
         />
         <Controller

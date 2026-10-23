@@ -1,0 +1,80 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT r.id, r.psych_patient_id, pp.patient_id, r.restraint_type::text AS \"restraint_type!\",\n                  r.method, r.reason, r.start_time, r.end_time, r.authorised_by,\n                  r.nominated_rep_informed_at\n             FROM psych_seclusion_restraint r JOIN psych_patients pp ON pp.id = r.psych_patient_id\n            WHERE r.tenant_id = $1 AND r.deleted_at IS NULL\n              AND r.start_time >= date_trunc('month', $2::date)\n              AND r.start_time < date_trunc('month', $2::date) + interval '1 month'\n              AND ($3::uuid[] IS NULL OR pp.patient_id = ANY($3))\n              AND (NOT pp.is_restricted\n                   OR NOT public.mental_health_withheld(pp.patient_id, $4, $5))\n            ORDER BY r.start_time LIMIT 5000",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "psych_patient_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 2,
+        "name": "patient_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 3,
+        "name": "restraint_type!",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 4,
+        "name": "method",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 5,
+        "name": "reason",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 6,
+        "name": "start_time",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 7,
+        "name": "end_time",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 8,
+        "name": "authorised_by",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 9,
+        "name": "nominated_rep_informed_at",
+        "type_info": "Timestamptz"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Date",
+        "UuidArray",
+        "Uuid",
+        "Bool"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      null,
+      true,
+      false,
+      false,
+      true,
+      true,
+      true
+    ]
+  },
+  "hash": "42eecf07d53088b87b44e5398c088beae11eb8a01ebe3fa29aad4143d6a75c46"
+}

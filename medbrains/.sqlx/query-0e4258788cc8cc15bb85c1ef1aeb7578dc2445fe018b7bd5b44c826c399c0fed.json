@@ -1,0 +1,23 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT d.psych_patient_id FROM psych_directive_challenges c JOIN psych_advance_directives d ON d.id = c.advance_directive_id WHERE c.id = $1 AND c.tenant_id = $2 AND c.deleted_at IS NULL",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "psych_patient_id",
+        "type_info": "Uuid"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "0e4258788cc8cc15bb85c1ef1aeb7578dc2445fe018b7bd5b44c826c399c0fed"
+}

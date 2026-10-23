@@ -17,7 +17,7 @@ export interface PermissionDef {
   module: string;
 }
 
-/** 1136 permissions, one per constant in the Rust source. */
+/** 1143 permissions, one per constant in the Rust source. */
 export const PERMISSIONS: PermissionDef[] = [
   // dashboard
   {
@@ -4277,6 +4277,48 @@ export const PERMISSIONS: PermissionDef[] = [
     code: "specialty.psychiatry.mhrb.manage",
     label: "Manage MHRB",
     description: "Manage Mental Health Review Board notifications",
+    module: "specialty",
+  },
+  {
+    code: "specialty.psychiatry.admissions.list",
+    label: "View Mental Healthcare Act admissions",
+    description: "The legal episodes — independent (s.86), minor (s.87), supported (s.89, s.90), emergency (s.94) — with their examinations, time limits and Board reporting.",
+    module: "specialty",
+  },
+  {
+    code: "specialty.psychiatry.admissions.create",
+    label: "Admit under a Mental Healthcare Act section",
+    description: "The server checks what the section requires — age, the applicant, the two examinations within seven days, the nominated representative — before the admission exists.",
+    module: "specialty",
+  },
+  {
+    code: "specialty.psychiatry.admissions.update",
+    label: "Update Admissions",
+    description: "Discharge or end a Mental Healthcare Act admission.",
+    module: "specialty",
+  },
+  {
+    code: "specialty.psychiatry.legal.manage",
+    label: "Record representatives and advance directives",
+    description: "Nominated representatives (MHCA s.14) and advance directives (s.5): who speaks for the patient, and how the patient asked to be treated — or not treated.",
+    module: "specialty",
+  },
+  {
+    code: "specialty.psychiatry.directives.challenge",
+    label: "Apply to the Board against an advance directive",
+    description: "MHCA s.11: the only lawful way not to follow a valid directive is an application to the Mental Health Review Board on one of the five statutory grounds.",
+    module: "specialty",
+  },
+  {
+    code: "specialty.psychiatry.safety.review",
+    label: "Complete a suicide-risk review",
+    description: "A PHQ-9 with any answer above zero on item 9 opens a review that stays pending until a clinician records the outcome.",
+    module: "specialty",
+  },
+  {
+    code: "specialty.psychiatry.abdm_consent.manage",
+    label: "Record consent to share mental-health records",
+    description: "Psychiatric care contexts are withheld from ABDM unless the hospital allows it and the patient consents to that category.",
     module: "specialty",
   },
   {
@@ -10189,18 +10231,38 @@ export const P = {
     PMR_SESSIONS_CREATE: "specialty.pmr.sessions.create",
     PMR_SESSIONS_LIST: "specialty.pmr.sessions.list",
     PSYCHIATRY: {
+      ABDM_CONSENT: {
+        MANAGE: "specialty.psychiatry.abdm_consent.manage",
+      },
+      ABDM_CONSENT_MANAGE: "specialty.psychiatry.abdm_consent.manage",
+      ADMISSIONS: {
+        CREATE: "specialty.psychiatry.admissions.create",
+        LIST: "specialty.psychiatry.admissions.list",
+        UPDATE: "specialty.psychiatry.admissions.update",
+      },
+      ADMISSIONS_CREATE: "specialty.psychiatry.admissions.create",
+      ADMISSIONS_LIST: "specialty.psychiatry.admissions.list",
+      ADMISSIONS_UPDATE: "specialty.psychiatry.admissions.update",
       ASSESSMENTS: {
         CREATE: "specialty.psychiatry.assessments.create",
         LIST: "specialty.psychiatry.assessments.list",
       },
       ASSESSMENTS_CREATE: "specialty.psychiatry.assessments.create",
       ASSESSMENTS_LIST: "specialty.psychiatry.assessments.list",
+      DIRECTIVES: {
+        CHALLENGE: "specialty.psychiatry.directives.challenge",
+      },
+      DIRECTIVES_CHALLENGE: "specialty.psychiatry.directives.challenge",
       ECT: {
         CREATE: "specialty.psychiatry.ect.create",
         LIST: "specialty.psychiatry.ect.list",
       },
       ECT_CREATE: "specialty.psychiatry.ect.create",
       ECT_LIST: "specialty.psychiatry.ect.list",
+      LEGAL: {
+        MANAGE: "specialty.psychiatry.legal.manage",
+      },
+      LEGAL_MANAGE: "specialty.psychiatry.legal.manage",
       MHRB: {
         MANAGE: "specialty.psychiatry.mhrb.manage",
       },
@@ -10223,11 +10285,21 @@ export const P = {
         VIEW: "specialty.psychiatry.restricted.view",
       },
       RESTRICTED_VIEW: "specialty.psychiatry.restricted.view",
+      SAFETY: {
+        REVIEW: "specialty.psychiatry.safety.review",
+      },
+      SAFETY_REVIEW: "specialty.psychiatry.safety.review",
     },
+    PSYCHIATRY_ABDM_CONSENT_MANAGE: "specialty.psychiatry.abdm_consent.manage",
+    PSYCHIATRY_ADMISSIONS_CREATE: "specialty.psychiatry.admissions.create",
+    PSYCHIATRY_ADMISSIONS_LIST: "specialty.psychiatry.admissions.list",
+    PSYCHIATRY_ADMISSIONS_UPDATE: "specialty.psychiatry.admissions.update",
     PSYCHIATRY_ASSESSMENTS_CREATE: "specialty.psychiatry.assessments.create",
     PSYCHIATRY_ASSESSMENTS_LIST: "specialty.psychiatry.assessments.list",
+    PSYCHIATRY_DIRECTIVES_CHALLENGE: "specialty.psychiatry.directives.challenge",
     PSYCHIATRY_ECT_CREATE: "specialty.psychiatry.ect.create",
     PSYCHIATRY_ECT_LIST: "specialty.psychiatry.ect.list",
+    PSYCHIATRY_LEGAL_MANAGE: "specialty.psychiatry.legal.manage",
     PSYCHIATRY_MHRB_MANAGE: "specialty.psychiatry.mhrb.manage",
     PSYCHIATRY_PATIENTS_CREATE: "specialty.psychiatry.patients.create",
     PSYCHIATRY_PATIENTS_LIST: "specialty.psychiatry.patients.list",
@@ -10235,6 +10307,7 @@ export const P = {
     PSYCHIATRY_RESTRAINT_LIST: "specialty.psychiatry.restraint.list",
     PSYCHIATRY_RESTRAINT_MANAGE: "specialty.psychiatry.restraint.manage",
     PSYCHIATRY_RESTRICTED_VIEW: "specialty.psychiatry.restricted.view",
+    PSYCHIATRY_SAFETY_REVIEW: "specialty.psychiatry.safety.review",
   },
   STORAGE: {
     POLICIES: {
@@ -10624,15 +10697,22 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.SPECIALTY.PMR.PSYCHOMETRIC.MANAGE,
       P.SPECIALTY.PMR.SESSIONS.CREATE,
       P.SPECIALTY.PMR.SESSIONS.LIST,
+      P.SPECIALTY.PSYCHIATRY.ABDM_CONSENT.MANAGE,
+      P.SPECIALTY.PSYCHIATRY.ADMISSIONS.CREATE,
+      P.SPECIALTY.PSYCHIATRY.ADMISSIONS.LIST,
+      P.SPECIALTY.PSYCHIATRY.ADMISSIONS.UPDATE,
       P.SPECIALTY.PSYCHIATRY.ASSESSMENTS.CREATE,
       P.SPECIALTY.PSYCHIATRY.ASSESSMENTS.LIST,
+      P.SPECIALTY.PSYCHIATRY.DIRECTIVES.CHALLENGE,
       P.SPECIALTY.PSYCHIATRY.ECT.CREATE,
       P.SPECIALTY.PSYCHIATRY.ECT.LIST,
+      P.SPECIALTY.PSYCHIATRY.LEGAL.MANAGE,
       P.SPECIALTY.PSYCHIATRY.PATIENTS.CREATE,
       P.SPECIALTY.PSYCHIATRY.PATIENTS.LIST,
       P.SPECIALTY.PSYCHIATRY.PATIENTS.UPDATE,
       P.SPECIALTY.PSYCHIATRY.RESTRAINT.LIST,
       P.SPECIALTY.PSYCHIATRY.RESTRAINT.MANAGE,
+      P.SPECIALTY.PSYCHIATRY.SAFETY.REVIEW,
       P.TERMINOLOGY.SEARCH,
       P.TERMINOLOGY.SNOMED.VIEW,
     ],
@@ -10861,6 +10941,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.SPECIALTY.PMR.PSYCHOMETRIC.LIST,
       P.SPECIALTY.PMR.PSYCHOMETRIC.MANAGE,
       P.SPECIALTY.PMR.SESSIONS.LIST,
+      P.SPECIALTY.PSYCHIATRY.ADMISSIONS.LIST,
       P.SPECIALTY.PSYCHIATRY.ASSESSMENTS.LIST,
       P.SPECIALTY.PSYCHIATRY.PATIENTS.LIST,
       P.SPECIALTY.PSYCHIATRY.RESTRAINT.LIST,

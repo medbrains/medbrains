@@ -1,0 +1,22 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT COALESCE((SELECT value = 'true'::jsonb FROM tenant_settings\n             WHERE tenant_id = $1 AND category = 'abdm' AND key = 'mental_health_sharing'\n               AND deleted_at IS NULL), false) AS \"enabled!\"",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "enabled!",
+        "type_info": "Bool"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "780316e8faea55dc5d3923e0851d53a0eb281c46eb2a49cb76642c3c9d76910c"
+}

@@ -8,24 +8,54 @@ import { useMemo, useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { z } from "zod";
 import type { Column } from "@/components/DataTable";
-import { Alert, Badge, Button, Modal, NumberField, Select, TextArea } from "@/components/ui";
+import { DoctorSearchSelect } from "@/components/DoctorSearchSelect";
+import {
+  Alert,
+  Badge,
+  Button,
+  Checkbox,
+  Input,
+  Modal,
+  NumberField,
+  Select,
+  TextArea,
+} from "@/components/ui";
 import { psychiatryService } from "@/services/psychiatry.service";
-import { blankToUndefined, formatDateTime, labelOf, RESTRAINT_TYPES } from "./labels";
+import {
+  blankToUndefined,
+  formatDateTime,
+  labelOf,
+  RESTRAINT_TYPES,
+  RESTRAINT_TYPES_ALLOWED,
+} from "./labels";
 import { RecordListFrame, usePsychList } from "./RecordListFrame";
 
 /** Same bound as the server (MHCA 2017 / NABH: time-limited, reviewed). */
 const MAX_REVIEW_HOURS = 4;
 
 const schema = z.object({
-  restraint_type: z.enum(["physical", "chemical", "seclusion"]),
+  restraint_type: z.enum(["physical", "chemical"]),
   reason: z.string().trim().min(5, "Record why restraint is necessary"),
+  method: z.string().trim().min(1, "Record the method and nature of the restraint (s.97(3))"),
+  last_resort_confirmed: z.literal(true, {
+    error: "Restraint is lawful only as the last means to prevent imminent harm",
+  }),
+  authorised_by: z.string(),
   review_due_hours: z.number().int().min(1).max(MAX_REVIEW_HOURS),
   notes: z.string().max(5000),
 });
 type Form = z.infer<typeof schema>;
 
+const REP_NOTICE_HOURS = 24;
+
 function isOverdue(r: PsychSeclusionRestraint): boolean {
   return !r.end_time && new Date(r.review_due_at).getTime() < Date.now();
+}
+
+/** s.97(5): the nominated representative is told within 24 hours. */
+function repNoticeLate(r: PsychSeclusionRestraint): boolean {
+  const deadline = new Date(r.start_time).getTime() + REP_NOTICE_HOURS * 3_600_000;
+  return !r.nominated_rep_informed_at && deadline < Date.now();
 }
 
 export function RestraintTab({ psychPatientId }: { psychPatientId: string }) {
@@ -46,11 +76,22 @@ export function RestraintTab({ psychPatientId }: { psychPatientId: string }) {
 
   const { control, handleSubmit, reset } = useForm<Form>({
     resolver: zodResolver(schema),
-    defaultValues: { restraint_type: "physical", reason: "", review_due_hours: 4, notes: "" },
+    defaultValues: {
+      restraint_type: "physical",
+      reason: "",
+      method: "",
+      authorised_by: "",
+      review_due_hours: 4,
+      notes: "",
+    },
   });
   const create = useMutation({
     mutationFn: (v: Form) =>
-      psychiatryService.createRestraint(psychPatientId, { ...v, notes: blankToUndefined(v.notes) }),
+      psychiatryService.createRestraint(psychPatientId, {
+        ...v,
+        authorised_by: blankToUndefined(v.authorised_by),
+        notes: blankToUndefined(v.notes),
+      }),
     onSuccess: () => {
       invalidate();
       reset();
@@ -67,6 +108,11 @@ export function RestraintTab({ psychPatientId }: { psychPatientId: string }) {
     },
   });
 
+  const informed = useMutation({
+    mutationFn: (id: string) => psychiatryService.markRestraintRepInformed(id),
+    onSuccess: invalidate,
+  });
+
   const columns = useMemo<Column<PsychSeclusionRestraint>[]>(
     () => [
       {
@@ -75,6 +121,25 @@ export function RestraintTab({ psychPatientId }: { psychPatientId: string }) {
         render: (r) => <Badge tone="warning">{labelOf(RESTRAINT_TYPES, r.restraint_type)}</Badge>,
       },
       { key: "reason", label: "Reason", render: (r) => <Text size="sm">{r.reason}</Text> },
+      { key: "method", label: "Method", render: (r) => <Text size="sm">{r.method ?? "—"}</Text> },
+      {
+        key: "rep",
+        label: "Representative told",
+        render: (r) =>
+          r.nominated_rep_informed_at ? (
+            <Text size="sm">{formatDateTime(r.nominated_rep_informed_at)}</Text>
+          ) : (
+            <Group gap={4} wrap="nowrap">
+              {repNoticeLate(r) && <IconAlertTriangle size={16} aria-hidden />}
+              <Text size="sm">{repNoticeLate(r) ? "Not yet — over 24 hours" : "Not yet"}</Text>
+              {canManage && (
+                <Button tone="ghost" size="compact-xs" onClick={() => informed.mutate(r.id)}>
+                  Mark told
+                </Button>
+              )}
+            </Group>
+          ),
+      },
       {
         key: "start",
         label: "Started",
@@ -114,12 +179,12 @@ export function RestraintTab({ psychPatientId }: { psychPatientId: string }) {
           ) : null,
       },
     ],
-    [canManage],
+    [canManage, informed.mutate],
   );
 
   return (
     <RecordListFrame
-      description="Seclusion and restraint episodes. Each must be time-limited and reviewed at least every four hours."
+      description="Restraint episodes (MHCA s.97): the last means to prevent imminent harm, authorised by the psychiatrist in charge, reviewed at least every four hours, the representative told within 24 hours. Seclusion is prohibited."
       addLabel="Start restraint"
       canAdd={canManage}
       onAdd={() => setOpen(true)}
@@ -130,7 +195,7 @@ export function RestraintTab({ psychPatientId }: { psychPatientId: string }) {
       <Modal
         opened={open}
         onClose={() => setOpen(false)}
-        title="Start restraint or seclusion"
+        title="Start restraint"
         danger
         primaryAction={{
           label: "Start",
@@ -146,7 +211,7 @@ export function RestraintTab({ psychPatientId }: { psychPatientId: string }) {
             render={({ field }) => (
               <Select
                 label="Type"
-                data={RESTRAINT_TYPES}
+                data={RESTRAINT_TYPES_ALLOWED}
                 value={field.value}
                 onChange={(v) => v && field.onChange(v)}
                 allowDeselect={false}
@@ -165,6 +230,43 @@ export function RestraintTab({ psychPatientId }: { psychPatientId: string }) {
                 minRows={2}
                 error={fieldState.error?.message}
                 {...field}
+              />
+            )}
+          />
+          <Controller
+            control={control}
+            name="method"
+            render={({ field, fieldState }) => (
+              <Input
+                label="Method and nature"
+                placeholder="e.g. four-point soft limb restraints"
+                required
+                error={fieldState.error?.message}
+                {...field}
+              />
+            )}
+          />
+          <Controller
+            control={control}
+            name="authorised_by"
+            render={({ field }) => (
+              <DoctorSearchSelect
+                label="Authorised by (psychiatrist in charge)"
+                placeholder="You, if left blank"
+                value={field.value}
+                onChange={field.onChange}
+              />
+            )}
+          />
+          <Controller
+            control={control}
+            name="last_resort_confirmed"
+            render={({ field, fieldState }) => (
+              <Checkbox
+                label="The only means to prevent imminent harm — not punishment, not for want of staff"
+                checked={field.value === true}
+                onChange={(e) => field.onChange(e.currentTarget.checked)}
+                error={fieldState.error?.message}
               />
             )}
           />
@@ -190,6 +292,7 @@ export function RestraintTab({ psychPatientId }: { psychPatientId: string }) {
           {create.isError && <Alert tone="danger">{create.error.message}</Alert>}
         </Stack>
       </Modal>
+      {informed.isError && <Alert tone="danger">{informed.error.message}</Alert>}
       <Modal
         opened={releasing !== null}
         onClose={() => setReleasing(null)}

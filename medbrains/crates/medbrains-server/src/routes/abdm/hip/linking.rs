@@ -18,6 +18,11 @@ use uuid::Uuid;
 use super::gateway::Hip;
 use crate::{error::AppError, routes::abdm::abha::secret_key};
 
+/// Why a mental-health care context is not linked.
+const MENTAL_HEALTH_WITHHELD: &str =
+    "Mental-health record: not shared through ABDM without the hospital's setting and the \
+     patient's consent to that category (MHCA 2017 s.23)";
+
 pub(super) const TOKEN_CONTEXT: &[u8] = b"abdm-link-token";
 /// Care contexts linked in one call; a patient rarely has more pending.
 pub(super) const LINK_BATCH: i64 = 50;
@@ -188,8 +193,10 @@ pub async fn request_link(
 ) -> Result<(), AppError> {
     let mut tx = db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &tenant_id).await?;
-    let (patient_id, status) = sqlx::query_as::<_, (Uuid, String)>(
-        "SELECT patient_id, link_status FROM abdm_care_contexts \
+    let (patient_id, status, shareable) = sqlx::query_as::<_, (Uuid, String, bool)>(
+        "SELECT patient_id, link_status, \
+                public.abdm_mental_health_shareable(tenant_id, patient_id, encounter_id) \
+           FROM abdm_care_contexts \
           WHERE tenant_id = $1 AND id = $2 AND deleted_at IS NULL",
     )
     .bind(tenant_id)
@@ -203,6 +210,11 @@ pub async fn request_link(
         return Ok(());
     }
     let ids = [care_context_id];
+    // MHCA s.23: a psychiatric record leaves the hospital only with the
+    // hospital's setting on and the patient's consent to that category.
+    if !shareable {
+        return mark(db, tenant_id, &ids, "not_linked", Some(MENTAL_HEALTH_WITHHELD), None).await;
+    }
     if let Some(reason) = patient.blocked_reason() {
         return mark(db, tenant_id, &ids, "not_linked", Some(reason), None).await;
     }
@@ -282,7 +294,8 @@ pub(super) async fn send_links(
     let pending = sqlx::query_as::<_, (Uuid, String, String, String)>(
         "SELECT id, reference_number, display, hi_types[1] FROM abdm_care_contexts \
           WHERE tenant_id = $1 AND patient_id = $2 AND link_status <> 'linked' \
-            AND deleted_at IS NULL ORDER BY record_date DESC LIMIT $3",
+            AND deleted_at IS NULL AND public.abdm_mental_health_shareable(tenant_id, patient_id, encounter_id) \
+          ORDER BY record_date DESC LIMIT $3",
     )
     .bind(tenant_id)
     .bind(p.patient_id)

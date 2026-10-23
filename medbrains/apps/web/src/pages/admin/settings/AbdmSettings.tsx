@@ -17,6 +17,7 @@ import {
 } from "@/components/ui";
 import { abdmSettingsService } from "@/services/abdmSettings.service";
 import { AbdmBridgeCard } from "./AbdmBridgeCard";
+import { AbdmMentalHealthCard } from "./AbdmMentalHealthCard";
 import { ServerKeyMissingAlert } from "./ServerKeyMissingAlert";
 
 const KEY = ["abdm", "settings"];
@@ -163,6 +164,7 @@ export function AbdmSettings() {
           </Stack>
         </Stack>
       </Card>
+      <AbdmMentalHealthCard />
       <AbdmBridgeCard />
     </Stack>
   );

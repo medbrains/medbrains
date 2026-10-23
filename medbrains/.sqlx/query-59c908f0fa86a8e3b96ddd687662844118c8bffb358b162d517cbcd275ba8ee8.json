@@ -1,0 +1,16 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE psych_seclusion_restraint SET nominated_rep_informed_at = now(), nominated_rep_informed_by = $3 WHERE id = $1 AND tenant_id = $2 AND nominated_rep_informed_at IS NULL AND deleted_at IS NULL",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "59c908f0fa86a8e3b96ddd687662844118c8bffb358b162d517cbcd275ba8ee8"
+}

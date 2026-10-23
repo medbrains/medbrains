@@ -1,0 +1,17 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO notifications (tenant_id, user_id, kind, title, body, category, entity_type, entity_id, action_url) SELECT pp.tenant_id, pp.treating_psychiatrist_id, 'psych_safety', 'Urgent: suicide-risk review needed', 'A PHQ-9 recorded thoughts of self-harm. Assess the patient today.', 'clinical', 'psych_screening', $3, '/specialty/psychiatry?patient_id=' || pp.patient_id::text FROM psych_patients pp WHERE pp.id = $1 AND pp.tenant_id = $2 AND pp.treating_psychiatrist_id IS NOT NULL AND pp.treating_psychiatrist_id <> $4",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Uuid",
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "04976db2d7f7b3893965f22bf491bb38741637b9985a4057cded4256689428a6"
+}

@@ -385,6 +385,11 @@ pub fn build_router(state: AppState) -> Router {
             "/api/abdm/settings/test",
             post(abdm::settings::test_connection),
         )
+        .route(
+            "/api/abdm/settings/mental-health-sharing",
+            get(abdm::mental_health_sharing::get_sharing)
+                .put(abdm::mental_health_sharing::save_sharing),
+        )
         .route("/api/abdm/bridge", get(abdm::bridge::status))
         .route("/api/abdm/bridge/register", post(abdm::bridge::register))
         .route(

@@ -1,0 +1,133 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO psych_screenings (tenant_id, psych_patient_id, instrument, answers, total, severity, item9_positive, administered_by, safety_review_status, notes) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING id, tenant_id, psych_patient_id, instrument, answers, total, severity, item9_positive, administered_by, administered_at, safety_review_status, safety_reviewed_by, safety_reviewed_at, safety_review_outcome, safety_review_note, notes, created_at, updated_at",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "tenant_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 2,
+        "name": "psych_patient_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 3,
+        "name": "instrument",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 4,
+        "name": "answers",
+        "type_info": "Int2Array"
+      },
+      {
+        "ordinal": 5,
+        "name": "total",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 6,
+        "name": "severity",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 7,
+        "name": "item9_positive",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 8,
+        "name": "administered_by",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 9,
+        "name": "administered_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 10,
+        "name": "safety_review_status",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 11,
+        "name": "safety_reviewed_by",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 12,
+        "name": "safety_reviewed_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 13,
+        "name": "safety_review_outcome",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 14,
+        "name": "safety_review_note",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 15,
+        "name": "notes",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 16,
+        "name": "created_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 17,
+        "name": "updated_at",
+        "type_info": "Timestamptz"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Text",
+        "Int2Array",
+        "Int4",
+        "Text",
+        "Bool",
+        "Uuid",
+        "Text",
+        "Text"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      true,
+      true,
+      true,
+      true,
+      true,
+      false,
+      false
+    ]
+  },
+  "hash": "36c7003f12096b1571fa6ccbe1c999aa2a1548281f0700d5f1e31cb05cadb0f9"
+}

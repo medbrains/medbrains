@@ -2344,6 +2344,52 @@ pub mod specialty {
         pub mod mhrb {
             pub const MANAGE: &str = "specialty.psychiatry.mhrb.manage";
         }
+        pub mod admissions {
+            /// View Mental Healthcare Act admissions.
+            ///
+            /// The legal episodes — independent (s.86), minor (s.87),
+            /// supported (s.89, s.90), emergency (s.94) — with their
+            /// examinations, time limits and Board reporting.
+            pub const LIST: &str = "specialty.psychiatry.admissions.list";
+            /// Admit under a Mental Healthcare Act section.
+            ///
+            /// The server checks what the section requires — age, the
+            /// applicant, the two examinations within seven days, the
+            /// nominated representative — before the admission exists.
+            pub const CREATE: &str = "specialty.psychiatry.admissions.create";
+            /// Discharge or end a Mental Healthcare Act admission.
+            pub const UPDATE: &str = "specialty.psychiatry.admissions.update";
+        }
+        pub mod legal {
+            /// Record representatives and advance directives.
+            ///
+            /// Nominated representatives (MHCA s.14) and advance directives
+            /// (s.5): who speaks for the patient, and how the patient asked
+            /// to be treated — or not treated.
+            pub const MANAGE: &str = "specialty.psychiatry.legal.manage";
+        }
+        pub mod directives {
+            /// Apply to the Board against an advance directive.
+            ///
+            /// MHCA s.11: the only lawful way not to follow a valid
+            /// directive is an application to the Mental Health Review
+            /// Board on one of the five statutory grounds.
+            pub const CHALLENGE: &str = "specialty.psychiatry.directives.challenge";
+        }
+        pub mod safety {
+            /// Complete a suicide-risk review.
+            ///
+            /// A PHQ-9 with any answer above zero on item 9 opens a review
+            /// that stays pending until a clinician records the outcome.
+            pub const REVIEW: &str = "specialty.psychiatry.safety.review";
+        }
+        pub mod abdm_consent {
+            /// Record consent to share mental-health records.
+            ///
+            /// Psychiatric care contexts are withheld from ABDM unless the
+            /// hospital allows it and the patient consents to that category.
+            pub const MANAGE: &str = "specialty.psychiatry.abdm_consent.manage";
+        }
         pub mod restricted {
             /// Open restricted mental-health records.
             ///

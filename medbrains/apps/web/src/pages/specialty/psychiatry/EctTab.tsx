@@ -33,6 +33,7 @@ const schema = z.object({
   anesthetist_id: z.string(),
   complications: z.string().max(2000),
   notes: z.string().max(5000),
+  board_permission_ref: z.string().max(200),
 });
 type Form = z.infer<typeof schema>;
 
@@ -44,6 +45,7 @@ const EMPTY: Omit<Form, "session_number"> = {
   anesthetist_id: "",
   complications: "",
   notes: "",
+  board_permission_ref: "",
 };
 
 const COLUMNS: Column<PsychEctRegister>[] = [
@@ -109,6 +111,7 @@ export function EctTab({ psychPatientId }: { psychPatientId: string }) {
         anesthetist_id: blankToUndefined(v.anesthetist_id),
         complications: blankToUndefined(v.complications),
         notes: blankToUndefined(v.notes),
+        board_permission_ref: blankToUndefined(v.board_permission_ref),
       }),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["psych-ect", psychPatientId] });
@@ -132,7 +135,7 @@ export function EctTab({ psychPatientId }: { psychPatientId: string }) {
       )}
     />
   );
-  const text = (name: "anesthetic" | "muscle_relaxant", label: string) => (
+  const text = (name: "anesthetic" | "muscle_relaxant" | "board_permission_ref", label: string) => (
     <Controller
       control={control}
       name={name}
@@ -142,7 +145,7 @@ export function EctTab({ psychPatientId }: { psychPatientId: string }) {
 
   return (
     <RecordListFrame
-      description="Electroconvulsive therapy register. Consent can only be marked when a signed consent is on file."
+      description="Electroconvulsive therapy register. Consent can only be marked when a signed consent is on file. Never during emergency treatment (s.94); for a minor only with the Board's permission (s.95)."
       addLabel="Record ECT session"
       canAdd={canAdd}
       onAdd={openForm}
@@ -183,6 +186,10 @@ export function EctTab({ psychPatientId }: { psychPatientId: string }) {
             {text("anesthetic", "Anaesthetic")}
             {text("muscle_relaxant", "Muscle relaxant")}
           </SimpleGrid>
+          {text(
+            "board_permission_ref",
+            "Board permission reference (required for a minor, s.95(2))",
+          )}
           <Controller
             control={control}
             name="anesthetist_id"

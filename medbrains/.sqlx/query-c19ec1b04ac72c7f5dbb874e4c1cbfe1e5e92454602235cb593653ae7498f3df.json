@@ -1,0 +1,41 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT date_part('year', age(p.date_of_birth))::int AS \"age_years?\",\n                  (p.gender::text = 'female') AS \"is_woman!\",\n                  EXISTS (SELECT 1 FROM psych_nominated_representatives r\n                           WHERE r.psych_patient_id = pp.id AND r.revoked_at IS NULL\n                             AND r.deleted_at IS NULL) AS \"has_rep!\",\n                  (SELECT max(a.discharged_at) FROM psych_admissions a\n                    WHERE a.psych_patient_id = pp.id AND a.category = 'supported'\n                      AND a.deleted_at IS NULL) AS \"last_s89_discharge?\"\n             FROM psych_patients pp JOIN patients p ON p.id = pp.patient_id\n            WHERE pp.id = $1 AND pp.tenant_id = $2",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "age_years?",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 1,
+        "name": "is_woman!",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 2,
+        "name": "has_rep!",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 3,
+        "name": "last_s89_discharge?",
+        "type_info": "Timestamptz"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      null,
+      null,
+      null,
+      null
+    ]
+  },
+  "hash": "c19ec1b04ac72c7f5dbb874e4c1cbfe1e5e92454602235cb593653ae7498f3df"
+}
