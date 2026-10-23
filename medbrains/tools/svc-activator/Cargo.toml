@@ -10,7 +10,7 @@ rust-version = "1.85"
 [workspace]
 
 [dependencies]
-tokio = { version = "1", features = [
+tokio = { version = "1.54.1", features = [
     "rt-multi-thread", "macros", "net", "io-util", "time", "process", "sync", "signal",
 ] }
 
