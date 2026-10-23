@@ -1,12 +1,16 @@
 //! Settings → UHI: how this hospital is registered on UHI.
 //!
 //! - `GET  /api/uhi/settings`      — what is set, the public key to register
-//! - `PUT  /api/uhi/settings`      — subscriber, services, campus, on/off
-//! - `POST /api/uhi/settings/keys` — generate (or rotate) the signing key pair
+//! - `PUT  /api/uhi/settings`      — services, campus, NHA's IDs, on/off
+//! - `POST /api/uhi/settings/keys` — the signing key pair (`keys.rs`)
 //!
-//! The key pair is generated here. The private half is sealed before it is
-//! stored and no endpoint returns it; the public half is what the hospital
-//! gives NHA to register.
+//! NHA's onboarding order: choose the services → make the key pair → submit
+//! the callback URL and public key → NHA issues the subscriber ID and key ID
+//! → enter them → sandbox tests. So the callback URL is shown from the start
+//! and never contains the subscriber ID: it is named by the hospital code.
+//!
+//! The key pair is generated here, or imported from NHA's header utility.
+//! The private half is sealed before it is stored and no endpoint returns it.
 
 use axum::{Extension, Json, extract::State};
 use chrono::{DateTime, Utc};
@@ -14,31 +18,32 @@ use medbrains_core::{permissions, secrets::SecretResolver};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use super::protocol::Service;
+use super::protocol::{GatewaySpec, PREVIEW_SERVICES, Service};
 use crate::{
     error::AppError, middleware::auth::Claims, middleware::authorization::require_permission,
     routes::abdm::abha::secret_key, state::AppState,
 };
 
-const KEY_CONTEXT: &[u8] = b"uhi-signing-key";
+pub(super) const KEY_CONTEXT: &[u8] = b"uhi-signing-key";
 /// Our public address; inbound UHI calls arrive under it.
 const PUBLIC_BASE_URL: &str = "MEDBRAINS_PUBLIC_BASE_URL";
 /// Where inbound calls are served; the subscriber URL registered with NHA is
-/// `{public base}{HSPA_PATH}/{subscriber_id}`.
+/// `{public base}{HSPA_PATH}/{hospital code}`.
 pub const HSPA_PATH: &str = "/api/uhi/hspa";
 
 const SUBSCRIPTION_COLUMNS: &str = "s.tenant_id, s.environment, s.subscriber_id, s.unique_key_id, \
     s.signing_public_key, s.signing_private_key_sealed, s.key_generated_at, s.services, \
     s.facility_id, f.hfr_facility_id, COALESCE(f.name, t.name) AS provider_name, s.city_code, \
-    s.is_active";
+    s.is_active, s.gateway_spec, lower(t.code) AS hospital_code";
 
 /// One hospital's UHI subscription.
 #[derive(Debug, Clone, sqlx::FromRow)]
 pub struct Subscription {
     pub tenant_id: Uuid,
     pub environment: String,
-    pub subscriber_id: String,
-    pub unique_key_id: String,
+    /// Issued by NHA after registration; `None` until then.
+    pub subscriber_id: Option<String>,
+    pub unique_key_id: Option<String>,
     pub signing_public_key: Option<String>,
     signing_private_key_sealed: Option<String>,
     pub key_generated_at: Option<DateTime<Utc>>,
@@ -48,11 +53,26 @@ pub struct Subscription {
     pub provider_name: String,
     pub city_code: Option<String>,
     pub is_active: bool,
+    pub gateway_spec: String,
+    /// Names the hospital in its callback URL.
+    pub hospital_code: String,
 }
 
 impl Subscription {
-    pub fn offers(&self, service: Service) -> bool {
-        self.services.iter().any(|s| s == service.code())
+    /// Whether this hospital answers `service` — chosen in Settings, and a
+    /// service UHI supports from a provider (or previews switched on).
+    pub fn offers(&self, service: Service, preview: bool) -> bool {
+        (service.is_live() || preview) && self.services.iter().any(|s| s == service.code())
+    }
+
+    pub fn spec(&self) -> GatewaySpec {
+        GatewaySpec::from_code(&self.gateway_spec)
+    }
+
+    /// The subscriber ID NHA issued (empty before; such a subscription is
+    /// never active, so never answers).
+    pub fn subscriber(&self) -> &str {
+        self.subscriber_id.as_deref().unwrap_or_default()
     }
 
     /// The provider ID patient apps see: the campus's HFR ID, else our
@@ -60,7 +80,7 @@ impl Subscription {
     pub fn provider_id(&self) -> &str {
         self.hfr_facility_id
             .as_deref()
-            .unwrap_or(&self.subscriber_id)
+            .unwrap_or_else(|| self.subscriber())
     }
 
     /// The private signing key.
@@ -97,12 +117,20 @@ pub async fn load(
     .await?)
 }
 
-/// `{public base}/api/uhi/hspa/{subscriber}`, or `None` before the public
-/// address is set.
-pub async fn provider_uri(secrets: &dyn SecretResolver, subscriber_id: &str) -> Option<String> {
+/// `{public base}/api/uhi/hspa/{hospital code}`, or `None` before the
+/// public address is set.
+pub async fn provider_uri(secrets: &dyn SecretResolver, hospital_code: &str) -> Option<String> {
     let base = secrets.get(PUBLIC_BASE_URL).await.ok()?;
     base.starts_with("http")
-        .then(|| format!("{}{HSPA_PATH}/{subscriber_id}", base.trim_end_matches('/')))
+        .then(|| format!("{}{HSPA_PATH}/{hospital_code}", base.trim_end_matches('/')))
+}
+
+/// Whether services UHI does not support from a provider yet may be offered.
+pub async fn preview_enabled(secrets: &dyn SecretResolver) -> bool {
+    secrets
+        .get(PREVIEW_SERVICES)
+        .await
+        .is_ok_and(|v| v.trim().eq_ignore_ascii_case("true"))
 }
 
 #[derive(Debug, Serialize)]
@@ -119,7 +147,12 @@ pub struct UhiSettingsView {
     pub hfr_facility_id: Option<String>,
     pub city_code: Option<String>,
     pub is_active: bool,
-    /// The subscriber URL to register; `None` until the public address is set.
+    /// `v2_0_2` or `s2` — the gateway contract this environment follows.
+    pub gateway_spec: String,
+    /// The services this hospital may offer as a UHI provider today.
+    pub available_services: Vec<String>,
+    /// The callback URL to submit to NHA; `None` until the public address is
+    /// set. Known before NHA issues any ID.
     pub subscriber_url: Option<String>,
     /// Active doctors with an HPR ID — the ones consultation search offers.
     pub doctors_with_hpr: i64,
@@ -144,8 +177,13 @@ pub struct FeeSources {
 #[derive(Debug, Deserialize)]
 pub struct SaveUhiSettings {
     pub environment: String,
-    pub subscriber_id: String,
-    pub unique_key_id: String,
+    /// Empty until NHA issues them, after registration.
+    #[serde(default)]
+    pub subscriber_id: Option<String>,
+    #[serde(default)]
+    pub unique_key_id: Option<String>,
+    #[serde(default)]
+    pub gateway_spec: Option<String>,
     #[serde(default)]
     pub services: Vec<String>,
     pub facility_id: Option<Uuid>,
@@ -154,29 +192,35 @@ pub struct SaveUhiSettings {
     pub is_active: bool,
 }
 
-async fn view(state: &AppState, tenant_id: Uuid) -> Result<UhiSettingsView, AppError> {
+pub(super) async fn view(state: &AppState, tenant_id: Uuid) -> Result<UhiSettingsView, AppError> {
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &tenant_id).await?;
+    let secrets = state.secret_resolver.as_ref();
     let sub = load(&mut tx, tenant_id).await?;
     let (doctors_with_hpr, fees) = fee_sources(&mut tx, tenant_id).await?;
-    let online_payment = medbrains_payment_gateway::payment_link::link_provider(
-        &mut tx,
-        state.secret_resolver.as_ref(),
-        tenant_id,
-    )
-    .await?
-    .is_some();
+    let hospital_code: String = sqlx::query_scalar("SELECT lower(code) FROM tenants WHERE id = $1")
+        .bind(tenant_id)
+        .fetch_one(&mut *tx)
+        .await?;
+    let preview = preview_enabled(secrets).await;
+    // Online payment exists only for teleconsultation, itself a preview.
+    let online_payment = preview
+        && medbrains_payment_gateway::payment_link::link_provider(&mut tx, secrets, tenant_id)
+            .await?
+            .is_some();
     tx.commit().await?;
-    let subscriber_url = match &sub {
-        Some(s) => provider_uri(state.secret_resolver.as_ref(), &s.subscriber_id).await,
-        None => None,
-    };
+    let subscriber_url = provider_uri(secrets, &hospital_code).await;
+    let available_services = Service::ALL
+        .into_iter()
+        .filter(|s| s.is_live() || preview)
+        .map(|s| s.code().to_owned())
+        .collect();
     Ok(match sub {
         Some(s) => UhiSettingsView {
             configured: true,
             environment: s.environment,
-            subscriber_id: Some(s.subscriber_id),
-            unique_key_id: Some(s.unique_key_id),
+            subscriber_id: s.subscriber_id,
+            unique_key_id: s.unique_key_id,
             signing_public_key: s.signing_public_key,
             key_generated_at: s.key_generated_at,
             services: s.services,
@@ -184,6 +228,8 @@ async fn view(state: &AppState, tenant_id: Uuid) -> Result<UhiSettingsView, AppE
             hfr_facility_id: s.hfr_facility_id,
             city_code: s.city_code,
             is_active: s.is_active,
+            gateway_spec: s.gateway_spec,
+            available_services,
             subscriber_url,
             doctors_with_hpr,
             fees,
@@ -201,6 +247,8 @@ async fn view(state: &AppState, tenant_id: Uuid) -> Result<UhiSettingsView, AppE
             hfr_facility_id: None,
             city_code: None,
             is_active: false,
+            gateway_spec: "v2_0_2".to_owned(),
+            available_services,
             subscriber_url,
             doctors_with_hpr,
             fees,
@@ -252,31 +300,80 @@ pub async fn get_settings(
     Ok(Json(view(&state, claims.tenant_id).await?))
 }
 
-fn validate(body: &SaveUhiSettings) -> Result<(), AppError> {
+fn trimmed(v: Option<&String>) -> Option<&str> {
+    v.map(|s| s.trim()).filter(|s| !s.is_empty())
+}
+
+fn validate(body: &SaveUhiSettings, preview: bool) -> Result<(), AppError> {
     let bad = |m: &str| Err(AppError::BadRequest(m.to_owned()));
     if !matches!(body.environment.as_str(), "sandbox" | "production") {
         return bad("environment must be sandbox or production");
     }
-    let id = body.subscriber_id.trim();
-    if id.len() < 3
-        || id.len() > 128
-        || !id
-            .chars()
-            .all(|c| c.is_ascii_alphanumeric() || matches!(c, '.' | '_' | '-'))
-    {
+    if !matches!(body.gateway_spec.as_deref(), None | Some("v2_0_2" | "s2")) {
+        return bad("the gateway contract must be v2_0_2 or s2");
+    }
+    let id = trimmed(body.subscriber_id.as_ref());
+    if id.is_some_and(|id| {
+        id.len() < 3
+            || id.len() > 128
+            || !id
+                .chars()
+                .all(|c| c.is_ascii_alphanumeric() || matches!(c, '.' | '_' | '-'))
+    }) {
         return bad("the subscriber ID is 3–128 letters, digits, dots, dashes or underscores");
     }
-    if body.unique_key_id.trim().is_empty() {
-        return bad("enter the unique key ID registered with the subscriber");
+    if id.is_some() != trimmed(body.unique_key_id.as_ref()).is_some() {
+        return bad("NHA issues the subscriber ID and the key ID together — enter both");
     }
-    if body
-        .services
-        .iter()
-        .any(|s| Service::from_code(s).is_none())
-    {
-        return bad("unknown UHI service");
+    for code in &body.services {
+        match Service::from_code(code) {
+            None => return bad("unknown UHI service"),
+            Some(s) if !s.is_live() && !preview => {
+                return bad(
+                    "UHI does not support teleconsultation or lab tests from a hospital yet — \
+                     offer physical consultation, ambulance or blood availability",
+                );
+            }
+            Some(_) => {}
+        }
     }
     Ok(())
+}
+
+/// Why UHI cannot be switched on yet, if it cannot: NHA admits only
+/// registered, HFR-credentialed facilities.
+async fn activation_blocker(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    tenant_id: Uuid,
+    body: &SaveUhiSettings,
+) -> Result<Option<&'static str>, AppError> {
+    let has_key = load(tx, tenant_id)
+        .await?
+        .is_some_and(|s| s.signing_public_key.is_some());
+    if !has_key {
+        return Ok(Some("generate the signing key before switching UHI on"));
+    }
+    if trimmed(body.subscriber_id.as_ref()).is_none() {
+        return Ok(Some(
+            "enter the subscriber ID and key ID NHA issued before switching UHI on",
+        ));
+    }
+    let hfr: Option<String> = match body.facility_id {
+        Some(id) => sqlx::query_scalar(
+            "SELECT hfr_facility_id FROM facilities WHERE id = $1 AND deleted_at IS NULL",
+        )
+        .bind(id)
+        .fetch_optional(&mut **tx)
+        .await?
+        .flatten(),
+        None => None,
+    };
+    Ok(hfr
+        .as_deref()
+        .is_none_or(|h| h.trim().is_empty())
+        .then_some(
+            "choose a campus with an HFR facility ID — NHA admits only HFR-registered facilities",
+        ))
 }
 
 /// `PUT /api/uhi/settings`
@@ -291,16 +388,13 @@ pub async fn save_settings(
     Json(body): Json<SaveUhiSettings>,
 ) -> Result<Json<UhiSettingsView>, AppError> {
     require_permission(&claims, permissions::uhi::CONFIGURE)?;
-    validate(&body)?;
+    validate(&body, preview_enabled(state.secret_resolver.as_ref()).await)?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
-    let has_key = load(&mut tx, claims.tenant_id)
-        .await?
-        .is_some_and(|s| s.signing_public_key.is_some());
-    if body.is_active && !has_key {
-        return Err(AppError::BadRequest(
-            "generate the signing key before switching UHI on".to_owned(),
-        ));
+    if body.is_active
+        && let Some(why) = activation_blocker(&mut tx, claims.tenant_id, &body).await?
+    {
+        return Err(AppError::BadRequest(why.to_owned()));
     }
     let city = body
         .city_code
@@ -311,23 +405,25 @@ pub async fn save_settings(
     // has no key yet, so it goes in inactive; only the update sets the flag.
     sqlx::query(
         "INSERT INTO uhi_subscriptions (tenant_id, environment, subscriber_id, unique_key_id, \
-            services, facility_id, city_code, is_active, updated_by) \
-         VALUES ($1, $2, $3, $4, $5, $6, $7, false, $9) \
+            services, facility_id, city_code, is_active, updated_by, gateway_spec) \
+         VALUES ($1, $2, $3, $4, $5, $6, $7, false, $9, $10) \
          ON CONFLICT (tenant_id) WHERE deleted_at IS NULL DO UPDATE SET \
             environment = EXCLUDED.environment, subscriber_id = EXCLUDED.subscriber_id, \
             unique_key_id = EXCLUDED.unique_key_id, services = EXCLUDED.services, \
             facility_id = EXCLUDED.facility_id, city_code = EXCLUDED.city_code, \
-            is_active = $8, updated_by = EXCLUDED.updated_by",
+            is_active = $8, updated_by = EXCLUDED.updated_by, \
+            gateway_spec = EXCLUDED.gateway_spec",
     )
     .bind(claims.tenant_id)
     .bind(&body.environment)
-    .bind(body.subscriber_id.trim())
-    .bind(body.unique_key_id.trim())
+    .bind(trimmed(body.subscriber_id.as_ref()))
+    .bind(trimmed(body.unique_key_id.as_ref()))
     .bind(&body.services)
     .bind(body.facility_id)
     .bind(city)
     .bind(body.is_active)
     .bind(claims.sub)
+    .bind(body.gateway_spec.as_deref().unwrap_or("v2_0_2"))
     .execute(&mut *tx)
     .await
     .map_err(|e| {
@@ -339,43 +435,6 @@ pub async fn save_settings(
             AppError::from(e)
         }
     })?;
-    tx.commit().await?;
-    Ok(Json(view(&state, claims.tenant_id).await?))
-}
-
-/// `POST /api/uhi/settings/keys` — a new key pair. The old one stops working
-/// the moment NHA has the new public key, so the screen asks first.
-///
-/// # Errors
-/// 400 before the subscriber is saved.
-#[tracing::instrument(skip_all, fields(tenant_id = %claims.tenant_id))]
-pub async fn generate_keys(
-    State(state): State<AppState>,
-    Extension(claims): Extension<Claims>,
-) -> Result<Json<UhiSettingsView>, AppError> {
-    require_permission(&claims, permissions::uhi::CONFIGURE)?;
-    let pair = medbrains_crypto::beckn::generate();
-    let key = secret_key(state.secret_resolver.as_ref()).await;
-    let sealed = medbrains_crypto::aead::encrypt_token(&key, KEY_CONTEXT, &pair.private_key)
-        .map_err(|_| AppError::Internal("could not seal the UHI signing key".to_owned()))?;
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
-    let updated = sqlx::query(
-        "UPDATE uhi_subscriptions SET signing_public_key = $2, signing_private_key_sealed = $3, \
-                key_generated_at = now(), updated_by = $4 \
-          WHERE tenant_id = $1 AND deleted_at IS NULL",
-    )
-    .bind(claims.tenant_id)
-    .bind(&pair.public_key)
-    .bind(&sealed)
-    .bind(claims.sub)
-    .execute(&mut *tx)
-    .await?;
-    if updated.rows_affected() == 0 {
-        return Err(AppError::BadRequest(
-            "save the subscriber ID before generating its key".to_owned(),
-        ));
-    }
     tx.commit().await?;
     Ok(Json(view(&state, claims.tenant_id).await?))
 }

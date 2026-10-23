@@ -1,9 +1,12 @@
-//! `POST /api/uhi/hspa/{subscriber_id}/{action}` — every call a patient app
+//! `POST /api/uhi/hspa/{hospital}/{action}` — every call a patient app
 //! (EUA) makes to this hospital as a UHI provider (HSPA).
 //!
-//! 1. The subscriber ID in the path names the hospital (no session).
-//! 2. The caller's signature — and the gateway's, on a fanned-out search —
-//!    must verify against the UHI registry: 401 with a NACK if not.
+//! 1. The hospital code in the path names the hospital (no session). It is
+//!    not the NHA subscriber ID: NHA issues that only after this URL is
+//!    registered.
+//! 2. A search fanned out by the gateway must carry the gateway's signature;
+//!    every other call the app's, from the registry, at the `consumer_uri`
+//!    the registry has for it. 401 with a NACK if not.
 //! 3. The transaction is recorded, the answer computed and queued, and the
 //!    call is ACKed; the signed `on_*` answer follows from the outbox.
 //!
@@ -26,7 +29,7 @@ use super::{
     labs,
     outbox::{self, Callback},
     payment,
-    protocol::{ACTIONS, Context, ERR_INVALID_SIGNATURE, ERR_NOT_REGISTERED, Service, ack},
+    protocol::{ACTIONS, Context, ERR_NOT_REGISTERED, GatewaySpec, Service},
     requests, settings, teleconsult,
 };
 use crate::{error::AppError, state::AppState};
@@ -72,72 +75,73 @@ fn fault(e: impl std::fmt::Display) -> Nack {
 #[tracing::instrument(skip_all, fields(action = %action))]
 pub async fn receive(
     State(state): State<AppState>,
-    Path((subscriber_id, action)): Path<(String, String)>,
+    Path((hospital, action)): Path<(String, String)>,
     headers: HeaderMap,
     body: Bytes,
 ) -> Response {
-    match handle(&state, &subscriber_id, &action, &headers, &body).await {
-        Ok(()) => Json(ack()).into_response(),
+    match handle(&state, &hospital, &action, &headers, &body).await {
+        Ok(spec) => Json(spec.ack()).into_response(),
         Err(nack) => nack.into_response(),
     }
 }
 
+/// How the caller was authenticated: by the gateway (a fanned-out search),
+/// or as the app itself, with the registry key ID it signed with.
+enum Caller {
+    Gateway,
+    App(String),
+}
+
 async fn handle(
     state: &AppState,
-    subscriber_id: &str,
+    hospital: &str,
     action: &str,
     headers: &HeaderMap,
     body: &[u8],
-) -> Result<(), Nack> {
+) -> Result<GatewaySpec, Nack> {
     if !ACTIONS.contains(&action) {
         return Err(Nack::bad_request("unknown UHI action"));
     }
-    let sub = subscription(state, subscriber_id).await?;
+    let sub = subscription(state, hospital).await?;
     let secrets = state.secret_resolver.as_ref();
-    let signer = auth::verify(secrets, &sub, headers, "authorization", body).await?;
-    if headers.contains_key("x-gateway-authorization") {
-        auth::verify(secrets, &sub, headers, "x-gateway-authorization", body).await?;
-    }
     let value: Value =
         serde_json::from_slice(body).map_err(|_| Nack::bad_request("the body is not JSON"))?;
     let ctx = Context::parse(&value)
         .map_err(|field| Nack::bad_request(&format!("context.{field} is missing")))?;
-    if signer != ctx.consumer_id {
-        return Err(Nack::unauthorized(
-            ERR_INVALID_SIGNATURE,
-            "the request is signed by someone other than its consumer",
-        ));
-    }
     if ctx.action != action {
         return Err(Nack::bad_request("context.action does not match the call"));
     }
+    // The gateway forwards only searches; it re-serialises the body, so the
+    // app's own signature could never verify on that hop.
+    let caller =
+        if action == "search" && auth::verify_gateway(secrets, &sub, headers, &ctx, body).await? {
+            Caller::Gateway
+        } else {
+            Caller::App(auth::verify_app(secrets, &sub, headers, &ctx, body).await?)
+        };
     if ctx
         .provider_id
         .as_deref()
-        .is_some_and(|p| p != sub.subscriber_id && p != sub.provider_id())
+        .is_some_and(|p| p != sub.subscriber() && p != sub.provider_id())
     {
         return Err(Nack::bad_request(
             "the request is addressed to another provider",
         ));
     }
-    let via_gateway = headers.contains_key("x-gateway-authorization");
-    process(state, &sub, &ctx, &value, via_gateway).await
+    process(state, &sub, &ctx, &value, &caller).await?;
+    Ok(sub.spec())
 }
 
-async fn subscription(
-    state: &AppState,
-    subscriber_id: &str,
-) -> Result<settings::Subscription, Nack> {
-    let tenant: Option<Uuid> =
-        sqlx::query_scalar("SELECT tenant_id FROM app_uhi_subscriber_tenant($1)")
-            .bind(subscriber_id)
-            .fetch_optional(&state.db)
-            .await
-            .map_err(fault)?;
+async fn subscription(state: &AppState, hospital: &str) -> Result<settings::Subscription, Nack> {
+    let tenant: Option<Uuid> = sqlx::query_scalar("SELECT tenant_id FROM app_uhi_hspa_tenant($1)")
+        .bind(hospital)
+        .fetch_optional(&state.db)
+        .await
+        .map_err(fault)?;
     let not_here = || {
         Nack::unauthorized(
             ERR_NOT_REGISTERED,
-            "no hospital here is registered under this subscriber ID",
+            "no hospital here takes UHI calls at this address",
         )
     };
     let tenant_id = tenant.ok_or_else(not_here)?;
@@ -155,8 +159,9 @@ async fn process(
     sub: &settings::Subscription,
     ctx: &Context,
     body: &Value,
-    via_gateway: bool,
+    caller: &Caller,
 ) -> Result<(), Nack> {
+    let preview = settings::preview_enabled(state.secret_resolver.as_ref()).await;
     let mut tx = state.db.begin().await.map_err(fault)?;
     medbrains_db::pool::set_tenant_context(&mut tx, &sub.tenant_id)
         .await
@@ -179,7 +184,7 @@ async fn process(
         .as_deref()
         .and_then(Service::from_code)
         .or_else(|| Service::for_message(&ctx.domain, super::protocol::fulfilment_type(body)))
-        .filter(|s| sub.offers(*s));
+        .filter(|s| sub.offers(*s, preview));
     let Some(service) = service else {
         if ctx.action == "search" {
             return Ok(());
@@ -188,7 +193,11 @@ async fn process(
             "this hospital does not offer that service over UHI",
         ));
     };
-    let txn = record(&mut tx, sub.tenant_id, ctx, service, body).await?;
+    let key_id = match caller {
+        Caller::App(key_id) => Some(key_id.as_str()),
+        Caller::Gateway => None,
+    };
+    let txn = record(&mut tx, sub.tenant_id, ctx, service, body, key_id).await?;
     let reply = match service {
         Service::Teleconsultation | Service::PhysicalConsultation => {
             teleconsult::answer(
@@ -208,11 +217,8 @@ async fn process(
     }
     .map_err(fault)?;
     if let Some(reply) = reply {
-        let url = if ctx.action == "search" && via_gateway {
-            format!(
-                "{}/on_search",
-                auth::gateway_base(state.secret_resolver.as_ref(), &sub.environment).await
-            )
+        let url = if matches!(caller, Caller::Gateway) {
+            auth::gateway_on_search(state.secret_resolver.as_ref(), sub).await
         } else {
             format!(
                 "{}/on_{}",
@@ -224,6 +230,7 @@ async fn process(
         let callback = Callback {
             transaction_row: txn.id,
             url,
+            app_key_id: key_id.map(str::to_owned),
             body,
             idempotency_key: format!(
                 "{}|{}|{}|{}",
@@ -246,11 +253,11 @@ pub async fn answer_body(
 ) -> Value {
     // Without the public address the context names us without a URI; the
     // settings screen says the address is missing.
-    let uri = settings::provider_uri(secrets, &sub.subscriber_id)
+    let uri = settings::provider_uri(secrets, &sub.hospital_code)
         .await
         .unwrap_or_default();
     let mut body = json!({
-        "context": ctx.reply(&sub.subscriber_id, &uri),
+        "context": ctx.reply(sub.subscriber(), &uri),
         "message": reply.message,
     });
     if let Some(error) = reply.error {
@@ -267,14 +274,18 @@ async fn record(
     ctx: &Context,
     service: Service,
     body: &Value,
+    app_key_id: Option<&str>,
 ) -> Result<Txn, Nack> {
+    // A gateway search is not the app's own word for its address; the key
+    // that verified the last direct call is kept for the callback check.
     sqlx::query_as::<_, Txn>(
         "INSERT INTO uhi_transactions (tenant_id, service, domain, transaction_id, \
-            last_message_id, last_action, bap_id, bap_uri, payload) \
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) \
+            last_message_id, last_action, bap_id, bap_uri, payload, bap_key_id) \
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) \
          ON CONFLICT (tenant_id, bap_id, transaction_id) WHERE deleted_at IS NULL DO UPDATE SET \
             last_message_id = EXCLUDED.last_message_id, last_action = EXCLUDED.last_action, \
-            bap_uri = EXCLUDED.bap_uri, payload = EXCLUDED.payload \
+            bap_uri = EXCLUDED.bap_uri, payload = EXCLUDED.payload, \
+            bap_key_id = COALESCE(EXCLUDED.bap_key_id, uhi_transactions.bap_key_id) \
          RETURNING id, service, state, order_details, appointment_id, payment_transaction_id",
     )
     .bind(tenant_id)
@@ -286,6 +297,7 @@ async fn record(
     .bind(&ctx.consumer_id)
     .bind(&ctx.consumer_uri)
     .bind(body)
+    .bind(app_key_id)
     .fetch_one(&mut **tx)
     .await
     .map_err(fault)

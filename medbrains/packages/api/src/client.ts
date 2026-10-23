@@ -17339,7 +17339,13 @@ export const api = {
   getUhiSettings: () => request<UhiSettingsView>("/uhi/settings"),
   saveUhiSettings: (data: SaveUhiSettings) =>
     request<UhiSettingsView>("/uhi/settings", { method: "PUT", body: JSON.stringify(data) }),
-  generateUhiKeys: () => request<UhiSettingsView>("/uhi/settings/keys", { method: "POST" }),
+  /** A new signing key pair — generated on the server, or imported from NHA's
+   * header generation utility when `privateKey` is given. */
+  generateUhiKeys: (privateKey?: string) =>
+    request<UhiSettingsView>("/uhi/settings/keys", {
+      method: "POST",
+      ...(privateKey ? { body: JSON.stringify({ private_key: privateKey }) } : {}),
+    }),
   listUhiRequests: (state?: "pending") =>
     request<UhiRequest[]>(state ? `/uhi/requests?state=${state}` : "/uhi/requests"),
   acceptUhiRequest: (id: string) =>

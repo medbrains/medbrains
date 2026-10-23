@@ -8,6 +8,8 @@ export type UhiService =
   | "blood_bank"
   | "ambulance";
 export type UhiEnvironment = "sandbox" | "production";
+/** The gateway contract: NHA's 28 Sep 2026 set (v2.0.2), or NHA-ABDM/UHI. */
+export type UhiGatewaySpec = "v2_0_2" | "s2";
 
 export interface UhiSettingsView {
   configured: boolean;
@@ -22,14 +24,19 @@ export interface UhiSettingsView {
   hfr_facility_id: string | null;
   city_code: string | null;
   is_active: boolean;
-  /** The subscriber URL to register; null until the public address is set. */
+  gateway_spec: UhiGatewaySpec;
+  /** The services this hospital may offer as a UHI provider today. */
+  available_services: UhiService[];
+  /** The callback URL to submit to NHA; null until the public address is set.
+   * Known before NHA issues any ID. */
   subscriber_url: string | null;
   /** Active doctors with an HPR ID — the ones consultation search offers. */
   doctors_with_hpr: number;
   /** Where quoted fees come from. */
   fees: UhiFeeSources;
   /** A teleconsultation with a fee is paid online when booked (Razorpay is the
-   * active online provider); otherwise everything is paid at the hospital. */
+   * active online provider, and the teleconsultation preview is on);
+   * otherwise everything is paid at the hospital. */
   online_payment: boolean;
 }
 
@@ -44,8 +51,10 @@ export interface UhiFeeSources {
 
 export interface SaveUhiSettings {
   environment: UhiEnvironment;
-  subscriber_id: string;
-  unique_key_id: string;
+  gateway_spec: UhiGatewaySpec;
+  /** Issued by NHA after registration; null until then. */
+  subscriber_id: string | null;
+  unique_key_id: string | null;
   services: UhiService[];
   facility_id: string | null;
   city_code: string | null;

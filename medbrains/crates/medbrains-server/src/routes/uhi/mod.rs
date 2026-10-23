@@ -5,7 +5,8 @@
 //!
 //! - `protocol`    — domains, actions, context, ACK/NACK
 //! - `auth`        — signature checks, registry lookup, the gateway address
-//! - `settings`    — subscriber, signing key, services (Settings → UHI)
+//! - `settings`    — subscriber, services, gateway contract (Settings → UHI)
+//! - `keys`        — the signing key pair, generated or imported
 //! - `inbound`     — the public endpoint every UHI call arrives at
 //! - `slots`       — open consultation slots from real schedules
 //! - `fees`        — what a consultation costs, and how a quote says it
@@ -20,6 +21,7 @@
 pub mod auth;
 pub mod fees;
 pub mod inbound;
+pub mod keys;
 pub mod labs;
 pub mod outbox;
 pub mod payment;
@@ -36,10 +38,7 @@ use axum::{Router, routing::post};
 use crate::state::AppState;
 
 /// Inbound UHI calls — public: each is authenticated by its signature and
-/// names its hospital by the subscriber ID in the path, never by a session.
+/// names its hospital by its code in the path, never by a session.
 pub fn public_router() -> Router<AppState> {
-    Router::new().route(
-        "/api/uhi/hspa/{subscriber_id}/{action}",
-        post(inbound::receive),
-    )
+    Router::new().route("/api/uhi/hspa/{hospital}/{action}", post(inbound::receive))
 }

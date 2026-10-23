@@ -3,7 +3,7 @@ import { Group, Stack, Text } from "@mantine/core";
 import { useHasPermission } from "@medbrains/stores";
 import { P, type UhiService } from "@medbrains/types";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
+import { useMemo } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { z } from "zod";
 import {
@@ -13,7 +13,6 @@ import {
   Card,
   Checkbox,
   Input,
-  Modal,
   SegmentedControl,
   Select,
   Switch,
@@ -21,24 +20,15 @@ import {
 } from "@/components/ui";
 import { uhiService } from "@/services/uhi.service";
 import { UhiFeesCard } from "./UhiFeesCard";
+import { UhiKeyCard } from "./UhiKeyCard";
 
-const KEY = ["uhi", "settings"];
+const KEY = ["uhi", "settings"] as const;
 
 const SERVICES: { value: UhiService; label: string; hint: string }[] = [
   {
-    value: "teleconsultation",
-    label: "Teleconsultation",
-    hint: "Doctors with an HPR ID and a weekly schedule; booking makes an appointment.",
-  },
-  {
     value: "physical_consultation",
     label: "Consultation at the hospital",
-    hint: "The same doctors and slots, booked as an OPD visit; paid at the desk.",
-  },
-  {
-    value: "lab_tests",
-    label: "Lab tests",
-    hint: "Tests the lab catalogue marks bookable by patients; the lab accepts each request.",
+    hint: "Doctors with an HPR ID and a weekly schedule, booked as an OPD visit; paid at the desk.",
   },
   {
     value: "ambulance",
@@ -50,55 +40,83 @@ const SERVICES: { value: UhiService; label: string; hint: string }[] = [
     label: "Blood availability",
     hint: "Released units by group and component, counts only; requests are enquiries.",
   },
+  {
+    value: "teleconsultation",
+    label: "Teleconsultation (preview)",
+    hint: "Not a UHI provider service yet; online payment comes with it.",
+  },
+  {
+    value: "lab_tests",
+    label: "Lab tests (preview)",
+    hint: "Not a UHI provider service yet; the lab accepts each request.",
+  },
 ];
 
-const schema = z.object({
-  environment: z.enum(["sandbox", "production"]),
-  subscriber_id: z
-    .string()
-    .trim()
-    .regex(/^[A-Za-z0-9._-]{3,128}$/, "3–128 letters, digits, dots, dashes or underscores"),
-  unique_key_id: z.string().trim().min(1, "Enter the unique key ID registered with NHA"),
-  city_code: z.string().trim(),
-  facility_id: z.string().nullable(),
-  services: z.array(
-    z.enum(["teleconsultation", "physical_consultation", "lab_tests", "blood_bank", "ambulance"]),
-  ),
-  is_active: z.boolean(),
-});
+const SUBSCRIBER = /^[A-Za-z0-9._-]{3,128}$/;
+
+const schema = z
+  .object({
+    environment: z.enum(["sandbox", "production"]),
+    gateway_spec: z.enum(["v2_0_2", "s2"]),
+    subscriber_id: z
+      .string()
+      .trim()
+      .refine(
+        (v) => v === "" || SUBSCRIBER.test(v),
+        "3–128 letters, digits, dots, dashes or underscores",
+      ),
+    unique_key_id: z.string().trim(),
+    city_code: z.string().trim(),
+    facility_id: z.string().nullable(),
+    services: z.array(
+      z.enum(["teleconsultation", "physical_consultation", "lab_tests", "blood_bank", "ambulance"]),
+    ),
+    is_active: z.boolean(),
+  })
+  .refine((v) => (v.subscriber_id === "") === (v.unique_key_id === ""), {
+    path: ["unique_key_id"],
+    message: "NHA issues the subscriber ID and the key ID together — enter both",
+  });
 type FormValues = z.infer<typeof schema>;
 
 /**
- * Settings → UHI. How this hospital is registered on NHA's Unified Health
- * Interface, so patient apps can book its teleconsultations and request its
- * ambulances and blood. The signing key pair is generated on the server;
- * only the public key is ever shown — it is what NHA registers.
+ * Settings → UHI, in NHA's onboarding order: 1 choose the services, 2 make
+ * the signing key, 3 submit the callback URL and public key to NHA, 4 enter
+ * the subscriber ID and key ID NHA issues, 5 pass the sandbox tests and
+ * switch on. The callback URL is known from step 1; it never contains the
+ * subscriber ID.
  */
 export function UhiSettings() {
   const queryClient = useQueryClient();
   const canSeeCampuses = useHasPermission(P.ABDM.HFR.VIEW);
-  const [confirmRotate, setConfirmRotate] = useState(false);
   const { data, isLoading, isError } = useQuery({ queryKey: KEY, queryFn: uhiService.getSettings });
   const campuses = useQuery({
     queryKey: ["abdm", "hfr", "facilities"],
     queryFn: uhiService.listCampuses,
     enabled: canSeeCampuses,
   });
+  const available = data?.available_services ?? [];
   const form = useForm<FormValues>({
     resolver: zodResolver(schema),
     values: {
       environment: data?.environment ?? "sandbox",
+      gateway_spec: data?.gateway_spec ?? "v2_0_2",
       subscriber_id: data?.subscriber_id ?? "",
       unique_key_id: data?.unique_key_id ?? "",
       city_code: data?.city_code ?? "",
       facility_id: data?.facility_id ?? null,
-      services: data?.services ?? [],
+      services: (data?.services ?? []).filter((s) => available.includes(s)),
       is_active: data?.is_active ?? false,
     },
   });
   const save = useMutation({
     mutationFn: (v: FormValues) =>
-      uhiService.saveSettings({ ...v, city_code: v.city_code || null }),
+      uhiService.saveSettings({
+        ...v,
+        city_code: v.city_code || null,
+        subscriber_id: v.subscriber_id || null,
+        unique_key_id: v.unique_key_id || null,
+      }),
     onSuccess: (saved) => {
       queryClient.setQueryData(KEY, saved);
       toast.success(
@@ -110,15 +128,20 @@ export function UhiSettings() {
     },
     onError: (e: Error) => toast.error(e.message, { title: "Could not save the UHI settings" }),
   });
-  const keys = useMutation({
-    mutationFn: uhiService.generateKeys,
-    onSuccess: (saved) => {
-      queryClient.setQueryData(KEY, saved);
-      setConfirmRotate(false);
-      toast.success("Register the new public key with NHA.", { title: "Signing key generated" });
-    },
-    onError: (e: Error) => toast.error(e.message, { title: "Could not generate the key" }),
-  });
+
+  const facilityId = form.watch("facility_id");
+  const subscriberId = form.watch("subscriber_id");
+  const blockers = useMemo(() => {
+    const hfr = canSeeCampuses
+      ? campuses.data?.facilities.find((f) => f.id === facilityId)?.hfr_facility_id
+      : data?.hfr_facility_id;
+    return [
+      !data?.signing_public_key && "Make the signing key (step 2).",
+      subscriberId.trim() === "" && "Enter the subscriber ID and key ID NHA issued (step 4).",
+      !hfr &&
+        "Choose a campus with an HFR facility ID — NHA admits only HFR-registered facilities.",
+    ].filter((b): b is string => Boolean(b));
+  }, [canSeeCampuses, campuses.data, facilityId, subscriberId, data]);
 
   if (isError) {
     return (
@@ -127,21 +150,21 @@ export function UhiSettings() {
       </Alert>
     );
   }
-  const hasKey = Boolean(data?.signing_public_key);
   const campusOptions = (campuses.data?.facilities ?? []).map((f) => ({
     value: f.id,
     label: f.hfr_facility_id ? `${f.name} · HFR ${f.hfr_facility_id}` : `${f.name} · no HFR ID`,
   }));
+  const dropped = (data?.services ?? []).filter((s) => !available.includes(s));
 
   return (
-    <Stack>
+    <Stack component="form" onSubmit={form.handleSubmit((v) => save.mutate(v))}>
       <Card>
-        <Stack component="form" onSubmit={form.handleSubmit((v) => save.mutate(v))}>
+        <Stack>
           <Stack gap={4}>
-            <Text fw={600}>UHI provider (HSPA)</Text>
+            <Text fw={600}>1 · Choose the services</Text>
             <Text size="sm" c="dimmed">
-              The subscriber ID and unique key ID NHA registered this hospital under. Patient apps
-              reach it through the UHI gateway; every call is signed both ways.
+              This hospital joins UHI as a provider (HSPA). Patient apps reach it through NHA's
+              gateway; every call is signed both ways.
             </Text>
             <Group gap="xs">
               <Badge tone={data?.is_active ? "success" : "warning"}>
@@ -152,6 +175,67 @@ export function UhiSettings() {
               </Badge>
             </Group>
           </Stack>
+          <Controller
+            control={form.control}
+            name="services"
+            render={({ field }) => (
+              <Stack gap="xs" role="group" aria-label="Services offered">
+                <Text size="sm" fw={500}>
+                  Services offered
+                </Text>
+                {SERVICES.filter((s) => available.includes(s.value)).map((s) => (
+                  <Checkbox
+                    key={s.value}
+                    label={s.label}
+                    description={s.hint}
+                    checked={field.value.includes(s.value)}
+                    onChange={(e) =>
+                      field.onChange(
+                        e.currentTarget.checked
+                          ? [...field.value, s.value]
+                          : field.value.filter((v) => v !== s.value),
+                      )
+                    }
+                  />
+                ))}
+              </Stack>
+            )}
+          />
+          {dropped.length > 0 && (
+            <Alert tone="info" title="Some services are no longer offered">
+              Teleconsultation, online payment and lab tests are not UHI provider services yet, so
+              patient apps are not answered for them. Saving removes them.
+            </Alert>
+          )}
+          {canSeeCampuses && (
+            <Controller
+              control={form.control}
+              name="facility_id"
+              render={({ field }) => (
+                <Select
+                  label="Campus"
+                  description="Required: its HFR facility ID names the hospital to patient apps."
+                  placeholder="Choose the campus"
+                  data={campusOptions}
+                  value={field.value}
+                  onChange={field.onChange}
+                  clearable
+                />
+              )}
+            />
+          )}
+          <Controller
+            control={form.control}
+            name="city_code"
+            render={({ field }) => (
+              <Input
+                {...field}
+                label="City (STD code)"
+                placeholder="std:080"
+                description="The city NHA registers the hospital in, e.g. std:080 for Bengaluru."
+              />
+            )}
+          />
           <Controller
             control={form.control}
             name="environment"
@@ -167,6 +251,42 @@ export function UhiSettings() {
               />
             )}
           />
+          <Controller
+            control={form.control}
+            name="gateway_spec"
+            render={({ field }) => (
+              <Stack gap={4}>
+                <Text size="sm" fw={500}>
+                  Gateway contract
+                </Text>
+                <SegmentedControl
+                  aria-label="UHI gateway contract"
+                  value={field.value}
+                  onChange={field.onChange}
+                  data={[
+                    { value: "v2_0_2", label: "Gateway spec v2.0.2 (Sep 2026)" },
+                    { value: "s2", label: "NHA-ABDM/UHI (earlier)" },
+                  ]}
+                />
+                <Text size="xs" c="dimmed">
+                  Which gateway paths and headers this environment uses. v2.0.2 is the current spec
+                  on the ABDM developer portal; choose the earlier one only if NHA asks.
+                </Text>
+              </Stack>
+            )}
+          />
+          <Group>
+            <Button type="submit" tone="secondary" loading={save.isPending}>
+              Save
+            </Button>
+          </Group>
+        </Stack>
+      </Card>
+      {data && <UhiFeesCard fees={data.fees} onlinePayment={data.online_payment} />}
+      <UhiKeyCard data={data} queryKey={KEY} />
+      <Card>
+        <Stack>
+          <Text fw={600}>4 · Enter what NHA issued</Text>
           <Controller
             control={form.control}
             name="subscriber_id"
@@ -185,75 +305,21 @@ export function UhiSettings() {
             render={({ field }) => (
               <Input
                 {...field}
-                label="Unique key ID"
+                label="Key ID (pub_key_id)"
                 autoComplete="off"
                 error={form.formState.errors.unique_key_id?.message}
               />
             )}
           />
-          <Controller
-            control={form.control}
-            name="city_code"
-            render={({ field }) => (
-              <Input
-                {...field}
-                label="City (STD code)"
-                placeholder="std:080"
-                description="The city NHA registered the hospital in, e.g. std:080 for Bengaluru."
-              />
-            )}
-          />
-          {canSeeCampuses && (
-            <Controller
-              control={form.control}
-              name="facility_id"
-              render={({ field }) => (
-                <Select
-                  label="Campus"
-                  description="Its HFR facility ID names the hospital to patient apps."
-                  placeholder="Choose the campus"
-                  data={campusOptions}
-                  value={field.value}
-                  onChange={field.onChange}
-                  clearable
-                />
-              )}
-            />
-          )}
-          <Controller
-            control={form.control}
-            name="services"
-            render={({ field }) => (
-              <Stack gap="xs" role="group" aria-label="Services offered">
-                <Text size="sm" fw={500}>
-                  Services offered
-                </Text>
-                {SERVICES.map((s) => (
-                  <Checkbox
-                    key={s.value}
-                    label={s.label}
-                    description={s.hint}
-                    checked={field.value.includes(s.value)}
-                    onChange={(e) =>
-                      field.onChange(
-                        e.currentTarget.checked
-                          ? [...field.value, s.value]
-                          : field.value.filter((v) => v !== s.value),
-                      )
-                    }
-                  />
-                ))}
-              </Stack>
-            )}
-          />
+          <Text fw={600}>5 · Test in the sandbox, then switch on</Text>
           <Controller
             control={form.control}
             name="is_active"
             render={({ field }) => (
               <Switch
                 label="Accept calls from patient apps"
-                description={hasKey ? undefined : "Generate the signing key first."}
-                disabled={!hasKey}
+                description={blockers.length > 0 ? blockers.join(" ") : undefined}
+                disabled={blockers.length > 0 && !field.value}
                 checked={field.value}
                 onChange={(e) => field.onChange(e.currentTarget.checked)}
               />
@@ -266,58 +332,6 @@ export function UhiSettings() {
           </Group>
         </Stack>
       </Card>
-      {data && <UhiFeesCard fees={data.fees} onlinePayment={data.online_payment} />}
-      <Card>
-        <Stack gap="xs">
-          <Text fw={600}>Register with NHA</Text>
-          {!data?.subscriber_url && (
-            <Alert tone="warning" title="The public address is not set">
-              MEDBRAINS_PUBLIC_BASE_URL must be set on the server before patient apps can reach this
-              hospital.
-            </Alert>
-          )}
-          <Text size="sm">Subscriber URL</Text>
-          <Text size="sm" ff="monospace">
-            {data?.subscriber_url ?? "—"}
-          </Text>
-          <Text size="sm">Signing public key</Text>
-          <Text size="sm" ff="monospace" style={{ wordBreak: "break-all" }}>
-            {data?.signing_public_key ?? "Not generated yet"}
-          </Text>
-          <Group>
-            <Button
-              tone="secondary"
-              disabled={!data?.configured}
-              loading={keys.isPending && !confirmRotate}
-              onClick={() => (hasKey ? setConfirmRotate(true) : keys.mutate())}
-            >
-              {hasKey ? "Generate a new key" : "Generate the signing key"}
-            </Button>
-          </Group>
-          {!data?.configured && (
-            <Text size="xs" c="dimmed">
-              Save the subscriber ID first.
-            </Text>
-          )}
-        </Stack>
-      </Card>
-      <Modal
-        opened={confirmRotate}
-        onClose={() => setConfirmRotate(false)}
-        title="Replace the signing key?"
-        danger
-        primaryAction={{
-          label: "Replace the key",
-          onClick: () => keys.mutate(),
-          loading: keys.isPending,
-        }}
-        secondaryAction={{ label: "Cancel", onClick: () => setConfirmRotate(false) }}
-      >
-        <Text size="sm">
-          Patient apps will refuse this hospital's answers until NHA has the new public key. Do this
-          only when NHA is ready to register it.
-        </Text>
-      </Modal>
     </Stack>
   );
 }

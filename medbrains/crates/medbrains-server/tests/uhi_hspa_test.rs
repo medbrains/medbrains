@@ -18,8 +18,7 @@ use serde_json::{Value, json};
 use uhi_world::{doctor, world};
 use uuid::Uuid;
 
-/// Every test sets up UHI for the same hospital; run them one at a time.
-static SERIAL: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
+use uhi_world::SERIAL;
 
 fn txn() -> String {
     Uuid::new_v4().to_string()
@@ -78,7 +77,7 @@ async fn a_teleconsultation_is_found_and_booked_once() {
     assert_eq!(status, StatusCode::OK);
     let on_search = w.deliver(&id, "on_search").await;
     assert_eq!(
-        on_search.path, "/on_search",
+        on_search.path, "/api/v1/uhi/on_search",
         "a gateway search is answered to the gateway"
     );
     let provider = &on_search.body["message"]["catalog"]["providers"][0];

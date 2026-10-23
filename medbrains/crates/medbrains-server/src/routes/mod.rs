@@ -490,7 +490,7 @@ pub fn build_router(state: AppState) -> Router {
             "/api/uhi/settings",
             get(uhi::settings::get_settings).put(uhi::settings::save_settings),
         )
-        .route("/api/uhi/settings/keys", post(uhi::settings::generate_keys))
+        .route("/api/uhi/settings/keys", post(uhi::keys::generate_keys))
         .route("/api/uhi/requests", get(uhi::queue::list))
         .route("/api/uhi/requests/{id}/accept", post(uhi::queue::accept))
         .route("/api/uhi/requests/{id}/decline", post(uhi::queue::decline))
