@@ -1,442 +1,123 @@
-import { Select, Stack, Switch, Tabs, Text, Textarea, TextInput } from "@mantine/core";
-import { useDisclosure } from "@mantine/hooks";
-import { notifications } from "@mantine/notifications";
+import { Group, Stack, Text } from "@mantine/core";
 import { useHasPermission } from "@medbrains/stores";
-import type {
-  CreatePsychPatientRequest,
-  PsychAdmissionCategory,
-  PsychAssessment,
-  PsychEctSession,
-  PsychMhrbNotification,
-  PsychPatient,
-  PsychRestraint,
-} from "@medbrains/types";
-import { P } from "@medbrains/types";
-import { IconPencil, IconPlus, IconShieldOff } from "@tabler/icons-react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
+import { P, type PsychPatient } from "@medbrains/types";
+import { IconLock, IconPlus } from "@tabler/icons-react";
+import { useQuery } from "@tanstack/react-query";
+import { useMemo, useState } from "react";
 import { DataTable, PageHeader } from "@/components";
 import type { Column } from "@/components/DataTable";
 import { PatientNameCell } from "@/components/PatientNameCell";
-import { PatientSearchSelect } from "@/components/PatientSearchSelect";
-import { Badge, Button, IconButton, Modal } from "@/components/ui";
+import { Badge, Button } from "@/components/ui";
 import { usePatientScope } from "@/hooks/usePatientScope";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
-import { specialtyService } from "@/services/specialty.service";
-
-const ADMISSION_CATEGORIES: { value: PsychAdmissionCategory; label: string }[] = [
-  { value: "independent", label: "Independent" },
-  { value: "supported", label: "Supported" },
-  { value: "minor_supported", label: "Minor / Supported" },
-  { value: "emergency", label: "Emergency" },
-];
-
-function toPsychAdmissionCategory(value: string | null): PsychAdmissionCategory {
-  switch (value) {
-    case "supported":
-    case "minor_supported":
-    case "emergency":
-      return value;
-    default:
-      return "independent";
-  }
-}
+import { psychiatryService } from "@/services/psychiatry.service";
+import { admissionCategoryLabel } from "./psychiatry/labels";
+import { PsychRecordPanel } from "./psychiatry/PsychRecordPanel";
+import { RegisterPsychPatientModal } from "./psychiatry/RegisterPsychPatientModal";
 
 export function PsychiatryPage() {
-  // Opened from a patient's encounter rather than the navigation: start
-  // the form on them instead of making the clinician find them again.
-  const { patientId: scopedPatientId } = usePatientScope();
   useRequirePermission(P.SPECIALTY.PSYCHIATRY.PATIENTS_LIST);
-  const qc = useQueryClient();
+  // Opened from a patient's encounter: start on their record, and start the
+  // registration form on them, rather than making the clinician find them.
+  const { patientId: scopedPatientId } = usePatientScope();
   const canCreate = useHasPermission(P.SPECIALTY.PSYCHIATRY.PATIENTS_CREATE);
-  const canRestraint = useHasPermission(P.SPECIALTY.PSYCHIATRY.RESTRAINT_MANAGE);
-
-  const [tab, setTab] = useState<string | null>("patients");
-  const [patOpen, patHandlers] = useDisclosure(false);
+  const [registerOpen, setRegisterOpen] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(null);
 
-  const { data: patients = [], isLoading } = useQuery({
+  // The server returns only the records this user may open: restricted ones
+  // reach the treating psychiatrist, authorised roles and break-glass only.
+  const patients = useQuery({
     queryKey: ["psych-patients"],
-    queryFn: () => specialtyService.listPsychPatients(),
+    queryFn: () => psychiatryService.listPatients(),
   });
+  const rows = patients.data ?? [];
+  const selected = useMemo(() => {
+    const id = selectedId ?? rows.find((r) => r.patient_id === scopedPatientId)?.id ?? null;
+    return rows.find((r) => r.id === id) ?? null;
+  }, [rows, selectedId, scopedPatientId]);
 
-  const { data: assessments = [] } = useQuery({
-    queryKey: ["psych-assessments", selectedId],
-    queryFn: () => specialtyService.listPsychAssessments(selectedId ?? ""),
-    enabled: !!selectedId,
-  });
-
-  const { data: ectSessions = [] } = useQuery({
-    queryKey: ["psych-ect", selectedId],
-    queryFn: () => specialtyService.listEctSessions(selectedId ?? ""),
-    enabled: !!selectedId,
-  });
-
-  const { data: restraints = [] } = useQuery({
-    queryKey: ["psych-restraints", selectedId],
-    queryFn: () => specialtyService.listRestraints(selectedId ?? ""),
-    enabled: !!selectedId,
-  });
-
-  const { data: mhrb = [] } = useQuery({
-    queryKey: ["psych-mhrb", selectedId],
-    queryFn: () => specialtyService.listMhrbNotifications(selectedId ?? ""),
-    enabled: !!selectedId,
-  });
-
-  const [patForm, setPatForm] = useState<CreatePsychPatientRequest>({
-    patient_id: scopedPatientId,
-    admission_category: "independent",
-  });
-
-  const createPat = useMutation({
-    mutationFn: (data: CreatePsychPatientRequest) => specialtyService.createPsychPatient(data),
-    onSuccess: () => {
-      void qc.invalidateQueries({ queryKey: ["psych-patients"] });
-      patHandlers.close();
-      notifications.show({
-        title: "Created",
-        message: "Psychiatric patient registered",
-        color: "success",
-      });
-    },
-    onError: (e: Error) =>
-      notifications.show({ title: "Could not register patient", message: e.message, color: "red" }),
-  });
-
-  const releaseRestraint = useMutation({
-    mutationFn: (id: string) => specialtyService.releaseRestraint(id),
-    onSuccess: () => {
-      void qc.invalidateQueries({ queryKey: ["psych-restraints"] });
-      notifications.show({ title: "Released", message: "Restraint released", color: "success" });
-    },
-    onError: (e: Error) =>
-      notifications.show({
-        title: "Could not release restraint",
-        message: e.message,
-        color: "red",
-      }),
-  });
-
-  const patCols: Column<PsychPatient>[] = [
+  const columns: Column<PsychPatient>[] = [
     {
-      key: "patient_id",
+      key: "patient",
       label: "Patient",
       render: (r) => <PatientNameCell patientId={r.patient_id} showUhid={false} />,
     },
     {
       key: "category",
-      label: "Category",
-      render: (r) => <Badge tone="neutral">{r.admission_category.replace(/_/g, " ")}</Badge>,
+      label: "Admission category",
+      render: (r) => <Badge tone="neutral">{admissionCategoryLabel(r.admission_category)}</Badge>,
+    },
+    {
+      key: "restricted",
+      label: "Access",
+      render: (r) =>
+        r.is_restricted ? (
+          <Group gap={4} wrap="nowrap">
+            <IconLock size={16} aria-hidden />
+            <Text size="sm">Restricted</Text>
+          </Group>
+        ) : (
+          <Text size="sm">Care team</Text>
+        ),
     },
     {
       key: "substance",
-      label: "Substance Abuse",
+      label: "Substance use",
       render: (r) =>
         r.substance_abuse_flag ? <Badge tone="warning">Yes</Badge> : <Text size="sm">No</Text>,
     },
     {
-      key: "restricted",
-      label: "Restricted",
-      render: (r) =>
-        r.is_restricted ? <Badge tone="danger">RESTRICTED</Badge> : <Text size="sm">No</Text>,
-    },
-    {
       key: "nominated",
-      label: "Nominated Rep",
-      render: (r) => <Text size="sm">{r.nominated_rep_name ?? "None"}</Text>,
+      label: "Nominated representative",
+      render: (r) => <Text size="sm">{r.nominated_rep_name ?? "None named"}</Text>,
     },
     {
-      key: "actions",
+      key: "open",
       label: "",
       render: (r) => (
-        <IconButton tone="default" onClick={() => setSelectedId(r.id)} aria-label="Edit">
-          <IconPencil size={16} />
-        </IconButton>
+        <Button tone="tertiary" size="xs" onClick={() => setSelectedId(r.id)}>
+          Open record
+        </Button>
       ),
-    },
-  ];
-
-  const assessCols: Column<PsychAssessment>[] = [
-    {
-      key: "type",
-      label: "Type",
-      render: (r) => <Badge tone="neutral">{r.assessment_type}</Badge>,
-    },
-    {
-      key: "ham_d",
-      label: "HAM-D",
-      render: (r) => <Text size="sm">{r.ham_d_score ?? "---"}</Text>,
-    },
-    { key: "bprs", label: "BPRS", render: (r) => <Text size="sm">{r.bprs_score ?? "---"}</Text> },
-    {
-      key: "date",
-      label: "Date",
-      render: (r) => <Text size="sm">{new Date(r.created_at).toLocaleDateString()}</Text>,
-    },
-  ];
-
-  const ectCols: Column<PsychEctSession>[] = [
-    {
-      key: "session",
-      label: "Session #",
-      render: (r) => <Text size="sm">{r.session_number}</Text>,
-    },
-    {
-      key: "laterality",
-      label: "Laterality",
-      render: (r) => <Badge tone="neutral">{r.laterality.replace(/_/g, " ")}</Badge>,
-    },
-    {
-      key: "consent",
-      label: "Consent",
-      render: (r) =>
-        r.consent_obtained ? <Badge tone="success">Yes</Badge> : <Badge tone="danger">No</Badge>,
-    },
-    {
-      key: "stimulus",
-      label: "Stimulus",
-      render: (r) => <Text size="sm">{r.stimulus_dose ?? "---"}</Text>,
-    },
-    {
-      key: "seizure",
-      label: "Seizure Duration",
-      render: (r) => <Text size="sm">{r.seizure_duration ?? "---"}</Text>,
-    },
-    {
-      key: "date",
-      label: "Date",
-      render: (r) => <Text size="sm">{new Date(r.created_at).toLocaleDateString()}</Text>,
-    },
-  ];
-
-  const restraintCols: Column<PsychRestraint>[] = [
-    {
-      key: "type",
-      label: "Type",
-      render: (r) => (
-        <Badge
-          tone={
-            r.restraint_type === "seclusion"
-              ? "danger"
-              : r.restraint_type === "chemical"
-                ? "warning"
-                : "warning"
-          }
-        >
-          {r.restraint_type}
-        </Badge>
-      ),
-    },
-    {
-      key: "start",
-      label: "Start",
-      render: (r) => <Text size="sm">{new Date(r.start_time).toLocaleString()}</Text>,
-    },
-    {
-      key: "review_due",
-      label: "Review Due",
-      render: (r) => (
-        <Text
-          size="sm"
-          c={new Date(r.review_due_at) < new Date() && !r.reviewed_at ? "danger" : undefined}
-        >
-          {new Date(r.review_due_at).toLocaleString()}
-        </Text>
-      ),
-    },
-    {
-      key: "released",
-      label: "Released",
-      render: (r) =>
-        r.released_at ? <Badge tone="success">Yes</Badge> : <Badge tone="danger">Active</Badge>,
-    },
-    {
-      key: "actions",
-      label: "",
-      render: (r) =>
-        !r.released_at && canRestraint ? (
-          <IconButton
-            tone="success"
-            onClick={() => releaseRestraint.mutate(r.id)}
-            aria-label="Shield Off"
-          >
-            <IconShieldOff size={16} />
-          </IconButton>
-        ) : null,
     },
   ];
 
   return (
-    <div>
+    <Stack gap="md">
       <PageHeader
         title="Psychiatry"
-        subtitle="MHCA 2017 compliant psychiatric care management"
+        subtitle="Mental Healthcare Act 2017 — admissions, assessments, ECT, restraint and Review Board notices"
         actions={
           canCreate ? (
-            <Button tone="primary" leftSection={<IconPlus size={16} />} onClick={patHandlers.open}>
-              Register Patient
+            <Button
+              tone="primary"
+              leftSection={<IconPlus size={16} />}
+              onClick={() => setRegisterOpen(true)}
+            >
+              Register patient
             </Button>
           ) : undefined
         }
       />
-
-      <Tabs value={tab} onChange={setTab} mt="md">
-        <Tabs.List>
-          <Tabs.Tab value="patients">Patients</Tabs.Tab>
-          <Tabs.Tab value="assessments">Assessments</Tabs.Tab>
-          <Tabs.Tab value="ect">ECT Register</Tabs.Tab>
-          <Tabs.Tab value="restraint">Seclusion & Restraint</Tabs.Tab>
-          <Tabs.Tab value="mhrb">MHRB</Tabs.Tab>
-        </Tabs.List>
-
-        <Tabs.Panel value="patients" pt="md">
-          <DataTable columns={patCols} data={patients} loading={isLoading} rowKey={(r) => r.id} />
-        </Tabs.Panel>
-        <Tabs.Panel value="assessments" pt="md">
-          {selectedId ? (
-            <DataTable
-              columns={assessCols}
-              data={assessments}
-              loading={false}
-              rowKey={(r) => r.id}
-            />
-          ) : (
-            <Text c="dimmed">Select a patient to view assessments</Text>
-          )}
-        </Tabs.Panel>
-        <Tabs.Panel value="ect" pt="md">
-          {selectedId ? (
-            <DataTable columns={ectCols} data={ectSessions} loading={false} rowKey={(r) => r.id} />
-          ) : (
-            <Text c="dimmed">Select a patient to view ECT sessions</Text>
-          )}
-        </Tabs.Panel>
-        <Tabs.Panel value="restraint" pt="md">
-          {selectedId ? (
-            <DataTable
-              columns={restraintCols}
-              data={restraints}
-              loading={false}
-              rowKey={(r) => r.id}
-            />
-          ) : (
-            <Text c="dimmed">Select a patient to view restraint records</Text>
-          )}
-        </Tabs.Panel>
-        <Tabs.Panel value="mhrb" pt="md">
-          {selectedId ? (
-            <DataTable
-              columns={[
-                {
-                  key: "type",
-                  label: "Type",
-                  render: (r: PsychMhrbNotification) => (
-                    <Badge tone="neutral">{r.notification_type}</Badge>
-                  ),
-                },
-                {
-                  key: "ref",
-                  label: "Reference",
-                  render: (r: PsychMhrbNotification) => (
-                    <Text size="sm">{r.reference_number ?? "---"}</Text>
-                  ),
-                },
-                {
-                  key: "status",
-                  label: "Status",
-                  render: (r: PsychMhrbNotification) => <Badge tone="neutral">{r.status}</Badge>,
-                },
-                {
-                  key: "date",
-                  label: "Date",
-                  render: (r: PsychMhrbNotification) => (
-                    <Text size="sm">{new Date(r.created_at).toLocaleDateString()}</Text>
-                  ),
-                },
-              ]}
-              data={mhrb}
-              loading={false}
-              rowKey={(r) => r.id}
-            />
-          ) : (
-            <Text c="dimmed">Select a patient to view MHRB notifications</Text>
-          )}
-        </Tabs.Panel>
-      </Tabs>
-
-      <Modal
-        opened={patOpen}
-        onClose={patHandlers.close}
-        title="Register Psychiatric Patient"
-        fullScreen
-      >
-        <Stack>
-          <PatientSearchSelect
-            value={patForm.patient_id}
-            onChange={(patientId) => setPatForm((p) => ({ ...p, patient_id: patientId }))}
-          />
-          <Select
-            label="Admission Category"
-            required
-            data={ADMISSION_CATEGORIES}
-            value={patForm.admission_category}
-            onChange={(v) =>
-              setPatForm((p) => ({
-                ...p,
-                admission_category: toPsychAdmissionCategory(v),
-              }))
-            }
-          />
-          <Textarea
-            label="Advance Directive"
-            value={patForm.advance_directive_text ?? ""}
-            onChange={(e) => {
-              const nextValue = e.currentTarget.value;
-              setPatForm((p) => ({ ...p, advance_directive_text: nextValue }));
-            }}
-          />
-          <TextInput
-            label="Nominated Rep Name"
-            value={patForm.nominated_rep_name ?? ""}
-            onChange={(e) => {
-              const nextValue = e.currentTarget.value;
-              setPatForm((p) => ({ ...p, nominated_rep_name: nextValue }));
-            }}
-          />
-          <TextInput
-            label="Nominated Rep Contact"
-            value={patForm.nominated_rep_contact ?? ""}
-            onChange={(e) => {
-              const nextValue = e.currentTarget.value;
-              setPatForm((p) => ({ ...p, nominated_rep_contact: nextValue }));
-            }}
-          />
-          <TextInput
-            label="Nominated Rep Relation"
-            value={patForm.nominated_rep_relation ?? ""}
-            onChange={(e) => {
-              const nextValue = e.currentTarget.value;
-              setPatForm((p) => ({ ...p, nominated_rep_relation: nextValue }));
-            }}
-          />
-          <Switch
-            label="Substance Abuse"
-            checked={patForm.substance_abuse_flag ?? false}
-            onChange={(e) => {
-              const nextChecked = e.currentTarget.checked;
-              setPatForm((p) => ({ ...p, substance_abuse_flag: nextChecked }));
-            }}
-          />
-          <Button
-            tone="primary"
-            onClick={() => createPat.mutate(patForm)}
-            loading={createPat.isPending}
-          >
-            Register Patient
-          </Button>
-        </Stack>
-      </Modal>
-    </div>
+      <DataTable
+        columns={columns}
+        data={rows}
+        loading={patients.isLoading}
+        error={patients.error ?? undefined}
+        onRetry={() => void patients.refetch()}
+        rowKey={(r) => r.id}
+        emptyTitle="No psychiatric records you can open"
+        emptyDescription="Restricted records appear only to their treating psychiatrist and to people your hospital has authorised."
+      />
+      {selected && <PsychRecordPanel key={selected.id} record={selected} />}
+      {canCreate && (
+        <RegisterPsychPatientModal
+          opened={registerOpen}
+          onClose={() => setRegisterOpen(false)}
+          initialPatientId={scopedPatientId}
+          onRegistered={(row) => setSelectedId(row.id)}
+        />
+      )}
+    </Stack>
   );
 }

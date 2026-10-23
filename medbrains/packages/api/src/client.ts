@@ -1749,12 +1749,12 @@ import type {
   ProvisionDomainResponse,
   PsychAssessment,
   PsychCounselingSession,
-  PsychEctSession,
+  PsychEctRegister,
   PsychMhrbNotification,
   PsychometricTest,
   // Specialty Clinical: Psychiatry
   PsychPatient,
-  PsychRestraint,
+  PsychSeclusionRestraint,
   PublicAvailableSlot,
   PublicBookingDirectory,
   PublicBookingRequest,
@@ -1871,6 +1871,7 @@ import type {
   RejectAssetMovementRequest,
   RejectSampleRequest,
   ReleaseOrderRequest,
+  ReleasePsychRestraintRequest,
   RemoteVitalReading,
   RemoveIndwellingDeviceRequest,
   ReorderAlert,
@@ -2282,6 +2283,8 @@ import type {
   UpdatePrimaryNurseRequest,
   UpdatePrintJobRequest,
   UpdatePriorAuthRequestBody,
+  UpdatePsychMhrbRequest,
+  UpdatePsychPatientRequest,
   UpdateQualityIncidentRequest,
   UpdateRatePlanRequest,
   UpdateReagentLotRequest,
@@ -11751,7 +11754,7 @@ export const api = {
       method: "POST",
       body: JSON.stringify(data),
     }),
-  updatePsychPatient: (id: string, data: Partial<CreatePsychPatientRequest>) =>
+  updatePsychPatient: (id: string, data: UpdatePsychPatientRequest) =>
     request<PsychPatient>(`/specialty/psychiatry/patients/${id}`, {
       method: "PUT",
       body: JSON.stringify(data),
@@ -11764,22 +11767,25 @@ export const api = {
       body: JSON.stringify(data),
     }),
   listEctSessions: (patientId: string) =>
-    request<PsychEctSession[]>(`/specialty/psychiatry/patients/${patientId}/ect`),
+    request<PsychEctRegister[]>(`/specialty/psychiatry/patients/${patientId}/ect`),
   createEctSession: (patientId: string, data: CreatePsychEctRequest) =>
-    request<PsychEctSession>(`/specialty/psychiatry/patients/${patientId}/ect`, {
+    request<PsychEctRegister>(`/specialty/psychiatry/patients/${patientId}/ect`, {
       method: "POST",
       body: JSON.stringify(data),
     }),
   listRestraints: (patientId: string) =>
-    request<PsychRestraint[]>(`/specialty/psychiatry/patients/${patientId}/restraints`),
+    request<PsychSeclusionRestraint[]>(`/specialty/psychiatry/patients/${patientId}/restraints`),
   createRestraint: (patientId: string, data: CreatePsychRestraintRequest) =>
-    request<PsychRestraint>(`/specialty/psychiatry/patients/${patientId}/restraints`, {
+    request<PsychSeclusionRestraint>(`/specialty/psychiatry/patients/${patientId}/restraints`, {
       method: "POST",
       body: JSON.stringify(data),
     }),
-  releaseRestraint: (id: string) =>
-    request<PsychRestraint>(`/specialty/psychiatry/restraints/${id}/release`, {
+  // The handler takes a JSON body; sending none answered 415 and the release
+  // button never worked.
+  releaseRestraint: (id: string, data: ReleasePsychRestraintRequest = {}) =>
+    request<PsychSeclusionRestraint>(`/specialty/psychiatry/restraints/${id}/release`, {
       method: "PUT",
+      body: JSON.stringify(data),
     }),
   listMhrbNotifications: (patientId: string) =>
     request<PsychMhrbNotification[]>(`/specialty/psychiatry/patients/${patientId}/mhrb`),
@@ -11788,10 +11794,7 @@ export const api = {
       method: "POST",
       body: JSON.stringify(data),
     }),
-  updateMhrbNotification: (
-    id: string,
-    data: Partial<CreatePsychMhrbRequest> & { status?: string },
-  ) =>
+  updateMhrbNotification: (id: string, data: UpdatePsychMhrbRequest) =>
     request<PsychMhrbNotification>(`/specialty/psychiatry/mhrb/${id}`, {
       method: "PUT",
       body: JSON.stringify(data),

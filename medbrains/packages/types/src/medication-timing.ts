@@ -547,6 +547,9 @@ export interface PatientDiagnosisRow {
   recorded_by_name?: string | null;
   updated_by_name?: string | null;
   updated_at?: string | null;
+  /** Mental-health content this user may not see (MHCA 2017 s.23) — the
+   *  server has already stripped it; render a tombstone. */
+  withheld: boolean;
 }
 
 // ══════════════════════════════════════════════════════════

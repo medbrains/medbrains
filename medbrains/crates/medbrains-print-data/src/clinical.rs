@@ -1896,6 +1896,7 @@ pub async fn get_opd_prescription_print_data(
     require_permission(&claims, permissions::opd::visit::UPDATE)?;
     medbrains_authz_gate::require_encounter_access(&state, &claims, encounter_id).await?;
     require_permission(&claims, permissions::patients::VIEW)?;
+    let viewer = medbrains_authz_gate::mental_health::MentalHealthViewer::of(&claims);
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -1946,7 +1947,10 @@ pub async fn get_opd_prescription_print_data(
            ORDER BY cc.created_at DESC LIMIT 1 \
          ) c ON true \
          LEFT JOIN LATERAL ( \
-           SELECT string_agg(dg.description, '; ' ORDER BY dg.is_primary DESC, dg.created_at) \
+           SELECT string_agg(CASE WHEN public.mental_health_diagnosis_withheld( \
+                      dg.icd_system, dg.icd_code, dg.recorded_by, e.patient_id, $3, $4) \
+                    THEN $5 ELSE dg.description END, \
+                  '; ' ORDER BY dg.is_primary DESC, dg.created_at) \
              AS diagnosis \
            FROM diagnoses dg \
            WHERE dg.encounter_id = e.id AND dg.tenant_id = e.tenant_id \
@@ -1962,6 +1966,9 @@ pub async fn get_opd_prescription_print_data(
     )
     .bind(encounter_id)
     .bind(claims.tenant_id)
+    .bind(viewer.user_id)
+    .bind(viewer.can_all)
+    .bind(medbrains_authz_gate::mental_health::TOMBSTONE_LABEL)
     .fetch_optional(&mut *tx)
     .await?
     .ok_or(AppError::NotFound)?;
@@ -1998,10 +2005,14 @@ pub async fn get_opd_prescription_print_data(
         "SELECT CASE icd_system WHEN 'icd10' THEN 'ICD-10 ' WHEN 'icd11' THEN 'ICD-11 ' WHEN 'snomed' THEN 'SNOMED CT ' ELSE '' END || icd_code FROM diagnoses \
          WHERE encounter_id = $1 AND tenant_id = $2 AND icd_code IS NOT NULL \
            AND deleted_at IS NULL \
+           AND NOT public.mental_health_diagnosis_withheld(icd_system, icd_code, recorded_by, \
+                 (SELECT patient_id FROM encounters WHERE id = $1 AND tenant_id = $2), $3, $4) \
          ORDER BY is_primary DESC, created_at LIMIT 500",
     )
     .bind(encounter_id)
     .bind(claims.tenant_id)
+    .bind(viewer.user_id)
+    .bind(viewer.can_all)
     .fetch_all(&mut *tx)
     .await?;
 

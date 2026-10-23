@@ -34,7 +34,7 @@ pub struct FieldClass {
     pub note: Option<&'static str>,
 }
 
-/// The 53 redactable fields, classified.
+/// The redactable fields, classified.
 ///
 /// Anything absent from this table has no declared class and is treated as
 /// `Routine` — which is the safe direction for presentation but means a new
@@ -207,6 +207,15 @@ pub const FIELD_CLASSES: &[FieldClass] = &[
         class: DataClass::Sensitive,
         note: None,
     },
+    // ── Mental health (Mental Healthcare Act 2017 s.23) ────────────────
+    FieldClass {
+        key: "psychiatry.mental_health",
+        class: DataClass::Sensitive,
+        note: Some(
+            "psychiatric records and mental-health diagnoses — tombstoned for anyone outside \
+             the treating team: the entry may show, its content never leaves the server",
+        ),
+    },
     // ── Attenders (the people at the bedside) ──────────────────────────
     FieldClass {
         key: "ipd.attenders.name",
@@ -373,6 +382,7 @@ mod tests {
         for key in [
             "opd.diagnosis",
             "opd.soap_note",
+            "psychiatry.mental_health",
             "ipd.admissions.provisional_diagnosis",
             "ipd.discharge_summary.final_diagnosis",
             "emergency.mlc.medical_opinion",

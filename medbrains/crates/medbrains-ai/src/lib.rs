@@ -116,6 +116,9 @@ struct Grounding {
     allergies: Vec<String>,
     medications: Vec<String>,
     diagnoses: Vec<String>,
+    /// Entries withheld from this viewer (mental-health content). Only the
+    /// count reaches the model — the tombstone, never the content.
+    withheld: usize,
     labs: Vec<String>,
 }
 
@@ -135,6 +138,12 @@ impl Grounding {
         if !self.diagnoses.is_empty() {
             lines.push(format!("Active problems: {}", self.diagnoses.join(", ")));
         }
+        if self.withheld > 0 {
+            lines.push(format!(
+                "Restricted entries not shown to this user: {}",
+                self.withheld
+            ));
+        }
         if !self.labs.is_empty() {
             lines.push(format!("Recent lab results: {}", self.labs.join("; ")));
         }
@@ -148,6 +157,7 @@ async fn fetch_patient_grounding(
     tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
     tenant_id: Uuid,
     patient_id: Uuid,
+    viewer: medbrains_authz_gate::mental_health::MentalHealthViewer,
 ) -> Result<Grounding, AppError> {
     let allergies = sqlx::query_scalar::<_, String>(
         "SELECT allergen_name FROM patient_allergies \
@@ -175,16 +185,28 @@ async fn fetch_patient_grounding(
     .fetch_all(&mut **tx)
     .await?;
 
-    let diagnoses = sqlx::query_scalar::<_, String>(
-        "SELECT d.description FROM diagnoses d \
+    // Mental-health problems this viewer may not see are counted, not named.
+    let problems = sqlx::query_as::<_, (String, bool)>(
+        "SELECT d.description, \
+                public.mental_health_diagnosis_withheld(d.icd_system, d.icd_code, \
+                    d.recorded_by, e.patient_id, $3, $4) \
+         FROM diagnoses d \
          JOIN encounters e ON e.id = d.encounter_id \
          WHERE e.patient_id = $1 AND d.tenant_id = $2 AND d.resolved_date IS NULL \
+           AND d.deleted_at IS NULL \
          ORDER BY d.created_at DESC LIMIT 15",
     )
     .bind(patient_id)
     .bind(tenant_id)
+    .bind(viewer.user_id)
+    .bind(viewer.can_all)
     .fetch_all(&mut **tx)
     .await?;
+    let withheld = problems.iter().filter(|(_, hidden)| *hidden).count();
+    let diagnoses = problems
+        .into_iter()
+        .filter_map(|(description, hidden)| (!hidden).then_some(description))
+        .collect();
 
     #[derive(sqlx::FromRow)]
     struct LabRow {
@@ -215,6 +237,7 @@ async fn fetch_patient_grounding(
         allergies,
         medications,
         diagnoses,
+        withheld,
         labs,
     })
 }
@@ -600,7 +623,13 @@ impl PatientOverviewTool {
             &self.claims.department_ids,
         )
         .await?;
-        let grounding = fetch_patient_grounding(&mut tx, self.claims.tenant_id, patient_id).await?;
+        let grounding = fetch_patient_grounding(
+            &mut tx,
+            self.claims.tenant_id,
+            patient_id,
+            medbrains_authz_gate::mental_health::MentalHealthViewer::of(&self.claims),
+        )
+        .await?;
         drop(tx);
         Ok(grounding.as_context().unwrap_or_else(|| {
             "This patient has no recorded allergies, active medications, active problems, or recent \

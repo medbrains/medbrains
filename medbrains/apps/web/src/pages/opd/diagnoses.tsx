@@ -72,6 +72,7 @@ export function DiagnosesTab({
       encounterId={encounterId}
       diagnoses={diagnoses}
       patientDiagnoses={patientDiagnoses}
+      patientId={patientId}
       canCreate={canCreateDiagnosis}
       canUpdate={canUpdateDiagnosis}
       canDelete={canDeleteDiagnosis}

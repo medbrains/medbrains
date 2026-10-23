@@ -5802,6 +5802,7 @@ name = "medbrains-authz-gate"
 version = "0.1.0"
 dependencies = [
  "medbrains-authz",
+ "medbrains-core",
  "medbrains-db",
  "medbrains-server-core",
  "sqlx",

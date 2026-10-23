@@ -4982,6 +4982,9 @@ pub struct PatientTimelineEvent {
     pub title: String,
     pub subtitle: Option<String>,
     pub ref_id: Uuid,
+    /// Mental-health content this viewer may not see — the entry is
+    /// tombstoned (title replaced, detail dropped) rather than shown.
+    pub withheld: bool,
 }
 
 /// One chronological feed of a patient's clinical record across modules —
@@ -4996,6 +4999,7 @@ pub async fn get_clinical_timeline(
     require_permission(&claims, permissions::patients::VIEW)?;
     medbrains_authz_gate::require_patient_access(&state, &claims, patient_id).await?;
 
+    let viewer = medbrains_authz_gate::mental_health::MentalHealthViewer::of(&claims);
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
@@ -5003,47 +5007,65 @@ pub async fn get_clinical_timeline(
     let rows = sqlx::query_as::<_, PatientTimelineEvent>(
         "SELECT * FROM ( \
            SELECT e.encounter_date::timestamptz AS occurred_at, 'opd'::text AS category, \
-                  'OPD visit'::text AS title, e.status::text AS subtitle, e.id AS ref_id \
+                  'OPD visit'::text AS title, e.status::text AS subtitle, e.id AS ref_id, \
+                  false AS withheld \
            FROM encounters e \
            WHERE e.patient_id = $1 AND e.tenant_id = $2 \
              AND e.encounter_type = 'opd'::encounter_type \
            UNION ALL \
            SELECT a.admitted_at, 'ipd'::text, 'Admission'::text, \
-                  COALESCE(a.primary_diagnosis, a.provisional_diagnosis, a.status::text), a.id \
+                  COALESCE(a.primary_diagnosis, a.provisional_diagnosis, a.status::text), a.id, false \
            FROM admissions a WHERE a.patient_id = $1 AND a.tenant_id = $2 \
            UNION ALL \
            SELECT v.created_at, 'emergency'::text, 'Emergency visit'::text, \
-                  COALESCE(v.chief_complaint, v.status::text), v.id \
+                  COALESCE(v.chief_complaint, v.status::text), v.id, false \
            FROM er_visits v WHERE v.patient_id = $1 AND v.tenant_id = $2 \
            UNION ALL \
            SELECT lo.created_at, 'lab'::text, \
-                  COALESCE(lt.name, 'Lab order')::text, lo.status::text, lo.id \
+                  COALESCE(lt.name, 'Lab order')::text, lo.status::text, lo.id, false \
            FROM lab_orders lo \
            LEFT JOIN lab_test_catalog lt ON lt.id = lo.test_id AND lt.tenant_id = lo.tenant_id \
            WHERE lo.patient_id = $1 AND lo.tenant_id = $2 \
            UNION ALL \
            SELECT ro.created_at, 'radiology'::text, \
-                  COALESCE(rm.name, 'Imaging order')::text, ro.status::text, ro.id \
+                  COALESCE(rm.name, 'Imaging order')::text, ro.status::text, ro.id, false \
            FROM radiology_orders ro \
            LEFT JOIN radiology_modalities rm ON rm.id = ro.modality_id AND rm.tenant_id = ro.tenant_id \
            WHERE ro.patient_id = $1 AND ro.tenant_id = $2 \
            UNION ALL \
-           SELECT pr.created_at, 'pharmacy'::text, 'Prescription'::text, NULL::text, pr.id \
+           SELECT pr.created_at, 'pharmacy'::text, 'Prescription'::text, NULL::text, pr.id, false \
            FROM prescriptions pr WHERE pr.patient_id = $1 AND pr.tenant_id = $2 \
            UNION ALL \
-           SELECT dx.created_at, 'diagnosis'::text, dx.description::text, dx.icd_code, dx.id \
+           SELECT dx.created_at, 'diagnosis'::text, dx.description::text, dx.icd_code, dx.id, \
+                  public.mental_health_diagnosis_withheld(dx.icd_system, dx.icd_code, \
+                      dx.recorded_by, e.patient_id, $3, $4) \
            FROM diagnoses dx \
            JOIN encounters e ON e.id = dx.encounter_id AND e.tenant_id = dx.tenant_id \
-           WHERE e.patient_id = $1 AND dx.tenant_id = $2 \
+           WHERE e.patient_id = $1 AND dx.tenant_id = $2 AND dx.deleted_at IS NULL \
          ) t ORDER BY occurred_at DESC LIMIT 300",
     )
     .bind(patient_id)
     .bind(claims.tenant_id)
+    .bind(viewer.user_id)
+    .bind(viewer.can_all)
     .fetch_all(&mut *tx)
     .await?;
 
     tx.commit().await?;
-    Ok(Json(rows))
+    Ok(Json(withhold_timeline(rows)))
+}
+
+/// Tombstone the mental-health entries this viewer may not see.
+fn withhold_timeline(rows: Vec<PatientTimelineEvent>) -> Vec<PatientTimelineEvent> {
+    use medbrains_authz_gate::mental_health::{TOMBSTONE_LABEL, withhold};
+    withhold(
+        rows,
+        |row| row.withheld,
+        |row| {
+            TOMBSTONE_LABEL.clone_into(&mut row.title);
+            row.subtitle = None;
+        },
+    )
 }
 
 /// Patient master (registration, identifiers, addresses, allergies, consents, documents, masters) routes.

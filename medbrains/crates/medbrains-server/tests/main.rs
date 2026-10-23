@@ -136,6 +136,7 @@ mod marketing_messaging_test;
 mod marketing_outreach_test;
 mod marketing_public_enquiry_test;
 mod mlc_case_access_test;
+mod psychiatry_privacy_test;
 mod mlc_documentation_print_test;
 mod mlc_injuries_test;
 mod mlc_record_and_alerts_test;

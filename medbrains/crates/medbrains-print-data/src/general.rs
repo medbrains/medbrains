@@ -33,6 +33,7 @@ pub async fn get_prescription_print_data(
 ) -> Result<Json<PrescriptionPrintData>, AppError> {
     require_permission(&claims, permissions::opd::visit::UPDATE)?;
     medbrains_authz_gate::require_encounter_access(&state, &claims, encounter_id).await?;
+    let viewer = medbrains_authz_gate::mental_health::MentalHealthViewer::of(&claims);
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -49,8 +50,11 @@ pub async fn get_prescription_print_data(
            p.phone, \
            u.full_name AS doctor_name, \
            dept.name AS department, \
-           (SELECT string_agg(d.description, ', ') \
+           (SELECT string_agg(CASE WHEN public.mental_health_diagnosis_withheld( \
+                      d.icd_system, d.icd_code, d.recorded_by, e.patient_id, $3, $4) \
+                    THEN $5 ELSE d.description END, ', ') \
               FROM diagnoses d WHERE d.encounter_id = e.id AND d.tenant_id = e.tenant_id \
+                AND d.deleted_at IS NULL \
            ) AS diagnosis, \
            e.encounter_date::timestamptz AS encounter_date, \
            c.plan AS advice, \
@@ -67,6 +71,9 @@ pub async fn get_prescription_print_data(
     )
     .bind(encounter_id)
     .bind(claims.tenant_id)
+    .bind(viewer.user_id)
+    .bind(viewer.can_all)
+    .bind(medbrains_authz_gate::mental_health::TOMBSTONE_LABEL)
     .fetch_one(&mut *tx)
     .await?;
 
@@ -846,6 +853,9 @@ pub async fn get_investigation_requisition_print_data(
         order_id,
     )
     .await?;
+    // A requisition is printed at the lab desk: a psychiatric diagnosis on it
+    // reaches the phlebotomist and the technician.
+    let viewer = medbrains_authz_gate::mental_health::MentalHealthViewer::of(&claims);
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -866,7 +876,9 @@ pub async fn get_investigation_requisition_print_data(
            doc.full_name AS requesting_doctor, \
            d.name AS department, \
            lo.clinical_history, \
-           (SELECT string_agg(dx.description, '; ' ORDER BY dx.created_at) \
+           (SELECT string_agg(CASE WHEN public.mental_health_diagnosis_withheld( \
+                      dx.icd_system, dx.icd_code, dx.recorded_by, lo.patient_id, $3, $4) \
+                    THEN $5 ELSE dx.description END, '; ' ORDER BY dx.created_at) \
               FROM diagnoses dx \
              WHERE dx.tenant_id = lo.tenant_id \
                AND dx.encounter_id = lo.encounter_id \
@@ -893,6 +905,9 @@ pub async fn get_investigation_requisition_print_data(
     )
     .bind(order_id)
     .bind(claims.tenant_id)
+    .bind(viewer.user_id)
+    .bind(viewer.can_all)
+    .bind(medbrains_authz_gate::mental_health::TOMBSTONE_LABEL)
     .fetch_one(&mut *tx)
     .await?;
 

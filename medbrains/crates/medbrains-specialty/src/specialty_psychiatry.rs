@@ -12,6 +12,7 @@ use medbrains_core::specialty::psychiatry::{
 use serde::Deserialize;
 use uuid::Uuid;
 
+use medbrains_authz_gate::mental_health::MentalHealthViewer;
 use medbrains_server_core::{
     error::AppError, middleware::auth::Claims, middleware::authorization::require_permission,
     state::AppState,
@@ -23,6 +24,7 @@ use medbrains_server_core::{
 
 #[derive(Debug, Deserialize)]
 pub struct ListPsychPatientsQuery {
+    pub patient_id: Option<Uuid>,
     pub admission_category: Option<String>,
     pub substance_abuse: Option<bool>,
 }
@@ -43,6 +45,10 @@ pub struct CreatePsychPatientRequest {
 #[derive(Debug, Deserialize)]
 pub struct UpdatePsychPatientRequest {
     pub admission_category: Option<String>,
+    /// Lifting the restriction lets the patient's care team (not only the
+    /// treating psychiatrist) see the record — MHCA s.23 allows sharing with
+    /// those providing care.
+    pub is_restricted: Option<bool>,
     pub advance_directive_text: Option<String>,
     pub nominated_rep_name: Option<String>,
     pub nominated_rep_relation: Option<String>,
@@ -129,6 +135,13 @@ pub async fn list_psych_patients(
         "psychiatry",
     )
     .await?;
+    // Two filters, one query: the patients this caller may reach at all (care
+    // team), and — for a restricted record — the mental-health rule. An
+    // unanswerable visible set is a 503 from `patient_filter`, never an empty
+    // list that reads as "no psychiatric patients".
+    let permitted_patients =
+        medbrains_authz_gate::patient_filter(&state, &claims, params.patient_id).await?;
+    let viewer = MentalHealthViewer::of(&claims);
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
@@ -137,10 +150,15 @@ pub async fn list_psych_patients(
         "SELECT * FROM psych_patients \
          WHERE deleted_at IS NULL AND ($1::text IS NULL OR admission_category::text = $1) \
          AND ($2::bool IS NULL OR substance_abuse_flag = $2) \
+         AND ($3::uuid[] IS NULL OR patient_id = ANY($3)) \
+         AND (NOT is_restricted OR NOT public.mental_health_withheld(patient_id, $4, $5)) \
          ORDER BY created_at DESC LIMIT 200",
     )
     .bind(&params.admission_category)
     .bind(params.substance_abuse)
+    .bind(permitted_patients.as_deref())
+    .bind(viewer.user_id)
+    .bind(viewer.can_all)
     .fetch_all(&mut *tx)
     .await?;
 
@@ -154,13 +172,7 @@ pub async fn get_psych_patient(
     Path(id): Path<Uuid>,
 ) -> Result<Json<PsychPatient>, AppError> {
     require_permission(&claims, permissions::specialty::psychiatry::patients::LIST)?;
-    medbrains_authz_gate::require_access_via(
-        &state,
-        &claims,
-        medbrains_authz_gate::links::PSYCH_PATIENT,
-        id,
-    )
-    .await?;
+    medbrains_authz_gate::mental_health::require_psych_record_access(&state, &claims, id).await?;
     medbrains_server_core::middleware::entitlement::require_module_enabled(
         &state.db,
         claims.tenant_id,
@@ -171,10 +183,12 @@ pub async fn get_psych_patient(
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
 
-    let row = sqlx::query_as::<_, PsychPatient>("SELECT * FROM psych_patients WHERE id = $1")
-        .bind(id)
-        .fetch_one(&mut *tx)
-        .await?;
+    let row = sqlx::query_as::<_, PsychPatient>(
+        "SELECT * FROM psych_patients WHERE id = $1 AND deleted_at IS NULL",
+    )
+    .bind(id)
+    .fetch_one(&mut *tx)
+    .await?;
 
     tx.commit().await?;
     Ok(Json(row))
@@ -220,7 +234,10 @@ pub async fn create_psych_patient(
     .bind(&body.nominated_rep_relation)
     .bind(&body.nominated_rep_contact)
     .bind(body.substance_abuse_flag)
-    .bind(body.treating_psychiatrist_id)
+    // A restricted record is visible to its treating psychiatrist. Left
+    // unnamed, the clinician enrolling the patient would lose sight of the
+    // record they had just created.
+    .bind(body.treating_psychiatrist_id.unwrap_or(claims.sub))
     .bind(&body.notes)
     .fetch_one(&mut *tx)
     .await?;
@@ -239,13 +256,7 @@ pub async fn update_psych_patient(
         &claims,
         permissions::specialty::psychiatry::patients::UPDATE,
     )?;
-    medbrains_authz_gate::require_access_via(
-        &state,
-        &claims,
-        medbrains_authz_gate::links::PSYCH_PATIENT,
-        id,
-    )
-    .await?;
+    medbrains_authz_gate::mental_health::require_psych_record_access(&state, &claims, id).await?;
     medbrains_server_core::middleware::entitlement::require_module_enabled(
         &state.db,
         claims.tenant_id,
@@ -265,8 +276,9 @@ pub async fn update_psych_patient(
          nominated_rep_contact = COALESCE($6, nominated_rep_contact), \
          substance_abuse_flag = COALESCE($7, substance_abuse_flag), \
          treating_psychiatrist_id = COALESCE($8, treating_psychiatrist_id), \
-         notes = COALESCE($9, notes) \
-         WHERE id = $1 RETURNING *",
+         notes = COALESCE($9, notes), \
+         is_restricted = COALESCE($10, is_restricted) \
+         WHERE id = $1 AND deleted_at IS NULL RETURNING *",
     )
     .bind(id)
     .bind(&body.admission_category)
@@ -277,6 +289,7 @@ pub async fn update_psych_patient(
     .bind(body.substance_abuse_flag)
     .bind(body.treating_psychiatrist_id)
     .bind(&body.notes)
+    .bind(body.is_restricted)
     .fetch_one(&mut *tx)
     .await?;
 
@@ -295,10 +308,9 @@ pub async fn list_assessments(
         &claims,
         permissions::specialty::psychiatry::assessments::LIST,
     )?;
-    medbrains_authz_gate::require_access_via(
+    medbrains_authz_gate::mental_health::require_psych_record_access(
         &state,
         &claims,
-        medbrains_authz_gate::links::PSYCH_PATIENT,
         psych_patient_id,
     )
     .await?;
@@ -334,10 +346,9 @@ pub async fn create_assessment(
         &claims,
         permissions::specialty::psychiatry::assessments::CREATE,
     )?;
-    medbrains_authz_gate::require_access_via(
+    medbrains_authz_gate::mental_health::require_psych_record_access(
         &state,
         &claims,
-        medbrains_authz_gate::links::PSYCH_PATIENT,
         psych_patient_id,
     )
     .await?;
@@ -384,10 +395,9 @@ pub async fn list_ect_sessions(
     Path(psych_patient_id): Path<Uuid>,
 ) -> Result<Json<Vec<PsychEctRegister>>, AppError> {
     require_permission(&claims, permissions::specialty::psychiatry::ect::LIST)?;
-    medbrains_authz_gate::require_access_via(
+    medbrains_authz_gate::mental_health::require_psych_record_access(
         &state,
         &claims,
-        medbrains_authz_gate::links::PSYCH_PATIENT,
         psych_patient_id,
     )
     .await?;
@@ -420,10 +430,9 @@ pub async fn create_ect_session(
     Json(body): Json<CreateEctRequest>,
 ) -> Result<Json<PsychEctRegister>, AppError> {
     require_permission(&claims, permissions::specialty::psychiatry::ect::CREATE)?;
-    medbrains_authz_gate::require_access_via(
+    medbrains_authz_gate::mental_health::require_psych_record_access(
         &state,
         &claims,
-        medbrains_authz_gate::links::PSYCH_PATIENT,
         psych_patient_id,
     )
     .await?;
@@ -496,10 +505,9 @@ pub async fn list_restraints(
     Path(psych_patient_id): Path<Uuid>,
 ) -> Result<Json<Vec<PsychSeclusionRestraint>>, AppError> {
     require_permission(&claims, permissions::specialty::psychiatry::restraint::LIST)?;
-    medbrains_authz_gate::require_access_via(
+    medbrains_authz_gate::mental_health::require_psych_record_access(
         &state,
         &claims,
-        medbrains_authz_gate::links::PSYCH_PATIENT,
         psych_patient_id,
     )
     .await?;
@@ -553,10 +561,9 @@ pub async fn create_restraint(
         &claims,
         permissions::specialty::psychiatry::restraint::MANAGE,
     )?;
-    medbrains_authz_gate::require_access_via(
+    medbrains_authz_gate::mental_health::require_psych_record_access(
         &state,
         &claims,
-        medbrains_authz_gate::links::PSYCH_PATIENT,
         psych_patient_id,
     )
     .await?;
@@ -604,10 +611,10 @@ pub async fn release_restraint(
         &claims,
         permissions::specialty::psychiatry::restraint::MANAGE,
     )?;
-    medbrains_authz_gate::require_access_via(
+    medbrains_authz_gate::mental_health::require_psych_child_access(
         &state,
         &claims,
-        medbrains_authz_gate::links::PSYCH_RESTRAINT,
+        medbrains_authz_gate::mental_health::PsychChild::Restraint,
         id,
     )
     .await?;
@@ -645,10 +652,9 @@ pub async fn list_mhrb_notifications(
     Path(psych_patient_id): Path<Uuid>,
 ) -> Result<Json<Vec<PsychMhrbNotification>>, AppError> {
     require_permission(&claims, permissions::specialty::psychiatry::mhrb::MANAGE)?;
-    medbrains_authz_gate::require_access_via(
+    medbrains_authz_gate::mental_health::require_psych_record_access(
         &state,
         &claims,
-        medbrains_authz_gate::links::PSYCH_PATIENT,
         psych_patient_id,
     )
     .await?;
@@ -681,10 +687,9 @@ pub async fn create_mhrb_notification(
     Json(body): Json<CreateMhrbNotificationRequest>,
 ) -> Result<Json<PsychMhrbNotification>, AppError> {
     require_permission(&claims, permissions::specialty::psychiatry::mhrb::MANAGE)?;
-    medbrains_authz_gate::require_access_via(
+    medbrains_authz_gate::mental_health::require_psych_record_access(
         &state,
         &claims,
-        medbrains_authz_gate::links::PSYCH_PATIENT,
         psych_patient_id,
     )
     .await?;
@@ -723,10 +728,10 @@ pub async fn update_mhrb_notification(
     Json(body): Json<UpdateMhrbNotificationRequest>,
 ) -> Result<Json<PsychMhrbNotification>, AppError> {
     require_permission(&claims, permissions::specialty::psychiatry::mhrb::MANAGE)?;
-    medbrains_authz_gate::require_access_via(
+    medbrains_authz_gate::mental_health::require_psych_child_access(
         &state,
         &claims,
-        medbrains_authz_gate::links::PSYCH_MHRB_NOTIFICATION,
+        medbrains_authz_gate::mental_health::PsychChild::MhrbNotification,
         id,
     )
     .await?;
@@ -769,10 +774,9 @@ pub async fn list_counseling_sessions(
         &claims,
         permissions::specialty::psychiatry::assessments::LIST,
     )?;
-    medbrains_authz_gate::require_access_via(
+    medbrains_authz_gate::mental_health::require_psych_record_access(
         &state,
         &claims,
-        medbrains_authz_gate::links::PSYCH_PATIENT,
         psych_patient_id,
     )
     .await?;
@@ -808,10 +812,9 @@ pub async fn create_counseling_session(
         &claims,
         permissions::specialty::psychiatry::assessments::CREATE,
     )?;
-    medbrains_authz_gate::require_access_via(
+    medbrains_authz_gate::mental_health::require_psych_record_access(
         &state,
         &claims,
-        medbrains_authz_gate::links::PSYCH_PATIENT,
         psych_patient_id,
     )
     .await?;

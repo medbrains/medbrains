@@ -338,9 +338,12 @@ export interface PolypharmacyInteractionAlert {
 }
 
 export interface DiagnosisSummaryItem {
+  id: string;
   diagnosis_name: string;
   icd_code: string | null;
   diagnosed_date: string | null;
+  /** Mental-health content this user may not see — render a tombstone. */
+  withheld: boolean;
 }
 
 export interface ChronicEnrollmentSummary {
