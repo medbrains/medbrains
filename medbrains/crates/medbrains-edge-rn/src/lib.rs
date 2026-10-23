@@ -1,4 +1,8 @@
 #![allow(clippy::needless_pass_by_value)]
+// The generated UniFFI scaffolding (included below) builds its UDL metadata
+// buffer as a large const array, which clippy::all denies; no hand-written
+// code here defines one.
+#![allow(clippy::large_const_arrays)]
 
 //! React Native bridge for the Loro CRDT engine.
 //!
