@@ -37,6 +37,9 @@ pub struct NhcxSettingsView {
     /// `settings` when saved here, `env` when the server's ABDM credentials
     /// are used instead, `none` when neither.
     pub credentials_source: &'static str,
+    /// The environment variable this server lacks, when NHCX is off for that
+    /// reason; saving is refused until the administrator sets it.
+    pub server_key_missing: Option<&'static str>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -119,6 +122,7 @@ async fn view(state: &AppState, stored: StoredSettings) -> NhcxSettingsView {
         gateway_jwt_public_key_pem: stored.gateway_jwt_public_key_pem.clone(),
         callback_ip_allowlist: stored.callback_ip_allowlist.clone().unwrap_or_default(),
         credentials_source,
+        server_key_missing: config::server_key_missing(state.secret_resolver.as_ref()).await,
     }
 }
 
@@ -325,10 +329,11 @@ pub async fn get_status(
              callback address",
         ),
         (
-            config::sealing_key(state.secret_resolver.as_ref())
+            config::server_key_missing(state.secret_resolver.as_ref())
                 .await
-                .is_err(),
-            "the server's MEDBRAINS_NHCX_SECRET_KEY — the administrator must set it",
+                .is_some(),
+            "not configured on this server — ask your administrator to set \
+             MEDBRAINS_NHCX_SECRET_KEY",
         ),
     ]
     .into_iter()

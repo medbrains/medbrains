@@ -18,6 +18,7 @@ import {
   toast,
 } from "@/components/ui";
 import { nhcxSettingsService } from "@/services/nhcxSettings.service";
+import { ServerKeyMissingAlert } from "./ServerKeyMissingAlert";
 
 const KEY = ["nhcx", "settings"];
 /** The addresses NHA's package says NHCX calls from. */
@@ -149,6 +150,7 @@ export function NhcxSettings() {
           </Text>
           <Badge tone={source.tone}>{isLoading ? "Loading…" : source.label}</Badge>
         </Stack>
+        <ServerKeyMissingAlert integration="NHCX" envName={data?.server_key_missing} />
         <Stack gap={2}>
           <Text size="sm" fw={500}>
             Endpoint URL to register with NHCX
@@ -266,7 +268,12 @@ export function NhcxSettings() {
           </Alert>
         )}
         <Stack gap="xs" align="flex-start">
-          <Button type="submit" tone="primary" loading={save.isPending}>
+          <Button
+            type="submit"
+            tone="primary"
+            loading={save.isPending}
+            disabled={Boolean(data?.server_key_missing)}
+          >
             Save settings
           </Button>
           <Button

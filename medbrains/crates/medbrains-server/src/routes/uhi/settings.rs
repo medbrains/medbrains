@@ -20,8 +20,11 @@ use uuid::Uuid;
 
 use super::protocol::{GatewaySpec, PREVIEW_SERVICES, Service};
 use crate::{
-    error::AppError, middleware::auth::Claims, middleware::authorization::require_permission,
-    routes::abdm::abha::secret_key, state::AppState,
+    error::AppError,
+    middleware::auth::Claims,
+    middleware::authorization::require_permission,
+    routes::abdm::abha::{secret_key, server_key_missing},
+    state::AppState,
 };
 
 pub(super) const KEY_CONTEXT: &[u8] = b"uhi-signing-key";
@@ -161,6 +164,9 @@ pub struct UhiSettingsView {
     /// Whether a teleconsultation with a fee is paid online when booked
     /// (Razorpay is the active online provider) or at the hospital.
     pub online_payment: bool,
+    /// The environment variable this server lacks, when UHI is off for that
+    /// reason; no signing key can be made until the administrator sets it.
+    pub server_key_missing: Option<&'static str>,
 }
 
 /// Where the fees patient apps are quoted come from.
@@ -210,6 +216,7 @@ pub(super) async fn view(state: &AppState, tenant_id: Uuid) -> Result<UhiSetting
             .is_some();
     tx.commit().await?;
     let subscriber_url = provider_uri(secrets, &hospital_code).await;
+    let server_key_missing = server_key_missing(secrets).await;
     let available_services = Service::ALL
         .into_iter()
         .filter(|s| s.is_live() || preview)
@@ -234,6 +241,7 @@ pub(super) async fn view(state: &AppState, tenant_id: Uuid) -> Result<UhiSetting
             doctors_with_hpr,
             fees,
             online_payment,
+            server_key_missing,
         },
         None => UhiSettingsView {
             configured: false,
@@ -253,6 +261,7 @@ pub(super) async fn view(state: &AppState, tenant_id: Uuid) -> Result<UhiSetting
             doctors_with_hpr,
             fees,
             online_payment,
+            server_key_missing,
         },
     })
 }

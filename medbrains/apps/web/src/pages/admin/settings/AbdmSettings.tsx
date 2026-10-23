@@ -17,6 +17,7 @@ import {
 } from "@/components/ui";
 import { abdmSettingsService } from "@/services/abdmSettings.service";
 import { AbdmBridgeCard } from "./AbdmBridgeCard";
+import { ServerKeyMissingAlert } from "./ServerKeyMissingAlert";
 
 const KEY = ["abdm", "settings"];
 
@@ -90,6 +91,7 @@ export function AbdmSettings() {
             </Text>
             <Badge tone={source.tone}>{isLoading ? "Loading…" : source.label}</Badge>
           </Stack>
+          <ServerKeyMissingAlert integration="ABDM" envName={data?.server_key_missing} />
           <Controller
             control={form.control}
             name="environment"
@@ -142,7 +144,12 @@ export function AbdmSettings() {
             </Alert>
           )}
           <Stack gap="xs" align="flex-start">
-            <Button type="submit" tone="primary" loading={save.isPending}>
+            <Button
+              type="submit"
+              tone="primary"
+              loading={save.isPending}
+              disabled={Boolean(data?.server_key_missing)}
+            >
               Save keys
             </Button>
             <Button

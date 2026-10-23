@@ -20,6 +20,8 @@ export interface AbhaStatusResponse {
   configured: boolean;
   source: string;
   readiness: AbhaIntegrationReadiness;
+  /** The env var this server lacks, when ABDM is off for that reason. */
+  server_key_missing: string | null;
 }
 
 /** Settings → ABDM. The client secret is never returned. */
@@ -29,6 +31,8 @@ export interface AbdmSettingsView {
   has_secret: boolean;
   /** "settings" when saved here, "env" when the server holds the keys, "none". */
   source: "settings" | "env" | "none";
+  /** The env var this server lacks, when ABDM is off for that reason; saving is refused. */
+  server_key_missing: string | null;
 }
 
 export interface SaveAbdmSettings {
