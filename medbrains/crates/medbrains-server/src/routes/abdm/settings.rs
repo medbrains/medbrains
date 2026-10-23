@@ -13,7 +13,8 @@ use medbrains_core::permissions;
 use serde::{Deserialize, Serialize};
 
 use super::abha::{
-    StoredAbdmConfig, connect, forget_session, seal_secret, secret_key, stored_abdm_config,
+    StoredAbdmConfig, connect, forget_session, seal_secret, secret_key, server_key_missing,
+    stored_abdm_config,
 };
 use crate::{
     error::AppError, middleware::auth::Claims, middleware::authorization::require_permission,
@@ -29,6 +30,9 @@ pub struct AbdmSettingsView {
     /// `settings` when saved here; `env` when the server's environment holds
     /// the keys instead; `none` when neither.
     pub source: &'static str,
+    /// The environment variable this server lacks, when ABDM is off for that
+    /// reason; saving is refused until the administrator sets it.
+    pub server_key_missing: Option<&'static str>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -46,7 +50,7 @@ pub struct AbdmConnectionTest {
     pub message: String,
 }
 
-fn view(stored: &StoredAbdmConfig) -> AbdmSettingsView {
+fn view(stored: &StoredAbdmConfig, server_key_missing: Option<&'static str>) -> AbdmSettingsView {
     let saved = stored.client_id.is_some() && stored.client_secret_sealed.is_some();
     let in_env =
         std::env::var("ABDM_CLIENT_ID").is_ok() && std::env::var("ABDM_CLIENT_SECRET").is_ok();
@@ -61,6 +65,7 @@ fn view(stored: &StoredAbdmConfig) -> AbdmSettingsView {
         } else {
             "none"
         },
+        server_key_missing,
     }
 }
 
@@ -78,7 +83,8 @@ pub async fn get_settings(
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
     let stored = stored_abdm_config(&mut tx, &claims.tenant_id).await?;
     tx.commit().await?;
-    Ok(Json(view(&stored)))
+    let missing = server_key_missing(state.secret_resolver.as_ref()).await;
+    Ok(Json(view(&stored, missing)))
 }
 
 /// `PUT /api/abdm/settings`
@@ -130,7 +136,7 @@ pub async fn save_settings(
     .await?;
     tx.commit().await?;
     forget_session(claims.tenant_id);
-    Ok(Json(view(&stored)))
+    Ok(Json(view(&stored, None)))
 }
 
 /// `POST /api/abdm/settings/test` — sign in to ABDM and fetch its encryption

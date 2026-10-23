@@ -13,8 +13,8 @@ use uuid::Uuid;
 
 /// Secret-store key holding the sealing key.
 const SEALING_KEY_NAME: &str = "MEDBRAINS_NHCX_SECRET_KEY";
-/// Development fallback only. Production refuses to start without the real
-/// key (`medbrains-server` preflight, `secret.nhcx_key`) and refuses here too.
+/// Development fallback only. Production never uses it: without the real key
+/// NHCX is off (preflight warns, `secret.nhcx_key`) and [`sealing_key`] refuses.
 const DEV_SEALING_KEY: &[u8] = b"medbrains-dev-nhcx-secret-key-32";
 const MIN_SEALING_KEY_LEN: usize = 32;
 pub const CLIENT_SECRET_CONTEXT: &[u8] = b"nhcx-client-secret";
@@ -43,13 +43,23 @@ pub async fn sealing_key(resolver: &dyn SecretResolver) -> Result<Vec<u8>, Confi
     match resolver.get(SEALING_KEY_NAME).await {
         Ok(value) if value.len() >= MIN_SEALING_KEY_LEN => Ok(value.into_bytes()),
         _ if std::env::var("MEDBRAINS_ENV").is_ok_and(|e| e == "production") => {
-            tracing::error!("{SEALING_KEY_NAME} is not set; NHCX secrets cannot be sealed");
+            tracing::debug!("NHCX disabled: {SEALING_KEY_NAME} not set");
             Err(ConfigError::NotSetUp(format!(
-                "the server has no {SEALING_KEY_NAME}; the administrator must set it"
+                "NHCX is not configured on this server — ask your administrator to set \
+                 {SEALING_KEY_NAME}"
             )))
         }
         _ => Ok(DEV_SEALING_KEY.to_vec()),
     }
+}
+
+/// The environment variable the server still needs before NHCX can work, or
+/// `None` when it has it. Settings screens show it instead of a blank.
+pub async fn server_key_missing(resolver: &dyn SecretResolver) -> Option<&'static str> {
+    sealing_key(resolver)
+        .await
+        .is_err()
+        .then_some(SEALING_KEY_NAME)
 }
 
 /// Seal a secret for storage.

@@ -38,6 +38,8 @@ export interface UhiSettingsView {
    * active online provider, and the teleconsultation preview is on);
    * otherwise everything is paid at the hospital. */
   online_payment: boolean;
+  /** The env var this server lacks, when UHI is off for that reason; no key can be made. */
+  server_key_missing: string | null;
 }
 
 export interface UhiFeeSources {

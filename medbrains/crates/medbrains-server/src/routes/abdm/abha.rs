@@ -105,7 +105,13 @@ impl Session {
     /// # Errors
     /// 503 when ABDM refuses or is unreachable.
     pub(crate) async fn renew(&self) -> Result<String, AppError> {
-        sign_in(self.tenant_id, self.environment, &self.client, &self.credentials).await
+        sign_in(
+            self.tenant_id,
+            self.environment,
+            &self.client,
+            &self.credentials,
+        )
+        .await
     }
 }
 
@@ -120,7 +126,12 @@ async fn sign_in(
         .await
         .map_err(map_abdm_error)?;
     let ttl = Duration::from_secs(fresh.expires_in).saturating_sub(SESSION_MARGIN);
-    remember(&SESSIONS, (tenant_id, environment), &fresh.access_token, ttl);
+    remember(
+        &SESSIONS,
+        (tenant_id, environment),
+        &fresh.access_token,
+        ttl,
+    );
     Ok(fresh.access_token)
 }
 
@@ -201,6 +212,9 @@ pub struct AbhaStatusResponse {
     pub configured: bool,
     pub source: String,
     pub readiness: AbhaIntegrationReadiness,
+    /// The environment variable this server lacks, when ABDM is off for that
+    /// reason — the screen names it instead of failing.
+    pub server_key_missing: Option<&'static str>,
 }
 
 /// `GET /api/abdm/abha/status` — whether ABHA can be used, and against which
@@ -214,16 +228,24 @@ pub async fn status(
     Extension(claims): Extension<Claims>,
 ) -> Result<Json<AbhaStatusResponse>, AppError> {
     require_permission(&claims, medbrains_core::permissions::abdm::abha::VIEW)?;
-    let key = secret_key(state.secret_resolver.as_ref()).await?;
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
-    // A missing configuration is an answer here ("not configured"), not a fault.
-    let config = match read_abdm_config(&mut tx, &claims.tenant_id, &key).await {
-        Ok(config) => Some(config),
-        Err(AppError::ServiceUnavailable(_)) => None,
-        Err(other) => return Err(other),
+    let key = secret_key(state.secret_resolver.as_ref()).await;
+    let server_key_missing = key.is_err().then_some(SECRET_KEY_NAME);
+    let config = match key {
+        Ok(key) => {
+            let mut tx = state.db.begin().await?;
+            medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+            // A missing configuration is an answer here ("not configured"), not a fault.
+            let config = match read_abdm_config(&mut tx, &claims.tenant_id, &key).await {
+                Ok(config) => Some(config),
+                Err(AppError::ServiceUnavailable(_)) => None,
+                Err(other) => return Err(other),
+            };
+            tx.commit().await?;
+            config
+        }
+        // The server lacks its key: ABDM is off, and `server_key_missing` says why.
+        Err(_) => None,
     };
-    tx.commit().await?;
 
     let environment = config
         .as_ref()
@@ -241,13 +263,14 @@ pub async fn status(
         configured: config.is_some(),
         source: config.map_or_else(|| "none".to_owned(), |c| c.source.to_owned()),
         readiness,
+        server_key_missing,
     }))
 }
 
 /// Where the ABDM client secret's encryption key lives in the secret store.
 const SECRET_KEY_NAME: &str = "MEDBRAINS_ABDM_SECRET_KEY";
-/// Development and tests only. Production never falls back to it: preflight
-/// refuses to boot without the real key, and [`secret_key`] refuses to use it.
+/// Development and tests only. Production never falls back to it: without the
+/// real key ABDM and UHI are off ([`secret_key`] refuses; preflight warns).
 const DEV_SECRET_KEY: &[u8] = b"medbrains-dev-abdm-secret-key-32";
 const SECRET_CONTEXT: &[u8] = b"abdm-client-secret";
 
@@ -260,10 +283,21 @@ pub(crate) async fn secret_key(secrets: &dyn SecretResolver) -> Result<Vec<u8>, 
     match secrets.get(SECRET_KEY_NAME).await {
         Ok(value) if value.len() >= 32 => Ok(value.into_bytes()),
         _ if dev_overrides_allowed() => Ok(DEV_SECRET_KEY.to_vec()),
-        _ => Err(AppError::ServiceUnavailable(
-            "ABDM is off: the server's MEDBRAINS_ABDM_SECRET_KEY is not set".to_owned(),
-        )),
+        _ => Err(AppError::ServiceUnavailable(format!(
+            "ABDM is not configured on this server — ask your administrator to set \
+             {SECRET_KEY_NAME}"
+        ))),
     }
+}
+
+/// The environment variable the server still needs before ABDM (and UHI,
+/// which seals its signing key with it) can work, or `None` when it has it.
+/// Settings screens show it instead of a blank or a false "ready".
+pub(crate) async fn server_key_missing(secrets: &dyn SecretResolver) -> Option<&'static str> {
+    secret_key(secrets)
+        .await
+        .is_err()
+        .then_some(SECRET_KEY_NAME)
 }
 
 /// Test stand-ins (`*_OVERRIDE` keys, the development secret key) are
@@ -279,7 +313,11 @@ pub(crate) fn dev_overrides_allowed() -> bool {
 /// or `None` — always `None` outside development and tests, where one that
 /// is set is logged and ignored.
 pub(crate) async fn dev_override(secrets: &dyn SecretResolver, key: &str) -> Option<String> {
-    let value = secrets.get(key).await.ok().filter(|v| !v.trim().is_empty())?;
+    let value = secrets
+        .get(key)
+        .await
+        .ok()
+        .filter(|v| !v.trim().is_empty())?;
     if dev_overrides_allowed() {
         return Some(value.trim().to_owned());
     }
@@ -405,7 +443,10 @@ pub(crate) fn forget_session(tenant_id: Uuid) {
 pub fn map_abdm_error(error: AbdmError) -> AppError {
     match error {
         AbdmError::Status { status, .. } if status == reqwest::StatusCode::UNAUTHORIZED => {
-            SESSIONS.lock().unwrap_or_else(PoisonError::into_inner).clear();
+            SESSIONS
+                .lock()
+                .unwrap_or_else(PoisonError::into_inner)
+                .clear();
             AppError::ServiceUnavailable(
                 "ABDM ended our session — try again; if it repeats, start over".to_owned(),
             )

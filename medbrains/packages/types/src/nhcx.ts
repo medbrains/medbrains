@@ -15,6 +15,8 @@ export interface NhcxSettingsView {
   callback_ip_allowlist: string[];
   /** `settings` when saved here, `env` when the server's ABDM keys are used, `none` otherwise. */
   credentials_source: "settings" | "env" | "none";
+  /** The env var this server lacks, when NHCX is off for that reason; saving is refused. */
+  server_key_missing: string | null;
 }
 
 /** Blank `client_secret` / `private_key_pem` keep the saved ones. */
