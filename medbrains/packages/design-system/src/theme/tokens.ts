@@ -6,8 +6,9 @@
  * (React Native Paper, via `@medbrains/design-system/tokens`) consume — so TV / kiosk / mobile share
  * the exact same IBM Carbon palette as the web instead of re-declaring their own.
  *
- * Brand identity (LOCKED 2026-05-30): Brand = System Blue #0f62fe · Vital = Mint #42be65 ·
- * Ink = Carbon neutral ramp. See `primitives.ts` for the Mantine tuple wrappers.
+ * Web colour comes from the Material-3 roles in `colors.generated.ts` (2026-10-23). The ten-step
+ * Carbon palettes below remain for the native apps (`scripts/generate_native_tokens.py`) until
+ * they move to the same roles; of these palettes the web theme uses only violet, ochre and slate.
  */
 
 /** Blue — IBM Carbon interactive. Anchor: blue[5] = Blue 60 #0f62fe. */

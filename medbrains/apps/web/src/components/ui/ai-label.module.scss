@@ -17,14 +17,14 @@
   font-weight: 700;
   letter-spacing: 0.02em;
   font-family: var(--mb-font-mono, monospace);
-  color: var(--mb-text-primary, #1a1a2e);
+  color: var(--mb-text-primary);
 }
 
 // ── Variants ──────────────────────────────────────────────
 // gradient (default): gradient border + gradient "AI" glyph.
 .gradient {
   background:
-    linear-gradient(var(--mb-bg-default, #ffffff), var(--mb-bg-default, #ffffff)) padding-box,
+    linear-gradient(var(--mb-bg-default), var(--mb-bg-default)) padding-box,
     var(--mb-gradient-ai) border-box;
 
   .ai {
@@ -37,29 +37,29 @@
 
 // outline: neutral hairline border, ink glyph.
 .outline {
-  border-color: var(--mb-border, #e4e7ea);
-  background: var(--mb-bg-default, #ffffff);
+  border-color: var(--mb-border);
+  background: var(--mb-bg-default);
 }
 
-// filled: solid dark fill, white glyph (inverse / dark surfaces).
+// filled: solid on-surface fill, surface glyph (inverse / dark surfaces).
 .filled {
   border-color: transparent;
-  background: var(--mb-text-primary, #161616);
+  background: var(--mb-text-primary);
 
   .ai {
-    color: #ffffff;
+    color: var(--mb-surface);
   }
 }
 
 // active: brand-accent border (selected / focused).
 .active {
-  border-color: var(--mb-brand, #0f62fe);
-  background: var(--mb-bg-default, #ffffff);
+  border-color: var(--mb-brand);
+  background: var(--mb-bg-default);
 }
 
 .text {
   font-size: 0.78em;
-  color: var(--mb-text-secondary, #5f6b7a);
+  color: var(--mb-text-secondary);
 }
 
 .static {
@@ -73,11 +73,11 @@
   transition: filter 120ms ease;
 
   &:hover {
-    filter: drop-shadow(0 1px 4px rgba(94, 92, 230, 0.35));
+    filter: drop-shadow(0 1px 4px color-mix(in srgb, var(--mb-violet-accent) 35%, transparent));
   }
 
   &:focus-visible {
-    outline: 2px solid var(--mb-violet-accent, #5e5ce6);
+    outline: 2px solid var(--mb-violet-accent);
     outline-offset: 2px;
   }
 }

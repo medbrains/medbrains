@@ -12,42 +12,42 @@
 // Mapping the vars here rather than editing ~100 rules means every existing
 // `var(--g20)` and `var(--ink)` below follows the scheme untouched.
 //
-// `color: #fff` further down is deliberate and stays: that is white text on
-// filled blue/red chips, which is correct in either scheme.
+// Text on filled blue/red chips takes the role's on-colour (`--mb-on-primary`,
+// `--mb-on-error`): in the dark scheme those fills are light, so white fails.
 
 .suite {
-  --blue-80: var(--mb-brand-emphasis-pressed, #0043ce);
-  --blue: var(--mb-interactive, #0f62fe);
-  --blue-50: var(--mb-brand-emphasis, #4589ff);
-  --blue-20: var(--mb-brand-tint-strong, #d0e2ff);
-  --blue-10: var(--mb-brand-bg, #edf5ff);
-  --green: var(--mb-success, #42be65);
-  --green-60: var(--mb-success-text, #198038);
-  --green-50: var(--mb-success-accent, #24a148);
-  --green-10: var(--mb-success-bg, #defbe6);
-  --red: var(--mb-danger, #da1e28);
-  --red-10: var(--mb-danger-bg, #fff1f1);
-  --red-ink: var(--mb-danger-text, #a2191f);
-  --amber: var(--mb-warning, #f1c21b);
-  --amber-10: var(--mb-warning-bg, #fcf4d6);
-  --amber-ink: var(--mb-warning-text, #684e00);
-  --ink: var(--mb-text, #161616);
-  --g70: var(--mb-text-secondary, #525252);
-  --g50: var(--mb-text-muted, #8d8d8d);
-  --g30: var(--mb-border-strong, #c6c6c6);
-  --g20: var(--mb-border, #e0e0e0);
-  --g10: var(--mb-bg-subtle, #f4f4f4);
+  --blue-80: var(--mb-brand-emphasis-pressed);
+  --blue: var(--mb-interactive);
+  --blue-50: var(--mb-brand-emphasis);
+  --blue-20: var(--mb-brand-tint-strong);
+  --blue-10: var(--mb-brand-bg);
+  --green: var(--mb-success);
+  --green-60: var(--mb-success-text);
+  --green-50: var(--mb-success-accent);
+  --green-10: var(--mb-success-bg);
+  --red: var(--mb-danger);
+  --red-10: var(--mb-danger-bg);
+  --red-ink: var(--mb-danger-text);
+  --amber: var(--mb-warning);
+  --amber-10: var(--mb-warning-bg);
+  --amber-ink: var(--mb-warning-text);
+  --ink: var(--mb-text);
+  --g70: var(--mb-text-secondary);
+  --g50: var(--mb-text-muted);
+  --g30: var(--mb-border-strong);
+  --g20: var(--mb-border);
+  --g10: var(--mb-bg-subtle);
 
   // The sheet's own paper. Named because `#fff` was repeated across the
   // panels, dropdowns and compose box, and every one of them pinned the
   // suite to light.
-  --surface: var(--mb-bg-default, #fff);
+  --surface: var(--mb-bg-default);
   --sans: var(--mb-font-sans, "IBM Plex Sans", system-ui, sans-serif);
   --mono: var(--mb-font-mono, "IBM Plex Mono", monospace);
   --serif: "IBM Plex Serif", Georgia, serif;
   --r: 4px;
   --r-sm: 2px;
-  --sh: 0 1px 2px rgba(0, 0, 0, 0.04), 0 4px 12px rgba(0, 0, 0, 0.05);
+  --sh: var(--mb-shadow-sm);
 
   font-family: var(--sans);
   color: var(--ink);
@@ -107,8 +107,8 @@
 
 // search — grows in the centre of the sheet header
 .rxSearch { position: relative; flex: 1; min-width: 0; }
-.rxAddIcon { width: 20px; height: 20px; border-radius: 50%; background: var(--blue); color: #fff; display: flex; align-items: center; justify-content: center; font-size: 14px; flex-shrink: 0; }
-.rxDd { position: absolute; left: 0; right: 0; top: calc(100% + 6px); background: var(--surface); border: 1px solid var(--g20); border-radius: var(--r); box-shadow: 0 8px 28px rgba(0, 0, 0, 0.14); z-index: 30; max-height: 340px; overflow: auto; }
+.rxAddIcon { width: 20px; height: 20px; border-radius: 50%; background: var(--blue); color: var(--mb-on-primary); display: flex; align-items: center; justify-content: center; font-size: 14px; flex-shrink: 0; }
+.rxDd { position: absolute; left: 0; right: 0; top: calc(100% + 6px); background: var(--surface); border: 1px solid var(--g20); border-radius: var(--r); box-shadow: var(--mb-shadow-lg); z-index: 30; max-height: 340px; overflow: auto; }
 .ddItem { display: flex; align-items: center; gap: 12px; padding: 11px 16px; cursor: pointer; border-bottom: 1px solid var(--g10); width: 100%; text-align: left; }
 .ddItem:last-child { border-bottom: 0; }
 .ddItem:hover, .ddActive { background: var(--blue-10); }
@@ -137,7 +137,7 @@
 // Mantine Chip label part — pill look + checked/disabled via data-attrs
 .chip { font-family: var(--sans); font-size: 13px; font-weight: 600; padding: 6px 13px; border: 1px solid var(--g30); border-radius: 0; background: var(--surface); color: var(--g70); height: auto; }
 .chip:hover { border-color: var(--blue); }
-.chip[data-checked] { background: var(--blue); border-color: var(--blue); color: #fff; }
+.chip[data-checked] { background: var(--blue); border-color: var(--blue); color: var(--mb-on-primary); }
 .chip[data-checked] :global(.mantine-Chip-iconWrapper) { display: none; }
 .chip[data-disabled] { opacity: 0.4; cursor: not-allowed; }
 
@@ -164,13 +164,13 @@
 
 .allergyBlock { display: flex; gap: 11px; align-items: center; padding: 12px 14px; background: var(--red-10); border: 1px solid var(--red); border-radius: var(--r-sm); }
 .allergyBlock.amber { background: var(--amber-10); border-color: var(--amber); }
-.abIc { width: 22px; height: 22px; border-radius: 50%; background: var(--red); color: #fff; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 13px; flex-shrink: 0; }
+.abIc { width: 22px; height: 22px; border-radius: 50%; background: var(--red); color: var(--mb-on-error); display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 13px; flex-shrink: 0; }
 .allergyBlock.amber .abIc { background: var(--amber); color: var(--amber-ink); }
 .abTxt b { display: block; font-size: 13px; color: var(--red-ink); }
 .allergyBlock.amber .abTxt b { color: var(--amber-ink); }
 .abTxt span { font-size: 12px; color: var(--g70); }
 .abActions { margin-left: auto; display: flex; gap: 8px; align-items: center; flex-shrink: 0; }
-.abSwap { font-family: var(--sans); font-size: 12px; font-weight: 600; padding: 6px 12px; border: 0; border-radius: var(--r-sm); background: var(--green-50); color: #fff; cursor: pointer; }
+.abSwap { font-family: var(--sans); font-size: 12px; font-weight: 600; padding: 6px 12px; border: 0; border-radius: var(--r-sm); background: var(--green-50); color: var(--mb-on-success); cursor: pointer; }
 .abOverride { font-family: var(--sans); font-size: 11.5px; font-weight: 600; color: var(--g70); background: none; border: 0; cursor: pointer; text-decoration: underline; }
 
 .composeFoot { display: flex; align-items: center; justify-content: space-between; padding: 12px 16px; border-top: 1px solid var(--g10); background: var(--g10); }

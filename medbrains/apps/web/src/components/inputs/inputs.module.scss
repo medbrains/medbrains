@@ -204,11 +204,10 @@
     border-radius: 0;
     background: linear-gradient(
       90deg,
-      #d4d8d2 0% 18%,
+      var(--mb-surface-container-high) 0% 18%,
       var(--fc-tint-2) 18% 60%,
-      #f3e0a8 60% 80%,
-      #f1c08a 80% 92%,
-      #e0a59a 92% 100%
+      var(--mb-clinical-high) 60% 92%,
+      var(--mb-error-container) 92% 100%
     );
   }
   .marker {
@@ -280,13 +279,13 @@
   &.drug {
     background: var(--fc-tint);
     color: var(--fc-brand-deep);
-    border-color: #cdddd5;
+    border-color: var(--mb-outline-variant);
     font-weight: 600;
   }
   &.dose {
     background: var(--fc-copper-tint);
     color: var(--fc-copper-deep);
-    border-color: #e9d8a8;
+    border-color: var(--mb-outline-variant);
     font-feature-settings: "tnum";
     font-family: var(--font-mono);
   }
@@ -416,7 +415,7 @@
       top: -22px;
       font: 500 11px var(--font-mono);
       background: var(--fc-ink);
-      color: #fff;
+      color: var(--mb-surface);
       padding: 2px 7px;
       border-radius: 0;
       letter-spacing: 0.04em;
@@ -536,7 +535,7 @@
   background: var(--fc-canvas);
   border: 1px solid var(--fc-rule);
   border-radius: 0;
-  box-shadow: 0 12px 32px rgba(20, 30, 25, 0.08);
+  box-shadow: var(--mb-shadow-lg);
   min-width: 160px;
   font-size: 13px;
   margin-top: 6px;
@@ -620,7 +619,7 @@
   }
 
   &.severe .badge {
-    background: var(--mb-danger-bg, #f3d3d3);
+    background: var(--mb-danger-bg);
     color: var(--code-red);
   }
 }
@@ -718,12 +717,12 @@
 
 @keyframes fcPulse {
   0% {
-    box-shadow: 0 0 0 0 rgba(184, 146, 74, 0.5);
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--mb-primary) 50%, transparent);
   }
   70% {
-    box-shadow: 0 0 0 6px rgba(184, 146, 74, 0);
+    box-shadow: 0 0 0 6px transparent;
   }
   100% {
-    box-shadow: 0 0 0 0 rgba(184, 146, 74, 0);
+    box-shadow: 0 0 0 0 transparent;
   }
 }

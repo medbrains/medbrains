@@ -101,11 +101,7 @@ function IndicatorTile({ ind }: { ind: NabhIndicator }) {
         <Text fw={600} size="sm">
           {ind.label}
         </Text>
-        <Text
-          fw={700}
-          size="xl"
-          style={{ fontFamily: "var(--mantine-font-family-fraunces, serif)" }}
-        >
+        <Text fw={700} size="xl" ff="var(--mb-font-display)">
           {formatValue(ind.value_current_month, ind.unit)}
         </Text>
         {ind.target != null && (

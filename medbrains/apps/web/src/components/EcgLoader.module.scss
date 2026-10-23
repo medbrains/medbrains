@@ -9,13 +9,13 @@
 }
 
 .baseline {
-  stroke: var(--ss-rule, #eceaf7);
+  stroke: var(--ss-rule);
   stroke-width: 1;
 }
 
 .trace {
   fill: none;
-  stroke: var(--ss-brand, #0f62fe);
+  stroke: var(--ss-brand);
   stroke-width: 1.75;
   stroke-linecap: round;
   stroke-linejoin: round;
@@ -27,7 +27,7 @@
 }
 
 .beacon {
-  fill: var(--mb-accent-emphasis, #42be65);
+  fill: var(--mb-accent-emphasis);
   opacity: 0;
   transform-box: fill-box;
   transform-origin: center;
@@ -74,10 +74,10 @@
   }
 }
 
-// Button variant: white stroke, no beacon or baseline
+// Button variant: stroke in the button text colour, no beacon or baseline
 :global(.mantine-Button-root) {
   .trace {
-    stroke: #fff;
+    stroke: currentColor;
     stroke-width: 2;
     --ecg-cadence: 1.4s;
   }

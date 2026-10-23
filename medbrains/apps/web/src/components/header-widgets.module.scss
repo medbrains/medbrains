@@ -7,17 +7,17 @@
 }
 
 .pillClock {
-  background: var(--mb-brand-bg, #edf5ff);
-  border-color: rgba(15, 98, 254, 0.25);
+  background: var(--mb-brand-bg);
+  border-color: var(--mb-inverse-primary);
 }
 
 .clockTime {
-  color: var(--mb-interactive, #0f62fe);
+  color: var(--mb-interactive);
 }
 
 // A soft tick pulse on the clock icon — calm, not distracting.
 .pulse {
-  color: var(--mb-interactive, #0f62fe);
+  color: var(--mb-interactive);
   animation: clock-tick 2s ease-in-out infinite;
 }
 

@@ -87,11 +87,11 @@
 
 // Tinted, weightier header band with a clear bottom rule + column rules.
 .stickyHead th {
-  background: var(--mb-bg-subtle, #f4f5f8);
+  background: var(--mb-bg-subtle);
   color: var(--mb-text-secondary);
   font-weight: 600;
-  border-bottom: 2px solid var(--mb-border, #d5dbdb);
-  border-right: 1px solid var(--mb-border-subtle, #e0e0e0);
+  border-bottom: 2px solid var(--mb-border);
+  border-right: 1px solid var(--mb-border-subtle);
 }
 
 .stickyHead th:last-child {
@@ -101,8 +101,8 @@
 // Gridlines: every body cell carries a hairline bottom + right rule so the
 // table reads as a true grid (Carbon "bordered" data table).
 .tableWrapper tbody td {
-  border-bottom: 1px solid var(--mb-border-subtle, #e0e0e0);
-  border-right: 1px solid var(--mb-border-subtle, #e0e0e0);
+  border-bottom: 1px solid var(--mb-border-subtle);
+  border-right: 1px solid var(--mb-border-subtle);
 }
 
 .tableWrapper tbody td:last-child {
@@ -115,15 +115,15 @@
 }
 
 .tableWrapper tbody tr:hover {
-  background: var(--mb-bg-subtle, #f4f5f8);
+  background: var(--mb-bg-subtle);
 }
 
 .tableWrapper tbody tr[data-selected] {
-  background: var(--mb-selected-row-bg, rgba(15, 98, 254, 0.08));
+  background: var(--mb-selected-row-bg);
 }
 
 .tableWrapper tbody tr[data-selected]:hover {
-  background: var(--mb-selected-row-bg-hover, rgba(15, 98, 254, 0.12));
+  background: var(--mb-selected-row-bg-hover);
 }
 
 // Sortable headers — pointer + hover, with idle/active sort glyphs.
@@ -133,7 +133,7 @@
 }
 
 .sortableHeader:hover {
-  background: var(--mb-bg-default, #ffffff);
+  background: var(--mb-bg-default);
   color: var(--mb-text-body);
 }
 
@@ -150,7 +150,7 @@
 }
 
 .sortButton:focus-visible {
-  outline: 2px solid var(--mb-brand, #0f62fe);
+  outline: 2px solid var(--mb-brand);
   outline-offset: -2px;
 }
 
@@ -163,7 +163,7 @@
 .sortIconActive {
   margin-left: 3px;
   vertical-align: middle;
-  color: var(--mb-accent-primary, #0f62fe);
+  color: var(--mb-accent-primary);
 }
 
 // Selection checkbox column — narrow, centred.
@@ -177,10 +177,10 @@
 
 // Bulk selection strip.
 .bulkBar {
-  background: var(--mb-selected-row-bg, rgba(15, 98, 254, 0.08));
-  border-bottom: 1px solid var(--mb-border, #d5dbdb);
+  background: var(--mb-selected-row-bg);
+  border-bottom: 1px solid var(--mb-border);
 }
 
 .bulkCount {
-  color: var(--mb-accent-primary, #0f62fe);
+  color: var(--mb-accent-primary);
 }

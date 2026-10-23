@@ -4,38 +4,13 @@
    semantic text-decoration, zebra rows, gradient + status utilities. */
 
 :root {
-  /* spectrum */
-  --ss-indigo-deep: #002d9c;
-  --ss-indigo: #0f62fe;
-  --ss-rose: #8a3ffc;
-  --ss-coral: #78a9ff;
-  --ss-coral-text: #a33e4f; /* AA on white */
-  --ss-link: #463aa8;        /* AAA on white */
-
-  /* surfaces */
-  --ss-zebra: #fafafd;
-  --ss-hairline: #eceaf7;
-
-  /* status (reserved) */
-  --ss-stable: #1e7a45;
-  --ss-caution: #a6730a;
-  --ss-critical: #c0322e;
-  --ss-info: #2a6a9e;
+  /* status (reserved) — the M3 roles, always paired with a word or icon */
+  --ss-caution: var(--mb-warning);
+  --ss-critical: var(--mb-clinical-critical);
 
   /* loader hooks */
-  --ss-brand: var(--ss-indigo-deep);
-  --ss-accent: var(--ss-coral);
-  --ss-rule: var(--ss-hairline);
-}
-
-/* ── Gradient utilities ── */
-.ssGradientBar {
-  height: 4px;
-  border-radius: 9999px;
-  background: var(--mb-brand-emphasis);
-}
-.ssGradientText {
-  color: var(--mb-brand-emphasis);
+  --ss-brand: var(--mb-primary);
+  --ss-rule: var(--mb-outline-variant);
 }
 
 /* ── Semantic text decoration (clinical meaning) ── */
@@ -51,48 +26,35 @@
   color: var(--mantine-color-dimmed);
 }
 
-/* ── Status dot (always paired with a text label) ── */
-.ssDot {
-  display: inline-block;
-  width: 8px;
-  height: 8px;
-  border-radius: 9999px;
-  margin-right: 6px;
-  vertical-align: 0.5px;
-}
-.ssDot--stable { background: var(--ss-stable); }
-.ssDot--caution { background: var(--ss-caution); }
-.ssDot--critical { background: var(--ss-critical); }
-
 /* Toast look is themed on the Notification component (design-system
    mantine.ts) — layer-safe; applies to every notification. */
 
-/* Carbon tooltip — white text on the gray-80 surface. Covers the label and any
+/* M3 plain tooltip — inverse text on the inverse surface. Covers the label and any
    nested Mantine Text (so rich tooltips can't end up dark-on-dark), but NOT
    Badges/chips, which keep their own colour. */
 .mantine-Tooltip-tooltip,
 .mantine-Tooltip-tooltip .mantine-Text-root {
-  color: #ffffff !important;
+  color: var(--mb-inverse-on-surface) !important;
 }
 
-/* Carbon line tabs — active tab text + icon dark (#161616), blue underline.
+/* Line tabs — active tab text + icon in on-surface, blue underline.
    Inactive stays secondary-gray (set in the Tabs theme). */
 .mantine-Tabs-tab[data-active] {
   color: var(--mb-text-primary) !important;
 }
 
 /* Icon affordance — on hover, an icon-only button fills brand blue and its
-   glyph turns white (subtle / default / transparent variants). Filled + tone-
+   glyph takes the on-primary colour (subtle / default / transparent variants). Filled + tone-
    coloured icon buttons keep their own colour. Everywhere (toolbars, tables). */
 .mantine-ActionIcon-root[data-variant="subtle"]:hover,
 .mantine-ActionIcon-root[data-variant="default"]:hover,
 .mantine-ActionIcon-root[data-variant="transparent"]:hover {
-  background: var(--mb-brand-emphasis, #0f62fe) !important;
+  background: var(--mb-brand-emphasis) !important;
 }
 .mantine-ActionIcon-root[data-variant="subtle"]:hover svg,
 .mantine-ActionIcon-root[data-variant="default"]:hover svg,
 .mantine-ActionIcon-root[data-variant="transparent"]:hover svg {
-  color: #ffffff !important;
+  color: var(--mb-brand-on-emphasis) !important;
 }
 
 /* Smooth, snappy click — fluid hover/press instead of instant snaps, plus a

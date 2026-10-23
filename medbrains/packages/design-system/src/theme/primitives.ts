@@ -8,25 +8,46 @@
  */
 
 import type { MantineColorsTuple } from "@mantine/core";
-import { amber, blue, cinnabar, mint, ochre, rose, sky, slate, teal, violet } from "./tokens.js";
+import { ramps } from "./colors.generated.js";
+import { ochre, slate, violet } from "./tokens.js";
 
 export * from "./tokens.js";
 
 // ── Mantine Tuples (the only Mantine-coupled part of tier 1) ────────────
+//
+// Mantine wants ten shades, lightest first; the M3 ramps give tones 95 → 10.
+// Shade 5 is tone 50, which pins to brand blue #0F62FE on the Blue ramp.
+// Filled / light / outline colours are overridden per scheme from the roles
+// in `cssVariableResolver`, so the shades only matter for `color="x.6"` calls.
 
-export const blueTuple: MantineColorsTuple = [...blue] as unknown as MantineColorsTuple;
-export const cinnabarTuple: MantineColorsTuple = [...cinnabar] as unknown as MantineColorsTuple;
-export const mintTuple: MantineColorsTuple = [...mint] as unknown as MantineColorsTuple;
-export const amberTuple: MantineColorsTuple = [...amber] as unknown as MantineColorsTuple;
-export const roseTuple: MantineColorsTuple = [...rose] as unknown as MantineColorsTuple;
-export const skyTuple: MantineColorsTuple = [...sky] as unknown as MantineColorsTuple;
+const TONES = ["95", "90", "80", "70", "60", "50", "40", "30", "20", "10"] as const;
+const toneTuple = (ramp: Record<(typeof TONES)[number], string>) =>
+  TONES.map((t) => ramp[t]) as unknown as MantineColorsTuple;
+
+export const blueTuple = toneTuple(ramps.Blue);
+export const tealTuple = toneTuple(ramps.Teal);
+export const greenTuple = toneTuple(ramps.Green);
+export const amberTuple = toneTuple(ramps.Amber);
+export const redTuple = toneTuple(ramps.Red);
+export const neutralTuple = toneTuple(ramps.Neutral);
+/** Mantine's `dark` scale (dark[7] = body, dark[0] = text) from the dark surface roles. */
+export const darkTuple = [
+  ramps.Surface["90"],
+  ramps.SurfaceVariant["80"],
+  ramps.SurfaceVariant["60"],
+  ramps.SurfaceVariant["50"],
+  ramps.Surface["22"],
+  ramps.Surface["17"],
+  ramps.Surface["12"],
+  ramps.Surface["6"],
+  ramps.Surface["4"],
+  ramps.Neutral["0"],
+] as unknown as MantineColorsTuple;
+// Outside the M3 roles: violet marks AI content; orange / slate stay for
+// legacy `color="orange"` / `"slate"` call sites.
 export const violetTuple: MantineColorsTuple = [...violet] as unknown as MantineColorsTuple;
 export const ochreTuple: MantineColorsTuple = [...ochre] as unknown as MantineColorsTuple;
-export const tealTuple: MantineColorsTuple = [...teal] as unknown as MantineColorsTuple;
 export const slateTuple: MantineColorsTuple = [...slate] as unknown as MantineColorsTuple;
-
-/** Legacy alias — anything still importing `emeraldTuple` resolves to mint. */
-export const emeraldTuple: MantineColorsTuple = mintTuple;
 
 /**
  * Tissue colours for the 3D body-site model (BodyParts3D via human-atlas).

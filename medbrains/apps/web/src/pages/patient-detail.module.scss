@@ -7,8 +7,8 @@
   top: calc(var(--app-shell-header-height, 72px) + var(--mantine-spacing-xs));
   z-index: 12;
   border-left: 4px solid light-dark(var(--mantine-color-blue-6), var(--mantine-color-blue-4));
-  background: light-dark(rgba(255, 255, 255, 0.96), rgba(26, 27, 30, 0.94));
-  box-shadow: 0 12px 28px light-dark(rgba(15, 23, 42, 0.08), rgba(0, 0, 0, 0.24));
+  background: var(--mb-glass-from);
+  box-shadow: var(--mb-shadow-md);
   backdrop-filter: blur(10px);
 }
 

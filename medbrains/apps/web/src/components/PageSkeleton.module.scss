@@ -1,6 +1,6 @@
 // ── Page Skeleton — Signature Spectrum cardiac monitor loader ──
 
-$trace: #0f62fe;
+$trace: var(--mb-primary-container); // brand blue trace
 
 .wrapper {
   background: var(--mb-bg-subtle);
@@ -28,8 +28,8 @@ $trace: #0f62fe;
 // Bright active trace — revealed by sweep mask
 .mainLine {
   fill: none;
-  filter: drop-shadow(0 0 4px rgba($trace, 0.7))
-          drop-shadow(0 0 8px rgba($trace, 0.25));
+  filter: drop-shadow(0 0 4px color-mix(in srgb, $trace 70%, transparent))
+          drop-shadow(0 0 8px color-mix(in srgb, $trace 25%, transparent));
 }
 
 // Sweep mask — reveals left→right, resets

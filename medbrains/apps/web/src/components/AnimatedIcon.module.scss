@@ -1,6 +1,6 @@
 .root {
   --animated-icon-color: currentColor;
-  --animated-icon-glow: var(--mb-icon-glow, rgba(20, 184, 166, 0.24));
+  --animated-icon-glow: var(--mb-icon-glow);
   display: inline-flex;
   align-items: center;
   justify-content: center;

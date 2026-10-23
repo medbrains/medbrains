@@ -1,27 +1,22 @@
-// Components · Specialised inputs — Forest + Copper reference implementation.
-// Tokens scoped locally to keep visual parity with the design source.
+// Components · Specialised inputs — showcase. Local names alias the theme roles.
 
 .page {
-  --paper: #fafaf6;
-  --canvas: #fff;
-  --ink: #0c0a09;
-  --muted: #7a7670;
-  --sub: #a8a29e;
-  --rule: #e8e5dc;
-  --rule-soft: #f0ede5;
-  --forest-1: #e4ede9;
-  --forest-2: #c4d5cc;
-  --forest-5: #5b4bc4;
-  --forest-6: #153325;
-  --copper: #c85b7e;
-  --copper-deep: #8a6a30;
-  --copper-soft: #f5ecd9;
-  --code-red: #a02828;
-  --code-yellow: #b08418;
-  --code-blue: #235789;
-  --font-serif: "Fraunces", Georgia, serif;
-  --font-sans: "Inter Tight", system-ui, sans-serif;
-  --font-mono: "JetBrains Mono", monospace;
+  // Local aliases onto the theme roles, so the showcase follows both schemes.
+  --paper: var(--mb-surface);
+  --canvas: var(--mb-surface-container-lowest);
+  --ink: var(--mb-on-surface);
+  --muted: var(--mb-on-surface-variant);
+  --sub: var(--mb-outline);
+  --rule: var(--mb-outline-variant);
+  --rule-soft: var(--mb-surface-container-high);
+  --forest-1: var(--mb-state-primary-12);
+  --forest-2: var(--mb-inverse-primary);
+  --forest-5: var(--mb-primary);
+  --forest-6: var(--mb-primary);
+  --copper: var(--mb-tertiary);
+  --copper-deep: var(--mb-on-tertiary-container);
+  --copper-soft: var(--mb-tertiary-container);
+  --font-serif: var(--mb-font-display);
 
   max-width: 1080px;
   margin: 0 auto;
@@ -324,11 +319,10 @@
     height: 3px;
     background: linear-gradient(
       90deg,
-      #d4d8d2 0% 18%,
+      var(--mb-surface-container-high) 0% 18%,
       var(--forest-2) 18% 60%,
-      #f3e0a8 60% 80%,
-      #f1c08a 80% 92%,
-      #e0a59a 92% 100%
+      var(--mb-clinical-high) 60% 92%,
+      var(--mb-error-container) 92% 100%
     );
     border-radius: 0;
   }
@@ -435,13 +429,13 @@
   &.drug {
     background: var(--forest-1);
     color: var(--forest-6);
-    border-color: #cdddd5;
+    border-color: var(--mb-outline-variant);
     font-weight: 600;
   }
   &.dose {
     background: var(--copper-soft);
     color: var(--copper-deep);
-    border-color: #e9d8a8;
+    border-color: var(--mb-outline-variant);
     font-feature-settings: "tnum";
     font-family: var(--font-mono);
   }
@@ -461,7 +455,7 @@
   display: flex;
   align-items: center;
   gap: 10px;
-  background: var(--mb-bg-default, #fff);
+  background: var(--mb-bg-default);
   border: 1px solid var(--copper);
   border-left: 3px solid var(--copper);
   border-radius: 0;
@@ -573,7 +567,7 @@
       top: -22px;
       font: 500 11px var(--font-mono);
       background: var(--ink);
-      color: #fff;
+      color: var(--mb-surface);
       padding: 2px 7px;
       border-radius: 0;
       letter-spacing: 0.04em;
@@ -686,7 +680,7 @@
   background: var(--canvas);
   border: 1px solid var(--rule);
   border-radius: 0;
-  box-shadow: 0 12px 32px rgba(20, 30, 25, 0.08);
+  box-shadow: var(--mb-shadow-lg);
   min-width: 160px;
   font-size: 13px;
   margin-top: 6px;
@@ -763,7 +757,7 @@
   }
 
   &.severe .badge {
-    background: var(--mb-danger-bg, #f3d3d3);
+    background: var(--mb-danger-bg);
     color: var(--code-red);
   }
 }
@@ -870,7 +864,7 @@
   }
   button.on {
     background: var(--ink);
-    color: #fff;
+    color: var(--mb-surface);
   }
 }
 
@@ -904,8 +898,8 @@
     content: "";
     width: 8px;
     height: 4px;
-    border-left: 1.5px solid #fff;
-    border-bottom: 1.5px solid #fff;
+    border-left: 1.5px solid var(--mb-surface);
+    border-bottom: 1.5px solid var(--mb-surface);
     transform: rotate(-45deg) translate(1px, -1px);
   }
 }
@@ -969,7 +963,7 @@
       border-radius: 50%;
       background: #fff; // scheme-fixed: switch thumb, light on the track in both schemes
       transition: left 0.15s;
-      box-shadow: 0 1px 2px rgba(0, 0, 0, 0.15);
+      box-shadow: var(--mb-shadow-xs);
     }
   }
   input {
@@ -1066,7 +1060,7 @@
 
   &.prim {
     background: var(--ink);
-    color: #fff;
+    color: var(--mb-surface);
     border-color: var(--ink);
   }
   &.ghost {
@@ -1150,12 +1144,12 @@
 
 @keyframes pulse {
   0% {
-    box-shadow: 0 0 0 0 rgba(184, 146, 74, 0.5);
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--mb-primary) 50%, transparent);
   }
   70% {
-    box-shadow: 0 0 0 6px rgba(184, 146, 74, 0);
+    box-shadow: 0 0 0 6px transparent;
   }
   100% {
-    box-shadow: 0 0 0 0 rgba(184, 146, 74, 0);
+    box-shadow: 0 0 0 0 transparent;
   }
 }

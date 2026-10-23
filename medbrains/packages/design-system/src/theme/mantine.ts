@@ -7,8 +7,8 @@
  *  2. `cssVariableResolver`        — emits dual-mode CSS variables (`--mb-*` / `--fc-*`)
  *
  * Mode policy:
- *  - Default scheme = light (system blue + cinnabar brand layer)
- *  - Dark scheme = pure-black night variant (clinical OT / ICU / night shift)
+ *  - Both schemes are Material-3 roles on brand blue #0F62FE, generated from
+ *    the Figma library spec (`colors.generated.ts`).
  *  - Both share semantic var names; only the values differ. Components
  *    NEVER branch on `data-mantine-color-scheme` themselves — vars do it.
  *
@@ -26,6 +26,7 @@ import {
   Container,
   type CSSVariablesResolver,
   createTheme,
+  defaultVariantColorsResolver,
   Loader,
   type MantineLoaderComponent,
   type MantineThemeOverride,
@@ -36,24 +37,25 @@ import {
   TagsInput,
 } from "@mantine/core";
 import { DateInput, DatePickerInput, DateTimePicker } from "@mantine/dates";
+import { ramps, roleCssVars, roles } from "./colors.generated";
 import {
   ANATOMY_PALETTE,
   amberTuple,
   blueTuple,
-  cinnabarTuple,
+  darkTuple,
   duration,
   easing,
   emergencyCodes,
   fontFamily,
   fontSize,
   fontWeight,
+  greenTuple,
   letterSpacing,
   lineHeight,
-  mintTuple,
+  neutralTuple,
   ochreTuple,
   radius,
-  roseTuple,
-  skyTuple,
+  redTuple,
   slateTuple,
   space,
   tealTuple,
@@ -64,6 +66,45 @@ import { darkScheme, lightScheme, type SchemeName, sharedReferences } from "./se
 
 export type { SchemeName, SemanticScheme, StatusScale } from "./semantic";
 export { darkScheme, lightScheme, schemes } from "./semantic";
+
+/** Mantine colour name → M3 role family [role, onRole, container, onContainer]. */
+type RoleKey = keyof (typeof roles)["light"];
+const ROLE_FAMILIES: Record<string, readonly [RoleKey, RoleKey, RoleKey, RoleKey]> = {
+  primary: ["primary", "onPrimary", "statePrimary12", "primary"],
+  blue: ["primary", "onPrimary", "statePrimary12", "primary"],
+  info: ["primary", "onPrimary", "statePrimary12", "primary"],
+  cinnabar: ["tertiary", "onTertiary", "tertiaryContainer", "onTertiaryContainer"],
+  teal: ["tertiary", "onTertiary", "tertiaryContainer", "onTertiaryContainer"],
+  success: ["success", "onSuccess", "successContainer", "onSuccessContainer"],
+  green: ["success", "onSuccess", "successContainer", "onSuccessContainer"],
+  mint: ["success", "onSuccess", "successContainer", "onSuccessContainer"],
+  warning: ["warning", "onWarning", "warningContainer", "onWarningContainer"],
+  yellow: ["warning", "onWarning", "warningContainer", "onWarningContainer"],
+  danger: ["error", "onError", "errorContainer", "onErrorContainer"],
+  red: ["error", "onError", "errorContainer", "onErrorContainer"],
+};
+const ROLE_COLORS = new Set(Object.keys(ROLE_FAMILIES));
+
+/** Mantine's per-colour variant variables, resolved from the scheme's roles. */
+function roleVariantVars(r: (typeof roles)["light"] | (typeof roles)["dark"]) {
+  const out: Record<string, string> = {};
+  for (const [name, [role, on, container, onContainer]] of Object.entries(ROLE_FAMILIES)) {
+    const v = `--mantine-color-${name}`;
+    out[`${v}-filled`] = r[role];
+    out[`${v}-filled-hover`] = `color-mix(in srgb, ${r[role]}, ${r[on]} 8%)`;
+    out[`${v}-contrast`] = r[on];
+    out[`${v}-light`] = r[container];
+    out[`${v}-light-hover`] = `color-mix(in srgb, ${r[container]}, ${r[onContainer]} 8%)`;
+    out[`${v}-light-color`] = r[onContainer];
+    out[`${v}-outline`] = r[role];
+    out[`${v}-outline-hover`] = `color-mix(in srgb, ${r[role]} 8%, transparent)`;
+    out[`${v}-text`] = r[role];
+  }
+  for (const k of ["filled", "filled-hover", "contrast", "light", "light-hover", "light-color"]) {
+    out[`--mantine-primary-color-${k}`] = out[`--mantine-color-primary-${k}`] ?? "";
+  }
+  return out;
+}
 
 // Re-export font stacks for any caller (SCSS modules, story files) that
 // wants them outside the resolver.
@@ -111,9 +152,8 @@ const MODAL_DROPDOWN_PROPS = {
 // ── Mantine Theme Factory
 // ═══════════════════════════════════════════════════════════════════
 //
-// `primaryShade` is set per scheme:
-//   light → 5  (blue[5] = #0066CC, LOCKED System Blue brand)
-//   dark  → 3  (blue[3] = #4495FF, AAA on Apple pure-black canvas)
+// Filled / light / outline colours come per scheme from the M3 roles
+// (`roleVariantVars`), so `primaryShade` only picks the explicit shade.
 //
 // Every component's defaultProps reference the dual-mode CSS variables
 // emitted by `cssVariableResolver` rather than the raw Mantine palette,
@@ -152,16 +192,31 @@ export function createMedBrainsTheme(opts: CreateMedBrainsThemeOptions = {}): Ma
     colors: {
       primary: blueTuple,
       blue: blueTuple,
-      cinnabar: cinnabarTuple,
-      mint: mintTuple,
-      success: mintTuple,
+      info: blueTuple,
+      // The reserved accent is the M3 tertiary (teal) — positive data only.
+      cinnabar: tealTuple,
+      teal: tealTuple,
+      mint: greenTuple,
+      green: greenTuple,
+      success: greenTuple,
       warning: amberTuple,
-      danger: roseTuple,
-      info: skyTuple,
+      yellow: amberTuple,
+      danger: redTuple,
+      red: redTuple,
+      gray: neutralTuple,
+      dark: darkTuple,
       violet: violetTuple,
       orange: ochreTuple,
-      teal: tealTuple,
       slate: slateTuple,
+    },
+
+    // A filled role colour takes its own on-colour (white on blue in light,
+    // deep blue on light blue in dark), never a fixed white.
+    variantColorResolver: (input) => {
+      const base = defaultVariantColorsResolver(input);
+      return input.variant === "filled" && ROLE_COLORS.has(input.color ?? "")
+        ? { ...base, color: `var(--mantine-color-${input.color}-contrast)` }
+        : base;
     },
 
     fontFamily: fontFamily.sans,
@@ -549,12 +604,12 @@ export function createMedBrainsTheme(opts: CreateMedBrainsThemeOptions = {}): Ma
           radius: "lg",
         },
         styles: {
-          root: { boxShadow: "0 8px 24px rgba(26, 26, 46, 0.12)" },
+          root: { boxShadow: "var(--mb-shadow-md)" },
           title: { fontWeight: 600, fontSize: "14px", letterSpacing: "-0.01em" },
         },
       },
 
-      // Carbon tooltip — Gray 80 surface, white text, sharp.
+      // M3 plain tooltip — inverse surface, inverse text.
       Tooltip: {
         defaultProps: {
           withArrow: true,
@@ -564,8 +619,8 @@ export function createMedBrainsTheme(opts: CreateMedBrainsThemeOptions = {}): Ma
         },
         styles: {
           tooltip: {
-            background: "#393939",
-            color: "#ffffff",
+            background: "var(--mb-inverse-surface)",
+            color: "var(--mb-inverse-on-surface)",
             fontSize: "12px",
             fontWeight: 400,
             padding: "4px 8px",
@@ -618,7 +673,7 @@ export function createMedBrainsTheme(opts: CreateMedBrainsThemeOptions = {}): Ma
     },
 
     other: {
-      style: "apple-blue-cinnabar",
+      style: "m3-blue",
       fontDisplay: fontFamily.display,
       fontSans: fontFamily.sans,
       fontMono: fontFamily.mono,
@@ -643,14 +698,14 @@ export function createMedBrainsTheme(opts: CreateMedBrainsThemeOptions = {}): Ma
 
 function buildSchemePalette(scheme: typeof lightScheme, name: SchemeName) {
   const isLight = name === "light";
-  // Frosted-glass overlay tint used by tab/active gradients composited
-  // on top of accent gradients. Light mode uses paper-white overlays,
-  // dark mode uses near-black Apple-tinted overlays.
-  const glassFrom = isLight ? "rgba(255, 255, 255, 0.94)" : "rgba(15, 29, 33, 0.96)";
-  const glassTo = isLight ? "rgba(247, 248, 246, 0.82)" : "rgba(10, 21, 24, 0.82)";
-  const brandShadowTint = isLight ? "rgba(31, 67, 50, 0.16)" : "rgba(52, 211, 153, 0.22)";
-  const accentShadowTint = isLight ? "rgba(184, 146, 74, 0.18)" : "rgba(246, 213, 138, 0.20)";
+  const r = roles[name];
+  const mix = (c: string, pct: number) => `color-mix(in srgb, ${c} ${pct}%, transparent)`;
   return {
+    // ── M3 roles straight from the Figma spec (surface-container, on-*,
+    //    state-*, clinical-*, emergency-*) ─────────────────────────────
+    ...roleCssVars[name],
+    ...roleVariantVars(r),
+
     // ── Mantine baseline overrides ────────────────────────────────
     "--mantine-color-body": scheme.bg.canvas,
     "--mantine-color-text": scheme.fg.default,
@@ -659,10 +714,6 @@ function buildSchemePalette(scheme: typeof lightScheme, name: SchemeName) {
     // disabled text (exempt from contrast), a placeholder is not.
     "--mantine-color-placeholder": scheme.input.placeholder,
     "--mantine-color-error": scheme.status.danger.fg,
-    // Blue text (`c="blue"`, blue labels) at Carbon blue 70 in light: blue 60
-    // passes on white (4.5:1) but not on the blue-20 tint of an active nav
-    // item or light badge (3.8:1). Blue 70 passes on both.
-    ...(isLight ? { "--mantine-color-blue-text": "#0043ce" } : {}),
     "--mantine-color-anchor": scheme.fg.link,
     "--mantine-color-default": scheme.bg.default,
     "--mantine-color-default-hover": scheme.bg.subtle,
@@ -758,7 +809,7 @@ function buildSchemePalette(scheme: typeof lightScheme, name: SchemeName) {
     "--mb-active-bg-strong": scheme.brand.tintStrong,
     "--mb-active-border": scheme.border.focus,
     "--mb-active-text": scheme.nav.activeText,
-    "--mb-icon-glow": isLight ? "rgba(31, 67, 50, 0.10)" : "rgba(52, 211, 153, 0.18)",
+    "--mb-icon-glow": r.statePrimary8,
 
     // ── Navigation ───────────────────────────────────────────────
     "--mb-nav-bg": scheme.nav.bg,
@@ -924,14 +975,14 @@ function buildSchemePalette(scheme: typeof lightScheme, name: SchemeName) {
     "--mb-card-hover-shadow": scheme.shadow.cardHover,
 
     // ── Glass-overlay tints (composited on accents) ──────────────
-    "--mb-glass-from": glassFrom,
-    "--mb-glass-to": glassTo,
-    "--mb-shadow-brand-tint": brandShadowTint,
-    "--mb-shadow-accent-tint": accentShadowTint,
-    "--mb-scrollbar-track": isLight ? "rgba(15, 98, 254, 0.06)" : "rgba(120, 169, 255, 0.08)",
+    "--mb-glass-from": mix(r.surface, 94),
+    "--mb-glass-to": mix(r.surfaceContainerLow, 82),
+    "--mb-shadow-brand-tint": r.statePrimary12,
+    "--mb-shadow-accent-tint": mix(r.tertiary, 18),
+    "--mb-scrollbar-track": r.statePrimary8,
     // Primary-blue accent — lighter when idle, full brand blue on hover/active.
-    "--mb-scrollbar-thumb": isLight ? "rgba(15, 98, 254, 0.4)" : "rgba(120, 169, 255, 0.45)",
-    "--mb-scrollbar-thumb-hover": isLight ? "rgba(15, 98, 254, 0.75)" : "rgba(120, 169, 255, 0.8)",
+    "--mb-scrollbar-thumb": mix(r.primary, 40),
+    "--mb-scrollbar-thumb-hover": mix(r.primary, 75),
 
     // ── Legacy brand/accent aliases (semantic, used across SCSS) ──
     "--fc-brand": scheme.brand.emphasis,
@@ -951,7 +1002,7 @@ function buildSchemePalette(scheme: typeof lightScheme, name: SchemeName) {
     "--fc-outline": scheme.brand.outline,
     "--fc-copper": scheme.accent.emphasis,
     "--fc-copper-tint": scheme.accent.tint,
-    "--fc-copper-deep": isLight ? "#84324F" : "#E8A3B8",
+    "--fc-copper-deep": scheme.accent.fg,
   };
 }
 
@@ -971,13 +1022,14 @@ export const cssVariableResolver: CSSVariablesResolver = (t) => {
       // Page header background composed at consume time using mode-specific bgs
       "--mb-page-header-bg": "var(--mb-bg-default)",
       "--mb-table-toolbar-bg": "var(--mb-bg-default)",
-      // Blue → vital-green brand gradients (the new palette). The accent bar on
+      // Blue → teal brand gradients (teal = the positive data accent). The accent bar on
       // page headers + CTAs use "signal"; soft tints/washes use "mist".
-      "--mb-gradient-signal": "linear-gradient(135deg, #0f62fe 0%, #42be65 100%)",
-      "--mb-gradient-lifeline": "linear-gradient(135deg, #0f62fe 0%, #4589ff 50%, #42be65 100%)",
-      "--mb-gradient-mist": "linear-gradient(135deg, #a6c8ff 0%, #e8f5ec 100%)",
-      "--mb-gradient-nightshift": "linear-gradient(160deg, #161616 0%, #0043ce 70%, #0f62fe 100%)",
-      "--mb-gradient-text": "linear-gradient(120deg, #0043ce 0%, #0f62fe 45%, #42be65 100%)",
+      // Both stops hold white text at AA (Blue 40 4.5:1, Teal 40 6.5:1).
+      "--mb-gradient-signal": `linear-gradient(135deg, ${ramps.Blue["40"]} 0%, ${ramps.Teal["40"]} 100%)`,
+      "--mb-gradient-lifeline": `linear-gradient(135deg, ${ramps.Blue["40"]} 0%, ${ramps.Blue["30"]} 50%, ${ramps.Teal["40"]} 100%)`,
+      "--mb-gradient-mist": `linear-gradient(135deg, ${ramps.Blue["80"]} 0%, ${ramps.Teal["95"]} 100%)`,
+      "--mb-gradient-nightshift": `linear-gradient(160deg, ${ramps.Surface["6"]} 0%, ${ramps.Blue["30"]} 70%, ${ramps.Blue["40"]} 100%)`,
+      "--mb-gradient-text": `linear-gradient(120deg, ${ramps.Blue["30"]} 0%, ${ramps.Blue["40"]} 45%, ${ramps.Teal["50"]} 100%)`,
       // Carbon AI signature — violet → blue. Marks AI-supported surfaces only
       // (the AiLabel slug border + "AI" glyph). Carbon reserves this for
       // genuinely AI-touched content; do not use it as generic decoration.
@@ -1018,6 +1070,7 @@ export const cssVariableResolver: CSSVariablesResolver = (t) => {
       "--mb-easing-linear": easing.linear,
 
       // ── Emergency Code Layer (NOT themeable — safety critical) ──
+      // Same values as the --mb-emergency-* roles; both names stay.
       "--code-blue": emergencyCodes.blue,
       "--code-red": emergencyCodes.red,
       "--code-pink": emergencyCodes.pink,

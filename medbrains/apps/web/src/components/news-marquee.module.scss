@@ -28,7 +28,7 @@
   max-width: 100%;
   font-size: 13px;
   font-weight: 500;
-  color: var(--mb-text-secondary, #525252);
+  color: var(--mb-text-secondary);
   text-decoration: none;
   transform-origin: top center;
   backface-visibility: hidden;
@@ -37,7 +37,7 @@
 
 .fold:hover,
 .fold:focus-visible {
-  color: var(--mb-interactive, #0f62fe);
+  color: var(--mb-interactive);
 }
 
 .title {
@@ -52,7 +52,7 @@
   border-radius: 50%;
   flex: none;
   // Vital-green news indicator (brand second colour / ECG beat).
-  background: var(--mb-accent-emphasis, #42be65);
+  background: var(--mb-accent-emphasis);
 }
 
 // ── Hover card: full article heading (blue) + readable snippet + source ──
@@ -65,28 +65,28 @@
   font-size: 11px;
   font-weight: 600;
   letter-spacing: 0.04em;
-  color: var(--mb-text-muted, #6f6f6f);
+  color: var(--mb-text-muted);
   font-family: var(--mb-font-mono, "IBM Plex Mono", monospace);
 }
 
 .cardDivider {
   height: 1px;
   margin: 10px 0;
-  background: var(--mb-border-default, #e0e0e0);
+  background: var(--mb-border-default);
 }
 
 .cardTitle {
   font-size: 15px;
   font-weight: 600;
   line-height: 1.35;
-  color: var(--mb-interactive, #0f62fe);
+  color: var(--mb-interactive);
 }
 
 .cardDesc {
   margin-top: 8px;
   font-size: 12.5px;
   line-height: 1.5;
-  color: var(--mb-text-secondary, #525252);
+  color: var(--mb-text-secondary);
 }
 
 // Fold the next headline down from the top, like a flip-board row.

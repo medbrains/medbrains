@@ -1,43 +1,49 @@
-# Carbon Colour Rules (MedBrains)
+# Colour Rules (MedBrains)
 
-Actionable extraction of IBM Carbon colour
-(https://www.ibm.com/design/language/color/). MedBrains' palette is Carbon —
-**always use semantic theme tokens (`--mb-*`), never raw hex** in components.
+The palette is a Material-3 colour system seeded on our brand blue **#0F62FE**
+(decided 2026-10-23: keep the blue, fix the system around it). Figma and code
+share one source: `packages/design-system/src/theme/figma-varspec.json`, the spec
+the Figma library's variables were built from. `pnpm --filter
+@medbrains/design-system gen:colors` turns it into `colors.generated.ts`.
+**Always use theme tokens (`--mb-*`), never raw hex** in components or SCSS.
 
-## Token layers (never raw values)
+## Structure
 
-- **Semantic, not literal.** Use role tokens, not hue/step: `--mb-text-primary`,
-  `--mb-text-secondary`, `--mb-text-helper`, `--mb-text-placeholder`,
-  `--mb-interactive`/`--mb-brand`, `--mb-border`/`--mb-border-strong`,
-  `--mb-input-*`. SCSS is layout-only — colour comes from the theme.
-- **Surface elevation via layer tokens** — background → layer-01 → layer-02 →
-  layer-03 (`--mb-canvas`/`--mb-panel`/card tokens). Don't fake elevation with
-  arbitrary grays or heavy shadows; flat Carbon surfaces + 1px hairline borders.
+- **Ramps** (Figma "Primitives"): 13-tone Blue, Teal, Neutral, Green, Amber,
+  Red, plus Surface tones. Never used directly; roles alias them.
+- **Roles** per scheme (Figma "Color" / "Color Dark"): the same names in light
+  and dark, only the values differ. Web name = Figma code syntax:
+  - surfaces: `--mb-surface`, `--mb-surface-container-{lowest,low,high,highest}`,
+    `--mb-surface-container`, `--mb-surface-variant`, `--mb-inverse-surface`
+  - content: `--mb-on-surface`, `--mb-on-surface-variant`, `--mb-inverse-on-surface`
+  - lines: `--mb-outline` (inputs, ≥3:1), `--mb-outline-variant` (hairlines)
+  - families: `--mb-{primary,tertiary,success,warning,error}`, each with
+    `-container`, `--mb-on-…` and `--mb-on-…-container`
+  - state layers: `--mb-state-{role}-{4,8,12,38}` (hover 8, pressed/selected 12,
+    disabled 38)
+  - clinical: `--mb-clinical-{critical,high,low,normal}` + `--mb-clinical-on-…`
+  - emergency: `--mb-emergency-{blue,red,pink,black,yellow,orange}`,
+    `--mb-emergency-on-dark` / `-on-light`
+- The older `--mb-*` names (`--mb-text-primary`, `--mb-brand-emphasis`,
+  `--mb-danger-bg`, …) still resolve: `semantic.ts` maps them onto the roles.
+  Prefer the role names in new code.
 
-## Palette structure (Carbon)
+## Rules
 
-- **Interactive/brand:** Blue 60 `#0f62fe` (`--mb-brand`/`--mb-interactive`).
-- **Neutrals:** Gray 10–100 ramp for text/surfaces/borders; pick the step the
-  token maps to, not a hand-picked gray.
-- **Support (status) colours — semantic only:** error/red, success/green,
-  warning/yellow, info/blue (`--mb-danger-*`, `--mb-success-*`, `--mb-warning-*`).
-  Reserve for genuine status, never decoration.
-- **Emergency codes are FIXED** (blue/red/pink/black/yellow/orange) — identical on
-  every deployment regardless of theme; never reuse those hues for UI.
-
-## Usage rules
-
-- **Contrast (WCAG 1.4.3/1.4.11):** body text ≥ 4.5:1, large text/UI/icons ≥ 3:1.
-  Use `--mb-text-secondary` for body, not `--mb-text-muted` (which is for hints).
-- **Never colour alone for meaning** (WCAG 1.4.1) — pair with icon/text/shape.
-- **Light and dark themes** (decided 2026-09-26): both ship, the app defaults to dark with a header switcher. Every token is defined for both schemes and both must meet WCAG 2.2 AA contrast — `e2e/accessibility/theme-contrast.spec.ts` sweeps the key screens in each.
-- **One accent discipline:** the brand/interactive blue carries actions + focus;
-  don't sprinkle multiple accent hues. Status colours appear only on status.
-- **Per-component colour lives in the theme**, not SCSS and not inline hex — the
-  theme is the single source of truth. New colour need → add/extend a token.
-
-## Applied
-
-- Buttons/links/focus → interactive token. Inputs → `--mb-input-*`. Cards → layer
-  + `--mb-border`. Charts → Carbon palette tokens (see data-viz rules). Brand mark
-  + emergency codes keep their own fixed colour (app-icon exception).
+- **Blue = brand, primary actions, focus.** One filled primary action per view.
+- **Teal (tertiary) = positive data accent**: charts, "improved" deltas. Never
+  a status.
+- **Green / amber / red only for clinical meaning**, always with an icon or a
+  word (WCAG 1.4.1). Low and high abnormal are both amber; the arrow and the
+  word tell them apart. Critical is red.
+- **Emergency codes are fixed**: identical on every deployment and in both
+  schemes; never reuse those hues for UI. White text on blue/red/black, dark
+  text (`--mb-emergency-on-light`) on pink, yellow and orange.
+- **Text on a fill uses that fill's on-colour** (`--mb-on-primary`, …), never a
+  literal white: in the dark scheme the filled roles are light.
+- **Contrast (WCAG 2.2 AA):** body text ≥ 4.5:1, large text/UI/icons ≥ 3:1, in
+  both schemes. `e2e/accessibility/theme-contrast.spec.ts` sweeps the key
+  screens in each.
+- **Light and dark** both ship; the app defaults to dark with a header switcher.
+- **New colour need → add a role to the Figma spec and regenerate**, never an
+  inline value. SCSS is layout only.

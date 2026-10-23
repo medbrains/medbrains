@@ -6,14 +6,14 @@
   font-family: var(--mb-font-mono, monospace);
   font-weight: 600;
   letter-spacing: 0.01em;
-  color: var(--mb-text-primary, #1a1a2e);
+  color: var(--mb-text-primary);
   cursor: help;
   text-decoration: none; // override the browser default abbr underline
   white-space: nowrap;
 }
 
 .underline {
-  border-bottom: 1px dotted var(--mb-text-secondary, #5f6b7a);
+  border-bottom: 1px dotted var(--mb-text-secondary);
   line-height: 1.2;
 }
 
@@ -22,9 +22,9 @@
   align-items: center;
   padding: 0 6px;
   border-radius: 0; // Carbon sharp corner
-  border: 1px solid var(--mb-border, #e4e7ea);
-  background: var(--mb-panel-bg, #f4f5f6);
-  color: var(--mb-text-secondary, #5f6b7a);
+  border: 1px solid var(--mb-border);
+  background: var(--mb-panel-bg);
+  color: var(--mb-text-secondary);
 }
 
 .xs {

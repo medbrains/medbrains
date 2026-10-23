@@ -1,19 +1,19 @@
 .header {
-  border-bottom: 1px solid var(--mb-border, #d5dbdb);
+  border-bottom: 1px solid var(--mb-border);
 }
 
 .item {
   width: 100%;
   padding: 11px 16px;
-  border-bottom: 1px solid var(--mb-border-subtle, #eceef0);
+  border-bottom: 1px solid var(--mb-border-subtle);
   transition: background-color 120ms ease;
 
   &:hover {
-    background: var(--mb-bg-subtle, #f4f5f8);
+    background: var(--mb-bg-subtle);
   }
 
   &[data-unread] {
-    background: color-mix(in srgb, var(--mb-brand, #0f62fe) 4%, transparent);
+    background: color-mix(in srgb, var(--mb-brand) 4%, transparent);
   }
 }
 
@@ -35,15 +35,15 @@
   margin-top: 6px;
   border-radius: 9999px;
   flex-shrink: 0;
-  background: var(--mb-info-fg, #2563a8);
+  background: var(--mb-info-fg);
 
   &[data-tone="success"] {
-    background: var(--mb-success-fg, #2f9e44);
+    background: var(--mb-success-fg);
   }
   &[data-tone="warning"] {
-    background: var(--mb-warning-fg, #d9820b);
+    background: var(--mb-warning-fg);
   }
   &[data-tone="danger"] {
-    background: var(--mb-danger-fg, #d63a3a);
+    background: var(--mb-danger-fg);
   }
 }
