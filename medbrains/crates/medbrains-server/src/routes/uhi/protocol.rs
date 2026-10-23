@@ -18,9 +18,10 @@ pub const CONSULTATION_DOMAIN: &str = "nic2004:85111";
 pub const BLOOD_BANK_DOMAIN: &str = "nic2008:86906";
 /// Ambulance — **inferred** from the same fixture; nothing else published.
 pub const AMBULANCE_DOMAIN: &str = "nic2008:86909";
-/// Diagnostic laboratories — **inferred**: NHA publishes no lab domain; this
-/// is the NIC-2008 code for independent diagnostic laboratories.
-pub const LAB_DOMAIN: &str = "nic2008:86903";
+/// Diagnostic laboratories — the code the UHI registry's test fixture names
+/// "Laboratories". NHA has published no lab service yet ("next phase"), so
+/// the service stays hidden ([`Service::is_live`]).
+pub const LAB_DOMAIN: &str = "nic2008:86905";
 /// The UHI core version every working example carries — verified.
 pub const CORE_VERSION: &str = "0.7.1";
 
@@ -93,6 +94,18 @@ impl Service {
         Self::ALL.into_iter().find(|s| s.code() == code)
     }
 
+    /// Whether NHA lets a hospital be the provider of this service today:
+    /// physical consultation, blood bank discovery and ambulance (PIB, 29
+    /// Jun 2026). Teleconsultation (with its online payment) and lab tests
+    /// are not provider services yet and stay off unless
+    /// [`PREVIEW_SERVICES`] is set.
+    pub const fn is_live(self) -> bool {
+        matches!(
+            self,
+            Self::PhysicalConsultation | Self::BloodBank | Self::Ambulance
+        )
+    }
+
     /// The service a message asks for, from its domain and fulfilment type.
     /// `None` for one this hospital does not offer over UHI yet.
     pub fn for_message(domain: &str, fulfilment_type: Option<&str>) -> Option<Self> {
@@ -113,20 +126,69 @@ impl Service {
     }
 }
 
+/// Set to `true` to offer services UHI does not support from a provider yet
+/// (teleconsultation, online payment, lab tests). Off by default.
+pub const PREVIEW_SERVICES: &str = "UHI_PREVIEW_SERVICES";
+
+/// Which published gateway contract a subscription follows.
+///
+/// `V202` — the default — is Gateway spec v2.0.2, NHA's UHI set of 28 Sep
+/// 2026 as published on the ABDM developer portal (docs.abdm.gov.in). `S2`
+/// is the earlier contract of github.com/NHA-ABDM/UHI, kept selectable in
+/// case a sandbox still answers on it. Everything that differs between them
+/// is decided here.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum GatewaySpec {
+    V202,
+    S2,
+}
+
+impl GatewaySpec {
+    pub fn from_code(code: &str) -> Self {
+        if code == "s2" { Self::S2 } else { Self::V202 }
+    }
+
+    /// Where a search fanned out by the gateway is answered.
+    pub const fn on_search_path(self) -> &'static str {
+        match self {
+            Self::V202 => "/api/v1/uhi/on_search",
+            Self::S2 => "/api/v1/on_search",
+        }
+    }
+
+    /// The headers the gateway's own signature may arrive in.
+    pub const fn gateway_headers(self) -> &'static [&'static str] {
+        match self {
+            Self::V202 => &["x-gateway-authorization", "proxy-authorization"],
+            Self::S2 => &["x-gateway-authorization"],
+        }
+    }
+
+    /// Whether our calls carry a separate `Digest: BLAKE-512=…` header.
+    pub const fn sends_digest(self) -> bool {
+        matches!(self, Self::V202)
+    }
+
+    pub fn ack(self) -> Value {
+        match self {
+            Self::V202 => json!({ "message": { "ack": { "status": "ACK" } }, "error": {} }),
+            Self::S2 => json!({ "message": { "ack": { "status": "ACK" } } }),
+        }
+    }
+}
+
 /// The calls an EUA makes to an HSPA. `update` and `rating` are accepted and
 /// recorded; nothing in this hospital changes on them.
 pub const ACTIONS: [&str; 8] = [
     "search", "select", "init", "confirm", "status", "cancel", "update", "rating",
 ];
 
-pub fn ack() -> Value {
-    json!({ "message": { "ack": { "status": "ACK" } } })
-}
-
-pub fn nack(code: &str, message: &str) -> Value {
+/// A refusal. `kind` is a Beckn error type: `CONTEXT-ERROR` for what the
+/// caller sent, `CORE-ERROR` for our own fault.
+pub fn nack(kind: &str, code: &str, message: &str) -> Value {
     json!({
         "message": { "ack": { "status": "NACK" } },
-        "error": { "type": "", "code": code, "path": "", "message": message },
+        "error": { "type": kind, "code": code, "path": "", "message": message },
     })
 }
 
@@ -143,6 +205,8 @@ pub struct Context {
     pub consumer_id: String,
     pub consumer_uri: String,
     pub provider_id: Option<String>,
+    pub city: Option<String>,
+    pub country: String,
 }
 
 fn text(v: &Value, keys: &[&str]) -> Option<String> {
@@ -167,6 +231,8 @@ impl Context {
             consumer_id: need(&["consumer_id", "bap_id"])?,
             consumer_uri: need(&["consumer_uri", "bap_uri"])?,
             provider_id: text(&raw, &["provider_id", "bpp_id"]),
+            city: text(&raw, &["city"]),
+            country: text(&raw, &["country"]).unwrap_or_else(|| "IND".to_owned()),
             raw,
         })
     }

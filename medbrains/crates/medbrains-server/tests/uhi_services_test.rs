@@ -15,8 +15,7 @@ use serde_json::{Value, json};
 use uhi_world::{World, doctor, world};
 use uuid::Uuid;
 
-/// Every test sets up UHI for the same hospital; run them one at a time.
-static SERIAL: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
+use uhi_world::SERIAL;
 
 fn txn() -> String {
     Uuid::new_v4().to_string()

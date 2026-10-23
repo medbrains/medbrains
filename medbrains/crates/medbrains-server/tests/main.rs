@@ -219,6 +219,7 @@ mod trial_signup_test;
 mod uhi_hspa_test;
 mod uhi_payment_test;
 mod uhi_services_test;
+mod uhi_trust_test;
 mod unique_among_live_rows_test;
 mod user_update_partial_test;
 mod visitor_pass_qr_test;
