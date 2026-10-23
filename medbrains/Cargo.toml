@@ -238,8 +238,10 @@ async-stream = "0.3"
 ed25519-dalek = "2"
 tempfile = "3"
 
-# HTTP client (for YottaDB REST)
-reqwest = { version = "0.12", features = ["json", "cookies", "rustls-tls-native-roots"], default-features = false }
+# HTTP client. `rustls` verifies against the OS trust store (platform
+# verifier), as `rustls-tls-native-roots` did on 0.12; `form` and `query` are
+# opt-in from 0.13.
+reqwest = { version = "0.13", features = ["json", "cookies", "form", "query", "rustls"], default-features = false }
 
 # AI / LLM
 rig-core = { version = "0.35", features = ["derive"] }

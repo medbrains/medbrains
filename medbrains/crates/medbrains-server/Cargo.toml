@@ -186,7 +186,7 @@ totp-rs = { version = "5.7.1", features = ["otpauth", "qr"] }
 medbrains-print = { version = "0.1.0", path = "../medbrains-print" }
 
 [dev-dependencies]
-reqwest = { version = "0.12", features = ["json", "cookies", "rustls-tls-native-roots"], default-features = false }
+reqwest = { workspace = true }
 tokio = { version = "1.54.1", features = ["full", "test-util"] }
 tokio-tungstenite = "0.27"
 zip = { workspace = true }
