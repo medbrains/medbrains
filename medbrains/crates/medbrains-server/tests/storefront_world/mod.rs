@@ -135,7 +135,7 @@ pub async fn plant_code(app: &common::TestApp, setup: &Setup, phone: &str) -> &'
     )
     .bind(setup.tenant)
     .bind(phone)
-    .bind(format!("{:x}", Sha256::digest(code.as_bytes())))
+    .bind(hex::encode(Sha256::digest(code.as_bytes())))
     .execute(&app.db)
     .await
     .expect("otp");

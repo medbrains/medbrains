@@ -1,6 +1,6 @@
 use argon2::{
     Argon2,
-    password_hash::{PasswordHasher, SaltString, rand_core::OsRng},
+    PasswordHasher,
 };
 pub mod workbook;
 use axum::routing::{delete, get, post, put};
@@ -1324,9 +1324,8 @@ pub async fn create_user(
         return Err(AppError::ValidationFailed(errors));
     }
 
-    let salt = SaltString::generate(&mut OsRng);
     let password_hash = Argon2::default()
-        .hash_password(body.password.as_bytes(), &salt)
+        .hash_password(body.password.as_bytes())
         .map_err(|e| AppError::Internal(format!("password hash error: {e}")))?
         .to_string();
 
@@ -1636,9 +1635,8 @@ pub async fn reset_user_password(
         }
     };
 
-    let salt = SaltString::generate(&mut OsRng);
     let password_hash = Argon2::default()
-        .hash_password(password.as_bytes(), &salt)
+        .hash_password(password.as_bytes())
         .map_err(|e| AppError::Internal(format!("password hash error: {e}")))?
         .to_string();
 
@@ -4647,9 +4645,8 @@ pub async fn import_users(
             .map_or_else(|| "receptionist".to_string(), |v| v.trim().to_string());
 
         // Hash password
-        let salt = SaltString::generate(&mut OsRng);
         let password_hash = argon2
-            .hash_password(password.as_bytes(), &salt)
+            .hash_password(password.as_bytes())
             .map_err(|e| AppError::Internal(format!("Row {row_num}: password hash failed: {e}")))?
             .to_string();
 
@@ -5069,9 +5066,8 @@ pub async fn bulk_create_users(
             continue;
         }
 
-        let salt = SaltString::generate(&mut OsRng);
         let password_hash = Argon2::default()
-            .hash_password(user.password.as_bytes(), &salt)
+            .hash_password(user.password.as_bytes())
             .map_err(|e| AppError::Internal(format!("password hash error: {e}")))?
             .to_string();
 

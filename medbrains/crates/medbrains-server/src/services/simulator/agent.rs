@@ -15,7 +15,6 @@
 
 use std::collections::HashMap;
 
-use rand::SeedableRng;
 use rand::rngs::StdRng;
 use rand::seq::IndexedRandom;
 use serde_json::{Value, json};
@@ -172,7 +171,7 @@ pub async fn run_agent_sampled(
     if profile.roles.is_empty() {
         return empty_with_finding("Census pacer has no roles configured — nothing to run.");
     }
-    let mut rng = StdRng::from_os_rng();
+    let mut rng: StdRng = rand::make_rng();
     let goals_map = resolve_goals(state, &claims.tenant_id, profile).await;
     let cells = sampled_cells(profile, count, &mut rng, &goals_map);
     // Census pacing fires every tick — never run the full endpoint sweep here,
@@ -886,13 +885,11 @@ async fn provision_demo_user(
     tenant_id: &Uuid,
     role: &str,
 ) -> Result<Option<String>, AppError> {
-    use argon2::password_hash::{SaltString, rand_core::OsRng};
     use argon2::{Argon2, PasswordHasher};
 
     let password = if role == "doctor" { "doctor123" } else { "test123" };
-    let salt = SaltString::generate(&mut OsRng);
     let hash = Argon2::default()
-        .hash_password(password.as_bytes(), &salt)
+        .hash_password(password.as_bytes())
         .map_err(|e| AppError::Internal(format!("password hash failed: {e}")))?
         .to_string();
 

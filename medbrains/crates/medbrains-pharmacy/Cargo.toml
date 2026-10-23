@@ -6,6 +6,7 @@ edition = "2024"
 rust-version.workspace = true
 
 [dependencies]
+hex = { workspace = true }
 medbrains-authz-gate = { path = "../medbrains-authz-gate" }
 medbrains-notifications = { path = "../medbrains-notifications" }
 medbrains-server-core = { path = "../medbrains-server-core" }

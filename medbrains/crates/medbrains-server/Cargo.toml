@@ -164,8 +164,8 @@ base64 = { workspace = true }
 rust_decimal = { workspace = true }
 regex = { workspace = true }
 url = { workspace = true }
-ed25519-dalek = "2"
-getrandom = { version = "0.3", features = ["std"] }
+ed25519-dalek = { workspace = true }
+getrandom = { workspace = true }
 axum-extra = { version = "0.10", features = ["cookie"] }
 time = "0.3"
 futures = { workspace = true }

@@ -1,6 +1,6 @@
 use argon2::{
     Argon2,
-    password_hash::{PasswordHasher, SaltString, rand_core::OsRng},
+    PasswordHasher,
 };
 use sqlx::{PgPool, Postgres, Transaction};
 
@@ -473,10 +473,9 @@ pub(super) async fn seed_demo_patients(
         .await?;
 
     // ── Seed demo doctors (idempotent) ─────────────────────
-    let salt = SaltString::generate(&mut OsRng);
     let argon2 = Argon2::default();
     let doctor_hash = argon2
-        .hash_password(b"doctor123", &salt)
+        .hash_password(b"doctor123")
         .map_err(|e| format!("password hash error: {e}"))?
         .to_string();
 
@@ -510,9 +509,8 @@ pub(super) async fn seed_demo_patients(
     tracing::info!("Seeded {} demo doctors", DEMO_DOCTORS.len());
 
     // ── Seed demo role users (idempotent) ──────────────────
-    let role_user_salt = SaltString::generate(&mut OsRng);
     let role_user_hash = argon2
-        .hash_password(b"test123", &role_user_salt)
+        .hash_password(b"test123")
         .map_err(|e| format!("password hash error: {e}"))?
         .to_string();
 

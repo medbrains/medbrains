@@ -18,7 +18,7 @@ use uuid::Uuid;
 
 use argon2::{
     Argon2,
-    password_hash::{PasswordHasher, SaltString, rand_core::OsRng},
+    PasswordHasher,
 };
 
 use medbrains_notifications::{NewNotification, create_notification};
@@ -661,9 +661,8 @@ pub async fn create_employee(
         if errors.has_errors() {
             return Err(AppError::ValidationFailed(errors));
         }
-        let salt = SaltString::generate(&mut OsRng);
         let password_hash = Argon2::default()
-            .hash_password(password.as_bytes(), &salt)
+            .hash_password(password.as_bytes())
             .map_err(|e| AppError::Internal(format!("password hash error: {e}")))?
             .to_string();
         let new_id: Uuid = sqlx::query_scalar(

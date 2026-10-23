@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use argon2::{
     Argon2, PasswordHash, PasswordVerifier,
-    password_hash::{PasswordHasher, SaltString, rand_core::OsRng},
+    PasswordHasher,
 };
 use axum::http::HeaderMap;
 use axum::routing::{get, post};
@@ -1134,9 +1134,8 @@ pub async fn change_password(
         .map_err(|_| AppError::BadRequest("Current password is incorrect".to_owned()))?;
 
     // Hash new password
-    let salt = SaltString::generate(&mut OsRng);
     let new_hash = Argon2::default()
-        .hash_password(body.new_password.as_bytes(), &salt)
+        .hash_password(body.new_password.as_bytes())
         .map_err(|e| AppError::Internal(format!("password hash error: {e}")))?
         .to_string();
 
@@ -1365,9 +1364,8 @@ pub async fn confirm_password_reset(
         return Err(AppError::Unauthorized);
     }
 
-    let salt = SaltString::generate(&mut OsRng);
     let new_hash = Argon2::default()
-        .hash_password(body.new_password.as_bytes(), &salt)
+        .hash_password(body.new_password.as_bytes())
         .map_err(|e| AppError::Internal(format!("password hash error: {e}")))?
         .to_string();
 
@@ -1700,5 +1698,37 @@ mod client_ip_tests {
             extract_client_ip(&forwarded("[::1]:53579, 10.0.0.1")).as_deref(),
             Some("::1")
         );
+    }
+}
+
+#[cfg(test)]
+mod password_hash_compat_tests {
+    use argon2::{Argon2, PasswordHash, PasswordHasher, PasswordVerifier};
+
+    /// An argon2id PHC string with this crate's default parameters
+    /// (m=19456, t=2, p=1), the format every stored `users.password_hash`
+    /// row is in. Upgrading argon2 must keep verifying these, or every user
+    /// is locked out at once.
+    const STORED: &str = "$argon2id$v=19$m=19456,t=2,p=1$KtFkgrhpZ0bAnL87SaaCOA$9m3LRk52uiVaQqkMaSvoTkuL1zPeqcxCCN4XHW4YMYc";
+
+    #[test]
+    fn a_hash_stored_before_the_upgrade_still_verifies() {
+        let parsed = PasswordHash::new(STORED).expect("stored hash parses");
+        assert!(
+            Argon2::default()
+                .verify_password(b"correct horse battery staple", &parsed)
+                .is_ok()
+        );
+        assert!(Argon2::default().verify_password(b"wrong", &parsed).is_err());
+    }
+
+    #[test]
+    fn a_new_hash_is_salted_and_round_trips() {
+        let first = Argon2::default().hash_password(b"s3cret").expect("hash").to_string();
+        let second = Argon2::default().hash_password(b"s3cret").expect("hash").to_string();
+        assert_ne!(first, second, "each hash gets its own salt");
+        assert!(first.starts_with("$argon2id$v=19$m=19456,t=2,p=1$"));
+        let parsed = PasswordHash::new(&first).expect("parses");
+        assert!(Argon2::default().verify_password(b"s3cret", &parsed).is_ok());
     }
 }

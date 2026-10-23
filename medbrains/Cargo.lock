@@ -258,13 +258,13 @@ dependencies = [
 
 [[package]]
 name = "argon2"
-version = "0.5.3"
+version = "0.6.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3c3610892ee6e0cbce8ae2700349fcf8f98adb0dbfbee85aec3c9179d29cc072"
+checksum = "134c52ddac6d63c576bef8168db10c83c49c26444ecbc68060fef078925a901c"
 dependencies = [
  "base64ct",
- "blake2",
- "cpufeatures 0.2.17",
+ "blake2 0.11.0",
+ "cpufeatures 0.3.1",
  "password-hash",
 ]
 
@@ -1268,6 +1268,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "blake2"
+version = "0.11.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5b5d4d889834ee8ecfc0f8426ad30faf7cdcb10f741a8e6d7224d95325479f6f"
+dependencies = [
+ "digest 0.11.3",
+]
+
+[[package]]
 name = "blake3"
 version = "1.8.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1305,6 +1314,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a8894febbff9f758034a5b8e12d87918f56dfc64a8e1fe757d65e29041538d93"
 dependencies = [
  "generic-array",
+]
+
+[[package]]
+name = "block-padding"
+version = "0.4.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "710f1dd022ef4e93f8a438b4ba958de7f64308434fa6a87104481645cc30068b"
+dependencies = [
+ "hybrid-array",
 ]
 
 [[package]]
@@ -1559,6 +1577,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "26b52a9543ae338f279b96b0b9fed9c8093744685043739079ce85cd58f289a6"
 dependencies = [
  "cipher 0.4.4",
+]
+
+[[package]]
+name = "cbc"
+version = "0.2.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ce2dc9ee5f88d11e0beb842c88b33c8a5cf0d1329c4b19494af42b07dbfe8896"
+dependencies = [
+ "cipher 0.5.2",
 ]
 
 [[package]]
@@ -1817,12 +1844,6 @@ checksum = "4ca0197aee26d1ae37445ee532fefce43251d24cc7c166799f4d46817f1d3973"
 dependencies = [
  "crossbeam-utils",
 ]
-
-[[package]]
-name = "const-oid"
-version = "0.9.6"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c2459377285ad874054d797f3ccebf984978aa39129f6eafde5cdc8315b612f8"
 
 [[package]]
 name = "const-oid"
@@ -2097,7 +2118,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "78c8292055d1c1df0cce5d180393dc8cce0abec0a7102adb6c7b1eef6016d60a"
 dependencies = [
  "generic-array",
- "rand_core 0.6.4",
  "typenum",
 ]
 
@@ -2202,22 +2222,6 @@ dependencies = [
 
 [[package]]
 name = "curve25519-dalek"
-version = "4.1.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "97fb8b7c4503de7d6ae7b42ab72a5a59857b4c937ec27a3d4539dba95b5ab2be"
-dependencies = [
- "cfg-if",
- "cpufeatures 0.2.17",
- "curve25519-dalek-derive",
- "digest 0.10.7",
- "fiat-crypto 0.2.9",
- "rustc_version",
- "subtle",
- "zeroize",
-]
-
-[[package]]
-name = "curve25519-dalek"
 version = "5.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b5eed333089e2e1c1ac8c6c0398e5e2497b4c9926ca6d0365ed1e099afa5bc23"
@@ -2226,7 +2230,7 @@ dependencies = [
  "cpufeatures 0.3.1",
  "curve25519-dalek-derive",
  "digest 0.11.3",
- "fiat-crypto 0.3.0",
+ "fiat-crypto",
  "rand_core 0.10.1",
  "rustc_version",
  "serde",
@@ -2367,11 +2371,11 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "708b509edf7889e53d7efb0ffadd994cc6c2345ccb62f55cfd6b0682165e4fa6"
 dependencies = [
  "aes 0.8.4",
- "block-padding",
- "cbc",
+ "block-padding 0.3.3",
+ "cbc 0.1.2",
  "dbus",
  "fastrand",
- "hkdf",
+ "hkdf 0.12.4",
  "num",
  "once_cell",
  "sha2 0.10.9",
@@ -2476,21 +2480,11 @@ dependencies = [
 
 [[package]]
 name = "der"
-version = "0.7.10"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e7c1832837b905bbfb5101e07cc24c8deddf52f93225eee6ead5f4d63d53ddcb"
-dependencies = [
- "const-oid 0.9.6",
- "zeroize",
-]
-
-[[package]]
-name = "der"
 version = "0.8.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a878c850e9e421b20262e9b41f9c860e4785fa07541c266b62ff9d1ef998a80a"
 dependencies = [
- "const-oid 0.10.2",
+ "const-oid",
  "pem-rfc7468",
  "zeroize",
 ]
@@ -2613,7 +2607,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f1dd6dbb5841937940781866fa1281a1ff7bd3bf827091440879f9994983d5c2"
 dependencies = [
  "block-buffer 0.12.1",
- "const-oid 0.10.2",
+ "const-oid",
  "crypto-common 0.2.2",
  "ctutils",
 ]
@@ -2768,37 +2762,13 @@ checksum = "d0881ea181b1df73ff77ffaaf9c7544ecc11e82fba9b5f27b262a3c73a332555"
 
 [[package]]
 name = "ed25519"
-version = "2.2.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "115531babc129696a58c64a4fef0a8bf9e9698629fb97e9e40767d235cfbcd53"
-dependencies = [
- "pkcs8 0.10.2",
- "signature 2.2.0",
-]
-
-[[package]]
-name = "ed25519"
 version = "3.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "29fcf32e6c73d1079f83ab4d782de2d81620346a5f38c6237a86a22f8368980a"
 dependencies = [
- "pkcs8 0.11.0",
+ "pkcs8",
  "serdect",
  "signature 3.0.0",
-]
-
-[[package]]
-name = "ed25519-dalek"
-version = "2.2.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "70e796c081cee67dc755e1a36a0a172b897fab85fc3f6bc48307991f64e4eca9"
-dependencies = [
- "curve25519-dalek 4.1.3",
- "ed25519 2.2.3",
- "serde",
- "sha2 0.10.9",
- "subtle",
- "zeroize",
 ]
 
 [[package]]
@@ -2807,8 +2777,8 @@ version = "3.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6ebaa1a2bf1290ab3bfe5a7b771d050ebffab2711c19a81691c683a5144a25de"
 dependencies = [
- "curve25519-dalek 5.0.0",
- "ed25519 3.0.0",
+ "curve25519-dalek",
+ "ed25519",
  "rand_core 0.10.1",
  "serde",
  "sha2 0.11.1",
@@ -3075,12 +3045,6 @@ checksum = "1e6853b52649d4ac5c0bd02320cddc5ba956bdb407c4b75a2c6b75bf51500f8c"
 dependencies = [
  "simd-adler32",
 ]
-
-[[package]]
-name = "fiat-crypto"
-version = "0.2.9"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "28dea519a9695b9977216879a3ebfddf92f1c08c05d984f8996aecd6ecdc811d"
 
 [[package]]
 name = "fiat-crypto"
@@ -4098,6 +4062,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "hkdf"
+version = "0.13.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4aaa26c720c68b866f2c96ef5c1264b3e6f473fe5d4ce61cd44bbe913e553018"
+dependencies = [
+ "hmac 0.13.0",
+]
+
+[[package]]
 name = "hmac"
 version = "0.12.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4586,7 +4559,7 @@ version = "0.1.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "879f10e63c20629ecabbb64a8010319738c66a5cd0c29b02d63d272b03751d01"
 dependencies = [
- "block-padding",
+ "block-padding 0.3.3",
  "generic-array",
 ]
 
@@ -4596,6 +4569,7 @@ version = "0.2.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3b5cf4372d022092674a83b8febf5865f7a573cc0c5baec5e49c879b6a20978f"
 dependencies = [
+ "block-padding 0.4.2",
  "hybrid-array",
 ]
 
@@ -4643,7 +4617,7 @@ dependencies = [
  "ctutils",
  "data-encoding",
  "derive_more",
- "ed25519-dalek 3.0.0",
+ "ed25519-dalek",
  "futures-util",
  "getrandom 0.4.3",
  "http",
@@ -4686,11 +4660,11 @@ version = "1.4.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "43b72366b16001af3a51574233df88ca6d62da0215807549a769e7de887da803"
 dependencies = [
- "curve25519-dalek 5.0.0",
+ "curve25519-dalek",
  "data-encoding",
  "data-encoding-macro",
  "derive_more",
- "ed25519-dalek 3.0.0",
+ "ed25519-dalek",
  "getrandom 0.4.3",
  "n0-error",
  "rand 0.10.3",
@@ -5712,11 +5686,11 @@ name = "medbrains-api-keys"
 version = "0.1.0"
 dependencies = [
  "chrono",
- "getrandom 0.3.4",
+ "getrandom 0.4.3",
  "hex",
  "medbrains-core",
  "serde",
- "sha2 0.10.9",
+ "sha2 0.11.1",
  "subtle",
  "thiserror 2.0.21",
  "uuid",
@@ -5728,7 +5702,7 @@ version = "0.1.0"
 dependencies = [
  "axum",
  "chrono",
- "getrandom 0.3.4",
+ "getrandom 0.4.3",
  "hex",
  "medbrains-api-keys",
  "medbrains-core",
@@ -5841,7 +5815,7 @@ dependencies = [
  "axum",
  "axum-extra",
  "chrono",
- "getrandom 0.3.4",
+ "getrandom 0.4.3",
  "hex",
  "medbrains-core",
  "medbrains-db",
@@ -5851,7 +5825,7 @@ dependencies = [
  "medbrains-vpn",
  "serde",
  "serde_json",
- "sha2 0.10.9",
+ "sha2 0.11.1",
  "sqlx",
  "tokio",
  "tracing",
@@ -5869,7 +5843,7 @@ dependencies = [
  "prost-types",
  "serde",
  "serde_json",
- "sha2 0.10.9",
+ "sha2 0.11.1",
  "spicedb-rs-client",
  "spicedb-rs-proto",
  "sqlx",
@@ -6025,7 +5999,7 @@ dependencies = [
  "rusqlite",
  "serde",
  "serde_json",
- "sha2 0.10.9",
+ "sha2 0.11.1",
  "thiserror 2.0.21",
  "tokio",
  "toml 0.8.2",
@@ -6122,7 +6096,7 @@ dependencies = [
  "reqwest 0.13.5",
  "serde",
  "serde_json",
- "sha2 0.10.9",
+ "sha2 0.11.1",
  "sqlx",
  "tracing",
  "uuid",
@@ -6151,7 +6125,7 @@ dependencies = [
  "medbrains-server-services",
  "serde",
  "serde_json",
- "sha2 0.10.9",
+ "sha2 0.11.1",
  "sqlx",
  "tracing",
  "uuid",
@@ -6274,14 +6248,14 @@ version = "0.1.0"
 dependencies = [
  "async-trait",
  "chrono",
- "ed25519-dalek 2.2.0",
+ "ed25519-dalek",
  "flate2",
  "hex",
  "regex",
  "rust_decimal",
  "serde",
  "serde_json",
- "sha2 0.10.9",
+ "sha2 0.11.1",
  "sqlx",
  "tempfile",
  "tokio",
@@ -6292,17 +6266,17 @@ dependencies = [
 name = "medbrains-crypto"
 version = "0.1.0"
 dependencies = [
- "aes-gcm 0.10.3",
+ "aes-gcm 0.11.1",
  "base64 0.22.1",
- "blake2",
- "ed25519-dalek 2.2.0",
- "hkdf",
+ "blake2 0.11.0",
+ "ed25519-dalek",
+ "hkdf 0.13.0",
  "josekit",
  "openssl",
- "rand 0.9.5",
+ "rand 0.10.3",
  "serde",
  "serde_json",
- "sha2 0.10.9",
+ "sha2 0.11.1",
  "thiserror 2.0.21",
 ]
 
@@ -6371,7 +6345,7 @@ dependencies = [
  "rust_decimal",
  "serde",
  "serde_json",
- "sha2 0.10.9",
+ "sha2 0.11.1",
  "sqlx",
  "thiserror 2.0.21",
  "tokio",
@@ -6434,7 +6408,7 @@ dependencies = [
  "axum",
  "base64 0.22.1",
  "chrono",
- "ed25519-dalek 2.2.0",
+ "ed25519-dalek",
  "futures",
  "hex",
  "medbrains-core",
@@ -6442,7 +6416,7 @@ dependencies = [
  "medbrains-server-core",
  "serde",
  "serde_json",
- "sha2 0.10.9",
+ "sha2 0.11.1",
  "sqlx",
  "thiserror 2.0.21",
  "tokio",
@@ -6461,7 +6435,7 @@ dependencies = [
  "medbrains-server-core",
  "serde",
  "serde_json",
- "sha2 0.10.9",
+ "sha2 0.11.1",
  "sqlx",
  "tracing",
  "uuid",
@@ -6559,7 +6533,7 @@ dependencies = [
  "medbrains-specialty",
  "serde",
  "serde_json",
- "sha2 0.10.9",
+ "sha2 0.11.1",
  "sqlx",
  "tracing",
  "uuid",
@@ -6581,7 +6555,7 @@ dependencies = [
  "medbrains-offline-core",
  "serde",
  "serde_json",
- "sha2 0.10.9",
+ "sha2 0.11.1",
  "tempfile",
  "thiserror 2.0.21",
  "tokio",
@@ -6597,7 +6571,7 @@ dependencies = [
  "anyhow",
  "clap",
  "futures",
- "getrandom 0.3.4",
+ "getrandom 0.4.3",
  "iroh",
  "mdns-sd",
  "medbrains-core",
@@ -6618,7 +6592,7 @@ dependencies = [
 name = "medbrains-edge-rn"
 version = "0.1.0"
 dependencies = [
- "getrandom 0.3.4",
+ "getrandom 0.4.3",
  "hex",
  "iroh-base",
  "loro",
@@ -6871,7 +6845,7 @@ dependencies = [
  "argon2",
  "axum",
  "chrono",
- "getrandom 0.3.4",
+ "getrandom 0.4.3",
  "hex",
  "medbrains-core",
  "medbrains-db",
@@ -6879,7 +6853,7 @@ dependencies = [
  "medbrains-server-core",
  "serde",
  "serde_json",
- "sha2 0.10.9",
+ "sha2 0.11.1",
  "sqlx",
  "uuid",
 ]
@@ -7058,14 +7032,14 @@ version = "0.1.0"
 dependencies = [
  "axum",
  "base64 0.22.1",
- "getrandom 0.3.4",
+ "getrandom 0.4.3",
  "hex",
  "medbrains-core",
  "medbrains-db",
  "medbrains-server-core",
  "serde",
  "serde_json",
- "sha2 0.10.9",
+ "sha2 0.11.1",
  "sqlx",
  "totp-rs",
  "tracing",
@@ -7234,7 +7208,7 @@ name = "medbrains-offline-core"
 version = "0.1.0"
 dependencies = [
  "chrono",
- "ed25519-dalek 2.2.0",
+ "ed25519-dalek",
  "lru 0.18.5",
  "serde",
  "serde_json",
@@ -7253,7 +7227,7 @@ dependencies = [
  "axum",
  "axum-extra",
  "chrono",
- "getrandom 0.3.4",
+ "getrandom 0.4.3",
  "hex",
  "medbrains-core",
  "medbrains-db",
@@ -7262,7 +7236,7 @@ dependencies = [
  "rust_decimal",
  "serde",
  "serde_json",
- "sha2 0.10.9",
+ "sha2 0.11.1",
  "sqlx",
  "tracing",
  "uuid",
@@ -7365,23 +7339,20 @@ dependencies = [
 name = "medbrains-outbox"
 version = "0.1.0"
 dependencies = [
- "aes 0.8.4",
  "async-trait",
  "base64 0.22.1",
- "cbc",
  "chrono",
- "cipher 0.4.4",
  "hex",
- "hmac 0.12.1",
+ "hmac 0.13.0",
  "lettre",
  "medbrains-core",
  "medbrains-crypto",
- "rand 0.9.5",
+ "rand 0.10.3",
  "reqwest 0.13.5",
  "rust_decimal",
  "serde",
  "serde_json",
- "sha2 0.10.9",
+ "sha2 0.11.1",
  "sqlx",
  "thiserror 2.0.21",
  "tokio",
@@ -7414,7 +7385,7 @@ version = "0.1.0"
 dependencies = [
  "axum",
  "chrono",
- "hmac 0.12.1",
+ "hmac 0.13.0",
  "medbrains-authz",
  "medbrains-authz-gate",
  "medbrains-clinical-core",
@@ -7427,7 +7398,7 @@ dependencies = [
  "rust_decimal",
  "serde",
  "serde_json",
- "sha2 0.10.9",
+ "sha2 0.11.1",
  "sqlx",
  "tracing",
  "uuid",
@@ -7437,15 +7408,15 @@ dependencies = [
 name = "medbrains-payment-gateway"
 version = "0.1.0"
 dependencies = [
- "aes 0.8.4",
+ "aes 0.9.3",
  "async-trait",
  "axum",
  "base64 0.22.1",
- "cbc",
+ "cbc 0.2.1",
  "chrono",
- "cipher 0.4.4",
+ "cipher 0.5.2",
  "hex",
- "hmac 0.12.1",
+ "hmac 0.13.0",
  "medbrains-authz-gate",
  "medbrains-billing",
  "medbrains-core",
@@ -7459,7 +7430,7 @@ dependencies = [
  "rust_decimal",
  "serde",
  "serde_json",
- "sha2 0.10.9",
+ "sha2 0.11.1",
  "sqlx",
  "tracing",
  "urlencoding",
@@ -7490,6 +7461,7 @@ dependencies = [
  "axum-extra",
  "base64 0.22.1",
  "chrono",
+ "hex",
  "medbrains-authz",
  "medbrains-authz-gate",
  "medbrains-core",
@@ -7505,7 +7477,7 @@ dependencies = [
  "rust_decimal",
  "serde",
  "serde_json",
- "sha2 0.10.9",
+ "sha2 0.11.1",
  "sqlx",
  "tracing",
  "uuid",
@@ -7533,7 +7505,8 @@ version = "0.1.0"
 dependencies = [
  "axum",
  "chrono",
- "getrandom 0.3.4",
+ "getrandom 0.4.3",
+ "hex",
  "medbrains-core",
  "medbrains-db",
  "medbrains-outbox",
@@ -7542,7 +7515,7 @@ dependencies = [
  "rust_decimal",
  "serde",
  "serde_json",
- "sha2 0.10.9",
+ "sha2 0.11.1",
  "sqlx",
  "tracing",
  "uuid",
@@ -7912,12 +7885,12 @@ dependencies = [
  "chrono",
  "cron",
  "dotenvy",
- "ed25519-dalek 2.2.0",
+ "ed25519-dalek",
  "figment",
  "futures",
- "getrandom 0.3.4",
+ "getrandom 0.4.3",
  "hex",
- "hmac 0.12.1",
+ "hmac 0.13.0",
  "http-body",
  "ipnet",
  "jsonwebtoken",
@@ -8047,7 +8020,7 @@ dependencies = [
  "medbrains-workflow",
  "mlua",
  "openssl",
- "rand 0.9.5",
+ "rand 0.10.3",
  "regex",
  "reqwest 0.13.5",
  "rig-core",
@@ -8055,7 +8028,7 @@ dependencies = [
  "schemars 1.2.3",
  "serde",
  "serde_json",
- "sha2 0.10.9",
+ "sha2 0.11.1",
  "sqlx",
  "thiserror 2.0.21",
  "tikv-jemallocator",
@@ -8083,10 +8056,10 @@ dependencies = [
  "axum-extra",
  "base64 0.22.1",
  "chrono",
- "ed25519-dalek 2.2.0",
+ "ed25519-dalek",
  "figment",
  "futures",
- "getrandom 0.3.4",
+ "getrandom 0.4.3",
  "http-body",
  "ipnet",
  "jsonwebtoken",
@@ -8102,7 +8075,7 @@ dependencies = [
  "reqwest 0.13.5",
  "serde",
  "serde_json",
- "sha2 0.10.9",
+ "sha2 0.11.1",
  "sqlx",
  "thiserror 2.0.21",
  "time",
@@ -8138,7 +8111,7 @@ dependencies = [
  "argon2",
  "axum",
  "chrono",
- "getrandom 0.3.4",
+ "getrandom 0.4.3",
  "medbrains-authz",
  "medbrains-core",
  "medbrains-db",
@@ -8176,13 +8149,14 @@ name = "medbrains-signing"
 version = "0.1.0"
 dependencies = [
  "chrono",
- "ed25519-dalek 2.2.0",
- "getrandom 0.3.4",
+ "ed25519-dalek",
+ "getrandom 0.4.3",
+ "hex",
  "medbrains-core",
  "medbrains-server-core",
  "serde",
  "serde_json",
- "sha2 0.10.9",
+ "sha2 0.11.1",
  "sqlx",
  "thiserror 2.0.21",
  "uuid",
@@ -8262,7 +8236,7 @@ dependencies = [
  "axum-extra",
  "base64 0.22.1",
  "chrono",
- "getrandom 0.3.4",
+ "getrandom 0.4.3",
  "hex",
  "jsonwebtoken",
  "medbrains-core",
@@ -8273,7 +8247,7 @@ dependencies = [
  "reqwest 0.13.5",
  "serde",
  "serde_json",
- "sha2 0.10.9",
+ "sha2 0.11.1",
  "sqlx",
  "tracing",
  "url",
@@ -8316,7 +8290,7 @@ dependencies = [
  "quick-xml",
  "serde",
  "serde_json",
- "sha2 0.10.9",
+ "sha2 0.11.1",
  "sqlx",
  "thiserror 2.0.21",
  "tokio",
@@ -8440,7 +8414,7 @@ dependencies = [
  "rust_decimal",
  "serde",
  "serde_json",
- "sha2 0.10.9",
+ "sha2 0.11.1",
  "sqlx",
  "tokio",
  "tracing",
@@ -9852,13 +9826,12 @@ dependencies = [
 
 [[package]]
 name = "password-hash"
-version = "0.5.0"
+version = "0.6.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "346f04948ba92c43e8469c1ee6736c7563d71012b17d40745260fe106aac2166"
+checksum = "aab41826031698d6ffcd9cff78ef56ef998e39dc7e5067cdfebe373842d4723b"
 dependencies = [
- "base64ct",
- "rand_core 0.6.4",
- "subtle",
+ "getrandom 0.4.3",
+ "phc",
 ]
 
 [[package]]
@@ -9981,6 +9954,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "phc"
+version = "0.6.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "44dc769b75f93afdddd8c7fa12d685292ddeff1e66f7f0f3a234cf1818afe892"
+dependencies = [
+ "base64ct",
+ "ctutils",
+ "getrandom 0.4.3",
+]
+
+[[package]]
 name = "phf"
 version = "0.13.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -10067,7 +10051,7 @@ checksum = "c59d8c4c939a3a193a3da0e061aa7acf7432431f92ee62a26f5a9e5167a0ade2"
 dependencies = [
  "ahash",
  "async-trait",
- "blake2",
+ "blake2 0.10.6",
  "bstr",
  "bytes",
  "cf-rustracing",
@@ -10284,22 +10268,12 @@ dependencies = [
 
 [[package]]
 name = "pkcs8"
-version = "0.10.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f950b2377845cebe5cf8b5165cb3cc1a5e0fa5cfa3e1f7f55707d8fd82e0a7b7"
-dependencies = [
- "der 0.7.10",
- "spki 0.7.3",
-]
-
-[[package]]
-name = "pkcs8"
 version = "0.11.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "451913da69c775a56034ea8d9003d27ee8948e12443eae7c038ba100a4f21cb7"
 dependencies = [
- "der 0.8.2",
- "spki 0.8.1",
+ "der",
+ "spki",
 ]
 
 [[package]]
@@ -11708,10 +11682,10 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e4d35ad99a181be0a60ffcbe85d680d98f87bdc4d7644ade319b87076b9dbfd4"
 dependencies = [
  "aes 0.8.4",
- "cbc",
+ "cbc 0.1.2",
  "futures-util",
  "generic-array",
- "hkdf",
+ "hkdf 0.12.4",
  "num",
  "once_cell",
  "rand 0.8.8",
@@ -12436,22 +12410,12 @@ checksum = "023a211cb3138dbc438680b32560ad89f699977624c9f8dbb95a47d5b4c07dd3"
 
 [[package]]
 name = "spki"
-version = "0.7.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d91ed6c858b01f942cd56b37a94b3e0a1798290327d1236e4d9cf4eaca44d29d"
-dependencies = [
- "base64ct",
- "der 0.7.10",
-]
-
-[[package]]
-name = "spki"
 version = "0.8.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7ef958a98b9d5da290cfc78946e9f3e61e1e62a18db0d92cac0b83cc161491a9"
 dependencies = [
  "base64ct",
- "der 0.8.2",
+ "der",
 ]
 
 [[package]]
@@ -12556,7 +12520,7 @@ dependencies = [
  "futures-core",
  "futures-util",
  "hex",
- "hkdf",
+ "hkdf 0.12.4",
  "hmac 0.12.1",
  "home",
  "itoa",

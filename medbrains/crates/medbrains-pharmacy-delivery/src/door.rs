@@ -29,7 +29,7 @@ use crate::facts::bill_balance;
 const SENDABLE_ORDER_STATES: [&str; 3] = ["dispensed", "partially_dispensed", "ready"];
 
 fn hash_code(code: &str) -> String {
-    format!("{:x}", Sha256::digest(code.trim().as_bytes()))
+    hex::encode(Sha256::digest(code.trim().as_bytes()))
 }
 
 fn holds(claims: &Claims, permission: &str) -> bool {

@@ -8,7 +8,7 @@ use aes_gcm::aead::{Aead, KeyInit, Payload};
 use aes_gcm::{Aes256Gcm, Nonce};
 use base64::{Engine, engine::general_purpose::URL_SAFE_NO_PAD};
 use hkdf::Hkdf;
-use rand::RngCore;
+use rand::Rng;
 use serde::Serialize;
 use serde::de::DeserializeOwned;
 use sha2::Sha256;

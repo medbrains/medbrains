@@ -86,7 +86,7 @@ pub fn random_diagnosis_weighted(
     natural_icds: &[(String, i64)],
     natural_blend: f32,
 ) -> (&'static str, &'static str) {
-    use rand::Rng;
+    use rand::RngExt;
     let max_natural = natural_icds
         .iter()
         .map(|(_, n)| *n)
