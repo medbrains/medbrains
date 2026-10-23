@@ -1,9 +1,6 @@
 use std::collections::HashMap;
 
-use argon2::{
-    Argon2, PasswordHash, PasswordVerifier,
-    PasswordHasher,
-};
+use argon2::{Argon2, PasswordHash, PasswordHasher, PasswordVerifier};
 use axum::http::HeaderMap;
 use axum::routing::{get, post};
 use axum::{Extension, Json, extract::State, response::IntoResponse};
@@ -79,13 +76,16 @@ async fn record_failed_login(
     .bind(user_id)
     .bind(MAX_FAILED_LOGINS)
     .bind(LOCKOUT_MINUTES)
-    .fetch_one(&state.db)
+    .fetch_one(&mut *medbrains_db::pool::tenant_conn(&state.db, &tenant_id).await?)
     .await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &tenant_id).await?;
-    let actions: &[&str] =
-        if now_locked { &["login_failed", "account_locked"] } else { &["login_failed"] };
+    let actions: &[&str] = if now_locked {
+        &["login_failed", "account_locked"]
+    } else {
+        &["login_failed"]
+    };
     for action in actions {
         medbrains_db::audit::AuditLogger::log(
             &mut tx,
@@ -318,11 +318,13 @@ pub async fn login(
     // to anyone probing, and the reply for a NULL password_hash below —
     // "please use SSO" — would be both a disclosure and a lie.
     let tenant = hospital::login_tenant(&state.db, body.hospital_code.as_deref(), &headers).await?;
+    // No tenant is known yet and `users` is under row level security, so the
+    // lookup goes through app_login_accounts (migration 1200).
     let rows = sqlx::query!(
-        "SELECT id, tenant_id, username, email, password_hash, full_name, \
-         role::text AS \"role!\", is_active, perm_version \
-         FROM users WHERE username = $1 AND is_service_account = false \
-         AND ($2::uuid IS NULL OR tenant_id = $2) LIMIT 2",
+        "SELECT id AS \"id!\", tenant_id AS \"tenant_id!\", username AS \"username!\", \
+         email AS \"email!\", password_hash, full_name AS \"full_name!\", role AS \"role!\", \
+         is_active AS \"is_active!\", perm_version AS \"perm_version!\" \
+         FROM app_login_accounts($1, $2)",
         body.username,
         tenant
     )
@@ -354,11 +356,12 @@ pub async fn login(
 
     // Per-account lockout — independent of the per-IP rate limit so a
     // distributed credential-stuffing run still locks the account.
+    // The account's hospital is known from here on; `users` needs it under RLS.
     let locked: bool = sqlx::query_scalar(
         "SELECT locked_until IS NOT NULL AND locked_until > now() FROM users WHERE id = $1",
     )
     .bind(row.id)
-    .fetch_one(&state.db)
+    .fetch_one(&mut *medbrains_db::pool::tenant_conn(&state.db, &row.tenant_id).await?)
     .await?;
     if locked {
         return Err(AppError::BadRequest(
@@ -415,7 +418,7 @@ pub async fn login(
          WHERE id = $1 AND (failed_login_attempts > 0 OR locked_until IS NOT NULL)",
     )
     .bind(row.id)
-    .execute(&state.db)
+    .execute(&mut *medbrains_db::pool::tenant_conn(&state.db, &row.tenant_id).await?)
     .await?;
 
     // Resolve effective permissions from role
@@ -1590,7 +1593,10 @@ pub fn router() -> axum::Router<AppState> {
             post(confirm_password_reset),
         )
         .route("/api/auth/refresh", post(refresh_token))
-        .route("/api/auth/sign-in-options", get(sign_in_options::sign_in_options))
+        .route(
+            "/api/auth/sign-in-options",
+            get(sign_in_options::sign_in_options),
+        )
 }
 
 /// Protected auth routes — require `Extension<Claims>` from `auth_middleware`,
@@ -1719,16 +1725,30 @@ mod password_hash_compat_tests {
                 .verify_password(b"correct horse battery staple", &parsed)
                 .is_ok()
         );
-        assert!(Argon2::default().verify_password(b"wrong", &parsed).is_err());
+        assert!(
+            Argon2::default()
+                .verify_password(b"wrong", &parsed)
+                .is_err()
+        );
     }
 
     #[test]
     fn a_new_hash_is_salted_and_round_trips() {
-        let first = Argon2::default().hash_password(b"s3cret").expect("hash").to_string();
-        let second = Argon2::default().hash_password(b"s3cret").expect("hash").to_string();
+        let first = Argon2::default()
+            .hash_password(b"s3cret")
+            .expect("hash")
+            .to_string();
+        let second = Argon2::default()
+            .hash_password(b"s3cret")
+            .expect("hash")
+            .to_string();
         assert_ne!(first, second, "each hash gets its own salt");
         assert!(first.starts_with("$argon2id$v=19$m=19456,t=2,p=1$"));
         let parsed = PasswordHash::new(&first).expect("parses");
-        assert!(Argon2::default().verify_password(b"s3cret", &parsed).is_ok());
+        assert!(
+            Argon2::default()
+                .verify_password(b"s3cret", &parsed)
+                .is_ok()
+        );
     }
 }

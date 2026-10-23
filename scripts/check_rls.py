@@ -40,6 +40,24 @@ ALLOWLIST = {
     # Add table names here only with explicit justification in header
 }
 
+# Tables with no row level security by design: identical for every hospital,
+# or the tenant registry that login reads before a tenant is known. Every
+# other table must enable RLS, tenant_id or not — a child table without its
+# own tenant_id (a dashboard's widgets) holds a hospital's data all the same.
+# Mirrors GLOBAL_TABLES in medbrains-server/tests/rls_gap_tables_test.rs,
+# which checks the migrated database.
+GLOBAL_TABLES = {
+    "_sqlx_migrations_pre_baseline",
+    "cds_diagnosis_reference", "cds_drug_ingredient", "cds_drug_reference",
+    "cds_ingredient_incompatibility", "cds_lab_reference", "cds_state_formulary",
+    "device_adapter_catalog", "event_registry", "event_schemas", "module_entity_schemas",
+    "geo_countries", "geo_districts", "geo_states", "geo_subdistricts", "geo_towns",
+    "regulatory_bodies", "news_feed_articles", "partition_config",
+    "snomed_codes", "snomed_concept", "snomed_description", "snomed_refset_member",
+    "snomed_relationship", "snomed_release", "snomed_transitive_closure",
+    "tenants", "hospital_groups", "hospital_regions",
+}
+
 # Synonyms authors actually wrote. A migration that has been applied anywhere
 # cannot be edited — `sqlx` validates its checksum, and changing one stops the
 # server with `VersionMismatch` — so a posture that says the right thing in
@@ -101,6 +119,19 @@ PARTITION_OF_RE = re.compile(
     re.IGNORECASE,
 )
 
+CREATE_ANY_TABLE_RE = re.compile(
+    r"CREATE\s+(?:UNLOGGED\s+)?TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?(?:public\.)?([a-zA-Z_][a-zA-Z0-9_]*)\s*\(",
+    re.IGNORECASE,
+)
+DROP_TABLE_RE = re.compile(
+    r"DROP\s+TABLE\s+(?:IF\s+EXISTS\s+)?((?:(?:public\.)?[a-zA-Z_][a-zA-Z0-9_]*\s*,\s*)*(?:public\.)?[a-zA-Z_][a-zA-Z0-9_]*)",
+    re.IGNORECASE,
+)
+RENAME_TABLE_RE = re.compile(
+    r"ALTER\s+TABLE\s+(?:IF\s+EXISTS\s+)?(?:ONLY\s+)?(?:public\.)?([a-zA-Z_][a-zA-Z0-9_]*)\s+RENAME\s+TO\s+([a-zA-Z_][a-zA-Z0-9_]*)",
+    re.IGNORECASE,
+)
+
 HEADER_KEY_RE = re.compile(r"--\s*([A-Za-z][A-Za-z\-]+)\s*:\s*(.+?)\s*$", re.MULTILINE)
 
 
@@ -142,6 +173,8 @@ def main() -> int:
     partitions: set[str] = set()             # children of a partitioned parent
     posture_overrides: dict[str, str] = {}    # table -> posture from migration header
     header_errors: list[str] = []
+    live_tables: set[str] = set()             # every table created and not dropped since
+    renames: list[tuple[str, str]] = []       # RLS stays on a renamed table
 
     for path in files:
         raw = path.read_text(encoding="utf-8")
@@ -179,6 +212,25 @@ def main() -> int:
                 # Capture per-table posture if header carries `Per-Table:` lines (future use)
                 if "RLS-Posture" in header and posture_overrides.get(tname) is None:
                     posture_overrides[tname] = header["RLS-Posture"]
+
+        # In file order: a table dropped and re-created stays live.
+        events = [(m.start(), "create", m.group(1).lower()) for m in CREATE_ANY_TABLE_RE.finditer(sql)]
+        events += [
+            (m.start(), "drop", name.strip().lower().removeprefix("public."))
+            for m in DROP_TABLE_RE.finditer(sql)
+            for name in m.group(1).split(",")
+        ]
+        events += [(m.start(), "rename", (m.group(1).lower(), m.group(2).lower()))
+                   for m in RENAME_TABLE_RE.finditer(sql)]
+        for _, kind, name in sorted(events, key=lambda e: e[0]):
+            if kind == "create":
+                live_tables.add(name)
+            elif kind == "drop":
+                live_tables.discard(name)
+            elif name[0] in live_tables:
+                live_tables.discard(name[0])
+                live_tables.add(name[1])
+                renames.append(name)
 
         # ALTER TABLE ADD COLUMN tenant_id — table becomes tenant-scoped
         for match in ALTER_ADD_TENANT_RE.finditer(sql):
@@ -229,6 +281,16 @@ def main() -> int:
     for table in sorted(rls_enabled - policies_on - partitions - set(ALLOWLIST)):
         if table not in tenant_tables:
             gaps.append((table, "-", "RLS enabled, no policy"))
+
+    for old, new in renames:
+        if old in rls_enabled:
+            rls_enabled.add(new)
+
+    # Any table at all with RLS off that is not declared global. Catches the
+    # child tables a tenant_id scan cannot see.
+    for table in sorted(live_tables - rls_enabled - partitions - GLOBAL_TABLES):
+        if table not in tenant_tables:
+            gaps.append((table, "-", "no RLS and not declared in GLOBAL_TABLES"))
 
     # Report
     print(f"Scanned {len(files)} migrations, {len(tenant_tables)} tenant_id-bearing tables.")

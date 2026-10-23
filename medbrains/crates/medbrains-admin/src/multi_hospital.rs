@@ -29,8 +29,8 @@ use serde::Deserialize;
 use uuid::Uuid;
 
 use medbrains_server_core::{
-    error::AppError, middleware::auth::Claims,
-    middleware::authorization::require_permission, state::AppState,
+    error::AppError, middleware::auth::Claims, middleware::authorization::require_permission,
+    state::AppState,
 };
 
 // ── Query Parameters ──────────────────────────────────────────────────────────
@@ -107,11 +107,7 @@ async fn require_tenant_in_group(
     .bind(tenant_id)
     .fetch_one(&state.db)
     .await?;
-    if ok {
-        Ok(())
-    } else {
-        Err(AppError::Forbidden)
-    }
+    if ok { Ok(()) } else { Err(AppError::Forbidden) }
 }
 
 // ── Hospital Groups ───────────────────────────────────────────────────────────
@@ -634,11 +630,13 @@ pub async fn get_patient_transfer(
     Path(id): Path<Uuid>,
 ) -> Result<Json<PatientTransfer>, AppError> {
     require_permission(&claims, permissions::ipd::transfers::CREATE)?;
+    // These tables are under row level security: the query needs the tenant.
+    let mut conn = medbrains_db::pool::tenant_conn(&state.db, &claims.tenant_id).await?;
     let t = sqlx::query_as::<_, PatientTransfer>(
         "SELECT * FROM patient_transfers WHERE id = $1 AND deleted_at IS NULL",
     )
     .bind(id)
-    .fetch_optional(&state.db)
+    .fetch_optional(&mut *conn)
     .await?
     .ok_or(AppError::NotFound)?;
     if t.source_tenant_id != claims.tenant_id && t.dest_tenant_id != claims.tenant_id {
@@ -668,6 +666,8 @@ pub async fn create_patient_transfer(
             "Destination hospital is not in the same group".to_owned(),
         ));
     }
+    // These tables are under row level security: the query needs the tenant.
+    let mut conn = medbrains_db::pool::tenant_conn(&state.db, &claims.tenant_id).await?;
     let row = sqlx::query_as::<_, PatientTransfer>(
         "INSERT INTO patient_transfers \
          (source_tenant_id, dest_tenant_id, patient_id, admission_id, transfer_type, reason, \
@@ -685,7 +685,7 @@ pub async fn create_patient_transfer(
     .bind(&payload.priority)
     .bind(claims.sub)
     .bind(&payload.transport_mode)
-    .fetch_one(&state.db)
+    .fetch_one(&mut *conn)
     .await?;
     Ok(Json(row))
 }
@@ -699,11 +699,13 @@ pub async fn update_patient_transfer(
     Json(payload): Json<UpdateTransferStatus>,
 ) -> Result<Json<PatientTransfer>, AppError> {
     require_permission(&claims, permissions::ipd::transfers::CREATE)?;
+    // These tables are under row level security: the query needs the tenant.
+    let mut conn = medbrains_db::pool::tenant_conn(&state.db, &claims.tenant_id).await?;
     let t = sqlx::query_as::<_, PatientTransfer>(
         "SELECT * FROM patient_transfers WHERE id = $1 AND deleted_at IS NULL",
     )
     .bind(id)
-    .fetch_optional(&state.db)
+    .fetch_optional(&mut *conn)
     .await?
     .ok_or(AppError::NotFound)?;
 
@@ -743,7 +745,7 @@ pub async fn update_patient_transfer(
     .bind(payload.status)
     .bind(&payload.notes)
     .bind(claims.sub)
-    .fetch_one(&state.db)
+    .fetch_one(&mut *conn)
     .await?;
     Ok(Json(row))
 }
@@ -756,6 +758,8 @@ async fn list_stock_transfers_by_side(
     query: &DateRangeQuery,
     side_column: &str,
 ) -> Result<Vec<StockTransfer>, AppError> {
+    // These tables are under row level security: the query needs the tenant.
+    let mut conn = medbrains_db::pool::tenant_conn(&state.db, &claims.tenant_id).await?;
     let rows = sqlx::query_as::<_, StockTransfer>(&format!(
         "SELECT * FROM inter_hospital_stock_transfers \
          WHERE {side_column} = $1 AND deleted_at IS NULL \
@@ -766,7 +770,7 @@ async fn list_stock_transfers_by_side(
     .bind(claims.tenant_id)
     .bind(query.from_date)
     .bind(query.to_date)
-    .fetch_all(&state.db)
+    .fetch_all(&mut *conn)
     .await?;
     Ok(rows)
 }
@@ -802,11 +806,13 @@ pub async fn get_stock_transfer(
     Path(id): Path<Uuid>,
 ) -> Result<Json<StockTransfer>, AppError> {
     require_permission(&claims, permissions::ipd::transfers::CREATE)?;
+    // These tables are under row level security: the query needs the tenant.
+    let mut conn = medbrains_db::pool::tenant_conn(&state.db, &claims.tenant_id).await?;
     let t = sqlx::query_as::<_, StockTransfer>(
         "SELECT * FROM inter_hospital_stock_transfers WHERE id = $1 AND deleted_at IS NULL",
     )
     .bind(id)
-    .fetch_optional(&state.db)
+    .fetch_optional(&mut *conn)
     .await?
     .ok_or(AppError::NotFound)?;
     if t.source_tenant_id != claims.tenant_id && t.dest_tenant_id != claims.tenant_id {
@@ -822,6 +828,8 @@ pub async fn get_stock_transfer_items(
     Path(transfer_id): Path<Uuid>,
 ) -> Result<Json<Vec<StockTransferItem>>, AppError> {
     require_permission(&claims, permissions::ipd::transfers::CREATE)?;
+    // These tables are under row level security: the query needs the tenant.
+    let mut conn = medbrains_db::pool::tenant_conn(&state.db, &claims.tenant_id).await?;
     let items = sqlx::query_as::<_, StockTransferItem>(
         "SELECT i.id, i.transfer_id, i.item_id, i.item_type, i.item_code, i.item_name, \
                 i.batch_number, i.expiry_date, i.requested_qty::float8 AS requested_qty, \
@@ -835,7 +843,7 @@ pub async fn get_stock_transfer_items(
     )
     .bind(transfer_id)
     .bind(claims.tenant_id)
-    .fetch_all(&state.db)
+    .fetch_all(&mut *conn)
     .await?;
     Ok(Json(items))
 }
@@ -868,6 +876,7 @@ pub async fn create_stock_transfer(
     }
 
     let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
     let number = format!(
         "IHST-{}",
         Uuid::new_v4().simple().to_string()[..10].to_uppercase()
@@ -920,11 +929,13 @@ pub async fn update_stock_transfer(
     Json(payload): Json<UpdateTransferStatus>,
 ) -> Result<Json<StockTransfer>, AppError> {
     require_permission(&claims, permissions::ipd::transfers::CREATE)?;
+    // These tables are under row level security: the query needs the tenant.
+    let mut conn = medbrains_db::pool::tenant_conn(&state.db, &claims.tenant_id).await?;
     let t = sqlx::query_as::<_, StockTransfer>(
         "SELECT * FROM inter_hospital_stock_transfers WHERE id = $1 AND deleted_at IS NULL",
     )
     .bind(id)
-    .fetch_optional(&state.db)
+    .fetch_optional(&mut *conn)
     .await?
     .ok_or(AppError::NotFound)?;
 
@@ -974,7 +985,7 @@ pub async fn update_stock_transfer(
     .bind(target)
     .bind(&payload.notes)
     .bind(claims.sub)
-    .fetch_one(&state.db)
+    .fetch_one(&mut *conn)
     .await?;
     Ok(Json(row))
 }
@@ -1010,11 +1021,12 @@ pub async fn get_group_dashboard(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
     require_group_access(&state, &claims, group_id).await?;
-    let group_name = sqlx::query_scalar::<_, String>("SELECT name FROM hospital_groups WHERE id = $1")
-        .bind(group_id)
-        .fetch_optional(&mut *tx)
-        .await?
-        .ok_or(AppError::NotFound)?;
+    let group_name =
+        sqlx::query_scalar::<_, String>("SELECT name FROM hospital_groups WHERE id = $1")
+            .bind(group_id)
+            .fetch_optional(&mut *tx)
+            .await?
+            .ok_or(AppError::NotFound)?;
     let hospitals = sqlx::query_as::<_, HospitalKpiSummary>(&format!(
         "{HOSPITAL_KPI_SELECT} WHERE t.group_id = $1 \
          GROUP BY t.id, t.name, t.branch_code, r.name ORDER BY t.name"
@@ -1249,6 +1261,8 @@ pub async fn list_group_drugs(
 ) -> Result<Json<Vec<GroupDrugMaster>>, AppError> {
     require_permission(&claims, permissions::admin::system_state::VIEW)?;
     require_group_access(&state, &claims, group_id).await?;
+    // These tables are under row level security: the query needs the tenant.
+    let mut conn = medbrains_db::pool::tenant_conn(&state.db, &claims.tenant_id).await?;
     let rows = sqlx::query_as::<_, GroupDrugMaster>(
         "SELECT id, group_id, code, name, generic_name, manufacturer, drug_schedule, atc_code, \
                 formulation, strength, unit, hsn_code, gst_rate::float8 AS gst_rate, \
@@ -1257,7 +1271,7 @@ pub async fn list_group_drugs(
          WHERE group_id = $1 AND is_active = true AND deleted_at IS NULL ORDER BY name LIMIT 5000",
     )
     .bind(group_id)
-    .fetch_all(&state.db)
+    .fetch_all(&mut *conn)
     .await?;
     Ok(Json(rows))
 }
@@ -1270,12 +1284,14 @@ pub async fn list_group_tests(
 ) -> Result<Json<Vec<GroupTestMaster>>, AppError> {
     require_permission(&claims, permissions::admin::system_state::VIEW)?;
     require_group_access(&state, &claims, group_id).await?;
+    // These tables are under row level security: the query needs the tenant.
+    let mut conn = medbrains_db::pool::tenant_conn(&state.db, &claims.tenant_id).await?;
     let rows = sqlx::query_as::<_, GroupTestMaster>(
         "SELECT * FROM group_test_master \
          WHERE group_id = $1 AND is_active = true AND deleted_at IS NULL ORDER BY name LIMIT 5000",
     )
     .bind(group_id)
-    .fetch_all(&state.db)
+    .fetch_all(&mut *conn)
     .await?;
     Ok(Json(rows))
 }
@@ -1288,6 +1304,8 @@ pub async fn list_group_tariffs(
 ) -> Result<Json<Vec<GroupTariffMaster>>, AppError> {
     require_permission(&claims, permissions::admin::system_state::VIEW)?;
     require_group_access(&state, &claims, group_id).await?;
+    // These tables are under row level security: the query needs the tenant.
+    let mut conn = medbrains_db::pool::tenant_conn(&state.db, &claims.tenant_id).await?;
     let rows = sqlx::query_as::<_, GroupTariffMaster>(
         "SELECT id, group_id, service_code, service_name, category, \
                 base_price::float8 AS base_price, gst_applicable, gst_rate::float8 AS gst_rate, \
@@ -1297,7 +1315,7 @@ pub async fn list_group_tariffs(
          ORDER BY service_name LIMIT 5000",
     )
     .bind(group_id)
-    .fetch_all(&state.db)
+    .fetch_all(&mut *conn)
     .await?;
     Ok(Json(rows))
 }
@@ -1334,6 +1352,8 @@ pub async fn list_group_templates(
 ) -> Result<Json<Vec<GroupTemplate>>, AppError> {
     require_permission(&claims, permissions::admin::system_state::VIEW)?;
     require_group_access(&state, &claims, group_id).await?;
+    // These tables are under row level security: the query needs the tenant.
+    let mut conn = medbrains_db::pool::tenant_conn(&state.db, &claims.tenant_id).await?;
     let rows = sqlx::query_as::<_, GroupTemplate>(
         "SELECT * FROM group_templates \
          WHERE group_id = $1 AND is_active = true AND deleted_at IS NULL \
@@ -1341,7 +1361,7 @@ pub async fn list_group_templates(
     )
     .bind(group_id)
     .bind(query.period.as_deref())
-    .fetch_all(&state.db)
+    .fetch_all(&mut *conn)
     .await?;
     Ok(Json(rows))
 }
@@ -1353,11 +1373,13 @@ pub async fn get_group_template(
     Path(id): Path<Uuid>,
 ) -> Result<Json<GroupTemplate>, AppError> {
     require_permission(&claims, permissions::admin::system_state::VIEW)?;
+    // These tables are under row level security: the query needs the tenant.
+    let mut conn = medbrains_db::pool::tenant_conn(&state.db, &claims.tenant_id).await?;
     let row = sqlx::query_as::<_, GroupTemplate>(
         "SELECT * FROM group_templates WHERE id = $1 AND deleted_at IS NULL",
     )
     .bind(id)
-    .fetch_optional(&state.db)
+    .fetch_optional(&mut *conn)
     .await?
     .ok_or(AppError::NotFound)?;
     require_group_access(&state, &claims, row.group_id).await?;
@@ -1373,6 +1395,8 @@ pub async fn create_group_template(
 ) -> Result<Json<GroupTemplate>, AppError> {
     require_permission(&claims, permissions::admin::system_state::MANAGE)?;
     require_group_access(&state, &claims, group_id).await?;
+    // These tables are under row level security: the query needs the tenant.
+    let mut conn = medbrains_db::pool::tenant_conn(&state.db, &claims.tenant_id).await?;
     let row = sqlx::query_as::<_, GroupTemplate>(
         "INSERT INTO group_templates \
          (group_id, template_type, code, name, content, version, is_active) \
@@ -1383,7 +1407,7 @@ pub async fn create_group_template(
     .bind(&payload.code)
     .bind(&payload.name)
     .bind(&payload.content)
-    .fetch_one(&state.db)
+    .fetch_one(&mut *conn)
     .await?;
     Ok(Json(row))
 }
@@ -1395,13 +1419,15 @@ pub async fn delete_group_template(
     Path(id): Path<Uuid>,
 ) -> Result<StatusCode, AppError> {
     require_permission(&claims, permissions::admin::system_state::MANAGE)?;
+    // These tables are under row level security: the query needs the tenant.
+    let mut conn = medbrains_db::pool::tenant_conn(&state.db, &claims.tenant_id).await?;
     sqlx::query(
         "UPDATE group_templates SET is_active = false, deleted_at = now(), deleted_by = $2 \
          WHERE id = $1",
     )
     .bind(id)
     .bind(claims.sub)
-    .execute(&state.db)
+    .execute(&mut *conn)
     .await?;
     Ok(StatusCode::NO_CONTENT)
 }
