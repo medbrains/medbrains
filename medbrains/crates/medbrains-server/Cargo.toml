@@ -1,5 +1,6 @@
 [package]
 name = "medbrains-server"
+publish = false
 description = "Axum HTTP server for MedBrains HMS"
 version.workspace = true
 edition.workspace = true

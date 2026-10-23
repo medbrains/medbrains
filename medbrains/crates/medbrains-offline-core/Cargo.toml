@@ -1,5 +1,6 @@
 [package]
 name = "medbrains-offline-core"
+publish = false
 description = "Shared offline auth + permissions for the hospital edge stack. Read-only ReBAC cache, JWT verification, and revocation tracking — same Rust runs on the edge server, mobile (UniFFI), TV, and any future device class."
 version.workspace = true
 edition.workspace = true

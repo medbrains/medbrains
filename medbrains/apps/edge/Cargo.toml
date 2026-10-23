@@ -1,5 +1,6 @@
 [package]
 name = "medbrains-edge-app"
+publish = false
 description = "Edge appliance binary — runs medbrains-edge sync server + mDNS announcement on a hospital LAN box"
 version.workspace = true
 edition.workspace = true

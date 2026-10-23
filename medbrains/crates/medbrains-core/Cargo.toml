@@ -1,5 +1,6 @@
 [package]
 name = "medbrains-core"
+publish = false
 description = "Domain types for MedBrains HMS — zero framework dependencies"
 version.workspace = true
 edition.workspace = true

@@ -28,6 +28,9 @@ jobs:
         working-directory: medbrains
     steps:
       - uses: actions/checkout@v4
+      - uses: ./.github/actions/r8r
+        with:
+          token: ${{ secrets.R8R_READ_TOKEN }}
       - uses: dtolnay/rust-toolchain@stable
       - uses: actions/cache@v4
         with:
@@ -51,6 +54,9 @@ jobs:
         working-directory: medbrains
     steps:
       - uses: actions/checkout@v4
+      - uses: ./.github/actions/r8r
+        with:
+          token: ${{ secrets.R8R_READ_TOKEN }}
       - uses: pnpm/action-setup@v4
         with:
           package_json_file: medbrains/package.json
@@ -77,10 +83,9 @@ jobs:
       packages: write
     steps:
       - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
-      # The Dockerfile COPYs Cargo.lock, which is git-ignored.
-      - run: cargo generate-lockfile
-        working-directory: medbrains
+      - uses: ./.github/actions/r8r
+        with:
+          token: ${{ secrets.R8R_READ_TOKEN }}
       - uses: docker/setup-qemu-action@v3
         with:
           platforms: arm64

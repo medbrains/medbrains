@@ -1,5 +1,6 @@
 [package]
 name = "medbrains-edge-rn"
+publish = false
 description = "React Native bridge for the Loro CRDT engine. Same wire format as medbrains-edge so mobile + TV apps share offline behavior with web."
 version.workspace = true
 # UniFFI emits native FFI scaffolding for the React Native bridge. Keep
