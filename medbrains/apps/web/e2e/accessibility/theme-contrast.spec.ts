@@ -5,6 +5,7 @@
  * readable. Failures are grouped by foreground/background pair, because a pair
  * is one theme token to fix — not one element per screen.
  */
+import { roles } from "@medbrains/design-system";
 import { expect, test } from "@playwright/test";
 import axe from "axe-core";
 import { routeApiDirect } from "../helpers";
@@ -21,6 +22,37 @@ const SCREENS = [
   "/admin/message-simulator",
   "/admin/settings",
 ];
+
+/** WCAG relative-luminance contrast of two #rrggbb colours. */
+function contrast(a: string, b: string): number {
+  const lum = (hex: string) => {
+    const [r, g, bl] = [1, 3, 5].map((i) => {
+      const v = Number.parseInt(hex.slice(i, i + 2), 16) / 255;
+      return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4;
+    });
+    return 0.2126 * (r ?? 0) + 0.7152 * (g ?? 0) + 0.0722 * (bl ?? 0);
+  };
+  const [hi, lo] = [lum(a), lum(b)].sort((x, y) => y - x);
+  return ((hi ?? 0) + 0.05) / ((lo ?? 0) + 0.05);
+}
+
+// The purple accent: the brand token (#851B7F light, #FFABF0 dark) carries
+// fills and text, so it holds 4.5:1 on the surfaces and with its on-colour;
+// the tertiary text roles hold 4.5:1 too.
+test("the purple accent tokens hold AA contrast in both themes", () => {
+  for (const scheme of ["light", "dark"] as const) {
+    const r = roles[scheme];
+    const pairs = [
+      ["on-tertiary on brand purple", contrast(r.onTertiary, r.tertiaryBrand)],
+      ["brand purple on surface", contrast(r.tertiaryBrand, r.surface)],
+      ["brand purple on card", contrast(r.tertiaryBrand, r.surfaceContainerLowest)],
+      ["tertiary on surface", contrast(r.tertiary, r.surface)],
+      ["on-tertiary on tertiary", contrast(r.onTertiary, r.tertiary)],
+      ["on-tertiary-container on container", contrast(r.onTertiaryContainer, r.tertiaryContainer)],
+    ] as const;
+    for (const [pair, ratio] of pairs) expect(ratio, `${scheme}: ${pair}`).toBeGreaterThanOrEqual(4.5);
+  }
+});
 
 interface Failure {
   pair: string;

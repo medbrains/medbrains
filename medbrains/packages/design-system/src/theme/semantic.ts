@@ -6,8 +6,8 @@
  * `bg-canvas`, `border-default`, …) so existing components keep working. Both
  * schemes come from the same mapping — only the role values differ.
  *
- * Rules: blue = brand, primary actions, focus. Teal (tertiary) = positive data
- * accent. Green / amber / red only for clinical meaning, always with an icon or
+ * Rules: blue = brand, primary actions, focus. Purple (tertiary) = the accent
+ * (AI, badges, icons, "Ask AI" buttons), never a full-width alert banner. Green / amber / red only for clinical meaning, always with an icon or
  * word. Emergency code colours are fixed.
  *
  * Component code MUST NOT cherry-pick primitive hexes. Always reference
@@ -196,7 +196,7 @@ function fromRoles(r: Roles, isLight: boolean): SemanticScheme {
     accent: {
       fg: r.tertiary,
       bg: r.tertiaryContainer,
-      emphasis: r.tertiary,
+      emphasis: r.tertiaryBrand,
       onEmphasis: r.onTertiary,
       tint: r.tertiaryContainer,
     },
@@ -297,7 +297,6 @@ export type SchemeName = keyof typeof schemes;
 export const sharedReferences = {
   indicators: {
     primary: ramps.Blue["40"],
-    teal: ramps.Teal["50"],
     success: ramps.Green["50"],
     warning: ramps.Amber["60"],
     danger: ramps.Red["50"],

@@ -1,5 +1,5 @@
 // Carbon AI Label — a small slug whose border + "AI" glyph carry the reserved
-// violet→blue AI gradient (--mb-gradient-ai). Layout only here; colour comes
+// blue→purple AI gradient (--mb-gradient-ai). Layout only here; colour comes
 // from theme tokens.
 
 .label {
@@ -28,7 +28,7 @@
     var(--mb-gradient-ai) border-box;
 
   .ai {
-    background: var(--mb-gradient-ai);
+    background: var(--mb-gradient-ai-text);
     background-clip: text;
     -webkit-background-clip: text;
     color: transparent;
@@ -73,11 +73,11 @@
   transition: filter 120ms ease;
 
   &:hover {
-    filter: drop-shadow(0 1px 4px color-mix(in srgb, var(--mb-violet-accent) 35%, transparent));
+    filter: drop-shadow(0 1px 4px color-mix(in srgb, var(--mb-brand-purple) 35%, transparent));
   }
 
   &:focus-visible {
-    outline: 2px solid var(--mb-violet-accent);
+    outline: 2px solid var(--mb-focus-ring);
     outline-offset: 2px;
   }
 }

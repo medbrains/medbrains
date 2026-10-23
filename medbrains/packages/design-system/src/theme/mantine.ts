@@ -54,6 +54,7 @@ import {
   lineHeight,
   neutralTuple,
   ochreTuple,
+  purpleTuple,
   radius,
   redTuple,
   slateTuple,
@@ -74,7 +75,7 @@ const ROLE_FAMILIES: Record<string, readonly [RoleKey, RoleKey, RoleKey, RoleKey
   blue: ["primary", "onPrimary", "statePrimary12", "primary"],
   info: ["primary", "onPrimary", "statePrimary12", "primary"],
   cinnabar: ["tertiary", "onTertiary", "tertiaryContainer", "onTertiaryContainer"],
-  teal: ["tertiary", "onTertiary", "tertiaryContainer", "onTertiaryContainer"],
+  purple: ["tertiary", "onTertiary", "tertiaryContainer", "onTertiaryContainer"],
   success: ["success", "onSuccess", "successContainer", "onSuccessContainer"],
   green: ["success", "onSuccess", "successContainer", "onSuccessContainer"],
   mint: ["success", "onSuccess", "successContainer", "onSuccessContainer"],
@@ -193,8 +194,9 @@ export function createMedBrainsTheme(opts: CreateMedBrainsThemeOptions = {}): Ma
       primary: blueTuple,
       blue: blueTuple,
       info: blueTuple,
-      // The reserved accent is the M3 tertiary (teal) — positive data only.
-      cinnabar: tealTuple,
+      // The accent is the M3 tertiary (purple).
+      cinnabar: purpleTuple,
+      purple: purpleTuple,
       teal: tealTuple,
       mint: greenTuple,
       green: greenTuple,
@@ -908,6 +910,11 @@ function buildSchemePalette(scheme: typeof lightScheme, name: SchemeName) {
     // so they fell back to hardcoded LIGHT hex and rendered light-on-dark. Emit
     // them here (dual-mode) so every existing usage adapts to the scheme.
     "--mb-brand": scheme.brand.emphasis,
+    // Brand purple: #851B7F in light (white text 8.5:1), Purple 80 #FFABF0 in dark.
+    // Fills, icons, the logo heart, AI accents, "Ask AI" buttons, badges.
+    "--mb-brand-purple": r.tertiaryBrand,
+    // The AI gradient as small text, from the text roles of each scheme.
+    "--mb-gradient-ai-text": `linear-gradient(135deg, ${r.primary} 0%, ${r.tertiary} 100%)`,
     "--mb-interactive": scheme.brand.emphasis,
     "--mb-brand-bg-hover": scheme.brand.tintStrong,
     "--mb-bg": scheme.bg.default,
@@ -922,7 +929,6 @@ function buildSchemePalette(scheme: typeof lightScheme, name: SchemeName) {
 
     // ── Indicators (raw, mode-agnostic safety colors) ────────────
     "--mb-indicator-primary": sharedReferences.indicators.primary,
-    "--mb-indicator-teal": sharedReferences.indicators.teal,
     "--mb-indicator-success": sharedReferences.indicators.success,
     "--mb-indicator-green": sharedReferences.indicators.success,
     "--mb-indicator-warning": sharedReferences.indicators.warning,
@@ -1022,18 +1028,19 @@ export const cssVariableResolver: CSSVariablesResolver = (t) => {
       // Page header background composed at consume time using mode-specific bgs
       "--mb-page-header-bg": "var(--mb-bg-default)",
       "--mb-table-toolbar-bg": "var(--mb-bg-default)",
-      // Blue → teal brand gradients (teal = the positive data accent). The accent bar on
+      // Brand gradients are blue only: the purple accent never fills a full-width
+      // banner, which would read like an emergency alert. The accent bar on
       // page headers + CTAs use "signal"; soft tints/washes use "mist".
-      // Both stops hold white text at AA (Blue 40 4.5:1, Teal 40 6.5:1).
-      "--mb-gradient-signal": `linear-gradient(135deg, ${ramps.Blue["40"]} 0%, ${ramps.Teal["40"]} 100%)`,
-      "--mb-gradient-lifeline": `linear-gradient(135deg, ${ramps.Blue["40"]} 0%, ${ramps.Blue["30"]} 50%, ${ramps.Teal["40"]} 100%)`,
-      "--mb-gradient-mist": `linear-gradient(135deg, ${ramps.Blue["80"]} 0%, ${ramps.Teal["95"]} 100%)`,
+      // Both stops hold white text at AA (Blue 40 4.5:1, Blue 30 7.2:1).
+      "--mb-gradient-signal": `linear-gradient(135deg, ${ramps.Blue["40"]} 0%, ${ramps.Blue["30"]} 100%)`,
+      "--mb-gradient-lifeline": `linear-gradient(135deg, ${ramps.Blue["30"]} 0%, ${ramps.Blue["40"]} 50%, ${ramps.Blue["30"]} 100%)`,
+      "--mb-gradient-mist": `linear-gradient(135deg, ${ramps.Blue["80"]} 0%, ${ramps.Blue["95"]} 100%)`,
       "--mb-gradient-nightshift": `linear-gradient(160deg, ${ramps.Surface["6"]} 0%, ${ramps.Blue["30"]} 70%, ${ramps.Blue["40"]} 100%)`,
-      "--mb-gradient-text": `linear-gradient(120deg, ${ramps.Blue["30"]} 0%, ${ramps.Blue["40"]} 45%, ${ramps.Teal["50"]} 100%)`,
-      // Carbon AI signature — violet → blue. Marks AI-supported surfaces only
+      "--mb-gradient-text": `linear-gradient(120deg, ${ramps.Blue["30"]} 0%, ${ramps.Blue["40"]} 45%, ${ramps.Purple["40"]} 100%)`,
+      // AI signature — blue → brand purple. Marks AI-supported surfaces only
       // (the AiLabel slug border + "AI" glyph). Carbon reserves this for
       // genuinely AI-touched content; do not use it as generic decoration.
-      "--mb-gradient-ai": "linear-gradient(135deg, #5E5CE6 0%, #4589ff 100%)",
+      "--mb-gradient-ai": `linear-gradient(135deg, ${ramps.Blue["40"]} 0%, ${ramps.Purple.brand} 100%)`,
       "--mb-accent-gradient": "var(--mb-gradient-signal)",
       "--mb-accent-gradient-soft": "var(--mb-brand-bg)",
       "--mb-signature-spectrum": "var(--mb-gradient-signal)",

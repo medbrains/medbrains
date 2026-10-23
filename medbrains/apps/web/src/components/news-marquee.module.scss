@@ -51,8 +51,8 @@
   height: 6px;
   border-radius: 50%;
   flex: none;
-  // Vital-green news indicator (brand second colour / ECG beat).
-  background: var(--mb-accent-emphasis);
+  // Brand-purple news dot (the ECG beat accent; paired with the headline text).
+  background: var(--mb-brand-purple);
 }
 
 // ── Hover card: full article heading (blue) + readable snippet + source ──

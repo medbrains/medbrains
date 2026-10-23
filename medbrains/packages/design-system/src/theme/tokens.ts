@@ -8,7 +8,7 @@
  *
  * Web colour comes from the Material-3 roles in `colors.generated.ts` (2026-10-23). The ten-step
  * Carbon palettes below remain for the native apps (`scripts/generate_native_tokens.py`) until
- * they move to the same roles; of these palettes the web theme uses only violet, ochre and slate.
+ * they move to the same roles; of these palettes the web theme uses only violet, ochre, teal and slate (legacy `color=` names).
  */
 
 /** Blue — IBM Carbon interactive. Anchor: blue[5] = Blue 60 #0f62fe. */

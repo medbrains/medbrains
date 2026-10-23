@@ -9,7 +9,7 @@ the Figma library's variables were built from. `pnpm --filter
 
 ## Structure
 
-- **Ramps** (Figma "Primitives"): 13-tone Blue, Teal, Neutral, Green, Amber,
+- **Ramps** (Figma "Primitives"): 13-tone Blue, Purple, Neutral, Green, Amber,
   Red, plus Surface tones. Never used directly; roles alias them.
 - **Roles** per scheme (Figma "Color" / "Color Dark"): the same names in light
   and dark, only the values differ. Web name = Figma code syntax:
@@ -30,9 +30,18 @@ the Figma library's variables were built from. `pnpm --filter
 
 ## Rules
 
-- **Blue = brand, primary actions, focus.** One filled primary action per view.
-- **Teal (tertiary) = positive data accent**: charts, "improved" deltas. Never
-  a status.
+- **Blue = brand, primary actions, focus, selection.** One filled primary action
+  per view. Brand gradients are blue only.
+- **Purple (tertiary) is the secondary accent**: AI and the mascot, the logo
+  heart, badges, icons, chips, small highlights, and buttons such as "Ask AI".
+  Never a full-width alert banner or a page background: those belong to the
+  emergency layer.
+- **Brand purple `--mb-brand-purple`** (Figma `tertiary/tertiaryBrand`), the
+  purple counterpart of brand blue #0F62FE: **#851B7F** in light (white text
+  8.5:1, safe at every size) and Purple 80 **#FFABF0** in dark (with
+  `--mb-on-tertiary` text). Text in purple on a surface uses `--mb-tertiary`
+  (Purple 40 #9A3293 light, Purple 80 dark). `theme-contrast.spec.ts` checks
+  these pairs at 4.5:1 in both schemes.
 - **Green / amber / red only for clinical meaning**, always with an icon or a
   word (WCAG 1.4.1). Low and high abnormal are both amber; the arrow and the
   word tell them apart. Critical is red.

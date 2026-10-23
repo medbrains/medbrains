@@ -9,7 +9,7 @@
 
 import type { MantineColorsTuple } from "@mantine/core";
 import { ramps } from "./colors.generated.js";
-import { ochre, slate, violet } from "./tokens.js";
+import { ochre, slate, teal, violet } from "./tokens.js";
 
 export * from "./tokens.js";
 
@@ -25,7 +25,7 @@ const toneTuple = (ramp: Record<(typeof TONES)[number], string>) =>
   TONES.map((t) => ramp[t]) as unknown as MantineColorsTuple;
 
 export const blueTuple = toneTuple(ramps.Blue);
-export const tealTuple = toneTuple(ramps.Teal);
+export const purpleTuple = toneTuple(ramps.Purple);
 export const greenTuple = toneTuple(ramps.Green);
 export const amberTuple = toneTuple(ramps.Amber);
 export const redTuple = toneTuple(ramps.Red);
@@ -43,11 +43,12 @@ export const darkTuple = [
   ramps.Surface["4"],
   ramps.Neutral["0"],
 ] as unknown as MantineColorsTuple;
-// Outside the M3 roles: violet marks AI content; orange / slate stay for
-// legacy `color="orange"` / `"slate"` call sites.
+// Outside the M3 roles: violet / orange / teal / slate stay for legacy
+// `color="…"` call sites (teal is no longer a role — the accent is purple).
 export const violetTuple: MantineColorsTuple = [...violet] as unknown as MantineColorsTuple;
 export const ochreTuple: MantineColorsTuple = [...ochre] as unknown as MantineColorsTuple;
 export const slateTuple: MantineColorsTuple = [...slate] as unknown as MantineColorsTuple;
+export const tealTuple: MantineColorsTuple = [...teal] as unknown as MantineColorsTuple;
 
 /**
  * Tissue colours for the 3D body-site model (BodyParts3D via human-atlas).
