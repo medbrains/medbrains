@@ -178,7 +178,7 @@ license-file = "../LICENSE"
 # `cargo test` and `clippy --all-targets` compile a second tokio and reqwest (and
 # every crate above them). Enabled here once so all builds share one graph;
 # test-util only adds time-control APIs nothing in production calls.
-tokio = { version = "1", features = ["full", "test-util"] }
+tokio = { version = "1.54.1", features = ["full", "test-util"] }
 
 # Web framework
 axum = { version = "0.8", features = ["macros", "ws"] }

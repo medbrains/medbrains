@@ -13,7 +13,7 @@ path = "src/main.rs"
 medbrains-adapter-sdk = { path = "../medbrains-adapter-sdk" }
 
 # Async
-tokio = { version = "1", features = ["full"] }
+tokio = { version = "1.54.1", features = ["full"] }
 
 # HTTP client (for MedBrains API calls)
 reqwest = { version = "0.12", features = ["json", "rustls-tls"], default-features = false }
