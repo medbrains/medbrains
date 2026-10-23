@@ -2,7 +2,7 @@ import { Card, Group, SimpleGrid, Stack, Text } from "@mantine/core";
 import type { InsuranceClaim } from "@medbrains/types";
 import { useMemo } from "react";
 import { Alert, Badge } from "@/components/ui";
-import { nhcxStatusLabel, summariseNhcxResponse } from "./nhcxSummary";
+import { nhcxDecisionLabel, nhcxStatusLabel, summariseNhcxResponse } from "./nhcxSummary";
 
 interface NhcxExchangeCardProps {
   claim: InsuranceClaim;
@@ -17,6 +17,7 @@ const when = (at: string | null) => (at ? new Date(at).toLocaleString() : "—")
  */
 export function NhcxExchangeCard({ claim }: NhcxExchangeCardProps) {
   const status = nhcxStatusLabel(claim.nhcx_status);
+  const decision = nhcxDecisionLabel(claim.nhcx_decision);
   const summary = useMemo(
     () => summariseNhcxResponse(claim.nhcx_response_payload),
     [claim.nhcx_response_payload],
@@ -36,13 +37,26 @@ export function NhcxExchangeCard({ claim }: NhcxExchangeCardProps) {
         <Text fw={600} size="sm">
           NHCX exchange
         </Text>
-        <Badge tone={status.tone}>{status.label}</Badge>
+        <Group gap="xs">
+          {decision && <Badge tone={decision.tone}>{decision.label}</Badge>}
+          <Badge tone={status.tone}>{status.label}</Badge>
+        </Group>
       </Group>
       {claim.nhcx_correlation_id ? (
         <Stack gap="xs">
           {claim.nhcx_status === "send_failed" && claim.nhcx_disposition && (
             <Alert tone="danger" title="NHCX did not accept the message">
               {claim.nhcx_disposition}
+            </Alert>
+          )}
+          {claim.nhcx_status === "undelivered" && (
+            <Alert tone="danger" title="NHCX could not deliver this to the payer">
+              {claim.nhcx_disposition ?? "NHCX gave up after five tries."} Send it again.
+            </Alert>
+          )}
+          {claim.nhcx_decision === "queried" && (
+            <Alert tone="warning" title="The payer asked a question">
+              Nothing is approved yet. Answer the payer's query to move the claim on.
             </Alert>
           )}
           {claim.nhcx_response_at && (

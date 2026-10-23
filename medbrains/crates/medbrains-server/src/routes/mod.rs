@@ -107,8 +107,12 @@ pub fn build_router(state: AppState) -> Router {
         // Enterprise SSO login flow — pre-auth (no JWT yet).
         .merge(medbrains_sso_login::router())
         // NHCX gateway callbacks — authenticated by the gateway's RS256 JWT,
-        // not a user session, so they live on the public router.
-        .merge(medbrains_nhcx_callback::public_router())
+        // not a user session, so they live on the public router. The client
+        // IP feeds the hospital's optional callback allow-list.
+        .merge(
+            medbrains_nhcx_callback::public_router()
+                .layer(from_fn_with_state(state.clone(), client_ip_middleware)),
+        )
         // ABDM gateway callbacks (HIP) — each authenticated by the gateway's
         // JWT and the HFR facility ID in X-HIP-ID, never by a user session.
         .merge(abdm::hip::public_router())

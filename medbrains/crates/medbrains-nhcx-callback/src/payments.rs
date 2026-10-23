@@ -2,6 +2,13 @@
 //! it pays, settle those claims the way insurer money already settles, and
 //! acknowledge with `paymentnotice/on_request`.
 //!
+//! A payer sends three notices for one payment, each on its own thread:
+//! 30 initiated, 31 processed, 33 settled (NHA Workflow Status Sheet). Only
+//! 33 moves money; 30 and 31 are filed as `advice`, seen but never posted.
+//! A repeat of a settled notice (same payer, claim number and UTR, a new api
+//! call) is advice too. A notice that names no step is filed `unmatched`
+//! for finance to post by hand — never posted on a guess.
+//!
 //! Insurer money settles on the claim, not the invoice: `settled_amount`
 //! rises by the gross paid (the transfer plus the TDS withheld — the insurer
 //! has discharged that much), the claim becomes `settled` or
@@ -20,6 +27,7 @@ use medbrains_core::nhcx::{
     FINANCIAL_TASK_CODE_SYSTEM, NDHM_TASK_OUTPUT_TYPE_SYSTEM, NDHM_TASK_OUTPUT_VALUE_SYSTEM,
     NhcxOperation, NhcxRecord, TASK_BUNDLE_PROFILE,
 };
+use medbrains_core::nhcx_wire::WORKFLOW_PAYMENT_SETTLED;
 use medbrains_server_core::error::AppError;
 
 use crate::apply::{Inbound, Matched, Tx};
@@ -196,13 +204,12 @@ async fn claims_named(
     let exchange: Option<Uuid> = sqlx::query_scalar(
         "SELECT id FROM insurance_claims \
           WHERE tenant_id = $1 AND nhcx_recipient_code = $2 AND deleted_at IS NULL \
-            AND (nhcx_correlation_id = $3 OR ($4::uuid IS NOT NULL AND nhcx_workflow_id = $4)) \
-          ORDER BY (nhcx_correlation_id = $3) DESC LIMIT 1",
+            AND nhcx_correlation_id = $3 \
+          LIMIT 1",
     )
     .bind(m.tenant_id)
     .bind(m.sender)
     .bind(m.correlation_id)
-    .bind(m.workflow_id)
     .fetch_optional(&mut **tx)
     .await?;
     Ok((rows.into_iter().collect(), exchange))
@@ -252,30 +259,85 @@ pub(crate) async fn receive(tx: &mut Tx<'_>, m: &Inbound<'_>) -> Result<Matched,
         .await?;
         return Ok(Some(("nhcx_payment_notices", earlier)));
     };
+    let stage = stage(tx, m, &notice).await?;
     let (named, exchange) = claims_named(tx, m, &notice.lines).await?;
     for line in &notice.lines {
         let claim = match &line.claim_ref {
             Some(r) => named.get(r).copied(),
             None => exchange,
         };
+        let status = if stage == Stage::Advice {
+            "advice"
+        } else {
+            "unmatched"
+        };
         let allocation: Uuid = sqlx::query_scalar(
             "INSERT INTO nhcx_payment_allocations (tenant_id, notice_id, claim_reference, \
-                 gross_amount, tds_amount, net_amount) \
-             VALUES ($1, $2, $3, $4, $5, $4 - $5) RETURNING id",
+                 gross_amount, tds_amount, net_amount, status, insurance_claim_id) \
+             VALUES ($1, $2, $3, $4, $5, $4 - $5, $6, $7) RETURNING id",
         )
         .bind(m.tenant_id)
         .bind(notice_id)
         .bind(&line.claim_ref)
         .bind(line.gross)
         .bind(line.tds)
+        .bind(status)
+        .bind(claim.filter(|_| stage == Stage::Advice))
         .fetch_one(&mut **tx)
         .await?;
-        if let Some(claim_id) = claim {
+        if let (Stage::Settled, Some(claim_id)) = (stage, claim) {
             post(tx, m.tenant_id, (allocation, claim_id), None).await?;
         }
     }
     acknowledge(tx, m, notice_id).await?;
     Ok(Some(("nhcx_payment_notices", notice_id)))
+}
+
+/// What a notice does with its money.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Stage {
+    /// 33, the first for this payment: post it.
+    Settled,
+    /// 30 / 31, or a repeat of a settled notice: file it, post nothing.
+    Advice,
+    /// No step named: finance decides.
+    Unstated,
+}
+
+async fn stage(
+    tx: &mut Tx<'_>,
+    m: &Inbound<'_>,
+    notice: &parse_claim::PaymentNotice,
+) -> Result<Stage, AppError> {
+    match m.workflow_id {
+        None => Ok(Stage::Unstated),
+        Some(WORKFLOW_PAYMENT_SETTLED) => {
+            // ponytail: two concurrent repeats could both post; the gateway
+            // delivers one notice at a time, add an advisory lock if not.
+            let posted_before: bool = sqlx::query_scalar(
+                "SELECT EXISTS (SELECT 1 FROM nhcx_payment_notices n \
+                   JOIN nhcx_payment_allocations a ON a.notice_id = n.id AND a.status = 'posted' \
+                  WHERE n.tenant_id = $1 AND n.sender_code = $2 AND n.nhcx_workflow_id = $3 \
+                    AND n.notice_identifier IS NOT DISTINCT FROM $4 \
+                    AND n.payment_reference IS NOT DISTINCT FROM $5 \
+                    AND n.request_api_call_id <> $6 AND n.deleted_at IS NULL)",
+            )
+            .bind(m.tenant_id)
+            .bind(m.sender)
+            .bind(WORKFLOW_PAYMENT_SETTLED)
+            .bind(&notice.identifier)
+            .bind(&notice.reference)
+            .bind(m.api_call_id)
+            .fetch_one(&mut **tx)
+            .await?;
+            Ok(if posted_before {
+                Stage::Advice
+            } else {
+                Stage::Settled
+            })
+        }
+        Some(_) => Ok(Stage::Advice),
+    }
 }
 
 /// The acknowledgement — a completed Task with output `paymentack`, as in
@@ -288,12 +350,12 @@ pub(crate) fn ack_bundle(notice_id: Uuid) -> Value {
         "meta": { "profile": [TASK_BUNDLE_PROFILE] },
         "identifier": { "value": notice_id },
         "type": "collection",
-        "timestamp": Utc::now().to_rfc3339(),
+        "timestamp": medbrains_core::nhcx_wire::ist_timestamp(Utc::now()),
         "entry": [{ "fullUrl": format!("urn:uuid:{task}"), "resource": {
             "resourceType": "Task", "id": task, "status": "completed", "intent": "order",
             "code": { "coding": [{ "system": FINANCIAL_TASK_CODE_SYSTEM, "code": "status" }] },
             "description": "response for payment status Check",
-            "authoredOn": Utc::now().to_rfc3339(),
+            "authoredOn": medbrains_core::nhcx_wire::ist_timestamp(Utc::now()),
             "output": [{
                 "type": { "coding": [{ "system": NDHM_TASK_OUTPUT_TYPE_SYSTEM, "code": "status" }] },
                 "valueCodeableConcept": { "coding": [{ "system": NDHM_TASK_OUTPUT_VALUE_SYSTEM,
@@ -307,7 +369,6 @@ pub(crate) fn ack_bundle(notice_id: Uuid) -> Value {
 /// payer's correlation id.
 async fn acknowledge(tx: &mut Tx<'_>, m: &Inbound<'_>, notice_id: Uuid) -> Result<(), AppError> {
     let api_call_id = Uuid::new_v4();
-    let workflow_id = m.workflow_id.unwrap_or_else(Uuid::new_v4);
     sqlx::query(
         "UPDATE nhcx_payment_notices SET nhcx_api_call_id = $1, nhcx_status = 'queued' \
           WHERE id = $2 AND tenant_id = $3",
@@ -332,9 +393,9 @@ async fn acknowledge(tx: &mut Tx<'_>, m: &Inbound<'_>, notice_id: Uuid) -> Resul
                 "recipient_code": m.sender,
                 "correlation_id": m.correlation_id,
                 "api_call_id": api_call_id,
-                "workflow_id": workflow_id,
+                // The payer's step code, echoed.
+                "workflow_id": m.workflow_id,
                 "bundle": ack_bundle(notice_id),
-                "hcx_status": "response.complete",
             }),
             idempotency_key: Some(format!("nhcx-payment-ack-{notice_id}")),
         },

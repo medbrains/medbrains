@@ -4,6 +4,9 @@
 
 mod apply;
 mod apply_claim;
+mod gateway_auth;
+#[cfg(test)]
+mod golden_tests;
 mod parse;
 mod parse_claim;
 mod payments;
@@ -90,12 +93,18 @@ pub async fn list_callbacks(
 }
 
 /// The gateway's callbacks — public: each is authenticated by the gateway's
-/// JWT, not a user session. The base path is the hospital's NHCX `endpoint_url`.
+/// JWT, not a user session. The hospital's NHCX `endpoint_url` is
+/// `…/api/integrations/nhcx/hcx`; NHCX appends `/v1/...` itself.
 pub fn public_router() -> axum::Router<AppState> {
-    axum::Router::new().route(
-        "/api/integrations/nhcx/hcx/v1/{resource}/{action}",
-        post(receive::receive_callback),
-    )
+    axum::Router::new()
+        .route(
+            "/api/integrations/nhcx/hcx/v1/{resource}/{action}",
+            post(receive::receive_callback),
+        )
+        .route(
+            "/api/integrations/nhcx/hcx/v1/{action}",
+            post(receive::receive_top_level),
+        )
 }
 
 /// Signed-in routes: callback history, NHCX status and settings.

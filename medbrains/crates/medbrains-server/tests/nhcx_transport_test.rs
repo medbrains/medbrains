@@ -16,7 +16,7 @@ use medbrains_core::nhcx::NhcxOperation;
 use serde_json::{Map, Value, json};
 use uuid::Uuid;
 
-use nhcx_support::key_pair;
+use nhcx_support::{gateway_jwt, key_pair};
 
 #[tokio::test]
 async fn a_claim_goes_to_nhcx_encrypted_and_the_payers_answer_lands_on_it() {
@@ -83,14 +83,29 @@ async fn a_claim_goes_to_nhcx_encrypted_and_the_payers_answer_lands_on_it() {
 
     // Run the outbox event exactly as the worker would.
     let (path, body) = nhcx.send(NhcxOperation::Claim, &correlation_id).await;
-    let auth = nhcx
+    let http = nhcx
         .received
         .lock()
         .expect("lock")
         .last()
-        .and_then(|r| r.1.clone());
+        .map(|r| r.1.clone())
+        .expect("headers");
+    let header = |name: &str| {
+        http.get(name)
+            .and_then(|v| v.to_str().ok())
+            .map(str::to_owned)
+    };
     assert_eq!(path, "claim/submit");
-    assert_eq!(auth.as_deref(), Some("Bearer mock-session"));
+    assert_eq!(
+        header("authorization").as_deref(),
+        Some("Bearer mock-session")
+    );
+    assert_eq!(
+        header("bearer_auth").as_deref(),
+        Some("Bearer mock-session"),
+        "NHA's gateway reads bearer_auth"
+    );
+    assert_eq!(header("accept").as_deref(), Some("application/json"));
     let jwe = body["payload"]
         .as_str()
         .expect("the body is {payload: <JWE>}");
@@ -102,7 +117,15 @@ async fn a_claim_goes_to_nhcx_encrypted_and_the_payers_answer_lands_on_it() {
     assert_eq!(headers["x-hcx-sender_code"], json!(hospital_code));
     assert_eq!(headers["x-hcx-recipient_code"], json!(payer_code));
     assert_eq!(headers["x-hcx-correlation_id"], json!(correlation_id));
-    assert!(headers.contains_key("x-hcx-api_call_id") && headers.contains_key("x-hcx-workflow_id"));
+    // NHA envelope: a request seeds its thread from its own call id, says
+    // request.initiated, carries its step code and an IST timestamp.
+    assert_eq!(headers["x-hcx-api_call_id"], json!(correlation_id));
+    assert_eq!(headers["x-hcx-status"], json!("request.initiated"));
+    assert_eq!(headers["x-hcx-workflow_id"], json!("15"));
+    assert_eq!(headers["x-hcx-use_case"], json!("New"));
+    assert!(headers.contains_key("x-hcx-request_id"));
+    let timestamp = headers["x-hcx-timestamp"].as_str().unwrap_or_default();
+    assert!(timestamp.ends_with("+05:30"), "IST, got {timestamp}");
     assert_eq!(
         bundle["resourceType"],
         json!("Bundle"),
@@ -126,35 +149,50 @@ async fn a_claim_goes_to_nhcx_encrypted_and_the_payers_answer_lands_on_it() {
     let callback = app.url("/api/integrations/nhcx/hcx/v1/claim/on_submit");
     let gateway_client = reqwest::Client::new();
 
-    let forged = medbrains_crypto::jws::sign_rs256(
+    // A forged token, and a real token without NHCX's claims, are refused —
+    // answered 202 with the reason, so NHCX does not retry, and logged.
+    let unclaimed = medbrains_crypto::jws::sign_rs256(
         Map::new(),
         Duration::from_secs(300),
-        key_pair().private_pem.as_bytes(),
+        nhcx.gateway.private_pem.as_bytes(),
     )
-    .expect("forged jwt");
-    let refused = gateway_client
-        .post(&callback)
-        .bearer_auth(forged)
-        .json(&json!({ "payload": reply }))
-        .send()
-        .await
-        .expect("forged callback");
-    assert_eq!(refused.status(), StatusCode::UNAUTHORIZED);
+    .expect("jwt without iss/sub/jti");
+    for token in [gateway_jwt(&key_pair()), unclaimed] {
+        let refused = gateway_client
+            .post(&callback)
+            .bearer_auth(token)
+            .json(&json!({ "payload": reply }))
+            .send()
+            .await
+            .expect("forged callback");
+        assert_eq!(refused.status(), StatusCode::ACCEPTED);
+        let receipt: Value = refused.json().await.expect("receipt");
+        assert_eq!(receipt["error"]["code"], json!("ERR_INVALID_SIGNATURE"));
+    }
     assert_eq!(
         claim_status(app, claim_id).await.as_deref(),
         Some("sent"),
         "nothing changed"
     );
-
-    let jwt = medbrains_crypto::jws::sign_rs256(
-        Map::new(),
-        Duration::from_secs(300),
-        nhcx.gateway.private_pem.as_bytes(),
+    let refusals: i64 = sqlx::query_scalar(
+        "SELECT count(*) FROM nhcx_callback_log WHERE tenant_id = $1 \
+            AND correlation_id = $2::uuid \
+            AND verification_status = 'refused_token' AND raw_envelope IS NULL",
     )
-    .expect("gateway jwt");
+    .bind(nhcx.tenant)
+    .bind(&correlation_id)
+    .fetch_one(&app.db)
+    .await
+    .expect("log");
+    assert_eq!(
+        refusals, 2,
+        "refusals are logged, their bodies are not kept"
+    );
+
+    let jwt = nhcx.gateway_jwt();
     let accepted = gateway_client
         .post(&callback)
-        .bearer_auth(jwt)
+        .bearer_auth(&jwt)
         .json(&json!({ "payload": reply }))
         .send()
         .await
@@ -162,7 +200,25 @@ async fn a_claim_goes_to_nhcx_encrypted_and_the_payers_answer_lands_on_it() {
     assert_eq!(accepted.status(), StatusCode::ACCEPTED);
     let ack: Value = accepted.json().await.expect("ack");
     assert_eq!(ack["correlation_id"], json!(correlation_id));
-    assert!(ack.get("timestamp").is_some() && ack.get("api_call_id").is_some());
+    assert_eq!(ack["result"]["entity_type"], json!("claim"));
+    assert_eq!(ack["result"]["protocol_status"], json!("request.queued"));
+    assert_eq!(ack["error"]["code"], json!(""));
+    // DD/MM/YYYY HH:mm:ss:SSS
+    assert_eq!(ack["timestamp"].as_str().map(str::len), Some(23));
+
+    // The same token again is a replay.
+    let replay = gateway_client
+        .post(&callback)
+        .bearer_auth(&jwt)
+        .json(&json!({ "payload": reply }))
+        .send()
+        .await
+        .expect("replay");
+    let receipt: Value = replay.json().await.expect("receipt");
+    assert_eq!(
+        receipt["error"]["message"],
+        json!("the gateway token was used before")
+    );
 
     let (status, outcome, approved): (
         Option<String>,
@@ -178,6 +234,13 @@ async fn a_claim_goes_to_nhcx_encrypted_and_the_payers_answer_lands_on_it() {
     assert_eq!(status.as_deref(), Some("response.complete"));
     assert_eq!(outcome.as_deref(), Some("complete"));
     assert_eq!(approved, Some(rust_decimal::Decimal::from(4500)));
+    let decision: Option<String> =
+        sqlx::query_scalar("SELECT nhcx_decision FROM insurance_claims WHERE id = $1")
+            .bind(claim_id)
+            .fetch_one(&app.db)
+            .await
+            .expect("decision");
+    assert_eq!(decision.as_deref(), Some("approved"));
 }
 
 async fn claim_status(app: &common::TestApp, claim_id: Uuid) -> Option<String> {

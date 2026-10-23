@@ -1,9 +1,9 @@
 //! The NHCX `TaskBundle` the hospital sends to ask a payer something about a
-//! claim rather than to claim: where it stands, which claims it holds, to
-//! cancel one, or to reprocess one. Shapes follow the NRCeS NHCX IG 6.5.0
-//! examples (`TaskBundleForSearchRequest`, `TaskBundleForReprocessRequest`);
-//! the status Task is INFERRED from the same pattern with the HL7
-//! `financialtaskcode#status` code, as the IG ships no status example.
+//! claim rather than to claim: which claims it holds, to cancel one, or to
+//! reprocess one. Shapes follow the NRCeS NHCX IG 6.5.0 examples
+//! (`TaskBundleForSearchRequest`, `TaskBundleForReprocessRequest`). A status
+//! enquiry is no Task: `/v1/status` carries an empty sealed payload, and its
+//! correlation id names the message asked about (docs.abdm.gov.in).
 
 use chrono::{NaiveDate, Utc};
 use serde_json::{Value, json};
@@ -17,12 +17,8 @@ use medbrains_fhir::mapper::HFR_SYSTEM;
 
 /// What the Task asks.
 pub(crate) enum TaskAsk<'a> {
-    /// Where a claim (`is_preauth = false`) or pre-authorisation stands.
-    Status {
-        focus: Uuid,
-        number: &'a str,
-        is_preauth: bool,
-    },
+    /// Where the message sent under api call `checks` stands.
+    Status { checks: Uuid },
     /// The payer's claims in a date range, optionally one claim number.
     Search {
         from: NaiveDate,
@@ -107,27 +103,11 @@ const fn shape_of(
     }
 }
 
-fn shape(ask: &TaskAsk<'_>) -> Shape {
+/// The Task's shape; `None` for a status enquiry, which sends no Task.
+fn shape(ask: &TaskAsk<'_>) -> Option<Shape> {
     let focus = |id: &Uuid| Some(json!({ "reference": format!("Claim/{id}") }));
-    match ask {
-        TaskAsk::Status {
-            focus: id,
-            number,
-            is_preauth,
-        } => {
-            let input_code = if *is_preauth {
-                "initimationNumber"
-            } else {
-                "claimNumber"
-            };
-            shape_of(
-                (FINANCIAL_TASK_CODE_SYSTEM, "status"),
-                format!("Status of claim {number}"),
-                focus(id),
-                vec![text_input(input_code, number)],
-                None,
-            )
-        }
+    Some(match ask {
+        TaskAsk::Status { .. } => return None,
         TaskAsk::Search {
             from,
             to,
@@ -175,22 +155,25 @@ fn shape(ask: &TaskAsk<'_>) -> Shape {
                 Some(reason),
             )
         }
-    }
+    })
 }
 
 /// The `TaskBundle`: the Task, then the hospital (requester) and the payer
-/// (owner).
+/// (owner). A status enquiry's payload is empty.
 pub(crate) fn task_bundle(ask: &TaskAsk<'_>, parties: &TaskParties<'_>) -> Value {
-    let (task_id, hospital, payer) = (Uuid::new_v4(), Uuid::new_v4(), Uuid::new_v4());
-    let now = Utc::now().to_rfc3339();
-    let Shape {
+    let Some(Shape {
         system,
         code,
         description,
         focus,
         inputs,
         reason,
-    } = shape(ask);
+    }) = shape(ask)
+    else {
+        return json!({});
+    };
+    let (task_id, hospital, payer) = (Uuid::new_v4(), Uuid::new_v4(), Uuid::new_v4());
+    let now = medbrains_core::nhcx_wire::ist_timestamp(Utc::now());
     let hospital_ids: Vec<Value> = parties
         .hfr_id
         .iter()

@@ -26,7 +26,7 @@ const COLUMNS: &str = "a.id, a.notice_id, n.sender_code, p.participant_name AS p
      n.payment_reference, n.payment_date, n.received_at, a.claim_reference, a.insurance_claim_id, \
      c.claim_number, a.gross_amount, a.tds_amount, a.net_amount, a.approved_amount, a.is_mismatch, \
      a.status, a.posted_at, a.bank_transaction_id IS NOT NULL AS bank_matched, \
-     n.nhcx_status AS ack_status";
+     n.nhcx_status AS ack_status, n.nhcx_workflow_id AS stage";
 const FROM: &str = "FROM nhcx_payment_allocations a \
      JOIN nhcx_payment_notices n ON n.id = a.notice_id AND n.tenant_id = a.tenant_id \
      LEFT JOIN insurance_claims c ON c.id = a.insurance_claim_id AND c.tenant_id = a.tenant_id \
@@ -56,13 +56,16 @@ pub struct NhcxPayment {
     /// The claim's approved amount when posted.
     pub approved_amount: Option<Decimal>,
     pub is_mismatch: bool,
-    /// `posted` or `unmatched`.
+    /// `posted`, `unmatched`, or `advice` — a notice that carries no money
+    /// to post (initiated, processed, or a repeat of a settled one).
     pub status: String,
     pub posted_at: Option<DateTime<Utc>>,
     /// Whether the bank statement's credit has been matched to it.
     pub bank_matched: bool,
     /// Whether the acknowledgement reached the payer.
     pub ack_status: Option<String>,
+    /// The payer's step code: `30` initiated, `31` processed, `33` settled.
+    pub stage: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]

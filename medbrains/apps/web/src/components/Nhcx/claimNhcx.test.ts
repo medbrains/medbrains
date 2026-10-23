@@ -53,9 +53,17 @@ describe("taskAnswer and paymentFlag", () => {
   });
 
   it("flags an unmatched payment before a mismatched one", () => {
-    const p = { status: "unmatched", is_mismatch: true } as NhcxPayment;
+    const p = { status: "unmatched", is_mismatch: true, stage: "33" } as NhcxPayment;
     expect(paymentFlag(p).label).toBe("No claim matched");
     expect(paymentFlag({ ...p, status: "posted" }).tone).toBe("warning");
     expect(paymentFlag({ ...p, status: "posted", is_mismatch: false }).tone).toBe("success");
+  });
+
+  it("never presents an initiated or processed notice as money", () => {
+    const p = { status: "advice", is_mismatch: false, stage: "30" } as NhcxPayment;
+    expect(paymentFlag(p)).toEqual({ label: "Payment initiated — not paid yet", tone: "info" });
+    expect(paymentFlag({ ...p, stage: "31" }).label).toBe("Payment processed — not settled yet");
+    const unstated = { ...p, status: "unmatched", stage: null } as NhcxPayment;
+    expect(paymentFlag(unstated).tone).toBe("warning");
   });
 });

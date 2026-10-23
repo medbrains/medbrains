@@ -1,5 +1,6 @@
 // Medication timing (structured administration instructions) types — split from index.ts, barrel-re-exported.
 import type { DiagnosisCodingSystem, Gender, PharmacyRxStatus, Prescription } from "./index";
+import type { NhcxDecision } from "./nhcx";
 
 // ── Medication Timing (structured instructions) ──────────────
 export type FoodTiming = "before_food" | "with_food" | "after_food" | "empty_stomach" | "any";
@@ -1240,9 +1241,12 @@ export interface InsuranceClaim {
   nhcx_recipient_code: string | null;
   nhcx_response_payload: unknown | null;
   nhcx_response_at: string | null;
+  /** The step code last sent (`15` a claim, `12` a pre-auth). */
   nhcx_workflow_id: string | null;
-  /** `queued` → `sent` | `send_failed`, then the payer's `x-hcx-status`. */
+  /** `queued` → `sent` | `send_failed` | `undelivered`, then the payer's `x-hcx-status`. */
   nhcx_status: string | null;
+  /** What the payer decided. */
+  nhcx_decision: NhcxDecision | null;
   /** Why the gateway refused the message, when it did. */
   nhcx_disposition: string | null;
   /** The payer's FHIR outcome: `complete`, `partial`, `error` or `queued`. */

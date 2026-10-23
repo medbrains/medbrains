@@ -7,6 +7,7 @@
 //! payer's encrypted callback.
 
 use std::collections::HashMap;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
@@ -68,32 +69,32 @@ pub fn self_signed_cert(pair: &KeyPair) -> String {
     String::from_utf8(cert.build().to_pem().expect("pem")).expect("utf8")
 }
 
-/// What the stand-in gateway received: (path, Authorization, body).
-pub type Received = Arc<Mutex<Vec<(String, Option<String>, Value)>>>;
+/// What the stand-in gateway received: (path, HTTP headers, body).
+pub type Received = Arc<Mutex<Vec<(String, HeaderMap, Value)>>>;
 
 pub async fn spawn_mock_gateway(received: Received) -> String {
+    spawn_mock_gateway_with(received, Arc::default()).await
+}
+
+/// The stand-in gateway; while `down` is set it records the call and
+/// answers 503, as a gateway that took the message but timed out would.
+pub async fn spawn_mock_gateway_with(received: Received, down: Arc<AtomicBool>) -> String {
     let app = Router::new()
         .route(
             "/sessions",
             post(|| async { Json(json!({ "accessToken": "mock-session", "expiresIn": 600 })) }),
         )
         .route(
-            "/hcx/v1/{resource}/{action}",
+            "/hcx/v1/{*path}",
             post(
-                move |Path((resource, action)): Path<(String, String)>,
-                      headers: HeaderMap,
-                      Json(body): Json<Value>| {
+                move |Path(path): Path<String>, headers: HeaderMap, Json(body): Json<Value>| {
                     let received = Arc::clone(&received);
+                    let down = Arc::clone(&down);
                     async move {
-                        let auth = headers
-                            .get("authorization")
-                            .and_then(|v| v.to_str().ok())
-                            .map(str::to_owned);
-                        received.lock().expect("lock").push((
-                            format!("{resource}/{action}"),
-                            auth,
-                            body,
-                        ));
+                        received.lock().expect("lock").push((path, headers, body));
+                        if down.load(Ordering::SeqCst) {
+                            return (StatusCode::SERVICE_UNAVAILABLE, Json(json!({})));
+                        }
                         (StatusCode::ACCEPTED, Json(json!({ "timestamp": "now" })))
                     }
                 },
@@ -176,8 +177,35 @@ pub struct Nhcx {
     pub hospital_code: String,
     pub payer_code: String,
     pub received: Received,
+    /// While set, the mock gateway answers 503.
+    pub gateway_down: Arc<AtomicBool>,
     pub mock: String,
     pub rendered: Rendered,
+}
+
+/// One delivery from the gateway, as [`Nhcx::deliver`] sends it.
+pub struct Delivery<'a> {
+    pub path: &'a str,
+    pub correlation_id: &'a str,
+    pub api_call_id: Uuid,
+    /// `x-hcx-workflow_id`; `None` leaves it out.
+    pub workflow: Option<&'a str>,
+    /// `x-hcx-status`; `None` leaves it out.
+    pub status: Option<&'a str>,
+    pub answer: &'a Value,
+}
+
+impl<'a> Delivery<'a> {
+    pub fn new(path: &'a str, correlation_id: &'a str, answer: &'a Value) -> Self {
+        Self {
+            path,
+            correlation_id,
+            api_call_id: Uuid::new_v4(),
+            workflow: None,
+            status: Some("response.complete"),
+            answer,
+        }
+    }
 }
 
 impl Nhcx {
@@ -188,6 +216,26 @@ impl Nhcx {
     /// Run the queued outbox event of `operation` for `correlation_id`
     /// exactly as the worker would, and return what the gateway got.
     pub async fn send(&self, operation: NhcxOperation, correlation_id: &str) -> (String, Value) {
+        self.send_attempt(operation, correlation_id, 1)
+            .await
+            .expect("handler sends");
+        let (path, _, body) = self
+            .received
+            .lock()
+            .expect("lock")
+            .last()
+            .cloned()
+            .expect("a POST");
+        (path, body)
+    }
+
+    /// Run the queued event as the worker's `attempt`-th try.
+    pub async fn send_attempt(
+        &self,
+        operation: NhcxOperation,
+        correlation_id: &str,
+        attempt: i32,
+    ) -> Result<Value, medbrains_outbox::HandlerError> {
         let (event_id, payload): (Uuid, Value) = sqlx::query_as(
             "SELECT id, payload FROM outbox_events \
              WHERE event_type = $1 AND payload->>'correlation_id' = $2 \
@@ -204,25 +252,19 @@ impl Nhcx {
             event_id,
             event_type: operation.event_type().to_owned(),
             actor_user_id: None,
-            attempts: 0,
+            attempts: attempt,
             secret_resolver: Arc::new(self.secrets()),
             http_client: reqwest::Client::new(),
             object_store: Arc::new(medbrains_core::object_store::LocalFsObjectStore::new(
                 std::env::temp_dir().join("medbrains-test-docs"),
             )),
         };
-        NhcxHandler::new(operation)
-            .handle(&ctx, &payload)
-            .await
-            .expect("handler sends");
-        let (path, _, body) = self
-            .received
-            .lock()
-            .expect("lock")
-            .last()
-            .cloned()
-            .expect("a POST");
-        (path, body)
+        NhcxHandler::new(operation).handle(&ctx, &payload).await
+    }
+
+    /// A gateway JWT with the claims NHCX's carries: `iss` = `sub`, `jti`.
+    pub fn gateway_jwt(&self) -> String {
+        gateway_jwt(&self.gateway)
     }
 
     /// Open what the payer received: its protected headers and plaintext.
@@ -239,6 +281,36 @@ impl Nhcx {
             .await
     }
 
+    /// Deliver a payer's message; returns the HTTP status and the receipt.
+    pub async fn deliver(&self, d: &Delivery<'_>) -> (StatusCode, Value) {
+        let mut routing = Map::new();
+        routing.insert("x-hcx-sender_code".into(), json!(self.payer_code));
+        routing.insert("x-hcx-recipient_code".into(), json!(self.hospital_code));
+        routing.insert("x-hcx-correlation_id".into(), json!(d.correlation_id));
+        routing.insert("x-hcx-api_call_id".into(), json!(d.api_call_id));
+        if let Some(status) = d.status {
+            routing.insert("x-hcx-status".into(), json!(status));
+        }
+        if let Some(workflow) = d.workflow {
+            routing.insert("x-hcx-workflow_id".into(), json!(workflow));
+        }
+        let reply =
+            medbrains_crypto::jwe::encrypt_hcx(d.answer, &routing, self.hospital_cert.as_bytes())
+                .expect("encrypt reply");
+        let resp = reqwest::Client::new()
+            .post(
+                self.app
+                    .url(&format!("/api/integrations/nhcx/hcx/v1/{}", d.path)),
+            )
+            .bearer_auth(self.gateway_jwt())
+            .json(&json!({ "payload": reply }))
+            .send()
+            .await
+            .expect("callback");
+        let status = resp.status();
+        (status, resp.json().await.unwrap_or(Value::Null))
+    }
+
     /// As [`Self::callback`], with the payer's api call id — a retried
     /// delivery repeats it.
     pub async fn callback_with(
@@ -248,33 +320,22 @@ impl Nhcx {
         api_call_id: Uuid,
         answer: &Value,
     ) -> StatusCode {
-        let mut routing = Map::new();
-        routing.insert("x-hcx-sender_code".into(), json!(self.payer_code));
-        routing.insert("x-hcx-recipient_code".into(), json!(self.hospital_code));
-        routing.insert("x-hcx-correlation_id".into(), json!(correlation_id));
-        routing.insert("x-hcx-api_call_id".into(), json!(api_call_id));
-        routing.insert("x-hcx-status".into(), json!("response.complete"));
-        let reply =
-            medbrains_crypto::jwe::encrypt_hcx(answer, &routing, self.hospital_cert.as_bytes())
-                .expect("encrypt reply");
-        let jwt = medbrains_crypto::jws::sign_rs256(
-            Map::new(),
-            Duration::from_secs(300),
-            self.gateway.private_pem.as_bytes(),
-        )
-        .expect("gateway jwt");
-        reqwest::Client::new()
-            .post(
-                self.app
-                    .url(&format!("/api/integrations/nhcx/hcx/v1/{path}")),
-            )
-            .bearer_auth(jwt)
-            .json(&json!({ "payload": reply }))
-            .send()
-            .await
-            .expect("callback")
-            .status()
+        let d = Delivery {
+            api_call_id,
+            ..Delivery::new(path, correlation_id, answer)
+        };
+        self.deliver(&d).await.0
     }
+}
+
+/// A token signed by `key` with the claims NHCX's gateway token carries.
+pub fn gateway_jwt(key: &KeyPair) -> String {
+    let mut claims = Map::new();
+    claims.insert("iss".into(), json!("nhcx-gateway"));
+    claims.insert("sub".into(), json!("nhcx-gateway"));
+    claims.insert("jti".into(), json!(Uuid::new_v4()));
+    medbrains_crypto::jws::sign_rs256(claims, Duration::from_secs(300), key.private_pem.as_bytes())
+        .expect("gateway jwt")
 }
 
 fn secrets_for(mock: &str) -> common::TestSecrets {
@@ -297,7 +358,8 @@ pub async fn onboard_with(pdf: Pdf) -> Nhcx {
     let payer = key_pair();
     let gateway = key_pair();
     let received: Received = Arc::default();
-    let mock = spawn_mock_gateway(Arc::clone(&received)).await;
+    let gateway_down: Arc<AtomicBool> = Arc::default();
+    let mock = spawn_mock_gateway_with(Arc::clone(&received), Arc::clone(&gateway_down)).await;
     let rendered: Rendered = Arc::default();
     let gotenberg = spawn_mock_gotenberg(pdf, Arc::clone(&rendered)).await;
     let app =
@@ -359,6 +421,7 @@ pub async fn onboard_with(pdf: Pdf) -> Nhcx {
         hospital_code,
         payer_code,
         received,
+        gateway_down,
         mock,
         rendered,
     }

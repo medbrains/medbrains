@@ -11,6 +11,7 @@ use sqlx::FromRow;
 use uuid::Uuid;
 
 use medbrains_core::nhcx::{NhcxOperation, NhcxRecord, PreauthSla, preauth_sla};
+use medbrains_core::nhcx_wire::preauth_workflow_code;
 use medbrains_core::permissions;
 use medbrains_server_core::error::AppError;
 use medbrains_server_core::middleware::auth::Claims;
@@ -177,12 +178,15 @@ pub async fn submit_preauth_to_nhcx(
     nhcx_common::require_payer_certificate(&mut tx, claims.tenant_id, recipient).await?;
     let bundle = build(&mut tx, claims.tenant_id, &pa, recipient).await?;
 
-    let (correlation_id, api_call_id) = (Uuid::new_v4(), Uuid::new_v4());
+    // A request's correlation id is its own api call id.
+    let api_call_id = Uuid::new_v4();
+    let correlation_id = api_call_id;
+    let workflow_id = preauth_workflow_code(stage, pa.status == "denied");
     // A new request starts a new IRDAI clock; the old decision stays in the
     // status log.
-    let workflow_id: Uuid = sqlx::query_scalar(
+    sqlx::query_scalar::<_, Uuid>(
         "UPDATE prior_auth_requests SET nhcx_correlation_id = $1, nhcx_api_call_id = $2, \
-                nhcx_workflow_id = COALESCE(nhcx_workflow_id, $3), nhcx_recipient_code = $4, \
+                nhcx_workflow_id = $3, nhcx_recipient_code = $4, nhcx_decision = NULL, \
                 nhcx_status = 'queued', nhcx_disposition = NULL, nhcx_response_payload = NULL, \
                 nhcx_response_at = NULL, nhcx_submitted_at = NULL, request_stage = $5, \
                 status = CASE WHEN status = 'draft' THEN 'submitted'::prior_auth_status \
@@ -191,11 +195,11 @@ pub async fn submit_preauth_to_nhcx(
          WHERE id = $7 AND tenant_id = $8 \
            AND NOT (nhcx_status IS NOT DISTINCT FROM 'queued' \
                     AND updated_at > now() - interval '15 minutes') \
-         RETURNING nhcx_workflow_id",
+         RETURNING id",
     )
     .bind(correlation_id)
     .bind(api_call_id)
-    .bind(Uuid::new_v4())
+    .bind(workflow_id)
     .bind(recipient)
     .bind(stage)
     .bind(claims.sub)
@@ -227,9 +231,8 @@ pub async fn submit_preauth_to_nhcx(
         recipient,
         correlation_id,
         api_call_id,
-        workflow_id,
+        workflow_id: Some(workflow_id),
         payload: &bundle,
-        hcx_status: None,
     };
     let queued = nhcx_common::queue(&mut tx, &claims, &msg).await?;
     tx.commit().await?;
@@ -266,6 +269,7 @@ struct ViewRow {
     request_stage: String,
     status: String,
     nhcx_status: Option<String>,
+    nhcx_decision: Option<String>,
     nhcx_recipient_code: Option<String>,
     nhcx_correlation_id: Option<Uuid>,
     nhcx_disposition: Option<String>,
@@ -293,6 +297,8 @@ pub struct PreauthNhcxView {
     pub request_stage: String,
     pub status: String,
     pub nhcx_status: Option<String>,
+    /// What the payer decided (`received`, `approved`, `queried`, …).
+    pub nhcx_decision: Option<String>,
     pub nhcx_recipient_code: Option<String>,
     pub nhcx_correlation_id: Option<Uuid>,
     pub nhcx_disposition: Option<String>,
@@ -368,7 +374,8 @@ pub async fn get_preauth_nhcx(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
     let v = sqlx::query_as::<_, ViewRow>(
-        "SELECT request_stage, status::text AS status, nhcx_status, nhcx_recipient_code, \
+        "SELECT request_stage, status::text AS status, nhcx_status, nhcx_decision, \
+                nhcx_recipient_code, \
                 nhcx_correlation_id, nhcx_disposition, estimated_cost, approved_amount, \
                 auth_number, submitted_at, nhcx_submitted_at, responded_at, patient_id \
          FROM prior_auth_requests WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL",
@@ -412,6 +419,7 @@ pub async fn get_preauth_nhcx(
         request_stage: v.request_stage,
         status: v.status,
         nhcx_status: v.nhcx_status,
+        nhcx_decision: v.nhcx_decision,
         nhcx_recipient_code: v.nhcx_recipient_code,
         nhcx_correlation_id: v.nhcx_correlation_id,
         nhcx_disposition: v.nhcx_disposition,

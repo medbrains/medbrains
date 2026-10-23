@@ -80,20 +80,18 @@ pub enum NhcxOperation {
     PaymentAck,
 }
 
-// Paths below `/hcx/v1`. VERIFIED against the NHCX sandbox: the first three.
-// INFERRED from HCX protocol v0.7.1 (`hcx/status`, `hcx/search`,
-// `paymentnotice/on_request`, `communication/on_request`) and, for cancel and
-// reprocess, from the NRCeS IG's Task bundles, which name no API — each is
-// its own constant so a sandbox run that disagrees changes one line.
+// Paths below the gateway host (docs.abdm.gov.in, NHCX endpoints): a
+// status enquiry is `/v1/status` — an empty sealed payload whose
+// correlation id is the checked message's api_call_id; the cancel and
+// reprocess Tasks go to `/v1/task/submit`, a search to `/v1/search/submit`.
 pub const PATH_ELIGIBILITY: &str = "/hcx/v1/coverageeligibility/check";
 pub const PATH_PREAUTH: &str = "/hcx/v1/preauth/submit";
 pub const PATH_CLAIM: &str = "/hcx/v1/claim/submit";
 pub const PATH_COMMUNICATION: &str = "/hcx/v1/communication/on_request";
-pub const PATH_STATUS: &str = "/hcx/v1/hcx/status";
-pub const PATH_SEARCH: &str = "/hcx/v1/hcx/search";
-pub const PATH_CANCEL: &str = "/hcx/v1/claim/cancel";
-pub const PATH_REPROCESS: &str = "/hcx/v1/claim/reprocess";
 pub const PATH_PAYMENT_ACK: &str = "/hcx/v1/paymentnotice/on_request";
+pub const PATH_STATUS: &str = "/hcx/v1/status";
+pub const PATH_TASK: &str = "/hcx/v1/task/submit";
+pub const PATH_SEARCH: &str = "/hcx/v1/search/submit";
 
 impl NhcxOperation {
     /// Outbox `event_type` that carries this operation.
@@ -120,11 +118,51 @@ impl NhcxOperation {
             Self::Preauth => PATH_PREAUTH,
             Self::Claim => PATH_CLAIM,
             Self::Communication => PATH_COMMUNICATION,
-            Self::Status => PATH_STATUS,
-            Self::Search => PATH_SEARCH,
-            Self::Cancel => PATH_CANCEL,
-            Self::Reprocess => PATH_REPROCESS,
             Self::PaymentAck => PATH_PAYMENT_ACK,
+            Self::Status => PATH_STATUS,
+            Self::Cancel | Self::Reprocess => PATH_TASK,
+            Self::Search => PATH_SEARCH,
+        }
+    }
+
+    /// An answer to the payer's own request (`on_*` paths), as opposed to a
+    /// request the hospital starts.
+    #[must_use]
+    pub const fn is_reply(self) -> bool {
+        matches!(self, Self::Communication | Self::PaymentAck)
+    }
+
+    /// Whether a retry keeps the correlation id: a reply echoes the payer's,
+    /// and a status enquiry names the message it asks about.
+    #[must_use]
+    pub const fn keeps_correlation(self) -> bool {
+        self.is_reply() || matches!(self, Self::Status)
+    }
+
+    /// `x-hcx-status`: every send to a request path is `request.initiated`
+    /// (NHCX refuses anything else there with `NHCX-1011`); only an `on_*`
+    /// reply is `response.complete`.
+    #[must_use]
+    pub const fn hcx_status(self) -> &'static str {
+        if self.is_reply() {
+            "response.complete"
+        } else {
+            "request.initiated"
+        }
+    }
+
+    /// The step code this operation always travels under, where it has one
+    /// regardless of the case (NHA Workflow Status Sheet): a claim 15, a
+    /// cancellation PC01, a reprocess 36. A pre-auth's code depends on its
+    /// stage ([`crate::nhcx_wire::preauth_workflow_code`]); a reply echoes
+    /// the payer's; eligibility, status and search have none.
+    #[must_use]
+    pub const fn fixed_workflow_code(self) -> Option<&'static str> {
+        match self {
+            Self::Claim => Some("15"),
+            Self::Cancel => Some("PC01"),
+            Self::Reprocess => Some("36"),
+            _ => None,
         }
     }
 }

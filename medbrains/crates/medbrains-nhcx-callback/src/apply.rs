@@ -11,7 +11,7 @@ use uuid::Uuid;
 use medbrains_server_core::error::AppError;
 
 use crate::apply_claim::{claim, task};
-use crate::parse;
+use crate::parse::{self, Decision};
 
 pub(crate) type Tx<'a> = sqlx::Transaction<'a, sqlx::Postgres>;
 /// The record a callback landed on: `(table, id)`.
@@ -21,7 +21,8 @@ pub(crate) type Matched = Option<(&'static str, Uuid)>;
 pub(crate) struct Inbound<'a> {
     pub(crate) tenant_id: Uuid,
     pub(crate) correlation_id: Uuid,
-    pub(crate) workflow_id: Option<Uuid>,
+    /// `x-hcx-workflow_id`: the step code ("21", "24", "33").
+    pub(crate) workflow_id: Option<&'a str>,
     pub(crate) api_call_id: Option<Uuid>,
     pub(crate) sender: &'a str,
     /// `x-hcx-status`.
@@ -46,14 +47,13 @@ pub(crate) async fn apply(
         ("claim", "on_submit") => match claim(tx, m).await? {
             Some(found) => Ok(Some(found)),
             // A reprocessed claim's new decision may come as an on_submit.
-            None => task(tx, m, "reprocess").await,
+            None => task(tx, m).await,
         },
         ("communication", "request") => payer_query(tx, m).await,
-        ("hcx", "on_status") => task(tx, m, "status").await,
-        ("hcx", "on_search") => task(tx, m, "search").await,
-        ("claim", "on_cancel") => task(tx, m, "cancel").await,
-        ("claim", "on_reprocess") => task(tx, m, "reprocess").await,
+        // Every Task's answer — status, search, cancel, reprocess.
+        ("task" | "search", "on_submit") | ("", "on_status") => task(tx, m).await,
         ("paymentnotice", "request") => crate::payments::receive(tx, m).await,
+        ("", "error") => undelivered(tx, m).await,
         _ => Ok(None),
     }
 }
@@ -154,20 +154,46 @@ pub(crate) async fn preauth_by_id(
     decide(tx, m, found).await
 }
 
+/// `prior_auth_requests.status` for a decision; `None` leaves it. A
+/// decided request (approved, denied, cancelled) moves only on another
+/// decision — a late acknowledgement or an enhancement query never reopens
+/// it.
+fn preauth_status(decision: Decision, current: &str) -> Option<&'static str> {
+    let to = match decision {
+        Decision::Received => "in_review",
+        Decision::Approved => "approved",
+        Decision::PartiallyApproved => "partially_approved",
+        Decision::Rejected => "denied",
+        Decision::Queried => "pending_info",
+        Decision::Cancelled => "cancelled",
+        Decision::Error | Decision::Unknown => return None,
+    };
+    let is_decided = matches!(
+        current,
+        "approved" | "partially_approved" | "denied" | "cancelled"
+    );
+    if current == "cancelled" || (is_decided && !decision.is_final()) || to == current {
+        return None;
+    }
+    Some(to)
+}
+
+/// `nhcx_decision`: the latest answer, except that an acknowledgement
+/// arriving after a decision does not hide it.
+pub(crate) const DECISION_SQL: &str = "CASE WHEN $D = 'received' AND nhcx_decision IN \
+     ('approved', 'partially_approved', 'rejected', 'cancelled') THEN nhcx_decision ELSE $D END";
+
 async fn decide(
     tx: &mut Tx<'_>,
     m: &Inbound<'_>,
     (id, current, requested): (Uuid, String, Option<Decimal>),
 ) -> Result<Matched, AppError> {
-    let outcome = parse::outcome(m.response);
-    let approved = parse::approved_amount(m.response);
-    // A cancelled request stays cancelled whatever the payer says later.
-    let decision = (current != "cancelled")
-        .then(|| parse::preauth_decision(outcome.as_deref(), approved, requested))
-        .flatten()
-        .filter(|d| *d != current);
+    let decision = parse::decision(m.response, m.workflow_id, m.status, requested);
+    let to = preauth_status(decision, &current);
+    // A query's benefit total is not an approval; only an approval's is.
+    let approved = parse::approved_amount(m.response).filter(|_| decision.is_approval());
     let disposition = parse::disposition(m.response).or_else(|| parse::protocol_error(m.response));
-    sqlx::query(
+    let sql = format!(
         "UPDATE prior_auth_requests SET nhcx_response_payload = $1, nhcx_response_at = now(), \
                 nhcx_status = $2, nhcx_disposition = COALESCE($3, nhcx_disposition), \
                 status = COALESCE($4::prior_auth_status, status), \
@@ -175,20 +201,24 @@ async fn decide(
                 auth_number = COALESCE($6, auth_number), \
                 denial_reason = CASE WHEN $4 = 'denied' THEN $3 ELSE denial_reason END, \
                 responded_at = CASE WHEN $4 IN ('approved', 'partially_approved', 'denied') \
-                                    THEN now() ELSE responded_at END \
+                                    THEN now() ELSE responded_at END, \
+                nhcx_decision = {} \
          WHERE id = $7 AND tenant_id = $8",
-    )
-    .bind(m.response)
-    .bind(m.status)
-    .bind(&disposition)
-    .bind(decision)
-    .bind(approved)
-    .bind(parse::pre_auth_ref(m.response))
-    .bind(id)
-    .bind(m.tenant_id)
-    .execute(&mut **tx)
-    .await?;
-    if let Some(to) = decision {
+        DECISION_SQL.replace("$D", "$9")
+    );
+    sqlx::query(&sql)
+        .bind(m.response)
+        .bind(m.status)
+        .bind(&disposition)
+        .bind(to)
+        .bind(approved)
+        .bind(parse::pre_auth_ref(m.response))
+        .bind(id)
+        .bind(m.tenant_id)
+        .bind(decision.as_str())
+        .execute(&mut **tx)
+        .await?;
+    if let Some(to) = to {
         log_status(
             tx,
             m,
@@ -201,6 +231,60 @@ async fn decide(
     Ok(Some(("prior_auth_requests", id)))
 }
 
+/// The correlation id the record carries for one a retry went out under;
+/// any other id is its own.
+pub(crate) async fn canonical_correlation(
+    tx: &mut Tx<'_>,
+    tenant_id: Uuid,
+    sent: Uuid,
+) -> Result<Uuid, AppError> {
+    let canonical: Option<Uuid> = sqlx::query_scalar(
+        "SELECT canonical_correlation_id FROM nhcx_correlation_aliases \
+          WHERE tenant_id = $1 AND correlation_id = $2 AND deleted_at IS NULL",
+    )
+    .bind(tenant_id)
+    .bind(sent)
+    .fetch_optional(&mut **tx)
+    .await?;
+    Ok(canonical.unwrap_or(sent))
+}
+
+/// The records an outbound message may belong to — where `/v1/error`
+/// marks the one NHCX could not deliver.
+const SENT_FROM: [&str; 6] = [
+    "insurance_claims",
+    "prior_auth_requests",
+    "insurance_verifications",
+    "nhcx_tasks",
+    "nhcx_payer_queries",
+    "nhcx_payment_notices",
+];
+
+/// `/v1/error`: NHCX gave up delivering a message after five tries and
+/// retired its correlation. The record it names is `undelivered`, so the
+/// desk does not wait for an answer that will not come.
+async fn undelivered(tx: &mut Tx<'_>, m: &Inbound<'_>) -> Result<Matched, AppError> {
+    let reason = parse::protocol_error(m.response)
+        .unwrap_or_else(|| "NHCX could not deliver it to the payer".to_owned());
+    for table in SENT_FROM {
+        // The table name is one of the constants above.
+        let sql = format!(
+            "UPDATE {table} SET nhcx_status = 'undelivered', nhcx_disposition = $1 \
+              WHERE tenant_id = $2 AND nhcx_correlation_id = $3 RETURNING id"
+        );
+        let id: Option<Uuid> = sqlx::query_scalar(&sql)
+            .bind(&reason)
+            .bind(m.tenant_id)
+            .bind(m.correlation_id)
+            .fetch_optional(&mut **tx)
+            .await?;
+        if let Some(id) = id {
+            return Ok(Some((table, id)));
+        }
+    }
+    Ok(None)
+}
+
 /// The pre-authorisation (else the claim) a payer query is about: the
 /// request with this correlation id, or one in the same workflow.
 async fn query_subject(
@@ -210,13 +294,12 @@ async fn query_subject(
     let pa: Option<Uuid> = sqlx::query_scalar(
         "SELECT id FROM prior_auth_requests \
          WHERE tenant_id = $1 AND nhcx_recipient_code = $2 AND deleted_at IS NULL \
-           AND (nhcx_correlation_id = $3 OR ($4::uuid IS NOT NULL AND nhcx_workflow_id = $4)) \
-         ORDER BY (nhcx_correlation_id = $3) DESC, created_at DESC LIMIT 1",
+           AND nhcx_correlation_id = $3 \
+         ORDER BY created_at DESC LIMIT 1",
     )
     .bind(m.tenant_id)
     .bind(m.sender)
     .bind(m.correlation_id)
-    .bind(m.workflow_id)
     .fetch_optional(&mut **tx)
     .await?;
     if pa.is_some() {
@@ -225,13 +308,12 @@ async fn query_subject(
     let claim: Option<Uuid> = sqlx::query_scalar(
         "SELECT id FROM insurance_claims \
          WHERE tenant_id = $1 AND nhcx_recipient_code = $2 AND deleted_at IS NULL \
-           AND (nhcx_correlation_id = $3 OR ($4::uuid IS NOT NULL AND nhcx_workflow_id = $4)) \
-         ORDER BY (nhcx_correlation_id = $3) DESC, created_at DESC LIMIT 1",
+           AND nhcx_correlation_id = $3 \
+         ORDER BY created_at DESC LIMIT 1",
     )
     .bind(m.tenant_id)
     .bind(m.sender)
     .bind(m.correlation_id)
-    .bind(m.workflow_id)
     .fetch_optional(&mut **tx)
     .await?;
     Ok(claim.map(|c| (None, Some(c))))
