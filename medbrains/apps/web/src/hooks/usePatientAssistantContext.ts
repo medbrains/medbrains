@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { useAiAssistantStore } from "@/components/ai";
+import { useAiAssistantStore } from "@/components/ai/assistant-store";
 
 /**
  * Makes the app-wide crab assistant patient-aware while a patient screen is

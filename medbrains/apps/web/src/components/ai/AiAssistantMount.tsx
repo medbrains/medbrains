@@ -2,11 +2,10 @@ import { Group, Menu, Tooltip, UnstyledButton } from "@mantine/core";
 import { api } from "@medbrains/api";
 import { IconHistory, IconMaximize, IconPlus } from "@tabler/icons-react";
 import { useQuery } from "@tanstack/react-query";
-import { useEffect, useMemo } from "react";
+import { lazy, Suspense, useEffect, useMemo, useRef } from "react";
 import { useLocation, useNavigate } from "react-router";
 import { IconButton, Modal } from "@/components/ui";
 import { useWhispers } from "@/hooks/useWhispers";
-import { AiChatPanel } from "./AiChatPanel";
 import styles from "./ai-assistant-mount.module.scss";
 import { useAiAssistantStore } from "./assistant-store";
 import { CrabMascot } from "./CrabMascot";
@@ -14,6 +13,11 @@ import { SseTransport } from "./transport/sse";
 import type { ChatRole } from "./transport/types";
 import { useAiChat } from "./useAiChat";
 import { useDraggableFab } from "./useDraggableFab";
+
+// The panel pulls in lottie-web, react-markdown and highlight.js. The mount
+// lives in the app shell, so a static import put all three in the entry chunk
+// for every user; load the panel the first time the assistant opens instead.
+const AiChatPanel = lazy(() => import("./AiChatPanel").then((m) => ({ default: m.AiChatPanel })));
 
 // ai-label-exempt: mounts AiChatPanel, which carries the label; history titles are the user's own question.
 const DEFAULT_SUGGESTIONS = [
@@ -119,6 +123,10 @@ export function AiAssistantMount({ suggestions = DEFAULT_SUGGESTIONS }: AiAssist
     </Group>
   );
 
+  // Once opened, the panel stays mounted (keepMounted) so a half-typed prompt survives closing.
+  const hasOpened = useRef(false);
+  if (isOpen) hasOpened.current = true;
+
   const fab = useDraggableFab(toggle);
   useWhispers();
 
@@ -155,12 +163,16 @@ export function AiAssistantMount({ suggestions = DEFAULT_SUGGESTIONS }: AiAssist
         overlayProps={{ backgroundOpacity: 0.15 }}
         classNames={{ body: styles.drawerBody }}
       >
-        <AiChatPanel
-          controller={controller}
-          context={context}
-          suggestions={suggestions}
-          headerAction={headerAction}
-        />
+        {hasOpened.current && (
+          <Suspense fallback={null}>
+            <AiChatPanel
+              controller={controller}
+              context={context}
+              suggestions={suggestions}
+              headerAction={headerAction}
+            />
+          </Suspense>
+        )}
       </Modal>
     </>
   );

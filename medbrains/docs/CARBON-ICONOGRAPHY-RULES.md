@@ -9,7 +9,7 @@ legible, and accessible. Pairs with `docs/UI_GUIDELINES.md` + the WCAG rules.
 
 - **One icon family, used consistently** — `@tabler/icons-react` is the app
   standard (Carbon-aligned line style). Don't mix tabler + lucide + ad-hoc SVG in
-  the same surface. (`lucide-react` exists in a few legacy spots; new code = tabler.)
+  the same surface. (`lucide-react` was removed 2026-10-23; tabler only.)
 - **Never inline raw `<svg>`/`<path>`** in TSX (project hard rule). Tabler
   component, or a committed `.svg` in `assets/` imported via `?react`.
 - **No letter-abbreviation "icons"** as the primary mark in navigation — use a
