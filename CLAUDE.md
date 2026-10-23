@@ -45,9 +45,9 @@ All RFCs live in `RFCs/` at the project root.
 
 | Layer | Technology |
 |-------|------------|
-| Language | Rust (edition 2024, MSRV 1.85) |
+| Language | Rust (edition 2024, MSRV 1.95; toolchain pinned 1.99.0) |
 | Web framework | Axum 0.8 + Tower 0.5 |
-| Async runtime | Tokio (full features) |
+| Async runtime | Tokio 1.54.1+ (full features; 1.54.0 is yanked and denied) |
 | Serialization | serde + serde_json |
 | Error handling | thiserror (library crates), anyhow (application edges) |
 | Logging | tracing + tracing-subscriber (structured, JSON) |
@@ -77,15 +77,15 @@ All RFCs live in `RFCs/` at the project root.
 
 | Layer | Technology |
 |-------|------------|
-| Framework | React 18 + TypeScript |
-| Bundler | Vite |
-| UI library | **Mantine v7** |
+| Framework | React 19 + TypeScript 7 |
+| Bundler | Vite 8 |
+| UI library | **Mantine 9** |
 | Styling | **SCSS** (no Tailwind, no CSS-in-JS) |
-| Routing | React Router v7 |
-| Server state | TanStack Query v5 |
-| Client state | Zustand |
-| Forms | React Hook Form + Zod |
-| Linting | **Biome** (lint + format) |
+| Routing | React Router 8 |
+| Server state | TanStack Query 5 |
+| Client state | Zustand 5 |
+| Forms | React Hook Form 7 + Zod 4 |
+| Linting | **Biome 2** (lint + format) |
 | Fonts | **Inter Tight** (UI), **Fraunces** (display/editorial), **JetBrains Mono** (code/metadata) |
 
 ### Mobile
@@ -120,13 +120,13 @@ The codebase is being aligned to the APPROVED RFC. Known divergences:
 
 | Current | RFC Target | Status |
 |---------|------------|--------|
-| React Router v7 | React Router v7 | Aligned |
-| Mantine v7 + SCSS | Mantine v7 + SCSS | Aligned |
+| React Router 8 | React Router v7 | Aligned (newer major) |
+| Mantine 9 + SCSS | Mantine v7 + SCSS | Aligned (newer major) |
 | Biome | Biome | Aligned |
-| pnpm | pnpm | Aligned |
-| Zustand | Zustand | Aligned |
-| TanStack Query v5 | TanStack Query v5 | Aligned |
-| Axum 0.8 + SQLx | Axum 0.8 + SQLx | Aligned |
+| pnpm 10 | pnpm | Aligned |
+| Zustand 5 | Zustand | Aligned |
+| TanStack Query 5 | TanStack Query v5 | Aligned |
+| Axum 0.8 + SQLx 0.8 | Axum 0.8 + SQLx | Aligned |
 
 ---
 
@@ -205,7 +205,7 @@ medbrains/
 │   ├── medbrains-db/             # PostgreSQL via SQLx, migrations, audit
 │   └── medbrains-server/         # Axum HTTP server, routes, middleware
 ├── apps/
-│   ├── web/                      # React 18 + Mantine v7 + SCSS
+│   ├── web/                      # React 19 + Mantine 9 + SCSS
 │   ├── ios/                      # SwiftUI apps: MedBrainsStaff / Patient / Camp / Vendor + Core/Kit/UI packages
 │   ├── android/                  # Compose apps: app-staff / patient / camp / vendor / tv + core/kit/ui modules
 │   ├── mobile-*/, tv/            # React Native (outgoing — deleted per app at parity)
@@ -223,7 +223,7 @@ medbrains/
 
 ### Rust
 
-- **Edition 2024**, minimum Rust version **1.85**
+- **Edition 2024**, minimum Rust version **1.95** (workspace `rust-version`; toolchain pinned to 1.99.0)
 - `unsafe` code is **forbidden**
 - **Strict clippy** — `clippy::all` denied, `clippy::pedantic` + `clippy::nursery` warned
 - The following are **denied** (will not compile):
@@ -299,7 +299,7 @@ on the way out, and a `-9` leaves a lock that blocks the next run with a
 - **Light and dark themes (decided 2026-09-26)** — the app defaults to dark with a header switcher. Both themes must meet WCAG 2.2 AA contrast; colour comes only from theme tokens (`packages/design-system/src/theme`), each defined for both schemes. `e2e/accessibility/theme-contrast.spec.ts` must pass in both.
 - Strict TypeScript (`strict: true`)
 - **Biome** for linting and formatting (`biome check`, `biome format`)
-- Mantine v7 components — do not use raw HTML elements when a Mantine component exists
+- Mantine 9 components — do not use raw HTML elements when a Mantine component exists
 - SCSS modules for custom styling
 - All API calls through TanStack Query — no raw `fetch` in components
 - Zod schemas for runtime validation of API responses
