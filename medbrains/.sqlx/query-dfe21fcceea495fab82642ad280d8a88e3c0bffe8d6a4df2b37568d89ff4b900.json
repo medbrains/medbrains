@@ -1,26 +1,26 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT id, tenant_id, username, email, password_hash, full_name, role::text AS \"role!\", is_active, perm_version FROM users WHERE username = $1 AND is_service_account = false AND ($2::uuid IS NULL OR tenant_id = $2) LIMIT 2",
+  "query": "SELECT id AS \"id!\", tenant_id AS \"tenant_id!\", username AS \"username!\", email AS \"email!\", password_hash, full_name AS \"full_name!\", role AS \"role!\", is_active AS \"is_active!\", perm_version AS \"perm_version!\" FROM app_login_accounts($1, $2)",
   "describe": {
     "columns": [
       {
         "ordinal": 0,
-        "name": "id",
+        "name": "id!",
         "type_info": "Uuid"
       },
       {
         "ordinal": 1,
-        "name": "tenant_id",
+        "name": "tenant_id!",
         "type_info": "Uuid"
       },
       {
         "ordinal": 2,
-        "name": "username",
+        "name": "username!",
         "type_info": "Text"
       },
       {
         "ordinal": 3,
-        "name": "email",
+        "name": "email!",
         "type_info": "Text"
       },
       {
@@ -30,7 +30,7 @@
       },
       {
         "ordinal": 5,
-        "name": "full_name",
+        "name": "full_name!",
         "type_info": "Text"
       },
       {
@@ -40,12 +40,12 @@
       },
       {
         "ordinal": 7,
-        "name": "is_active",
+        "name": "is_active!",
         "type_info": "Bool"
       },
       {
         "ordinal": 8,
-        "name": "perm_version",
+        "name": "perm_version!",
         "type_info": "Int4"
       }
     ],
@@ -56,16 +56,16 @@
       ]
     },
     "nullable": [
-      false,
-      false,
-      false,
-      false,
-      true,
-      false,
       null,
-      false,
-      false
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null
     ]
   },
-  "hash": "516e735e947ed33ac70d0d5b2c63cd5ed22a16e1f484133d77ac3668f152a107"
+  "hash": "dfe21fcceea495fab82642ad280d8a88e3c0bffe8d6a4df2b37568d89ff4b900"
 }

@@ -202,6 +202,7 @@ mod queue_wait_estimate_test;
 mod radiology_catalogue_seed_test;
 mod radiology_tat_report_test;
 mod readmission_report_test;
+mod rls_gap_tables_test;
 mod rx_safety_gate_test;
 mod sample_rejection_report_test;
 mod scoped_list_filters_test;

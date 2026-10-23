@@ -97,7 +97,7 @@ pub async fn require_admission_billing_access(
         admission_id,
         claims.tenant_id,
     )
-    .fetch_optional(&state.db)
+    .fetch_optional(&mut *medbrains_db::pool::tenant_conn(&state.db, &claims.tenant_id).await?)
     .await?
     .ok_or(AppError::NotFound)?;
     require_patient_billing_access(state, claims, patient_id).await
@@ -504,7 +504,7 @@ pub async fn require_access_via_optional(
     let row: Option<Option<Uuid>> = sqlx::query_scalar(&sql)
         .bind(child_id)
         .bind(claims.tenant_id)
-        .fetch_optional(&state.db)
+        .fetch_optional(&mut *medbrains_db::pool::tenant_conn(&state.db, &claims.tenant_id).await?)
         .await?;
 
     match row {
@@ -556,7 +556,9 @@ pub async fn require_access_via(
         let parent_id: Option<Uuid> = sqlx::query_scalar(&sql)
             .bind(id)
             .bind(claims.tenant_id)
-            .fetch_optional(&state.db)
+            .fetch_optional(
+                &mut *medbrains_db::pool::tenant_conn(&state.db, &claims.tenant_id).await?,
+            )
             .await?
             .flatten();
 
@@ -883,7 +885,7 @@ pub async fn grant_admission_care_team(
         ward_id,
         claims.tenant_id,
     )
-    .fetch_optional(&state.db)
+    .fetch_optional(&mut *medbrains_db::pool::tenant_conn(&state.db, &claims.tenant_id).await?)
     .await
     .ok()
     .flatten()
