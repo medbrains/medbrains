@@ -31,6 +31,7 @@ No sign-off, no merge — the CI checks for it.
 See the [Quickstart](./README.md#quickstart). In short:
 
 ```bash
+git submodule update --init                # r8r automation engine (pinned commit)
 cd medbrains
 docker compose up -d                       # PostgreSQL 16
 make dev-backend                           # Axum on :8080 (migrations auto-apply)
