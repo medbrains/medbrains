@@ -31,8 +31,8 @@ tracing-subscriber = { workspace = true }
 
 anyhow = { workspace = true }
 
-# Peer-to-peer transport. iroh is pinned in medbrains-edge; see the note there.
-iroh = "0.92"
+# Peer-to-peer transport. Same major as medbrains-edge; see the note there.
+iroh = "1.4.1"
 getrandom = { version = "0.3", features = ["std"] }
 reqwest = { workspace = true }
 

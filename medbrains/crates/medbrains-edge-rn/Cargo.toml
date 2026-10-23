@@ -65,8 +65,8 @@ uuid = { workspace = true }
 
 # Peer-to-peer sync identity. `iroh-base` only — the key types, none of
 # the QUIC stack, because a device generates and shows its node id long
-# before it dials anything. Pinned with iroh; see medbrains-edge.
-iroh-base = "0.92"
+# before it dials anything. Same major as iroh in medbrains-edge.
+iroh-base = { version = "1.4.1", default-features = false, features = ["key"] }
 hex = { workspace = true }
 getrandom = { version = "0.3", features = ["std"] }
 
