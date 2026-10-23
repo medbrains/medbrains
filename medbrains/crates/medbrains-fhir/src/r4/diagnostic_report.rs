@@ -57,7 +57,8 @@ const SECTION_SYSTEM: &str = "http://terminology.hl7.org/CodeSystem/v2-0074";
 const LOINC_SYSTEM: &str = "http://loinc.org";
 
 /// A LOINC code is digits, a dash and a check digit (`2345-7`).
-fn is_loinc(code: &str) -> bool {
+#[must_use]
+pub fn is_loinc(code: &str) -> bool {
     code.split_once('-').is_some_and(|(num, check)| {
         !num.is_empty()
             && num.chars().all(|c| c.is_ascii_digit())

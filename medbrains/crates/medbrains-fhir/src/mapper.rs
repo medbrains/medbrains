@@ -9,6 +9,7 @@ use chrono::{DateTime, NaiveDate, Utc};
 use crate::r4::claim::{Claim, ClaimDiagnosis, ClaimInsurance, ClaimItem, Money};
 use crate::r4::coding::{CodeableConcept, Coding};
 use crate::r4::coverage::Coverage;
+use crate::r4::diagnostic_report::is_loinc;
 use crate::r4::encounter::{Encounter, EncounterParticipant, Period};
 use crate::r4::identifier::Identifier;
 use crate::r4::observation::{Observation, Quantity};
@@ -228,13 +229,9 @@ pub struct ObservationView {
 }
 
 pub fn observation_to_fhir(o: &ObservationView) -> Observation {
-    let code_system = if o.code.chars().any(char::is_alphabetic) {
-        // Heuristic: LOINC codes are numeric-with-dashes (e.g. 8480-6).
-        // Anything alphabetic is internal — drop the system.
-        None
-    } else {
-        Some(LOINC_SYSTEM.to_owned())
-    };
+    // Only a LOINC-shaped code (`8480-6`) is labelled LOINC; an internal
+    // code, all-digit or not, goes out without a system.
+    let code_system = is_loinc(&o.code).then(|| LOINC_SYSTEM.to_owned());
 
     let code = CodeableConcept {
         coding: vec![Coding {

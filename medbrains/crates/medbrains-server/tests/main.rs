@@ -31,6 +31,7 @@ mod abdm_hfr_hpr_test;
 mod abdm_m2_hip_test;
 mod abdm_m3_hiu_gaps_test;
 mod abdm_m3_hiu_test;
+mod abdm_nrces_bundles_test;
 mod abdm_mock_flow_test;
 mod abdm_relay_scope_test;
 mod abdm_scan_share_link_test;

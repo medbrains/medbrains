@@ -1,0 +1,475 @@
+{
+ "compositions": {
+  "DiagnosticReportRecord": {
+   "entry_max": "2",
+   "entry_min": 1,
+   "entry_slices": [
+    {
+     "max": "1",
+     "type": "DiagnosticReport"
+    },
+    {
+     "max": "1",
+     "type": "DocumentReference"
+    }
+   ],
+   "required": [
+    "status",
+    "type",
+    "subject",
+    "date",
+    "author",
+    "title",
+    "section"
+   ],
+   "section_code": null,
+   "section_max": "1",
+   "section_rules": null,
+   "section_system": "http://snomed.info/sct",
+   "slices": [],
+   "type_code": null,
+   "version": "6.5.0"
+  },
+  "DischargeSummaryRecord": {
+   "entry_slices": [],
+   "required": [
+    "status",
+    "type",
+    "subject",
+    "encounter",
+    "date",
+    "author",
+    "title",
+    "section"
+   ],
+   "section_max": "*",
+   "section_rules": "openAtEnd",
+   "slices": [
+    {
+     "code": "422843007",
+     "display": "Chief complaint section",
+     "entry_types": [
+      "Condition"
+     ],
+     "max": "1",
+     "name": "ChiefComplaints"
+    },
+    {
+     "code": "425044008",
+     "display": "Physical exam section",
+     "entry_types": [
+      "Observation"
+     ],
+     "max": "1",
+     "name": "PhysicalExamination"
+    },
+    {
+     "code": "722446000",
+     "display": "Allergy record",
+     "entry_types": [
+      "AllergyIntolerance"
+     ],
+     "max": "1",
+     "name": "Allergies"
+    },
+    {
+     "code": "1003642006",
+     "display": "Past medical history section",
+     "entry_types": [
+      "Condition",
+      "Procedure"
+     ],
+     "max": "1",
+     "name": "MedicalHistory"
+    },
+    {
+     "code": "422432008",
+     "display": "Family history section",
+     "entry_types": [
+      "FamilyMemberHistory"
+     ],
+     "max": "1",
+     "name": "FamilyHistory"
+    },
+    {
+     "code": "721981007",
+     "display": "Diagnostic studies report",
+     "entry_types": [
+      "DiagnosticReportImaging",
+      "DiagnosticReportLab"
+     ],
+     "max": "1",
+     "name": "Investigations"
+    },
+    {
+     "code": "1003606003",
+     "display": "Medication history section",
+     "entry_types": [
+      "MedicationRequest"
+     ],
+     "max": "1",
+     "name": "Medications"
+    },
+    {
+     "code": "1003640003",
+     "display": "History of past procedure section",
+     "entry_types": [
+      "Procedure"
+     ],
+     "max": "1",
+     "name": "Procedures"
+    },
+    {
+     "code": "734163000",
+     "display": "Care plan",
+     "entry_types": [
+      "CarePlan"
+     ],
+     "max": "1",
+     "name": "CarePlan"
+    },
+    {
+     "code": "373942005",
+     "display": "Discharge summary",
+     "entry_types": [
+      "DocumentReference"
+     ],
+     "max": "1",
+     "name": "DocumentReference"
+    }
+   ],
+   "type_code": "373942005",
+   "version": "6.5.0"
+  },
+  "OPConsultRecord": {
+   "entry_slices": [],
+   "required": [
+    "status",
+    "type",
+    "subject",
+    "encounter",
+    "date",
+    "author",
+    "title",
+    "section"
+   ],
+   "section_max": "*",
+   "section_rules": "openAtEnd",
+   "slices": [
+    {
+     "code": "422843007",
+     "display": "Chief complaint section",
+     "entry_types": [
+      "Condition"
+     ],
+     "max": "1",
+     "name": "ChiefComplaints"
+    },
+    {
+     "code": "425044008",
+     "display": "Physical exam section",
+     "entry_types": [
+      "Observation"
+     ],
+     "max": "1",
+     "name": "PhysicalExamination"
+    },
+    {
+     "code": "722446000",
+     "display": "Allergy record",
+     "entry_types": [
+      "AllergyIntolerance"
+     ],
+     "max": "1",
+     "name": "Allergies"
+    },
+    {
+     "code": "371529009",
+     "display": "History and physical report",
+     "entry_types": [
+      "Condition",
+      "Procedure"
+     ],
+     "max": "1",
+     "name": "MedicalHistory"
+    },
+    {
+     "code": "422432008",
+     "display": "Family history section",
+     "entry_types": [
+      "FamilyMemberHistory"
+     ],
+     "max": "1",
+     "name": "FamilyHistory"
+    },
+    {
+     "code": "721963009",
+     "display": "Order document",
+     "entry_types": [
+      "ServiceRequest"
+     ],
+     "max": "1",
+     "name": "InvestigationAdvice"
+    },
+    {
+     "code": "721912009",
+     "display": "Medication summary document",
+     "entry_types": [
+      "MedicationRequest",
+      "MedicationStatement"
+     ],
+     "max": "1",
+     "name": "Medications"
+    },
+    {
+     "code": "390906007",
+     "display": "Follow-up encounter",
+     "entry_types": [
+      "Appointment"
+     ],
+     "max": "1",
+     "name": "FollowUp"
+    },
+    {
+     "code": "371525003",
+     "display": "Clinical procedure report",
+     "entry_types": [
+      "Procedure"
+     ],
+     "max": "1",
+     "name": "Procedure"
+    },
+    {
+     "code": "306206005",
+     "display": "Referral to service",
+     "entry_types": [
+      "ServiceRequest"
+     ],
+     "max": "1",
+     "name": "Referral"
+    },
+    {
+     "code": "404684003",
+     "display": "Clinical finding",
+     "entry_types": [
+      "Observation"
+     ],
+     "max": "1",
+     "name": "OtherObservations"
+    },
+    {
+     "code": "371530004",
+     "display": "Clinical consultation report",
+     "entry_types": [
+      "DocumentReference"
+     ],
+     "max": "1",
+     "name": "DocumentReference"
+    }
+   ],
+   "type_code": "371530004",
+   "version": "6.5.0"
+  },
+  "PrescriptionRecord": {
+   "entry_max": "*",
+   "entry_min": 1,
+   "entry_slices": [
+    {
+     "max": "*",
+     "type": "MedicationRequest"
+    },
+    {
+     "max": "1",
+     "type": "Binary"
+    }
+   ],
+   "required": [
+    "status",
+    "type",
+    "subject",
+    "date",
+    "author",
+    "title",
+    "section"
+   ],
+   "section_code": "440545006",
+   "section_max": "1",
+   "section_rules": null,
+   "section_system": "http://snomed.info/sct",
+   "slices": [],
+   "type_code": "440545006",
+   "version": "6.5.0"
+  }
+ },
+ "resources": {
+  "Condition": {
+   "codings": [
+    {
+     "closed_systems": [
+      "http://hl7.org/fhir/sid/icd-10",
+      "http://snomed.info/sct"
+     ],
+     "path": "code"
+    },
+    {
+     "path": "code",
+     "requires": [
+      "code",
+      "display"
+     ],
+     "system": "http://hl7.org/fhir/sid/icd-10"
+    },
+    {
+     "path": "code",
+     "requires": [
+      "code",
+      "display"
+     ],
+     "system": "http://snomed.info/sct"
+    }
+   ],
+   "identifier_requires": [],
+   "required": [
+    "code",
+    "subject"
+   ],
+   "type": "Condition"
+  },
+  "DiagnosticReportLab": {
+   "codings": [
+    {
+     "only_system": "http://snomed.info/sct",
+     "path": "category"
+    },
+    {
+     "only_system": "http://loinc.org",
+     "path": "code"
+    },
+    {
+     "only_system": "http://snomed.info/sct",
+     "path": "conclusionCode"
+    }
+   ],
+   "identifier_requires": [],
+   "required": [
+    "status",
+    "code",
+    "resultsInterpreter",
+    "result",
+    "conclusion"
+   ],
+   "type": "DiagnosticReport"
+  },
+  "Encounter": {
+   "codings": [
+    {
+     "only_system": "http://snomed.info/sct",
+     "path": "reasonCode"
+    }
+   ],
+   "identifier_requires": [],
+   "required": [
+    "status",
+    "class"
+   ],
+   "type": "Encounter"
+  },
+  "MedicationRequest": {
+   "codings": [
+    {
+     "only_system": "http://snomed.info/sct",
+     "path": "medication[x]"
+    },
+    {
+     "only_system": "http://snomed.info/sct",
+     "path": "reasonCode"
+    }
+   ],
+   "identifier_requires": [],
+   "required": [
+    "status",
+    "intent",
+    "medication[x]",
+    "subject",
+    "authoredOn",
+    "requester",
+    "dosageInstruction"
+   ],
+   "type": "MedicationRequest"
+  },
+  "Observation": {
+   "codings": [
+    {
+     "closed_systems": [
+      "http://loinc.org",
+      "http://snomed.info/sct"
+     ],
+     "path": "code"
+    },
+    {
+     "path": "code",
+     "requires": [
+      "code",
+      "display"
+     ],
+     "system": "http://loinc.org"
+    },
+    {
+     "path": "code",
+     "requires": [
+      "code",
+      "display"
+     ],
+     "system": "http://snomed.info/sct"
+    }
+   ],
+   "identifier_requires": [],
+   "required": [
+    "status",
+    "code"
+   ],
+   "type": "Observation"
+  },
+  "Organization": {
+   "codings": [
+    {
+     "only_system": "http://terminology.hl7.org/CodeSystem/organization-type",
+     "path": "type"
+    }
+   ],
+   "identifier_requires": [
+    "type",
+    "system",
+    "value"
+   ],
+   "required": [
+    "identifier",
+    "name"
+   ],
+   "type": "Organization"
+  },
+  "Patient": {
+   "codings": [],
+   "identifier_requires": [
+    "type",
+    "value"
+   ],
+   "required": [
+    "identifier"
+   ],
+   "type": "Patient"
+  },
+  "Practitioner": {
+   "codings": [],
+   "identifier_requires": [
+    "type",
+    "value"
+   ],
+   "required": [
+    "identifier"
+   ],
+   "type": "Practitioner"
+  }
+ },
+ "source": "ndhm.in#6.5.0 package (sha256 41fa99955adbd1983a235d7c7136b30f423ce34ff541d86b354d95b7704527d4), extracted by scripts/nrces_profile_fixture.py"
+}
