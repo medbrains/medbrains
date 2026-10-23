@@ -34,10 +34,10 @@ impl InMemoryBackend {
         if t.caveat.is_some() {
             return false;
         }
-        if let Some(exp) = t.expires_at {
-            if exp <= chrono::Utc::now() {
-                return false;
-            }
+        if let Some(exp) = t.expires_at
+            && exp <= chrono::Utc::now()
+        {
+            return false;
         }
         if !target_relations.contains(&t.relation.as_str()) {
             return false;

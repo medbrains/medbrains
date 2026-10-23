@@ -146,6 +146,15 @@ async fn list_filters_to_only_granted_resources() {
         "not_granted leaked into list"
     );
 
+    // One CheckBulkPermissions round trip agrees with the per-item checks.
+    let items = vec![
+        ("patient".to_owned(), Relation::Viewer, granted_a),
+        ("patient".to_owned(), Relation::Viewer, not_granted),
+    ];
+    let verdicts = backend.bulk_check(&ctx, &items).await.expect("bulk_check");
+    assert_eq!(verdicts.get(&items[0]), Some(&true), "granted_a allowed in bulk");
+    assert_eq!(verdicts.get(&items[1]), Some(&false), "not_granted refused in bulk");
+
     // Cleanup so this test is idempotent.
     for p in [granted_a, granted_b] {
         backend

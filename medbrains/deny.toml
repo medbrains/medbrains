@@ -64,6 +64,10 @@ deny = [
     # RUSTSEC-2026-0384 (yanked): Interval races the timer thread on the
     # multi-thread runtime -> use-after-free. Fixed in 1.54.1.
     { name = "tokio", version = "=1.54.0" },
+    # Unofficial single-maintainer SpiceDB client. The authz path uses
+    # medbrains-spicedb-proto, generated from the official authzed/api protos.
+    { name = "spicedb-rs-client" },
+    { name = "spicedb-rs-proto" },
 ]
 
 # Skip certain crates from duplicate detection
