@@ -2333,6 +2333,18 @@ pub mod specialty {
         pub mod mhrb {
             pub const MANAGE: &str = "specialty.psychiatry.mhrb.manage";
         }
+        pub mod restricted {
+            /// Open restricted mental-health records.
+            ///
+            /// A psychiatric record marked restricted is visible to its
+            /// treating psychiatrist, to someone in an active break-glass
+            /// session for that patient that names psychiatry, and to holders
+            /// of this permission. The same rule withholds mental-health
+            /// diagnoses from the patient timeline, diagnosis lists, prints
+            /// and the assistant. Mental Healthcare Act 2017 s.23 — grant it
+            /// to named roles only, never to every doctor.
+            pub const VIEW: &str = "specialty.psychiatry.restricted.view";
+        }
     }
 
     /// Long-term and post-acute care — nursing-home residents, skilled

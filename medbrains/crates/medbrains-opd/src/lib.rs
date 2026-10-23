@@ -2117,24 +2117,32 @@ fn filter_diagnosis_response(
     row
 }
 
+/// Strip a diagnosis to its existence: what a withheld entry may still say.
+fn tombstone_patient_diagnosis(row: &mut PatientDiagnosisRow, label: &str) {
+    row.icd_code = None;
+    row.icd_display = None;
+    row.icd_source_url = None;
+    row.icd_source_version = None;
+    row.icd_provider_mode = None;
+    label.clone_into(&mut row.description);
+    row.notes = None;
+    row.severity = None;
+    row.certainty = None;
+    row.onset_date = None;
+    row.resolved_date = None;
+    row.snomed_code = None;
+    row.snomed_display = None;
+}
+
 fn filter_patient_diagnosis_response(
     mut row: PatientDiagnosisRow,
     restricted: &HashMap<String, FieldAccessLevel>,
 ) -> PatientDiagnosisRow {
-    if should_hide_opd_diagnosis(restricted) {
-        row.icd_code = None;
-        row.icd_display = None;
-        row.icd_source_url = None;
-        row.icd_source_version = None;
-        row.icd_provider_mode = None;
-        row.description = "Restricted diagnosis".to_owned();
-        row.notes = None;
-        row.severity = None;
-        row.certainty = None;
-        row.onset_date = None;
-        row.resolved_date = None;
-        row.snomed_code = None;
-        row.snomed_display = None;
+    // Mental-health content first: its class decides, whatever the role says.
+    if row.withheld {
+        tombstone_patient_diagnosis(&mut row, medbrains_authz_gate::mental_health::TOMBSTONE_LABEL);
+    } else if should_hide_opd_diagnosis(restricted) {
+        tombstone_patient_diagnosis(&mut row, "Restricted diagnosis");
     } else if should_mask_opd_diagnosis(restricted) {
         row.icd_code = None;
         row.icd_display = row.icd_display.map(|value| mask_free_text(&value));
@@ -3603,6 +3611,9 @@ pub struct PatientDiagnosisRow {
     pub recorded_by_name: Option<String>,
     pub updated_by_name: Option<String>,
     pub updated_at: Option<DateTime<Utc>>,
+    /// Mental-health content this viewer may not see (MHCA 2017 s.23) —
+    /// served as a tombstone.
+    pub withheld: bool,
 }
 
 pub async fn list_patient_diagnoses(
@@ -3616,6 +3627,7 @@ pub async fn list_patient_diagnoses(
     // do, not which patients they may do it to.
     medbrains_authz_gate::require_patient_access(&state, &claims, patient_id).await?;
     require_permission(&claims, permissions::patients::VIEW)?;
+    let viewer = medbrains_authz_gate::mental_health::MentalHealthViewer::of(&claims);
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -3628,7 +3640,9 @@ pub async fn list_patient_diagnoses(
          e.encounter_date, \
          u.full_name AS doctor_name, \
          d.created_at, \
-         ru.full_name AS recorded_by_name, uu.full_name AS updated_by_name, d.updated_at \
+         ru.full_name AS recorded_by_name, uu.full_name AS updated_by_name, d.updated_at, \
+         public.mental_health_diagnosis_withheld(d.icd_system, d.icd_code, d.recorded_by, \
+             e.patient_id, $3, $4) AS withheld \
          FROM diagnoses d \
          JOIN encounters e ON d.encounter_id = e.id \
          LEFT JOIN users u ON e.doctor_id = u.id \
@@ -3640,6 +3654,8 @@ pub async fn list_patient_diagnoses(
     )
     .bind(patient_id)
     .bind(claims.tenant_id)
+    .bind(viewer.user_id)
+    .bind(viewer.can_all)
     .fetch_all(&mut *tx)
     .await?;
 

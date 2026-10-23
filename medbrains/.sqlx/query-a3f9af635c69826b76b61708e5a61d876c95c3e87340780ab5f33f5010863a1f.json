@@ -1,0 +1,37 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT pp.patient_id,\n                  (pp.is_restricted AND public.mental_health_withheld(pp.patient_id, $3, $4))\n                    AS \"withheld!\",\n                  (pp.is_restricted AND NOT $4\n                     AND pp.treating_psychiatrist_id IS DISTINCT FROM $3\n                     AND public.mental_health_break_glass_active(pp.patient_id, $3))\n                    AS \"via_break_glass!\"\n             FROM psych_patients pp\n            WHERE pp.id = $1 AND pp.tenant_id = $2 AND pp.deleted_at IS NULL",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "patient_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "withheld!",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 2,
+        "name": "via_break_glass!",
+        "type_info": "Bool"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Uuid",
+        "Bool"
+      ]
+    },
+    "nullable": [
+      false,
+      null,
+      null
+    ]
+  },
+  "hash": "a3f9af635c69826b76b61708e5a61d876c95c3e87340780ab5f33f5010863a1f"
+}

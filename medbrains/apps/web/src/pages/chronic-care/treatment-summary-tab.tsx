@@ -6,6 +6,7 @@ import type { TreatmentSummaryResponse } from "@medbrains/types";
 import { IconPrinter } from "@tabler/icons-react";
 import { useQuery } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
+import { RestrictedEntry } from "@/components/Patient/RestrictedEntry";
 import { Badge, Button } from "@/components/ui";
 import { chronicCareService } from "@/services/chronicCare.service";
 import { STATUS_COLORS } from "./shared";
@@ -60,12 +61,20 @@ export function TreatmentSummaryTab() {
       </Group>
 
       {isLoading && <Text c="dimmed">Loading summary...</Text>}
-      {summary && <TreatmentSummaryView summary={summary} />}
+      {summary && selectedPatient && (
+        <TreatmentSummaryView summary={summary} patientId={selectedPatient} />
+      )}
     </Stack>
   );
 }
 
-function TreatmentSummaryView({ summary }: { summary: TreatmentSummaryResponse }) {
+function TreatmentSummaryView({
+  summary,
+  patientId,
+}: {
+  summary: TreatmentSummaryResponse;
+  patientId: string;
+}) {
   return (
     <Stack gap="md" className="print-area">
       {/* Patient Demographics */}
@@ -98,8 +107,12 @@ function TreatmentSummaryView({ summary }: { summary: TreatmentSummaryResponse }
           </Text>
           <Stack gap={4}>
             {summary.active_diagnoses.map((d) => (
-              <Group key={`${d.diagnosis_name}-${d.icd_code ?? "uncoded"}`} gap="xs">
-                <Text size="sm">{d.diagnosis_name}</Text>
+              <Group key={d.id} gap="xs">
+                {d.withheld ? (
+                  <RestrictedEntry patientId={patientId} compact />
+                ) : (
+                  <Text size="sm">{d.diagnosis_name}</Text>
+                )}
                 {d.icd_code && (
                   <Badge tone="neutral" variant="light" size="xs">
                     {d.icd_code}

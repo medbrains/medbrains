@@ -31,6 +31,7 @@ import { fieldAccessText } from "@medbrains/utils";
 import { IconCircleCheck, IconPlus, IconRotateClockwise, IconTrash } from "@tabler/icons-react";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
+import { RestrictedEntry } from "@/components/Patient/RestrictedEntry";
 import {
   terminologySourceLabel,
   terminologySystemLabel,
@@ -44,6 +45,8 @@ interface DiagnosisPanelProps {
   encounterId: string;
   diagnoses: Diagnosis[];
   patientDiagnoses?: PatientDiagnosisRow[];
+  /** Needed to offer emergency access on a withheld (tombstoned) entry. */
+  patientId?: string;
   canCreate: boolean;
   canUpdate: boolean;
   canDelete: boolean;
@@ -140,6 +143,7 @@ export function DiagnosisPanel({
   encounterId,
   diagnoses,
   patientDiagnoses = [],
+  patientId,
   canCreate,
   canUpdate,
   canDelete,
@@ -521,9 +525,13 @@ export function DiagnosisPanel({
               return (
                 <Timeline.Item key={diagnosis.id} color={status.color}>
                   <Group gap={6} mb={2}>
-                    <Text size="sm" fw={600}>
-                      {diagnosisText(diagnosis.description)}
-                    </Text>
+                    {diagnosis.withheld && patientId ? (
+                      <RestrictedEntry patientId={patientId} compact />
+                    ) : (
+                      <Text size="sm" fw={600}>
+                        {diagnosisText(diagnosis.description)}
+                      </Text>
+                    )}
                     <Badge size="xs" color={status.color} variant="light">
                       {status.label}
                     </Badge>

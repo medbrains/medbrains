@@ -59,6 +59,8 @@ export interface PatientTimelineEvent {
   title: string;
   subtitle: string | null;
   ref_id: string;
+  /** Mental-health content this user may not see — render a tombstone. */
+  withheld: boolean;
 }
 
 export interface ErBay {

@@ -393,9 +393,12 @@ pub struct TreatmentSummaryResponse {
 
 #[derive(Debug, Clone, Serialize, sqlx::FromRow)]
 pub struct DiagnosisSummary {
+    pub id: Uuid,
     pub diagnosis_name: String,
     pub icd_code: Option<String>,
     pub diagnosed_date: Option<NaiveDate>,
+    /// Mental-health content this viewer may not see — tombstoned.
+    pub withheld: bool,
 }
 
 #[derive(Debug, Clone, Serialize, sqlx::FromRow)]
@@ -1636,6 +1639,7 @@ pub async fn treatment_summary(
     // as being on this patient's care team.
     medbrains_authz_gate::require_patient_access(&state, &claims, patient_id)
         .await?;
+    let viewer = medbrains_authz_gate::mental_health::MentalHealthViewer::of(&claims);
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -1651,17 +1655,31 @@ pub async fn treatment_summary(
 
     // Active diagnoses
     let diagnoses = sqlx::query_as::<_, DiagnosisSummary>(
-        "SELECT d.description AS diagnosis_name, d.icd_code, \
-         COALESCE(d.onset_date, d.created_at::date) AS diagnosed_date \
+        "SELECT d.id, d.description AS diagnosis_name, d.icd_code, \
+         COALESCE(d.onset_date, d.created_at::date) AS diagnosed_date, \
+         public.mental_health_diagnosis_withheld(d.icd_system, d.icd_code, d.recorded_by, \
+             e.patient_id, $3, $4) AS withheld \
          FROM diagnoses d \
          JOIN encounters e ON e.id = d.encounter_id AND e.tenant_id = d.tenant_id \
          WHERE e.patient_id = $1 AND d.tenant_id = $2 AND d.resolved_date IS NULL \
+           AND d.deleted_at IS NULL \
          ORDER BY diagnosed_date DESC NULLS LAST, d.created_at DESC LIMIT 5000",
     )
     .bind(patient_id)
     .bind(claims.tenant_id)
+    .bind(viewer.user_id)
+    .bind(viewer.can_all)
     .fetch_all(&mut *tx)
     .await?;
+    let diagnoses = medbrains_authz_gate::mental_health::withhold(
+        diagnoses,
+        |d| d.withheld,
+        |d| {
+            medbrains_authz_gate::mental_health::TOMBSTONE_LABEL.clone_into(&mut d.diagnosis_name);
+            d.icd_code = None;
+            d.diagnosed_date = None;
+        },
+    );
 
     // Current medications
     let meds = sqlx::query_as::<_, ActiveDrugRow>(

@@ -17,7 +17,7 @@ export interface PermissionDef {
   module: string;
 }
 
-/** 1133 permissions, one per constant in the Rust source. */
+/** 1134 permissions, one per constant in the Rust source. */
 export const PERMISSIONS: PermissionDef[] = [
   // dashboard
   {
@@ -4271,6 +4271,12 @@ export const PERMISSIONS: PermissionDef[] = [
     code: "specialty.psychiatry.mhrb.manage",
     label: "Manage MHRB",
     description: "Manage Mental Health Review Board notifications",
+    module: "specialty",
+  },
+  {
+    code: "specialty.psychiatry.restricted.view",
+    label: "Open restricted mental-health records",
+    description: "A psychiatric record marked restricted is visible to its treating psychiatrist, to someone in an active break-glass session for that patient that names psychiatry, and to holders of this permission. The same rule withholds mental-health diagnoses from the patient timeline, diagnosis lists, prints and the assistant. Mental Healthcare Act 2017 s.23 — grant it to named roles only, never to every doctor.",
     module: "specialty",
   },
   {
@@ -10195,6 +10201,10 @@ export const P = {
       },
       RESTRAINT_LIST: "specialty.psychiatry.restraint.list",
       RESTRAINT_MANAGE: "specialty.psychiatry.restraint.manage",
+      RESTRICTED: {
+        VIEW: "specialty.psychiatry.restricted.view",
+      },
+      RESTRICTED_VIEW: "specialty.psychiatry.restricted.view",
     },
     PSYCHIATRY_ASSESSMENTS_CREATE: "specialty.psychiatry.assessments.create",
     PSYCHIATRY_ASSESSMENTS_LIST: "specialty.psychiatry.assessments.list",
@@ -10206,6 +10216,7 @@ export const P = {
     PSYCHIATRY_PATIENTS_UPDATE: "specialty.psychiatry.patients.update",
     PSYCHIATRY_RESTRAINT_LIST: "specialty.psychiatry.restraint.list",
     PSYCHIATRY_RESTRAINT_MANAGE: "specialty.psychiatry.restraint.manage",
+    PSYCHIATRY_RESTRICTED_VIEW: "specialty.psychiatry.restricted.view",
   },
   STORAGE: {
     POLICIES: {
