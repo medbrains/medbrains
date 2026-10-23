@@ -91,7 +91,7 @@ impl Subscription {
         let sealed = self.signing_private_key_sealed.as_deref().ok_or_else(|| {
             AppError::ServiceUnavailable("generate the UHI signing key first".to_owned())
         })?;
-        medbrains_crypto::aead::decrypt_token(&secret_key(secrets).await, KEY_CONTEXT, sealed)
+        medbrains_crypto::aead::decrypt_token(&secret_key(secrets).await?, KEY_CONTEXT, sealed)
             .map_err(|_| {
                 AppError::ServiceUnavailable(
                     "the UHI signing key cannot be opened — generate a new one in Settings → UHI"

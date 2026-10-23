@@ -16,6 +16,7 @@ import {
   toast,
 } from "@/components/ui";
 import { abdmSettingsService } from "@/services/abdmSettings.service";
+import { AbdmBridgeCard } from "./AbdmBridgeCard";
 
 const KEY = ["abdm", "settings"];
 
@@ -78,81 +79,84 @@ export function AbdmSettings() {
   const source = SOURCE_LABEL[data?.source ?? "none"];
 
   return (
-    <Card>
-      <Stack component="form" onSubmit={form.handleSubmit((v) => save.mutate(v))}>
-        <Stack gap={4}>
-          <Text fw={600}>ABDM connection</Text>
-          <Text size="sm" c="dimmed">
-            The keys ABDM issued to this hospital, for ABHA creation and verification and, later,
-            sharing health records. Use the sandbox keys until ABDM approves production.
-          </Text>
-          <Badge tone={source.tone}>{isLoading ? "Loading…" : source.label}</Badge>
+    <Stack>
+      <Card>
+        <Stack component="form" onSubmit={form.handleSubmit((v) => save.mutate(v))}>
+          <Stack gap={4}>
+            <Text fw={600}>ABDM connection</Text>
+            <Text size="sm" c="dimmed">
+              The keys ABDM issued to this hospital, for ABHA creation and verification and, later,
+              sharing health records. Use the sandbox keys until ABDM approves production.
+            </Text>
+            <Badge tone={source.tone}>{isLoading ? "Loading…" : source.label}</Badge>
+          </Stack>
+          <Controller
+            control={form.control}
+            name="environment"
+            render={({ field }) => (
+              <SegmentedControl
+                aria-label="ABDM environment"
+                value={field.value}
+                onChange={field.onChange}
+                data={[
+                  { value: "sandbox", label: "Sandbox (testing)" },
+                  { value: "production", label: "Production (live patients)" },
+                ]}
+              />
+            )}
+          />
+          <Controller
+            control={form.control}
+            name="client_id"
+            render={({ field }) => (
+              <Input
+                {...field}
+                label="Client ID"
+                autoComplete="off"
+                error={form.formState.errors.client_id?.message}
+              />
+            )}
+          />
+          <Controller
+            control={form.control}
+            name="client_secret"
+            render={({ field }) => (
+              <PasswordField
+                {...field}
+                label="Client secret"
+                autoComplete="new-password"
+                description={
+                  data?.has_secret
+                    ? "A secret is saved. Leave blank to keep it; type a new one to replace it."
+                    : "Shown once by ABDM. It is stored encrypted and never displayed again."
+                }
+              />
+            )}
+          />
+          {test && (
+            <Alert
+              tone={test.ok ? "success" : "danger"}
+              title={test.ok ? "Connected" : "ABDM said no"}
+            >
+              {test.message}
+            </Alert>
+          )}
+          <Stack gap="xs" align="flex-start">
+            <Button type="submit" tone="primary" loading={save.isPending}>
+              Save keys
+            </Button>
+            <Button
+              tone="secondary"
+              disabled={data?.source === "none"}
+              loading={check.isPending}
+              onClick={() => check.mutate()}
+            >
+              Test connection
+            </Button>
+          </Stack>
         </Stack>
-        <Controller
-          control={form.control}
-          name="environment"
-          render={({ field }) => (
-            <SegmentedControl
-              aria-label="ABDM environment"
-              value={field.value}
-              onChange={field.onChange}
-              data={[
-                { value: "sandbox", label: "Sandbox (testing)" },
-                { value: "production", label: "Production (live patients)" },
-              ]}
-            />
-          )}
-        />
-        <Controller
-          control={form.control}
-          name="client_id"
-          render={({ field }) => (
-            <Input
-              {...field}
-              label="Client ID"
-              autoComplete="off"
-              error={form.formState.errors.client_id?.message}
-            />
-          )}
-        />
-        <Controller
-          control={form.control}
-          name="client_secret"
-          render={({ field }) => (
-            <PasswordField
-              {...field}
-              label="Client secret"
-              autoComplete="new-password"
-              description={
-                data?.has_secret
-                  ? "A secret is saved. Leave blank to keep it; type a new one to replace it."
-                  : "Shown once by ABDM. It is stored encrypted and never displayed again."
-              }
-            />
-          )}
-        />
-        {test && (
-          <Alert
-            tone={test.ok ? "success" : "danger"}
-            title={test.ok ? "Connected" : "ABDM said no"}
-          >
-            {test.message}
-          </Alert>
-        )}
-        <Stack gap="xs" align="flex-start">
-          <Button type="submit" tone="primary" loading={save.isPending}>
-            Save keys
-          </Button>
-          <Button
-            tone="secondary"
-            disabled={data?.source === "none"}
-            loading={check.isPending}
-            onClick={() => check.mutate()}
-          >
-            Test connection
-          </Button>
-        </Stack>
-      </Stack>
-    </Card>
+      </Card>
+      <AbdmBridgeCard />
+    </Stack>
   );
 }

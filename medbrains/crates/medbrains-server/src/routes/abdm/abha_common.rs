@@ -17,6 +17,9 @@ use crate::{error::AppError, middleware::auth::Claims, state::AppState};
 
 /// ABDM will not send another OTP sooner; the screen counts this down.
 pub(crate) const RESEND_AFTER_SECONDS: i64 = 60;
+/// "Resend OTP" at most twice per OTP (M1 test cases `CRT_ABHA_106` and
+/// `VRFY_ABHA_405`, official M1 test sheet on sandboxcms.abdm.gov.in).
+pub(crate) const MAX_RESENDS: i32 = 2;
 /// ABDM's person tokens live at most 30 minutes.
 const USER_TOKEN_TTL: Duration = Duration::from_secs(25 * 60);
 /// Bound on tokens held at once; expired ones are dropped first.
@@ -107,6 +110,8 @@ pub struct VerificationStep {
     pub stage: &'static str,
     pub message: Option<String>,
     pub resend_after_seconds: Option<i64>,
+    /// Resends still allowed for this OTP; `None` when no OTP is waiting.
+    pub resends_left: Option<i32>,
     pub accounts: Vec<AccountChoice>,
     pub profile: Option<VerifiedProfile>,
     /// Another patient here already carries this ABHA.
@@ -122,12 +127,39 @@ impl VerificationStep {
             stage: "otp_sent",
             message,
             resend_after_seconds: Some(RESEND_AFTER_SECONDS),
+            resends_left: Some(MAX_RESENDS),
             accounts: Vec::new(),
             profile: None,
             already_linked: None,
             suggestions: Vec::new(),
         }
     }
+
+    /// After a resend: the pause again, and what is left of the cap.
+    pub(crate) fn resent(self, used: i32) -> Self {
+        Self {
+            resends_left: Some(MAX_RESENDS.saturating_sub(used)),
+            ..self
+        }
+    }
+}
+
+/// Refuse a resend inside the pause or past the cap.
+///
+/// # Errors
+/// 429 either way, with what to do.
+pub(crate) fn check_resend(ready: bool, used: i32) -> Result<(), AppError> {
+    if used >= MAX_RESENDS {
+        return Err(AppError::TooManyRequests(
+            "ABDM allows the OTP to be sent again only twice — start again".to_owned(),
+        ));
+    }
+    if !ready {
+        return Err(AppError::TooManyRequests(
+            "wait a minute before asking ABDM for another OTP".to_owned(),
+        ));
+    }
+    Ok(())
 }
 
 /// `91-1234-5678-9012` from any spacing of 14 digits.
@@ -218,6 +250,7 @@ pub(crate) async fn record_verified(
         stage: "verified",
         message: None,
         resend_after_seconds: None,
+        resends_left: None,
         accounts: Vec::new(),
         profile: Some(profile),
         already_linked,

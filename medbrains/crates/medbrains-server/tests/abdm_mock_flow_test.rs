@@ -76,7 +76,9 @@ async fn spawn_mock() -> String {
         .route(
             "/sessions",
             post(|Json(body): Json<Value>| async move {
-                if body["clientId"] == "sbx-client" && body["clientSecret"] == "sbx-secret" {
+                if body["clientId"] == "sbx-client" && body["clientSecret"] == "sbx-secret"
+                    && body["grantType"] == "client_credentials"
+                {
                     (StatusCode::OK, Json(json!({ "accessToken": "session-token", "expiresIn": 1200 })))
                 } else {
                     (StatusCode::UNAUTHORIZED, Json(json!({ "message": "Invalid client credentials" })))

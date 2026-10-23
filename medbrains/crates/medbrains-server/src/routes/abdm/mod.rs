@@ -1,6 +1,7 @@
 //! ABDM (Ayushman Bharat Digital Mission) integration routes.
 //!
 //! Phase 11 of the hybrid roadmap.
+//! - `bridge` — where ABDM delivers callbacks, and which campuses it serves.
 //! - `dashboard` — the management dashboard; `dhis` — the incentive rules.
 //! - `hfr` — Health Facility Registry, one HFR ID per campus.
 //! - `hpr` — Healthcare Professionals Registry IDs on doctor profiles.
@@ -19,6 +20,8 @@ pub mod abha_common;
 pub mod abha_enrol;
 pub mod abha_link;
 pub mod abha_verify;
+pub mod bridge;
+mod bridge_rules;
 pub mod dashboard;
 pub mod dhis;
 pub mod hfr;

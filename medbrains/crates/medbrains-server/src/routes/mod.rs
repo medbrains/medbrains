@@ -384,6 +384,8 @@ pub fn build_router(state: AppState) -> Router {
             "/api/abdm/settings/test",
             post(abdm::settings::test_connection),
         )
+        .route("/api/abdm/bridge", get(abdm::bridge::status))
+        .route("/api/abdm/bridge/register", post(abdm::bridge::register))
         .route(
             "/api/abdm/abha/status",
             get(abdm::abha::status),
@@ -411,6 +413,10 @@ pub fn build_router(state: AppState) -> Router {
         .route(
             "/api/abdm/abha/enrolments/{id}/otp",
             post(abdm::abha_enrol::submit_otp),
+        )
+        .route(
+            "/api/abdm/abha/enrolments/{id}/resend",
+            post(abdm::abha_enrol::resend),
         )
         .route(
             "/api/abdm/abha/enrolments/{id}/mobile-otp",

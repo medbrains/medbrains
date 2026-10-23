@@ -54,7 +54,7 @@ pub async fn generate_keys(
 ) -> Result<Json<UhiSettingsView>, AppError> {
     require_permission(&claims, permissions::uhi::CONFIGURE)?;
     let pair = key_pair(&body)?;
-    let key = secret_key(state.secret_resolver.as_ref()).await;
+    let key = secret_key(state.secret_resolver.as_ref()).await?;
     let sealed = medbrains_crypto::aead::encrypt_token(&key, KEY_CONTEXT, &pair.private_key)
         .map_err(|_| AppError::Internal("could not seal the UHI signing key".to_owned()))?;
     let mut tx = state.db.begin().await?;

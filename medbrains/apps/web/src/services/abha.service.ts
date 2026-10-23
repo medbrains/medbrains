@@ -12,6 +12,8 @@ export const abhaService = {
     api.startAbhaEnrolment(...args),
   enrolmentOtp: (...args: Parameters<typeof api.submitAbhaEnrolmentOtp>) =>
     api.submitAbhaEnrolmentOtp(...args),
+  resendEnrolment: (...args: Parameters<typeof api.resendAbhaEnrolmentOtp>) =>
+    api.resendAbhaEnrolmentOtp(...args),
   enrolmentMobileOtp: (...args: Parameters<typeof api.submitAbhaEnrolmentMobileOtp>) =>
     api.submitAbhaEnrolmentMobileOtp(...args),
   chooseAddress: (...args: Parameters<typeof api.chooseAbhaAddress>) =>

@@ -95,11 +95,12 @@ pub async fn loopback_allowed(
     tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
     tenant_id: Uuid,
 ) -> Result<bool, AppError> {
-    let asked = state
-        .secret_resolver
-        .get(ABDM_HIU_LINK_ALLOW_LOOPBACK)
-        .await
-        .is_ok_and(|v| v.trim() == "true");
+    let asked = crate::routes::abdm::abha::dev_override(
+        state.secret_resolver.as_ref(),
+        ABDM_HIU_LINK_ALLOW_LOOPBACK,
+    )
+    .await
+    .is_some_and(|v| v == "true");
     if !asked {
         return Ok(false);
     }

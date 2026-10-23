@@ -2,6 +2,7 @@ import { Group, Stack, Text } from "@mantine/core";
 import type { AbhaVerificationStep } from "@medbrains/types";
 import { useMutation } from "@tanstack/react-query";
 import { useState } from "react";
+import { useInterval } from "react-use";
 import {
   Alert,
   Button,
@@ -14,6 +15,12 @@ import {
 } from "@/components/ui";
 import { abhaService } from "@/services/abha.service";
 import { type AbhaConfirmProps, AbhaVerifiedStep } from "./AbhaVerifiedStep";
+import {
+  ABHA_ENROL_CONSENT,
+  ABHA_ENROL_CONSENT_TITLE,
+  ABHA_ENROL_CONSENT_VERSION,
+} from "./abhaConsent";
+import { ResendOtpButton } from "./ResendOtpButton";
 
 interface AbhaCreateDrawerProps extends AbhaConfirmProps {
   opened: boolean;
@@ -45,12 +52,15 @@ function CreateFlow({ mobile: formMobile, ...confirm }: AbhaCreateDrawerProps) {
   const [mobile, setMobile] = useState(digitsOnly(formMobile ?? "").slice(-10));
   const [address, setAddress] = useState("");
   const [step, setStep] = useState<AbhaVerificationStep | null>(null);
+  const [wait, setWait] = useState(0);
+  useInterval(() => setWait((w) => w - 1), wait > 0 ? 1000 : null);
 
   const advance = (next: AbhaVerificationStep) => {
     setOtp("");
     // The Aadhaar number is not needed past the first OTP; drop it.
     if (next.stage !== "otp_sent") setAadhaar("");
     setStep(next);
+    setWait(next.resend_after_seconds ?? 0);
   };
   const start = useMutation({
     mutationFn: () => abhaService.startEnrolment({ aadhaar, consent }),
@@ -58,6 +68,12 @@ function CreateFlow({ mobile: formMobile, ...confirm }: AbhaCreateDrawerProps) {
   });
   const aadhaarOtp = useMutation({
     mutationFn: (id: string) => abhaService.enrolmentOtp(id, otp, mobile),
+    onSuccess: advance,
+  });
+  const resend = useMutation({
+    // The Aadhaar OTP goes to the Aadhaar again, so it is sent with it.
+    mutationFn: (current: AbhaVerificationStep) =>
+      abhaService.resendEnrolment(current.id, current.stage === "otp_sent" ? aadhaar : undefined),
     onSuccess: advance,
   });
   const mobileOtp = useMutation({
@@ -68,7 +84,7 @@ function CreateFlow({ mobile: formMobile, ...confirm }: AbhaCreateDrawerProps) {
     mutationFn: (id: string) => abhaService.chooseAddress(id, address),
     onSuccess: advance,
   });
-  const failure = [start, aadhaarOtp, mobileOtp, choose].find((m) => m.isError)?.error;
+  const failure = [start, resend, aadhaarOtp, mobileOtp, choose].find((m) => m.isError)?.error;
 
   const otpInput = (
     <Input
@@ -92,14 +108,11 @@ function CreateFlow({ mobile: formMobile, ...confirm }: AbhaCreateDrawerProps) {
 
       {!step && (
         <Stack>
-          <Alert tone="info" title="Read this to the patient">
-            Your Aadhaar number will be used only to create your Ayushman Bharat Health Account
-            (ABHA) with the National Health Authority. An OTP goes to the mobile linked to your
-            Aadhaar. This hospital does not keep your Aadhaar number. Having an ABHA is your choice;
-            you can be treated without one.
+          <Alert tone="info" title={`${ABHA_ENROL_CONSENT_TITLE} — read these to the patient`}>
+            {ABHA_ENROL_CONSENT}
           </Alert>
           <Checkbox
-            label="The patient agrees to create their ABHA with Aadhaar"
+            label={`I agree — the patient consents to creating their ABHA with Aadhaar (ABDM consent v${ABHA_ENROL_CONSENT_VERSION})`}
             checked={consent}
             onChange={(e) => setConsent(e.currentTarget.checked)}
           />
@@ -142,10 +155,13 @@ function CreateFlow({ mobile: formMobile, ...confirm }: AbhaCreateDrawerProps) {
             >
               Create ABHA
             </Button>
-            <Button tone="ghost" loading={start.isPending} onClick={() => start.mutate()}>
-              Send the OTP again
-            </Button>
           </Group>
+          <ResendOtpButton
+            wait={wait}
+            resendsLeft={step.resends_left}
+            loading={resend.isPending}
+            onResend={() => resend.mutate(step)}
+          />
         </Stack>
       )}
 
@@ -161,6 +177,12 @@ function CreateFlow({ mobile: formMobile, ...confirm }: AbhaCreateDrawerProps) {
           >
             Verify mobile
           </Button>
+          <ResendOtpButton
+            wait={wait}
+            resendsLeft={step.resends_left}
+            loading={resend.isPending}
+            onResend={() => resend.mutate(step)}
+          />
         </Stack>
       )}
 

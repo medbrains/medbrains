@@ -26,8 +26,13 @@ mod storefront_world;
 mod uhi_world;
 
 mod aadhaar_storage_test;
+mod abdm_abha_resend_test;
+mod abdm_bridge_test;
+mod abdm_callback_auth_test;
 mod abdm_dashboard_test;
 mod abdm_hfr_hpr_test;
+mod abdm_hip_consent_test;
+mod abdm_link_followups_test;
 mod abdm_m2_hip_test;
 mod abdm_m3_hiu_gaps_test;
 mod abdm_m3_hiu_test;

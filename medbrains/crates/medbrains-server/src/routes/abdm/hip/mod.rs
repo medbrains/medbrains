@@ -19,6 +19,7 @@
 pub mod bundle_sections;
 pub mod bundles;
 pub mod consent;
+pub mod context_notify;
 pub mod discovery;
 pub mod gateway;
 pub mod link_callbacks;
@@ -43,6 +44,10 @@ pub fn public_router() -> Router<AppState> {
         .route(
             paths::CB_ON_LINK_CARE_CONTEXT,
             post(link_callbacks::on_link_care_context),
+        )
+        .route(
+            paths::CB_LINK_CONTEXT_ON_NOTIFY,
+            post(context_notify::on_notify),
         )
         .route(paths::CB_DISCOVER, post(discovery::discover))
         .route(

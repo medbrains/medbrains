@@ -17,7 +17,7 @@ export interface PermissionDef {
   module: string;
 }
 
-/** 1129 permissions, one per constant in the Rust source. */
+/** 1130 permissions, one per constant in the Rust source. */
 export const PERMISSIONS: PermissionDef[] = [
   // dashboard
   {
@@ -6771,6 +6771,12 @@ export const PERMISSIONS: PermissionDef[] = [
     module: "abdm",
   },
   {
+    code: "abdm.bridge.register",
+    label: "Register the ABDM bridge",
+    description: "Point the ABDM gateway at this hospital's callback URL and bind each campus's HFR facility ID to the bridge as HIP and HIU. Every consent, record request and Scan & Share from ABDM arrives there.",
+    module: "abdm",
+  },
+  {
     code: "abdm.relay.pull",
     label: "Pull and acknowledge ABDM gateway callbacks",
     description: "For the hospital's on-premises server, which collects the ABDM gateway's callbacks for its own facility and marks each one received. Callbacks carry patient health data, so only this hospital's own, never another's.",
@@ -6881,6 +6887,10 @@ export const P = {
     },
     ABHA_MANAGE: "abdm.abha.manage",
     ABHA_VIEW: "abdm.abha.view",
+    BRIDGE: {
+      REGISTER: "abdm.bridge.register",
+    },
+    BRIDGE_REGISTER: "abdm.bridge.register",
     CONSENT: {
       REQUEST: "abdm.consent.request",
       VIEW: "abdm.consent.view",

@@ -37,7 +37,7 @@ fn stamp(t: DateTime<Utc>) -> String {
 /// # Errors
 /// 500 when it cannot be sealed.
 pub async fn seal(secrets: &dyn SecretResolver, km: &KeyMaterial) -> Result<String, AppError> {
-    let key = secret_key(secrets).await;
+    let key = secret_key(secrets).await?;
     medbrains_crypto::aead::encrypt_token(
         &key,
         KEY_CONTEXT,
@@ -51,7 +51,7 @@ pub async fn seal(secrets: &dyn SecretResolver, km: &KeyMaterial) -> Result<Stri
 /// # Errors
 /// 503 when it cannot be opened (the ABDM secret key changed).
 pub async fn open(secrets: &dyn SecretResolver, sealed: &str) -> Result<KeyMaterial, AppError> {
-    let key = secret_key(secrets).await;
+    let key = secret_key(secrets).await?;
     let (private_key, public_key, nonce): (String, String, String) =
         medbrains_crypto::aead::decrypt_token(&key, KEY_CONTEXT, sealed).map_err(|_| {
             AppError::ServiceUnavailable("the ABDM transfer key cannot be opened".to_owned())

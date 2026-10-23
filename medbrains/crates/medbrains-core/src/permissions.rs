@@ -3660,6 +3660,15 @@ pub mod abdm {
         /// Enter the ABDM client ID and secret and switch between sandbox and production.
         pub const MANAGE: &str = "abdm.settings.manage";
     }
+    /// Where ABDM delivers this hospital's callbacks.
+    pub mod bridge {
+        /// Register the ABDM bridge.
+        ///
+        /// Point the ABDM gateway at this hospital's callback URL and bind
+        /// each campus's HFR facility ID to the bridge as HIP and HIU. Every
+        /// consent, record request and Scan & Share from ABDM arrives there.
+        pub const REGISTER: &str = "abdm.bridge.register";
+    }
     pub mod relay {
         /// Pull and acknowledge ABDM gateway callbacks.
         ///

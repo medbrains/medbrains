@@ -84,6 +84,17 @@ class AbhaTest {
         assertEquals(AbhaStage.CHOOSE_ACCOUNT, step.stage)
         assertEquals("UH-1", step.already_linked?.uhid)
         assertEquals("Resend OTP in 12s", Abha.resendLabel(12))
+        assertNull("an older server without the cap still decodes", step.resends_left)
+    }
+
+    /** ABDM allows two resends; once none are left the screen says so instead of offering one. */
+    @Test
+    fun resendsLeftDecodeAndAreSaidPlainly() {
+        val step = json.decodeFromString<AbhaVerificationStep>("""{"id":"v1","stage":"otp_sent","resend_after_seconds":60,"resends_left":0}""")
+        assertEquals(0, step.resends_left)
+        assertEquals("The OTP cannot be sent again. If it has not arrived, close this and start again.", Abha.resendNote(0))
+        assertEquals("One resend left", Abha.resendNote(1))
+        assertNull(Abha.resendNote(null))
     }
 }
 

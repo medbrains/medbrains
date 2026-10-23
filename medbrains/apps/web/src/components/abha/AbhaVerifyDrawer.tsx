@@ -6,6 +6,7 @@ import { useInterval } from "react-use";
 import { Alert, Button, Input, Modal, SegmentedControl } from "@/components/ui";
 import { abhaService } from "@/services/abha.service";
 import { type AbhaConfirmProps, AbhaVerifiedStep } from "./AbhaVerifiedStep";
+import { ResendOtpButton } from "./ResendOtpButton";
 
 interface AbhaVerifyDrawerProps extends AbhaConfirmProps {
   opened: boolean;
@@ -136,14 +137,12 @@ function VerifyFlow({ ours, confirmLabel, confirming, onConfirm }: AbhaVerifyDra
           >
             Verify
           </Button>
-          <Button
-            tone="ghost"
-            disabled={wait > 0}
+          <ResendOtpButton
+            wait={wait}
+            resendsLeft={step.resends_left}
             loading={resend.isPending}
-            onClick={() => resend.mutate(step.id)}
-          >
-            {wait > 0 ? `Resend OTP in ${wait}s` : "Resend OTP"}
-          </Button>
+            onResend={() => resend.mutate(step.id)}
+          />
         </Stack>
       )}
 

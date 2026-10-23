@@ -1,5 +1,7 @@
 import type {
   AbcAnalysisRow,
+  AbdmBridgeRegistration,
+  AbdmBridgeStatus,
   AbdmCareContext,
   AbdmConnectionTest,
   AbdmConsentPrintData,
@@ -1850,6 +1852,7 @@ import type {
   RefundAdvanceRequest,
   RefundGatewayResponse,
   RefundReceiptPrintData,
+  RegisterAbdmBridge,
   RegisterHfrRequest,
   RegistrationCardPrintData,
   RegulatoryBody,
@@ -17336,6 +17339,12 @@ export const api = {
   saveAbdmSettings: (data: SaveAbdmSettings) =>
     request<AbdmSettingsView>("/abdm/settings", { method: "PUT", body: JSON.stringify(data) }),
   testAbdmConnection: () => request<AbdmConnectionTest>("/abdm/settings/test", { method: "POST" }),
+  getAbdmBridge: () => request<AbdmBridgeStatus>("/abdm/bridge"),
+  registerAbdmBridge: (data: RegisterAbdmBridge) =>
+    request<AbdmBridgeRegistration>("/abdm/bridge/register", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
   getUhiSettings: () => request<UhiSettingsView>("/uhi/settings"),
   saveUhiSettings: (data: SaveUhiSettings) =>
     request<UhiSettingsView>("/uhi/settings", { method: "PUT", body: JSON.stringify(data) }),
@@ -17381,6 +17390,12 @@ export const api = {
     request<AbhaVerificationStep>(`/abdm/abha/enrolments/${id}/otp`, {
       method: "POST",
       body: JSON.stringify({ otp, mobile }),
+    }),
+  /** The Aadhaar OTP needs the Aadhaar number again; the mobile OTP does not. */
+  resendAbhaEnrolmentOtp: (id: string, aadhaar?: string) =>
+    request<AbhaVerificationStep>(`/abdm/abha/enrolments/${id}/resend`, {
+      method: "POST",
+      body: JSON.stringify({ aadhaar }),
     }),
   submitAbhaEnrolmentMobileOtp: (id: string, otp: string) =>
     request<AbhaVerificationStep>(`/abdm/abha/enrolments/${id}/mobile-otp`, {

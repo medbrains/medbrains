@@ -117,6 +117,24 @@ public enum Abha {
     }
 
     public static func resendLabel(wait: Int) -> String { wait > 0 ? "Resend OTP in \(wait)s" : "Resend OTP" }
+
+    /// ABDM allows "Resend OTP" twice per OTP (M1 CRT_ABHA_106, VRFY_ABHA_405);
+    /// the server enforces it. `nil` when nothing needs saying.
+    public static func resendNote(left: Int?) -> String? {
+        switch left {
+        case 0?: "The OTP cannot be sent again. If it has not arrived, close this and start again."
+        case 1?: "One resend left"
+        case let n?: "\(n) resends left"
+        case nil: nil
+        }
+    }
+
+    /// ABDM's terms and conditions for creating an ABHA with Aadhaar, verbatim
+    /// (nha-in/docs catalogue/hiecm/concepts/m1-abha-consent.md (docs.abdm.gov.in, M1 page), CRT_ABHA_102). Never edited (NHA M1 observations, 2 Oct 2026); the server
+    /// sends consent code "abha-enrollment", version `enrolConsentVersion`.
+    /// Keep identical to the web and Android copies.
+    public static let enrolConsent = "I, hereby declare that I am voluntarily sharing my Aadhaar number and demographic information issued by UIDAI, with National Health Authority (NHA) for the sole purpose of creation of ABHA number. I understand that my ABHA number can be used and shared for purposes as may be notified by ABDM from time to time including provision of healthcare services. Further, I am aware that my personal identifiable information (Name, Address, Age, Date of Birth, Gender and Photograph) may be made available to the entities working in the National Digital Health Ecosystem (NDHE) which inter alia includes stakeholders and entities such as healthcare professionals (e.g. doctors), facilities (e.g. hospitals, laboratories) and data fiduciaries (e.g. health programmes), which are registered with or linked to the Ayushman Bharat Digital Mission (ABDM), and various processes there under. I authorize NHA to use my Aadhaar number for performing Aadhaar based authentication with UIDAI as per the provisions of the Aadhaar (Targeted Delivery of Financial and other Subsidies, Benefits and Services) Act, 2016 for the aforesaid purpose. I understand that UIDAI will share my e-KYC details, or response of “Yes” with NHA upon successful authentication. I have been duly informed about the option of using other IDs apart from Aadhaar; however, I consciously choose to use Aadhaar number for the purpose of availing benefits across the NDHE. I am aware that my personal identifiable information excluding Aadhaar number / VID number can be used and shared for purposes as mentioned above. I reserve the right to revoke the given consent at any point of time as per provisions of Aadhaar Act and Regulations."
+    public static let enrolConsentVersion = "1.4"
 }
 
 /// A verification the desk used: its id, and the ABHA number it proved.
@@ -227,6 +245,8 @@ public struct AbhaVerificationStep: Decodable, Hashable, Sendable {
     public let stage: String
     public let message: String?
     public let resendAfterSeconds: Int?
+    /// Resends ABDM still allows for this OTP; `nil` when none is waiting.
+    public let resendsLeft: Int?
     public let accounts: [AbhaAccountChoice]
     public let profile: AbhaVerifiedProfile?
     /// Another patient here already carries this ABHA.
