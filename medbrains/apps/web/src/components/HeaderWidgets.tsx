@@ -1,7 +1,16 @@
 import { Group, Text, Tooltip } from "@mantine/core";
+import {
+  IconClock,
+  IconCloudFog,
+  IconCloudRain,
+  IconCloudSnow,
+  IconCloudStorm,
+  IconDroplet,
+  IconSun,
+  IconSunLow,
+  type TablerIcon,
+} from "@tabler/icons-react";
 import { useQuery } from "@tanstack/react-query";
-import type { LucideIcon } from "lucide-react";
-import { Clock, Cloud, CloudDrizzle, CloudRain, CloudSnow, CloudSun, Sun, Zap } from "lucide-react";
 import { useState } from "react";
 import { useEffectOnce } from "react-use";
 import styles from "./header-widgets.module.scss";
@@ -14,17 +23,17 @@ interface WeatherNow {
   current: { temperature_2m: number; weather_code: number };
 }
 
-/** Map a WMO weather code to a lucide icon, label, and a vivid colour. */
-function weatherInfo(code: number): { Icon: LucideIcon; label: string; color: string } {
-  if (code === 0) return { Icon: Sun, label: "Clear", color: "#f1c21b" };
-  if (code <= 3) return { Icon: CloudSun, label: "Partly cloudy", color: "#d2a106" };
-  if (code <= 48) return { Icon: Cloud, label: "Fog", color: "#8d8d8d" };
-  if (code <= 57) return { Icon: CloudDrizzle, label: "Drizzle", color: "#0072c3" };
-  if (code <= 67) return { Icon: CloudRain, label: "Rain", color: "#0043ce" };
-  if (code <= 77) return { Icon: CloudSnow, label: "Snow", color: "#33b1ff" };
-  if (code <= 82) return { Icon: CloudRain, label: "Showers", color: "#0043ce" };
-  if (code <= 86) return { Icon: CloudSnow, label: "Snow showers", color: "#33b1ff" };
-  return { Icon: Zap, label: "Thunderstorm", color: "#8a3ffc" };
+/** Map a WMO weather code to a tabler icon, label, and a vivid colour. */
+function weatherInfo(code: number): { Icon: TablerIcon; label: string; color: string } {
+  if (code === 0) return { Icon: IconSun, label: "Clear", color: "#f1c21b" };
+  if (code <= 3) return { Icon: IconSunLow, label: "Partly cloudy", color: "#d2a106" };
+  if (code <= 48) return { Icon: IconCloudFog, label: "Fog", color: "#8d8d8d" };
+  if (code <= 57) return { Icon: IconDroplet, label: "Drizzle", color: "#0072c3" };
+  if (code <= 67) return { Icon: IconCloudRain, label: "Rain", color: "#0043ce" };
+  if (code <= 77) return { Icon: IconCloudSnow, label: "Snow", color: "#33b1ff" };
+  if (code <= 82) return { Icon: IconCloudRain, label: "Showers", color: "#0043ce" };
+  if (code <= 86) return { Icon: IconCloudSnow, label: "Snow showers", color: "#33b1ff" };
+  return { Icon: IconCloudStorm, label: "Thunderstorm", color: "#8a3ffc" };
 }
 
 function useClock(): Date {
@@ -68,7 +77,7 @@ function ClockWidget() {
   return (
     <Tooltip label={now.toLocaleDateString([], { dateStyle: "full" })} withArrow>
       <Group gap={6} wrap="nowrap" className={`${styles.pill} ${styles.pillClock}`}>
-        <Clock size={15} className={styles.pulse} aria-hidden />
+        <IconClock size={15} className={styles.pulse} aria-hidden />
         <Text size="xs" fw={700} ff="var(--mb-font-mono)" className={styles.clockTime}>
           {time}
         </Text>

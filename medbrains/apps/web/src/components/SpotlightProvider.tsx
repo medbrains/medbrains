@@ -20,7 +20,8 @@ import {
 import { type ReactNode, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router";
-import { CrabMascot, useAiAssistantStore } from "@/components/ai";
+import { useAiAssistantStore } from "@/components/ai/assistant-store";
+import { CrabMascot } from "@/components/ai/CrabMascot";
 import { useAddProductStore } from "@/components/Materials/add-product-store";
 import { NAV_GROUPS, type NavItemConfig, resolveIcon } from "@/config/navigation";
 import styles from "./SpotlightProvider.module.scss";

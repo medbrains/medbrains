@@ -1,8 +1,8 @@
 import { Group, Stack, Text } from "@mantine/core";
 import type { useDisclosure } from "@mantine/hooks";
 import type { Invoice } from "@medbrains/types";
+import { IconPlus } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Plus } from "lucide-react";
 import { useNavigate } from "react-router";
 import { Badge, type BadgeTone, Button, Card, Modal } from "@/components/ui";
 import { billingService } from "@/services/billing.service";
@@ -59,7 +59,7 @@ export function PatientBillingModal({ patientId, encounterId, control }: Patient
           <Button
             tone="primary"
             size="xs"
-            leftSection={<Plus size={14} />}
+            leftSection={<IconPlus size={14} />}
             loading={create.isPending}
             onClick={() => create.mutate()}
           >

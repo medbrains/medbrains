@@ -2,8 +2,8 @@ import { Box, Group, Pagination, Stack, Tabs, Text, UnstyledButton } from "@mant
 import { useDebouncedValue } from "@mantine/hooks";
 import { api } from "@medbrains/api";
 import { P } from "@medbrains/types";
+import { IconExternalLink, IconSearch } from "@tabler/icons-react";
 import { useQuery } from "@tanstack/react-query";
-import { ExternalLink, Search } from "lucide-react";
 import { useMemo, useState } from "react";
 import { PageHeader } from "@/components";
 import { BlogSection } from "@/components/HealthPulse/BlogSection";
@@ -101,7 +101,7 @@ export function HealthPulsePage() {
                 setPage(1);
               }}
               placeholder="Search articles…"
-              leftSection={<Search size={15} />}
+              leftSection={<IconSearch size={15} />}
               style={{ flex: 1, minWidth: 220 }}
               aria-label="Search news"
             />
@@ -230,7 +230,7 @@ export function HealthPulsePage() {
               target="_blank"
               rel="noopener noreferrer"
               tone="primary"
-              rightSection={<ExternalLink size={14} aria-hidden />}
+              rightSection={<IconExternalLink size={14} aria-hidden />}
             >
               Read on {article.source}
             </Button>

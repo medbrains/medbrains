@@ -17,23 +17,23 @@ import {
 import { useDisclosure } from "@mantine/hooks";
 import { spotlight } from "@mantine/spotlight";
 import { useAuthStore, useModuleStore, usePermissionStore } from "@medbrains/stores";
-import { useQueryClient } from "@tanstack/react-query";
 import {
-  Languages,
-  LogOut,
-  PanelLeftClose,
-  PanelLeftOpen,
-  Search,
-  Settings,
-  Star,
-  User,
-} from "lucide-react";
+  IconLanguage,
+  IconLayoutSidebarLeftCollapse,
+  IconLayoutSidebarLeftExpand,
+  IconLogout,
+  IconSearch,
+  IconSettings,
+  IconStar,
+  IconUser,
+} from "@tabler/icons-react";
+import { useQueryClient } from "@tanstack/react-query";
 import type { CSSProperties, ReactNode } from "react";
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Link, Outlet, useLocation, useNavigate } from "react-router";
 import { AnimatedIcon } from "@/components/AnimatedIcon";
-import { AiAssistantMount } from "@/components/ai";
+import { AiAssistantMount } from "@/components/ai/AiAssistantMount";
 import { Brand } from "@/components/Brand";
 import { BuildVersion } from "@/components/BuildVersion";
 import { DlpGuard } from "@/components/DlpGuard";
@@ -410,7 +410,7 @@ export function AppLayout() {
                 toggleFavorite(item.path);
               }}
             >
-              <Star size={13} fill={pinned ? "currentColor" : "none"} />
+              <IconStar size={13} fill={pinned ? "currentColor" : "none"} />
             </ActionIcon>
           </Tooltip>
         }
@@ -517,7 +517,7 @@ export function AppLayout() {
               visibleFrom="sm"
             >
               <Group gap={6}>
-                <AnimatedIcon icon={Search} size={14} motion="float" />
+                <AnimatedIcon icon={IconSearch} size={14} motion="float" />
                 <Text size="xs" c="dimmed">
                   Search...
                 </Text>
@@ -532,7 +532,7 @@ export function AppLayout() {
               onClick={spotlight.open}
               aria-label="Search"
             >
-              <AnimatedIcon icon={Search} size={18} motion="float" />
+              <AnimatedIcon icon={IconSearch} size={18} motion="float" />
             </ActionIcon>
 
             <HelpButton />
@@ -547,7 +547,7 @@ export function AppLayout() {
               <Menu.Target>
                 <Tooltip label="Language" withArrow>
                   <ActionIcon size="md" color="slate" variant="subtle" aria-label="Language">
-                    <AnimatedIcon icon={Languages} size={18} motion="float" />
+                    <AnimatedIcon icon={IconLanguage} size={18} motion="float" />
                   </ActionIcon>
                 </Tooltip>
               </Menu.Target>
@@ -596,13 +596,13 @@ export function AppLayout() {
               </Menu.Target>
               <Menu.Dropdown>
                 <Menu.Item
-                  leftSection={<AnimatedIcon icon={User} size={14} />}
+                  leftSection={<AnimatedIcon icon={IconUser} size={14} />}
                   onClick={() => handleNavigate("/profile")}
                 >
                   Profile
                 </Menu.Item>
                 <Menu.Item
-                  leftSection={<AnimatedIcon icon={Settings} size={14} motion="float" />}
+                  leftSection={<AnimatedIcon icon={IconSettings} size={14} motion="float" />}
                   onClick={() => navigate("/admin/settings")}
                 >
                   Settings
@@ -610,7 +610,7 @@ export function AppLayout() {
                 <Menu.Divider />
                 <Menu.Item
                   color="danger"
-                  leftSection={<AnimatedIcon icon={LogOut} size={14} motion="bounce" />}
+                  leftSection={<AnimatedIcon icon={IconLogout} size={14} motion="bounce" />}
                   onClick={handleLogout}
                 >
                   Logout
@@ -643,7 +643,7 @@ export function AppLayout() {
                 onClick={toggleSidebar}
                 aria-label={t("collapse")}
               >
-                <AnimatedIcon icon={PanelLeftClose} size={18} motion="float" />
+                <AnimatedIcon icon={IconLayoutSidebarLeftCollapse} size={18} motion="float" />
                 <Text size="xs" c="var(--mb-text-muted)">
                   {t("collapse")}
                 </Text>
@@ -655,7 +655,7 @@ export function AppLayout() {
                   onClick={toggleSidebar}
                   aria-label={t("expand")}
                 >
-                  <AnimatedIcon icon={PanelLeftOpen} size={20} motion="float" />
+                  <AnimatedIcon icon={IconLayoutSidebarLeftExpand} size={20} motion="float" />
                 </UnstyledButton>
               </Tooltip>
             )}
