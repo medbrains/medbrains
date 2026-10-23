@@ -11,7 +11,10 @@ export const PAGE_SIZE = 12;
 /** Published posts, newest first. Drafts show only in `astro dev`. */
 export async function getPosts(): Promise<Post[]> {
   const posts = await getCollection("blog", (p) => import.meta.env.DEV || !p.data.draft);
-  return posts.sort((a, b) => b.data.date.valueOf() - a.data.date.valueOf());
+  // Same-day posts tie on date; the id keeps the order stable between builds.
+  return posts.sort(
+    (a, b) => b.data.date.valueOf() - a.data.date.valueOf() || a.id.localeCompare(b.id),
+  );
 }
 
 /** Author id → display name, for post cards. */

@@ -13,6 +13,3 @@ auditConfig:
     - GHSA-w3rx-r6r6-pgpr # image-size: metro bundler (RN build), images are our own assets. expires 2027-01-31
     - GHSA-86w9-cpqp-85rv # node-forge: @expo/cli dev tool; no fixed version exists. expires 2027-01-31
     - GHSA-vfj7-8cjw-p6xm # braces: docs build-time glob over our own files; no fixed version exists. expires 2027-01-31
-    - GHSA-5gmw-xhrv-c9v3 # tinypool: docusaurus build workers; cleared by the docs override PR. expires 2026-11-30
-    - GHSA-85c8-ppgw-ccpr # tinypool: docusaurus build workers; cleared by the docs override PR. expires 2026-11-30
-    - GHSA-5c6j-r48x-rmvq # serialize-javascript: docusaurus build; cleared by the docs override PR. expires 2026-11-30
