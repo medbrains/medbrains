@@ -83,6 +83,7 @@ mod device_binding_test;
 mod device_node_key_test;
 mod devices_test;
 mod diagnosis_author_test;
+mod diagnosis_coding_test;
 mod dialysis_reuse_test;
 mod discharge_summary_report_test;
 mod display_pairing_test;

@@ -19,7 +19,6 @@ export const clinicalSupportService = {
     api.deletePrescriptionTemplate(...args),
   checkDrugSafety: (...args: Parameters<typeof api.checkDrugSafety>) =>
     api.checkDrugSafety(...args),
-  searchIcd10: (...args: Parameters<typeof api.searchIcd10>) => api.searchIcd10(...args),
   searchIcd11: (...args: Parameters<typeof api.searchIcd11>) => api.searchIcd11(...args),
   searchClinicalCorpus: (...args: Parameters<typeof api.searchClinicalCorpus>) =>
     api.searchClinicalCorpus(...args),

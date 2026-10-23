@@ -1993,7 +1993,9 @@ pub async fn get_opd_prescription_print_data(
     .await?;
 
     let icd_codes: Vec<String> = sqlx::query_scalar(
-        "SELECT icd_code FROM diagnoses \
+        // The code with its system ("ICD-10 A90"), so a print never leaves
+        // the reader guessing which classification it is.
+        "SELECT CASE icd_system WHEN 'icd10' THEN 'ICD-10 ' WHEN 'icd11' THEN 'ICD-11 ' WHEN 'snomed' THEN 'SNOMED CT ' ELSE '' END || icd_code FROM diagnoses \
          WHERE encounter_id = $1 AND tenant_id = $2 AND icd_code IS NOT NULL \
            AND deleted_at IS NULL \
          ORDER BY is_primary DESC, created_at LIMIT 500",

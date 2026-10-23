@@ -47,6 +47,7 @@ import { ConsultationTemplatesSettings } from "@/pages/admin/settings/Consultati
 import { CriticalValueRulesSettings } from "@/pages/admin/settings/CriticalValueRulesSettings";
 import { DepartmentsSettings } from "@/pages/admin/settings/DepartmentsSettings";
 import { DeviceIntegrationsSettings } from "@/pages/admin/settings/DeviceIntegrationsSettings";
+import { DiagnosisCodingSettings } from "@/pages/admin/settings/DiagnosisCodingSettings";
 import { DrugInteractionsSettings } from "@/pages/admin/settings/DrugInteractionsSettings";
 import { FacilitiesSettings } from "@/pages/admin/settings/FacilitiesSettings";
 import { GeneralSettings } from "@/pages/admin/settings/GeneralSettings";
@@ -326,6 +327,13 @@ export const SETTINGS_TABS: SettingsTabConfig[] = [
     icon: "IconTableOptions",
     requiredPermission: "admin.settings.general.manage",
     component: StandardsSettings,
+  },
+  {
+    value: "diagnosis-coding",
+    i18nKey: "settings.diagnosisCoding",
+    icon: "IconStethoscope",
+    requiredPermission: "terminology.coding.configure",
+    component: DiagnosisCodingSettings,
   },
   {
     value: "snomed",

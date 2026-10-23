@@ -931,6 +931,7 @@ import type {
   DeviceUtilizationRow,
   DgUpsRunLogPrintData,
   Diagnosis,
+  DiagnosisCodingStatus,
   DiagnosisReference,
   DialysisMachine,
   DialysisSession,
@@ -1158,7 +1159,8 @@ import type {
   HypoglycemiaRecheckRequest,
   HypoglycemiaView,
   IamAccessRequest,
-  Icd10Code,
+  Icd10ImportResult,
+  Icd10Release,
   IcMeeting,
   IcuBundleCheck,
   IcuDevice,
@@ -1173,6 +1175,7 @@ import type {
   ImplantRegistryEntry,
   ImportBankTransactionsRequest,
   ImportBankTransactionsResponse,
+  ImportIcd10Request,
   // Phase 3 Print Data - Quality & Safety
   IncidentReportPrintData,
   // Phase 4 Print Data - Admin & Procurement
@@ -1963,6 +1966,7 @@ import type {
   ServiceRow,
   ServiceTimeStats,
   SetCampusFenceRequest,
+  SetDiagnosisCodingRequest,
   SetDonorDeferralRequest,
   SetHprRequest,
   SetKeys,
@@ -4944,9 +4948,7 @@ export const api = {
     return request<DuplicateOrderInfo[]>(`/opd/duplicate-check?${qs}`);
   },
 
-  // ── ICD-10 & Chief Complaints ─────────────────────────
-  searchIcd10: (q: string, limit?: number) =>
-    request<Icd10Code[]>(`/opd/icd10/search?q=${encodeURIComponent(q)}&limit=${limit ?? 20}`),
+  // ── ICD-11 & Chief Complaints ─────────────────────────
   searchIcd11: (q: string, limit?: number) =>
     request<ClinicalCorpusEntry[]>(
       `/opd/icd11/search?q=${encodeURIComponent(q)}&limit=${limit ?? 20}`,
@@ -4996,6 +4998,20 @@ export const api = {
     qs.set("code", params.code);
     return request<TerminologySearchResult>(`/terminology/lookup?${qs}`);
   },
+
+  // ── Diagnosis coding switch + the hospital's licensed ICD-10 catalogue ──
+  getDiagnosisCoding: () => request<DiagnosisCodingStatus>("/terminology/diagnosis-coding"),
+  setDiagnosisCoding: (data: SetDiagnosisCodingRequest) =>
+    request<DiagnosisCodingStatus>("/terminology/diagnosis-coding", {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
+  listIcd10Releases: () => request<Icd10Release[]>("/terminology/icd10/releases"),
+  importIcd10Release: (data: ImportIcd10Request) =>
+    request<Icd10ImportResult>("/terminology/icd10/releases", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
 
   // ── SNOMED CT store (licensed RF2 releases; every result capped at 50) ──
   getSnomedStatus: () => request<SnomedStatus>("/terminology/snomed/status"),

@@ -292,6 +292,7 @@ export * from "./screen-layout-zone";
 export * from "./screen-system";
 export * from "./setup-config";
 export * from "./snomed";
+export * from "./diagnosis-coding";
 export * from "./tenant-facility";
 export type {
   BillingQueueLaneDefinition,

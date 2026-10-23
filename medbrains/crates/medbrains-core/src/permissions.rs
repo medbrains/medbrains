@@ -2796,6 +2796,16 @@ pub mod terminology {
         /// category.
         pub const ANALYTICS: &str = "terminology.snomed.analytics";
     }
+
+    /// The hospital's diagnosis coding system.
+    pub mod coding {
+        /// Choose ICD-11, ICD-10 or both for diagnoses.
+        ///
+        /// Switch the classification doctors code diagnoses in, and load the
+        /// hospital's licensed ICD-10 catalogue file. Changes what every
+        /// doctor's diagnosis picker offers, so only administrators hold it.
+        pub const CONFIGURE: &str = "terminology.coding.configure";
+    }
 }
 
 pub mod ckb {

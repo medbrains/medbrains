@@ -65,7 +65,7 @@ async fn load_pa(tx: &mut Tx<'_>, tenant_id: Uuid, id: Uuid) -> Result<PaRow, Ap
 }
 
 /// The encounter's coded diagnoses; failing those, the codes typed on the
-/// request, read as ICD-10.
+/// request, each in the ICD revision its shape names (text only if neither).
 async fn diagnoses(
     tx: &mut Tx<'_>,
     tenant_id: Uuid,
@@ -80,7 +80,11 @@ async fn diagnoses(
         .enumerate()
         .map(|(i, code)| DiagnosisLine {
             icd_code: Some(code.clone()),
-            icd_system: "icd10".to_owned(),
+            // A typed code carries no system; its shape names the revision
+            // (no mapping between them — WHO ICD-11 licence §1.2.4).
+            icd_system: medbrains_core::diagnosis_coding::icd_system_of_code(code)
+                .unwrap_or_default()
+                .to_owned(),
             description: code.clone(),
             snomed_code: None,
             is_primary: i == 0,

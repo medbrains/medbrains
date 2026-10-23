@@ -462,7 +462,6 @@
 /api/opd/encounters/{id}/prescriptions
 /api/opd/encounters/{id}/procedure-orders
 /api/opd/encounters/{id}/vitals
-/api/opd/icd10/search
 /api/opd/icd11/search
 /api/opd/patients/{id}/certificates
 /api/opd/patients/{id}/consents

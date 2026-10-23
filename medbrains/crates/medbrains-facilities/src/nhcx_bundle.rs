@@ -221,12 +221,15 @@ fn bundle(id: Uuid, profile: &str, focal: Value, rest: Vec<Value>, now: &str) ->
 
 fn diagnosis(seq: usize, d: &DiagnosisLine) -> Value {
     let mut coding = Vec::new();
-    if let Some(code) = d.icd_code.as_deref().filter(|c| !c.is_empty()) {
-        let system = match d.icd_system.as_str() {
-            "icd11" => ICD11_SYSTEM,
-            "snomed" => SNOMED_SYSTEM,
-            _ => ICD10_SYSTEM,
-        };
+    // Each code in the system it was chosen from — the Claim profile's
+    // diagnosis binding is an example, so ICD-11 and ICD-10 are both valid.
+    let system = match d.icd_system.as_str() {
+        "icd11" => Some(ICD11_SYSTEM),
+        "icd10" => Some(ICD10_SYSTEM),
+        "snomed" => Some(SNOMED_SYSTEM),
+        _ => None,
+    };
+    if let (Some(code), Some(system)) = (d.icd_code.as_deref().filter(|c| !c.is_empty()), system) {
         coding.push(json!({ "system": system, "code": code, "display": d.description }));
     }
     if let Some(code) = d.snomed_code.as_deref().filter(|c| !c.is_empty()) {
