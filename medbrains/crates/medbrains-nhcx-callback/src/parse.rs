@@ -1,6 +1,6 @@
 //! Reading the payer's answer out of a decrypted NHCX message —
 //! `CoverageEligibilityResponse`, `ClaimResponse` and `CommunicationRequest`
-//! (NRCeS NHCX IG profiles), found as the payload itself or inside its bundle.
+//! (`NRCeS` NHCX IG profiles), found as the payload itself or inside its bundle.
 
 use chrono::{DateTime, Utc};
 use rust_decimal::Decimal;
@@ -215,7 +215,7 @@ pub(crate) fn decision(
     }
 }
 
-/// A CodeableConcept in words: its text, else the first coding's display or
+/// A `CodeableConcept` in words: its text, else the first coding's display or
 /// code.
 fn concept_text(concept: Option<&Value>) -> Option<String> {
     let concept = concept?;

@@ -131,7 +131,8 @@ pub async fn public_bookable_doctors(
     // One query, not a doctor list followed by a schedule lookup each. DISTINCT
     // because a doctor holding several weekday schedules in one department is
     // still one choice on the page.
-    let rows = sqlx::query_as::<_, PublicBookableDoctor>( // allow-raw-sql: public directory lists active doctors with schedules
+    let rows = sqlx::query_as::<_, PublicBookableDoctor>(
+        // allow-raw-sql: public directory lists active doctors with schedules
         "SELECT DISTINCT u.id AS doctor_id, u.full_name AS doctor_name, \
                 d.id AS department_id, d.name AS department_name \
            FROM doctor_schedules ds \
@@ -190,7 +191,8 @@ pub async fn public_available_slots(
                 break;
             }
 
-            let booked: i64 = sqlx::query_scalar( // allow-raw-sql: public slot occupancy check
+            let booked: i64 = sqlx::query_scalar(
+                // allow-raw-sql: public slot occupancy check
                 "SELECT COUNT(*) FROM appointments \
                  WHERE doctor_id = $1 AND appointment_date = $2 AND slot_start = $3 \
                  AND status NOT IN ('cancelled', 'no_show')",
@@ -256,7 +258,8 @@ pub async fn kiosk_checkin(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &appointment.tenant_id).await?;
 
-    sqlx::query( // allow-raw-sql: kiosk check-in updates appointment status
+    sqlx::query(
+        // allow-raw-sql: kiosk check-in updates appointment status
         "UPDATE appointments SET status = 'checked_in', checked_in_at = now() WHERE id = $1",
     )
     .bind(appointment_id)
@@ -271,7 +274,8 @@ pub async fn kiosk_checkin(
     )
     .await?;
 
-    let patient_name: String = sqlx::query_scalar( // allow-raw-sql: kiosk check-in resolves display names
+    let patient_name: String = sqlx::query_scalar(
+        // allow-raw-sql: kiosk check-in resolves display names
         "SELECT COALESCE(first_name || ' ' || last_name, first_name) FROM patients WHERE id = $1",
     )
     .bind(appointment.patient_id)
@@ -345,7 +349,8 @@ pub async fn queue_token_status_link(
     // scoped, expiring event token rather than the row id.
     // Confirm the token is this tenant's before sealing its id into a link that
     // needs no further authorisation to use.
-    let exists: Option<(Uuid,)> = sqlx::query_as( // allow-raw-sql: queue token status link verifies tenant ownership
+    let exists: Option<(Uuid,)> = sqlx::query_as(
+        // allow-raw-sql: queue token status link verifies tenant ownership
         "SELECT id FROM queue_tokens \
           WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL",
     )
@@ -395,7 +400,8 @@ pub async fn public_token_status(
     // Tenant is matched from the sealed token, not from the request: a link
     // minted for one tenant must not read another's queue even if the ids were
     // somehow known.
-    let row = sqlx::query_as::<_, QueueTokenStatusRow>( // allow-raw-sql: public token status fetches queue details
+    let row = sqlx::query_as::<_, QueueTokenStatusRow>(
+        // allow-raw-sql: public token status fetches queue details
         "SELECT qt.token_number, qt.status, qt.token_date, qt.token_seq, \
                 qt.priority::text AS priority, qt.department_id, \
                 COALESCE(d.name, '') AS department_name \
@@ -478,7 +484,8 @@ pub(crate) async fn book_online(
         None => find_or_create_patient(body, tenant_id, tx, booking.registration_source).await?,
     };
     ensure_public_slot_capacity(body, tx).await?;
-    Ok(sqlx::query_as::<_, Appointment>( // allow-raw-sql: online booking inserts with caller-supplied slot data
+    Ok(sqlx::query_as::<_, Appointment>(
+        // allow-raw-sql: online booking inserts with caller-supplied slot data
         "INSERT INTO appointments \
          (tenant_id, patient_id, doctor_id, department_id, appointment_date, slot_start, \
           slot_end, appointment_type, reason, status, booking_source) \
@@ -555,7 +562,8 @@ pub(crate) async fn find_or_register(
     // record (audit P1). Match phone + first name; anything else gets a
     // fresh patient record that MRD can merge later.
     let (first_name, last_name) = split_public_patient_name(caller.name);
-    let existing = sqlx::query_scalar::<_, Uuid>( // allow-raw-sql: public booking patient lookup
+    let existing = sqlx::query_scalar::<_, Uuid>(
+        // allow-raw-sql: public booking patient lookup
         "SELECT id FROM patients \
          WHERE tenant_id = $1 AND phone = $2 AND lower(first_name) = lower($3) \
          LIMIT 1",
@@ -603,7 +611,8 @@ async fn ensure_public_slot_capacity(
     body: &PublicBookingRequest,
     tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
 ) -> Result<(), AppError> {
-    let booked: i64 = sqlx::query_scalar( // allow-raw-sql: public slot capacity check
+    let booked: i64 = sqlx::query_scalar(
+        // allow-raw-sql: public slot capacity check
         "SELECT COUNT(*) FROM appointments \
          WHERE doctor_id = $1 AND appointment_date = $2 AND slot_start = $3 \
          AND status NOT IN ('cancelled', 'no_show')",
@@ -615,7 +624,8 @@ async fn ensure_public_slot_capacity(
     .await?;
 
     let day_of_week = body.appointment_date.weekday().num_days_from_sunday() as i32;
-    let max_patients: Option<i32> = sqlx::query_scalar( // allow-raw-sql: public slot capacity schedule lookup
+    let max_patients: Option<i32> = sqlx::query_scalar(
+        // allow-raw-sql: public slot capacity schedule lookup
         "SELECT max_patients FROM doctor_schedules \
          WHERE doctor_id = $1 AND day_of_week = $2 AND is_active = true",
     )
@@ -665,7 +675,8 @@ pub async fn request_public_booking_otp(
         return Ok(ack);
     }
 
-    let Some(tenant_id) = sqlx::query_scalar::<_, Uuid>( // allow-raw-sql: public booking OTP resolves tenant by code
+    let Some(tenant_id) = sqlx::query_scalar::<_, Uuid>(
+        // allow-raw-sql: public booking OTP resolves tenant by code
         "SELECT id FROM tenants WHERE code = $1 AND is_active = true",
     )
     .bind(&body.tenant_code)
@@ -688,11 +699,15 @@ pub async fn request_public_booking_otp(
     // SMS on demand to any number a caller names — its own credits, its own
     // sender id. Answered with the same constant ack as every other rejection in
     // this handler, so the opt-in stays unprobeable.
-    if require_public_booking_enabled(&mut tx, tenant_id).await.is_err() {
+    if require_public_booking_enabled(&mut tx, tenant_id)
+        .await
+        .is_err()
+    {
         return Ok(ack);
     }
 
-    sqlx::query( // allow-raw-sql: public booking OTP invalidation
+    sqlx::query(
+        // allow-raw-sql: public booking OTP invalidation
         "UPDATE public_booking_otps SET used_at = now() \
          WHERE tenant_id = $1 AND phone = $2 AND used_at IS NULL",
     )
@@ -701,7 +716,8 @@ pub async fn request_public_booking_otp(
     .execute(&mut *tx)
     .await?;
 
-    sqlx::query( // allow-raw-sql: public booking OTP insert
+    sqlx::query(
+        // allow-raw-sql: public booking OTP insert
         "INSERT INTO public_booking_otps (tenant_id, phone, otp_hash, expires_at) \
          VALUES ($1, $2, $3, now() + make_interval(mins => $4))",
     )
@@ -756,7 +772,8 @@ pub(super) async fn require_public_booking_enabled(
     tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
     tenant_id: Uuid,
 ) -> Result<bool, AppError> {
-    let settings = sqlx::query_as::<_, (String, serde_json::Value)>( // allow-raw-sql: public booking settings check
+    let settings = sqlx::query_as::<_, (String, serde_json::Value)>(
+        // allow-raw-sql: public booking settings check
         "SELECT key, value FROM tenant_settings \
          WHERE tenant_id = $1 AND category = 'appointments' \
            AND key IN ('public_booking_enabled', 'public_booking_otp_required')",
@@ -769,8 +786,7 @@ pub(super) async fn require_public_booking_enabled(
         settings
             .iter()
             .find(|(key, _)| key == name)
-            .map(|(_, value)| value.as_bool().unwrap_or(value.as_str() == Some("true")))
-            .unwrap_or(false)
+            .is_some_and(|(_, value)| value.as_bool().unwrap_or(value.as_str() == Some("true")))
     };
 
     if !flag("public_booking_enabled") {
@@ -787,7 +803,8 @@ pub(super) async fn verify_booking_otp(
     phone: &str,
     otp: Option<&str>,
 ) -> Result<(), AppError> {
-    let required = sqlx::query_scalar::<_, serde_json::Value>( // allow-raw-sql: public booking OTP requirement check
+    let required = sqlx::query_scalar::<_, serde_json::Value>(
+        // allow-raw-sql: public booking OTP requirement check
         "SELECT value FROM tenant_settings \
          WHERE tenant_id = $1 AND category = 'appointments' \
            AND key = 'public_booking_otp_required'",
@@ -795,8 +812,7 @@ pub(super) async fn verify_booking_otp(
     .bind(tenant_id)
     .fetch_optional(&mut **tx)
     .await?
-    .map(|v| v.as_bool().unwrap_or(v.as_str() == Some("true")))
-    .unwrap_or(false);
+    .is_some_and(|v| v.as_bool().unwrap_or(v.as_str() == Some("true")));
     if !required {
         return Ok(());
     }
@@ -807,7 +823,8 @@ pub(super) async fn verify_booking_otp(
         ));
     };
 
-    let row: Option<(Uuid, bool, bool, i32)> = sqlx::query_as( // allow-raw-sql: public booking OTP verification
+    let row: Option<(Uuid, bool, bool, i32)> = sqlx::query_as(
+        // allow-raw-sql: public booking OTP verification
         "SELECT id, expires_at > now(), otp_hash = $3, attempts \
          FROM public_booking_otps \
          WHERE tenant_id = $1 AND phone = $2 AND used_at IS NULL \

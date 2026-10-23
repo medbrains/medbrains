@@ -1,4 +1,5 @@
 //! GENERATED — do not edit by hand.
+//!
 //! Parameterless GET (list/index) endpoints extracted from
 //! `packages/api/src/client.ts` for the coverage sweep. Regenerate with
 //! the extraction script in the simulator commit notes.

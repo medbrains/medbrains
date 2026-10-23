@@ -1,6 +1,9 @@
-//! Infection control leaf crate (HAI surveillance, isolation, AMS). Mounted via router().
+//! Infection control leaf crate (HAI surveillance, isolation, AMS). Mounted via `router()`.
 
-use axum::{Router, routing::{get,patch,post}};
+use axum::{
+    Router,
+    routing::{get, patch, post},
+};
 use medbrains_server_core::state::AppState;
 
 pub mod infection_control;

@@ -1,6 +1,6 @@
 //! Print-data crate — read-only endpoints that assemble print/PDF payloads.
 //! Foundation coupling (server-core + medbrains-core::print_data types); clinical
-//! adds authz_patient + events (workflow); several use the signed_documents helper.
+//! adds `authz_patient` + events (workflow); several use the `signed_documents` helper.
 
 pub mod academic;
 pub mod admin;

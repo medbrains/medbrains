@@ -29,8 +29,8 @@ use serde::Deserialize;
 use uuid::Uuid;
 
 use medbrains_server_core::{
-    error::AppError, middleware::auth::Claims,
-    middleware::authorization::require_permission, state::AppState,
+    error::AppError, middleware::auth::Claims, middleware::authorization::require_permission,
+    state::AppState,
 };
 
 // ── Query Parameters ──────────────────────────────────────────────────────────
@@ -78,7 +78,7 @@ async fn require_group_access(
 }
 
 /// Group-structure operations (create/edit/delete a group or region, move hospitals between
-/// groups) are platform-operator only — a hospital's own admin (who bypasses require_permission)
+/// groups) are platform-operator only — a hospital's own admin (who bypasses `require_permission`)
 /// must not restructure chains.
 fn require_super_admin(claims: &Claims) -> Result<(), AppError> {
     if claims.role == "super_admin" {
@@ -107,11 +107,7 @@ async fn require_tenant_in_group(
     .bind(tenant_id)
     .fetch_one(&state.db)
     .await?;
-    if ok {
-        Ok(())
-    } else {
-        Err(AppError::Forbidden)
-    }
+    if ok { Ok(()) } else { Err(AppError::Forbidden) }
 }
 
 // ── Hospital Groups ───────────────────────────────────────────────────────────
@@ -1010,11 +1006,12 @@ pub async fn get_group_dashboard(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
     require_group_access(&state, &claims, group_id).await?;
-    let group_name = sqlx::query_scalar::<_, String>("SELECT name FROM hospital_groups WHERE id = $1")
-        .bind(group_id)
-        .fetch_optional(&mut *tx)
-        .await?
-        .ok_or(AppError::NotFound)?;
+    let group_name =
+        sqlx::query_scalar::<_, String>("SELECT name FROM hospital_groups WHERE id = $1")
+            .bind(group_id)
+            .fetch_optional(&mut *tx)
+            .await?
+            .ok_or(AppError::NotFound)?;
     let hospitals = sqlx::query_as::<_, HospitalKpiSummary>(&format!(
         "{HOSPITAL_KPI_SELECT} WHERE t.group_id = $1 \
          GROUP BY t.id, t.name, t.branch_code, r.name ORDER BY t.name"
@@ -1325,7 +1322,7 @@ pub async fn list_price_overrides(
 
 // ── Group Templates ───────────────────────────────────────────────────────────
 
-/// List a group's templates (optionally filter by template_type via the `period` query param).
+/// List a group's templates (optionally filter by `template_type` via the `period` query param).
 pub async fn list_group_templates(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,

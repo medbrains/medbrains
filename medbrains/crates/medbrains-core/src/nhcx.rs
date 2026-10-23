@@ -298,7 +298,7 @@ pub const CLAIM_BUNDLE_PROFILE: &str =
 pub const COVERAGE_ELIGIBILITY_BUNDLE_PROFILE: &str =
     "https://nrces.in/ndhm/fhir/r4/StructureDefinition/CoverageEligibilityRequestBundle";
 /// NHCX `Communication` profile — the provider's answer to a payer query
-/// (NRCeS lists no bundle profile for it, so the resource is the payload).
+/// (`NRCeS` lists no bundle profile for it, so the resource is the payload).
 pub const COMMUNICATION_PROFILE: &str =
     "https://nrces.in/ndhm/fhir/r4/StructureDefinition/Communication";
 /// NHCX `TaskBundle` profile — status, search, cancel, reprocess and the
@@ -308,21 +308,21 @@ pub const TASK_BUNDLE_PROFILE: &str =
 /// HL7 financial task codes (`status`, `cancel`, `reprocess`, `poll`).
 pub const FINANCIAL_TASK_CODE_SYSTEM: &str =
     "http://terminology.hl7.org/CodeSystem/financialtaskcode";
-/// NRCeS task codes (`nullify`, `deliver`, `search`).
+/// `NRCeS` task codes (`nullify`, `deliver`, `search`).
 pub const NDHM_TASK_CODE_SYSTEM: &str = "https://nrces.in/ndhm/fhir/r4/CodeSystem/ndhm-task-codes";
-/// NRCeS Task.input types (`claimNumber`, `fromDate`, `toDate`, …).
+/// `NRCeS` Task.input types (`claimNumber`, `fromDate`, `toDate`, …).
 pub const NDHM_TASK_INPUT_TYPE_SYSTEM: &str =
     "https://nrces.in/ndhm/fhir/r4/CodeSystem/ndhm-task-input-type-code";
-/// NRCeS Task.output types (`status`, `include`).
+/// `NRCeS` Task.output types (`status`, `include`).
 pub const NDHM_TASK_OUTPUT_TYPE_SYSTEM: &str =
     "https://nrces.in/ndhm/fhir/r4/CodeSystem/ndhm-task-output-type";
-/// NRCeS Task.output values (`paymentack`).
+/// `NRCeS` Task.output values (`paymentack`).
 pub const NDHM_TASK_OUTPUT_VALUE_SYSTEM: &str =
     "https://nrces.in/ndhm/fhir/r4/CodeSystem/ndhm-task-output-value";
-/// NRCeS Task.reasonCode (`claimrejected`).
+/// `NRCeS` Task.reasonCode (`claimrejected`).
 pub const NDHM_REASON_CODE_SYSTEM: &str =
     "https://nrces.in/ndhm/fhir/r4/CodeSystem/ndhm-reason-code";
-/// NRCeS PaymentReconciliation.detail types (`approvedAmount`, `tds`).
+/// `NRCeS` PaymentReconciliation.detail types (`approvedAmount`, `tds`).
 pub const NDHM_PAYMENT_TYPE_SYSTEM: &str =
     "https://nrces.in/ndhm/fhir/r4/CodeSystem/ndhm-payment-type";
 /// ICD-11 MMS code system (the WHO release URI).
@@ -347,11 +347,11 @@ pub const DIAGNOSIS_TYPE_SYSTEM: &str = "http://terminology.hl7.org/CodeSystem/e
 /// HL7 claim information categories for `Claim.supportingInfo.category`.
 pub const CLAIM_INFO_CATEGORY_SYSTEM: &str =
     "http://terminology.hl7.org/CodeSystem/claiminformationcategory";
-/// NRCeS supporting-information categories (`HDS` discharge summary, `MB`
+/// `NRCeS` supporting-information categories (`HDS` discharge summary, `MB`
 /// medical bill, `INV` investigation, `ATT` attachment) — IG 6.5.0.
 pub const NDHM_SUPPORTING_INFO_CATEGORY_SYSTEM: &str =
     "https://nrces.in/ndhm/fhir/r4/CodeSystem/ndhm-supportinginfo-category";
-/// NRCeS supporting-information codes (`DCR` discharge summary report, `FB`
+/// `NRCeS` supporting-information codes (`DCR` discharge summary report, `FB`
 /// final bill, `LIR` lab investigation report) — IG 6.5.0.
 pub const NDHM_SUPPORTING_INFO_CODE_SYSTEM: &str =
     "https://nrces.in/ndhm/fhir/r4/CodeSystem/ndhm-supportinginfo-code";

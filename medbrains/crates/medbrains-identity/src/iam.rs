@@ -1,8 +1,8 @@
 //! IAM-style access requests.
 //!
 //! This is the user-facing layer for module permissions. Base access still
-//! comes from roles, and patient/resource sharing still uses the ReBAC graph.
-//! Access requests add audited, time-bound overrides to users.access_matrix.
+//! comes from roles, and patient/resource sharing still uses the `ReBAC` graph.
+//! Access requests add audited, time-bound overrides to `users.access_matrix`.
 
 use axum::{
     Extension, Json,

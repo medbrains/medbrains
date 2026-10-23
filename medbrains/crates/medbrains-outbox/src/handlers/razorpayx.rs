@@ -1,15 +1,15 @@
-//! RazorpayX Smart Collect — bank **virtual account** handler.
+//! `RazorpayX` Smart Collect — bank **virtual account** handler.
 //!
 //! The cleanest reverse reconciliation: we mint a per-invoice virtual account
 //! (bank account number + IFSC + a UPI VPA). The patient pays to it from any
-//! bank/UPI app; RazorpayX fires `virtual_account.credited` and we match the
+//! bank/UPI app; `RazorpayX` fires `virtual_account.credited` and we match the
 //! credit back by the VA id — no signature dance, no manual entry.
 //!
-//! RazorpayX shares Razorpay's key auth + base (`api.razorpay.com/v1`); this
+//! `RazorpayX` shares Razorpay's key auth + base (`api.razorpay.com/v1`); this
 //! handler runs only for `payment.razorpayx.create_va` so the existing Razorpay
 //! order/refund handlers are untouched.
 //!
-//! ⚠ Field names per the public RazorpayX Smart Collect docs; validate against
+//! ⚠ Field names per the public `RazorpayX` Smart Collect docs; validate against
 //! live keys before go-live. The create→store→settle control flow is tested.
 
 use async_trait::async_trait;
@@ -83,7 +83,10 @@ impl Handler for VirtualAccountCreateHandler {
 
         let status = resp.status();
         if !status.is_success() {
-            return Err(classify_status(status, &resp.text().await.unwrap_or_default()));
+            return Err(classify_status(
+                status,
+                &resp.text().await.unwrap_or_default(),
+            ));
         }
         let body: Value = resp
             .json()

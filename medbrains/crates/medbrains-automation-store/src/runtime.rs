@@ -7,11 +7,11 @@
 //! the one place that can still see it.
 
 use async_trait::async_trait;
+use medbrains_automation::TenantStores;
 use medbrains_automation::prelude::{
     BinaryMeta, BinaryRef, BinaryStore, CoreError, EngineResult as CoreResult, NoVariables,
     StateStore, StaticVariables, Variables,
 };
-use medbrains_automation::TenantStores;
 use serde_json::{Map, Value};
 use sqlx::PgPool;
 use std::sync::Arc;
@@ -28,7 +28,7 @@ pub struct Stores {
 impl Stores {
     #[must_use]
     pub fn new(pool: PgPool) -> Self {
-        Stores { pool }
+        Self { pool }
     }
 }
 
@@ -246,7 +246,7 @@ impl BinaryStore for TenantBinaries {
 
 // ----------------------------------------------------------------- helpers
 
-/// r8r identifies workflows and runs with opaque strings; MedBrains uses uuids.
+/// r8r identifies workflows and runs with opaque strings; `MedBrains` uses uuids.
 ///
 /// A string that is not one cannot name a row here, and saying so is better
 /// than a query that quietly matches nothing.

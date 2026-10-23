@@ -2,16 +2,16 @@
 //!
 //! First slice of the RFC-SERVER-CRATE-SPLIT extraction: the zero-route-coupling
 //! infra modules (error type, config, request validation, JWT signing, S3 presign,
-//! OAuth). AppState, middleware and the auth layer follow in subsequent slices.
+//! OAuth). `AppState`, middleware and the auth layer follow in subsequent slices.
 
-pub mod config;
 pub mod clinical_credential;
+pub mod config;
 pub mod error;
 pub mod hospital_time;
 pub mod http_trace;
 pub mod middleware;
-pub mod pagination;
 pub mod notification_hub;
+pub mod pagination;
 pub mod permissions;
 pub mod queue_broadcast;
 pub mod s3_presign;

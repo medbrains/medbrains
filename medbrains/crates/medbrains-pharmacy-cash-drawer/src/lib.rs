@@ -273,7 +273,7 @@ pub async fn list_drawers(
     Ok(Json(rows))
 }
 
-/// pharmacy_cash_drawer routes.
+/// `pharmacy_cash_drawer` routes.
 pub fn router() -> axum::Router<AppState> {
     axum::Router::new()
         .route(
@@ -289,7 +289,10 @@ pub fn router() -> axum::Router<AppState> {
             "/api/pharmacy/day-close",
             get(day_close::list_counter_days).post(day_close::close_day),
         )
-        .route("/api/pharmacy/day-close/report", get(day_close::get_day_report))
+        .route(
+            "/api/pharmacy/day-close/report",
+            get(day_close::get_day_report),
+        )
         .route(
             "/api/pharmacy/day-close/{id}/reopen",
             post(day_close::reopen_day),

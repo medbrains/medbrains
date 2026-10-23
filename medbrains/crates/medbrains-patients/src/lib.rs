@@ -2,12 +2,12 @@
 
 pub mod abha_link;
 pub mod acquisition;
-mod identifier_key;
 pub mod contact_consent;
 pub mod dpdp_consent;
+mod identifier_key;
+pub mod pharmacy_customer;
 pub mod privacy_requests;
 mod registration_rules;
-pub mod pharmacy_customer;
 
 use std::collections::HashMap;
 
@@ -35,10 +35,12 @@ use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use uuid::Uuid;
 
-use axum::routing::{get,post,put,delete,patch};
+use axum::routing::{delete, get, patch, post, put};
 use medbrains_server_core::error::AppError;
 use medbrains_server_core::middleware::auth::Claims;
-use medbrains_server_core::middleware::authorization::{require_any_permission, require_permission};
+use medbrains_server_core::middleware::authorization::{
+    require_any_permission, require_permission,
+};
 use medbrains_server_core::middleware::field_access;
 use medbrains_server_core::state::AppState;
 use medbrains_server_core::validation::{self, ValidationErrors};
@@ -90,7 +92,7 @@ pub struct ListPatientsQuery {
     pub is_active: Option<bool>,
     pub blood_group: Option<String>,
     pub registration_type: Option<String>,
-    /// Column key to sort by (allowlisted server-side). Defaults to created_at.
+    /// Column key to sort by (allowlisted server-side). Defaults to `created_at`.
     pub sort: Option<String>,
     /// Sort direction: "asc" or "desc" (default desc).
     pub order: Option<String>,
@@ -1216,7 +1218,11 @@ pub async fn list_patients(
     let total: i64 = count_query.fetch_one(&mut *tx).await?;
 
     // Data query — ORDER BY built from an allowlist (never raw user input).
-    let sort_dir = if params.order.as_deref() == Some("asc") { "ASC" } else { "DESC" };
+    let sort_dir = if params.order.as_deref() == Some("asc") {
+        "ASC"
+    } else {
+        "DESC"
+    };
     let order_by = match params.sort.as_deref() {
         Some("uhid") => format!("uhid {sort_dir}"),
         Some("name") => format!("last_name {sort_dir}, first_name {sort_dir}"),
@@ -1359,14 +1365,12 @@ pub async fn list_patients(
                 outstanding_balance: if scrub_billing_amount {
                     Decimal::ZERO
                 } else {
-                    billing
-                        .map(|row| row.outstanding_balance)
-                        .unwrap_or(Decimal::ZERO)
+                    billing.map_or(Decimal::ZERO, |row| row.outstanding_balance)
                 },
                 pending_invoice_count: if scrub_billing_amount {
                     0
                 } else {
-                    billing.map(|row| row.pending_invoice_count).unwrap_or(0)
+                    billing.map_or(0, |row| row.pending_invoice_count)
                 },
                 perms,
             }
@@ -1992,10 +1996,7 @@ pub async fn list_patient_identifiers(
 
     // The route names a patient; the module permission says what this role may
     // do, not which patients they may do it to.
-    medbrains_authz_gate::require_patient_access(
-        &state, &claims, patient_id,
-    )
-    .await?;
+    medbrains_authz_gate::require_patient_access(&state, &claims, patient_id).await?;
     let restricted = field_access::resolve_restricted_fields(
         &state.db,
         claims.tenant_id,
@@ -2194,10 +2195,7 @@ pub async fn list_patient_addresses(
 
     // The route names a patient; the module permission says what this role may
     // do, not which patients they may do it to.
-    medbrains_authz_gate::require_patient_access(
-        &state, &claims, patient_id,
-    )
-    .await?;
+    medbrains_authz_gate::require_patient_access(&state, &claims, patient_id).await?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
@@ -2383,10 +2381,7 @@ pub async fn list_patient_contacts(
 
     // The route names a patient; the module permission says what this role may
     // do, not which patients they may do it to.
-    medbrains_authz_gate::require_patient_access(
-        &state, &claims, patient_id,
-    )
-    .await?;
+    medbrains_authz_gate::require_patient_access(&state, &claims, patient_id).await?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
@@ -2560,10 +2555,10 @@ pub async fn delete_patient_contact(
 //  Patient Insurance — CRUD
 // ══════════════════════════════════════════════════════════
 
-/// Per-patient ReBAC read gate: a module-wide `patients.view` permission is NOT
+/// Per-patient `ReBAC` read gate: a module-wide `patients.view` permission is NOT
 /// sufficient — the caller must hold a Viewer relation on THIS patient
-/// (deny-by-default PgAuthzBackend). Returns 404 (not 403) so existence isn't
-/// leaked. Every patient sub-resource read must call this, mirroring get_patient.
+/// (deny-by-default `PgAuthzBackend`). Returns 404 (not 403) so existence isn't
+/// leaked. Every patient sub-resource read must call this, mirroring `get_patient`.
 pub async fn require_patient_viewer(
     state: &AppState,
     claims: &Claims,
@@ -2574,7 +2569,12 @@ pub async fn require_patient_viewer(
         medbrains_server_core::middleware::authorization::outcome_of(
             state
                 .authz
-                .check(&authz_ctx, medbrains_authz::Relation::Viewer, "patient", patient_id)
+                .check(
+                    &authz_ctx,
+                    medbrains_authz::Relation::Viewer,
+                    "patient",
+                    patient_id,
+                )
                 .await,
             "patient",
         ),
@@ -2879,18 +2879,20 @@ pub async fn create_patient_allergy(
         .bind(patient_id)
         .fetch_all(&mut *tx)
         .await?;
-        active_medication_conflicts =
-            medbrains_core::allergy::find_conflicts(
-                &active_meds,
-                std::slice::from_ref(&body.allergen_name),
-            )
-                .into_iter()
-                .map(|c| c.drug_name)
-                .collect();
+        active_medication_conflicts = medbrains_core::allergy::find_conflicts(
+            &active_meds,
+            std::slice::from_ref(&body.allergen_name),
+        )
+        .into_iter()
+        .map(|c| c.drug_name)
+        .collect();
     }
 
     tx.commit().await?;
-    Ok(Json(CreateAllergyResponse { allergy: row, active_medication_conflicts }))
+    Ok(Json(CreateAllergyResponse {
+        allergy: row,
+        active_medication_conflicts,
+    }))
 }
 
 #[derive(Debug, serde::Serialize)]
@@ -3252,8 +3254,8 @@ pub async fn delete_patient_consent(
 //  MPI Duplicate Match — POST /api/patients/match
 // ══════════════════════════════════════════════════════════
 
-/// Field-access masking for MPI match rows — mirrors filter_patient_response so
-/// /patients/match honours patients.uhid/first_name/last_name/date_of_birth/phone
+/// Field-access masking for MPI match rows — mirrors `filter_patient_response` so
+/// /patients/match honours `patients.uhid/first_name/last_name/date_of_birth/phone`
 /// Mask/Hidden levels instead of leaking cleartext PHI (an unmasked lookup oracle).
 fn filter_match_result(
     mut row: MatchResult,
@@ -3921,10 +3923,7 @@ pub async fn list_patient_appointments(
 
     // The route names a patient; the module permission says what this role may
     // do, not which patients they may do it to.
-    medbrains_authz_gate::require_patient_access(
-        &state, &claims, patient_id,
-    )
-    .await?;
+    medbrains_authz_gate::require_patient_access(&state, &claims, patient_id).await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -3981,8 +3980,7 @@ pub async fn merge_patients(
     // itself would be the disclosure. Irreversible, so both or neither.
     medbrains_authz_gate::require_patient_access(&state, &claims, body.surviving_patient_id)
         .await?;
-    medbrains_authz_gate::require_patient_access(&state, &claims, body.merged_patient_id)
-        .await?;
+    medbrains_authz_gate::require_patient_access(&state, &claims, body.merged_patient_id).await?;
 
     if body.surviving_patient_id == body.merged_patient_id {
         return Err(AppError::BadRequest(
@@ -4117,10 +4115,7 @@ pub async fn list_merge_history(
 
     // The route names a patient; the module permission says what this role may
     // do, not which patients they may do it to.
-    medbrains_authz_gate::require_patient_access(
-        &state, &claims, patient_id,
-    )
-    .await?;
+    medbrains_authz_gate::require_patient_access(&state, &claims, patient_id).await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -4163,10 +4158,7 @@ pub async fn list_family_links(
 
     // The route names a patient; the module permission says what this role may
     // do, not which patients they may do it to.
-    medbrains_authz_gate::require_patient_access(
-        &state, &claims, patient_id,
-    )
-    .await?;
+    medbrains_authz_gate::require_patient_access(&state, &claims, patient_id).await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -4427,10 +4419,7 @@ pub async fn record_patient_access(
 
     // The route names a patient; the module permission says what this role may
     // do, not which patients they may do it to.
-    medbrains_authz_gate::require_patient_access(
-        &state, &claims, patient_id,
-    )
-    .await?;
+    medbrains_authz_gate::require_patient_access(&state, &claims, patient_id).await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -4464,10 +4453,7 @@ pub async fn list_patient_access_log(
 
     // The route names a patient; the module permission says what this role may
     // do, not which patients they may do it to.
-    medbrains_authz_gate::require_patient_access(
-        &state, &claims, patient_id,
-    )
-    .await?;
+    medbrains_authz_gate::require_patient_access(&state, &claims, patient_id).await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -4498,10 +4484,7 @@ pub async fn update_patient_photo(
 
     // The route names a patient; the module permission says what this role may
     // do, not which patients they may do it to.
-    medbrains_authz_gate::require_patient_access(
-        &state, &claims, patient_id,
-    )
-    .await?;
+    medbrains_authz_gate::require_patient_access(&state, &claims, patient_id).await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -4633,7 +4616,10 @@ pub async fn get_patient_context(
     let authz_ctx = medbrains_server_core::middleware::authorization::authz_context(&claims);
     medbrains_server_core::middleware::authorization::collapse(
         medbrains_server_core::middleware::authorization::outcome_of(
-            state.authz.check(&authz_ctx, medbrains_authz::Relation::Viewer, "patient", id).await,
+            state
+                .authz
+                .check(&authz_ctx, medbrains_authz::Relation::Viewer, "patient", id)
+                .await,
             "patient",
         ),
     )?;
@@ -4987,7 +4973,7 @@ pub struct PatientTimelineEvent {
 /// One chronological feed of a patient's clinical record across modules —
 /// OPD visits, admissions, ER visits, lab orders, imaging orders and
 /// prescriptions. IPD/ER-type encounters are excluded so admissions and
-/// er_visits aren't double-counted (every ER visit is encounter-backed).
+/// `er_visits` aren't double-counted (every ER visit is encounter-backed).
 pub async fn get_clinical_timeline(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
@@ -5053,10 +5039,7 @@ pub fn router() -> axum::Router<AppState> {
             "/api/patients/{id}/acquisition",
             get(acquisition::get_acquisition).put(acquisition::correct_acquisition),
         )
-        .route(
-            "/api/patients",
-            get(list_patients).post(create_patient),
-        )
+        .route("/api/patients", get(list_patients).post(create_patient))
         .route("/api/patients/find", get(find_patients))
         .route("/api/patients/match", post(match_patients))
         .route(
@@ -5064,14 +5047,8 @@ pub fn router() -> axum::Router<AppState> {
             post(pharmacy_customer::complete_registration),
         )
         .route("/api/patients/merge", post(merge_patients))
-        .route(
-            "/api/patients/unmerge/{id}",
-            post(unmerge_patient),
-        )
-        .route(
-            "/api/patients/{id}",
-            get(get_patient).put(update_patient),
-        )
+        .route("/api/patients/unmerge/{id}", post(unmerge_patient))
+        .route("/api/patients/{id}", get(get_patient).put(update_patient))
         .route(
             "/api/patients/{id}/contact-consents",
             get(contact_consent::get_contact_consents).put(contact_consent::set_contact_consent),
@@ -5097,58 +5074,43 @@ pub fn router() -> axum::Router<AppState> {
             "/api/patients/{id}/clinical-timeline",
             get(get_clinical_timeline),
         )
-        .route(
-            "/api/patients/{id}/context",
-            get(get_patient_context),
-        )
+        .route("/api/patients/{id}/context", get(get_patient_context))
         .route(
             "/api/patients/{patient_id}/identifiers",
-            get(list_patient_identifiers)
-                .post(create_patient_identifier),
+            get(list_patient_identifiers).post(create_patient_identifier),
         )
         .route(
             "/api/patients/{patient_id}/identifiers/{id}",
-            put(update_patient_identifier)
-                .delete(delete_patient_identifier),
+            put(update_patient_identifier).delete(delete_patient_identifier),
         )
         .route(
             "/api/patients/{patient_id}/addresses",
-            get(list_patient_addresses)
-                .post(create_patient_address),
+            get(list_patient_addresses).post(create_patient_address),
         )
         .route(
             "/api/patients/{patient_id}/addresses/{id}",
-            put(update_patient_address)
-                .delete(delete_patient_address),
+            put(update_patient_address).delete(delete_patient_address),
         )
         .route(
             "/api/patients/{patient_id}/contacts",
-            get(list_patient_contacts)
-                .post(create_patient_contact),
+            get(list_patient_contacts).post(create_patient_contact),
         )
         .route(
             "/api/patients/{patient_id}/contacts/{id}",
-            put(update_patient_contact)
-                .delete(delete_patient_contact),
+            put(update_patient_contact).delete(delete_patient_contact),
         )
         .route(
             "/api/patients/{patient_id}/insurance",
-            get(list_patient_insurance)
-                .post(create_patient_insurance),
+            get(list_patient_insurance).post(create_patient_insurance),
         )
         .route(
             "/api/patients/{patient_id}/insurance/{id}",
-            put(update_patient_insurance)
-                .delete(delete_patient_insurance),
+            put(update_patient_insurance).delete(delete_patient_insurance),
         )
-        .route(
-            "/api/patients/allergen-catalog",
-            get(list_allergen_catalog),
-        )
+        .route("/api/patients/allergen-catalog", get(list_allergen_catalog))
         .route(
             "/api/patients/{patient_id}/allergies",
-            get(list_patient_allergies)
-                .post(create_patient_allergy),
+            get(list_patient_allergies).post(create_patient_allergy),
         )
         .route(
             "/api/patients/{patient_id}/allergies/{id}",
@@ -5160,18 +5122,15 @@ pub fn router() -> axum::Router<AppState> {
         )
         .route(
             "/api/patients/{patient_id}/consents",
-            get(list_patient_consents)
-                .post(create_patient_consent),
+            get(list_patient_consents).post(create_patient_consent),
         )
         .route(
             "/api/patients/{patient_id}/consents/{id}",
-            put(update_patient_consent)
-                .delete(delete_patient_consent),
+            put(update_patient_consent).delete(delete_patient_consent),
         )
         .route(
             "/api/patients/{patient_id}/family-links",
-            get(list_family_links)
-                .post(create_family_link),
+            get(list_family_links).post(create_family_link),
         )
         .route(
             "/api/patients/{patient_id}/family-links/{id}",
@@ -5179,8 +5138,7 @@ pub fn router() -> axum::Router<AppState> {
         )
         .route(
             "/api/patients/{patient_id}/documents",
-            get(list_patient_documents)
-                .post(create_patient_document),
+            get(list_patient_documents).post(create_patient_document),
         )
         .route(
             "/api/patients/{patient_id}/access-log",
@@ -5218,16 +5176,7 @@ pub fn router() -> axum::Router<AppState> {
             "/api/patients/{patient_id}/appointments",
             get(list_patient_appointments),
         )
-        .route(
-            "/api/masters/religions",
-            get(list_religions),
-        )
-        .route(
-            "/api/masters/occupations",
-            get(list_occupations),
-        )
-        .route(
-            "/api/masters/relations",
-            get(list_relations),
-        )
+        .route("/api/masters/religions", get(list_religions))
+        .route("/api/masters/occupations", get(list_occupations))
+        .route("/api/masters/relations", get(list_relations))
 }

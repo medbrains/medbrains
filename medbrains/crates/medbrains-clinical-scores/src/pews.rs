@@ -1,4 +1,5 @@
 //! PEWS (Paediatric Early Warning Score, Brighton model) — a track-and-trigger score for children.
+//!
 //! NEWS2 and MEOWS are not valid in paediatrics (normal heart rate and respiratory rate vary widely
 //! by age), so children need a dedicated tool. The Brighton chart scores three clinical domains —
 //! behaviour, cardiovascular, respiratory — each 0-3, plus 2 points for a quarter-hourly nebuliser
@@ -26,8 +27,8 @@ pub struct PewsRequest {
     /// 0 pink or cap-refill 1-2s · 1 pale or cap-refill 3s · 2 grey/cap-refill 4s or HR >20 over normal
     /// · 3 grey & mottled/cap-refill >=5s or HR >=30 over normal or bradycardia.
     pub cardiovascular: i32,
-    /// 0 normal, no recession · 1 RR >10 over normal, accessory muscles, or FiO2 30% · 2 RR >20 over
-    /// normal, recessing, or FiO2 40% · 3 RR >=5 below normal with recession/grunting or FiO2 >=50%.
+    /// 0 normal, no recession · 1 RR >10 over normal, accessory muscles, or `FiO2` 30% · 2 RR >20 over
+    /// normal, recessing, or `FiO2` 40% · 3 RR >=5 below normal with recession/grunting or `FiO2` >=50%.
     pub respiratory: i32,
     /// +2 — a child on quarter-hourly nebulisers.
     #[serde(default)]
@@ -52,14 +53,15 @@ pub struct PewsResult {
 
 fn validate_domain(name: &str, value: i32) -> Result<(), AppError> {
     if !(0..=3).contains(&value) {
-        return Err(AppError::BadRequest(format!("{name} must be between 0 and 3")));
+        return Err(AppError::BadRequest(format!(
+            "{name} must be between 0 and 3"
+        )));
     }
     Ok(())
 }
 
 pub fn compute_pews(r: &PewsRequest) -> PewsResult {
-    let extra =
-        i32::from(r.quarter_hourly_nebuliser) * 2 + i32::from(r.persistent_vomiting) * 2;
+    let extra = i32::from(r.quarter_hourly_nebuliser) * 2 + i32::from(r.persistent_vomiting) * 2;
     let total = r.behaviour + r.cardiovascular + r.respiratory + extra;
     let max_domain = r.behaviour.max(r.cardiovascular).max(r.respiratory);
     // Any single domain at 3, or an aggregate >= 4, is a red trigger for urgent review.

@@ -26,7 +26,7 @@ pub struct CreateTeleConsultationRequest {
     pub appointment_id: Option<Uuid>,
     pub encounter_id: Option<Uuid>,
     pub scheduled_at: Option<chrono::DateTime<chrono::Utc>>,
-    /// jitsi (default, auto room) | external | google_meet | zoom | teams.
+    /// jitsi (default, auto room) | external | `google_meet` | zoom | teams.
     pub provider: Option<String>,
     /// Required for non-Jitsi providers — the externally-created join link.
     pub meeting_url: Option<String>,
@@ -47,7 +47,7 @@ pub struct ListTeleConsultationsQuery {
 
 #[derive(Debug, Deserialize)]
 pub struct UpdateTeleStatusRequest {
-    /// waiting | in_progress | completed | cancelled | no_show
+    /// waiting | `in_progress` | completed | cancelled | `no_show`
     pub status: String,
     pub doctor_notes: Option<String>,
     pub cancel_reason: Option<String>,
@@ -108,7 +108,11 @@ pub async fn create_tele_consultation(
             "Invalid provider '{provider}'; expected one of {TELE_PROVIDERS:?}"
         )));
     }
-    let meeting_url = body.meeting_url.as_deref().map(str::trim).filter(|s| !s.is_empty());
+    let meeting_url = body
+        .meeting_url
+        .as_deref()
+        .map(str::trim)
+        .filter(|s| !s.is_empty());
     // Three provider shapes:
     //  - jitsi:    auto room, no link needed.
     //  - external: doctor pastes a link → meeting_url required now.
@@ -335,12 +339,10 @@ pub async fn get_join_info(
 /// Jitsi derives it from the tenant's video base + room id.
 #[must_use]
 pub fn join_url(base: &str, meeting_url: Option<&str>, room_id: &str) -> String {
-    meeting_url
-        .filter(|u| !u.is_empty())
-        .map_or_else(
-            || format!("{}/{room_id}", base.trim_end_matches('/')),
-            ToOwned::to_owned,
-        )
+    meeting_url.filter(|u| !u.is_empty()).map_or_else(
+        || format!("{}/{room_id}", base.trim_end_matches('/')),
+        ToOwned::to_owned,
+    )
 }
 
 /// The visit a consultation is held on, opened at booking: notes, orders and
@@ -456,8 +458,18 @@ pub async fn update_tele_status(
          RETURNING *",
     )
     .bind(status)
-    .bind(body.doctor_notes.as_deref().map(str::trim).filter(|s| !s.is_empty()))
-    .bind(body.cancel_reason.as_deref().map(str::trim).filter(|s| !s.is_empty()))
+    .bind(
+        body.doctor_notes
+            .as_deref()
+            .map(str::trim)
+            .filter(|s| !s.is_empty()),
+    )
+    .bind(
+        body.cancel_reason
+            .as_deref()
+            .map(str::trim)
+            .filter(|s| !s.is_empty()),
+    )
     .bind(id)
     .bind(claims.tenant_id)
     .fetch_optional(&mut *tx)
@@ -621,7 +633,7 @@ pub struct ScheduleFollowUpRequest {
 }
 
 /// `POST /api/telemedicine/consultations/{id}/follow-up` — schedule a follow-up consult, copying
-/// the patient / doctor / provider from this one and linking it via follow_up_of.
+/// the patient / doctor / provider from this one and linking it via `follow_up_of`.
 pub async fn schedule_follow_up(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
@@ -787,7 +799,8 @@ async fn setting_str(
     .bind(key)
     .fetch_optional(&mut **tx)
     .await?;
-    Ok(v.and_then(|v| v.as_str().map(ToOwned::to_owned)).filter(|s| !s.is_empty()))
+    Ok(v.and_then(|v| v.as_str().map(ToOwned::to_owned))
+        .filter(|s| !s.is_empty()))
 }
 
 async fn load_tele_config(
@@ -884,8 +897,12 @@ struct TriageOutcome {
 
 /// Grade a pre-consult intake into an acuity band with explainable red-flags. Deterministic and
 /// transparent — every flag records the rule that fired (research-grounded triage red-flag sets,
-/// not a black-box model). `symptoms` are lowercase snake_case codes; `vitals` is patient-reported.
-fn run_triage(symptoms: &[String], severity: Option<i32>, vitals: &serde_json::Value) -> TriageOutcome {
+/// not a black-box model). `symptoms` are lowercase `snake_case` codes; `vitals` is patient-reported.
+fn run_triage(
+    symptoms: &[String],
+    severity: Option<i32>,
+    vitals: &serde_json::Value,
+) -> TriageOutcome {
     let has = |s: &str| symptoms.iter().any(|x| x == s);
     let num = |k: &str| vitals.get(k).and_then(serde_json::Value::as_f64);
     let mut red_flags: Vec<String> = Vec::new();
@@ -896,13 +913,22 @@ fn run_triage(symptoms: &[String], severity: Option<i32>, vitals: &serde_json::V
     };
 
     if has("chest_pain") && (has("sweating") || has("radiation_arm") || has("breathlessness")) {
-        flag("possible_acs", "chest pain with an associated feature (sweating/radiation/dyspnoea)");
+        flag(
+            "possible_acs",
+            "chest pain with an associated feature (sweating/radiation/dyspnoea)",
+        );
     }
     if has("facial_droop") || has("arm_weakness") || has("speech_difficulty") {
-        flag("stroke_fast", "FAST-positive: facial droop / arm weakness / speech difficulty");
+        flag(
+            "stroke_fast",
+            "FAST-positive: facial droop / arm weakness / speech difficulty",
+        );
     }
     if has("breathlessness") && severity.is_some_and(|s| s >= 7) {
-        flag("respiratory_distress", "breathlessness with severity >= 7/10");
+        flag(
+            "respiratory_distress",
+            "breathlessness with severity >= 7/10",
+        );
     }
     if num("spo2").is_some_and(|v| v < 92.0) {
         flag("hypoxia", "SpO2 < 92%");
@@ -914,7 +940,10 @@ fn run_triage(symptoms: &[String], severity: Option<i32>, vitals: &serde_json::V
         flag("anaphylaxis", "anaphylaxis features (rash + dyspnoea)");
     }
     if has("severe_bleeding") {
-        flag("severe_haemorrhage", "severe/uncontrolled bleeding reported");
+        flag(
+            "severe_haemorrhage",
+            "severe/uncontrolled bleeding reported",
+        );
     }
     if has("suicidal_ideation") {
         flag("self_harm_risk", "suicidal ideation reported");
@@ -925,7 +954,11 @@ fn run_triage(symptoms: &[String], severity: Option<i32>, vitals: &serde_json::V
 
     // Acuity: any red flag → emergent, except hypertensive urgency in isolation → urgent.
     let acuity = if red_flags.is_empty() {
-        if severity.is_some_and(|s| s >= 7) { "urgent" } else { "routine" }
+        if severity.is_some_and(|s| s >= 7) {
+            "urgent"
+        } else {
+            "routine"
+        }
     } else if red_flags.len() == 1 && red_flags[0] == "hypertensive_urgency" {
         "urgent"
     } else {
@@ -936,7 +969,12 @@ fn run_triage(symptoms: &[String], severity: Option<i32>, vitals: &serde_json::V
         "urgent" => "within 2 hours",
         _ => "routine slot",
     };
-    TriageOutcome { acuity, recommended_timeframe, red_flags, reasoning }
+    TriageOutcome {
+        acuity,
+        recommended_timeframe,
+        red_flags,
+        reasoning,
+    }
 }
 
 #[derive(Debug, serde::Serialize, sqlx::FromRow)]
@@ -1078,21 +1116,33 @@ mod triage_tests {
 
     #[test]
     fn acs_is_emergent() {
-        let o = run_triage(&syms(&["chest_pain", "sweating"]), Some(6), &serde_json::json!({}));
+        let o = run_triage(
+            &syms(&["chest_pain", "sweating"]),
+            Some(6),
+            &serde_json::json!({}),
+        );
         assert_eq!(o.acuity, "emergent");
         assert!(o.red_flags.contains(&"possible_acs".to_owned()));
     }
 
     #[test]
     fn hypoxia_from_vitals() {
-        let o = run_triage(&syms(&["cough"]), Some(3), &serde_json::json!({ "spo2": 88 }));
+        let o = run_triage(
+            &syms(&["cough"]),
+            Some(3),
+            &serde_json::json!({ "spo2": 88 }),
+        );
         assert_eq!(o.acuity, "emergent");
         assert!(o.red_flags.contains(&"hypoxia".to_owned()));
     }
 
     #[test]
     fn hypertensive_urgency_alone_is_urgent() {
-        let o = run_triage(&syms(&["headache"]), Some(4), &serde_json::json!({ "systolic": 190 }));
+        let o = run_triage(
+            &syms(&["headache"]),
+            Some(4),
+            &serde_json::json!({ "systolic": 190 }),
+        );
         assert_eq!(o.acuity, "urgent");
     }
 

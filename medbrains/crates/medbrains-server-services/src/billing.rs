@@ -2,7 +2,7 @@
 //! invoices, generate invoice numbers, recalculate totals, and reverse charges.
 //!
 //! Extracted from `routes/billing.rs` so domain crates (lab, pharmacy, opd, ipd,
-//! radiology, ot, blood_bank, diet, cssd, emergency, camp, ambulance, …) can
+//! radiology, ot, `blood_bank`, diet, cssd, emergency, camp, ambulance, …) can
 //! auto-charge without depending back on `medbrains-server`. These are pure DB
 //! helpers over a `sqlx::Transaction` — no `AppState`, no auth, and no response
 //! masking (the billing-amount field-access/masking layer stays with the billing
@@ -236,7 +236,7 @@ struct RatePlanOverride {
 /// Auto-charge: find or create a draft invoice for the encounter, or a
 /// patient-only draft invoice when the source workflow is not encounter-linked.
 /// Fails gracefully (returns Ok) — caller should not let billing errors block module operations.
-/// Standard auto_charge — no batch traceability (lab, radiology,
+/// Standard `auto_charge` — no batch traceability (lab, radiology,
 /// room rent, etc.). Pharmacy uses `auto_charge_with_batch` instead.
 pub async fn auto_charge(
     tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
@@ -701,8 +701,9 @@ pub struct ServiceChargeInput<'a> {
 }
 
 /// Create a service charge on behalf of another module.
-/// Resolves price from charge_master + rate_plan, checks auto-concession rules,
-/// creates invoice_item, and logs any concession applied.
+///
+/// Resolves price from `charge_master` + `rate_plan`, checks auto-concession rules,
+/// creates `invoice_item`, and logs any concession applied.
 /// Fails gracefully — callers should not let billing failures block module ops.
 pub async fn create_service_charge(
     tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
@@ -750,7 +751,7 @@ struct ConcessionCheckInput<'a> {
     requested_by: Uuid,
 }
 
-/// Apply auto-concession rules defined in tenant_settings.
+/// Apply auto-concession rules defined in `tenant_settings`.
 async fn apply_auto_concessions(
     tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
     inp: ConcessionCheckInput<'_>,

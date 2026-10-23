@@ -36,7 +36,10 @@ impl Guard {
     #[must_use]
     pub fn new(concurrency: usize) -> Self {
         let limit = concurrency.clamp(1, MAX_CONCURRENCY);
-        Guard { slots: Arc::new(Semaphore::new(limit)), limit }
+        Self {
+            slots: Arc::new(Semaphore::new(limit)),
+            limit,
+        }
     }
 
     #[must_use]
@@ -56,7 +59,9 @@ impl Guard {
         // The semaphore is never closed, so this cannot fail; mapping it keeps
         // the caller from having to handle an impossible error.
         match Arc::clone(&self.slots).acquire_owned().await {
-            Ok(permit) => Admission { _permit: Some(permit) },
+            Ok(permit) => Admission {
+                _permit: Some(permit),
+            },
             Err(_) => Admission { _permit: None },
         }
     }
@@ -69,13 +74,15 @@ impl Guard {
         Arc::clone(&self.slots)
             .try_acquire_owned()
             .ok()
-            .map(|permit| Admission { _permit: Some(permit) })
+            .map(|permit| Admission {
+                _permit: Some(permit),
+            })
     }
 }
 
 impl Default for Guard {
     fn default() -> Self {
-        Guard::new(DEFAULT_CONCURRENCY)
+        Self::new(DEFAULT_CONCURRENCY)
     }
 }
 
@@ -89,7 +96,12 @@ pub struct Admission {
 mod tests {
     // Tests may state what must hold and stop if it does not; that is what a
     // test is. The denials exist for code the hospital runs.
-    #![allow(clippy::expect_used, clippy::unwrap_used, clippy::panic, clippy::indexing_slicing)]
+    #![allow(
+        clippy::expect_used,
+        clippy::unwrap_used,
+        clippy::panic,
+        clippy::indexing_slicing
+    )]
 
     use super::*;
 
@@ -148,6 +160,11 @@ mod tests {
     #[test]
     fn the_default_is_conservative_because_it_shares_a_pool() {
         assert_eq!(Guard::default().limit(), DEFAULT_CONCURRENCY);
-        const { assert!(DEFAULT_CONCURRENCY <= 8, "automation is a background concern") };
+        const {
+            assert!(
+                DEFAULT_CONCURRENCY <= 8,
+                "automation is a background concern"
+            )
+        };
     }
 }

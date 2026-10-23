@@ -3,12 +3,12 @@
 //! Byte-for-byte what `mgrmtech/fidelius-cli` (the implementation ABDM links
 //! to) and NHA's ABDM wrapper do:
 //!
-//! - ECDH on **Curve25519 in short-Weierstrass form** (BouncyCastle
+//! - ECDH on **Curve25519 in short-Weierstrass form** (`BouncyCastle`
 //!   `CustomNamedCurves "curve25519"`), *not* X25519: raw scalar
 //!   multiplication, no clamping. The shared secret is the affine X of `d·Q`,
 //!   32 bytes big-endian.
 //! - Public keys are the uncompressed point `04‖X‖Y` (65 bytes, base64). A
-//!   peer key may also arrive as X.509 SubjectPublicKeyInfo with explicit
+//!   peer key may also arrive as X.509 `SubjectPublicKeyInfo` with explicit
 //!   curve parameters; its last 65 bytes are that same point.
 //! - `xor[i] = sender_nonce[i] ^ requester_nonce[i]` (32-byte nonces);
 //!   salt = `xor[..20]`, IV = `xor[20..]` (the last 12 bytes).

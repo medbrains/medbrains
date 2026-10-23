@@ -504,15 +504,15 @@ pub async fn get_staff_attendance_print_data(
                     // into an "A" against somebody's name is a disciplinary
                     // document written by a loop.
                     let status = match mark.map(|m| m.status.as_str()) {
-                        Some("present") | Some("PRESENT") => {
+                        Some("present" | "PRESENT") => {
                             present += 1;
                             "P"
                         }
-                        Some("absent") | Some("ABSENT") => {
+                        Some("absent" | "ABSENT") => {
                             absent += 1;
                             "A"
                         }
-                        Some("leave") | Some("LEAVE") | Some("on_leave") => {
+                        Some("leave" | "LEAVE" | "on_leave") => {
                             leave += 1;
                             "L"
                         }
@@ -565,8 +565,7 @@ pub async fn get_staff_attendance_print_data(
     Ok(Json(StaffAttendanceReportPrintData {
         department: dept_name,
         month: chrono::Month::try_from(month as u8)
-            .map(|m| m.name())
-            .unwrap_or("Unknown")
+            .map_or("Unknown", |m| m.name())
             .to_string(),
         year,
         generated_date: Utc::now()

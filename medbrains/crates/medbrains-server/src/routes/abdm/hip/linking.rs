@@ -168,6 +168,7 @@ pub(super) async fn mark(
 }
 
 /// Link one care context, and with it the patient's other unlinked ones.
+///
 /// A precondition that fails (no ABHA, no HFR ID) is recorded as the reason
 /// and is not an error; a refusal or outage is recorded and returned.
 ///

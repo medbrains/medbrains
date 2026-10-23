@@ -1,7 +1,7 @@
 //! Message simulator — what a patient's or a staff member's phone would have
 //! received, on deployments that must not send anything.
 //!
-//! On (`MEDBRAINS_NOTIFY_SIMULATOR=true`, dev and test only), the SMS, WhatsApp
+//! On (`MEDBRAINS_NOTIFY_SIMULATOR=true`, dev and test only), the SMS, `WhatsApp`
 //! and email handlers render the message exactly as they would send it and
 //! write it to `simulated_messages` instead of calling the provider. The server
 //! refuses to start with the simulator on in production
@@ -39,10 +39,13 @@ pub async fn capture(
     // bypass RLS on every deployment.
     let fail = |error: sqlx::Error| HandlerError::Transient(format!("simulator capture: {error}"));
     let mut tx = ctx.pool.begin().await.map_err(fail)?;
-    sqlx::query!("SELECT set_config('app.tenant_id', $1, true)", ctx.tenant_id.to_string())
-        .fetch_one(&mut *tx)
-        .await
-        .map_err(fail)?;
+    sqlx::query!(
+        "SELECT set_config('app.tenant_id', $1, true)",
+        ctx.tenant_id.to_string()
+    )
+    .fetch_one(&mut *tx)
+    .await
+    .map_err(fail)?;
     let id = sqlx::query_scalar!(
         "INSERT INTO simulated_messages \
            (tenant_id, channel, recipient, event_type, subject, body, attachments, \
@@ -65,7 +68,7 @@ pub async fn capture(
     Ok(json!({ "provider": "simulator", "simulated": true, "id": id }))
 }
 
-/// What a WhatsApp payload reads as on the phone: the text, or the template
+/// What a `WhatsApp` payload reads as on the phone: the text, or the template
 /// with its parameters filled in, since the simulator cannot render Meta's
 /// approved template itself.
 pub fn whatsapp_text(payload: &Value) -> Option<String> {
@@ -106,7 +109,10 @@ mod tests {
 
     #[test]
     fn free_text_wins_and_nothing_to_show_is_none() {
-        assert_eq!(whatsapp_text(&json!({ "text": "hi" })).as_deref(), Some("hi"));
+        assert_eq!(
+            whatsapp_text(&json!({ "text": "hi" })).as_deref(),
+            Some("hi")
+        );
         assert_eq!(whatsapp_text(&json!({ "to": "+91" })), None);
     }
 }

@@ -116,7 +116,7 @@ pub struct PublicBookingRequest {
     pub patient_phone: String,
     pub patient_dob: Option<NaiveDate>,
     pub reason: Option<String>,
-    /// Required when the tenant enables appointments.public_booking_otp_required.
+    /// Required when the tenant enables `appointments.public_booking_otp_required`.
     pub otp: Option<String>,
     /// The campaign code the booking link carried (`?c=DIWALI25`). A new
     /// patient is attributed to that campaign.

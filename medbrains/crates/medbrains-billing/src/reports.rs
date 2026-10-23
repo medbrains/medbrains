@@ -8,7 +8,7 @@
 //!
 //! No handler here carries a record check and none should. The authorization
 //! ledger flags them because its PHI scan counts any handler touching a table
-//! the gate has a ParentLink for, and `invoices` is linked — which is right
+//! the gate has a `ParentLink` for, and `invoices` is linked — which is right
 //! for a handler that returns an invoice and wrong for one that returns
 //! `sum(total)` grouped by month. They are the "aggregate" exemption.
 //!

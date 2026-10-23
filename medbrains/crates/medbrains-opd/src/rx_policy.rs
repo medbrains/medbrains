@@ -1,6 +1,6 @@
 //! Antimicrobial stewardship and the formulary, at the moment of prescribing.
 //!
-//! A WHO AWaRe Reserve antibiotic needs an antimicrobial stewardship request
+//! A WHO `AWaRe` Reserve antibiotic needs an antimicrobial stewardship request
 //! (NABH AMS, ICMR AMSP): the prescriber states the indication, the request is
 //! raised here as `pending`, and the pharmacy dispenses once the stewardship
 //! team approves it — `medbrains_pharmacy::rx_safety` holds that line. A

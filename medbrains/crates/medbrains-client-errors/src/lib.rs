@@ -1,5 +1,5 @@
+use axum::routing::post;
 use axum::{Extension, Json};
-use axum::routing::{post};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use uuid::Uuid;
@@ -159,8 +159,7 @@ impl SanitizedClientErrorReport {
             format!(
                 "Status: `{}`",
                 self.status
-                    .map(|status| status.to_string())
-                    .unwrap_or_else(|| "-".to_owned())
+                    .map_or_else(|| "-".to_owned(), |status| status.to_string())
             ),
             format!("Occurred at: `{}`", self.occurred_at),
             format!("Error: `{}`", self.name),
@@ -198,8 +197,7 @@ impl SanitizedClientErrorReport {
             format!(
                 "Status: `{}`",
                 self.status
-                    .map(|status| status.to_string())
-                    .unwrap_or_else(|| "-".to_owned())
+                    .map_or_else(|| "-".to_owned(), |status| status.to_string())
             ),
             format!("Tenant ID: `{}`", self.tenant_id),
             format!("User ID: `{}`", self.user_id),
@@ -383,8 +381,7 @@ fn truncate(value: &str, max_chars: usize) -> String {
     value.chars().take(max_chars).collect()
 }
 
-/// client_errors routes.
+/// `client_errors` routes.
 pub fn router() -> axum::Router<AppState> {
-    axum::Router::new()
-        .route("/api/client-errors/report", post(report_client_error))
+    axum::Router::new().route("/api/client-errors/report", post(report_client_error))
 }

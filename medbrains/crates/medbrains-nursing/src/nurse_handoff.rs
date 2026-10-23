@@ -1,6 +1,6 @@
 //! Nurse handoff (SBAR) + code blue + equipment checks.
 //!
-//! # Why start_code_blue takes no record check
+//! # Why `start_code_blue` takes no record check
 //!
 //! It writes `code_blue_events` against a NOT NULL `patient_id` from the body,
 //! under `nurse.code_blue.record`, held by `nurse`
@@ -32,7 +32,7 @@ use medbrains_server_core::{
     state::AppState,
 };
 
-/// ReBAC pre-check: the caller must hold `view` on the encounter whose handoffs are being read.
+/// `ReBAC` pre-check: the caller must hold `view` on the encounter whose handoffs are being read.
 /// Encounter `view` is derived from the attending, department members, care-team groups and explicit
 /// shares (see `infra/spicedb/schema.zed`); bypass roles short-circuit inside `check`. Mirrors the
 /// guard on `opd::get_encounter`, so an encounter's SBAR handoffs are scoped to the patient's care
@@ -219,13 +219,7 @@ pub async fn start_code_blue(
     .fetch_one(&mut *tx)
     .await?;
 
-    medbrains_nabh::mirror_code_blue_started(
-        &mut tx,
-        claims.tenant_id,
-        claims.sub,
-        row.id,
-    )
-    .await?;
+    medbrains_nabh::mirror_code_blue_started(&mut tx, claims.tenant_id, claims.sub, row.id).await?;
     let mut event = ClinicalEventEnvelope::new(
         claims.tenant_id,
         ClinicalEventName::EmergencyCodeBlueActivated,
@@ -361,13 +355,7 @@ pub async fn end_code_blue(
     .await?
     .ok_or(AppError::NotFound)?;
 
-    medbrains_nabh::mirror_code_blue_started(
-        &mut tx,
-        claims.tenant_id,
-        claims.sub,
-        row.id,
-    )
-    .await?;
+    medbrains_nabh::mirror_code_blue_started(&mut tx, claims.tenant_id, claims.sub, row.id).await?;
     medbrains_nabh::mirror_code_blue_ended(&mut tx, claims.tenant_id, row.id).await?;
     let mut event = ClinicalEventEnvelope::new(
         claims.tenant_id,

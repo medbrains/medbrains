@@ -3,7 +3,7 @@
 //! The consent manager tells us of each consent artefact naming this HIP;
 //! we keep it and acknowledge. A health-information request is answered only
 //! inside a GRANTED, unexpired artefact, with the care contexts and dates it
-//! names: each record becomes an NRCeS bundle, encrypted with Fidelius for
+//! names: each record becomes an `NRCeS` bundle, encrypted with Fidelius for
 //! the HIU's key, pushed to the `dataPushUrl` from the request, and the
 //! outcome is notified to the gateway and recorded as a transfer.
 //!

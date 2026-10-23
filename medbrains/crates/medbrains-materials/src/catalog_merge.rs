@@ -14,7 +14,7 @@ use medbrains_server_core::state::AppState;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-/// Name similarity (pg_trgm, 0–1) from which two drugs of the same strength
+/// Name similarity (`pg_trgm`, 0–1) from which two drugs of the same strength
 /// and form are reported as likely duplicates. Inferred; tune on real data.
 pub const DUPLICATE_SIMILARITY: f64 = 0.6;
 /// Pairs reported at once.

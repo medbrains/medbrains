@@ -149,7 +149,7 @@ pub fn new_nonce() -> String {
     URL_SAFE_NO_PAD.encode(uuid::Uuid::new_v4().as_bytes())
 }
 
-/// Whether `pin` looks like a base64 SHA-256 (the OkHttp `sha256/` form).
+/// Whether `pin` looks like a base64 SHA-256 (the `OkHttp` `sha256/` form).
 pub fn is_spki_pin(pin: &str) -> bool {
     STANDARD.decode(pin).is_ok_and(|b| b.len() == 32)
 }

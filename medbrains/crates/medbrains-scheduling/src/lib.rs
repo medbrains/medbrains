@@ -1,6 +1,9 @@
-//! Appointment scheduling + no-show prediction leaf crate. Mounted via router().
+//! Appointment scheduling + no-show prediction leaf crate. Mounted via `router()`.
 
-use axum::{Router, routing::{get, post, put}};
+use axum::{
+    Router,
+    routing::{get, post, put},
+};
 use medbrains_server_core::state::AppState;
 
 pub mod scheduling;
@@ -79,8 +82,5 @@ pub fn router() -> Router<AppState> {
             "/api/scheduling/recurring",
             post(scheduling::create_recurring),
         )
-        .route(
-            "/api/scheduling/blocks",
-            post(scheduling::create_block),
-        )
+        .route("/api/scheduling/blocks", post(scheduling::create_block))
 }

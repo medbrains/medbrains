@@ -2,11 +2,11 @@
 //!
 //! Per RFCs/sprints/SPRINT-pharmacy-improvements.md items #3, #5, #7.
 
+use axum::routing::{get, post};
 use axum::{
     Extension, Json,
     extract::{Path, State},
 };
-use axum::routing::{get,post};
 use chrono::{DateTime, Utc};
 use medbrains_core::permissions;
 use rust_decimal::Decimal;
@@ -96,10 +96,11 @@ pub async fn create_substitution(
         .fetch_all(&mut *tx)
         .await?;
         let drug_names: Vec<String> = std::iter::once(name).chain(generic).collect();
-        let conflicts: Vec<String> = medbrains_core::allergy::find_conflicts(&drug_names, &allergens)
-            .into_iter()
-            .map(|c| format!("{} (allergy: {})", c.drug_name, c.allergen))
-            .collect();
+        let conflicts: Vec<String> =
+            medbrains_core::allergy::find_conflicts(&drug_names, &allergens)
+                .into_iter()
+                .map(|c| format!("{} (allergy: {})", c.drug_name, c.allergen))
+                .collect();
         if !conflicts.is_empty() {
             return Err(AppError::BadRequest(format!(
                 "Cannot substitute — the substituted drug conflicts with a documented patient \
@@ -320,29 +321,20 @@ pub async fn list_coverage_for_order(
     Ok(Json(rows))
 }
 
-/// pharmacy_dispense_ops routes.
+/// `pharmacy_dispense_ops` routes.
 pub fn router() -> axum::Router<AppState> {
     axum::Router::new()
-        .route(
-            "/api/pharmacy/substitutions",
-            post(create_substitution),
-        )
+        .route("/api/pharmacy/substitutions", post(create_substitution))
         .route(
             "/api/pharmacy/substitutions/item/{item_id}",
             get(list_substitutions_for_item),
         )
-        .route(
-            "/api/pharmacy/counseling",
-            post(create_counseling),
-        )
+        .route("/api/pharmacy/counseling", post(create_counseling))
         .route(
             "/api/pharmacy/counseling/order/{order_id}",
             get(list_counseling_for_order),
         )
-        .route(
-            "/api/pharmacy/coverage-checks",
-            post(create_coverage_check),
-        )
+        .route("/api/pharmacy/coverage-checks", post(create_coverage_check))
         .route(
             "/api/pharmacy/coverage-checks/order/{order_id}",
             get(list_coverage_for_order),

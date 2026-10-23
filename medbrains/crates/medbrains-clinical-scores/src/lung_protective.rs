@@ -1,4 +1,4 @@
-//! Lung-protective ventilation target (ARDSNet). Tidal volume must be set from IDEAL body weight, not
+//! Lung-protective ventilation target (`ARDSNet`). Tidal volume must be set from IDEAL body weight, not
 //! actual weight — ventilating at ~6 mL/kg IBW (range 4-8) with plateau pressure <= 30 cmH2O reduces
 //! ventilator-induced lung injury and mortality. IBW depends only on height and sex, so this computes
 //! it (Devine formula) and the target tidal-volume range server-side, and checks a proposed setting.
@@ -41,7 +41,7 @@ pub struct LungProtectiveResult {
 pub fn ibw_kg(height_cm: f64, is_male: bool) -> f64 {
     let height_in = height_cm / 2.54;
     let base = if is_male { 50.0 } else { 45.5 };
-    (base + 2.3 * (height_in - 60.0)).max(0.0)
+    2.3f64.mul_add(height_in - 60.0, base).max(0.0)
 }
 
 pub fn compute_lung_protective(
@@ -97,14 +97,24 @@ pub async fn lung_protective(
 ) -> Result<Json<LungProtectiveResult>, AppError> {
     require_permission(&claims, permissions::icu::ventilator::LIST)?;
     if !(100.0..=250.0).contains(&body.height_cm) {
-        return Err(AppError::BadRequest("height_cm must be between 100 and 250".into()));
+        return Err(AppError::BadRequest(
+            "height_cm must be between 100 and 250".into(),
+        ));
     }
     let is_male = match body.sex.to_lowercase().as_str() {
         "male" | "m" => true,
         "female" | "f" => false,
-        _ => return Err(AppError::BadRequest("sex must be 'male' or 'female'".into())),
+        _ => {
+            return Err(AppError::BadRequest(
+                "sex must be 'male' or 'female'".into(),
+            ));
+        }
     };
-    Ok(Json(compute_lung_protective(body.height_cm, is_male, body.tidal_volume_ml)))
+    Ok(Json(compute_lung_protective(
+        body.height_cm,
+        is_male,
+        body.tidal_volume_ml,
+    )))
 }
 
 #[cfg(test)]

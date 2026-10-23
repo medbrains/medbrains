@@ -82,7 +82,7 @@ pub struct BloodDonor {
     /// The column is the `blood_group` enum. Decoding it into a `String`
     /// failed on every read, so creating a donor returned 500 — the donor
     /// register was unusable through the API. The typed enum serialises to
-    /// the same snake_case label the string held.
+    /// the same `snake_case` label the string held.
     pub blood_group: BloodGroup,
     pub phone: Option<String>,
     pub email: Option<String>,

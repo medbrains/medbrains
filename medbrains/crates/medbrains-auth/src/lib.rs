@@ -84,8 +84,11 @@ async fn record_failed_login(
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &tenant_id).await?;
-    let actions: &[&str] =
-        if now_locked { &["login_failed", "account_locked"] } else { &["login_failed"] };
+    let actions: &[&str] = if now_locked {
+        &["login_failed", "account_locked"]
+    } else {
+        &["login_failed"]
+    };
     for action in actions {
         medbrains_db::audit::AuditLogger::log(
             &mut tx,
@@ -996,7 +999,7 @@ pub struct MeResponse {
     /// Tenant policy mandates MFA for this role and it isn't set up yet
     /// — the frontend blocks the app until enrollment completes.
     pub mfa_enrollment_required: bool,
-    /// Module codes the tenant's edition has switched OFF (status disabled/coming_soon).
+    /// Module codes the tenant's edition has switched OFF (status `disabled/coming_soon`).
     /// The frontend hides these modules' nav + routes. Absent code = enabled (default on).
     pub disabled_modules: Vec<String>,
     /// The tenant restricts copying data out of the app (`security.restrict_copy`).
@@ -1569,7 +1572,7 @@ pub async fn list_revocations(
         .into_iter()
         .take(REVOCATIONS_PAGE_SIZE as usize)
         .collect();
-    let next_since = trimmed.last().map(|r| r.deactivated_at).unwrap_or(since);
+    let next_since = trimmed.last().map_or(since, |r| r.deactivated_at);
 
     Ok(Json(RevocationsResponse {
         revocations: trimmed,
@@ -1592,7 +1595,10 @@ pub fn router() -> axum::Router<AppState> {
             post(confirm_password_reset),
         )
         .route("/api/auth/refresh", post(refresh_token))
-        .route("/api/auth/sign-in-options", get(sign_in_options::sign_in_options))
+        .route(
+            "/api/auth/sign-in-options",
+            get(sign_in_options::sign_in_options),
+        )
 }
 
 /// Protected auth routes — require `Extension<Claims>` from `auth_middleware`,

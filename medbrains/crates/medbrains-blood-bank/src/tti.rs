@@ -1,7 +1,7 @@
 //! Transfusion-transmissible infection screening, marker by marker.
 //!
 //! D&C Rules Schedule F Part XII-B and the NACO/NBTC standards require every
-//! donation to be screened for HIV 1/2, HBsAg, HCV, syphilis and malaria, and
+//! donation to be screened for HIV 1/2, `HBsAg`, HCV, syphilis and malaria, and
 //! forbid releasing a unit until all five are non-reactive. The schema had a
 //! single `tti_status` string on each component that nothing ever wrote, and
 //! nothing read it before a unit was released or issued.

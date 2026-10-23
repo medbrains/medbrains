@@ -1,7 +1,10 @@
 //! Telehealth + clinical decision support + doctor activity leaf crate:
-//! telemedicine, CDS alerts, doctor profile/dashboard. Mounted via router().
+//! telemedicine, CDS alerts, doctor profile/dashboard. Mounted via `router()`.
 
-use axum::{Router, routing::{delete,get,post,put}};
+use axum::{
+    Router,
+    routing::{delete, get, post, put},
+};
 use medbrains_server_core::state::AppState;
 
 pub mod cds;
@@ -11,10 +14,7 @@ pub mod telemedicine;
 
 pub fn router() -> Router<AppState> {
     Router::new()
-        .route(
-            "/api/cds/drug-safety-check",
-            post(cds::check_drug_safety),
-        )
+        .route("/api/cds/drug-safety-check", post(cds::check_drug_safety))
         .route(
             "/api/cds/drug-interactions",
             get(cds::list_drug_interactions).post(cds::create_drug_interaction),
@@ -35,10 +35,7 @@ pub fn router() -> Router<AppState> {
             "/api/cds/protocols",
             get(cds::list_protocols).post(cds::create_protocol),
         )
-        .route(
-            "/api/cds/protocols/{id}",
-            delete(cds::delete_protocol),
-        )
+        .route("/api/cds/protocols/{id}", delete(cds::delete_protocol))
         .route(
             "/api/cds/restricted-drug-approvals",
             get(cds::list_restricted_drug_approvals).post(cds::create_restricted_drug_approval),
@@ -67,14 +64,10 @@ pub fn router() -> Router<AppState> {
             "/api/cds/co-signatures",
             get(cds::list_co_signatures).post(cds::create_co_signature),
         )
-        .route(
-            "/api/cds/co-signatures/{id}",
-            put(cds::update_co_signature),
-        )
+        .route("/api/cds/co-signatures/{id}", put(cds::update_co_signature))
         .route(
             "/api/telemedicine/consultations",
-            get(telemedicine::list_tele_consultations)
-                .post(telemedicine::create_tele_consultation),
+            get(telemedicine::list_tele_consultations).post(telemedicine::create_tele_consultation),
         )
         .route(
             "/api/telemedicine/waiting-room",
@@ -132,10 +125,7 @@ pub fn router() -> Router<AppState> {
             "/api/doctors/me/profile",
             get(doctor_profile::get_my_profile).put(doctor_profile::update_my_profile),
         )
-        .route(
-            "/api/doctors/me/dashboard",
-            get(doctor_dashboard::my_day),
-        )
+        .route("/api/doctors/me/dashboard", get(doctor_dashboard::my_day))
         .route(
             "/api/doctors/me/pending-signoffs",
             get(doctor_dashboard::list_my_pending_signoffs),

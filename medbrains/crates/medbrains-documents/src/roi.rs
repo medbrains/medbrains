@@ -2,7 +2,7 @@
 //! the MRD officer reviews/approves; every access is logged. Gated by the
 //! existing `mrd.records.*` permissions.
 //!
-//! # Why create_roi_request takes no record check
+//! # Why `create_roi_request` takes no record check
 //!
 //! It names the patient whose records are being requested. `mrd.records.list`
 //! is held by `mrd_officer` and `audit_officer`
@@ -134,7 +134,9 @@ pub async fn create_roi_request(
     require_permission(&claims, permissions::mrd::records::LIST)?;
 
     if body.requester_name.trim().is_empty() {
-        return Err(AppError::BadRequest("Requester name is required.".to_owned()));
+        return Err(AppError::BadRequest(
+            "Requester name is required.".to_owned(),
+        ));
     }
     let scope = body.record_scope.as_deref().unwrap_or("full");
 
@@ -180,8 +182,17 @@ pub async fn review_roi_request(
         "denied" => "denied",
         other => return Err(AppError::BadRequest(format!("Invalid decision '{other}'."))),
     };
-    if status == "denied" && body.decision_reason.as_deref().unwrap_or("").trim().is_empty() {
-        return Err(AppError::BadRequest("A reason is required to deny a request.".to_owned()));
+    if status == "denied"
+        && body
+            .decision_reason
+            .as_deref()
+            .unwrap_or("")
+            .trim()
+            .is_empty()
+    {
+        return Err(AppError::BadRequest(
+            "A reason is required to deny a request.".to_owned(),
+        ));
     }
 
     let mut tx = state.db.begin().await?;
@@ -219,7 +230,10 @@ pub async fn record_roi_access(
     require_permission(&claims, permissions::mrd::records::LIST)?;
 
     if !["viewed", "downloaded", "released"].contains(&body.action.as_str()) {
-        return Err(AppError::BadRequest(format!("Invalid access action '{}'.", body.action)));
+        return Err(AppError::BadRequest(format!(
+            "Invalid access action '{}'.",
+            body.action
+        )));
     }
 
     let mut tx = state.db.begin().await?;

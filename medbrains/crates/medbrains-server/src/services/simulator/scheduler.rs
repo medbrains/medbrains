@@ -32,8 +32,8 @@ use super::{
 };
 
 const TICK_INTERVAL: Duration = Duration::from_secs(30);
-/// We use a synthetic Claims for cron-fired runs. The tenant_id /
-/// triggered_by come from the schedule row; the agent engine authenticates
+/// We use a synthetic Claims for cron-fired runs. The `tenant_id` /
+/// `triggered_by` come from the schedule row; the agent engine authenticates
 /// as real demo users itself, and the scripted engine reads only tenant +
 /// sub + role off `claims`. Nothing on the cron path reads `permissions`.
 const SYSTEM_ROLE: &str = "system";

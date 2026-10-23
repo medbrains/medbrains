@@ -4,8 +4,8 @@
 //! draft back via `parse_result` (`parsed` / `failed`). The doctor review-and-commit UI (B3)
 //! takes it from there. Gated by `mrd.case_sheets.*`.
 
-use axum::routing::{get,post,put};
 use axum::extract::{Path, Query, State};
+use axum::routing::{get, post, put};
 use axum::{Extension, Json};
 use chrono::{DateTime, Utc};
 use medbrains_core::permissions;
@@ -53,13 +53,20 @@ pub async fn create_scan(
     // the same question as reading one.
     medbrains_authz_gate::require_patient_access(&state, &claims, body.patient_id).await?;
     if body.scan_image_url.trim().is_empty() {
-        return Err(AppError::BadRequest("scan_image_url is required".to_owned()));
+        return Err(AppError::BadRequest(
+            "scan_image_url is required".to_owned(),
+        ));
     }
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
     // Register-first lock (opt-in): no case-sheet scan until the OPD visit is registered.
-    medbrains_server_services::mrd_lock::assert_patient_opd_registered(&mut tx, &claims.tenant_id, body.patient_id).await?;
+    medbrains_server_services::mrd_lock::assert_patient_opd_registered(
+        &mut tx,
+        &claims.tenant_id,
+        body.patient_id,
+    )
+    .await?;
 
     let scan = sqlx::query_as::<_, CaseSheetScan>(
         "INSERT INTO case_sheet_scans \
@@ -275,8 +282,14 @@ fn format_case_sheet_note(extracted: Option<&serde_json::Value>) -> String {
     let mut out = String::from("Digitized case sheet:");
     if let Some(serde_json::Value::Array(items)) = extracted {
         for item in items {
-            let field = item.get("field").and_then(serde_json::Value::as_str).unwrap_or("");
-            let value = item.get("value").and_then(serde_json::Value::as_str).unwrap_or("");
+            let field = item
+                .get("field")
+                .and_then(serde_json::Value::as_str)
+                .unwrap_or("");
+            let value = item
+                .get("value")
+                .and_then(serde_json::Value::as_str)
+                .unwrap_or("");
             if !field.is_empty() {
                 out.push_str(&format!("\n- {field}: {value}"));
             }
@@ -338,31 +351,16 @@ pub async fn commit_scan(
     Ok(Json(committed))
 }
 
-/// case_sheet_scan routes.
+/// `case_sheet_scan` routes.
 pub fn router() -> axum::Router<AppState> {
     axum::Router::new()
-        .route(
-            "/api/case-sheets/scans",
-            get(list_scans).post(create_scan),
-        )
-        .route(
-            "/api/case-sheets/scans/{id}",
-            get(get_scan),
-        )
-        .route(
-            "/api/case-sheets/scans/{id}/submit",
-            post(submit_scan),
-        )
+        .route("/api/case-sheets/scans", get(list_scans).post(create_scan))
+        .route("/api/case-sheets/scans/{id}", get(get_scan))
+        .route("/api/case-sheets/scans/{id}/submit", post(submit_scan))
         .route(
             "/api/case-sheets/scans/{id}/parse-result",
             post(parse_result),
         )
-        .route(
-            "/api/case-sheets/scans/{id}/review",
-            put(save_review),
-        )
-        .route(
-            "/api/case-sheets/scans/{id}/commit",
-            post(commit_scan),
-        )
+        .route("/api/case-sheets/scans/{id}/review", put(save_review))
+        .route("/api/case-sheets/scans/{id}/commit", post(commit_scan))
 }

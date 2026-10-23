@@ -6,7 +6,7 @@
 //!   (`patient_allergies`, via `medbrains_core::allergy`);
 //! - a drug–drug interaction between this order and the patient's other active
 //!   medicines (`drug_interactions`, via the CDS engine prescribing uses);
-//! - a WHO AWaRe Reserve antibiotic with no approved antimicrobial stewardship
+//! - a WHO `AWaRe` Reserve antibiotic with no approved antimicrobial stewardship
 //!   request for this patient (`antibiotic_stewardship_requests`);
 //! - a medicine that is not on the hospital formulary
 //!   (`pharmacy_catalog.formulary_status`).
@@ -220,7 +220,7 @@ fn policy_findings(lines: &[RxLine], rows: &[LinePolicyRow]) -> Vec<MedicationSa
     out
 }
 
-/// AWaRe Reserve and non-formulary findings only — what the prescriber must
+/// `AWaRe` Reserve and non-formulary findings only — what the prescriber must
 /// answer for at the moment of prescribing.
 pub async fn policy_findings_in_tx(
     tx: &mut Transaction<'_, Postgres>,

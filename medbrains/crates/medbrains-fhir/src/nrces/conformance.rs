@@ -1,12 +1,12 @@
-//! A structural check of a NRCeS document bundle against the rules of the
+//! A structural check of a `NRCeS` document bundle against the rules of the
 //! IG 6.5.0 profiles it claims: required elements, section slices (fixed
 //! code and display, cardinality, entry types, `openAtEnd`), entry slices of
 //! the single-section records, coding systems the profiles fix, identifier
 //! parts, and that every `urn:uuid:` reference resolves inside the bundle.
 //!
 //! The rules come from `profiles.json`, extracted from the published
-//! StructureDefinitions by `scripts/nrces_profile_fixture.py`. This is not a
-//! full FHIR validator (no terminology, no FHIRPath invariants beyond the
+//! `StructureDefinitions` by `scripts/nrces_profile_fixture.py`. This is not a
+//! full FHIR validator (no terminology, no `FHIRPath` invariants beyond the
 //! ones above); the HAPI validator with the IG package is the full check.
 
 use std::collections::{HashMap, HashSet};

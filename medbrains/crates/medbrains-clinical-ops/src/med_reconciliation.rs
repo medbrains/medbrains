@@ -18,7 +18,7 @@ use medbrains_server_core::{
     state::AppState,
 };
 
-/// ReBAC pre-check: the caller must hold `view` on the patient whose reconciliations are being read.
+/// `ReBAC` pre-check: the caller must hold `view` on the patient whose reconciliations are being read.
 /// Patient `view` is granted to the registering clerk (owner), the attending, department/ward members,
 /// care-team groups and explicit shares (see `infra/spicedb/schema.zed`); bypass roles short-circuit
 /// inside `check`. Mirrors the guard on `patients::get_patient`, so a patient's medication
@@ -119,8 +119,7 @@ pub async fn create_med_reconciliation(
 ) -> Result<Json<MedReconciliationView>, AppError> {
     require_permission(&claims, permissions::ipd::nursing_assessment::CREATE)?;
     // Medication reconciliation lists what this patient was taking on arrival.
-    medbrains_authz_gate::require_patient_access(&state, &claims, body.patient_id)
-        .await?;
+    medbrains_authz_gate::require_patient_access(&state, &claims, body.patient_id).await?;
     if !TRANSITIONS.contains(&body.transition_type.as_str()) {
         return Err(AppError::BadRequest(format!(
             "invalid transition_type '{}'",
@@ -128,7 +127,9 @@ pub async fn create_med_reconciliation(
         )));
     }
     if body.items.is_empty() {
-        return Err(AppError::BadRequest("at least one medication is required".into()));
+        return Err(AppError::BadRequest(
+            "at least one medication is required".into(),
+        ));
     }
     for item in &body.items {
         let source = item.source.as_deref().unwrap_or("home");
@@ -172,7 +173,10 @@ pub async fn create_med_reconciliation(
 
     let items = load_items(&mut tx, claims.tenant_id, recon.id).await?;
     tx.commit().await?;
-    Ok(Json(MedReconciliationView { reconciliation: recon, items }))
+    Ok(Json(MedReconciliationView {
+        reconciliation: recon,
+        items,
+    }))
 }
 
 #[derive(Debug, Deserialize)]
@@ -190,7 +194,10 @@ pub async fn decide_med_item(
 ) -> Result<Json<MedReconciliationItem>, AppError> {
     require_permission(&claims, permissions::ipd::nursing_assessment::CREATE)?;
     if !DECISIONS.contains(&body.decision.as_str()) {
-        return Err(AppError::BadRequest(format!("invalid decision '{}'", body.decision)));
+        return Err(AppError::BadRequest(format!(
+            "invalid decision '{}'",
+            body.decision
+        )));
     }
 
     let mut tx = state.db.begin().await?;
@@ -258,7 +265,10 @@ pub async fn complete_med_reconciliation(
 
     let items = load_items(&mut tx, claims.tenant_id, recon.id).await?;
     tx.commit().await?;
-    Ok(Json(MedReconciliationView { reconciliation: recon, items }))
+    Ok(Json(MedReconciliationView {
+        reconciliation: recon,
+        items,
+    }))
 }
 
 #[derive(Debug, Deserialize)]
@@ -288,7 +298,10 @@ pub async fn list_med_reconciliations(
     let mut views = Vec::with_capacity(recons.len());
     for recon in recons {
         let items = load_items(&mut tx, claims.tenant_id, recon.id).await?;
-        views.push(MedReconciliationView { reconciliation: recon, items });
+        views.push(MedReconciliationView {
+            reconciliation: recon,
+            items,
+        });
     }
     tx.commit().await?;
     Ok(Json(views))

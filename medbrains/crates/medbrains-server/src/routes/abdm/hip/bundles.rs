@@ -1,4 +1,4 @@
-//! The NRCeS bundles a health-information transfer carries, one per care
+//! The `NRCeS` bundles a health-information transfer carries, one per care
 //! context. Records are loaded per kind in one query each, plus one for
 //! their line items and one for their diagnoses, however many care contexts
 //! a consent names. `bundle_sections` turns the rows into IG sections.
@@ -297,7 +297,7 @@ async fn custodian(tx: Tx<'_, '_>, tenant_id: Uuid) -> Result<Party, AppError> {
     })
 }
 
-/// One NRCeS bundle per care context, keyed by its reference number. A care
+/// One `NRCeS` bundle per care context, keyed by its reference number. A care
 /// context whose record no longer exists is left out.
 ///
 /// # Errors

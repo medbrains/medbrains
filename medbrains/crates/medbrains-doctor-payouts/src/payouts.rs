@@ -1,4 +1,4 @@
-//! The payout run: approved statements out by bank file, RazorpayX or cash;
+//! The payout run: approved statements out by bank file, `RazorpayX` or cash;
 //! UTRs recorded; failures returned to approved so they can be paid again.
 
 use axum::{
@@ -248,7 +248,7 @@ fn request_for(
     Ok(req)
 }
 
-/// Send each queued payout to RazorpayX outside the database transaction,
+/// Send each queued payout to `RazorpayX` outside the database transaction,
 /// then record each answer in its own.
 async fn send_all(
     state: &AppState,

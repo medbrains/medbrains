@@ -97,8 +97,8 @@ fn trimmed(v: Option<&str>) -> Option<String> {
 fn refused(e: sqlx::Error) -> AppError {
     let code = e
         .as_database_error()
-        .and_then(|d| d.code())
-        .map(|c| c.into_owned());
+        .and_then(sqlx::error::DatabaseError::code)
+        .map(std::borrow::Cow::into_owned);
     match code.as_deref() {
         Some("23505") => {
             AppError::Conflict("Another entity already uses that code or receipt prefix".to_owned())

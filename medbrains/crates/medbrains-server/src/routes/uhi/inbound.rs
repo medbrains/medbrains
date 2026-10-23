@@ -8,9 +8,9 @@
 //!    every other call the app's, from the registry, at the `consumer_uri`
 //!    the registry has for it. 401 with a NACK if not.
 //! 3. The transaction is recorded, the answer computed and queued, and the
-//!    call is ACKed; the signed `on_*` answer follows from the outbox.
+//!    call is `ACKed`; the signed `on_*` answer follows from the outbox.
 //!
-//! A search for a service this hospital does not offer is ACKed and left
+//! A search for a service this hospital does not offer is `ACKed` and left
 //! unanswered, as a provider that has nothing to offer stays silent.
 
 use axum::{

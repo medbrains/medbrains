@@ -1,12 +1,12 @@
 //! FHIR R4 read API.
 //!
-//! Surfaces internal MedBrains data as FHIR R4 resources. The wire
+//! Surfaces internal `MedBrains` data as FHIR R4 resources. The wire
 //! format follows the ABDM IG so the same endpoints satisfy both
 //! generic FHIR consumers and the ABDM HIE-CM HIP role.
 //!
 //! Conformance:
-//!   - ContentType: `application/fhir+json`
-//!   - 404 returns FHIR `OperationOutcome` (not the AppError 404 JSON)
+//!   - `ContentType`: `application/fhir+json`
+//!   - 404 returns FHIR `OperationOutcome` (not the `AppError` 404 JSON)
 //!     when the requested resource id is unknown.
 //!   - Search params follow FHIR conventions (`?_id`, `?_count`, `?_since`).
 //!
@@ -261,7 +261,7 @@ pub async fn patient_everything(
 
 // ── Capabilities ──────────────────────────────────────────────────
 
-/// `GET /api/fhir/metadata` — minimal CapabilityStatement listing
+/// `GET /api/fhir/metadata` — minimal `CapabilityStatement` listing
 /// implemented resources. Required for FHIR clients to feature-detect.
 pub async fn metadata() -> impl IntoResponse {
     let body = json!({

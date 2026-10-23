@@ -35,7 +35,7 @@ pub fn spawn(pool: PgPool) {
 }
 
 /// Deterministic id for "this admission, this day" — the idempotency
-/// key auto_charge dedups on. SHA-256-derived (uuid's v5 feature is
+/// key `auto_charge` dedups on. SHA-256-derived (uuid's v5 feature is
 /// not enabled workspace-wide).
 fn room_rent_source_id(admission_id: Uuid, date: NaiveDate) -> Uuid {
     use sha2::{Digest, Sha256};

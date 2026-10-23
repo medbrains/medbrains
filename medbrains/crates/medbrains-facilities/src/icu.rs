@@ -17,7 +17,7 @@ use medbrains_server_core::{
     state::AppState,
 };
 
-/// ReBAC pre-check: the caller must hold `view` on the admission an ICU record belongs to.
+/// `ReBAC` pre-check: the caller must hold `view` on the admission an ICU record belongs to.
 /// Admission `view` is granted to the attending, department/ward members, care-team groups and
 /// explicit shares (see `infra/spicedb/schema.zed`); bypass roles short-circuit inside `check`.
 /// This mirrors the admission guard in `routes/ipd.rs` so ICU records are scoped to the patient's
@@ -403,14 +403,13 @@ pub async fn remove_device(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
-    let admission_id: Uuid = sqlx::query_scalar(
-        "SELECT admission_id FROM icu_devices WHERE id = $1 AND tenant_id = $2",
-    )
-    .bind(device_id)
-    .bind(claims.tenant_id)
-    .fetch_optional(&mut *tx)
-    .await?
-    .ok_or(AppError::NotFound)?;
+    let admission_id: Uuid =
+        sqlx::query_scalar("SELECT admission_id FROM icu_devices WHERE id = $1 AND tenant_id = $2")
+            .bind(device_id)
+            .bind(claims.tenant_id)
+            .fetch_optional(&mut *tx)
+            .await?
+            .ok_or(AppError::NotFound)?;
     require_admission_access(&state, &claims, admission_id).await?;
 
     let row = sqlx::query_as::<_, IcuDevice>(
@@ -474,14 +473,13 @@ pub async fn create_bundle_check(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
-    let admission_id: Uuid = sqlx::query_scalar(
-        "SELECT admission_id FROM icu_devices WHERE id = $1 AND tenant_id = $2",
-    )
-    .bind(device_id)
-    .bind(claims.tenant_id)
-    .fetch_optional(&mut *tx)
-    .await?
-    .ok_or(AppError::NotFound)?;
+    let admission_id: Uuid =
+        sqlx::query_scalar("SELECT admission_id FROM icu_devices WHERE id = $1 AND tenant_id = $2")
+            .bind(device_id)
+            .bind(claims.tenant_id)
+            .fetch_optional(&mut *tx)
+            .await?
+            .ok_or(AppError::NotFound)?;
     require_admission_access(&state, &claims, admission_id).await?;
 
     let row = sqlx::query_as::<_, IcuBundleCheck>(

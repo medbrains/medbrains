@@ -143,7 +143,7 @@ impl Grounding {
 }
 
 /// Fetch a patient's allergies, active medications, and active problems, under
-/// the caller's RLS. Caller must have already passed the patient-viewer ReBAC.
+/// the caller's RLS. Caller must have already passed the patient-viewer `ReBAC`.
 async fn fetch_patient_grounding(
     tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
     tenant_id: Uuid,
@@ -586,12 +586,8 @@ impl PatientOverviewTool {
         let is_admin = medbrains_server_core::middleware::authorization::BYPASS_ROLES
             .contains(&self.claims.role.as_str());
         if !is_admin {
-            medbrains_authz_gate::require_patient_access(
-                &self.state,
-                &self.claims,
-                patient_id,
-            )
-            .await?;
+            medbrains_authz_gate::require_patient_access(&self.state, &self.claims, patient_id)
+                .await?;
         }
         let mut tx = self.state.db.begin().await?;
         medbrains_db::pool::set_full_context(
@@ -835,7 +831,7 @@ fn sse(payload: &serde_json::Value) -> Result<Event, std::convert::Infallible> {
         .unwrap_or_else(|_| Event::default().data("{}")))
 }
 
-/// Resolve the grounded patient (ReBAC), persist the user turn, and load prior
+/// Resolve the grounded patient (`ReBAC`), persist the user turn, and load prior
 /// history + de-identified grounding — all under one RLS transaction. Returns
 /// `(conversation_id, rig history, grounding, grounded_patient)`.
 async fn open_turn(
@@ -870,11 +866,7 @@ async fn open_turn(
         // the patient's chart silently missing from it, and nothing on screen
         // said so. An ungrounded answer that looks grounded is worse than no
         // answer, so the request fails instead.
-        Some(pid) => match medbrains_authz_gate::require_patient_access(
-            state, claims, pid,
-        )
-        .await
-        {
+        Some(pid) => match medbrains_authz_gate::require_patient_access(state, claims, pid).await {
             Ok(()) => Some(pid),
             Err(err @ AppError::ServiceUnavailable(_)) => return Err(err),
             Err(_) => None,
@@ -884,34 +876,31 @@ async fn open_turn(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &tenant_id, &claims.department_ids).await?;
 
-    let conversation_id = match req.conversation_id {
-        Some(id) => {
-            let owner = sqlx::query_scalar::<_, Uuid>(
-                "SELECT owner_user_id FROM ai_conversations WHERE id = $1 AND tenant_id = $2",
-            )
-            .bind(id)
-            .bind(tenant_id)
-            .fetch_optional(&mut *tx)
-            .await?;
-            match owner {
-                Some(o) if o == claims.sub => id,
-                Some(_) => return Err(AppError::Forbidden),
-                None => return Err(AppError::BadRequest("conversation not found".to_owned())),
-            }
+    let conversation_id = if let Some(id) = req.conversation_id {
+        let owner = sqlx::query_scalar::<_, Uuid>(
+            "SELECT owner_user_id FROM ai_conversations WHERE id = $1 AND tenant_id = $2",
+        )
+        .bind(id)
+        .bind(tenant_id)
+        .fetch_optional(&mut *tx)
+        .await?;
+        match owner {
+            Some(o) if o == claims.sub => id,
+            Some(_) => return Err(AppError::Forbidden),
+            None => return Err(AppError::BadRequest("conversation not found".to_owned())),
         }
-        None => {
-            let title: String = message.chars().take(60).collect();
-            sqlx::query_scalar::<_, Uuid>(
-                "INSERT INTO ai_conversations (tenant_id, owner_user_id, title, model) \
-                 VALUES ($1, $2, $3, $4) RETURNING id",
-            )
-            .bind(tenant_id)
-            .bind(claims.sub)
-            .bind(&title)
-            .bind(&cfg.model)
-            .fetch_one(&mut *tx)
-            .await?
-        }
+    } else {
+        let title: String = message.chars().take(60).collect();
+        sqlx::query_scalar::<_, Uuid>(
+            "INSERT INTO ai_conversations (tenant_id, owner_user_id, title, model) \
+             VALUES ($1, $2, $3, $4) RETURNING id",
+        )
+        .bind(tenant_id)
+        .bind(claims.sub)
+        .bind(&title)
+        .bind(&cfg.model)
+        .fetch_one(&mut *tx)
+        .await?
     };
 
     let history_rows = sqlx::query_as::<_, HistoryRow>(
@@ -940,7 +929,11 @@ async fn open_turn(
     let history = history_rows
         .into_iter()
         .map(|r| {
-            let content = if egress { medbrains_core::ai_egress::scrub(&r.content) } else { r.content };
+            let content = if egress {
+                medbrains_core::ai_egress::scrub(&r.content)
+            } else {
+                r.content
+            };
             match r.role.as_str() {
                 "assistant" => rig::completion::Message::assistant(content),
                 _ => rig::completion::Message::user(content),

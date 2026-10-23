@@ -1,7 +1,7 @@
 #![allow(clippy::too_many_lines)]
 //! Ambulance — trips, crews, vehicles.
 //!
-//! # Why create_trip takes no record check
+//! # Why `create_trip` takes no record check
 //!
 //! A trip names the patient being moved. `ambulance.*` is held by
 //! `ambulance_driver` (`crates/medbrains-core/src/access/roles.rs`), who is
@@ -11,7 +11,6 @@
 //!
 //! **What retires this:** a relation binding a crew to the dispatch it is
 //! running, which would scope the trip without blocking the dispatch.
-
 
 use axum::{
     Extension, Json,
@@ -26,7 +25,7 @@ use rust_decimal::Decimal;
 use serde::Deserialize;
 use uuid::Uuid;
 
-use axum::routing::{get,put};
+use axum::routing::{get, put};
 use medbrains_server_core::error::AppError;
 use medbrains_server_core::middleware::auth::Claims;
 use medbrains_server_core::middleware::authorization::require_permission;
@@ -783,9 +782,13 @@ pub async fn update_trip_status(
     // Auto-bill ambulance transport on trip completion (if billable)
     if body.status == "completed" && row.is_billable {
         if let Some(patient_id) = row.patient_id {
-            if medbrains_server_services::billing::is_auto_billing_enabled(&mut tx, &claims.tenant_id, "ambulance")
-                .await
-                .unwrap_or(false)
+            if medbrains_server_services::billing::is_auto_billing_enabled(
+                &mut tx,
+                &claims.tenant_id,
+                "ambulance",
+            )
+            .await
+            .unwrap_or(false)
             {
                 let encounter_id = row.er_visit_id.unwrap_or(row.id);
                 let _ = medbrains_server_services::billing::create_service_charge(
@@ -1001,22 +1004,10 @@ pub fn router() -> axum::Router<AppState> {
             "/api/ambulance/drivers",
             get(list_drivers).post(create_driver),
         )
-        .route(
-            "/api/ambulance/drivers/{id}",
-            put(update_driver),
-        )
-        .route(
-            "/api/ambulance/trips",
-            get(list_trips).post(create_trip),
-        )
-        .route(
-            "/api/ambulance/trips/{id}",
-            get(get_trip).put(update_trip),
-        )
-        .route(
-            "/api/ambulance/trips/{id}/status",
-            put(update_trip_status),
-        )
+        .route("/api/ambulance/drivers/{id}", put(update_driver))
+        .route("/api/ambulance/trips", get(list_trips).post(create_trip))
+        .route("/api/ambulance/trips/{id}", get(get_trip).put(update_trip))
+        .route("/api/ambulance/trips/{id}/status", put(update_trip_status))
         .route(
             "/api/ambulance/trips/{trip_id}/logs",
             get(list_trip_logs).post(add_trip_log),
@@ -1025,8 +1016,5 @@ pub fn router() -> axum::Router<AppState> {
             "/api/ambulance/maintenance",
             get(list_maintenance).post(create_maintenance),
         )
-        .route(
-            "/api/ambulance/maintenance/{id}",
-            put(update_maintenance),
-        )
+        .route("/api/ambulance/maintenance/{id}", put(update_maintenance))
 }

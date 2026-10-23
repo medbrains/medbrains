@@ -26,7 +26,7 @@ pub struct PassScanQuery {
 pub struct PassCheck {
     /// Lets the holder in now.
     pub valid: bool,
-    /// Why not, when it doesn't: "revoked", "expired" or "not_yet_valid".
+    /// Why not, when it doesn't: "revoked", "expired" or "`not_yet_valid`".
     pub reason: Option<String>,
     pub pass_number: String,
     pub visitor_name: String,

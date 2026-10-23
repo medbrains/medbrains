@@ -199,13 +199,13 @@ pub fn decode_jwt(token: &str, key: &DecodingKey) -> Result<Claims, jsonwebtoken
     Ok(data.claims)
 }
 
-/// Populate `claims.permissions` by resolving (role, access_matrix)
+/// Populate `claims.permissions` by resolving (role, `access_matrix`)
 /// against the `roles` table. Called by the auth middleware after JWT
-/// decode + perm_version verification — the JWT itself no longer
+/// decode + `perm_version` verification — the JWT itself no longer
 /// carries the permission list (it's too big for Chrome's 4 KB cookie
 /// cap when fine-grained perms are involved).
 ///
-/// Bypass roles (super_admin / hospital_admin) keep an empty vector
+/// Bypass roles (`super_admin` / `hospital_admin`) keep an empty vector
 /// here; `require_permission` short-circuits them anyway.
 ///
 /// A service account holds no grants of its own (the database refuses them).

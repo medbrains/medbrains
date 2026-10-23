@@ -7,7 +7,7 @@
 //! variant + location. A **user-login app** (mobile/desktop) passes its build's `variant` code →
 //! location from the user's primary department. Everything is tenant-scoped from the caller's JWT.
 
-use axum::routing::{get};
+use axum::routing::get;
 use axum::{
     Extension, Json,
     extract::{Query, State},
@@ -74,13 +74,15 @@ async fn resolve_station(
     .bind(tenant_id)
     .fetch_optional(&mut **tx)
     .await?;
-    Ok(row.map(|(id, code, name, station_type, department_id)| ManifestStation {
-        id,
-        code,
-        name,
-        station_type,
-        department_id,
-    }))
+    Ok(row.map(
+        |(id, code, name, station_type, department_id)| ManifestStation {
+            id,
+            code,
+            name,
+            station_type,
+            department_id,
+        },
+    ))
 }
 
 async fn resolve_dept_label(
@@ -152,7 +154,11 @@ pub async fn get_app_manifest(
             app_variant: Some(app_variant),
             role: claims.role,
             user_id: claims.sub,
-            device: Some(ManifestDevice { id: device_id, label, paired_at }),
+            device: Some(ManifestDevice {
+                id: device_id,
+                label,
+                paired_at,
+            }),
             location: ManifestLocation {
                 department_id: effective_dept,
                 label: location_label
@@ -185,8 +191,7 @@ pub async fn get_app_manifest(
     }))
 }
 
-/// app_manifest routes.
+/// `app_manifest` routes.
 pub fn router() -> axum::Router<AppState> {
-    axum::Router::new()
-        .route("/api/app/manifest", get(get_app_manifest))
+    axum::Router::new().route("/api/app/manifest", get(get_app_manifest))
 }

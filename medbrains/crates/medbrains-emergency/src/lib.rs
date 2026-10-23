@@ -49,7 +49,7 @@ pub struct CreateVisitRequest {
     pub vitals: Option<serde_json::Value>,
     pub notes: Option<String>,
     pub mass_casualty_event_id: Option<Uuid>,
-    /// Internal training / simulator flag. See OPD CreateEncounterRequest.
+    /// Internal training / simulator flag. See OPD `CreateEncounterRequest`.
     #[serde(default)]
     pub is_dummy: Option<bool>,
 }

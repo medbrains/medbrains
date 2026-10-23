@@ -93,8 +93,10 @@ pub async fn upload_release(
         .get("x-file-name")
         .and_then(|v| v.to_str().ok())
         .and_then(|v| FsPath::new(v).file_name().and_then(|n| n.to_str()))
-        .map(|v| v.chars().take(200).collect::<String>())
-        .unwrap_or_else(|| "upload.zip".to_owned());
+        .map_or_else(
+            || "upload.zip".to_owned(),
+            |v| v.chars().take(200).collect::<String>(),
+        );
     let dir = std::env::temp_dir().join("medbrains-snomed");
     tokio::fs::create_dir_all(&dir)
         .await

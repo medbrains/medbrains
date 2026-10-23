@@ -1,5 +1,5 @@
 //! How a payout leaves the hospital, behind one provider-neutral trait: a
-//! bank file finance uploads (and later confirms with the UTR), or RazorpayX
+//! bank file finance uploads (and later confirms with the UTR), or `RazorpayX`
 //! Payouts. Cash is recorded by hand and needs no provider.
 
 use std::time::Duration;
@@ -66,13 +66,13 @@ impl PayoutProvider for BankFile {
     }
 }
 
-/// The secret that points RazorpayX calls at a stand-in (tests, sandboxes);
+/// The secret that points `RazorpayX` calls at a stand-in (tests, sandboxes);
 /// the same one the collect side uses.
 pub const API_BASE_OVERRIDE: &str = "RAZORPAY_API_BASE_OVERRIDE";
 const API_BASE: &str = "https://api.razorpay.com/v1";
 const CALL_TIMEOUT: Duration = Duration::from_secs(20);
 
-/// RazorpayX Payouts: a composite payout (contact + fund account + payout in
+/// `RazorpayX` Payouts: a composite payout (contact + fund account + payout in
 /// one call) to a bank account by IMPS or to a UPI ID, purpose "vendor bill",
 /// with an idempotency key so a retry never pays twice.
 #[derive(Debug)]
@@ -84,7 +84,7 @@ pub struct RazorpayX {
 }
 
 impl RazorpayX {
-    /// The tenant's RazorpayX payout settings (`payments` / `razorpayx_payouts`:
+    /// The tenant's `RazorpayX` payout settings (`payments` / `razorpayx_payouts`:
     /// `key_id`, `key_secret`, `account_number`), or `None` when not set up.
     pub async fn configured(
         tx: &mut Tx<'_>,

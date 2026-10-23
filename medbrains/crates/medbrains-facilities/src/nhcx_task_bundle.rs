@@ -1,6 +1,6 @@
 //! The NHCX `TaskBundle` the hospital sends to ask a payer something about a
 //! claim rather than to claim: which claims it holds, to cancel one, or to
-//! reprocess one. Shapes follow the NRCeS NHCX IG 6.5.0 examples
+//! reprocess one. Shapes follow the `NRCeS` NHCX IG 6.5.0 examples
 //! (`TaskBundleForSearchRequest`, `TaskBundleForReprocessRequest`). A status
 //! enquiry is no Task: `/v1/status` carries an empty sealed payload, and its
 //! correlation id names the message asked about (docs.abdm.gov.in).

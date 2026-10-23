@@ -24,9 +24,9 @@ pub struct ChildPughRequest {
     pub albumin_g_dl: f64,
     /// INR. < 1.7 = 1, 1.7-2.3 = 2, > 2.3 = 3.
     pub inr: f64,
-    /// Ascites: "none" (1), "mild" (2), or "moderate_severe" (3).
+    /// Ascites: "none" (1), "mild" (2), or "`moderate_severe`" (3).
     pub ascites: String,
-    /// Hepatic encephalopathy: "none" (1), "grade_1_2" (2), or "grade_3_4" (3).
+    /// Hepatic encephalopathy: "none" (1), "`grade_1_2`" (2), or "`grade_3_4`" (3).
     pub encephalopathy: String,
 }
 
@@ -80,7 +80,9 @@ fn category_points(value: &str, mild: &str, severe: &str, field: &str) -> Result
     } else if value == severe {
         Ok(3)
     } else {
-        Err(AppError::BadRequest(format!("invalid {field} value '{value}'")))
+        Err(AppError::BadRequest(format!(
+            "invalid {field} value '{value}'"
+        )))
     }
 }
 
@@ -89,8 +91,12 @@ pub fn compute_child_pugh(r: &ChildPughRequest) -> Result<ChildPughResult, AppEr
     let albumin_pts = albumin_points(r.albumin_g_dl);
     let inr_pts = inr_points(r.inr);
     let ascites_pts = category_points(&r.ascites, "mild", "moderate_severe", "ascites")?;
-    let enceph_pts =
-        category_points(&r.encephalopathy, "grade_1_2", "grade_3_4", "encephalopathy")?;
+    let enceph_pts = category_points(
+        &r.encephalopathy,
+        "grade_1_2",
+        "grade_3_4",
+        "encephalopathy",
+    )?;
     let total = bilirubin_pts + albumin_pts + inr_pts + ascites_pts + enceph_pts;
     let (class, response) = if total >= 10 {
         (
@@ -133,7 +139,9 @@ pub async fn child_pugh_score(
 ) -> Result<Json<ChildPughResult>, AppError> {
     require_permission(&claims, permissions::ipd::nursing_assessment::LIST)?;
     if body.bilirubin_mg_dl < 0.0 || body.albumin_g_dl < 0.0 || body.inr < 0.0 {
-        return Err(AppError::BadRequest("lab values must not be negative".to_owned()));
+        return Err(AppError::BadRequest(
+            "lab values must not be negative".to_owned(),
+        ));
     }
     Ok(Json(compute_child_pugh(&body)?))
 }
@@ -176,9 +184,24 @@ mod tests {
 
     #[test]
     fn bilirubin_thresholds() {
-        assert_eq!(compute_child_pugh(&req(1.9, 4.0, 1.0, "none", "none")).unwrap().bilirubin_points, 1);
-        assert_eq!(compute_child_pugh(&req(2.0, 4.0, 1.0, "none", "none")).unwrap().bilirubin_points, 2);
-        assert_eq!(compute_child_pugh(&req(3.1, 4.0, 1.0, "none", "none")).unwrap().bilirubin_points, 3);
+        assert_eq!(
+            compute_child_pugh(&req(1.9, 4.0, 1.0, "none", "none"))
+                .unwrap()
+                .bilirubin_points,
+            1
+        );
+        assert_eq!(
+            compute_child_pugh(&req(2.0, 4.0, 1.0, "none", "none"))
+                .unwrap()
+                .bilirubin_points,
+            2
+        );
+        assert_eq!(
+            compute_child_pugh(&req(3.1, 4.0, 1.0, "none", "none"))
+                .unwrap()
+                .bilirubin_points,
+            3
+        );
     }
 
     #[test]

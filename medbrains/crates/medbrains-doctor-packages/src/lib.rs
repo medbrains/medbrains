@@ -1,7 +1,7 @@
 //! Doctor packages (admin) — package templates + inclusion lines.
 //! See `RFCs/sprints/SPRINT-doctor-activities.md` §2.3.
 
-use axum::routing::{delete,get,post};
+use axum::routing::{delete, get, post};
 use axum::{
     Extension, Json,
     extract::{Path, Query, State},
@@ -314,7 +314,7 @@ pub async fn remove_inclusion(
     Ok(Json(json!({ "deleted": true })))
 }
 
-/// doctor_packages routes.
+/// `doctor_packages` routes.
 pub fn router() -> axum::Router<AppState> {
     axum::Router::new()
         .route(

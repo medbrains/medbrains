@@ -707,8 +707,7 @@ async fn seed_team(
     for (idx, employee_id) in employee_ids.iter().enumerate() {
         let role = CAMP_STAFF
             .get(idx)
-            .map(|staff| staff.role_in_camp)
-            .unwrap_or("Camp team member");
+            .map_or("Camp team member", |staff| staff.role_in_camp);
         sqlx::query(
             "INSERT INTO camp_team_members \
              (tenant_id, camp_id, employee_id, role_in_camp, is_confirmed, notes) \

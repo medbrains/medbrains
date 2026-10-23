@@ -5,7 +5,7 @@
 //! The size comes from the body's `size_hint().exact()` — NOT the
 //! `Content-Length` header, which axum/hyper only sets at transport time (so it
 //! is absent at the middleware layer). This layer sits inside the
-//! CompressionLayer, so the body here is the raw (pre-compression) payload; the
+//! `CompressionLayer`, so the body here is the raw (pre-compression) payload; the
 //! header survives compression (it only rewrites Content-Encoding/Length), the
 //! proxy reads it, logs raw vs wire bytes. Streaming bodies (SSE) report no
 //! exact size, so they are skipped.

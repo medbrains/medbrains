@@ -1,7 +1,7 @@
 //! IT Security routes — Break-Glass, Clinical Access Monitor, Stock Disposal,
 //! TAT Tracking, Data Migration, EOD Digest, Data Quality, CERT-In Compliance.
 //!
-//! # Why create_sensitive_patient and start_tat_record take no record check
+//! # Why `create_sensitive_patient` and `start_tat_record` take no record check
 //!
 //! `create_sensitive_patient` marks a patient as restricted — VIP, staff, or a
 //! diagnosis that must not surface on a shared screen. `start_tat_record`
@@ -9,7 +9,7 @@
 //!
 //! They are guarded on `admin.security` and `admin.system`, and **neither code
 //! is held by any built-in role** (`scripts/check_permission_reachable.py`),
-//! so both are bypass-only: super_admin and hospital_admin, who see every
+//! so both are bypass-only: `super_admin` and `hospital_admin`, who see every
 //! patient regardless.
 //!
 //! Beyond that, marking a patient sensitive is a protective act performed by

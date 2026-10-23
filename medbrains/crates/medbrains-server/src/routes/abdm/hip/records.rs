@@ -302,14 +302,13 @@ pub(crate) async fn open_failures(
 }
 
 pub(crate) fn month_start(month: Option<&str>) -> Result<NaiveDate, AppError> {
-    match month {
-        Some(m) => NaiveDate::parse_from_str(&format!("{m}-01"), "%Y-%m-%d")
-            .map_err(|_| AppError::BadRequest("month must be YYYY-MM".to_owned())),
-        None => {
-            let today = (Utc::now() + chrono::Duration::minutes(330)).date_naive();
-            NaiveDate::from_ymd_opt(today.year(), today.month(), 1)
-                .ok_or_else(|| AppError::Internal("no first of the month".to_owned()))
-        }
+    if let Some(m) = month {
+        NaiveDate::parse_from_str(&format!("{m}-01"), "%Y-%m-%d")
+            .map_err(|_| AppError::BadRequest("month must be YYYY-MM".to_owned()))
+    } else {
+        let today = (Utc::now() + chrono::Duration::minutes(330)).date_naive();
+        NaiveDate::from_ymd_opt(today.year(), today.month(), 1)
+            .ok_or_else(|| AppError::Internal("no first of the month".to_owned()))
     }
 }
 

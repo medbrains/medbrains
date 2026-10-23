@@ -161,7 +161,8 @@ pub async fn create_connector(
 
     tx.commit().await?;
 
-    let connector = orchestration::connectors::get_connector(&state.db, claims.tenant_id, id).await?;
+    let connector =
+        orchestration::connectors::get_connector(&state.db, claims.tenant_id, id).await?;
 
     Ok(Json(connector))
 }
@@ -179,7 +180,8 @@ pub async fn update_connector(
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
     // Build dynamic UPDATE
-    let existing = orchestration::connectors::get_connector(&state.db, claims.tenant_id, id).await?;
+    let existing =
+        orchestration::connectors::get_connector(&state.db, claims.tenant_id, id).await?;
 
     let name = body.name.as_deref().unwrap_or(&existing.name);
     let description = body
@@ -227,7 +229,8 @@ pub async fn test_connector(
 ) -> Result<Json<HealthCheckResponse>, AppError> {
     require_permission(&claims, permissions::integration::EXECUTE)?;
 
-    let is_healthy = orchestration::connectors::health_check(&state.db, claims.tenant_id, id).await?;
+    let is_healthy =
+        orchestration::connectors::health_check(&state.db, claims.tenant_id, id).await?;
 
     Ok(Json(HealthCheckResponse {
         connector_id: id,
@@ -252,61 +255,59 @@ pub async fn list_jobs(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
-    let (jobs, total) = match params.status.as_deref() {
-        Some(status) => {
-            let jobs = sqlx::query_as::<_, JobQueueRow>(
-                "SELECT id, tenant_id, job_type, pipeline_id, execution_id, \
-                        connector_id, payload, status, priority, max_retries, \
-                        retry_count, next_retry_at, locked_by, locked_at, \
-                        started_at, completed_at, error, correlation_id, created_at \
-                 FROM job_queue \
-                 WHERE tenant_id = $1 AND deleted_at IS NULL AND status = $2 \
-                 ORDER BY created_at DESC \
-                 LIMIT $3 OFFSET $4",
-            )
-            .bind(claims.tenant_id)
-            .bind(status)
-            .bind(per_page)
-            .bind(offset)
-            .fetch_all(&mut *tx)
-            .await?;
+    let (jobs, total) = if let Some(status) = params.status.as_deref() {
+        let jobs = sqlx::query_as::<_, JobQueueRow>(
+            "SELECT id, tenant_id, job_type, pipeline_id, execution_id, \
+                    connector_id, payload, status, priority, max_retries, \
+                    retry_count, next_retry_at, locked_by, locked_at, \
+                    started_at, completed_at, error, correlation_id, created_at \
+             FROM job_queue \
+             WHERE tenant_id = $1 AND deleted_at IS NULL AND status = $2 \
+             ORDER BY created_at DESC \
+             LIMIT $3 OFFSET $4",
+        )
+        .bind(claims.tenant_id)
+        .bind(status)
+        .bind(per_page)
+        .bind(offset)
+        .fetch_all(&mut *tx)
+        .await?;
 
-            let total = sqlx::query_scalar::<_, i64>(
-                "SELECT COUNT(*) FROM job_queue \
-                 WHERE tenant_id = $1 AND deleted_at IS NULL AND status = $2",
-            )
-            .bind(claims.tenant_id)
-            .bind(status)
-            .fetch_one(&mut *tx)
-            .await?;
+        let total = sqlx::query_scalar::<_, i64>(
+            "SELECT COUNT(*) FROM job_queue \
+             WHERE tenant_id = $1 AND deleted_at IS NULL AND status = $2",
+        )
+        .bind(claims.tenant_id)
+        .bind(status)
+        .fetch_one(&mut *tx)
+        .await?;
 
-            (jobs, total)
-        }
-        None => {
-            let jobs = sqlx::query_as::<_, JobQueueRow>(
-                "SELECT id, tenant_id, job_type, pipeline_id, execution_id, \
-                        connector_id, payload, status, priority, max_retries, \
-                        retry_count, next_retry_at, locked_by, locked_at, \
-                        started_at, completed_at, error, correlation_id, created_at \
-                 FROM job_queue \
-                 WHERE tenant_id = $1 AND deleted_at IS NULL \
-                 ORDER BY created_at DESC \
-                 LIMIT $2 OFFSET $3",
-            )
-            .bind(claims.tenant_id)
-            .bind(per_page)
-            .bind(offset)
-            .fetch_all(&mut *tx)
-            .await?;
+        (jobs, total)
+    } else {
+        let jobs = sqlx::query_as::<_, JobQueueRow>(
+            "SELECT id, tenant_id, job_type, pipeline_id, execution_id, \
+                    connector_id, payload, status, priority, max_retries, \
+                    retry_count, next_retry_at, locked_by, locked_at, \
+                    started_at, completed_at, error, correlation_id, created_at \
+             FROM job_queue \
+             WHERE tenant_id = $1 AND deleted_at IS NULL \
+             ORDER BY created_at DESC \
+             LIMIT $2 OFFSET $3",
+        )
+        .bind(claims.tenant_id)
+        .bind(per_page)
+        .bind(offset)
+        .fetch_all(&mut *tx)
+        .await?;
 
-            let total =
-                sqlx::query_scalar::<_, i64>("SELECT COUNT(*) FROM job_queue WHERE tenant_id = $1 AND deleted_at IS NULL")
-                    .bind(claims.tenant_id)
-                    .fetch_one(&mut *tx)
-                    .await?;
+        let total = sqlx::query_scalar::<_, i64>(
+            "SELECT COUNT(*) FROM job_queue WHERE tenant_id = $1 AND deleted_at IS NULL",
+        )
+        .bind(claims.tenant_id)
+        .fetch_one(&mut *tx)
+        .await?;
 
-            (jobs, total)
-        }
+        (jobs, total)
     };
 
     tx.commit().await?;

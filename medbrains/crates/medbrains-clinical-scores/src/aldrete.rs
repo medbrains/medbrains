@@ -23,7 +23,7 @@ pub struct AldreteRequest {
     pub circulation: i32,
     /// 2 fully awake · 1 arousable on calling · 0 not responding.
     pub consciousness: i32,
-    /// 2 SpO₂ >92% on room air · 1 needs O₂ to keep >90% · 0 <90% even with O₂.
+    /// 2 `SpO₂` >92% on room air · 1 needs O₂ to keep >90% · 0 <90% even with O₂.
     pub oxygenation: i32,
 }
 
@@ -42,7 +42,9 @@ pub struct AldreteResult {
 
 fn validate(name: &str, value: i32) -> Result<(), AppError> {
     if !(0..=2).contains(&value) {
-        return Err(AppError::BadRequest(format!("{name} must be between 0 and 2")));
+        return Err(AppError::BadRequest(format!(
+            "{name} must be between 0 and 2"
+        )));
     }
     Ok(())
 }

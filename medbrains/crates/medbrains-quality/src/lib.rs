@@ -1,7 +1,7 @@
 #![allow(clippy::too_many_lines)]
 //! Quality, incidents and mortality review.
 //!
-//! # Why create_incident and create_mortality_review take no record check
+//! # Why `create_incident` and `create_mortality_review` take no record check
 //!
 //! Both write `quality_incidents` with an optional `patient_id` from the body,
 //! under `quality.incidents.create`, held by one role: `quality_officer`.

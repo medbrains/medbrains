@@ -15,7 +15,7 @@ use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use axum::routing::{get,post,put};
+use axum::routing::{get, post, put};
 use medbrains_server_core::error::AppError;
 use medbrains_server_core::middleware::auth::Claims;
 use medbrains_server_core::middleware::authorization::{
@@ -52,7 +52,7 @@ pub struct ContrastScreeningResult {
     pub cin_risk: &'static str,
     pub reaction_risk: &'static str,
     pub metformin_action: &'static str,
-    /// Overall recommendation: proceed | proceed_with_caution | hold_review.
+    /// Overall recommendation: proceed | `proceed_with_caution` | `hold_review`.
     pub clearance: &'static str,
     pub flags: Vec<String>,
 }
@@ -210,8 +210,7 @@ pub async fn contrast_screening(
     require_permission(&claims, permissions::radiology::orders::VIEW)?;
     // Screening reads the patient's renal function and contrast allergy history
     // to decide whether contrast is safe. The body names them.
-    medbrains_authz_gate::require_patient_access(&state, &claims, body.patient_id)
-        .await?;
+    medbrains_authz_gate::require_patient_access(&state, &claims, body.patient_id).await?;
     medbrains_server_core::middleware::entitlement::require_module_enabled(
         &state.db,
         claims.tenant_id,
@@ -279,8 +278,7 @@ pub async fn cumulative_dose(
     require_permission(&claims, permissions::radiology::orders::VIEW)?;
     // Lifetime radiation dose for one named patient. A dose history says how
     // often they have been imaged and for what.
-    medbrains_authz_gate::require_patient_access(&state, &claims, params.patient_id)
-        .await?;
+    medbrains_authz_gate::require_patient_access(&state, &claims, params.patient_id).await?;
     medbrains_server_core::middleware::entitlement::require_module_enabled(
         &state.db,
         claims.tenant_id,
@@ -417,7 +415,7 @@ pub struct CreateOrderRequest {
     /// contrast default from it when the request leaves them empty.
     #[serde(default)]
     pub exam_id: Option<Uuid>,
-    /// Internal training / simulator flag. See OPD CreateEncounterRequest.
+    /// Internal training / simulator flag. See OPD `CreateEncounterRequest`.
     #[serde(default)]
     pub is_dummy: Option<bool>,
 }
@@ -500,16 +498,24 @@ pub async fn list_orders(
         None
     } else {
         Some(
-            match state.authz.list_accessible(&authz_ctx, "radiology_order", medbrains_authz::Relation::Viewer,).await {
-            Ok(ids) => ids,
-            Err(e) => {
-                tracing::error!(error = %e, object_type = "radiology_order",
+            match state
+                .authz
+                .list_accessible(
+                    &authz_ctx,
+                    "radiology_order",
+                    medbrains_authz::Relation::Viewer,
+                )
+                .await
+            {
+                Ok(ids) => ids,
+                Err(e) => {
+                    tracing::error!(error = %e, object_type = "radiology_order",
                     "rebac: list_accessible failed; refusing rather than showing an empty list");
-                return Err(AppError::ServiceUnavailable(
-                    "authorization backend unavailable".to_owned(),
-                ));
-            }
-        },
+                    return Err(AppError::ServiceUnavailable(
+                        "authorization backend unavailable".to_owned(),
+                    ));
+                }
+            },
         )
     };
 
@@ -580,7 +586,9 @@ pub async fn list_orders(
 
     let where_clause = conditions.join(" AND ");
 
-    let count_sql = format!("SELECT COUNT(*) FROM radiology_orders WHERE deleted_at IS NULL AND {where_clause}");
+    let count_sql = format!(
+        "SELECT COUNT(*) FROM radiology_orders WHERE deleted_at IS NULL AND {where_clause}"
+    );
     let mut cq = sqlx::query_scalar::<_, i64>(&count_sql).bind(claims.tenant_id);
     for b in &binds {
         if let Some(u) = b.uuid_val {
@@ -709,8 +717,8 @@ pub async fn create_order_in_tx_with_options(
         }
     }
 
-    let is_dummy =
-        body.is_dummy.unwrap_or(false) && medbrains_server_core::middleware::authorization::is_bypass_role(claims);
+    let is_dummy = body.is_dummy.unwrap_or(false)
+        && medbrains_server_core::middleware::authorization::is_bypass_role(claims);
 
     let order = sqlx::query_as::<_, RadiologyOrder>(
         "INSERT INTO radiology_orders \
@@ -738,7 +746,10 @@ pub async fn create_order_in_tx_with_options(
     .bind(allergy)
     .bind(is_dummy)
     .bind(&body_part_code)
-    .bind(body.body_part_laterality.map(medbrains_core::body_site::Laterality::as_str))
+    .bind(
+        body.body_part_laterality
+            .map(medbrains_core::body_site::Laterality::as_str),
+    )
     .bind(body.exam_id)
     .bind(body.patient_pregnant.unwrap_or(false))
     .fetch_one(&mut **tx)
@@ -834,7 +845,13 @@ async fn auto_bill_radiology_order_in_tx(
     claims: &Claims,
     order: &RadiologyOrder,
 ) -> Result<(), AppError> {
-    if !medbrains_server_services::billing::is_auto_billing_enabled(tx, &claims.tenant_id, "radiology").await? {
+    if !medbrains_server_services::billing::is_auto_billing_enabled(
+        tx,
+        &claims.tenant_id,
+        "radiology",
+    )
+    .await?
+    {
         return Ok(());
     }
 
@@ -908,7 +925,15 @@ pub async fn get_order(
     let authz_ctx = medbrains_server_core::middleware::authorization::authz_context(&claims);
     medbrains_server_core::middleware::authorization::collapse(
         medbrains_server_core::middleware::authorization::outcome_of(
-            state.authz.check(&authz_ctx, medbrains_authz::Relation::Viewer, "radiology_order", id,).await,
+            state
+                .authz
+                .check(
+                    &authz_ctx,
+                    medbrains_authz::Relation::Viewer,
+                    "radiology_order",
+                    id,
+                )
+                .await,
             "radiology_order",
         ),
     )?;
@@ -1790,8 +1815,7 @@ pub async fn create_radiology_appointment(
 ) -> Result<Json<RadiologyOrder>, AppError> {
     require_permission(&claims, permissions::radiology::orders::CREATE)?;
     // The appointment is booked FOR the patient named in the body.
-    medbrains_authz_gate::require_patient_access(&state, &claims, body.patient_id)
-        .await?;
+    medbrains_authz_gate::require_patient_access(&state, &claims, body.patient_id).await?;
     medbrains_server_core::middleware::entitlement::require_module_enabled(
         &state.db,
         claims.tenant_id,
@@ -1956,8 +1980,7 @@ pub async fn get_prior_studies(
     require_permission(&claims, permissions::radiology::orders::LIST)?;
     // Prior studies are this patient's imaging history — what was looked for
     // and when, which is a diagnosis trail.
-    medbrains_authz_gate::require_patient_access(&state, &claims, patient_id)
-        .await?;
+    medbrains_authz_gate::require_patient_access(&state, &claims, patient_id).await?;
     medbrains_server_core::middleware::entitlement::require_module_enabled(
         &state.db,
         claims.tenant_id,
@@ -2344,8 +2367,7 @@ pub async fn list_patient_reports(
     require_permission(&claims, permissions::radiology::orders::LIST)?;
     // The path names the patient and the answer is every radiology report on
     // them. `radiology.orders.list` said the caller may list orders, not whose.
-    medbrains_authz_gate::require_patient_access(&state, &claims, patient_id)
-        .await?;
+    medbrains_authz_gate::require_patient_access(&state, &claims, patient_id).await?;
     medbrains_server_core::middleware::entitlement::require_module_enabled(
         &state.db,
         claims.tenant_id,

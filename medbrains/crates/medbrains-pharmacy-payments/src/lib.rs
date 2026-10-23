@@ -1,8 +1,8 @@
+use axum::routing::{get, post, put};
 use axum::{
     Extension, Json,
     extract::{Path, Query, State},
 };
-use axum::routing::{get,post,put};
 use chrono::{DateTime, NaiveDate, Utc};
 use medbrains_core::permissions;
 use rust_decimal::Decimal;
@@ -535,7 +535,7 @@ pub async fn verify_settlement(
     Ok(Json(row))
 }
 
-/// pharmacy_payments routes.
+/// `pharmacy_payments` routes.
 pub fn router() -> axum::Router<AppState> {
     axum::Router::new()
         .route(
@@ -554,10 +554,7 @@ pub fn router() -> axum::Router<AppState> {
             "/api/pharmacy/payments/day-reconciliation",
             get(day_reconciliation),
         )
-        .route(
-            "/api/pharmacy/settlements",
-            get(get_settlement),
-        )
+        .route("/api/pharmacy/settlements", get(get_settlement))
         .route(
             "/api/pharmacy/settlements/{id}/close",
             put(close_settlement),

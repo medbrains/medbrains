@@ -1,5 +1,5 @@
 // NABH KPI dashboard rollup.
-use axum::routing::{get};
+use axum::routing::get;
 //
 // Pulls aggregates from the modules we already have data for (lab,
 // radiology, ipd, opd, emergency, pharmacy, post-discharge). Each
@@ -23,8 +23,8 @@ use medbrains_server_core::middleware::authorization::require_permission;
 use medbrains_server_core::state::AppState;
 
 /// A single quality-indicator computation. The frontend uses
-/// `direction` to colour traffic-light tiles: 'higher_better' →
-/// green when value >= target, 'lower_better' → green when value
+/// `direction` to colour traffic-light tiles: '`higher_better`' →
+/// green when value >= target, '`lower_better`' → green when value
 /// <= target.
 #[derive(Debug, Serialize)]
 pub struct Indicator {
@@ -1250,11 +1250,10 @@ pub async fn get_indicators(
         computed,
         pending_data_capture: pending,
         note: format!(
-            "{} live, {} pending. Baseline catalog is the NABH 6th Edition 2025 KPI annexure; \
+            "{computed} live, {pending} pending. Baseline catalog is the NABH 6th Edition 2025 KPI annexure; \
              additional MedBrains evidence indicators appear when source data is wired. \
              Source PDF is stored in \
-             RFCs/references/NABH-Hospital-Accreditation-Standard-6th-Edition-January-2025.pdf.",
-            computed, pending
+             RFCs/references/NABH-Hospital-Accreditation-Standard-6th-Edition-January-2025.pdf."
         ),
     };
 
@@ -1294,11 +1293,7 @@ async fn scalar_minutes(
         .map(|v| (v * 10.0).round() / 10.0)
 }
 
-/// nabh_indicators routes.
+/// `nabh_indicators` routes.
 pub fn router() -> axum::Router<AppState> {
-    axum::Router::new()
-        .route(
-            "/api/nabh/indicators",
-            get(get_indicators),
-        )
+    axum::Router::new().route("/api/nabh/indicators", get(get_indicators))
 }

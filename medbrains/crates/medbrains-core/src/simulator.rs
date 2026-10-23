@@ -85,7 +85,7 @@ pub struct Profile {
     pub volumes: VolumeOverrides,
     pub natural_flow: NaturalFlowPolicy,
     /// Approval gate: `auto` commits the run immediately; `manual` parks
-    /// the run as `pending_approval` until a super_admin approves or
+    /// the run as `pending_approval` until a `super_admin` approves or
     /// rejects it. Reject deletes the synthetic rows recorded in
     /// `simulator_run_steps`.
     pub approval_mode: ApprovalMode,

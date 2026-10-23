@@ -244,20 +244,16 @@ pub async fn run_seed(pool: &PgPool) -> Result<(), Box<dyn std::error::Error>> {
 }
 
 fn production_env() -> bool {
-    std::env::var("MEDBRAINS_ENV")
-        .map(|value| value.eq_ignore_ascii_case("production"))
-        .unwrap_or(false)
+    std::env::var("MEDBRAINS_ENV").is_ok_and(|value| value.eq_ignore_ascii_case("production"))
 }
 
 fn demo_fixture_seed_enabled() -> bool {
-    std::env::var("MEDBRAINS_SEED_DEMO_DATA")
-        .map(|value| {
-            matches!(
-                value.to_ascii_lowercase().as_str(),
-                "1" | "true" | "yes" | "on"
-            )
-        })
-        .unwrap_or(false)
+    std::env::var("MEDBRAINS_SEED_DEMO_DATA").is_ok_and(|value| {
+        matches!(
+            value.to_ascii_lowercase().as_str(),
+            "1" | "true" | "yes" | "on"
+        )
+    })
 }
 
 /// Insert built-in system roles into the `roles` table.
@@ -286,11 +282,10 @@ fn demo_fixture_seed_enabled() -> bool {
 /// Propagates database errors; a tenant that fails stops the run rather than
 /// leaving the rest half-applied silently.
 pub async fn reconcile_built_in_roles(pool: &PgPool) -> Result<usize, Box<dyn std::error::Error>> {
-    let tenants: Vec<uuid::Uuid> = sqlx::query_scalar(
-        "SELECT id FROM tenants WHERE deleted_at IS NULL AND is_active = true",
-    )
-    .fetch_all(pool)
-    .await?;
+    let tenants: Vec<uuid::Uuid> =
+        sqlx::query_scalar("SELECT id FROM tenants WHERE deleted_at IS NULL AND is_active = true")
+            .fetch_all(pool)
+            .await?;
 
     for tenant_id in &tenants {
         seed_built_in_roles(pool, *tenant_id).await?;
@@ -346,7 +341,7 @@ pub(crate) async fn seed_built_in_roles(
 
     Ok(())
 }
-/// Insert the 8 default access_groups for the tenant. Idempotent —
+/// Insert the 8 default `access_groups` for the tenant. Idempotent —
 /// re-running just refreshes name/description, never wipes member rows.
 async fn seed_default_groups(
     pool: &PgPool,

@@ -137,7 +137,7 @@ pub struct CreateEncounterRequest {
     /// happens later, in the consultation.
     pub chief_complaint: Option<String>,
     /// Internal training / simulator flag. Only honoured for bypass roles
-    /// (super_admin, hospital_admin); silently coerced to false otherwise.
+    /// (`super_admin`, `hospital_admin`); silently coerced to false otherwise.
     /// Tagged rows must be excluded from regulator-facing reports.
     #[serde(default)]
     pub is_dummy: Option<bool>,
@@ -323,7 +323,7 @@ pub struct CreatePrescriptionRequest {
     pub repeat_interval_days: Option<i32>,
     /// Last day the prescription may be dispensed or refilled against.
     pub valid_until: Option<NaiveDate>,
-    /// Clinical indication for an AWaRe Reserve antibiotic. Required when a
+    /// Clinical indication for an `AWaRe` Reserve antibiotic. Required when a
     /// Reserve line has no live stewardship request; raises one (pending).
     pub stewardship_indication: Option<String>,
     /// Prescriber's reason for a non-formulary medicine. Required when a line
@@ -6601,8 +6601,8 @@ pub async fn followup_compliance(
 
 #[derive(Debug, Deserialize)]
 pub struct VerbalOrderQuery {
-    /// Optional filter: awaiting | overdue | countersigned_on_time |
-    /// countersigned_late. Omitted = all.
+    /// Optional filter: awaiting | overdue | `countersigned_on_time` |
+    /// `countersigned_late`. Omitted = all.
     pub status: Option<String>,
 }
 

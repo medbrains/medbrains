@@ -174,8 +174,7 @@ pub fn verify_jwt(
 
     let now_unix = now
         .duration_since(UNIX_EPOCH)
-        .map(|d| d.as_secs() as i64)
-        .unwrap_or(0);
+        .map_or(0, |d| d.as_secs() as i64);
     let skew = clock_skew.as_secs() as i64;
 
     if claims.iat - skew > now_unix {

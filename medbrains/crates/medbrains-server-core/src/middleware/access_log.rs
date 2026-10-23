@@ -5,7 +5,7 @@
 //! "who looked at this patient's record, when, from where" trail
 //! mandated by HIPAA / DPDP / DISHA / GDPR.
 //!
-//! Async via tokio::spawn so it never blocks the response. Failures are
+//! Async via `tokio::spawn` so it never blocks the response. Failures are
 //! logged at error level — fallback file logger is a Phase-2.5 follow-up.
 
 use axum::{
@@ -107,7 +107,7 @@ pub async fn access_log_layer(
     response
 }
 
-/// Match path against PHI_PREFIXES. Returns (entity_type, optional entity_id).
+/// Match path against `PHI_PREFIXES`. Returns (`entity_type`, optional `entity_id`).
 fn parse_phi_path(path: &str) -> Option<(String, Option<Uuid>)> {
     let stripped = path.trim_start_matches("/api/");
     let mut segments = stripped.split('/');

@@ -6,7 +6,7 @@
 //! (`remind_hours_before`, default 24h + 2h) and enqueue the matching
 //! `sms.appointment_reminder_*` outbox event. The registered Twilio
 //! handler delivers with retry + DLQ; the outbox unique key
-//! (tenant, event_type, idempotency_key) guarantees one send per
+//! (tenant, `event_type`, `idempotency_key`) guarantees one send per
 //! appointment per window across restarts and re-polls.
 
 use std::time::Duration;

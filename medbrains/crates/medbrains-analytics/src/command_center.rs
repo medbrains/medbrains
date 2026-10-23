@@ -19,7 +19,7 @@
 //! **What actually bounds the exposure today is that no built-in role holds
 //! any of the five `command_center.*` codes** (`scripts/check_permission_reachable.py`
 //! — `command_center` is 5 of the guarded-never-granted set). The whole module
-//! is bypass-only: super_admin and hospital_admin, who see every patient
+//! is bypass-only: `super_admin` and `hospital_admin`, who see every patient
 //! anyway. The operational arguments above describe roles that cannot reach
 //! these handlers.
 //!
@@ -447,8 +447,7 @@ pub async fn get_discharge_blockers(
     Path(admission_id): Path<Uuid>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     require_permission(&claims, permissions::command_center::discharge::VIEW)?;
-    medbrains_authz_gate::require_admission_access(&state, &claims, admission_id)
-        .await?;
+    medbrains_authz_gate::require_admission_access(&state, &claims, admission_id).await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;

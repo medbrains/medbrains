@@ -271,7 +271,7 @@ pub async fn convert_contact(
             .bind(claims.tenant_id)
             .bind(&uhid)
             .bind(first)
-            .bind(last_name.as_deref().map(str::trim).unwrap_or(""))
+            .bind(last_name.as_deref().map_or("", str::trim))
             .bind(gender.as_deref())
             .bind(phone.trim())
             .bind(date_of_birth)

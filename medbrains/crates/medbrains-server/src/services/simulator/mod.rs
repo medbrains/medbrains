@@ -58,7 +58,7 @@ struct RunContext<'a> {
     /// ICD codes from active outbreak-alert news rows. Empty when no
     /// outbreak is active.
     news_icds: &'a [String],
-    /// (icd_code, count) tuples from the last N days of real (non-dummy)
+    /// (`icd_code`, count) tuples from the last N days of real (non-dummy)
     /// encounters. Used to blend the synthetic distribution toward the
     /// tenant's actual case mix.
     natural_icds: &'a [(String, i64)],
@@ -385,7 +385,7 @@ async fn run_opd_episode(
 
     // Prescription
     if chance(rng, profile.branches.rx_pct) {
-        let prescriber = doctor.map(|d| d.id).unwrap_or(claims.sub);
+        let prescriber = doctor.map_or(claims.sub, |d| d.id);
         let prescription_id: Uuid = sqlx::query_scalar(
             "INSERT INTO prescriptions (tenant_id, encounter_id, doctor_id, patient_id) \
              VALUES ($1, $2, $3, $4) RETURNING id",
@@ -487,7 +487,7 @@ async fn run_opd_episode(
 
     // IPD escalation branch
     if chance(rng, profile.branches.ipd_escalation_pct) {
-        let doctor_id = doctor.map(|d| d.id).unwrap_or(claims.sub);
+        let doctor_id = doctor.map_or(claims.sub, |d| d.id);
         let dept =
             department_id.unwrap_or_else(|| departments.first().copied().unwrap_or(Uuid::nil()));
         if dept != Uuid::nil() {

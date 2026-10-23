@@ -46,7 +46,7 @@ pub enum BinOp {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Ecl {
     Focus(Focus, i64),
-    Binary(BinOp, Box<Ecl>, Box<Ecl>),
+    Binary(BinOp, Box<Self>, Box<Self>),
 }
 
 #[derive(Debug, thiserror::Error, PartialEq, Eq)]

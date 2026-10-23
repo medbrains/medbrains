@@ -519,7 +519,7 @@ struct GrnItemRow {
 // ══════════════════════════════════════════════════════════
 
 /// The store issues against an indent: `indent_items.quantity_issued` plus an
-/// `issue` row in `store_stock_movements` (reference_type `indent`) per line.
+/// `issue` row in `store_stock_movements` (`reference_type` `indent`) per line.
 /// There is no separate voucher table, so the indent *is* the voucher.
 pub async fn get_material_issue_voucher_print_data(
     State(state): State<AppState>,

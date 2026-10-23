@@ -31,11 +31,11 @@ use medbrains_server_core::state::AppState;
 
 use crate::binding_token::{self as token, BindingClaims};
 
-/// Base64 32-byte Ed25519 seed of the binding key (see binding_token).
+/// Base64 32-byte Ed25519 seed of the binding key (see `binding_token`).
 const SIGNING_KEY_SECRET: &str = "MEDBRAINS_BINDING_SIGNING_KEY";
 /// Where apps reach this server, e.g. `https://hims.example.org`.
 const PUBLIC_BASE_URL_SECRET: &str = "MEDBRAINS_PUBLIC_BASE_URL";
-/// Base64 SHA-256 of the TLS certificate's SubjectPublicKeyInfo.
+/// Base64 SHA-256 of the TLS certificate's `SubjectPublicKeyInfo`.
 const SPKI_PIN_SECRET: &str = "MEDBRAINS_TLS_SPKI_SHA256";
 const MAX_LIFETIME_HOURS: i64 = 24 * 30;
 const MAX_USES: i32 = 500;

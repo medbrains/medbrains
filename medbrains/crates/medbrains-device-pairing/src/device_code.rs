@@ -567,7 +567,7 @@ fn format_user_code(code: &str) -> String {
 fn normalize_user_code(input: &str) -> String {
     input
         .chars()
-        .filter(|c| c.is_ascii_alphanumeric())
+        .filter(char::is_ascii_alphanumeric)
         .map(|c| c.to_ascii_uppercase())
         .collect()
 }

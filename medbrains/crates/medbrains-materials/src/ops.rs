@@ -15,18 +15,16 @@ use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
+use axum::extract::State;
 use medbrains_server_core::{
-    error::AppError,
-    middleware::auth::Claims,
-    middleware::authorization::require_any_permission,
+    error::AppError, middleware::auth::Claims, middleware::authorization::require_any_permission,
     state::AppState,
 };
-use axum::extract::State;
 
 #[derive(Debug, Serialize, sqlx::FromRow)]
 pub struct Requisition {
     pub id: Uuid,
-    /// "store_indent" | "asset_request".
+    /// "`store_indent`" | "`asset_request`".
     pub kind: String,
     pub reference: Option<String>,
     pub title: String,
@@ -41,7 +39,7 @@ pub struct Requisition {
 
 #[derive(Debug, Deserialize)]
 pub struct RequisitionQuery {
-    /// "store_indent" | "asset_request" — omit for both.
+    /// "`store_indent`" | "`asset_request`" — omit for both.
     pub kind: Option<String>,
     /// "open" → only requests still needing action.
     pub state: Option<String>,
@@ -122,7 +120,7 @@ pub struct InventoryItem {
     pub reorder_level: Option<i32>,
     pub unit_value: Option<Decimal>,
     pub total_value: Option<Decimal>,
-    /// "in_stock" | "low" | "out" | "na" (assets carry no reorder level).
+    /// "`in_stock`" | "low" | "out" | "na" (assets carry no reorder level).
     pub stock_status: String,
 }
 

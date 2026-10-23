@@ -29,7 +29,11 @@ impl std::fmt::Debug for AutomationState {
 impl AutomationState {
     #[must_use]
     pub fn new(pool: PgPool, automation: Arc<Automation>) -> Self {
-        AutomationState { pool, automation, retention: DEFAULT_EXECUTION_RETENTION }
+        Self {
+            pool,
+            automation,
+            retention: DEFAULT_EXECUTION_RETENTION,
+        }
     }
 
     #[must_use]

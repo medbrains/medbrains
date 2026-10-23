@@ -292,6 +292,7 @@ pub struct Tds {
 }
 
 /// Nothing is deducted while the year's aggregate stays within the threshold.
+///
 /// Once it crosses, TDS is deducted on the whole aggregate not yet taxed —
 /// including the earlier payments that were under it — capped at this payment.
 pub fn compute_tds(i: &TdsInput) -> Tds {

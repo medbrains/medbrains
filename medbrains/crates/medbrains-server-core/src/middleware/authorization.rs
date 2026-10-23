@@ -1,6 +1,6 @@
 use medbrains_authz::AuthzContext;
-use medbrains_core::permissions;
 use medbrains_authz::decision::Outcome;
+use medbrains_core::permissions;
 use uuid::Uuid;
 
 use crate::{error::AppError, middleware::auth::Claims};
@@ -62,8 +62,7 @@ pub fn require_board_read(claims: &Claims) -> Result<(), AppError> {
     if require_permission(claims, permissions::admin::tv_displays::BOARD).is_ok() {
         return Ok(());
     }
-    let holds_display_code =
-        require_permission(claims, permissions::display::board::READ).is_ok();
+    let holds_display_code = require_permission(claims, permissions::display::board::READ).is_ok();
     if holds_display_code && claims.paired_device_id.is_some() {
         return Ok(());
     }
@@ -115,7 +114,7 @@ pub fn require_ownership(
 ///
 /// Bridge from request-time identity (Claims) to the resource-scoped
 /// permission resolver (`state.authz.check(...)`). Bypass roles are
-/// flagged so the SpiceDB backend short-circuits without a network
+/// flagged so the `SpiceDB` backend short-circuits without a network
 /// round-trip.
 ///
 /// Group memberships are NOT loaded here — the resolver looks them up
@@ -200,7 +199,7 @@ mod tests {
 ///
 /// The reason this is not `.unwrap_or(false)`: a refusal and an outage are
 /// different facts, and the endpoints here answer a denial with `NotFound` so
-/// as not to be an existence oracle. Collapse the two and a SpiceDB outage
+/// as not to be an existence oracle. Collapse the two and a `SpiceDB` outage
 /// tells a clinician at the bedside that the encounter **does not exist** —
 /// not that the system is unwell. Failing closed is right; failing closed
 /// while lying about why is not.
@@ -229,7 +228,8 @@ pub fn outcome_of(result: Result<bool, medbrains_authz::AuthzError>, what: &str)
             Outcome::Deny
         }
         Err(
-            err @ (E::UnknownObjectType(_) | E::InvalidRelation { .. }
+            err @ (E::UnknownObjectType(_)
+            | E::InvalidRelation { .. }
             | E::ExpansionDepthExceeded(_)),
         ) => {
             tracing::error!(target: "authz", error = %err, check = what,
@@ -273,11 +273,13 @@ pub fn collapse(outcome: Outcome) -> Result<(), AppError> {
 #[cfg(test)]
 mod outcome_tests {
     use super::{collapse, outcome_of};
-    use medbrains_authz::decision::{Outcome, any};
     use crate::error::AppError;
+    use medbrains_authz::decision::{Outcome, any};
 
     fn outage() -> Result<bool, medbrains_authz::AuthzError> {
-        Err(medbrains_authz::AuthzError::Other("spicedb unreachable".to_owned()))
+        Err(medbrains_authz::AuthzError::Other(
+            "spicedb unreachable".to_owned(),
+        ))
     }
 
     /// The bug this whole change exists to remove: an outage arriving as
@@ -316,7 +318,9 @@ mod outcome_tests {
             object_id: uuid::Uuid::nil(),
         });
         assert_eq!(outcome_of(refused, "patient"), Outcome::Deny);
-        let caveat = Err(medbrains_authz::AuthzError::CaveatFailed("off shift".to_owned()));
+        let caveat = Err(medbrains_authz::AuthzError::CaveatFailed(
+            "off shift".to_owned(),
+        ));
         assert_eq!(outcome_of(caveat, "patient"), Outcome::Deny);
     }
 
@@ -324,11 +328,15 @@ mod outcome_tests {
     /// an operator to inspect healthy infrastructure.
     #[test]
     fn our_own_misconfiguration_denies_rather_than_reporting_an_outage() {
-        let unregistered = Err(medbrains_authz::AuthzError::UnknownObjectType("wibble".to_owned()));
+        let unregistered = Err(medbrains_authz::AuthzError::UnknownObjectType(
+            "wibble".to_owned(),
+        ));
         assert_eq!(outcome_of(unregistered, "wibble"), Outcome::Deny);
         assert!(matches!(
             collapse(outcome_of(
-                Err(medbrains_authz::AuthzError::UnknownObjectType("wibble".to_owned())),
+                Err(medbrains_authz::AuthzError::UnknownObjectType(
+                    "wibble".to_owned()
+                )),
                 "wibble"
             )),
             Err(AppError::NotFound)
@@ -419,6 +427,8 @@ mod board_read_tests {
 
     #[test]
     fn holding_neither_code_is_refused() {
-        assert!(require_board_read(&claims(&["opd.queue.list"], Some(uuid::Uuid::new_v4()))).is_err());
+        assert!(
+            require_board_read(&claims(&["opd.queue.list"], Some(uuid::Uuid::new_v4()))).is_err()
+        );
     }
 }

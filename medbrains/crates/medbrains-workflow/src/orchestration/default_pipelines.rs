@@ -23,8 +23,8 @@
 //!   - Opens its own short transaction.
 //!   - Reads the event payload.
 //!   - Queues outbound events via `medbrains_outbox::queue_in_tx` and/or
-//!     inserts cross-module rows (housekeeping_tasks, NDPS register,
-//!     indent_requisitions, etc.).
+//!     inserts cross-module rows (`housekeeping_tasks`, NDPS register,
+//!     `indent_requisitions`, etc.).
 //!   - Commits.
 //!
 //! Errors are swallowed at the per-pipeline level — a failure in one
@@ -205,8 +205,7 @@ async fn is_disabled(pool: &PgPool, tenant_id: Uuid, event_type: &str) -> bool {
     match res {
         Ok(Some(v)) => v
             .as_array()
-            .map(|arr| arr.iter().any(|item| item.as_str() == Some(event_type)))
-            .unwrap_or(false),
+            .is_some_and(|arr| arr.iter().any(|item| item.as_str() == Some(event_type))),
         _ => false,
     }
 }
@@ -227,7 +226,14 @@ pub async fn dispatch_default_pipelines(
 ) {
     // Partners hear about the event whatever the hospital does with its own
     // pipelines; their subscription is the switch for that.
-    super::webhook_fanout::fan_out(pool, tenant_id, event_type, payload, domain_payload(payload)).await;
+    super::webhook_fanout::fan_out(
+        pool,
+        tenant_id,
+        event_type,
+        payload,
+        domain_payload(payload),
+    )
+    .await;
 
     if is_disabled(pool, tenant_id, event_type).await {
         tracing::debug!(

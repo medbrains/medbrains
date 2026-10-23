@@ -48,7 +48,7 @@ pub(crate) async fn claim(tx: &mut Tx<'_>, m: &Inbound<'_>) -> Result<Matched, A
     Ok(Some(("insurance_claims", id)))
 }
 
-/// Land a ClaimResponse on a claim: the payload, the approved amount, the
+/// Land a `ClaimResponse` on a claim: the payload, the approved amount, the
 /// authorisation number, and — for a final claim — the adjudication line
 /// by line.
 pub(crate) async fn apply_response(

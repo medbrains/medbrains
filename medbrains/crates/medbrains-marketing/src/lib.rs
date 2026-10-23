@@ -1,7 +1,7 @@
 //! Marketing — enquiries, the acquisition pipeline and outreach.
 //!
 //! A hospital buys advertising, the advertising produces phone calls, and the
-//! calls are lost between a call log, a WhatsApp group and a paper register.
+//! calls are lost between a call log, a `WhatsApp` group and a paper register.
 //! This module is the record of the enquiry: who asked, what about, which
 //! campaign produced them, who called back and when.
 //!
@@ -32,7 +32,7 @@
 //! # Telephony
 //!
 //! Nothing in this crate talks to a switch. [`telephony::CallEvent`] is the
-//! only vocabulary it knows, and an adapter — FreePBX over AMI, or a provider
+//! only vocabulary it knows, and an adapter — `FreePBX` over AMI, or a provider
 //! webhook — produces it. That keeps "buy telephony now, own it later" a
 //! configuration change rather than a rewrite.
 
@@ -40,12 +40,12 @@ pub mod audit;
 pub mod callbacks;
 pub mod camp_acquisition;
 pub mod campaigns;
+pub mod cohorts;
 pub mod consent;
+pub mod contacts;
 pub mod conversion;
 pub mod dispatch;
 pub mod distribution;
-pub mod cohorts;
-pub mod contacts;
 pub mod funnel;
 pub mod intake;
 pub mod interactions;
@@ -124,7 +124,10 @@ pub fn router() -> Router<AppState> {
             "/api/marketing/campaigns",
             get(campaigns::list_campaigns).post(campaigns::create_campaign),
         )
-        .route("/api/marketing/campaigns/lookup", get(campaigns::lookup_campaigns))
+        .route(
+            "/api/marketing/campaigns/lookup",
+            get(campaigns::lookup_campaigns),
+        )
         .route(
             "/api/marketing/campaigns/{id}",
             put(campaigns::update_campaign),
@@ -174,7 +177,10 @@ pub fn router() -> Router<AppState> {
             "/api/marketing/cohorts/clinical",
             post(cohorts::create_clinical_cohort),
         )
-        .route("/api/marketing/cohorts/{id}/size", get(cohorts::cohort_size))
+        .route(
+            "/api/marketing/cohorts/{id}/size",
+            get(cohorts::cohort_size),
+        )
         .route(
             "/api/marketing/cohorts/{id}/refresh",
             post(cohorts::refresh_cohort),
@@ -183,10 +189,22 @@ pub fn router() -> Router<AppState> {
             "/api/marketing/outreach",
             get(outreach::list_runs).post(outreach::create_run),
         )
-        .route("/api/marketing/outreach/{id}/submit", post(outreach::submit_run))
-        .route("/api/marketing/outreach/{id}/approve", post(outreach::approve_run))
-        .route("/api/marketing/outreach/{id}/cancel", post(outreach::cancel_run))
-        .route("/api/marketing/outreach/{id}/start", post(dispatch::start_run))
+        .route(
+            "/api/marketing/outreach/{id}/submit",
+            post(outreach::submit_run),
+        )
+        .route(
+            "/api/marketing/outreach/{id}/approve",
+            post(outreach::approve_run),
+        )
+        .route(
+            "/api/marketing/outreach/{id}/cancel",
+            post(outreach::cancel_run),
+        )
+        .route(
+            "/api/marketing/outreach/{id}/start",
+            post(dispatch::start_run),
+        )
         .route(
             "/api/marketing/messages/receipts",
             post(dispatch::ingest_receipt),
@@ -199,10 +217,7 @@ pub fn router() -> Router<AppState> {
             "/api/marketing/messaging/messages",
             post(messaging::ingest_message_webhook),
         )
-        .route(
-            "/api/marketing/callbacks",
-            get(callbacks::list_callbacks),
-        )
+        .route("/api/marketing/callbacks", get(callbacks::list_callbacks))
         .route(
             "/api/marketing/callbacks/summary",
             get(callbacks::callback_summary),
@@ -265,7 +280,13 @@ mod permission_tests {
     /// symptoms the IVR asked them not to describe.
     #[test]
     fn playing_a_recording_is_not_the_same_code_as_reading_the_timeline() {
-        assert_ne!(marketing::interactions::PLAY_RECORDING, marketing::contacts::VIEW);
-        assert_ne!(marketing::interactions::PLAY_RECORDING, marketing::interactions::LOG);
+        assert_ne!(
+            marketing::interactions::PLAY_RECORDING,
+            marketing::contacts::VIEW
+        );
+        assert_ne!(
+            marketing::interactions::PLAY_RECORDING,
+            marketing::interactions::LOG
+        );
     }
 }

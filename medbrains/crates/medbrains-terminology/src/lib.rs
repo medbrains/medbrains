@@ -1,6 +1,6 @@
 //! SNOMED CT terminology service: a local PostgreSQL store loaded from the
 //! licensed RF2 release packages — the International Edition plus any
-//! number of extensions (the NRCeS India packages among them), each
+//! number of extensions (the `NRCeS` India packages among them), each
 //! recorded as a release with its modules and version.
 //!
 //! * [`package`] / [`rf2`] / [`load`] — check, unpack and stream a package

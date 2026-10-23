@@ -4,7 +4,7 @@
 pub mod oauth;
 pub use oauth::{KNOWN_OAUTH_PROVIDERS, OAuthConnection, oauth_provider_spec};
 
-use axum::routing::{delete,get,post};
+use axum::routing::{delete, get, post};
 use axum::{
     Extension, Json,
     extract::{Path, Query, State},
@@ -14,9 +14,7 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use medbrains_server_core::{
-    error::AppError,
-    middleware::auth::Claims,
-    middleware::authorization::require_permission,
+    error::AppError, middleware::auth::Claims, middleware::authorization::require_permission,
     state::AppState,
 };
 
@@ -76,7 +74,7 @@ pub struct AuthorizeResponse {
     pub state: String,
 }
 
-/// GET /api/oauth/{provider}/authorize?redirect_uri= — the consent URL to
+/// GET /`api/oauth/{provider}/authorize?redirect_uri`= — the consent URL to
 /// redirect the admin's browser to.
 pub async fn oauth_authorize(
     State(state): State<AppState>,
@@ -86,13 +84,21 @@ pub async fn oauth_authorize(
 ) -> Result<Json<AuthorizeResponse>, AppError> {
     require_permission(&claims, permissions::admin::settings::general::MANAGE)?;
     if oauth_provider_spec(&provider).is_none() {
-        return Err(AppError::BadRequest(format!("Unknown OAuth provider '{provider}'")));
+        return Err(AppError::BadRequest(format!(
+            "Unknown OAuth provider '{provider}'"
+        )));
     }
 
     // CSRF state — the frontend echoes it back on exchange.
     let state_token = Uuid::new_v4().to_string();
-    let url = oauth::authorize_url(&state, &claims.tenant_id, &provider, &q.redirect_uri, &state_token)
-        .await?;
+    let url = oauth::authorize_url(
+        &state,
+        &claims.tenant_id,
+        &provider,
+        &q.redirect_uri,
+        &state_token,
+    )
+    .await?;
     Ok(Json(AuthorizeResponse {
         authorize_url: url,
         state: state_token,
@@ -155,10 +161,7 @@ pub async fn oauth_disconnect(
 pub fn router() -> axum::Router<AppState> {
     axum::Router::new()
         .route("/api/oauth/providers", get(list_oauth_providers))
-        .route(
-            "/api/oauth/{provider}/authorize",
-            get(oauth_authorize),
-        )
+        .route("/api/oauth/{provider}/authorize", get(oauth_authorize))
         .route("/api/oauth/{provider}/exchange", post(oauth_exchange))
         .route(
             "/api/oauth/connections/{provider}",

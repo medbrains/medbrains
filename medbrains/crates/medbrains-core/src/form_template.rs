@@ -38,7 +38,7 @@ impl FieldKind {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct FormFieldSpec {
     pub key: String,
     pub label: String,

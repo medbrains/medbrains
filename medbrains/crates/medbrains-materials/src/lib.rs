@@ -1,6 +1,9 @@
-//! Materials/facilities-ops leaf crate: procurement, housekeeping. Mounted via router().
+//! Materials/facilities-ops leaf crate: procurement, housekeeping. Mounted via `router()`.
 
-use axum::{Router, routing::{get,post,put}};
+use axum::{
+    Router,
+    routing::{get, post, put},
+};
 use medbrains_server_core::state::AppState;
 
 pub mod catalog_merge;
@@ -14,8 +17,8 @@ pub mod grn_scan_contract;
 pub mod grn_scan_review;
 pub mod grn_validate;
 pub mod housekeeping;
-pub mod procurement;
 pub mod ops;
+pub mod procurement;
 
 pub fn router() -> Router<AppState> {
     Router::new()

@@ -4,6 +4,7 @@ use sqlx::FromRow;
 use uuid::Uuid;
 
 /// A comprehensive eye exam. Per-eye columns: OD = right eye, OS = left eye.
+///
 /// Refraction (sphere/cylinder/axis, near add) doubles as the spectacle
 /// prescription once the exam is signed; `visual_acuity_*` is unaided.
 #[derive(Debug, Clone, Serialize, Deserialize, FromRow)]

@@ -55,7 +55,7 @@ fn link_refusal(row: &ConsentRow) -> Option<&'static str> {
     None
 }
 
-/// POST /api/ot/bookings/{booking_id}/consents — link a signed consent.
+/// POST /`api/ot/bookings/{booking_id}/consents` — link a signed consent.
 ///
 /// The caller confirms the consent covers the booked operation; the server
 /// checks it is this patient's, of a surgical or anaesthesia type, signed, not
@@ -115,7 +115,7 @@ pub struct UnlinkConsentRequest {
     pub reason: String,
 }
 
-/// POST /api/ot/bookings/{booking_id}/consents/{consent_id}/unlink
+/// POST /`api/ot/bookings/{booking_id}/consents/{consent_id}/unlink`
 ///
 /// Undo a link made in error. Refused once surgery has started: the consent
 /// the operation went ahead on is part of the record. If unlinking leaves the

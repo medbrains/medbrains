@@ -1,14 +1,14 @@
-//! SpiceDB Watch API → BridgePusher pipeline.
+//! `SpiceDB` Watch API → `BridgePusher` pipeline.
 //!
-//! Tails the SpiceDB `WatchService.Watch` stream, converts each
+//! Tails the `SpiceDB` `WatchService.Watch` stream, converts each
 //! relationship update into a list of [`InvalidationKey`]s, and hands
 //! them to a [`BridgePusher`] for fan-out to per-tenant edge nodes.
 //!
 //! Phase 9. The actual gRPC stream consumption is wired in `main.rs`
 //! against `medbrains_authz::SpiceDbBackend`. This module focuses on
-//! the translation layer (Watch event → InvalidationKey) — that's
+//! the translation layer (Watch event → `InvalidationKey`) — that's
 //! the part that needs unit-testable correctness, and it's what
-//! changes if SpiceDB ever ships a new event shape.
+//! changes if `SpiceDB` ever ships a new event shape.
 
 use serde::Deserialize;
 use std::sync::Arc;
@@ -32,7 +32,7 @@ pub enum WatchedOperation {
     Touch,
     Create,
     Delete,
-    /// Defensive fallback for unknown values from a future SpiceDB
+    /// Defensive fallback for unknown values from a future `SpiceDB`
     /// release — we still invalidate.
     #[serde(other)]
     Unknown,
@@ -62,7 +62,7 @@ pub struct WatchedSubject {
 
 /// Convert one Watch event into a flat list of cache keys to drop.
 ///
-/// SpiceDB models permissions as `(object) relation (subject)`. Our
+/// `SpiceDB` models permissions as `(object) relation (subject)`. Our
 /// cache keys are flat: `(tenant_id, user_id, object_type, object_id,
 /// action)`. The mapping rule:
 ///
@@ -72,12 +72,12 @@ pub struct WatchedSubject {
 ///    group member affects every user in that group transitively.
 ///    For the MVP we ignore non-user subjects and rely on the cache
 ///    TTL to age them out. This is documented as a known limitation.
-/// 2. The action is the SpiceDB relation name. The edge cache stores
+/// 2. The action is the `SpiceDB` relation name. The edge cache stores
 ///    one entry per (object, action) pair, so we emit one
-///    InvalidationKey for the relation that changed.
+///    `InvalidationKey` for the relation that changed.
 /// 3. The tenant id is parsed off the resource's tenant prefix if
 ///    present (`<tenant_uuid>/<obj_type>:<obj_id>`); otherwise we
-///    use a configured default tenant. SpiceDB doesn't enforce a
+///    use a configured default tenant. `SpiceDB` doesn't enforce a
 ///    namespace prefix natively — we use a convention.
 pub fn updates_to_keys(updates: &[WatchedUpdate], default_tenant: Uuid) -> Vec<InvalidationKey> {
     let mut out = Vec::with_capacity(updates.len());
@@ -105,9 +105,9 @@ fn parse_user_subject(subject: &WatchedSubject) -> Option<Uuid> {
     Uuid::parse_str(&subject.object.object_id).ok()
 }
 
-/// Resource object_types may be prefixed with `tenant_<uuid>/` to
+/// Resource `object_types` may be prefixed with `tenant_<uuid>/` to
 /// scope them; if not, fall back to `default_tenant`. Splitting on
-/// the first `/` is sufficient — the tail is the actual object_type
+/// the first `/` is sufficient — the tail is the actual `object_type`
 /// the schema declared.
 fn parse_resource_namespace(raw: &str, default_tenant: Uuid) -> (Uuid, String) {
     if let Some((prefix, rest)) = raw.split_once('/') {

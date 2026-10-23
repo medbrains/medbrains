@@ -44,9 +44,7 @@ pub fn spawn(pool: PgPool) {
 }
 
 fn dry_run() -> bool {
-    std::env::var("MEDBRAINS_RETENTION_DRY_RUN")
-        .map(|v| v.eq_ignore_ascii_case("true"))
-        .unwrap_or(false)
+    std::env::var("MEDBRAINS_RETENTION_DRY_RUN").is_ok_and(|v| v.eq_ignore_ascii_case("true"))
 }
 
 async fn tenant_setting_days(

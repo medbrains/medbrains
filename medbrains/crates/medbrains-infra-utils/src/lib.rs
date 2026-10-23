@@ -1,7 +1,10 @@
 //! Infra utilities leaf crate: config import/export, schema registry, DLT
-//! template registry, AEBAS attendance. Mounted via router().
+//! template registry, AEBAS attendance. Mounted via `router()`.
 
-use axum::{Router, routing::{get, post, put}};
+use axum::{
+    Router,
+    routing::{get, post, put},
+};
 use medbrains_server_core::state::AppState;
 
 pub mod aebas;
@@ -19,10 +22,7 @@ pub fn router() -> Router<AppState> {
             "/api/setup/config-import",
             post(config_transfer::import_config),
         )
-        .route(
-            "/api/schema/modules",
-            get(schema_registry::list_modules),
-        )
+        .route("/api/schema/modules", get(schema_registry::list_modules))
         .route(
             "/api/schema/modules/{code}/entities",
             get(schema_registry::list_module_entities),

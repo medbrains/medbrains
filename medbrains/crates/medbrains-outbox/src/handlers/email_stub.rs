@@ -9,7 +9,7 @@
 //!   - `SMTP_PORT`              — optional (default 587)
 //!   - `SMTP_USERNAME` / `SMTP_PASSWORD` — optional (open relay when unset)
 //!   - `SMTP_TLS`               — `starttls` (default) | `implicit` | `none`
-//!   - `AWS_SES_*`              — when provider=ses (pending SigV4)
+//!   - `AWS_SES_*`              — when provider=ses (pending `SigV4`)
 //!   - `EMAIL_FROM_ADDRESS`     — from-address (required, must be verified with provider)
 //!   - `EMAIL_FROM_NAME`        — display name (optional)
 //!
@@ -19,7 +19,7 @@
 //!
 //! Payload shape:
 //!   { "to": "user@example.com", "subject": "...", "html": "...", "text": "...",
-//!     "attachments": [{ "object_key": "...", "filename": "invoice.pdf", "mime": "application/pdf" }] }
+//!     "attachments": [{ "`object_key"`: "...", "filename": "invoice.pdf", "mime": "application/pdf" }] }
 //! Attachments are fetched from the worker's object store at dispatch
 //! time — outbox rows carry keys, never document bytes.
 
@@ -92,7 +92,12 @@ async fn load_email_config(ctx: &HandlerCtx) -> Value {
 }
 
 /// Prefer the per-tenant config field, else the secret backend / env var.
-async fn cfg_or_secret(config: &Value, ctx: &HandlerCtx, json_key: &str, env_key: &str) -> Option<String> {
+async fn cfg_or_secret(
+    config: &Value,
+    ctx: &HandlerCtx,
+    json_key: &str,
+    env_key: &str,
+) -> Option<String> {
     if let Some(value) = config
         .get(json_key)
         .and_then(Value::as_str)
@@ -150,7 +155,10 @@ impl Handler for SmtpSendHandler {
                     recipient: to,
                     subject: Some(subject),
                     body: text.or(html).unwrap_or_default(),
-                    attachments: payload.get("attachments").cloned().unwrap_or_else(|| json!([])),
+                    attachments: payload
+                        .get("attachments")
+                        .cloned()
+                        .unwrap_or_else(|| json!([])),
                     template_id: None,
                 },
             )

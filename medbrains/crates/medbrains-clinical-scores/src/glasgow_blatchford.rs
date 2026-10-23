@@ -72,17 +72,9 @@ fn hemoglobin_points(hgb: f64, male: bool) -> i32 {
     if hgb < 10.0 {
         6
     } else if male {
-        if hgb < 12.0 {
-            3
-        } else if hgb < 13.0 {
-            1
-        } else {
-            0
-        }
-    } else if hgb < 12.0 {
-        1
+        if hgb < 12.0 { 3 } else { i32::from(hgb < 13.0) }
     } else {
-        0
+        i32::from(hgb < 12.0)
     }
 }
 
@@ -91,10 +83,8 @@ fn systolic_bp_points(sbp: i32) -> i32 {
         3
     } else if sbp < 100 {
         2
-    } else if sbp < 110 {
-        1
     } else {
-        0
+        i32::from(sbp < 110)
     }
 }
 
@@ -146,7 +136,9 @@ pub async fn glasgow_blatchford_score(
 ) -> Result<Json<GlasgowBlatchfordResult>, AppError> {
     require_permission(&claims, permissions::ipd::nursing_assessment::LIST)?;
     if body.urea_mmol_l < 0.0 || body.hemoglobin_g_dl < 0.0 || body.systolic_bp < 0 {
-        return Err(AppError::BadRequest("values must not be negative".to_owned()));
+        return Err(AppError::BadRequest(
+            "values must not be negative".to_owned(),
+        ));
     }
     Ok(Json(compute_glasgow_blatchford(&body)))
 }

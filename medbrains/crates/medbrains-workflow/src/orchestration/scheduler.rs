@@ -35,7 +35,7 @@ pub fn start_scheduler(pool: PgPool) {
 async fn scheduler_loop(pool: &PgPool) {
     loop {
         match tick(pool).await {
-            Ok(_) => {}
+            Ok(()) => {}
             Err(e) if is_undefined_table(&e) => {
                 tracing::warn!(
                     "orchestration scheduled_jobs table missing — scheduler disabled until next restart (run migrations to enable)"
@@ -50,10 +50,10 @@ async fn scheduler_loop(pool: &PgPool) {
     }
 }
 
-/// Detect Postgres "undefined_table" (SQLSTATE 42P01) — schema not migrated.
+/// Detect Postgres "`undefined_table`" (SQLSTATE 42P01) — schema not migrated.
 fn is_undefined_table(err: &sqlx::Error) -> bool {
     err.as_database_error()
-        .and_then(|db| db.code())
+        .and_then(sqlx::error::DatabaseError::code)
         .is_some_and(|c| c == "42P01")
 }
 

@@ -19,11 +19,11 @@ use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 use uuid::Uuid;
 
-use medbrains_signing::signing;
 use medbrains_server_core::{
     error::AppError, middleware::auth::Claims, middleware::authorization::require_permission,
     state::AppState,
 };
+use medbrains_signing::signing;
 
 const SIGNATURE_KEY_SECRET: &str = "MEDBRAINS_SIGNATURE_KEY_ENCRYPTION_KEY";
 const DEV_SIGNATURE_KEY: &[u8] = b"medbrains-dev-signature-key-encryption-rotate-before-production";
@@ -295,7 +295,7 @@ pub struct SignedRecord {
 #[derive(Debug, Serialize)]
 pub struct SignResponse {
     pub signed_record: SignedRecord,
-    /// Hex-encoded payload_hash for client display + audit.
+    /// Hex-encoded `payload_hash` for client display + audit.
     pub payload_hash_hex: String,
     /// Hex-encoded signature for client display.
     pub signature_hex: String,

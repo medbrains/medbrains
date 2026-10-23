@@ -15,7 +15,7 @@ use medbrains_server_core::{
     middleware::client_ip::ClientIp, state::AppState,
 };
 
-/// ReBAC pre-check: the caller must hold `view` on the patient whose chronic-care data is being read.
+/// `ReBAC` pre-check: the caller must hold `view` on the patient whose chronic-care data is being read.
 /// Patient `view` is granted to the registering clerk (owner), the attending, department/ward members,
 /// care-team groups and explicit shares (see `infra/spicedb/schema.zed`); bypass roles short-circuit
 /// inside `check`. Mirrors the guard on `patients::get_patient`, so a patient's chronic enrollments and
@@ -649,8 +649,7 @@ pub async fn create_enrollment(
     // Only a caller-supplied id is available here — the route carries none. This
     // still prevents creating a record against an unreachable patient, but it is
     // weaker than a route-derived check: the caller picks the subject.
-    medbrains_authz_gate::require_patient_access(&state, &claims, body.patient_id)
-        .await?;
+    medbrains_authz_gate::require_patient_access(&state, &claims, body.patient_id).await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -976,8 +975,7 @@ pub async fn create_timeline_event(
     // Only a caller-supplied id is available here — the route carries none. This
     // still prevents creating a record against an unreachable patient, but it is
     // weaker than a route-derived check: the caller picks the subject.
-    medbrains_authz_gate::require_patient_access(&state, &claims, body.patient_id)
-        .await?;
+    medbrains_authz_gate::require_patient_access(&state, &claims, body.patient_id).await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -1075,8 +1073,7 @@ pub async fn record_adherence(
     // Only a caller-supplied id is available here — the route carries none. This
     // still prevents creating a record against an unreachable patient, but it is
     // weaker than a route-derived check: the caller picks the subject.
-    medbrains_authz_gate::require_patient_access(&state, &claims, body.patient_id)
-        .await?;
+    medbrains_authz_gate::require_patient_access(&state, &claims, body.patient_id).await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -1201,8 +1198,7 @@ pub async fn list_outcome_targets(
 
     // The route names the patient; holding the module permission is not the same
     // as being on this patient's care team.
-    medbrains_authz_gate::require_patient_access(&state, &claims, patient_id)
-        .await?;
+    medbrains_authz_gate::require_patient_access(&state, &claims, patient_id).await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -1231,8 +1227,7 @@ pub async fn create_outcome_target(
     // Only a caller-supplied id is available here — the route carries none. This
     // still prevents creating a record against an unreachable patient, but it is
     // weaker than a route-derived check: the caller picks the subject.
-    medbrains_authz_gate::require_patient_access(&state, &claims, body.patient_id)
-        .await?;
+    medbrains_authz_gate::require_patient_access(&state, &claims, body.patient_id).await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -1307,8 +1302,7 @@ pub async fn outcome_dashboard(
 
     // The route names the patient; holding the module permission is not the same
     // as being on this patient's care team.
-    medbrains_authz_gate::require_patient_access(&state, &claims, patient_id)
-        .await?;
+    medbrains_authz_gate::require_patient_access(&state, &claims, patient_id).await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -1446,8 +1440,7 @@ pub async fn list_interaction_alerts(
 
     // The route names the patient; holding the module permission is not the same
     // as being on this patient's care team.
-    medbrains_authz_gate::require_patient_access(&state, &claims, patient_id)
-        .await?;
+    medbrains_authz_gate::require_patient_access(&state, &claims, patient_id).await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -1477,8 +1470,7 @@ pub async fn check_polypharmacy(
 
     // The route names the patient; holding the module permission is not the same
     // as being on this patient's care team.
-    medbrains_authz_gate::require_patient_access(&state, &claims, patient_id)
-        .await?;
+    medbrains_authz_gate::require_patient_access(&state, &claims, patient_id).await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -1634,8 +1626,7 @@ pub async fn treatment_summary(
 
     // The route names the patient; holding the module permission is not the same
     // as being on this patient's care team.
-    medbrains_authz_gate::require_patient_access(&state, &claims, patient_id)
-        .await?;
+    medbrains_authz_gate::require_patient_access(&state, &claims, patient_id).await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;

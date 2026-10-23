@@ -1,5 +1,5 @@
-//! The clinical resources a NRCeS bundle carries: Condition, MedicationRequest,
-//! Observation and DiagnosticReportLab, each with its IG profile.
+//! The clinical resources a `NRCeS` bundle carries: Condition, `MedicationRequest`,
+//! Observation and `DiagnosticReportLab`, each with its IG profile.
 
 use chrono::{DateTime, NaiveDate, Utc};
 use serde_json::{Map, Value, json};
@@ -60,7 +60,7 @@ fn non_empty(s: Option<&String>) -> Option<&str> {
         .filter(|c| !c.is_empty())
 }
 
-/// The codings of a diagnosis. The NRCeS Condition closes `code.coding` to
+/// The codings of a diagnosis. The `NRCeS` Condition closes `code.coding` to
 /// two slices, ICD-10 and SNOMED CT, each needing a display — so an ICD-10
 /// or SNOMED code goes as a coding, and an ICD-11 code (no slice for it)
 /// travels in the text instead: see [`diagnosis_text`].
@@ -130,7 +130,7 @@ pub fn condition(ctx: &Clinical, d: &DiagnosisLine) -> Value {
     r
 }
 
-/// A `MedicationRequest` (PrescriptionRecord, OPConsultRecord). The drug
+/// A `MedicationRequest` (`PrescriptionRecord`, `OPConsultRecord`). The drug
 /// goes as text: SNOMED CT products come with the CDCI catalogue.
 #[must_use]
 pub fn medication_request(ctx: &Clinical, drug: &str, instructions: &str) -> Value {
@@ -154,7 +154,7 @@ pub struct LabResult {
     pub numeric: Option<f64>,
     pub unit: Option<String>,
     pub range: Option<String>,
-    /// `lab_result_flag`: normal | low | high | critical_low | critical_high | abnormal.
+    /// `lab_result_flag`: normal | low | high | `critical_low` | `critical_high` | abnormal.
     pub flag: Option<String>,
     /// LOINC code when one is known for this result.
     pub loinc: Option<String>,
@@ -231,7 +231,7 @@ fn interpretation(flag: &str) -> Option<(&'static str, &'static str)> {
     })
 }
 
-/// A CodeableConcept carrying LOINC only when the code really is LOINC.
+/// A `CodeableConcept` carrying LOINC only when the code really is LOINC.
 fn lab_code(name: &str, loinc: Option<&str>) -> Value {
     match loinc.map(str::trim).filter(|c| is_loinc(c)) {
         Some(code) => {
@@ -254,13 +254,12 @@ pub fn observation(ctx: &Clinical, res: &LabResult) -> Value {
         .numeric
         .or_else(|| res.value.trim().parse::<f64>().ok())
         .filter(|n| n.is_finite());
-    match number {
-        Some(n) => r["valueQuantity"] = quantity(n, res.unit.as_deref()),
-        None => {
-            let unit = res.unit.as_deref().map(str::trim).filter(|u| !u.is_empty());
-            r["valueString"] =
-                json!(unit.map_or_else(|| res.value.clone(), |u| format!("{} {u}", res.value)));
-        }
+    if let Some(n) = number {
+        r["valueQuantity"] = quantity(n, res.unit.as_deref());
+    } else {
+        let unit = res.unit.as_deref().map(str::trim).filter(|u| !u.is_empty());
+        r["valueString"] =
+            json!(unit.map_or_else(|| res.value.clone(), |u| format!("{} {u}", res.value)));
     }
     if let Some(text) = res
         .range

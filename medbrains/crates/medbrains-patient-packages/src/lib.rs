@@ -389,7 +389,7 @@ pub async fn refund(
     Ok(Json(json!({ "refunded": true })))
 }
 
-/// patient_packages routes.
+/// `patient_packages` routes.
 pub fn router() -> axum::Router<AppState> {
     axum::Router::new()
         .route("/api/patient-packages/subscribe", post(subscribe))

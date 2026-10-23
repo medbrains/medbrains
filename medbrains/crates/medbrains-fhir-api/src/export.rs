@@ -50,7 +50,7 @@ struct ResultRow {
     flag: Option<String>,
 }
 
-/// The HL7 v3 ObservationInterpretation code for a result flag; normal has none.
+/// The HL7 v3 `ObservationInterpretation` code for a result flag; normal has none.
 fn interpretation(flag: &str) -> Option<&'static str> {
     match flag {
         "high" => Some("H"),

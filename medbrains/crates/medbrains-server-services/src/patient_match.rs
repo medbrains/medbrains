@@ -38,7 +38,7 @@ pub struct MatchQuery {
     pub phone: String,
 }
 
-/// Likely matches on name, date of birth and phone (pg_trgm similarity),
+/// Likely matches on name, date of birth and phone (`pg_trgm` similarity),
 /// best first.
 pub async fn fuzzy_matches(
     tx: &mut Transaction<'_, Postgres>,

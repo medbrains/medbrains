@@ -238,21 +238,21 @@ pub(crate) async fn serve(cfg: IrohConfig, server: Arc<SyncServer>) -> Result<()
 
     let shared = Arc::new(RwLock::new(roster));
 
-    match (&cfg.server_url, read_token(cfg.auth_token_path.as_deref())?) {
-        (Some(url), Some(token)) => {
-            tokio::spawn(roster_fetch::refresh_forever(
-                url.clone(),
-                token,
-                cfg.tenant_id,
-                cfg.roster_path.clone(),
-                Duration::from_secs(cfg.roster_refresh_seconds),
-                Arc::clone(&shared),
-            ));
-        }
-        _ => warn!(
+    if let (Some(url), Some(token)) = (&cfg.server_url, read_token(cfg.auth_token_path.as_deref())?)
+    {
+        tokio::spawn(roster_fetch::refresh_forever(
+            url.clone(),
+            token,
+            cfg.tenant_id,
+            cfg.roster_path.clone(),
+            Duration::from_secs(cfg.roster_refresh_seconds),
+            Arc::clone(&shared),
+        ));
+    } else {
+        warn!(
             "no server_url and auth_token_path — the roster will not refresh, \
              so it will admit nobody once it ages out"
-        ),
+        );
     }
 
     let gate: Arc<dyn PeerGatekeeper> = Arc::new(RosterGate { roster: shared });

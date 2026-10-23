@@ -140,7 +140,7 @@ async fn receive_po_lines(
     Ok(())
 }
 
-/// Stock one accepted line: its own batch_stock row, and its own pharmacy
+/// Stock one accepted line: its own `batch_stock` row, and its own pharmacy
 /// batch when the item is a drug. The links are written by line id, so two
 /// batches of one item on one bill each keep their own.
 async fn stock_line(

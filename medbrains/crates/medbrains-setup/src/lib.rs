@@ -4637,10 +4637,7 @@ pub async fn import_users(
 
         let password = password_idx
             .and_then(|idx| row.values.get(idx))
-            .map_or_else(
-                || format!("Welcome@{}", &username),
-                |v| v.trim().to_string(),
-            );
+            .map_or_else(|| format!("Welcome@{}", username), |v| v.trim().to_string());
 
         let role = role_idx
             .and_then(|idx| row.values.get(idx))

@@ -16,7 +16,7 @@ pub struct TeleConsultation {
     pub patient_id: Uuid,
     pub doctor_id: Uuid,
     pub room_id: String,
-    /// Platform: jitsi | external | google_meet | zoom | teams.
+    /// Platform: jitsi | external | `google_meet` | zoom | teams.
     pub provider: String,
     /// Authoritative join link for externally-created meetings (else derived
     /// from the Jitsi base + `room_id`).

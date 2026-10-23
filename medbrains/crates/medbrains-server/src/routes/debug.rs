@@ -25,12 +25,10 @@ pub async fn seed_canonical_fixtures(
 
 fn e2e_seed_enabled() -> bool {
     cfg!(debug_assertions)
-        || std::env::var("MEDBRAINS_ENABLE_E2E_SEED")
-            .map(|value| {
-                matches!(
-                    value.to_ascii_lowercase().as_str(),
-                    "1" | "true" | "yes" | "on"
-                )
-            })
-            .unwrap_or(false)
+        || std::env::var("MEDBRAINS_ENABLE_E2E_SEED").is_ok_and(|value| {
+            matches!(
+                value.to_ascii_lowercase().as_str(),
+                "1" | "true" | "yes" | "on"
+            )
+        })
 }

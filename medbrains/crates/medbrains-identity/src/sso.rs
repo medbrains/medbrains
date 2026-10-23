@@ -1,7 +1,7 @@
 //! Enterprise SSO configuration — admin CRUD for identity providers and the
 //! AD/IdP-group → role / access-group mappings. The OIDC and SAML login flows
 //! (token validation + JIT provisioning) live in follow-up modules and read this
-//! configuration. See migration 0200 + memory project_sso_ad_groups.
+//! configuration. See migration 0200 + memory `project_sso_ad_groups`.
 
 use axum::{
     Extension, Json,
@@ -13,7 +13,10 @@ use uuid::Uuid;
 
 use medbrains_server_core::{
     error::AppError,
-    middleware::{auth::Claims, authorization::{BYPASS_ROLES, require_permission}},
+    middleware::{
+        auth::Claims,
+        authorization::{BYPASS_ROLES, require_permission},
+    },
     state::AppState,
 };
 
@@ -40,7 +43,7 @@ fn encrypt_secret(key: &[u8], secret: &str) -> Result<String, AppError> {
 struct SsoSeedConfig {
     #[serde(default = "seed_default_code")]
     code: String,
-    /// Button label. Blank → best-effort auto-fetch the org name from the IdP
+    /// Button label. Blank → best-effort auto-fetch the org name from the `IdP`
     /// (Microsoft Graph for Entra); falls back to "SSO".
     #[serde(default)]
     name: Option<String>,
@@ -73,8 +76,10 @@ async fn fetch_entra_org_name(
     client_secret: &str,
 ) -> Option<String> {
     // Derive the token endpoint from the standard Entra discovery URL shape.
-    let token_url =
-        discovery_url.replace("/v2.0/.well-known/openid-configuration", "/oauth2/v2.0/token");
+    let token_url = discovery_url.replace(
+        "/v2.0/.well-known/openid-configuration",
+        "/oauth2/v2.0/token",
+    );
     if token_url == discovery_url {
         return None; // not the expected Entra URL — skip Graph
     }
@@ -123,8 +128,8 @@ pub async fn seed_from_config(state: &AppState) -> Result<(), AppError> {
     let Ok(raw) = std::fs::read_to_string(&path) else {
         return Ok(()); // no creds file → SSO not seeded (fine)
     };
-    let cfg: SsoSeedConfig = serde_json::from_str(&raw)
-        .map_err(|e| AppError::Internal(format!("{path} parse: {e}")))?;
+    let cfg: SsoSeedConfig =
+        serde_json::from_str(&raw).map_err(|e| AppError::Internal(format!("{path} parse: {e}")))?;
 
     let secret_enc = match cfg.client_secret.as_deref().filter(|s| !s.is_empty()) {
         Some(s) => Some(encrypt_secret(&secret_key(state).await, s)?),
@@ -150,9 +155,10 @@ pub async fn seed_from_config(state: &AppState) -> Result<(), AppError> {
             .filter(|r| !BYPASS_ROLES.contains(&r.as_str())),
     );
 
-    let tenant_id: Uuid = sqlx::query_scalar("SELECT id FROM tenants ORDER BY created_at, id LIMIT 1")
-        .fetch_one(&state.db)
-        .await?;
+    let tenant_id: Uuid =
+        sqlx::query_scalar("SELECT id FROM tenants ORDER BY created_at, id LIMIT 1")
+            .fetch_one(&state.db)
+            .await?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &tenant_id).await?;
     let provider_id: Uuid = sqlx::query_scalar(
@@ -310,7 +316,9 @@ fn validate_protocol(p: &str) -> Result<(), AppError> {
     if p == "oidc" || p == "saml" {
         Ok(())
     } else {
-        Err(AppError::BadRequest("protocol must be 'oidc' or 'saml'".to_owned()))
+        Err(AppError::BadRequest(
+            "protocol must be 'oidc' or 'saml'".to_owned(),
+        ))
     }
 }
 

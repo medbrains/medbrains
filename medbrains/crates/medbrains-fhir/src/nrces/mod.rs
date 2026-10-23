@@ -1,12 +1,12 @@
-//! NRCeS (ABDM FHIR IG 6.5.0) document bundles — what a HIP sends for a care
+//! `NRCeS` (ABDM FHIR IG 6.5.0) document bundles — what a HIP sends for a care
 //! context: a FHIR `document` Bundle whose first entry is a `Composition`
-//! carrying the record's profile (OPConsultRecord, PrescriptionRecord, …),
+//! carrying the record's profile (`OPConsultRecord`, `PrescriptionRecord`, …),
 //! followed by every resource the composition references.
 //!
 //! IG: <https://nrces.in/ndhm/fhir/r4/>. Resources are built as JSON values:
 //! the IG adds `meta.profile` to each one, and the typed structs here only
 //! cover what the read API needs. `conformance` checks a bundle against the
-//! rules extracted from the IG's StructureDefinitions.
+//! rules extracted from the IG's `StructureDefinitions`.
 
 pub mod conformance;
 mod resources;
@@ -60,7 +60,7 @@ impl RecordKind {
         }
     }
 
-    /// The Composition profile name in the NRCeS IG.
+    /// The Composition profile name in the `NRCeS` IG.
     #[must_use]
     pub const fn profile_name(self) -> &'static str {
         match self {
@@ -137,7 +137,7 @@ pub struct DocumentInput<'a> {
     pub encounter: EncounterInfo,
     pub sections: Vec<Section>,
     /// Resources the bundle carries that no section lists directly — the
-    /// Observations a DiagnosticReport's `result` points at.
+    /// Observations a `DiagnosticReport`'s `result` points at.
     pub resources: Vec<Value>,
 }
 
@@ -155,7 +155,7 @@ fn entry(resource: &Value) -> Value {
 }
 
 /// A typed reference to a resource in the same bundle (the Prescription and
-/// DiagnosticReport profiles slice section entries by `type`).
+/// `DiagnosticReport` profiles slice section entries by `type`).
 fn reference(resource: &Value) -> Value {
     json!({
         "reference": urn(resource["id"].as_str().unwrap_or_default()),
@@ -215,7 +215,7 @@ fn organization(o: &Party) -> Value {
     })
 }
 
-/// The NRCeS Patient: the read API's Patient with each identifier typed.
+/// The `NRCeS` Patient: the read API's Patient with each identifier typed.
 fn patient(p: &PatientView) -> Value {
     let mut patient = serde_json::to_value(patient_to_fhir(p)).unwrap_or(Value::Null);
     patient["resourceType"] = json!("Patient");
@@ -292,7 +292,7 @@ fn section(s: &Section) -> Value {
     out
 }
 
-/// The NRCeS `DocumentBundle` for one record.
+/// The `NRCeS` `DocumentBundle` for one record.
 #[must_use]
 pub fn document_bundle(input: &DocumentInput<'_>) -> Value {
     let date = input.date.to_rfc3339();

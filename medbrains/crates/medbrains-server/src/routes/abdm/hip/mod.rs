@@ -6,7 +6,7 @@
 //! - `link_callbacks` — the gateway's `on_*` answers to that linking.
 //! - `discovery` — user-initiated discovery and linking (PHR app → us).
 //! - `consent`   — consent notifications and health-information requests.
-//! - `bundles`   — the NRCeS FHIR bundles a transfer carries;
+//! - `bundles`   — the `NRCeS` FHIR bundles a transfer carries;
 //!   `bundle_sections` maps a record's rows to the IG's sections.
 //! - `profile_share` — Scan & Share: a patient shares their ABHA profile at a
 //!   counter and is given a token.

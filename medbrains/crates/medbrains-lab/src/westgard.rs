@@ -16,11 +16,11 @@
 //! The rules, on the SD index of consecutive runs of the same test, lot and
 //! level, newest first:
 //!
-//!   1_2s   one point beyond 2SD -- a warning, not a rejection
-//!   1_3s   one point beyond 3SD
-//!   2_2s   two consecutive points beyond the same 2SD limit
-//!   r_4s   two consecutive points spanning more than 4SD, one either side
-//!   4_1s   four consecutive points beyond the same 1SD limit
+//!   `1_2s`   one point beyond 2SD -- a warning, not a rejection
+//!   `1_3s`   one point beyond 3SD
+//!   `2_2s`   two consecutive points beyond the same 2SD limit
+//!   `r_4s`   two consecutive points spanning more than 4SD, one either side
+//!   `4_1s`   four consecutive points beyond the same 1SD limit
 //!   10x    ten consecutive points on one side of the mean
 //!
 //! Rule names are the `lab_westgard_rule` enum's own spelling. `r_4s` is
@@ -68,7 +68,10 @@ pub(crate) fn evaluate(sdi: f64, history: &[f64]) -> Evaluation {
     if run_beyond(&series, 2, 2.0) {
         violations.push("2_2s");
     }
-    if series.len() >= 2 && (series[0] - series[1]).abs() > 4.0 && series[0].signum() != series[1].signum() {
+    if series.len() >= 2
+        && (series[0] - series[1]).abs() > 4.0
+        && series[0].signum() != series[1].signum()
+    {
         violations.push("r_4s");
     }
     if run_beyond(&series, 4, 1.0) {

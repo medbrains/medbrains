@@ -34,9 +34,9 @@ pub fn maintenance_hourly_ml(weight_kg: f64) -> f64 {
     if weight_kg <= 10.0 {
         4.0 * weight_kg
     } else if weight_kg <= 20.0 {
-        40.0 + 2.0 * (weight_kg - 10.0)
+        2.0f64.mul_add(weight_kg - 10.0, 40.0)
     } else {
-        60.0 + 1.0 * (weight_kg - 20.0)
+        1.0f64.mul_add(weight_kg - 20.0, 60.0)
     }
 }
 
@@ -44,9 +44,9 @@ pub fn maintenance_daily_ml(weight_kg: f64) -> f64 {
     if weight_kg <= 10.0 {
         100.0 * weight_kg
     } else if weight_kg <= 20.0 {
-        1000.0 + 50.0 * (weight_kg - 10.0)
+        50.0f64.mul_add(weight_kg - 10.0, 1000.0)
     } else {
-        1500.0 + 20.0 * (weight_kg - 20.0)
+        20.0f64.mul_add(weight_kg - 20.0, 1500.0)
     }
 }
 
@@ -58,7 +58,9 @@ pub async fn paediatric_fluid(
 ) -> Result<Json<PaediatricFluidResult>, AppError> {
     require_permission(&claims, permissions::ipd::nursing_assessment::LIST)?;
     if !(0.5..=150.0).contains(&body.weight_kg) {
-        return Err(AppError::BadRequest("weight_kg must be between 0.5 and 150".into()));
+        return Err(AppError::BadRequest(
+            "weight_kg must be between 0.5 and 150".into(),
+        ));
     }
     let hourly_ml = (maintenance_hourly_ml(body.weight_kg) * 10.0).round() / 10.0;
     let daily_ml = maintenance_daily_ml(body.weight_kg).round();
@@ -66,8 +68,7 @@ pub async fn paediatric_fluid(
         weight_kg: body.weight_kg,
         hourly_ml,
         daily_ml,
-        response:
-            "Use an ISOTONIC maintenance fluid (e.g. 0.9% saline +/- glucose/KCl) — hypotonic fluid \
+        response: "Use an ISOTONIC maintenance fluid (e.g. 0.9% saline +/- glucose/KCl) — hypotonic fluid \
              causes hospital-acquired hyponatraemia. This is a maintenance estimate only: add \
              replacement for deficits/ongoing losses, reassess with electrolytes, and restrict in \
              SIADH/cardiac/renal states.",

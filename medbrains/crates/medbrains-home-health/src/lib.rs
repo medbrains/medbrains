@@ -261,7 +261,7 @@ pub async fn raise_escalation(
 
 #[derive(Debug, Deserialize)]
 pub struct UpdateEscalationRequest {
-    /// ambulance_requested | resolved | cancelled.
+    /// `ambulance_requested` | resolved | cancelled.
     pub status: String,
     pub notes: Option<String>,
 }

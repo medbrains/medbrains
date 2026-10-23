@@ -287,19 +287,18 @@ fn plan_rows(
                 continue;
             };
             let terms = agreement.terms(&ctx.settings);
-            let priced = match snap {
-                Some(h) => Some((h.share_amount, h.base_amount, h.line_amount, h.rule_id)),
-                None => {
-                    let ask = Pricing {
-                        line,
-                        payer: &payer,
-                        visit_kind: bill.visit_kind.as_deref(),
-                        role,
-                        discount,
-                        effective,
-                    };
-                    price(ctx, agreement, &ask, &terms, &mut used)
-                }
+            let priced = if let Some(h) = snap {
+                Some((h.share_amount, h.base_amount, h.line_amount, h.rule_id))
+            } else {
+                let ask = Pricing {
+                    line,
+                    payer: &payer,
+                    visit_kind: bill.visit_kind.as_deref(),
+                    role,
+                    discount,
+                    effective,
+                };
+                price(ctx, agreement, &ask, &terms, &mut used)
             };
             let Some((share, base, line_amount, rule_id)) = priced else {
                 continue;

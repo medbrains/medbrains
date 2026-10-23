@@ -148,7 +148,7 @@ impl RevocationCache {
     /// Highest `revoked_at_unix` seen so far. Use as the `since`
     /// cursor on the next pull from the cloud.
     pub fn pull_window_max(&self) -> i64 {
-        self.pull_max.read().map(|g| *g).unwrap_or(0)
+        self.pull_max.read().map_or(0, |g| *g)
     }
 
     /// Drop a revocation (admin re-activates a user). The next JWT
@@ -164,7 +164,7 @@ impl RevocationCache {
 
     /// Number of revoked users currently cached.
     pub fn len(&self) -> usize {
-        self.inner.read().map(|g| g.len()).unwrap_or(0)
+        self.inner.read().map_or(0, |g| g.len())
     }
 
     pub fn is_empty(&self) -> bool {

@@ -1,5 +1,5 @@
 //! Specialty departments leaf crate: psychiatry, maternity, dental, ophthalmology,
-//! long-term care. Mounted via router().
+//! long-term care. Mounted via `router()`.
 
 use axum::{
     Router,

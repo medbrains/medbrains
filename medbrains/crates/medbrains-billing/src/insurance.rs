@@ -881,8 +881,8 @@ pub struct AutoMatchResponse {
 /// match it to one or more `insurance_claims`. Match strategies, in
 /// priority order (first hit wins per credit):
 ///
-/// 1. **Reference number == claim_number** (exact UTR match).
-/// 2. **Description contains a known claim_number** (regex extract).
+/// 1. **Reference number == `claim_number`** (exact UTR match).
+/// 2. **Description contains a known `claim_number`** (regex extract).
 /// 3. **Approved-amount window** — credit ± 1 INR matches a claim
 ///    with `approved_amount` and `status='approved'` for a known TPA
 ///    name appearing in the description. Lower confidence so we flag

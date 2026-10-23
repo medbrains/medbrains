@@ -30,8 +30,8 @@ use uuid::Uuid;
 
 /// Store handles supplied by the caller. One impl per tier — they
 /// can all point at the same backend (e.g. one `LocalFsObjectStore`
-/// for tests) or three different backends (LocalFs hot,
-/// ColdLocalObjectStore cold, S3 archive).
+/// for tests) or three different backends (`LocalFs` hot,
+/// `ColdLocalObjectStore` cold, S3 archive).
 #[derive(Clone)]
 pub struct StoreSet {
     pub hot: Arc<dyn ObjectStore>,

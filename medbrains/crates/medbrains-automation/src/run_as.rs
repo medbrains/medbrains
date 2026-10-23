@@ -43,8 +43,7 @@ impl RunAs {
         activator_permissions: &[String],
         requested: &[String],
     ) -> Result<Self, GrantError> {
-        let held: BTreeSet<&str> =
-            activator_permissions.iter().map(String::as_str).collect();
+        let held: BTreeSet<&str> = activator_permissions.iter().map(String::as_str).collect();
 
         let mut missing: Vec<&str> = requested
             .iter()
@@ -57,7 +56,7 @@ impl RunAs {
             return Err(GrantError::Escalation(missing.join(", ")));
         }
 
-        Ok(RunAs {
+        Ok(Self {
             tenant_id,
             user_id: Some(activator),
             permissions: requested.iter().cloned().collect(),
@@ -67,14 +66,22 @@ impl RunAs {
     /// An authority that can do nothing, for a workflow nobody has activated.
     #[must_use]
     pub fn none(tenant_id: Uuid) -> Self {
-        RunAs { tenant_id, user_id: None, permissions: BTreeSet::new() }
+        Self {
+            tenant_id,
+            user_id: None,
+            permissions: BTreeSet::new(),
+        }
     }
 
     /// Rebuild from what was stored, without re-checking: the check happened at
     /// activation, and the activator may since have left.
     #[must_use]
     pub fn restore(tenant_id: Uuid, user_id: Option<Uuid>, permissions: Vec<String>) -> Self {
-        RunAs { tenant_id, user_id, permissions: permissions.into_iter().collect() }
+        Self {
+            tenant_id,
+            user_id,
+            permissions: permissions.into_iter().collect(),
+        }
     }
 
     #[must_use]
@@ -98,7 +105,7 @@ impl RunAs {
     #[must_use]
     pub fn intersect(&self, still_held: &[String]) -> Self {
         let held: BTreeSet<&str> = still_held.iter().map(String::as_str).collect();
-        RunAs {
+        Self {
             tenant_id: self.tenant_id,
             user_id: self.user_id,
             permissions: self
@@ -115,7 +122,12 @@ impl RunAs {
 mod tests {
     // Tests may state what must hold and stop if it does not; that is what a
     // test is. The denials exist for code the hospital runs.
-    #![allow(clippy::expect_used, clippy::unwrap_used, clippy::panic, clippy::indexing_slicing)]
+    #![allow(
+        clippy::expect_used,
+        clippy::unwrap_used,
+        clippy::panic,
+        clippy::indexing_slicing
+    )]
 
     use super::*;
 
@@ -188,9 +200,8 @@ mod tests {
 
     #[test]
     fn asking_for_nothing_is_allowed_and_grants_nothing() {
-        let granted =
-            RunAs::grant(tenant(), user(), &owned(&["patients.view"]), &owned(&[]))
-                .expect("asking for nothing is not escalation");
+        let granted = RunAs::grant(tenant(), user(), &owned(&["patients.view"]), &owned(&[]))
+            .expect("asking for nothing is not escalation");
         assert!(granted.is_empty());
     }
 
@@ -211,7 +222,11 @@ mod tests {
     fn re_activating_drops_a_permission_the_activator_has_since_lost() {
         // Someone who moves department should not leave a workflow behind that
         // still reads what they no longer can.
-        let original = RunAs::restore(tenant(), Some(user()), owned(&["patients.view", "billing.view"]));
+        let original = RunAs::restore(
+            tenant(),
+            Some(user()),
+            owned(&["patients.view", "billing.view"]),
+        );
 
         let narrowed = original.intersect(&owned(&["patients.view"]));
 
@@ -229,9 +244,13 @@ mod tests {
 
     #[test]
     fn an_authority_survives_the_json_it_is_stored_as() {
-        let granted =
-            RunAs::grant(tenant(), user(), &owned(&["patients.view"]), &owned(&["patients.view"]))
-                .expect("granted");
+        let granted = RunAs::grant(
+            tenant(),
+            user(),
+            &owned(&["patients.view"]),
+            &owned(&["patients.view"]),
+        )
+        .expect("granted");
 
         let encoded = serde_json::to_string(&granted).expect("serialises");
         let decoded: RunAs = serde_json::from_str(&encoded).expect("deserialises");

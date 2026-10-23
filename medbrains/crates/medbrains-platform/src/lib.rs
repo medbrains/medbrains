@@ -1,7 +1,10 @@
 //! Platform leaf crate: integration hub, geo lookups, terminology, clinical
-//! knowledge base, station registry + handoff. Mounted via router().
+//! knowledge base, station registry + handoff. Mounted via `router()`.
 
-use axum::{Router, routing::{get, post, put}};
+use axum::{
+    Router,
+    routing::{get, post, put},
+};
 use medbrains_server_core::state::AppState;
 
 pub mod ckb;
@@ -14,14 +17,8 @@ pub mod terminology;
 pub fn router() -> Router<AppState> {
     Router::new()
         .route("/api/geo/countries", get(geo::list_countries))
-        .route(
-            "/api/geo/countries/{id}/states",
-            get(geo::list_states),
-        )
-        .route(
-            "/api/geo/states/{id}/districts",
-            get(geo::list_districts),
-        )
+        .route("/api/geo/countries/{id}/states", get(geo::list_states))
+        .route("/api/geo/states/{id}/districts", get(geo::list_districts))
         .route("/api/geo/regulators", get(geo::list_regulators))
         .route(
             "/api/geo/regulators/auto-detect",
@@ -31,14 +28,8 @@ pub fn router() -> Router<AppState> {
             "/api/geo/districts/{id}/subdistricts",
             get(geo::list_subdistricts),
         )
-        .route(
-            "/api/geo/subdistricts/{id}/towns",
-            get(geo::list_towns),
-        )
-        .route(
-            "/api/geo/pincode/{code}",
-            get(geo::search_pincode),
-        )
+        .route("/api/geo/subdistricts/{id}/towns", get(geo::list_towns))
+        .route("/api/geo/pincode/{code}", get(geo::search_pincode))
         .route(
             "/api/stations",
             get(stations::list_stations).post(stations::create_station),
@@ -65,7 +56,10 @@ pub fn router() -> Router<AppState> {
         .route("/api/ckb/nlem-generics", get(ckb::list_nlem_generics))
         .route("/api/ckb/state-schemes", get(ckb::list_state_schemes))
         .route("/api/ckb/state-formulary", get(ckb::list_state_formulary))
-        .route("/api/ckb/notifiable-reports", get(ckb::list_notifiable_reports))
+        .route(
+            "/api/ckb/notifiable-reports",
+            get(ckb::list_notifiable_reports),
+        )
         .route(
             "/api/ckb/notifiable-reports/{id}",
             put(ckb::update_notifiable_report),
@@ -110,12 +104,12 @@ pub fn router() -> Router<AppState> {
         )
         .route(
             "/api/integration/node-templates",
-            get(integration::list_node_templates)
-                .post(integration::create_node_template),
+            get(integration::list_node_templates).post(integration::create_node_template),
         )
         .route(
             "/api/station-handoffs",
-            get(station_handoff::list_station_handoffs).post(station_handoff::create_station_handoff),
+            get(station_handoff::list_station_handoffs)
+                .post(station_handoff::create_station_handoff),
         )
         .route(
             "/api/station-handoffs/{id}/acknowledge",

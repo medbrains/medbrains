@@ -53,8 +53,8 @@ pub struct PatientDelivery {
     /// The prescription refilled; none for a storefront order.
     pub prescription_id: Option<Uuid>,
     pub drugs: Vec<String>,
-    /// requested, awaiting_payment, being_prepared, out_for_delivery,
-    /// delivered, failed, cancelled, declined or not_deliverable.
+    /// requested, `awaiting_payment`, `being_prepared`, `out_for_delivery`,
+    /// delivered, failed, cancelled, declined or `not_deliverable`.
     pub stage: &'static str,
     pub address: Option<String>,
     pub preferred_slot: Option<String>,

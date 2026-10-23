@@ -1,22 +1,22 @@
 //! OIDC login flow + protocol-agnostic federation core.
 //!
-//! Flow: `authorize` (state+nonce+PKCE → redirect to the IdP) → IdP consent →
-//! `callback` (exchange code, validate the id_token against the IdP's JWKS,
-//! federate the user, issue the normal MedBrains JWT). SAML reuses `federate_user`.
+//! Flow: `authorize` (state+nonce+PKCE → redirect to the `IdP`) → `IdP` consent →
+//! `callback` (exchange code, validate the `id_token` against the `IdP`'s JWKS,
+//! federate the user, issue the normal `MedBrains` JWT). SAML reuses `federate_user`.
 //!
-//! Security: state (CSRF, single-use), nonce (id_token replay), PKCE S256,
-//! full id_token validation (signature via JWKS + iss + aud + exp + nonce). The
+//! Security: state (CSRF, single-use), nonce (`id_token` replay), PKCE S256,
+//! full `id_token` validation (signature via JWKS + iss + aud + exp + nonce). The
 //! pre-auth reads use `sso_provider_for_login()` (capability by UUID) since there
 //! is no tenant RLS context yet. Tokens/secrets are never logged.
 
 use std::collections::HashSet;
 
+use axum::routing::get;
 use axum::{
     Json,
     extract::{Path, Query, State},
     response::Redirect,
 };
-use axum::routing::{get};
 use axum_extra::extract::CookieJar;
 use base64::{Engine, engine::general_purpose::URL_SAFE_NO_PAD};
 use chrono::Utc;
@@ -31,7 +31,7 @@ use medbrains_server_core::{
     error::AppError,
     middleware::auth::{Claims, encode_jwt},
     middleware::authorization::BYPASS_ROLES,
-    middleware::cookies::{build_access_cookie, build_refresh_cookie, build_csrf_cookie},
+    middleware::cookies::{build_access_cookie, build_csrf_cookie, build_refresh_cookie},
     state::AppState,
 };
 
@@ -40,7 +40,8 @@ const DEV_SSO_SECRET_KEY: &[u8] = b"medbrains-dev-oauth-token-key-32";
 const SSO_SECRET_CONTEXT: &[u8] = b"sso-client-secret";
 
 fn public_base() -> String {
-    std::env::var("MEDBRAINS_PUBLIC_BASE_URL").unwrap_or_else(|_| "https://127.0.0.1:8443".to_owned())
+    std::env::var("MEDBRAINS_PUBLIC_BASE_URL")
+        .unwrap_or_else(|_| "https://127.0.0.1:8443".to_owned())
 }
 fn callback_uri() -> String {
     format!("{}/api/auth/sso/callback", public_base())
@@ -156,7 +157,7 @@ pub struct AuthorizeQuery {
     pub return_to: Option<String>,
 }
 
-/// GET /api/auth/sso/{provider_id}/authorize
+/// GET /`api/auth/sso/{provider_id}/authorize`
 pub async fn oidc_authorize(
     State(state): State<AppState>,
     Path(provider_id): Path<Uuid>,
@@ -484,7 +485,10 @@ async fn validate_id_token(
 
     // Algorithm from the JWK header (RS256 default — the common OIDC case).
     let alg = match header.alg {
-        Algorithm::RS256 | Algorithm::RS384 | Algorithm::RS512 | Algorithm::ES256
+        Algorithm::RS256
+        | Algorithm::RS384
+        | Algorithm::RS512
+        | Algorithm::ES256
         | Algorithm::ES384 => header.alg,
         _ => Algorithm::RS256,
     };
@@ -493,7 +497,8 @@ async fn validate_id_token(
     validation.set_issuer(&[issuer]);
     validation.validate_exp = true;
 
-    let data = decode::<IdClaims>(id_token, &key, &validation).map_err(|_| AppError::Unauthorized)?;
+    let data =
+        decode::<IdClaims>(id_token, &key, &validation).map_err(|_| AppError::Unauthorized)?;
     let claims = data.claims;
 
     // Replay protection — the nonce must match the one we sent in authorize.
@@ -509,7 +514,7 @@ async fn validate_id_token(
     })
 }
 
-/// Extract IdP groups from the id_token claim, tolerating the shapes real IdPs
+/// Extract `IdP` groups from the `id_token` claim, tolerating the shapes real `IdPs`
 /// emit: a JSON array of strings (Entra/Okta/Keycloak), an array with numbers or
 /// group objects (coerced to their id/name), or a single bare string (one
 /// group). A space/comma-delimited multi-group string is intentionally NOT
@@ -542,7 +547,7 @@ fn group_value_as_string(v: &serde_json::Value) -> Option<String> {
 // ── federation core ─────────────────────────────────────────────────────────
 
 /// Resolve mapped (role, access-group-ids) from the provider's group mappings
-/// against the user's IdP groups. The first matching mapping that names a role
+/// against the user's `IdP` groups. The first matching mapping that names a role
 /// wins (single role); all matching access groups are collected. Pure + tested.
 fn resolve_group_targets(
     mappings: &[(String, Option<String>, Option<Uuid>)],
@@ -609,74 +614,70 @@ async fn federate_user(
     .fetch_optional(&mut **tx)
     .await?;
 
-    let (user_id, role, outcome) = match existing {
-        Some(id) => {
-            let role = sqlx::query_scalar::<_, String>(
-                "UPDATE users SET role = COALESCE($2::user_role, role), email_verified = true, \
-                 perm_version = perm_version + 1, updated_at = now() WHERE id = $1 \
-                 RETURNING role::text",
-            )
-            .bind(id)
-            .bind(mapped_role.as_deref())
-            .fetch_one(&mut **tx)
-            .await?;
-            (id, role, "returning")
-        }
-        None => {
-            let linked = match identity.email.as_deref() {
-                // Service accounts are not claimable.
-                //
-                // This branch adopts an existing local account when the IdP
-                // asserts its email, which is the right behaviour for a person
-                // moving to SSO. For an API key's identity it is a takeover:
-                // the UPDATE below sets `idp_id` and a role from the IdP, so
-                // anyone able to assert that address at the IdP would turn a
-                // machine identity into their own login — and every row the
-                // key had written would now belong to them.
-                //
-                // And only in this provider's hospital. The tenant context set
-                // above is enforced by row level security, which a superuser
-                // connection does not apply: an email match across hospitals
-                // let one hospital's IdP adopt another hospital's account.
-                Some(email) => sqlx::query_scalar::<_, Uuid>(
+    let (user_id, role, outcome) = if let Some(id) = existing {
+        let role = sqlx::query_scalar::<_, String>(
+            "UPDATE users SET role = COALESCE($2::user_role, role), email_verified = true, \
+             perm_version = perm_version + 1, updated_at = now() WHERE id = $1 \
+             RETURNING role::text",
+        )
+        .bind(id)
+        .bind(mapped_role.as_deref())
+        .fetch_one(&mut **tx)
+        .await?;
+        (id, role, "returning")
+    } else {
+        let linked = match identity.email.as_deref() {
+            // Service accounts are not claimable.
+            //
+            // This branch adopts an existing local account when the IdP
+            // asserts its email, which is the right behaviour for a person
+            // moving to SSO. For an API key's identity it is a takeover:
+            // the UPDATE below sets `idp_id` and a role from the IdP, so
+            // anyone able to assert that address at the IdP would turn a
+            // machine identity into their own login — and every row the
+            // key had written would now belong to them.
+            //
+            // And only in this provider's hospital. The tenant context set
+            // above is enforced by row level security, which a superuser
+            // connection does not apply: an email match across hospitals
+            // let one hospital's IdP adopt another hospital's account.
+            Some(email) => {
+                sqlx::query_scalar::<_, Uuid>(
                     "SELECT id FROM users WHERE lower(email) = lower($1) AND idp_id IS NULL \
-                     AND is_service_account = false AND tenant_id = $2",
+                 AND is_service_account = false AND tenant_id = $2",
                 )
                 .bind(email)
                 .bind(provider.tenant_id)
                 .fetch_optional(&mut **tx)
-                .await?,
-                None => None,
-            };
-            match linked {
-                Some(id) => {
-                    let role = sqlx::query_scalar::<_, String>(
-                        "UPDATE users SET idp_id = $2, external_subject = $3, \
-                         role = COALESCE($4::user_role, role), email_verified = true, \
-                         perm_version = perm_version + 1, updated_at = now() \
-                         WHERE id = $1 RETURNING role::text",
-                    )
-                    .bind(id)
-                    .bind(provider.id)
-                    .bind(&identity.subject)
-                    .bind(mapped_role.as_deref())
-                    .fetch_one(&mut **tx)
-                    .await?;
-                    (id, role, "linked")
-                }
-                None => {
-                    if !provider.jit_enabled {
-                        return Err(AppError::Unauthorized);
-                    }
-                    let role = mapped_role
-                        .unwrap_or_else(|| new_user_role(provider.default_role.as_deref()));
-                    let id = jit_create(tx, provider, identity, &role).await?;
-                    if role == STAFF_ROLE {
-                        tell_admins_of_new_staff(tx, provider, identity, id).await?;
-                    }
-                    (id, role, "provisioned")
-                }
+                .await?
             }
+            None => None,
+        };
+        if let Some(id) = linked {
+            let role = sqlx::query_scalar::<_, String>(
+                "UPDATE users SET idp_id = $2, external_subject = $3, \
+                 role = COALESCE($4::user_role, role), email_verified = true, \
+                 perm_version = perm_version + 1, updated_at = now() \
+                 WHERE id = $1 RETURNING role::text",
+            )
+            .bind(id)
+            .bind(provider.id)
+            .bind(&identity.subject)
+            .bind(mapped_role.as_deref())
+            .fetch_one(&mut **tx)
+            .await?;
+            (id, role, "linked")
+        } else {
+            if !provider.jit_enabled {
+                return Err(AppError::Unauthorized);
+            }
+            let role =
+                mapped_role.unwrap_or_else(|| new_user_role(provider.default_role.as_deref()));
+            let id = jit_create(tx, provider, identity, &role).await?;
+            if role == STAFF_ROLE {
+                tell_admins_of_new_staff(tx, provider, identity, id).await?;
+            }
+            (id, role, "provisioned")
         }
     };
 
@@ -738,8 +739,12 @@ async fn tell_admins_of_new_staff(
         .or(identity.email.as_deref())
         .unwrap_or("A new member of staff");
     let body = format!("{who} signed in with single sign-on and needs a role.");
-    notify_permission_holders(tx, provider.tenant_id, permissions::admin::users::UPDATE, user_id, |to| {
-        NewNotification {
+    notify_permission_holders(
+        tx,
+        provider.tenant_id,
+        permissions::admin::users::UPDATE,
+        user_id,
+        |to| NewNotification {
             user_id: to,
             kind: "warning",
             title: "New sign-in waiting for a role",
@@ -748,13 +753,13 @@ async fn tell_admins_of_new_staff(
             entity_type: Some("user"),
             entity_id: Some(user_id),
             action_url: Some("/admin/users"),
-        }
-    })
+        },
+    )
     .await?;
     Ok(())
 }
 
-/// Best-effort audit of a REFUSED SSO login — the user authenticated at the IdP
+/// Best-effort audit of a REFUSED SSO login — the user authenticated at the `IdP`
 /// but is not authorized here (no matching group mapping + no default role, or
 /// JIT disabled for a new user). Uses its own tx so it survives the rolled-back
 /// federation tx. `user_id` is null (no session was created).
@@ -893,7 +898,10 @@ mod tests {
         let want = |xs: &[&str]| xs.iter().map(|s| (*s).to_owned()).collect::<Vec<_>>();
         // Array of strings (Entra/Okta/Keycloak).
         assert_eq!(
-            extract_groups(&m(serde_json::json!({ "groups": ["doctors", "nurses"] })), "groups"),
+            extract_groups(
+                &m(serde_json::json!({ "groups": ["doctors", "nurses"] })),
+                "groups"
+            ),
             want(&["doctors", "nurses"])
         );
         // Array of group objects → coerced to a common key.
@@ -905,7 +913,10 @@ mod tests {
             want(&["doctors", "n1"])
         );
         // Single bare string → one group.
-        assert_eq!(extract_groups(&m(serde_json::json!({ "g": "doctors" })), "g"), want(&["doctors"]));
+        assert_eq!(
+            extract_groups(&m(serde_json::json!({ "g": "doctors" })), "g"),
+            want(&["doctors"])
+        );
         // Missing claim / empty string → no groups.
         assert!(extract_groups(&m(serde_json::json!({})), "groups").is_empty());
         assert!(extract_groups(&m(serde_json::json!({ "g": "" })), "g").is_empty());
@@ -944,7 +955,10 @@ mod tests {
     #[test]
     fn pkce_challenge_is_deterministic_sha256() {
         // Known S256: base64url(sha256("abc")) with no padding.
-        assert_eq!(pkce_challenge("abc"), "ungWv48Bz-pBQUDeXa4iI7ADYaOWF3qctBD_YfIAFa0");
+        assert_eq!(
+            pkce_challenge("abc"),
+            "ungWv48Bz-pBQUDeXa4iI7ADYaOWF3qctBD_YfIAFa0"
+        );
     }
 
     #[test]
@@ -962,16 +976,10 @@ mod tests {
     }
 }
 
-/// sso_login routes.
+/// `sso_login` routes.
 pub fn router() -> axum::Router<AppState> {
     axum::Router::new()
-        .route(
-            "/api/auth/sso/providers",
-            get(list_active_providers),
-        )
-        .route(
-            "/api/auth/sso/{provider_id}/authorize",
-            get(oidc_authorize),
-        )
+        .route("/api/auth/sso/providers", get(list_active_providers))
+        .route("/api/auth/sso/{provider_id}/authorize", get(oidc_authorize))
         .route("/api/auth/sso/callback", get(oidc_callback))
 }

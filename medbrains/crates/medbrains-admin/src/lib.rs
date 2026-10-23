@@ -1,5 +1,5 @@
-//! Admin/multi-tenant leaf crate: hospital groups (multi_hospital), system-state
-//! + DB-topology admin, blog, news feed. Mounted via router().
+//! Admin/multi-tenant leaf crate: hospital groups (`multi_hospital`), system-state
+//! + DB-topology admin, blog, news feed. Mounted via `router()`.
 
 use axum::{
     Router,

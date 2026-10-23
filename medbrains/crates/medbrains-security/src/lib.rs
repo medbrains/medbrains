@@ -1,7 +1,7 @@
 #![allow(clippy::too_many_lines)]
 //! Physical security — patient safety tags, incidents, visitor control.
 //!
-//! # Why create_patient_tag takes no record check
+//! # Why `create_patient_tag` takes no record check
 //!
 //! It writes a `security_patient_tags` row against a NOT NULL `patient_id`
 //! from the body, under `security.patient_safety.manage`, which is held by one
@@ -1180,7 +1180,10 @@ pub fn router() -> axum::Router<AppState> {
             "/api/data-processors",
             get(processors::list_processors).post(processors::create_processor),
         )
-        .route("/api/data-processors/{id}", put(processors::update_processor))
+        .route(
+            "/api/data-processors/{id}",
+            put(processors::update_processor),
+        )
         .route(
             "/api/security/incidents/{id}/breach",
             put(breach::assess_breach),

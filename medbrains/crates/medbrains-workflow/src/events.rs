@@ -21,7 +21,7 @@ use medbrains_server_core::error::AppError;
 /// 1. Caller's transaction continues to write to `integration_pipelines` matches.
 /// 2. Pipeline execution moved into [`dispatch_to_pipelines`], which the outbox
 ///    worker invokes asynchronously via `pipeline_fallback` for unregistered
-///    event_types. Synchronous in-line dispatch retained for backwards compat
+///    `event_types`. Synchronous in-line dispatch retained for backwards compat
 ///    until A.4 lands the outbox-write at every call site.
 ///
 /// Today this remains synchronous. The function signature stays unchanged so
@@ -90,10 +90,10 @@ pub async fn queue_clinical_event_in_tx(
 }
 
 /// Pipeline dispatcher — extracted from `emit_event` so the outbox worker
-/// can invoke it for unregistered event_types (`handlers/pipeline_fallback.rs`).
+/// can invoke it for unregistered `event_types` (`handlers/pipeline_fallback.rs`).
 ///
 /// Same semantics as the original `emit_event` body: find active pipelines
-/// matching the event_type, execute each in its own SAVEPOINT, swallow per-
+/// matching the `event_type`, execute each in its own SAVEPOINT, swallow per-
 /// pipeline errors. Returns `Ok` even if individual pipelines failed.
 pub async fn dispatch_to_pipelines(
     pool: &PgPool,

@@ -2,12 +2,12 @@
 //! ("call / serve / complete / no-show") for any module + scope, with live
 //! WebSocket push to displays (TV / web / mobile).
 //!
-//! # Why issue_token takes no record check
+//! # Why `issue_token` takes no record check
 //!
 //! `tokens.patient_id` is NULLABLE — a token can be handed to somebody not yet
 //! identified, which is what a queue at a front desk is for. The permission is
 //! `front_office.queue.manage`, held by the desk roles (receptionist,
-//! front_office_staff): putting somebody in a line is the desk's job whether or
+//! `front_office_staff)`: putting somebody in a line is the desk's job whether or
 //! not their record is open to it. The token carries the number and name for
 //! the board, never the record, so issuing one grants no access to the chart.
 
@@ -98,7 +98,7 @@ fn token_prefix(module: &str) -> &'static str {
     }
 }
 
-/// Tokens default ON; an admin disables a module via tenant_settings
+/// Tokens default ON; an admin disables a module via `tenant_settings`
 /// (category 'tokens', key '<module>_enabled' -> {"enabled": false}) — so
 /// "for some days token may not be needed" is a single toggle.
 async fn module_tokens_enabled(
@@ -1264,7 +1264,7 @@ fn allowed_from(to: &str) -> &'static [&'static str] {
 /// sorts last, so a row written by a newer server cannot jump the queue on an
 /// older binary. This list is the counterpart on *write*: strict at the door.
 ///
-/// Without it `POST /api/tokens/issue` accepted anything. "vip_platinum" was
+/// Without it `POST /api/tokens/issue` accepted anything. "`vip_platinum`" was
 /// stored, came back on the board, and the console renders
 /// `TOKEN_PRIORITY_LABEL[p] ?? p` -- so a clinician would read a raw database
 /// value off a badge. It sorted harmlessly, and displayed as nonsense.

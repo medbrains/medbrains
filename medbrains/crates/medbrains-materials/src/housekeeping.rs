@@ -1,7 +1,7 @@
 #![allow(clippy::too_many_lines)]
 //! Housekeeping — bed turnaround, cleaning schedules, linen.
 //!
-//! # Why create_turnaround takes no record check
+//! # Why `create_turnaround` takes no record check
 //!
 //! It records a bed being cleaned between one patient and the next, naming the
 //! outgoing patient. `housekeeping.*` is held by `housekeeping_staff` and

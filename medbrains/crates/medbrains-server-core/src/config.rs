@@ -9,7 +9,7 @@ use serde::{Deserialize, Serialize};
 #[derive(Debug, Deserialize, Serialize)]
 struct RawConfig {
     /// Deployment environment: "development" (default) or "production".
-    /// Set via MEDBRAINS_ENV. Production refuses to start without real JWT keys.
+    /// Set via `MEDBRAINS_ENV`. Production refuses to start without real JWT keys.
     #[serde(default)]
     medbrains_env: Option<String>,
     #[serde(default)]
@@ -60,7 +60,7 @@ struct RawConfig {
     #[serde(default)]
     s3_secret_access_key: Option<String>,
     /// Gotenberg (headless Chrome) base URL for server-side PDF
-    /// rendering, e.g. http://127.0.0.1:3005. Unset = PDF endpoints 503.
+    /// rendering, e.g. <http://127.0.0.1:3005>. Unset = PDF endpoints 503.
     #[serde(default)]
     gotenberg_url: Option<String>,
 }
@@ -120,7 +120,7 @@ const fn default_db_slow_query_ms() -> u64 {
 /// so `.env` values participate in layer 3.
 #[derive(Debug, Clone)]
 pub struct AppConfig {
-    /// "development" or "production" (MEDBRAINS_ENV).
+    /// "development" or "production" (`MEDBRAINS_ENV`).
     pub environment: String,
     pub database_url: String,
     pub db_pool_max_connections: u32,

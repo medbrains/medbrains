@@ -56,7 +56,7 @@ async fn job_worker_loop(pool: &PgPool, worker_id: &str) {
                         complete_job(pool, job_id, &output).await;
                     }
                     Err(e) => {
-                        let err_msg = e.to_string();
+                        let err_msg = e.clone();
                         fail_job(pool, job_id, &err_msg, job.retry_count, job.max_retries).await;
                     }
                 }
@@ -79,10 +79,10 @@ async fn job_worker_loop(pool: &PgPool, worker_id: &str) {
     }
 }
 
-/// Detect Postgres "undefined_table" (SQLSTATE 42P01) — schema not migrated.
+/// Detect Postgres "`undefined_table`" (SQLSTATE 42P01) — schema not migrated.
 fn is_undefined_table(err: &sqlx::Error) -> bool {
     err.as_database_error()
-        .and_then(|db| db.code())
+        .and_then(sqlx::error::DatabaseError::code)
         .is_some_and(|c| c == "42P01")
 }
 
@@ -129,7 +129,7 @@ async fn execute_job(pool: &PgPool, job: &JobRow) -> Result<Value, String> {
 
 /// Execute an after-event pipeline job.
 ///
-/// Reads the event_code from payload, finds matching pipelines,
+/// Reads the `event_code` from payload, finds matching pipelines,
 /// and runs them through the existing event emission system.
 async fn execute_pipeline_event(pool: &PgPool, job: &JobRow) -> Result<Value, String> {
     let event_code = job

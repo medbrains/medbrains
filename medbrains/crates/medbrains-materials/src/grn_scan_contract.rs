@@ -1,5 +1,5 @@
 //! The bill reader's contract (#4861). The reader is an external on-prem
-//! worker (MinerU for layout, a VLM on the page images); this file is all
+//! worker (`MinerU` for layout, a VLM on the page images); this file is all
 //! it needs to know.
 //!
 //! 1. `POST /api/procurement/grn-scans/claim` with `{}` (or `{"scan_id"}`) —
@@ -112,7 +112,7 @@ pub struct Draft {
     pub confidence: BTreeMap<String, f64>,
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Deserialize, Serialize)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, Deserialize, Serialize)]
 #[serde(default)]
 pub struct DraftHeader {
     pub vendor_id: Option<Uuid>,
@@ -126,7 +126,7 @@ pub struct DraftHeader {
     pub irn: Option<String>,
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Deserialize, Serialize)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, Deserialize, Serialize)]
 #[serde(default)]
 pub struct DraftLine {
     pub product_name: Option<String>,

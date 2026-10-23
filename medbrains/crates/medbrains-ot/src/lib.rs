@@ -1,7 +1,7 @@
 #![allow(clippy::too_many_lines)]
 //! Operation theatre — bookings, checklists, anaesthesia and handoffs.
 //!
-//! # Why create_booking takes no record check
+//! # Why `create_booking` takes no record check
 //!
 //! `ot.bookings.create` is held by `ot_staff`
 //! (`crates/medbrains-core/src/access/roles.rs`). Theatre scheduling is a
@@ -10,7 +10,7 @@
 //! exemption the theatre list itself already carries.
 //!
 //! The records that hang off a booking DO check: this crate calls
-//! `require_access_via` through the OT_BOOKING link on eight paths, so once a
+//! `require_access_via` through the `OT_BOOKING` link on eight paths, so once a
 //! booking exists, reaching its anaesthesia record or its handoff is scoped.
 //! The root is the one thing the department is trusted to create.
 //!
@@ -536,7 +536,8 @@ pub async fn list_bookings(
 
     let where_clause = conditions.join(" AND ");
 
-    let count_sql = format!("SELECT COUNT(*) FROM ot_bookings WHERE deleted_at IS NULL AND {where_clause}");
+    let count_sql =
+        format!("SELECT COUNT(*) FROM ot_bookings WHERE deleted_at IS NULL AND {where_clause}");
     let mut count_q = sqlx::query_scalar::<_, i64>(&count_sql).bind(claims.tenant_id);
     for b in &binds {
         if let Some(u) = b.uuid_val {
@@ -1602,7 +1603,7 @@ pub async fn get_checklists(
     Ok(Json(rows))
 }
 
-/// Whether a booking's WHO checklist phase (sign_in/time_out/sign_out) is
+/// Whether a booking's WHO checklist phase (`sign_in/time_out/sign_out`) is
 /// completed — used to hard-gate the surgery lifecycle (NABH/JCI IPSG-4).
 async fn who_phase_complete(
     tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,

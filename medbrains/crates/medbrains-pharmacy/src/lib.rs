@@ -46,9 +46,9 @@ pub mod pos_counter;
 pub mod pos_returns;
 mod pos_scheduled;
 mod return_rules;
-mod terminal_tender;
 pub mod rx_safety;
 pub mod storefront;
+mod terminal_tender;
 
 // ══════════════════════════════════════════════════════════
 //  Request / Response types
@@ -60,7 +60,7 @@ pub struct ListOrdersQuery {
     pub per_page: Option<i64>,
     pub status: Option<String>,
     pub patient_id: Option<Uuid>,
-    /// Column key to sort by (allowlisted server-side). Defaults to created_at.
+    /// Column key to sort by (allowlisted server-side). Defaults to `created_at`.
     pub sort: Option<String>,
     /// Sort direction: "asc" or "desc" (default desc).
     pub order: Option<String>,
@@ -104,7 +104,7 @@ pub struct CreateOrderRequest {
     /// "test dose under monitoring", "sensitivity confirmed false on
     /// re-challenge"). Empty / absent → strict allergy check.
     pub allergy_override_reason: Option<String>,
-    /// Internal training / simulator flag. See OPD CreateEncounterRequest.
+    /// Internal training / simulator flag. See OPD `CreateEncounterRequest`.
     #[serde(default)]
     pub is_dummy: Option<bool>,
 }
@@ -1284,8 +1284,7 @@ pub async fn evaluate_medication_safety_in_tx(
 
         let catalog_name = catalog
             .as_ref()
-            .map(|row| row.name.as_str())
-            .unwrap_or(item.drug_name.as_str());
+            .map_or(item.drug_name.as_str(), |row| row.name.as_str());
         let drug_text = drug_search_text(&[
             Some(item.drug_name.as_str()),
             Some(catalog_name),
@@ -3111,8 +3110,7 @@ pub async fn dispense_order(
     // An order placed online goes out only on batches with the storefront's
     // shelf life left (research §3: 90 days by default).
     let online_shelf_days =
-        storefront::settings::min_shelf_days_for_order(&mut tx, claims.tenant_id, order.id)
-            .await?;
+        storefront::settings::min_shelf_days_for_order(&mut tx, claims.tenant_id, order.id).await?;
     for item in &items {
         if item.quantity <= 0 {
             return Err(AppError::BadRequest(
@@ -3461,8 +3459,7 @@ async fn enforce_schedule_compliance(
         return Err(AppError::NotFound);
     };
 
-    let has_prescription =
-        prescription_id.is_some() || encounter_id.is_some() || verified_upload;
+    let has_prescription = prescription_id.is_some() || encounter_id.is_some() || verified_upload;
 
     let scheduled_items: Vec<(String, Option<String>)> = sqlx::query_as(
         "SELECT c.name, c.drug_schedule::text \
@@ -3686,8 +3683,7 @@ pub async fn validate_order(
                         .await?;
                         let has_rx = order_meta
                             .as_ref()
-                            .map(|(p, e)| p.is_some() || e.is_some())
-                            .unwrap_or(false);
+                            .is_some_and(|(p, e)| p.is_some() || e.is_some());
                         if !has_rx {
                             blocks.push(format!(
                                 "{}: Schedule {sched} drug — Rx / encounter required before dispense",
@@ -5026,7 +5022,7 @@ pub async fn location_stock_dashboard(
 
 #[derive(Debug, serde::Deserialize)]
 pub struct WriteOffExpiredRequest {
-    /// Destruction method: incineration | chemical | landfill | return_to_manufacturer | other.
+    /// Destruction method: incineration | chemical | landfill | `return_to_manufacturer` | other.
     pub method: Option<String>,
     pub witness_name: String,
     pub notes: Option<String>,
@@ -5322,7 +5318,7 @@ pub async fn assign_pharmacy_staff(
     Ok(Json(row))
 }
 
-/// GET /api/pharmacy/staff?store_location_id= — staff assigned to a pharmacy (or all).
+/// GET /`api/pharmacy/staff?store_location_id`= — staff assigned to a pharmacy (or all).
 pub async fn list_pharmacy_staff(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
@@ -5644,7 +5640,7 @@ pub async fn dispatch_transfer(
 }
 
 /// `POST /api/pharmacy/transfers/{id}/receive` — recreate the dispatched batches at the
-/// destination location (preserving batch_number + expiry for recall traceability).
+/// destination location (preserving `batch_number` + expiry for recall traceability).
 pub async fn receive_transfer(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
@@ -6894,9 +6890,7 @@ pub async fn review_prescription(
                     item.drug_name
                 )));
             };
-            let price = reviewed
-                .map(|review_item| review_item.unit_price)
-                .unwrap_or(catalog.base_price);
+            let price = reviewed.map_or(catalog.base_price, |review_item| review_item.unit_price);
             if price < Decimal::ZERO {
                 return Err(AppError::BadRequest(
                     "Reviewed pharmacy price cannot be negative".to_owned(),
@@ -7277,7 +7271,8 @@ pub async fn create_pos_sale(
     // controlled drugs never; H and H1 only with the patient named (a light
     // pharmacy-customer record when they aren't registered), and for H1 the
     // prescriber and the patient's address recorded (Rule 65).
-    let rx_lines = pos_scheduled::check_scheduled_sale(&mut tx, claims.tenant_id, &mut body).await?;
+    let rx_lines =
+        pos_scheduled::check_scheduled_sale(&mut tx, claims.tenant_id, &mut body).await?;
 
     // Allergy guard — only when the sale is linked to a patient.
     let allergy_reason = body
@@ -7717,7 +7712,8 @@ pub async fn create_pos_sale(
         .execute(&mut *tx)
         .await?;
         if let Some(paid_by) = tender.gateway_transaction_id {
-            terminal_tender::claim(&mut tx, claims.tenant_id, paid_by, sale.id, tender.amount).await?;
+            terminal_tender::claim(&mut tx, claims.tenant_id, paid_by, sale.id, tender.amount)
+                .await?;
         }
     }
 
@@ -7948,7 +7944,7 @@ pub async fn resolve_drug_price(
 
     let gst_rate = catalog
         .get("gst_rate")
-        .and_then(|v| v.as_f64())
+        .and_then(serde_json::Value::as_f64)
         .map_or(Decimal::ZERO, |f| Decimal::try_from(f).unwrap_or_default());
     let gst_amount = selling_price * gst_rate / Decimal::from(100);
 
@@ -8509,10 +8505,7 @@ pub struct AnalyticsDateQuery {
 pub fn router() -> axum::Router<AppState> {
     axum::Router::new()
         .merge(storefront::router())
-        .route(
-            "/api/pharmacy/h1-register",
-            get(h1_register::h1_register),
-        )
+        .route("/api/pharmacy/h1-register", get(h1_register::h1_register))
         .route("/api/pharmacy/orders", get(list_orders).post(create_order))
         .route("/api/pharmacy/orders/{id}", get(get_order))
         .route(

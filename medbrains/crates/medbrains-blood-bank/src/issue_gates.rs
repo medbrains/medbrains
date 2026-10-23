@@ -99,7 +99,7 @@ pub fn emergency_release_refusal(unit_group: &str, reason: Option<&str>) -> Opti
     })
 }
 
-/// One spelling for a group: "A+" from a label, "a_positive" from the enum.
+/// One spelling for a group: "A+" from a label, "`a_positive`" from the enum.
 fn canonical_group(group: &str) -> Option<&'static str> {
     match group.trim().to_ascii_lowercase().replace(' ', "").as_str() {
         "a+" | "a_positive" => Some("a_positive"),

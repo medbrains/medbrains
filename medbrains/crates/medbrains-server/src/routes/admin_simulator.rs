@@ -1,7 +1,7 @@
 //! HTTP surface for the internal data simulator.
 //!
-//! All endpoints are gated by `is_bypass_role(claims)` — super_admin and
-//! hospital_admin only. Schedules carry a JSON profile (see
+//! All endpoints are gated by `is_bypass_role(claims)` — `super_admin` and
+//! `hospital_admin` only. Schedules carry a JSON profile (see
 //! `medbrains_core::simulator::Profile`); a manual `run-now` kicks the
 //! engine in a detached `tokio::task` so the client gets a `run_id`
 //! immediately. The cron-driven scheduler is Day-2 work.
@@ -59,7 +59,8 @@ pub async fn list_schedules(
     require_admin(&claims)?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
-    let rows: Vec<SimulatorSchedule> = sqlx::query_as( // allow-raw-sql: test simulator generates arbitrary data
+    let rows: Vec<SimulatorSchedule> = sqlx::query_as(
+        // allow-raw-sql: test simulator generates arbitrary data
         "SELECT * FROM simulator_schedules \
          WHERE deleted_at IS NULL \
          ORDER BY created_at DESC LIMIT 5000",
@@ -84,7 +85,8 @@ pub async fn create_schedule(
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
-    let row: SimulatorSchedule = sqlx::query_as( // allow-raw-sql: test simulator generates arbitrary data
+    let row: SimulatorSchedule = sqlx::query_as(
+        // allow-raw-sql: test simulator generates arbitrary data
         "INSERT INTO simulator_schedules \
          (tenant_id, name, description, cron_expr, profile, enabled, created_by) \
          VALUES ($1, $2, $3, $4, $5, COALESCE($6, true), $7) \
@@ -112,7 +114,8 @@ pub async fn get_schedule(
     require_admin(&claims)?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
-    let row: SimulatorSchedule = sqlx::query_as( // allow-raw-sql: test simulator generates arbitrary data
+    let row: SimulatorSchedule = sqlx::query_as(
+        // allow-raw-sql: test simulator generates arbitrary data
         "SELECT * FROM simulator_schedules \
          WHERE id = $1 AND deleted_at IS NULL",
     )
@@ -138,7 +141,8 @@ pub async fn update_schedule(
     }
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
-    let row: SimulatorSchedule = sqlx::query_as( // allow-raw-sql: test simulator generates arbitrary data
+    let row: SimulatorSchedule = sqlx::query_as(
+        // allow-raw-sql: test simulator generates arbitrary data
         "UPDATE simulator_schedules SET \
             name = COALESCE($1, name), \
             description = COALESCE($2, description), \
@@ -171,7 +175,8 @@ pub async fn delete_schedule(
     require_admin(&claims)?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
-    let rows = sqlx::query( // allow-raw-sql: test simulator generates arbitrary data
+    let rows = sqlx::query(
+        // allow-raw-sql: test simulator generates arbitrary data
         "UPDATE simulator_schedules SET deleted_at = NOW() WHERE id = $1 AND deleted_at IS NULL",
     )
     .bind(id)
@@ -298,7 +303,8 @@ async fn execute_run(
             // Bump last_run_at on the schedule (best-effort).
             if let Ok(mut tx) = pool.begin().await {
                 let _ = medbrains_db::pool::set_tenant_context(&mut tx, &tenant_id).await;
-                let _ = sqlx::query( // allow-raw-sql: test simulator generates arbitrary data
+                let _ = sqlx::query(
+                    // allow-raw-sql: test simulator generates arbitrary data
                     "UPDATE simulator_schedules SET last_run_at = NOW() \
                      WHERE id = (SELECT schedule_id FROM simulator_runs WHERE id = $1)",
                 )
@@ -331,7 +337,8 @@ async fn require_run_exists(
     tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
     run_id: Uuid,
 ) -> Result<(), AppError> {
-    let exists: bool = sqlx::query_scalar!( // allow-raw-sql: test simulator generates arbitrary data
+    let exists: bool = sqlx::query_scalar!(
+        // allow-raw-sql: test simulator generates arbitrary data
         "SELECT EXISTS(SELECT 1 FROM simulator_runs WHERE id = $1) AS \"exists!\"",
         run_id,
     )
@@ -353,7 +360,8 @@ pub async fn approve_run(
     require_admin(&claims)?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
-    let res = sqlx::query( // allow-raw-sql: test simulator generates arbitrary data
+    let res = sqlx::query(
+        // allow-raw-sql: test simulator generates arbitrary data
         "UPDATE simulator_runs SET approval_status = 'approved' \
          WHERE id = $1 AND approval_status = 'pending_approval'",
     )
@@ -385,7 +393,8 @@ pub async fn reject_run(
     // Walk run steps and DELETE each target row by step_type. We only
     // delete rows that are still flagged is_dummy = true, defensive
     // against any approval-status drift.
-    let steps: Vec<(String, Option<Uuid>)> = sqlx::query_as( // allow-raw-sql: test simulator generates arbitrary data
+    let steps: Vec<(String, Option<Uuid>)> = sqlx::query_as(
+        // allow-raw-sql: test simulator generates arbitrary data
         "SELECT step_type, target_id FROM simulator_run_steps \
          WHERE run_id = $1 AND target_id IS NOT NULL",
     )
@@ -413,7 +422,8 @@ pub async fn reject_run(
         }
     }
 
-    sqlx::query( // allow-raw-sql: test simulator generates arbitrary data
+    sqlx::query(
+        // allow-raw-sql: test simulator generates arbitrary data
         "UPDATE simulator_runs SET approval_status = 'rejected' \
          WHERE id = $1 AND approval_status = 'pending_approval'",
     )
@@ -484,7 +494,8 @@ pub async fn preview(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
-    let news_icds: Vec<String> = sqlx::query_scalar::<_, Vec<String>>( // allow-raw-sql: test simulator generates arbitrary data
+    let news_icds: Vec<String> = sqlx::query_scalar::<_, Vec<String>>(
+        // allow-raw-sql: test simulator generates arbitrary data
         "SELECT icd_boost FROM news_articles \
          WHERE tenant_id = $1 AND is_active = true AND deleted_at IS NULL \
            AND category IN ('outbreak_alert', 'weather_advisory') \
@@ -500,7 +511,8 @@ pub async fn preview(
     let natural_top_icds: Vec<(String, i64)> =
         if profile.natural_flow.enabled && profile.natural_flow.blend > 0.0 {
             let lookback = profile.natural_flow.lookback_days.clamp(1, 365);
-            sqlx::query_as::<_, (String, i64)>( // allow-raw-sql: test simulator generates arbitrary data
+            sqlx::query_as::<_, (String, i64)>(
+                // allow-raw-sql: test simulator generates arbitrary data
                 "SELECT d.icd_code, COUNT(*)::bigint AS n \
              FROM diagnoses d JOIN encounters e ON e.id = d.encounter_id \
              WHERE e.tenant_id = $1 AND e.is_dummy = false \
@@ -577,7 +589,8 @@ pub async fn list_runs(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
     let rows: Vec<SimulatorRun> = if let Some(sid) = q.schedule_id {
-        sqlx::query_as( // allow-raw-sql: test simulator generates arbitrary data
+        sqlx::query_as(
+            // allow-raw-sql: test simulator generates arbitrary data
             "SELECT * FROM simulator_runs \
              WHERE schedule_id = $1 \
              ORDER BY started_at DESC \
@@ -588,7 +601,8 @@ pub async fn list_runs(
         .fetch_all(&mut *tx)
         .await?
     } else {
-        sqlx::query_as( // allow-raw-sql: test simulator generates arbitrary data
+        sqlx::query_as(
+            // allow-raw-sql: test simulator generates arbitrary data
             "SELECT * FROM simulator_runs \
              ORDER BY started_at DESC \
              LIMIT $1",
@@ -623,14 +637,16 @@ pub async fn get_run(
         .fetch_optional(&mut *tx)
         .await?
         .ok_or(AppError::NotFound)?;
-    let steps: Vec<SimulatorRunStep> = sqlx::query_as( // allow-raw-sql: test simulator generates arbitrary data
+    let steps: Vec<SimulatorRunStep> = sqlx::query_as(
+        // allow-raw-sql: test simulator generates arbitrary data
         "SELECT * FROM simulator_run_steps \
          WHERE run_id = $1 ORDER BY created_at ASC LIMIT 5000",
     )
     .bind(id)
     .fetch_all(&mut *tx)
     .await?;
-    let findings: Vec<SimulatorRunFinding> = sqlx::query_as( // allow-raw-sql: test simulator generates arbitrary data
+    let findings: Vec<SimulatorRunFinding> = sqlx::query_as(
+        // allow-raw-sql: test simulator generates arbitrary data
         "SELECT * FROM simulator_run_findings \
          WHERE run_id = $1 ORDER BY created_at ASC LIMIT 5000",
     )

@@ -2,7 +2,7 @@
 //!
 //! Per RFCs/sprints/SPRINT-pharmacy-finance.md.
 
-use axum::routing::{get,put};
+use axum::routing::{get, put};
 use axum::{
     Extension, Json,
     extract::{Path, Query, State},
@@ -229,13 +229,12 @@ pub async fn list_float_movements(
     Ok(Json(rows))
 }
 
-/// pharmacy_petty_cash routes.
+/// `pharmacy_petty_cash` routes.
 pub fn router() -> axum::Router<AppState> {
     axum::Router::new()
         .route(
             "/api/pharmacy/petty-cash",
-            get(list_petty_cash)
-                .post(create_petty_cash),
+            get(list_petty_cash).post(create_petty_cash),
         )
         .route(
             "/api/pharmacy/petty-cash/{id}/decide",
@@ -243,7 +242,6 @@ pub fn router() -> axum::Router<AppState> {
         )
         .route(
             "/api/pharmacy/cash-float-movements",
-            get(list_float_movements)
-                .post(create_float_movement),
+            get(list_float_movements).post(create_float_movement),
         )
 }

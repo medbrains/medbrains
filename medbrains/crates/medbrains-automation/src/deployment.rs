@@ -37,8 +37,8 @@ impl Deployment {
     #[must_use]
     pub fn from_env(value: Option<&str>) -> Self {
         match value.map(str::trim).map(str::to_ascii_lowercase).as_deref() {
-            Some("standalone" | "separate" | "external") => Deployment::Standalone,
-            _ => Deployment::Embedded,
+            Some("standalone" | "separate" | "external") => Self::Standalone,
+            _ => Self::Embedded,
         }
     }
 
@@ -50,14 +50,14 @@ impl Deployment {
     /// one.
     #[must_use]
     pub fn allows_in_process_access(&self) -> bool {
-        matches!(self, Deployment::Embedded)
+        matches!(self, Self::Embedded)
     }
 
     #[must_use]
     pub fn as_str(&self) -> &'static str {
         match self {
-            Deployment::Embedded => "embedded",
-            Deployment::Standalone => "standalone",
+            Self::Embedded => "embedded",
+            Self::Standalone => "standalone",
         }
     }
 }
@@ -66,7 +66,12 @@ impl Deployment {
 mod tests {
     // Tests may state what must hold and stop if it does not; that is what a
     // test is. The denials exist for code the hospital runs.
-    #![allow(clippy::expect_used, clippy::unwrap_used, clippy::panic, clippy::indexing_slicing)]
+    #![allow(
+        clippy::expect_used,
+        clippy::unwrap_used,
+        clippy::panic,
+        clippy::indexing_slicing
+    )]
 
     use super::*;
 
@@ -78,14 +83,27 @@ mod tests {
 
     #[test]
     fn a_separate_server_can_be_asked_for_by_several_names() {
-        for value in ["standalone", "separate", "external", "STANDALONE", " standalone "] {
-            assert_eq!(Deployment::from_env(Some(value)), Deployment::Standalone, "{value}");
+        for value in [
+            "standalone",
+            "separate",
+            "external",
+            "STANDALONE",
+            " standalone ",
+        ] {
+            assert_eq!(
+                Deployment::from_env(Some(value)),
+                Deployment::Standalone,
+                "{value}"
+            );
         }
     }
 
     #[test]
     fn an_unrecognised_setting_stays_embedded_rather_than_failing_to_boot() {
-        assert_eq!(Deployment::from_env(Some("yes please")), Deployment::Embedded);
+        assert_eq!(
+            Deployment::from_env(Some("yes please")),
+            Deployment::Embedded
+        );
         assert_eq!(Deployment::from_env(Some("")), Deployment::Embedded);
     }
 

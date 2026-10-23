@@ -12,7 +12,7 @@
 //!      user. Returns the token + QR payload + expiry.
 //!
 //!   2. Device → POST /api/device-pairing/pair
-//!      Body: { token, label, public_key_pem }. Validates the token
+//!      Body: { token, label, `public_key_pem` }. Validates the token
 //!      hasn't expired or been used; records the public-key
 //!      fingerprint into `paired_devices`; issues a JWT scoped to
 //!      the intended user; marks the token used.
@@ -21,8 +21,8 @@
 //!      Lists active (non-revoked) paired devices.
 //!
 //!   4. Admin → DELETE /api/admin/paired-devices/{id}
-//!      Revokes a paired device. Sets revoked_at; subsequent JWT
-//!      verification (against the existing user_deactivation +
+//!      Revokes a paired device. Sets `revoked_at`; subsequent JWT
+//!      verification (against the existing `user_deactivation` +
 //!      revocation cache) terminates the device's access.
 
 use axum::routing::{delete, get, post};
@@ -33,9 +33,9 @@ use axum::{
 
 pub mod binding;
 mod binding_redeem;
+pub mod binding_token;
 pub mod counter_display;
 pub mod counter_display_routes;
-pub mod binding_token;
 pub mod device_code;
 use chrono::{DateTime, Duration, Utc};
 use medbrains_core::peer_sync::{PeerBinding, PeerRosterDoc, PeerRosterEntry};
@@ -469,7 +469,7 @@ pub(crate) fn sha256_hex(input: &[u8]) -> String {
     hex::encode(hasher.finalize())
 }
 
-/// device_pairing routes.
+/// `device_pairing` routes.
 /// The one pairing route a device can reach before it has credentials.
 ///
 /// Gated by the short-lived one-time pairing token in the body, not by a JWT —

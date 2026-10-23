@@ -1,6 +1,6 @@
 //! Google Meet handler — creates a Meet space for a tele-consultation.
 //!
-//! OAuth2 refresh-token flow (a stored offline token for a workspace user): POST
+//! `OAuth2` refresh-token flow (a stored offline token for a workspace user): POST
 //! `{token_url}` with `grant_type=refresh_token` + client id/secret + refresh token → access token,
 //! then POST `{api_base}/spaces` (Meet REST v2, scope `meetings.space.created`) → `meetingUri`,
 //! stored on the consult. Runs only for `meeting.google_meet.create`. Creds need a tenant's Google
@@ -162,7 +162,9 @@ fn classify_reqwest_err(e: &reqwest::Error) -> HandlerError {
 fn classify_status(status: reqwest::StatusCode, body: &str) -> HandlerError {
     let trimmed = body.chars().take(512).collect::<String>();
     match status.as_u16() {
-        400 | 401 | 403 | 404 | 422 => HandlerError::Permanent(format!("google {status}: {trimmed}")),
+        400 | 401 | 403 | 404 | 422 => {
+            HandlerError::Permanent(format!("google {status}: {trimmed}"))
+        }
         429 | 500..=599 => HandlerError::Transient(format!("google {status}: {trimmed}")),
         _ => HandlerError::Transient(format!("google unexpected {status}: {trimmed}")),
     }

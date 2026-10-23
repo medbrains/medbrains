@@ -33,7 +33,7 @@ pub struct AppState {
     /// Trusted proxy CIDRs for X-Forwarded-For validation.
     /// Only trust forwarded headers if the direct connection is from one of these networks.
     pub trusted_proxies: Arc<Vec<ipnet::IpNet>>,
-    /// Sprint A.6: per-tenant system_state cache (normal/degraded/read_only).
+    /// Sprint A.6: per-tenant `system_state` cache (`normal/degraded/read_only`).
     pub system_state_cache: Arc<SystemStateCache>,
     /// Sprint A.8: outbox handler registry for the worker.
     pub outbox: Arc<OutboxRegistry>,
@@ -43,7 +43,7 @@ pub struct AppState {
     /// consuming `state.db` directly. Existing call sites are unchanged
     /// — Aurora-default tenants still use `state.db`.
     pub topology: Arc<dyn TopologyDispatcher>,
-    /// ReBAC backend (SpiceDB or Postgres-native fallback). Per-resource
+    /// `ReBAC` backend (`SpiceDB` or Postgres-native fallback). Per-resource
     /// access checks: `state.authz.check(&ctx, Relation::Viewer, "patient", id)`.
     /// See `crates/medbrains-authz` and `infra/spicedb/schema.zed`.
     pub authz: Arc<dyn AuthzBackend>,
@@ -51,12 +51,12 @@ pub struct AppState {
     /// (NHCX callback, ABDM consent CM webhooks) that arrive without
     /// a JWT and need to look up tenant crypto material.
     pub secret_resolver: Arc<dyn medbrains_core::secrets::SecretResolver>,
-    /// S3-compatible presigned URL generator. None when S3_BUCKET is not configured
+    /// S3-compatible presigned URL generator. None when `S3_BUCKET` is not configured
     /// (dev/on-prem deployments that use local file storage).
     pub s3: Option<Arc<S3PresignClient>>,
     /// Headless-Chrome PDF renderer (None = documents API disabled).
     pub gotenberg: Option<medbrains_print::gotenberg::GotenbergClient>,
-    /// Object storage for generated documents (LocalFs by default —
+    /// Object storage for generated documents (`LocalFs` by default —
     /// zero-cost and on-prem native; S3-compatible adapter is a
     /// follow-up). Downloads stream through the authenticated API.
     pub documents_store: Arc<dyn medbrains_core::object_store::ObjectStore>,

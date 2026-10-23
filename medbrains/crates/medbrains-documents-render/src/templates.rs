@@ -42,7 +42,7 @@ async fn patient_id_for(
         .await?)
 }
 
-/// Bind live data for a template. Returns (context, patient_id).
+/// Bind live data for a template. Returns (context, `patient_id`).
 #[allow(clippy::too_many_lines)]
 pub(crate) async fn build_context(
     state: &AppState,
@@ -243,8 +243,10 @@ pub(crate) async fn build_context(
             } else {
                 medbrains_billing::payer_split::Payer::Patient
             };
-            medbrains_billing::payer_split_api::split_document_context(state, claims, source_id, payer)
-                .await?
+            medbrains_billing::payer_split_api::split_document_context(
+                state, claims, source_id, payer,
+            )
+            .await?
         }
         "spectacle_prescription" => {
             medbrains_specialty::ophtho_print::spectacle_rx_context(state, claims, source_id)

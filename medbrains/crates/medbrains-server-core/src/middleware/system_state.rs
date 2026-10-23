@@ -1,6 +1,6 @@
 //! System state middleware — surfaces tenant operating mode (normal /
-//! degraded / read_only) and short-circuits non-GET requests when the
-//! mode is read_only or when degraded + path not in the allowlist.
+//! degraded / `read_only`) and short-circuits non-GET requests when the
+//! mode is `read_only` or when degraded + path not in the allowlist.
 //!
 //! Sprint A spec: `RFCs/sprints/SPRINT-A-outbox.md` §7.
 
@@ -45,7 +45,7 @@ struct CachedState {
     fetched_at: Instant,
 }
 
-/// Per-process cache of tenant → system_state. Refresh window is 30s.
+/// Per-process cache of tenant → `system_state`. Refresh window is 30s.
 /// Admin updates broadcast via `state.queue_broadcaster` so all in-flight
 /// middleware refreshes within ~1s of an admin flip.
 #[derive(Debug, Default)]
@@ -59,7 +59,7 @@ impl SystemStateCache {
     }
 
     /// Force-evict the cache entry for a tenant (called by admin endpoint
-    /// on flip; broadcast over queue_broadcaster so every replica picks it up).
+    /// on flip; broadcast over `queue_broadcaster` so every replica picks it up).
     pub fn invalidate(&self, tenant_id: Uuid) {
         if let Ok(mut map) = self.inner.write() {
             map.remove(&tenant_id);

@@ -21,12 +21,12 @@
 //!
 //! `bed_dashboard_beds` additionally redacts, and here the redaction is a
 //! real control rather than a formality: `ipd.bed_dashboard.view` is held by
-//! doctor, nurse **and facilities_manager**, and facilities_manager does not
+//! doctor, nurse **and `facilities_manager`**, and `facilities_manager` does not
 //! hold `patients.view`. A facilities manager reading this board sees bed
 //! occupancy with NULL where the names would be, which is exactly right for
 //! somebody whose job is the beds.
 //!
-//! # expected_discharges, and a control that does not currently operate
+//! # `expected_discharges`, and a control that does not currently operate
 //!
 //! `expected_discharges` is the tenth, and it is the one worth reading
 //! carefully. It takes **no scope parameter at all** — no ward, no
@@ -35,7 +35,7 @@
 //!
 //! Its projection gates identity on `patients.view`, and that is where the
 //! honest reading has to start rather than stop. `ipd.admissions.list` is
-//! held by doctor, nurse, audit_officer and mrd_officer. **All four also hold
+//! held by doctor, nurse, `audit_officer` and `mrd_officer`. **All four also hold
 //! `patients.view`**, so the CASE expression never evaluates false for any
 //! caller who can reach the handler. The gate is true in the SQL and empty in
 //! practice.
@@ -163,7 +163,7 @@ pub struct CreateAdmissionRequest {
     pub admission_height_cm: Option<Decimal>,
     pub expected_discharge_date: Option<NaiveDate>,
     pub ward_id: Option<Uuid>,
-    /// Internal training / simulator flag. See OPD CreateEncounterRequest.
+    /// Internal training / simulator flag. See OPD `CreateEncounterRequest`.
     #[serde(default)]
     pub is_dummy: Option<bool>,
 }
@@ -1317,7 +1317,10 @@ pub async fn list_admissions(
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
 
-    let mut conditions = vec!["a.tenant_id = $1".to_owned(), "a.deleted_at IS NULL".to_owned()];
+    let mut conditions = vec![
+        "a.tenant_id = $1".to_owned(),
+        "a.deleted_at IS NULL".to_owned(),
+    ];
     let mut bind_idx: usize = 2;
     if let Some(ref ids) = visible_ids {
         if ids.is_empty() {
@@ -2054,8 +2057,7 @@ pub async fn discharge_patient(
     .bind(claims.tenant_id)
     .fetch_optional(&mut *tx)
     .await?
-    .map(|v| v.as_bool().unwrap_or(v.as_str() == Some("true")))
-    .unwrap_or(false);
+    .is_some_and(|v| v.as_bool().unwrap_or(v.as_str() == Some("true")));
 
     if block_unsettled && matches!(dt, DischargeType::Normal | DischargeType::Referred) {
         let outstanding = sqlx::query_scalar::<_, Decimal>(
@@ -2316,8 +2318,7 @@ pub async fn discharge_patient(
 
     let los_hours_total = admission
         .discharged_at
-        .map(|d| (d - admission.admitted_at).num_hours())
-        .unwrap_or(0);
+        .map_or(0, |d| (d - admission.admitted_at).num_hours());
     #[allow(clippy::cast_precision_loss)]
     let length_of_stay = ((los_hours_total as f64) / 24.0).ceil() as i64;
 
@@ -3055,7 +3056,7 @@ pub async fn list_mar_due_now(
 }
 
 /// `GET /api/nurse/mar/patient/{patient_id}` — the canonical per-patient MAR
-/// timeline (replaces the retired orphan nurse_mar path).
+/// timeline (replaces the retired orphan `nurse_mar` path).
 pub async fn list_mar_for_patient(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,

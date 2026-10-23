@@ -40,7 +40,7 @@ pub struct AuthzProbeResponse {
     pub error: Option<String>,
 }
 
-/// `GET /api/debug/authz-probe` — diagnostic: calls list_accessible
+/// `GET /api/debug/authz-probe` — diagnostic: calls `list_accessible`
 /// for `patient` as the current user and reports raw count + error.
 /// Bypass roles get count=0 (handled by backend short-circuit).
 pub async fn authz_probe(

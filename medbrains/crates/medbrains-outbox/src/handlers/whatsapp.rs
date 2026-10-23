@@ -16,8 +16,8 @@
 //! "service window"):
 //!   { "to": "+91...", "text": "..." }
 //!
-//! SMS fallback: when WhatsApp is unconfigured or Meta rejects the
-//! message permanently (no WhatsApp account, expired template), and
+//! SMS fallback: when `WhatsApp` is unconfigured or Meta rejects the
+//! message permanently (no `WhatsApp` account, expired template), and
 //! the payload carries `sms_fallback_body` (or `text`), the handler
 //! enqueues the matching `sms.*` event so the patient still gets the
 //! message. The fallback row is idempotent on the original event id.
@@ -111,7 +111,10 @@ impl Handler for WhatsAppSendHandler {
                     recipient: to,
                     subject: None,
                     body: &body,
-                    attachments: payload.get("attachments").cloned().unwrap_or_else(|| json!([])),
+                    attachments: payload
+                        .get("attachments")
+                        .cloned()
+                        .unwrap_or_else(|| json!([])),
                     template_id: payload.get("template_name").and_then(Value::as_str),
                 },
             )

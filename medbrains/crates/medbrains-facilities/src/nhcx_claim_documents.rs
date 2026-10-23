@@ -32,7 +32,7 @@ use medbrains_server_core::state::AppState;
 use crate::nhcx_common::Tx;
 
 /// Largest single file sent. INFERRED — neither the HCX protocol nor the
-/// NRCeS NHCX IG 6.5.0 publishes an attachment or payload limit; 5 MiB keeps
+/// `NRCeS` NHCX IG 6.5.0 publishes an attachment or payload limit; 5 MiB keeps
 /// a scanned report and stays well inside common gateway body limits.
 pub const MAX_FILE_BYTES: usize = 5 * 1024 * 1024;
 /// Largest total of all files in one claim. INFERRED, as above: base64 adds
@@ -53,7 +53,7 @@ pub enum DocKind {
 }
 
 impl DocKind {
-    /// NRCeS `ndhm-supportinginfo-category` and `ndhm-supportinginfo-code`
+    /// `NRCeS` `ndhm-supportinginfo-category` and `ndhm-supportinginfo-code`
     /// (IG 6.5.0). A desk-added document has no fixed code.
     pub(crate) const fn nrces_codes(self) -> (&'static str, Option<&'static str>) {
         match self {
@@ -160,16 +160,15 @@ pub(crate) fn apply_caps(mut docs: Vec<Loaded>, total_cap: usize) -> (Vec<Loaded
         } else {
             None
         };
-        match reason {
-            Some(reason) => left.push(LeftOut {
+        if let Some(reason) = reason {
+            left.push(LeftOut {
                 kind: d.doc.kind,
                 title: d.doc.title,
                 reason,
-            }),
-            None => {
-                total += size;
-                kept.push(d);
-            }
+            });
+        } else {
+            total += size;
+            kept.push(d);
         }
     }
     (kept, left)

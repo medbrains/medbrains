@@ -42,7 +42,7 @@ pub struct VerifyBandMatchRequest {
     pub infant_tag: String,
     /// The mother's band, as scanned — her UHID.
     pub mother_band: String,
-    /// handover, nursery_exit, discharge, feeding …
+    /// handover, `nursery_exit`, discharge, feeding …
     pub purpose: Option<String>,
 }
 
@@ -449,17 +449,16 @@ pub async fn record_tag_event(
 
     let location = zone_location(&mut tx, &body).await?;
     let code_pink = if tag.tag_type == "infant_rfid" && CODE_PINK_EVENTS.contains(&event_type) {
-        match running_code_pink(&mut tx, tag.id).await? {
-            Some(id) => Some(id),
-            None => {
-                let at = location.clone().unwrap_or_else(|| {
-                    format!(
-                        "Infant tag {}",
-                        tag.tag_identifier.as_deref().unwrap_or(identifier)
-                    )
-                });
-                Some(activate_code_pink(&mut tx, &claims, &tag, (event_type, at.as_str())).await?)
-            }
+        if let Some(id) = running_code_pink(&mut tx, tag.id).await? {
+            Some(id)
+        } else {
+            let at = location.clone().unwrap_or_else(|| {
+                format!(
+                    "Infant tag {}",
+                    tag.tag_identifier.as_deref().unwrap_or(identifier)
+                )
+            });
+            Some(activate_code_pink(&mut tx, &claims, &tag, (event_type, at.as_str())).await?)
         }
     } else {
         None

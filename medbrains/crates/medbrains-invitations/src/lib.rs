@@ -3,25 +3,25 @@
 //! `email_verified = true` (the invite proves they own the email).
 //!
 //! The token table is a pre-auth capability table (no RLS); admin list/revoke
-//! filter by tenant_id explicitly, the public accept resolves the token
+//! filter by `tenant_id` explicitly, the public accept resolves the token
 //! globally then sets the tenant RLS context for the user INSERT. Only the
 //! SHA-256 hash of the token is stored.
 
-use axum::routing::{delete,get,post};
 use argon2::password_hash::{SaltString, rand_core::OsRng};
 use argon2::{Argon2, PasswordHasher};
 use axum::extract::{Path, State};
+use axum::routing::{delete, get, post};
 use axum::{Extension, Json};
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
 use uuid::Uuid;
 
+use medbrains_core::permissions;
 use medbrains_server_core::middleware::auth::Claims;
 use medbrains_server_core::middleware::authorization::require_permission;
 use medbrains_server_core::validation::{self, ValidationErrors};
 use medbrains_server_core::{error::AppError, state::AppState};
-use medbrains_core::permissions;
 
 const INVITE_TTL_DAYS: i64 = 7;
 const USER_ROLES: &[&str] = &[

@@ -79,7 +79,7 @@ pub struct CreateOrderRequest {
     pub test_id: Uuid,
     pub priority: Option<String>,
     pub notes: Option<String>,
-    /// Internal training / simulator flag. See OPD CreateEncounterRequest.
+    /// Internal training / simulator flag. See OPD `CreateEncounterRequest`.
     #[serde(default)]
     pub is_dummy: Option<bool>,
 }
@@ -483,7 +483,8 @@ pub async fn list_orders(
 
     let (where_clause, binds, next_idx) = build_order_filter(&params, visible_ids.as_deref());
 
-    let count_sql = format!("SELECT COUNT(*) FROM lab_orders WHERE {where_clause} AND deleted_at IS NULL");
+    let count_sql =
+        format!("SELECT COUNT(*) FROM lab_orders WHERE {where_clause} AND deleted_at IS NULL");
     let mut cq = sqlx::query_scalar::<_, i64>(&count_sql).bind(claims.tenant_id);
     for bind in &binds {
         cq = match bind {
@@ -1481,7 +1482,7 @@ pub async fn cancel_order(
 // ══════════════════════════════════════════════════════════
 
 /// The patient's lab reference band ("neonate" | "infant" | "child" |
-/// "adult_m" | "adult_f" | "elderly_m" | "elderly_f"), from age + biological
+/// "`adult_m`" | "`adult_f`" | "`elderly_m`" | "`elderly_f`"), from age + biological
 /// sex. ≥65y → elderly (falls back to the adult band when no elderly range).
 /// Defaults to adult by sex.
 /// The band for the reference table, plus the age and sex a tenant's own
@@ -5965,7 +5966,9 @@ pub async fn create_referral_payout(
     require_permission(&claims, permissions::lab::b2b::MANAGE)?;
     require_permission(&claims, permissions::doctor_payouts::statements::PREPARE)?;
     if body.period_end < body.period_start {
-        return Err(AppError::BadRequest("The period ends before it starts".to_owned()));
+        return Err(AppError::BadRequest(
+            "The period ends before it starts".to_owned(),
+        ));
     }
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -5979,7 +5982,9 @@ pub async fn create_referral_payout(
     let statement_id =
         medbrains_doctor_payouts::referral::create_referral_statement(&mut tx, &ask).await?;
     tx.commit().await?;
-    Ok(Json(serde_json::json!({"statement_id": statement_id, "status": "created"})))
+    Ok(Json(
+        serde_json::json!({"statement_id": statement_id, "status": "created"}),
+    ))
 }
 
 #[derive(Debug, Deserialize)]

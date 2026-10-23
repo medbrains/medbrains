@@ -1,6 +1,6 @@
 //! Per-tenant edge-node fan-out for cloud-originated frames.
 //!
-//! The bridge_pusher holds a registry of `tenant_id → BridgeSink` and
+//! The `bridge_pusher` holds a registry of `tenant_id → BridgeSink` and
 //! exposes a single `push_invalidate()` entrypoint that
 //! [`spicedb_watch`] (and any future cloud-side producer) call when
 //! something needs to reach an edge node. The actual transport — a
@@ -20,7 +20,7 @@ use thiserror::Error;
 use tokio::sync::RwLock;
 use uuid::Uuid;
 
-/// SpiceDB tuple identity. Mirrors `medbrains_edge::CacheKey` so we
+/// `SpiceDB` tuple identity. Mirrors `medbrains_edge::CacheKey` so we
 /// can serialize once and have the edge recognize it on the wire
 /// without further translation.
 ///

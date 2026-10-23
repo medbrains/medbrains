@@ -19,7 +19,7 @@
 //! - **consistency** — how fresh the answer must be. Every check is currently
 //!   `FullyConsistent`, which is safe and slow; carrying it here is what lets
 //!   a cosmetic menu check stop paying for a datastore round trip.
-//! - **request_id** — so an audit row joins to the request that produced it.
+//! - **`request_id`** — so an audit row joins to the request that produced it.
 //!
 //! ## What is deliberately not here yet
 //!
@@ -74,7 +74,7 @@ impl Subject {
         }
     }
 
-    /// A stable label for audit rows and SpiceDB subject references.
+    /// A stable label for audit rows and `SpiceDB` subject references.
     pub fn reference(&self) -> String {
         match self {
             Self::Staff { user_id, .. } => format!("user:{user_id}"),

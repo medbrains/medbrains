@@ -1,7 +1,10 @@
 //! Facilities/ICU/insurance/NHCX leaf crate: facility management, ICU, insurance
-//! + TPA, NHCX claim submission + participants. Mounted via router().
+//! + TPA, NHCX claim submission + participants. Mounted via `router()`.
 
-use axum::{Router, routing::{delete,get,post,put}};
+use axum::{
+    Router,
+    routing::{delete, get, post, put},
+};
 use medbrains_server_core::state::AppState;
 
 pub mod facilities;
@@ -26,13 +29,11 @@ pub fn router() -> Router<AppState> {
     Router::new()
         .route(
             "/api/facilities/gas-readings",
-            get(facilities::list_gas_readings)
-                .post(facilities::create_gas_reading),
+            get(facilities::list_gas_readings).post(facilities::create_gas_reading),
         )
         .route(
             "/api/facilities/gas-compliance",
-            get(facilities::list_gas_compliance)
-                .post(facilities::create_gas_compliance),
+            get(facilities::list_gas_compliance).post(facilities::create_gas_compliance),
         )
         .route(
             "/api/facilities/gas-compliance/{id}",
@@ -40,8 +41,7 @@ pub fn router() -> Router<AppState> {
         )
         .route(
             "/api/facilities/fire-equipment",
-            get(facilities::list_fire_equipment)
-                .post(facilities::create_fire_equipment),
+            get(facilities::list_fire_equipment).post(facilities::create_fire_equipment),
         )
         .route(
             "/api/facilities/fire-equipment/{id}",
@@ -49,18 +49,15 @@ pub fn router() -> Router<AppState> {
         )
         .route(
             "/api/facilities/fire-inspections",
-            get(facilities::list_fire_inspections)
-                .post(facilities::create_fire_inspection),
+            get(facilities::list_fire_inspections).post(facilities::create_fire_inspection),
         )
         .route(
             "/api/facilities/fire-drills",
-            get(facilities::list_fire_drills)
-                .post(facilities::create_fire_drill),
+            get(facilities::list_fire_drills).post(facilities::create_fire_drill),
         )
         .route(
             "/api/facilities/fire-noc",
-            get(facilities::list_fire_noc)
-                .post(facilities::create_fire_noc),
+            get(facilities::list_fire_noc).post(facilities::create_fire_noc),
         )
         .route(
             "/api/facilities/fire-noc/{id}",
@@ -68,13 +65,11 @@ pub fn router() -> Router<AppState> {
         )
         .route(
             "/api/facilities/water-tests",
-            get(facilities::list_water_tests)
-                .post(facilities::create_water_test),
+            get(facilities::list_water_tests).post(facilities::create_water_test),
         )
         .route(
             "/api/facilities/water-schedules",
-            get(facilities::list_water_schedules)
-                .post(facilities::create_water_schedule),
+            get(facilities::list_water_schedules).post(facilities::create_water_schedule),
         )
         .route(
             "/api/facilities/water-schedules/{id}",
@@ -82,13 +77,11 @@ pub fn router() -> Router<AppState> {
         )
         .route(
             "/api/facilities/energy-readings",
-            get(facilities::list_energy_readings)
-                .post(facilities::create_energy_reading),
+            get(facilities::list_energy_readings).post(facilities::create_energy_reading),
         )
         .route(
             "/api/facilities/work-orders",
-            get(facilities::list_work_orders)
-                .post(facilities::create_work_order),
+            get(facilities::list_work_orders).post(facilities::create_work_order),
         )
         .route(
             "/api/facilities/work-orders/{id}",
@@ -98,14 +91,8 @@ pub fn router() -> Router<AppState> {
             "/api/facilities/work-orders/{id}/status",
             put(facilities::update_work_order_status),
         )
-        .route(
-            "/api/facilities/stats",
-            get(facilities::get_fms_stats),
-        )
-        .route(
-            "/api/facilities/pm/schedule",
-            post(facilities::schedule_pm),
-        )
+        .route("/api/facilities/stats", get(facilities::get_fms_stats))
+        .route("/api/facilities/pm/schedule", post(facilities::schedule_pm))
         .route(
             "/api/facilities/energy/analytics",
             get(facilities::energy_analytics),
@@ -142,10 +129,7 @@ pub fn router() -> Router<AppState> {
             "/api/icu/admissions/{id}/neonatal",
             get(icu::list_neonatal_records).post(icu::create_neonatal_record),
         )
-        .route(
-            "/api/icu/analytics/los",
-            get(icu::get_los_analytics),
-        )
+        .route("/api/icu/analytics/los", get(icu::get_los_analytics))
         .route(
             "/api/icu/analytics/device-infections",
             get(icu::get_device_infection_rates),
@@ -198,22 +182,13 @@ pub fn router() -> Router<AppState> {
             "/api/insurance/appeals",
             get(insurance::list_appeals).post(insurance::create_appeal),
         )
-        .route(
-            "/api/insurance/appeals/{id}",
-            put(insurance::update_appeal),
-        )
+        .route("/api/insurance/appeals/{id}", put(insurance::update_appeal))
         .route(
             "/api/insurance/rules",
             get(insurance::list_rules).post(insurance::create_rule),
         )
-        .route(
-            "/api/insurance/rules/{id}",
-            put(insurance::update_rule),
-        )
-        .route(
-            "/api/insurance/dashboard",
-            get(insurance::dashboard),
-        )
+        .route("/api/insurance/rules/{id}", put(insurance::update_rule))
+        .route("/api/insurance/dashboard", get(insurance::dashboard))
         .route(
             "/api/billing/insurance-claims/{id}/submit-to-nhcx",
             post(nhcx_submit::submit_claim_to_nhcx),
@@ -263,8 +238,14 @@ pub fn router() -> Router<AppState> {
             "/api/insurance/prior-auths/{id}/nhcx/status",
             post(nhcx_tasks::preauth_status),
         )
-        .route("/api/insurance/nhcx/search", post(nhcx_tasks::search_claims))
-        .route("/api/insurance/nhcx/searches", get(nhcx_claim_view::list_searches))
+        .route(
+            "/api/insurance/nhcx/search",
+            post(nhcx_tasks::search_claims),
+        )
+        .route(
+            "/api/insurance/nhcx/searches",
+            get(nhcx_claim_view::list_searches),
+        )
         .route(
             "/api/nhcx/participants",
             get(nhcx_participants::list_nhcx_participants)

@@ -341,7 +341,7 @@ async fn stage(
 }
 
 /// The acknowledgement — a completed Task with output `paymentack`, as in
-/// NRCeS `TaskBundleForPaymentNoticeResponse-example-01`.
+/// `NRCeS` `TaskBundleForPaymentNoticeResponse-example-01`.
 pub(crate) fn ack_bundle(notice_id: Uuid) -> Value {
     let task = Uuid::new_v4();
     json!({

@@ -58,10 +58,18 @@ fn target_today(profile: &AgentProfile) -> f32 {
 }
 
 /// How many agent episodes to fire this tick to catch up to the daily curve.
-#[allow(clippy::cast_precision_loss, clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+#[allow(
+    clippy::cast_precision_loss,
+    clippy::cast_possible_truncation,
+    clippy::cast_sign_loss
+)]
 pub async fn episodes_for_tick(state: &AppState, tenant_id: &Uuid, profile: &AgentProfile) -> u32 {
     let now = Utc::now();
-    let minute_frac = (f32::from(now.minute() as u16) * 60.0 + f32::from(now.second() as u16)) / 3600.0;
+    let minute_frac = f32::mul_add(
+        f32::from(now.minute() as u16),
+        60.0,
+        f32::from(now.second() as u16),
+    ) / 3600.0;
     let expected_by_now =
         target_today(profile) * cumulative_fraction(now.hour() as usize, minute_frac);
 

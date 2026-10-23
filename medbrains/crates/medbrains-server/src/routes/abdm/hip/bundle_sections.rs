@@ -1,17 +1,17 @@
-//! A record's rows as NRCeS IG 6.5.0 composition sections, each in the
+//! A record's rows as `NRCeS` IG 6.5.0 composition sections, each in the
 //! profile slice it belongs to (`medbrains_fhir::nrces::sections`): sliced
 //! sections first, narratives no slice covers last (`openAtEnd`).
 //!
 //! Where things go:
 //! - OP consult: complaints, the written diagnosis and the coded diagnoses
-//!   (Conditions) → ChiefComplaints; examination → PhysicalExamination;
-//!   follow-up → FollowUp; advice → a trailing "Outpatient care plan".
-//! - Discharge: final diagnosis + Conditions → ChiefComplaints (as the IG's
-//!   example does); condition at discharge → PhysicalExamination;
-//!   investigations → Investigations; follow-up → CarePlan; course in
+//!   (Conditions) → `ChiefComplaints`; examination → `PhysicalExamination`;
+//!   follow-up → `FollowUp`; advice → a trailing "Outpatient care plan".
+//! - Discharge: final diagnosis + Conditions → `ChiefComplaints` (as the IG's
+//!   example does); condition at discharge → `PhysicalExamination`;
+//!   investigations → Investigations; follow-up → `CarePlan`; course in
 //!   hospital and treatment given → a trailing "Hospital course".
 //! - Prescription and lab report: the profile's one section; a lab report's
-//!   Observations hang off its DiagnosticReport, not the section.
+//!   Observations hang off its `DiagnosticReport`, not the section.
 
 use std::collections::HashMap;
 

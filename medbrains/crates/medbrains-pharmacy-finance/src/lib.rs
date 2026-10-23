@@ -1096,7 +1096,7 @@ pub struct PosLookupResult {
     pub items: serde_json::Value,
 }
 
-/// pharmacy_finance routes.
+/// `pharmacy_finance` routes.
 pub fn router() -> axum::Router<AppState> {
     axum::Router::new()
         .route(

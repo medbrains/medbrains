@@ -148,8 +148,7 @@ fn eval_logic(rule: &Value, data: &Value) -> Value {
     let (op, args) = obj
         .iter()
         .next()
-        .map(|(k, v)| (k.as_str(), v))
-        .unwrap_or(("", &Value::Null));
+        .map_or(("", &Value::Null), |(k, v)| (k.as_str(), v));
     let arr = args.as_array();
 
     match op {
@@ -160,34 +159,28 @@ fn eval_logic(rule: &Value, data: &Value) -> Value {
         "==" => {
             let a = arr
                 .and_then(|a| a.first())
-                .map(|v| eval_logic(v, data))
-                .unwrap_or(Value::Null);
+                .map_or(Value::Null, |v| eval_logic(v, data));
             let b = arr
                 .and_then(|a| a.get(1))
-                .map(|v| eval_logic(v, data))
-                .unwrap_or(Value::Null);
+                .map_or(Value::Null, |v| eval_logic(v, data));
             Value::Bool(a == b)
         }
         "!=" => {
             let a = arr
                 .and_then(|a| a.first())
-                .map(|v| eval_logic(v, data))
-                .unwrap_or(Value::Null);
+                .map_or(Value::Null, |v| eval_logic(v, data));
             let b = arr
                 .and_then(|a| a.get(1))
-                .map(|v| eval_logic(v, data))
-                .unwrap_or(Value::Null);
+                .map_or(Value::Null, |v| eval_logic(v, data));
             Value::Bool(a != b)
         }
         ">" | "<" | ">=" | "<=" => {
             let a = arr
                 .and_then(|a| a.first())
-                .map(|v| eval_logic(v, data))
-                .unwrap_or(Value::Null);
+                .map_or(Value::Null, |v| eval_logic(v, data));
             let b = arr
                 .and_then(|a| a.get(1))
-                .map(|v| eval_logic(v, data))
-                .unwrap_or(Value::Null);
+                .map_or(Value::Null, |v| eval_logic(v, data));
             Value::Bool(compare_values(&a, op, &b))
         }
         "and" => {
@@ -205,12 +198,11 @@ fn eval_logic(rule: &Value, data: &Value) -> Value {
         "!" => {
             let v = arr
                 .and_then(|a| a.first())
-                .map(|v| eval_logic(v, data))
-                .unwrap_or(Value::Null);
+                .map_or(Value::Null, |v| eval_logic(v, data));
             Value::Bool(!is_truthy(&v))
         }
         "if" => {
-            let items = arr.map(|a| a.as_slice()).unwrap_or(&[]);
+            let items = arr.map(Vec::as_slice).unwrap_or(&[]);
             let mut i = 0;
             while i + 1 < items.len() {
                 let cond = eval_logic(&items[i], data);
@@ -219,10 +211,7 @@ fn eval_logic(rule: &Value, data: &Value) -> Value {
                 }
                 i += 2;
             }
-            items
-                .get(i)
-                .map(|v| eval_logic(v, data))
-                .unwrap_or(Value::Null)
+            items.get(i).map_or(Value::Null, |v| eval_logic(v, data))
         }
         _ => rule.clone(),
     }

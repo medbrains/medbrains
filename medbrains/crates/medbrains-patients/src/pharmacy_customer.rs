@@ -1,4 +1,5 @@
 //! Completing a pharmacy customer's light record into a full registration.
+//!
 //! The desk's duplicate check finds the light record (it says
 //! `pharmacy_customer`); completing it gives it a UHID on the same row, so
 //! the person's pharmacy orders and bills stay with them.

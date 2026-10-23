@@ -1,14 +1,14 @@
 //! News / health-advisory routes.
 //!
 //! - `GET /api/news`                     — list active articles, any auth'd role.
-//! - `POST /api/admin/news`              — create (super_admin / hospital_admin).
+//! - `POST /api/admin/news`              — create (`super_admin` / `hospital_admin`).
 //! - `PUT  /api/admin/news/{id}`         — update.
 //! - `DELETE /api/admin/news/{id}`       — soft delete.
 //! - `GET  /api/admin/news`              — list all (including inactive / expired).
 //!
 //! Active = `is_active = true AND deleted_at IS NULL AND (expires_at IS NULL OR expires_at > now())`.
 
-use axum::routing::{get,put};
+use axum::routing::{get, put};
 use axum::{
     Extension, Json,
     extract::{Path, Query, State},
@@ -44,8 +44,7 @@ fn validate_category(cat: &str) -> Result<(), AppError> {
         Ok(())
     } else {
         Err(AppError::BadRequest(format!(
-            "invalid category '{cat}' — expected one of {:?}",
-            VALID_CATEGORIES
+            "invalid category '{cat}' — expected one of {VALID_CATEGORIES:?}"
         )))
     }
 }
@@ -55,8 +54,7 @@ fn validate_severity(sev: &str) -> Result<(), AppError> {
         Ok(())
     } else {
         Err(AppError::BadRequest(format!(
-            "invalid severity '{sev}' — expected one of {:?}",
-            VALID_SEVERITIES
+            "invalid severity '{sev}' — expected one of {VALID_SEVERITIES:?}"
         )))
     }
 }
@@ -258,10 +256,7 @@ pub async fn delete_article(
 pub fn router() -> axum::Router<AppState> {
     axum::Router::new()
         .route("/api/news", get(list_active))
-        .route(
-            "/api/admin/news",
-            get(list_all).post(create_article),
-        )
+        .route("/api/admin/news", get(list_all).post(create_article))
         .route(
             "/api/admin/news/{id}",
             put(update_article).delete(delete_article),

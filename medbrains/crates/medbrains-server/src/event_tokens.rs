@@ -2,7 +2,7 @@
 //!
 //! A printed/scanned code should never expose patient data or raw database
 //! identifiers. These tokens are AES-GCM encrypted and authenticated; scanners
-//! that are not MedBrains only see an opaque `MBE1...` value.
+//! that are not `MedBrains` only see an opaque `MBE1...` value.
 
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};

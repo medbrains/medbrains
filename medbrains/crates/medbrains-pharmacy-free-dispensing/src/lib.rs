@@ -1,10 +1,10 @@
 //! Pharmacy free dispensings + cashier overrides + supplier payments + margins.
 
+use axum::routing::{get, put};
 use axum::{
     Extension, Json,
     extract::{Path, Query, State},
 };
-use axum::routing::{get,put};
 use chrono::{DateTime, NaiveDate, Utc};
 use medbrains_core::permissions;
 use rust_decimal::Decimal;
@@ -475,30 +475,24 @@ pub async fn list_margins(
     Ok(Json(rows))
 }
 
-/// pharmacy_free_dispensing routes.
+/// `pharmacy_free_dispensing` routes.
 pub fn router() -> axum::Router<AppState> {
     axum::Router::new()
         .route(
             "/api/pharmacy/free-dispensings",
-            get(list_free_dispensings)
-                .post(approve_free_dispensing),
+            get(list_free_dispensings).post(approve_free_dispensing),
         )
         .route(
             "/api/pharmacy/cashier-overrides",
-            get(list_cashier_overrides)
-                .post(create_cashier_override),
+            get(list_cashier_overrides).post(create_cashier_override),
         )
         .route(
             "/api/pharmacy/supplier-payments",
-            get(list_supplier_payments)
-                .post(create_supplier_payment),
+            get(list_supplier_payments).post(create_supplier_payment),
         )
         .route(
             "/api/pharmacy/supplier-payments/{id}/pay",
             put(pay_supplier),
         )
-        .route(
-            "/api/pharmacy/drug-margins/daily",
-            get(list_margins),
-        )
+        .route("/api/pharmacy/drug-margins/daily", get(list_margins))
 }

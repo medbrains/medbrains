@@ -4,7 +4,7 @@
 //! optional `header_extra`). Tenant branding (hospital name, address,
 //! logo, colors) and watermark arrive through the render context under
 //! `branding` / `watermark` — populated by the server from
-//! `tenant_settings` print_templates config.
+//! `tenant_settings` `print_templates` config.
 
 use tera::Tera;
 

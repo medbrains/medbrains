@@ -75,28 +75,30 @@ pub async fn resolve_config(state: &AppState, tenant_id: &Uuid) -> Result<AiConf
         .map(str::to_owned)
         .or_else(|| std::env::var("AI_MODEL").ok())
         .unwrap_or_else(|| default_model.to_owned());
-    let enabled = cfg.get("assistant_enabled").and_then(serde_json::Value::as_bool) != Some(false);
+    let enabled = cfg
+        .get("assistant_enabled")
+        .and_then(serde_json::Value::as_bool)
+        != Some(false);
 
     // Ollama is keyless (local). Others resolve a key from the secret store or env.
     let api_key = if provider == "ollama" {
         String::new()
     } else {
-        match str_field("api_key_secret") {
-            Some(secret) => state.secret_resolver.get(secret).await.map_err(|e| {
+        if let Some(secret) = str_field("api_key_secret") {
+            state.secret_resolver.get(secret).await.map_err(|e| {
                 AppError::BadRequest(format!("AI key secret '{secret}' unavailable: {e}"))
-            })?,
-            None => {
-                let env_var = match provider.as_str() {
-                    "openrouter" => "OPENROUTER_API_KEY",
-                    "bedrock" => "BEDROCK_API_KEY",
-                    _ => "ANTHROPIC_API_KEY",
-                };
-                std::env::var(env_var).map_err(|_| {
-                    AppError::BadRequest(format!(
-                        "No AI provider configured: set tenant ai.config.api_key_secret or {env_var}"
-                    ))
-                })?
-            }
+            })?
+        } else {
+            let env_var = match provider.as_str() {
+                "openrouter" => "OPENROUTER_API_KEY",
+                "bedrock" => "BEDROCK_API_KEY",
+                _ => "ANTHROPIC_API_KEY",
+            };
+            std::env::var(env_var).map_err(|_| {
+                AppError::BadRequest(format!(
+                    "No AI provider configured: set tenant ai.config.api_key_secret or {env_var}"
+                ))
+            })?
         }
     };
 
@@ -109,7 +111,7 @@ pub async fn resolve_config(state: &AppState, tenant_id: &Uuid) -> Result<AiConf
 }
 
 /// The OpenAI-compatible chat-completions base URL for a provider, or `None`
-/// for providers that don't speak the OpenAI wire format natively (anthropic).
+/// for providers that don't speak the `OpenAI` wire format natively (anthropic).
 ///
 /// Callers that need raw function-calling (e.g. the simulator's native tool
 /// loop) resolve the base here and POST `{base}/chat/completions` themselves.
@@ -183,8 +185,9 @@ where
             // when pointed at the Bedrock base URL with the ABSK bearer key. (Anthropic
             // Claude on Bedrock is Marketplace-payment-gated on this account, so gpt-oss
             // is the usable Bedrock family.)
-            let base_url = openai_compat_base_url("bedrock")
-                .unwrap_or_else(|| "https://bedrock-runtime.us-east-1.amazonaws.com/openai/v1".to_owned());
+            let base_url = openai_compat_base_url("bedrock").unwrap_or_else(|| {
+                "https://bedrock-runtime.us-east-1.amazonaws.com/openai/v1".to_owned()
+            });
             let client = openai::CompletionsClient::builder()
                 .api_key(&cfg.api_key)
                 .base_url(&base_url)

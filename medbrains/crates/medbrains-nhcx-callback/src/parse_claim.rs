@@ -1,5 +1,5 @@
 //! Reading a payer's claim answers and payments out of a decrypted NHCX
-//! message (NRCeS NHCX IG 6.5.0):
+//! message (`NRCeS` NHCX IG 6.5.0):
 //!
 //! - a `ClaimResponse`'s adjudication — submitted, approved and deducted,
 //!   overall and per line, with the payer's reasons;
@@ -17,12 +17,12 @@ use uuid::Uuid;
 use crate::parse::find_resource;
 
 /// Adjudication categories that carry the payer's approved amount, best
-/// first. `eligpercent` carries an amount in the NRCeS examples.
+/// first. `eligpercent` carries an amount in the `NRCeS` examples.
 const APPROVED: &[&str] = &["benefit", "eligible", "approved", "eligpercent"];
 const SUBMITTED: &[&str] = &["submitted"];
-/// NRCeS reason code for a line paid in full — not a deduction reason.
+/// `NRCeS` reason code for a line paid in full — not a deduction reason.
 const COVERED: &str = "covered";
-/// NRCeS payment-type detail codes.
+/// `NRCeS` payment-type detail codes.
 const PAYMENT_APPROVED: &str = "approvedamount";
 const PAYMENT_NET: &str = "payment";
 const PAYMENT_TDS: &str = "tds";
@@ -63,7 +63,7 @@ fn codes(concept: Option<&Value>) -> Vec<String> {
         .unwrap_or_default()
 }
 
-/// A CodeableConcept in words: its text, else the first coding's display
+/// A `CodeableConcept` in words: its text, else the first coding's display
 /// or code.
 fn words(concept: Option<&Value>) -> Option<String> {
     let concept = concept?;
@@ -172,7 +172,7 @@ fn claim_response(r: &Value) -> Adjudication {
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub(crate) struct FoundClaim {
     /// How the payer names the claim: its Claim identifier, else the
-    /// ClaimResponse's.
+    /// `ClaimResponse`'s.
     pub(crate) claim_ref: Option<String>,
     pub(crate) outcome: Option<String>,
     pub(crate) disposition: Option<String>,
@@ -206,7 +206,7 @@ fn entries(payload: &Value) -> Vec<&Value> {
     }
 }
 
-/// The Claim a ClaimResponse answers, found in the same bundle.
+/// The Claim a `ClaimResponse` answers, found in the same bundle.
 fn claim_ref(all: &[&Value], response: &Value) -> Option<String> {
     let request = response.get("request");
     let reference = request.and_then(|r| text(r, "reference"));
@@ -365,8 +365,8 @@ fn payment_lines(recon: &Value) -> Vec<PaymentLine> {
         .collect()
 }
 
-/// Read a `paymentnotice/request`: a TaskBundle with a PaymentNotice and a
-/// PaymentReconciliation (or either alone).
+/// Read a `paymentnotice/request`: a `TaskBundle` with a `PaymentNotice` and a
+/// `PaymentReconciliation` (or either alone).
 pub(crate) fn payment_notice(payload: &Value) -> PaymentNotice {
     let notice = find_resource(payload, &["PaymentNotice"]);
     let recon = find_resource(payload, &["PaymentReconciliation"]);

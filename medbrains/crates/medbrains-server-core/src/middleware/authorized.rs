@@ -62,7 +62,6 @@ pub trait Permission {
     const CODE: &'static str;
 }
 
-
 /// A requirement an endpoint places on the caller.
 ///
 /// Deliberately flat rather than a general algebra. The API needs exactly two
@@ -182,7 +181,7 @@ impl<R: Requirement> std::ops::Deref for Authorized<R> {
 ///
 /// Returns three values, not two. Today only `Allow` and `Deny` can occur —
 /// `require_permission` reads a `Vec<String>` and cannot fail — but the moment
-/// a ReBAC backend is in this path, an outage becomes `Unknown`, and the
+/// a `ReBAC` backend is in this path, an outage becomes `Unknown`, and the
 /// combinators below must already be carrying it rather than flattening it.
 ///
 /// That flattening was a real defect here: `AnyOf` used `.is_ok()`, which

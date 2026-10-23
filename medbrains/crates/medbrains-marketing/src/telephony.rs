@@ -1,6 +1,6 @@
 //! The telephony port.
 //!
-//! FreePBX is a web front end over Asterisk, and Asterisk offers four ways in:
+//! `FreePBX` is a web front end over Asterisk, and Asterisk offers four ways in:
 //! **AMI** (a socket of live channel events), **ARI** (REST plus a WebSocket),
 //! **AGI** (a hook inside the dialplan) and the **CDR/CEL** tables it writes
 //! after the fact. Only the first two are fast enough for a screen-pop — a CDR
@@ -13,11 +13,11 @@
 //!
 //! The specification says to buy telephony before owning it: a misconfigured
 //! Asterisk means dropped OPD calls and toll-fraud exposure, and neither is a
-//! good week two. But "buy it" and "self-host FreePBX" are the same decision
+//! good week two. But "buy it" and "self-host `FreePBX`" are the same decision
 //! made twice, and the module should not have to be rewritten when it flips.
 //!
 //! So the rest of the crate consumes [`CallEvent`] and knows nothing else. A
-//! FreePBX adapter turns AMI's `Newchannel` / `Dial` / `Bridge` / `Hangup`
+//! `FreePBX` adapter turns AMI's `Newchannel` / `Dial` / `Bridge` / `Hangup`
 //! into these; an Exotel adapter turns their webhook into the same shape. The
 //! pipeline, the screen-pop and the missed-call count are written once.
 //!
@@ -105,7 +105,7 @@ pub struct CallEvent {
     pub duration_secs: Option<i32>,
     /// The agent who took it, if the adapter can resolve one.
     pub agent_id: Option<uuid::Uuid>,
-    /// Where the recording landed. FreePBX writes to disk; a provider gives a
+    /// Where the recording landed. `FreePBX` writes to disk; a provider gives a
     /// URL. Either way it is held behind `marketing.interactions.play_recording`.
     pub recording_ref: Option<String>,
 }
@@ -125,7 +125,11 @@ mod tests {
     #[test]
     fn only_an_answered_call_counts_as_answered() {
         assert!(CallOutcome::Answered.answered());
-        for missed in [CallOutcome::NoAnswer, CallOutcome::Abandoned, CallOutcome::Rejected] {
+        for missed in [
+            CallOutcome::NoAnswer,
+            CallOutcome::Abandoned,
+            CallOutcome::Rejected,
+        ] {
             assert!(!missed.answered(), "{missed:?}");
         }
     }

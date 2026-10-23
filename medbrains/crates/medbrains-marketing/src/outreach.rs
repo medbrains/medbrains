@@ -29,7 +29,7 @@
 //! see exactly which campaigns were approved, by whom, and against what
 //! template.
 //!
-//! # dlt_template_id
+//! # `dlt_template_id`
 //!
 //! TRAI requires every commercial SMS template to be pre-registered. An SMS
 //! sent on an unregistered template does not bounce — the carrier drops it
@@ -137,7 +137,12 @@ pub async fn create_run(
 
     // Refuse the silent failure at the point where somebody can still fix it.
     if body.channel.eq_ignore_ascii_case("sms")
-        && body.dlt_template_id.as_deref().unwrap_or("").trim().is_empty()
+        && body
+            .dlt_template_id
+            .as_deref()
+            .unwrap_or("")
+            .trim()
+            .is_empty()
     {
         return Err(AppError::BadRequest(
             "an SMS run needs its DLT template id — TRAI drops an unregistered \
@@ -304,8 +309,15 @@ pub async fn cancel_run(
     match transition(&state, &claims, id, status::DRAFT, status::CANCELLED, None).await {
         Ok(row) => Ok(Json(row)),
         Err(AppError::Conflict(_)) => {
-            let row =
-                transition(&state, &claims, id, status::PENDING, status::CANCELLED, None).await?;
+            let row = transition(
+                &state,
+                &claims,
+                id,
+                status::PENDING,
+                status::CANCELLED,
+                None,
+            )
+            .await?;
             Ok(Json(row))
         }
         Err(other) => Err(other),

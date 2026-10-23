@@ -111,7 +111,7 @@ pub struct ListInvoicesQuery {
     pub admission_id: Option<Uuid>,
     pub search: Option<String>,
     pub service_lane: Option<String>,
-    /// Column key to sort by (allowlisted server-side). Defaults to created_at.
+    /// Column key to sort by (allowlisted server-side). Defaults to `created_at`.
     pub sort: Option<String>,
     /// Sort direction: "asc" or "desc" (default desc).
     pub order: Option<String>,
@@ -398,7 +398,12 @@ async fn ensure_invoice_view_access(
     let invoice = outcome_of(
         state
             .authz
-            .check(&authz_ctx, medbrains_authz::Relation::Viewer, "invoice", invoice_id)
+            .check(
+                &authz_ctx,
+                medbrains_authz::Relation::Viewer,
+                "invoice",
+                invoice_id,
+            )
             .await,
         "invoice",
     );
@@ -421,7 +426,12 @@ async fn ensure_invoice_view_access(
     let direct = outcome_of(
         state
             .authz
-            .check(&authz_ctx, medbrains_authz::Relation::Viewer, "patient", patient)
+            .check(
+                &authz_ctx,
+                medbrains_authz::Relation::Viewer,
+                "patient",
+                patient,
+            )
             .await,
         "patient",
     );
@@ -481,7 +491,7 @@ fn invoice_service_lane_condition(
     service_lane: Option<&str>,
 ) -> Result<Option<&'static str>, AppError> {
     match service_lane {
-        None | Some("") | Some("all") => Ok(None),
+        None | Some("" | "all") => Ok(None),
         Some("patient") => Ok(Some(
             "EXISTS (SELECT 1 FROM invoice_items ii \
              WHERE ii.tenant_id = invoices.tenant_id \
@@ -1170,7 +1180,7 @@ pub struct IssueInvoiceRequest {
     pub override_reason: Option<String>,
 }
 
-/// TPA pre-auth gate (opt-in: billing.enforce_preauth = true). For
+/// TPA pre-auth gate (opt-in: `billing.enforce_preauth` = true). For
 /// patients with an active insurance policy, the invoice total must be
 /// covered by approved prior-auth amounts — issuing beyond that is what
 /// produces claim denials. Cash patients and tenants without the PA
@@ -1188,8 +1198,7 @@ async fn enforce_preauth_limit(
     .bind(claims.tenant_id)
     .fetch_optional(&mut **tx)
     .await?
-    .map(|v| v.as_bool().unwrap_or(v.as_str() == Some("true")))
-    .unwrap_or(false);
+    .is_some_and(|v| v.as_bool().unwrap_or(v.as_str() == Some("true")));
     if !enforce {
         return Ok(());
     }
@@ -1563,7 +1572,11 @@ pub async fn record_payment(
                 .as_deref()
                 .map(str::trim)
                 .filter(|s| !s.is_empty()),
-            shift: body.shift.as_deref().map(str::trim).filter(|s| !s.is_empty()),
+            shift: body
+                .shift
+                .as_deref()
+                .map(str::trim)
+                .filter(|s| !s.is_empty()),
             collection_id: None,
             station_id: None,
             shift_id: None,

@@ -1,4 +1,4 @@
-//! The FHIR R4 messages MedBrains sends to NHCX, per the NRCeS NHCX IG:
+//! The FHIR R4 messages `MedBrains` sends to NHCX, per the `NRCeS` NHCX IG:
 //! `CoverageEligibilityRequestBundle`, `ClaimBundle` (claim or
 //! pre-authorisation) and the `Communication` that answers a payer query.
 //!
@@ -60,7 +60,7 @@ pub(crate) struct DocumentRef {
     /// The content itself (base64) — a final claim's PDFs.
     #[sqlx(default)]
     pub(crate) data: Option<String>,
-    /// What it is, for the NRCeS supporting-information codes.
+    /// What it is, for the `NRCeS` supporting-information codes.
     #[sqlx(skip)]
     pub(crate) kind: Option<DocKind>,
 }
@@ -269,7 +269,7 @@ fn supporting_note(seq: usize, note: &str) -> Value {
     })
 }
 
-/// A document as `Claim.supportingInfo` — NRCeS category and code (both
+/// A document as `Claim.supportingInfo` — `NRCeS` category and code (both
 /// 1..1 in the IG 6.5.0 Claim profile) with the file as `valueAttachment`.
 fn supporting_info(seq: usize, doc: &DocumentRef) -> Value {
     let (category, code) = doc.kind.map_or(
@@ -408,7 +408,7 @@ pub(crate) fn eligibility_bundle(
 }
 
 /// The hospital's answer to a payer query: a `Communication` with the text
-/// and each document as an attachment. NRCeS lists no bundle profile for it,
+/// and each document as an attachment. `NRCeS` lists no bundle profile for it,
 /// so the resource itself is the payload.
 pub(crate) fn communication(
     query_id: Uuid,

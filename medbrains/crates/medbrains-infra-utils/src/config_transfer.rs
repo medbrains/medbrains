@@ -6,17 +6,17 @@
 //! `dry_run: true` returns the per-entry diff (create / update /
 //! unchanged) without touching anything; the apply path upserts in one
 //! transaction and writes an audit entry. Secrets never live in
-//! tenant_settings (they're in the secret resolver), so bundles are
+//! `tenant_settings` (they're in the secret resolver), so bundles are
 //! safe to move between environments.
 
 use axum::{Extension, Json, extract::State};
 use serde::{Deserialize, Serialize};
 
+use medbrains_core::permissions;
 use medbrains_server_core::{
     error::AppError, middleware::auth::Claims, middleware::authorization::require_permission,
     state::AppState,
 };
-use medbrains_core::permissions;
 
 const BUNDLE_VERSION: i32 = 1;
 

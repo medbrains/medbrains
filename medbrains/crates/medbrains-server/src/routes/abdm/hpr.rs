@@ -1,7 +1,7 @@
 //! ABDM HPR — Healthcare Professionals Registry IDs on doctor profiles.
 //!
 //! An HPR ID is 14 digits, kept hyphenated (`NN-NNNN-NNNN-NNNN`) as the
-//! NRCeS Practitioner examples print it. Recording one never claims it is
+//! `NRCeS` Practitioner examples print it. Recording one never claims it is
 //! verified; `hpr_verified_at` is set only when HPR search confirms it, and is
 //! cleared whenever the ID changes.
 

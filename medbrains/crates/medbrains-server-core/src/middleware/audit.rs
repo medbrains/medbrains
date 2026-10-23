@@ -24,13 +24,13 @@ use crate::{
     state::AppState,
 };
 
-/// AuditLayer — axum function-style middleware. Mount via
+/// `AuditLayer` — axum function-style middleware. Mount via
 /// `axum::middleware::from_fn_with_state(state.clone(), audit_layer)`.
 ///
 /// Behaviour:
 ///   1. On state-changing methods (POST/PUT/PATCH/DELETE), generate a
 ///      `correlation_id` UUID.
-///   2. Inject the correlation_id into request extensions so handlers
+///   2. Inject the `correlation_id` into request extensions so handlers
 ///      that open their own tx can `set_config('app.correlation_id', ...)`
 ///      to dedupe with the trigger-side emission.
 ///   3. After the handler returns, if status is 2xx, spawn a task to
@@ -210,10 +210,10 @@ pub struct ActorWithheld(pub bool);
 
 /// Derive a coarse action verb from method + path.
 /// Examples:
-///   POST   /api/patients      → "create_patients"
-///   PUT    /api/patients/:id  → "update_patients"
-///   DELETE /api/patients/:id  → "delete_patients"
-///   PATCH  /api/labs/:id/finalize → "finalize_labs"
+///   POST   /api/patients      → "`create_patients`"
+///   PUT    /api/patients/:id  → "`update_patients`"
+///   DELETE /api/patients/:id  → "`delete_patients`"
+///   PATCH  /api/labs/:id/finalize → "`finalize_labs`"
 fn derive_action(method: &str, path: &str) -> String {
     let segments: Vec<&str> = path.trim_start_matches("/api/").split('/').collect();
     let resource = segments.first().copied().unwrap_or("unknown");
@@ -224,13 +224,15 @@ fn derive_action(method: &str, path: &str) -> String {
         .filter(|_| segments.len() > 2)
         .copied();
     match method {
-        "POST" => terminal_verb
-            .map(|v| format!("{v}_{resource}"))
-            .unwrap_or_else(|| format!("create_{resource}")),
+        "POST" => terminal_verb.map_or_else(
+            || format!("create_{resource}"),
+            |v| format!("{v}_{resource}"),
+        ),
         "PUT" => format!("update_{resource}"),
-        "PATCH" => terminal_verb
-            .map(|v| format!("{v}_{resource}"))
-            .unwrap_or_else(|| format!("patch_{resource}")),
+        "PATCH" => terminal_verb.map_or_else(
+            || format!("patch_{resource}"),
+            |v| format!("{v}_{resource}"),
+        ),
         "DELETE" => format!("delete_{resource}"),
         _ => format!("{}_{resource}", method.to_lowercase()),
     }

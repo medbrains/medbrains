@@ -58,7 +58,7 @@ pub const ER_COMPLAINTS: &[&str] = &[
     "Assault injury",
 ];
 
-/// (drug_name, dosage, frequency, duration). INN names where common.
+/// (`drug_name`, dosage, frequency, duration). INN names where common.
 pub const RX_DRUGS: &[(&str, &str, &str, &str)] = &[
     ("Paracetamol 500mg", "1 tab", "TDS", "3 days"),
     ("Amoxicillin 500mg", "1 cap", "TDS", "5 days"),
@@ -76,8 +76,8 @@ pub fn random_diagnosis(rng: &mut StdRng) -> (&'static str, &'static str) {
 
 /// Weighted diagnosis pick — favours ICDs that match the current season,
 /// active holiday boost, and the tenant's natural live-data distribution.
-/// Weight per code = 1.0 (base) + 0.8 season + festival_weight_boost
-/// holiday + natural_blend × (natural_count / max_natural_count).
+/// Weight per code = 1.0 (base) + 0.8 season + `festival_weight_boost`
+/// holiday + `natural_blend` × (`natural_count` / `max_natural_count`).
 pub fn random_diagnosis_weighted(
     rng: &mut StdRng,
     season_boost: &[&str],
@@ -105,7 +105,7 @@ pub fn random_diagnosis_weighted(
             }
             if natural_blend > 0.0 {
                 if let Some((_, n)) = natural_icds.iter().find(|(c, _)| c == code) {
-                    w += natural_blend * (*n as f32 / max_natural as f32);
+                    w = natural_blend.mul_add(*n as f32 / max_natural as f32, w);
                 }
             }
             w

@@ -6,11 +6,11 @@
 // "no place to do things after IPD" feedback. Split out of ipd.rs
 // because that file is already 5,003 lines (over the 450-line cap).
 
+use axum::routing::{get, post};
 use axum::{
     Extension, Json,
     extract::{Path, State},
 };
-use axum::routing::{get,post};
 use chrono::{DateTime, Duration, NaiveDate, Utc};
 use serde::{Deserialize, Serialize};
 use sqlx::FromRow;
@@ -80,8 +80,7 @@ pub async fn get_discharge_workflow(
             permissions::ipd::discharge_checklist::UPDATE,
         ],
     )?;
-    medbrains_authz_gate::require_admission_access(&state, &claims, admission_id)
-        .await?;
+    medbrains_authz_gate::require_admission_access(&state, &claims, admission_id).await?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
@@ -110,8 +109,7 @@ pub async fn update_discharge_step(
     Json(body): Json<DischargeStepUpdate>,
 ) -> Result<Json<DischargeWorkflow>, AppError> {
     require_permission(&claims, permissions::ipd::discharge_checklist::UPDATE)?;
-    medbrains_authz_gate::require_admission_access(&state, &claims, admission_id)
-        .await?;
+    medbrains_authz_gate::require_admission_access(&state, &claims, admission_id).await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -385,8 +383,7 @@ pub async fn record_dama(
     Json(body): Json<CreateDamaRequest>,
 ) -> Result<Json<DamaRecord>, AppError> {
     require_permission(&claims, permissions::ipd::discharge::CREATE)?;
-    medbrains_authz_gate::require_admission_access(&state, &claims, admission_id)
-        .await?;
+    medbrains_authz_gate::require_admission_access(&state, &claims, admission_id).await?;
     if body.record_type != "dama" && body.record_type != "lama" {
         return Err(AppError::BadRequest(
             "record_type must be 'dama' or 'lama'".to_owned(),
@@ -489,8 +486,7 @@ pub async fn get_dama(
     Path(admission_id): Path<Uuid>,
 ) -> Result<Json<Option<DamaRecord>>, AppError> {
     require_permission(&claims, permissions::ipd::admissions::VIEW)?;
-    medbrains_authz_gate::require_admission_access(&state, &claims, admission_id)
-        .await?;
+    medbrains_authz_gate::require_admission_access(&state, &claims, admission_id).await?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
@@ -563,7 +559,7 @@ pub struct SendSurveyRequest {
 
 /// POST /api/ipd/post-discharge/{admission_id}/survey/send
 ///
-/// Stamps survey_sent_at; the actual outbound message is delivered by
+/// Stamps `survey_sent_at`; the actual outbound message is delivered by
 /// the orchestration layer (DLT/SMS provider) reading this row.
 pub async fn send_survey(
     State(state): State<AppState>,
@@ -572,8 +568,7 @@ pub async fn send_survey(
     Json(body): Json<SendSurveyRequest>,
 ) -> Result<Json<PostDischargeFollowup>, AppError> {
     require_permission(&claims, permissions::ipd::admissions::UPDATE)?;
-    medbrains_authz_gate::require_admission_access(&state, &claims, admission_id)
-        .await?;
+    medbrains_authz_gate::require_admission_access(&state, &claims, admission_id).await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -644,8 +639,7 @@ pub async fn create_mortality_review(
     // No route-derived id: the caller names the admission it is reviewing.
     // Weaker than a path id, but it stops a review being filed against an
     // admission outside the caller's reach.
-    medbrains_authz_gate::require_admission_access(&state, &claims, body.admission_id)
-        .await?;
+    medbrains_authz_gate::require_admission_access(&state, &claims, body.admission_id).await?;
 
     // NABH expects M&M review within 72h; review_due_at is computed
     // server-side so the dashboard's "overdue" flag is consistent.
@@ -769,7 +763,7 @@ pub async fn submit_mortality_review(
     Ok(Json(row))
 }
 
-/// ipd_post_discharge routes.
+/// `ipd_post_discharge` routes.
 pub fn router() -> axum::Router<AppState> {
     axum::Router::new()
         .route(
@@ -782,21 +776,16 @@ pub fn router() -> axum::Router<AppState> {
         )
         .route(
             "/api/ipd/admissions/{id}/dama",
-            get(get_dama)
-                .post(record_dama),
+            get(get_dama).post(record_dama),
         )
-        .route(
-            "/api/ipd/post-discharge",
-            get(list_post_discharge),
-        )
+        .route("/api/ipd/post-discharge", get(list_post_discharge))
         .route(
             "/api/ipd/post-discharge/{id}/survey/send",
             post(send_survey),
         )
         .route(
             "/api/ipd/mortality-reviews",
-            get(list_mortality_reviews)
-                .post(create_mortality_review),
+            get(list_mortality_reviews).post(create_mortality_review),
         )
         .route(
             "/api/ipd/mortality-reviews/{id}/submit",

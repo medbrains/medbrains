@@ -16,11 +16,11 @@
 //! Procedure + referral basket items are reserved in the type system but
 //! not yet wired to a creation path — they'll land in a follow-up sprint.
 
+use axum::routing::{get, post};
 use axum::{
     Extension, Json,
     extract::{Path, State},
 };
-use axum::routing::{get,post};
 use chrono::{DateTime, Utc};
 use medbrains_core::permissions;
 use rust_decimal::Decimal;
@@ -625,7 +625,9 @@ pub async fn preview_cost(
 async fn lookup_setting_decimal(state: &AppState, tenant_id: &Uuid, key: &str) -> Option<Decimal> {
     // Returns Option: no connection is the same as no setting, which is what
     // every caller already handles.
-    let mut conn = medbrains_db::pool::tenant_conn(&state.db, tenant_id).await.ok()?;
+    let mut conn = medbrains_db::pool::tenant_conn(&state.db, tenant_id)
+        .await
+        .ok()?;
     let val: Option<Value> = sqlx::query_scalar(
         "SELECT value FROM tenant_settings \
          WHERE tenant_id = $1 AND key = $2 LIMIT 1",
@@ -1422,8 +1424,7 @@ async fn run_basket_checks(
                     item.catalog_item_id == warning.catalog_item_id
                         && item.drug_name == warning.drug_name
                 })
-                .map(|(idx, _)| *idx)
-                .unwrap_or(0);
+                .map_or(0, |(idx, _)| *idx);
             warnings.push(BasketWarning {
                 code: warning.code,
                 severity: match warning.severity {
@@ -1534,27 +1535,16 @@ async fn queue_post_sign_side_effects(
     Ok(())
 }
 
-/// order_basket routes.
+/// `order_basket` routes.
 pub fn router() -> axum::Router<AppState> {
     axum::Router::new()
-        .route(
-            "/api/orders/basket/check",
-            post(check_basket),
-        )
-        .route(
-            "/api/orders/basket/sign",
-            post(sign_basket),
-        )
+        .route("/api/orders/basket/check", post(check_basket))
+        .route("/api/orders/basket/sign", post(sign_basket))
         .route(
             "/api/orders/basket/drafts/{encounter_id}",
-            get(get_draft)
-                .put(save_draft)
-                .delete(delete_draft),
+            get(get_draft).put(save_draft).delete(delete_draft),
         )
-        .route(
-            "/api/orders/basket/preview-cost",
-            post(preview_cost),
-        )
+        .route("/api/orders/basket/preview-cost", post(preview_cost))
         .route(
             "/api/orders/basket/previous/{patient_id}",
             get(carry_forward),

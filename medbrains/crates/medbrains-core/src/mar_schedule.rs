@@ -77,7 +77,7 @@ fn parse_duration_days(duration: &str) -> Option<i64> {
     let digits: String = lower
         .chars()
         .skip_while(|c| !c.is_ascii_digit())
-        .take_while(|c| c.is_ascii_digit())
+        .take_while(char::is_ascii_digit)
         .collect();
     let n: i64 = digits.parse().ok()?;
     if n <= 0 {

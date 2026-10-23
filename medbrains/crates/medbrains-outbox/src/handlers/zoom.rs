@@ -2,7 +2,7 @@
 //!
 //! Server-to-Server OAuth (account-level, no user redirect): first POST
 //! `{token_url}?grant_type=account_credentials&account_id=…` with Basic
-//! client_id:secret to get a token, then POST `{api_base}/users/me/meetings`
+//! `client_id:secret` to get a token, then POST `{api_base}/users/me/meetings`
 //! with that Bearer token (scope `meeting:write:admin`) → `join_url`, stored
 //! on the consult. Runs only for `meeting.zoom.create`. Verified against Zoom
 //! developer docs (RFC-MODULE-telemedicine §3); creds need a tenant's Zoom

@@ -14,9 +14,9 @@
 //!
 //! Every mutation writes an `audit_log` row with `entity_type="relation_tuple"`
 //! and `relation_reason` set to the grant's caller-supplied reason
-//! (e.g. "break_glass_code_blue", "second_opinion_consult"). The audit
+//! (e.g. "`break_glass_code_blue`", "`second_opinion_consult`"). The audit
 //! middleware already handles state-changing requests, so we just
-//! need to log the relation_type / relation_expires_at fields.
+//! need to log the `relation_type` / `relation_expires_at` fields.
 
 use axum::routing::{get, post};
 use axum::{Extension, Json, extract::State};
@@ -39,7 +39,7 @@ use medbrains_server_core::{
     state::AppState,
 };
 
-/// Subject of a grant — must match the SpiceDB taxonomy.
+/// Subject of a grant — must match the `SpiceDB` taxonomy.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "type", content = "id", rename_all = "snake_case")]
 pub enum GrantSubject {
@@ -75,9 +75,9 @@ pub struct CreateGrantRequest {
     pub object_id: Uuid,
     pub relation: String,
     pub subject: GrantSubject,
-    /// Optional expiry — SpiceDB filters tuples past this timestamp.
+    /// Optional expiry — `SpiceDB` filters tuples past this timestamp.
     pub expires_at: Option<DateTime<Utc>>,
-    /// Reason for grant — captured in audit_log for compliance review.
+    /// Reason for grant — captured in `audit_log` for compliance review.
     pub reason: Option<String>,
 }
 
@@ -190,7 +190,10 @@ pub async fn create_grant(
     if !is_admin_sharer {
         let ctx = authz_context(&claims);
         match medbrains_server_core::middleware::authorization::outcome_of(
-            state.authz.check(&ctx, Relation::Owner, &body.object_type, body.object_id).await,
+            state
+                .authz
+                .check(&ctx, Relation::Owner, &body.object_type, body.object_id)
+                .await,
             &body.object_type,
         ) {
             medbrains_authz::decision::Outcome::Allow => {}
@@ -268,8 +271,8 @@ pub struct RevokeGrantRequest {
     pub subject: GrantSubject,
 }
 
-/// DELETE /api/sharing/grants — revoke a specific grant. SpiceDB
-/// doesn't expose tuple_ids over the wire, so revocation is by
+/// DELETE /api/sharing/grants — revoke a specific grant. `SpiceDB`
+/// doesn't expose `tuple_ids` over the wire, so revocation is by
 /// (resource, relation, subject) tuple coordinates.
 pub async fn revoke_grant(
     State(state): State<AppState>,
@@ -282,7 +285,10 @@ pub async fn revoke_grant(
     if !is_admin_sharer {
         let ctx = authz_context(&claims);
         match medbrains_server_core::middleware::authorization::outcome_of(
-            state.authz.check(&ctx, Relation::Owner, &body.object_type, body.object_id).await,
+            state
+                .authz
+                .check(&ctx, Relation::Owner, &body.object_type, body.object_id)
+                .await,
             &body.object_type,
         ) {
             medbrains_authz::decision::Outcome::Allow => {}
@@ -325,7 +331,7 @@ pub struct GrantSummary {
     pub expires_at: Option<DateTime<Utc>>,
 }
 
-/// GET /api/sharing/grants?object_type=patient&object_id=… —
+/// GET /`api/sharing/grants?object_type=patient&object_id`=… —
 /// list every grant on the given resource. Caller must hold `view`
 /// on the resource (already-visible-to-them check).
 pub async fn list_grants(
@@ -339,7 +345,12 @@ pub async fn list_grants(
             medbrains_server_core::middleware::authorization::outcome_of(
                 state
                     .authz
-                    .check(&ctx, Relation::Viewer, &params.object_type, params.object_id)
+                    .check(
+                        &ctx,
+                        Relation::Viewer,
+                        &params.object_type,
+                        params.object_id,
+                    )
                     .await,
                 &params.object_type,
             ),
@@ -381,7 +392,7 @@ pub async fn list_grants(
 }
 
 /// GET /api/sharing/granted-to-me — list resources shared with the caller.
-/// Returns one row per visible (object_type, object_id) pair. Useful
+/// Returns one row per visible (`object_type`, `object_id`) pair. Useful
 /// for a "shared with me" inbox in the UI.
 pub async fn list_granted_to_me(
     State(state): State<AppState>,

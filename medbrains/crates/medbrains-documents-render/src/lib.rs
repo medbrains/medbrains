@@ -59,7 +59,7 @@ fn renderer(state: &AppState) -> Result<&medbrains_print::gotenberg::GotenbergCl
 }
 
 /// Resolve template HTML + geometry: tenant override from
-/// `document_templates` (body_layout.html) else the built-in.
+/// `document_templates` (`body_layout.html`) else the built-in.
 async fn resolve_template(
     tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
     tenant_id: Uuid,
@@ -605,7 +605,10 @@ pub fn router() -> axum::Router<AppState> {
         .route("/api/documents/render", post(render_document))
         .route("/api/documents/{id}/download", get(download_document))
         .route("/api/documents/{id}/queue-print", post(queue_print))
-        .route("/api/documents/print-jobs/claim", post(delivery::claim_print_jobs))
+        .route(
+            "/api/documents/print-jobs/claim",
+            post(delivery::claim_print_jobs),
+        )
         .route(
             "/api/documents/print-jobs/{id}/result",
             post(delivery::report_print_job),

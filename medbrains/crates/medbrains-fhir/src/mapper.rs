@@ -19,9 +19,9 @@ use uuid::Uuid;
 
 // FHIR system URIs for common identifier vocabularies.
 pub const ABHA_SYSTEM: &str = "https://healthid.ndhm.gov.in";
-/// HPR ID on a Practitioner — NRCeS ABDM FHIR profile examples.
+/// HPR ID on a Practitioner — `NRCeS` ABDM FHIR profile examples.
 pub const HPR_SYSTEM: &str = "https://doctor.ndhm.gov.in";
-/// HFR ID on an Organization — NRCeS ABDM FHIR profile examples.
+/// HFR ID on an Organization — `NRCeS` ABDM FHIR profile examples.
 pub const HFR_SYSTEM: &str = "https://facility.ndhm.gov.in";
 pub const UHID_SYSTEM: &str = "https://medbrains.health/uhid";
 pub const LOINC_SYSTEM: &str = "http://loinc.org";

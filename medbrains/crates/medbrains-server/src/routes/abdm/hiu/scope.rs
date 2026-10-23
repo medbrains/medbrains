@@ -31,7 +31,7 @@ pub const HI_TYPES: [&str; 8] = [
     "Invoice",
 ];
 
-/// NRCeS Composition profiles, by the HI type each one carries.
+/// `NRCeS` Composition profiles, by the HI type each one carries.
 const PROFILE_HI_TYPES: [(&str, &str); 8] = [
     ("OPConsultRecord", "OPConsultation"),
     ("PrescriptionRecord", "Prescription"),
@@ -42,7 +42,7 @@ const PROFILE_HI_TYPES: [(&str, &str); 8] = [
     ("WellnessRecord", "WellnessRecord"),
     ("InvoiceRecord", "Invoice"),
 ];
-/// Entries looked at for the Composition; NRCeS puts it first.
+/// Entries looked at for the Composition; `NRCeS` puts it first.
 const COMPOSITION_SCAN: usize = 5;
 /// Indian Standard Time, the calendar record dates are kept in.
 const IST_SECONDS: i32 = 19_800;
@@ -89,7 +89,7 @@ pub fn narrow(asked: &Window, granted: &Window) -> Option<Window> {
     })
 }
 
-/// The HI type a bundle's Composition declares through its NRCeS profile.
+/// The HI type a bundle's Composition declares through its `NRCeS` profile.
 #[must_use]
 pub fn hi_type_of(bundle: &Value) -> Option<&'static str> {
     let composition = bundle["entry"]

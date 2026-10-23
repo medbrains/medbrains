@@ -1,10 +1,10 @@
 #![allow(clippy::too_many_lines)]
 
+use axum::routing::{get, post};
 use axum::{
     Extension, Json,
     extract::{Path, Query, State},
 };
-use axum::routing::{get,post};
 use chrono::Utc;
 use medbrains_core::consent::{
     ConsentAuditEntry, ConsentSignatureMetadata, ConsentTemplate, ConsentTemplateListItem,
@@ -18,7 +18,7 @@ use medbrains_server_core::{
     state::AppState,
 };
 
-/// ReBAC pre-check: the caller must hold `view` on the patient whose consent is being read.
+/// `ReBAC` pre-check: the caller must hold `view` on the patient whose consent is being read.
 /// Patient `view` is granted to the registering clerk (owner), the attending, department/ward
 /// members, care-team groups and explicit shares (see `infra/spicedb/schema.zed`); bypass roles
 /// short-circuit inside `check`. Mirrors the guard on `patients::get_patient`, so a point-of-care
@@ -799,26 +799,17 @@ pub fn router() -> axum::Router<AppState> {
                 .put(update_template)
                 .delete(delete_template),
         )
-        .route(
-            "/api/consent/audit",
-            get(list_audit),
-        )
+        .route("/api/consent/audit", get(list_audit))
         .route(
             "/api/consent/audit/patient/{patient_id}",
             get(patient_audit),
         )
-        .route(
-            "/api/consent/verify",
-            post(verify_consent),
-        )
+        .route("/api/consent/verify", post(verify_consent))
         .route(
             "/api/consent/verify/patient/{patient_id}",
             get(patient_summary),
         )
-        .route(
-            "/api/consent/revoke",
-            post(revoke_consent),
-        )
+        .route("/api/consent/revoke", post(revoke_consent))
         .route(
             "/api/consent/signatures",
             get(list_signatures).post(create_signature),
@@ -857,20 +848,17 @@ mod consent_template_enforcement_tests {
         ];
 
         for flag in UNENFORCED {
-            let used_outside_sql = SRC
-                .lines()
-                .filter(|line| line.contains(flag))
-                .any(|line| {
-                    let l = line.trim();
-                    // Struct fields, binds and SQL column lists are storage,
-                    // not enforcement. Anything else reads the flag to decide.
-                    !(l.starts_with("pub ")
-                        || l.starts_with("//")
-                        || l.contains(".bind(")
-                        || l.contains("COALESCE")
-                        || l.contains(',')
-                        || l.contains('"'))
-                });
+            let used_outside_sql = SRC.lines().filter(|line| line.contains(flag)).any(|line| {
+                let l = line.trim();
+                // Struct fields, binds and SQL column lists are storage,
+                // not enforcement. Anything else reads the flag to decide.
+                !(l.starts_with("pub ")
+                    || l.starts_with("//")
+                    || l.contains(".bind(")
+                    || l.contains("COALESCE")
+                    || l.contains(',')
+                    || l.contains('"'))
+            });
             assert!(
                 !used_outside_sql,
                 "{flag} now appears outside a SQL column list — if it is being enforced, \

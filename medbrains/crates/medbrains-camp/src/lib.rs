@@ -1,7 +1,7 @@
 #![allow(clippy::too_many_lines)]
 //! Health camps — registrations, screenings, referrals.
 //!
-//! # Why create_registration takes no record check
+//! # Why `create_registration` takes no record check
 //!
 //! `camp_registrations.patient_id` is NULLABLE, and that is the point: a camp
 //! coordinator registers whoever walks up to the tent, most of whom are not
@@ -52,7 +52,7 @@
 //! granting `patients.view` to `camp_coordinator`. Either turns a working
 //! control into a decorative one without touching this file.
 //!
-//! # open_registration_encounter is an open question, not an exemption
+//! # `open_registration_encounter` is an open question, not an exemption
 //!
 //! It grants `patient/Owner/User(claims.sub)` on `r.patient_id` off a
 //! path-named camp registration — the caller becomes owner of a patient by
@@ -2285,9 +2285,10 @@ async fn materialize_camp_plan_from_value(
         if let Some(id) = catalog_item_id {
             materialized_medicines.push(id);
         }
-        let source_key = catalog_item_id
-            .map(|id| format!("medicine:{id}"))
-            .unwrap_or_else(|| format!("medicine:index:{index}"));
+        let source_key = catalog_item_id.map_or_else(
+            || format!("medicine:index:{index}"),
+            |id| format!("medicine:{id}"),
+        );
         let charge_mode = json_text(item.get("charge_mode"))
             .or_else(|| json_text(plan.get("medicine_charge_mode")))
             .unwrap_or_else(|| "free".to_owned());
@@ -2859,8 +2860,7 @@ async fn build_camp_planning_summary(
             "pending",
             "assets",
             format!(
-                "{} asset/equipment rows are issued, damaged, lost, or not reconciled",
-                asset_return_pending_items
+                "{asset_return_pending_items} asset/equipment rows are issued, damaged, lost, or not reconciled"
             ),
             false,
             true,

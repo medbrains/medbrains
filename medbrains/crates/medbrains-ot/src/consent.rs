@@ -228,7 +228,7 @@ pub(crate) async fn guard_booking(
     Ok(())
 }
 
-/// GET /api/ot/bookings/{booking_id}/consents
+/// GET /`api/ot/bookings/{booking_id}/consents`
 pub async fn get_booking_consents(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,

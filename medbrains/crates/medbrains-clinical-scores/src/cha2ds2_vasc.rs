@@ -54,13 +54,7 @@ pub struct Cha2ds2VascResult {
 }
 
 fn age_points(age: i32) -> i32 {
-    if age >= 75 {
-        2
-    } else if age >= 65 {
-        1
-    } else {
-        0
-    }
+    if age >= 75 { 2 } else { i32::from(age >= 65) }
 }
 
 pub fn compute_cha2ds2_vasc(r: &Cha2ds2VascRequest) -> Cha2ds2VascResult {
@@ -112,7 +106,9 @@ pub async fn cha2ds2_vasc_score(
 ) -> Result<Json<Cha2ds2VascResult>, AppError> {
     require_permission(&claims, permissions::ipd::nursing_assessment::LIST)?;
     if !(0..=130).contains(&body.age) {
-        return Err(AppError::BadRequest("age must be between 0 and 130".to_owned()));
+        return Err(AppError::BadRequest(
+            "age must be between 0 and 130".to_owned(),
+        ));
     }
     Ok(Json(compute_cha2ds2_vasc(&body)))
 }

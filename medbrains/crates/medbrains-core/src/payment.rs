@@ -47,6 +47,7 @@ pub struct PaymentGatewayTransaction {
 }
 
 /// A payment device bolted to a billing place — maps to `payment_terminals`.
+///
 /// A hospital runs several providers + POS/QR/soundbox devices at once; this
 /// registry resolves which devices a cashier's counter can use at pay time.
 #[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
