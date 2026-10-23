@@ -17,7 +17,7 @@ medbrains-adapter-sdk = { path = "../medbrains-adapter-sdk" }
 tokio = { version = "1.54.1", features = ["full"] }
 
 # HTTP client (for MedBrains API calls)
-reqwest = { version = "0.12", features = ["json", "rustls-tls"], default-features = false }
+reqwest = { workspace = true }
 
 # Serialization
 serde = { version = "1", features = ["derive"] }

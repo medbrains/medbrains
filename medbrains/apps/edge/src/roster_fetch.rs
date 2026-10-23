@@ -118,10 +118,10 @@ async fn fetch(
 
     // Checked before reading, so an oversized body is refused rather than
     // buffered into a box that cannot hold it.
-    if let Some(len) = response.content_length() {
-        if len > MAX_ROSTER_BYTES {
-            bail!("peer roster is {len} bytes, over the {MAX_ROSTER_BYTES} limit");
-        }
+    if let Some(len) = response.content_length()
+        && len > MAX_ROSTER_BYTES
+    {
+        bail!("peer roster is {len} bytes, over the {MAX_ROSTER_BYTES} limit");
     }
 
     let body = response.bytes().await.context("read peer roster")?;
