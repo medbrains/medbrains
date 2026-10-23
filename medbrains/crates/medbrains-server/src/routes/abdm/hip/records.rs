@@ -11,7 +11,7 @@ use medbrains_core::permissions;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use super::linking::{load_patient, request_link};
+use super::linking::{clear_deactivated, load_patient, request_link};
 use crate::{
     error::AppError,
     middleware::auth::Claims,
@@ -160,6 +160,8 @@ pub async fn link_now(
     require_permission(&claims, permissions::abdm::records::MANAGE)?;
     let patient_id = read_context(&state, &claims, id).await?.patient_id;
     medbrains_authz_gate::require_patient_access(&state, &claims, patient_id).await?;
+    // Staff retry once the patient has reactivated a deactivated ABHA.
+    clear_deactivated(&state.db, claims.tenant_id, patient_id).await?;
     match request_link(
         &state.db,
         state.secret_resolver.as_ref(),

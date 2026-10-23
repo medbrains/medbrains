@@ -62,7 +62,11 @@ pub struct AccountChange {
 }
 
 /// The caller's live ABHA-number verification and its token.
-async fn live_token(state: &AppState, claims: &Claims, id: Uuid) -> Result<String, AppError> {
+pub(crate) async fn live_token(
+    state: &AppState,
+    claims: &Claims,
+    id: Uuid,
+) -> Result<String, AppError> {
     require_permission(claims, permissions::abdm::abha::MANAGE)?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -122,6 +126,7 @@ pub async fn request_mobile(
                 login_hint: LoginHint::Mobile,
                 login_id: abdm.encrypt(&mobile)?,
                 otp_system: OtpSystem::Abdm,
+                txn_id: None,
             },
             false,
         )
@@ -179,6 +184,7 @@ pub async fn verify_mobile(
                     },
                 },
             },
+            &[],
         )
         .await
         .map_err(map_abdm_error)?;
@@ -224,6 +230,7 @@ pub async fn request_email(
                 login_hint: LoginHint::Email,
                 login_id: abdm.encrypt(email)?,
                 otp_system: OtpSystem::Abdm,
+                txn_id: None,
             },
             true,
         )

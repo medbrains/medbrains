@@ -17,8 +17,8 @@ use uuid::Uuid;
 
 use super::gateway::{Hip, authenticate};
 use super::linking::{
-    ABDM_BLOCKED, LINK_BATCH, TOKEN_CONTEXT, TOKEN_DAYS, load_patient, mark, mark_linked,
-    note_abdm_block, send_links,
+    LINK_BATCH, TOKEN_CONTEXT, TOKEN_DAYS, error_code, load_patient, mark, mark_linked,
+    note_refusal, send_links,
 };
 use crate::{error::AppError, routes::abdm::abha::secret_key, state::AppState};
 
@@ -29,13 +29,24 @@ fn request_id_of(body: &Value) -> Option<Uuid> {
 }
 
 fn error_of(body: &Value) -> Option<String> {
-    let e = &body["error"];
-    (!e.is_null()).then(|| {
-        e["message"]
-            .as_str()
-            .unwrap_or("ABDM refused the request")
-            .to_owned()
-    })
+    (!body["error"].is_null())
+        .then(|| medbrains_abdm::errors::describe_body(body, "ABDM refused the request"))
+}
+
+/// An `on_carecontext` answer without `error`: its `status` says whether the
+/// link was made ("Successfully Linked care context") or why not ("Counter
+/// and Care context count mismatch", NHA M2 document §1.4). No status at all
+/// is an answer that says nothing — recorded as unknown, never as linked.
+fn link_status_refusal(body: &Value) -> Option<String> {
+    let status = body["status"].as_str().map(str::trim).unwrap_or_default();
+    let lower = status.to_ascii_lowercase();
+    if lower.contains("success") || lower.contains("already linked") {
+        None
+    } else if status.is_empty() {
+        Some("ABDM's answer did not say whether the records were linked — link again".to_owned())
+    } else {
+        Some(format!("ABDM did not link the records: {status}"))
+    }
 }
 
 /// When the token expires: its own `exp` claim, else ABDM's six months.
@@ -93,11 +104,9 @@ pub async fn on_generate_token(
     };
     let token = body["linkToken"].as_str().filter(|t| !t.is_empty());
     let (Some(token), None) = (token, error_of(&body)) else {
-        let blocked = note_abdm_block(&state.db, caller.tenant_id, patient_id, &body).await?;
-        let reason = if blocked {
-            ABDM_BLOCKED.to_owned()
-        } else {
-            error_of(&body).unwrap_or_else(|| "ABDM sent no link token".to_owned())
+        let reason = match note_refusal(&state.db, caller.tenant_id, patient_id, &body).await? {
+            Some(why) => why.to_owned(),
+            None => error_of(&body).unwrap_or_else(|| "ABDM sent no link token".to_owned()),
         };
         mark(
             &state.db,
@@ -158,12 +167,18 @@ pub async fn on_link_care_context(
         tracing::info!("abdm: a link verdict for no waiting care context (a repeat?)");
         return Ok(StatusCode::ACCEPTED);
     };
-    if let Some(reason) = error_of(&body) {
-        let reason = if note_abdm_block(&state.db, caller.tenant_id, patient_id, &body).await? {
-            ABDM_BLOCKED.to_owned()
-        } else {
-            reason
-        };
+    // "Already linked" is the outcome we wanted (care-abdm treats it so too).
+    let already = error_code(&body) == Some("ABDM-1056");
+    let refusal = match (error_of(&body), already) {
+        (Some(reason), false) => Some(
+            note_refusal(&state.db, caller.tenant_id, patient_id, &body)
+                .await?
+                .map_or(reason, str::to_owned),
+        ),
+        (_, true) => None,
+        (None, false) => link_status_refusal(&body),
+    };
+    if let Some(reason) = refusal {
         mark(
             &state.db,
             caller.tenant_id,

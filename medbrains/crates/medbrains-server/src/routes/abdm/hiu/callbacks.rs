@@ -36,13 +36,8 @@ use crate::{
 };
 
 pub(super) fn error_of(body: &Value) -> Option<String> {
-    let e = &body["error"];
-    (!e.is_null()).then(|| {
-        e["message"]
-            .as_str()
-            .unwrap_or("ABDM refused the request")
-            .to_owned()
-    })
+    (!body["error"].is_null())
+        .then(|| medbrains_abdm::errors::describe_body(body, "ABDM refused the request"))
 }
 
 pub(super) fn request_id_of(body: &Value) -> Option<Uuid> {

@@ -118,6 +118,7 @@ pub async fn link_verified_abha(
         ("abha_number", _) => "abha_mobile_otp",
         ("aadhaar_enrol", _) => "created_aadhaar_otp",
         ("abha_address", _) => "abha_address_otp",
+        ("aadhaar", _) => "aadhaar_number_otp",
         // Shared from the patient's ABHA app through ABDM Scan & Share.
         ("scan_share", _) => "scan_share",
         _ => "mobile_otp",
@@ -128,7 +129,9 @@ pub async fn link_verified_abha(
             verified_at, verified_by, verification_id, verification_method, kyc_status, kyc_checked_at) \
          VALUES ($1, $2, $3, $4, $5, 'linked', now(), $6, $7, $8, $9, now()) \
          ON CONFLICT (tenant_id, patient_id) DO UPDATE SET \
-           deleted_at = NULL, deleted_by = NULL, delete_reason = NULL, \
+           deleted_at = NULL, deleted_by = NULL, delete_reason = NULL, unlinked_at = NULL, \
+           opted_out_at = NULL, opted_out_by = NULL, opt_out_reason = NULL, \
+           abdm_deactivated_at = NULL, \
            abha_number = EXCLUDED.abha_number, abha_address = EXCLUDED.abha_address, \
            kyc_verified = EXCLUDED.kyc_verified, status = 'linked', \
            verified_at = EXCLUDED.verified_at, verified_by = EXCLUDED.verified_by, \

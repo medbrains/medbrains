@@ -1,10 +1,18 @@
 import { Group, Stack, Text } from "@mantine/core";
-import type { AbhaField, AbhaVerificationStep, AbhaVerifiedProfile } from "@medbrains/types";
+import { useHasPermission } from "@medbrains/stores";
+import {
+  type AbhaField,
+  type AbhaVerificationStep,
+  type AbhaVerifiedProfile,
+  P,
+} from "@medbrains/types";
 import { useState } from "react";
 import { Alert, Button } from "@/components/ui";
 import { abhaService } from "@/services/abha.service";
 import { AbhaAccountUpdate } from "./AbhaAccountUpdate";
+import { AbhaCloseModal } from "./AbhaCloseModal";
 import { AbhaCompare, compareRows, type OurDetails } from "./AbhaCompare";
+import { AbhaProfileActions } from "./AbhaProfileActions";
 
 export interface AbhaVerified {
   verificationId: string;
@@ -25,6 +33,10 @@ export interface AbhaConfirmProps {
 interface AbhaVerifiedStepProps extends AbhaConfirmProps {
   step: AbhaVerificationStep;
   profile: AbhaVerifiedProfile;
+  /** A re-KYC read the profile again. */
+  onStepChange?: (step: AbhaVerificationStep) => void;
+  /** The patient deleted or deactivated the ABHA; it cannot be used now. */
+  onClosed?: (message: string) => void;
 }
 
 /** Take ABHA's value wherever ours is blank or different, until staff say otherwise. */
@@ -41,8 +53,12 @@ export function AbhaVerifiedStep({
   confirmLabel,
   confirming,
   onConfirm,
+  onStepChange,
+  onClosed,
 }: AbhaVerifiedStepProps) {
   const [apply, setApply] = useState(() => defaultApply(profile, ours));
+  const [closing, setClosing] = useState(false);
+  const canClose = useHasPermission(P.ABDM.ABHA.DEACTIVATE) && Boolean(onClosed);
   return (
     <Stack>
       {step.message && <Text size="sm">{step.message}</Text>}
@@ -62,6 +78,23 @@ export function AbhaVerifiedStep({
         </Button>
       </Group>
       <AbhaAccountUpdate verificationId={step.id} />
+      <AbhaProfileActions verificationId={step.id} onStepChange={onStepChange} />
+      {canClose && onClosed && (
+        <>
+          <Button tone="danger-ghost" onClick={() => setClosing(true)}>
+            Delete or deactivate this ABHA…
+          </Button>
+          <AbhaCloseModal
+            verificationId={step.id}
+            opened={closing}
+            onClose={() => setClosing(false)}
+            onClosed={(message) => {
+              setClosing(false);
+              onClosed(message);
+            }}
+          />
+        </>
+      )}
       {step.already_linked ? (
         <Alert tone="warning" title="This ABHA is already on another patient">
           It belongs to {step.already_linked.name} ({step.already_linked.uhid}). Open that record

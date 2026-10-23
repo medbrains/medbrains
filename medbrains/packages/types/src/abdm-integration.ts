@@ -100,8 +100,16 @@ export interface AbdmBridgeRegistration {
   campuses: (AbdmStepOutcome & { facility_id: string; hfr_facility_id: string })[];
 }
 
-/** How the desk finds the person's ABHA. */
-export type AbhaVerifyMethod = "abha_number" | "mobile" | "abha_address";
+/**
+ * How the desk finds the person's ABHA. `aadhaar` logs in with the Aadhaar
+ * number (never stored); `find_mobile` lists the ABHAs on a mobile first.
+ */
+export type AbhaVerifyMethod =
+  | "abha_number"
+  | "mobile"
+  | "abha_address"
+  | "aadhaar"
+  | "find_mobile";
 /** Where ABDM sends the OTP for an ABHA-number lookup. */
 export type AbhaOtpVia = "aadhaar" | "abdm";
 
@@ -157,7 +165,14 @@ export interface StartAbhaEnrolment {
 
 export interface AbhaVerificationStep {
   id: string;
-  stage: "otp_sent" | "mobile_otp_sent" | "choose_account" | "choose_address" | "verified";
+  /** `search_results`: the ABHAs a mobile search found, before any OTP. */
+  stage:
+    | "search_results"
+    | "otp_sent"
+    | "mobile_otp_sent"
+    | "choose_account"
+    | "choose_address"
+    | "verified";
   /** ABDM's note, e.g. which masked mobile the OTP went to. */
   message: string | null;
   resend_after_seconds: number | null;
@@ -174,6 +189,38 @@ export interface AbhaVerificationStep {
 /** ABDM's reply to an ABHA mobile or email change — where the OTP or link went. */
 export interface AbhaAccountChange {
   message: string | null;
+}
+
+/** Delete (for good) or deactivate (until the patient reactivates it). */
+export type AbhaCloseAction = "delete" | "deactivate";
+
+export interface CloseAbha {
+  action: AbhaCloseAction;
+  otp_via: AbhaOtpVia;
+  reason: string;
+}
+
+/** ABDM closed the ABHA; the patient here who carried it no longer does. */
+export interface AbhaClosed {
+  message: string | null;
+  unlinked: AbhaLinkedPatient | null;
+}
+
+/** What a scanned ABHA card says — to verify by OTP, never trusted as is. */
+export interface AbhaCardQr {
+  abha_number: string | null;
+  abha_address: string | null;
+  name: string | null;
+  gender: "male" | "female" | "other" | null;
+  date_of_birth: string | null;
+  mobile: string | null;
+}
+
+/** The patient's ABHA left this hospital. */
+export interface AbhaOptedOut {
+  /** Last four digits of the ABHA number that was on the record. */
+  abha_ending: string;
+  consents_deleted: number;
 }
 
 /** Demographics staff may take from ABHA onto an existing patient. */

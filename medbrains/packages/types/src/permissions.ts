@@ -17,7 +17,7 @@ export interface PermissionDef {
   module: string;
 }
 
-/** 1130 permissions, one per constant in the Rust source. */
+/** 1132 permissions, one per constant in the Rust source. */
 export const PERMISSIONS: PermissionDef[] = [
   // dashboard
   {
@@ -6795,6 +6795,18 @@ export const PERMISSIONS: PermissionDef[] = [
     module: "abdm",
   },
   {
+    code: "abdm.abha.deactivate",
+    label: "Delete or deactivate a patient's ABHA at ABDM",
+    description: "At the patient's request and with the OTP ABDM sends them, close their national ABHA for good (delete) or until they reactivate it (deactivate). The hospital then stops using it on their record.",
+    module: "abdm",
+  },
+  {
+    code: "abdm.abha.unlink",
+    label: "Record a patient's ABDM opt-out",
+    description: "The patient withdraws their ABHA from this hospital: it is unlinked from their record, the consents they granted the hospital are deleted and no more records are linked to it.",
+    module: "abdm",
+  },
+  {
     code: "abdm.hfr.view",
     label: "View Hfr",
     description: "View this facility's Health Facility Registry entry.",
@@ -6882,10 +6894,14 @@ export const PERMISSIONS: PermissionDef[] = [
 export const P = {
   ABDM: {
     ABHA: {
+      DEACTIVATE: "abdm.abha.deactivate",
       MANAGE: "abdm.abha.manage",
+      UNLINK: "abdm.abha.unlink",
       VIEW: "abdm.abha.view",
     },
+    ABHA_DEACTIVATE: "abdm.abha.deactivate",
     ABHA_MANAGE: "abdm.abha.manage",
+    ABHA_UNLINK: "abdm.abha.unlink",
     ABHA_VIEW: "abdm.abha.view",
     BRIDGE: {
       REGISTER: "abdm.bridge.register",
@@ -10814,7 +10830,9 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
   receptionist: {
     label: "Receptionist",
     permissions: [
+      P.ABDM.ABHA.DEACTIVATE,
       P.ABDM.ABHA.MANAGE,
+      P.ABDM.ABHA.UNLINK,
       P.ABDM.ABHA.VIEW,
       P.ABDM.SCANSHARE.VIEW,
       P.ADMIN.DOCTOR_PACKAGES.LIST,
@@ -11473,6 +11491,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
   mrd_officer: {
     label: "MRD Officer",
     permissions: [
+      P.ABDM.ABHA.UNLINK,
       P.ABDM.DASHBOARD.VIEW,
       P.ABDM.RECORDS.MANAGE,
       P.ABDM.RECORDS.VIEW,
@@ -11709,7 +11728,9 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
   front_office_staff: {
     label: "Front Office Staff",
     permissions: [
+      P.ABDM.ABHA.DEACTIVATE,
       P.ABDM.ABHA.MANAGE,
+      P.ABDM.ABHA.UNLINK,
       P.ABDM.ABHA.VIEW,
       P.ABDM.SCANSHARE.VIEW,
       P.ADMIN.SETTINGS.READ,

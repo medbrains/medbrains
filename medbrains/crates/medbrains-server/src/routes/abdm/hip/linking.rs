@@ -26,6 +26,8 @@ pub(super) const TOKEN_DAYS: i64 = 180;
 /// ABDM-1027, in words for staff.
 pub(super) const ABDM_BLOCKED: &str =
     "ABDM has blocked this ABHA for 24 hours after repeated refusals — try again tomorrow";
+/// A deactivated or deleted ABHA (ABDM-1031, 1216, 1308, 1407), in words for staff.
+pub(super) const ABDM_DEACTIVATED: &str = "The patient's ABHA is deactivated at ABDM — ask them to reactivate it in their ABHA app, then retry";
 /// ABDM needs time to index a new link before a context notify is accepted:
 /// refused at 0.6 s, accepted at 50 s (OHC care-abdm, MIT, docs/findings.md F9).
 pub(super) const NOTIFY_DELAY_SECONDS: f64 = 60.0;
@@ -49,6 +51,8 @@ pub struct PatientAbdm {
     pub hip_id: Option<String>,
     /// Until when ABDM blocks calls for this ABHA (ABDM-1027).
     pub blocked_until: Option<DateTime<Utc>>,
+    /// When ABDM answered that this ABHA is deactivated; cleared by a retry.
+    pub deactivated_at: Option<DateTime<Utc>>,
 }
 
 impl PatientAbdm {
@@ -59,6 +63,8 @@ impl PatientAbdm {
             Some("The patient has no ABHA verified with ABDM")
         } else if self.blocked_until.is_some_and(|t| t > Utc::now()) {
             Some(ABDM_BLOCKED)
+        } else if self.deactivated_at.is_some() {
+            Some(ABDM_DEACTIVATED)
         } else if self.hip_id.is_none() {
             Some("This campus has no HFR facility ID")
         } else {
@@ -92,7 +98,7 @@ pub async fn load_patient(
                 p.gender::text AS gender, p.date_of_birth, p.phone, \
                 l.id AS link_id, l.abha_number, l.abha_address, \
                 l.linking_token AS sealed_token, l.token_expiry, mc.hip_id, \
-                l.abdm_blocked_until AS blocked_until \
+                l.abdm_blocked_until AS blocked_until, l.abdm_deactivated_at AS deactivated_at \
            FROM patients p \
            LEFT JOIN LATERAL (SELECT * FROM patient_abha_links l \
                 WHERE l.tenant_id = p.tenant_id AND l.patient_id = p.id \
@@ -359,32 +365,69 @@ pub fn error_code(body: &Value) -> Option<&str> {
         .map(|c| c.trim().trim_end_matches(':').trim())
 }
 
-/// When ABDM answered ABDM-1027, block this patient's ABHA for 24 hours:
-/// the block follows the ABHA address (care-abdm E14). Returns whether it did.
+/// What a refusal says about the patient's ABHA, recorded on their link so
+/// nothing more is sent for it: ABDM-1027 blocks it for 24 hours (the block
+/// follows the ABHA address, care-abdm E14); a deactivated ABHA blocks it
+/// until staff retry once the patient has reactivated it. Returns the words
+/// for staff, or `None` when the refusal is about something else.
 ///
 /// # Errors
 /// A database fault.
-pub(super) async fn note_abdm_block(
+pub(super) async fn note_refusal(
     db: &sqlx::PgPool,
     tenant_id: Uuid,
     patient_id: Uuid,
     body: &Value,
-) -> Result<bool, AppError> {
-    if error_code(body) != Some("ABDM-1027") {
-        return Ok(false);
-    }
+) -> Result<Option<&'static str>, AppError> {
+    let Some(code) = error_code(body) else {
+        return Ok(None);
+    };
+    let (set, reason) = if code == "ABDM-1027" {
+        (
+            "abdm_blocked_until = now() + interval '24 hours'",
+            ABDM_BLOCKED,
+        )
+    } else if medbrains_abdm::errors::is_deactivated(code) {
+        ("abdm_deactivated_at = now()", ABDM_DEACTIVATED)
+    } else {
+        return Ok(None);
+    };
+    let mut tx = db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &tenant_id).await?;
+    // allow-raw-sql: binds tenant_id inside a set_tenant_context transaction
+    sqlx::query(&format!(
+        "UPDATE patient_abha_links SET {set} \
+          WHERE tenant_id = $1 AND patient_id = $2 AND deleted_at IS NULL AND unlinked_at IS NULL"
+    ))
+    .bind(tenant_id)
+    .bind(patient_id)
+    .execute(&mut *tx)
+    .await?;
+    tx.commit().await?;
+    tracing::warn!(
+        code,
+        "abdm: the patient's ABHA is blocked or deactivated at ABDM"
+    );
+    Ok(Some(reason))
+}
+
+/// A staff retry after the patient reactivated their ABHA: try again.
+pub(super) async fn clear_deactivated(
+    db: &sqlx::PgPool,
+    tenant_id: Uuid,
+    patient_id: Uuid,
+) -> Result<(), AppError> {
     let mut tx = db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &tenant_id).await?;
     // allow-raw-sql: binds tenant_id inside a set_tenant_context transaction
     sqlx::query(
-        "UPDATE patient_abha_links SET abdm_blocked_until = now() + interval '24 hours' \
-          WHERE tenant_id = $1 AND patient_id = $2 AND deleted_at IS NULL AND unlinked_at IS NULL",
+        "UPDATE patient_abha_links SET abdm_deactivated_at = NULL \
+          WHERE tenant_id = $1 AND patient_id = $2 AND abdm_deactivated_at IS NOT NULL",
     )
     .bind(tenant_id)
     .bind(patient_id)
     .execute(&mut *tx)
     .await?;
     tx.commit().await?;
-    tracing::warn!("abdm: ABDM-1027, the patient's ABHA is blocked for 24 hours");
-    Ok(true)
+    Ok(())
 }

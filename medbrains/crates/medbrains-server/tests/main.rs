@@ -12,6 +12,7 @@
 //! and the default parallelism comes back.
 
 mod common;
+mod abdm_abha_world;
 mod abdm_hip_world;
 mod collect_world;
 mod delivery_choice_world;
@@ -33,6 +34,9 @@ mod abdm_dashboard_test;
 mod abdm_hfr_hpr_test;
 mod abdm_hip_consent_test;
 mod abdm_link_followups_test;
+mod abdm_link_status_test;
+mod abdm_m1_find_test;
+mod abdm_m1_profile_test;
 mod abdm_m2_hip_test;
 mod abdm_m3_hiu_gaps_test;
 mod abdm_m3_hiu_test;

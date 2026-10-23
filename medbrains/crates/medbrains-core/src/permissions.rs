@@ -3683,6 +3683,18 @@ pub mod abdm {
         pub const VIEW: &str = "abdm.abha.view";
         /// Create or link a patient's ABHA health ID.
         pub const MANAGE: &str = "abdm.abha.manage";
+        /// Delete or deactivate a patient's ABHA at ABDM.
+        ///
+        /// At the patient's request and with the OTP ABDM sends them, close
+        /// their national ABHA for good (delete) or until they reactivate it
+        /// (deactivate). The hospital then stops using it on their record.
+        pub const DEACTIVATE: &str = "abdm.abha.deactivate";
+        /// Record a patient's ABDM opt-out.
+        ///
+        /// The patient withdraws their ABHA from this hospital: it is
+        /// unlinked from their record, the consents they granted the
+        /// hospital are deleted and no more records are linked to it.
+        pub const UNLINK: &str = "abdm.abha.unlink";
     }
     pub mod hfr {
         /// View this facility's Health Facility Registry entry.
