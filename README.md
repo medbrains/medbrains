@@ -90,9 +90,9 @@ Most HMS products are closed boxes: you can't see how they decide a drug interac
 > **Prerequisites:** Rust 1.85+, Node 20+, pnpm, Docker (for PostgreSQL).
 
 ```bash
-# 1. Clone
-git clone https://github.com/DomnicAmalan/MedBrains.git
-cd MedBrains/medbrains
+# 1. Clone (with the r8r automation engine submodule)
+git clone --recurse-submodules https://github.com/medbrains/medbrains.git
+cd medbrains/medbrains
 
 # 2. Start the database (PostgreSQL 16)
 docker compose up -d
@@ -104,6 +104,13 @@ make dev-backend          # Axum server on :8080
 pnpm install
 pnpm --filter=@medbrains/web dev   # Vite dev server on :5173
 ```
+
+`r8r/` is a git submodule (`medbrains/r8r`, private) pinned to a commit; the Rust
+workspace and `packages/automation-ui` reference it by path. In an existing clone run
+`git submodule update --init`. If you already had a hand-made `r8r/` checkout there,
+move it aside first (or run `git submodule absorbgitdirs` after pointing its `origin`
+at `git@github.com:medbrains/r8r.git`). Bumping r8r is a commit here: `cd r8r && git
+checkout <rev> && cd .. && git add r8r`.
 
 The default seed creates a `super_admin` account for local development. Production deployments **must** set `MEDBRAINS_SEED_ADMIN_PASSWORD` and the JWT signing keys — the server refuses default credentials when `MEDBRAINS_ENV=production`.
 
