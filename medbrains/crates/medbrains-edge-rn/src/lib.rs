@@ -1,4 +1,7 @@
 #![allow(clippy::needless_pass_by_value)]
+// UniFFI's generated scaffolding (include_scaffolding! below) defines its
+// metadata as a large const array; the lint fires on code we do not write.
+#![allow(clippy::large_const_arrays)]
 
 //! React Native bridge for the Loro CRDT engine.
 //!
