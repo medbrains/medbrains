@@ -78,6 +78,17 @@ final class AbhaTests: XCTestCase {
         XCTAssertEqual(step.alreadyLinked?.uhid, "UH-1")
         XCTAssertEqual(step.accounts.first?.yearOfBirth, "1990")
         XCTAssertEqual(Abha.resendLabel(wait: 12), "Resend OTP in 12s")
+        XCTAssertNil(step.resendsLeft, "an older server without the cap still decodes")
+    }
+
+    /// ABDM allows two resends; once none are left the screen says so instead of offering one.
+    func testResendsLeftDecodeAndAreSaidPlainly() throws {
+        let json = #"{"id":"v1","stage":"otp_sent","message":null,"resend_after_seconds":60,"resends_left":0,"accounts":[],"profile":null,"already_linked":null,"suggestions":[]}"#
+        let step = try JSONDecoder.medbrains.decode(AbhaVerificationStep.self, from: Data(json.utf8))
+        XCTAssertEqual(step.resendsLeft, 0)
+        XCTAssertEqual(Abha.resendNote(left: 0), "The OTP cannot be sent again. If it has not arrived, close this and start again.")
+        XCTAssertEqual(Abha.resendNote(left: 1), "One resend left")
+        XCTAssertNil(Abha.resendNote(left: nil))
     }
 }
 

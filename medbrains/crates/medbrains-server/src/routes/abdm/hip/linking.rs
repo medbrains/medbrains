@@ -23,6 +23,12 @@ pub(super) const TOKEN_CONTEXT: &[u8] = b"abdm-link-token";
 pub(super) const LINK_BATCH: i64 = 50;
 /// ABDM issues link tokens for six months; used when the token names no `exp`.
 pub(super) const TOKEN_DAYS: i64 = 180;
+/// ABDM-1027, in words for staff.
+pub(super) const ABDM_BLOCKED: &str =
+    "ABDM has blocked this ABHA for 24 hours after repeated refusals — try again tomorrow";
+/// ABDM needs time to index a new link before a context notify is accepted:
+/// refused at 0.6 s, accepted at 50 s (OHC care-abdm, MIT, docs/findings.md F9).
+pub(super) const NOTIFY_DELAY_SECONDS: f64 = 60.0;
 
 /// What linking needs to know about a patient, and why it cannot happen.
 #[derive(Debug, Clone, sqlx::FromRow)]
@@ -38,8 +44,11 @@ pub struct PatientAbdm {
     pub abha_address: Option<String>,
     pub sealed_token: Option<String>,
     pub token_expiry: Option<DateTime<Utc>>,
-    /// The main campus's HFR facility ID — the HIP ID records are shared as.
+    /// The HIP ID records are shared as: the main campus's bridge service id
+    /// when known, else its HFR facility ID (see migration 1190).
     pub hip_id: Option<String>,
+    /// Until when ABDM blocks calls for this ABHA (ABDM-1027).
+    pub blocked_until: Option<DateTime<Utc>>,
 }
 
 impl PatientAbdm {
@@ -48,6 +57,8 @@ impl PatientAbdm {
     pub fn blocked_reason(&self) -> Option<&'static str> {
         if self.link_id.is_none() {
             Some("The patient has no ABHA verified with ABDM")
+        } else if self.blocked_until.is_some_and(|t| t > Utc::now()) {
+            Some(ABDM_BLOCKED)
         } else if self.hip_id.is_none() {
             Some("This campus has no HFR facility ID")
         } else {
@@ -80,13 +91,15 @@ pub async fn load_patient(
         "SELECT p.id AS patient_id, p.uhid, btrim(p.first_name || ' ' || p.last_name) AS name, \
                 p.gender::text AS gender, p.date_of_birth, p.phone, \
                 l.id AS link_id, l.abha_number, l.abha_address, \
-                l.linking_token AS sealed_token, l.token_expiry, mc.hfr_facility_id AS hip_id \
+                l.linking_token AS sealed_token, l.token_expiry, mc.hip_id, \
+                l.abdm_blocked_until AS blocked_until \
            FROM patients p \
            LEFT JOIN LATERAL (SELECT * FROM patient_abha_links l \
                 WHERE l.tenant_id = p.tenant_id AND l.patient_id = p.id \
                   AND l.verified_at IS NOT NULL AND l.deleted_at IS NULL AND l.unlinked_at IS NULL \
                 ORDER BY l.verified_at DESC LIMIT 1) l ON true \
-           LEFT JOIN LATERAL (SELECT f.hfr_facility_id FROM facilities f \
+           LEFT JOIN LATERAL (SELECT COALESCE(f.abdm_hip_service_id, f.hfr_facility_id) AS hip_id \
+                FROM facilities f \
                 WHERE f.tenant_id = p.tenant_id AND f.deleted_at IS NULL AND f.parent_id IS NULL \
                   AND f.hfr_facility_id IS NOT NULL \
                 ORDER BY (f.facility_type = 'main_hospital') DESC, f.created_at LIMIT 1) mc ON true \
@@ -244,7 +257,9 @@ async fn live_token(secrets: &dyn SecretResolver, p: &PatientAbdm) -> Option<Str
     if p.token_expiry? <= Utc::now() + Duration::minutes(1) {
         return None;
     }
-    let key = secret_key(secrets).await;
+    // No usable key means no usable token: a new one is asked for, and
+    // sealing it then fails loudly (503) if the key is truly missing.
+    let key = secret_key(secrets).await.ok()?;
     medbrains_crypto::aead::decrypt_token::<String>(&key, TOKEN_CONTEXT, sealed).ok()
 }
 
@@ -310,17 +325,66 @@ pub async fn mark_linked(
 ) -> Result<(), AppError> {
     let mut tx = db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &tenant_id).await?;
+    // Linked now, and the patient's app told about it a minute later.
     // allow-raw-sql: binds tenant_id inside a set_tenant_context transaction
     sqlx::query(
-        "UPDATE abdm_care_contexts SET link_status = 'linked', linked_at = now(), \
-                linked_via = $3, last_error = NULL \
-          WHERE tenant_id = $1 AND id = ANY($2) AND link_status <> 'linked'",
+        "WITH linked AS ( \
+           UPDATE abdm_care_contexts SET link_status = 'linked', linked_at = now(), \
+                  linked_via = $3, last_error = NULL \
+            WHERE tenant_id = $1 AND id = ANY($2) AND link_status <> 'linked' RETURNING id) \
+         INSERT INTO outbox_events (tenant_id, aggregate_type, aggregate_id, event_type, payload, \
+                idempotency_key, next_retry_at) \
+         SELECT $1, 'abdm_care_context', id, 'abdm.care_context.notify', \
+                jsonb_build_object('care_context_id', id), 'ccn:' || id::text, \
+                now() + make_interval(secs => $4) FROM linked \
+         ON CONFLICT (tenant_id, event_type, idempotency_key) \
+            WHERE idempotency_key IS NOT NULL DO NOTHING",
     )
     .bind(tenant_id)
     .bind(ids)
     .bind(via)
+    .bind(NOTIFY_DELAY_SECONDS)
     .execute(&mut *tx)
     .await?;
     tx.commit().await?;
     Ok(())
+}
+
+/// ABDM's error code in a callback, without the trailing `": "` it sometimes
+/// carries (care-abdm E14).
+#[must_use]
+pub fn error_code(body: &Value) -> Option<&str> {
+    body["error"]["code"]
+        .as_str()
+        .map(|c| c.trim().trim_end_matches(':').trim())
+}
+
+/// When ABDM answered ABDM-1027, block this patient's ABHA for 24 hours:
+/// the block follows the ABHA address (care-abdm E14). Returns whether it did.
+///
+/// # Errors
+/// A database fault.
+pub(super) async fn note_abdm_block(
+    db: &sqlx::PgPool,
+    tenant_id: Uuid,
+    patient_id: Uuid,
+    body: &Value,
+) -> Result<bool, AppError> {
+    if error_code(body) != Some("ABDM-1027") {
+        return Ok(false);
+    }
+    let mut tx = db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &tenant_id).await?;
+    // allow-raw-sql: binds tenant_id inside a set_tenant_context transaction
+    sqlx::query(
+        "UPDATE patient_abha_links SET abdm_blocked_until = now() + interval '24 hours' \
+          WHERE tenant_id = $1 AND patient_id = $2 AND deleted_at IS NULL AND unlinked_at IS NULL",
+    )
+    .bind(tenant_id)
+    .bind(patient_id)
+    .execute(&mut *tx)
+    .await?;
+    tx.commit().await?;
+    tracing::warn!("abdm: ABDM-1027, the patient's ABHA is blocked for 24 hours");
+    Ok(true)
 }

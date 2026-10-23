@@ -10,8 +10,9 @@ use serde::{Deserialize, Serialize};
 use crate::abha::{AbdmAbhaClient, AbdmError, send_json};
 
 pub const ENROL_REQUEST_OTP_PATH: &str = "/v3/enrollment/request/otp";
-// sic: ABDM spells the path "byAadhar".
-pub const ENROL_BY_AADHAAR_PATH: &str = "/v3/enrollment/enrol/byAadhar";
+/// Spelled `byAadhaar` in the ABHA V3 swagger and the M1 document
+/// (`sandboxcms.abdm.gov.in/uploads/ABHA_API_V3_SWAGGER_31_07_2025_981273d127.yaml`).
+pub const ENROL_BY_AADHAAR_PATH: &str = "/v3/enrollment/enrol/byAadhaar";
 pub const ENROL_AUTH_BY_ABDM_PATH: &str = "/v3/enrollment/auth/byAbdm";
 pub const ENROL_SUGGESTION_PATH: &str = "/v3/enrollment/enrol/suggestion";
 pub const ENROL_ABHA_ADDRESS_PATH: &str = "/v3/enrollment/enrol/abha-address";

@@ -110,6 +110,16 @@ fun AbhaFlowSheet(mode: AbhaFlowMode, ours: OurDetails, confirmLabel: String, on
     }
 }
 
+/** "Resend OTP" as ABDM allows it: after the pause, at most twice; once none are left, says so instead. */
+@Composable
+private fun ResendControl(flow: AbhaFlowState, resend: () -> Unit) {
+    val left = flow.step?.resends_left
+    if (left != 0) {
+        CarbonTertiaryButton(Abha.resendLabel(flow.wait), enabled = !flow.busy && flow.wait == 0, modifier = Modifier.fillMaxWidth().testTag("abha-resend"), onClick = resend)
+    }
+    Abha.resendNote(left)?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+}
+
 @Composable
 private fun FailureNote(message: String?) {
     message?.let { CarbonNotification(NotificationKind.Error, "ABDM said no", it, Modifier.testTag("abha-failure")) }
@@ -156,7 +166,7 @@ private fun AbhaVerifyFlow(ours: OurDetails, confirmLabel: String, onConfirm: su
             Text(step.message ?: "ABDM has sent the patient an OTP.", style = MaterialTheme.typography.bodyLarge)
             OtpField(flow)
             CarbonPrimaryButton("Verify", enabled = !flow.busy && flow.otp.length == Abha.OTP_LENGTH, modifier = Modifier.testTag("abha-verify-otp"), onClick = { scope.launch { flow.run { api.submitOtp(step.id, flow.otp) } } })
-            CarbonTertiaryButton(Abha.resendLabel(flow.wait), enabled = !flow.busy && flow.wait == 0, modifier = Modifier.fillMaxWidth().testTag("abha-resend"), onClick = { scope.launch { flow.run { api.resend(step.id) } } })
+            ResendControl(flow) { scope.launch { flow.run { api.resend(step.id) } } }
         }
         AbhaStage.CHOOSE_ACCOUNT -> {
             CarbonSectionTitle("Several ABHAs use this mobile — which is the patient's?")
@@ -186,6 +196,7 @@ private fun AbhaCreateFlow(ours: OurDetails, formMobile: String, confirmLabel: S
     // Held only while the first OTP is outstanding; never stored, saved or logged.
     var aadhaar by remember { mutableStateOf("") }
     var mobile by remember { mutableStateOf(Abha.mobile(formMobile).orEmpty()) }
+    LaunchedEffect(flow.sent) { while (flow.wait > 0) { delay(SECOND_MS); flow.wait -= 1 } }
     var address by remember { mutableStateOf("") }
     fun run(op: suspend () -> AbhaVerificationStep) = scope.launch {
         flow.run(op)
@@ -195,10 +206,10 @@ private fun AbhaCreateFlow(ours: OurDetails, formMobile: String, confirmLabel: S
     FailureNote(flow.failure)
     val step = flow.step
     if (step == null) {
-        CarbonNotification(NotificationKind.Info, "Read this to the patient", "Your Aadhaar number will be used only to create your Ayushman Bharat Health Account (ABHA) with the National Health Authority. An OTP goes to the mobile linked to your Aadhaar. This hospital does not keep your Aadhaar number. Having an ABHA is your choice; you can be treated without one.")
+        CarbonNotification(NotificationKind.Info, "Terms and Conditions — read these to the patient", Abha.ENROL_CONSENT)
         Row(Modifier.fillMaxWidth().toggleable(consent, role = Role.Checkbox, onValueChange = { consent = it }).testTag("abha-consent"), verticalAlignment = Alignment.CenterVertically) {
             Checkbox(consent, onCheckedChange = null)
-            Text("The patient agrees to create their ABHA with Aadhaar", style = MaterialTheme.typography.bodyLarge, modifier = Modifier.padding(start = 8.dp))
+            Text("I agree — the patient consents to creating their ABHA with Aadhaar (ABDM consent v${Abha.ENROL_CONSENT_VERSION})", style = MaterialTheme.typography.bodyLarge, modifier = Modifier.padding(start = 8.dp))
         }
         CarbonTextField(aadhaar, { aadhaar = Abha.aadhaarInput(it) }, "Aadhaar number — 12 digits, sent to ABDM encrypted, not saved here", Modifier.testTag("abha-aadhaar"),
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword, autoCorrectEnabled = false), visualTransformation = PasswordVisualTransformation())
@@ -217,10 +228,10 @@ private fun AbhaCreateFlow(ours: OurDetails, formMobile: String, confirmLabel: S
                 val otp = flow.otp; val m = mobile
                 run { api.enrolmentOtp(step.id, otp, m) }
             })
-            CarbonTertiaryButton("Send the OTP again", enabled = !flow.busy && aadhaar.length == Abha.AADHAAR_LENGTH, modifier = Modifier.fillMaxWidth(), onClick = {
-                val a = aadhaar; val c = consent
-                run { api.startEnrolment(a, c) }
-            })
+            ResendControl(flow) {
+                val a = aadhaar
+                run { api.resendEnrolment(step.id, a) }
+            }
         }
         AbhaStage.MOBILE_OTP_SENT -> {
             Text(step.message ?: "ABDM has sent an OTP to the new mobile.", style = MaterialTheme.typography.bodyLarge)
@@ -229,6 +240,7 @@ private fun AbhaCreateFlow(ours: OurDetails, formMobile: String, confirmLabel: S
                 val otp = flow.otp
                 run { api.enrolmentMobileOtp(step.id, otp) }
             })
+            ResendControl(flow) { run { api.resendEnrolment(step.id, null) } }
         }
         AbhaStage.CHOOSE_ADDRESS -> {
             CarbonSectionTitle("Choose an ABHA address — the patient's easy-to-remember health ID")

@@ -36,6 +36,10 @@ pub struct AbdmCareContext {
     pub linked_via: Option<String>,
     pub last_error: Option<String>,
     pub dhis_category: i16,
+    /// When ABDM accepted the context notify (the patient's app shows it).
+    pub notified_at: Option<DateTime<Utc>>,
+    /// Why ABDM did not accept the notify, when it did not.
+    pub notify_error: Option<String>,
 }
 
 #[derive(Debug, Serialize, sqlx::FromRow)]
@@ -76,7 +80,8 @@ pub struct AbdmPatientRecords {
 }
 
 const CONTEXT_COLUMNS: &str = "id, patient_id, source_kind, reference_number, display, hi_types, \
-     record_date, link_status, linked_at, linked_via, last_error, dhis_category";
+     record_date, link_status, linked_at, linked_via, last_error, dhis_category, notified_at, \
+     notify_error";
 
 /// `GET /api/abdm/patients/{patient_id}/records`.
 ///

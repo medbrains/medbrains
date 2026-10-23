@@ -23,6 +23,7 @@ public struct AbhaApi: Sendable {
     private struct Account: Encodable { let abhaNumber: String }
     private struct Address: Encodable { let abhaAddress: String }
     private struct Enrol: Encodable { let aadhaar: String; let consent: Bool }
+    private struct ResendEnrol: Encodable { let aadhaar: String? }
     private struct Link: Encodable { let patientId: String; let apply: [AbhaField] }
     private struct Linked: Decodable { let linked: Bool }
 
@@ -51,6 +52,12 @@ public struct AbhaApi: Sendable {
 
     public func enrolmentOtp(_ id: String, otp: String, mobile: String) async throws -> AbhaVerificationStep {
         try await client.request(.post, AbdmEndpoint.enrolment(id, "otp"), body: EnrolmentOtp(otp: otp, mobile: mobile))
+    }
+
+    /// The waiting OTP again. The Aadhaar OTP needs the Aadhaar number again
+    /// (never stored); the mobile OTP does not.
+    public func resendEnrolment(_ id: String, aadhaar: String?) async throws -> AbhaVerificationStep {
+        try await client.request(.post, AbdmEndpoint.enrolment(id, "resend"), body: ResendEnrol(aadhaar: aadhaar))
     }
 
     public func enrolmentMobileOtp(_ id: String, otp: String) async throws -> AbhaVerificationStep {

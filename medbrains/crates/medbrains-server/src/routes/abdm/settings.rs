@@ -96,7 +96,7 @@ pub async fn save_settings(
     if client_id.is_empty() {
         return Err(AppError::BadRequest("enter the ABDM client ID".to_owned()));
     }
-    let key = secret_key(state.secret_resolver.as_ref()).await;
+    let key = secret_key(state.secret_resolver.as_ref()).await?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
     let previous = stored_abdm_config(&mut tx, &claims.tenant_id).await?;

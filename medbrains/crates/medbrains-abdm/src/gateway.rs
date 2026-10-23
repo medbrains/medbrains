@@ -38,14 +38,24 @@ pub const ON_LINK_INIT_PATH: &str =
 /// User-initiated linking: our answer to link confirm (linked contexts).
 pub const ON_LINK_CONFIRM_PATH: &str =
     "/api/hiecm/user-initiated-linking/v3/link/care-context/on-confirm";
+/// HIP-initiated linking: tell the patient's app a linked context has data.
+pub const LINK_CONTEXT_NOTIFY_PATH: &str = "/api/hiecm/hip/v3/link/context/notify";
 /// Consent: acknowledge a consent notification.
 pub const CONSENT_ON_NOTIFY_PATH: &str = "/api/hiecm/consent/v3/request/hip/on-notify";
 /// Data flow: acknowledge a health-information request.
 pub const HI_ON_REQUEST_PATH: &str = "/api/hiecm/data-flow/v3/health-information/hip/on-request";
 /// Data flow: report the outcome of a transfer.
 pub const HI_NOTIFY_PATH: &str = "/api/hiecm/data-flow/v3/health-information/notify";
-/// The gateway's public keys (JWKS) its callback JWTs are signed with.
+/// The gateway's signing keys (JWKS) for its callback JWTs.
+///
+/// RS256 and RS512 keys (`dev.abdm.gov.in/api/hiecm/gateway/v3/certs`). The
+/// v3 path answers 401 without a session (nha-in/docs, integration learnings 1.5).
 pub const GATEWAY_CERTS_PATH: &str = "/api/hiecm/gateway/v3/certs";
+/// Bridge registration: where the gateway delivers our callbacks
+/// (`PATCH {url}`, gateway swagger `gateway_1_0d212e29a3.yaml`).
+pub const BRIDGE_URL_PATH: &str = "/api/hiecm/gateway/v3/bridge/url";
+/// The service (HFR facility) IDs registered against our bridge.
+pub const BRIDGE_SERVICES_PATH: &str = "/api/hiecm/gateway/v3/bridge-services";
 
 // ── Outbound (HIU → gateway) ─────────────────────────────────────────
 // Checked against NHA's ABDM wrapper (`application-v3.properties`), which
@@ -66,6 +76,7 @@ pub const HIU_HI_REQUEST_PATH: &str = "/api/hiecm/data-flow/v3/health-informatio
 // ── Inbound (gateway → HIP), relative to the HIP's registered base URL ──
 pub const CB_ON_GENERATE_TOKEN: &str = "/api/v3/hip/token/on-generate-token";
 pub const CB_ON_LINK_CARE_CONTEXT: &str = "/api/v3/link/on_carecontext";
+pub const CB_LINK_CONTEXT_ON_NOTIFY: &str = "/api/v3/links/context/on-notify";
 pub const CB_DISCOVER: &str = "/api/v3/hip/patient/care-context/discover";
 pub const CB_LINK_INIT: &str = "/api/v3/hip/link/care-context/init";
 pub const CB_LINK_CONFIRM: &str = "/api/v3/hip/link/care-context/confirm";
@@ -202,33 +213,70 @@ impl AbdmGatewayClient {
         expect_success(builder).await
     }
 
-    /// The gateway's signing keys (a JWKS document). ABDM's docs ask for the
-    /// session and the usual headers even here.
+    /// The gateway's signing keys (a JWKS document), fetched with a session
+    /// and the usual headers.
     ///
     /// # Errors
     /// [`AbdmError`] as for every call.
     pub async fn certs(&self, session: &str) -> Result<Value, AbdmError> {
-        let response = self
+        self.call(reqwest::Method::GET, GATEWAY_CERTS_PATH, Some(session), None)
+            .await
+    }
+
+    /// Point the gateway at our callback base URL (`<cb>`).
+    ///
+    /// # Errors
+    /// [`AbdmError`] when the gateway refuses or is unreachable.
+    pub async fn update_bridge_url(&self, session: &str, url: &str) -> Result<(), AbdmError> {
+        let body = serde_json::json!({ "url": url });
+        self.call(reqwest::Method::PATCH, BRIDGE_URL_PATH, Some(session), Some(&body))
+            .await
+            .map(|_| ())
+    }
+
+    /// Our bridge as the gateway holds it: `{bridge{id,url,active,…}, services[…]}`.
+    ///
+    /// # Errors
+    /// [`AbdmError`] when the gateway refuses or is unreachable.
+    pub async fn bridge_services(&self, session: &str) -> Result<Value, AbdmError> {
+        self.call(reqwest::Method::GET, BRIDGE_SERVICES_PATH, Some(session), None)
+            .await
+    }
+
+    /// A gateway call without `X-HIP-ID`/`X-HIU-ID`. An empty answer (202,
+    /// 204) is `Null`.
+    async fn call(
+        &self,
+        method: reqwest::Method,
+        path: &str,
+        session: Option<&str>,
+        body: Option<&Value>,
+    ) -> Result<Value, AbdmError> {
+        let mut builder = self
             .http
-            .get(format!("{}{GATEWAY_CERTS_PATH}", self.base_url))
-            .bearer_auth(session)
+            .request(method, format!("{}{path}", self.base_url))
             .header("REQUEST-ID", Uuid::new_v4().to_string())
             .header(
                 "TIMESTAMP",
                 Utc::now().to_rfc3339_opts(SecondsFormat::Millis, true),
             )
-            .header("X-CM-ID", self.cm_id)
-            .send()
-            .await?;
+            .header("X-CM-ID", self.cm_id);
+        if let Some(token) = session {
+            builder = builder.bearer_auth(token);
+        }
+        if let Some(body) = body {
+            builder = builder.json(body);
+        }
+        let response = builder.send().await?;
         let status = response.status();
+        let text = response.text().await?;
         if !status.is_success() {
-            let body = response.text().await.unwrap_or_default();
             return Err(AbdmError::Status {
                 status,
-                message: abdm_message(&body),
+                message: abdm_message(&text),
             });
         }
-        Ok(response.json().await?)
+        Ok(serde_json::from_str(&text).unwrap_or(Value::Null))
     }
 
     /// POST the encrypted bundles to the HIU's `dataPushUrl`. The URL comes

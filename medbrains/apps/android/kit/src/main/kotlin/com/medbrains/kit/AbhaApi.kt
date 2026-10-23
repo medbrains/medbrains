@@ -22,6 +22,7 @@ object AbdmEndpoint {
 @Serializable private data class AccountBody(val abha_number: String)
 @Serializable private data class AddressBody(val abha_address: String)
 @Serializable private data class EnrolBody(val aadhaar: String, val consent: Boolean)
+@Serializable private data class ResendEnrolBody(val aadhaar: String? = null)
 @Serializable private data class LinkBody(val patient_id: String, val apply: List<AbhaField>)
 @Serializable private data class Linked(val linked: Boolean)
 @Serializable private data class CompleteBody(val patient_id: String)
@@ -43,6 +44,10 @@ class AbhaApi(private val client: ApiClient) {
 
     suspend fun enrolmentOtp(id: String, otp: String, mobile: String): AbhaVerificationStep =
         client.post(AbdmEndpoint.enrolment(id, "otp"), EnrolmentOtpBody(otp, mobile))
+
+    /** The waiting OTP again. The Aadhaar OTP needs the Aadhaar number again (never stored); the mobile OTP does not. */
+    suspend fun resendEnrolment(id: String, aadhaar: String?): AbhaVerificationStep =
+        client.post(AbdmEndpoint.enrolment(id, "resend"), ResendEnrolBody(aadhaar))
 
     suspend fun enrolmentMobileOtp(id: String, otp: String): AbhaVerificationStep = client.post(AbdmEndpoint.enrolment(id, "mobile-otp"), OtpBody(otp))
 

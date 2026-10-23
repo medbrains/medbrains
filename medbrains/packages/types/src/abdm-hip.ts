@@ -19,6 +19,10 @@ export interface AbdmCareContext {
   last_error: string | null;
   /** DHIS category: 1 (diagnostic report, discharge summary) pays ₹10, 2 pays ₹5. */
   dhis_category: 1 | 2;
+  /** When ABDM accepted the "new record" notice for the patient's app. */
+  notified_at: string | null;
+  /** Why ABDM did not accept that notice, when it did not. */
+  notify_error: string | null;
 }
 
 export interface AbdmConsentArtefact {

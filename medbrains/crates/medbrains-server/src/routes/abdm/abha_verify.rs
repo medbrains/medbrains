@@ -27,7 +27,7 @@ use uuid::Uuid;
 use super::abha::{Abdm, connect, map_abdm_error};
 use super::abha_address::{full_address, hint, otp_system, request_otp, scope, verify_and_finish};
 use super::abha_common::{
-    AccountChoice, RESEND_AFTER_SECONDS, VerificationStep, abha_number_display, digits, env_name,
+    AccountChoice, RESEND_AFTER_SECONDS, VerificationStep, check_resend, abha_number_display, digits, env_name,
     gender_name, keep_token, record_verified, take_token, to_profile, update,
 };
 use crate::{
@@ -159,6 +159,7 @@ struct Row {
     stage: String,
     otp_attempts: i32,
     resend_ready: bool,
+    resend_count: i32,
     accounts: Option<serde_json::Value>,
 }
 
@@ -168,7 +169,8 @@ async fn load(state: &AppState, claims: &Claims, id: Uuid) -> Result<Row, AppErr
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
     let row = sqlx::query_as::<_, Row>(
         "SELECT method, otp_system, login_id_cipher, abdm_txn_id, stage, otp_attempts, \
-                (now() - otp_sent_at) >= make_interval(secs => $4::float8) AS resend_ready, accounts \
+                (now() - otp_sent_at) >= make_interval(secs => $4::float8) AS resend_ready, \
+                resend_count, accounts \
          FROM abha_verifications \
          WHERE id = $1 AND tenant_id = $2 AND created_by = $3 \
            AND expires_at > now() AND linked_patient_id IS NULL AND deleted_at IS NULL",
@@ -188,7 +190,8 @@ async fn load(state: &AppState, claims: &Claims, id: Uuid) -> Result<Row, AppErr
 /// `POST /api/abdm/abha/verifications/{id}/resend` — another OTP, after a pause.
 ///
 /// # Errors
-/// 429 inside the resend pause; 400 when the verification is not waiting for an OTP.
+/// 429 inside the resend pause or after two resends; 400 when the
+/// verification is not waiting for an OTP.
 #[tracing::instrument(skip_all, fields(tenant_id = %claims.tenant_id))]
 pub async fn resend(
     State(state): State<AppState>,
@@ -202,11 +205,7 @@ pub async fn resend(
             "the OTP was already accepted".to_owned(),
         ));
     }
-    if !row.resend_ready {
-        return Err(AppError::TooManyRequests(
-            "wait a minute before asking ABDM for another OTP".to_owned(),
-        ));
-    }
+    check_resend(row.resend_ready, row.resend_count)?;
     let (method, via) = parse_row_method(&row);
     let abdm = connect(&state, claims.tenant_id).await?;
     let sent = request_otp(
@@ -221,10 +220,12 @@ pub async fn resend(
     .await?;
     update(&state, &claims, id, |q| {
         q.push("abdm_txn_id = ").push_bind(sent.txn_id.clone());
-        q.push(", otp_sent_at = now(), otp_attempts = 0");
+        q.push(", otp_sent_at = now(), otp_attempts = 0, resend_count = resend_count + 1");
     })
     .await?;
-    Ok(Json(VerificationStep::otp_sent(id, sent.message)))
+    Ok(Json(
+        VerificationStep::otp_sent(id, sent.message).resent(row.resend_count + 1),
+    ))
 }
 
 fn parse_row_method(row: &Row) -> (VerifyMethod, OtpSystem) {
@@ -355,6 +356,7 @@ async fn offer_accounts(
         stage: "choose_account",
         message: None,
         resend_after_seconds: None,
+        resends_left: None,
         accounts: choices,
         profile: None,
         already_linked: None,

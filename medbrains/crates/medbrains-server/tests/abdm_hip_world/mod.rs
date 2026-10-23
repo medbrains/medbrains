@@ -8,7 +8,7 @@ pub mod hiu;
 pub mod scan_share;
 
 use std::{
-    collections::HashMap,
+    collections::{HashMap, HashSet},
     future::Future,
     pin::Pin,
     sync::{Arc, Mutex},
@@ -21,8 +21,9 @@ use axum::{
     http::{HeaderMap, StatusCode, Uri},
     routing::post,
 };
-use openssl::{pkey::PKey, rsa::Rsa};
-use serde_json::{Map, Value, json};
+use base64::{Engine, engine::general_purpose::URL_SAFE_NO_PAD};
+use openssl::{hash::MessageDigest, pkey::PKey, rsa::Rsa, sign::Signer};
+use serde_json::{Value, json};
 use uuid::Uuid;
 
 use crate::common;
@@ -39,15 +40,49 @@ pub type Calls = Arc<Mutex<Vec<Call>>>;
 /// call returns.
 pub type Hook = Arc<dyn Fn(Call) -> Pin<Box<dyn Future<Output = ()> + Send>> + Send + Sync>;
 pub type Hooks = Arc<Mutex<HashMap<String, Hook>>>;
+/// Gateway paths that answer 401 once — a session the gateway revoked.
+pub type RefuseOnce = Arc<Mutex<HashSet<String>>>;
+/// Canned answers by path (status and JSON body), instead of a bare 202.
+pub type Replies = Arc<Mutex<HashMap<String, (StatusCode, Value)>>>;
+type MockState = (Calls, Hooks, RefuseOnce, Replies);
+
+/// The sandbox realm the official M2 document's sample token names.
+pub const SANDBOX_ISSUER: &str = "https://dev.ndhm.gov.in/auth/realms/central-registry";
+
+/// What the gateway's own token carries (`clientId` "gateway").
+pub fn gateway_claims() -> Value {
+    json!({ "iss": SANDBOX_ISSUER, "clientId": "gateway", "azp": "gateway", "typ": "Bearer" })
+}
+
+/// A JWT over `claims` (plus a one-minute `exp`), signed RS256 or RS512 with
+/// `key` (a PKCS#8 PEM).
+pub fn jwt(alg: &str, mut claims: Value, key: &[u8]) -> String {
+    let exp = chrono::Utc::now().timestamp() + 60;
+    claims["exp"] = json!(exp);
+    let part = |v: &Value| URL_SAFE_NO_PAD.encode(v.to_string());
+    let input = format!("{}.{}", part(&json!({ "alg": alg, "typ": "JWT" })), part(&claims));
+    let pkey = PKey::private_key_from_pem(key).expect("private key");
+    let digest = if alg == "RS512" { MessageDigest::sha512() } else { MessageDigest::sha256() };
+    let mut signer = Signer::new(digest, &pkey).expect("signer");
+    signer.update(input.as_bytes()).expect("sign input");
+    let signature = signer.sign_to_vec().expect("signature");
+    format!("{input}.{}", URL_SAFE_NO_PAD.encode(signature))
+}
+
+/// The gateway's callback token, signed with `key`.
+pub fn gateway_jwt(key: &[u8]) -> String {
+    jwt("RS256", gateway_claims(), key)
+}
 
 /// The gateway (sessions + every HIP call, answered 202) and the HIU push URL.
-async fn spawn_mock(calls: Calls, hooks: Hooks) -> String {
+async fn spawn_mock(state: MockState) -> String {
     async fn record(
-        State((c, hooks)): State<(Calls, Hooks)>,
+        State((c, hooks, refuse, replies)): State<MockState>,
         uri: Uri,
         headers: HeaderMap,
         body: Bytes,
-    ) -> StatusCode {
+    ) -> axum::response::Response {
+        use axum::response::IntoResponse;
         let body = serde_json::from_slice(&body).unwrap_or(Value::Null);
         let call = Call {
             path: uri.path().to_owned(),
@@ -55,19 +90,38 @@ async fn spawn_mock(calls: Calls, hooks: Hooks) -> String {
             body,
         };
         c.lock().expect("calls").push(call.clone());
+        if refuse.lock().expect("refuse").remove(&call.path) {
+            return StatusCode::UNAUTHORIZED.into_response();
+        }
+        let reply = replies.lock().expect("replies").get(&call.path).cloned();
         let hook = hooks.lock().expect("hooks").get(&call.path).cloned();
         if let Some(hook) = hook {
             hook(call).await;
         }
-        StatusCode::ACCEPTED
+        match reply {
+            Some((status, body)) => (status, Json(body)).into_response(),
+            None => StatusCode::ACCEPTED.into_response(),
+        }
+    }
+    /// The gateway swagger requires `grantType: client_credentials`.
+    async fn sessions(
+        State((c, ..)): State<MockState>,
+        Json(body): Json<Value>,
+    ) -> (StatusCode, Json<Value>) {
+        c.lock().expect("calls").push(Call {
+            path: "/sessions".to_owned(),
+            headers: HeaderMap::new(),
+            body: body.clone(),
+        });
+        if body["grantType"] != "client_credentials" {
+            return (StatusCode::BAD_REQUEST, Json(json!({ "message": "grantType is required" })));
+        }
+        (StatusCode::OK, Json(json!({ "accessToken": "session-token", "expiresIn": 1200 })))
     }
     let app = Router::new()
-        .route(
-            "/sessions",
-            post(|| async { Json(json!({ "accessToken": "session-token", "expiresIn": 1200 })) }),
-        )
+        .route("/sessions", post(sessions))
         .fallback(record)
-        .with_state((calls, hooks));
+        .with_state(state);
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
         .await
         .expect("bind mock");
@@ -81,6 +135,8 @@ pub struct World {
     pub csrf: String,
     pub calls: Calls,
     pub hooks: Hooks,
+    pub refuse_once: RefuseOnce,
+    pub replies: Replies,
     pub mock: String,
     pub gateway_key: Vec<u8>,
     pub hip_id: String,
@@ -109,6 +165,14 @@ impl World {
             .count()
     }
 
+    /// Answer calls to `path` with `status` and `body` from now on.
+    pub fn reply(&self, path: &str, status: StatusCode, body: Value) {
+        self.replies
+            .lock()
+            .expect("replies")
+            .insert(path.to_owned(), (status, body));
+    }
+
     /// Answer calls to `path` with `hook` before the gateway replies.
     pub fn on(&self, path: &str, hook: Hook) {
         self.hooks
@@ -127,14 +191,17 @@ impl World {
 
     /// A gateway callback, signed with `key` (the gateway's unless a test forges one).
     pub async fn callback(&self, path: &str, key: &[u8], body: Value) -> StatusCode {
-        let jwt =
-            medbrains_crypto::jws::sign_rs256(Map::new(), std::time::Duration::from_secs(60), key)
-                .expect("sign");
+        self.callback_as(path, &gateway_jwt(key), &self.hip_id, body)
+            .await
+    }
+
+    /// A callback with any bearer token, naming any `X-HIP-ID`.
+    pub async fn callback_as(&self, path: &str, token: &str, hip_id: &str, body: Value) -> StatusCode {
         let resp = reqwest::Client::new()
             .post(self.app.url(path))
-            .bearer_auth(jwt)
+            .bearer_auth(token)
             .header("REQUEST-ID", Uuid::new_v4().to_string())
-            .header("X-HIP-ID", &self.hip_id)
+            .header("X-HIP-ID", hip_id)
             .json(&body)
             .send()
             .await
@@ -173,7 +240,15 @@ impl World {
 pub async fn world() -> World {
     let calls: Calls = Arc::default();
     let hooks: Hooks = Arc::default();
-    let mock = spawn_mock(calls.clone(), hooks.clone()).await;
+    let refuse_once: RefuseOnce = Arc::default();
+    let replies: Replies = Arc::default();
+    let mock = spawn_mock((
+        calls.clone(),
+        hooks.clone(),
+        refuse_once.clone(),
+        replies.clone(),
+    ))
+    .await;
     let gateway = PKey::from_rsa(Rsa::generate(2048).expect("rsa")).expect("pkey");
     let public = String::from_utf8(gateway.public_key_to_pem().expect("pem")).expect("utf8");
     let app = common::spawn_app_with_secrets(
@@ -183,6 +258,8 @@ pub async fn world() -> World {
                 medbrains_abdm::gateway::ABDM_GATEWAY_BASE_URL_OVERRIDE,
                 mock.clone(),
             )
+            // HFR (bridge linkage) on the same stand-in.
+            .with("ABDM_HFR_BASE_URL_OVERRIDE", mock.clone())
             .with("ABDM_GATEWAY_JWT_PUBLIC_KEY_OVERRIDE", public)
             // Where HIPs are told to push records to us (M3).
             .with("MEDBRAINS_PUBLIC_BASE_URL", "https://hospital.test")
@@ -215,7 +292,8 @@ pub async fn world() -> World {
     .expect("campus");
     // The campus records are shared as: the one the server would pick.
     sqlx::query(
-        "UPDATE facilities SET hfr_facility_id = $1 WHERE id = (SELECT id FROM facilities \
+        "UPDATE facilities SET hfr_facility_id = $1, abdm_hip_service_id = NULL \
+          WHERE id = (SELECT id FROM facilities \
            WHERE tenant_id = (SELECT tenant_id FROM users WHERE username = 'admin') \
              AND deleted_at IS NULL AND parent_id IS NULL \
            ORDER BY (hfr_facility_id IS NOT NULL) DESC, (facility_type = 'main_hospital') DESC, created_at LIMIT 1)",
@@ -272,6 +350,8 @@ pub async fn world() -> World {
         csrf,
         calls,
         hooks,
+        refuse_once,
+        replies,
         mock,
         gateway_key: gateway.private_key_to_pem_pkcs8().expect("private"),
         hip_id,

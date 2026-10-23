@@ -127,7 +127,8 @@ const ACTIVITY_SQL: &str = "WITH months AS ( \
               count(*) FILTER (WHERE status = 'DENIED') AS denied, \
               count(*) FILTER (WHERE status = 'REVOKED') AS revoked \
          FROM abdm_consent_artefacts \
-        WHERE tenant_id = $1 AND role = 'hip' AND deleted_at IS NULL \
+        WHERE tenant_id = $1 AND role = 'hip' \
+          AND (deleted_at IS NULL OR delete_reason = $4) \
           AND date_trunc('month', timezone('Asia/Kolkata', notified_at))::date BETWEEN $2 AND $3 \
         GROUP BY 1), \
      hiu AS ( \
@@ -191,6 +192,8 @@ async fn activity(
         .bind(tenant_id)
         .bind(from)
         .bind(to)
+        // Revoked/expired artefacts are deleted (spec) but still counted.
+        .bind(super::hip::consent::ARTEFACT_ENDED)
         .fetch_all(&mut **tx)
         .await
 }

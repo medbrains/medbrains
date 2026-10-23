@@ -1,6 +1,10 @@
 //! The gateway's two answers to HIP-initiated linking: the link token
 //! (`on-generate-token`), then the verdict on the link (`on_carecontext`).
 //! Each is matched to its care contexts by the `REQUEST-ID` we sent.
+//!
+//! Both are idempotent: the gateway repeats a delivery we refused about 16
+//! minutes later (OHC care-abdm, MIT, docs/findings.md E10), and a repeat of
+//! one already handled is acknowledged, not refused.
 
 use axum::{
     Json,
@@ -13,7 +17,8 @@ use uuid::Uuid;
 
 use super::gateway::{Hip, authenticate};
 use super::linking::{
-    LINK_BATCH, TOKEN_CONTEXT, TOKEN_DAYS, load_patient, mark, mark_linked, send_links,
+    ABDM_BLOCKED, LINK_BATCH, TOKEN_CONTEXT, TOKEN_DAYS, load_patient, mark, mark_linked,
+    note_abdm_block, send_links,
 };
 use crate::{error::AppError, routes::abdm::abha::secret_key, state::AppState};
 
@@ -70,7 +75,7 @@ async fn waiting_on(
 /// `POST /api/v3/hip/token/on-generate-token` — the link token arrives.
 ///
 /// # Errors
-/// 401 without a valid gateway JWT; 404 for an unknown request.
+/// 401 without a valid gateway JWT; 404 without a `response.requestId`.
 #[tracing::instrument(skip_all, fields(tenant_id = tracing::field::Empty))]
 pub async fn on_generate_token(
     State(state): State<AppState>,
@@ -82,10 +87,18 @@ pub async fn on_generate_token(
     let request_id = request_id_of(&body).ok_or(AppError::NotFound)?;
     let waiting = waiting_on(&state.db, caller.tenant_id, request_id).await?;
     let ids: Vec<Uuid> = waiting.iter().map(|w| w.0).collect();
-    let patient_id = waiting.first().map(|w| w.1).ok_or(AppError::NotFound)?;
+    let Some(patient_id) = waiting.first().map(|w| w.1) else {
+        tracing::info!("abdm: a link token for no waiting care context (a repeat?)");
+        return Ok(StatusCode::ACCEPTED);
+    };
     let token = body["linkToken"].as_str().filter(|t| !t.is_empty());
     let (Some(token), None) = (token, error_of(&body)) else {
-        let reason = error_of(&body).unwrap_or_else(|| "ABDM sent no link token".to_owned());
+        let blocked = note_abdm_block(&state.db, caller.tenant_id, patient_id, &body).await?;
+        let reason = if blocked {
+            ABDM_BLOCKED.to_owned()
+        } else {
+            error_of(&body).unwrap_or_else(|| "ABDM sent no link token".to_owned())
+        };
         mark(
             &state.db,
             caller.tenant_id,
@@ -98,7 +111,7 @@ pub async fn on_generate_token(
         return Ok(StatusCode::ACCEPTED);
     };
     let secrets = state.secret_resolver.as_ref();
-    let key = secret_key(secrets).await;
+    let key = secret_key(secrets).await?;
     let sealed = medbrains_crypto::aead::encrypt_token(&key, TOKEN_CONTEXT, &token)
         .map_err(|_| AppError::Internal("could not seal the ABDM link token".to_owned()))?;
     let mut tx = state.db.begin().await?;
@@ -129,7 +142,7 @@ pub async fn on_generate_token(
 /// `POST /api/v3/link/on_carecontext` — ABDM's verdict on a link.
 ///
 /// # Errors
-/// 401 without a valid gateway JWT; 404 for an unknown request.
+/// 401 without a valid gateway JWT; 404 without a `response.requestId`.
 #[tracing::instrument(skip_all, fields(tenant_id = tracing::field::Empty))]
 pub async fn on_link_care_context(
     State(state): State<AppState>,
@@ -139,15 +152,18 @@ pub async fn on_link_care_context(
     let caller = authenticate(&state, &headers).await?;
     tracing::Span::current().record("tenant_id", tracing::field::display(caller.tenant_id));
     let request_id = request_id_of(&body).ok_or(AppError::NotFound)?;
-    let ids: Vec<Uuid> = waiting_on(&state.db, caller.tenant_id, request_id)
-        .await?
-        .into_iter()
-        .map(|w| w.0)
-        .collect();
-    if ids.is_empty() {
-        return Err(AppError::NotFound);
-    }
+    let waiting = waiting_on(&state.db, caller.tenant_id, request_id).await?;
+    let ids: Vec<Uuid> = waiting.iter().map(|w| w.0).collect();
+    let Some(patient_id) = waiting.first().map(|w| w.1) else {
+        tracing::info!("abdm: a link verdict for no waiting care context (a repeat?)");
+        return Ok(StatusCode::ACCEPTED);
+    };
     if let Some(reason) = error_of(&body) {
+        let reason = if note_abdm_block(&state.db, caller.tenant_id, patient_id, &body).await? {
+            ABDM_BLOCKED.to_owned()
+        } else {
+            reason
+        };
         mark(
             &state.db,
             caller.tenant_id,

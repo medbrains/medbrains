@@ -13,7 +13,7 @@ use axum::http::StatusCode;
 use chrono::{Duration, Utc};
 use medbrains_abdm::gateway as paths;
 use medbrains_crypto::fidelius::{self, KeyMaterial};
-use serde_json::{Map, Value, json};
+use serde_json::{Value, json};
 use uuid::Uuid;
 
 use super::{Call, Hook, World};
@@ -54,9 +54,7 @@ pub async fn with_hpr(w: &World) -> String {
 }
 
 async fn signed_callback(url: String, hiu_id: &str, key: &[u8], body: Value) -> StatusCode {
-    let jwt =
-        medbrains_crypto::jws::sign_rs256(Map::new(), std::time::Duration::from_secs(60), key)
-            .expect("sign");
+    let jwt = super::gateway_jwt(key);
     let resp = reqwest::Client::new()
         .post(url)
         .bearer_auth(jwt)

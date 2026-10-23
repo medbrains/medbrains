@@ -7,6 +7,20 @@ use serde::{Deserialize, Serialize};
 pub struct SessionTokenRequest {
     pub client_id: String,
     pub client_secret: String,
+    /// Required by the gateway swagger (`gateway_1_0d212e29a3.yaml`,
+    /// sandboxcms.abdm.gov.in/uploads): always `client_credentials`.
+    pub grant_type: String,
+}
+
+impl SessionTokenRequest {
+    #[must_use]
+    pub fn client_credentials(client_id: String, client_secret: String) -> Self {
+        Self {
+            client_id,
+            client_secret,
+            grant_type: "client_credentials".to_owned(),
+        }
+    }
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]

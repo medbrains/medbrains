@@ -36,11 +36,14 @@ async fn spawn_registry_mock() -> String {
                 MockStatus::OK,
                 Json(json!({ "hprIdNumber": id, "name": "Dr Mock" })),
             )
-        } else {
+        } else if id.starts_with("40") {
+            // A registry that answers 404 is a fault, never "not registered".
             (
                 MockStatus::NOT_FOUND,
-                Json(json!({ "message": "not found" })),
+                Json(json!({ "message": "no such path" })),
             )
+        } else {
+            (MockStatus::OK, Json(json!({ "results": [] })))
         }
     }
     let app = Router::new()
@@ -347,6 +350,27 @@ async fn hpr_ids_are_recorded_verified_and_counted() {
     )
     .await;
     assert_eq!(s, StatusCode::CONFLICT, "HPR does not list it");
+    let (_, _) = call(
+        &app.client,
+        &app,
+        &csrf,
+        (Method::PUT, &set),
+        json!({ "hpr_id": format!("40{}", run_digits(12)) }),
+    )
+    .await;
+    let (s, _) = call(
+        &app.client,
+        &app,
+        &csrf,
+        (Method::POST, &verify),
+        Value::Null,
+    )
+    .await;
+    assert_eq!(
+        s,
+        StatusCode::SERVICE_UNAVAILABLE,
+        "a registry 404 is a fault, not \"not registered\""
+    );
     let (s, _) = call(
         &app.client,
         &app,

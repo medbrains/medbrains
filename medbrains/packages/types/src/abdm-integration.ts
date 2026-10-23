@@ -43,6 +43,59 @@ export interface AbdmConnectionTest {
   message: string;
 }
 
+/** The bridge as the ABDM gateway holds it. */
+export interface AbdmGatewayBridge {
+  /** "ok" — the gateway answered; "unknown" — it could not be asked. */
+  state: "ok" | "unknown";
+  message: string | null;
+  url: string | null;
+  active: boolean | null;
+  blocklisted: boolean | null;
+}
+
+/** One campus and whether its HFR ID is bound to the bridge. */
+export interface AbdmCampusBridge {
+  facility_id: string;
+  name: string;
+  hfr_facility_id: string;
+  /**
+   * The bridge service id ABDM issued (`<HFR ID>_<n>`), sent as X-HIP-ID; null
+   * until ABDM lists one. With the bare HFR ID ABDM never calls back.
+   */
+  service_id: string | null;
+  /** The name patients see in their PHR app (HFR: at most 15 letters/digits). */
+  hip_name: string;
+  /** null when the gateway could not be asked. */
+  bound: boolean | null;
+  types: string[];
+}
+
+export interface AbdmBridgeStatus {
+  configured: boolean;
+  environment: AbdmEnvironment | null;
+  /** The hospital's ABDM client ID. */
+  bridge_id: string | null;
+  suggested_url: string | null;
+  gateway: AbdmGatewayBridge;
+  campuses: AbdmCampusBridge[];
+}
+
+export interface RegisterAbdmBridge {
+  url: string;
+  /** Per campus (facility id): the PHR app name. */
+  hip_names?: Record<string, string>;
+}
+
+export interface AbdmStepOutcome {
+  ok: boolean;
+  message: string;
+}
+
+export interface AbdmBridgeRegistration {
+  url: AbdmStepOutcome;
+  campuses: (AbdmStepOutcome & { facility_id: string; hfr_facility_id: string })[];
+}
+
 /** How the desk finds the person's ABHA. */
 export type AbhaVerifyMethod = "abha_number" | "mobile" | "abha_address";
 /** Where ABDM sends the OTP for an ABHA-number lookup. */
@@ -104,6 +157,8 @@ export interface AbhaVerificationStep {
   /** ABDM's note, e.g. which masked mobile the OTP went to. */
   message: string | null;
   resend_after_seconds: number | null;
+  /** Resends still allowed for this OTP (ABDM allows two); null when none is waiting. */
+  resends_left: number | null;
   accounts: AbhaAccountChoice[];
   profile: AbhaVerifiedProfile | null;
   /** Another patient here already carries this ABHA. */

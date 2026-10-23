@@ -113,11 +113,10 @@ private struct AbhaVerifyFlow: View {
                 Task { await flow.run { try await AbhaApi(client: client).submitOtp(id, otp: flow.otp) } }
             } label: { HStack { Text("Verify"); Spacer(); Image(systemName: "checkmark") } }
                 .buttonStyle(.carbonPrimary).disabled(flow.busy || flow.otp.count != Abha.otpLength).accessibilityIdentifier("abha-verify-otp")
-            Button(Abha.resendLabel(wait: flow.wait)) {
+            AbhaResendControl(flow: flow) {
                 guard let client, let id = flow.step?.id else { return }
                 Task { await flow.run { try await AbhaApi(client: client).resend(id) } }
             }
-            .buttonStyle(.carbonGhost).disabled(flow.busy || flow.wait > 0).accessibilityIdentifier("abha-resend")
         }
         .task(id: flow.sent) { await flow.countDown() }
     }
@@ -186,8 +185,8 @@ private struct AbhaCreateFlow: View {
 
     private var consentStep: some View {
         VStack(alignment: .leading, spacing: 16) {
-            CarbonNotification(kind: .info, title: "Read this to the patient", message: "Your Aadhaar number will be used only to create your Ayushman Bharat Health Account (ABHA) with the National Health Authority. An OTP goes to the mobile linked to your Aadhaar. This hospital does not keep your Aadhaar number. Having an ABHA is your choice; you can be treated without one.")
-            Toggle("The patient agrees to create their ABHA with Aadhaar", isOn: $consent).font(CarbonType.body).tint(MedBrainsTheme.interactive)
+            CarbonNotification(kind: .info, title: "Terms and Conditions — read these to the patient", message: Abha.enrolConsent)
+            Toggle("I agree — the patient consents to creating their ABHA with Aadhaar (ABDM consent v\(Abha.enrolConsentVersion))", isOn: $consent).font(CarbonType.body).tint(MedBrainsTheme.interactive)
                 .accessibilityIdentifier("abha-consent")
             CarbonField("Aadhaar number", helper: "12 digits. Sent to ABDM encrypted; not saved here.", isFocused: focused) {
                 SecureField("12 digits", text: Binding(get: { aadhaar }, set: { aadhaar = Abha.aadhaarInput($0) }))
@@ -215,9 +214,12 @@ private struct AbhaCreateFlow: View {
                 run { [otp = flow.otp, abhaMobile] in try await $0.enrolmentOtp(id, otp: otp, mobile: abhaMobile) }
             }
             .buttonStyle(.carbonPrimary).disabled(flow.busy || flow.otp.count != Abha.otpLength || abhaMobile.count != Abha.mobileLength).accessibilityIdentifier("abha-create")
-            Button("Send the OTP again") { run { [aadhaar, consent] in try await $0.startEnrolment(aadhaar: aadhaar, consent: consent) } }
-                .buttonStyle(.carbonGhost).disabled(flow.busy || aadhaar.count != Abha.aadhaarLength)
+            AbhaResendControl(flow: flow) {
+                guard let id = flow.step?.id else { return }
+                run { [aadhaar] in try await $0.resendEnrolment(id, aadhaar: aadhaar) }
+            }
         }
+        .task(id: flow.sent) { await flow.countDown() }
     }
 
     private var mobileOtpStep: some View {
@@ -229,7 +231,12 @@ private struct AbhaCreateFlow: View {
                 run { [otp = flow.otp] in try await $0.enrolmentMobileOtp(id, otp: otp) }
             }
             .buttonStyle(.carbonPrimary).disabled(flow.busy || flow.otp.count != Abha.otpLength).accessibilityIdentifier("abha-verify-mobile")
+            AbhaResendControl(flow: flow) {
+                guard let id = flow.step?.id else { return }
+                run { try await $0.resendEnrolment(id, aadhaar: nil) }
+            }
         }
+        .task(id: flow.sent) { await flow.countDown() }
     }
 
     private var addressStep: some View {
