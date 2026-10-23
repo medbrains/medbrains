@@ -161,7 +161,7 @@ pub async fn load_file(
             copy.send(chunk.as_bytes()).await?;
             chunk.clear();
         }
-        if rows % PROGRESS_EVERY == 0 {
+        if rows.is_multiple_of(PROGRESS_EVERY) {
             release::add_rows(pool, release_id, PROGRESS_EVERY as i64).await?;
         }
     }

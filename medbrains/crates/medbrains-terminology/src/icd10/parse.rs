@@ -8,7 +8,7 @@
 use std::collections::{HashMap, HashSet};
 
 use medbrains_core::diagnosis_coding::icd_system_of_code;
-use quick_xml::Reader;
+use quick_xml::{Reader, XmlVersion};
 use quick_xml::escape::resolve_predefined_entity;
 use quick_xml::events::{BytesRef, BytesStart, Event};
 
@@ -134,12 +134,12 @@ struct Class {
     title: Option<String>,
 }
 
-fn attr(e: &BytesStart<'_>, name: &[u8]) -> Result<Option<String>, String> {
+fn attr(e: &BytesStart<'_>, name: &str) -> Result<Option<String>, String> {
     for a in e.attributes() {
         let a = a.map_err(|err| format!("bad XML attribute: {err}"))?;
         if a.key.as_ref() == name {
             let v = a
-                .unescape_value()
+                .normalized_value(XmlVersion::Implicit1_0)
                 .map_err(|err| format!("bad XML attribute: {err}"))?;
             return Ok(Some(v.into_owned()));
         }
@@ -155,8 +155,8 @@ fn entity(r: &BytesRef<'_>) -> Result<String, String> {
     {
         return Ok(c.to_string());
     }
-    let name = r.decode().map_err(|e| format!("bad XML entity: {e}"))?;
-    resolve_predefined_entity(&name)
+    let name: &str = r;
+    resolve_predefined_entity(name)
         .map(str::to_owned)
         .ok_or_else(|| format!("unknown XML entity &{name};"))
 }
@@ -178,20 +178,20 @@ fn parse_claml(content: &str) -> Result<Vec<Entry>, String> {
         })?;
         match event {
             Event::Start(e) | Event::Empty(e) => match e.name().as_ref() {
-                b"Class" => {
+                "Class" => {
                     current = Some(Class {
-                        code: attr(&e, b"code")?.unwrap_or_default(),
-                        kind: attr(&e, b"kind")?.unwrap_or_default(),
+                        code: attr(&e, "code")?.unwrap_or_default(),
+                        kind: attr(&e, "kind")?.unwrap_or_default(),
                         ..Class::default()
                     });
                 }
-                b"SuperClass" => {
+                "SuperClass" => {
                     if let Some(c) = current.as_mut() {
-                        c.parent = attr(&e, b"code")?;
+                        c.parent = attr(&e, "code")?;
                     }
                 }
-                b"Rubric" => preferred = attr(&e, b"kind")?.as_deref() == Some("preferred"),
-                b"Label" if preferred && current.as_ref().is_some_and(|c| c.title.is_none()) => {
+                "Rubric" => preferred = attr(&e, "kind")?.as_deref() == Some("preferred"),
+                "Label" if preferred && current.as_ref().is_some_and(|c| c.title.is_none()) => {
                     label = Some(String::new());
                 }
                 // A nested element (Fragment, Reference) is a word boundary.
@@ -199,7 +199,7 @@ fn parse_claml(content: &str) -> Result<Vec<Entry>, String> {
             },
             Event::Text(t) => {
                 if let Some(l) = label.as_mut() {
-                    l.push_str(&t.decode().map_err(|e| format!("bad XML text: {e}"))?);
+                    l.push_str(&t.xml10_content());
                 }
             }
             Event::GeneralRef(r) => {
@@ -208,13 +208,13 @@ fn parse_claml(content: &str) -> Result<Vec<Entry>, String> {
                 }
             }
             Event::End(e) => match e.name().as_ref() {
-                b"Label" => {
+                "Label" => {
                     if let (Some(c), Some(l)) = (current.as_mut(), label.take()) {
                         c.title = clean_title(&l);
                     }
                 }
-                b"Rubric" => preferred = false,
-                b"Class" => classes.extend(current.take()),
+                "Rubric" => preferred = false,
+                "Class" => classes.extend(current.take()),
                 _ => label.iter_mut().for_each(|l| l.push(' ')),
             },
             Event::Eof => break,

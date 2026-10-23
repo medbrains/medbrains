@@ -3,7 +3,7 @@ name = "medbrains-nabh"
 publish = false
 version = "0.1.0"
 edition = "2024"
-rust-version = "1.85"
+rust-version.workspace = true
 
 # NABH accreditation evidence collection — a domain feature, not framework.
 #

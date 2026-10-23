@@ -9,6 +9,10 @@
 pub mod domain_ownership;
 pub mod preflight;
 use axum::{Extension, Json, extract::State};
+use hickory_resolver::TokioResolver;
+use hickory_resolver::config::{CLOUDFLARE, ResolverConfig};
+use hickory_resolver::net::runtime::TokioRuntimeProvider;
+use hickory_resolver::proto::rr::{RData, RecordType};
 use axum::routing::{get,post};
 use medbrains_core::deploy_mode::DeployMode;
 use medbrains_core::permissions;
@@ -319,19 +323,48 @@ pub async fn get_domain_status(
     }))
 }
 
-async fn check_domain_dns(domain: &str) -> Vec<DomainRecordStatus> {
-    use hickory_resolver::TokioAsyncResolver;
-    use hickory_resolver::config::{ResolverConfig, ResolverOpts};
+/// Public resolver (Cloudflare, UDP + TCP) so a hospital's answer does not
+/// depend on whatever the box's own resolv.conf points at.
+fn public_resolver() -> Result<TokioResolver, hickory_resolver::net::NetError> {
+    TokioResolver::builder_with_config(
+        ResolverConfig::udp_and_tcp(&CLOUDFLARE),
+        TokioRuntimeProvider::default(),
+    )
+    .build()
+}
 
-    let resolver = TokioAsyncResolver::tokio(ResolverConfig::cloudflare(), ResolverOpts::default());
+/// Every record of one type at `name`, as text. A failed lookup is an empty
+/// list: the caller reports "no record found", which is what the operator fixes.
+pub(crate) async fn lookup_text(name: &str, kind: RecordType) -> Vec<String> {
+    let Ok(resolver) = public_resolver() else {
+        return Vec::new();
+    };
+    let Ok(lookup) = resolver.lookup(name, kind).await else {
+        return Vec::new();
+    };
+    lookup
+        .answers()
+        .iter()
+        .filter_map(|record| record_text(&record.data))
+        .collect()
+}
+
+/// The part of a record the domain checks compare: the address, the mail
+/// host, or the TXT string.
+fn record_text(data: &RData) -> Option<String> {
+    match data {
+        RData::A(a) => Some(a.to_string()),
+        RData::MX(mx) => Some(mx.exchange.to_string()),
+        RData::TXT(txt) => Some(txt.to_string()),
+        _ => None,
+    }
+}
+
+async fn check_domain_dns(domain: &str) -> Vec<DomainRecordStatus> {
     let mut out = Vec::with_capacity(4);
 
     // App: any A record present (we can't know the exact edge IP here).
-    let a_ip = resolver
-        .ipv4_lookup(domain)
-        .await
-        .ok()
-        .and_then(|lookup| lookup.iter().next().map(ToString::to_string));
+    let a_ip = lookup_text(domain, RecordType::A).await.into_iter().next();
     out.push(DomainRecordStatus {
         kind: "A".to_owned(),
         host: domain.to_owned(),
@@ -341,16 +374,11 @@ async fn check_domain_dns(domain: &str) -> Vec<DomainRecordStatus> {
 
     // Mail MX → should point at mail.<domain>.
     let expected_mx = format!("mail.{domain}");
-    let mx_hosts: Vec<String> = resolver
-        .mx_lookup(domain)
+    let mx_hosts: Vec<String> = lookup_text(domain, RecordType::MX)
         .await
-        .map(|lookup| {
-            lookup
-                .iter()
-                .map(|mx| mx.exchange().to_string().trim_end_matches('.').to_owned())
-                .collect()
-        })
-        .unwrap_or_default();
+        .into_iter()
+        .map(|host| host.trim_end_matches('.').to_owned())
+        .collect();
     out.push(DomainRecordStatus {
         kind: "MX".to_owned(),
         host: domain.to_owned(),
@@ -363,7 +391,7 @@ async fn check_domain_dns(domain: &str) -> Vec<DomainRecordStatus> {
     });
 
     // SPF (TXT at apex) and DMARC (_dmarc.<domain>).
-    let apex_txt = lookup_txt(&resolver, domain).await;
+    let apex_txt = lookup_text(domain, RecordType::TXT).await;
     out.push(DomainRecordStatus {
         kind: "SPF".to_owned(),
         host: domain.to_owned(),
@@ -371,7 +399,7 @@ async fn check_domain_dns(domain: &str) -> Vec<DomainRecordStatus> {
         detail: spf_detail(&apex_txt),
     });
 
-    let dmarc_txt = lookup_txt(&resolver, &format!("_dmarc.{domain}")).await;
+    let dmarc_txt = lookup_text(&format!("_dmarc.{domain}"), RecordType::TXT).await;
     out.push(DomainRecordStatus {
         kind: "DMARC".to_owned(),
         host: format!("_dmarc.{domain}"),
@@ -384,17 +412,6 @@ async fn check_domain_dns(domain: &str) -> Vec<DomainRecordStatus> {
     });
 
     out
-}
-
-async fn lookup_txt(
-    resolver: &hickory_resolver::TokioAsyncResolver,
-    name: &str,
-) -> Vec<String> {
-    resolver
-        .txt_lookup(name)
-        .await
-        .map(|lookup| lookup.iter().map(ToString::to_string).collect())
-        .unwrap_or_default()
 }
 
 fn spf_detail(txts: &[String]) -> String {
@@ -516,4 +533,24 @@ pub fn router() -> axum::Router<AppState> {
 /// before issuing.
 pub fn public_router() -> axum::Router<AppState> {
     axum::Router::new().route("/api/tls/allow", get(domain_ownership::tls_allow))
+}
+
+#[cfg(test)]
+mod dns_tests {
+    use super::record_text;
+    use hickory_resolver::proto::rr::RData;
+    use hickory_resolver::proto::rr::rdata::{A, MX, TXT};
+    use hickory_resolver::proto::rr::Name;
+
+    #[test]
+    fn reads_the_fields_the_domain_checks_compare() -> Result<(), Box<dyn std::error::Error>> {
+        let mx = RData::MX(MX::new(10, Name::from_ascii("mail.example.in.")?));
+        assert_eq!(record_text(&mx).as_deref(), Some("mail.example.in."));
+        let spf = RData::TXT(TXT::new(vec!["v=spf1 include:_spf.example.in ~all".to_owned()]));
+        assert_eq!(record_text(&spf).as_deref(), Some("v=spf1 include:_spf.example.in ~all"));
+        let a = RData::A(A::new(203, 0, 113, 7));
+        assert_eq!(record_text(&a).as_deref(), Some("203.0.113.7"));
+        assert_eq!(record_text(&RData::Update0(hickory_resolver::proto::rr::RecordType::NULL)), None);
+        Ok(())
+    }
 }

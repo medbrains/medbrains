@@ -348,10 +348,10 @@ impl AuthzCache {
             }
         }
         for key in keys {
-            if let Ok(k) = serde_json::to_vec(key) {
-                if let Err(err) = self.persist.remove(k) {
-                    tracing::warn!(?err, "authz cache invalidate persist failed");
-                }
+            if let Ok(k) = serde_json::to_vec(key)
+                && let Err(err) = self.persist.remove(k)
+            {
+                tracing::warn!(?err, "authz cache invalidate persist failed");
             }
         }
     }
@@ -366,10 +366,10 @@ impl AuthzCache {
             let Ok(entry) = serde_json::from_slice::<CacheEntry>(&v) else {
                 continue;
             };
-            if entry.fetched_at < cutoff {
-                if let Ok(key) = serde_json::from_slice::<CacheKey>(&k) {
-                    to_drop.push((k, key));
-                }
+            if entry.fetched_at < cutoff
+                && let Ok(key) = serde_json::from_slice::<CacheKey>(&k)
+            {
+                to_drop.push((k, key));
             }
         }
         if let Ok(mut guard) = self.inner.write() {

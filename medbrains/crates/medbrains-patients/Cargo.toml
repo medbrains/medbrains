@@ -3,7 +3,7 @@ name = "medbrains-patients"
 publish = false
 version = "0.1.0"
 edition = "2024"
-rust-version = "1.85"
+rust-version.workspace = true
 
 [dependencies]
 medbrains-clinical-core = { path = "../medbrains-clinical-core" }
