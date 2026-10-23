@@ -55,4 +55,11 @@ afterEach(() => server.resetHandlers());
 // mounted when the next one queries it, so a test can pass on markup that
 // its own render never produced — and fail on markup it never asked for.
 afterEach(cleanup);
+
+// jsdom's localStorage is real under vitest 5 (Node's file-less one used to
+// shadow it), so what one test remembers — a last-used tender, a muted
+// alert — would leak into the next. Each test starts with an empty one.
+afterEach(() => {
+  if (typeof window !== "undefined") window.localStorage.clear();
+});
 afterAll(() => server.close());
