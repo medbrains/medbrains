@@ -1,9 +1,11 @@
 use std::{env, fs, path::PathBuf, time::Duration};
 
 use anyhow::{Context, bail};
-use spicedb_rs_client::{ClientBuilder, v1::WriteSchemaRequest};
+use medbrains_spicedb_proto::authzed::api::v1::{
+    WriteSchemaRequest, schema_service_client::SchemaServiceClient,
+};
 use tokio::time::sleep;
-use tonic::Code;
+use tonic::{Code, Request, transport::Endpoint};
 
 const DEFAULT_SCHEMA_PATH: &str = "infra/spicedb/schema.zed";
 const DEFAULT_ENDPOINT: &str = "http://localhost:50051";
@@ -38,18 +40,21 @@ async fn main() -> anyhow::Result<()> {
 }
 
 async fn write_schema_once(endpoint: &str, token: &str, schema: &str) -> anyhow::Result<()> {
-    let client = ClientBuilder::new(endpoint)
-        .with_token(token)
-        .insecure(endpoint.starts_with("http://") || !endpoint.starts_with("https://"))
+    let channel = Endpoint::from_shared(endpoint.to_owned())
+        .context("SpiceDB endpoint")?
         .connect()
         .await
         .context("connect to SpiceDB")?;
+    let mut schema_client = SchemaServiceClient::new(channel);
+    let mut request = Request::new(WriteSchemaRequest {
+        schema: schema.to_owned(),
+    });
+    request
+        .metadata_mut()
+        .insert("authorization", format!("Bearer {token}").parse()?);
 
-    let mut schema_client = client.schema();
     schema_client
-        .write_schema(WriteSchemaRequest {
-            schema: schema.to_owned(),
-        })
+        .write_schema(request)
         .await
         .map_err(|status| {
             if matches!(

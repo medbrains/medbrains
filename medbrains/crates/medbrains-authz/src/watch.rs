@@ -61,8 +61,8 @@ where
     F: FnMut(Vec<Uuid>) -> Fut,
     Fut: Future<Output = ()>,
 {
-    use spicedb_rs_proto::authzed::api::v1;
-    use spicedb_rs_proto::authzed::api::v1::watch_service_client::WatchServiceClient;
+    use medbrains_spicedb_proto::authzed::api::v1;
+    use medbrains_spicedb_proto::authzed::api::v1::watch_service_client::WatchServiceClient;
     use tonic::Request;
     use tonic::transport::Endpoint;
 
