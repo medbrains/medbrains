@@ -1,0 +1,211 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE psych_admissions SET discharged_at = now(), discharge_note = $3\n            WHERE id = $1 AND tenant_id = $2 AND discharged_at IS NULL AND deleted_at IS NULL\n           RETURNING id, tenant_id, psych_patient_id,\n                  category AS \"category: PsychAdmissionCategory\", admitted_at, applicant,\n                  criteria, least_restrictive_certified, needs_high_support, capacity_note,\n                  examiner1_id, examiner1_role, examiner1_examined_at,\n                  examiner2_id, examiner2_role, examiner2_examined_at,\n                  extension_number, period_ends_at, minor_safeguards_confirmed,\n                  board_report_due_at, board_reported_at, board_reference,\n                  board_decision_due_at, board_decision, board_decided_at,\n                  discharged_at, discharge_note, admitted_by, created_at, updated_at",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "tenant_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 2,
+        "name": "psych_patient_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 3,
+        "name": "category: PsychAdmissionCategory",
+        "type_info": {
+          "Custom": {
+            "name": "psych_admission_category",
+            "kind": {
+              "Enum": [
+                "independent",
+                "supported",
+                "minor_supported",
+                "emergency",
+                "supported_extended"
+              ]
+            }
+          }
+        }
+      },
+      {
+        "ordinal": 4,
+        "name": "admitted_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 5,
+        "name": "applicant",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 6,
+        "name": "criteria",
+        "type_info": "TextArray"
+      },
+      {
+        "ordinal": 7,
+        "name": "least_restrictive_certified",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 8,
+        "name": "needs_high_support",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 9,
+        "name": "capacity_note",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 10,
+        "name": "examiner1_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 11,
+        "name": "examiner1_role",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 12,
+        "name": "examiner1_examined_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 13,
+        "name": "examiner2_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 14,
+        "name": "examiner2_role",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 15,
+        "name": "examiner2_examined_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 16,
+        "name": "extension_number",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 17,
+        "name": "period_ends_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 18,
+        "name": "minor_safeguards_confirmed",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 19,
+        "name": "board_report_due_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 20,
+        "name": "board_reported_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 21,
+        "name": "board_reference",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 22,
+        "name": "board_decision_due_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 23,
+        "name": "board_decision",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 24,
+        "name": "board_decided_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 25,
+        "name": "discharged_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 26,
+        "name": "discharge_note",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 27,
+        "name": "admitted_by",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 28,
+        "name": "created_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 29,
+        "name": "updated_at",
+        "type_info": "Timestamptz"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Text"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      false,
+      true,
+      false,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "e167876fd90d2da52c9c88c9510cc577eb851155d17db18277d10fa0345793dc"
+}

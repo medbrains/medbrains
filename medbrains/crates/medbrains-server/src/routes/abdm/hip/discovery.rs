@@ -119,6 +119,7 @@ async fn unlinked_contexts(
         "SELECT id, reference_number, display, hi_types[1] FROM abdm_care_contexts \
           WHERE tenant_id = $1 AND patient_id = $2 AND deleted_at IS NULL \
             AND link_status <> 'linked' AND ($3::text[] IS NULL OR reference_number = ANY($3)) \
+            AND public.abdm_mental_health_shareable(tenant_id, patient_id, encounter_id) \
           ORDER BY record_date DESC LIMIT $4",
     )
     .bind(tenant_id)

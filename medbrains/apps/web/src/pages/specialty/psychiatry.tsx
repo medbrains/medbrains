@@ -1,4 +1,4 @@
-import { Group, Stack, Text } from "@mantine/core";
+import { Group, Stack, Tabs, Text } from "@mantine/core";
 import { useHasPermission } from "@medbrains/stores";
 import { P, type PsychPatient } from "@medbrains/types";
 import { IconLock, IconPlus } from "@tabler/icons-react";
@@ -14,6 +14,8 @@ import { psychiatryService } from "@/services/psychiatry.service";
 import { admissionCategoryLabel } from "./psychiatry/labels";
 import { PsychRecordPanel } from "./psychiatry/PsychRecordPanel";
 import { RegisterPsychPatientModal } from "./psychiatry/RegisterPsychPatientModal";
+import { RestraintReport } from "./psychiatry/RestraintReport";
+import { SafetyWorklist } from "./psychiatry/SafetyWorklist";
 
 export function PsychiatryPage() {
   useRequirePermission(P.SPECIALTY.PSYCHIATRY.PATIENTS_LIST);
@@ -21,6 +23,9 @@ export function PsychiatryPage() {
   // registration form on them, rather than making the clinician find them.
   const { patientId: scopedPatientId } = usePatientScope();
   const canCreate = useHasPermission(P.SPECIALTY.PSYCHIATRY.PATIENTS_CREATE);
+  const canReview = useHasPermission(P.SPECIALTY.PSYCHIATRY.SAFETY_REVIEW);
+  const canBoard = useHasPermission(P.SPECIALTY.PSYCHIATRY.MHRB_MANAGE);
+  const [view, setView] = useState<string | null>("patients");
   const [registerOpen, setRegisterOpen] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(null);
 
@@ -67,11 +72,6 @@ export function PsychiatryPage() {
         r.substance_abuse_flag ? <Badge tone="warning">Yes</Badge> : <Text size="sm">No</Text>,
     },
     {
-      key: "nominated",
-      label: "Nominated representative",
-      render: (r) => <Text size="sm">{r.nominated_rep_name ?? "None named"}</Text>,
-    },
-    {
       key: "open",
       label: "",
       render: (r) => (
@@ -99,17 +99,34 @@ export function PsychiatryPage() {
           ) : undefined
         }
       />
-      <DataTable
-        columns={columns}
-        data={rows}
-        loading={patients.isLoading}
-        error={patients.error ?? undefined}
-        onRetry={() => void patients.refetch()}
-        rowKey={(r) => r.id}
-        emptyTitle="No psychiatric records you can open"
-        emptyDescription="Restricted records appear only to their treating psychiatrist and to people your hospital has authorised."
-      />
-      {selected && <PsychRecordPanel key={selected.id} record={selected} />}
+      <Tabs value={view} onChange={setView} keepMounted={false}>
+        <Tabs.List>
+          <Tabs.Tab value="patients">Patients</Tabs.Tab>
+          {canReview && <Tabs.Tab value="safety">Suicide-risk reviews</Tabs.Tab>}
+          {canBoard && <Tabs.Tab value="restraint">Monthly restraint report</Tabs.Tab>}
+        </Tabs.List>
+        <Tabs.Panel value="patients" pt="md">
+          <Stack gap="md">
+            <DataTable
+              columns={columns}
+              data={rows}
+              loading={patients.isLoading}
+              error={patients.error ?? undefined}
+              onRetry={() => void patients.refetch()}
+              rowKey={(r) => r.id}
+              emptyTitle="No psychiatric records you can open"
+              emptyDescription="Restricted records appear only to their treating psychiatrist and to people your hospital has authorised."
+            />
+            {selected && <PsychRecordPanel key={selected.id} record={selected} />}
+          </Stack>
+        </Tabs.Panel>
+        <Tabs.Panel value="safety" pt="md">
+          <SafetyWorklist />
+        </Tabs.Panel>
+        <Tabs.Panel value="restraint" pt="md">
+          <RestraintReport />
+        </Tabs.Panel>
+      </Tabs>
       {canCreate && (
         <RegisterPsychPatientModal
           opened={registerOpen}

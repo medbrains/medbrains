@@ -166,39 +166,111 @@ pub async fn require_psych_record_access(
 pub enum PsychChild {
     Restraint,
     MhrbNotification,
+    Admission,
+    Screening,
+    NominatedRepresentative,
+    AdvanceDirective,
+    DirectiveChallenge,
 }
 
-/// The same gate for a child row: find its psychiatric record, then gate it.
-pub async fn require_psych_child_access(
+/// The psychiatric record a child row belongs to, or `None` if there is no
+/// such (live) row in this tenant.
+async fn parent_of(
     state: &AppState,
-    claims: &Claims,
+    tenant_id: Uuid,
     child: PsychChild,
-    child_id: Uuid,
-) -> Result<PsychGrant, AppError> {
-    let parent = match child {
+    id: Uuid,
+) -> Result<Option<Uuid>, sqlx::Error> {
+    // One statement per table: the table name cannot be a bind parameter, and
+    // a compile-checked query per table is worth the repetition.
+    match child {
         PsychChild::Restraint => {
             sqlx::query_scalar!(
                 "SELECT psych_patient_id FROM psych_seclusion_restraint \
                   WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL",
-                child_id,
-                claims.tenant_id,
+                id,
+                tenant_id,
             )
             .fetch_optional(&state.db)
-            .await?
+            .await
         }
         PsychChild::MhrbNotification => {
             sqlx::query_scalar!(
                 "SELECT psych_patient_id FROM psych_mhrb_notifications \
                   WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL",
-                child_id,
-                claims.tenant_id,
+                id,
+                tenant_id,
             )
             .fetch_optional(&state.db)
-            .await?
+            .await
         }
-    };
-    let psych_patient_id = parent.ok_or(AppError::NotFound)?;
-    require_psych_record_access(state, claims, psych_patient_id).await
+        PsychChild::Admission => {
+            sqlx::query_scalar!(
+                "SELECT psych_patient_id FROM psych_admissions \
+                  WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL",
+                id,
+                tenant_id,
+            )
+            .fetch_optional(&state.db)
+            .await
+        }
+        PsychChild::Screening => {
+            sqlx::query_scalar!(
+                "SELECT psych_patient_id FROM psych_screenings \
+                  WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL",
+                id,
+                tenant_id,
+            )
+            .fetch_optional(&state.db)
+            .await
+        }
+        PsychChild::NominatedRepresentative => {
+            sqlx::query_scalar!(
+                "SELECT psych_patient_id FROM psych_nominated_representatives \
+                  WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL",
+                id,
+                tenant_id,
+            )
+            .fetch_optional(&state.db)
+            .await
+        }
+        PsychChild::AdvanceDirective => {
+            sqlx::query_scalar!(
+                "SELECT psych_patient_id FROM psych_advance_directives \
+                  WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL",
+                id,
+                tenant_id,
+            )
+            .fetch_optional(&state.db)
+            .await
+        }
+        PsychChild::DirectiveChallenge => {
+            sqlx::query_scalar!(
+                "SELECT d.psych_patient_id FROM psych_directive_challenges c \
+                   JOIN psych_advance_directives d ON d.id = c.advance_directive_id \
+                  WHERE c.id = $1 AND c.tenant_id = $2 AND c.deleted_at IS NULL",
+                id,
+                tenant_id,
+            )
+            .fetch_optional(&state.db)
+            .await
+        }
+    }
+}
+
+/// The same gate for a child row: find its psychiatric record, then gate it.
+/// Returns the record's id so the handler need not look it up again.
+pub async fn require_psych_child_access(
+    state: &AppState,
+    claims: &Claims,
+    child: PsychChild,
+    child_id: Uuid,
+) -> Result<Uuid, AppError> {
+    let psych_patient_id = parent_of(state, claims.tenant_id, child, child_id)
+        .await?
+        .ok_or(AppError::NotFound)?;
+    require_psych_record_access(state, claims, psych_patient_id).await?;
+    Ok(psych_patient_id)
 }
 
 #[cfg(test)]

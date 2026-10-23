@@ -1,0 +1,104 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE psych_patients\n              SET abdm_mh_share_consented_at = CASE WHEN $3 THEN now() END,\n                  abdm_mh_share_consented_by = CASE WHEN $3 THEN $4::uuid END\n            WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL\n           RETURNING id, tenant_id, patient_id,\n                  admission_category AS \"admission_category: PsychAdmissionCategory\",\n                  substance_abuse_flag, is_restricted, treating_psychiatrist_id, notes,\n                  abdm_mh_share_consented_at, abdm_mh_share_consented_by,\n                  created_at, updated_at",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "tenant_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 2,
+        "name": "patient_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 3,
+        "name": "admission_category: PsychAdmissionCategory",
+        "type_info": {
+          "Custom": {
+            "name": "psych_admission_category",
+            "kind": {
+              "Enum": [
+                "independent",
+                "supported",
+                "minor_supported",
+                "emergency",
+                "supported_extended"
+              ]
+            }
+          }
+        }
+      },
+      {
+        "ordinal": 4,
+        "name": "substance_abuse_flag",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 5,
+        "name": "is_restricted",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 6,
+        "name": "treating_psychiatrist_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 7,
+        "name": "notes",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 8,
+        "name": "abdm_mh_share_consented_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 9,
+        "name": "abdm_mh_share_consented_by",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 10,
+        "name": "created_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 11,
+        "name": "updated_at",
+        "type_info": "Timestamptz"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Bool",
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      true,
+      true,
+      true,
+      true,
+      false,
+      false
+    ]
+  },
+  "hash": "f6af30ab38eee961b413164d577efd4e3c4e237d24b8730e4ae0ee9df537266d"
+}

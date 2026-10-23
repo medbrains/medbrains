@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO tenant_settings (tenant_id, category, key, value) VALUES ($1, 'abdm', 'mental_health_sharing', to_jsonb($2::boolean)) ON CONFLICT (tenant_id, category, key) DO UPDATE SET value = EXCLUDED.value, deleted_at = NULL, deleted_by = NULL, delete_reason = NULL",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Bool"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "fba218ac03c74be6c9fba28ca58c78827ec1823d1cac0c5f5bd1c5c802f59fe4"
+}

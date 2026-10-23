@@ -1,0 +1,49 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT s.id AS screening_id, s.psych_patient_id, pp.patient_id, s.total,\n                  s.administered_at\n             FROM psych_screenings s JOIN psych_patients pp ON pp.id = s.psych_patient_id\n            WHERE s.tenant_id = $1 AND s.safety_review_status = 'pending'\n              AND s.deleted_at IS NULL AND pp.deleted_at IS NULL\n              AND ($2::uuid[] IS NULL OR pp.patient_id = ANY($2))\n              AND (NOT pp.is_restricted\n                   OR NOT public.mental_health_withheld(pp.patient_id, $3, $4))\n            ORDER BY s.administered_at LIMIT 200",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "screening_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "psych_patient_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 2,
+        "name": "patient_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 3,
+        "name": "total",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 4,
+        "name": "administered_at",
+        "type_info": "Timestamptz"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "UuidArray",
+        "Uuid",
+        "Bool"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "6d1ce8b3a657ff26099322b615da4c216a8e51640327111084d34d44a2317264"
+}

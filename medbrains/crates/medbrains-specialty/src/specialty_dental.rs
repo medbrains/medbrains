@@ -34,8 +34,12 @@ pub async fn list_dental_exams(
     // mode cannot be left open while the safe one looks guarded.
     let permitted_patients =
         medbrains_authz_gate::patient_filter(&state, &claims, q.patient_id).await?;
-    medbrains_server_core::middleware::entitlement::require_module_enabled(&state.db, claims.tenant_id, "dental")
-        .await?;
+    medbrains_server_core::middleware::entitlement::require_module_enabled(
+        &state.db,
+        claims.tenant_id,
+        "dental",
+    )
+    .await?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
@@ -71,18 +75,23 @@ pub async fn get_dental_exam(
         id,
     )
     .await?;
-    medbrains_server_core::middleware::entitlement::require_module_enabled(&state.db, claims.tenant_id, "dental")
-        .await?;
+    medbrains_server_core::middleware::entitlement::require_module_enabled(
+        &state.db,
+        claims.tenant_id,
+        "dental",
+    )
+    .await?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
-    let row =
-        sqlx::query_as::<_, DentalExam>("SELECT * FROM dental_exams WHERE id = $1 AND tenant_id = $2")
-            .bind(id)
-            .bind(claims.tenant_id)
-            .fetch_optional(&mut *tx)
-            .await?
-            .ok_or(AppError::NotFound)?;
+    let row = sqlx::query_as::<_, DentalExam>(
+        "SELECT * FROM dental_exams WHERE id = $1 AND tenant_id = $2",
+    )
+    .bind(id)
+    .bind(claims.tenant_id)
+    .fetch_optional(&mut *tx)
+    .await?
+    .ok_or(AppError::NotFound)?;
     tx.commit().await?;
     Ok(Json(row))
 }
@@ -109,8 +118,12 @@ pub async fn create_dental_exam(
     // who gets checked — but it still stops an exam being filed against a
     // patient outside the caller's reach.
     medbrains_authz_gate::require_patient_access(&state, &claims, body.patient_id).await?;
-    medbrains_server_core::middleware::entitlement::require_module_enabled(&state.db, claims.tenant_id, "dental")
-        .await?;
+    medbrains_server_core::middleware::entitlement::require_module_enabled(
+        &state.db,
+        claims.tenant_id,
+        "dental",
+    )
+    .await?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
@@ -157,8 +170,12 @@ pub async fn update_dental_exam(
         id,
     )
     .await?;
-    medbrains_server_core::middleware::entitlement::require_module_enabled(&state.db, claims.tenant_id, "dental")
-        .await?;
+    medbrains_server_core::middleware::entitlement::require_module_enabled(
+        &state.db,
+        claims.tenant_id,
+        "dental",
+    )
+    .await?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
@@ -199,8 +216,12 @@ pub async fn list_chart_entries(
         exam_id,
     )
     .await?;
-    medbrains_server_core::middleware::entitlement::require_module_enabled(&state.db, claims.tenant_id, "dental")
-        .await?;
+    medbrains_server_core::middleware::entitlement::require_module_enabled(
+        &state.db,
+        claims.tenant_id,
+        "dental",
+    )
+    .await?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
@@ -241,8 +262,12 @@ pub async fn create_chart_entry(
         exam_id,
     )
     .await?;
-    medbrains_server_core::middleware::entitlement::require_module_enabled(&state.db, claims.tenant_id, "dental")
-        .await?;
+    medbrains_server_core::middleware::entitlement::require_module_enabled(
+        &state.db,
+        claims.tenant_id,
+        "dental",
+    )
+    .await?;
     if body.tooth_number.trim().is_empty() || body.condition.trim().is_empty() {
         return Err(AppError::BadRequest(
             "tooth_number and condition are required".to_owned(),

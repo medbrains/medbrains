@@ -1,0 +1,17 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO psych_mhrb_notifications (tenant_id, psych_patient_id, notification_type, reference_number, status, sent_at) VALUES ($1, $2, $3, $4, 'sent', now())",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Text",
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "6bb13049b96320bfdaaa758ef564c6605d70e718d469645f91274d4dbb626f46"
+}

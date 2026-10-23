@@ -33,10 +33,6 @@ pub struct ListPsychPatientsQuery {
 pub struct CreatePsychPatientRequest {
     pub patient_id: Uuid,
     pub admission_category: String,
-    pub advance_directive_text: Option<String>,
-    pub nominated_rep_name: Option<String>,
-    pub nominated_rep_relation: Option<String>,
-    pub nominated_rep_contact: Option<String>,
     pub substance_abuse_flag: Option<bool>,
     pub treating_psychiatrist_id: Option<Uuid>,
     pub notes: Option<String>,
@@ -49,10 +45,6 @@ pub struct UpdatePsychPatientRequest {
     /// treating psychiatrist) see the record — MHCA s.23 allows sharing with
     /// those providing care.
     pub is_restricted: Option<bool>,
-    pub advance_directive_text: Option<String>,
-    pub nominated_rep_name: Option<String>,
-    pub nominated_rep_relation: Option<String>,
-    pub nominated_rep_contact: Option<String>,
     pub substance_abuse_flag: Option<bool>,
     pub treating_psychiatrist_id: Option<Uuid>,
     pub notes: Option<String>,
@@ -81,12 +73,21 @@ pub struct CreateEctRequest {
     pub anesthetist_id: Option<Uuid>,
     pub complications: Option<String>,
     pub notes: Option<String>,
+    /// MHCA s.95(2): required for a minor.
+    pub board_permission_ref: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
 pub struct CreateRestraintRequest {
     pub restraint_type: String,
     pub reason: String,
+    /// s.97(3): method and nature of the restraint.
+    pub method: String,
+    /// s.97(1)(a)/(4): the only means to prevent imminent harm.
+    #[serde(default)]
+    pub last_resort_confirmed: bool,
+    /// s.97(1)(b): the psychiatrist in charge; the orderer when not named.
+    pub authorised_by: Option<Uuid>,
     pub review_due_hours: Option<i32>,
     pub notes: Option<String>,
 }
@@ -219,20 +220,14 @@ pub async fn create_psych_patient(
 
     let row = sqlx::query_as::<_, PsychPatient>(
         "INSERT INTO psych_patients \
-         (tenant_id, patient_id, admission_category, advance_directive_text, \
-          nominated_rep_name, nominated_rep_relation, nominated_rep_contact, \
+         (tenant_id, patient_id, admission_category, \
           substance_abuse_flag, treating_psychiatrist_id, notes) \
-         VALUES ($1, $2, $3::psych_admission_category, $4, $5, $6, $7, \
-                 COALESCE($8, false), $9, $10) \
+         VALUES ($1, $2, $3::psych_admission_category, COALESCE($4, false), $5, $6) \
          RETURNING *",
     )
     .bind(claims.tenant_id)
     .bind(body.patient_id)
     .bind(&body.admission_category)
-    .bind(&body.advance_directive_text)
-    .bind(&body.nominated_rep_name)
-    .bind(&body.nominated_rep_relation)
-    .bind(&body.nominated_rep_contact)
     .bind(body.substance_abuse_flag)
     // A restricted record is visible to its treating psychiatrist. Left
     // unnamed, the clinician enrolling the patient would lose sight of the
@@ -270,22 +265,14 @@ pub async fn update_psych_patient(
     let row = sqlx::query_as::<_, PsychPatient>(
         "UPDATE psych_patients SET \
          admission_category = COALESCE($2::psych_admission_category, admission_category), \
-         advance_directive_text = COALESCE($3, advance_directive_text), \
-         nominated_rep_name = COALESCE($4, nominated_rep_name), \
-         nominated_rep_relation = COALESCE($5, nominated_rep_relation), \
-         nominated_rep_contact = COALESCE($6, nominated_rep_contact), \
-         substance_abuse_flag = COALESCE($7, substance_abuse_flag), \
-         treating_psychiatrist_id = COALESCE($8, treating_psychiatrist_id), \
-         notes = COALESCE($9, notes), \
-         is_restricted = COALESCE($10, is_restricted) \
+         substance_abuse_flag = COALESCE($3, substance_abuse_flag), \
+         treating_psychiatrist_id = COALESCE($4, treating_psychiatrist_id), \
+         notes = COALESCE($5, notes), \
+         is_restricted = COALESCE($6, is_restricted) \
          WHERE id = $1 AND deleted_at IS NULL RETURNING *",
     )
     .bind(id)
     .bind(&body.admission_category)
-    .bind(&body.advance_directive_text)
-    .bind(&body.nominated_rep_name)
-    .bind(&body.nominated_rep_relation)
-    .bind(&body.nominated_rep_contact)
     .bind(body.substance_abuse_flag)
     .bind(body.treating_psychiatrist_id)
     .bind(&body.notes)
@@ -468,13 +455,25 @@ pub async fn create_ect_session(
         }
     }
 
+    // s.94 / s.95: no ECT in emergency treatment; for a minor only with the
+    // guardian's consent and the Board's prior permission.
+    crate::psych_mhca::check_ect_allowed(
+        &mut tx,
+        claims.tenant_id,
+        psych_patient_id,
+        consent_claimed,
+        body.board_permission_ref.as_deref(),
+    )
+    .await?;
+
     let row = sqlx::query_as::<_, PsychEctRegister>(
         "INSERT INTO psych_ect_register \
          (tenant_id, psych_patient_id, session_number, consent_obtained, \
           laterality, stimulus_dose, seizure_duration_sec, anesthetic, \
-          muscle_relaxant, performed_by, anesthetist_id, complications, notes) \
+          muscle_relaxant, performed_by, anesthetist_id, complications, notes, \
+          board_permission_ref) \
          VALUES ($1, $2, $3, $4, $5::ect_laterality, \
-                 $6, $7, $8, $9, $10, $11, $12, $13) \
+                 $6, $7, $8, $9, $10, $11, $12, $13, $14) \
          RETURNING *",
     )
     .bind(claims.tenant_id)
@@ -490,6 +489,7 @@ pub async fn create_ect_session(
     .bind(body.anesthetist_id)
     .bind(&body.complications)
     .bind(&body.notes)
+    .bind(body.board_permission_ref.as_deref().map(str::trim))
     .fetch_one(&mut *tx)
     .await?;
 
@@ -574,6 +574,11 @@ pub async fn create_restraint(
     )
     .await?;
     let review_hours = validated_review_hours(body.review_due_hours)?;
+    crate::psych_mhca::validate_restraint(
+        &body.restraint_type,
+        &body.method,
+        body.last_resort_confirmed,
+    )?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -582,9 +587,10 @@ pub async fn create_restraint(
     let row = sqlx::query_as::<_, PsychSeclusionRestraint>(
         "INSERT INTO psych_seclusion_restraint \
          (tenant_id, psych_patient_id, restraint_type, reason, \
-          start_time, review_due_at, ordered_by, notes) \
+          start_time, review_due_at, ordered_by, notes, \
+          method, last_resort_confirmed, authorised_by) \
          VALUES ($1, $2, $3::restraint_type, $4, now(), \
-                 now() + ($5 || ' hours')::interval, $6, $7) \
+                 now() + ($5 || ' hours')::interval, $6, $7, $8, $9, $10) \
          RETURNING *",
     )
     .bind(claims.tenant_id)
@@ -594,6 +600,9 @@ pub async fn create_restraint(
     .bind(review_hours.to_string())
     .bind(claims.sub)
     .bind(&body.notes)
+    .bind(body.method.trim())
+    .bind(body.last_resort_confirmed)
+    .bind(body.authorised_by.unwrap_or(claims.sub))
     .fetch_one(&mut *tx)
     .await?;
 

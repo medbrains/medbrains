@@ -36,6 +36,7 @@ struct Context {
     hi_types: Vec<String>,
     linked: bool,
     notified: bool,
+    shareable: bool,
 }
 
 /// Send the notify for one linked care context. Nothing is sent for one not
@@ -54,7 +55,9 @@ pub async fn notify_context(
     medbrains_db::pool::set_tenant_context(&mut tx, &tenant_id).await?;
     let c = sqlx::query_as::<_, Context>(
         "SELECT patient_id, reference_number, hi_types, link_status = 'linked' AS linked, \
-                notified_at IS NOT NULL AS notified \
+                notified_at IS NOT NULL AS notified, \
+                public.abdm_mental_health_shareable(tenant_id, patient_id, encounter_id) \
+                  AS shareable \
            FROM abdm_care_contexts WHERE tenant_id = $1 AND id = $2 AND deleted_at IS NULL",
     )
     .bind(tenant_id)
@@ -72,7 +75,7 @@ pub async fn notify_context(
     ) else {
         return Ok(());
     };
-    if patient.blocked_reason().is_some() {
+    if patient.blocked_reason().is_some() || !c.shareable {
         return Ok(());
     }
     let body = json!({ "notification": {

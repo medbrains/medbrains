@@ -31,6 +31,7 @@ pub mod dhis;
 pub mod hfr;
 pub mod hip;
 pub mod hiu;
+pub mod mental_health_sharing;
 pub mod hip_relay;
 pub mod scan_share;
 pub mod settings;

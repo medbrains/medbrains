@@ -1,0 +1,101 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT id, tenant_id, psych_patient_id, made_on, made_by, treatment_wishes, treatment_refusals, representative_preferences, document_ref, status, revoked_at, recorded_by, created_at, updated_at FROM psych_advance_directives WHERE psych_patient_id = $1 AND tenant_id = $2 AND deleted_at IS NULL ORDER BY (status = 'active') DESC, created_at DESC LIMIT 100",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "tenant_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 2,
+        "name": "psych_patient_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 3,
+        "name": "made_on",
+        "type_info": "Date"
+      },
+      {
+        "ordinal": 4,
+        "name": "made_by",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 5,
+        "name": "treatment_wishes",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 6,
+        "name": "treatment_refusals",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 7,
+        "name": "representative_preferences",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 8,
+        "name": "document_ref",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 9,
+        "name": "status",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 10,
+        "name": "revoked_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 11,
+        "name": "recorded_by",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 12,
+        "name": "created_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 13,
+        "name": "updated_at",
+        "type_info": "Timestamptz"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      true,
+      false,
+      true,
+      true,
+      true,
+      true,
+      false,
+      true,
+      true,
+      false,
+      false
+    ]
+  },
+  "hash": "ad437e17f9286a9fa12de7e23c1edac6645f7c51cdec35361b2020cc0cbfe53a"
+}

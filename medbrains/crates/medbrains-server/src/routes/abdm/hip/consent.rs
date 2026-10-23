@@ -362,6 +362,7 @@ async fn transfer(
            FROM abdm_care_contexts \
           WHERE tenant_id = $1 AND patient_id = $2 AND reference_number = ANY($3) \
             AND hi_types && $4 AND deleted_at IS NULL \
+            AND public.abdm_mental_health_shareable(tenant_id, patient_id, encounter_id) \
             AND ($5::timestamptz IS NULL OR record_date >= ($5::timestamptz AT TIME ZONE 'Asia/Kolkata')::date) \
             AND ($6::timestamptz IS NULL OR record_date <= ($6::timestamptz AT TIME ZONE 'Asia/Kolkata')::date) \
           ORDER BY record_date LIMIT $7",

@@ -736,13 +736,18 @@ import type {
   CreatePrivacyRequest,
   CreateProcedureOrderRequest,
   CreateProficiencyTestRequest,
+  CreatePsychAdmissionRequest,
   CreatePsychAssessmentRequest,
+  CreatePsychChallengeRequest,
   CreatePsychCounselingRequest,
+  CreatePsychDirectiveRequest,
   CreatePsychEctRequest,
   CreatePsychMhrbRequest,
   CreatePsychometricTestRequest,
   CreatePsychPatientRequest,
+  CreatePsychRepresentativeRequest,
   CreatePsychRestraintRequest,
+  CreatePsychScreeningRequest,
   CreatePurchaseOrderRequest,
   CreateQcResultRequest,
   CreateQualityAuditRequest,
@@ -899,6 +904,7 @@ import type {
   DecidedApprovalRequest,
   DecideItemRequest,
   DecidePrivacyRequest,
+  DecidePsychChallengeRequest,
   DeclineReferralRequest,
   DeliverablePrintJob,
   DeliveryOptions,
@@ -1411,6 +1417,7 @@ import type {
   MedReconciliationView,
   MeldRequest,
   MeldResult,
+  MentalHealthSharing,
   MeowsRequest,
   MeowsResult,
   MergeCatalogItemsRequest,
@@ -1648,6 +1655,7 @@ import type {
   PendingAckUser,
   PendingCountersign,
   PendingDischargeRow,
+  PendingSafetyReview,
   PendingSignoffEntry,
   PersonalizeDashboardRequest,
   PesoComplianceReportPrintData,
@@ -1749,13 +1757,19 @@ import type {
   ProviderSetup,
   ProviderTestResult,
   ProvisionDomainResponse,
+  PsychAdmission,
+  PsychAdvanceDirective,
   PsychAssessment,
   PsychCounselingSession,
+  PsychDirectiveChallenge,
   PsychEctRegister,
   PsychMhrbNotification,
+  PsychNominatedRepresentative,
   PsychometricTest,
   // Specialty Clinical: Psychiatry
   PsychPatient,
+  PsychSafetyReviewRequest,
+  PsychScreening,
   PsychSeclusionRestraint,
   PublicAvailableSlot,
   PublicBookingDirectory,
@@ -1897,6 +1911,7 @@ import type {
   RespondToOfferRequest,
   RestraintDocumentationPrintData,
   RestraintMonitoringLog,
+  RestraintReportRow,
   RestrictedDrugApproval,
   // Retrospective
   RetrospectiveEntry,
@@ -11807,6 +11822,109 @@ export const api = {
   createCounselingSession: (patientId: string, data: CreatePsychCounselingRequest) =>
     request<PsychCounselingSession>(`/specialty/psychiatry/patients/${patientId}/counseling`, {
       method: "POST",
+      body: JSON.stringify(data),
+    }),
+
+  listPsychAdmissions: (psychPatientId: string) =>
+    request<PsychAdmission[]>(`/specialty/psychiatry/patients/${psychPatientId}/admissions`),
+  createPsychAdmission: (psychPatientId: string, data: CreatePsychAdmissionRequest) =>
+    request<PsychAdmission>(`/specialty/psychiatry/patients/${psychPatientId}/admissions`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  dischargePsychAdmission: (id: string, data: { note?: string }) =>
+    request<PsychAdmission>(`/specialty/psychiatry/admissions/${id}/discharge`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  reportPsychAdmissionToBoard: (id: string, data: { reference_number?: string }) =>
+    request<PsychAdmission>(`/specialty/psychiatry/admissions/${id}/board-report`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  recordPsychBoardDecision: (
+    id: string,
+    data: { decision: "permitted" | "discharge_ordered"; reference_number?: string },
+  ) =>
+    request<PsychAdmission>(`/specialty/psychiatry/admissions/${id}/board-decision`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  listPsychRepresentatives: (psychPatientId: string) =>
+    request<PsychNominatedRepresentative[]>(
+      `/specialty/psychiatry/patients/${psychPatientId}/nominated-representatives`,
+    ),
+  createPsychRepresentative: (psychPatientId: string, data: CreatePsychRepresentativeRequest) =>
+    request<PsychNominatedRepresentative>(
+      `/specialty/psychiatry/patients/${psychPatientId}/nominated-representatives`,
+      { method: "POST", body: JSON.stringify(data) },
+    ),
+  revokePsychRepresentative: (id: string, data: { reason?: string }) =>
+    request<PsychNominatedRepresentative>(
+      `/specialty/psychiatry/nominated-representatives/${id}/revoke`,
+      { method: "POST", body: JSON.stringify(data) },
+    ),
+  listPsychDirectives: (psychPatientId: string) =>
+    request<PsychAdvanceDirective[]>(
+      `/specialty/psychiatry/patients/${psychPatientId}/advance-directives`,
+    ),
+  createPsychDirective: (psychPatientId: string, data: CreatePsychDirectiveRequest) =>
+    request<PsychAdvanceDirective>(
+      `/specialty/psychiatry/patients/${psychPatientId}/advance-directives`,
+      { method: "POST", body: JSON.stringify(data) },
+    ),
+  revokePsychDirective: (id: string) =>
+    request<PsychAdvanceDirective>(`/specialty/psychiatry/advance-directives/${id}/revoke`, {
+      method: "POST",
+      body: JSON.stringify({}),
+    }),
+  createPsychChallenge: (directiveId: string, data: CreatePsychChallengeRequest) =>
+    request<PsychDirectiveChallenge>(
+      `/specialty/psychiatry/advance-directives/${directiveId}/challenges`,
+      { method: "POST", body: JSON.stringify(data) },
+    ),
+  listPsychChallenges: (psychPatientId: string) =>
+    request<PsychDirectiveChallenge[]>(
+      `/specialty/psychiatry/patients/${psychPatientId}/directive-challenges`,
+    ),
+  decidePsychChallenge: (id: string, data: DecidePsychChallengeRequest) =>
+    request<PsychDirectiveChallenge>(`/specialty/psychiatry/directive-challenges/${id}/decision`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  listPsychScreenings: (psychPatientId: string) =>
+    request<PsychScreening[]>(`/specialty/psychiatry/patients/${psychPatientId}/screenings`),
+  createPsychScreening: (psychPatientId: string, data: CreatePsychScreeningRequest) =>
+    request<PsychScreening>(`/specialty/psychiatry/patients/${psychPatientId}/screenings`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  completePsychSafetyReview: (id: string, data: PsychSafetyReviewRequest) =>
+    request<PsychScreening>(`/specialty/psychiatry/screenings/${id}/safety-review`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  listPendingSafetyReviews: () =>
+    request<PendingSafetyReview[]>("/specialty/psychiatry/safety-reviews/pending"),
+  markRestraintRepInformed: (id: string) =>
+    request<{ informed: boolean }>(
+      `/specialty/psychiatry/restraints/${id}/nominated-rep-informed`,
+      { method: "POST", body: JSON.stringify({}) },
+    ),
+  getRestraintReport: (month: string) =>
+    request<RestraintReportRow[]>(
+      `/specialty/psychiatry/restraint-report?month=${encodeURIComponent(month)}`,
+    ),
+  setPsychAbdmConsent: (psychPatientId: string, consented: boolean) =>
+    request<PsychPatient>(`/specialty/psychiatry/patients/${psychPatientId}/abdm-consent`, {
+      method: "PUT",
+      body: JSON.stringify({ consented }),
+    }),
+  getAbdmMentalHealthSharing: () =>
+    request<MentalHealthSharing>("/abdm/settings/mental-health-sharing"),
+  saveAbdmMentalHealthSharing: (data: MentalHealthSharing) =>
+    request<MentalHealthSharing>("/abdm/settings/mental-health-sharing", {
+      method: "PUT",
       body: JSON.stringify(data),
     }),
 

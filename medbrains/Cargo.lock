@@ -8126,6 +8126,7 @@ dependencies = [
  "chrono",
  "medbrains-authz",
  "medbrains-authz-gate",
+ "medbrains-clinical-scores",
  "medbrains-core",
  "medbrains-db",
  "medbrains-security",

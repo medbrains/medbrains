@@ -1,0 +1,114 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE psych_nominated_representatives SET revoked_at = now(), revoke_reason = $3 WHERE id = $1 AND tenant_id = $2 AND revoked_at IS NULL AND deleted_at IS NULL RETURNING id, tenant_id, psych_patient_id, full_name, relationship, phone, address, basis, written_consent_received, appointment_document_ref, appointed_on, revoked_at, revoke_reason, recorded_by, created_at, updated_at",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "tenant_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 2,
+        "name": "psych_patient_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 3,
+        "name": "full_name",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 4,
+        "name": "relationship",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 5,
+        "name": "phone",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 6,
+        "name": "address",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 7,
+        "name": "basis",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 8,
+        "name": "written_consent_received",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 9,
+        "name": "appointment_document_ref",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 10,
+        "name": "appointed_on",
+        "type_info": "Date"
+      },
+      {
+        "ordinal": 11,
+        "name": "revoked_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 12,
+        "name": "revoke_reason",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 13,
+        "name": "recorded_by",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 14,
+        "name": "created_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 15,
+        "name": "updated_at",
+        "type_info": "Timestamptz"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Text"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      true,
+      true,
+      true,
+      false,
+      false,
+      true,
+      true,
+      true,
+      true,
+      true,
+      false,
+      false
+    ]
+  },
+  "hash": "f18501cef4897845d2d69f91eb8aab752e85118b2ac522e61c2c62e7b3b46253"
+}

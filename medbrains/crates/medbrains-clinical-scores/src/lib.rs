@@ -26,6 +26,7 @@ pub mod news2;
 pub mod osmolar_gap;
 pub mod paediatric_fluid;
 pub mod pews;
+pub mod phq;
 pub mod sepsis;
 pub mod sofa;
 pub mod wells_dvt;
