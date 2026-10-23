@@ -68,7 +68,7 @@ import { useMemo, useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { useTranslation } from "react-i18next";
 import { type Column, DataTable, OperationalSignal, useClinicalEmit } from "@/components";
-import { Icd11CodeSelect } from "@/components/Clinical/Icd11CodeSelect";
+import { DiagnosisCodeSelect } from "@/components/Clinical/DiagnosisCodeSelect";
 import { DoctorSearchSelect } from "@/components/DoctorSearchSelect";
 import { PatientNameCell } from "@/components/PatientNameCell";
 import { Alert, Badge, type BadgeTone, Button, IconButton, Table, toast } from "@/components/ui";
@@ -2160,8 +2160,8 @@ export function PreAuthTab({
             value={procCodes}
             onChange={(e) => setProcCodes(e.currentTarget.value)}
           />
-          <Icd11CodeSelect
-            label="Add ICD-11 diagnosis"
+          <DiagnosisCodeSelect
+            label="Add diagnosis code"
             value={selectedDiagCode || null}
             onChange={(value) => {
               setSelectedDiagCode(value ?? "");
@@ -2170,7 +2170,7 @@ export function PreAuthTab({
           />
           <TextInput
             label="Diagnosis codes"
-            placeholder="ICD-11 codes selected for claim/pre-auth"
+            placeholder="Diagnosis codes for the claim/pre-auth"
             value={diagCodes}
             onChange={(e) => setDiagCodes(e.currentTarget.value)}
           />

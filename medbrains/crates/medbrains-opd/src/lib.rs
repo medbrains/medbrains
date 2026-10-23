@@ -21,7 +21,7 @@ use chrono::DateTime;
 use chrono::{NaiveDate, NaiveTime, Utc};
 use medbrains_core::clinical_events::{ClinicalEventEnvelope, ClinicalEventName};
 use medbrains_core::consultation::{
-    ChiefComplaintMaster, Consultation, ConsultationTemplate, Diagnosis, DoctorDocket, Icd10Code,
+    ChiefComplaintMaster, Consultation, ConsultationTemplate, Diagnosis, DoctorDocket,
     MedicalCertificate, PatientFeedback, PatientReminder, Prescription, PrescriptionItem,
     PrescriptionTemplate, ProcedureCatalog, ProcedureConsent, ProcedureOrder, Referral, SnomedCode,
     Vital,
@@ -2216,6 +2216,14 @@ pub async fn create_diagnosis(
     if !matches!(icd_system, "icd10" | "icd11" | "snomed") {
         return Err(AppError::BadRequest("invalid icd_system".to_owned()));
     }
+    // The hospital's coding switch governs new codes only.
+    medbrains_terminology::icd10::store::check_diagnosis_code(
+        &mut tx,
+        claims.tenant_id,
+        icd_system,
+        body.icd_code.as_deref(),
+    )
+    .await?;
 
     let row = sqlx::query_as::<_, Diagnosis>(
         "INSERT INTO diagnoses \
@@ -2332,6 +2340,28 @@ pub async fn update_diagnosis(
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+
+    // A recode is checked against the switch; resolving or annotating a
+    // diagnosis coded before a switch keeps its code as it was.
+    if body.icd_code.is_some() || body.icd_system.is_some() {
+        let current: Option<(String, Option<String>)> = sqlx::query_as(
+            "SELECT icd_system, icd_code FROM diagnoses \
+             WHERE id = $1 AND tenant_id = $2 AND encounter_id = $3 AND deleted_at IS NULL",
+        )
+        .bind(did)
+        .bind(claims.tenant_id)
+        .bind(encounter_id)
+        .fetch_optional(&mut *tx)
+        .await?;
+        let (system, code) = current.ok_or(AppError::NotFound)?;
+        medbrains_terminology::icd10::store::check_diagnosis_code(
+            &mut tx,
+            claims.tenant_id,
+            body.icd_system.as_deref().unwrap_or(&system),
+            body.icd_code.as_deref().or(code.as_deref()),
+        )
+        .await?;
+    }
 
     let row = sqlx::query_as::<_, Diagnosis>(
         "UPDATE diagnoses SET \
@@ -4463,52 +4493,6 @@ pub async fn check_duplicate_orders(
 
     tx.commit().await?;
     Ok(Json(results))
-}
-
-// ══════════════════════════════════════════════════════════
-//  ICD-10 Search (global — no tenant context needed)
-// ══════════════════════════════════════════════════════════
-
-#[derive(Debug, Deserialize)]
-pub struct Icd10SearchQuery {
-    pub q: String,
-    pub limit: Option<i64>,
-}
-
-pub async fn search_icd10(
-    State(state): State<AppState>,
-    Extension(claims): Extension<Claims>,
-    Query(q): Query<Icd10SearchQuery>,
-) -> Result<Json<Vec<Icd10Code>>, AppError> {
-    require_any_permission(
-        &claims,
-        &[
-            permissions::opd::queue::VIEW,
-            permissions::opd::diagnoses::LIST,
-            permissions::opd::diagnoses::CREATE,
-            permissions::opd::diagnoses::UPDATE,
-        ],
-    )?;
-
-    let limit = q.limit.unwrap_or(20).min(50);
-    let search_term = format!("%{}%", q.q.trim());
-
-    let rows = sqlx::query_as::<_, Icd10Code>(
-        "SELECT * FROM icd10_codes \
-         WHERE is_active = true AND \
-           (code ILIKE $1 OR short_desc ILIKE $1) \
-         ORDER BY \
-           CASE WHEN code ILIKE $2 THEN 0 ELSE 1 END, \
-           code \
-         LIMIT $3",
-    )
-    .bind(&search_term)
-    .bind(format!("{}%", q.q.trim()))
-    .bind(limit)
-    .fetch_all(&state.db)
-    .await?;
-
-    Ok(Json(rows))
 }
 
 // ══════════════════════════════════════════════════════════
@@ -6804,7 +6788,6 @@ pub fn router() -> axum::Router<AppState> {
             delete(cancel_procedure_order),
         )
         .route("/api/opd/duplicate-check", get(check_duplicate_orders))
-        .route("/api/opd/icd10/search", get(search_icd10))
         .route("/api/opd/icd11/search", get(search_icd11))
         .route(
             "/api/opd/clinical-corpus",

@@ -8,6 +8,8 @@ use serde_json::Value;
 use std::collections::HashSet;
 use uuid::Uuid;
 
+use medbrains_terminology::icd10::store::{self as icd10, Icd10Code, Icd10Release};
+
 use medbrains_server_core::{
     error::AppError, middleware::auth::Claims, middleware::authorization::require_any_permission,
     state::AppState,
@@ -59,12 +61,14 @@ struct Icd11SearchBundle {
 
 enum TerminologySystem {
     Icd11,
+    Icd10,
     Snomed,
 }
 
 fn terminology_system(value: &str) -> Result<TerminologySystem, AppError> {
     match value.trim().to_lowercase().as_str() {
         "icd11" => Ok(TerminologySystem::Icd11),
+        "icd10" => Ok(TerminologySystem::Icd10),
         "snomed" => Ok(TerminologySystem::Snomed),
         _ => Err(AppError::BadRequest(
             "unsupported terminology system".to_owned(),
@@ -107,13 +111,12 @@ pub async fn search_terminology(
     let rows = match terminology_system(&q.system)? {
         TerminologySystem::Icd11 => {
             let limit = bounded_limit(q.limit);
-            match search_icd11_official(&needle, limit).await {
-                Ok(rows) => rows,
-                Err(error) => {
-                    tracing::warn!(error = %error, "WHO ICD-11 search failed");
-                    Vec::new()
-                }
-            }
+            search_icd11_official(&needle, limit)
+                .await
+                .map_err(|e| icd11_unavailable(&e))?
+        }
+        TerminologySystem::Icd10 => {
+            search_icd10_catalogue(&state, &claims, &needle, bounded_limit(q.limit)).await?
         }
         TerminologySystem::Snomed => {
             search_snomed_cache(
@@ -156,20 +159,19 @@ pub async fn search_terminology_with_suggestions(
     let response = match terminology_system(&q.system)? {
         TerminologySystem::Icd11 => {
             let limit = bounded_limit(q.limit);
-            match search_icd11_official_with_suggestions(&needle, limit).await {
-                Ok(bundle) => TerminologySearchResponse {
-                    results: bundle.rows,
-                    suggestions: bundle.suggestions,
-                },
-                Err(error) => {
-                    tracing::warn!(error = %error, "WHO ICD-11 search failed");
-                    TerminologySearchResponse {
-                        results: Vec::new(),
-                        suggestions: Vec::new(),
-                    }
-                }
+            let bundle = search_icd11_official_with_suggestions(&needle, limit)
+                .await
+                .map_err(|e| icd11_unavailable(&e))?;
+            TerminologySearchResponse {
+                results: bundle.rows,
+                suggestions: bundle.suggestions,
             }
         }
+        TerminologySystem::Icd10 => TerminologySearchResponse {
+            results: search_icd10_catalogue(&state, &claims, &needle, bounded_limit(q.limit))
+                .await?,
+            suggestions: Vec::new(),
+        },
         TerminologySystem::Snomed => TerminologySearchResponse {
             results: search_snomed_cache(
                 &state,
@@ -206,17 +208,69 @@ pub async fn lookup_terminology(
     }
 
     let row = match terminology_system(&q.system)? {
-        TerminologySystem::Icd11 => match lookup_icd11_official_code(code).await {
-            Ok(row) => row,
-            Err(error) => {
-                tracing::warn!(error = %error, "WHO ICD-11 lookup failed");
-                None
-            }
-        },
+        TerminologySystem::Icd11 => lookup_icd11_official_code(code)
+            .await
+            .map_err(|e| icd11_unavailable(&e))?,
+        TerminologySystem::Icd10 => lookup_icd10_catalogue(&state, &claims, code).await?,
         TerminologySystem::Snomed => lookup_snomed_cache(&state, code).await?,
     };
 
     row.map(Json).ok_or(AppError::NotFound)
+}
+
+/// An ICD-11 search that could not reach WHO's service is an outage, not
+/// "no match": the picker says so instead of showing an empty list.
+fn icd11_unavailable(error: &AppError) -> AppError {
+    tracing::warn!(error = %error, "WHO ICD-11 search failed");
+    AppError::ServiceUnavailable("ICD-11 search is unavailable just now".to_owned())
+}
+
+/// The message a doctor sees when the hospital codes in ICD-10 but no
+/// licensed catalogue has been loaded.
+pub const ICD10_NOT_LOADED: &str = "ICD-10 catalogue not loaded — ask your administrator";
+
+fn icd10_row(release: &Icd10Release, code: Icd10Code) -> TerminologySearchResult {
+    TerminologySearchResult {
+        system: "icd10".to_owned(),
+        code: code.code,
+        display: code.title,
+        semantic_tag: code.chapter,
+        source: release.source.clone(),
+        source_url: None,
+        source_version: Some(release.version.clone()),
+        active: true,
+        provider_mode: "hospital_catalogue".to_owned(),
+        corpus_entry_id: None,
+    }
+}
+
+async fn search_icd10_catalogue(
+    state: &AppState,
+    claims: &Claims,
+    needle: &str,
+    limit: i64,
+) -> Result<Vec<TerminologySearchResult>, AppError> {
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let found = icd10::search(&mut tx, claims.tenant_id, needle, limit).await?;
+    tx.commit().await?;
+    let (release, rows) = found.ok_or_else(|| AppError::Conflict(ICD10_NOT_LOADED.to_owned()))?;
+    Ok(rows.into_iter().map(|r| icd10_row(&release, r)).collect())
+}
+
+async fn lookup_icd10_catalogue(
+    state: &AppState,
+    claims: &Claims,
+    code: &str,
+) -> Result<Option<TerminologySearchResult>, AppError> {
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let release = icd10::active_release(&mut tx, claims.tenant_id)
+        .await?
+        .ok_or_else(|| AppError::Conflict(ICD10_NOT_LOADED.to_owned()))?;
+    let row = icd10::lookup(&mut tx, claims.tenant_id, code).await?;
+    tx.commit().await?;
+    Ok(row.map(|r| icd10_row(&release, r)))
 }
 
 async fn search_icd11_official(
@@ -237,10 +291,9 @@ async fn search_icd11_official_with_suggestions(
         match who_icd_access_token().await? {
             Some(value) => Some(value),
             None => {
-                return Ok(Icd11SearchBundle {
-                    rows: Vec::new(),
-                    suggestions: Vec::new(),
-                });
+                return Err(AppError::ServiceUnavailable(
+                    "WHO ICD API credentials are not configured".to_owned(),
+                ));
             }
         }
     } else {

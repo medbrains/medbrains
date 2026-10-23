@@ -85,19 +85,6 @@ pub struct SnomedCode {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
-pub struct Icd10Code {
-    pub id: Uuid,
-    pub code: String,
-    pub short_desc: String,
-    pub long_desc: Option<String>,
-    pub category: Option<String>,
-    pub chapter: Option<String>,
-    pub is_billable: bool,
-    pub is_active: bool,
-    pub created_at: DateTime<Utc>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
 pub struct ChiefComplaintMaster {
     pub id: Uuid,
     pub tenant_id: Uuid,

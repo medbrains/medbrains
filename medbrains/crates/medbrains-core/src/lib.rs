@@ -46,6 +46,7 @@ pub mod dashboard;
 pub mod department;
 pub mod deploy_mode;
 pub mod device;
+pub mod diagnosis_coding;
 pub mod diet;
 pub mod document;
 pub mod dose_safety;

@@ -1816,20 +1816,6 @@ export interface UpdateDiagnosisRequest {
   snomed_display?: string | null;
 }
 
-// -- ICD-10 Reference --
-
-export interface Icd10Code {
-  id: string;
-  code: string;
-  short_desc: string;
-  long_desc: string | null;
-  category: string | null;
-  chapter: string | null;
-  is_billable: boolean;
-  is_active: boolean;
-  created_at: string;
-}
-
 // -- SNOMED CT Reference --
 
 export interface SnomedCode {
@@ -1923,14 +1909,16 @@ export interface UpdateClinicalCorpusEntryRequest {
 
 // -- Terminology Service --
 
-export type TerminologySystem = "icd11" | "snomed";
+export type TerminologySystem = "icd11" | "icd10" | "snomed";
 
 export type TerminologyProviderMode =
   | "official_api_cache"
   | "official_api_cloud"
   | "official_api_local"
   | "official_release_cache"
-  | "local_cache";
+  | "local_cache"
+  /** The hospital's own licensed ICD-10 catalogue. */
+  | "hospital_catalogue";
 
 export interface TerminologySearchResult {
   system: TerminologySystem;

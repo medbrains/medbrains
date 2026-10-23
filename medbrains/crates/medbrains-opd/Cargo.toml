@@ -18,6 +18,7 @@ medbrains-tokens = { path = "../medbrains-tokens" }
 medbrains-telehealth = { path = "../medbrains-telehealth" }
 medbrains-pharmacy = { path = "../medbrains-pharmacy" }
 medbrains-platform = { path = "../medbrains-platform" }
+medbrains-terminology = { path = "../medbrains-terminology" }
 medbrains-core = { path = "../medbrains-core" }
 medbrains-db = { path = "../medbrains-db" }
 medbrains-authz = { path = "../medbrains-authz" }

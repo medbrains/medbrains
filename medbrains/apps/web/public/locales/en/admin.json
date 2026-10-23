@@ -169,5 +169,6 @@
   "settings": {
     "tokens": "Tokens"
   },
-  "settings.snomed": "SNOMED CT"
+  "settings.snomed": "SNOMED CT",
+  "settings.diagnosisCoding": "Diagnosis coding"
 }

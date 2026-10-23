@@ -17,7 +17,7 @@ export interface PermissionDef {
   module: string;
 }
 
-/** 1132 permissions, one per constant in the Rust source. */
+/** 1133 permissions, one per constant in the Rust source. */
 export const PERMISSIONS: PermissionDef[] = [
   // dashboard
   {
@@ -5075,6 +5075,12 @@ export const PERMISSIONS: PermissionDef[] = [
     code: "terminology.snomed.analytics",
     label: "Count records by SNOMED CT hierarchy",
     description: "See how many of the hospital's coded diagnoses fall under a concept or any of its descendants, and the roll-up by top-level category.",
+    module: "terminology",
+  },
+  {
+    code: "terminology.coding.configure",
+    label: "Choose ICD-11, ICD-10 or both for diagnoses",
+    description: "Switch the classification doctors code diagnoses in, and load the hospital's licensed ICD-10 catalogue file. Changes what every doctor's diagnosis picker offers, so only administrators hold it.",
     module: "terminology",
   },
   // ckb
@@ -10220,6 +10226,10 @@ export const P = {
     USAGE_VIEW: "storage.usage.view",
   },
   TERMINOLOGY: {
+    CODING: {
+      CONFIGURE: "terminology.coding.configure",
+    },
+    CODING_CONFIGURE: "terminology.coding.configure",
     SEARCH: "terminology.search",
     SNOMED: {
       ANALYTICS: "terminology.snomed.analytics",
