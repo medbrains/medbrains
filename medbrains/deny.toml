@@ -21,7 +21,6 @@ ignore = [
     { id = "RUSTSEC-2026-0367", reason = "zip 4 now only via tauri-plugin-updater 2.14 (latest), which extracts an update only after its signature verifies. Re-check on the next updater release. expires 2026-12-31" },
     { id = "RUSTSEC-2026-0368", reason = "zip 4 via tauri-plugin-updater only, after signature verification; see 0367. expires 2026-12-31" },
     { id = "RUSTSEC-2026-0369", reason = "zip 4 via tauri-plugin-updater only, after signature verification; see 0367. expires 2026-12-31" },
-    { id = "RUSTSEC-2026-0253", reason = "lru 0.16 remains only via pingora-cache 0.8 (proxy): pop() panic-safety, no user callback runs inside pop. Cleared by pingora 0.9. expires 2026-12-31" },
 ]
 
 [licenses]
