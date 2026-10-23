@@ -9,7 +9,8 @@ use std::collections::{HashMap, HashSet};
 
 use medbrains_core::diagnosis_coding::icd_system_of_code;
 use quick_xml::Reader;
-use quick_xml::events::{BytesStart, Event};
+use quick_xml::escape::resolve_predefined_entity;
+use quick_xml::events::{BytesRef, BytesStart, Event};
 
 /// More rows than any ICD-10 edition (WHO ~12k, ICD-10-CM ~75k) holds.
 pub const MAX_CODES: usize = 200_000;
@@ -146,6 +147,20 @@ fn attr(e: &BytesStart<'_>, name: &[u8]) -> Result<Option<String>, String> {
     Ok(None)
 }
 
+/// `&amp;`, `&#233;` and the like, inside a label.
+fn entity(r: &BytesRef<'_>) -> Result<String, String> {
+    if let Some(c) = r
+        .resolve_char_ref()
+        .map_err(|e| format!("bad XML character: {e}"))?
+    {
+        return Ok(c.to_string());
+    }
+    let name = r.decode().map_err(|e| format!("bad XML entity: {e}"))?;
+    resolve_predefined_entity(&name)
+        .map(str::to_owned)
+        .ok_or_else(|| format!("unknown XML entity &{name};"))
+}
+
 /// `ClaML`: every `<Class kind="category" code="…">` with its preferred
 /// `<Rubric>` label; the chapter is found by walking `<SuperClass>` up.
 fn parse_claml(content: &str) -> Result<Vec<Entry>, String> {
@@ -179,12 +194,17 @@ fn parse_claml(content: &str) -> Result<Vec<Entry>, String> {
                 b"Label" if preferred && current.as_ref().is_some_and(|c| c.title.is_none()) => {
                     label = Some(String::new());
                 }
-                _ => {}
+                // A nested element (Fragment, Reference) is a word boundary.
+                _ => label.iter_mut().for_each(|l| l.push(' ')),
             },
             Event::Text(t) => {
                 if let Some(l) = label.as_mut() {
-                    l.push_str(&t.unescape().map_err(|e| format!("bad XML text: {e}"))?);
-                    l.push(' ');
+                    l.push_str(&t.decode().map_err(|e| format!("bad XML text: {e}"))?);
+                }
+            }
+            Event::GeneralRef(r) => {
+                if let Some(l) = label.as_mut() {
+                    l.push_str(&entity(&r)?);
                 }
             }
             Event::End(e) => match e.name().as_ref() {
@@ -195,7 +215,7 @@ fn parse_claml(content: &str) -> Result<Vec<Entry>, String> {
                 }
                 b"Rubric" => preferred = false,
                 b"Class" => classes.extend(current.take()),
-                _ => {}
+                _ => label.iter_mut().for_each(|l| l.push(' ')),
             },
             Event::Eof => break,
             _ => {}
@@ -283,7 +303,7 @@ mod tests {
   <Class code="A90" kind="category">
     <SuperClass code="A90-A99"/>
     <Rubric kind="inclusion"><Label xml:lang="en">Not the title</Label></Rubric>
-    <Rubric kind="preferred"><Label xml:lang="en">Fixture fever &amp; <Fragment>ache</Fragment></Label></Rubric>
+    <Rubric kind="preferred"><Label xml:lang="en">Fixture fever &amp; <Fragment>ache</Fragment> of Crohn&apos;s &#233;</Label></Rubric>
   </Class>
   <Class code="A91.0" kind="category">
     <SuperClass code="A90"/>
@@ -296,7 +316,7 @@ mod tests {
         let rows = parse(Format::Claml, CLAML_FIXTURE).unwrap();
         assert_eq!(rows.len(), 2, "chapters and blocks are not codes");
         assert_eq!(rows[0].code, "A90");
-        assert_eq!(rows[0].title, "Fixture fever & ache");
+        assert_eq!(rows[0].title, "Fixture fever & ache of Crohn's é");
         assert_eq!(rows[0].chapter.as_deref(), Some("I Fixture chapter one"));
         assert_eq!(rows[1].chapter.as_deref(), Some("I Fixture chapter one"));
     }
