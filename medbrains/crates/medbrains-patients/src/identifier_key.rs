@@ -7,7 +7,7 @@
 //! whose key lives in the secret store, not the database, cannot be reversed
 //! from a database copy, and still lets registration spot the same person twice.
 
-use hmac::{Hmac, Mac};
+use hmac::{Hmac, KeyInit, Mac};
 use medbrains_server_core::state::AppState;
 use sha2::Sha256;
 use uuid::Uuid;

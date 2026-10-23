@@ -852,7 +852,7 @@ pub async fn ccavenue_webhook(
 
 fn decrypt_ccavenue_response(enc_resp: &str, working_key: &str) -> Result<String, String> {
     use base64::Engine as _;
-    use cipher::{BlockDecryptMut, KeyIvInit, block_padding::NoPadding};
+    use cipher::{BlockModeDecrypt, KeyIvInit, block_padding::NoPadding};
 
     let key = working_key.as_bytes();
     let iv = key[..16].to_vec();
@@ -866,7 +866,7 @@ fn decrypt_ccavenue_response(enc_resp: &str, working_key: &str) -> Result<String
         Aes256CbcDec::new_from_slices(key, &iv).map_err(|e| format!("cipher init: {e}"))?;
     let mut buf = ciphertext.clone();
     decryptor
-        .decrypt_padded_mut::<NoPadding>(&mut buf)
+        .decrypt_padded::<NoPadding>(&mut buf)
         .map_err(|e| format!("decrypt: {e}"))?;
 
     String::from_utf8(buf).map_err(|e| format!("utf8: {e}"))

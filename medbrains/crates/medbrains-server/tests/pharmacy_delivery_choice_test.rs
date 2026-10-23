@@ -12,7 +12,7 @@ use delivery_choice_world::{
     WEBHOOK_SECRET, approve, choice, delivery_of, drug, earn_cash_on_delivery, make_payment_link,
     new_patient, patient_token, portal, prescription, setup, staff,
 };
-use hmac::{Hmac, Mac};
+use hmac::{Hmac, KeyInit, Mac};
 use reqwest::StatusCode;
 use serde_json::{Value, json};
 use sha2::Sha256;

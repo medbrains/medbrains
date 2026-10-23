@@ -26,11 +26,11 @@ openssl = { version = "0.10", features = ["vendored"] }
 # Base64 + AES-GCM + HKDF for ABDM's Fidelius transfer encryption
 # (ECDH on Weierstrass Curve25519 runs on the openssl dependency above).
 base64 = "0.22"
-aes-gcm = "0.10"
-hkdf = "0.12"
+aes-gcm = "0.11"
+hkdf = "0.13"
 sha2.workspace = true
-rand = { version = "0.9" }
+rand = { workspace = true }
 
 # UHI (Beckn) HTTP signatures: ed25519 over a BLAKE2b-512 body digest.
 ed25519-dalek = { workspace = true }
-blake2 = "0.10"
+blake2 = "0.11"

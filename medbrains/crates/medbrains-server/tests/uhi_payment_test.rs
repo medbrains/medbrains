@@ -8,7 +8,7 @@ use crate::uhi_world;
 
 use axum::http::StatusCode;
 use chrono::{Duration, Utc};
-use hmac::{Hmac, Mac};
+use hmac::{Hmac, KeyInit, Mac};
 use medbrains_server::routes::uhi::{
     fees::FEE_AT_HOSPITAL,
     payment_events::{UhiPaymentCapturedHandler, UhiPaymentLinkHandler},

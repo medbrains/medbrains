@@ -93,7 +93,7 @@ fn decode_patient_token(token: &str, key: &DecodingKey) -> Result<PatientClaims,
 fn hash_otp(code: &str) -> String {
     let mut hasher = Sha256::new();
     hasher.update(code.as_bytes());
-    format!("{:x}", hasher.finalize())
+    hex::encode(hasher.finalize())
 }
 
 #[derive(Debug, Deserialize)]

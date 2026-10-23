@@ -14,7 +14,7 @@ medbrains-outbox = { path = "../medbrains-outbox" }
 medbrains-authz = { path = "../medbrains-authz" }
 axum = { workspace = true }
 argon2 = { workspace = true }
-getrandom = { version = "0.3", features = ["std"] }
+getrandom = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 uuid = { workspace = true }

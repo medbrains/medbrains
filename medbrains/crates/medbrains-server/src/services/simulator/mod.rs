@@ -22,8 +22,7 @@ pub mod verifier;
 
 use chrono::{DateTime, NaiveDate, Utc};
 use medbrains_core::simulator::{Profile, RunSummary};
-use rand::Rng;
-use rand::SeedableRng;
+use rand::RngExt;
 use rand::rngs::StdRng;
 use rand::seq::IndexedRandom;
 use rust_decimal::Decimal;
@@ -72,7 +71,7 @@ pub async fn run(
 ) -> Result<EngineResult, AppError> {
     let mut summary = RunSummary::default();
     let mut steps: Vec<StepRecord> = Vec::new();
-    let mut rng = StdRng::from_os_rng();
+    let mut rng: StdRng = rand::make_rng();
 
     let mut tx = pool.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;

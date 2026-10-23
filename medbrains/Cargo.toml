@@ -197,7 +197,7 @@ figment = { version = "0.10", features = ["toml", "env"] }
 
 # Auth
 jsonwebtoken = { version = "10", default-features = false, features = ["aws_lc_rs"] }
-argon2 = "0.5"
+argon2 = "0.6"
 
 # Utilities
 uuid = { version = "1", features = ["v4", "v5", "serde"] }
@@ -213,9 +213,9 @@ dotenvy = "0.15"
 rust_decimal = { version = "1", features = ["serde-with-str"] }
 
 # Crypto
-rand = "0.9"
-sha2 = "0.10"
-hmac = "0.12"
+rand = "0.10"
+sha2 = "0.11"
+hmac = "0.13"
 hex = "0.4"
 base64 = "0.22"
 
@@ -235,7 +235,8 @@ async-trait = "0.1.92"
 async-stream = "0.3"
 
 # Hybrid deploy mode — local Ed25519 JWT signer + tests
-ed25519-dalek = "2"
+ed25519-dalek = "3"
+getrandom = { version = "0.4", features = ["std"] }
 tempfile = "3"
 
 # HTTP client. `rustls` verifies against the OS trust store (platform

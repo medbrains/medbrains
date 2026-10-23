@@ -13,7 +13,7 @@
 use std::net::IpAddr;
 
 use async_trait::async_trait;
-use hmac::{Hmac, Mac};
+use hmac::{Hmac, KeyInit, Mac};
 use serde_json::{Map, Value, json};
 use sha2::Sha256;
 use uuid::Uuid;
@@ -26,7 +26,7 @@ pub const EVENT_TYPE: &str = "webhook.deliver";
 #[must_use]
 pub fn signature(secret: &str, timestamp: i64, body: &str) -> String {
     // HMAC takes a key of any length, so this cannot fail.
-    let Ok(mut mac) = <Hmac<Sha256> as Mac>::new_from_slice(secret.as_bytes()) else {
+    let Ok(mut mac) = <Hmac<Sha256> as KeyInit>::new_from_slice(secret.as_bytes()) else {
         return String::new();
     };
     mac.update(format!("{timestamp}.{body}").as_bytes());

@@ -23,7 +23,7 @@ use base64::{Engine, engine::general_purpose::STANDARD as B64};
 use hkdf::Hkdf;
 use openssl::bn::{BigNum, BigNumContext};
 use openssl::ec::{EcGroup, EcPoint, PointConversionForm};
-use rand::RngCore;
+use rand::Rng;
 use sha2::Sha256;
 
 use crate::CryptoError;

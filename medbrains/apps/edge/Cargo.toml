@@ -33,7 +33,7 @@ anyhow = { workspace = true }
 
 # Peer-to-peer transport. Same major as medbrains-edge; see the note there.
 iroh = "1.4.1"
-getrandom = { version = "0.3", features = ["std"] }
+getrandom = { workspace = true }
 reqwest = { workspace = true }
 
 [dev-dependencies]

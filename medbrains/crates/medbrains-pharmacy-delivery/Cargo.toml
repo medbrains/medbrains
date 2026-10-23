@@ -6,6 +6,7 @@ edition = "2024"
 rust-version.workspace = true
 
 [dependencies]
+hex = { workspace = true }
 medbrains-server-core = { path = "../medbrains-server-core" }
 medbrains-server-services = { path = "../medbrains-server-services" }
 medbrains-core = { path = "../medbrains-core" }
@@ -13,7 +14,7 @@ medbrains-db = { path = "../medbrains-db" }
 medbrains-outbox = { path = "../medbrains-outbox" }
 axum = { workspace = true }
 chrono = { workspace = true }
-getrandom = { version = "0.3", features = ["std"] }
+getrandom = { workspace = true }
 rust_decimal = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
