@@ -21,9 +21,7 @@ ignore = [
     { id = "RUSTSEC-2026-0367", reason = "zip 4 now only via tauri-plugin-updater 2.14 (latest), which extracts an update only after its signature verifies. Re-check on the next updater release. expires 2026-12-31" },
     { id = "RUSTSEC-2026-0368", reason = "zip 4 via tauri-plugin-updater only, after signature verification; see 0367. expires 2026-12-31" },
     { id = "RUSTSEC-2026-0369", reason = "zip 4 via tauri-plugin-updater only, after signature verification; see 0367. expires 2026-12-31" },
-    { id = "RUSTSEC-2026-0119", reason = "hickory-proto 0.25 via iroh 0.92 only (server is on 0.26): quadratic name compression when encoding our own queries. Cleared by iroh 1.x. expires 2026-11-30" },
-    { id = "RUSTSEC-2026-0253", reason = "lru 0.13/0.16 remain via iroh 0.92 and pingora 0.8 (offline-core is on 0.18): pop() panic-safety, no user callback runs inside pop. Cleared by iroh 1.x and pingora 0.9. expires 2026-12-31" },
-    { id = "RUSTSEC-2026-0118", reason = "hickory-proto 0.25 (iroh): loop only with DNSSEC validation, which iroh does not enable. Cleared by iroh 1.x. expires 2026-11-30" },
+    { id = "RUSTSEC-2026-0253", reason = "lru 0.16 remains only via pingora-cache 0.8 (proxy): pop() panic-safety, no user callback runs inside pop. Cleared by pingora 0.9. expires 2026-12-31" },
 ]
 
 [licenses]

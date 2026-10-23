@@ -47,6 +47,7 @@ pub(crate) async fn refresh_forever(
     roster_path: std::path::PathBuf,
     every: Duration,
     shared: Arc<RwLock<PeerRoster>>,
+    changed: tokio::sync::watch::Sender<()>,
 ) {
     let client = match build_client() {
         Ok(c) => c,
@@ -68,7 +69,11 @@ pub(crate) async fn refresh_forever(
                 match shared.write() {
                     Ok(mut guard) => {
                         *guard = to_roster(doc);
+                        drop(guard);
                         info!(peers = count, "peer roster refreshed");
+                        // Re-admit open sessions now, so a device revoked in
+                        // this refresh loses its session immediately.
+                        changed.send_replace(());
                     }
                     Err(e) => warn!(error = %e, "roster lock poisoned — keeping the old roster"),
                 }
