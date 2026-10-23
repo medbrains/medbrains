@@ -2,7 +2,6 @@
 /target/
 crates/*/target/
 **/*.rs.bk
-Cargo.lock
 
 # Environment
 .env
@@ -25,7 +24,6 @@ entra-sso.json
 
 # Node
 node_modules/
-pnpm-lock.yaml
 
 # Build outputs
 apps/web/dist/

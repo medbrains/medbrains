@@ -1,5 +1,6 @@
 [package]
 name = "medbrains-edge"
+publish = false
 description = "Offline-first edge sync for hospital deployments — Loro CRDT-backed LAN sync hub. Open-source under Apache-2.0."
 version.workspace = true
 edition.workspace = true

@@ -35,20 +35,22 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
-      # Cargo.lock is git-ignored (medbrains/.gitignore), so resolve one here.
-      # This audits what a fresh build would pull today, not what prod pinned.
-      - run: cargo generate-lockfile
       - run: cargo install cargo-audit --locked
-      - run: cargo audit
+      # Audits the committed Cargo.lock — what production actually builds. Reads
+      # only the lockfile, so the private r8r checkout is not needed here.
+      # Ignores come from deny.toml so there is one list, each with a reason
+      # and an expiry that check_audit_ignores.py enforces.
+      - run: python3 scripts/check_audit_ignores.py
+      - run: cargo audit $(python3 scripts/check_audit_ignores.py --cargo-audit-args)
 
   cargo-deny:
-    name: "Cargo deny (TODO: deny.toml uses pre-0.14 keys)"
+    name: Cargo deny (advisories, licences, bans, sources)
     runs-on: ubuntu-latest
-    # medbrains/deny.toml still has `vulnerability`, `notice`, `unlicensed`,
-    # which current cargo-deny rejects. Measured, not enforced, until migrated.
-    continue-on-error: true
     steps:
       - uses: actions/checkout@v4
+      - uses: ./.github/actions/r8r
+        with:
+          token: ${{ secrets.R8R_READ_TOKEN }}
       - uses: EmbarkStudios/cargo-deny-action@v2
         with:
           manifest-path: medbrains/Cargo.toml
@@ -57,10 +59,8 @@ jobs:
           arguments: --all-features
 
   pnpm-audit:
-    name: "pnpm audit (high+)"
+    name: "pnpm audit (production, high+)"
     runs-on: ubuntu-latest
-    # Was continue-on-error at the old location; kept until a baseline run is seen.
-    continue-on-error: true
     defaults:
       run:
         working-directory: medbrains
@@ -72,10 +72,12 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version-file: medbrains/.nvmrc
-          cache: pnpm
-          cache-dependency-path: medbrains/pnpm-lock.yaml
-      - run: pnpm install --frozen-lockfile
-      - run: pnpm audit --audit-level=high
+      # Reads only the committed lockfile, so neither an install nor the private
+      # r8r checkout is needed.
+      # Production dependencies only: dev tooling never reaches a patient.
+      # Ignores live in pnpm-workspace.yaml with a reason and an expiry each.
+      - run: python3 scripts/check_audit_ignores.py
+      - run: pnpm audit --prod --audit-level=high
 
   secrets-scan:
     name: Secrets scan (TruffleHog, verified only)

@@ -1,5 +1,6 @@
 [package]
 name = "medbrains-db"
+publish = false
 description = "PostgreSQL layer for MedBrains HMS — SQLx compile-time queries"
 version.workspace = true
 edition.workspace = true

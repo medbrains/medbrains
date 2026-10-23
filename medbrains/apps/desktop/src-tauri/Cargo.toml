@@ -1,5 +1,6 @@
 [package]
 name = "medbrains-desktop"
+publish = false
 version = "0.1.0"
 description = "MedBrains HMS — desktop shell"
 authors = ["MedBrains"]

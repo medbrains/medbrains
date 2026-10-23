@@ -1,45 +1,59 @@
 # cargo-deny configuration
 # https://embarkstudios.github.io/cargo-deny/
 
+[graph]
+# Advisories and licences are judged on what ships: dev-dependencies (test
+# harnesses, wiremock, goose) never reach a hospital.
+exclude-dev = true
+
 [advisories]
+version = 2
 db-path = "~/.cargo/advisory-db"
 db-urls = ["https://github.com/rustsec/advisory-db"]
-vulnerability = "deny"
-unmaintained = "warn"
-yanked = "warn"
-notice = "warn"
+yanked = "deny"
+# Unmaintained crates fail only when we depend on them directly; transitive
+# ones are reported by cargo-audit as warnings and tracked in the dep audit.
+unmaintained = "workspace"
+# Every entry says why it does not reach production and when it must be
+# re-decided. scripts/check_audit_ignores.py fails CI once an expiry passes.
+# cargo-audit reads this same list (security.yml), so there is one source.
 ignore = [
-    # Add advisory IDs to ignore here if needed
-    # "RUSTSEC-2020-0071",
+    { id = "RUSTSEC-2026-0367", reason = "zip: ZipArchive::extract only; terminology reads entries, never calls extract. Cleared by zip 9. expires 2026-11-30" },
+    { id = "RUSTSEC-2026-0368", reason = "zip: extract() symlink creation; never called. Cleared by zip 9. expires 2026-11-30" },
+    { id = "RUSTSEC-2026-0369", reason = "zip: extract() unix permissions; never called. Cleared by zip 9. expires 2026-11-30" },
+    { id = "RUSTSEC-2026-0194", reason = "quick-xml: only via r8r-formats, linked into no binary. Cleared by bumping r8r. expires 2026-11-30" },
+    { id = "RUSTSEC-2026-0195", reason = "quick-xml: only via r8r-formats, linked into no binary. Cleared by bumping r8r. expires 2026-11-30" },
+    { id = "RUSTSEC-2026-0119", reason = "hickory-proto: quadratic name compression when encoding; we only encode our own short TXT/MX queries. Cleared by hickory 0.26 + iroh 1.x. expires 2026-11-30" },
+    { id = "RUSTSEC-2026-0253", reason = "lru: pop() panic-safety; offline-core never pops while a user callback can panic. Cleared by lru 0.18 (offline-core) + iroh 1.x; pingora-cache copy waits on pingora 0.9. expires 2026-12-31" },
+    { id = "RUSTSEC-2026-0118", reason = "hickory-proto 0.25 (iroh): loop only with DNSSEC validation, which iroh does not enable. Cleared by iroh 1.x. expires 2026-11-30" },
 ]
 
 [licenses]
-unlicensed = "deny"
+version = 2
 allow = [
     "MIT",
+    "MIT-0",
     "Apache-2.0",
     "Apache-2.0 WITH LLVM-exception",
     "BSD-2-Clause",
     "BSD-3-Clause",
+    "BSL-1.0",
+    "CC0-1.0",
+    "CDLA-Permissive-2.0",
     "ISC",
+    "MPL-2.0",
+    "Unicode-3.0",
+    "Unicode-DFS-2016",
+    "Unlicense",
     "Zlib",
     "0BSD",
-    "Unicode-DFS-2016",
-    "MPL-2.0",
-    "CC0-1.0",
 ]
-copyleft = "warn"
 confidence-threshold = 0.8
 
-[[licenses.clarify]]
-name = "ring"
-expression = "MIT AND ISC AND OpenSSL"
-license-files = [{ path = "LICENSE", hash = 0xbd0eed23 }]
-
-[[licenses.clarify]]
-name = "webpki"
-expression = "ISC"
-license-files = [{ path = "LICENSE", hash = 0x001c7e6c }]
+# First-party crates are proprietary (LICENSE at the repo root) and carry
+# `publish = false`; only third-party licences are judged.
+[licenses.private]
+ignore = true
 
 [bans]
 multiple-versions = "warn"

@@ -1,5 +1,6 @@
 [package]
 name = "medbrains-printing"
+publish = false
 description = "Native printing — CUPS on macOS/Linux, winspool on Windows. Used by the desktop shell and any surface that must print without a dialog."
 version.workspace = true
 edition.workspace = true
