@@ -9,6 +9,7 @@ pub mod audit;
 pub mod coverage;
 pub mod debug;
 pub mod health;
+pub mod immunizations;
 pub mod nhcx_onboarding;
 pub mod portal;
 pub mod portal_deliveries;
@@ -482,6 +483,18 @@ pub fn build_router(state: AppState) -> Router {
         .route(
             "/api/abdm/care-contexts/{id}/link",
             post(abdm::hip::records::link_now),
+        )
+        .route(
+            "/api/abdm/patients/{patient_id}/sms-link",
+            post(abdm::hip::sms_link::send_now),
+        )
+        .route(
+            "/api/patients/{patient_id}/immunizations",
+            get(immunizations::list).post(immunizations::record),
+        )
+        .route(
+            "/api/immunizations/{id}/strike",
+            post(immunizations::strike),
         )
         .route(
             "/api/abdm/sharing/summary",

@@ -139,15 +139,12 @@ fn composition(c: &Value, by_url: &HashMap<&str, &Value>, out: &mut Vec<String>)
             .get(r["reference"].as_str().unwrap_or_default())
             .copied()
     };
-    if rules["entry_slices"]
-        .as_array()
-        .is_some_and(|s| !s.is_empty())
-    {
+    if rules["slices"].as_array().is_some_and(|s| !s.is_empty()) {
+        sliced(name, rules, &sections, &resolve, out);
+    } else {
         for s in &sections {
             entry_sliced(name, rules, s, &resolve, out);
         }
-    } else {
-        sliced(name, rules, &sections, &resolve, out);
     }
 }
 
@@ -162,8 +159,12 @@ fn sliced<'a>(
     let mut counts: HashMap<String, usize> = HashMap::new();
     let mut unsliced_seen = false;
     for s in sections {
-        let code = s["code"]["coding"][0]["code"].as_str().unwrap_or_default();
-        let Some(slice) = slices.iter().find(|x| x["code"] == code) else {
+        // A slice is told by its section code, or (WellnessRecord) its title.
+        let code = &s["code"]["coding"][0]["code"];
+        let Some(slice) = slices.iter().find(|x| {
+            (x["code"].is_string() && x["code"] == *code)
+                || (x["title"].is_string() && x["title"] == s["title"])
+        }) else {
             unsliced_seen = true;
             continue;
         };
@@ -173,7 +174,7 @@ fn sliced<'a>(
                 "{name}: section {slice_name} comes after an unsliced section"
             ));
         }
-        if s["code"]["coding"][0]["display"] != slice["display"] {
+        if slice["display"].is_string() && s["code"]["coding"][0]["display"] != slice["display"] {
             out.push(format!(
                 "{name}: section {slice_name} display must be {}",
                 slice["display"]
@@ -207,7 +208,7 @@ fn entry_sliced<'a>(
     out: &mut Vec<String>,
 ) {
     let coding = &s["code"]["coding"][0];
-    if coding["system"] != rules["section_system"] {
+    if rules["section_system"].is_string() && coding["system"] != rules["section_system"] {
         out.push(format!(
             "{name}: section code system must be {}",
             rules["section_system"]
@@ -230,6 +231,19 @@ fn entry_sliced<'a>(
         .as_array()
         .cloned()
         .unwrap_or_default();
+    if slices.is_empty() {
+        // Entries open to the profile's target types only (HealthDocumentRecord).
+        for e in &entries {
+            let target = resolve(e).and_then(profile_name).unwrap_or_default();
+            if !rules["entry_types"]
+                .as_array()
+                .is_some_and(|t| t.iter().any(|x| x == target))
+            {
+                out.push(format!("{name}: section cannot hold {target}"));
+            }
+        }
+        return;
+    }
     let mut counts: HashMap<String, usize> = HashMap::new();
     for e in &entries {
         let ty = e["type"].as_str().unwrap_or_default();

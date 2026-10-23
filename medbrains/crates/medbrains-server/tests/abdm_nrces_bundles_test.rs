@@ -193,7 +193,9 @@ async fn the_bundles_a_transfer_carries_meet_the_nrces_profiles() {
         .await
         .expect("tenant");
     let mut tx = db.begin().await.expect("tx");
-    let bundles = build(&mut tx, tenant, p, &contexts).await.expect("bundles");
+    let bundles = build(&mut tx, tenant, p, &contexts, &Default::default())
+        .await
+        .expect("bundles");
     tx.rollback().await.ok();
     assert_eq!(bundles.len(), 5, "one bundle per care context");
 

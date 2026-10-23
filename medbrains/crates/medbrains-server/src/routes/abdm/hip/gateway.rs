@@ -165,6 +165,26 @@ impl Hip {
         .await
     }
 
+    /// As [`Hip::send`], with a `REQUEST-ID` recorded before sending: the
+    /// gateway's answer can arrive before this call returns.
+    ///
+    /// # Errors
+    /// As [`Hip::send`].
+    #[tracing::instrument(skip_all, fields(tenant_id = %self.tenant_id))]
+    pub async fn send_with_id(
+        &self,
+        path: &str,
+        request_id: Uuid,
+        body: &Value,
+    ) -> Result<(), AppError> {
+        self.with_session(|s| async move {
+            self.gateway
+                .send_with_id(path, &s, (self.hip_id.as_str(), request_id), body)
+                .await
+        })
+        .await
+    }
+
     /// One gateway call as a Health Information User, the same HFR facility
     /// ID sent as `X-HIU-ID`. Returns the `REQUEST-ID` it was sent with.
     ///

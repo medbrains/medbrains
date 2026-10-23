@@ -71,4 +71,22 @@ class FhirSectionsTest {
         assertEquals(FhirSections.MAX_ITEMS, FhirSections.read(big).sections.first().items.size)
         assertEquals(FhirSections.Document(null, null, null, emptyList()), FhirSections.read(JsonPrimitive("garbage")))
     }
+
+    /** One bundle whose single section holds [resources] (JSON objects). */
+    private fun record(title: String, vararg resources: String): FhirSections.Document {
+        val refs = resources.indices.joinToString(",") { """{"reference":"urn:uuid:r$it"}""" }
+        val entries = resources.withIndex().joinToString(",") { (i, r) -> """{"fullUrl":"urn:uuid:r$i","resource":$r}""" }
+        return FhirSections.read(Json.parseToJsonElement("""{"entry":[{"resource":{"resourceType":"Composition","section":[{"title":"$title","entry":[$refs]}]}},$entries]}"""))
+    }
+
+    /** M3 HIU_FLOW_106–113: the four HI types beyond notes, prescriptions and reports read as the web reads them. */
+    @Test fun theFourNewerHiTypesReadAsTheWebReadsThem() {
+        val shot = record("Immunization record", """{"resourceType":"Immunization","vaccineCode":{"text":"Hepatitis B vaccine"},"occurrenceDateTime":"2026-10-01","lotNumber":"HB-2231","protocolApplied":[{"doseNumberPositiveInt":2}]}""")
+        assertEquals("2026-10-01 · dose 2 · lot HB-2231", shot.sections.first().items.first().detail)
+        val vitals = record("Vital Signs", """{"resourceType":"Observation","code":{"text":"Blood pressure"},"component":[{"code":{"text":"Systolic"},"valueQuantity":{"value":128,"unit":"mmHg"}},{"code":{"text":"Diastolic"},"valueQuantity":{"value":84,"unit":"mmHg"}}]}""")
+        assertEquals("Blood pressure: Systolic 128 mmHg · Diastolic 84 mmHg", vitals.sections.first().items.first().text)
+        val bill = record("Invoice", """{"resourceType":"Invoice","identifier":[{"value":"INV-1042"}],"type":{"coding":[{"code":"03","display":"OPD"}]},"lineItem":[{},{}],"totalNet":{"value":1000,"currency":"INR"},"totalGross":{"value":1180,"currency":"INR"}}""")
+        assertEquals("OPD INV-1042", bill.sections.first().items.first().text)
+        assertEquals("Total INR 1180.00 · net INR 1000.00 · 2 items", bill.sections.first().items.first().detail)
+    }
 }

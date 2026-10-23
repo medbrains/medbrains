@@ -17,7 +17,7 @@ export interface PermissionDef {
   module: string;
 }
 
-/** 1134 permissions, one per constant in the Rust source. */
+/** 1136 permissions, one per constant in the Rust source. */
 export const PERMISSIONS: PermissionDef[] = [
   // dashboard
   {
@@ -123,6 +123,12 @@ export const PERMISSIONS: PermissionDef[] = [
     code: "patients.acquisition.update",
     label: "Correct where a patient came from",
     description: "Set or change the campaign a registered patient is attributed to; every change is audited.",
+    module: "patients",
+  },
+  {
+    code: "patients.immunizations.record",
+    label: "Record or correct a patient's vaccine doses",
+    description: "A dose given here — vaccine, dose number, date, lot number and route — or one read off the patient's card, recorded as given elsewhere. A wrong entry is struck off with a reason, never erased. Each dose is shared with the patient's ABHA as an immunisation record.",
     module: "patients",
   },
   {
@@ -6843,6 +6849,12 @@ export const PERMISSIONS: PermissionDef[] = [
     module: "abdm",
   },
   {
+    code: "abdm.records.notify",
+    label: "Text a patient the ABHA app link",
+    description: "For a patient with a mobile and no ABHA here, ask ABDM to text them a link to the ABHA app, so the records this hospital holds can reach them once they have one. ABDM sends the text; it names this hospital.",
+    module: "abdm",
+  },
+  {
     code: "abdm.consent.request",
     label: "Request a patient's records from other hospitals",
     description: "Ask, through ABDM, for the patient's consent to see their records held elsewhere: purpose, record types, dates and how long the copy may be kept. The request is made in the requester's name and HPR ID.",
@@ -6941,9 +6953,11 @@ export const P = {
     HPR_MANAGE: "abdm.hpr.manage",
     RECORDS: {
       MANAGE: "abdm.records.manage",
+      NOTIFY: "abdm.records.notify",
       VIEW: "abdm.records.view",
     },
     RECORDS_MANAGE: "abdm.records.manage",
+    RECORDS_NOTIFY: "abdm.records.notify",
     RECORDS_VIEW: "abdm.records.view",
     RELAY: {
       PULL: "abdm.relay.pull",
@@ -9253,6 +9267,10 @@ export const P = {
     CREATE: "patients.create",
     DELETE: "patients.delete",
     FIND: "patients.find",
+    IMMUNIZATIONS: {
+      RECORD: "patients.immunizations.record",
+    },
+    IMMUNIZATIONS_RECORD: "patients.immunizations.record",
     LIST: "patients.list",
     NOTES: {
       EDIT: "patients.notes.edit",
@@ -10515,6 +10533,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.PATIENT_PACKAGES.VIEW,
       P.PATIENTS.ALLERGIES.VERIFY,
       P.PATIENTS.CREATE,
+      P.PATIENTS.IMMUNIZATIONS.RECORD,
       P.PATIENTS.LIST,
       P.PATIENTS.NOTES.EDIT,
       P.PATIENTS.NOTES.VIEW,
@@ -10771,6 +10790,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.OPD.QUEUE.VIEW,
       P.ORDER_SETS.ACTIVATION.CREATE,
       P.ORDER_SETS.ACTIVATION.VIEW,
+      P.PATIENTS.IMMUNIZATIONS.RECORD,
       P.PATIENTS.LIST,
       P.PATIENTS.NOTES.EDIT,
       P.PATIENTS.NOTES.VIEW,
@@ -10855,6 +10875,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.ABDM.ABHA.MANAGE,
       P.ABDM.ABHA.UNLINK,
       P.ABDM.ABHA.VIEW,
+      P.ABDM.RECORDS.NOTIFY,
       P.ABDM.SCANSHARE.VIEW,
       P.ADMIN.DOCTOR_PACKAGES.LIST,
       P.ADMIN.SETTINGS.READ,
@@ -11515,6 +11536,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.ABDM.ABHA.UNLINK,
       P.ABDM.DASHBOARD.VIEW,
       P.ABDM.RECORDS.MANAGE,
+      P.ABDM.RECORDS.NOTIFY,
       P.ABDM.RECORDS.VIEW,
       P.ADMIN.SETTINGS.READ,
       P.CLINICAL_NOTES.EXPORT,
@@ -11753,6 +11775,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.ABDM.ABHA.MANAGE,
       P.ABDM.ABHA.UNLINK,
       P.ABDM.ABHA.VIEW,
+      P.ABDM.RECORDS.NOTIFY,
       P.ABDM.SCANSHARE.VIEW,
       P.ADMIN.SETTINGS.READ,
       P.BILLING.COLLECT.IPD,
@@ -12013,6 +12036,8 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
   staff: {
     label: "Staff (awaiting role)",
     permissions: [
+      P.ABDM.BRIDGE.REGISTER,
+      P.ABDM.SETTINGS.MANAGE,
       P.ADMIN.SETTINGS.READ,
       P.DASHBOARD.VIEW,
     ],

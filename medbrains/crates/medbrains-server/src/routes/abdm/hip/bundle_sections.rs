@@ -88,7 +88,7 @@ fn section(
 ) -> Option<Section> {
     (!lines.is_empty() || !entries.is_empty()).then(|| Section {
         title: title.to_owned(),
-        code,
+        code: Some(code),
         lines,
         entries,
     })
@@ -117,7 +117,7 @@ pub fn sections(
 ) -> (Vec<Section>, Vec<Value>) {
     let ctx = Clinical {
         patient_id: who.patient_id,
-        encounter_id: record.encounter_id,
+        encounter_id: Some(record.encounter_id),
         at: record.at,
         practitioner: author_reference(who.author, who.custodian),
     };
@@ -219,6 +219,11 @@ pub fn sections(
                 vec![entry],
             )]
         }
+        // Built in `bundle_records`; never sent here.
+        RecordKind::Immunization
+        | RecordKind::Wellness
+        | RecordKind::HealthDocument
+        | RecordKind::Invoice => Vec::new(),
     };
     (out.into_iter().flatten().collect(), extra)
 }

@@ -7,6 +7,7 @@ import { Alert, Button, Panel, toast } from "@/components/ui";
 import { abdmRecordsService } from "@/services/abdmRecords.service";
 import { AbdmCareContextTable } from "./AbdmCareContextTable";
 import { AbdmConsentTable } from "./AbdmConsentTable";
+import { AbdmSmsLinkPanel } from "./AbdmSmsLinkPanel";
 import { AbdmTransferTable } from "./AbdmTransferTable";
 import { AbhaOptOutModal } from "./AbhaOptOutModal";
 
@@ -71,6 +72,7 @@ export function AbdmRecordsSection({ patientId }: AbdmRecordsSectionProps) {
       )}
       {data && (
         <Stack gap="md">
+          <AbdmSmsLinkPanel patientId={patientId} records={data} />
           {data.blocked_reason && (
             <Alert tone="warning" title="Records are not being linked">
               {data.blocked_reason}

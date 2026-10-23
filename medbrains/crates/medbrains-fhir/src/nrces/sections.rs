@@ -40,3 +40,10 @@ pub const OP_ADVICE: SectionCode = sct("736271009", "Outpatient care plan");
 /// Course in hospital and treatment given (no DischargeSummaryRecord slice).
 pub const HOSPITAL_COURSE: SectionCode =
     SectionCode(LOINC_SYSTEM, "8648-8", "Hospital course Narrative");
+
+// The single sections of the later HI types, as their profiles fix them.
+
+/// ImmunizationRecord's one section (Immunization).
+pub const IMMUNIZATION: SectionCode = sct("41000179103", "Immunization record");
+/// HealthDocumentRecord's one section (DocumentReference).
+pub const HEALTH_DOCUMENT: SectionCode = sct("419891008", "Record artifact");

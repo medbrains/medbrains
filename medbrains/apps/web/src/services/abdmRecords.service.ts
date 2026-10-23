@@ -5,6 +5,7 @@ import type { RaiseAbdmConsentRequest } from "@medbrains/types";
 export const abdmRecordsService = {
   patientRecords: (patientId: string) => api.getAbdmPatientRecords(patientId),
   link: (careContextId: string) => api.linkAbdmCareContext(careContextId),
+  sendSmsLink: (patientId: string) => api.sendAbdmSmsLink(patientId),
   sharingSummary: (month?: string) => api.getAbdmSharingSummary(month),
   dashboard: (month?: string) => api.getAbdmDashboard(month),
   raiseConsentRequest: (patientId: string, data: RaiseAbdmConsentRequest) =>

@@ -13,6 +13,7 @@ use medbrains_fhir::nrces::{
 use serde_json::Value;
 use uuid::Uuid;
 
+use super::bundle_records::{Common, Files, build_later};
 use super::bundle_sections::{Record, Rows, Who, sections};
 use crate::error::AppError;
 
@@ -48,7 +49,8 @@ const AUTHOR_JOIN: &str = "LEFT JOIN users u ON u.id = {author} \
      LEFT JOIN doctor_profiles dp ON dp.user_id = u.id AND dp.tenant_id = $1 AND dp.deleted_at IS NULL";
 
 /// Per kind: `(from, author, at, encounter columns, title, LOINC,
-/// conclusion, [key, text] narratives)`.
+/// conclusion, [key, text] narratives)`. The later kinds are built in
+/// `bundle_records`.
 fn records_sql(kind: RecordKind) -> String {
     let (from, author, at, encounter, title, loinc, conclusion, narratives) = match kind {
         RecordKind::OpConsult => (
@@ -99,6 +101,10 @@ fn records_sql(kind: RecordKind) -> String {
              jsonb_build_array('course', x.course_in_hospital), \
              jsonb_build_array('treatment', x.treatment_given))",
         ),
+        RecordKind::Immunization
+        | RecordKind::Wellness
+        | RecordKind::HealthDocument
+        | RecordKind::Invoice => return String::new(),
     };
     format!(
         "SELECT x.id, {at} AS at, {title} AS title, u.id AS author_id, u.full_name AS author_name, \
@@ -236,7 +242,7 @@ async fn items(
                 });
             }
         }
-        RecordKind::OpConsult | RecordKind::DischargeSummary => {}
+        _ => {}
     }
     Ok(())
 }
@@ -298,7 +304,8 @@ async fn custodian(tx: Tx<'_, '_>, tenant_id: Uuid) -> Result<Party, AppError> {
 }
 
 /// One NRCeS bundle per care context, keyed by its reference number. A care
-/// context whose record no longer exists is left out.
+/// context whose record no longer exists — or a document whose bytes are
+/// not in `files` — is left out.
 ///
 /// # Errors
 /// Database faults; 404 for an unknown patient.
@@ -308,6 +315,7 @@ pub async fn build(
     tenant_id: Uuid,
     patient_id: Uuid,
     contexts: &[ContextRow],
+    files: &Files,
 ) -> Result<Vec<(String, Value)>, AppError> {
     let patient = patient(tx, tenant_id, patient_id).await?;
     let custodian = custodian(tx, tenant_id).await?;
@@ -363,17 +371,23 @@ pub async fn build(
                 patient: &patient,
                 author,
                 custodian: custodian.clone(),
-                encounter: EncounterInfo {
+                encounter: Some(EncounterInfo {
                     id: record.encounter_id,
                     inpatient: kind == RecordKind::DischargeSummary,
                     start: record.encounter_start,
                     end: record.encounter_end,
-                },
+                }),
                 sections,
                 resources,
             });
             out.push((c.reference_number.clone(), bundle));
         }
     }
+    let common = Common {
+        tenant_id,
+        patient: &patient,
+        custodian: &custodian,
+    };
+    build_later(tx, &common, contexts, files, &mut out).await?;
     Ok(out)
 }

@@ -14,6 +14,7 @@ import type {
   AbdmScanShareCounters,
   AbdmSettingsView,
   AbdmSharingSummary,
+  AbdmSmsLink,
   AbhaAccountChange,
   AbhaCardQr,
   AbhaClosed,
@@ -1600,6 +1601,7 @@ import type {
   // Command Center
   PatientFlowSnapshot,
   PatientIdentifier,
+  PatientImmunization,
   PatientInvoiceRow,
   PatientLabOrderRow,
   PatientListResponse,
@@ -1844,6 +1846,7 @@ import type {
   RecordIncidentNoticeRequest,
   RecordIndicatorValueRequest,
   RecordMarketingConsentRequest,
+  RecordPatientImmunization,
   RecordPaymentRequest,
   RecordReactionRequest,
   RecordScoreRequest,
@@ -17512,6 +17515,21 @@ export const api = {
     request<AbdmPatientRecords>(`/abdm/patients/${patientId}/records`),
   linkAbdmCareContext: (id: string) =>
     request<AbdmCareContext>(`/abdm/care-contexts/${id}/link`, { method: "POST" }),
+  /** Ask ABDM to text the patient the ABHA app link (no ABHA here yet). */
+  sendAbdmSmsLink: (patientId: string) =>
+    request<AbdmSmsLink | null>(`/abdm/patients/${patientId}/sms-link`, { method: "POST" }),
+  listPatientImmunizations: (patientId: string) =>
+    request<PatientImmunization[]>(`/patients/${patientId}/immunizations`),
+  recordPatientImmunization: (patientId: string, data: RecordPatientImmunization) =>
+    request<PatientImmunization>(`/patients/${patientId}/immunizations`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  strikePatientImmunization: (id: string, reason: string) =>
+    request<PatientImmunization>(`/immunizations/${id}/strike`, {
+      method: "POST",
+      body: JSON.stringify({ reason }),
+    }),
   getAbdmSharingSummary: (month?: string) =>
     request<AbdmSharingSummary>(
       `/abdm/sharing/summary${month ? `?month=${encodeURIComponent(month)}` : ""}`,

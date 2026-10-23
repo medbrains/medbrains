@@ -40,6 +40,9 @@ pub const ON_LINK_CONFIRM_PATH: &str =
     "/api/hiecm/user-initiated-linking/v3/link/care-context/on-confirm";
 /// HIP-initiated linking: tell the patient's app a linked context has data.
 pub const LINK_CONTEXT_NOTIFY_PATH: &str = "/api/hiecm/hip/v3/link/context/notify";
+/// The deep-link SMS: ABDM texts a patient with no ABHA here a link to the
+/// ABHA app (M2 test case HIP_INIT_NOTIFY_HIECM).
+pub const SMS_NOTIFY_PATH: &str = "/api/hiecm/hip/v3/link/patient/links/sms/notify2";
 /// Consent: acknowledge a consent notification.
 pub const CONSENT_ON_NOTIFY_PATH: &str = "/api/hiecm/consent/v3/request/hip/on-notify";
 /// Data flow: acknowledge a health-information request.
@@ -77,6 +80,8 @@ pub const HIU_HI_REQUEST_PATH: &str = "/api/hiecm/data-flow/v3/health-informatio
 pub const CB_ON_GENERATE_TOKEN: &str = "/api/v3/hip/token/on-generate-token";
 pub const CB_ON_LINK_CARE_CONTEXT: &str = "/api/v3/link/on_carecontext";
 pub const CB_LINK_CONTEXT_ON_NOTIFY: &str = "/api/v3/links/context/on-notify";
+/// The answer to [`SMS_NOTIFY_PATH`].
+pub const CB_SMS_ON_NOTIFY: &str = "/api/v3/patients/sms/on-notify";
 pub const CB_DISCOVER: &str = "/api/v3/hip/patient/care-context/discover";
 pub const CB_LINK_INIT: &str = "/api/v3/hip/link/care-context/init";
 pub const CB_LINK_CONFIRM: &str = "/api/v3/hip/link/care-context/confirm";
@@ -151,6 +156,22 @@ impl AbdmGatewayClient {
         )
         .await?;
         Ok(request_id)
+    }
+
+    /// As [`Self::send`], with a `REQUEST-ID` the caller chose and recorded
+    /// first — the gateway may answer before this call returns.
+    ///
+    /// # Errors
+    /// [`AbdmError`] when the gateway is unreachable or refuses the call.
+    pub async fn send_with_id(
+        &self,
+        path: &str,
+        session: &str,
+        (hip_id, request_id): (&str, Uuid),
+        body: &Value,
+    ) -> Result<(), AbdmError> {
+        self.post(path, session, ("X-HIP-ID", hip_id, request_id), None, body)
+            .await
     }
 
     /// POST a v3 gateway call as HIU `hiu_id` (`X-HIU-ID`). Returns the

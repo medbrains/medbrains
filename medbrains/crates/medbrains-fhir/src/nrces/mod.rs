@@ -9,9 +9,12 @@
 //! rules extracted from the IG's StructureDefinitions.
 
 pub mod conformance;
+mod records;
 mod resources;
 pub mod sections;
 
+#[cfg(test)]
+mod records_tests;
 #[cfg(test)]
 mod tests;
 
@@ -19,6 +22,10 @@ use chrono::{DateTime, Utc};
 use serde_json::{Value, json};
 use uuid::Uuid;
 
+pub use records::{
+    DocumentLine, ImmunizationLine, InvoiceHeader, InvoiceItem, VitalsLine, document_reference,
+    immunization, invoice, vital_observations,
+};
 pub use resources::{
     Clinical, DiagnosisLine, LabReport, LabResult, condition, diagnostic_report,
     medication_request, observation,
@@ -46,6 +53,10 @@ pub enum RecordKind {
     Prescription,
     DiagnosticReport,
     DischargeSummary,
+    Immunization,
+    Wellness,
+    HealthDocument,
+    Invoice,
 }
 
 impl RecordKind {
@@ -57,8 +68,24 @@ impl RecordKind {
             Self::Prescription => "Prescription",
             Self::DiagnosticReport => "DiagnosticReport",
             Self::DischargeSummary => "DischargeSummary",
+            Self::Immunization => "ImmunizationRecord",
+            Self::Wellness => "WellnessRecord",
+            Self::HealthDocument => "HealthDocumentRecord",
+            Self::Invoice => "Invoice",
         }
     }
+
+    /// Every kind, in the order a transfer builds them.
+    pub const ALL: [Self; 8] = [
+        Self::OpConsult,
+        Self::Prescription,
+        Self::DiagnosticReport,
+        Self::DischargeSummary,
+        Self::Immunization,
+        Self::Wellness,
+        Self::HealthDocument,
+        Self::Invoice,
+    ];
 
     /// The Composition profile name in the NRCeS IG.
     #[must_use]
@@ -68,17 +95,41 @@ impl RecordKind {
             Self::Prescription => "PrescriptionRecord",
             Self::DiagnosticReport => "DiagnosticReportRecord",
             Self::DischargeSummary => "DischargeSummaryRecord",
+            Self::Immunization => "ImmunizationRecord",
+            Self::Wellness => "WellnessRecord",
+            Self::HealthDocument => "HealthDocumentRecord",
+            Self::Invoice => "InvoiceRecord",
         }
     }
 
-    /// SNOMED CT code for `Composition.type`, as fixed by each profile.
+    /// SNOMED CT code for `Composition.type`, where the profile fixes one;
+    /// `WellnessRecord` and `InvoiceRecord` fix none, and go by text as the
+    /// IG's examples do.
     #[must_use]
-    pub const fn type_code(self) -> (&'static str, &'static str) {
+    pub const fn type_code(self) -> Option<&'static str> {
         match self {
-            Self::OpConsult => ("371530004", "Clinical consultation report"),
-            Self::Prescription => ("440545006", "Prescription record"),
-            Self::DiagnosticReport => ("721981007", "Diagnostic studies report"),
-            Self::DischargeSummary => ("373942005", "Discharge summary"),
+            Self::OpConsult => Some("371530004"),
+            Self::Prescription => Some("440545006"),
+            Self::DiagnosticReport => Some("721981007"),
+            Self::DischargeSummary => Some("373942005"),
+            Self::Immunization => Some("41000179103"),
+            Self::HealthDocument => Some("419891008"),
+            Self::Wellness | Self::Invoice => None,
+        }
+    }
+
+    /// `Composition.type`'s words (the SNOMED display, where there is a code).
+    #[must_use]
+    pub const fn type_display(self) -> &'static str {
+        match self {
+            Self::OpConsult => "Clinical consultation report",
+            Self::Prescription => "Prescription record",
+            Self::DiagnosticReport => "Diagnostic studies report",
+            Self::DischargeSummary => "Discharge summary",
+            Self::Immunization => "Immunization record",
+            Self::HealthDocument => "Record artifact",
+            Self::Wellness => "Wellness Record",
+            Self::Invoice => "Invoice Record",
         }
     }
 
@@ -90,6 +141,10 @@ impl RecordKind {
             "prescription" => Some(Self::Prescription),
             "lab_report" => Some(Self::DiagnosticReport),
             "discharge_summary" => Some(Self::DischargeSummary),
+            "immunization" => Some(Self::Immunization),
+            "wellness" => Some(Self::Wellness),
+            "health_document" => Some(Self::HealthDocument),
+            "invoice" => Some(Self::Invoice),
             _ => None,
         }
     }
@@ -117,8 +172,8 @@ pub struct EncounterInfo {
 #[derive(Debug, Clone)]
 pub struct Section {
     pub title: String,
-    /// Section code; see [`sections`].
-    pub code: sections::SectionCode,
+    /// Section code; see [`sections`]. A wellness section goes by its title.
+    pub code: Option<sections::SectionCode>,
     pub lines: Vec<String>,
     /// Resources (JSON, with `resourceType` and `id`) the section lists.
     pub entries: Vec<Value>,
@@ -134,7 +189,8 @@ pub struct DocumentInput<'a> {
     /// The clinician; without one the custodian organisation is the author.
     pub author: Option<Party>,
     pub custodian: Party,
-    pub encounter: EncounterInfo,
+    /// The visit or admission; an immunisation, document or bill may have none.
+    pub encounter: Option<EncounterInfo>,
     pub sections: Vec<Section>,
     /// Resources the bundle carries that no section lists directly — the
     /// Observations a DiagnosticReport's `result` points at.
@@ -278,11 +334,10 @@ fn escape(s: &str) -> String {
 }
 
 fn section(s: &Section) -> Value {
-    let sections::SectionCode(system, code, display) = s.code;
-    let mut out = json!({
-        "title": s.title,
-        "code": { "coding": [{ "system": system, "code": code, "display": display }] },
-    });
+    let mut out = json!({ "title": s.title });
+    if let Some(sections::SectionCode(system, code, display)) = s.code {
+        out["code"] = json!({ "coding": [{ "system": system, "code": code, "display": display }] });
+    }
     if !s.lines.is_empty() {
         out["text"] = narrative(&s.lines);
     }
@@ -300,30 +355,36 @@ pub fn document_bundle(input: &DocumentInput<'_>) -> Value {
     let patient_ref = reference(&patient);
     let author = input.author.as_ref().map(practitioner);
     let custodian = organization(&input.custodian);
-    let encounter = encounter(&input.encounter, &patient_ref);
+    let encounter = input.encounter.as_ref().map(|e| encounter(e, &patient_ref));
 
-    let (code, display) = input.kind.type_code();
-    let composition = json!({
+    let display = input.kind.type_display();
+    let kind_type = input.kind.type_code().map_or_else(
+        || json!({ "text": display }),
+        |code| json!({ "coding": [{ "system": SNOMED_SYSTEM, "code": code, "display": display }], "text": display }),
+    );
+    let mut composition = json!({
         "resourceType": "Composition",
         "id": input.id.to_string(),
         "meta": profile(input.kind.profile_name()),
         "language": "en-IN",
         "identifier": { "system": "https://ndhm.in/phr", "value": input.id.to_string() },
         "status": "final",
-        "type": { "coding": [{ "system": SNOMED_SYSTEM, "code": code, "display": display }], "text": display },
+        "type": kind_type,
         "subject": patient_ref,
-        "encounter": reference(&encounter),
         "date": date,
         "author": [author_reference(input.author.as_ref(), &input.custodian)],
         "title": input.title,
         "custodian": reference(&custodian),
         "section": input.sections.iter().map(section).collect::<Vec<_>>(),
     });
+    if let Some(e) = &encounter {
+        composition["encounter"] = reference(e);
+    }
 
     let mut entries = vec![entry(&composition), entry(&patient)];
     entries.extend(author.iter().map(entry));
     entries.push(entry(&custodian));
-    entries.push(entry(&encounter));
+    entries.extend(encounter.iter().map(entry));
     entries.extend(
         input
             .sections

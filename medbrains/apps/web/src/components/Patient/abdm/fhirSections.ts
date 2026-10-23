@@ -1,6 +1,8 @@
 // Reads an NRCeS FHIR document bundle (as another facility sent it through
-// ABDM) into sections a clinician can scan: diagnoses, medicines, results
-// with their units and ranges, and attached documents. Bounded — a bundle
+// ABDM) into sections a clinician can scan, for each of ABDM's eight HI
+// types: diagnoses, medicines, results with their units and ranges (a
+// blood-pressure panel by its parts), immunisations with dose and lot,
+// invoices with their totals, and attached documents. Bounded — a bundle
 // can carry thousands of resources; the screen shows the first few dozen.
 
 /** Sections and items shown per record. */
@@ -53,6 +55,56 @@ function range(o: Json): string | undefined {
   return low || high ? `Range ${low ?? "…"} – ${high ?? "…"}` : undefined;
 }
 
+/** A panel's parts, e.g. blood pressure: "Systolic 120 mmHg · Diastolic 80 mmHg". */
+function components(o: Json): string | undefined {
+  const parts = arr(o.component)
+    .map((c) =>
+      [conceptText(obj(c).code), quantity(obj(c).valueQuantity)].filter(Boolean).join(" "),
+    )
+    .filter(Boolean);
+  return parts.length ? parts.join(" · ") : undefined;
+}
+
+function money(v: unknown): string | undefined {
+  const m = obj(v);
+  return typeof m.value === "number"
+    ? `${str(m.currency) ?? ""} ${m.value.toFixed(2)}`.trim()
+    : undefined;
+}
+
+function invoice(r: Json): FhirItem {
+  const number = str(obj(arr(r.identifier)[0]).value);
+  const lines = arr(r.lineItem).length;
+  const net = money(r.totalNet);
+  const gross = money(r.totalGross);
+  return {
+    text: [conceptText(r.type) ?? "Invoice", number].filter(Boolean).join(" "),
+    detail: [
+      gross && `Total ${gross}`,
+      net && net !== gross ? `net ${net}` : undefined,
+      `${lines} item${lines === 1 ? "" : "s"}`,
+    ]
+      .filter(Boolean)
+      .join(" · "),
+  };
+}
+
+function immunization(r: Json): FhirItem {
+  const applied = obj(arr(r.protocolApplied)[0]);
+  const dose = applied.doseNumberPositiveInt ?? str(applied.doseNumberString);
+  return {
+    text: conceptText(r.vaccineCode) ?? "Immunisation",
+    detail:
+      [
+        str(r.occurrenceDateTime),
+        dose !== undefined ? `dose ${String(dose)}` : undefined,
+        str(r.lotNumber) && `lot ${str(r.lotNumber)}`,
+      ]
+        .filter(Boolean)
+        .join(" · ") || undefined,
+  };
+}
+
 function attachmentLink(v: unknown): FhirItem["link"] | undefined {
   const a = obj(v);
   const label = str(a.title) ?? "Open document";
@@ -68,13 +120,16 @@ function attachmentLink(v: unknown): FhirItem["link"] | undefined {
 }
 
 /** One resource as a line: what it is, and the detail that matters. */
-export function describe(resource: unknown): FhirItem {
+export function describeResource(resource: unknown): FhirItem {
   const r = obj(resource);
   const type = str(r.resourceType) ?? "Entry";
   switch (type) {
     case "Observation": {
       const value =
-        quantity(r.valueQuantity) ?? str(r.valueString) ?? conceptText(r.valueCodeableConcept);
+        quantity(r.valueQuantity) ??
+        str(r.valueString) ??
+        conceptText(r.valueCodeableConcept) ??
+        components(r);
       const flag = conceptText(arr(r.interpretation)[0]);
       return {
         text: [conceptText(r.code) ?? "Observation", value].filter(Boolean).join(": "),
@@ -102,9 +157,13 @@ export function describe(resource: unknown): FhirItem {
         link: attachmentLink({ data: r.data, contentType: r.contentType }),
       };
     case "Immunization":
+      return immunization(r);
+    case "Invoice":
+      return invoice(r);
+    case "ChargeItem":
       return {
-        text: conceptText(r.vaccineCode) ?? "Immunisation",
-        detail: str(r.occurrenceDateTime),
+        text: conceptText(r.code) ?? "Charge",
+        detail: quantity(r.quantity) && `× ${quantity(r.quantity)}`,
       };
     default:
       return {
@@ -132,7 +191,7 @@ function sectionOf(raw: unknown, byRef: Map<string, unknown>): FhirSection {
     .slice(0, MAX_ITEMS)
     .map((e) => str(obj(e).reference) ?? "")
     .filter((ref) => byRef.has(ref))
-    .map((ref, i) => ({ ...describe(byRef.get(ref)), key: `${i}:${ref}` }));
+    .map((ref, i) => ({ ...describeResource(byRef.get(ref)), key: `${i}:${ref}` }));
   return { title: str(s.title) ?? conceptText(s.code) ?? "Section", items };
 }
 

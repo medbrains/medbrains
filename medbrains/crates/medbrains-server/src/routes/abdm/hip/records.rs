@@ -74,6 +74,10 @@ pub struct AbdmPatientRecords {
     pub hip_id: Option<String>,
     /// Why nothing links, in words for staff; `None` when linking can run.
     pub blocked_reason: Option<String>,
+    /// The patient has a mobile ABDM can text the ABHA app link to.
+    pub phone_on_file: bool,
+    /// The latest ABHA-app link texted to the patient, and ABDM's answer.
+    pub sms_link: Option<super::sms_link::SmsLink>,
     pub care_contexts: Vec<AbdmCareContext>,
     pub consents: Vec<AbdmConsentArtefact>,
     pub transfers: Vec<AbdmHealthTransfer>,
@@ -128,7 +132,12 @@ pub async fn patient_records(
     .bind(patient_id)
     .fetch_all(&mut *tx)
     .await?;
+    let sms_link = super::sms_link::latest(&mut tx, claims.tenant_id, patient_id).await?;
     tx.commit().await?;
+    let phone_on_file = patient
+        .phone
+        .as_deref()
+        .is_some_and(|p| p.chars().filter(char::is_ascii_digit).count() >= 10);
     let blocked_reason = if configured {
         patient.blocked_reason().map(str::to_owned)
     } else {
@@ -139,6 +148,8 @@ pub async fn patient_records(
         abha_verified: patient.link_id.is_some(),
         hip_id: patient.hip_id,
         blocked_reason,
+        phone_on_file,
+        sms_link,
         care_contexts,
         consents,
         transfers,

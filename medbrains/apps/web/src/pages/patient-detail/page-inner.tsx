@@ -37,6 +37,7 @@ import {
   IconTent,
   IconTimeline,
   IconUser,
+  IconVaccine,
 } from "@tabler/icons-react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import type { ReactNode } from "react";
@@ -85,6 +86,7 @@ import { ChronicCareTab } from "./chronic-care-tab";
 import { DetailDocumentsTab } from "./documents-tab";
 import { DetailFamilyLinksTab } from "./family-links-tab";
 import { ImagingTab } from "./imaging-tab";
+import { ImmunizationsTab } from "./immunizations-tab";
 import { LabOrdersTab } from "./lab-orders-tab";
 import { MergeTab } from "./merge-tab";
 import { OverviewTab } from "./overview-tab";
@@ -369,6 +371,12 @@ export function PatientDetailPageInner() {
       icon: <IconAlertTriangle size={14} />,
     },
     {
+      value: "immunizations",
+      label: "Immunisations",
+      section: "Profile",
+      icon: <IconVaccine size={14} />,
+    },
+    {
       value: "timeline",
       label: "Timeline",
       section: "Clinical",
@@ -478,8 +486,8 @@ export function PatientDetailPageInner() {
               activeInvoiceId={activeInvoiceId}
               activePharmacyOrderId={actionContext.activePharmacyOrderId ?? null}
               activePharmacyRxQueueId={actionContext.activePharmacyRxQueueId ?? null}
-            activeLabOrderId={actionContext.activeLabOrderId ?? null}
-            activeRadiologyOrderId={actionContext.activeRadiologyOrderId ?? null}
+              activeLabOrderId={actionContext.activeLabOrderId ?? null}
+              activeRadiologyOrderId={actionContext.activeRadiologyOrderId ?? null}
               activeOrderContext={activeOrderContext}
               completedEvents={completedEvents}
               compact
@@ -570,6 +578,9 @@ export function PatientDetailPageInner() {
               </Tabs.Panel>
               <Tabs.Panel id="patient-allergies" value="allergies" pt="md">
                 <AllergiesTab patient={patient} />
+              </Tabs.Panel>
+              <Tabs.Panel id="patient-immunizations" value="immunizations" pt="md">
+                <ImmunizationsTab patient={patient} />
               </Tabs.Panel>
               <Tabs.Panel id="patient-timeline" value="timeline" pt="md">
                 <ClinicalTimelineTab patientId={patient.id} />
