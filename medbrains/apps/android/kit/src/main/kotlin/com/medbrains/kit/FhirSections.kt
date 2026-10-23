@@ -59,7 +59,7 @@ object FhirSections {
         val type = text(r["resourceType"]) ?: "Entry"
         return when (type) {
             "Observation" -> {
-                val value = quantity(r["valueQuantity"]) ?: text(r["valueString"]) ?: concept(r["valueCodeableConcept"])
+                val value = quantity(r["valueQuantity"]) ?: text(r["valueString"]) ?: concept(r["valueCodeableConcept"]) ?: components(r)
                 val flag = concept(list(r["interpretation"]).firstOrNull())
                 val detail = listOfNotNull(range(r), flag).joinToString(" · ")
                 Item(key, listOfNotNull(concept(r["code"]) ?: "Observation", value).joinToString(": "), detail.ifEmpty { null })
@@ -74,7 +74,20 @@ object FhirSections {
                 Item(key, concept(r["type"]) ?: text(attachment["title"]) ?: "Document", link = link(attachment))
             }
             "Binary" -> Item(key, "Attached document", link = link(null, text(r["data"]), text(r["contentType"]), null))
-            "Immunization" -> Item(key, concept(r["vaccineCode"]) ?: "Immunisation", text(r["occurrenceDateTime"]))
+            "Immunization" -> {
+                val applied = list(r["protocolApplied"]).firstOrNull()
+                val dose = (applied["doseNumberPositiveInt"] as? JsonPrimitive)?.takeIf { !it.isString }?.doubleOrNull?.let(::number) ?: text(applied["doseNumberString"])
+                val detail = listOfNotNull(text(r["occurrenceDateTime"]), dose?.let { "dose $it" }, text(r["lotNumber"])?.let { "lot $it" }).joinToString(" · ")
+                Item(key, concept(r["vaccineCode"]) ?: "Immunisation", detail.ifEmpty { null })
+            }
+            "Invoice" -> {
+                val lines = list(r["lineItem"]).size
+                val net = money(r["totalNet"])
+                val gross = money(r["totalGross"])
+                val detail = listOfNotNull(gross?.let { "Total $it" }, net?.takeIf { it != gross }?.let { "net $it" }, "$lines item${if (lines == 1) "" else "s"}").joinToString(" · ")
+                Item(key, listOfNotNull(concept(r["type"]) ?: "Invoice", text(list(r["identifier"]).firstOrNull()["value"])).joinToString(" "), detail)
+            }
+            "ChargeItem" -> Item(key, concept(r["code"]) ?: "Charge", quantity(r["quantity"])?.let { "× $it" })
             else -> Item(key, concept(r["code"]) ?: type, concept(r["clinicalStatus"]) ?: text(r["recordedDate"]))
         }
     }
@@ -92,6 +105,16 @@ object FhirSections {
 
     /** `12` not `12.0`: a number reads as the sender wrote it. */
     private fun number(n: Double): String = if (n % 1.0 == 0.0 && kotlin.math.abs(n) < 1e15) n.toLong().toString() else n.toString()
+
+    /** A panel's parts, e.g. blood pressure: "Systolic 120 mmHg · Diastolic 80 mmHg". */
+    private fun components(r: JsonElement?): String? =
+        list(r["component"]).map { c -> listOfNotNull(concept(c["code"]), quantity(c["valueQuantity"])).joinToString(" ") }
+            .filter { it.isNotEmpty() }.takeIf { it.isNotEmpty() }?.joinToString(" · ")
+
+    private fun money(v: JsonElement?): String? {
+        val value = (v["value"] as? JsonPrimitive)?.takeIf { !it.isString }?.doubleOrNull ?: return null
+        return listOfNotNull(text(v["currency"]), String.format(java.util.Locale.ROOT, "%.2f", value)).joinToString(" ")
+    }
 
     private fun quantity(v: JsonElement?): String? {
         val value = (v["value"] as? JsonPrimitive)?.takeIf { !it.isString }?.doubleOrNull ?: return null

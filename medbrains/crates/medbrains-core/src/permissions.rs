@@ -103,6 +103,17 @@ pub mod patients {
         pub const UPDATE: &str = "patients.acquisition.update";
     }
 
+    pub mod immunizations {
+        /// Record or correct a patient's vaccine doses.
+        ///
+        /// A dose given here — vaccine, dose number, date, lot number and
+        /// route — or one read off the patient's card, recorded as given
+        /// elsewhere. A wrong entry is struck off with a reason, never
+        /// erased. Each dose is shared with the patient's ABHA as an
+        /// immunisation record.
+        pub const RECORD: &str = "patients.immunizations.record";
+    }
+
     pub mod allergies {
         /// Mark a recorded allergy as wrong.
         ///
@@ -3741,6 +3752,13 @@ pub mod abdm {
         /// Send a patient's finalised records to ABDM again after a failure,
         /// or link one that was captured before the ABHA was verified.
         pub const MANAGE: &str = "abdm.records.manage";
+        /// Text a patient the ABHA app link.
+        ///
+        /// For a patient with a mobile and no ABHA here, ask ABDM to text
+        /// them a link to the ABHA app, so the records this hospital holds
+        /// can reach them once they have one. ABDM sends the text; it names
+        /// this hospital.
+        pub const NOTIFY: &str = "abdm.records.notify";
     }
     /// Records this hospital receives through ABDM as a Health Information
     /// User: consent requests to see a patient's records held by other

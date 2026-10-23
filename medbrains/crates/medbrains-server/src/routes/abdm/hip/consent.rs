@@ -376,7 +376,10 @@ async fn transfer(
     .fetch_all(&mut *tx)
     .await?;
     let patient_id = a.patient_id.ok_or(AppError::NotFound)?;
-    let documents = bundles::build(&mut tx, caller.tenant_id, patient_id, &contexts).await?;
+    let files =
+        super::bundle_records::document_files(state, &mut tx, caller.tenant_id, &contexts).await?;
+    let documents =
+        bundles::build(&mut tx, caller.tenant_id, patient_id, &contexts, &files).await?;
     tx.commit().await?;
 
     let km = &hi["keyMaterial"];

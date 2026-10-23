@@ -63,4 +63,26 @@ final class FhirSectionsTests: XCTestCase {
         XCTAssertEqual(FhirSections.read(big).sections.first?.items.count, FhirSections.maxItems)
         XCTAssertEqual(FhirSections.read(.string("garbage")), FhirSections.Document(title: nil, date: nil, author: nil, sections: []))
     }
+
+    /// One bundle whose single section holds `resources` (JSON objects).
+    private func record(_ title: String, _ resources: [String]) -> FhirSections.Document {
+        let refs = resources.indices.map { #"{"reference":"urn:uuid:r\#($0)"}"# }.joined(separator: ",")
+        let entries = resources.enumerated().map { #"{"fullUrl":"urn:uuid:r\#($0.offset)","resource":\#($0.element)}"# }.joined(separator: ",")
+        let json = #"{"entry":[{"resource":{"resourceType":"Composition","section":[{"title":"\#(title)","entry":[\#(refs)]}]}},\#(entries)]}"#
+        return FhirSections.read(JSONValue(parsing: json)!)
+    }
+
+    /// M3 HIU_FLOW_106–113: the four HI types beyond notes, prescriptions and
+    /// reports read as the web reads them.
+    func testTheFourNewerHiTypesReadAsTheWebReadsThem() {
+        let shot = record("Immunization record", [#"{"resourceType":"Immunization","vaccineCode":{"text":"Hepatitis B vaccine"},"occurrenceDateTime":"2026-10-01","lotNumber":"HB-2231","protocolApplied":[{"doseNumberPositiveInt":2}]}"#])
+        XCTAssertEqual(shot.sections.first?.items.first?.detail, "2026-10-01 · dose 2 · lot HB-2231")
+        let vitals = record("Vital Signs", [#"{"resourceType":"Observation","code":{"text":"Blood pressure"},"component":[{"code":{"text":"Systolic"},"valueQuantity":{"value":128,"unit":"mmHg"}},{"code":{"text":"Diastolic"},"valueQuantity":{"value":84,"unit":"mmHg"}}]}"#])
+        XCTAssertEqual(vitals.sections.first?.items.first?.text, "Blood pressure: Systolic 128 mmHg · Diastolic 84 mmHg")
+        let bill = record("Invoice", [#"{"resourceType":"Invoice","identifier":[{"value":"INV-1042"}],"type":{"coding":[{"code":"03","display":"OPD"}]},"lineItem":[{},{}],"totalNet":{"value":1000,"currency":"INR"},"totalGross":{"value":1180,"currency":"INR"}}"#])
+        XCTAssertEqual(bill.sections.first?.items.first?.text, "OPD INV-1042")
+        XCTAssertEqual(bill.sections.first?.items.first?.detail, "Total INR 1180.00 · net INR 1000.00 · 2 items")
+        let doc = record("Referral letter", [#"{"resourceType":"DocumentReference","content":[{"attachment":{"contentType":"image/jpeg","data":"/9j/","title":"ref.jpg"}}]}"#])
+        XCTAssertEqual(doc.sections.first?.items.first?.link, .inline(base64: "/9j/", contentType: "image/jpeg", label: "ref.jpg", fileName: "ref.jpg"))
+    }
 }

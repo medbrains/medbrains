@@ -420,7 +420,15 @@ async fn read_abdm_config(
 /// # Errors
 /// A database fault is an error, never "not configured".
 pub(crate) async fn abdm_configured(state: &AppState, tenant_id: Uuid) -> Result<bool, AppError> {
-    let mut tx = state.db.begin().await?;
+    configured_in(&state.db, tenant_id).await
+}
+
+/// [`abdm_configured`] for the outbox, which has a pool and no `AppState`.
+///
+/// # Errors
+/// A database fault is an error, never "not configured".
+pub(crate) async fn configured_in(db: &sqlx::PgPool, tenant_id: Uuid) -> Result<bool, AppError> {
+    let mut tx = db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &tenant_id).await?;
     let stored = stored_abdm_config(&mut tx, &tenant_id).await?;
     tx.commit().await?;
