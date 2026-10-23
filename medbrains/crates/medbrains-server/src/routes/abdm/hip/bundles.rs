@@ -1,26 +1,24 @@
 //! The NRCeS bundles a health-information transfer carries, one per care
-//! context. Records are loaded per kind in one query each (plus one for
-//! their line items), however many care contexts a consent names.
+//! context. Records are loaded per kind in one query each, plus one for
+//! their line items and one for their diagnoses, however many care contexts
+//! a consent names. `bundle_sections` turns the rows into IG sections.
 
 use std::collections::HashMap;
 
 use chrono::{DateTime, NaiveDate, Utc};
 use medbrains_fhir::mapper::PatientView;
 use medbrains_fhir::nrces::{
-    DocumentInput, Party, RecordKind, Section, diagnostic_report, document_bundle,
-    medication_request, observation,
+    DiagnosisLine, DocumentInput, EncounterInfo, LabResult, Party, RecordKind, document_bundle,
 };
 use serde_json::Value;
 use uuid::Uuid;
 
+use super::bundle_sections::{Record, Rows, Who, sections};
 use crate::error::AppError;
 
 type Tx<'a, 'b> = &'a mut sqlx::Transaction<'b, sqlx::Postgres>;
 
-/// `(parent id, name, detail, unit)`: a drug or a lab result.
-type Item = (Uuid, String, String, Option<String>);
-
-/// Line items read per transfer, across all its records.
+/// Line items and diagnoses read per transfer, across all its records.
 const ITEM_LIMIT: i64 = 5000;
 
 /// A care context to send.
@@ -46,95 +44,201 @@ struct PatientRow {
     phone: Option<String>,
 }
 
-/// One clinical record's text, author and time, whatever its kind.
-#[derive(sqlx::FromRow)]
-struct Record {
-    id: Uuid,
-    at: DateTime<Utc>,
-    title: Option<String>,
-    author_id: Option<Uuid>,
-    author_name: Option<String>,
-    author_hpr: Option<String>,
-    /// `[title, text]` pairs for narrative sections.
-    sections: Value,
-}
-
 const AUTHOR_JOIN: &str = "LEFT JOIN users u ON u.id = {author} \
      LEFT JOIN doctor_profiles dp ON dp.user_id = u.id AND dp.tenant_id = $1 AND dp.deleted_at IS NULL";
 
+/// Per kind: `(from, author, at, encounter columns, title, LOINC,
+/// conclusion, [key, text] narratives)`.
 fn records_sql(kind: RecordKind) -> String {
-    let (from, author, at, title, sections) = match kind {
+    let (from, author, at, encounter, title, loinc, conclusion, narratives) = match kind {
         RecordKind::OpConsult => (
             "encounters x",
             "x.doctor_id",
             "x.updated_at",
+            "x.id AS encounter_id, x.created_at AS encounter_start, x.updated_at AS encounter_end",
             "NULL::text",
-            "jsonb_build_array(jsonb_build_array('Chief complaints', x.chief_complaints), \
-             jsonb_build_array('Physical examination', x.examination_findings), \
-             jsonb_build_array('Diagnosis', x.diagnosis), jsonb_build_array('Advice', x.advice), \
-             jsonb_build_array('Follow up', concat_ws(' ', x.follow_up_date::text, x.follow_up_instructions)))",
+            "NULL::text",
+            "NULL::text",
+            "jsonb_build_array(jsonb_build_array('complaints', x.chief_complaints), \
+             jsonb_build_array('diagnosis', x.diagnosis), \
+             jsonb_build_array('exam', x.examination_findings), jsonb_build_array('advice', x.advice), \
+             jsonb_build_array('follow_up', concat_ws(' ', x.follow_up_date::text, x.follow_up_instructions)))",
         ),
         RecordKind::Prescription => (
             "prescriptions x",
             "x.doctor_id",
             "x.created_at",
+            "x.encounter_id AS encounter_id, NULL::timestamptz AS encounter_start, NULL::timestamptz AS encounter_end",
             "NULL::text",
-            "jsonb_build_array(jsonb_build_array('Notes', x.notes))",
+            "NULL::text",
+            "NULL::text",
+            "jsonb_build_array(jsonb_build_array('notes', x.notes))",
         ),
         RecordKind::DiagnosticReport => (
             "lab_orders x LEFT JOIN lab_test_catalog c ON c.id = x.test_id",
             "x.verified_by",
             "COALESCE(x.verified_at, x.updated_at)",
+            "x.encounter_id AS encounter_id, NULL::timestamptz AS encounter_start, NULL::timestamptz AS encounter_end",
             "c.name",
-            "jsonb_build_array(jsonb_build_array('Notes', x.notes))",
+            "NULLIF(c.loinc_code, '')",
+            "COALESCE(NULLIF(x.interpretation, ''), NULLIF(x.notes, ''), NULLIF(x.comments, ''))",
+            "'[]'::jsonb",
         ),
         RecordKind::DischargeSummary => (
             "ipd_discharge_summaries x JOIN admissions a ON a.id = x.admission_id",
             "COALESCE(x.verified_by, x.prepared_by, a.admitting_doctor)",
             "COALESCE(x.finalized_at, x.updated_at)",
+            "a.encounter_id AS encounter_id, a.admitted_at AS encounter_start, a.discharged_at AS encounter_end",
             "NULL::text",
-            "jsonb_build_array(jsonb_build_array('Final diagnosis', x.final_diagnosis), \
-             jsonb_build_array('Course in hospital', x.course_in_hospital), \
-             jsonb_build_array('Treatment given', x.treatment_given), \
-             jsonb_build_array('Investigations', x.investigation_summary), \
-             jsonb_build_array('Condition at discharge', x.condition_at_discharge), \
-             jsonb_build_array('Follow up', x.follow_up_instructions))",
+            "NULL::text",
+            "NULL::text",
+            "jsonb_build_array(jsonb_build_array('final_diagnosis', x.final_diagnosis), \
+             jsonb_build_array('condition_at_discharge', x.condition_at_discharge), \
+             jsonb_build_array('investigations', x.investigation_summary), \
+             jsonb_build_array('follow_up', concat_ws(' ', x.follow_up_date::text, x.follow_up_instructions)), \
+             jsonb_build_array('course', x.course_in_hospital), \
+             jsonb_build_array('treatment', x.treatment_given))",
         ),
     };
     format!(
         "SELECT x.id, {at} AS at, {title} AS title, u.id AS author_id, u.full_name AS author_name, \
-                dp.hpr_id AS author_hpr, {sections} AS sections \
+                dp.hpr_id AS author_hpr, {narratives} AS narratives, {loinc} AS loinc, \
+                {conclusion} AS conclusion, {encounter} \
            FROM {from} {join} WHERE x.tenant_id = $1 AND x.id = ANY($2)",
         join = AUTHOR_JOIN.replace("{author}", author),
     )
 }
 
-/// `(parent id, name, detail, unit)` line items: drugs or lab results.
+#[derive(sqlx::FromRow)]
+struct DiagnosisRow {
+    id: Uuid,
+    encounter_id: Uuid,
+    icd_system: String,
+    icd_code: Option<String>,
+    icd_display: Option<String>,
+    snomed_code: Option<String>,
+    snomed_display: Option<String>,
+    description: String,
+    certainty: Option<String>,
+    onset_date: Option<NaiveDate>,
+    resolved_date: Option<NaiveDate>,
+    created_at: DateTime<Utc>,
+}
+
+/// The coded diagnoses of the given visits and admissions. A ruled-out one
+/// is left out: an HIU that ignores verification status would read it as
+/// the diagnosis.
+async fn diagnoses(
+    tx: Tx<'_, '_>,
+    tenant_id: Uuid,
+    encounter_ids: &[Uuid],
+) -> Result<HashMap<Uuid, Vec<DiagnosisLine>>, AppError> {
+    // allow-raw-sql: binds tenant_id inside a set_tenant_context transaction
+    let rows: Vec<DiagnosisRow> = sqlx::query_as(
+        "SELECT id, encounter_id, icd_system, icd_code, icd_display, snomed_code, snomed_display, \
+                description, certainty, onset_date, resolved_date, created_at \
+           FROM diagnoses WHERE tenant_id = $1 AND encounter_id = ANY($2) AND deleted_at IS NULL \
+            AND certainty IS DISTINCT FROM 'ruled_out' \
+          ORDER BY is_primary DESC, created_at LIMIT $3",
+    )
+    .bind(tenant_id)
+    .bind(encounter_ids)
+    .bind(ITEM_LIMIT)
+    .fetch_all(&mut **tx)
+    .await?;
+    let mut out: HashMap<Uuid, Vec<DiagnosisLine>> = HashMap::new();
+    for r in rows {
+        out.entry(r.encounter_id).or_default().push(DiagnosisLine {
+            id: r.id,
+            icd_system: r.icd_system,
+            icd_code: r.icd_code,
+            icd_display: r.icd_display,
+            snomed_code: r.snomed_code,
+            snomed_display: r.snomed_display,
+            description: r.description,
+            certainty: r.certainty,
+            onset: r.onset_date,
+            resolved: r.resolved_date,
+            recorded: r.created_at,
+        });
+    }
+    Ok(out)
+}
+
+#[derive(sqlx::FromRow)]
+struct ResultRow {
+    id: Uuid,
+    order_id: Uuid,
+    name: String,
+    value: String,
+    numeric: Option<f64>,
+    unit: Option<String>,
+    range: Option<String>,
+    flag: Option<String>,
+    loinc: Option<String>,
+}
+
+/// Prescription items as `(prescription, drug, instructions)`, and lab
+/// results by order. The test's LOINC code goes on a result only when it is
+/// the test's single result; a panel's code does not name its analytes.
 async fn items(
     tx: Tx<'_, '_>,
     tenant_id: Uuid,
     kind: RecordKind,
     ids: &[Uuid],
-) -> Result<Vec<Item>, AppError> {
-    let sql = match kind {
+    rows: &mut Rows,
+) -> Result<(), AppError> {
+    match kind {
         RecordKind::Prescription => {
-            "SELECT prescription_id, drug_name, concat_ws(' ', dosage, frequency, 'for', duration, route, instructions), NULL::text \
-               FROM prescription_items WHERE tenant_id = $1 AND prescription_id = ANY($2) AND deleted_at IS NULL \
-              ORDER BY created_at LIMIT $3"
+            // allow-raw-sql: binds tenant_id inside a set_tenant_context transaction
+            let drugs: Vec<(Uuid, String, String)> = sqlx::query_as(
+                "SELECT prescription_id, drug_name, concat_ws(' ', dosage, frequency, 'for', duration, route, instructions) \
+                   FROM prescription_items WHERE tenant_id = $1 AND prescription_id = ANY($2) AND deleted_at IS NULL \
+                  ORDER BY created_at LIMIT $3",
+            )
+            .bind(tenant_id)
+            .bind(ids)
+            .bind(ITEM_LIMIT)
+            .fetch_all(&mut **tx)
+            .await?;
+            for (rx, drug, how) in drugs {
+                rows.drugs.entry(rx).or_default().push((drug, how));
+            }
         }
         RecordKind::DiagnosticReport => {
-            "SELECT order_id, parameter_name, value, unit FROM lab_results \
-              WHERE tenant_id = $1 AND order_id = ANY($2) ORDER BY created_at LIMIT $3"
+            // allow-raw-sql: binds tenant_id inside a set_tenant_context transaction
+            let results: Vec<ResultRow> = sqlx::query_as(
+                "SELECT r.id, r.order_id, r.parameter_name AS name, r.value, r.numeric_value::float8 AS numeric, \
+                        r.unit, COALESCE(NULLIF(r.reference_range, ''), NULLIF(r.normal_range, '')) AS range, \
+                        r.flag::text AS flag, \
+                        CASE WHEN count(*) OVER (PARTITION BY r.order_id) = 1 THEN NULLIF(c.loinc_code, '') END AS loinc \
+                   FROM lab_results r \
+                   JOIN lab_orders lo ON lo.id = r.order_id AND lo.tenant_id = r.tenant_id \
+                   LEFT JOIN lab_test_catalog c ON c.id = lo.test_id \
+                  WHERE r.tenant_id = $1 AND r.order_id = ANY($2) AND r.deleted_at IS NULL \
+                  ORDER BY r.display_order, r.created_at LIMIT $3",
+            )
+            .bind(tenant_id)
+            .bind(ids)
+            .bind(ITEM_LIMIT)
+            .fetch_all(&mut **tx)
+            .await?;
+            for r in results {
+                rows.results.entry(r.order_id).or_default().push(LabResult {
+                    id: r.id,
+                    name: r.name,
+                    value: r.value,
+                    numeric: r.numeric,
+                    unit: r.unit,
+                    range: r.range,
+                    flag: r.flag,
+                    loinc: r.loinc,
+                });
+            }
         }
-        RecordKind::OpConsult | RecordKind::DischargeSummary => return Ok(Vec::new()),
-    };
-    // allow-raw-sql: binds tenant_id inside a set_tenant_context transaction
-    Ok(sqlx::query_as(sql)
-        .bind(tenant_id)
-        .bind(ids)
-        .bind(ITEM_LIMIT)
-        .fetch_all(&mut **tx)
-        .await?)
+        RecordKind::OpConsult | RecordKind::DischargeSummary => {}
+    }
+    Ok(())
 }
 
 async fn patient(
@@ -171,85 +275,26 @@ async fn patient(
     })
 }
 
-async fn custodian(tx: Tx<'_, '_>, tenant_id: Uuid) -> Result<Option<Party>, AppError> {
+/// The campus records are shared as; a hospital with no campus row yet is
+/// named by its tenant, so every bundle has a custodian (and an author).
+async fn custodian(tx: Tx<'_, '_>, tenant_id: Uuid) -> Result<Party, AppError> {
     let row = sqlx::query_as::<_, (Uuid, String, Option<String>)>(
-        "SELECT f.id, f.name, f.hfr_facility_id FROM facilities f \
-          WHERE f.tenant_id = $1 AND f.deleted_at IS NULL AND f.parent_id IS NULL \
-          ORDER BY (f.hfr_facility_id IS NOT NULL) DESC, (f.facility_type = 'main_hospital') DESC, \
-                   f.created_at LIMIT 1",
+        "SELECT id, name, hfr FROM ( \
+            SELECT f.id, f.name, f.hfr_facility_id AS hfr, 0 AS rank, \
+                   (f.hfr_facility_id IS NOT NULL) AS has_hfr, (f.facility_type = 'main_hospital') AS main, f.created_at \
+              FROM facilities f WHERE f.tenant_id = $1 AND f.deleted_at IS NULL AND f.parent_id IS NULL \
+            UNION ALL SELECT t.id, t.name, NULL, 1, false, false, t.created_at FROM tenants t WHERE t.id = $1 \
+          ) c ORDER BY rank, has_hfr DESC, main DESC, created_at LIMIT 1",
     )
     .bind(tenant_id)
     .fetch_optional(&mut **tx)
-    .await?;
-    Ok(row.map(|(id, name, registry_id)| Party {
-        id,
-        name,
-        registry_id,
-    }))
-}
-
-/// SNOMED CT section codes the NRCeS profiles use for each narrative.
-fn section_code(title: &str, kind: RecordKind) -> (&'static str, &'static str) {
-    match title {
-        "Chief complaints" => ("422843007", "Chief complaint section"),
-        "Physical examination" => ("425044008", "Physical exam section"),
-        "Diagnosis" | "Final diagnosis" | "Condition at discharge" => ("439401001", "Diagnosis"),
-        "Investigations" => ("721981007", "Diagnostic studies report"),
-        "Advice" | "Follow up" | "Course in hospital" | "Treatment given" => {
-            ("736271009", "Outpatient care plan")
-        }
-        _ => kind.type_code(),
-    }
-}
-
-fn sections(kind: RecordKind, record: &Record, patient_id: Uuid, lines: &[&Item]) -> Vec<Section> {
-    let mut out: Vec<Section> = record
-        .sections
-        .as_array()
-        .into_iter()
-        .flatten()
-        .filter_map(|pair| {
-            let text = pair[1].as_str().map(str::trim).filter(|t| !t.is_empty())?;
-            let title = pair[0].as_str().unwrap_or_default();
-            Some(Section {
-                title: title.to_owned(),
-                code: section_code(title, kind),
-                lines: vec![text.to_owned()],
-                entries: Vec::new(),
-            })
-        })
-        .collect();
-    let title = record
-        .title
-        .clone()
-        .unwrap_or_else(|| "Lab report".to_owned());
-    match kind {
-        RecordKind::Prescription => out.push(Section {
-            title: "Prescription".to_owned(),
-            code: ("440545006", "Prescription record"),
-            lines: Vec::new(),
-            entries: lines
-                .iter()
-                .map(|(_, drug, how, _)| medication_request(patient_id, record.at, drug, how))
-                .collect(),
-        }),
-        RecordKind::DiagnosticReport => {
-            let results: Vec<Value> = lines
-                .iter()
-                .map(|(_, name, value, unit)| observation(patient_id, name, value, unit.as_deref()))
-                .collect();
-            let mut entries = vec![diagnostic_report(patient_id, &title, record.at, &results)];
-            entries.extend(results);
-            out.push(Section {
-                title,
-                code: ("721981007", "Diagnostic studies report"),
-                lines: Vec::new(),
-                entries,
-            });
-        }
-        RecordKind::OpConsult | RecordKind::DischargeSummary => {}
-    }
-    out
+    .await?
+    .ok_or(AppError::NotFound)?;
+    Ok(Party {
+        id: row.0,
+        name: row.1,
+        registry_id: row.2,
+    })
 }
 
 /// One NRCeS bundle per care context, keyed by its reference number. A care
@@ -289,30 +334,43 @@ pub async fn build(
             .into_iter()
             .map(|r| (r.id, r))
             .collect();
-        let all_items = items(tx, tenant_id, kind, &ids).await?;
-        let mut by_record: HashMap<Uuid, Vec<&Item>> = HashMap::new();
-        for item in &all_items {
-            by_record.entry(item.0).or_default().push(item);
+        let mut rows = Rows::default();
+        items(tx, tenant_id, kind, &ids, &mut rows).await?;
+        if matches!(kind, RecordKind::OpConsult | RecordKind::DischargeSummary) {
+            let encounters: Vec<Uuid> = records.values().map(|r| r.encounter_id).collect();
+            rows.diagnoses = diagnoses(tx, tenant_id, &encounters).await?;
         }
         for c in mine {
             let Some(record) = records.get(&c.source_id) else {
                 continue;
             };
-            let lines = by_record.remove(&c.source_id).unwrap_or_default();
+            let author = record.author_id.map(|id| Party {
+                id,
+                name: record.author_name.clone().unwrap_or_default(),
+                registry_id: record.author_hpr.clone(),
+            });
+            let who = Who {
+                patient_id: patient.id,
+                author: author.as_ref(),
+                custodian: &custodian,
+            };
+            let (sections, resources) = sections(kind, record, &rows, &who);
             let bundle = document_bundle(&DocumentInput {
                 kind,
                 id: Uuid::new_v4(),
                 date: record.at,
                 title: c.display.clone(),
                 patient: &patient,
-                author: record.author_id.map(|id| Party {
-                    id,
-                    name: record.author_name.clone().unwrap_or_default(),
-                    registry_id: record.author_hpr.clone(),
-                }),
+                author,
                 custodian: custodian.clone(),
-                encounter_id: c.encounter_id,
-                sections: sections(kind, record, patient.id, &lines),
+                encounter: EncounterInfo {
+                    id: record.encounter_id,
+                    inpatient: kind == RecordKind::DischargeSummary,
+                    start: record.encounter_start,
+                    end: record.encounter_end,
+                },
+                sections,
+                resources,
             });
             out.push((c.reference_number.clone(), bundle));
         }

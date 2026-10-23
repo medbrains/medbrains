@@ -6,7 +6,8 @@
 //! - `link_callbacks` — the gateway's `on_*` answers to that linking.
 //! - `discovery` — user-initiated discovery and linking (PHR app → us).
 //! - `consent`   — consent notifications and health-information requests.
-//! - `bundles`   — the NRCeS FHIR bundles a transfer carries.
+//! - `bundles`   — the NRCeS FHIR bundles a transfer carries;
+//!   `bundle_sections` maps a record's rows to the IG's sections.
 //! - `profile_share` — Scan & Share: a patient shares their ABHA profile at a
 //!   counter and is given a token.
 //! - `records`   — the staff screens: a patient's ABDM records, sharing totals.
@@ -15,6 +16,7 @@
 //! Care contexts are captured by a database trigger when a record is
 //! finalised (migration 1110), so no save path can forget to.
 
+pub mod bundle_sections;
 pub mod bundles;
 pub mod consent;
 pub mod discovery;
