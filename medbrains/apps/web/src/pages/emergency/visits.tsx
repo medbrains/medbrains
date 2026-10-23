@@ -68,7 +68,7 @@ function useTimer(startTime: string | null, endIndicator: number | null): string
     const update = () => {
       const now = Date.now();
       const diff = now - start;
-      setElapsed(formatDuration(diff > 0 ? diff : 0));
+      setElapsed(formatDuration(Math.max(diff, 0)));
     };
     update();
     intervalRef.current = setInterval(update, 1000);

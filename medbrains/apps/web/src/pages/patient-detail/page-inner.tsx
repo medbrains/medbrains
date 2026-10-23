@@ -478,8 +478,8 @@ export function PatientDetailPageInner() {
               activeInvoiceId={activeInvoiceId}
               activePharmacyOrderId={actionContext.activePharmacyOrderId ?? null}
               activePharmacyRxQueueId={actionContext.activePharmacyRxQueueId ?? null}
-            activeLabOrderId={actionContext.activeLabOrderId ?? null}
-            activeRadiologyOrderId={actionContext.activeRadiologyOrderId ?? null}
+              activeLabOrderId={actionContext.activeLabOrderId ?? null}
+              activeRadiologyOrderId={actionContext.activeRadiologyOrderId ?? null}
               activeOrderContext={activeOrderContext}
               completedEvents={completedEvents}
               compact

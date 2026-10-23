@@ -10,8 +10,8 @@ import {
   IconStethoscope,
   IconStretching,
 } from "@tabler/icons-react";
-import { useMemo } from "react";
 import { useNavigate } from "react-router";
+import { useShallow } from "zustand/react/shallow";
 import { PageHeader } from "@/components";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
 
@@ -84,15 +84,12 @@ export function SpecialtyIndexPage() {
   // conditionally and the page starts throwing.
   //
   // `hasPermission` reads through get() and its reference never changes, so
-  // selecting it alone would leave this list stale after a permission
-  // change. Subscribing to the two values it actually reads is what makes
-  // the recompute fire.
-  const hasPermission = usePermissionStore((state) => state.hasPermission);
-  const userRole = usePermissionStore((state) => state.userRole);
-  const userPermissions = usePermissionStore((state) => state.userPermissions);
-  const visibleSpecialties = useMemo(
-    () => SPECIALTIES.filter((specialty) => hasPermission(specialty.permission)),
-    [hasPermission, userRole, userPermissions],
+  // the filter runs inside the selector: it re-runs on every permission
+  // change, and useShallow keeps the array stable while the result is equal.
+  const visibleSpecialties = usePermissionStore(
+    useShallow((state) =>
+      SPECIALTIES.filter((specialty) => state.hasPermission(specialty.permission)),
+    ),
   );
 
   return (

@@ -88,14 +88,18 @@ export function BillingTpaPipelinePage() {
   useRequirePermission(P.BILLING.CORPORATE_LIST);
   const navigate = useNavigate();
 
-  const { data: claims = [], isLoading } = useQuery({
+  const {
+    data: claims = [],
+    isLoading,
+    dataUpdatedAt,
+  } = useQuery({
     queryKey: ["tpa-pipeline-claims"],
     queryFn: () => billingService.listInsuranceClaims(),
     refetchInterval: 60_000,
   });
 
-  // Snapshot "now" once per render so all SLA badges agree.
-  const now = useMemo(() => Date.now(), [claims]);
+  // SLA badges all measure from the moment the claims were fetched, so they agree.
+  const now = dataUpdatedAt;
 
   const byStage = useMemo(() => {
     const map = new Map<string, InsuranceClaim[]>();

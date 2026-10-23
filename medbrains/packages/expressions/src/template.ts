@@ -70,8 +70,8 @@ function createIsolatedEnvironment(options?: TemplateOptions): typeof Handlebars
       // Limit iteration to prevent DoS
       const maxItems = Math.min(context.length, 1000);
       for (let i = 0; i < maxItems; i++) {
-        const blockParams = hbOptions.hash?.["AS"]
-          ? { [String(hbOptions.hash["AS"])]: context[i] }
+        const blockParams = hbOptions.hash?.AS
+          ? { [String(hbOptions.hash.AS)]: context[i] }
           : context[i];
         result += hbOptions.fn(
           typeof blockParams === "object" && blockParams !== null

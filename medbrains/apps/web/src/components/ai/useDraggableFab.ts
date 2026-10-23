@@ -62,7 +62,7 @@ export function useDraggableFab(onActivate: () => void) {
     const d = info.current;
     info.current = null;
     setDrag(null);
-    if (!d || !d.moved) return; // a plain click falls through to onClick
+    if (!d?.moved) return; // a plain click falls through to onClick
     justDragged.current = true;
     // Snap to the nearest corner by which quadrant it was dropped in.
     const side = e.clientX < window.innerWidth / 2 ? "left" : "right";

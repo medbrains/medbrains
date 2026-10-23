@@ -128,7 +128,7 @@ export function AccreditationTab() {
         { name: "N/A", value: naCount, color: "gray.4" },
         {
           name: "Not Assessed",
-          value: notAssessedCount > 0 ? notAssessedCount : 0,
+          value: Math.max(notAssessedCount, 0),
           color: "gray.2",
         },
       ].filter((d) => d.value > 0),

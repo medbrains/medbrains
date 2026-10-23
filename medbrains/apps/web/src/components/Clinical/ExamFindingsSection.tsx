@@ -17,7 +17,7 @@ export interface ExamFindingsSectionProps {
   onChange: (findings: ExamFinding[]) => void;
 }
 
-function describe(f: ExamFinding): string {
+function describeFinding(f: ExamFinding): string {
   return `${formatBodySite({ label: f.site, code: f.site_code, laterality: f.laterality })}: ${f.finding}`;
 }
 
@@ -34,7 +34,7 @@ export function ExamFindingsSection({ findings, canUpdate, onChange }: ExamFindi
     : null;
   // The same finding twice at the same site is a duplicate entry, not a second finding.
   const isDuplicate =
-    candidate !== null && findings.some((f) => describe(f) === describe(candidate));
+    candidate !== null && findings.some((f) => describeFinding(f) === describeFinding(candidate));
   const canAdd = Boolean(site?.label.trim()) && finding.trim().length > 0 && !isDuplicate;
 
   const add = () => {
@@ -55,13 +55,13 @@ export function ExamFindingsSection({ findings, canUpdate, onChange }: ExamFindi
         </Text>
       ) : (
         findings.map((f) => (
-          <Group key={describe(f)} justify="space-between" wrap="nowrap">
-            <Text size="sm">{describe(f)}</Text>
+          <Group key={describeFinding(f)} justify="space-between" wrap="nowrap">
+            <Text size="sm">{describeFinding(f)}</Text>
             {canUpdate && (
               <IconButton
                 tone="danger"
                 size="sm"
-                aria-label={`Remove finding: ${describe(f)}`}
+                aria-label={`Remove finding: ${describeFinding(f)}`}
                 onClick={() => onChange(findings.filter((other) => other !== f))}
               >
                 <IconTrash size={14} />

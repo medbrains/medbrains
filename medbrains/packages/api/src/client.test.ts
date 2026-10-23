@@ -111,7 +111,7 @@ describe("/analytics endpoints", () => {
     mockOk({});
     await api.getDeptRevenue();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url.split("?")[0]).toBe("/api/analytics/revenue/department");
   });
 
@@ -119,7 +119,7 @@ describe("/analytics endpoints", () => {
     mockOk({});
     await api.getDoctorRevenue();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url.split("?")[0]).toBe("/api/analytics/revenue/doctor");
   });
 
@@ -127,7 +127,7 @@ describe("/analytics endpoints", () => {
     mockOk({});
     await api.getIpdCensus();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url.split("?")[0]).toBe("/api/analytics/ipd/census");
   });
 
@@ -135,7 +135,7 @@ describe("/analytics endpoints", () => {
     mockOk({});
     await api.getLabTat();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url.split("?")[0]).toBe("/api/analytics/lab/tat");
   });
 
@@ -143,7 +143,7 @@ describe("/analytics endpoints", () => {
     mockOk({});
     await api.getPharmacySales();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url.split("?")[0]).toBe("/api/analytics/pharmacy/sales");
   });
 
@@ -151,7 +151,7 @@ describe("/analytics endpoints", () => {
     mockOk({});
     await api.getOtUtilization();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url.split("?")[0]).toBe("/api/analytics/ot/utilization");
   });
 
@@ -159,7 +159,7 @@ describe("/analytics endpoints", () => {
     mockOk({});
     await api.getErVolume();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url.split("?")[0]).toBe("/api/analytics/er/volume");
   });
 
@@ -167,7 +167,7 @@ describe("/analytics endpoints", () => {
     mockOk({});
     await api.getClinicalIndicators();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url.split("?")[0]).toBe("/api/analytics/clinical/indicators");
   });
 
@@ -175,7 +175,7 @@ describe("/analytics endpoints", () => {
     mockOk({});
     await api.getOpdFootfall();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url.split("?")[0]).toBe("/api/analytics/opd/footfall");
   });
 
@@ -183,7 +183,7 @@ describe("/analytics endpoints", () => {
     mockOk({});
     await api.getBedOccupancy();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toBe("/api/analytics/bed/occupancy");
   });
 
@@ -191,7 +191,7 @@ describe("/analytics endpoints", () => {
     mockOk({});
     await api.exportAnalytics({ report: "revenue" });
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url.split("?")[0]).toBe("/api/analytics/export");
   });
 });
@@ -201,7 +201,7 @@ describe("/api endpoints", () => {
     mockOk({});
     await api.listVisitors();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url.split("?")[0]).toBe("/api/front-office/visitors");
   });
 
@@ -209,7 +209,7 @@ describe("/api endpoints", () => {
     mockOk({});
     await api.listVisitorPasses();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url.split("?")[0]).toBe("/api/front-office/passes");
   });
 
@@ -217,7 +217,7 @@ describe("/api endpoints", () => {
     mockOk({});
     await api.listVisitorLogs();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url.split("?")[0]).toBe("/api/front-office/visitor-logs");
   });
 
@@ -225,7 +225,7 @@ describe("/api endpoints", () => {
     mockOk({});
     await api.listEnquiries();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url.split("?")[0]).toBe("/api/front-office/enquiries");
   });
 
@@ -233,7 +233,7 @@ describe("/api endpoints", () => {
     mockOk({});
     await api.getQueueStats();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url.split("?")[0]).toBe("/api/front-office/queue-stats");
   });
 
@@ -241,7 +241,7 @@ describe("/api endpoints", () => {
     mockOk({});
     await api.listBmeVendorEvaluations();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url.split("?")[0]).toBe("/api/bme/vendor-evaluations");
   });
 
@@ -249,7 +249,7 @@ describe("/api endpoints", () => {
     mockOk({});
     await api.listFmsFireInspections();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url.split("?")[0]).toBe("/api/facilities/fire-inspections");
   });
 });
@@ -259,7 +259,7 @@ describe("/audit endpoints", () => {
     mockOk({});
     await api.listAuditLog();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url.split("?")[0]).toBe("/api/audit/log");
   });
 
@@ -267,7 +267,7 @@ describe("/audit endpoints", () => {
     mockOk({});
     await api.getAuditEntry(UUID);
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toContain("/api/audit/log");
   });
 
@@ -275,7 +275,7 @@ describe("/audit endpoints", () => {
     mockOk({});
     await api.getEntityAuditTrail("test", UUID);
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toContain("/api/audit/log/entity");
   });
 
@@ -283,7 +283,7 @@ describe("/audit endpoints", () => {
     mockOk({});
     await api.getAuditStats();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toBe("/api/audit/stats");
   });
 
@@ -291,7 +291,7 @@ describe("/audit endpoints", () => {
     mockOk({});
     await api.listAccessLog();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url.split("?")[0]).toBe("/api/audit/access-log");
   });
 
@@ -310,7 +310,7 @@ describe("/audit endpoints", () => {
     mockOk({});
     await api.getPatientAccessLog(UUID);
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toContain("/api/audit/access-log/patient");
   });
 
@@ -318,7 +318,7 @@ describe("/audit endpoints", () => {
     mockOk({});
     await api.listAuditModules();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toBe("/api/audit/modules");
   });
 
@@ -326,7 +326,7 @@ describe("/audit endpoints", () => {
     mockOk({});
     await api.listAuditEntityTypes();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toBe("/api/audit/entity-types");
   });
 
@@ -349,7 +349,7 @@ describe("/audit endpoints", () => {
     mockOk({});
     await api.getUserActivity(UUID);
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toContain("/api/audit/user");
   });
 
@@ -357,7 +357,7 @@ describe("/audit endpoints", () => {
     mockOk({});
     await api.getEntityTimeline("test", UUID);
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toContain("/api/audit/timeline");
   });
 });
@@ -380,7 +380,7 @@ describe("/auth endpoints", () => {
     mockOk({});
     await api.me();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toBe("/api/auth/me");
   });
 
@@ -421,7 +421,7 @@ describe("/billing endpoints", () => {
     mockOk({});
     await api.listInvoices();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url.split("?")[0]).toBe("/api/billing/invoices");
   });
 
@@ -440,7 +440,7 @@ describe("/billing endpoints", () => {
     mockOk({});
     await api.getInvoice(UUID);
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toContain("/api/billing/invoices");
   });
 
@@ -508,7 +508,7 @@ describe("/billing endpoints", () => {
     mockOk({});
     await api.listPayments(UUID);
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toContain("/api/billing/invoices");
   });
 
@@ -516,7 +516,7 @@ describe("/billing endpoints", () => {
     mockOk({});
     await api.listChargeMaster();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url.split("?")[0]).toBe("/api/billing/charge-master");
   });
 
@@ -555,7 +555,7 @@ describe("/billing endpoints", () => {
     mockOk({});
     await api.listPackages();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toBe("/api/billing/packages");
   });
 
@@ -563,7 +563,7 @@ describe("/billing endpoints", () => {
     mockOk({});
     await api.getPackage(UUID);
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toContain("/api/billing/packages");
   });
 
@@ -602,7 +602,7 @@ describe("/billing endpoints", () => {
     mockOk({});
     await api.listRatePlans();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toBe("/api/billing/rate-plans");
   });
 
@@ -610,7 +610,7 @@ describe("/billing endpoints", () => {
     mockOk({});
     await api.getRatePlan(UUID);
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toContain("/api/billing/rate-plans");
   });
 
@@ -649,7 +649,7 @@ describe("/billing endpoints", () => {
     mockOk({});
     await api.listInvoiceDiscounts(UUID);
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toContain("/api/billing/invoices");
   });
 
@@ -677,7 +677,7 @@ describe("/billing endpoints", () => {
     mockOk({});
     await api.listRefunds();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url.split("?")[0]).toBe("/api/billing/refunds");
   });
 
@@ -696,7 +696,7 @@ describe("/billing endpoints", () => {
     mockOk({});
     await api.listCreditNotes();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url.split("?")[0]).toBe("/api/billing/credit-notes");
   });
 
@@ -726,7 +726,7 @@ describe("/billing endpoints", () => {
     mockOk({});
     await api.listReceipts(UUID);
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toContain("/api/billing/invoices");
   });
 
@@ -745,7 +745,7 @@ describe("/billing endpoints", () => {
     mockOk({});
     await api.listInsuranceClaims();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url.split("?")[0]).toBe("/api/billing/insurance-claims");
   });
 
@@ -753,7 +753,7 @@ describe("/billing endpoints", () => {
     mockOk({});
     await api.getInsuranceClaim(UUID);
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toContain("/api/billing/insurance-claims");
   });
 
@@ -794,7 +794,7 @@ describe("/billing endpoints", () => {
     mockOk({});
     await api.listAdvances();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url.split("?")[0]).toBe("/api/billing/advances");
   });
 
@@ -846,7 +846,7 @@ describe("/billing endpoints", () => {
     mockOk({});
     await api.listCorporates();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toBe("/api/billing/corporates");
   });
 
@@ -854,7 +854,7 @@ describe("/billing endpoints", () => {
     mockOk({});
     await api.getCorporate(UUID);
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toContain("/api/billing/corporates");
   });
 
@@ -884,7 +884,7 @@ describe("/billing endpoints", () => {
     mockOk({});
     await api.listCorporateEnrollments(UUID);
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toContain("/api/billing/corporates");
   });
 
@@ -912,7 +912,7 @@ describe("/billing endpoints", () => {
     mockOk({});
     await api.listCorporateInvoices(UUID);
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toContain("/api/billing/corporates");
   });
 
@@ -920,7 +920,7 @@ describe("/billing endpoints", () => {
     mockOk({});
     await api.billingReportSummary("test", "test");
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url.split("?")[0]).toBe("/api/billing/reports/summary");
   });
 
@@ -928,7 +928,7 @@ describe("/billing endpoints", () => {
     mockOk({});
     await api.billingReportDepartmentRevenue("test", "test");
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url.split("?")[0]).toBe("/api/billing/reports/department-revenue");
   });
 
@@ -936,7 +936,7 @@ describe("/billing endpoints", () => {
     mockOk({});
     await api.billingReportCollectionEfficiency("test", "test");
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url.split("?")[0]).toBe("/api/billing/reports/collection-efficiency");
   });
 
@@ -944,7 +944,7 @@ describe("/billing endpoints", () => {
     mockOk({});
     await api.billingReportAging();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toBe("/api/billing/reports/aging");
   });
 
@@ -952,7 +952,7 @@ describe("/billing endpoints", () => {
     mockOk({});
     await api.billingReportDaily("2026-01-01");
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url.split("?")[0]).toBe("/api/billing/reports/daily");
   });
 
@@ -960,7 +960,7 @@ describe("/billing endpoints", () => {
     mockOk({});
     await api.billingReportDoctorRevenue("test", "test");
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url.split("?")[0]).toBe("/api/billing/reports/doctor-revenue");
   });
 
@@ -968,7 +968,7 @@ describe("/billing endpoints", () => {
     mockOk({});
     await api.billingReportInsurancePanel("test", "test");
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url.split("?")[0]).toBe("/api/billing/reports/insurance-panel");
   });
 
@@ -976,7 +976,7 @@ describe("/billing endpoints", () => {
     mockOk({});
     await api.billingReportReconciliation("2026-01-01");
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url.split("?")[0]).toBe("/api/billing/reports/reconciliation");
   });
 
@@ -984,7 +984,7 @@ describe("/billing endpoints", () => {
     mockOk({});
     await api.listDayCloses();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url.split("?")[0]).toBe("/api/billing/day-closes");
   });
 
@@ -1012,7 +1012,7 @@ describe("/billing endpoints", () => {
     mockOk({});
     await api.listWriteOffs();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url.split("?")[0]).toBe("/api/billing/write-offs");
   });
 
@@ -1042,7 +1042,7 @@ describe("/billing endpoints", () => {
     mockOk({});
     await api.listTpaRateCards();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toBe("/api/billing/tpa-rate-cards");
   });
 
@@ -1090,7 +1090,7 @@ describe("/billing endpoints", () => {
     mockOk({});
     await api.listBillingAuditLog();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url.split("?")[0]).toBe("/api/billing/audit-log");
   });
 
@@ -1098,7 +1098,7 @@ describe("/billing endpoints", () => {
     mockOk({});
     await api.listExchangeRates();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url.split("?")[0]).toBe("/api/billing/exchange-rates");
   });
 
@@ -1117,7 +1117,7 @@ describe("/billing endpoints", () => {
     mockOk({});
     await api.getInvoicePrintData(UUID);
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toContain("/api/billing/invoices");
   });
 
@@ -1125,7 +1125,7 @@ describe("/billing endpoints", () => {
     mockOk({});
     await api.checkBillingThreshold(UUID);
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toContain("/api/billing/threshold-check");
   });
 
@@ -1133,7 +1133,7 @@ describe("/billing endpoints", () => {
     mockOk({});
     await api.getSchemeRate();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url.split("?")[0]).toBe("/api/billing/scheme-rate");
   });
 
@@ -1141,7 +1141,7 @@ describe("/billing endpoints", () => {
     mockOk({});
     await api.listCreditPatients();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url.split("?")[0]).toBe("/api/billing/credit-patients");
   });
 
@@ -1171,7 +1171,7 @@ describe("/billing endpoints", () => {
     mockOk({});
     await api.reportCreditAging();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toBe("/api/billing/credit-patients/aging");
   });
 
@@ -1188,7 +1188,7 @@ describe("/billing endpoints", () => {
     mockOk({});
     await api.getDualInsuranceStatus(UUID);
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toContain("/api/billing/invoices");
   });
 
@@ -1218,7 +1218,7 @@ describe("/billing endpoints", () => {
     mockOk({});
     await api.listGlAccounts();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url.split("?")[0]).toBe("/api/billing/gl-accounts");
   });
 
@@ -1248,7 +1248,7 @@ describe("/billing endpoints", () => {
     mockOk({});
     await api.listJournalEntries();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url.split("?")[0]).toBe("/api/billing/journal-entries");
   });
 
@@ -1256,7 +1256,7 @@ describe("/billing endpoints", () => {
     mockOk({});
     await api.getJournalEntry(UUID);
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toContain("/api/billing/journal-entries");
   });
 
@@ -1293,7 +1293,7 @@ describe("/billing endpoints", () => {
     mockOk({});
     await api.listBankTransactions();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url.split("?")[0]).toBe("/api/billing/bank-transactions");
   });
 
@@ -1332,7 +1332,7 @@ describe("/billing endpoints", () => {
     mockOk({});
     await api.listTdsDeductions();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url.split("?")[0]).toBe("/api/billing/tds");
   });
 
@@ -1384,7 +1384,7 @@ describe("/billing endpoints", () => {
     mockOk({});
     await api.listGstrSummaries();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toBe("/api/billing/gst-returns");
   });
 
@@ -1401,7 +1401,7 @@ describe("/billing endpoints", () => {
     mockOk({});
     await api.reportHsnSummary("test");
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url.split("?")[0]).toBe("/api/billing/reports/hsn-summary");
   });
 
@@ -1409,7 +1409,7 @@ describe("/billing endpoints", () => {
     mockOk({});
     await api.reportFinancialMis("2026-01-01", "2026-01-01");
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url.split("?")[0]).toBe("/api/billing/reports/financial-mis");
   });
 
@@ -1417,7 +1417,7 @@ describe("/billing endpoints", () => {
     mockOk({});
     await api.reportProfitLoss("2026-01-01", "2026-01-01");
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url.split("?")[0]).toBe("/api/billing/reports/profit-loss");
   });
 
@@ -1436,7 +1436,7 @@ describe("/billing endpoints", () => {
     mockOk({});
     await api.listErpExports();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toBe("/api/billing/erp/exports");
   });
 
@@ -1444,7 +1444,7 @@ describe("/billing endpoints", () => {
     mockOk({});
     await api.listBillingPackages();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toBe("/api/billing/packages");
   });
 
@@ -1476,7 +1476,7 @@ describe("/blood-bank endpoints", () => {
     mockOk({});
     await api.listBloodDonors();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url.split("?")[0]).toBe("/api/blood-bank/donors");
   });
 
@@ -1495,7 +1495,7 @@ describe("/blood-bank endpoints", () => {
     mockOk({});
     await api.getBloodDonor(UUID);
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toContain("/api/blood-bank/donors");
   });
 
@@ -1503,7 +1503,7 @@ describe("/blood-bank endpoints", () => {
     mockOk({});
     await api.listDonations(UUID);
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toContain("/api/blood-bank/donors");
   });
 
@@ -1533,7 +1533,7 @@ describe("/blood-bank endpoints", () => {
     mockOk({});
     await api.listBloodComponents();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url.split("?")[0]).toBe("/api/blood-bank/components");
   });
 
@@ -1563,7 +1563,7 @@ describe("/blood-bank endpoints", () => {
     mockOk({});
     await api.listCrossmatchRequests();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toBe("/api/blood-bank/crossmatch");
   });
 
@@ -1593,7 +1593,7 @@ describe("/blood-bank endpoints", () => {
     mockOk({});
     await api.listTransfusions();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toBe("/api/blood-bank/transfusions");
   });
 
@@ -1623,7 +1623,7 @@ describe("/blood-bank endpoints", () => {
     mockOk({});
     await api.getTtiReport();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toBe("/api/blood-bank/tti-report");
   });
 
@@ -1631,7 +1631,7 @@ describe("/blood-bank endpoints", () => {
     mockOk({});
     await api.getHemovigilanceReport();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toBe("/api/blood-bank/hemovigilance");
   });
 });
@@ -1641,7 +1641,7 @@ describe("/bme endpoints", () => {
     mockOk({});
     await api.listBmeEquipment();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url.split("?")[0]).toBe("/api/bme/equipment");
   });
 
@@ -1649,7 +1649,7 @@ describe("/bme endpoints", () => {
     mockOk({});
     await api.getBmeEquipment(UUID);
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toContain("/api/bme/equipment");
   });
 
@@ -1679,7 +1679,7 @@ describe("/bme endpoints", () => {
     mockOk({});
     await api.listBmePmSchedules();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url.split("?")[0]).toBe("/api/bme/pm-schedules");
   });
 
@@ -1709,7 +1709,7 @@ describe("/bme endpoints", () => {
     mockOk({});
     await api.listBmeWorkOrders();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url.split("?")[0]).toBe("/api/bme/work-orders");
   });
 
@@ -1717,7 +1717,7 @@ describe("/bme endpoints", () => {
     mockOk({});
     await api.getBmeWorkOrder(UUID);
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toContain("/api/bme/work-orders");
   });
 
@@ -1747,7 +1747,7 @@ describe("/bme endpoints", () => {
     mockOk({});
     await api.listBmeCalibrations();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url.split("?")[0]).toBe("/api/bme/calibrations");
   });
 
@@ -1777,7 +1777,7 @@ describe("/bme endpoints", () => {
     mockOk({});
     await api.listBmeContracts();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url.split("?")[0]).toBe("/api/bme/contracts");
   });
 
@@ -1807,7 +1807,7 @@ describe("/bme endpoints", () => {
     mockOk({});
     await api.listBmeBreakdowns();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url.split("?")[0]).toBe("/api/bme/breakdowns");
   });
 
@@ -1848,7 +1848,7 @@ describe("/bme endpoints", () => {
     mockOk({});
     await api.getBmeStats();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toBe("/api/bme/stats");
   });
 
@@ -1856,7 +1856,7 @@ describe("/bme endpoints", () => {
     mockOk({});
     await api.getBmeMtbfAnalytics();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toBe("/api/bme/analytics/mtbf");
   });
 
@@ -1864,7 +1864,7 @@ describe("/bme endpoints", () => {
     mockOk({});
     await api.getBmeUptimeAnalytics();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toBe("/api/bme/analytics/uptime");
   });
 });
@@ -1874,7 +1874,7 @@ describe("/camp endpoints", () => {
     mockOk({});
     await api.listCamps();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url.split("?")[0]).toBe("/api/camp/camps");
   });
 
@@ -1882,7 +1882,7 @@ describe("/camp endpoints", () => {
     mockOk({});
     await api.getCamp(UUID);
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toContain("/api/camp/camps");
   });
 
@@ -1950,7 +1950,7 @@ describe("/camp endpoints", () => {
     mockOk({});
     await api.listCampTeamMembers(UUID);
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toContain("/api/camp/camps");
   });
 
@@ -1978,7 +1978,7 @@ describe("/camp endpoints", () => {
     mockOk({});
     await api.getCampStats(UUID);
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toContain("/api/camp/camps");
   });
 
@@ -2024,7 +2024,7 @@ describe("/camp endpoints", () => {
     mockOk({});
     await api.listCampScreenings();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url.split("?")[0]).toBe("/api/camp/screenings");
   });
 
@@ -2043,7 +2043,7 @@ describe("/camp endpoints", () => {
     mockOk({});
     await api.listCampLabSamples();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url.split("?")[0]).toBe("/api/camp/lab-samples");
   });
 
@@ -2073,7 +2073,7 @@ describe("/camp endpoints", () => {
     mockOk({});
     await api.listCampBilling();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url.split("?")[0]).toBe("/api/camp/billing");
   });
 
@@ -2092,7 +2092,7 @@ describe("/camp endpoints", () => {
     mockOk({});
     await api.listCampFollowups();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url.split("?")[0]).toBe("/api/camp/followups");
   });
 
@@ -2122,7 +2122,7 @@ describe("/camp endpoints", () => {
     mockOk({});
     await api.campAnalytics();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toBe("/api/camp/analytics");
   });
 
@@ -2130,7 +2130,7 @@ describe("/camp endpoints", () => {
     mockOk({});
     await api.campReport(UUID);
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toContain("/api/camp/camps");
   });
 });
@@ -2140,7 +2140,7 @@ describe("/case-mgmt endpoints", () => {
     mockOk({});
     await api.listCaseAssignments();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url.split("?")[0]).toBe("/api/case-mgmt/assignments");
   });
 
@@ -2159,7 +2159,7 @@ describe("/case-mgmt endpoints", () => {
     mockOk({});
     await api.getCaseAssignment(UUID);
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toContain("/api/case-mgmt/assignments");
   });
 
@@ -2178,7 +2178,7 @@ describe("/case-mgmt endpoints", () => {
     mockOk({});
     await api.caseloadSummary();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toBe("/api/case-mgmt/caseload");
   });
 
@@ -2197,7 +2197,7 @@ describe("/case-mgmt endpoints", () => {
     mockOk({});
     await api.listDischargeBarriers();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url.split("?")[0]).toBe("/api/case-mgmt/barriers");
   });
 
@@ -2227,7 +2227,7 @@ describe("/case-mgmt endpoints", () => {
     mockOk({});
     await api.listCaseReferrals();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url.split("?")[0]).toBe("/api/case-mgmt/referrals");
   });
 
@@ -2257,7 +2257,7 @@ describe("/case-mgmt endpoints", () => {
     mockOk({});
     await api.dispositionAnalytics();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toBe("/api/case-mgmt/analytics/dispositions");
   });
 
@@ -2265,7 +2265,7 @@ describe("/case-mgmt endpoints", () => {
     mockOk({});
     await api.barrierAnalytics();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toBe("/api/case-mgmt/analytics/barriers");
   });
 
@@ -2273,7 +2273,7 @@ describe("/case-mgmt endpoints", () => {
     mockOk({});
     await api.outcomeAnalytics();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toBe("/api/case-mgmt/analytics/outcomes");
   });
 });
@@ -2294,7 +2294,7 @@ describe("/cds endpoints", () => {
     mockOk({});
     await api.listDrugInteractions();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toBe("/api/cds/drug-interactions");
   });
 
@@ -2322,7 +2322,7 @@ describe("/cds endpoints", () => {
     mockOk({});
     await api.listCriticalValueRules();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toBe("/api/cds/critical-value-rules");
   });
 
@@ -2350,7 +2350,7 @@ describe("/cds endpoints", () => {
     mockOk({});
     await api.listClinicalProtocols();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toBe("/api/cds/protocols");
   });
 
@@ -2378,7 +2378,7 @@ describe("/cds endpoints", () => {
     mockOk({});
     await api.listRestrictedDrugApprovals();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toBe("/api/cds/restricted-drug-approvals");
   });
 
@@ -2408,7 +2408,7 @@ describe("/cds endpoints", () => {
     mockOk({});
     await api.listPreAuthRequests(UUID);
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url.split("?")[0]).toBe("/api/cds/pre-auth-requests");
   });
 
@@ -2438,7 +2438,7 @@ describe("/cds endpoints", () => {
     mockOk({});
     await api.listPgLogbook();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url.split("?")[0]).toBe("/api/cds/pg-logbook");
   });
 
@@ -2466,7 +2466,7 @@ describe("/cds endpoints", () => {
     mockOk({});
     await api.listCoSignatures();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toBe("/api/cds/co-signatures");
   });
 
@@ -2498,7 +2498,7 @@ describe("/command-center endpoints", () => {
     mockOk({});
     await api.getPatientFlow();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toBe("/api/command-center/patient-flow");
   });
 
@@ -2506,7 +2506,7 @@ describe("/command-center endpoints", () => {
     mockOk({});
     await api.getHourlyFlow();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toBe("/api/command-center/patient-flow/hourly");
   });
 
@@ -2514,7 +2514,7 @@ describe("/command-center endpoints", () => {
     mockOk({});
     await api.getBottlenecks();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toBe("/api/command-center/bottlenecks");
   });
 
@@ -2522,7 +2522,7 @@ describe("/command-center endpoints", () => {
     mockOk({});
     await api.getDepartmentLoad();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toBe("/api/command-center/department-load");
   });
 
@@ -2530,7 +2530,7 @@ describe("/command-center endpoints", () => {
     mockOk({});
     await api.getActiveAlerts();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toBe("/api/command-center/alerts");
   });
 
@@ -2547,7 +2547,7 @@ describe("/command-center endpoints", () => {
     mockOk({});
     await api.listAlertThresholds();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toBe("/api/command-center/alert-thresholds");
   });
 
@@ -2577,7 +2577,7 @@ describe("/command-center endpoints", () => {
     mockOk({});
     await api.listPendingDischarges();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toBe("/api/command-center/pending-discharges");
   });
 
@@ -2585,7 +2585,7 @@ describe("/command-center endpoints", () => {
     mockOk({});
     await api.getDischargeBlockers(UUID);
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toContain("/api/command-center/discharge-blockers");
   });
 
@@ -2593,7 +2593,7 @@ describe("/command-center endpoints", () => {
     mockOk({});
     await api.getBedTurnaround();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toBe("/api/command-center/bed-turnaround");
   });
 
@@ -2601,7 +2601,7 @@ describe("/command-center endpoints", () => {
     mockOk({});
     await api.getTurnaroundStats();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toBe("/api/command-center/bed-turnaround/stats");
   });
 
@@ -2609,7 +2609,7 @@ describe("/command-center endpoints", () => {
     mockOk({});
     await api.listTransportRequests();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toBe("/api/command-center/transport");
   });
 
@@ -2659,7 +2659,7 @@ describe("/command-center endpoints", () => {
     mockOk({});
     await api.getKpis();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toBe("/api/command-center/kpis");
   });
 
@@ -2667,7 +2667,7 @@ describe("/command-center endpoints", () => {
     mockOk({});
     await api.getKpiDetail("test");
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toContain("/api/command-center/kpis");
   });
 });
@@ -2677,7 +2677,7 @@ describe("/consent endpoints", () => {
     mockOk({});
     await api.listConsentTemplates();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url.split("?")[0]).toBe("/api/consent/templates");
   });
 
@@ -2685,7 +2685,7 @@ describe("/consent endpoints", () => {
     mockOk({});
     await api.getConsentTemplate(UUID);
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toContain("/api/consent/templates");
   });
 
@@ -2724,7 +2724,7 @@ describe("/consent endpoints", () => {
     mockOk({});
     await api.listConsentAudit();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url.split("?")[0]).toBe("/api/consent/audit");
   });
 
@@ -2732,7 +2732,7 @@ describe("/consent endpoints", () => {
     mockOk({});
     await api.listPatientConsentAudit(UUID);
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toContain("/api/consent/audit/patient");
   });
 
@@ -2751,7 +2751,7 @@ describe("/consent endpoints", () => {
     mockOk({});
     await api.getPatientConsentSummary(UUID);
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toContain("/api/consent/verify/patient");
   });
 
@@ -2770,7 +2770,7 @@ describe("/consent endpoints", () => {
     mockOk({});
     await api.listConsentSignatures();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url.split("?")[0]).toBe("/api/consent/signatures");
   });
 
@@ -2778,7 +2778,7 @@ describe("/consent endpoints", () => {
     mockOk({});
     await api.getConsentSignature(UUID);
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toContain("/api/consent/signatures");
   });
 
@@ -2808,7 +2808,7 @@ describe("/cssd endpoints", () => {
     mockOk({});
     await api.listCssdInstruments();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toBe("/api/cssd/instruments");
   });
 
@@ -2838,7 +2838,7 @@ describe("/cssd endpoints", () => {
     mockOk({});
     await api.listCssdSets();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toBe("/api/cssd/sets");
   });
 
@@ -2857,7 +2857,7 @@ describe("/cssd endpoints", () => {
     mockOk({});
     await api.getCssdSetItems(UUID);
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toContain("/api/cssd/sets");
   });
 
@@ -2865,7 +2865,7 @@ describe("/cssd endpoints", () => {
     mockOk({});
     await api.listCssdSterilizers();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toBe("/api/cssd/sterilizers");
   });
 
@@ -2895,7 +2895,7 @@ describe("/cssd endpoints", () => {
     mockOk({});
     await api.listCssdMaintenanceLogs(UUID);
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toContain("/api/cssd/sterilizers");
   });
 
@@ -2914,7 +2914,7 @@ describe("/cssd endpoints", () => {
     mockOk({});
     await api.listCssdLoads();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toBe("/api/cssd/loads");
   });
 
@@ -2955,7 +2955,7 @@ describe("/cssd endpoints", () => {
     mockOk({});
     await api.listCssdIndicators(UUID);
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toContain("/api/cssd/loads");
   });
 
@@ -2974,7 +2974,7 @@ describe("/cssd endpoints", () => {
     mockOk({});
     await api.listCssdIssuances();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toBe("/api/cssd/issuances");
   });
 
@@ -3017,7 +3017,7 @@ describe("/dashboard endpoints", () => {
     mockOk({});
     await api.getDashboardStats();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toBe("/api/dashboard/summary");
   });
 
@@ -3025,7 +3025,7 @@ describe("/dashboard endpoints", () => {
     mockOk({});
     await api.getWidgetData(UUID);
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toContain("/api/dashboard/widget-data");
   });
 
@@ -3046,7 +3046,7 @@ describe("/dashboards endpoints", () => {
     mockOk({});
     await api.listDashboards();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toBe("/api/dashboards");
   });
 
@@ -3054,7 +3054,7 @@ describe("/dashboards endpoints", () => {
     mockOk({});
     await api.getMyDashboard();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toBe("/api/dashboards/my");
   });
 
@@ -3062,7 +3062,7 @@ describe("/dashboards endpoints", () => {
     mockOk({});
     await api.getDashboard(UUID);
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toContain("/api/dashboards");
   });
 
@@ -3083,7 +3083,7 @@ describe("/diet endpoints", () => {
     mockOk({});
     await api.listDietTemplates();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toBe("/api/diet/templates");
   });
 
@@ -3113,7 +3113,7 @@ describe("/diet endpoints", () => {
     mockOk({});
     await api.listDietOrders();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toBe("/api/diet/orders");
   });
 
@@ -3143,7 +3143,7 @@ describe("/diet endpoints", () => {
     mockOk({});
     await api.listKitchenMenus();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toBe("/api/diet/menus");
   });
 
@@ -3162,7 +3162,7 @@ describe("/diet endpoints", () => {
     mockOk({});
     await api.listKitchenMenuItems(UUID);
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toContain("/api/diet/menus");
   });
 
@@ -3181,7 +3181,7 @@ describe("/diet endpoints", () => {
     mockOk({});
     await api.listMealPreps();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toBe("/api/diet/meal-preps");
   });
 
@@ -3211,7 +3211,7 @@ describe("/diet endpoints", () => {
     mockOk({});
     await api.listMealCounts();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toBe("/api/diet/meal-counts");
   });
 
@@ -3230,7 +3230,7 @@ describe("/diet endpoints", () => {
     mockOk({});
     await api.listKitchenInventory();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toBe("/api/diet/inventory");
   });
 
@@ -3260,7 +3260,7 @@ describe("/diet endpoints", () => {
     mockOk({});
     await api.listKitchenAudits();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toBe("/api/diet/audits");
   });
 
@@ -3297,7 +3297,7 @@ describe("/emergency endpoints", () => {
     mockOk({});
     await api.getErVisit(UUID);
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toContain("/api/emergency/visits");
   });
 
@@ -3327,7 +3327,7 @@ describe("/emergency endpoints", () => {
     mockOk({});
     await api.listTriageAssessments(UUID);
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toContain("/api/emergency/visits");
   });
 
@@ -3346,7 +3346,7 @@ describe("/emergency endpoints", () => {
     mockOk({});
     await api.listResuscitationLogs(UUID);
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toContain("/api/emergency/visits");
   });
 
@@ -3365,7 +3365,7 @@ describe("/emergency endpoints", () => {
     mockOk({});
     await api.listCodeActivations();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toBe("/api/emergency/codes");
   });
 
@@ -3395,7 +3395,7 @@ describe("/emergency endpoints", () => {
     mockOk({});
     await api.listMlcCases();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toBe("/api/emergency/mlc");
   });
 
@@ -3425,7 +3425,7 @@ describe("/emergency endpoints", () => {
     mockOk({});
     await api.listMlcDocuments(UUID);
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toContain("/api/emergency/mlc");
   });
 
@@ -3444,7 +3444,7 @@ describe("/emergency endpoints", () => {
     mockOk({});
     await api.listPoliceIntimations(UUID);
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toContain("/api/emergency/mlc");
   });
 
@@ -3472,7 +3472,7 @@ describe("/emergency endpoints", () => {
     mockOk({});
     await api.listMassCasualtyEvents();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toBe("/api/emergency/mass-casualty");
   });
 
@@ -3515,7 +3515,7 @@ describe("/facilities endpoints", () => {
     mockOk({});
     await api.listFmsGasReadings();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url.split("?")[0]).toBe("/api/facilities/gas-readings");
   });
 
@@ -3534,7 +3534,7 @@ describe("/facilities endpoints", () => {
     mockOk({});
     await api.listFmsGasCompliance();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toBe("/api/facilities/gas-compliance");
   });
 
@@ -3564,7 +3564,7 @@ describe("/facilities endpoints", () => {
     mockOk({});
     await api.listFmsFireEquipment();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url.split("?")[0]).toBe("/api/facilities/fire-equipment");
   });
 
@@ -3605,7 +3605,7 @@ describe("/facilities endpoints", () => {
     mockOk({});
     await api.listFmsFireDrills();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toBe("/api/facilities/fire-drills");
   });
 
@@ -3624,7 +3624,7 @@ describe("/facilities endpoints", () => {
     mockOk({});
     await api.listFmsFireNoc();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toBe("/api/facilities/fire-noc");
   });
 
@@ -3654,7 +3654,7 @@ describe("/facilities endpoints", () => {
     mockOk({});
     await api.listFmsWaterTests();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url.split("?")[0]).toBe("/api/facilities/water-tests");
   });
 
@@ -3673,7 +3673,7 @@ describe("/facilities endpoints", () => {
     mockOk({});
     await api.listFmsWaterSchedules();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toBe("/api/facilities/water-schedules");
   });
 
@@ -3703,7 +3703,7 @@ describe("/facilities endpoints", () => {
     mockOk({});
     await api.listFmsEnergyReadings();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url.split("?")[0]).toBe("/api/facilities/energy-readings");
   });
 
@@ -3722,7 +3722,7 @@ describe("/facilities endpoints", () => {
     mockOk({});
     await api.listFmsWorkOrders();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url.split("?")[0]).toBe("/api/facilities/work-orders");
   });
 
@@ -3730,7 +3730,7 @@ describe("/facilities endpoints", () => {
     mockOk({});
     await api.getFmsWorkOrder(UUID);
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toContain("/api/facilities/work-orders");
   });
 
@@ -3760,7 +3760,7 @@ describe("/facilities endpoints", () => {
     mockOk({});
     await api.getFmsStats();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toBe("/api/facilities/stats");
   });
 
@@ -3779,7 +3779,7 @@ describe("/facilities endpoints", () => {
     mockOk({});
     await api.energyAnalytics();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url.split("?")[0]).toBe("/api/facilities/energy/analytics");
   });
 });
@@ -3789,7 +3789,7 @@ describe("/front-office endpoints", () => {
     mockOk({});
     await api.listVisitingHours();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toBe("/api/front-office/visiting-hours");
   });
 
@@ -3859,7 +3859,7 @@ describe("/front-office endpoints", () => {
     mockOk({});
     await api.listQueuePriorityRules();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toBe("/api/front-office/queue-priority");
   });
 
@@ -3878,7 +3878,7 @@ describe("/front-office endpoints", () => {
     mockOk({});
     await api.listQueueDisplayConfig();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toBe("/api/front-office/display-config");
   });
 
@@ -3917,7 +3917,7 @@ describe("/front-office endpoints", () => {
     mockOk({});
     await api.visitorAnalytics();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url.split("?")[0]).toBe("/api/front-office/analytics");
   });
 
@@ -3925,7 +3925,7 @@ describe("/front-office endpoints", () => {
     mockOk({});
     await api.queueMetrics();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toBe("/api/front-office/queue/metrics");
   });
 });
@@ -3935,7 +3935,7 @@ describe("/geo endpoints", () => {
     mockOk({});
     await api.geoCountries();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toBe("/api/geo/countries");
   });
 
@@ -3943,7 +3943,7 @@ describe("/geo endpoints", () => {
     mockOk({});
     await api.geoStates(UUID);
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toContain("/api/geo/countries");
   });
 
@@ -3951,7 +3951,7 @@ describe("/geo endpoints", () => {
     mockOk({});
     await api.geoDistricts(UUID);
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toContain("/api/geo/states");
   });
 
@@ -3959,7 +3959,7 @@ describe("/geo endpoints", () => {
     mockOk({});
     await api.geoSubdistricts(UUID);
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toContain("/api/geo/districts");
   });
 
@@ -3967,7 +3967,7 @@ describe("/geo endpoints", () => {
     mockOk({});
     await api.geoTowns(UUID);
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toContain("/api/geo/subdistricts");
   });
 
@@ -3975,7 +3975,7 @@ describe("/geo endpoints", () => {
     mockOk({});
     await api.searchPincode("test");
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toContain("/api/geo/pincode");
   });
 
@@ -3983,7 +3983,7 @@ describe("/geo endpoints", () => {
     mockOk({});
     await api.geoRegulators();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toBe("/api/geo/regulators");
   });
 
@@ -3991,7 +3991,7 @@ describe("/geo endpoints", () => {
     mockOk({});
     await api.geoAutoDetectRegulators({ country_id: UUID });
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url.split("?")[0]).toBe("/api/geo/regulators/auto-detect");
   });
 });
@@ -4001,7 +4001,7 @@ describe("/health endpoints", () => {
     mockOk({});
     await api.health();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toBe("/api/health");
   });
 });
@@ -4011,7 +4011,7 @@ describe("/housekeeping endpoints", () => {
     mockOk({});
     await api.listCleaningSchedules("test");
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url.split("?")[0]).toBe("/api/housekeeping/schedules");
   });
 
@@ -4041,7 +4041,7 @@ describe("/housekeeping endpoints", () => {
     mockOk({});
     await api.listCleaningTasks();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url.split("?")[0]).toBe("/api/housekeeping/tasks");
   });
 
@@ -4080,7 +4080,7 @@ describe("/housekeeping endpoints", () => {
     mockOk({});
     await api.listTurnarounds();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url.split("?")[0]).toBe("/api/housekeeping/turnarounds");
   });
 
@@ -4108,7 +4108,7 @@ describe("/housekeeping endpoints", () => {
     mockOk({});
     await api.listPestControlSchedules();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toBe("/api/housekeeping/pest-control");
   });
 
@@ -4138,7 +4138,7 @@ describe("/housekeeping endpoints", () => {
     mockOk({});
     await api.listPestControlLogs();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toBe("/api/housekeeping/pest-control-logs");
   });
 
@@ -4157,7 +4157,7 @@ describe("/housekeeping endpoints", () => {
     mockOk({});
     await api.listLinenItems();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url.split("?")[0]).toBe("/api/housekeeping/linen");
   });
 
@@ -4187,7 +4187,7 @@ describe("/housekeeping endpoints", () => {
     mockOk({});
     await api.listLinenMovements();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toBe("/api/housekeeping/linen-movements");
   });
 
@@ -4206,7 +4206,7 @@ describe("/housekeeping endpoints", () => {
     mockOk({});
     await api.listLaundryBatches();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toBe("/api/housekeeping/laundry-batches");
   });
 
@@ -4234,7 +4234,7 @@ describe("/housekeeping endpoints", () => {
     mockOk({});
     await api.listParLevels();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toBe("/api/housekeeping/par-levels");
   });
 
@@ -4253,7 +4253,7 @@ describe("/housekeeping endpoints", () => {
     mockOk({});
     await api.listLinenCondemnations();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toBe("/api/housekeeping/condemnations");
   });
 
@@ -4272,7 +4272,7 @@ describe("/housekeeping endpoints", () => {
     mockOk({});
     await api.getBmwSchedule();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url.split("?")[0]).toBe("/api/housekeeping/bmw/schedule");
   });
 
@@ -4293,7 +4293,7 @@ describe("/hr endpoints", () => {
     mockOk({});
     await api.listDesignations();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toBe("/api/hr/designations");
   });
 
@@ -4323,7 +4323,7 @@ describe("/hr endpoints", () => {
     mockOk({});
     await api.listEmployees();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url.split("?")[0]).toBe("/api/hr/employees");
   });
 
@@ -4331,7 +4331,7 @@ describe("/hr endpoints", () => {
     mockOk({});
     await api.getEmployee(UUID);
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toContain("/api/hr/employees");
   });
 
@@ -4361,7 +4361,7 @@ describe("/hr endpoints", () => {
     mockOk({});
     await api.listCredentials(UUID);
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toContain("/api/hr/employees");
   });
 
@@ -4391,7 +4391,7 @@ describe("/hr endpoints", () => {
     mockOk({});
     await api.listShifts();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toBe("/api/hr/shifts");
   });
 
@@ -4421,7 +4421,7 @@ describe("/hr endpoints", () => {
     mockOk({});
     await api.listRosters();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url.split("?")[0]).toBe("/api/hr/rosters");
   });
 
@@ -4449,7 +4449,7 @@ describe("/hr endpoints", () => {
     mockOk({});
     await api.listAttendance();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url.split("?")[0]).toBe("/api/hr/attendance");
   });
 
@@ -4468,7 +4468,7 @@ describe("/hr endpoints", () => {
     mockOk({});
     await api.listLeaveBalances(UUID);
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toContain("/api/hr/employees");
   });
 
@@ -4476,7 +4476,7 @@ describe("/hr endpoints", () => {
     mockOk({});
     await api.listLeaveRequests();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url.split("?")[0]).toBe("/api/hr/leaves");
   });
 
@@ -4515,7 +4515,7 @@ describe("/hr endpoints", () => {
     mockOk({});
     await api.listOnCall();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url.split("?")[0]).toBe("/api/hr/on-call");
   });
 
@@ -4534,7 +4534,7 @@ describe("/hr endpoints", () => {
     mockOk({});
     await api.listTrainingPrograms();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toBe("/api/hr/training-programs");
   });
 
@@ -4553,7 +4553,7 @@ describe("/hr endpoints", () => {
     mockOk({});
     await api.listTrainingRecords(UUID);
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toContain("/api/hr/employees");
   });
 
@@ -4572,7 +4572,7 @@ describe("/hr endpoints", () => {
     mockOk({});
     await api.listAppraisals(UUID);
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toContain("/api/hr/employees");
   });
 
@@ -4591,7 +4591,7 @@ describe("/hr endpoints", () => {
     mockOk({});
     await api.listStatutoryRecords(UUID);
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toContain("/api/hr/employees");
   });
 
@@ -4610,7 +4610,7 @@ describe("/hr endpoints", () => {
     mockOk({});
     await api.trainingCompliance();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toBe("/api/hr/training/compliance");
   });
 });
@@ -4620,7 +4620,7 @@ describe("/icu endpoints", () => {
     mockOk({});
     await api.listIcuFlowsheets(UUID);
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toContain("/api/icu/admissions");
   });
 
@@ -4639,7 +4639,7 @@ describe("/icu endpoints", () => {
     mockOk({});
     await api.listIcuVentilatorRecords(UUID);
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toContain("/api/icu/admissions");
   });
 
@@ -4658,7 +4658,7 @@ describe("/icu endpoints", () => {
     mockOk({});
     await api.listIcuScores(UUID);
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toContain("/api/icu/admissions");
   });
 
@@ -4677,7 +4677,7 @@ describe("/icu endpoints", () => {
     mockOk({});
     await api.listIcuDevices(UUID);
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toContain("/api/icu/admissions");
   });
 
@@ -4705,7 +4705,7 @@ describe("/icu endpoints", () => {
     mockOk({});
     await api.listIcuBundleChecks(UUID, UUID);
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toContain("/api/icu/admissions");
   });
 
@@ -4724,7 +4724,7 @@ describe("/icu endpoints", () => {
     mockOk({});
     await api.listIcuNutrition(UUID);
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toContain("/api/icu/admissions");
   });
 
@@ -4743,7 +4743,7 @@ describe("/icu endpoints", () => {
     mockOk({});
     await api.listIcuNeonatalRecords(UUID);
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toContain("/api/icu/admissions");
   });
 
@@ -4762,7 +4762,7 @@ describe("/icu endpoints", () => {
     mockOk({});
     await api.getIcuLosAnalytics();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toBe("/api/icu/analytics/los");
   });
 
@@ -4770,7 +4770,7 @@ describe("/icu endpoints", () => {
     mockOk({});
     await api.getIcuDeviceInfectionRates();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toBe("/api/icu/analytics/device-infections");
   });
 });
@@ -4780,7 +4780,7 @@ describe("/indent endpoints", () => {
     mockOk({});
     await api.listIndentRequisitions();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url.split("?")[0]).toBe("/api/indent/requisitions");
   });
 
@@ -4799,7 +4799,7 @@ describe("/indent endpoints", () => {
     mockOk({});
     await api.getIndentRequisition(UUID);
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toContain("/api/indent/requisitions");
   });
 
@@ -4856,7 +4856,7 @@ describe("/indent endpoints", () => {
     mockOk({});
     await api.listStoreCatalog();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url.split("?")[0]).toBe("/api/indent/catalog");
   });
 
@@ -4886,7 +4886,7 @@ describe("/indent endpoints", () => {
     mockOk({});
     await api.listStoreStockMovements();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url.split("?")[0]).toBe("/api/indent/stock/movements");
   });
 
@@ -4905,7 +4905,7 @@ describe("/indent endpoints", () => {
     mockOk({});
     await api.getConsumptionAnalysis();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url.split("?")[0]).toBe("/api/indent/analytics/consumption");
   });
 
@@ -4913,7 +4913,7 @@ describe("/indent endpoints", () => {
     mockOk({});
     await api.getDeadStockReport();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url.split("?")[0]).toBe("/api/indent/analytics/dead-stock");
   });
 
@@ -4921,7 +4921,7 @@ describe("/indent endpoints", () => {
     mockOk({});
     await api.getPurchaseConsumptionTrend();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url.split("?")[0]).toBe("/api/indent/analytics/purchase-vs-consumption");
   });
 
@@ -4929,7 +4929,7 @@ describe("/indent endpoints", () => {
     mockOk({});
     await api.getInventoryValuation();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toBe("/api/indent/analytics/valuation");
   });
 
@@ -4937,7 +4937,7 @@ describe("/indent endpoints", () => {
     mockOk({});
     await api.getComplianceReport();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toBe("/api/indent/analytics/compliance");
   });
 
@@ -4945,7 +4945,7 @@ describe("/indent endpoints", () => {
     mockOk({});
     await api.getFsnAnalysis();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url.split("?")[0]).toBe("/api/indent/analytics/fsn");
   });
 
@@ -4953,7 +4953,7 @@ describe("/indent endpoints", () => {
     mockOk({});
     await api.getAbcAnalysis();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toBe("/api/indent/analytics/abc");
   });
 
@@ -4961,7 +4961,7 @@ describe("/indent endpoints", () => {
     mockOk({});
     await api.getVedAnalysis();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toBe("/api/indent/analytics/ved");
   });
 
@@ -4991,7 +4991,7 @@ describe("/indent endpoints", () => {
     mockOk({});
     await api.listPatientConsumables();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url.split("?")[0]).toBe("/api/indent/patient-consumables");
   });
 
@@ -5010,7 +5010,7 @@ describe("/indent endpoints", () => {
     mockOk({});
     await api.listConsignmentStock();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toBe("/api/indent/consignment-stock");
   });
 
@@ -5029,7 +5029,7 @@ describe("/indent endpoints", () => {
     mockOk({});
     await api.listImplantRegistry();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url.split("?")[0]).toBe("/api/indent/implant-registry");
   });
 
@@ -5059,7 +5059,7 @@ describe("/indent endpoints", () => {
     mockOk({});
     await api.listCondemnations();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url.split("?")[0]).toBe("/api/indent/condemnations");
   });
 
@@ -5098,7 +5098,7 @@ describe("/indent endpoints", () => {
     mockOk({});
     await api.listReorderAlerts();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toBe("/api/indent/reorder-alerts");
   });
 
@@ -5117,7 +5117,7 @@ describe("/infection-control endpoints", () => {
     mockOk({});
     await api.listSurveillanceEvents();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url.split("?")[0]).toBe("/api/infection-control/surveillance");
   });
 
@@ -5136,7 +5136,7 @@ describe("/infection-control endpoints", () => {
     mockOk({});
     await api.listDeviceDays();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url.split("?")[0]).toBe("/api/infection-control/device-days");
   });
 
@@ -5155,7 +5155,7 @@ describe("/infection-control endpoints", () => {
     mockOk({});
     await api.listStewardshipRequests();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url.split("?")[0]).toBe("/api/infection-control/stewardship");
   });
 
@@ -5185,7 +5185,7 @@ describe("/infection-control endpoints", () => {
     mockOk({});
     await api.listConsumptionRecords();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url.split("?")[0]).toBe("/api/infection-control/consumption");
   });
 
@@ -5204,7 +5204,7 @@ describe("/infection-control endpoints", () => {
     mockOk({});
     await api.listBiowasteRecords();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url.split("?")[0]).toBe("/api/infection-control/biowaste");
   });
 
@@ -5223,7 +5223,7 @@ describe("/infection-control endpoints", () => {
     mockOk({});
     await api.listNeedleStickIncidents();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url.split("?")[0]).toBe("/api/infection-control/needle-stick");
   });
 
@@ -5242,7 +5242,7 @@ describe("/infection-control endpoints", () => {
     mockOk({});
     await api.listHygieneAudits();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url.split("?")[0]).toBe("/api/infection-control/hygiene-audits");
   });
 
@@ -5261,7 +5261,7 @@ describe("/infection-control endpoints", () => {
     mockOk({});
     await api.listCultureSurveillance();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url.split("?")[0]).toBe("/api/infection-control/cultures");
   });
 
@@ -5280,7 +5280,7 @@ describe("/infection-control endpoints", () => {
     mockOk({});
     await api.listOutbreaks();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url.split("?")[0]).toBe("/api/infection-control/outbreaks");
   });
 
@@ -5310,7 +5310,7 @@ describe("/infection-control endpoints", () => {
     mockOk({});
     await api.listOutbreakContacts(UUID);
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toContain("/api/infection-control/outbreaks");
   });
 
@@ -5329,7 +5329,7 @@ describe("/infection-control endpoints", () => {
     mockOk({});
     await api.icHaiRates();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url.split("?")[0]).toBe("/api/infection-control/analytics/hai-rates");
   });
 
@@ -5337,7 +5337,7 @@ describe("/infection-control endpoints", () => {
     mockOk({});
     await api.icDeviceUtilization();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url.split("?")[0]).toBe("/api/infection-control/analytics/device-utilization");
   });
 
@@ -5345,7 +5345,7 @@ describe("/infection-control endpoints", () => {
     mockOk({});
     await api.icAntimicrobialConsumption();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url.split("?")[0]).toBe("/api/infection-control/analytics/antimicrobial-consumption");
   });
 
@@ -5353,7 +5353,7 @@ describe("/infection-control endpoints", () => {
     mockOk({});
     await api.icSurgicalProphylaxis();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url.split("?")[0]).toBe("/api/infection-control/analytics/surgical-prophylaxis");
   });
 
@@ -5361,7 +5361,7 @@ describe("/infection-control endpoints", () => {
     mockOk({});
     await api.icCultureSensitivityReport();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url.split("?")[0]).toBe("/api/infection-control/reports/culture-sensitivity");
   });
 
@@ -5369,7 +5369,7 @@ describe("/infection-control endpoints", () => {
     mockOk({});
     await api.icMdroTracking();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url.split("?")[0]).toBe("/api/infection-control/analytics/mdro");
   });
 
@@ -5388,7 +5388,7 @@ describe("/infection-control endpoints", () => {
     mockOk({});
     await api.listIcMeetings();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toBe("/api/infection-control/meetings");
   });
 
@@ -5407,7 +5407,7 @@ describe("/infection-control endpoints", () => {
     mockOk({});
     await api.icMonthlySurveillance();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url.split("?")[0]).toBe("/api/infection-control/reports/monthly");
   });
 
@@ -5428,7 +5428,7 @@ describe("/integration endpoints", () => {
     mockOk({});
     await api.listPipelines();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url.split("?")[0]).toBe("/api/integration/pipelines");
   });
 
@@ -5447,7 +5447,7 @@ describe("/integration endpoints", () => {
     mockOk({});
     await api.getPipeline(UUID);
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toContain("/api/integration/pipelines");
   });
 
@@ -5497,7 +5497,7 @@ describe("/integration endpoints", () => {
     mockOk({});
     await api.listPipelineExecutions(UUID);
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toContain("/api/integration/pipelines");
   });
 
@@ -5505,7 +5505,7 @@ describe("/integration endpoints", () => {
     mockOk({});
     await api.getExecution(UUID);
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toContain("/api/integration/executions");
   });
 
@@ -5513,7 +5513,7 @@ describe("/integration endpoints", () => {
     mockOk({});
     await api.listNodeTemplates();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toBe("/api/integration/node-templates");
   });
 
@@ -5534,7 +5534,7 @@ describe("/ipd endpoints", () => {
     mockOk({});
     await api.listAvailableBeds();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url.split("?")[0]).toBe("/api/ipd/beds/available");
   });
 
@@ -5542,7 +5542,7 @@ describe("/ipd endpoints", () => {
     mockOk({});
     await api.listAdmissions();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url.split("?")[0]).toBe("/api/ipd/admissions");
   });
 
@@ -5561,7 +5561,7 @@ describe("/ipd endpoints", () => {
     mockOk({});
     await api.getAdmission(UUID);
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toContain("/api/ipd/admissions");
   });
 
@@ -5602,7 +5602,7 @@ describe("/ipd endpoints", () => {
     mockOk({});
     await api.listNursingTasks(UUID);
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toContain("/api/ipd/admissions");
   });
 
@@ -5632,7 +5632,7 @@ describe("/ipd endpoints", () => {
     mockOk({});
     await api.listAssessments(UUID);
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toContain("/api/ipd/admissions");
   });
 
@@ -5651,7 +5651,7 @@ describe("/ipd endpoints", () => {
     mockOk({});
     await api.listMar(UUID);
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toContain("/api/ipd/admissions");
   });
 
@@ -5681,7 +5681,7 @@ describe("/ipd endpoints", () => {
     mockOk({});
     await api.listIntakeOutput(UUID);
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toContain("/api/ipd/admissions");
   });
 
@@ -5700,7 +5700,7 @@ describe("/ipd endpoints", () => {
     mockOk({});
     await api.getIoBalance(UUID);
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toContain("/api/ipd/admissions");
   });
 
@@ -5708,7 +5708,7 @@ describe("/ipd endpoints", () => {
     mockOk({});
     await api.listNursingAssessments(UUID);
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toContain("/api/ipd/admissions");
   });
 
@@ -5738,7 +5738,7 @@ describe("/ipd endpoints", () => {
     mockOk({});
     await api.listCarePlans(UUID);
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toContain("/api/ipd/admissions");
   });
 
@@ -5768,7 +5768,7 @@ describe("/ipd endpoints", () => {
     mockOk({});
     await api.listHandovers(UUID);
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toContain("/api/ipd/admissions");
   });
 
@@ -5796,7 +5796,7 @@ describe("/ipd endpoints", () => {
     mockOk({});
     await api.listDischargeChecklist(UUID);
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toContain("/api/ipd/admissions");
   });
 
@@ -5824,7 +5824,7 @@ describe("/ipd endpoints", () => {
     mockOk({});
     await api.listWards();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toBe("/api/ipd/wards");
   });
 
@@ -5832,7 +5832,7 @@ describe("/ipd endpoints", () => {
     mockOk({});
     await api.getWard(UUID);
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toContain("/api/ipd/wards");
   });
 
@@ -5862,7 +5862,7 @@ describe("/ipd endpoints", () => {
     mockOk({});
     await api.listWardBeds(UUID);
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toContain("/api/ipd/wards");
   });
 
@@ -5890,7 +5890,7 @@ describe("/ipd endpoints", () => {
     mockOk({});
     await api.bedDashboardSummary();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toBe("/api/ipd/bed-dashboard");
   });
 
@@ -5898,7 +5898,7 @@ describe("/ipd endpoints", () => {
     mockOk({});
     await api.bedDashboardBeds();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url.split("?")[0]).toBe("/api/ipd/bed-dashboard/beds");
   });
 
@@ -5917,7 +5917,7 @@ describe("/ipd endpoints", () => {
     mockOk({});
     await api.listAttenders(UUID);
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toContain("/api/ipd/admissions");
   });
 
@@ -5945,7 +5945,7 @@ describe("/ipd endpoints", () => {
     mockOk({});
     await api.listDischargeTemplates();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toBe("/api/ipd/discharge-templates");
   });
 
@@ -5964,7 +5964,7 @@ describe("/ipd endpoints", () => {
     mockOk({});
     await api.getDischargeSummary(UUID);
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toContain("/api/ipd/admissions");
   });
 
@@ -6003,7 +6003,7 @@ describe("/ipd endpoints", () => {
     mockOk({});
     await api.reportCensus();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toBe("/api/ipd/reports/census");
   });
 
@@ -6011,7 +6011,7 @@ describe("/ipd endpoints", () => {
     mockOk({});
     await api.reportOccupancy();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url.split("?")[0]).toBe("/api/ipd/reports/occupancy");
   });
 
@@ -6019,7 +6019,7 @@ describe("/ipd endpoints", () => {
     mockOk({});
     await api.reportAlos();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url.split("?")[0]).toBe("/api/ipd/reports/alos");
   });
 
@@ -6027,7 +6027,7 @@ describe("/ipd endpoints", () => {
     mockOk({});
     await api.reportDischargeStats();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url.split("?")[0]).toBe("/api/ipd/reports/discharge-stats");
   });
 
@@ -6055,7 +6055,7 @@ describe("/ipd endpoints", () => {
     mockOk({});
     await api.expectedDischarges();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url.split("?")[0]).toBe("/api/ipd/discharges/expected");
   });
 });
@@ -6065,7 +6065,7 @@ describe("/lab endpoints", () => {
     mockOk({});
     await api.listLabOrders();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url.split("?")[0]).toBe("/api/lab/orders");
   });
 
@@ -6084,7 +6084,7 @@ describe("/lab endpoints", () => {
     mockOk({});
     await api.getLabOrder(UUID);
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toContain("/api/lab/orders");
   });
 
@@ -6148,7 +6148,7 @@ describe("/lab endpoints", () => {
     mockOk({});
     await api.listLabResults(UUID);
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toContain("/api/lab/orders");
   });
 
@@ -6156,7 +6156,7 @@ describe("/lab endpoints", () => {
     mockOk({});
     await api.listLabCatalog();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url.split("?")[0]).toBe("/api/lab/catalog");
   });
 
@@ -6186,7 +6186,7 @@ describe("/lab endpoints", () => {
     mockOk({});
     await api.listLabPanels();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toBe("/api/lab/panels");
   });
 
@@ -6194,7 +6194,7 @@ describe("/lab endpoints", () => {
     mockOk({});
     await api.getLabPanel(UUID);
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toContain("/api/lab/panels");
   });
 
@@ -6255,7 +6255,7 @@ describe("/lab endpoints", () => {
     mockOk({});
     await api.listLabAmendments(UUID);
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toContain("/api/lab/orders");
   });
 
@@ -6263,7 +6263,7 @@ describe("/lab endpoints", () => {
     mockOk({});
     await api.listCriticalAlerts();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url.split("?")[0]).toBe("/api/lab/critical-alerts");
   });
 
@@ -6300,7 +6300,7 @@ describe("/lab endpoints", () => {
     mockOk({});
     await api.getLabCumulativeReport(UUID, UUID);
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toContain("/api/lab/patients");
   });
 
@@ -6308,7 +6308,7 @@ describe("/lab endpoints", () => {
     mockOk({});
     await api.getLabTatMonitoring();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url.split("?")[0]).toBe("/api/lab/tat-monitoring");
   });
 
@@ -6316,7 +6316,7 @@ describe("/lab endpoints", () => {
     mockOk({});
     await api.listReagentLots();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url.split("?")[0]).toBe("/api/lab/reagent-lots");
   });
 
@@ -6346,7 +6346,7 @@ describe("/lab endpoints", () => {
     mockOk({});
     await api.listQcResults();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url.split("?")[0]).toBe("/api/lab/qc-results");
   });
 
@@ -6365,7 +6365,7 @@ describe("/lab endpoints", () => {
     mockOk({});
     await api.listCalibrations();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url.split("?")[0]).toBe("/api/lab/calibrations");
   });
 
@@ -6384,7 +6384,7 @@ describe("/lab endpoints", () => {
     mockOk({});
     await api.listPhlebotomyQueue();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url.split("?")[0]).toBe("/api/lab/phlebotomy-queue");
   });
 
@@ -6414,7 +6414,7 @@ describe("/lab endpoints", () => {
     mockOk({});
     await api.listOutsourcedOrders();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url.split("?")[0]).toBe("/api/lab/outsourced");
   });
 
@@ -6455,7 +6455,7 @@ describe("/lab endpoints", () => {
     mockOk({});
     await api.listHomeCollections();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url.split("?")[0]).toBe("/api/lab/home-collections");
   });
 
@@ -6496,7 +6496,7 @@ describe("/lab endpoints", () => {
     mockOk({});
     await api.getHomeCollectionStats();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toBe("/api/lab/home-collections/stats");
   });
 
@@ -6504,7 +6504,7 @@ describe("/lab endpoints", () => {
     mockOk({});
     await api.listCollectionCenters();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url.split("?")[0]).toBe("/api/lab/collection-centers");
   });
 
@@ -6534,7 +6534,7 @@ describe("/lab endpoints", () => {
     mockOk({});
     await api.listSampleArchive();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url.split("?")[0]).toBe("/api/lab/sample-archive");
   });
 
@@ -6562,7 +6562,7 @@ describe("/lab endpoints", () => {
     mockOk({});
     await api.listReportDispatches();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url.split("?")[0]).toBe("/api/lab/report-dispatches");
   });
 
@@ -6590,7 +6590,7 @@ describe("/lab endpoints", () => {
     mockOk({});
     await api.listReportTemplates();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url.split("?")[0]).toBe("/api/lab/report-templates");
   });
 
@@ -6620,7 +6620,7 @@ describe("/lab endpoints", () => {
     mockOk({});
     await api.listStatOrders();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toBe("/api/lab/stat-orders");
   });
 
@@ -6628,7 +6628,7 @@ describe("/lab endpoints", () => {
     mockOk({});
     await api.listEqasResults();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url.split("?")[0]).toBe("/api/lab/eqas");
   });
 
@@ -6658,7 +6658,7 @@ describe("/lab endpoints", () => {
     mockOk({});
     await api.listProficiencyTests();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url.split("?")[0]).toBe("/api/lab/proficiency-tests");
   });
 
@@ -6677,7 +6677,7 @@ describe("/lab endpoints", () => {
     mockOk({});
     await api.listNablDocuments();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url.split("?")[0]).toBe("/api/lab/nabl-documents");
   });
 
@@ -6707,7 +6707,7 @@ describe("/lab endpoints", () => {
     mockOk({});
     await api.getReagentConsumption();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toBe("/api/lab/reagent-consumption");
   });
 
@@ -6715,7 +6715,7 @@ describe("/lab endpoints", () => {
     mockOk({});
     await api.getHistopathReport(UUID);
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toContain("/api/lab/histopath");
   });
 
@@ -6734,7 +6734,7 @@ describe("/lab endpoints", () => {
     mockOk({});
     await api.getCytologyReport(UUID);
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toContain("/api/lab/cytology");
   });
 
@@ -6753,7 +6753,7 @@ describe("/lab endpoints", () => {
     mockOk({});
     await api.getMolecularReport(UUID);
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toContain("/api/lab/molecular");
   });
 
@@ -6772,7 +6772,7 @@ describe("/lab endpoints", () => {
     mockOk({});
     await api.listB2bClients();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url.split("?")[0]).toBe("/api/lab/b2b-clients");
   });
 
@@ -6802,7 +6802,7 @@ describe("/lab endpoints", () => {
     mockOk({});
     await api.listB2bRates(UUID);
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toContain("/api/lab/b2b-clients");
   });
 
@@ -6830,7 +6830,7 @@ describe("/lab endpoints", () => {
     mockOk({});
     await api.listDoctorCriticalAlerts(UUID);
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toContain("/api/lab/critical-alerts/doctor");
   });
 
@@ -6838,7 +6838,7 @@ describe("/lab endpoints", () => {
     mockOk({});
     await api.getLabTatAnalytics();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toBe("/api/lab/analytics/tat");
   });
 
@@ -6846,7 +6846,7 @@ describe("/lab endpoints", () => {
     mockOk({});
     await api.getOrderCrossmatch(UUID);
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toContain("/api/lab/orders");
   });
 });
@@ -6856,7 +6856,7 @@ describe("/masters endpoints", () => {
     mockOk({});
     await api.listReligions();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toBe("/api/masters/religions");
   });
 
@@ -6864,7 +6864,7 @@ describe("/masters endpoints", () => {
     mockOk({});
     await api.listOccupations();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toBe("/api/masters/occupations");
   });
 
@@ -6872,7 +6872,7 @@ describe("/masters endpoints", () => {
     mockOk({});
     await api.listRelations();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toBe("/api/masters/relations");
   });
 });
@@ -6882,7 +6882,7 @@ describe("/mrd endpoints", () => {
     mockOk({});
     await api.listMrdRecords();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url.split("?")[0]).toBe("/api/mrd/records");
   });
 
@@ -6901,7 +6901,7 @@ describe("/mrd endpoints", () => {
     mockOk({});
     await api.getMrdRecord(UUID);
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toContain("/api/mrd/records");
   });
 
@@ -6920,7 +6920,7 @@ describe("/mrd endpoints", () => {
     mockOk({});
     await api.listMrdMovements(UUID);
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toContain("/api/mrd/records");
   });
 
@@ -6948,7 +6948,7 @@ describe("/mrd endpoints", () => {
     mockOk({});
     await api.listMrdBirths();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url.split("?")[0]).toBe("/api/mrd/births");
   });
 
@@ -6967,7 +6967,7 @@ describe("/mrd endpoints", () => {
     mockOk({});
     await api.getMrdBirth(UUID);
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toContain("/api/mrd/births");
   });
 
@@ -6975,7 +6975,7 @@ describe("/mrd endpoints", () => {
     mockOk({});
     await api.listMrdDeaths();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url.split("?")[0]).toBe("/api/mrd/deaths");
   });
 
@@ -6994,7 +6994,7 @@ describe("/mrd endpoints", () => {
     mockOk({});
     await api.getMrdDeath(UUID);
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toContain("/api/mrd/deaths");
   });
 
@@ -7002,7 +7002,7 @@ describe("/mrd endpoints", () => {
     mockOk({});
     await api.listMrdRetentionPolicies();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toBe("/api/mrd/retention-policies");
   });
 
@@ -7032,7 +7032,7 @@ describe("/mrd endpoints", () => {
     mockOk({});
     await api.getMrdMorbidityMortality();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url.split("?")[0]).toBe("/api/mrd/stats/morbidity-mortality");
   });
 
@@ -7040,7 +7040,7 @@ describe("/mrd endpoints", () => {
     mockOk({});
     await api.getMrdAdmissionDischarge();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url.split("?")[0]).toBe("/api/mrd/stats/admission-discharge");
   });
 });
@@ -7050,7 +7050,7 @@ describe("/occ-health endpoints", () => {
     mockOk({});
     await api.listOccScreenings();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url.split("?")[0]).toBe("/api/occ-health/screenings");
   });
 
@@ -7069,7 +7069,7 @@ describe("/occ-health endpoints", () => {
     mockOk({});
     await api.listDueScreenings();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toBe("/api/occ-health/screenings/due");
   });
 
@@ -7077,7 +7077,7 @@ describe("/occ-health endpoints", () => {
     mockOk({});
     await api.getOccScreening(UUID);
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toContain("/api/occ-health/screenings");
   });
 
@@ -7096,7 +7096,7 @@ describe("/occ-health endpoints", () => {
     mockOk({});
     await api.listDrugScreens();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url.split("?")[0]).toBe("/api/occ-health/drug-screens");
   });
 
@@ -7126,7 +7126,7 @@ describe("/occ-health endpoints", () => {
     mockOk({});
     await api.listVaccinations();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url.split("?")[0]).toBe("/api/occ-health/vaccinations");
   });
 
@@ -7156,7 +7156,7 @@ describe("/occ-health endpoints", () => {
     mockOk({});
     await api.vaccinationCompliance();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toBe("/api/occ-health/vaccinations/compliance");
   });
 
@@ -7164,7 +7164,7 @@ describe("/occ-health endpoints", () => {
     mockOk({});
     await api.listInjuries();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url.split("?")[0]).toBe("/api/occ-health/injuries");
   });
 
@@ -7194,7 +7194,7 @@ describe("/occ-health endpoints", () => {
     mockOk({});
     await api.getEmployerView(UUID);
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toContain("/api/occ-health/injuries");
   });
 
@@ -7202,7 +7202,7 @@ describe("/occ-health endpoints", () => {
     mockOk({});
     await api.listOccHealthHazards();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toBe("/api/occ-health/hazards");
   });
 
@@ -7221,7 +7221,7 @@ describe("/occ-health endpoints", () => {
     mockOk({});
     await api.occHealthAnalytics();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toBe("/api/occ-health/analytics");
   });
 
@@ -7242,7 +7242,7 @@ describe("/onboarding endpoints", () => {
     mockOk({});
     await api.onboardingStatus();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toBe("/api/onboarding/status");
   });
 
@@ -7261,7 +7261,7 @@ describe("/onboarding endpoints", () => {
     mockOk({});
     await api.onboardingProgress();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toBe("/api/onboarding/progress");
   });
 
@@ -7302,7 +7302,7 @@ describe("/opd endpoints", () => {
     mockOk({});
     await api.listEncounters();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url.split("?")[0]).toBe("/api/opd/encounters");
   });
 
@@ -7321,7 +7321,7 @@ describe("/opd endpoints", () => {
     mockOk({});
     await api.getEncounter(UUID);
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toContain("/api/opd/encounters");
   });
 
@@ -7340,7 +7340,7 @@ describe("/opd endpoints", () => {
     mockOk({});
     await api.listQueue();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url.split("?")[0]).toBe("/api/opd/queue");
   });
 
@@ -7384,7 +7384,7 @@ describe("/opd endpoints", () => {
     mockOk({});
     await api.listVitals(UUID);
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toContain("/api/opd/encounters");
   });
 
@@ -7403,7 +7403,7 @@ describe("/opd endpoints", () => {
     mockOk({});
     await api.getConsultation(UUID);
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toContain("/api/opd/encounters");
   });
 
@@ -7411,7 +7411,7 @@ describe("/opd endpoints", () => {
     mockOk({});
     await api.listDiagnoses(UUID);
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toContain("/api/opd/encounters");
   });
 
@@ -7450,7 +7450,7 @@ describe("/opd endpoints", () => {
     mockOk({});
     await api.listPrescriptions(UUID);
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toContain("/api/opd/encounters");
   });
 
@@ -7458,7 +7458,7 @@ describe("/opd endpoints", () => {
     mockOk({});
     await api.getPrescription(UUID);
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toContain("/api/opd/prescriptions");
   });
 
@@ -7488,7 +7488,7 @@ describe("/opd endpoints", () => {
     mockOk({});
     await api.listPrescriptionTemplates();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toBe("/api/opd/prescription-templates");
   });
 
@@ -7516,7 +7516,7 @@ describe("/opd endpoints", () => {
     mockOk({});
     await api.listPatientPrescriptions(UUID);
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toContain("/api/opd/patients");
   });
 
@@ -7524,7 +7524,7 @@ describe("/opd endpoints", () => {
     mockOk({});
     await api.listPatientDiagnoses(UUID);
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toContain("/api/opd/patients");
   });
 
@@ -7532,7 +7532,7 @@ describe("/opd endpoints", () => {
     mockOk({});
     await api.listCertificates(UUID);
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toContain("/api/opd/patients");
   });
 
@@ -7551,7 +7551,7 @@ describe("/opd endpoints", () => {
     mockOk({});
     await api.listPatientVitalsHistory(UUID);
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toContain("/api/opd/patients");
   });
 
@@ -7559,7 +7559,7 @@ describe("/opd endpoints", () => {
     mockOk({});
     await api.listPatientReferrals(UUID);
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toContain("/api/opd/patients");
   });
 
@@ -7578,7 +7578,7 @@ describe("/opd endpoints", () => {
     mockOk({});
     await api.listProcedureCatalog();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toBe("/api/opd/procedure-catalog");
   });
 
@@ -7586,7 +7586,7 @@ describe("/opd endpoints", () => {
     mockOk({});
     await api.listProcedureOrders(UUID);
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toContain("/api/opd/encounters");
   });
 
@@ -7614,7 +7614,7 @@ describe("/opd endpoints", () => {
     mockOk({});
     await api.checkDuplicateOrders({ patient_id: UUID });
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url.split("?")[0]).toBe("/api/opd/duplicate-check");
   });
 
@@ -7622,7 +7622,7 @@ describe("/opd endpoints", () => {
     mockOk({});
     await api.searchIcd10(UUID, UUID);
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url.split("?")[0]).toBe("/api/opd/icd10/search");
   });
 
@@ -7640,7 +7640,7 @@ describe("/opd endpoints", () => {
     mockOk({});
     await api.listChiefComplaints();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toBe("/api/opd/chief-complaints");
   });
 
@@ -7729,7 +7729,7 @@ describe("/opd endpoints", () => {
     mockOk({});
     await api.searchSnomed(UUID, UUID);
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url.split("?")[0]).toBe("/api/opd/snomed/search");
   });
 
@@ -7748,7 +7748,7 @@ describe("/opd endpoints", () => {
     mockOk({});
     await api.listAppointmentGroup(UUID);
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toContain("/api/opd/appointment-groups");
   });
 
@@ -7756,7 +7756,7 @@ describe("/opd endpoints", () => {
     mockOk({});
     await api.getWaitEstimate();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url.split("?")[0]).toBe("/api/opd/queue/wait-estimate");
   });
 
@@ -7775,7 +7775,7 @@ describe("/opd endpoints", () => {
     mockOk({});
     await api.getDoctorDocket("2026-01-01");
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url.split("?")[0]).toBe("/api/opd/docket");
   });
 
@@ -7792,7 +7792,7 @@ describe("/opd endpoints", () => {
     mockOk({});
     await api.listReminders();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url.split("?")[0]).toBe("/api/opd/reminders");
   });
 
@@ -7829,7 +7829,7 @@ describe("/opd endpoints", () => {
     mockOk({});
     await api.listPatientFeedback(UUID);
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toContain("/api/opd/patients");
   });
 
@@ -7848,7 +7848,7 @@ describe("/opd endpoints", () => {
     mockOk({});
     await api.listProcedureConsents(UUID);
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toContain("/api/opd/patients");
   });
 
@@ -7876,7 +7876,7 @@ describe("/opd endpoints", () => {
     mockOk({});
     await api.listConsultationTemplates();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toBe("/api/opd/consultation-templates");
   });
 
@@ -7904,7 +7904,7 @@ describe("/opd endpoints", () => {
     mockOk({});
     await api.listSchedules();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url.split("?")[0]).toBe("/api/opd/schedules");
   });
 
@@ -7943,7 +7943,7 @@ describe("/opd endpoints", () => {
     mockOk({});
     await api.listScheduleExceptions({ doctor_id: UUID });
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url.split("?")[0]).toBe("/api/opd/schedule-exceptions");
   });
 
@@ -7971,7 +7971,7 @@ describe("/opd endpoints", () => {
     mockOk({});
     await api.getAvailableSlots(UUID, "2026-01-01");
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toContain("/api/opd/doctors");
   });
 
@@ -7979,7 +7979,7 @@ describe("/opd endpoints", () => {
     mockOk({});
     await api.listAppointments();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url.split("?")[0]).toBe("/api/opd/appointments");
   });
 
@@ -7998,7 +7998,7 @@ describe("/opd endpoints", () => {
     mockOk({});
     await api.getAppointment(UUID);
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toContain("/api/opd/appointments");
   });
 
@@ -8055,7 +8055,7 @@ describe("/opd endpoints", () => {
     mockOk({});
     await api.opdPharmacyDispatchStatus(UUID);
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toContain("/api/opd/visits");
   });
 
@@ -8063,7 +8063,7 @@ describe("/opd endpoints", () => {
     mockOk({});
     await api.opdReferralTracking();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url.split("?")[0]).toBe("/api/opd/referrals/tracking");
   });
 
@@ -8071,7 +8071,7 @@ describe("/opd endpoints", () => {
     mockOk({});
     await api.opdFollowupCompliance();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toBe("/api/opd/analytics/followup");
   });
 });
@@ -8081,7 +8081,7 @@ describe("/ot endpoints", () => {
     mockOk({});
     await api.listOtRooms();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toBe("/api/ot/rooms");
   });
 
@@ -8111,7 +8111,7 @@ describe("/ot endpoints", () => {
     mockOk({});
     await api.listOtBookings();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url.split("?")[0]).toBe("/api/ot/bookings");
   });
 
@@ -8119,7 +8119,7 @@ describe("/ot endpoints", () => {
     mockOk({});
     await api.getOtBooking(UUID);
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toContain("/api/ot/bookings");
   });
 
@@ -8171,7 +8171,7 @@ describe("/ot endpoints", () => {
     mockOk({});
     await api.listPreopAssessments(UUID);
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toContain("/api/ot/bookings");
   });
 
@@ -8201,7 +8201,7 @@ describe("/ot endpoints", () => {
     mockOk({});
     await api.listSafetyChecklists(UUID);
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toContain("/api/ot/bookings");
   });
 
@@ -8231,7 +8231,7 @@ describe("/ot endpoints", () => {
     mockOk({});
     await api.getCaseRecord(UUID);
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toContain("/api/ot/bookings");
   });
 
@@ -8261,7 +8261,7 @@ describe("/ot endpoints", () => {
     mockOk({});
     await api.getAnesthesiaRecord(UUID);
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toContain("/api/ot/bookings");
   });
 
@@ -8291,7 +8291,7 @@ describe("/ot endpoints", () => {
     mockOk({});
     await api.getPostopRecord(UUID);
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toContain("/api/ot/bookings");
   });
 
@@ -8321,7 +8321,7 @@ describe("/ot endpoints", () => {
     mockOk({});
     await api.listSurgeonPreferences();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url.split("?")[0]).toBe("/api/ot/surgeon-preferences");
   });
 
@@ -8360,7 +8360,7 @@ describe("/ot endpoints", () => {
     mockOk({});
     await api.getOtSchedule();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url.split("?")[0]).toBe("/api/ot/schedule");
   });
 });
@@ -8370,7 +8370,7 @@ describe("/patients endpoints", () => {
     mockOk({});
     await api.listPatients();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url.split("?")[0]).toBe("/api/patients");
   });
 
@@ -8378,7 +8378,7 @@ describe("/patients endpoints", () => {
     mockOk({});
     await api.getPatient(UUID);
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toContain("/api/patients");
   });
 
@@ -8408,7 +8408,7 @@ describe("/patients endpoints", () => {
     mockOk({});
     await api.listPatientVisits(UUID);
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toContain("/api/patients");
   });
 
@@ -8416,7 +8416,7 @@ describe("/patients endpoints", () => {
     mockOk({});
     await api.listPatientConsultations(UUID);
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toContain("/api/patients");
   });
 
@@ -8424,7 +8424,7 @@ describe("/patients endpoints", () => {
     mockOk({});
     await api.listPatientLabOrders(UUID);
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toContain("/api/patients");
   });
 
@@ -8432,7 +8432,7 @@ describe("/patients endpoints", () => {
     mockOk({});
     await api.listPatientInvoices(UUID);
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toContain("/api/patients");
   });
 
@@ -8440,7 +8440,7 @@ describe("/patients endpoints", () => {
     mockOk({});
     await api.listPatientAppointments(UUID);
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toContain("/api/patients");
   });
 
@@ -8448,7 +8448,7 @@ describe("/patients endpoints", () => {
     mockOk({});
     await api.listPatientIdentifiers(UUID);
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toContain("/api/patients");
   });
 
@@ -8487,7 +8487,7 @@ describe("/patients endpoints", () => {
     mockOk({});
     await api.listPatientAddresses(UUID);
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toContain("/api/patients");
   });
 
@@ -8526,7 +8526,7 @@ describe("/patients endpoints", () => {
     mockOk({});
     await api.listPatientContacts(UUID);
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toContain("/api/patients");
   });
 
@@ -8565,7 +8565,7 @@ describe("/patients endpoints", () => {
     mockOk({});
     await api.listPatientAllergies(UUID);
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toContain("/api/patients");
   });
 
@@ -8607,7 +8607,7 @@ describe("/patients endpoints", () => {
     mockOk({});
     await api.listPatientInsurance(UUID);
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toContain("/api/patients");
   });
 
@@ -8646,7 +8646,7 @@ describe("/patients endpoints", () => {
     mockOk({});
     await api.listPatientConsents(UUID);
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toContain("/api/patients");
   });
 
@@ -8716,7 +8716,7 @@ describe("/patients endpoints", () => {
     mockOk({});
     await api.listMergeHistory(UUID);
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toContain("/api/patients");
   });
 
@@ -8724,7 +8724,7 @@ describe("/patients endpoints", () => {
     mockOk({});
     await api.listFamilyLinks(UUID);
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toContain("/api/patients");
   });
 
@@ -8752,7 +8752,7 @@ describe("/patients endpoints", () => {
     mockOk({});
     await api.listPatientDocuments(UUID);
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toContain("/api/patients");
   });
 
@@ -8793,7 +8793,7 @@ describe("/pharmacy endpoints", () => {
     mockOk({});
     await api.listPharmacyOrders();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url.split("?")[0]).toBe("/api/pharmacy/orders");
   });
 
@@ -8812,7 +8812,7 @@ describe("/pharmacy endpoints", () => {
     mockOk({});
     await api.getPharmacyOrder(UUID);
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toContain("/api/pharmacy/orders");
   });
 
@@ -8838,7 +8838,7 @@ describe("/pharmacy endpoints", () => {
     mockOk({});
     await api.listPharmacyCatalog();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url.split("?")[0]).toBe("/api/pharmacy/catalog");
   });
 
@@ -8868,7 +8868,7 @@ describe("/pharmacy endpoints", () => {
     mockOk({});
     await api.listStock();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url.split("?")[0]).toBe("/api/pharmacy/stock");
   });
 
@@ -8918,7 +8918,7 @@ describe("/pharmacy endpoints", () => {
     mockOk({});
     await api.listNdpsEntries();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url.split("?")[0]).toBe("/api/pharmacy/ndps-register");
   });
 
@@ -8937,7 +8937,7 @@ describe("/pharmacy endpoints", () => {
     mockOk({});
     await api.getNdpsBalance();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toBe("/api/pharmacy/ndps-register/balance");
   });
 
@@ -8945,7 +8945,7 @@ describe("/pharmacy endpoints", () => {
     mockOk({});
     await api.getNdpsReport();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toBe("/api/pharmacy/ndps-register/report");
   });
 
@@ -8953,7 +8953,7 @@ describe("/pharmacy endpoints", () => {
     mockOk({});
     await api.listPharmacyBatches();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url.split("?")[0]).toBe("/api/pharmacy/batches");
   });
 
@@ -8972,7 +8972,7 @@ describe("/pharmacy endpoints", () => {
     mockOk({});
     await api.getNearExpiryReport();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url.split("?")[0]).toBe("/api/pharmacy/batches/near-expiry");
   });
 
@@ -8980,7 +8980,7 @@ describe("/pharmacy endpoints", () => {
     mockOk({});
     await api.getPharmacyDeadStock();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url.split("?")[0]).toBe("/api/pharmacy/batches/dead-stock");
   });
 
@@ -8988,7 +8988,7 @@ describe("/pharmacy endpoints", () => {
     mockOk({});
     await api.listPharmacyStoreAssignments();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toBe("/api/pharmacy/store-assignments");
   });
 
@@ -9007,7 +9007,7 @@ describe("/pharmacy endpoints", () => {
     mockOk({});
     await api.listPharmacyTransfers();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url.split("?")[0]).toBe("/api/pharmacy/transfers");
   });
 
@@ -9035,7 +9035,7 @@ describe("/pharmacy endpoints", () => {
     mockOk({});
     await api.listPharmacyReturns();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toBe("/api/pharmacy/returns");
   });
 
@@ -9065,7 +9065,7 @@ describe("/pharmacy endpoints", () => {
     mockOk({});
     await api.getPharmacyConsumption();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url.split("?")[0]).toBe("/api/pharmacy/analytics/consumption");
   });
 
@@ -9073,7 +9073,7 @@ describe("/pharmacy endpoints", () => {
     mockOk({});
     await api.getPharmacyAbcVed();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toBe("/api/pharmacy/analytics/abc-ved");
   });
 
@@ -9081,7 +9081,7 @@ describe("/pharmacy endpoints", () => {
     mockOk({});
     await api.getDrugUtilization();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toBe("/api/pharmacy/analytics/utilization");
   });
 
@@ -9100,7 +9100,7 @@ describe("/pharmacy endpoints", () => {
     mockOk({});
     await api.prescriptionAudit(UUID);
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toContain("/api/pharmacy/prescriptions");
   });
 
@@ -9121,7 +9121,7 @@ describe("/print-data endpoints", () => {
     mockOk({});
     await api.getPrescriptionPrintData(UUID);
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toContain("/api/print-data/prescription");
   });
 
@@ -9129,7 +9129,7 @@ describe("/print-data endpoints", () => {
     mockOk({});
     await api.getLabReportPrintData(UUID);
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toContain("/api/print-data/lab-report");
   });
 
@@ -9137,7 +9137,7 @@ describe("/print-data endpoints", () => {
     mockOk({});
     await api.getRadiologyPrintData(UUID);
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toContain("/api/print-data/radiology-report");
   });
 
@@ -9145,7 +9145,7 @@ describe("/print-data endpoints", () => {
     mockOk({});
     await api.getPatientCardPrintData(UUID);
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toContain("/api/print-data/patient-card");
   });
 
@@ -9153,7 +9153,7 @@ describe("/print-data endpoints", () => {
     mockOk({});
     await api.getWristbandPrintData(UUID);
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toContain("/api/print-data/wristband");
   });
 
@@ -9161,7 +9161,7 @@ describe("/print-data endpoints", () => {
     mockOk({});
     await api.getAppointmentSlipPrintData(UUID);
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toContain("/api/print-data/appointment-slip");
   });
 
@@ -9169,7 +9169,7 @@ describe("/print-data endpoints", () => {
     mockOk({});
     await api.getDeathCertPrintData(UUID);
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toContain("/api/print-data/death-certificate");
   });
 
@@ -9177,7 +9177,7 @@ describe("/print-data endpoints", () => {
     mockOk({});
     await api.getDischargePrintData(UUID);
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toContain("/api/print-data/discharge");
   });
 
@@ -9185,7 +9185,7 @@ describe("/print-data endpoints", () => {
     mockOk({});
     await api.getReceiptPrintData(UUID);
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toContain("/api/print-data/receipt");
   });
 
@@ -9193,7 +9193,7 @@ describe("/print-data endpoints", () => {
     mockOk({});
     await api.getEstimatePrintData(UUID);
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toContain("/api/print-data/estimate");
   });
 
@@ -9201,7 +9201,7 @@ describe("/print-data endpoints", () => {
     mockOk({});
     await api.getCreditNotePrintData(UUID);
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toContain("/api/print-data/credit-note");
   });
 
@@ -9209,7 +9209,7 @@ describe("/print-data endpoints", () => {
     mockOk({});
     await api.getGstInvoicePrintData(UUID);
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toContain("/api/print-data/gst-invoice");
   });
 });
@@ -9219,7 +9219,7 @@ describe("/procurement endpoints", () => {
     mockOk({});
     await api.listVendors();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url.split("?")[0]).toBe("/api/procurement/vendors");
   });
 
@@ -9227,7 +9227,7 @@ describe("/procurement endpoints", () => {
     mockOk({});
     await api.getVendor(UUID);
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toContain("/api/procurement/vendors");
   });
 
@@ -9257,7 +9257,7 @@ describe("/procurement endpoints", () => {
     mockOk({});
     await api.listStoreLocations();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toBe("/api/procurement/store-locations");
   });
 
@@ -9287,7 +9287,7 @@ describe("/procurement endpoints", () => {
     mockOk({});
     await api.listPurchaseOrders();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url.split("?")[0]).toBe("/api/procurement/purchase-orders");
   });
 
@@ -9305,7 +9305,7 @@ describe("/procurement endpoints", () => {
     mockOk({});
     await api.getPurchaseOrder(UUID);
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toContain("/api/procurement/purchase-orders");
   });
 
@@ -9351,7 +9351,7 @@ describe("/procurement endpoints", () => {
     mockOk({});
     await api.listGrns();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url.split("?")[0]).toBe("/api/procurement/grns");
   });
 
@@ -9359,7 +9359,7 @@ describe("/procurement endpoints", () => {
     mockOk({});
     await api.getGrn(UUID);
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toContain("/api/procurement/grns");
   });
 
@@ -9387,7 +9387,7 @@ describe("/procurement endpoints", () => {
     mockOk({});
     await api.listRateContracts();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url.split("?")[0]).toBe("/api/procurement/rate-contracts");
   });
 
@@ -9395,7 +9395,7 @@ describe("/procurement endpoints", () => {
     mockOk({});
     await api.getRateContract(UUID);
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toContain("/api/procurement/rate-contracts");
   });
 
@@ -9414,7 +9414,7 @@ describe("/procurement endpoints", () => {
     mockOk({});
     await api.listBatchStock();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url.split("?")[0]).toBe("/api/procurement/batch-stock");
   });
 
@@ -9422,7 +9422,7 @@ describe("/procurement endpoints", () => {
     mockOk({});
     await api.getVendorPerformance();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toBe("/api/procurement/vendor-performance");
   });
 
@@ -9430,7 +9430,7 @@ describe("/procurement endpoints", () => {
     mockOk({});
     await api.getVendorComparison(UUID);
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url.split("?")[0]).toBe("/api/procurement/vendor-comparison");
   });
 
@@ -9449,7 +9449,7 @@ describe("/procurement endpoints", () => {
     mockOk({});
     await api.listSupplierPayments();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url.split("?")[0]).toBe("/api/procurement/supplier-payments");
   });
 
@@ -9481,7 +9481,7 @@ describe("/quality endpoints", () => {
     mockOk({});
     await api.listQualityIndicators();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url.split("?")[0]).toBe("/api/quality/indicators");
   });
 
@@ -9500,7 +9500,7 @@ describe("/quality endpoints", () => {
     mockOk({});
     await api.listIndicatorValues();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url.split("?")[0]).toBe("/api/quality/indicator-values");
   });
 
@@ -9519,7 +9519,7 @@ describe("/quality endpoints", () => {
     mockOk({});
     await api.listQualityDocuments();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url.split("?")[0]).toBe("/api/quality/documents");
   });
 
@@ -9527,7 +9527,7 @@ describe("/quality endpoints", () => {
     mockOk({});
     await api.getQualityDocument(UUID);
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toContain("/api/quality/documents");
   });
 
@@ -9568,7 +9568,7 @@ describe("/quality endpoints", () => {
     mockOk({});
     await api.listQualityIncidents();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url.split("?")[0]).toBe("/api/quality/incidents");
   });
 
@@ -9576,7 +9576,7 @@ describe("/quality endpoints", () => {
     mockOk({});
     await api.getQualityIncident(UUID);
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toContain("/api/quality/incidents");
   });
 
@@ -9606,7 +9606,7 @@ describe("/quality endpoints", () => {
     mockOk({});
     await api.listCapa();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url.split("?")[0]).toBe("/api/quality/capa");
   });
 
@@ -9636,7 +9636,7 @@ describe("/quality endpoints", () => {
     mockOk({});
     await api.listQualityCommittees();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toBe("/api/quality/committees");
   });
 
@@ -9655,7 +9655,7 @@ describe("/quality endpoints", () => {
     mockOk({});
     await api.listCommitteeMeetings();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url.split("?")[0]).toBe("/api/quality/meetings");
   });
 
@@ -9685,7 +9685,7 @@ describe("/quality endpoints", () => {
     mockOk({});
     await api.listActionItems();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url.split("?")[0]).toBe("/api/quality/action-items");
   });
 
@@ -9704,7 +9704,7 @@ describe("/quality endpoints", () => {
     mockOk({});
     await api.listAccreditationStandards();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url.split("?")[0]).toBe("/api/quality/standards");
   });
 
@@ -9723,7 +9723,7 @@ describe("/quality endpoints", () => {
     mockOk({});
     await api.listAccreditationCompliance();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url.split("?")[0]).toBe("/api/quality/compliance");
   });
 
@@ -9742,7 +9742,7 @@ describe("/quality endpoints", () => {
     mockOk({});
     await api.listQualityAudits();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url.split("?")[0]).toBe("/api/quality/audits");
   });
 
@@ -9750,7 +9750,7 @@ describe("/quality endpoints", () => {
     mockOk({});
     await api.getQualityAudit(UUID);
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toContain("/api/quality/audits");
   });
 
@@ -9789,7 +9789,7 @@ describe("/quality endpoints", () => {
     mockOk({});
     await api.listPendingAcks(UUID);
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toContain("/api/quality/documents");
   });
 
@@ -9808,7 +9808,7 @@ describe("/quality endpoints", () => {
     mockOk({});
     await api.compileEvidence({ test: "data" });
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toContain("/api/quality/accreditation");
   });
 
@@ -9827,7 +9827,7 @@ describe("/quality endpoints", () => {
     mockOk({});
     await api.listAuditFindings(UUID);
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toContain("/api/quality/audits");
   });
 
@@ -9846,7 +9846,7 @@ describe("/quality endpoints", () => {
     mockOk({});
     await api.listOverdueCapas();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toBe("/api/quality/capas/overdue");
   });
 
@@ -9854,7 +9854,7 @@ describe("/quality endpoints", () => {
     mockOk({});
     await api.committeeDashboard();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toBe("/api/quality/committees/dashboard");
   });
 
@@ -9873,7 +9873,7 @@ describe("/quality endpoints", () => {
     mockOk({});
     await api.listSentinelEvents();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toBe("/api/quality/incidents/sentinel");
   });
 
@@ -9881,7 +9881,7 @@ describe("/quality endpoints", () => {
     mockOk({});
     await api.patientSafetyIndicators();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url.split("?")[0]).toBe("/api/quality/analytics/psi");
   });
 
@@ -9889,7 +9889,7 @@ describe("/quality endpoints", () => {
     mockOk({});
     await api.departmentScorecard();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toBe("/api/quality/analytics/scorecard");
   });
 });
@@ -9899,7 +9899,7 @@ describe("/radiology endpoints", () => {
     mockOk({});
     await api.listRadiologyOrders();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url.split("?")[0]).toBe("/api/radiology/orders");
   });
 
@@ -9918,7 +9918,7 @@ describe("/radiology endpoints", () => {
     mockOk({});
     await api.getRadiologyOrder(UUID);
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toContain("/api/radiology/orders");
   });
 
@@ -9979,7 +9979,7 @@ describe("/radiology endpoints", () => {
     mockOk({});
     await api.listRadiologyModalities();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toBe("/api/radiology/modalities");
   });
 
@@ -10018,7 +10018,7 @@ describe("/radiology endpoints", () => {
     mockOk({});
     await api.listRadiologyAppointments();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url.split("?")[0]).toBe("/api/radiology/appointments");
   });
 
@@ -10037,7 +10037,7 @@ describe("/radiology endpoints", () => {
     mockOk({});
     await api.getRadiologyTat();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toBe("/api/radiology/analytics/tat");
   });
 });
@@ -10058,7 +10058,7 @@ describe("/regulatory endpoints", () => {
     mockOk({});
     await api.listRegulatorySubmissions();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toBe("/api/regulatory/submissions");
   });
 
@@ -10077,7 +10077,7 @@ describe("/regulatory endpoints", () => {
     mockOk({});
     await api.listMockSurveys();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toBe("/api/regulatory/mock-surveys");
   });
 
@@ -10096,7 +10096,7 @@ describe("/regulatory endpoints", () => {
     mockOk({});
     await api.staffCredentials();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toBe("/api/regulatory/staff-credentials");
   });
 
@@ -10104,7 +10104,7 @@ describe("/regulatory endpoints", () => {
     mockOk({});
     await api.licenseDashboard();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toBe("/api/regulatory/licenses/dashboard");
   });
 
@@ -10112,7 +10112,7 @@ describe("/regulatory endpoints", () => {
     mockOk({});
     await api.nablDocumentTracking();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toBe("/api/regulatory/nabl/documents");
   });
 });
@@ -10122,7 +10122,7 @@ describe("/scheduling endpoints", () => {
     mockOk({});
     await api.listPredictions();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url.split("?")[0]).toBe("/api/scheduling/predictions");
   });
 
@@ -10152,7 +10152,7 @@ describe("/scheduling endpoints", () => {
     mockOk({});
     await api.listWaitlist();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url.split("?")[0]).toBe("/api/scheduling/waitlist");
   });
 
@@ -10213,7 +10213,7 @@ describe("/scheduling endpoints", () => {
     mockOk({});
     await api.listOverbookingRules();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url.split("?")[0]).toBe("/api/scheduling/overbooking-rules");
   });
 
@@ -10256,7 +10256,7 @@ describe("/scheduling endpoints", () => {
       date: "2026-01-01",
     });
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url.split("?")[0]).toBe("/api/scheduling/overbooking/recommendation");
   });
 
@@ -10264,7 +10264,7 @@ describe("/scheduling endpoints", () => {
     mockOk({});
     await api.noshowRates();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toBe("/api/scheduling/analytics/noshow-rates");
   });
 
@@ -10272,7 +10272,7 @@ describe("/scheduling endpoints", () => {
     mockOk({});
     await api.predictionAccuracy();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toBe("/api/scheduling/analytics/prediction-accuracy");
   });
 
@@ -10280,7 +10280,7 @@ describe("/scheduling endpoints", () => {
     mockOk({});
     await api.waitlistStats();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toBe("/api/scheduling/analytics/waitlist-stats");
   });
 
@@ -10288,7 +10288,7 @@ describe("/scheduling endpoints", () => {
     mockOk({});
     await api.schedulingConflicts();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toBe("/api/scheduling/conflicts");
   });
 
@@ -10307,7 +10307,7 @@ describe("/scheduling endpoints", () => {
     mockOk({});
     await api.scheduleAnalytics();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url.split("?")[0]).toBe("/api/scheduling/analytics/overview");
   });
 
@@ -10339,7 +10339,7 @@ describe("/schema endpoints", () => {
     mockOk({});
     await api.listSchemaModules();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toBe("/api/schema/modules");
   });
 
@@ -10347,7 +10347,7 @@ describe("/schema endpoints", () => {
     mockOk({});
     await api.listModuleEntities("test");
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toContain("/api/schema/modules");
   });
 
@@ -10355,7 +10355,7 @@ describe("/schema endpoints", () => {
     mockOk({});
     await api.listEventSchemas();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toBe("/api/schema/events");
   });
 
@@ -10363,7 +10363,7 @@ describe("/schema endpoints", () => {
     mockOk({});
     await api.getEventSchema("test");
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toContain("/api/schema/events");
   });
 });
@@ -10373,7 +10373,7 @@ describe("/security endpoints", () => {
     mockOk({});
     await api.listSecurityZones();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toBe("/api/security/zones");
   });
 
@@ -10403,7 +10403,7 @@ describe("/security endpoints", () => {
     mockOk({});
     await api.listSecurityAccessLogs();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url.split("?")[0]).toBe("/api/security/access-logs");
   });
 
@@ -10422,7 +10422,7 @@ describe("/security endpoints", () => {
     mockOk({});
     await api.listSecurityAccessCards();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url.split("?")[0]).toBe("/api/security/cards");
   });
 
@@ -10463,7 +10463,7 @@ describe("/security endpoints", () => {
     mockOk({});
     await api.listSecurityCameras();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url.split("?")[0]).toBe("/api/security/cameras");
   });
 
@@ -10493,7 +10493,7 @@ describe("/security endpoints", () => {
     mockOk({});
     await api.listSecurityIncidents();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url.split("?")[0]).toBe("/api/security/incidents");
   });
 
@@ -10501,7 +10501,7 @@ describe("/security endpoints", () => {
     mockOk({});
     await api.getSecurityIncident(UUID);
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toContain("/api/security/incidents");
   });
 
@@ -10531,7 +10531,7 @@ describe("/security endpoints", () => {
     mockOk({});
     await api.listSecurityPatientTags();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url.split("?")[0]).toBe("/api/security/patient-tags");
   });
 
@@ -10559,7 +10559,7 @@ describe("/security endpoints", () => {
     mockOk({});
     await api.listSecurityTagAlerts();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url.split("?")[0]).toBe("/api/security/tag-alerts");
   });
 
@@ -10578,7 +10578,7 @@ describe("/security endpoints", () => {
     mockOk({});
     await api.listSecurityCodeDebriefs();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toBe("/api/security/debriefs");
   });
 
@@ -10586,7 +10586,7 @@ describe("/security endpoints", () => {
     mockOk({});
     await api.getSecurityCodeDebrief(UUID);
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toContain("/api/security/debriefs");
   });
 
@@ -10707,7 +10707,7 @@ describe("/setup endpoints", () => {
     mockOk({});
     await api.getTenant();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toBe("/api/setup/tenant");
   });
 
@@ -10748,7 +10748,7 @@ describe("/setup endpoints", () => {
     mockOk({});
     await api.listFacilities();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toBe("/api/setup/facilities");
   });
 
@@ -10787,7 +10787,7 @@ describe("/setup endpoints", () => {
     mockOk({});
     await api.listLocations();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toBe("/api/setup/locations");
   });
 
@@ -10826,7 +10826,7 @@ describe("/setup endpoints", () => {
     mockOk({});
     await api.listDepartments();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toBe("/api/setup/departments");
   });
 
@@ -10865,7 +10865,7 @@ describe("/setup endpoints", () => {
     mockOk({});
     await api.listRoles();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toBe("/api/setup/roles");
   });
 
@@ -10937,7 +10937,7 @@ describe("/setup endpoints", () => {
     mockOk({});
     await api.listSetupUsers();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toBe("/api/setup/users");
   });
 
@@ -10945,7 +10945,7 @@ describe("/setup endpoints", () => {
     mockOk({});
     await api.listDoctors();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toBe("/api/setup/doctors");
   });
 
@@ -10984,7 +10984,7 @@ describe("/setup endpoints", () => {
     mockOk({});
     await api.listUserFacilities(UUID);
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toContain("/api/setup/users");
   });
 
@@ -11023,7 +11023,7 @@ describe("/setup endpoints", () => {
     mockOk({});
     await api.listModules();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toBe("/api/setup/modules");
   });
 
@@ -11042,7 +11042,7 @@ describe("/setup endpoints", () => {
     mockOk({});
     await api.listSequences();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toBe("/api/setup/sequences");
   });
 
@@ -11081,7 +11081,7 @@ describe("/setup endpoints", () => {
     mockOk({});
     await api.listServices();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toBe("/api/setup/services");
   });
 
@@ -11120,7 +11120,7 @@ describe("/setup endpoints", () => {
     mockOk({});
     await api.listBedTypes();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toBe("/api/setup/bed-types");
   });
 
@@ -11159,7 +11159,7 @@ describe("/setup endpoints", () => {
     mockOk({});
     await api.listTaxCategories();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toBe("/api/setup/tax-categories");
   });
 
@@ -11198,7 +11198,7 @@ describe("/setup endpoints", () => {
     mockOk({});
     await api.listPaymentMethods();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toBe("/api/setup/payment-methods");
   });
 
@@ -11237,7 +11237,7 @@ describe("/setup endpoints", () => {
     mockOk({});
     await api.getBranding();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toBe("/api/setup/branding");
   });
 
@@ -11256,7 +11256,7 @@ describe("/setup endpoints", () => {
     mockOk({});
     await api.getTenantSettings("test");
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url.split("?")[0]).toBe("/api/setup/settings");
   });
 
@@ -11341,7 +11341,7 @@ describe("/setup endpoints", () => {
     mockOk({});
     await api.getPrintTemplates();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toBe("/api/setup/print-templates");
   });
 
@@ -11360,7 +11360,7 @@ describe("/setup endpoints", () => {
     mockOk({});
     await api.adminListReligions();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toBe("/api/setup/masters/religions");
   });
 
@@ -11399,7 +11399,7 @@ describe("/setup endpoints", () => {
     mockOk({});
     await api.adminListOccupations();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toBe("/api/setup/masters/occupations");
   });
 
@@ -11438,7 +11438,7 @@ describe("/setup endpoints", () => {
     mockOk({});
     await api.adminListRelations();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toBe("/api/setup/masters/relations");
   });
 
@@ -11477,7 +11477,7 @@ describe("/setup endpoints", () => {
     mockOk({});
     await api.adminListInsuranceProviders();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toBe("/api/setup/masters/insurance-providers");
   });
 
@@ -11536,7 +11536,7 @@ describe("/setup endpoints", () => {
     mockOk({});
     await api.completenessCheck();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toBe("/api/setup/completeness");
   });
 
@@ -11544,7 +11544,7 @@ describe("/setup endpoints", () => {
     mockOk({});
     await api.systemHealth();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toBe("/api/setup/health");
   });
 
@@ -11552,7 +11552,7 @@ describe("/setup endpoints", () => {
     mockOk({});
     await api.exportConfig();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toBe("/api/setup/config/export");
   });
 
@@ -11573,7 +11573,7 @@ describe("/utilization-review endpoints", () => {
     mockOk({});
     await api.listUrReviews();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url.split("?")[0]).toBe("/api/utilization-review/reviews");
   });
 
@@ -11592,7 +11592,7 @@ describe("/utilization-review endpoints", () => {
     mockOk({});
     await api.listUrOutliers();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toBe("/api/utilization-review/reviews/outliers");
   });
 
@@ -11600,7 +11600,7 @@ describe("/utilization-review endpoints", () => {
     mockOk({});
     await api.getUrReview(UUID);
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toContain("/api/utilization-review/reviews");
   });
 
@@ -11628,7 +11628,7 @@ describe("/utilization-review endpoints", () => {
     mockOk({});
     await api.listUrByAdmission(UUID);
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toContain("/api/utilization-review/reviews/admission");
   });
 
@@ -11636,7 +11636,7 @@ describe("/utilization-review endpoints", () => {
     mockOk({});
     await api.listUrCommunications();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url.split("?")[0]).toBe("/api/utilization-review/communications");
   });
 
@@ -11666,7 +11666,7 @@ describe("/utilization-review endpoints", () => {
     mockOk({});
     await api.listUrConversions();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url.split("?")[0]).toBe("/api/utilization-review/conversions");
   });
 
@@ -11685,7 +11685,7 @@ describe("/utilization-review endpoints", () => {
     mockOk({});
     await api.urAnalyticsSummary();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toBe("/api/utilization-review/analytics");
   });
 
@@ -11693,7 +11693,7 @@ describe("/utilization-review endpoints", () => {
     mockOk({});
     await api.urLosComparison();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toBe("/api/utilization-review/analytics/los-comparison");
   });
 });
@@ -11703,7 +11703,7 @@ describe("/widget-templates endpoints", () => {
     mockOk({});
     await api.listWidgetTemplates();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toBe("/api/widget-templates");
   });
 });

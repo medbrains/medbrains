@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { describe as describeResource, MAX_ITEMS, readDocument } from "./fhirSections";
+import { describeResource, MAX_ITEMS, readDocument } from "./fhirSections";
 
 const bundle = {
   resourceType: "Bundle",

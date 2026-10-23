@@ -27,6 +27,7 @@ interface PharmacyDispensingViewProps {
 }
 
 interface GroupedDrug {
+  id: string;
   drug_name: string;
   dosage: string;
   frequency: string;
@@ -94,6 +95,7 @@ export function PharmacyDispensingView({ items, patientName, uhid }: PharmacyDis
       }
 
       const drug: GroupedDrug = {
+        id: item.id,
         drug_name: item.drug_name,
         dosage: item.dosage,
         frequency: item.frequency,
@@ -150,8 +152,8 @@ export function PharmacyDispensingView({ items, patientName, uhid }: PharmacyDis
             </Group>
 
             <Stack gap={4}>
-              {drugs.map((drug, idx) => (
-                <DrugRow key={idx} drug={drug} />
+              {drugs.map((drug) => (
+                <DrugRow key={drug.id} drug={drug} />
               ))}
             </Stack>
           </Card>
@@ -175,8 +177,8 @@ export function PharmacyDispensingView({ items, patientName, uhid }: PharmacyDis
             </Badge>
           </Group>
           <Stack gap={4}>
-            {grouped.prnDrugs.map((drug, idx) => (
-              <DrugRow key={idx} drug={drug} />
+            {grouped.prnDrugs.map((drug) => (
+              <DrugRow key={drug.id} drug={drug} />
             ))}
           </Stack>
         </Card>

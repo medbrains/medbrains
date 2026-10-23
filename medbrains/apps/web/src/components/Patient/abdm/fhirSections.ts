@@ -68,7 +68,7 @@ function attachmentLink(v: unknown): FhirItem["link"] | undefined {
 }
 
 /** One resource as a line: what it is, and the detail that matters. */
-export function describe(resource: unknown): FhirItem {
+export function describeResource(resource: unknown): FhirItem {
   const r = obj(resource);
   const type = str(r.resourceType) ?? "Entry";
   switch (type) {
@@ -132,7 +132,7 @@ function sectionOf(raw: unknown, byRef: Map<string, unknown>): FhirSection {
     .slice(0, MAX_ITEMS)
     .map((e) => str(obj(e).reference) ?? "")
     .filter((ref) => byRef.has(ref))
-    .map((ref, i) => ({ ...describe(byRef.get(ref)), key: `${i}:${ref}` }));
+    .map((ref, i) => ({ ...describeResource(byRef.get(ref)), key: `${i}:${ref}` }));
   return { title: str(s.title) ?? conceptText(s.code) ?? "Section", items };
 }
 

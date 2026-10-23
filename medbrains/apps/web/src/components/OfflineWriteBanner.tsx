@@ -18,7 +18,7 @@ interface OfflineWriteBannerProps {
 
 export function OfflineWriteBanner({ resource = "permission" }: OfflineWriteBannerProps) {
   const config = useTenantConfigOptional();
-  if (!config || config.mode !== "crdt") {
+  if (config?.mode !== "crdt") {
     return null;
   }
   return (

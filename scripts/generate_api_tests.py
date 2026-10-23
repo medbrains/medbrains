@@ -204,7 +204,8 @@ def main():
 
             w(f"    await api.{name}({args_str});")
             w(f"    expect(mockFetch).toHaveBeenCalledTimes(1);")
-            w(f"    const [url, opts] = mockFetch.mock.calls[0];")
+            destructured = "url" if http == "GET" else "url, opts"
+            w(f"    const [{destructured}] = mockFetch.mock.calls[0];")
             # Check URL contains the expected base path
             if "{param_" in path:
                 base = path.split("{param_")[0].rstrip("/")

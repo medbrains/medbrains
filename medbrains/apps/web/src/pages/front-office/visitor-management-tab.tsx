@@ -241,17 +241,11 @@ export function VisitorManagementTab({
             </>
           )}
           {r.status === "active" && canManagePasses && (
-            <>
-              <Tooltip label="Revoke">
-                <IconButton
-                  tone="danger"
-                  onClick={() => revokePass.mutate(r.id)}
-                  aria-label="Revoke"
-                >
-                  <IconX size={16} />
-                </IconButton>
-              </Tooltip>
-            </>
+            <Tooltip label="Revoke">
+              <IconButton tone="danger" onClick={() => revokePass.mutate(r.id)} aria-label="Revoke">
+                <IconX size={16} />
+              </IconButton>
+            </Tooltip>
           )}
         </Group>
       ),

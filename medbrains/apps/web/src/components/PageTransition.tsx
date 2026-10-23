@@ -1,5 +1,5 @@
 import { motion, useReducedMotion } from "motion/react";
-import { type ReactNode, useEffect, useState } from "react";
+import { type ReactNode, useState } from "react";
 import { useLocation } from "react-router";
 
 interface Props {
@@ -29,12 +29,10 @@ const SETTLE = [0.16, 1, 0.3, 1] as const;
 export function PageTransition({ children }: Props) {
   const location = useLocation();
   const reduce = useReducedMotion();
-  const [settled, setSettled] = useState(false);
-
-  // New route → animate again (and re-create the containing block briefly).
-  useEffect(() => {
-    setSettled(false);
-  }, [location.pathname]);
+  // Settled is per route: a new pathname is unsettled until its own animation
+  // completes (and re-creates the containing block briefly).
+  const [settledPath, setSettledPath] = useState<string | null>(null);
+  const settled = settledPath === location.pathname;
 
   const settledStyle = { transform: "none", willChange: "auto" } as const;
   const animatingStyle = {
@@ -52,7 +50,7 @@ export function PageTransition({ children }: Props) {
       transition={
         reduce ? { duration: 0.12 } : { duration: 0.3, ease: SETTLE, opacity: { duration: 0.2 } }
       }
-      onAnimationComplete={() => setSettled(true)}
+      onAnimationComplete={() => setSettledPath(location.pathname)}
     >
       {children}
     </motion.div>

@@ -155,7 +155,7 @@ export function stockStatus(drug: FormularyDrug): "out" | "low" | "ok" | null {
 /** Parse a "<number> <unit>" string → { value, unit } (unit lower-cased). */
 function parseAmount(s: string): { value: number; unit: string } | null {
   const m = s.trim().match(/([\d.]+)\s*([a-z%]*)/i);
-  if (!m || !m[1]) return null;
+  if (!m?.[1]) return null;
   const value = Number.parseFloat(m[1]);
   if (!Number.isFinite(value)) return null;
   return { value, unit: (m[2] ?? "").toLowerCase() };
@@ -315,7 +315,7 @@ export function fmt12(t: string): string {
 /** Clinical frequency code from the dose count: OD/BD/TID/QID/SOS. */
 export function dosesFreqCode(doses: Dose[], sos: boolean): string {
   if (sos) return "SOS";
-  if (!doses || !doses.length) return "—";
+  if (!doses?.length) return "—";
   const codes: Record<number, string> = { 1: "OD", 2: "BD", 3: "TID", 4: "QID" };
   return codes[doses.length] ?? `${doses.length}×/day`;
 }

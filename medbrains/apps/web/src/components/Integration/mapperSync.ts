@@ -224,7 +224,7 @@ interface NodePath {
 function walkBackward(destId: string, nodes: MapperNode[], edges: Edge[]): NodePath | null {
   const nodeMap = new Map(nodes.map((n) => [n.id, n]));
   const destNode = nodeMap.get(destId);
-  if (!destNode || destNode.type !== "destField") return null;
+  if (destNode?.type !== "destField") return null;
 
   const operationNodes: MapperNode[] = [];
   const sourceNodes: MapperNode[] = [];

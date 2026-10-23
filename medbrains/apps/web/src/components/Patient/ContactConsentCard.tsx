@@ -15,7 +15,7 @@ const CHANNELS = [
 ] as const;
 
 /** Who agreed to what, and when — and the switch to change it. */
-function describe(consent: ChannelConsent | undefined): string {
+function describeConsent(consent: ChannelConsent | undefined): string {
   if (!consent) return "Never asked";
   const when = new Date(consent.recorded_at).toLocaleDateString();
   const who = consent.recorded_by_name ? ` by ${consent.recorded_by_name}` : "";
@@ -60,7 +60,9 @@ export function ContactConsentCard({ patient }: ContactConsentCardProps) {
                     {label}
                   </Text>
                   <Text size="xs" c="dimmed">
-                    {noEmail && !consent?.granted ? "No email address on file" : describe(consent)}
+                    {noEmail && !consent?.granted
+                      ? "No email address on file"
+                      : describeConsent(consent)}
                   </Text>
                 </Stack>
                 <Switch

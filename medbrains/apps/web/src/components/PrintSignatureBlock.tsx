@@ -72,7 +72,7 @@ export function PrintSignatureBlock({
         }}
       >
         {sigs.map((sig, idx) => (
-          <SingleSignature key={`${sig.verify_ref}-${idx}`} sig={sig} index={idx} />
+          <SingleSignature key={sig.verify_ref} sig={sig} index={idx} />
         ))}
       </div>
     </div>

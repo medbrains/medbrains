@@ -63,7 +63,7 @@ export class CrdtStore {
     void this.openDb().then(() => this.connectWs());
   }
 
-  private async openDb() {
+  private async openDb(): Promise<IDBPDatabase<MedbrainsCrdtSchema>> {
     this.db = await openDB<MedbrainsCrdtSchema>(this.opts.dbName ?? "medbrains-crdt", 1, {
       upgrade(db) {
         if (!db.objectStoreNames.contains("snapshots")) {
@@ -75,6 +75,7 @@ export class CrdtStore {
         }
       },
     });
+    return this.db;
   }
 
   /**
@@ -82,10 +83,11 @@ export class CrdtStore {
    * subsequent calls return the same LoroDoc instance.
    */
   async loadDoc(docId: string): Promise<LoroDoc> {
-    if (this.docs.has(docId)) return this.docs.get(docId)!;
-    if (!this.db) await this.openDb();
+    const cached = this.docs.get(docId);
+    if (cached) return cached;
+    const db = this.db ?? (await this.openDb());
     const key = `${this.opts.tenantId}/${docId}`;
-    const row = await this.db!.get("snapshots", key);
+    const row = await db.get("snapshots", key);
     const doc = new LoroDoc();
     if (row?.bytes) doc.import(row.bytes);
     this.docs.set(docId, doc);

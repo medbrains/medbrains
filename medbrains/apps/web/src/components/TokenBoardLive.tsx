@@ -3,7 +3,7 @@ import { api } from "@medbrains/api";
 import type { ModuleToken } from "@medbrains/types";
 import { IconVolume, IconVolumeOff } from "@tabler/icons-react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Alert,
   Badge,
@@ -135,7 +135,7 @@ export function TokenBoardLive({
   const [muted, setMuted] = useState(false);
   const mutedRef = useRef(muted);
   mutedRef.current = muted;
-  const queryKey = ["token-board", module, scope, scopeId];
+  const queryKey = useMemo(() => ["token-board", module, scope, scopeId], [module, scope, scopeId]);
 
   const { data } = useQuery({
     queryKey,
@@ -205,9 +205,7 @@ export function TokenBoardLive({
       }
     };
     return () => ws.close();
-    // queryKey is derived from these deps; safe to omit.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [scopeId, module, scope, queryClient]);
+  }, [scopeId, queryKey, queryClient]);
 
   // The code clears itself. A banner that stays up all afternoon is one the
   // staff stop seeing, and the next one arrives on a screen nobody reads.

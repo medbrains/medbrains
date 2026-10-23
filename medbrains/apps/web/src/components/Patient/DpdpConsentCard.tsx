@@ -17,7 +17,7 @@ interface DpdpConsentCardProps {
   patient: Patient;
 }
 
-function describe(record: DpdpConsentRecord): string {
+function describeConsent(record: DpdpConsentRecord): string {
   const when = new Date(record.created_at).toLocaleDateString();
   const who = record.recorded_by_name ? ` by ${record.recorded_by_name}` : "";
   const by = record.guardian_name ? `, agreed by ${record.guardian_name}` : "";
@@ -84,7 +84,7 @@ export function DpdpConsentCard({ patient }: DpdpConsentCardProps) {
             </List>
           )}
           <Text size="xs" c="dimmed">
-            {describe(current)}
+            {describeConsent(current)}
             {consent.data && consent.data.history.length > 1
               ? ` · ${consent.data.history.length - 1} earlier decision(s)`
               : ""}
