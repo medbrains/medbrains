@@ -37,7 +37,31 @@ public enum Abha {
         case .abhaNumber: return digits(trimmed).count == abhaNumberLength ? nil : "An ABHA number is 14 digits"
         case .mobile: return digits(trimmed).count == mobileLength ? nil : "Enter the 10-digit mobile"
         case .abhaAddress: return trimmed.isEmpty || trimmed.contains(" ") ? "Enter the ABHA address, e.g. priya.v@abdm" : nil
+        case .aadhaar: return digits(trimmed).count == aadhaarLength ? nil : "An Aadhaar number is 12 digits"
+        case .findMobile: return digits(trimmed).count == mobileLength ? nil : "Enter the 10-digit mobile"
         }
+    }
+
+    /// Whether the desk chooses where the OTP goes: the Aadhaar mobile or the
+    /// ABHA's own. A mobile goes to that mobile; an Aadhaar login to Aadhaar's.
+    public static func choosesOtpVia(_ method: AbhaVerifyMethod) -> Bool { method == .abhaNumber || method == .abhaAddress }
+
+    /// A lookup value as it is typed: an Aadhaar number is digits only.
+    public static func lookupInput(_ method: AbhaVerifyMethod, _ text: String) -> String {
+        method == .aadhaar ? aadhaarInput(text) : text
+    }
+
+    /// The lookup a scanned ABHA card leads to: its number, else its address.
+    public static func lookup(from card: AbhaCardQr) -> (AbhaVerifyMethod, String)? {
+        if let number = card.abhaNumber { return (.abhaNumber, number) }
+        if let address = card.abhaAddress { return (.abhaAddress, address) }
+        return nil
+    }
+
+    /// What the card says, for the desk to check before the OTP.
+    public static func cardSummary(_ card: AbhaCardQr) -> String {
+        let parts = [card.name, card.gender, card.dateOfBirth.map { "born \($0)" }].compactMap { $0 }
+        return parts.isEmpty ? "The card names an ABHA but no details." : parts.joined(separator: " · ")
     }
 
     /// An ABHA address the patient chose: letters, numbers, dot or
@@ -177,17 +201,42 @@ public struct OurDetails: Hashable, Sendable {
     }
 }
 
-/// How the desk finds the person's ABHA.
+/// How the desk finds the person's ABHA. `aadhaar` logs in with the Aadhaar
+/// number (never stored); `findMobile` lists the ABHAs on a mobile before
+/// any OTP (M1 VRFY_ABHA_301–305, 401–405).
 public enum AbhaVerifyMethod: String, CaseIterable, Codable, Hashable, Sendable {
-    case abhaNumber = "abha_number", mobile, abhaAddress = "abha_address"
+    case abhaNumber = "abha_number", mobile, findMobile = "find_mobile", aadhaar, abhaAddress = "abha_address"
 
     public var label: String {
         switch self {
         case .abhaNumber: "ABHA number"
-        case .mobile: "Mobile"
+        case .mobile: "Mobile number (OTP first)"
+        case .findMobile: "Find by mobile (list the ABHAs first)"
+        case .aadhaar: "Aadhaar number"
         case .abhaAddress: "ABHA address"
         }
     }
+
+    /// The field's label for what is typed.
+    public var valueLabel: String {
+        switch self {
+        case .abhaNumber: "ABHA number (14 digits)"
+        case .mobile, .findMobile: "Mobile number"
+        case .aadhaar: "Aadhaar number"
+        case .abhaAddress: "ABHA address (e.g. priya.v@abdm)"
+        }
+    }
+}
+
+/// What a scanned ABHA card says (M1 VRFY_ABHA_501) — read by the server,
+/// to verify by OTP; a printed card proves nothing on its own.
+public struct AbhaCardQr: Decodable, Hashable, Sendable {
+    public let abhaNumber: String?
+    public let abhaAddress: String?
+    public let name: String?
+    public let gender: String?
+    public let dateOfBirth: String?
+    public let mobile: String?
 }
 
 /// Where ABDM sends the OTP for an ABHA number or address lookup.
@@ -201,6 +250,8 @@ public enum AbhaField: String, Codable, Hashable, Sendable {
 }
 
 public enum AbhaStage: String, Sendable {
+    /// The ABHAs a mobile search found, before any OTP.
+    case searchResults = "search_results"
     case otpSent = "otp_sent", mobileOtpSent = "mobile_otp_sent", chooseAccount = "choose_account", chooseAddress = "choose_address", verified
 }
 

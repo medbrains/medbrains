@@ -31,6 +31,32 @@ final class AbhaTests: XCTestCase {
         XCTAssertNotNil(Abha.addressProblem(""))
     }
 
+    /// Finding by Aadhaar or by mobile (M1 VRFY_ABHA_301–305, 401–405):
+    /// each says what it needs, and only a number or address lookup lets the
+    /// desk choose where the OTP goes.
+    func testFindingByAadhaarOrMobileSaysWhatItNeeds() {
+        XCTAssertNil(Abha.lookupProblem(.aadhaar, "1234 5678 9012"))
+        XCTAssertEqual(Abha.lookupProblem(.aadhaar, "12345"), "An Aadhaar number is 12 digits")
+        XCTAssertNil(Abha.lookupProblem(.findMobile, "98765 43210"))
+        XCTAssertEqual(Abha.lookupInput(.aadhaar, "1234-5678-9012-34"), "123456789012", "never more than twelve digits")
+        XCTAssertEqual(Abha.lookupInput(.abhaAddress, "priya.v@abdm"), "priya.v@abdm")
+        XCTAssertEqual(AbhaVerifyMethod.allCases.filter(Abha.choosesOtpVia), [.abhaNumber, .abhaAddress])
+        XCTAssertEqual(AbhaStage(rawValue: "search_results"), .searchResults)
+    }
+
+    /// A scanned card leads to verifying its number, else its address; what
+    /// it says is shown, never trusted.
+    func testAScannedCardLeadsToItsNumberThenItsAddress() throws {
+        let decode = { (json: String) in try JSONDecoder.medbrains.decode(AbhaCardQr.self, from: Data(json.utf8)) }
+        let full = try decode(#"{"abha_number":"91-4173-3253-1234","abha_address":"x@abdm","name":"Priya V","gender":"female","date_of_birth":"21-11-1990","mobile":null}"#)
+        XCTAssertEqual(Abha.lookup(from: full)?.0, .abhaNumber)
+        XCTAssertEqual(Abha.lookup(from: full)?.1, "91-4173-3253-1234")
+        XCTAssertEqual(Abha.cardSummary(full), "Priya V · female · born 21-11-1990")
+        let address = try decode(#"{"abha_number":null,"abha_address":"x@abdm","name":null,"gender":null,"date_of_birth":null,"mobile":null}"#)
+        XCTAssertEqual(Abha.lookup(from: address)?.0, .abhaAddress)
+        XCTAssertEqual(Abha.cardSummary(address), "The card names an ABHA but no details.")
+    }
+
     func testRowsDifferOnlyWhereAbhaSaysSomethingElse() throws {
         let p = try profile(middle: "K")
         let rows = Abha.compareRows(p, ours: OurDetails(firstName: " priya ", middleName: "k", lastName: "venkat", dateOfBirth: nil, gender: "female"))

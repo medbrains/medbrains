@@ -451,6 +451,31 @@ pub fn build_router(state: AppState) -> Router {
             post(abdm::abha_link::link),
         )
         .route(
+            "/api/abdm/abha/verifications/{id}/re-kyc",
+            post(abdm::abha_profile::request_re_kyc),
+        )
+        .route(
+            "/api/abdm/abha/verifications/{id}/re-kyc/verify",
+            post(abdm::abha_profile::verify_re_kyc),
+        )
+        .route(
+            "/api/abdm/abha/verifications/{id}/photo",
+            post(abdm::abha_profile::update_photo),
+        )
+        .route(
+            "/api/abdm/abha/verifications/{id}/close",
+            post(abdm::abha_profile::request_close),
+        )
+        .route(
+            "/api/abdm/abha/verifications/{id}/close/verify",
+            post(abdm::abha_profile::verify_close),
+        )
+        .route("/api/abdm/abha/qr", post(abdm::abha_qr::read))
+        .route(
+            "/api/abdm/patients/{patient_id}/abha/opt-out",
+            post(abdm::abha_optout::opt_out),
+        )
+        .route(
             "/api/abdm/patients/{patient_id}/records",
             get(abdm::hip::records::patient_records),
         )

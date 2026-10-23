@@ -752,6 +752,10 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
             // were consts inside the route file, so nobody could hold them.
             permissions::abdm::abha::VIEW,
             permissions::abdm::abha::MANAGE,
+            // The desk acts on the patient's own request: closing their ABHA
+            // (confirmed by ABDM's OTP to them) or opting out of sharing here.
+            permissions::abdm::abha::DEACTIVATE,
+            permissions::abdm::abha::UNLINK,
             // Teleconsultations booked from UHI patient apps arrive at the desk.
             permissions::uhi::requests::VIEW,
             // Scan & Share: the desk receives ABHA profiles shared at its counters.
@@ -1460,6 +1464,8 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
             // MRD is the custodian of what leaves the hospital through ABDM.
             permissions::abdm::records::VIEW,
             permissions::abdm::records::MANAGE,
+            // ...and records a patient's opt-out from ABDM sharing.
+            permissions::abdm::abha::UNLINK,
             permissions::abdm::dashboard::VIEW,
         ],
     },
@@ -1763,6 +1769,10 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
             permissions::front_office::enquiry::LIST,
             permissions::abdm::abha::VIEW,
             permissions::abdm::abha::MANAGE,
+            // The desk acts on the patient's own request: closing their ABHA
+            // (confirmed by ABDM's OTP to them) or opting out of sharing here.
+            permissions::abdm::abha::DEACTIVATE,
+            permissions::abdm::abha::UNLINK,
             permissions::uhi::requests::VIEW,
             // Scan & Share: the desk receives ABHA profiles shared at its counters.
             permissions::abdm::scanshare::VIEW,

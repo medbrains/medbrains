@@ -37,8 +37,27 @@ object Abha {
             AbhaVerifyMethod.ABHA_NUMBER -> if (digits(v).length == ABHA_NUMBER_LENGTH) null else "An ABHA number is 14 digits"
             AbhaVerifyMethod.MOBILE -> if (digits(v).length == MOBILE_LENGTH) null else "Enter the 10-digit mobile"
             AbhaVerifyMethod.ABHA_ADDRESS -> if (v.isEmpty() || v.contains(' ')) "Enter the ABHA address, e.g. priya.v@abdm" else null
+            AbhaVerifyMethod.AADHAAR -> if (digits(v).length == AADHAAR_LENGTH) null else "An Aadhaar number is 12 digits"
+            AbhaVerifyMethod.FIND_MOBILE -> if (digits(v).length == MOBILE_LENGTH) null else "Enter the 10-digit mobile"
         }
     }
+
+    /** Whether the desk chooses where the OTP goes: only an ABHA number or address lookup. */
+    fun choosesOtpVia(method: AbhaVerifyMethod): Boolean = method == AbhaVerifyMethod.ABHA_NUMBER || method == AbhaVerifyMethod.ABHA_ADDRESS
+
+    /** A lookup value as it is typed: an Aadhaar number is digits only, at most twelve. */
+    fun lookupInput(method: AbhaVerifyMethod, text: String): String = if (method == AbhaVerifyMethod.AADHAAR) aadhaarInput(text) else text
+
+    /** The lookup a scanned ABHA card leads to: its number, else its address. */
+    fun lookup(card: AbhaCardQr): Pair<AbhaVerifyMethod, String>? = when {
+        card.abha_number != null -> AbhaVerifyMethod.ABHA_NUMBER to card.abha_number
+        card.abha_address != null -> AbhaVerifyMethod.ABHA_ADDRESS to card.abha_address
+        else -> null
+    }
+
+    /** What the card says, for the desk to check before the OTP. */
+    fun cardSummary(card: AbhaCardQr): String =
+        listOfNotNull(card.name, card.gender, card.date_of_birth?.let { "born $it" }).joinToString(" · ").ifEmpty { "The card names an ABHA but no details." }
 
     /** An ABHA address the patient chose: letters, numbers, dot or underscore; ABDM adds the @ part. */
     fun addressProblem(address: String): String? = when {
@@ -135,11 +154,26 @@ data class AbhaCompareRow(val field: AbhaField, val label: String, val abha: Str
 data class OurDetails(val firstName: String?, val middleName: String? = null, val lastName: String?, val dateOfBirth: String?, val gender: String?)
 
 @Serializable
-enum class AbhaVerifyMethod(val label: String) {
-    @SerialName("abha_number") ABHA_NUMBER("ABHA number"),
-    @SerialName("mobile") MOBILE("Mobile"),
-    @SerialName("abha_address") ABHA_ADDRESS("ABHA address"),
+enum class AbhaVerifyMethod(val label: String, val valueLabel: String) {
+    @SerialName("abha_number") ABHA_NUMBER("ABHA number", "ABHA number (14 digits)"),
+    @SerialName("mobile") MOBILE("Mobile number (OTP first)", "Mobile number"),
+    /** List the ABHAs on a mobile before any OTP (M1 VRFY_ABHA_301–305). */
+    @SerialName("find_mobile") FIND_MOBILE("Find by mobile (list the ABHAs first)", "Mobile number"),
+    /** Log in with the Aadhaar number, never stored (M1 VRFY_ABHA_401–405). */
+    @SerialName("aadhaar") AADHAAR("Aadhaar number", "Aadhaar number"),
+    @SerialName("abha_address") ABHA_ADDRESS("ABHA address", "ABHA address (e.g. priya.v@abdm)"),
 }
+
+/** What a scanned ABHA card says (M1 VRFY_ABHA_501) — read by the server, to verify by OTP; a printed card proves nothing. */
+@Serializable
+data class AbhaCardQr(
+    val abha_number: String? = null,
+    val abha_address: String? = null,
+    val name: String? = null,
+    val gender: String? = null,
+    val date_of_birth: String? = null,
+    val mobile: String? = null,
+)
 
 /** Where ABDM sends the OTP for an ABHA number or address lookup. */
 @Serializable
@@ -150,6 +184,8 @@ enum class AbhaOtpVia { @SerialName("aadhaar") AADHAAR, @SerialName("abdm") ABDM
 enum class AbhaField(val wire: String) { @SerialName("name") NAME("name"), @SerialName("date_of_birth") DATE_OF_BIRTH("date_of_birth"), @SerialName("gender") GENDER("gender") }
 
 object AbhaStage {
+    /** The ABHAs a mobile search found, before any OTP. */
+    const val SEARCH_RESULTS = "search_results"
     const val OTP_SENT = "otp_sent"
     const val MOBILE_OTP_SENT = "mobile_otp_sent"
     const val CHOOSE_ACCOUNT = "choose_account"

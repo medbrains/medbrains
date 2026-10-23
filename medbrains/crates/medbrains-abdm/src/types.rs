@@ -43,6 +43,10 @@ pub enum LoginHint {
     Mobile,
     AbhaAddress,
     Email,
+    /// The Aadhaar number itself ("Find ABHA by Aadhaar", SOP §7.2).
+    Aadhaar,
+    /// The position of the account chosen from a mobile search (SOP §7.6.1.2).
+    Index,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
@@ -60,6 +64,10 @@ pub struct RequestOtpRequest {
     /// Encrypted ABHA number or mobile.
     pub login_id: String,
     pub otp_system: OtpSystem,
+    /// The search transaction, when the OTP is for an account a mobile
+    /// search found.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub txn_id: Option<String>,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]

@@ -122,10 +122,7 @@ pub async fn on_notify(
     };
     let ok = body["error"].is_null() && body["acknowledgement"]["status"] == "SUCCESS";
     let error = (!ok).then(|| {
-        body["error"]["message"]
-            .as_str()
-            .unwrap_or("ABDM did not accept the notification")
-            .to_owned()
+        medbrains_abdm::errors::describe_body(&body, "ABDM did not accept the notification")
     });
     // ABDM-1006: the link was not indexed yet — ask again later (F9).
     let retry = error_code(&body) == Some("ABDM-1006");

@@ -263,6 +263,15 @@ impl AbdmAbhaClient {
         with_headers(self.http.post(self.url(path)), session, user)
     }
 
+    pub(crate) fn patch(
+        &self,
+        path: &str,
+        session: &str,
+        user: Option<UserToken<'_>>,
+    ) -> reqwest::RequestBuilder {
+        with_headers(self.http.patch(self.url(path)), session, user)
+    }
+
     pub(crate) fn phr_get(
         &self,
         path: &str,
@@ -321,26 +330,11 @@ where
     Ok(response.json::<T>().await?)
 }
 
-/// ABDM's human message out of an error body, never the raw body: it can echo
-/// back what was sent.
+/// ABDM's refusal in words staff can act on (see [`crate::errors`]), never
+/// the raw body: it can echo back what was sent.
 pub(crate) fn abdm_message(body: &str) -> String {
-    let parsed: Option<serde_json::Value> = serde_json::from_str(body).ok();
-    let pick = |v: &serde_json::Value| {
-        ["message", "errorMessage", "error"]
-            .iter()
-            .find_map(|k| match &v[*k] {
-                serde_json::Value::String(s) => Some(s.clone()),
-                serde_json::Value::Object(o) => o
-                    .get("message")
-                    .and_then(serde_json::Value::as_str)
-                    .map(str::to_owned),
-                _ => None,
-            })
-    };
-    parsed
-        .as_ref()
-        .and_then(pick)
-        .unwrap_or_else(|| "ABDM could not complete the request".to_owned())
+    let parsed: serde_json::Value = serde_json::from_str(body).unwrap_or_default();
+    crate::errors::describe_body(&parsed, "ABDM could not complete the request")
 }
 
 #[cfg(test)]
@@ -388,6 +382,10 @@ mod tests {
         assert_eq!(
             abdm_message(r#"{"error":{"message":"Txn expired"}}"#),
             "Txn expired"
+        );
+        assert!(
+            abdm_message(r#"{"error":{"code":"ABDM-1017: ","message":"Invalid TransactionId"}}"#)
+                .starts_with("This ABDM step has expired")
         );
         assert_eq!(
             abdm_message("<html>"),

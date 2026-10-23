@@ -31,9 +31,11 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import com.medbrains.kit.Abha
 import com.medbrains.kit.AbhaApi
+import com.medbrains.kit.AbhaCardQr
 import com.medbrains.kit.AbhaField
 import com.medbrains.kit.AbhaOtpVia
 import com.medbrains.kit.AbhaStage
@@ -43,6 +45,7 @@ import com.medbrains.kit.AbhaVerifyMethod
 import com.medbrains.kit.ApiError
 import com.medbrains.kit.LocalApiClient
 import com.medbrains.kit.OurDetails
+import com.medbrains.ui.BarcodeScanner
 import com.medbrains.ui.CarbonChoiceRow
 import com.medbrains.ui.CarbonNotification
 import com.medbrains.ui.CarbonPageHeader
@@ -131,7 +134,7 @@ private fun OtpField(flow: AbhaFlowState) {
     CarbonTextField(flow.otp, { flow.otp = Abha.otpInput(it) }, "OTP — ask the patient to read it out", Modifier.testTag("abha-otp"), keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword))
 }
 
-/** Find the person's ABHA by number, mobile or address; they read out the OTP; the desk compares and chooses. */
+/** Find the person's ABHA by number, mobile, Aadhaar, address or a scanned card; they read out the OTP; the desk compares and chooses. */
 @Composable
 private fun AbhaVerifyFlow(ours: OurDetails, confirmLabel: String, onConfirm: suspend (AbhaConfirmation) -> String?) {
     val client = LocalApiClient.current
@@ -143,19 +146,45 @@ private fun AbhaVerifyFlow(ours: OurDetails, confirmLabel: String, onConfirm: su
     var value by remember { mutableStateOf("") }
     var chosen by remember { mutableStateOf<String?>(null) }
     var tried by remember { mutableStateOf(false) }
+    var scanning by remember { mutableStateOf(false) }
+    var scanKey by remember { mutableIntStateOf(0) }
+    var card by remember { mutableStateOf<AbhaCardQr?>(null) }
     LaunchedEffect(flow.sent) { while (flow.wait > 0) { delay(SECOND_MS); flow.wait -= 1 } }
     FailureNote(flow.failure)
     val step = flow.step
     if (step == null) {
-        CarbonSegmented("Find the ABHA by", AbhaVerifyMethod.entries.map { it to it.label }, method, { method = it }, "abha-method")
-        val label = when (method) { AbhaVerifyMethod.ABHA_NUMBER -> "ABHA number (14 digits)"; AbhaVerifyMethod.MOBILE -> "Mobile number"; AbhaVerifyMethod.ABHA_ADDRESS -> "ABHA address (e.g. priya.v@abdm)" }
-        CarbonTextField(value, { value = it }, label, Modifier.testTag("abha-lookup-value"), error = if (tried) Abha.lookupProblem(method, value) else null,
-            keyboardOptions = KeyboardOptions(keyboardType = if (method == AbhaVerifyMethod.ABHA_ADDRESS) KeyboardType.Email else KeyboardType.Number, autoCorrectEnabled = false))
-        if (method != AbhaVerifyMethod.MOBILE) {
+        if (scanning) {
+            BarcodeScanner(title = "Scan the ABHA card", hint = "Hold the QR on the patient's ABHA card to the camera.", resumeKey = scanKey, onScan = { payload ->
+                scanning = false
+                scope.launch {
+                    try {
+                        val read = api.readQr(payload)
+                        card = read
+                        Abha.lookup(read)?.let { (m, v) -> method = m; value = v }
+                        flow.failure = null
+                    } catch (e: ApiError) { flow.failure = e.message } catch (e: Exception) { flow.failure = "Could not reach the hospital server." }
+                    scanKey++
+                }
+            })
+            CarbonTertiaryButton("Cancel the scan", onClick = { scanning = false }, modifier = Modifier.fillMaxWidth().testTag("abha-scan-cancel"))
+            return
+        }
+        CarbonTertiaryButton("Scan the ABHA card", onClick = { scanning = true }, modifier = Modifier.fillMaxWidth().testTag("abha-scan-card"))
+        card?.let { CarbonNotification(NotificationKind.Info, "What the card says — verify it by OTP", Abha.cardSummary(it), Modifier.testTag("abha-card-read")) }
+        CarbonSectionTitle("Find the ABHA by")
+        AbhaVerifyMethod.entries.forEach { m ->
+            CarbonChoiceRow(m.label, null, method == m, { method = m; value = Abha.lookupInput(m, value) }, Modifier.testTag("abha-method-${m.name.lowercase()}"))
+        }
+        val secret = method == AbhaVerifyMethod.AADHAAR
+        CarbonTextField(value, { value = Abha.lookupInput(method, it) }, method.valueLabel, Modifier.testTag("abha-lookup-value"), error = if (tried) Abha.lookupProblem(method, value) else null,
+            keyboardOptions = KeyboardOptions(keyboardType = when { secret -> KeyboardType.NumberPassword; method == AbhaVerifyMethod.ABHA_ADDRESS -> KeyboardType.Email; else -> KeyboardType.Number }, autoCorrectEnabled = false),
+            visualTransformation = if (secret) PasswordVisualTransformation() else VisualTransformation.None)
+        if (secret) Text("12 digits. Sent to ABDM encrypted; not saved here.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        if (Abha.choosesOtpVia(method)) {
             Text("Send the OTP to", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
             CarbonSegmented("Send the OTP to", listOf(AbhaOtpVia.AADHAAR to "Aadhaar mobile", AbhaOtpVia.ABDM to "ABHA mobile"), via, { via = it }, "abha-otp-via")
         }
-        CarbonPrimaryButton("Send OTP", enabled = !flow.busy, modifier = Modifier.testTag("abha-send-otp"), onClick = {
+        CarbonPrimaryButton(if (method == AbhaVerifyMethod.FIND_MOBILE) "Find ABHAs" else "Send OTP", enabled = !flow.busy, modifier = Modifier.testTag("abha-send-otp"), onClick = {
             tried = true
             if (Abha.lookupProblem(method, value) == null) scope.launch { flow.run { api.start(method, value, via) } }
         })
@@ -166,14 +195,17 @@ private fun AbhaVerifyFlow(ours: OurDetails, confirmLabel: String, onConfirm: su
             Text(step.message ?: "ABDM has sent the patient an OTP.", style = MaterialTheme.typography.bodyLarge)
             OtpField(flow)
             CarbonPrimaryButton("Verify", enabled = !flow.busy && flow.otp.length == Abha.OTP_LENGTH, modifier = Modifier.testTag("abha-verify-otp"), onClick = { scope.launch { flow.run { api.submitOtp(step.id, flow.otp) } } })
-            ResendControl(flow) { scope.launch { flow.run { api.resend(step.id) } } }
+            // An Aadhaar login sends the number again: the server never keeps it.
+            ResendControl(flow) { scope.launch { flow.run { api.resend(step.id, value.takeIf { method == AbhaVerifyMethod.AADHAAR }) } } }
         }
-        AbhaStage.CHOOSE_ACCOUNT -> {
-            CarbonSectionTitle("Several ABHAs use this mobile — which is the patient's?")
+        AbhaStage.CHOOSE_ACCOUNT, AbhaStage.SEARCH_RESULTS -> {
+            val found = step.stage == AbhaStage.SEARCH_RESULTS
+            step.message?.let { Text(it, style = MaterialTheme.typography.bodyMedium) }
+            CarbonSectionTitle(if (found) "Which ABHA is the patient's? ABDM sends the OTP to it." else "Several ABHAs use this mobile — which is the patient's?")
             step.accounts.forEach { a ->
                 CarbonChoiceRow("${a.name ?: "Unnamed"} · ${a.abha_number}", listOfNotNull(a.abha_address, a.gender, a.year_of_birth).joinToString(" · "), chosen == a.abha_number, { chosen = a.abha_number }, Modifier.testTag("abha-account-${a.abha_number}"))
             }
-            CarbonPrimaryButton("Continue", enabled = chosen != null && !flow.busy, modifier = Modifier.testTag("abha-account-continue"), onClick = {
+            CarbonPrimaryButton(if (found) "Send OTP to this ABHA" else "Continue", enabled = chosen != null && !flow.busy, modifier = Modifier.testTag("abha-account-continue"), onClick = {
                 chosen?.let { number -> scope.launch { flow.run { api.chooseAccount(step.id, number) } } }
             })
         }

@@ -94,7 +94,7 @@ fn step(id: Uuid, stage: &'static str, message: Option<String>) -> VerificationS
     }
 }
 
-fn aadhaar_digits(aadhaar: &str) -> Result<String, AppError> {
+pub(crate) fn aadhaar_digits(aadhaar: &str) -> Result<String, AppError> {
     let aadhaar = digits(aadhaar);
     if aadhaar.len() == 12 {
         Ok(aadhaar)

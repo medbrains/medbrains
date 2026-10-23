@@ -7,6 +7,7 @@ public enum AbdmEndpoint {
     public static let verifications = "/api/abdm/abha/verifications"
     public static let enrolments = "/api/abdm/abha/enrolments"
     public static let scanShareQueue = "/api/abdm/scan-share/queue"
+    public static let readQr = "/api/abdm/abha/qr"
     static func verification(_ id: String, _ tail: String) -> String { "\(verifications)/\(id)/\(tail)" }
     static func enrolment(_ id: String, _ tail: String) -> String { "\(enrolments)/\(id)/\(tail)" }
     static func share(_ id: String, _ tail: String) -> String { "/api/abdm/scan-share/\(id)/\(tail)" }
@@ -24,16 +25,26 @@ public struct AbhaApi: Sendable {
     private struct Address: Encodable { let abhaAddress: String }
     private struct Enrol: Encodable { let aadhaar: String; let consent: Bool }
     private struct ResendEnrol: Encodable { let aadhaar: String? }
+    private struct Resend: Encodable { let value: String? }
+    private struct QrPayload: Encodable { let payload: String }
     private struct Link: Encodable { let patientId: String; let apply: [AbhaField] }
     private struct Linked: Decodable { let linked: Bool }
 
-    /// Send the person an OTP. A mobile lookup has only one place to send it.
+    /// Send the person an OTP — or, finding by mobile, list the ABHAs on it.
+    /// Only an ABHA number or address lookup chooses where the OTP goes.
     public func start(_ method: AbhaVerifyMethod, value: String, via: AbhaOtpVia) async throws -> AbhaVerificationStep {
-        try await client.request(.post, AbdmEndpoint.verifications, body: Start(method: method, value: value.trimmingCharacters(in: .whitespaces), otpVia: method == .mobile ? nil : via))
+        try await client.request(.post, AbdmEndpoint.verifications, body: Start(method: method, value: value.trimmingCharacters(in: .whitespaces), otpVia: Abha.choosesOtpVia(method) ? via : nil))
     }
 
-    public func resend(_ id: String) async throws -> AbhaVerificationStep {
-        try await client.request(.post, AbdmEndpoint.verification(id, "resend"))
+    /// The OTP again. An Aadhaar login sends the Aadhaar number again: the
+    /// server never keeps it.
+    public func resend(_ id: String, value: String? = nil) async throws -> AbhaVerificationStep {
+        try await client.request(.post, AbdmEndpoint.verification(id, "resend"), body: Resend(value: value))
+    }
+
+    /// What a scanned ABHA card says, to verify by OTP next.
+    public func readQr(_ payload: String) async throws -> AbhaCardQr {
+        try await client.request(.post, AbdmEndpoint.readQr, body: QrPayload(payload: payload))
     }
 
     public func submitOtp(_ id: String, otp: String) async throws -> AbhaVerificationStep {

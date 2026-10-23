@@ -15,6 +15,9 @@ import type {
   AbdmSettingsView,
   AbdmSharingSummary,
   AbhaAccountChange,
+  AbhaCardQr,
+  AbhaClosed,
+  AbhaOptedOut,
   AbhaStatusResponse,
   AbhaVerificationStep,
   AccessAlert,
@@ -318,6 +321,7 @@ import type {
   ClinicalProtocol,
   ClinicalScoreRow,
   ClinicalTrial,
+  CloseAbha,
   CloseDayRequest,
   CmeCertificatePrintData,
   CmsAuthor,
@@ -17369,8 +17373,12 @@ export const api = {
       method: "POST",
       body: JSON.stringify(data),
     }),
-  resendAbhaOtp: (id: string) =>
-    request<AbhaVerificationStep>(`/abdm/abha/verifications/${id}/resend`, { method: "POST" }),
+  /** An Aadhaar login needs the Aadhaar number again; it is never stored. */
+  resendAbhaOtp: (id: string, value?: string) =>
+    request<AbhaVerificationStep>(`/abdm/abha/verifications/${id}/resend`, {
+      method: "POST",
+      body: JSON.stringify({ value }),
+    }),
   submitAbhaOtp: (id: string, otp: string) =>
     request<AbhaVerificationStep>(`/abdm/abha/verifications/${id}/otp`, {
       method: "POST",
@@ -17423,6 +17431,36 @@ export const api = {
     request<AbhaAccountChange>(`/abdm/abha/verifications/${id}/email`, {
       method: "POST",
       body: JSON.stringify({ email }),
+    }),
+  requestAbhaReKyc: (id: string) =>
+    request<AbhaAccountChange>(`/abdm/abha/verifications/${id}/re-kyc`, { method: "POST" }),
+  verifyAbhaReKyc: (id: string, otp: string) =>
+    request<AbhaVerificationStep>(`/abdm/abha/verifications/${id}/re-kyc/verify`, {
+      method: "POST",
+      body: JSON.stringify({ otp }),
+    }),
+  /** `photo`: base64 JPEG or PNG, under 1 MB. */
+  updateAbhaPhoto: (id: string, photo: string) =>
+    request<AbhaAccountChange>(`/abdm/abha/verifications/${id}/photo`, {
+      method: "POST",
+      body: JSON.stringify({ photo }),
+    }),
+  requestAbhaClose: (id: string, data: CloseAbha) =>
+    request<AbhaAccountChange>(`/abdm/abha/verifications/${id}/close`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  verifyAbhaClose: (id: string, otp: string) =>
+    request<AbhaClosed>(`/abdm/abha/verifications/${id}/close/verify`, {
+      method: "POST",
+      body: JSON.stringify({ otp }),
+    }),
+  readAbhaQr: (payload: string) =>
+    request<AbhaCardQr>("/abdm/abha/qr", { method: "POST", body: JSON.stringify({ payload }) }),
+  optOutAbha: (patientId: string, reason: string) =>
+    request<AbhaOptedOut>(`/abdm/patients/${patientId}/abha/opt-out`, {
+      method: "POST",
+      body: JSON.stringify({ reason }),
     }),
   /** The ABHA card image, for opening in a tab to print (cookie-authenticated GET). */
   abhaCardUrl: (id: string) => `${getApiBase()}/abdm/abha/verifications/${id}/card`,
