@@ -20,6 +20,14 @@ import {
 import { nhcxSettingsService } from "@/services/nhcxSettings.service";
 
 const KEY = ["nhcx", "settings"];
+/** The addresses NHA's package says NHCX calls from. */
+const NHCX_ADDRESSES = ["3.109.99.210", "13.126.152.0", "13.200.129.223"];
+const IP_PATTERN = /^[0-9a-fA-F:.]+$/;
+const ipLines = (v: string) =>
+  v
+    .split(/\s+/)
+    .map((l) => l.trim())
+    .filter(Boolean);
 const pem = z
   .string()
   .trim()
@@ -33,6 +41,12 @@ const schema = z.object({
   private_key_pem: pem,
   public_cert_pem: pem,
   gateway_jwt_public_key_pem: pem,
+  callback_ip_allowlist: z
+    .string()
+    .refine(
+      (v) => ipLines(v).every((ip) => IP_PATTERN.test(ip)),
+      "One IP address per line, for example 3.109.99.210",
+    ),
 });
 type FormValues = z.infer<typeof schema>;
 
@@ -51,6 +65,7 @@ function toForm(data: NhcxSettingsView | undefined): FormValues {
     private_key_pem: "",
     public_cert_pem: data?.public_cert_pem ?? "",
     gateway_jwt_public_key_pem: data?.gateway_jwt_public_key_pem ?? "",
+    callback_ip_allowlist: (data?.callback_ip_allowlist ?? []).join("\n"),
   };
 }
 
@@ -68,7 +83,7 @@ export function NhcxSettings() {
   });
   const form = useForm<FormValues>({ resolver: zodResolver(schema), values: toForm(data) });
   const endpointUrl = useMemo(
-    () => new URL(`${getApiBase()}/integrations/nhcx/hcx/v1`, window.location.origin).href,
+    () => new URL(`${getApiBase()}/integrations/nhcx/hcx`, window.location.origin).href,
     [],
   );
   const save = useMutation({
@@ -77,6 +92,7 @@ export function NhcxSettings() {
         ...v,
         client_secret: v.client_secret || undefined,
         private_key_pem: v.private_key_pem || undefined,
+        callback_ip_allowlist: ipLines(v.callback_ip_allowlist),
       }),
     onSuccess: (saved) => {
       queryClient.setQueryData(KEY, saved);
@@ -140,7 +156,17 @@ export function NhcxSettings() {
           <Text size="sm" ff="monospace">
             {endpointUrl}
           </Text>
+          <Text size="xs" c="dimmed">
+            Register exactly this. NHCX adds /v1/preauth/on_submit and the other paths itself.
+          </Text>
         </Stack>
+        {data && !data.gateway_jwt_public_key_pem && (
+          <Alert tone="warning" title="Payer answers are refused until the gateway key is saved">
+            Without the NHCX gateway public key no callback can be verified, so every payer answer
+            is logged and refused unread. NHA hands the key over at onboarding — ask for it when you
+            register the endpoint URL, then paste it below.
+          </Alert>
+        )}
         <Controller
           control={form.control}
           name="environment"
@@ -214,6 +240,23 @@ export function NhcxSettings() {
           "Gateway public key (PEM)",
           "Verifies that a callback really comes from the NHCX gateway.",
         )}
+        <Controller
+          control={form.control}
+          name="callback_ip_allowlist"
+          render={({ field }) => (
+            <TextArea
+              {...field}
+              label="Accept callbacks only from these addresses"
+              description={`One IP per line; leave blank to accept any. NHA lists ${NHCX_ADDRESSES.join(", ")}.`}
+              autosize
+              minRows={2}
+              maxRows={6}
+              spellCheck={false}
+              ff="monospace"
+              error={form.formState.errors.callback_ip_allowlist?.message}
+            />
+          )}
+        />
         {test && (
           <Alert
             tone={test.ok ? "success" : "danger"}

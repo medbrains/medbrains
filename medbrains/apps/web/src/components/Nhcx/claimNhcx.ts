@@ -73,9 +73,21 @@ export function taskAnswer(task: NhcxTask): string | null {
 
 /** What finance should do about a payment, if anything. */
 export function paymentFlag(p: NhcxPayment): { label: string; tone: BadgeTone } {
+  if (p.status === "advice") return { label: paymentStage(p.stage), tone: "info" };
+  if (p.status === "unmatched" && !p.stage) {
+    return { label: "Payer did not say it settled — check, then post", tone: "warning" };
+  }
   if (p.status === "unmatched") return { label: "No claim matched", tone: "danger" };
   if (p.is_mismatch) return { label: "Differs from approved", tone: "warning" };
   return { label: "Matches approved", tone: "success" };
+}
+
+/** A notice that moves no money, by the payer's step code. */
+function paymentStage(stage: string | null): string {
+  if (stage === "30") return "Payment initiated — not paid yet";
+  if (stage === "31") return "Payment processed — not settled yet";
+  if (stage === "33") return "Repeat of a settled notice — not posted again";
+  return "Notice only — not posted";
 }
 
 export const rupees = (v: string | null | undefined): string => (v ? `₹${v}` : "—");

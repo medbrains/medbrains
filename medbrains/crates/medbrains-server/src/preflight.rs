@@ -15,7 +15,11 @@ use medbrains_server_core::config::AppConfig;
 use sqlx::PgPool;
 
 /// Keys whose development fallback is a value in the source.
-const REQUIRED_KEYS: [&str; 2] = ["MEDBRAINS_IDENTIFIER_HMAC_KEY", "MEDBRAINS_ABDM_SECRET_KEY"];
+const REQUIRED_KEYS: [&str; 3] = [
+    "MEDBRAINS_IDENTIFIER_HMAC_KEY",
+    "MEDBRAINS_ABDM_SECRET_KEY",
+    "MEDBRAINS_NHCX_SECRET_KEY",
+];
 const MIN_KEY_LEN: usize = 32;
 /// PostgreSQL 16: declarative partitioning and the RLS features the schema uses.
 const MIN_PG_VERSION: i32 = 160_000;
@@ -149,6 +153,7 @@ fn static_dir(config: &AppConfig) -> Finding {
 async fn key_check(secrets: &dyn SecretResolver, key: &'static str, production: bool) -> Finding {
     let check = match key {
         "MEDBRAINS_IDENTIFIER_HMAC_KEY" => "secret.identifier_key",
+        "MEDBRAINS_NHCX_SECRET_KEY" => "secret.nhcx_key",
         _ => "secret.abdm_key",
     };
     match secrets.get(key).await {

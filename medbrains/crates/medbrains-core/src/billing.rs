@@ -331,9 +331,15 @@ pub struct InsuranceClaim {
     pub nhcx_recipient_code: Option<String>,
     pub nhcx_response_payload: Option<serde_json::Value>,
     pub nhcx_response_at: Option<DateTime<Utc>>,
-    pub nhcx_workflow_id: Option<Uuid>,
-    /// `queued` → `sent` | `send_failed`, then the payer's `x-hcx-status`.
+    /// The step code last sent (`15` a claim, `12` a pre-auth, `121` resent
+    /// after a rejection).
+    pub nhcx_workflow_id: Option<String>,
+    /// `queued` → `sent` | `send_failed` | `undelivered`, then the payer's
+    /// `x-hcx-status` (`unknown` when the payer's message did not say).
     pub nhcx_status: Option<String>,
+    /// What the payer decided: `received`, `approved`, `partially_approved`,
+    /// `rejected`, `queried`, `cancelled`, `error` or `unknown`.
+    pub nhcx_decision: Option<String>,
     /// Why the gateway refused the message, when it did.
     pub nhcx_disposition: Option<String>,
     /// The payer's FHIR outcome: `complete`, `partial`, `error` or `queued`.

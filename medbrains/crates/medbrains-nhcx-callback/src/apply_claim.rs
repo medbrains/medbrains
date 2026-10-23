@@ -1,32 +1,29 @@
 //! A payer's answer about a claim: `claim/on_submit` (and a pre-auth sent
 //! from the claim desk), and the replies to the hospital's Tasks —
-//! `hcx/on_status`, `hcx/on_search`, and the cancel and reprocess replies.
+//! `task/on_submit` and `on_status` (or the base protocol's `hcx/on_status`,
+//! `hcx/on_search`, `claim/on_cancel`, `claim/on_reprocess`).
 
-use rust_decimal::Decimal;
 use uuid::Uuid;
 
 use medbrains_server_core::error::AppError;
 
-use crate::apply::{Inbound, Matched, Tx, preauth_by_id};
-use crate::parse;
+use crate::apply::{DECISION_SQL, Inbound, Matched, Tx, preauth_by_id};
+use crate::parse::{self, Decision};
 use crate::parse_claim::{self, TaskResult};
 
 /// Statuses the payer's later answers no longer move.
 const CLOSED: &str = "('settled', 'partially_settled', 'cancelled')";
 
-/// `insurance_claims.status` for the payer's answer; `None` leaves it.
-fn claim_status(
-    is_claim: bool,
-    outcome: Option<&str>,
-    approved: Option<Decimal>,
-) -> Option<&'static str> {
-    // The pre-auth rule decides; an error or a queued answer decides nothing.
-    let decision = parse::preauth_decision(outcome, approved, None)?;
+/// `insurance_claims.status` for the payer's answer; `None` leaves it. A
+/// query, an acknowledgement, an error or an unreadable answer decides
+/// nothing about the claim — the desk sees it as `nhcx_decision`.
+fn claim_status(is_claim: bool, decision: Decision) -> Option<&'static str> {
     Some(match (is_claim, decision) {
-        (true, "approved" | "partially_approved") => "claim_approved",
-        (true, "denied") => "claim_rejected",
-        (false, "approved" | "partially_approved") => "pre_auth_approved",
-        (false, "denied") => "pre_auth_rejected",
+        (true, Decision::Approved | Decision::PartiallyApproved) => "claim_approved",
+        (true, Decision::Rejected) => "claim_rejected",
+        (false, Decision::Approved | Decision::PartiallyApproved) => "pre_auth_approved",
+        (false, Decision::Rejected) => "pre_auth_rejected",
+        (_, Decision::Cancelled) => "cancelled",
         _ => return None,
     })
 }
@@ -63,11 +60,12 @@ pub(crate) async fn apply_response(
     let adj = parse_claim::adjudication(m.response);
     let is_claim = adj.as_ref().and_then(|a| a.use_.as_deref()).or(sent_use) == Some("claim");
     let outcome = parse::outcome(m.response);
-    let approved = adj
-        .as_ref()
-        .and_then(|a| a.approved)
-        .or_else(|| parse::approved_amount(m.response));
-    let status = claim_status(is_claim, outcome.as_deref(), approved);
+    let approved =
+        parse::approved_amount(m.response).or_else(|| adj.as_ref().and_then(|a| a.approved));
+    let decision = parse::decision(m.response, m.workflow_id, m.status, None);
+    let status = claim_status(is_claim, decision);
+    // A query's benefit total is not an approval; only an approval's is.
+    let approved = approved.filter(|_| decision.is_approval());
     let stored = match adj.as_ref().filter(|_| is_claim) {
         Some(a) => Some(
             serde_json::to_value(a)
@@ -83,8 +81,9 @@ pub(crate) async fn apply_response(
                 nhcx_adjudication = COALESCE($6, nhcx_adjudication), \
                 nhcx_adjudicated_at = CASE WHEN $6::jsonb IS NULL THEN nhcx_adjudicated_at ELSE now() END, \
                 status = CASE WHEN status IN {CLOSED} THEN status ELSE COALESCE($7, status) END, \
-                updated_at = now() \
-          WHERE id = $8 AND tenant_id = $9"
+                nhcx_decision = {decision_sql}, updated_at = now() \
+          WHERE id = $8 AND tenant_id = $9",
+        decision_sql = DECISION_SQL.replace("$D", "$10")
     );
     sqlx::query(&sql)
         .bind(m.response)
@@ -96,6 +95,7 @@ pub(crate) async fn apply_response(
         .bind(status)
         .bind(claim_id)
         .bind(m.tenant_id)
+        .bind(decision.as_str())
         .execute(&mut **tx)
         .await?;
     Ok(())
@@ -109,26 +109,18 @@ struct TaskRow {
     prior_auth_id: Option<Uuid>,
 }
 
-/// The Task a reply answers: by correlation id, else — for a payer that
-/// opens a new exchange in the same workflow — the latest Task of the kind
-/// this callback answers.
-async fn find_task(
-    tx: &mut Tx<'_>,
-    m: &Inbound<'_>,
-    kind: &str,
-) -> Result<Option<TaskRow>, AppError> {
+/// The Task a reply answers: by correlation id, else — under the base
+/// protocol, where the workflow id is the case's thread — the Task it names.
+async fn find_task(tx: &mut Tx<'_>, m: &Inbound<'_>) -> Result<Option<TaskRow>, AppError> {
     Ok(sqlx::query_as::<_, TaskRow>(
         "SELECT id, kind, insurance_claim_id, prior_auth_id FROM nhcx_tasks \
           WHERE tenant_id = $1 AND recipient_code = $2 AND deleted_at IS NULL \
-            AND (nhcx_correlation_id = $3 \
-                 OR ($4::uuid IS NOT NULL AND nhcx_workflow_id = $4 AND kind = $5)) \
-          ORDER BY (nhcx_correlation_id = $3) DESC, created_at DESC LIMIT 1 FOR UPDATE",
+            AND nhcx_correlation_id = $3 \
+          ORDER BY created_at DESC LIMIT 1 FOR UPDATE",
     )
     .bind(m.tenant_id)
     .bind(m.sender)
     .bind(m.correlation_id)
-    .bind(m.workflow_id)
-    .bind(kind)
     .fetch_optional(&mut **tx)
     .await?)
 }
@@ -165,14 +157,9 @@ async fn match_found(
     Ok(())
 }
 
-/// A reply to one of the hospital's Tasks. `kind` is the Task kind the
-/// callback's path answers.
-pub(crate) async fn task(
-    tx: &mut Tx<'_>,
-    m: &Inbound<'_>,
-    kind: &str,
-) -> Result<Matched, AppError> {
-    let Some(t) = find_task(tx, m, kind).await? else {
+/// A reply to one of the hospital's Tasks.
+pub(crate) async fn task(tx: &mut Tx<'_>, m: &Inbound<'_>) -> Result<Matched, AppError> {
+    let Some(t) = find_task(tx, m).await? else {
         return Ok(None);
     };
     let mut result = parse_claim::task_result(m.response);
@@ -230,26 +217,31 @@ mod tests {
     use super::*;
 
     #[test]
-    fn a_final_claim_decision_moves_the_claim_and_an_error_moves_nothing() {
-        let d = |s: &str| s.parse::<Decimal>().ok();
+    fn only_a_decision_moves_the_claim() {
         assert_eq!(
-            claim_status(true, Some("complete"), d("500")),
+            claim_status(true, Decision::Approved),
             Some("claim_approved")
         );
         assert_eq!(
-            claim_status(true, Some("partial"), d("500")),
+            claim_status(true, Decision::PartiallyApproved),
             Some("claim_approved")
         );
         assert_eq!(
-            claim_status(true, Some("complete"), d("0")),
+            claim_status(true, Decision::Rejected),
             Some("claim_rejected")
         );
         assert_eq!(
-            claim_status(false, Some("complete"), d("10")),
+            claim_status(false, Decision::Approved),
             Some("pre_auth_approved")
         );
-        assert_eq!(claim_status(true, Some("queued"), None), None);
-        assert_eq!(claim_status(true, Some("error"), None), None);
-        assert_eq!(claim_status(true, None, d("10")), None);
+        assert_eq!(claim_status(true, Decision::Cancelled), Some("cancelled"));
+        for d in [
+            Decision::Queried,
+            Decision::Received,
+            Decision::Error,
+            Decision::Unknown,
+        ] {
+            assert_eq!(claim_status(true, d), None, "{d:?} must not move the claim");
+        }
     }
 }

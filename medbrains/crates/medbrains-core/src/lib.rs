@@ -79,6 +79,7 @@ pub mod multi_hospital;
 pub mod news;
 pub mod notes;
 pub mod nhcx;
+pub mod nhcx_wire;
 pub mod object_store;
 pub mod occ_health;
 pub mod onboarding;

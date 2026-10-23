@@ -13,8 +13,10 @@ use uuid::Uuid;
 
 /// Secret-store key holding the sealing key.
 const SEALING_KEY_NAME: &str = "MEDBRAINS_NHCX_SECRET_KEY";
-/// Development fallback only; production sets the key in the secret store.
+/// Development fallback only. Production refuses to start without the real
+/// key (`medbrains-server` preflight, `secret.nhcx_key`) and refuses here too.
 const DEV_SEALING_KEY: &[u8] = b"medbrains-dev-nhcx-secret-key-32";
+const MIN_SEALING_KEY_LEN: usize = 32;
 pub const CLIENT_SECRET_CONTEXT: &[u8] = b"nhcx-client-secret";
 pub const PRIVATE_KEY_CONTEXT: &[u8] = b"nhcx-private-key";
 /// When the hospital has not saved its own, the ABDM client credentials the
@@ -31,11 +33,22 @@ pub enum ConfigError {
     Db(#[from] sqlx::Error),
 }
 
-/// The sealing key for NHCX secrets.
-pub async fn sealing_key(resolver: &dyn SecretResolver) -> Vec<u8> {
+/// The sealing key for NHCX secrets. Outside production a missing key falls
+/// back to the development key in the source; in production it is an error,
+/// never a silent fallback that seals hospital keys with a public value.
+///
+/// # Errors
+/// [`ConfigError::NotSetUp`] in production when the key is missing or short.
+pub async fn sealing_key(resolver: &dyn SecretResolver) -> Result<Vec<u8>, ConfigError> {
     match resolver.get(SEALING_KEY_NAME).await {
-        Ok(value) if value.len() >= 32 => value.into_bytes(),
-        _ => DEV_SEALING_KEY.to_vec(),
+        Ok(value) if value.len() >= MIN_SEALING_KEY_LEN => Ok(value.into_bytes()),
+        _ if std::env::var("MEDBRAINS_ENV").is_ok_and(|e| e == "production") => {
+            tracing::error!("{SEALING_KEY_NAME} is not set; NHCX secrets cannot be sealed");
+            Err(ConfigError::NotSetUp(format!(
+                "the server has no {SEALING_KEY_NAME}; the administrator must set it"
+            )))
+        }
+        _ => Ok(DEV_SEALING_KEY.to_vec()),
     }
 }
 
@@ -69,6 +82,8 @@ pub struct StoredSettings {
     pub private_key_sealed: Option<String>,
     pub public_cert_pem: Option<String>,
     pub gateway_jwt_public_key_pem: Option<String>,
+    /// Callback source addresses; empty accepts any.
+    pub callback_ip_allowlist: Option<Vec<String>>,
 }
 
 impl StoredSettings {
@@ -103,7 +118,7 @@ pub async fn stored(
     let row = sqlx::query_as::<_, StoredSettings>(
         "SELECT t.abdm_hcx_sender_code AS participant_code, s.environment, s.client_id, \
                 s.client_secret_sealed, s.private_key_sealed, s.public_cert_pem, \
-                s.gateway_jwt_public_key_pem \
+                s.gateway_jwt_public_key_pem, s.callback_ip_allowlist \
          FROM tenants t \
          LEFT JOIN nhcx_settings s ON s.tenant_id = t.id AND s.deleted_at IS NULL \
          WHERE t.id = $1",
@@ -142,7 +157,7 @@ pub async fn credentials(
     resolver: &dyn SecretResolver,
 ) -> Result<Credentials, ConfigError> {
     if let (Some(client_id), Some(sealed)) = (&stored.client_id, &stored.client_secret_sealed) {
-        let key = sealing_key(resolver).await;
+        let key = sealing_key(resolver).await?;
         return Ok(Credentials {
             environment: stored.environment(),
             client_id: client_id.clone(),
@@ -185,7 +200,7 @@ pub async fn private_key(
         .private_key_sealed
         .as_deref()
         .ok_or_else(|| ConfigError::NotSetUp("NHCX private key is not set up".to_owned()))?;
-    let key = sealing_key(resolver).await;
+    let key = sealing_key(resolver).await?;
     unseal(&key, PRIVATE_KEY_CONTEXT, sealed, "private key")
 }
 

@@ -59,7 +59,9 @@ pub(crate) fn protocol_error(payload: &Value) -> Option<String> {
 }
 
 /// The payer's approved amount — `ClaimResponse.total` with category
-/// `benefit` (or `eligible`), read from the JSON number exactly.
+/// `benefit`, read from the JSON number exactly. `eligible` names what the
+/// member's plan allows and can differ (NHA C5: 1725 benefit, 3795
+/// eligible), so it is never read as the approval.
 pub(crate) fn approved_amount(payload: &Value) -> Option<Decimal> {
     let resource = find_resource(payload, RESPONSES)?;
     resource.get("total")?.as_array()?.iter().find_map(|total| {
@@ -69,7 +71,7 @@ pub(crate) fn approved_amount(payload: &Value) -> Option<Decimal> {
             .as_array()?
             .iter()
             .filter_map(|c| c.get("code").and_then(Value::as_str))
-            .any(|code| code == "benefit" || code == "eligible");
+            .any(|code| code == "benefit");
         let value = total.get("amount")?.get("value")?;
         is_benefit
             .then(|| value.to_string().parse::<Decimal>().ok())
@@ -77,23 +79,139 @@ pub(crate) fn approved_amount(payload: &Value) -> Option<Decimal> {
     })
 }
 
-/// What a pre-authorisation becomes on the payer's answer; `None` leaves it
-/// as it is — an error is the payer failing to decide, never a refusal.
-pub(crate) fn preauth_decision(
-    outcome: Option<&str>,
-    approved: Option<Decimal>,
+/// What the payer decided, read from the step code, the claim-level
+/// adjudication status and the FHIR outcome together — never from the
+/// outcome alone (NHA "Preauthorisation Response", rule 1).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum Decision {
+    /// Acknowledged, under review (20, 25, 28, 29, 251, 37).
+    Received,
+    Approved,
+    PartiallyApproved,
+    Rejected,
+    /// The payer asked for more (24, 241, 27, 254, 263) — no approval at all.
+    Queried,
+    Cancelled,
+    /// A protocol error instead of an answer.
+    Error,
+    /// An answer this cannot read safely; shown as such, never as success.
+    Unknown,
+}
+
+impl Decision {
+    pub(crate) const fn as_str(self) -> &'static str {
+        match self {
+            Self::Received => "received",
+            Self::Approved => "approved",
+            Self::PartiallyApproved => "partially_approved",
+            Self::Rejected => "rejected",
+            Self::Queried => "queried",
+            Self::Cancelled => "cancelled",
+            Self::Error => "error",
+            Self::Unknown => "unknown",
+        }
+    }
+
+    /// A decision that closes the question (an approval, a refusal or a
+    /// cancellation); a late acknowledgement never reopens it.
+    pub(crate) const fn is_final(self) -> bool {
+        matches!(
+            self,
+            Self::Approved | Self::PartiallyApproved | Self::Rejected | Self::Cancelled
+        )
+    }
+
+    pub(crate) const fn is_approval(self) -> bool {
+        matches!(self, Self::Approved | Self::PartiallyApproved)
+    }
+}
+
+/// The step code's meaning (NHA Workflow Status Sheet).
+fn by_workflow(code: &str) -> Option<Decision> {
+    Some(match code {
+        "24" | "241" | "27" | "254" | "263" | "R27" | "R254" => Decision::Queried,
+        "23" | "231" | "291" | "253" | "262" | "491" | "R291" | "R253" => Decision::Rejected,
+        "PC02" => Decision::Cancelled,
+        "21" | "22" | "26" | "252" | "261" | "46" | "R26" | "R252" => Decision::Approved,
+        "20" | "25" | "28" | "29" | "251" | "37" | "18" | "R28" => Decision::Received,
+        _ => return None,
+    })
+}
+
+/// The claim-level `adjudication` with category `status`: its reason
+/// (`queried`, `rejected`, `approved`, `cancelled`, `submitted`).
+fn by_reason(resource: &Value) -> Option<Decision> {
+    let reason = resource
+        .get("adjudication")?
+        .as_array()?
+        .iter()
+        .filter(|a| {
+            a.pointer("/category/coding")
+                .and_then(Value::as_array)
+                .is_some_and(|c| {
+                    c.iter()
+                        .any(|c| c.get("code") == Some(&Value::from("status")))
+                })
+        })
+        .find_map(|a| a.pointer("/reason/coding/0/code").and_then(Value::as_str))?;
+    Some(match reason.to_ascii_lowercase().as_str() {
+        "queried" => Decision::Queried,
+        "rejected" | "denied" => Decision::Rejected,
+        "cancelled" => Decision::Cancelled,
+        "approved" => Decision::Approved,
+        "submitted" | "requested" | "received" => Decision::Received,
+        _ => return None,
+    })
+}
+
+/// An approval carries its amount: less than asked is a partial approval;
+/// an "approval" of nothing cannot be read as one.
+fn approval(approved: Option<Decimal>, requested: Option<Decimal>) -> Decision {
+    match (approved, requested) {
+        (Some(a), _) if a <= Decimal::ZERO => Decision::Unknown,
+        (None, _) => Decision::Unknown,
+        (Some(a), Some(r)) if a < r => Decision::PartiallyApproved,
+        _ => Decision::Approved,
+    }
+}
+
+/// Read the payer's decision. A query wins over everything (a queried
+/// pre-auth carries a benefit total, and is not approved); a refusal over
+/// an approval; an answer with no step code and no status reason falls back
+/// to the FHIR outcome, where only `complete` decides.
+pub(crate) fn decision(
+    payload: &Value,
+    workflow: Option<&str>,
+    hcx_status: &str,
     requested: Option<Decimal>,
-) -> Option<&'static str> {
-    match outcome? {
-        "queued" => Some("in_review"),
-        "partial" => Some("partially_approved"),
-        "complete" => Some(match (approved, requested) {
-            (None, _) => "denied",
-            (Some(a), _) if a <= Decimal::ZERO => "denied",
-            (Some(a), Some(r)) if a < r => "partially_approved",
-            (Some(_), _) => "approved",
-        }),
-        _ => None,
+) -> Decision {
+    let Some(resource) = find_resource(payload, &["ClaimResponse"]) else {
+        return if hcx_status == "response.error" {
+            Decision::Error
+        } else {
+            Decision::Unknown
+        };
+    };
+    let signals = [workflow.and_then(by_workflow), by_reason(resource)];
+    let has = |d: Decision| signals.contains(&Some(d));
+    let approved = approved_amount(payload);
+    for d in [Decision::Queried, Decision::Rejected, Decision::Cancelled] {
+        if has(d) {
+            return d;
+        }
+    }
+    if has(Decision::Approved) {
+        return approval(approved, requested);
+    }
+    if has(Decision::Received) {
+        return Decision::Received;
+    }
+    match text_of(resource, "outcome").as_deref() {
+        Some("queued") => Decision::Received,
+        Some("complete") if approved.is_none_or(|a| a <= Decimal::ZERO) => Decision::Rejected,
+        Some("complete") => approval(approved, requested),
+        _ if hcx_status == "response.error" => Decision::Error,
+        _ => Decision::Unknown,
     }
 }
 
@@ -294,26 +412,30 @@ mod tests {
     }
 
     #[test]
-    fn a_pre_auth_decision_follows_the_amount_and_an_error_decides_nothing() {
+    fn without_a_step_code_or_reason_only_a_complete_outcome_decides() {
         let d = |s: &str| s.parse::<Decimal>().ok();
+        let answer = |outcome: &str, benefit: i64| {
+            json!({ "resourceType": "ClaimResponse",
+            "outcome": outcome,
+            "total": [{ "category": { "coding": [{ "code": "benefit" }] },
+                        "amount": { "value": benefit } }] })
+        };
+        let read = |p: &Value| decision(p, None, "response.complete", d("900"));
+        assert_eq!(read(&answer("complete", 900)), Decision::Approved);
+        assert_eq!(read(&answer("complete", 500)), Decision::PartiallyApproved);
+        assert_eq!(read(&answer("complete", 0)), Decision::Rejected);
+        assert_eq!(read(&answer("queued", 0)), Decision::Received);
+        assert_eq!(read(&answer("partial", 900)), Decision::Unknown);
+        assert_eq!(read(&answer("error", 0)), Decision::Unknown);
+        let protocol_error = json!({ "x-hcx-status": "response.error" });
         assert_eq!(
-            preauth_decision(Some("complete"), d("900"), d("900")),
-            Some("approved")
+            decision(&protocol_error, None, "response.error", None),
+            Decision::Error
         );
         assert_eq!(
-            preauth_decision(Some("complete"), d("500"), d("900")),
-            Some("partially_approved")
+            decision(&json!({}), None, "unknown", None),
+            Decision::Unknown
         );
-        assert_eq!(
-            preauth_decision(Some("complete"), d("0"), d("900")),
-            Some("denied")
-        );
-        assert_eq!(
-            preauth_decision(Some("queued"), None, None),
-            Some("in_review")
-        );
-        assert_eq!(preauth_decision(Some("error"), None, d("900")), None);
-        assert_eq!(preauth_decision(None, d("10"), None), None);
     }
 
     #[test]

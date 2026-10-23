@@ -1,0 +1,413 @@
+{
+  "resourceType": "Bundle",
+  "id": "e06b2566-b15b-5038-bd07-83dae639f3f0",
+  "meta": {
+    "profile": [
+      "https://nrces.in/ndhm/fhir/r4/StructureDefinition/CoverageEligibilityResponseBundle"
+    ],
+    "security": [
+      {
+        "system": "http://terminology.hl7.org/CodeSystem/v3-Confidentiality",
+        "code": "V",
+        "display": "very restricted"
+      }
+    ]
+  },
+  "identifier": {
+    "value": "e06b2566-b15b-5038-bd07-83dae639f3f0"
+  },
+  "type": "collection",
+  "timestamp": "2026-09-10T23:53:59.399+05:30",
+  "entry": [
+    {
+      "fullUrl": "urn:uuid:0289709b-270c-5a8d-9437-768e16ec8d61",
+      "resource": {
+        "resourceType": "CoverageEligibilityResponse",
+        "id": "0289709b-270c-5a8d-9437-768e16ec8d61",
+        "meta": {
+          "profile": [
+            "https://nrces.in/ndhm/fhir/r4/StructureDefinition/CoverageEligibilityResponse"
+          ]
+        },
+        "identifier": [
+          {
+            "system": "https://kyro.care/fhir/CoverageEligibility",
+            "value": "SUB-00001"
+          }
+        ],
+        "status": "active",
+        "purpose": [
+          "auth-requirements"
+        ],
+        "patient": {
+          "reference": "urn:uuid:89aac2db-25ae-5b55-90a7-886c6be48ca7",
+          "display": "Ravi Kumar"
+        },
+        "created": "2026-09-10",
+        "request": {
+          "reference": "urn:uuid:4955a87f-deb4-59e6-b795-100a2d705c98",
+          "display": "CoverageEligibilityRequest"
+        },
+        "outcome": "complete",
+        "disposition": "Policy is in force until 2026-12-31. INR 5000 of cover remains. All 1 requested items are covered; pre-authorisation is required and the documents listed must accompany it.",
+        "insurer": {
+          "reference": "urn:uuid:39cd4b51-bddd-5cc1-a65a-6fa4a2a83cb5",
+          "display": "Sandbox Payer"
+        },
+        "insurance": [
+          {
+            "coverage": {
+              "reference": "urn:uuid:966d4b2b-591b-50b6-bbbb-d504d3c6897f",
+              "display": "Sandbox Default Policy"
+            },
+            "inforce": true,
+            "benefitPeriod": {
+              "start": "2026-01-01",
+              "end": "2026-12-31"
+            },
+            "item": [
+              {
+                "productOrService": {
+                  "coding": [
+                    {
+                      "system": "https://kyro.care/fhir/CodeSystem/procedure",
+                      "code": "PROC-KNEE-01",
+                      "display": "Total Knee Replacement (Unilateral)"
+                    },
+                    {
+                      "system": "http://snomed.info/sct",
+                      "code": "737481003",
+                      "display": "Total Knee Replacement (Unilateral)"
+                    },
+                    {
+                      "system": "http://www.cms.gov/Medicare/Coding/ICD10",
+                      "code": "0SRC0JZ",
+                      "display": "Total Knee Replacement (Unilateral)"
+                    }
+                  ],
+                  "text": "Total Knee Replacement (Unilateral)"
+                },
+                "benefit": [
+                  {
+                    "type": {
+                      "coding": [
+                        {
+                          "system": "http://terminology.hl7.org/CodeSystem/benefit-type",
+                          "code": "benefit",
+                          "display": "Benefit"
+                        }
+                      ]
+                    },
+                    "allowedMoney": {
+                      "value": 150000,
+                      "currency": "INR"
+                    }
+                  }
+                ],
+                "authorizationRequired": true,
+                "authorizationSupporting": [
+                  {
+                    "coding": [
+                      {
+                        "system": "https://kyro.care/fhir/CodeSystem/nhcx-document-type",
+                        "code": "POI",
+                        "display": "Proof of Identity (Aadhaar / Passport / Voter ID)"
+                      }
+                    ],
+                    "text": "Type: pre\nProcedure Code: PROC-KNEE-01"
+                  },
+                  {
+                    "coding": [
+                      {
+                        "system": "https://kyro.care/fhir/CodeSystem/nhcx-document-type",
+                        "code": "CER",
+                        "display": "Medical Certificate / Doctor Referral"
+                      }
+                    ],
+                    "text": "Type: pre\nProcedure Code: PROC-KNEE-01"
+                  },
+                  {
+                    "coding": [
+                      {
+                        "system": "https://kyro.care/fhir/CodeSystem/nhcx-document-type",
+                        "code": "RAD",
+                        "display": "Radiology / X-Ray / CT / MRI Scan Reports"
+                      }
+                    ],
+                    "text": "Type: pre\nProcedure Code: PROC-KNEE-01"
+                  },
+                  {
+                    "coding": [
+                      {
+                        "system": "https://kyro.care/fhir/CodeSystem/nhcx-document-type",
+                        "code": "EST",
+                        "display": "Detailed Pre-Auth Cost Estimate"
+                      }
+                    ],
+                    "text": "Type: pre\nProcedure Code: PROC-KNEE-01"
+                  },
+                  {
+                    "coding": [
+                      {
+                        "system": "https://kyro.care/fhir/CodeSystem/nhcx-document-type",
+                        "code": "HDS",
+                        "display": "Hospital Discharge Summary"
+                      }
+                    ],
+                    "text": "Type: post\nProcedure Code: PROC-KNEE-01"
+                  },
+                  {
+                    "coding": [
+                      {
+                        "system": "https://kyro.care/fhir/CodeSystem/nhcx-document-type",
+                        "code": "MB",
+                        "display": "Medical & Pharmacy Bills Itemized"
+                      }
+                    ],
+                    "text": "Type: post\nProcedure Code: PROC-KNEE-01"
+                  },
+                  {
+                    "coding": [
+                      {
+                        "system": "https://kyro.care/fhir/CodeSystem/nhcx-document-type",
+                        "code": "IMP",
+                        "display": "Medical Implant Invoice & Barcode Sticker"
+                      }
+                    ],
+                    "text": "Type: post\nProcedure Code: PROC-KNEE-01"
+                  },
+                  {
+                    "coding": [
+                      {
+                        "system": "https://kyro.care/fhir/CodeSystem/nhcx-document-type",
+                        "code": "FCF",
+                        "display": "Filled NHCX Claim Form (Signed)"
+                      }
+                    ],
+                    "text": "Type: post\nProcedure Code: PROC-KNEE-01"
+                  },
+                  {
+                    "coding": [
+                      {
+                        "system": "https://kyro.care/fhir/CodeSystem/nhcx-document-type",
+                        "code": "OTR",
+                        "display": "Operation Theatre Notes & Surgical Summary"
+                      }
+                    ],
+                    "text": "Type: post\nProcedure Code: PROC-KNEE-01"
+                  },
+                  {
+                    "coding": [
+                      {
+                        "system": "https://nrces.in/ndhm/fhir/r4/CodeSystem/ndhm-supportinginfo-category",
+                        "code": "STG",
+                        "display": "Total Knee Replacement (Unilateral), Standard Treatment Guidelines"
+                      }
+                    ],
+                    "text": "fullUrl: https://kyro.care/fhir/Questionnaire/PROC-KNEE-01"
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "fullUrl": "urn:uuid:89aac2db-25ae-5b55-90a7-886c6be48ca7",
+      "resource": {
+        "resourceType": "Patient",
+        "id": "89aac2db-25ae-5b55-90a7-886c6be48ca7",
+        "meta": {
+          "profile": [
+            "https://nrces.in/ndhm/fhir/r4/StructureDefinition/Patient"
+          ]
+        },
+        "identifier": [
+          {
+            "system": "https://kyro.care/fhir/Member",
+            "value": "MRAV1985001"
+          },
+          {
+            "type": {
+              "coding": [
+                {
+                  "system": "https://nrces.in/ndhm/fhir/r4/CodeSystem/ndhm-identifier-type-code",
+                  "code": "ABHA",
+                  "display": "Ayushman Bharat Health Account (ABHA) ID"
+                }
+              ]
+            },
+            "system": "https://healthid.ndhm.gov.in",
+            "value": "91-1234-1234-1234"
+          }
+        ],
+        "name": [
+          {
+            "text": "Ravi Kumar"
+          }
+        ],
+        "telecom": [
+          {
+            "system": "phone",
+            "value": "9876543210",
+            "use": "mobile"
+          }
+        ],
+        "gender": "male",
+        "birthDate": "1985-06-15"
+      }
+    },
+    {
+      "fullUrl": "urn:uuid:966d4b2b-591b-50b6-bbbb-d504d3c6897f",
+      "resource": {
+        "resourceType": "Coverage",
+        "id": "966d4b2b-591b-50b6-bbbb-d504d3c6897f",
+        "meta": {
+          "profile": [
+            "https://nrces.in/ndhm/fhir/r4/StructureDefinition/Coverage"
+          ]
+        },
+        "identifier": [
+          {
+            "system": "https://kyro.care/fhir/Coverage",
+            "value": "SUB-00001"
+          }
+        ],
+        "status": "active",
+        "type": {
+          "coding": [
+            {
+              "system": "http://terminology.hl7.org/CodeSystem/v3-ActCode",
+              "code": "HIP",
+              "display": "health insurance plan policy"
+            }
+          ]
+        },
+        "subscriber": {
+          "reference": "urn:uuid:89aac2db-25ae-5b55-90a7-886c6be48ca7",
+          "display": "Ravi Kumar"
+        },
+        "subscriberId": "MRAV1985001",
+        "beneficiary": {
+          "reference": "urn:uuid:89aac2db-25ae-5b55-90a7-886c6be48ca7",
+          "display": "Ravi Kumar"
+        },
+        "relationship": {
+          "coding": [
+            {
+              "system": "http://terminology.hl7.org/CodeSystem/subscriber-relationship",
+              "code": "self",
+              "display": "Self"
+            }
+          ]
+        },
+        "period": {
+          "start": "2026-01-01",
+          "end": "2026-12-31"
+        },
+        "payor": [
+          {
+            "reference": "urn:uuid:39cd4b51-bddd-5cc1-a65a-6fa4a2a83cb5",
+            "display": "Sandbox Payer"
+          }
+        ],
+        "class": [
+          {
+            "type": {
+              "coding": [
+                {
+                  "system": "http://terminology.hl7.org/CodeSystem/coverage-class",
+                  "code": "plan",
+                  "display": "Plan"
+                }
+              ]
+            },
+            "value": "POL7UMU002",
+            "name": "Sandbox Default Policy"
+          }
+        ]
+      }
+    },
+    {
+      "fullUrl": "urn:uuid:4955a87f-deb4-59e6-b795-100a2d705c98",
+      "resource": {
+        "resourceType": "CoverageEligibilityRequest",
+        "id": "4955a87f-deb4-59e6-b795-100a2d705c98",
+        "meta": {
+          "profile": [
+            "https://nrces.in/ndhm/fhir/r4/StructureDefinition/CoverageEligibilityRequest"
+          ]
+        },
+        "identifier": [
+          {
+            "system": "https://kyro.care/fhir/CoverageEligibility",
+            "value": "4955a87f-deb4-59e6-b795-100a2d705c98"
+          }
+        ],
+        "status": "active",
+        "priority": {
+          "coding": [
+            {
+              "system": "http://terminology.hl7.org/CodeSystem/processpriority",
+              "code": "normal",
+              "display": "Normal"
+            }
+          ]
+        },
+        "purpose": [
+          "auth-requirements"
+        ],
+        "patient": {
+          "reference": "urn:uuid:89aac2db-25ae-5b55-90a7-886c6be48ca7",
+          "display": "Ravi Kumar"
+        },
+        "created": "2026-09-10T23:53:59+05:30",
+        "insurer": {
+          "reference": "urn:uuid:39cd4b51-bddd-5cc1-a65a-6fa4a2a83cb5",
+          "display": "Sandbox Payer"
+        },
+        "insurance": [
+          {
+            "focal": true,
+            "coverage": {
+              "reference": "urn:uuid:966d4b2b-591b-50b6-bbbb-d504d3c6897f",
+              "display": "Sandbox Default Policy"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "fullUrl": "urn:uuid:39cd4b51-bddd-5cc1-a65a-6fa4a2a83cb5",
+      "resource": {
+        "resourceType": "Organization",
+        "id": "39cd4b51-bddd-5cc1-a65a-6fa4a2a83cb5",
+        "meta": {
+          "profile": [
+            "https://nrces.in/ndhm/fhir/r4/StructureDefinition/Organization"
+          ]
+        },
+        "type": [
+          {
+            "coding": [
+              {
+                "system": "http://terminology.hl7.org/CodeSystem/organization-type",
+                "code": "ins",
+                "display": "Insurance Company"
+              }
+            ]
+          }
+        ],
+        "name": "Sandbox Payer",
+        "address": [
+          {
+            "city": "Bengaluru",
+            "state": "Karnataka",
+            "country": "India"
+          }
+        ]
+      }
+    }
+  ]
+}

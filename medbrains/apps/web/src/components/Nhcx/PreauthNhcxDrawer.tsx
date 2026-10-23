@@ -10,7 +10,7 @@ import { nhcxSettingsService } from "@/services/nhcxSettings.service";
 import { NhcxPayerSelect } from "./NhcxPayerSelect";
 import { NhcxSetupAlert } from "./NhcxSetupAlert";
 import { NhcxSlaBadge } from "./NhcxSlaBadge";
-import { nhcxStatusLabel } from "./nhcxSummary";
+import { nhcxDecisionLabel, nhcxStatusLabel } from "./nhcxSummary";
 import { PayerQueryList } from "./PayerQueryList";
 import { PreauthStatusCheck } from "./PreauthStatusCheck";
 
@@ -88,16 +88,28 @@ function SendSection({ priorAuthId }: { priorAuthId: string }) {
 
 function ExchangeSummary({ view }: { view: PreauthNhcxView }) {
   const sent = nhcxStatusLabel(view.nhcx_status);
+  const decision = nhcxDecisionLabel(view.nhcx_decision);
   const money = (v: string | null) => (v ? `₹${v}` : "—");
   return (
     <Stack gap="xs">
       <Group gap="xs">
+        {decision && <Badge tone={decision.tone}>{decision.label}</Badge>}
         <Badge tone={sent.tone}>{sent.label}</Badge>
         <NhcxSlaBadge sla={view.sla} />
       </Group>
       {view.nhcx_status === "send_failed" && view.nhcx_disposition && (
         <Alert tone="danger" title="NHCX did not accept the pre-auth">
           {view.nhcx_disposition}
+        </Alert>
+      )}
+      {view.nhcx_status === "undelivered" && (
+        <Alert tone="danger" title="NHCX could not deliver the pre-auth to the payer">
+          {view.nhcx_disposition ?? "NHCX gave up after five tries."} Send it again.
+        </Alert>
+      )}
+      {view.nhcx_decision === "rejected" && (
+        <Alert tone="danger" title="The payer rejected this pre-auth">
+          {view.nhcx_disposition ?? "The payer gave no reason."}
         </Alert>
       )}
       <SimpleGrid cols={2} spacing="xs">

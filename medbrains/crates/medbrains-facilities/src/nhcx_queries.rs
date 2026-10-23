@@ -170,7 +170,7 @@ pub async fn answer_payer_query(
     nhcx_common::require_payer_certificate(&mut tx, claims.tenant_id, &q.sender_code).await?;
     let docs = answer_documents(&mut tx, claims.tenant_id, &q, &body.document_ids).await?;
 
-    let (correlation_id, workflow_id, api_call_id): (Uuid, Option<Uuid>, Uuid) = sqlx::query_as(
+    let (correlation_id, workflow_id, api_call_id): (Uuid, Option<String>, Uuid) = sqlx::query_as(
         "UPDATE nhcx_payer_queries SET status = 'answered', answer_text = $1, \
                 answer_document_ids = $2, answered_by = $3, answered_at = now(), \
                 nhcx_api_call_id = $4, nhcx_status = 'queued', nhcx_disposition = NULL, \
@@ -198,9 +198,9 @@ pub async fn answer_payer_query(
         recipient: &q.sender_code,
         correlation_id,
         api_call_id,
-        workflow_id: workflow_id.unwrap_or_else(Uuid::new_v4),
+        // The payer's step code (24, 27), echoed.
+        workflow_id: workflow_id.as_deref(),
         payload: &payload,
-        hcx_status: Some("response.complete"),
     };
     nhcx_common::queue(&mut tx, &claims, &msg).await?;
     let row = sqlx::query_as::<_, NhcxPayerQuery>(&format!(

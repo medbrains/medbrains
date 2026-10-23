@@ -134,6 +134,7 @@ mod mrd_custodian_test;
 mod my_widgets_test;
 mod nhcx_claim_documents_test;
 mod nhcx_claim_payment_test;
+mod nhcx_conformance_test;
 mod nhcx_eligibility_preauth_test;
 mod nhcx_submit_gate_test;
 mod nhcx_transport_test;

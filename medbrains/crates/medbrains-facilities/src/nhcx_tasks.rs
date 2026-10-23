@@ -39,14 +39,15 @@ struct Subject {
     patient_id: Uuid,
     number: String,
     recipient: Option<String>,
-    workflow_id: Option<Uuid>,
+    /// The api call id of the last message sent about it.
+    api_call_id: Option<Uuid>,
     status: String,
 }
 
 async fn claim_subject(tx: &mut Tx<'_>, tenant_id: Uuid, id: Uuid) -> Result<Subject, AppError> {
     sqlx::query_as::<_, Subject>(
         "SELECT id, patient_id, COALESCE(NULLIF(claim_number, ''), id::text) AS number, \
-                nhcx_recipient_code AS recipient, nhcx_workflow_id AS workflow_id, status \
+                nhcx_recipient_code AS recipient, nhcx_api_call_id AS api_call_id, status \
            FROM insurance_claims WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL \
           FOR UPDATE",
     )
@@ -60,7 +61,7 @@ async fn claim_subject(tx: &mut Tx<'_>, tenant_id: Uuid, id: Uuid) -> Result<Sub
 async fn preauth_subject(tx: &mut Tx<'_>, tenant_id: Uuid, id: Uuid) -> Result<Subject, AppError> {
     sqlx::query_as::<_, Subject>(
         "SELECT id, patient_id, COALESCE(NULLIF(auth_number, ''), pa_number) AS number, \
-                nhcx_recipient_code AS recipient, nhcx_workflow_id AS workflow_id, \
+                nhcx_recipient_code AS recipient, nhcx_api_call_id AS api_call_id, \
                 status::text AS status \
            FROM prior_auth_requests WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL \
           FOR UPDATE",
@@ -76,6 +77,13 @@ async fn preauth_subject(tx: &mut Tx<'_>, tenant_id: Uuid, id: Uuid) -> Result<S
 /// received means nothing to it.
 fn sent_to(subject: &Subject) -> Result<&str, AppError> {
     subject.recipient.as_deref().ok_or_else(|| {
+        AppError::Conflict("this has not been sent to a payer through NHCX yet".into())
+    })
+}
+
+/// The api call id the status enquiry names.
+fn sent_call(subject: &Subject) -> Result<Uuid, AppError> {
+    subject.api_call_id.ok_or_else(|| {
         AppError::Conflict("this has not been sent to a payer through NHCX yet".into())
     })
 }
@@ -115,7 +123,6 @@ struct TaskSpec<'a> {
     claim_id: Option<Uuid>,
     prior_auth_id: Option<Uuid>,
     recipient: &'a str,
-    workflow_id: Option<Uuid>,
     request: Value,
 }
 
@@ -157,8 +164,15 @@ async fn queue_task(
             payer_code: spec.recipient,
         },
     );
-    let (correlation_id, api_call_id) = (Uuid::new_v4(), Uuid::new_v4());
-    let workflow_id = spec.workflow_id.unwrap_or_else(Uuid::new_v4);
+    // A Task opens its own thread: its correlation id is its own api call
+    // id, under the operation's step code (cancel PC01, reprocess 36). A
+    // status enquiry's correlation id is the checked message's api call id.
+    let api_call_id = Uuid::new_v4();
+    let correlation_id = match spec.ask {
+        TaskAsk::Status { checks } => checks,
+        _ => api_call_id,
+    };
+    let workflow_id = spec.operation.fixed_workflow_code();
     let task_id: Uuid = sqlx::query_scalar(
         "INSERT INTO nhcx_tasks (tenant_id, kind, insurance_claim_id, prior_auth_id, \
              recipient_code, request, nhcx_correlation_id, nhcx_api_call_id, nhcx_workflow_id, \
@@ -186,7 +200,6 @@ async fn queue_task(
         api_call_id,
         workflow_id,
         payload: &bundle,
-        hcx_status: None,
     };
     nhcx_common::queue(tx, claims, &msg).await
 }
@@ -216,15 +229,12 @@ pub async fn claim_status(
     medbrains_authz_gate::require_patient_billing_access(&state, &claims, s.patient_id).await?;
     let spec = TaskSpec {
         ask: TaskAsk::Status {
-            focus: s.id,
-            number: &s.number,
-            is_preauth: false,
+            checks: sent_call(&s)?,
         },
         operation: NhcxOperation::Status,
         claim_id: Some(s.id),
         prior_auth_id: None,
         recipient: sent_to(&s)?,
-        workflow_id: s.workflow_id,
         request: json!({}),
     };
     let queued = queue_task(&mut tx, &claims, &spec).await?;
@@ -249,15 +259,12 @@ pub async fn preauth_status(
     medbrains_authz_gate::require_patient_billing_access(&state, &claims, s.patient_id).await?;
     let spec = TaskSpec {
         ask: TaskAsk::Status {
-            focus: s.id,
-            number: &s.number,
-            is_preauth: true,
+            checks: sent_call(&s)?,
         },
         operation: NhcxOperation::Status,
         claim_id: None,
         prior_auth_id: Some(s.id),
         recipient: sent_to(&s)?,
-        workflow_id: s.workflow_id,
         request: json!({}),
     };
     let queued = queue_task(&mut tx, &claims, &spec).await?;
@@ -313,7 +320,6 @@ async fn claim_task(
         claim_id: Some(s.id),
         prior_auth_id: None,
         recipient: sent_to(&s)?,
-        workflow_id: s.workflow_id,
         request: json!({ "reason": why }),
     };
     let queued = queue_task(&mut tx, claims, &spec).await?;
@@ -396,7 +402,6 @@ pub async fn search_claims(
         claim_id: None,
         prior_auth_id: None,
         recipient,
-        workflow_id: None,
         request: json!({ "from_date": body.from_date, "to_date": body.to_date,
                          "claim_number": number }),
     };

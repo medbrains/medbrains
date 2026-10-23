@@ -232,6 +232,7 @@ INTENTIONALLY_OPEN = {
     "/api/bridge/register": "bridge agents authenticate with agent_key, not a session",
     "/api/bridge/heartbeat": "agent_key; refuses with Unauthorized when it does not match",
     "/api/integrations/nhcx/hcx/v1/{resource}/{action}": "NHCX gateway callback; RS256 gateway JWT verified, then JWE decrypted",
+    "/api/integrations/nhcx/hcx/v1/{action}": "NHCX gateway on_status and error report; RS256 gateway JWT verified",
 
 }
 OPEN_PREFIXES = ("/api/webhooks/", "/api/public/", "/api/abdm/gateway/callback")

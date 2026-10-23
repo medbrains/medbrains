@@ -11,6 +11,8 @@ export interface NhcxSettingsView {
   has_private_key: boolean;
   public_cert_pem: string | null;
   gateway_jwt_public_key_pem: string | null;
+  /** Addresses callbacks may come from; empty accepts any. */
+  callback_ip_allowlist: string[];
   /** `settings` when saved here, `env` when the server's ABDM keys are used, `none` otherwise. */
   credentials_source: "settings" | "env" | "none";
 }
@@ -24,6 +26,7 @@ export interface SaveNhcxSettings {
   private_key_pem?: string;
   public_cert_pem?: string;
   gateway_jwt_public_key_pem?: string;
+  callback_ip_allowlist?: string[];
 }
 
 export interface NhcxConnectionTest {
@@ -182,11 +185,23 @@ export interface NhcxAttachableDocument {
   file_name: string | null;
 }
 
+/** What the payer decided, read from its step code, status reason and outcome. */
+export type NhcxDecision =
+  | "received"
+  | "approved"
+  | "partially_approved"
+  | "rejected"
+  | "queried"
+  | "cancelled"
+  | "error"
+  | "unknown";
+
 export interface PreauthNhcxView {
   prior_auth_id: string;
   request_stage: NhcxRequestStage;
   status: string;
   nhcx_status: string | null;
+  nhcx_decision: NhcxDecision | null;
   nhcx_recipient_code: string | null;
   nhcx_correlation_id: string | null;
   nhcx_disposition: string | null;
@@ -393,10 +408,13 @@ export interface NhcxPayment {
   net_amount: string;
   approved_amount: string | null;
   is_mismatch: boolean;
-  status: "posted" | "unmatched";
+  /** `advice`: a notice that moves no money — initiated, processed, or a repeat. */
+  status: "posted" | "unmatched" | "advice";
   posted_at: string | null;
   bank_matched: boolean;
   ack_status: string | null;
+  /** The payer's step code: `30` initiated, `31` processed, `33` settled. */
+  stage: string | null;
 }
 
 export interface PostNhcxPaymentRequest {
