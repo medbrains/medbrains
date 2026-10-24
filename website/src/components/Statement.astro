@@ -27,6 +27,6 @@ const words = text.split(" ");
   }
   /* Unlit words stay readable; lit ones go full white. */
   .w { opacity: clamp(.38, calc(var(--p, 0) * (var(--n) + 3) - var(--i)), 1); transition: opacity .1s linear; }
-  .accent { color: var(--orchid); }
+  .accent { color: #fff; background: var(--purple); padding: 0 .2em; border-radius: 6px; -webkit-box-decoration-break: clone; box-decoration-break: clone; }
   :global(.still) .w { opacity: 1; }
 </style>

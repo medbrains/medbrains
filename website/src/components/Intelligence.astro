@@ -58,7 +58,7 @@ const POINTS = [
       var(--night);
   }
   .layout { display: grid; grid-template-columns: 1.05fr 1fr; gap: 56px; align-items: center; }
-  h2 span { color: var(--orchid); }
+  h2 span { color: #fff; background: var(--purple); padding: 0 .2em; border-radius: 6px; -webkit-box-decoration-break: clone; box-decoration-break: clone; }
   .visual { position: relative; display: flex; align-items: center; gap: 28px; margin-top: 44px; }
   .note {
     flex: 1; max-width: 330px; display: grid; gap: 8px; padding: 18px; border-radius: 16px;
@@ -67,7 +67,7 @@ const POINTS = [
   }
   .chip {
     justify-self: start; display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px 3px 6px;
-    border-radius: 999px; background: var(--purple-tint); color: var(--purple);
+    border-radius: 999px; background: var(--purple); color: #fff;
     font: 600 .7rem var(--mono); letter-spacing: .06em; text-transform: uppercase;
   }
   .line { height: 8px; border-radius: 4px; background: var(--paper-2); }
