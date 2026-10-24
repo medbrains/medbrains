@@ -130,43 +130,24 @@ The codebase is being aligned to the APPROVED RFC. Known divergences:
 
 ---
 
-## Design System — Forest + Copper (LOCKED)
+## Design System — Website theme (LOCKED 2026-10-24)
 
-The visual identity is **Forest + Copper** — deep institutional green, white canvas, copper reserved accent. Designed for clinical gravitas and institutional warmth (peers: Mayo Clinic, Roche, Patagonia-medical).
+The app uses **the same theme as www.medbrains.in** (source of truth: `website/src/styles/global.scss`, mirrored as the `Site/*` primitives in `packages/design-system/src/theme/figma-varspec.json`). Supersedes Forest + Copper and the earlier Carbon-sharp look.
 
-### Brand Palette
+| Role | Light | Dark |
+|------|-------|------|
+| Surface / raised | paper `#ffffff` / paper-2 `#f3f5f9` | night `#0a1630` / night-2 `#0f1f42` / night-3 `#142a57` |
+| Text | ink `#0b1220`, ink-2 `#3c4657`, muted `#5d677a` | night-text `#d5deec` |
+| Lines | `#dde2ea` | night-line `#26395f` |
+| Primary fill | **MedBrains blue `#0F62FE`** (exact, both schemes; white on it) | same |
+| Small blue text/links | blue-deep `#0043ce` | sky `#78a9ff` |
+| Live / success dot | pulse green `#42be65` | same |
+| AI accent (only) | **purple `#851B7F`** — AI buttons, crab/orb accents; never decoration | same |
 
-| Token | Hex | Role |
-|-------|-----|------|
-| `--fc-brand` (primary-5) | `#1F4332` | Primary fill, CTAs, active nav, links, focus rings |
-| `--fc-brand-hover` (primary-6) | `#153325` | Hover state |
-| `--fc-brand-deep` (primary-7) | `#0d2417` | Pressed, deep ink on tint |
-| `--fc-ink` | `#0F1412` | Body text, headings (never `#000`) |
-| `--fc-canvas` | `#FFFFFF` | White-first institutional body |
-| `--fc-panel` | `#f7f8f6` | Fog — hover bg, rail panels |
-| `--fc-rule` | `#e7ebe8` | Hairline borders (always 1px) |
-| `--fc-copper` | `#B8924A` | **Reserved accent** — changed values, unread counts, single hero moment only |
-| `--fc-tint` | `#e4ede9` | Active nav pills, hover cards |
-
-**Copper is NEVER decoration.** Use only for: changed values, unread counts, "new since last visit", one KPI hero card.
-
-### Typography
-
-- **Fraunces** (display) — hero headlines (regular weight, italic accent word in forest), serif KPI numerals, pull quotes. Never in dense UI.
-- **Inter Tight** (UI) — all body, buttons, inputs, tables, labels, nav, toasts, modal content.
-- **JetBrains Mono** (metadata) — eyebrow labels (11px, 0.14em tracking, uppercase), code blocks, UHIDs, timestamps.
-- Font packages: `@fontsource-variable/inter-tight`, `@fontsource-variable/fraunces`, `@fontsource/jetbrains-mono`
-- Imported in `main.tsx` before Mantine styles.
-
-### Signature UI Details
-
-- **ECG Loader** — emerald cardiac monitor (`#34d399`), sweep-mask reveal, ghost trace + bright active trace. Used as default Mantine Loader.
-- **TopProgressBar** — single PQRST heartbeat centered on screen, scan window slows at spike, glowing dot at beat start, phosphor trail. Memoized with trace cache.
-- **Stat cards** — Fraunces serif numerals, JetBrains Mono eyebrow labels, forest left-accent on hover.
-- **Buttons** — 5 tiers (filled/default/light/outline/subtle), radial glow on press, loading pulse animation, tactile scale on active.
-- **Shadows** — dual-layer (design system spec), no blue tint. Cards `sm`, menus `md`, modals `xl`.
-- **Active sidebar** — 3px forest pill indicator on left edge.
-- **Hero titles** — Fraunces at regular weight, one italic clause in forest green per headline.
+- Colour only via `--mb-*` tokens; never raw hex in components. Emergency codes below stay fixed.
+- Shape: 14px card radius, pill buttons, the website's dual soft shadow; dark mode may glow blue on focus/active.
+- Fonts: IBM Plex Sans (UI), IBM Plex Mono (labels, UHIDs, timestamps), Archivo expanded (display, KPI numerals).
+- Mascots: `Crab` (geometric = small system spots, line = clinical empty states/print, medic = patient-facing, chibi = big moments) and `AiOrb` (halo = inline AI, glass = assistant chat, blob = voice, pulse = clinical-AI/vitals) from the `@/components/ui` seam. ECG loader stays the default loader.
 
 ### Emergency Code Layer (fixed, safety-critical)
 
@@ -293,7 +274,7 @@ on the way out, and a `-9` leaves a lock that blocks the next run with a
 - **Icons come from `@tabler/icons-react` components — never inline `<svg>`/`<path>` in TSX.** For a genuinely custom glyph with no tabler equivalent, add the `.svg` to `apps/web/src/assets/` and import it (wire `vite-plugin-svgr` for `import Icon from "./x.svg?react"` if a React-component import is needed). Inline SVG markup is not allowed.
 - **Custom components follow the Mantine pattern** ([custom-components](https://mantine.dev/styles/styles-api/), [polymorphic](https://mantine.dev/guides/polymorphic-components/)). When adding a `@/components/ui` primitive: **wrap** the Mantine component (don't reimplement), use the **`factory`/`forwardRef`** API so `ref` + all native props pass through, expose Mantine's **`classNames`/`styles`/`vars`** so callers can theme parts, make it **polymorphic** via `createPolymorphicComponent` where an element swap makes sense (e.g. Button as `a`/`Link`), and drive colour **only from theme tokens** (`--mb-*` / semantic `tone`), never inline hexes or gradients. No per-component colour in SCSS — SCSS is layout only; the **theme is the single source of truth**.
 - **Accessibility is mandatory (WCAG 2.2 AA)** — for everyone, including specially-abled users; it's a patient-safety requirement. Keyboard-operable everything (no `div`/`span` `onClick` — use `<button>` or `role`+`tabIndex`+`onKeyDown`), visible ≥2px focus indicator (WCAG 2.2 SC 2.4.13 — don't remove `outline`), ≥24px target size (SC 2.5.8), accessible auth/allow paste (SC 3.3.8), `aria-label` on every icon-only control, real labels + wired errors on inputs, never colour-alone for meaning, honour `prefers-reduced-motion`. Enforced by **strict Biome a11y rules** (all `error`) + the `@/components/ui` seam. **Full WCAG 2.2 rules: `medbrains/docs/WCAG-2.2-RULES.md`**; ARIA index: `medbrains/docs/ACCESSIBILITY.md`.
-- **Carbon layout + motion + iconography are LAW** — spacing/grid follow `medbrains/docs/CARBON-LAYOUT-RULES.md` (8px mini-unit, 2x grid, sharp corners, token spacing — never literal px; layout via Mantine primitives not `<div>`). Motion follows `medbrains/docs/CARBON-MOTION-RULES.md` (productive vs expressive, duration/easing tokens, ≤240ms UI feedback, reduced-motion fallback required, pausable auto-play). Icons follow `medbrains/docs/CARBON-ICONOGRAPHY-RULES.md` (one family = tabler, sizes 16/20/24/32, monochrome from tokens, real glyphs not letter-abbreviations, `aria-label` on icon-only controls; UI-icons vs app-icons distinction). Photography follows `medbrains/docs/CARBON-PHOTOGRAPHY-RULES.md` (authentic/human/dignified, no generic stock, patient privacy — no identifiable patients/PHI, scrim behind text). Data viz follows `medbrains/docs/CARBON-DATAVIZ-RULES.md` (right chart for the question, honest zero-baseline scales + clinical reference ranges, Carbon palettes, colour-blind-safe + never colour-alone, text/data-table alternative; **`@mantine/charts` for standard charts, `echarts` only for marks it lacks — heatmap/sankey/treemap/gauge/boxplot — never `@carbon/charts` (not installed), never hand-rolled SVG; `recharts` is `@mantine/charts`' peer, don't import or remove it**). Colour follows `medbrains/docs/CARBON-COLOR-RULES.md` (semantic `--mb-*` tokens only, never raw hex; layer elevation; support + fixed emergency colours; light and dark themes, both WCAG 2.2 AA). Typography follows `medbrains/docs/CARBON-TYPOGRAPHY-RULES.md` (IBM Plex; 14px body clinical density; tokens not px; sentence-case hierarchy). Content/voice follows `medbrains/docs/CARBON-CONTENT-RULES.md` (plain + human + sentence case, fix-oriented errors, clinical accuracy, inclusive/accessible content, i18n). **Index: `medbrains/docs/DESIGN-RULES.md`.**
+- **Carbon layout + motion + iconography are LAW** — spacing/grid follow `medbrains/docs/CARBON-LAYOUT-RULES.md` (8px mini-unit, 2x grid, 14px card radius + pill buttons per the website theme, token spacing — never literal px; layout via Mantine primitives not `<div>`). Motion follows `medbrains/docs/CARBON-MOTION-RULES.md` (productive vs expressive, duration/easing tokens, ≤240ms UI feedback, reduced-motion fallback required, pausable auto-play). Icons follow `medbrains/docs/CARBON-ICONOGRAPHY-RULES.md` (one family = tabler, sizes 16/20/24/32, monochrome from tokens, real glyphs not letter-abbreviations, `aria-label` on icon-only controls; UI-icons vs app-icons distinction). Photography follows `medbrains/docs/CARBON-PHOTOGRAPHY-RULES.md` (authentic/human/dignified, no generic stock, patient privacy — no identifiable patients/PHI, scrim behind text). Data viz follows `medbrains/docs/CARBON-DATAVIZ-RULES.md` (right chart for the question, honest zero-baseline scales + clinical reference ranges, Carbon palettes, colour-blind-safe + never colour-alone, text/data-table alternative; **`@mantine/charts` for standard charts, `echarts` only for marks it lacks — heatmap/sankey/treemap/gauge/boxplot — never `@carbon/charts` (not installed), never hand-rolled SVG; `recharts` is `@mantine/charts`' peer, don't import or remove it**). Colour follows `medbrains/docs/CARBON-COLOR-RULES.md` (semantic `--mb-*` tokens only, never raw hex; layer elevation; support + fixed emergency colours; light and dark themes, both WCAG 2.2 AA). Typography follows `medbrains/docs/CARBON-TYPOGRAPHY-RULES.md` (IBM Plex; 14px body clinical density; tokens not px; sentence-case hierarchy). Content/voice follows `medbrains/docs/CARBON-CONTENT-RULES.md` (plain + human + sentence case, fix-oriented errors, clinical accuracy, inclusive/accessible content, i18n). **Index: `medbrains/docs/DESIGN-RULES.md`.**
 - **Per-surface design is LAW — the 10 Commandments (`medbrains/docs/DEVICE-SURFACE-DESIGN-RULES.md`)** — the right design system per surface, with IBM Carbon as brand/tokens layered on (never a per-surface fork, never raw hex). (1) Right design system per surface — never force the web Carbon 2x-grid onto TV/mobile. (2) Carbon is the brand, not the layout — tokens from `@medbrains/design-system`. (3) TV = 10-foot UI — default focus + D-pad directional logic + an **obvious** focus state (`hasTVPreferredFocus`/`TVFocusGuideView`). (4) TV overscan safe area — 48dp L/R, 27dp T/B; light-on-dark, large type. (5) Mobile = Carbon-for-RN + Material 3/Apple HIG; **touch targets ≥44px**. (6) Kiosk = self-service touch (big targets, linear flow, forgiving timeouts). (7) Virtualize + bound everything (`FlatList`, no `ScrollView.map`). (8) Fail safe, never blank (error boundary per screen + last-good render). (9) Share, never copy (`@medbrains/*`, diverge by variant not fork). (10) Accessible everywhere (WCAG 2.2 AA — visible focus, target size, never colour-alone). Pairs with the constrained-device Power-of-Ten below.
 - **Constrained-device code is LAW (`medbrains/docs/DEVICE-CONSTRAINED-RULES.md`)** — before writing ANY code for a low-end surface (all `TV-*`, `Desktop-Kiosk`, all `Mobile-*`, `headless-edge`, `headless-iot` — everything except web/`ui-desktop`), obey the "Power of Ten": bound every loop/list/queue/cache (no unbounded growth), zero leaks (tear down every timer/socket/listener), virtualize every list (`FlatList`+`getItemLayout`, slim DTOs), bound the network (timeout+capped-retry+backoff), keep the JS thread free (native-driver animations, no heavy work in render/gestures), minimize re-renders (memoize + store selectors), efficient structures up front (DSA mandatory, not optional), **share via `@medbrains/*` never copy-paste**, small bundle/fast cold-start, and fail-safe (error boundary per screen + offline last-good render, never a blank board). Memory must be **flat over uptime** and under the per-surface budget (TV ≤120 MB, mobile ≤200 MB). Run the pre-code checklist in that doc.
 - **Light and dark themes (decided 2026-09-26)** — the app defaults to dark with a header switcher. Both themes must meet WCAG 2.2 AA contrast; colour comes only from theme tokens (`packages/design-system/src/theme`), each defined for both schemes. `e2e/accessibility/theme-contrast.spec.ts` must pass in both.
