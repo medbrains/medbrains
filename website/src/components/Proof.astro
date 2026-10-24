@@ -37,6 +37,7 @@ import { DEPARTMENTS, STATS } from "../data/content";
     display: block; font: 900 clamp(2.4rem, 5vw, 3.8rem) var(--display); letter-spacing: -.04em;
     background: linear-gradient(180deg, #fff, #9fb7e0); -webkit-background-clip: text; background-clip: text; color: transparent;
   }
+  .stat:nth-child(even) strong { background-image: linear-gradient(180deg, #fff, var(--orchid)); }
   .stat span { color: var(--night-text); }
   @include below(md) { .stats { grid-template-columns: 1fr 1fr; } }
 </style>

@@ -1,0 +1,51 @@
+---
+// The app's AI orb, drawn in CSS: halo (AI inside clinical work) and pulse
+// (AI reading vitals and risk), same look as the product's AiOrb.
+interface Props { variant?: "halo" | "pulse"; size?: number }
+const { variant = "halo", size = 24 } = Astro.props;
+---
+
+<span class={`orb ${variant}`} style={`--s: ${size}px`} aria-hidden="true">
+  <span class="core"></span>
+  {variant === "pulse" && (
+    <>
+      <svg class="beat" viewBox="0 0 24 24"><path d="M3 12h4l2-5 3 10 2-5h7" /></svg>
+      <span class="live"></span>
+    </>
+  )}
+</span>
+
+<style lang="scss">
+  .orb { position: relative; display: inline-grid; place-items: center; flex: none; width: var(--s); height: var(--s); }
+  .core { position: absolute; inset: 0; border-radius: 50%; }
+  .halo {
+    .core { inset: 30%; background: var(--blue); }
+    &::before {
+      content: ""; position: absolute; inset: 0; border-radius: 50%;
+      background: conic-gradient(var(--blue), var(--purple), transparent 75%);
+      mask: radial-gradient(farthest-side, transparent calc(100% - 2px), #000 calc(100% - 1.5px));
+      animation: spin 1.6s linear infinite;
+    }
+  }
+  .pulse .core {
+    background:
+      radial-gradient(circle at 32% 26%, #fff 0 7%, transparent 26%),
+      radial-gradient(circle at 70% 78%, var(--purple), transparent 62%),
+      var(--blue);
+    box-shadow: 0 0 calc(var(--s) * .45) var(--glow-purple), 0 0 calc(var(--s) * .3) var(--glow-blue);
+    animation: breathe 2.8s ease-in-out infinite;
+  }
+  .beat {
+    position: relative; width: 52%; fill: none; stroke: #fff; stroke-width: 2.2;
+    stroke-linecap: round; stroke-linejoin: round;
+    stroke-dasharray: 40; animation: trace 2.8s ease-in-out infinite;
+  }
+  .live {
+    position: absolute; right: 6%; bottom: 6%; width: 20%; height: 20%; border-radius: 50%;
+    background: var(--pulse); box-shadow: 0 0 0 3px var(--night);
+    animation: ping 1.8s infinite;
+  }
+  @keyframes spin { to { transform: rotate(1turn); } }
+  @keyframes breathe { 50% { transform: scale(.95); } }
+  @keyframes trace { from { stroke-dashoffset: 40; } 60%, to { stroke-dashoffset: 0; } }
+</style>

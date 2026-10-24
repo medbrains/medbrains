@@ -21,6 +21,12 @@
   --night-line: #26395f;
   --night-text: #d5deec;
   --sky: #78a9ff;
+  /* Brand purple: the secondary accent beside MedBrains blue. On navy, small
+     purple text uses the light orchid tint, which keeps AA contrast. */
+  --purple: #851b7f;
+  --orchid: #f0a6e8;
+  --purple-tint: #f6e6f5;
+  --glow-purple: rgb(133 27 127 / 30%);
   --glow-blue: rgb(15 98 254 / 38%);
   --glow-green: rgb(66 190 101 / 22%);
   --radius: 14px;
@@ -54,6 +60,18 @@ img { max-width: 100%; display: block; }
   font-family: var(--mono); font-weight: 600; font-size: .74rem;
   letter-spacing: .14em; text-transform: uppercase; color: var(--sky); margin: 0 0 14px;
 }
+.eyebrow.accent { color: var(--orchid); }
+body.light .eyebrow.accent { color: var(--purple); }
+/* Mascot art reads its colours from these, so one SVG works on any surface. */
+.crab {
+  display: inline-block; line-height: 0;
+  --crab-fill: var(--blue); --crab-edge: var(--blue); --crab-accent: var(--purple);
+  --crab-ink: var(--ink); --crab-eye: #fff; --crab-hole: var(--night); --crab-line: #fff;
+  svg { display: block; width: 100%; height: 100%; overflow: visible; }
+  .happy-e, .think-d { display: none; }
+}
+.crab.bob svg { animation: bob 3.2s ease-in-out infinite; transform-origin: 50% 90%; }
+@keyframes bob { 50% { transform: translateY(-4%) rotate(-2deg); } }
 .crumbs {
   display: flex; flex-wrap: wrap; gap: 6px; margin: 0; padding: 0; list-style: none;
   font-size: .9rem; color: var(--muted);

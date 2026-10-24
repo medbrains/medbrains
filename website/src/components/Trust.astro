@@ -31,6 +31,7 @@ import { TRUST } from "../data/content";
   .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1px; margin-top: 56px; background: var(--night-line); border: 1px solid var(--night-line); border-radius: 20px; overflow: hidden; }
   .item { background: var(--night); padding: 32px 28px; }
   .mark { display: block; width: 36px; height: 3px; background: linear-gradient(90deg, var(--blue), var(--pulse)); margin-bottom: 20px; }
+  .item:nth-child(even) .mark { background: linear-gradient(90deg, var(--blue), var(--purple)); }
   h3 { font: 800 1.2rem var(--display); letter-spacing: -.02em; margin: 0 0 8px; }
   p { margin: 0; color: var(--night-text); font-size: .96rem; }
   @include below(lg) { .grid { grid-template-columns: 1fr 1fr; } }

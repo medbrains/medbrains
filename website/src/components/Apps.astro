@@ -1,4 +1,5 @@
 ---
+import medic from "../assets/mascot/crab-medic.svg?raw";
 import { SURFACES } from "../data/content";
 ---
 
@@ -30,6 +31,7 @@ import { SURFACES } from "../data/content";
             )}
             {i === 2 && (
               <div class="phone light">
+                <span class="crab bob mascot" set:html={medic} />
                 <small>Medicines</small>
                 <div class="item ok"><b>Refill approved</b><span>Telmisartan 40 mg</span></div>
                 <div class="item"><b>Results ready</b><span>Lipid profile</span></div>
@@ -70,6 +72,9 @@ import { SURFACES } from "../data/content";
   .c1 { --depth: 160px; }
   .c2 { --depth: 110px; }
   .c3 { --depth: 200px; }
+  .c2 { .kicker { color: var(--orchid); } &:hover { border-color: var(--purple); } }
+  .phone { position: relative; }
+  .mascot { position: absolute; top: -46px; right: -22px; width: 60px; height: 60px; --crab-hole: var(--night-2); }
 
   .kicker { font: 600 .72rem var(--mono); letter-spacing: .14em; text-transform: uppercase; color: var(--pulse); }
   h3 { font: 800 1.3rem var(--display); letter-spacing: -.02em; margin: 12px 0 8px; }
