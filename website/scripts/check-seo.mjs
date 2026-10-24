@@ -57,8 +57,10 @@ for (const r of resources) {
   const pdf = join(dist, "downloads", `${r.path.split("/").pop()}.pdf`);
   assert.ok(existsSync(pdf), `${r.path}: its PDF is in /downloads`);
 }
-const tools = ["resources/indian-hospitals-in-numbers", "resources/abdm-incentive-calculator"].map(checkPage);
+const tools = ["resources/indian-hospitals-in-numbers", "resources/abdm-incentive-calculator",
+  "resources/opd-wait-time-calculator", "resources/health-camp-planning-checklist"].map(checkPage);
 assert.ok(tools[0].types.includes("Dataset"), `${tools[0].path}: Dataset`);
+for (const t of tools.slice(2)) assert.ok(t.types.includes("FAQPage"), `${t.path}: FAQPage`);
 // The health-camp cluster (src/data/camp-pages.ts): a hub and its spokes.
 const camps = ["health-camp-software", "government-medical-camp-software", "ngo-health-camp-software",
   "corporate-health-camp-software", "health-camp-software-vs-manual"].map(checkPage);

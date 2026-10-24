@@ -64,6 +64,7 @@ const hub: ModulePage = {
         `${link("/ngo-health-camp-software", "NGO and CSR health camps")}: sponsor coverage, free medicines and impact numbers a donor can trust.`,
         `${link("/corporate-health-camp-software", "Corporate and industrial health camps")}: employee health checks at the factory or office, paid for by the employer.`,
         `${link("/health-camp-software-vs-manual", "Health camp software vs manual management")}: paper, spreadsheets and software compared honestly.`,
+        `${link("/resources/health-camp-planning-checklist", "Health camp planning checklist")}: a free, printable checklist for before, on the day and after the camp, including biomedical waste.`,
       ],
     },
   ],

@@ -5,9 +5,9 @@
   "scripts": {
     "dev": "astro dev",
     "check": "astro check",
-    "build": "astro build && cp dist/sitemap-0.xml dist/sitemap.xml && pagefind --site dist && node scripts/check-seo.mjs",
+    "build": "node scripts/check-dhis.mjs && node scripts/check-erlang.mjs && astro build && cp dist/sitemap-0.xml dist/sitemap.xml && pagefind --site dist && node scripts/check-seo.mjs",
     "preview": "astro preview",
-    "test": "node scripts/check-seo.mjs"
+    "test": "node scripts/check-dhis.mjs && node scripts/check-erlang.mjs && node scripts/check-seo.mjs"
   },
   "dependencies": {
     "@astrojs/rss": "^4.0.19",
