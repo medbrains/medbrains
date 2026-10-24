@@ -1,0 +1,116 @@
+---
+import { SITE } from "../../consts";
+import { IRDAI_MC } from "../../data/guides";
+import Resource from "../../layouts/Resource.astro";
+
+// Every figure is quoted from the source next to it, with the date the source
+// gives. Add a figure only with an official or peer-reviewed source; update the
+// whole group (and `checked`) when a newer release supersedes it.
+const PIB_PMJAY = {
+  title: "PIB. Progressing towards universal health coverage: AB PM-JAY (22 September 2026)",
+  url: "https://www.pib.gov.in/PressReleasePage.aspx?PRID=2313393",
+};
+const PIB_ABDM = {
+  title: "PIB. Ayushman Bharat Digital Mission: India's digital health backbone (6 July 2026)",
+  url: "https://static.pib.gov.in/WriteReadData/specificdocs/documents/2026/jul/doc202676912801.pdf",
+};
+const DHIS_C7 = {
+  title: "NHA. Corrigendum 7 to the Digital Health Incentive Scheme (9 April 2026)",
+  url: "https://rajswasthya.rajasthan.gov.in/admin/upload/letter/2026/05/40%20Dt.05.05.2026%20NHM%20CSR%20NDHM%20(ABDM)-01779-PART-14.pdf",
+};
+const IRDAI = {
+  title: "IRDAI. Master Circular on Health Insurance Business (29 May 2024)",
+  url: IRDAI_MC,
+};
+
+const groups = [
+  {
+    title: "Ayushman Bharat PM-JAY",
+    rows: [
+      { value: "48.51 crore", label: "people holding Ayushman cards, about 33% of India's population", asOf: "As of 21 Sep 2026", source: PIB_PMJAY },
+      { value: "13.25 crore", label: "hospital admissions funded, worth ₹2.03 lakh crore", asOf: "As of 31 Aug 2026", source: PIB_PMJAY },
+      { value: "38,000+", label: "public and private hospitals empanelled", asOf: "As of 31 Aug 2026", source: PIB_PMJAY },
+      { value: "50 crore+", label: "teleconsultations on e-Sanjeevani, including at Ayushman Arogya Mandirs", asOf: "As of 17 Sep 2026", source: PIB_PMJAY },
+    ],
+  },
+  {
+    title: "Ayushman Bharat Digital Mission (ABDM)",
+    rows: [
+      { value: "97.61 crore", label: "ABHA IDs operational", asOf: "As of 17 Sep 2026", source: PIB_PMJAY },
+      { value: "119.95 crore", label: "health records linked to ABHA accounts", asOf: "As of 17 Sep 2026", source: PIB_PMJAY },
+      { value: "5.78 lakh+", label: "verified healthcare facilities registered", asOf: "Reported 22 Sep 2026", source: PIB_PMJAY },
+      { value: "11 lakh+", label: "healthcare professionals registered", asOf: "Reported 22 Sep 2026", source: PIB_PMJAY },
+      { value: "23.21 crore+", label: "ABHA-linked Scan & Share tokens issued", asOf: "As of 18 Jun 2026", source: PIB_ABDM },
+      { value: "₹107 crore+", label: "paid to hospitals under the Digital Health Incentive Scheme", asOf: "As of 18 Jun 2026", source: PIB_ABDM },
+    ],
+  },
+  {
+    title: "Digital Health Incentive Scheme rates (Corrigendum 7)",
+    rows: [
+      { value: "₹10", label: "per discharge summary or diagnostic report linked to a KYC-verified ABHA", asOf: "For April–September 2026", source: DHIS_C7 },
+      { value: "₹5", label: "per other record linked, such as a prescription or OP consultation", asOf: "For April–September 2026", source: DHIS_C7 },
+      { value: "100", label: "eligible transactions a month deducted before anything is paid", asOf: "For April–September 2026", source: DHIS_C7 },
+    ],
+  },
+  {
+    title: "Cashless insurance (IRDAI)",
+    rows: [
+      { value: "1 hour", label: "for an insurer to decide a cashless authorisation request", asOf: "Circular of 29 May 2024", source: IRDAI },
+      { value: "3 hours", label: "for final discharge authorisation after the insurer receives the request", asOf: "Circular of 29 May 2024", source: IRDAI },
+    ],
+  },
+];
+
+const checked = "24 October 2026";
+const page = new URL(Astro.url.pathname, Astro.site).href;
+const dataset = {
+  "@type": "Dataset",
+  name: "Indian hospitals in numbers",
+  description: "Official figures on PM-JAY, ABDM adoption, the Digital Health Incentive Scheme and IRDAI cashless timelines, each with its source and date.",
+  url: page,
+  dateModified: "2026-10-24",
+  creator: { "@type": "Organization", name: SITE.brand, url: new URL("/", Astro.site).href },
+  isAccessibleForFree: true,
+  spatialCoverage: "India",
+  citation: [...new Set(groups.flatMap((g) => g.rows.map((r) => r.source.url)))],
+};
+---
+
+<Resource
+  title="Indian hospitals in numbers: PM-JAY, ABDM, DHIS | MedBrains"
+  description="Official, dated figures on India's hospitals: PM-JAY cards and admissions, ABHA and ABDM adoption, DHIS incentive rates and IRDAI cashless time limits."
+  h1="Indian hospitals in numbers"
+  intro="India has 97.61 crore operational ABHA IDs and 38,000+ PM-JAY empanelled hospitals. Below are the official figures behind India's hospital system, each with its source and the date the source gives."
+  guide={{ href: "/abdm-incentive", name: "ABDM incentive" }}
+  extraSchema={[dataset]}
+>
+  {groups.map((g, i) => (
+    <section aria-labelledby={`group-${i}`}>
+      <h2 id={`group-${i}`}>{g.title}</h2>
+      <dl class="figures">
+        {g.rows.map((r) => (
+          <div class="figure">
+            <dt>{r.value}</dt>
+            <dd>
+              {r.label}.
+              <span class="src">{r.asOf} · <a href={r.source.url} rel="noopener">{r.source.title}</a></span>
+            </dd>
+          </div>
+        ))}
+      </dl>
+    </section>
+  ))}
+
+  <div class="note">
+    <p>Figures checked against their sources on {checked}. Government releases are revised often; use the source link for the latest number and cite the date with it.</p>
+    <p>You are welcome to quote this page. Please link to it as the source.</p>
+  </div>
+</Resource>
+
+<style lang="scss">
+  .figures { display: grid; gap: 12px; margin: 0; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); }
+  .figure { padding: 16px 20px; border: 1px solid var(--line); border-radius: var(--radius); background: #fff; }
+  dt { font: 800 1.6rem/1.1 var(--display); color: var(--blue); letter-spacing: -.02em; margin-bottom: 6px; }
+  dd { margin: 0; color: var(--ink-2); }
+  .src { display: block; margin-top: 8px; font-size: .82rem; color: var(--muted); }
+</style>

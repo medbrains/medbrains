@@ -29,7 +29,7 @@ export interface Guide {
   boxText: string;
 }
 
-const IRDAI_MC =
+export const IRDAI_MC =
   "https://irdai.gov.in/documents/37343/365525/%e0%a4%b8%e0%a5%8d%e0%a4%b5%e0%a4%be%e0%a4%b8%e0%a5%8d%e0%a4%a5%e0%a5%8d%e0%a4%af+%e0%a4%ac%e0%a5%80%e0%a4%ae%e0%a4%be+%e0%a4%b5%e0%a5%8d%e0%a4%af%e0%a4%b5%e0%a4%b8%e0%a4%be%e0%a4%af+%e0%a4%aa%e0%a4%b0+%e0%a4%ae%e0%a4%be%e0%a4%b8%e0%a5%8d%e0%a4%9f%e0%a4%b0+%e0%a4%aa%e0%a4%b0%e0%a4%bf%e0%a4%aa%e0%a4%a4%e0%a5%8d%e0%a4%b0+_+Master+Circular++on+Health++Insurance+Business++29052024.pdf/5e707a91-b5de-1ec1-cf18-b66273a6839d?t=1716962621002&version=1.0";
 
 export const RESOURCES = [
@@ -47,6 +47,20 @@ export const RESOURCES = [
   },
 ] as const;
 const [DPDP_SHEET, DISCHARGE_SHEET] = RESOURCES;
+
+/** Free web pages (no PDF): figures to cite and calculators. */
+export const TOOLS = [
+  {
+    title: "Indian hospitals in numbers",
+    body: "Official, dated figures on PM-JAY, ABHA and ABDM adoption, DHIS incentive rates and IRDAI cashless time limits, each with its source.",
+    page: "/resources/indian-hospitals-in-numbers",
+  },
+  {
+    title: "ABDM incentive calculator",
+    body: "Estimate a month's Digital Health Incentive Scheme payment from linked records and consents, using the Corrigendum 7 rates.",
+    page: "/resources/abdm-incentive-calculator",
+  },
+] as const;
 
 export const GUIDES = {
   abdm: {

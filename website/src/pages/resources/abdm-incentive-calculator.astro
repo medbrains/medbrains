@@ -1,0 +1,78 @@
+---
+import Resource from "../../layouts/Resource.astro";
+
+const fields = [
+  { id: "major", label: "Discharge summaries and diagnostic reports linked", hint: "₹10 each" },
+  { id: "other", label: "Other records linked (prescriptions, OP consultations)", hint: "₹5 each" },
+  { id: "requested", label: "Records your hospital requested with consent", hint: "₹10 each" },
+  { id: "supplied", label: "Record sets your hospital supplied under consent", hint: "₹5 each" },
+];
+---
+
+<Resource
+  title="ABDM DHIS incentive calculator for hospitals | MedBrains"
+  description="Estimate your hospital's monthly ABDM Digital Health Incentive Scheme payment from linked records and consents, using the Corrigendum 7 rates and threshold."
+  h1="ABDM incentive calculator"
+  intro="Under Corrigendum 7, a hospital earns ₹10 per discharge summary or diagnostic report and ₹5 per other record linked to a KYC-verified ABHA, after the first 100 transactions a month. Enter a month's counts to estimate the payment."
+  guide={{ href: "/abdm-incentive", name: "ABDM incentive" }}
+>
+  <form class="calc" data-calc aria-describedby="calc-help">
+    {fields.map((f) => (
+      <label class="field">
+        <span>{f.label} <small>{f.hint}</small></span>
+        <input type="number" name={f.id} min="0" step="1" inputmode="numeric" value="0" />
+      </label>
+    ))}
+  </form>
+  <p id="calc-help" class="hint">Count only eligible transactions: records linked to KYC-verified ABHAs, each ABHA at most once a day and five times a month for your facility.</p>
+
+  <div class="result" aria-live="polite">
+    <p class="payable"><span>Estimated payment this month</span><strong data-out="payable">₹0</strong></p>
+    <p class="detail">
+      <span data-out="transactions">0</span> transactions, worth <span data-out="gross">₹0</span>, less <span data-out="deducted">₹0</span> for the first 100.
+    </p>
+  </div>
+
+  <div class="note">
+    <p><strong>An estimate, not NHA's payout.</strong> Rates and the 100-transaction threshold are from <a href="https://rajswasthya.rajasthan.gov.in/admin/upload/letter/2026/05/40%20Dt.05.05.2026%20NHM%20CSR%20NDHM%20(ABDM)-01779-PART-14.pdf" rel="noopener">Corrigendum 7 to the Digital Health Incentive Scheme (9 April 2026)</a>, which covers April to September 2026, subject to funds. Check <a href="https://abdm.gov.in/dhis" rel="noopener">abdm.gov.in/dhis</a> for later terms.</p>
+    <p>Only transactions on software integrated with ABDM up to M3, and compliant with the v3 APIs from July 2026, count. Creating an ABHA and Scan &amp; Share earn nothing under this corrigendum. NHCX claims are paid separately and are not included here.</p>
+  </div>
+</Resource>
+
+<script>
+  import { estimateDhis } from "../../lib/dhis.js";
+
+  const form = document.querySelector<HTMLFormElement>("[data-calc]");
+  const rupees = (n: number) => `₹${n.toLocaleString("en-IN")}`;
+  const show = (key: string, text: string) => {
+    const el = document.querySelector(`[data-out="${key}"]`);
+    if (el) el.textContent = text;
+  };
+  const update = () => {
+    if (!form) return;
+    const count = (name: string) => Math.floor(Number((form.elements.namedItem(name) as HTMLInputElement).value) || 0);
+    const r = estimateDhis({ major: count("major"), other: count("other"), requested: count("requested"), supplied: count("supplied") });
+    show("payable", rupees(r.payable));
+    show("gross", rupees(r.gross));
+    show("deducted", rupees(r.deducted));
+    show("transactions", r.transactions.toLocaleString("en-IN"));
+  };
+  form?.addEventListener("input", update);
+  update();
+</script>
+
+<style lang="scss">
+  .calc { display: grid; gap: 16px; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); margin: 8px 0 12px; }
+  .field { display: grid; gap: 8px; font-weight: 600; }
+  .field small { display: block; font-weight: 400; color: var(--muted); }
+  .field input {
+    font: inherit; padding: 12px 14px; min-height: 48px; border: 1px solid var(--line);
+    border-radius: 10px; background: #fff; color: var(--ink);
+  }
+  .field input:focus-visible { outline: 3px solid var(--blue); outline-offset: 2px; }
+  .hint { color: var(--muted); font-size: .9rem; margin: 0 0 24px; }
+  .result { padding: 20px 24px; border-radius: var(--radius); background: var(--night); color: #fff; margin-bottom: 24px; }
+  .payable { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: baseline; gap: 12px; margin: 0 0 6px; }
+  .payable strong { font: 800 2rem/1 var(--display); padding: 6px 12px; border-radius: 8px; background: var(--purple); }
+  .detail { margin: 0; color: var(--night-text); }
+</style>

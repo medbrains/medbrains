@@ -29,6 +29,9 @@ const blog = defineCollection({
       // Used in the browser tab and Google instead of the title when set.
       seoTitle: z.string().max(60).optional(),
       description: z.string(),
+      // One or two sentences that answer the post's question, shown first as
+      // "In short" and given to search and AI tools as the abstract.
+      summary: z.string().optional(),
       date: z.coerce.date(),
       updated: z.coerce.date().optional(),
       category: z.enum(CATEGORY_SLUGS).default("patient-education"),

@@ -1,6 +1,7 @@
 ---
 title: "Fit for discharge, still in the bed: where the hours go in Indian hospitals, and how to win them back"
 description: "Why hospital discharge is delayed in India: IRDAI's 3-hour cashless rule, NABH expectations, what Indian studies show, and practical fixes for each step."
+summary: "Discharge in Indian hospitals is slowed mainly by billing clearance and the discharge summary: audits found means of 195 to 329 minutes. IRDAI gives insurers three hours for final authorisation, so the rest of the delay is the hospital's to win back."
 date: 2026-10-22
 category: operations
 seoTitle: "Discharge delays in Indian hospitals | MedBrains Blog"
