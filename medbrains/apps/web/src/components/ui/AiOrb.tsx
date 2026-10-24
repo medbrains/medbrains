@@ -44,7 +44,10 @@ export const AiOrb = forwardRef<HTMLSpanElement, AiOrbProps>(function AiOrb(
     >
       <Box component="span" className={styles.core} />
       {variant === "pulse" && state !== "done" && (
-        <IconActivityHeartbeat className={styles.glyph} size={glyph} stroke={2} />
+        <>
+          <IconActivityHeartbeat className={styles.glyph} size={glyph} stroke={2} />
+          <Box component="span" className={styles.live} />
+        </>
       )}
       {state === "done" && <IconCheck className={styles.glyph} size={glyph} stroke={3} />}
     </Box>

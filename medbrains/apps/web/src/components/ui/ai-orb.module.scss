@@ -80,8 +80,7 @@
 }
 
 // ── Pulse: the sphere with the logo's heartbeat and a live green dot ──
-.pulse::after {
-  content: "";
+.live {
   position: absolute;
   right: 4%;
   bottom: 4%;
@@ -90,10 +89,6 @@
   border-radius: 50%;
   background: var(--mb-pulse);
   box-shadow: 0 0 0 2px var(--mb-surface);
-}
-
-.pulse.done::after {
-  display: none;
 }
 
 @media (prefers-reduced-motion: no-preference) {
@@ -122,8 +117,8 @@
     animation-duration: 2.4s;
   }
 
-  .pulse.thinking::after,
-  .pulse.loading::after {
+  .pulse.thinking .live,
+  .pulse.loading .live {
     animation: orb-beat 1.2s ease-in-out infinite;
   }
 }
