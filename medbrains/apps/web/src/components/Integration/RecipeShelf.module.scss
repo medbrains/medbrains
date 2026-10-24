@@ -150,7 +150,7 @@
 
 /* Recipe card */
 .recipe {
-  background: var(--mb-bg-default, #fff);
+  background: var(--mb-bg-default);
   border: 1px solid var(--mb-border);
   border-radius: 0;
   padding: 14px 16px 12px;
@@ -162,7 +162,7 @@
   position: relative;
 
   &:hover {
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05), 0 8px 20px rgba(0, 0, 0, 0.04);
+    box-shadow: var(--mb-shadow-md);
     border-color: var(--mb-border);
   }
 }
@@ -271,9 +271,9 @@
     width: 14px;
     height: 14px;
     border-radius: 50%;
-    background: var(--mb-bg-default, #fff);
+    background: var(--mb-bg-default);
     transition: transform 0.15s;
-    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+    box-shadow: var(--mb-shadow-xs);
   }
 }
 

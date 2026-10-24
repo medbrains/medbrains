@@ -19,7 +19,8 @@
     "./styles/global.scss": "./src/styles/global.scss"
   },
   "scripts": {
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "gen:colors": "node scripts/gen-colors.mjs"
   },
   "peerDependencies": {
     "@mantine/core": "^9.3.2",

@@ -22,7 +22,7 @@
 }
 
 .link {
-  color: var(--mb-brand, #0f62fe);
+  color: var(--mb-brand);
   text-decoration: none;
 
   &:hover {
@@ -31,10 +31,10 @@
 }
 
 .current {
-  color: var(--mb-text-secondary, #5f6b7a);
+  color: var(--mb-text-secondary);
 }
 
 .sep {
-  color: var(--mb-text-muted, #a2a9b0);
+  color: var(--mb-text-muted);
   user-select: none;
 }

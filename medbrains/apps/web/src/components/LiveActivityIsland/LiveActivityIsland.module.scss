@@ -14,7 +14,7 @@
   border: 1px solid var(--mb-border-strong);
   background: var(--mb-bg-inverse);
   color: var(--mb-text-on-inverse);
-  box-shadow: var(--mb-shadow-lg, 0 8px 28px rgba(0, 0, 0, 0.28));
+  box-shadow: var(--mb-shadow-lg);
   transition:
     background 160ms ease,
     max-width 160ms ease,
@@ -29,27 +29,27 @@
   // Emergency codes — fixed safety colours, loud.
   &[data-kind="code_blue"] {
     background: var(--code-blue);
-    color: #fff;
+    color: var(--mb-emergency-on-dark);
   }
   &[data-kind="code_red"] {
     background: var(--code-red);
-    color: #fff;
+    color: var(--mb-emergency-on-dark);
   }
   &[data-kind="code_pink"] {
     background: var(--code-pink);
-    color: #fff;
+    color: var(--mb-emergency-on-light);
   }
   &[data-kind="code_black"] {
     background: var(--code-black);
-    color: #fff;
+    color: var(--mb-emergency-on-dark);
   }
   &[data-kind="code_yellow"] {
     background: var(--code-yellow);
-    color: #0f1412;
+    color: var(--mb-emergency-on-light);
   }
   &[data-kind="code_orange"] {
     background: var(--code-orange);
-    color: #fff;
+    color: var(--mb-emergency-on-light);
   }
 }
 

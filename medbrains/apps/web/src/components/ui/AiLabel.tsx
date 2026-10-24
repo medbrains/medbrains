@@ -6,7 +6,7 @@ export type AiLabelSize = "xs" | "sm" | "md" | "lg" | "xl";
 
 /**
  * Visual treatment so the label reads on any surface:
- * - `gradient` (default) — the signature violet→blue AI gradient slug.
+ * - `gradient` (default) — the signature blue→purple AI gradient slug.
  * - `outline` — hairline border, ink "AI" (dense tables / inputs).
  * - `filled` — solid dark fill, white "AI" (inverse / dark surfaces).
  * - `active` — brand-accent border (selected / focused state).
@@ -39,7 +39,7 @@ export interface AiLabelProps {
 /**
  * Carbon-style **AI Label** — marks a surface as AI-supported and (optionally)
  * reveals an explainability popover. Use it ONLY where AI genuinely assists
- * (per Carbon guidance); the violet→blue `--mb-gradient-ai` is reserved for
+ * (per Carbon guidance); the blue→purple `--mb-gradient-ai` is reserved for
  * exactly this, never generic decoration.
  */
 export function AiLabel({

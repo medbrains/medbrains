@@ -26,8 +26,8 @@
 }
 
 .familyButtonActive {
-  border: 1px solid light-dark(var(--mantine-color-teal-3), rgba(20, 184, 166, 0.55));
-  background: light-dark(var(--mantine-color-teal-0), rgba(20, 184, 166, 0.18));
+  border: 1px solid var(--mb-primary);
+  background: var(--mb-state-primary-12);
   color: light-dark(var(--mantine-color-gray-9), var(--mantine-color-white));
 }
 

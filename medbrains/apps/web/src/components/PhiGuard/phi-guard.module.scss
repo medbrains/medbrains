@@ -46,7 +46,7 @@
   font-size: 11px;
   white-space: nowrap;
   transform: rotate(-24deg);
-  color: var(--mb-text, #161616);
+  color: var(--mb-text);
   // Faint enough to read the record through, dark enough to survive JPEG
   // compression and a photograph of a monitor.
   opacity: 0.07;

@@ -1,16 +1,16 @@
 // Signature Spectrum alert — reference style: a solid tone icon circle, a clean
-// rounded white card, hairline border, ink title + secondary message. Tone
+// rounded surface card, hairline border, ink title + secondary message. Tone
 // colour comes from Mantine's --alert-color.
 .alert {
-  --tone: var(--alert-color, var(--mb-brand, #0f62fe));
+  --tone: var(--alert-color, var(--mb-brand));
 
-  border: 1px solid var(--mb-border, #e4e7ea);
+  border: 1px solid var(--mb-border);
   border-radius: 0;
-  background: var(--mb-bg-default, #ffffff) !important;
+  background: var(--mb-bg-default) !important;
   padding: 14px 15px;
-  box-shadow: 0 6px 20px rgba(26, 26, 46, 0.06);
+  box-shadow: var(--mb-shadow-sm);
 
-  // Solid tone icon circle with a white glyph.
+  // Solid tone icon circle; the glyph takes the surface colour (contrasts in both schemes).
   :global(.mantine-Alert-icon) {
     width: 24px;
     height: 24px;
@@ -20,7 +20,7 @@
     justify-content: center;
     border-radius: 50%;
     background: var(--tone);
-    color: #ffffff;
+    color: var(--mb-surface);
     flex-shrink: 0;
 
     svg {
@@ -33,13 +33,13 @@
     font-size: 14px;
     font-weight: 600;
     letter-spacing: -0.01em;
-    color: var(--mb-text-primary, #1a1a2e);
+    color: var(--mb-text-primary);
     margin-bottom: 1px;
   }
 
   :global(.mantine-Alert-message) {
     font-size: 13px;
     line-height: 1.45;
-    color: var(--mb-text-secondary, #5f6b7a);
+    color: var(--mb-text-secondary);
   }
 }

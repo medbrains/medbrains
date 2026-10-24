@@ -6,8 +6,9 @@
  * (React Native Paper, via `@medbrains/design-system/tokens`) consume — so TV / kiosk / mobile share
  * the exact same IBM Carbon palette as the web instead of re-declaring their own.
  *
- * Brand identity (LOCKED 2026-05-30): Brand = System Blue #0f62fe · Vital = Mint #42be65 ·
- * Ink = Carbon neutral ramp. See `primitives.ts` for the Mantine tuple wrappers.
+ * Web colour comes from the Material-3 roles in `colors.generated.ts` (2026-10-23). The ten-step
+ * Carbon palettes below remain for the native apps (`scripts/generate_native_tokens.py`) until
+ * they move to the same roles; of these palettes the web theme uses only violet, ochre, teal and slate (legacy `color=` names).
  */
 
 /** Blue — IBM Carbon interactive. Anchor: blue[5] = Blue 60 #0f62fe. */
@@ -202,14 +203,15 @@ export const space = {
 
 /** Radius — IBM Carbon sharp corners (all 0; only `full` for circles). */
 export const radius = {
+  // The website's shape: 14px cards, pill buttons, softer inputs.
   none: "0",
-  xs: "0",
-  sm: "0",
-  md: "0",
-  lg: "0",
-  xl: "0",
-  "2xl": "0",
-  "3xl": "0",
+  xs: "4px",
+  sm: "8px",
+  md: "10px",
+  lg: "14px",
+  xl: "20px",
+  "2xl": "24px",
+  "3xl": "28px",
   full: "9999px",
 } as const;
 
@@ -265,12 +267,13 @@ export const fontFamily = {
 } as const;
 
 export const shadowLight = {
-  xs: "0 1px 2px rgba(13, 13, 12, 0.04), 0 1px 3px rgba(13, 13, 12, 0.04)",
-  sm: "0 1px 3px rgba(13, 13, 12, 0.05), 0 4px 8px rgba(13, 13, 12, 0.04)",
-  md: "0 2px 4px rgba(13, 13, 12, 0.04), 0 8px 20px rgba(13, 13, 12, 0.06)",
-  lg: "0 4px 8px rgba(13, 13, 12, 0.05), 0 12px 32px rgba(13, 13, 12, 0.08)",
-  xl: "0 8px 16px rgba(13, 13, 12, 0.06), 0 20px 48px rgba(13, 13, 12, 0.10)",
-  "2xl": "0 16px 32px rgba(13, 13, 12, 0.08), 0 32px 80px rgba(13, 13, 12, 0.14)",
+  // The website's dual soft shadow (ink-tinted), scaled per elevation.
+  xs: "0 1px 2px rgba(11, 18, 32, 0.06)",
+  sm: "0 1px 2px rgba(11, 18, 32, 0.06), 0 12px 32px rgba(11, 18, 32, 0.10)",
+  md: "0 2px 4px rgba(11, 18, 32, 0.06), 0 16px 40px rgba(11, 18, 32, 0.12)",
+  lg: "0 4px 8px rgba(11, 18, 32, 0.06), 0 20px 48px rgba(11, 18, 32, 0.14)",
+  xl: "0 8px 16px rgba(11, 18, 32, 0.08), 0 28px 64px rgba(11, 18, 32, 0.16)",
+  "2xl": "0 16px 32px rgba(11, 18, 32, 0.10), 0 40px 96px rgba(11, 18, 32, 0.20)",
 } as const;
 
 export const shadowDark = {

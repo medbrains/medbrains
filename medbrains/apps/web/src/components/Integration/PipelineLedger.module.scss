@@ -123,7 +123,7 @@
   padding: 4px 8px;
   border: 1px solid var(--mb-border);
   border-radius: 0;
-  background: var(--mb-bg-default, #fff);
+  background: var(--mb-bg-default);
   white-space: nowrap;
 }
 
@@ -198,7 +198,7 @@
   }
 
   &.danger:hover {
-    background: var(--mb-danger-bg, #fde6ea);
+    background: var(--mb-danger-bg);
     color: var(--mb-danger-accent);
   }
 }

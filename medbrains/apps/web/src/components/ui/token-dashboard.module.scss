@@ -7,7 +7,7 @@
 }
 
 .header {
-  border-bottom: 1px solid var(--mb-border-default, #e0e0e0);
+  border-bottom: 1px solid var(--mb-border-default);
   padding-bottom: 8px;
 }
 
@@ -15,7 +15,7 @@
   font-size: 18px;
   font-weight: 600;
   letter-spacing: -0.01em;
-  color: var(--mb-text-primary, #161616);
+  color: var(--mb-text-primary);
 }
 
 .empty {
@@ -30,17 +30,17 @@
   font-weight: 600;
   letter-spacing: 0.12em;
   text-transform: uppercase;
-  color: var(--mb-text-secondary, #525252);
+  color: var(--mb-text-secondary);
   margin-bottom: 8px;
 }
 
 // ── Now serving (hero) ──
 .hero {
   position: relative;
-  border: 1px solid var(--mb-brand-emphasis, #0f62fe);
+  border: 1px solid var(--mb-brand-emphasis);
   border-left-width: 4px;
   border-radius: 0;
-  background: var(--mb-brand-bg, #edf5ff);
+  background: var(--mb-brand-bg);
   padding: 16px 20px;
   min-height: 116px;
   display: flex;
@@ -54,13 +54,13 @@
   font-weight: 700;
   line-height: 1;
   font-variant-numeric: tabular-nums;
-  color: var(--mb-brand-fg, #0f62fe);
+  color: var(--mb-brand-fg);
 }
 
 .heroPrimary {
   font-size: 16px;
   font-weight: 600;
-  color: var(--mb-text-primary, #161616);
+  color: var(--mb-text-primary);
 }
 
 .heroMeta {
@@ -69,9 +69,9 @@
 
 // ── Up next (compact) ──
 .card {
-  border: 1px solid var(--mb-border-default, #e0e0e0);
+  border: 1px solid var(--mb-border-default);
   border-radius: 0;
-  background: var(--mb-bg-default, #fff);
+  background: var(--mb-bg-default);
   padding: 12px 14px;
 }
 
@@ -80,7 +80,7 @@
   font-weight: 700;
   line-height: 1.1;
   font-variant-numeric: tabular-nums;
-  color: var(--mb-text-primary, #161616);
+  color: var(--mb-text-primary);
 }
 
 .meta {

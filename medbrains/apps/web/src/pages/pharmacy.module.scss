@@ -1,13 +1,13 @@
 .medicationCard {
   border: 1px solid var(--mb-border-subtle);
   background: var(--mb-card-bg);
-  box-shadow: var(--mb-float-shadow, 0 4px 12px rgba(0, 0, 0, 0.18));
+  box-shadow: var(--mb-float-shadow);
 }
 
 .rxEstimateCard {
   border: 1px solid var(--mb-border-subtle);
   background: var(--mb-card-bg);
-  box-shadow: var(--mb-float-shadow, 0 4px 12px rgba(0, 0, 0, 0.18));
+  box-shadow: var(--mb-float-shadow);
 }
 
 .billingSummaryBand {

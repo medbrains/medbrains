@@ -105,7 +105,7 @@
   padding: 12px 22px;
   border-bottom: 1px solid var(--mb-border);
   flex-shrink: 0;
-  background: var(--mb-bg-default, #fff);
+  background: var(--mb-bg-default);
 }
 
 .streamTitle {
@@ -237,7 +237,7 @@
   border: 1px solid var(--mb-border);
   border-radius: 0;
   margin-right: 4px;
-  background: var(--mb-bg-default, #fff);
+  background: var(--mb-bg-default);
   color: var(--mb-text-secondary);
 }
 
@@ -268,7 +268,7 @@
 
 .chainStepFail {
   composes: chainStep;
-  background: var(--mb-danger-bg, #fde6ea);
+  background: var(--mb-danger-bg);
   border-color: var(--mb-danger-accent);
   color: var(--mb-danger-accent);
 }
@@ -306,7 +306,7 @@
   padding: 12px 18px;
   border-bottom: 1px solid var(--mb-border);
   flex-shrink: 0;
-  background: var(--mb-bg-default, #fff);
+  background: var(--mb-bg-default);
   display: flex;
   align-items: center;
   gap: 8px;
@@ -342,7 +342,7 @@
 
 /* Triage card */
 .trCard {
-  background: var(--mb-bg-default, #fff);
+  background: var(--mb-bg-default);
   border: 1px solid var(--mb-border);
   border-left: 3px solid var(--mb-danger-accent);
   border-radius: 0;
@@ -376,14 +376,14 @@
   color: var(--mb-danger-accent);
   margin-top: 6px;
   padding: 6px 8px;
-  background: var(--mb-danger-bg, #fdf0f3);
+  background: var(--mb-danger-bg);
   border-radius: 0;
 }
 
 .trErrorWarn {
   composes: trError;
   color: var(--mb-warning-accent);
-  background: var(--mb-warning-bg, #fdf6e6);
+  background: var(--mb-warning-bg);
 }
 
 .trRow {

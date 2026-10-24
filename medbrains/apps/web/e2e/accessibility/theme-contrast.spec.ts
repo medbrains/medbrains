@@ -5,6 +5,7 @@
  * readable. Failures are grouped by foreground/background pair, because a pair
  * is one theme token to fix — not one element per screen.
  */
+import { roles } from "@medbrains/design-system";
 import { expect, test } from "@playwright/test";
 import axe from "axe-core";
 import { routeApiDirect } from "../helpers";
@@ -21,6 +22,52 @@ const SCREENS = [
   "/admin/message-simulator",
   "/admin/settings",
 ];
+
+/** WCAG relative-luminance contrast of two #rrggbb colours. */
+function contrast(a: string, b: string): number {
+  const lum = (hex: string) => {
+    const [r, g, bl] = [1, 3, 5].map((i) => {
+      const v = Number.parseInt(hex.slice(i, i + 2), 16) / 255;
+      return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4;
+    });
+    return 0.2126 * (r ?? 0) + 0.7152 * (g ?? 0) + 0.0722 * (bl ?? 0);
+  };
+  const [hi, lo] = [lum(a), lum(b)].sort((x, y) => y - x);
+  return ((hi ?? 0) + 0.05) / ((lo ?? 0) + 0.05);
+}
+
+// The website theme: blue #0F62FE and purple #851B7F are fills in both
+// schemes, each with white on top; small blue/purple text uses the readable
+// text roles (primaryText, tertiary). Every text role holds 4.5:1 on the
+// canvas and on a card; borders hold 3:1 (SC 1.4.11).
+test("the website-theme tokens hold AA contrast in both themes", () => {
+  for (const scheme of ["light", "dark"] as const) {
+    const r = roles[scheme];
+    const card = scheme === "light" ? r.surfaceContainerLowest : r.surfaceContainerLow;
+    const text = [
+      ["white on brand blue", r.onPrimary, r.primary],
+      ["white on brand purple", r.onTertiary, r.tertiaryBrand],
+      ["body text", r.onSurface, r.surface],
+      ["muted text", r.onSurfaceVariant, card],
+      ["blue text", r.primaryText, card],
+      ["blue text on canvas", r.primaryText, r.surface],
+      ["purple text", r.tertiary, card],
+      ["on primary container", r.onPrimaryContainer, r.primaryContainer],
+      ["on tertiary container", r.onTertiaryContainer, r.tertiaryContainer],
+      ["on success container", r.onSuccessContainer, r.successContainer],
+      ["success on its container", r.success, r.successContainer],
+    ] as const;
+    for (const [pair, fg, bg] of text) {
+      expect(contrast(fg, bg), `${scheme}: ${pair}`).toBeGreaterThanOrEqual(4.5);
+    }
+    expect(contrast(r.outline, card), `${scheme}: input border`).toBeGreaterThanOrEqual(3);
+  }
+  // The brand fills are exactly the website's colours in both schemes.
+  for (const r of [roles.light, roles.dark]) {
+    expect(r.primary).toBe("#0f62fe");
+    expect(r.tertiaryBrand).toBe("#851b7f");
+  }
+});
 
 interface Failure {
   pair: string;

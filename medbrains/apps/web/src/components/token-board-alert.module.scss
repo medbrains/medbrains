@@ -10,7 +10,7 @@
   gap: var(--mantine-spacing-md);
   padding: var(--mantine-spacing-md) var(--mantine-spacing-lg);
   background: var(--code-blue);
-  color: #fff;
+  color: var(--mb-emergency-on-dark);
   border-radius: 0;
 }
 
@@ -20,6 +20,7 @@
 
 .urgent {
   background: var(--code-orange);
+  color: var(--mb-emergency-on-light); // white on orange is 3.2:1
 }
 
 .message {

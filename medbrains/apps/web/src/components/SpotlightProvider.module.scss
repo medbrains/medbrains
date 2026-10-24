@@ -7,7 +7,7 @@
 .content {
   border-radius: 0 !important;
   border: 1px solid var(--mb-border-default);
-  box-shadow: var(--mb-shadow-xl, 0 8px 28px rgba(0, 0, 0, 0.28));
+  box-shadow: var(--mb-shadow-xl);
   overflow: hidden;
   background: var(--mb-bg-default);
 }
@@ -154,7 +154,7 @@
 
 // Overlay — a scrim, correct in both themes.
 .overlay {
-  background: var(--mb-overlay-bg, rgba(0, 0, 0, 0.55));
+  background: var(--mb-overlay-bg);
 }
 
 // Inner modal positioning

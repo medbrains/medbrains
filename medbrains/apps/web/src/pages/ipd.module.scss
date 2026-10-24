@@ -9,8 +9,8 @@
   padding: var(--mantine-spacing-sm);
   border: 1px solid light-dark(var(--mantine-color-gray-3), var(--mantine-color-dark-4));
   border-radius: var(--mantine-radius-md);
-  background: light-dark(rgba(255, 255, 255, 0.96), rgba(26, 27, 30, 0.94));
-  box-shadow: 0 12px 28px light-dark(rgba(15, 23, 42, 0.08), rgba(0, 0, 0, 0.24));
+  background: var(--mb-glass-from);
+  box-shadow: var(--mb-shadow-md);
   backdrop-filter: blur(10px);
 }
 
@@ -79,7 +79,7 @@
 
 .actionRailSection[data-focused="true"] {
   border-color: light-dark(var(--mantine-color-blue-3), var(--mantine-color-blue-8));
-  background: light-dark(var(--mantine-color-blue-0), rgba(51, 154, 240, 0.14));
+  background: var(--mb-state-primary-12);
 }
 
 .actionRailButtonTarget {

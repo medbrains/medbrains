@@ -447,12 +447,11 @@ h3,
 .mantine-MultiSelect-input,
 .mantine-Autocomplete-input,
 .mantine-TagsInput-input {
-  // Authentic Carbon field: filled gray box, sharp corners, a single
-  // bottom rule at rest. No side/top borders.
+  // The website's field: a bordered box with 10px corners. The border uses
+  // the outline role, not the hairline, so the field edge holds 3:1.
   background: var(--mb-input-bg);
-  border: 0;
-  border-bottom: 1px solid var(--mb-input-border);
-  border-radius: 0;
+  border: 1px solid var(--mb-input-border);
+  border-radius: var(--mantine-radius-md);
   color: var(--mb-text-primary);
   transition: background 0.12s ease, border-color 0.12s ease;
 
@@ -461,22 +460,27 @@ h3,
   }
 
   &:hover:not(:focus):not(:focus-within):not([aria-invalid="true"]):not([data-error="true"]) {
-    border-bottom-color: var(--mb-input-border-hover);
+    border-color: var(--mb-input-border-hover);
   }
 
-  // Focus draws a 2px inset box on the whole field (Carbon focus), no
-  // layout shift, strong AA-visible indicator.
+  // Focus draws a 2px inset ring on the whole field, no layout shift,
+  // strong AA-visible indicator.
   &:focus,
   &:focus-within {
     outline: 2px solid var(--mb-border-focus);
     outline-offset: -2px;
-    border-bottom-color: transparent;
+    border-color: transparent;
   }
 
   &[data-error="true"],
   &[aria-invalid="true"] {
-    border-bottom-color: var(--mb-danger, var(--code-red));
+    border-color: var(--mb-danger, var(--code-red));
   }
+}
+
+// The password field draws its box on the wrapper; the inner input stays bare.
+.mantine-PasswordInput-innerInput {
+  border: 0;
 }
 
 // Input labels — compact but readable for dense clinical forms
@@ -602,7 +606,7 @@ h3,
     font-weight: 700;
     box-shadow:
       var(--mb-shadow-md),
-      inset 0 0 0 1px rgba(255, 255, 255, 0.22);
+      inset 0 0 0 1px var(--mb-state-on-primary-12);
   }
 
   :where(button[data-first-in-range], [data-picker-control][data-first-in-range]) {
@@ -713,7 +717,7 @@ a[href]:not(.mantine-Button-root) {
   }
 
   &[data-variant="filled"] {
-    box-shadow: 0 6px 14px rgba(15, 23, 42, 0.08);
+    box-shadow: var(--mb-shadow-sm);
   }
 
   &:hover {
@@ -953,12 +957,12 @@ a[href]:not(.mantine-Button-root) {
 }
 
 @keyframes indicatorPulse {
-  0%, 100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.4); }
-  50% { box-shadow: 0 0 0 4px rgba(239, 68, 68, 0); }
+  0%, 100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--mb-error) 40%, transparent); }
+  50% { box-shadow: 0 0 0 4px transparent; }
 }
 
 // ═══════════════════════════════════════════════════════════════
-// ── SKELETON loading — emerald-tinted shimmer ───────────────
+// ── SKELETON loading — on-surface state-layer shimmer ───────
 // ═══════════════════════════════════════════════════════════════
 
 .mantine-Skeleton-root {
@@ -966,7 +970,7 @@ a[href]:not(.mantine-Button-root) {
     background: linear-gradient(
       90deg,
       transparent 0%,
-      rgba(52, 211, 153, 0.06) 50%,
+      var(--mb-state-on-surface-4) 50%,
       transparent 100%
     ) !important;
   }

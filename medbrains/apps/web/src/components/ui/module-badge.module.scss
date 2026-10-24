@@ -9,8 +9,8 @@
   width: var(--badge-size, 20px);
   height: var(--badge-size, 20px);
   border-radius: 0; // Carbon sharp corner (flat, no Adobe-round)
-  background: var(--badge-color, var(--mb-brand, #0f62fe));
-  color: #ffffff;
+  background: var(--badge-color, var(--mb-brand));
+  color: var(--mantine-color-white); // identity fills are mid-dark in both schemes
   font-family: var(--mb-font-mono, monospace);
   font-weight: 700;
   font-size: calc(var(--badge-size, 20px) * var(--badge-font-scale, 0.46));

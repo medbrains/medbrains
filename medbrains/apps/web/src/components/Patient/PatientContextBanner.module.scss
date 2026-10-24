@@ -18,8 +18,8 @@
   gap: 16px;
   flex-wrap: wrap;
   padding: 12px 24px;
-  background: var(--mb-bg-default, #fff);
-  border-bottom: 1px solid var(--mb-border, #e0e0e0);
+  background: var(--mb-bg-default);
+  border-bottom: 1px solid var(--mb-border);
 }
 
 .identity {
@@ -34,8 +34,8 @@
   height: 38px;
   flex-shrink: 0;
   border-radius: var(--mb-radius-sm, 4px);
-  background: var(--mb-brand, #0f62fe);
-  color: var(--mb-brand-on-emphasis, #fff);
+  background: var(--mb-brand);
+  color: var(--mb-brand-on-emphasis);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -45,7 +45,7 @@
   letter-spacing: 0.02em;
 
   [data-mantine-color-scheme="dark"] & {
-    background: var(--mb-brand-emphasis-pressed, #0f62fe);
+    background: var(--mb-brand-emphasis-pressed);
   }
 }
 
@@ -56,14 +56,14 @@
 .name {
   font-size: 14px;
   font-weight: 600;
-  color: var(--mb-text, #161616);
+  color: var(--mb-text);
   line-height: 1.25;
 }
 
 .sub {
   font-family: var(--mb-font-mono, "IBM Plex Mono", monospace);
   font-size: 11px;
-  color: var(--mb-text-muted, #6f6f6f);
+  color: var(--mb-text-muted);
   letter-spacing: 0.01em;
 }
 
@@ -82,8 +82,8 @@
   gap: 16px;
   flex-wrap: wrap;
   padding: 16px 20px;
-  background: var(--mb-bg-default, #fff);
-  border: 1px solid var(--mb-border, #e0e0e0);
+  background: var(--mb-bg-default);
+  border: 1px solid var(--mb-border);
   border-radius: var(--mb-radius-sm, 4px);
 }
 
@@ -92,8 +92,8 @@
   height: 52px;
   flex-shrink: 0;
   border-radius: var(--mb-radius-sm, 4px);
-  background: var(--mb-brand, #0f62fe);
-  color: var(--mb-brand-on-emphasis, #fff);
+  background: var(--mb-brand);
+  color: var(--mb-brand-on-emphasis);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -102,14 +102,14 @@
   font-weight: 600;
 
   [data-mantine-color-scheme="dark"] & {
-    background: var(--mb-brand-emphasis-pressed, #0f62fe);
+    background: var(--mb-brand-emphasis-pressed);
   }
 }
 
 .nameLg {
   font-size: 19px;
   font-weight: 600;
-  color: var(--mb-text, #161616);
+  color: var(--mb-text);
   line-height: 1.2;
   letter-spacing: -0.01em;
 }
@@ -118,7 +118,7 @@
   margin-top: 3px;
   font-family: var(--mb-font-mono, "IBM Plex Mono", monospace);
   font-size: 12px;
-  color: var(--mb-text-muted, #6f6f6f);
+  color: var(--mb-text-muted);
 }
 
 .detailChips {
