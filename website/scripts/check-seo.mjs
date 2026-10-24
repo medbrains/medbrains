@@ -66,7 +66,10 @@ for (const c of camps) assert.ok(c.types.includes("FAQPage"), `${c.path}: FAQPag
 // The queues-and-tokens cluster (src/data/token-pages.ts): the OPD hub and its spokes.
 const tokens = ["opd-queue-management", "clinic-token-management-system", "hospital-token-system"].map(checkPage);
 for (const t of tokens) assert.ok(t.types.includes("FAQPage"), `${t.path}: FAQPage`);
-results.push(...guides, ...resources, ...tools, ...camps, ...tokens);
+// The buying guides under the HMS hub (src/data/compare-pages.ts).
+const compare = ["how-to-choose-hospital-management-software", "hospital-software-vs-excel"].map(checkPage);
+for (const c of compare) assert.ok(c.types.includes("FAQPage"), `${c.path}: FAQPage`);
+results.push(...guides, ...resources, ...tools, ...camps, ...tokens, ...compare);
 for (const f of ["llms.txt", "robots.txt"]) assert.ok(existsSync(join(dist, f)), `/${f} built`);
 assert.ok(existsSync(join(dist, "pagefind", "pagefind.js")), "Pagefind index built");
 assert.ok(existsSync(join(dist, "blog", "rss.xml")), "RSS feed built");

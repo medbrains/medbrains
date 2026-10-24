@@ -58,7 +58,7 @@ const schema = [
           <h2 class="section-title">{sec.title}</h2>
           {sec.body?.map((para) => <p set:html={para} />)}
           {sec.steps && (
-            <ol class="steps">
+            <ol class="steps" style={sec.start ? `counter-reset: step ${sec.start - 1}` : undefined}>
               {sec.steps.map((st) => (
                 <li><h3>{st.title}</h3><p set:html={st.body} /></li>
               ))}
@@ -180,6 +180,7 @@ const schema = [
     }
     h3 { font: 800 1.12rem var(--display); letter-spacing: -.02em; margin: 0 0 6px; }
     p { margin: 0; color: var(--ink-2); font-size: 1rem; }
+    :global(a) { color: var(--blue-deep); }
   }
   .table-scroll { overflow-x: auto; margin: 28px 0; border: 1px solid var(--line); border-radius: 18px; background: #fff; }
   table { width: 100%; border-collapse: collapse; color: var(--ink); font-size: .96rem; min-width: 640px; }
