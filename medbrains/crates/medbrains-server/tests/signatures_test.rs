@@ -113,6 +113,50 @@ async fn issue_default_credential(
     body["credential"]["id"].as_str().unwrap_or("").to_owned()
 }
 
+/// Helper: a prescription written by `doctor_user_id`. The server signs the
+/// record it reads, not a payload the client sends, so a signature needs a
+/// real record, and a primary signature one this doctor wrote.
+async fn doctor_prescription(app: &common::TestApp, doctor_user_id: &str) -> String {
+    let doctor_id = uuid::Uuid::parse_str(doctor_user_id).expect("admin id");
+    let tenant_id: uuid::Uuid = sqlx::query_scalar("SELECT tenant_id FROM users WHERE id = $1")
+        .bind(doctor_id)
+        .fetch_one(&app.db)
+        .await
+        .expect("tenant");
+    let uhid = format!("SIG{}", &uuid::Uuid::new_v4().simple().to_string()[..10]);
+    let patient_id: uuid::Uuid = sqlx::query_scalar(
+        "INSERT INTO patients (tenant_id, uhid, first_name, last_name, gender, phone) \
+         VALUES ($1, $2, 'Asha', 'Signer', 'female', '9990003003') RETURNING id",
+    )
+    .bind(tenant_id)
+    .bind(&uhid)
+    .fetch_one(&app.db)
+    .await
+    .expect("insert patient");
+    let encounter_id: uuid::Uuid = sqlx::query_scalar(
+        "INSERT INTO encounters (tenant_id, patient_id, encounter_type, doctor_id) \
+         VALUES ($1, $2, 'opd'::encounter_type, $3) RETURNING id",
+    )
+    .bind(tenant_id)
+    .bind(patient_id)
+    .bind(doctor_id)
+    .fetch_one(&app.db)
+    .await
+    .expect("insert encounter");
+    let prescription_id: uuid::Uuid = sqlx::query_scalar(
+        "INSERT INTO prescriptions (tenant_id, encounter_id, doctor_id, patient_id) \
+         VALUES ($1, $2, $3, $4) RETURNING id",
+    )
+    .bind(tenant_id)
+    .bind(encounter_id)
+    .bind(doctor_id)
+    .bind(patient_id)
+    .fetch_one(&app.db)
+    .await
+    .expect("insert prescription");
+    prescription_id.to_string()
+}
+
 // Note: a "sign without any credential returns 400" test is omitted
 // because the dev-DB is persistent across test runs and unrelated tests
 // create credentials for the admin user. The error path itself is
@@ -126,7 +170,7 @@ async fn test_sign_with_credential_succeeds() {
     let admin_id = admin_user_id(&app, &csrf).await;
     let _cred_id = issue_default_credential(&app, &csrf, &admin_id).await;
 
-    let record_id = uuid::Uuid::new_v4().to_string();
+    let record_id = doctor_prescription(&app, &admin_id).await;
     let resp = app
         .client
         .post(app.url("/api/signatures/sign"))
@@ -159,8 +203,7 @@ async fn test_verify_endpoint_round_trip() {
     let admin_id = admin_user_id(&app, &csrf).await;
     issue_default_credential(&app, &csrf, &admin_id).await;
 
-    let payload = json!({ "record_type": "lab_report", "result": "Hb 13.5 g/dL" });
-    let record_id = uuid::Uuid::new_v4().to_string();
+    let record_id = doctor_prescription(&app, &admin_id).await;
 
     // Sign
     let sign_resp = app
@@ -168,9 +211,8 @@ async fn test_verify_endpoint_round_trip() {
         .post(app.url("/api/signatures/sign"))
         .header("x-csrf-token", &csrf)
         .json(&json!({
-            "record_type": "lab_report",
+            "record_type": "prescription",
             "record_id": record_id,
-            "payload": payload,
         }))
         .send()
         .await
@@ -179,15 +221,12 @@ async fn test_verify_endpoint_round_trip() {
     let sign_body: serde_json::Value = sign_resp.json().await.unwrap();
     let signed_record_id = sign_body["signed_record"]["id"].as_str().unwrap();
 
-    // Verify with the SAME payload → success
+    // Verify against the payload the server signed → success
     let v_resp = app
         .client
         .post(app.url("/api/signatures/verify"))
         .header("x-csrf-token", &csrf)
-        .json(&json!({
-            "signed_record_id": signed_record_id,
-            "payload": payload,
-        }))
+        .json(&json!({ "signed_record_id": signed_record_id }))
         .send()
         .await
         .expect("verify");
@@ -201,7 +240,7 @@ async fn test_verify_endpoint_round_trip() {
     );
 
     // Verify with TAMPERED payload → fail
-    let tampered = json!({ "record_type": "lab_report", "result": "Hb 99 g/dL" });
+    let tampered = json!({ "record_type": "prescription", "notes": "dose changed after signing" });
     let t_resp = app
         .client
         .post(app.url("/api/signatures/verify"))
@@ -249,8 +288,7 @@ async fn test_revoked_credential_cannot_sign() {
         .header("x-csrf-token", &csrf)
         .json(&json!({
             "record_type": "prescription",
-            "record_id": uuid::Uuid::new_v4().to_string(),
-            "payload": { "drug": "x" },
+            "record_id": doctor_prescription(&app, &admin_id).await,
         }))
         .send()
         .await
@@ -269,8 +307,7 @@ async fn test_co_signer_creates_separate_row() {
     let admin_id = admin_user_id(&app, &csrf).await;
     issue_default_credential(&app, &csrf, &admin_id).await;
 
-    let record_id = uuid::Uuid::new_v4().to_string();
-    let payload = json!({ "record_type": "operative_note", "procedure": "appendectomy" });
+    let record_id = doctor_prescription(&app, &admin_id).await;
 
     // Primary sign
     let p_resp = app
@@ -278,9 +315,8 @@ async fn test_co_signer_creates_separate_row() {
         .post(app.url("/api/signatures/sign"))
         .header("x-csrf-token", &csrf)
         .json(&json!({
-            "record_type": "operative_note",
+            "record_type": "prescription",
             "record_id": record_id,
-            "payload": payload,
             "signer_role": "primary",
         }))
         .send()
@@ -295,9 +331,8 @@ async fn test_co_signer_creates_separate_row() {
         .post(app.url("/api/signatures/sign"))
         .header("x-csrf-token", &csrf)
         .json(&json!({
-            "record_type": "operative_note",
+            "record_type": "prescription",
             "record_id": record_id,
-            "payload": payload,
             "signer_role": "co_signer",
         }))
         .send()
@@ -309,7 +344,7 @@ async fn test_co_signer_creates_separate_row() {
     let list_resp = app
         .client
         .get(app.url(&format!(
-            "/api/signatures/list?record_type=operative_note&record_id={record_id}"
+            "/api/signatures/list?record_type=prescription&record_id={record_id}"
         )))
         .send()
         .await

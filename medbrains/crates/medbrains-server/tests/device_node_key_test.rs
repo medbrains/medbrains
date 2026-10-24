@@ -2,6 +2,21 @@ use crate::common;
 
 use uuid::Uuid;
 
+/// A paired device of `tenant_id`, which is what a node key binds to.
+async fn paired_device(db: &sqlx::PgPool, tenant_id: Uuid) -> Uuid {
+    let suffix = Uuid::new_v4().simple().to_string();
+    sqlx::query_scalar(
+        "INSERT INTO paired_devices (tenant_id, label, app_variant, cert_fingerprint, cert_pem) \
+         VALUES ($1, $2, 'tv', $3, 'test-pem') RETURNING id",
+    )
+    .bind(tenant_id)
+    .bind(format!("Node Key Fixture {}", &suffix[..8]))
+    .bind(format!("fp-{suffix}"))
+    .fetch_one(db)
+    .await
+    .expect("insert paired device")
+}
+
 /// Enrolling a peer node key is a privileged act against a device this tenant
 /// owns. These pin the parts that would be dangerous to get wrong.
 #[tokio::test]
@@ -14,24 +29,7 @@ async fn a_node_key_cannot_be_claimed_twice() {
         .await
         .expect("a seeded tenant");
 
-    let make_device = || {
-        let db = app.db.clone();
-        async move {
-            let suffix = &Uuid::new_v4().to_string()[..8];
-            sqlx::query_scalar::<_, Uuid>(
-                "INSERT INTO device_instances \
-                 (tenant_id, adapter_code, name, code, status) \
-                 VALUES ($1, 'generic', $2, $3, 'active'::device_instance_status) \
-                 RETURNING id",
-            )
-            .bind(tenant_id)
-            .bind(format!("Node Key Fixture {suffix}"))
-            .bind(format!("NK-{suffix}"))
-            .fetch_one(&db)
-            .await
-            .expect("insert device")
-        }
-    };
+    let make_device = || paired_device(&app.db, tenant_id);
 
     let first = make_device().await;
     let second = make_device().await;
@@ -39,7 +37,7 @@ async fn a_node_key_cannot_be_claimed_twice() {
 
     let enrol = |device: Uuid, node: String| {
         let client = app.client.clone();
-        let url = app.url(&format!("/api/devices/instances/{device}/node-key"));
+        let url = app.url(&format!("/api/device-pairing/paired/{device}/node-key"));
         let csrf = csrf.clone();
         async move {
             client
@@ -76,21 +74,9 @@ async fn rotating_a_key_retires_the_previous_one() {
         .fetch_one(&app.db)
         .await
         .expect("a seeded tenant");
-    let suffix = &Uuid::new_v4().to_string()[..8];
-    let device: Uuid = sqlx::query_scalar(
-        "INSERT INTO device_instances \
-         (tenant_id, adapter_code, name, code, status) \
-         VALUES ($1, 'generic', $2, $3, 'active'::device_instance_status) \
-         RETURNING id",
-    )
-    .bind(tenant_id)
-    .bind(format!("Rotation Fixture {suffix}"))
-    .bind(format!("NKR-{suffix}"))
-    .fetch_one(&app.db)
-    .await
-    .expect("insert device");
+    let device = paired_device(&app.db, tenant_id).await;
 
-    let url = app.url(&format!("/api/devices/instances/{device}/node-key"));
+    let url = app.url(&format!("/api/device-pairing/paired/{device}/node-key"));
     let old = format!("old-{}", Uuid::new_v4().simple());
     let new = format!("new-{}", Uuid::new_v4().simple());
 
@@ -106,7 +92,7 @@ async fn rotating_a_key_retires_the_previous_one() {
 
     let live: Vec<String> = sqlx::query_scalar(
         "SELECT node_id FROM device_node_keys \
-         WHERE device_instance_id = $1 AND revoked_at IS NULL",
+         WHERE paired_device_id = $1 AND revoked_at IS NULL",
     )
     .bind(device)
     .fetch_all(&app.db)
@@ -122,7 +108,7 @@ async fn rotating_a_key_retires_the_previous_one() {
 
     let retired: i64 = sqlx::query_scalar(
         "SELECT COUNT(*) FROM device_node_keys \
-         WHERE device_instance_id = $1 AND revoked_at IS NOT NULL",
+         WHERE paired_device_id = $1 AND revoked_at IS NOT NULL",
     )
     .bind(device)
     .fetch_one(&app.db)
@@ -146,7 +132,7 @@ async fn a_device_from_another_tenant_is_not_found() {
     let response = app
         .client
         .post(app.url(&format!(
-            "/api/devices/instances/{}/node-key",
+            "/api/device-pairing/paired/{}/node-key",
             Uuid::new_v4()
         )))
         .header("x-csrf-token", &csrf)

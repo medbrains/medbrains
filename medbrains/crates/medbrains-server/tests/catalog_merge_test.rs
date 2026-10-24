@@ -24,21 +24,46 @@ async fn batch_on(w: &grn_world::World, drug: Uuid, qty: i32) -> Uuid {
     .expect("batch")
 }
 
-async fn copy_of(w: &grn_world::World, schedule: &str) -> Uuid {
-    sqlx::query_scalar(
+/// A drug of this run's own and a copy of it under another code, `schedule`
+/// on the copy. The name is random so earlier runs' drugs, left in a reused
+/// database, are not near-duplicates of it and do not crowd the report.
+async fn drug_and_copy(w: &grn_world::World, schedule: &str) -> (Uuid, Uuid) {
+    let name = format!("Q{}", &Uuid::new_v4().simple().to_string()[..12]);
+    let original: Uuid = sqlx::query_scalar(
+        "INSERT INTO pharmacy_catalog (tenant_id, code, name, strength, dosage_form, drug_schedule, \
+             current_stock, store_catalog_id) \
+         SELECT tenant_id, $2, $3, strength, dosage_form, drug_schedule, 0, store_catalog_id \
+           FROM pharmacy_catalog WHERE id = $1 RETURNING id",
+    )
+    .bind(w.drugs[0].pharmacy_id)
+    .bind(format!("M{}", &Uuid::new_v4().simple().to_string()[..10]).to_uppercase())
+    .bind(&name)
+    .fetch_one(&w.app.db)
+    .await
+    .expect("original");
+    let copy = sqlx::query_scalar(
         "INSERT INTO pharmacy_catalog (tenant_id, code, name, strength, dosage_form, drug_schedule, \
              current_stock, store_catalog_id) \
          SELECT tenant_id, code || 'X', name || ' tab', strength, dosage_form, $2, 7, store_catalog_id \
            FROM pharmacy_catalog WHERE id = $1 RETURNING id",
     )
-    .bind(w.drugs[0].pharmacy_id)
+    .bind(original)
     .bind(schedule)
     .fetch_one(&w.app.db)
     .await
-    .expect("duplicate")
+    .expect("duplicate");
+    (original, copy)
 }
 
-/// Copies left live would crowd later runs' reports in the shared database.
+async fn stock_of(w: &grn_world::World, drug: Uuid) -> i32 {
+    sqlx::query_scalar("SELECT current_stock FROM pharmacy_catalog WHERE id = $1")
+        .bind(drug)
+        .fetch_one(&w.app.db)
+        .await
+        .expect("stock")
+}
+
+/// Drugs left live would crowd later runs' reports in the shared database.
 async fn retire(w: &grn_world::World, copy: Uuid) {
     sqlx::query("UPDATE pharmacy_catalog SET deleted_at = now() WHERE id = $1")
         .bind(copy)
@@ -54,10 +79,9 @@ async fn retire(w: &grn_world::World, copy: Uuid) {
 #[tokio::test]
 async fn a_merge_moves_references_and_stock_to_the_drug_kept() {
     let w = world().await;
-    let copy = copy_of(&w, "H").await;
+    let (kept, copy) = drug_and_copy(&w, "H").await;
     let batch = batch_on(&w, copy, 7).await;
-    let kept = w.drugs[0].pharmacy_id;
-    let before = w.pharmacy_stock(0).await;
+    let before = stock_of(&w, kept).await;
 
     let (status, pairs) = w
         .call("GET", "/api/pharmacy/catalog/duplicates", json!(null))
@@ -87,7 +111,7 @@ async fn a_merge_moves_references_and_stock_to_the_drug_kept() {
         .await
         .expect("batch");
     assert_eq!(on, kept, "the batch now belongs to the drug kept");
-    assert_eq!(w.pharmacy_stock(0).await, before + 7);
+    assert_eq!(stock_of(&w, kept).await, before + 7);
     let (into, gone): (Option<Uuid>, bool) = sqlx::query_as(
         "SELECT merged_into_id, deleted_at IS NOT NULL FROM pharmacy_catalog WHERE id = $1",
     )
@@ -103,7 +127,7 @@ async fn a_merge_moves_references_and_stock_to_the_drug_kept() {
 #[tokio::test]
 async fn drugs_differing_in_schedule_are_never_merged() {
     let w = world().await;
-    let copy = copy_of(&w, "X").await;
+    let (original, copy) = drug_and_copy(&w, "X").await;
     let batch = batch_on(&w, copy, 3).await;
     let (_, pairs) = w
         .call("GET", "/api/pharmacy/catalog/duplicates", json!(null))
@@ -121,7 +145,7 @@ async fn drugs_differing_in_schedule_are_never_merged() {
 
     let (status, body) = w
         .call("POST", "/api/pharmacy/catalog/merge", json!({
-            "survivor_id": w.drugs[0].pharmacy_id, "merged_id": copy, "reason": "Looks the same to me",
+            "survivor_id": original, "merged_id": copy, "reason": "Looks the same to me",
         }))
         .await;
     assert_eq!(status, StatusCode::CONFLICT, "{body}");
@@ -132,6 +156,7 @@ async fn drugs_differing_in_schedule_are_never_merged() {
         .expect("batch");
     assert_eq!(on, copy, "nothing moved");
     retire(&w, copy).await;
+    retire(&w, original).await;
 }
 
 /// Given a store keeper (no `pharmacy.catalog.merge`), Then the report and the
@@ -139,7 +164,7 @@ async fn drugs_differing_in_schedule_are_never_merged() {
 #[tokio::test]
 async fn merging_needs_its_permission() {
     let w = world().await;
-    let copy = copy_of(&w, "H").await;
+    let (original, copy) = drug_and_copy(&w, "H").await;
     let keeper = user(&w.app, &w.csrf, "store_keeper", &[], &[]).await;
     let me = (&keeper.client, keeper.csrf.as_str());
     let (status, _) = send(
@@ -157,10 +182,11 @@ async fn merging_needs_its_permission() {
         "POST",
         "/api/pharmacy/catalog/merge",
         json!({
-            "survivor_id": w.drugs[0].pharmacy_id, "merged_id": copy, "reason": "Same drug twice",
+            "survivor_id": original, "merged_id": copy, "reason": "Same drug twice",
         }),
     )
     .await;
     assert_eq!(status, StatusCode::FORBIDDEN);
     retire(&w, copy).await;
+    retire(&w, original).await;
 }

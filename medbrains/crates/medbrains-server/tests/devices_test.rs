@@ -1,6 +1,10 @@
 use crate::common;
 
 use reqwest::StatusCode;
+use uuid::Uuid;
+
+/// A verified HL7 lab analyzer from the seeded catalog (migration 0950).
+const LAB_ADAPTER: &str = "mindray_bs240";
 
 #[tokio::test]
 async fn test_list_catalog() {
@@ -17,11 +21,8 @@ async fn test_list_catalog() {
         "should have at least 20 seeded adapters"
     );
 
-    // Check roche cobas exists
-    let has_cobas = adapters
-        .iter()
-        .any(|a| a["adapter_code"] == "roche_cobas_6000");
-    assert!(has_cobas, "roche_cobas_6000 should be in catalog");
+    let has_lab_adapter = adapters.iter().any(|a| a["adapter_code"] == LAB_ADAPTER);
+    assert!(has_lab_adapter, "{LAB_ADAPTER} should be in catalog");
 }
 
 #[tokio::test]
@@ -54,7 +55,7 @@ async fn test_preview_config() {
     let resp = app
         .get(
             &app.client,
-            "/api/devices/catalog/roche_cobas_6000/preview-config",
+            &format!("/api/devices/catalog/{LAB_ADAPTER}/preview-config"),
         )
         .await;
     assert_eq!(resp.status(), StatusCode::OK);
@@ -66,7 +67,7 @@ async fn test_preview_config() {
         "verified adapter should have >0.9 confidence"
     );
     assert!(body["field_mappings"].is_array());
-    assert_eq!(body["default_port"], 2575);
+    assert_eq!(body["default_port"], 5100, "the catalog's port for {LAB_ADAPTER}");
 }
 
 #[tokio::test]
@@ -79,9 +80,9 @@ async fn test_create_device() {
         .post(app.url("/api/devices/instances"))
         .header("x-csrf-token", csrf)
         .json(&serde_json::json!({
-            "adapter_code": "roche_cobas_6000",
+            "adapter_code": LAB_ADAPTER,
             "name": "Test Analyzer",
-            "code": "TEST-INT-001",
+            "code": format!("TEST-INT-{}", Uuid::new_v4().simple()),
             "hostname": "10.0.0.100",
             "port": 2575
         }))
@@ -92,7 +93,7 @@ async fn test_create_device() {
     assert_eq!(resp.status(), StatusCode::OK);
 
     let body: serde_json::Value = resp.json().await.expect("json");
-    assert_eq!(body["adapter_code"], "roche_cobas_6000");
+    assert_eq!(body["adapter_code"], LAB_ADAPTER);
     assert_eq!(body["name"], "Test Analyzer");
     assert_eq!(body["config_source"], "ai_auto");
     assert!(body["ai_confidence"].as_f64().unwrap_or(0.0) > 0.0);
@@ -109,9 +110,9 @@ async fn test_ingest() {
         .post(app.url("/api/devices/instances"))
         .header("x-csrf-token", csrf.clone())
         .json(&serde_json::json!({
-            "adapter_code": "roche_cobas_6000",
+            "adapter_code": LAB_ADAPTER,
             "name": "Ingest Test Analyzer",
-            "code": "TEST-INGEST-001",
+            "code": format!("TEST-INGEST-{}", Uuid::new_v4().simple()),
         }))
         .send()
         .await
