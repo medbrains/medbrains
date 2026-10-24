@@ -144,8 +144,10 @@ pub async fn set_contact_consent(
 ) -> Result<Json<PatientContactConsents>, AppError> {
     require_permission(&claims, permissions::patients::UPDATE)?;
     medbrains_authz_gate::require_patient_access(&state, &claims, patient_id).await?;
-    if !["whatsapp", "email"].contains(&body.channel.as_str()) {
-        return Err(AppError::BadRequest("channel must be whatsapp or email".to_owned()));
+    if !["whatsapp", "email", "sms"].contains(&body.channel.as_str()) {
+        return Err(AppError::BadRequest(
+            "channel must be whatsapp, email or sms".to_owned(),
+        ));
     }
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;

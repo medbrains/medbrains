@@ -20,6 +20,7 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 pub mod board;
+pub mod call_sms;
 pub mod counters;
 pub mod queue_admin;
 pub mod queue_categories;
@@ -602,21 +603,35 @@ pub async fn advance_entity_token_in_tx(
     Ok(token)
 }
 
-/// Tell the rest of the hospital a patient was called — what a token-call SMS
-/// is for. Every path that calls a token goes through here: the desk console,
-/// call-next, and the doctor's own OPD screen, which moved the board but, going
-/// round `transition`, never sent the SMS.
+/// Tell the rest of the hospital a patient was called. Every path that calls a
+/// token goes through here: the desk console, call-next, and the doctor's own
+/// OPD screen — so the token-call SMS is queued here, for every queue that
+/// calls a registered patient, not only OPD.
 ///
 /// `opd.queue.called` describes an OPD consultation queue, and its registry
 /// requires the queue entry, the encounter and the patient; only a token that
-/// is an OPD encounter can say what it means. Other queues get their own call
-/// event with per-queue notifications.
+/// is an OPD encounter can say what it means.
 async fn announce_called_in_tx(
     tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
     tenant_id: Uuid,
     actor: Uuid,
     token: &Token,
 ) -> Result<(), AppError> {
+    if let Some(patient_id) = token.patient_id {
+        let call = medbrains_workflow::orchestration::token_call_sms::TokenCall {
+            token_id: token.id,
+            patient_id,
+            number: &token.number,
+            room: token
+                .scope_label
+                .as_deref()
+                .or(token.counter_label.as_deref()),
+            called_at: token.called_at,
+        };
+        medbrains_workflow::orchestration::token_call_sms::queue_in_tx(tx, tenant_id, &call)
+            .await
+            .map_err(|e| AppError::Internal(format!("token-call SMS not queued: {e}")))?;
+    }
     let opd_encounter = (token.module == "opd"
         && token.entity_type.as_deref() == Some("encounter"))
     .then_some(token.entity_id)
@@ -2220,6 +2235,10 @@ pub fn router() -> axum::Router<AppState> {
         .route("/api/tokens/worklist", get(list_worklist))
         .route("/api/tokens/camp-board", get(camp_board))
         .route("/api/tokens/mine", get(my_tokens))
+        .route(
+            "/api/tokens/call-sms/status",
+            get(call_sms::call_sms_status),
+        )
         .route("/api/tokens/call-next", post(call_next))
         .route("/api/tokens/{id}/advance", post(advance_token))
         .route("/api/tokens/{id}/call", post(call_token))

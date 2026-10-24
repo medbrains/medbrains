@@ -2,6 +2,7 @@ import { Group, Stack, Text } from "@mantine/core";
 import { api } from "@medbrains/api";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Card, Switch, toast } from "@/components/ui";
+import { TokenCallSmsCard } from "./TokenCallSmsCard";
 
 const MODULES: { value: string; label: string }[] = [
   { value: "registration", label: "Registration" },
@@ -33,21 +34,6 @@ export function TokensSettings() {
     onError: (error: Error) => toast.error(error.message, { title: "Setting not saved" }),
   });
 
-  // The pipeline reads this as a bare JSON boolean, so it is stored as one.
-  const { data: notifications } = useQuery({
-    queryKey: ["tenant-settings", "notifications"],
-    queryFn: () => api.getTenantSettings("notifications"),
-  });
-  const isCallSmsOn =
-    notifications?.find((entry) => entry.key === "token_call_sms")?.value === true;
-  const updateCallSms = useMutation({
-    mutationFn: (enabled: boolean) =>
-      api.updateTenantSetting({ category: "notifications", key: "token_call_sms", value: enabled }),
-    onSuccess: () =>
-      void queryClient.invalidateQueries({ queryKey: ["tenant-settings", "notifications"] }),
-    onError: (error: Error) => toast.error(error.message, { title: "Setting not saved" }),
-  });
-
   const isEnabled = (module: string): boolean => {
     const row = data?.find((entry) => entry.key === `${module}_enabled`);
     return (row?.value as { enabled?: boolean } | undefined)?.enabled !== false;
@@ -73,23 +59,7 @@ export function TokensSettings() {
           </Group>
         </Card>
       ))}
-      <Card withBorder>
-        <Group justify="space-between" align="center" wrap="nowrap">
-          <Stack gap={2}>
-            <Text fw={600}>Text the patient when their token is called</Text>
-            <Text size="sm" c="dimmed">
-              Sends an SMS with the token number and the room to go to. Only OPD visit tokens, and
-              only to patients with a mobile number on file. Needs the SMS provider set up.
-            </Text>
-          </Stack>
-          <Switch
-            checked={isCallSmsOn}
-            disabled={updateCallSms.isPending}
-            onChange={(event) => updateCallSms.mutate(event.currentTarget.checked)}
-            aria-label="Text the patient when their token is called"
-          />
-        </Group>
-      </Card>
+      <TokenCallSmsCard />
     </Stack>
   );
 }

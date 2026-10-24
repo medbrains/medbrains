@@ -1,6 +1,6 @@
 import { Group, Stack, Text, Title } from "@mantine/core";
 import { useHasPermission } from "@medbrains/stores";
-import { type ChannelConsent, P, type Patient } from "@medbrains/types";
+import { type ChannelConsent, type ContactChannel, P, type Patient } from "@medbrains/types";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Alert, Card, Switch, toast } from "@/components/ui";
 import { patientDetailService } from "@/services/patientDetail.service";
@@ -9,14 +9,16 @@ interface ContactConsentCardProps {
   patient: Patient;
 }
 
+/** `allowedUnasked`: SMS needs no opt-in, only a way out; the others need a yes. */
 const CHANNELS = [
-  { channel: "whatsapp", label: "Hospital updates on WhatsApp" },
-  { channel: "email", label: "Hospital updates by email" },
+  { channel: "whatsapp", label: "Hospital updates on WhatsApp", allowedUnasked: false },
+  { channel: "email", label: "Hospital updates by email", allowedUnasked: false },
+  { channel: "sms", label: "Optional texts, such as “your token is called”", allowedUnasked: true },
 ] as const;
 
 /** Who agreed to what, and when — and the switch to change it. */
-function describe(consent: ChannelConsent | undefined): string {
-  if (!consent) return "Never asked";
+function describeConsent(consent: ChannelConsent | undefined, allowedUnasked: boolean): string {
+  if (!consent) return allowedUnasked ? "Allowed — never withdrawn" : "Never asked";
   const when = new Date(consent.recorded_at).toLocaleDateString();
   const who = consent.recorded_by_name ? ` by ${consent.recorded_by_name}` : "";
   return `${consent.granted ? "Agreed" : "Withdrawn"} ${when}${who}`;
@@ -35,7 +37,7 @@ export function ContactConsentCard({ patient }: ContactConsentCardProps) {
     queryFn: () => patientDetailService.getPatientContactConsents(patient.id),
   });
   const change = useMutation({
-    mutationFn: (input: { channel: "whatsapp" | "email"; granted: boolean }) =>
+    mutationFn: (input: { channel: ContactChannel; granted: boolean }) =>
       patientDetailService.setPatientContactConsent(patient.id, input),
     onSuccess: (data) => queryClient.setQueryData(queryKey, data),
     onError: (error: Error) => toast.error(error.message, { title: "Consent not changed" }),
@@ -50,7 +52,7 @@ export function ContactConsentCard({ patient }: ContactConsentCardProps) {
         <Alert tone="danger">Could not load what this patient agreed to.</Alert>
       ) : (
         <Stack gap="sm">
-          {CHANNELS.map(({ channel, label }) => {
+          {CHANNELS.map(({ channel, label, allowedUnasked }) => {
             const consent = consents.data?.channels.find((c) => c.channel === channel);
             const noEmail = channel === "email" && !patient.email;
             return (
@@ -60,12 +62,14 @@ export function ContactConsentCard({ patient }: ContactConsentCardProps) {
                     {label}
                   </Text>
                   <Text size="xs" c="dimmed">
-                    {noEmail && !consent?.granted ? "No email address on file" : describe(consent)}
+                    {noEmail && !consent?.granted
+                      ? "No email address on file"
+                      : describeConsent(consent, allowedUnasked)}
                   </Text>
                 </Stack>
                 <Switch
                   aria-label={label}
-                  checked={consent?.granted ?? false}
+                  checked={consent?.granted ?? allowedUnasked}
                   disabled={!canChange || consents.isLoading || change.isPending || noEmail}
                   onChange={(event) =>
                     change.mutate({ channel, granted: event.currentTarget.checked })
@@ -75,7 +79,7 @@ export function ContactConsentCard({ patient }: ContactConsentCardProps) {
             );
           })}
           <Text size="xs" c="dimmed">
-            SMS about registration and visits needs no agreement.
+            Texts about registration and the visit itself need no agreement.
           </Text>
         </Stack>
       )}

@@ -130,11 +130,6 @@ pub const PIPELINES: &[Pipeline] = &[
         run: |p, t, v| Box::pin(on_emergency_code_blue_activated(p, t, v)),
     },
     Pipeline {
-        event: ClinicalEventName::OpdQueueCalled,
-        description: "Tell the patient their token was called, if the hospital wants SMS",
-        run: |p, t, v| Box::pin(on_opd_queue_called(p, t, v)),
-    },
-    Pipeline {
         event: ClinicalEventName::BloodTransfusionReactionReported,
         description: "Quarantine sibling components + raise incident + alert blood bank",
         run: |p, t, v| Box::pin(on_transfusion_reaction(p, t, v)),
@@ -350,97 +345,6 @@ async fn on_ipd_discharge_initiated(
 }
 
 // ── 3. Lab result posted → critical-value SMS to ordering doctor ─
-
-/// An SMS to the patient whose token has just been called.
-///
-/// Opt-in, not opt-out. Every other pipeline here is a baseline workflow that
-/// a hospital may switch off; this one sends a message to a member of the
-/// public every time a counter calls a number, which costs money per send and
-/// is a per-hospital decision about how its waiting room works. A hospital
-/// with a visible board and a tannoy does not want it. So the framework's
-/// disabled-list still applies on top, and the setting below has to be
-/// switched on first:
-///
-/// ```sql
-/// INSERT INTO tenant_settings (tenant_id, category, key, value)
-/// VALUES ($1, 'notifications', 'token_call_sms', 'true');
-/// ```
-/// What the patient reads on their phone.
-fn token_call_body(number: &str, room: Option<&str>) -> String {
-    match room {
-        Some(room) => format!("Token {number} has been called. Please come to {room}."),
-        None => format!("Token {number} has been called. Please come to the counter."),
-    }
-}
-
-async fn on_opd_queue_called(
-    pool: &PgPool,
-    tenant_id: Uuid,
-    payload: &Value,
-) -> Result<(), sqlx::Error> {
-    let p = domain_payload(payload);
-    let Some(patient_id) = uuid_from_payload(payload, "patient_id") else {
-        return Ok(());
-    };
-    let Some(token_id) = uuid_from_payload(payload, "token_id") else {
-        return Ok(());
-    };
-
-    let mut tx = tenant_tx(pool, tenant_id).await?;
-
-    let enabled: Option<Value> = sqlx::query_scalar!(
-        "SELECT value FROM tenant_settings \
-         WHERE tenant_id = $1 AND category = 'notifications' AND key = 'token_call_sms' \
-         LIMIT 1",
-        tenant_id,
-    )
-    .fetch_optional(&mut *tx)
-    .await?;
-    if enabled.and_then(|v| v.as_bool()) != Some(true) {
-        return Ok(());
-    }
-
-    let phone: Option<String> = sqlx::query_scalar!(
-        "SELECT phone FROM patients WHERE id = $1 AND tenant_id = $2",
-        patient_id,
-        tenant_id,
-    )
-    .fetch_optional(&mut *tx)
-    .await?;
-
-    let Some(phone) = phone.as_deref().and_then(e164) else {
-        tracing::debug!(%patient_id, "token-call SMS skipped — no dialable phone on file");
-        return Ok(());
-    };
-
-    let number = p
-        .get("token_number")
-        .and_then(Value::as_str)
-        .unwrap_or("your token");
-    // The room is what the patient has to act on. Without it the message says
-    // "you have been called" and leaves them looking for a door.
-    let room = p
-        .get("room")
-        .and_then(Value::as_str)
-        .or_else(|| p.get("counter").and_then(Value::as_str));
-    let body = token_call_body(number, room);
-
-    let _ = enqueue(
-        &mut tx,
-        tenant_id,
-        "token",
-        Some(token_id),
-        "sms.token_called",
-        json!({ "to": phone, "token_id": token_id, "body": body }),
-        // One message per call of this token. A board that re-calls a number
-        // sends again, which is the point; the same call replayed does not.
-        Some(format!("tokencall:{token_id}:{number}")),
-    )
-    .await;
-
-    tx.commit().await?;
-    Ok(())
-}
 
 async fn on_lab_result_posted(
     pool: &PgPool,
@@ -1319,7 +1223,7 @@ mod tests {
     use medbrains_core::clinical_events::ClinicalEventName;
     use serde_json::json;
 
-    use super::{PIPELINES, domain_payload, e164, token_call_body};
+    use super::{PIPELINES, domain_payload, e164};
 
     #[test]
     fn phones_are_normalised_to_e164_or_refused() {
@@ -1365,32 +1269,6 @@ mod tests {
             !PIPELINES
                 .iter()
                 .any(|p| p.event == ClinicalEventName::LabOrderCompleted)
-        );
-    }
-
-    /// `opd.queue.called` was in the vocabulary from the start and nothing
-    /// ever emitted it, so nothing could subscribe to it either. Calling a
-    /// patient reached the board over a WebSocket and went no further.
-    #[test]
-    fn a_called_token_has_somewhere_to_go() {
-        assert!(
-            PIPELINES
-                .iter()
-                .any(|p| p.event == ClinicalEventName::OpdQueueCalled),
-            "the token-call event needs a subscriber or emitting it changes nothing"
-        );
-    }
-
-    /// The message has to name the room. "You have been called" leaves a
-    /// patient standing in a corridor looking for a door.
-    #[test]
-    fn the_token_sms_names_where_to_go() {
-        let with_room = token_call_body("A-42", Some("Room 3"));
-        assert!(with_room.contains("A-42") && with_room.contains("Room 3"));
-        let without = token_call_body("A-42", None);
-        assert!(
-            without.contains("counter"),
-            "no room known still has to send them somewhere: {without}"
         );
     }
 }

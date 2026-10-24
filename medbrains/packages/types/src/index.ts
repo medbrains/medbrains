@@ -118,6 +118,7 @@ export type { IndentItem } from "./dashboard-widget-builder";
 export * from "./dashboard-widget-builder";
 export * from "./device-binding";
 export * from "./device-integration";
+export * from "./diagnosis-coding";
 export * from "./doctor-payouts";
 export * from "./documents-module";
 export * from "./emergency";
@@ -292,7 +293,6 @@ export * from "./screen-layout-zone";
 export * from "./screen-system";
 export * from "./setup-config";
 export * from "./snomed";
-export * from "./diagnosis-coding";
 export * from "./tenant-facility";
 export type {
   BillingQueueLaneDefinition,
@@ -5783,6 +5783,25 @@ export interface WorklistToken {
 export interface TokenBoardMetrics {
   waiting: number;
   avg_wait_minutes: number | null;
+}
+
+/** The token-call SMS on the token settings screen (`GET /tokens/call-sms/status`). */
+export interface TokenCallSmsStatus {
+  enabled: boolean;
+  /** The DLT scope to register the template under. */
+  template_scope: string;
+  /** The wording to register, with `{#var#}` placeholders. */
+  suggested_pattern: string;
+  /** Null: no active, unexpired DLT template — India operators drop the send. */
+  template: {
+    template_id: string;
+    template_name: string;
+    language: string;
+    expires_at: string | null;
+  } | null;
+  refused_last_7_days: number;
+  last_refused_at: string | null;
+  last_refusal_reason: string | null;
 }
 
 export interface ModuleToken {

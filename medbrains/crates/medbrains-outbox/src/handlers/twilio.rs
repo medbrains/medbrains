@@ -57,7 +57,7 @@ async fn render_with_dlt_template(
 
     let row: Option<(String, String)> = sqlx::query_as(
         "SELECT template_id, body_pattern FROM dlt_templates \
-         WHERE tenant_id = $1 AND scope = $2 AND is_active \
+         WHERE tenant_id = $1 AND scope = $2 AND is_active AND deleted_at IS NULL \
            AND (expires_at IS NULL OR expires_at > CURRENT_DATE) \
          ORDER BY (language = $3) DESC, language ASC LIMIT 1",
     )

@@ -225,6 +225,7 @@ mod stock_at_risk_report_test;
 mod teleconsult_visit_test;
 mod tenant_settings_upsert_test;
 mod token_board_privacy_test;
+mod token_call_sms_test;
 mod token_hold_test;
 mod token_queue_config_test;
 mod token_queue_counters_test;
