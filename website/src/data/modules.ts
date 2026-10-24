@@ -3,6 +3,7 @@
 // in the demo, so nothing aspirational.
 
 import { CAMP_PAGES } from "./camp-pages";
+import { COMPARE_PAGES } from "./compare-pages";
 import { TOKEN_PAGES } from "./token-pages";
 
 export interface PageSection {
@@ -10,6 +11,8 @@ export interface PageSection {
   /** Paragraphs. Authored here, rendered as HTML so they can carry <a> and <strong>. */
   body?: string[];
   steps?: { title: string; body: string }[];
+  /** Number of the first step, when a numbered list runs on across sections. */
+  start?: number;
   table?: { caption: string; head: string[]; rows: string[][] };
   /** Paragraphs after the steps or table. */
   after?: string[];
@@ -59,8 +62,9 @@ export const MODULE_PAGES: ModulePage[] = [
       { q: "Can we start with a few departments?", a: "Yes. Switch on the modules you use — front desk and OPD first — and add the rest as you grow." },
     ],
     posts: ["why-indian-hospitals-need-a-hims", "how-medbrains-is-built-to-run-lean"],
-    related: ["clinic-management-software", "hospital-token-system", "pharmacy-management-software", "hospital-billing-software", "lab-management-software"],
+    related: ["clinic-management-software", "hospital-token-system", "pharmacy-management-software", "hospital-billing-software", "lab-management-software", "how-to-choose-hospital-management-software", "hospital-software-vs-excel"],
   },
+  ...COMPARE_PAGES,
   {
     slug: "pharmacy-management-software",
     title: "Pharmacy Management Software for Hospitals | MedBrains",
