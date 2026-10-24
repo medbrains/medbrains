@@ -413,7 +413,9 @@ async fn ensure_invoice_view_access(
         sqlx::query_scalar("SELECT patient_id FROM invoices WHERE id = $1 AND tenant_id = $2")
             .bind(invoice_id)
             .bind(claims.tenant_id)
-            .fetch_optional(&state.db)
+            .fetch_optional(
+                &mut *medbrains_db::pool::tenant_conn(&state.db, &claims.tenant_id).await?,
+            )
             .await?;
     let Some(patient) = patient else {
         return collapse(any([invoice, Outcome::Deny]));
@@ -3033,6 +3035,7 @@ async fn create_installment(
     require_permission(&claims, "billing.invoices.update")?;
     let tenant_id = claims.tenant_id;
     let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &tenant_id).await?;
 
     // Fetch invoice to get total
     let invoice: Invoice = sqlx::query_as(
@@ -3113,7 +3116,7 @@ async fn create_installment(
     )
     .bind(plan_id)
     .bind(tenant_id)
-    .fetch_one(&state.db)
+    .fetch_one(&mut *medbrains_db::pool::tenant_conn(&state.db, &claims.tenant_id).await?)
     .await?;
 
     Ok(Json(plan))
@@ -3137,6 +3140,7 @@ async fn list_installments(
     let page = q.page.unwrap_or(1).max(1);
     let limit = q.limit.unwrap_or(50).min(200);
     let offset = (page - 1) * limit;
+    let mut conn = medbrains_db::pool::tenant_conn(&state.db, &tenant_id).await?;
 
     let plans = sqlx::query_as::<_, medbrains_core::billing::PaymentInstallment>(
         "SELECT * FROM payment_installments pi
@@ -3151,7 +3155,7 @@ async fn list_installments(
     .bind(q.invoice_id)
     .bind(limit)
     .bind(offset)
-    .fetch_all(&state.db)
+    .fetch_all(&mut *conn)
     .await?;
 
     let pending: Vec<(Uuid, i64)> = sqlx::query_as(
@@ -3162,7 +3166,7 @@ async fn list_installments(
     )
     .bind(tenant_id)
     .bind(plans.iter().map(|p| p.id).collect::<Vec<_>>())
-    .fetch_all(&state.db)
+    .fetch_all(&mut *conn)
     .await?;
     let pending_map: HashMap<Uuid, i64> = pending.into_iter().collect();
 
@@ -3192,13 +3196,14 @@ async fn get_installment(
 ) -> Result<Json<serde_json::Value>, AppError> {
     require_permission(&claims, "billing.invoices.list")?;
     let tenant_id = claims.tenant_id;
+    let mut conn = medbrains_db::pool::tenant_conn(&state.db, &tenant_id).await?;
 
     let plan = sqlx::query_as::<_, medbrains_core::billing::PaymentInstallment>(
         "SELECT * FROM payment_installments WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL",
     )
     .bind(id)
     .bind(tenant_id)
-    .fetch_optional(&state.db)
+    .fetch_optional(&mut *conn)
     .await?
     .ok_or(AppError::NotFound)?;
 
@@ -3207,7 +3212,7 @@ async fn get_installment(
     )
     .bind(id)
     .bind(tenant_id)
-    .fetch_all(&state.db)
+    .fetch_all(&mut *conn)
     .await?;
 
     let mut val = serde_json::to_value(&plan).unwrap_or_default();
@@ -3433,6 +3438,7 @@ async fn waive_installment_item(
     require_permission(&claims, "billing.invoices.update")?;
     let tenant_id = claims.tenant_id;
     let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &tenant_id).await?;
 
     let item = sqlx::query_as::<_, medbrains_core::billing::PaymentInstallmentItem>(
         "SELECT * FROM payment_installment_items WHERE id = $1 AND installment_id = $2 AND tenant_id = $3",
@@ -3478,14 +3484,13 @@ async fn waive_installment_item(
         .await?;
     }
 
-    tx.commit().await?;
-
     let updated_item = sqlx::query_as::<_, medbrains_core::billing::PaymentInstallmentItem>(
         "SELECT * FROM payment_installment_items WHERE id = $1",
     )
     .bind(item_id)
-    .fetch_one(&state.db)
+    .fetch_one(&mut *tx)
     .await?;
+    tx.commit().await?;
 
     Ok(Json(
         serde_json::to_value(&updated_item).unwrap_or_default(),

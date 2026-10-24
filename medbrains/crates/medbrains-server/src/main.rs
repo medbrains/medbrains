@@ -267,7 +267,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // 5-second reconnect loop that floods the logs (no SpiceDB → no tuples →
     // nothing to watch).
     if let Some((spicedb_endpoint, watch_token)) = spicedb_live {
-        let watch_db = db_pool.clone();
+        // Bumps users across every hospital, so the worker role (BYPASSRLS):
+        // on the request role the UPDATE would match no rows.
+        let watch_db = worker_pool.clone();
         tokio::spawn(async move {
             medbrains_authz::watch::run_user_watcher(
                 spicedb_endpoint,
@@ -938,8 +940,13 @@ async fn run_verify_chain(
         statement_cache_capacity: config.db_statement_cache_capacity,
         slow_statement_threshold: Duration::from_millis(config.db_slow_query_ms),
     };
-    let pool =
-        medbrains_db::pool::create_pool_with_config(&config.database_url, &pool_config).await?;
+    // Every hospital's chain, so the worker role (BYPASSRLS) when there is
+    // one: on the request role the walk would read empty chains.
+    let url = std::env::var("WORKER_DATABASE_URL")
+        .ok()
+        .filter(|u| !u.trim().is_empty())
+        .unwrap_or_else(|| config.database_url.clone());
+    let pool = medbrains_db::pool::create_pool_with_config(&url, &pool_config).await?;
 
     // Resolve target tenants
     let tenant_filter = args.iter().find_map(|a| a.strip_prefix("--tenant="));

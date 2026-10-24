@@ -233,7 +233,9 @@ pub async fn kiosk_checkin(
 
     let appointment = sqlx::query_as::<_, Appointment>("SELECT * FROM appointments WHERE id = $1") // allow-raw-sql: kiosk check-in fetches appointment by id
         .bind(appointment_id)
-        .fetch_optional(&state.db)
+        .fetch_optional(
+            &mut *medbrains_db::pool::tenant_conn(&state.db, &qr_token.tenant_id).await?,
+        )
         .await?
         .ok_or(AppError::NotFound)?;
     if appointment.tenant_id != qr_token.tenant_id {

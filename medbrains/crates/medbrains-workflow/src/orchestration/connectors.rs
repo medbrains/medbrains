@@ -88,6 +88,11 @@ pub async fn execute_connector_action(
         (0, 1)
     };
 
+    // Stats are best-effort: a failure to record them must not replace the
+    // action's own result.
+    let Ok(mut conn) = medbrains_db::pool::tenant_conn(pool, &tenant_id).await else {
+        return result;
+    };
     let _ = sqlx::query(
         "UPDATE connectors \
          SET stats = jsonb_set( \
@@ -103,7 +108,7 @@ pub async fn execute_connector_action(
     .bind(connector_id)
     .bind(success_inc)
     .bind(failure_inc)
-    .execute(pool)
+    .execute(&mut *conn)
     .await;
 
     result
@@ -139,7 +144,7 @@ pub async fn health_check(pool: &PgPool, tenant_id: Uuid, connector_id: Uuid) ->
     )
     .bind(connector_id)
     .bind(healthy)
-    .execute(pool)
+    .execute(&mut *medbrains_db::pool::tenant_conn(pool, &tenant_id).await?)
     .await?;
 
     Ok(healthy)

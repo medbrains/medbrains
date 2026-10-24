@@ -440,7 +440,7 @@ pub async fn list_user_assignments(
     .bind(user_id)
     .bind(is_super)
     .bind(claims.tenant_id)
-    .fetch_all(&state.db)
+    .fetch_all(&mut *conn)
     .await?;
     Ok(Json(UserWithAssignments {
         user_id,
@@ -530,7 +530,7 @@ pub async fn create_user_assignment(
     .bind(payload.is_primary)
     .bind(payload.valid_from)
     .bind(payload.valid_to)
-    .fetch_one(&state.db)
+    .fetch_one(&mut *medbrains_db::pool::group_conn(&state.db, &claims.tenant_id).await?)
     .await?;
     Ok(Json(row))
 }
@@ -552,7 +552,7 @@ pub async fn delete_user_assignment(
     .bind(claims.sub)
     .bind(claims.role == "super_admin")
     .bind(claims.tenant_id)
-    .execute(&state.db)
+    .execute(&mut *medbrains_db::pool::group_conn(&state.db, &claims.tenant_id).await?)
     .await?;
     if result.rows_affected() == 0 {
         return Err(AppError::NotFound);

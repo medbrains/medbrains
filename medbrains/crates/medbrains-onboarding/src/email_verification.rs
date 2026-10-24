@@ -111,22 +111,27 @@ pub async fn verify_email(
 ) -> Result<Json<VerifyEmailResponse>, AppError> {
     let token_hash = hash_token(body.token.trim());
 
-    // Capability table (no RLS) — resolve the token globally.
-    let row: Option<(Uuid, Uuid)> = sqlx::query_as(
-        "SELECT tenant_id, user_id FROM email_verification_tokens \
-         WHERE token_hash = $1 AND used_at IS NULL AND expires_at > now()",
-    )
-    .bind(&token_hash)
-    .fetch_optional(&state.db)
-    .await?;
-    let Some((tenant_id, user_id)) = row else {
-        return Err(AppError::BadRequest(
-            "This verification link is invalid or has expired".to_owned(),
-        ));
-    };
+    // No tenant is known yet: `app_email_verification_tenant` (migration
+    // 1207) says which hospital a live token belongs to, and the token is then
+    // read and spent under that hospital.
+    let tenant: Option<Uuid> = sqlx::query_scalar("SELECT app_email_verification_tenant($1)")
+        .bind(&token_hash)
+        .fetch_one(&state.db)
+        .await?;
+    let invalid =
+        || AppError::BadRequest("This verification link is invalid or has expired".to_owned());
+    let tenant_id = tenant.ok_or_else(invalid)?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &tenant_id).await?;
+    let user_id: Uuid = sqlx::query_scalar(
+        "SELECT user_id FROM email_verification_tokens \
+         WHERE token_hash = $1 AND used_at IS NULL AND expires_at > now() FOR UPDATE",
+    )
+    .bind(&token_hash)
+    .fetch_optional(&mut *tx)
+    .await?
+    .ok_or_else(invalid)?;
     sqlx::query("UPDATE users SET email_verified = true, updated_at = now() WHERE id = $1")
         .bind(user_id)
         .execute(&mut *tx)
@@ -150,7 +155,7 @@ pub async fn resend(
     let (email, verified): (String, bool) =
         sqlx::query_as("SELECT email, email_verified FROM users WHERE id = $1")
             .bind(claims.sub)
-            .fetch_one(&state.db)
+            .fetch_one(&mut *medbrains_db::pool::tenant_conn(&state.db, &claims.tenant_id).await?)
             .await?;
     if verified {
         return Ok(Json(VerifyEmailResponse { verified: true }));

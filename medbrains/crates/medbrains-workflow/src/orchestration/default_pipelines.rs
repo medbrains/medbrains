@@ -294,7 +294,7 @@ async fn on_ipd_discharge_initiated(
     let admission_id = uuid_from_payload(payload, "admission_id");
     let patient_id = uuid_from_payload(payload, "patient_id");
 
-    let mut tx = pool.begin().await?;
+    let mut tx = tenant_tx(pool, tenant_id).await?;
 
     // The bed is deliberately not touched here. This pipeline used to run
     // `UPDATE beds SET status = 'dirty'` — against a column that does not
@@ -386,7 +386,7 @@ async fn on_opd_queue_called(
         return Ok(());
     };
 
-    let mut tx = pool.begin().await?;
+    let mut tx = tenant_tx(pool, tenant_id).await?;
 
     let enabled: Option<Value> = sqlx::query_scalar!(
         "SELECT value FROM tenant_settings \
@@ -459,7 +459,7 @@ async fn on_lab_result_posted(
     }
 
     let Some(order) = order_id else { return Ok(()) };
-    let mut tx = pool.begin().await?;
+    let mut tx = tenant_tx(pool, tenant_id).await?;
 
     // The Twilio handler needs payload.to — without the doctor's phone
     // the event dead-letters and the alert silently never leaves the
@@ -569,7 +569,7 @@ async fn on_billing_payment_received(
          <p>Thank you.</p>"
     );
 
-    let mut tx = pool.begin().await?;
+    let mut tx = tenant_tx(pool, tenant_id).await?;
     let _ = enqueue(
         &mut tx,
         tenant_id,
@@ -609,7 +609,7 @@ async fn on_opd_encounter_created(
     let Some(patient) = patient_id else {
         return Ok(());
     };
-    let mut tx = pool.begin().await?;
+    let mut tx = tenant_tx(pool, tenant_id).await?;
 
     // The SMS handler dead-letters anything without an E.164 `to` and a
     // body; a row it cannot send is a confirmation the patient never gets.
@@ -708,7 +708,7 @@ async fn on_emergency_code_blue_activated(
         .and_then(Value::as_str)
         .unwrap_or("location not recorded");
 
-    let mut tx = pool.begin().await?;
+    let mut tx = tenant_tx(pool, tenant_id).await?;
 
     // a) The durable alert. Channel-agnostic on purpose: whatever carries it —
     //    SMS, push, the corridor TV — reads it from the outbox, so adding a
@@ -815,7 +815,7 @@ async fn on_pharmacy_ndps_movement_created(
     // incident it already raised instead of raising a second one.
     let title = format!("NDPS witness missing — entry {entry_id}");
 
-    let mut tx = pool.begin().await?;
+    let mut tx = tenant_tx(pool, tenant_id).await?;
 
     let raised = sqlx::query!(
         "WITH ent AS ( \
@@ -960,7 +960,7 @@ async fn on_ipd_admission_created(
         ward_id,
         admission_id,
     )
-    .execute(pool)
+    .execute(&mut *medbrains_db::pool::tenant_conn(pool, &tenant_id).await?)
     .await?
     .rows_affected();
 
@@ -1011,7 +1011,7 @@ async fn on_bme_equipment_downtime_recorded(
         .and_then(Value::as_str)
         .unwrap_or("medium");
 
-    let mut tx = pool.begin().await?;
+    let mut tx = tenant_tx(pool, tenant_id).await?;
 
     // a) Tell biomedical first and unconditionally. The alert is the half that
     //    has to survive: a machine left available is dangerous, and a machine
@@ -1092,7 +1092,7 @@ async fn on_emergency_code_blue_completed(
     let title = "Code blue stood down";
     let body = format!("The code blue has ended — {outcome}.");
 
-    let mut tx = pool.begin().await?;
+    let mut tx = tenant_tx(pool, tenant_id).await?;
 
     let _ = enqueue(
         &mut tx,
@@ -1140,6 +1140,18 @@ async fn on_emergency_code_blue_completed(
     tracing::info!(%tenant_id, %code_blue_id, stood_down, "code blue stood down");
 
     Ok(())
+}
+
+/// A transaction scoped to `tenant_id`. Request handlers dispatch these
+/// pipelines on the request pool, which row level security applies to: a
+/// bare `pool.begin()` there reads nothing and every outbox write is refused.
+pub(super) async fn tenant_tx(
+    pool: &PgPool,
+    tenant_id: Uuid,
+) -> Result<Transaction<'static, Postgres>, sqlx::Error> {
+    let mut tx = pool.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &tenant_id).await?;
+    Ok(tx)
 }
 
 pub(super) async fn enqueue(
@@ -1196,7 +1208,7 @@ async fn on_transfusion_reaction(
         .and_then(Value::as_str)
         .unwrap_or("unspecified");
 
-    let mut tx = pool.begin().await?;
+    let mut tx = tenant_tx(pool, tenant_id).await?;
 
     // a) Hold every other component from the same donation.
     //

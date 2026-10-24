@@ -193,7 +193,9 @@ pub async fn activate(
     let row: Option<(Option<String>, String, bool)> =
         sqlx::query_as("SELECT mfa_secret, username, mfa_enabled FROM users WHERE id = $1")
             .bind(claims.sub)
-            .fetch_optional(&state.db)
+            .fetch_optional(
+                &mut *medbrains_db::pool::tenant_conn(&state.db, &claims.tenant_id).await?,
+            )
             .await?;
     let Some((Some(secret), username, enabled)) = row else {
         return Err(AppError::BadRequest("Enroll first".to_owned()));

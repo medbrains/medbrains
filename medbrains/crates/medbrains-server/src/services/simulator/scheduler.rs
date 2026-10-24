@@ -53,7 +53,22 @@ pub fn spawn(state: AppState) {
 }
 
 async fn tick_once(state: &AppState) -> Result<(), sqlx::Error> {
+    // Schedules are row-level secured and this runs on the request pool, so
+    // each hospital's are read under that hospital.
+    let tenants: Vec<Uuid> = sqlx::query_scalar("SELECT id FROM tenants WHERE is_active")
+        .fetch_all(&state.db)
+        .await?;
+    for tenant_id in tenants {
+        if let Err(err) = tick_tenant(state, tenant_id).await {
+            tracing::warn!(%tenant_id, error = %err, "simulator scheduler: tenant tick failed");
+        }
+    }
+    Ok(())
+}
+
+async fn tick_tenant(state: &AppState, tenant_id: Uuid) -> Result<(), sqlx::Error> {
     let now: DateTime<Utc> = Utc::now();
+    let mut conn = medbrains_db::pool::tenant_conn(&state.db, &tenant_id).await?;
 
     let due: Vec<SimulatorSchedule> = sqlx::query_as(
         "SELECT * FROM simulator_schedules \
@@ -64,8 +79,15 @@ async fn tick_once(state: &AppState) -> Result<(), sqlx::Error> {
            AND (next_run_at IS NULL OR next_run_at <= $1)",
     )
     .bind(now)
-    .fetch_all(&state.db)
+    .fetch_all(&mut *conn)
     .await?;
+    let auto: Vec<SimulatorSchedule> = sqlx::query_as(
+        "SELECT * FROM simulator_schedules \
+         WHERE deleted_at IS NULL AND enabled = true AND cron_expr IS NULL",
+    )
+    .fetch_all(&mut *conn)
+    .await?;
+    drop(conn);
 
     for schedule in due {
         if let Err(err) = handle_schedule(state, schedule).await {
@@ -75,13 +97,6 @@ async fn tick_once(state: &AppState) -> Result<(), sqlx::Error> {
 
     // Autonomous census-paced agent schedules (no cron — the pacer decides how
     // much to run each tick from the hospital's current census + day curve).
-    let auto: Vec<SimulatorSchedule> = sqlx::query_as(
-        "SELECT * FROM simulator_schedules \
-         WHERE deleted_at IS NULL AND enabled = true AND cron_expr IS NULL",
-    )
-    .fetch_all(&state.db)
-    .await?;
-
     for schedule in auto {
         if let Err(err) = pace_schedule(state, schedule).await {
             tracing::warn!(error = %err, "simulator scheduler: pace failed");
@@ -143,7 +158,7 @@ async fn handle_schedule(state: &AppState, schedule: SimulatorSchedule) -> Resul
                 "simulator scheduler: invalid cron expression"
             );
             // Disable the schedule so we don't keep retrying.
-            disable_schedule(&state.db, schedule.id, "invalid cron")
+            disable_schedule(&state.db, &schedule, "invalid cron")
                 .await
                 .ok();
             return Ok(());
@@ -168,19 +183,23 @@ async fn handle_schedule(state: &AppState, schedule: SimulatorSchedule) -> Resul
         sqlx::query("UPDATE simulator_schedules SET next_run_at = $1 WHERE id = $2")
             .bind(next)
             .bind(schedule.id)
-            .execute(&state.db)
+            .execute(&mut *medbrains_db::pool::tenant_conn(&state.db, &schedule.tenant_id).await?)
             .await?;
     }
     Ok(())
 }
 
-async fn disable_schedule(pool: &PgPool, id: Uuid, reason: &str) -> Result<(), sqlx::Error> {
+async fn disable_schedule(
+    pool: &PgPool,
+    schedule: &SimulatorSchedule,
+    reason: &str,
+) -> Result<(), sqlx::Error> {
     sqlx::query(
         "UPDATE simulator_schedules SET enabled = false, description = COALESCE(description, '') || $1 WHERE id = $2",
     )
     .bind(format!("\n[scheduler auto-disabled: {reason}]"))
-    .bind(id)
-    .execute(pool)
+    .bind(schedule.id)
+    .execute(&mut *medbrains_db::pool::tenant_conn(pool, &schedule.tenant_id).await?)
     .await?;
     Ok(())
 }
@@ -264,9 +283,17 @@ async fn persist_agent_run(
         approval,
     )
     .await;
+    mark_ran(state, schedule).await;
+}
+
+/// Best-effort, like the run rows: a schedule whose stamp fails still ran.
+async fn mark_ran(state: &AppState, schedule: &SimulatorSchedule) {
+    let Ok(mut conn) = medbrains_db::pool::tenant_conn(&state.db, &schedule.tenant_id).await else {
+        return;
+    };
     let _ = sqlx::query("UPDATE simulator_schedules SET last_run_at = NOW() WHERE id = $1")
         .bind(schedule.id)
-        .execute(&state.db)
+        .execute(&mut *conn)
         .await;
 }
 
@@ -310,10 +337,7 @@ async fn fire_scripted(
             {
                 tracing::warn!(run_id = %run_id, error = ?err, "simulator scheduler: finalize succeeded failed");
             }
-            let _ = sqlx::query("UPDATE simulator_schedules SET last_run_at = NOW() WHERE id = $1")
-                .bind(schedule.id)
-                .execute(&state.db)
-                .await;
+            mark_ran(state, schedule).await;
         }
         Err(err) => {
             let summary = RunSummary::default();

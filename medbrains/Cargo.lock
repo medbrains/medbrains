@@ -6310,6 +6310,7 @@ name = "medbrains-db-topology"
 version = "0.1.0"
 dependencies = [
  "async-trait",
+ "medbrains-db",
  "moka",
  "serde",
  "sqlx",

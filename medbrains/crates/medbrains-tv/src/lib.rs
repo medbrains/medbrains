@@ -469,7 +469,11 @@ pub async fn delete_display(
     )
     .bind(id)
     .bind(claims.tenant_id)
-    .execute(&state.db)
+    .execute(
+        &mut *medbrains_db::pool::tenant_conn(&state.db, &claims.tenant_id)
+            .await
+            .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?,
+    )
     .await
     .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
@@ -943,7 +947,11 @@ pub async fn broadcast_announcement(
     .bind(&req.display_ids)
     .bind(req.ends_at)
     .bind(claims.sub)
-    .execute(&state.db)
+    .execute(
+        &mut *medbrains_db::pool::tenant_conn(&state.db, &claims.tenant_id)
+            .await
+            .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?,
+    )
     .await
     .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 

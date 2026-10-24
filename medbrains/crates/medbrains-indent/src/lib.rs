@@ -505,10 +505,11 @@ pub async fn submit_requisition(
     tx.commit().await?;
 
     // Enrich payload with names for orchestration
+    let mut conn = medbrains_db::pool::tenant_conn(&state.db, &claims.tenant_id).await?;
     let department_name =
         sqlx::query_scalar::<_, String>("SELECT name FROM departments WHERE id = $1")
             .bind(req.department_id)
-            .fetch_optional(&state.db)
+            .fetch_optional(&mut *conn)
             .await
             .ok()
             .flatten()
@@ -517,7 +518,7 @@ pub async fn submit_requisition(
     let requested_by_name =
         sqlx::query_scalar::<_, String>("SELECT full_name FROM users WHERE id = $1")
             .bind(req.requested_by)
-            .fetch_optional(&state.db)
+            .fetch_optional(&mut *conn)
             .await
             .ok()
             .flatten()
@@ -526,7 +527,7 @@ pub async fn submit_requisition(
     let items_count =
         sqlx::query_scalar::<_, i64>("SELECT COUNT(*) FROM indent_items WHERE requisition_id = $1")
             .bind(req.id)
-            .fetch_one(&state.db)
+            .fetch_one(&mut *conn)
             .await?;
 
     let _ = medbrains_workflow::orchestration::lifecycle::emit_after_event(
@@ -745,7 +746,9 @@ pub async fn approve_requisition(
     let department_name =
         sqlx::query_scalar::<_, String>("SELECT name FROM departments WHERE id = $1")
             .bind(requisition.department_id)
-            .fetch_optional(&state.db)
+            .fetch_optional(
+                &mut *medbrains_db::pool::tenant_conn(&state.db, &claims.tenant_id).await?,
+            )
             .await
             .ok()
             .flatten()

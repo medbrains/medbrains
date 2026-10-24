@@ -16,6 +16,17 @@ pub enum DbError {
     Migrate(#[from] sqlx::migrate::MigrateError),
 }
 
+/// So code that speaks `sqlx::Error` (workers, pipelines) can take a
+/// [`tenant_conn`] or [`set_tenant_context`] with `?`.
+impl From<DbError> for sqlx::Error {
+    fn from(e: DbError) -> Self {
+        match e {
+            DbError::Sqlx(e) => e,
+            DbError::Migrate(e) => Self::Migrate(Box::new(e)),
+        }
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct PoolConfig {
     pub max_connections: u32,
