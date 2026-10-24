@@ -2,11 +2,19 @@ import { ThemeIcon as MantineThemeIcon, type ThemeIconProps } from "@mantine/cor
 import { forwardRef } from "react";
 
 /** Decorative icon tile tones — light tint by default, semantic colour. */
-export type ThemeIconTone = "neutral" | "primary" | "success" | "warning" | "danger" | "info";
+export type ThemeIconTone =
+  | "neutral"
+  | "primary"
+  | "accent"
+  | "success"
+  | "warning"
+  | "danger"
+  | "info";
 
 const TONE_COLOR: Record<ThemeIconTone, string> = {
   neutral: "gray",
   primary: "primary",
+  accent: "purple",
   success: "success",
   warning: "warning",
   danger: "danger",

@@ -36,8 +36,8 @@ function contrast(a: string, b: string): number {
   return ((hi ?? 0) + 0.05) / ((lo ?? 0) + 0.05);
 }
 
-// The website theme: blue #0F62FE and purple #851B7F are fills in both
-// schemes, each with white on top; small blue/purple text uses the readable
+// The website theme: blue #0F62FE (primary) and purple #851B7F (secondary
+// accent) are fills in both schemes, each with white on top; small blue/purple text uses the readable
 // text roles (primaryText, tertiary). Every text role holds 4.5:1 on the
 // canvas and on a card; borders hold 3:1 (SC 1.4.11).
 test("the website-theme tokens hold AA contrast in both themes", () => {
@@ -52,6 +52,7 @@ test("the website-theme tokens hold AA contrast in both themes", () => {
       ["blue text", r.primaryText, card],
       ["blue text on canvas", r.primaryText, r.surface],
       ["purple text", r.tertiary, card],
+      ["purple text on canvas", r.tertiary, r.surface],
       ["on primary container", r.onPrimaryContainer, r.primaryContainer],
       ["on tertiary container", r.onTertiaryContainer, r.tertiaryContainer],
       ["on success container", r.onSuccessContainer, r.successContainer],

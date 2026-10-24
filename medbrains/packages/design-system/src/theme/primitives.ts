@@ -9,7 +9,7 @@
 
 import type { MantineColorsTuple } from "@mantine/core";
 import { ramps } from "./colors.generated.js";
-import { ochre, slate, teal } from "./tokens.js";
+import { ochre, slate } from "./tokens.js";
 
 export * from "./tokens.js";
 
@@ -44,11 +44,10 @@ export const darkTuple = [
   ramps.Site.nightDeep,
   ramps.Neutral["0"],
 ] as unknown as MantineColorsTuple;
-// Outside the M3 roles: orange / teal / slate stay for legacy `color="…"`
-// call sites (`violet` resolves to the brand purple family in mantine.ts).
+// Outside the M3 roles: orange / slate stay for legacy `color="…"` call sites
+// (`teal` and `violet` resolve to the brand purple accent in mantine.ts).
 export const ochreTuple: MantineColorsTuple = [...ochre] as unknown as MantineColorsTuple;
 export const slateTuple: MantineColorsTuple = [...slate] as unknown as MantineColorsTuple;
-export const tealTuple: MantineColorsTuple = [...teal] as unknown as MantineColorsTuple;
 
 /**
  * Tissue colours for the 3D body-site model (BodyParts3D via human-atlas).

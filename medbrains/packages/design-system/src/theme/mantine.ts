@@ -59,7 +59,6 @@ import {
   redTuple,
   slateTuple,
   space,
-  tealTuple,
   zIndex,
 } from "./primitives";
 import { darkScheme, lightScheme, type SchemeName, sharedReferences } from "./semantic";
@@ -104,6 +103,7 @@ const ROLE_FAMILIES: Record<string, Family> = {
   cinnabar: PURPLE,
   purple: PURPLE,
   violet: PURPLE,
+  teal: PURPLE,
   success: SUCCESS,
   green: SUCCESS,
   mint: SUCCESS,
@@ -225,7 +225,7 @@ export function createMedBrainsTheme(opts: CreateMedBrainsThemeOptions = {}): Ma
       // The accent is the M3 tertiary (purple).
       cinnabar: purpleTuple,
       purple: purpleTuple,
-      teal: tealTuple,
+      teal: purpleTuple,
       mint: greenTuple,
       green: greenTuple,
       success: greenTuple,
@@ -281,7 +281,7 @@ export function createMedBrainsTheme(opts: CreateMedBrainsThemeOptions = {}): Ma
       "3xl": rem(space["3xl"]),
     },
 
-    // The website's shape: 8px by default, 14px cards, pill buttons.
+    // Console look: squared corners over the previous soft 8px.
     defaultRadius: "sm",
 
     // Interactive elements show the hand cursor (Mantine defaults to "default",
@@ -364,7 +364,7 @@ export function createMedBrainsTheme(opts: CreateMedBrainsThemeOptions = {}): Ma
         defaultProps: {
           p: "md",
           shadow: undefined,
-          radius: "lg",
+          radius: "sm",
           withBorder: true,
         },
       }),
@@ -373,7 +373,7 @@ export function createMedBrainsTheme(opts: CreateMedBrainsThemeOptions = {}): Ma
         defaultProps: {
           p: "md",
           shadow: undefined,
-          radius: "lg",
+          radius: "sm",
           withBorder: true,
         },
       }),
@@ -523,7 +523,7 @@ export function createMedBrainsTheme(opts: CreateMedBrainsThemeOptions = {}): Ma
 
       TextInput: {
         defaultProps: {
-          radius: "md",
+          radius: "none",
           size: "md",
           variant: "default",
         },
@@ -531,7 +531,7 @@ export function createMedBrainsTheme(opts: CreateMedBrainsThemeOptions = {}): Ma
 
       PasswordInput: {
         defaultProps: {
-          radius: "md",
+          radius: "none",
           size: "md",
           variant: "default",
         },
@@ -539,7 +539,7 @@ export function createMedBrainsTheme(opts: CreateMedBrainsThemeOptions = {}): Ma
 
       Textarea: {
         defaultProps: {
-          radius: "md",
+          radius: "none",
           size: "md",
           variant: "default",
         },
@@ -547,7 +547,7 @@ export function createMedBrainsTheme(opts: CreateMedBrainsThemeOptions = {}): Ma
 
       NumberInput: {
         defaultProps: {
-          radius: "md",
+          radius: "none",
           size: "md",
           variant: "default",
         },
@@ -555,7 +555,7 @@ export function createMedBrainsTheme(opts: CreateMedBrainsThemeOptions = {}): Ma
 
       Button: {
         defaultProps: {
-          radius: 999,
+          radius: "md",
           fw: 600,
         },
         // Carbon button heights per size (sm 32 / md 40 / lg 48 productive /
@@ -938,8 +938,9 @@ function buildSchemePalette(scheme: typeof lightScheme, name: SchemeName) {
     // so they fell back to hardcoded LIGHT hex and rendered light-on-dark. Emit
     // them here (dual-mode) so every existing usage adapts to the scheme.
     "--mb-brand": scheme.brand.emphasis,
-    // Brand purple #851B7F in both schemes (white text 8.5:1): the AI accent
-    // fill only — AI buttons, AI labels, the orb. Purple text uses tertiary.
+    // Brand purple #851B7F in both schemes (white text 8.5:1): the secondary
+    // brand accent — accent badges and buttons, counts, highlights, the second
+    // chart series, and AI. Purple text uses tertiary.
     "--mb-brand-purple": r.tertiaryBrand,
     // The website's heartbeat green: live dots, the logo beat, the ECG beacon.
     "--mb-pulse": ramps.Site.pulse,
@@ -1049,7 +1050,7 @@ export const cssVariableResolver: CSSVariablesResolver = (t) => {
   return {
     variables: {
       // ── Geometry / sizing (mode-agnostic) ────────────────────
-      "--mb-radius": t.radius?.lg ?? rem(radius.lg),
+      "--mb-radius": t.radius?.xl ?? rem(radius.xl),
       "--mb-page-header-padding-y": rem(space["3xs"]),
       "--mb-page-header-padding-x": rem(space.xs),
       "--mb-page-header-icon-size": rem("24px"),

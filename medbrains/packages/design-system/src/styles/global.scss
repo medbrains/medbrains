@@ -447,11 +447,12 @@ h3,
 .mantine-MultiSelect-input,
 .mantine-Autocomplete-input,
 .mantine-TagsInput-input {
-  // The website's field: a bordered box with 10px corners. The border uses
-  // the outline role, not the hairline, so the field edge holds 3:1.
+  // Authentic Carbon field: filled gray box, sharp corners, a single
+  // bottom rule at rest. No side/top borders.
   background: var(--mb-input-bg);
-  border: 1px solid var(--mb-input-border);
-  border-radius: var(--mantine-radius-md);
+  border: 0;
+  border-bottom: 1px solid var(--mb-input-border);
+  border-radius: 0;
   color: var(--mb-text-primary);
   transition: background 0.12s ease, border-color 0.12s ease;
 
@@ -460,27 +461,22 @@ h3,
   }
 
   &:hover:not(:focus):not(:focus-within):not([aria-invalid="true"]):not([data-error="true"]) {
-    border-color: var(--mb-input-border-hover);
+    border-bottom-color: var(--mb-input-border-hover);
   }
 
-  // Focus draws a 2px inset ring on the whole field, no layout shift,
-  // strong AA-visible indicator.
+  // Focus draws a 2px inset box on the whole field (Carbon focus), no
+  // layout shift, strong AA-visible indicator.
   &:focus,
   &:focus-within {
     outline: 2px solid var(--mb-border-focus);
     outline-offset: -2px;
-    border-color: transparent;
+    border-bottom-color: transparent;
   }
 
   &[data-error="true"],
   &[aria-invalid="true"] {
-    border-color: var(--mb-danger, var(--code-red));
+    border-bottom-color: var(--mb-danger, var(--code-red));
   }
-}
-
-// The password field draws its box on the wrapper; the inner input stays bare.
-.mantine-PasswordInput-innerInput {
-  border: 0;
 }
 
 // Input labels — compact but readable for dense clinical forms
@@ -695,7 +691,6 @@ a[href]:not(.mantine-Button-root) {
     color: var(--mb-orange-text);
   }
 
-  &[data-color="teal"][data-variant="light"],
   &[data-color="primary"][data-variant="light"] {
     border-color: var(--mb-brand-outline);
     background: var(--mb-brand-bg);
@@ -703,7 +698,8 @@ a[href]:not(.mantine-Button-root) {
   }
 
   &[data-color="violet"][data-variant="light"],
-  &[data-color="purple"][data-variant="light"] {
+  &[data-color="purple"][data-variant="light"],
+  &[data-color="teal"][data-variant="light"] {
     border-color: var(--mb-violet-border);
     background: var(--mb-violet-bg);
     color: var(--mb-violet-text);
