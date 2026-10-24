@@ -94,6 +94,10 @@ export function collectionPage(site: URL | undefined, o: { name: string; descrip
     description: o.description,
     url: absolute(o.path, site),
     inLanguage: "en-IN",
+    // The newest change among its posts, so a search snippet never shows an older post's date.
+    ...(o.posts.length
+      ? { dateModified: istDate(new Date(Math.max(...o.posts.map((p) => (p.data.updated ?? p.data.date).valueOf())))) }
+      : {}),
     isPartOf: { "@type": "Blog", name: `${SITE.brand} Blog`, url: absolute("/blog", site) },
     mainEntity: {
       "@type": "ItemList",

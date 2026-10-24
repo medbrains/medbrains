@@ -1,9 +1,9 @@
 ---
 title: "When someone you love is struggling: mental health warning signs, how to help, and where to get support in India"
-description: "Tele-MANAS has now taken more than 47 lakh calls. A plain guide for Indian families on the signs that someone needs help, how to start the conversation, your rights under the Mental Healthcare Act, and when to seek urgent care."
+description: "Mental health help in India: the signs someone needs support, how to start the conversation, the free Tele-MANAS helpline 14416, and when to seek urgent care."
 date: 2026-10-23
 category: patient-education
-seoTitle: "Mental health help in India: signs, Tele-MANAS, rights"
+seoTitle: "Mental health helpline India: Tele-MANAS | MedBrains Blog"
 featured: false
 tags: ["Mental health", "Tele-MANAS", "Depression", "Suicide prevention", "Mental Healthcare Act", "Family health"]
 faq:

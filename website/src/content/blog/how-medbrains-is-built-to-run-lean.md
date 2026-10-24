@@ -3,7 +3,7 @@ title: "One program, one database: how MedBrains is built to run on a modest ser
 description: "Why MedBrains runs as one compiled program on PostgreSQL, what that means for your server bill and IT team, and the numbers we measured to back it up."
 date: 2026-10-23
 category: technology
-seoTitle: "How MedBrains is built to run lean in Indian hospitals"
+seoTitle: "How MedBrains keeps hospital IT costs low | MedBrains Blog"
 featured: false
 tags: ["Hospital IT", "HIMS", "Rust", "PostgreSQL", "Cloud costs", "On-premises", "Offline", "Data security"]
 sources:

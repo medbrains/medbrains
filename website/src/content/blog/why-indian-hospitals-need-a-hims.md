@@ -3,7 +3,7 @@ title: "Why Indian hospitals need a HIMS, and why research needs one too"
 description: "What a HIMS changes for Indian hospitals: safer medicines, cleaner billing, NABH audits, ABDM and ABHA readiness, and research-ready data."
 date: 2026-10-20
 category: hospital-leadership
-seoTitle: "Why Indian hospitals need a HIMS — and research does too"
+seoTitle: "Why Indian hospitals need a HIMS | MedBrains Blog"
 featured: true
 tags: ["HIMS", "Hospital management", "Hospital information system", "ABDM", "ABHA", "NABH", "Clinical research"]
 sources:

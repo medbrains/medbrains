@@ -1,6 +1,7 @@
 ---
 title: "Heat stroke: the signs to know and what to do in the first minutes"
-description: "Heat exhaustion can turn into heat stroke quickly. Learn the warning signs and simple first aid that can save a life while you get to a hospital."
+description: "Heat stroke first aid for Indian summers: the warning signs of heat exhaustion and heat stroke, and simple steps that can save a life on the way to hospital."
+seoTitle: "Heat stroke first aid: signs and what to do | MedBrains Blog"
 date: 2026-10-10
 category: patient-education
 tags: ["Public health", "First aid", "Heatwave", "Summer health"]

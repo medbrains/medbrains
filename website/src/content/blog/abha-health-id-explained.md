@@ -1,6 +1,7 @@
 ---
 title: "Your ABHA health ID, explained: what it is and why it helps"
-description: "ABHA is India's digital health ID under the Ayushman Bharat Digital Mission. What it does, how it keeps your records with you, and how consent works."
+description: "ABHA health ID explained: India's digital health ID under the Ayushman Bharat Digital Mission, how it keeps your records with you, and how consent works."
+seoTitle: "ABHA health ID explained: what it is | MedBrains Blog"
 date: 2026-10-03
 category: technology
 tags: ["ABHA", "ABDM", "Digital health ID", "Health tech"]

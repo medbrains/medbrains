@@ -1,9 +1,9 @@
 ---
 title: "Fit for discharge, still in the bed: where the hours go in Indian hospitals, and how to win them back"
-description: "Why discharge takes hours in Indian hospitals: IRDAI's 3-hour cashless rule, NABH expectations, what Indian studies show, and practical fixes."
+description: "Why hospital discharge is delayed in India: IRDAI's 3-hour cashless rule, NABH expectations, what Indian studies show, and practical fixes for each step."
 date: 2026-10-22
 category: operations
-seoTitle: "Discharge delays in Indian hospitals: where the hours go"
+seoTitle: "Discharge delays in Indian hospitals | MedBrains Blog"
 featured: false
 tags: ["Discharge", "Patient flow", "TPA", "Cashless insurance", "IRDAI", "NABH", "Ayushman Bharat", "Bed management"]
 sources:

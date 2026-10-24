@@ -1,9 +1,9 @@
 ---
 title: "When antibiotics stop working: India's antimicrobial resistance problem, and what hospitals can do"
-description: "Antibiotic resistance in India: what the ICMR and Lancet data show, why the problem is sharper here, and what hospitals and patients can do."
+description: "Antimicrobial resistance in India: what ICMR and Lancet data show, why the problem is sharper here, and what hospitals and patients can do about it."
 date: 2026-10-21
 category: clinical-excellence
-seoTitle: "Antimicrobial resistance in India: what hospitals can do"
+seoTitle: "Antimicrobial resistance in India | MedBrains Blog"
 featured: false
 tags: ["Antimicrobial resistance", "AMR", "Antibiotic stewardship", "Infection prevention", "AWaRe", "ICMR", "Patient safety"]
 sources:

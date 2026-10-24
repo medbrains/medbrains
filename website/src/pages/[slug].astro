@@ -5,6 +5,7 @@ import WhatsAppFloat from "../components/WhatsAppFloat.astro";
 import { SITE } from "../consts";
 import { MODULE_PAGES, type ModulePage } from "../data/modules";
 import Base from "../layouts/Base.astro";
+import { getPosts, postPath } from "../lib/blog";
 
 export function getStaticPaths() {
   return MODULE_PAGES.map((page) => ({ params: { slug: page.slug }, props: { page } }));
@@ -15,6 +16,7 @@ const url = new URL(`/${page.slug}`, Astro.site).href;
 const related = page.related
   .map((slug) => MODULE_PAGES.find((p) => p.slug === slug))
   .filter((p): p is ModulePage => Boolean(p));
+const posts = (await getPosts()).filter((p) => page.posts?.includes(p.id));
 const schema = [
   {
     "@type": "BreadcrumbList",
@@ -68,6 +70,19 @@ const schema = [
         ))}
       </div>
     </section>
+
+    {posts.length > 0 && (
+      <section class="section related">
+        <div class="wrap">
+          <h2 class="section-title">From the blog</h2>
+          <div class="links">
+            {posts.map((p) => (
+              <a href={postPath(p)}><strong>Article</strong><span>{p.data.title}</span></a>
+            ))}
+          </div>
+        </div>
+      </section>
+    )}
 
     {related.length > 0 && (
       <section class="section related">
