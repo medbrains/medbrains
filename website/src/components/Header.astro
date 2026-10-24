@@ -54,7 +54,15 @@ const { light = false } = Astro.props;
     .signin:hover { color: var(--blue-deep); }
   }
   .signin, .cta { white-space: nowrap; }
-  @include below(sm) { .bar { gap: 16px; } }
+  .brand { white-space: nowrap; flex-shrink: 0; }
+  @include below(sm) {
+    .bar { gap: 12px; }
+    .brand { font-size: 1rem; gap: 8px; }
+    .signin { font-size: .88rem; }
+    .cta { padding: 0 12px; font-size: .84rem; }
+  }
+  /* ponytail: the narrowest phones (≤360px) can't fit word, Sign in and the CTA; keep the mark (the link keeps its aria-label). */
+  @media (max-width: 360px) { .brand span { display: none; } }
   @include below(lg) {
     nav { display: none; }
     .signin { margin-left: auto; }
