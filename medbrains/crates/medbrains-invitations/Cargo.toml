@@ -1,8 +1,9 @@
 [package]
 name = "medbrains-invitations"
+publish = false
 version = "0.1.0"
 edition = "2024"
-rust-version = "1.85"
+rust-version.workspace = true
 
 [dependencies]
 medbrains-server-core = { path = "../medbrains-server-core" }
@@ -18,7 +19,7 @@ sha2 = { workspace = true }
 hex = { workspace = true }
 argon2 = { workspace = true }
 medbrains-outbox = { path = "../medbrains-outbox" }
-getrandom = { version = "0.3", features = ["std"] }
+getrandom = { workspace = true }
 
 [lints]
 workspace = true

@@ -555,12 +555,20 @@ pub async fn list_psychometric_tests(
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
 
+    // A restricted psychometric record (the default) is mental-health content:
+    // the same rule as the psychiatric record, with the psychologist who
+    // administered the test keeping sight of it.
+    let viewer = medbrains_authz_gate::mental_health::MentalHealthViewer::of(&claims);
     let rows = sqlx::query_as::<_, PsychometricTest>(
         "SELECT * FROM psychometric_tests \
          WHERE deleted_at IS NULL AND ($1::uuid[] IS NULL OR patient_id = ANY($1)) \
+           AND (NOT is_restricted OR administered_by = $2 \
+                OR NOT public.mental_health_withheld(patient_id, $2, $3)) \
          ORDER BY test_date DESC LIMIT 200",
     )
     .bind(permitted_patients.as_deref())
+    .bind(viewer.user_id)
+    .bind(viewer.can_all)
     .fetch_all(&mut *tx)
     .await?;
 

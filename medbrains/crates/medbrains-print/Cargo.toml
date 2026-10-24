@@ -1,8 +1,9 @@
 [package]
 name = "medbrains-print"
+publish = false
 version = "0.1.0"
 edition = "2024"
-rust-version = "1.85"
+rust-version.workspace = true
 
 [dependencies]
 tera = { version = "1.20", default-features = false }

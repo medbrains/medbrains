@@ -5,7 +5,7 @@ import WhatsAppFloat from "../components/WhatsAppFloat.astro";
 import { SITE } from "../consts";
 import Base from "../layouts/Base.astro";
 
-const updated = "22 October 2026";
+const updated = "24 October 2026";
 ---
 
 <Base
@@ -46,8 +46,9 @@ const updated = "22 October 2026";
         </li>
         <li>
           <strong>Technical data.</strong> Like any website, our hosting
-          (Amazon Web Services) and the font service (Google Fonts) receive your
-          IP address and browser details when pages and fonts load.
+          (Amazon Web Services) receives your IP address and browser details
+          when pages load. Our fonts are served from our own site, so no font
+          service sees your visit.
         </li>
       </ul>
       <p>We do not run advertising trackers, and we do not sell personal data.</p>
@@ -62,7 +63,7 @@ const updated = "22 October 2026";
       <h2>Who it is shared with</h2>
       <p>
         Only the services that run this website for us: Amazon Web Services
-        (hosting), Google (fonts), Microsoft (Clarity, only with your consent)
+        (hosting), Microsoft (Clarity, only with your consent)
         and Meta (WhatsApp, when you message us). Each processes the data under
         its own terms. We share personal data with others only if the law
         requires it.
@@ -102,7 +103,7 @@ const updated = "22 October 2026";
   .policy .wrap { max-width: 760px; }
   .policy h1 { margin: 8px 0 4px; }
   .policy h2 { margin: 40px 0 12px; font-size: 1.4rem; }
-  .policy .meta { color: var(--muted); margin-bottom: 32px; }
+  .policy .meta { color: var(--night-text); margin-bottom: 32px; }
   .policy p, .policy li { line-height: 1.65; }
   .policy ul { padding-left: 1.2em; display: grid; gap: 10px; }
 </style>

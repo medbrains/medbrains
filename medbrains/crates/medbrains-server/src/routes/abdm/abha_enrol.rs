@@ -8,6 +8,10 @@
 //!    Aadhaar-linked one: the OTP sent to it.
 //! 4. `POST …/{id}/address` — the ABHA address chosen.
 //!
+//! `POST …/{id}/resend` sends the waiting OTP again — after 60 seconds, at
+//! most twice per OTP (M1 test case `CRT_ABHA_106`). The Aadhaar OTP needs the
+//! Aadhaar number typed again: it is never stored.
+//!
 //! The finished record is a verified `abha_verifications` row, linked to the
 //! patient exactly like "Verify ABHA". The Aadhaar number is encrypted to ABDM
 //! in this request and never stored or logged.
@@ -27,7 +31,8 @@ use uuid::Uuid;
 
 use super::abha::{Abdm, connect, map_abdm_error};
 use super::abha_common::{
-    VerificationStep, digits, env_name, keep_token, peek_token, record_verified, to_profile, update,
+    RESEND_AFTER_SECONDS, VerificationStep, check_resend, digits, env_name, keep_token,
+    peek_token, record_verified, to_profile, update,
 };
 use crate::{
     error::AppError, middleware::auth::Claims, middleware::authorization::require_permission,
@@ -52,6 +57,13 @@ pub struct EnrolOtpInput {
 }
 
 #[derive(Debug, Deserialize)]
+pub struct ResendEnrolmentOtp {
+    /// Needed to resend the Aadhaar OTP, which goes to the Aadhaar number.
+    #[serde(default)]
+    pub aadhaar: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
 pub struct MobileOtpInput {
     pub otp: String,
 }
@@ -70,12 +82,45 @@ fn six_digits(otp: &str) -> Result<String, AppError> {
     }
 }
 
+/// An OTP stage keeps the resend pause and cap; any other has neither.
 fn step(id: Uuid, stage: &'static str, message: Option<String>) -> VerificationStep {
+    let waiting = matches!(stage, "otp_sent" | "mobile_otp_sent");
+    let sent = VerificationStep::otp_sent(id, message);
     VerificationStep {
         stage,
-        resend_after_seconds: None,
-        ..VerificationStep::otp_sent(id, message)
+        resend_after_seconds: sent.resend_after_seconds.filter(|_| waiting),
+        resends_left: sent.resends_left.filter(|_| waiting),
+        ..sent
     }
+}
+
+pub(crate) fn aadhaar_digits(aadhaar: &str) -> Result<String, AppError> {
+    let aadhaar = digits(aadhaar);
+    if aadhaar.len() == 12 {
+        Ok(aadhaar)
+    } else {
+        Err(AppError::BadRequest("an Aadhaar number has 12 digits".to_owned()))
+    }
+}
+
+fn aadhaar_otp_request(abdm: &Abdm, aadhaar: &str) -> Result<EnrolOtpRequest, AppError> {
+    Ok(EnrolOtpRequest {
+        txn_id: String::new(),
+        scope: vec![ABHA_ENROL_SCOPE.to_owned()],
+        login_hint: "aadhaar".to_owned(),
+        login_id: abdm.encrypt(aadhaar)?,
+        otp_system: "aadhaar".to_owned(),
+    })
+}
+
+fn mobile_otp_request(abdm: &Abdm, txn: &str, mobile: &str) -> Result<EnrolOtpRequest, AppError> {
+    Ok(EnrolOtpRequest {
+        txn_id: txn.to_owned(),
+        scope: vec![ABHA_ENROL_SCOPE.to_owned(), MOBILE_VERIFY_SCOPE.to_owned()],
+        login_hint: "mobile".to_owned(),
+        login_id: abdm.encrypt(mobile)?,
+        otp_system: "abdm".to_owned(),
+    })
 }
 
 /// `POST /api/abdm/abha/enrolments` — send the Aadhaar OTP.
@@ -95,25 +140,11 @@ pub async fn start(
             "the patient's consent is needed before creating an ABHA with Aadhaar".to_owned(),
         ));
     }
-    let aadhaar = digits(&body.aadhaar);
-    if aadhaar.len() != 12 {
-        return Err(AppError::BadRequest(
-            "an Aadhaar number has 12 digits".to_owned(),
-        ));
-    }
+    let aadhaar = aadhaar_digits(&body.aadhaar)?;
     let abdm = connect(&state, claims.tenant_id).await?;
     let sent = abdm
         .client
-        .enrol_request_otp(
-            &abdm.session,
-            &EnrolOtpRequest {
-                txn_id: String::new(),
-                scope: vec![ABHA_ENROL_SCOPE.to_owned()],
-                login_hint: "aadhaar".to_owned(),
-                login_id: abdm.encrypt(&aadhaar)?,
-                otp_system: "aadhaar".to_owned(),
-            },
-        )
+        .enrol_request_otp(&abdm.session, &aadhaar_otp_request(&abdm, &aadhaar)?)
         .await
         .map_err(map_abdm_error)?;
 
@@ -121,8 +152,9 @@ pub async fn start(
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
     let id: Uuid = sqlx::query_scalar(
         "INSERT INTO abha_verifications \
-           (tenant_id, created_by, method, otp_system, environment, abdm_txn_id, expires_at) \
-         VALUES ($1, $2, 'aadhaar_enrol', 'aadhaar', $3, $4, now() + make_interval(mins => $5)) \
+           (tenant_id, created_by, method, otp_system, environment, abdm_txn_id, expires_at, \
+            consent_version) \
+         VALUES ($1, $2, 'aadhaar_enrol', 'aadhaar', $3, $4, now() + make_interval(mins => $5), $6) \
          RETURNING id",
     )
     .bind(claims.tenant_id)
@@ -130,6 +162,7 @@ pub async fn start(
     .bind(env_name(&abdm))
     .bind(&sent.txn_id)
     .bind(ENROLMENT_LIFETIME_MINUTES)
+    .bind(format!("{ENROL_CONSENT_CODE}:{ENROL_CONSENT_VERSION}"))
     .fetch_one(&mut *tx)
     .await?;
     tx.commit().await?;
@@ -264,20 +297,13 @@ async fn send_mobile_otp(
 ) -> Result<Json<VerificationStep>, AppError> {
     let sent = abdm
         .client
-        .enrol_request_otp(
-            &abdm.session,
-            &EnrolOtpRequest {
-                txn_id: txn.to_owned(),
-                scope: vec![ABHA_ENROL_SCOPE.to_owned(), MOBILE_VERIFY_SCOPE.to_owned()],
-                login_hint: "mobile".to_owned(),
-                login_id: abdm.encrypt(mobile)?,
-                otp_system: "abdm".to_owned(),
-            },
-        )
+        .enrol_request_otp(&abdm.session, &mobile_otp_request(abdm, txn, mobile)?)
         .await
         .map_err(map_abdm_error)?;
+    // A new OTP: its own pause and its own two resends.
     update(state, claims, id, |q| {
-        q.push("stage = 'mobile_otp_sent', otp_attempts = 0, abdm_txn_id = ")
+        q.push("stage = 'mobile_otp_sent', otp_attempts = 0, otp_sent_at = now(), ")
+            .push("resend_count = 0, abdm_txn_id = ")
             .push_bind(sent.txn_id);
     })
     .await?;
@@ -304,6 +330,72 @@ async fn offer_addresses(
         suggestions: suggested.abha_address_list,
         ..step(id, "choose_address", None)
     }))
+}
+
+#[derive(sqlx::FromRow)]
+struct Waiting {
+    stage: String,
+    abdm_txn_id: String,
+    abha_mobile: Option<String>,
+    resend_ready: bool,
+    resend_count: i32,
+}
+
+/// `POST /api/abdm/abha/enrolments/{id}/resend` — the waiting OTP, again.
+///
+/// # Errors
+/// 429 inside the 60-second pause or after two resends; 400 when no OTP is
+/// waiting, or the Aadhaar number is missing for the Aadhaar OTP.
+#[tracing::instrument(skip_all, fields(tenant_id = %claims.tenant_id))]
+pub async fn resend(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Path(id): Path<Uuid>,
+    Json(body): Json<ResendEnrolmentOtp>,
+) -> Result<Json<VerificationStep>, AppError> {
+    require_permission(&claims, permissions::abdm::abha::MANAGE)?;
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let row = sqlx::query_as::<_, Waiting>(
+        "SELECT stage, abdm_txn_id, abha_mobile, resend_count, \
+                (now() - otp_sent_at) >= make_interval(secs => $4::float8) AS resend_ready \
+           FROM abha_verifications \
+          WHERE id = $1 AND tenant_id = $2 AND created_by = $3 AND method = 'aadhaar_enrol' \
+            AND expires_at > now() AND linked_patient_id IS NULL AND deleted_at IS NULL",
+    )
+    .bind(id)
+    .bind(claims.tenant_id)
+    .bind(claims.sub)
+    .bind(RESEND_AFTER_SECONDS)
+    .fetch_optional(&mut *tx)
+    .await?
+    .ok_or_else(|| AppError::BadRequest("this ABHA creation has expired — start again".to_owned()))?;
+    tx.commit().await?;
+    check_resend(row.resend_ready, row.resend_count)?;
+    let abdm = connect(&state, claims.tenant_id).await?;
+    let request = match (row.stage.as_str(), &row.abha_mobile) {
+        ("otp_sent", _) => {
+            let aadhaar = body.aadhaar.as_deref().ok_or_else(|| {
+                AppError::BadRequest("type the Aadhaar number again to resend its OTP".to_owned())
+            })?;
+            aadhaar_otp_request(&abdm, &aadhaar_digits(aadhaar)?)?
+        }
+        ("mobile_otp_sent", Some(mobile)) => mobile_otp_request(&abdm, &row.abdm_txn_id, mobile)?,
+        _ => return Err(AppError::BadRequest("no OTP is waiting — continue below".to_owned())),
+    };
+    let sent = abdm
+        .client
+        .enrol_request_otp(&abdm.session, &request)
+        .await
+        .map_err(map_abdm_error)?;
+    update(&state, &claims, id, |q| {
+        q.push("otp_sent_at = now(), otp_attempts = 0, resend_count = resend_count + 1, ")
+            .push("abdm_txn_id = ")
+            .push_bind(sent.txn_id);
+    })
+    .await?;
+    let waiting = if row.stage == "otp_sent" { "otp_sent" } else { "mobile_otp_sent" };
+    Ok(Json(step(id, waiting, sent.message).resent(row.resend_count + 1)))
 }
 
 /// `POST /api/abdm/abha/enrolments/{id}/mobile-otp` — the OTP sent to the

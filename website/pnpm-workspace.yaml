@@ -5,3 +5,7 @@ allowBuilds:
   '@parcel/watcher': false
   esbuild: true
   sharp: true
+overrides:
+  # GHSA-68fv-2mgg-jv7q (high) via sass; GHSA-g7r4-m6w7-qqqr (low) via vite.
+  source-map-js@<1.2.2: 1.2.2
+  esbuild@>=0.27.3 <0.28.1: 0.28.1

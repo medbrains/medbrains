@@ -37,8 +37,27 @@ object Abha {
             AbhaVerifyMethod.ABHA_NUMBER -> if (digits(v).length == ABHA_NUMBER_LENGTH) null else "An ABHA number is 14 digits"
             AbhaVerifyMethod.MOBILE -> if (digits(v).length == MOBILE_LENGTH) null else "Enter the 10-digit mobile"
             AbhaVerifyMethod.ABHA_ADDRESS -> if (v.isEmpty() || v.contains(' ')) "Enter the ABHA address, e.g. priya.v@abdm" else null
+            AbhaVerifyMethod.AADHAAR -> if (digits(v).length == AADHAAR_LENGTH) null else "An Aadhaar number is 12 digits"
+            AbhaVerifyMethod.FIND_MOBILE -> if (digits(v).length == MOBILE_LENGTH) null else "Enter the 10-digit mobile"
         }
     }
+
+    /** Whether the desk chooses where the OTP goes: only an ABHA number or address lookup. */
+    fun choosesOtpVia(method: AbhaVerifyMethod): Boolean = method == AbhaVerifyMethod.ABHA_NUMBER || method == AbhaVerifyMethod.ABHA_ADDRESS
+
+    /** A lookup value as it is typed: an Aadhaar number is digits only, at most twelve. */
+    fun lookupInput(method: AbhaVerifyMethod, text: String): String = if (method == AbhaVerifyMethod.AADHAAR) aadhaarInput(text) else text
+
+    /** The lookup a scanned ABHA card leads to: its number, else its address. */
+    fun lookup(card: AbhaCardQr): Pair<AbhaVerifyMethod, String>? = when {
+        card.abha_number != null -> AbhaVerifyMethod.ABHA_NUMBER to card.abha_number
+        card.abha_address != null -> AbhaVerifyMethod.ABHA_ADDRESS to card.abha_address
+        else -> null
+    }
+
+    /** What the card says, for the desk to check before the OTP. */
+    fun cardSummary(card: AbhaCardQr): String =
+        listOfNotNull(card.name, card.gender, card.date_of_birth?.let { "born $it" }).joinToString(" · ").ifEmpty { "The card names an ABHA but no details." }
 
     /** An ABHA address the patient chose: letters, numbers, dot or underscore; ABDM adds the @ part. */
     fun addressProblem(address: String): String? = when {
@@ -102,6 +121,22 @@ object Abha {
         verified?.takeIf { it.digits == digits(abhaNumber) }?.id
 
     fun resendLabel(wait: Int): String = if (wait > 0) "Resend OTP in ${wait}s" else "Resend OTP"
+
+    /** ABDM allows "Resend OTP" twice per OTP (M1 CRT_ABHA_106, VRFY_ABHA_405); the server enforces it. Null when nothing needs saying. */
+    fun resendNote(left: Int?): String? = when (left) {
+        null -> null
+        0 -> "The OTP cannot be sent again. If it has not arrived, close this and start again."
+        1 -> "One resend left"
+        else -> "$left resends left"
+    }
+
+    /**
+     * ABDM's terms and conditions for creating an ABHA with Aadhaar, verbatim (nha-in/docs catalogue/hiecm/concepts/m1-abha-consent.md (docs.abdm.gov.in, M1 page), CRT_ABHA_102).
+     * Never edited (NHA M1 observations, 2 Oct 2026); the server sends consent code "abha-enrollment", version [ENROL_CONSENT_VERSION].
+     * Keep identical to the web and iOS copies.
+     */
+    const val ENROL_CONSENT = "I, hereby declare that I am voluntarily sharing my Aadhaar number and demographic information issued by UIDAI, with National Health Authority (NHA) for the sole purpose of creation of ABHA number. I understand that my ABHA number can be used and shared for purposes as may be notified by ABDM from time to time including provision of healthcare services. Further, I am aware that my personal identifiable information (Name, Address, Age, Date of Birth, Gender and Photograph) may be made available to the entities working in the National Digital Health Ecosystem (NDHE) which inter alia includes stakeholders and entities such as healthcare professionals (e.g. doctors), facilities (e.g. hospitals, laboratories) and data fiduciaries (e.g. health programmes), which are registered with or linked to the Ayushman Bharat Digital Mission (ABDM), and various processes there under. I authorize NHA to use my Aadhaar number for performing Aadhaar based authentication with UIDAI as per the provisions of the Aadhaar (Targeted Delivery of Financial and other Subsidies, Benefits and Services) Act, 2016 for the aforesaid purpose. I understand that UIDAI will share my e-KYC details, or response of “Yes” with NHA upon successful authentication. I have been duly informed about the option of using other IDs apart from Aadhaar; however, I consciously choose to use Aadhaar number for the purpose of availing benefits across the NDHE. I am aware that my personal identifiable information excluding Aadhaar number / VID number can be used and shared for purposes as mentioned above. I reserve the right to revoke the given consent at any point of time as per provisions of Aadhaar Act and Regulations."
+    const val ENROL_CONSENT_VERSION = "1.4"
 }
 
 /** A verification the desk used: its id, and the ABHA number it proved. */
@@ -119,11 +154,26 @@ data class AbhaCompareRow(val field: AbhaField, val label: String, val abha: Str
 data class OurDetails(val firstName: String?, val middleName: String? = null, val lastName: String?, val dateOfBirth: String?, val gender: String?)
 
 @Serializable
-enum class AbhaVerifyMethod(val label: String) {
-    @SerialName("abha_number") ABHA_NUMBER("ABHA number"),
-    @SerialName("mobile") MOBILE("Mobile"),
-    @SerialName("abha_address") ABHA_ADDRESS("ABHA address"),
+enum class AbhaVerifyMethod(val label: String, val valueLabel: String) {
+    @SerialName("abha_number") ABHA_NUMBER("ABHA number", "ABHA number (14 digits)"),
+    @SerialName("mobile") MOBILE("Mobile number (OTP first)", "Mobile number"),
+    /** List the ABHAs on a mobile before any OTP (M1 VRFY_ABHA_301–305). */
+    @SerialName("find_mobile") FIND_MOBILE("Find by mobile (list the ABHAs first)", "Mobile number"),
+    /** Log in with the Aadhaar number, never stored (M1 VRFY_ABHA_401–405). */
+    @SerialName("aadhaar") AADHAAR("Aadhaar number", "Aadhaar number"),
+    @SerialName("abha_address") ABHA_ADDRESS("ABHA address", "ABHA address (e.g. priya.v@abdm)"),
 }
+
+/** What a scanned ABHA card says (M1 VRFY_ABHA_501) — read by the server, to verify by OTP; a printed card proves nothing. */
+@Serializable
+data class AbhaCardQr(
+    val abha_number: String? = null,
+    val abha_address: String? = null,
+    val name: String? = null,
+    val gender: String? = null,
+    val date_of_birth: String? = null,
+    val mobile: String? = null,
+)
 
 /** Where ABDM sends the OTP for an ABHA number or address lookup. */
 @Serializable
@@ -134,6 +184,8 @@ enum class AbhaOtpVia { @SerialName("aadhaar") AADHAAR, @SerialName("abdm") ABDM
 enum class AbhaField(val wire: String) { @SerialName("name") NAME("name"), @SerialName("date_of_birth") DATE_OF_BIRTH("date_of_birth"), @SerialName("gender") GENDER("gender") }
 
 object AbhaStage {
+    /** The ABHAs a mobile search found, before any OTP. */
+    const val SEARCH_RESULTS = "search_results"
     const val OTP_SENT = "otp_sent"
     const val MOBILE_OTP_SENT = "mobile_otp_sent"
     const val CHOOSE_ACCOUNT = "choose_account"
@@ -175,6 +227,8 @@ data class AbhaVerificationStep(
     val stage: String,
     val message: String? = null,
     val resend_after_seconds: Int? = null,
+    /** Resends ABDM still allows for this OTP; null when none is waiting. */
+    val resends_left: Int? = null,
     val accounts: List<AbhaAccountChoice> = emptyList(),
     val profile: AbhaVerifiedProfile? = null,
     /** Another patient here already carries this ABHA. */

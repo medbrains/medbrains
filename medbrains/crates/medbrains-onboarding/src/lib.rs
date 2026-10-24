@@ -6,7 +6,7 @@ use std::collections::HashMap;
 
 use argon2::{
     Argon2,
-    password_hash::{PasswordHasher, SaltString, rand_core::OsRng},
+    PasswordHasher,
 };
 use axum::routing::{get, post};
 use axum::{Extension, Json, extract::State, response::IntoResponse};
@@ -237,9 +237,8 @@ pub async fn init(
     let user_id = Uuid::new_v4();
 
     // Hash password
-    let salt = SaltString::generate(&mut OsRng);
     let password_hash = Argon2::default()
-        .hash_password(body.admin_password.as_bytes(), &salt)
+        .hash_password(body.admin_password.as_bytes())
         .map_err(|e| AppError::Internal(format!("password hash error: {e}")))?
         .to_string();
 
@@ -771,9 +770,8 @@ pub async fn setup(
     // ── Hash all user passwords before starting transaction ──
     let mut password_hashes: Vec<String> = Vec::with_capacity(body.users.len());
     for user in &body.users {
-        let salt = SaltString::generate(&mut OsRng);
         let hash = Argon2::default()
-            .hash_password(user.password.as_bytes(), &salt)
+            .hash_password(user.password.as_bytes())
             .map_err(|e| AppError::Internal(format!("password hash error: {e}")))?
             .to_string();
         password_hashes.push(hash);

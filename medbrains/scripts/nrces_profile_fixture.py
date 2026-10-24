@@ -16,9 +16,11 @@ import tarfile
 
 PINNED_SHA256 = "41fa99955adbd1983a235d7c7136b30f423ce34ff541d86b354d95b7704527d4"
 
-COMPOSITIONS = ["OPConsultRecord", "PrescriptionRecord", "DiagnosticReportRecord", "DischargeSummaryRecord"]
+COMPOSITIONS = ["OPConsultRecord", "PrescriptionRecord", "DiagnosticReportRecord", "DischargeSummaryRecord",
+                "ImmunizationRecord", "WellnessRecord", "HealthDocumentRecord", "InvoiceRecord"]
 RESOURCES = ["Patient", "Practitioner", "Organization", "Encounter", "Condition",
-             "MedicationRequest", "Observation", "DiagnosticReportLab"]
+             "MedicationRequest", "Observation", "DiagnosticReportLab", "Immunization",
+             "ObservationVitalSigns", "ObservationBodyMeasurement", "DocumentReference", "Invoice"]
 
 
 def load(src, name):
@@ -47,7 +49,7 @@ def composition(sd):
     section = el["Composition.section"]
     out = {
         "version": sd["version"],
-        "type_code": el["Composition.type.coding.code"].get("fixedCode")
+        "type_code": el.get("Composition.type.coding.code", {}).get("fixedCode")
         or el["Composition.type"].get("patternCodeableConcept", {}).get("coding", [{}])[0].get("code"),
         "required": required(sd),
         "section_max": section["max"],
@@ -60,20 +62,24 @@ def composition(sd):
         if i.startswith("Composition.section:") and i.count(".") == 1:
             n = e["sliceName"]
             p = f"Composition.section:{n}"
+            # Sliced by section code (OP consult, discharge) or by title (wellness).
             out["slices"].append({
                 "name": n, "max": e["max"],
-                "code": el[f"{p}.code.coding.code"]["fixedCode"],
-                "display": el[f"{p}.code.coding.display"]["fixedString"],
+                "code": el.get(f"{p}.code.coding.code", {}).get("fixedCode"),
+                "display": el.get(f"{p}.code.coding.display", {}).get("fixedString"),
+                "title": el.get(f"{p}.title", {}).get("fixedString"),
                 "entry_types": target_types(el[f"{p}.entry"]),
             })
         if i.startswith("Composition.section.entry:") and i.count(".") == 2:
             out["entry_slices"].append({"type": el[f"{i}.type"]["fixedUri"], "max": e["max"]})
-    if out["entry_slices"]:
+    if not out["slices"]:
+        # One section: its entries sliced by type, or open to the types the
+        # profile names (HealthDocumentRecord: DocumentReference only).
         entry = el["Composition.section.entry"]
         out["entry_min"], out["entry_max"] = entry["min"], entry["max"]
-        code = el.get("Composition.section.code.coding.code", {})
-        out["section_system"] = el["Composition.section.code.coding.system"]["fixedUri"]
-        out["section_code"] = code.get("fixedCode")
+        out["entry_types"] = target_types(entry)
+        out["section_system"] = el.get("Composition.section.code.coding.system", {}).get("fixedUri")
+        out["section_code"] = el.get("Composition.section.code.coding.code", {}).get("fixedCode")
     return out
 
 

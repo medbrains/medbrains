@@ -16,7 +16,7 @@
 //! degraded partner.
 
 use chrono::{DateTime, Duration, Utc};
-use rand::Rng;
+use rand::RngExt;
 
 /// Returns the next-retry timestamp for a given attempt count.
 ///

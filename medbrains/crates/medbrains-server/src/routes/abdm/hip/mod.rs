@@ -16,9 +16,13 @@
 //! Care contexts are captured by a database trigger when a record is
 //! finalised (migration 1110), so no save path can forget to.
 
+pub mod bundle_bills;
+pub mod bundle_files;
+pub mod bundle_records;
 pub mod bundle_sections;
 pub mod bundles;
 pub mod consent;
+pub mod context_notify;
 pub mod discovery;
 pub mod gateway;
 pub mod link_callbacks;
@@ -26,6 +30,7 @@ pub mod linking;
 pub mod outbox;
 pub mod profile_share;
 pub mod records;
+pub mod sms_link;
 
 use axum::{Router, routing::post};
 use medbrains_abdm::gateway as paths;
@@ -44,6 +49,11 @@ pub fn public_router() -> Router<AppState> {
             paths::CB_ON_LINK_CARE_CONTEXT,
             post(link_callbacks::on_link_care_context),
         )
+        .route(
+            paths::CB_LINK_CONTEXT_ON_NOTIFY,
+            post(context_notify::on_notify),
+        )
+        .route(paths::CB_SMS_ON_NOTIFY, post(sms_link::on_notify))
         .route(paths::CB_DISCOVER, post(discovery::discover))
         .route(
             medbrains_abdm::scan_share::CB_PROFILE_SHARE,

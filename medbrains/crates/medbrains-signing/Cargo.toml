@@ -1,8 +1,9 @@
 [package]
 name = "medbrains-signing"
+publish = false
 version = "0.1.0"
 edition = "2024"
-rust-version = "1.85"
+rust-version.workspace = true
 
 # Ed25519 document signing and the signed-document projection.
 #
@@ -17,8 +18,8 @@ rust-version = "1.85"
 [dependencies]
 medbrains-server-core = { path = "../medbrains-server-core" }
 medbrains-core = { path = "../medbrains-core" }
-ed25519-dalek = "2"
-getrandom = { version = "0.3", features = ["std"] }
+ed25519-dalek = { workspace = true }
+getrandom = { workspace = true }
 sha2 = { workspace = true }
 thiserror = { workspace = true }
 serde = { workspace = true }
@@ -26,3 +27,6 @@ serde_json = { workspace = true }
 sqlx = { workspace = true }
 uuid = { workspace = true }
 chrono = { workspace = true }
+
+[dev-dependencies]
+hex = { workspace = true }

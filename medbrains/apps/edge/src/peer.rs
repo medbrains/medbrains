@@ -31,7 +31,7 @@ use medbrains_edge::sync::SyncServer;
 
 use crate::roster_fetch;
 use serde::Deserialize;
-use tokio::sync::Semaphore;
+use tokio::sync::{Semaphore, watch};
 use tracing::{error, info, warn};
 use uuid::Uuid;
 
@@ -234,9 +234,19 @@ pub(crate) async fn serve(cfg: IrohConfig, server: Arc<SyncServer>) -> Result<()
     }
 
     let endpoint = build_endpoint(secret, relays).await?;
-    info!(node_id = %endpoint.node_id(), "iroh sync endpoint listening");
+    info!(node_id = %endpoint.id(), "iroh sync endpoint listening");
 
     let shared = Arc::new(RwLock::new(roster));
+
+    // Open sessions are re-admitted whenever this fires: right after each
+    // refresh (so a revoked device is cut off at once), and on the refresh
+    // interval regardless (so a roster ageing past its staleness ceiling
+    // closes sessions too, even with no refresher configured).
+    let (roster_changed, roster_changes) = watch::channel(());
+    tokio::spawn(nudge_every(
+        roster_changed.clone(),
+        Duration::from_secs(cfg.roster_refresh_seconds),
+    ));
 
     match (&cfg.server_url, read_token(cfg.auth_token_path.as_deref())?) {
         (Some(url), Some(token)) => {
@@ -247,6 +257,7 @@ pub(crate) async fn serve(cfg: IrohConfig, server: Arc<SyncServer>) -> Result<()
                 cfg.roster_path.clone(),
                 Duration::from_secs(cfg.roster_refresh_seconds),
                 Arc::clone(&shared),
+                roster_changed,
             ));
         }
         _ => warn!(
@@ -267,12 +278,13 @@ pub(crate) async fn serve(cfg: IrohConfig, server: Arc<SyncServer>) -> Result<()
         let server = Arc::clone(&server);
         let gate = Arc::clone(&gate);
         let tenant = cfg.tenant_id;
+        let changes = roster_changes.clone();
 
         tokio::spawn(async move {
             let _slot = slot;
             match incoming.await {
                 Ok(conn) => {
-                    if let Err(e) = serve_connection(server, gate, conn, tenant).await {
+                    if let Err(e) = serve_connection(server, gate, conn, tenant, changes).await {
                         warn!(error = %e, "peer session ended with an error");
                     }
                 }
@@ -282,6 +294,15 @@ pub(crate) async fn serve(cfg: IrohConfig, server: Arc<SyncServer>) -> Result<()
     }
 
     Ok(())
+}
+
+async fn nudge_every(changed: watch::Sender<()>, every: Duration) {
+    loop {
+        tokio::time::sleep(every).await;
+        if changed.send(()).is_err() {
+            return;
+        }
+    }
 }
 
 fn parse_relays(relays: &[String]) -> Result<Option<iroh::RelayMap>> {

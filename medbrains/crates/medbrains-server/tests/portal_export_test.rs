@@ -37,7 +37,7 @@ async fn token(app: &common::TestApp, tenant: Uuid, code_of_tenant: &str, phone:
     )
     .bind(tenant)
     .bind(phone)
-    .bind(format!("{:x}", Sha256::digest(code.as_bytes())))
+    .bind(hex::encode(Sha256::digest(code.as_bytes())))
     .execute(&app.db)
     .await
     .expect("otp");

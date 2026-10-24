@@ -868,6 +868,8 @@ fn build_outbox_registry() -> Arc<medbrains_outbox::Registry> {
     ));
     // ABDM HIP: link a newly captured care context; the OTP for a PHR app's link.
     registry.register(routes::abdm::hip::outbox::LinkCareContextHandler);
+    registry.register(routes::abdm::hip::outbox::NotifyCareContextHandler);
+    registry.register(routes::abdm::hip::outbox::SmsLinkHandler);
     registry.register(twilio::SmsSendHandler::new("sms.abdm_link_otp"));
     // UHI: the signed on_* answers to patient apps.
     registry.register(routes::uhi::outbox::UhiCallbackHandler);

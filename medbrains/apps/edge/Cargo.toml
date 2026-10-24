@@ -1,5 +1,6 @@
 [package]
 name = "medbrains-edge-app"
+publish = false
 description = "Edge appliance binary — runs medbrains-edge sync server + mDNS announcement on a hospital LAN box"
 version.workspace = true
 edition.workspace = true
@@ -30,9 +31,9 @@ tracing-subscriber = { workspace = true }
 
 anyhow = { workspace = true }
 
-# Peer-to-peer transport. iroh is pinned in medbrains-edge; see the note there.
-iroh = "0.92"
-getrandom = { version = "0.3", features = ["std"] }
+# Peer-to-peer transport. Same major as medbrains-edge; see the note there.
+iroh = "1.4.1"
+getrandom = { workspace = true }
 reqwest = { workspace = true }
 
 [dev-dependencies]

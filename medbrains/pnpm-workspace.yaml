@@ -1,3 +1,15 @@
 packages:
   - "packages/*"
   - "apps/*"
+
+# pnpm audit ignores. Each line: the advisory, why it cannot reach a patient,
+# and when it must be re-decided. scripts/check_audit_ignores.py fails CI once
+# an expiry passes. Gate: `pnpm audit --prod --audit-level=high` (security.yml).
+auditConfig:
+  ignoreGhsas:
+    - GHSA-96hv-2xvq-fx4p # ws: expo/react-native dev server only (outgoing RN apps). expires 2027-01-31
+    - GHSA-vxpw-j846-p89q # undici: expo CLI only (outgoing RN apps). expires 2027-01-31
+    - GHSA-5p2g-fcmc-qvqq # image-size: metro bundler (RN build), images are our own assets. expires 2027-01-31
+    - GHSA-w3rx-r6r6-pgpr # image-size: metro bundler (RN build), images are our own assets. expires 2027-01-31
+    - GHSA-86w9-cpqp-85rv # node-forge: @expo/cli dev tool; no fixed version exists. expires 2027-01-31
+    - GHSA-vfj7-8cjw-p6xm # braces: docs build-time glob over our own files; no fixed version exists. expires 2027-01-31

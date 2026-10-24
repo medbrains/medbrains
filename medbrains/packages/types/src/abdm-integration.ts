@@ -20,6 +20,8 @@ export interface AbhaStatusResponse {
   configured: boolean;
   source: string;
   readiness: AbhaIntegrationReadiness;
+  /** The env var this server lacks, when ABDM is off for that reason. */
+  server_key_missing: string | null;
 }
 
 /** Settings → ABDM. The client secret is never returned. */
@@ -29,6 +31,8 @@ export interface AbdmSettingsView {
   has_secret: boolean;
   /** "settings" when saved here, "env" when the server holds the keys, "none". */
   source: "settings" | "env" | "none";
+  /** The env var this server lacks, when ABDM is off for that reason; saving is refused. */
+  server_key_missing: string | null;
 }
 
 export interface SaveAbdmSettings {
@@ -43,8 +47,69 @@ export interface AbdmConnectionTest {
   message: string;
 }
 
-/** How the desk finds the person's ABHA. */
-export type AbhaVerifyMethod = "abha_number" | "mobile" | "abha_address";
+/** The bridge as the ABDM gateway holds it. */
+export interface AbdmGatewayBridge {
+  /** "ok" — the gateway answered; "unknown" — it could not be asked. */
+  state: "ok" | "unknown";
+  message: string | null;
+  url: string | null;
+  active: boolean | null;
+  blocklisted: boolean | null;
+}
+
+/** One campus and whether its HFR ID is bound to the bridge. */
+export interface AbdmCampusBridge {
+  facility_id: string;
+  name: string;
+  hfr_facility_id: string;
+  /**
+   * The bridge service id ABDM issued (`<HFR ID>_<n>`), sent as X-HIP-ID; null
+   * until ABDM lists one. With the bare HFR ID ABDM never calls back.
+   */
+  service_id: string | null;
+  /** The name patients see in their PHR app (HFR: at most 15 letters/digits). */
+  hip_name: string;
+  /** null when the gateway could not be asked. */
+  bound: boolean | null;
+  types: string[];
+}
+
+export interface AbdmBridgeStatus {
+  configured: boolean;
+  environment: AbdmEnvironment | null;
+  /** The hospital's ABDM client ID. */
+  bridge_id: string | null;
+  suggested_url: string | null;
+  gateway: AbdmGatewayBridge;
+  campuses: AbdmCampusBridge[];
+}
+
+export interface RegisterAbdmBridge {
+  url: string;
+  /** Per campus (facility id): the PHR app name. */
+  hip_names?: Record<string, string>;
+}
+
+export interface AbdmStepOutcome {
+  ok: boolean;
+  message: string;
+}
+
+export interface AbdmBridgeRegistration {
+  url: AbdmStepOutcome;
+  campuses: (AbdmStepOutcome & { facility_id: string; hfr_facility_id: string })[];
+}
+
+/**
+ * How the desk finds the person's ABHA. `aadhaar` logs in with the Aadhaar
+ * number (never stored); `find_mobile` lists the ABHAs on a mobile first.
+ */
+export type AbhaVerifyMethod =
+  | "abha_number"
+  | "mobile"
+  | "abha_address"
+  | "aadhaar"
+  | "find_mobile";
 /** Where ABDM sends the OTP for an ABHA-number lookup. */
 export type AbhaOtpVia = "aadhaar" | "abdm";
 
@@ -100,10 +165,19 @@ export interface StartAbhaEnrolment {
 
 export interface AbhaVerificationStep {
   id: string;
-  stage: "otp_sent" | "mobile_otp_sent" | "choose_account" | "choose_address" | "verified";
+  /** `search_results`: the ABHAs a mobile search found, before any OTP. */
+  stage:
+    | "search_results"
+    | "otp_sent"
+    | "mobile_otp_sent"
+    | "choose_account"
+    | "choose_address"
+    | "verified";
   /** ABDM's note, e.g. which masked mobile the OTP went to. */
   message: string | null;
   resend_after_seconds: number | null;
+  /** Resends still allowed for this OTP (ABDM allows two); null when none is waiting. */
+  resends_left: number | null;
   accounts: AbhaAccountChoice[];
   profile: AbhaVerifiedProfile | null;
   /** Another patient here already carries this ABHA. */
@@ -115,6 +189,38 @@ export interface AbhaVerificationStep {
 /** ABDM's reply to an ABHA mobile or email change — where the OTP or link went. */
 export interface AbhaAccountChange {
   message: string | null;
+}
+
+/** Delete (for good) or deactivate (until the patient reactivates it). */
+export type AbhaCloseAction = "delete" | "deactivate";
+
+export interface CloseAbha {
+  action: AbhaCloseAction;
+  otp_via: AbhaOtpVia;
+  reason: string;
+}
+
+/** ABDM closed the ABHA; the patient here who carried it no longer does. */
+export interface AbhaClosed {
+  message: string | null;
+  unlinked: AbhaLinkedPatient | null;
+}
+
+/** What a scanned ABHA card says — to verify by OTP, never trusted as is. */
+export interface AbhaCardQr {
+  abha_number: string | null;
+  abha_address: string | null;
+  name: string | null;
+  gender: "male" | "female" | "other" | null;
+  date_of_birth: string | null;
+  mobile: string | null;
+}
+
+/** The patient's ABHA left this hospital. */
+export interface AbhaOptedOut {
+  /** Last four digits of the ABHA number that was on the record. */
+  abha_ending: string;
+  consents_deleted: number;
 }
 
 /** Demographics staff may take from ABHA onto an existing patient. */

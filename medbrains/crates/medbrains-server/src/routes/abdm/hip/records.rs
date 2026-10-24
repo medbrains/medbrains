@@ -11,7 +11,7 @@ use medbrains_core::permissions;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use super::linking::{load_patient, request_link};
+use super::linking::{clear_deactivated, load_patient, request_link};
 use crate::{
     error::AppError,
     middleware::auth::Claims,
@@ -36,6 +36,10 @@ pub struct AbdmCareContext {
     pub linked_via: Option<String>,
     pub last_error: Option<String>,
     pub dhis_category: i16,
+    /// When ABDM accepted the context notify (the patient's app shows it).
+    pub notified_at: Option<DateTime<Utc>>,
+    /// Why ABDM did not accept the notify, when it did not.
+    pub notify_error: Option<String>,
 }
 
 #[derive(Debug, Serialize, sqlx::FromRow)]
@@ -70,13 +74,18 @@ pub struct AbdmPatientRecords {
     pub hip_id: Option<String>,
     /// Why nothing links, in words for staff; `None` when linking can run.
     pub blocked_reason: Option<String>,
+    /// The patient has a mobile ABDM can text the ABHA app link to.
+    pub phone_on_file: bool,
+    /// The latest ABHA-app link texted to the patient, and ABDM's answer.
+    pub sms_link: Option<super::sms_link::SmsLink>,
     pub care_contexts: Vec<AbdmCareContext>,
     pub consents: Vec<AbdmConsentArtefact>,
     pub transfers: Vec<AbdmHealthTransfer>,
 }
 
 const CONTEXT_COLUMNS: &str = "id, patient_id, source_kind, reference_number, display, hi_types, \
-     record_date, link_status, linked_at, linked_via, last_error, dhis_category";
+     record_date, link_status, linked_at, linked_via, last_error, dhis_category, notified_at, \
+     notify_error";
 
 /// `GET /api/abdm/patients/{patient_id}/records`.
 ///
@@ -123,7 +132,12 @@ pub async fn patient_records(
     .bind(patient_id)
     .fetch_all(&mut *tx)
     .await?;
+    let sms_link = super::sms_link::latest(&mut tx, claims.tenant_id, patient_id).await?;
     tx.commit().await?;
+    let phone_on_file = patient
+        .phone
+        .as_deref()
+        .is_some_and(|p| p.chars().filter(char::is_ascii_digit).count() >= 10);
     let blocked_reason = if configured {
         patient.blocked_reason().map(str::to_owned)
     } else {
@@ -134,6 +148,8 @@ pub async fn patient_records(
         abha_verified: patient.link_id.is_some(),
         hip_id: patient.hip_id,
         blocked_reason,
+        phone_on_file,
+        sms_link,
         care_contexts,
         consents,
         transfers,
@@ -155,6 +171,8 @@ pub async fn link_now(
     require_permission(&claims, permissions::abdm::records::MANAGE)?;
     let patient_id = read_context(&state, &claims, id).await?.patient_id;
     medbrains_authz_gate::require_patient_access(&state, &claims, patient_id).await?;
+    // Staff retry once the patient has reactivated a deactivated ABHA.
+    clear_deactivated(&state.db, claims.tenant_id, patient_id).await?;
     match request_link(
         &state.db,
         state.secret_resolver.as_ref(),

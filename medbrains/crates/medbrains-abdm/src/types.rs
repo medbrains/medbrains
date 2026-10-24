@@ -7,6 +7,20 @@ use serde::{Deserialize, Serialize};
 pub struct SessionTokenRequest {
     pub client_id: String,
     pub client_secret: String,
+    /// Required by the gateway swagger (`gateway_1_0d212e29a3.yaml`,
+    /// sandboxcms.abdm.gov.in/uploads): always `client_credentials`.
+    pub grant_type: String,
+}
+
+impl SessionTokenRequest {
+    #[must_use]
+    pub fn client_credentials(client_id: String, client_secret: String) -> Self {
+        Self {
+            client_id,
+            client_secret,
+            grant_type: "client_credentials".to_owned(),
+        }
+    }
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
@@ -29,6 +43,10 @@ pub enum LoginHint {
     Mobile,
     AbhaAddress,
     Email,
+    /// The Aadhaar number itself ("Find ABHA by Aadhaar", SOP §7.2).
+    Aadhaar,
+    /// The position of the account chosen from a mobile search (SOP §7.6.1.2).
+    Index,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
@@ -46,6 +64,10 @@ pub struct RequestOtpRequest {
     /// Encrypted ABHA number or mobile.
     pub login_id: String,
     pub otp_system: OtpSystem,
+    /// The search transaction, when the OTP is for an account a mobile
+    /// search found.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub txn_id: Option<String>,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]

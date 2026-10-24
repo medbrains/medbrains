@@ -9,6 +9,7 @@ pub mod audit;
 pub mod coverage;
 pub mod debug;
 pub mod health;
+pub mod immunizations;
 pub mod nhcx_onboarding;
 pub mod portal;
 pub mod portal_deliveries;
@@ -107,8 +108,12 @@ pub fn build_router(state: AppState) -> Router {
         // Enterprise SSO login flow — pre-auth (no JWT yet).
         .merge(medbrains_sso_login::router())
         // NHCX gateway callbacks — authenticated by the gateway's RS256 JWT,
-        // not a user session, so they live on the public router.
-        .merge(medbrains_nhcx_callback::public_router())
+        // not a user session, so they live on the public router. The client
+        // IP feeds the hospital's optional callback allow-list.
+        .merge(
+            medbrains_nhcx_callback::public_router()
+                .layer(from_fn_with_state(state.clone(), client_ip_middleware)),
+        )
         // ABDM gateway callbacks (HIP) — each authenticated by the gateway's
         // JWT and the HFR facility ID in X-HIP-ID, never by a user session.
         .merge(abdm::hip::public_router())
@@ -381,6 +386,13 @@ pub fn build_router(state: AppState) -> Router {
             post(abdm::settings::test_connection),
         )
         .route(
+            "/api/abdm/settings/mental-health-sharing",
+            get(abdm::mental_health_sharing::get_sharing)
+                .put(abdm::mental_health_sharing::save_sharing),
+        )
+        .route("/api/abdm/bridge", get(abdm::bridge::status))
+        .route("/api/abdm/bridge/register", post(abdm::bridge::register))
+        .route(
             "/api/abdm/abha/status",
             get(abdm::abha::status),
         )
@@ -407,6 +419,10 @@ pub fn build_router(state: AppState) -> Router {
         .route(
             "/api/abdm/abha/enrolments/{id}/otp",
             post(abdm::abha_enrol::submit_otp),
+        )
+        .route(
+            "/api/abdm/abha/enrolments/{id}/resend",
+            post(abdm::abha_enrol::resend),
         )
         .route(
             "/api/abdm/abha/enrolments/{id}/mobile-otp",
@@ -441,12 +457,49 @@ pub fn build_router(state: AppState) -> Router {
             post(abdm::abha_link::link),
         )
         .route(
+            "/api/abdm/abha/verifications/{id}/re-kyc",
+            post(abdm::abha_profile::request_re_kyc),
+        )
+        .route(
+            "/api/abdm/abha/verifications/{id}/re-kyc/verify",
+            post(abdm::abha_profile::verify_re_kyc),
+        )
+        .route(
+            "/api/abdm/abha/verifications/{id}/photo",
+            post(abdm::abha_profile::update_photo),
+        )
+        .route(
+            "/api/abdm/abha/verifications/{id}/close",
+            post(abdm::abha_profile::request_close),
+        )
+        .route(
+            "/api/abdm/abha/verifications/{id}/close/verify",
+            post(abdm::abha_profile::verify_close),
+        )
+        .route("/api/abdm/abha/qr", post(abdm::abha_qr::read))
+        .route(
+            "/api/abdm/patients/{patient_id}/abha/opt-out",
+            post(abdm::abha_optout::opt_out),
+        )
+        .route(
             "/api/abdm/patients/{patient_id}/records",
             get(abdm::hip::records::patient_records),
         )
         .route(
             "/api/abdm/care-contexts/{id}/link",
             post(abdm::hip::records::link_now),
+        )
+        .route(
+            "/api/abdm/patients/{patient_id}/sms-link",
+            post(abdm::hip::sms_link::send_now),
+        )
+        .route(
+            "/api/patients/{patient_id}/immunizations",
+            get(immunizations::list).post(immunizations::record),
+        )
+        .route(
+            "/api/immunizations/{id}/strike",
+            post(immunizations::strike),
         )
         .route(
             "/api/abdm/sharing/summary",

@@ -1,5 +1,6 @@
 [package]
 name = "medbrains-proxy"
+publish = false
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -10,10 +11,10 @@ name = "medbrains-proxy"
 path = "src/main.rs"
 
 [dependencies]
-pingora-proxy = "0.8"
-pingora-http = "0.8"
-pingora-core = { version = "0.8", features = ["rustls"] }
-pingora-error = "0.8"
+pingora-proxy = "0.9"
+pingora-http = "0.9"
+pingora-core = { version = "0.9", features = ["rustls"] }
+pingora-error = "0.9"
 
 tokio = { version = "1", features = ["full"] }
 serde = { version = "1", features = ["derive"] }

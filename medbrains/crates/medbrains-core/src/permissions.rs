@@ -103,6 +103,17 @@ pub mod patients {
         pub const UPDATE: &str = "patients.acquisition.update";
     }
 
+    pub mod immunizations {
+        /// Record or correct a patient's vaccine doses.
+        ///
+        /// A dose given here — vaccine, dose number, date, lot number and
+        /// route — or one read off the patient's card, recorded as given
+        /// elsewhere. A wrong entry is struck off with a reason, never
+        /// erased. Each dose is shared with the patient's ABHA as an
+        /// immunisation record.
+        pub const RECORD: &str = "patients.immunizations.record";
+    }
+
     pub mod allergies {
         /// Mark a recorded allergy as wrong.
         ///
@@ -2333,6 +2344,64 @@ pub mod specialty {
         pub mod mhrb {
             pub const MANAGE: &str = "specialty.psychiatry.mhrb.manage";
         }
+        pub mod admissions {
+            /// View Mental Healthcare Act admissions.
+            ///
+            /// The legal episodes — independent (s.86), minor (s.87),
+            /// supported (s.89, s.90), emergency (s.94) — with their
+            /// examinations, time limits and Board reporting.
+            pub const LIST: &str = "specialty.psychiatry.admissions.list";
+            /// Admit under a Mental Healthcare Act section.
+            ///
+            /// The server checks what the section requires — age, the
+            /// applicant, the two examinations within seven days, the
+            /// nominated representative — before the admission exists.
+            pub const CREATE: &str = "specialty.psychiatry.admissions.create";
+            /// Discharge or end a Mental Healthcare Act admission.
+            pub const UPDATE: &str = "specialty.psychiatry.admissions.update";
+        }
+        pub mod legal {
+            /// Record representatives and advance directives.
+            ///
+            /// Nominated representatives (MHCA s.14) and advance directives
+            /// (s.5): who speaks for the patient, and how the patient asked
+            /// to be treated — or not treated.
+            pub const MANAGE: &str = "specialty.psychiatry.legal.manage";
+        }
+        pub mod directives {
+            /// Apply to the Board against an advance directive.
+            ///
+            /// MHCA s.11: the only lawful way not to follow a valid
+            /// directive is an application to the Mental Health Review
+            /// Board on one of the five statutory grounds.
+            pub const CHALLENGE: &str = "specialty.psychiatry.directives.challenge";
+        }
+        pub mod safety {
+            /// Complete a suicide-risk review.
+            ///
+            /// A PHQ-9 with any answer above zero on item 9 opens a review
+            /// that stays pending until a clinician records the outcome.
+            pub const REVIEW: &str = "specialty.psychiatry.safety.review";
+        }
+        pub mod abdm_consent {
+            /// Record consent to share mental-health records.
+            ///
+            /// Psychiatric care contexts are withheld from ABDM unless the
+            /// hospital allows it and the patient consents to that category.
+            pub const MANAGE: &str = "specialty.psychiatry.abdm_consent.manage";
+        }
+        pub mod restricted {
+            /// Open restricted mental-health records.
+            ///
+            /// A psychiatric record marked restricted is visible to its
+            /// treating psychiatrist, to someone in an active break-glass
+            /// session for that patient that names psychiatry, and to holders
+            /// of this permission. The same rule withholds mental-health
+            /// diagnoses from the patient timeline, diagnosis lists, prints
+            /// and the assistant. Mental Healthcare Act 2017 s.23 — grant it
+            /// to named roles only, never to every doctor.
+            pub const VIEW: &str = "specialty.psychiatry.restricted.view";
+        }
     }
 
     /// Long-term and post-acute care — nursing-home residents, skilled
@@ -2795,6 +2864,16 @@ pub mod terminology {
         /// concept or any of its descendants, and the roll-up by top-level
         /// category.
         pub const ANALYTICS: &str = "terminology.snomed.analytics";
+    }
+
+    /// The hospital's diagnosis coding system.
+    pub mod coding {
+        /// Choose ICD-11, ICD-10 or both for diagnoses.
+        ///
+        /// Switch the classification doctors code diagnoses in, and load the
+        /// hospital's licensed ICD-10 catalogue file. Changes what every
+        /// doctor's diagnosis picker offers, so only administrators hold it.
+        pub const CONFIGURE: &str = "terminology.coding.configure";
     }
 }
 
@@ -3660,6 +3739,15 @@ pub mod abdm {
         /// Enter the ABDM client ID and secret and switch between sandbox and production.
         pub const MANAGE: &str = "abdm.settings.manage";
     }
+    /// Where ABDM delivers this hospital's callbacks.
+    pub mod bridge {
+        /// Register the ABDM bridge.
+        ///
+        /// Point the ABDM gateway at this hospital's callback URL and bind
+        /// each campus's HFR facility ID to the bridge as HIP and HIU. Every
+        /// consent, record request and Scan & Share from ABDM arrives there.
+        pub const REGISTER: &str = "abdm.bridge.register";
+    }
     pub mod relay {
         /// Pull and acknowledge ABDM gateway callbacks.
         ///
@@ -3674,6 +3762,18 @@ pub mod abdm {
         pub const VIEW: &str = "abdm.abha.view";
         /// Create or link a patient's ABHA health ID.
         pub const MANAGE: &str = "abdm.abha.manage";
+        /// Delete or deactivate a patient's ABHA at ABDM.
+        ///
+        /// At the patient's request and with the OTP ABDM sends them, close
+        /// their national ABHA for good (delete) or until they reactivate it
+        /// (deactivate). The hospital then stops using it on their record.
+        pub const DEACTIVATE: &str = "abdm.abha.deactivate";
+        /// Record a patient's ABDM opt-out.
+        ///
+        /// The patient withdraws their ABHA from this hospital: it is
+        /// unlinked from their record, the consents they granted the
+        /// hospital are deleted and no more records are linked to it.
+        pub const UNLINK: &str = "abdm.abha.unlink";
     }
     pub mod hfr {
         /// View this facility's Health Facility Registry entry.
@@ -3698,6 +3798,13 @@ pub mod abdm {
         /// Send a patient's finalised records to ABDM again after a failure,
         /// or link one that was captured before the ABHA was verified.
         pub const MANAGE: &str = "abdm.records.manage";
+        /// Text a patient the ABHA app link.
+        ///
+        /// For a patient with a mobile and no ABHA here, ask ABDM to text
+        /// them a link to the ABHA app, so the records this hospital holds
+        /// can reach them once they have one. ABDM sends the text; it names
+        /// this hospital.
+        pub const NOTIFY: &str = "abdm.records.notify";
     }
     /// Records this hospital receives through ABDM as a Health Information
     /// User: consent requests to see a patient's records held by other

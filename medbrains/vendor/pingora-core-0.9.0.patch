@@ -1,0 +1,155 @@
+diff --git upstream/Cargo.toml pingora-core-0.9.0/Cargo.toml
+index 6e1a0367f..c8b4b460f 100644
+--- upstream/Cargo.toml
++++ pingora-core-0.9.0/Cargo.toml
+@@ -124,9 +124,6 @@ features = ["derive"]
+ [dependencies.daggy]
+ version = "0.8"
+ 
+-[dependencies.derivative]
+-version = "2.2.0"
+-
+ [dependencies.flate2]
+ version = "1"
+ features = ["zlib-ng"]
+diff --git upstream/src/protocols/l4/stream.rs pingora-core-0.9.0/src/protocols/l4/stream.rs
+index bc0077980..dd4fa7c28 100644
+--- upstream/src/protocols/l4/stream.rs
++++ pingora-core-0.9.0/src/protocols/l4/stream.rs
+@@ -32,6 +32,13 @@ use std::time::{Duration, Instant, SystemTime};
+ #[cfg(target_os = "linux")]
+ use tokio::io::Interest;
+ use tokio::io::{self, AsyncRead, AsyncWrite, AsyncWriteExt, BufStream, ReadBuf};
++
++// MedBrains patch: tokio 1.54 asserts `BufReader::with_capacity(n)` has
++// n > 0, and pingora asks for 0 to mean "unbuffered", so every accepted
++// connection panicked. A one-byte read buffer behaves the same: tokio's
++// BufReader skips its buffer whenever the caller's buffer is at least the
++// buffer's size, which any read here is.
++const UNBUFFERED_READ: usize = 1;
+ use tokio::net::TcpStream;
+ #[cfg(unix)]
+ use tokio::net::UnixStream;
+@@ -534,7 +541,7 @@ impl Stream {
+         let stream = mem::take(&mut self.stream);
+         let stream = stream.map(|s| {
+             BufStream::with_capacity(
+-                buffer.read_capacity(),
++                buffer.read_capacity().max(UNBUFFERED_READ),
+                 buffer.write_capacity(),
+                 s.into_inner(),
+             )
+@@ -547,7 +554,7 @@ impl From<TcpStream> for Stream {
+     fn from(s: TcpStream) -> Self {
+         Stream {
+             stream: Some(BufStream::with_capacity(
+-                0,
++                UNBUFFERED_READ,
+                 0,
+                 RawStreamWrapper::new(RawStream::Tcp(s)),
+             )),
+@@ -570,7 +577,7 @@ impl From<virt::VirtualSocketStream> for Stream {
+     fn from(s: virt::VirtualSocketStream) -> Self {
+         Stream {
+             stream: Some(BufStream::with_capacity(
+-                0,
++                UNBUFFERED_READ,
+                 0,
+                 RawStreamWrapper::new(RawStream::Virtual(s)),
+             )),
+@@ -594,7 +601,7 @@ impl From<UnixStream> for Stream {
+     fn from(s: UnixStream) -> Self {
+         Stream {
+             stream: Some(BufStream::with_capacity(
+-                0,
++                UNBUFFERED_READ,
+                 0,
+                 RawStreamWrapper::new(RawStream::Unix(s)),
+             )),
+diff --git upstream/src/upstreams/peer.rs pingora-core-0.9.0/src/upstreams/peer.rs
+index 195101d03..dabc400cf 100644
+--- upstream/src/upstreams/peer.rs
++++ pingora-core-0.9.0/src/upstreams/peer.rs
+@@ -26,7 +26,6 @@ use crate::protocols::ConnFdReusable;
+ use crate::protocols::TcpKeepalive;
+ use crate::utils::tls::{get_organization_unit, CertKey};
+ use ahash::AHasher;
+-use derivative::Derivative;
+ use pingora_error::{
+     ErrorType::{InternalError, SocketError},
+     OrErr, Result,
+@@ -494,8 +493,7 @@ pub enum H1UpgradePolicy {
+ ///
+ /// See [`Peer`] for the meaning of the fields
+ #[non_exhaustive]
+-#[derive(Clone, Derivative)]
+-#[derivative(Debug)]
++#[derive(Clone)]
+ pub struct PeerOptions {
+     pub bind_to: Option<BindTo>,
+     pub connection_timeout: Option<Duration>,
+@@ -555,20 +553,61 @@ pub struct PeerOptions {
+     pub tracer: Option<Tracer>,
+     /// A custom L4 connector to use to establish new L4 connections
+     pub custom_l4: Option<Arc<dyn L4Connect + Send + Sync>>,
+-    #[derivative(Debug = "ignore")]
+     pub upstream_tcp_sock_tweak_hook:
+         Option<Arc<dyn Fn(&TcpSocket) -> Result<()> + Send + Sync + 'static>>,
+-    #[derivative(Debug = "ignore")]
+     pub proxy_digest_user_data_hook: Option<ProxyDigestUserDataHook>,
+     /// Hook that allows returning an optional `SslDigestExtension`.
+     /// Any returned value will be saved into the `SslDigest`.
+     ///
+     /// Currently only enabled for openssl variants with meaningful `TlsRef`s.
+     #[cfg(feature = "openssl_derived")]
+-    #[derivative(Debug = "ignore")]
+     pub upstream_tls_handshake_complete_hook: Option<HandshakeCompleteHook>,
+ }
+ 
++// MedBrains patch: upstream derives Debug through `derivative` (unmaintained,
++// RUSTSEC-2024-0388). This is the same output by hand — every field except
++// the three hook closures, which upstream marks `Debug = "ignore"`.
++impl std::fmt::Debug for PeerOptions {
++    fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
++        let mut d = f.debug_struct("PeerOptions");
++        d.field("bind_to", &self.bind_to);
++        d.field("connection_timeout", &self.connection_timeout);
++        d.field("total_connection_timeout", &self.total_connection_timeout);
++        d.field("read_timeout", &self.read_timeout);
++        d.field("idle_timeout", &self.idle_timeout);
++        d.field("write_timeout", &self.write_timeout);
++        d.field("verify_cert", &self.verify_cert);
++        d.field("verify_hostname", &self.verify_hostname);
++        #[cfg(feature = "s2n")]
++        d.field("use_system_certs", &self.use_system_certs);
++        d.field("alternative_cn", &self.alternative_cn);
++        d.field("alpn", &self.alpn);
++        d.field("ca", &self.ca);
++        d.field("tcp_keepalive", &self.tcp_keepalive);
++        d.field("tcp_recv_buf", &self.tcp_recv_buf);
++        d.field("dscp", &self.dscp);
++        d.field("h2_ping_interval", &self.h2_ping_interval);
++        #[cfg(feature = "s2n")]
++        d.field("psk", &self.psk);
++        #[cfg(feature = "s2n")]
++        d.field("s2n_security_policy", &self.s2n_security_policy);
++        #[cfg(feature = "s2n")]
++        d.field("max_blinding_delay", &self.max_blinding_delay);
++        d.field("max_h2_streams", &self.max_h2_streams);
++        d.field("h2_stream_window_size", &self.h2_stream_window_size);
++        d.field("h2_connection_window_size", &self.h2_connection_window_size);
++        d.field("allow_h1_response_invalid_content_length", &self.allow_h1_response_invalid_content_length);
++        d.field("http_upstream_request_policy", &self.http_upstream_request_policy);
++        d.field("extra_proxy_headers", &self.extra_proxy_headers);
++        d.field("curves", &self.curves);
++        d.field("second_keyshare", &self.second_keyshare);
++        d.field("tcp_fast_open", &self.tcp_fast_open);
++        d.field("tracer", &self.tracer);
++        d.field("custom_l4", &self.custom_l4);
++        d.finish_non_exhaustive()
++    }
++}
++
+ impl PeerOptions {
+     /// Create a new [`PeerOptions`]
+     pub fn new() -> Self {

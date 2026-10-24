@@ -17,7 +17,7 @@ export interface PermissionDef {
   module: string;
 }
 
-/** 1129 permissions, one per constant in the Rust source. */
+/** 1143 permissions, one per constant in the Rust source. */
 export const PERMISSIONS: PermissionDef[] = [
   // dashboard
   {
@@ -123,6 +123,12 @@ export const PERMISSIONS: PermissionDef[] = [
     code: "patients.acquisition.update",
     label: "Correct where a patient came from",
     description: "Set or change the campaign a registered patient is attributed to; every change is audited.",
+    module: "patients",
+  },
+  {
+    code: "patients.immunizations.record",
+    label: "Record or correct a patient's vaccine doses",
+    description: "A dose given here — vaccine, dose number, date, lot number and route — or one read off the patient's card, recorded as given elsewhere. A wrong entry is struck off with a reason, never erased. Each dose is shared with the patient's ABHA as an immunisation record.",
     module: "patients",
   },
   {
@@ -4274,6 +4280,54 @@ export const PERMISSIONS: PermissionDef[] = [
     module: "specialty",
   },
   {
+    code: "specialty.psychiatry.admissions.list",
+    label: "View Mental Healthcare Act admissions",
+    description: "The legal episodes — independent (s.86), minor (s.87), supported (s.89, s.90), emergency (s.94) — with their examinations, time limits and Board reporting.",
+    module: "specialty",
+  },
+  {
+    code: "specialty.psychiatry.admissions.create",
+    label: "Admit under a Mental Healthcare Act section",
+    description: "The server checks what the section requires — age, the applicant, the two examinations within seven days, the nominated representative — before the admission exists.",
+    module: "specialty",
+  },
+  {
+    code: "specialty.psychiatry.admissions.update",
+    label: "Update Admissions",
+    description: "Discharge or end a Mental Healthcare Act admission.",
+    module: "specialty",
+  },
+  {
+    code: "specialty.psychiatry.legal.manage",
+    label: "Record representatives and advance directives",
+    description: "Nominated representatives (MHCA s.14) and advance directives (s.5): who speaks for the patient, and how the patient asked to be treated — or not treated.",
+    module: "specialty",
+  },
+  {
+    code: "specialty.psychiatry.directives.challenge",
+    label: "Apply to the Board against an advance directive",
+    description: "MHCA s.11: the only lawful way not to follow a valid directive is an application to the Mental Health Review Board on one of the five statutory grounds.",
+    module: "specialty",
+  },
+  {
+    code: "specialty.psychiatry.safety.review",
+    label: "Complete a suicide-risk review",
+    description: "A PHQ-9 with any answer above zero on item 9 opens a review that stays pending until a clinician records the outcome.",
+    module: "specialty",
+  },
+  {
+    code: "specialty.psychiatry.abdm_consent.manage",
+    label: "Record consent to share mental-health records",
+    description: "Psychiatric care contexts are withheld from ABDM unless the hospital allows it and the patient consents to that category.",
+    module: "specialty",
+  },
+  {
+    code: "specialty.psychiatry.restricted.view",
+    label: "Open restricted mental-health records",
+    description: "A psychiatric record marked restricted is visible to its treating psychiatrist, to someone in an active break-glass session for that patient that names psychiatry, and to holders of this permission. The same rule withholds mental-health diagnoses from the patient timeline, diagnosis lists, prints and the assistant. Mental Healthcare Act 2017 s.23 — grant it to named roles only, never to every doctor.",
+    module: "specialty",
+  },
+  {
     code: "specialty.ltc.mds.list",
     label: "View MDS assessments",
     description: "The Minimum Data Set — the standardised functional, cognitive and clinical assessment of a long-term care resident.",
@@ -5075,6 +5129,12 @@ export const PERMISSIONS: PermissionDef[] = [
     code: "terminology.snomed.analytics",
     label: "Count records by SNOMED CT hierarchy",
     description: "See how many of the hospital's coded diagnoses fall under a concept or any of its descendants, and the roll-up by top-level category.",
+    module: "terminology",
+  },
+  {
+    code: "terminology.coding.configure",
+    label: "Choose ICD-11, ICD-10 or both for diagnoses",
+    description: "Switch the classification doctors code diagnoses in, and load the hospital's licensed ICD-10 catalogue file. Changes what every doctor's diagnosis picker offers, so only administrators hold it.",
     module: "terminology",
   },
   // ckb
@@ -6771,6 +6831,12 @@ export const PERMISSIONS: PermissionDef[] = [
     module: "abdm",
   },
   {
+    code: "abdm.bridge.register",
+    label: "Register the ABDM bridge",
+    description: "Point the ABDM gateway at this hospital's callback URL and bind each campus's HFR facility ID to the bridge as HIP and HIU. Every consent, record request and Scan & Share from ABDM arrives there.",
+    module: "abdm",
+  },
+  {
     code: "abdm.relay.pull",
     label: "Pull and acknowledge ABDM gateway callbacks",
     description: "For the hospital's on-premises server, which collects the ABDM gateway's callbacks for its own facility and marks each one received. Callbacks carry patient health data, so only this hospital's own, never another's.",
@@ -6786,6 +6852,18 @@ export const PERMISSIONS: PermissionDef[] = [
     code: "abdm.abha.manage",
     label: "Create or link a patient's ABHA health ID",
     description: "Create or link a patient's ABHA health ID",
+    module: "abdm",
+  },
+  {
+    code: "abdm.abha.deactivate",
+    label: "Delete or deactivate a patient's ABHA at ABDM",
+    description: "At the patient's request and with the OTP ABDM sends them, close their national ABHA for good (delete) or until they reactivate it (deactivate). The hospital then stops using it on their record.",
+    module: "abdm",
+  },
+  {
+    code: "abdm.abha.unlink",
+    label: "Record a patient's ABDM opt-out",
+    description: "The patient withdraws their ABHA from this hospital: it is unlinked from their record, the consents they granted the hospital are deleted and no more records are linked to it.",
     module: "abdm",
   },
   {
@@ -6810,6 +6888,12 @@ export const PERMISSIONS: PermissionDef[] = [
     code: "abdm.records.manage",
     label: "Link or retry linking records to ABHA",
     description: "Send a patient's finalised records to ABDM again after a failure, or link one that was captured before the ABHA was verified.",
+    module: "abdm",
+  },
+  {
+    code: "abdm.records.notify",
+    label: "Text a patient the ABHA app link",
+    description: "For a patient with a mobile and no ABHA here, ask ABDM to text them a link to the ABHA app, so the records this hospital holds can reach them once they have one. ABDM sends the text; it names this hospital.",
     module: "abdm",
   },
   {
@@ -6876,11 +6960,19 @@ export const PERMISSIONS: PermissionDef[] = [
 export const P = {
   ABDM: {
     ABHA: {
+      DEACTIVATE: "abdm.abha.deactivate",
       MANAGE: "abdm.abha.manage",
+      UNLINK: "abdm.abha.unlink",
       VIEW: "abdm.abha.view",
     },
+    ABHA_DEACTIVATE: "abdm.abha.deactivate",
     ABHA_MANAGE: "abdm.abha.manage",
+    ABHA_UNLINK: "abdm.abha.unlink",
     ABHA_VIEW: "abdm.abha.view",
+    BRIDGE: {
+      REGISTER: "abdm.bridge.register",
+    },
+    BRIDGE_REGISTER: "abdm.bridge.register",
     CONSENT: {
       REQUEST: "abdm.consent.request",
       VIEW: "abdm.consent.view",
@@ -6903,9 +6995,11 @@ export const P = {
     HPR_MANAGE: "abdm.hpr.manage",
     RECORDS: {
       MANAGE: "abdm.records.manage",
+      NOTIFY: "abdm.records.notify",
       VIEW: "abdm.records.view",
     },
     RECORDS_MANAGE: "abdm.records.manage",
+    RECORDS_NOTIFY: "abdm.records.notify",
     RECORDS_VIEW: "abdm.records.view",
     RELAY: {
       PULL: "abdm.relay.pull",
@@ -9215,6 +9309,10 @@ export const P = {
     CREATE: "patients.create",
     DELETE: "patients.delete",
     FIND: "patients.find",
+    IMMUNIZATIONS: {
+      RECORD: "patients.immunizations.record",
+    },
+    IMMUNIZATIONS_RECORD: "patients.immunizations.record",
     LIST: "patients.list",
     NOTES: {
       EDIT: "patients.notes.edit",
@@ -10133,18 +10231,38 @@ export const P = {
     PMR_SESSIONS_CREATE: "specialty.pmr.sessions.create",
     PMR_SESSIONS_LIST: "specialty.pmr.sessions.list",
     PSYCHIATRY: {
+      ABDM_CONSENT: {
+        MANAGE: "specialty.psychiatry.abdm_consent.manage",
+      },
+      ABDM_CONSENT_MANAGE: "specialty.psychiatry.abdm_consent.manage",
+      ADMISSIONS: {
+        CREATE: "specialty.psychiatry.admissions.create",
+        LIST: "specialty.psychiatry.admissions.list",
+        UPDATE: "specialty.psychiatry.admissions.update",
+      },
+      ADMISSIONS_CREATE: "specialty.psychiatry.admissions.create",
+      ADMISSIONS_LIST: "specialty.psychiatry.admissions.list",
+      ADMISSIONS_UPDATE: "specialty.psychiatry.admissions.update",
       ASSESSMENTS: {
         CREATE: "specialty.psychiatry.assessments.create",
         LIST: "specialty.psychiatry.assessments.list",
       },
       ASSESSMENTS_CREATE: "specialty.psychiatry.assessments.create",
       ASSESSMENTS_LIST: "specialty.psychiatry.assessments.list",
+      DIRECTIVES: {
+        CHALLENGE: "specialty.psychiatry.directives.challenge",
+      },
+      DIRECTIVES_CHALLENGE: "specialty.psychiatry.directives.challenge",
       ECT: {
         CREATE: "specialty.psychiatry.ect.create",
         LIST: "specialty.psychiatry.ect.list",
       },
       ECT_CREATE: "specialty.psychiatry.ect.create",
       ECT_LIST: "specialty.psychiatry.ect.list",
+      LEGAL: {
+        MANAGE: "specialty.psychiatry.legal.manage",
+      },
+      LEGAL_MANAGE: "specialty.psychiatry.legal.manage",
       MHRB: {
         MANAGE: "specialty.psychiatry.mhrb.manage",
       },
@@ -10163,17 +10281,33 @@ export const P = {
       },
       RESTRAINT_LIST: "specialty.psychiatry.restraint.list",
       RESTRAINT_MANAGE: "specialty.psychiatry.restraint.manage",
+      RESTRICTED: {
+        VIEW: "specialty.psychiatry.restricted.view",
+      },
+      RESTRICTED_VIEW: "specialty.psychiatry.restricted.view",
+      SAFETY: {
+        REVIEW: "specialty.psychiatry.safety.review",
+      },
+      SAFETY_REVIEW: "specialty.psychiatry.safety.review",
     },
+    PSYCHIATRY_ABDM_CONSENT_MANAGE: "specialty.psychiatry.abdm_consent.manage",
+    PSYCHIATRY_ADMISSIONS_CREATE: "specialty.psychiatry.admissions.create",
+    PSYCHIATRY_ADMISSIONS_LIST: "specialty.psychiatry.admissions.list",
+    PSYCHIATRY_ADMISSIONS_UPDATE: "specialty.psychiatry.admissions.update",
     PSYCHIATRY_ASSESSMENTS_CREATE: "specialty.psychiatry.assessments.create",
     PSYCHIATRY_ASSESSMENTS_LIST: "specialty.psychiatry.assessments.list",
+    PSYCHIATRY_DIRECTIVES_CHALLENGE: "specialty.psychiatry.directives.challenge",
     PSYCHIATRY_ECT_CREATE: "specialty.psychiatry.ect.create",
     PSYCHIATRY_ECT_LIST: "specialty.psychiatry.ect.list",
+    PSYCHIATRY_LEGAL_MANAGE: "specialty.psychiatry.legal.manage",
     PSYCHIATRY_MHRB_MANAGE: "specialty.psychiatry.mhrb.manage",
     PSYCHIATRY_PATIENTS_CREATE: "specialty.psychiatry.patients.create",
     PSYCHIATRY_PATIENTS_LIST: "specialty.psychiatry.patients.list",
     PSYCHIATRY_PATIENTS_UPDATE: "specialty.psychiatry.patients.update",
     PSYCHIATRY_RESTRAINT_LIST: "specialty.psychiatry.restraint.list",
     PSYCHIATRY_RESTRAINT_MANAGE: "specialty.psychiatry.restraint.manage",
+    PSYCHIATRY_RESTRICTED_VIEW: "specialty.psychiatry.restricted.view",
+    PSYCHIATRY_SAFETY_REVIEW: "specialty.psychiatry.safety.review",
   },
   STORAGE: {
     POLICIES: {
@@ -10194,6 +10328,10 @@ export const P = {
     USAGE_VIEW: "storage.usage.view",
   },
   TERMINOLOGY: {
+    CODING: {
+      CONFIGURE: "terminology.coding.configure",
+    },
+    CODING_CONFIGURE: "terminology.coding.configure",
     SEARCH: "terminology.search",
     SNOMED: {
       ANALYTICS: "terminology.snomed.analytics",
@@ -10468,6 +10606,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.PATIENT_PACKAGES.VIEW,
       P.PATIENTS.ALLERGIES.VERIFY,
       P.PATIENTS.CREATE,
+      P.PATIENTS.IMMUNIZATIONS.RECORD,
       P.PATIENTS.LIST,
       P.PATIENTS.NOTES.EDIT,
       P.PATIENTS.NOTES.VIEW,
@@ -10558,15 +10697,22 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.SPECIALTY.PMR.PSYCHOMETRIC.MANAGE,
       P.SPECIALTY.PMR.SESSIONS.CREATE,
       P.SPECIALTY.PMR.SESSIONS.LIST,
+      P.SPECIALTY.PSYCHIATRY.ABDM_CONSENT.MANAGE,
+      P.SPECIALTY.PSYCHIATRY.ADMISSIONS.CREATE,
+      P.SPECIALTY.PSYCHIATRY.ADMISSIONS.LIST,
+      P.SPECIALTY.PSYCHIATRY.ADMISSIONS.UPDATE,
       P.SPECIALTY.PSYCHIATRY.ASSESSMENTS.CREATE,
       P.SPECIALTY.PSYCHIATRY.ASSESSMENTS.LIST,
+      P.SPECIALTY.PSYCHIATRY.DIRECTIVES.CHALLENGE,
       P.SPECIALTY.PSYCHIATRY.ECT.CREATE,
       P.SPECIALTY.PSYCHIATRY.ECT.LIST,
+      P.SPECIALTY.PSYCHIATRY.LEGAL.MANAGE,
       P.SPECIALTY.PSYCHIATRY.PATIENTS.CREATE,
       P.SPECIALTY.PSYCHIATRY.PATIENTS.LIST,
       P.SPECIALTY.PSYCHIATRY.PATIENTS.UPDATE,
       P.SPECIALTY.PSYCHIATRY.RESTRAINT.LIST,
       P.SPECIALTY.PSYCHIATRY.RESTRAINT.MANAGE,
+      P.SPECIALTY.PSYCHIATRY.SAFETY.REVIEW,
       P.TERMINOLOGY.SEARCH,
       P.TERMINOLOGY.SNOMED.VIEW,
     ],
@@ -10724,6 +10870,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.OPD.QUEUE.VIEW,
       P.ORDER_SETS.ACTIVATION.CREATE,
       P.ORDER_SETS.ACTIVATION.VIEW,
+      P.PATIENTS.IMMUNIZATIONS.RECORD,
       P.PATIENTS.LIST,
       P.PATIENTS.NOTES.EDIT,
       P.PATIENTS.NOTES.VIEW,
@@ -10794,6 +10941,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.SPECIALTY.PMR.PSYCHOMETRIC.LIST,
       P.SPECIALTY.PMR.PSYCHOMETRIC.MANAGE,
       P.SPECIALTY.PMR.SESSIONS.LIST,
+      P.SPECIALTY.PSYCHIATRY.ADMISSIONS.LIST,
       P.SPECIALTY.PSYCHIATRY.ASSESSMENTS.LIST,
       P.SPECIALTY.PSYCHIATRY.PATIENTS.LIST,
       P.SPECIALTY.PSYCHIATRY.RESTRAINT.LIST,
@@ -10804,8 +10952,11 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
   receptionist: {
     label: "Receptionist",
     permissions: [
+      P.ABDM.ABHA.DEACTIVATE,
       P.ABDM.ABHA.MANAGE,
+      P.ABDM.ABHA.UNLINK,
       P.ABDM.ABHA.VIEW,
+      P.ABDM.RECORDS.NOTIFY,
       P.ABDM.SCANSHARE.VIEW,
       P.ADMIN.DOCTOR_PACKAGES.LIST,
       P.ADMIN.SETTINGS.READ,
@@ -11463,8 +11614,10 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
   mrd_officer: {
     label: "MRD Officer",
     permissions: [
+      P.ABDM.ABHA.UNLINK,
       P.ABDM.DASHBOARD.VIEW,
       P.ABDM.RECORDS.MANAGE,
+      P.ABDM.RECORDS.NOTIFY,
       P.ABDM.RECORDS.VIEW,
       P.ADMIN.SETTINGS.READ,
       P.CLINICAL_NOTES.EXPORT,
@@ -11699,8 +11852,11 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
   front_office_staff: {
     label: "Front Office Staff",
     permissions: [
+      P.ABDM.ABHA.DEACTIVATE,
       P.ABDM.ABHA.MANAGE,
+      P.ABDM.ABHA.UNLINK,
       P.ABDM.ABHA.VIEW,
+      P.ABDM.RECORDS.NOTIFY,
       P.ABDM.SCANSHARE.VIEW,
       P.ADMIN.SETTINGS.READ,
       P.BILLING.COLLECT.IPD,
@@ -11961,6 +12117,8 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
   staff: {
     label: "Staff (awaiting role)",
     permissions: [
+      P.ABDM.BRIDGE.REGISTER,
+      P.ABDM.SETTINGS.MANAGE,
       P.ADMIN.SETTINGS.READ,
       P.DASHBOARD.VIEW,
     ],

@@ -31,21 +31,22 @@ import { fieldAccessText } from "@medbrains/utils";
 import { IconCircleCheck, IconPlus, IconRotateClockwise, IconTrash } from "@tabler/icons-react";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
+import { RestrictedEntry } from "@/components/Patient/RestrictedEntry";
 import {
-  DIAGNOSIS_TERMINOLOGY_POLICY,
-  terminologySearchPlaceholder,
   terminologySourceLabel,
   terminologySystemLabel,
 } from "@/domain/clinical/terminology-policy";
 import { todayDateString } from "@/lib/date-utils";
+import { DiagnosisCodeSelect } from "./DiagnosisCodeSelect";
 import styles from "./diagnosis-panel.module.scss";
-import { Icd11CodeSelect } from "./Icd11CodeSelect";
 import { SnomedConceptSelect } from "./SnomedConceptSelect";
 
 interface DiagnosisPanelProps {
   encounterId: string;
   diagnoses: Diagnosis[];
   patientDiagnoses?: PatientDiagnosisRow[];
+  /** Needed to offer emergency access on a withheld (tombstoned) entry. */
+  patientId?: string;
   canCreate: boolean;
   canUpdate: boolean;
   canDelete: boolean;
@@ -142,6 +143,7 @@ export function DiagnosisPanel({
   encounterId,
   diagnoses,
   patientDiagnoses = [],
+  patientId,
   canCreate,
   canUpdate,
   canDelete,
@@ -158,7 +160,7 @@ export function DiagnosisPanel({
   const hasDiagnosisDeletePermission = useHasPermission(P.OPD.DIAGNOSES.DELETE);
   const [description, setDescription] = useState("");
   const [icdCode, setIcdCode] = useState("");
-  const [selectedIcd11, setSelectedIcd11] = useState<TerminologySearchResult | null>(null);
+  const [selectedCode, setSelectedCode] = useState<TerminologySearchResult | null>(null);
   const [snomedCode, setSnomedCode] = useState("");
   const [snomedDisplay, setSnomedDisplay] = useState("");
   const [isPrimary, setIsPrimary] = useState(false);
@@ -168,8 +170,7 @@ export function DiagnosisPanel({
   const [resolutionMode, setResolutionMode] = useState<ResolutionMode>("resolved");
   const [resolutionNote, setResolutionNote] = useState("");
   const [resolutionOpened, resolutionHandlers] = useDisclosure(false);
-  const primarySystem = DIAGNOSIS_TERMINOLOGY_POLICY.primarySystem;
-  // SNOMED CT alongside ICD-11, for those who may browse it; stored in
+  // SNOMED CT alongside the ICD code, for those who may browse it; stored in
   // diagnoses.snomed_code and counted by hierarchy in SNOMED analytics.
   const canCodeSnomed = useHasPermission(P.TERMINOLOGY.SNOMED.VIEW);
   const canEditDiagnosis = canEditDiagnosisField(diagnosisAccess);
@@ -192,13 +193,13 @@ export function DiagnosisPanel({
   const handleIcdCodeChange = (nextValue: string | undefined) => {
     setIcdCode(nextValue ?? "");
     if (!nextValue) {
-      setSelectedIcd11(null);
+      setSelectedCode(null);
       setDescription("");
     }
   };
 
   const handleIcdResultSelect = (result: TerminologySearchResult) => {
-    setSelectedIcd11(result);
+    setSelectedCode(result);
     setIcdCode(result.code);
     setDescription(result.display);
   };
@@ -207,12 +208,13 @@ export function DiagnosisPanel({
     if (!canCreateDiagnosis || !description.trim()) return;
     onAdd({
       description: description.trim(),
-      icd_code: icdCode.trim() || undefined,
-      icd_system: icdCode.trim() ? primarySystem : undefined,
-      icd_display: selectedIcd11?.display,
-      icd_source_url: selectedIcd11?.source_url ?? undefined,
-      icd_source_version: selectedIcd11?.source_version ?? undefined,
-      icd_provider_mode: selectedIcd11?.provider_mode,
+      // The code goes in the system it was picked from — never translated.
+      icd_code: selectedCode ? icdCode.trim() || undefined : undefined,
+      icd_system: selectedCode?.system,
+      icd_display: selectedCode?.display,
+      icd_source_url: selectedCode?.source_url ?? undefined,
+      icd_source_version: selectedCode?.source_version ?? undefined,
+      icd_provider_mode: selectedCode?.provider_mode,
       is_primary: isPrimary,
       severity: severity ?? undefined,
       certainty: certainty ?? undefined,
@@ -221,7 +223,7 @@ export function DiagnosisPanel({
     });
     setDescription("");
     setIcdCode("");
-    setSelectedIcd11(null);
+    setSelectedCode(null);
     setSnomedCode("");
     setSnomedDisplay("");
     setIsPrimary(false);
@@ -308,8 +310,7 @@ export function DiagnosisPanel({
       {canCreateDiagnosis && (
         <Stack gap="xs">
           <Group gap="xs" align="flex-end" wrap="nowrap">
-            <Icd11CodeSelect
-              placeholder={terminologySearchPlaceholder(primarySystem)}
+            <DiagnosisCodeSelect
               value={icdCode || null}
               onChange={handleIcdCodeChange}
               onSelectResult={handleIcdResultSelect}
@@ -327,14 +328,16 @@ export function DiagnosisPanel({
             />
           </Group>
           <Group gap="xs" align="flex-end">
-            {icdCode && (
-              <Badge size="sm" variant="light" color="primary">
-                {terminologySystemLabel(primarySystem)}: {icdCode}
-              </Badge>
+            {icdCode && selectedCode && (
+              <>
+                <Badge size="sm" variant="light" color="primary">
+                  {terminologySystemLabel(selectedCode.system)}: {icdCode}
+                </Badge>
+                <Badge size="sm" variant="outline" color="slate">
+                  {terminologySourceLabel(selectedCode.system)}
+                </Badge>
+              </>
             )}
-            <Badge size="sm" variant="outline" color="slate">
-              {terminologySourceLabel(primarySystem)}
-            </Badge>
             {snomedCode && (
               <Badge size="sm" variant="light" color="teal">
                 SNOMED CT: {snomedCode}
@@ -522,9 +525,13 @@ export function DiagnosisPanel({
               return (
                 <Timeline.Item key={diagnosis.id} color={status.color}>
                   <Group gap={6} mb={2}>
-                    <Text size="sm" fw={600}>
-                      {diagnosisText(diagnosis.description)}
-                    </Text>
+                    {diagnosis.withheld && patientId ? (
+                      <RestrictedEntry patientId={patientId} compact />
+                    ) : (
+                      <Text size="sm" fw={600}>
+                        {diagnosisText(diagnosis.description)}
+                      </Text>
+                    )}
                     <Badge size="xs" color={status.color} variant="light">
                       {status.label}
                     </Badge>

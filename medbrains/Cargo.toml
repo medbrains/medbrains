@@ -7,6 +7,7 @@ members = [
     "crates/medbrains-automation-api",
     "crates/medbrains-core",
     "crates/medbrains-authz-gate",
+    "crates/medbrains-spicedb-proto",
     "crates/medbrains-nabh",
     "crates/medbrains-signing",
     "crates/medbrains-notifications",
@@ -169,7 +170,7 @@ default-members = [
 [workspace.package]
 version = "0.1.0"
 edition = "2024"
-rust-version = "1.85"
+rust-version = "1.95"
 license-file = "../LICENSE"
 
 [workspace.dependencies]
@@ -178,7 +179,7 @@ license-file = "../LICENSE"
 # `cargo test` and `clippy --all-targets` compile a second tokio and reqwest (and
 # every crate above them). Enabled here once so all builds share one graph;
 # test-util only adds time-control APIs nothing in production calls.
-tokio = { version = "1", features = ["full", "test-util"] }
+tokio = { version = "1.54.1", features = ["full", "test-util"] }
 
 # Web framework
 axum = { version = "0.8", features = ["macros", "ws"] }
@@ -197,7 +198,7 @@ figment = { version = "0.10", features = ["toml", "env"] }
 
 # Auth
 jsonwebtoken = { version = "10", default-features = false, features = ["aws_lc_rs"] }
-argon2 = "0.5"
+argon2 = "0.6"
 
 # Utilities
 uuid = { version = "1", features = ["v4", "v5", "serde"] }
@@ -213,9 +214,9 @@ dotenvy = "0.15"
 rust_decimal = { version = "1", features = ["serde-with-str"] }
 
 # Crypto
-rand = "0.9"
-sha2 = "0.10"
-hmac = "0.12"
+rand = "0.10"
+sha2 = "0.11"
+hmac = "0.13"
 hex = "0.4"
 base64 = "0.22"
 
@@ -223,7 +224,7 @@ base64 = "0.22"
 flate2 = "1"
 # SNOMED CT RF2 release packages arrive as zip files. Read-only use: no
 # encryption, no legacy codecs.
-zip = { version = "4.6", default-features = false, features = ["deflate-flate2-zlib-rs"] }
+zip = { version = "9", default-features = false, features = ["deflate-flate2-zlib-rs"] }
 
 # Validation
 regex = "1"
@@ -235,11 +236,14 @@ async-trait = "0.1.92"
 async-stream = "0.3"
 
 # Hybrid deploy mode — local Ed25519 JWT signer + tests
-ed25519-dalek = "2"
+ed25519-dalek = "3"
+getrandom = { version = "0.4", features = ["std"] }
 tempfile = "3"
 
-# HTTP client (for YottaDB REST)
-reqwest = { version = "0.12", features = ["json", "cookies", "rustls-tls-native-roots"], default-features = false }
+# HTTP client. `rustls` verifies against the OS trust store (platform
+# verifier), as `rustls-tls-native-roots` did on 0.12; `form` and `query` are
+# opt-in from 0.13.
+reqwest = { version = "0.13", features = ["json", "cookies", "form", "query", "rustls"], default-features = false }
 
 # AI / LLM
 rig-core = { version = "0.35", features = ["derive"] }
@@ -255,7 +259,7 @@ loro = "1.4"
 mdns-sd = "0.13"
 
 [patch.crates-io]
-pingora-core = { path = "vendor/pingora-core-0.8.0" }
+pingora-core = { path = "vendor/pingora-core-0.9.0" }
 sqlx = { path = "vendor/sqlx-0.8.6" }
 sqlx-macros-core = { path = "vendor/sqlx-macros-core-0.8.6" }
 

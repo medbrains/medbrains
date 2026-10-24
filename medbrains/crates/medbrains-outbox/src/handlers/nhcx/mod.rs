@@ -20,17 +20,23 @@
 //! the reason) when it refuses for good.
 //!
 //! Status mapping: 2xx → sent; 401 → drop the session, retry; 400/403/404/422
-//! → permanent; 429/5xx/network → retry with backoff.
+//! → permanent; 429/5xx/network → retry with backoff. A retry goes under a
+//! fresh api_call_id (and, for a request, a fresh correlation id aliased to
+//! the record's — NHCX retires a correlation that failed); the last failed
+//! retry marks the record `send_failed`, never leaving it "waiting to send".
+//! A record a payer has already answered is never marked failed.
 
 pub mod config;
 pub mod session;
 
 use async_trait::async_trait;
 use medbrains_core::nhcx::{NhcxOperation, NhcxRecord};
+use medbrains_core::nhcx_wire;
 use serde::Deserialize;
 use serde_json::{Map, Value, json};
 use uuid::Uuid;
 
+use crate::backoff::MAX_ATTEMPTS;
 use crate::handler::{Handler, HandlerCtx, HandlerError};
 use config::ConfigError;
 use session::{Endpoints, SessionError};
@@ -57,11 +63,16 @@ struct Message {
     recipient_code: String,
     correlation_id: Uuid,
     api_call_id: Uuid,
-    workflow_id: Uuid,
-    bundle: Value,
-    /// `x-hcx-status` — set on replies (`on_*`), absent on requests.
+    /// The step code (`x-hcx-workflow_id`), where the message has one.
     #[serde(default)]
-    hcx_status: Option<String>,
+    workflow_id: Option<String>,
+    bundle: Value,
+}
+
+/// The ids one attempt goes out under.
+struct Attempt {
+    correlation_id: Uuid,
+    api_call_id: Uuid,
 }
 
 #[async_trait]
@@ -74,9 +85,19 @@ impl Handler for NhcxHandler {
         let msg: Message = serde_json::from_value(payload.clone())
             .map_err(|e| HandlerError::Permanent(format!("nhcx payload: {e}")))?;
         let result = self.send(ctx, &msg).await;
+        let gave_up;
         let outcome = match &result {
+            Ok(v) if v.get("superseded").is_some() => None,
             Ok(_) => Some(("sent", None)),
             Err(HandlerError::Permanent(reason)) => Some(("send_failed", Some(reason.as_str()))),
+            // The outbox stops here; the desk must see it, not "waiting to send".
+            Err(HandlerError::Transient(reason)) if ctx.attempts >= MAX_ATTEMPTS => {
+                gave_up = format!(
+                    "NHCX did not take it after {} tries: {reason}",
+                    ctx.attempts
+                );
+                Some(("send_failed", Some(gave_up.as_str())))
+            }
             Err(HandlerError::Transient(_)) => None,
         };
         // The send already happened (or never will); failing the event here
@@ -101,9 +122,16 @@ impl Handler for NhcxHandler {
 impl NhcxHandler {
     async fn send(&self, ctx: &HandlerCtx, msg: &Message) -> Result<Value, HandlerError> {
         let mut tx = tenant_tx(ctx).await?;
+        if !is_current(&mut tx, ctx, msg).await? {
+            // The desk sent this again since; the newer message is the one
+            // the payer should get.
+            tx.commit().await.map_err(|e| transient(&e))?;
+            return Ok(json!({ "superseded": true }));
+        }
         let stored = config::stored(&mut tx, ctx.tenant_id)
             .await
             .map_err(from_config)?;
+        let attempt = self.attempt(&mut tx, ctx, msg).await?;
         let cert = sqlx::query_scalar::<_, Option<String>>(
             "SELECT encryption_cert FROM nhcx_participants \
              WHERE tenant_id = $1 AND participant_code = $2 AND is_active",
@@ -139,20 +167,27 @@ impl NhcxHandler {
                 SessionError::Unavailable(_) => HandlerError::Transient(e.to_string()),
             })?;
 
-        let jwe = medbrains_crypto::jwe::encrypt_hcx(
-            &msg.bundle,
-            &protected_headers(sender, msg),
-            cert.as_bytes(),
-        )
-        .map_err(|e| {
-            HandlerError::Permanent(format!("nhcx encrypt for {}: {e}", msg.recipient_code))
-        })?;
+        let headers = Envelope {
+            sender,
+            msg,
+            attempt: &attempt,
+            hcx_status: self.operation.hcx_status(),
+        };
+        let jwe =
+            medbrains_crypto::jwe::encrypt_hcx(&msg.bundle, &headers.protected(), cert.as_bytes())
+                .map_err(|e| {
+                    HandlerError::Permanent(format!("nhcx encrypt for {}: {e}", msg.recipient_code))
+                })?;
 
         let url = format!("{}{}", endpoints.gateway, self.operation.path());
+        // NHCX reads the token from `bearer_auth`; NHA's own collection sends
+        // Authorization too.
         let resp = ctx
             .http_client
             .post(&url)
             .bearer_auth(&token)
+            .header(BEARER_AUTH_HEADER, format!("Bearer {token}"))
+            .header(reqwest::header::ACCEPT, "application/json")
             .json(&json!({ "payload": jwe }))
             .send()
             .await
@@ -163,13 +198,13 @@ impl NhcxHandler {
             tracing::info!(
                 tenant_id = %ctx.tenant_id,
                 event_id = %ctx.event_id,
-                correlation_id = %msg.correlation_id,
+                correlation_id = %attempt.correlation_id,
                 operation = self.operation.event_type(),
                 "nhcx message accepted by the gateway"
             );
             return Ok(json!({
-                "correlation_id": msg.correlation_id,
-                "api_call_id": msg.api_call_id,
+                "correlation_id": attempt.correlation_id,
+                "api_call_id": attempt.api_call_id,
                 "gateway": serde_json::from_str::<Value>(&body).unwrap_or(Value::Null),
             }));
         }
@@ -180,27 +215,139 @@ impl NhcxHandler {
     }
 }
 
-/// The HCX protocol headers, carried in the JWE protected header.
-fn protected_headers(sender: &str, msg: &Message) -> Map<String, Value> {
-    let mut headers = Map::new();
-    headers.insert("x-hcx-sender_code".into(), json!(sender));
-    headers.insert("x-hcx-recipient_code".into(), json!(msg.recipient_code));
-    headers.insert("x-hcx-api_call_id".into(), json!(msg.api_call_id));
-    headers.insert("x-hcx-correlation_id".into(), json!(msg.correlation_id));
-    headers.insert("x-hcx-workflow_id".into(), json!(msg.workflow_id));
-    headers.insert(
-        "x-hcx-timestamp".into(),
-        json!(chrono::Utc::now().to_rfc3339()),
-    );
-    if let Some(status) = &msg.hcx_status {
-        headers.insert("x-hcx-status".into(), json!(status));
+/// The header NHA's package says the gateway reads the session token from.
+const BEARER_AUTH_HEADER: &str = "bearer_auth";
+
+impl NhcxHandler {
+    /// The ids for this attempt. The first goes out as queued; a retry gets
+    /// a fresh api_call_id, and a request a fresh correlation id too
+    /// (correlation = api_call_id on a request), recorded as an alias of the
+    /// record's so the payer's answer to it still lands.
+    async fn attempt(
+        &self,
+        tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+        ctx: &HandlerCtx,
+        msg: &Message,
+    ) -> Result<Attempt, HandlerError> {
+        if ctx.attempts <= 1 {
+            return Ok(Attempt {
+                correlation_id: msg.correlation_id,
+                api_call_id: msg.api_call_id,
+            });
+        }
+        let api_call_id = Uuid::new_v4();
+        if self.operation.keeps_correlation() {
+            return Ok(Attempt {
+                correlation_id: msg.correlation_id,
+                api_call_id,
+            });
+        }
+        sqlx::query(
+            "INSERT INTO nhcx_correlation_aliases \
+                 (tenant_id, correlation_id, canonical_correlation_id, outbox_event_id, attempt) \
+             VALUES ($1, $2, $3, $4, $5)",
+        )
+        .bind(ctx.tenant_id)
+        .bind(api_call_id)
+        .bind(msg.correlation_id)
+        .bind(ctx.event_id)
+        .bind(ctx.attempts)
+        .execute(&mut **tx)
+        .await
+        .map_err(|e| transient(&e))?;
+        Ok(Attempt {
+            correlation_id: api_call_id,
+            api_call_id,
+        })
     }
-    headers
+}
+
+/// Whether the record still carries this message's correlation id — a
+/// newer submission replaces an older one still retrying.
+async fn is_current(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    ctx: &HandlerCtx,
+    msg: &Message,
+) -> Result<bool, HandlerError> {
+    // The table name comes from a closed enum, never from the payload text.
+    let sql = format!(
+        "SELECT nhcx_correlation_id = $1 FROM {} WHERE id = $2 AND tenant_id = $3",
+        msg.record.table()
+    );
+    let current: Option<Option<bool>> = sqlx::query_scalar(&sql)
+        .bind(msg.correlation_id)
+        .bind(msg.record_id)
+        .bind(ctx.tenant_id)
+        .fetch_optional(&mut **tx)
+        .await
+        .map_err(|e| transient(&e))?;
+    Ok(current.flatten().unwrap_or(false))
+}
+
+/// What goes in the JWE protected header.
+struct Envelope<'a> {
+    sender: &'a str,
+    msg: &'a Message,
+    attempt: &'a Attempt,
+    hcx_status: &'static str,
+}
+
+impl Envelope<'_> {
+    /// The HCX protocol headers, carried in the JWE protected header.
+    fn protected(&self) -> Map<String, Value> {
+        let msg = self.msg;
+        let mut h = Map::new();
+        h.insert("x-hcx-sender_code".into(), json!(self.sender));
+        h.insert("x-hcx-recipient_code".into(), json!(msg.recipient_code));
+        h.insert("x-hcx-api_call_id".into(), json!(self.attempt.api_call_id));
+        h.insert(
+            "x-hcx-correlation_id".into(),
+            json!(self.attempt.correlation_id),
+        );
+        // One per originating request, the same on every retry.
+        h.insert("x-hcx-request_id".into(), json!(msg.api_call_id));
+        h.insert("x-hcx-status".into(), json!(self.hcx_status));
+        let timestamp = nhcx_wire::ist_timestamp(chrono::Utc::now());
+        h.insert("x-hcx-timestamp".into(), json!(timestamp));
+        if let Some(code) = msg.workflow_id.as_deref().filter(|c| !c.is_empty()) {
+            if let Some(use_case) = nhcx_wire::use_case(code) {
+                h.insert("x-hcx-use_case".into(), json!(use_case));
+            }
+            h.insert("x-hcx-workflow_id".into(), json!(code));
+        }
+        if let Some(abha) = beneficiary_abha(&msg.bundle) {
+            h.insert("x-hcx-ben-abha-id".into(), json!(abha));
+        }
+        h
+    }
+}
+
+/// The patient's ABHA number from the bundle, in the header's form.
+fn beneficiary_abha(bundle: &Value) -> Option<String> {
+    let entries = bundle.get("entry")?.as_array()?;
+    let patient = entries
+        .iter()
+        .filter_map(|e| e.get("resource"))
+        .find(|r| r.get("resourceType").and_then(Value::as_str) == Some("Patient"))?;
+    patient
+        .get("identifier")?
+        .as_array()?
+        .iter()
+        .filter(|i| {
+            i.get("system")
+                .and_then(Value::as_str)
+                .is_some_and(|s| s.contains("healthid"))
+        })
+        .filter_map(|i| i.get("value").and_then(Value::as_str))
+        .find_map(nhcx_wire::hyphenated_abha)
 }
 
 /// Record the send outcome on the message's record — only while this message
 /// is still the record's latest, so an old retry never overwrites a newer
-/// submission.
+/// submission, and only while the record is still waiting to send: a payer
+/// may answer before the gateway's 202 reaches us (or a timed-out send may
+/// have arrived), and that answer is never overwritten by "sent" or
+/// "send_failed".
 async fn mark_record(
     ctx: &HandlerCtx,
     msg: &Message,
@@ -210,8 +357,11 @@ async fn mark_record(
     let mut tx = tenant_tx(ctx).await?;
     // The table name comes from a closed enum, never from the payload text.
     let sql = format!(
-        "UPDATE {} SET nhcx_status = $1, nhcx_disposition = $2, \
-                nhcx_submitted_at = CASE WHEN $1 = 'sent' THEN now() ELSE nhcx_submitted_at END \
+        "UPDATE {} SET \
+                nhcx_status = CASE WHEN nhcx_status IS NULL OR nhcx_status = 'queued' THEN $1 ELSE nhcx_status END, \
+                nhcx_disposition = CASE WHEN nhcx_status IS NULL OR nhcx_status = 'queued' THEN $2 ELSE nhcx_disposition END, \
+                nhcx_submitted_at = CASE WHEN $1 = 'sent' THEN COALESCE(nhcx_submitted_at, now()) \
+                                         ELSE nhcx_submitted_at END \
          WHERE id = $3 AND tenant_id = $4 AND nhcx_correlation_id = $5",
         msg.record.table()
     );

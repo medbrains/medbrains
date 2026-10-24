@@ -33,7 +33,9 @@ const blog = defineCollection({
       updated: z.coerce.date().optional(),
       category: z.enum(CATEGORY_SLUGS).default("patient-education"),
       tags: z.array(z.string()).min(1),
-      author: reference("authors").default("medbrains-editorial"),
+      // prefault, not default: zod 4 returns a default as-is, so it would skip
+      // the reference transform and leave a bare string.
+      author: reference("authors").prefault("medbrains-editorial"),
       // Shown as "Medically reviewed by" only when set.
       reviewer: z
         .object({

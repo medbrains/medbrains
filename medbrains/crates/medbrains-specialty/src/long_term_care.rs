@@ -58,8 +58,7 @@ pub async fn list_mds_assessments(
 
     // The id arrives on the query string rather than the path, so the route map
     // reads as unscoped. It is still a per-record read and needs a per-record check.
-    medbrains_authz_gate::require_patient_access(&state, &claims, q.patient_id)
-        .await?;
+    medbrains_authz_gate::require_patient_access(&state, &claims, q.patient_id).await?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
     let rows = sqlx::query_as::<_, MdsAssessment>(&format!(
@@ -97,8 +96,7 @@ pub async fn create_mds_assessment(
     // No route-derived id here, so the subject of the check is the id the
     // caller sent. Weaker than a route-derived check, but it stops the record
     // being filed against a resident outside the caller's reach.
-    medbrains_authz_gate::require_patient_access(&state, &claims, body.patient_id)
-        .await?;
+    medbrains_authz_gate::require_patient_access(&state, &claims, body.patient_id).await?;
     if let Some(t) = &body.assessment_type {
         if !MDS_TYPES.contains(&t.as_str()) {
             return Err(AppError::BadRequest("Invalid assessment type".to_owned()));
@@ -192,8 +190,7 @@ pub async fn list_ltc_medications(
 
     // The id arrives on the query string rather than the path, so the route map
     // reads as unscoped. It is still a per-record read and needs a per-record check.
-    medbrains_authz_gate::require_patient_access(&state, &claims, q.patient_id)
-        .await?;
+    medbrains_authz_gate::require_patient_access(&state, &claims, q.patient_id).await?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
     let rows = sqlx::query_as::<_, LtcMedication>(&format!(
@@ -229,14 +226,15 @@ pub async fn add_ltc_medication(
     // No route-derived id here, so the subject of the check is the id the
     // caller sent. Weaker than a route-derived check, but it stops the record
     // being filed against a resident outside the caller's reach.
-    medbrains_authz_gate::require_patient_access(&state, &claims, body.patient_id)
-        .await?;
+    medbrains_authz_gate::require_patient_access(&state, &claims, body.patient_id).await?;
     if body.drug_name.trim().is_empty() {
         return Err(AppError::BadRequest("Drug name is required".to_owned()));
     }
     let supply = body.supply_days.unwrap_or(90);
     if supply <= 0 {
-        return Err(AppError::BadRequest("Supply days must be positive".to_owned()));
+        return Err(AppError::BadRequest(
+            "Supply days must be positive".to_owned(),
+        ));
     }
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -364,8 +362,7 @@ pub async fn list_rehab_progress(
 
     // The id arrives on the query string rather than the path, so the route map
     // reads as unscoped. It is still a per-record read and needs a per-record check.
-    medbrains_authz_gate::require_patient_access(&state, &claims, q.patient_id)
-        .await?;
+    medbrains_authz_gate::require_patient_access(&state, &claims, q.patient_id).await?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
     let rows = sqlx::query_as::<_, RehabProgress>(&format!(
@@ -399,8 +396,7 @@ pub async fn add_rehab_progress(
     // No route-derived id here, so the subject of the check is the id the
     // caller sent. Weaker than a route-derived check, but it stops the record
     // being filed against a resident outside the caller's reach.
-    medbrains_authz_gate::require_patient_access(&state, &claims, body.patient_id)
-        .await?;
+    medbrains_authz_gate::require_patient_access(&state, &claims, body.patient_id).await?;
     if !["physiotherapy", "occupational", "speech"].contains(&body.therapy_type.as_str()) {
         return Err(AppError::BadRequest("Invalid therapy type".to_owned()));
     }
@@ -452,8 +448,7 @@ pub async fn list_family_messages(
 
     // The id arrives on the query string rather than the path, so the route map
     // reads as unscoped. It is still a per-record read and needs a per-record check.
-    medbrains_authz_gate::require_patient_access(&state, &claims, q.patient_id)
-        .await?;
+    medbrains_authz_gate::require_patient_access(&state, &claims, q.patient_id).await?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
     let rows = sqlx::query_as::<_, FamilyMessage>(&format!(
@@ -488,8 +483,7 @@ pub async fn post_family_message(
     // No route-derived id here, so the subject of the check is the id the
     // caller sent. Weaker than a route-derived check, but it stops the record
     // being filed against a resident outside the caller's reach.
-    medbrains_authz_gate::require_patient_access(&state, &claims, body.patient_id)
-        .await?;
+    medbrains_authz_gate::require_patient_access(&state, &claims, body.patient_id).await?;
     if body.body.trim().is_empty() {
         return Err(AppError::BadRequest("Message body is required".to_owned()));
     }
@@ -595,8 +589,7 @@ pub async fn list_readmission_risk(
 
     // The id arrives on the query string rather than the path, so the route map
     // reads as unscoped. It is still a per-record read and needs a per-record check.
-    medbrains_authz_gate::require_patient_access(&state, &claims, q.patient_id)
-        .await?;
+    medbrains_authz_gate::require_patient_access(&state, &claims, q.patient_id).await?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
     let rows = sqlx::query_as::<_, ReadmissionRisk>(&format!(
@@ -631,10 +624,8 @@ pub async fn assess_readmission_risk(
     // No route-derived id here, so the subject of the check is the id the
     // caller sent. Weaker than a route-derived check, but it stops the record
     // being filed against a resident outside the caller's reach.
-    medbrains_authz_gate::require_patient_access(&state, &claims, body.patient_id)
-        .await?;
-    let total =
-        body.length_of_stay + body.acuity_score + body.comorbidity_score + body.ed_visits;
+    medbrains_authz_gate::require_patient_access(&state, &claims, body.patient_id).await?;
+    let total = body.length_of_stay + body.acuity_score + body.comorbidity_score + body.ed_visits;
     let level = risk_band(total);
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -701,8 +692,7 @@ pub async fn list_home_care_referrals(
 
     // The id arrives on the query string rather than the path, so the route map
     // reads as unscoped. It is still a per-record read and needs a per-record check.
-    medbrains_authz_gate::require_patient_access(&state, &claims, q.patient_id)
-        .await?;
+    medbrains_authz_gate::require_patient_access(&state, &claims, q.patient_id).await?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
     let rows = sqlx::query_as::<_, HomeCareReferral>(&format!(
@@ -736,10 +726,16 @@ pub async fn create_home_care_referral(
     // No route-derived id here, so the subject of the check is the id the
     // caller sent. Weaker than a route-derived check, but it stops the record
     // being filed against a resident outside the caller's reach.
-    medbrains_authz_gate::require_patient_access(&state, &claims, body.patient_id)
-        .await?;
-    if !["nursing", "wound_care", "physiotherapy", "occupational", "speech", "general"]
-        .contains(&body.referral_type.as_str())
+    medbrains_authz_gate::require_patient_access(&state, &claims, body.patient_id).await?;
+    if ![
+        "nursing",
+        "wound_care",
+        "physiotherapy",
+        "occupational",
+        "speech",
+        "general",
+    ]
+    .contains(&body.referral_type.as_str())
     {
         return Err(AppError::BadRequest("Invalid referral type".to_owned()));
     }
@@ -835,8 +831,7 @@ pub async fn list_snf_admissions(
 
     // The id arrives on the query string rather than the path, so the route map
     // reads as unscoped. It is still a per-record read and needs a per-record check.
-    medbrains_authz_gate::require_patient_access(&state, &claims, q.patient_id)
-        .await?;
+    medbrains_authz_gate::require_patient_access(&state, &claims, q.patient_id).await?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
     let rows = sqlx::query_as::<_, SnfAdmission>(&format!(
@@ -872,8 +867,7 @@ pub async fn create_snf_admission(
     // No route-derived id here, so the subject of the check is the id the
     // caller sent. Weaker than a route-derived check, but it stops the record
     // being filed against a resident outside the caller's reach.
-    medbrains_authz_gate::require_patient_access(&state, &claims, body.patient_id)
-        .await?;
+    medbrains_authz_gate::require_patient_access(&state, &claims, body.patient_id).await?;
     if let Some(s) = &body.source {
         if !["hospital_discharge", "direct", "transfer"].contains(&s.as_str()) {
             return Err(AppError::BadRequest("Invalid source".to_owned()));

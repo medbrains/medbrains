@@ -98,3 +98,30 @@ fn the_bill_note_follows_the_documents_and_every_entry_has_a_code() {
         "code is 1..1 in the IG"
     );
 }
+
+fn line(system: &str, code: &str) -> DiagnosisLine {
+    DiagnosisLine {
+        icd_code: Some(code.to_owned()),
+        icd_system: system.to_owned(),
+        description: format!("Fixture {code}"),
+        snomed_code: None,
+        is_primary: true,
+    }
+}
+
+#[test]
+fn each_diagnosis_goes_in_the_system_it_was_coded_in() {
+    // Fixture codes, not a catalogue.
+    let icd10 = diagnosis(1, &line("icd10", "A90"));
+    let icd11 = diagnosis(2, &line("icd11", "1D2Z"));
+    let coding = |v: &Value| v["diagnosisCodeableConcept"]["coding"][0]["system"].clone();
+    assert_eq!(coding(&icd10), "http://hl7.org/fhir/sid/icd-10");
+    assert_eq!(coding(&icd11), "http://id.who.int/icd/release/11/mms");
+    // A typed code of neither shape is not guessed into a system.
+    let unknown = diagnosis(3, &line("", "12345"));
+    assert_eq!(
+        unknown["diagnosisCodeableConcept"]["coding"],
+        serde_json::json!([])
+    );
+    assert_eq!(unknown["diagnosisCodeableConcept"]["text"], "Fixture 12345");
+}

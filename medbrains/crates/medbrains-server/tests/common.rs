@@ -166,15 +166,35 @@ pub async fn spawn_app() -> TestApp {
 
 /// `spawn_app`, with `secrets` answering the server's secret lookups first.
 pub async fn spawn_app_with_secrets(secrets: TestSecrets) -> TestApp {
-    // Load .env
+    spawn(secrets, std::env::var("TEST_APP_DATABASE_URL").ok()).await
+}
+
+/// A server whose request pool is `medbrains_app`, the role production
+/// requests use, which row level security applies to. Migrations, seeding and
+/// `TestApp::db` stay on the owner. No password needed: the owner (a superuser
+/// in dev and CI) switches role at connection start.
+pub async fn spawn_app_as_request_role() -> TestApp {
+    let sep = if database_url().contains('?') {
+        '&'
+    } else {
+        '?'
+    };
+    let url = format!("{}{sep}options=-c%20role%3Dmedbrains_app", database_url());
+    spawn(TestSecrets::default(), Some(url)).await
+}
+
+fn database_url() -> String {
     let _ = dotenvy::dotenv();
-
-    let database_url = std::env::var("DATABASE_URL").unwrap_or_else(|_| {
+    std::env::var("DATABASE_URL").unwrap_or_else(|_| {
         "postgres://medbrains:medbrains_dev@localhost:5435/medbrains".to_owned()
-    });
+    })
+}
 
+/// `request_url` names the role the server's requests run as
+/// (`TEST_APP_DATABASE_URL` for a whole run); the owner otherwise.
+async fn spawn(secrets: TestSecrets, request_url: Option<String>) -> TestApp {
     // Connect to DB
-    let db = medbrains_db::pool::create_pool(&database_url)
+    let db = medbrains_db::pool::create_pool(&database_url())
         .await
         .expect("DB connection failed — is PostgreSQL running?");
 
@@ -183,6 +203,13 @@ pub async fn spawn_app_with_secrets(secrets: TestSecrets) -> TestApp {
         .await
         .expect("migrations failed");
     medbrains_seed::run_seed(&db).await.expect("seed failed");
+    let owner = db.clone();
+    let db = match request_url {
+        Some(url) => medbrains_db::pool::create_pool(&url)
+            .await
+            .expect("request-role connection failed"),
+        None => db,
+    };
 
     // Generate ephemeral Ed25519 keypair for JWT (same as config.rs)
     let mut seed = [0u8; 32];
@@ -264,7 +291,11 @@ pub async fn spawn_app_with_secrets(secrets: TestSecrets) -> TestApp {
         .build()
         .expect("client");
 
-    TestApp { addr, client, db }
+    TestApp {
+        addr,
+        client,
+        db: owner,
+    }
 }
 
 /// A signed-in user of `role`, with its own cookie jar.

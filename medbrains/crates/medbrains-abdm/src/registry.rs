@@ -5,31 +5,38 @@
 //! settings and `connect()` once that lands) is the caller's business, so the
 //! two can be wired together without touching this file.
 //!
-//! Endpoint provenance (2026-10): NHA publishes these only as Swagger pages
-//! behind sandbox login, so not all of them could be read.
-//! - HFR facility search `POST /FacilityManagement/v1.5/facility/search`:
-//!   path and body reported on the ABDM devforum ("HFR-HRP linkage APIs").
-//! - HFR facility registration `POST /FacilityManagement/v1.5/facility/create-facility`:
-//!   INFERRED from the v1.5 `FacilityManagement` family; confirm on the
-//!   sandbox Swagger (`facilitysbx.abdm.gov.in/swagger-ui.html`).
-//! - HPR search `POST /api/v1/search/hpr`: INFERRED; confirm on
-//!   `hpridsbx.abdm.gov.in` Swagger.
+//! Hosts (2026-10, official): HFR and HPR share one API host,
+//! `https://apihspsbx.abdm.gov.in/v4/int` in the sandbox and
+//! `https://apinhpr.abdm.gov.in/v4/int` in production — the live API docs at
+//! `apihspsbx.abdm.gov.in/v4/int/v3/api-docs/HFR` and the HFR documentation
+//! (`sandboxcms.abdm.gov.in/uploads/HFR_Documentation_PROD_Updated_08_04_2026_…pdf`).
+//! `facility*.abdm.gov.in` and `hpr*.abdm.gov.in` are the portals, not APIs.
 //!
-//! Hosts are overridable by the caller, so a corrected host never needs a
-//! code change; a corrected path does, and is one constant here.
+//! Paths:
+//! - HFR facility search `POST /FacilityManagement/v1.5/facility/search`: official.
+//! - HFR bridge linkage `POST /v1/bridges/MutipleHRPAddUpdateServices`
+//!   (sic): official (HFR documentation, "Link bridge with facility").
+//! - HFR registration `create-facility` and HPR `POST /api/v1/search/hpr`:
+//!   NOT official. The real flows are the four-step `basic-information` …
+//!   `submit-facility` and `GET /v1/search/searchByHprId/{hprId}`; until
+//!   they are built these answer 404, which is reported as a fault.
+//!
+//! A registry that answers anything but 2xx is a fault (`Err`), never "not
+//! registered": only a 2xx that does not list the ID is a refusal.
 
 use serde_json::{Value, json};
 
 use crate::abha::{AbdmEnvironment, AbdmError, abdm_message};
 
-pub const HFR_SANDBOX_BASE_URL: &str = "https://facilitysbx.abdm.gov.in";
-pub const HFR_PRODUCTION_BASE_URL: &str = "https://facility.abdm.gov.in";
-pub const HPR_SANDBOX_BASE_URL: &str = "https://hpridsbx.abdm.gov.in";
-pub const HPR_PRODUCTION_BASE_URL: &str = "https://hpr.abdm.gov.in";
+pub const HFR_SANDBOX_BASE_URL: &str = "https://apihspsbx.abdm.gov.in/v4/int";
+pub const HFR_PRODUCTION_BASE_URL: &str = "https://apinhpr.abdm.gov.in/v4/int";
+pub const HPR_SANDBOX_BASE_URL: &str = HFR_SANDBOX_BASE_URL;
+pub const HPR_PRODUCTION_BASE_URL: &str = HFR_PRODUCTION_BASE_URL;
 
 pub const HFR_SEARCH_PATH: &str = "/FacilityManagement/v1.5/facility/search";
 pub const HFR_REGISTER_PATH: &str = "/FacilityManagement/v1.5/facility/create-facility";
 pub const HPR_SEARCH_PATH: &str = "/api/v1/search/hpr";
+pub const HFR_BRIDGE_LINK_PATH: &str = "/v1/bridges/MutipleHRPAddUpdateServices";
 
 /// Nesting depth searched for a matching record in a registry response. The
 /// response shapes are not all published; this bounds the walk.
@@ -59,7 +66,8 @@ pub struct RegistryMatch {
 }
 
 /// Look an HFR facility ID up. `Ok(None)` means HFR answered and does not
-/// know the ID — a refusal, distinct from an `Err` (HFR unreachable).
+/// list the ID — a refusal, distinct from an `Err` (HFR unreachable, or any
+/// non-2xx answer, 404 included).
 pub async fn hfr_search(
     http: &reqwest::Client,
     base_url: &str,
@@ -90,6 +98,18 @@ pub async fn hfr_register(
         .find_map(|k| value.get(*k).and_then(Value::as_str))
         .map(str::to_owned);
     Ok((id, value))
+}
+
+/// Bind our bridge to a facility as HIP and HIU (HFR test cases
+/// HFR-118..123). HFR answers 200 with one item per HRP: `servicesLinked`
+/// or `error` — the caller reads them.
+pub async fn hfr_link_bridge(
+    http: &reqwest::Client,
+    base_url: &str,
+    token: &str,
+    body: &Value,
+) -> Result<Value, AbdmError> {
+    post(http, &join(base_url, HFR_BRIDGE_LINK_PATH), token, body).await
 }
 
 /// Look an HPR ID up (hyphenated or bare 14 digits both match).
@@ -133,14 +153,14 @@ async fn post(
         .post(url)
         .bearer_auth(token)
         .header("REQUEST-ID", uuid::Uuid::new_v4().to_string())
-        .header("TIMESTAMP", chrono::Utc::now().to_rfc3339())
+        .header(
+            "TIMESTAMP",
+            chrono::Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Millis, true),
+        )
         .json(body)
         .send()
         .await?;
     let status = response.status();
-    if status == reqwest::StatusCode::NOT_FOUND {
-        return Ok(Value::Null);
-    }
     if !status.is_success() {
         let body = response.text().await?;
         return Err(AbdmError::Status { status, message: abdm_message(&body) });

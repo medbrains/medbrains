@@ -1,0 +1,16 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE psych_advance_directives SET status = $3 WHERE id = $1 AND tenant_id = $2 AND status = 'active'",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "64da61ee4648c203e10bdc8af67ef5f2cf71148a68ab5152123f200a0cacf71b"
+}

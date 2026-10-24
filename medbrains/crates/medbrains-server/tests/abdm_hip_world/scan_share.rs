@@ -3,7 +3,7 @@
 
 use axum::http::StatusCode;
 use medbrains_abdm::scan_share::CB_PROFILE_SHARE;
-use serde_json::{Map, Value, json};
+use serde_json::{Value, json};
 use uuid::Uuid;
 
 use super::World;
@@ -47,9 +47,7 @@ pub fn body(code: &str, number: &str, address: &str) -> Value {
 
 /// The share callback with a chosen `REQUEST-ID`, signed with `key`.
 pub async fn share(w: &World, key: &[u8], request_id: &str, body: &Value) -> StatusCode {
-    let jwt =
-        medbrains_crypto::jws::sign_rs256(Map::new(), std::time::Duration::from_secs(60), key)
-            .expect("sign");
+    let jwt = super::gateway_jwt(key);
     let resp = reqwest::Client::new()
         .post(w.app.url(CB_PROFILE_SHARE))
         .bearer_auth(jwt)

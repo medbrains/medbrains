@@ -79,12 +79,13 @@ pub(crate) struct Outbound<'a> {
     pub(crate) record_id: Uuid,
     pub(crate) operation: NhcxOperation,
     pub(crate) recipient: &'a str,
+    /// On a request, the same as `api_call_id` (NHCX: the initiator seeds
+    /// the thread from its own call id); on a reply, the payer's.
     pub(crate) correlation_id: Uuid,
     pub(crate) api_call_id: Uuid,
-    pub(crate) workflow_id: Uuid,
+    /// The step code (`x-hcx-workflow_id`), where the message has one.
+    pub(crate) workflow_id: Option<&'a str>,
     pub(crate) payload: &'a Value,
-    /// `x-hcx-status`, for replies only.
-    pub(crate) hcx_status: Option<&'a str>,
 }
 
 /// Queue the outbox event, in the caller's transaction — the same one that
@@ -110,7 +111,6 @@ pub(crate) async fn queue(
                 "api_call_id": msg.api_call_id,
                 "workflow_id": msg.workflow_id,
                 "bundle": msg.payload,
-                "hcx_status": msg.hcx_status,
             }),
             idempotency_key: None,
         },

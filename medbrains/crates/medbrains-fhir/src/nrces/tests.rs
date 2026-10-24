@@ -69,7 +69,7 @@ impl Fixture {
     fn ctx(&self) -> Clinical {
         Clinical {
             patient_id: self.patient.id,
-            encounter_id: self.encounter.id,
+            encounter_id: Some(self.encounter.id),
             at: Utc::now(),
             practitioner: author_reference(self.author.as_ref(), &self.custodian),
         }
@@ -80,11 +80,11 @@ impl Fixture {
             kind,
             id: Uuid::new_v4(),
             date: Utc::now(),
-            title: kind.type_code().1.into(),
+            title: kind.type_display().into(),
             patient: &self.patient,
             author: self.author.clone(),
             custodian: self.custodian.clone(),
-            encounter: self.encounter.clone(),
+            encounter: Some(self.encounter.clone()),
             sections,
             resources,
         })
@@ -94,7 +94,7 @@ impl Fixture {
 fn section(code: SectionCode, lines: &[&str], entries: Vec<Value>) -> Section {
     Section {
         title: code.2.into(),
-        code,
+        code: Some(code),
         lines: lines.iter().map(|l| (*l).to_owned()).collect(),
         entries,
     }
@@ -435,6 +435,10 @@ fn each_kind_maps_to_its_abdm_hi_type() {
         ("prescription", "Prescription"),
         ("lab_report", "DiagnosticReport"),
         ("discharge_summary", "DischargeSummary"),
+        ("immunization", "ImmunizationRecord"),
+        ("wellness", "WellnessRecord"),
+        ("health_document", "HealthDocumentRecord"),
+        ("invoice", "Invoice"),
     ] {
         assert_eq!(
             RecordKind::from_source_kind(kind).map(RecordKind::hi_type),

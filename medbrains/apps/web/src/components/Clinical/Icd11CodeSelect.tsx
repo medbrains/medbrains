@@ -84,7 +84,7 @@ export function Icd11CodeSelect({
     immediateSearch && immediateSearch === queryText ? immediateSearch : pacedSearch;
   const searchEnabled = canSearchIcd11Query(querySearch);
 
-  const { data, isFetching } = useQuery({
+  const { data, isFetching, isError } = useQuery({
     queryKey: ["terminology-search-with-suggestions", "icd11", querySearch, limit],
     queryFn: () =>
       clinicalSupportService.searchTerminologyWithSuggestions({
@@ -206,11 +206,13 @@ export function Icd11CodeSelect({
       onClear={clearSelection}
       rightSection={isFetching ? <Loader size="xs" /> : undefined}
       nothingFoundMessage={
-        isFetching
-          ? "Loading ICD-11 matches..."
-          : !searchEnabled
-            ? "Type a code fragment or at least 2 letters"
-            : "No ICD-11 match"
+        isError
+          ? "ICD-11 search is unavailable just now — write the diagnosis in words"
+          : isFetching
+            ? "Loading ICD-11 matches..."
+            : !searchEnabled
+              ? "Type a code fragment or at least 2 letters"
+              : "No ICD-11 match"
       }
       searchable
       clearable

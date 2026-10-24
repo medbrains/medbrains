@@ -36,6 +36,7 @@ export interface PatientDetailJourneyContextInput
 export const PATIENT_DETAIL_TAB_VALUES = [
   "overview",
   "allergies",
+  "immunizations",
   "timeline",
   "visits",
   "prescriptions",

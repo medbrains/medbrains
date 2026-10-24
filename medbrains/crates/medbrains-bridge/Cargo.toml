@@ -1,5 +1,6 @@
 [package]
 name = "medbrains-bridge"
+publish = false
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -13,10 +14,10 @@ path = "src/main.rs"
 medbrains-adapter-sdk = { path = "../medbrains-adapter-sdk" }
 
 # Async
-tokio = { version = "1", features = ["full"] }
+tokio = { version = "1.54.1", features = ["full"] }
 
 # HTTP client (for MedBrains API calls)
-reqwest = { version = "0.12", features = ["json", "rustls-tls"], default-features = false }
+reqwest = { workspace = true }
 
 # Serialization
 serde = { version = "1", features = ["derive"] }
@@ -30,7 +31,7 @@ tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
 
 # Crypto
-sha2 = "0.10"
+sha2 = { workspace = true }
 hex = "0.4"
 
 # SQLite buffer

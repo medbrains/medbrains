@@ -86,11 +86,53 @@ impl Abdm {
     }
 }
 
-/// A signed-in gateway session for one hospital.
+/// A signed-in gateway session for one hospital, and what re-signs it.
 pub(crate) struct Session {
     pub client: AbdmAbhaClient,
     pub environment: AbdmEnvironment,
     pub token: String,
+    pub tenant_id: Uuid,
+    /// The hospital's client ID — its bridge ID at ABDM.
+    pub client_id: String,
+    credentials: SessionTokenRequest,
+}
+
+impl Session {
+    /// Sign in again, replacing the cached session: after the gateway answers
+    /// 401 (a session it revoked before our cache expired), or after the
+    /// bridge is registered (its roles change).
+    ///
+    /// # Errors
+    /// 503 when ABDM refuses or is unreachable.
+    pub(crate) async fn renew(&self) -> Result<String, AppError> {
+        sign_in(
+            self.tenant_id,
+            self.environment,
+            &self.client,
+            &self.credentials,
+        )
+        .await
+    }
+}
+
+async fn sign_in(
+    tenant_id: Uuid,
+    environment: AbdmEnvironment,
+    client: &AbdmAbhaClient,
+    credentials: &SessionTokenRequest,
+) -> Result<String, AppError> {
+    let fresh = client
+        .create_session(credentials)
+        .await
+        .map_err(map_abdm_error)?;
+    let ttl = Duration::from_secs(fresh.expires_in).saturating_sub(SESSION_MARGIN);
+    remember(
+        &SESSIONS,
+        (tenant_id, environment),
+        &fresh.access_token,
+        ttl,
+    );
+    Ok(fresh.access_token)
 }
 
 /// The gateway session for `tenant_id`, from the cache or freshly signed in.
@@ -104,38 +146,28 @@ pub(crate) async fn session(
     secrets: &dyn SecretResolver,
     tenant_id: Uuid,
 ) -> Result<Session, AppError> {
+    let key = secret_key(secrets).await?;
     let mut tx = db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &tenant_id).await?;
-    let key = secret_key(secrets).await;
     let config = read_abdm_config(&mut tx, &tenant_id, &key).await?;
     tx.commit().await?;
 
-    let base = base_url_override(secrets).await;
+    let base = dev_override(secrets, medbrains_abdm::ABDM_BASE_URL_OVERRIDE).await;
     let client =
         AbdmAbhaClient::new(config.environment, base.as_deref()).map_err(map_abdm_error)?;
-    let token = if let Some(token) = cached(&SESSIONS, &(tenant_id, config.environment)) {
-        token
-    } else {
-        let fresh = client
-            .create_session(&SessionTokenRequest {
-                client_id: config.client_id,
-                client_secret: config.client_secret,
-            })
-            .await
-            .map_err(map_abdm_error)?;
-        let ttl = Duration::from_secs(fresh.expires_in).saturating_sub(SESSION_MARGIN);
-        remember(
-            &SESSIONS,
-            (tenant_id, config.environment),
-            &fresh.access_token,
-            ttl,
-        );
-        fresh.access_token
+    let credentials =
+        SessionTokenRequest::client_credentials(config.client_id.clone(), config.client_secret);
+    let token = match cached(&SESSIONS, &(tenant_id, config.environment)) {
+        Some(token) => token,
+        None => sign_in(tenant_id, config.environment, &client, &credentials).await?,
     };
     Ok(Session {
         client,
         environment: config.environment,
         token,
+        tenant_id,
+        client_id: config.client_id,
+        credentials,
     })
 }
 
@@ -148,6 +180,7 @@ pub async fn connect(state: &AppState, tenant_id: Uuid) -> Result<Abdm, AppError
         client,
         environment,
         token: session,
+        ..
     } = session(&state.db, state.secret_resolver.as_ref(), tenant_id).await?;
     let key_source = client.readiness().abha_base_url;
     let public_key = if let Some(key) = cached(&PUBLIC_KEYS, &key_source) {
@@ -179,6 +212,9 @@ pub struct AbhaStatusResponse {
     pub configured: bool,
     pub source: String,
     pub readiness: AbhaIntegrationReadiness,
+    /// The environment variable this server lacks, when ABDM is off for that
+    /// reason — the screen names it instead of failing.
+    pub server_key_missing: Option<&'static str>,
 }
 
 /// `GET /api/abdm/abha/status` — whether ABHA can be used, and against which
@@ -192,21 +228,33 @@ pub async fn status(
     Extension(claims): Extension<Claims>,
 ) -> Result<Json<AbhaStatusResponse>, AppError> {
     require_permission(&claims, medbrains_core::permissions::abdm::abha::VIEW)?;
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
-    // A missing configuration is an answer here ("not configured"), not a fault.
     let key = secret_key(state.secret_resolver.as_ref()).await;
-    let config = match read_abdm_config(&mut tx, &claims.tenant_id, &key).await {
-        Ok(config) => Some(config),
-        Err(AppError::ServiceUnavailable(_)) => None,
-        Err(other) => return Err(other),
+    let server_key_missing = key.is_err().then_some(SECRET_KEY_NAME);
+    let config = match key {
+        Ok(key) => {
+            let mut tx = state.db.begin().await?;
+            medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+            // A missing configuration is an answer here ("not configured"), not a fault.
+            let config = match read_abdm_config(&mut tx, &claims.tenant_id, &key).await {
+                Ok(config) => Some(config),
+                Err(AppError::ServiceUnavailable(_)) => None,
+                Err(other) => return Err(other),
+            };
+            tx.commit().await?;
+            config
+        }
+        // The server lacks its key: ABDM is off, and `server_key_missing` says why.
+        Err(_) => None,
     };
-    tx.commit().await?;
 
     let environment = config
         .as_ref()
         .map_or(AbdmEnvironment::Sandbox, |c| c.environment);
-    let base = base_url_override(state.secret_resolver.as_ref()).await;
+    let base = dev_override(
+        state.secret_resolver.as_ref(),
+        medbrains_abdm::ABDM_BASE_URL_OVERRIDE,
+    )
+    .await;
     let readiness = AbdmAbhaClient::new(environment, base.as_deref())
         .map_err(map_abdm_error)?
         .readiness();
@@ -215,20 +263,66 @@ pub async fn status(
         configured: config.is_some(),
         source: config.map_or_else(|| "none".to_owned(), |c| c.source.to_owned()),
         readiness,
+        server_key_missing,
     }))
 }
 
 /// Where the ABDM client secret's encryption key lives in the secret store.
 const SECRET_KEY_NAME: &str = "MEDBRAINS_ABDM_SECRET_KEY";
-/// Development fallback only; production sets the key in the secret store.
+/// Development and tests only. Production never falls back to it: without the
+/// real key ABDM and UHI are off ([`secret_key`] refuses; preflight warns).
 const DEV_SECRET_KEY: &[u8] = b"medbrains-dev-abdm-secret-key-32";
 const SECRET_CONTEXT: &[u8] = b"abdm-client-secret";
 
-pub(crate) async fn secret_key(secrets: &dyn SecretResolver) -> Vec<u8> {
+/// The key that seals the ABDM client secret, link tokens and transfer keys.
+///
+/// # Errors
+/// 503 outside development when `MEDBRAINS_ABDM_SECRET_KEY` is missing or
+/// shorter than 32 bytes — never a silent switch to the key in the source.
+pub(crate) async fn secret_key(secrets: &dyn SecretResolver) -> Result<Vec<u8>, AppError> {
     match secrets.get(SECRET_KEY_NAME).await {
-        Ok(value) if value.len() >= 32 => value.into_bytes(),
-        _ => DEV_SECRET_KEY.to_vec(),
+        Ok(value) if value.len() >= 32 => Ok(value.into_bytes()),
+        _ if dev_overrides_allowed() => Ok(DEV_SECRET_KEY.to_vec()),
+        _ => Err(AppError::ServiceUnavailable(format!(
+            "ABDM is not configured on this server — ask your administrator to set \
+             {SECRET_KEY_NAME}"
+        ))),
     }
+}
+
+/// The environment variable the server still needs before ABDM (and UHI,
+/// which seals its signing key with it) can work, or `None` when it has it.
+/// Settings screens show it instead of a blank or a false "ready".
+pub(crate) async fn server_key_missing(secrets: &dyn SecretResolver) -> Option<&'static str> {
+    secret_key(secrets)
+        .await
+        .is_err()
+        .then_some(SECRET_KEY_NAME)
+}
+
+/// Test stand-ins (`*_OVERRIDE` keys, the development secret key) are
+/// honoured only in development and tests — `MEDBRAINS_ENV` unset,
+/// `development`, `dev` or `test`. Anywhere else they are ignored.
+pub(crate) fn dev_overrides_allowed() -> bool {
+    std::env::var("MEDBRAINS_ENV")
+        .ok()
+        .is_none_or(|env| matches!(env.as_str(), "development" | "dev" | "test"))
+}
+
+/// A test stand-in from the secret store (a mock ABDM host, a fixed key),
+/// or `None` — always `None` outside development and tests, where one that
+/// is set is logged and ignored.
+pub(crate) async fn dev_override(secrets: &dyn SecretResolver, key: &str) -> Option<String> {
+    let value = secrets
+        .get(key)
+        .await
+        .ok()
+        .filter(|v| !v.trim().is_empty())?;
+    if dev_overrides_allowed() {
+        return Some(value.trim().to_owned());
+    }
+    tracing::warn!(key, "ignoring an ABDM test override outside development");
+    None
 }
 
 /// Encrypt the client secret for storage.
@@ -326,7 +420,15 @@ async fn read_abdm_config(
 /// # Errors
 /// A database fault is an error, never "not configured".
 pub(crate) async fn abdm_configured(state: &AppState, tenant_id: Uuid) -> Result<bool, AppError> {
-    let mut tx = state.db.begin().await?;
+    configured_in(&state.db, tenant_id).await
+}
+
+/// [`abdm_configured`] for the outbox, which has a pool and no `AppState`.
+///
+/// # Errors
+/// A database fault is an error, never "not configured".
+pub(crate) async fn configured_in(db: &sqlx::PgPool, tenant_id: Uuid) -> Result<bool, AppError> {
+    let mut tx = db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &tenant_id).await?;
     let stored = stored_abdm_config(&mut tx, &tenant_id).await?;
     tx.commit().await?;
@@ -334,15 +436,6 @@ pub(crate) async fn abdm_configured(state: &AppState, tenant_id: Uuid) -> Result
     let in_env =
         std::env::var("ABDM_CLIENT_ID").is_ok() && std::env::var("ABDM_CLIENT_SECRET").is_ok();
     Ok(saved || in_env)
-}
-
-/// A mock ABDM for tests and rehearsals, when the secret store names one.
-async fn base_url_override(secrets: &dyn SecretResolver) -> Option<String> {
-    secrets
-        .get(medbrains_abdm::ABDM_BASE_URL_OVERRIDE)
-        .await
-        .ok()
-        .filter(|v| !v.trim().is_empty())
 }
 
 /// Drop the cached session so the next call signs in with the saved keys.
@@ -353,8 +446,19 @@ pub(crate) fn forget_session(tenant_id: Uuid) {
 
 /// ABDM's refusal (wrong OTP, expired transaction) is the user's to fix and
 /// reads as 400 with ABDM's own words; an outage is 503, never "invalid".
+/// A 401 means ABDM no longer accepts a session we still hold: every cached
+/// session is dropped so the next call signs in afresh.
 pub fn map_abdm_error(error: AbdmError) -> AppError {
     match error {
+        AbdmError::Status { status, .. } if status == reqwest::StatusCode::UNAUTHORIZED => {
+            SESSIONS
+                .lock()
+                .unwrap_or_else(PoisonError::into_inner)
+                .clear();
+            AppError::ServiceUnavailable(
+                "ABDM ended our session — try again; if it repeats, start over".to_owned(),
+            )
+        }
         AbdmError::Status { status, message } if status.is_client_error() => {
             AppError::BadRequest(message)
         }

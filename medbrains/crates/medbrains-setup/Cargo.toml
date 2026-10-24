@@ -1,8 +1,9 @@
 [package]
 name = "medbrains-setup"
+publish = false
 version = "0.1.0"
 edition = "2024"
-rust-version = "1.85"
+rust-version.workspace = true
 
 [dependencies]
 medbrains-server-core = { path = "../medbrains-server-core" }
@@ -13,7 +14,7 @@ medbrains-outbox = { path = "../medbrains-outbox" }
 medbrains-authz = { path = "../medbrains-authz" }
 axum = { workspace = true }
 argon2 = { workspace = true }
-getrandom = { version = "0.3", features = ["std"] }
+getrandom = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 uuid = { workspace = true }

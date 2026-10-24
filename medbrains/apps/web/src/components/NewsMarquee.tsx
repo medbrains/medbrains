@@ -3,8 +3,8 @@ import { useFocusWithin, useHover, useInterval, useMergedRef } from "@mantine/ho
 import { api } from "@medbrains/api";
 import { useAuthStore } from "@medbrains/stores";
 import type { NewsFeedListItem } from "@medbrains/types";
+import { IconExternalLink } from "@tabler/icons-react";
 import { useQuery } from "@tanstack/react-query";
-import { ExternalLink } from "lucide-react";
 import { useState } from "react";
 import { useEffectOnce } from "react-use";
 import { Button } from "@/components/ui";
@@ -136,7 +136,7 @@ export function NewsMarquee() {
               rel="noopener noreferrer"
               tone="primary"
               size="xs"
-              rightSection={<ExternalLink size={13} aria-hidden />}
+              rightSection={<IconExternalLink size={13} aria-hidden />}
             >
               {host ? `Read more on ${host}` : "Read full article"}
             </Button>

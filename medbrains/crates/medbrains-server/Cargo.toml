@@ -1,5 +1,6 @@
 [package]
 name = "medbrains-server"
+publish = false
 description = "Axum HTTP server for MedBrains HMS"
 version.workspace = true
 edition.workspace = true
@@ -163,8 +164,8 @@ base64 = { workspace = true }
 rust_decimal = { workspace = true }
 regex = { workspace = true }
 url = { workspace = true }
-ed25519-dalek = "2"
-getrandom = { version = "0.3", features = ["std"] }
+ed25519-dalek = { workspace = true }
+getrandom = { workspace = true }
 axum-extra = { version = "0.10", features = ["cookie"] }
 time = "0.3"
 futures = { workspace = true }
@@ -182,13 +183,11 @@ aws-config = { version = "1", default-features = false, features = ["rt-tokio"] 
 # so on-prem / dev builds don't pull the AWS Secrets Manager SDK.
 aws-sdk-secretsmanager = { version = "1", default-features = false, features = ["rt-tokio"], optional = true }
 totp-rs = { version = "5.7.1", features = ["otpauth", "qr"] }
-# DNS verification for custom-domain setup (A/MX/SPF/DMARC lookups).
-hickory-resolver = { version = "0.24", default-features = false, features = ["tokio-runtime"] }
 medbrains-print = { version = "0.1.0", path = "../medbrains-print" }
 
 [dev-dependencies]
-reqwest = { version = "0.12", features = ["json", "cookies", "rustls-tls-native-roots"], default-features = false }
-tokio = { version = "1", features = ["full", "test-util"] }
+reqwest = { workspace = true }
+tokio = { version = "1.54.1", features = ["full", "test-util"] }
 tokio-tungstenite = "0.27"
 zip = { workspace = true }
 # The ABDM and NHCX mocks in tests decrypt what the server encrypts for them.

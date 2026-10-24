@@ -1,5 +1,6 @@
 [package]
 name = "medbrains-offline-core"
+publish = false
 description = "Shared offline auth + permissions for the hospital edge stack. Read-only ReBAC cache, JWT verification, and revocation tracking — same Rust runs on the edge server, mobile (UniFFI), TV, and any future device class."
 version.workspace = true
 edition.workspace = true
@@ -21,7 +22,7 @@ ed25519-dalek = { workspace = true }
 # Persistent embedded KV + in-memory LRU. Same versions the edge
 # crate has been using since PR #9 — bump together when needed.
 sled = "0.34"
-lru = "0.16.3"
+lru = "0.18"
 
 [dev-dependencies]
 tempfile = { workspace = true }

@@ -1,5 +1,6 @@
 //! The clinical resources a NRCeS bundle carries: Condition, MedicationRequest,
-//! Observation and DiagnosticReportLab, each with its IG profile.
+//! Observation and DiagnosticReportLab, each with its IG profile. The later
+//! HI types' resources are in `records`.
 
 use chrono::{DateTime, NaiveDate, Utc};
 use serde_json::{Map, Value, json};
@@ -19,7 +20,8 @@ const INTERPRETATION: &str = "http://terminology.hl7.org/CodeSystem/v3-Observati
 #[derive(Debug, Clone)]
 pub struct Clinical {
     pub patient_id: Uuid,
-    pub encounter_id: Uuid,
+    /// The visit or admission; an immunisation, document or bill may have none.
+    pub encounter_id: Option<Uuid>,
     pub at: DateTime<Utc>,
     /// Requester / results interpreter: from [`super::author_reference`].
     pub practitioner: Value,
@@ -27,11 +29,14 @@ pub struct Clinical {
 
 impl Clinical {
     fn base(&self, resource_type: &str, profile_name: &str, id: Uuid) -> Value {
-        json!({
+        let mut r = json!({
             "resourceType": resource_type, "id": id.to_string(), "meta": profile(profile_name),
             "subject": patient_reference(self.patient_id),
-            "encounter": { "reference": urn(&self.encounter_id.to_string()), "type": "Encounter" },
-        })
+        });
+        if let Some(e) = self.encounter_id {
+            r["encounter"] = json!({ "reference": urn(&e.to_string()), "type": "Encounter" });
+        }
+        r
     }
 }
 

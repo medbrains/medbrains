@@ -1,8 +1,9 @@
 [package]
 name = "medbrains-api-keys"
+publish = false
 version = "0.1.0"
 edition = "2024"
-rust-version = "1.85"
+rust-version.workspace = true
 
 # Machine credentials for the API.
 #
@@ -15,7 +16,7 @@ medbrains-core = { path = "../medbrains-core" }
 serde = { workspace = true }
 sha2 = { workspace = true }
 hex = { workspace = true }
-getrandom = { version = "0.3", features = ["std"] }
+getrandom = { workspace = true }
 subtle = "2"
 thiserror = { workspace = true }
 chrono = { workspace = true }

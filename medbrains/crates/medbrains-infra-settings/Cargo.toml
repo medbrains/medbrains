@@ -1,15 +1,16 @@
 [package]
 name = "medbrains-infra-settings"
+publish = false
 version = "0.1.0"
 edition = "2024"
-rust-version = "1.85"
+rust-version.workspace = true
 
 [dependencies]
 medbrains-server-core = { path = "../medbrains-server-core" }
 medbrains-core = { path = "../medbrains-core" }
 medbrains-db = { path = "../medbrains-db" }
 medbrains-outbox = { path = "../medbrains-outbox" }
-hickory-resolver = { version = "0.24", default-features = false, features = ["tokio-runtime"] }
+hickory-resolver = { version = "0.26", default-features = false, features = ["tokio"] }
 axum = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }

@@ -15,7 +15,7 @@ use axum::{
     http::StatusCode,
     routing::{get, post},
 };
-use hmac::{Hmac, Mac};
+use hmac::{Hmac, KeyInit, Mac};
 use medbrains_payment_gateway::razorpay::API_BASE_OVERRIDE;
 use rust_decimal::Decimal;
 use serde_json::{Value, json};

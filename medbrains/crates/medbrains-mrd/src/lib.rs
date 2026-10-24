@@ -239,6 +239,9 @@ pub struct StatsQuery {
 #[derive(Debug, Serialize, sqlx::FromRow)]
 pub struct MorbidityRow {
     pub icd_code: Option<String>,
+    /// The classification of `icd_code` — an ICD-10 A90 and an ICD-11 code
+    /// are never counted together (no mapping between them).
+    pub icd_system: Option<String>,
     pub diagnosis_name: String,
     pub count: i64,
 }
@@ -1986,7 +1989,7 @@ pub async fn generate_opd_case_sheet_packet(
     .await?;
 
     let diagnoses: Vec<String> = sqlx::query_scalar(
-        "SELECT COALESCE(icd_code || ' ', '') || description \
+        "SELECT COALESCE(CASE icd_system WHEN 'icd10' THEN 'ICD-10 ' WHEN 'icd11' THEN 'ICD-11 ' WHEN 'snomed' THEN 'SNOMED CT ' ELSE '' END || icd_code || ' ', '') || description \
          FROM diagnoses WHERE tenant_id = $1 AND encounter_id = $2 ORDER BY is_primary DESC, created_at LIMIT 5000",
     )
     .bind(claims.tenant_id)
@@ -2016,7 +2019,7 @@ pub async fn generate_opd_case_sheet_packet(
            'subjective', concat_ws(E'\\n', NULLIF(c.chief_complaint, ''), NULLIF(c.history, ''), NULLIF(c.hpi, '')), \
            'objective', c.examination, \
            'assessment', ( \
-             SELECT string_agg(COALESCE(dx.icd_code || ' ', '') || dx.description, '; ' ORDER BY dx.is_primary DESC, dx.created_at) \
+             SELECT string_agg(COALESCE(CASE dx.icd_system WHEN 'icd10' THEN 'ICD-10 ' WHEN 'icd11' THEN 'ICD-11 ' WHEN 'snomed' THEN 'SNOMED CT ' ELSE '' END || dx.icd_code || ' ', '') || dx.description, '; ' ORDER BY dx.is_primary DESC, dx.created_at) \
              FROM diagnoses dx \
              WHERE dx.tenant_id = c.tenant_id AND dx.encounter_id = c.encounter_id \
            ), \
@@ -2599,11 +2602,13 @@ pub async fn stats_morbidity_mortality(
 
     // Morbidity — top 20 diagnoses by ICD code
     let morbidity = sqlx::query_as::<_, MorbidityRow>(
-        "SELECT d.icd_code, d.description AS diagnosis_name, COUNT(*) AS count \
+        "SELECT d.icd_code, CASE WHEN d.icd_code IS NULL THEN NULL ELSE d.icd_system END AS icd_system, \
+                d.description AS diagnosis_name, COUNT(*) AS count \
          FROM diagnoses d \
-         WHERE ($1::date IS NULL OR d.created_at::date >= $1) \
+         WHERE d.deleted_at IS NULL \
+           AND ($1::date IS NULL OR d.created_at::date >= $1) \
            AND ($2::date IS NULL OR d.created_at::date <= $2) \
-         GROUP BY d.icd_code, d.description \
+         GROUP BY d.icd_code, 2, d.description \
          ORDER BY count DESC LIMIT 20",
     )
     .bind(q.from_date)

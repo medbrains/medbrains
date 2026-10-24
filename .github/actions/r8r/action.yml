@@ -1,0 +1,22 @@
+name: Check out r8r
+description: >
+  Check out the r8r commit this repo pins as a submodule. r8r is a private repo,
+  so the job's GITHUB_TOKEN cannot read it; pass a token with contents:read on
+  medbrains/r8r (secret R8R_READ_TOKEN).
+inputs:
+  token:
+    description: Token that can read medbrains/r8r
+    required: true
+runs:
+  using: composite
+  steps:
+    - id: pin
+      shell: bash
+      run: echo "sha=$(git ls-tree HEAD r8r | awk '{print $3}')" >> "$GITHUB_OUTPUT"
+    - uses: actions/checkout@v4
+      with:
+        repository: medbrains/r8r
+        ref: ${{ steps.pin.outputs.sha }}
+        path: r8r
+        token: ${{ inputs.token }}
+        persist-credentials: false

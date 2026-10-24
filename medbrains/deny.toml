@@ -1,45 +1,54 @@
 # cargo-deny configuration
 # https://embarkstudios.github.io/cargo-deny/
 
+[graph]
+# Advisories and licences are judged on what ships: dev-dependencies (test
+# harnesses, wiremock, goose) never reach a hospital.
+exclude-dev = true
+
 [advisories]
+version = 2
 db-path = "~/.cargo/advisory-db"
 db-urls = ["https://github.com/rustsec/advisory-db"]
-vulnerability = "deny"
-unmaintained = "warn"
-yanked = "warn"
-notice = "warn"
+yanked = "deny"
+# Unmaintained crates fail only when we depend on them directly; transitive
+# ones are reported by cargo-audit as warnings and tracked in the dep audit.
+unmaintained = "workspace"
+# Every entry says why it does not reach production and when it must be
+# re-decided. scripts/check_audit_ignores.py fails CI once an expiry passes.
+# cargo-audit reads this same list (security.yml), so there is one source.
 ignore = [
-    # Add advisory IDs to ignore here if needed
-    # "RUSTSEC-2020-0071",
+    { id = "RUSTSEC-2026-0367", reason = "zip 4 now only via tauri-plugin-updater 2.14 (latest), which extracts an update only after its signature verifies. Re-check on the next updater release. expires 2026-12-31" },
+    { id = "RUSTSEC-2026-0368", reason = "zip 4 via tauri-plugin-updater only, after signature verification; see 0367. expires 2026-12-31" },
+    { id = "RUSTSEC-2026-0369", reason = "zip 4 via tauri-plugin-updater only, after signature verification; see 0367. expires 2026-12-31" },
 ]
 
 [licenses]
-unlicensed = "deny"
+version = 2
 allow = [
     "MIT",
+    "MIT-0",
     "Apache-2.0",
     "Apache-2.0 WITH LLVM-exception",
     "BSD-2-Clause",
     "BSD-3-Clause",
+    "BSL-1.0",
+    "CC0-1.0",
+    "CDLA-Permissive-2.0",
     "ISC",
+    "MPL-2.0",
+    "Unicode-3.0",
+    "Unicode-DFS-2016",
+    "Unlicense",
     "Zlib",
     "0BSD",
-    "Unicode-DFS-2016",
-    "MPL-2.0",
-    "CC0-1.0",
 ]
-copyleft = "warn"
 confidence-threshold = 0.8
 
-[[licenses.clarify]]
-name = "ring"
-expression = "MIT AND ISC AND OpenSSL"
-license-files = [{ path = "LICENSE", hash = 0xbd0eed23 }]
-
-[[licenses.clarify]]
-name = "webpki"
-expression = "ISC"
-license-files = [{ path = "LICENSE", hash = 0x001c7e6c }]
+# First-party crates are proprietary (LICENSE at the repo root) and carry
+# `publish = false`; only third-party licences are judged.
+[licenses.private]
+ignore = true
 
 [bans]
 multiple-versions = "warn"
@@ -51,6 +60,13 @@ external-default-features = "allow"
 # Deny specific crates
 deny = [
     # { name = "openssl" },  # Prefer rustls
+    # RUSTSEC-2026-0384 (yanked): Interval races the timer thread on the
+    # multi-thread runtime -> use-after-free. Fixed in 1.54.1.
+    { name = "tokio", version = "=1.54.0" },
+    # Unofficial single-maintainer SpiceDB client. The authz path uses
+    # medbrains-spicedb-proto, generated from the official authzed/api protos.
+    { name = "spicedb-rs-client" },
+    { name = "spicedb-rs-proto" },
 ]
 
 # Skip certain crates from duplicate detection

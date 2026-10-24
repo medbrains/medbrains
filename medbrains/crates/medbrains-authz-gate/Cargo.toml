@@ -1,8 +1,9 @@
 [package]
 name = "medbrains-authz-gate"
+publish = false
 version = "0.1.0"
 edition = "2024"
-rust-version = "1.85"
+rust-version.workspace = true
 
 # Sits ABOVE medbrains-server-core, deliberately.
 #
@@ -19,6 +20,7 @@ rust-version = "1.85"
 # authz_patient — only a `pub mod` line — so the guards can simply move up
 # instead, and server-core stays cached whenever they change.
 [dependencies]
+medbrains-core = { path = "../medbrains-core" }
 medbrains-db = { path = "../medbrains-db" }
 medbrains-server-core = { path = "../medbrains-server-core" }
 medbrains-authz = { path = "../medbrains-authz" }

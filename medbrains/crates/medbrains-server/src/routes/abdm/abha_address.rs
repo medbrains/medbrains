@@ -34,9 +34,10 @@ pub(crate) fn full_address(typed: &str, environment: AbdmEnvironment) -> Option<
 
 pub(crate) fn scope(method: VerifyMethod, via: OtpSystem) -> Vec<String> {
     let second = match (method, via) {
-        (VerifyMethod::AbhaNumber | VerifyMethod::AbhaAddress, OtpSystem::Aadhaar) => {
-            AADHAAR_VERIFY_SCOPE
-        }
+        (
+            VerifyMethod::AbhaNumber | VerifyMethod::AbhaAddress | VerifyMethod::Aadhaar,
+            OtpSystem::Aadhaar,
+        ) => AADHAAR_VERIFY_SCOPE,
         _ => MOBILE_VERIFY_SCOPE,
     };
     let first = if method == VerifyMethod::AbhaAddress {
@@ -52,6 +53,8 @@ pub(crate) const fn hint(method: VerifyMethod) -> LoginHint {
         VerifyMethod::AbhaNumber => LoginHint::AbhaNumber,
         VerifyMethod::Mobile => LoginHint::Mobile,
         VerifyMethod::AbhaAddress => LoginHint::AbhaAddress,
+        VerifyMethod::Aadhaar => LoginHint::Aadhaar,
+        VerifyMethod::FindMobile => LoginHint::Index,
     }
 }
 

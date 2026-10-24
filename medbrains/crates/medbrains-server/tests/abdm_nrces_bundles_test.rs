@@ -166,6 +166,11 @@ async fn the_bundles_a_transfer_carries_meet_the_nrces_profiles() {
     sqlx::query("INSERT INTO diagnoses (tenant_id, encounter_id, icd_system, icd_code, icd_display, description, certainty) \
         SELECT tenant_id, id, 'icd11', '1D22', 'Dengue with warning signs', 'Dengue with warning signs', 'confirmed' \
           FROM encounters WHERE id = $1").bind(ipd).execute(db).await.expect("ipd diagnosis");
+    // A hospital coding in ICD-10 (from its own licensed catalogue): the code
+    // goes natively as an ICD-10 coding. "A91" and its title are fixtures.
+    sqlx::query("INSERT INTO diagnoses (tenant_id, encounter_id, icd_system, icd_code, icd_display, description, certainty) \
+        SELECT tenant_id, id, 'icd10', 'A91', 'Fixture dengue haemorrhagic fever', 'Dengue haemorrhagic fever', 'confirmed' \
+          FROM encounters WHERE id = $1").bind(ipd).execute(db).await.expect("ipd icd-10 diagnosis");
     let admission = insert(db, "INSERT INTO admissions (tenant_id, encounter_id, patient_id, admitting_doctor, admitted_at, discharged_at) \
         SELECT tenant_id, $2, id, $3, now() - interval '4 days', now() FROM patients WHERE id = $1 RETURNING id",
         &[p, ipd, doctor]).await;
@@ -188,7 +193,9 @@ async fn the_bundles_a_transfer_carries_meet_the_nrces_profiles() {
         .await
         .expect("tenant");
     let mut tx = db.begin().await.expect("tx");
-    let bundles = build(&mut tx, tenant, p, &contexts).await.expect("bundles");
+    let bundles = build(&mut tx, tenant, p, &contexts, &Default::default())
+        .await
+        .expect("bundles");
     tx.rollback().await.ok();
     assert_eq!(bundles.len(), 5, "one bundle per care context");
 
@@ -286,9 +293,21 @@ async fn the_bundles_a_transfer_carries_meet_the_nrces_profiles() {
         ["422843007", "425044008", "721981007", "734163000", "8648-8"]
     );
     assert_eq!(resources(discharge, "Encounter")[0]["class"]["code"], "IMP");
+    let conditions = resources(discharge, "Condition");
+    let icd11 = conditions
+        .iter()
+        .find(|c| c["code"]["text"] == "Dengue with warning signs (ICD-11 1D22)")
+        .expect("the ICD-11 diagnosis, named in the text");
+    assert!(icd11["code"]["coding"].is_null(), "no ICD-11 coding slice");
+    let icd10 = conditions
+        .iter()
+        .find(|c| c["code"]["text"] == "Dengue haemorrhagic fever")
+        .expect("the ICD-10 diagnosis");
     assert_eq!(
-        resources(discharge, "Condition")[0]["code"]["text"],
-        "Dengue with warning signs (ICD-11 1D22)"
+        icd10["code"]["coding"][0],
+        serde_json::json!({ "system": "http://hl7.org/fhir/sid/icd-10", "code": "A91",
+            "display": "Fixture dengue haemorrhagic fever" }),
+        "ICD-10 coded natively, never mapped from ICD-11"
     );
 }
 

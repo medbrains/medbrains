@@ -129,9 +129,13 @@ pub async fn raise(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
     Path(patient_id): Path<Uuid>,
-    Json(body): Json<RaiseConsentRequest>,
+    Json(mut body): Json<RaiseConsentRequest>,
 ) -> Result<Json<AbdmConsentRequest>, AppError> {
     require_permission(&claims, permissions::abdm::consent::REQUEST)?;
+    // The consent manager refuses a range that ends in the future ("Date must
+    // be a present/before date", measured on the sandbox by OHC care-abdm,
+    // MIT, docs/findings.md L9): a range "to today" ends now.
+    body.date_to = body.date_to.min(Utc::now());
     medbrains_authz_gate::require_patient_access(&state, &claims, patient_id).await?;
     let (purpose, hi_types) = validate(&body)?;
     let mut tx = state.db.begin().await?;

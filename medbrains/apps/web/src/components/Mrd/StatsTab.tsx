@@ -5,6 +5,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { DataTable } from "@/components";
 import { Badge } from "@/components/ui";
+import { terminologySystemLabel } from "@/domain/clinical/terminology-policy";
 import { mrdService } from "@/services/mrd.service";
 
 export function StatsTab() {
@@ -16,10 +17,11 @@ export function StatsTab() {
     to_date: toDate?.slice(0, 10) ?? undefined,
   };
 
-  const { data: morbMort } = useQuery({
+  const morbidity = useQuery({
     queryKey: ["mrd-morbidity-mortality", dateParams],
     queryFn: () => mrdService.getMrdMorbidityMortality(dateParams),
   });
+  const morbMort = morbidity.data;
 
   const { data: admDisch } = useQuery({
     queryKey: ["mrd-admission-discharge", dateParams],
@@ -73,16 +75,26 @@ export function StatsTab() {
 
       {/* Morbidity */}
       <Text fw={600} mt="md">
-        Top Morbidity (by ICD-11)
+        Top morbidity (by diagnosis code)
       </Text>
       <DataTable
         columns={[
           {
             key: "icd_code",
-            label: "ICD-11 Code",
-            render: (r: NonNullable<MrdMorbidityMortalityResponse>["morbidity"][number]) => (
-              <Text>{r.icd_code ?? "—"}</Text>
-            ),
+            label: "Code",
+            render: (r: NonNullable<MrdMorbidityMortalityResponse>["morbidity"][number]) =>
+              r.icd_code ? (
+                <Group gap={6} wrap="nowrap">
+                  {r.icd_system && (
+                    <Badge size="xs" tone="neutral">
+                      {terminologySystemLabel(r.icd_system)}
+                    </Badge>
+                  )}
+                  <Text>{r.icd_code}</Text>
+                </Group>
+              ) : (
+                <Text>—</Text>
+              ),
           },
           {
             key: "diagnosis_name",
@@ -100,8 +112,10 @@ export function StatsTab() {
           },
         ]}
         data={morbMort?.morbidity ?? []}
-        loading={false}
-        rowKey={(r) => `${r.icd_code}-${r.diagnosis_name}`}
+        loading={morbidity.isLoading}
+        error={morbidity.error}
+        onRetry={() => void morbidity.refetch()}
+        rowKey={(r) => `${r.icd_system}-${r.icd_code}-${r.diagnosis_name}`}
       />
 
       {/* Mortality */}

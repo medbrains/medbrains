@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { nhcxStatusLabel, summariseNhcxResponse } from "./nhcxSummary";
+import { nhcxDecisionLabel, nhcxStatusLabel, summariseNhcxResponse } from "./nhcxSummary";
 
 describe("summariseNhcxResponse", () => {
   it("reads the ClaimResponse outcome and disposition out of a bundle", () => {
@@ -40,5 +40,26 @@ describe("nhcxStatusLabel", () => {
   it("never calls a refused message sent", () => {
     expect(nhcxStatusLabel("send_failed").tone).toBe("danger");
     expect(nhcxStatusLabel("queued").label).toBe("Waiting to send");
+  });
+});
+
+describe("an NHCX answer on screen", () => {
+  it("never shows a message status as success", () => {
+    for (const s of ["response.complete", "response.partial", "unknown", "request.initiated"]) {
+      expect(nhcxStatusLabel(s).tone).not.toBe("success");
+    }
+    expect(nhcxStatusLabel("unknown").tone).toBe("warning");
+    expect(nhcxStatusLabel("undelivered").tone).toBe("danger");
+  });
+
+  it("shows a query as not approved and a rejection as a rejection", () => {
+    expect(nhcxDecisionLabel("queried")).toEqual({
+      label: "Payer asked a question — not approved",
+      tone: "warning",
+    });
+    expect(nhcxDecisionLabel("rejected")?.tone).toBe("danger");
+    expect(nhcxDecisionLabel("approved")?.tone).toBe("success");
+    expect(nhcxDecisionLabel("unknown")?.tone).toBe("warning");
+    expect(nhcxDecisionLabel(null)).toBeNull();
   });
 });

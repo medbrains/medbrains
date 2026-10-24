@@ -13,7 +13,7 @@
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use spicedb_rs_proto::authzed::api::v1::{
+use medbrains_spicedb_proto::authzed::api::v1::{
     self as v1, permissions_service_client::PermissionsServiceClient,
     relationship_update::Operation as TupleOp,
 };
@@ -284,10 +284,8 @@ impl AuthzBackend for SpiceDbBackend {
             .await
             .map_err(|e| AuthzError::Other(format!("read_relationships stream: {e}")))?
         {
-            if let Some(rel) = msg.relationship {
-                if let Some(tuple) = relationship_to_tuple(rel) {
-                    out.push(tuple);
-                }
+            if let Some(tuple) = msg.relationship.and_then(relationship_to_tuple) {
+                out.push(tuple);
             }
         }
         Ok(out)
@@ -316,6 +314,7 @@ impl AuthzBackend for SpiceDbBackend {
             context: None,
             optional_limit: 0,
             optional_cursor: None,
+            with_debug: false,
         };
 
         let mut client = (*self.client).clone();

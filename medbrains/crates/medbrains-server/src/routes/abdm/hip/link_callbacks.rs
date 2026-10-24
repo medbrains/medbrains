@@ -1,6 +1,10 @@
 //! The gateway's two answers to HIP-initiated linking: the link token
 //! (`on-generate-token`), then the verdict on the link (`on_carecontext`).
 //! Each is matched to its care contexts by the `REQUEST-ID` we sent.
+//!
+//! Both are idempotent: the gateway repeats a delivery we refused about 16
+//! minutes later (OHC care-abdm, MIT, docs/findings.md E10), and a repeat of
+//! one already handled is acknowledged, not refused.
 
 use axum::{
     Json,
@@ -13,7 +17,8 @@ use uuid::Uuid;
 
 use super::gateway::{Hip, authenticate};
 use super::linking::{
-    LINK_BATCH, TOKEN_CONTEXT, TOKEN_DAYS, load_patient, mark, mark_linked, send_links,
+    LINK_BATCH, TOKEN_CONTEXT, TOKEN_DAYS, error_code, load_patient, mark, mark_linked,
+    note_refusal, send_links,
 };
 use crate::{error::AppError, routes::abdm::abha::secret_key, state::AppState};
 
@@ -24,13 +29,24 @@ fn request_id_of(body: &Value) -> Option<Uuid> {
 }
 
 fn error_of(body: &Value) -> Option<String> {
-    let e = &body["error"];
-    (!e.is_null()).then(|| {
-        e["message"]
-            .as_str()
-            .unwrap_or("ABDM refused the request")
-            .to_owned()
-    })
+    (!body["error"].is_null())
+        .then(|| medbrains_abdm::errors::describe_body(body, "ABDM refused the request"))
+}
+
+/// An `on_carecontext` answer without `error`: its `status` says whether the
+/// link was made ("Successfully Linked care context") or why not ("Counter
+/// and Care context count mismatch", NHA M2 document §1.4). No status at all
+/// is an answer that says nothing — recorded as unknown, never as linked.
+fn link_status_refusal(body: &Value) -> Option<String> {
+    let status = body["status"].as_str().map(str::trim).unwrap_or_default();
+    let lower = status.to_ascii_lowercase();
+    if lower.contains("success") || lower.contains("already linked") {
+        None
+    } else if status.is_empty() {
+        Some("ABDM's answer did not say whether the records were linked — link again".to_owned())
+    } else {
+        Some(format!("ABDM did not link the records: {status}"))
+    }
 }
 
 /// When the token expires: its own `exp` claim, else ABDM's six months.
@@ -70,7 +86,7 @@ async fn waiting_on(
 /// `POST /api/v3/hip/token/on-generate-token` — the link token arrives.
 ///
 /// # Errors
-/// 401 without a valid gateway JWT; 404 for an unknown request.
+/// 401 without a valid gateway JWT; 404 without a `response.requestId`.
 #[tracing::instrument(skip_all, fields(tenant_id = tracing::field::Empty))]
 pub async fn on_generate_token(
     State(state): State<AppState>,
@@ -82,10 +98,16 @@ pub async fn on_generate_token(
     let request_id = request_id_of(&body).ok_or(AppError::NotFound)?;
     let waiting = waiting_on(&state.db, caller.tenant_id, request_id).await?;
     let ids: Vec<Uuid> = waiting.iter().map(|w| w.0).collect();
-    let patient_id = waiting.first().map(|w| w.1).ok_or(AppError::NotFound)?;
+    let Some(patient_id) = waiting.first().map(|w| w.1) else {
+        tracing::info!("abdm: a link token for no waiting care context (a repeat?)");
+        return Ok(StatusCode::ACCEPTED);
+    };
     let token = body["linkToken"].as_str().filter(|t| !t.is_empty());
     let (Some(token), None) = (token, error_of(&body)) else {
-        let reason = error_of(&body).unwrap_or_else(|| "ABDM sent no link token".to_owned());
+        let reason = match note_refusal(&state.db, caller.tenant_id, patient_id, &body).await? {
+            Some(why) => why.to_owned(),
+            None => error_of(&body).unwrap_or_else(|| "ABDM sent no link token".to_owned()),
+        };
         mark(
             &state.db,
             caller.tenant_id,
@@ -98,7 +120,7 @@ pub async fn on_generate_token(
         return Ok(StatusCode::ACCEPTED);
     };
     let secrets = state.secret_resolver.as_ref();
-    let key = secret_key(secrets).await;
+    let key = secret_key(secrets).await?;
     let sealed = medbrains_crypto::aead::encrypt_token(&key, TOKEN_CONTEXT, &token)
         .map_err(|_| AppError::Internal("could not seal the ABDM link token".to_owned()))?;
     let mut tx = state.db.begin().await?;
@@ -129,7 +151,7 @@ pub async fn on_generate_token(
 /// `POST /api/v3/link/on_carecontext` — ABDM's verdict on a link.
 ///
 /// # Errors
-/// 401 without a valid gateway JWT; 404 for an unknown request.
+/// 401 without a valid gateway JWT; 404 without a `response.requestId`.
 #[tracing::instrument(skip_all, fields(tenant_id = tracing::field::Empty))]
 pub async fn on_link_care_context(
     State(state): State<AppState>,
@@ -139,15 +161,24 @@ pub async fn on_link_care_context(
     let caller = authenticate(&state, &headers).await?;
     tracing::Span::current().record("tenant_id", tracing::field::display(caller.tenant_id));
     let request_id = request_id_of(&body).ok_or(AppError::NotFound)?;
-    let ids: Vec<Uuid> = waiting_on(&state.db, caller.tenant_id, request_id)
-        .await?
-        .into_iter()
-        .map(|w| w.0)
-        .collect();
-    if ids.is_empty() {
-        return Err(AppError::NotFound);
-    }
-    if let Some(reason) = error_of(&body) {
+    let waiting = waiting_on(&state.db, caller.tenant_id, request_id).await?;
+    let ids: Vec<Uuid> = waiting.iter().map(|w| w.0).collect();
+    let Some(patient_id) = waiting.first().map(|w| w.1) else {
+        tracing::info!("abdm: a link verdict for no waiting care context (a repeat?)");
+        return Ok(StatusCode::ACCEPTED);
+    };
+    // "Already linked" is the outcome we wanted (care-abdm treats it so too).
+    let already = error_code(&body) == Some("ABDM-1056");
+    let refusal = match (error_of(&body), already) {
+        (Some(reason), false) => Some(
+            note_refusal(&state.db, caller.tenant_id, patient_id, &body)
+                .await?
+                .map_or(reason, str::to_owned),
+        ),
+        (_, true) => None,
+        (None, false) => link_status_refusal(&body),
+    };
+    if let Some(reason) = refusal {
         mark(
             &state.db,
             caller.tenant_id,

@@ -127,7 +127,9 @@ pub async fn submit_claim_to_nhcx(
         picks: body.documents.as_deref(),
     };
     let built = build(&mut tx, &sender, &claim, (recipient, use_)).await?;
-    let ids = (Uuid::new_v4(), Uuid::new_v4());
+    // A request's correlation id is its own api call id.
+    let call = Uuid::new_v4();
+    let ids = (call, call);
     let sending = Sending {
         recipient,
         use_,
@@ -135,6 +137,7 @@ pub async fn submit_claim_to_nhcx(
         attachments: built.attachments.as_ref(),
     };
     let workflow_id = mark_queued(&mut tx, &claims, &claim, &sending, ids).await?;
+    let workflow_id = workflow_id.as_str();
     let bundle = built.bundle;
     let msg = Outbound {
         record: NhcxRecord::InsuranceClaim,
@@ -143,9 +146,8 @@ pub async fn submit_claim_to_nhcx(
         recipient,
         correlation_id: ids.0,
         api_call_id: ids.1,
-        workflow_id,
+        workflow_id: Some(workflow_id),
         payload: &bundle,
-        hcx_status: None,
     };
     let mut queued = nhcx_common::queue(&mut tx, &claims, &msg).await?;
     tx.commit().await?;
@@ -303,33 +305,35 @@ async fn mark_queued(
     claim: &ClaimRow,
     sending: &Sending<'_>,
     (correlation_id, api_call_id): (Uuid, Uuid),
-) -> Result<Uuid, AppError> {
+) -> Result<String, AppError> {
     // A claim the payer has settled or cancelled keeps its status; anything
     // else is now waiting on the payer for this message.
     sqlx::query_scalar(
         "UPDATE insurance_claims SET nhcx_correlation_id = $1, nhcx_api_call_id = $2, \
-                nhcx_workflow_id = COALESCE(nhcx_workflow_id, $3), nhcx_recipient_code = $4, \
+                nhcx_workflow_id = CASE WHEN $6 = 'claim' THEN '15' \
+                                        WHEN status = 'pre_auth_rejected' THEN '121' \
+                                        ELSE '12' END, \
+                nhcx_recipient_code = $3, nhcx_decision = NULL, \
                 nhcx_status = 'queued', nhcx_disposition = NULL, nhcx_outcome = NULL, \
                 nhcx_response_payload = NULL, nhcx_response_at = NULL, \
-                nhcx_use = $7, \
-                nhcx_claim_items = COALESCE($8, nhcx_claim_items), \
-                nhcx_attachments = CASE WHEN $7 = 'claim' THEN $9 ELSE nhcx_attachments END, \
-                nhcx_adjudication = CASE WHEN $7 = 'claim' THEN NULL ELSE nhcx_adjudication END, \
-                nhcx_adjudicated_at = CASE WHEN $7 = 'claim' THEN NULL ELSE nhcx_adjudicated_at END, \
+                nhcx_use = $6, \
+                nhcx_claim_items = COALESCE($7, nhcx_claim_items), \
+                nhcx_attachments = CASE WHEN $6 = 'claim' THEN $8 ELSE nhcx_attachments END, \
+                nhcx_adjudication = CASE WHEN $6 = 'claim' THEN NULL ELSE nhcx_adjudication END, \
+                nhcx_adjudicated_at = CASE WHEN $6 = 'claim' THEN NULL ELSE nhcx_adjudicated_at END, \
                 status = CASE WHEN status IN ('settled', 'partially_settled', 'cancelled') THEN status \
-                              WHEN $7 = 'claim' THEN 'claim_submitted' \
+                              WHEN $6 = 'claim' THEN 'claim_submitted' \
                               WHEN status = 'initiated' THEN 'pre_auth_requested' \
                               ELSE status END, \
-                submitted_at = CASE WHEN $7 = 'claim' THEN COALESCE(submitted_at, now()) \
+                submitted_at = CASE WHEN $6 = 'claim' THEN COALESCE(submitted_at, now()) \
                                     ELSE submitted_at END \
-         WHERE id = $5 AND tenant_id = $6 \
+         WHERE id = $4 AND tenant_id = $5 \
            AND NOT (nhcx_status IS NOT DISTINCT FROM 'queued' \
                     AND updated_at > now() - interval '15 minutes') \
          RETURNING nhcx_workflow_id",
     )
     .bind(correlation_id)
     .bind(api_call_id)
-    .bind(Uuid::new_v4())
     .bind(sending.recipient)
     .bind(claim.id)
     .bind(claims.tenant_id)

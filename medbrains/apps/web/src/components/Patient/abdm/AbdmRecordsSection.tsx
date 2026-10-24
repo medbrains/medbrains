@@ -2,11 +2,14 @@ import { Loader, Stack } from "@mantine/core";
 import { useHasPermission } from "@medbrains/stores";
 import { P } from "@medbrains/types";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Alert, Panel, toast } from "@/components/ui";
+import { useState } from "react";
+import { Alert, Button, Panel, toast } from "@/components/ui";
 import { abdmRecordsService } from "@/services/abdmRecords.service";
 import { AbdmCareContextTable } from "./AbdmCareContextTable";
 import { AbdmConsentTable } from "./AbdmConsentTable";
+import { AbdmSmsLinkPanel } from "./AbdmSmsLinkPanel";
 import { AbdmTransferTable } from "./AbdmTransferTable";
+import { AbhaOptOutModal } from "./AbhaOptOutModal";
 
 interface AbdmRecordsSectionProps {
   patientId: string;
@@ -20,6 +23,8 @@ interface AbdmRecordsSectionProps {
 export function AbdmRecordsSection({ patientId }: AbdmRecordsSectionProps) {
   const canView = useHasPermission(P.ABDM.RECORDS.VIEW);
   const canManage = useHasPermission(P.ABDM.RECORDS.MANAGE);
+  const canUnlink = useHasPermission(P.ABDM.ABHA.UNLINK);
+  const [optingOut, setOptingOut] = useState(false);
   const queryClient = useQueryClient();
   const key = ["abdm", "patient-records", patientId];
   const { data, isLoading, isError } = useQuery({
@@ -46,7 +51,19 @@ export function AbdmRecordsSection({ patientId }: AbdmRecordsSectionProps) {
     <Panel
       title="ABDM records"
       description="Finalised records this hospital shares with the patient's ABHA."
+      actions={
+        canUnlink && data?.abha_verified ? (
+          <Button tone="danger-ghost" size="xs" onClick={() => setOptingOut(true)}>
+            Opt out of ABDM…
+          </Button>
+        ) : undefined
+      }
     >
+      <AbhaOptOutModal
+        patientId={patientId}
+        opened={optingOut}
+        onClose={() => setOptingOut(false)}
+      />
       {isLoading && <Loader size="sm" />}
       {isError && (
         <Alert tone="danger" title="Could not load ABDM records">
@@ -55,6 +72,7 @@ export function AbdmRecordsSection({ patientId }: AbdmRecordsSectionProps) {
       )}
       {data && (
         <Stack gap="md">
+          <AbdmSmsLinkPanel patientId={patientId} records={data} />
           {data.blocked_reason && (
             <Alert tone="warning" title="Records are not being linked">
               {data.blocked_reason}

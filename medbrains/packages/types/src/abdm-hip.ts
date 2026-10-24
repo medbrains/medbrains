@@ -8,7 +8,15 @@ export type AbdmLinkStatus = "not_linked" | "linking" | "linked" | "failed";
 export interface AbdmCareContext {
   id: string;
   patient_id: string;
-  source_kind: "opd_consult" | "prescription" | "lab_report" | "discharge_summary";
+  source_kind:
+    | "opd_consult"
+    | "prescription"
+    | "lab_report"
+    | "discharge_summary"
+    | "immunization"
+    | "wellness"
+    | "health_document"
+    | "invoice";
   reference_number: string;
   display: string;
   hi_types: string[];
@@ -19,6 +27,10 @@ export interface AbdmCareContext {
   last_error: string | null;
   /** DHIS category: 1 (diagnostic report, discharge summary) pays ₹10, 2 pays ₹5. */
   dhis_category: 1 | 2;
+  /** When ABDM accepted the "new record" notice for the patient's app. */
+  notified_at: string | null;
+  /** Why ABDM did not accept that notice, when it did not. */
+  notify_error: string | null;
 }
 
 export interface AbdmConsentArtefact {
@@ -50,9 +62,66 @@ export interface AbdmPatientRecords {
   hip_id: string | null;
   /** Why nothing links, in words for staff; null when linking can run. */
   blocked_reason: string | null;
+  /** The patient has a mobile ABDM can text the ABHA app link to. */
+  phone_on_file: boolean;
+  /** The latest ABHA-app link texted to the patient, and ABDM's answer. */
+  sms_link: AbdmSmsLink | null;
   care_contexts: AbdmCareContext[];
   consents: AbdmConsentArtefact[];
   transfers: AbdmHealthTransfer[];
+}
+
+/** ABDM's deep-link SMS to a patient with no ABHA here (HIP_INIT_NOTIFY_HIECM). */
+export interface AbdmSmsLink {
+  /** `sent` until ABDM answers; then `delivered` or `failed`. */
+  status: "sent" | "delivered" | "failed";
+  phone_last4: string;
+  error: string | null;
+  /** Sent when a record was captured, not by a member of staff. */
+  automatic: boolean;
+  created_at: string;
+  answered_at: string | null;
+}
+
+/** A vaccine dose on the chart; the source of ABDM's ImmunizationRecord. */
+export interface PatientImmunization {
+  id: string;
+  vaccine_name: string;
+  vaccine_code: string | null;
+  dose_number: number | null;
+  administered_on: string;
+  lot_number: string | null;
+  manufacturer: string | null;
+  route: ImmunizationRoute | null;
+  site: string | null;
+  given_elsewhere: boolean;
+  notes: string | null;
+  recorded_by_name: string | null;
+  created_at: string;
+  /** Struck off as wrong: when and why. */
+  deleted_at: string | null;
+  delete_reason: string | null;
+}
+
+export type ImmunizationRoute =
+  | "intramuscular"
+  | "subcutaneous"
+  | "intradermal"
+  | "oral"
+  | "intranasal";
+
+export interface RecordPatientImmunization {
+  vaccine_name: string;
+  vaccine_code?: string;
+  dose_number?: number;
+  administered_on: string;
+  lot_number?: string;
+  manufacturer?: string;
+  route?: ImmunizationRoute;
+  site?: string;
+  given_elsewhere: boolean;
+  encounter_id?: string;
+  notes?: string;
 }
 
 export interface AbdmSharingFailure {

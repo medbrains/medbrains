@@ -1,5 +1,7 @@
 // MRD (medical records department) types — split from index.ts, barrel-re-exported.
 
+import type { DiagnosisCodingSystem } from "./index";
+
 // ── MRD (Medical Records Department) ────────────────────────
 
 export type MrdRecordStatus = "active" | "archived" | "destroyed" | "missing";
@@ -459,6 +461,8 @@ export interface FileMrdCaseSheetPacketRequest {
 
 export interface MrdMorbidityRow {
   icd_code: string | null;
+  /** The classification of `icd_code`; codes of different systems are never merged. */
+  icd_system: DiagnosisCodingSystem | null;
   diagnosis_name: string;
   count: number;
 }

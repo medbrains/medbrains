@@ -290,7 +290,7 @@ fn base64_encode(bytes: &[u8]) -> String {
         let idx = ((buf << (6 - buf_len)) & 0x3F) as usize;
         out.push(alphabet[idx] as char);
     }
-    while out.len() % 4 != 0 {
+    while !out.len().is_multiple_of(4) {
         out.push('=');
     }
     out

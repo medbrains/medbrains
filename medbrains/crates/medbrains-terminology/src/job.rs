@@ -47,10 +47,10 @@ pub async fn run(pool: &PgPool, job: &ImportJob) {
     if let Err(e) = tokio::fs::remove_dir_all(&dir).await {
         tracing::debug!(error = %e, "SNOMED CT work dir already gone");
     }
-    if job.remove_zip {
-        if let Err(e) = tokio::fs::remove_file(&job.zip_path).await {
-            tracing::warn!(error = %e, "could not remove uploaded SNOMED CT package");
-        }
+    if job.remove_zip
+        && let Err(e) = tokio::fs::remove_file(&job.zip_path).await
+    {
+        tracing::warn!(error = %e, "could not remove uploaded SNOMED CT package");
     }
 }
 

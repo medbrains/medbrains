@@ -26,6 +26,15 @@ Other consumers of the env file:
   container. `pg_dump` refuses a table whose policy would filter it, and
   `medbrains_app` is filtered by design.
 - `medbrains-archive` sweeps every tenant, so it uses `WORKER_DATABASE_URL`.
+- Reference-data loaders (`scripts/seed_world_geo.py`,
+  `medbrains/scripts/import_lgd_districts.py`) write tables `medbrains_app` may
+  only read since migration 1200 (geography, regulatory bodies, CDS knowledge
+  base, event registries). Point them at `MIGRATION_DATABASE_URL`.
+
+Every public table has row level security except the global ones listed in
+`crates/medbrains-server/tests/rls_gap_tables_test.rs` (`GLOBAL_TABLES`, mirrored
+in `scripts/check_rls.py`). `make check-rls` and that test fail on a new table
+that is neither.
 
 ## Boot check
 

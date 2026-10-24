@@ -1,6 +1,6 @@
 use super::{OnlineProvider, Razorpay, event_of};
 use crate::online::{Keys, Located, ProviderError, ProviderEvent, Via, test_headers};
-use hmac::{Hmac, Mac};
+use hmac::{Hmac, KeyInit, Mac};
 use serde_json::json;
 use sha2::Sha256;
 

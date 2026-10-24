@@ -80,6 +80,7 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
             permissions::opd::visit::UPDATE,
             permissions::opd::vitals::LIST,
             permissions::opd::vitals::CREATE,
+            permissions::patients::immunizations::RECORD,
             permissions::opd::diagnoses::LIST,
             permissions::opd::diagnoses::CREATE,
             permissions::opd::diagnoses::UPDATE,
@@ -202,6 +203,13 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
             permissions::specialty::psychiatry::ect::LIST,
             permissions::specialty::psychiatry::ect::CREATE,
             permissions::specialty::psychiatry::restraint::LIST,
+            permissions::specialty::psychiatry::admissions::LIST,
+            permissions::specialty::psychiatry::admissions::CREATE,
+            permissions::specialty::psychiatry::admissions::UPDATE,
+            permissions::specialty::psychiatry::legal::MANAGE,
+            permissions::specialty::psychiatry::directives::CHALLENGE,
+            permissions::specialty::psychiatry::safety::REVIEW,
+            permissions::specialty::psychiatry::abdm_consent::MANAGE,
             permissions::specialty::pmr::plans::LIST,
             permissions::specialty::pmr::plans::CREATE,
             permissions::specialty::pmr::sessions::LIST,
@@ -509,6 +517,7 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
             permissions::specialty::psychiatry::patients::LIST,
             permissions::specialty::psychiatry::assessments::LIST,
             permissions::specialty::psychiatry::restraint::LIST,
+            permissions::specialty::psychiatry::admissions::LIST,
             permissions::specialty::pmr::plans::LIST,
             permissions::specialty::pmr::sessions::LIST,
             permissions::specialty::palliative::dnr::LIST,
@@ -568,6 +577,8 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
             permissions::doctor::signoffs::VERBAL_REGISTER,
             permissions::nurse::vitals::VIEW,
             permissions::nurse::vitals::RECORD,
+            // Nurses give most vaccines and record the dose and lot.
+            permissions::patients::immunizations::RECORD,
             permissions::nurse::intake_output::VIEW,
             permissions::nurse::intake_output::RECORD,
             permissions::nurse::restraint::VIEW,
@@ -752,6 +763,11 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
             // were consts inside the route file, so nobody could hold them.
             permissions::abdm::abha::VIEW,
             permissions::abdm::abha::MANAGE,
+            // The desk acts on the patient's own request: closing their ABHA
+            // (confirmed by ABDM's OTP to them) or opting out of sharing here.
+            permissions::abdm::abha::DEACTIVATE,
+            permissions::abdm::abha::UNLINK,
+            permissions::abdm::records::NOTIFY,
             // Teleconsultations booked from UHI patient apps arrive at the desk.
             permissions::uhi::requests::VIEW,
             // Scan & Share: the desk receives ABHA profiles shared at its counters.
@@ -1460,6 +1476,9 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
             // MRD is the custodian of what leaves the hospital through ABDM.
             permissions::abdm::records::VIEW,
             permissions::abdm::records::MANAGE,
+            // ...and records a patient's opt-out from ABDM sharing.
+            permissions::abdm::abha::UNLINK,
+            permissions::abdm::records::NOTIFY,
             permissions::abdm::dashboard::VIEW,
         ],
     },
@@ -1763,6 +1782,11 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
             permissions::front_office::enquiry::LIST,
             permissions::abdm::abha::VIEW,
             permissions::abdm::abha::MANAGE,
+            // The desk acts on the patient's own request: closing their ABHA
+            // (confirmed by ABDM's OTP to them) or opting out of sharing here.
+            permissions::abdm::abha::DEACTIVATE,
+            permissions::abdm::abha::UNLINK,
+            permissions::abdm::records::NOTIFY,
             permissions::uhi::requests::VIEW,
             // Scan & Share: the desk receives ABHA profiles shared at its counters.
             permissions::abdm::scanshare::VIEW,
@@ -2038,3 +2062,21 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
         ],
     },
 ];
+
+#[cfg(test)]
+mod tests {
+    use super::BUILT_IN_ROLES;
+    use crate::permissions;
+
+    /// The founder's decision: connecting the hospital to ABDM — its keys and
+    /// the bridge every patient's records travel through — stays with the
+    /// bypass administrators. No built-in role carries either code.
+    #[test]
+    fn the_abdm_connection_stays_with_the_bypass_administrators() {
+        for role in BUILT_IN_ROLES {
+            for code in [permissions::abdm::settings::MANAGE, permissions::abdm::bridge::REGISTER] {
+                assert!(!role.permissions.contains(&code), "{} holds {code}", role.code);
+            }
+        }
+    }
+}

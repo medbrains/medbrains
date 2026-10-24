@@ -1,8 +1,9 @@
 [package]
 name = "medbrains-api-keys-api"
+publish = false
 version = "0.1.0"
 edition = "2024"
-rust-version = "1.85"
+rust-version.workspace = true
 
 # HTTP surface for machine credentials.
 #
@@ -16,7 +17,7 @@ medbrains-server-core = { path = "../medbrains-server-core" }
 medbrains-db = { path = "../medbrains-db" }
 medbrains-outbox = { path = "../medbrains-outbox" }
 hex = { workspace = true }
-getrandom = { version = "0.3", features = ["std"] }
+getrandom = { workspace = true }
 axum = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }

@@ -12,9 +12,10 @@ import {
 import { useQuery } from "@tanstack/react-query";
 import { Fragment, type ReactNode, useMemo, useState } from "react";
 import { Link } from "react-router";
-import { Alert, Badge, type BadgeTone, Card } from "@/components/ui";
+import { Alert, Badge, type BadgeTone, Button, Card } from "@/components/ui";
 import { patientDetailService } from "@/services/patientDetail.service";
 import classes from "./clinical-timeline.module.scss";
+import { RestrictedEntry } from "./RestrictedEntry";
 
 // Events whose entity has a detail route become clickable; the rest
 // (lab/imaging/Rx/diagnosis have no per-entity page) stay plain text.
@@ -83,9 +84,10 @@ function chunk<T>(items: T[], size: number): T[][] {
   return rows;
 }
 
-function TimelineNode({ event }: { event: PatientTimelineEvent }) {
+function TimelineNode({ event, patientId }: { event: PatientTimelineEvent; patientId: string }) {
   const meta = META[event.category];
-  const href = linkFor(event);
+  // A withheld entry has no content to open; the tombstone is the whole node.
+  const href = event.withheld ? null : linkFor(event);
   const body = (
     <Stack gap={4}>
       <Group justify="space-between" wrap="nowrap" gap="xs">
@@ -99,9 +101,13 @@ function TimelineNode({ event }: { event: PatientTimelineEvent }) {
           {formatWhen(event.occurred_at)}
         </Text>
       </Group>
-      <Text size="sm" fw={600} lineClamp={2}>
-        {event.title}
-      </Text>
+      {event.withheld ? (
+        <RestrictedEntry patientId={patientId} compact />
+      ) : (
+        <Text size="sm" fw={600} lineClamp={2}>
+          {event.title}
+        </Text>
+      )}
       {event.subtitle && (
         <Text size="xs" c="dimmed" lineClamp={1}>
           {event.subtitle}
@@ -124,7 +130,12 @@ function TimelineNode({ event }: { event: PatientTimelineEvent }) {
 }
 
 export function ClinicalTimelineTab({ patientId }: { patientId: string }) {
-  const { data: events = [], isLoading } = useQuery({
+  const {
+    data: events = [],
+    isLoading,
+    isError,
+    refetch,
+  } = useQuery({
     queryKey: ["patient-clinical-timeline", patientId],
     queryFn: () => patientDetailService.getClinicalTimeline(patientId),
   });
@@ -148,6 +159,17 @@ export function ClinicalTimelineTab({ patientId }: { patientId: string }) {
       <Text size="sm" c="dimmed">
         Loading clinical timeline…
       </Text>
+    );
+  }
+
+  // An outage must not read as "nothing happened to this patient".
+  if (isError) {
+    return (
+      <Alert tone="danger" title="The timeline could not be loaded">
+        <Button tone="tertiary" size="xs" onClick={() => void refetch()}>
+          Try again
+        </Button>
+      </Alert>
     );
   }
 
@@ -195,7 +217,7 @@ export function ClinicalTimelineTab({ patientId }: { patientId: string }) {
                   <Box className={reverse ? `${classes.row} ${classes.reverse}` : classes.row}>
                     {row.map((e, i) => (
                       <Fragment key={`${e.category}-${e.ref_id}`}>
-                        <TimelineNode event={e} />
+                        <TimelineNode event={e} patientId={patientId} />
                         {i < row.length - 1 && <Box className={classes.hconn} />}
                       </Fragment>
                     ))}

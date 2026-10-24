@@ -316,7 +316,7 @@ pub async fn attach_prescription(
     }
     let (content_type, ext) = sniff(&bytes)
         .ok_or_else(|| AppError::BadRequest("Upload a photo (JPEG or PNG) or a PDF".to_owned()))?;
-    let sha = format!("{:x}", sha2::Sha256::digest(&bytes));
+    let sha = hex::encode(sha2::Sha256::digest(&bytes));
     let cart = ensure_cart(tx, tenant_id, patient_id).await?;
     let key = format!(
         "{tenant_id}/store-prescriptions/{cart}/{}.{ext}",

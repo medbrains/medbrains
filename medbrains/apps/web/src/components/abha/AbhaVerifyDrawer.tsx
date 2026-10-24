@@ -1,11 +1,19 @@
 import { Radio, Stack, Text } from "@mantine/core";
-import type { AbhaOtpVia, AbhaVerificationStep, AbhaVerifyMethod } from "@medbrains/types";
+import type {
+  AbhaCardQr,
+  AbhaOtpVia,
+  AbhaVerificationStep,
+  AbhaVerifyMethod,
+} from "@medbrains/types";
+import { IconQrcode } from "@tabler/icons-react";
 import { useMutation } from "@tanstack/react-query";
 import { useState } from "react";
 import { useInterval } from "react-use";
-import { Alert, Button, Input, Modal, SegmentedControl } from "@/components/ui";
+import { Alert, Button, Input, Modal, PasswordField, Select } from "@/components/ui";
 import { abhaService } from "@/services/abha.service";
+import { AbhaQrScanModal } from "./AbhaQrScanModal";
 import { type AbhaConfirmProps, AbhaVerifiedStep } from "./AbhaVerifiedStep";
+import { ResendOtpButton } from "./ResendOtpButton";
 
 interface AbhaVerifyDrawerProps extends AbhaConfirmProps {
   opened: boolean;
@@ -25,6 +33,27 @@ export function AbhaVerifyDrawer(props: AbhaVerifyDrawerProps) {
   );
 }
 
+const METHODS: { value: AbhaVerifyMethod; label: string }[] = [
+  { value: "abha_number", label: "ABHA number" },
+  { value: "mobile", label: "Mobile number (OTP first)" },
+  { value: "find_mobile", label: "Find by mobile (list the ABHAs first)" },
+  { value: "aadhaar", label: "Aadhaar number" },
+  { value: "abha_address", label: "ABHA address" },
+];
+
+const VALUE_LABEL: Record<AbhaVerifyMethod, string> = {
+  abha_number: "ABHA number (14 digits)",
+  mobile: "Mobile number",
+  find_mobile: "Mobile number",
+  aadhaar: "Aadhaar number",
+  abha_address: "ABHA address (e.g. priya.v@abdm)",
+};
+
+/** Methods whose OTP can go to the Aadhaar mobile or the ABHA's own. */
+const choosesVia = (m: AbhaVerifyMethod) => m === "abha_number" || m === "abha_address";
+
+const digitsOnly = (v: string) => v.replace(/\D/g, "");
+
 function VerifyFlow({ ours, confirmLabel, confirming, onConfirm }: AbhaVerifyDrawerProps) {
   const [method, setMethod] = useState<AbhaVerifyMethod>("abha_number");
   const [via, setVia] = useState<AbhaOtpVia>("aadhaar");
@@ -32,6 +61,9 @@ function VerifyFlow({ ours, confirmLabel, confirming, onConfirm }: AbhaVerifyDra
   const [otp, setOtp] = useState("");
   const [step, setStep] = useState<AbhaVerificationStep | null>(null);
   const [chosen, setChosen] = useState<string | null>(null);
+  const [card, setCard] = useState<AbhaCardQr | null>(null);
+  const [scanning, setScanning] = useState(false);
+  const [closed, setClosed] = useState<string | null>(null);
   const [wait, setWait] = useState(0);
   useInterval(() => setWait((w) => w - 1), wait > 0 ? 1000 : null);
 
@@ -41,11 +73,12 @@ function VerifyFlow({ ours, confirmLabel, confirming, onConfirm }: AbhaVerifyDra
   };
   const start = useMutation({
     mutationFn: () =>
-      abhaService.start({ method, value, otp_via: method === "mobile" ? undefined : via }),
+      abhaService.start({ method, value, otp_via: choosesVia(method) ? via : undefined }),
     onSuccess: advance,
   });
   const resend = useMutation({
-    mutationFn: (id: string) => abhaService.resend(id),
+    // An Aadhaar login sends the number again: the server never keeps it.
+    mutationFn: (id: string) => abhaService.resend(id, method === "aadhaar" ? value : undefined),
     onSuccess: advance,
   });
   const verify = useMutation({
@@ -61,6 +94,20 @@ function VerifyFlow({ ours, confirmLabel, confirming, onConfirm }: AbhaVerifyDra
     onSuccess: advance,
   });
   const failure = [start, resend, verify, choose].find((m) => m.isError)?.error;
+  const readCard = (read: AbhaCardQr) => {
+    setScanning(false);
+    setCard(read);
+    setMethod(read.abha_number ? "abha_number" : "abha_address");
+    setValue(read.abha_number ?? read.abha_address ?? "");
+  };
+
+  if (closed) {
+    return (
+      <Alert tone="success" title="The ABHA is closed">
+        {closed}
+      </Alert>
+    );
+  }
 
   return (
     <Stack>
@@ -72,31 +119,54 @@ function VerifyFlow({ ours, confirmLabel, confirming, onConfirm }: AbhaVerifyDra
 
       {!step && (
         <Stack>
-          <SegmentedControl
-            aria-label="Find the ABHA by"
+          <Button
+            tone="secondary"
+            leftSection={<IconQrcode size={16} />}
+            onClick={() => setScanning(true)}
+          >
+            Scan the ABHA card
+          </Button>
+          <AbhaQrScanModal opened={scanning} onClose={() => setScanning(false)} onRead={readCard} />
+          {card && (
+            <Alert tone="info" title="What the card says — verify it by OTP">
+              {[card.name, card.gender, card.date_of_birth && `born ${card.date_of_birth}`]
+                .filter(Boolean)
+                .join(" · ") || "The card names an ABHA but no details."}
+            </Alert>
+          )}
+          <Select
+            label="Find the ABHA by"
             value={method}
-            onChange={(v) => setMethod(v as AbhaVerifyMethod)}
-            data={[
-              { value: "abha_number", label: "ABHA number" },
-              { value: "mobile", label: "Mobile number" },
-              { value: "abha_address", label: "ABHA address" },
-            ]}
+            allowDeselect={false}
+            onChange={(v) => v && setMethod(v as AbhaVerifyMethod)}
+            data={METHODS}
           />
-          <Input
-            label={
-              method === "abha_number"
-                ? "ABHA number (14 digits)"
-                : method === "mobile"
-                  ? "Mobile number"
-                  : "ABHA address (e.g. priya.v@abdm)"
-            }
-            inputMode={method === "abha_address" ? "text" : "numeric"}
-            autoComplete="off"
-            value={value}
-            onChange={(e) => setValue(e.currentTarget.value)}
-            data-autofocus
-          />
-          {method !== "mobile" && (
+          {method === "aadhaar" ? (
+            <PasswordField
+              label={VALUE_LABEL.aadhaar}
+              description="12 digits. Sent to ABDM encrypted; not saved here."
+              inputMode="numeric"
+              autoComplete="off"
+              value={value}
+              onChange={(e) => setValue(digitsOnly(e.currentTarget.value).slice(0, 12))}
+              data-autofocus
+            />
+          ) : (
+            <Input
+              label={VALUE_LABEL[method]}
+              inputMode={method === "abha_address" ? "text" : "numeric"}
+              autoComplete="off"
+              value={value}
+              onChange={(e) => setValue(e.currentTarget.value)}
+              data-autofocus
+            />
+          )}
+          {method === "aadhaar" && (
+            <Text size="sm" c="dimmed">
+              ABDM sends the OTP to the mobile linked to the patient's Aadhaar.
+            </Text>
+          )}
+          {choosesVia(method) && (
             <Radio.Group
               label="Send the OTP to"
               value={via}
@@ -109,7 +179,7 @@ function VerifyFlow({ ours, confirmLabel, confirming, onConfirm }: AbhaVerifyDra
             </Radio.Group>
           )}
           <Button tone="primary" loading={start.isPending} onClick={() => start.mutate()}>
-            Send OTP
+            {method === "find_mobile" ? "Find ABHAs" : "Send OTP"}
           </Button>
         </Stack>
       )}
@@ -136,21 +206,24 @@ function VerifyFlow({ ours, confirmLabel, confirming, onConfirm }: AbhaVerifyDra
           >
             Verify
           </Button>
-          <Button
-            tone="ghost"
-            disabled={wait > 0}
+          <ResendOtpButton
+            wait={wait}
+            resendsLeft={step.resends_left}
             loading={resend.isPending}
-            onClick={() => resend.mutate(step.id)}
-          >
-            {wait > 0 ? `Resend OTP in ${wait}s` : "Resend OTP"}
-          </Button>
+            onResend={() => resend.mutate(step.id)}
+          />
         </Stack>
       )}
 
-      {step?.stage === "choose_account" && (
+      {(step?.stage === "choose_account" || step?.stage === "search_results") && (
         <Stack>
+          {step.message && <Text size="sm">{step.message}</Text>}
           <Radio.Group
-            label="Several ABHAs use this mobile — which one is the patient's?"
+            label={
+              step.stage === "search_results"
+                ? "Which ABHA is the patient's? ABDM sends the OTP to it."
+                : "Several ABHAs use this mobile — which one is the patient's?"
+            }
             value={chosen}
             onChange={setChosen}
           >
@@ -173,7 +246,7 @@ function VerifyFlow({ ours, confirmLabel, confirming, onConfirm }: AbhaVerifyDra
             loading={choose.isPending}
             onClick={() => chosen && choose.mutate({ id: step.id, number: chosen })}
           >
-            Continue
+            {step.stage === "search_results" ? "Send OTP to this ABHA" : "Continue"}
           </Button>
         </Stack>
       )}
@@ -186,6 +259,8 @@ function VerifyFlow({ ours, confirmLabel, confirming, onConfirm }: AbhaVerifyDra
           confirmLabel={confirmLabel}
           confirming={confirming}
           onConfirm={onConfirm}
+          onStepChange={advance}
+          onClosed={setClosed}
         />
       )}
     </Stack>

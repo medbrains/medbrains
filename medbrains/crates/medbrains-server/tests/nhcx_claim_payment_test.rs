@@ -21,6 +21,7 @@ use rust_decimal::Decimal;
 use serde_json::{Value, json};
 use uuid::Uuid;
 
+use nhcx_support::Delivery;
 use nhcx_support::claim_seed::{
     ClaimSeed, adjudicated_claim, finalise_discharge_summary, payment_notice, seed_claim,
     submit_final_claim,
@@ -174,11 +175,22 @@ async fn status_reprocess_and_cancel_go_as_tasks_and_their_answers_land_on_the_c
         .expect("correlation")
         .to_owned();
     let (path, body) = n.send(NhcxOperation::Status, &correlation).await;
-    assert_eq!(path, "hcx/status");
-    let (_, bundle) = n.open_as_payer(&body);
-    let task = resources(&bundle, "Task").next().expect("task");
-    assert_eq!(task["code"]["coding"][0]["code"], json!("status"));
-    assert_eq!(task["input"][0]["valueString"], json!(seeded.claim_number));
+    assert_eq!(path, "status");
+    let (headers, bundle) = n.open_as_payer(&body);
+    let claim_call: Uuid =
+        sqlx::query_scalar("SELECT nhcx_api_call_id FROM insurance_claims WHERE id = $1")
+            .bind(seeded.claim)
+            .fetch_one(&n.app.db)
+            .await
+            .expect("claim call id");
+    assert_eq!(
+        headers["x-hcx-correlation_id"],
+        json!(claim_call),
+        "a status enquiry names the checked message's api call id"
+    );
+    assert_ne!(headers["x-hcx-api_call_id"], json!(claim_call));
+    assert_eq!(headers["x-hcx-status"], json!("request.initiated"));
+    assert_eq!(bundle, json!({}), "an empty sealed payload");
 
     let answer = json!({ "resourceType": "Bundle", "entry": [
         { "resource": { "resourceType": "Task", "status": "completed" } },
@@ -187,7 +199,7 @@ async fn status_reprocess_and_cancel_go_as_tasks_and_their_answers_land_on_the_c
                       nhcx_support::claim_seed::amount("benefit", 28000)] } }
     ]});
     assert_eq!(
-        n.callback("hcx/on_status", &correlation, &answer).await,
+        n.callback("on_status", &correlation, &answer).await,
         StatusCode::ACCEPTED
     );
     let view = get_json(&n, &base).await;
@@ -216,8 +228,9 @@ async fn status_reprocess_and_cancel_go_as_tasks_and_their_answers_land_on_the_c
         .expect("correlation")
         .to_owned();
     let (path, body) = n.send(NhcxOperation::Reprocess, &correlation).await;
-    assert_eq!(path, "claim/reprocess");
-    let (_, bundle) = n.open_as_payer(&body);
+    assert_eq!(path, "task/submit");
+    let (headers, bundle) = n.open_as_payer(&body);
+    assert_eq!(headers["x-hcx-workflow_id"], json!("36"));
     let task = resources(&bundle, "Task").next().expect("task");
     assert_eq!(task["code"]["coding"][0]["code"], json!("reprocess"));
 
@@ -233,8 +246,9 @@ async fn status_reprocess_and_cancel_go_as_tasks_and_their_answers_land_on_the_c
         .expect("correlation")
         .to_owned();
     let (path, body) = n.send(NhcxOperation::Cancel, &correlation).await;
-    assert_eq!(path, "claim/cancel");
-    let (_, bundle) = n.open_as_payer(&body);
+    assert_eq!(path, "task/submit");
+    let (headers, bundle) = n.open_as_payer(&body);
+    assert_eq!(headers["x-hcx-workflow_id"], json!("PC01"));
     let task = resources(&bundle, "Task").next().expect("task");
     assert_eq!(task["code"]["coding"][0]["code"], json!("cancel"));
     assert_eq!(
@@ -243,7 +257,7 @@ async fn status_reprocess_and_cancel_go_as_tasks_and_their_answers_land_on_the_c
     );
     let done = json!({ "resourceType": "Task", "status": "completed" });
     assert_eq!(
-        n.callback("claim/on_cancel", &correlation, &done).await,
+        n.callback("task/on_submit", &correlation, &done).await,
         StatusCode::ACCEPTED
     );
     let (_, status) = claim_money(&n, seeded.claim).await;
@@ -276,9 +290,13 @@ async fn a_payment_notice_settles_the_claim_once_records_tds_and_is_acknowledged
     );
     let correlation = Uuid::new_v4().to_string();
     let api_call = Uuid::new_v4();
-    let status = n
-        .callback_with("paymentnotice/request", &correlation, api_call, &notice)
-        .await;
+    let settled_notice = Delivery {
+        api_call_id: api_call,
+        workflow: Some("33"),
+        status: Some("request.initiated"),
+        ..Delivery::new("paymentnotice/request", &correlation, &notice)
+    };
+    let (status, _) = n.deliver(&settled_notice).await;
     assert_eq!(status, StatusCode::ACCEPTED);
 
     let (settled, claim_status) = claim_money(&n, seeded.claim).await;
@@ -317,9 +335,13 @@ async fn a_payment_notice_settles_the_claim_once_records_tds_and_is_acknowledged
     );
 
     // The gateway delivers the same notice again.
-    let status = n
-        .callback_with("paymentnotice/request", &correlation, api_call, &notice)
-        .await;
+    let settled_notice = Delivery {
+        api_call_id: api_call,
+        workflow: Some("33"),
+        status: Some("request.initiated"),
+        ..Delivery::new("paymentnotice/request", &correlation, &notice)
+    };
+    let (status, _) = n.deliver(&settled_notice).await;
     assert_eq!(status, StatusCode::ACCEPTED);
     let (settled, _) = claim_money(&n, seeded.claim).await;
     assert_eq!(settled, Some(dec("27000")), "settled once");

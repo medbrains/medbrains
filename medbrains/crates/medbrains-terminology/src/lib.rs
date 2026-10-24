@@ -8,7 +8,9 @@
 //! * [`closure`] — derived terms and the IS-A transitive closure, computed
 //!   once per import;
 //! * [`search`] / [`concept`] / [`ecl`] — bounded reads;
-//! * [`analytics`] — a tenant's coded records counted by hierarchy.
+//! * [`analytics`] — a tenant's coded records counted by hierarchy;
+//! * [`icd10`] — the diagnosis coding switch (ICD-11 / ICD-10 / both) and a
+//!   hospital's own licensed ICD-10 catalogue (no ICD-10 content ships).
 //!
 //! Every endpoint is authenticated and every result capped (licence clause
 //! 2.2.4: no bulk extraction). No SNOMED content ships with the code; the
@@ -20,6 +22,7 @@ pub mod concept;
 pub mod ecl;
 pub mod http_admin;
 pub mod http_query;
+pub mod icd10;
 pub mod ids;
 pub mod job;
 pub mod load;
@@ -68,5 +71,15 @@ pub fn router() -> Router<AppState> {
         .route(
             "/api/terminology/snomed/import-files",
             get(http_admin::list_import_files),
+        )
+        .route(
+            "/api/terminology/diagnosis-coding",
+            get(icd10::http::get_diagnosis_coding).put(icd10::http::set_diagnosis_coding),
+        )
+        .route(
+            "/api/terminology/icd10/releases",
+            get(icd10::http::list_icd10_releases)
+                .post(icd10::http::import_icd10_release)
+                .layer(DefaultBodyLimit::max(icd10::http::MAX_UPLOAD_BYTES)),
         )
 }

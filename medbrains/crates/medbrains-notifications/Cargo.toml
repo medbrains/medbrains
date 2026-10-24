@@ -1,8 +1,9 @@
 [package]
 name = "medbrains-notifications"
+publish = false
 version = "0.1.0"
 edition = "2024"
-rust-version = "1.85"
+rust-version.workspace = true
 
 # The notification feature: HTTP handlers, WebSocket upgrade, fan-out.
 #

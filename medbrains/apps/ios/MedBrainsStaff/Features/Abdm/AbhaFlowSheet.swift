@@ -48,8 +48,8 @@ struct AbhaFlowSheet: View {
     }
 }
 
-/// Find the person's ABHA by number, mobile or address; they read out the
-/// OTP ABDM sends them; the desk compares and chooses.
+/// Find the person's ABHA by number, mobile, Aadhaar, address or a scanned
+/// card; they read out the OTP ABDM sends them; the desk compares and chooses.
 private struct AbhaVerifyFlow: View {
     let ours: OurDetails
     let confirmLabel: String
@@ -61,6 +61,9 @@ private struct AbhaVerifyFlow: View {
     @State private var value = ""
     @State private var chosen: String?
     @State private var tried = false
+    @State private var scanning = false
+    @State private var scanKey = 0
+    @State private var card: AbhaCardQr?
     @FocusState private var focused: Bool
 
     var body: some View {
@@ -68,7 +71,7 @@ private struct AbhaVerifyFlow: View {
         switch flow.step?.stageKind {
         case nil: lookup
         case .otpSent?: otpStep
-        case .chooseAccount?: accounts
+        case .chooseAccount?, .searchResults?: accounts
         default:
             if let step = flow.step, let profile = step.profile {
                 AbhaVerifiedSection(step: step, profile: profile, ours: ours, confirmLabel: confirmLabel, onConfirm: onConfirm)
@@ -78,16 +81,28 @@ private struct AbhaVerifyFlow: View {
 
     private var lookup: some View {
         VStack(alignment: .leading, spacing: 16) {
+            Button { scanning = true } label: { Label("Scan the ABHA card", systemImage: "qrcode.viewfinder") }
+                .buttonStyle(.carbonTertiary).accessibilityIdentifier("abha-scan-card")
+            if let card {
+                CarbonNotification(kind: .info, title: "What the card says — verify it by OTP", message: Abha.cardSummary(card))
+                    .accessibilityIdentifier("abha-card-read")
+            }
             Picker("Find the ABHA by", selection: $method) {
                 ForEach(AbhaVerifyMethod.allCases, id: \.self) { Text($0.label).tag($0) }
             }
-            .pickerStyle(.segmented).accessibilityIdentifier("abha-method")
-            CarbonField(method == .abhaAddress ? "ABHA address (e.g. priya.v@abdm)" : method == .mobile ? "Mobile number" : "ABHA number (14 digits)", error: tried ? Abha.lookupProblem(method, value) : nil, isFocused: focused) {
-                TextField(method.label, text: $value).keyboardType(method == .abhaAddress ? .emailAddress : .numberPad)
-                    .textInputAutocapitalization(.never).autocorrectionDisabled().focused($focused)
-                    .accessibilityIdentifier("abha-lookup-value")
+            .pickerStyle(.menu).accessibilityIdentifier("abha-method")
+            CarbonField(method.valueLabel, helper: method == .aadhaar ? "12 digits. Sent to ABDM encrypted; not saved here." : nil, error: tried ? Abha.lookupProblem(method, value) : nil, isFocused: focused) {
+                if method == .aadhaar {
+                    SecureField("12 digits", text: Binding(get: { value }, set: { value = Abha.lookupInput(.aadhaar, $0) }))
+                        .keyboardType(.numberPad).textContentType(.none).privacySensitive().focused($focused)
+                        .accessibilityIdentifier("abha-lookup-value")
+                } else {
+                    TextField(method.label, text: $value).keyboardType(method == .abhaAddress ? .emailAddress : .numberPad)
+                        .textInputAutocapitalization(.never).autocorrectionDisabled().focused($focused)
+                        .accessibilityIdentifier("abha-lookup-value")
+                }
             }
-            if method != .mobile {
+            if Abha.choosesOtpVia(method) {
                 Text("Send the OTP to").font(CarbonType.label).foregroundStyle(MedBrainsTheme.inkSecondary)
                 Picker("Send the OTP to", selection: $via) {
                     Text("Aadhaar mobile").tag(AbhaOtpVia.aadhaar)
@@ -99,8 +114,34 @@ private struct AbhaVerifyFlow: View {
                 tried = true
                 guard Abha.lookupProblem(method, value) == nil, let client else { return }
                 Task { await flow.run { try await AbhaApi(client: client).start(method, value: value, via: via) } }
-            } label: { HStack { Text("Send OTP"); Spacer(); Image(systemName: "arrow.right") } }
+            } label: { HStack { Text(method == .findMobile ? "Find ABHAs" : "Send OTP"); Spacer(); Image(systemName: "arrow.right") } }
                 .buttonStyle(.carbonPrimary).disabled(flow.busy).accessibilityIdentifier("abha-send-otp")
+        }
+        .sheet(isPresented: $scanning) { scanner }
+    }
+
+    private var scanner: some View {
+        NavigationStack {
+            BarcodeScannerView(title: "Scan the ABHA card", hint: "Hold the QR on the patient's ABHA card to the camera.", resumeKey: scanKey) { payload in
+                Task { await read(payload) }
+            }
+            .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Cancel") { scanning = false } } }
+        }
+    }
+
+    private func read(_ payload: String) async {
+        scanning = false
+        defer { scanKey += 1 }
+        guard let client else { return }
+        do {
+            let read = try await AbhaApi(client: client).readQr(payload)
+            card = read
+            if let found = Abha.lookup(from: read) { method = found.0; value = found.1 }
+            flow.failure = nil
+        } catch let e as ApiError {
+            flow.failure = e.message
+        } catch {
+            flow.failure = "Could not reach the hospital server."
         }
     }
 
@@ -113,18 +154,20 @@ private struct AbhaVerifyFlow: View {
                 Task { await flow.run { try await AbhaApi(client: client).submitOtp(id, otp: flow.otp) } }
             } label: { HStack { Text("Verify"); Spacer(); Image(systemName: "checkmark") } }
                 .buttonStyle(.carbonPrimary).disabled(flow.busy || flow.otp.count != Abha.otpLength).accessibilityIdentifier("abha-verify-otp")
-            Button(Abha.resendLabel(wait: flow.wait)) {
+            AbhaResendControl(flow: flow) {
                 guard let client, let id = flow.step?.id else { return }
-                Task { await flow.run { try await AbhaApi(client: client).resend(id) } }
+                let again = method == .aadhaar ? value : nil
+                Task { await flow.run { try await AbhaApi(client: client).resend(id, value: again) } }
             }
-            .buttonStyle(.carbonGhost).disabled(flow.busy || flow.wait > 0).accessibilityIdentifier("abha-resend")
         }
         .task(id: flow.sent) { await flow.countDown() }
     }
 
     private var accounts: some View {
         VStack(alignment: .leading, spacing: 8) {
-            CarbonSectionTitle("Several ABHAs use this mobile — which is the patient's?")
+            let found = flow.step?.stageKind == .searchResults
+            if let message = flow.step?.message { Text(message).font(CarbonType.bodyCompact).foregroundStyle(MedBrainsTheme.inkSecondary) }
+            CarbonSectionTitle(found ? "Which ABHA is the patient's? ABDM sends the OTP to it." : "Several ABHAs use this mobile — which is the patient's?")
             ForEach(flow.step?.accounts ?? [], id: \.abhaNumber) { a in
                 Button { chosen = a.abhaNumber } label: {
                     CarbonRow("\(a.name ?? "Unnamed") · \(a.abhaNumber)", detail: [a.abhaAddress, a.gender, a.yearOfBirth].compactMap { $0 }.joined(separator: " · ")) {
@@ -135,7 +178,7 @@ private struct AbhaVerifyFlow: View {
                 .accessibilityAddTraits(chosen == a.abhaNumber ? .isSelected : [])
                 .accessibilityIdentifier("abha-account-\(a.abhaNumber)")
             }
-            Button("Continue") {
+            Button(found ? "Send OTP to this ABHA" : "Continue") {
                 guard let client, let id = flow.step?.id, let chosen else { return }
                 Task { await flow.run { try await AbhaApi(client: client).chooseAccount(id, abhaNumber: chosen) } }
             }
@@ -186,8 +229,8 @@ private struct AbhaCreateFlow: View {
 
     private var consentStep: some View {
         VStack(alignment: .leading, spacing: 16) {
-            CarbonNotification(kind: .info, title: "Read this to the patient", message: "Your Aadhaar number will be used only to create your Ayushman Bharat Health Account (ABHA) with the National Health Authority. An OTP goes to the mobile linked to your Aadhaar. This hospital does not keep your Aadhaar number. Having an ABHA is your choice; you can be treated without one.")
-            Toggle("The patient agrees to create their ABHA with Aadhaar", isOn: $consent).font(CarbonType.body).tint(MedBrainsTheme.interactive)
+            CarbonNotification(kind: .info, title: "Terms and Conditions — read these to the patient", message: Abha.enrolConsent)
+            Toggle("I agree — the patient consents to creating their ABHA with Aadhaar (ABDM consent v\(Abha.enrolConsentVersion))", isOn: $consent).font(CarbonType.body).tint(MedBrainsTheme.interactive)
                 .accessibilityIdentifier("abha-consent")
             CarbonField("Aadhaar number", helper: "12 digits. Sent to ABDM encrypted; not saved here.", isFocused: focused) {
                 SecureField("12 digits", text: Binding(get: { aadhaar }, set: { aadhaar = Abha.aadhaarInput($0) }))
@@ -215,9 +258,12 @@ private struct AbhaCreateFlow: View {
                 run { [otp = flow.otp, abhaMobile] in try await $0.enrolmentOtp(id, otp: otp, mobile: abhaMobile) }
             }
             .buttonStyle(.carbonPrimary).disabled(flow.busy || flow.otp.count != Abha.otpLength || abhaMobile.count != Abha.mobileLength).accessibilityIdentifier("abha-create")
-            Button("Send the OTP again") { run { [aadhaar, consent] in try await $0.startEnrolment(aadhaar: aadhaar, consent: consent) } }
-                .buttonStyle(.carbonGhost).disabled(flow.busy || aadhaar.count != Abha.aadhaarLength)
+            AbhaResendControl(flow: flow) {
+                guard let id = flow.step?.id else { return }
+                run { [aadhaar] in try await $0.resendEnrolment(id, aadhaar: aadhaar) }
+            }
         }
+        .task(id: flow.sent) { await flow.countDown() }
     }
 
     private var mobileOtpStep: some View {
@@ -229,7 +275,12 @@ private struct AbhaCreateFlow: View {
                 run { [otp = flow.otp] in try await $0.enrolmentMobileOtp(id, otp: otp) }
             }
             .buttonStyle(.carbonPrimary).disabled(flow.busy || flow.otp.count != Abha.otpLength).accessibilityIdentifier("abha-verify-mobile")
+            AbhaResendControl(flow: flow) {
+                guard let id = flow.step?.id else { return }
+                run { try await $0.resendEnrolment(id, aadhaar: nil) }
+            }
         }
+        .task(id: flow.sent) { await flow.countDown() }
     }
 
     private var addressStep: some View {

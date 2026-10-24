@@ -162,4 +162,30 @@ mod tests {
         let r = verify(&pub_key, &tampered_hash, &signed.signature);
         assert!(r.is_err());
     }
+
+    /// RFC 8032 §7.1, test 1. Keys stored in the database and signatures
+    /// already issued were made with ed25519-dalek 2; the same seed must give
+    /// the same public key and the same signature after the upgrade, or every
+    /// stored key and issued signature stops verifying.
+    #[test]
+    fn rfc8032_vector_is_unchanged() {
+        let hex32 = |s: &str| -> [u8; 32] { hex::decode(s).unwrap().try_into().unwrap() };
+        let seed = hex32("9d61b19deffd5a60ba844af492ec2cc44449c5697b326919703bac031cae7f60");
+        let public = hex32("d75a980182b10ab7d54bfed3c964073a0ee172f3daa62325af021a68f707511a");
+        let expected = hex::decode(
+            "e5564300c360ac729086e2cc806e828a84877f1eb8e5d974d873e065224901555fb8821590a33bacc61e39701cf9b46bd25bf5f0595bbe24655141438e7a100b",
+        )
+        .unwrap();
+
+        let signing = SigningKey::from_bytes(&seed);
+        assert_eq!(signing.verifying_key().to_bytes(), public);
+        let signature = ed25519_dalek::Signer::sign(&signing, b"");
+        assert_eq!(signature.to_bytes().to_vec(), expected);
+        let sig: [u8; 64] = expected.try_into().unwrap();
+        let verifying = VerifyingKey::from_bytes(&public).unwrap();
+        assert!(
+            ed25519_dalek::Verifier::verify(&verifying, b"", &ed25519_dalek::Signature::from_bytes(&sig))
+                .is_ok()
+        );
+    }
 }

@@ -4,6 +4,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { Alert, Button, Card, Modal, PasswordField, toast } from "@/components/ui";
 import { uhiService } from "@/services/uhi.service";
+import { ServerKeyMissingAlert } from "./ServerKeyMissingAlert";
 
 interface UhiKeyCardProps {
   data: UhiSettingsView | undefined;
@@ -36,6 +37,7 @@ export function UhiKeyCard({ data, queryKey }: UhiKeyCardProps) {
     onError: (e: Error) => toast.error(e.message, { title: "Could not save the key" }),
   });
   const hasKey = Boolean(data?.signing_public_key);
+  const canMakeKey = Boolean(data?.configured) && !data?.server_key_missing;
   const run = (privateKey?: string) => (hasKey ? setConfirmRotate(true) : keys.mutate(privateKey));
 
   return (
@@ -49,10 +51,11 @@ export function UhiKeyCard({ data, queryKey }: UhiKeyCardProps) {
           </Anchor>{" "}
           and paste its private key. The private key is sealed on the server and never shown again.
         </Text>
+        <ServerKeyMissingAlert integration="UHI" envName={data?.server_key_missing} />
         <Group align="flex-end">
           <Button
             tone="secondary"
-            disabled={!data?.configured}
+            disabled={!canMakeKey}
             loading={keys.isPending && !confirmRotate}
             onClick={() => run()}
           >
@@ -65,12 +68,12 @@ export function UhiKeyCard({ data, queryKey }: UhiKeyCardProps) {
           autoComplete="off"
           value={imported}
           onChange={(e) => setImported(e.currentTarget.value)}
-          disabled={!data?.configured}
+          disabled={!canMakeKey}
         />
         <Group>
           <Button
             tone="secondary"
-            disabled={!data?.configured || imported.trim() === ""}
+            disabled={!canMakeKey || imported.trim() === ""}
             loading={keys.isPending && imported !== ""}
             onClick={() => run(imported.trim())}
           >

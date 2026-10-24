@@ -110,10 +110,10 @@ impl RevocationCache {
             .ok()
             .and_then(|g| g.peek(&user_id).copied());
 
-        if let Some(existing_ts) = existing {
-            if existing_ts >= revoked_at_unix {
-                return Ok(());
-            }
+        if let Some(existing_ts) = existing
+            && existing_ts >= revoked_at_unix
+        {
+            return Ok(());
         }
 
         let bytes = serde_json::to_vec(&revoked_at_unix)?;
@@ -121,10 +121,10 @@ impl RevocationCache {
         if let Ok(mut guard) = self.inner.write() {
             guard.put(user_id, revoked_at_unix);
         }
-        if let Ok(mut max_guard) = self.pull_max.write() {
-            if revoked_at_unix > *max_guard {
-                *max_guard = revoked_at_unix;
-            }
+        if let Ok(mut max_guard) = self.pull_max.write()
+            && revoked_at_unix > *max_guard
+        {
+            *max_guard = revoked_at_unix;
         }
         Ok(())
     }

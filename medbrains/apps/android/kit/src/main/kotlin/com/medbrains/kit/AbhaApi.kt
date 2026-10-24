@@ -11,6 +11,7 @@ object AbdmEndpoint {
     const val VERIFICATIONS = "/api/abdm/abha/verifications"
     const val ENROLMENTS = "/api/abdm/abha/enrolments"
     const val SCAN_SHARE_QUEUE = "/api/abdm/scan-share/queue"
+    const val READ_QR = "/api/abdm/abha/qr"
     fun verification(id: String, tail: String) = "$VERIFICATIONS/$id/$tail"
     fun enrolment(id: String, tail: String) = "$ENROLMENTS/$id/$tail"
     fun share(id: String, tail: String) = "/api/abdm/scan-share/$id/$tail"
@@ -22,16 +23,24 @@ object AbdmEndpoint {
 @Serializable private data class AccountBody(val abha_number: String)
 @Serializable private data class AddressBody(val abha_address: String)
 @Serializable private data class EnrolBody(val aadhaar: String, val consent: Boolean)
+@Serializable private data class ResendEnrolBody(val aadhaar: String? = null)
+@Serializable private data class ResendBody(val value: String? = null)
+@Serializable private data class QrBody(val payload: String)
 @Serializable private data class LinkBody(val patient_id: String, val apply: List<AbhaField>)
 @Serializable private data class Linked(val linked: Boolean)
 @Serializable private data class CompleteBody(val patient_id: String)
 
 class AbhaApi(private val client: ApiClient) {
-    /** Send the person an OTP. A mobile lookup has only one place to send it. */
+    /** Send the person an OTP — or, finding by mobile, list the ABHAs on it. Only a number or address lookup chooses where the OTP goes. */
     suspend fun start(method: AbhaVerifyMethod, value: String, via: AbhaOtpVia): AbhaVerificationStep =
-        client.post(AbdmEndpoint.VERIFICATIONS, StartBody(method, value.trim(), via.takeIf { method != AbhaVerifyMethod.MOBILE }))
+        client.post(AbdmEndpoint.VERIFICATIONS, StartBody(method, value.trim(), via.takeIf { Abha.choosesOtpVia(method) }))
 
-    suspend fun resend(id: String): AbhaVerificationStep = client.post(AbdmEndpoint.verification(id, "resend"))
+    /** The OTP again. An Aadhaar login sends the Aadhaar number again: the server never keeps it. */
+    suspend fun resend(id: String, value: String? = null): AbhaVerificationStep =
+        client.post(AbdmEndpoint.verification(id, "resend"), ResendBody(value))
+
+    /** What a scanned ABHA card says, to verify by OTP next. */
+    suspend fun readQr(payload: String): AbhaCardQr = client.post(AbdmEndpoint.READ_QR, QrBody(payload))
 
     suspend fun submitOtp(id: String, otp: String): AbhaVerificationStep = client.post(AbdmEndpoint.verification(id, "otp"), OtpBody(otp))
 
@@ -43,6 +52,10 @@ class AbhaApi(private val client: ApiClient) {
 
     suspend fun enrolmentOtp(id: String, otp: String, mobile: String): AbhaVerificationStep =
         client.post(AbdmEndpoint.enrolment(id, "otp"), EnrolmentOtpBody(otp, mobile))
+
+    /** The waiting OTP again. The Aadhaar OTP needs the Aadhaar number again (never stored); the mobile OTP does not. */
+    suspend fun resendEnrolment(id: String, aadhaar: String?): AbhaVerificationStep =
+        client.post(AbdmEndpoint.enrolment(id, "resend"), ResendEnrolBody(aadhaar))
 
     suspend fun enrolmentMobileOtp(id: String, otp: String): AbhaVerificationStep = client.post(AbdmEndpoint.enrolment(id, "mobile-otp"), OtpBody(otp))
 

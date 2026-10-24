@@ -123,14 +123,15 @@ pub async fn check_nhcx_eligibility(
     })?;
     let provider = nhcx_common::load_provider(&mut tx, claims.tenant_id).await?;
 
-    let (correlation_id, api_call_id, workflow_id) =
-        (Uuid::new_v4(), Uuid::new_v4(), Uuid::new_v4());
+    // A request's correlation id is its own api call id.
+    let api_call_id = Uuid::new_v4();
+    let correlation_id = api_call_id;
     let id: Uuid = sqlx::query_scalar(
         "INSERT INTO insurance_verifications \
              (tenant_id, patient_id, patient_insurance_id, trigger_point, trigger_entity_id, \
               status, payer_name, payer_id, verified_by, nhcx_correlation_id, nhcx_api_call_id, \
-              nhcx_workflow_id, nhcx_recipient_code, nhcx_status) \
-         VALUES ($1, $2, $3, $4, $5, 'pending', $6, $7, $8, $9, $10, $11, $7, 'queued') \
+              nhcx_recipient_code, nhcx_status) \
+         VALUES ($1, $2, $3, $4, $5, 'pending', $6, $7, $8, $9, $10, $7, 'queued') \
          RETURNING id",
     )
     .bind(claims.tenant_id)
@@ -143,7 +144,6 @@ pub async fn check_nhcx_eligibility(
     .bind(claims.sub)
     .bind(correlation_id)
     .bind(api_call_id)
-    .bind(workflow_id)
     .fetch_one(&mut *tx)
     .await?;
 
@@ -162,9 +162,9 @@ pub async fn check_nhcx_eligibility(
         recipient,
         correlation_id,
         api_call_id,
-        workflow_id,
+        // The Workflow Status Sheet gives eligibility no step code.
+        workflow_id: None,
         payload: &bundle,
-        hcx_status: None,
     };
     nhcx_common::queue(&mut tx, &claims, &msg).await?;
     let sql = format!(

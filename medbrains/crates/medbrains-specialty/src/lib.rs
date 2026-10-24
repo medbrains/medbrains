@@ -10,6 +10,12 @@ use medbrains_server_core::state::AppState;
 pub mod long_term_care;
 pub mod ophtho_print;
 pub mod ophtho_refraction;
+pub mod psych_admissions;
+pub mod psych_board;
+pub mod psych_challenges;
+pub mod psych_legal;
+pub mod psych_mhca;
+pub mod psych_screenings;
 pub mod specialty_dental;
 pub mod specialty_dental_plan;
 pub mod specialty_maternity;
@@ -154,6 +160,74 @@ pub fn router() -> Router<AppState> {
             "/api/specialty/psychiatry/patients/{patient_id}/counseling",
             get(specialty_psychiatry::list_counseling_sessions)
                 .post(specialty_psychiatry::create_counseling_session),
+        )
+        .route(
+            "/api/specialty/psychiatry/patients/{patient_id}/admissions",
+            get(psych_admissions::list_admissions).post(psych_admissions::create_admission),
+        )
+        .route(
+            "/api/specialty/psychiatry/admissions/{id}/discharge",
+            post(psych_admissions::discharge_admission),
+        )
+        .route(
+            "/api/specialty/psychiatry/admissions/{id}/board-report",
+            post(psych_admissions::report_admission_to_board),
+        )
+        .route(
+            "/api/specialty/psychiatry/admissions/{id}/board-decision",
+            post(psych_admissions::record_board_decision),
+        )
+        .route(
+            "/api/specialty/psychiatry/patients/{patient_id}/nominated-representatives",
+            get(psych_legal::list_representatives).post(psych_legal::create_representative),
+        )
+        .route(
+            "/api/specialty/psychiatry/nominated-representatives/{id}/revoke",
+            post(psych_legal::revoke_representative),
+        )
+        .route(
+            "/api/specialty/psychiatry/patients/{patient_id}/advance-directives",
+            get(psych_legal::list_directives).post(psych_legal::create_directive),
+        )
+        .route(
+            "/api/specialty/psychiatry/advance-directives/{id}/revoke",
+            post(psych_legal::revoke_directive),
+        )
+        .route(
+            "/api/specialty/psychiatry/advance-directives/{id}/challenges",
+            post(psych_challenges::create_challenge),
+        )
+        .route(
+            "/api/specialty/psychiatry/patients/{patient_id}/directive-challenges",
+            get(psych_challenges::list_challenges),
+        )
+        .route(
+            "/api/specialty/psychiatry/directive-challenges/{id}/decision",
+            post(psych_challenges::decide_challenge),
+        )
+        .route(
+            "/api/specialty/psychiatry/patients/{patient_id}/screenings",
+            get(psych_screenings::list_screenings).post(psych_screenings::create_screening),
+        )
+        .route(
+            "/api/specialty/psychiatry/screenings/{id}/safety-review",
+            post(psych_screenings::complete_safety_review),
+        )
+        .route(
+            "/api/specialty/psychiatry/safety-reviews/pending",
+            get(psych_screenings::list_pending_safety_reviews),
+        )
+        .route(
+            "/api/specialty/psychiatry/restraints/{id}/nominated-rep-informed",
+            post(psych_board::mark_nominated_rep_informed),
+        )
+        .route(
+            "/api/specialty/psychiatry/restraint-report",
+            get(psych_board::restraint_monthly_report),
+        )
+        .route(
+            "/api/specialty/psychiatry/patients/{patient_id}/abdm-consent",
+            put(psych_board::set_abdm_consent),
         )
         .route(
             "/api/specialty/maternity/registrations",

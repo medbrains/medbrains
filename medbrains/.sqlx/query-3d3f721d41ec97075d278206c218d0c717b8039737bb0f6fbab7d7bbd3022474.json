@@ -1,0 +1,23 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT (date_part('year', age(p.date_of_birth)) < 18) AS \"minor?\"\n             FROM psych_patients pp JOIN patients p ON p.id = pp.patient_id\n            WHERE pp.id = $1 AND pp.tenant_id = $2",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "minor?",
+        "type_info": "Bool"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "3d3f721d41ec97075d278206c218d0c717b8039737bb0f6fbab7d7bbd3022474"
+}

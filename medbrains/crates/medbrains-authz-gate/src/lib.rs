@@ -12,6 +12,7 @@
 //! `bulk_check` (N→1) rather than a per-object loop.
 
 mod handoff;
+pub mod mental_health;
 mod order_cancel;
 pub use handoff::{BILLING, HandOff, PATHOLOGY, PHARMACY, hand_off, hand_visit_to_billing};
 pub use order_cancel::require_order_cancel;
@@ -96,7 +97,7 @@ pub async fn require_admission_billing_access(
         admission_id,
         claims.tenant_id,
     )
-    .fetch_optional(&state.db)
+    .fetch_optional(&mut *medbrains_db::pool::tenant_conn(&state.db, &claims.tenant_id).await?)
     .await?
     .ok_or(AppError::NotFound)?;
     require_patient_billing_access(state, claims, patient_id).await
@@ -255,18 +256,9 @@ pub mod links {
     };
     /// Psychiatric records key on their own patient row, not the patient id.
     pub const PSYCH_PATIENT: ParentLink = ParentLink::on_patient("psych_patients");
-    /// Restraint and seclusion episodes — reviewable events under the Mental
-    /// Healthcare Act, addressed by their own id once created.
-    pub const PSYCH_RESTRAINT: ParentLink = ParentLink {
-        table: "psych_seclusion_restraint",
-        column: "psych_patient_id",
-        parent: ParentKind::Via(&PSYCH_PATIENT),
-    };
-    pub const PSYCH_MHRB_NOTIFICATION: ParentLink = ParentLink {
-        table: "psych_mhrb_notifications",
-        column: "psych_patient_id",
-        parent: ParentKind::Via(&PSYCH_PATIENT),
-    };
+    // Restraint episodes and MHRB notices hang off a psychiatric record and
+    // are gated by `mental_health::require_psych_child_access`, which also
+    // applies the restricted-record rule a plain link cannot express.
 
     /// Long-term care. Every one of these tables carries the resident's
     /// `patient_id` directly, so each is a one-liner.
@@ -512,7 +504,7 @@ pub async fn require_access_via_optional(
     let row: Option<Option<Uuid>> = sqlx::query_scalar(&sql)
         .bind(child_id)
         .bind(claims.tenant_id)
-        .fetch_optional(&state.db)
+        .fetch_optional(&mut *medbrains_db::pool::tenant_conn(&state.db, &claims.tenant_id).await?)
         .await?;
 
     match row {
@@ -564,7 +556,9 @@ pub async fn require_access_via(
         let parent_id: Option<Uuid> = sqlx::query_scalar(&sql)
             .bind(id)
             .bind(claims.tenant_id)
-            .fetch_optional(&state.db)
+            .fetch_optional(
+                &mut *medbrains_db::pool::tenant_conn(&state.db, &claims.tenant_id).await?,
+            )
             .await?
             .flatten();
 
@@ -891,7 +885,7 @@ pub async fn grant_admission_care_team(
         ward_id,
         claims.tenant_id,
     )
-    .fetch_optional(&state.db)
+    .fetch_optional(&mut *medbrains_db::pool::tenant_conn(&state.db, &claims.tenant_id).await?)
     .await
     .ok()
     .flatten()

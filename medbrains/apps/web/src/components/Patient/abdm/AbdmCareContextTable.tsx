@@ -64,6 +64,14 @@ export function AbdmCareContextTable({ contexts, onLink, linkingId }: AbdmCareCo
                       {c.linked_via === "user_initiated" ? "by the patient" : "by the hospital"}
                     </Text>
                   )}
+                  {c.link_status === "linked" && (
+                    <Text size="xs" c="var(--mb-text-secondary)">
+                      {c.notified_at
+                        ? `Shown in the patient's app ${formatDate(c.notified_at)}`
+                        : (c.notify_error ??
+                          "The patient's app is told about a minute after linking")}
+                    </Text>
+                  )}
                   {c.last_error && c.link_status !== "linked" && (
                     <Text size="xs" c="var(--mb-text-secondary)">
                       {c.last_error}

@@ -13,6 +13,9 @@
      "type": "DocumentReference"
     }
    ],
+   "entry_types": [
+    "Resource"
+   ],
    "required": [
     "status",
     "type",
@@ -52,7 +55,8 @@
       "Condition"
      ],
      "max": "1",
-     "name": "ChiefComplaints"
+     "name": "ChiefComplaints",
+     "title": null
     },
     {
      "code": "425044008",
@@ -61,7 +65,8 @@
       "Observation"
      ],
      "max": "1",
-     "name": "PhysicalExamination"
+     "name": "PhysicalExamination",
+     "title": null
     },
     {
      "code": "722446000",
@@ -70,7 +75,8 @@
       "AllergyIntolerance"
      ],
      "max": "1",
-     "name": "Allergies"
+     "name": "Allergies",
+     "title": null
     },
     {
      "code": "1003642006",
@@ -80,7 +86,8 @@
       "Procedure"
      ],
      "max": "1",
-     "name": "MedicalHistory"
+     "name": "MedicalHistory",
+     "title": null
     },
     {
      "code": "422432008",
@@ -89,7 +96,8 @@
       "FamilyMemberHistory"
      ],
      "max": "1",
-     "name": "FamilyHistory"
+     "name": "FamilyHistory",
+     "title": null
     },
     {
      "code": "721981007",
@@ -99,7 +107,8 @@
       "DiagnosticReportLab"
      ],
      "max": "1",
-     "name": "Investigations"
+     "name": "Investigations",
+     "title": null
     },
     {
      "code": "1003606003",
@@ -108,7 +117,8 @@
       "MedicationRequest"
      ],
      "max": "1",
-     "name": "Medications"
+     "name": "Medications",
+     "title": null
     },
     {
      "code": "1003640003",
@@ -117,7 +127,8 @@
       "Procedure"
      ],
      "max": "1",
-     "name": "Procedures"
+     "name": "Procedures",
+     "title": null
     },
     {
      "code": "734163000",
@@ -126,7 +137,8 @@
       "CarePlan"
      ],
      "max": "1",
-     "name": "CarePlan"
+     "name": "CarePlan",
+     "title": null
     },
     {
      "code": "373942005",
@@ -135,10 +147,101 @@
       "DocumentReference"
      ],
      "max": "1",
-     "name": "DocumentReference"
+     "name": "DocumentReference",
+     "title": null
     }
    ],
    "type_code": "373942005",
+   "version": "6.5.0"
+  },
+  "HealthDocumentRecord": {
+   "entry_max": "*",
+   "entry_min": 1,
+   "entry_slices": [],
+   "entry_types": [
+    "DocumentReference"
+   ],
+   "required": [
+    "status",
+    "type",
+    "subject",
+    "date",
+    "author",
+    "title",
+    "section"
+   ],
+   "section_code": "419891008",
+   "section_max": "1",
+   "section_rules": null,
+   "section_system": "http://snomed.info/sct",
+   "slices": [],
+   "type_code": "419891008",
+   "version": "6.5.0"
+  },
+  "ImmunizationRecord": {
+   "entry_max": "*",
+   "entry_min": 1,
+   "entry_slices": [
+    {
+     "max": "*",
+     "type": "Immunization"
+    },
+    {
+     "max": "1",
+     "type": "ImmunizationRecommendation"
+    },
+    {
+     "max": "*",
+     "type": "DocumentReference"
+    }
+   ],
+   "entry_types": [
+    "Resource"
+   ],
+   "required": [
+    "status",
+    "type",
+    "subject",
+    "date",
+    "author",
+    "title",
+    "section"
+   ],
+   "section_code": "41000179103",
+   "section_max": "1",
+   "section_rules": null,
+   "section_system": "http://snomed.info/sct",
+   "slices": [],
+   "type_code": "41000179103",
+   "version": "6.5.0"
+  },
+  "InvoiceRecord": {
+   "entry_max": "*",
+   "entry_min": 1,
+   "entry_slices": [
+    {
+     "max": "1",
+     "type": "Invoice"
+    }
+   ],
+   "entry_types": [
+    "Resource"
+   ],
+   "required": [
+    "status",
+    "type",
+    "subject",
+    "date",
+    "author",
+    "title",
+    "section"
+   ],
+   "section_code": null,
+   "section_max": "1",
+   "section_rules": null,
+   "section_system": null,
+   "slices": [],
+   "type_code": null,
    "version": "6.5.0"
   },
   "OPConsultRecord": {
@@ -163,7 +266,8 @@
       "Condition"
      ],
      "max": "1",
-     "name": "ChiefComplaints"
+     "name": "ChiefComplaints",
+     "title": null
     },
     {
      "code": "425044008",
@@ -172,7 +276,8 @@
       "Observation"
      ],
      "max": "1",
-     "name": "PhysicalExamination"
+     "name": "PhysicalExamination",
+     "title": null
     },
     {
      "code": "722446000",
@@ -181,7 +286,8 @@
       "AllergyIntolerance"
      ],
      "max": "1",
-     "name": "Allergies"
+     "name": "Allergies",
+     "title": null
     },
     {
      "code": "371529009",
@@ -191,7 +297,8 @@
       "Procedure"
      ],
      "max": "1",
-     "name": "MedicalHistory"
+     "name": "MedicalHistory",
+     "title": null
     },
     {
      "code": "422432008",
@@ -200,7 +307,8 @@
       "FamilyMemberHistory"
      ],
      "max": "1",
-     "name": "FamilyHistory"
+     "name": "FamilyHistory",
+     "title": null
     },
     {
      "code": "721963009",
@@ -209,7 +317,8 @@
       "ServiceRequest"
      ],
      "max": "1",
-     "name": "InvestigationAdvice"
+     "name": "InvestigationAdvice",
+     "title": null
     },
     {
      "code": "721912009",
@@ -219,7 +328,8 @@
       "MedicationStatement"
      ],
      "max": "1",
-     "name": "Medications"
+     "name": "Medications",
+     "title": null
     },
     {
      "code": "390906007",
@@ -228,7 +338,8 @@
       "Appointment"
      ],
      "max": "1",
-     "name": "FollowUp"
+     "name": "FollowUp",
+     "title": null
     },
     {
      "code": "371525003",
@@ -237,7 +348,8 @@
       "Procedure"
      ],
      "max": "1",
-     "name": "Procedure"
+     "name": "Procedure",
+     "title": null
     },
     {
      "code": "306206005",
@@ -246,7 +358,8 @@
       "ServiceRequest"
      ],
      "max": "1",
-     "name": "Referral"
+     "name": "Referral",
+     "title": null
     },
     {
      "code": "404684003",
@@ -255,7 +368,8 @@
       "Observation"
      ],
      "max": "1",
-     "name": "OtherObservations"
+     "name": "OtherObservations",
+     "title": null
     },
     {
      "code": "371530004",
@@ -264,7 +378,8 @@
       "DocumentReference"
      ],
      "max": "1",
-     "name": "DocumentReference"
+     "name": "DocumentReference",
+     "title": null
     }
    ],
    "type_code": "371530004",
@@ -283,6 +398,9 @@
      "type": "Binary"
     }
    ],
+   "entry_types": [
+    "Resource"
+   ],
    "required": [
     "status",
     "type",
@@ -298,6 +416,105 @@
    "section_system": "http://snomed.info/sct",
    "slices": [],
    "type_code": "440545006",
+   "version": "6.5.0"
+  },
+  "WellnessRecord": {
+   "entry_slices": [],
+   "required": [
+    "status",
+    "type",
+    "subject",
+    "date",
+    "author",
+    "title",
+    "section"
+   ],
+   "section_max": "*",
+   "section_rules": "openAtEnd",
+   "slices": [
+    {
+     "code": null,
+     "display": null,
+     "entry_types": [
+      "ObservationVitalSigns"
+     ],
+     "max": "1",
+     "name": "VitalSigns",
+     "title": "Vital Signs"
+    },
+    {
+     "code": null,
+     "display": null,
+     "entry_types": [
+      "ObservationBodyMeasurement"
+     ],
+     "max": "1",
+     "name": "BodyMeasurement",
+     "title": "Body Measurement"
+    },
+    {
+     "code": null,
+     "display": null,
+     "entry_types": [
+      "ObservationPhysicalActivity"
+     ],
+     "max": "1",
+     "name": "PhysicalActivity",
+     "title": "Physical Activity"
+    },
+    {
+     "code": null,
+     "display": null,
+     "entry_types": [
+      "ObservationGeneralAssessment"
+     ],
+     "max": "1",
+     "name": "GeneralAssessment",
+     "title": "General Assessment"
+    },
+    {
+     "code": null,
+     "display": null,
+     "entry_types": [
+      "ObservationWomenHealth"
+     ],
+     "max": "1",
+     "name": "WomenHealth",
+     "title": "Women Health"
+    },
+    {
+     "code": null,
+     "display": null,
+     "entry_types": [
+      "ObservationLifestyle"
+     ],
+     "max": "1",
+     "name": "Lifestyle",
+     "title": "Lifestyle"
+    },
+    {
+     "code": null,
+     "display": null,
+     "entry_types": [
+      "Condition",
+      "Observation"
+     ],
+     "max": "1",
+     "name": "OtherObservations",
+     "title": "Other Observations"
+    },
+    {
+     "code": null,
+     "display": null,
+     "entry_types": [
+      "DocumentReference"
+     ],
+     "max": "1",
+     "name": "DocumentReference",
+     "title": "Document Reference"
+    }
+   ],
+   "type_code": null,
    "version": "6.5.0"
   }
  },
@@ -360,6 +577,15 @@
    ],
    "type": "DiagnosticReport"
   },
+  "DocumentReference": {
+   "codings": [],
+   "identifier_requires": [],
+   "required": [
+    "status",
+    "content"
+   ],
+   "type": "DocumentReference"
+  },
   "Encounter": {
    "codings": [
     {
@@ -373,6 +599,43 @@
     "class"
    ],
    "type": "Encounter"
+  },
+  "Immunization": {
+   "codings": [
+    {
+     "only_system": "http://snomed.info/sct",
+     "path": "route"
+    },
+    {
+     "only_system": "http://snomed.info/sct",
+     "path": "reasonCode"
+    }
+   ],
+   "identifier_requires": [],
+   "required": [
+    "status",
+    "vaccineCode",
+    "patient",
+    "occurrence[x]"
+   ],
+   "type": "Immunization"
+  },
+  "Invoice": {
+   "codings": [],
+   "identifier_requires": [
+    "value"
+   ],
+   "required": [
+    "identifier",
+    "status",
+    "type",
+    "subject",
+    "date",
+    "lineItem",
+    "totalNet",
+    "totalGross"
+   ],
+   "type": "Invoice"
   },
   "MedicationRequest": {
    "codings": [
@@ -398,6 +661,72 @@
    "type": "MedicationRequest"
   },
   "Observation": {
+   "codings": [
+    {
+     "closed_systems": [
+      "http://loinc.org",
+      "http://snomed.info/sct"
+     ],
+     "path": "code"
+    },
+    {
+     "path": "code",
+     "requires": [
+      "code",
+      "display"
+     ],
+     "system": "http://loinc.org"
+    },
+    {
+     "path": "code",
+     "requires": [
+      "code",
+      "display"
+     ],
+     "system": "http://snomed.info/sct"
+    }
+   ],
+   "identifier_requires": [],
+   "required": [
+    "status",
+    "code"
+   ],
+   "type": "Observation"
+  },
+  "ObservationBodyMeasurement": {
+   "codings": [
+    {
+     "closed_systems": [
+      "http://loinc.org",
+      "http://snomed.info/sct"
+     ],
+     "path": "code"
+    },
+    {
+     "path": "code",
+     "requires": [
+      "code",
+      "display"
+     ],
+     "system": "http://loinc.org"
+    },
+    {
+     "path": "code",
+     "requires": [
+      "code",
+      "display"
+     ],
+     "system": "http://snomed.info/sct"
+    }
+   ],
+   "identifier_requires": [],
+   "required": [
+    "status",
+    "code"
+   ],
+   "type": "Observation"
+  },
+  "ObservationVitalSigns": {
    "codings": [
     {
      "closed_systems": [

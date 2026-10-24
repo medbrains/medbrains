@@ -23,8 +23,11 @@ const SUBMITTED: &[&str] = &["submitted"];
 /// NRCeS reason code for a line paid in full — not a deduction reason.
 const COVERED: &str = "covered";
 /// NRCeS payment-type detail codes.
-const PAYMENT_APPROVED: &str = "approvedAmount";
+const PAYMENT_APPROVED: &str = "approvedamount";
+const PAYMENT_NET: &str = "payment";
 const PAYMENT_TDS: &str = "tds";
+/// `ndhm-identifier-type-code` placer identifier: names a payment line.
+const PLACER_IDENTIFIER: &str = "PLAC";
 /// The most claims one payment notice may settle.
 const MAX_PAYMENT_LINES: usize = 200;
 /// The most claims one search answer is read for.
@@ -290,36 +293,76 @@ fn date(v: &Value, key: &str) -> Option<NaiveDate> {
     NaiveDate::parse_from_str(text(v, key)?.get(..10)?, "%Y-%m-%d").ok()
 }
 
+/// How a detail line names its claim. A placer identifier (`PLAC`, as in
+/// NHA's samples, `PAY-2026-0009/TDS`) names the payment line, not the
+/// claim; the reconciliation's own claim number (`CLN`) does.
+fn detail_claim_ref(d: &Value, recon_ref: Option<&String>) -> Option<String> {
+    let id = d.get("identifier");
+    let is_placer = codes(id.and_then(|i| i.get("type")))
+        .iter()
+        .any(|c| c == PLACER_IDENTIFIER);
+    match id.and_then(|i| text(i, "value")) {
+        Some(v) if !is_placer => Some(v),
+        _ => recon_ref.cloned(),
+    }
+}
+
+/// Per claim: the approved amount, the net payment and the TDS a detail
+/// line carries.
+#[derive(Default)]
+struct Money {
+    approved: Decimal,
+    payment: Decimal,
+    tds: Decimal,
+}
+
 /// The reconciliation's detail lines, grouped by the claim they name, in
-/// the order they first appear.
+/// the order they first appear. Gross is the approved amount when the payer
+/// gives one (NRCeS `approvedAmount`), else the net payment plus the TDS
+/// (NHA: "net plus the deductions equals the adjudicated benefit"). Type
+/// codes are read case-blind — NRCeS writes `tds`, NHA's samples `TDS`.
 fn payment_lines(recon: &Value) -> Vec<PaymentLine> {
-    let mut lines: Vec<PaymentLine> = Vec::new();
+    let recon_ref = first_identifier(recon);
+    let mut lines: Vec<(Option<String>, Money)> = Vec::new();
     for d in array(recon, "detail") {
-        let claim_ref = d.get("identifier").and_then(|i| text(i, "value"));
-        let kinds = codes(d.get("type"));
+        let claim_ref = detail_claim_ref(d, recon_ref.as_ref());
+        let kinds: Vec<String> = codes(d.get("type"))
+            .iter()
+            .map(|k| k.to_lowercase())
+            .collect();
         let Some(amount) = money(d, "amount") else {
             continue;
         };
-        let at = match lines.iter().position(|l| l.claim_ref == claim_ref) {
+        let at = match lines.iter().position(|l| l.0 == claim_ref) {
             Some(i) => i,
             None if lines.len() < MAX_PAYMENT_LINES => {
-                lines.push(PaymentLine {
-                    claim_ref,
-                    gross: Decimal::ZERO,
-                    tds: Decimal::ZERO,
-                });
+                lines.push((claim_ref, Money::default()));
                 lines.len() - 1
             }
             None => continue,
         };
+        let m = &mut lines[at].1;
         if kinds.iter().any(|k| k == PAYMENT_APPROVED) {
-            lines[at].gross += amount;
+            m.approved += amount;
+        } else if kinds.iter().any(|k| k == PAYMENT_NET) {
+            m.payment += amount;
         } else if kinds.iter().any(|k| k == PAYMENT_TDS) {
-            lines[at].tds += amount;
+            m.tds += amount;
         }
     }
-    lines.retain(|l| l.gross > Decimal::ZERO || l.tds > Decimal::ZERO);
     lines
+        .into_iter()
+        .map(|(claim_ref, m)| PaymentLine {
+            claim_ref,
+            gross: if m.approved > Decimal::ZERO {
+                m.approved
+            } else {
+                m.payment + m.tds
+            },
+            tds: m.tds,
+        })
+        .filter(|l| l.gross > Decimal::ZERO || l.tds > Decimal::ZERO)
+        .collect()
 }
 
 /// Read a `paymentnotice/request`: a TaskBundle with a PaymentNotice and a
@@ -335,7 +378,7 @@ pub(crate) fn payment_notice(payload: &Value) -> PaymentNotice {
         && let Some(gross) = amount
     {
         lines.push(PaymentLine {
-            claim_ref: None,
+            claim_ref: recon.or(notice).and_then(first_identifier),
             gross,
             tds: Decimal::ZERO,
         });

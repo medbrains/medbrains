@@ -1,12 +1,13 @@
+import { existsSync } from "node:fs";
 import sitemap from "@astrojs/sitemap";
 import { defineConfig } from "astro/config";
-import { loadEnv } from "vite";
 import { blogIndex } from "./scripts/blog-index.mjs";
 
 // Domain comes from the env (per-env: staging/prod), not hardcoded.
 // Reads .env locally and CI/shell env in pipelines.
-const env = loadEnv(process.env.NODE_ENV ?? "", process.cwd(), "");
-const site = env.PUBLIC_SITE_URL ?? "https://www.medbrains.in";
+// The shell/CI env wins: loadEnvFile never overwrites a variable already set.
+if (existsSync(".env")) process.loadEnvFile(".env");
+const site = process.env.PUBLIC_SITE_URL ?? "https://www.medbrains.in";
 const blog = blogIndex("./src/content/blog");
 const pathOf = (url) => new URL(url).pathname.replace(/\/$/, "") || "/";
 
@@ -27,5 +28,15 @@ export default defineConfig({
   ],
   // The app serves this page at its own root under a CSP with no
   // 'unsafe-inline' scripts, so scripts ship as files, never inlined.
-  vite: { build: { assetsInlineLimit: 0 } },
+  //
+  // noExternal: the prerender bundle otherwise imports astro's own runtime deps
+  // (cookie, html-escaper, mrmime, zod) by bare name from dist/, and Node finds
+  // them by walking up the directory tree — so any node_modules above the repo
+  // (one exists in ~/Projects) silently supplies its own versions, and astro 7
+  // broke on an old CJS `cookie` that way. Bundling them makes the build use
+  // exactly what the lockfile pinned.
+  vite: {
+    build: { assetsInlineLimit: 0 },
+    environments: { prerender: { resolve: { noExternal: true } } },
+  },
 });

@@ -1,5 +1,7 @@
 import type {
   AbcAnalysisRow,
+  AbdmBridgeRegistration,
+  AbdmBridgeStatus,
   AbdmCareContext,
   AbdmConnectionTest,
   AbdmConsentPrintData,
@@ -12,7 +14,11 @@ import type {
   AbdmScanShareCounters,
   AbdmSettingsView,
   AbdmSharingSummary,
+  AbdmSmsLink,
   AbhaAccountChange,
+  AbhaCardQr,
+  AbhaClosed,
+  AbhaOptedOut,
   AbhaStatusResponse,
   AbhaVerificationStep,
   AccessAlert,
@@ -316,6 +322,7 @@ import type {
   ClinicalProtocol,
   ClinicalScoreRow,
   ClinicalTrial,
+  CloseAbha,
   CloseDayRequest,
   CmeCertificatePrintData,
   CmsAuthor,
@@ -729,13 +736,18 @@ import type {
   CreatePrivacyRequest,
   CreateProcedureOrderRequest,
   CreateProficiencyTestRequest,
+  CreatePsychAdmissionRequest,
   CreatePsychAssessmentRequest,
+  CreatePsychChallengeRequest,
   CreatePsychCounselingRequest,
+  CreatePsychDirectiveRequest,
   CreatePsychEctRequest,
   CreatePsychMhrbRequest,
   CreatePsychometricTestRequest,
   CreatePsychPatientRequest,
+  CreatePsychRepresentativeRequest,
   CreatePsychRestraintRequest,
+  CreatePsychScreeningRequest,
   CreatePurchaseOrderRequest,
   CreateQcResultRequest,
   CreateQualityAuditRequest,
@@ -892,6 +904,7 @@ import type {
   DecidedApprovalRequest,
   DecideItemRequest,
   DecidePrivacyRequest,
+  DecidePsychChallengeRequest,
   DeclineReferralRequest,
   DeliverablePrintJob,
   DeliveryOptions,
@@ -925,6 +938,7 @@ import type {
   DeviceUtilizationRow,
   DgUpsRunLogPrintData,
   Diagnosis,
+  DiagnosisCodingStatus,
   DiagnosisReference,
   DialysisMachine,
   DialysisSession,
@@ -1152,7 +1166,8 @@ import type {
   HypoglycemiaRecheckRequest,
   HypoglycemiaView,
   IamAccessRequest,
-  Icd10Code,
+  Icd10ImportResult,
+  Icd10Release,
   IcMeeting,
   IcuBundleCheck,
   IcuDevice,
@@ -1167,6 +1182,7 @@ import type {
   ImplantRegistryEntry,
   ImportBankTransactionsRequest,
   ImportBankTransactionsResponse,
+  ImportIcd10Request,
   // Phase 3 Print Data - Quality & Safety
   IncidentReportPrintData,
   // Phase 4 Print Data - Admin & Procurement
@@ -1401,6 +1417,7 @@ import type {
   MedReconciliationView,
   MeldRequest,
   MeldResult,
+  MentalHealthSharing,
   MeowsRequest,
   MeowsResult,
   MergeCatalogItemsRequest,
@@ -1591,6 +1608,7 @@ import type {
   // Command Center
   PatientFlowSnapshot,
   PatientIdentifier,
+  PatientImmunization,
   PatientInvoiceRow,
   PatientLabOrderRow,
   PatientListResponse,
@@ -1637,6 +1655,7 @@ import type {
   PendingAckUser,
   PendingCountersign,
   PendingDischargeRow,
+  PendingSafetyReview,
   PendingSignoffEntry,
   PersonalizeDashboardRequest,
   PesoComplianceReportPrintData,
@@ -1738,14 +1757,20 @@ import type {
   ProviderSetup,
   ProviderTestResult,
   ProvisionDomainResponse,
+  PsychAdmission,
+  PsychAdvanceDirective,
   PsychAssessment,
   PsychCounselingSession,
-  PsychEctSession,
+  PsychDirectiveChallenge,
+  PsychEctRegister,
   PsychMhrbNotification,
+  PsychNominatedRepresentative,
   PsychometricTest,
   // Specialty Clinical: Psychiatry
   PsychPatient,
-  PsychRestraint,
+  PsychSafetyReviewRequest,
+  PsychScreening,
+  PsychSeclusionRestraint,
   PublicAvailableSlot,
   PublicBookingDirectory,
   PublicBookingRequest,
@@ -1835,6 +1860,7 @@ import type {
   RecordIncidentNoticeRequest,
   RecordIndicatorValueRequest,
   RecordMarketingConsentRequest,
+  RecordPatientImmunization,
   RecordPaymentRequest,
   RecordReactionRequest,
   RecordScoreRequest,
@@ -1850,6 +1876,7 @@ import type {
   RefundAdvanceRequest,
   RefundGatewayResponse,
   RefundReceiptPrintData,
+  RegisterAbdmBridge,
   RegisterHfrRequest,
   RegistrationCardPrintData,
   RegulatoryBody,
@@ -1861,6 +1888,7 @@ import type {
   RejectAssetMovementRequest,
   RejectSampleRequest,
   ReleaseOrderRequest,
+  ReleasePsychRestraintRequest,
   RemoteVitalReading,
   RemoveIndwellingDeviceRequest,
   ReorderAlert,
@@ -1883,6 +1911,7 @@ import type {
   RespondToOfferRequest,
   RestraintDocumentationPrintData,
   RestraintMonitoringLog,
+  RestraintReportRow,
   RestrictedDrugApproval,
   // Retrospective
   RetrospectiveEntry,
@@ -1956,6 +1985,7 @@ import type {
   ServiceRow,
   ServiceTimeStats,
   SetCampusFenceRequest,
+  SetDiagnosisCodingRequest,
   SetDonorDeferralRequest,
   SetHprRequest,
   SetKeys,
@@ -2271,6 +2301,8 @@ import type {
   UpdatePrimaryNurseRequest,
   UpdatePrintJobRequest,
   UpdatePriorAuthRequestBody,
+  UpdatePsychMhrbRequest,
+  UpdatePsychPatientRequest,
   UpdateQualityIncidentRequest,
   UpdateRatePlanRequest,
   UpdateReagentLotRequest,
@@ -4937,9 +4969,7 @@ export const api = {
     return request<DuplicateOrderInfo[]>(`/opd/duplicate-check?${qs}`);
   },
 
-  // ── ICD-10 & Chief Complaints ─────────────────────────
-  searchIcd10: (q: string, limit?: number) =>
-    request<Icd10Code[]>(`/opd/icd10/search?q=${encodeURIComponent(q)}&limit=${limit ?? 20}`),
+  // ── ICD-11 & Chief Complaints ─────────────────────────
   searchIcd11: (q: string, limit?: number) =>
     request<ClinicalCorpusEntry[]>(
       `/opd/icd11/search?q=${encodeURIComponent(q)}&limit=${limit ?? 20}`,
@@ -4989,6 +5019,20 @@ export const api = {
     qs.set("code", params.code);
     return request<TerminologySearchResult>(`/terminology/lookup?${qs}`);
   },
+
+  // ── Diagnosis coding switch + the hospital's licensed ICD-10 catalogue ──
+  getDiagnosisCoding: () => request<DiagnosisCodingStatus>("/terminology/diagnosis-coding"),
+  setDiagnosisCoding: (data: SetDiagnosisCodingRequest) =>
+    request<DiagnosisCodingStatus>("/terminology/diagnosis-coding", {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
+  listIcd10Releases: () => request<Icd10Release[]>("/terminology/icd10/releases"),
+  importIcd10Release: (data: ImportIcd10Request) =>
+    request<Icd10ImportResult>("/terminology/icd10/releases", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
 
   // ── SNOMED CT store (licensed RF2 releases; every result capped at 50) ──
   getSnomedStatus: () => request<SnomedStatus>("/terminology/snomed/status"),
@@ -11728,7 +11772,7 @@ export const api = {
       method: "POST",
       body: JSON.stringify(data),
     }),
-  updatePsychPatient: (id: string, data: Partial<CreatePsychPatientRequest>) =>
+  updatePsychPatient: (id: string, data: UpdatePsychPatientRequest) =>
     request<PsychPatient>(`/specialty/psychiatry/patients/${id}`, {
       method: "PUT",
       body: JSON.stringify(data),
@@ -11741,22 +11785,25 @@ export const api = {
       body: JSON.stringify(data),
     }),
   listEctSessions: (patientId: string) =>
-    request<PsychEctSession[]>(`/specialty/psychiatry/patients/${patientId}/ect`),
+    request<PsychEctRegister[]>(`/specialty/psychiatry/patients/${patientId}/ect`),
   createEctSession: (patientId: string, data: CreatePsychEctRequest) =>
-    request<PsychEctSession>(`/specialty/psychiatry/patients/${patientId}/ect`, {
+    request<PsychEctRegister>(`/specialty/psychiatry/patients/${patientId}/ect`, {
       method: "POST",
       body: JSON.stringify(data),
     }),
   listRestraints: (patientId: string) =>
-    request<PsychRestraint[]>(`/specialty/psychiatry/patients/${patientId}/restraints`),
+    request<PsychSeclusionRestraint[]>(`/specialty/psychiatry/patients/${patientId}/restraints`),
   createRestraint: (patientId: string, data: CreatePsychRestraintRequest) =>
-    request<PsychRestraint>(`/specialty/psychiatry/patients/${patientId}/restraints`, {
+    request<PsychSeclusionRestraint>(`/specialty/psychiatry/patients/${patientId}/restraints`, {
       method: "POST",
       body: JSON.stringify(data),
     }),
-  releaseRestraint: (id: string) =>
-    request<PsychRestraint>(`/specialty/psychiatry/restraints/${id}/release`, {
+  // The handler takes a JSON body; sending none answered 415 and the release
+  // button never worked.
+  releaseRestraint: (id: string, data: ReleasePsychRestraintRequest = {}) =>
+    request<PsychSeclusionRestraint>(`/specialty/psychiatry/restraints/${id}/release`, {
       method: "PUT",
+      body: JSON.stringify(data),
     }),
   listMhrbNotifications: (patientId: string) =>
     request<PsychMhrbNotification[]>(`/specialty/psychiatry/patients/${patientId}/mhrb`),
@@ -11765,10 +11812,7 @@ export const api = {
       method: "POST",
       body: JSON.stringify(data),
     }),
-  updateMhrbNotification: (
-    id: string,
-    data: Partial<CreatePsychMhrbRequest> & { status?: string },
-  ) =>
+  updateMhrbNotification: (id: string, data: UpdatePsychMhrbRequest) =>
     request<PsychMhrbNotification>(`/specialty/psychiatry/mhrb/${id}`, {
       method: "PUT",
       body: JSON.stringify(data),
@@ -11778,6 +11822,109 @@ export const api = {
   createCounselingSession: (patientId: string, data: CreatePsychCounselingRequest) =>
     request<PsychCounselingSession>(`/specialty/psychiatry/patients/${patientId}/counseling`, {
       method: "POST",
+      body: JSON.stringify(data),
+    }),
+
+  listPsychAdmissions: (psychPatientId: string) =>
+    request<PsychAdmission[]>(`/specialty/psychiatry/patients/${psychPatientId}/admissions`),
+  createPsychAdmission: (psychPatientId: string, data: CreatePsychAdmissionRequest) =>
+    request<PsychAdmission>(`/specialty/psychiatry/patients/${psychPatientId}/admissions`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  dischargePsychAdmission: (id: string, data: { note?: string }) =>
+    request<PsychAdmission>(`/specialty/psychiatry/admissions/${id}/discharge`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  reportPsychAdmissionToBoard: (id: string, data: { reference_number?: string }) =>
+    request<PsychAdmission>(`/specialty/psychiatry/admissions/${id}/board-report`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  recordPsychBoardDecision: (
+    id: string,
+    data: { decision: "permitted" | "discharge_ordered"; reference_number?: string },
+  ) =>
+    request<PsychAdmission>(`/specialty/psychiatry/admissions/${id}/board-decision`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  listPsychRepresentatives: (psychPatientId: string) =>
+    request<PsychNominatedRepresentative[]>(
+      `/specialty/psychiatry/patients/${psychPatientId}/nominated-representatives`,
+    ),
+  createPsychRepresentative: (psychPatientId: string, data: CreatePsychRepresentativeRequest) =>
+    request<PsychNominatedRepresentative>(
+      `/specialty/psychiatry/patients/${psychPatientId}/nominated-representatives`,
+      { method: "POST", body: JSON.stringify(data) },
+    ),
+  revokePsychRepresentative: (id: string, data: { reason?: string }) =>
+    request<PsychNominatedRepresentative>(
+      `/specialty/psychiatry/nominated-representatives/${id}/revoke`,
+      { method: "POST", body: JSON.stringify(data) },
+    ),
+  listPsychDirectives: (psychPatientId: string) =>
+    request<PsychAdvanceDirective[]>(
+      `/specialty/psychiatry/patients/${psychPatientId}/advance-directives`,
+    ),
+  createPsychDirective: (psychPatientId: string, data: CreatePsychDirectiveRequest) =>
+    request<PsychAdvanceDirective>(
+      `/specialty/psychiatry/patients/${psychPatientId}/advance-directives`,
+      { method: "POST", body: JSON.stringify(data) },
+    ),
+  revokePsychDirective: (id: string) =>
+    request<PsychAdvanceDirective>(`/specialty/psychiatry/advance-directives/${id}/revoke`, {
+      method: "POST",
+      body: JSON.stringify({}),
+    }),
+  createPsychChallenge: (directiveId: string, data: CreatePsychChallengeRequest) =>
+    request<PsychDirectiveChallenge>(
+      `/specialty/psychiatry/advance-directives/${directiveId}/challenges`,
+      { method: "POST", body: JSON.stringify(data) },
+    ),
+  listPsychChallenges: (psychPatientId: string) =>
+    request<PsychDirectiveChallenge[]>(
+      `/specialty/psychiatry/patients/${psychPatientId}/directive-challenges`,
+    ),
+  decidePsychChallenge: (id: string, data: DecidePsychChallengeRequest) =>
+    request<PsychDirectiveChallenge>(`/specialty/psychiatry/directive-challenges/${id}/decision`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  listPsychScreenings: (psychPatientId: string) =>
+    request<PsychScreening[]>(`/specialty/psychiatry/patients/${psychPatientId}/screenings`),
+  createPsychScreening: (psychPatientId: string, data: CreatePsychScreeningRequest) =>
+    request<PsychScreening>(`/specialty/psychiatry/patients/${psychPatientId}/screenings`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  completePsychSafetyReview: (id: string, data: PsychSafetyReviewRequest) =>
+    request<PsychScreening>(`/specialty/psychiatry/screenings/${id}/safety-review`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  listPendingSafetyReviews: () =>
+    request<PendingSafetyReview[]>("/specialty/psychiatry/safety-reviews/pending"),
+  markRestraintRepInformed: (id: string) =>
+    request<{ informed: boolean }>(
+      `/specialty/psychiatry/restraints/${id}/nominated-rep-informed`,
+      { method: "POST", body: JSON.stringify({}) },
+    ),
+  getRestraintReport: (month: string) =>
+    request<RestraintReportRow[]>(
+      `/specialty/psychiatry/restraint-report?month=${encodeURIComponent(month)}`,
+    ),
+  setPsychAbdmConsent: (psychPatientId: string, consented: boolean) =>
+    request<PsychPatient>(`/specialty/psychiatry/patients/${psychPatientId}/abdm-consent`, {
+      method: "PUT",
+      body: JSON.stringify({ consented }),
+    }),
+  getAbdmMentalHealthSharing: () =>
+    request<MentalHealthSharing>("/abdm/settings/mental-health-sharing"),
+  saveAbdmMentalHealthSharing: (data: MentalHealthSharing) =>
+    request<MentalHealthSharing>("/abdm/settings/mental-health-sharing", {
+      method: "PUT",
       body: JSON.stringify(data),
     }),
 
@@ -17336,6 +17483,12 @@ export const api = {
   saveAbdmSettings: (data: SaveAbdmSettings) =>
     request<AbdmSettingsView>("/abdm/settings", { method: "PUT", body: JSON.stringify(data) }),
   testAbdmConnection: () => request<AbdmConnectionTest>("/abdm/settings/test", { method: "POST" }),
+  getAbdmBridge: () => request<AbdmBridgeStatus>("/abdm/bridge"),
+  registerAbdmBridge: (data: RegisterAbdmBridge) =>
+    request<AbdmBridgeRegistration>("/abdm/bridge/register", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
   getUhiSettings: () => request<UhiSettingsView>("/uhi/settings"),
   saveUhiSettings: (data: SaveUhiSettings) =>
     request<UhiSettingsView>("/uhi/settings", { method: "PUT", body: JSON.stringify(data) }),
@@ -17360,8 +17513,12 @@ export const api = {
       method: "POST",
       body: JSON.stringify(data),
     }),
-  resendAbhaOtp: (id: string) =>
-    request<AbhaVerificationStep>(`/abdm/abha/verifications/${id}/resend`, { method: "POST" }),
+  /** An Aadhaar login needs the Aadhaar number again; it is never stored. */
+  resendAbhaOtp: (id: string, value?: string) =>
+    request<AbhaVerificationStep>(`/abdm/abha/verifications/${id}/resend`, {
+      method: "POST",
+      body: JSON.stringify({ value }),
+    }),
   submitAbhaOtp: (id: string, otp: string) =>
     request<AbhaVerificationStep>(`/abdm/abha/verifications/${id}/otp`, {
       method: "POST",
@@ -17381,6 +17538,12 @@ export const api = {
     request<AbhaVerificationStep>(`/abdm/abha/enrolments/${id}/otp`, {
       method: "POST",
       body: JSON.stringify({ otp, mobile }),
+    }),
+  /** The Aadhaar OTP needs the Aadhaar number again; the mobile OTP does not. */
+  resendAbhaEnrolmentOtp: (id: string, aadhaar?: string) =>
+    request<AbhaVerificationStep>(`/abdm/abha/enrolments/${id}/resend`, {
+      method: "POST",
+      body: JSON.stringify({ aadhaar }),
     }),
   submitAbhaEnrolmentMobileOtp: (id: string, otp: string) =>
     request<AbhaVerificationStep>(`/abdm/abha/enrolments/${id}/mobile-otp`, {
@@ -17408,6 +17571,36 @@ export const api = {
     request<AbhaAccountChange>(`/abdm/abha/verifications/${id}/email`, {
       method: "POST",
       body: JSON.stringify({ email }),
+    }),
+  requestAbhaReKyc: (id: string) =>
+    request<AbhaAccountChange>(`/abdm/abha/verifications/${id}/re-kyc`, { method: "POST" }),
+  verifyAbhaReKyc: (id: string, otp: string) =>
+    request<AbhaVerificationStep>(`/abdm/abha/verifications/${id}/re-kyc/verify`, {
+      method: "POST",
+      body: JSON.stringify({ otp }),
+    }),
+  /** `photo`: base64 JPEG or PNG, under 1 MB. */
+  updateAbhaPhoto: (id: string, photo: string) =>
+    request<AbhaAccountChange>(`/abdm/abha/verifications/${id}/photo`, {
+      method: "POST",
+      body: JSON.stringify({ photo }),
+    }),
+  requestAbhaClose: (id: string, data: CloseAbha) =>
+    request<AbhaAccountChange>(`/abdm/abha/verifications/${id}/close`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  verifyAbhaClose: (id: string, otp: string) =>
+    request<AbhaClosed>(`/abdm/abha/verifications/${id}/close/verify`, {
+      method: "POST",
+      body: JSON.stringify({ otp }),
+    }),
+  readAbhaQr: (payload: string) =>
+    request<AbhaCardQr>("/abdm/abha/qr", { method: "POST", body: JSON.stringify({ payload }) }),
+  optOutAbha: (patientId: string, reason: string) =>
+    request<AbhaOptedOut>(`/abdm/patients/${patientId}/abha/opt-out`, {
+      method: "POST",
+      body: JSON.stringify({ reason }),
     }),
   /** The ABHA card image, for opening in a tab to print (cookie-authenticated GET). */
   abhaCardUrl: (id: string) => `${getApiBase()}/abdm/abha/verifications/${id}/card`,
@@ -17440,6 +17633,21 @@ export const api = {
     request<AbdmPatientRecords>(`/abdm/patients/${patientId}/records`),
   linkAbdmCareContext: (id: string) =>
     request<AbdmCareContext>(`/abdm/care-contexts/${id}/link`, { method: "POST" }),
+  /** Ask ABDM to text the patient the ABHA app link (no ABHA here yet). */
+  sendAbdmSmsLink: (patientId: string) =>
+    request<AbdmSmsLink | null>(`/abdm/patients/${patientId}/sms-link`, { method: "POST" }),
+  listPatientImmunizations: (patientId: string) =>
+    request<PatientImmunization[]>(`/patients/${patientId}/immunizations`),
+  recordPatientImmunization: (patientId: string, data: RecordPatientImmunization) =>
+    request<PatientImmunization>(`/patients/${patientId}/immunizations`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  strikePatientImmunization: (id: string, reason: string) =>
+    request<PatientImmunization>(`/immunizations/${id}/strike`, {
+      method: "POST",
+      body: JSON.stringify({ reason }),
+    }),
   getAbdmSharingSummary: (month?: string) =>
     request<AbdmSharingSummary>(
       `/abdm/sharing/summary${month ? `?month=${encodeURIComponent(month)}` : ""}`,

@@ -175,3 +175,23 @@ struct AbhaImageSheet: View {
         await image.load { [kind, verificationId] in kind == .card ? try await api.card(verificationId) : try await api.qr(verificationId) }
     }
 }
+
+/// "Resend OTP" as ABDM allows it: after the pause, at most twice; once
+/// none are left, says so instead of offering a button the server refuses.
+struct AbhaResendControl: View {
+    let flow: AbhaFlowState
+    let resend: () -> Void
+
+    var body: some View {
+        let left = flow.step?.resendsLeft
+        VStack(alignment: .leading, spacing: 4) {
+            if left != 0 {
+                Button(Abha.resendLabel(wait: flow.wait), action: resend)
+                    .buttonStyle(.carbonGhost).disabled(flow.busy || flow.wait > 0).accessibilityIdentifier("abha-resend")
+            }
+            if let note = Abha.resendNote(left: left) {
+                Text(note).font(CarbonType.helper).foregroundStyle(MedBrainsTheme.inkSecondary)
+            }
+        }
+    }
+}

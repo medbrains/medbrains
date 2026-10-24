@@ -27,7 +27,7 @@ mod tax_categories;
 
 use argon2::{
     Argon2,
-    password_hash::{PasswordHasher, SaltString, rand_core::OsRng},
+    PasswordHasher,
 };
 use medbrains_core::access::{BUILT_IN_ROLES, DEFAULT_GROUPS};
 #[allow(unused_imports)]
@@ -136,10 +136,9 @@ pub async fn run_seed(pool: &PgPool) -> Result<(), Box<dyn std::error::Error>> {
             _ => "admin123".to_owned(),
         };
 
-        let salt = SaltString::generate(&mut OsRng);
         let argon2 = Argon2::default();
         let password_hash = argon2
-            .hash_password(admin_password.as_bytes(), &salt)
+            .hash_password(admin_password.as_bytes())
             .map_err(|e| format!("password hash error: {e}"))?
             .to_string();
 

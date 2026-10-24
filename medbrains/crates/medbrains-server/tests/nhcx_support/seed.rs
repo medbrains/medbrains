@@ -6,6 +6,11 @@ use uuid::Uuid;
 
 use super::Nhcx;
 
+/// A suffix that keeps rows seeded twice in one test apart.
+fn unique() -> String {
+    Uuid::new_v4().simple().to_string()[..6].to_owned()
+}
+
 /// A patient with a verified ABHA and an active policy; returns
 /// (patient, policy, abha number).
 pub async fn seed_insured_patient(n: &Nhcx) -> (Uuid, Uuid, String) {
@@ -15,7 +20,7 @@ pub async fn seed_insured_patient(n: &Nhcx) -> (Uuid, Uuid, String) {
          VALUES ($1, $2, 'Elig', 'Patient', 'female'::gender, '9000000104') RETURNING id",
     )
     .bind(n.tenant)
-    .bind(format!("UH-ELIG-{}", n.tag))
+    .bind(format!("UH-ELIG-{}-{}", n.tag, unique()))
     .fetch_one(db)
     .await
     .expect("patient");
@@ -136,7 +141,7 @@ pub async fn seed_preauth(n: &Nhcx, patient: Uuid, policy: Uuid) -> (Uuid, Uuid)
          VALUES ($1, $2, $3, $4, 'surgery', '44950', 'Appendicectomy', $5, 50000) RETURNING id",
     )
     .bind(n.tenant)
-    .bind(format!("PA-NHCX-{}", n.tag))
+    .bind(format!("PA-NHCX-{}-{}", n.tag, unique()))
     .bind(patient)
     .bind(policy)
     .bind(encounter)

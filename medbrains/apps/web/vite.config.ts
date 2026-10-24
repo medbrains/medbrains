@@ -8,7 +8,7 @@ import { execSync } from "child_process";
 import pkg from "./package.json" with { type: "json" };
 
 /** Where built source maps go: beside dist, never inside it. */
-const SOURCE_MAP_DIR = path.resolve(__dirname, "sourcemaps");
+const SOURCE_MAP_DIR = path.resolve(import.meta.dirname, "sourcemaps");
 
 /**
  * Source maps carry the original source, so they must never ship with the
@@ -22,7 +22,7 @@ function keepSourceMapsPrivate(): PluginOption {
     name: "keep-source-maps-private",
     apply: "build",
     writeBundle(options, bundle) {
-      const outDir = options.dir ?? path.resolve(__dirname, "dist");
+      const outDir = options.dir ?? path.resolve(import.meta.dirname, "dist");
       for (const file of Object.keys(bundle).filter((f) => f.endsWith(".map"))) {
         const target = path.join(SOURCE_MAP_DIR, file);
         fs.mkdirSync(path.dirname(target), { recursive: true });
@@ -45,13 +45,13 @@ function anatomyOnlyWhenSameOrigin(): PluginOption {
     closeBundle() {
       const base = process.env.VITE_ANATOMY_BASE_URL ?? "/anatomy";
       if (base.startsWith("/")) return;
-      fs.rmSync(path.resolve(__dirname, "dist", "anatomy"), { recursive: true, force: true });
+      fs.rmSync(path.resolve(import.meta.dirname, "dist", "anatomy"), { recursive: true, force: true });
     },
   };
 }
 
 /** The marketing site's build (Astro, `website/` at the repo root). */
-const WEBSITE_DIST = path.resolve(__dirname, "../../../website/dist");
+const WEBSITE_DIST = path.resolve(import.meta.dirname, "../../../website/dist");
 const WEBSITE_TYPES: Record<string, string> = {
   ".html": "text/html; charset=utf-8",
   ".js": "text/javascript",
@@ -102,7 +102,7 @@ function websiteAtRoot(): PluginOption {
     closeBundle() {
       const home = path.join(WEBSITE_DIST, "index.html");
       if (!isBuild || !fs.existsSync(home)) return;
-      const outDir = path.resolve(__dirname, "dist");
+      const outDir = path.resolve(import.meta.dirname, "dist");
       // ponytail: the app's own file wins any name clash (logo/, favicon).
       // The blog editor (admin/) loads its script from a CDN the app's CSP
       // refuses, so it lives on www only.
@@ -117,8 +117,7 @@ function websiteAtRoot(): PluginOption {
   };
 }
 
-export default defineConfig(async ({ command }) => {
-  const isBuild = command === "build";
+export default defineConfig(async () => {
   const plugins: PluginOption[] = [
     react(),
     wasm(),
@@ -140,7 +139,7 @@ export default defineConfig(async ({ command }) => {
   const devHttpsDomain = process.env.DEV_HTTPS_DOMAIN ?? "medbrains.localhost";
   const devPort = Number.parseInt(process.env.VITE_DEV_PORT ?? "5173", 10);
   const reactScanDev = process.env.VITE_REACT_SCAN === "true";
-  const workspaceRoot = path.resolve(__dirname, "../..");
+  const workspaceRoot = path.resolve(import.meta.dirname, "../..");
 
   if (process.env.ANALYZE === "true") {
     const { visualizer } = await import("rollup-plugin-visualizer");
@@ -191,7 +190,7 @@ export default defineConfig(async ({ command }) => {
       __APP_COMMIT__: JSON.stringify(gitDirty ? `${gitCommit}+local` : gitCommit),
       __APP_BUILT__: JSON.stringify(new Date().toISOString()),
     },
-    cacheDir: process.env.VITE_CACHE_DIR ?? path.resolve(__dirname, "node_modules/.vite"),
+    cacheDir: process.env.VITE_CACHE_DIR ?? path.resolve(import.meta.dirname, "node_modules/.vite"),
     plugins,
     // Vite 8 changed CJS default-import interop: `import X from "cjs-dual-pkg"`
     // now yields the module-namespace object instead of the default export,
@@ -202,17 +201,10 @@ export default defineConfig(async ({ command }) => {
     legacy: {
       inconsistentCjsInterop: true,
     },
-    // Strip noisy/leaky console + debugger from PRODUCTION builds only (dev keeps
-    // them). `pure` drops console.log/info/debug (which may log PHI) via dead-code
-    // elimination; console.warn/error are KEPT — error is the client-error report
-    // hook in main.tsx, warn is operational.
-    esbuild: isBuild
-      ? { pure: ["console.log", "console.info", "console.debug"], drop: ["debugger"] }
-      : {},
     resolve: {
       dedupe: ["react", "react-dom", "react-hook-form"],
       alias: {
-        "@": path.resolve(__dirname, "./src"),
+        "@": path.resolve(import.meta.dirname, "./src"),
         "@medbrains/design-system": path.resolve(workspaceRoot, "packages/design-system/src"),
         react: path.resolve(workspaceRoot, "node_modules/react"),
         "react-dom": path.resolve(workspaceRoot, "node_modules/react-dom"),
@@ -233,6 +225,14 @@ export default defineConfig(async ({ command }) => {
       reportCompressedSize: false,
       sourcemap: "hidden",
       target: "es2022",
+      // Strip console.log/info/debug (which may log PHI) from production builds
+      // via dead-code elimination; console.warn/error are KEPT — error is the
+      // client-error report hook in main.tsx, warn is operational. The oxc
+      // minifier drops `debugger` by default. (Vite 8 ignores the old
+      // `esbuild.pure`/`drop` options, so they had silently stopped working.)
+      rolldownOptions: {
+        treeshake: { manualPureFunctions: ["console.log", "console.info", "console.debug"] },
+      },
       // No custom manualChunks. A hand-rolled split forced interdependent
       // modules (Mantine family, dayjs, and app barrel-file re-exports) into
       // separate chunks, creating cross-chunk circular deps and broken ESM init

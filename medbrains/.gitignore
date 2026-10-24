@@ -2,7 +2,6 @@
 /target/
 crates/*/target/
 **/*.rs.bk
-Cargo.lock
 
 # Environment
 .env
@@ -25,7 +24,6 @@ entra-sso.json
 
 # Node
 node_modules/
-pnpm-lock.yaml
 
 # Build outputs
 apps/web/dist/
@@ -117,3 +115,7 @@ apps/*/artifacts/
 *.bak
 .env.bak.*
 infra/.env.bak.*
+
+# Incremental tsc state is per-machine. A committed copy makes `tsc -b` believe
+# lib/ is current and skip emitting, so packages build with missing exports.
+*.tsbuildinfo

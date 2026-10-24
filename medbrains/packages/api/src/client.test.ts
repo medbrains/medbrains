@@ -7618,14 +7618,6 @@ describe("/opd endpoints", () => {
     expect(url.split("?")[0]).toBe("/api/opd/duplicate-check");
   });
 
-  it("searchIcd10 → GET /opd/icd10/search", async () => {
-    mockOk({});
-    await api.searchIcd10(UUID, UUID);
-    expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
-    expect(url.split("?")[0]).toBe("/api/opd/icd10/search");
-  });
-
   it("searchIcd11 → GET /opd/icd11/search", async () => {
     mockOk({});
     await api.searchIcd11("diabetes", 10);
@@ -11714,5 +11706,38 @@ describe("API coverage summary", () => {
       (k) => typeof (api as Record<string, unknown>)[k] === "function",
     ).length;
     expect(methodCount).toBeGreaterThanOrEqual(1269);
+  });
+});
+
+describe("/terminology diagnosis coding", () => {
+  it("getDiagnosisCoding → GET /terminology/diagnosis-coding", async () => {
+    mockOk({});
+    await api.getDiagnosisCoding();
+    const [url] = mockFetch.mock.calls[0];
+    expect(url).toBe("/api/terminology/diagnosis-coding");
+  });
+
+  it("setDiagnosisCoding → PUT /terminology/diagnosis-coding with the mode", async () => {
+    mockOk({});
+    await api.setDiagnosisCoding({ mode: "both" });
+    const [url, opts] = mockFetch.mock.calls[0];
+    expect(url).toBe("/api/terminology/diagnosis-coding");
+    expect(opts.method).toBe("PUT");
+    expect(JSON.parse(opts.body)).toEqual({ mode: "both" });
+  });
+
+  it("importIcd10Release → POST /terminology/icd10/releases with the licence note", async () => {
+    mockOk({});
+    await api.importIcd10Release({
+      format: "csv",
+      version: "fixture",
+      source: "Test",
+      licence_note: "Fixture",
+      content: "A90,Fixture\n",
+    });
+    const [url, opts] = mockFetch.mock.calls[0];
+    expect(url).toBe("/api/terminology/icd10/releases");
+    expect(opts.method).toBe("POST");
+    expect(JSON.parse(opts.body).licence_note).toBe("Fixture");
   });
 });

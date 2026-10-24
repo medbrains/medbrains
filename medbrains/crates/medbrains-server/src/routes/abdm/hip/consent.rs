@@ -6,6 +6,12 @@
 //! names: each record becomes an NRCeS bundle, encrypted with Fidelius for
 //! the HIU's key, pushed to the `dataPushUrl` from the request, and the
 //! outcome is notified to the gateway and recorded as a transfer.
+//!
+//! Per the official sandbox docs (sandboxcms.abdm.gov.in, "Storing Consent
+//! Artefacts") a REVOKED or EXPIRED artefact is deleted, not kept; error
+//! codes are those of the M2 document's table (ABDM-1061 consent expired,
+//! ABDM-1062 consent not granted, ABDM-1010 validation failed, ABDM-1035
+//! invalid HIP ID, ABDM-1006 invalid request body).
 
 use axum::{
     Json,
@@ -24,6 +30,9 @@ use crate::{error::AppError, state::AppState};
 
 /// Care contexts one transfer carries.
 const TRANSFER_LIMIT: i64 = 100;
+/// `delete_reason` of an artefact deleted because ABDM revoked or expired it;
+/// the dashboard still counts these.
+pub(crate) const ARTEFACT_ENDED: &str = "consent ended at ABDM";
 
 pub(crate) fn time(v: &Value) -> Option<DateTime<Utc>> {
     v.as_str()
@@ -74,19 +83,24 @@ pub async fn notify(
     let status = n["status"].as_str().unwrap_or_default().to_owned();
     let detail = &n["consentDetail"];
     let names_us = detail["hip"]["id"].is_null() || detail["hip"]["id"] == caller.hip_id.as_str();
-    let valid = !consent_id.is_empty()
-        && ["GRANTED", "REVOKED", "EXPIRED", "DENIED"].contains(&status.as_str())
-        && names_us;
-    if valid {
+    let well_formed = !consent_id.is_empty()
+        && ["GRANTED", "REVOKED", "EXPIRED", "DENIED"].contains(&status.as_str());
+    let refusal = if !well_formed {
+        Some(("ABDM-1006", "Consent notification is missing its id or status"))
+    } else if !names_us {
+        Some(("ABDM-1035", "Consent artefact names another HIP"))
+    } else {
+        None
+    };
+    if refusal.is_none() {
         store(&state, &caller, &consent_id, &status, n).await?;
     }
     let mut ack = json!({ "response": { "requestId": caller.request_id } });
-    if valid {
-        ack["acknowledgement"] = json!({ "status": "OK", "consentId": consent_id });
-    } else {
+    if let Some((code, message)) = refusal {
         ack["acknowledgement"] = json!({ "status": "FAILURE", "consentId": consent_id });
-        ack["error"] =
-            json!({ "code": "ABDM-1017", "message": "Consent artefact not valid for this HIP" });
+        ack["error"] = json!({ "code": code, "message": message });
+    } else {
+        ack["acknowledgement"] = json!({ "status": "OK", "consentId": consent_id });
     }
     hip(&state, &caller)
         .await?
@@ -111,15 +125,24 @@ async fn store(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &caller.tenant_id).await?;
     if status != "GRANTED" {
-        // Revoked, expired or denied: only the id is meaningful.
+        // Revoked or expired: the artefact is deleted, its content cleared.
+        // What stays is the tombstone the transfers made under it point at —
+        // the hospital's record of what it disclosed and when (DPDP).
+        // Denied: only the status changes.
         // allow-raw-sql: binds tenant_id inside a set_tenant_context transaction
         sqlx::query(
-            "UPDATE abdm_consent_artefacts SET status = $3, notified_at = now() \
+            "UPDATE abdm_consent_artefacts SET status = $3, notified_at = now(), \
+                    signature = CASE WHEN $3 = 'DENIED' THEN signature END, \
+                    care_context_refs = CASE WHEN $3 = 'DENIED' THEN care_context_refs ELSE '{}' END, \
+                    abha_address = CASE WHEN $3 = 'DENIED' THEN abha_address END, \
+                    deleted_at = CASE WHEN $3 = 'DENIED' THEN NULL ELSE now() END, \
+                    delete_reason = CASE WHEN $3 = 'DENIED' THEN NULL ELSE $4 END \
               WHERE tenant_id = $1 AND role = 'hip' AND consent_id = $2 AND deleted_at IS NULL",
         )
         .bind(caller.tenant_id)
         .bind(consent_id)
         .bind(status)
+        .bind(ARTEFACT_ENDED)
         .execute(&mut *tx)
         .await?;
         tx.commit().await?;
@@ -161,12 +184,65 @@ struct Artefact {
     care_context_refs: Vec<String>,
     date_from: Option<DateTime<Utc>>,
     date_to: Option<DateTime<Utc>>,
+    expired: bool,
+}
+
+/// Why a health-information request is refused: an ABDM error code and words.
+type Refusal = (&'static str, &'static str);
+
+/// The HIU's key material must be complete and unexpired (the official HIP
+/// checklist: "key material is valid").
+fn key_material_refusal(km: &Value) -> Option<Refusal> {
+    let complete = km["dhPublicKey"]["keyValue"].as_str().is_some_and(|v| !v.is_empty())
+        && km["nonce"].as_str().is_some_and(|v| !v.is_empty());
+    if !complete {
+        return Some(("ABDM-1010", "Key material is incomplete"));
+    }
+    match time(&km["dhPublicKey"]["expiry"]) {
+        Some(expiry) if expiry > Utc::now() => None,
+        Some(_) => Some(("ABDM-1010", "Key material has expired")),
+        None => Some(("ABDM-1010", "Key material has no valid expiry")),
+    }
+}
+
+fn artefact_refusal(artefact: Option<&Artefact>, push_url: &str) -> Option<Refusal> {
+    match artefact {
+        None => Some(("ABDM-1062", "Consent not found or not granted")),
+        Some(a) if a.expired => Some(("ABDM-1061", "Consent artefact expired")),
+        Some(a) if a.patient_id.is_none() => Some(("ABDM-1062", "Consent names no patient here")),
+        Some(_) if !push_url.starts_with("http") => Some(("ABDM-1010", "No usable dataPushUrl")),
+        Some(_) => None,
+    }
+}
+
+/// A transfer already recorded for this transaction: the gateway retried.
+async fn earlier_answer(
+    state: &AppState,
+    caller: &Caller,
+    transaction_id: &str,
+) -> Result<Option<String>, AppError> {
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &caller.tenant_id).await?;
+    let status = sqlx::query_scalar::<_, String>(
+        "SELECT status FROM abdm_health_transfers \
+          WHERE tenant_id = $1 AND transaction_id = $2 AND deleted_at IS NULL",
+    )
+    .bind(caller.tenant_id)
+    .bind(transaction_id)
+    .fetch_optional(&mut *tx)
+    .await?;
+    tx.commit().await?;
+    Ok(status)
 }
 
 /// `POST /api/v3/hip/health-information/request` — send what was consented.
 ///
+/// A retried request (same `transactionId`) is acknowledged again exactly as
+/// the first one was, and never transferred twice.
+///
 /// # Errors
-/// 401 without a valid gateway JWT; 503 when the gateway cannot be reached.
+/// 400 without a `transactionId`; 401 without a valid gateway JWT; 503 when
+/// the gateway cannot be reached.
 #[tracing::instrument(skip_all, fields(tenant_id = tracing::field::Empty))]
 pub async fn health_information_request(
     State(state): State<AppState>,
@@ -178,23 +254,37 @@ pub async fn health_information_request(
     let hi = &body["hiRequest"];
     let transaction_id = body["transactionId"]
         .as_str()
-        .unwrap_or_default()
+        .filter(|t| !t.is_empty())
+        .ok_or_else(|| AppError::BadRequest("transactionId is required".to_owned()))?
         .to_owned();
+    let mut ack = json!({ "response": { "requestId": caller.request_id } });
+    if let Some(earlier) = earlier_answer(&state, &caller, &transaction_id).await? {
+        let refused = earlier == "refused";
+        ack["hiRequest"] = json!({ "transactionId": transaction_id,
+            "sessionStatus": if refused { "ERRORED" } else { "ACKNOWLEDGED" } });
+        if refused {
+            ack["error"] = json!({ "code": "ABDM-1062", "message": "Consent not found or not granted" });
+        }
+        hip(&state, &caller).await?.send(HI_ON_REQUEST_PATH, None, &ack).await?;
+        return Ok(StatusCode::ACCEPTED);
+    }
     let consent_id = hi["consent"]["id"].as_str().unwrap_or_default();
     let push_url = hi["dataPushUrl"].as_str().unwrap_or_default().to_owned();
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &caller.tenant_id).await?;
     let artefact = sqlx::query_as::<_, Artefact>(
-        "SELECT id, patient_id, hi_types, care_context_refs, date_from, date_to \
+        "SELECT patient_id, hi_types, care_context_refs, date_from, date_to, \
+                (data_erase_at IS NOT NULL AND data_erase_at <= now()) AS expired \
            FROM abdm_consent_artefacts \
           WHERE tenant_id = $1 AND role = 'hip' AND consent_id = $2 AND status = 'GRANTED' \
-            AND deleted_at IS NULL AND (data_erase_at IS NULL OR data_erase_at > now())",
+            AND deleted_at IS NULL",
     )
     .bind(caller.tenant_id)
     .bind(consent_id)
     .fetch_optional(&mut *tx)
     .await?;
-    let usable = artefact.filter(|a| a.patient_id.is_some() && push_url.starts_with("http"));
+    let refusal = artefact_refusal(artefact.as_ref(), &push_url)
+        .or_else(|| key_material_refusal(&hi["keyMaterial"]));
     let transfer_id = sqlx::query_scalar::<_, Uuid>(
         "INSERT INTO abdm_health_transfers (tenant_id, consent_artefact_id, patient_id, transaction_id, \
                 data_push_url, status, error) \
@@ -206,29 +296,22 @@ pub async fn health_information_request(
     .bind(consent_id)
     .bind(&transaction_id)
     .bind(&push_url)
-    .bind(if usable.is_some() { "requested" } else { "refused" })
-    .bind(usable.is_none().then_some("No granted, unexpired consent for this request"))
+    .bind(if refusal.is_none() { "requested" } else { "refused" })
+    .bind(refusal.map(|(_, why)| why))
     .fetch_optional(&mut *tx)
     .await?;
     tx.commit().await?;
     let hip = hip(&state, &caller).await?;
-    let session_status = if usable.is_some() {
-        "ACKNOWLEDGED"
-    } else {
-        "ERRORED"
-    };
-    let mut ack = json!({
-        "hiRequest": { "transactionId": transaction_id,
-                       "sessionStatus": session_status },
-        "response": { "requestId": caller.request_id },
-    });
-    let (Some(artefact), Some(transfer_id)) = (usable, transfer_id) else {
-        ack["error"] =
-            json!({ "code": "ABDM-1023", "message": "Consent not found or not granted" });
-        hip.send(HI_ON_REQUEST_PATH, None, &ack).await?;
+    ack["hiRequest"] = json!({ "transactionId": transaction_id,
+        "sessionStatus": if refusal.is_none() { "ACKNOWLEDGED" } else { "ERRORED" } });
+    if let Some((code, message)) = refusal {
+        ack["error"] = json!({ "code": code, "message": message });
+    }
+    hip.send(HI_ON_REQUEST_PATH, None, &ack).await?;
+    // No row inserted: a retry racing this one recorded it first and transfers.
+    let (Some(artefact), Some(transfer_id), None) = (artefact, transfer_id, refusal) else {
         return Ok(StatusCode::ACCEPTED);
     };
-    hip.send(HI_ON_REQUEST_PATH, None, &ack).await?;
     // ponytail: the transfer runs inside the callback (one page, up to
     // TRANSFER_LIMIT records); move to the outbox if HIUs time it out.
     let outcome = transfer(
@@ -245,9 +328,8 @@ pub async fn health_information_request(
         &state,
         &caller,
         &hip,
-        transfer_id,
-        consent_id,
-        &transaction_id,
+        (transfer_id, consent_id, &transaction_id),
+        &artefact.care_context_refs,
         outcome,
     )
     .await?;
@@ -280,6 +362,7 @@ async fn transfer(
            FROM abdm_care_contexts \
           WHERE tenant_id = $1 AND patient_id = $2 AND reference_number = ANY($3) \
             AND hi_types && $4 AND deleted_at IS NULL \
+            AND public.abdm_mental_health_shareable(tenant_id, patient_id, encounter_id) \
             AND ($5::timestamptz IS NULL OR record_date >= ($5::timestamptz AT TIME ZONE 'Asia/Kolkata')::date) \
             AND ($6::timestamptz IS NULL OR record_date <= ($6::timestamptz AT TIME ZONE 'Asia/Kolkata')::date) \
           ORDER BY record_date LIMIT $7",
@@ -294,7 +377,10 @@ async fn transfer(
     .fetch_all(&mut *tx)
     .await?;
     let patient_id = a.patient_id.ok_or(AppError::NotFound)?;
-    let documents = bundles::build(&mut tx, caller.tenant_id, patient_id, &contexts).await?;
+    let files =
+        super::bundle_records::document_files(state, &mut tx, caller.tenant_id, &contexts).await?;
+    let documents =
+        bundles::build(&mut tx, caller.tenant_id, patient_id, &contexts, &files).await?;
     tx.commit().await?;
 
     let km = &hi["keyMaterial"];
@@ -322,31 +408,38 @@ async fn transfer(
             "dhPublicKey": { "expiry": expiry, "parameters": "Curve25519/32byte random key",
                              "keyValue": ours.public_key } },
     });
-    hip.gateway
-        .push_data(push_url, &push)
-        .await
-        .map_err(super::super::abha::map_abdm_error)?;
+    // The HIU's refusal is not ABDM's: no session is dropped for it.
+    hip.gateway.push_data(push_url, &push).await.map_err(|e| {
+        AppError::ServiceUnavailable(format!("the HIU did not accept the records: {e}"))
+    })?;
     Ok(documents.into_iter().map(|(r, _)| r).collect())
 }
 
-/// Tell the gateway how the transfer went, and record it.
+/// Tell the gateway how the transfer went, and record it. A failed transfer
+/// names every care context the consent covered as ERRORED: the official
+/// notify requires one `statusResponses` entry per care context.
 async fn finish(
     state: &AppState,
     caller: &Caller,
     hip: &Hip,
-    transfer_id: Uuid,
-    consent_id: &str,
-    transaction_id: &str,
+    (transfer_id, consent_id, transaction_id): (Uuid, &str, &str),
+    requested: &[String],
     outcome: Result<Vec<String>, AppError>,
 ) -> Result<(), AppError> {
     let (sent, error) = match outcome {
         Ok(refs) => (refs, None),
         Err(e) => (Vec::new(), Some(message(&e))),
     };
-    let statuses: Vec<Value> = sent
-        .iter()
-        .map(|r| json!({ "careContextReference": r, "hiStatus": "DELIVERED", "description": "Delivered" }))
-        .collect();
+    let statuses: Vec<Value> = match &error {
+        None => sent
+            .iter()
+            .map(|r| json!({ "careContextReference": r, "hiStatus": "DELIVERED", "description": "Delivered" }))
+            .collect(),
+        Some(why) => requested
+            .iter()
+            .map(|r| json!({ "careContextReference": r, "hiStatus": "ERRORED", "description": why }))
+            .collect(),
+    };
     let session_status = if error.is_none() {
         "TRANSFERRED"
     } else {

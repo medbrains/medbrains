@@ -1,0 +1,29 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE psych_patients SET admission_category = $3 WHERE id = $1 AND tenant_id = $2",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        {
+          "Custom": {
+            "name": "psych_admission_category",
+            "kind": {
+              "Enum": [
+                "independent",
+                "supported",
+                "minor_supported",
+                "emergency",
+                "supported_extended"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "3a4a2ed0a3501c7fac271e14355d0752f0cd07e6efdd84347e7a9724762e0bdd"
+}

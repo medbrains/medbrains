@@ -1,0 +1,95 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT c.id, c.tenant_id, c.advance_directive_id, c.applicant_role, c.grounds, c.details, c.status, c.board_reference, c.decided_at, c.decision_note, c.filed_by, c.created_at, c.updated_at FROM psych_directive_challenges c JOIN psych_advance_directives d ON d.id = c.advance_directive_id WHERE d.psych_patient_id = $1 AND c.tenant_id = $2 AND c.deleted_at IS NULL ORDER BY c.created_at DESC LIMIT 100",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "tenant_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 2,
+        "name": "advance_directive_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 3,
+        "name": "applicant_role",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 4,
+        "name": "grounds",
+        "type_info": "TextArray"
+      },
+      {
+        "ordinal": 5,
+        "name": "details",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 6,
+        "name": "status",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 7,
+        "name": "board_reference",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 8,
+        "name": "decided_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 9,
+        "name": "decision_note",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 10,
+        "name": "filed_by",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 11,
+        "name": "created_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 12,
+        "name": "updated_at",
+        "type_info": "Timestamptz"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      true,
+      true,
+      true,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "ea037c7b14589161db45ad7267d50c4c0705448192026e6f551c2b260d7cce53"
+}

@@ -21,6 +21,6 @@
     "@medbrains/utils": "workspace:*"
   },
   "devDependencies": {
-    "vitest": "^4.1.5"
+    "vitest": "^5.0.5"
   }
 }

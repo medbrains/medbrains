@@ -1,11 +1,14 @@
-import { Group, Loader, SimpleGrid, Stack, Text } from "@mantine/core";
+import { Box, Group, Loader, SimpleGrid, Stack, Text } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import { api } from "@medbrains/api";
 import { useHasPermission } from "@medbrains/stores";
 import type { BlogPostListItem, UpsertBlogInput } from "@medbrains/types";
+import { IconPencil, IconPlus, IconTrash } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Pencil, Plus, Trash2 } from "lucide-react";
 import { useState } from "react";
+import Markdown from "react-markdown";
+import rehypeRaw from "rehype-raw";
+import rehypeSanitize from "rehype-sanitize";
 import {
   Badge,
   Button,
@@ -106,7 +109,7 @@ export function BlogSection() {
     <Stack gap="md">
       {canAuthor && (
         <Group justify="flex-end">
-          <Button tone="primary" leftSection={<Plus size={15} />} onClick={openNew}>
+          <Button tone="primary" leftSection={<IconPlus size={15} />} onClick={openNew}>
             New post
           </Button>
         </Group>
@@ -148,14 +151,14 @@ export function BlogSection() {
                       aria-label="Edit post"
                       onClick={() => void openEdit(post)}
                     >
-                      <Pencil size={14} />
+                      <IconPencil size={14} />
                     </IconButton>
                     <IconButton
                       tone="danger"
                       aria-label="Delete post"
                       onClick={() => confirmRemove(post)}
                     >
-                      <Trash2 size={14} />
+                      <IconTrash size={14} />
                     </IconButton>
                   </Group>
                 )}
@@ -182,11 +185,10 @@ export function BlogSection() {
             {reading.cover_image_url && (
               <Image className={styles.readerCover} src={reading.cover_image_url} alt="" />
             )}
-            {/* biome-ignore lint/security/noDangerouslySetInnerHtml: body is sanitized tiptap HTML authored by trusted hospital staff */}
-            <div
-              className={styles.readerBody}
-              dangerouslySetInnerHTML={{ __html: reading.body_html }}
-            />
+            {/* Nothing sanitizes body_html on the way in, so it is sanitized here. */}
+            <Box className={styles.readerBody}>
+              <Markdown rehypePlugins={[rehypeRaw, rehypeSanitize]}>{reading.body_html}</Markdown>
+            </Box>
           </Stack>
         )}
       </Modal>

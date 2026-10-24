@@ -1,0 +1,18 @@
+[package]
+name = "medbrains-spicedb-proto"
+version = "0.1.0"
+publish = false
+edition.workspace = true
+rust-version.workspace = true
+description = "SpiceDB gRPC client types, generated from the official authzed/api protos"
+
+# The generated code is committed (src/gen) so a build needs no protoc and no
+# build script; regenerate.sh rebuilds it from proto/ when the API is bumped.
+[dependencies]
+prost = "0.14.3"
+prost-types = "0.14.3"
+tonic = { version = "0.14.5", default-features = false, features = ["codegen"] }
+tonic-prost = "0.14.5"
+
+[dev-dependencies]
+hex = { workspace = true }

@@ -8,7 +8,6 @@
 //! SHA-256 hash of the token is stored.
 
 use axum::routing::{delete,get,post};
-use argon2::password_hash::{SaltString, rand_core::OsRng};
 use argon2::{Argon2, PasswordHasher};
 use axum::extract::{Path, State};
 use axum::{Extension, Json};
@@ -258,9 +257,8 @@ pub async fn accept(
         .or(invite_name)
         .unwrap_or_else(|| body.username.clone());
 
-    let salt = SaltString::generate(&mut OsRng);
     let password_hash = Argon2::default()
-        .hash_password(body.password.as_bytes(), &salt)
+        .hash_password(body.password.as_bytes())
         .map_err(|e| AppError::Internal(format!("password hash: {e}")))?
         .to_string();
 

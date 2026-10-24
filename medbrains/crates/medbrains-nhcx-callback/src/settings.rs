@@ -32,9 +32,14 @@ pub struct NhcxSettingsView {
     pub has_private_key: bool,
     pub public_cert_pem: Option<String>,
     pub gateway_jwt_public_key_pem: Option<String>,
+    /// Addresses callbacks may come from; empty accepts any.
+    pub callback_ip_allowlist: Vec<String>,
     /// `settings` when saved here, `env` when the server's ABDM credentials
     /// are used instead, `none` when neither.
     pub credentials_source: &'static str,
+    /// The environment variable this server lacks, when NHCX is off for that
+    /// reason; saving is refused until the administrator sets it.
+    pub server_key_missing: Option<&'static str>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -48,7 +53,12 @@ pub struct SaveNhcxSettings {
     pub private_key_pem: Option<String>,
     pub public_cert_pem: Option<String>,
     pub gateway_jwt_public_key_pem: Option<String>,
+    #[serde(default)]
+    pub callback_ip_allowlist: Vec<String>,
 }
+
+/// The most addresses an allow-list holds; NHCX publishes three.
+const MAX_ALLOWED_IPS: usize = 32;
 
 #[derive(Debug, Serialize)]
 pub struct NhcxConnectionTest {
@@ -62,6 +72,25 @@ pub struct NhcxStatus {
     pub environment: NhcxEnvironment,
     /// What is still to be set up, in words.
     pub missing: Vec<&'static str>,
+}
+
+/// Each address must parse as an IP; blanks are dropped.
+fn parse_allowlist(list: &[String]) -> Result<Vec<String>, AppError> {
+    let ips: Vec<String> = list
+        .iter()
+        .map(|s| s.trim())
+        .filter(|s| !s.is_empty())
+        .map(str::to_owned)
+        .collect();
+    if ips.len() > MAX_ALLOWED_IPS {
+        return Err(AppError::BadRequest(format!(
+            "at most {MAX_ALLOWED_IPS} callback addresses"
+        )));
+    }
+    if let Some(bad) = ips.iter().find(|s| s.parse::<std::net::IpAddr>().is_err()) {
+        return Err(AppError::BadRequest(format!("{bad} is not an IP address")));
+    }
+    Ok(ips)
 }
 
 async fn load(state: &AppState, claims: &Claims) -> Result<StoredSettings, AppError> {
@@ -90,8 +119,10 @@ async fn view(state: &AppState, stored: StoredSettings) -> NhcxSettingsView {
         has_private_key: stored.private_key_sealed.is_some(),
         client_id: stored.client_id,
         public_cert_pem: stored.public_cert_pem,
-        gateway_jwt_public_key_pem: stored.gateway_jwt_public_key_pem,
+        gateway_jwt_public_key_pem: stored.gateway_jwt_public_key_pem.clone(),
+        callback_ip_allowlist: stored.callback_ip_allowlist.clone().unwrap_or_default(),
         credentials_source,
+        server_key_missing: config::server_key_missing(state.secret_resolver.as_ref()).await,
     }
 }
 
@@ -164,7 +195,10 @@ pub async fn save_settings(
     if let (Some(key), Some(cert)) = (&new_private_key, &cert) {
         check_key_pair(key, cert)?;
     }
-    let sealing_key = config::sealing_key(state.secret_resolver.as_ref()).await;
+    let allowlist = parse_allowlist(&body.callback_ip_allowlist)?;
+    let sealing_key = config::sealing_key(state.secret_resolver.as_ref())
+        .await
+        .map_err(|e| AppError::ServiceUnavailable(e.to_string()))?;
     let seal = |context: &[u8], secret: &str| {
         config::seal(&sealing_key, context, secret)
             .map_err(|_| AppError::Internal("could not seal the NHCX secret".to_owned()))
@@ -186,8 +220,9 @@ pub async fn save_settings(
         .await?;
     sqlx::query(
         "INSERT INTO nhcx_settings (tenant_id, environment, client_id, client_secret_sealed, \
-             private_key_sealed, public_cert_pem, gateway_jwt_public_key_pem, updated_by) \
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8) \
+             private_key_sealed, public_cert_pem, gateway_jwt_public_key_pem, updated_by, \
+             callback_ip_allowlist) \
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) \
          ON CONFLICT (tenant_id) WHERE deleted_at IS NULL DO UPDATE SET \
            environment = EXCLUDED.environment, client_id = EXCLUDED.client_id, \
            client_secret_sealed = COALESCE(EXCLUDED.client_secret_sealed, \
@@ -196,7 +231,8 @@ pub async fn save_settings(
                                          nhcx_settings.private_key_sealed), \
            public_cert_pem = EXCLUDED.public_cert_pem, \
            gateway_jwt_public_key_pem = EXCLUDED.gateway_jwt_public_key_pem, \
-           updated_by = EXCLUDED.updated_by",
+           updated_by = EXCLUDED.updated_by, \
+           callback_ip_allowlist = EXCLUDED.callback_ip_allowlist",
     )
     .bind(claims.tenant_id)
     .bind(match body.environment {
@@ -209,6 +245,7 @@ pub async fn save_settings(
     .bind(cert)
     .bind(gateway_key)
     .bind(claims.sub)
+    .bind(&allowlist)
     .execute(&mut *tx)
     .await?;
     let stored = config::stored(&mut tx, claims.tenant_id)
@@ -287,7 +324,16 @@ pub async fn get_status(
         (stored.private_key_sealed.is_none(), "private key"),
         (
             stored.gateway_jwt_public_key_pem.is_none(),
-            "gateway public key",
+            "NHCX gateway public key — until it is saved every payer answer is refused \
+             unread; NHA hands it over at onboarding, ask for it when you register your \
+             callback address",
+        ),
+        (
+            config::server_key_missing(state.secret_resolver.as_ref())
+                .await
+                .is_some(),
+            "not configured on this server — ask your administrator to set \
+             MEDBRAINS_NHCX_SECRET_KEY",
         ),
     ]
     .into_iter()

@@ -221,12 +221,15 @@ fn bundle(id: Uuid, profile: &str, focal: Value, rest: Vec<Value>, now: &str) ->
 
 fn diagnosis(seq: usize, d: &DiagnosisLine) -> Value {
     let mut coding = Vec::new();
-    if let Some(code) = d.icd_code.as_deref().filter(|c| !c.is_empty()) {
-        let system = match d.icd_system.as_str() {
-            "icd11" => ICD11_SYSTEM,
-            "snomed" => SNOMED_SYSTEM,
-            _ => ICD10_SYSTEM,
-        };
+    // Each code in the system it was chosen from — the Claim profile's
+    // diagnosis binding is an example, so ICD-11 and ICD-10 are both valid.
+    let system = match d.icd_system.as_str() {
+        "icd11" => Some(ICD11_SYSTEM),
+        "icd10" => Some(ICD10_SYSTEM),
+        "snomed" => Some(SNOMED_SYSTEM),
+        _ => None,
+    };
+    if let (Some(code), Some(system)) = (d.icd_code.as_deref().filter(|c| !c.is_empty()), system) {
         coding.push(json!({ "system": system, "code": code, "display": d.description }));
     }
     if let Some(code) = d.snomed_code.as_deref().filter(|c| !c.is_empty()) {
@@ -256,7 +259,7 @@ fn attachment(doc: &DocumentRef) -> Value {
         "title": doc.file_name.as_deref().unwrap_or(&doc.document_type),
         "url": url,
         "data": doc.data,
-        "creation": doc.created_at.to_rfc3339(),
+        "creation": medbrains_core::nhcx_wire::ist_timestamp(doc.created_at),
     })
 }
 
@@ -297,7 +300,7 @@ fn supporting_info(seq: usize, doc: &DocumentRef) -> Value {
 /// items, diagnoses and supporting documents, then the shared entries.
 pub(crate) fn claim_bundle(parties: &Parties<'_>, c: &ClaimContent<'_>) -> Value {
     let urns = Urns::new(parties.patient.id);
-    let now = Utc::now().to_rfc3339();
+    let now = medbrains_core::nhcx_wire::ist_timestamp(Utc::now());
     let items: Vec<Value> = c
         .items
         .iter()
@@ -376,7 +379,7 @@ pub(crate) fn eligibility_bundle(
     categories: &[(&str, &str)],
 ) -> Value {
     let urns = Urns::new(parties.patient.id);
-    let now = Utc::now().to_rfc3339();
+    let now = medbrains_core::nhcx_wire::ist_timestamp(Utc::now());
     let request_id = Uuid::new_v4();
     let items: Vec<Value> = categories
         .iter()
@@ -429,7 +432,7 @@ pub(crate) fn communication(
         "identifier": [{ "system": "https://medbrains.health/nhcx-payer-query", "value": query_id }],
         "status": "completed",
         "about": [{ "reference": format!("Claim/{about}") }],
-        "sent": Utc::now().to_rfc3339(),
+        "sent": medbrains_core::nhcx_wire::ist_timestamp(Utc::now()),
         "payload": payload,
     })
 }

@@ -2,7 +2,7 @@
 //! store, then the server's environment), and its HMAC signature check. The
 //! calls themselves are [`crate::online::razorpay`].
 
-use hmac::{Hmac, Mac};
+use hmac::{Hmac, KeyInit, Mac};
 use medbrains_core::secrets::{SecretError, SecretResolver};
 use medbrains_server_core::error::AppError;
 use serde::Deserialize;
@@ -147,7 +147,7 @@ pub fn mode_for_method(method: &str) -> Option<&'static str> {
 
 #[cfg(test)]
 mod tests {
-    use super::{Hmac, Mac, Sha256, mode_for_method, signature_matches};
+    use super::{Hmac, KeyInit, Mac, Sha256, mode_for_method, signature_matches};
 
     #[test]
     fn each_method_posts_as_the_mode_it_was_paid_by() {

@@ -1,8 +1,10 @@
 import Foundation
 
 /// Reads an NRCeS FHIR document bundle (as another facility sent it through
-/// ABDM) into sections a clinician can scan: diagnoses, medicines, results
-/// with their units and ranges, and attached documents. The same reading as
+/// ABDM) into sections a clinician can scan, for each of ABDM's eight HI
+/// types: diagnoses, medicines, results with their units and ranges (a
+/// blood-pressure panel by its parts), immunisations with dose and lot,
+/// invoices with their totals, and attached documents. The same reading as
 /// the web (`apps/web/src/components/Patient/abdm/fhirSections.ts`). Bounded —
 /// a bundle can carry thousands of resources; the screen shows the first few dozen.
 public enum FhirSections {
@@ -70,7 +72,7 @@ public enum FhirSections {
         }
         switch type {
         case "Observation":
-            let value = quantity(r?["valueQuantity"]) ?? text(r?["valueString"]) ?? concept(r?["valueCodeableConcept"])
+            let value = quantity(r?["valueQuantity"]) ?? text(r?["valueString"]) ?? concept(r?["valueCodeableConcept"]) ?? components(r)
             let flag = concept(list(r?["interpretation"]).first)
             let detail = [range(r), flag].compactMap { $0 }.joined(separator: " · ")
             return item([concept(r?["code"]) ?? "Observation", value].compactMap { $0 }.joined(separator: ": "), detail.isEmpty ? nil : detail)
@@ -85,7 +87,17 @@ public enum FhirSections {
         case "Binary":
             return item("Attached document", nil, link(url: nil, data: text(r?["data"]), contentType: text(r?["contentType"]), title: nil))
         case "Immunization":
-            return item(concept(r?["vaccineCode"]) ?? "Immunisation", text(r?["occurrenceDateTime"]))
+            let applied = list(r?["protocolApplied"]).first
+            let dose = count(applied?["doseNumberPositiveInt"]) ?? text(applied?["doseNumberString"])
+            let detail = [text(r?["occurrenceDateTime"]), dose.map { "dose \($0)" }, text(r?["lotNumber"]).map { "lot \($0)" }].compactMap { $0 }.joined(separator: " · ")
+            return item(concept(r?["vaccineCode"]) ?? "Immunisation", detail.isEmpty ? nil : detail)
+        case "Invoice":
+            let lines = list(r?["lineItem"]).count
+            let net = money(r?["totalNet"]), gross = money(r?["totalGross"])
+            let detail = [gross.map { "Total \($0)" }, net.flatMap { $0 == gross ? nil : "net \($0)" }, "\(lines) item\(lines == 1 ? "" : "s")"].compactMap { $0 }.joined(separator: " · ")
+            return item([concept(r?["type"]) ?? "Invoice", text(list(r?["identifier"]).first?["value"])].compactMap { $0 }.joined(separator: " "), detail)
+        case "ChargeItem":
+            return item(concept(r?["code"]) ?? "Charge", quantity(r?["quantity"]).map { "× \($0)" })
         default:
             return item(concept(r?["code"]) ?? type, concept(r?["clinicalStatus"]) ?? text(r?["recordedDate"]))
         }
@@ -116,6 +128,22 @@ public enum FhirSections {
     private static func quantity(_ v: JSONValue?) -> String? {
         guard case .number(let n)? = v?["value"] else { return nil }
         return [number(n), text(v?["unit"]) ?? text(v?["code"])].compactMap { $0 }.joined(separator: " ")
+    }
+
+    /// A panel's parts, e.g. blood pressure: "Systolic 120 mmHg · Diastolic 80 mmHg".
+    private static func components(_ r: JSONValue?) -> String? {
+        let parts = list(r?["component"]).map { [concept($0["code"]), quantity($0["valueQuantity"])].compactMap { $0 }.joined(separator: " ") }.filter { !$0.isEmpty }
+        return parts.isEmpty ? nil : parts.joined(separator: " · ")
+    }
+
+    private static func count(_ v: JSONValue?) -> String? {
+        guard case .number(let n)? = v else { return nil }
+        return number(n)
+    }
+
+    private static func money(_ v: JSONValue?) -> String? {
+        guard case .number(let n)? = v?["value"] else { return nil }
+        return [text(v?["currency"]), String(format: "%.2f", n)].compactMap { $0 }.joined(separator: " ")
     }
 
     private static func range(_ r: JSONValue?) -> String? {

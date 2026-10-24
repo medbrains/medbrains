@@ -14,7 +14,7 @@ use std::sync::Arc;
 
 use axum::http::StatusCode;
 use base64::Engine as _;
-use hmac::{Hmac, Mac};
+use hmac::{Hmac, KeyInit, Mac};
 use serde_json::{Value, json};
 use sha2::{Digest, Sha256, Sha512};
 use uuid::Uuid;

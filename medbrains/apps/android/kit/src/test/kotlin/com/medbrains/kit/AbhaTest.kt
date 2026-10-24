@@ -25,6 +25,30 @@ class AbhaTest {
         assertNull("a masked mobile is no number to call", Abha.mobile("XXXXXX3210"))
     }
 
+    /** Finding by Aadhaar or by mobile (M1 VRFY_ABHA_301–305, 401–405); only a number or address lookup chooses where the OTP goes. */
+    @Test
+    fun findingByAadhaarOrMobileSaysWhatItNeeds() {
+        assertNull(Abha.lookupProblem(AbhaVerifyMethod.AADHAAR, "1234 5678 9012"))
+        assertEquals("An Aadhaar number is 12 digits", Abha.lookupProblem(AbhaVerifyMethod.AADHAAR, "12345"))
+        assertNull(Abha.lookupProblem(AbhaVerifyMethod.FIND_MOBILE, "98765 43210"))
+        assertEquals("never more than twelve digits", "123456789012", Abha.lookupInput(AbhaVerifyMethod.AADHAAR, "1234-5678-9012-34"))
+        assertEquals("priya.v@abdm", Abha.lookupInput(AbhaVerifyMethod.ABHA_ADDRESS, "priya.v@abdm"))
+        assertEquals(listOf(AbhaVerifyMethod.ABHA_NUMBER, AbhaVerifyMethod.ABHA_ADDRESS), AbhaVerifyMethod.entries.filter(Abha::choosesOtpVia))
+        assertEquals("\"find_mobile\"", json.encodeToString(AbhaVerifyMethod.serializer(), AbhaVerifyMethod.FIND_MOBILE))
+    }
+
+    /** A scanned card leads to verifying its number, else its address; what it says is shown, never trusted. */
+    @Test
+    fun aScannedCardLeadsToItsNumberThenItsAddress() {
+        val full = json.decodeFromString(AbhaCardQr.serializer(), """{"abha_number":"91-4173-3253-1234","abha_address":"x@abdm","name":"Priya V","gender":"female","date_of_birth":"21-11-1990","mobile":null}""")
+        assertEquals(AbhaVerifyMethod.ABHA_NUMBER to "91-4173-3253-1234", Abha.lookup(full))
+        assertEquals("Priya V · female · born 21-11-1990", Abha.cardSummary(full))
+        val address = AbhaCardQr(abha_address = "x@abdm")
+        assertEquals(AbhaVerifyMethod.ABHA_ADDRESS to "x@abdm", Abha.lookup(address))
+        assertEquals("The card names an ABHA but no details.", Abha.cardSummary(address))
+        assertNull(Abha.lookup(AbhaCardQr()))
+    }
+
     @Test
     fun theLookupSaysWhatIsMissing() {
         assertNull(Abha.lookupProblem(AbhaVerifyMethod.ABHA_NUMBER, "91-1111-2222-3333"))
@@ -84,6 +108,17 @@ class AbhaTest {
         assertEquals(AbhaStage.CHOOSE_ACCOUNT, step.stage)
         assertEquals("UH-1", step.already_linked?.uhid)
         assertEquals("Resend OTP in 12s", Abha.resendLabel(12))
+        assertNull("an older server without the cap still decodes", step.resends_left)
+    }
+
+    /** ABDM allows two resends; once none are left the screen says so instead of offering one. */
+    @Test
+    fun resendsLeftDecodeAndAreSaidPlainly() {
+        val step = json.decodeFromString<AbhaVerificationStep>("""{"id":"v1","stage":"otp_sent","resend_after_seconds":60,"resends_left":0}""")
+        assertEquals(0, step.resends_left)
+        assertEquals("The OTP cannot be sent again. If it has not arrived, close this and start again.", Abha.resendNote(0))
+        assertEquals("One resend left", Abha.resendNote(1))
+        assertNull(Abha.resendNote(null))
     }
 }
 
