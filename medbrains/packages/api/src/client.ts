@@ -396,6 +396,7 @@ import type {
   ConsumeRequest,
   // Inventory Phase 2
   ConsumptionAnalysisRow,
+  ContactChannel,
   ContrastScreeningRequest,
   ContrastScreeningResult,
   ConvertLeadRequest,
@@ -2103,6 +2104,7 @@ import type {
   TestResultValue,
   ToggleChecklistItemRequest,
   TokenBoardMetrics,
+  TokenCallSmsStatus,
   TokenSlipPrintData,
   TpaRateCard,
   TrainingCertificatePrintData,
@@ -3986,12 +3988,12 @@ export const api = {
       body: JSON.stringify(data),
     }),
 
-  // Patient messaging consent (WhatsApp / email) — append-only history
+  // Patient messaging consent (WhatsApp / email / SMS) — append-only history
   getPatientContactConsents: (patientId: string) =>
     request<PatientContactConsents>(`/patients/${patientId}/contact-consents`),
   setPatientContactConsent: (
     patientId: string,
-    data: { channel: "whatsapp" | "email"; granted: boolean },
+    data: { channel: ContactChannel; granted: boolean },
   ) =>
     request<PatientContactConsents>(`/patients/${patientId}/contact-consents`, {
       method: "PUT",
@@ -4173,6 +4175,7 @@ export const api = {
     if (params.scope_id) qs.set("scope_id", params.scope_id);
     return request<TokenBoardMetrics>(`/tokens/board/metrics?${qs.toString()}`);
   },
+  getTokenCallSmsStatus: () => request<TokenCallSmsStatus>("/tokens/call-sms/status"),
   myTokens: (patientId: string) => request<ModuleToken[]>(`/tokens/mine?patient_id=${patientId}`),
   callToken: (id: string, counterLabel?: string) =>
     request<ModuleToken>(`/tokens/${id}/call`, {

@@ -714,8 +714,11 @@ export interface PatientContactPreferences {
 }
 
 /** One channel's current answer, as the patient page shows it. */
+/** A messaging channel with a recorded answer. SMS is allowed until withdrawn. */
+export type ContactChannel = "whatsapp" | "email" | "sms";
+
 export interface ChannelConsent {
-  channel: "whatsapp" | "email";
+  channel: ContactChannel;
   granted: boolean;
   source: "registration" | "patient_update" | "portal";
   recorded_by_name: string | null;

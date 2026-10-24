@@ -1607,7 +1607,7 @@ Note on print rendering: two paths exist. (a) Server Tera+Gotenberg templates (m
 | 103 | Multi-zone layout | Missing | — | | M |
 | 104 | SMS on issue (position/ETA) | Partly | only on call | no issue-time SMS | S |
 | 105 | SMS 3 tokens before turn | Missing | — | | S |
-| 106 | SMS when called | Met | sms.token_called pipeline, tenant opt-in token_call_sms (medbrains-workflow/src/orchestration/default_pipelines.rs:340-397) | OPD only | |
+| 106 | SMS when called | Met | sms.token_called queued on every token call (all queues), DLT template_scope + variables, tenant opt-in token_call_sms, SMS withdrawal honoured; template status + refusals on Settings → Tokens (medbrains-workflow/src/orchestration/token_call_sms.rs) | | |
 | 107 | WhatsApp queue notify | Partly | WhatsApp used for discharge/payment | not queue | S |
 | 108 | App push for queue | Partly | queue-status web page | no native push | M |
 | 109 | Check position from phone | Met | pages/queue-status.tsx | | |
