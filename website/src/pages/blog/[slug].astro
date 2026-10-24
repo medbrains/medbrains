@@ -36,7 +36,7 @@ export async function getStaticPaths() {
 
 const { post, all } = Astro.props as { post: Post; all: Post[] };
 const { Content, headings } = await render(post);
-const { title, seoTitle, description, date, updated, tags, sources, category, reviewer, cover, ogImage, faq } = post.data;
+const { title, seoTitle, description, summary, date, updated, tags, sources, category, reviewer, cover, ogImage, faq } = post.data;
 const author = await getEntry(post.data.author);
 if (!author) throw new Error(`Post ${post.id} names an author that does not exist`);
 const topic = getCategory(category);
@@ -84,6 +84,7 @@ const page = {
   "@id": `${url}#article`,
   headline: title.slice(0, 110),
   description,
+  ...(summary ? { abstract: summary } : {}),
   url,
   image: crops.length ? crops : absolute("/og.png", Astro.site),
   ...(crops.length ? { thumbnailUrl: crops[0].url } : {}),
@@ -190,6 +191,7 @@ const schema = [
         )}
 
         <div class="prose" data-pagefind-body>
+          {summary && <p class="in-short"><strong>In short:</strong> {summary}</p>}
           <Content />
 
           {faq && faq.length > 0 && (
@@ -307,6 +309,11 @@ const schema = [
     :global(svg) { flex: none; color: var(--purple); margin-top: 2px; }
     p { margin: 0; font-size: .98rem; }
     a { font-weight: 700; }
+  }
+
+  .in-short {
+    padding: 16px 20px; border-left: 4px solid var(--blue); background: var(--paper-2); color: var(--ink);
+    border-radius: 0 12px 12px 0;
   }
 
   .prose {

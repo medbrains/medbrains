@@ -13,17 +13,20 @@ interface Props {
   description: string;
   h1: string;
   intro: string;
-  /** /downloads/<slug>.pdf */
-  pdf: string;
+  /** /downloads/<slug>.pdf, for resources that have a printable copy. */
+  pdf?: string;
+  /** Extra schema.org nodes for this page (e.g. a Dataset). */
+  extraSchema?: Record<string, unknown>[];
   /** The landing page this resource belongs to. */
   guide: { href: string; name: string };
 }
-const { title, description, h1, intro, pdf, guide } = Astro.props;
+const { title, description, h1, intro, pdf, guide, extraSchema = [] } = Astro.props;
 const schema = [
   breadcrumbs(Astro.site, [
     { name: guide.name, path: guide.href },
     { name: h1, path: Astro.url.pathname },
   ]),
+  ...extraSchema,
 ];
 ---
 
@@ -43,7 +46,7 @@ const schema = [
         <h1>{h1}</h1>
         <p class="lede">{intro}</p>
         <div class="actions no-print">
-          <a class="btn btn-primary" href={pdf} download>Download PDF <span aria-hidden="true">↓</span></a>
+          {pdf && <a class="btn btn-primary" href={pdf} download>Download PDF <span aria-hidden="true">↓</span></a>}
           <button class="btn btn-ghost" type="button" data-print>Print this page</button>
         </div>
       </header>

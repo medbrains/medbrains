@@ -1,6 +1,7 @@
 ---
 title: "The DPDP Act and Rules 2025: what Indian hospitals need to do, and by when"
 description: "What the DPDP Act 2023 and the DPDP Rules 2025 mean for Indian hospitals: deadlines, consent, emergencies, children's data, breaches and retention."
+summary: "Hospitals are Data Fiduciaries under the DPDP Act 2023. Most duties, including notice and consent, security, breach reporting, retention and patients' rights, apply from May 2027, eighteen months after the Rules took effect on 13 November 2025."
 date: 2026-10-22
 category: regulatory-compliance
 seoTitle: "DPDP Rules 2025 for hospitals | MedBrains Blog"

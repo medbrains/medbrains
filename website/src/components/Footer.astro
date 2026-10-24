@@ -1,6 +1,6 @@
 ---
 import { ANALYTICS, SITE, SOCIAL, WHATSAPP } from "../consts";
-import { GUIDE_LIST, RESOURCES } from "../data/guides";
+import { GUIDE_LIST, RESOURCES, TOOLS } from "../data/guides";
 import { MODULE_PAGES } from "../data/modules";
 
 const links = [
@@ -36,6 +36,7 @@ const links = [
       <p>For hospitals</p>
       {GUIDE_LIST.map((g) => <a href={`/${g.slug}`}>{g.eyebrow}</a>)}
       {RESOURCES.map((r) => <a href={r.page}>{r.title}</a>)}
+      {TOOLS.map((t) => <a href={t.page}>{t.title}</a>)}
     </nav>
     <nav aria-label="Social">
       <p>Follow</p>

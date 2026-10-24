@@ -1,6 +1,7 @@
 ---
 title: "Your ABHA health ID, explained: what it is and why it helps"
 description: "ABHA health ID explained: India's digital health ID under the Ayushman Bharat Digital Mission, how it keeps your records with you, and how consent works."
+summary: "ABHA is a free, voluntary 14-digit health ID issued under the Ayushman Bharat Digital Mission. It lets your records from different hospitals and labs follow you, and they are shared only with your consent."
 seoTitle: "ABHA health ID explained: what it is | MedBrains Blog"
 date: 2026-10-03
 category: technology

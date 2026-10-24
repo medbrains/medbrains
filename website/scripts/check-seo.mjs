@@ -57,7 +57,10 @@ for (const r of resources) {
   const pdf = join(dist, "downloads", `${r.path.split("/").pop()}.pdf`);
   assert.ok(existsSync(pdf), `${r.path}: its PDF is in /downloads`);
 }
-results.push(...guides, ...resources);
+const tools = ["resources/indian-hospitals-in-numbers", "resources/abdm-incentive-calculator"].map(checkPage);
+assert.ok(tools[0].types.includes("Dataset"), `${tools[0].path}: Dataset`);
+results.push(...guides, ...resources, ...tools);
+for (const f of ["llms.txt", "robots.txt"]) assert.ok(existsSync(join(dist, f)), `/${f} built`);
 assert.ok(existsSync(join(dist, "pagefind", "pagefind.js")), "Pagefind index built");
 assert.ok(existsSync(join(dist, "blog", "rss.xml")), "RSS feed built");
 

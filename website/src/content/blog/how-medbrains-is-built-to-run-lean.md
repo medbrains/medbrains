@@ -1,6 +1,7 @@
 ---
 title: "One program, one database: how MedBrains is built to run on a modest server"
 description: "Why MedBrains runs as one compiled program on PostgreSQL, what that means for your server bill and IT team, and the numbers we measured to back it up."
+summary: "MedBrains is one compiled program on one PostgreSQL database. In our tests it used about 133 MB of memory at rest and 201 MB under load, and a single-hospital cloud server costs roughly ₹1,550 a month before storage and backups."
 date: 2026-10-23
 category: technology
 seoTitle: "How MedBrains keeps hospital IT costs low | MedBrains Blog"

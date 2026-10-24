@@ -24,7 +24,7 @@ export const MODULE_PAGES: ModulePage[] = [
     description: "A hospital management system for Indian hospitals: registration, OPD, IPD, lab, pharmacy, GST billing and staff and patient apps on one patient record.",
     eyebrow: "Hospital management system",
     h1: "A hospital management system that runs the whole hospital",
-    intro: "From the front desk to discharge, every department in this hospital management system works on the same patient record, so nothing is typed twice or lost between counters.",
+    intro: "MedBrains is a hospital management system for Indian hospitals that runs registration, OPD, IPD, lab, pharmacy and GST billing on one patient record. Every department works on the same record, so nothing is typed twice or lost between counters.",
     features: [
       { title: "Registration without duplicates", body: "A fuzzy duplicate check runs before a new UHID is issued, and the campaign or camp that brought the patient is recorded." },
       { title: "OPD and the case sheet", body: "Tokens, vitals, ICD-coded diagnoses, orders and prescriptions in one case sheet per visit." },
@@ -46,7 +46,7 @@ export const MODULE_PAGES: ModulePage[] = [
     description: "Pharmacy management software for hospitals in India: Schedule H, H1, X and NDPS rules, FEFO batches, refills with doctor sign-off and home delivery.",
     eyebrow: "Pharmacy",
     h1: "Pharmacy management software that keeps the counter inside the law",
-    intro: "Every dispense is checked against the drug's schedule, the patient's allergies and the prescription, and the bill carries what the Drugs Rules and GST ask for.",
+    intro: "MedBrains' pharmacy management software checks every hospital dispense against the drug's schedule, the patient's allergies and the prescription. The bill carries what the Drugs Rules and GST ask for.",
     features: [
       { title: "Schedule H, H1 and X at the counter", body: "Prescription-only drugs need a prescription; Schedule H1 and X bills record the prescriber and the patient's address." },
       { title: "NDPS register", body: "Narcotic and psychotropic stock kept in its own register, with every movement recorded." },
@@ -69,7 +69,7 @@ export const MODULE_PAGES: ModulePage[] = [
     description: "Hospital billing software for India: GST invoices, advances, packages, insurance and TPA claims, credit notes, day close and bills patients can verify by QR.",
     eyebrow: "Billing",
     h1: "Hospital billing software that is right the first time",
-    intro: "Charges flow in from the departments that earned them, priced from your charge master and rate plans, and every bill can be checked as genuine by its QR.",
+    intro: "MedBrains' hospital billing software produces GST invoices, advances, packages and insurance and TPA claims from one charge master. Charges flow in from the departments that earned them, and every bill can be checked as genuine by its QR.",
     features: [
       { title: "Charges captured where they happen", body: "OPD, lab, pharmacy, radiology and room charges are added as the service is done, from the charge master." },
       { title: "GST done properly", body: "HSN/SAC per line, CGST and SGST split, and the hospital's GSTIN on every bill." },
@@ -90,7 +90,7 @@ export const MODULE_PAGES: ModulePage[] = [
     description: "Lab management software for Indian hospitals: worklists that name every patient, critical-value alerts to the doctor, no half-released results and TAT reports.",
     eyebrow: "Laboratory",
     h1: "Lab management software where nothing is released half-done",
-    intro: "Orders arrive from the case sheet, samples move through the worklist, and results reach the doctor, critical ones first.",
+    intro: "MedBrains' lab management software (LIS) takes a hospital test from order to result: orders arrive from the case sheet, samples move through a worklist that names every patient, and results reach the doctor, critical ones first.",
     features: [
       { title: "A worklist that names patients", body: "Every sample shows whose it is, so nothing is worked from a bare number." },
       { title: "Critical values to the doctor", body: "A critical result is flagged and the ordering doctor alerted; the alert is recorded." },
@@ -107,7 +107,7 @@ export const MODULE_PAGES: ModulePage[] = [
     description: "Clinic management software for Indian clinics: online booking, OPD tokens, a case sheet with ICD codes, one-tap repeat prescriptions and telemedicine.",
     eyebrow: "Clinics and OPD",
     h1: "Clinic management software built around the consultation",
-    intro: "Patients book online or walk in, get a token, and see the doctor — who has the last visit, the history and the prescription in one place.",
+    intro: "MedBrains' clinic management software handles bookings, walk-ins, tokens and the case sheet for Indian clinics. Patients book online or walk in, get a token, and the doctor sees the last visit, the history and the prescription in one place.",
     features: [
       { title: "Online booking", body: "A booking page for your doctors' slots, with phone OTP, that you can share on ads and WhatsApp." },
       { title: "Tokens and queues", body: "Tokens called on the waiting-room TV, with priority patients moved up by rule." },
@@ -124,7 +124,7 @@ export const MODULE_PAGES: ModulePage[] = [
     description: "An OPD queue management system for Indian hospitals: waiting-room TV boards, priority rules, self check-in and live queue updates across departments.",
     eyebrow: "Queues and tokens",
     h1: "An OPD queue management system the whole waiting room can read",
-    intro: "Tokens are issued at the desk or a kiosk and called on TV boards that update live, so patients stop asking the desk who's next.",
+    intro: "MedBrains' OPD queue management system issues tokens at the desk or a kiosk and calls them on TV boards that update live, so patients stop asking the desk who's next.",
     features: [
       { title: "TV boards", body: "Now-serving and next-up boards for each department, readable across the room." },
       { title: "Priority by rule", body: "Senior citizens, emergencies and other priorities move up by the rules you set." },
@@ -140,7 +140,7 @@ export const MODULE_PAGES: ModulePage[] = [
     description: "Health camp management software for Indian hospitals: on-site registration without duplicate records, station-by-station routes, offline working and reports.",
     eyebrow: "Health camps",
     h1: "Health camp software that feeds the hospital, not a spreadsheet",
-    intro: "Register at the camp, move each person through the stations, and bring every record back into the hospital without second UHIDs.",
+    intro: "MedBrains' health camp software registers people at the camp, moves each person through the stations and brings every record back into the hospital without second UHIDs.",
     features: [
       { title: "On-site registration", body: "The same duplicate check as the hospital desk: an existing patient is put on the camp's route, not registered again." },
       { title: "Camp numbers and stations", body: "Each person gets a camp number and moves through the camp's stations in order." },
@@ -156,7 +156,7 @@ export const MODULE_PAGES: ModulePage[] = [
     description: "Hospital marketing software that shows which campaign brought each patient: campaign codes, enquiries and callbacks, consent-aware outreach and ROI reports.",
     eyebrow: "Marketing",
     h1: "Know which campaign brought every patient",
-    intro: "Every campaign gets a code. Patients who arrive through it, at the desk, by booking link or from an enquiry, are counted for it, with the visits and revenue that followed.",
+    intro: "MedBrains' hospital marketing software gives every campaign a code and counts the patients who arrive through it, at the desk, by booking link or from an enquiry, with the visits and revenue that followed.",
     features: [
       { title: "Campaign codes", body: "Print the code on the ad or add it to booking links (?c=CODE); the desk can pick the campaign at registration." },
       { title: "Enquiries and callbacks", body: "Every enquiry tracked through to a visit, with callbacks that don't fall through." },

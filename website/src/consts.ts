@@ -32,8 +32,14 @@ export const SOCIAL = {
   youtube: env.PUBLIC_YOUTUBE ?? "",
 };
 
-// The social profiles that exist, for schema.org `sameAs` and link lists.
-export const SAME_AS = Object.values(SOCIAL).filter(Boolean);
+// Every official profile that exists, for schema.org `sameAs`, so search and AI
+// tools tie them to one company. TODO: add the LinkedIn company page and
+// Crunchbase once they exist (set PUBLIC_LINKEDIN; never a placeholder URL).
+export const SAME_AS = [
+  ...Object.values(SOCIAL),
+  "https://github.com/medbrains",
+  "https://www.producthunt.com/products/medbrains",
+].filter(Boolean);
 
 // The demo form files a lead in MedBrains' own Marketing → Enquiries, under this
 // hospital code (the server must also list the site in CORS_ORIGIN and have
