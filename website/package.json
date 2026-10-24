@@ -5,7 +5,7 @@
   "scripts": {
     "dev": "astro dev",
     "check": "astro check",
-    "build": "astro build && pagefind --site dist && node scripts/check-seo.mjs",
+    "build": "astro build && cp dist/sitemap-0.xml dist/sitemap.xml && pagefind --site dist && node scripts/check-seo.mjs",
     "preview": "astro preview",
     "test": "node scripts/check-seo.mjs"
   },
