@@ -1,0 +1,58 @@
+#!/usr/bin/env bash
+# /usr/local/bin/medbrains-log-archive — invoked daily by a systemd timer.
+#
+# CERT-In Directions (28 Apr 2022), direction (iv): logs of all ICT systems
+# kept for a rolling 180 days within Indian jurisdiction. The host journal is
+# capped so the disk cannot fill, which means the host alone cannot promise
+# 180 days. This ships one day of logs to S3 in ap-south-1, where a lifecycle
+# rule (infra/terraform/envs/medbrains-in/ops.tf) keeps them 190 days.
+#
+#   medbrains-log-archive              archive yesterday (local time)
+#   medbrains-log-archive 2026-10-20   backfill a missed day
+#
+# Two objects per day under s3://$LOG_ARCHIVE_BUCKET/$LOG_ARCHIVE_PREFIX/<host>/<YYYY>/<MM>/<DD>/:
+#   journal.json.gz   the WHOLE journal for that day: medbrains-*, caddy,
+#                     sshd/sudo (auth), kernel, postgresql where it logs there
+#   files.tar.gz      plain-file logs touched that day (LOG_ARCHIVE_FILES):
+#                     Caddy access logs, postgres server logs, auth.log
+#
+# The host can write and list, never read or delete (IAM): a compromised host
+# cannot erase the record of how it was compromised. Encryption is the
+# bucket's default SSE-KMS.
+
+set -euo pipefail
+
+: "${LOG_ARCHIVE_BUCKET:?LOG_ARCHIVE_BUCKET must be set in /etc/medbrains/env}"
+PREFIX="${LOG_ARCHIVE_PREFIX:-host-logs}"
+PREFIX="${PREFIX%/}"
+FILES="${LOG_ARCHIVE_FILES:-/var/log/caddy/*.log* /var/log/postgresql/*.log* /var/log/auth.log*}"
+
+DAY="${1:-$(date -d yesterday +%F)}"
+NEXT="$(date -d "$DAY + 1 day" +%F)" || { echo "ERROR: bad date '$DAY'" >&2; exit 1; }
+DEST="s3://${LOG_ARCHIVE_BUCKET}/${PREFIX}/$(hostname)/${DAY//-//}"
+
+echo "==> journal ${DAY} → ${DEST}/journal.json.gz"
+# pipefail: a journalctl that dies mid-stream fails the unit (OnFailure pages).
+journalctl --since "${DAY} 00:00:00" --until "${NEXT} 00:00:00" -o json --no-pager \
+  | gzip -6 \
+  | aws s3 cp - "${DEST}/journal.json.gz" --only-show-errors \
+      --content-type application/gzip
+
+# Files modified on or after DAY: the live log plus anything logrotate moved
+# that day. ponytail: a live file is re-shipped whole each day until rotated
+# (≤ rotation-period copies); dedupe by byte offset if volume ever matters.
+mapfile -t files < <(
+    # shellcheck disable=SC2086  # FILES is a list of globs, split on purpose
+    find $FILES -maxdepth 0 -type f -newermt "${DAY} 00:00:00" 2>/dev/null || true
+)
+if (( ${#files[@]} )); then
+    echo "==> ${#files[@]} log files → ${DEST}/files.tar.gz"
+    # GNU tar exits 1 for "file changed as we read it" — normal for a live
+    # log, and the bytes it did read are still a valid archive. 2 is fatal.
+    { tar -czf - --ignore-failed-read "${files[@]}" 2>/dev/null || [[ $? -eq 1 ]]; } \
+      | aws s3 cp - "${DEST}/files.tar.gz" --only-show-errors \
+          --content-type application/gzip
+else
+    echo "==> no plain-file logs touched since ${DAY}"
+fi
+echo "==> log archive complete: ${DEST}/"

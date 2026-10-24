@@ -15,6 +15,10 @@
 #   that stopped firing, which produces no failure at all. Only the
 #   presence of a recent dump answers "did it actually run".
 #
+#   Logs + clock. CERT-In wants 180 days of logs in India and clocks on
+#   NIC/NPL time; an archive that stopped or a clock that drifted is
+#   found only when CERT-In asks.
+#
 #   Certificate. certbot.timer renews unattended. When renewal fails -
 #   port 80 taken, DNS moved, rate limit - nothing says so until the cert
 #   expires and every browser refuses the hospital's own system.
@@ -142,6 +146,41 @@ if [[ "${WAL_ARCHIVING:-0}" == "1" ]]; then
             echo "wal: archiving ok (last $last_wal at $last_time)"
         fi
     fi
+fi
+
+# Log archive (CERT-In direction (iv), medbrains-log-archive). Same reasoning
+# as the dump: OnFailure= cannot see a timer that stopped firing. 26 h ago
+# names the newest day that must already be archived — the timer ships
+# yesterday at ~00:20, so this never asks for a day not yet due.
+# A listing that fails is unknown; a listing that succeeds empty is absence.
+if [[ -n "${LOG_ARCHIVE_BUCKET:-}" ]]; then
+    log_day="$(date -d '26 hours ago' +%F)"
+    log_key="${LOG_ARCHIVE_PREFIX:-host-logs}"
+    log_key="${log_key%/}/$(hostname)/${log_day//-//}/journal.json.gz"
+    if ! count="$(aws s3api list-objects-v2 --bucket "$LOG_ARCHIVE_BUCKET" \
+            --prefix "$log_key" --query KeyCount --output text 2>/dev/null)"; then
+        echo "logs: could not list s3://$LOG_ARCHIVE_BUCKET/$log_key — unknown, not treated as failed" >&2
+    elif [[ "$count" == "0" ]]; then
+        echo "LOGS: s3://$LOG_ARCHIVE_BUCKET/$log_key missing — the 180-day log archive has a gap" >&2
+        systemctl status medbrains-log-archive.timer --no-pager -l 2>&1 | tail -5 >&2 || true
+        failed=1
+    else
+        echo "logs: $log_day archived"
+    fi
+fi
+
+# Clock (CERT-In direction (i)). Logs with a drifting clock cannot be lined up
+# against anybody else's, which is what an investigation does first.
+# NTPSynchronized is the kernel's own flag, so it reads the same under chrony
+# and systemd-timesyncd.
+if ! synced="$(timedatectl show -p NTPSynchronized --value 2>/dev/null)"; then
+    echo "clock: timedatectl unavailable — unknown, not treated as failed" >&2
+elif [[ "$synced" != "yes" ]]; then
+    echo "CLOCK: system clock is NOT NTP-synchronised" >&2
+    { chronyc -n sources 2>/dev/null || timedatectl timesync-status 2>/dev/null || true; } | tail -12 >&2
+    failed=1
+else
+    echo "clock: NTP-synchronised"
 fi
 
 exit "$failed"

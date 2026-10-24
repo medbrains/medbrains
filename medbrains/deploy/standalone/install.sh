@@ -476,6 +476,45 @@ install_attach_dropins() {
     echo "    attach: removed the docker dependency (host Postgres in use)"
 }
 
+# CERT-In direction (i): clocks synced to NIC/NPL NTP or sources traceable
+# to them. Adds India's public servers as extra sources to whichever daemon
+# the host already runs; never swaps one daemon for another on a host that
+# may not be ours. Amazon Time Sync (169.254.169.123) stays preferred on EC2:
+# it is closer and more accurate, and the NIC/NPL sources cross-check it.
+# Hostnames per CERT-In's FAQ: samay1/samay2.nic.in (NIC), time.nplindia.org (NPL).
+INDIA_NTP="time.nplindia.org samay1.nic.in samay2.nic.in"
+configure_time_sync() {
+    local on_ec2=0
+    grep -qi amazon /sys/devices/virtual/dmi/id/sys_vendor 2>/dev/null && on_ec2=1
+    if systemctl is-active --quiet chrony || systemctl is-active --quiet chronyd; then
+        if grep -qs '^sourcedir /etc/chrony/sources.d' /etc/chrony/chrony.conf; then
+            install -d /etc/chrony/sources.d
+            {
+                echo "# MedBrains (install.sh): NIC/NPL time for CERT-In direction (i)."
+                # Already in chrony.conf on Amazon's images; a duplicate is
+                # harmless and keeps it preferred on images that lack it.
+                [[ "$on_ec2" == "1" ]] && echo "server 169.254.169.123 prefer iburst minpoll 4 maxpoll 4"
+                for s in $INDIA_NTP; do echo "server $s iburst"; done
+            } > /etc/chrony/sources.d/medbrains-india.sources
+            chronyc reload sources >/dev/null 2>&1 || systemctl restart chrony 2>/dev/null || true
+            echo "    time: chrony sources += $INDIA_NTP"
+        else
+            echo "    WARNING: chrony.conf has no 'sourcedir /etc/chrony/sources.d' — add"
+            echo "             'server <host> iburst' for $INDIA_NTP by hand (CERT-In)."
+        fi
+    elif systemctl is-active --quiet systemd-timesyncd; then
+        install -d /etc/systemd/timesyncd.conf.d
+        local list="$INDIA_NTP"
+        [[ "$on_ec2" == "1" ]] && list="169.254.169.123 $list"
+        printf '[Time]\nNTP=%s\n' "$list" > /etc/systemd/timesyncd.conf.d/medbrains.conf
+        systemctl restart systemd-timesyncd || true
+        echo "    time: timesyncd NTP=$list"
+    else
+        echo "    WARNING: neither chrony nor systemd-timesyncd is running — the clock"
+        echo "             is not synchronised (CERT-In direction (i)); host-check will page."
+    fi
+}
+
 echo "==> [7/9] Installing systemd units + backup tooling"
 install -m 0644 "$DEPLOY_DIR/medbrains-server.service" /etc/systemd/system/
 install -m 0644 "$DEPLOY_DIR/medbrains-archive.service" /etc/systemd/system/
@@ -487,6 +526,9 @@ install -m 0644 "$DEPLOY_DIR/medbrains-host-check.service" /etc/systemd/system/
 install -m 0644 "$DEPLOY_DIR/medbrains-host-check.timer" /etc/systemd/system/
 install -m 0755 "$DEPLOY_DIR/medbrains-host-check" /usr/local/bin/medbrains-host-check
 install -m 0755 "$DEPLOY_DIR/medbrains-pg-backup" /usr/local/bin/medbrains-pg-backup
+install -m 0644 "$DEPLOY_DIR/medbrains-log-archive.service" /etc/systemd/system/
+install -m 0644 "$DEPLOY_DIR/medbrains-log-archive.timer" /etc/systemd/system/
+install -m 0755 "$DEPLOY_DIR/medbrains-log-archive" /usr/local/bin/medbrains-log-archive
 if [[ "$HAVE_EDGE" == "1" ]]; then
     install -m 0644 "$DEPLOY_DIR/medbrains-edge.service" /etc/systemd/system/
 fi
@@ -559,15 +601,31 @@ if [[ -n "${ALERT_TOPIC_ARN:-}" ]]; then
     fi
 fi
 
-# Bound journald so logs can never fill the root volume silently.
+# CERT-In direction (iv) log archive: the bucket ops.tf grants this host
+# (terraform output prod_ops). Unset = no archive, warned about below.
+for key in LOG_ARCHIVE_BUCKET LOG_ARCHIVE_PREFIX; do
+    [[ -n "${!key:-}" ]] || continue
+    if grep -q "^$key=" /etc/medbrains/env 2>/dev/null; then
+        sed -i "s|^$key=.*|$key=${!key}|" /etc/medbrains/env
+    else
+        echo "$key=${!key}" >> /etc/medbrains/env
+    fi
+done
+
+# journald: persistent, kept up to 180 days locally (CERT-In), but the size
+# caps still win so logs can never fill the root volume silently. On a busy
+# host 2G is days, not months — the S3 archive is the 180-day record.
 mkdir -p /etc/systemd/journald.conf.d
 cat > /etc/systemd/journald.conf.d/medbrains.conf <<'JOURNALD'
 [Journal]
-SystemMaxUse=1G
+Storage=persistent
+SystemMaxUse=2G
 SystemKeepFree=2G
-MaxRetentionSec=30day
+MaxRetentionSec=180day
 JOURNALD
 systemctl restart systemd-journald || true
+
+configure_time_sync
 
 # The shipped unit hard-requires docker.service because the dedicated
 # shape runs Postgres in a container. When the host's own Postgres is
@@ -618,6 +676,14 @@ else
     echo "             are NOT running. The timer is disabled rather than left"
     echo "             to fail nightly, because an enabled unit that always"
     echo "             errors reads as a backup that is running."
+fi
+if [[ -n "$(env_value LOG_ARCHIVE_BUCKET)" ]]; then
+    systemctl enable --now medbrains-log-archive.timer
+else
+    systemctl disable --now medbrains-log-archive.timer 2>/dev/null || true
+    echo "    WARNING: no LOG_ARCHIVE_BUCKET — host logs are NOT archived. CERT-In"
+    echo "             direction (iv) needs 180 days in India; journald alone keeps"
+    echo "             at most 2G. See deploy/standalone/README.md 'Log archive'."
 fi
 systemctl enable --now medbrains-host-check.timer
 if [[ -z "$(env_value ALERT_TOPIC_ARN)" ]]; then
