@@ -35,19 +35,19 @@ import StoryScreens from "./StoryScreens.astro";
   .sticky { position: sticky; top: 0; height: 100vh; display: grid; align-items: center; overflow: hidden; }
   .layout { display: grid; grid-template-columns: .9fr 1.3fr; gap: 64px; align-items: center; width: 100%; }
   .copy { position: relative; }
-  .eyebrow { color: var(--pulse); }
+  .eyebrow { display: inline-block; color: #fff; background: var(--purple); padding: .35em .75em; border-radius: 999px; }
   .steps { list-style: none; margin: 0; padding: 0; display: grid; min-height: 290px; }
   .step {
     grid-area: 1 / 1; opacity: 0; transform: translateY(24px);
     transition: opacity .45s ease, transform .55s cubic-bezier(.2, .7, .2, 1); pointer-events: none;
   }
   .meta { display: flex; gap: 12px; align-items: center; margin: 0 0 14px; font: 600 .78rem var(--mono); letter-spacing: .12em; text-transform: uppercase; color: var(--night-text); }
-  .n { color: var(--pulse); }
+  .n { color: #fff; background: var(--purple); padding: 2px 8px; border-radius: 6px; }
   .tag { margin-left: auto; padding: 4px 10px; border-radius: 999px; border: 1px solid var(--night-line); letter-spacing: .04em; }
   h3 { margin: 0 0 16px; font: 900 clamp(2rem, 3.6vw, 3.2rem) var(--display); letter-spacing: -.035em; line-height: 1.02; }
   .body { margin: 0; font-size: 1.12rem; color: var(--night-text); max-width: 44ch; }
-  .bar { margin-top: 36px; height: 3px; background: var(--night-line); border-radius: 3px; overflow: hidden; }
-  .bar span { display: block; height: 100%; width: calc(var(--p, 0) * 100%); background: linear-gradient(90deg, var(--blue), var(--pulse)); }
+  .bar { margin-top: 36px; height: 4px; background: var(--night-line); border-radius: 3px; overflow: hidden; }
+  .bar span { display: block; height: 100%; width: calc(var(--p, 0) * 100%); background: linear-gradient(90deg, var(--blue), var(--purple)); }
   .device {
     border-radius: 18px; overflow: hidden; background: #fff; border: 1px solid rgb(255 255 255 / 15%);
     box-shadow: 0 50px 140px rgb(15 98 254 / 35%), 0 0 0 10px rgb(255 255 255 / 4%);
