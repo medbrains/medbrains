@@ -1077,6 +1077,12 @@ a[href]:not(.mantine-Button-root) {
   }
 }
 
+// Dark scheme: light ink at 9% read as a busy lattice over every card
+// (founder, 2026-10-24: "eye paining"), so it drops to a trace.
+:where([data-mantine-color-scheme="dark"] .mantine-Card-root:not([data-no-pattern]))::before {
+  opacity: 0.025;
+}
+
 @media print {
   .mantine-Card-root::before {
     display: none;

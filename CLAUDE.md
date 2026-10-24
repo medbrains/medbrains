@@ -136,9 +136,9 @@ The app uses **the colours of www.medbrains.in** (source of truth: `website/src/
 
 | Role | Light | Dark |
 |------|-------|------|
-| Surface / raised | paper `#ffffff` / paper-2 `#f3f5f9` | night `#0a1630` / night-2 `#0f1f42` / night-3 `#142a57` |
-| Text | ink `#0b1220`, ink-2 `#3c4657`, muted `#5d677a` | night-text `#d5deec` |
-| Lines | `#dde2ea` | night-line `#26395f` |
+| Surface / raised | paper `#ffffff` / paper-2 `#f3f5f9` | **neutral greys** (`Dark/*`): bg `#111315` / raised `#17191c` / card `#1c1f23` / elevated `#24272c`, never navy (website navy tired the eye in the app, founder 2026-10-24) |
+| Text | ink `#0b1220`, ink-2 `#3c4657`, muted `#5d677a` | `#e6e8eb`, muted `#a9afb7` |
+| Lines | `#dde2ea` | `#30343a` |
 | Primary fill | **MedBrains blue `#0F62FE`** (exact, both schemes; white on it) | same |
 | Small blue text/links | blue-deep `#0043ce` | sky `#78a9ff` |
 | Live / success dot | pulse green `#42be65` | same |
