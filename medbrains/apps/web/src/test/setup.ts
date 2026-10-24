@@ -1,7 +1,20 @@
 import "@testing-library/jest-dom/vitest";
 import { cleanup } from "@testing-library/react";
-import { afterAll, afterEach, beforeAll } from "vitest";
+import { createElement } from "react";
+import { afterAll, afterEach, beforeAll, vi } from "vitest";
 import { server } from "./server";
+
+// jsdom has no canvas or WebAssembly player: the animated crab renders a
+// marker canvas carrying the props it was given.
+vi.mock("@lottiefiles/dotlottie-react", () => ({
+  setWasmUrl: () => {},
+  DotLottieReact: (props: { src: string; themeId?: string }) =>
+    createElement("canvas", {
+      "data-testid": "crab-player",
+      "data-src": props.src,
+      "data-theme": props.themeId,
+    }),
+}));
 
 // Mantine's MantineProvider requires window.matchMedia in jsdom.
 if (typeof window !== "undefined") {

@@ -1,8 +1,10 @@
 // The crab's colours come from theme tokens through the custom properties its
 // SVG art reads (--crab-*). Motion is a gentle loop per state, off under
-// reduced motion (the static pose still shows the state).
+// reduced motion (the static pose still shows the state). Once the dotLottie
+// player runs (data-animated), it replaces the art; print keeps the art.
 
 .crab {
+  position: relative;
   display: inline-block;
   flex: none;
   line-height: 0;
@@ -42,6 +44,28 @@
   :global(.happy-e),
   :global(.think-d) {
     display: none;
+  }
+}
+
+// The .lottie composition pads the art by 12% a side (PAD in
+// scripts/build-crab-lottie.mjs) for claws and hops, so the canvas overhangs.
+.player {
+  position: absolute;
+  inset: -12%;
+  line-height: 0;
+}
+
+.crab[data-animated] .art {
+  visibility: hidden;
+}
+
+@media print {
+  .player {
+    display: none;
+  }
+
+  .crab[data-animated] .art {
+    visibility: visible;
   }
 }
 

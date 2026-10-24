@@ -1,5 +1,14 @@
-import { Box, type BoxProps } from "@mantine/core";
-import { type ComponentType, forwardRef, type SVGProps } from "react";
+import { Box, type BoxProps, useComputedColorScheme } from "@mantine/core";
+import { useReducedMotion } from "@mantine/hooks";
+import {
+  type ComponentType,
+  forwardRef,
+  lazy,
+  Suspense,
+  type SVGProps,
+  useCallback,
+  useState,
+} from "react";
 import CrabChibi from "@/assets/mascot/crab-chibi.svg?react";
 import CrabChibiThink from "@/assets/mascot/crab-chibi-think.svg?react";
 import CrabGeometric from "@/assets/mascot/crab-geometric.svg?react";
@@ -30,6 +39,10 @@ export interface CrabProps extends Omit<BoxProps, "children"> {
 
 type Art = ComponentType<SVGProps<SVGSVGElement>>;
 
+// The animated crab is a separate chunk (player + WebAssembly). If it cannot
+// load, the static art simply stays.
+const CrabPlayer = lazy(() => import("./CrabPlayer").catch(() => ({ default: () => null })));
+
 const ART: Record<CrabVariant, Art> = {
   geometric: CrabGeometric,
   line: CrabLine,
@@ -42,6 +55,12 @@ export const Crab = forwardRef<HTMLSpanElement, CrabProps>(function Crab(
   ref,
 ) {
   const Svg = variant === "chibi" && state === "thinking" ? CrabChibiThink : ART[variant];
+  // Read synchronously: the default first render assumes motion and would
+  // start fetching the player before the media query answers.
+  const reduceMotion = useReducedMotion(true, { getInitialValueInEffect: false });
+  const scheme = useComputedColorScheme("light");
+  const [animated, setAnimated] = useState(false);
+  const onReady = useCallback(() => setAnimated(true), []);
   return (
     <Box
       ref={ref}
@@ -51,6 +70,7 @@ export const Crab = forwardRef<HTMLSpanElement, CrabProps>(function Crab(
         .join(" ")}
       data-variant={variant}
       data-state={state}
+      data-animated={animated || undefined}
       w={size}
       h={size}
       role={label ? "img" : undefined}
@@ -58,7 +78,17 @@ export const Crab = forwardRef<HTMLSpanElement, CrabProps>(function Crab(
       aria-hidden={label ? undefined : true}
       {...rest}
     >
-      <Svg focusable="false" aria-hidden="true" />
+      <Svg className={styles.art} focusable="false" aria-hidden="true" />
+      {!reduceMotion && (
+        <Suspense fallback={null}>
+          <CrabPlayer
+            variant={variant}
+            state={state}
+            themeId={tone === "onBrand" ? "onBrand" : scheme}
+            onReady={onReady}
+          />
+        </Suspense>
+      )}
     </Box>
   );
 });

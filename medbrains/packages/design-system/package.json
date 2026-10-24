@@ -16,7 +16,8 @@
       "types": "./src/theme/tokens.ts",
       "import": "./src/theme/tokens.ts"
     },
-    "./styles/global.scss": "./src/styles/global.scss"
+    "./styles/global.scss": "./src/styles/global.scss",
+    "./assets/*": "./src/assets/*"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",
