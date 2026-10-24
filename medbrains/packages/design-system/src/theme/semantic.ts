@@ -1,8 +1,9 @@
 /**
  * MedBrains Design System — Tier 2: Semantic Tokens
  *
- * The colour values are the website's theme (website/src/styles/global.scss):
- * paper/ink light, night navy dark, blue #0F62FE fills in both schemes, and
+ * Light is the website's theme (website/src/styles/global.scss): paper/ink.
+ * Dark is neutral greys (`Dark/*`), not the website's navy, which tired the
+ * eye over a whole shift. Blue #0F62FE fills in both schemes, and
  * `primaryText` (blue-deep / sky) wherever blue is small text on a surface.
  * Maps the Material-3 colour roles (`colors.generated.ts`, generated from the
  * Figma library spec) onto the long-standing `--mb-*` names (`fg-default`,

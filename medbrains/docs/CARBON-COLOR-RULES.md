@@ -1,8 +1,9 @@
 # Colour Rules (MedBrains)
 
 **The app uses the website's theme** (founder decision 2026-10-24): the
-colours of `website/src/styles/global.scss` (paper/ink in light, night navy in
-dark, blue **#0F62FE**, pulse green **#42BE65**) laid onto Material-3 roles, with
+colours of `website/src/styles/global.scss` (paper/ink in light; the app's dark
+scheme is neutral greys `Dark/*`, not the website's night navy, which is too
+saturated for a whole shift; blue **#0F62FE**, pulse green **#42BE65**) laid onto Material-3 roles, with
 purple **#851B7F** as the secondary brand accent. Only colour comes from the
 website; component shapes (sharp corners, bottom-rule inputs, elevation) stay as
 the design system defines them. Figma and code
