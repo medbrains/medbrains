@@ -60,7 +60,6 @@ import {
   slateTuple,
   space,
   tealTuple,
-  violetTuple,
   zIndex,
 } from "./primitives";
 import { darkScheme, lightScheme, type SchemeName, sharedReferences } from "./semantic";
@@ -68,28 +67,57 @@ import { darkScheme, lightScheme, type SchemeName, sharedReferences } from "./se
 export type { SchemeName, SemanticScheme, StatusScale } from "./semantic";
 export { darkScheme, lightScheme, schemes } from "./semantic";
 
-/** Mantine colour name → M3 role family [role, onRole, container, onContainer]. */
+/**
+ * Mantine colour name → M3 role family [fill, onFill, container, onContainer, text].
+ * `text` colours outline/subtle/text variants: blue and purple fills are the exact
+ * brand colours in both schemes, so their small-text use needs the readable tint.
+ */
 type RoleKey = keyof (typeof roles)["light"];
-const ROLE_FAMILIES: Record<string, readonly [RoleKey, RoleKey, RoleKey, RoleKey]> = {
-  primary: ["primary", "onPrimary", "statePrimary12", "primary"],
-  blue: ["primary", "onPrimary", "statePrimary12", "primary"],
-  info: ["primary", "onPrimary", "statePrimary12", "primary"],
-  cinnabar: ["tertiary", "onTertiary", "tertiaryContainer", "onTertiaryContainer"],
-  purple: ["tertiary", "onTertiary", "tertiaryContainer", "onTertiaryContainer"],
-  success: ["success", "onSuccess", "successContainer", "onSuccessContainer"],
-  green: ["success", "onSuccess", "successContainer", "onSuccessContainer"],
-  mint: ["success", "onSuccess", "successContainer", "onSuccessContainer"],
-  warning: ["warning", "onWarning", "warningContainer", "onWarningContainer"],
-  yellow: ["warning", "onWarning", "warningContainer", "onWarningContainer"],
-  danger: ["error", "onError", "errorContainer", "onErrorContainer"],
-  red: ["error", "onError", "errorContainer", "onErrorContainer"],
+type Family = readonly [RoleKey, RoleKey, RoleKey, RoleKey, RoleKey];
+const BLUE: Family = ["primary", "onPrimary", "statePrimary12", "primaryText", "primaryText"];
+const PURPLE: Family = [
+  "tertiaryBrand",
+  "onTertiary",
+  "tertiaryContainer",
+  "onTertiaryContainer",
+  "tertiary",
+];
+const SUCCESS: Family = [
+  "success",
+  "onSuccess",
+  "successContainer",
+  "onSuccessContainer",
+  "success",
+];
+const WARNING: Family = [
+  "warning",
+  "onWarning",
+  "warningContainer",
+  "onWarningContainer",
+  "warning",
+];
+const DANGER: Family = ["error", "onError", "errorContainer", "onErrorContainer", "error"];
+const ROLE_FAMILIES: Record<string, Family> = {
+  primary: BLUE,
+  blue: BLUE,
+  info: BLUE,
+  cinnabar: PURPLE,
+  purple: PURPLE,
+  violet: PURPLE,
+  success: SUCCESS,
+  green: SUCCESS,
+  mint: SUCCESS,
+  warning: WARNING,
+  yellow: WARNING,
+  danger: DANGER,
+  red: DANGER,
 };
 const ROLE_COLORS = new Set(Object.keys(ROLE_FAMILIES));
 
 /** Mantine's per-colour variant variables, resolved from the scheme's roles. */
 function roleVariantVars(r: (typeof roles)["light"] | (typeof roles)["dark"]) {
   const out: Record<string, string> = {};
-  for (const [name, [role, on, container, onContainer]] of Object.entries(ROLE_FAMILIES)) {
+  for (const [name, [role, on, container, onContainer, text]] of Object.entries(ROLE_FAMILIES)) {
     const v = `--mantine-color-${name}`;
     out[`${v}-filled`] = r[role];
     out[`${v}-filled-hover`] = `color-mix(in srgb, ${r[role]}, ${r[on]} 8%)`;
@@ -97,9 +125,9 @@ function roleVariantVars(r: (typeof roles)["light"] | (typeof roles)["dark"]) {
     out[`${v}-light`] = r[container];
     out[`${v}-light-hover`] = `color-mix(in srgb, ${r[container]}, ${r[onContainer]} 8%)`;
     out[`${v}-light-color`] = r[onContainer];
-    out[`${v}-outline`] = r[role];
-    out[`${v}-outline-hover`] = `color-mix(in srgb, ${r[role]} 8%, transparent)`;
-    out[`${v}-text`] = r[role];
+    out[`${v}-outline`] = r[text];
+    out[`${v}-outline-hover`] = `color-mix(in srgb, ${r[text]} 8%, transparent)`;
+    out[`${v}-text`] = r[text];
   }
   for (const k of ["filled", "filled-hover", "contrast", "light", "light-hover", "light-color"]) {
     out[`--mantine-primary-color-${k}`] = out[`--mantine-color-primary-${k}`] ?? "";
@@ -207,7 +235,7 @@ export function createMedBrainsTheme(opts: CreateMedBrainsThemeOptions = {}): Ma
       red: redTuple,
       gray: neutralTuple,
       dark: darkTuple,
-      violet: violetTuple,
+      violet: purpleTuple,
       orange: ochreTuple,
       slate: slateTuple,
     },
@@ -253,7 +281,7 @@ export function createMedBrainsTheme(opts: CreateMedBrainsThemeOptions = {}): Ma
       "3xl": rem(space["3xl"]),
     },
 
-    // Console look: squared corners over the previous soft 8px.
+    // The website's shape: 8px by default, 14px cards, pill buttons.
     defaultRadius: "sm",
 
     // Interactive elements show the hand cursor (Mantine defaults to "default",
@@ -336,7 +364,7 @@ export function createMedBrainsTheme(opts: CreateMedBrainsThemeOptions = {}): Ma
         defaultProps: {
           p: "md",
           shadow: undefined,
-          radius: "sm",
+          radius: "lg",
           withBorder: true,
         },
       }),
@@ -345,7 +373,7 @@ export function createMedBrainsTheme(opts: CreateMedBrainsThemeOptions = {}): Ma
         defaultProps: {
           p: "md",
           shadow: undefined,
-          radius: "sm",
+          radius: "lg",
           withBorder: true,
         },
       }),
@@ -495,7 +523,7 @@ export function createMedBrainsTheme(opts: CreateMedBrainsThemeOptions = {}): Ma
 
       TextInput: {
         defaultProps: {
-          radius: "none",
+          radius: "md",
           size: "md",
           variant: "default",
         },
@@ -503,7 +531,7 @@ export function createMedBrainsTheme(opts: CreateMedBrainsThemeOptions = {}): Ma
 
       PasswordInput: {
         defaultProps: {
-          radius: "none",
+          radius: "md",
           size: "md",
           variant: "default",
         },
@@ -511,7 +539,7 @@ export function createMedBrainsTheme(opts: CreateMedBrainsThemeOptions = {}): Ma
 
       Textarea: {
         defaultProps: {
-          radius: "none",
+          radius: "md",
           size: "md",
           variant: "default",
         },
@@ -519,7 +547,7 @@ export function createMedBrainsTheme(opts: CreateMedBrainsThemeOptions = {}): Ma
 
       NumberInput: {
         defaultProps: {
-          radius: "none",
+          radius: "md",
           size: "md",
           variant: "default",
         },
@@ -527,7 +555,7 @@ export function createMedBrainsTheme(opts: CreateMedBrainsThemeOptions = {}): Ma
 
       Button: {
         defaultProps: {
-          radius: "md",
+          radius: 999,
           fw: 600,
         },
         // Carbon button heights per size (sm 32 / md 40 / lg 48 productive /
@@ -910,11 +938,13 @@ function buildSchemePalette(scheme: typeof lightScheme, name: SchemeName) {
     // so they fell back to hardcoded LIGHT hex and rendered light-on-dark. Emit
     // them here (dual-mode) so every existing usage adapts to the scheme.
     "--mb-brand": scheme.brand.emphasis,
-    // Brand purple: #851B7F in light (white text 8.5:1), Purple 80 #FFABF0 in dark.
-    // Fills, icons, the logo heart, AI accents, "Ask AI" buttons, badges.
+    // Brand purple #851B7F in both schemes (white text 8.5:1): the AI accent
+    // fill only — AI buttons, AI labels, the orb. Purple text uses tertiary.
     "--mb-brand-purple": r.tertiaryBrand,
+    // The website's heartbeat green: live dots, the logo beat, the ECG beacon.
+    "--mb-pulse": ramps.Site.pulse,
     // The AI gradient as small text, from the text roles of each scheme.
-    "--mb-gradient-ai-text": `linear-gradient(135deg, ${r.primary} 0%, ${r.tertiary} 100%)`,
+    "--mb-gradient-ai-text": `linear-gradient(135deg, ${r.primaryText} 0%, ${r.tertiary} 100%)`,
     "--mb-interactive": scheme.brand.emphasis,
     "--mb-brand-bg-hover": scheme.brand.tintStrong,
     "--mb-bg": scheme.bg.default,
@@ -1019,7 +1049,7 @@ export const cssVariableResolver: CSSVariablesResolver = (t) => {
   return {
     variables: {
       // ── Geometry / sizing (mode-agnostic) ────────────────────
-      "--mb-radius": t.radius?.xl ?? rem(radius.xl),
+      "--mb-radius": t.radius?.lg ?? rem(radius.lg),
       "--mb-page-header-padding-y": rem(space["3xs"]),
       "--mb-page-header-padding-x": rem(space.xs),
       "--mb-page-header-icon-size": rem("24px"),

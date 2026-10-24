@@ -1,7 +1,7 @@
 // ── Top Progress Bar — single heartbeat, slowed at spike, glowing dot ──
 
 $trace: var(--mb-primary-container); // brand blue trace
-$beacon: var(--mb-brand-purple); // brand-purple heartbeat
+$beacon: var(--mb-pulse); // the website's heartbeat green
 
 .track {
   position: fixed;

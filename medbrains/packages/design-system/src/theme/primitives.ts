@@ -9,7 +9,7 @@
 
 import type { MantineColorsTuple } from "@mantine/core";
 import { ramps } from "./colors.generated.js";
-import { ochre, slate, teal, violet } from "./tokens.js";
+import { ochre, slate, teal } from "./tokens.js";
 
 export * from "./tokens.js";
 
@@ -30,22 +30,22 @@ export const greenTuple = toneTuple(ramps.Green);
 export const amberTuple = toneTuple(ramps.Amber);
 export const redTuple = toneTuple(ramps.Red);
 export const neutralTuple = toneTuple(ramps.Neutral);
-/** Mantine's `dark` scale (dark[7] = body, dark[0] = text) from the dark surface roles. */
+/** Mantine's `dark` scale (dark[7] = body, dark[0] = text) from the website's night tokens. */
 export const darkTuple = [
-  ramps.Surface["90"],
-  ramps.SurfaceVariant["80"],
-  ramps.SurfaceVariant["60"],
-  ramps.SurfaceVariant["50"],
-  ramps.Surface["22"],
-  ramps.Surface["17"],
-  ramps.Surface["12"],
-  ramps.Surface["6"],
-  ramps.Surface["4"],
+  ramps.Site.nightText,
+  ramps.Site.nightMuted,
+  ramps.Site.nightOutline,
+  ramps.Site.nightOutline,
+  ramps.Site.nightLine,
+  ramps.Site.nightLine,
+  // dark[6] fills disabled buttons; one step above the card so they stay visible.
+  ramps.Site.nightStep,
+  ramps.Site.night,
+  ramps.Site.nightDeep,
   ramps.Neutral["0"],
 ] as unknown as MantineColorsTuple;
-// Outside the M3 roles: violet / orange / teal / slate stay for legacy
-// `color="…"` call sites (teal is no longer a role — the accent is purple).
-export const violetTuple: MantineColorsTuple = [...violet] as unknown as MantineColorsTuple;
+// Outside the M3 roles: orange / teal / slate stay for legacy `color="…"`
+// call sites (`violet` resolves to the brand purple family in mantine.ts).
 export const ochreTuple: MantineColorsTuple = [...ochre] as unknown as MantineColorsTuple;
 export const slateTuple: MantineColorsTuple = [...slate] as unknown as MantineColorsTuple;
 export const tealTuple: MantineColorsTuple = [...teal] as unknown as MantineColorsTuple;

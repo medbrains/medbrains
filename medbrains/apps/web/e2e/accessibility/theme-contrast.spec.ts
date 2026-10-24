@@ -36,21 +36,36 @@ function contrast(a: string, b: string): number {
   return ((hi ?? 0) + 0.05) / ((lo ?? 0) + 0.05);
 }
 
-// The purple accent: the brand token (#851B7F light, #FFABF0 dark) carries
-// fills and text, so it holds 4.5:1 on the surfaces and with its on-colour;
-// the tertiary text roles hold 4.5:1 too.
-test("the purple accent tokens hold AA contrast in both themes", () => {
+// The website theme: blue #0F62FE and purple #851B7F are fills in both
+// schemes, each with white on top; small blue/purple text uses the readable
+// text roles (primaryText, tertiary). Every text role holds 4.5:1 on the
+// canvas and on a card; borders hold 3:1 (SC 1.4.11).
+test("the website-theme tokens hold AA contrast in both themes", () => {
   for (const scheme of ["light", "dark"] as const) {
     const r = roles[scheme];
-    const pairs = [
-      ["on-tertiary on brand purple", contrast(r.onTertiary, r.tertiaryBrand)],
-      ["brand purple on surface", contrast(r.tertiaryBrand, r.surface)],
-      ["brand purple on card", contrast(r.tertiaryBrand, r.surfaceContainerLowest)],
-      ["tertiary on surface", contrast(r.tertiary, r.surface)],
-      ["on-tertiary on tertiary", contrast(r.onTertiary, r.tertiary)],
-      ["on-tertiary-container on container", contrast(r.onTertiaryContainer, r.tertiaryContainer)],
+    const card = scheme === "light" ? r.surfaceContainerLowest : r.surfaceContainerLow;
+    const text = [
+      ["white on brand blue", r.onPrimary, r.primary],
+      ["white on brand purple", r.onTertiary, r.tertiaryBrand],
+      ["body text", r.onSurface, r.surface],
+      ["muted text", r.onSurfaceVariant, card],
+      ["blue text", r.primaryText, card],
+      ["blue text on canvas", r.primaryText, r.surface],
+      ["purple text", r.tertiary, card],
+      ["on primary container", r.onPrimaryContainer, r.primaryContainer],
+      ["on tertiary container", r.onTertiaryContainer, r.tertiaryContainer],
+      ["on success container", r.onSuccessContainer, r.successContainer],
+      ["success on its container", r.success, r.successContainer],
     ] as const;
-    for (const [pair, ratio] of pairs) expect(ratio, `${scheme}: ${pair}`).toBeGreaterThanOrEqual(4.5);
+    for (const [pair, fg, bg] of text) {
+      expect(contrast(fg, bg), `${scheme}: ${pair}`).toBeGreaterThanOrEqual(4.5);
+    }
+    expect(contrast(r.outline, card), `${scheme}: input border`).toBeGreaterThanOrEqual(3);
+  }
+  // The brand fills are exactly the website's colours in both schemes.
+  for (const r of [roles.light, roles.dark]) {
+    expect(r.primary).toBe("#0f62fe");
+    expect(r.tertiaryBrand).toBe("#851b7f");
   }
 });
 

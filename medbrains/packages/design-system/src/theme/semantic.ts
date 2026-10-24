@@ -1,13 +1,16 @@
 /**
  * MedBrains Design System — Tier 2: Semantic Tokens
  *
+ * The colour values are the website's theme (website/src/styles/global.scss):
+ * paper/ink light, night navy dark, blue #0F62FE fills in both schemes, and
+ * `primaryText` (blue-deep / sky) wherever blue is small text on a surface.
  * Maps the Material-3 colour roles (`colors.generated.ts`, generated from the
  * Figma library spec) onto the long-standing `--mb-*` names (`fg-default`,
  * `bg-canvas`, `border-default`, …) so existing components keep working. Both
  * schemes come from the same mapping — only the role values differ.
  *
- * Rules: blue = brand, primary actions, focus. Purple (tertiary) = the accent
- * (AI, badges, icons, "Ask AI" buttons), never a full-width alert banner. Green / amber / red only for clinical meaning, always with an icon or
+ * Rules: blue = brand, primary actions, focus. Purple #851B7F = the AI accent
+ * only (AI buttons, AI labels, the orb), never a full-width alert banner. Green / amber / red only for clinical meaning, always with an icon or
  * word. Emergency code colours are fixed.
  *
  * Component code MUST NOT cherry-pick primitive hexes. Always reference
@@ -15,7 +18,7 @@
  */
 
 import { ramps, roles } from "./colors.generated";
-import { shadowDark, shadowLight, violet } from "./primitives";
+import { shadowDark, shadowLight } from "./primitives";
 
 export interface SemanticScheme {
   bg: {
@@ -172,17 +175,17 @@ function fromRoles(r: Roles, isLight: boolean): SemanticScheme {
       onEmphasis: r.onPrimary,
       onAccent: r.onTertiary,
       onInverse: r.inverseOnSurface,
-      link: r.primary,
-      linkHover: r.primary,
+      link: r.primaryText,
+      linkHover: r.primaryText,
     },
     border: {
       default: r.outlineVariant,
       muted: r.outlineVariant,
       strong: r.outline,
-      focus: r.primary,
+      focus: r.primaryText,
     },
     brand: {
-      fg: r.primary,
+      fg: r.primaryText,
       bg: r.statePrimary8,
       emphasis: r.primary,
       emphasisHover: stateLayer(r.primary, r.onPrimary, 8),
@@ -204,7 +207,7 @@ function fromRoles(r: Roles, isLight: boolean): SemanticScheme {
       success: statusScale(r.success, r.successContainer, r.onSuccess),
       warning: statusScale(r.warning, r.warningContainer, r.onWarning),
       danger: statusScale(r.error, r.errorContainer, r.onError),
-      info: statusScale(r.primary, r.surfaceVariant, r.onPrimary),
+      info: { ...statusScale(r.primary, r.surfaceVariant, r.onPrimary), fg: r.primaryText },
       neutral: {
         fg: r.onSurfaceVariant,
         bg: r.surfaceContainerHigh,
@@ -214,13 +217,13 @@ function fromRoles(r: Roles, isLight: boolean): SemanticScheme {
       },
       // Orange is not a role: it reads as amber (attention), never decoration.
       orange: statusScale(r.warning, r.warningContainer, r.onWarning),
-      // Violet marks AI-supported content only (Carbon AI signature).
+      // Violet marks AI-supported content only: the brand purple family.
       violet: {
-        fg: isLight ? violet[6] : violet[2],
-        bg: isLight ? violet[0] : violet[8],
-        border: violet[isLight ? 2 : 6],
-        emphasis: violet[5],
-        onEmphasis: r.onPrimary,
+        fg: r.tertiary,
+        bg: r.tertiaryContainer,
+        border: r.tertiary,
+        emphasis: r.tertiaryBrand,
+        onEmphasis: r.onTertiary,
       },
     },
     nav: {
@@ -229,11 +232,14 @@ function fromRoles(r: Roles, isLight: boolean): SemanticScheme {
       hoverBg: r.stateOnSurface8,
       hoverText: r.onSurface,
       activeBg: r.statePrimary12,
-      activeText: r.primary,
-      activeShadow: `inset 3px 0 0 0 ${r.primary}`,
+      activeText: r.primaryText,
+      // Night gets the website's blue glow (glow-blue, 38%) on the active item.
+      activeShadow: isLight
+        ? `inset 3px 0 0 0 ${r.primary}`
+        : `inset 3px 0 0 0 ${r.primary}, 0 0 18px ${r.primary}61`,
       activeIndicator: r.primary,
       childActiveBg: r.statePrimary8,
-      childActiveText: r.primary,
+      childActiveText: r.primaryText,
       childActiveBorder: r.primary,
     },
     header: {
@@ -246,8 +252,8 @@ function fromRoles(r: Roles, isLight: boolean): SemanticScheme {
       border: r.outline,
       borderHover: r.onSurface,
       placeholder: r.onSurfaceVariant,
-      focusRing: r.primary,
-      focusBorder: r.primary,
+      focusRing: r.primaryText,
+      focusBorder: r.primaryText,
     },
     table: {
       bg: isLight ? r.surfaceContainerLowest : r.surfaceContainerLow,
@@ -274,7 +280,7 @@ function fromRoles(r: Roles, isLight: boolean): SemanticScheme {
     },
     selection: {
       bg: r.inversePrimary,
-      text: isLight ? r.onSurface : r.onPrimaryContainer,
+      text: isLight ? r.onSurface : r.onPrimary,
     },
   };
 }
@@ -297,11 +303,11 @@ export type SchemeName = keyof typeof schemes;
 export const sharedReferences = {
   indicators: {
     primary: ramps.Blue["40"],
-    success: ramps.Green["50"],
+    success: ramps.Site.pulse,
     warning: ramps.Amber["60"],
     danger: ramps.Red["50"],
     info: ramps.Blue["40"],
-    violet: violet[5],
+    violet: ramps.Site.purple,
     orange: ramps.Amber["60"],
     slate: ramps.Neutral["50"],
   },

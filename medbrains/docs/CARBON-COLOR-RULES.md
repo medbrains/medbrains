@@ -1,7 +1,9 @@
 # Colour Rules (MedBrains)
 
-The palette is a Material-3 colour system seeded on our brand blue **#0F62FE**
-(decided 2026-10-23: keep the blue, fix the system around it). Figma and code
+**The app uses the website's theme** (founder decision 2026-10-24): the
+colours of `website/src/styles/global.scss` (paper/ink in light, night navy in
+dark, blue **#0F62FE**, pulse green **#42BE65**) laid onto Material-3 roles, with
+purple **#851B7F** only as the AI accent. Figma and code
 share one source: `packages/design-system/src/theme/figma-varspec.json`, the spec
 the Figma library's variables were built from. `pnpm --filter
 @medbrains/design-system gen:colors` turns it into `colors.generated.ts`.
@@ -9,8 +11,9 @@ the Figma library's variables were built from. `pnpm --filter
 
 ## Structure
 
-- **Ramps** (Figma "Primitives"): 13-tone Blue, Purple, Neutral, Green, Amber,
-  Red, plus Surface tones. Never used directly; roles alias them.
+- **Ramps** (Figma "Primitives"): `Site/*` holds the website tokens (paper,
+  ink, night, blue, sky, pulse, purple…); the Green/Amber/Red ramps carry the
+  clinical families. Never used directly; roles alias them.
 - **Roles** per scheme (Figma "Color" / "Color Dark"): the same names in light
   and dark, only the values differ. Web name = Figma code syntax:
   - surfaces: `--mb-surface`, `--mb-surface-container-{lowest,low,high,highest}`,
@@ -30,18 +33,19 @@ the Figma library's variables were built from. `pnpm --filter
 
 ## Rules
 
-- **Blue = brand, primary actions, focus, selection.** One filled primary action
-  per view. Brand gradients are blue only.
-- **Purple (tertiary) is the secondary accent**: AI and the mascot, the logo
-  heart, badges, icons, chips, small highlights, and buttons such as "Ask AI".
-  Never a full-width alert banner or a page background: those belong to the
-  emergency layer.
-- **Brand purple `--mb-brand-purple`** (Figma `tertiary/tertiaryBrand`), the
-  purple counterpart of brand blue #0F62FE: **#851B7F** in light (white text
-  8.5:1, safe at every size) and Purple 80 **#FFABF0** in dark (with
-  `--mb-on-tertiary` text). Text in purple on a surface uses `--mb-tertiary`
-  (Purple 40 #9A3293 light, Purple 80 dark). `theme-contrast.spec.ts` checks
-  these pairs at 4.5:1 in both schemes.
+- **Blue #0F62FE = brand, primary actions, active, selection.** It is the
+  exact fill in both schemes, with white text (5:1). Blue as small text uses
+  `--mb-primary-text` (blue-deep #0043CE on paper, sky #78A9FF on night), as
+  do links, the active nav label and the focus ring. Brand gradients are blue
+  only. One filled primary action per view.
+- **Purple #851B7F = AI only** (`--mb-brand-purple`, Figma
+  `tertiary/tertiaryBrand`): AI buttons, AI labels, the orb and the mascot's
+  accents, the same fill in both schemes with white text (8.5:1). Purple as text
+  uses `--mb-tertiary` (#851B7F on paper, #FFABF0 on night). Never a banner or a
+  page background.
+- **Pulse green #42BE65 (`--mb-pulse`)**: the live dot, the logo beat and the
+  ECG beacon, as on the website. Success text and containers stay in the
+  accessible green family.
 - **Green / amber / red only for clinical meaning**, always with an icon or a
   word (WCAG 1.4.1). Low and high abnormal are both amber; the arrow and the
   word tell them apart. Critical is red.

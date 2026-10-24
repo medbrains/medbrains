@@ -37,7 +37,7 @@ rather than inventing values.
 
 ## Layout rules
 
-- **Sharp corners (radius 0–2px).** No rounded cards/inputs. (Theme enforces it.)
+- **The website's shape (2026-10-24):** 14px cards, pill buttons, 10px inputs, 8px default. (Theme enforces it.)
 - **Hairline borders 1px** (`--mb-border`), flat surfaces — no heavy shadows
   except the design-system elevation tokens.
 - **Align to the grid:** every block starts/ends on an 8px line. Optical alignment
