@@ -2,7 +2,7 @@
 title: "Diwali safety checklist: burns, eyes and ears, and what to do in the first minutes"
 description: "Diwali safety in India: first aid for cracker and diya burns and eye injuries, safe noise levels, carbide guns, pets and elders, and when to call 112."
 summary: "Most Diwali injuries are burns to the hands and face and eye injuries, often in unsupervised children. Cool a burn under running water for 20 minutes, never ice, butter or toothpaste. For an eye injury, do not rub, press or pull anything out: shield it and go to hospital. Never use carbide guns."
-date: 2026-10-29
+date: 2026-10-24
 category: patient-education
 seoTitle: "Diwali safety checklist: burns, eyes, ears | MedBrains Blog"
 featured: false
