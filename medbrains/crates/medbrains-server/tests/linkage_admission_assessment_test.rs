@@ -26,23 +26,64 @@ async fn assessment_tasks(app: &common::TestApp, admission_id: Uuid) -> Vec<Opti
     .expect("nursing_tasks query")
 }
 
+/// A ward of its own with one vacant bed on it. The seed's beds belong to no
+/// ward, and a shared bed is taken by whichever run admitted to it last.
+async fn vacant_ward_bed(app: &common::TestApp, tenant_id: Uuid) -> (Uuid, Uuid) {
+    // Upper case: location codes are A-Z, 0-9 and hyphens.
+    let suffix = Uuid::new_v4().simple().to_string().to_uppercase();
+    let ward_id: Uuid = sqlx::query_scalar(
+        "INSERT INTO wards (tenant_id, code, name, total_beds) VALUES ($1, $2, $3, 1) RETURNING id",
+    )
+    .bind(tenant_id)
+    .bind(format!("LAA-{}", &suffix[..10]))
+    .bind(format!("Linkage ward {}", &suffix[..6]))
+    .fetch_one(&app.db)
+    .await
+    .expect("insert ward");
+    let bed_id: Uuid = sqlx::query_scalar(
+        "INSERT INTO locations (tenant_id, level, code, name) \
+         VALUES ($1, 'bed', $2, $3) RETURNING id",
+    )
+    .bind(tenant_id)
+    .bind(format!("LAA-BED-{}", &suffix[..10]))
+    .bind(format!("Bed {}", &suffix[..4]))
+    .fetch_one(&app.db)
+    .await
+    .expect("insert bed location");
+    sqlx::query(
+        "INSERT INTO ward_bed_mappings (tenant_id, ward_id, bed_location_id) VALUES ($1, $2, $3)",
+    )
+    .bind(tenant_id)
+    .bind(ward_id)
+    .bind(bed_id)
+    .execute(&app.db)
+    .await
+    .expect("map bed to ward");
+    // A bed location gets its state row by trigger; give it the ward.
+    sqlx::query(
+        "INSERT INTO bed_states (tenant_id, location_id, ward_id) VALUES ($1, $2, $3) \
+         ON CONFLICT (tenant_id, location_id) DO UPDATE SET ward_id = EXCLUDED.ward_id",
+    )
+        .bind(tenant_id)
+        .bind(bed_id)
+        .bind(ward_id)
+        .execute(&app.db)
+        .await
+        .expect("bed state");
+    (ward_id, bed_id)
+}
+
 #[tokio::test]
 async fn admission_on_a_rostered_ward_raises_one_assessment_and_none_without_a_ward() {
     let app = common::spawn_app().await;
     let csrf = app.login_admin().await;
 
-    let beds: Vec<Value> = app
-        .get(&app.client, "/api/ipd/beds/available")
+    let tenant_id: Uuid = sqlx::query_scalar("SELECT tenant_id FROM users WHERE username = 'admin'")
+        .fetch_one(&app.db)
         .await
-        .json()
-        .await
-        .expect("beds json");
-    let bed = beds
-        .iter()
-        .find(|b| b["ward_id"].is_string())
-        .expect("an available bed with a ward — the seed has 28");
-    let bed_id = bed["bed_id"].as_str().expect("bed id").to_owned();
-    let ward_id: Uuid = bed["ward_id"].as_str().and_then(|s| s.parse().ok()).expect("ward id");
+        .expect("a seeded tenant");
+    let (ward_id, bed_id) = vacant_ward_bed(&app, tenant_id).await;
+    let bed_id = bed_id.to_string();
 
     let depts: Value = app.get(&app.client, "/api/setup/departments").await.json().await.expect("depts");
     let department_id = depts
@@ -70,7 +111,6 @@ async fn admission_on_a_rostered_ward_raises_one_assessment_and_none_without_a_w
         .await
         .expect("patient json");
     let patient_id = patient["id"].as_str().expect("patient id").to_owned();
-    let tenant_id: Uuid = patient["tenant_id"].as_str().and_then(|s| s.parse().ok()).expect("tenant");
 
     // Roster somebody as charge nurse on the bed's ward for today.
     let nurse_user_id: Uuid = sqlx::query_scalar(

@@ -148,16 +148,18 @@ async fn a_radiology_order_keeps_the_picked_body_part() {
 async fn an_ot_booking_carries_the_surgical_site_and_side() {
     let app = common::spawn_app().await;
     let csrf = app.login_admin().await;
-    let (room, surgeon): (Uuid, Uuid) = sqlx::query_as(
-        "SELECT r.id, d.id FROM ot_rooms r \
-           JOIN users d ON d.tenant_id = r.tenant_id AND d.role = 'doctor' AND d.is_active \
-                       AND d.deleted_at IS NULL \
-           JOIN users a ON a.tenant_id = r.tenant_id AND a.username = 'admin' \
-          WHERE r.deleted_at IS NULL LIMIT 1",
+    // A theatre and a surgeon of this run's own: the seed has neither, and a
+    // shared theatre's 09:00 slot is taken by the previous run's booking.
+    let surgeon = common::provision_staff(&app, &csrf, "doctor", &[]).await.user_id;
+    let room: Uuid = sqlx::query_scalar(
+        "INSERT INTO ot_rooms (tenant_id, name, code) \
+         SELECT tenant_id, 'Body site theatre', $1 FROM users WHERE username = 'admin' \
+         RETURNING id",
     )
+    .bind(format!("BS-{}", &Uuid::new_v4().simple().to_string()[..10]))
     .fetch_one(&app.db)
     .await
-    .expect("room and surgeon");
+    .expect("theatre");
     let booking = |laterality: &str| {
         json!({
             "patient_id": Uuid::nil(),
