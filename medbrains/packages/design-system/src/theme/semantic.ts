@@ -9,8 +9,9 @@
  * `bg-canvas`, `border-default`, …) so existing components keep working. Both
  * schemes come from the same mapping — only the role values differ.
  *
- * Rules: blue = brand, primary actions, focus. Purple #851B7F = the AI accent
- * only (AI buttons, AI labels, the orb), never a full-width alert banner. Green / amber / red only for clinical meaning, always with an icon or
+ * Rules: blue = brand, primary actions, focus. Purple #851B7F = the secondary
+ * brand accent (accent badges/buttons, counts, highlights, second chart series,
+ * AI), never a full-width alert banner. Green / amber / red only for clinical meaning, always with an icon or
  * word. Emergency code colours are fixed.
  *
  * Component code MUST NOT cherry-pick primitive hexes. Always reference
@@ -217,7 +218,7 @@ function fromRoles(r: Roles, isLight: boolean): SemanticScheme {
       },
       // Orange is not a role: it reads as amber (attention), never decoration.
       orange: statusScale(r.warning, r.warningContainer, r.onWarning),
-      // Violet marks AI-supported content only: the brand purple family.
+      // Violet is the brand purple accent family.
       violet: {
         fg: r.tertiary,
         bg: r.tertiaryContainer,

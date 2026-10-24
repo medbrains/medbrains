@@ -14,6 +14,8 @@ export type ButtonTone =
   | "primary"
   | "secondary"
   | "tertiary"
+  /** Brand purple — the secondary brand action (one per view, beside primary blue). */
+  | "accent"
   | "ghost"
   | "danger"
   | "danger-tertiary"
@@ -26,6 +28,7 @@ const TONE_PROPS: Record<ButtonTone, Pick<MantineButtonProps, "variant" | "color
   secondary: { variant: "default" },
   // Carbon tertiary — outline button (brand border, transparent fill).
   tertiary: { variant: "outline", color: "primary" },
+  accent: { variant: "filled", color: "purple" },
   ghost: { variant: "subtle", color: "gray" },
   danger: { variant: "filled", color: "danger" },
   "danger-tertiary": { variant: "outline", color: "danger" },

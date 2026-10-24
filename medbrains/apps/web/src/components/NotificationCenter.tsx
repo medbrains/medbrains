@@ -148,7 +148,7 @@ export function NotificationCenter() {
           disabled={unread === 0}
           label={unread > 9 ? "9+" : unread}
           size={16}
-          color="danger"
+          color="purple"
           offset={4}
         >
           <IconButton

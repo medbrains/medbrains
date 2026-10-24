@@ -2,7 +2,7 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import { IconPlus } from "@tabler/icons-react";
 import { Button, type ButtonTone } from "./Button";
 
-const TONES: ButtonTone[] = ["primary", "secondary", "ghost", "danger", "subtle-danger"];
+const TONES: ButtonTone[] = ["primary", "accent", "secondary", "ghost", "danger", "subtle-danger"];
 
 const meta = {
   title: "Primitives/Button",

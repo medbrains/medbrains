@@ -18,7 +18,7 @@ const TONE_COLOR: Record<BadgeTone, string> = {
   warning: "warning",
   danger: "danger",
   info: "info",
-  accent: "cinnabar",
+  accent: "purple",
 };
 
 export interface BadgeProps extends Omit<MantineBadgeProps, "color"> {
@@ -37,6 +37,8 @@ export const Badge = forwardRef<HTMLDivElement, BadgeProps>(function Badge(
     <MantineBadge
       ref={ref}
       color={TONE_COLOR[tone]}
+      // Mantine sets no data-color; the global chip tints key off it.
+      data-color={TONE_COLOR[tone]}
       variant={variant}
       size={size}
       // A filled badge chooses its text colour from its background: white on

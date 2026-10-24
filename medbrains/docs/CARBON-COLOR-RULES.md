@@ -3,7 +3,9 @@
 **The app uses the website's theme** (founder decision 2026-10-24): the
 colours of `website/src/styles/global.scss` (paper/ink in light, night navy in
 dark, blue **#0F62FE**, pulse green **#42BE65**) laid onto Material-3 roles, with
-purple **#851B7F** only as the AI accent. Figma and code
+purple **#851B7F** as the secondary brand accent. Only colour comes from the
+website; component shapes (sharp corners, bottom-rule inputs, elevation) stay as
+the design system defines them. Figma and code
 share one source: `packages/design-system/src/theme/figma-varspec.json`, the spec
 the Figma library's variables were built from. `pnpm --filter
 @medbrains/design-system gen:colors` turns it into `colors.generated.ts`.
@@ -38,9 +40,11 @@ the Figma library's variables were built from. `pnpm --filter
   `--mb-primary-text` (blue-deep #0043CE on paper, sky #78A9FF on night), as
   do links, the active nav label and the focus ring. Brand gradients are blue
   only. One filled primary action per view.
-- **Purple #851B7F = AI only** (`--mb-brand-purple`, Figma
-  `tertiary/tertiaryBrand`): AI buttons, AI labels, the orb and the mascot's
-  accents, the same fill in both schemes with white text (8.5:1). Purple as text
+- **Purple #851B7F = secondary brand accent** (`--mb-brand-purple`, Figma
+  `tertiary/tertiaryBrand`; Mantine `purple`/`violet`/`teal`/`cinnabar`, seam
+  `tone="accent"`): accent badges and buttons, unread counts, "new" markers,
+  highlights, the second chart series, AI buttons and labels, the orb and the
+  mascot's accents. The same fill in both schemes with white text (8.5:1). Purple as text
   uses `--mb-tertiary` (#851B7F on paper, #FFABF0 on night). Never a banner or a
   page background.
 - **Pulse green #42BE65 (`--mb-pulse`)**: the live dot, the logo beat and the

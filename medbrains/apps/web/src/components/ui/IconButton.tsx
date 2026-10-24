@@ -6,11 +6,12 @@ import { forwardRef } from "react";
  * buttons are quiet by default (subtle), so tones tint rather than fill.
  * An `aria-label` is required: an icon alone has no accessible name.
  */
-export type IconButtonTone = "default" | "primary" | "danger" | "success";
+export type IconButtonTone = "default" | "primary" | "accent" | "danger" | "success";
 
 const TONE_PROPS: Record<IconButtonTone, Pick<ActionIconProps, "variant" | "color">> = {
   default: { variant: "subtle", color: "gray" },
   primary: { variant: "subtle", color: "primary" },
+  accent: { variant: "subtle", color: "purple" },
   danger: { variant: "subtle", color: "danger" },
   success: { variant: "subtle", color: "success" },
 };
