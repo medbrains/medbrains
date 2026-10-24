@@ -1205,6 +1205,27 @@ pub struct PasswordResetRequestBody {
     pub hospital_code: Option<String>,
 }
 
+/// The account a password reset names.
+///
+/// Found the way sign-in finds it: no tenant is known yet and `users` is under
+/// row level security, so through `app_login_accounts` (migration 1200).
+/// Service accounts are never returned: there is no person behind them to
+/// receive a one-time code.
+async fn reset_account(
+    state: &AppState,
+    username: &str,
+    tenant: Option<Uuid>,
+) -> Result<hospital::Account<(Uuid, Uuid)>, AppError> {
+    let rows = sqlx::query_as::<_, (Uuid, Uuid)>(
+        "SELECT id, tenant_id FROM app_login_accounts($1, $2) WHERE is_active",
+    )
+    .bind(username)
+    .bind(tenant)
+    .fetch_all(&state.db)
+    .await?;
+    Ok(hospital::account(rows))
+}
+
 /// Public, rate-limited. Always returns the same 200 body so account
 /// names cannot be enumerated. Delivery rides the outbox → Twilio
 /// handler (retry + DLQ for free); without a configured SMS connector
@@ -1220,23 +1241,19 @@ pub async fn request_password_reset(
     }));
 
     let tenant = hospital::login_tenant(&state.db, body.hospital_code.as_deref(), &headers).await?;
-    let rows = sqlx::query_as::<_, (Uuid, Uuid, Option<String>)>(
-        // Service accounts cannot receive a one-time code: they have no person
-        // behind them to receive it, and offering the route would make a machine
-        // identity reachable by anyone who can read its phone column.
-        "SELECT id, tenant_id, phone FROM users WHERE username = $1 AND is_active = true \
-         AND is_service_account = false AND ($2::uuid IS NULL OR tenant_id = $2) LIMIT 2",
-    )
-    .bind(&body.username)
-    .bind(tenant)
-    .fetch_all(&state.db)
-    .await?;
-    let (user_id, tenant_id, phone) = match hospital::account(rows) {
+    let (user_id, tenant_id) = match reset_account(&state, &body.username, tenant).await? {
         hospital::Account::One(row) => row,
         hospital::Account::None => return Ok(ack),
         hospital::Account::Ambiguous => return Ok(hospital::hospital_required()),
     };
 
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &tenant_id).await?;
+    let phone: Option<String> = sqlx::query_scalar("SELECT phone FROM users WHERE id = $1")
+        .bind(user_id)
+        .fetch_optional(&mut *tx)
+        .await?
+        .flatten();
     let Some(phone) = phone.filter(|p| !p.trim().is_empty()) else {
         tracing::info!(%user_id, "password reset requested but no phone on file");
         return Ok(ack);
@@ -1246,9 +1263,6 @@ pub async fn request_password_reset(
     getrandom::fill(&mut buf)
         .map_err(|e| AppError::Internal(format!("otp generation failed: {e}")))?;
     let otp = format!("{:06}", u32::from_le_bytes(buf) % 1_000_000);
-
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &tenant_id).await?;
 
     sqlx::query(
         "UPDATE password_reset_otps SET used_at = now() WHERE user_id = $1 AND used_at IS NULL",
@@ -1313,16 +1327,7 @@ pub async fn confirm_password_reset(
     }
 
     let tenant = hospital::login_tenant(&state.db, body.hospital_code.as_deref(), &headers).await?;
-    let rows = sqlx::query_as::<_, (Uuid, Uuid)>(
-        // Same reasoning as the code-request path above.
-        "SELECT id, tenant_id FROM users WHERE username = $1 AND is_active = true \
-         AND is_service_account = false AND ($2::uuid IS NULL OR tenant_id = $2) LIMIT 2",
-    )
-    .bind(&body.username)
-    .bind(tenant)
-    .fetch_all(&state.db)
-    .await?;
-    let (user_id, tenant_id) = match hospital::account(rows) {
+    let (user_id, tenant_id) = match reset_account(&state, &body.username, tenant).await? {
         hospital::Account::One(row) => row,
         hospital::Account::None => return Err(AppError::Unauthorized),
         hospital::Account::Ambiguous => return Ok(hospital::hospital_required()),

@@ -89,20 +89,18 @@ pub async fn request_device_code(
     let expires_at = Utc::now() + Duration::minutes(REQUEST_TTL_MINUTES);
 
     // No tenant context: the display does not know its tenant yet, which is
-    // exactly what it is asking to be told.
-    sqlx::query(
-        "INSERT INTO device_pairing_requests \
-           (device_code, user_code, app_variant, requested_label, public_key_pem, expires_at) \
-         VALUES ($1, $2, $3, $4, $5, $6)",
-    )
-    .bind(&device_code)
-    .bind(&user_code)
-    .bind(&body.app_variant)
-    .bind(body.label.trim())
-    .bind(body.public_key_pem.as_deref().map(str::trim))
-    .bind(expires_at)
-    .execute(&state.db)
-    .await?;
+    // exactly what it is asking to be told. Row level security refuses a row
+    // with no tenant, so through `app_open_device_pairing_request`
+    // (migration 1206), which inserts this one pending request and nothing else.
+    sqlx::query("SELECT app_open_device_pairing_request($1, $2, $3, $4, $5, $6)")
+        .bind(&device_code)
+        .bind(&user_code)
+        .bind(&body.app_variant)
+        .bind(body.label.trim())
+        .bind(body.public_key_pem.as_deref().map(str::trim))
+        .bind(expires_at)
+        .execute(&state.db)
+        .await?;
 
     Ok(Json(DeviceCodeResponse {
         user_code: format_user_code(&user_code),
@@ -158,10 +156,13 @@ pub async fn poll_device_token(
 ) -> Result<Json<DeviceTokenResponse>, AppError> {
     let mut tx = state.db.begin().await?;
 
+    // Counts the poll and locks the row until this transaction ends, through
+    // `app_poll_device_pairing_request` (migration 1206): a pending request
+    // has no tenant yet, and the device code is how its tenant is found.
     let row: Option<RequestRow> = sqlx::query_as(
         "SELECT id, tenant_id, status, app_variant, public_key_pem, \
                 approved_for_user_id, expires_at, poll_count \
-         FROM device_pairing_requests WHERE device_code = $1 FOR UPDATE",
+         FROM app_poll_device_pairing_request($1)",
     )
     .bind(&body.device_code)
     .fetch_optional(&mut *tx)
@@ -178,14 +179,6 @@ pub async fn poll_device_token(
     if expires_at < Utc::now() || polls >= MAX_POLLS {
         return Ok(still_waiting("expired"));
     }
-
-    sqlx::query(
-        "UPDATE device_pairing_requests \
-         SET poll_count = poll_count + 1, last_polled_at = now() WHERE id = $1",
-    )
-    .bind(id)
-    .execute(&mut *tx)
-    .await?;
 
     match status.as_str() {
         "pending" => {

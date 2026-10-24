@@ -572,18 +572,19 @@ pub async fn register_bridge_agent(
 ) -> Result<Json<serde_json::Value>, AppError> {
     let key_hash = hash_agent_key(&body.agent_key);
 
-    let agent_id = sqlx::query_scalar::<_, Uuid>(
-        "INSERT INTO bridge_agents (name, agent_key_hash, deployment_mode, version, hostname, capabilities, status) \
-         VALUES ($1, $2, $3, $4, $5, $6, 'online') RETURNING id",
-    )
-    .bind(&body.name)
-    .bind(&key_hash)
-    .bind(&body.deployment_mode)
-    .bind(&body.version)
-    .bind(&body.hostname)
-    .bind(&body.capabilities)
-    .fetch_one(&state.db)
-    .await?;
+    // An agent registers before it belongs to any hospital, and row level
+    // security refuses a row with no tenant: `app_register_bridge_agent`
+    // (migration 1206) inserts this one row and nothing else.
+    let agent_id =
+        sqlx::query_scalar::<_, Uuid>("SELECT app_register_bridge_agent($1, $2, $3, $4, $5, $6)")
+            .bind(&body.name)
+            .bind(&key_hash)
+            .bind(&body.deployment_mode)
+            .bind(&body.version)
+            .bind(&body.hostname)
+            .bind(&body.capabilities)
+            .fetch_one(&state.db)
+            .await?;
 
     Ok(Json(
         serde_json::json!({"agent_id": agent_id, "status": "registered"}),
@@ -596,19 +597,17 @@ pub async fn bridge_heartbeat(
 ) -> Result<Json<serde_json::Value>, AppError> {
     // Heartbeat is unauthenticated at the HTTP layer; the agent key proves
     // ownership so one tenant's agent cannot update another's row.
-    let result = sqlx::query(
-        "UPDATE bridge_agents SET status = 'online', last_heartbeat = now(), \
-         devices_connected = $2, buffer_depth = $3 \
-         WHERE id = $1 AND agent_key_hash = $4 AND is_active = true",
-    )
-    .bind(body.agent_id)
-    .bind(body.devices_connected)
-    .bind(body.buffer_depth)
-    .bind(hash_agent_key(&body.agent_key))
-    .execute(&state.db)
-    .await?;
+    // Through `app_bridge_heartbeat` (migration 1206) for the same reason
+    // as registration: the agent has no tenant context to write under.
+    let found: bool = sqlx::query_scalar("SELECT app_bridge_heartbeat($1, $2, $3, $4)")
+        .bind(body.agent_id)
+        .bind(hash_agent_key(&body.agent_key))
+        .bind(body.devices_connected)
+        .bind(body.buffer_depth)
+        .fetch_one(&state.db)
+        .await?;
 
-    if result.rows_affected() == 0 {
+    if !found {
         return Err(AppError::Unauthorized);
     }
 
@@ -779,16 +778,15 @@ pub async fn ingest_device_data(
     require_permission(&claims, permissions::devices::INGEST)?;
 
     // A key or session from one hospital must not push readings into another's device.
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
     let dq = format!("{INSTANCE_SELECT} WHERE id = $1 AND tenant_id = $2");
     let device = sqlx::query_as::<_, DeviceInstanceRow>(&dq)
         .bind(body.device_instance_id)
         .bind(claims.tenant_id)
-        .fetch_optional(&state.db)
+        .fetch_optional(&mut *tx)
         .await?
         .ok_or(AppError::NotFound)?;
-
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &device.tenant_id).await?;
 
     // Store message
     let msg_id = sqlx::query_scalar::<_, Uuid>(

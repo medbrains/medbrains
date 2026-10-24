@@ -29,15 +29,7 @@ async fn row_for(
     code: &str,
     order_ref: &str,
 ) -> Result<Option<PaymentGatewayTransaction>, AppError> {
-    Ok(sqlx::query_as::<_, PaymentGatewayTransaction>(
-        // allow-raw-sql: webhook entry, tenant context not yet resolved
-        "SELECT * FROM payment_gateway_transactions \
-         WHERE gateway_order_id = $1 AND gateway = $2 LIMIT 1",
-    )
-    .bind(order_ref)
-    .bind(code)
-    .fetch_optional(&state.db)
-    .await?)
+    crate::txn_by_order_ref(&state.db, Some(code), order_ref).await
 }
 
 /// Verify and normalise; a link notice that does not say how it was paid

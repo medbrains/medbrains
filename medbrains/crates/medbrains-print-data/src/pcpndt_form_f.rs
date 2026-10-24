@@ -8,8 +8,7 @@ use axum::{
 };
 use medbrains_core::permissions;
 use medbrains_core::print_data::{
-    FormFClinic, FormFDeclarations, FormFProcedure, FormFReferral, FormFWoman,
-    PcpndtFormFPrintData,
+    FormFClinic, FormFDeclarations, FormFProcedure, FormFReferral, FormFWoman, PcpndtFormFPrintData,
 };
 use medbrains_server_core::{
     error::AppError,
@@ -35,7 +34,7 @@ pub async fn get_pcpndt_form_f_print_data(
     )
     .bind(id)
     .bind(claims.tenant_id)
-    .fetch_optional(&state.db)
+    .fetch_optional(&mut *medbrains_db::pool::tenant_conn(&state.db, &claims.tenant_id).await?)
     .await?
     .ok_or(AppError::NotFound)?;
     // Her name and her pregnancy, on paper: the register's permission is not
@@ -47,15 +46,16 @@ pub async fn get_pcpndt_form_f_print_data(
         .await?;
     crate::set_print_timezone(&mut tx, &claims.tenant_id).await?;
 
-    let (form_number, woman_at, doctor_at): (String, Option<String>, Option<String>) = sqlx::query_as(
-        "SELECT form_number, to_char(woman_declared_at, 'DD Mon YYYY HH24:MI'), \
+    let (form_number, woman_at, doctor_at): (String, Option<String>, Option<String>) =
+        sqlx::query_as(
+            "SELECT form_number, to_char(woman_declared_at, 'DD Mon YYYY HH24:MI'), \
                 to_char(doctor_declared_at, 'DD Mon YYYY HH24:MI') \
            FROM pcpndt_forms WHERE id = $1 AND tenant_id = $2",
-    )
-    .bind(id)
-    .bind(claims.tenant_id)
-    .fetch_one(&mut *tx)
-    .await?;
+        )
+        .bind(id)
+        .bind(claims.tenant_id)
+        .fetch_one(&mut *tx)
+        .await?;
     let clinic: (String, Option<String>, Option<String>) = sqlx::query_as(
         "SELECT name, concat_ws(', ', address_line1, address_line2, city, pincode), \
                 pcpndt_registration_number FROM tenants WHERE id = $1",

@@ -154,15 +154,21 @@ pub async fn emit_after_event(
         "payload": payload,
     });
 
-    let result = sqlx::query(
-        "INSERT INTO job_queue \
-           (tenant_id, job_type, payload, priority) \
-         VALUES ($1, 'pipeline_event', $2, 5)",
-    )
-    .bind(tenant_id)
-    .bind(&job_payload)
-    .execute(pool)
-    .await;
+    // Under the event's hospital: `job_queue` is row level secured, and an
+    // insert outside a tenant is refused (and only logged, below).
+    let result = match medbrains_db::pool::tenant_conn(pool, &tenant_id).await {
+        Ok(mut conn) => sqlx::query(
+            "INSERT INTO job_queue \
+               (tenant_id, job_type, payload, priority) \
+             VALUES ($1, 'pipeline_event', $2, 5)",
+        )
+        .bind(tenant_id)
+        .bind(&job_payload)
+        .execute(&mut *conn)
+        .await
+        .map_err(AppError::from),
+        Err(e) => Err(AppError::from(e)),
+    };
 
     if let Err(e) = result {
         // Log but never fail the caller

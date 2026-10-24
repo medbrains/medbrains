@@ -42,7 +42,9 @@ pub async fn complete_form_f(
 ) -> Result<Json<PcpndtForm>, AppError> {
     require_permission(&claims, permissions::regulatory::pcpndt::CREATE)?;
     if body.indication.trim().len() < 3 {
-        return Err(AppError::BadRequest("Record the indication for the scan".to_owned()));
+        return Err(AppError::BadRequest(
+            "Record the indication for the scan".to_owned(),
+        ));
     }
     if !body.woman_declares || !body.doctor_declares {
         return Err(AppError::BadRequest(
@@ -50,14 +52,16 @@ pub async fn complete_form_f(
         ));
     }
     if body.living_sons.is_some_and(|n| n < 0) || body.living_daughters.is_some_and(|n| n < 0) {
-        return Err(AppError::BadRequest("Children cannot be negative".to_owned()));
+        return Err(AppError::BadRequest(
+            "Children cannot be negative".to_owned(),
+        ));
     }
     let patient: Uuid = sqlx::query_scalar(
         "SELECT patient_id FROM pcpndt_forms WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL",
     )
     .bind(id)
     .bind(claims.tenant_id)
-    .fetch_optional(&state.db)
+    .fetch_optional(&mut *medbrains_db::pool::tenant_conn(&state.db, &claims.tenant_id).await?)
     .await?
     .ok_or(AppError::NotFound)?;
     medbrains_authz_gate::require_patient_access(&state, &claims, patient).await?;

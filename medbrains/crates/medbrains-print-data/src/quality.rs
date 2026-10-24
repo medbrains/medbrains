@@ -334,7 +334,7 @@ pub async fn get_capa_form_print_data(
     )
     .bind(capa_id)
     .bind(claims.tenant_id)
-    .fetch_optional(&state.db)
+    .fetch_optional(&mut *medbrains_db::pool::tenant_conn(&state.db, &claims.tenant_id).await?)
     .await?
     .ok_or(AppError::NotFound)?;
     if let Some(incident_id) = incident_id {
