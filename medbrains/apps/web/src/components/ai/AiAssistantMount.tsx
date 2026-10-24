@@ -4,11 +4,10 @@ import { IconHistory, IconMaximize, IconPlus } from "@tabler/icons-react";
 import { useQuery } from "@tanstack/react-query";
 import { lazy, Suspense, useEffect, useMemo, useRef } from "react";
 import { useLocation, useNavigate } from "react-router";
-import { IconButton, Modal } from "@/components/ui";
+import { Crab, IconButton, Modal } from "@/components/ui";
 import { useWhispers } from "@/hooks/useWhispers";
 import styles from "./ai-assistant-mount.module.scss";
 import { useAiAssistantStore } from "./assistant-store";
-import { CrabMascot } from "./CrabMascot";
 import { SseTransport } from "./transport/sse";
 import type { ChatRole } from "./transport/types";
 import { useAiChat } from "./useAiChat";
@@ -144,12 +143,7 @@ export function AiAssistantMount({ suggestions = DEFAULT_SUGGESTIONS }: AiAssist
             aria-label="Open MedBrains assistant (drag to reposition)"
             {...fab}
           >
-            <CrabMascot
-              size={40}
-              pose="greet"
-              accent="#ffffff"
-              accentSoft="rgba(255,255,255,0.3)"
-            />
+            <Crab variant="geometric" tone="onBrand" size={40} />
           </UnstyledButton>
         </Tooltip>
       )}

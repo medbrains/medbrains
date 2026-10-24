@@ -1,0 +1,178 @@
+// The AI orb: blue #0F62FE → brand purple #851B7F, from tokens only.
+// Each state is visible without motion (ring, tick, glyph); motion only adds
+// the breathing, rotation or morph, and stops under reduced motion.
+
+.orb {
+  position: relative;
+  display: inline-grid;
+  place-items: center;
+  flex: none;
+  line-height: 0;
+  color: var(--mb-on-primary);
+}
+
+.core {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+}
+
+.glyph {
+  position: relative;
+}
+
+// ── Halo: a thin blue→purple ring around a calm blue dot ─────────────
+.halo {
+  .core {
+    inset: 30%;
+    background: var(--mb-primary);
+  }
+
+  &::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: 50%;
+    background: conic-gradient(var(--mb-primary), var(--mb-brand-purple), transparent 75%);
+    mask: radial-gradient(
+      farthest-side,
+      transparent calc(100% - 2px),
+      currentColor calc(100% - 1.5px)
+    );
+  }
+
+  &.done::before,
+  &.idle::before {
+    background: conic-gradient(var(--mb-primary), var(--mb-brand-purple), var(--mb-primary));
+  }
+
+  &.done .core {
+    inset: 0;
+  }
+}
+
+// ── Glass: a glossy sphere with a purple depth and a white highlight ──
+.glass .core,
+.pulse .core {
+  background:
+    radial-gradient(circle at 32% 26%, var(--mb-mascot-eye) 0 7%, transparent 26%),
+    radial-gradient(circle at 70% 78%, var(--mb-brand-purple), transparent 62%),
+    var(--mb-primary);
+}
+
+.listening::after {
+  content: "";
+  position: absolute;
+  inset: -18%;
+  border-radius: 50%;
+  border: 2px solid var(--mb-brand-purple);
+  opacity: 0.6;
+}
+
+// ── Blob: a soft blue→purple shape that settles into a circle when done ──
+.blob .core {
+  border-radius: 44% 56% 52% 48% / 52% 44% 56% 48%;
+  background: linear-gradient(135deg, var(--mb-primary), var(--mb-brand-purple));
+}
+
+.blob.done .core {
+  border-radius: 50%;
+}
+
+// ── Pulse: the sphere with the logo's heartbeat and a live green dot ──
+.pulse::after {
+  content: "";
+  position: absolute;
+  right: 4%;
+  bottom: 4%;
+  width: 24%;
+  height: 24%;
+  border-radius: 50%;
+  background: var(--mb-pulse);
+  box-shadow: 0 0 0 2px var(--mb-surface);
+}
+
+.pulse.done::after {
+  display: none;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .halo.thinking::before,
+  .halo.loading::before {
+    animation: orb-spin 1.4s linear infinite;
+  }
+
+  .halo.thinking .core,
+  .glass.thinking .core,
+  .pulse.thinking .core,
+  .pulse.loading .core {
+    animation: orb-breathe 2.4s ease-in-out infinite;
+  }
+
+  .listening::after {
+    animation: orb-ring 1.6s ease-out infinite;
+  }
+
+  .blob:not(.done) .core {
+    animation: orb-morph 6s ease-in-out infinite;
+  }
+
+  .blob.listening .core,
+  .blob.thinking .core {
+    animation-duration: 2.4s;
+  }
+
+  .pulse.thinking::after,
+  .pulse.loading::after {
+    animation: orb-beat 1.2s ease-in-out infinite;
+  }
+}
+
+@keyframes orb-spin {
+  to {
+    transform: rotate(1turn);
+  }
+}
+
+@keyframes orb-breathe {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(0.92);
+  }
+}
+
+@keyframes orb-ring {
+  from {
+    transform: scale(0.85);
+    opacity: 0.7;
+  }
+  to {
+    transform: scale(1.15);
+    opacity: 0;
+  }
+}
+
+@keyframes orb-morph {
+  0%,
+  100% {
+    border-radius: 44% 56% 52% 48% / 52% 44% 56% 48%;
+    transform: rotate(0deg);
+  }
+  50% {
+    border-radius: 56% 44% 46% 54% / 46% 56% 44% 54%;
+    transform: rotate(180deg);
+  }
+}
+
+@keyframes orb-beat {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  30% {
+    transform: scale(1.35);
+  }
+}

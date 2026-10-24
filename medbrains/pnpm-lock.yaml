@@ -848,9 +848,6 @@ importers:
       i18next-http-backend:
         specifier: ^4.0.4
         version: 4.0.4
-      lottie-react:
-        specifier: ^2.4.1
-        version: 2.4.2(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
       motion:
         specifier: ^12.38.0
         version: 12.43.0(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
@@ -984,6 +981,9 @@ importers:
       vite-plugin-compression2:
         specifier: ^2.5.3
         version: 2.5.3(rollup@4.65.0)
+      vite-plugin-svgr:
+        specifier: 4.5.0
+        version: 4.5.0(rollup@4.65.0)(typescript@7.0.2)(vite@8.3.5(@types/node@24.19.2)(esbuild@0.28.2)(jiti@2.7.0)(sass-embedded@1.106.1)(sass@1.106.1)(sugarss@5.0.2(postcss@8.5.31))(terser@5.51.2)(yaml@2.8.4))
       vite-plugin-wasm:
         specifier: ^3.6.0
         version: 3.6.0(vite@8.3.5(@types/node@24.19.2)(esbuild@0.28.2)(jiti@2.7.0)(sass-embedded@1.106.1)(sass@1.106.1)(sugarss@5.0.2(postcss@8.5.31))(terser@5.51.2)(yaml@2.8.4))
@@ -9609,15 +9609,6 @@ packages:
   loro-crdt@1.17.1:
     resolution: {integrity: sha512-83hWRYG6eMMpPezm+yXWlOqCuUsC0BYY1MVCPW9x2zlikgkHhL7GC7Q6JFH+Hjvauyn287Q1MiwTuRW0lUOUag==}
 
-  lottie-react@2.4.2:
-    resolution: {integrity: sha512-YkEEKN4E2Y2cFpPEwcvAXTAiRGy/P+0mJKYp9aDP1+r42xZgeXTZCf6No1csWRGmh4YQc3kbYtTq/b4c3IRCYg==}
-    peerDependencies:
-      react: ^16.8.0 || ^17.0.0 || ^18.0.0 || ^19.0.0
-      react-dom: ^16.8.0 || ^17.0.0 || ^18.0.0 || ^19.0.0
-
-  lottie-web@5.13.0:
-    resolution: {integrity: sha512-+gfBXl6sxXMPe8tKQm7qzLnUy5DUPJPKIyRHwtpCpyUEYjHYRJC/5gjUvdkuO2c3JllrPtHXH5UJJK8LRYl5yQ==}
-
   loupe@3.2.1:
     resolution: {integrity: sha512-CdzqowRJCeLU72bHvWqwRBBlLcMEtIvGrlvef74kMnV2AolS9Y8xUv1I0U/MNAWMhBlKIoyuEgoJ0t/bbwHbLQ==}
 
@@ -13116,6 +13107,11 @@ packages:
 
   vite-plugin-compression2@2.5.3:
     resolution: {integrity: sha512-ItPgqQWkcnBbVw7is9OKwiZ8v6+ju9rYROl5Lp6QfQDEx/d55AwJQb/KLpsQqsU9HoigYBsZ8tK6I02UwJNvEw==}
+
+  vite-plugin-svgr@4.5.0:
+    resolution: {integrity: sha512-W+uoSpmVkSmNOGPSsDCWVW/DDAyv+9fap9AZXBvWiQqrboJ08j2vh0tFxTD/LjwqwAd3yYSVJgm54S/1GhbdnA==}
+    peerDependencies:
+      vite: '>=2.6.0'
 
   vite-plugin-wasm@3.6.0:
     resolution: {integrity: sha512-mL/QPziiIA4RAA6DkaZZzOstdwbW5jO4Vz7Zenj0wieKWBlNvIvX5L5ljum9lcUX0ShNfBgCNLKTjNkRVVqcsw==}
@@ -20131,7 +20127,7 @@ snapshots:
       obug: 2.2.1
       std-env: 4.3.0
       tinyrainbow: 3.2.0
-      vitest: 4.1.12(@opentelemetry/api@1.10.0)(@types/node@24.19.2)(@vitest/coverage-v8@4.1.12)(jsdom@29.1.1(@noble/hashes@1.8.0))(msw@2.15.0(@types/node@24.19.2)(typescript@5.9.3))(vite@8.3.5(@types/node@24.19.2)(esbuild@0.28.2)(jiti@2.7.0)(sass-embedded@1.106.1)(sass@1.106.1)(sugarss@5.0.2(postcss@8.5.31))(terser@5.51.2)(yaml@2.8.4))
+      vitest: 4.1.12(@opentelemetry/api@1.10.0)(@types/node@22.20.5)(@vitest/coverage-v8@4.1.12)(jsdom@29.1.1(@noble/hashes@1.8.0))(msw@2.15.0(@types/node@22.20.5)(typescript@7.0.2))(vite@8.3.5(@types/node@22.20.5)(esbuild@0.28.2)(jiti@2.7.0)(sass-embedded@1.106.1)(sass@1.106.1)(sugarss@5.0.2(postcss@8.5.31))(terser@5.51.2)(yaml@2.8.4))
     optional: true
 
   '@vitest/coverage-v8@5.0.5(vitest@5.0.5)':
@@ -24530,14 +24526,6 @@ snapshots:
       js-tokens: 4.0.0
 
   loro-crdt@1.17.1: {}
-
-  lottie-react@2.4.2(react-dom@19.3.1(react@19.3.1))(react@19.3.1):
-    dependencies:
-      lottie-web: 5.13.0
-      react: 19.3.1
-      react-dom: 19.3.1(react@19.3.1)
-
-  lottie-web@5.13.0: {}
 
   loupe@3.2.1: {}
 
@@ -29097,6 +29085,17 @@ snapshots:
       tar-mini: 0.2.0
     transitivePeerDependencies:
       - rollup
+
+  vite-plugin-svgr@4.5.0(rollup@4.65.0)(typescript@7.0.2)(vite@8.3.5(@types/node@24.19.2)(esbuild@0.28.2)(jiti@2.7.0)(sass-embedded@1.106.1)(sass@1.106.1)(sugarss@5.0.2(postcss@8.5.31))(terser@5.51.2)(yaml@2.8.4)):
+    dependencies:
+      '@rollup/pluginutils': 5.5.1(rollup@4.65.0)
+      '@svgr/core': 8.1.0(typescript@7.0.2)
+      '@svgr/plugin-jsx': 8.1.0(@svgr/core@8.1.0(typescript@7.0.2))
+      vite: 8.3.5(@types/node@24.19.2)(esbuild@0.28.2)(jiti@2.7.0)(sass-embedded@1.106.1)(sass@1.106.1)(sugarss@5.0.2(postcss@8.5.31))(terser@5.51.2)(yaml@2.8.4)
+    transitivePeerDependencies:
+      - rollup
+      - supports-color
+      - typescript
 
   vite-plugin-wasm@3.6.0(vite@8.3.5(@types/node@24.19.2)(esbuild@0.28.2)(jiti@2.7.0)(sass-embedded@1.106.1)(sass@1.106.1)(sugarss@5.0.2(postcss@8.5.31))(terser@5.51.2)(yaml@2.8.4)):
     dependencies:

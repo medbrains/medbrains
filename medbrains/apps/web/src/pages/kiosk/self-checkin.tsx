@@ -21,7 +21,7 @@ import type { KioskCheckinResult } from "@medbrains/types";
 import { useMutation } from "@tanstack/react-query";
 import { QRCodeSVG } from "qrcode.react";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Alert, Button } from "@/components/ui";
+import { Alert, Button, Crab } from "@/components/ui";
 import { appointmentsService } from "@/services/appointments.service";
 import {
   IDLE_INPUT_TIMEOUT_MS,
@@ -147,6 +147,7 @@ export function KioskSelfCheckinPage() {
 
   return (
     <KioskFrame>
+      <Crab variant="medic" size={96} />
       <Title order={1} style={{ fontSize: 48 }}>
         Check in for your appointment
       </Title>

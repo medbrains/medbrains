@@ -1061,16 +1061,20 @@ export const cssVariableResolver: CSSVariablesResolver = (t) => {
       // Brand gradients are blue only: the purple accent never fills a full-width
       // banner, which would read like an emergency alert. The accent bar on
       // page headers + CTAs use "signal"; soft tints/washes use "mist".
-      // Both stops hold white text at AA (Blue 40 4.5:1, Blue 30 7.2:1).
-      "--mb-gradient-signal": `linear-gradient(135deg, ${ramps.Blue["40"]} 0%, ${ramps.Blue["30"]} 100%)`,
-      "--mb-gradient-lifeline": `linear-gradient(135deg, ${ramps.Blue["30"]} 0%, ${ramps.Blue["40"]} 50%, ${ramps.Blue["30"]} 100%)`,
-      "--mb-gradient-mist": `linear-gradient(135deg, ${ramps.Blue["80"]} 0%, ${ramps.Blue["95"]} 100%)`,
-      "--mb-gradient-nightshift": `linear-gradient(160deg, ${ramps.Surface["6"]} 0%, ${ramps.Blue["30"]} 70%, ${ramps.Blue["40"]} 100%)`,
-      "--mb-gradient-text": `linear-gradient(120deg, ${ramps.Blue["30"]} 0%, ${ramps.Blue["40"]} 45%, ${ramps.Purple["40"]} 100%)`,
+      // Both stops hold white text at AA (blue 5:1, blue-deep 6.6:1).
+      "--mb-gradient-signal": `linear-gradient(135deg, ${ramps.Site.blue} 0%, ${ramps.Site.blueDeep} 100%)`,
+      "--mb-gradient-lifeline": `linear-gradient(135deg, ${ramps.Site.blueDeep} 0%, ${ramps.Site.blue} 50%, ${ramps.Site.blueDeep} 100%)`,
+      "--mb-gradient-mist": `linear-gradient(135deg, ${ramps.Site.sky} 0%, ${ramps.Site.blueTint} 100%)`,
+      "--mb-gradient-nightshift": `linear-gradient(160deg, ${ramps.Site.night} 0%, ${ramps.Site.blueDeep} 70%, ${ramps.Site.blue} 100%)`,
+      "--mb-gradient-text": `linear-gradient(120deg, ${ramps.Site.blueDeep} 0%, ${ramps.Site.blue} 45%, ${ramps.Site.purple} 100%)`,
       // AI signature — blue → brand purple. Marks AI-supported surfaces only
       // (the AiLabel slug border + "AI" glyph). Carbon reserves this for
       // genuinely AI-touched content; do not use it as generic decoration.
-      "--mb-gradient-ai": `linear-gradient(135deg, ${ramps.Blue["40"]} 0%, ${ramps.Purple.brand} 100%)`,
+      // Mascot illustration ink and eye-white: the same in both schemes, since
+      // the crab's eyes are always white with dark pupils.
+      "--mb-mascot-ink": ramps.Site.ink,
+      "--mb-mascot-eye": ramps.Site.paper,
+      "--mb-gradient-ai": `linear-gradient(135deg, ${ramps.Site.blue} 0%, ${ramps.Site.purple} 100%)`,
       "--mb-accent-gradient": "var(--mb-gradient-signal)",
       "--mb-accent-gradient-soft": "var(--mb-brand-bg)",
       "--mb-signature-spectrum": "var(--mb-gradient-signal)",

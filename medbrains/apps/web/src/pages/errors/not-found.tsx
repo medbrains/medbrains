@@ -1,8 +1,8 @@
 import { Code } from "@mantine/core";
 import { spotlight } from "@mantine/spotlight";
-import { IconArrowLeft, IconHome, IconMapQuestion, IconSearch } from "@tabler/icons-react";
+import { IconArrowLeft, IconHome, IconSearch } from "@tabler/icons-react";
 import { useLocation, useNavigate } from "react-router";
-import { Button } from "@/components/ui";
+import { Button, Crab } from "@/components/ui";
 import { ErrorScreen } from "./ErrorScreen";
 
 /**
@@ -20,7 +20,7 @@ export function NotFoundPage() {
       eyebrow="404 · page not found"
       title="There is no page at this address"
       description="The link may be old, mistyped, or the page may have moved to another module. Nothing has been changed."
-      icon={<IconMapQuestion size={32} />}
+      icon={<Crab variant="chibi" state="thinking" size={44} />}
       tone="info"
       actions={
         <>

@@ -1,5 +1,6 @@
 import { defineConfig, type PluginOption, type PreviewServer, type ViteDevServer } from "vite";
 import react from "@vitejs/plugin-react";
+import svgr from "vite-plugin-svgr";
 import { compression } from "vite-plugin-compression2";
 import wasm from "vite-plugin-wasm";
 import fs from "fs";
@@ -120,6 +121,8 @@ function websiteAtRoot(): PluginOption {
 export default defineConfig(async () => {
   const plugins: PluginOption[] = [
     react(),
+    // `import Crab from "./crab.svg?react"` — custom illustrations as components.
+    svgr(),
     wasm(),
     keepSourceMapsPrivate(),
     anatomyOnlyWhenSameOrigin(),

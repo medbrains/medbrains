@@ -12,6 +12,7 @@ export {
   type AiLabelSize,
   type AiLabelVariant,
 } from "./AiLabel";
+export { AiOrb, type AiOrbProps, type AiOrbState, type AiOrbVariant } from "./AiOrb";
 export { Alert, type AlertProps, type AlertTone } from "./Alert";
 export { Badge, type BadgeProps, type BadgeTone } from "./Badge";
 export { Breadcrumb, type BreadcrumbItem, type BreadcrumbProps } from "./Breadcrumb";
@@ -19,6 +20,7 @@ export { Button, type ButtonProps, type ButtonTone } from "./Button";
 export { Card, type CardProps } from "./Card";
 export { Checkbox } from "./Checkbox";
 export { Chip, ChipGroup, type ChipProps } from "./Chip";
+export { Crab, type CrabProps, type CrabState, type CrabVariant } from "./Crab";
 export { Divider } from "./Divider";
 export { IconButton, type IconButtonProps, type IconButtonTone } from "./IconButton";
 export { Image, type ImageProps } from "./Image";

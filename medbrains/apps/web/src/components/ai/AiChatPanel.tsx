@@ -2,12 +2,10 @@ import { Box, Group, Stack, Text } from "@mantine/core";
 import { useHasPermission } from "@medbrains/stores";
 import { P } from "@medbrains/types";
 import { type ReactNode, useMemo } from "react";
-import { AiLabel, Button, toast } from "@/components/ui";
+import { AiLabel, AiOrb, Button, Crab, toast } from "@/components/ui";
 import styles from "./ai-chat-panel.module.scss";
 import { useAiAssistantStore } from "./assistant-store";
 import { Conversation } from "./Conversation";
-import { CrabLottie } from "./CrabLottie";
-import { CrabMascot } from "./CrabMascot";
 import { Message } from "./Message";
 import { PromptInput } from "./PromptInput";
 import { MockTransport } from "./transport/mock";
@@ -45,7 +43,7 @@ export interface AiChatPanelProps {
 }
 
 /**
- * The assembled MedBrains assistant — the crab-mascot chat that every surface
+ * The assembled MedBrains assistant — the chat that every surface
  * (drawer, popover, page, inline) mounts. Backend-agnostic via the transport
  * seam; ships against a mock so it's usable before the streaming API lands.
  * Pass `controller` to share one conversation across surfaces (the global mount).
@@ -84,7 +82,7 @@ export function AiChatPanel({
     <Stack gap={0} className={styles.panel}>
       <Group gap="sm" className={styles.header} wrap="nowrap">
         <Box className={styles.headerAvatar}>
-          <CrabMascot size={30} pose={streaming ? "think" : "greet"} animate={streaming} />
+          <AiOrb variant="glass" size={30} state={streaming ? "thinking" : "idle"} />
         </Box>
         <div>
           <Group gap={6} wrap="nowrap">
@@ -105,7 +103,7 @@ export function AiChatPanel({
         isEmpty={messages.length === 0}
         empty={
           <>
-            <CrabLottie size={132} />
+            <Crab variant="chibi" size={132} />
             <Text fw={600} size="sm">
               Hi — I'm your MedBrains assistant.
             </Text>
