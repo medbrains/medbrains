@@ -275,7 +275,7 @@ not for self-adjustment):
 
 - **Insulin and sulfonylureas** (glimepiride, gliclazide, glibenclamide and
   others) carry the highest risk of hypoglycaemia when you do not eat. The ICMR
-  guideline names them as the medicines most often behind low sugar. An Indian
+  guideline singles them out as the diabetes medicines that commonly cause low sugar. An Indian
   expert review of Hindu fasts describes how doctors may lower or change these
   doses on a fast day, and why insulin regimens built around three meals may
   need a different plan.
