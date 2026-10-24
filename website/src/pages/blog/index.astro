@@ -18,12 +18,22 @@ const counts = new Map(BLOG_CATEGORIES.map((c) => [c.slug, posts.filter((p) => p
 // Most-read data does not exist yet, so "popular" means the topics with the most articles.
 const topics = [...BLOG_CATEGORIES].sort((a, b) => (counts.get(b.slug) ?? 0) - (counts.get(a.slug) ?? 0));
 
-const title = `Health blog: plain-language health and hospital insights | ${SITE.brand}`;
+// Leads with the brand so a search for "MedBrains blog" finds this page.
+const title = `${SITE.brand} Blog: health and hospital insights for India`;
 const description =
-  "Plain-language health advice for Indian families, and practical writing on running hospitals, clinical care, technology and compliance.";
+  `${SITE.brand} blog: plain-language health advice for Indian families, and practical writing on running hospitals, clinical care, technology and compliance.`;
 const schema = [
   organization(Astro.site),
-  collectionPage(Astro.site, { name: `${SITE.brand} health blog`, description, path: "/blog", posts }),
+  {
+    "@type": "Blog",
+    "@id": `${new URL("/blog", Astro.site)}#blog`,
+    name: `${SITE.brand} Blog`,
+    url: new URL("/blog", Astro.site).href,
+    description,
+    inLanguage: "en-IN",
+    publisher: { "@id": `${new URL("/", Astro.site)}#org` },
+  },
+  collectionPage(Astro.site, { name: `${SITE.brand} Blog`, description, path: "/blog", posts }),
   breadcrumbs(Astro.site, [{ name: "Blog", path: "/blog" }]),
 ];
 ---
@@ -97,11 +107,11 @@ const schema = [
     padding: 64px 0 56px;
     background:
       radial-gradient(700px 360px at 85% 10%, var(--blue-tint), transparent 70%),
-      radial-gradient(520px 300px at 0% 100%, rgb(167 240 186 / 25%), transparent 70%),
+      radial-gradient(520px 300px at 0% 100%, rgb(133 27 127 / 8%), transparent 70%),
       var(--paper);
   }
   .hero-in { display: grid; grid-template-columns: 1.3fr 1fr; gap: 56px; align-items: center; }
-  .eyebrow { color: var(--blue-deep); }
+  .eyebrow { color: var(--purple); }
   h1 {
     font: 800 clamp(2.4rem, 6vw, 4.4rem)/1.02 var(--display); letter-spacing: -.035em; margin: 0 0 20px;
     em { font-style: normal; color: var(--blue); }
@@ -123,10 +133,10 @@ const schema = [
   .tiles { display: grid; grid-template-columns: repeat(6, 1fr); gap: 16px; margin: 0; padding: 0; list-style: none; }
   .tile {
     display: flex; flex-direction: column; gap: 10px; height: 100%; padding: 20px; border-radius: var(--radius-lg);
-    background: var(--tint); color: var(--ink); text-decoration: none;
+    background: var(--tint); color: var(--ink); text-decoration: none; border: 1px solid var(--line);
     transition: transform .2s ease, box-shadow .2s ease;
   }
-  .tile:hover { transform: translateY(-3px); box-shadow: var(--shadow-soft); }
+  .tile:hover { transform: translateY(-3px); box-shadow: var(--shadow-soft); border-color: var(--tone); }
   .pic { display: block; margin: -20px -20px 4px; border-radius: var(--radius-lg) var(--radius-lg) 0 0; overflow: hidden; }
   .pic :global(.art) { aspect-ratio: 4 / 3; }
   .name { font-weight: 700; line-height: 1.3; }
