@@ -1,4 +1,5 @@
 ---
+import chibi from "../assets/mascot/crab-chibi.svg?raw";
 import { ENQUIRY_TENANT, SITE, WHATSAPP } from "../consts";
 
 interface Props {
@@ -15,6 +16,7 @@ const enquiryUrl = ENQUIRY_TENANT ? `${SITE.app}/api/public/marketing/enquiry` :
 <section id="demo" class="section demo" aria-labelledby="demo-title">
   <div class="wrap layout">
     <div>
+      <span class="crab bob mascot" aria-hidden="true" set:html={chibi} />
       <p class="eyebrow">Book a demo</p>
       <h2 id="demo-title" class="section-title">See it run on your departments.</h2>
       <p class="section-lede">Tell us about your hospital. We'll walk through the screens your teams would use — with your workflows, not a slideshow.</p>
@@ -111,6 +113,7 @@ const enquiryUrl = ENQUIRY_TENANT ? `${SITE.app}/api/public/marketing/enquiry` :
 <style lang="scss">
   @use "../styles/mixins" as *;
 
+  .mascot { width: 76px; height: 76px; margin-bottom: 18px; --crab-hole: var(--night); }
   .demo {
     background: radial-gradient(800px 500px at 90% 20%, var(--glow-blue), transparent 65%),
       radial-gradient(600px 420px at 0% 90%, var(--glow-green), transparent 65%), var(--night-2);

@@ -1,0 +1,89 @@
+---
+import Orb from "./Orb.astro";
+
+// Every line here is what the product's assistant actually does (medbrains-ai):
+// it reads through the caller's own permissions and the audit stack, runs the
+// drug-safety check first, and never creates or signs an order.
+const POINTS = [
+  {
+    title: "Answers from your own records",
+    body: "Counts, lists and a patient's details come through the same screens and permissions your role already has. Every lookup lands on the audit trail.",
+  },
+  {
+    title: "Safety checks before suggestions",
+    body: "Before it suggests a medicine, it checks the patient's recorded allergies. When the safety rules block an order, it will not recommend it.",
+  },
+  {
+    title: "It drafts. A clinician signs.",
+    body: "Notes it drafts carry an AI label and reach the case sheet only when a clinician inserts them. It never creates or signs an order.",
+  },
+];
+---
+
+<section id="ai" class="section intel" aria-labelledby="ai-title">
+  <div class="wrap layout">
+    <div class="lead">
+      <p class="eyebrow accent">Clinical AI</p>
+      <h2 id="ai-title" class="section-title">An assistant that knows the rules, <span>and its place.</span></h2>
+      <p class="section-lede">Ask in plain words from any screen. It works inside the same permissions, safety checks and audit trail as everyone else in the hospital.</p>
+      <div class="visual" aria-hidden="true">
+        <Orb variant="pulse" size={132} />
+        <div class="note">
+          <span class="chip"><Orb size={14} /> AI-drafted</span>
+          <b>Follow-up note · Asha K · DEMO-0001</b>
+          <span class="line"></span><span class="line short"></span>
+          <span class="insert">Insert into case sheet</span>
+        </div>
+      </div>
+    </div>
+    <ul class="points">
+      {POINTS.map((p) => (
+        <li class="point reveal">
+          <Orb size={28} />
+          <div><h3>{p.title}</h3><p>{p.body}</p></div>
+        </li>
+      ))}
+    </ul>
+  </div>
+</section>
+
+<style lang="scss">
+  @use "../styles/mixins" as *;
+
+  .intel {
+    color: #fff;
+    background:
+      radial-gradient(700px 460px at 12% 70%, var(--glow-purple), transparent 65%),
+      radial-gradient(800px 500px at 90% 10%, var(--glow-blue), transparent 65%),
+      var(--night);
+  }
+  .layout { display: grid; grid-template-columns: 1.05fr 1fr; gap: 56px; align-items: center; }
+  h2 span { color: var(--orchid); }
+  .visual { position: relative; display: flex; align-items: center; gap: 28px; margin-top: 44px; }
+  .note {
+    flex: 1; max-width: 330px; display: grid; gap: 8px; padding: 18px; border-radius: 16px;
+    background: #fff; color: var(--ink); box-shadow: var(--shadow);
+    b { font-size: .86rem; }
+  }
+  .chip {
+    justify-self: start; display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px 3px 6px;
+    border-radius: 999px; background: var(--purple-tint); color: var(--purple);
+    font: 600 .7rem var(--mono); letter-spacing: .06em; text-transform: uppercase;
+  }
+  .line { height: 8px; border-radius: 4px; background: var(--paper-2); }
+  .short { width: 64%; }
+  .insert {
+    justify-self: start; margin-top: 4px; padding: 6px 14px; border-radius: 999px;
+    background: var(--blue); color: #fff; font-size: .74rem; font-weight: 600;
+  }
+  .points { list-style: none; margin: 0; padding: 0; display: grid; gap: 16px; }
+  .point {
+    display: flex; gap: 16px; align-items: flex-start; padding: 24px; border-radius: 22px;
+    background: var(--night-2); border: 1px solid var(--night-line); transition: border-color .25s ease;
+    &:hover { border-color: var(--purple); }
+    h3 { font: 800 1.15rem var(--display); letter-spacing: -.02em; margin: 2px 0 6px; }
+    p { margin: 0; color: var(--night-text); font-size: .95rem; }
+  }
+  @include below(lg) { .layout { grid-template-columns: 1fr; gap: 40px; } }
+  @include below(sm) { .visual { flex-direction: column; align-items: flex-start; } }
+</style>

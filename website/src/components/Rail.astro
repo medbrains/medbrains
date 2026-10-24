@@ -10,7 +10,7 @@ import { MODULE_GROUPS } from "../data/content";
     </div>
     <div class="track">
       {MODULE_GROUPS.map((g, i) => (
-        <article class={`card c${i % 3}`}>
+        <article class={`card c${i % 4}`}>
           <p class="num">{String(i + 1).padStart(2, "0")} — {g.label}</p>
           <h3>{g.blurb}</h3>
           <ul>{g.items.map((item) => <li>{item}</li>)}</ul>
@@ -41,6 +41,7 @@ import { MODULE_GROUPS } from "../data/content";
   }
   .c1 { background: var(--night-3); color: #fff; border-color: var(--night-line); }
   .c2 { background: linear-gradient(160deg, var(--blue), #0a3aa8); color: #fff; border-color: transparent; }
+  .c3 { background: linear-gradient(160deg, var(--purple), #4d0f49); color: #fff; border-color: transparent; }
   .num { margin: 0 0 auto; font: 600 .78rem var(--mono); letter-spacing: .12em; text-transform: uppercase; opacity: .7; }
   h3 { margin: 40px 0 20px; font: 900 1.9rem var(--display); letter-spacing: -.035em; line-height: 1.05; }
   ul { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 8px; }
