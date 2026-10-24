@@ -39,4 +39,16 @@ done
 echo "→ invalidating CloudFront $WEBSITE_DISTRIBUTION_ID"
 aws cloudfront create-invalidation --distribution-id "$WEBSITE_DISTRIBUTION_ID" --paths "/*" >/dev/null
 
+# Tell Bing/Yandex/Seznam (IndexNow) every page changed. The key file lives in
+# public/; a failed ping never fails a deploy that already shipped.
+echo "→ pinging IndexNow"
+key=3cbf7f7268ccd4af2f168909cf6cfe46  # public/$key.txt
+host=www.medbrains.in
+urls=$(grep -ho '<loc>[^<]*</loc>' dist/sitemap-*.xml | sed 's#</*loc>##g' | grep -v 'sitemap-' \
+  | awk 'BEGIN{ORS=","} {printf "\"%s\",", $0}' | sed 's/,*$//' || true)
+curl -fsS -m 20 -X POST https://api.indexnow.org/indexnow \
+  -H "Content-Type: application/json; charset=utf-8" \
+  -d "{\"host\":\"$host\",\"key\":\"$key\",\"keyLocation\":\"https://$host/$key.txt\",\"urlList\":[$urls]}" \
+  >/dev/null && echo "  submitted" || echo "  ! IndexNow ping failed (non-fatal)"
+
 echo "✓ deployed"

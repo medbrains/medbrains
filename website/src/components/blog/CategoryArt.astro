@@ -30,6 +30,7 @@ const c = getCategory(slug);
     position: relative; overflow: hidden; display: grid; place-items: center;
     aspect-ratio: 16 / 9; border-radius: inherit; background: var(--tint);
   }
-  .art :global(img) { height: 100%; width: auto; max-width: 100%; object-fit: contain; }
+  /* Absolutely filled, so the box never waits on the image to size itself (no CLS). */
+  .art :global(img) { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; }
   .lg { aspect-ratio: 1; max-width: 320px; border-radius: 28px; }
 </style>

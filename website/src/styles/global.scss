@@ -30,9 +30,9 @@
   --shadow-soft: 0 1px 2px rgb(11 18 32 / 4%), 0 8px 24px rgb(11 18 32 / 6%);
   --shadow-lift: 0 2px 4px rgb(11 18 32 / 5%), 0 18px 40px rgb(11 18 32 / 10%);
   --wrap: 1200px;
-  // Google serves Archivo Expanded as Archivo's width axis, not a family of its
-  // own; the old family name 404'd silently and headings fell back to system-ui.
-  --display: "Archivo", system-ui, sans-serif;
+  // Archivo Expanded is Archivo's width axis (self-hosted via @fontsource-variable,
+  // which names the family "Archivo Variable"), not a family of its own.
+  --display: "Archivo Variable", system-ui, sans-serif;
   --sans: "IBM Plex Sans", system-ui, sans-serif;
   --mono: "IBM Plex Mono", ui-monospace, monospace;
 }
