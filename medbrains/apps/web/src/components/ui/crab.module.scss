@@ -1,0 +1,182 @@
+// The crab's colours come from theme tokens through the custom properties its
+// SVG art reads (--crab-*). Motion is a gentle loop per state, off under
+// reduced motion (the static pose still shows the state).
+
+.crab {
+  display: inline-block;
+  flex: none;
+  line-height: 0;
+  --crab-fill: var(--mb-primary);
+  --crab-edge: var(--mb-primary);
+  --crab-accent: var(--mb-brand-purple);
+  --crab-ink: var(--mb-mascot-ink);
+  --crab-eye: var(--mb-mascot-eye);
+  --crab-hole: var(--mb-surface);
+  --crab-line: var(--mb-on-surface);
+
+  svg {
+    display: block;
+    width: 100%;
+    height: 100%;
+    overflow: visible;
+  }
+
+  :global(.bodyg) {
+    transform-box: view-box;
+    transform-origin: 50% 90%;
+  }
+
+  :global(.claw-l),
+  :global(.claw-r) {
+    transform-box: fill-box;
+  }
+
+  :global(.claw-l) {
+    transform-origin: 100% 100%;
+  }
+
+  :global(.claw-r) {
+    transform-origin: 0% 100%;
+  }
+
+  :global(.happy-e),
+  :global(.think-d) {
+    display: none;
+  }
+}
+
+.onBrand {
+  --crab-fill: var(--mb-on-primary);
+  --crab-edge: var(--mb-on-primary);
+  --crab-hole: var(--mb-primary);
+  --crab-line: var(--mb-on-primary);
+}
+
+.happy {
+  :global(.open-e) {
+    display: none;
+  }
+
+  :global(.happy-e) {
+    display: inline;
+  }
+}
+
+.thinking {
+  :global(.think-d) {
+    display: inline;
+  }
+
+  :global(.pupil) {
+    transform: translate(1.6px, -2.4px);
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .idle :global(.bodyg),
+  .chibi.idle svg {
+    animation: crab-bob 3s ease-in-out infinite;
+  }
+
+  .idle :global(.claw-l) {
+    animation: crab-wave 2.6s ease-in-out infinite;
+  }
+
+  .idle :global(.claw-r) {
+    animation: crab-wave 2.6s ease-in-out infinite reverse;
+  }
+
+  .thinking :global(.bodyg),
+  .chibi.thinking svg {
+    animation: crab-tilt 4s ease-in-out infinite;
+  }
+
+  .thinking :global(.claw-r) {
+    animation: crab-tap 1.2s ease-in-out infinite;
+  }
+
+  .thinking :global(.think-d) circle {
+    animation: crab-blink 1.5s infinite;
+  }
+
+  .thinking :global(.think-d) circle:nth-child(2) {
+    animation-delay: 0.25s;
+  }
+
+  .thinking :global(.think-d) circle:nth-child(3) {
+    animation-delay: 0.5s;
+  }
+
+  .happy :global(.bodyg),
+  .chibi.happy svg {
+    animation: crab-hop 0.7s cubic-bezier(0.3, 0, 0.3, 1) infinite;
+  }
+
+  .happy :global(.claw-l),
+  .happy :global(.claw-r) {
+    animation: crab-wave 0.35s ease-in-out infinite alternate;
+  }
+}
+
+@keyframes crab-bob {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-3%);
+  }
+}
+
+@keyframes crab-wave {
+  0%,
+  100% {
+    transform: rotate(0deg);
+  }
+  50% {
+    transform: rotate(-14deg);
+  }
+}
+
+@keyframes crab-tilt {
+  0%,
+  100% {
+    transform: rotate(-4deg);
+  }
+  50% {
+    transform: rotate(4deg);
+  }
+}
+
+@keyframes crab-tap {
+  0%,
+  100% {
+    transform: rotate(0deg);
+  }
+  50% {
+    transform: rotate(10deg);
+  }
+}
+
+@keyframes crab-blink {
+  0%,
+  100% {
+    opacity: 0.25;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+@keyframes crab-hop {
+  0%,
+  100% {
+    transform: translateY(0) scale(1, 1);
+  }
+  40% {
+    transform: translateY(-8%) scale(0.98, 1.03);
+  }
+  80% {
+    transform: translateY(0) scale(1.03, 0.97);
+  }
+}

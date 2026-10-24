@@ -1,6 +1,5 @@
 import { Tooltip } from "@mantine/core";
-import { Button, IconButton } from "@/components/ui";
-import { CrabMascot } from "./CrabMascot";
+import { AiOrb, Button, IconButton } from "@/components/ui";
 import type { ChatContext } from "./transport/types";
 import { useAiAssistant } from "./useAiAssistant";
 
@@ -35,7 +34,7 @@ export function AskAiButton({
     return (
       <Tooltip label={label} withArrow>
         <IconButton tone="default" size="sm" aria-label={label} onClick={handleClick}>
-          <CrabMascot size={18} animate={false} />
+          <AiOrb variant="halo" size={18} />
         </IconButton>
       </Tooltip>
     );
@@ -45,7 +44,7 @@ export function AskAiButton({
     <Button
       tone="secondary"
       size={size}
-      leftSection={<CrabMascot size={16} animate={false} />}
+      leftSection={<AiOrb variant="halo" size={16} />}
       onClick={handleClick}
     >
       {label}

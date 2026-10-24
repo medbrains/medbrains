@@ -21,8 +21,8 @@ import { type ReactNode, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router";
 import { useAiAssistantStore } from "@/components/ai/assistant-store";
-import { CrabMascot } from "@/components/ai/CrabMascot";
 import { useAddProductStore } from "@/components/Materials/add-product-store";
+import { AiOrb } from "@/components/ui";
 import { NAV_GROUPS, type NavItemConfig, resolveIcon } from "@/config/navigation";
 import styles from "./SpotlightProvider.module.scss";
 
@@ -98,9 +98,9 @@ const QUICK_ACTIONS: SpotlightEntry[] = [
   {
     id: "action-ask-ai",
     label: "Ask MedBrains AI",
-    description: "Open the crab assistant",
+    description: "Open the MedBrains assistant",
     path: ASK_AI_PATH,
-    icon: <CrabMascot size={20} animate={false} />,
+    icon: <AiOrb variant="halo" size={20} />,
     group: "Quick Actions",
     keywords: ["assistant", "chat", "ai", "help", "crab"],
   },

@@ -20,7 +20,7 @@ import type { PortalPerson } from "@medbrains/types";
 import { useMutation } from "@tanstack/react-query";
 import { useState } from "react";
 import { useParams } from "react-router";
-import { Alert, Button, Select } from "@/components/ui";
+import { Alert, Button, Crab, Select } from "@/components/ui";
 import { portalService } from "@/services/portal.service";
 import { StoreSignedIn } from "../store/store-signed-in";
 import { isChoose, personLabel } from "../store/storefront";
@@ -172,6 +172,7 @@ function SignIn({
 
   return (
     <Frame>
+      <Crab variant="medic" size={64} />
       <Title order={2}>See your records</Title>
       <Text size="sm">
         Enter the mobile number the hospital has for you. We will send a code to sign you in.

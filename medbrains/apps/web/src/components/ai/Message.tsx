@@ -1,8 +1,7 @@
 import { Box, Group, Loader, Stack, Text, ThemeIcon } from "@mantine/core";
 import { IconUser } from "@tabler/icons-react";
 import type { ReactNode } from "react";
-import { AiLabel } from "@/components/ui";
-import { CrabMascot } from "./CrabMascot";
+import { AiLabel, AiOrb } from "@/components/ui";
 import styles from "./message.module.scss";
 import type { ChatContext, ChatMessage, ChatMessageStatus, ChatRole } from "./transport/types";
 import { UnifiedResponse } from "./UnifiedResponse";
@@ -76,11 +75,11 @@ function MessageAvatar({
       </ThemeIcon>
     );
   }
-  // The brain-crab mascot IS the assistant — it thinks while streaming, greets otherwise.
+  // The glass orb is the assistant in chat: it thinks while streaming.
   const streaming = status === "streaming";
   return (
-    <Box className={styles.crabAvatar} aria-hidden>
-      <CrabMascot size={26} pose={streaming ? "think" : "greet"} animate={streaming} />
+    <Box className={styles.orbAvatar} aria-hidden>
+      <AiOrb variant="glass" size={26} state={streaming ? "thinking" : "idle"} />
     </Box>
   );
 }

@@ -9,7 +9,6 @@ import type { ChatMessage } from "./transport/types";
 import type { UseAiChat } from "./useAiChat";
 
 // lottie-web needs a real canvas; the mascot is not what is under test.
-vi.mock("./CrabLottie", () => ({ CrabLottie: () => null }));
 // jsdom has no layout; the conversation scrolls itself to the newest turn.
 Element.prototype.scrollTo = () => {};
 

@@ -1,4 +1,4 @@
-// MedBrains AI chat component family — the crab-mascot assistant.
+// MedBrains AI chat component family — the assistant (glass orb in chat, chibi crab as host).
 // Backend-agnostic (transport seam); ships against a mock so surfaces work now.
 
 export { AiAssistantMount, type AiAssistantMountProps } from "./AiAssistantMount";
@@ -8,8 +8,6 @@ export { AskAiButton, type AskAiButtonProps } from "./AskAiButton";
 export { useAiAssistantStore } from "./assistant-store";
 export { CodeBlock, type CodeBlockProps } from "./CodeBlock";
 export { Conversation, type ConversationProps } from "./Conversation";
-export { CrabLottie, type CrabLottieProps } from "./CrabLottie";
-export { CrabMascot, type CrabMascotProps, type CrabPose } from "./CrabMascot";
 export { Message, type MessageProps } from "./Message";
 export { PromptInput, type PromptInputProps } from "./PromptInput";
 export { Response } from "./Response";
