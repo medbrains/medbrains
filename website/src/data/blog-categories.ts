@@ -1,8 +1,9 @@
 // The blog's six topics. A post names one by slug in its `category` field.
 //   kind "medical"  → MedicalWebPage schema + the medical disclaimer, never a sales pitch
 //   kind "business" → BlogPosting schema + the hospital demo call-to-action
-// `tint` is the card's pastel background, `ink` its icon colour; both pass
-// WCAG AA against the --ink text that sits on the tint.
+// The one place the blog's topic colours live. `tint` is the card background
+// (paper-2 for every topic), `ink` the icon colour: brand blue or brand purple,
+// alternating, and never anything else (both pass 3:1 for icons on paper-2).
 
 export const CATEGORY_SLUGS = [
   "hospital-leadership",
@@ -31,8 +32,8 @@ export const BLOG_CATEGORIES: BlogCategory[] = [
     name: "Hospital leadership & strategy",
     description: "Growth, quality and planning for people who run hospitals and clinics.",
     icon: "building-hospital",
-    tint: "#e8eefe",
-    ink: "#0043ce",
+    tint: "#f3f5f9",
+    ink: "#0f62fe",
     kind: "business",
   },
   {
@@ -40,8 +41,8 @@ export const BLOG_CATEGORIES: BlogCategory[] = [
     name: "Patient education & wellness",
     description: "Plain-language health advice for Indian families, through every season.",
     icon: "heart-handshake",
-    tint: "#fde9ec",
-    ink: "#a2191f",
+    tint: "#f3f5f9",
+    ink: "#851b7f",
     kind: "medical",
   },
   {
@@ -49,8 +50,8 @@ export const BLOG_CATEGORIES: BlogCategory[] = [
     name: "Doctor & clinical excellence",
     description: "Clinical practice, safety and the habits of good care, for doctors and nurses.",
     icon: "stethoscope",
-    tint: "#e3f5ea",
-    ink: "#0e6027",
+    tint: "#f3f5f9",
+    ink: "#0f62fe",
     kind: "medical",
   },
   {
@@ -58,8 +59,8 @@ export const BLOG_CATEGORIES: BlogCategory[] = [
     name: "Operations & efficiency",
     description: "Queues, beds, billing and stores: running a hospital day without the friction.",
     icon: "clock-cog",
-    tint: "#fff3dc",
-    ink: "#8e4b00",
+    tint: "#f3f5f9",
+    ink: "#851b7f",
     kind: "business",
   },
   {
@@ -67,8 +68,8 @@ export const BLOG_CATEGORIES: BlogCategory[] = [
     name: "Technology & innovation",
     description: "Digital health, ABDM and the tools changing how care is delivered in India.",
     icon: "cpu",
-    tint: "#efe9fe",
-    ink: "#6929c4",
+    tint: "#f3f5f9",
+    ink: "#0f62fe",
     kind: "business",
   },
   {
@@ -76,8 +77,8 @@ export const BLOG_CATEGORIES: BlogCategory[] = [
     name: "Regulatory & compliance",
     description: "NABH, ABDM, the DPDP Act and the rules every Indian hospital works within.",
     icon: "shield-check",
-    tint: "#e2f4f6",
-    ink: "#005d5d",
+    tint: "#f3f5f9",
+    ink: "#851b7f",
     kind: "business",
   },
 ];

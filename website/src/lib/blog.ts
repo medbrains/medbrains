@@ -94,7 +94,7 @@ export function collectionPage(site: URL | undefined, o: { name: string; descrip
     description: o.description,
     url: absolute(o.path, site),
     inLanguage: "en-IN",
-    isPartOf: { "@type": "Blog", name: `${SITE.brand} blog`, url: absolute("/blog", site) },
+    isPartOf: { "@type": "Blog", name: `${SITE.brand} Blog`, url: absolute("/blog", site) },
     mainEntity: {
       "@type": "ItemList",
       itemListElement: o.posts.map((p, i) => ({

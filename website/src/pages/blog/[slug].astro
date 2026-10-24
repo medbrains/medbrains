@@ -280,7 +280,7 @@ const schema = [
     a { color: var(--ink); font-weight: 600; }
   }
   .reviewed, .facts span { display: inline-flex; align-items: center; gap: 6px; }
-  .reviewed { color: var(--ink); :global(svg) { color: #0e6027; } }
+  .reviewed { color: var(--ink); :global(svg) { color: var(--blue); } }
   .facts { color: var(--muted); }
   .cover { margin-top: 8px; :global(img) { width: 100%; height: auto; border-radius: var(--radius-lg); } }
 
@@ -300,8 +300,8 @@ const schema = [
 
   .disclaimer {
     display: flex; gap: 12px; align-items: flex-start; margin-bottom: 32px; padding: 16px 20px;
-    border-radius: 16px; background: #fff6e0; border: 1px solid #f1c21b; color: var(--ink);
-    :global(svg) { flex: none; color: #8e4b00; margin-top: 2px; }
+    border-radius: 16px; background: var(--paper-2); border: 1px solid var(--purple); color: var(--ink);
+    :global(svg) { flex: none; color: var(--purple); margin-top: 2px; }
     p { margin: 0; font-size: .98rem; }
     a { font-weight: 700; }
   }
@@ -321,7 +321,7 @@ const schema = [
     :global(li) { margin-bottom: .5em; padding-left: .2em; }
     :global(li::marker) { color: var(--blue); }
     :global(blockquote) {
-      padding: 4px 0 4px 24px; border-left: 4px solid var(--blue); color: var(--ink);
+      padding: 4px 0 4px 24px; border-left: 4px solid var(--purple); color: var(--ink);
       font-size: 1.2rem; font-style: italic;
     }
     :global(code) { font: 500 .88em var(--mono); background: var(--paper-2); padding: 2px 6px; border-radius: 6px; }
@@ -367,7 +367,7 @@ const schema = [
 
   .for-hospitals {
     margin-top: 40px; padding: 28px; border-radius: var(--radius-lg); background: var(--blue-tint);
-    .eyebrow { color: var(--blue-deep); }
+    .eyebrow { color: var(--purple); }
     h2 { margin: 0 0 8px; font: 800 1.35rem/1.25 var(--display); letter-spacing: -.02em; }
     h2 a { color: var(--ink); text-decoration: none; }
     h2 a:hover { text-decoration: underline; }
