@@ -1,9 +1,9 @@
 ---
 title: "The DPDP Act and Rules 2025: what Indian hospitals need to do, and by when"
-description: "What the Digital Personal Data Protection Act, 2023 and the 2025 Rules mean for Indian hospitals: timelines, consent, emergencies, children, breaches, retention and a checklist."
+description: "What the DPDP Act 2023 and the DPDP Rules 2025 mean for Indian hospitals: deadlines, consent, emergencies, children's data, breaches and retention."
 date: 2026-10-22
 category: regulatory-compliance
-seoTitle: "DPDP Act and Rules 2025: what Indian hospitals must do"
+seoTitle: "DPDP Rules 2025 for hospitals | MedBrains Blog"
 featured: false
 tags: ["DPDP Act", "Data protection", "Patient privacy", "Consent", "Medical records", "Data breach", "ABDM", "Compliance"]
 sources:

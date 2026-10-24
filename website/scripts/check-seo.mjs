@@ -61,5 +61,24 @@ results.push(...guides, ...resources);
 assert.ok(existsSync(join(dist, "pagefind", "pagefind.js")), "Pagefind index built");
 assert.ok(existsSync(join(dist, "blog", "rss.xml")), "RSS feed built");
 
+// Search snippets on every indexable page: Google cuts a title past ~60 characters
+// and rewrites a description that is too short or too long, so both are held here.
+const htmlFiles = (dir) => readdirSync(dir, { withFileTypes: true }).flatMap((d) =>
+  d.isDirectory() ? htmlFiles(join(dir, d.name)) : d.name === "index.html" ? [join(dir, d.name)] : []);
+const decode = (s) => s.replace(/&#39;/g, "'").replace(/&quot;/g, '"').replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">");
+let snippets = 0;
+for (const file of htmlFiles(dist)) {
+  const html = readFileSync(file, "utf8");
+  if (/<meta name="robots" content="noindex/.test(html)) continue;
+  const where = file.slice(dist.length - 1).replace(/index\.html$/, "");
+  const title = decode(attr(html, /<title>([^<]+)<\/title>/) ?? "");
+  const desc = decode(attr(html, /<meta name="description" content="([^"]*)"/) ?? "");
+  assert.ok(title.length <= 60, `${where}: title is ${title.length} characters (max 60): ${title}`);
+  assert.ok(desc.length >= 110 && desc.length <= 160, `${where}: description is ${desc.length} characters (110-160): ${desc}`);
+  assert.ok(!/\u2014/.test(title + desc), `${where}: em dash in title or description`);
+  snippets++;
+}
+
 for (const r of results) console.log(`ok ${r.path} — ${r.types.join(", ")}`);
+console.log(`Snippet lengths ok on ${snippets} indexable pages.`);
 console.log(`SEO check passed: ${results.length} pages.`);

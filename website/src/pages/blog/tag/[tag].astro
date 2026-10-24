@@ -19,14 +19,14 @@ const { name, posts } = Astro.props as { name: string; posts: Post[] };
 // A tag with one post is a thin page: kept for readers, out of the index.
 const authorNames = await getAuthorNames();
 const path = `/blog/tag/${tagSlug(name)}`;
-const description = `Articles about ${name.toLowerCase()} on the ${SITE.brand} blog.`;
+const description = `Articles on ${name} from the ${SITE.brand} blog: sourced, practical guides for Indian families, doctors and the teams who run hospitals.`;
 const schema = [
   collectionPage(Astro.site, { name, description, path, posts }),
   breadcrumbs(Astro.site, [{ name: "Blog", path: "/blog" }, { name, path }]),
 ];
 ---
 
-<BlogLayout title={`${name} | ${SITE.brand} blog`} description={description} schema={schema} noindex={posts.length < 2}>
+<BlogLayout title={`${name} articles | ${SITE.brand} Blog`} description={description} schema={schema} noindex={posts.length < 2}>
   <PageHead
     crumbs={[{ name: "Blog", href: "/blog" }, { name }]}
     eyebrow="Tag"

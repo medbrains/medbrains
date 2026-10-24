@@ -51,8 +51,8 @@ const [DPDP_SHEET, DISCHARGE_SHEET] = RESOURCES;
 export const GUIDES = {
   abdm: {
     slug: "abdm-incentive",
-    title: "ABDM Digital Health Incentive Scheme for hospitals | MedBrains",
-    description: "What the ABDM Digital Health Incentive Scheme (DHIS) pays hospitals for, the conditions, and what your HMIS needs: ABHA, M2 record linking, M3 consent and Scan & Share.",
+    title: "ABDM DHIS incentive for hospitals explained | MedBrains",
+    description: "How the ABDM DHIS incentive pays Indian hospitals for digital health records, who qualifies, and what your HMIS needs: ABHA, M2 record linking and M3 consent.",
     eyebrow: "ABDM incentive",
     h1: "Get paid for going digital",
     intro: "The Digital Health Incentive Scheme pays hospitals for health records linked to patients' ABHA and for records shared with consent. The money follows the software: only transactions on a system integrated with ABDM count.",
@@ -92,11 +92,11 @@ export const GUIDES = {
   },
   discharge: {
     slug: "cashless-discharge",
-    title: "Cashless discharge in 3 hours: IRDAI rule for hospitals | MedBrains",
-    description: "IRDAI's 1-hour cashless and 3-hour final discharge authorisation rules (Master Circular, 29 May 2024), and the discharge steps a hospital controls.",
+    title: "Cashless discharge and TPA: IRDAI 3-hour rule | MedBrains",
+    description: "Cashless discharge with TPAs under IRDAI's 1-hour and 3-hour authorisation rules (Master Circular, 29 May 2024), and the discharge steps a hospital controls.",
     eyebrow: "Cashless discharge",
     h1: "Cashless discharge, without the afternoon wait",
-    intro: "Insurers now have three hours to authorise a cashless discharge. That clock starts only when your request reaches them — so the summary, the bill and the file are the hospital's part of the race.",
+    intro: "Insurers now have three hours to authorise a cashless discharge. That clock starts only when your request reaches them, so the summary, the bill and the file are the hospital's part of the race.",
     problemTitle: "What the rules say, and where the hours go",
     facts: [
       { text: "IRDAI's Master Circular on Health Insurance Business (29 May 2024) requires an insurer to decide on a cashless authorisation request immediately, and within one hour of receiving it. Insurers had until 31 July 2024 to put the systems in place.", sources: [1] },
@@ -130,12 +130,12 @@ export const GUIDES = {
     checked: "22 October 2026",
     resource: DISCHARGE_SHEET,
     posts: ["discharge-delays-indian-hospitals"],
-    boxText: "IRDAI's three-hour rule, NABH's discharge-time indicator and the steps your hospital controls — with a free audit sheet to time each one.",
+    boxText: "IRDAI's three-hour rule, NABH's discharge-time indicator and the steps your hospital controls, with a free audit sheet to time each one.",
   },
   dpdp: {
     slug: "dpdp-readiness",
-    title: "DPDP Act readiness for hospitals | MedBrains",
-    description: "The DPDP Act 2023 and Rules 2025 timeline and duties for Indian hospitals — notice, consent, security, 72-hour breach reporting, retention — and a free checklist.",
+    title: "DPDP Act for hospitals: readiness guide | MedBrains",
+    description: "The DPDP Act for hospitals in India: the 2023 Act and 2025 Rules timeline, consent, security, 72-hour breach reporting and retention, with a free checklist.",
     eyebrow: "DPDP readiness",
     h1: "Ready for the DPDP Act before May 2027",
     intro: "The main duties of the Digital Personal Data Protection Act start eighteen months after the Rules were notified. Most of them land on the registration desk, the medical records department and the hospital's software.",

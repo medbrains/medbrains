@@ -8,7 +8,7 @@ interface Props {
 const { light = false } = Astro.props;
 ---
 
-<header class:list={["header", { light }]}>
+<header class:list={["header", { light }]} data-nosnippet>
   <div class="wrap bar">
     <a class="brand" href="/" aria-label={`${SITE.brand} home`}>
       <img src="/logo/medbrains-mark.svg" alt="" width="32" height="32" />

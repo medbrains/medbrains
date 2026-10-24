@@ -19,9 +19,9 @@ const counts = new Map(BLOG_CATEGORIES.map((c) => [c.slug, posts.filter((p) => p
 const topics = [...BLOG_CATEGORIES].sort((a, b) => (counts.get(b.slug) ?? 0) - (counts.get(a.slug) ?? 0));
 
 // Leads with the brand so a search for "MedBrains blog" finds this page.
-const title = `${SITE.brand} Blog: health and hospital insights for India`;
+const title = `${SITE.brand} Blog: Health & Hospital Insights for India`;
 const description =
-  `${SITE.brand} blog: plain-language health advice for Indian families, and practical writing on running hospitals, clinical care, technology and compliance.`;
+  "Practical health guides for Indian families and clear writing for hospital leaders on NABH, ABDM, billing, technology and clinical care.";
 const schema = [
   organization(Astro.site),
   {

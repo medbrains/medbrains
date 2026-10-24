@@ -1,9 +1,9 @@
 ---
 title: "Delhi's air has turned poor: what the pollution season means for your lungs, your heart and your hospital"
-description: "Delhi's AQI entered the poor band on 21 October 2026. What the evidence says about health risk, who is vulnerable, and how families and hospitals can prepare."
+description: "Air pollution and your health: Delhi's AQI turned poor on 21 October 2026. What the evidence shows, who is most at risk, and how families can stay safe."
 date: 2026-10-22
 category: patient-education
-seoTitle: "Air pollution season 2026: health risks and what to do"
+seoTitle: "Air pollution and health: what to do | MedBrains Blog"
 featured: false
 tags: ["Air pollution", "AQI", "Respiratory health", "Heart health", "Public health", "Hospital preparedness"]
 faq:

@@ -20,7 +20,7 @@ export async function getStaticPaths() {
 const { category, posts } = Astro.props as { category: BlogCategory; posts: Post[] };
 const authorNames = await getAuthorNames();
 const path = `/blog/category/${category.slug}`;
-const title = `${category.name} | ${SITE.brand} blog`;
+const title = `${category.name} | ${SITE.brand} Blog`;
 // The topic's illustration, padded to a 1200x630 share card.
 const card = await getImage({ src: topicImage(category.slug), width: 1200, height: 630, fit: "contain", background: category.tint, format: "jpg" });
 const image = { url: absolute(card.src, Astro.site), width: 1200, height: 630, alt: `${category.name}: articles from ${SITE.brand}` };

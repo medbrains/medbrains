@@ -1,6 +1,7 @@
 ---
 title: "El Niño and your health: what a warmer year means in India"
 description: "El Niño years bring hotter summers and a weaker monsoon to India. How that raises heat illness, dengue, malaria and water risks, and what families can do."
+seoTitle: "El Niño and your health in India | MedBrains Blog"
 date: 2026-10-17
 category: patient-education
 tags: ["Public health", "Climate", "Heatwave", "Dengue"]
