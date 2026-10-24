@@ -63,7 +63,10 @@ assert.ok(tools[0].types.includes("Dataset"), `${tools[0].path}: Dataset`);
 const camps = ["health-camp-software", "government-medical-camp-software", "ngo-health-camp-software",
   "corporate-health-camp-software", "health-camp-software-vs-manual"].map(checkPage);
 for (const c of camps) assert.ok(c.types.includes("FAQPage"), `${c.path}: FAQPage`);
-results.push(...guides, ...resources, ...tools, ...camps);
+// The queues-and-tokens cluster (src/data/token-pages.ts): the OPD hub and its spokes.
+const tokens = ["opd-queue-management", "clinic-token-management-system", "hospital-token-system"].map(checkPage);
+for (const t of tokens) assert.ok(t.types.includes("FAQPage"), `${t.path}: FAQPage`);
+results.push(...guides, ...resources, ...tools, ...camps, ...tokens);
 for (const f of ["llms.txt", "robots.txt"]) assert.ok(existsSync(join(dist, f)), `/${f} built`);
 assert.ok(existsSync(join(dist, "pagefind", "pagefind.js")), "Pagefind index built");
 assert.ok(existsSync(join(dist, "blog", "rss.xml")), "RSS feed built");
