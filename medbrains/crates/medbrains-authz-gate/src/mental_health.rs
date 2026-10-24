@@ -180,10 +180,11 @@ async fn parent_of(
     tenant_id: Uuid,
     child: PsychChild,
     id: Uuid,
-) -> Result<Option<Uuid>, sqlx::Error> {
+) -> Result<Option<Uuid>, AppError> {
+    let mut conn = medbrains_db::pool::tenant_conn(&state.db, &tenant_id).await?;
     // One statement per table: the table name cannot be a bind parameter, and
     // a compile-checked query per table is worth the repetition.
-    match child {
+    let parent = match child {
         PsychChild::Restraint => {
             sqlx::query_scalar!(
                 "SELECT psych_patient_id FROM psych_seclusion_restraint \
@@ -191,7 +192,7 @@ async fn parent_of(
                 id,
                 tenant_id,
             )
-            .fetch_optional(&state.db)
+            .fetch_optional(&mut *conn)
             .await
         }
         PsychChild::MhrbNotification => {
@@ -201,7 +202,7 @@ async fn parent_of(
                 id,
                 tenant_id,
             )
-            .fetch_optional(&state.db)
+            .fetch_optional(&mut *conn)
             .await
         }
         PsychChild::Admission => {
@@ -211,7 +212,7 @@ async fn parent_of(
                 id,
                 tenant_id,
             )
-            .fetch_optional(&state.db)
+            .fetch_optional(&mut *conn)
             .await
         }
         PsychChild::Screening => {
@@ -221,7 +222,7 @@ async fn parent_of(
                 id,
                 tenant_id,
             )
-            .fetch_optional(&state.db)
+            .fetch_optional(&mut *conn)
             .await
         }
         PsychChild::NominatedRepresentative => {
@@ -231,7 +232,7 @@ async fn parent_of(
                 id,
                 tenant_id,
             )
-            .fetch_optional(&state.db)
+            .fetch_optional(&mut *conn)
             .await
         }
         PsychChild::AdvanceDirective => {
@@ -241,7 +242,7 @@ async fn parent_of(
                 id,
                 tenant_id,
             )
-            .fetch_optional(&state.db)
+            .fetch_optional(&mut *conn)
             .await
         }
         PsychChild::DirectiveChallenge => {
@@ -252,10 +253,11 @@ async fn parent_of(
                 id,
                 tenant_id,
             )
-            .fetch_optional(&state.db)
+            .fetch_optional(&mut *conn)
             .await
         }
-    }
+    };
+    Ok(parent?)
 }
 
 /// The same gate for a child row: find its psychiatric record, then gate it.

@@ -35,6 +35,7 @@ pub struct HandOff {
 /// object and department, however much work arrives. A tenant without the
 /// department is left as it was — nothing to hand to.
 pub async fn hand_off(state: &AppState, claims: &Claims, to: HandOff) -> Result<(), AppError> {
+    let mut conn = medbrains_db::pool::tenant_conn(&state.db, &claims.tenant_id).await?;
     let department: Option<Uuid> = sqlx::query_scalar!(
         "SELECT id FROM departments \
           WHERE tenant_id = $1 AND code = $2 AND is_active AND deleted_at IS NULL \
@@ -42,7 +43,7 @@ pub async fn hand_off(state: &AppState, claims: &Claims, to: HandOff) -> Result<
         claims.tenant_id,
         to.department_code,
     )
-    .fetch_optional(&state.db)
+    .fetch_optional(&mut *conn)
     .await?;
     let Some(department) = department else {
         return Ok(());
@@ -57,8 +58,9 @@ pub async fn hand_off(state: &AppState, claims: &Claims, to: HandOff) -> Result<
         to.object_id,
         department.to_string(),
     )
-    .fetch_one(&state.db)
+    .fetch_one(&mut *conn)
     .await?;
+    drop(conn);
     if linked {
         return Ok(());
     }
@@ -95,7 +97,7 @@ pub async fn hand_visit_to_billing(
         encounter_id,
         claims.tenant_id,
     )
-    .fetch_optional(&state.db)
+    .fetch_optional(&mut *medbrains_db::pool::tenant_conn(&state.db, &claims.tenant_id).await?)
     .await?;
     let Some(patient_id) = patient_id else {
         return Ok(());

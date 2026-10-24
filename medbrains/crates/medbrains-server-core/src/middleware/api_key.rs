@@ -190,6 +190,16 @@ pub async fn record_usage(
     path: &str,
     status: u16,
 ) {
+    // On the key's hospital: both tables are row level secured, and outside a
+    // tenant the insert is refused, the count stays at zero and the key's
+    // budget never trips.
+    let mut conn = match medbrains_db::pool::tenant_conn(db, &tenant_id).await {
+        Ok(conn) => conn,
+        Err(error) => {
+            tracing::warn!(%error, key = %key_id, "could not record API key usage");
+            return;
+        }
+    };
     let usage = sqlx::query(
         "INSERT INTO api_key_usage (tenant_id, api_key_id, method, path, status_code) \
          VALUES ($1, $2, $3, $4, $5)",
@@ -199,7 +209,7 @@ pub async fn record_usage(
     .bind(method)
     .bind(path)
     .bind(i32::from(status))
-    .execute(db)
+    .execute(&mut *conn)
     .await;
 
     if let Err(error) = usage {
@@ -209,13 +219,12 @@ pub async fn record_usage(
     // Coarse on purpose: this answers "is this key still in use", which is the
     // question asked when deciding what to revoke. The per-request detail is
     // the row above.
-    let touch = sqlx::query(
-        "UPDATE api_keys SET last_used_at = now() WHERE id = $1 AND tenant_id = $2",
-    )
-    .bind(key_id)
-    .bind(tenant_id)
-    .execute(db)
-    .await;
+    let touch =
+        sqlx::query("UPDATE api_keys SET last_used_at = now() WHERE id = $1 AND tenant_id = $2")
+            .bind(key_id)
+            .bind(tenant_id)
+            .execute(&mut *conn)
+            .await;
     if let Err(error) = touch {
         tracing::warn!(%error, key = %key_id, "could not update API key last_used_at");
     }

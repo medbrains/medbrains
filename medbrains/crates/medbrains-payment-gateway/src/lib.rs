@@ -469,13 +469,7 @@ pub async fn razorpayx_webhook(
         return Ok(Json(serde_json::json!({ "status": "ignored" })));
     };
 
-    let txn_row = sqlx::query_as::<_, PaymentGatewayTransaction>(
-        // allow-raw-sql: webhook entry, tenant context not yet resolved
-        "SELECT * FROM payment_gateway_transactions WHERE gateway_order_id = $1 LIMIT 1",
-    )
-    .bind(va_id)
-    .fetch_optional(&state.db)
-    .await?;
+    let txn_row = txn_by_order_ref(&state.db, None, va_id).await?;
 
     let Some(txn_row) = txn_row else {
         log_webhook_exception(
@@ -566,6 +560,39 @@ async fn verify_webhook_signature(
 
 /// Park an inbound webhook that couldn't be settled (unknown order / amount
 /// mismatch / bad signature) for human review — never silently dropped.
+/// The payment row a provider's notice names, found before any tenant is
+/// known: `app_gateway_txn_tenant` (migration 1206) answers which hospital
+/// the order reference belongs to and nothing else, and the row is then read
+/// under that hospital. `gateway` `None` matches any provider.
+pub(crate) async fn txn_by_order_ref(
+    pool: &sqlx::PgPool,
+    gateway: Option<&str>,
+    order_ref: &str,
+) -> Result<Option<PaymentGatewayTransaction>, AppError> {
+    let tenant: Option<Uuid> = sqlx::query_scalar("SELECT app_gateway_txn_tenant($1, $2)")
+        .bind(gateway)
+        .bind(order_ref)
+        .fetch_one(pool)
+        .await?;
+    let Some(tenant_id) = tenant else {
+        return Ok(None);
+    };
+    let mut conn = medbrains_db::pool::tenant_conn(pool, &tenant_id).await?;
+    Ok(sqlx::query_as::<_, PaymentGatewayTransaction>(
+        "SELECT * FROM payment_gateway_transactions \
+         WHERE gateway_order_id = $1 AND ($2::text IS NULL OR gateway = $2) AND tenant_id = $3 \
+         LIMIT 1",
+    )
+    .bind(order_ref)
+    .bind(gateway)
+    .bind(tenant_id)
+    .fetch_optional(&mut *conn)
+    .await?)
+}
+
+/// A notice no hospital's payment matches. It has no tenant, which row level
+/// security refuses to write, so through `app_log_unmatched_webhook`
+/// (migration 1206): an insert of these four fields and nothing else.
 pub(crate) async fn log_webhook_exception(
     pool: &sqlx::PgPool,
     provider: &str,
@@ -574,9 +601,8 @@ pub(crate) async fn log_webhook_exception(
     payload: &serde_json::Value,
 ) -> Result<(), AppError> {
     sqlx::query(
-        // allow-raw-sql: global ops table, no tenant context on unmatched credit
-        "INSERT INTO payment_webhook_exceptions (provider, order_ref, reason, raw_payload) \
-         VALUES ($1, $2, $3, $4)",
+        // allow-raw-sql: no tenant context on an unmatched notice
+        "SELECT app_log_unmatched_webhook($1, $2, $3, $4)",
     )
     .bind(provider)
     .bind(order_ref)
@@ -667,7 +693,7 @@ pub async fn resolve_payment_exception(
     )
     .bind(claims.sub)
     .bind(id)
-    .fetch_optional(&state.db)
+    .fetch_optional(&mut *medbrains_db::pool::tenant_conn(&state.db, &claims.tenant_id).await?)
     .await?
     .ok_or(AppError::NotFound)?;
 
@@ -708,14 +734,17 @@ pub async fn payment_recon_summary(
     .fetch_all(&mut *tx)
     .await?;
 
-    tx.commit().await?;
-
-    // Exceptions are a cross-tenant ops table — count all still-open.
+    // This hospital's open exceptions. A notice that matched no hospital has
+    // no tenant and is nobody's to count here.
     let open_exceptions: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*)::bigint FROM payment_webhook_exceptions WHERE status = 'open'",
+        "SELECT COUNT(*)::bigint FROM payment_webhook_exceptions \
+          WHERE status = 'open' AND tenant_id = $1",
     )
-    .fetch_one(&state.db)
+    .bind(claims.tenant_id)
+    .fetch_one(&mut *tx)
     .await?;
+
+    tx.commit().await?;
 
     Ok(Json(ReconSummary {
         by_status,
@@ -1201,7 +1230,10 @@ pub fn router() -> axum::Router<AppState> {
             "/api/payments/links",
             get(balance_link::routes::list_links).post(balance_link::routes::create_link),
         )
-        .route("/api/payments/links/{id}", get(balance_link::routes::get_link))
+        .route(
+            "/api/payments/links/{id}",
+            get(balance_link::routes::get_link),
+        )
         .route(
             "/api/payments/links/{id}/resend",
             post(balance_link::routes::resend_link),

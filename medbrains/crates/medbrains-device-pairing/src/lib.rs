@@ -33,9 +33,9 @@ use axum::{
 
 pub mod binding;
 mod binding_redeem;
+pub mod binding_token;
 pub mod counter_display;
 pub mod counter_display_routes;
-pub mod binding_token;
 pub mod device_code;
 use chrono::{DateTime, Duration, Utc};
 use medbrains_core::peer_sync::{PeerBinding, PeerRosterDoc, PeerRosterEntry};
@@ -176,6 +176,24 @@ pub struct PairResponse {
     pub app_variant: String,
 }
 
+/// Scope `tx` to the hospital that issued a pairing token.
+///
+/// No tenant is known yet: the device has not authenticated, and the token is
+/// how its hospital is found. `app_device_pairing_token_tenant` (migration 1206) answers that
+/// and nothing else. 404 for a token nobody issued.
+async fn scope_to_token(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    token: &str,
+) -> Result<(), AppError> {
+    let tenant: Option<Uuid> = sqlx::query_scalar("SELECT app_device_pairing_token_tenant($1)")
+        .bind(token)
+        .fetch_one(&mut **tx)
+        .await?;
+    let tenant = tenant.ok_or(AppError::NotFound)?;
+    medbrains_db::pool::set_tenant_context(tx, &tenant).await?;
+    Ok(())
+}
+
 pub async fn pair_device(
     State(state): State<AppState>,
     Json(body): Json<PairRequest>,
@@ -188,9 +206,7 @@ pub async fn pair_device(
 
     let mut tx = state.db.begin().await?;
 
-    // Look up the token globally — no tenant_context yet because the
-    // device hasn't authenticated. Once we resolve the tenant we set
-    // it and proceed.
+    scope_to_token(&mut tx, &body.token).await?;
     type PairingTokenRow = (
         Uuid,
         Uuid,
@@ -239,8 +255,6 @@ pub async fn pair_device(
     if expires_at < Utc::now() {
         return Err(AppError::BadRequest("pairing token expired".into()));
     }
-
-    medbrains_db::pool::set_tenant_context(&mut tx, &tenant_id).await?;
 
     let user_id = intended_user.unwrap_or(issued_by);
 

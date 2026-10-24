@@ -91,24 +91,23 @@ pub async fn verify_prescription(
     // them apart would confirm that a token once existed.
     let expired_or_missing = || AppError::NotFound;
 
-    let link = sqlx::query_as::<_, (Uuid, Uuid, chrono::DateTime<chrono::Utc>, i32)>( // allow-raw-sql: prescription verify with variable token lookup
-        "SELECT tenant_id, encounter_id, expires_at, accessed_count \
-         FROM prescription_verify_links WHERE token = $1",
+    // Nobody holding the link has a hospital yet; the token is how it is
+    // found, so the lookup is `app_rx_verify_link` (migration 1206), which
+    // answers nothing for an expired link.
+    let (tenant_id, encounter_id, accessed_count) = sqlx::query_as::<_, (Uuid, Uuid, i32)>(
+        // allow-raw-sql: prescription verify with variable token lookup
+        "SELECT tenant_id, encounter_id, accessed_count FROM app_rx_verify_link($1)",
     )
     .bind(&token)
     .fetch_optional(&state.db)
     .await?
     .ok_or_else(expired_or_missing)?;
 
-    let (tenant_id, encounter_id, expires_at, accessed_count) = link;
-    if expires_at < chrono::Utc::now() {
-        return Err(expired_or_missing());
-    }
-
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &tenant_id).await?;
 
-    let header = sqlx::query_as::< // allow-raw-sql: prescription verify with variable token lookup
+    let header = sqlx::query_as::<
+        // allow-raw-sql: prescription verify with variable token lookup
         _,
         (
             String,
@@ -133,7 +132,8 @@ pub async fn verify_prescription(
     .await?
     .ok_or_else(expired_or_missing)?;
 
-    let medications = sqlx::query_as::<_, (String, String, String, String)>( // allow-raw-sql: prescription verify with variable token lookup
+    let medications = sqlx::query_as::<_, (String, String, String, String)>(
+        // allow-raw-sql: prescription verify with variable token lookup
         "SELECT i.drug_name, i.dosage, i.frequency, i.duration \
          FROM prescriptions pr \
          JOIN prescription_items i \
@@ -146,7 +146,8 @@ pub async fn verify_prescription(
     .fetch_all(&mut *tx)
     .await?;
 
-    sqlx::query( // allow-raw-sql: prescription verify with variable token lookup
+    sqlx::query(
+        // allow-raw-sql: prescription verify with variable token lookup
         "UPDATE prescription_verify_links \
          SET accessed_count = accessed_count + 1, last_accessed = now() \
          WHERE token = $1",
@@ -215,7 +216,8 @@ pub async fn issue_verify_link(
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
     // Bypass roles pass the gate above without the encounter existing.
-    let encounter_exists: bool = sqlx::query_scalar!( // allow-raw-sql: existence check
+    let encounter_exists: bool = sqlx::query_scalar!(
+        // allow-raw-sql: existence check
         "SELECT EXISTS(SELECT 1 FROM encounters WHERE id = $1 AND tenant_id = $2) AS \"exists!\"",
         encounter_id,
         claims.tenant_id,
@@ -226,7 +228,8 @@ pub async fn issue_verify_link(
         return Err(AppError::NotFound);
     }
 
-    let existing: Option<String> = sqlx::query_scalar( // allow-raw-sql: prescription verify link lookup
+    let existing: Option<String> = sqlx::query_scalar(
+        // allow-raw-sql: prescription verify link lookup
         "SELECT token FROM prescription_verify_links \
          WHERE tenant_id = $1 AND encounter_id = $2 AND expires_at > now() \
          ORDER BY created_at DESC LIMIT 1",
@@ -252,7 +255,8 @@ pub async fn issue_verify_link(
         acc
     });
 
-    sqlx::query( // allow-raw-sql: prescription verify link insert
+    sqlx::query(
+        // allow-raw-sql: prescription verify link insert
         "INSERT INTO prescription_verify_links \
          (tenant_id, encounter_id, token, expires_at, created_by) \
          VALUES ($1, $2, $3, now() + make_interval(days => $4), $5)",
