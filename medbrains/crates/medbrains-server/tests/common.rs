@@ -174,13 +174,17 @@ pub async fn spawn_app_with_secrets(secrets: TestSecrets) -> TestApp {
 /// `TestApp::db` stay on the owner. No password needed: the owner (a superuser
 /// in dev and CI) switches role at connection start.
 pub async fn spawn_app_as_request_role() -> TestApp {
+    spawn(TestSecrets::default(), Some(role_url("medbrains_app"))).await
+}
+
+/// The test database, connecting as `role` (the owner switches at start).
+pub fn role_url(role: &str) -> String {
     let sep = if database_url().contains('?') {
         '&'
     } else {
         '?'
     };
-    let url = format!("{}{sep}options=-c%20role%3Dmedbrains_app", database_url());
-    spawn(TestSecrets::default(), Some(url)).await
+    format!("{}{sep}options=-c%20role%3D{role}", database_url())
 }
 
 fn database_url() -> String {

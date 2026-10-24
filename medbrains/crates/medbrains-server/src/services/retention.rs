@@ -71,7 +71,7 @@ async fn tenant_setting_days(
         .unwrap_or(default))
 }
 
-async fn run_retention_pass(pool: &PgPool) -> Result<(), AppError> {
+pub async fn run_retention_pass(pool: &PgPool) -> Result<(), AppError> {
     // Partition maintenance — pre-create upcoming partitions and retire old ones
     // for every table registered in `partition_config`. Global (not tenant-scoped)
     // and best-effort: a failure here must not block the retention pass below.
