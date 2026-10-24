@@ -23,7 +23,7 @@ const hub: ModulePage = {
         { title: "Before the day: plan, approve and pack", body: "The camp is created with its type (general health, eye, dental, vaccination, blood donation, awareness or specialised), date, venue, coordinator, team and expected turnout, and moves from planned to approved to set up. An 18-point readiness checklist covers site permission, a private screening area, biomedical waste, red-flag referral rules, charged devices and paper fallback forms. Supplies are listed with batch and expiry, and packed, consumed and returned quantities." },
         { title: "Registration: one number for the whole day", body: "Each person is registered once and given a camp number. If they are already a patient of the hospital they are linked to that record instead of getting a second UHID. New people get a UHID marked as coming from the camp, with an estimated date of birth when only the age is known." },
         { title: "Triage and vitals", body: "Blood pressure, pulse, SpO2, temperature, random blood sugar, height, weight and BMI, visual acuity for each eye, and a history checklist (diabetes, hypertension, asthma, heart disease, thyroid, allergies, smoking, alcohol). A question not asked is stored differently from one answered no, so an unasked question never reads as a negative finding." },
-        { title: "Consultation", body: "The doctor's station calls the next number. Findings, ICD-10 coded diagnoses and advice are recorded, and a person who needs a proper visit can have an OPD encounter opened for them, with a token that shows on the waiting-room boards. Two doctors at one step share one queue." },
+        { title: "Consultation", body: "The doctor's station calls the next number. Findings, ICD-coded diagnoses and advice are recorded, and a person who needs a proper visit can have an OPD encounter opened for them, with a token that shows on the waiting-room boards. Two doctors at one step share one queue." },
         { title: "Lab and pharmacy", body: "Samples are collected against a barcode and linked to a hospital lab order, so the result comes back to the same person. Medicines dispensed at the camp are checked against the patient's documented allergies, and a conflict is flagged for the pharmacist to verify before the medicine is handed over." },
         { title: "Referral", body: "Anyone who needs the hospital gets a referral with the department, urgency and reason, how they will travel, whether an ambulance is needed, and an attendant's name and phone number. The referral has a status, so the team can see who actually arrived." },
         { title: "After the camp: follow-ups and reports", body: "Follow-ups are scheduled per person and marked completed, missed or cancelled. The camp is closed, and its report counts registrations, screenings, referrals, conversions, samples, follow-ups and billing." },
@@ -94,7 +94,7 @@ const government: ModulePage = {
   slug: "government-medical-camp-software",
   parent: "health-camp-software",
   title: "Government Medical Camp Software for Districts | MedBrains",
-  description: "Government medical camp software for district and programme camps in India: screening, ICD-10 diagnoses, tracked referrals, one record per person, offline.",
+  description: "Government medical camp software for district and programme camps in India: screening, coded diagnoses, tracked referrals, one record per person, offline.",
   eyebrow: "Government medical camps",
   h1: "Government medical camp software for district and programme camps",
   intro: "Government medical camp software has to do three things a register cannot: count every person screened without counting anyone twice, follow each referral until the person reaches the hospital, and hand the programme officer numbers that add up. MedBrains does all three, offline when it has to, on the same patient record the hospital uses.",
@@ -112,7 +112,7 @@ const government: ModulePage = {
         { title: "Plan and approve", body: "The camp is created with its type, venue (address, pincode and map location), date, coordinator and expected turnout, then approved before it is set up. Approval is recorded with who approved it and when." },
         { title: "Get the site ready", body: "The 18-point readiness checklist covers local authority permission, a private area for women and elderly people, drinking water and hand hygiene, sharps and colour-coded biomedical waste bins with an authorised hand-off, red-flag referral rules with the receiving facility's contact and transport, and charged devices with paper fallback forms. The camp shows a readiness score before the team leaves." },
         { title: "Register once", body: "Each person gets a camp number. If they already have a record at the hospital they are linked to it; if not, they get a UHID marked as a camp registration. The father's or spouse's name is captured, because that is how rural registers tell two people with the same name apart." },
-        { title: "Screen", body: "Vitals, random blood sugar and HbA1c, haemoglobin, BMI and visual acuity, a history checklist, findings, ICD-10 coded diagnoses and advice. Several diagnoses can be coded from one screening." },
+        { title: "Screen", body: "Vitals, random blood sugar and HbA1c, haemoglobin, BMI and visual acuity, a history checklist, findings, ICD-coded diagnoses and advice. Several diagnoses can be coded from one screening." },
         { title: "Refer and track", body: "A referral records the receiving facility and department, urgency, reason, transport, whether an ambulance is needed and an attendant's contact. Its status is updated as the person moves, so a referral is a list to work through, not a number in a register." },
         { title: "Follow up and close", body: "Follow-ups are scheduled per person and marked completed, missed or cancelled. The readiness checklist names an owner for the post-camp sync, the biomedical waste hand-off, referral reconciliation and incident review, so closing the camp is somebody\'s job." },
       ],
@@ -121,7 +121,7 @@ const government: ModulePage = {
       title: "Reporting a programme officer can check",
       body: [
         "Every number in a camp's report is a count of records, so it can be traced back to people: registered, screened, referred, converted to hospital patients, samples collected, follow-ups scheduled and completed. Across camps, MedBrains shows the screening yield (referrals as a share of people screened), conversion rate, average cost per patient and follow-up compliance.",
-        "Because diagnoses are ICD-10 coded at the camp, a district team can count conditions without reading handwriting. Because registration links to the hospital's patient master, a person screened at three camps in a year is one person with three screenings, not three people.",
+        "Because diagnoses are coded at the camp, a district team can count conditions without reading handwriting. Because registration links to the hospital's patient master, a person screened at three camps in a year is one person with three screenings, not three people.",
       ],
     },
     {
@@ -142,7 +142,7 @@ const government: ModulePage = {
   featuresTitle: "What government camps get",
   features: [
     { title: "One person, one record", body: "Linked to the hospital's patient master, so repeat attendees are never counted twice." },
-    { title: "ICD-10 at the camp", body: "Diagnoses coded where they are made, several per screening." },
+    { title: "Coded diagnoses at the camp", body: "Diagnoses coded where they are made, several per screening." },
     { title: "Referrals with a status", body: "Facility, urgency, transport, ambulance and attendant, tracked until the person arrives." },
     { title: "Readiness before departure", body: "An 18-point checklist covering consent, privacy, biomedical waste and referral routes." },
     { title: "Incidents recorded", body: "Patient safety, infection control, equipment and privacy incidents with severity and the action taken." },
@@ -151,7 +151,7 @@ const government: ModulePage = {
   caveat: "MedBrains does not submit data to government portals itself. The camp's figures come out of MedBrains for your team to report in the format your programme asks for.",
   faq: [
     { q: "What is government medical camp software?", a: "Software that a district hospital, health centre or programme team uses to plan a camp, register and screen people, refer those who need care and report the results. MedBrains does this on the same patient record the hospital uses, so a camp referral can be followed into the hospital." },
-    { q: "Can it handle NCD screening camps?", a: "Screening captures blood pressure, random blood sugar, HbA1c, BMI and a history checklist including diabetes, hypertension, smoking and alcohol, with ICD-10 coded diagnoses and referral. Those are the fields a screening camp for blood pressure and diabetes needs." },
+    { q: "Can it handle NCD screening camps?", a: "Screening captures blood pressure, random blood sugar, HbA1c, BMI and a history checklist including diabetes, hypertension, smoking and alcohol, with ICD-coded diagnoses and referral. Those are the fields a screening camp for blood pressure and diabetes needs." },
     { q: "Does it work in villages without a network?", a: "Yes. The camp packet is downloaded before departure and registration, screening, samples, referrals and incidents sync back when the connection returns. Billing and follow-up conversion need a connection." },
     { q: "Can the data stay on government servers?", a: "MedBrains can be installed on servers you control instead of our cloud." },
     { q: "Is ABHA mandatory at the camp?", a: "No. ABHA can be linked on the patient's hospital record, but nobody is turned away for not having one." },
@@ -182,7 +182,7 @@ const ngo: ModulePage = {
       steps: [
         { title: "Plan the camp and its money", body: "The camp is created with its type, venue, date, coordinator, team and expected turnout, a budget, and whether services are free or discounted. Supplies are listed with quantity, batch and expiry, and each item can be marked as charged, free, or covered by the sponsor." },
         { title: "Get the volunteers ready", body: "Each team member is added with their role in the camp. Volunteers use the MedBrains staff app on their iOS or Android phone and see only what their role allows. The 18-point readiness checklist covers the things a first-time site misses: permission from the village or local authority, a private screening area, biomedical waste bins and a hand-off plan, and paper forms for when a phone dies." },
-        { title: "Register and screen", body: "Each person is registered once and called by the same camp number at every station: registration, vitals, doctor and pharmacy. Screening records vitals, sugar, BMI, vision, a history checklist, findings and ICD-10 coded diagnoses." },
+        { title: "Register and screen", body: "Each person is registered once and called by the same camp number at every station: registration, vitals, doctor and pharmacy. Screening records vitals, sugar, BMI, vision, a history checklist, findings and ICD-coded diagnoses." },
         { title: "Give medicines and refer", body: "Medicines dispensed at the camp are checked against the person's documented allergies, and a conflict is flagged for the pharmacist. Anyone who needs more care is referred to the partner hospital with urgency, transport, ambulance need and an attendant's contact." },
         { title: "Follow up", body: "Follow-ups are scheduled per person and marked completed, missed or cancelled, which is the number most camps never manage to report." },
       ],
