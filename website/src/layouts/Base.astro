@@ -1,4 +1,12 @@
 ---
+import "@fontsource-variable/archivo/wdth.css";
+import "@fontsource/ibm-plex-sans/400.css";
+import "@fontsource/ibm-plex-sans/500.css";
+import "@fontsource/ibm-plex-sans/600.css";
+import "@fontsource/ibm-plex-mono/500.css";
+import "@fontsource/ibm-plex-mono/600.css";
+import archivoLatin from "@fontsource-variable/archivo/files/archivo-latin-wdth-normal.woff2?url";
+import plexLatin from "@fontsource/ibm-plex-sans/files/ibm-plex-sans-latin-400-normal.woff2?url";
 import "../styles/global.scss";
 import { SITE, SOCIAL } from "../consts";
 import { istDate } from "../lib/blog";
@@ -74,9 +82,9 @@ const jsonLd = schema.length ? JSON.stringify({ "@context": "https://schema.org"
     <meta name="twitter:image:alt" content={image.alt} />
     <link rel="alternate" type="application/rss+xml" title={`${SITE.brand} blog`} href="/blog/rss.xml" />
     {jsonLd && <script type="application/ld+json" set:html={jsonLd} />}
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@125,700;125,800;125,900&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@500;600&display=swap" rel="stylesheet" />
+    <!-- Self-hosted fonts (no third-party request); preload the two every page paints first. -->
+    <link rel="preload" href={archivoLatin} as="font" type="font/woff2" crossorigin />
+    <link rel="preload" href={plexLatin} as="font" type="font/woff2" crossorigin />
   </head>
   <body class:list={[{ light }]}>
     <a class="sr-only" href="#main">Skip to content</a>
