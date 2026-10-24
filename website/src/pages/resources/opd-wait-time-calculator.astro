@@ -1,0 +1,196 @@
+---
+import Resource from "../../layouts/Resource.astro";
+
+// Defaults: a mid-sized OPD morning. Every number is the reader's to change.
+const groups = [
+  {
+    title: "Arrivals",
+    fields: [{ id: "perHour", label: "Patients arriving per hour", hint: "At the busiest hour", value: 40, step: 1 }],
+  },
+  {
+    title: "Registration",
+    fields: [
+      { id: "desks", label: "Registration desks open", hint: "Counters or kiosks", value: 2, step: 1 },
+      { id: "regMin", label: "Minutes to register one patient", hint: "Average, including billing", value: 2.5, step: 0.5 },
+    ],
+  },
+  {
+    title: "Doctors",
+    fields: [
+      { id: "doctors", label: "Doctors or rooms seeing patients", hint: "For the patients counted above", value: 6, step: 1 },
+      { id: "consultMin", label: "Minutes per consultation", hint: "Average, door to door", value: 8, step: 0.5 },
+    ],
+  },
+  {
+    title: "Lab or pharmacy",
+    fields: [
+      { id: "extraPct", label: "Patients sent to lab or pharmacy (%)", hint: "Share of all patients", value: 40, step: 5 },
+      { id: "counters", label: "Lab or pharmacy counters", hint: "Sample collection or dispensing", value: 2, step: 1 },
+      { id: "extraMin", label: "Minutes at the counter per patient", hint: "Average", value: 5, step: 0.5 },
+    ],
+  },
+];
+
+const faq = [
+  { q: "What is a normal OPD waiting time in India?", a: "There is no single figure that fits every OPD: a one-doctor clinic and a 40-room government hospital OPD are different queues. The useful number is your own, measured the same way every month, for example from registration to the start of the consultation, and compared with last month and with your own target." },
+  { q: "Why does the wait shoot up when doctors are almost fully busy?", a: "Patients do not arrive evenly. When doctors are busy 95% of the time there is almost no spare capacity to absorb a cluster of arrivals, so the queue that forms takes a long time to clear. In this model the wait grows roughly in proportion to 1 / (1 − utilisation): going from 80% to 95% busy multiplies it about four times." },
+  { q: "What does it mean when the calculator says the queue grows without bound?", a: "Patients are arriving faster than that step can serve them. Utilisation is 100% or more, so the queue gets longer every hour until arrivals stop. No amount of waiting fixes it; the step needs more desks, rooms or counters, shorter service times, or fewer arrivals in that hour." },
+  { q: "How accurate is the estimate?", a: "It is a planning estimate, usually close for a busy hour that stays busy. Real OPDs differ from the model: appointments make arrivals less random (shorter waits), while doctors arriving late, breaks and patients who return after tests make it worse. Measure real waits with token timestamps and compare." },
+  { q: "How can a hospital reduce OPD waiting time without hiring?", a: "Spread arrivals with staggered appointment slots and reporting times, move registration out of the queue with pre-registration or a self-service kiosk, take simple tasks such as vitals away from the doctor, and open an extra room or counter only for the peak hour. A token system shows you where the queue actually forms." },
+];
+---
+
+<Resource
+  title="OPD waiting time calculator (free) | MedBrains"
+  description="Estimate OPD waiting time and queue length from arrivals, doctors and consult minutes with an Erlang C queueing model, and see which step to fix first."
+  h1="OPD waiting time calculator"
+  intro="Enter how many patients arrive in your busiest hour, how many desks, doctors and counters are open and how long each step takes. The calculator estimates how busy each step is, how many people queue there and how long they wait, using the standard Erlang C queueing model. When a step is busy 100% of the time or more, its queue grows without bound."
+  guide={{ href: "/opd-queue-management", name: "OPD queue management" }}
+  faq={faq}
+>
+  <form class="calc" data-calc aria-describedby="calc-help">
+    {groups.map((g) => (
+      <fieldset>
+        <legend>{g.title}</legend>
+        {g.fields.map((f) => (
+          <label class="field">
+            <span>{f.label} <small>{f.hint}</small></span>
+            <input type="number" name={f.id} min="0" step={f.step} inputmode="decimal" value={f.value} />
+          </label>
+        ))}
+      </fieldset>
+    ))}
+  </form>
+  <p id="calc-help" class="hint">Nothing you enter leaves this page: the sums run in your browser.</p>
+
+  <section class="result" aria-live="polite" aria-labelledby="result-title">
+    <h2 id="result-title" class="sr-only">Result</h2>
+    <p class="total"><span>Average time in the OPD</span><strong data-out="total">–</strong></p>
+    <p class="warn" data-out="warn" hidden></p>
+    <p class="detail" data-out="summary"></p>
+    <div class="table-wrap" tabindex="0" role="region" aria-label="Each step of the visit">
+      <table>
+        <caption class="sr-only">Each step of the visit</caption>
+        <thead>
+          <tr><th scope="col">Step</th><th scope="col">Busy</th><th scope="col">Chance of waiting</th><th scope="col">Average wait</th><th scope="col">Average queue</th></tr>
+        </thead>
+        <tbody>
+          {[["registration", "Registration"], ["doctor", "Doctor"], ["extra", "Lab or pharmacy"]].map(([key, name]) => (
+            <tr data-row={key}>
+              <th scope="row">{name}</th><td data-col="busy"></td><td data-col="pwait"></td><td data-col="wait"></td><td data-col="queue"></td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section aria-labelledby="model-title">
+    <h2 id="model-title">How the calculator works</h2>
+    <p>Each step of the visit is treated as a queue with a number of servers: registration desks, doctors, lab or pharmacy counters. For each step:</p>
+    <ul class="plain">
+      <li><strong>Busy (utilisation)</strong> is the work arriving divided by the work the servers can do: patients per hour × minutes each ÷ (60 × servers). Six doctors seeing 40 patients an hour at 8 minutes each are busy 320 ÷ 360 = 89% of the time.</li>
+      <li><strong>Chance of waiting</strong> is the Erlang C formula, the same one call centres use to staff phone lines. It gives the probability that a patient finds every server busy.</li>
+      <li><strong>Average wait</strong> is that chance divided by the spare capacity: P(wait) ÷ (servers × patients each can see per minute − arrivals per minute). <strong>Average queue</strong> is arrivals per minute × average wait (Little's law).</li>
+      <li><strong>Average time in the OPD</strong> adds each step's wait and service time; the lab or pharmacy step counts only for the share of patients sent there.</li>
+    </ul>
+    <p>The assumptions, in plain words: patients arrive at random at a steady average rate (no appointments), service times vary at random around the average, any free server can take the next patient, nobody leaves the queue, and the hour stays as busy as you entered. Real OPDs bend these: appointment slots make arrivals more even and waits shorter, while late starts, breaks and patients returning to the doctor with reports make waits longer. Use it to compare options, then check against measured waits.</p>
+  </section>
+
+  <section aria-labelledby="levers-title">
+    <h2 id="levers-title">Ways to reduce OPD waiting time</h2>
+    <ul class="plain">
+      <li><strong>Stagger appointments and reporting times.</strong> The same patients spread over three hours instead of crowding into the first one is the cheapest capacity there is. Lower the arrivals figure above to see it.</li>
+      <li><strong>Add a room or counter at the peak only.</strong> One extra doctor or counter for the busiest hour often cuts the wait far more than its share, because waits rise steeply near full utilisation. Try adding one server to the busiest step.</li>
+      <li><strong>Shorten the step, not the doctor.</strong> Pre-registration, a registration kiosk, and vitals taken by a nurse before the patient goes in all cut minutes per patient.</li>
+      <li><strong>Priority lanes.</strong> Give elderly, disabled, pregnant and seriously ill patients a separate lane or token series so the people who should not wait do not, and keep reports-review visits from re-entering the main queue.</li>
+      <li><strong>Measure it.</strong> Token timestamps show where the queue forms and whether a change worked. Read about <a href="/opd-queue-management">OPD queue management</a> and a <a href="/hospital-token-system">hospital token system</a> across departments.</li>
+    </ul>
+  </section>
+
+  <div class="note">
+    <p><strong>An estimate, not a promise.</strong> The model is the M/M/c queue with the Erlang C formula, as described in standard operations research texts. The calculator is checked in our build against a published Erlang C worked example (10 Erlangs on 11 to 14 agents) and the closed-form one- and two-server results.</p>
+  </div>
+</Resource>
+
+<script>
+  import { opdVisit } from "../../lib/erlang.js";
+
+  type Step = ReturnType<typeof opdVisit>["doctor"];
+  const form = document.querySelector<HTMLFormElement>("[data-calc]");
+  const out = (key: string) => document.querySelector<HTMLElement>(`[data-out="${key}"]`);
+  const num = (name: string) => Math.max(0, Number((form?.elements.namedItem(name) as HTMLInputElement).value) || 0);
+  const pct = (x: number) => `${Math.round(x * 100)}%`;
+  const minutes = (m: number) => (Number.isFinite(m) ? `${m < 1 ? m.toFixed(1) : Math.round(m)} min` : "No limit");
+  const names: Record<string, string> = { registration: "registration", doctor: "the doctors", extra: "lab or pharmacy" };
+
+  const fillRow = (key: string, s: Step) => {
+    const row = document.querySelector(`[data-row="${key}"]`);
+    const set = (col: string, text: string) => {
+      const cell = row?.querySelector(`[data-col="${col}"]`);
+      if (cell) cell.textContent = text;
+    };
+    set("busy", pct(s.utilisation));
+    set("pwait", s.stable ? pct(s.pWait) : "100%");
+    set("wait", minutes(s.waitMin));
+    set("queue", Number.isFinite(s.queue) ? s.queue.toFixed(1) : "Keeps growing");
+  };
+
+  const update = () => {
+    if (!form) return;
+    const v = opdVisit({
+      perHour: num("perHour"), desks: num("desks"), regMin: num("regMin"), doctors: num("doctors"),
+      consultMin: num("consultMin"), extraPct: num("extraPct"), counters: num("counters"), extraMin: num("extraMin"),
+    });
+    const steps = { registration: v.registration, doctor: v.doctor, extra: v.extra };
+    for (const [key, s] of Object.entries(steps)) fillRow(key, s);
+    const [busiest, top] = Object.entries(steps).sort((a, b) => b[1].utilisation - a[1].utilisation)[0];
+    const total = out("total"), warn = out("warn"), summary = out("summary");
+    if (total) total.textContent = v.stable ? minutes(v.totalMin) : "Grows without bound";
+    if (warn) {
+      warn.hidden = v.stable;
+      warn.textContent = v.stable ? "" : `Warning: ${names[busiest]} would be busy ${pct(top.utilisation)} of the time. Patients arrive faster than they can be served, so the queue keeps growing for as long as they keep coming. Add a server, shorten the step or spread arrivals.`;
+    }
+    if (summary) {
+      summary.textContent = v.stable
+        ? `The busiest step is ${names[busiest]}, at ${pct(top.utilisation)}. ${pct(v.doctor.overMin(30))} of patients would wait more than 30 minutes for a doctor.`
+        : "";
+    }
+  };
+  form?.addEventListener("input", update);
+  update();
+</script>
+
+<style lang="scss">
+  .calc { display: grid; gap: 16px; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); margin: 8px 0 12px; }
+  fieldset { border: 1px solid var(--line); border-radius: var(--radius); padding: 12px 16px 16px; margin: 0; display: grid; gap: 14px; align-content: start; }
+  legend { font: 800 1rem var(--display); padding: 0 6px; }
+  .field { display: grid; gap: 6px; font-weight: 600; }
+  .field small { display: block; font-weight: 400; color: var(--muted); }
+  .field input {
+    font: inherit; padding: 12px 14px; min-height: 48px; border: 1px solid var(--muted);
+    border-radius: 10px; background: #fff; color: var(--ink);
+  }
+  .field input:focus-visible { outline: 3px solid var(--blue); outline-offset: 2px; }
+  .hint { color: var(--muted); font-size: .9rem; margin: 0 0 24px; }
+  .result { padding: 20px 24px; border-radius: var(--radius); background: var(--night); color: #fff; margin-bottom: 8px; }
+  .total { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: baseline; gap: 12px; margin: 0 0 10px; }
+  .total strong { font: 800 2rem/1 var(--display); padding: 6px 12px; border-radius: 8px; background: var(--purple); }
+  .warn { margin: 0 0 10px; padding: 10px 14px; border-radius: 8px; background: #fff; color: var(--ink); border-left: 6px solid var(--purple); font-weight: 600; }
+  .detail { margin: 0 0 12px; color: var(--night-text); }
+  .table-wrap { overflow-x: auto; }
+  .table-wrap:focus-visible { outline: 3px solid var(--sky); outline-offset: 2px; }
+  table { width: 100%; border-collapse: collapse; font-size: .95rem; }
+  th, td { text-align: left; padding: 8px 10px; border-top: 1px solid var(--night-line); white-space: nowrap; }
+  thead th { color: var(--night-text); font-weight: 600; border-top: 0; }
+  .plain { padding-left: 20px; max-width: 80ch; }
+  .plain li { margin-bottom: 8px; }
+  section p { max-width: 80ch; }
+  .note { margin-top: 24px; }
+
+  @media print {
+    .result { background: #fff; color: #000; border: 1px solid #000; }
+    .total strong { background: none; color: #000; }
+    .detail, thead th { color: #000; }
+  }
+</style>

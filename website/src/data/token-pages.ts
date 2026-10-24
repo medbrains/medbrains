@@ -57,6 +57,7 @@ const hub: ModulePage = {
         `${link("/clinic-token-management-system", "Clinic token management system")}: one or two doctors, walk-ins and bookings in one queue, a token display on a single TV.`,
         `${link("/hospital-token-system", "Token system for hospitals")}: department queues, lab, pharmacy and billing counters, and a board for each waiting area.`,
         `Health camps use the same tokens: each station calls the same camp number, and the camp's queue can be shown on a TV board. See ${link("/health-camp-software", "health camp software")}.`,
+        `${link("/resources/opd-wait-time-calculator", "OPD waiting time calculator")}: a free tool that estimates how long patients wait at registration, the doctor and the lab or pharmacy, and which step to fix first.`,
       ],
     },
   ],

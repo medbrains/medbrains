@@ -60,6 +60,16 @@ export const TOOLS = [
     body: "Estimate a month's Digital Health Incentive Scheme payment from linked records and consents, using the Corrigendum 7 rates.",
     page: "/resources/abdm-incentive-calculator",
   },
+  {
+    title: "OPD waiting time calculator",
+    body: "Estimate how busy registration, doctors and lab or pharmacy are, and how long patients queue at each, with the Erlang C queueing model.",
+    page: "/resources/opd-wait-time-calculator",
+  },
+  {
+    title: "Health camp planning checklist",
+    body: "Before, on the day and after: permission, stations, supplies with expiry, consent, biomedical waste under the BMW Rules 2016, referrals and follow-up.",
+    page: "/resources/health-camp-planning-checklist",
+  },
 ] as const;
 
 export const GUIDES = {

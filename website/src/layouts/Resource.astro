@@ -19,13 +19,18 @@ interface Props {
   extraSchema?: Record<string, unknown>[];
   /** The landing page this resource belongs to. */
   guide: { href: string; name: string };
+  /** Questions shown under the resource and emitted as FAQPage. */
+  faq?: { q: string; a: string }[];
 }
-const { title, description, h1, intro, pdf, guide, extraSchema = [] } = Astro.props;
+const { title, description, h1, intro, pdf, guide, faq = [], extraSchema = [] } = Astro.props;
 const schema = [
   breadcrumbs(Astro.site, [
     { name: guide.name, path: guide.href },
     { name: h1, path: Astro.url.pathname },
   ]),
+  ...(faq.length
+    ? [{ "@type": "FAQPage", mainEntity: faq.map((f) => ({ "@type": "Question", name: f.q, acceptedAnswer: { "@type": "Answer", text: f.a } })) }]
+    : []),
   ...extraSchema,
 ];
 ---
@@ -51,6 +56,17 @@ const schema = [
         </div>
       </header>
       <slot />
+      {faq.length > 0 && (
+        <section class="faq" aria-labelledby="faq-title">
+          <h2 id="faq-title">Questions</h2>
+          {faq.map((f) => (
+            <details>
+              <summary>{f.q}</summary>
+              <p>{f.a}</p>
+            </details>
+          ))}
+        </section>
+      )}
       <p class="foot">{SITE.brand} · {SITE.domain} · General information, not legal advice. Check the sources for the current text.</p>
     </div>
   </main>
@@ -79,6 +95,10 @@ const schema = [
     .note { padding: 16px 20px; border-radius: var(--radius); background: var(--paper-2); color: var(--ink-2); font-size: .95rem; }
     .note p { margin: 0 0 6px; }
     .note p:last-child { margin: 0; }
+    .faq details { border-bottom: 1px solid var(--line); padding: 4px 0; }
+    .faq summary { cursor: pointer; font-weight: 600; padding: 12px 0; min-height: 24px; }
+    .faq summary:focus-visible { outline: 3px solid var(--blue); outline-offset: 2px; }
+    .faq details p { margin: 0 0 14px; color: var(--ink-2); max-width: 75ch; }
     .foot { margin-top: 40px; font-size: .85rem; color: var(--muted); }
     a { color: var(--blue-deep); }
     .btn-primary { color: #fff; }
@@ -93,6 +113,7 @@ const schema = [
     .resource .lede { font-size: 10.5pt; margin-bottom: 10pt; }
     .resource .head { margin-bottom: 10pt; }
     .resource h2 { font-size: 12pt; margin: 12pt 0 6pt; break-after: avoid; }
+    .resource .faq details { break-inside: avoid; }
     .resource .foot { margin-top: 12pt; font-size: 8pt; }
     .resource a { color: #000; text-decoration: none; }
     * { box-shadow: none !important; print-color-adjust: exact; -webkit-print-color-adjust: exact; }

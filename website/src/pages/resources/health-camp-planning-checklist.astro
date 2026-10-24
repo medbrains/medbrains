@@ -1,0 +1,196 @@
+---
+import Resource from "../../layouts/Resource.astro";
+
+// Built on the 18-point remote readiness checklist the camp module seeds for
+// every camp (DEFAULT_REMOTE_CHECKLIST in crates/medbrains-camp/src/lib.rs),
+// with its NABH chapter codes, plus the day-of and after-camp duties. BMW =
+// Bio-Medical Waste Management Rules, 2016 (r = rule, Sch = Schedule).
+const groups: { title: string; items: [string, string][] }[] = [
+  {
+    title: "Before the camp: permission and site",
+    items: [
+      ["Camp permission confirmed with the village leader, local authority, school or employer, with the date and venue agreed in writing", "ROM/FMS"],
+      ["Safe access route, patient flow, waiting area with shade and seating, and an emergency exit identified", "FMS"],
+      ["Lighting, charging points and power backup arranged for devices and equipment", "FMS/IMS"],
+      ["Drinking water, toilets and a hand-hygiene station available", "FMS/IPC"],
+      ["A private screening and examination area, especially for women and elderly patients", "PRE"],
+      ["Patient rights, health education, consent forms and instructions ready in the local language", "PRE/IMS"],
+    ],
+  },
+  {
+    title: "Before the camp: people and stations",
+    items: [
+      ["Stations laid out in visit order: registration, vitals and triage, doctor, sample collection, pharmacy, referral desk", "Good practice"],
+      ["A named person for every station: doctor, nurse, lab technician, pharmacist or dispensing owner, volunteers and crowd control", "HRM/ROM"],
+      ["Staff briefed on the camp's procedures, patient safety, privacy, infection control and incident reporting", "HRM/PSQ/IMS"],
+      ["Triage red-flag criteria, the referral protocol and the escalation owner agreed and briefed", "AAC/COP/PSQ"],
+      ["Emergency kit packed; referral hospital contact, ambulance or transport and route notes confirmed", "AAC/COP/FMS"],
+    ],
+  },
+  {
+    title: "Before the camp: supplies and waste",
+    items: [
+      ["Equipment, consumables, medicines, test kits, labels and barcodes listed with batch and expiry, and nothing expires before the camp", "MOM/FMS/IMS"],
+      ["PPE, surface disinfectant, hand rub, masks, gloves and a spill response kit packed", "IPC"],
+      ["Puncture-proof white sharps containers and yellow, red and blue waste containers packed, with a needle-stick response procedure", "BMW Sch I"],
+      ["Settled who is the occupier responsible for the camp's waste, and arranged pickup by an authorised treatment facility or return to the hospital", "BMW r 2, 4, 10"],
+      ["Everyone handling waste trained and immunised against hepatitis B and tetanus", "BMW r 4(g), 4(h)"],
+    ],
+  },
+  {
+    title: "Before the camp: records and connectivity",
+    items: [
+      ["Offline packet downloaded, devices charged, backup power and paper fallback forms ready", "IMS"],
+      ["Network plan written down: expected signal, when records will sync and who uploads them after the camp", "IMS/ROM"],
+      ["Incident, near-miss, referral and corrective-action register ready", "PSQ"],
+    ],
+  },
+  {
+    title: "On the day",
+    items: [
+      ["Team walks the patient flow once before the gates open", "Good practice"],
+      ["Each person registered once, with one camp number, and matched to their existing hospital record if they have one", "Good practice"],
+      ["Consent taken and recorded before any test or procedure that needs it", "PRE"],
+      ["Waste segregated where it is made, into the right colour container, never mixed with general waste", "BMW r 8(1), 8(2)"],
+      ["Used needles and sharps go straight into the sharps container; needle-stick injuries reported at once", "BMW Sch I"],
+      ["Allergies checked before anything is dispensed, and the batch dispensed recorded", "MOM"],
+      ["Red-flag patients referred in writing with the department, urgency, transport and an attendant's phone number", "AAC/COP"],
+      ["Incidents and near misses written in the register as they happen", "PSQ"],
+    ],
+  },
+  {
+    title: "After the camp",
+    items: [
+      ["Waste handed to the authorised treatment facility; soiled waste not stored untreated beyond 48 hours", "BMW r 8(7)"],
+      ["Waste quantities by category entered in the biomedical waste register", "BMW r 4(n)"],
+      ["Records synced and paper fallback forms entered the same day", "IMS"],
+      ["Unused stock counted back and reconciled; expired or discarded medicines disposed as yellow-category waste", "BMW Sch I"],
+      ["Referrals reconciled: who reached the hospital, and a call to everyone who did not", "PSQ/ROM"],
+      ["Follow-ups scheduled for each person who needs one, and tracked as completed or missed", "COP"],
+      ["Incidents reviewed and corrective actions assigned", "PSQ"],
+      ["Camp report made: registrations, screenings, referrals, follow-ups, and the programme's own reporting for government camps", "PSQ/IMS/ROM"],
+    ],
+  },
+];
+const total = groups.reduce((n, g) => n + g.items.length, 0);
+const id = (g: number, i: number) => `c${g}-${i}`;
+
+const faq = [
+  { q: "How do you organise a health camp?", a: "Plan it in three stages. Before: get permission for the venue, plan the patient flow, name a person for every station, pack supplies checked for expiry and arrange biomedical waste handling and referrals. On the day: register each person once, take consent, segregate waste where it is made and refer red-flag patients in writing. After: hand over the waste, sync records, reconcile referrals, schedule follow-ups and write the camp report." },
+  { q: "Do the Bio-Medical Waste Management Rules apply to health camps?", a: "Yes. Rule 2 of the Bio-Medical Waste Management Rules, 2016 names health camps, medical or surgical camps, vaccination camps and blood donation camps among the places the rules apply to. Waste must be segregated at the point of generation into the Schedule I colour categories, and untreated soiled waste must not be stored beyond 48 hours." },
+  { q: "Which waste goes in which colour at a camp?", a: "Under Schedule I: yellow for soiled waste such as dressings and swabs, and expired or discarded medicines; red for contaminated recyclable plastics such as tubing, syringes without needles and gloves; white puncture-proof containers for needles, blades and other sharps; and blue cardboard boxes for broken or discarded glass, including vials and ampoules." },
+  { q: "What staff does a medical camp need?", a: "At least one named person per station: registration, vitals and triage, the doctor or doctors, sample collection if tests are done, a pharmacist or dispensing owner, someone at the referral desk, and volunteers for crowd control. One person should own escalation and one should own waste handover and the post-camp upload." },
+  { q: "Are my ticks saved?", a: "Only in this browser, on this device, so you can close the page and come back. Nothing is sent to MedBrains or anyone else. Clear all ticks with the button at the end of the list." },
+];
+---
+
+<Resource
+  title="Health camp checklist (free, printable) | MedBrains"
+  description="A free health camp checklist for India: permission, stations, supplies with expiry, consent, biomedical waste under BMW Rules 2016, referrals and follow-up."
+  h1="Health camp planning checklist"
+  intro={`To organise a health camp, work through three stages: before (permission, site, people, supplies and waste), on the day (registration, consent, segregation and referral) and after (waste handover, records, referrals, follow-up and the report). These ${total} items are built on the 18-point readiness checklist in the MedBrains camp module, with the biomedical waste rules that apply to camps.`}
+  guide={{ href: "/health-camp-software", name: "Health camp software" }}
+  faq={faq}
+>
+  <p class="progress no-print" aria-live="polite" data-progress>0 of {total} done</p>
+
+  {groups.map((g, gi) => (
+    <section class="group" aria-labelledby={`g${gi}`}>
+      <h2 id={`g${gi}`}>{g.title}</h2>
+      <ul>
+        {g.items.map(([text, ref], i) => (
+          <li>
+            <input type="checkbox" id={id(gi, i)} data-tick />
+            <label for={id(gi, i)}>{text}</label>
+            <span class="ref">{ref}</span>
+          </li>
+        ))}
+      </ul>
+    </section>
+  ))}
+
+  <p class="no-print"><button class="btn btn-ghost" type="button" data-clear>Clear all ticks</button></p>
+  <p class="hint no-print">Ticks are saved only in this browser. Nothing is sent anywhere.</p>
+
+  <section class="note" aria-labelledby="refs-title">
+    <h2 id="refs-title">What the references mean</h2>
+    <p><strong>BMW</strong> is the <a href="https://cpcb.nic.in/uploads/Projects/Bio-Medical-Waste/Bio-medical_Waste_Management_Rules_2016.pdf" rel="noopener">Bio-Medical Waste Management Rules, 2016</a> (G.S.R. 343(E), 28 March 2016, as amended up to April 2026; the amendments are listed on <a href="https://cpcb.nic.in/rules-3/" rel="noopener">CPCB's rules page</a>). Rule 2 applies them to health, medical, surgical, vaccination and blood donation camps; rule 4 lists the occupier's duties; rule 8 covers segregation and the 48-hour limit; Schedule I sets the colour categories.</p>
+    <p>Codes such as FMS, IPC or PRE are the areas of the NABH hospital standards each readiness item maps to in the camp module: facility management and safety (FMS), infection prevention and control (IPC), patient rights and education (PRE), information management system (IMS), human resource management (HRM), access, assessment and continuity of care (AAC), care of patients (COP), management of medication (MOM), patient safety and quality improvement (PSQ) and responsibilities of management (ROM).</p>
+    <p>Government programme camps report through their programme's own system, for example the SASHAKT portal used to track camps under the <a href="https://static.pib.gov.in/WriteReadData/specificdocs/documents/2025/sep/doc2025916638301.pdf" rel="noopener">Swasth Nari Sashakt Parivar Abhiyaan</a>.</p>
+  </section>
+
+  <section aria-labelledby="more-title" class="no-print">
+    <h2 id="more-title">Running camps on software</h2>
+    <p>The <a href="/health-camp-software">MedBrains camp module</a> carries this readiness checklist for every camp, works offline at the venue and brings records, samples and referrals back to the hospital. Read how it fits <a href="/government-medical-camp-software">government medical camps</a>, <a href="/ngo-health-camp-software">NGO health camps</a> and <a href="/corporate-health-camp-software">corporate health camps</a>, and an honest <a href="/health-camp-software-vs-manual">comparison with paper</a>.</p>
+  </section>
+</Resource>
+
+<script>
+  const KEY = "medbrains:camp-checklist";
+  const boxes = [...document.querySelectorAll<HTMLInputElement>("[data-tick]")];
+  const progress = document.querySelector("[data-progress]");
+
+  const load = (): string[] => {
+    try {
+      return JSON.parse(localStorage.getItem(KEY) ?? "[]");
+    } catch {
+      return [];
+    }
+  };
+  const save = () => {
+    try {
+      localStorage.setItem(KEY, JSON.stringify(boxes.filter((b) => b.checked).map((b) => b.id)));
+    } catch {
+      // Private window or blocked storage: ticks just won't survive a reload.
+    }
+  };
+  const count = () => {
+    if (progress) progress.textContent = `${boxes.filter((b) => b.checked).length} of ${boxes.length} done`;
+  };
+
+  const saved = new Set(load());
+  for (const b of boxes) {
+    b.checked = saved.has(b.id);
+    b.addEventListener("change", () => { save(); count(); });
+  }
+  document.querySelector("[data-clear]")?.addEventListener("click", () => {
+    for (const b of boxes) b.checked = false;
+    try { localStorage.removeItem(KEY); } catch { /* nothing stored */ }
+    count();
+  });
+  count();
+</script>
+
+<style lang="scss">
+  .progress { font: 600 1rem var(--sans); margin: 0 0 8px; color: var(--ink-2); }
+  .group ul { list-style: none; margin: 0; padding: 0; border-top: 1px solid var(--line); }
+  .group li {
+    display: grid; grid-template-columns: 24px 1fr auto; gap: 12px; align-items: start;
+    padding: 10px 0; border-bottom: 1px solid var(--line);
+  }
+  input { width: 24px; height: 24px; margin: 0; accent-color: var(--blue); }
+  input:focus-visible { outline: 3px solid var(--blue); outline-offset: 2px; }
+  label { cursor: pointer; padding-top: 1px; }
+  .ref { font: 500 .78rem var(--mono); color: var(--muted); white-space: nowrap; padding-top: 4px; }
+  .hint { color: var(--muted); font-size: .9rem; }
+  .note { margin: 24px 0; }
+  .note h2 { margin-top: 0; }
+  section p { max-width: 80ch; }
+
+  @media (max-width: 560px) {
+    .group li { grid-template-columns: 24px 1fr; }
+    .ref { grid-column: 2; padding-top: 0; }
+  }
+
+  @media print {
+    .group { break-inside: avoid; }
+    .group li { padding: 3pt 0; gap: 8pt; grid-template-columns: 11pt 1fr auto; font-size: 9.5pt; }
+    input { width: 11pt; height: 11pt; margin-top: 1pt; }
+    .ref { font-size: 7.5pt; color: #444; padding-top: 1pt; }
+    .note { margin: 8pt 0; padding: 6pt 8pt; font-size: 9pt; break-inside: avoid; }
+  }
+</style>
+
+<style is:global>
+  @page { size: A4; margin: 14mm; }
+</style>
