@@ -2,6 +2,18 @@
 // line here describes a screen or rule the product has — a buyer checks it
 // in the demo, so nothing aspirational.
 
+import { CAMP_PAGES } from "./camp-pages";
+
+export interface PageSection {
+  title: string;
+  /** Paragraphs. Authored here, rendered as HTML so they can carry <a> and <strong>. */
+  body?: string[];
+  steps?: { title: string; body: string }[];
+  table?: { caption: string; head: string[]; rows: string[][] };
+  /** Paragraphs after the steps or table. */
+  after?: string[];
+}
+
 export interface ModulePage {
   slug: string;
   /** <title>: the search phrase first, under ~60 characters. */
@@ -15,6 +27,14 @@ export interface ModulePage {
   related: string[];
   /** Blog posts this page links to, and whose hospital box links back here. */
   posts?: string[];
+  /** The hub page this one sits under, for the breadcrumb. */
+  parent?: string;
+  /** Long-form sections above the feature grid. */
+  sections?: PageSection[];
+  featuresTitle?: string;
+  /** What the product does not do, said plainly under the features. */
+  caveat?: string;
+  relatedTitle?: string;
 }
 
 export const MODULE_PAGES: ModulePage[] = [
@@ -134,22 +154,7 @@ export const MODULE_PAGES: ModulePage[] = [
     faq: [{ q: "Do the boards need special hardware?", a: "Any TV with a browser shows a board." }],
     related: ["clinic-management-software", "hospital-management-software"],
   },
-  {
-    slug: "health-camp-software",
-    title: "Health Camp Management Software | MedBrains",
-    description: "Health camp management software for Indian hospitals: on-site registration without duplicate records, station-by-station routes, offline working and reports.",
-    eyebrow: "Health camps",
-    h1: "Health camp software that feeds the hospital, not a spreadsheet",
-    intro: "MedBrains' health camp software registers people at the camp, moves each person through the stations and brings every record back into the hospital without second UHIDs.",
-    features: [
-      { title: "On-site registration", body: "The same duplicate check as the hospital desk: an existing patient is put on the camp's route, not registered again." },
-      { title: "Camp numbers and stations", body: "Each person gets a camp number and moves through the camp's stations in order." },
-      { title: "Works when the network doesn't", body: "Camp registration keeps working offline and syncs when the connection returns." },
-      { title: "Campaign attribution", body: "Patients the camp brings to the hospital are counted for it in the acquisition reports." },
-    ],
-    faq: [{ q: "Can the camp use phones?", a: "Yes — camp registration runs in the native staff app on iOS and Android." }],
-    related: ["hospital-marketing-software", "hospital-management-software"],
-  },
+  ...CAMP_PAGES,
   {
     slug: "hospital-marketing-software",
     title: "Hospital Marketing Software & Patient Leads | MedBrains",

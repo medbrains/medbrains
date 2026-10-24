@@ -59,7 +59,11 @@ for (const r of resources) {
 }
 const tools = ["resources/indian-hospitals-in-numbers", "resources/abdm-incentive-calculator"].map(checkPage);
 assert.ok(tools[0].types.includes("Dataset"), `${tools[0].path}: Dataset`);
-results.push(...guides, ...resources, ...tools);
+// The health-camp cluster (src/data/camp-pages.ts): a hub and its spokes.
+const camps = ["health-camp-software", "government-medical-camp-software", "ngo-health-camp-software",
+  "corporate-health-camp-software", "health-camp-software-vs-manual"].map(checkPage);
+for (const c of camps) assert.ok(c.types.includes("FAQPage"), `${c.path}: FAQPage`);
+results.push(...guides, ...resources, ...tools, ...camps);
 for (const f of ["llms.txt", "robots.txt"]) assert.ok(existsSync(join(dist, f)), `/${f} built`);
 assert.ok(existsSync(join(dist, "pagefind", "pagefind.js")), "Pagefind index built");
 assert.ok(existsSync(join(dist, "blog", "rss.xml")), "RSS feed built");
