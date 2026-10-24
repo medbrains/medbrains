@@ -1057,7 +1057,7 @@ pub async fn update_order_status(
             "SELECT first_name || ' ' || last_name FROM patients WHERE id = $1",
         )
         .bind(order.patient_id)
-        .fetch_optional(&state.db)
+        .fetch_optional(&mut *medbrains_db::pool::tenant_conn(&state.db, &claims.tenant_id).await?)
         .await
         .ok()
         .flatten()

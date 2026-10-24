@@ -13,7 +13,7 @@ use serde_json::{Value, json};
 use sqlx::{PgPool, Postgres, Transaction};
 use uuid::Uuid;
 
-use super::default_pipelines::{e164, enqueue, uuid_from_payload};
+use super::default_pipelines::{e164, enqueue, tenant_tx, uuid_from_payload};
 
 /// Escalate an incident at or above this severity by email.
 const ESCALATED_SEVERITIES: &[&str] = &["major", "sentinel"];
@@ -138,7 +138,7 @@ async fn report_ready(
     ) else {
         return Ok(());
     };
-    let mut tx = pool.begin().await?;
+    let mut tx = tenant_tx(pool, tenant_id).await?;
     let config: Option<Value> = sqlx::query_scalar(
         "SELECT value FROM tenant_settings \
           WHERE tenant_id = $1 AND category = 'lab' AND key = 'report_delivery_config' \
@@ -237,7 +237,7 @@ pub(super) async fn on_billing_claim_approved(
     let Some(claim_id) = uuid_from_payload(payload, "claim_id") else {
         return Ok(());
     };
-    let mut tx = pool.begin().await?;
+    let mut tx = tenant_tx(pool, tenant_id).await?;
     let row: Option<(Uuid, String, Option<rust_decimal::Decimal>)> = sqlx::query_as(
         "SELECT patient_id, insurance_provider, approved_amount FROM insurance_claims \
           WHERE id = $1 AND tenant_id = $2",
@@ -290,7 +290,7 @@ pub(super) async fn on_opd_prescription_expiring(
     ) else {
         return Ok(());
     };
-    let mut tx = pool.begin().await?;
+    let mut tx = tenant_tx(pool, tenant_id).await?;
     let (Some(to), _) = patient_contact(&mut tx, tenant_id, patient_id).await? else {
         return Ok(());
     };
@@ -331,7 +331,7 @@ pub(super) async fn on_pharmacy_stock_low(
     let subject = format!("Low stock: {name}");
     let text = format!("{name} is down to {on_hand} (reorder level {reorder}). Raise an indent.");
     let day = chrono::Utc::now().date_naive();
-    let mut tx = pool.begin().await?;
+    let mut tx = tenant_tx(pool, tenant_id).await?;
     for to in staff_emails(&mut tx, tenant_id, &["pharmacist"]).await? {
         let msg = json!({ "to": to, "subject": subject, "text": text });
         let key = Some(format!("lowstock:{item}:{day}:{to}"));
@@ -384,7 +384,7 @@ pub(super) async fn on_quality_incident_reported(
         "A {} {kind} incident ({number}) was reported. Review it in Quality → Incidents.",
         severity.unwrap_or_default()
     );
-    let mut tx = pool.begin().await?;
+    let mut tx = tenant_tx(pool, tenant_id).await?;
     for to in staff_emails(&mut tx, tenant_id, &["quality_officer", "hospital_admin"]).await? {
         let msg = json!({ "to": to, "subject": subject, "text": text, "incident_id": incident });
         let key = Some(format!("incident:{incident}:{to}"));

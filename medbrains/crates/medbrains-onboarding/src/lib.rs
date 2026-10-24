@@ -192,14 +192,13 @@ pub async fn init(
     if let Some(domain) = domain {
         if is_public_domain(domain) {
             // Public domain → check exact email only
-            let email_taken: bool = sqlx::query_scalar(
-                "SELECT EXISTS(\
-                    SELECT 1 FROM users WHERE email = $1 AND role IN ('super_admin', 'hospital_admin')\
-                )",
-            )
-            .bind(&body.admin_email)
-            .fetch_one(&state.db)
-            .await?;
+            // Every hospital's admins, asked before this one exists:
+            // `app_admin_email_registered` (migration 1207).
+            let email_taken: bool =
+                sqlx::query_scalar("SELECT app_admin_email_registered($1, true)")
+                    .bind(&body.admin_email)
+                    .fetch_one(&state.db)
+                    .await?;
             if email_taken {
                 errors.add(
                     "admin_email",
@@ -209,15 +208,11 @@ pub async fn init(
         } else {
             // Organization domain → check if any super admin with same domain exists
             let domain_pattern = format!("%@{domain}");
-            let domain_taken: bool = sqlx::query_scalar(
-                "SELECT EXISTS(\
-                    SELECT 1 FROM users \
-                    WHERE email ILIKE $1 AND role IN ('super_admin', 'hospital_admin')\
-                )",
-            )
-            .bind(&domain_pattern)
-            .fetch_one(&state.db)
-            .await?;
+            let domain_taken: bool =
+                sqlx::query_scalar("SELECT app_admin_email_registered($1, false)")
+                    .bind(&domain_pattern)
+                    .fetch_one(&state.db)
+                    .await?;
             if domain_taken {
                 errors.add(
                     "admin_email",
@@ -666,7 +661,7 @@ pub async fn setup(
         )",
     )
     .bind(claims.tenant_id)
-    .fetch_one(&state.db)
+    .fetch_one(&mut *medbrains_db::pool::tenant_conn(&state.db, &claims.tenant_id).await?)
     .await?;
 
     if already_complete {

@@ -166,7 +166,7 @@ pub async fn grant_lab_order_access(
         order_id,
         claims.tenant_id,
     )
-    .fetch_optional(&state.db)
+    .fetch_optional(&mut *medbrains_db::pool::tenant_conn(&state.db, &claims.tenant_id).await?)
     .await?;
     let Some(encounter_id) = encounter_id else {
         return Ok(());
@@ -1142,11 +1142,12 @@ pub async fn complete_order(
     // Emit integration event
     if let Some(ref o) = order {
         // Enrich payload with names for orchestration
+        let mut conn = medbrains_db::pool::tenant_conn(&state.db, &claims.tenant_id).await?;
         let patient_info = sqlx::query_as::<_, (String, String)>(
             "SELECT first_name || ' ' || last_name, uhid FROM patients WHERE id = $1",
         )
         .bind(o.patient_id)
-        .fetch_optional(&state.db)
+        .fetch_optional(&mut *conn)
         .await
         .ok()
         .flatten();
@@ -1157,7 +1158,7 @@ pub async fn complete_order(
         let doctor_name =
             sqlx::query_scalar::<_, String>("SELECT full_name FROM users WHERE id = $1")
                 .bind(o.ordered_by)
-                .fetch_optional(&state.db)
+                .fetch_optional(&mut *conn)
                 .await
                 .ok()
                 .flatten()
@@ -1168,7 +1169,7 @@ pub async fn complete_order(
         )
         .bind(o.id)
         .bind(claims.tenant_id)
-        .fetch_optional(&state.db)
+        .fetch_optional(&mut *conn)
         .await
         .ok()
         .flatten()

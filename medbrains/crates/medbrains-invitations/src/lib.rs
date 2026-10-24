@@ -158,7 +158,7 @@ pub async fn list(
          WHERE tenant_id = $1 AND accepted_at IS NULL ORDER BY created_at DESC",
         claims.tenant_id,
     )
-    .fetch_all(&state.db)
+    .fetch_all(&mut *medbrains_db::pool::tenant_conn(&state.db, &claims.tenant_id).await?)
     .await?;
     Ok(Json(rows))
 }
@@ -175,7 +175,7 @@ pub async fn revoke(
         id,
         claims.tenant_id,
     )
-    .execute(&state.db)
+    .execute(&mut *medbrains_db::pool::tenant_conn(&state.db, &claims.tenant_id).await?)
     .await?;
     Ok(Json(json!({ "status": "ok" })))
 }
@@ -188,19 +188,35 @@ pub struct PublicInvite {
     pub hospital_name: String,
 }
 
+/// Which hospital a live invitation belongs to, asked before any tenant is
+/// known: `app_invitation_tenant` (migration 1207). The invitation itself is
+/// then read under that hospital.
+async fn invitation_tenant(state: &AppState, token_hash: &str) -> Result<Option<Uuid>, AppError> {
+    Ok(sqlx::query_scalar("SELECT app_invitation_tenant($1)")
+        .bind(token_hash)
+        .fetch_one(&state.db)
+        .await?)
+}
+
 /// GET /api/public/invitations/{token} — show who/where the invite is for.
 pub async fn get_public(
     State(state): State<AppState>,
     Path(token): Path<String>,
 ) -> Result<Json<PublicInvite>, AppError> {
     let token_hash = hash_token(token.trim());
-    let row: Option<(String, String, Option<String>, Uuid)> = sqlx::query_as(
-        "SELECT email, role, full_name, tenant_id FROM user_invitations \
-         WHERE token_hash = $1 AND accepted_at IS NULL AND expires_at > now()",
-    )
-    .bind(&token_hash)
-    .fetch_optional(&state.db)
-    .await?;
+    let row: Option<(String, String, Option<String>, Uuid)> =
+        match invitation_tenant(&state, &token_hash).await? {
+            Some(tenant_id) => {
+                sqlx::query_as(
+                    "SELECT email, role, full_name, tenant_id FROM user_invitations \
+                 WHERE token_hash = $1 AND accepted_at IS NULL AND expires_at > now()",
+                )
+                .bind(&token_hash)
+                .fetch_optional(&mut *medbrains_db::pool::tenant_conn(&state.db, &tenant_id).await?)
+                .await?
+            }
+            None => None,
+        };
     let Some((email, role, full_name, tenant_id)) = row else {
         return Err(AppError::BadRequest(
             "This invitation is invalid or has expired".to_owned(),
@@ -239,13 +255,19 @@ pub async fn accept(
         return Err(AppError::ValidationFailed(errors));
     }
 
-    let invite: Option<(Uuid, String, String, Option<String>)> = sqlx::query_as(
-        "SELECT tenant_id, email, role, full_name FROM user_invitations \
-         WHERE token_hash = $1 AND accepted_at IS NULL AND expires_at > now()",
-    )
-    .bind(&token_hash)
-    .fetch_optional(&state.db)
-    .await?;
+    let invite: Option<(Uuid, String, String, Option<String>)> =
+        match invitation_tenant(&state, &token_hash).await? {
+            Some(tenant_id) => {
+                sqlx::query_as(
+                    "SELECT tenant_id, email, role, full_name FROM user_invitations \
+                 WHERE token_hash = $1 AND accepted_at IS NULL AND expires_at > now()",
+                )
+                .bind(&token_hash)
+                .fetch_optional(&mut *medbrains_db::pool::tenant_conn(&state.db, &tenant_id).await?)
+                .await?
+            }
+            None => None,
+        };
     let Some((tenant_id, email, role, invite_name)) = invite else {
         return Err(AppError::BadRequest(
             "This invitation is invalid or has expired".to_owned(),

@@ -191,7 +191,7 @@ pub async fn oidc_authorize(
     .bind(&nonce)
     .bind(&verifier)
     .bind(&q.return_to)
-    .execute(&state.db)
+    .execute(&mut *medbrains_db::pool::tenant_conn(&state.db, &provider.tenant_id).await?)
     .await?;
 
     let url = format!(

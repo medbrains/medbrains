@@ -1046,10 +1046,11 @@ pub async fn create_encounter(
             })?;
     }
 
+    let mut conn = medbrains_db::pool::tenant_conn(&state.db, &claims.tenant_id).await?;
     let doctor_name = if let Some(did) = encounter.doctor_id {
         sqlx::query_scalar::<_, String>("SELECT full_name FROM users WHERE id = $1")
             .bind(did)
-            .fetch_optional(&state.db)
+            .fetch_optional(&mut *conn)
             .await
             .ok()
             .flatten()
@@ -1061,7 +1062,7 @@ pub async fn create_encounter(
     let department_name = if let Some(did) = encounter.department_id {
         sqlx::query_scalar::<_, String>("SELECT name FROM departments WHERE id = $1")
             .bind(did)
-            .fetch_optional(&state.db)
+            .fetch_optional(&mut *conn)
             .await
             .ok()
             .flatten()
@@ -1716,10 +1717,11 @@ pub async fn complete_queue_entry(
     }
 
     // Enrich payload with names for orchestration
+    let mut conn = medbrains_db::pool::tenant_conn(&state.db, &claims.tenant_id).await?;
     let department_name =
         sqlx::query_scalar::<_, String>("SELECT name FROM departments WHERE id = $1")
             .bind(q.department_id)
-            .fetch_optional(&state.db)
+            .fetch_optional(&mut *conn)
             .await
             .ok()
             .flatten()
@@ -1728,7 +1730,7 @@ pub async fn complete_queue_entry(
     let doctor_name = if let Some(did) = q.doctor_id {
         sqlx::query_scalar::<_, String>("SELECT full_name FROM users WHERE id = $1")
             .bind(did)
-            .fetch_optional(&state.db)
+            .fetch_optional(&mut *conn)
             .await
             .ok()
             .flatten()
@@ -3136,7 +3138,9 @@ pub async fn create_prescription(
     let rx_doctor_name =
         sqlx::query_scalar::<_, String>("SELECT full_name FROM users WHERE id = $1")
             .bind(rx.doctor_id)
-            .fetch_optional(&state.db)
+            .fetch_optional(
+                &mut *medbrains_db::pool::tenant_conn(&state.db, &claims.tenant_id).await?,
+            )
             .await
             .ok()
             .flatten()
@@ -6360,10 +6364,11 @@ pub async fn admit_from_opd(
     // created, the same as the desk owns a walk-in's.
     medbrains_authz_gate::grant_encounter_owner(&state, &claims, ipd_encounter.id).await?;
 
+    let mut conn = medbrains_db::pool::tenant_conn(&state.db, &claims.tenant_id).await?;
     let admit_doctor_name =
         sqlx::query_scalar::<_, String>("SELECT full_name FROM users WHERE id = $1")
             .bind(doctor_id)
-            .fetch_optional(&state.db)
+            .fetch_optional(&mut *conn)
             .await
             .ok()
             .flatten()
@@ -6372,7 +6377,7 @@ pub async fn admit_from_opd(
     let admit_dept_name =
         sqlx::query_scalar::<_, String>("SELECT name FROM departments WHERE id = $1")
             .bind(body.department_id)
-            .fetch_optional(&state.db)
+            .fetch_optional(&mut *conn)
             .await
             .ok()
             .flatten()

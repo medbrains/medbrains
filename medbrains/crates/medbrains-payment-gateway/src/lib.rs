@@ -773,106 +773,111 @@ pub async fn ccavenue_webhook(
         })
         .ok_or_else(|| AppError::BadRequest("missing encResp in webhook".to_owned()))?;
 
-    // For now, log the encrypted response and mark as received.
-    // Full decryption requires the working key from tenant settings.
-    let _event_id = format!("ccavenue:{}", Uuid::new_v4());
+    // The notice names no hospital in the clear: it is encrypted with the
+    // hospital's working key. So try the keys of the hospitals waiting on a
+    // CCAvenue payment — found through `app_ccavenue_pending_tenants`
+    // (migration 1207), since no tenant is known yet — and settle the order
+    // the decrypted notice names, read under the hospital whose key opened it.
+    let tenants: Vec<Uuid> = sqlx::query_scalar("SELECT app_ccavenue_pending_tenants()")
+        .fetch_all(&state.db)
+        .await?;
 
-    // Find the transaction by looking at recent pending transactions
-    // CCAvenue doesn't always include order_id in the encrypted payload before decryption
-    let txn_rows = sqlx::query_as::<_, PaymentGatewayTransaction>(
-        "SELECT * FROM payment_gateway_transactions \
-         WHERE gateway = 'ccavenue' AND status = 'pending_gateway' \
-         ORDER BY created_at DESC LIMIT 10",
-    )
-    .fetch_all(&state.db)
-    .await?;
-
-    if txn_rows.is_empty() {
+    if tenants.is_empty() {
         tracing::warn!("ccavenue webhook: no pending ccavenue transactions found");
         return Ok(Json(serde_json::json!({ "status": "no_pending_txns" })));
     }
 
-    // Try to decrypt with each pending txn's tenant working key
-    for txn_row in &txn_rows {
+    for tenant_id in &tenants {
         let mut tx = state.db.begin().await?;
-        medbrains_db::pool::set_tenant_context(&mut tx, &txn_row.tenant_id).await?;
+        medbrains_db::pool::set_tenant_context(&mut tx, tenant_id).await?;
 
-        let working_key = get_ccavenue_working_key(&mut tx, &txn_row.tenant_id).await;
-        tx.commit().await?;
+        let Ok(working_key) = get_ccavenue_working_key(&mut tx, tenant_id).await else {
+            continue;
+        };
+        let Ok(decrypted) = decrypt_ccavenue_response(enc_resp, &working_key) else {
+            continue;
+        };
+        // Parse the decrypted form-encoded response
+        let params: std::collections::HashMap<String, String> = decrypted
+            .split('&')
+            .filter_map(|pair| {
+                let mut parts = pair.splitn(2, '=');
+                Some((
+                    parts.next()?.to_string(),
+                    parts.next().unwrap_or("").to_string(),
+                ))
+            })
+            .collect();
 
-        if let Ok(working_key) = working_key {
-            let decrypted = decrypt_ccavenue_response(enc_resp, &working_key);
-            if let Ok(decrypted) = decrypted {
-                // Parse the decrypted form-encoded response
-                let params: std::collections::HashMap<String, String> = decrypted
-                    .split('&')
-                    .filter_map(|pair| {
-                        let mut parts = pair.splitn(2, '=');
-                        Some((
-                            parts.next()?.to_string(),
-                            parts.next().unwrap_or("").to_string(),
-                        ))
-                    })
-                    .collect();
+        let order_id = params.get("order_id").map(|s| s.as_str());
+        let order_status = params.get("order_status").map(|s| s.as_str());
+        let tracking_id = params.get("tracking_id").map(|s| s.as_str());
+        let (Some(oid), Some(status)) = (order_id, order_status) else {
+            continue;
+        };
 
-                let order_id = params.get("order_id").map(|s| s.as_str());
-                let order_status = params.get("order_status").map(|s| s.as_str());
-                let tracking_id = params.get("tracking_id").map(|s| s.as_str());
+        // The payment the notice names — not whichever of this hospital's
+        // pending payments came first.
+        let txn_id: Option<Uuid> = sqlx::query_scalar(
+            "SELECT id FROM payment_gateway_transactions \
+             WHERE gateway = 'ccavenue' AND gateway_order_id = $1 AND tenant_id = $2 LIMIT 1",
+        )
+        .bind(oid)
+        .bind(tenant_id)
+        .fetch_optional(&mut *tx)
+        .await?;
+        let Some(txn_id) = txn_id else {
+            tracing::warn!(%tenant_id, order_id = oid, "ccavenue webhook: order not found");
+            return Ok(Json(serde_json::json!({ "status": "unknown_order" })));
+        };
 
-                if let (Some(oid), Some(status)) = (order_id, order_status) {
-                    let mut tx = state.db.begin().await?;
-                    medbrains_db::pool::set_tenant_context(&mut tx, &txn_row.tenant_id).await?;
+        let inserted: Option<(String,)> = sqlx::query_as(
+            "INSERT INTO processed_webhooks (provider, event_id, tenant_id, payload) \
+             VALUES ('ccavenue', $1, $2, $3) \
+             ON CONFLICT (provider, event_id) DO NOTHING \
+             RETURNING event_id",
+        )
+        .bind(format!("ccavenue:{oid}:{status}"))
+        .bind(tenant_id)
+        .bind(&payload)
+        .fetch_optional(&mut *tx)
+        .await?;
 
-                    let inserted: Option<(String,)> = sqlx::query_as(
-                        "INSERT INTO processed_webhooks (provider, event_id, tenant_id, payload) \
-                         VALUES ('ccavenue', $1, $2, $3) \
-                         ON CONFLICT (provider, event_id) DO NOTHING \
-                         RETURNING event_id",
+        if inserted.is_some() {
+            match status {
+                "Success" => {
+                    settle::settle_capture(
+                        &mut tx,
+                        txn_id,
+                        &settle::Capture {
+                            provider: "ccavenue",
+                            payment_id: tracking_id.unwrap_or(""),
+                            method: params.get("payment_mode").map(String::as_str),
+                            received: settle::Received::AsRequested,
+                            signature: None,
+                            payload: Some(&payload),
+                        },
                     )
-                    .bind(format!("ccavenue:{oid}:{status}"))
-                    .bind(txn_row.tenant_id)
-                    .bind(&payload)
-                    .fetch_optional(&mut *tx)
                     .await?;
-
-                    if inserted.is_some() {
-                        match status {
-                            "Success" => {
-                                settle::settle_capture(
-                                    &mut tx,
-                                    txn_row.id,
-                                    &settle::Capture {
-                                        provider: "ccavenue",
-                                        payment_id: tracking_id.unwrap_or(""),
-                                        method: params.get("payment_mode").map(String::as_str),
-                                        received: settle::Received::AsRequested,
-                                        signature: None,
-                                        payload: Some(&payload),
-                                    },
-                                )
-                                .await?;
-                            }
-                            "Aborted" | "Failed" => {
-                                sqlx::query(
-                                    "UPDATE payment_gateway_transactions SET \
-                                     status = 'failed', webhook_payload = $1, updated_at = now() \
-                                     WHERE gateway_order_id = $2 AND tenant_id = $3",
-                                )
-                                .bind(&payload)
-                                .bind(oid)
-                                .bind(txn_row.tenant_id)
-                                .execute(&mut *tx)
-                                .await?;
-                            }
-                            other => tracing::info!(status = other, "unhandled ccavenue status"),
-                        }
-                    }
-
-                    tx.commit().await?;
-                    return Ok(Json(serde_json::json!({ "status": "ok" })));
                 }
+                "Aborted" | "Failed" => {
+                    sqlx::query(
+                        "UPDATE payment_gateway_transactions SET \
+                         status = 'failed', webhook_payload = $1, updated_at = now() \
+                         WHERE id = $2 AND tenant_id = $3",
+                    )
+                    .bind(&payload)
+                    .bind(txn_id)
+                    .bind(tenant_id)
+                    .execute(&mut *tx)
+                    .await?;
+                }
+                other => tracing::info!(status = other, "unhandled ccavenue status"),
             }
         }
+
+        tx.commit().await?;
+        return Ok(Json(serde_json::json!({ "status": "ok" })));
     }
 
     tracing::warn!("ccavenue webhook: could not match to any pending transaction");
@@ -884,7 +889,10 @@ fn decrypt_ccavenue_response(enc_resp: &str, working_key: &str) -> Result<String
     use cipher::{BlockModeDecrypt, KeyIvInit, block_padding::NoPadding};
 
     let key = working_key.as_bytes();
-    let iv = key[..16].to_vec();
+    let iv = key
+        .get(..16)
+        .ok_or_else(|| "working key is shorter than 16 bytes".to_owned())?
+        .to_vec();
 
     let ciphertext = base64::engine::general_purpose::STANDARD
         .decode(enc_resp)
@@ -901,21 +909,22 @@ fn decrypt_ccavenue_response(enc_resp: &str, working_key: &str) -> Result<String
     String::from_utf8(buf).map_err(|e| format!("utf8: {e}"))
 }
 
+/// The hospital's CCAvenue working key: the `working_key` field of its
+/// `payments` / `ccavenue_config` setting, where every provider's keys live.
 async fn get_ccavenue_working_key(
     tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
     tenant_id: &uuid::Uuid,
 ) -> Result<String, String> {
-    let row: Option<(String,)> = sqlx::query_as(
-        "SELECT config_value FROM tenant_payment_config \
-         WHERE tenant_id = $1 AND config_key = 'ccavenue_working_key' LIMIT 1",
-    )
-    .bind(tenant_id)
-    .fetch_optional(&mut **tx)
-    .await
-    .map_err(|e| format!("db: {e}"))?;
-
-    row.map(|r| r.0)
-        .ok_or_else(|| "ccavenue_working_key not configured".to_owned())
+    let config = online::keys::stored_config(tx, tenant_id, "ccavenue")
+        .await
+        .map_err(|e| format!("db: {e}"))?;
+    config
+        .as_ref()
+        .and_then(|c| c.get("working_key"))
+        .and_then(serde_json::Value::as_str)
+        .filter(|k| !k.is_empty())
+        .map(str::to_owned)
+        .ok_or_else(|| "ccavenue working_key not configured".to_owned())
 }
 
 // ══════════════════════════════════════════════════════════

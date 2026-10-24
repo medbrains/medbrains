@@ -35,6 +35,7 @@ async fn try_fan_out(
     envelope: &Value,
     data: &Value,
 ) -> Result<(), sqlx::Error> {
+    let mut tx = super::default_pipelines::tenant_tx(pool, tenant_id).await?;
     let subscriptions: Vec<Uuid> = sqlx::query_scalar(
         "SELECT id FROM webhook_subscriptions \
           WHERE tenant_id = $1 AND is_active AND deleted_at IS NULL AND $2 = ANY(event_types) \
@@ -43,14 +44,13 @@ async fn try_fan_out(
     .bind(tenant_id)
     .bind(event_type)
     .bind(MAX_SUBSCRIPTIONS)
-    .fetch_all(pool)
+    .fetch_all(&mut *tx)
     .await?;
     if subscriptions.is_empty() {
         return Ok(());
     }
     let event_key = hex::encode(Sha256::digest(envelope.to_string().as_bytes()));
     let data = minimal_data(data);
-    let mut tx = pool.begin().await?;
     for subscription in subscriptions {
         let queued = queue_in_tx(
             &mut tx,

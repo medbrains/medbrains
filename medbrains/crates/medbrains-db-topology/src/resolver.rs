@@ -54,7 +54,11 @@ impl TopologyResolver for PostgresTopologyResolver {
              FROM tenant_db_topology WHERE tenant_id = $1",
             tenant_id,
         )
-        .fetch_optional(&self.pool)
+        .fetch_optional(
+            &mut *medbrains_db::pool::tenant_conn(&self.pool, &tenant_id)
+                .await
+                .map_err(sqlx::Error::from)?,
+        )
         .await?;
         Ok(row)
     }

@@ -96,7 +96,7 @@ async fn require_subscription_access(
     )
     .bind(subscription_id)
     .bind(claims.tenant_id)
-    .fetch_optional(&state.db)
+    .fetch_optional(&mut *medbrains_db::pool::tenant_conn(&state.db, &claims.tenant_id).await?)
     .await?
     .ok_or(AppError::NotFound)?;
     medbrains_authz_gate::require_patient_billing_access(state, claims, patient_id).await

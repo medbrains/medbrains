@@ -404,7 +404,7 @@ pub async fn trigger_pipeline(
          ORDER BY created_at DESC LIMIT 1",
     )
     .bind(id)
-    .fetch_one(&state.db)
+    .fetch_one(&mut *medbrains_db::pool::tenant_conn(&state.db, &claims.tenant_id).await?)
     .await?;
 
     Ok(Json(execution))

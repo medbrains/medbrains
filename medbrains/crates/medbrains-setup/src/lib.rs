@@ -3658,7 +3658,7 @@ pub async fn delete_master_religion(
     let result = sqlx::query("UPDATE master_religions SET deleted_at = now(), deleted_by = NULLIF(current_setting('app.user_id', true), '')::uuid, delete_reason = 'Deleted from the application', is_active = false WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL")
         .bind(id)
         .bind(claims.tenant_id)
-        .execute(&state.db)
+        .execute(&mut *medbrains_db::pool::tenant_conn(&state.db, &claims.tenant_id).await?)
         .await?;
 
     if result.rows_affected() == 0 {
@@ -3776,7 +3776,7 @@ pub async fn delete_master_occupation(
     let result = sqlx::query("UPDATE master_occupations SET deleted_at = now(), deleted_by = NULLIF(current_setting('app.user_id', true), '')::uuid, delete_reason = 'Deleted from the application', is_active = false WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL")
         .bind(id)
         .bind(claims.tenant_id)
-        .execute(&state.db)
+        .execute(&mut *medbrains_db::pool::tenant_conn(&state.db, &claims.tenant_id).await?)
         .await?;
 
     if result.rows_affected() == 0 {
@@ -3894,7 +3894,7 @@ pub async fn delete_master_relation(
     let result = sqlx::query("UPDATE master_relations SET deleted_at = now(), deleted_by = NULLIF(current_setting('app.user_id', true), '')::uuid, delete_reason = 'Deleted from the application', is_active = false WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL")
         .bind(id)
         .bind(claims.tenant_id)
-        .execute(&state.db)
+        .execute(&mut *medbrains_db::pool::tenant_conn(&state.db, &claims.tenant_id).await?)
         .await?;
 
     if result.rows_affected() == 0 {

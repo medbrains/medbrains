@@ -294,7 +294,7 @@ async fn password_login_blocked(
            AND deleted_at IS NULL",
     )
     .bind(tenant_id)
-    .fetch_optional(db)
+    .fetch_optional(&mut *conn)
     .await?;
     let break_glass = break_glass.and_then(|v| v.as_str().map(str::to_owned));
     Ok(break_glass.as_deref() != Some(username))
@@ -586,6 +586,16 @@ pub async fn refresh_token(
     hasher.update(refresh_raw.as_bytes());
     let token_hash = hex::encode(hasher.finalize());
 
+    // No tenant is known yet: `app_refresh_token_tenant` (migration 1207)
+    // says which hospital the token belongs to, and it is read under that one.
+    let tenant: Option<Uuid> = sqlx::query_scalar("SELECT app_refresh_token_tenant($1)")
+        .bind(&token_hash)
+        .fetch_one(&state.db)
+        .await?;
+    let Some(tenant_id) = tenant else {
+        return Err(AppError::Unauthorized);
+    };
+
     // Look up the refresh token with device info for rotation
     let row = sqlx::query!(
         "SELECT rt.id, rt.user_id, rt.tenant_id, u.role::text AS \"role!\", \
@@ -596,7 +606,7 @@ pub async fn refresh_token(
          WHERE rt.token_hash = $1 AND rt.expires_at > now()",
         token_hash
     )
-    .fetch_optional(&state.db)
+    .fetch_optional(&mut *medbrains_db::pool::tenant_conn(&state.db, &tenant_id).await?)
     .await?;
 
     let Some(row) = row else {

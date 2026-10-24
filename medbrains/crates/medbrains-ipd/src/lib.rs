@@ -1653,9 +1653,10 @@ pub async fn create_admission(
     )
     .await?;
 
+    let mut conn = medbrains_db::pool::tenant_conn(&state.db, &claims.tenant_id).await?;
     let doctor_name = sqlx::query_scalar::<_, String>("SELECT full_name FROM users WHERE id = $1")
         .bind(admission.admitting_doctor)
-        .fetch_optional(&state.db)
+        .fetch_optional(&mut *conn)
         .await
         .ok()
         .flatten()
@@ -1664,7 +1665,7 @@ pub async fn create_admission(
     let department_name =
         sqlx::query_scalar::<_, String>("SELECT name FROM departments WHERE id = $1")
             .bind(body.department_id)
-            .fetch_optional(&state.db)
+            .fetch_optional(&mut *conn)
             .await
             .ok()
             .flatten()
@@ -1684,7 +1685,7 @@ pub async fn create_admission(
              WHERE l.id = $1",
         )
         .bind(bid)
-        .fetch_optional(&state.db)
+        .fetch_optional(&mut *conn)
         .await
         .ok()
         .flatten()
@@ -2327,7 +2328,7 @@ pub async fn discharge_patient(
     )
     .bind(admission.encounter_id)
     .bind(claims.tenant_id)
-    .fetch_one(&state.db)
+    .fetch_one(&mut *medbrains_db::pool::tenant_conn(&state.db, &claims.tenant_id).await?)
     .await?;
 
     let _ = medbrains_workflow::orchestration::lifecycle::emit_after_event(
