@@ -3,6 +3,7 @@
 // in the demo, so nothing aspirational.
 
 import { CAMP_PAGES } from "./camp-pages";
+import { TOKEN_PAGES } from "./token-pages";
 
 export interface PageSection {
   title: string;
@@ -58,7 +59,7 @@ export const MODULE_PAGES: ModulePage[] = [
       { q: "Can we start with a few departments?", a: "Yes. Switch on the modules you use — front desk and OPD first — and add the rest as you grow." },
     ],
     posts: ["why-indian-hospitals-need-a-hims", "how-medbrains-is-built-to-run-lean"],
-    related: ["clinic-management-software", "pharmacy-management-software", "hospital-billing-software", "lab-management-software"],
+    related: ["clinic-management-software", "hospital-token-system", "pharmacy-management-software", "hospital-billing-software", "lab-management-software"],
   },
   {
     slug: "pharmacy-management-software",
@@ -136,24 +137,9 @@ export const MODULE_PAGES: ModulePage[] = [
       { title: "A patient app", body: "Appointments, results, medicines, bills and refill requests on iOS and Android." },
     ],
     faq: [{ q: "Is it too much for a small clinic?", a: "No — switch on only what you use and add departments as you grow." }],
-    related: ["opd-queue-management", "hospital-management-software", "pharmacy-management-software"],
+    related: ["opd-queue-management", "clinic-token-management-system", "hospital-management-software", "pharmacy-management-software"],
   },
-  {
-    slug: "opd-queue-management",
-    title: "OPD Queue Management System with Tokens | MedBrains",
-    description: "An OPD queue management system for Indian hospitals: waiting-room TV boards, priority rules, self check-in and live queue updates across departments.",
-    eyebrow: "Queues and tokens",
-    h1: "An OPD queue management system the whole waiting room can read",
-    intro: "MedBrains' OPD queue management system issues tokens at the desk or a kiosk and calls them on TV boards that update live, so patients stop asking the desk who's next.",
-    features: [
-      { title: "TV boards", body: "Now-serving and next-up boards for each department, readable across the room." },
-      { title: "Priority by rule", body: "Senior citizens, emergencies and other priorities move up by the rules you set." },
-      { title: "Self check-in", body: "Patients with an appointment check themselves in at a kiosk." },
-      { title: "Wait times you can measure", body: "Median wait and consult times against the usual day, on the management dashboard." },
-    ],
-    faq: [{ q: "Do the boards need special hardware?", a: "Any TV with a browser shows a board." }],
-    related: ["clinic-management-software", "hospital-management-software"],
-  },
+  ...TOKEN_PAGES,
   ...CAMP_PAGES,
   {
     slug: "hospital-marketing-software",
