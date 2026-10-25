@@ -9,9 +9,9 @@
 //! `api_key_secret` reference is set, so keys live in the secret store rather
 //! than the database or process env.
 
+use medbrains_core::ai_redact::Redacted;
 use serde::Serialize;
 use serde::de::DeserializeOwned;
-use medbrains_core::ai_redact::Redacted;
 use uuid::Uuid;
 
 use medbrains_server_core::error::AppError;
@@ -76,7 +76,10 @@ pub async fn resolve_config(state: &AppState, tenant_id: &Uuid) -> Result<AiConf
         .map(str::to_owned)
         .or_else(|| std::env::var("AI_MODEL").ok())
         .unwrap_or_else(|| default_model.to_owned());
-    let enabled = cfg.get("assistant_enabled").and_then(serde_json::Value::as_bool) != Some(false);
+    let enabled = cfg
+        .get("assistant_enabled")
+        .and_then(serde_json::Value::as_bool)
+        != Some(false);
 
     // Ollama is keyless (local). Others resolve a key from the secret store or env.
     let api_key = if provider == "ollama" {
@@ -114,21 +117,69 @@ pub async fn resolve_config(state: &AppState, tenant_id: &Uuid) -> Result<AiConf
 ///
 /// Callers that need raw function-calling (e.g. the simulator's native tool
 /// loop) resolve the base here and POST `{base}/chat/completions` themselves.
-#[must_use]
-pub fn openai_compat_base_url(provider: &str) -> Option<String> {
+///
+/// # Errors
+/// `ServiceUnavailable` when Bedrock is configured for a region outside India.
+pub fn openai_compat_base_url(provider: &str) -> Result<Option<String>, AppError> {
     match provider {
-        "openrouter" => Some("https://openrouter.ai/api/v1".to_owned()),
-        "bedrock" => {
-            let region = std::env::var("AWS_REGION")
-                .or_else(|_| std::env::var("BEDROCK_REGION"))
-                // India by default (DPDP s.16): PHI-bearing prompts stay in
-                // ap-south-1 unless a deployment deliberately names another region.
-                .unwrap_or_else(|_| "ap-south-1".to_owned());
-            Some(std::env::var("BEDROCK_BASE_URL").unwrap_or_else(|_| {
-                format!("https://bedrock-runtime.{region}.amazonaws.com/openai/v1")
-            }))
-        }
-        _ => None,
+        "openrouter" => Ok(Some("https://openrouter.ai/api/v1".to_owned())),
+        "bedrock" => bedrock_base_url().map(Some),
+        _ => Ok(None),
+    }
+}
+
+/// The only regions a Bedrock call may go to. Every assistant call can carry
+/// patient data, and patient data never leaves India (DPDP s.16).
+pub const INDIA_REGIONS: [&str; 2] = ["ap-south-1", "ap-south-2"];
+
+/// Bedrock's OpenAI-compatible base URL, from `BEDROCK_BASE_URL` or
+/// `BEDROCK_REGION` (default `ap-south-1`). `AWS_REGION` is deliberately not
+/// read: it is set for other AWS work and once sent chats to the US.
+///
+/// # Errors
+/// `ServiceUnavailable` when the region or URL is outside [`INDIA_REGIONS`]:
+/// nothing is sent.
+pub fn bedrock_base_url() -> Result<String, AppError> {
+    let region = std::env::var("BEDROCK_REGION").ok();
+    let base = std::env::var("BEDROCK_BASE_URL").ok();
+    bedrock_url_from(region.as_deref(), base.as_deref())
+        .map_err(|why| AppError::ServiceUnavailable(format!("AI refused: {why}")))
+}
+
+/// [`bedrock_base_url`] without the environment, for tests and preflight.
+///
+/// # Errors
+/// Why the region or URL is refused.
+pub fn bedrock_url_from(region: Option<&str>, base: Option<&str>) -> Result<String, String> {
+    if let Some(base) = base.map(str::trim).filter(|b| !b.is_empty()) {
+        let host = base
+            .strip_prefix("https://")
+            .and_then(|rest| rest.split(['/', ':']).next())
+            .unwrap_or_default();
+        let in_india = host.ends_with(".amazonaws.com")
+            && host.split('.').any(|label| INDIA_REGIONS.contains(&label));
+        return if in_india {
+            Ok(base.trim_end_matches('/').to_owned())
+        } else {
+            Err(format!(
+                "BEDROCK_BASE_URL must be an https Bedrock endpoint in {} (patient data stays in India)",
+                INDIA_REGIONS.join(" or ")
+            ))
+        };
+    }
+    let region = region
+        .map(str::trim)
+        .filter(|r| !r.is_empty())
+        .unwrap_or(INDIA_REGIONS[0]);
+    if INDIA_REGIONS.contains(&region) {
+        Ok(format!(
+            "https://bedrock-runtime.{region}.amazonaws.com/openai/v1"
+        ))
+    } else {
+        Err(format!(
+            "BEDROCK_REGION={region} is outside India; use {} (patient data stays in India)",
+            INDIA_REGIONS.join(" or ")
+        ))
     }
 }
 
@@ -232,9 +283,7 @@ where
             // when pointed at the Bedrock base URL with the ABSK bearer key. (Anthropic
             // Claude on Bedrock is Marketplace-payment-gated on this account, so gpt-oss
             // is the usable Bedrock family.)
-            let base_url = openai_compat_base_url("bedrock").unwrap_or_else(|| {
-                "https://bedrock-runtime.ap-south-1.amazonaws.com/openai/v1".to_owned()
-            });
+            let base_url = bedrock_base_url()?;
             let client = openai::CompletionsClient::builder()
                 .api_key(&cfg.api_key)
                 .base_url(&base_url)
@@ -252,5 +301,40 @@ where
         other => Err(AppError::BadRequest(format!(
             "AI provider '{other}' is not supported by this build"
         ))),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::bedrock_url_from;
+
+    #[test]
+    fn bedrock_defaults_to_mumbai() {
+        assert_eq!(
+            bedrock_url_from(None, None).as_deref(),
+            Ok("https://bedrock-runtime.ap-south-1.amazonaws.com/openai/v1")
+        );
+        assert!(bedrock_url_from(Some("ap-south-2"), None).is_ok_and(|u| u.contains("ap-south-2")));
+    }
+
+    #[test]
+    fn bedrock_refuses_regions_outside_india() {
+        assert!(bedrock_url_from(Some("us-east-1"), None).is_err());
+        assert!(bedrock_url_from(Some("eu-west-1"), None).is_err());
+        let us = "https://bedrock-runtime.us-east-1.amazonaws.com/openai/v1";
+        assert!(bedrock_url_from(Some("ap-south-1"), Some(us)).is_err());
+        assert!(bedrock_url_from(None, Some("https://ap-south-1.evil.example/v1")).is_err());
+        assert!(
+            bedrock_url_from(
+                None,
+                Some("http://bedrock-runtime.ap-south-1.amazonaws.com")
+            )
+            .is_err()
+        );
+        let vpce = "https://vpce-1.bedrock-runtime.ap-south-1.vpce.amazonaws.com/openai/v1/";
+        assert_eq!(
+            bedrock_url_from(None, Some(vpce)).as_deref(),
+            Ok(vpce.trim_end_matches('/'))
+        );
     }
 }
