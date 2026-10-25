@@ -138,7 +138,9 @@ pub struct UpdateBookingStatusRequest {
 
 #[derive(Debug, Deserialize)]
 pub struct CreatePreopRequest {
-    pub clearance_status: String,
+    /// A new assessment is pending until the anaesthetist clears it; the web
+    /// form never sent this, so every pre-op assessment from it was a 422.
+    pub clearance_status: Option<String>,
     pub asa_class: Option<String>,
     pub airway_assessment: Option<serde_json::Value>,
     pub cardiac_assessment: Option<serde_json::Value>,
@@ -1163,7 +1165,7 @@ pub async fn create_preop(
     )
     .bind(claims.tenant_id)
     .bind(booking_id)
-    .bind(&body.clearance_status)
+    .bind(body.clearance_status.as_deref().unwrap_or("pending"))
     .bind(&body.asa_class)
     .bind(body.airway_assessment.as_ref().unwrap_or(&empty))
     .bind(body.cardiac_assessment.as_ref().unwrap_or(&empty))
