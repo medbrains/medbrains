@@ -255,5 +255,13 @@ if __name__ == "__main__":   # self-check: no record dated at/after go-live, rev
                 assert reg[rec["patient"]] <= rec.get("visited_at", rec.get("admitted_at")), rec["external_id"]
     times = [v for recs in p.days.values() for rec in recs for k, v in rec.items() if k.endswith("_at") and v]
     assert max(dt.datetime.fromisoformat(t) for t in times) < gl
+    seen = set()
+    for b in p.batches(200):   # every reference is in the same batch or an earlier one
+        ids = {r["external_id"] for r in b}
+        for r in b:
+            for k in ("patient", "visit", "admission", "invoice"):
+                v = r.get(k)
+                assert not (v and v.startswith("HX-") and v not in seen and v not in ids), (r["external_id"], v)
+        seen |= ids
     n = sum(len(v) for v in p.days.values())
     print(f"records {n:,} revenue Rs {p.revenue / 1e7:.2f} crore batches {sum(1 for _ in p.batches())}")
