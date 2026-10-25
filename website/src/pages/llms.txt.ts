@@ -3,6 +3,7 @@ import { SITE } from "../consts";
 import { FAQ, MODULE_GROUPS, SURFACES, TRUST } from "../data/content";
 import { GUIDE_LIST, RESOURCES, TOOLS } from "../data/guides";
 import { MODULE_PAGES } from "../data/modules";
+import { CHARGES, PASS_THROUGH, SEVA, SUPPORT_US } from "../data/pricing";
 import { getPosts } from "../lib/blog";
 
 // llms.txt (llmstxt.org): a plain summary for AI assistants, built from the
@@ -22,6 +23,15 @@ export const GET: APIRoute = async ({ site }) => {
     ...SURFACES.map((s) => `- ${s.kicker}: ${s.body}`),
     "- ABDM, NHCX and UHI: built for these networks; not yet certified by NHA.",
     `- Contact: ${SITE.email}`,
+    "",
+    "## Pricing",
+    "- The MedBrains software and every update are free for every hospital and clinic: no subscription, no charge per user.",
+    ...CHARGES.map((c) => `- ${c.title} (${c.when.toLowerCase()}): ${c.body}`),
+    `- ${PASS_THROUGH}`,
+    `- ${SEVA.line}`,
+    `- ${SUPPORT_US.title}: ${SUPPORT_US.rules}`,
+    link("Pricing", "/pricing", "what is free, what we charge for, and how to get a quote"),
+    link("Commercial terms", "/terms", "our standard terms for implementation, customisation, AMC, hosting and data"),
     "",
     "## Modules",
     ...MODULE_GROUPS.map((g) => `- ${g.label}: ${g.items.join(", ")}`),

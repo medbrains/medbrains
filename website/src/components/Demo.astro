@@ -5,8 +5,14 @@ import { ENQUIRY_TENANT, SITE, WHATSAPP } from "../consts";
 interface Props {
   /** Which page the lead came from, when the URL carries no ?from= or utm_source. */
   source?: string;
+  /** The size question; /pricing asks for a plan instead of beds. */
+  size?: { label: string; options: string[] };
 }
-const { source = "website" } = Astro.props;
+const SIZE = {
+  label: "Beds",
+  options: ["Clinic (no beds)", "Up to 50 beds", "50–200 beds", "200+ beds", "Group of hospitals"],
+};
+const { source = "website", size = SIZE } = Astro.props;
 
 const waBase = `https://wa.me/${WHATSAPP.number}`;
 const waHref = `${waBase}?text=${encodeURIComponent(WHATSAPP.prefilledText)}`;
@@ -36,13 +42,9 @@ const enquiryUrl = ENQUIRY_TENANT ? `${SITE.app}/api/public/marketing/enquiry` :
         <label>Phone<input name="phone" type="tel" required autocomplete="tel" inputmode="tel" /></label>
         <label>City<input name="city" autocomplete="address-level2" /></label>
       </div>
-      <label>Beds
+      <label>{size.label}
         <select name="beds">
-          <option>Clinic (no beds)</option>
-          <option>Up to 50 beds</option>
-          <option>50–200 beds</option>
-          <option>200+ beds</option>
-          <option>Group of hospitals</option>
+          {size.options.map((o) => <option>{o}</option>)}
         </select>
       </label>
       <label>What would you like to see?<textarea name="message" rows="3"></textarea></label>
@@ -118,7 +120,7 @@ const enquiryUrl = ENQUIRY_TENANT ? `${SITE.app}/api/public/marketing/enquiry` :
     background: radial-gradient(800px 500px at 90% 20%, var(--glow-blue), transparent 65%),
       radial-gradient(600px 420px at 0% 90%, var(--glow-green), transparent 65%), var(--night-2);
   }
-  .layout { display: grid; grid-template-columns: 1fr 1fr; gap: 72px; align-items: start; }
+  .layout { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 72px; align-items: start; }
   .points { list-style: none; padding: 0; margin: 32px 0; display: grid; gap: 12px; }
   .points li { padding-left: 32px; position: relative; font-weight: 500; }
   .points li::before { content: "✓"; position: absolute; left: 0; width: 22px; height: 22px; border-radius: 50%; display: grid; place-items: center; font-size: .7rem; background: var(--blue); color: #fff; }
@@ -137,6 +139,6 @@ const enquiryUrl = ENQUIRY_TENANT ? `${SITE.app}/api/public/marketing/enquiry` :
   .status { margin: 0; font-weight: 600; color: var(--blue-deep); text-align: center; }
   .status:empty { display: none; }
   .fine { margin: 0; font-size: .82rem; color: var(--muted); text-align: center; }
-  @include below(lg) { .layout { grid-template-columns: 1fr; gap: 48px; } }
+  @include below(lg) { .layout { grid-template-columns: minmax(0, 1fr); gap: 48px; } }
   @include below(sm) { .two { grid-template-columns: 1fr; } .form { padding: 24px; } }
 </style>
