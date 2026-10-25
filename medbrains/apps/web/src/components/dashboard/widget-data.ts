@@ -1,6 +1,6 @@
 /** Reading a widget's resolved data, shared by its tile and its expanded view. */
 
-import { formatDateTime } from "@/lib/date-utils";
+import { formatDate, formatDateTime } from "@/lib/date-utils";
 
 /** Read a JSON-ish value from an unknown record. */
 export function field(obj: unknown, key: string): unknown {
@@ -45,4 +45,15 @@ export function cellText(value: unknown): string {
     return words.charAt(0).toUpperCase() + words.slice(1);
   }
   return String(value ?? "—");
+}
+
+/**
+ * What a plain count tile says about its day once a past day is chosen: the
+ * day, when the server read it for that day (`as_of` in its data), or that
+ * it is still today's figure — never today's number under an old date.
+ */
+export function asOfNote(data: unknown, asOf: string | null | undefined): string | undefined {
+  if (!asOf) return undefined;
+  const day = field(data, "as_of");
+  return typeof day === "string" ? `On ${formatDate(day)}` : "Live — not dated";
 }

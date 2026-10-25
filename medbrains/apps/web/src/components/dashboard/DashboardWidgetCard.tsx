@@ -17,7 +17,7 @@ import { columnValues } from "./series-stats";
 import { TrendChart, type TrendKind } from "./TrendChart";
 import { useWidgetCompare } from "./useWidgetCompare";
 import { WidgetExpandedView } from "./WidgetExpandedView";
-import { cellText, field, formatValue, rows } from "./widget-data";
+import { asOfNote, cellText, field, formatValue, rows } from "./widget-data";
 import { WidgetIcon } from "./widgetIcons";
 
 const WidgetAskAi = lazy(() => import("./WidgetAskAi"));
@@ -28,6 +28,8 @@ interface Props {
   loading: boolean;
   /** What a management KPI is set against; the same weekday unless chosen. */
   compare?: KpiBaseline;
+  /** The past day the dashboard is read for (YYYY-MM-DD); null when live. */
+  asOf?: string | null;
 }
 
 interface QuickAction {
@@ -162,6 +164,7 @@ function WidgetBody({
   data,
   loading,
   compare = "weekday",
+  asOf,
   onExpand,
   onCompareChange,
 }: Props & { onExpand?: () => void; onCompareChange: (next: KpiBaseline) => void }) {
@@ -190,6 +193,7 @@ function WidgetBody({
         icon={<WidgetIcon name={widget.icon} />}
         color={widget.color ?? "primary"}
         comparison={compareKpi(data, compare) ?? undefined}
+        note={data.value === null ? "No data for this day" : undefined}
         sparkline={data.series.map((d) => d.value)}
         actions={
           <>
@@ -219,6 +223,7 @@ function WidgetBody({
         }
         icon={<WidgetIcon name={widget.icon} />}
         color={widget.color ?? "primary"}
+        note={loading ? undefined : asOfNote(data, asOf)}
         onClick={onExpand}
         actionLabel={`Expand ${widget.title}`}
       />

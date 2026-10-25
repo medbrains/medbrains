@@ -139,6 +139,7 @@ export function DashboardPage() {
                 data={dataById.get(widget.id)}
                 loading={dataLoading}
                 compare={compare}
+                asOf={asOf}
               />
             </Box>
           ))}
