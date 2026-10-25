@@ -5,6 +5,7 @@ import { useDebouncedValue } from "@mantine/hooks";
 import { useHasPermission } from "@medbrains/stores";
 import type { AdmissionRow } from "@medbrains/types";
 import { P, PATIENT_BASIC_IDENTITY_FIELD_ACCESS_KEYS } from "@medbrains/types";
+import { snakeToTitle } from "@medbrains/utils";
 import { IconEye, IconPlus, IconSearch } from "@tabler/icons-react";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
@@ -76,7 +77,7 @@ export function AdmissionsTab() {
       key: "status",
       label: "Status",
       render: (row: AdmissionRow) => (
-        <StatusDot color={statusColor(row.status) ?? "slate"} label={row.status} />
+        <StatusDot color={statusColor(row.status) ?? "slate"} label={snakeToTitle(row.status)} />
       ),
     },
     {
