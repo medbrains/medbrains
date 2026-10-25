@@ -56,7 +56,7 @@ Agricultural Research Institute counted 287 farm fires across north and
 central India between 15 September and 6 October, with Madhya Pradesh (118)
 ahead of Punjab (88) so far. On 21 October farm fires contributed an
 estimated 3.9% of Delhi's fine particle pollution, with forecasts of nearly
-16% later in the week. Diwali and the peak of the harvest are still ahead.
+16% later in the week. The peak of the harvest is still ahead.
 
 This is not only a Delhi story. Many cities across the Indo-Gangetic plain
 see the same winter pattern, and the health advice below applies wherever the
@@ -234,7 +234,7 @@ illness; oxygen supply, nebulisers and ventilators; beds, stretchers,
 wheelchairs and ambulances; and clear referral pathways. Practically, that
 means checking oxygen stock and bronchodilator and steroid supply before the
 peak, planning extra emergency beds, and protecting staff rosters for the
-weeks after Diwali.
+worst weeks of the season.
 
 **4. Triage for the vulnerable.** Fast-track breathless children, pregnant
 women and older patients, and screen every chest-pain and stroke presentation
