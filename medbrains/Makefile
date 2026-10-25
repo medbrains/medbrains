@@ -929,3 +929,21 @@ hybrid-tf-validate: ## Validate every hybrid TF module without applying
 
 check-fabricated-print: ## Find printed documents that invent their contents
 	python3 scripts/check_fabricated_print_data.py
+
+# ── Demo hospital (G2DEMO) ─────────────────────────────────────────
+DEMO_PGPORT ?= 5435
+.PHONY: demo-seed demo-restore
+demo-seed: ## Seed the G2DEMO demo hospital through the API (scripts/demo-seed/README.md)
+	python3 scripts/demo-seed/run_all.py
+
+demo-restore: ## Restore a demo snapshot into a NEW database (DEMO_DUMP=… DEMO_DB=…)
+	@test -n "$(DEMO_DUMP)" -a -f "$(DEMO_DUMP)" || { echo "DEMO_DUMP must name a pg_dump -Fc file"; exit 1; }
+	@test -n "$(DEMO_DB)" || { echo "DEMO_DB must name the new database"; exit 1; }
+	@test "$(DEMO_DB)" != "medbrains" || { echo "refusing to restore over the shared medbrains database"; exit 1; }
+	@set -e; PW="$${PGPASSWORD:-$$(grep -s '^DATABASE_URL' .env | sed -E 's#.*//[^:]+:([^@]+)@.*#\1#')}"; \
+	PSQL="psql -w -h localhost -p $(DEMO_PGPORT) -U medbrains"; \
+	EXISTS=$$(PGPASSWORD="$$PW" $$PSQL -d postgres -Atc "select 1 from pg_database where datname='$(DEMO_DB)'"); \
+	test -z "$$EXISTS" || { echo "database $(DEMO_DB) already exists; pick a new name"; exit 1; }; \
+	PGPASSWORD="$$PW" createdb -w -h localhost -p $(DEMO_PGPORT) -U medbrains "$(DEMO_DB)"; \
+	PGPASSWORD="$$PW" pg_restore -w -h localhost -p $(DEMO_PGPORT) -U medbrains -d "$(DEMO_DB)" --no-owner "$(DEMO_DUMP)"; \
+	echo "restored $(DEMO_DUMP) into $(DEMO_DB) on :$(DEMO_PGPORT)"
