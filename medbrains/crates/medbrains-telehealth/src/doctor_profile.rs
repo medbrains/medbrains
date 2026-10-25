@@ -173,6 +173,9 @@ pub async fn get_doctor(
     Ok(Json(row))
 }
 
+/// Create, or complete, a doctor's profile. Every doctor account already has
+/// one (migration 1215 creates it with the user), so "Add doctor" for such a
+/// user fills in the profile instead of failing on the duplicate.
 pub async fn create_doctor(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
@@ -192,6 +195,24 @@ pub async fn create_doctor(
             can_perform_surgery, can_sign_mlc, can_sign_death_certificate, \
             can_sign_fitness_certificate, bio_short, photo_url, languages_spoken \
          ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22) \
+         ON CONFLICT (tenant_id, user_id) DO UPDATE SET \
+            prefix = EXCLUDED.prefix, display_name = EXCLUDED.display_name, \
+            qualification_string = EXCLUDED.qualification_string, \
+            mci_number = EXCLUDED.mci_number, \
+            state_council_number = EXCLUDED.state_council_number, \
+            state_council_name = EXCLUDED.state_council_name, \
+            registration_valid_until = EXCLUDED.registration_valid_until, \
+            specialty_ids = EXCLUDED.specialty_ids, subspecialty = EXCLUDED.subspecialty, \
+            years_experience = EXCLUDED.years_experience, \
+            is_full_time = EXCLUDED.is_full_time, is_visiting = EXCLUDED.is_visiting, \
+            can_prescribe_schedule_x = EXCLUDED.can_prescribe_schedule_x, \
+            can_perform_surgery = EXCLUDED.can_perform_surgery, \
+            can_sign_mlc = EXCLUDED.can_sign_mlc, \
+            can_sign_death_certificate = EXCLUDED.can_sign_death_certificate, \
+            can_sign_fitness_certificate = EXCLUDED.can_sign_fitness_certificate, \
+            bio_short = EXCLUDED.bio_short, photo_url = EXCLUDED.photo_url, \
+            languages_spoken = EXCLUDED.languages_spoken, \
+            deleted_at = NULL, deleted_by = NULL, delete_reason = NULL, updated_at = now() \
          RETURNING *",
     )
     .bind(claims.tenant_id)

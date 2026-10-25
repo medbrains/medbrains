@@ -251,7 +251,9 @@ async fn hpr_ids_are_recorded_verified_and_counted() {
         let user = common::provision_staff(&app, &csrf, "nurse", &[]).await;
         let id: Uuid = sqlx::query_scalar(
             "INSERT INTO doctor_profiles (tenant_id, user_id, display_name) \
-             VALUES ($1, $2, 'Dr HPR Test') RETURNING id",
+             VALUES ($1, $2, 'Dr HPR Test') \
+             ON CONFLICT (tenant_id, user_id) DO UPDATE SET display_name = EXCLUDED.display_name \
+             RETURNING id",
         )
         .bind(tenant)
         .bind(user.user_id)
@@ -261,10 +263,9 @@ async fn hpr_ids_are_recorded_verified_and_counted() {
         doctors.push(id);
     }
     let after = coverage(&app, &csrf).await;
-    assert_eq!(
-        count(&after, "active_doctors"),
-        count(&before, "active_doctors") + 2
-    );
+    // At least: every doctor account other tests provision meanwhile now has a
+    // profile too (migration 1215), so an exact delta races them.
+    assert!(count(&after, "active_doctors") >= count(&before, "active_doctors") + 2);
     assert_eq!(count(&after, "with_hpr_id"), count(&before, "with_hpr_id"));
     let missing = |v: &Value, id: Uuid| {
         v["missing"]
