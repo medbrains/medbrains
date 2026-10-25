@@ -47,19 +47,10 @@ export const userSchema = z.object({
   username: z.string(),
   email: z.string().email(),
   full_name: z.string(),
-  role: z.enum([
-    "super_admin",
-    "hospital_admin",
-    "doctor",
-    "nurse",
-    "receptionist",
-    "lab_technician",
-    "pharmacist",
-    "billing_clerk",
-    "housekeeping_staff",
-    "facilities_manager",
-    "audit_officer",
-  ]),
+  // The server's role, whatever it is. The database has more roles than this
+  // client names (mrd_officer, radiology_tech, the SSO default `staff`, …);
+  // an enum here refused to sign any of them in.
+  role: z.string().min(1),
   access_matrix: z.record(z.string(), z.unknown()),
   is_active: z.boolean(),
   created_at: z.string(),
