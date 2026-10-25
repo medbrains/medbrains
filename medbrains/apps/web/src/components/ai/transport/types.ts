@@ -57,6 +57,8 @@ export interface ChatMessage {
   patientId?: string;
   /** Why the turn failed, in words for the user (e.g. "couldn't run AI safely"). */
   error?: string;
+  /** What the server's answer guard removed from this answer, and why. */
+  guardNotices?: string[];
 }
 
 /** Ordered parts for a message: explicit `parts` win, else derived from content + convenience fields. */
@@ -87,6 +89,7 @@ export type ChatChunk =
   | { type: "tool"; toolCall: ChatToolCall }
   | { type: "tool_result"; id: string; result: unknown }
   | { type: "source"; source: ChatSource }
+  | { type: "guard"; notices: string[] }
   | { type: "done" }
   | { type: "error"; error: string };
 

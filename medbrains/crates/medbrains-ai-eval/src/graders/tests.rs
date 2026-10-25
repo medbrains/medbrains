@@ -93,7 +93,7 @@ fn missing_facts_forbidden_content_length_and_refusal_are_graded() {
     assert!(r.is_some());
     if let (Some(c), Some(r)) = (c, r) {
         assert_eq!(
-            rules(grade_output(&c, &r, "Potassium is high here today")),
+            rules(grade_output(&c, &r, "Potassium is high here today", &[])),
             [
                 "missing_fact",
                 "forbidden_content",
@@ -102,7 +102,7 @@ fn missing_facts_forbidden_content_length_and_refusal_are_graded() {
             ]
         );
         assert_eq!(
-            rules(grade_output(&c, &r, "Cannot advise; metformin")),
+            rules(grade_output(&c, &r, "Cannot advise; metformin", &[])),
             Vec::<&str>::new()
         );
     }

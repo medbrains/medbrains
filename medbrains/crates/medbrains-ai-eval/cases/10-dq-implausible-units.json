@@ -54,6 +54,5 @@
     "162",
     "37",
     "3"
-  ],
-  "known_failure": "Finding: the model adds an invented conversion (680 lb = 308 kg); earlier runs added reference ranges (150-190 cm, 36-38 C). Additions beyond the record."
+  ]
 }

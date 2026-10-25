@@ -116,6 +116,8 @@ export function useAiChat({
                 t.id === chunk.id ? { ...t, result: chunk.result, status: "done" } : t,
               ),
             }));
+          } else if (chunk.type === "guard") {
+            patch((m) => ({ ...m, guardNotices: chunk.notices }));
           } else if (chunk.type === "source") {
             patch((m) => ({ ...m, sources: [...(m.sources ?? []), chunk.source] }));
           } else if (chunk.type === "error") {

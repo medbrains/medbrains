@@ -1339,6 +1339,8 @@ pub async fn chat(
     store_turn(&state, tenant_id, conversation_id, "user", message.for_model(), &session).await?;
 
     let turn = Turn {
+        guard: medbrains_core::ai_guard::AnswerGuard::new(message.for_model()),
+        context: context.for_model().to_owned(),
         message,
         history: prior,
         state: state.clone(),
@@ -1435,6 +1437,10 @@ pub async fn chat(
 
 /// One assistant turn's inputs, already redacted.
 struct Turn {
+    /// Checks the answer, sentence by sentence, before the user sees it.
+    guard: medbrains_core::ai_guard::AnswerGuard,
+    /// The redacted page context: what the answer may restate.
+    context: String,
     message: Redacted,
     history: Vec<rig::completion::Message>,
     state: AppState,
@@ -1459,7 +1465,18 @@ where
     use rig::agent::MultiTurnStreamItem;
     use rig::streaming::{StreamedAssistantContent, StreamedUserContent, StreamingPrompt as _};
 
-    let Turn { message, history, state, tenant_id, conversation_id, kb_hits, session } = turn;
+    let Turn {
+        mut guard,
+        context,
+        message,
+        history,
+        state,
+        tenant_id,
+        conversation_id,
+        kb_hits,
+        session,
+    } = turn;
+    guard.add_record(&context);
     async_stream::stream! {
         // Emit the retrieved KB entries as grounding sources (cited in the UI).
         for (i, hit) in kb_hits.iter().enumerate() {
@@ -1486,10 +1503,12 @@ where
         while let Some(item) = chunks.next().await {
             match item {
                 Ok(MultiTurnStreamItem::StreamAssistantItem(StreamedAssistantContent::Text(t))) => {
-                    answer.push_str(&t.text);
+                    // Only sentences the guard passes are stored or shown.
+                    let passed = guard.push(&t.text);
+                    answer.push_str(&passed);
                     let text = session.lock().map_or_else(
                         |_| String::new(),
-                        |r| shown.push(&t.text, r.map()),
+                        |r| shown.push(&passed, r.map()),
                     );
                     if !text.is_empty() {
                         yield sse(&serde_json::json!({ "type": "text", "text": text }));
@@ -1522,6 +1541,7 @@ where
                         rig::completion::message::ToolResultContent::Image(_) => None,
                     });
                     let result: Option<serde_json::Value> = text.map(|t| {
+                        guard.add_record(&t);
                         let t = redaction::for_user(&session, &t);
                         serde_json::from_str(&t).unwrap_or(serde_json::Value::String(t))
                     });
@@ -1542,9 +1562,20 @@ where
                 }
             }
         }
-        let rest = session.lock().map_or_else(|_| String::new(), |r| shown.finish(r.map()));
+        let passed = guard.finish();
+        answer.push_str(&passed);
+        let rest = session.lock().map_or_else(
+            |_| String::new(),
+            |r| format!("{}{}", shown.push(&passed, r.map()), shown.finish(r.map())),
+        );
         if !rest.is_empty() {
             yield sse(&serde_json::json!({ "type": "text", "text": rest }));
+        }
+        // Said, never silent: what the guard removed and why.
+        let notices = guard.notices();
+        if !notices.is_empty() {
+            tracing::info!(target: "ai", removed = notices.len(), "answer guard removed text");
+            yield sse(&serde_json::json!({ "type": "guard", "notices": notices }));
         }
 
         // Stored as the model wrote it — in placeholders — with the map.
