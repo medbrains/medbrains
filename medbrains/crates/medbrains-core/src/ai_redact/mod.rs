@@ -334,6 +334,22 @@ impl Redactor {
             .collect()
     }
 
+    /// The assistant's own earlier answer, replayed as history: its amounts
+    /// are figures it was already given (aggregates, totals), so they stay as
+    /// written — turned into `[AMOUNT_n]` they read to the model as
+    /// placeholders it never wrote, and it "confessed" to them. Identifiers
+    /// are redacted as always.
+    ///
+    /// # Errors
+    /// As [`Self::redact`].
+    pub fn redact_own_answer(&mut self, text: &str) -> Result<Redacted, RedactError> {
+        let kept = self.keep_amounts;
+        self.keep_amounts = true;
+        let out = self.redact(text);
+        self.keep_amounts = kept;
+        out
+    }
+
     /// Keep money amounts (a billing task that needs them). Off by default.
     #[must_use]
     pub const fn keeping_amounts(mut self) -> Self {

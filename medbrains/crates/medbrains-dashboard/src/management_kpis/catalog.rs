@@ -307,11 +307,15 @@ pub(super) fn kpi(code: &str) -> Option<Kpi> {
             clock: true,
             shape: Shape::Daily,
             departmental: false,
+            // A day with an in-house admission that has no bed recorded (imported
+            // history) is unknown, not a confident 0%: it read 0% for every day
+            // before the import's first bedded admission, baselines included.
             sql: "SELECT d::date AS day, \
-                    (100.0 * COUNT(a.id) / NULLIF((SELECT COUNT(*) FROM ward_bed_mappings \
-                      WHERE is_active AND deleted_at IS NULL), 0))::float8 \
+                    CASE WHEN COUNT(a.id) FILTER (WHERE a.bed_id IS NULL) > 0 THEN NULL \
+                    ELSE (100.0 * COUNT(a.id) / NULLIF((SELECT COUNT(*) FROM ward_bed_mappings \
+                      WHERE is_active AND deleted_at IS NULL), 0))::float8 END \
                   FROM generate_series($1::date, $2::date, INTERVAL '1 day') d \
-                  LEFT JOIN admissions a ON a.deleted_at IS NULL AND a.bed_id IS NOT NULL \
+                  LEFT JOIN admissions a ON a.deleted_at IS NULL \
                    AND a.admitted_at < timezone($3, d::date + COALESCE($4::time, '24:00'::time)) \
                    AND (a.discharged_at IS NULL OR a.discharged_at \
                         >= timezone($3, d::date + COALESCE($4::time, '24:00'::time))) \
@@ -431,7 +435,11 @@ mod tests {
                 k.clock && k.shape == Shape::Daily,
                 "{code}: $4 is the clock cut-off, daily KPIs only"
             );
-            assert_eq!(k.sql.contains("$5"), k.departmental, "{code}: $5 is the department");
+            assert_eq!(
+                k.sql.contains("$5"),
+                k.departmental,
+                "{code}: $5 is the department"
+            );
             assert!(
                 !k.departmental || (k.clock && k.shape == Shape::Daily),
                 "{code}: a department filter needs $3 and $4 bound before it"

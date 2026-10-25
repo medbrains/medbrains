@@ -23,11 +23,16 @@ use medbrains_core::ai_redact::Redacted;
 use medbrains_core::permissions;
 
 mod aggregate;
+mod aggregate_tool;
 mod agui;
 mod catalog;
 mod contact_access;
 mod dates;
+mod emit;
+mod kept;
 mod redaction;
+mod replay;
+mod revenue;
 mod show;
 mod turn;
 use medbrains_server_core::middleware::auth::Claims;
@@ -285,6 +290,8 @@ struct PreparedTurn {
     kb_hits: Vec<KbHit>,
     /// The conversation's placeholder map, so placeholders stay stable.
     pseudonyms: Option<serde_json::Value>,
+    /// The user's questions from before the recent history, oldest first.
+    earlier: Vec<String>,
 }
 
 // ── Guarded clinical tool: drug safety check (RFC Phase 3) ────────────
@@ -1195,16 +1202,26 @@ async fn open_turn(
 
     // The most recent messages only, oldest first: a bounded read, and a
     // bounded prompt however long the conversation runs.
+    // One bounded read: the last messages in full, and before them enough to
+    // find the user's earlier questions (a topic set many turns ago).
+    let recent = usize::from(medbrains_core::ai_guard::HISTORY_MESSAGES);
+    let window = recent + 2 * medbrains_core::ai_history::EARLIER_QUESTIONS;
     let mut history_rows = sqlx::query_as::<_, HistoryRow>(
         "SELECT role, content FROM ai_messages \
          WHERE conversation_id = $1 AND tenant_id = $2 ORDER BY created_at DESC LIMIT $3",
     )
     .bind(conversation_id)
     .bind(tenant_id)
-    .bind(i64::from(medbrains_core::ai_guard::HISTORY_MESSAGES))
+    .bind(i64::try_from(window).unwrap_or(i64::MAX))
     .fetch_all(&mut *tx)
     .await?;
     history_rows.reverse();
+    let older = history_rows.len().saturating_sub(recent);
+    let earlier: Vec<String> = history_rows
+        .drain(..older)
+        .filter(|r| r.role == "user")
+        .map(|r| r.content)
+        .collect();
 
     let kb_hits = retrieve_kb(&mut tx, message).await?;
     tx.commit().await?;
@@ -1216,6 +1233,7 @@ async fn open_turn(
         grounded_patient,
         kb_hits,
         pseudonyms,
+        earlier,
     })
 }
 
@@ -1261,8 +1279,16 @@ async fn bind_conversation_patient(
 /// fetched on demand by the tools, not pre-injected. Redacted before use, and
 /// sent in the user turn — never in the system prompt, whose bytes must not
 /// change between turns or the cached prefix is rewritten every time.
-fn build_context(context: Option<&serde_json::Value>, kb_hits: &[KbHit]) -> String {
+fn build_context(
+    context: Option<&serde_json::Value>,
+    kb_hits: &[KbHit],
+    earlier: &[String],
+) -> String {
     let mut parts: Vec<String> = Vec::new();
+    let refs: Vec<&str> = earlier.iter().map(String::as_str).collect();
+    if let Some(line) = medbrains_core::ai_history::earlier_questions(&refs) {
+        parts.push(line);
+    }
     if let Some(ctx) = context.filter(|c| !c.is_null()) {
         // Ids only, as JSON; what to do with them is in the cached system prompt.
         parts.push(format!("Screen: {ctx}"));
@@ -1311,6 +1337,7 @@ pub async fn chat(
         grounded_patient,
         kb_hits,
         pseudonyms,
+        earlier,
     } = open_turn(&state, &claims, &req, &cfg, &message).await?;
     let tenant_id = claims.tenant_id;
     // The assistant acts for the clinician, never as them: every read its tools
@@ -1339,7 +1366,7 @@ pub async fn chat(
         medbrains_server_services::llm::unsafe_to_send(&e)
     };
     let context = redactor
-        .redact(&build_context(req.context.as_ref(), &kb_hits))
+        .redact(&build_context(req.context.as_ref(), &kb_hits, &earlier))
         .map_err(unsafe_)?;
     let message = redactor.redact(&message).map_err(unsafe_)?;
     // A question that itself names a restricted class is not sent at all, and
@@ -1347,14 +1374,7 @@ pub async fn chat(
     if message.is_withheld() {
         return Err(AppError::BadRequest(RESTRICTED_QUESTION.to_owned()));
     }
-    let mut prior = Vec::with_capacity(history.len());
-    for row in history {
-        let text = redactor.redact(&row.content).map_err(unsafe_)?;
-        prior.push(match row.role.as_str() {
-            "assistant" => rig::message::Message::assistant(text.for_model()),
-            _ => rig::message::Message::user(text.for_model()),
-        });
-    }
+    let prior = replay_history(&mut redactor, history).map_err(unsafe_)?;
     let session: redaction::Session = std::sync::Arc::new(std::sync::Mutex::new(redactor));
     // Stored as the model received it, with the map to read it back.
     store_turn(
@@ -1364,6 +1384,7 @@ pub async fn chat(
         "user",
         message.for_model(),
         &session,
+        None,
     )
     .await?;
 
@@ -1382,6 +1403,7 @@ pub async fn chat(
         tenant_id,
         conversation_id,
         run_id,
+        model: cfg.model.clone(),
         kb_hits,
         session: std::sync::Arc::clone(&session),
     };
@@ -1400,6 +1422,26 @@ pub async fn chat(
     Ok(Sse::new(boxed).keep_alive(KeepAlive::default()))
 }
 
+/// Earlier messages as the model receives them: the user's redacted, the
+/// assistant's own with its amounts as written (it was given them already).
+fn replay_history(
+    redactor: &mut medbrains_core::ai_redact::Redactor,
+    history: Vec<HistoryRow>,
+) -> Result<Vec<rig::message::Message>, medbrains_core::ai_redact::RedactError> {
+    history
+        .into_iter()
+        .map(|row| {
+            Ok(if row.role == "assistant" {
+                rig::message::Message::assistant(
+                    redactor.redact_own_answer(&row.content)?.for_model(),
+                )
+            } else {
+                rig::message::Message::user(redactor.redact(&row.content)?.for_model())
+            })
+        })
+        .collect()
+}
+
 /// Store one turn (redacted text) and the conversation's placeholder map, and
 /// touch the conversation, under RLS.
 async fn store_turn(
@@ -1409,19 +1451,21 @@ async fn store_turn(
     role: &'static str,
     content: &str,
     session: &redaction::Session,
+    parts: Option<&serde_json::Value>,
 ) -> Result<(), AppError> {
     let map = redaction::map_of(session)
         .ok_or_else(|| AppError::Internal("redaction map unavailable".to_owned()))?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &tenant_id).await?;
     sqlx::query(
-        "INSERT INTO ai_messages (tenant_id, conversation_id, role, content) \
-         VALUES ($1, $2, $3, $4)",
+        "INSERT INTO ai_messages (tenant_id, conversation_id, role, content, parts) \
+         VALUES ($1, $2, $3, $4, $5)",
     )
     .bind(tenant_id)
     .bind(conversation_id)
     .bind(role)
     .bind(content)
+    .bind(parts)
     .execute(&mut *tx)
     .await?;
     sqlx::query(
@@ -1638,6 +1682,8 @@ pub struct ConversationMessage {
     pub role: String,
     pub content: String,
     pub created_at: chrono::DateTime<chrono::Utc>,
+    /// Widgets, steps, sources, notices and usage kept with an answer.
+    pub parts: Option<serde_json::Value>,
 }
 
 /// The caller's own conversations, newest first — the assistant's history menu.
@@ -1704,7 +1750,7 @@ pub async fn conversation_messages(
     };
 
     let mut rows = sqlx::query_as::<_, ConversationMessage>(
-        "SELECT id, role, content, created_at FROM ai_messages \
+        "SELECT id, role, content, created_at, parts FROM ai_messages \
          WHERE conversation_id = $1 AND tenant_id = $2 ORDER BY created_at",
     )
     .bind(id)
@@ -1715,6 +1761,11 @@ pub async fn conversation_messages(
     // Stored as the model saw it; read back for its owner.
     for row in &mut rows {
         row.content = map.rehydrate(&row.content);
+        // Kept as the model saw it, like the text: read back the same way.
+        row.parts = row
+            .parts
+            .take()
+            .and_then(|p| serde_json::from_str(&map.rehydrate(&p.to_string())).ok());
     }
     Ok(Json(rows))
 }
@@ -1733,6 +1784,7 @@ pub fn router() -> axum::Router<AppState> {
             "/api/ai/conversations/{id}/messages",
             get(conversation_messages),
         )
+        .route("/api/ai/messages/{id}/widgets/{index}", get(replay::widget))
 }
 
 #[cfg(test)]

@@ -59,8 +59,10 @@ static PLACEHOLDER: LazyLock<Result<Regex, regex::Error>> = LazyLock::new(|| {
     )
 });
 /// A number not glued to a letter on its left (`V4`, `HbA1c` are names).
-static NUMBER: LazyLock<Result<Regex, regex::Error>> =
-    LazyLock::new(|| Regex::new(r"(?:^|[^A-Za-z0-9_.])(\d+(?:\.\d+)?)"));
+/// A grouped figure (`9,98,718.20`, `1,234,567`) is one number, not three.
+static NUMBER: LazyLock<Result<Regex, regex::Error>> = LazyLock::new(|| {
+    Regex::new(r"(?:^|[^A-Za-z0-9_.])(\d{1,3}(?:,\d{2,3})+(?:\.\d+)?|\d+(?:\.\d+)?)")
+});
 /// A markdown list marker, not a claim.
 static LIST_MARKER: LazyLock<Result<Regex, regex::Error>> =
     LazyLock::new(|| Regex::new(r"(?m)^\s*\d+[.)]\s"));
@@ -290,6 +292,7 @@ pub fn ungrounded(case: &Case, source: &str, output: &str) -> Vec<Failure> {
 
 /// `5.90` and `5.9` are the same claim.
 fn canonical(n: &str) -> String {
+    let n = &n.replace(',', "");
     if n.contains('.') {
         n.trim_end_matches('0').trim_end_matches('.').to_owned()
     } else {

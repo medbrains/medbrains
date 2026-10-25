@@ -24,6 +24,7 @@ export function ChartWidget({ widget, full = false }: { widget: ChartData; full?
           xKey={widget.x.key}
           yKey={s.key}
           yLabel={s.label}
+          money={s.money}
           kind="bar"
           h={full ? 420 : 200}
         />

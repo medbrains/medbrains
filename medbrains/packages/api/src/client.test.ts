@@ -956,6 +956,13 @@ describe("/billing endpoints", () => {
     expect(url.split("?")[0]).toBe("/api/billing/reports/daily");
   });
 
+  it("aiReplayWidget → GET /ai/messages/{id}/widgets/{index}", async () => {
+    mockOk({});
+    await api.aiReplayWidget("m1", 2);
+    const [url] = mockFetch.mock.calls[0];
+    expect(url).toBe("/api/ai/messages/m1/widgets/2");
+  });
+
   it("aiAggregatePatients → GET /ai/aggregate/{metric}/patients", async () => {
     mockOk([]);
     await api.aiAggregatePatients("allergies", {

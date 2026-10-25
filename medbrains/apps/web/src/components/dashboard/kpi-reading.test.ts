@@ -71,11 +71,11 @@ describe("management KPI wording", () => {
     expect(compareKpi(noShow, "weekday")?.text).toBe("3.1 pts higher than a usual Friday");
   });
 
-  it("makes no comparison when either side is unknown, and shows the unknown as a dash", () => {
+  it("says there is no baseline yet, makes none for an unknown value, and shows it as a dash", () => {
     expect(compareKpi(reading({ value: null }), "weekday")).toBeNull();
     expect(
       compareKpi(reading({ baselines: { weekday: null, yesterday: 1, week: 1 } }), "weekday"),
-    ).toBeNull();
+    ).toEqual({ text: "No baseline yet", tone: "neutral", direction: "flat" });
     expect(formatKpi(null, "min")).toBe("—");
     expect(formatKpi(12.46, "min")).toBe("12.5 min");
     expect(formatKpi(8.25, "%")).toBe("8.3%");

@@ -65,6 +65,8 @@ export interface ChatMessage {
   elapsedMs?: number;
   /** Rich blocks the server built from tool results (never model-written). */
   widgets?: AiWidget[];
+  /** Widgets of a reopened answer that are fetched again (never stored). */
+  replays?: { index: number; kind: string; title: string }[];
 }
 
 export interface AiColumn {

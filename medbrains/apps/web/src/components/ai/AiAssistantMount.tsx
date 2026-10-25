@@ -9,7 +9,7 @@ import { useWhispers } from "@/hooks/useWhispers";
 import styles from "./ai-assistant-mount.module.scss";
 import { useAiAssistantStore } from "./assistant-store";
 import { SseTransport } from "./transport/sse";
-import type { ChatRole } from "./transport/types";
+import { fromStored } from "./transport/stored";
 import { useAiChat } from "./useAiChat";
 import { useDraggableFab } from "./useDraggableFab";
 
@@ -61,15 +61,7 @@ export function AiAssistantMount({ suggestions }: AiAssistantMountProps) {
 
   const openConversation = async (id: string) => {
     const loaded = await api.getAiConversationMessages(id);
-    controller.hydrate(
-      loaded.map((m) => ({
-        id: m.id,
-        role: m.role as ChatRole,
-        content: m.content,
-        createdAt: m.created_at,
-        status: "complete" as const,
-      })),
-    );
+    controller.hydrate(loaded.map(fromStored));
     transport.setConversationId(id);
   };
 
