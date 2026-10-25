@@ -28,6 +28,8 @@ interface StatCardProps {
   icon: ReactNode;
   color?: string;
   comparison?: StatComparison;
+  /** A short line under the figure — e.g. the day it is for. */
+  note?: string;
   /** Daily values behind the number, oldest first; gaps are unknown days. */
   sparkline?: (number | null)[];
   onClick?: () => void;
@@ -43,6 +45,7 @@ export function StatCard({
   icon,
   color = "primary",
   comparison,
+  note,
   sparkline,
   onClick,
   actionLabel,
@@ -76,6 +79,11 @@ export function StatCard({
         {value}
       </Text>
       {comparison && <ComparisonLine comparison={comparison} />}
+      {note && (
+        <Text size="xs" mt="sm" c="var(--mb-text-caption)">
+          {note}
+        </Text>
+      )}
       {sparkline && sparkline.length > 1 && (
         // The line above says it in words; the shape is for the eye only.
         <Sparkline

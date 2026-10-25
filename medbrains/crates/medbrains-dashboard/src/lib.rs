@@ -6,6 +6,7 @@ use axum::{
 };
 use std::collections::HashMap;
 
+mod as_of;
 pub mod management_doctors;
 pub mod my_widgets;
 pub mod management_kpis;
@@ -35,8 +36,8 @@ struct DataFilters {
     department_ids: Vec<Uuid>,
     /// The viewer's user ID — used for "my_*" queries (e.g. my patients today).
     user_id: Option<Uuid>,
-    /// The day the viewer is looking at; today when absent.
-    as_of: Option<NaiveDate>,
+    /// The past day the viewer is looking at; live (today) when absent.
+    day: Option<as_of::DayWindow>,
     /// One department the viewer has narrowed this widget to, where the
     /// widget's data can be (a KPI that says so); hospital-wide when absent.
     department_id: Option<Uuid>,
@@ -57,7 +58,7 @@ fn resolve_data_filters(widget: &DashboardWidget, claims: &Claims) -> DataFilter
             DataFilters {
                 department_ids: Vec::new(),
                 user_id: Some(claims.sub),
-                as_of: None,
+                day: None,
                 department_id: None,
             }
         }
@@ -79,7 +80,7 @@ fn resolve_data_filters(widget: &DashboardWidget, claims: &Claims) -> DataFilter
                 DataFilters {
                     department_ids: widget_dept_ids,
                     user_id: Some(claims.sub),
-                    as_of: None,
+                    day: None,
                     department_id: None,
                 }
             } else {
@@ -91,7 +92,7 @@ fn resolve_data_filters(widget: &DashboardWidget, claims: &Claims) -> DataFilter
                 DataFilters {
                     department_ids: intersected,
                     user_id: Some(claims.sub),
-                    as_of: None,
+                    day: None,
                     department_id: None,
                 }
             }
@@ -103,14 +104,14 @@ fn resolve_data_filters(widget: &DashboardWidget, claims: &Claims) -> DataFilter
                 DataFilters {
                     department_ids: Vec::new(),
                     user_id: Some(claims.sub),
-                    as_of: None,
+                    day: None,
                     department_id: None,
                 }
             } else {
                 DataFilters {
                     department_ids: claims.department_ids.clone(),
                     user_id: Some(claims.sub),
-                    as_of: None,
+                    day: None,
                     department_id: None,
                 }
             }
@@ -1136,13 +1137,15 @@ pub async fn batch_widget_data(
     let restricted =
         resolve_restricted_fields(&state.db, claims.tenant_id, claims.sub, &claims.role).await?;
 
+    // The day is resolved once for the whole batch, in the tenant's zone.
+    let day = as_of::past_day(&mut tx, req.as_of).await?;
     let fetched_at = Utc::now().to_rfc3339();
     let mut results = Vec::with_capacity(widgets.len());
 
     for widget in &widgets {
         // Re-set department context per widget (each widget may have different scope)
         let mut filters = resolve_data_filters(widget, &claims);
-        filters.as_of = req.as_of;
+        filters.day = day;
         filters.department_id = req.filters.get(&widget.id).and_then(|f| f.department_id);
         medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &filters.department_ids)
             .await?;
@@ -1288,7 +1291,7 @@ async fn resolve_widget_data(
 
             resolve_module_query(tx, module, query, &params, filters).await
         }
-        "sql_count" => resolve_sql_count(tx, source).await,
+        "sql_count" => resolve_sql_count(tx, source, filters.day).await,
         "static" => Ok(source
             .get("static_data")
             .cloned()
@@ -1329,6 +1332,7 @@ const SQL_COUNT_FILTERS: &[&str] = &[
 async fn resolve_sql_count(
     tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
     source: &serde_json::Value,
+    day: Option<as_of::DayWindow>,
 ) -> Result<serde_json::Value, AppError> {
     // A misconfigured widget reports that it could not load, never a count.
     // Both of these returned `0`, and a zero on "Patients Today" is a
@@ -1346,6 +1350,21 @@ async fn resolve_sql_count(
         .get("filter")
         .and_then(serde_json::Value::as_str)
         .filter(|f| !f.is_empty());
+
+    // A past day, where the count can be read for it: `as_of` in the answer
+    // is what tells the tile it is dated, not live.
+    if let (Some(day), Some(predicate)) = (day, as_of::sql_count_as_of(table, filter)) {
+        let sql = format!(
+            "SELECT COUNT(*) FROM {table}, (SELECT $1::date AS day, $2::timestamptz AS day_end) w \
+             WHERE tenant_id = app_current_tenant() AND {predicate}"
+        );
+        let count = sqlx::query_scalar::<_, i64>(&sql)
+            .bind(day.date)
+            .bind(day.end)
+            .fetch_one(&mut **tx)
+            .await?;
+        return Ok(serde_json::json!({ "value": count, "as_of": day.date }));
+    }
 
     // Scoped to the hospital the session is working at, not left to RLS
     // alone: a connection that bypasses RLS (the owner, a platform
@@ -1535,10 +1554,11 @@ async fn resolve_module_query(
     match (module, query) {
         // ── Patients (hospital-wide — no department scoping) ──
         ("management", "kpi") => {
-            management_kpis::reading(tx, params, filters.as_of, filters.department_id).await
+            let as_of = filters.day.map(|d| d.date);
+            management_kpis::reading(tx, params, as_of, filters.department_id).await
         }
         ("management", "doctor_documentation") => {
-            management_doctors::documentation_by_doctor(tx, filters.as_of).await
+            management_doctors::documentation_by_doctor(tx, filters.day.map(|d| d.date)).await
         }
         ("patients", "count") => {
             let count = sqlx::query_scalar::<_, i64>(
@@ -1710,30 +1730,32 @@ async fn resolve_module_query(
         }
 
         // ── Billing (invoices has no department_id — JOIN through encounters) ──
+        // The day's invoices on the hospital's calendar — the past day read,
+        // or today from local midnight (CURRENT_DATE is the server's day).
         ("billing", "today_revenue") => {
-            let total = if has_dept_filter {
-                sqlx::query_scalar::<_, Option<rust_decimal::Decimal>>(
-                    "SELECT SUM(i.total_amount) FROM invoices i
-                     JOIN encounters e ON e.id = i.encounter_id
-                     WHERE i.created_at >= CURRENT_DATE AND i.status != 'cancelled'
-                       AND e.department_id = ANY($1)",
-                )
-                .bind(&filters.department_ids)
-                .fetch_optional(&mut **tx)
-                .await?
-                .flatten()
-                .unwrap_or_default()
-            } else {
-                sqlx::query_scalar::<_, Option<rust_decimal::Decimal>>(
-                    "SELECT SUM(total_amount) FROM invoices
-                     WHERE created_at >= CURRENT_DATE AND status != 'cancelled'",
-                )
-                .fetch_optional(&mut **tx)
-                .await?
-                .flatten()
-                .unwrap_or_default()
-            };
-            Ok(serde_json::json!({"value": total.to_string(), "label": "Revenue Today"}))
+            let (start, end) = filters.day.map(|d| (d.start, d.end)).unzip();
+            let total = sqlx::query_scalar::<_, Option<rust_decimal::Decimal>>(
+                "SELECT SUM(i.total_amount) FROM invoices i
+                 WHERE i.status != 'cancelled'
+                   AND i.created_at >= COALESCE($1, date_trunc('day', now(),
+                         (SELECT COALESCE(timezone, 'UTC') FROM tenants
+                           WHERE id = app_current_tenant())))
+                   AND i.created_at < COALESCE($2, 'infinity'::timestamptz)
+                   AND (cardinality($3::uuid[]) = 0 OR EXISTS (
+                         SELECT 1 FROM encounters e WHERE e.id = i.encounter_id
+                            AND e.department_id = ANY($3)))",
+            )
+            .bind(start)
+            .bind(end)
+            .bind(&filters.department_ids)
+            .fetch_one(&mut **tx)
+            .await?
+            .unwrap_or_default();
+            Ok(serde_json::json!({
+                "value": total.to_string(),
+                "label": "Revenue Today",
+                "as_of": filters.day.map(|d| d.date),
+            }))
         }
         ("billing", "pending_invoices") => {
             let count = if has_dept_filter {
