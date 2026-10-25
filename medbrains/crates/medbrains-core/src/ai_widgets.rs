@@ -296,8 +296,11 @@ fn table(title: String, data: &Value) -> Result<Widget, WidgetError> {
     // user who may list patients.
     let drill = data.get("_drill").filter(|d| d.is_object()).map(|d| {
         let mut d = d.clone();
-        d["from"] = data.get("from").cloned().unwrap_or(Value::Null);
-        d["to"] = data.get("to").cloned().unwrap_or(Value::Null);
+        for k in ["from", "to"] {
+            if d.get(k).is_none() {
+                d[k] = data.get(k).cloned().unwrap_or(Value::Null);
+            }
+        }
         d
     });
     Ok(Widget::Table {
