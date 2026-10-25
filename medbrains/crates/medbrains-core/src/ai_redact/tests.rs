@@ -318,3 +318,17 @@ fn numbers_typed_in_a_question_are_replaced() {
     );
     assert!(out.contains("[PHONE_1]") && out.contains("[AADHAAR_1]") && out.contains("[ABHA_1]"));
 }
+
+#[test]
+fn a_restricted_class_never_reaches_the_model_unless_the_text_is_a_topic() {
+    let mut record = Redactor::new(PseudonymMap::default(), &kavitha(), today());
+    let out = record
+        .redact(r#"[{"description":"Type 2 diabetes"},{"description":"HIV disease","icd_code":"B20"}]"#)
+        .map(|x| x.for_model().to_owned())
+        .unwrap_or_default();
+    assert!(out.contains("Type 2 diabetes") && !out.contains("HIV"), "{out}");
+    let mut topic = Redactor::new(PseudonymMap::default(), &KnownIdentifiers::default(), today())
+        .allowing_clinical_topics();
+    let course = topic.redact("A course on HIV counselling for nurses").map(|x| x.for_model().to_owned());
+    assert_eq!(course.ok().as_deref(), Some("A course on HIV counselling for nurses"));
+}

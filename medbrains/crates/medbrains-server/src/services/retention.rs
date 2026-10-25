@@ -31,6 +31,9 @@ const DEFAULT_OUTBOX_DAYS: i32 = 90;
 const DEFAULT_DLQ_DAYS: i32 = 90;
 const DEFAULT_JOB_DAYS: i32 = 30;
 const DEFAULT_CAMP_SYNC_DAYS: i32 = 60;
+/// AI prompts and answers (already stored redacted) and the placeholder map
+/// that can read them back. Tenant-tunable as `retention.ai_prompt_days`.
+const DEFAULT_AI_PROMPT_DAYS: i32 = 90;
 
 pub fn spawn(pool: PgPool) {
     tokio::spawn(async move {
@@ -71,6 +74,44 @@ async fn tenant_setting_days(
         .unwrap_or(default))
 }
 
+/// Blank AI conversation content past its window, and drop the placeholder
+/// map that could re-identify it. Overwritten rather than deleted, so the
+/// thread's shape survives for anyone reviewing what the AI was asked when.
+async fn expire_ai_prompts(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    tenant_id: Uuid,
+    days: i32,
+    summary: &mut serde_json::Map<String, serde_json::Value>,
+) -> Result<(), AppError> {
+    let blanked = sqlx::query(
+        "UPDATE ai_messages SET content = '[expired under the AI retention limit]' \
+         WHERE tenant_id = $1 AND created_at < now() - make_interval(days => $2) \
+           AND content <> '[expired under the AI retention limit]'",
+    )
+    .bind(tenant_id)
+    .bind(days)
+    .execute(&mut **tx)
+    .await?
+    .rows_affected();
+    let unmapped = sqlx::query(
+        "UPDATE ai_conversations SET pseudonym_map = '{}'::jsonb, title = 'Expired conversation' \
+         WHERE tenant_id = $1 AND last_message_at < now() - make_interval(days => $2) \
+           AND pseudonym_map <> '{}'::jsonb",
+    )
+    .bind(tenant_id)
+    .bind(days)
+    .execute(&mut **tx)
+    .await?
+    .rows_affected();
+    if blanked > 0 {
+        summary.insert("ai_messages_expired".to_owned(), serde_json::json!(blanked));
+    }
+    if unmapped > 0 {
+        summary.insert("ai_pseudonym_maps_dropped".to_owned(), serde_json::json!(unmapped));
+    }
+    Ok(())
+}
+
 pub async fn run_retention_pass(pool: &PgPool) -> Result<(), AppError> {
     // Partition maintenance — pre-create upcoming partitions and retire old ones
     // for every table registered in `partition_config`. Global (not tenant-scoped)
@@ -103,10 +144,16 @@ pub async fn run_retention_pass(pool: &PgPool) -> Result<(), AppError> {
         let camp_sync_days =
             tenant_setting_days(pool, tenant_id, "camp_sync_days", DEFAULT_CAMP_SYNC_DAYS).await?;
 
+        let ai_days =
+            tenant_setting_days(pool, tenant_id, "ai_prompt_days", DEFAULT_AI_PROMPT_DAYS).await?;
+
         let mut tx = pool.begin().await?;
         medbrains_db::pool::set_tenant_context(&mut tx, &tenant_id).await?;
 
         let mut summary = serde_json::Map::new();
+        if !dry {
+            expire_ai_prompts(&mut tx, tenant_id, ai_days, &mut summary).await?;
+        }
 
         // 1. Housekeeping purges — rows with no clinical meaning.
         let purges: Vec<(&str, String)> = vec![

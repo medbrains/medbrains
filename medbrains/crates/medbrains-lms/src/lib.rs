@@ -1631,7 +1631,8 @@ pub async fn ai_generate_course(
     );
 
     let preamble = medbrains_core::ai_redact::Redacted::fixed(COURSE_PREAMBLE);
-    let prompt = medbrains_server_services::llm::redact_standalone(&prompt)?;
+    // A course topic, not a record: "HIV counselling" is the subject.
+    let prompt = medbrains_server_services::llm::redact_topic(&prompt)?;
     let generated = medbrains_server_services::llm::extract::<AiGeneratedCourse>(
         &state,
         &claims.tenant_id,
