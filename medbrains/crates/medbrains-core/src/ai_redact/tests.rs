@@ -351,3 +351,17 @@ fn a_relative_named_in_tamil_or_hindi_script_is_redacted() {
     assert_absent(&out, &["செல்வி", "सुनीता"]);
     assert!(out.contains("காய்ச்சல் 101 F") && out.contains("[RELATIVE_2]"), "{out}");
 }
+
+#[test]
+fn own_placeholders_are_the_patients_own_never_ones_found_later() {
+    let mut r = Redactor::new(PseudonymMap::default(), &kavitha(), today());
+    let contacts = [Kind::Phone, Kind::Email, Kind::Address, Kind::Pincode];
+    let own = r.own_placeholders(&contacts);
+    // A phone met later in a tool result may be someone else's.
+    let other = r
+        .redact("Call 9876500000 for the ward.")
+        .map(|t| t.for_model().to_owned());
+    assert!(other.is_ok_and(|t| t.contains("[PHONE_2]")));
+    assert_eq!(r.own_placeholders(&contacts), own);
+    assert_eq!(own, ["[PHONE_1]".to_owned(), "[ADDRESS_1]".to_owned()].into());
+}

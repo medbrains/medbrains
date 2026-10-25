@@ -23,6 +23,7 @@ use uuid::Uuid;
 use medbrains_core::ai_redact::{Redacted, StreamRehydrator};
 use medbrains_core::permissions;
 
+mod contact_access;
 mod redaction;
 pub use redaction::session_for;
 use medbrains_server_core::middleware::auth::Claims;
@@ -1298,6 +1299,8 @@ pub async fn chat(
     // (every provider, local ones included). Fail closed: if it cannot be made
     // safe, the call is refused and nothing is sent or stored.
     let mut redactor = session_for(&state, &claims, patient_id, pseudonyms).await?;
+    // Before any redaction, so only the patient's own contacts can be shown.
+    let contacts = contact_access::for_turn(&state, &claims, grounded_patient, &redactor).await;
     let unsafe_ = |e: medbrains_core::ai_redact::RedactError| {
         medbrains_server_services::llm::unsafe_to_send(&e)
     };
@@ -1324,7 +1327,8 @@ pub async fn chat(
     store_turn(&state, tenant_id, conversation_id, "user", message.for_model(), &session).await?;
 
     let turn = Turn {
-        guard: medbrains_core::ai_guard::AnswerGuard::new(message.for_model()),
+        guard: medbrains_core::ai_guard::AnswerGuard::new(message.for_model())
+            .with_contacts(contacts),
         context: context.for_model().to_owned(),
         message,
         history: prior,

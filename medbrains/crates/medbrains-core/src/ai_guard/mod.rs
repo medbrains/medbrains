@@ -14,6 +14,8 @@
 //!
 //! and a contact, government or financial placeholder (`[AADHAAR_1]`) the
 //! question did not carry is replaced, so it is never re-identified on screen.
+//! The patient's own phone, email and address are the exception when the
+//! caller says the user may see them ([`ContactAccess`]).
 //! The user is told, in [`AnswerGuard::notices`], what was removed and why.
 //!
 //! Works on the model's own text (placeholders, not real values), so it runs
@@ -26,7 +28,7 @@ mod tests;
 
 use std::collections::{BTreeSet, HashSet};
 
-use patterns::{COMMON_WORDS, NOT_CONDITIONS, PATTERNS, Patterns, SHOWN_KINDS};
+use patterns::{COMMON_WORDS, CONTACT_KINDS, NOT_CONDITIONS, PATTERNS, Patterns, SHOWN_KINDS};
 
 /// Longest text held while waiting for a sentence to end.
 const MAX_PENDING: usize = 2000;
@@ -49,6 +51,8 @@ pub enum Reason {
     RecordInstruction,
     Unsupported,
     Identifier,
+    /// Contact details held because the access check failed.
+    ContactUnchecked,
     /// The guard could not run, so nothing was shown.
     Unchecked,
 }
@@ -75,11 +79,28 @@ impl Reason {
                  (a reference range, estimate or conversion)."
             }
             Self::Identifier => "An identifier the question did not ask for is not shown.",
+            Self::ContactUnchecked => {
+                "Contact details are not shown: whether you may see them could not be \
+                 checked. Try again."
+            }
             Self::Unchecked => {
                 "This answer could not be checked for safety, so it is not shown. Try again."
             }
         }
     }
+}
+
+/// Whether the user may see the patient's own contact details, decided by
+/// the caller with the patient screen's check. Three outcomes: a failed check
+/// is not a refusal, and the user is told.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub enum ContactAccess {
+    /// These placeholders (the patient's own contacts) may be shown.
+    Shown(HashSet<String>),
+    #[default]
+    Hidden,
+    /// The check failed: held, with a notice.
+    Unknown,
 }
 
 /// Feeds the model's answer in, hands out the sentences that pass.
@@ -93,6 +114,7 @@ pub struct AnswerGuard {
     injected_spans: Vec<String>,
     pending: String,
     reasons: BTreeSet<Reason>,
+    contacts: ContactAccess,
 }
 
 impl AnswerGuard {
@@ -103,6 +125,13 @@ impl AnswerGuard {
             question: question.to_owned(),
             ..Self::default()
         }
+    }
+
+    /// Show the patient's own contact placeholders the user may see.
+    #[must_use]
+    pub fn with_contacts(mut self, access: ContactAccess) -> Self {
+        self.contacts = access;
+        self
     }
 
     /// Text the model was given (a tool result, the page context): what the
@@ -252,18 +281,26 @@ impl AnswerGuard {
 
     fn hold_identifiers(&mut self, p: &Patterns, unit: &str) -> String {
         let mut held = false;
+        let mut unchecked = false;
         let out = p.placeholder.replace_all(unit, |c: &regex::Captures<'_>| {
             let whole = &c[0];
             let kind = &c[1];
-            if SHOWN_KINDS.contains(&kind) || self.question.contains(whole) {
+            let contact = CONTACT_KINDS.contains(&kind);
+            let may_see = matches!(&self.contacts, ContactAccess::Shown(s) if s.contains(whole));
+            if SHOWN_KINDS.contains(&kind) || self.question.contains(whole) || (contact && may_see)
+            {
                 whole.to_owned()
             } else {
                 held = true;
+                unchecked |= contact && self.contacts == ContactAccess::Unknown;
                 NOT_SHOWN.to_owned()
             }
         });
         if held {
             self.reasons.insert(Reason::Identifier);
+        }
+        if unchecked {
+            self.reasons.insert(Reason::ContactUnchecked);
         }
         out.into_owned()
     }

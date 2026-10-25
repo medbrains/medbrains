@@ -32,7 +32,7 @@ mod stream;
 #[cfg(test)]
 mod tests;
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use chrono::{Datelike as _, NaiveDate};
 use regex::Regex;
@@ -297,6 +297,9 @@ pub struct Redactor {
     keep_amounts: bool,
     /// Withhold restricted clinical classes ([`sensitive`]). On by default.
     withhold_sensitive: bool,
+    /// Placeholders for the identifiers given at construction (the patient's
+    /// own record), not ones found later in other text.
+    own: HashSet<String>,
 }
 
 impl Redactor {
@@ -309,11 +312,26 @@ impl Redactor {
             today,
             keep_amounts: false,
             withhold_sensitive: true,
+            own: HashSet::new(),
         };
         for (kind, value) in &known.values {
-            r.learn(*kind, value);
+            let p = r.learn(*kind, value);
+            r.own.insert(p);
         }
         r
+    }
+
+    /// The placeholders of `kinds` that stand for the identifiers this
+    /// session was built with — the patient's own record — never one found
+    /// later in a tool result, which may be about someone else.
+    #[must_use]
+    pub fn own_placeholders(&self, kinds: &[Kind]) -> HashSet<String> {
+        self.map
+            .entries
+            .iter()
+            .filter(|e| kinds.contains(&e.kind) && self.own.contains(&e.placeholder))
+            .map(|e| e.placeholder.clone())
+            .collect()
     }
 
     /// Keep money amounts (a billing task that needs them). Off by default.

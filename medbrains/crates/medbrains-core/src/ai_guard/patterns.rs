@@ -57,6 +57,11 @@ pub(super) const SHOWN_KINDS: &[&str] = &[
     "ATTACHMENT",
 ];
 
+/// The patient's own contact details: shown only when the user may see them
+/// on the patient screen ([`super::ContactAccess`]). Government, financial and
+/// device identifiers are never in this list.
+pub(super) const CONTACT_KINDS: &[&str] = &["PHONE", "EMAIL", "ADDRESS", "PINCODE"];
+
 /// Words too common to show that an answer is repeating a record's
 /// injected instruction.
 pub(super) const COMMON_WORDS: &[&str] = &[

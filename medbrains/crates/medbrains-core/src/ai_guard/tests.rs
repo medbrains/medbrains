@@ -1,4 +1,4 @@
-use super::{AnswerGuard, Reason, guard_answer};
+use super::{AnswerGuard, ContactAccess, Reason, guard_answer};
 
 const LABS: &str = "Recent lab results: Hb 8.2 g/dL (L); MCV 68 fL (L); Ferritin 6 ng/mL (L)";
 
@@ -136,4 +136,63 @@ fn a_misplaced_decimal_or_fahrenheit_reading_is_not_an_addition() {
     let (shown, notices) = guard_answer("q", &[record], answer);
     assert_eq!(shown, answer);
     assert_eq!(notices, Vec::<&str>::new());
+}
+
+fn guarded(access: ContactAccess, answer: &str) -> (String, Vec<&'static str>) {
+    let mut g = AnswerGuard::new("How do I reach her?").with_contacts(access);
+    let mut shown = g.push(answer);
+    shown.push_str(&g.finish());
+    (shown, g.notices())
+}
+
+fn own_phone() -> ContactAccess {
+    ContactAccess::Shown(["[PHONE_1]".to_owned()].into())
+}
+
+#[test]
+fn a_user_who_may_see_contacts_sees_the_patients_phone() {
+    let (shown, notices) = guarded(own_phone(), "Her phone is [PHONE_1].");
+    assert_eq!(shown, "Her phone is [PHONE_1].");
+    assert!(notices.is_empty(), "{notices:?}");
+}
+
+#[test]
+fn a_user_who_may_not_see_contacts_gets_it_held() {
+    let (shown, notices) = guarded(ContactAccess::Hidden, "Her phone is [PHONE_1].");
+    assert_eq!(shown, "Her phone is (identifier not shown).");
+    assert_eq!(notices, vec![Reason::Identifier.notice()]);
+}
+
+#[test]
+fn a_failed_access_check_holds_contacts_and_says_so() {
+    let (shown, notices) = guarded(ContactAccess::Unknown, "Mail [EMAIL_1] or call [PHONE_1].");
+    assert_eq!(
+        shown,
+        "Mail (identifier not shown) or call (identifier not shown)."
+    );
+    assert_eq!(
+        notices,
+        vec![
+            Reason::Identifier.notice(),
+            Reason::ContactUnchecked.notice()
+        ]
+    );
+}
+
+#[test]
+fn a_failed_access_check_says_nothing_when_no_contact_was_held() {
+    let (_, notices) = guarded(ContactAccess::Unknown, "Her Aadhaar is [AADHAAR_1].");
+    assert_eq!(notices, vec![Reason::Identifier.notice()]);
+}
+
+#[test]
+fn government_ids_and_other_peoples_contacts_stay_held() {
+    // Shown covers only the placeholders listed: another phone, and an
+    // Aadhaar even if a caller listed it, are held.
+    let access = ContactAccess::Shown(["[PHONE_1]".to_owned(), "[AADHAAR_1]".to_owned()].into());
+    let (shown, _) = guarded(access, "Aadhaar [AADHAAR_1], other phone [PHONE_2].");
+    assert_eq!(
+        shown,
+        "Aadhaar (identifier not shown), other phone (identifier not shown)."
+    );
 }
