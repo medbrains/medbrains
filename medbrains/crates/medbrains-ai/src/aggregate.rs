@@ -12,7 +12,10 @@
 
 // `pub` here would trip the workspace's denied `unreachable_pub`; `pub(super)`
 // is the narrowest visibility the parent module can use.
-#![expect(clippy::redundant_pub_crate, reason = "unreachable_pub is denied workspace-wide")]
+#![expect(
+    clippy::redundant_pub_crate,
+    reason = "unreachable_pub is denied workspace-wide"
+)]
 
 use axum::extract::{Path, Query, State};
 use axum::{Extension, Json};
@@ -235,14 +238,26 @@ pub(super) async fn counts(
         .as_array()
         .map(|r| r.iter().filter(|v| v.is_object()).cloned().collect())
         .unwrap_or_default();
-    Ok(json!({
+    // The period is stated here, so the model never works one out of dates.
+    let period = if metric == Metric::Allergies {
+        json!({ "period": "all recorded allergies" })
+    } else {
+        json!({
+            "from": from.to_string(),
+            "to": to.to_string(),
+            "days_in_range": (to - from).num_days() + 1,
+        })
+    };
+    let mut out = json!({
         "metric": metric.name(),
-        "from": from.to_string(),
-        "to": to.to_string(),
         "rows": rows,
         "restricted_rows_not_shown": withheld,
         "counts_are_exact": exact,
-    }))
+    });
+    if let (Some(o), Value::Object(p)) = (out.as_object_mut(), period) {
+        o.extend(p);
+    }
+    Ok(out)
 }
 
 #[derive(serde::Deserialize)]
@@ -342,10 +357,16 @@ impl AggregateTool {
                 args.metric
             );
         };
-        match counts(&self.state, &self.claims, metric, range(&args.range)).await {
+        let (from, to) = range(&args.range);
+        match counts(&self.state, &self.claims, metric, (from, to)).await {
             Ok(mut result) => {
                 if can_list(&self.claims) {
-                    result["_drill"] = json!({ "metric": metric.name(), "key": metric.fields().0 });
+                    result["_drill"] = json!({
+                        "metric": metric.name(),
+                        "key": metric.fields().0,
+                        "from": from.to_string(),
+                        "to": to.to_string(),
+                    });
                 }
                 let source = format!("aggregate:{}", metric.name());
                 super::show::shelve(&self.shelf, &self.session, &source, &result);

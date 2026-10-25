@@ -21,8 +21,6 @@
   "planted": [],
   "source": {
     "metric": "allergies",
-    "from": "2026-09-26",
-    "to": "2026-10-25",
     "rows": [
       {
         "allergen": "penicillin",
@@ -38,7 +36,9 @@
       }
     ],
     "restricted_rows_not_shown": 0,
-    "counts_are_exact": false
+    "counts_are_exact": false,
+    "period": "all recorded allergies",
+    "show_source": "aggregate:allergies"
   },
   "question": "Which allergies are most common in our hospital?",
   "expect": "answer",

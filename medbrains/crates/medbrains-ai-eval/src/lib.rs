@@ -208,14 +208,12 @@ impl Case {
         }
         let mut r = Redactor::new(PseudonymMap::default(), &known, self.today);
         match self.redact_parts(&mut r) {
-            Ok((system, record, question, history)) => {
+            Ok((system, label, record, question, history)) => {
                 let restricted = question.is_withheld();
                 let request = Request {
                     system,
                     history,
-                    user: Redacted::fixed("Tool result —")
-                        .join("\n", &record)
-                        .join("\n\n", &question),
+                    user: label.join("\n", &record).join("\n\n", &question),
                     record,
                     question,
                 };
@@ -230,6 +228,13 @@ impl Case {
     }
 
     fn redact_parts(&self, r: &mut Redactor) -> Result<Parts, RedactError> {
+        // As production's history shows it: the tool has already run, and
+        // this is what it returned. A bare "result" read to Haiku as a call
+        // still to make, and it wrote one out as text (case 06).
+        let label = r.redact(&format!(
+            "Already run for this question ({}); its result:",
+            self.task
+        ))?;
         let record = r.redact(&self.source_text())?;
         let question = r.redact(&self.question)?;
         let keep = usize::from(HISTORY_MESSAGES);
@@ -238,12 +243,13 @@ impl Case {
             .iter()
             .map(|m| Ok((m.role, r.redact(&m.content)?)))
             .collect::<Result<_, RedactError>>()?;
-        Ok((system(), record, question, history))
+        Ok((system(), label, record, question, history))
     }
 }
 
-/// A case redacted: system, record, question, and the history sent.
-type Parts = (Redacted, Redacted, Redacted, Vec<(Role, Redacted)>);
+/// A case redacted: system, the record's label, record, question, and the
+/// history sent.
+type Parts = (Redacted, Redacted, Redacted, Redacted, Vec<(Role, Redacted)>);
 
 /// The fixed system prefix, byte for byte as the assistant sends it every
 /// turn (per-turn context goes in the user turn), so it can be cached.
