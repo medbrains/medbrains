@@ -93,8 +93,11 @@ pub(crate) async fn insert_batch(
         count,
     } = b;
     sqlx::query(
-        "INSERT INTO history_import_batches (id, tenant_id, label, dry_run, status, go_live_at, record_count, created_by) \
-         VALUES ($1, $2, $3, $4, 'validated', $5, $6, $7)",
+        // 'running' and tied to this transaction until finish_batch: only then
+        // may the audit trigger skip the batch's rows (migration 1219).
+        "INSERT INTO history_import_batches (id, tenant_id, label, dry_run, status, go_live_at, record_count, \
+            created_by, import_txid) \
+         VALUES ($1, $2, $3, $4, 'running', $5, $6, $7, txid_current())",
     )
     .bind(id)
     .bind(tenant)
@@ -116,7 +119,8 @@ pub(crate) async fn finish_batch(
     problems: &Value,
 ) -> Result<(), AppError> {
     sqlx::query(
-        "UPDATE history_import_batches SET status = $2, tallies = $3, problems = $4 WHERE id = $1",
+        "UPDATE history_import_batches \
+            SET status = $2, tallies = $3, problems = $4, import_txid = NULL WHERE id = $1",
     )
     .bind(id)
     .bind(status)

@@ -259,3 +259,4 @@ mod webhook_subscriptions_test;
 mod workbook_import_test;
 mod retrospective_encounter_test;
 mod history_import_test;
+mod history_import_audit_skip_test;

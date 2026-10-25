@@ -302,8 +302,10 @@ pub(crate) async fn run_batch(
         count,
     };
     insert_batch(&mut tx, header).await?;
-    // Rows this batch writes are audited as the batch (see migration 1218),
-    // so the import never holds the hospital's audit-chain lock.
+    // Rows this batch writes are audited as the batch (migrations 1218, 1219),
+    // so the import never holds the hospital's audit-chain lock. The setting is
+    // transaction-local (`is_local = true`, i.e. SET LOCAL) and the trigger also
+    // requires the batch to be running in this very transaction.
     sqlx::query("SELECT set_config('app.history_import_batch', $1, true)")
         .bind(batch.to_string())
         .execute(&mut *tx)
