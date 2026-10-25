@@ -152,6 +152,10 @@ pub struct AdmissionRow {
 pub struct CreateAdmissionRequest {
     pub patient_id: Uuid,
     pub department_id: Uuid,
+    /// The admitting doctor. Callers that named it `admitting_doctor_id` had it
+    /// silently ignored, and the clerk who keyed the admission was recorded as
+    /// the doctor responsible for the patient.
+    #[serde(alias = "admitting_doctor_id")]
     pub doctor_id: Option<Uuid>,
     pub bed_id: Option<Uuid>,
     pub notes: Option<String>,
@@ -189,8 +193,12 @@ pub struct UpdateAdmissionRequest {
 
 #[derive(Debug, Deserialize)]
 pub struct TransferBedRequest {
+    /// Accepts the POST route's field names too: callers sent `to_bed_id` and
+    /// `reason` to this route and got a 422 for the same transfer.
+    #[serde(alias = "to_bed_id")]
     pub bed_id: Uuid,
     pub notes: Option<String>,
+    pub reason: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -544,6 +552,12 @@ pub struct WardListRow {
 }
 
 #[derive(Debug, Deserialize)]
+pub struct UpdateWardBedRequest {
+    /// The bed's class (tariff and acuity). `None` clears it.
+    pub bed_type_id: Option<Uuid>,
+}
+
+#[derive(Debug, Deserialize)]
 pub struct AssignBedToWardRequest {
     pub bed_location_id: Uuid,
     pub bed_type_id: Option<Uuid>,
@@ -555,6 +569,7 @@ pub struct WardBedRow {
     pub mapping_id: Uuid,
     pub bed_location_id: Uuid,
     pub bed_name: String,
+    pub bed_type_id: Option<Uuid>,
     pub bed_type_name: Option<String>,
     pub bed_status: Option<String>,
     pub patient_name: Option<String>,
@@ -1463,6 +1478,39 @@ pub async fn list_admissions(
 //  POST /api/ipd/admissions
 // ══════════════════════════════════════════════════════════
 
+/// The doctor an admission is recorded under.
+///
+/// A doctor admitting their own patient may leave it out. Anyone else must name
+/// one, and it must be an active doctor of this hospital: the admitting doctor
+/// is who the ward calls at 3am and who signs the discharge, so it is never
+/// defaulted to whoever happened to key the admission.
+async fn admitting_doctor(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    claims: &Claims,
+    requested: Option<Uuid>,
+) -> Result<Uuid, AppError> {
+    let Some(doctor_id) = requested else {
+        if claims.role == "doctor" {
+            return Ok(claims.sub);
+        }
+        return Err(AppError::BadRequest("Choose the admitting doctor.".to_owned()));
+    };
+    let is_doctor = sqlx::query_scalar::<_, bool>(
+        "SELECT EXISTS(SELECT 1 FROM users WHERE id = $1 AND tenant_id = $2 \
+           AND role = 'doctor'::user_role AND is_active AND deleted_at IS NULL)",
+    )
+    .bind(doctor_id)
+    .bind(claims.tenant_id)
+    .fetch_one(&mut **tx)
+    .await?;
+    if !is_doctor {
+        return Err(AppError::BadRequest(
+            "The admitting doctor must be an active doctor of this hospital.".to_owned(),
+        ));
+    }
+    Ok(doctor_id)
+}
+
 pub async fn create_admission(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
@@ -1523,7 +1571,7 @@ pub async fn create_admission(
     let today =
         medbrains_server_core::hospital_time::tenant_local_today(&mut *tx, claims.tenant_id)
             .await?;
-    let doctor_id = body.doctor_id.unwrap_or(claims.sub);
+    let doctor_id = admitting_doctor(&mut tx, &claims, body.doctor_id).await?;
     let is_dummy = body.is_dummy.unwrap_or(false) && is_bypass_role(&claims);
     let target_bed = if let Some(bed_id) = body.bed_id {
         Some(
@@ -1871,6 +1919,7 @@ pub async fn transfer_bed(
     let transfer_reason = body
         .notes
         .as_deref()
+        .or(body.reason.as_deref())
         .map(str::trim)
         .filter(|value| !value.is_empty())
         .ok_or_else(|| AppError::BadRequest("Transfer reason is required".to_owned()))?
@@ -4468,9 +4517,10 @@ pub async fn list_ward_beds(
 
     let rows = sqlx::query_as::<_, WardBedRow>(
         "SELECT wbm.id AS mapping_id, wbm.bed_location_id, \
-               l.name AS bed_name, bt.name AS bed_type_name, \
+               l.name AS bed_name, wbm.bed_type_id, bt.name AS bed_type_name, \
                bs.status::text AS bed_status, \
-               CASE WHEN $3::bool THEN CONCAT(p.first_name, ' ', COALESCE(p.last_name, '')) ELSE NULL END AS patient_name, \
+               CASE WHEN $3::bool AND p.id IS NOT NULL \
+                    THEN CONCAT(p.first_name, ' ', COALESCE(p.last_name, '')) END AS patient_name, \
                CASE WHEN $3::bool THEN p.uhid ELSE NULL END AS patient_uhid, \
                wbm.sort_order \
          FROM ward_bed_mappings wbm \
@@ -4561,6 +4611,58 @@ pub async fn assign_bed_to_ward(
 
     tx.commit().await?;
 
+    Ok(Json(mapping))
+}
+
+/// Set the class of a bed already in a ward.
+///
+/// The class could be chosen only while assigning a bed to a ward, and a bed
+/// can be in one ward at a time -- so every bed mapped before its class was
+/// known showed "No class set" for good.
+pub async fn update_ward_bed(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Path((ward_id, mapping_id)): Path<(Uuid, Uuid)>,
+    Json(body): Json<UpdateWardBedRequest>,
+) -> Result<Json<WardBedMapping>, AppError> {
+    require_any_permission(
+        &claims,
+        &[
+            permissions::ipd::wards::MANAGE,
+            permissions::ipd::beds::MANAGE,
+        ],
+    )?;
+
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
+
+    // The class must be one of this hospital's own bed types.
+    if let Some(bed_type_id) = body.bed_type_id {
+        sqlx::query_scalar::<_, Uuid>(
+            "SELECT id FROM bed_types WHERE id = $1 AND tenant_id = $2",
+        )
+        .bind(bed_type_id)
+        .bind(claims.tenant_id)
+        .fetch_optional(&mut *tx)
+        .await?
+        .ok_or_else(|| AppError::BadRequest("Unknown bed class".to_owned()))?;
+    }
+
+    let mapping = sqlx::query_as::<_, WardBedMapping>(
+        "UPDATE ward_bed_mappings SET bed_type_id = $4 \
+         WHERE id = $1 AND ward_id = $2 AND tenant_id = $3 AND deleted_at IS NULL \
+         RETURNING *",
+    )
+    .bind(mapping_id)
+    .bind(ward_id)
+    .bind(claims.tenant_id)
+    .bind(body.bed_type_id)
+    .fetch_optional(&mut *tx)
+    .await?
+    .ok_or(AppError::NotFound)?;
+
+    tx.commit().await?;
     Ok(Json(mapping))
 }
 
@@ -4764,7 +4866,7 @@ pub async fn bed_dashboard_beds(
          JOIN locations l ON l.id = bs.location_id \
          LEFT JOIN wards w ON w.id = bs.ward_id \
          LEFT JOIN ward_bed_mappings wbm ON wbm.bed_location_id = bs.location_id \
-             AND wbm.tenant_id = bs.tenant_id \
+             AND wbm.tenant_id = bs.tenant_id AND wbm.deleted_at IS NULL \
          LEFT JOIN bed_types bt ON bt.id = COALESCE(wbm.bed_type_id, l.bed_type_id) \
              AND bt.tenant_id = bs.tenant_id \
          LEFT JOIN users cb ON cb.id = bs.changed_by \
@@ -6452,6 +6554,9 @@ pub async fn complete_bed_turnaround(
     .fetch_optional(&mut *tx)
     .await?
     .ok_or_else(|| AppError::NotFound)?;
+
+    medbrains_db::beds::release_cleaned_bed(&mut *tx, claims.tenant_id, row.bed_id, claims.sub)
+        .await?;
 
     tx.commit().await?;
     Ok(Json(row))
@@ -8524,7 +8629,7 @@ pub fn router() -> axum::Router<AppState> {
         .route("/api/ipd/wards/{id}/on-duty", get(ward_on_duty))
         .route(
             "/api/ipd/wards/{wid}/beds/{mid}",
-            delete(remove_bed_from_ward),
+            put(update_ward_bed).delete(remove_bed_from_ward),
         )
         .route("/api/ipd/bed-dashboard", get(bed_dashboard_summary))
         .route("/api/ipd/bed-dashboard/beds", get(bed_dashboard_beds))

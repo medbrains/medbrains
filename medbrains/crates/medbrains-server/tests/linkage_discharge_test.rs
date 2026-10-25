@@ -31,6 +31,7 @@ async fn queued_pipeline_events(app: &common::TestApp, tenant_id: Uuid, admissio
 async fn discharge_releases_the_bed_and_queues_one_summary_and_one_mrd_request() {
     let app = common::spawn_app().await;
     let csrf = app.login_admin().await;
+    let doctor = common::provision_staff(&app, &csrf, "doctor", &[]).await;
 
     let beds: Vec<Value> = app
         .get(&app.client, "/api/ipd/beds/available")
@@ -73,7 +74,7 @@ async fn discharge_releases_the_bed_and_queues_one_summary_and_one_mrd_request()
         .post(app.url("/api/ipd/admissions"))
         .header("x-csrf-token", &csrf)
         .json(
-            &json!({ "patient_id": patient_id, "department_id": department_id, "bed_id": bed_id }),
+            &json!({ "patient_id": patient_id, "department_id": department_id, "bed_id": bed_id, "doctor_id": doctor.user_id }),
         )
         .send()
         .await
@@ -111,6 +112,34 @@ async fn discharge_releases_the_bed_and_queues_one_summary_and_one_mrd_request()
     .await
     .expect("bed_states query");
     assert_eq!((status.as_str(), held_by), ("vacant_dirty", None));
+
+    // Housekeeping signs the turnaround off, and that is what frees the bed.
+    let turnaround: Uuid = sqlx::query_scalar(
+        "SELECT id FROM bed_turnaround_log WHERE tenant_id = $1 AND admission_id = $2",
+    )
+    .bind(tenant_id)
+    .bind(admission_id.parse::<Uuid>().expect("admission uuid"))
+    .fetch_one(&app.db)
+    .await
+    .expect("turnaround row");
+    let resp = app
+        .client
+        .post(app.url(&format!("/api/ipd/bed-turnaround/{turnaround}/complete")))
+        .header("x-csrf-token", &csrf)
+        .json(&json!({}))
+        .send()
+        .await
+        .expect("complete turnaround");
+    assert_eq!(resp.status(), 200);
+    let status: String = sqlx::query_scalar(
+        "SELECT status::text FROM bed_states WHERE tenant_id = $1 AND location_id = $2",
+    )
+    .bind(tenant_id)
+    .bind(bed_id.parse::<Uuid>().expect("bed uuid"))
+    .fetch_one(&app.db)
+    .await
+    .expect("bed status");
+    assert_eq!(status, "vacant_clean", "a cleaned bed can be allocated again");
 
     // Emit half: one clinical event, one queued pipeline event.
     assert_eq!(

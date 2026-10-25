@@ -8006,6 +8006,11 @@ export const api = {
       method: "POST",
       body: JSON.stringify(data),
     }),
+  updateWardBed: (wardId: string, mappingId: string, data: { bed_type_id: string | null }) =>
+    request<WardBedMapping>(`/ipd/wards/${wardId}/beds/${mappingId}`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
   removeBedFromWard: (wardId: string, mappingId: string) =>
     request<{ message: string }>(`/ipd/wards/${wardId}/beds/${mappingId}`, {
       method: "DELETE",

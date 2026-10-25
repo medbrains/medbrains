@@ -79,6 +79,9 @@ export const ipdService = {
     api.assignBedToWard(...args),
   removeBedFromWard: (...args: Parameters<typeof api.removeBedFromWard>) =>
     api.removeBedFromWard(...args),
+  updateWardBed: (...args: Parameters<typeof api.updateWardBed>) => api.updateWardBed(...args),
+  listBedTypes: () => api.listBedTypes(),
+  listLocations: () => api.listLocations(),
   listIpTypes: (...args: Parameters<typeof api.listIpTypes>) => api.listIpTypes(...args),
   updateIpType: (...args: Parameters<typeof api.updateIpType>) => api.updateIpType(...args),
   bedDashboardSummary: (...args: Parameters<typeof api.bedDashboardSummary>) =>
