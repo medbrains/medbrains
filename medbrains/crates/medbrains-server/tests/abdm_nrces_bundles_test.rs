@@ -70,7 +70,8 @@ async fn the_bundles_a_transfer_carries_meet_the_nrces_profiles() {
           FROM patients WHERE id = $1 RETURNING id", &[p]).await;
     sqlx::query(
         "INSERT INTO doctor_profiles (tenant_id, user_id, display_name, hpr_id) \
-        SELECT tenant_id, id, full_name, $2 FROM users WHERE id = $1",
+        SELECT tenant_id, id, full_name, $2 FROM users WHERE id = $1 \
+         ON CONFLICT (tenant_id, user_id) DO UPDATE SET hpr_id = EXCLUDED.hpr_id",
     )
     .bind(doctor)
     .bind(&hpr)

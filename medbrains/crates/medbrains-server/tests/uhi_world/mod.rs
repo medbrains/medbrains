@@ -575,7 +575,9 @@ pub async fn doctor(w: &World) -> (Uuid, String) {
     .expect("department");
     sqlx::query(
         "INSERT INTO doctor_profiles (tenant_id, user_id, display_name, hpr_id) \
-         VALUES ($1, $2, $3, $4)",
+         VALUES ($1, $2, $3, $4) \
+         ON CONFLICT (tenant_id, user_id) DO UPDATE \
+         SET display_name = EXCLUDED.display_name, hpr_id = EXCLUDED.hpr_id",
     )
     .bind(w.tenant)
     .bind(staff.user_id)
