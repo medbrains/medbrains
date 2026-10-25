@@ -48,7 +48,7 @@ The steps run in this order, and each one is idempotent:
 | `s08_pharmacy` | dispensing after payment, NDPS receipts and a witnessed morphine dispense, OTC sales, a return |
 | `s09_billing` | IPD tariff lines, cash/UPI/card payments with partial and outstanding balances, a refund, an advance, the day close; insurers, policies, pre-auths, claims |
 | `s10_er_radiology` | 5 ER visits including a road-traffic MLC (injuries, police intimation); 13 radiology orders and reports, one of them critical |
-| `s11_extra_modules` | OT, diet, HR roster/attendance, indent, camp, blood bank and other modules |
+| `s11_extra_modules` (+ `extra_*.py`) | OT, diet, HR roster/attendance, store/indent/procurement, camp, blood bank, ICU, housekeeping, CSSD, infection control, quality, ambulance, BME, home health, telemedicine, front office, maternity, dental/ophthalmology, MRD, LMS, facilities; `--verify` checks the links |
 | `s99_verify` | reads everything back through the API and checks the links between modules |
 
 It builds on the G2DEMO base data (the tenant, 9 departments, 5 doctors, a nurse, a
@@ -66,6 +66,10 @@ below. Re-run `facts.sh` to recompute the answers after any change to the data.
   INSERT names a `chief_complaint` column that `encounters` does not have. A
   months-of-history seed needs that fixed, and needs the same capability for admissions,
   orders and invoices.
+- `POST /diet/orders` and `POST /cssd/issuances` answer 200 but save nothing, and OT
+  "completed" returns a 500. In all three, a discarded auto-billing error aborts the
+  transaction. `POST /chronic-care/programs` returns a 500 (an enum is read into a
+  `String`).
 - Platelet results are auto-flagged against a lakh/cumm reference with the unit ignored,
   so the seed reports platelets in lakh/cumm.
 
