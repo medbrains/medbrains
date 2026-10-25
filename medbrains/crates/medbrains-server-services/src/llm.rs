@@ -160,6 +160,23 @@ pub fn redact_standalone(text: &str) -> Result<Redacted, AppError> {
     .map_err(|e| unsafe_to_send(&e))
 }
 
+/// Redact text about a subject, not a person (a course topic): identifiers
+/// still go, but naming a clinical class (HIV, mental health) is allowed —
+/// it is the subject. Never for text taken from a patient's record.
+///
+/// # Errors
+/// [`unsafe_to_send`] when the text cannot be made safe.
+pub fn redact_topic(text: &str) -> Result<Redacted, AppError> {
+    medbrains_core::ai_redact::Redactor::new(
+        medbrains_core::ai_redact::PseudonymMap::default(),
+        &medbrains_core::ai_redact::KnownIdentifiers::default(),
+        chrono::Utc::now().date_naive(),
+    )
+    .allowing_clinical_topics()
+    .redact(text)
+    .map_err(|e| unsafe_to_send(&e))
+}
+
 /// Run a structured extraction with the tenant's configured AI provider.
 ///
 /// `T` is the schema the model must return; it is extracted type-safely via

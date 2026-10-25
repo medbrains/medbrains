@@ -27,6 +27,7 @@
 
 mod checks;
 mod patterns;
+pub mod sensitive;
 mod stream;
 #[cfg(test)]
 mod tests;
@@ -276,6 +277,8 @@ pub struct Redactor {
     known: Vec<(String, String)>,
     today: NaiveDate,
     keep_amounts: bool,
+    /// Withhold restricted clinical classes ([`sensitive`]). On by default.
+    withhold_sensitive: bool,
 }
 
 impl Redactor {
@@ -287,6 +290,7 @@ impl Redactor {
             known: Vec::new(),
             today,
             keep_amounts: false,
+            withhold_sensitive: true,
         };
         for (kind, value) in &known.values {
             r.learn(*kind, value);
@@ -298,6 +302,16 @@ impl Redactor {
     #[must_use]
     pub const fn keeping_amounts(mut self) -> Self {
         self.keep_amounts = true;
+        self
+    }
+
+    /// For text that is about a subject, not a person — a training-course
+    /// topic — where naming a clinical class (an HIV counselling course) is
+    /// the point. Identifiers are still redacted. Never use it for text that
+    /// came from a patient's record.
+    #[must_use]
+    pub const fn allowing_clinical_topics(mut self) -> Self {
+        self.withhold_sensitive = false;
         self
     }
 
@@ -318,6 +332,13 @@ impl Redactor {
         let dates = patterns::dates().map_err(RedactError::Patterns)?;
         // Shapes before names, so an email or UPI id goes whole rather than
         // having the name inside it replaced and its domain left behind.
+        let withheld;
+        let text = if self.withhold_sensitive {
+            withheld = sensitive::withhold_in_text(text).map_err(RedactError::Patterns)?.0;
+            withheld.as_str()
+        } else {
+            text
+        };
         let mut out = self.redact_fields(text)?;
         out = self.replace_patterns(&out, free);
         out = self.replace_known(&out)?;

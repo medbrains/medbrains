@@ -785,6 +785,11 @@ struct CallApiTool {
     claims: Claims,
 }
 
+/// Told to the user when their question names a restricted class.
+const RESTRICTED_QUESTION: &str = "This question mentions a restricted clinical area (HIV/STI, \
+    mental health, PC-PNDT, medico-legal, substance use or reproductive care). That is never \
+    shared with the AI, so it was not sent. Use the chart directly for it.";
+
 /// Told to the model when a check could not run, so it never reads an outage
 /// as "nothing there".
 const UNKNOWN_FOR_MODEL: &str = "UNKNOWN — the system could not check this right now (a fault, \
@@ -809,6 +814,15 @@ pub async fn call_api_as_agent(
     if !CALL_API_ALLOWLIST.iter().any(|p| path.starts_with(p)) {
         return Ok(format!("Path '{path}' is not permitted for the assistant."));
     }
+    // Restricted clinical classes are never fetched for a model at all —
+    // cheaper and safer than fetching and withholding.
+    if RESTRICTED_PATHS.iter().any(|seg| path.contains(seg)) {
+        return Ok(
+            "Not shared with the AI: this is a restricted clinical record (mental health, \
+             medico-legal, PC-PNDT, HIV or reproductive care)."
+                .to_owned(),
+        );
+    }
     // Mint a token for the caller so the request goes through the real auth path.
     let token =
         medbrains_server_core::middleware::auth::encode_jwt(claims, &state.jwt_encoding_key)
@@ -828,7 +842,63 @@ pub async fn call_api_as_agent(
     let bytes = axum::body::to_bytes(response.into_body(), 256 * 1024)
         .await
         .map_err(|_| AppError::Internal("read body failed".to_owned()))?;
-    Ok(describe_response(status, &String::from_utf8_lossy(&bytes)))
+    Ok(describe_response(status, &minimum_necessary(&String::from_utf8_lossy(&bytes))))
+}
+
+/// Path segments of restricted-class records (MHCA 2017, PC&PNDT 1994,
+/// medico-legal, HIV/AIDS Act 2017, ART/MTP Acts).
+const RESTRICTED_PATHS: &[&str] = &[
+    "/psychiatry",
+    "/psychometric",
+    "/mlc",
+    "/pcpndt",
+    "/mortuary",
+    "/hiv",
+    "/ivf",
+    "/mtp",
+];
+
+/// Record metadata no assistant task needs: who edited it, from where, with
+/// what token. Dropped before redaction (minimum necessary, DPDP s.6).
+const NEVER_NEEDED: &[&str] = &[
+    "created_by",
+    "updated_by",
+    "deleted_by",
+    "ip_address",
+    "user_agent",
+    "session_id",
+    "password_hash",
+    "token",
+    "refresh_token",
+    "api_key",
+    "secret",
+    "signature",
+    "signature_url",
+    "photo_url",
+    "hash",
+    "prev_hash",
+];
+
+/// An API body cut down to what a model may need: metadata keys dropped.
+/// (Identifiers and restricted classes are handled by the redactor after.)
+fn minimum_necessary(body: &str) -> String {
+    fn prune(v: &mut serde_json::Value) {
+        match v {
+            serde_json::Value::Object(map) => {
+                map.retain(|k, _| !NEVER_NEEDED.contains(&k.as_str()));
+                map.values_mut().for_each(prune);
+            }
+            serde_json::Value::Array(items) => items.iter_mut().for_each(prune),
+            _ => {}
+        }
+    }
+    match serde_json::from_str::<serde_json::Value>(body) {
+        Ok(mut json) => {
+            prune(&mut json);
+            json.to_string()
+        }
+        Err(_) => body.to_owned(),
+    }
 }
 
 /// What the model is told about one API answer. A server fault is UNKNOWN,
@@ -1251,6 +1321,11 @@ pub async fn chat(
         .map_err(unsafe_)?;
     let preamble = Redacted::fixed(SYSTEM_PROMPT).join("\n\n", &context);
     let message = redactor.redact(&message).map_err(unsafe_)?;
+    // A question that itself names a restricted class is not sent at all, and
+    // the user is told why rather than given an answer to an empty question.
+    if message.for_model().contains(medbrains_core::ai_redact::sensitive::WITHHELD) {
+        return Err(AppError::BadRequest(RESTRICTED_QUESTION.to_owned()));
+    }
     let mut prior = Vec::with_capacity(history.len());
     for row in history {
         let content = redactor.redact(&row.content).map_err(unsafe_)?;
@@ -1846,6 +1921,14 @@ mod tests {
         assert!(!continues_conversation(Some(a), Some(b)));
         assert!(continues_conversation(None, Some(b)));
         assert!(continues_conversation(Some(a), None));
+    }
+
+    #[test]
+    fn record_metadata_is_dropped_before_the_model() {
+        let out = super::minimum_necessary(
+            r#"{"id":"1","created_by":"u","ip_address":"10.0.0.1","items":[{"token":"t","dose":"5 mg"}]}"#,
+        );
+        assert_eq!(out, r#"{"id":"1","items":[{"dose":"5 mg"}]}"#);
     }
 
     #[test]
