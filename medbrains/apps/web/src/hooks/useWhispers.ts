@@ -15,7 +15,42 @@ interface WhisperPayload {
   title?: string;
   message?: string;
   patientId?: string;
+  /** "Name (UHID)" — a value is never shown without whose it is. */
+  patientLabel?: string;
   kind?: string;
+  /** On `whisper_status` frames: whether the server could check. */
+  status?: "ok" | "unavailable";
+}
+
+const STATUS_SOURCE = "whisper-status";
+
+/**
+ * "Couldn't check" when the live alert feed cannot answer — a quiet island
+ * must never be read as "no critical values". Cleared once it answers again.
+ */
+export function setWhisperHealth(ok: boolean, message?: string) {
+  useLiveActivityStore.getState().setActivity(
+    STATUS_SOURCE,
+    ok
+      ? null
+      : {
+          priority: 60,
+          tone: "alert",
+          title: "Couldn't check for critical alerts",
+          message:
+            message ??
+            "Live alerts are not reaching this screen. Check the lab worklist directly until this clears.",
+          dismissible: false,
+        },
+  );
+}
+
+/** The question "Ask AI" sends — always naming whose result it is. */
+export function whisperQuestion(whisper: WhisperPayload): string {
+  const message = whisper.message ?? "Critical value";
+  return whisper.patientLabel
+    ? `Explain this critical result for ${whisper.patientLabel} and what to do next: ${message}`
+    : `Explain this critical result and what to do next: ${message}`;
 }
 
 function parseFrame(frame: string): WhisperPayload | null {
@@ -34,7 +69,7 @@ function showWhisper(whisper: WhisperPayload) {
   const isCode = whisper.kind ? CODE_KINDS.has(whisper.kind) : false;
   const askAi = () =>
     useAiAssistantStore.getState().open({
-      query: `Explain this critical result and what to do next: ${message}`,
+      query: whisperQuestion(whisper),
       context: whisper.patientId ? { patient_id: whisper.patientId } : undefined,
     });
   // Contribute to the Live Activity Island (persistent, escalates for codes) — the
@@ -95,6 +130,8 @@ export function useWhispers() {
           const payload = parseFrame(frame);
           if (payload?.type === "whisper") {
             showWhisper(payload);
+          } else if (payload?.type === "whisper_status") {
+            setWhisperHealth(payload.status === "ok", payload.message);
           }
         }
       }
@@ -110,6 +147,8 @@ export function useWhispers() {
           if (stopped || controller.signal.aborted || error instanceof StreamRefused) return;
         }
         if (stopped) return;
+        // The stream dropped: until it answers again nobody is checking.
+        setWhisperHealth(false);
         await new Promise((resolve) => setTimeout(resolve, backoff));
         backoff = Math.min(backoff * 2, 30_000);
       }
@@ -118,6 +157,7 @@ export function useWhispers() {
     return () => {
       stopped = true;
       controller.abort();
+      setWhisperHealth(true);
     };
   }, [canReceive]);
 }

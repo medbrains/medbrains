@@ -1006,15 +1006,19 @@ async fn open_turn(
 
     let conversation_id = match req.conversation_id {
         Some(id) => {
-            let owner = sqlx::query_scalar::<_, Uuid>(
-                "SELECT owner_user_id FROM ai_conversations WHERE id = $1 AND tenant_id = $2",
+            let row = sqlx::query_as::<_, (Uuid, Option<Uuid>)>(
+                "SELECT owner_user_id, patient_id FROM ai_conversations \
+                 WHERE id = $1 AND tenant_id = $2",
             )
             .bind(id)
             .bind(tenant_id)
             .fetch_optional(&mut *tx)
             .await?;
-            match owner {
-                Some(o) if o == claims.sub => id,
+            match row {
+                Some((owner, about)) if owner == claims.sub => {
+                    bind_conversation_patient(&mut tx, id, about, patient_id).await?;
+                    id
+                }
                 Some(_) => return Err(AppError::Forbidden),
                 None => return Err(AppError::BadRequest("conversation not found".to_owned())),
             }
@@ -1022,13 +1026,14 @@ async fn open_turn(
         None => {
             let title: String = message.chars().take(60).collect();
             sqlx::query_scalar::<_, Uuid>(
-                "INSERT INTO ai_conversations (tenant_id, owner_user_id, title, model) \
-                 VALUES ($1, $2, $3, $4) RETURNING id",
+                "INSERT INTO ai_conversations (tenant_id, owner_user_id, title, model, patient_id) \
+                 VALUES ($1, $2, $3, $4, $5) RETURNING id",
             )
             .bind(tenant_id)
             .bind(claims.sub)
             .bind(&title)
             .bind(&cfg.model)
+            .bind(patient_id)
             .fetch_one(&mut *tx)
             .await?
         }
@@ -1078,6 +1083,43 @@ async fn open_turn(
         grounded_patient,
         kb_hits,
     })
+}
+
+/// Whether a turn about `asked` may continue a conversation about `about`.
+/// One conversation is about one patient: its history must never ground an
+/// answer shown on another patient's screen. A thread with no patient yet
+/// (the user picks one mid-thread) takes the first one named; a turn naming
+/// no patient adds nothing about anyone and may continue any thread.
+const fn continues_conversation(about: Option<Uuid>, asked: Option<Uuid>) -> bool {
+    match (about, asked) {
+        (Some(a), Some(b)) => a.as_u128() == b.as_u128(),
+        _ => true,
+    }
+}
+
+/// Refuse a turn about a different patient; pin a patient-less thread to the
+/// first patient a turn names.
+async fn bind_conversation_patient(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    conversation_id: Uuid,
+    about: Option<Uuid>,
+    asked: Option<Uuid>,
+) -> Result<(), AppError> {
+    if !continues_conversation(about, asked) {
+        return Err(AppError::Conflict(
+            "This conversation is about a different patient. Start a new conversation for this \
+             patient."
+                .to_owned(),
+        ));
+    }
+    if about.is_none() && asked.is_some() {
+        sqlx::query("UPDATE ai_conversations SET patient_id = $2 WHERE id = $1")
+            .bind(conversation_id)
+            .bind(asked)
+            .execute(&mut **tx)
+            .await?;
+    }
+    Ok(())
 }
 
 /// Compose the turn preamble: system prompt + the generic screen context (the
@@ -1451,14 +1493,25 @@ async fn persist_assistant_turn(
 
 // ── Proactive whispers (step 1: critical-value SSE) ──────────────────
 // A long-lived SSE the assistant UI subscribes to; it surfaces newly-fired,
-// unacknowledged critical lab values (post-commit, polled) as "whispers". Rides
-// the normal auth/RLS middleware; tenant-scoped. ponytail: polling (~10s) for a
-// simple, reliable first version — a push bus off the outbox worker is the
-// upgrade path. Per-patient access filtering is a later refinement.
+// unacknowledged critical lab values (post-commit, polled) as "whispers", plus
+// emergency-code activations. Rides the normal auth/RLS middleware.
+//
+// Per patient: a critical value reaches only a caller who may see that patient
+// (the same visible set list screens use, one round trip per poll), and every
+// whisper names its patient, so a value for one patient can never be read as
+// belonging to the chart on screen. Per tenant: RLS plus the tenant predicate.
+//
+// A poll that cannot answer is "couldn't check", never silence: the stream
+// says so once when it goes unknown and again when it recovers.
+//
+// ponytail: polling (~10s) and the visible set re-fetched per poll; a push bus
+// off the outbox worker, and a cached visible set, are the upgrade paths.
 
 #[derive(sqlx::FromRow)]
 struct CriticalAlertRow {
     patient_id: Uuid,
+    patient_name: Option<String>,
+    uhid: Option<String>,
     parameter_name: String,
     value: String,
     flag: String,
@@ -1472,41 +1525,57 @@ struct CodeRow {
     created_at: chrono::DateTime<chrono::Utc>,
 }
 
-struct Whisper {
-    created_at: chrono::DateTime<chrono::Utc>,
-    payload: serde_json::Value,
+/// One event for the whisper stream.
+#[derive(Debug)]
+pub struct Whisper {
+    pub created_at: chrono::DateTime<chrono::Utc>,
+    pub payload: serde_json::Value,
 }
 
-/// Poll the committed alert tables for whisper-worthy events fired since `since`:
-/// critical lab values + emergency-code activations. Tenant-scoped under RLS.
-async fn fetch_new_whispers(
+/// Whisper-worthy events fired since `since`.
+///
+/// Critical lab values for patients the caller may see, and emergency-code
+/// activations. An unanswerable visible set is an error, never an empty list.
+///
+/// # Errors
+/// The caller's visible patients could not be resolved, or the database failed.
+pub async fn fetch_new_whispers(
     state: &AppState,
-    tenant_id: Uuid,
+    claims: &Claims,
     since: chrono::DateTime<chrono::Utc>,
 ) -> Result<Vec<Whisper>, AppError> {
+    let visible = medbrains_authz_gate::visible_patient_ids(state, claims).await?;
+    let tenant_id = claims.tenant_id;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &tenant_id).await?;
 
     let mut out: Vec<Whisper> = Vec::new();
 
     let alerts = sqlx::query_as::<_, CriticalAlertRow>(
-        "SELECT patient_id, parameter_name, value, flag::text AS flag, created_at \
-         FROM lab_critical_alerts \
-         WHERE tenant_id = $1 AND created_at > $2 AND acknowledged_at IS NULL \
-         ORDER BY created_at LIMIT 20",
+        "SELECT a.patient_id, \
+                NULLIF(concat_ws(' ', p.first_name, p.last_name), '') AS patient_name, \
+                p.uhid, a.parameter_name, a.value, a.flag::text AS flag, a.created_at \
+         FROM lab_critical_alerts a \
+         JOIN patients p ON p.id = a.patient_id AND p.tenant_id = a.tenant_id \
+         WHERE a.tenant_id = $1 AND a.created_at > $2 AND a.acknowledged_at IS NULL \
+           AND ($3::uuid[] IS NULL OR a.patient_id = ANY($3)) \
+         ORDER BY a.created_at LIMIT 20",
     )
     .bind(tenant_id)
     .bind(since)
+    .bind(visible.as_deref())
     .fetch_all(&mut *tx)
     .await?;
     for a in alerts {
+        let who = patient_label(a.patient_name.as_deref(), a.uhid.as_deref());
         out.push(Whisper {
             created_at: a.created_at,
             payload: serde_json::json!({
                 "type": "whisper", "severity": "critical", "kind": "critical_lab_value",
-                "title": "Critical lab value",
+                "title": format!("Critical lab value — {who}"),
                 "message": format!("{} = {} [{}]", a.parameter_name, a.value, a.flag),
                 "patientId": a.patient_id,
+                "patientLabel": who,
             }),
         });
     }
@@ -1536,43 +1605,67 @@ async fn fetch_new_whispers(
     Ok(out)
 }
 
+/// "Name (UHID)" — so a whisper can never be taken for the chart on screen.
+fn patient_label(name: Option<&str>, uhid: Option<&str>) -> String {
+    match (name, uhid) {
+        (Some(n), Some(u)) => format!("{n} ({u})"),
+        (Some(n), None) => n.to_owned(),
+        (None, Some(u)) => u.to_owned(),
+        (None, None) => "unnamed patient".to_owned(),
+    }
+}
+
+/// The stream-health event to send after a poll, if the health changed:
+/// `unavailable` once when polls start failing, `ok` once when they answer
+/// again (and on the first good poll, so the screen knows it is live).
+fn health_change(was_ok: Option<bool>, now_ok: bool) -> Option<serde_json::Value> {
+    if was_ok == Some(now_ok) {
+        return None;
+    }
+    Some(if now_ok {
+        serde_json::json!({ "type": "whisper_status", "status": "ok" })
+    } else {
+        serde_json::json!({
+            "type": "whisper_status", "status": "unavailable",
+            "message": "Couldn't check for critical alerts. Check the lab worklist directly until \
+                this clears.",
+        })
+    })
+}
+
 pub async fn whispers(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
 ) -> axum::response::Response {
-    // The stream carries `lab_critical_alerts` rows — patient id, parameter,
-    // value, flag. That is a patient's critical result, and without this any
-    // authenticated session could hold the stream open and receive every one
-    // in the hospital.
-    //
-    // Gated on the lab-report permission because that is the PHI-bearing half;
-    // the ER code activations it also carries are broadcast information. The
-    // better long-term shape is to filter each item by what the caller may
-    // see, rather than gate the whole stream — worth doing when a role needs
-    // the codes without the labs.
+    // The stream carries patients' critical results; a role without the
+    // lab-report permission has no business holding it open. Each item is
+    // then filtered to the patients the caller may see.
     if let Err(error) = require_permission(&claims, permissions::lab::reports::VIEW) {
         return error.into_response();
     }
 
-    let tenant_id = claims.tenant_id;
     let stream = async_stream::stream! {
         // Only surface alerts that fire AFTER the stream opens.
         let mut since = chrono::Utc::now();
+        let mut was_ok: Option<bool> = None;
         loop {
-            tokio::time::sleep(std::time::Duration::from_secs(10)).await;
-            let whispers = match fetch_new_whispers(&state, tenant_id, since).await {
-                Ok(w) => w,
-                Err(e) => {
-                    tracing::warn!(error = %e, "whisper poll failed");
-                    Vec::new()
-                }
-            };
-            for whisper in whispers {
+            let polled = fetch_new_whispers(&state, &claims, since).await;
+            if let Err(e) = &polled {
+                tracing::warn!(error = %e, "whisper poll failed");
+            }
+            if let Some(status) = health_change(was_ok, polled.is_ok()) {
+                yield sse(&status);
+            }
+            was_ok = Some(polled.is_ok());
+            // On failure `since` stays put, so alerts fired during an outage
+            // still arrive once polls answer again.
+            for whisper in polled.unwrap_or_default() {
                 if whisper.created_at > since {
                     since = whisper.created_at;
                 }
                 yield sse(&whisper.payload);
             }
+            tokio::time::sleep(std::time::Duration::from_secs(10)).await;
         }
     };
     Sse::new(stream)
@@ -1686,6 +1779,35 @@ mod tests {
         let told = describe_response(StatusCode::FORBIDDEN, "{\"secret\":1}");
         assert!(told.starts_with("HTTP 403"));
         assert!(!told.contains("secret"));
+    }
+
+    /// A failed poll is said once, and recovery is said once — never silence.
+    #[test]
+    fn whisper_health_is_announced_on_change_only() {
+        use super::health_change;
+        assert_eq!(
+            health_change(None, true).map(|v| v["status"].clone()),
+            Some("ok".into())
+        );
+        assert_eq!(health_change(Some(true), true), None);
+        let down = health_change(Some(true), false).map(|v| v["status"].clone());
+        assert_eq!(down, Some("unavailable".into()));
+        assert_eq!(health_change(Some(false), false), None);
+        assert_eq!(
+            health_change(None, false).map(|v| v["status"].clone()),
+            Some("unavailable".into())
+        );
+    }
+
+    /// One conversation, one patient.
+    #[test]
+    fn a_conversation_does_not_cross_patients() {
+        use super::continues_conversation;
+        let (a, b) = (uuid::Uuid::new_v4(), uuid::Uuid::new_v4());
+        assert!(continues_conversation(Some(a), Some(a)));
+        assert!(!continues_conversation(Some(a), Some(b)));
+        assert!(continues_conversation(None, Some(b)));
+        assert!(continues_conversation(Some(a), None));
     }
 
     #[test]

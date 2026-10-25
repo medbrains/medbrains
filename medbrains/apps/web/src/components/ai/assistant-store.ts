@@ -4,6 +4,12 @@ import type { ChatContext } from "./transport/types";
 // Global open/ask state for the app-wide assistant. Any component can drive the
 // crab assistant through this store (via the useAiAssistant hook) without prop
 // drilling — the AiAssistantMount reads it and renders the drawer + FAB.
+/** An AI answer offered to a note — only ever into the patient it was about. */
+export interface DraftOffer {
+  text: string;
+  patientId: string | undefined;
+}
+
 interface AiAssistantState {
   isOpen: boolean;
   /** A query queued by `ask()` for the panel to send once mounted/open. */
@@ -22,8 +28,8 @@ interface AiAssistantState {
    * case sheet shows it for review and nothing reaches the record until the
    * author accepts it there (#4895).
    */
-  draftOffer: string | null;
-  offerDraft: (text: string) => void;
+  draftOffer: DraftOffer | null;
+  offerDraft: (text: string, patientId: string | undefined) => void;
   clearDraftOffer: () => void;
 }
 
@@ -41,7 +47,7 @@ export const useAiAssistantStore = create<AiAssistantState>((set, get) => ({
   toggle: () => set((state) => ({ isOpen: !state.isOpen })),
   setContext: (context) => set({ context }),
   draftOffer: null,
-  offerDraft: (text) => set({ draftOffer: text }),
+  offerDraft: (text, patientId) => set({ draftOffer: { text, patientId } }),
   clearDraftOffer: () => set({ draftOffer: null }),
   consumeQuery: () => {
     const query = get().pendingQuery;

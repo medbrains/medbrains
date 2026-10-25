@@ -8,6 +8,8 @@ import { escapeHtml } from "@/pages/patient-detail/shared";
 
 interface AiDraftInsertProps {
   sectionTitle: string;
+  /** The patient whose note this is — a draft about anyone else is not offered. */
+  patientId: string;
   /** Called with the accepted text as editor HTML; the caller saves it as AI-assisted. */
   onAccept: (html: string) => void;
 }
@@ -27,11 +29,13 @@ export function aiDraftToHtml(text: string): string {
  * assistant, shown here labelled, and inserted only when the author accepts
  * it. The acceptance is saved with the section marked AI-assisted and audited.
  */
-export function AiDraftInsert({ sectionTitle, onAccept }: AiDraftInsertProps) {
-  const draft = useAiAssistantStore((s) => s.draftOffer);
+export function AiDraftInsert({ sectionTitle, patientId, onAccept }: AiDraftInsertProps) {
+  const offer = useAiAssistantStore((s) => s.draftOffer);
   const clearDraft = useAiAssistantStore((s) => s.clearDraftOffer);
   const [opened, { open, close }] = useDisclosure(false);
-  if (!draft) return null;
+  // An answer about one patient must never be offered into another's record.
+  if (!offer || offer.patientId !== patientId) return null;
+  const draft = offer.text;
 
   const accept = () => {
     onAccept(aiDraftToHtml(draft));

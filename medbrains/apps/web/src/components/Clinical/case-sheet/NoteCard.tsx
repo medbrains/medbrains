@@ -212,6 +212,7 @@ export function NoteCard({ note, addenda, actions }: NoteCardProps) {
             <NoteDraftEditor
               initialSections={note.sections}
               liveSections={note.sections}
+              patientId={note.patient_id}
               onSave={(patches) => actions.saveDraft(note, patches)}
               onSign={actions.canSign ? () => actions.sign(note) : undefined}
             />
