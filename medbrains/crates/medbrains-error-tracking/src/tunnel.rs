@@ -14,10 +14,9 @@ use std::time::Duration;
 
 use axum::body::Bytes;
 use axum::http::StatusCode;
-use sentry::protocol::Envelope;
 
+use crate::browser::scrub_browser_envelope;
 use crate::config::{Settings, settings};
-use crate::envelope::scrub_envelope;
 use crate::http_client;
 
 /// A browser envelope with an error, its breadcrumbs and a session update is a
@@ -33,6 +32,10 @@ pub(crate) async fn post_envelope(body: Bytes) -> StatusCode {
     let Some(scrubbed) = scrub_browser_envelope(&body) else {
         return StatusCode::BAD_REQUEST;
     };
+    if scrubbed.is_empty() {
+        // Nothing in it we keep (a span, a client report): accepted, not sent.
+        return StatusCode::OK;
+    }
     match forward(settings, scrubbed).await {
         Ok(()) => StatusCode::OK,
         Err(why) => {
@@ -40,15 +43,6 @@ pub(crate) async fn post_envelope(body: Bytes) -> StatusCode {
             StatusCode::BAD_GATEWAY
         }
     }
-}
-
-/// Parse, scrub and re-serialise; `None` for a body that is not an envelope or
-/// has nothing left to send.
-pub(crate) fn scrub_browser_envelope(body: &[u8]) -> Option<Vec<u8>> {
-    let scrubbed = scrub_envelope(Envelope::from_slice(body).ok()?)?;
-    let mut out = Vec::new();
-    scrubbed.to_writer(&mut out).ok()?;
-    Some(out)
 }
 
 async fn forward(settings: &Settings, envelope: Vec<u8>) -> Result<(), String> {

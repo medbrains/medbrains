@@ -9,10 +9,10 @@ use sentry::test::TestTransport;
 use sentry::{ClientOptions, Hub, Level, Scope, Transport};
 use tracing_subscriber::layer::SubscriberExt;
 
+use crate::browser::scrub_browser_envelope;
 use crate::config::Settings;
 use crate::envelope::scrubbing;
 use crate::sdk::client_options;
-use crate::tunnel::scrub_browser_envelope;
 
 type TestResult = Result<(), Box<dyn std::error::Error>>;
 
@@ -204,4 +204,27 @@ fn a_browser_envelope_full_of_patient_data_is_forwarded_with_none_of_it() -> Tes
 #[test]
 fn something_that_is_not_an_envelope_is_refused() {
     assert!(scrub_browser_envelope(b"not an envelope").is_none());
+}
+
+/// Real envelopes from `@sentry/react` 11.6 (captured from this app, with a
+/// synthetic patient in the error): a bare-array breadcrumbs list and an
+/// `unhandled` session status, both of which the protocol types refuse.
+#[test]
+fn real_react_sdk_envelopes_are_kept_and_cleaned() -> TestResult {
+    let event = scrub_browser_envelope(include_bytes!("fixtures/react-11-event.envelope"))
+        .ok_or("event envelope refused")?;
+    let event = String::from_utf8(event)?;
+    assert!(event.contains(r#""type":"event""#), "{event}");
+    assert!(event.contains("\"Error\""), "the error type survives");
+    assert_clean(&event);
+
+    let session = scrub_browser_envelope(include_bytes!("fixtures/react-11-session.envelope"))
+        .ok_or("session envelope refused")?;
+    let session = String::from_utf8(session)?;
+    assert!(
+        session.contains("unhandled"),
+        "the status passes through for release health"
+    );
+    assert!(!session.contains("HeadlessChrome"), "no user agent");
+    Ok(())
 }

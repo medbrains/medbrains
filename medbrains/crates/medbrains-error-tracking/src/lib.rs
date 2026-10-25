@@ -1,15 +1,16 @@
 //! Error tracking: the Sentry SDK in the server and the browser, reporting to a
 //! self-hosted Rustrak on the hospital's own machine.
 //!
-//! Patient data never goes in a report. Every envelope — the server's own and
-//! the browser's, which reach Rustrak through [`tunnel`] — is scrubbed by
-//! [`envelope::scrub_envelope`] before it leaves this process. Off unless
-//! `SENTRY_DSN` is set.
+//! Patient data never goes in a report. The server's own envelopes are scrubbed
+//! by [`envelope::scrub_envelope`] in its transport; the browser's reach Rustrak
+//! through [`tunnel`] and are scrubbed item by item in [`browser`] — both with
+//! the same `scrub_event`. Off unless `SENTRY_DSN` is set.
 
 // `unreachable_pub` is denied workspace-wide, so items shared between this
 // crate's private modules are `pub(crate)`, which this nursery lint dislikes.
 #![allow(clippy::redundant_pub_crate)]
 
+mod browser;
 mod config;
 mod envelope;
 mod scrub;
@@ -47,7 +48,6 @@ pub struct ClientConfig {
     pub enabled: bool,
     pub dsn: Option<String>,
     pub environment: Option<String>,
-    pub traces_sample_rate: f32,
     pub tunnel: &'static str,
 }
 
@@ -71,7 +71,6 @@ async fn get_client_config() -> Json<ClientConfig> {
         enabled: current.is_some(),
         dsn: current.map(|s| s.dsn.to_string()),
         environment: current.map(|s| s.environment.clone()),
-        traces_sample_rate: current.map_or(0.0, |s| s.traces_sample_rate),
         tunnel: TUNNEL_PATH,
     })
 }

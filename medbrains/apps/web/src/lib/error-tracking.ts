@@ -40,12 +40,11 @@ export async function startErrorTracking(): Promise<void> {
     // Collect nothing about the person or the request: v11's replacement for
     // sendDefaultPii, whose defaults collect most of it.
     dataCollection: NO_DATA_COLLECTION,
+    // Every error; no browser tracing — its spans are not kept by the tunnel,
+    // and the server's own traces cover request timing.
     sampleRate: 1,
-    tracesSampleRate: config.traces_sample_rate,
-    integrations: [Sentry.browserTracingIntegration()],
     beforeBreadcrumb: scrubBreadcrumb,
     beforeSend: scrubEvent,
-    beforeSendTransaction: scrubEvent,
   });
   sentry = Sentry;
   void tagUser(useAuthStore.getState().user);

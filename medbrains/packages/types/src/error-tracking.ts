@@ -3,7 +3,6 @@ export interface ErrorTrackingClientConfig {
   enabled: boolean;
   dsn: string | null;
   environment: string | null;
-  traces_sample_rate: number;
   /** Same-origin path the browser SDK posts its envelopes to. */
   tunnel: string;
 }

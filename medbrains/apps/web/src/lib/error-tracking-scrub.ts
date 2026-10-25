@@ -1,6 +1,4 @@
-import type { Breadcrumb, BrowserOptions, ErrorEvent } from "@sentry/react";
-
-type TransactionEvent = Parameters<NonNullable<BrowserOptions["beforeSendTransaction"]>>[0];
+import type { Breadcrumb, ErrorEvent } from "@sentry/react";
 
 /**
  * What the browser strips before an error report leaves the page. Shape only:
@@ -45,20 +43,13 @@ export function scrubBreadcrumb(crumb: Breadcrumb): Breadcrumb | null {
   return { ...crumb, message, data };
 }
 
-type ReportEvent = ErrorEvent | TransactionEvent;
-
 /** The request is reduced to its method and scrubbed URL; the user to an id hash. */
-export function scrubEvent<T extends ReportEvent>(event: T): T {
+export function scrubEvent(event: ErrorEvent): ErrorEvent {
   const request = event.request
     ? { method: event.request.method, url: event.request.url && scrubUrl(event.request.url) }
     : undefined;
   const user = event.user?.id ? { id: String(event.user.id) } : undefined;
-  const spans = event.spans?.map((span) => ({
-    ...span,
-    description: span.description && scrubUrl(span.description),
-    data: {},
-  }));
-  return { ...event, request, user, extra: undefined, spans };
+  return { ...event, request, user, extra: undefined };
 }
 
 /** The id an error report carries for a user — the same hash the server computes. */
