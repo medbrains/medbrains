@@ -932,9 +932,14 @@ check-fabricated-print: ## Find printed documents that invent their contents
 
 # ── Demo hospital (G2DEMO) ─────────────────────────────────────────
 DEMO_PGPORT ?= 5435
-.PHONY: demo-seed demo-restore
+DEMO_MONTHS ?= 12
+DEMO_TARGET_CRORE ?= 10
+.PHONY: demo-seed demo-seed-history demo-restore
 demo-seed: ## Seed the G2DEMO demo hospital through the API (scripts/demo-seed/README.md)
 	python3 scripts/demo-seed/run_all.py
+
+demo-seed-history: ## Import DEMO_MONTHS of G2DEMO history worth ~DEMO_TARGET_CRORE crore through Admin -> Import history
+	cd scripts/demo-seed && python3 run_history.py --months $(DEMO_MONTHS) --target-crore $(DEMO_TARGET_CRORE)
 
 demo-restore: ## Restore a demo snapshot into a NEW database (DEMO_DUMP=… DEMO_DB=…)
 	@test -n "$(DEMO_DUMP)" -a -f "$(DEMO_DUMP)" || { echo "DEMO_DUMP must name a pg_dump -Fc file"; exit 1; }

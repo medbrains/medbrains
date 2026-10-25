@@ -49,6 +49,7 @@ The steps run in this order, and each one is idempotent:
 | `s09_billing` | IPD tariff lines, cash/UPI/card payments with partial and outstanding balances, a refund, an advance, the day close; insurers, policies, pre-auths, claims |
 | `s10_er_radiology` | 5 ER visits including a road-traffic MLC (injuries, police intimation); 13 radiology orders and reports, one of them critical |
 | `s11_extra_modules` (+ `extra_*.py`) | OT, diet, HR roster/attendance, store/indent/procurement, camp, blood bank, ICU, housekeeping, CSSD, infection control, quality, ambulance, BME, home health, telemedicine, front office, maternity, dental/ophthalmology, MRD, LMS, facilities; `--verify` checks the links |
+| `run_history.py` | a year of history through the import API (below) |
 | `s99_verify` | reads everything back through the API and checks the links between modules |
 
 It builds on the G2DEMO base data (the tenant, 9 departments, 5 doctors, a nurse, a
@@ -58,14 +59,32 @@ catalogues). It does not create that base.
 `test-questions.md` lists chatbot questions with the answers computed from the snapshot
 below. Re-run `facts.sh` to recompute the answers after any change to the data.
 
-## Known limits (product gaps, not seed bugs)
+## A year of history (`make demo-seed-history`)
 
-- **No backdating through the API.** Every create stamps the time it was made, so the
-  activity is dated "today". Appointments are the exception, because they accept past
-  dates. `POST /retrospective/encounters`, the only backdating path, fails with a 500: its
-  INSERT names a `chief_complaint` column that `encounters` does not have. A
-  months-of-history seed needs that fixed, and needs the same capability for admissions,
-  orders and invoices.
+The live steps above fill today. The past comes in the way a real hospital's would:
+through **Admin → Import history** (`POST /api/history-import/batches`, #5045). Each record is
+dated when it happened, before the go-live cut-over (2026-10-25 00:00 IST by default), and
+goes through the import's checks.
+
+```bash
+make demo-seed-history                        # 12 months, ~Rs 10 crore billed
+make demo-seed-history DEMO_MONTHS=6 DEMO_TARGET_CRORE=4
+```
+
+- `history_plan.py` builds the year deterministically (fixed seed). It covers new and
+  returning patients, OPD visits with ICD-11 diagnoses and vitals, lab results, dispenses,
+  one bill per visit, closed admissions (medical stays, surgical and obstetric packages,
+  PTCA, TKR) at tier-2 Indian private-hospital tariffs, and cashless claims.
+- Volumes follow the seasons. Monsoon (June to October) brings dengue, typhoid and
+  gastroenteritis, and winter brings respiratory illness. Mondays are busy and Sundays
+  quiet. Every day of the year has a full day's activity, including the last 30 days.
+- `run_history.py` solves the volume for the revenue target, then sends batches of
+  200 records one at a time with a short pause between them.
+  - Re-running it is safe, because records already imported are skipped by external id.
+  - The live patients it may attach history to are frozen in `state.json` on the first
+    run, so the plan never changes between runs.
+
+## Known limits (product gaps, not seed bugs)
 - `POST /diet/orders` and `POST /cssd/issuances` answer 200 but save nothing, and OT
   "completed" returns a 500. In all three, a discarded auto-billing error aborts the
   transaction. `POST /chronic-care/programs` returns a 500 (an enum is read into a

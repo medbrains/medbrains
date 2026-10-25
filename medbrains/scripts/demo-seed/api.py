@@ -1,4 +1,4 @@
-"""Tiny client for the G2DEMO backend. Reads creds from /tmp/mb-demo-login.txt."""
+"""Tiny client for the G2DEMO backend (see README for the login variables)."""
 import json, sys, urllib.request, urllib.error, http.cookiejar
 _jar = http.cookiejar.CookieJar()
 _op = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(_jar))
@@ -31,7 +31,7 @@ def step_up(force=False):
     if force or time.time() - _stepped > 240:
         call("POST", "/auth/step-up", {"password": _creds()["password"]})
         _stepped = time.time()
-def call(method, path, body=None, auth=True, ok=(200, 201, 204)):
+def call(method, path, body=None, auth=True, timeout=120):
     data = json.dumps(body).encode() if body is not None else None
     req = urllib.request.Request(BASE + path, data=data, method=method)
     req.add_header("Content-Type", "application/json")
@@ -43,7 +43,7 @@ def call(method, path, body=None, auth=True, ok=(200, 201, 204)):
     import time
     t0 = time.time()
     try:
-        with _op.open(req, timeout=120) as resp:
+        with _op.open(req, timeout=timeout) as resp:
             raw = resp.read()
             return json.loads(raw) if raw else None
     except urllib.error.HTTPError as e:

@@ -3,11 +3,15 @@
 All data is synthetic. "Today" means 2026-10-25. Expected answers were computed from
 `medbrains_wt_g2shots` after seeding (see `facts.txt`, and `facts.sh` to recompute them).
 
-**Date-range caveat.** The API stamps every row with the time it was created, and it has no
-working way to backdate (see the report's product gaps). So almost all activity is dated
-**today**. A good answer to "this week" or "last month" gives the same numbers as "today"
-and should say that history before today is limited to appointments. Appointments can be
-booked with past dates, so they span 2026-09-25 to 2026-11-08.
+**Two layers of data.**
+- **Today (2026-10-25) is live work** done through the app. Sections 1–55 below cover it.
+- **The 12 months before go-live** (2025-10-25 to 2026-10-24) were brought in through
+  Admin → Import history: 16,673 patients, 27,992 OPD visits, 1,093 admissions,
+  16,883 lab orders, 19,452 dispenses, 29,085 bills and 386 claims, about ₹10.02 crore
+  billed. That history is dated when it happened. The section "History (last 12 months)"
+  at the end covers it.
+- Questions about "today" exclude the history. "This week", "last month" and longer
+  ranges include it.
 
 ## OPD and queue
 
@@ -218,3 +222,76 @@ booked with past dates, so they span 2026-09-25 to 2026-11-08.
     The correct answer is "no diet orders are recorded". `POST /diet/orders` returned
     success for 9 orders but saved none of them. If the assistant names any patients, it
     has made the answer up.
+
+## History (last 12 months, imported through Admin → Import history)
+
+Go-live is 2026-10-25 00:00 IST. October 2026 figures include today's live work.
+
+56. **"How many OPD visits did we have last month (September 2026)?"** 2,659.
+57. **"OPD visits in the last 30 days, and this week?"**
+    2,363 in the 30 days before today (2026-09-25 to 2026-10-24). This week, Monday
+    2026-10-19 to today, there were 605 including today's 105. Yesterday (2026-10-24) had 74.
+58. **"Which month had the most OPD visits, and the fewest?"**
+    Most: July 2026 with 2,742, then August (2,679) and September (2,659). Fewest full
+    month: April 2026 with 1,889. October 2025 is a partial month (from the 25th), with 533.
+59. **"What is our busiest day of the week?"**
+    Monday, about 99 OPD visits on average. Tuesday to Friday average about 80, Saturday 73
+    and Sunday 45.
+60. **"Show monthly revenue for the last 12 months."**
+    In lakh: Nov 2025 66.3, Dec 88.9, Jan 2026 89.4, Feb 64.6, Mar 82.3, Apr 84.0,
+    May 71.7, Jun 82.0, Jul 97.7, Aug 99.8, Sep 101.0 (the highest), Oct 2026 to date 71.7
+    (including today). Oct 2025 (from the 25th) was 12.4. The total is ₹10.12 crore,
+    of which ₹10.02 crore is imported history.
+61. **"How did dengue cases trend through the year?"**
+    It is a monsoon peak. There were 279 cases in June, 311 in July, 326 in August,
+    330 in September (the highest) and 177 so far in October. Outside the monsoon there
+    were about 30–70 a month.
+62. **"When do respiratory illnesses peak?"**
+    In winter. Nasopharyngitis, asthma, sinusitis and heart failure together came to
+    904 in January 2026, 856 in December, 728 in November and 723 in February. From spring
+    to monsoon it was about 180–280 a month.
+63. **"Top diagnoses over the past year?"**
+    1A40.Z gastroenteritis 2,152, BA00 hypertension 2,008, AB00 acute otitis media 1,878,
+    1A07 typhoid 1,826, CA00 nasopharyngitis 1,788, 1D20 dengue 1,769.
+64. **"How many admissions in the past year, and what is the average length of stay?"**
+    1,093 admissions, all discharged, with an average stay of 3.5 days. 44 left against
+    medical advice (DAMA). 82 were admitted in the 30 days before go-live.
+65. **"Which surgical packages brought in the most revenue?"**
+    TKR ₹1.16 crore (55 cases), PTCA ₹70.95 lakh (43), hysterectomy ₹50.15 lakh (59),
+    ORIF ₹49.68 lakh (69), lap hernia ₹36.40 lakh (56), LSCS ₹35.10 lakh (54),
+    lap appendicectomy ₹31.90 lakh (58), lap cholecystectomy ₹29.40 lakh (42).
+66. **"Revenue by department over the year?"**
+    In lakh: Orthopaedics 226.8, General Medicine 211.9, Cardiology 170.2,
+    General Surgery 125.3, Obstetrics & Gynaecology 124.8, Paediatrics 91.0, ENT 42.2,
+    Emergency 9.7.
+67. **"What is the status of insurance claims from the past year?"**
+    386 claims, ₹2.59 crore claimed in total:
+    - Settled: 313 claims, ₹2.04 crore claimed, ₹1.88 crore settled.
+    - Approved, awaiting settlement: 36 claims, ₹28.3 lakh.
+    - Submitted: 25 claims, ₹14.1 lakh.
+    - Rejected: 12 claims, ₹12.9 lakh.
+68. **"Which payer has the most claims?"**
+    PM-JAY (demo) with 74 claims worth ₹52.3 lakh, then CGHS (66, ₹47.5 lakh),
+    New India Assurance (67, ₹47.2 lakh), Star Health (67, ₹46.4 lakh),
+    HDFC ERGO (56, ₹34.2 lakh) and Niva Bupa (56, ₹32.0 lakh).
+69. **Data quality: "Why do bills from past months still show outstanding balances?"**
+    In the imported history, 1,845 bills are partially paid and 856 are unpaid, together
+    ₹2.89 crore outstanding.
+    - Most are insured admissions where the patient paid the 10% co-pay and the rest
+      went to the insurer.
+    - Settlements on settled claims were never posted against the bills, so the bills
+      still look open.
+    - An honest answer separates real patient dues from receivables waiting on insurers.
+70. **"How were payments made over the year?"**
+    UPI ₹2.65 crore (12,813 payments), card ₹2.13 crore (5,720),
+    bank transfer ₹1.38 crore (350, mostly IPD deposits) and cash ₹96.5 lakh (9,346).
+71. **"Which lab tests were ordered most in the last quarter?"**
+    CBC 1,324, Dengue NS1 655, Widal 612, Platelet count 440, Creatinine 332.
+72. **Data quality: "Were critical lab values in the imported history alerted?"**
+    No. There were 219 historical results flagged critical (for example 88 haemoglobin 6.4,
+    41 creatinine 7.8), but imported history raises no live alerts. The 16 open
+    critical-value alerts are all from today's live results. An answer that counts
+    "unacknowledged criticals" should not include history.
+73. **"How many new patients registered each month?"**
+    About 1,100–1,640 a month (16,673 imported in all). The most were in August 2026
+    (1,636) and July (1,634), and the fewest full month was May (1,125).
