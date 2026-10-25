@@ -1,5 +1,6 @@
 import { Box, Flex, Group, ScrollArea, Stack, Text, UnstyledButton } from "@mantine/core";
 import { api } from "@medbrains/api";
+import { useAuthStore } from "@medbrains/stores";
 import { P } from "@medbrains/types";
 import {
   IconDownload,
@@ -28,6 +29,14 @@ import classes from "./assistant.module.scss";
 
 // ai-label-exempt: renders AiChatPanel, which carries the label; titles are the user's own question.
 
+/** "Good afternoon, Asha": the workspace greets its owner by first name. */
+function greetingFor(fullName: string | undefined, now: Date): string {
+  const hour = now.getHours();
+  const part = hour < 12 ? "morning" : hour < 17 ? "afternoon" : "evening";
+  const first = fullName?.trim().split(/\s+/)[0];
+  return first ? `Good ${part}, ${first}` : `Good ${part}`;
+}
+
 /** Download the current thread as a markdown transcript (programmatic, no UI markup). */
 function downloadTranscript(lines: string): void {
   const blob = new Blob([lines], { type: "text/markdown" });
@@ -48,6 +57,8 @@ export function AssistantPage() {
   const controller = useAiChat({ transport });
   const [historyOpen, setHistoryOpen] = useState(true);
   const [detailOpen, setDetailOpen] = useState(true);
+  const fullName = useAuthStore((s) => s.user?.full_name);
+  const greeting = useMemo(() => greetingFor(fullName, new Date()), [fullName]);
 
   const { data: conversations = [] } = useQuery({
     queryKey: ["ai-conversations"],
@@ -172,7 +183,7 @@ export function AssistantPage() {
         )}
 
         <Box className={classes.center}>
-          <AiChatPanel controller={controller} title="MedBrains Assistant" />
+          <AiChatPanel controller={controller} title="MedBrains Assistant" greeting={greeting} />
         </Box>
 
         {detailOpen ? (

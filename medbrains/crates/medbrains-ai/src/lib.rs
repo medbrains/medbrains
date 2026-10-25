@@ -906,8 +906,17 @@ impl CallApiTool {
             .get()
             .ok_or_else(|| AppError::Internal("router unavailable".to_owned()))?
             .clone();
-        call_api_as_agent(router, &self.state, &self.claims, path).await
+        let path = with_today(path, chrono::Local::now().date_naive());
+        call_api_as_agent(router, &self.state, &self.claims, &path).await
     }
+}
+
+/// The model never sees a real date (the redactor turns dates into offsets),
+/// so it writes `[TODAY]` where today's date belongs and the server fills it.
+// ponytail: the server's local date; switch to the tenant's time zone when a
+// tenant runs outside the server's.
+fn with_today(path: &str, today: chrono::NaiveDate) -> String {
+    path.replace("[TODAY]", &today.format("%Y-%m-%d").to_string())
 }
 
 impl rig::tool::Tool for CallApiTool {
@@ -926,7 +935,8 @@ impl rig::tool::Tool for CallApiTool {
                 so you can only read what you're allowed to — prefer this over asking the user. If \
                 unsure which endpoint exists, call `list_apis` first to see them all. Pass a full \
                 path with ids filled from the screen context, e.g. GET /api/patients/{id}/allergies, \
-                /api/lab/orders/{orderId}/results, /api/billing/invoices?patient_id={id}."
+                /api/lab/orders/{orderId}/results, /api/billing/invoices?patient_id={id}. Write \
+                [TODAY] where today's date belongs (e.g. ?date=[TODAY]); the server fills it in."
                 .to_owned(),
             parameters: serde_json::json!({
                 "type": "object",
@@ -1143,14 +1153,18 @@ async fn open_turn(
         .await?
     };
 
-    let history_rows = sqlx::query_as::<_, HistoryRow>(
+    // The most recent messages only, oldest first: a bounded read, and a
+    // bounded prompt however long the conversation runs.
+    let mut history_rows = sqlx::query_as::<_, HistoryRow>(
         "SELECT role, content FROM ai_messages \
-         WHERE conversation_id = $1 AND tenant_id = $2 ORDER BY created_at",
+         WHERE conversation_id = $1 AND tenant_id = $2 ORDER BY created_at DESC LIMIT $3",
     )
     .bind(conversation_id)
     .bind(tenant_id)
+    .bind(i64::from(medbrains_core::ai_guard::HISTORY_MESSAGES))
     .fetch_all(&mut *tx)
     .await?;
+    history_rows.reverse();
 
     let kb_hits = retrieve_kb(&mut tx, message).await?;
     tx.commit().await?;
@@ -1210,10 +1224,8 @@ async fn bind_conversation_patient(
 fn build_context(context: Option<&serde_json::Value>, kb_hits: &[KbHit]) -> String {
     let mut parts: Vec<String> = Vec::new();
     if let Some(ctx) = context.filter(|c| !c.is_null()) {
-        parts.push(format!(
-            "Current screen context (the record ids the user is viewing) — {ctx}\n\
-             Use your tools to fetch details for these ids rather than asking the user for data."
-        ));
+        // Ids only, as JSON; what to do with them is in the cached system prompt.
+        parts.push(format!("Screen: {ctx}"));
     }
     if !kb_hits.is_empty() {
         let refs: Vec<String> = kb_hits
@@ -1227,10 +1239,7 @@ fn build_context(context: Option<&serde_json::Value>, kb_hits: &[KbHit]) -> Stri
                 )
             })
             .collect();
-        parts.push(format!(
-            "Knowledge-base references (cite these by name when you use them) —\n{}",
-            refs.join("\n")
-        ));
+        parts.push(format!("Knowledge base:\n{}", refs.join("\n")));
     }
     parts.join("\n\n")
 }
@@ -1556,6 +1565,7 @@ where
         }
 
         let mut answer = String::new();
+        let mut usage = None;
         let mut shown = StreamRehydrator::default();
         // multi_turn > 0 is REQUIRED for the tool loop — rig defaults to 0
         // ("one round-trip"), which errors after the first tool call.
@@ -1588,6 +1598,7 @@ where
                 })) => {
                     yield tool_result_frame(&mut guard, &session, &tool_result, &internal_call_id);
                 }
+                Ok(MultiTurnStreamItem::FinalResponse(r)) => usage = Some(r.usage()),
                 Ok(_) => {}
                 Err(e) => {
                     // The provider's error text is not shown: it can echo input.
@@ -1622,7 +1633,18 @@ where
             tracing::error!(error = %e, "failed to persist assistant turn");
         }
 
-        yield sse(&serde_json::json!({ "type": "done", "conversationId": conversation_id }));
+        // Tokens for the whole turn (every model call), for the cost readout.
+        let usage = usage.map(|u| serde_json::json!({
+            "input": u.input_tokens,
+            "output": u.output_tokens,
+            "cacheRead": u.cached_input_tokens,
+            "cacheWrite": u.cache_creation_input_tokens,
+        }));
+        yield sse(&serde_json::json!({
+            "type": "done",
+            "conversationId": conversation_id,
+            "usage": usage,
+        }));
     }
 }
 
@@ -1959,8 +1981,18 @@ pub fn router() -> axum::Router<AppState> {
 
 #[cfg(test)]
 mod tests {
-    use super::{UNKNOWN_FOR_MODEL, describe_response};
+    use super::{UNKNOWN_FOR_MODEL, describe_response, with_today};
     use axum::http::StatusCode;
+
+    #[test]
+    fn today_is_filled_in_by_the_server_not_the_model() {
+        let today = chrono::NaiveDate::from_ymd_opt(2026, 10, 25).unwrap_or_default();
+        assert_eq!(
+            with_today("/api/billing/reports/daily?date=[TODAY]", today),
+            "/api/billing/reports/daily?date=2026-10-25"
+        );
+        assert_eq!(with_today("/api/patients/1", today), "/api/patients/1");
+    }
 
     /// An outage is UNKNOWN to the model, never an empty answer it could
     /// read as "nothing recorded".

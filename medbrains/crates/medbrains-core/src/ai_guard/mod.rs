@@ -36,6 +36,11 @@ use patterns::{COMMON_WORDS, CONTACT_KINDS, NOT_CONDITIONS, PATTERNS, Patterns, 
 /// never a pass (eval `cut_off`), so the cap only bounds a runaway answer.
 pub const MAX_ANSWER_TOKENS: u32 = 3200;
 
+/// Prior messages (user and assistant) sent with a turn, newest kept: three
+/// exchanges. Older ones stay stored, not sent; the patient a conversation is
+/// about is pinned separately, so it is never among what drops.
+pub const HISTORY_MESSAGES: u16 = 6;
+
 /// Longest text held while waiting for a sentence to end.
 const MAX_PENDING: usize = 2000;
 /// Distinct injected words a sentence must share to count as an echo.

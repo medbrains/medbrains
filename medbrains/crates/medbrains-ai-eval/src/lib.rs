@@ -23,6 +23,7 @@ pub mod report;
 use std::path::{Path, PathBuf};
 
 use chrono::NaiveDate;
+use medbrains_core::ai_guard::HISTORY_MESSAGES;
 use medbrains_core::ai_redact::{
     Kind, KnownIdentifiers, PLACEHOLDER_NOTE, PseudonymMap, RedactError, Redacted, Redactor,
 };
@@ -52,6 +53,21 @@ pub struct Identifier {
     pub value: String,
 }
 
+/// Who said a prior message.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum Role {
+    User,
+    Assistant,
+}
+
+/// One earlier message of the conversation, as stored (before redaction).
+#[derive(Debug, Clone, Deserialize)]
+pub struct Prior {
+    pub role: Role,
+    pub content: String,
+}
+
 /// One golden case.
 #[derive(Debug, Clone, Deserialize)]
 pub struct Case {
@@ -68,6 +84,10 @@ pub struct Case {
     #[serde(default)]
     pub planted: Vec<String>,
     pub source: serde_json::Value,
+    /// Earlier messages, oldest first; only the last
+    /// [`HISTORY_MESSAGES`] are sent, as the assistant does.
+    #[serde(default)]
+    pub history: Vec<Prior>,
     pub question: String,
     pub expect: Expect,
     /// Regexes (case-insensitive) every one of which the answer must match.
@@ -92,6 +112,8 @@ pub struct Case {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct Request {
     pub system: Redacted,
+    /// The earlier messages sent, oldest first.
+    pub history: Vec<(Role, Redacted)>,
     pub user: Redacted,
     /// The parts of `user`: what the tool returned, and what was asked.
     pub record: Redacted,
@@ -102,7 +124,22 @@ impl Request {
     /// Everything sent, as one text (for leak checks).
     #[must_use]
     pub fn sent(&self) -> String {
-        format!("{}\n{}", self.system.for_model(), self.user.for_model())
+        let history: Vec<&str> = self.history.iter().map(|(_, m)| m.for_model()).collect();
+        format!(
+            "{}\n{}\n{}",
+            self.system.for_model(),
+            history.join("\n"),
+            self.user.for_model()
+        )
+    }
+
+    /// The earlier messages as `role: text` lines (what a recording keeps).
+    #[must_use]
+    pub fn history_lines(&self) -> Vec<String> {
+        self.history
+            .iter()
+            .map(|(role, m)| format!("{role:?}: {}", m.for_model()))
+            .collect()
     }
 }
 
@@ -171,10 +208,11 @@ impl Case {
         }
         let mut r = Redactor::new(PseudonymMap::default(), &known, self.today);
         match self.redact_parts(&mut r) {
-            Ok((system, record, question)) => {
+            Ok((system, record, question, history)) => {
                 let restricted = question.is_withheld();
                 let request = Request {
                     system,
+                    history,
                     user: Redacted::fixed("Tool result —")
                         .join("\n", &record)
                         .join("\n\n", &question),
@@ -194,14 +232,21 @@ impl Case {
     fn redact_parts(
         &self,
         r: &mut Redactor,
-    ) -> Result<(Redacted, Redacted, Redacted), RedactError> {
-        Ok((
-            system(),
-            r.redact(&self.source_text())?,
-            r.redact(&self.question)?,
-        ))
+    ) -> Result<Parts, RedactError> {
+        let record = r.redact(&self.source_text())?;
+        let question = r.redact(&self.question)?;
+        let keep = usize::from(HISTORY_MESSAGES);
+        let recent = &self.history[self.history.len().saturating_sub(keep)..];
+        let history = recent
+            .iter()
+            .map(|m| Ok((m.role, r.redact(&m.content)?)))
+            .collect::<Result<_, RedactError>>()?;
+        Ok((system(), record, question, history))
     }
 }
+
+/// A case redacted: system, record, question, and the history sent.
+type Parts = (Redacted, Redacted, Redacted, Vec<(Role, Redacted)>);
 
 /// The fixed system prefix, byte for byte as the assistant sends it every
 /// turn (per-turn context goes in the user turn), so it can be cached.
@@ -236,6 +281,9 @@ pub struct Answer {
     pub model: String,
     /// The request it answered, as sent — a stale recording no longer matches.
     pub system: String,
+    /// The earlier messages it was sent, as [`Request::history_lines`].
+    #[serde(default)]
+    pub history: Vec<String>,
     pub user: String,
     pub output: String,
     /// Input tokens billed at the full rate (cache reads and writes apart).
@@ -254,7 +302,9 @@ impl Answer {
     /// Whether this answer was given to exactly `request`.
     #[must_use]
     pub fn answers(&self, request: &Request) -> bool {
-        self.system == request.system.for_model() && self.user == request.user.for_model()
+        self.system == request.system.for_model()
+            && self.history == request.history_lines()
+            && self.user == request.user.for_model()
     }
 }
 

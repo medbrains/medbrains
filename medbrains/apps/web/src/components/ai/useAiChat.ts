@@ -125,7 +125,7 @@ export function useAiChat({
             setStatus("error");
             return;
           } else if (chunk.type === "done") {
-            patch((m) => ({ ...m, status: "complete" }));
+            patch((m) => ({ ...m, status: "complete", usage: chunk.usage }));
           }
         }
         setStatus("idle");

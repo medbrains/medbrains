@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { toolResultInfo } from "./UnifiedResponse";
+import { toolResultInfo } from "./ToolView";
 
 describe("a drug check that did not run is never shown as blocked or done", () => {
   it("reads checked: false as not checked, with the server's reason", () => {
