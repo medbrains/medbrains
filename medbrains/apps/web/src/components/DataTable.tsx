@@ -12,7 +12,7 @@ import {
 import { usePermissionStore } from "@medbrains/stores";
 import { IconDownload } from "@tabler/icons-react";
 import { useCallback, useMemo, useState } from "react";
-import { Checkbox, Crab, IconButton, Input } from "@/components/ui";
+import { Checkbox, IconButton, Input } from "@/components/ui";
 import { useFailedQueries } from "@/hooks/useFailedQueries";
 import {
   type AdvancedFilterState,
@@ -433,8 +433,7 @@ export function DataTable<T>({
         {headerToolbar}
         <Box py="xl" px="md">
           <EmptyState
-            // The line-art crab marks an empty clinical table unless the table names its own icon.
-            icon={emptyIcon ?? <Crab variant="line" size={44} />}
+            icon={emptyIcon}
             title={emptyTitle}
             description={emptyDescription}
             action={emptyAction}
