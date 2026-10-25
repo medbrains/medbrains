@@ -11,6 +11,7 @@
 
 use serde::Serialize;
 use serde::de::DeserializeOwned;
+use medbrains_core::ai_redact::Redacted;
 use uuid::Uuid;
 
 use medbrains_server_core::error::AppError;
@@ -120,7 +121,9 @@ pub fn openai_compat_base_url(provider: &str) -> Option<String> {
         "bedrock" => {
             let region = std::env::var("AWS_REGION")
                 .or_else(|_| std::env::var("BEDROCK_REGION"))
-                .unwrap_or_else(|_| "us-east-1".to_owned());
+                // India by default (DPDP s.16): PHI-bearing prompts stay in
+                // ap-south-1 unless a deployment deliberately names another region.
+                .unwrap_or_else(|_| "ap-south-1".to_owned());
             Some(std::env::var("BEDROCK_BASE_URL").unwrap_or_else(|_| {
                 format!("https://bedrock-runtime.{region}.amazonaws.com/openai/v1")
             }))
@@ -129,16 +132,45 @@ pub fn openai_compat_base_url(provider: &str) -> Option<String> {
     }
 }
 
+/// The answer when text could not be made safe for a model: the AI call is
+/// refused and nothing is sent. Fail closed, and say so — never fall back to
+/// sending the text as it was.
+#[must_use]
+pub fn unsafe_to_send(err: &medbrains_core::ai_redact::RedactError) -> AppError {
+    // The error names only the kind of identifier, never its value; the
+    // response's warn log records the refusal.
+    AppError::ServiceUnavailable(format!("{AI_UNSAFE} ({err})"))
+}
+
+/// What the user is told when an AI call was refused for safety.
+pub const AI_UNSAFE: &str =
+    "Couldn't run the AI safely, so nothing was sent to it. Carry on without it, or try again.";
+
+/// Redact free text for a one-off model call with no patient in scope.
+///
+/// # Errors
+/// [`unsafe_to_send`] when the text cannot be made safe.
+pub fn redact_standalone(text: &str) -> Result<Redacted, AppError> {
+    medbrains_core::ai_redact::Redactor::new(
+        medbrains_core::ai_redact::PseudonymMap::default(),
+        &medbrains_core::ai_redact::KnownIdentifiers::default(),
+        chrono::Utc::now().date_naive(),
+    )
+    .redact(text)
+    .map_err(|e| unsafe_to_send(&e))
+}
+
 /// Run a structured extraction with the tenant's configured AI provider.
 ///
 /// `T` is the schema the model must return; it is extracted type-safely via
-/// rig. Returns a `BadRequest` if the provider/key is unconfigured or the model
+/// rig. Both texts are [`Redacted`]: nothing reaches the model unredacted.
+/// Returns a `BadRequest` if the provider/key is unconfigured or the model
 /// call fails.
 pub async fn extract<T>(
     state: &AppState,
     tenant_id: &Uuid,
-    preamble: &str,
-    prompt: &str,
+    preamble: &Redacted,
+    prompt: &Redacted,
 ) -> Result<T, AppError>
 where
     T: schemars::JsonSchema + DeserializeOwned + Serialize + Send + Sync + 'static,
@@ -158,10 +190,10 @@ where
                 .map_err(|e| AppError::BadRequest(format!("Failed to create AI client: {e}")))?;
             let extractor = client
                 .extractor::<T>(cfg.model.as_str())
-                .preamble(preamble)
+                .preamble(preamble.for_model())
                 .build();
             extractor
-                .extract(prompt)
+                .extract(prompt.for_model())
                 .await
                 .map_err(|e| AppError::BadRequest(format!("AI generation failed: {e}")))
         }
@@ -170,10 +202,10 @@ where
                 .map_err(|e| AppError::BadRequest(format!("Failed to create AI client: {e}")))?;
             let extractor = client
                 .extractor::<T>(cfg.model.as_str())
-                .preamble(preamble)
+                .preamble(preamble.for_model())
                 .build();
             extractor
-                .extract(prompt)
+                .extract(prompt.for_model())
                 .await
                 .map_err(|e| AppError::BadRequest(format!("AI generation failed: {e}")))
         }
@@ -183,8 +215,9 @@ where
             // when pointed at the Bedrock base URL with the ABSK bearer key. (Anthropic
             // Claude on Bedrock is Marketplace-payment-gated on this account, so gpt-oss
             // is the usable Bedrock family.)
-            let base_url = openai_compat_base_url("bedrock")
-                .unwrap_or_else(|| "https://bedrock-runtime.us-east-1.amazonaws.com/openai/v1".to_owned());
+            let base_url = openai_compat_base_url("bedrock").unwrap_or_else(|| {
+                "https://bedrock-runtime.ap-south-1.amazonaws.com/openai/v1".to_owned()
+            });
             let client = openai::CompletionsClient::builder()
                 .api_key(&cfg.api_key)
                 .base_url(&base_url)
@@ -192,10 +225,10 @@ where
                 .map_err(|e| AppError::BadRequest(format!("Failed to create AI client: {e}")))?;
             let extractor = client
                 .extractor::<T>(cfg.model.as_str())
-                .preamble(preamble)
+                .preamble(preamble.for_model())
                 .build();
             extractor
-                .extract(prompt)
+                .extract(prompt.for_model())
                 .await
                 .map_err(|e| AppError::BadRequest(format!("AI generation failed: {e}")))
         }

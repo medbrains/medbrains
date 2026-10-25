@@ -55,6 +55,8 @@ export interface ChatMessage {
   /** The patient this turn was asked about — an answer is only ever offered
    * into that patient's record. */
   patientId?: string;
+  /** Why the turn failed, in words for the user (e.g. "couldn't run AI safely"). */
+  error?: string;
 }
 
 /** Ordered parts for a message: explicit `parts` win, else derived from content + convenience fields. */

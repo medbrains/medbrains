@@ -11,6 +11,7 @@ use serde_json::{Value, json};
 use uuid::Uuid;
 
 use medbrains_server_core::state::AppState;
+use medbrains_core::ai_redact::Redacted;
 use medbrains_server_services::llm;
 
 use super::agent_tools::ToolDef;
@@ -28,8 +29,8 @@ pub struct ToolCall {
 pub async fn choose_action(
     state: &AppState,
     tenant_id: &Uuid,
-    system: &str,
-    user: &str,
+    system: &Redacted,
+    user: &Redacted,
     tools: &[ToolDef],
 ) -> Result<Option<ToolCall>, AppError> {
     let cfg = llm::resolve_config(state, tenant_id).await?;
@@ -59,8 +60,8 @@ pub async fn choose_action(
     let body = json!({
         "model": cfg.model,
         "messages": [
-            { "role": "system", "content": system },
-            { "role": "user", "content": user },
+            { "role": "system", "content": system.for_model() },
+            { "role": "user", "content": user.for_model() },
         ],
         "tools": tool_json,
         "tool_choice": "required",
@@ -108,6 +109,11 @@ pub async fn choose_action(
     Ok(Some(ToolCall { name, arguments }))
 }
 
+/// System prompt for goal generation.
+const GOAL_SYSTEM: &str = "You design end-to-end test goals for a hospital management system. A goal is \
+    one concrete task a real staff member of the given role would accomplish using \
+    ONLY the listed tools, within their own permissions. One sentence each.";
+
 /// Ask the model for a few realistic, role-appropriate test goals, given the
 /// role and the tool catalog it may use.
 ///
@@ -119,15 +125,13 @@ pub async fn generate_goals(
     role: &str,
     tool_catalog: &str,
 ) -> Result<Vec<String>, AppError> {
-    let system = "You design end-to-end test goals for a hospital management system. A goal is \
-                  one concrete task a real staff member of the given role would accomplish using \
-                  ONLY the listed tools, within their own permissions. One sentence each.";
     let user = format!(
         "Role: {role}.\nAvailable tools:\n{tool_catalog}\n\n\
          List 3 realistic, varied goals this role would pursue using only these tools. \
          One goal per line. No numbering, no preamble."
     );
-    let text = complete_text(state, tenant_id, system, &user).await?;
+    let user = llm::redact_standalone(&user)?;
+    let text = complete_text(state, tenant_id, &Redacted::fixed(GOAL_SYSTEM), &user).await?;
     // gpt-oss may prefix a <reasoning>…</reasoning> block; keep what follows.
     let cleaned = text
         .rfind("</reasoning>")
@@ -145,8 +149,8 @@ pub async fn generate_goals(
 async fn complete_text(
     state: &AppState,
     tenant_id: &Uuid,
-    system: &str,
-    user: &str,
+    system: &Redacted,
+    user: &Redacted,
 ) -> Result<String, AppError> {
     let cfg = llm::resolve_config(state, tenant_id).await?;
     let base = llm::openai_compat_base_url(&cfg.provider).ok_or_else(|| {
@@ -159,8 +163,8 @@ async fn complete_text(
     let body = json!({
         "model": cfg.model,
         "messages": [
-            { "role": "system", "content": system },
-            { "role": "user", "content": user },
+            { "role": "system", "content": system.for_model() },
+            { "role": "user", "content": user.for_model() },
         ],
         "max_tokens": 400,
     });

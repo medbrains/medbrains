@@ -1,7 +1,7 @@
 import { Box, Group, Loader, Stack, Text, ThemeIcon } from "@mantine/core";
 import { IconUser } from "@tabler/icons-react";
 import type { ReactNode } from "react";
-import { AiLabel, AiOrb } from "@/components/ui";
+import { AiLabel, AiOrb, Alert } from "@/components/ui";
 import styles from "./message.module.scss";
 import type { ChatContext, ChatMessage, ChatMessageStatus, ChatRole } from "./transport/types";
 import { UnifiedResponse } from "./UnifiedResponse";
@@ -51,6 +51,11 @@ export function Message({ message, avatar, actions, onToolAction, active }: Mess
             <UnifiedResponse message={message} onToolAction={onToolAction} active={active} />
           )}
         </Box>
+        {message.status === "error" && message.error && (
+          <Alert tone="danger" role="alert">
+            {message.error}
+          </Alert>
+        )}
         {actions && !isUser && <Box className={styles.actions}>{actions}</Box>}
       </Stack>
       {isUser && <MessageAvatar role={message.role} status={message.status} custom={avatar} />}
