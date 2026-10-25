@@ -1491,6 +1491,14 @@ export interface AgingBucket {
   total_amount: string;
 }
 
+/** One day of billing (`GET /billing/reports/daily-revenue`). Decimals are strings. */
+export interface DailyRevenueRow {
+  date: string;
+  billed: string;
+  collected: string;
+  invoice_count: number;
+}
+
 export interface DailySummary {
   date: string;
   invoices_created: number;

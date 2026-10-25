@@ -1,0 +1,11 @@
+// The Ask tab fills what the full-screen modal leaves below its header and
+// tabs, so the chat is never a short box over empty space.
+.fill {
+  height: calc(100dvh - 9rem);
+  min-height: 22rem;
+
+  > :last-child {
+    flex: 1;
+    min-height: 0;
+  }
+}

@@ -48,6 +48,7 @@
 /api/billing/reports/aging
 /api/billing/reports/collection-efficiency
 /api/billing/reports/daily
+/api/billing/reports/daily-revenue
 /api/billing/reports/department-revenue
 /api/billing/reports/doctor-revenue
 /api/billing/reports/financial-mis

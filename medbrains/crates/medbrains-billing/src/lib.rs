@@ -28,6 +28,9 @@ pub mod posting;
 // Read-only: nothing here writes.
 mod reports;
 pub use reports::*;
+// Billed and collected per day over a range (the assistant's revenue chart).
+mod daily_revenue;
+pub use daily_revenue::*;
 
 // Concessions — the one billing write that is a judgement, not a calculation,
 // which is why it alone carries an approve/reject cycle.
@@ -3650,6 +3653,10 @@ pub fn router() -> axum::Router<AppState> {
         )
         .route("/api/billing/reports/aging", get(report_aging))
         .route("/api/billing/reports/daily", get(report_daily))
+        .route(
+            "/api/billing/reports/daily-revenue",
+            get(report_daily_revenue),
+        )
         .route(
             "/api/billing/reports/doctor-revenue",
             get(report_doctor_revenue),

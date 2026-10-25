@@ -31,6 +31,7 @@ pub mod bme;
 pub mod body_site;
 pub mod ai_drug_check;
 pub mod ai_guard;
+pub mod ai_widgets;
 pub mod ai_redact;
 pub mod boundary_filter;
 pub mod camp;

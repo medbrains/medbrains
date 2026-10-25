@@ -17,7 +17,9 @@ uuid = { workspace = true }
 sqlx = { workspace = true }
 rust_decimal = { workspace = true }
 chrono = { workspace = true }
-rig-core = { workspace = true }
+rig = { workspace = true }
+rig-agent = { workspace = true }
+rig-reqwest = { workspace = true }
 schemars = { workspace = true }
 
 [lints]

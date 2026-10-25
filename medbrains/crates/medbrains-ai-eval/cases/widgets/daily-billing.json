@@ -1,0 +1,18 @@
+{
+  "kind": "kpis",
+  "title": "Today's billing",
+  "source": {
+    "data": {
+      "date": "2026-10-25",
+      "invoices_created": 23,
+      "invoices_issued": 9,
+      "total_billed": "6647.28",
+      "total_collected": "3918.00",
+      "payments": [
+        { "mode": "card", "amount": "2250.00", "count": 2 },
+        { "mode": "upi", "amount": "868.00", "count": 2 },
+        { "mode": "cash", "amount": "800.00", "count": 2 }
+      ]
+    }
+  }
+}

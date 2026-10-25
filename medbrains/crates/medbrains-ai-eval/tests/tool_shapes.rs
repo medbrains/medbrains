@@ -10,7 +10,12 @@ fn production(source: &Value) -> Option<DrugCheck> {
     let drug = source["drug"].as_str()?.to_owned();
     let warnings: Vec<String> = source["warnings"]
         .as_array()
-        .map(|w| w.iter().filter_map(Value::as_str).map(str::to_owned).collect())
+        .map(|w| {
+            w.iter()
+                .filter_map(Value::as_str)
+                .map(str::to_owned)
+                .collect()
+        })
         .unwrap_or_default();
     Some(match (source["checked"].as_bool()?, warnings.is_empty()) {
         (false, _) if source["notes"] == DrugCheck::failed(drug.clone()).notes.as_str() => {

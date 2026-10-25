@@ -9,7 +9,8 @@ source literal). This check closes the gaps types cannot:
 
   1. Only the gateway files may talk to a model provider at all
      (`rig::providers`, a raw `/chat/completions` POST, the Anthropic or
-     Bedrock endpoints).
+     Bedrock endpoints). The assistant builds its agent on the gateway's
+     model, so it names no provider.
   2. In those files, every text handed to the model — `.preamble(`,
      `.extract(`, `.stream_prompt(`, `.prompt(`, a chat `"content":` — is read
      through `.for_model()`, i.e. it is a `Redacted`.
@@ -28,11 +29,15 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 GATEWAYS = {
-    "crates/medbrains-ai/src/lib.rs",
     "crates/medbrains-server-services/src/llm.rs",
     "crates/medbrains-server-services/src/llm/anthropic.rs",
     "crates/medbrains-server/src/services/simulator/decision.rs",
     "crates/medbrains-ai-eval/src/live.rs",
+}
+# Files that hand text to a model (through the gateway's model) but name no provider.
+MODEL_INPUT_FILES = {
+    "crates/medbrains-ai/src/lib.rs",
+    "crates/medbrains-ai/src/turn.rs",
 }
 # Files that talk to Anthropic's token endpoint only (no prompt, no patient data).
 TOKEN_ONLY = {
@@ -80,7 +85,7 @@ def main() -> int:
             for m in PROVIDER.finditer(text):
                 line = text.count("\n", 0, m.start()) + 1
                 problems.append(f"{rel}:{line}: talks to a model outside the redaction gateway")
-        else:
+        if rel in GATEWAYS or rel in MODEL_INPUT_FILES:
             for m in MODEL_INPUT.finditer(text):
                 args = call_args(text, m.end() - (0 if m.group(0).endswith(":") else 1))
                 if "for_model()" not in args:

@@ -13,18 +13,21 @@ use axum::{
     extract::{Path, State},
     response::sse::{Event, KeepAlive, Sse},
 };
-use futures::{Stream, StreamExt as _};
-use rig::client::CompletionClient as _;
+use futures::Stream;
 use serde::{Deserialize, Serialize};
 use tower::ServiceExt as _;
 use uuid::Uuid;
 
 use medbrains_core::ai_drug_check::DrugCheck;
-use medbrains_core::ai_redact::{PLACEHOLDER_NOTE, Redacted, StreamRehydrator};
+use medbrains_core::ai_redact::Redacted;
 use medbrains_core::permissions;
 
+mod catalog;
 mod contact_access;
+mod dates;
 mod redaction;
+mod show;
+mod turn;
 use medbrains_server_core::middleware::auth::Claims;
 use medbrains_server_core::middleware::authorization::require_permission;
 use medbrains_server_core::{error::AppError, state::AppState};
@@ -350,30 +353,31 @@ impl rig::tool::Tool for DrugSafetyTool {
     type Args = DrugSafetyArgs;
     type Output = Redacted;
 
-    fn definition(
-        &self,
-        _prompt: String,
-    ) -> impl Future<Output = rig::completion::ToolDefinition> + Send + Sync {
-        std::future::ready(rig::completion::ToolDefinition {
-            name: Self::NAME.to_owned(),
-            description: "Check a drug the clinician intends to give against the current \
-                patient's allergies and drug interactions using the pharmacy safety engine. Call \
-                it whenever a clinician names a medication, and report its warnings exactly."
-                .to_owned(),
-            parameters: serde_json::json!({
-                "type": "object",
-                "properties": {
-                    "drug": {
-                        "type": "string",
-                        "description": "Proposed drug (generic or brand name)"
-                    }
-                },
-                "required": ["drug"]
-            }),
+    fn description(&self) -> String {
+        "Check a drug the clinician intends to give against the current \
+            patient's allergies and drug interactions using the pharmacy safety engine. Call \
+            it whenever a clinician names a medication, and report its warnings exactly."
+            .to_owned()
+    }
+
+    fn parameters(&self) -> serde_json::Value {
+        serde_json::json!({
+            "type": "object",
+            "properties": {
+                "drug": {
+                    "type": "string",
+                    "description": "Proposed drug (generic or brand name)"
+                }
+            },
+            "required": ["drug"]
         })
     }
 
-    async fn call(&self, args: Self::Args) -> Result<Self::Output, Self::Error> {
+    async fn call(
+        &self,
+        _context: &mut rig::tool::ToolContext,
+        args: Self::Args,
+    ) -> Result<Self::Output, Self::Error> {
         let out = match self.answer(args).await {
             Ok(out) => out,
             Err(never) => match never {},
@@ -508,30 +512,30 @@ impl rig::tool::Tool for DraftPrescriptionTool {
     type Args = DraftPrescriptionArgs;
     type Output = Redacted;
 
-    fn definition(
-        &self,
-        _prompt: String,
-    ) -> impl Future<Output = rig::completion::ToolDefinition> + Send + Sync {
-        std::future::ready(rig::completion::ToolDefinition {
-            name: Self::NAME.to_owned(),
-            description:
-                "Draft a prescription for the current patient. The server runs the pharmacy \
-                safety engine and REFUSES (decision='blocked') on a contraindication — you cannot \
-                override it. On success nothing is saved: tell the clinician it is a proposal \
-                for them to write on the prescription. You never prescribe."
-                    .to_owned(),
-            parameters: serde_json::json!({
-                "type": "object",
-                "properties": {
-                    "drug": { "type": "string", "description": "Drug (generic or brand name)" },
-                    "dose": { "type": "string", "description": "Dose/frequency, optional" }
-                },
-                "required": ["drug"]
-            }),
+    fn description(&self) -> String {
+        "Draft a prescription for the current patient. The server runs the pharmacy \
+        safety engine and REFUSES (decision='blocked') on a contraindication — you cannot \
+        override it. On success nothing is saved: tell the clinician it is a proposal \
+        for them to write on the prescription. You never prescribe."
+            .to_owned()
+    }
+
+    fn parameters(&self) -> serde_json::Value {
+        serde_json::json!({
+            "type": "object",
+            "properties": {
+                "drug": { "type": "string", "description": "Drug (generic or brand name)" },
+                "dose": { "type": "string", "description": "Dose/frequency, optional" }
+            },
+            "required": ["drug"]
         })
     }
 
-    async fn call(&self, args: Self::Args) -> Result<Self::Output, Self::Error> {
+    async fn call(
+        &self,
+        _context: &mut rig::tool::ToolContext,
+        args: Self::Args,
+    ) -> Result<Self::Output, Self::Error> {
         let out = match self.answer(args).await {
             Ok(out) => out,
             Err(never) => match never {},
@@ -618,6 +622,8 @@ struct PatientOverviewTool {
     session: redaction::Session,
     state: AppState,
     claims: Claims,
+    /// The overview also waits here, as `patient_overview`, for a widget.
+    shelf: show::Shelf,
 }
 
 impl PatientOverviewTool {
@@ -666,32 +672,33 @@ impl rig::tool::Tool for PatientOverviewTool {
     type Args = PatientOverviewArgs;
     type Output = Redacted;
 
-    fn definition(
-        &self,
-        _prompt: String,
-    ) -> impl Future<Output = rig::completion::ToolDefinition> + Send + Sync {
-        std::future::ready(rig::completion::ToolDefinition {
-            name: Self::NAME.to_owned(),
-            description: "Fetch a patient's allergies, active medications, active problems, and \
-                recent lab results, as JSON. Pass a REAL patient_id taken verbatim from the screen context. \
-                If no patient is in context, do NOT call this — call `request_patient` so the user \
-                can choose one; never guess or invent an id. Call it at most once and use whatever \
-                it returns."
-                .to_owned(),
-            parameters: serde_json::json!({
-                "type": "object",
-                "properties": {
-                    "patient_id": {
-                        "type": "string",
-                        "description": "The patient's id from the screen context"
-                    }
-                },
-                "required": ["patient_id"]
-            }),
+    fn description(&self) -> String {
+        "Fetch a patient's allergies, active medications, active problems, and \
+            recent lab results, as JSON. Pass a REAL patient_id taken verbatim from the screen context. \
+            If no patient is in context, do NOT call this — call `request_patient` so the user \
+            can choose one; never guess or invent an id. Call it at most once and use whatever \
+            it returns."
+            .to_owned()
+    }
+
+    fn parameters(&self) -> serde_json::Value {
+        serde_json::json!({
+            "type": "object",
+            "properties": {
+                "patient_id": {
+                    "type": "string",
+                    "description": "The patient's id from the screen context"
+                }
+            },
+            "required": ["patient_id"]
         })
     }
 
-    async fn call(&self, args: Self::Args) -> Result<Self::Output, Self::Error> {
+    async fn call(
+        &self,
+        _context: &mut rig::tool::ToolContext,
+        args: Self::Args,
+    ) -> Result<Self::Output, Self::Error> {
         let out = match self.answer(args).await {
             Ok(out) => out,
             Err(never) => match never {},
@@ -710,7 +717,12 @@ impl PatientOverviewTool {
             );
         };
         Ok(match self.overview(pid).await {
-            Ok(text) => text,
+            Ok(text) => {
+                if let Ok(json) = serde_json::from_str::<serde_json::Value>(&text) {
+                    show::shelve(&self.shelf, &self.session, "patient_overview", &json);
+                }
+                text
+            }
             // A refusal and an outage are different answers (three outcomes,
             // never two): "no access" must not be said when nobody could check.
             Err(AppError::Forbidden | AppError::ForbiddenReason(_) | AppError::NotFound) => {
@@ -738,6 +750,8 @@ struct CallApiTool {
     state: AppState,
     /// The user's claims with `act` set to this assistant run.
     claims: Claims,
+    /// Where the full result waits for a widget; the model gets it compacted.
+    shelf: show::Shelf,
 }
 
 /// Told to the user when their question names a restricted class.
@@ -906,17 +920,9 @@ impl CallApiTool {
             .get()
             .ok_or_else(|| AppError::Internal("router unavailable".to_owned()))?
             .clone();
-        let path = with_today(path, chrono::Local::now().date_naive());
+        let path = dates::fill(path, chrono::Local::now().date_naive());
         call_api_as_agent(router, &self.state, &self.claims, &path).await
     }
-}
-
-/// The model never sees a real date (the redactor turns dates into offsets),
-/// so it writes `[TODAY]` where today's date belongs and the server fills it.
-// ponytail: the server's local date; switch to the tenant's time zone when a
-// tenant runs outside the server's.
-fn with_today(path: &str, today: chrono::NaiveDate) -> String {
-    path.replace("[TODAY]", &today.format("%Y-%m-%d").to_string())
 }
 
 impl rig::tool::Tool for CallApiTool {
@@ -925,33 +931,34 @@ impl rig::tool::Tool for CallApiTool {
     type Args = CallApiArgs;
     type Output = Redacted;
 
-    fn definition(
-        &self,
-        _prompt: String,
-    ) -> impl Future<Output = rig::completion::ToolDefinition> + Send + Sync {
-        std::future::ready(rig::completion::ToolDefinition {
-            name: Self::NAME.to_owned(),
-            description: "Fetch data from any MedBrains read API (GET). Runs with YOUR permissions, \
-                so you can only read what you're allowed to — prefer this over asking the user. If \
-                unsure which endpoint exists, call `list_apis` first to see them all. Pass a full \
-                path with ids filled from the screen context, e.g. GET /api/patients/{id}/allergies, \
-                /api/lab/orders/{orderId}/results, /api/billing/invoices?patient_id={id}. Write \
-                [TODAY] where today's date belongs (e.g. ?date=[TODAY]); the server fills it in."
-                .to_owned(),
-            parameters: serde_json::json!({
-                "type": "object",
-                "properties": {
-                    "path": {
-                        "type": "string",
-                        "description": "GET path, e.g. /api/patients/<id>/allergies"
-                    }
-                },
-                "required": ["path"]
-            }),
+    fn description(&self) -> String {
+        "Fetch data from any MedBrains read API (GET). Runs with YOUR permissions, \
+            so you can only read what you're allowed to — prefer this over asking the user. If \
+            unsure which endpoint exists, call `list_apis` first to see them all. Pass a full \
+            path with ids filled from the screen context, e.g. GET /api/patients/{id}/allergies, \
+            /api/lab/orders/{orderId}/results, /api/billing/invoices?patient_id={id}. "
+            .to_owned()
+            + dates::HELP
+    }
+
+    fn parameters(&self) -> serde_json::Value {
+        serde_json::json!({
+            "type": "object",
+            "properties": {
+                "path": {
+                    "type": "string",
+                    "description": "GET path, e.g. /api/patients/<id>/allergies"
+                }
+            },
+            "required": ["path"]
         })
     }
 
-    async fn call(&self, args: Self::Args) -> Result<Self::Output, Self::Error> {
+    async fn call(
+        &self,
+        _context: &mut rig::tool::ToolContext,
+        args: Self::Args,
+    ) -> Result<Self::Output, Self::Error> {
         let out = match self.answer(args).await {
             Ok(out) => out,
             Err(never) => match never {},
@@ -963,7 +970,7 @@ impl rig::tool::Tool for CallApiTool {
 impl CallApiTool {
     async fn answer(&self, args: CallApiArgs) -> Result<String, std::convert::Infallible> {
         Ok(match self.get(&args.path).await {
-            Ok(text) => text,
+            Ok(text) => self.shelve_compact(&args.path, text),
             Err(e) => {
                 tracing::warn!(error = %e, "assistant call_api failed");
                 UNKNOWN_FOR_MODEL.to_owned()
@@ -971,6 +978,27 @@ impl CallApiTool {
         })
     }
 }
+
+impl CallApiTool {
+    /// A successful JSON answer goes on the shelf whole (for a widget) and
+    /// to the model compacted: a long list costs it a sample and a count.
+    fn shelve_compact(&self, path: &str, text: String) -> String {
+        let Some(json) = text
+            .strip_prefix(OK_PREFIX)
+            .and_then(|body| serde_json::from_str::<serde_json::Value>(body).ok())
+        else {
+            return text;
+        };
+        show::shelve(&self.shelf, &self.session, path, &json);
+        format!(
+            "{OK_PREFIX}{}",
+            medbrains_core::ai_widgets::compact_for_model(&json)
+        )
+    }
+}
+
+/// How [`describe_response`] opens a successful answer.
+const OK_PREFIX: &str = "HTTP 200\n";
 
 // ── Interactive tool: request a patient (client renders a picker) ────
 // The model calls this when it needs a patient but none is in context. The
@@ -988,27 +1016,25 @@ impl rig::tool::Tool for RequestPatientTool {
     type Args = RequestPatientArgs;
     type Output = Redacted;
 
-    fn definition(
-        &self,
-        _prompt: String,
-    ) -> impl Future<Output = rig::completion::ToolDefinition> + Send + Sync {
-        std::future::ready(rig::completion::ToolDefinition {
-            name: Self::NAME.to_owned(),
-            description: "Show the user a patient search box to choose a patient. Call this \
-                WHENEVER you need a patient but none is in the screen context — NEVER invent or \
-                guess a patient id. The chosen patient will be in context on the next message."
-                .to_owned(),
-            parameters: serde_json::json!({
-                "type": "object",
-                "properties": {
-                    "reason": { "type": "string", "description": "Why a patient is needed" }
-                }
-            }),
+    fn description(&self) -> String {
+        "Show the user a patient search box to choose a patient. Call this \
+            WHENEVER you need a patient but none is in the screen context — NEVER invent or \
+            guess a patient id. The chosen patient will be in context on the next message."
+            .to_owned()
+    }
+
+    fn parameters(&self) -> serde_json::Value {
+        serde_json::json!({
+            "type": "object",
+            "properties": {
+                "reason": { "type": "string", "description": "Why a patient is needed" }
+            }
         })
     }
 
     fn call(
         &self,
+        _context: &mut rig::tool::ToolContext,
         _args: Self::Args,
     ) -> impl Future<Output = Result<Self::Output, Self::Error>> + Send {
         std::future::ready(Ok(Redacted::fixed(
@@ -1023,12 +1049,17 @@ impl rig::tool::Tool for RequestPatientTool {
 // every request, the model calls this on demand to discover which path to hit,
 // then uses call_api. Catalog is generated from mod.rs by
 // scripts/gen_ai_read_catalog.py — regenerate after route changes.
-const READ_CATALOG: &str = include_str!("ai_read_catalog.txt");
 
 #[derive(serde::Deserialize)]
-struct ListApisArgs {}
+struct ListApisArgs {
+    /// Words from the question: `billing revenue`, `lab pending`.
+    #[serde(default)]
+    query: String,
+}
 
-struct ListApisTool;
+struct ListApisTool {
+    session: redaction::Session,
+}
 
 impl rig::tool::Tool for ListApisTool {
     const NAME: &'static str = "list_apis";
@@ -1036,25 +1067,32 @@ impl rig::tool::Tool for ListApisTool {
     type Args = ListApisArgs;
     type Output = Redacted;
 
-    fn definition(
-        &self,
-        _prompt: String,
-    ) -> impl Future<Output = rig::completion::ToolDefinition> + Send + Sync {
-        std::future::ready(rig::completion::ToolDefinition {
-            name: Self::NAME.to_owned(),
-            description: "List the read (GET) API endpoints available via call_api, grouped by \
-                domain (patients, lab, pharmacy, billing, ipd, …). Call this to discover the right \
-                endpoint before calling call_api. Call it at most once."
-                .to_owned(),
-            parameters: serde_json::json!({ "type": "object", "properties": {} }),
+    fn description(&self) -> String {
+        "Search the read (GET) API endpoints call_api can reach: pass a few words from the \
+            question (e.g. 'billing revenue', 'lab pending'); you get the matching paths. Call \
+            it before call_api when unsure of a path."
+            .to_owned()
+    }
+
+    fn parameters(&self) -> serde_json::Value {
+        serde_json::json!({
+            "type": "object",
+            "properties": {
+                "query": { "type": "string", "description": "A few words from the question" }
+            },
+            "required": ["query"]
         })
     }
 
     fn call(
         &self,
-        _args: Self::Args,
+        _context: &mut rig::tool::ToolContext,
+        args: Self::Args,
     ) -> impl Future<Output = Result<Self::Output, Self::Error>> + Send {
-        std::future::ready(Ok(Redacted::fixed(READ_CATALOG)))
+        std::future::ready(Ok(redaction::for_model(
+            &self.session,
+            &catalog::search(&args.query),
+        )))
     }
 }
 
@@ -1260,10 +1298,9 @@ pub async fn chat(
         return Err(AppError::Forbidden);
     }
     // Refused outside India before the turn is opened or stored.
-    let bedrock_base = match cfg.provider.as_str() {
-        "bedrock" => medbrains_server_services::llm::bedrock_base_url()?,
-        _ => String::new(),
-    };
+    if cfg.provider == "bedrock" {
+        medbrains_server_services::llm::bedrock_base_url()?;
+    }
 
     let PreparedTurn {
         conversation_id,
@@ -1311,8 +1348,8 @@ pub async fn chat(
     for row in history {
         let text = redactor.redact(&row.content).map_err(unsafe_)?;
         prior.push(match row.role.as_str() {
-            "assistant" => rig::completion::Message::assistant(text.for_model()),
-            _ => rig::completion::Message::user(text.for_model()),
+            "assistant" => rig::message::Message::assistant(text.for_model()),
+            _ => rig::message::Message::user(text.for_model()),
         });
     }
     let session: redaction::Session = std::sync::Arc::new(std::sync::Mutex::new(redactor));
@@ -1327,9 +1364,10 @@ pub async fn chat(
     )
     .await?;
 
-    let turn = Turn {
-        guard: medbrains_core::ai_guard::AnswerGuard::new(message.for_model())
-            .with_contacts(contacts),
+    let turn = turn::Turn {
+        guard: std::sync::Arc::new(std::sync::Mutex::new(
+            medbrains_core::ai_guard::AnswerGuard::new(message.for_model()).with_contacts(contacts),
+        )),
         context: context.for_model().to_owned(),
         prompt: if context.for_model().is_empty() {
             message
@@ -1344,308 +1382,18 @@ pub async fn chat(
         session: std::sync::Arc::clone(&session),
     };
 
-    let deps = ToolDeps {
+    let deps = turn::ToolDeps {
         session,
         state,
         claims,
         grounded_patient,
         agent_json,
     };
-    let boxed = stream_answer(&cfg, &bedrock_base, &deps, turn)?;
+    let boxed = turn::stream_answer(&cfg, &deps, turn)?;
 
     // Heartbeat comments (default 15s) keep the connection alive through idle
     // gaps + proxy idle-timeouts (nginx/ALB) so a slow first token isn't dropped.
     Ok(Sse::new(boxed).keep_alive(KeepAlive::default()))
-}
-
-/// What the turn's tools act with: the redaction session, the caller (with
-/// the AI actor set) and the patient the turn is grounded on.
-struct ToolDeps {
-    session: redaction::Session,
-    state: AppState,
-    claims: Claims,
-    grounded_patient: Option<Uuid>,
-    agent_json: serde_json::Value,
-}
-
-/// Build the assistant for `cfg`'s provider and stream `turn` through it.
-/// The system prompt is fixed bytes for every turn and tenant — tools + it
-/// are the cached prefix.
-fn stream_answer(
-    cfg: &AiConfig,
-    bedrock_base: &str,
-    deps: &ToolDeps,
-    turn: Turn,
-) -> Result<SseBody, AppError> {
-    let preamble = Redacted::fixed(SYSTEM_PROMPT).join("\n\n", &Redacted::fixed(PLACEHOLDER_NOTE));
-    // One agent definition for every provider: the same tools, the same
-    // redacted preamble.
-    macro_rules! assistant {
-        ($builder:expr) => {{
-            let agent = $builder
-                .preamble(preamble.for_model())
-                .max_tokens(u64::from(medbrains_core::ai_guard::MAX_ANSWER_TOKENS))
-                .tool(DrugSafetyTool {
-                    session: std::sync::Arc::clone(&deps.session),
-                    db: deps.state.db.clone(),
-                    tenant_id: deps.claims.tenant_id,
-                    department_ids: deps.claims.department_ids.clone(),
-                    patient_id: deps.grounded_patient,
-                    user_id: deps.claims.sub,
-                    agent: deps.agent_json.clone(),
-                })
-                .tool(DraftPrescriptionTool {
-                    session: std::sync::Arc::clone(&deps.session),
-                    db: deps.state.db.clone(),
-                    tenant_id: deps.claims.tenant_id,
-                    department_ids: deps.claims.department_ids.clone(),
-                    patient_id: deps.grounded_patient,
-                    user_id: deps.claims.sub,
-                    agent: deps.agent_json.clone(),
-                })
-                .tool(PatientOverviewTool {
-                    session: std::sync::Arc::clone(&deps.session),
-                    state: deps.state.clone(),
-                    claims: deps.claims.clone(),
-                })
-                .tool(CallApiTool {
-                    session: std::sync::Arc::clone(&deps.session),
-                    state: deps.state.clone(),
-                    claims: deps.claims.clone(),
-                })
-                .tool(RequestPatientTool)
-                .tool(ListApisTool)
-                .build();
-            let body: SseBody = Box::pin(run_turn(agent, turn));
-            body
-        }};
-    }
-
-    let boxed: SseBody = match cfg.provider.as_str() {
-        // Cache breakpoint on the system block (tools + system are the fixed
-        // prefix, well over Haiku/Sonnet/Opus 5.5's 512-token minimum).
-        // ponytail: rig 0.35 marks it with the 5-minute TTL only; the 1h
-        // static-prefix TTL comes with the rig upgrade.
-        "anthropic" => assistant!(rig::agent::AgentBuilder::new(
-            medbrains_server_services::llm::anthropic::client(&cfg.api_key)?
-                .completion_model(cfg.model.as_str())
-                .with_prompt_caching()
-        )),
-        "openrouter" => assistant!(
-            rig::providers::openrouter::Client::new(&cfg.api_key)
-                .map_err(|e| AppError::BadRequest(format!("AI client error: {e}")))?
-                .agent(cfg.model.as_str())
-        ),
-        // Bedrock's OpenAI-compatible endpoint streams Chat Completions; the
-        // base URL is refused outside India before anything is sent.
-        "bedrock" => assistant!(
-            rig::providers::openai::CompletionsClient::builder()
-                .api_key(&cfg.api_key)
-                .base_url(bedrock_base)
-                .build()
-                .map_err(|e| AppError::BadRequest(format!("AI client error: {e}")))?
-                .agent(cfg.model.as_str())
-        ),
-        "ollama" => {
-            let base = std::env::var("OLLAMA_API_BASE_URL")
-                .unwrap_or_else(|_| "http://localhost:11434".to_owned());
-            assistant!(
-                rig::providers::ollama::Client::builder()
-                    .api_key(rig::client::Nothing)
-                    .base_url(&base)
-                    .build()
-                    .map_err(|e| AppError::BadRequest(format!("Ollama client error: {e}")))?
-                    .agent(cfg.model.as_str())
-            )
-        }
-        other => {
-            return Err(AppError::BadRequest(format!(
-                "AI provider '{other}' does not support streaming chat in this build"
-            )));
-        }
-    };
-    Ok(boxed)
-}
-
-/// One assistant turn's inputs, already redacted.
-struct Turn {
-    /// Checks the answer, sentence by sentence, before the user sees it.
-    guard: medbrains_core::ai_guard::AnswerGuard,
-    /// The redacted page context: what the answer may restate.
-    context: String,
-    /// The turn's context block (if any), then the user's message.
-    prompt: Redacted,
-    history: Vec<rig::completion::Message>,
-    state: AppState,
-    tenant_id: Uuid,
-    conversation_id: Uuid,
-    kb_hits: Vec<KbHit>,
-    session: redaction::Session,
-}
-
-/// The chip for a tool the assistant is running, its arguments read back
-/// for the user.
-fn tool_call_frame(
-    session: &redaction::Session,
-    tool_call: &rig::completion::message::ToolCall,
-    id: &str,
-) -> Result<Event, std::convert::Infallible> {
-    let args = redaction::for_user(session, &tool_call.function.arguments.to_string());
-    sse(&serde_json::json!({
-        "type": "tool",
-        "toolCall": {
-            "id": id,
-            "name": tool_call.function.name,
-            "args": serde_json::from_str::<serde_json::Value>(&args)
-                .unwrap_or(serde_json::Value::String(args)),
-            "status": "running"
-        }
-    }))
-}
-
-/// A tool's (redacted) output: a record the guard may let the answer restate,
-/// and read back for the user's chip.
-fn tool_result_frame(
-    guard: &mut medbrains_core::ai_guard::AnswerGuard,
-    session: &redaction::Session,
-    tool_result: &rig::completion::message::ToolResult,
-    id: &str,
-) -> Result<Event, std::convert::Infallible> {
-    let text = tool_result.content.iter().find_map(|c| match c {
-        rig::completion::message::ToolResultContent::Text(t) => Some(t.text.clone()),
-        rig::completion::message::ToolResultContent::Image(_) => None,
-    });
-    let result: Option<serde_json::Value> = text.map(|t| {
-        guard.add_record(&t);
-        let t = redaction::for_user(session, &t);
-        serde_json::from_str(&t).unwrap_or(serde_json::Value::String(t))
-    });
-    sse(&serde_json::json!({ "type": "tool_result", "id": id, "result": result }))
-}
-
-/// Stream one assistant turn from a built agent (provider-agnostic) and persist
-/// the result. The model sees only redacted text; the user sees the answer
-/// re-hydrated on the server; the stored answer stays redacted.
-fn run_turn<M, P>(
-    agent: rig::agent::Agent<M, P>,
-    turn: Turn,
-) -> impl Stream<Item = Result<Event, std::convert::Infallible>>
-where
-    M: rig::completion::CompletionModel + 'static,
-    M::StreamingResponse: rig::completion::GetTokenUsage,
-    P: rig::agent::PromptHook<M> + 'static,
-{
-    use rig::agent::MultiTurnStreamItem;
-    use rig::streaming::{StreamedAssistantContent, StreamedUserContent, StreamingPrompt as _};
-
-    let Turn {
-        mut guard,
-        context,
-        prompt,
-        history,
-        state,
-        tenant_id,
-        conversation_id,
-        kb_hits,
-        session,
-    } = turn;
-    guard.add_record(&context);
-    async_stream::stream! {
-        // Emit the retrieved KB entries as grounding sources (cited in the UI).
-        for (i, hit) in kb_hits.iter().enumerate() {
-            yield sse(&serde_json::json!({
-                "type": "source",
-                "source": {
-                    "id": format!("kb-{i}"),
-                    "title": hit.term,
-                    "url": hit.source_url,
-                    "snippet": hit.snippet,
-                }
-            }));
-        }
-
-        let mut answer = String::new();
-        let mut usage = None;
-        let mut shown = StreamRehydrator::default();
-        // multi_turn > 0 is REQUIRED for the tool loop — rig defaults to 0
-        // ("one round-trip"), which errors after the first tool call.
-        let mut chunks = agent
-            .stream_prompt(prompt.for_model())
-            .multi_turn(8)
-            .with_history(history)
-            .await;
-        while let Some(item) = chunks.next().await {
-            match item {
-                Ok(MultiTurnStreamItem::StreamAssistantItem(StreamedAssistantContent::Text(t))) => {
-                    // Only sentences the guard passes are stored or shown.
-                    let passed = guard.push(&t.text);
-                    answer.push_str(&passed);
-                    let text = session.lock().map_or_else(
-                        |_| String::new(),
-                        |r| shown.push(&passed, r.map()),
-                    );
-                    if !text.is_empty() {
-                        yield sse(&serde_json::json!({ "type": "text", "text": text }));
-                    }
-                }
-                Ok(MultiTurnStreamItem::StreamAssistantItem(StreamedAssistantContent::ToolCall {
-                    tool_call,
-                    internal_call_id,
-                })) => yield tool_call_frame(&session, &tool_call, &internal_call_id),
-                Ok(MultiTurnStreamItem::StreamUserItem(StreamedUserContent::ToolResult {
-                    tool_result,
-                    internal_call_id,
-                })) => {
-                    yield tool_result_frame(&mut guard, &session, &tool_result, &internal_call_id);
-                }
-                Ok(MultiTurnStreamItem::FinalResponse(r)) => usage = Some(r.usage()),
-                Ok(_) => {}
-                Err(e) => {
-                    // The provider's error text is not shown: it can echo input.
-                    tracing::warn!(target: "ai", error = %e, "assistant stream error");
-                    yield sse(&serde_json::json!({
-                        "type": "error",
-                        "message": "The AI could not finish this answer. Try again."
-                    }));
-                }
-            }
-        }
-        let passed = guard.finish();
-        answer.push_str(&passed);
-        let rest = session.lock().map_or_else(
-            |_| String::new(),
-            |r| format!("{}{}", shown.push(&passed, r.map()), shown.finish(r.map())),
-        );
-        if !rest.is_empty() {
-            yield sse(&serde_json::json!({ "type": "text", "text": rest }));
-        }
-        // Said, never silent: what the guard removed and why.
-        let notices = guard.notices();
-        if !notices.is_empty() {
-            tracing::info!(target: "ai", removed = notices.len(), "answer guard removed text");
-            yield sse(&serde_json::json!({ "type": "guard", "notices": notices }));
-        }
-
-        // Stored as the model wrote it — in placeholders — with the map.
-        if let Err(e) =
-            store_turn(&state, tenant_id, conversation_id, "assistant", &answer, &session).await
-        {
-            tracing::error!(error = %e, "failed to persist assistant turn");
-        }
-
-        // Tokens for the whole turn (every model call), for the cost readout.
-        let usage = usage.map(|u| serde_json::json!({
-            "input": u.input_tokens,
-            "output": u.output_tokens,
-            "cacheRead": u.cached_input_tokens,
-            "cacheWrite": u.cache_creation_input_tokens,
-        }));
-        yield sse(&serde_json::json!({
-            "type": "done",
-            "conversationId": conversation_id,
-            "usage": usage,
-        }));
-    }
 }
 
 /// Store one turn (redacted text) and the conversation's placeholder map, and
@@ -1981,18 +1729,8 @@ pub fn router() -> axum::Router<AppState> {
 
 #[cfg(test)]
 mod tests {
-    use super::{UNKNOWN_FOR_MODEL, describe_response, with_today};
+    use super::{UNKNOWN_FOR_MODEL, describe_response};
     use axum::http::StatusCode;
-
-    #[test]
-    fn today_is_filled_in_by_the_server_not_the_model() {
-        let today = chrono::NaiveDate::from_ymd_opt(2026, 10, 25).unwrap_or_default();
-        assert_eq!(
-            with_today("/api/billing/reports/daily?date=[TODAY]", today),
-            "/api/billing/reports/daily?date=2026-10-25"
-        );
-        assert_eq!(with_today("/api/patients/1", today), "/api/patients/1");
-    }
 
     /// An outage is UNKNOWN to the model, never an empty answer it could
     /// read as "nothing recorded".

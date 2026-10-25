@@ -82,6 +82,7 @@ export function useAiChat({
       };
       setMessages([...history, assistant]);
       setStatus("streaming");
+      const started = performance.now();
 
       const controller = new AbortController();
       abortRef.current = controller;
@@ -124,8 +125,13 @@ export function useAiChat({
             patch((m) => ({ ...m, status: "error", error: chunk.error }));
             setStatus("error");
             return;
+          } else if (chunk.type === "widget") {
+            patch((m) => ({ ...m, widgets: [...(m.widgets ?? []), chunk.widget] }));
+          } else if (chunk.type === "reset") {
+            patch((m) => ({ ...m, content: "" }));
           } else if (chunk.type === "done") {
-            patch((m) => ({ ...m, status: "complete", usage: chunk.usage }));
+            const elapsedMs = Math.round(performance.now() - started);
+            patch((m) => ({ ...m, status: "complete", usage: chunk.usage, elapsedMs }));
           }
         }
         setStatus("idle");
