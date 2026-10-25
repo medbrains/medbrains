@@ -62,8 +62,8 @@ export function AiChatPanel({
   const { messages, status, send, stop } = controller ?? internal;
   const canWriteNotes = useHasPermission(P.CLINICAL_NOTES.WRITE);
   const offerDraft = useAiAssistantStore((s) => s.offerDraft);
-  const offerToNote = (text: string) => {
-    offerDraft(text);
+  const offerToNote = (text: string, patientId: string | undefined) => {
+    offerDraft(text, patientId);
     toast.info("Open the case sheet and choose Insert AI draft on a section to review it.", {
       title: "Ready to use in a note",
     });
@@ -134,8 +134,17 @@ export function AiChatPanel({
             active={i === messages.length - 1 && !streaming}
             onToolAction={(text, opts) => void send(text, opts)}
             actions={
-              canWriteNotes && message.role === "assistant" && message.status === "complete" ? (
-                <Button tone="tertiary" size="xs" onClick={() => offerToNote(message.content)}>
+              // Only an answer about a named patient can go into a note — and
+              // only that patient's (AiDraftInsert checks the match).
+              canWriteNotes &&
+              message.role === "assistant" &&
+              message.status === "complete" &&
+              message.patientId ? (
+                <Button
+                  tone="tertiary"
+                  size="xs"
+                  onClick={() => offerToNote(message.content, message.patientId)}
+                >
                   Use in note
                 </Button>
               ) : undefined

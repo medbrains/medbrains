@@ -30,6 +30,27 @@ function now(): string {
   return new Date().toISOString();
 }
 
+/** The patient a context is about, if any. */
+export function patientOf(context: ChatContext | undefined): string | undefined {
+  const id = context?.patient_id;
+  return typeof id === "string" && id ? id : undefined;
+}
+
+/**
+ * The context a turn runs with. This turn's context wins; then the patient on
+ * screen — a patient picked earlier in the thread must never answer a question
+ * asked from another patient's chart; then the thread's sticky pick.
+ */
+export function effectiveContext(
+  turn: ChatContext | undefined,
+  page: ChatContext | undefined,
+  sticky: ChatContext | undefined,
+): ChatContext | undefined {
+  if (turn) return turn;
+  if (patientOf(page)) return page;
+  return sticky ?? page;
+}
+
 /**
  * Headless AI-chat controller. UI-agnostic: every surface (drawer, popover,
  * page, inline) composes the same hook + primitives. Transport is swappable
@@ -46,6 +67,8 @@ export function useAiChat({
   // A context supplied mid-thread (e.g. picking a patient) sticks for the rest
   // of the conversation, so the assistant doesn't ask to pick again each turn.
   const sessionContextRef = useRef<ChatContext | undefined>(undefined);
+  // One thread is about one patient (the server refuses to mix them).
+  const threadPatientRef = useRef<string | undefined>(undefined);
 
   const runTurn = useCallback(
     async (history: ChatMessage[], contextOverride?: ChatContext) => {
@@ -55,6 +78,7 @@ export function useAiChat({
         content: "",
         createdAt: now(),
         status: "streaming",
+        patientId: patientOf(contextOverride ?? context),
       };
       setMessages([...history, assistant]);
       setStatus("streaming");
@@ -118,18 +142,28 @@ export function useAiChat({
       const trimmed = text.trim();
       if (!trimmed || status === "streaming") return;
       if (opts?.context) sessionContextRef.current = opts.context;
-      // Precedence: this turn's context > sticky session context > page context.
-      const effective = opts?.context ?? sessionContextRef.current ?? context;
+      const effective = effectiveContext(opts?.context, context, sessionContextRef.current);
+      const patient = patientOf(effective);
+      // Asked about a different patient than this thread: start a new thread,
+      // so one patient's history never grounds an answer about another.
+      const switching =
+        !!patient && !!threadPatientRef.current && patient !== threadPatientRef.current;
+      if (switching) {
+        transport.setConversationId?.(undefined);
+        sessionContextRef.current = opts?.context;
+      }
+      if (patient) threadPatientRef.current = patient;
       const user: ChatMessage = {
         id: newId(),
         role: "user",
         content: trimmed,
         createdAt: now(),
         status: "complete",
+        patientId: patient,
       };
-      await runTurn([...messages, user], effective);
+      await runTurn([...(switching ? [] : messages), user], effective);
     },
-    [messages, status, runTurn, context],
+    [messages, status, runTurn, context, transport],
   );
 
   const regenerate = useCallback(async () => {
@@ -149,12 +183,14 @@ export function useAiChat({
   const reset = useCallback(() => {
     abortRef.current?.abort();
     sessionContextRef.current = undefined;
+    threadPatientRef.current = undefined;
     setMessages(initialMessages);
     setStatus("idle");
   }, [initialMessages]);
 
   const hydrate = useCallback((loaded: ChatMessage[]) => {
     abortRef.current?.abort();
+    threadPatientRef.current = undefined;
     setMessages(loaded);
     setStatus("idle");
   }, []);

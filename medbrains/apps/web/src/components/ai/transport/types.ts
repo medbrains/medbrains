@@ -52,6 +52,9 @@ export interface ChatMessage {
   reasoning?: string;
   toolCalls?: ChatToolCall[];
   sources?: ChatSource[];
+  /** The patient this turn was asked about — an answer is only ever offered
+   * into that patient's record. */
+  patientId?: string;
 }
 
 /** Ordered parts for a message: explicit `parts` win, else derived from content + convenience fields. */
@@ -91,4 +94,6 @@ export type ChatChunk =
  */
 export interface ChatTransport {
   send(messages: ChatMessage[], opts: SendOptions): AsyncIterable<ChatChunk>;
+  /** Forget the server conversation so the next send starts a new one. */
+  setConversationId?(id?: string): void;
 }

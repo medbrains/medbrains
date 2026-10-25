@@ -18,6 +18,7 @@ const answer: ChatMessage = {
   content: "Plan: paracetamol 500 mg if fever.",
   createdAt: "2026-10-20T09:00:00Z",
   status: "complete",
+  patientId: "patient-a",
 };
 const question: ChatMessage = { ...answer, id: "u1", role: "user", content: "Draft a plan" };
 
@@ -58,7 +59,17 @@ describe("an AI answer only reaches a note through the case sheet", () => {
     usePermissionStore.getState().setPermissions("doctor", [P.CLINICAL_NOTES.WRITE]);
     render(<AiChatPanel controller={controller([question, answer])} />);
     await userEvent.click(screen.getByRole("button", { name: "Use in note" }));
-    expect(useAiAssistantStore.getState().draftOffer).toBe(answer.content);
+    expect(useAiAssistantStore.getState().draftOffer).toEqual({
+      text: answer.content,
+      patientId: "patient-a",
+    });
+  });
+
+  it("does not offer an answer that was about no patient", () => {
+    usePermissionStore.getState().setPermissions("doctor", [P.CLINICAL_NOTES.WRITE]);
+    const general = { ...answer, patientId: undefined };
+    render(<AiChatPanel controller={controller([question, general])} />);
+    expect(screen.queryByRole("button", { name: "Use in note" })).not.toBeInTheDocument();
   });
 
   it("does not offer it to someone who cannot write notes", () => {

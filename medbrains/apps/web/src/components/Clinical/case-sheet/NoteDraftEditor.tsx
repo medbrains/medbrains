@@ -28,6 +28,8 @@ interface NoteDraftEditorProps {
   onSave: (patches: NoteSectionPatch[]) => Promise<void>;
   /** Sign the note — offered when the author may sign; resolves when done. */
   onSign?: () => Promise<void>;
+  /** Whose note this is: AI drafts are only offered for this patient. */
+  patientId: string;
 }
 
 /**
@@ -40,6 +42,7 @@ export function NoteDraftEditor({
   liveSections,
   onSave,
   onSign,
+  patientId,
 }: NoteDraftEditorProps) {
   const [sections, setSections] = useState(initialSections);
   const [state, setState] = useState<SaveState>({ kind: "idle" });
@@ -164,6 +167,7 @@ export function NoteDraftEditor({
               )}
               <AiDraftInsert
                 sectionTitle={section.title}
+                patientId={patientId}
                 onAccept={(html) => acceptAiDraft(section.code, html)}
               />
             </Group>
