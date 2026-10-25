@@ -120,6 +120,7 @@ mod kpi_department_filter_test;
 mod lab_critical_value_report_test;
 mod lab_report_release_test;
 mod lab_tat_test;
+mod auto_charge_savepoint_test;
 mod new_hospital_sequences_test;
 mod lab_unit_flag_test;
 mod lab_worklist_names_patients_test;

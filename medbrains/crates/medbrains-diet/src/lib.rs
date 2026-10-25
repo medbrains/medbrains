@@ -386,7 +386,12 @@ pub async fn create_diet_order_in_tx(
         .await
         .unwrap_or(false)
     {
-        let encounter_id = row.admission_id.unwrap_or(row.id);
+        let encounter_id = medbrains_server_services::billing::encounter_id_for_admission_in_tx(
+            tx,
+            &claims.tenant_id,
+            row.admission_id,
+        )
+        .await?;
         let _ = medbrains_server_services::billing::create_service_charge(
             tx,
             medbrains_server_services::billing::ServiceChargeInput {

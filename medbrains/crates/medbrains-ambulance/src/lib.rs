@@ -787,7 +787,17 @@ pub async fn update_trip_status(
                 .await
                 .unwrap_or(false)
             {
-                let encounter_id = row.er_visit_id.unwrap_or(row.id);
+                let encounter_id = match row.er_visit_id {
+                    Some(visit) => sqlx::query_scalar::<_, Option<Uuid>>(
+                        "SELECT encounter_id FROM er_visits WHERE tenant_id = $1 AND id = $2",
+                    )
+                    .bind(claims.tenant_id)
+                    .bind(visit)
+                    .fetch_optional(&mut *tx)
+                    .await?
+                    .flatten(),
+                    None => None,
+                };
                 let _ = medbrains_server_services::billing::create_service_charge(
                     &mut tx,
                     medbrains_server_services::billing::ServiceChargeInput {

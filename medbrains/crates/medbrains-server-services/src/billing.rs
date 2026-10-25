@@ -75,6 +75,26 @@ pub async fn admission_id_for_encounter_in_tx(
     .map_err(AppError::from)
 }
 
+/// The encounter an admission was opened under, for charging a service
+/// recorded against the admission.
+pub async fn encounter_id_for_admission_in_tx(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    tenant_id: &Uuid,
+    admission_id: Option<Uuid>,
+) -> Result<Option<Uuid>, AppError> {
+    let Some(admission_id) = admission_id else {
+        return Ok(None);
+    };
+    sqlx::query_scalar::<_, Uuid>(
+        "SELECT encounter_id FROM admissions WHERE tenant_id = $1 AND id = $2",
+    )
+    .bind(tenant_id)
+    .bind(admission_id)
+    .fetch_optional(&mut **tx)
+    .await
+    .map_err(AppError::from)
+}
+
 pub async fn verified_admission_id_for_invoice_in_tx(
     tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
     tenant_id: &Uuid,
@@ -246,7 +266,36 @@ pub async fn auto_charge(
     auto_charge_with_batch(tx, tenant_id, input, BatchTrace::default()).await
 }
 
+/// Runs the charge inside a savepoint. Most callers treat billing as
+/// best-effort and discard the error -- but a failed statement aborts the whole
+/// Postgres transaction, so the module's own write then committed as a silent
+/// ROLLBACK and the handler answered 200 for a diet order, CSSD issuance or OT
+/// completion that was never saved. Rolling back to the savepoint undoes only
+/// the charge; the caller's write stands, and the error is still returned.
 pub async fn auto_charge_with_batch(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    tenant_id: &Uuid,
+    input: AutoChargeInput,
+    batch: BatchTrace,
+) -> Result<AutoChargeResult, AppError> {
+    // A nested transaction is a savepoint on the caller's connection.
+    let mut savepoint = sqlx::Acquire::begin(&mut **tx).await?;
+    let source = input.source.clone();
+    let source_id = input.source_id;
+    match charge_in_savepoint(&mut savepoint, tenant_id, input, batch).await {
+        Ok(result) => {
+            savepoint.commit().await?;
+            Ok(result)
+        }
+        Err(error) => {
+            savepoint.rollback().await?;
+            tracing::warn!(%error, %source, %source_id, "auto-charge not posted");
+            Err(error)
+        }
+    }
+}
+
+async fn charge_in_savepoint(
     tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
     tenant_id: &Uuid,
     input: AutoChargeInput,
@@ -692,7 +741,10 @@ pub async fn reverse_invoice_item_by_id_in_tx(
 pub struct ServiceChargeInput<'a> {
     pub tenant_id: Uuid,
     pub patient_id: Uuid,
-    pub encounter_id: Uuid,
+    /// A real `encounters.id`, or `None` for a patient-level draft. Never an
+    /// admission, ER visit or source-row id: `invoices.encounter_id` is a
+    /// foreign key, and a wrong id fails the charge.
+    pub encounter_id: Option<Uuid>,
     pub charge_code: &'a str,
     pub quantity: i32,
     pub source_module: &'a str,
@@ -710,7 +762,7 @@ pub async fn create_service_charge(
 ) -> Result<AutoChargeResult, AppError> {
     let charge_input = AutoChargeInput {
         patient_id: inp.patient_id,
-        encounter_id: Some(inp.encounter_id),
+        encounter_id: inp.encounter_id,
         charge_code: inp.charge_code.to_owned(),
         source: inp.source_module.to_owned(),
         source_id: inp.source_entity_id,
@@ -733,7 +785,16 @@ pub async fn create_service_charge(
             source_entity_id: inp.source_entity_id,
             requested_by: inp.requested_by,
         };
-        apply_auto_concessions(tx, concession_inp).await.ok(); // best-effort — don't fail the charge if concession logic fails
+        // Best-effort, in its own savepoint for the same reason as the charge:
+        // a failed concession statement must not abort the caller's write.
+        let mut savepoint = sqlx::Acquire::begin(&mut **tx).await?;
+        match apply_auto_concessions(&mut savepoint, concession_inp).await {
+            Ok(()) => savepoint.commit().await?,
+            Err(error) => {
+                savepoint.rollback().await?;
+                tracing::warn!(%error, "auto-concession not applied");
+            }
+        }
     }
 
     Ok(result)
