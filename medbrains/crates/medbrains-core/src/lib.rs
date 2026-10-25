@@ -29,6 +29,7 @@ pub mod billing;
 pub mod blood_bank;
 pub mod bme;
 pub mod body_site;
+pub mod ai_guard;
 pub mod ai_redact;
 pub mod boundary_filter;
 pub mod camp;

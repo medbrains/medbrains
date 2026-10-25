@@ -51,6 +51,17 @@ export function Message({ message, avatar, actions, onToolAction, active }: Mess
             <UnifiedResponse message={message} onToolAction={onToolAction} active={active} />
           )}
         </Box>
+        {message.guardNotices && message.guardNotices.length > 0 && (
+          <Alert tone="warning" title="Part of this answer was removed">
+            <Stack gap={4}>
+              {message.guardNotices.map((notice) => (
+                <Text key={notice} size="sm">
+                  {notice}
+                </Text>
+              ))}
+            </Stack>
+          </Alert>
+        )}
         {message.status === "error" && message.error && (
           <Alert tone="danger" role="alert">
             {message.error}

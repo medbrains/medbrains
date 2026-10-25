@@ -93,6 +93,9 @@ pub struct Case {
 pub struct Request {
     pub system: Redacted,
     pub user: Redacted,
+    /// The parts of `user`: what the tool returned, and what was asked.
+    pub record: Redacted,
+    pub question: Redacted,
 }
 
 impl Request {
@@ -173,6 +176,8 @@ impl Case {
                     user: Redacted::fixed("Tool result —")
                         .join("\n", &record)
                         .join("\n\n", &question),
+                    record,
+                    question,
                 };
                 if restricted {
                     Prepared::RefusedRestricted(request)

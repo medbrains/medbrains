@@ -103,6 +103,13 @@ export class SseTransport implements ChatTransport {
         return typeof payload.id === "string"
           ? { type: "tool_result", id: payload.id, result: payload.result }
           : null;
+      case "guard":
+        return Array.isArray(payload.notices)
+          ? {
+              type: "guard",
+              notices: payload.notices.filter((n): n is string => typeof n === "string"),
+            }
+          : null;
       case "done":
         if (typeof payload.conversationId === "string") {
           this.conversationId = payload.conversationId;
