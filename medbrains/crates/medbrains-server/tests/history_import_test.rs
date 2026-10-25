@@ -251,3 +251,88 @@ async fn a_hospital_imports_its_history_before_go_live() {
         .expect("doctor");
     assert_eq!(resp.status(), StatusCode::FORBIDDEN);
 }
+
+/// A history import must not freeze the hospital: a sign-in (an audited
+/// write, on the same audit chain) completes promptly while a large batch is
+/// still being imported.
+#[tokio::test]
+async fn a_sign_in_is_not_held_up_by_a_running_import() {
+    let app = common::spawn_app().await;
+    let csrf = app.login_admin().await;
+    let t = Uuid::new_v4().simple().to_string()[..8].to_uppercase();
+    let doctor = common::provision_staff(&app, &csrf, "doctor", &[]).await;
+    let username: String = sqlx::query_scalar("SELECT username FROM users WHERE id = $1")
+        .bind(doctor.user_id)
+        .fetch_one(&app.db)
+        .await
+        .expect("username");
+    let dept: String = sqlx::query_scalar(
+        "SELECT d.code FROM departments d JOIN users u ON u.tenant_id = d.tenant_id \
+          WHERE u.username = 'admin' AND d.deleted_at IS NULL AND d.is_active ORDER BY d.code LIMIT 1",
+    )
+    .fetch_one(&app.db)
+    .await
+    .expect("department");
+    let go_live = Utc::now() - Duration::days(1);
+    let resp = app
+        .client
+        .put(app.url("/api/history-import/settings"))
+        .header("x-csrf-token", &csrf)
+        .json(&json!({ "go_live_at": go_live }))
+        .send()
+        .await
+        .expect("settings");
+    assert_eq!(resp.status(), StatusCode::OK);
+    let at = Utc::now() - Duration::days(60);
+    let mut records = Vec::new();
+    for i in 0..1000 {
+        let when = (at + Duration::minutes(i)).to_rfc3339();
+        records.push(
+            json!({ "kind": "patient", "external_id": format!("LP{t}{i}"), "first_name": "Ravi",
+            "last_name": "Kumar", "gender": "male", "phone": "9000012345", "registered_at": when }),
+        );
+        records.push(json!({ "kind": "visit", "external_id": format!("LV{t}{i}"), "patient": format!("LP{t}{i}"),
+            "department": dept, "doctor": username, "visited_at": when }));
+    }
+    let batch = json!({ "label": format!("Load {t}"), "records": records });
+    let (client, url, token) = (
+        app.client.clone(),
+        app.url("/api/history-import/batches"),
+        csrf.clone(),
+    );
+    let import = tokio::spawn(async move {
+        client
+            .post(url)
+            .header("x-csrf-token", token)
+            .json(&batch)
+            .send()
+            .await
+            .map(|r| r.status())
+    });
+
+    // Let the import get going, then sign in as another user while it runs.
+    tokio::time::sleep(std::time::Duration::from_millis(400)).await;
+    let started = std::time::Instant::now();
+    let other = reqwest::Client::builder()
+        .cookie_store(true)
+        .build()
+        .expect("client");
+    let login = other
+        .post(app.url("/api/auth/login"))
+        .json(&json!({ "username": "admin", "password": "admin123" }))
+        .send()
+        .await
+        .expect("login");
+    let took = started.elapsed();
+    let import_still_running = !import.is_finished();
+    assert_eq!(login.status(), StatusCode::OK);
+    assert!(
+        took < std::time::Duration::from_secs(1),
+        "sign-in took {took:?} while an import ran"
+    );
+    assert!(
+        import_still_running,
+        "the batch finished before the sign-in; the test proves nothing"
+    );
+    assert_eq!(import.await.expect("join").expect("import"), StatusCode::OK);
+}

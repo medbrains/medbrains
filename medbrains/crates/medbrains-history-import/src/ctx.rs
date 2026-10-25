@@ -50,6 +50,8 @@ pub(crate) struct Ctx<'t> {
     pub(crate) drugs: HashMap<String, (Uuid, String)>,
     pub(crate) refs: HashMap<(Kind, String), Ref>,
     pub(crate) patients_by_uhid: HashMap<String, Uuid>,
+    /// UHIDs reserved for this batch's new patients, handed out in order.
+    pub(crate) uhids: std::vec::IntoIter<String>,
     /// Position and identity of the record being processed.
     pub(crate) at: (usize, Kind, String),
 }

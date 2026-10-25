@@ -193,18 +193,14 @@ pub(crate) async fn invoice(ctx: &mut Ctx<'_>, r: &InvoiceRec) -> Result<Option<
     if !dated {
         return Ok(None);
     }
-    let number = match r
+    // The old system's bill number, or its own HIS- series: never the live invoice
+    // sequence, whose row lock would stall live billing for the whole import.
+    let number = r
         .invoice_number
         .as_deref()
         .map(str::trim)
         .filter(|n| !n.is_empty())
-    {
-        Some(n) => n.to_owned(),
-        None => {
-            medbrains_server_services::billing::generate_invoice_number(&mut ctx.tx, &ctx.tenant)
-                .await?
-        }
-    };
+        .map_or_else(|| format!("HIS-{}", r.external_id.trim()), str::to_owned);
     let status = if paid.is_zero() {
         "issued"
     } else if paid == total {

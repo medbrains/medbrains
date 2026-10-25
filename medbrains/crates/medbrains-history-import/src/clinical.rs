@@ -337,9 +337,9 @@ pub(crate) async fn admission(
     let admission: Uuid = sqlx::query_scalar(
         "INSERT INTO admissions (tenant_id, encounter_id, patient_id, admitting_doctor, attending_doctor_id, \
             department_id, status, admitted_at, discharged_at, discharge_type, discharge_summary, admission_source, \
-            provisional_diagnosis, final_diagnosis, created_at, updated_at, created_by) \
+            provisional_diagnosis, final_diagnosis, created_at, updated_at, created_by, admission_number) \
          VALUES ($1, $2, $3, $4, $4, $5, 'discharged', $6, $7, $8::discharge_type, $9, $10::admission_source, \
-            $11, $11, $6, $7, $12) RETURNING id",
+            $11, $11, $6, $7, $12, $13) RETURNING id",
     )
     .bind(ctx.tenant)
     .bind(encounter)
@@ -353,6 +353,8 @@ pub(crate) async fn admission(
     .bind(&source)
     .bind(r.diagnosis.trim())
     .bind(ctx.user)
+    // The old system's IP number, under its own series: no lock on the live one.
+    .bind(format!("HIS-{}", r.external_id.trim()))
     .fetch_one(&mut *ctx.tx)
     .await?;
     diagnoses(ctx, encounter, &r.diagnoses, r.admitted_at).await?;
