@@ -20,6 +20,7 @@ import {
 } from "@tabler/icons-react";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
+import { AuditActor } from "@/components/ai/AuditActor";
 import { Badge, type BadgeTone, Button } from "@/components/ui";
 import { statusColor } from "@/lib/status-colors";
 import { auditService } from "@/services/audit.service";
@@ -154,8 +155,9 @@ export function EntityTimelineTab() {
                       {entry.action}
                     </Badge>
                     <Text size="sm" c="dimmed">
-                      by {entry.user_name ?? "System"}
+                      by
                     </Text>
+                    <AuditActor userName={entry.user_name} actingAgent={entry.acting_agent} />
                   </Group>
                 }
               >

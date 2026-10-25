@@ -338,6 +338,7 @@ pub async fn pair_device(
         department_ids,
         perm_version,
         paired_device_id: Some(paired_id),
+        act: None,
         exp: (now + Duration::days(DEVICE_JWT_DAYS)).timestamp() as usize,
     };
     let jwt = encode_jwt(&claims, &state.jwt_encoding_key)

@@ -312,6 +312,9 @@ struct DrugSafetyTool {
     tenant_id: Uuid,
     department_ids: Vec<Uuid>,
     patient_id: Option<Uuid>,
+    user_id: Uuid,
+    /// The assistant run reading the chart, for the access trail.
+    agent: serde_json::Value,
 }
 
 impl DrugSafetyTool {
@@ -322,6 +325,16 @@ impl DrugSafetyTool {
         drug: &str,
         patient_id: Uuid,
     ) -> Result<Vec<medbrains_pharmacy::MedicationSafetyWarning>, AppError> {
+        // The engine reads the patient's allergies and medicines: that is a
+        // chart read, and it is the assistant's, so it is on the trail as such.
+        record_ai_read(
+            &self.db,
+            self.tenant_id,
+            self.user_id,
+            patient_id,
+            &self.agent,
+        )
+        .await?;
         let mut tx = self.db.begin().await?;
         medbrains_db::pool::set_full_context(&mut tx, &self.tenant_id, &self.department_ids)
             .await?;
@@ -370,9 +383,11 @@ impl rig::tool::Tool for DrugSafetyTool {
 
     async fn call(&self, args: Self::Args) -> Result<Self::Output, Self::Error> {
         let Some(patient_id) = self.patient_id else {
+            // Unchecked is not safe: `safe: true` here told the model (and the
+            // UI chip) that a drug nobody checked had passed.
             return Ok(DrugSafetyResult {
                 drug: args.drug,
-                safe: true,
+                safe: false,
                 warnings: Vec::new(),
                 notes:
                     "No patient chart is loaded, so safety cannot be checked — ask the clinician \
@@ -448,6 +463,7 @@ struct DraftPrescriptionTool {
     department_ids: Vec<Uuid>,
     patient_id: Option<Uuid>,
     user_id: Uuid,
+    agent: serde_json::Value,
 }
 
 impl DraftPrescriptionTool {
@@ -546,10 +562,15 @@ impl rig::tool::Tool for DraftPrescriptionTool {
                 message: "No patient chart is loaded — cannot draft a prescription.".to_owned(),
             });
         };
-        match self
-            .stage(patient_id, &args.drug, args.dose.as_deref())
-            .await
-        {
+        // The audit row for the decision is written inside the agent's scope,
+        // so it names the assistant as well as the clinician.
+        let staged = medbrains_db::audit::ACTING_AGENT
+            .scope(
+                self.agent.clone(),
+                self.stage(patient_id, &args.drug, args.dose.as_deref()),
+            )
+            .await;
+        match staged {
             Ok((true, messages)) => Ok(DraftPrescriptionResult {
                 decision: "blocked".to_owned(),
                 message: format!(
@@ -609,10 +630,16 @@ impl PatientOverviewTool {
         let is_admin = medbrains_server_core::middleware::authorization::BYPASS_ROLES
             .contains(&self.claims.role.as_str());
         if !is_admin {
-            medbrains_authz_gate::require_patient_access(
-                &self.state,
-                &self.claims,
+            medbrains_authz_gate::require_patient_access(&self.state, &self.claims, patient_id)
+                .await?;
+        }
+        if let Some(agent) = &self.claims.act {
+            record_ai_read(
+                &self.state.db,
+                self.claims.tenant_id,
+                self.claims.sub,
                 patient_id,
+                &agent.to_audit_json(),
             )
             .await?;
         }
@@ -677,8 +704,12 @@ impl rig::tool::Tool for PatientOverviewTool {
         };
         Ok(match self.overview(pid).await {
             Ok(text) => text,
-            Err(_) => "You do not have access to this patient, or their data could not be loaded."
-                .to_owned(),
+            // A refusal and an outage are different answers (three outcomes,
+            // never two): "no access" must not be said when nobody could check.
+            Err(AppError::Forbidden | AppError::ForbiddenReason(_) | AppError::NotFound) => {
+                "You do not have access to this patient's record.".to_owned()
+            }
+            Err(_) => UNKNOWN_FOR_MODEL.to_owned(),
         })
     }
 }
@@ -696,45 +727,106 @@ struct CallApiArgs {
 
 struct CallApiTool {
     state: AppState,
+    /// The user's claims with `act` set to this assistant run.
     claims: Claims,
     /// The model is outside the hospital: hand it records without identities.
     scrub: bool,
 }
 
+/// Told to the model when a check could not run, so it never reads an outage
+/// as "nothing there".
+const UNKNOWN_FOR_MODEL: &str = "UNKNOWN — the system could not check this right now (a fault, \
+    not an answer). Do not treat it as 'none' or 'no access'; tell the user it could not be checked.";
+
+/// Dispatch one read into `router` as the AI agent in `claims.act`, on the
+/// user's behalf. The request runs through the real auth, permission, ReBAC,
+/// RLS and audit stack with the user's authority — the agent can never exceed
+/// it — and every audit/access row it produces names the agent.
+///
+/// # Errors
+/// The token could not be minted or the path is not a valid URI.
+pub async fn call_api_as_agent(
+    router: axum::Router,
+    state: &AppState,
+    claims: &Claims,
+    path: &str,
+) -> Result<String, AppError> {
+    if claims.act.is_none() {
+        return Err(AppError::Internal("agent read without an actor".to_owned()));
+    }
+    if !CALL_API_ALLOWLIST.iter().any(|p| path.starts_with(p)) {
+        return Ok(format!("Path '{path}' is not permitted for the assistant."));
+    }
+    // Mint a token for the caller so the request goes through the real auth path.
+    let token =
+        medbrains_server_core::middleware::auth::encode_jwt(claims, &state.jwt_encoding_key)
+            .map_err(|_| AppError::Internal("token mint failed".to_owned()))?;
+    let request = axum::http::Request::builder()
+        .method(axum::http::Method::GET)
+        .uri(path)
+        .header(axum::http::header::AUTHORIZATION, format!("Bearer {token}"))
+        .body(axum::body::Body::empty())
+        .map_err(|_| AppError::BadRequest("invalid path".to_owned()))?;
+    use tower::ServiceExt as _;
+    let response = match router.oneshot(request).await {
+        Ok(r) => r,
+        Err(never) => match never {},
+    };
+    let status = response.status();
+    let bytes = axum::body::to_bytes(response.into_body(), 256 * 1024)
+        .await
+        .map_err(|_| AppError::Internal("read body failed".to_owned()))?;
+    Ok(describe_response(status, &String::from_utf8_lossy(&bytes)))
+}
+
+/// What the model is told about one API answer. A server fault is UNKNOWN,
+/// never an empty answer; a refusal says so without the body.
+fn describe_response(status: axum::http::StatusCode, body: &str) -> String {
+    if status.is_server_error() {
+        return format!("HTTP {}\n{UNKNOWN_FOR_MODEL}", status.as_u16());
+    }
+    if status == axum::http::StatusCode::FORBIDDEN || status == axum::http::StatusCode::NOT_FOUND {
+        return format!(
+            "HTTP {}\nNot available to this user (no permission, or no such record).",
+            status.as_u16()
+        );
+    }
+    format!("HTTP {}\n{body}", status.as_u16())
+}
+
+/// One `access_log` row for a chart read the assistant made directly (not over
+/// HTTP), so the patient's access history names the assistant too.
+async fn record_ai_read(
+    db: &sqlx::PgPool,
+    tenant_id: Uuid,
+    user_id: Uuid,
+    patient_id: Uuid,
+    agent: &serde_json::Value,
+) -> Result<(), AppError> {
+    let row = medbrains_server_core::middleware::access_log::AccessRow {
+        tenant_id,
+        user_id,
+        entity_type: "patients".to_owned(),
+        entity_id: Some(patient_id),
+        patient_id: Some(patient_id),
+        ip_address: None,
+        user_agent: None,
+        module: "ai".to_owned(),
+        correlation_id: None,
+        acting_agent: Some(agent.clone()),
+    };
+    medbrains_server_core::middleware::access_log::insert_access_log(db, &row)
+        .await
+        .map_err(|e| AppError::Internal(format!("access trail write failed: {e}")))
+}
+
 impl CallApiTool {
     async fn get(&self, path: &str) -> Result<String, AppError> {
-        if !CALL_API_ALLOWLIST.iter().any(|p| path.starts_with(p)) {
-            return Ok(format!("Path '{path}' is not permitted for the assistant."));
-        }
         let router = AI_ROUTER
             .get()
             .ok_or_else(|| AppError::Internal("router unavailable".to_owned()))?
             .clone();
-        // Mint a token for the caller so the request goes through the real auth path.
-        let token = medbrains_server_core::middleware::auth::encode_jwt(
-            &self.claims,
-            &self.state.jwt_encoding_key,
-        )
-        .map_err(|_| AppError::Internal("token mint failed".to_owned()))?;
-        let request = axum::http::Request::builder()
-            .method(axum::http::Method::GET)
-            .uri(path)
-            .header(axum::http::header::AUTHORIZATION, format!("Bearer {token}"))
-            .body(axum::body::Body::empty())
-            .map_err(|_| AppError::BadRequest("invalid path".to_owned()))?;
-        use tower::ServiceExt as _;
-        let response = match router.oneshot(request).await {
-            Ok(r) => r,
-            Err(never) => match never {},
-        };
-        let status = response.status().as_u16();
-        let bytes = axum::body::to_bytes(response.into_body(), 256 * 1024)
-            .await
-            .map_err(|_| AppError::Internal("read body failed".to_owned()))?;
-        Ok(format!(
-            "HTTP {status}\n{}",
-            String::from_utf8_lossy(&bytes)
-        ))
+        call_api_as_agent(router, &self.state, &self.claims, path).await
     }
 }
 
@@ -770,7 +862,10 @@ impl rig::tool::Tool for CallApiTool {
         Ok(match self.get(&args.path).await {
             Ok(text) if self.scrub => medbrains_core::ai_egress::scrub(&text),
             Ok(text) => text,
-            Err(e) => format!("Error calling {}: {e}", args.path),
+            Err(e) => {
+                tracing::warn!(error = %e, "assistant call_api failed");
+                UNKNOWN_FOR_MODEL.to_owned()
+            }
         })
     }
 }
@@ -899,11 +994,7 @@ async fn open_turn(
         // the patient's chart silently missing from it, and nothing on screen
         // said so. An ungrounded answer that looks grounded is worse than no
         // answer, so the request fails instead.
-        Some(pid) => match medbrains_authz_gate::require_patient_access(
-            state, claims, pid,
-        )
-        .await
-        {
+        Some(pid) => match medbrains_authz_gate::require_patient_access(state, claims, pid).await {
             Ok(()) => Some(pid),
             Err(err @ AppError::ServiceUnavailable(_)) => return Err(err),
             Err(_) => None,
@@ -969,7 +1060,11 @@ async fn open_turn(
     let history = history_rows
         .into_iter()
         .map(|r| {
-            let content = if egress { medbrains_core::ai_egress::scrub(&r.content) } else { r.content };
+            let content = if egress {
+                medbrains_core::ai_egress::scrub(&r.content)
+            } else {
+                r.content
+            };
             match r.role.as_str() {
                 "assistant" => rig::completion::Message::assistant(content),
                 _ => rig::completion::Message::user(content),
@@ -1043,6 +1138,20 @@ pub async fn chat(
         kb_hits,
     } = open_turn(&state, &claims, &req, &cfg, &message).await?;
     let tenant_id = claims.tenant_id;
+    // The assistant acts for the clinician, never as them: every read its tools
+    // make carries this actor, so the trail says "AI assistant on behalf of".
+    let agent = medbrains_server_core::middleware::auth::ActingAgent {
+        kind: medbrains_server_core::middleware::auth::ActorKind::AiAgent,
+        agent: "clinical_assistant".to_owned(),
+        model: cfg.model.clone(),
+        run_id: Uuid::new_v4(),
+        conversation_id: Some(conversation_id),
+    };
+    let agent_json = agent.to_audit_json();
+    let claims = Claims {
+        act: Some(agent),
+        ..claims
+    };
 
     let preamble = build_preamble(req.context.as_ref(), &kb_hits);
     // What leaves for an outside model carries no one's identity; the
@@ -1070,6 +1179,8 @@ pub async fn chat(
                     tenant_id,
                     department_ids: claims.department_ids.clone(),
                     patient_id: grounded_patient,
+                    user_id: claims.sub,
+                    agent: agent_json.clone(),
                 })
                 .tool(DraftPrescriptionTool {
                     db: state.db.clone(),
@@ -1077,6 +1188,7 @@ pub async fn chat(
                     department_ids: claims.department_ids.clone(),
                     patient_id: grounded_patient,
                     user_id: claims.sub,
+                    agent: agent_json.clone(),
                 })
                 .tool(PatientOverviewTool {
                     state: state.clone(),
@@ -1111,6 +1223,8 @@ pub async fn chat(
                     tenant_id,
                     department_ids: claims.department_ids.clone(),
                     patient_id: grounded_patient,
+                    user_id: claims.sub,
+                    agent: agent_json.clone(),
                 })
                 .tool(DraftPrescriptionTool {
                     db: state.db.clone(),
@@ -1118,6 +1232,7 @@ pub async fn chat(
                     department_ids: claims.department_ids.clone(),
                     patient_id: grounded_patient,
                     user_id: claims.sub,
+                    agent: agent_json.clone(),
                 })
                 .tool(PatientOverviewTool {
                     state: state.clone(),
@@ -1158,6 +1273,8 @@ pub async fn chat(
                     tenant_id,
                     department_ids: claims.department_ids.clone(),
                     patient_id: grounded_patient,
+                    user_id: claims.sub,
+                    agent: agent_json.clone(),
                 })
                 .tool(DraftPrescriptionTool {
                     db: state.db.clone(),
@@ -1165,6 +1282,7 @@ pub async fn chat(
                     department_ids: claims.department_ids.clone(),
                     patient_id: grounded_patient,
                     user_id: claims.sub,
+                    agent: agent_json.clone(),
                 })
                 .tool(PatientOverviewTool {
                     state: state.clone(),
@@ -1546,4 +1664,32 @@ pub fn router() -> axum::Router<AppState> {
             "/api/ai/conversations/{id}/messages",
             get(conversation_messages),
         )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{UNKNOWN_FOR_MODEL, describe_response};
+    use axum::http::StatusCode;
+
+    /// An outage is UNKNOWN to the model, never an empty answer it could
+    /// read as "nothing recorded".
+    #[test]
+    fn a_server_fault_is_unknown_not_empty() {
+        let told = describe_response(StatusCode::SERVICE_UNAVAILABLE, "[]");
+        assert!(told.contains(UNKNOWN_FOR_MODEL));
+        assert!(!told.contains("[]"));
+    }
+
+    /// A refusal says so and carries no body.
+    #[test]
+    fn a_refusal_is_not_a_record() {
+        let told = describe_response(StatusCode::FORBIDDEN, "{\"secret\":1}");
+        assert!(told.starts_with("HTTP 403"));
+        assert!(!told.contains("secret"));
+    }
+
+    #[test]
+    fn an_answer_passes_through() {
+        assert_eq!(describe_response(StatusCode::OK, "{}"), "HTTP 200\n{}");
+    }
 }

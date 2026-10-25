@@ -19,13 +19,23 @@ use medbrains_server::{
 };
 
 /// A running test server with an HTTP client.
-#[derive(Debug)]
 pub struct TestApp {
     pub addr: SocketAddr,
     pub client: Client,
     /// The same pool the server uses — for tests that need to set up state
     /// (e.g. mark a patient deceased) that no public endpoint exposes.
     pub db: sqlx::PgPool,
+    /// The server's own state — for tests that drive in-process paths (the
+    /// AI assistant's tools) that mint tokens with the server's key.
+    pub state: AppState,
+}
+
+impl std::fmt::Debug for TestApp {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("TestApp")
+            .field("addr", &self.addr)
+            .finish_non_exhaustive()
+    }
 }
 
 impl TestApp {
@@ -279,7 +289,7 @@ async fn spawn(secrets: TestSecrets, request_url: Option<String>) -> TestApp {
         )),
     };
 
-    let app = routes::build_router(state);
+    let app = routes::build_router(state.clone());
 
     // Bind to port 0 = OS picks a random available port
     let listener = TcpListener::bind("127.0.0.1:0").await.expect("bind failed");
@@ -299,6 +309,7 @@ async fn spawn(secrets: TestSecrets, request_url: Option<String>) -> TestApp {
         addr,
         client,
         db: owner,
+        state,
     }
 }
 

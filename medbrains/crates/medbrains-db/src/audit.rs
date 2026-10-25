@@ -7,6 +7,30 @@ use sha2::{Digest, Sha256};
 use sqlx::{PgPool, Postgres, Transaction};
 use uuid::Uuid;
 
+tokio::task_local! {
+    /// The AI (or other non-human) actor on whose run the current task is
+    /// executing, as stored in `audit_log.acting_agent` / `access_log.acting_agent`.
+    ///
+    /// Scoped by the auth middleware for the length of a request whose token
+    /// carries an `act` claim, and by the assistant's own tools. Every audit and
+    /// access row written inside the scope records it; the principal stays in
+    /// `user_id`. RFC-AUTHZ-2026-001 §2A.5.
+    pub static ACTING_AGENT: serde_json::Value;
+}
+
+/// The actor in scope for this task, if an agent is acting.
+#[must_use]
+pub fn acting_agent() -> Option<serde_json::Value> {
+    ACTING_AGENT.try_with(Clone::clone).ok()
+}
+
+/// `|act=<json>` appended to a row's canonical hash input when an agent acted,
+/// so the actor is covered by the tamper-evident chain. Empty otherwise, which
+/// keeps every human-only row's hash exactly as it was.
+fn actor_hash_suffix(agent: Option<&serde_json::Value>) -> String {
+    agent.map_or_else(String::new, |a| format!("|act={a}"))
+}
+
 /// Parameters for an audit log entry.
 #[derive(Debug)]
 pub struct AuditEntry<'a> {
@@ -36,6 +60,9 @@ pub struct HttpAuditEntry {
     pub module: Option<String>,
     pub status_code: u16,
     pub method: String,
+    /// The non-human actor, when an AI agent made the request on the user's
+    /// behalf (`Claims::act`). `None` when the person acted directly.
+    pub acting_agent: Option<serde_json::Value>,
 }
 
 /// Result of a chain integrity check for one tenant.
@@ -71,9 +98,10 @@ impl AuditLogger {
         .fetch_optional(&mut **tx)
         .await?;
 
+        let agent = acting_agent();
         // Build the hash payload
         let hash_input = format!(
-            "{}|{}|{}|{}|{}|{}|{}|{}",
+            "{}|{}|{}|{}|{}|{}|{}|{}{}",
             entry.tenant_id,
             entry.user_id.map_or_else(String::new, |u| u.to_string()),
             entry.action,
@@ -86,6 +114,7 @@ impl AuditLogger {
                 .new_values
                 .map_or_else(String::new, ToString::to_string),
             prev_hash.as_deref().unwrap_or(""),
+            actor_hash_suffix(agent.as_ref()),
         );
 
         let mut hasher = Sha256::new();
@@ -94,8 +123,9 @@ impl AuditLogger {
 
         sqlx::query(
             "INSERT INTO audit_log (tenant_id, user_id, action, entity_type, entity_id, \
-             old_values, new_values, ip_address, prev_hash, hash, hash_input_canonical) \
-             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)",
+             old_values, new_values, ip_address, prev_hash, hash, hash_input_canonical, \
+             acting_agent) \
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)",
         )
         .bind(entry.tenant_id)
         .bind(entry.user_id)
@@ -108,6 +138,7 @@ impl AuditLogger {
         .bind(prev_hash.as_deref())
         .bind(&hash)
         .bind(&hash_input)
+        .bind(agent.as_ref())
         .execute(&mut **tx)
         .await?;
 
@@ -136,7 +167,7 @@ impl AuditLogger {
         .await?;
 
         let hash_input = format!(
-            "{}|{}|{}|{}|{}|{}|{}|{}|{}",
+            "{}|{}|{}|{}|{}|{}|{}|{}|{}{}",
             entry.tenant_id,
             entry.user_id.map_or_else(String::new, |u| u.to_string()),
             entry.action,
@@ -146,6 +177,7 @@ impl AuditLogger {
             entry.status_code,
             entry.correlation_id,
             prev_hash.as_deref().unwrap_or(""),
+            actor_hash_suffix(entry.acting_agent.as_ref()),
         );
         let mut hasher = Sha256::new();
         hasher.update(hash_input.as_bytes());
@@ -155,8 +187,8 @@ impl AuditLogger {
             "INSERT INTO audit_log ( \
                  tenant_id, user_id, action, entity_type, entity_id, \
                  ip_address, user_agent, session_id, correlation_id, \
-                 module, prev_hash, hash, description, hash_input_canonical \
-             ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)",
+                 module, prev_hash, hash, description, hash_input_canonical, acting_agent \
+             ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)",
         )
         .bind(entry.tenant_id)
         .bind(entry.user_id)
@@ -175,6 +207,7 @@ impl AuditLogger {
             entry.method, entry.action, entry.status_code
         ))
         .bind(&hash_input)
+        .bind(entry.acting_agent.as_ref())
         .execute(&mut *tx)
         .await?;
 
@@ -225,21 +258,20 @@ impl AuditLogger {
             // Read only the canonical hash-input bytes; sidesteps JSONB
             // normalization. Rows with hash_input_canonical IS NULL are
             // pre-Phase-2.5 legacy and are skipped (counted separately).
-            let page: Vec<ChainRow> =
-                sqlx::query_as(
-                    "SELECT id, hash, hash_input_canonical, prev_hash, created_at \
+            let page: Vec<ChainRow> = sqlx::query_as(
+                "SELECT id, hash, hash_input_canonical, prev_hash, created_at \
                      FROM audit_log \
                      WHERE tenant_id = $1 AND hash IS NOT NULL \
                        AND ($2::timestamptz IS NULL OR (created_at, id) > ($2, $3)) \
                      ORDER BY created_at ASC, id ASC \
                      LIMIT $4",
-                )
-                .bind(tenant_id)
-                .bind(cursor.map(|(at, _)| at))
-                .bind(cursor.map(|(_, id)| id))
-                .bind(Self::VERIFY_CHAIN_PAGE)
-                .fetch_all(&mut *tx)
-                .await?;
+            )
+            .bind(tenant_id)
+            .bind(cursor.map(|(at, _)| at))
+            .bind(cursor.map(|(_, id)| id))
+            .bind(Self::VERIFY_CHAIN_PAGE)
+            .fetch_all(&mut *tx)
+            .await?;
             tx.commit().await?;
 
             if page.is_empty() {
