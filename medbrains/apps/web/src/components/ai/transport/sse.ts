@@ -13,6 +13,21 @@ function parseFrame(frame: string): Record<string, unknown> | null {
 }
 
 /**
+ * The server's own words for a refused turn — e.g. "Couldn't run the AI
+ * safely, so nothing was sent to it" (redaction failed closed) or "This
+ * conversation is about a different patient" — so the user knows why.
+ */
+export async function refusalReason(response: Response): Promise<string> {
+  try {
+    const body = (await response.json()) as { detail?: unknown };
+    if (typeof body.detail === "string" && body.detail) return body.detail;
+  } catch {
+    // Not JSON: fall through to the status.
+  }
+  return `Assistant unavailable (${response.status})`;
+}
+
+/**
  * Streams the assistant reply from `POST /api/ai/chat` over SSE — the real
  * backend transport (swap in for MockTransport). Stateful: it remembers the
  * server conversation id so multi-turn threads continue the same conversation.
@@ -46,7 +61,7 @@ export class SseTransport implements ChatTransport {
     }
 
     if (!response.ok || !response.body) {
-      yield { type: "error", error: `Assistant unavailable (${response.status})` };
+      yield { type: "error", error: await refusalReason(response) };
       return;
     }
 

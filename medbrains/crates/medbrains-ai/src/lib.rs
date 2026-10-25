@@ -20,7 +20,11 @@ use futures::{Stream, StreamExt as _};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
+use medbrains_core::ai_redact::{Redacted, StreamRehydrator};
 use medbrains_core::permissions;
+
+mod redaction;
+pub use redaction::session_for;
 use medbrains_server_core::middleware::auth::Claims;
 use medbrains_server_core::middleware::authorization::require_permission;
 use medbrains_server_core::{error::AppError, state::AppState};
@@ -282,9 +286,15 @@ async fn retrieve_kb(
 /// Everything `open_turn` prepares for one assistant turn.
 struct PreparedTurn {
     conversation_id: Uuid,
-    history: Vec<rig::completion::Message>,
+    /// As stored (redacted since migration 1212); redacted again before use.
+    history: Vec<HistoryRow>,
+    /// The patient the turn names (whether or not the caller may see them):
+    /// their identifiers are redacted either way.
+    patient_id: Option<Uuid>,
     grounded_patient: Option<Uuid>,
     kb_hits: Vec<KbHit>,
+    /// The conversation's placeholder map, so placeholders stay stable.
+    pseudonyms: Option<serde_json::Value>,
 }
 
 // ── Guarded clinical tool: drug safety check (RFC Phase 3) ────────────
@@ -308,6 +318,8 @@ struct DrugSafetyResult {
 }
 
 struct DrugSafetyTool {
+    /// Every result goes back to the model through this turn's redaction.
+    session: redaction::Session,
     db: sqlx::PgPool,
     tenant_id: Uuid,
     department_ids: Vec<Uuid>,
@@ -359,7 +371,7 @@ impl rig::tool::Tool for DrugSafetyTool {
     const NAME: &'static str = "check_drug_safety";
     type Error = std::convert::Infallible;
     type Args = DrugSafetyArgs;
-    type Output = DrugSafetyResult;
+    type Output = Redacted;
 
     async fn definition(&self, _prompt: String) -> rig::completion::ToolDefinition {
         rig::completion::ToolDefinition {
@@ -382,6 +394,19 @@ impl rig::tool::Tool for DrugSafetyTool {
     }
 
     async fn call(&self, args: Self::Args) -> Result<Self::Output, Self::Error> {
+        let out = match self.answer(args).await {
+            Ok(out) => out,
+            Err(never) => match never {},
+        };
+        Ok(redaction::for_model(
+            &self.session,
+            &serde_json::to_string(&out).unwrap_or_default(),
+        ))
+    }
+}
+
+impl DrugSafetyTool {
+    async fn answer(&self, args: DrugSafetyArgs) -> Result<DrugSafetyResult, std::convert::Infallible> {
         let Some(patient_id) = self.patient_id else {
             // Unchecked is not safe: `safe: true` here told the model (and the
             // UI chip) that a drug nobody checked had passed.
@@ -458,6 +483,8 @@ struct DraftPrescriptionResult {
 }
 
 struct DraftPrescriptionTool {
+    /// Every result goes back to the model through this turn's redaction.
+    session: redaction::Session,
     db: sqlx::PgPool,
     tenant_id: Uuid,
     department_ids: Vec<Uuid>,
@@ -531,7 +558,7 @@ impl rig::tool::Tool for DraftPrescriptionTool {
     const NAME: &'static str = "draft_prescription";
     type Error = std::convert::Infallible;
     type Args = DraftPrescriptionArgs;
-    type Output = DraftPrescriptionResult;
+    type Output = Redacted;
 
     async fn definition(&self, _prompt: String) -> rig::completion::ToolDefinition {
         rig::completion::ToolDefinition {
@@ -554,6 +581,19 @@ impl rig::tool::Tool for DraftPrescriptionTool {
     }
 
     async fn call(&self, args: Self::Args) -> Result<Self::Output, Self::Error> {
+        let out = match self.answer(args).await {
+            Ok(out) => out,
+            Err(never) => match never {},
+        };
+        Ok(redaction::for_model(
+            &self.session,
+            &serde_json::to_string(&out).unwrap_or_default(),
+        ))
+    }
+}
+
+impl DraftPrescriptionTool {
+    async fn answer(&self, args: DraftPrescriptionArgs) -> Result<DraftPrescriptionResult, std::convert::Infallible> {
         let Some(patient_id) = self.patient_id else {
             return Ok(DraftPrescriptionResult {
                 decision: "no_patient".to_owned(),
@@ -620,6 +660,8 @@ struct PatientOverviewArgs {
 }
 
 struct PatientOverviewTool {
+    /// Every result goes back to the model through this turn's redaction.
+    session: redaction::Session,
     state: AppState,
     claims: Claims,
 }
@@ -670,7 +712,7 @@ impl rig::tool::Tool for PatientOverviewTool {
     const NAME: &'static str = "get_patient_overview";
     type Error = std::convert::Infallible;
     type Args = PatientOverviewArgs;
-    type Output = String;
+    type Output = Redacted;
 
     async fn definition(&self, _prompt: String) -> rig::completion::ToolDefinition {
         rig::completion::ToolDefinition {
@@ -695,6 +737,16 @@ impl rig::tool::Tool for PatientOverviewTool {
     }
 
     async fn call(&self, args: Self::Args) -> Result<Self::Output, Self::Error> {
+        let out = match self.answer(args).await {
+            Ok(out) => out,
+            Err(never) => match never {},
+        };
+        Ok(redaction::for_model(&self.session, &out))
+    }
+}
+
+impl PatientOverviewTool {
+    async fn answer(&self, args: PatientOverviewArgs) -> Result<String, std::convert::Infallible> {
         let Ok(pid) = Uuid::parse_str(&args.patient_id) else {
             return Ok(
                 "No valid patient id was provided. If no patient is in the screen context, \
@@ -726,11 +778,11 @@ struct CallApiArgs {
 }
 
 struct CallApiTool {
+    /// Every result goes back to the model through this turn's redaction.
+    session: redaction::Session,
     state: AppState,
     /// The user's claims with `act` set to this assistant run.
     claims: Claims,
-    /// The model is outside the hospital: hand it records without identities.
-    scrub: bool,
 }
 
 /// Told to the model when a check could not run, so it never reads an outage
@@ -834,7 +886,7 @@ impl rig::tool::Tool for CallApiTool {
     const NAME: &'static str = "call_api";
     type Error = std::convert::Infallible;
     type Args = CallApiArgs;
-    type Output = String;
+    type Output = Redacted;
 
     async fn definition(&self, _prompt: String) -> rig::completion::ToolDefinition {
         rig::completion::ToolDefinition {
@@ -859,8 +911,17 @@ impl rig::tool::Tool for CallApiTool {
     }
 
     async fn call(&self, args: Self::Args) -> Result<Self::Output, Self::Error> {
+        let out = match self.answer(args).await {
+            Ok(out) => out,
+            Err(never) => match never {},
+        };
+        Ok(redaction::for_model(&self.session, &out))
+    }
+}
+
+impl CallApiTool {
+    async fn answer(&self, args: CallApiArgs) -> Result<String, std::convert::Infallible> {
         Ok(match self.get(&args.path).await {
-            Ok(text) if self.scrub => medbrains_core::ai_egress::scrub(&text),
             Ok(text) => text,
             Err(e) => {
                 tracing::warn!(error = %e, "assistant call_api failed");
@@ -884,7 +945,7 @@ impl rig::tool::Tool for RequestPatientTool {
     const NAME: &'static str = "request_patient";
     type Error = std::convert::Infallible;
     type Args = RequestPatientArgs;
-    type Output = String;
+    type Output = Redacted;
 
     async fn definition(&self, _prompt: String) -> rig::completion::ToolDefinition {
         rig::completion::ToolDefinition {
@@ -903,11 +964,10 @@ impl rig::tool::Tool for RequestPatientTool {
     }
 
     async fn call(&self, _args: Self::Args) -> Result<Self::Output, Self::Error> {
-        Ok(
+        Ok(Redacted::fixed(
             "A patient search box is now shown to the user. STOP and wait for their selection; do \
-            not call patient tools or invent an id. The chosen patient arrives in the next message."
-                .to_owned(),
-        )
+            not call patient tools or invent an id. The chosen patient arrives in the next message.",
+        ))
     }
 }
 
@@ -927,7 +987,7 @@ impl rig::tool::Tool for ListApisTool {
     const NAME: &'static str = "list_apis";
     type Error = std::convert::Infallible;
     type Args = ListApisArgs;
-    type Output = String;
+    type Output = Redacted;
 
     async fn definition(&self, _prompt: String) -> rig::completion::ToolDefinition {
         rig::completion::ToolDefinition {
@@ -941,7 +1001,7 @@ impl rig::tool::Tool for ListApisTool {
     }
 
     async fn call(&self, _args: Self::Args) -> Result<Self::Output, Self::Error> {
-        Ok(READ_CATALOG.to_owned())
+        Ok(Redacted::fixed(READ_CATALOG))
     }
 }
 
@@ -959,9 +1019,9 @@ fn sse(payload: &serde_json::Value) -> Result<Event, std::convert::Infallible> {
         .unwrap_or_else(|_| Event::default().data("{}")))
 }
 
-/// Resolve the grounded patient (ReBAC), persist the user turn, and load prior
-/// history + de-identified grounding — all under one RLS transaction. Returns
-/// `(conversation_id, rig history, grounding, grounded_patient)`.
+/// Resolve the grounded patient (ReBAC), open or continue the conversation,
+/// and load prior history, KB hits and the placeholder map — under one RLS
+/// transaction. The user's turn is stored later, redacted.
 async fn open_turn(
     state: &AppState,
     claims: &Claims,
@@ -1004,10 +1064,11 @@ async fn open_turn(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &tenant_id, &claims.department_ids).await?;
 
+    let mut pseudonyms = None;
     let conversation_id = match req.conversation_id {
         Some(id) => {
-            let row = sqlx::query_as::<_, (Uuid, Option<Uuid>)>(
-                "SELECT owner_user_id, patient_id FROM ai_conversations \
+            let row = sqlx::query_as::<_, (Uuid, Option<Uuid>, serde_json::Value)>(
+                "SELECT owner_user_id, patient_id, pseudonym_map FROM ai_conversations \
                  WHERE id = $1 AND tenant_id = $2",
             )
             .bind(id)
@@ -1015,8 +1076,9 @@ async fn open_turn(
             .fetch_optional(&mut *tx)
             .await?;
             match row {
-                Some((owner, about)) if owner == claims.sub => {
+                Some((owner, about, map)) if owner == claims.sub => {
                     bind_conversation_patient(&mut tx, id, about, patient_id).await?;
+                    pseudonyms = Some(map);
                     id
                 }
                 Some(_) => return Err(AppError::Forbidden),
@@ -1024,14 +1086,16 @@ async fn open_turn(
             }
         }
         None => {
-            let title: String = message.chars().take(60).collect();
+            // The title is shown in the history menu only; a placeholder title
+            // keeps identifiers out of it until the turn's redaction exists.
+            let title = "New conversation";
             sqlx::query_scalar::<_, Uuid>(
                 "INSERT INTO ai_conversations (tenant_id, owner_user_id, title, model, patient_id) \
                  VALUES ($1, $2, $3, $4, $5) RETURNING id",
             )
             .bind(tenant_id)
             .bind(claims.sub)
-            .bind(&title)
+            .bind(title)
             .bind(&cfg.model)
             .bind(patient_id)
             .fetch_one(&mut *tx)
@@ -1049,39 +1113,15 @@ async fn open_turn(
     .await?;
 
     let kb_hits = retrieve_kb(&mut tx, message).await?;
-
-    sqlx::query(
-        "INSERT INTO ai_messages (tenant_id, conversation_id, role, content) \
-         VALUES ($1, $2, 'user', $3)",
-    )
-    .bind(tenant_id)
-    .bind(conversation_id)
-    .bind(message)
-    .execute(&mut *tx)
-    .await?;
     tx.commit().await?;
-
-    let egress = medbrains_core::ai_egress::leaves_the_hospital(&cfg.provider);
-    let history = history_rows
-        .into_iter()
-        .map(|r| {
-            let content = if egress {
-                medbrains_core::ai_egress::scrub(&r.content)
-            } else {
-                r.content
-            };
-            match r.role.as_str() {
-                "assistant" => rig::completion::Message::assistant(content),
-                _ => rig::completion::Message::user(content),
-            }
-        })
-        .collect();
 
     Ok(PreparedTurn {
         conversation_id,
-        history,
+        history: history_rows,
+        patient_id,
         grounded_patient,
         kb_hits,
+        pseudonyms,
     })
 }
 
@@ -1122,10 +1162,10 @@ async fn bind_conversation_patient(
     Ok(())
 }
 
-/// Compose the turn preamble: system prompt + the generic screen context (the
-/// ids of whatever the user is viewing) + knowledge-base references. Data for
-/// those ids is fetched on demand by the assistant's tools, not pre-injected.
-fn build_preamble(context: Option<&serde_json::Value>, kb_hits: &[KbHit]) -> String {
+/// The turn's context block: the generic screen context (the ids of whatever
+/// the user is viewing) and knowledge-base references. Data for those ids is
+/// fetched on demand by the tools, not pre-injected. Redacted before use.
+fn build_context(context: Option<&serde_json::Value>, kb_hits: &[KbHit]) -> String {
     let mut parts: Vec<String> = Vec::new();
     if let Some(ctx) = context.filter(|c| !c.is_null()) {
         parts.push(format!(
@@ -1150,11 +1190,13 @@ fn build_preamble(context: Option<&serde_json::Value>, kb_hits: &[KbHit]) -> Str
             refs.join("\n")
         ));
     }
-    if parts.is_empty() {
-        SYSTEM_PROMPT.to_owned()
-    } else {
-        format!("{SYSTEM_PROMPT}\n\n{}", parts.join("\n\n"))
-    }
+    parts.push(
+        "Identifiers in this conversation are replaced by placeholders such as [PATIENT_1], \
+         [RELATIVE_1], [PHONE_1] or [DATE_-3d] (days from today). Use them exactly as written; \
+         never guess or ask for the real values."
+            .to_owned(),
+    );
+    parts.join("\n\n")
 }
 
 pub async fn chat(
@@ -1176,8 +1218,10 @@ pub async fn chat(
     let PreparedTurn {
         conversation_id,
         history,
+        patient_id,
         grounded_patient,
         kb_hits,
+        pseudonyms,
     } = open_turn(&state, &claims, &req, &cfg, &message).await?;
     let tenant_id = claims.tenant_id;
     // The assistant acts for the clinician, never as them: every read its tools
@@ -1195,158 +1239,103 @@ pub async fn chat(
         ..claims
     };
 
-    let preamble = build_preamble(req.context.as_ref(), &kb_hits);
-    // What leaves for an outside model carries no one's identity; the
-    // conversation kept here stays as the clinician wrote it.
-    let egress = medbrains_core::ai_egress::leaves_the_hospital(&cfg.provider);
-    let (preamble, message) = if egress {
-        (
-            medbrains_core::ai_egress::scrub(&preamble),
-            medbrains_core::ai_egress::scrub(&message),
-        )
-    } else {
-        (preamble, message)
+    // Everything below reaches the model only through this turn's redaction
+    // (every provider, local ones included). Fail closed: if it cannot be made
+    // safe, the call is refused and nothing is sent or stored.
+    let mut redactor = session_for(&state, &claims, patient_id, pseudonyms).await?;
+    let unsafe_ = |e: medbrains_core::ai_redact::RedactError| {
+        medbrains_server_services::llm::unsafe_to_send(&e)
     };
+    let context = redactor
+        .redact(&build_context(req.context.as_ref(), &kb_hits))
+        .map_err(unsafe_)?;
+    let preamble = Redacted::fixed(SYSTEM_PROMPT).join("\n\n", &context);
+    let message = redactor.redact(&message).map_err(unsafe_)?;
+    let mut prior = Vec::with_capacity(history.len());
+    for row in history {
+        let content = redactor.redact(&row.content).map_err(unsafe_)?;
+        prior.push(match row.role.as_str() {
+            "assistant" => rig::completion::Message::assistant(content.for_model()),
+            _ => rig::completion::Message::user(content.for_model()),
+        });
+    }
+    let session: redaction::Session = std::sync::Arc::new(std::sync::Mutex::new(redactor));
+    // Stored as the model received it, with the map to read it back.
+    store_turn(&state, tenant_id, conversation_id, "user", message.for_model(), &session).await?;
+
+    let turn = Turn {
+        message,
+        history: prior,
+        state: state.clone(),
+        tenant_id,
+        conversation_id,
+        kb_hits,
+        session: std::sync::Arc::clone(&session),
+    };
+
+    // One agent definition for every provider: the same tools, the same
+    // redacted preamble.
+    macro_rules! assistant {
+        ($client:expr) => {{
+            let agent = $client
+                .agent(cfg.model.as_str())
+                .preamble(preamble.for_model())
+                .tool(DrugSafetyTool {
+                    session: std::sync::Arc::clone(&session),
+                    db: state.db.clone(),
+                    tenant_id,
+                    department_ids: claims.department_ids.clone(),
+                    patient_id: grounded_patient,
+                    user_id: claims.sub,
+                    agent: agent_json.clone(),
+                })
+                .tool(DraftPrescriptionTool {
+                    session: std::sync::Arc::clone(&session),
+                    db: state.db.clone(),
+                    tenant_id,
+                    department_ids: claims.department_ids.clone(),
+                    patient_id: grounded_patient,
+                    user_id: claims.sub,
+                    agent: agent_json.clone(),
+                })
+                .tool(PatientOverviewTool {
+                    session: std::sync::Arc::clone(&session),
+                    state: state.clone(),
+                    claims: claims.clone(),
+                })
+                .tool(CallApiTool {
+                    session: std::sync::Arc::clone(&session),
+                    state: state.clone(),
+                    claims: claims.clone(),
+                })
+                .tool(RequestPatientTool)
+                .tool(ListApisTool)
+                .build();
+            let body: SseBody = Box::pin(run_turn(agent, turn));
+            body
+        }};
+    }
 
     use rig::client::CompletionClient as _;
     let boxed: SseBody = match cfg.provider.as_str() {
-        "anthropic" => {
-            let client = rig::providers::anthropic::Client::new(&cfg.api_key)
-                .map_err(|e| AppError::BadRequest(format!("AI client error: {e}")))?;
-            let agent = client
-                .agent(cfg.model.as_str())
-                .preamble(preamble.as_str())
-                .tool(DrugSafetyTool {
-                    db: state.db.clone(),
-                    tenant_id,
-                    department_ids: claims.department_ids.clone(),
-                    patient_id: grounded_patient,
-                    user_id: claims.sub,
-                    agent: agent_json.clone(),
-                })
-                .tool(DraftPrescriptionTool {
-                    db: state.db.clone(),
-                    tenant_id,
-                    department_ids: claims.department_ids.clone(),
-                    patient_id: grounded_patient,
-                    user_id: claims.sub,
-                    agent: agent_json.clone(),
-                })
-                .tool(PatientOverviewTool {
-                    state: state.clone(),
-                    claims: claims.clone(),
-                })
-                .tool(CallApiTool {
-                    state: state.clone(),
-                    claims: claims.clone(),
-                    scrub: egress,
-                })
-                .tool(RequestPatientTool)
-                .tool(ListApisTool)
-                .build();
-            Box::pin(run_turn(
-                agent,
-                message,
-                history,
-                state,
-                tenant_id,
-                conversation_id,
-                kb_hits,
-            ))
-        }
-        "openrouter" => {
-            let client = rig::providers::openrouter::Client::new(&cfg.api_key)
-                .map_err(|e| AppError::BadRequest(format!("AI client error: {e}")))?;
-            let agent = client
-                .agent(cfg.model.as_str())
-                .preamble(preamble.as_str())
-                .tool(DrugSafetyTool {
-                    db: state.db.clone(),
-                    tenant_id,
-                    department_ids: claims.department_ids.clone(),
-                    patient_id: grounded_patient,
-                    user_id: claims.sub,
-                    agent: agent_json.clone(),
-                })
-                .tool(DraftPrescriptionTool {
-                    db: state.db.clone(),
-                    tenant_id,
-                    department_ids: claims.department_ids.clone(),
-                    patient_id: grounded_patient,
-                    user_id: claims.sub,
-                    agent: agent_json.clone(),
-                })
-                .tool(PatientOverviewTool {
-                    state: state.clone(),
-                    claims: claims.clone(),
-                })
-                .tool(CallApiTool {
-                    state: state.clone(),
-                    claims: claims.clone(),
-                    scrub: egress,
-                })
-                .tool(RequestPatientTool)
-                .tool(ListApisTool)
-                .build();
-            Box::pin(run_turn(
-                agent,
-                message,
-                history,
-                state,
-                tenant_id,
-                conversation_id,
-                kb_hits,
-            ))
-        }
+        "anthropic" => assistant!(
+            rig::providers::anthropic::Client::new(&cfg.api_key)
+                .map_err(|e| AppError::BadRequest(format!("AI client error: {e}")))?
+        ),
+        "openrouter" => assistant!(
+            rig::providers::openrouter::Client::new(&cfg.api_key)
+                .map_err(|e| AppError::BadRequest(format!("AI client error: {e}")))?
+        ),
         "ollama" => {
-            // Local, keyless inference — no PHI leaves the machine.
             let base = std::env::var("OLLAMA_API_BASE_URL")
                 .unwrap_or_else(|_| "http://localhost:11434".to_owned());
-            let client = rig::providers::ollama::Client::builder()
-                .api_key(rig::client::Nothing)
-                .base_url(&base)
-                .build()
-                .map_err(|e| AppError::BadRequest(format!("Ollama client error: {e}")))?;
-            let agent = client
-                .agent(cfg.model.as_str())
-                .preamble(preamble.as_str())
-                .tool(DrugSafetyTool {
-                    db: state.db.clone(),
-                    tenant_id,
-                    department_ids: claims.department_ids.clone(),
-                    patient_id: grounded_patient,
-                    user_id: claims.sub,
-                    agent: agent_json.clone(),
-                })
-                .tool(DraftPrescriptionTool {
-                    db: state.db.clone(),
-                    tenant_id,
-                    department_ids: claims.department_ids.clone(),
-                    patient_id: grounded_patient,
-                    user_id: claims.sub,
-                    agent: agent_json.clone(),
-                })
-                .tool(PatientOverviewTool {
-                    state: state.clone(),
-                    claims: claims.clone(),
-                })
-                .tool(CallApiTool {
-                    state: state.clone(),
-                    claims: claims.clone(),
-                    scrub: egress,
-                })
-                .tool(RequestPatientTool)
-                .tool(ListApisTool)
-                .build();
-            Box::pin(run_turn(
-                agent,
-                message,
-                history,
-                state,
-                tenant_id,
-                conversation_id,
-                kb_hits,
-            ))
+            assistant!(
+                rig::providers::ollama::Client::builder()
+                    .api_key(rig::client::Nothing)
+                    .base_url(&base)
+                    .build()
+                    .map_err(|e| AppError::BadRequest(format!("Ollama client error: {e}")))?
+            )
         }
         other => {
             return Err(AppError::BadRequest(format!(
@@ -1360,16 +1349,23 @@ pub async fn chat(
     Ok(Sse::new(boxed).keep_alive(KeepAlive::default()))
 }
 
-/// Stream one assistant turn from a built agent (provider-agnostic) and persist
-/// the result. Generic so anthropic + openrouter share the exact same loop.
-fn run_turn<M, P>(
-    agent: rig::agent::Agent<M, P>,
-    message: String,
+/// One assistant turn's inputs, already redacted.
+struct Turn {
+    message: Redacted,
     history: Vec<rig::completion::Message>,
     state: AppState,
     tenant_id: Uuid,
     conversation_id: Uuid,
     kb_hits: Vec<KbHit>,
+    session: redaction::Session,
+}
+
+/// Stream one assistant turn from a built agent (provider-agnostic) and persist
+/// the result. The model sees only redacted text; the user sees the answer
+/// re-hydrated on the server; the stored answer stays redacted.
+fn run_turn<M, P>(
+    agent: rig::agent::Agent<M, P>,
+    turn: Turn,
 ) -> impl Stream<Item = Result<Event, std::convert::Infallible>>
 where
     M: rig::completion::CompletionModel + 'static,
@@ -1379,6 +1375,7 @@ where
     use rig::agent::MultiTurnStreamItem;
     use rig::streaming::{StreamedAssistantContent, StreamedUserContent, StreamingPrompt as _};
 
+    let Turn { message, history, state, tenant_id, conversation_id, kb_hits, session } = turn;
     async_stream::stream! {
         // Emit the retrieved KB entries as grounding sources (cited in the UI).
         for (i, hit) in kb_hits.iter().enumerate() {
@@ -1394,10 +1391,11 @@ where
         }
 
         let mut answer = String::new();
+        let mut shown = StreamRehydrator::default();
         // multi_turn > 0 is REQUIRED for the tool loop — rig defaults to 0
         // ("one round-trip"), which errors after the first tool call.
         let mut chunks = agent
-            .stream_prompt(message.as_str())
+            .stream_prompt(message.for_model())
             .multi_turn(8)
             .with_history(history)
             .await;
@@ -1405,19 +1403,27 @@ where
             match item {
                 Ok(MultiTurnStreamItem::StreamAssistantItem(StreamedAssistantContent::Text(t))) => {
                     answer.push_str(&t.text);
-                    yield sse(&serde_json::json!({ "type": "text", "text": t.text }));
+                    let text = session.lock().map_or_else(
+                        |_| String::new(),
+                        |r| shown.push(&t.text, r.map()),
+                    );
+                    if !text.is_empty() {
+                        yield sse(&serde_json::json!({ "type": "text", "text": text }));
+                    }
                 }
                 Ok(MultiTurnStreamItem::StreamAssistantItem(StreamedAssistantContent::ToolCall {
                     tool_call,
                     internal_call_id,
                 })) => {
                     // Surface the guard the assistant is running.
+                    let args = redaction::for_user(&session, &tool_call.function.arguments.to_string());
                     yield sse(&serde_json::json!({
                         "type": "tool",
                         "toolCall": {
                             "id": internal_call_id,
                             "name": tool_call.function.name,
-                            "args": tool_call.function.arguments,
+                            "args": serde_json::from_str::<serde_json::Value>(&args)
+                                .unwrap_or(serde_json::Value::String(args)),
                             "status": "running"
                         }
                     }));
@@ -1426,14 +1432,13 @@ where
                     tool_result,
                     internal_call_id,
                 })) => {
-                    // The tool's JSON output (e.g. a block decision) → to the UI.
+                    // The tool's (redacted) output, read back for the user.
                     let text = tool_result.content.iter().find_map(|c| match c {
                         rig::completion::message::ToolResultContent::Text(t) => Some(t.text.clone()),
                         rig::completion::message::ToolResultContent::Image(_) => None,
                     });
-                    // Tool output may be JSON (a decision) or a plain string —
-                    // fall back to the raw text so the UI never shows null.
                     let result: Option<serde_json::Value> = text.map(|t| {
+                        let t = redaction::for_user(&session, &t);
                         serde_json::from_str(&t).unwrap_or(serde_json::Value::String(t))
                     });
                     yield sse(&serde_json::json!({
@@ -1444,47 +1449,66 @@ where
                 }
                 Ok(_) => {}
                 Err(e) => {
-                    yield sse(&serde_json::json!({ "type": "error", "message": e.to_string() }));
+                    // The provider's error text is not shown: it can echo input.
+                    tracing::warn!(target: "ai", error = %e, "assistant stream error");
+                    yield sse(&serde_json::json!({
+                        "type": "error",
+                        "message": "The AI could not finish this answer. Try again."
+                    }));
                 }
             }
         }
+        let rest = session.lock().map_or_else(|_| String::new(), |r| shown.finish(r.map()));
+        if !rest.is_empty() {
+            yield sse(&serde_json::json!({ "type": "text", "text": rest }));
+        }
 
-        // Persist the assistant turn + bump the conversation timestamp.
-        match state.db.begin().await {
-            Ok(tx) => {
-                if let Err(e) = persist_assistant_turn(tx, &tenant_id, conversation_id, &answer).await {
-                    tracing::error!(error = %e, "failed to persist assistant turn");
-                }
-            }
-            Err(e) => tracing::error!(error = %e, "failed to open tx for assistant turn"),
+        // Stored as the model wrote it — in placeholders — with the map.
+        if let Err(e) =
+            store_turn(&state, tenant_id, conversation_id, "assistant", &answer, &session).await
+        {
+            tracing::error!(error = %e, "failed to persist assistant turn");
         }
 
         yield sse(&serde_json::json!({ "type": "done", "conversationId": conversation_id }));
     }
 }
 
-/// Write the completed assistant message and touch the conversation, under RLS.
-async fn persist_assistant_turn(
-    mut tx: sqlx::Transaction<'_, sqlx::Postgres>,
-    tenant_id: &Uuid,
+/// Store one turn (redacted text) and the conversation's placeholder map, and
+/// touch the conversation, under RLS.
+async fn store_turn(
+    state: &AppState,
+    tenant_id: Uuid,
     conversation_id: Uuid,
-    answer: &str,
+    role: &'static str,
+    content: &str,
+    session: &redaction::Session,
 ) -> Result<(), AppError> {
-    medbrains_db::pool::set_tenant_context(&mut tx, tenant_id).await?;
+    let map = redaction::map_of(session)
+        .ok_or_else(|| AppError::Internal("redaction map unavailable".to_owned()))?;
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &tenant_id).await?;
     sqlx::query(
         "INSERT INTO ai_messages (tenant_id, conversation_id, role, content) \
-         VALUES ($1, $2, 'assistant', $3)",
+         VALUES ($1, $2, $3, $4)",
     )
     .bind(tenant_id)
     .bind(conversation_id)
-    .bind(answer)
+    .bind(role)
+    .bind(content)
     .execute(&mut *tx)
     .await?;
     sqlx::query(
-        "UPDATE ai_conversations SET last_message_at = now() WHERE id = $1 AND tenant_id = $2",
+        "UPDATE ai_conversations SET last_message_at = now(), pseudonym_map = $3, \
+                title = CASE WHEN $4 = 'user' AND title = 'New conversation' \
+                             THEN left($5, 60) ELSE title END \
+         WHERE id = $1 AND tenant_id = $2",
     )
     .bind(conversation_id)
     .bind(tenant_id)
+    .bind(map)
+    .bind(role)
+    .bind(content)
     .execute(&mut *tx)
     .await?;
     tx.commit().await?;
@@ -1698,8 +1722,8 @@ pub async fn list_conversations(
     require_permission(&claims, permissions::ai::assistant::USE)?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
-    let rows = sqlx::query_as::<_, ConversationSummary>(
-        "SELECT id, title, last_message_at FROM ai_conversations \
+    let rows = sqlx::query_as::<_, (Uuid, Option<String>, chrono::DateTime<chrono::Utc>, serde_json::Value)>(
+        "SELECT id, title, last_message_at, pseudonym_map FROM ai_conversations \
          WHERE tenant_id = $1 AND owner_user_id = $2 AND archived_at IS NULL \
          ORDER BY last_message_at DESC LIMIT 100",
     )
@@ -1708,7 +1732,16 @@ pub async fn list_conversations(
     .fetch_all(&mut *tx)
     .await?;
     tx.commit().await?;
-    Ok(Json(rows))
+    // Titles are stored redacted; read back for their owner.
+    Ok(Json(
+        rows.into_iter()
+            .map(|(id, title, last_message_at, map)| ConversationSummary {
+                id,
+                title: title.map(|t| redaction::map_from(Some(map)).rehydrate(&t)),
+                last_message_at,
+            })
+            .collect(),
+    ))
 }
 
 /// Messages of one conversation — owner-checked, so a thread only reopens for
@@ -1722,20 +1755,21 @@ pub async fn conversation_messages(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
-    let owner = sqlx::query_scalar::<_, Uuid>(
-        "SELECT owner_user_id FROM ai_conversations WHERE id = $1 AND tenant_id = $2",
+    let owner = sqlx::query_as::<_, (Uuid, serde_json::Value)>(
+        "SELECT owner_user_id, pseudonym_map FROM ai_conversations \
+         WHERE id = $1 AND tenant_id = $2",
     )
     .bind(id)
     .bind(claims.tenant_id)
     .fetch_optional(&mut *tx)
     .await?;
-    match owner {
-        Some(o) if o == claims.sub => {}
+    let map = match owner {
+        Some((o, map)) if o == claims.sub => redaction::map_from(Some(map)),
         Some(_) => return Err(AppError::Forbidden),
         None => return Err(AppError::BadRequest("conversation not found".to_owned())),
-    }
+    };
 
-    let rows = sqlx::query_as::<_, ConversationMessage>(
+    let mut rows = sqlx::query_as::<_, ConversationMessage>(
         "SELECT id, role, content, created_at FROM ai_messages \
          WHERE conversation_id = $1 AND tenant_id = $2 ORDER BY created_at",
     )
@@ -1744,6 +1778,10 @@ pub async fn conversation_messages(
     .fetch_all(&mut *tx)
     .await?;
     tx.commit().await?;
+    // Stored as the model saw it; read back for its owner.
+    for row in &mut rows {
+        row.content = map.rehydrate(&row.content);
+    }
     Ok(Json(rows))
 }
 

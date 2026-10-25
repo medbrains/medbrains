@@ -119,7 +119,7 @@ export function useAiChat({
           } else if (chunk.type === "source") {
             patch((m) => ({ ...m, sources: [...(m.sources ?? []), chunk.source] }));
           } else if (chunk.type === "error") {
-            patch((m) => ({ ...m, status: "error" }));
+            patch((m) => ({ ...m, status: "error", error: chunk.error }));
             setStatus("error");
             return;
           } else if (chunk.type === "done") {
