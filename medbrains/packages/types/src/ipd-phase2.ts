@@ -164,8 +164,9 @@ export interface WardBedRow {
   mapping_id: string;
   bed_location_id: string;
   bed_name: string;
+  bed_type_id: string | null;
   bed_type_name: string | null;
-  status: string;
+  bed_status: string | null;
   patient_name: string | null;
   patient_uhid: string | null;
   sort_order: number;

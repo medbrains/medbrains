@@ -2257,7 +2257,7 @@ export const ipdNursingTaskFormSchema = z.object({
 export const ipdAdmissionFormSchema = z.object({
   patient_id: requiredTrimmed("Patient is required"),
   department_id: requiredTrimmed("Department is required"),
-  doctor_id: z.string(),
+  doctor_id: requiredTrimmed("Choose the admitting doctor"),
   bed_id: z.string(),
   ward_id: z.string(),
   admission_source: ipdAdmissionSourceFormSchema.nullable(),

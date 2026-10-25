@@ -77,6 +77,7 @@ async fn vacant_ward_bed(app: &common::TestApp, tenant_id: Uuid) -> (Uuid, Uuid)
 async fn admission_on_a_rostered_ward_raises_one_assessment_and_none_without_a_ward() {
     let app = common::spawn_app().await;
     let csrf = app.login_admin().await;
+    let doctor = common::provision_staff(&app, &csrf, "doctor", &[]).await;
 
     let tenant_id: Uuid = sqlx::query_scalar("SELECT tenant_id FROM users WHERE username = 'admin'")
         .fetch_one(&app.db)
@@ -143,6 +144,7 @@ async fn admission_on_a_rostered_ward_raises_one_assessment_and_none_without_a_w
         .json(&json!({
             "patient_id": patient_id,
             "department_id": department_id,
+            "doctor_id": doctor.user_id,
             "bed_id": bed_id,
             "admission_source": "opd",
         }))

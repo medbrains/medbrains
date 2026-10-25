@@ -6193,7 +6193,12 @@ pub async fn admit_from_opd(
         ));
     }
 
-    let doctor_id = body.doctor_id.unwrap_or(claims.sub);
+    // The doctor who saw the patient in OPD admits them unless another is
+    // named; the clerk at the desk is never recorded as the admitting doctor.
+    let doctor_id = body
+        .doctor_id
+        .or(opd_encounter.doctor_id)
+        .unwrap_or(claims.sub);
     let today =
         medbrains_server_core::hospital_time::tenant_local_today(&mut *tx, claims.tenant_id)
             .await?;

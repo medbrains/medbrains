@@ -116,7 +116,15 @@ export function AdmissionForm({ initialPatientId = "", onCancel, onCreated }: Ad
       <Controller
         control={control}
         name="doctor_id"
-        render={({ field }) => <DoctorSearchSelect value={field.value} onChange={field.onChange} />}
+        render={({ field }) => (
+          <DoctorSearchSelect
+            label="Admitting doctor"
+            value={field.value}
+            onChange={field.onChange}
+            error={errors.doctor_id?.message}
+            required
+          />
+        )}
       />
       <Controller
         control={control}

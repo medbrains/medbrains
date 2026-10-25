@@ -20,6 +20,7 @@ struct Ward {
 async fn admit() -> Ward {
     let app = common::spawn_app().await;
     let csrf = app.login_admin().await;
+    let doctor = common::provision_staff(&app, &csrf, "doctor", &[]).await;
     let tenant: Uuid = sqlx::query_scalar("SELECT tenant_id FROM users WHERE username = 'admin'")
         .fetch_one(&app.db)
         .await
@@ -49,7 +50,7 @@ async fn admit() -> Ward {
         .client
         .post(app.url("/api/ipd/admissions"))
         .header("x-csrf-token", &csrf)
-        .json(&json!({ "patient_id": patient["id"], "department_id": department }))
+        .json(&json!({ "patient_id": patient["id"], "department_id": department, "doctor_id": doctor.user_id }))
         .send()
         .await
         .expect("admit")
