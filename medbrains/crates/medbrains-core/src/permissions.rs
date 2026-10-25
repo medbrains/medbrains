@@ -2036,6 +2036,18 @@ pub mod research {
     /// act from care use even when the rows carry no direct identifier: free
     /// text and rare combinations re-identify.
     pub const TRIAGE_EXPORT: &str = "research.triage_export";
+
+    pub mod dataset {
+        /// Request, approve and download research datasets.
+        ///
+        /// A de-identified extract for an ethics-approved study: pseudonymous
+        /// per-export patient keys, banded ages, month-level dates, rare
+        /// values and small groups suppressed, restricted classes left out.
+        /// Every export names its purpose and IEC approval and needs a second
+        /// holder to approve it; the requester cannot approve their own. Held
+        /// by no built-in role — grant it to a research or MRD officer.
+        pub const EXPORT: &str = "research.dataset.export";
+    }
 }
 
 pub mod front_office {

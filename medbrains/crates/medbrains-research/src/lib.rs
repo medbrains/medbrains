@@ -1,0 +1,551 @@
+//! Research datasets: de-identified extracts for ethics-approved studies,
+//! released under maker-checker.
+//!
+//! A holder of `research.dataset.export` asks for a dataset over a period,
+//! naming the study's purpose and its IEC approval — on the Data exports
+//! screen, or through the assistant, which may prepare a request but never
+//! sees a row. A *different* holder approves or rejects it. On approval the
+//! extract is read and de-identified ([`deid`]) and kept for 24 hours as two
+//! CSV files — the data, every row stamped with the export's reference, and
+//! its data dictionary with the suppression report. Only the requester and
+//! the approver may download, and each download is recorded with the file's
+//! SHA-256. Expired files and the export's salt are then cleared.
+//!
+//! Legal frame: DPDP Act 2023 s.17(2)(b) (research, with the data not used
+//! for decisions about the person and processed to the prescribed standards)
+//! and the ICMR National Ethical Guidelines (2017): IEC approval before
+//! release, the minimum data, and de-identification before data leaves the
+//! hospital.
+
+pub mod datasets;
+pub mod deid;
+
+use axum::{
+    Extension, Json,
+    extract::{Path, State},
+    routing::{get, post},
+};
+use chrono::{DateTime, NaiveDate, Utc};
+use medbrains_core::permissions;
+use medbrains_server_core::{
+    error::AppError,
+    middleware::{auth::Claims, authorization::require_permission},
+    state::AppState,
+};
+use serde::{Deserialize, Serialize};
+use serde_json::Value;
+use sha2::{Digest, Sha256};
+use uuid::Uuid;
+
+/// How long a ready export may be downloaded.
+const KEEP_HOURS: i64 = 24;
+/// Longest period one export may cover (five years).
+const MAX_PERIOD_DAYS: i64 = 1_830;
+
+/// A new export request.
+#[derive(Debug, Deserialize)]
+pub struct NewExport {
+    pub dataset: String,
+    pub period_from: NaiveDate,
+    pub period_to: NaiveDate,
+    pub purpose: String,
+    pub iec_reference: String,
+}
+
+/// An export as the screen lists it — never its files or salt.
+#[derive(Debug, Serialize, sqlx::FromRow)]
+pub struct ExportRow {
+    pub id: Uuid,
+    pub dataset: String,
+    pub period_from: NaiveDate,
+    pub period_to: NaiveDate,
+    pub purpose: String,
+    pub iec_reference: String,
+    pub status: String,
+    pub requested_by: Uuid,
+    pub requested_by_name: Option<String>,
+    pub requested_via: String,
+    pub decided_by: Option<Uuid>,
+    pub decided_by_name: Option<String>,
+    pub decided_at: Option<DateTime<Utc>>,
+    pub decision_note: Option<String>,
+    pub row_count: Option<i32>,
+    pub suppressed_rows: Option<i32>,
+    pub suppression_report: Option<Value>,
+    pub data_sha256: Option<String>,
+    pub ready_at: Option<DateTime<Utc>>,
+    pub expires_at: Option<DateTime<Utc>>,
+    pub created_at: DateTime<Utc>,
+}
+
+/// A file to save: its name, hash and contents.
+#[derive(Debug, Serialize)]
+pub struct ExportFile {
+    pub filename: String,
+    pub sha256: String,
+    pub content: String,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct Decision {
+    #[serde(default)]
+    pub note: Option<String>,
+}
+
+const SELECT: &str = "SELECT x.id, x.dataset, x.period_from, x.period_to, x.purpose, x.iec_reference, \
+    CASE WHEN x.status = 'ready' AND x.expires_at <= now() THEN 'expired' ELSE x.status END AS status, \
+    x.requested_by, r.full_name AS requested_by_name, x.requested_via, x.decided_by, \
+    d.full_name AS decided_by_name, x.decided_at, x.decision_note, x.row_count, x.suppressed_rows, \
+    x.suppression_report, x.data_sha256, x.ready_at, x.expires_at, x.created_at \
+    FROM research_exports x LEFT JOIN users r ON r.id = x.requested_by \
+    LEFT JOIN users d ON d.id = x.decided_by WHERE x.tenant_id = $1 AND x.deleted_at IS NULL";
+
+async fn tx_for(
+    state: &AppState,
+    tenant: Uuid,
+) -> Result<sqlx::Transaction<'static, sqlx::Postgres>, AppError> {
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &tenant).await?;
+    Ok(tx)
+}
+
+/// What is wrong with a request, if anything.
+fn invalid(new: &NewExport) -> Option<String> {
+    if datasets::fields(&new.dataset).is_none() {
+        return Some("choose visits, diagnoses or admissions".to_owned());
+    }
+    let days = (new.period_to - new.period_from).num_days();
+    if !(0..=MAX_PERIOD_DAYS).contains(&days) {
+        return Some(format!(
+            "the period must run forwards and cover at most {MAX_PERIOD_DAYS} days"
+        ));
+    }
+    if new.period_to > Utc::now().date_naive() {
+        return Some("the period cannot end in the future".to_owned());
+    }
+    if new.purpose.trim().chars().count() < 20 {
+        return Some("describe the study's purpose in at least 20 characters".to_owned());
+    }
+    if new.iec_reference.trim().chars().count() < 3 {
+        return Some("give the IEC approval reference".to_owned());
+    }
+    None
+}
+
+/// Record a request. Used by the screen and by the assistant (`via`).
+///
+/// # Errors
+/// 403 without the permission; 400 for an invalid request.
+pub async fn create_request(
+    state: &AppState,
+    claims: &Claims,
+    new: &NewExport,
+    via: &str,
+) -> Result<ExportRow, AppError> {
+    require_permission(claims, permissions::research::dataset::EXPORT)?;
+    if let Some(why) = invalid(new) {
+        return Err(AppError::BadRequest(why));
+    }
+    let mut tx = tx_for(state, claims.tenant_id).await?;
+    let id: Uuid = sqlx::query_scalar(
+        "INSERT INTO research_exports (tenant_id, dataset, period_from, period_to, purpose, \
+         iec_reference, requested_by, requested_via) VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id",
+    )
+    .bind(claims.tenant_id)
+    .bind(&new.dataset)
+    .bind(new.period_from)
+    .bind(new.period_to)
+    .bind(new.purpose.trim())
+    .bind(new.iec_reference.trim())
+    .bind(claims.sub)
+    .bind(via)
+    .fetch_one(&mut *tx)
+    .await?;
+    let row = one(&mut tx, claims.tenant_id, id).await?;
+    tx.commit().await?;
+    Ok(row)
+}
+
+async fn one(
+    tx: &mut sqlx::Transaction<'static, sqlx::Postgres>,
+    tenant: Uuid,
+    id: Uuid,
+) -> Result<ExportRow, AppError> {
+    sqlx::query_as::<_, ExportRow>(&format!("{SELECT} AND x.id = $2"))
+        .bind(tenant)
+        .bind(id)
+        .fetch_optional(&mut **tx)
+        .await?
+        .ok_or(AppError::NotFound)
+}
+
+/// `GET /api/research/exports` — the latest 100, after clearing expired files.
+async fn list(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+) -> Result<Json<Vec<ExportRow>>, AppError> {
+    require_permission(&claims, permissions::research::dataset::EXPORT)?;
+    let mut tx = tx_for(&state, claims.tenant_id).await?;
+    purge_expired(&mut tx, claims.tenant_id).await?;
+    let rows =
+        sqlx::query_as::<_, ExportRow>(&format!("{SELECT} ORDER BY x.created_at DESC LIMIT 100"))
+            .bind(claims.tenant_id)
+            .fetch_all(&mut *tx)
+            .await?;
+    tx.commit().await?;
+    Ok(Json(rows))
+}
+
+/// Clear the files and salt of every export past its 24 hours.
+async fn purge_expired(
+    tx: &mut sqlx::Transaction<'static, sqlx::Postgres>,
+    tenant: Uuid,
+) -> Result<(), AppError> {
+    sqlx::query(
+        "UPDATE research_exports SET data_csv = NULL, dictionary_csv = NULL, salt = NULL \
+         WHERE tenant_id = $1 AND expires_at <= now() AND (data_csv IS NOT NULL OR salt IS NOT NULL)",
+    )
+    .bind(tenant)
+    .execute(&mut **tx)
+    .await?;
+    Ok(())
+}
+
+/// `POST /api/research/exports`
+async fn create(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Json(new): Json<NewExport>,
+) -> Result<Json<ExportRow>, AppError> {
+    Ok(Json(create_request(&state, &claims, &new, "screen").await?))
+}
+
+/// A requested export, locked, that `claims` may decide.
+async fn decidable(
+    tx: &mut sqlx::Transaction<'static, sqlx::Postgres>,
+    claims: &Claims,
+    id: Uuid,
+) -> Result<ExportRow, AppError> {
+    sqlx::query("SELECT 1 FROM research_exports WHERE id = $1 AND tenant_id = $2 FOR UPDATE")
+        .bind(id)
+        .bind(claims.tenant_id)
+        .execute(&mut **tx)
+        .await?;
+    let row = one(tx, claims.tenant_id, id).await?;
+    if row.status != "requested" {
+        return Err(AppError::Conflict(format!(
+            "this export is already {}",
+            row.status
+        )));
+    }
+    if row.requested_by == claims.sub {
+        return Err(AppError::ForbiddenReason(
+            "a second holder of the permission must approve or reject this request".to_owned(),
+        ));
+    }
+    Ok(row)
+}
+
+/// `POST /api/research/exports/{id}/reject`
+async fn reject(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Path(id): Path<Uuid>,
+    Json(decision): Json<Decision>,
+) -> Result<Json<ExportRow>, AppError> {
+    require_permission(&claims, permissions::research::dataset::EXPORT)?;
+    let mut tx = tx_for(&state, claims.tenant_id).await?;
+    decidable(&mut tx, &claims, id).await?;
+    sqlx::query(
+        "UPDATE research_exports SET status = 'rejected', decided_by = $3, decided_at = now(), \
+         decision_note = $4 WHERE id = $1 AND tenant_id = $2",
+    )
+    .bind(id)
+    .bind(claims.tenant_id)
+    .bind(claims.sub)
+    .bind(decision.note.as_deref().map(str::trim))
+    .execute(&mut *tx)
+    .await?;
+    let row = one(&mut tx, claims.tenant_id, id).await?;
+    tx.commit().await?;
+    Ok(Json(row))
+}
+
+fn salt() -> Vec<u8> {
+    [Uuid::new_v4().into_bytes(), Uuid::new_v4().into_bytes()].concat()
+}
+
+/// The data dictionary: what each column means, the export's terms, and the
+/// suppression report.
+fn dictionary(row: &ExportRow, fields: &[deid::Field], report: &Value) -> String {
+    let mut lines: Vec<Vec<String>> = vec![
+        vec![
+            "export_ref".into(),
+            "Reference of this export, on every row (a watermark)".into(),
+        ],
+        vec![
+            "patient_key".into(),
+            "Pseudonymous patient key, valid within this export only".into(),
+        ],
+        vec![
+            "age_band".into(),
+            "Age at the event in 5-year bands; 90+ grouped".into(),
+        ],
+        vec!["sex".into(), "Sex as recorded".into()],
+        vec![
+            "pincode_prefix".into(),
+            "First three digits of the patient's pincode".into(),
+        ],
+        vec![
+            "month".into(),
+            "Month of the event (YYYY-MM); exact dates are not released".into(),
+        ],
+    ];
+    lines.extend(
+        fields
+            .iter()
+            .map(|f| vec![f.name.to_owned(), f.description.to_owned()]),
+    );
+    lines.push(vec!["terms".into(), format!(
+        "Export {} of {} ({} to {}), IEC {}. De-identified for this study only: do not attempt to \
+         re-identify anyone, do not link with other data, delete when the study ends.",
+        row.id, row.dataset, row.period_from, row.period_to, row.iec_reference
+    )]);
+    lines.push(vec!["suppression_report".into(), report.to_string()]);
+    deid::to_csv(&["column".into(), "meaning".into()], &lines)
+}
+
+/// `POST /api/research/exports/{id}/approve` — approve, then build the files.
+async fn approve(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Path(id): Path<Uuid>,
+    Json(decision): Json<Decision>,
+) -> Result<Json<ExportRow>, AppError> {
+    require_permission(&claims, permissions::research::dataset::EXPORT)?;
+    let mut tx = tx_for(&state, claims.tenant_id).await?;
+    let row = decidable(&mut tx, &claims, id).await?;
+    let fields = datasets::fields(&row.dataset).ok_or(AppError::NotFound)?;
+    let read = datasets::read(
+        &mut tx,
+        claims.tenant_id,
+        &row.dataset,
+        (row.period_from, row.period_to),
+    )
+    .await;
+    let raw = match read {
+        Ok(raw) => raw,
+        Err(datasets::ReadError::Db(e)) => return Err(e.into()),
+        Err(e) => {
+            sqlx::query(
+                "UPDATE research_exports SET status = 'failed', decided_by = $3, decided_at = now(), \
+                 decision_note = $4 WHERE id = $1 AND tenant_id = $2",
+            )
+            .bind(id)
+            .bind(claims.tenant_id)
+            .bind(claims.sub)
+            .bind(e.to_string())
+            .execute(&mut *tx)
+            .await?;
+            let row = one(&mut tx, claims.tenant_id, id).await?;
+            tx.commit().await?;
+            return Ok(Json(row));
+        }
+    };
+    let salt = salt();
+    let reference = id.simple().to_string()[..8].to_owned();
+    let out = deid::release(fields, raw, &salt, &reference);
+    let data = deid::to_csv(&out.header, &out.rows);
+    let hash = hex::encode(Sha256::digest(data.as_bytes()));
+    let dict = dictionary(&row, fields, &out.report);
+    sqlx::query(
+        "UPDATE research_exports SET status = 'ready', decided_by = $3, decided_at = now(), \
+         decision_note = $4, salt = $5, data_csv = $6, dictionary_csv = $7, data_sha256 = $8, \
+         row_count = $9, suppressed_rows = $10, suppression_report = $11, ready_at = now(), \
+         expires_at = now() + make_interval(hours => $12) WHERE id = $1 AND tenant_id = $2",
+    )
+    .bind(id)
+    .bind(claims.tenant_id)
+    .bind(claims.sub)
+    .bind(decision.note.as_deref().map(str::trim))
+    .bind(&salt)
+    .bind(data.as_bytes())
+    .bind(dict.as_bytes())
+    .bind(&hash)
+    .bind(i32::try_from(out.rows.len()).unwrap_or(i32::MAX))
+    .bind(i32::try_from(out.suppressed_rows).unwrap_or(i32::MAX))
+    .bind(&out.report)
+    .bind(i32::try_from(KEEP_HOURS).unwrap_or(24))
+    .execute(&mut *tx)
+    .await?;
+    let row = one(&mut tx, claims.tenant_id, id).await?;
+    tx.commit().await?;
+    Ok(Json(row))
+}
+
+/// Whether `user` may download `row` now.
+fn may_download(row: &ExportRow, user: Uuid, now: DateTime<Utc>) -> Result<(), AppError> {
+    if row.status != "ready" || row.expires_at.is_none_or(|t| t <= now) {
+        return Err(AppError::Conflict(
+            "this export is not ready, or its 24 hours are over".to_owned(),
+        ));
+    }
+    if user != row.requested_by && Some(user) != row.decided_by {
+        return Err(AppError::ForbiddenReason(
+            "only the requester and the approver may download an export".to_owned(),
+        ));
+    }
+    Ok(())
+}
+
+/// `GET /api/research/exports/{id}/files/{file}` — `data` or `dictionary`.
+async fn download(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Path((id, file)): Path<(Uuid, String)>,
+) -> Result<Json<ExportFile>, AppError> {
+    require_permission(&claims, permissions::research::dataset::EXPORT)?;
+    let column = match file.as_str() {
+        "data" => "data_csv",
+        "dictionary" => "dictionary_csv",
+        _ => return Err(AppError::NotFound),
+    };
+    let mut tx = tx_for(&state, claims.tenant_id).await?;
+    let row = one(&mut tx, claims.tenant_id, id).await?;
+    may_download(&row, claims.sub, Utc::now())?;
+    let bytes: Option<Vec<u8>> = sqlx::query_scalar(&format!(
+        "SELECT {column} FROM research_exports WHERE id = $1 AND tenant_id = $2"
+    ))
+    .bind(id)
+    .bind(claims.tenant_id)
+    .fetch_one(&mut *tx)
+    .await?;
+    let content = String::from_utf8(bytes.ok_or(AppError::NotFound)?)
+        .map_err(|e| AppError::Internal(e.to_string()))?;
+    let sha256 = hex::encode(Sha256::digest(content.as_bytes()));
+    sqlx::query(
+        "INSERT INTO research_export_downloads (tenant_id, export_id, user_id, file, sha256) \
+         VALUES ($1, $2, $3, $4, $5)",
+    )
+    .bind(claims.tenant_id)
+    .bind(id)
+    .bind(claims.sub)
+    .bind(&file)
+    .bind(&sha256)
+    .execute(&mut *tx)
+    .await?;
+    tx.commit().await?;
+    Ok(Json(ExportFile {
+        filename: format!(
+            "research-{}-{}-{file}.csv",
+            row.dataset,
+            &id.simple().to_string()[..8]
+        ),
+        sha256,
+        content,
+    }))
+}
+
+pub fn router() -> axum::Router<AppState> {
+    axum::Router::new()
+        .route("/api/research/exports", get(list).post(create))
+        .route("/api/research/exports/{id}/approve", post(approve))
+        .route("/api/research/exports/{id}/reject", post(reject))
+        .route("/api/research/exports/{id}/files/{file}", get(download))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{ExportRow, NewExport, invalid, may_download};
+    use chrono::{Duration, NaiveDate, Utc};
+    use uuid::Uuid;
+
+    fn row(status: &str, hours_left: i64) -> ExportRow {
+        let now = Utc::now();
+        ExportRow {
+            id: Uuid::nil(),
+            dataset: "visits".into(),
+            period_from: NaiveDate::default(),
+            period_to: NaiveDate::default(),
+            purpose: String::new(),
+            iec_reference: String::new(),
+            status: status.into(),
+            requested_by: Uuid::from_u128(1),
+            requested_by_name: None,
+            requested_via: "screen".into(),
+            decided_by: Some(Uuid::from_u128(2)),
+            decided_by_name: None,
+            decided_at: None,
+            decision_note: None,
+            row_count: None,
+            suppressed_rows: None,
+            suppression_report: None,
+            data_sha256: None,
+            ready_at: None,
+            expires_at: Some(now + Duration::hours(hours_left)),
+            created_at: now,
+        }
+    }
+
+    #[test]
+    fn only_a_ready_unexpired_export_reaches_its_requester_or_approver() {
+        let now = Utc::now();
+        assert!(may_download(&row("ready", 3), Uuid::from_u128(1), now).is_ok());
+        assert!(may_download(&row("ready", 3), Uuid::from_u128(2), now).is_ok());
+        assert!(may_download(&row("ready", 3), Uuid::from_u128(3), now).is_err());
+        assert!(may_download(&row("ready", -1), Uuid::from_u128(1), now).is_err());
+        assert!(may_download(&row("requested", 3), Uuid::from_u128(1), now).is_err());
+        assert!(may_download(&row("rejected", 3), Uuid::from_u128(1), now).is_err());
+    }
+
+    #[test]
+    fn a_request_names_its_study_and_approval() {
+        let d = |s: &str| NaiveDate::parse_from_str(s, "%Y-%m-%d").unwrap_or_default();
+        let ok = NewExport {
+            dataset: "diagnoses".into(),
+            period_from: d("2025-04-01"),
+            period_to: d("2026-03-31"),
+            purpose: "Prevalence of type 2 diabetes in OPD attendees".into(),
+            iec_reference: "IEC/2026/041".into(),
+        };
+        assert_eq!(invalid(&ok), None);
+        assert!(
+            invalid(&NewExport {
+                dataset: "patients".into(),
+                ..clone(&ok)
+            })
+            .is_some()
+        );
+        assert!(
+            invalid(&NewExport {
+                purpose: "study".into(),
+                ..clone(&ok)
+            })
+            .is_some()
+        );
+        assert!(
+            invalid(&NewExport {
+                iec_reference: " ".into(),
+                ..clone(&ok)
+            })
+            .is_some()
+        );
+        assert!(
+            invalid(&NewExport {
+                period_from: d("2026-04-01"),
+                ..clone(&ok)
+            })
+            .is_some()
+        );
+    }
+
+    fn clone(n: &NewExport) -> NewExport {
+        NewExport {
+            dataset: n.dataset.clone(),
+            period_from: n.period_from,
+            period_to: n.period_to,
+            purpose: n.purpose.clone(),
+            iec_reference: n.iec_reference.clone(),
+        }
+    }
+}

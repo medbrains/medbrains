@@ -144,5 +144,6 @@
   "snomed": "SNOMED CT",
   "abdmDashboard": "ABDM dashboard",
   "doctorPayouts": "Doctor Payouts",
-  "myEarnings": "My Earnings"
+  "myEarnings": "My Earnings",
+  "researchExports": "Research data exports"
 }

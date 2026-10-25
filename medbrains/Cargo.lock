@@ -5529,6 +5529,7 @@ dependencies = [
  "medbrains-db",
  "medbrains-patients",
  "medbrains-pharmacy",
+ "medbrains-research",
  "medbrains-server-core",
  "medbrains-server-services",
  "rig-agent",
@@ -7779,6 +7780,26 @@ dependencies = [
 ]
 
 [[package]]
+name = "medbrains-research"
+version = "0.1.0"
+dependencies = [
+ "axum",
+ "chrono",
+ "hex",
+ "hmac 0.13.0",
+ "medbrains-core",
+ "medbrains-db",
+ "medbrains-server-core",
+ "serde",
+ "serde_json",
+ "sha2 0.11.1",
+ "sqlx",
+ "thiserror 2.0.21",
+ "tokio",
+ "uuid",
+]
+
+[[package]]
 name = "medbrains-scheduling"
 version = "0.1.0"
 dependencies = [
@@ -7957,6 +7978,7 @@ dependencies = [
  "medbrains-radiology",
  "medbrains-regulatory",
  "medbrains-reports",
+ "medbrains-research",
  "medbrains-scheduling",
  "medbrains-security",
  "medbrains-seed",

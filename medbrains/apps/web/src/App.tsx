@@ -499,6 +499,9 @@ const OnboardingWorkbookPage = lazy(() =>
 const HistoryImportPage = lazy(() =>
   import("./pages/admin/history-import").then((m) => ({ default: m.HistoryImportPage })),
 );
+const ResearchExportsPage = lazy(() =>
+  import("./pages/admin/research-exports").then((m) => ({ default: m.ResearchExportsPage })),
+);
 const TrialPage = lazy(() => import("./pages/trial/index").then((m) => ({ default: m.TrialPage })));
 const AccessDeniedPage = lazy(() =>
   import("./pages/errors/access-denied").then((m) => ({ default: m.AccessDeniedPage })),
@@ -741,6 +744,7 @@ export function App() {
                 <Route path="settings" element={<SettingsPage />} />
                 <Route path="workbook" element={<OnboardingWorkbookPage />} />
                 <Route path="history-import" element={<HistoryImportPage />} />
+                <Route path="research-exports" element={<ResearchExportsPage />} />
                 <Route path="document-templates" element={<DocumentTemplatesPage />} />
                 <Route
                   path="device-integrations"

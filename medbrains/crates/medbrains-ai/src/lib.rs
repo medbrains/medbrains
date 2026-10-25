@@ -34,6 +34,7 @@ mod query;
 mod query_check;
 mod redaction;
 mod replay;
+mod research_tool;
 mod revenue;
 mod show;
 mod turn;

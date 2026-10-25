@@ -1150,6 +1150,9 @@ import type {
   HistoryImportBatchRequest,
   HistoryImportResult,
   HistoryImportSettings,
+  NewResearchExport,
+  ResearchExport,
+  ResearchExportFile,
   HomeCarePackage,
   HomeCareReferral,
   HomeCollectionStatsRow,
@@ -3480,6 +3483,21 @@ export const api = {
   listHistoryImportBatches: () => request<HistoryImportBatch[]>("/history-import/batches"),
   getHistoryImportBatch: (id: string) =>
     request<HistoryImportBatch>(`/history-import/batches/${id}`),
+  listResearchExports: () => request<ResearchExport[]>("/research/exports"),
+  createResearchExport: (data: NewResearchExport) =>
+    request<ResearchExport>("/research/exports", { method: "POST", body: JSON.stringify(data) }),
+  approveResearchExport: (id: string, note?: string) =>
+    request<ResearchExport>(`/research/exports/${id}/approve`, {
+      method: "POST",
+      body: JSON.stringify({ note }),
+    }),
+  rejectResearchExport: (id: string, note?: string) =>
+    request<ResearchExport>(`/research/exports/${id}/reject`, {
+      method: "POST",
+      body: JSON.stringify({ note }),
+    }),
+  getResearchExportFile: (id: string, file: "data" | "dictionary") =>
+    request<ResearchExportFile>(`/research/exports/${id}/files/${file}`),
   importOnboardingWorkbook: (data: WorkbookSheets & { dry_run: boolean }) =>
     request<WorkbookImportResult>("/setup/workbook/import", {
       method: "POST",
