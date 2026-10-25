@@ -24,6 +24,7 @@ use rig::message::{AssistantContent, ToolCall, ToolResult, ToolResultContent};
 use rig::streaming::{Item, StreamEvent};
 use uuid::Uuid;
 
+use super::agui::{Agui, custom};
 use super::{
     AiConfig, CallApiTool, aggregate, DraftPrescriptionTool, DrugSafetyTool, KbHit, ListApisTool,
     PatientOverviewTool, RequestPatientTool, SYSTEM_PROMPT, SseBody, redaction, show, sse,
@@ -56,6 +57,8 @@ pub(super) struct Turn {
     pub(super) state: AppState,
     pub(super) tenant_id: Uuid,
     pub(super) conversation_id: Uuid,
+    /// The AI actor's run (the audit trail's id): AG-UI's `runId`.
+    pub(super) run_id: Uuid,
     pub(super) kb_hits: Vec<KbHit>,
     pub(super) session: redaction::Session,
 }
@@ -177,47 +180,58 @@ impl AgentHook for GuardRetry {
     }
 }
 
-/// The chip for a tool the assistant is running, its arguments read back
-/// for the user.
-fn tool_call_frame(
+/// One AG-UI event as an SSE frame.
+fn ag(event: &Agui<'_>) -> Result<Event, std::convert::Infallible> {
+    sse(&serde_json::to_value(event).unwrap_or_default())
+}
+
+/// The chip for a tool the assistant is running: start, its arguments (read
+/// back for the user, sent whole, not char by char), end.
+fn tool_call_events(
     session: &redaction::Session,
     tool_call: &ToolCall,
-) -> Result<Event, std::convert::Infallible> {
+    parent: &str,
+) -> [Result<Event, std::convert::Infallible>; 3] {
     let raw = serde_json::Value::Object(tool_call.function.arguments.clone()).to_string();
-    let args = redaction::for_user(session, &raw);
-    sse(&serde_json::json!({
-        "type": "tool",
-        "toolCall": {
-            "id": tool_call.id.to_string(),
-            "name": tool_call.function.name,
-            "args": serde_json::from_str::<serde_json::Value>(&args)
-                .unwrap_or(serde_json::Value::String(args)),
-            "status": "running"
-        }
-    }))
+    let id = tool_call.id.to_string();
+    [
+        ag(&Agui::ToolCallStart {
+            tool_call_id: id.clone(),
+            tool_call_name: tool_call.function.name.to_string(),
+            parent_message_id: parent,
+        }),
+        ag(&Agui::ToolCallArgs {
+            tool_call_id: id.clone(),
+            delta: redaction::for_user(session, &raw),
+        }),
+        ag(&Agui::ToolCallEnd { tool_call_id: id }),
+    ]
 }
 
 /// A tool's (redacted) output: a record the guard may let the answer restate,
 /// and read back for the user's chip.
-fn tool_result_frame(
+fn tool_result_event(
     guard: &Mutex<AnswerGuard>,
     session: &redaction::Session,
     tool_result: &ToolResult,
+    message_id: &str,
 ) -> Result<Event, std::convert::Infallible> {
     let text = tool_result.content.iter().find_map(|c| match c {
         ToolResultContent::Text(t) => Some(t.text.clone()),
         _ => None,
     });
-    let result: Option<serde_json::Value> = text.map(|t| {
+    let content = text.map_or_else(String::new, |t| {
         guard
             .lock()
             .unwrap_or_else(PoisonError::into_inner)
             .add_record(&t);
-        let t = redaction::for_user(session, &t);
-        serde_json::from_str(&t).unwrap_or(serde_json::Value::String(t))
+        redaction::for_user(session, &t)
     });
-    let id = tool_result.call.to_string();
-    sse(&serde_json::json!({ "type": "tool_result", "id": id, "result": result }))
+    ag(&Agui::ToolCallResult {
+        message_id,
+        tool_call_id: tool_result.call.to_string(),
+        content,
+    })
 }
 
 /// Tokens for the whole turn (every model call), for the cost readout.
@@ -266,6 +280,7 @@ fn run_turn(
         state,
         tenant_id,
         conversation_id,
+        run_id,
         kb_hits,
         session,
     } = turn;
@@ -273,19 +288,24 @@ fn run_turn(
         .lock()
         .unwrap_or_else(PoisonError::into_inner)
         .add_record(&context);
+    let (thread, run) = (conversation_id.to_string(), run_id.to_string());
+    let message_id = Uuid::new_v4().to_string();
     async_stream::stream! {
-        // Emit the retrieved KB entries as grounding sources (cited in the UI).
+        yield ag(&Agui::RunStarted { thread_id: thread.clone(), run_id: run.clone() });
+        // The retrieved KB entries, as grounding sources (cited in the UI).
         for (i, hit) in kb_hits.iter().enumerate() {
-            yield sse(&serde_json::json!({
-                "type": "source",
-                "source": {
+            yield ag(&Agui::Custom {
+                name: custom::SOURCE,
+                value: serde_json::json!({
                     "id": format!("kb-{i}"),
                     "title": hit.term,
                     "url": hit.source_url,
                     "snippet": hit.snippet,
-                }
-            }));
+                }),
+            });
         }
+        let mut text_open = false;
+        let mut failed = false;
 
         let mut answer = String::new();
         let mut usage = None;
@@ -303,17 +323,29 @@ fn run_turn(
                     // Only sentences the guard passes are stored or shown.
                     let text = shown_text(&guard, &session, &mut shown, &mut answer, &text);
                     if !text.is_empty() {
-                        yield sse(&serde_json::json!({ "type": "text", "text": text }));
+                        if !text_open {
+                            text_open = true;
+                            yield ag(&Agui::TextMessageStart {
+                                message_id: &message_id,
+                                role: "assistant",
+                            });
+                        }
+                        yield ag(&Agui::TextMessageContent { message_id: &message_id, delta: &text });
                     }
                 }
                 Ok(MultiTurnStreamItem::ToolCall { tool_call }) => {
-                    yield tool_call_frame(&session, &tool_call);
+                    for event in tool_call_events(&session, &tool_call, &message_id) {
+                        yield event;
+                    }
                 }
                 Ok(MultiTurnStreamItem::ToolResult { tool_result }) => {
-                    yield tool_result_frame(&guard, &session, &tool_result);
+                    yield tool_result_event(&guard, &session, &tool_result, &message_id);
                     // Built from the shelf by `show`, never from the model's words.
                     for widget in show::drain(&widgets) {
-                        yield sse(&serde_json::json!({ "type": "widget", "widget": widget }));
+                        yield ag(&Agui::Custom {
+                            name: custom::WIDGET,
+                            value: serde_json::to_value(&widget).unwrap_or_default(),
+                        });
                     }
                 }
                 Ok(MultiTurnStreamItem::ModelTurnRetried { .. }) => {
@@ -322,17 +354,16 @@ fn run_turn(
                     guard.lock().unwrap_or_else(PoisonError::into_inner).restart();
                     answer.clear();
                     shown = StreamRehydrator::default();
-                    yield sse(&serde_json::json!({ "type": "reset" }));
+                    yield ag(&Agui::Custom { name: custom::RESET, value: serde_json::Value::Null });
                 }
                 Ok(MultiTurnStreamItem::FinalResponse(r)) => usage = Some(usage_frame(&r.usage)),
                 Ok(_) => {}
                 Err(e) => {
                     // The provider's error text is not shown: it can echo input.
+                    // RUN_ERROR is terminal, so the turn stops here.
                     tracing::warn!(target: "ai", error = %e, "assistant stream error");
-                    yield sse(&serde_json::json!({
-                        "type": "error",
-                        "message": "The AI could not finish this answer. Try again."
-                    }));
+                    failed = true;
+                    break;
                 }
             }
         }
@@ -346,12 +377,22 @@ fn run_turn(
             |r| format!("{}{}", shown.push(&passed, r.map()), shown.finish(r.map())),
         );
         if !rest.is_empty() {
-            yield sse(&serde_json::json!({ "type": "text", "text": rest }));
+            if !text_open {
+                text_open = true;
+                yield ag(&Agui::TextMessageStart { message_id: &message_id, role: "assistant" });
+            }
+            yield ag(&Agui::TextMessageContent { message_id: &message_id, delta: &rest });
         }
-        // Said, never silent: what the guard removed and why.
+        if text_open {
+            yield ag(&Agui::TextMessageEnd { message_id: &message_id });
+        }
+        // Said, never silent: what the guard removed and why, before the run ends.
         if !notices.is_empty() {
             tracing::info!(target: "ai", removed = notices.len(), "answer guard removed text");
-            yield sse(&serde_json::json!({ "type": "guard", "notices": notices }));
+            yield ag(&Agui::Custom {
+                name: custom::GUARD,
+                value: serde_json::json!({ "notices": notices }),
+            });
         }
 
         // Stored as the model wrote it — in placeholders — with the map.
@@ -361,11 +402,17 @@ fn run_turn(
             tracing::error!(error = %e, "failed to persist assistant turn");
         }
 
-        yield sse(&serde_json::json!({
-            "type": "done",
-            "conversationId": conversation_id,
-            "usage": usage,
-        }));
+        if failed {
+            yield ag(&Agui::RunError {
+                message: "The AI could not finish this answer. Try again.",
+            });
+        } else {
+            yield ag(&Agui::RunFinished {
+                thread_id: thread,
+                run_id: run,
+                result: serde_json::json!({ "usage": usage }),
+            });
+        }
     }
 }
 
