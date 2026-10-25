@@ -6,6 +6,7 @@ members = [
     "crates/medbrains-automation-store",
     "crates/medbrains-automation-api",
     "crates/medbrains-core",
+    "crates/medbrains-ai-eval",
     "crates/medbrains-authz-gate",
     "crates/medbrains-spicedb-proto",
     "crates/medbrains-nabh",

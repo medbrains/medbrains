@@ -332,3 +332,22 @@ fn a_restricted_class_never_reaches_the_model_unless_the_text_is_a_topic() {
     let course = topic.redact("A course on HIV counselling for nurses").map(|x| x.for_model().to_owned());
     assert_eq!(course.ok().as_deref(), Some("A course on HIV counselling for nurses"));
 }
+
+#[test]
+fn an_iso_timestamp_has_its_date_shifted_and_keeps_its_time() {
+    let mut r = Redactor::new(PseudonymMap::default(), &KnownIdentifiers::default(), today());
+    let text = "Seen 2026-10-24T22:00, record created 2026-10-22T08:15:30.5+05:30.";
+    let out = r.redact(text).map(|t| t.for_model().to_owned()).unwrap_or_default();
+    assert_absent(&out, &["2026-10-24", "2026-10-22"]);
+    assert!(out.contains("[DATE_-1d]T22:00") && out.contains("[DATE_-3d]T08:15:30.5+05:30"), "{out}");
+    assert_eq!(r.rehydrate(&out), text);
+}
+
+#[test]
+fn a_relative_named_in_tamil_or_hindi_script_is_redacted() {
+    let mut r = Redactor::new(PseudonymMap::default(), &KnownIdentifiers::default(), today());
+    let note = "காய்ச்சல் 101 F. மனைவி செல்வி அழைத்தார். पत्नी सुनीता ने फोन किया।";
+    let out = r.redact(note).map(|t| t.for_model().to_owned()).unwrap_or_default();
+    assert_absent(&out, &["செல்வி", "सुनीता"]);
+    assert!(out.contains("காய்ச்சல் 101 F") && out.contains("[RELATIVE_2]"), "{out}");
+}

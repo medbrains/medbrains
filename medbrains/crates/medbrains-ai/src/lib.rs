@@ -376,9 +376,9 @@ impl rig::tool::Tool for DrugSafetyTool {
     async fn definition(&self, _prompt: String) -> rig::completion::ToolDefinition {
         rig::completion::ToolDefinition {
             name: Self::NAME.to_owned(),
-            description: "Check a proposed drug against the current patient's allergies and drug \
-                interactions using the pharmacy safety engine. ALWAYS call this before suggesting or \
-                endorsing a medication, and never recommend a drug that returns a warning."
+            description: "Check a drug the clinician intends to give against the current \
+                patient's allergies and drug interactions using the pharmacy safety engine. Call \
+                it whenever a clinician names a medication, and report its warnings exactly."
                 .to_owned(),
             parameters: serde_json::json!({
                 "type": "object",
@@ -1260,12 +1260,7 @@ fn build_context(context: Option<&serde_json::Value>, kb_hits: &[KbHit]) -> Stri
             refs.join("\n")
         ));
     }
-    parts.push(
-        "Identifiers in this conversation are replaced by placeholders such as [PATIENT_1], \
-         [RELATIVE_1], [PHONE_1] or [DATE_-3d] (days from today). Use them exactly as written; \
-         never guess or ask for the real values."
-            .to_owned(),
-    );
+    parts.push(medbrains_core::ai_redact::PLACEHOLDER_NOTE.to_owned());
     parts.join("\n\n")
 }
 
@@ -1323,7 +1318,7 @@ pub async fn chat(
     let message = redactor.redact(&message).map_err(unsafe_)?;
     // A question that itself names a restricted class is not sent at all, and
     // the user is told why rather than given an answer to an empty question.
-    if message.for_model().contains(medbrains_core::ai_redact::sensitive::WITHHELD) {
+    if message.is_withheld() {
         return Err(AppError::BadRequest(RESTRICTED_QUESTION.to_owned()));
     }
     let mut prior = Vec::with_capacity(history.len());
