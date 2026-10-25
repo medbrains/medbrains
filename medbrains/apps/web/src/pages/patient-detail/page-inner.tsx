@@ -18,10 +18,11 @@ import {
   billingInvoiceHasReceivedPayment,
   billingInvoiceIsFinalized,
   billingInvoiceRequiresFollowUp,
+  bloodGroupLabel,
   hasReviewedPatientPharmacyPrescriptionForJourney,
   P,
 } from "@medbrains/types";
-import { fieldAccessText } from "@medbrains/utils";
+import { fieldAccessText, snakeToTitle } from "@medbrains/utils";
 import {
   IconAlertTriangle,
   IconCalendar,
@@ -514,9 +515,11 @@ export function PatientDetailPageInner() {
                       Deceased
                     </Badge>
                   )}
-                  <Badge tone="primary">{patient.category}</Badge>
-                  <Badge tone="neutral">{patient.financial_class}</Badge>
-                  {patient.blood_group && <Badge tone="danger">{patient.blood_group}</Badge>}
+                  <Badge tone="primary">{snakeToTitle(patient.category)}</Badge>
+                  <Badge tone="neutral">{snakeToTitle(patient.financial_class)}</Badge>
+                  {patient.blood_group && (
+                    <Badge tone="danger">{bloodGroupLabel(patient.blood_group)}</Badge>
+                  )}
                   {patient.is_vip && <Badge tone="accent">VIP</Badge>}
                   {patient.is_medico_legal && (
                     <Badge tone="danger" variant="filled">
@@ -540,7 +543,7 @@ export function PatientDetailPageInner() {
                   <Badge tone="primary" variant="light">
                     UHID {displayUhid}
                   </Badge>
-                  {patient.gender && <Badge tone="neutral">{patient.gender}</Badge>}
+                  {patient.gender && <Badge tone="neutral">{snakeToTitle(patient.gender)}</Badge>}
                   {displayAge && displayAge !== "-" && <Badge tone="neutral">{displayAge}</Badge>}
                   {displayPhone && displayPhone !== "-" && (
                     <Badge tone="neutral">{displayPhone}</Badge>

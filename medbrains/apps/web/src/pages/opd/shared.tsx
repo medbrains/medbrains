@@ -8,6 +8,7 @@ import { IconCheck, IconClock, IconPhone, IconStethoscope, IconUserOff } from "@
 import type { useTranslation } from "react-i18next";
 import type { OperationalSignalShape, OperationalSignalTone } from "@/components";
 import { todayDateString } from "@/lib/date-utils";
+import { formatTime as formatSlotTime } from "../appointments/shared";
 
 export type OpdTranslate = ReturnType<typeof useTranslation>["t"];
 
@@ -163,7 +164,11 @@ export function appointmentSlotLabel(
 ): string {
   const start = appointment.slot_start ?? appointment.appointment_slot_start;
   const end = appointment.slot_end ?? appointment.appointment_slot_end;
-  return start && end ? `${start} - ${end}` : (appointment.appointment_date ?? noSlotLabel);
+  // Slots are wall-clock times in the hospital's day, stored as "11:30:00";
+  // the desk reads them the way the appointments page prints them.
+  return start && end
+    ? `${formatSlotTime(start)} - ${formatSlotTime(end)}`
+    : (appointment.appointment_date ?? noSlotLabel);
 }
 
 export function formatQueueToken(tokenNumber: number): string {

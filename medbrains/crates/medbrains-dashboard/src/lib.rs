@@ -1320,7 +1320,9 @@ const SQL_COUNT_TABLES: &[&str] = &[
 ];
 const SQL_COUNT_FILTERS: &[&str] = &[
     "status = 'admitted'",
-    "DATE(encounter_date) = CURRENT_DATE",
+    // Today's OPD: OPD visits only (admissions and ER visits are encounters
+    // too, and were counted), on the hospital's own calendar day.
+    "encounter_type = 'opd' AND encounter_date = tenant_local_date(tenant_id, now())",
     "status IN ('ordered','sample_collected')",
 ];
 
@@ -1345,16 +1347,19 @@ async fn resolve_sql_count(
         .and_then(serde_json::Value::as_str)
         .filter(|f| !f.is_empty());
 
+    // Scoped to the hospital the session is working at, not left to RLS
+    // alone: a connection that bypasses RLS (the owner, a platform
+    // administrator's group scope) would otherwise count every hospital.
     let sql = match filter {
         // Both table and filter are allowlisted literals — safe to format.
         Some(f) if SQL_COUNT_FILTERS.contains(&f) => {
-            format!("SELECT COUNT(*) FROM {table} WHERE {f}")
+            format!("SELECT COUNT(*) FROM {table} WHERE tenant_id = app_current_tenant() AND {f}")
         }
         Some(f) => {
             tracing::warn!(filter = f, "sql_count widget filter not allowlisted; counting all");
-            format!("SELECT COUNT(*) FROM {table}")
+            format!("SELECT COUNT(*) FROM {table} WHERE tenant_id = app_current_tenant()")
         }
-        None => format!("SELECT COUNT(*) FROM {table}"),
+        None => format!("SELECT COUNT(*) FROM {table} WHERE tenant_id = app_current_tenant()"),
     };
 
     let count = sqlx::query_scalar::<_, i64>(&sql).fetch_one(&mut **tx).await?;

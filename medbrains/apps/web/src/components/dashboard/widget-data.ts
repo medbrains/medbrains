@@ -31,8 +31,18 @@ export function rows(data: unknown): Record<string, unknown>[] {
 
 const ISO_TIMESTAMP = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/;
 
-/** A table cell as a person reads it: timestamps in local time, blanks as a dash. */
+/** A stored code such as `waiting`, `in_consultation` or `self_pay`. */
+const ENUM_CODE = /^[a-z][a-z0-9]*(_[a-z0-9]+)*$/;
+
+/**
+ * A table cell as a person reads it: timestamps in local time, stored codes in
+ * words ("in_consultation" → "In consultation"), blanks as a dash.
+ */
 export function cellText(value: unknown): string {
   if (typeof value === "string" && ISO_TIMESTAMP.test(value)) return formatDateTime(value);
+  if (typeof value === "string" && ENUM_CODE.test(value)) {
+    const words = value.replace(/_/g, " ");
+    return words.charAt(0).toUpperCase() + words.slice(1);
+  }
   return String(value ?? "—");
 }

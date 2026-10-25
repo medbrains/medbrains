@@ -254,9 +254,7 @@ export function DataTable<T>({
   });
 
   const resolvedVirtualRowHeight = virtualRowHeight ?? VIRTUAL_ROW_HEIGHT_BY_DENSITY[density];
-  const startItem = (page - 1) * perPage + 1;
   const totalItems = total ?? sortedData.length;
-  const endItem = Math.min(page * perPage, totalItems);
   const shouldVirtualize =
     !loading &&
     (virtualized === true || (virtualized === "auto" && sortedData.length >= virtualizeAt));
@@ -514,9 +512,7 @@ export function DataTable<T>({
           <Divider />
           <Group justify="space-between" px="md" py="sm">
             <Text size="xs" c="var(--mb-text-secondary)" className={styles.footerCount}>
-              {totalItems > 0
-                ? `Showing ${startItem}–${endItem} of ${totalItems.toLocaleString()} items`
-                : "0 items"}
+              {footerCountText({ total, rowsOnPage: sortedData.length, page, perPage, totalPages })}
             </Text>
             {totalPages && totalPages > 1 && onPageChange && (
               <Pagination total={totalPages} value={page} onChange={onPageChange} size="sm" />
@@ -526,4 +522,29 @@ export function DataTable<T>({
       )}
     </Card>
   );
+}
+
+/**
+ * The footer's count. Without the server's `total`, only this page's rows are
+ * known: "Showing 1–20 of 20" over five pages was a lie, so it says the page.
+ */
+export function footerCountText({
+  total,
+  rowsOnPage,
+  page,
+  perPage,
+  totalPages,
+}: {
+  total: number | undefined;
+  rowsOnPage: number;
+  page: number;
+  perPage: number;
+  totalPages: number | undefined;
+}): string {
+  if (total === undefined && (totalPages ?? 0) > 1) return `Page ${page} of ${totalPages}`;
+  const totalItems = total ?? rowsOnPage;
+  if (totalItems <= 0) return "0 items";
+  const startItem = (page - 1) * perPage + 1;
+  const endItem = Math.min(page * perPage, totalItems);
+  return `Showing ${startItem}–${endItem} of ${totalItems.toLocaleString()} items`;
 }
