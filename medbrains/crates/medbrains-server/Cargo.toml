@@ -100,6 +100,7 @@ medbrains-client-errors = { path = "../medbrains-client-errors" }
 medbrains-vpn = { path = "../medbrains-vpn" }
 medbrains-hr = { path = "../medbrains-hr" }
 medbrains-setup = { path = "../medbrains-setup" }
+medbrains-history-import = { path = "../medbrains-history-import" }
 medbrains-it-security = { path = "../medbrains-it-security" }
 medbrains-assets = { path = "../medbrains-assets" }
 medbrains-bme = { path = "../medbrains-bme" }

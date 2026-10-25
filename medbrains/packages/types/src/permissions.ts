@@ -17,7 +17,7 @@ export interface PermissionDef {
   module: string;
 }
 
-/** 1143 permissions, one per constant in the Rust source. */
+/** 1145 permissions, one per constant in the Rust source. */
 export const PERMISSIONS: PermissionDef[] = [
   // dashboard
   {
@@ -5183,6 +5183,18 @@ export const PERMISSIONS: PermissionDef[] = [
     module: "admin",
   },
   {
+    code: "admin.history_import.view",
+    label: "See imported history batches",
+    description: "Read the go-live cut-over and the log of history batches — what each checked or imported, what it refused and who ran it.",
+    module: "admin",
+  },
+  {
+    code: "admin.history_import.run",
+    label: "Import history from the previous system",
+    description: "Set the go-live cut-over, and check and commit batches of past patients, visits, admissions, lab results, dispenses, bills and claims, dated when they happened. Only adds records dated before go-live; never changes existing ones.",
+    module: "admin",
+  },
+  {
     code: "admin.users.list",
     label: "List Users",
     description: "View user directory",
@@ -7072,6 +7084,12 @@ export const P = {
     },
     DOCTOR_PACKAGES_LIST: "admin.doctor_packages.list",
     DOCTOR_PACKAGES_MANAGE: "admin.doctor_packages.manage",
+    HISTORY_IMPORT: {
+      RUN: "admin.history_import.run",
+      VIEW: "admin.history_import.view",
+    },
+    HISTORY_IMPORT_RUN: "admin.history_import.run",
+    HISTORY_IMPORT_VIEW: "admin.history_import.view",
     MIGRATION_MANAGE: "admin.migration.manage",
     NOTIFICATIONS: {
       SIMULATOR: {
@@ -11422,6 +11440,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
     label: "Audit Officer",
     permissions: [
       P.ADMIN.ACCESS_REQUESTS.LIST,
+      P.ADMIN.HISTORY_IMPORT.VIEW,
       P.ADMIN.SETTINGS.READ,
       P.AUDIT.ACCESS_VIEW,
       P.AUDIT.BREAK_GLASS_REVIEW,
