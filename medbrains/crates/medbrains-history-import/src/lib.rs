@@ -29,6 +29,7 @@ mod engine;
 mod money;
 mod orders;
 mod patients;
+mod rows;
 mod settings;
 
 use axum::{
@@ -38,7 +39,6 @@ use axum::{
 };
 use chrono::{DateTime, Utc};
 use medbrains_core::permissions;
-use medbrains_db::audit::{AuditEntry, AuditLogger};
 use medbrains_server_core::{
     error::AppError,
     middleware::{auth::Claims, authorization::require_permission},
@@ -50,6 +50,7 @@ use uuid::Uuid;
 
 use ctx::{Ctx, Problem};
 use engine::{import_all, load_context};
+use rows::{NewBatch, audit_commit, finish_batch, insert_batch, reserve_uhids};
 use settings::{get_settings, load_go_live, put_settings};
 
 /// More than any one upload should carry; split bigger exports into batches.
@@ -301,6 +302,18 @@ pub(crate) async fn run_batch(
         count,
     };
     insert_batch(&mut tx, header).await?;
+    // Rows this batch writes are audited as the batch (see migration 1214),
+    // so the import never holds the hospital's audit-chain lock.
+    sqlx::query("SELECT set_config('app.history_import_batch', $1, true)")
+        .bind(batch.to_string())
+        .execute(&mut *tx)
+        .await?;
+    let patients = body
+        .records
+        .iter()
+        .filter(|r| matches!(r, Record::Patient(_)))
+        .count();
+    let uhids = reserve_uhids(&state, claims.tenant_id, patients, body.dry_run).await?;
     let mut ctx = load_context(
         tx,
         claims.tenant_id,
@@ -308,6 +321,7 @@ pub(crate) async fn run_batch(
         batch,
         go_live,
         &body.records,
+        uhids,
     )
     .await?;
     let tallies = import_all(&mut ctx, &body.records).await?;
@@ -345,91 +359,6 @@ pub(crate) async fn run_batch(
         tallies,
         problems,
     }))
-}
-
-/// Who committed which batch, with what it added: the audit trail of an import.
-async fn audit_commit(
-    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
-    claims: &Claims,
-    b: NewBatch<'_>,
-    tallies: &Value,
-) -> Result<(), AppError> {
-    let new_values = json!({ "label": b.label, "tallies": tallies, "go_live_at": b.go_live });
-    AuditLogger::log(
-        tx,
-        &AuditEntry {
-            tenant_id: claims.tenant_id,
-            user_id: Some(claims.sub),
-            action: "history_import.commit",
-            entity_type: "history_import_batch",
-            entity_id: Some(b.id),
-            old_values: None,
-            new_values: Some(&new_values),
-            ip_address: None,
-        },
-    )
-    .await?;
-    Ok(())
-}
-
-/// The batch row's columns, written when it starts (and again after a rollback, so the report survives).
-#[derive(Debug, Clone, Copy)]
-struct NewBatch<'a> {
-    id: Uuid,
-    tenant: Uuid,
-    user: Uuid,
-    label: &'a str,
-    dry_run: bool,
-    go_live: DateTime<Utc>,
-    count: i32,
-}
-
-async fn insert_batch(
-    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
-    b: NewBatch<'_>,
-) -> Result<(), AppError> {
-    let NewBatch {
-        id,
-        tenant,
-        user,
-        label,
-        dry_run,
-        go_live,
-        count,
-    } = b;
-    sqlx::query(
-        "INSERT INTO history_import_batches (id, tenant_id, label, dry_run, status, go_live_at, record_count, created_by) \
-         VALUES ($1, $2, $3, $4, 'validated', $5, $6, $7)",
-    )
-    .bind(id)
-    .bind(tenant)
-    .bind(label)
-    .bind(dry_run)
-    .bind(go_live)
-    .bind(count)
-    .bind(user)
-    .execute(&mut **tx)
-    .await?;
-    Ok(())
-}
-
-async fn finish_batch(
-    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
-    id: Uuid,
-    status: &str,
-    tallies: &Value,
-    problems: &Value,
-) -> Result<(), AppError> {
-    sqlx::query(
-        "UPDATE history_import_batches SET status = $2, tallies = $3, problems = $4 WHERE id = $1",
-    )
-    .bind(id)
-    .bind(status)
-    .bind(tallies)
-    .bind(problems)
-    .execute(&mut **tx)
-    .await?;
-    Ok(())
 }
 
 pub fn router() -> axum::Router<AppState> {

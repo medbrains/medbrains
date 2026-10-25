@@ -98,7 +98,10 @@ pub(crate) async fn patient(ctx: &mut Ctx<'_>, r: &PatientRec) -> Result<Option<
     else {
         return Ok(None);
     };
-    let uhid = medbrains_patients::generate_uhid(&mut ctx.tx, &ctx.tenant).await?;
+    let uhid = ctx
+        .uhids
+        .next()
+        .ok_or_else(|| AppError::Internal("ran out of reserved UHIDs".to_owned()))?;
     let address = json!({ "city": r.city, "state": r.state, "country": "India" });
     let id: Uuid = sqlx::query_scalar(
         "INSERT INTO patients (tenant_id, uhid, first_name, last_name, gender, date_of_birth, phone, \

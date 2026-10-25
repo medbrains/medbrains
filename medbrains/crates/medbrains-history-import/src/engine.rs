@@ -21,6 +21,7 @@ pub(crate) async fn load_context<'t>(
     batch: Uuid,
     go_live: DateTime<Utc>,
     records: &[Record],
+    uhids: Vec<String>,
 ) -> Result<Ctx<'t>, AppError> {
     let departments: HashMap<String, Uuid> = sqlx::query_as::<_, (String, Uuid)>(
         "SELECT upper(code), id FROM departments WHERE tenant_id = $1 AND deleted_at IS NULL AND is_active",
@@ -86,6 +87,7 @@ pub(crate) async fn load_context<'t>(
         go_live,
         now: Utc::now(),
         tz,
+        uhids: uhids.into_iter(),
         problems: Vec::new(),
         departments,
         doctors,
