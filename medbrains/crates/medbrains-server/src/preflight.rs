@@ -46,6 +46,7 @@ pub async fn run(
 ) -> Vec<Finding> {
     let production = config.environment == "production";
     let mut found = env_checks(config, production);
+    found.extend(crate::preflight_ai::checks());
     for key in REQUIRED_KEYS {
         found.push(key_check(secrets, key, production).await);
     }

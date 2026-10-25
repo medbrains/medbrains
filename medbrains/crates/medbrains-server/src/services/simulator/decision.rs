@@ -34,7 +34,7 @@ pub async fn choose_action(
     tools: &[ToolDef],
 ) -> Result<Option<ToolCall>, AppError> {
     let cfg = llm::resolve_config(state, tenant_id).await?;
-    let base = llm::openai_compat_base_url(&cfg.provider).ok_or_else(|| {
+    let base = llm::openai_compat_base_url(&cfg.provider)?.ok_or_else(|| {
         AppError::BadRequest(format!(
             "simulator native tool-calling needs an OpenAI-compatible provider \
              (bedrock/openrouter); '{}' is not supported",
@@ -153,7 +153,7 @@ async fn complete_text(
     user: &Redacted,
 ) -> Result<String, AppError> {
     let cfg = llm::resolve_config(state, tenant_id).await?;
-    let base = llm::openai_compat_base_url(&cfg.provider).ok_or_else(|| {
+    let base = llm::openai_compat_base_url(&cfg.provider)?.ok_or_else(|| {
         AppError::BadRequest(format!(
             "simulator goal generation needs an OpenAI-compatible provider; '{}' is not",
             cfg.provider

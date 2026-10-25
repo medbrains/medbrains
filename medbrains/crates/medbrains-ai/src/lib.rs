@@ -1279,6 +1279,11 @@ pub async fn chat(
     if !cfg.enabled {
         return Err(AppError::Forbidden);
     }
+    // Refused outside India before the turn is opened or stored.
+    let bedrock_base = match cfg.provider.as_str() {
+        "bedrock" => medbrains_server_services::llm::bedrock_base_url()?,
+        _ => String::new(),
+    };
 
     let PreparedTurn {
         conversation_id,
@@ -1394,6 +1399,15 @@ pub async fn chat(
         ),
         "openrouter" => assistant!(
             rig::providers::openrouter::Client::new(&cfg.api_key)
+                .map_err(|e| AppError::BadRequest(format!("AI client error: {e}")))?
+        ),
+        // Bedrock's OpenAI-compatible endpoint streams Chat Completions; the
+        // base URL is refused outside India before anything is sent.
+        "bedrock" => assistant!(
+            rig::providers::openai::CompletionsClient::builder()
+                .api_key(&cfg.api_key)
+                .base_url(&bedrock_base)
+                .build()
                 .map_err(|e| AppError::BadRequest(format!("AI client error: {e}")))?
         ),
         "ollama" => {
