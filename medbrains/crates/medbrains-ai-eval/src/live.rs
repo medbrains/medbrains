@@ -23,7 +23,7 @@ use std::time::{Duration, Instant};
 use medbrains_anthropic_auth::{AccessToken, FederationConfig};
 use serde_json::{Value, json};
 
-use crate::{Answer, Request};
+use crate::{Answer, Request, Role};
 
 /// India (DPDP s.16). Not configurable on purpose.
 const BEDROCK_REGION: &str = "ap-south-1";
@@ -210,6 +210,7 @@ impl Provider {
             provider: format!("{self:?}").to_lowercase(),
             model,
             system: request.system.for_model().to_owned(),
+            history: request.history_lines(),
             user: request.user.for_model().to_owned(),
             output: text,
             input_tokens: tin,
@@ -238,8 +239,7 @@ fn texts(content: &Value) -> String {
 
 fn bedrock(request: &Request, model: &str) -> Result<String, String> {
     let system = json!([{ "text": request.system.for_model() }]).to_string();
-    let messages =
-        json!([{ "role": "user", "content": [{ "text": request.user.for_model() }] }]).to_string();
+    let messages = Value::Array(messages(request, |text| json!([{ "text": text }]))).to_string();
     let config = json!({ "maxTokens": MAX_TOKENS, "temperature": 0 }).to_string();
     run(
         Command::new("aws").args([
@@ -299,12 +299,26 @@ fn anthropic_body(request: &Request, model: &str) -> Value {
             "text": request.system.for_model(),
             "cache_control": { "type": "ephemeral" },
         }],
-        "messages": [{ "role": "user", "content": request.user.for_model() }],
+        "messages": messages(request, |text| json!(text)),
     });
     if model.contains("-4-") {
         body["temperature"] = json!(0);
     }
     body
+}
+
+/// The earlier messages, then this turn's, each content shaped by `content`.
+fn messages(request: &Request, content: impl Fn(&str) -> Value) -> Vec<Value> {
+    request
+        .history
+        .iter()
+        .map(|(role, m)| (*role, m))
+        .chain(std::iter::once((Role::User, &request.user)))
+        .map(|(role, m)| {
+            let role = if role == Role::User { "user" } else { "assistant" };
+            json!({ "role": role, "content": content(m.for_model()) })
+        })
+        .collect()
 }
 
 /// A federated access token (cached in-process until shortly before expiry).
@@ -347,6 +361,7 @@ mod tests {
             provider: "anthropic".to_owned(),
             model: model.to_owned(),
             system: String::new(),
+            history: Vec::new(),
             user: String::new(),
             output: String::new(),
             input_tokens: 1_000_000,
@@ -388,6 +403,7 @@ mod tests {
     fn the_fixed_prefix_carries_the_cache_breakpoint() {
         let request = crate::Request {
             system: Redacted::fixed("system"),
+            history: Vec::new(),
             user: Redacted::fixed("question"),
             record: Redacted::fixed(""),
             question: Redacted::fixed("question"),
@@ -402,6 +418,7 @@ mod tests {
     fn only_4x_models_get_a_temperature() {
         let request = crate::Request {
             system: Redacted::fixed("system"),
+            history: Vec::new(),
             user: Redacted::fixed("question"),
             record: Redacted::fixed(""),
             question: Redacted::fixed("question"),

@@ -19,12 +19,6 @@ import { useDraggableFab } from "./useDraggableFab";
 const AiChatPanel = lazy(() => import("./AiChatPanel").then((m) => ({ default: m.AiChatPanel })));
 
 // ai-label-exempt: mounts AiChatPanel, which carries the label; history titles are the user's own question.
-const DEFAULT_SUGGESTIONS = [
-  "Summarize this patient's labs",
-  "Draft a discharge note",
-  "Check drug interactions",
-];
-
 export interface AiAssistantMountProps {
   suggestions?: string[];
 }
@@ -34,7 +28,7 @@ export interface AiAssistantMountProps {
  * launcher + a right-side drawer, and owns one shared conversation so it
  * persists across surfaces. Any component opens/asks it via `useAiAssistant()`.
  */
-export function AiAssistantMount({ suggestions = DEFAULT_SUGGESTIONS }: AiAssistantMountProps) {
+export function AiAssistantMount({ suggestions }: AiAssistantMountProps) {
   const isOpen = useAiAssistantStore((state) => state.isOpen);
   const close = useAiAssistantStore((state) => state.close);
   const toggle = useAiAssistantStore((state) => state.toggle);

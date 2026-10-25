@@ -118,6 +118,7 @@ fn an_answer_cut_off_at_the_output_cap_fails_however_good_its_words() {
             provider: "anthropic".to_owned(),
             model: "m".to_owned(),
             system: r.system.for_model().to_owned(),
+            history: r.history_lines(),
             user: r.user.for_model().to_owned(),
             output: "Metformin 500 mg BD is recorded.".to_owned(),
             input_tokens: 0,

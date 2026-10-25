@@ -138,6 +138,7 @@ export function AppLayout() {
   }, []);
 
   const location = useLocation();
+  const isWorkspace = location.pathname === "/assistant";
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const user = useAuthStore((s) => s.user);
@@ -693,10 +694,12 @@ export function AppLayout() {
           pill float over the bottom of every page, and a control underneath
           them can be neither clicked nor seen focused (WCAG 2.2 SC 2.4.11).
           A prop, because Mantine's own shell padding outranks a class. */}
-      <AppShell.Main pb="calc(var(--mantine-spacing-xl) * 4)">
+      {/* The assistant workspace fills the screen: no launcher over it, and its
+          own heading in place of the breadcrumb. */}
+      <AppShell.Main pb={isWorkspace ? 0 : "calc(var(--mantine-spacing-xl) * 4)"}>
         <VerifyEmailBanner />
         <PageQueryErrorBanner />
-        {breadcrumbItems.length > 0 && (
+        {breadcrumbItems.length > 0 && !isWorkspace && (
           <div className={classes.breadcrumbs}>
             <Breadcrumb
               items={breadcrumbItems.map((item) => ({

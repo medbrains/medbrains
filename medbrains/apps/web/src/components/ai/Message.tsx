@@ -1,8 +1,10 @@
-import { Box, Group, Loader, Stack, Text, ThemeIcon } from "@mantine/core";
+import { Box, Group, Stack, Text, ThemeIcon } from "@mantine/core";
 import { IconUser } from "@tabler/icons-react";
 import type { ReactNode } from "react";
 import { AiLabel, AiOrb, Alert } from "@/components/ui";
+import { MessageMeta } from "./MessageMeta";
 import styles from "./message.module.scss";
+import { ThinkingIndicator } from "./ThinkingIndicator";
 import type { ChatContext, ChatMessage, ChatMessageStatus, ChatRole } from "./transport/types";
 import { UnifiedResponse } from "./UnifiedResponse";
 
@@ -41,14 +43,17 @@ export function Message({ message, avatar, actions, onToolAction, active }: Mess
           className={isUser ? styles.userBubble : styles.assistantBubble}
           data-status={message.status}
         >
-          {isStreaming && isEmpty ? (
-            <Loader size="sm" aria-label="Assistant is responding" />
-          ) : isUser ? (
+          {isUser ? (
             <Text size="sm" className={styles.userText}>
               {message.content}
             </Text>
           ) : (
-            <UnifiedResponse message={message} onToolAction={onToolAction} active={active} />
+            <Stack gap="xs">
+              {(!isEmpty || (message.toolCalls?.length ?? 0) > 0) && (
+                <UnifiedResponse message={message} onToolAction={onToolAction} active={active} />
+              )}
+              {isStreaming && isEmpty && <ThinkingIndicator />}
+            </Stack>
           )}
         </Box>
         {message.guardNotices && message.guardNotices.length > 0 && (
@@ -67,7 +72,12 @@ export function Message({ message, avatar, actions, onToolAction, active }: Mess
             {message.error}
           </Alert>
         )}
-        {actions && !isUser && <Box className={styles.actions}>{actions}</Box>}
+        {!isUser && message.status === "complete" && !isEmpty && (
+          <Group gap="xs" className={styles.actions}>
+            <MessageMeta text={message.content} usage={message.usage} />
+            {actions}
+          </Group>
+        )}
       </Stack>
       {isUser && <MessageAvatar role={message.role} status={message.status} custom={avatar} />}
     </Group>

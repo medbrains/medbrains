@@ -1,6 +1,7 @@
 import { Box, Group, Stack, Text } from "@mantine/core";
 import { useHasPermission } from "@medbrains/stores";
 import { P } from "@medbrains/types";
+import { IconArrowRight } from "@tabler/icons-react";
 import { type ReactNode, useMemo } from "react";
 import { AiLabel, AiOrb, Button, Crab, toast } from "@/components/ui";
 import styles from "./ai-chat-panel.module.scss";
@@ -8,6 +9,7 @@ import { useAiAssistantStore } from "./assistant-store";
 import { Conversation } from "./Conversation";
 import { Message } from "./Message";
 import { PromptInput } from "./PromptInput";
+import { suggestionsFor } from "./suggestions";
 import { MockTransport } from "./transport/mock";
 import type { ChatContext, ChatTransport } from "./transport/types";
 import { type UseAiChat, useAiChat } from "./useAiChat";
@@ -20,12 +22,6 @@ const AI_EXPLAINER = {
     "them. Nothing goes into a patient record unless you accept it on the case sheet.",
 };
 
-const DEFAULT_FOLLOW_UPS = [
-  "Flag any critical values",
-  "Draft a progress note",
-  "Check drug interactions",
-];
-
 export interface AiChatPanelProps {
   /** Backend adapter. Defaults to a MockTransport so the panel works standalone. */
   transport?: ChatTransport;
@@ -34,12 +30,14 @@ export interface AiChatPanelProps {
   /** Share an externally-owned chat controller (e.g. the global assistant). */
   controller?: UseAiChat;
   title?: string;
-  /** Quick-prompt chips shown on the empty state. */
+  /** Quick prompts on the empty state; defaults to the screen's own. */
   suggestions?: string[];
-  /** Follow-up action chips shown under the assistant's last answer. */
+  /** Follow-up chips under the last answer; defaults to the screen's own. */
   followUps?: string[];
   /** Controls rendered at the right of the header (e.g. history / new chat). */
   headerAction?: ReactNode;
+  /** The empty conversation's headline, e.g. "Good morning, Asha". */
+  greeting?: string;
 }
 
 /**
@@ -53,10 +51,14 @@ export function AiChatPanel({
   context,
   controller,
   title = "MedBrains Assistant",
-  suggestions = [],
-  followUps = DEFAULT_FOLLOW_UPS,
+  suggestions,
+  followUps,
   headerAction,
+  greeting = "Hi — I'm your MedBrains assistant.",
 }: AiChatPanelProps) {
+  const screen = useMemo(() => suggestionsFor(context), [context]);
+  const starters = suggestions ?? screen.starters;
+  const nextQuestions = followUps ?? screen.followUps;
   const activeTransport = useMemo(() => transport ?? new MockTransport(), [transport]);
   const internal = useAiChat({ transport: activeTransport, context });
   const { messages, status, send, stop } = controller ?? internal;
@@ -76,7 +78,7 @@ export function AiChatPanel({
     lastMessage?.role === "assistant" &&
     lastMessage.status !== "streaming" &&
     !!lastMessage.content &&
-    followUps.length > 0;
+    nextQuestions.length > 0;
 
   return (
     <Stack gap={0} className={styles.panel}>
@@ -104,25 +106,28 @@ export function AiChatPanel({
         empty={
           <>
             <Crab variant="chibi" size={132} />
-            <Text fw={600} size="sm">
-              Hi — I'm your MedBrains assistant.
+            <Text fw={600} size="lg">
+              {greeting}
             </Text>
             <Text size="xs" c="dimmed">
               What can I help you look into?
             </Text>
-            {suggestions.length > 0 && (
-              <Group gap="xs" justify="center" mt="xs">
-                {suggestions.map((suggestion) => (
+            {starters.length > 0 && (
+              <Stack gap="xs" mt="sm" className={styles.starters}>
+                {starters.map((starter) => (
                   <Button
-                    key={suggestion}
+                    key={starter}
                     tone="secondary"
-                    size="xs"
-                    onClick={() => send(suggestion)}
+                    size="sm"
+                    fullWidth
+                    justify="space-between"
+                    rightSection={<IconArrowRight size={16} aria-hidden />}
+                    onClick={() => send(starter)}
                   >
-                    {suggestion}
+                    {starter}
                   </Button>
                 ))}
-              </Group>
+              </Stack>
             )}
           </>
         }
@@ -155,7 +160,7 @@ export function AiChatPanel({
 
       {showFollowUps && (
         <Group gap="xs" className={styles.followUps} wrap="wrap">
-          {followUps.map((followUp) => (
+          {nextQuestions.map((followUp) => (
             <Button key={followUp} tone="secondary" size="xs" onClick={() => send(followUp)}>
               {followUp}
             </Button>

@@ -1,5 +1,12 @@
 import { api } from "@medbrains/api";
-import type { ChatChunk, ChatMessage, ChatToolCall, ChatTransport, SendOptions } from "./types";
+import type {
+  ChatChunk,
+  ChatMessage,
+  ChatToolCall,
+  ChatTransport,
+  SendOptions,
+  TokenUsage,
+} from "./types";
 
 /** Pull the JSON payload out of one `data: {...}` SSE frame. */
 function parseFrame(frame: string): Record<string, unknown> | null {
@@ -114,11 +121,26 @@ export class SseTransport implements ChatTransport {
         if (typeof payload.conversationId === "string") {
           this.conversationId = payload.conversationId;
         }
-        return { type: "done" };
+        return { type: "done", usage: usageOf(payload.usage) };
       case "error":
         return { type: "error", error: String(payload.message ?? "Assistant error") };
       default:
         return null;
     }
   }
+}
+
+/** The turn's token counts, if the frame carries a well-formed set. */
+function usageOf(raw: unknown): TokenUsage | undefined {
+  if (!raw || typeof raw !== "object") return undefined;
+  const u = raw as Record<string, unknown>;
+  const n = (k: string) => (typeof u[k] === "number" ? (u[k] as number) : undefined);
+  const [input, output, cacheRead, cacheWrite] = [
+    n("input"),
+    n("output"),
+    n("cacheRead"),
+    n("cacheWrite"),
+  ];
+  if (input === undefined || output === undefined) return undefined;
+  return { input, output, cacheRead: cacheRead ?? 0, cacheWrite: cacheWrite ?? 0 };
 }

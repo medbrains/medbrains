@@ -59,6 +59,16 @@ export interface ChatMessage {
   error?: string;
   /** What the server's answer guard removed from this answer, and why. */
   guardNotices?: string[];
+  /** Tokens the whole turn used (every model call), when the server says. */
+  usage?: TokenUsage;
+}
+
+/** Model tokens for one assistant turn. */
+export interface TokenUsage {
+  input: number;
+  output: number;
+  cacheRead: number;
+  cacheWrite: number;
 }
 
 /** Ordered parts for a message: explicit `parts` win, else derived from content + convenience fields. */
@@ -90,7 +100,7 @@ export type ChatChunk =
   | { type: "tool_result"; id: string; result: unknown }
   | { type: "source"; source: ChatSource }
   | { type: "guard"; notices: string[] }
-  | { type: "done" }
+  | { type: "done"; usage?: TokenUsage }
   | { type: "error"; error: string };
 
 /**

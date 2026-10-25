@@ -4,7 +4,7 @@
  * cases — this screen's first — and records Pass, Fail or Blocked in the open
  * test cycle. Shared test accounts: the person at the keyboard names themself.
  */
-import { Group, Progress, Stack, Text } from "@mantine/core";
+import { Affix, Group, Progress, Stack, Text } from "@mantine/core";
 import { api } from "@medbrains/api";
 import {
   useAuthStore,
@@ -20,7 +20,6 @@ import { useTranslation } from "react-i18next";
 import { useLocation } from "react-router";
 import { Alert, Button, Input, Modal, SegmentedControl, toast } from "@/components/ui";
 import { TestCaseCard } from "./TestCaseCard";
-import classes from "./test-cases-panel.module.scss";
 import { casesFor } from "./test-catalog";
 
 type Filter = "screen" | "todo" | "failed" | "all";
@@ -96,15 +95,21 @@ function Panel() {
 
   return (
     <>
-      <Button
-        className={classes.launcher}
-        tone="primary"
-        size="sm"
-        leftSection={<IconChecklist size={16} />}
-        onClick={() => setOpened(true)}
+      {/* Bottom-left, clear of the help bubble. Affix, not a class: Mantine's Button sets position: relative, which
+          beat the class's fixed and put 32px of scroll under every page. */}
+      <Affix
+        position={{ left: "var(--mantine-spacing-md)", bottom: "var(--mantine-spacing-md)" }}
+        zIndex={200}
       >
-        Test cases
-      </Button>
+        <Button
+          tone="primary"
+          size="sm"
+          leftSection={<IconChecklist size={16} />}
+          onClick={() => setOpened(true)}
+        >
+          Test cases
+        </Button>
+      </Affix>
       <Modal
         opened={opened}
         onClose={() => setOpened(false)}
