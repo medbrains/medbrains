@@ -6,11 +6,11 @@ import Header from "../components/Header.astro";
 import WhatsAppFloat from "../components/WhatsAppFloat.astro";
 import { SITE } from "../consts";
 import chibi from "../assets/mascot/crab-chibi.svg?raw";
-import { ADD_ONS, AI, CARE, COMMITMENTS, GST_NOTE, INCLUDED, PLANS, PRICING_DRAFT, PRICING_FAQ, RATES } from "../data/pricing";
+import { ADD_ONS, AI, CARE, COMMITMENTS, GST_NOTE, INCLUDED, inr, PLANS, PRICING_DRAFT, PRICING_FAQ, planYear } from "../data/pricing";
 import Base from "../layouts/Base.astro";
 
 const title = "Pricing for Hospital Management Software | MedBrains";
-const description = "MedBrains plans for clinics, hospitals and groups, priced by beds and billed annually, with a licence-waived programme for charitable and government hospitals.";
+const description = "MedBrains plans for clinics, hospitals and hospital groups, billed yearly with a one-time go-live, and a licence-waived programme for charitable hospitals.";
 const home = new URL("/", Astro.site).href;
 const url = new URL("/pricing", Astro.site).href;
 const schema = [
@@ -35,34 +35,39 @@ const promise = [
   "Apps, TV boards, kiosk",
   "India-hosted, backed up daily",
 ];
+// What the chooser shows for each plan.
+const picks = Object.fromEntries(PLANS.map((p) => [p.id, {
+  name: `${p.name} plan`,
+  month: p.monthly ? inr(p.monthly) : "Let's talk",
+  line: p.monthly ? `${planYear(p)}. ${p.setup}.` : "We plan the price with you, around how you run.",
+}]));
+const QUESTIONS = [
+  { name: "kind", legend: "What do you run?", options: [["clinic", "A clinic or day-care centre"], ["hospital", "A hospital or nursing home"]], value: "hospital" },
+  { name: "acute", legend: "Do you have operating theatres, an ICU or radiology?", options: [["yes", "Yes"], ["no", "No"]], value: "yes" },
+  { name: "scale", legend: "Several hospitals, a medical college, or your own servers?", options: [["yes", "Yes"], ["no", "No"]], value: "no" },
+];
 ---
 
 <script>
-  // The bed calculator: same rules as the plan cards, from the RATES in src/data/pricing.ts.
-  const calc = document.querySelector<HTMLElement>(".calc");
-  const range = document.querySelector<HTMLInputElement>("#beds");
-  if (calc && range) {
-    const r = JSON.parse(calc.dataset.rates ?? "{}");
-    const inr = (n: number) => `₹${n.toLocaleString("en-IN")}`;
-    const out = (k: string) => calc.querySelector<HTMLElement>(`[data-out="${k}"]`);
+  // "Which plan fits you?": three answers pick a plan and light up its card.
+  const form = document.querySelector<HTMLFormElement>(".chooser");
+  if (form) {
+    const picks = JSON.parse(form.dataset.picks ?? "{}");
+    const out = (k: string) => form.querySelector<HTMLElement>(`[data-out="${k}"]`);
     const show = () => {
-      const beds = Number(range.value);
-      const label = beds >= 300 ? "300+" : beds === 0 ? "No" : String(beds);
-      document.getElementById("beds-out")!.textContent = label;
-      range.setAttribute("aria-valuetext", `${label} beds`);
-      const [plan, month, year] =
-        beds <= r.clinicMaxBeds
-          ? ["Clinic plan", inr(r.clinicMonthly), `${inr(r.clinicMonthly * 12)} a year, plus a one-time go-live from ${inr(r.clinicSetup)}.`]
-          : beds <= r.hospitalMaxBeds
-            ? ["Hospital plan", inr(Math.max(beds, r.minBeds) * r.perBedMonthly),
-               `${inr(Math.max(beds, r.minBeds) * r.perBedMonthly * 12)} a year, plus a one-time go-live from ${inr(r.hospitalSetup)}.`]
-            : ["Enterprise", "Let's talk", "Above 200 beds we plan the price with you, around how you run."];
-      out("plan")!.textContent = plan;
-      out("month")!.textContent = month;
-      out("year")!.textContent = year;
-      calc.querySelector("small")!.hidden = beds > r.hospitalMaxBeds;
+      const a = new FormData(form);
+      const id = a.get("scale") === "yes" ? "enterprise"
+        : a.get("kind") === "clinic" ? "clinic"
+        : a.get("acute") === "yes" ? "hospital-plus" : "hospital";
+      const pick = picks[id];
+      out("plan")!.textContent = pick.name;
+      out("month")!.textContent = pick.month;
+      out("line")!.textContent = pick.line;
+      form.querySelector("small")!.hidden = id === "enterprise";
+      form.querySelector<HTMLElement>("[data-q=acute]")!.hidden = a.get("kind") === "clinic";
+      for (const card of document.querySelectorAll<HTMLElement>(".plan")) card.classList.toggle("match", card.dataset.plan === id);
     };
-    range.addEventListener("input", show);
+    form.addEventListener("change", show);
     show();
   }
 </script>
@@ -75,8 +80,8 @@ const promise = [
       <div class="wrap">
         <nav class="crumbs-dark" aria-label="Breadcrumb"><a href="/">{SITE.brand}</a> / <span>Pricing</span></nav>
         <p class="eyebrow">Pricing</p>
-        <h1>Simple pricing. You pay by the bed.</h1>
-        <p class="lede">One price per bed, the whole hospital included, and no charge for each login. Charitable and government hospitals can pay no licence at all.</p>
+        <h1>Simple pricing for the whole hospital.</h1>
+        <p class="lede">Four plans, one yearly price each, and no charge for each login. Charitable and government hospitals can pay no licence at all.</p>
         <ul class="promise">{promise.map((p) => <li>{p}</li>)}</ul>
       </div>
     </section>
@@ -84,20 +89,27 @@ const promise = [
     <div class="paper">
       <section class="section calc-section" aria-labelledby="calc-title">
         <div class="wrap">
-          <div class="calc" data-rates={JSON.stringify(RATES)}>
+          <form class="calc chooser" data-picks={JSON.stringify(picks)} aria-labelledby="calc-title">
             <div class="calc-ask">
-              <h2 id="calc-title">How many beds do you have?</h2>
-              <p class="beds-out"><output for="beds" id="beds-out">50</output> beds</p>
-              <input id="beds" type="range" min="0" max="300" step="5" value="50" aria-label="Beds" aria-describedby="calc-result" />
-              <p class="scale" aria-hidden="true"><span>Clinic</span><span>100</span><span>200</span><span>300+</span></p>
+              <h2 id="calc-title">Which plan fits you?</h2>
+              {QUESTIONS.map((q) => (
+                <fieldset data-q={q.name}>
+                  <legend>{q.legend}</legend>
+                  <div class="opts">
+                    {q.options.map(([v, label]) => (
+                      <label class="opt"><input type="radio" name={q.name} value={v} checked={v === q.value} /><span>{label}</span></label>
+                    ))}
+                  </div>
+                </fieldset>
+              ))}
             </div>
             <div class="calc-result" id="calc-result" aria-live="polite">
               <span class="crab bob mascot" aria-hidden="true" set:html={chibi} />
-              <p class="plan-name" data-out="plan">Hospital plan</p>
-              <p class="big"><span data-out="month">₹30,000</span> <small>a month</small></p>
-              <p data-out="year">₹3,60,000 a year, plus a one-time go-live from ₹2,50,000.</p>
+              <p class="plan-name" data-out="plan">{picks["hospital-plus"].name}</p>
+              <p class="big"><span data-out="month">{picks["hospital-plus"].month}</span> <small>a month</small></p>
+              <p data-out="line">{picks["hospital-plus"].line}</p>
             </div>
-          </div>
+          </form>
           <p class="seva-hint">Charitable trust or government hospital? <a href="#care-title">Your licence can be ₹0 <span aria-hidden="true">→</span></a></p>
         </div>
       </section>
@@ -107,14 +119,14 @@ const promise = [
           <h2 id="plans-title" class="title">Plans</h2>
           <div class="plans">
             {PLANS.map((p) => (
-              <article class:list={["plan", { recommended: p.recommended }]} aria-labelledby={`plan-${p.id}`}>
+              <article class:list={["plan", { recommended: p.recommended }]} data-plan={p.id} aria-labelledby={`plan-${p.id}`}>
                 {p.recommended && <p class="badge">Recommended</p>}
                 <h3 id={`plan-${p.id}`}>{p.name}</h3>
                 <p class="for">{p.for}</p>
                 <p class="price">
-                  {p.price ? <><strong>{p.price}</strong> <span>{p.unit}</span></> : <strong>Talk to us</strong>}
+                  {p.monthly ? <><strong>{inr(p.monthly)}</strong> <span>/ month</span></> : <strong>Talk to us</strong>}
                 </p>
-                <p class="detail">{p.detail}</p>
+                <p class="detail">{planYear(p)}</p>
                 <p class="setup">{p.setup}</p>
                 <ul>{p.includes.map((i) => <li>{i}</li>)}</ul>
                 <a class:list={["btn", p.recommended ? "btn-primary" : "btn-ghost"]} href={p.cta.href}>{p.cta.label}</a>
@@ -200,7 +212,7 @@ const promise = [
       </section>
     </div>
 
-    <Demo source="pricing" />
+    <Demo source="pricing" size={{ label: "Plan you are interested in", options: [...PLANS.map((p) => p.name), "Seva Programme", "Not sure yet"] }} />
   </main>
   <Footer />
   <WhatsAppFloat />
@@ -233,9 +245,21 @@ const promise = [
     padding: 40px; border-radius: var(--radius-lg); background: var(--blue-tint);
     h2 { font: 800 clamp(1.5rem, 3vw, 2rem)/1.1 var(--display); letter-spacing: -.02em; margin: 0 0 12px; }
   }
-  .beds-out { margin: 0 0 8px; font: 800 1.2rem var(--display); color: var(--blue-deep); output { font-size: 2.6rem; } }
-  #beds { width: 100%; min-height: 32px; accent-color: var(--blue); cursor: pointer; }
-  .scale { display: flex; justify-content: space-between; margin: 4px 0 0; font: 600 .78rem var(--mono); color: var(--muted); }
+  fieldset { margin: 0 0 18px; padding: 0; border: 0; }
+  fieldset[hidden] { display: none; }
+  legend { padding: 0; margin-bottom: 10px; font-weight: 600; color: var(--ink); }
+  .opts { display: flex; flex-wrap: wrap; gap: 10px; }
+  .opt {
+    position: relative; display: inline-flex; cursor: pointer;
+    input { position: absolute; opacity: 0; inset: 0; margin: 0; cursor: pointer; }
+    span {
+      display: inline-flex; align-items: center; min-height: 44px; padding: 0 18px; border-radius: 999px;
+      border: 1.5px solid var(--line); background: #fff; color: var(--ink-2); font-weight: 600;
+      transition: background .15s ease, border-color .15s ease, color .15s ease;
+    }
+    input:checked + span { background: var(--blue); border-color: var(--blue); color: #fff; }
+    input:focus-visible + span { outline: 3px solid var(--blue); outline-offset: 3px; }
+  }
   .calc-result {
     position: relative; padding: 28px; border-radius: var(--radius-lg); background: #fff; box-shadow: var(--shadow-soft);
     p { margin: 0; color: var(--ink-2); }
@@ -249,9 +273,9 @@ const promise = [
   .narrow > * { max-width: 860px; }
   .title { font: 800 clamp(1.7rem, 3.4vw, 2.4rem)/1.1 var(--display); letter-spacing: -.025em; margin: 0 0 32px; max-width: 24ch; }
 
-  .plans { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; align-items: stretch; }
+  .plans { display: grid; grid-template-columns: repeat(4, 1fr); gap: 20px; align-items: stretch; }
   .plan {
-    display: flex; flex-direction: column; padding: 32px 28px; border: 1px solid var(--line);
+    display: flex; flex-direction: column; padding: 28px 22px; border: 1px solid var(--line);
     border-radius: var(--radius-lg); background: #fff; box-shadow: var(--shadow-soft);
     h3 { font: 800 1.5rem var(--display); letter-spacing: -.02em; margin: 0 0 6px; }
     ul { margin: 0 0 28px; padding-left: 1.1em; color: var(--ink-2); display: grid; gap: 8px; flex: 1; align-content: start; }
@@ -259,14 +283,15 @@ const promise = [
     .btn-primary { color: #fff; }
   }
   .plan.recommended { border: 2px solid var(--blue); box-shadow: var(--shadow-lift); }
+  .plan.match { outline: 3px solid var(--purple); outline-offset: 4px; }
   .badge {
     align-self: flex-start; margin: 0 0 14px; padding: 4px 12px; border-radius: 999px;
     background: var(--blue-tint); color: var(--blue-deep); font: 600 .74rem var(--mono); letter-spacing: .1em; text-transform: uppercase;
   }
-  .for { margin: 0 0 20px; color: var(--muted); min-height: 3em; }
+  .for { margin: 0 0 20px; color: var(--muted); min-height: 4.7em; }
   .price {
     margin: 0 0 6px;
-    strong { font: 800 2.4rem var(--display); letter-spacing: -.03em; }
+    strong { font: 800 2.1rem var(--display); letter-spacing: -.03em; }
     span { color: var(--muted); }
   }
   .detail { margin: 0 0 6px; color: var(--ink-2); font-size: .95rem; }
@@ -316,7 +341,8 @@ const promise = [
   summary { cursor: pointer; padding: 20px 0; font-weight: 700; font-size: 1.08rem; }
   details p { margin: 0 0 20px; color: var(--ink-2); }
 
-  @include below(xl) { .plans { grid-template-columns: 1fr; max-width: 560px; } .for { min-height: 0; } }
+  @media (max-width: 1180px) { .plans { grid-template-columns: 1fr 1fr; } }
+  @include below(md) { .plans { grid-template-columns: 1fr; max-width: 560px; } .for { min-height: 0; } }
   @include below(lg) { .calc { grid-template-columns: 1fr; padding: 28px 20px; gap: 48px; } }
   @include below(lg) { .grid { grid-template-columns: 1fr 1fr; } .care-grid { grid-template-columns: 1fr; gap: 32px; } }
   @include below(sm) {
