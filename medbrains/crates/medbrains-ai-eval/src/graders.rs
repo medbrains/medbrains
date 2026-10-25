@@ -293,10 +293,17 @@ pub fn ungrounded(case: &Case, source: &str, output: &str) -> Vec<Failure> {
 /// `5.90` and `5.9` are the same claim.
 fn canonical(n: &str) -> String {
     let n = &n.replace(',', "");
-    if n.contains('.') {
-        n.trim_end_matches('0').trim_end_matches('.').to_owned()
+    let n = if n.contains('.') {
+        n.trim_end_matches('0').trim_end_matches('.')
     } else {
-        n.trim_start_matches('0').to_owned()
+        n
+    };
+    // `0`, `0.00` and `00` are the same zero; `0.5` keeps its leading zero.
+    let n = n.trim_start_matches('0');
+    if n.is_empty() || n.starts_with('.') {
+        format!("0{n}")
+    } else {
+        n.to_owned()
     }
 }
 

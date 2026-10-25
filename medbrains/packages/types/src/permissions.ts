@@ -17,7 +17,7 @@ export interface PermissionDef {
   module: string;
 }
 
-/** 1145 permissions, one per constant in the Rust source. */
+/** 1146 permissions, one per constant in the Rust source. */
 export const PERMISSIONS: PermissionDef[] = [
   // dashboard
   {
@@ -6496,6 +6496,12 @@ export const PERMISSIONS: PermissionDef[] = [
     description: "Chat, and the caller's own conversation history. The three handlers behind it checked nothing at all: any signed-in account could send a prompt about a patient to the model. Held by the clinical roles the assistant is built for.",
     module: "ai",
   },
+  {
+    code: "ai.assistant.query",
+    label: "Let the assistant write read-only queries",
+    description: "For questions no report covers, the assistant may write one SELECT over the curated `ai_query` views — identifiers hashed, restricted classes excluded, read-only, time-boxed and audited. Whole-hospital figures, so held by no built-in role: admins hold it by bypass, and it can be granted to a custom role.",
+    module: "ai",
+  },
   // nurse
   {
     code: "nurse.profile.view",
@@ -7293,8 +7299,10 @@ export const P = {
   },
   AI: {
     ASSISTANT: {
+      QUERY: "ai.assistant.query",
       USE: "ai.assistant.use",
     },
+    ASSISTANT_QUERY: "ai.assistant.query",
     ASSISTANT_USE: "ai.assistant.use",
   },
   AMBULANCE: {

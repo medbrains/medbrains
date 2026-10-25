@@ -3584,6 +3584,14 @@ pub mod ai {
         /// could send a prompt about a patient to the model. Held by the
         /// clinical roles the assistant is built for.
         pub const USE: &str = "ai.assistant.use";
+        /// Let the assistant write read-only queries.
+        ///
+        /// For questions no report covers, the assistant may write one
+        /// SELECT over the curated `ai_query` views — identifiers hashed,
+        /// restricted classes excluded, read-only, time-boxed and audited.
+        /// Whole-hospital figures, so held by no built-in role: admins hold
+        /// it by bypass, and it can be granted to a custom role.
+        pub const QUERY: &str = "ai.assistant.query";
     }
 }
 

@@ -1,7 +1,10 @@
 import { Box, Group, Loader, Text } from "@mantine/core";
+import { useHasPermission } from "@medbrains/stores";
+import { P } from "@medbrains/types";
 import { IconAlertTriangle, IconTool } from "@tabler/icons-react";
 import { Badge } from "@/components/ui";
-import { AI_TOOL_LABELS } from "./tools";
+import { CodeBlock } from "./CodeBlock";
+import { AI_TOOL, AI_TOOL_LABELS } from "./tools";
 import type { ChatToolCall } from "./transport/types";
 import styles from "./unified-response.module.scss";
 
@@ -31,9 +34,19 @@ export function toolResultInfo(result: unknown): { outcome: ToolOutcome; message
   return { outcome: "done" };
 }
 
+/** The statement a `query` step ran, when its arguments carry one. */
+export function querySql(toolCall: ChatToolCall): string | undefined {
+  if (toolCall.name !== AI_TOOL.QUERY) return undefined;
+  const args = toolCall.args as { sql?: unknown } | null;
+  return typeof args?.sql === "string" ? args.sql : undefined;
+}
+
 /** A tool-call chip — red when the server BLOCKED the action, amber when a check did not run. */
 export function ToolView({ toolCall }: { toolCall: ChatToolCall }) {
   const { outcome, message } = toolResultInfo(toolCall.result);
+  // Only those who may run a query see its SQL; it names views and columns.
+  const canSeeSql = useHasPermission(P.AI.ASSISTANT.QUERY);
+  const sql = canSeeSql ? querySql(toolCall) : undefined;
   const label = AI_TOOL_LABELS[toolCall.name] ?? toolCall.name;
   const running = toolCall.status === "running" || toolCall.status === "pending";
   const flagged = !running && outcome !== "done";
@@ -71,6 +84,11 @@ export function ToolView({ toolCall }: { toolCall: ChatToolCall }) {
         >
           {message}
         </Text>
+      )}
+      {sql && (
+        <Box mt={4}>
+          <CodeBlock code={sql} language="sql" />
+        </Box>
       )}
     </Box>
   );
