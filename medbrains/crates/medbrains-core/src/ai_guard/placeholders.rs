@@ -73,7 +73,10 @@ mod tests {
             resolve_or_hide("Ravi has no allergies; [PATIENT_3] is not known."),
             "Ravi has no allergies; (not available) is not known."
         );
-        assert_eq!(resolve_or_hide("See [WITHHELD: restricted]."), "See [WITHHELD: restricted].");
+        assert_eq!(
+            resolve_or_hide("See [WITHHELD: restricted]."),
+            "See [WITHHELD: restricted]."
+        );
     }
 
     #[test]
@@ -81,9 +84,13 @@ mod tests {
         assert!(self_talk(
             "I have not tested a 12-month range, and my earlier placeholder answers were wrong."
         ));
-        assert!(self_talk("My earlier answer used placeholders rather than these figures."));
+        assert!(self_talk(
+            "My earlier answer used placeholders rather than these figures."
+        ));
         assert!(self_talk("I apologise for the confusion."));
-        assert!(!self_talk("Billed ₹4,64,76,791.72 in the 12 months to 25 Oct 2026."));
+        assert!(!self_talk(
+            "Billed ₹4,64,76,791.72 in the 12 months to 25 Oct 2026."
+        ));
         assert!(!self_talk("The earlier admission was on Monday."));
     }
 }

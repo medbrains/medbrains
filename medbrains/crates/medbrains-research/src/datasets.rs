@@ -172,6 +172,11 @@ pub async fn read(
                 sex: r.try_get(2)?,
                 pincode: r.try_get(3)?,
                 on: r.try_get(4)?,
+                hidden: if r.len() > 5 + n {
+                    r.try_get(5 + n)?
+                } else {
+                    None
+                },
                 values: (5..5 + n)
                     .map(|i| r.try_get::<Option<String>, _>(i))
                     .collect::<Result<_, _>>()?,

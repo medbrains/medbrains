@@ -30,6 +30,7 @@ fn cohort(n: u128, from: u128, icd: &str) -> Vec<RawRow> {
             pincode: Some("560020".to_owned()),
             on: day("2026-03-14"),
             values: vec![Some(icd.to_owned()), Some("3".to_owned())],
+            hidden: None,
         })
         .collect()
 }
@@ -113,4 +114,18 @@ fn two_exports_cannot_be_joined_on_the_patient_key() {
             .collect::<std::collections::HashSet<_>>()
     };
     assert!(keys(&a).is_disjoint(&keys(&b)));
+}
+
+#[test]
+fn a_restricted_name_beside_an_ordinary_code_is_left_out() {
+    let mut rows = cohort(6, 1, "E11");
+    let mut named = cohort(6, 10, "ZZ99");
+    for r in &mut named {
+        r.hidden = Some("Paranoid schizophrenia".to_owned());
+    }
+    rows.extend(named);
+    rows.extend(cohort(6, 20, "6A20"));
+    let out = release(FIELDS, rows, b"salt", "x");
+    assert_eq!(out.rows.len(), 6);
+    assert_eq!(out.report["restricted_rows_left_out"], 12);
 }

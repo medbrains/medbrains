@@ -2075,8 +2075,15 @@ mod tests {
     #[test]
     fn the_abdm_connection_stays_with_the_bypass_administrators() {
         for role in BUILT_IN_ROLES {
-            for code in [permissions::abdm::settings::MANAGE, permissions::abdm::bridge::REGISTER] {
-                assert!(!role.permissions.contains(&code), "{} holds {code}", role.code);
+            for code in [
+                permissions::abdm::settings::MANAGE,
+                permissions::abdm::bridge::REGISTER,
+            ] {
+                assert!(
+                    !role.permissions.contains(&code),
+                    "{} holds {code}",
+                    role.code
+                );
             }
         }
     }

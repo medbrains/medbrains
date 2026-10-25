@@ -55,30 +55,54 @@ async fn an_extract_keeps_to_its_hospital_and_leaves_restricted_records_out() {
     let Ok(url) = std::env::var("RESEARCH_TEST_DATABASE_URL") else {
         return;
     };
-    let db = sqlx::PgPool::connect(&url).await.unwrap_or_else(|e| panic!("{e}"));
-    sqlx::raw_sql(&clear()).execute(&db).await.unwrap_or_else(|e| panic!("{e}"));
-    sqlx::raw_sql(&plant()).execute(&db).await.unwrap_or_else(|e| panic!("{e}"));
+    let db = sqlx::PgPool::connect(&url)
+        .await
+        .unwrap_or_else(|e| panic!("{e}"));
+    sqlx::raw_sql(&clear())
+        .execute(&db)
+        .await
+        .unwrap_or_else(|e| panic!("{e}"));
+    sqlx::raw_sql(&plant())
+        .execute(&db)
+        .await
+        .unwrap_or_else(|e| panic!("{e}"));
     let a: Uuid = A.parse().unwrap_or_default();
     let period = (
         NaiveDate::from_ymd_opt(2026, 3, 1).unwrap_or_default(),
         NaiveDate::from_ymd_opt(2026, 3, 31).unwrap_or_default(),
     );
     let mut tx = db.begin().await.unwrap_or_else(|e| panic!("{e}"));
-    medbrains_db::pool::set_tenant_context(&mut tx, &a).await.unwrap_or_else(|e| panic!("{e}"));
+    medbrains_db::pool::set_tenant_context(&mut tx, &a)
+        .await
+        .unwrap_or_else(|e| panic!("{e}"));
 
-    let raw = datasets::read(&mut tx, a, "diagnoses", period).await.unwrap_or_else(|e| panic!("{e}"));
+    let raw = datasets::read(&mut tx, a, "diagnoses", period)
+        .await
+        .unwrap_or_else(|e| panic!("{e}"));
     assert_eq!(raw.len(), 14, "7 patients x 2 diagnoses at A, none from B");
     let fields = datasets::fields("diagnoses").unwrap_or_default();
     let out = deid::release(fields, raw, b"salt", "ref");
     let csv = deid::to_csv(&out.header, &out.rows);
     assert_eq!(out.rows.len(), 7);
-    assert!(!csv.contains("B20") && !csv.contains("Asha") && !csv.contains("RST-") && !csv.contains("98450"));
+    assert!(
+        !csv.contains("B20")
+            && !csv.contains("Asha")
+            && !csv.contains("RST-")
+            && !csv.contains("98450")
+    );
     assert!(csv.contains("\"560\"") && csv.contains("\"45-49\"") && csv.contains("\"2026-03\""));
 
-    let stays = datasets::read(&mut tx, a, "admissions", period).await.unwrap_or_else(|e| panic!("{e}"));
+    let stays = datasets::read(&mut tx, a, "admissions", period)
+        .await
+        .unwrap_or_else(|e| panic!("{e}"));
     assert_eq!(stays.len(), 6, "the medico-legal stay is not read");
-    let visits = datasets::read(&mut tx, a, "visits", period).await.unwrap_or_else(|e| panic!("{e}"));
+    let visits = datasets::read(&mut tx, a, "visits", period)
+        .await
+        .unwrap_or_else(|e| panic!("{e}"));
     assert_eq!(visits.len(), 7);
     drop(tx);
-    sqlx::raw_sql(&clear()).execute(&db).await.unwrap_or_else(|e| panic!("{e}"));
+    sqlx::raw_sql(&clear())
+        .execute(&db)
+        .await
+        .unwrap_or_else(|e| panic!("{e}"));
 }
