@@ -33,12 +33,14 @@ pub mod direct;
 mod order_filter;
 mod priority;
 mod reference_range;
+mod units;
 mod westgard;
 use catalog_search::{search_catalog, search_limit};
 use medbrains_core::synonyms::clean_synonyms;
 use order_filter::{Bind, build_order_filter};
 use priority::{normalize_lab_priority, token_priority};
 use reference_range::{LabRefRow, RefVerdict, judge};
+use units::{Converted, to_reference_unit};
 
 // ══════════════════════════════════════════════════════════
 //  Request / Response types
@@ -1578,10 +1580,11 @@ async fn tenant_critical(
     tenant_id: Uuid,
     parameter_name: &str,
     value: f64,
+    unit: Option<&str>,
     ctx: &PatientLabContext,
 ) -> Result<TenantCritical, AppError> {
-    let rule = sqlx::query_as::<_, (Option<f64>, Option<f64>)>(
-        "SELECT low_critical::float8, high_critical::float8 \
+    let rule = sqlx::query_as::<_, (Option<f64>, Option<f64>, Option<String>)>(
+        "SELECT low_critical::float8, high_critical::float8, unit \
            FROM critical_value_rules \
           WHERE tenant_id = $1 AND is_active = true AND deleted_at IS NULL \
             AND (lower(test_code) = lower($2) OR lower(test_name) = lower($2)) \
@@ -1599,7 +1602,14 @@ async fn tenant_critical(
     .fetch_optional(&mut **tx)
     .await?;
 
-    let Some((low, high)) = rule else {
+    let Some((low, high, rule_unit)) = rule else {
+        return Ok(TenantCritical::NoRule);
+    };
+    // The rule's limits are in the rule's unit; a value that cannot be put in
+    // it has not been ruled on.
+    let Converted::Value(value) =
+        to_reference_unit(value, unit, rule_unit.as_deref(), parameter_name)
+    else {
         return Ok(TenantCritical::NoRule);
     };
     if low.is_some_and(|limit| value < limit) {
@@ -1625,6 +1635,7 @@ async fn auto_flag(
     tenant_id: Uuid,
     parameter_name: &str,
     value: &str,
+    unit: Option<&str>,
     ctx: &PatientLabContext,
 ) -> Result<RefVerdict, AppError> {
     // Not a number: a culture, a serology, a description. The numeric bands
@@ -1634,7 +1645,7 @@ async fn auto_flag(
     };
 
     // The hospital's own limits are asked first, and win.
-    let tenant = tenant_critical(tx, tenant_id, parameter_name, numeric, ctx).await?;
+    let tenant = tenant_critical(tx, tenant_id, parameter_name, numeric, unit, ctx).await?;
     if let TenantCritical::Flagged(flag) = tenant {
         return Ok(RefVerdict::Flagged(flag));
     }
@@ -1646,7 +1657,7 @@ async fn auto_flag(
                 neonate_low::float8, neonate_high::float8, infant_low::float8, infant_high::float8, \
                 child_low::float8, child_high::float8, adult_m_low::float8, adult_m_high::float8, \
                 adult_f_low::float8, adult_f_high::float8, \
-                elderly_low::float8, elderly_high::float8 \
+                elderly_low::float8, elderly_high::float8, unit \
          FROM cds_lab_reference WHERE lower(analyte) = lower($1) OR lower(test) = lower($1) LIMIT 1",
     )
     .bind(parameter_name.trim())
@@ -1657,6 +1668,14 @@ async fn auto_flag(
         // No shared reference either. If the tenant ruled the value inside its
         // own limits that is a real judgement about criticality, but it says
         // nothing about the normal range, so this is still Unknown.
+        return Ok(RefVerdict::Unknown);
+    };
+    // The bands are written in the table's unit. A platelet count reported in
+    // 10^3/uL against a lakh/cumm range is a hundredfold off; a value that
+    // cannot be converted cannot be judged.
+    let Converted::Value(numeric) =
+        to_reference_unit(numeric, unit, row.unit.as_deref(), parameter_name)
+    else {
         return Ok(RefVerdict::Unknown);
     };
     Ok(judge(&row, numeric, &ctx.band, criticals_decided))
@@ -1740,6 +1759,7 @@ pub async fn add_results(
             claims.tenant_id,
             &r.parameter_name,
             &r.value,
+            r.unit.as_deref(),
             &lab_band,
         )
         .await?;
@@ -5366,6 +5386,7 @@ pub async fn auto_validate_result(
         claims.tenant_id,
         &result.parameter_name,
         &result.value,
+        result.unit.as_deref(),
         &band,
     )
     .await?;

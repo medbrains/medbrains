@@ -42,6 +42,8 @@ pub(crate) struct LabRefRow {
     pub adult_f_high: Option<f64>,
     pub elderly_low: Option<f64>,
     pub elderly_high: Option<f64>,
+    /// The unit every limit above is written in.
+    pub unit: Option<String>,
 }
 
 /// What the reference table is able to say about a value.
