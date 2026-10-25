@@ -162,7 +162,8 @@ pub async fn run_seed(pool: &PgPool) -> Result<(), Box<dyn std::error::Error>> {
         .execute(&mut *tx)
         .await?;
 
-        // Seed default sequences
+        // The tenants trigger (migration 1214) has already created the default
+        // sequences; this gives the seeded hospital its own prefixes.
         sqlx::query(
             "INSERT INTO sequences (tenant_id, seq_type, prefix, current_val, pad_width) VALUES \
              ($1, 'UHID', 'ACMS-2026-', 0, 5), \
@@ -170,7 +171,9 @@ pub async fn run_seed(pool: &PgPool) -> Result<(), Box<dyn std::error::Error>> {
              ($1, 'OPD_TOKEN', 'T', 0, 3), \
              ($1, 'INDENT', 'IND-', 0, 6), \
              ($1, 'ADVANCE', 'ADV-', 0, 6), \
-             ($1, 'CORPORATE_INVOICE', 'CINV-', 0, 6)",
+             ($1, 'CORPORATE_INVOICE', 'CINV-', 0, 6) \
+             ON CONFLICT (tenant_id, seq_type) DO UPDATE \
+             SET prefix = EXCLUDED.prefix, pad_width = EXCLUDED.pad_width",
         )
         .bind(tenant_id)
         .execute(&mut *tx)
