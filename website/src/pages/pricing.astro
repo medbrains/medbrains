@@ -8,12 +8,12 @@ import Header from "../components/Header.astro";
 import WhatsAppFloat from "../components/WhatsAppFloat.astro";
 import { SITE } from "../consts";
 import {
-  CHARGES, COMMITMENTS, FREE, PASS_THROUGH, PRICING_FAQ, QUOTE_ANSWERS, QUOTE_QUESTIONS, SEVA, STEPS, SUPPORT_US,
+  CHARGES, COMMITMENTS, FREE, PASS_THROUGH, PILOT, PRICING_FAQ, QUOTE_ANSWERS, QUOTE_QUESTIONS, SEVA, STEPS, SUPPORT_US, ZERO,
 } from "../data/pricing";
 import Base from "../layouts/Base.astro";
 
 const title = "MedBrains Pricing: Free Software, Paid Implementation";
-const description = "MedBrains hospital software and its updates are free. Hospitals pay for implementation, customisation and a yearly AMC, quoted after a free assessment.";
+const description = "MedBrains hospital software and every update cost ₹0, with a free 1-month pilot. Hospitals pay for implementation, customisation and a yearly AMC.";
 const home = new URL("/", Astro.site).href;
 const url = new URL("/pricing", Astro.site).href;
 const schema = [
@@ -33,6 +33,36 @@ const schema = [
 ---
 
 <script>
+  // The hero's ₹0: the currency symbol turns through a few currencies ("zero in any
+  // currency"). Static under reduced motion; pauses on hover, focus or the button.
+  const fig = document.querySelector<HTMLElement>("[data-zero]");
+  const cur = fig?.querySelector<HTMLElement>("[data-cur]");
+  const toggle = fig?.parentElement?.querySelector<HTMLButtonElement>("[data-cur-toggle]");
+  if (fig && cur && toggle && !matchMedia("(prefers-reduced-motion: reduce)").matches) {
+    const symbols = ["₹", "$", "€", "£", "د.إ", "ر.س", "¥"];
+    let i = 0, hold = false, stopped = false;
+    const box = fig.parentElement!;
+    box.addEventListener("pointerenter", () => { hold = true; });
+    box.addEventListener("pointerleave", () => { hold = false; });
+    box.addEventListener("focusin", () => { hold = true; });
+    box.addEventListener("focusout", () => { hold = false; });
+    toggle.hidden = false;
+    toggle.addEventListener("click", () => {
+      stopped = !stopped;
+      toggle.setAttribute("aria-pressed", String(stopped));
+      toggle.textContent = stopped ? "Play currencies" : "Pause currencies";
+    });
+    const flip = async () => {
+      if (hold || stopped) return;
+      i = (i + 1) % symbols.length;
+      await cur.animate([{ transform: "none", opacity: 1 }, { transform: "translateY(-60%)", opacity: 0 }], { duration: 120, easing: "ease-in" }).finished;
+      cur.textContent = symbols[i];
+      cur.classList.toggle("wide", symbols[i].length > 1);
+      cur.animate([{ transform: "translateY(60%)", opacity: 0 }, { transform: "none", opacity: 1 }], { duration: 120, easing: "ease-out" });
+    };
+    setInterval(flip, 2000);
+  }
+
   // "Get a quote": three answers about the hospital say how its go-live would look.
   const form = document.querySelector<HTMLFormElement>(".quote");
   if (form) {
@@ -59,6 +89,16 @@ const schema = [
         <p class="eyebrow">Pricing</p>
         <h1>Free software. <span>Expert implementation.</span></h1>
         <p class="lede">MedBrains and every update are free for every hospital and clinic. No subscription, no charge per user. We earn by setting it up well and keeping it running.</p>
+        <div class="zero">
+          <p class="figure" data-zero>
+            <span class="sr-only">Zero, in any currency.</span>
+            <span class="slot" aria-hidden="true"><span class="cur" data-cur>₹</span></span><span aria-hidden="true">0</span>
+          </p>
+          <ul class="zero-list">
+            {ZERO.map((z) => <li><span class="amt" aria-hidden="true"><span class="sym">₹</span>0</span><span class="sr-only">Zero rupees: </span>{z}</li>)}
+          </ul>
+          <button type="button" class="cur-toggle" aria-pressed="false" data-cur-toggle hidden>Pause currencies</button>
+        </div>
         <div class="actions">
           <a class="btn btn-primary" href="#quote">Get a quote <span aria-hidden="true">→</span></a>
           <a class="btn btn-ghost" href="#demo">Book a demo</a>
@@ -73,7 +113,12 @@ const schema = [
           <p class="eyebrow tag">Free, for everyone</p>
           <h2 id="free-title" class="title">What every hospital gets</h2>
           <div class="grid">
-            {FREE.map((d) => <article class="feature"><h3>{d.title}</h3><p>{d.body}</p></article>)}
+            {FREE.map((d) => (
+              <article class="feature">
+                <p class="price"><span aria-hidden="true"><span class="sym">₹</span>0</span><span class="sr-only">Zero rupees</span></p>
+                <h3>{d.title}</h3><p>{d.body}</p>
+              </article>
+            ))}
           </div>
         </div>
       </section>
@@ -85,6 +130,7 @@ const schema = [
           <div class="charges">
             {CHARGES.map((c) => (
               <article class="charge">
+                <p class="price quoted">Quoted</p>
                 <h3>{c.title}</h3>
                 <p class="when">{c.when}</p>
                 <p>{c.body}</p>
@@ -99,6 +145,7 @@ const schema = [
       <section class="section" aria-labelledby="how-title">
         <div class="wrap">
           <h2 id="how-title" class="title">How it works</h2>
+          <p class="pilot"><strong>{PILOT.line}</strong> {PILOT.body}</p>
           <ol class="steps">
             {STEPS.map((s) => <li><h3>{s.title}</h3><p>{s.body}</p></li>)}
           </ol>
@@ -138,6 +185,7 @@ const schema = [
         <div class="wrap narrow">
           <h2 id="promise-title" class="title">Our promises, to everyone</h2>
           <ul class="commit">{COMMITMENTS.map((c) => <li>{c}</li>)}</ul>
+          <p class="small">How we use AI and protect your data: <a href="/ai-and-data-safety">AI and data safety</a>.</p>
           <div class="seva">
             <p><strong>{SEVA.line}</strong> <a href={SEVA.cta.href}>{SEVA.cta.label} <span aria-hidden="true">→</span></a></p>
             <details>
@@ -187,6 +235,39 @@ const schema = [
     .lede { color: var(--night-text); font-size: 1.15rem; max-width: 58ch; margin: 0 0 32px; }
     .btn-ghost { color: #fff; }
   }
+  .zero {
+    position: relative; display: flex; flex-wrap: wrap; align-items: center; gap: 12px 40px; margin: 0 0 36px;
+    padding: 24px 28px; max-width: 720px; border: 1px solid var(--night-line); border-radius: var(--radius-lg); background: rgb(255 255 255 / 4%);
+  }
+  .figure {
+    display: flex; align-items: center; height: 1em; margin: 0;
+    font: 900 clamp(4rem, 10vw, 6.4rem)/1 var(--display); letter-spacing: -.04em; color: #fff;
+  }
+  /* Fixed-width slot: the symbol changes, nothing around it moves. */
+  .slot { display: inline-flex; align-items: center; justify-content: flex-end; width: .78em; height: 1em; overflow: hidden; color: var(--sky); }
+  .cur { display: inline-block; }
+  /* ₹ sits outside Archivo's latin subset; drawing currency symbols in the system face
+     keeps the 86 KB latin-ext font off the page. */
+  .cur, .sym { font-family: system-ui, sans-serif; }
+  .cur.wide { font-size: .42em; letter-spacing: 0; }
+  .zero-list {
+    margin: 0; padding: 0; list-style: none; display: grid; gap: 8px; color: var(--night-text);
+    .amt { display: inline-block; min-width: 2.6em; font: 800 1.15rem var(--display); color: #fff; }
+  }
+  .cur-toggle {
+    position: absolute; top: 12px; right: 12px; min-height: 32px; padding: 0 14px;
+    border: 1px solid var(--night-line); border-radius: 999px; background: none; color: var(--night-text);
+    font: 600 .82rem var(--sans); cursor: pointer;
+  }
+  .cur-toggle:hover { color: #fff; }
+  .cur-toggle[hidden] { display: none; }
+  .price { margin: 0 0 10px !important; font: 900 2.2rem/1 var(--display) !important; letter-spacing: -.03em; color: var(--blue) !important; }
+  .quoted { font-size: 1.6rem !important; color: var(--blue-deep) !important; }
+  .pilot {
+    margin: -12px 0 32px; padding: 16px 20px; max-width: 860px; border-left: 4px solid var(--purple);
+    background: var(--paper-2); border-radius: 0 var(--radius) var(--radius) 0; color: var(--ink-2);
+    strong { color: var(--ink); }
+  }
   .crumbs-dark { margin-bottom: 28px; font-size: .88rem; color: var(--night-text); a { color: #fff; } }
   .actions { display: flex; flex-wrap: wrap; gap: 12px; }
 
@@ -221,7 +302,7 @@ const schema = [
   .btn.dark { margin-top: 24px; color: var(--ink); }
   .steps {
     margin: 0; padding: 0; list-style: none; counter-reset: step;
-    display: grid; grid-template-columns: repeat(4, 1fr); gap: 20px;
+    display: grid; grid-template-columns: repeat(4, 1fr); gap: 28px 20px;
     li { counter-increment: step; padding-top: 16px; border-top: 2px solid var(--line); }
     li::before { content: counter(step, decimal-leading-zero); font: 600 .8rem var(--mono); color: var(--purple); }
     h3 { font: 800 1.15rem var(--display); margin: 6px 0 6px; }

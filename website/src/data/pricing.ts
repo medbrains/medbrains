@@ -2,7 +2,7 @@
 // Approved model (founder, 2026-10-25): software and updates free; implementation,
 // customisation and AMC quoted per hospital. No price is published.
 
-/** What every hospital and clinic gets, free. */
+/** What every hospital and clinic gets, at ₹0. */
 export const FREE = [
   { title: "Every module", body: "Registration, OPD, IPD, nursing, lab, radiology, pharmacy, OT, emergency, GST billing and cashless claims. Nothing held back." },
   { title: "Every update", body: "Each new version and feature, for as long as you run MedBrains. No upgrade fees." },
@@ -11,6 +11,9 @@ export const FREE = [
   { title: "Safety rules for everyone", body: "Allergy checks, drug-law rules at the counter, two-ID checks and the audit trail. Never an upgrade." },
   { title: "Your data, always", body: "A full export whenever you ask. It is your hospital's record, not ours." },
 ];
+
+/** The ₹0 line under the hero. */
+export const ZERO = ["Software licence", "Every update, for as long as you run it", "1-month pilot"];
 
 export interface Charge {
   title: string;
@@ -58,10 +61,19 @@ export const CHARGES: Charge[] = [
 /** Costs passed through as they are. */
 export const PASS_THROUGH = "SMS, WhatsApp and heavy use of a hosted AI model are passed through at the provider's cost, with no mark-up. GST at 18% is added to every invoice.";
 
+/** From first visit to go-live (founder, 2026-10-25): nobody signs before trying it. */
+export const PILOT = {
+  line: "A free 1-month pilot, after the assessment and before any contract.",
+  body: "We set MedBrains up for your hospital on our hosting, for the departments and modules agreed in writing before it starts. Your teams use it for a month on real work, and then you decide.",
+};
+
 export const STEPS = [
   { title: "Free assessment", body: "We see how your hospital runs today: departments, volumes and current software." },
-  { title: "A written quote", body: "Implementation, any customisation and AMC, item by item, before you commit." },
-  { title: "Go-live", body: "A clinic can start in days. A hospital goes live in phases, front desk and OPD first." },
+  { title: "A written proposal", body: "Implementation, any customisation and AMC, item by item, and the scope of the pilot." },
+  { title: "Free 1-month pilot", body: "MedBrains set up for your hospital, for the departments agreed in writing, for your teams to use and evaluate." },
+  { title: "You decide", body: "Carry on, or stop with no obligation. If you stop, your pilot data is exported to you and deleted on request." },
+  { title: "Contract", body: "An order form for the implementation, customisation and AMC in your proposal." },
+  { title: "Implementation and go-live", body: "A clinic can start in days. A hospital goes live in phases, front desk and OPD first." },
   { title: "Free updates", body: "New versions and features keep arriving, at no charge." },
 ];
 
@@ -124,7 +136,8 @@ export const PRICING_FAQ = [
   { q: "What does AMC cover?", a: "Help desk and support, bug fixes, monitoring, checked daily backups and small configuration changes. If we host MedBrains for you, hosting in India is part of the AMC; on your own server, AMC covers support." },
   { q: "Is AMC mandatory?", a: "No, but we recommend it. AMC is how your system stays monitored, backed up and supported after go-live, and it is required if we host MedBrains for you, because hosting is part of it." },
   { q: "What if we don't renew AMC?", a: "The software keeps working, updates stay free and your data stays yours. Support and monitoring stop. If we host MedBrains for you, we give 30 days' notice and a full export of your data before hosting stops." },
-  { q: "How much does it cost?", a: "Implementation and AMC depend on your departments and how much data comes across, so we quote them in writing after a free assessment, before you commit. GST at 18% is added." },
+  { q: "Can we try it before we commit?", a: "Yes. After the free assessment you get a free 1-month pilot: MedBrains set up on our hosting for the departments and modules agreed in writing before it starts, for your teams to use on real work. There is no obligation to continue. If you go ahead, your pilot data carries over; if you do not, we export it to you and delete it on request." },
+  { q: "How much does it cost?", a: "Implementation and AMC depend on your departments and how much data comes across, so we quote them in writing after a free assessment and the free 1-month pilot, before you commit. GST at 18% is added." },
   { q: "What about AI, SMS and WhatsApp costs?", a: "Everyday AI use is free within fair use. SMS, WhatsApp and heavy use of a hosted AI model are passed through at the provider's cost, with no mark-up." },
   { q: "Can we support MedBrains?", a: "Yes, if you wish: lend your IT team to test new releases, contribute development or ideas, introduce another hospital, sponsor a feature every hospital gets, or fund implementation for a charitable or government hospital. It is optional and does not change your support. Any payment is invoiced to MedBrains with GST as applicable, not as a donation." },
   { q: "Do charitable hospitals pay less?", a: "Charitable, trust and government hospitals get implementation at cost. Send us your registration documents and we reply within 7 working days." },
