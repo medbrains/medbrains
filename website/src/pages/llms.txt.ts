@@ -3,6 +3,7 @@ import { SITE } from "../consts";
 import { FAQ, MODULE_GROUPS, SURFACES, TRUST } from "../data/content";
 import { GUIDE_LIST, RESOURCES, TOOLS } from "../data/guides";
 import { MODULE_PAGES } from "../data/modules";
+import { CARE, GST_NOTE, PLANS, PRICING_DRAFT } from "../data/pricing";
 import { getPosts } from "../lib/blog";
 
 // llms.txt (llmstxt.org): a plain summary for AI assistants, built from the
@@ -22,6 +23,13 @@ export const GET: APIRoute = async ({ site }) => {
     ...SURFACES.map((s) => `- ${s.kicker}: ${s.body}`),
     "- ABDM, NHCX and UHI: built for these networks; not yet certified by NHA.",
     `- Contact: ${SITE.email}`,
+    "",
+    "## Pricing",
+    ...(PRICING_DRAFT ? ["- Draft: prices to be confirmed."] : []),
+    ...PLANS.map((p) => `- ${p.name} (${p.for}): ${p.price ? `${p.price} ${p.unit}. ${p.detail}` : p.detail} ${p.setup}.`),
+    `- ${CARE.name}: ${CARE.pitch} ${CARE.funding}`,
+    `- ${GST_NOTE}`,
+    link("Pricing", "/pricing", "plans, the Seva Programme for charitable and government hospitals, what implementation includes, add-ons"),
     "",
     "## Modules",
     ...MODULE_GROUPS.map((g) => `- ${g.label}: ${g.items.join(", ")}`),

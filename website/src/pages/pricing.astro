@@ -1,0 +1,327 @@
+---
+// Plans and prices. Every figure comes from src/data/pricing.ts.
+import Demo from "../components/Demo.astro";
+import Footer from "../components/Footer.astro";
+import Header from "../components/Header.astro";
+import WhatsAppFloat from "../components/WhatsAppFloat.astro";
+import { SITE } from "../consts";
+import chibi from "../assets/mascot/crab-chibi.svg?raw";
+import { ADD_ONS, AI, CARE, COMMITMENTS, GST_NOTE, INCLUDED, PLANS, PRICING_DRAFT, PRICING_FAQ, RATES } from "../data/pricing";
+import Base from "../layouts/Base.astro";
+
+const title = "Pricing for Hospital Management Software | MedBrains";
+const description = "MedBrains plans for clinics, hospitals and groups, priced by beds and billed annually, with a licence-waived programme for charitable and government hospitals.";
+const home = new URL("/", Astro.site).href;
+const url = new URL("/pricing", Astro.site).href;
+const schema = [
+  {
+    "@type": "BreadcrumbList",
+    itemListElement: [
+      { "@type": "ListItem", position: 1, name: SITE.brand, item: home },
+      { "@type": "ListItem", position: 2, name: "Pricing", item: url },
+    ],
+  },
+  { "@type": "WebPage", name: "MedBrains pricing", url, description, inLanguage: "en-IN" },
+  {
+    "@type": "FAQPage",
+    mainEntity: PRICING_FAQ.map((f) => ({ "@type": "Question", name: f.q, acceptedAnswer: { "@type": "Answer", text: f.a } })),
+  },
+];
+const promise = [
+  "One record per patient",
+  "Safety rules built in",
+  "NABH-aligned, built for ABDM",
+  "AI drafts, clinicians sign",
+  "Apps, TV boards, kiosk",
+  "India-hosted, backed up daily",
+];
+---
+
+<script>
+  // The bed calculator: same rules as the plan cards, from the RATES in src/data/pricing.ts.
+  const calc = document.querySelector<HTMLElement>(".calc");
+  const range = document.querySelector<HTMLInputElement>("#beds");
+  if (calc && range) {
+    const r = JSON.parse(calc.dataset.rates ?? "{}");
+    const inr = (n: number) => `₹${n.toLocaleString("en-IN")}`;
+    const out = (k: string) => calc.querySelector<HTMLElement>(`[data-out="${k}"]`);
+    const show = () => {
+      const beds = Number(range.value);
+      const label = beds >= 300 ? "300+" : beds === 0 ? "No" : String(beds);
+      document.getElementById("beds-out")!.textContent = label;
+      range.setAttribute("aria-valuetext", `${label} beds`);
+      const [plan, month, year] =
+        beds <= r.clinicMaxBeds
+          ? ["Clinic plan", inr(r.clinicMonthly), `${inr(r.clinicMonthly * 12)} a year, plus a one-time go-live from ${inr(r.clinicSetup)}.`]
+          : beds <= r.hospitalMaxBeds
+            ? ["Hospital plan", inr(Math.max(beds, r.minBeds) * r.perBedMonthly),
+               `${inr(Math.max(beds, r.minBeds) * r.perBedMonthly * 12)} a year, plus a one-time go-live from ${inr(r.hospitalSetup)}.`]
+            : ["Enterprise", "Let's talk", "Above 200 beds we plan the price with you, around how you run."];
+      out("plan")!.textContent = plan;
+      out("month")!.textContent = month;
+      out("year")!.textContent = year;
+      calc.querySelector("small")!.hidden = beds > r.hospitalMaxBeds;
+    };
+    range.addEventListener("input", show);
+    show();
+  }
+</script>
+
+<Base title={title} description={description} schema={schema} noindex={PRICING_DRAFT}>
+  <Header />
+  <main id="main">
+    {PRICING_DRAFT && <p class="draft" role="note">DRAFT: prices to be confirmed. Nothing on this page is an offer yet.</p>}
+    <section class="hero">
+      <div class="wrap">
+        <nav class="crumbs-dark" aria-label="Breadcrumb"><a href="/">{SITE.brand}</a> / <span>Pricing</span></nav>
+        <p class="eyebrow">Pricing</p>
+        <h1>Simple pricing. You pay by the bed.</h1>
+        <p class="lede">One price per bed, the whole hospital included, and no charge for each login. Charitable and government hospitals can pay no licence at all.</p>
+        <ul class="promise">{promise.map((p) => <li>{p}</li>)}</ul>
+      </div>
+    </section>
+
+    <div class="paper">
+      <section class="section calc-section" aria-labelledby="calc-title">
+        <div class="wrap">
+          <div class="calc" data-rates={JSON.stringify(RATES)}>
+            <div class="calc-ask">
+              <h2 id="calc-title">How many beds do you have?</h2>
+              <p class="beds-out"><output for="beds" id="beds-out">50</output> beds</p>
+              <input id="beds" type="range" min="0" max="300" step="5" value="50" aria-label="Beds" aria-describedby="calc-result" />
+              <p class="scale" aria-hidden="true"><span>Clinic</span><span>100</span><span>200</span><span>300+</span></p>
+            </div>
+            <div class="calc-result" id="calc-result" aria-live="polite">
+              <span class="crab bob mascot" aria-hidden="true" set:html={chibi} />
+              <p class="plan-name" data-out="plan">Hospital plan</p>
+              <p class="big"><span data-out="month">₹30,000</span> <small>a month</small></p>
+              <p data-out="year">₹3,60,000 a year, plus a one-time go-live from ₹2,50,000.</p>
+            </div>
+          </div>
+          <p class="seva-hint">Charitable trust or government hospital? <a href="#care-title">Your licence can be ₹0 <span aria-hidden="true">→</span></a></p>
+        </div>
+      </section>
+
+      <section class="section" aria-labelledby="plans-title">
+        <div class="wrap">
+          <h2 id="plans-title" class="title">Plans</h2>
+          <div class="plans">
+            {PLANS.map((p) => (
+              <article class:list={["plan", { recommended: p.recommended }]} aria-labelledby={`plan-${p.id}`}>
+                {p.recommended && <p class="badge">Recommended</p>}
+                <h3 id={`plan-${p.id}`}>{p.name}</h3>
+                <p class="for">{p.for}</p>
+                <p class="price">
+                  {p.price ? <><strong>{p.price}</strong> <span>{p.unit}</span></> : <strong>Talk to us</strong>}
+                </p>
+                <p class="detail">{p.detail}</p>
+                <p class="setup">{p.setup}</p>
+                <ul>{p.includes.map((i) => <li>{i}</li>)}</ul>
+                <a class:list={["btn", p.recommended ? "btn-primary" : "btn-ghost"]} href={p.cta.href}>{p.cta.label}</a>
+              </article>
+            ))}
+          </div>
+          <p class="note">{GST_NOTE}</p>
+        </div>
+      </section>
+
+      <section class="section care" aria-labelledby="care-title">
+        <div class="wrap">
+          <p class="eyebrow accent">For charitable, trust and government hospitals</p>
+          <h2 id="care-title" class="title">{CARE.name}</h2>
+          <div class="care-grid">
+            <div>
+              <p class="pitch">{CARE.pitch}</p>
+              <p class="pitch">{CARE.anchor}</p>
+              <div class="table-wrap">
+                <table class="rates">
+                  <caption>Seva Programme rate card, excluding GST</caption>
+                  <thead><tr>{CARE.rateCard.head.map((h) => <th scope="col">{h}</th>)}</tr></thead>
+                  <tbody>{CARE.rateCard.rows.map((r) => <tr><th scope="row">{r[0]}</th><td>{r[1]}</td><td>{r[2]}</td></tr>)}</tbody>
+                </table>
+              </div>
+              <p class="small">{CARE.rateCard.note}</p>
+              <p class="small">{CARE.funding}</p>
+              <a class="btn btn-primary" href={CARE.cta.href}>{CARE.cta.label} <span aria-hidden="true">→</span></a>
+            </div>
+            <div class="who">
+              <h3>Who qualifies</h3>
+              <ul>{CARE.eligibility.map((e) => <li>{e}</li>)}</ul>
+              <h3>What we ask for</h3>
+              <ul>{CARE.documents.map((e) => <li>{e}</li>)}</ul>
+              <p>{CARE.process}</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="section" aria-labelledby="promise-title">
+        <div class="wrap narrow">
+          <h2 id="promise-title" class="title">On every plan, paid or not</h2>
+          <ul class="commit">{COMMITMENTS.map((c) => <li>{c}</li>)}</ul>
+        </div>
+      </section>
+
+      <section class="section tinted" aria-labelledby="included-title">
+        <div class="wrap">
+          <h2 id="included-title" class="title">What implementation and annual care include</h2>
+          <div class="grid">
+            {INCLUDED.map((d) => <article class="feature"><h3>{d.title}</h3><p>{d.body}</p></article>)}
+          </div>
+        </div>
+      </section>
+
+      <section class="section ai" aria-labelledby="ai-title">
+        <div class="wrap care-grid">
+          <div>
+            <p class="eyebrow accent">Clinical AI</p>
+            <h2 id="ai-title" class="title">{AI.title}</h2>
+            <p class="pitch">{AI.body}</p>
+            <p class="small">{AI.caveat}</p>
+          </div>
+          <ul class="ai-points">{AI.points.map((p) => <li>{p}</li>)}</ul>
+        </div>
+      </section>
+
+      <section class="section tinted" aria-labelledby="addons-title">
+        <div class="wrap">
+          <h2 id="addons-title" class="title">Add-ons</h2>
+          <div class="grid">
+            {ADD_ONS.map((d) => <article class="feature"><h3>{d.title}</h3><p>{d.body}</p></article>)}
+          </div>
+        </div>
+      </section>
+
+      <section class="section" aria-labelledby="faq-title">
+        <div class="wrap narrow">
+          <h2 id="faq-title" class="title">Questions</h2>
+          {PRICING_FAQ.map((f) => <details><summary>{f.q}</summary><p>{f.a}</p></details>)}
+        </div>
+      </section>
+    </div>
+
+    <Demo source="pricing" />
+  </main>
+  <Footer />
+  <WhatsAppFloat />
+</Base>
+
+<style lang="scss">
+  @use "../styles/mixins" as *;
+
+  .draft {
+    margin: 0; padding: 10px 24px; text-align: center; font: 600 .9rem var(--mono);
+    background: #fff3cd; color: var(--ink); border-bottom: 1px solid #e6c65c;
+  }
+  .hero {
+    color: #fff; padding: 72px 0 88px;
+    background: radial-gradient(900px 500px at 80% -20%, rgb(15 98 254 / 35%), transparent 60%), var(--night);
+    .eyebrow { color: var(--pulse); }
+    h1 { font: 900 clamp(2.1rem, 5vw, 3.8rem) var(--display); letter-spacing: -.035em; line-height: 1.04; margin: 0 0 20px; max-width: 20ch; }
+    .lede { color: var(--night-text); font-size: 1.15rem; max-width: 60ch; margin: 0 0 32px; }
+  }
+  .crumbs-dark { margin-bottom: 28px; font-size: .88rem; color: var(--night-text); a { color: #fff; } }
+  .promise {
+    margin: 0; padding: 0; list-style: none; display: flex; flex-wrap: wrap; gap: 10px;
+    li { padding: 8px 14px; border: 1px solid var(--night-line); border-radius: 999px; font-size: .92rem; color: var(--night-text); }
+  }
+
+  .paper { background: var(--paper); color: var(--ink); }
+  .calc-section { padding-bottom: 0 !important; }
+  .calc {
+    display: grid; grid-template-columns: 1.2fr 1fr; gap: 40px; align-items: center;
+    padding: 40px; border-radius: var(--radius-lg); background: var(--blue-tint);
+    h2 { font: 800 clamp(1.5rem, 3vw, 2rem)/1.1 var(--display); letter-spacing: -.02em; margin: 0 0 12px; }
+  }
+  .beds-out { margin: 0 0 8px; font: 800 1.2rem var(--display); color: var(--blue-deep); output { font-size: 2.6rem; } }
+  #beds { width: 100%; min-height: 32px; accent-color: var(--blue); cursor: pointer; }
+  .scale { display: flex; justify-content: space-between; margin: 4px 0 0; font: 600 .78rem var(--mono); color: var(--muted); }
+  .calc-result {
+    position: relative; padding: 28px; border-radius: var(--radius-lg); background: #fff; box-shadow: var(--shadow-soft);
+    p { margin: 0; color: var(--ink-2); }
+    .mascot { position: absolute; top: -34px; right: 18px; width: 64px; height: 64px; }
+  }
+  .plan-name { font: 600 .78rem var(--mono) !important; letter-spacing: .12em; text-transform: uppercase; color: var(--purple) !important; }
+  .big { margin: 6px 0 8px !important; color: var(--ink) !important; span { font: 800 2.6rem var(--display); letter-spacing: -.03em; } small { color: var(--muted); font-size: 1rem; } }
+  .seva-hint { margin: 20px 0 0; font-weight: 600; a { color: var(--purple); } }
+  .paper .section { padding: 88px 0; }
+  .tinted { background: var(--paper-2); }
+  .narrow > * { max-width: 860px; }
+  .title { font: 800 clamp(1.7rem, 3.4vw, 2.4rem)/1.1 var(--display); letter-spacing: -.025em; margin: 0 0 32px; max-width: 24ch; }
+
+  .plans { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; align-items: stretch; }
+  .plan {
+    display: flex; flex-direction: column; padding: 32px 28px; border: 1px solid var(--line);
+    border-radius: var(--radius-lg); background: #fff; box-shadow: var(--shadow-soft);
+    h3 { font: 800 1.5rem var(--display); letter-spacing: -.02em; margin: 0 0 6px; }
+    ul { margin: 0 0 28px; padding-left: 1.1em; color: var(--ink-2); display: grid; gap: 8px; flex: 1; align-content: start; }
+    .btn { align-self: flex-start; color: var(--ink); }
+    .btn-primary { color: #fff; }
+  }
+  .plan.recommended { border: 2px solid var(--blue); box-shadow: var(--shadow-lift); }
+  .badge {
+    align-self: flex-start; margin: 0 0 14px; padding: 4px 12px; border-radius: 999px;
+    background: var(--blue-tint); color: var(--blue-deep); font: 600 .74rem var(--mono); letter-spacing: .1em; text-transform: uppercase;
+  }
+  .for { margin: 0 0 20px; color: var(--muted); min-height: 3em; }
+  .price {
+    margin: 0 0 6px;
+    strong { font: 800 2.4rem var(--display); letter-spacing: -.03em; }
+    span { color: var(--muted); }
+  }
+  .detail { margin: 0 0 6px; color: var(--ink-2); font-size: .95rem; }
+  .setup { margin: 0 0 20px; padding-bottom: 20px; border-bottom: 1px solid var(--line); color: var(--ink-2); font-size: .95rem; font-weight: 600; }
+  .note { margin: 24px 0 0; color: var(--muted); font-size: .95rem; }
+
+  .care { background: linear-gradient(135deg, rgb(133 27 127 / 6%), rgb(15 98 254 / 6%)), var(--paper); }
+  .care-grid { display: grid; grid-template-columns: 1.1fr 1fr; gap: 56px; align-items: start; }
+  .care .eyebrow.accent { color: var(--purple); background: none; padding: 0; }
+  .pitch { margin: 0 0 24px; color: var(--ink-2); font-size: 1.08rem; max-width: 56ch; }
+  .table-wrap { overflow-x: auto; margin: 0 0 12px; }
+  .rates {
+    width: 100%; border-collapse: collapse; font-size: .98rem;
+    caption { text-align: left; font: 600 .74rem var(--mono); letter-spacing: .12em; text-transform: uppercase; color: var(--muted); padding-bottom: 10px; }
+    th, td { text-align: left; padding: 12px 12px 12px 0; border-bottom: 1px solid var(--line); vertical-align: top; }
+    thead th { font-size: .85rem; color: var(--muted); font-weight: 600; }
+    tbody th { font-weight: 600; }
+    td { font-weight: 700; }
+  }
+  .care .small { margin: 0 0 14px; }
+  .care .btn { margin-top: 12px; }
+  .who h3 + ul { margin-bottom: 20px; }
+  .commit {
+    margin: 0; padding: 0; list-style: none; display: grid; gap: 12px;
+    li { padding: 16px 20px 16px 24px; border-left: 4px solid var(--blue); background: var(--paper-2); border-radius: 0 var(--radius) var(--radius) 0; color: var(--ink-2); font-size: 1.05rem; }
+  }
+  .who {
+    padding: 28px; border-radius: var(--radius-lg); background: #fff; border: 1px solid var(--line);
+    h3 { font: 800 1.2rem var(--display); margin: 0 0 12px; }
+    ul { margin: 0 0 16px; padding-left: 1.1em; display: grid; gap: 8px; color: var(--ink-2); }
+    p { margin: 0; color: var(--muted); font-size: .95rem; }
+  }
+
+  .ai .eyebrow.accent { color: var(--purple); background: none; padding: 0; }
+  .small { margin: 0; color: var(--muted); font-size: .95rem; max-width: 56ch; }
+  .ai-points {
+    margin: 0; padding: 0; list-style: none; display: grid; gap: 14px;
+    li { padding: 18px 20px 18px 24px; border-left: 4px solid var(--purple); background: var(--paper-2); border-radius: 0 var(--radius) var(--radius) 0; color: var(--ink-2); }
+  }
+  .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; }
+  .feature {
+    padding: 26px; border: 1px solid var(--line); border-radius: 18px; background: #fff; box-shadow: var(--shadow-soft);
+    h3 { font: 800 1.12rem var(--display); letter-spacing: -.02em; margin: 0 0 8px; }
+    p { margin: 0; color: var(--ink-2); }
+  }
+  details { border-bottom: 1px solid var(--line); }
+  summary { cursor: pointer; padding: 20px 0; font-weight: 700; font-size: 1.08rem; }
+  details p { margin: 0 0 20px; color: var(--ink-2); }
+
+  @include below(xl) { .plans { grid-template-columns: 1fr; max-width: 560px; } .for { min-height: 0; } }
+  @include below(lg) { .calc { grid-template-columns: 1fr; padding: 28px 20px; gap: 48px; } }
+  @include below(lg) { .grid { grid-template-columns: 1fr 1fr; } .care-grid { grid-template-columns: 1fr; gap: 32px; } }
+  @include below(sm) {
+    .grid { grid-template-columns: 1fr; }
+    .paper .section { padding: 56px 0; }
+    .plan, .who { padding: 24px 20px; }
+  }
+</style>

@@ -1,11 +1,37 @@
 ---
 import { SITE } from "../consts";
+import { CAMP_PAGES } from "../data/camp-pages";
+import { COMPARE_PAGES } from "../data/compare-pages";
+import { MODULE_PAGES } from "../data/modules";
+import { TOKEN_PAGES } from "../data/token-pages";
 
 interface Props {
   /** White bar for light pages (the blog). */
   light?: boolean;
 }
 const { light = false } = Astro.props;
+
+const page = (p: { slug: string; eyebrow: string }) => ({ href: `/${p.slug}`, label: p.eyebrow });
+const bySlug = (slug: string) => {
+  const p = [...MODULE_PAGES, ...CAMP_PAGES, ...TOKEN_PAGES].find((m) => m.slug === slug);
+  if (!p) throw new Error(`Header: no page ${slug}`);
+  return page(p);
+};
+const SOLUTIONS = [
+  {
+    label: "By facility",
+    links: ["hospital-management-software", "clinic-management-software", "health-camp-software"].map(bySlug),
+  },
+  {
+    label: "By need",
+    links: [
+      ...["hospital-billing-software", "pharmacy-management-software", "lab-management-software",
+        "opd-queue-management", "hospital-marketing-software"].map(bySlug),
+      { href: "/#ai", label: "AI-native clinical tools" },
+    ],
+  },
+  { label: "Buying guides", links: COMPARE_PAGES.map(page) },
+];
 ---
 
 <header class:list={["header", { light }]} data-nosnippet>
@@ -14,19 +40,63 @@ const { light = false } = Astro.props;
       <img src="/logo/medbrains-mark.svg" alt="" width="32" height="32" />
       <span>{SITE.brand}</span>
     </a>
-    <nav aria-label="Main">
+    <nav id="site-nav" class="nav" aria-label="Main">
+      <div class="sol">
+        <button type="button" class="sol-btn" aria-expanded="false" aria-controls="sol-panel">Solutions <span class="chev" aria-hidden="true"></span></button>
+        <div id="sol-panel" class="sol-panel">
+          {SOLUTIONS.map((g) => (
+            <div class="group">
+              <p>{g.label}</p>
+              {g.links.map((l) => <a href={l.href}>{l.label}</a>)}
+            </div>
+          ))}
+        </div>
+      </div>
       <a href="/#journey">How it works</a>
       <a href="/#modules">Modules</a>
-      <a href="/#ai">AI</a>
-      <a href="/#apps">Apps</a>
       <a href="/#trust">Compliance</a>
-      <a href="/#faq">FAQ</a>
+      <a href="/pricing">Pricing</a>
       <a href="/blog">Blog</a>
+      <a class="nav-signin" href={SITE.signIn}>Sign in</a>
     </nav>
     <a class="signin" href={SITE.signIn}>Sign in</a>
     <a class="btn btn-primary cta" href="/#demo">Book a demo</a>
+    <button type="button" class="menu-btn" aria-expanded="false" aria-controls="site-nav" aria-label="Menu">
+      <span aria-hidden="true"></span>
+    </button>
   </div>
 </header>
+
+<script>
+  // Solutions dropdown (desktop) and the whole menu (below 980px): a button with
+  // aria-expanded, Escape closes and returns focus, a click outside closes.
+  const pairs = [".sol-btn", ".menu-btn"].map((sel) => {
+    const btn = document.querySelector<HTMLButtonElement>(sel);
+    const panel = btn && document.getElementById(btn.getAttribute("aria-controls") ?? "");
+    return btn && panel ? { btn, panel } : null;
+  }).filter((p) => p !== null);
+  const set = (p: { btn: HTMLButtonElement; panel: HTMLElement }, open: boolean) => {
+    p.btn.setAttribute("aria-expanded", String(open));
+    p.panel.classList.toggle("open", open);
+  };
+  for (const p of pairs) {
+    p.btn.addEventListener("click", () => set(p, p.btn.getAttribute("aria-expanded") !== "true"));
+  }
+  document.addEventListener("keydown", (e) => {
+    if (e.key !== "Escape") return;
+    for (const p of pairs) {
+      if (p.btn.getAttribute("aria-expanded") === "true") { set(p, false); p.btn.focus(); }
+    }
+  });
+  document.addEventListener("click", (e) => {
+    for (const p of pairs) {
+      const t = e.target as Node;
+      if (!p.btn.contains(t) && !p.panel.contains(t)) set(p, false);
+    }
+  });
+  // A link inside the menu (e.g. /#ai on the home page) closes it.
+  for (const p of pairs) p.panel.addEventListener("click", (e) => { if ((e.target as Element).closest("a")) set(p, false); });
+</script>
 
 <style lang="scss">
   @use "../styles/mixins" as *;
@@ -41,16 +111,44 @@ const { light = false } = Astro.props;
     display: inline-flex; align-items: center; gap: 10px; text-decoration: none;
     font-family: var(--display); font-weight: 900; font-size: 1.2rem; letter-spacing: -.02em;
   }
-  nav { display: flex; gap: 28px; margin-left: auto; font-size: .94rem; }
-  nav a { text-decoration: none; color: var(--night-text); }
-  nav a:hover { color: #fff; }
+  .nav { display: flex; align-items: center; gap: 24px; margin-left: auto; font-size: .94rem; }
+  .nav a, .sol-btn { text-decoration: none; color: var(--night-text); white-space: nowrap; }
+  .nav a:hover, .sol-btn:hover { color: #fff; }
+  .nav-signin { display: none; }
+  .sol { position: relative; }
+  .sol-btn {
+    display: inline-flex; align-items: center; gap: 6px; min-height: 40px; padding: 0;
+    border: 0; background: none; font: inherit; cursor: pointer;
+  }
+  .chev {
+    width: 7px; height: 7px; margin-top: -4px; border-right: 1.5px solid currentColor; border-bottom: 1.5px solid currentColor;
+    rotate: 45deg; transition: rotate .2s ease, margin .2s ease;
+  }
+  .sol-btn[aria-expanded="true"] .chev { rotate: 225deg; margin-top: 4px; }
+  .sol-panel {
+    display: none; position: absolute; top: calc(100% + 14px); left: -24px; z-index: 60;
+    grid-template-columns: repeat(3, max-content); gap: 36px; padding: 24px 28px;
+    background: var(--night-2); border: 1px solid var(--night-line); border-radius: var(--radius); box-shadow: var(--shadow);
+  }
+  .sol-panel.open { display: grid; }
+  .group { display: grid; gap: 10px; align-content: start; }
+  .group p { margin: 0 0 2px; font: 600 .7rem var(--mono); letter-spacing: .14em; text-transform: uppercase; color: var(--pulse); }
+  .menu-btn {
+    display: none; width: 40px; height: 40px; flex-shrink: 0; padding: 0; border: 1px solid currentColor; border-radius: 999px;
+    background: none; color: inherit; cursor: pointer; place-items: center;
+    span, span::before, span::after { display: block; width: 16px; height: 2px; background: currentColor; border-radius: 2px; }
+    span { position: relative; }
+    span::before, span::after { content: ""; position: absolute; left: 0; }
+    span::before { top: -5px; }
+    span::after { top: 5px; }
+  }
   .signin { color: #fff; text-decoration: none; font-size: .94rem; font-weight: 600; }
   .signin:hover { color: var(--pulse); }
   .cta { min-height: 40px; padding: 0 18px; font-size: .9rem; box-shadow: none; }
   .light {
     background: rgb(255 255 255 / 90%); color: var(--ink); border-bottom-color: var(--line);
-    nav a { color: var(--ink-2); }
-    nav a:hover, .signin { color: var(--ink); }
+    .nav a, .sol-btn { color: var(--ink-2); }
+    .nav a:hover, .sol-btn:hover, .signin { color: var(--ink); }
     .signin:hover { color: var(--blue-deep); }
   }
   .signin, .cta { white-space: nowrap; }
@@ -63,8 +161,33 @@ const { light = false } = Astro.props;
   }
   /* ponytail: the narrowest phones (≤360px) can't fit word, Sign in and the CTA; keep the mark (the link keeps its aria-label). */
   @media (max-width: 360px) { .brand span { display: none; } }
-  @include below(lg) {
-    nav { display: none; }
+  @include below(xl) {
     .signin { margin-left: auto; }
+    .menu-btn { display: grid; }
+    /* The whole menu drops down under the bar; Solutions are listed open in it. */
+    .nav {
+      display: none; position: absolute; top: 100%; left: 0; right: 0; margin: 0;
+      flex-direction: column; align-items: stretch; gap: 0; padding: 8px 24px 24px;
+      max-height: calc(100dvh - 68px); overflow-y: auto;
+      background: var(--night); border-bottom: 1px solid var(--night-line);
+    }
+    .nav.open { display: flex; }
+    .nav > a { padding: 12px 0; border-bottom: 1px solid var(--night-line); }
+    .sol-btn { display: none; }
+    .sol-panel {
+      display: grid; position: static; grid-template-columns: 1fr; gap: 20px; padding: 16px 0;
+      background: none; border: 0; border-bottom: 1px solid var(--night-line); border-radius: 0; box-shadow: none;
+    }
+    .group a { padding: 6px 0; }
+  }
+  .light .nav { @include below(xl) { background: var(--paper); border-bottom-color: var(--line); } }
+  .light .sol-panel { background: #fff; border-color: var(--line); }
+  @include below(xl) { .light .sol-panel, .light .nav > a { border-color: var(--line); } }
+  .light .group p { color: var(--blue-deep); }
+  /* Below 400px Sign in moves into the menu, so the bar stays on one line. */
+  @media (max-width: 400px) {
+    .signin { display: none; }
+    .cta { margin-left: auto; }
+    .nav-signin { display: block; }
   }
 </style>

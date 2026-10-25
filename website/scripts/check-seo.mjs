@@ -71,7 +71,10 @@ for (const t of tokens) assert.ok(t.types.includes("FAQPage"), `${t.path}: FAQPa
 // The buying guides under the HMS hub (src/data/compare-pages.ts).
 const compare = ["how-to-choose-hospital-management-software", "hospital-software-vs-excel"].map(checkPage);
 for (const c of compare) assert.ok(c.types.includes("FAQPage"), `${c.path}: FAQPage`);
-results.push(...guides, ...resources, ...tools, ...camps, ...tokens, ...compare);
+// Plans and prices (src/data/pricing.ts).
+const pricing = checkPage("pricing");
+assert.ok(pricing.types.includes("FAQPage"), "/pricing: FAQPage");
+results.push(pricing, ...guides, ...resources, ...tools, ...camps, ...tokens, ...compare);
 for (const f of ["llms.txt", "robots.txt"]) assert.ok(existsSync(join(dist, f)), `/${f} built`);
 assert.ok(existsSync(join(dist, "pagefind", "pagefind.js")), "Pagefind index built");
 assert.ok(existsSync(join(dist, "blog", "rss.xml")), "RSS feed built");
