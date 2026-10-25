@@ -1439,6 +1439,12 @@ export const NAV_GROUPS: NavGroupConfig[] = [
             requiredPermission: "admin.workbook.import",
           },
           {
+            i18nKey: "historyImport",
+            path: "/admin/history-import",
+            icon: "IconHistory",
+            requiredPermission: "admin.history_import.view",
+          },
+          {
             i18nKey: "settings",
             path: "/admin/settings",
             icon: "IconSettings",
