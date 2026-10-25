@@ -22,6 +22,35 @@ use super::{
     RescheduleRequest,
 };
 
+/// Refuse a slot that has already ended on the hospital's clock.
+///
+/// Booking or moving an appointment into the past made a record of a visit
+/// that could never happen, and it sat on the day list as "scheduled". A slot
+/// still running (booked at 11:35 for 11:30-11:45) is allowed: that is the desk
+/// booking the patient standing in front of it.
+async fn ensure_slot_not_past(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    tenant_id: Uuid,
+    date: NaiveDate,
+    slot_end: NaiveTime,
+) -> Result<(), AppError> {
+    let ended = sqlx::query_scalar::<_, bool>( // allow-raw-sql: slot-in-the-past check on the hospital clock
+        "SELECT ($2::date + $3::time) < timezone( \
+                COALESCE((SELECT timezone FROM tenants WHERE id = $1), 'UTC'), now())",
+    )
+    .bind(tenant_id)
+    .bind(date)
+    .bind(slot_end)
+    .fetch_one(&mut **tx)
+    .await?;
+    if ended {
+        return Err(AppError::BadRequest(
+            "That slot has already passed. Choose a time later today or a future date.".into(),
+        ));
+    }
+    Ok(())
+}
+
 /// GET /`api/opd/appointments?date=&doctor_id=&department_id=&patient_id=&status`=
 pub async fn list_appointments(
     State(state): State<AppState>,
@@ -183,6 +212,7 @@ pub async fn book_appointment(
         ));
     }
 
+    ensure_slot_not_past(&mut tx, claims.tenant_id, body.appointment_date, body.slot_end).await?;
     let appointment_type = body.appointment_type.unwrap_or(AppointmentType::NewVisit);
 
     // Slot-capacity gate. Two reasons we may skip it:
@@ -401,6 +431,7 @@ pub async fn reschedule_appointment(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
+    ensure_slot_not_past(&mut tx, claims.tenant_id, body.appointment_date, body.slot_end).await?;
     let row = sqlx::query_as::<_, Appointment>( // allow-raw-sql: appointment reschedule update
         "UPDATE appointments SET \
          appointment_date = $1, slot_start = $2, slot_end = $3, \
@@ -715,8 +746,22 @@ pub async fn complete_appointment(
     )
     .bind(id)
     .fetch_optional(&mut *tx)
-    .await?
-    .ok_or(AppError::NotFound)?;
+    .await?;
+    // An appointment that exists but was never checked in is not missing: say
+    // what has to happen first instead of answering 404.
+    let Some(row) = row else {
+        let status = sqlx::query_scalar::<_, String>( // allow-raw-sql: explain why completion was refused
+            "SELECT status::text FROM appointments WHERE id = $1",
+        )
+        .bind(id)
+        .fetch_optional(&mut *tx)
+        .await?
+        .ok_or(AppError::NotFound)?;
+        return Err(AppError::Conflict(format!(
+            "This appointment is {}; check the patient in before completing it.",
+            status.replace('_', " ")
+        )));
+    };
 
     tx.commit().await?;
     Ok(Json(row))

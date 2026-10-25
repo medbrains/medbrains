@@ -689,6 +689,8 @@ export interface UpdateOtBookingStatusRequest {
   postpone_reason?: string;
 }
 export interface CreatePreopAssessmentRequest {
+  /** Defaults to "pending" on the server. */
+  clearance_status?: PreopClearanceStatus;
   asa_class?: AsaClassification;
   airway_assessment?: unknown;
   cardiac_assessment?: unknown;

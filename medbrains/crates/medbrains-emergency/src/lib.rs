@@ -567,10 +567,16 @@ async fn auto_create_mlc_case_for_visit(
     history_of_incident: Option<&str>,
 ) -> Result<(), AppError> {
     let created_mlc_case = sqlx::query_as::<_, (Uuid, String)>(
+        // The case goes to the hospital's jurisdictional station, configured
+        // in Emergency settings; it was left blank, so every auto-registered
+        // MLC had no station to intimate until someone typed it in.
         "INSERT INTO mlc_cases
          (tenant_id, er_visit_id, patient_id, mlc_number, case_type,
-          history_of_incident, registered_by)
-         SELECT $1, $2, $3, $4, $5, $6, $7
+          history_of_incident, registered_by, police_station)
+         SELECT $1, $2, $3, $4, $5, $6, $7,
+                (SELECT NULLIF(btrim(value->>'station'), '') FROM tenant_settings
+                  WHERE tenant_id = $1 AND category = 'emergency' AND key = 'police_contact'
+                    AND deleted_at IS NULL)
          WHERE NOT EXISTS (
            SELECT 1 FROM mlc_cases WHERE tenant_id = $1 AND er_visit_id = $2
          )
@@ -1688,7 +1694,12 @@ pub async fn create_mlc_case(
             examining_doctor_id, examined_at, date_time_of_incident, place_of_incident, weapon_used,
             police_officer_name, police_officer_rank, police_dd_number, condition_on_arrival,
             treatment_given, samples_handed_to, patient_condition_at_discharge)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, COALESCE($14, false), COALESCE($15, false), $16,
+         VALUES ($1, $2, $3, $4, $5, $6,
+            COALESCE(NULLIF(btrim($7), ''),
+                     (SELECT NULLIF(btrim(value->>'station'), '') FROM tenant_settings
+                       WHERE tenant_id = $1 AND category = 'emergency' AND key = 'police_contact'
+                         AND deleted_at IS NULL)),
+            $8, $9, $10, $11, $12, $13, COALESCE($14, false), COALESCE($15, false), $16,
             $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28)
          RETURNING *",
     )
