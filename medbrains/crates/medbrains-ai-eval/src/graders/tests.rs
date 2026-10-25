@@ -139,8 +139,31 @@ fn a_grouped_figure_is_one_number_that_must_be_in_the_record() {
     let c = case("answer", "");
     if let Some(c) = c {
         let src = "billed 998718.20 collected 449954.84";
-        assert_eq!(rules(ungrounded(&c, src, "Billed ₹9,98,718.20; collected ₹4,49,954.84.")), Vec::<&str>::new());
+        assert_eq!(
+            rules(ungrounded(
+                &c,
+                src,
+                "Billed ₹9,98,718.20; collected ₹4,49,954.84."
+            )),
+            Vec::<&str>::new()
+        );
         let wrong = ungrounded(&c, src, "Billed ₹9,98,719.20.");
         assert_eq!(rules(wrong), vec!["ungrounded_number"]);
+    }
+}
+
+#[test]
+fn zero_is_one_number_however_it_is_written() {
+    let c = case("answer", "");
+    if let Some(c) = c {
+        let src = r#"{"billed": 0.0, "share": 0.5}"#;
+        assert_eq!(
+            rules(ungrounded(&c, src, "Billed ₹0 (₹0.00); share 0.5.")),
+            Vec::<&str>::new()
+        );
+        assert_eq!(
+            rules(ungrounded(&c, src, "Share 5.")),
+            vec!["ungrounded_number"]
+        );
     }
 }

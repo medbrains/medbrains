@@ -243,8 +243,16 @@ impl Case {
         let earlier = medbrains_core::ai_history::earlier_questions(&asked)
             .map(|line| format!("{line}\n\n"))
             .unwrap_or_default();
+        // A result with a widget source is, by the final answer, on screen:
+        // production's `show` has run. Without saying so, a model with no
+        // tools writes the `show` call out as text and stops there.
+        let shown = if self.source.get("show_source").is_some() {
+            " and already shown on the user's screen"
+        } else {
+            ""
+        };
         let label = r.redact(&format!(
-            "{earlier}Already run for this question ({}); its result:",
+            "{earlier}Already run for this question ({}){shown}; its result:",
             self.task
         ))?;
         let record = r.redact(&self.source_text())?;
@@ -267,7 +275,13 @@ impl Case {
 
 /// A case redacted: system, the record's label, record, question, and the
 /// history sent.
-type Parts = (Redacted, Redacted, Redacted, Redacted, Vec<(Role, Redacted)>);
+type Parts = (
+    Redacted,
+    Redacted,
+    Redacted,
+    Redacted,
+    Vec<(Role, Redacted)>,
+);
 
 /// The fixed system prefix, byte for byte as the assistant sends it every
 /// turn (per-turn context goes in the user turn), so it can be cached.

@@ -231,6 +231,7 @@ zip = { version = "9", default-features = false, features = ["deflate-flate2-zli
 
 # Validation
 regex = "1"
+sqlparser = { version = "0.63", features = ["visitor"] }
 url = "2"
 
 # Async streams (WebSocket)

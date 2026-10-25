@@ -405,7 +405,8 @@ fn list(title: String, data: &Value) -> Result<Widget, WidgetError> {
 
 /// Sum, smallest and largest of each numeric field over all `rows`, exact
 /// (decimal, never float), so the model can speak to the rows it was not sent.
-fn summary(rows: &[Value]) -> Value {
+#[must_use]
+pub fn summary(rows: &[Value]) -> Value {
     use rust_decimal::Decimal;
     use std::str::FromStr as _;
     let mut stats: Map<String, Value> = Map::new();
