@@ -61,7 +61,10 @@ impl DrugCheck {
             drug,
             checked: true,
             safe: Some(false),
-            notes: format!("Safety warnings from the pharmacy engine: {}", warnings.join("; ")),
+            notes: format!(
+                "Safety warnings from the pharmacy engine: {}",
+                warnings.join("; ")
+            ),
             warnings: Some(warnings),
         }
     }
@@ -87,7 +90,10 @@ mod tests {
     fn an_unchecked_drug_carries_no_verdict_or_warning_list() {
         let v = serde_json::to_value(DrugCheck::no_chart("X".to_owned())).unwrap_or_default();
         assert_eq!(v["checked"], false);
-        assert!(v.get("safe").is_none() && v.get("warnings").is_none(), "{v}");
+        assert!(
+            v.get("safe").is_none() && v.get("warnings").is_none(),
+            "{v}"
+        );
         let v = serde_json::to_value(DrugCheck::failed("X".to_owned())).unwrap_or_default();
         assert_eq!(v["checked"], false);
         assert!(v.get("safe").is_none(), "{v}");
@@ -96,7 +102,10 @@ mod tests {
     #[test]
     fn a_checked_drug_states_its_verdict() {
         let v = serde_json::to_value(DrugCheck::clear("X".to_owned())).unwrap_or_default();
-        assert_eq!((v["checked"].clone(), v["safe"].clone()), (true.into(), true.into()));
+        assert_eq!(
+            (v["checked"].clone(), v["safe"].clone()),
+            (true.into(), true.into())
+        );
         let w = DrugCheck::flagged("X".to_owned(), vec!["[Critical] Allergy".to_owned()]);
         let v = serde_json::to_value(w).unwrap_or_default();
         assert_eq!(v["safe"], false);

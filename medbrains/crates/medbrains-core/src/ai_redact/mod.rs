@@ -386,7 +386,9 @@ impl Redactor {
         // having the name inside it replaced and its domain left behind.
         let withheld;
         let text = if self.withhold_sensitive {
-            withheld = sensitive::withhold_in_text(text).map_err(RedactError::Patterns)?.0;
+            withheld = sensitive::withhold_in_text(text)
+                .map_err(RedactError::Patterns)?
+                .0;
             withheld.as_str()
         } else {
             text

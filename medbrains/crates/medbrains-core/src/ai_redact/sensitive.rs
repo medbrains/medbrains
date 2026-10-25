@@ -66,9 +66,40 @@ static MARKERS: LazyLock<Result<Vec<(Regex, SensitiveClass)>, regex::Error>> = L
     },
 );
 
-/// ICD-10 code prefixes that are a restricted class on their own.
+/// ICD-11 stem codes that are a restricted class on their own. An ICD-11
+/// code has a letter in second place (`6A20`, `1C62`, `PB80`); ICD-10 has a
+/// digit (`F20`, `B20`).
+fn class_of_icd11(code: &str) -> Option<SensitiveClass> {
+    let starts = |prefixes: &[&str]| prefixes.iter().any(|p| code.starts_with(p));
+    if starts(&["6C4", "6C5"]) {
+        // Disorders due to substance use or addictive behaviours.
+        Some(SensitiveClass::SubstanceUse)
+    } else if starts(&["6A", "6B", "6C", "6D", "6E"]) {
+        // Chapter 06: mental, behavioural or neurodevelopmental disorders.
+        Some(SensitiveClass::MentalHealth)
+    } else if starts(&["1C60", "1C61", "1C62", "1A6", "1A7", "1A8", "1A9"]) {
+        // HIV disease; predominantly sexually transmitted infections.
+        Some(SensitiveClass::HivSti)
+    } else if starts(&["JA00"]) {
+        // Abortion, including medical termination.
+        Some(SensitiveClass::Reproductive)
+    } else if starts(&["PB8", "PB9", "PC", "PD0", "PD1", "PD2", "PD3"]) {
+        // Intentional self-harm.
+        Some(SensitiveClass::MentalHealth)
+    } else if starts(&["PD5", "PD6", "PD7", "PD8", "PD9", "PE", "PF0", "PF1", "PF2"]) {
+        // Assault.
+        Some(SensitiveClass::MedicoLegal)
+    } else {
+        None
+    }
+}
+
+/// ICD-10 or ICD-11 codes that are a restricted class on their own.
 fn class_of_icd(code: &str) -> Option<SensitiveClass> {
     let code = code.trim().to_ascii_uppercase();
+    if code.as_bytes().get(1).is_some_and(u8::is_ascii_alphabetic) {
+        return class_of_icd11(&code);
+    }
     let num = |from: usize| code.get(from..3).and_then(|n| n.parse::<u32>().ok());
     match code.chars().next()? {
         'F' => Some(if (10..=19).contains(&num(1)?) {
@@ -249,6 +280,30 @@ mod tests {
         for (text, class) in cases {
             assert_eq!(class_of_text(text), Ok(Some(class)), "{text}");
         }
+    }
+
+    #[test]
+    fn icd11_codes_carry_their_class_and_ordinary_ones_pass() {
+        use super::class_of_icd;
+        let restricted = [
+            ("6A20", SensitiveClass::MentalHealth),
+            ("6A70.1", SensitiveClass::MentalHealth),
+            ("6C40.2", SensitiveClass::SubstanceUse),
+            ("1C62.Z", SensitiveClass::HivSti),
+            ("1A60", SensitiveClass::HivSti),
+            ("JA00.1", SensitiveClass::Reproductive),
+            ("PB80", SensitiveClass::MentalHealth),
+            ("PD50", SensitiveClass::MedicoLegal),
+        ];
+        for (code, class) in restricted {
+            assert_eq!(class_of_icd(code), Some(class), "{code}");
+        }
+        // Osteoarthritis of hip, diabetes, pneumonia: ICD-11 codes whose first
+        // letter an ICD-10 rule would misread.
+        for code in ["FA01", "5A11", "CA40", "BA00", "1D20"] {
+            assert_eq!(class_of_icd(code), None, "{code}");
+        }
+        assert_eq!(class_of_icd("F20.0"), Some(SensitiveClass::MentalHealth));
     }
 
     #[test]

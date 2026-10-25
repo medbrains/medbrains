@@ -55,6 +55,9 @@ pub struct RawRow {
     pub pincode: Option<String>,
     pub on: NaiveDate,
     pub values: Vec<Option<String>>,
+    /// Text checked for a restricted class but never released (a
+    /// diagnosis's name beside its code).
+    pub hidden: Option<String>,
 }
 
 /// The released rows and what was held back.
@@ -107,14 +110,15 @@ pub fn patient_key(salt: &[u8], patient: Uuid) -> String {
 
 /// Whether a row's fields name a restricted clinical class (the same rule
 /// that keeps them from the assistant).
-fn restricted(fields: &[Field], values: &[Option<String>]) -> bool {
-    let mut row = serde_json::Map::new();
-    for (f, v) in fields.iter().zip(values) {
-        row.insert(f.name.to_owned(), json!(v));
+fn restricted(fields: &[Field], row: &RawRow) -> bool {
+    let mut record = serde_json::Map::new();
+    for (f, v) in fields.iter().zip(&row.values) {
+        record.insert(f.name.to_owned(), json!(v));
     }
-    let mut row = Value::Object(row);
+    record.insert("hidden".to_owned(), json!(row.hidden));
+    let mut record = Value::Object(record);
     // A fault in the rule is treated as restricted: leave the row out.
-    medbrains_core::ai_redact::sensitive::withhold_in_json(&mut row).map_or(true, |n| n > 0)
+    medbrains_core::ai_redact::sensitive::withhold_in_json(&mut record).map_or(true, |n| n > 0)
 }
 
 /// Values of each category field held by fewer than [`K`] patients.
@@ -148,7 +152,7 @@ pub fn release(fields: &[Field], rows: Vec<RawRow>, salt: &[u8], export_ref: &st
     let before = rows.len();
     let rows: Vec<RawRow> = rows
         .into_iter()
-        .filter(|r| !restricted(fields, &r.values))
+        .filter(|r| !restricted(fields, r))
         .collect();
     let restricted_rows = before - rows.len();
     let rare = rare_values(fields, &rows);
