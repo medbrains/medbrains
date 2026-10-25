@@ -64,6 +64,8 @@ export const HOW_WE_CHECK = "Every AI feature must pass our test suite for accur
 export const DATA_LIVE = [
   // migrations 1200_rls_gap_tables + #4989: RLS on every table holding hospital data.
   { title: "Every hospital sealed off", body: "Each hospital's data is isolated by row-level security in the database itself, not only in the app." },
+  // Prod pool switched to medbrains_app 2026-10-24 10:48 UTC (verified: subject to RLS).
+  { title: "A restricted database role", body: "The application connects to the database as a restricted role, so even the app itself cannot step around each hospital's row-level rules." },
   { title: "Role-based permissions", body: "Every request is checked on the server against the user's role, with per-user extra or denied permissions." },
   // medbrains-mfa (TOTP), SSO login.
   { title: "Two-factor sign-in and SSO", body: "Authenticator-app codes with one-time recovery codes, required by role if the hospital chooses, and single sign-on." },
@@ -76,7 +78,6 @@ export const DATA_LIVE = [
 /** Data safety commitments still being completed. */
 export const DATA_NEXT = [
   "Encrypted off-site copies of every backup, and regular restore tests.",
-  "The application connects to the database as a restricted role that cannot step around the row-level rules.",
   "A written incident response plan under CERT-In rules, with prompt notice to the hospital so it can meet its DPDP duties.",
 ];
 
