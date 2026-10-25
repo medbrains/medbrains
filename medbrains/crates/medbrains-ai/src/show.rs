@@ -9,7 +9,10 @@
 
 // `pub` here would trip the workspace's denied `unreachable_pub`; `pub(super)`
 // is the narrowest visibility the parent module can use.
-#![expect(clippy::redundant_pub_crate, reason = "unreachable_pub is denied workspace-wide")]
+#![expect(
+    clippy::redundant_pub_crate,
+    reason = "unreachable_pub is denied workspace-wide"
+)]
 
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex, PoisonError};
@@ -74,7 +77,10 @@ impl ShowTool {
                 args.source
             );
         };
-        match build(&args.kind, &args.title, &data) {
+        // An aggregate's title is the server's: the model once called an
+        // all-time count "last 30 days".
+        let title = aggregate_title(&data).unwrap_or_else(|| args.title.clone());
+        match build(&args.kind, &title, &data) {
             Ok(widget) => {
                 let size = match &widget {
                     Widget::Kpis { tiles, .. } => tiles.len(),
@@ -129,7 +135,49 @@ impl rig::tool::Tool for ShowTool {
     }
 }
 
+/// The title of an aggregate result, from its metric and period.
+fn aggregate_title(data: &Value) -> Option<String> {
+    let what = match data.get("metric")?.as_str()? {
+        "allergies" => "Patients per allergen",
+        "diagnoses" => "Patients per diagnosis",
+        "opd_visits_by_department" => "OPD visits per department",
+        "admissions_by_day" => "Admissions per day",
+        "critical_lab_alerts" => "Critical lab alerts per test",
+        _ => return None,
+    };
+    let when = match (
+        data.get("period").and_then(Value::as_str),
+        data.get("days_in_range"),
+    ) {
+        (Some(p), _) => p.to_owned(),
+        (None, Some(d)) => format!("{d} days"),
+        (None, None) => return Some(what.to_owned()),
+    };
+    Some(format!("{what} ({when})"))
+}
+
 /// Every widget built since the last call, to send now.
 pub(super) fn drain(widgets: &Widgets) -> Vec<Widget> {
     std::mem::take(&mut *widgets.lock().unwrap_or_else(PoisonError::into_inner))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::aggregate_title;
+    use serde_json::json;
+
+    #[test]
+    fn an_aggregate_is_titled_by_the_server_not_the_model() {
+        let all_time = json!({"metric": "allergies", "period": "all recorded allergies"});
+        assert_eq!(
+            aggregate_title(&all_time).as_deref(),
+            Some("Patients per allergen (all recorded allergies)")
+        );
+        let ranged = json!({"metric": "admissions_by_day", "days_in_range": 30});
+        assert_eq!(
+            aggregate_title(&ranged).as_deref(),
+            Some("Admissions per day (30 days)")
+        );
+        assert_eq!(aggregate_title(&json!({"data": []})), None);
+    }
 }

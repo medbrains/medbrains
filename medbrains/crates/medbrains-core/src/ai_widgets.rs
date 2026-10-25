@@ -142,6 +142,10 @@ pub enum Widget {
         columns: Vec<Column>,
         rows: Vec<Map<String, Value>>,
         total_rows: usize,
+        /// For an aggregate the user may drill into: `{metric, key, from, to}`.
+        /// The screen fetches the patients behind a row itself.
+        #[serde(skip_serializing_if = "Option::is_none")]
+        drill: Option<Value>,
     },
     Chart {
         title: String,
@@ -288,11 +292,23 @@ fn table(title: String, data: &Value) -> Result<Widget, WidgetError> {
     if columns.is_empty() {
         return Err(WidgetError::Shape("columns"));
     }
+    // Only the server's aggregate result carries `_drill`, and only for a
+    // user who may list patients.
+    let drill = data.get("_drill").filter(|d| d.is_object()).map(|d| {
+        let mut d = d.clone();
+        for k in ["from", "to"] {
+            if d.get(k).is_none() {
+                d[k] = data.get(k).cloned().unwrap_or(Value::Null);
+            }
+        }
+        d
+    });
     Ok(Widget::Table {
         title,
         rows: pick(&all, &columns),
         columns,
         total_rows: all.len(),
+        drill,
     })
 }
 

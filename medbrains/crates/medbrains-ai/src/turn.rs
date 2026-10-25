@@ -25,7 +25,7 @@ use rig::streaming::{Item, StreamEvent};
 use uuid::Uuid;
 
 use super::{
-    AiConfig, CallApiTool, DraftPrescriptionTool, DrugSafetyTool, KbHit, ListApisTool,
+    AiConfig, CallApiTool, aggregate, DraftPrescriptionTool, DrugSafetyTool, KbHit, ListApisTool,
     PatientOverviewTool, RequestPatientTool, SYSTEM_PROMPT, SseBody, redaction, show, sse,
     store_turn,
 };
@@ -112,6 +112,12 @@ pub(super) fn stream_answer(
         .tool(RequestPatientTool)
         .tool(ListApisTool {
             session: Arc::clone(&deps.session),
+        })
+        .tool(aggregate::AggregateTool {
+            session: Arc::clone(&deps.session),
+            state: deps.state.clone(),
+            claims: deps.claims.clone(),
+            shelf: Arc::clone(&shelf),
         })
         .tool(show::ShowTool {
             session: Arc::clone(&deps.session),

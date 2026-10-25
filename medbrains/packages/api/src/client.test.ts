@@ -956,6 +956,19 @@ describe("/billing endpoints", () => {
     expect(url.split("?")[0]).toBe("/api/billing/reports/daily");
   });
 
+  it("aiAggregatePatients → GET /ai/aggregate/{metric}/patients", async () => {
+    mockOk([]);
+    await api.aiAggregatePatients("allergies", {
+      key: "penicillin",
+      from: "2026-10-01",
+      to: "2026-10-25",
+    });
+    const [url] = mockFetch.mock.calls[0];
+    expect(url).toBe(
+      "/api/ai/aggregate/allergies/patients?key=penicillin&from=2026-10-01&to=2026-10-25",
+    );
+  });
+
   it("billingReportDailyRevenue → GET /billing/reports/daily-revenue", async () => {
     mockOk([]);
     await api.billingReportDailyRevenue("2026-10-01", "2026-10-25");
