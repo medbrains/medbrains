@@ -302,7 +302,7 @@ pub(crate) async fn run_batch(
         count,
     };
     insert_batch(&mut tx, header).await?;
-    // Rows this batch writes are audited as the batch (see migration 1214),
+    // Rows this batch writes are audited as the batch (see migration 1218),
     // so the import never holds the hospital's audit-chain lock.
     sqlx::query("SELECT set_config('app.history_import_batch', $1, true)")
         .bind(batch.to_string())
