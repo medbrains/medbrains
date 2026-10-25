@@ -119,3 +119,5 @@ infra/.env.bak.*
 # Incremental tsc state is per-machine. A committed copy makes `tsc -b` believe
 # lib/ is current and skip emitting, so packages build with missing exports.
 *.tsbuildinfo
+scripts/demo-seed/state.json
+scripts/demo-seed/extra_state.json
