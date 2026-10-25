@@ -31,6 +31,7 @@ const c = getCategory(slug);
     aspect-ratio: 16 / 9; border-radius: inherit; background: var(--tint);
   }
   /* Absolutely filled, so the box never waits on the image to size itself (no CLS). */
-  .art :global(img) { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; }
+  /* cover, not contain: the topic art is square and has its own background, so it fills the card edge to edge. */
+  .art :global(img) { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
   .lg { aspect-ratio: 1; max-width: 320px; border-radius: 28px; }
 </style>
