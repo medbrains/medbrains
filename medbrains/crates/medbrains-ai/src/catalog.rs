@@ -4,7 +4,10 @@
 
 // `pub` here would trip the workspace's denied `unreachable_pub`; `pub(super)`
 // is the narrowest visibility the parent module can use.
-#![expect(clippy::redundant_pub_crate, reason = "unreachable_pub is denied workspace-wide")]
+#![expect(
+    clippy::redundant_pub_crate,
+    reason = "unreachable_pub is denied workspace-wide"
+)]
 
 /// The catalogue (`scripts/gen_ai_read_catalog.py`), `# section` headers
 /// then one path per line.

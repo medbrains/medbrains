@@ -231,17 +231,35 @@ impl Case {
         // As production's history shows it: the tool has already run, and
         // this is what it returned. A bare "result" read to Haiku as a call
         // still to make, and it wrote one out as text (case 06).
+        // The user's questions from before the recent history, as the
+        // assistant's context block carries them.
+        let keep = usize::from(HISTORY_MESSAGES);
+        let dropped = &self.history[..self.history.len().saturating_sub(keep)];
+        let asked: Vec<&str> = dropped
+            .iter()
+            .filter(|m| m.role == Role::User)
+            .map(|m| m.content.as_str())
+            .collect();
+        let earlier = medbrains_core::ai_history::earlier_questions(&asked)
+            .map(|line| format!("{line}\n\n"))
+            .unwrap_or_default();
         let label = r.redact(&format!(
-            "Already run for this question ({}); its result:",
+            "{earlier}Already run for this question ({}); its result:",
             self.task
         ))?;
         let record = r.redact(&self.source_text())?;
         let question = r.redact(&self.question)?;
-        let keep = usize::from(HISTORY_MESSAGES);
         let recent = &self.history[self.history.len().saturating_sub(keep)..];
         let history = recent
             .iter()
-            .map(|m| Ok((m.role, r.redact(&m.content)?)))
+            .map(|m| {
+                let text = if m.role == Role::Assistant {
+                    r.redact_own_answer(&m.content)?
+                } else {
+                    r.redact(&m.content)?
+                };
+                Ok((m.role, text))
+            })
             .collect::<Result<_, RedactError>>()?;
         Ok((system(), label, record, question, history))
     }

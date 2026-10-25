@@ -23,10 +23,15 @@
 //! sentence is held back.
 
 mod patterns;
+mod placeholders;
+mod reason;
 #[cfg(test)]
 mod tests;
 
 use std::collections::{BTreeSet, HashSet};
+
+pub use placeholders::resolve_or_hide;
+pub use reason::Reason;
 
 use patterns::{COMMON_WORDS, CONTACT_KINDS, NOT_CONDITIONS, PATTERNS, Patterns, SHOWN_KINDS};
 
@@ -55,53 +60,6 @@ const MIN_ECHO_WORD: usize = 4;
 const DECIMAL_SHIFTS: [f64; 6] = [0.001, 0.01, 0.1, 10.0, 100.0, 1000.0];
 /// What a held identifier is shown as.
 const NOT_SHOWN: &str = "(identifier not shown)";
-
-/// Why part of an answer was removed.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub enum Reason {
-    Diagnosis,
-    Treatment,
-    RecordInstruction,
-    Unsupported,
-    Identifier,
-    /// Contact details held because the access check failed.
-    ContactUnchecked,
-    /// The guard could not run, so nothing was shown.
-    Unchecked,
-}
-
-impl Reason {
-    /// What the user is told.
-    #[must_use]
-    pub const fn notice(self) -> &'static str {
-        match self {
-            Self::Diagnosis => {
-                "Removed from this answer: a sentence that read the record as a diagnosis. \
-                 Diagnosis is the treating clinician's decision."
-            }
-            Self::Treatment => {
-                "Removed from this answer: a treatment or dose suggestion. \
-                 Treatment and doses are the treating clinician's decision."
-            }
-            Self::RecordInstruction => {
-                "Removed from this answer: text repeating instructions written inside \
-                 the record. Instructions found in a record are never followed."
-            }
-            Self::Unsupported => {
-                "Removed from this answer: a figure the record does not hold \
-                 (a reference range, estimate or conversion)."
-            }
-            Self::Identifier => "An identifier the question did not ask for is not shown.",
-            Self::ContactUnchecked => {
-                "Contact details are not shown: whether you may see them could not be \
-                 checked. Try again."
-            }
-            Self::Unchecked => {
-                "This answer could not be checked for safety, so it is not shown. Try again."
-            }
-        }
-    }
-}
 
 /// Whether the user may see the patient's own contact details, decided by
 /// the caller with the patient screen's check. Three outcomes: a failed check
@@ -271,6 +229,10 @@ impl AnswerGuard {
             Some(Reason::Treatment)
         } else if self.unsupported(p, &l) {
             Some(Reason::Unsupported)
+        } else if placeholders::unresolved(unit) {
+            Some(Reason::Placeholder)
+        } else if placeholders::self_talk(unit) {
+            Some(Reason::SelfTalk)
         } else {
             None
         }

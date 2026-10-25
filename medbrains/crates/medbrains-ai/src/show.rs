@@ -29,8 +29,9 @@ const MAX_SHELVED: usize = 16;
 /// What this turn's tools fetched, by source: the `call_api` path as the model
 /// wrote it, or `patient_overview`.
 pub(super) type Shelf = Arc<Mutex<HashMap<String, Value>>>;
-/// Widgets built this turn, waiting for the stream to send them.
-pub(super) type Widgets = Arc<Mutex<Vec<Widget>>>;
+/// Widgets built this turn with the source each came from, waiting for the
+/// stream to send them.
+pub(super) type Widgets = Arc<Mutex<Vec<(String, Widget)>>>;
 
 /// Keep `data` for widgets as the user would see it: through this turn's
 /// redaction (so a withheld class stays withheld) and read back.
@@ -91,7 +92,7 @@ impl ShowTool {
                 self.widgets
                     .lock()
                     .unwrap_or_else(PoisonError::into_inner)
-                    .push(widget);
+                    .push((args.source.trim().to_owned(), widget));
                 format!("Shown to the user as a {} ({size} entries).", args.kind)
             }
             Err(e) => format!("Not shown: {e}."),
@@ -157,7 +158,7 @@ fn aggregate_title(data: &Value) -> Option<String> {
 }
 
 /// Every widget built since the last call, to send now.
-pub(super) fn drain(widgets: &Widgets) -> Vec<Widget> {
+pub(super) fn drain(widgets: &Widgets) -> Vec<(String, Widget)> {
     std::mem::take(&mut *widgets.lock().unwrap_or_else(PoisonError::into_inner))
 }
 

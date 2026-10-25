@@ -3086,6 +3086,8 @@ export interface AiConversationMessage {
   role: string;
   content: string;
   created_at: string;
+  /** What an answer kept besides its text: widgets, steps, sources, notices, usage. */
+  parts?: Record<string, unknown> | null;
 }
 
 export const api = {
@@ -3160,6 +3162,8 @@ export const api = {
     request<{ status: string }>(`/vpn/devices/${id}/revoke`, { method: "POST" }),
   getAiConversationMessages: (id: string) =>
     request<AiConversationMessage[]>(`/ai/conversations/${id}/messages`),
+  aiReplayWidget: (messageId: string, index: number) =>
+    request<Record<string, unknown>>(`/ai/messages/${messageId}/widgets/${index}`),
 
   // Auth
   login: async (data: LoginRequest): Promise<LoginResponse> => {

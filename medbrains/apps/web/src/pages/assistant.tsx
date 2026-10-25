@@ -17,12 +17,13 @@ import { useMemo, useState } from "react";
 import { useNavigate } from "react-router";
 import {
   AiChatPanel,
-  type ChatRole,
   type ChatSource,
   messageParts,
   SseTransport,
   useAiChat,
 } from "@/components/ai";
+import { fromStored } from "@/components/ai/transport/stored";
+import { widgetText } from "@/components/ai/widgets/format";
 import { Button, IconButton } from "@/components/ui";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
 import classes from "./assistant.module.scss";
@@ -67,15 +68,7 @@ export function AssistantPage() {
 
   const openConversation = async (id: string) => {
     const loaded = await api.getAiConversationMessages(id);
-    controller.hydrate(
-      loaded.map((m) => ({
-        id: m.id,
-        role: m.role as ChatRole,
-        content: m.content,
-        createdAt: m.created_at,
-        status: "complete" as const,
-      })),
-    );
+    controller.hydrate(loaded.map(fromStored));
     transport.setConversationId(id);
   };
 
@@ -90,8 +83,13 @@ export function AssistantPage() {
   );
 
   const onDownload = () => {
+    // A chart or table in an answer goes into the transcript as text.
     const md = controller.messages
-      .map((m) => `**${m.role === "user" ? "You" : "Assistant (AI-generated)"}:** ${m.content}`)
+      .map((m) => {
+        const said = `**${m.role === "user" ? "You" : "Assistant (AI-generated)"}:** ${m.content}`;
+        const shown = (m.widgets ?? []).map(widgetText);
+        return [said, ...shown].join("\n\n");
+      })
       .join("\n\n");
     downloadTranscript(md);
   };

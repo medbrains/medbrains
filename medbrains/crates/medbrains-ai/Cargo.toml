@@ -24,6 +24,7 @@ futures = { workspace = true }
 tower = { workspace = true }
 async-stream = { workspace = true }
 rig = { workspace = true }
+rust_decimal = { workspace = true }
 rig-agent = { workspace = true }
 tokio = { workspace = true }
 

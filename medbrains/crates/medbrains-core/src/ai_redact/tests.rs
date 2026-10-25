@@ -323,33 +323,67 @@ fn numbers_typed_in_a_question_are_replaced() {
 fn a_restricted_class_never_reaches_the_model_unless_the_text_is_a_topic() {
     let mut record = Redactor::new(PseudonymMap::default(), &kavitha(), today());
     let out = record
-        .redact(r#"[{"description":"Type 2 diabetes"},{"description":"HIV disease","icd_code":"B20"}]"#)
+        .redact(
+            r#"[{"description":"Type 2 diabetes"},{"description":"HIV disease","icd_code":"B20"}]"#,
+        )
         .map(|x| x.for_model().to_owned())
         .unwrap_or_default();
-    assert!(out.contains("Type 2 diabetes") && !out.contains("HIV"), "{out}");
-    let mut topic = Redactor::new(PseudonymMap::default(), &KnownIdentifiers::default(), today())
-        .allowing_clinical_topics();
-    let course = topic.redact("A course on HIV counselling for nurses").map(|x| x.for_model().to_owned());
-    assert_eq!(course.ok().as_deref(), Some("A course on HIV counselling for nurses"));
+    assert!(
+        out.contains("Type 2 diabetes") && !out.contains("HIV"),
+        "{out}"
+    );
+    let mut topic = Redactor::new(
+        PseudonymMap::default(),
+        &KnownIdentifiers::default(),
+        today(),
+    )
+    .allowing_clinical_topics();
+    let course = topic
+        .redact("A course on HIV counselling for nurses")
+        .map(|x| x.for_model().to_owned());
+    assert_eq!(
+        course.ok().as_deref(),
+        Some("A course on HIV counselling for nurses")
+    );
 }
 
 #[test]
 fn an_iso_timestamp_has_its_date_shifted_and_keeps_its_time() {
-    let mut r = Redactor::new(PseudonymMap::default(), &KnownIdentifiers::default(), today());
+    let mut r = Redactor::new(
+        PseudonymMap::default(),
+        &KnownIdentifiers::default(),
+        today(),
+    );
     let text = "Seen 2026-10-24T22:00, record created 2026-10-22T08:15:30.5+05:30.";
-    let out = r.redact(text).map(|t| t.for_model().to_owned()).unwrap_or_default();
+    let out = r
+        .redact(text)
+        .map(|t| t.for_model().to_owned())
+        .unwrap_or_default();
     assert_absent(&out, &["2026-10-24", "2026-10-22"]);
-    assert!(out.contains("[DATE_-1d]T22:00") && out.contains("[DATE_-3d]T08:15:30.5+05:30"), "{out}");
+    assert!(
+        out.contains("[DATE_-1d]T22:00") && out.contains("[DATE_-3d]T08:15:30.5+05:30"),
+        "{out}"
+    );
     assert_eq!(r.rehydrate(&out), text);
 }
 
 #[test]
 fn a_relative_named_in_tamil_or_hindi_script_is_redacted() {
-    let mut r = Redactor::new(PseudonymMap::default(), &KnownIdentifiers::default(), today());
+    let mut r = Redactor::new(
+        PseudonymMap::default(),
+        &KnownIdentifiers::default(),
+        today(),
+    );
     let note = "காய்ச்சல் 101 F. மனைவி செல்வி அழைத்தார். पत्नी सुनीता ने फोन किया।";
-    let out = r.redact(note).map(|t| t.for_model().to_owned()).unwrap_or_default();
+    let out = r
+        .redact(note)
+        .map(|t| t.for_model().to_owned())
+        .unwrap_or_default();
     assert_absent(&out, &["செல்வி", "सुनीता"]);
-    assert!(out.contains("காய்ச்சல் 101 F") && out.contains("[RELATIVE_2]"), "{out}");
+    assert!(
+        out.contains("காய்ச்சல் 101 F") && out.contains("[RELATIVE_2]"),
+        "{out}"
+    );
 }
 
 #[test]
@@ -363,5 +397,26 @@ fn own_placeholders_are_the_patients_own_never_ones_found_later() {
         .map(|t| t.for_model().to_owned());
     assert!(other.is_ok_and(|t| t.contains("[PHONE_2]")));
     assert_eq!(r.own_placeholders(&contacts), own);
-    assert_eq!(own, ["[PHONE_1]".to_owned(), "[ADDRESS_1]".to_owned()].into());
+    assert_eq!(
+        own,
+        ["[PHONE_1]".to_owned(), "[ADDRESS_1]".to_owned()].into()
+    );
+}
+
+#[test]
+fn the_assistants_own_amounts_replay_as_written_but_identifiers_do_not() {
+    let mut r = Redactor::new(
+        PseudonymMap::default(),
+        &KnownIdentifiers::default(),
+        NaiveDate::from_ymd_opt(2026, 10, 25).unwrap_or_default(),
+    );
+    let own = r.redact_own_answer("Billed ₹9,98,718.20 today; call 98450 11223.");
+    let own = own.map(|t| t.for_model().to_owned()).unwrap_or_default();
+    assert!(own.contains("₹9,98,718.20"), "{own}");
+    assert!(!own.contains("98450 11223"), "{own}");
+    let user = r
+        .redact("Billed ₹9,98,718.20 today.")
+        .map(|t| t.for_model().to_owned())
+        .unwrap_or_default();
+    assert!(!user.contains("9,98,718"), "{user}");
 }

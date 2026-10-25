@@ -84,7 +84,7 @@ async fn expire_ai_prompts(
     summary: &mut serde_json::Map<String, serde_json::Value>,
 ) -> Result<(), AppError> {
     let blanked = sqlx::query(
-        "UPDATE ai_messages SET content = '[expired under the AI retention limit]' \
+        "UPDATE ai_messages SET content = '[expired under the AI retention limit]', parts = NULL \
          WHERE tenant_id = $1 AND created_at < now() - make_interval(days => $2) \
            AND content <> '[expired under the AI retention limit]'",
     )

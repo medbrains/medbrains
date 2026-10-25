@@ -7,6 +7,7 @@ import styles from "./message.module.scss";
 import { ThinkingIndicator } from "./ThinkingIndicator";
 import type { ChatContext, ChatMessage, ChatMessageStatus, ChatRole } from "./transport/types";
 import { UnifiedResponse } from "./UnifiedResponse";
+import { ReplayWidget } from "./widgets/ReplayWidget";
 import { WidgetView } from "./widgets/WidgetView";
 
 export interface MessageProps {
@@ -41,7 +42,7 @@ export function Message({ message, avatar, actions, onToolAction, active }: Mess
         className={
           isUser
             ? styles.userStack
-            : message.widgets?.length
+            : message.widgets?.length || message.replays?.length
               ? `${styles.assistantStack} ${styles.wide}`
               : styles.assistantStack
         }
@@ -65,6 +66,14 @@ export function Message({ message, avatar, actions, onToolAction, active }: Mess
               {message.widgets?.map((widget, i) => (
                 // biome-ignore lint/suspicious/noArrayIndexKey: widgets arrive in order and never move
                 <WidgetView key={i} widget={widget} />
+              ))}
+              {message.replays?.map((r) => (
+                <ReplayWidget
+                  key={r.index}
+                  messageId={message.id}
+                  index={r.index}
+                  title={r.title}
+                />
               ))}
               {isStreaming && isEmpty && !message.widgets?.length && <ThinkingIndicator />}
             </Stack>
