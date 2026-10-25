@@ -98,6 +98,7 @@ medbrains-patient-packages = { path = "../medbrains-patient-packages" }
 medbrains-pharmacy-dispense-ops = { path = "../medbrains-pharmacy-dispense-ops" }
 medbrains-ipd-post-discharge = { path = "../medbrains-ipd-post-discharge" }
 medbrains-client-errors = { path = "../medbrains-client-errors" }
+medbrains-error-tracking = { path = "../medbrains-error-tracking" }
 medbrains-vpn = { path = "../medbrains-vpn" }
 medbrains-hr = { path = "../medbrains-hr" }
 medbrains-hrms-gateway = { path = "../medbrains-hrms-gateway" }

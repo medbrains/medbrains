@@ -48,6 +48,7 @@ pub async fn run(
     let production = config.environment == "production";
     let mut found = env_checks(config, production);
     found.extend(crate::preflight_ai::checks());
+    found.extend(crate::preflight_error_tracking::checks(production));
     for key in REQUIRED_KEYS {
         found.push(key_check(secrets, key, production).await);
     }

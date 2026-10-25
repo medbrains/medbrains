@@ -119,6 +119,7 @@ members = [
     "crates/medbrains-pharmacy-dispense-ops",
     "crates/medbrains-ipd-post-discharge",
     "crates/medbrains-client-errors",
+    "crates/medbrains-error-tracking",
     "crates/medbrains-vpn",
     "crates/medbrains-hr",
     "crates/medbrains-hrms-gateway",

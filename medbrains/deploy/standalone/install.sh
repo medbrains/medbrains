@@ -343,6 +343,15 @@ else
     echo "    WHO ICD-API local sidecar disabled; using cloud OAuth or local cache based on /etc/medbrains/env."
 fi
 
+# Error tracking (Rustrak) — opt-in with INSTALL_RUSTRAK=1, remembered in the
+# env so a re-run keeps it. Optional: a failure here never stops the HMS.
+INSTALL_RUSTRAK="${INSTALL_RUSTRAK:-$(env_value INSTALL_RUSTRAK)}"
+if [[ "$INSTALL_RUSTRAK" == "1" ]]; then
+    grep -q '^INSTALL_RUSTRAK=1$' /etc/medbrains/env || echo "INSTALL_RUSTRAK=1" >> /etc/medbrains/env
+    DOMAIN="$DOMAIN" ADMIN_EMAIL="$ADMIN_EMAIL" bash "$DEPLOY_DIR/install-rustrak.sh" \
+        || echo "    WARNING: Rustrak install failed — error tracking stays off."
+fi
+
 if [[ "$ATTACH_REUSE_POSTGRES" != "1" ]]; then
     echo "    Waiting for postgres ready…"
     for _ in {1..30}; do
@@ -732,12 +741,20 @@ systemctl stop caddy 2>/dev/null || true
 systemctl disable caddy 2>/dev/null || true
 systemctl stop medbrains-proxy.service 2>/dev/null || true
 
+# errors.<domain> rides on the same certificate: the edge serves one.
+CERT_NAMES=(-d "$DOMAIN")
+[[ "$INSTALL_RUSTRAK" == "1" ]] && CERT_NAMES+=(-d "errors.$DOMAIN")
 certbot certonly --standalone --non-interactive --agree-tos \
-    --email "$ADMIN_EMAIL" -d "$DOMAIN" --keep-until-expiring
+    --email "$ADMIN_EMAIL" --cert-name "$DOMAIN" --expand "${CERT_NAMES[@]}" --keep-until-expiring
 bash "$DEPLOY_DIR/copy-medbrains-proxy-cert" "/etc/letsencrypt/live/$DOMAIN"
 
 sed -e "s|{{DOMAIN}}|$DOMAIN|g" \
     "$DEPLOY_DIR/PingoraProxy.toml.tmpl" > /etc/medbrains/proxy.toml
+if [[ "$INSTALL_RUSTRAK" == "1" ]]; then
+    # Rustrak has its own login and its own security headers.
+    printf '\n[[routes]]\ndomain = "errors.%s"\nupstream = "127.0.0.1:%s"\npassthrough = true\n' \
+        "$DOMAIN" "${RUSTRAK_PORT:-8180}" >> /etc/medbrains/proxy.toml
+fi
 chmod 640 /etc/medbrains/proxy.toml
 chown root:medbrains /etc/medbrains/proxy.toml
 

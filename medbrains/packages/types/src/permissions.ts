@@ -17,7 +17,7 @@ export interface PermissionDef {
   module: string;
 }
 
-/** 1193 permissions, one per constant in the Rust source. */
+/** 1194 permissions, one per constant in the Rust source. */
 export const PERMISSIONS: PermissionDef[] = [
   // dashboard
   {
@@ -5532,6 +5532,12 @@ export const PERMISSIONS: PermissionDef[] = [
     module: "admin",
   },
   {
+    code: "admin.error_tracking.view",
+    label: "See how often the software is failing",
+    description: "New errors in the last day, the share of sessions on the running release that did not crash, and a link to the error tracker. The reports are about the software and carry no patient data.",
+    module: "admin",
+  },
+  {
     code: "admin.system_state.view",
     label: "View System State",
     description: "View System State",
@@ -7373,6 +7379,10 @@ export const P = {
     },
     DOCTOR_PACKAGES_LIST: "admin.doctor_packages.list",
     DOCTOR_PACKAGES_MANAGE: "admin.doctor_packages.manage",
+    ERROR_TRACKING: {
+      VIEW: "admin.error_tracking.view",
+    },
+    ERROR_TRACKING_VIEW: "admin.error_tracking.view",
     HISTORY_IMPORT: {
       RUN: "admin.history_import.run",
       VIEW: "admin.history_import.view",

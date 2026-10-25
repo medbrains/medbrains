@@ -3,6 +3,7 @@ import {
   IconApps,
   IconBed,
   IconBinaryTree,
+  IconBug,
   IconBuildingCommunity,
   IconCash,
   IconChartBar,
@@ -49,6 +50,7 @@ import { DepartmentsSettings } from "@/pages/admin/settings/DepartmentsSettings"
 import { DeviceIntegrationsSettings } from "@/pages/admin/settings/DeviceIntegrationsSettings";
 import { DiagnosisCodingSettings } from "@/pages/admin/settings/DiagnosisCodingSettings";
 import { DrugInteractionsSettings } from "@/pages/admin/settings/DrugInteractionsSettings";
+import { ErrorTrackingSettings } from "@/pages/admin/settings/ErrorTrackingSettings";
 import { EwsPolicySettings } from "@/pages/admin/settings/EwsPolicySettings";
 import { FacilitiesSettings } from "@/pages/admin/settings/FacilitiesSettings";
 import { GeneralSettings } from "@/pages/admin/settings/GeneralSettings";
@@ -422,6 +424,13 @@ export const SETTINGS_TABS: SettingsTabConfig[] = [
     component: SystemHealthSettings,
   },
   {
+    value: "error-tracking",
+    i18nKey: "settings.errorTracking",
+    icon: "IconBug",
+    requiredPermission: "admin.error_tracking.view",
+    component: ErrorTrackingSettings,
+  },
+  {
     value: "offline-mode",
     i18nKey: "settings.offlineMode",
     icon: "IconCloudOff",
@@ -460,5 +469,6 @@ export const SETTINGS_TAB_ICON_MAP: Record<string, ComponentType<{ size?: number
   IconStethoscope,
   IconChartBar,
   IconHeartRateMonitor,
+  IconBug,
   IconCloudOff,
 };

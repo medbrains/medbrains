@@ -130,6 +130,7 @@ export * from "./emergency-drug-kits";
 export * from "./emergency-request";
 export * from "./endoscopy";
 export * from "./enterprise-sso";
+export * from "./error-tracking";
 export type {
   ClinicalJourneyActionBlocker,
   ClinicalJourneyActionDefinition,

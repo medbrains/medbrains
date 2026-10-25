@@ -36,6 +36,7 @@
   "settings.clinicalConfiguration": "Clinical Config",
   "settings.masterData": "Master Data",
   "settings.systemHealth": "System Health",
+  "settings.errorTracking": "Error tracking",
   "settings.offlineMode": "Offline Mode",
   "accessMatrix.shapeGovernance.summaryLabel": "Shape UX",
   "accessMatrix.shapeGovernance.summaryDetail": "{{stop}} stop, {{handoff}} handoff, {{bed}} bed",
