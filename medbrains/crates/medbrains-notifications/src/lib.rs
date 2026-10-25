@@ -544,6 +544,7 @@ mod tests {
             department_ids: departments.to_vec(),
             perm_version: 0,
             paired_device_id: None,
+            act: None,
             exp: 0,
         }
     }

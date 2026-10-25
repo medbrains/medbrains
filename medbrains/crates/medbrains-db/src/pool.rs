@@ -369,7 +369,9 @@ async fn apply_context(
             CASE WHEN $6::text IS NOT NULL \
                 THEN set_config('app.session_id', $6::text, true) ELSE NULL END, \
             CASE WHEN $7::text IS NOT NULL \
-                THEN set_config('app.bypass_dept_rls', $7::text, true) ELSE NULL END",
+                THEN set_config('app.bypass_dept_rls', $7::text, true) ELSE NULL END, \
+            CASE WHEN $8::text IS NOT NULL \
+                THEN set_config('app.acting_agent', $8::text, true) ELSE NULL END",
     )
     .bind(tenant_id.map(ToString::to_string))
     .bind(department_ids)
@@ -378,6 +380,9 @@ async fn apply_context(
     .bind(user_agent)
     .bind(session_id)
     .bind(bypass_dept_rls)
+    // The AI actor in scope, so rows the handler or the audit trigger writes in
+    // this transaction default `acting_agent` to it (migration 1211).
+    .bind(crate::audit::acting_agent().map(|a| a.to_string()))
     .fetch_optional(&mut **tx)
     .await?;
 

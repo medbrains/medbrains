@@ -46,7 +46,95 @@ pub struct Claims {
     /// existed — which is why it is optional rather than a breaking claim.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub paired_device_id: Option<Uuid>,
+    /// Set when the request is made by an AI agent on the user's behalf
+    /// (RFC 8693 `act`). Authorization still evaluates as `sub` — every
+    /// permission, `ReBAC` and RLS rule is the user's, so the agent can never
+    /// exceed them — but every audit and access row written for the request
+    /// records the agent too (RFC-AUTHZ-2026-001 §2A.5). Only minted
+    /// in-process by the assistant's tools; absent on every token a person
+    /// holds.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub act: Option<ActingAgent>,
     pub exp: usize,
+}
+
+/// What kind of non-human actor is acting for the user.
+#[derive(Debug, Serialize, Deserialize, Clone, Copy, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum ActorKind {
+    AiAgent,
+}
+
+/// The actor half of a delegated request: which agent, which model, which run.
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
+pub struct ActingAgent {
+    pub kind: ActorKind,
+    /// Stable agent name, e.g. `clinical_assistant`.
+    pub agent: String,
+    pub model: String,
+    /// One assistant turn.
+    pub run_id: Uuid,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub conversation_id: Option<Uuid>,
+}
+
+impl ActingAgent {
+    /// The JSON stored in `audit_log.acting_agent` / `access_log.acting_agent`.
+    #[must_use]
+    pub fn to_audit_json(&self) -> serde_json::Value {
+        serde_json::to_value(self).unwrap_or(serde_json::Value::Null)
+    }
+}
+
+/// Run `next` with the agent (if any) in scope, so audit and access rows
+/// written for this request record it. An agent may only read: a write it
+/// asks for is refused here, before any handler runs — agent changes go
+/// through a proposal a person approves, never straight to a record.
+async fn run_as(state: &AppState, claims: &Claims, request: Request, next: Next) -> Response {
+    let Some(agent) = claims.act.clone() else {
+        return next.run(request).await;
+    };
+    if !matches!(
+        *request.method(),
+        axum::http::Method::GET | axum::http::Method::HEAD
+    ) {
+        // The attempt is evidence: audited like any other refusal, with the
+        // agent named, before the answer goes back.
+        let entry = medbrains_db::audit::HttpAuditEntry {
+            tenant_id: claims.tenant_id,
+            user_id: Some(claims.sub),
+            correlation_id: Uuid::new_v4(),
+            action: "agent_write_refused".to_owned(),
+            entity_type: request
+                .uri()
+                .path()
+                .trim_start_matches("/api/")
+                .split('/')
+                .next()
+                .unwrap_or("unknown")
+                .to_owned(),
+            entity_id: None,
+            ip_address: None,
+            user_agent: None,
+            session_id: None,
+            module: Some("ai".to_owned()),
+            status_code: 403,
+            method: request.method().as_str().to_owned(),
+            acting_agent: Some(agent.to_audit_json()),
+        };
+        if let Err(e) = medbrains_db::audit::AuditLogger::log_http(&state.db, &entry).await {
+            tracing::error!(error = %e, "failed to audit a refused agent write");
+        }
+        return AppError::ForbiddenReason(
+            "An AI agent cannot change records. It can only propose a change for a person to \
+             approve."
+                .to_owned(),
+        )
+        .into_response();
+    }
+    medbrains_db::audit::ACTING_AGENT
+        .scope(agent.to_audit_json(), next.run(request))
+        .await
 }
 
 /// How the request was authenticated — used by CSRF middleware to skip
@@ -94,8 +182,8 @@ pub async fn auth_middleware(
         let device_variant = verify_device_not_revoked(&state.db, &claims).await?;
         hydrate_permissions(&state.db, &mut claims, device_variant.as_deref()).await?;
         request.extensions_mut().insert(AuthMethod::Cookie);
-        request.extensions_mut().insert(claims);
-        return Ok(next.run(request).await);
+        request.extensions_mut().insert(claims.clone());
+        return Ok(run_as(&state, &claims, request, next).await);
     }
 
     // Try 2: Authorization: Bearer <token>
@@ -152,8 +240,8 @@ pub async fn auth_middleware(
         let device_variant = verify_device_not_revoked(&state.db, &claims).await?;
         hydrate_permissions(&state.db, &mut claims, device_variant.as_deref()).await?;
         request.extensions_mut().insert(AuthMethod::Bearer);
-        request.extensions_mut().insert(claims);
-        return Ok(next.run(request).await);
+        request.extensions_mut().insert(claims.clone());
+        return Ok(run_as(&state, &claims, request, next).await);
     }
 
     // Neither cookie nor bearer found

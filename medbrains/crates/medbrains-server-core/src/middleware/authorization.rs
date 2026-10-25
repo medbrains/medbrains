@@ -159,6 +159,7 @@ mod tests {
             department_ids,
             perm_version: 1,
             paired_device_id: None,
+            act: None,
             exp: 4_102_444_800,
         }
     }
@@ -398,6 +399,7 @@ mod board_read_tests {
             department_ids: Vec::new(),
             perm_version: 0,
             paired_device_id: paired,
+            act: None,
             exp: 0,
         }
     }

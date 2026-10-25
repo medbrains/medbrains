@@ -119,6 +119,10 @@ pub async fn audit_layer(
         module: derive_module(&path),
         status_code: status.as_u16(),
         method: method_str,
+        acting_agent: claims
+            .act
+            .as_ref()
+            .map(super::auth::ActingAgent::to_audit_json),
     };
 
     let pool = state.db.clone();

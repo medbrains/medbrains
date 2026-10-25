@@ -6,6 +6,7 @@ import { IconSearch } from "@tabler/icons-react";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { DataTable } from "@/components";
+import { AuditActor } from "@/components/ai/AuditActor";
 import type { Column } from "@/components/DataTable";
 import { Button, Modal } from "@/components/ui";
 import { auditService } from "@/services/audit.service";
@@ -86,7 +87,7 @@ export function AccessLogTab() {
     {
       key: "user_name",
       label: "User",
-      render: (r) => <Text size="sm">{r.user_name ?? "System"}</Text>,
+      render: (r) => <AuditActor userName={r.user_name} actingAgent={r.acting_agent} />,
     },
     {
       key: "action",
@@ -157,7 +158,7 @@ export function AccessLogTab() {
     {
       key: "user_name",
       label: "User",
-      render: (r) => <Text size="sm">{r.user_name ?? "System"}</Text>,
+      render: (r) => <AuditActor userName={r.user_name} actingAgent={r.acting_agent} />,
     },
     {
       key: "action",

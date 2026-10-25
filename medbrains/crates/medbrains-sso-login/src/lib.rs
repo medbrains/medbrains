@@ -373,6 +373,7 @@ pub async fn oidc_callback(
         department_ids: Vec::new(),
         perm_version: fed.perm_version,
         paired_device_id: None,
+        act: None,
         exp: (Utc::now() + chrono::Duration::minutes(15)).timestamp() as usize,
     };
     let access_token = encode_jwt(&access_claims, &state.jwt_encoding_key)

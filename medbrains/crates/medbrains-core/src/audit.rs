@@ -36,6 +36,9 @@ pub struct AuditLogEntry {
     pub ip_address: Option<String>,
     pub module: Option<String>,
     pub description: Option<String>,
+    /// Set when an AI agent made this request on the user's behalf:
+    /// `{kind, agent, model, run_id, conversation_id}`. `None` = the person acted.
+    pub acting_agent: Option<serde_json::Value>,
     pub created_at: DateTime<Utc>,
 }
 
@@ -49,6 +52,9 @@ pub struct AuditLogSummary {
     pub entity_id: Option<Uuid>,
     pub module: Option<String>,
     pub description: Option<String>,
+    /// Set when an AI agent made this request on the user's behalf:
+    /// `{kind, agent, model, run_id, conversation_id}`. `None` = the person acted.
+    pub acting_agent: Option<serde_json::Value>,
     pub created_at: DateTime<Utc>,
 }
 
@@ -66,6 +72,9 @@ pub struct AccessLogEntry {
     pub action: String,
     pub ip_address: Option<String>,
     pub module: Option<String>,
+    /// Set when an AI agent made this request on the user's behalf:
+    /// `{kind, agent, model, run_id, conversation_id}`. `None` = the person acted.
+    pub acting_agent: Option<serde_json::Value>,
     pub created_at: DateTime<Utc>,
 }
 
