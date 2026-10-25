@@ -1,11 +1,13 @@
 //! Running the suite and reporting it: per case pass/fail with the rule that
-//! failed, then a summary with tokens and cost per passing case.
+//! failed, its tokens (cache reads/writes apart) and model time, then a
+//! summary with cost per passing case and p50/p95 per stage.
 
 use std::fmt::Write as _;
 use std::path::Path;
+use std::time::{Duration, Instant};
 
 use crate::graders::{Failure, grade};
-use crate::live::{Provider, cost};
+use crate::live::{Provider, Timing, cost};
 use crate::{Answer, Case, Prepared, recording_path};
 
 /// Where answers come from.
@@ -25,6 +27,18 @@ pub struct CaseResult {
     pub failures: Vec<Failure>,
     pub known_failure: Option<String>,
     pub answer: Option<Answer>,
+    pub stages: Stages,
+}
+
+/// Wall time per harness stage for one case.
+#[derive(Debug, Clone, Copy, Default)]
+pub struct Stages {
+    /// Building the request through the redactor.
+    pub prepare: Duration,
+    /// The provider call, auth apart (zero offline).
+    pub call: Timing,
+    /// The answer guard and the graders.
+    pub grade: Duration,
 }
 
 impl CaseResult {
@@ -49,13 +63,17 @@ pub fn run(dir: &Path, mode: Mode, only: &[String]) -> Result<Vec<CaseResult>, S
 }
 
 fn run_case(dir: &Path, case: &Case, mode: Mode) -> Result<CaseResult, String> {
+    let mut stages = Stages::default();
+    let started = Instant::now();
     let prepared = case.prepare();
+    stages.prepare = started.elapsed();
     let answer = match (&prepared, mode) {
         (Prepared::Send(_), Mode::Offline) => recorded(dir, &case.id)?,
         (Prepared::Send(request), Mode::Live { provider, record }) => {
-            let a = provider
+            let (a, call) = provider
                 .ask(request)
                 .map_err(|e| format!("{}: {e}", case.id))?;
+            stages.call = call;
             if record {
                 let json = serde_json::to_string_pretty(&a).map_err(|e| e.to_string())?;
                 std::fs::write(recording_path(dir, &case.id), json + "\n")
@@ -65,12 +83,16 @@ fn run_case(dir: &Path, case: &Case, mode: Mode) -> Result<CaseResult, String> {
         }
         _ => None,
     };
+    let started = Instant::now();
+    let failures = grade(case, &prepared, answer.as_ref());
+    stages.grade = started.elapsed();
     Ok(CaseResult {
         id: case.id.clone(),
         task: case.task.clone(),
-        failures: grade(case, &prepared, answer.as_ref()),
+        failures,
         known_failure: case.known_failure.clone(),
         answer,
+        stages,
     })
 }
 
@@ -88,7 +110,10 @@ fn recorded(dir: &Path, id: &str) -> Result<Option<Answer>, String> {
 /// The report, as Markdown.
 #[must_use]
 pub fn render(results: &[CaseResult]) -> String {
-    let mut s = String::from("| case | task | result | failing rules |\n|---|---|---|---|\n");
+    let mut s = String::from(
+        "| case | task | result | tokens in/out | cache read/write | model ms | failing rules |\n\
+         |---|---|---|---|---|---|---|\n",
+    );
     for r in results {
         let status = match (r.failures.is_empty(), &r.known_failure, r.is_unexpected()) {
             (true, None, _) => "pass",
@@ -101,17 +126,67 @@ pub fn render(results: &[CaseResult]) -> String {
             .iter()
             .map(|f| format!("{}: {}", f.rule, f.detail.replace('|', "/")))
             .collect();
+        let (tokens, cache) = r.answer.as_ref().map_or_else(
+            || ("-".to_owned(), "-".to_owned()),
+            |a| {
+                (
+                    format!("{}/{}", a.input_tokens, a.output_tokens),
+                    format!("{}/{}", a.cache_read_tokens, a.cache_write_tokens),
+                )
+            },
+        );
         let _ = writeln!(
             s,
-            "| {} | {} | {status} | {} |",
+            "| {} | {} | {status} | {tokens} | {cache} | {} | {} |",
             r.id,
             r.task,
+            r.stages.call.model.as_millis(),
             rules.join("; ")
         );
     }
     s.push('\n');
     s.push_str(&summary(results));
+    s.push('\n');
+    s.push_str(&latency(results));
     s
+}
+
+/// p50/p95 per stage, over the cases that ran it.
+fn latency(results: &[CaseResult]) -> String {
+    let stage = |f: &dyn Fn(&Stages) -> Option<Duration>| -> Vec<Duration> {
+        let mut v: Vec<Duration> = results.iter().filter_map(|r| f(&r.stages)).collect();
+        v.sort_unstable();
+        v
+    };
+    let called = |d: Duration| (!d.is_zero()).then_some(d);
+    let rows: [(&str, Vec<Duration>); 5] = [
+        ("prepare (redact)", stage(&|s| Some(s.prepare))),
+        ("auth (token)", stage(&|s| called(s.call.auth))),
+        ("model (wall)", stage(&|s| called(s.call.model))),
+        ("model (provider-reported)", stage(&|s| s.call.provider)),
+        ("grade (guard + graders)", stage(&|s| Some(s.grade))),
+    ];
+    let mut s = String::from("| stage | n | p50 ms | p95 ms |\n|---|---|---|---|\n");
+    for (name, v) in rows.iter().filter(|(_, v)| !v.is_empty()) {
+        let _ = writeln!(
+            s,
+            "| {name} | {} | {:.1} | {:.1} |",
+            v.len(),
+            ms(percentile(v, 50)),
+            ms(percentile(v, 95)),
+        );
+    }
+    s
+}
+
+/// Nearest-rank percentile of a sorted, non-empty list.
+fn percentile(sorted: &[Duration], p: usize) -> Duration {
+    let rank = (sorted.len() * p).div_ceil(100).max(1);
+    sorted.get(rank - 1).copied().unwrap_or_default()
+}
+
+fn ms(d: Duration) -> f64 {
+    d.as_secs_f64() * 1000.0
 }
 
 fn summary(results: &[CaseResult]) -> String {
@@ -124,6 +199,8 @@ fn summary(results: &[CaseResult]) -> String {
     let answers: Vec<&Answer> = results.iter().filter_map(|r| r.answer.as_ref()).collect();
     let tin: u64 = answers.iter().map(|a| a.input_tokens).sum();
     let tout: u64 = answers.iter().map(|a| a.output_tokens).sum();
+    let read: u64 = answers.iter().map(|a| a.cache_read_tokens).sum();
+    let write: u64 = answers.iter().map(|a| a.cache_write_tokens).sum();
     // One answer from a model with no known price makes the total unknown.
     let usd: Option<f64> = answers.iter().map(|a| cost(a)).sum();
     let (total, per_pass) = match usd {
@@ -138,10 +215,24 @@ fn summary(results: &[CaseResult]) -> String {
         m
     };
     format!(
-        "| cases | pass | known fail | unexpected | tokens in/out | est. cost | cost per pass | model |\n\
-         |---|---|---|---|---|---|---|---|\n\
-         | {} | {passed} | {known} | {unexpected} | {tin}/{tout} | {total} | {per_pass} | {} |\n",
+        "| cases | pass | known fail | unexpected | tokens in/out | cache read/write | est. cost | cost per pass | model |\n\
+         |---|---|---|---|---|---|---|---|---|\n\
+         | {} | {passed} | {known} | {unexpected} | {tin}/{tout} | {read}/{write} | {total} | {per_pass} | {} |\n",
         results.len(),
         models.join(", "),
     )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::percentile;
+    use std::time::Duration;
+
+    #[test]
+    fn percentiles_are_nearest_rank() {
+        let v: Vec<Duration> = (1..=20).map(Duration::from_millis).collect();
+        assert_eq!(percentile(&v, 50), Duration::from_millis(10));
+        assert_eq!(percentile(&v, 95), Duration::from_millis(19));
+        assert_eq!(percentile(&v[..1], 95), Duration::from_millis(1));
+    }
 }

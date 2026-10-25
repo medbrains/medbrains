@@ -21,9 +21,8 @@
   "planted": [],
   "source": {
     "drug": "Ceftriaxone",
-    "safe": false,
-    "warnings": [],
-    "notes": "No patient chart is loaded, so safety cannot be checked - ask the clinician to open the patient's chart before relying on a drug suggestion."
+    "checked": false,
+    "notes": "Ceftriaxone was not checked: no patient chart is loaded. Open the patient's chart to run the check."
   },
   "question": "Is ceftriaxone OK for this patient?",
   "expect": "answer",

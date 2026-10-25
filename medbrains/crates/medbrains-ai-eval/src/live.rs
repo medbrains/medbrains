@@ -1,8 +1,11 @@
 //! Asking a real model — synthetic cases only.
 //!
 //! Two providers, chosen by what credentials exist:
-//! - **Bedrock, ap-south-1** (the production path): the operator's AWS
-//!   credentials through the `aws` CLI. The region is fixed, not configured.
+//! - **Bedrock, ap-south-1** (the production path): the Converse API through
+//!   the `aws` CLI, SigV4-signed with the operator's ambient AWS credentials.
+//!   The region is fixed, not configured. `EVAL_AI_MODEL` may name an
+//!   India-only (`in.`) inference profile, e.g. Claude Haiku 4.5
+//!   ([`BEDROCK_HAIKU_4_5`]); anything else is refused ([`bedrock_model`]).
 //! - **Anthropic API** (`EVAL_AI_PROVIDER=anthropic`, dev/eval only): no API
 //!   key — the AWS identity is exchanged for a short-lived access token
 //!   ([`medbrains_anthropic_auth`]), sent to `curl` on stdin so it is never in
@@ -15,6 +18,7 @@
 
 use std::io::Write as _;
 use std::process::{Command, Stdio};
+use std::time::{Duration, Instant};
 
 use medbrains_anthropic_auth::{AccessToken, FederationConfig};
 use serde_json::{Value, json};
@@ -24,9 +28,11 @@ use crate::{Answer, Request};
 /// India (DPDP s.16). Not configurable on purpose.
 const BEDROCK_REGION: &str = "ap-south-1";
 const BEDROCK_MODEL: &str = "openai.gpt-oss-120b-1:0";
+/// The weakest India-only Claude: routed only to ap-south-1/ap-south-2.
+pub const BEDROCK_HAIKU_4_5: &str = "in.anthropic.claude-haiku-4-5-20251001-v1:0";
 /// The Anthropic model unless `EVAL_AI_MODEL` names another.
 pub const ANTHROPIC_MODEL: &str = "claude-sonnet-4-6";
-const MAX_TOKENS: u32 = 4000;
+use medbrains_core::ai_guard::MAX_ANSWER_TOKENS as MAX_TOKENS;
 
 /// USD per million (input, output) tokens, for the cost column; `None` for
 /// a model whose price is not known here (the report says "unknown").
@@ -45,6 +51,9 @@ fn price(model: &str) -> Option<(f64, f64)> {
     }
     match model {
         BEDROCK_MODEL => Some((0.15, 0.60)),
+        // ponytail: regional/`in.` profiles carry +10% over the $1/$5 list
+        // price (Anthropic pricing page; not stated on an AWS page).
+        BEDROCK_HAIKU_4_5 => Some((1.10, 5.50)),
         "claude-sonnet-4-6" => Some((3.0, 15.0)),
         "claude-haiku-5-5" => Some((0.10, 0.50)),
         "claude-sonnet-5-5" => Some((2.0, 10.0)),
@@ -53,12 +62,43 @@ fn price(model: &str) -> Option<(f64, f64)> {
     }
 }
 
-/// Estimated USD for an answer, if its model's price is known.
+/// Estimated USD for an answer, if its model's price is known: uncached
+/// input at the list price, cache writes at 1.25x (5-minute TTL), cache
+/// reads at 0.1x.
 #[must_use]
 pub fn cost(a: &Answer) -> Option<f64> {
     let (i, o) = price(&a.model)?;
-    let (tin, tout) = (a.input_tokens as f64, a.output_tokens as f64);
-    Some(tin.mul_add(i, tout * o) / 1_000_000.0)
+    let input = (a.cache_read_tokens as f64).mul_add(
+        0.1,
+        (a.cache_write_tokens as f64).mul_add(1.25, a.input_tokens as f64),
+    );
+    Some(input.mul_add(i, a.output_tokens as f64 * o) / 1_000_000.0)
+}
+
+/// The Bedrock model to ask: `EVAL_AI_MODEL` if it is an India-only (`in.`)
+/// profile, else [`BEDROCK_MODEL`] (served in ap-south-1 itself).
+///
+/// # Errors
+/// `EVAL_AI_MODEL` names a model that could route outside India.
+pub fn bedrock_model(named: Option<&str>) -> Result<String, String> {
+    match named.map(str::trim).filter(|m| !m.is_empty()) {
+        None => Ok(BEDROCK_MODEL.to_owned()),
+        Some(m) if m == BEDROCK_MODEL || m.starts_with("in.") => Ok(m.to_owned()),
+        Some(m) => Err(format!(
+            "Bedrock model {m:?} is not India-only; use an `in.` inference profile"
+        )),
+    }
+}
+
+/// How long one call took, by stage.
+#[derive(Debug, Clone, Copy, Default)]
+pub struct Timing {
+    /// Getting the federated access token (Anthropic only; cached after the first).
+    pub auth: Duration,
+    /// The provider call as the harness waited for it (CLI start included).
+    pub model: Duration,
+    /// The provider's own figure for the model call, where it gives one.
+    pub provider: Option<Duration>,
 }
 
 /// The Anthropic model to ask: `EVAL_AI_MODEL`, else [`ANTHROPIC_MODEL`].
@@ -86,7 +126,10 @@ impl Provider {
     /// IDs — the caller skips the live run and prints why.
     pub fn detect() -> Result<Self, String> {
         match std::env::var("EVAL_AI_PROVIDER").ok().as_deref() {
-            Some("bedrock") => return Ok(Self::Bedrock),
+            Some("bedrock") => {
+                return bedrock_model(std::env::var("EVAL_AI_MODEL").ok().as_deref())
+                    .map(|_| Self::Bedrock);
+            }
             Some("anthropic") => {
                 return FederationConfig::from_env()
                     .map(|_| Self::Anthropic)
@@ -114,40 +157,68 @@ impl Provider {
     ///
     /// # Errors
     /// The call failed or its answer could not be read.
-    pub fn ask(self, request: &Request) -> Result<Answer, String> {
+    pub fn ask(self, request: &Request) -> Result<(Answer, Timing), String> {
+        let mut timing = Timing::default();
         let (model, body) = match self {
-            Self::Bedrock => (BEDROCK_MODEL.to_owned(), bedrock(request)?),
+            Self::Bedrock => {
+                let model = bedrock_model(std::env::var("EVAL_AI_MODEL").ok().as_deref())?;
+                let started = Instant::now();
+                let body = bedrock(request, &model)?;
+                timing.model = started.elapsed();
+                (model, body)
+            }
             Self::Anthropic => {
                 let model = anthropic_model();
-                let body = anthropic(request, &model)?;
+                let started = Instant::now();
+                let token = anthropic_token()?;
+                timing.auth = started.elapsed();
+                let started = Instant::now();
+                let body = anthropic(request, &model, &token)?;
+                timing.model = started.elapsed();
                 (model, body)
             }
         };
         let v: Value = serde_json::from_str(&body).map_err(|e| format!("bad response: {e}"))?;
-        let (text, tin, tout) = match self {
-            Self::Bedrock => (
-                texts(&v["output"]["message"]["content"]),
-                &v["usage"]["inputTokens"],
-                &v["usage"]["outputTokens"],
-            ),
+        let u = &v["usage"];
+        let n = |key: &str| u[key].as_u64().unwrap_or_default();
+        let truncated = v["stopReason"] == "max_tokens" || v["stop_reason"] == "max_tokens";
+        let (text, tin, tout, read, write) = match self {
+            Self::Bedrock => {
+                timing.provider = v["metrics"]["latencyMs"].as_u64().map(Duration::from_millis);
+                // Like Anthropic's, Converse's inputTokens leaves out cached tokens
+                // (AWS's caching example: total = input + output + cache read).
+                (
+                    texts(&v["output"]["message"]["content"]),
+                    n("inputTokens"),
+                    n("outputTokens"),
+                    n("cacheReadInputTokens"),
+                    n("cacheWriteInputTokens"),
+                )
+            }
             Self::Anthropic => (
                 texts(&v["content"]),
-                &v["usage"]["input_tokens"],
-                &v["usage"]["output_tokens"],
+                n("input_tokens"),
+                n("output_tokens"),
+                n("cache_read_input_tokens"),
+                n("cache_creation_input_tokens"),
             ),
         };
         if text.is_empty() && v.get("error").is_some() {
             return Err(format!("provider error: {}", v["error"]));
         }
-        Ok(Answer {
+        let answer = Answer {
             provider: format!("{self:?}").to_lowercase(),
             model,
             system: request.system.for_model().to_owned(),
             user: request.user.for_model().to_owned(),
             output: text,
-            input_tokens: tin.as_u64().unwrap_or_default(),
-            output_tokens: tout.as_u64().unwrap_or_default(),
-        })
+            input_tokens: tin,
+            output_tokens: tout,
+            cache_read_tokens: read,
+            cache_write_tokens: write,
+            truncated,
+        };
+        Ok((answer, timing))
     }
 }
 
@@ -165,7 +236,7 @@ fn texts(content: &Value) -> String {
         .unwrap_or_default()
 }
 
-fn bedrock(request: &Request) -> Result<String, String> {
+fn bedrock(request: &Request, model: &str) -> Result<String, String> {
     let system = json!([{ "text": request.system.for_model() }]).to_string();
     let messages =
         json!([{ "role": "user", "content": [{ "text": request.user.for_model() }] }]).to_string();
@@ -177,7 +248,7 @@ fn bedrock(request: &Request) -> Result<String, String> {
             "--region",
             BEDROCK_REGION,
             "--model-id",
-            BEDROCK_MODEL,
+            model,
             "--system",
             &system,
             "--messages",
@@ -191,8 +262,7 @@ fn bedrock(request: &Request) -> Result<String, String> {
     )
 }
 
-fn anthropic(request: &Request, model: &str) -> Result<String, String> {
-    let token = anthropic_token()?;
+fn anthropic(request: &Request, model: &str, token: &AccessToken) -> Result<String, String> {
     let body = anthropic_body(request, model);
     // The token is a header read from stdin (`-H @-`), never argv; the body
     // in argv is synthetic text.
@@ -216,12 +286,19 @@ fn anthropic(request: &Request, model: &str) -> Result<String, String> {
 }
 
 /// The Messages body. The 5.x models refuse a non-default `temperature`, so
-/// only the 4.x models get `temperature: 0`.
+/// only the 4.x models get `temperature: 0`. The system block is the fixed
+/// prefix and carries the cache breakpoint, as production's does (rig's
+/// `with_prompt_caching`, 5-minute TTL); below the model's minimum (512
+/// tokens on the 5.5 models, 4,096 on Haiku 4.5) the API silently skips it.
 fn anthropic_body(request: &Request, model: &str) -> Value {
     let mut body = json!({
         "model": model,
         "max_tokens": MAX_TOKENS,
-        "system": request.system.for_model(),
+        "system": [{
+            "type": "text",
+            "text": request.system.for_model(),
+            "cache_control": { "type": "ephemeral" },
+        }],
         "messages": [{ "role": "user", "content": request.user.for_model() }],
     });
     if model.contains("-4-") {
@@ -262,7 +339,7 @@ fn run(cmd: &mut Command, stdin: Option<String>) -> Result<String, String> {
 
 #[cfg(test)]
 mod tests {
-    use super::{Answer, anthropic_body, cost};
+    use super::{Answer, BEDROCK_HAIKU_4_5, BEDROCK_MODEL, anthropic_body, bedrock_model, cost};
     use medbrains_core::ai_redact::Redacted;
 
     fn answer(model: &str) -> Answer {
@@ -274,6 +351,9 @@ mod tests {
             output: String::new(),
             input_tokens: 1_000_000,
             output_tokens: 1_000_000,
+            cache_read_tokens: 0,
+            cache_write_tokens: 0,
+            truncated: false,
         }
     }
 
@@ -283,6 +363,39 @@ mod tests {
         assert_eq!(cost(&answer("claude-opus-5-5")), Some(24.0));
         assert_eq!(cost(&answer("claude-sonnet-5-5")), Some(12.0));
         assert_eq!(cost(&answer("claude-next-9")), None);
+    }
+
+    #[test]
+    fn cache_reads_are_billed_at_a_tenth_and_writes_at_a_premium() {
+        let mut a = answer("claude-haiku-5-5");
+        (a.input_tokens, a.output_tokens) = (0, 0);
+        a.cache_read_tokens = 1_000_000;
+        let near = |got: Option<f64>, want: f64| got.is_some_and(|g| (g - want).abs() < 1e-9);
+        assert!(near(cost(&a), 0.01), "{:?}", cost(&a));
+        (a.cache_read_tokens, a.cache_write_tokens) = (0, 1_000_000);
+        assert!(near(cost(&a), 0.125), "{:?}", cost(&a));
+    }
+
+    #[test]
+    fn bedrock_asks_only_india_only_models() {
+        assert_eq!(bedrock_model(None).as_deref(), Ok(BEDROCK_MODEL));
+        assert_eq!(bedrock_model(Some(BEDROCK_HAIKU_4_5)).as_deref(), Ok(BEDROCK_HAIKU_4_5));
+        assert!(bedrock_model(Some("global.anthropic.claude-haiku-5-5")).is_err());
+        assert!(bedrock_model(Some("anthropic.claude-haiku-4-5-20251001-v1:0")).is_err());
+    }
+
+    #[test]
+    fn the_fixed_prefix_carries_the_cache_breakpoint() {
+        let request = crate::Request {
+            system: Redacted::fixed("system"),
+            user: Redacted::fixed("question"),
+            record: Redacted::fixed(""),
+            question: Redacted::fixed("question"),
+        };
+        let body = anthropic_body(&request, "claude-haiku-5-5");
+        assert_eq!(body["system"][0]["text"], "system");
+        assert_eq!(body["system"][0]["cache_control"]["type"], "ephemeral");
+        assert!(body["messages"][0].get("cache_control").is_none());
     }
 
     #[test]

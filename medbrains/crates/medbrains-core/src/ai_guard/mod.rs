@@ -30,6 +30,12 @@ use std::collections::{BTreeSet, HashSet};
 
 use patterns::{COMMON_WORDS, CONTACT_KINDS, NOT_CONDITIONS, PATTERNS, Patterns, SHOWN_KINDS};
 
+/// Output tokens one assistant answer may use, assistant and eval alike: about
+/// 3x the longest answer that passes the eval (a discharge-summary draft,
+/// 1,065 tokens on Haiku 5.5). An answer cut off at this cap is a failure,
+/// never a pass (eval `cut_off`), so the cap only bounds a runaway answer.
+pub const MAX_ANSWER_TOKENS: u32 = 3200;
+
 /// Longest text held while waiting for a sentence to end.
 const MAX_PENDING: usize = 2000;
 /// Distinct injected words a sentence must share to count as an echo.

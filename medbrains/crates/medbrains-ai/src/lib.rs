@@ -14,18 +14,21 @@ use axum::{
     response::sse::{Event, KeepAlive, Sse},
 };
 use futures::{Stream, StreamExt as _};
+use rig::client::CompletionClient as _;
 use serde::{Deserialize, Serialize};
+use tower::ServiceExt as _;
 use uuid::Uuid;
 
-use medbrains_core::ai_redact::{Redacted, StreamRehydrator};
+use medbrains_core::ai_drug_check::DrugCheck;
+use medbrains_core::ai_redact::{PLACEHOLDER_NOTE, Redacted, StreamRehydrator};
 use medbrains_core::permissions;
 
 mod contact_access;
 mod redaction;
-pub use redaction::session_for;
 use medbrains_server_core::middleware::auth::Claims;
 use medbrains_server_core::middleware::authorization::require_permission;
 use medbrains_server_core::{error::AppError, state::AppState};
+pub use redaction::session_for;
 
 /// The finalized app router, stashed by `main` after construction, so read tools
 /// can dispatch requests in-process (reusing auth/RLS/permission/audit). Set once.
@@ -132,10 +135,7 @@ struct Grounding {
 
 /// An empty list says so in words: the model reports "none recorded" rather
 /// than leaving the section out.
-fn none_recorded<S: serde::Serializer, T: Serialize>(
-    items: &[T],
-    s: S,
-) -> Result<S::Ok, S::Error> {
+fn none_recorded<S: serde::Serializer, T: Serialize>(items: &[T], s: S) -> Result<S::Ok, S::Error> {
     if items.is_empty() {
         s.serialize_str("none recorded")
     } else {
@@ -155,7 +155,7 @@ struct LabEntry {
 }
 
 /// Fetch a patient's allergies, active medications, and active problems, under
-/// the caller's RLS. Caller must have already passed the patient-viewer ReBAC.
+/// the caller's RLS. Caller must have already passed the patient-viewer `ReBAC`.
 async fn fetch_patient_grounding(
     tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
     tenant_id: Uuid,
@@ -294,14 +294,6 @@ struct DrugSafetyArgs {
     drug: String,
 }
 
-#[derive(serde::Serialize)]
-struct DrugSafetyResult {
-    drug: String,
-    safe: bool,
-    warnings: Vec<String>,
-    notes: String,
-}
-
 struct DrugSafetyTool {
     /// Every result goes back to the model through this turn's redaction.
     session: redaction::Session,
@@ -358,8 +350,11 @@ impl rig::tool::Tool for DrugSafetyTool {
     type Args = DrugSafetyArgs;
     type Output = Redacted;
 
-    async fn definition(&self, _prompt: String) -> rig::completion::ToolDefinition {
-        rig::completion::ToolDefinition {
+    fn definition(
+        &self,
+        _prompt: String,
+    ) -> impl Future<Output = rig::completion::ToolDefinition> + Send + Sync {
+        std::future::ready(rig::completion::ToolDefinition {
             name: Self::NAME.to_owned(),
             description: "Check a drug the clinician intends to give against the current \
                 patient's allergies and drug interactions using the pharmacy safety engine. Call \
@@ -375,7 +370,7 @@ impl rig::tool::Tool for DrugSafetyTool {
                 },
                 "required": ["drug"]
             }),
-        }
+        })
     }
 
     async fn call(&self, args: Self::Args) -> Result<Self::Output, Self::Error> {
@@ -391,55 +386,23 @@ impl rig::tool::Tool for DrugSafetyTool {
 }
 
 impl DrugSafetyTool {
-    async fn answer(&self, args: DrugSafetyArgs) -> Result<DrugSafetyResult, std::convert::Infallible> {
+    /// The check's status is always stated (`checked`), never left for the
+    /// model to infer from an empty warning list.
+    async fn answer(&self, args: DrugSafetyArgs) -> Result<DrugCheck, std::convert::Infallible> {
         let Some(patient_id) = self.patient_id else {
-            // Unchecked is not safe: `safe: true` here told the model (and the
-            // UI chip) that a drug nobody checked had passed.
-            return Ok(DrugSafetyResult {
-                drug: args.drug,
-                safe: false,
-                warnings: Vec::new(),
-                notes:
-                    "No patient chart is loaded, so safety cannot be checked — ask the clinician \
-                    to open the patient's chart before relying on a drug suggestion."
-                        .to_owned(),
-            });
+            return Ok(DrugCheck::no_chart(args.drug));
         };
-        match self.evaluate(&args.drug, patient_id).await {
-            Ok(warnings) if warnings.is_empty() => Ok(DrugSafetyResult {
-                drug: args.drug,
-                safe: true,
-                warnings: Vec::new(),
-                notes: "No allergy or interaction warnings from the safety engine. Still verify \
-                    dosing clinically."
-                    .to_owned(),
-            }),
-            Ok(warnings) => {
-                let messages: Vec<String> = warnings
+        Ok(match self.evaluate(&args.drug, patient_id).await {
+            Ok(warnings) if warnings.is_empty() => DrugCheck::clear(args.drug),
+            Ok(warnings) => DrugCheck::flagged(
+                args.drug,
+                warnings
                     .iter()
                     .map(|w| format!("[{:?}] {}", w.severity, w.message))
-                    .collect();
-                let notes = format!(
-                    "SAFETY WARNINGS from the pharmacy engine — do NOT recommend this drug without \
-                     resolving these and flagging to the clinician: {}",
-                    messages.join("; ")
-                );
-                Ok(DrugSafetyResult {
-                    drug: args.drug,
-                    safe: false,
-                    warnings: messages,
-                    notes,
-                })
-            }
-            Err(_) => Ok(DrugSafetyResult {
-                drug: args.drug,
-                safe: false,
-                warnings: Vec::new(),
-                notes: "Could not verify drug safety (system error) — do not rely on an unchecked \
-                    recommendation; escalate to the clinician."
-                    .to_owned(),
-            }),
-        }
+                    .collect(),
+            ),
+            Err(_) => DrugCheck::failed(args.drug),
+        })
     }
 }
 
@@ -545,8 +508,11 @@ impl rig::tool::Tool for DraftPrescriptionTool {
     type Args = DraftPrescriptionArgs;
     type Output = Redacted;
 
-    async fn definition(&self, _prompt: String) -> rig::completion::ToolDefinition {
-        rig::completion::ToolDefinition {
+    fn definition(
+        &self,
+        _prompt: String,
+    ) -> impl Future<Output = rig::completion::ToolDefinition> + Send + Sync {
+        std::future::ready(rig::completion::ToolDefinition {
             name: Self::NAME.to_owned(),
             description:
                 "Draft a prescription for the current patient. The server runs the pharmacy \
@@ -562,7 +528,7 @@ impl rig::tool::Tool for DraftPrescriptionTool {
                 },
                 "required": ["drug"]
             }),
-        }
+        })
     }
 
     async fn call(&self, args: Self::Args) -> Result<Self::Output, Self::Error> {
@@ -578,7 +544,10 @@ impl rig::tool::Tool for DraftPrescriptionTool {
 }
 
 impl DraftPrescriptionTool {
-    async fn answer(&self, args: DraftPrescriptionArgs) -> Result<DraftPrescriptionResult, std::convert::Infallible> {
+    async fn answer(
+        &self,
+        args: DraftPrescriptionArgs,
+    ) -> Result<DraftPrescriptionResult, std::convert::Infallible> {
         let Some(patient_id) = self.patient_id else {
             return Ok(DraftPrescriptionResult {
                 decision: "no_patient".to_owned(),
@@ -697,8 +666,11 @@ impl rig::tool::Tool for PatientOverviewTool {
     type Args = PatientOverviewArgs;
     type Output = Redacted;
 
-    async fn definition(&self, _prompt: String) -> rig::completion::ToolDefinition {
-        rig::completion::ToolDefinition {
+    fn definition(
+        &self,
+        _prompt: String,
+    ) -> impl Future<Output = rig::completion::ToolDefinition> + Send + Sync {
+        std::future::ready(rig::completion::ToolDefinition {
             name: Self::NAME.to_owned(),
             description: "Fetch a patient's allergies, active medications, active problems, and \
                 recent lab results, as JSON. Pass a REAL patient_id taken verbatim from the screen context. \
@@ -716,7 +688,7 @@ impl rig::tool::Tool for PatientOverviewTool {
                 },
                 "required": ["patient_id"]
             }),
-        }
+        })
     }
 
     async fn call(&self, args: Self::Args) -> Result<Self::Output, Self::Error> {
@@ -778,8 +750,9 @@ const RESTRICTED_QUESTION: &str = "This question mentions a restricted clinical 
 const UNKNOWN_FOR_MODEL: &str = "UNKNOWN — the system could not check this right now (a fault, \
     not an answer). Do not treat it as 'none' or 'no access'; tell the user it could not be checked.";
 
-/// Dispatch one read into `router` as the AI agent in `claims.act`, on the
-/// user's behalf. The request runs through the real auth, permission, ReBAC,
+/// Dispatch one read into `router` as the AI agent in `claims.act`.
+///
+/// It runs on the user's behalf, through the real auth, permission, `ReBAC`,
 /// RLS and audit stack with the user's authority — the agent can never exceed
 /// it — and every audit/access row it produces names the agent.
 ///
@@ -816,7 +789,6 @@ pub async fn call_api_as_agent(
         .header(axum::http::header::AUTHORIZATION, format!("Bearer {token}"))
         .body(axum::body::Body::empty())
         .map_err(|_| AppError::BadRequest("invalid path".to_owned()))?;
-    use tower::ServiceExt as _;
     let response = match router.oneshot(request).await {
         Ok(r) => r,
         Err(never) => match never {},
@@ -825,7 +797,10 @@ pub async fn call_api_as_agent(
     let bytes = axum::body::to_bytes(response.into_body(), 256 * 1024)
         .await
         .map_err(|_| AppError::Internal("read body failed".to_owned()))?;
-    Ok(describe_response(status, &minimum_necessary(&String::from_utf8_lossy(&bytes))))
+    Ok(describe_response(
+        status,
+        &minimum_necessary(&String::from_utf8_lossy(&bytes)),
+    ))
 }
 
 /// Path segments of restricted-class records (MHCA 2017, PC&PNDT 1994,
@@ -875,13 +850,13 @@ fn minimum_necessary(body: &str) -> String {
             _ => {}
         }
     }
-    match serde_json::from_str::<serde_json::Value>(body) {
-        Ok(mut json) => {
+    serde_json::from_str::<serde_json::Value>(body).map_or_else(
+        |_| body.to_owned(),
+        |mut json| {
             prune(&mut json);
             json.to_string()
-        }
-        Err(_) => body.to_owned(),
-    }
+        },
+    )
 }
 
 /// What the model is told about one API answer. A server fault is UNKNOWN,
@@ -941,8 +916,11 @@ impl rig::tool::Tool for CallApiTool {
     type Args = CallApiArgs;
     type Output = Redacted;
 
-    async fn definition(&self, _prompt: String) -> rig::completion::ToolDefinition {
-        rig::completion::ToolDefinition {
+    fn definition(
+        &self,
+        _prompt: String,
+    ) -> impl Future<Output = rig::completion::ToolDefinition> + Send + Sync {
+        std::future::ready(rig::completion::ToolDefinition {
             name: Self::NAME.to_owned(),
             description: "Fetch data from any MedBrains read API (GET). Runs with YOUR permissions, \
                 so you can only read what you're allowed to — prefer this over asking the user. If \
@@ -960,7 +938,7 @@ impl rig::tool::Tool for CallApiTool {
                 },
                 "required": ["path"]
             }),
-        }
+        })
     }
 
     async fn call(&self, args: Self::Args) -> Result<Self::Output, Self::Error> {
@@ -1000,8 +978,11 @@ impl rig::tool::Tool for RequestPatientTool {
     type Args = RequestPatientArgs;
     type Output = Redacted;
 
-    async fn definition(&self, _prompt: String) -> rig::completion::ToolDefinition {
-        rig::completion::ToolDefinition {
+    fn definition(
+        &self,
+        _prompt: String,
+    ) -> impl Future<Output = rig::completion::ToolDefinition> + Send + Sync {
+        std::future::ready(rig::completion::ToolDefinition {
             name: Self::NAME.to_owned(),
             description: "Show the user a patient search box to choose a patient. Call this \
                 WHENEVER you need a patient but none is in the screen context — NEVER invent or \
@@ -1013,14 +994,17 @@ impl rig::tool::Tool for RequestPatientTool {
                     "reason": { "type": "string", "description": "Why a patient is needed" }
                 }
             }),
-        }
+        })
     }
 
-    async fn call(&self, _args: Self::Args) -> Result<Self::Output, Self::Error> {
-        Ok(Redacted::fixed(
+    fn call(
+        &self,
+        _args: Self::Args,
+    ) -> impl Future<Output = Result<Self::Output, Self::Error>> + Send {
+        std::future::ready(Ok(Redacted::fixed(
             "A patient search box is now shown to the user. STOP and wait for their selection; do \
             not call patient tools or invent an id. The chosen patient arrives in the next message.",
-        ))
+        )))
     }
 }
 
@@ -1042,19 +1026,25 @@ impl rig::tool::Tool for ListApisTool {
     type Args = ListApisArgs;
     type Output = Redacted;
 
-    async fn definition(&self, _prompt: String) -> rig::completion::ToolDefinition {
-        rig::completion::ToolDefinition {
+    fn definition(
+        &self,
+        _prompt: String,
+    ) -> impl Future<Output = rig::completion::ToolDefinition> + Send + Sync {
+        std::future::ready(rig::completion::ToolDefinition {
             name: Self::NAME.to_owned(),
             description: "List the read (GET) API endpoints available via call_api, grouped by \
                 domain (patients, lab, pharmacy, billing, ipd, …). Call this to discover the right \
                 endpoint before calling call_api. Call it at most once."
                 .to_owned(),
             parameters: serde_json::json!({ "type": "object", "properties": {} }),
-        }
+        })
     }
 
-    async fn call(&self, _args: Self::Args) -> Result<Self::Output, Self::Error> {
-        Ok(Redacted::fixed(READ_CATALOG))
+    fn call(
+        &self,
+        _args: Self::Args,
+    ) -> impl Future<Output = Result<Self::Output, Self::Error>> + Send {
+        std::future::ready(Ok(Redacted::fixed(READ_CATALOG)))
     }
 }
 
@@ -1072,7 +1062,7 @@ fn sse(payload: &serde_json::Value) -> Result<Event, std::convert::Infallible> {
         .unwrap_or_else(|_| Event::default().data("{}")))
 }
 
-/// Resolve the grounded patient (ReBAC), open or continue the conversation,
+/// Resolve the grounded patient (`ReBAC`), open or continue the conversation,
 /// and load prior history, KB hits and the placeholder map — under one RLS
 /// transaction. The user's turn is stored later, redacted.
 async fn open_turn(
@@ -1118,42 +1108,39 @@ async fn open_turn(
     medbrains_db::pool::set_full_context(&mut tx, &tenant_id, &claims.department_ids).await?;
 
     let mut pseudonyms = None;
-    let conversation_id = match req.conversation_id {
-        Some(id) => {
-            let row = sqlx::query_as::<_, (Uuid, Option<Uuid>, serde_json::Value)>(
-                "SELECT owner_user_id, patient_id, pseudonym_map FROM ai_conversations \
-                 WHERE id = $1 AND tenant_id = $2",
-            )
-            .bind(id)
-            .bind(tenant_id)
-            .fetch_optional(&mut *tx)
-            .await?;
-            match row {
-                Some((owner, about, map)) if owner == claims.sub => {
-                    bind_conversation_patient(&mut tx, id, about, patient_id).await?;
-                    pseudonyms = Some(map);
-                    id
-                }
-                Some(_) => return Err(AppError::Forbidden),
-                None => return Err(AppError::BadRequest("conversation not found".to_owned())),
+    let conversation_id = if let Some(id) = req.conversation_id {
+        let row = sqlx::query_as::<_, (Uuid, Option<Uuid>, serde_json::Value)>(
+            "SELECT owner_user_id, patient_id, pseudonym_map FROM ai_conversations \
+             WHERE id = $1 AND tenant_id = $2",
+        )
+        .bind(id)
+        .bind(tenant_id)
+        .fetch_optional(&mut *tx)
+        .await?;
+        match row {
+            Some((owner, about, map)) if owner == claims.sub => {
+                bind_conversation_patient(&mut tx, id, about, patient_id).await?;
+                pseudonyms = Some(map);
+                id
             }
+            Some(_) => return Err(AppError::Forbidden),
+            None => return Err(AppError::BadRequest("conversation not found".to_owned())),
         }
-        None => {
-            // The title is shown in the history menu only; a placeholder title
-            // keeps identifiers out of it until the turn's redaction exists.
-            let title = "New conversation";
-            sqlx::query_scalar::<_, Uuid>(
-                "INSERT INTO ai_conversations (tenant_id, owner_user_id, title, model, patient_id) \
-                 VALUES ($1, $2, $3, $4, $5) RETURNING id",
-            )
-            .bind(tenant_id)
-            .bind(claims.sub)
-            .bind(title)
-            .bind(&cfg.model)
-            .bind(patient_id)
-            .fetch_one(&mut *tx)
-            .await?
-        }
+    } else {
+        // The title is shown in the history menu only; a placeholder title
+        // keeps identifiers out of it until the turn's redaction exists.
+        let title = "New conversation";
+        sqlx::query_scalar::<_, Uuid>(
+            "INSERT INTO ai_conversations (tenant_id, owner_user_id, title, model, patient_id) \
+             VALUES ($1, $2, $3, $4, $5) RETURNING id",
+        )
+        .bind(tenant_id)
+        .bind(claims.sub)
+        .bind(title)
+        .bind(&cfg.model)
+        .bind(patient_id)
+        .fetch_one(&mut *tx)
+        .await?
     };
 
     let history_rows = sqlx::query_as::<_, HistoryRow>(
@@ -1217,7 +1204,9 @@ async fn bind_conversation_patient(
 
 /// The turn's context block: the generic screen context (the ids of whatever
 /// the user is viewing) and knowledge-base references. Data for those ids is
-/// fetched on demand by the tools, not pre-injected. Redacted before use.
+/// fetched on demand by the tools, not pre-injected. Redacted before use, and
+/// sent in the user turn — never in the system prompt, whose bytes must not
+/// change between turns or the cached prefix is rewritten every time.
 fn build_context(context: Option<&serde_json::Value>, kb_hits: &[KbHit]) -> String {
     let mut parts: Vec<String> = Vec::new();
     if let Some(ctx) = context.filter(|c| !c.is_null()) {
@@ -1243,7 +1232,6 @@ fn build_context(context: Option<&serde_json::Value>, kb_hits: &[KbHit]) -> Stri
             refs.join("\n")
         ));
     }
-    parts.push(medbrains_core::ai_redact::PLACEHOLDER_NOTE.to_owned());
     parts.join("\n\n")
 }
 
@@ -1304,7 +1292,6 @@ pub async fn chat(
     let context = redactor
         .redact(&build_context(req.context.as_ref(), &kb_hits))
         .map_err(unsafe_)?;
-    let preamble = Redacted::fixed(SYSTEM_PROMPT).join("\n\n", &context);
     let message = redactor.redact(&message).map_err(unsafe_)?;
     // A question that itself names a restricted class is not sent at all, and
     // the user is told why rather than given an answer to an empty question.
@@ -1313,21 +1300,33 @@ pub async fn chat(
     }
     let mut prior = Vec::with_capacity(history.len());
     for row in history {
-        let content = redactor.redact(&row.content).map_err(unsafe_)?;
+        let text = redactor.redact(&row.content).map_err(unsafe_)?;
         prior.push(match row.role.as_str() {
-            "assistant" => rig::completion::Message::assistant(content.for_model()),
-            _ => rig::completion::Message::user(content.for_model()),
+            "assistant" => rig::completion::Message::assistant(text.for_model()),
+            _ => rig::completion::Message::user(text.for_model()),
         });
     }
     let session: redaction::Session = std::sync::Arc::new(std::sync::Mutex::new(redactor));
     // Stored as the model received it, with the map to read it back.
-    store_turn(&state, tenant_id, conversation_id, "user", message.for_model(), &session).await?;
+    store_turn(
+        &state,
+        tenant_id,
+        conversation_id,
+        "user",
+        message.for_model(),
+        &session,
+    )
+    .await?;
 
     let turn = Turn {
         guard: medbrains_core::ai_guard::AnswerGuard::new(message.for_model())
             .with_contacts(contacts),
         context: context.for_model().to_owned(),
-        message,
+        prompt: if context.for_model().is_empty() {
+            message
+        } else {
+            context.join("\n\n", &message)
+        },
         history: prior,
         state: state.clone(),
         tenant_id,
@@ -1336,40 +1335,74 @@ pub async fn chat(
         session: std::sync::Arc::clone(&session),
     };
 
+    let deps = ToolDeps {
+        session,
+        state,
+        claims,
+        grounded_patient,
+        agent_json,
+    };
+    let boxed = stream_answer(&cfg, &bedrock_base, &deps, turn)?;
+
+    // Heartbeat comments (default 15s) keep the connection alive through idle
+    // gaps + proxy idle-timeouts (nginx/ALB) so a slow first token isn't dropped.
+    Ok(Sse::new(boxed).keep_alive(KeepAlive::default()))
+}
+
+/// What the turn's tools act with: the redaction session, the caller (with
+/// the AI actor set) and the patient the turn is grounded on.
+struct ToolDeps {
+    session: redaction::Session,
+    state: AppState,
+    claims: Claims,
+    grounded_patient: Option<Uuid>,
+    agent_json: serde_json::Value,
+}
+
+/// Build the assistant for `cfg`'s provider and stream `turn` through it.
+/// The system prompt is fixed bytes for every turn and tenant — tools + it
+/// are the cached prefix.
+fn stream_answer(
+    cfg: &AiConfig,
+    bedrock_base: &str,
+    deps: &ToolDeps,
+    turn: Turn,
+) -> Result<SseBody, AppError> {
+    let preamble = Redacted::fixed(SYSTEM_PROMPT).join("\n\n", &Redacted::fixed(PLACEHOLDER_NOTE));
     // One agent definition for every provider: the same tools, the same
     // redacted preamble.
     macro_rules! assistant {
-        ($client:expr) => {{
-            let agent = $client
-                .agent(cfg.model.as_str())
+        ($builder:expr) => {{
+            let agent = $builder
                 .preamble(preamble.for_model())
+                .max_tokens(u64::from(medbrains_core::ai_guard::MAX_ANSWER_TOKENS))
                 .tool(DrugSafetyTool {
-                    session: std::sync::Arc::clone(&session),
-                    db: state.db.clone(),
-                    tenant_id,
-                    department_ids: claims.department_ids.clone(),
-                    patient_id: grounded_patient,
-                    user_id: claims.sub,
-                    agent: agent_json.clone(),
+                    session: std::sync::Arc::clone(&deps.session),
+                    db: deps.state.db.clone(),
+                    tenant_id: deps.claims.tenant_id,
+                    department_ids: deps.claims.department_ids.clone(),
+                    patient_id: deps.grounded_patient,
+                    user_id: deps.claims.sub,
+                    agent: deps.agent_json.clone(),
                 })
                 .tool(DraftPrescriptionTool {
-                    session: std::sync::Arc::clone(&session),
-                    db: state.db.clone(),
-                    tenant_id,
-                    department_ids: claims.department_ids.clone(),
-                    patient_id: grounded_patient,
-                    user_id: claims.sub,
-                    agent: agent_json.clone(),
+                    session: std::sync::Arc::clone(&deps.session),
+                    db: deps.state.db.clone(),
+                    tenant_id: deps.claims.tenant_id,
+                    department_ids: deps.claims.department_ids.clone(),
+                    patient_id: deps.grounded_patient,
+                    user_id: deps.claims.sub,
+                    agent: deps.agent_json.clone(),
                 })
                 .tool(PatientOverviewTool {
-                    session: std::sync::Arc::clone(&session),
-                    state: state.clone(),
-                    claims: claims.clone(),
+                    session: std::sync::Arc::clone(&deps.session),
+                    state: deps.state.clone(),
+                    claims: deps.claims.clone(),
                 })
                 .tool(CallApiTool {
-                    session: std::sync::Arc::clone(&session),
-                    state: state.clone(),
-                    claims: claims.clone(),
+                    session: std::sync::Arc::clone(&deps.session),
+                    state: deps.state.clone(),
+                    claims: deps.claims.clone(),
                 })
                 .tool(RequestPatientTool)
                 .tool(ListApisTool)
@@ -1379,23 +1412,30 @@ pub async fn chat(
         }};
     }
 
-    use rig::client::CompletionClient as _;
     let boxed: SseBody = match cfg.provider.as_str() {
-        "anthropic" => assistant!(medbrains_server_services::llm::anthropic::client(
-            &cfg.api_key
-        )?),
+        // Cache breakpoint on the system block (tools + system are the fixed
+        // prefix, well over Haiku/Sonnet/Opus 5.5's 512-token minimum).
+        // ponytail: rig 0.35 marks it with the 5-minute TTL only; the 1h
+        // static-prefix TTL comes with the rig upgrade.
+        "anthropic" => assistant!(rig::agent::AgentBuilder::new(
+            medbrains_server_services::llm::anthropic::client(&cfg.api_key)?
+                .completion_model(cfg.model.as_str())
+                .with_prompt_caching()
+        )),
         "openrouter" => assistant!(
             rig::providers::openrouter::Client::new(&cfg.api_key)
                 .map_err(|e| AppError::BadRequest(format!("AI client error: {e}")))?
+                .agent(cfg.model.as_str())
         ),
         // Bedrock's OpenAI-compatible endpoint streams Chat Completions; the
         // base URL is refused outside India before anything is sent.
         "bedrock" => assistant!(
             rig::providers::openai::CompletionsClient::builder()
                 .api_key(&cfg.api_key)
-                .base_url(&bedrock_base)
+                .base_url(bedrock_base)
                 .build()
                 .map_err(|e| AppError::BadRequest(format!("AI client error: {e}")))?
+                .agent(cfg.model.as_str())
         ),
         "ollama" => {
             let base = std::env::var("OLLAMA_API_BASE_URL")
@@ -1406,6 +1446,7 @@ pub async fn chat(
                     .base_url(&base)
                     .build()
                     .map_err(|e| AppError::BadRequest(format!("Ollama client error: {e}")))?
+                    .agent(cfg.model.as_str())
             )
         }
         other => {
@@ -1414,10 +1455,7 @@ pub async fn chat(
             )));
         }
     };
-
-    // Heartbeat comments (default 15s) keep the connection alive through idle
-    // gaps + proxy idle-timeouts (nginx/ALB) so a slow first token isn't dropped.
-    Ok(Sse::new(boxed).keep_alive(KeepAlive::default()))
+    Ok(boxed)
 }
 
 /// One assistant turn's inputs, already redacted.
@@ -1426,13 +1464,54 @@ struct Turn {
     guard: medbrains_core::ai_guard::AnswerGuard,
     /// The redacted page context: what the answer may restate.
     context: String,
-    message: Redacted,
+    /// The turn's context block (if any), then the user's message.
+    prompt: Redacted,
     history: Vec<rig::completion::Message>,
     state: AppState,
     tenant_id: Uuid,
     conversation_id: Uuid,
     kb_hits: Vec<KbHit>,
     session: redaction::Session,
+}
+
+/// The chip for a tool the assistant is running, its arguments read back
+/// for the user.
+fn tool_call_frame(
+    session: &redaction::Session,
+    tool_call: &rig::completion::message::ToolCall,
+    id: &str,
+) -> Result<Event, std::convert::Infallible> {
+    let args = redaction::for_user(session, &tool_call.function.arguments.to_string());
+    sse(&serde_json::json!({
+        "type": "tool",
+        "toolCall": {
+            "id": id,
+            "name": tool_call.function.name,
+            "args": serde_json::from_str::<serde_json::Value>(&args)
+                .unwrap_or(serde_json::Value::String(args)),
+            "status": "running"
+        }
+    }))
+}
+
+/// A tool's (redacted) output: a record the guard may let the answer restate,
+/// and read back for the user's chip.
+fn tool_result_frame(
+    guard: &mut medbrains_core::ai_guard::AnswerGuard,
+    session: &redaction::Session,
+    tool_result: &rig::completion::message::ToolResult,
+    id: &str,
+) -> Result<Event, std::convert::Infallible> {
+    let text = tool_result.content.iter().find_map(|c| match c {
+        rig::completion::message::ToolResultContent::Text(t) => Some(t.text.clone()),
+        rig::completion::message::ToolResultContent::Image(_) => None,
+    });
+    let result: Option<serde_json::Value> = text.map(|t| {
+        guard.add_record(&t);
+        let t = redaction::for_user(session, &t);
+        serde_json::from_str(&t).unwrap_or(serde_json::Value::String(t))
+    });
+    sse(&serde_json::json!({ "type": "tool_result", "id": id, "result": result }))
 }
 
 /// Stream one assistant turn from a built agent (provider-agnostic) and persist
@@ -1453,7 +1532,7 @@ where
     let Turn {
         mut guard,
         context,
-        message,
+        prompt,
         history,
         state,
         tenant_id,
@@ -1481,7 +1560,7 @@ where
         // multi_turn > 0 is REQUIRED for the tool loop — rig defaults to 0
         // ("one round-trip"), which errors after the first tool call.
         let mut chunks = agent
-            .stream_prompt(message.for_model())
+            .stream_prompt(prompt.for_model())
             .multi_turn(8)
             .with_history(history)
             .await;
@@ -1502,39 +1581,12 @@ where
                 Ok(MultiTurnStreamItem::StreamAssistantItem(StreamedAssistantContent::ToolCall {
                     tool_call,
                     internal_call_id,
-                })) => {
-                    // Surface the guard the assistant is running.
-                    let args = redaction::for_user(&session, &tool_call.function.arguments.to_string());
-                    yield sse(&serde_json::json!({
-                        "type": "tool",
-                        "toolCall": {
-                            "id": internal_call_id,
-                            "name": tool_call.function.name,
-                            "args": serde_json::from_str::<serde_json::Value>(&args)
-                                .unwrap_or(serde_json::Value::String(args)),
-                            "status": "running"
-                        }
-                    }));
-                }
+                })) => yield tool_call_frame(&session, &tool_call, &internal_call_id),
                 Ok(MultiTurnStreamItem::StreamUserItem(StreamedUserContent::ToolResult {
                     tool_result,
                     internal_call_id,
                 })) => {
-                    // The tool's (redacted) output, read back for the user.
-                    let text = tool_result.content.iter().find_map(|c| match c {
-                        rig::completion::message::ToolResultContent::Text(t) => Some(t.text.clone()),
-                        rig::completion::message::ToolResultContent::Image(_) => None,
-                    });
-                    let result: Option<serde_json::Value> = text.map(|t| {
-                        guard.add_record(&t);
-                        let t = redaction::for_user(&session, &t);
-                        serde_json::from_str(&t).unwrap_or(serde_json::Value::String(t))
-                    });
-                    yield sse(&serde_json::json!({
-                        "type": "tool_result",
-                        "id": internal_call_id,
-                        "result": result
-                    }));
+                    yield tool_result_frame(&mut guard, &session, &tool_result, &internal_call_id);
                 }
                 Ok(_) => {}
                 Err(e) => {
@@ -1822,7 +1874,15 @@ pub async fn list_conversations(
     require_permission(&claims, permissions::ai::assistant::USE)?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
-    let rows = sqlx::query_as::<_, (Uuid, Option<String>, chrono::DateTime<chrono::Utc>, serde_json::Value)>(
+    let rows = sqlx::query_as::<
+        _,
+        (
+            Uuid,
+            Option<String>,
+            chrono::DateTime<chrono::Utc>,
+            serde_json::Value,
+        ),
+    >(
         "SELECT id, title, last_message_at, pseudonym_map FROM ai_conversations \
          WHERE tenant_id = $1 AND owner_user_id = $2 AND archived_at IS NULL \
          ORDER BY last_message_at DESC LIMIT 100",
@@ -1980,7 +2040,13 @@ mod tests {
         let (sent, withheld) = sent.unwrap_or_default();
         assert_eq!(withheld, 1);
         assert!(sent.contains("Sulfa drugs"), "{sent}");
-        assert!(sent.contains(r#""active_medications":"none recorded""#), "{sent}");
-        assert!(!sent.contains("Reactive") && !sent.contains("HIV"), "{sent}");
+        assert!(
+            sent.contains(r#""active_medications":"none recorded""#),
+            "{sent}"
+        );
+        assert!(
+            !sent.contains("Reactive") && !sent.contains("HIV"),
+            "{sent}"
+        );
     }
 }

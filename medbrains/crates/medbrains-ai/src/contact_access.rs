@@ -6,6 +6,13 @@
 //! masked or hidden field stays held. A fault reading field access is
 //! [`ContactAccess::Unknown`]: held, and the user is told.
 
+// `pub` here would trip the workspace's denied `unreachable_pub`; `pub(super)`
+// is the narrowest visibility the parent module can use.
+#![expect(
+    clippy::redundant_pub_crate,
+    reason = "unreachable_pub is denied workspace-wide"
+)]
+
 use std::collections::HashMap;
 
 use medbrains_core::ai_guard::ContactAccess;
