@@ -1,0 +1,27 @@
+[package]
+name = "medbrains-research"
+publish = false
+version = "0.1.0"
+edition = "2024"
+rust-version.workspace = true
+
+[dependencies]
+medbrains-core = { path = "../medbrains-core" }
+medbrains-db = { path = "../medbrains-db" }
+medbrains-server-core = { path = "../medbrains-server-core" }
+axum = { workspace = true }
+chrono = { workspace = true }
+hex = { workspace = true }
+hmac = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+sha2 = { workspace = true }
+sqlx = { workspace = true }
+thiserror = { workspace = true }
+uuid = { workspace = true }
+
+[lints]
+workspace = true
+
+[dev-dependencies]
+tokio = { workspace = true }

@@ -38,7 +38,7 @@ pub(super) struct AggregateTool {
 }
 
 /// `[from, to]` from a range placeholder, the last 30 days by default.
-fn range(placeholder: &str) -> (NaiveDate, NaiveDate) {
+pub(super) fn range(placeholder: &str) -> (NaiveDate, NaiveDate) {
     let today = chrono::Local::now().date_naive();
     let name = if placeholder.trim().is_empty() {
         "[LAST_30_DAYS]"

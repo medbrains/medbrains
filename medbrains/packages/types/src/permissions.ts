@@ -17,7 +17,7 @@ export interface PermissionDef {
   module: string;
 }
 
-/** 1146 permissions, one per constant in the Rust source. */
+/** 1147 permissions, one per constant in the Rust source. */
 export const PERMISSIONS: PermissionDef[] = [
   // dashboard
   {
@@ -3633,6 +3633,12 @@ export const PERMISSIONS: PermissionDef[] = [
     code: "research.triage_export",
     label: "Export a de-identified research dataset",
     description: "The triage research endpoints return aggregate performance and a 5,000-row de-identified extract — age banded, timing truncated to the ISO week, no name and no UHID. They ran on `opd.queue.view`, which the front desk holds to call the next patient, so anyone working a queue could pull the hospital's research corpus. Research use is a different act from care use even when the rows carry no direct identifier: free text and rare combinations re-identify.",
+    module: "research",
+  },
+  {
+    code: "research.dataset.export",
+    label: "Request, approve and download research datasets",
+    description: "A de-identified extract for an ethics-approved study: pseudonymous per-export patient keys, banded ages, month-level dates, rare values and small groups suppressed, restricted classes left out. Every export names its purpose and IEC approval and needs a second holder to approve it; the requester cannot approve their own. Held by no built-in role — grant it to a research or MRD officer.",
     module: "research",
   },
   // front_office
@@ -9829,6 +9835,10 @@ export const P = {
     PCPNDT_LIST: "regulatory.pcpndt.list",
   },
   RESEARCH: {
+    DATASET: {
+      EXPORT: "research.dataset.export",
+    },
+    DATASET_EXPORT: "research.dataset.export",
     TRIAGE_EXPORT: "research.triage_export",
   },
   RETROSPECTIVE: {

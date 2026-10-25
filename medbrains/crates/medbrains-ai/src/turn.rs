@@ -33,7 +33,7 @@ use super::emit::{Emitter, ag};
 use super::{
     AiConfig, CallApiTool, DraftPrescriptionTool, DrugSafetyTool, KbHit, ListApisTool,
     PatientOverviewTool, RequestPatientTool, SYSTEM_PROMPT, SseBody, aggregate_tool, query,
-    redaction, show, store_turn,
+    redaction, research_tool, show, store_turn,
 };
 
 /// Model calls one turn may make: the first, tool continuations (the old
@@ -144,6 +144,16 @@ pub(super) fn stream_answer(
             claims: deps.claims.clone(),
             shelf,
             attempts: std::sync::atomic::AtomicU8::new(0),
+        })
+    } else {
+        agent
+    };
+    let agent = if require_permission(&deps.claims, permissions::research::dataset::EXPORT).is_ok()
+    {
+        agent.tool(research_tool::PrepareExportTool {
+            session: Arc::clone(&deps.session),
+            state: deps.state.clone(),
+            claims: deps.claims.clone(),
         })
     } else {
         agent
