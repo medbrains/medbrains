@@ -8,7 +8,10 @@
 
 // `pub` here would trip the workspace's denied `unreachable_pub`; `pub(super)`
 // is the narrowest visibility the parent module can use.
-#![expect(clippy::redundant_pub_crate, reason = "unreachable_pub is denied workspace-wide")]
+#![expect(
+    clippy::redundant_pub_crate,
+    reason = "unreachable_pub is denied workspace-wide"
+)]
 
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex, PoisonError};
@@ -19,16 +22,18 @@ use medbrains_core::ai_guard::{AnswerGuard, MAX_ANSWER_TOKENS};
 use medbrains_core::ai_redact::{PLACEHOLDER_NOTE, Redacted, StreamRehydrator};
 use medbrains_server_core::middleware::auth::Claims;
 use medbrains_server_core::{error::AppError, state::AppState};
-use rig_agent::agent::{AgentHook, HookContext, ModelTurnAction, ModelTurnFinished, MultiTurnStreamItem};
 use rig::message::{AssistantContent, ToolCall, ToolResult, ToolResultContent};
 use rig::streaming::{Item, StreamEvent};
+use rig_agent::agent::{
+    AgentHook, HookContext, ModelTurnAction, ModelTurnFinished, MultiTurnStreamItem,
+};
 use uuid::Uuid;
 
-use super::agui::{Agui, custom};
+use super::agui::{Agui, CUSTOM_GUARD, CUSTOM_RESET, CUSTOM_SOURCE, CUSTOM_WIDGET};
 use super::{
-    AiConfig, CallApiTool, aggregate, DraftPrescriptionTool, DrugSafetyTool, KbHit, ListApisTool,
-    PatientOverviewTool, RequestPatientTool, SYSTEM_PROMPT, SseBody, redaction, show, sse,
-    store_turn,
+    AiConfig, CallApiTool, DraftPrescriptionTool, DrugSafetyTool, KbHit, ListApisTool,
+    PatientOverviewTool, RequestPatientTool, SYSTEM_PROMPT, SseBody, aggregate, redaction, show,
+    sse, store_turn,
 };
 
 /// Model calls one turn may make: the first, tool continuations (the old
@@ -74,60 +79,61 @@ pub(super) fn stream_answer(
     let preamble = Redacted::fixed(SYSTEM_PROMPT).join("\n\n", &Redacted::fixed(PLACEHOLDER_NOTE));
     let shelf = show::Shelf::default();
     let widgets = show::Widgets::default();
-    let agent = rig_agent::AgentBuilder::new(medbrains_server_services::llm::completion_model(cfg)?)
-        .preamble(preamble.for_model())
-        .max_tokens(u64::from(MAX_ANSWER_TOKENS))
-        .default_max_turns(MAX_MODEL_CALLS)
-        .add_hook(GuardRetry {
-            guard: Arc::clone(&turn.guard),
-            retried: AtomicBool::new(false),
-        })
-        .tool(DrugSafetyTool {
-            session: Arc::clone(&deps.session),
-            db: deps.state.db.clone(),
-            tenant_id: deps.claims.tenant_id,
-            department_ids: deps.claims.department_ids.clone(),
-            patient_id: deps.grounded_patient,
-            user_id: deps.claims.sub,
-            agent: deps.agent_json.clone(),
-        })
-        .tool(DraftPrescriptionTool {
-            session: Arc::clone(&deps.session),
-            db: deps.state.db.clone(),
-            tenant_id: deps.claims.tenant_id,
-            department_ids: deps.claims.department_ids.clone(),
-            patient_id: deps.grounded_patient,
-            user_id: deps.claims.sub,
-            agent: deps.agent_json.clone(),
-        })
-        .tool(PatientOverviewTool {
-            session: Arc::clone(&deps.session),
-            state: deps.state.clone(),
-            claims: deps.claims.clone(),
-            shelf: Arc::clone(&shelf),
-        })
-        .tool(CallApiTool {
-            session: Arc::clone(&deps.session),
-            state: deps.state.clone(),
-            claims: deps.claims.clone(),
-            shelf: Arc::clone(&shelf),
-        })
-        .tool(RequestPatientTool)
-        .tool(ListApisTool {
-            session: Arc::clone(&deps.session),
-        })
-        .tool(aggregate::AggregateTool {
-            session: Arc::clone(&deps.session),
-            state: deps.state.clone(),
-            claims: deps.claims.clone(),
-            shelf: Arc::clone(&shelf),
-        })
-        .tool(show::ShowTool {
-            session: Arc::clone(&deps.session),
-            shelf,
-            widgets: Arc::clone(&widgets),
-        })
-        .build();
+    let agent =
+        rig_agent::AgentBuilder::new(medbrains_server_services::llm::completion_model(cfg)?)
+            .preamble(preamble.for_model())
+            .max_tokens(u64::from(MAX_ANSWER_TOKENS))
+            .default_max_turns(MAX_MODEL_CALLS)
+            .add_hook(GuardRetry {
+                guard: Arc::clone(&turn.guard),
+                retried: AtomicBool::new(false),
+            })
+            .tool(DrugSafetyTool {
+                session: Arc::clone(&deps.session),
+                db: deps.state.db.clone(),
+                tenant_id: deps.claims.tenant_id,
+                department_ids: deps.claims.department_ids.clone(),
+                patient_id: deps.grounded_patient,
+                user_id: deps.claims.sub,
+                agent: deps.agent_json.clone(),
+            })
+            .tool(DraftPrescriptionTool {
+                session: Arc::clone(&deps.session),
+                db: deps.state.db.clone(),
+                tenant_id: deps.claims.tenant_id,
+                department_ids: deps.claims.department_ids.clone(),
+                patient_id: deps.grounded_patient,
+                user_id: deps.claims.sub,
+                agent: deps.agent_json.clone(),
+            })
+            .tool(PatientOverviewTool {
+                session: Arc::clone(&deps.session),
+                state: deps.state.clone(),
+                claims: deps.claims.clone(),
+                shelf: Arc::clone(&shelf),
+            })
+            .tool(CallApiTool {
+                session: Arc::clone(&deps.session),
+                state: deps.state.clone(),
+                claims: deps.claims.clone(),
+                shelf: Arc::clone(&shelf),
+            })
+            .tool(RequestPatientTool)
+            .tool(ListApisTool {
+                session: Arc::clone(&deps.session),
+            })
+            .tool(aggregate::AggregateTool {
+                session: Arc::clone(&deps.session),
+                state: deps.state.clone(),
+                claims: deps.claims.clone(),
+                shelf: Arc::clone(&shelf),
+            })
+            .tool(show::ShowTool {
+                session: Arc::clone(&deps.session),
+                shelf,
+                widgets: Arc::clone(&widgets),
+            })
+            .build();
     Ok(Box::pin(run_turn(agent, turn, widgets)))
 }
 
@@ -266,6 +272,144 @@ fn shown_text(
         .map_or_else(|_| String::new(), |r| shown.push(&passed, r.map()))
 }
 
+type Frames = Vec<Result<Event, std::convert::Infallible>>;
+
+/// The turn's output as it streams: guarded, re-hydrated text, tool chips,
+/// widgets, and what is stored once the run ends.
+struct Emitter {
+    guard: Arc<Mutex<AnswerGuard>>,
+    session: redaction::Session,
+    widgets: show::Widgets,
+    message_id: String,
+    /// What the model wrote that the guard passed, in placeholders (stored).
+    answer: String,
+    shown: StreamRehydrator,
+    usage: Option<serde_json::Value>,
+    text_open: bool,
+    failed: bool,
+}
+
+impl Emitter {
+    /// `text` (already guarded and re-hydrated) as AG-UI text events.
+    fn text(&mut self, text: &str) -> Frames {
+        let mut out = Frames::new();
+        if text.is_empty() {
+            return out;
+        }
+        if !self.text_open {
+            self.text_open = true;
+            out.push(ag(&Agui::TextMessageStart {
+                message_id: &self.message_id,
+                role: "assistant",
+            }));
+        }
+        out.push(ag(&Agui::TextMessageContent {
+            message_id: &self.message_id,
+            delta: text,
+        }));
+        out
+    }
+
+    /// The frames for one item of rig's stream.
+    fn item<E: std::fmt::Display>(&mut self, item: Result<MultiTurnStreamItem, E>) -> Frames {
+        match item {
+            Ok(MultiTurnStreamItem::StreamAssistantItem(Item::Event(StreamEvent::Text {
+                text,
+                ..
+            }))) => {
+                // Only sentences the guard passes are stored or shown.
+                let text = shown_text(
+                    &self.guard,
+                    &self.session,
+                    &mut self.shown,
+                    &mut self.answer,
+                    &text,
+                );
+                self.text(&text)
+            }
+            Ok(MultiTurnStreamItem::ToolCall { tool_call }) => {
+                tool_call_events(&self.session, &tool_call, &self.message_id).into()
+            }
+            Ok(MultiTurnStreamItem::ToolResult { tool_result }) => {
+                let mut out = vec![tool_result_event(
+                    &self.guard,
+                    &self.session,
+                    &tool_result,
+                    &self.message_id,
+                )];
+                // Built from the shelf by `show`, never from the model's words.
+                out.extend(show::drain(&self.widgets).iter().map(|w| {
+                    ag(&Agui::Custom {
+                        name: CUSTOM_WIDGET,
+                        value: serde_json::to_value(w).unwrap_or_default(),
+                    })
+                }));
+                out
+            }
+            Ok(MultiTurnStreamItem::ModelTurnRetried { .. }) => {
+                // The attempt the guard rejected: the screen drops it, and the
+                // guard judges the next attempt afresh.
+                self.guard
+                    .lock()
+                    .unwrap_or_else(PoisonError::into_inner)
+                    .restart();
+                self.answer.clear();
+                self.shown = StreamRehydrator::default();
+                vec![ag(&Agui::Custom {
+                    name: CUSTOM_RESET,
+                    value: serde_json::Value::Null,
+                })]
+            }
+            Ok(MultiTurnStreamItem::FinalResponse(r)) => {
+                self.usage = Some(usage_frame(&r.usage));
+                Frames::new()
+            }
+            Ok(_) => Frames::new(),
+            Err(e) => {
+                // The provider's error text is not shown: it can echo input.
+                // RUN_ERROR is terminal, so the turn stops here.
+                tracing::warn!(target: "ai", error = %e, "assistant stream error");
+                self.failed = true;
+                Frames::new()
+            }
+        }
+    }
+
+    /// What the guard still held, the end of the text, and its notice —
+    /// said, never silent, before the run ends.
+    fn finish(&mut self) -> Frames {
+        let (passed, notices) = {
+            let mut g = self.guard.lock().unwrap_or_else(PoisonError::into_inner);
+            (g.finish(), g.notices())
+        };
+        self.answer.push_str(&passed);
+        let rest = self.session.lock().map_or_else(
+            |_| String::new(),
+            |r| {
+                format!(
+                    "{}{}",
+                    self.shown.push(&passed, r.map()),
+                    self.shown.finish(r.map())
+                )
+            },
+        );
+        let mut out = self.text(&rest);
+        if self.text_open {
+            out.push(ag(&Agui::TextMessageEnd {
+                message_id: &self.message_id,
+            }));
+        }
+        if !notices.is_empty() {
+            tracing::info!(target: "ai", removed = notices.len(), "answer guard removed text");
+            out.push(ag(&Agui::Custom {
+                name: CUSTOM_GUARD,
+                value: serde_json::json!({ "notices": notices }),
+            }));
+        }
+        out
+    }
+}
+
 /// Stream one assistant turn and persist the result.
 fn run_turn(
     agent: rig_agent::Agent,
@@ -289,13 +433,23 @@ fn run_turn(
         .unwrap_or_else(PoisonError::into_inner)
         .add_record(&context);
     let (thread, run) = (conversation_id.to_string(), run_id.to_string());
-    let message_id = Uuid::new_v4().to_string();
+    let mut emit = Emitter {
+        guard,
+        session,
+        widgets,
+        message_id: Uuid::new_v4().to_string(),
+        answer: String::new(),
+        shown: StreamRehydrator::default(),
+        usage: None,
+        text_open: false,
+        failed: false,
+    };
     async_stream::stream! {
         yield ag(&Agui::RunStarted { thread_id: thread.clone(), run_id: run.clone() });
         // The retrieved KB entries, as grounding sources (cited in the UI).
         for (i, hit) in kb_hits.iter().enumerate() {
             yield ag(&Agui::Custom {
-                name: custom::SOURCE,
+                name: CUSTOM_SOURCE,
                 value: serde_json::json!({
                     "id": format!("kb-{i}"),
                     "title": hit.term,
@@ -304,105 +458,29 @@ fn run_turn(
                 }),
             });
         }
-        let mut text_open = false;
-        let mut failed = false;
-
-        let mut answer = String::new();
-        let mut usage = None;
-        let mut shown = StreamRehydrator::default();
         let mut chunks = agent
             .prompt(prompt.for_model())
             .history(history)
             .max_turns(MAX_MODEL_CALLS)
             .stream();
         while let Some(item) = chunks.next().await {
-            match item {
-                Ok(MultiTurnStreamItem::StreamAssistantItem(Item::Event(StreamEvent::Text {
-                    text, ..
-                }))) => {
-                    // Only sentences the guard passes are stored or shown.
-                    let text = shown_text(&guard, &session, &mut shown, &mut answer, &text);
-                    if !text.is_empty() {
-                        if !text_open {
-                            text_open = true;
-                            yield ag(&Agui::TextMessageStart {
-                                message_id: &message_id,
-                                role: "assistant",
-                            });
-                        }
-                        yield ag(&Agui::TextMessageContent { message_id: &message_id, delta: &text });
-                    }
-                }
-                Ok(MultiTurnStreamItem::ToolCall { tool_call }) => {
-                    for event in tool_call_events(&session, &tool_call, &message_id) {
-                        yield event;
-                    }
-                }
-                Ok(MultiTurnStreamItem::ToolResult { tool_result }) => {
-                    yield tool_result_event(&guard, &session, &tool_result, &message_id);
-                    // Built from the shelf by `show`, never from the model's words.
-                    for widget in show::drain(&widgets) {
-                        yield ag(&Agui::Custom {
-                            name: custom::WIDGET,
-                            value: serde_json::to_value(&widget).unwrap_or_default(),
-                        });
-                    }
-                }
-                Ok(MultiTurnStreamItem::ModelTurnRetried { .. }) => {
-                    // The attempt the guard rejected: the screen drops it, and
-                    // the guard judges the next attempt afresh.
-                    guard.lock().unwrap_or_else(PoisonError::into_inner).restart();
-                    answer.clear();
-                    shown = StreamRehydrator::default();
-                    yield ag(&Agui::Custom { name: custom::RESET, value: serde_json::Value::Null });
-                }
-                Ok(MultiTurnStreamItem::FinalResponse(r)) => usage = Some(usage_frame(&r.usage)),
-                Ok(_) => {}
-                Err(e) => {
-                    // The provider's error text is not shown: it can echo input.
-                    // RUN_ERROR is terminal, so the turn stops here.
-                    tracing::warn!(target: "ai", error = %e, "assistant stream error");
-                    failed = true;
-                    break;
-                }
+            for frame in emit.item(item) {
+                yield frame;
+            }
+            if emit.failed {
+                break;
             }
         }
-        let (passed, notices) = {
-            let mut g = guard.lock().unwrap_or_else(PoisonError::into_inner);
-            (g.finish(), g.notices())
-        };
-        answer.push_str(&passed);
-        let rest = session.lock().map_or_else(
-            |_| String::new(),
-            |r| format!("{}{}", shown.push(&passed, r.map()), shown.finish(r.map())),
-        );
-        if !rest.is_empty() {
-            if !text_open {
-                text_open = true;
-                yield ag(&Agui::TextMessageStart { message_id: &message_id, role: "assistant" });
-            }
-            yield ag(&Agui::TextMessageContent { message_id: &message_id, delta: &rest });
+        for frame in emit.finish() {
+            yield frame;
         }
-        if text_open {
-            yield ag(&Agui::TextMessageEnd { message_id: &message_id });
-        }
-        // Said, never silent: what the guard removed and why, before the run ends.
-        if !notices.is_empty() {
-            tracing::info!(target: "ai", removed = notices.len(), "answer guard removed text");
-            yield ag(&Agui::Custom {
-                name: custom::GUARD,
-                value: serde_json::json!({ "notices": notices }),
-            });
-        }
-
         // Stored as the model wrote it — in placeholders — with the map.
         if let Err(e) =
-            store_turn(&state, tenant_id, conversation_id, "assistant", &answer, &session).await
+            store_turn(&state, tenant_id, conversation_id, "assistant", &emit.answer, &emit.session).await
         {
             tracing::error!(error = %e, "failed to persist assistant turn");
         }
-
-        if failed {
+        if emit.failed {
             yield ag(&Agui::RunError {
                 message: "The AI could not finish this answer. Try again.",
             });
@@ -410,7 +488,7 @@ fn run_turn(
             yield ag(&Agui::RunFinished {
                 thread_id: thread,
                 run_id: run,
-                result: serde_json::json!({ "usage": usage }),
+                result: serde_json::json!({ "usage": emit.usage }),
             });
         }
     }
@@ -419,8 +497,8 @@ fn run_turn(
 #[cfg(test)]
 mod tests {
     use super::{AnswerGuard, GuardRetry};
-    use rig_agent::agent::ModelTurnAction;
     use rig::message::{AssistantContent, Text};
+    use rig_agent::agent::ModelTurnAction;
     use std::sync::atomic::AtomicBool;
     use std::sync::{Arc, Mutex};
 
