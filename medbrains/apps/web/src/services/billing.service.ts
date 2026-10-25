@@ -26,6 +26,7 @@ export const billingService = {
     api.removeInvoiceItem(...args),
   recordPayment: (...args: Parameters<typeof api.recordPayment>) => api.recordPayment(...args),
   getPatientDues: (...args: Parameters<typeof api.getPatientDues>) => api.getPatientDues(...args),
+  listCounterOpenToday: () => api.listCounterOpenToday(),
   collectPayment: (...args: Parameters<typeof api.collectPayment>) => api.collectPayment(...args),
   listBillingEntities: () => api.listBillingEntities(),
   createBillingEntity: (...args: Parameters<typeof api.createBillingEntity>) =>

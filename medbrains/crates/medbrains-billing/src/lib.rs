@@ -3542,6 +3542,10 @@ pub fn router() -> axum::Router<AppState> {
             "/api/billing/patients/{id}/dues",
             get(collect::dues::patient_dues),
         )
+        .route(
+            "/api/billing/counter/open-today",
+            get(collect::open_today::open_today),
+        )
         .route("/api/billing/collect", post(collect::post::collect))
         .route(
             "/api/billing/entities",
