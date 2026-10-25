@@ -405,7 +405,7 @@ check-llm-redaction: ## Every LLM call goes through redaction (ai_redact) — no
 eval-ai: ## AI golden cases, offline from recordings (no key, no network) — exact, grounded, no leaks
 	bash scripts/build_guard.sh --wait && SQLX_OFFLINE=true cargo run -q -p medbrains-ai-eval
 
-eval-ai-live: ## AI golden cases against the real model (synthetic only; Bedrock ap-south-1 or ANTHROPIC_API_KEY; skips without)
+eval-ai-live: ## AI golden cases against the real model (synthetic only; Bedrock ap-south-1, or EVAL_AI_PROVIDER=anthropic via AWS federation; skips without)
 	bash scripts/build_guard.sh --wait && SQLX_OFFLINE=true cargo run -q -p medbrains-ai-eval -- --live
 
 eval-ai-record: ## Re-record the golden answers from the real model (synthetic only)

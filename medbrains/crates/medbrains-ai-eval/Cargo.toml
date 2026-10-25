@@ -8,6 +8,8 @@ rust-version.workspace = true
 
 [dependencies]
 medbrains-core = { path = "../medbrains-core" }
+medbrains-anthropic-auth = { path = "../medbrains-anthropic-auth" }
+tokio = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 chrono = { workspace = true }

@@ -5381,16 +5381,11 @@ export interface StartupCheck {
 export interface AiSettings {
   provider: string;
   model: string;
-  /** Reference (not the value) to the API key in the secret backend. */
-  api_key_secret: string | null;
-  /** Whether ANTHROPIC_API_KEY is present as a fallback. */
-  env_fallback: boolean;
 }
 
 export interface UpdateAiSettingsRequest {
   provider: string;
   model: string;
-  api_key_secret?: string | null;
 }
 
 export interface EmailSettings {

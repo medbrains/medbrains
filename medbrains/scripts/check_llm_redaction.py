@@ -15,6 +15,9 @@ source literal). This check closes the gaps types cannot:
      through `.for_model()`, i.e. it is a `Redacted`.
   3. `Redacted::fixed(...)` takes a string literal or an UPPER_CASE constant,
      never a runtime value.
+  4. The Anthropic token-exchange crate may name only the OAuth token
+     endpoint — it carries an AWS identity token and four IDs, never model
+     input — so it must not reach any other provider URL.
 """
 
 from __future__ import annotations
@@ -27,9 +30,17 @@ ROOT = Path(__file__).resolve().parent.parent
 GATEWAYS = {
     "crates/medbrains-ai/src/lib.rs",
     "crates/medbrains-server-services/src/llm.rs",
+    "crates/medbrains-server-services/src/llm/anthropic.rs",
     "crates/medbrains-server/src/services/simulator/decision.rs",
     "crates/medbrains-ai-eval/src/live.rs",
 }
+# Files that talk to Anthropic's token endpoint only (no prompt, no patient data).
+TOKEN_ONLY = {
+    "crates/medbrains-anthropic-auth/src/lib.rs",
+}
+TOKEN_ENDPOINT = "api.anthropic.com/v1/oauth/token"
+# The bare host is also the identity token's audience string (not a URL called).
+TOKEN_ALLOWED = (TOKEN_ENDPOINT, 'api.anthropic.com"')
 PROVIDER = re.compile(r"rig::providers|/chat/completions|api\.anthropic\.com|bedrock-runtime")
 MODEL_INPUT = re.compile(r"\.(preamble|extract|stream_prompt|prompt)\(|\"content\":")
 FIXED = re.compile(r"Redacted::fixed\(\s*([^)]*)\)")
@@ -57,7 +68,15 @@ def main() -> int:
     for path in sorted((ROOT / "crates").glob("*/src/**/*.rs")):
         rel = path.relative_to(ROOT).as_posix()
         text = path.read_text(encoding="utf-8")
-        if rel not in GATEWAYS:
+        if rel in TOKEN_ONLY:
+            for m in PROVIDER.finditer(text):
+                if not text.startswith(TOKEN_ALLOWED, m.start()):
+                    line = text.count("\n", 0, m.start()) + 1
+                    problems.append(f"{rel}:{line}: the token crate may reach only {TOKEN_ENDPOINT}")
+            for m in MODEL_INPUT.finditer(text):
+                line = text.count("\n", 0, m.start()) + 1
+                problems.append(f"{rel}:{line}: the token crate must not build model input")
+        elif rel not in GATEWAYS:
             for m in PROVIDER.finditer(text):
                 line = text.count("\n", 0, m.start()) + 1
                 problems.append(f"{rel}:{line}: talks to a model outside the redaction gateway")

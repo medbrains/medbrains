@@ -124,12 +124,12 @@ fn summary(results: &[CaseResult]) -> String {
     let answers: Vec<&Answer> = results.iter().filter_map(|r| r.answer.as_ref()).collect();
     let tin: u64 = answers.iter().map(|a| a.input_tokens).sum();
     let tout: u64 = answers.iter().map(|a| a.output_tokens).sum();
-    let usd = answers.iter().map(|a| cost(a)).fold(0.0, |s, c| s + c);
-    let per_pass = if passed == 0 {
-        "n/a".to_owned()
-    } else {
-        let p = usd / passed as f64;
-        format!("${p:.5}")
+    // One answer from a model with no known price makes the total unknown.
+    let usd: Option<f64> = answers.iter().map(|a| cost(a)).sum();
+    let (total, per_pass) = match usd {
+        None => ("unknown".to_owned(), "unknown".to_owned()),
+        Some(usd) if passed == 0 => (format!("${usd:.4}"), "n/a".to_owned()),
+        Some(usd) => (format!("${usd:.4}"), format!("${:.5}", usd / passed as f64)),
     };
     let models: Vec<&str> = {
         let mut m: Vec<&str> = answers.iter().map(|a| a.model.as_str()).collect();
@@ -140,7 +140,7 @@ fn summary(results: &[CaseResult]) -> String {
     format!(
         "| cases | pass | known fail | unexpected | tokens in/out | est. cost | cost per pass | model |\n\
          |---|---|---|---|---|---|---|---|\n\
-         | {} | {passed} | {known} | {unexpected} | {tin}/{tout} | ${usd:.4} | {per_pass} | {} |\n",
+         | {} | {passed} | {known} | {unexpected} | {tin}/{tout} | {total} | {per_pass} | {} |\n",
         results.len(),
         models.join(", "),
     )
