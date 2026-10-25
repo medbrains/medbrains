@@ -113,46 +113,47 @@ struct HistoryRow {
     content: String,
 }
 
-/// De-identified clinical snapshot injected as grounding — clinical facts only
-/// (allergen / drug / diagnosis names), never patient name / UHID / identifiers.
-#[derive(Default)]
+/// De-identified clinical snapshot the overview tool returns — clinical facts
+/// only (allergen / drug / diagnosis names, lab values), never patient name /
+/// UHID / identifiers. Sent as JSON, so redaction withholds a restricted entry
+/// (an HIV result) on its own instead of the whole overview.
+#[derive(Default, Serialize)]
 struct Grounding {
+    #[serde(serialize_with = "none_recorded")]
     allergies: Vec<String>,
-    medications: Vec<String>,
-    diagnoses: Vec<String>,
+    #[serde(serialize_with = "none_recorded")]
+    active_medications: Vec<String>,
+    #[serde(serialize_with = "none_recorded")]
+    active_problems: Vec<String>,
     /// Entries withheld from this viewer (mental-health content). Only the
     /// count reaches the model — the tombstone, never the content.
-    withheld: usize,
-    labs: Vec<String>,
+    restricted_entries_not_shown: usize,
+    #[serde(serialize_with = "none_recorded")]
+    recent_lab_results: Vec<LabEntry>,
 }
 
-impl Grounding {
-    /// Render as a compact context block, or `None` when nothing is known.
-    fn as_context(&self) -> Option<String> {
-        let mut lines = Vec::new();
-        if !self.allergies.is_empty() {
-            lines.push(format!("Known allergies: {}", self.allergies.join(", ")));
-        }
-        if !self.medications.is_empty() {
-            lines.push(format!(
-                "Active medications: {}",
-                self.medications.join(", ")
-            ));
-        }
-        if !self.diagnoses.is_empty() {
-            lines.push(format!("Active problems: {}", self.diagnoses.join(", ")));
-        }
-        if self.withheld > 0 {
-            lines.push(format!(
-                "Restricted entries not shown to this user: {}",
-                self.withheld
-            ));
-        }
-        if !self.labs.is_empty() {
-            lines.push(format!("Recent lab results: {}", self.labs.join("; ")));
-        }
-        (!lines.is_empty()).then(|| lines.join("\n"))
+/// An empty list says so in words: the model reports "none recorded" rather
+/// than leaving the section out.
+fn none_recorded<S: serde::Serializer, T: Serialize>(
+    items: &[T],
+    s: S,
+) -> Result<S::Ok, S::Error> {
+    if items.is_empty() {
+        s.serialize_str("none recorded")
+    } else {
+        items.serialize(s)
     }
+}
+
+/// One lab result in the overview.
+#[derive(sqlx::FromRow, Serialize)]
+struct LabEntry {
+    parameter: String,
+    value: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    unit: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    flag: Option<String>,
 }
 
 /// Fetch a patient's allergies, active medications, and active problems, under
@@ -172,7 +173,7 @@ async fn fetch_patient_grounding(
     .fetch_all(&mut **tx)
     .await?;
 
-    let medications = sqlx::query_scalar::<_, String>(
+    let active_medications = sqlx::query_scalar::<_, String>(
         "SELECT DISTINCT drug_name FROM medication_timeline_events \
          WHERE patient_id = $1 AND tenant_id = $2 \
          AND event_type IN ('started', 'resumed', 'dose_changed') \
@@ -206,21 +207,14 @@ async fn fetch_patient_grounding(
     .bind(viewer.can_all)
     .fetch_all(&mut **tx)
     .await?;
-    let withheld = problems.iter().filter(|(_, hidden)| *hidden).count();
-    let diagnoses = problems
+    let restricted_entries_not_shown = problems.iter().filter(|(_, hidden)| *hidden).count();
+    let active_problems = problems
         .into_iter()
         .filter_map(|(description, hidden)| (!hidden).then_some(description))
         .collect();
 
-    #[derive(sqlx::FromRow)]
-    struct LabRow {
-        parameter_name: String,
-        value: String,
-        unit: Option<String>,
-        flag: Option<String>,
-    }
-    let labs = sqlx::query_as::<_, LabRow>(
-        "SELECT lr.parameter_name, lr.value, lr.unit, lr.flag::text AS flag \
+    let recent_lab_results = sqlx::query_as::<_, LabEntry>(
+        "SELECT lr.parameter_name AS parameter, lr.value, lr.unit, lr.flag::text AS flag \
          FROM lab_results lr JOIN lab_orders lo ON lr.order_id = lo.id \
          WHERE lo.patient_id = $1 AND lr.tenant_id = $2 \
          ORDER BY lr.created_at DESC LIMIT 30",
@@ -228,21 +222,14 @@ async fn fetch_patient_grounding(
     .bind(patient_id)
     .bind(tenant_id)
     .fetch_all(&mut **tx)
-    .await?
-    .into_iter()
-    .map(|r| {
-        let unit = r.unit.map(|u| format!(" {u}")).unwrap_or_default();
-        let flag = r.flag.map(|f| format!(" [{f}]")).unwrap_or_default();
-        format!("{}: {}{unit}{flag}", r.parameter_name, r.value)
-    })
-    .collect();
+    .await?;
 
     Ok(Grounding {
         allergies,
-        medications,
-        diagnoses,
-        withheld,
-        labs,
+        active_medications,
+        active_problems,
+        restricted_entries_not_shown,
+        recent_lab_results,
     })
 }
 
@@ -700,11 +687,9 @@ impl PatientOverviewTool {
         )
         .await?;
         drop(tx);
-        Ok(grounding.as_context().unwrap_or_else(|| {
-            "This patient has no recorded allergies, active medications, active problems, or recent \
-             lab results."
-                .to_owned()
-        }))
+        // Empty lists say "none recorded"; the model is told not to fill them.
+        serde_json::to_string(&grounding)
+            .map_err(|e| AppError::Internal(format!("overview did not serialise: {e}")))
     }
 }
 
@@ -718,7 +703,7 @@ impl rig::tool::Tool for PatientOverviewTool {
         rig::completion::ToolDefinition {
             name: Self::NAME.to_owned(),
             description: "Fetch a patient's allergies, active medications, active problems, and \
-                recent lab results. Pass a REAL patient_id taken verbatim from the screen context. \
+                recent lab results, as JSON. Pass a REAL patient_id taken verbatim from the screen context. \
                 If no patient is in context, do NOT call this — call `request_patient` so the user \
                 can choose one; never guess or invent an id. Call it at most once and use whatever \
                 it returns."
@@ -1974,5 +1959,28 @@ mod tests {
     #[test]
     fn an_answer_passes_through() {
         assert_eq!(describe_response(StatusCode::OK, "{}"), "HTTP 200\n{}");
+    }
+
+    /// One restricted lab withholds that entry, not the whole overview
+    /// (eval case 03); an empty section says "none recorded".
+    #[test]
+    fn a_restricted_lab_withholds_only_itself() {
+        let overview = super::Grounding {
+            allergies: vec!["Sulfa drugs".to_owned()],
+            recent_lab_results: vec![super::LabEntry {
+                parameter: "HIV 1/2 antibody".to_owned(),
+                value: "Reactive".to_owned(),
+                unit: None,
+                flag: None,
+            }],
+            ..super::Grounding::default()
+        };
+        let json = serde_json::to_string(&overview).unwrap_or_default();
+        let sent = medbrains_core::ai_redact::sensitive::withhold_in_text(&json);
+        let (sent, withheld) = sent.unwrap_or_default();
+        assert_eq!(withheld, 1);
+        assert!(sent.contains("Sulfa drugs"), "{sent}");
+        assert!(sent.contains(r#""active_medications":"none recorded""#), "{sent}");
+        assert!(!sent.contains("Reactive") && !sent.contains("HIV"), "{sent}");
     }
 }

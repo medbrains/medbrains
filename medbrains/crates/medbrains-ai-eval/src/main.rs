@@ -1,8 +1,10 @@
-//! `medbrains-ai-eval [--live] [--record]`
+//! `medbrains-ai-eval [--live] [--record] [--only 03,17]`
 //!
 //! Offline by default (recorded answers, no key, no network). `--live` asks
 //! the model on the synthetic cases; `--record` also saves its answers as the
-//! new recordings. Exits 1 on an unexpected result.
+//! new recordings. `--only` runs the cases whose id starts with one of the
+//! comma-separated prefixes (re-record just the cases a change touched).
+//! Exits 1 on an unexpected result.
 
 use std::io::Write as _;
 use std::process::ExitCode;
@@ -29,7 +31,13 @@ fn main() -> ExitCode {
     } else {
         Mode::Offline
     };
-    match run(&default_cases_dir(), mode) {
+    let only: Vec<String> = args
+        .iter()
+        .position(|a| a == "--only")
+        .and_then(|i| args.get(i + 1))
+        .map(|v| v.split(',').map(str::to_owned).collect())
+        .unwrap_or_default();
+    match run(&default_cases_dir(), mode, &only) {
         Ok(results) => {
             let _ = write!(out, "{}", render(&results));
             if results
