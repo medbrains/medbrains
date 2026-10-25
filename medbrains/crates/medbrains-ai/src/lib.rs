@@ -3,11 +3,8 @@
 //!
 //! Resolves the AI provider per tenant from `tenant_settings`
 //! (category `ai`, key `config` → `{ provider, model, api_key_secret }`),
-//! falling back to `ANTHROPIC_API_KEY` from the environment so existing
-//! deployments keep working. The API key is resolved through the configured
-//! [`SecretResolver`](medbrains_core::secrets::SecretResolver) backend when a
-//! `api_key_secret` reference is set, so keys live in the secret store rather
-//! than the database or process env.
+//! through `medbrains_server_services::llm`. Anthropic has no API key: it is
+//! reached by workload identity federation with the machine's AWS identity.
 
 use axum::response::IntoResponse as _;
 use axum::routing::{get, post};
@@ -1384,10 +1381,9 @@ pub async fn chat(
 
     use rig::client::CompletionClient as _;
     let boxed: SseBody = match cfg.provider.as_str() {
-        "anthropic" => assistant!(
-            rig::providers::anthropic::Client::new(&cfg.api_key)
-                .map_err(|e| AppError::BadRequest(format!("AI client error: {e}")))?
-        ),
+        "anthropic" => assistant!(medbrains_server_services::llm::anthropic::client(
+            &cfg.api_key
+        )?),
         "openrouter" => assistant!(
             rig::providers::openrouter::Client::new(&cfg.api_key)
                 .map_err(|e| AppError::BadRequest(format!("AI client error: {e}")))?

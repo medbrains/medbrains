@@ -9,6 +9,8 @@ rust-version.workspace = true
 medbrains-core = { path = "../medbrains-core" }
 medbrains-db = { path = "../medbrains-db" }
 medbrains-server-core = { path = "../medbrains-server-core" }
+medbrains-anthropic-auth = { path = "../medbrains-anthropic-auth" }
+bytes = "1"
 serde = { workspace = true }
 serde_json = { workspace = true }
 uuid = { workspace = true }

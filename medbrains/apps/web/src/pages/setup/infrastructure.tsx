@@ -21,7 +21,6 @@ const SECRETS_LABEL: Record<string, string> = {
 const aiFormSchema = z.object({
   provider: z.string().min(1),
   model: z.string(),
-  api_key_secret: z.string(),
 });
 type AiFormInput = z.infer<typeof aiFormSchema>;
 
@@ -43,7 +42,6 @@ export function InfrastructurePage() {
     values: {
       provider: ai?.provider ?? "anthropic",
       model: ai?.model ?? "",
-      api_key_secret: ai?.api_key_secret ?? "",
     },
   });
 
@@ -52,7 +50,6 @@ export function InfrastructurePage() {
       api.updateAiSettings({
         provider: data.provider,
         model: data.model.trim(),
-        api_key_secret: data.api_key_secret.trim() || null,
       }),
     onSuccess: () => {
       notifications.show({ title: "AI settings saved", message: "Updated.", color: "success" });
@@ -112,15 +109,15 @@ export function InfrastructurePage() {
             explainer={{
               title: "AI-assisted features",
               description:
-                "Powers AI code generation and AI course authoring. The model and API key below apply to this hospital only; the key is resolved from the secrets backend, never stored in the database.",
+                "Powers AI code generation and AI course authoring. The model below applies to this hospital only. There is no API key: the server signs in to Anthropic with its own AWS identity.",
               model: ai?.model || "claude-sonnet-4-6 (default)",
             }}
           />
         </Group>
         <Text size="sm" c="dimmed" mb="md">
-          {ai?.env_fallback
-            ? "An ANTHROPIC_API_KEY environment fallback is present, so AI works even without a key reference below."
-            : "No environment fallback detected — set an API key reference to enable AI features."}
+          Anthropic is reached with the server&apos;s AWS identity (workload identity federation),
+          so there is no API key to enter. Whether federation is set up on this server is shown
+          under Startup checks above (ai.anthropic_federation).
         </Text>
 
         <Stack gap="sm" maw={520}>
@@ -142,12 +139,6 @@ export function InfrastructurePage() {
             placeholder="claude-sonnet-4-6"
             description="Leave blank to use the platform default."
             {...register("model")}
-          />
-          <Input
-            label="API key reference"
-            placeholder="medbrains/prod/<tenant>/anthropic-key"
-            description="A key name in the secrets backend — not the key itself."
-            {...register("api_key_secret")}
           />
           <Group justify="flex-end">
             <Button tone="primary" onClick={() => void onSave()} loading={saveMutation.isPending}>

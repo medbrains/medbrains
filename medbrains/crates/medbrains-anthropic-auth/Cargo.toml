@@ -1,0 +1,17 @@
+[package]
+name = "medbrains-anthropic-auth"
+description = "Anthropic API access by workload identity federation: an AWS-signed identity token exchanged for a short-lived access token"
+publish = false
+version = "0.1.0"
+edition = "2024"
+rust-version.workspace = true
+
+[dependencies]
+aws-config = { version = "1", default-features = false, features = ["rt-tokio", "default-https-client"] }
+aws-sdk-sts = { version = "1", default-features = false, features = ["rt-tokio", "default-https-client"] }
+reqwest = { workspace = true }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+
+[lints]
+workspace = true

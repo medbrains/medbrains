@@ -20,6 +20,7 @@ medbrains-signing = { path = "../medbrains-signing" }
 medbrains-notifications = { path = "../medbrains-notifications" }
 medbrains-server-core = { path = "../medbrains-server-core" }
 medbrains-server-services = { path = "../medbrains-server-services" }
+medbrains-anthropic-auth = { path = "../medbrains-anthropic-auth" }
 medbrains-custom-code = { path = "../medbrains-custom-code" }
 medbrains-lms = { path = "../medbrains-lms" }
 medbrains-cssd = { path = "../medbrains-cssd" }

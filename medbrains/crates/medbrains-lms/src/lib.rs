@@ -1592,7 +1592,7 @@ const COURSE_PREAMBLE: &str = "You are a medical education expert creating train
 /// POST /api/lms/courses/ai-generate — generate a course outline + quiz using AI.
 ///
 /// Uses Rig.rs for type-safe structured extraction via Claude API.
-/// Requires `ANTHROPIC_API_KEY` env var. Returns a preview — admin reviews and saves.
+/// Uses the tenant's AI provider (`llm::extract`). Returns a preview — admin reviews and saves.
 pub async fn ai_generate_course(
     Extension(claims): Extension<Claims>,
     State(state): State<AppState>,

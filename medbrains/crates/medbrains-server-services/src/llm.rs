@@ -3,11 +3,12 @@
 //!
 //! Resolves the AI provider per tenant from `tenant_settings`
 //! (category `ai`, key `config` → `{ provider, model, api_key_secret }`),
-//! falling back to `ANTHROPIC_API_KEY` from the environment so existing
-//! deployments keep working. The API key is resolved through the configured
-//! [`SecretResolver`](medbrains_core::secrets::SecretResolver) backend when a
-//! `api_key_secret` reference is set, so keys live in the secret store rather
-//! than the database or process env.
+//! then the `AI_PROVIDER` / `AI_MODEL` environment. Anthropic has no API key:
+//! its access token comes from workload identity federation with this
+//! machine's AWS identity ([`medbrains_anthropic_auth`], see [`anthropic`]).
+//! Other providers' keys resolve through the configured
+//! [`SecretResolver`](medbrains_core::secrets::SecretResolver) when an
+//! `api_key_secret` reference is set, else from their environment variable.
 
 use medbrains_core::ai_redact::Redacted;
 use serde::Serialize;
@@ -20,15 +21,28 @@ use medbrains_server_core::state::AppState;
 /// Default model when the tenant has not configured one.
 const DEFAULT_MODEL: &str = rig::providers::anthropic::completion::CLAUDE_SONNET_4_6;
 
+pub mod anthropic;
+
 /// Resolved per-tenant AI provider settings.
-#[derive(Debug)]
 pub struct AiConfig {
     pub provider: String,
     pub model: String,
+    /// The provider credential: an API key, or for Anthropic a short-lived
+    /// federated access token. Never printed (see the `Debug` impl).
     pub api_key: String,
     /// Tenant opt-out: `ai.config.assistant_enabled = false` disables the chat
     /// assistant while leaving the extraction features (code/course-gen) working.
     pub enabled: bool,
+}
+
+impl std::fmt::Debug for AiConfig {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("AiConfig")
+            .field("provider", &self.provider)
+            .field("model", &self.model)
+            .field("enabled", &self.enabled)
+            .finish_non_exhaustive()
+    }
 }
 
 /// Resolve the tenant's AI provider config (provider/model/key/enabled) from
@@ -81,19 +95,19 @@ pub async fn resolve_config(state: &AppState, tenant_id: &Uuid) -> Result<AiConf
         .and_then(serde_json::Value::as_bool)
         != Some(false);
 
-    // Ollama is keyless (local). Others resolve a key from the secret store or env.
-    let api_key = if provider == "ollama" {
-        String::new()
-    } else {
-        match str_field("api_key_secret") {
+    // Ollama is keyless (local); Anthropic is federated (no key exists).
+    // Others resolve a key from the secret store or env.
+    let api_key = match provider.as_str() {
+        "ollama" => String::new(),
+        "anthropic" => anthropic::access_token().await?,
+        _ => match str_field("api_key_secret") {
             Some(secret) => state.secret_resolver.get(secret).await.map_err(|e| {
                 AppError::BadRequest(format!("AI key secret '{secret}' unavailable: {e}"))
             })?,
             None => {
                 let env_var = match provider.as_str() {
-                    "openrouter" => "OPENROUTER_API_KEY",
                     "bedrock" => "BEDROCK_API_KEY",
-                    _ => "ANTHROPIC_API_KEY",
+                    _ => "OPENROUTER_API_KEY",
                 };
                 std::env::var(env_var).map_err(|_| {
                     AppError::BadRequest(format!(
@@ -101,7 +115,7 @@ pub async fn resolve_config(state: &AppState, tenant_id: &Uuid) -> Result<AiConf
                     ))
                 })?
             }
-        }
+        },
     };
 
     Ok(AiConfig {
@@ -244,7 +258,7 @@ where
     T: schemars::JsonSchema + DeserializeOwned + Serialize + Send + Sync + 'static,
 {
     use rig::client::CompletionClient as _;
-    use rig::providers::{anthropic, openai, openrouter};
+    use rig::providers::{openai, openrouter};
 
     let cfg = resolve_config(state, tenant_id).await?;
 
@@ -254,8 +268,7 @@ where
     // set, else anthropic), so callers stay provider-agnostic.
     match cfg.provider.as_str() {
         "anthropic" => {
-            let client = anthropic::Client::new(&cfg.api_key)
-                .map_err(|e| AppError::BadRequest(format!("Failed to create AI client: {e}")))?;
+            let client = anthropic::client(&cfg.api_key)?;
             let extractor = client
                 .extractor::<T>(cfg.model.as_str())
                 .preamble(preamble.for_model())

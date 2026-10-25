@@ -51,10 +51,6 @@ pub async fn get_infra_status(
 pub struct AiSettings {
     pub provider: String,
     pub model: String,
-    /// Reference (not the value) to the API key in the secret backend.
-    pub api_key_secret: Option<String>,
-    /// Whether `ANTHROPIC_API_KEY` is present as a fallback.
-    pub env_fallback: bool,
 }
 
 /// GET /api/admin/ai-settings
@@ -87,8 +83,6 @@ pub async fn get_ai_settings(
     Ok(Json(AiSettings {
         provider: field("provider").unwrap_or_else(|| "anthropic".to_owned()),
         model: field("model").unwrap_or_default(),
-        api_key_secret: field("api_key_secret"),
-        env_fallback: std::env::var("ANTHROPIC_API_KEY").is_ok(),
     }))
 }
 
@@ -96,7 +90,6 @@ pub async fn get_ai_settings(
 pub struct UpdateAiSettings {
     pub provider: String,
     pub model: String,
-    pub api_key_secret: Option<String>,
 }
 
 /// PUT /api/admin/ai-settings
@@ -114,15 +107,11 @@ pub async fn update_ai_settings(
         )));
     }
 
-    let secret = body
-        .api_key_secret
-        .as_deref()
-        .map(str::trim)
-        .filter(|s| !s.is_empty());
+    // Anthropic has no key to store: access is AWS identity federation,
+    // configured per node and checked at startup (`ai.anthropic_federation`).
     let value = serde_json::json!({
         "provider": provider,
         "model": body.model.trim(),
-        "api_key_secret": secret,
     });
 
     let mut tx = state.db.begin().await?;
@@ -142,8 +131,6 @@ pub async fn update_ai_settings(
     Ok(Json(AiSettings {
         provider: provider.to_owned(),
         model: body.model.trim().to_owned(),
-        api_key_secret: secret.map(ToOwned::to_owned),
-        env_fallback: std::env::var("ANTHROPIC_API_KEY").is_ok(),
     }))
 }
 
