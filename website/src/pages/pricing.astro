@@ -1,16 +1,19 @@
 ---
-// Plans and prices. Every figure comes from src/data/pricing.ts.
+// Pricing: the product and updates are free; implementation, customisation and AMC are charged.
+// Every line comes from src/data/pricing.ts.
+import chibi from "../assets/mascot/crab-chibi.svg?raw";
 import Demo from "../components/Demo.astro";
 import Footer from "../components/Footer.astro";
 import Header from "../components/Header.astro";
 import WhatsAppFloat from "../components/WhatsAppFloat.astro";
 import { SITE } from "../consts";
-import chibi from "../assets/mascot/crab-chibi.svg?raw";
-import { ADD_ONS, AI, CARE, COMMITMENTS, GST_NOTE, INCLUDED, inr, PLANS, PRICING_DRAFT, PRICING_FAQ, planYear } from "../data/pricing";
+import {
+  CHARGES, COMMITMENTS, FREE, PASS_THROUGH, PRICING_FAQ, QUOTE_ANSWERS, QUOTE_QUESTIONS, SEVA, STEPS, SUPPORT_US,
+} from "../data/pricing";
 import Base from "../layouts/Base.astro";
 
-const title = "Pricing for Hospital Management Software | MedBrains";
-const description = "MedBrains plans for clinics, hospitals and hospital groups, billed yearly with a one-time go-live, and a licence-waived programme for charitable hospitals.";
+const title = "MedBrains Pricing: Free Software, Paid Implementation";
+const description = "MedBrains hospital software and its updates are free. Hospitals pay for implementation, customisation and a yearly AMC, quoted after a free assessment.";
 const home = new URL("/", Astro.site).href;
 const url = new URL("/pricing", Astro.site).href;
 const schema = [
@@ -27,72 +30,87 @@ const schema = [
     mainEntity: PRICING_FAQ.map((f) => ({ "@type": "Question", name: f.q, acceptedAnswer: { "@type": "Answer", text: f.a } })),
   },
 ];
-const promise = [
-  "One record per patient",
-  "Safety rules built in",
-  "NABH-aligned, built for ABDM",
-  "AI drafts, clinicians sign",
-  "Apps, TV boards, kiosk",
-  "India-hosted, backed up daily",
-];
-// What the chooser shows for each plan.
-const picks = Object.fromEntries(PLANS.map((p) => [p.id, {
-  name: `${p.name} plan`,
-  month: p.monthly ? inr(p.monthly) : "Let's talk",
-  line: p.monthly ? `${planYear(p)}. ${p.setup}.` : "We plan the price with you, around how you run.",
-}]));
-const QUESTIONS = [
-  { name: "kind", legend: "What do you run?", options: [["clinic", "A clinic or day-care centre"], ["hospital", "A hospital or nursing home"]], value: "hospital" },
-  { name: "acute", legend: "Do you have operating theatres, an ICU or radiology?", options: [["yes", "Yes"], ["no", "No"]], value: "yes" },
-  { name: "scale", legend: "Several hospitals, a medical college, or your own servers?", options: [["yes", "Yes"], ["no", "No"]], value: "no" },
-];
 ---
 
 <script>
-  // "Which plan fits you?": three answers pick a plan and light up its card.
-  const form = document.querySelector<HTMLFormElement>(".chooser");
+  // "Get a quote": three answers about the hospital say how its go-live would look.
+  const form = document.querySelector<HTMLFormElement>(".quote");
   if (form) {
-    const picks = JSON.parse(form.dataset.picks ?? "{}");
-    const out = (k: string) => form.querySelector<HTMLElement>(`[data-out="${k}"]`);
+    const answers = JSON.parse(form.dataset.answers ?? "{}");
     const show = () => {
       const a = new FormData(form);
-      const id = a.get("scale") === "yes" ? "enterprise"
-        : a.get("kind") === "clinic" ? "clinic"
-        : a.get("acute") === "yes" ? "hospital-plus" : "hospital";
-      const pick = picks[id];
-      out("plan")!.textContent = pick.name;
-      out("month")!.textContent = pick.month;
-      out("line")!.textContent = pick.line;
-      form.querySelector("small")!.hidden = id === "enterprise";
-      form.querySelector<HTMLElement>("[data-q=acute]")!.hidden = a.get("kind") === "clinic";
-      for (const card of document.querySelectorAll<HTMLElement>(".plan")) card.classList.toggle("match", card.dataset.plan === id);
+      const clinic = a.get("kind") === "clinic";
+      const id = a.get("scale") === "yes" ? "group" : clinic ? "clinic" : a.get("acute") === "yes" ? "acute" : "hospital";
+      form.querySelector("[data-out=title]")!.textContent = answers[id].title;
+      form.querySelector("[data-out=body]")!.textContent = answers[id].body;
+      form.querySelector<HTMLElement>("[data-q=acute]")!.hidden = clinic;
     };
     form.addEventListener("change", show);
     show();
   }
 </script>
 
-<Base title={title} description={description} schema={schema} noindex={PRICING_DRAFT}>
+<Base title={title} description={description} schema={schema}>
   <Header />
   <main id="main">
-    {PRICING_DRAFT && <p class="draft" role="note">DRAFT: prices to be confirmed. Nothing on this page is an offer yet.</p>}
     <section class="hero">
       <div class="wrap">
         <nav class="crumbs-dark" aria-label="Breadcrumb"><a href="/">{SITE.brand}</a> / <span>Pricing</span></nav>
         <p class="eyebrow">Pricing</p>
-        <h1>Simple pricing for the whole hospital.</h1>
-        <p class="lede">Four plans, one yearly price each, and no charge for each login. Charitable and government hospitals can pay no licence at all.</p>
-        <ul class="promise">{promise.map((p) => <li>{p}</li>)}</ul>
+        <h1>Free software. <span>Expert implementation.</span></h1>
+        <p class="lede">MedBrains and every update are free for every hospital and clinic. No subscription, no charge per user. We earn by setting it up well and keeping it running.</p>
+        <div class="actions">
+          <a class="btn btn-primary" href="#quote">Get a quote <span aria-hidden="true">→</span></a>
+          <a class="btn btn-ghost" href="#demo">Book a demo</a>
+        </div>
+        <p class="terms-link">Read our <a href="/terms">commercial terms</a>.</p>
       </div>
     </section>
 
     <div class="paper">
-      <section class="section calc-section" aria-labelledby="calc-title">
+      <section class="section" aria-labelledby="free-title">
         <div class="wrap">
-          <form class="calc chooser" data-picks={JSON.stringify(picks)} aria-labelledby="calc-title">
-            <div class="calc-ask">
-              <h2 id="calc-title">Which plan fits you?</h2>
-              {QUESTIONS.map((q) => (
+          <p class="eyebrow tag">Free, for everyone</p>
+          <h2 id="free-title" class="title">What every hospital gets</h2>
+          <div class="grid">
+            {FREE.map((d) => <article class="feature"><h3>{d.title}</h3><p>{d.body}</p></article>)}
+          </div>
+        </div>
+      </section>
+
+      <section class="section tinted" aria-labelledby="charge-title">
+        <div class="wrap">
+          <p class="eyebrow tag">Where we earn</p>
+          <h2 id="charge-title" class="title">What we charge for</h2>
+          <div class="charges">
+            {CHARGES.map((c) => (
+              <article class="charge">
+                <h3>{c.title}</h3>
+                <p class="when">{c.when}</p>
+                <p>{c.body}</p>
+                <ul>{c.items.map((i) => <li>{i}</li>)}</ul>
+              </article>
+            ))}
+          </div>
+          <p class="note">{PASS_THROUGH} Full details in our <a href="/terms">commercial terms</a>.</p>
+        </div>
+      </section>
+
+      <section class="section" aria-labelledby="how-title">
+        <div class="wrap">
+          <h2 id="how-title" class="title">How it works</h2>
+          <ol class="steps">
+            {STEPS.map((s) => <li><h3>{s.title}</h3><p>{s.body}</p></li>)}
+          </ol>
+        </div>
+      </section>
+
+      <section id="quote" class="section tinted" aria-labelledby="quote-title">
+        <div class="wrap">
+          <form class="calc quote" data-answers={JSON.stringify(QUOTE_ANSWERS)} aria-labelledby="quote-title" action="#demo">
+            <div>
+              <h2 id="quote-title">Get a quote</h2>
+              {QUOTE_QUESTIONS.map((q) => (
                 <fieldset data-q={q.name}>
                   <legend>{q.legend}</legend>
                   <div class="opts">
@@ -103,104 +121,41 @@ const QUESTIONS = [
                 </fieldset>
               ))}
             </div>
-            <div class="calc-result" id="calc-result" aria-live="polite">
+            <div class="calc-result" aria-live="polite">
               <span class="crab bob mascot" aria-hidden="true" set:html={chibi} />
-              <p class="plan-name" data-out="plan">{picks["hospital-plus"].name}</p>
-              <p class="big"><span data-out="month">{picks["hospital-plus"].month}</span> <small>a month</small></p>
-              <p data-out="line">{picks["hospital-plus"].line}</p>
+              <p class="eyebrow tag">What to expect</p>
+              <p class="big" data-out="title">{QUOTE_ANSWERS.acute.title}</p>
+              <p data-out="body">{QUOTE_ANSWERS.acute.body}</p>
+              <p class="small">The software is free. Your written quote covers implementation, any customisation and AMC.</p>
+              <a class="btn btn-primary" href="?from=quote#demo">Ask for my quote <span aria-hidden="true">→</span></a>
+              <p class="small">See our <a href="/terms">commercial terms</a>.</p>
             </div>
           </form>
-          <p class="seva-hint">Charitable trust or government hospital? <a href="#care-title">Your licence can be ₹0 <span aria-hidden="true">→</span></a></p>
-        </div>
-      </section>
-
-      <section class="section" aria-labelledby="plans-title">
-        <div class="wrap">
-          <h2 id="plans-title" class="title">Plans</h2>
-          <div class="plans">
-            {PLANS.map((p) => (
-              <article class:list={["plan", { recommended: p.recommended }]} data-plan={p.id} aria-labelledby={`plan-${p.id}`}>
-                {p.recommended && <p class="badge">Recommended</p>}
-                <h3 id={`plan-${p.id}`}>{p.name}</h3>
-                <p class="for">{p.for}</p>
-                <p class="price">
-                  {p.monthly ? <><strong>{inr(p.monthly)}</strong> <span>/ month</span></> : <strong>Talk to us</strong>}
-                </p>
-                <p class="detail">{planYear(p)}</p>
-                <p class="setup">{p.setup}</p>
-                <ul>{p.includes.map((i) => <li>{i}</li>)}</ul>
-                <a class:list={["btn", p.recommended ? "btn-primary" : "btn-ghost"]} href={p.cta.href}>{p.cta.label}</a>
-              </article>
-            ))}
-          </div>
-          <p class="note">{GST_NOTE}</p>
-        </div>
-      </section>
-
-      <section class="section care" aria-labelledby="care-title">
-        <div class="wrap">
-          <p class="eyebrow accent">For charitable, trust and government hospitals</p>
-          <h2 id="care-title" class="title">{CARE.name}</h2>
-          <div class="care-grid">
-            <div>
-              <p class="pitch">{CARE.pitch}</p>
-              <p class="pitch">{CARE.anchor}</p>
-              <div class="table-wrap">
-                <table class="rates">
-                  <caption>Seva Programme rate card, excluding GST</caption>
-                  <thead><tr>{CARE.rateCard.head.map((h) => <th scope="col">{h}</th>)}</tr></thead>
-                  <tbody>{CARE.rateCard.rows.map((r) => <tr><th scope="row">{r[0]}</th><td>{r[1]}</td><td>{r[2]}</td></tr>)}</tbody>
-                </table>
-              </div>
-              <p class="small">{CARE.rateCard.note}</p>
-              <p class="small">{CARE.funding}</p>
-              <a class="btn btn-primary" href={CARE.cta.href}>{CARE.cta.label} <span aria-hidden="true">→</span></a>
-            </div>
-            <div class="who">
-              <h3>Who qualifies</h3>
-              <ul>{CARE.eligibility.map((e) => <li>{e}</li>)}</ul>
-              <h3>What we ask for</h3>
-              <ul>{CARE.documents.map((e) => <li>{e}</li>)}</ul>
-              <p>{CARE.process}</p>
-            </div>
-          </div>
         </div>
       </section>
 
       <section class="section" aria-labelledby="promise-title">
         <div class="wrap narrow">
-          <h2 id="promise-title" class="title">On every plan, paid or not</h2>
+          <h2 id="promise-title" class="title">Our promises, to everyone</h2>
           <ul class="commit">{COMMITMENTS.map((c) => <li>{c}</li>)}</ul>
-        </div>
-      </section>
-
-      <section class="section tinted" aria-labelledby="included-title">
-        <div class="wrap">
-          <h2 id="included-title" class="title">What implementation and annual care include</h2>
-          <div class="grid">
-            {INCLUDED.map((d) => <article class="feature"><h3>{d.title}</h3><p>{d.body}</p></article>)}
+          <div class="seva">
+            <p><strong>{SEVA.line}</strong> <a href={SEVA.cta.href}>{SEVA.cta.label} <span aria-hidden="true">→</span></a></p>
+            <details>
+              <summary>What we ask for</summary>
+              <ul>{SEVA.documents.map((d) => <li>{d}</li>)}</ul>
+              <p>{SEVA.process}</p>
+            </details>
           </div>
         </div>
       </section>
 
-      <section class="section ai" aria-labelledby="ai-title">
-        <div class="wrap care-grid">
-          <div>
-            <p class="eyebrow accent">Clinical AI</p>
-            <h2 id="ai-title" class="title">{AI.title}</h2>
-            <p class="pitch">{AI.body}</p>
-            <p class="small">{AI.caveat}</p>
-          </div>
-          <ul class="ai-points">{AI.points.map((p) => <li>{p}</li>)}</ul>
-        </div>
-      </section>
-
-      <section class="section tinted" aria-labelledby="addons-title">
-        <div class="wrap">
-          <h2 id="addons-title" class="title">Add-ons</h2>
-          <div class="grid">
-            {ADD_ONS.map((d) => <article class="feature"><h3>{d.title}</h3><p>{d.body}</p></article>)}
-          </div>
+      <section class="section tinted" aria-labelledby="support-title">
+        <div class="wrap narrow">
+          <h2 id="support-title" class="title">{SUPPORT_US.title}</h2>
+          <p class="lead-p">{SUPPORT_US.body}</p>
+          <ul class="ways">{SUPPORT_US.ways.map((w) => <li>{w}</li>)}</ul>
+          <p class="small">{SUPPORT_US.rules}</p>
+          <a class="btn btn-ghost dark" href={`mailto:${SITE.email}?subject=${encodeURIComponent(SUPPORT_US.cta.subject)}`}>{SUPPORT_US.cta.label}</a>
         </div>
       </section>
 
@@ -212,7 +167,7 @@ const QUESTIONS = [
       </section>
     </div>
 
-    <Demo source="pricing" size={{ label: "Plan you are interested in", options: [...PLANS.map((p) => p.name), "Seva Programme", "Not sure yet"] }} />
+    <Demo source="pricing" size={{ label: "What do you run?", options: ["Clinic or day-care centre", "Hospital or nursing home", "Multi-specialty hospital", "Group of hospitals or medical college", "Charitable, trust or government hospital"] }} />
   </main>
   <Footer />
   <WhatsAppFloat />
@@ -221,29 +176,62 @@ const QUESTIONS = [
 <style lang="scss">
   @use "../styles/mixins" as *;
 
-  .draft {
-    margin: 0; padding: 10px 24px; text-align: center; font: 600 .9rem var(--mono);
-    background: #fff3cd; color: var(--ink); border-bottom: 1px solid #e6c65c;
-  }
   .hero {
     color: #fff; padding: 72px 0 88px;
-    background: radial-gradient(900px 500px at 80% -20%, rgb(15 98 254 / 35%), transparent 60%), var(--night);
+    background:
+      radial-gradient(700px 460px at 12% 110%, var(--glow-purple), transparent 65%),
+      radial-gradient(900px 500px at 80% -20%, rgb(15 98 254 / 35%), transparent 60%), var(--night);
     .eyebrow { color: var(--pulse); }
-    h1 { font: 900 clamp(2.1rem, 5vw, 3.8rem) var(--display); letter-spacing: -.035em; line-height: 1.04; margin: 0 0 20px; max-width: 20ch; }
-    .lede { color: var(--night-text); font-size: 1.15rem; max-width: 60ch; margin: 0 0 32px; }
+    h1 { font: 900 clamp(2.3rem, 6vw, 4.4rem) var(--display); letter-spacing: -.035em; line-height: 1.02; margin: 0 0 20px; max-width: 16ch; }
+    h1 span { color: var(--sky); }
+    .lede { color: var(--night-text); font-size: 1.15rem; max-width: 58ch; margin: 0 0 32px; }
+    .btn-ghost { color: #fff; }
   }
   .crumbs-dark { margin-bottom: 28px; font-size: .88rem; color: var(--night-text); a { color: #fff; } }
-  .promise {
-    margin: 0; padding: 0; list-style: none; display: flex; flex-wrap: wrap; gap: 10px;
-    li { padding: 8px 14px; border: 1px solid var(--night-line); border-radius: 999px; font-size: .92rem; color: var(--night-text); }
-  }
+  .actions { display: flex; flex-wrap: wrap; gap: 12px; }
 
   .paper { background: var(--paper); color: var(--ink); }
-  .calc-section { padding-bottom: 0 !important; }
+  .paper .section { padding: 88px 0; }
+  .tinted { background: var(--paper-2); }
+  .narrow > * { max-width: 860px; }
+  .title { font: 800 clamp(1.7rem, 3.4vw, 2.4rem)/1.1 var(--display); letter-spacing: -.025em; margin: 0 0 32px; max-width: 24ch; }
+  .eyebrow.tag { color: var(--purple); }
+  .note, .small { margin: 20px 0 0; color: var(--muted); font-size: .95rem; }
+
+  .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; }
+  .feature {
+    padding: 26px; border: 1px solid var(--line); border-radius: 18px; background: #fff; box-shadow: var(--shadow-soft);
+    h3 { font: 800 1.12rem var(--display); letter-spacing: -.02em; margin: 0 0 8px; }
+    p { margin: 0; color: var(--ink-2); }
+  }
+
+  .charges { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; }
+  .charge {
+    padding: 30px 26px; border: 1px solid var(--line); border-top: 4px solid var(--blue); border-radius: var(--radius-lg);
+    background: #fff; box-shadow: var(--shadow-soft);
+    h3 { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; font: 800 1.5rem var(--display); letter-spacing: -.02em; margin: 0 0 4px; }
+    p { margin: 0 0 14px; color: var(--ink-2); }
+    ul { margin: 0; padding-left: 1.1em; display: grid; gap: 8px; color: var(--ink-2); }
+  }
+  .when { font: 600 .82rem var(--mono) !important; color: var(--blue-deep) !important; }
+  .terms-link { margin: 20px 0 0; color: var(--night-text); font-size: .95rem; a { color: #fff; } }
+  .note a, .small a { color: var(--blue-deep); }
+  .lead-p { margin: 0 0 16px; color: var(--ink-2); font-size: 1.08rem; }
+  .ways { margin: 0; padding-left: 1.1em; display: grid; gap: 8px; color: var(--ink-2); }
+  .btn.dark { margin-top: 24px; color: var(--ink); }
+  .steps {
+    margin: 0; padding: 0; list-style: none; counter-reset: step;
+    display: grid; grid-template-columns: repeat(4, 1fr); gap: 20px;
+    li { counter-increment: step; padding-top: 16px; border-top: 2px solid var(--line); }
+    li::before { content: counter(step, decimal-leading-zero); font: 600 .8rem var(--mono); color: var(--purple); }
+    h3 { font: 800 1.15rem var(--display); margin: 6px 0 6px; }
+    p { margin: 0; color: var(--ink-2); }
+  }
+
   .calc {
     display: grid; grid-template-columns: 1.2fr 1fr; gap: 40px; align-items: center;
     padding: 40px; border-radius: var(--radius-lg); background: var(--blue-tint);
-    h2 { font: 800 clamp(1.5rem, 3vw, 2rem)/1.1 var(--display); letter-spacing: -.02em; margin: 0 0 12px; }
+    h2 { font: 800 clamp(1.5rem, 3vw, 2rem)/1.1 var(--display); letter-spacing: -.02em; margin: 0 0 16px; }
   }
   fieldset { margin: 0 0 18px; padding: 0; border: 0; }
   fieldset[hidden] { display: none; }
@@ -263,91 +251,36 @@ const QUESTIONS = [
   .calc-result {
     position: relative; padding: 28px; border-radius: var(--radius-lg); background: #fff; box-shadow: var(--shadow-soft);
     p { margin: 0; color: var(--ink-2); }
+    .eyebrow { margin-bottom: 8px; }
+    .small { margin: 14px 0 18px; }
+    .btn-primary { color: #fff; }
     .mascot { position: absolute; top: -34px; right: 18px; width: 64px; height: 64px; }
   }
-  .plan-name { font: 600 .78rem var(--mono) !important; letter-spacing: .12em; text-transform: uppercase; color: var(--purple) !important; }
-  .big { margin: 6px 0 8px !important; color: var(--ink) !important; span { font: 800 2.6rem var(--display); letter-spacing: -.03em; } small { color: var(--muted); font-size: 1rem; } }
-  .seva-hint { margin: 20px 0 0; font-weight: 600; a { color: var(--purple); } }
-  .paper .section { padding: 88px 0; }
-  .tinted { background: var(--paper-2); }
-  .narrow > * { max-width: 860px; }
-  .title { font: 800 clamp(1.7rem, 3.4vw, 2.4rem)/1.1 var(--display); letter-spacing: -.025em; margin: 0 0 32px; max-width: 24ch; }
+  .big { margin: 0 0 8px !important; font: 800 1.6rem/1.15 var(--display); letter-spacing: -.02em; color: var(--ink) !important; }
 
-  .plans { display: grid; grid-template-columns: repeat(4, 1fr); gap: 20px; align-items: stretch; }
-  .plan {
-    display: flex; flex-direction: column; padding: 28px 22px; border: 1px solid var(--line);
-    border-radius: var(--radius-lg); background: #fff; box-shadow: var(--shadow-soft);
-    h3 { font: 800 1.5rem var(--display); letter-spacing: -.02em; margin: 0 0 6px; }
-    ul { margin: 0 0 28px; padding-left: 1.1em; color: var(--ink-2); display: grid; gap: 8px; flex: 1; align-content: start; }
-    .btn { align-self: flex-start; color: var(--ink); }
-    .btn-primary { color: #fff; }
-  }
-  .plan.recommended { border: 2px solid var(--blue); box-shadow: var(--shadow-lift); }
-  .plan.match { outline: 3px solid var(--purple); outline-offset: 4px; }
-  .badge {
-    align-self: flex-start; margin: 0 0 14px; padding: 4px 12px; border-radius: 999px;
-    background: var(--blue-tint); color: var(--blue-deep); font: 600 .74rem var(--mono); letter-spacing: .1em; text-transform: uppercase;
-  }
-  .for { margin: 0 0 20px; color: var(--muted); min-height: 4.7em; }
-  .price {
-    margin: 0 0 6px;
-    strong { font: 800 2.1rem var(--display); letter-spacing: -.03em; }
-    span { color: var(--muted); }
-  }
-  .detail { margin: 0 0 6px; color: var(--ink-2); font-size: .95rem; }
-  .setup { margin: 0 0 20px; padding-bottom: 20px; border-bottom: 1px solid var(--line); color: var(--ink-2); font-size: .95rem; font-weight: 600; }
-  .note { margin: 24px 0 0; color: var(--muted); font-size: .95rem; }
-
-  .care { background: linear-gradient(135deg, rgb(133 27 127 / 6%), rgb(15 98 254 / 6%)), var(--paper); }
-  .care-grid { display: grid; grid-template-columns: 1.1fr 1fr; gap: 56px; align-items: start; }
-  .care .eyebrow.accent { color: var(--purple); background: none; padding: 0; }
-  .pitch { margin: 0 0 24px; color: var(--ink-2); font-size: 1.08rem; max-width: 56ch; }
-  .table-wrap { overflow-x: auto; margin: 0 0 12px; }
-  .rates {
-    width: 100%; border-collapse: collapse; font-size: .98rem;
-    caption { text-align: left; font: 600 .74rem var(--mono); letter-spacing: .12em; text-transform: uppercase; color: var(--muted); padding-bottom: 10px; }
-    th, td { text-align: left; padding: 12px 12px 12px 0; border-bottom: 1px solid var(--line); vertical-align: top; }
-    thead th { font-size: .85rem; color: var(--muted); font-weight: 600; }
-    tbody th { font-weight: 600; }
-    td { font-weight: 700; }
-  }
-  .care .small { margin: 0 0 14px; }
-  .care .btn { margin-top: 12px; }
-  .who h3 + ul { margin-bottom: 20px; }
   .commit {
     margin: 0; padding: 0; list-style: none; display: grid; gap: 12px;
     li { padding: 16px 20px 16px 24px; border-left: 4px solid var(--blue); background: var(--paper-2); border-radius: 0 var(--radius) var(--radius) 0; color: var(--ink-2); font-size: 1.05rem; }
   }
-  .who {
-    padding: 28px; border-radius: var(--radius-lg); background: #fff; border: 1px solid var(--line);
-    h3 { font: 800 1.2rem var(--display); margin: 0 0 12px; }
-    ul { margin: 0 0 16px; padding-left: 1.1em; display: grid; gap: 8px; color: var(--ink-2); }
-    p { margin: 0; color: var(--muted); font-size: .95rem; }
+  .seva {
+    margin-top: 32px; padding: 24px; border-radius: var(--radius-lg); border: 1px solid var(--line);
+    background: linear-gradient(135deg, rgb(133 27 127 / 6%), rgb(15 98 254 / 6%)), var(--paper);
+    p { margin: 0; color: var(--ink-2); }
+    a { color: var(--purple); font-weight: 600; }
+    details { border: 0; margin-top: 8px; }
+    summary { padding: 10px 0; font-size: 1rem; }
+    ul { margin: 0 0 12px; padding-left: 1.1em; color: var(--ink-2); display: grid; gap: 6px; }
   }
 
-  .ai .eyebrow.accent { color: var(--purple); background: none; padding: 0; }
-  .small { margin: 0; color: var(--muted); font-size: .95rem; max-width: 56ch; }
-  .ai-points {
-    margin: 0; padding: 0; list-style: none; display: grid; gap: 14px;
-    li { padding: 18px 20px 18px 24px; border-left: 4px solid var(--purple); background: var(--paper-2); border-radius: 0 var(--radius) var(--radius) 0; color: var(--ink-2); }
-  }
-  .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; }
-  .feature {
-    padding: 26px; border: 1px solid var(--line); border-radius: 18px; background: #fff; box-shadow: var(--shadow-soft);
-    h3 { font: 800 1.12rem var(--display); letter-spacing: -.02em; margin: 0 0 8px; }
-    p { margin: 0; color: var(--ink-2); }
-  }
   details { border-bottom: 1px solid var(--line); }
   summary { cursor: pointer; padding: 20px 0; font-weight: 700; font-size: 1.08rem; }
   details p { margin: 0 0 20px; color: var(--ink-2); }
 
-  @media (max-width: 1180px) { .plans { grid-template-columns: 1fr 1fr; } }
-  @include below(md) { .plans { grid-template-columns: 1fr; max-width: 560px; } .for { min-height: 0; } }
-  @include below(lg) { .calc { grid-template-columns: 1fr; padding: 28px 20px; gap: 48px; } }
-  @include below(lg) { .grid { grid-template-columns: 1fr 1fr; } .care-grid { grid-template-columns: 1fr; gap: 32px; } }
+  @include below(xl) { .charges { grid-template-columns: 1fr; max-width: 640px; } .steps { grid-template-columns: 1fr 1fr; } }
+  @include below(lg) { .grid { grid-template-columns: 1fr 1fr; } .calc { grid-template-columns: 1fr; padding: 28px 20px; gap: 48px; } }
   @include below(sm) {
-    .grid { grid-template-columns: 1fr; }
+    .grid, .steps { grid-template-columns: 1fr; }
     .paper .section { padding: 56px 0; }
-    .plan, .who { padding: 24px 20px; }
+    .charge { padding: 24px 20px; }
   }
 </style>

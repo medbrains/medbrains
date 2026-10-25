@@ -1,0 +1,160 @@
+---
+// Commercial terms: a plain summary of MedBrains' standard terms. The signed order form and
+// agreement prevail. Owner: the founder.
+//
+// TO CONFIRM (founder / lawyer), kept off the page until decided:
+// - Refunds: implementation fees for work done are non-refundable; unused prepaid AMC is refunded
+//   pro rata only if MedBrains ends the AMC without cause. Confirm before it binds anyone.
+// - Jurisdiction: courts of which city. The page says only "governed by the laws of India".
+// - Limitation of liability: the cap (e.g. fees paid in the previous 12 months) belongs in the
+//   agreement; the page only points to it.
+import Footer from "../components/Footer.astro";
+import Header from "../components/Header.astro";
+import WhatsAppFloat from "../components/WhatsAppFloat.astro";
+import { SITE } from "../consts";
+import Base from "../layouts/Base.astro";
+
+const updated = "25 October 2026";
+const home = new URL("/", Astro.site).href;
+const url = new URL("/terms", Astro.site).href;
+const schema = [
+  {
+    "@type": "BreadcrumbList",
+    itemListElement: [
+      { "@type": "ListItem", position: 1, name: SITE.brand, item: home },
+      { "@type": "ListItem", position: 2, name: "Commercial terms", item: url },
+    ],
+  },
+];
+---
+
+<Base
+  title={`Commercial terms | ${SITE.brand}`}
+  description="MedBrains commercial terms in plain words: free software and updates, paid implementation, customisation and AMC, payment, hosting, data and exit."
+  schema={schema}
+>
+  <Header />
+  <main id="main" class="policy">
+    <div class="wrap">
+      <nav class="crumbs-dark" aria-label="Breadcrumb"><a href="/">{SITE.brand}</a> / <span>Commercial terms</span></nav>
+      <p class="eyebrow">Commercial terms</p>
+      <h1>Our commercial terms</h1>
+      <p class="meta">Last updated {updated}</p>
+
+      <p>
+        This page summarises our standard terms in plain words. Your signed order
+        form and agreement prevail over anything here. See <a href="/pricing">pricing</a> for
+        what is free and what we charge for.
+      </p>
+
+      <h2>What is free</h2>
+      <ul>
+        <li>The MedBrains software licence, for every hospital and clinic.</li>
+        <li>Every update: new versions and features, for as long as you run MedBrains.</li>
+        <li>There is no subscription and no charge per user.</li>
+      </ul>
+
+      <h2>What we charge for</h2>
+      <ul>
+        <li>
+          <strong>Implementation.</strong> A one-time service to set MedBrains up for your
+          hospital: configuration of departments, tariffs, forms and masters, data
+          migration, staff training and go-live support. The scope is written in your quote.
+        </li>
+        <li>
+          <strong>Customisation.</strong> Reports, forms, integrations or features specific
+          to your hospital, scoped and quoted per requirement before any work starts.
+        </li>
+        <li>
+          <strong>Annual Maintenance Contract (AMC).</strong> Support, bug fixes,
+          monitoring, backups, help desk and small configuration changes, and hosting in
+          India if we host MedBrains for you. An AMC runs for 12 months and renews yearly
+          by agreement. Support hours and response times are as set out in your AMC.
+        </li>
+      </ul>
+      <p>
+        SMS, WhatsApp and heavy use of a hosted AI model are passed through at the
+        provider's cost, with no mark-up.
+      </p>
+
+      <h2>Quotes and payment</h2>
+      <ul>
+        <li>Quotes are valid for 30 days from the date on them.</li>
+        <li>Implementation and customisation are invoiced in stages, as stated in your quote or order form.</li>
+        <li>AMC is invoiced yearly in advance.</li>
+        <li>GST is added at the applicable rate.</li>
+      </ul>
+
+      <h2>Where MedBrains runs</h2>
+      <p>
+        You choose: on your own server, or hosted by us in India (Amazon Web Services,
+        Mumbai). When we host, hosting is part of your AMC.
+      </p>
+
+      <h2>Your data</h2>
+      <ul>
+        <li>Your hospital owns its data, including every patient record.</li>
+        <li>We export your data on request, in standard formats.</li>
+        <li>When you leave, we return your data and then delete our copies, as agreed with you.</li>
+        <li>
+          For patient data we act as a data processor under the Digital Personal Data
+          Protection Act, 2023: we process it only on your instructions, under a data
+          processing agreement, and keep it confidential.
+        </li>
+      </ul>
+
+      <h2>Our promises</h2>
+      <ul>
+        <li>No money from pharmaceutical companies or advertisers reaches the product.</li>
+        <li>We never sell clinical data.</li>
+        <li>Every patient-safety feature is free for everyone.</li>
+      </ul>
+
+      <h2>If an AMC lapses</h2>
+      <p>
+        The software keeps working and updates stay free. Support, monitoring and
+        hosting stop. If we host MedBrains for you, we give 30 days' notice and a full
+        export of your data before hosting stops.
+      </p>
+
+      <h2>Ending the agreement</h2>
+      <p>
+        Fees for implementation and customisation work already done are not refundable.
+        Refunds of prepaid AMC are as set out in your agreement.
+      </p>
+
+      <h2>Supporting MedBrains</h2>
+      <p>
+        Organisations may choose to support MedBrains' development: by lending their IT
+        team to test releases, contributing development or ideas, sponsoring a feature or
+        making a voluntary yearly contribution. It is optional and does not change your
+        support. Any payment is invoiced to MedBrains with GST as applicable; it is not a
+        donation. Code or ideas you contribute are covered by a short written agreement
+        before work starts. We accept no sponsorship from pharmaceutical
+        companies or advertisers.
+      </p>
+
+      <h2>Liability and law</h2>
+      <p>
+        Limits on liability are as set out in your agreement. These terms are governed by
+        the laws of India.
+      </p>
+
+      <p>Questions: <a href={`mailto:${SITE.email}`}>{SITE.email}</a>.</p>
+    </div>
+  </main>
+  <Footer />
+  <WhatsAppFloat />
+</Base>
+
+<style>
+  .policy { padding: 72px 0 96px; }
+  .policy .wrap { max-width: 760px; }
+  .crumbs-dark { margin-bottom: 28px; font-size: .88rem; color: var(--night-text); }
+  .crumbs-dark a { color: #fff; }
+  .policy h1 { margin: 8px 0 4px; }
+  .policy h2 { margin: 40px 0 12px; font-size: 1.4rem; }
+  .policy .meta { color: var(--night-text); margin-bottom: 32px; }
+  .policy p, .policy li { line-height: 1.65; }
+  .policy ul { padding-left: 1.2em; display: grid; gap: 10px; }
+</style>

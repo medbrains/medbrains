@@ -19,8 +19,7 @@ export default defineConfig({
   integrations: [
     sitemap({
       // Pages marked noindex (thin tags, empty topics, search) stay out.
-      // ponytail: /pricing stays out while PRICING_DRAFT (src/data/pricing.ts) is true; drop this with it.
-      filter: (url) => !blog.noindex(pathOf(url)) && pathOf(url) !== "/pricing",
+      filter: (url) => !blog.noindex(pathOf(url)),
       serialize: (item) => {
         const lastmod = blog.lastmod.get(pathOf(item.url));
         return lastmod ? { ...item, lastmod: lastmod.toISOString() } : item;

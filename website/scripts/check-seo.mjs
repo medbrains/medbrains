@@ -74,7 +74,8 @@ for (const c of compare) assert.ok(c.types.includes("FAQPage"), `${c.path}: FAQP
 // Plans and prices (src/data/pricing.ts).
 const pricing = checkPage("pricing");
 assert.ok(pricing.types.includes("FAQPage"), "/pricing: FAQPage");
-results.push(pricing, ...guides, ...resources, ...tools, ...camps, ...tokens, ...compare);
+const terms = checkPage("terms");
+results.push(pricing, terms, ...guides, ...resources, ...tools, ...camps, ...tokens, ...compare);
 for (const f of ["llms.txt", "robots.txt"]) assert.ok(existsSync(join(dist, f)), `/${f} built`);
 assert.ok(existsSync(join(dist, "pagefind", "pagefind.js")), "Pagefind index built");
 assert.ok(existsSync(join(dist, "blog", "rss.xml")), "RSS feed built");

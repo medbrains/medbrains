@@ -120,7 +120,7 @@ const enquiryUrl = ENQUIRY_TENANT ? `${SITE.app}/api/public/marketing/enquiry` :
     background: radial-gradient(800px 500px at 90% 20%, var(--glow-blue), transparent 65%),
       radial-gradient(600px 420px at 0% 90%, var(--glow-green), transparent 65%), var(--night-2);
   }
-  .layout { display: grid; grid-template-columns: 1fr 1fr; gap: 72px; align-items: start; }
+  .layout { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 72px; align-items: start; }
   .points { list-style: none; padding: 0; margin: 32px 0; display: grid; gap: 12px; }
   .points li { padding-left: 32px; position: relative; font-weight: 500; }
   .points li::before { content: "✓"; position: absolute; left: 0; width: 22px; height: 22px; border-radius: 50%; display: grid; place-items: center; font-size: .7rem; background: var(--blue); color: #fff; }
@@ -139,6 +139,6 @@ const enquiryUrl = ENQUIRY_TENANT ? `${SITE.app}/api/public/marketing/enquiry` :
   .status { margin: 0; font-weight: 600; color: var(--blue-deep); text-align: center; }
   .status:empty { display: none; }
   .fine { margin: 0; font-size: .82rem; color: var(--muted); text-align: center; }
-  @include below(lg) { .layout { grid-template-columns: 1fr; gap: 48px; } }
+  @include below(lg) { .layout { grid-template-columns: minmax(0, 1fr); gap: 48px; } }
   @include below(sm) { .two { grid-template-columns: 1fr; } .form { padding: 24px; } }
 </style>
