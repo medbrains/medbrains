@@ -2,7 +2,7 @@
 title: "First half-marathon: injury warning signs and a race-week checklist"
 description: "Your first half-marathon in India: how to taper, a race-week checklist, safe drinking in the heat, who needs a heart check, and red flags on race day."
 summary: "Cut your running by about half over the last two weeks but keep some faster running. Drink to thirst, not at every station: drinking far more than you sweat can cause dangerous hyponatraemia. See a doctor first if you get chest pain or faint on exercise. On race day, chest pain, collapse or confusion means the medical tent or 112."
-date: 2026-10-28
+date: 2026-10-25
 category: patient-education
 seoTitle: "First half-marathon: race week, red flags | MedBrains Blog"
 featured: false
