@@ -1,13 +1,6 @@
 import { api } from "@medbrains/api";
-import type {
-  AiWidget,
-  ChatChunk,
-  ChatMessage,
-  ChatToolCall,
-  ChatTransport,
-  SendOptions,
-  TokenUsage,
-} from "./types";
+import { type AguiState, fromAgui, newAguiState } from "./agui";
+import type { ChatChunk, ChatMessage, ChatTransport, SendOptions } from "./types";
 
 /** Pull the JSON payload out of one `data: {...}` SSE frame. */
 function parseFrame(frame: string): Record<string, unknown> | null {
@@ -36,12 +29,14 @@ export async function refusalReason(response: Response): Promise<string> {
 }
 
 /**
- * Streams the assistant reply from `POST /api/ai/chat` over SSE — the real
- * backend transport (swap in for MockTransport). Stateful: it remembers the
- * server conversation id so multi-turn threads continue the same conversation.
+ * Streams the assistant reply from `POST /api/ai/chat` as AG-UI events over
+ * SSE — the real backend transport (swap in for MockTransport). Stateful: it
+ * remembers the server conversation (AG-UI thread) id so multi-turn threads
+ * continue the same conversation.
  */
 export class SseTransport implements ChatTransport {
   private conversationId?: string;
+  private agui: AguiState = newAguiState();
 
   /** Continue a saved thread (resume) or start fresh when `undefined`. */
   setConversationId(id?: string): void {
@@ -51,6 +46,7 @@ export class SseTransport implements ChatTransport {
   async *send(messages: ChatMessage[], opts: SendOptions): AsyncIterable<ChatChunk> {
     const lastUser = [...messages].reverse().find((m) => m.role === "user");
     if (!lastUser) return;
+    this.agui = newAguiState();
 
     let response: Response;
     try {
@@ -96,68 +92,12 @@ export class SseTransport implements ChatTransport {
     }
   }
 
-  /** Map a backend frame to a ChatChunk, capturing the conversation id. */
+  /** Map an AG-UI frame to a ChatChunk, capturing the conversation (thread) id. */
   private mapFrame(frame: string): ChatChunk | null {
     const payload = parseFrame(frame);
     if (!payload) return null;
-    switch (payload.type) {
-      case "text":
-        return typeof payload.text === "string" ? { type: "text", delta: payload.text } : null;
-      case "tool":
-        return payload.toolCall
-          ? { type: "tool", toolCall: payload.toolCall as ChatToolCall }
-          : null;
-      case "tool_result":
-        return typeof payload.id === "string"
-          ? { type: "tool_result", id: payload.id, result: payload.result }
-          : null;
-      case "guard":
-        return Array.isArray(payload.notices)
-          ? {
-              type: "guard",
-              notices: payload.notices.filter((n): n is string => typeof n === "string"),
-            }
-          : null;
-      case "done":
-        if (typeof payload.conversationId === "string") {
-          this.conversationId = payload.conversationId;
-        }
-        return { type: "done", usage: usageOf(payload.usage) };
-      case "reset":
-        return { type: "reset" };
-      case "widget":
-        return isWidget(payload.widget) ? { type: "widget", widget: payload.widget } : null;
-      case "error":
-        return { type: "error", error: String(payload.message ?? "Assistant error") };
-      default:
-        return null;
-    }
+    const chunk = fromAgui(payload, this.agui);
+    if (this.agui.threadId) this.conversationId = this.agui.threadId;
+    return chunk;
   }
-}
-
-/** The turn's token counts, if the frame carries a well-formed set. */
-function usageOf(raw: unknown): TokenUsage | undefined {
-  if (!raw || typeof raw !== "object") return undefined;
-  const u = raw as Record<string, unknown>;
-  const n = (k: string) => (typeof u[k] === "number" ? (u[k] as number) : undefined);
-  const [input, output, cacheRead, cacheWrite] = [
-    n("input"),
-    n("output"),
-    n("cacheRead"),
-    n("cacheWrite"),
-  ];
-  if (input === undefined || output === undefined) return undefined;
-  return { input, output, cacheRead: cacheRead ?? 0, cacheWrite: cacheWrite ?? 0 };
-}
-
-const WIDGET_KINDS = new Set(["kpis", "table", "chart", "list"]);
-
-/** Only a widget from the closed catalogue renders; anything else is dropped. */
-function isWidget(raw: unknown): raw is AiWidget {
-  return (
-    !!raw &&
-    typeof raw === "object" &&
-    WIDGET_KINDS.has(String((raw as { kind?: unknown }).kind)) &&
-    typeof (raw as { title?: unknown }).title === "string"
-  );
 }

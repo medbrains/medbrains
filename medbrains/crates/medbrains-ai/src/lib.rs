@@ -23,6 +23,7 @@ use medbrains_core::ai_redact::Redacted;
 use medbrains_core::permissions;
 
 mod aggregate;
+mod agui;
 mod catalog;
 mod contact_access;
 mod dates;
@@ -1322,6 +1323,7 @@ pub async fn chat(
         conversation_id: Some(conversation_id),
     };
     let agent_json = agent.to_audit_json();
+    let run_id = agent.run_id;
     let claims = Claims {
         act: Some(agent),
         ..claims
@@ -1379,6 +1381,7 @@ pub async fn chat(
         state: state.clone(),
         tenant_id,
         conversation_id,
+        run_id,
         kb_hits,
         session: std::sync::Arc::clone(&session),
     };

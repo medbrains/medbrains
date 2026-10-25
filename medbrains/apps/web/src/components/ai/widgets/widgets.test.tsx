@@ -1,6 +1,6 @@
-import userEvent from "@testing-library/user-event";
 import { usePermissionStore } from "@medbrains/stores";
 import { P } from "@medbrains/types";
+import userEvent from "@testing-library/user-event";
 import { describe, expect, it } from "vitest";
 import { render, screen, waitFor } from "@/test/test-utils";
 import type { AiWidget } from "../transport/types";
