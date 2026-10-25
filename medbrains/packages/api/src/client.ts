@@ -409,6 +409,7 @@ import type {
   CounterDisplayEvent,
   CounterDisplayStatus,
   CounterDisplayView,
+  CounterOpenTodayRow,
   CounterPatient,
   CourseWithModules,
   CoverageAssignment,
@@ -5336,6 +5337,7 @@ export const api = {
       body: JSON.stringify(data),
     }),
   // -- Collect anywhere (#4885) --
+  listCounterOpenToday: () => request<CounterOpenTodayRow[]>("/billing/counter/open-today"),
   getPatientDues: (patientId: string, lane?: BillingLaneName) =>
     request<PatientDues>(
       `/billing/patients/${patientId}/dues${lane ? `?lane=${encodeURIComponent(lane)}` : ""}`,
