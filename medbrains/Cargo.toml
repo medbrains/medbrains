@@ -120,6 +120,7 @@ members = [
     "crates/medbrains-vpn",
     "crates/medbrains-hr",
     "crates/medbrains-setup",
+    "crates/medbrains-history-import",
     "crates/medbrains-it-security",
     "crates/medbrains-assets",
     "crates/medbrains-bme",

@@ -1145,6 +1145,10 @@ import type {
   HemovigilanceReport,
   HfrRegistration,
   HistopathReportPrintData,
+  HistoryImportBatch,
+  HistoryImportBatchRequest,
+  HistoryImportResult,
+  HistoryImportSettings,
   HomeCarePackage,
   HomeCareReferral,
   HomeCollectionStatsRow,
@@ -3446,6 +3450,20 @@ export const api = {
       body: JSON.stringify(data),
     }),
   getOnboardingWorkbook: () => request<OnboardingWorkbook>("/setup/workbook"),
+  getHistoryImportSettings: () => request<HistoryImportSettings>("/history-import/settings"),
+  saveHistoryImportSettings: (data: HistoryImportSettings) =>
+    request<HistoryImportSettings>("/history-import/settings", {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
+  runHistoryImportBatch: (data: HistoryImportBatchRequest) =>
+    request<HistoryImportResult>("/history-import/batches", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  listHistoryImportBatches: () => request<HistoryImportBatch[]>("/history-import/batches"),
+  getHistoryImportBatch: (id: string) =>
+    request<HistoryImportBatch>(`/history-import/batches/${id}`),
   importOnboardingWorkbook: (data: WorkbookSheets & { dry_run: boolean }) =>
     request<WorkbookImportResult>("/setup/workbook/import", {
       method: "POST",

@@ -2929,6 +2929,22 @@ pub mod admin {
         pub const IMPORT: &str = "admin.workbook.import";
     }
 
+    /// Bringing a hospital's past in from the system it used before.
+    pub mod history_import {
+        /// See imported history batches.
+        ///
+        /// Read the go-live cut-over and the log of history batches — what each
+        /// checked or imported, what it refused and who ran it.
+        pub const VIEW: &str = "admin.history_import.view";
+        /// Import history from the previous system.
+        ///
+        /// Set the go-live cut-over, and check and commit batches of past
+        /// patients, visits, admissions, lab results, dispenses, bills and
+        /// claims, dated when they happened. Only adds records dated before
+        /// go-live; never changes existing ones.
+        pub const RUN: &str = "admin.history_import.run";
+    }
+
     pub mod users {
         pub const LIST: &str = "admin.users.list";
         pub const VIEW: &str = "admin.users.view";
