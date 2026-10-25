@@ -1,5 +1,5 @@
 import type { APIRoute } from "astro";
-import { SITE } from "../consts";
+import { SAME_AS, SITE } from "../consts";
 import { FAQ, MODULE_GROUPS, SURFACES, TRUST } from "../data/content";
 import { GUIDE_LIST, RESOURCES, TOOLS } from "../data/guides";
 import { MODULE_PAGES } from "../data/modules";
@@ -24,6 +24,7 @@ export const GET: APIRoute = async ({ site }) => {
     ...SURFACES.map((s) => `- ${s.kicker}: ${s.body}`),
     "- ABDM, NHCX and UHI: built for these networks; not yet certified by NHA.",
     `- Contact: ${SITE.email}`,
+    `- Official profiles: ${SAME_AS.join(", ")}`,
     "",
     "## Pricing",
     "- The MedBrains software and every update are free for every hospital and clinic: no subscription, no charge per user.",
