@@ -152,12 +152,14 @@ impl Case {
         Ok(case)
     }
 
-    /// The source record as the tool would have returned it.
+    /// The source record as the tool would have returned it, keys sorted so
+    /// the request is the same whether or not a workspace build turns on
+    /// `serde_json`'s `preserve_order` (else every recording reads as stale).
     #[must_use]
     pub fn source_text(&self) -> String {
         self.source
             .as_str()
-            .map_or_else(|| self.source.to_string(), str::to_owned)
+            .map_or_else(|| sorted(&self.source).to_string(), str::to_owned)
     }
 
     /// Build the model request through the redactor, as the assistant does.
@@ -200,6 +202,25 @@ impl Case {
             r.redact(&self.source_text())?,
             r.redact(&self.question)?,
         ))
+    }
+}
+
+/// `value` with every object's keys in sorted order.
+fn sorted(value: &serde_json::Value) -> serde_json::Value {
+    match value {
+        serde_json::Value::Object(map) => {
+            let mut keys: Vec<&String> = map.keys().collect();
+            keys.sort();
+            serde_json::Value::Object(
+                keys.into_iter()
+                    .filter_map(|k| map.get(k).map(|v| (k.clone(), sorted(v))))
+                    .collect(),
+            )
+        }
+        serde_json::Value::Array(items) => {
+            serde_json::Value::Array(items.iter().map(sorted).collect())
+        }
+        other => other.clone(),
     }
 }
 

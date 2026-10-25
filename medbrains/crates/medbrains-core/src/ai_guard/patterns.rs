@@ -74,6 +74,7 @@ const TREATMENT: &[&str] = &[
     r"\b(start|initiate|increase|decrease|reduce|titrate|uptitrate|taper|switch to|add|give|administer|raise)\b[^.\n]{0,40}\b\d+(\.\d+)?\s?(mg|mcg|g|ml|units?|iu)\b",
     r"\b(dose|dosage) (should|is recommended|adjustment|reduction|increase|can be|may be|does not require)",
     r"\b(recommended|appropriate|suggested|usual|starting|maximum|safe) (dose|dosage|regimen)",
+    r"\b(including|such as|e\.g\.?,?|like|for example)[^.\n]{0,30}\b(supplement\w*|replacement|therapy|tablets?|infusion|transfusion|antibiotics?)\b",
 ];
 
 /// Advice that is a treatment suggestion only when the sentence is about a

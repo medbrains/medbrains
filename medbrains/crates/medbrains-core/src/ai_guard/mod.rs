@@ -36,6 +36,8 @@ const ECHO_WORDS: usize = 2;
 const CUE_WINDOW: usize = 4;
 /// Shortest word that can show an injected instruction is being repeated.
 const MIN_ECHO_WORD: usize = 4;
+/// Factors a misplaced decimal point multiplies a value by.
+const DECIMAL_SHIFTS: [f64; 6] = [0.001, 0.01, 0.1, 10.0, 100.0, 1000.0];
 /// What a held identifier is shown as.
 const NOT_SHOWN: &str = "(identifier not shown)";
 
@@ -243,7 +245,9 @@ impl AnswerGuard {
             return false;
         }
         let known = numbers(p, &format!("{}\n{}", self.clean, normalise(&self.question)));
-        numbers(p, l).iter().any(|n| !known.contains(n))
+        numbers(p, l)
+            .iter()
+            .any(|n| !known.contains(n) && !derived(n, &known))
     }
 
     fn hold_identifiers(&mut self, p: &Patterns, unit: &str) -> String {
@@ -308,6 +312,21 @@ fn numbers(p: &Patterns, text: &str) -> HashSet<String> {
         .captures_iter(&plain.to_lowercase())
         .filter_map(|c| c.get(1).map(|m| canonical(m.as_str())))
         .collect()
+}
+
+/// A misplaced decimal point (`162` from `1.62`) or a Celsius/Fahrenheit
+/// reading of a recorded number: the data-quality answer naming the likely
+/// intended value. Other conversions (lb/kg) are not the record's.
+fn derived(n: &str, known: &HashSet<String>) -> bool {
+    let Ok(n) = n.parse::<f64>() else {
+        return false;
+    };
+    known.iter().filter_map(|k| k.parse::<f64>().ok()).any(|k| {
+        let close = |x: f64| (x - n).abs() <= 0.05_f64.max(n.abs() * 0.005);
+        DECIMAL_SHIFTS.iter().any(|f| close(k * f))
+            || close((k - 32.0) * 5.0 / 9.0)
+            || close(k.mul_add(9.0 / 5.0, 32.0))
+    })
 }
 
 fn canonical(n: &str) -> String {

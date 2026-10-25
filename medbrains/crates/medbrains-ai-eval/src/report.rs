@@ -36,13 +36,14 @@ impl CaseResult {
     }
 }
 
-/// Run every case in `dir`.
+/// Run every case in `dir`, or only those whose id starts with one of `only`.
 ///
 /// # Errors
 /// The cases cannot be loaded, or a recording cannot be read or written.
-pub fn run(dir: &Path, mode: Mode) -> Result<Vec<CaseResult>, String> {
+pub fn run(dir: &Path, mode: Mode, only: &[String]) -> Result<Vec<CaseResult>, String> {
     Case::load_all(dir)?
         .iter()
+        .filter(|c| only.is_empty() || only.iter().any(|o| c.id.starts_with(o.as_str())))
         .map(|case| run_case(dir, case, mode))
         .collect()
 }

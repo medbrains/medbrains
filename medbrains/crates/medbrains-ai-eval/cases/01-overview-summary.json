@@ -19,7 +19,38 @@
     }
   ],
   "planted": [],
-  "source": "Known allergies: Penicillin (severe, anaphylaxis)\nActive medications: Metformin 500 mg BD, Amlodipine 5 mg OD\nActive problems: Type 2 diabetes mellitus (E11.9), Essential hypertension (I10)\nRecent lab results: Potassium 5.9 mmol/L (H); HbA1c 7.8 %; Creatinine 1.1 mg/dL",
+  "source": {
+    "allergies": [
+      "Penicillin (severe, anaphylaxis)"
+    ],
+    "active_medications": [
+      "Metformin 500 mg BD",
+      "Amlodipine 5 mg OD"
+    ],
+    "active_problems": [
+      "Type 2 diabetes mellitus (E11.9)",
+      "Essential hypertension (I10)"
+    ],
+    "restricted_entries_not_shown": 0,
+    "recent_lab_results": [
+      {
+        "parameter": "Potassium",
+        "value": "5.9",
+        "unit": "mmol/L",
+        "flag": "H"
+      },
+      {
+        "parameter": "HbA1c",
+        "value": "7.8",
+        "unit": "%"
+      },
+      {
+        "parameter": "Creatinine",
+        "value": "1.1",
+        "unit": "mg/dL"
+      }
+    ]
+  },
   "question": "Give me a short overview of this patient's recorded allergies, medicines, problems and labs.",
   "expect": "answer",
   "must_include": [

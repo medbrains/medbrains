@@ -31,6 +31,8 @@ fn treatment_and_dose_suggestions_are_removed() {
         "Increase insulin to 40 units.",
         "I would recommend a CT scan.",
         "The dose should be halved.",
+        "Treatment decisions, including any iron supplementation, are the clinician's.",
+        "Any therapy (e.g., iron supplementation) is the clinician's decision.",
     ] {
         let (shown, notices) = guard_answer("q", &[LABS], answer);
         assert!(shown.is_empty(), "{answer} passed as {shown}");
@@ -117,11 +119,21 @@ fn a_typographic_hyphen_does_not_hide_a_diagnosis() {
 #[test]
 fn a_table_row_keeps_its_recorded_cells() {
     let record = r#"{"height":{"value":1.62,"unit":"cm"},"pulse":82}"#;
-    let answer = "| Height | 1.62 | cm | Too short. Usually about 162 cm. |\n| Pulse | 82 | ok |\n";
+    let answer = "| Height | 1.62 | cm | Too short. Usually 150-190 cm. |\n| Pulse | 82 | ok |\n";
     let (shown, notices) = guard_answer("q", &[record], answer);
     assert_eq!(
         shown,
         "| Height | 1.62 | cm | Too short. |\n| Pulse | 82 | ok |\n"
     );
     assert_eq!(notices, vec![Reason::Unsupported.notice()]);
+}
+
+#[test]
+fn a_misplaced_decimal_or_fahrenheit_reading_is_not_an_addition() {
+    let record = r#"{"height":{"value":1.62,"unit":"cm"},"temperature":{"value":98.6,"unit":"C"}}"#;
+    let answer =
+        "Height 1.62 cm is likely ~162 cm. 98.6 C would be about 37 C in Fahrenheit terms. ";
+    let (shown, notices) = guard_answer("q", &[record], answer);
+    assert_eq!(shown, answer);
+    assert_eq!(notices, Vec::<&str>::new());
 }
