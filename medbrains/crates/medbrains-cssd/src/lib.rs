@@ -729,7 +729,7 @@ pub async fn create_issuance(
                 medbrains_server_services::billing::ServiceChargeInput {
                     tenant_id: claims.tenant_id,
                     patient_id,
-                    encounter_id: row.id,
+                    encounter_id: None,
                     charge_code: "CSSD_SUPPLY",
                     quantity: 1,
                     source_module: "cssd",

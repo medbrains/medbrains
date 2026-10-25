@@ -963,7 +963,12 @@ pub async fn update_booking_status(
         .await
         .unwrap_or(false)
     {
-        let encounter_id = row.admission_id.unwrap_or(row.id);
+        let encounter_id = medbrains_server_services::billing::encounter_id_for_admission_in_tx(
+            &mut tx,
+            &claims.tenant_id,
+            row.admission_id,
+        )
+        .await?;
         let _ = medbrains_server_services::billing::create_service_charge(
             &mut tx,
             medbrains_server_services::billing::ServiceChargeInput {
@@ -1038,7 +1043,7 @@ pub async fn update_booking_status(
                 &claims.tenant_id,
                 medbrains_server_services::billing::AutoChargeInput {
                     patient_id: row.patient_id,
-                    encounter_id: Some(encounter_id),
+                    encounter_id,
                     charge_code: "OT_CONSUMABLE".to_owned(),
                     source: "ot".to_owned(),
                     source_id: usage_id,

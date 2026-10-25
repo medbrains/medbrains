@@ -23,4 +23,6 @@ export const adminDoctorsService = {
     data: Parameters<typeof api.adminRevokeSignatureCredential>[1],
   ) => api.adminRevokeSignatureCredential(id, data),
   createDoctor: (data: CreateDoctorInput) => api.adminCreateDoctor(data),
+  updateDoctor: (id: string, data: Parameters<typeof api.adminUpdateDoctor>[1]) =>
+    api.adminUpdateDoctor(id, data),
 };
