@@ -6637,6 +6637,25 @@ dependencies = [
 ]
 
 [[package]]
+name = "medbrains-history-import"
+version = "0.1.0"
+dependencies = [
+ "axum",
+ "chrono",
+ "medbrains-core",
+ "medbrains-db",
+ "medbrains-patients",
+ "medbrains-server-core",
+ "medbrains-server-services",
+ "medbrains-terminology",
+ "rust_decimal",
+ "serde",
+ "serde_json",
+ "sqlx",
+ "uuid",
+]
+
+[[package]]
 name = "medbrains-home-health"
 version = "0.1.0"
 dependencies = [
@@ -7883,6 +7902,7 @@ dependencies = [
  "medbrains-fhir",
  "medbrains-fhir-api",
  "medbrains-forms",
+ "medbrains-history-import",
  "medbrains-home-health",
  "medbrains-hr",
  "medbrains-identity",
