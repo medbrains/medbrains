@@ -22,6 +22,7 @@ use medbrains_core::ai_drug_check::DrugCheck;
 use medbrains_core::ai_redact::Redacted;
 use medbrains_core::permissions;
 
+mod aggregate;
 mod catalog;
 mod contact_access;
 mod dates;
@@ -1719,6 +1720,10 @@ pub async fn conversation_messages(
 pub fn router() -> axum::Router<AppState> {
     axum::Router::new()
         .route("/api/ai/chat", post(chat))
+        .route(
+            "/api/ai/aggregate/{metric}/patients",
+            get(aggregate::drill_patients),
+        )
         .route("/api/ai/whispers", get(whispers))
         .route("/api/ai/conversations", get(list_conversations))
         .route(

@@ -76,10 +76,27 @@ export interface AiColumn {
 
 export type AiRow = Record<string, unknown>;
 
+/** Which aggregate a table came from, to list the patients behind a row. */
+export interface AiDrill {
+  metric: string;
+  /** The row field holding the row's key (e.g. `allergen`). */
+  key: string;
+  from: string;
+  to: string;
+}
+
 /** One widget from the closed catalogue (`medbrains_core::ai_widgets`). */
 export type AiWidget =
   | { kind: "kpis"; title: string; tiles: { label: string; value: unknown; money?: boolean }[] }
-  | { kind: "table"; title: string; columns: AiColumn[]; rows: AiRow[]; total_rows: number }
+  | {
+      kind: "table";
+      title: string;
+      columns: AiColumn[];
+      rows: AiRow[];
+      total_rows: number;
+      /** An aggregate the user may drill into: the screen fetches the patients. */
+      drill?: AiDrill;
+    }
   | {
       kind: "chart";
       title: string;

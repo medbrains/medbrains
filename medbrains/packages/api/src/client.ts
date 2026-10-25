@@ -3063,6 +3063,13 @@ export interface AssignPharmacyStaffRequest {
   is_default?: boolean;
 }
 
+/** One patient behind an assistant aggregate row (`GET /ai/aggregate/{metric}/patients`). */
+export interface AiAggregatePatient {
+  patient_id: string;
+  name: string;
+  uhid: string;
+}
+
 export interface AiConversationSummary {
   id: string;
   title: string | null;
@@ -3123,6 +3130,10 @@ export const api = {
     });
   },
   listAiConversations: () => request<AiConversationSummary[]>("/ai/conversations"),
+  aiAggregatePatients: (metric: string, params: { key: string; from: string; to: string }) =>
+    request<AiAggregatePatient[]>(
+      `/ai/aggregate/${metric}/patients?${new URLSearchParams(params)}`,
+    ),
 
   // VPN platform — device enrollment (RFC-VPN-PLATFORM).
   enrollVpn: (deviceName: string) =>

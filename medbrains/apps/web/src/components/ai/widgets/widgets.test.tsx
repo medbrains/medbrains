@@ -1,4 +1,6 @@
 import userEvent from "@testing-library/user-event";
+import { usePermissionStore } from "@medbrains/stores";
+import { P } from "@medbrains/types";
 import { describe, expect, it } from "vitest";
 import { render, screen, waitFor } from "@/test/test-utils";
 import type { AiWidget } from "../transport/types";
@@ -52,5 +54,26 @@ describe("rich answers", () => {
     expect(statusTone("pending")).toBe("warning");
     expect(statusTone("cleared")).toBe("success");
     expect(statusTone("something else")).toBe("neutral");
+  });
+
+  it("offers the patients behind an aggregate row only to users who may list patients", () => {
+    const aggregate: AiWidget = {
+      kind: "table",
+      title: "Allergies",
+      columns: [
+        { key: "allergen", label: "Allergen" },
+        { key: "patients", label: "Patients" },
+      ],
+      rows: [{ allergen: "penicillin", patients: 14 }],
+      total_rows: 1,
+      drill: { metric: "allergies", key: "allergen", from: "2026-09-26", to: "2026-10-25" },
+    };
+    usePermissionStore.getState().setPermissions("nurse", []);
+    const { unmount } = render(<WidgetView widget={aggregate} />);
+    expect(screen.queryByRole("button", { name: "View patients" })).toBeNull();
+    unmount();
+    usePermissionStore.getState().setPermissions("doctor", [P.PATIENTS.LIST]);
+    render(<WidgetView widget={aggregate} />);
+    expect(screen.getByRole("button", { name: "View patients" })).toBeInTheDocument();
   });
 });
