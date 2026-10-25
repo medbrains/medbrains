@@ -7,6 +7,7 @@ import styles from "./message.module.scss";
 import { ThinkingIndicator } from "./ThinkingIndicator";
 import type { ChatContext, ChatMessage, ChatMessageStatus, ChatRole } from "./transport/types";
 import { UnifiedResponse } from "./UnifiedResponse";
+import { WidgetView } from "./widgets/WidgetView";
 
 export interface MessageProps {
   message: ChatMessage;
@@ -35,7 +36,16 @@ export function Message({ message, avatar, actions, onToolAction, active }: Mess
       className={styles.row}
     >
       {!isUser && <MessageAvatar role={message.role} status={message.status} custom={avatar} />}
-      <Stack gap={4} className={isUser ? styles.userStack : styles.assistantStack}>
+      <Stack
+        gap={4}
+        className={
+          isUser
+            ? styles.userStack
+            : message.widgets?.length
+              ? `${styles.assistantStack} ${styles.wide}`
+              : styles.assistantStack
+        }
+      >
         {message.role === "assistant" && (
           <AiLabel size="xs" text="generated" aria-label="AI-generated answer" />
         )}
@@ -52,7 +62,11 @@ export function Message({ message, avatar, actions, onToolAction, active }: Mess
               {(!isEmpty || (message.toolCalls?.length ?? 0) > 0) && (
                 <UnifiedResponse message={message} onToolAction={onToolAction} active={active} />
               )}
-              {isStreaming && isEmpty && <ThinkingIndicator />}
+              {message.widgets?.map((widget, i) => (
+                // biome-ignore lint/suspicious/noArrayIndexKey: widgets arrive in order and never move
+                <WidgetView key={i} widget={widget} />
+              ))}
+              {isStreaming && isEmpty && !message.widgets?.length && <ThinkingIndicator />}
             </Stack>
           )}
         </Box>
@@ -74,7 +88,11 @@ export function Message({ message, avatar, actions, onToolAction, active }: Mess
         )}
         {!isUser && message.status === "complete" && !isEmpty && (
           <Group gap="xs" className={styles.actions}>
-            <MessageMeta text={message.content} usage={message.usage} />
+            <MessageMeta
+              text={message.content}
+              usage={message.usage}
+              elapsedMs={message.elapsedMs}
+            />
             {actions}
           </Group>
         )}

@@ -11,6 +11,8 @@
 //! `api_key_secret` reference is set, else from their environment variable.
 
 use medbrains_core::ai_redact::Redacted;
+use rig::DynModel;
+use rig::operation::Completion;
 use serde::Serialize;
 use serde::de::DeserializeOwned;
 use uuid::Uuid;
@@ -19,7 +21,7 @@ use medbrains_server_core::error::AppError;
 use medbrains_server_core::state::AppState;
 
 /// Default model when the tenant has not configured one.
-const DEFAULT_MODEL: &str = rig::providers::anthropic::completion::CLAUDE_SONNET_4_6;
+const DEFAULT_MODEL: &str = rig::providers::anthropic::CLAUDE_SONNET_4_6;
 
 pub mod anthropic;
 
@@ -257,64 +259,58 @@ pub async fn extract<T>(
 where
     T: schemars::JsonSchema + DeserializeOwned + Serialize + Send + Sync + 'static,
 {
-    use rig::client::CompletionClient as _;
-    use rig::providers::{openai, openrouter};
-
     let cfg = resolve_config(state, tenant_id).await?;
+    let extractor = rig_agent::extractor::ExtractorBuilder::<T>::new(completion_model(&cfg)?)
+        .append_preamble(preamble.for_model())
+        .max_tokens(u64::from(medbrains_core::ai_guard::MAX_ANSWER_TOKENS))
+        .build();
+    extractor
+        .extract(prompt.for_model())
+        .await
+        .map(|typed| typed.output)
+        .map_err(|e| AppError::BadRequest(format!("AI generation failed: {e}")))
+}
 
-    // `extractor::<T>()` is a CompletionClient trait method, so the extraction loop is
-    // identical across providers — only the client construction differs. The provider is
-    // resolved from tenant config / AI_PROVIDER env (openrouter when OPENROUTER_API_KEY is
-    // set, else anthropic), so callers stay provider-agnostic.
-    match cfg.provider.as_str() {
-        "anthropic" => {
-            let client = anthropic::client(&cfg.api_key)?;
-            let extractor = client
-                .extractor::<T>(cfg.model.as_str())
-                .preamble(preamble.for_model())
-                .build();
-            extractor
-                .extract(prompt.for_model())
-                .await
-                .map_err(|e| AppError::BadRequest(format!("AI generation failed: {e}")))
+/// The one place a model is built. Every provider type stays in this module
+/// (and [`anthropic`]): callers get a provider-neutral model and hand it only
+/// [`Redacted`] text.
+///
+/// - `anthropic`: federated bearer, Anthropic's host only, cached prefix.
+/// - `bedrock`: the OpenAI-compatible endpoint, refused outside India.
+/// - `openrouter`, `ollama`: dev/local.
+///
+/// # Errors
+/// `ServiceUnavailable` for a Bedrock region outside India; `BadRequest` for
+/// an unknown provider.
+pub fn completion_model(cfg: &AiConfig) -> Result<DynModel<Completion>, AppError> {
+    use rig::providers::{ollama::OllamaConfig, openai::OpenAIConfig, openrouter};
+    let model = cfg.model.as_str();
+    Ok(match cfg.provider.as_str() {
+        "anthropic" => anthropic::model(&cfg.api_key, model)?.into(),
+        // Bedrock's OpenAI-compatible endpoint speaks Chat Completions (gpt-oss).
+        "bedrock" => OpenAIConfig::new(cfg.api_key.clone())
+            .with_base_url(bedrock_base_url()?)
+            .client()
+            .chat(model)
+            .into(),
+        "openrouter" => openrouter::new(cfg.api_key.clone())
+            .completion(model)
+            .into(),
+        "ollama" => {
+            let base = std::env::var("OLLAMA_API_BASE_URL")
+                .unwrap_or_else(|_| "http://localhost:11434".to_owned());
+            OllamaConfig::new()
+                .with_base_url(base)
+                .client()
+                .completion(model)
+                .into()
         }
-        "openrouter" => {
-            let client = openrouter::Client::new(&cfg.api_key)
-                .map_err(|e| AppError::BadRequest(format!("Failed to create AI client: {e}")))?;
-            let extractor = client
-                .extractor::<T>(cfg.model.as_str())
-                .preamble(preamble.for_model())
-                .build();
-            extractor
-                .extract(prompt.for_model())
-                .await
-                .map_err(|e| AppError::BadRequest(format!("AI generation failed: {e}")))
+        other => {
+            return Err(AppError::BadRequest(format!(
+                "AI provider '{other}' is not supported by this build"
+            )));
         }
-        "bedrock" => {
-            // Bedrock's OpenAI-compatible endpoint speaks Chat Completions, and the
-            // gpt-oss models there support tool-calling, so rig's OpenAI extractor works
-            // when pointed at the Bedrock base URL with the ABSK bearer key. (Anthropic
-            // Claude on Bedrock is Marketplace-payment-gated on this account, so gpt-oss
-            // is the usable Bedrock family.)
-            let base_url = bedrock_base_url()?;
-            let client = openai::CompletionsClient::builder()
-                .api_key(&cfg.api_key)
-                .base_url(&base_url)
-                .build()
-                .map_err(|e| AppError::BadRequest(format!("Failed to create AI client: {e}")))?;
-            let extractor = client
-                .extractor::<T>(cfg.model.as_str())
-                .preamble(preamble.for_model())
-                .build();
-            extractor
-                .extract(prompt.for_model())
-                .await
-                .map_err(|e| AppError::BadRequest(format!("AI generation failed: {e}")))
-        }
-        other => Err(AppError::BadRequest(format!(
-            "AI provider '{other}' is not supported by this build"
-        ))),
-    }
+    })
 }
 
 #[cfg(test)]

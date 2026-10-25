@@ -229,10 +229,7 @@ impl Case {
         }
     }
 
-    fn redact_parts(
-        &self,
-        r: &mut Redactor,
-    ) -> Result<Parts, RedactError> {
+    fn redact_parts(&self, r: &mut Redactor) -> Result<Parts, RedactError> {
         let record = r.redact(&self.source_text())?;
         let question = r.redact(&self.question)?;
         let keep = usize::from(HISTORY_MESSAGES);

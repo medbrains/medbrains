@@ -879,6 +879,7 @@ import type {
   // Custom Code
   CustomCodeSnippet,
   CustomRole,
+  DailyRevenueRow,
   DailySummary,
   DashboardStatsResponse,
   DashboardSummary,
@@ -5698,6 +5699,8 @@ export const api = {
   billingReportAging: () => request<AgingBucket[]>("/billing/reports/aging"),
   billingReportDaily: (date: string) =>
     request<DailySummary>(`/billing/reports/daily?date=${date}`),
+  billingReportDailyRevenue: (from: string, to: string) =>
+    request<DailyRevenueRow[]>(`/billing/reports/daily-revenue?from=${from}&to=${to}`),
   billingReportDoctorRevenue: (from: string, to: string) =>
     request<DoctorRevenueRow[]>(`/billing/reports/doctor-revenue?from=${from}&to=${to}`),
   billingReportInsurancePanel: (from: string, to: string) =>

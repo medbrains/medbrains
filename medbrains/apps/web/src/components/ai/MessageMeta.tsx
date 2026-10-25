@@ -7,18 +7,21 @@ export interface MessageMetaProps {
   /** The answer as shown, for the copy button. */
   text: string;
   usage?: TokenUsage;
+  /** How long the turn took, in ms. */
+  elapsedMs?: number;
 }
 
 const NUMBER = new Intl.NumberFormat("en-IN");
 
 /** Tokens one turn used, for developers tuning cost (never shown in production). */
-function usageLine(u: TokenUsage): string {
+function usageLine(u: TokenUsage, elapsedMs?: number): string {
   const input = u.input + u.cacheRead + u.cacheWrite;
-  return `${NUMBER.format(input)} in (${NUMBER.format(u.cacheRead)} cached) · ${NUMBER.format(u.output)} out tokens`;
+  const time = elapsedMs === undefined ? "" : ` · ${(elapsedMs / 1000).toFixed(1)} s`;
+  return `${NUMBER.format(input)} in (${NUMBER.format(u.cacheRead)} cached) · ${NUMBER.format(u.output)} out tokens${time}`;
 }
 
 /** Under a finished answer: copy it, and (dev builds only) what it cost in tokens. */
-export function MessageMeta({ text, usage }: MessageMetaProps) {
+export function MessageMeta({ text, usage, elapsedMs }: MessageMetaProps) {
   return (
     <Group gap="xs" wrap="nowrap">
       <CopyButton value={text} timeout={1500}>
@@ -37,7 +40,7 @@ export function MessageMeta({ text, usage }: MessageMetaProps) {
       </CopyButton>
       {import.meta.env.DEV && usage && (
         <Text size="xs" c="dimmed" ff="monospace" data-testid="ai-usage">
-          {usageLine(usage)}
+          {usageLine(usage, elapsedMs)}
         </Text>
       )}
     </Group>

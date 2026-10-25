@@ -172,7 +172,7 @@ default-members = [
 [workspace.package]
 version = "0.1.0"
 edition = "2024"
-rust-version = "1.95"
+rust-version = "1.97.1"
 license-file = "../LICENSE"
 
 [workspace.dependencies]
@@ -248,7 +248,13 @@ tempfile = "3"
 reqwest = { version = "0.13", features = ["json", "cookies", "form", "query", "rustls"], default-features = false }
 
 # AI / LLM
-rig-core = { version = "0.35", features = ["derive"] }
+# Pinned exactly: rig ships a breaking minor every few weeks. Provider types
+# stay inside medbrains-server-services::llm (the one model gateway).
+# The narrow crates, not the `rig` facade: its optional backends (LanceDB,
+# fastembed, DataFusion…) would all land in Cargo.lock.
+rig = { package = "rig-core", version = "=0.45.0", default-features = false, features = ["reqwest", "rustls"] }
+rig-agent = { version = "=0.45.0", default-features = false }
+rig-reqwest = { version = "=0.45.0", default-features = false, features = ["rustls"] }
 schemars = "1"
 
 # Code execution (pipeline custom code)

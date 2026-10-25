@@ -15,6 +15,15 @@ use tower_http::{
 };
 use tracing_subscriber::{EnvFilter, layer::SubscriberExt, util::SubscriberInitExt};
 
+/// rig logs tool arguments (redacted, but still conversation text) at DEBUG;
+/// whatever `RUST_LOG` says, its targets stop at INFO.
+const RIG_AT_MOST_INFO: [&str; 4] = [
+    "rig_core=info",
+    "rig_agent=info",
+    "rig_http=info",
+    "rig_reqwest=info",
+];
+
 use medbrains_server::{
     config::AppConfig,
     middleware::{
@@ -47,22 +56,27 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let colour = medbrains_server_core::http_trace::terminal_supports_colour();
     medbrains_server_core::http_trace::init_colour(colour);
 
+    let filter = EnvFilter::try_from_default_env().unwrap_or_else(|_| {
+        // The leading `info` is the global default, and it is what makes
+        // the rest of the application audible at all. Route handlers moved
+        // out of this crate into ~118 leaf crates, whose targets are
+        // `medbrains_dashboard`, `medbrains_pharmacy` and so on — none of
+        // which `medbrains_server=debug` matches. 173 warn!/error! sites
+        // outside this crate were being dropped before they reached a log,
+        // against 55 inside it that were not.
+        //
+        // Found when a dashboard widget failure logged nothing: the handler
+        // reported the failing relation by name and the line went nowhere.
+        "info,medbrains_server=debug,tower_http=debug"
+            .parse()
+            .unwrap_or_default()
+    });
+    let filter = RIG_AT_MOST_INFO
+        .iter()
+        .filter_map(|d| d.parse().ok())
+        .fold(filter, EnvFilter::add_directive);
     tracing_subscriber::registry()
-        .with(EnvFilter::try_from_default_env().unwrap_or_else(|_| {
-            // The leading `info` is the global default, and it is what makes
-            // the rest of the application audible at all. Route handlers moved
-            // out of this crate into ~118 leaf crates, whose targets are
-            // `medbrains_dashboard`, `medbrains_pharmacy` and so on — none of
-            // which `medbrains_server=debug` matches. 173 warn!/error! sites
-            // outside this crate were being dropped before they reached a log,
-            // against 55 inside it that were not.
-            //
-            // Found when a dashboard widget failure logged nothing: the handler
-            // reported the failing relation by name and the line went nowhere.
-            "info,medbrains_server=debug,tower_http=debug"
-                .parse()
-                .unwrap_or_default()
-        }))
+        .with(filter)
         .with(tracing_subscriber::fmt::layer().with_ansi(colour))
         .init();
 

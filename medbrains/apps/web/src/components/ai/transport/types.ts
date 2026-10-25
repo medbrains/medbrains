@@ -61,7 +61,35 @@ export interface ChatMessage {
   guardNotices?: string[];
   /** Tokens the whole turn used (every model call), when the server says. */
   usage?: TokenUsage;
+  /** How long the whole turn took, as the user waited for it. */
+  elapsedMs?: number;
+  /** Rich blocks the server built from tool results (never model-written). */
+  widgets?: AiWidget[];
 }
+
+export interface AiColumn {
+  key: string;
+  label: string;
+  /** Rupees: ₹ with Indian grouping. */
+  money?: boolean;
+}
+
+export type AiRow = Record<string, unknown>;
+
+/** One widget from the closed catalogue (`medbrains_core::ai_widgets`). */
+export type AiWidget =
+  | { kind: "kpis"; title: string; tiles: { label: string; value: unknown; money?: boolean }[] }
+  | { kind: "table"; title: string; columns: AiColumn[]; rows: AiRow[]; total_rows: number }
+  | {
+      kind: "chart";
+      title: string;
+      x: AiColumn;
+      series: AiColumn[];
+      rows: AiRow[];
+      /** Each series' highest and lowest point, from the data (server-side). */
+      peaks?: { series: string; high_x: unknown; high: unknown; low_x: unknown; low: unknown }[];
+    }
+  | { kind: "list"; title: string; items: { label: string; status?: string }[] };
 
 /** Model tokens for one assistant turn. */
 export interface TokenUsage {
@@ -101,6 +129,9 @@ export type ChatChunk =
   | { type: "source"; source: ChatSource }
   | { type: "guard"; notices: string[] }
   | { type: "done"; usage?: TokenUsage }
+  /** The server is retrying the answer: drop the text shown so far. */
+  | { type: "reset" }
+  | { type: "widget"; widget: AiWidget }
   | { type: "error"; error: string };
 
 /**

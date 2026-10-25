@@ -196,3 +196,17 @@ fn government_ids_and_other_peoples_contacts_stay_held() {
         "Aadhaar (identifier not shown), other phone (identifier not shown)."
     );
 }
+
+#[test]
+fn a_retry_starts_the_answer_again_but_keeps_the_records() {
+    let mut g = AnswerGuard::new("What is recorded?");
+    g.add_record("Hb 8.2 g/dL (L)");
+    assert!(g.would_remove("This is consistent with iron-deficiency anaemia."));
+    assert!(!g.would_remove("Hb 8.2 g/dL is recorded, flagged low."));
+    let _ = g.push("This is consistent with iron-deficiency anaemia. ");
+    let _ = g.finish();
+    assert_ne!(g.notices(), Vec::<&str>::new());
+    g.restart();
+    assert_eq!(g.notices(), Vec::<&str>::new());
+    assert!(!g.would_remove("Hb 8.2 g/dL is recorded, flagged low."));
+}

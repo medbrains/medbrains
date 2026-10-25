@@ -1,5 +1,6 @@
 import { api } from "@medbrains/api";
 import type {
+  AiWidget,
   ChatChunk,
   ChatMessage,
   ChatToolCall,
@@ -122,6 +123,10 @@ export class SseTransport implements ChatTransport {
           this.conversationId = payload.conversationId;
         }
         return { type: "done", usage: usageOf(payload.usage) };
+      case "reset":
+        return { type: "reset" };
+      case "widget":
+        return isWidget(payload.widget) ? { type: "widget", widget: payload.widget } : null;
       case "error":
         return { type: "error", error: String(payload.message ?? "Assistant error") };
       default:
@@ -143,4 +148,16 @@ function usageOf(raw: unknown): TokenUsage | undefined {
   ];
   if (input === undefined || output === undefined) return undefined;
   return { input, output, cacheRead: cacheRead ?? 0, cacheWrite: cacheWrite ?? 0 };
+}
+
+const WIDGET_KINDS = new Set(["kpis", "table", "chart", "list"]);
+
+/** Only a widget from the closed catalogue renders; anything else is dropped. */
+function isWidget(raw: unknown): raw is AiWidget {
+  return (
+    !!raw &&
+    typeof raw === "object" &&
+    WIDGET_KINDS.has(String((raw as { kind?: unknown }).kind)) &&
+    typeof (raw as { title?: unknown }).title === "string"
+  );
 }

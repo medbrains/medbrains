@@ -30,14 +30,16 @@ use std::collections::{BTreeSet, HashSet};
 
 use patterns::{COMMON_WORDS, CONTACT_KINDS, NOT_CONDITIONS, PATTERNS, Patterns, SHOWN_KINDS};
 
-/// Output tokens one assistant answer may use, assistant and eval alike: about
-/// 3x the longest answer that passes the eval (a discharge-summary draft,
+/// Output tokens one assistant answer may use, assistant and eval alike.
+///
+/// About 3x the longest answer that passes the eval (a discharge-summary draft,
 /// 1,065 tokens on Haiku 5.5). An answer cut off at this cap is a failure,
 /// never a pass (eval `cut_off`), so the cap only bounds a runaway answer.
 pub const MAX_ANSWER_TOKENS: u32 = 3200;
 
-/// Prior messages (user and assistant) sent with a turn, newest kept: three
-/// exchanges. Older ones stay stored, not sent; the patient a conversation is
+/// Prior messages (user and assistant) sent with a turn, newest kept.
+///
+/// Three exchanges. Older ones stay stored, not sent; the patient a conversation is
 /// about is pinned separately, so it is never among what drops.
 pub const HISTORY_MESSAGES: u16 = 6;
 
@@ -115,7 +117,7 @@ pub enum ContactAccess {
 }
 
 /// Feeds the model's answer in, hands out the sentences that pass.
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Clone)]
 pub struct AnswerGuard {
     question: String,
     /// Record text with injected spans removed, normalised.
@@ -192,6 +194,24 @@ impl AnswerGuard {
     pub fn finish(&mut self) -> String {
         let rest = std::mem::take(&mut self.pending);
         self.check(&rest)
+    }
+
+    /// Whether this guard, as it stands (records and question), would remove
+    /// anything from `answer` — the one-retry check at the end of a turn.
+    #[must_use]
+    pub fn would_remove(&self, answer: &str) -> bool {
+        let mut trial = self.clone();
+        trial.restart();
+        trial.push(answer);
+        trial.finish();
+        !trial.reasons.is_empty()
+    }
+
+    /// Forget the answer so far (a retried turn starts again); the records
+    /// and the question stay.
+    pub fn restart(&mut self) {
+        self.pending.clear();
+        self.reasons.clear();
     }
 
     /// Why anything was removed, one line each, for the user.

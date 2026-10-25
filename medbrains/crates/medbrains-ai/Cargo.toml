@@ -23,7 +23,8 @@ tracing = { workspace = true }
 futures = { workspace = true }
 tower = { workspace = true }
 async-stream = { workspace = true }
-rig-core = { workspace = true }
+rig = { workspace = true }
+rig-agent = { workspace = true }
 tokio = { workspace = true }
 
 [lints]

@@ -184,7 +184,9 @@ impl Provider {
         let truncated = v["stopReason"] == "max_tokens" || v["stop_reason"] == "max_tokens";
         let (text, tin, tout, read, write) = match self {
             Self::Bedrock => {
-                timing.provider = v["metrics"]["latencyMs"].as_u64().map(Duration::from_millis);
+                timing.provider = v["metrics"]["latencyMs"]
+                    .as_u64()
+                    .map(Duration::from_millis);
                 // Like Anthropic's, Converse's inputTokens leaves out cached tokens
                 // (AWS's caching example: total = input + output + cache read).
                 (
@@ -315,7 +317,11 @@ fn messages(request: &Request, content: impl Fn(&str) -> Value) -> Vec<Value> {
         .map(|(role, m)| (*role, m))
         .chain(std::iter::once((Role::User, &request.user)))
         .map(|(role, m)| {
-            let role = if role == Role::User { "user" } else { "assistant" };
+            let role = if role == Role::User {
+                "user"
+            } else {
+                "assistant"
+            };
             json!({ "role": role, "content": content(m.for_model()) })
         })
         .collect()
@@ -394,7 +400,10 @@ mod tests {
     #[test]
     fn bedrock_asks_only_india_only_models() {
         assert_eq!(bedrock_model(None).as_deref(), Ok(BEDROCK_MODEL));
-        assert_eq!(bedrock_model(Some(BEDROCK_HAIKU_4_5)).as_deref(), Ok(BEDROCK_HAIKU_4_5));
+        assert_eq!(
+            bedrock_model(Some(BEDROCK_HAIKU_4_5)).as_deref(),
+            Ok(BEDROCK_HAIKU_4_5)
+        );
         assert!(bedrock_model(Some("global.anthropic.claude-haiku-5-5")).is_err());
         assert!(bedrock_model(Some("anthropic.claude-haiku-4-5-20251001-v1:0")).is_err());
     }

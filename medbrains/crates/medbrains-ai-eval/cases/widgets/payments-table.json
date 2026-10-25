@@ -1,0 +1,11 @@
+{
+  "kind": "table",
+  "title": "Payments by mode",
+  "source": {
+    "data": [
+      { "id": "a1", "mode": "card", "amount": "2250.00", "count": 2 },
+      { "id": "a2", "mode": "upi", "amount": "868.00", "count": 2 },
+      { "id": "a3", "mode": "cash", "amount": "800.00", "count": 2 }
+    ]
+  }
+}

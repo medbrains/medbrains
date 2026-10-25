@@ -122,6 +122,7 @@ export function AiChatPanel({
                     fullWidth
                     justify="space-between"
                     rightSection={<IconArrowRight size={16} aria-hidden />}
+                    classNames={{ root: styles.starter, label: styles.starterLabel }}
                     onClick={() => send(starter)}
                   >
                     {starter}
