@@ -119,7 +119,7 @@ principle, less volume but not zero intensity, holds for beginners too.
 **Five to seven days before**
 
 - Confirm the start time, start-line location, bib collection and bag
-  drop on the organiser's site. Many Indian races start before dawn.
+  drop on the organiser's site. Check the start time, as some races start very early.
 - Plan transport so you arrive with time for the toilet queue.
 - Shoes: race in a pair you have already run at least a few long runs in.
   Not new shoes from the race expo.
