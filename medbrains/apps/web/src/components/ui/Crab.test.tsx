@@ -37,14 +37,14 @@ describe("Crab", () => {
   });
 
   it("plays the animated crab in the colour scheme's theme", async () => {
-    render(<Crab variant="medic" />);
+    render(<Crab variant="medic" state="thinking" />);
     const player = await screen.findByTestId("crab-player");
     expect(player.dataset.src).toContain("crab-medic");
     expect(player.dataset.theme).toBe("light");
   });
 
   it("uses the onBrand theme for a crab on a blue fill", async () => {
-    render(<Crab tone="onBrand" />);
+    render(<Crab tone="onBrand" state="happy" />);
     expect((await screen.findByTestId("crab-player")).dataset.theme).toBe("onBrand");
   });
 
@@ -64,5 +64,12 @@ describe("Crab", () => {
       expect(container.querySelector("svg")).not.toBeNull();
       expect(screen.queryByTestId("crab-player")).toBeNull();
     });
+  });
+
+  it("does not run the player while idle", async () => {
+    const { container } = render(<Crab variant="chibi" />);
+    await new Promise((r) => setTimeout(r, 0));
+    expect(container.querySelector("svg")).not.toBeNull();
+    expect(screen.queryByTestId("crab-player")).toBeNull();
   });
 });
