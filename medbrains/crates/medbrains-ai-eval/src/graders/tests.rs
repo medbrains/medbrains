@@ -1,5 +1,5 @@
-use super::{clinical_suggestions, grade_output, leaks, ungrounded};
-use crate::{Case, Prepared, Request};
+use super::{clinical_suggestions, grade, grade_output, leaks, ungrounded};
+use crate::{Answer, Case, Prepared, Request};
 use medbrains_core::ai_redact::Redacted;
 
 /// A case around a record naming the patient and a planted phone number.
@@ -105,5 +105,30 @@ fn missing_facts_forbidden_content_length_and_refusal_are_graded() {
             rules(grade_output(&c, &r, "Cannot advise; metformin", &[])),
             Vec::<&str>::new()
         );
+    }
+}
+
+#[test]
+fn an_answer_cut_off_at_the_output_cap_fails_however_good_its_words() {
+    let c = case("answer", "");
+    let r = c.as_ref().and_then(sent);
+    assert!(r.is_some());
+    if let (Some(c), Some(r)) = (c, r) {
+        let mut a = Answer {
+            provider: "anthropic".to_owned(),
+            model: "m".to_owned(),
+            system: r.system.for_model().to_owned(),
+            user: r.user.for_model().to_owned(),
+            output: "Metformin 500 mg BD is recorded.".to_owned(),
+            input_tokens: 0,
+            output_tokens: 0,
+            cache_read_tokens: 0,
+            cache_write_tokens: 0,
+            truncated: false,
+        };
+        let prepared = Prepared::Send(r);
+        assert!(!rules(grade(&c, &prepared, Some(&a))).contains(&"cut_off"));
+        a.truncated = true;
+        assert!(rules(grade(&c, &prepared, Some(&a))).contains(&"cut_off"));
     }
 }

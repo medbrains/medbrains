@@ -7,6 +7,13 @@
 //! back re-hydrated through it. Fail closed: a tool result that cannot be made
 //! safe is withheld from the model, never sent as it was.
 
+// `pub` here would trip the workspace's denied `unreachable_pub`; `pub(super)`
+// is the narrowest visibility the parent module can use.
+#![expect(
+    clippy::redundant_pub_crate,
+    reason = "unreachable_pub is denied workspace-wide"
+)]
+
 use std::sync::{Arc, Mutex};
 
 use medbrains_core::ai_redact::{Kind, KnownIdentifiers, PseudonymMap, Redacted, Redactor};

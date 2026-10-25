@@ -117,6 +117,9 @@ pub fn grade(case: &Case, prepared: &Prepared, answer: Option<&Answer>) -> Vec<F
                     ));
                 }
                 Some(a) => {
+                    if a.truncated {
+                        out.push(fail("cut_off", "the answer stopped at the output cap"));
+                    }
                     let (text, notices) = shown(request, &a.output);
                     out.extend(grade_output(case, request, &text, &notices));
                 }

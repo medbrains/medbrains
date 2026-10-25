@@ -195,14 +195,19 @@ impl Case {
         &self,
         r: &mut Redactor,
     ) -> Result<(Redacted, Redacted, Redacted), RedactError> {
-        let note = r.redact(PLACEHOLDER_NOTE)?;
-        let system = Redacted::fixed(SYSTEM_PROMPT).join("\n\n", &note);
         Ok((
-            system,
+            system(),
             r.redact(&self.source_text())?,
             r.redact(&self.question)?,
         ))
     }
+}
+
+/// The fixed system prefix, byte for byte as the assistant sends it every
+/// turn (per-turn context goes in the user turn), so it can be cached.
+#[must_use]
+pub fn system() -> Redacted {
+    Redacted::fixed(SYSTEM_PROMPT).join("\n\n", &Redacted::fixed(PLACEHOLDER_NOTE))
 }
 
 /// `value` with every object's keys in sorted order.
@@ -233,8 +238,16 @@ pub struct Answer {
     pub system: String,
     pub user: String,
     pub output: String,
+    /// Input tokens billed at the full rate (cache reads and writes apart).
     pub input_tokens: u64,
     pub output_tokens: u64,
+    #[serde(default)]
+    pub cache_read_tokens: u64,
+    #[serde(default)]
+    pub cache_write_tokens: u64,
+    /// The provider stopped at the output cap: the answer is incomplete.
+    #[serde(default)]
+    pub truncated: bool,
 }
 
 impl Answer {

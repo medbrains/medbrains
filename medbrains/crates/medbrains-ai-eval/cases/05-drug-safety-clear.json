@@ -21,9 +21,10 @@
   "planted": [],
   "source": {
     "drug": "Paracetamol",
+    "checked": true,
     "safe": true,
     "warnings": [],
-    "notes": "No allergy or interaction warnings from the safety engine. Still verify dosing clinically."
+    "notes": "No allergy or interaction warnings from the safety engine."
   },
   "question": "Did the safety check flag paracetamol?",
   "expect": "answer",

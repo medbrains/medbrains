@@ -143,45 +143,70 @@ function PartView({
   }
 }
 
-/** Read the block decision out of a tool result (shape varies by tool). */
-function toolResultInfo(result: unknown): { blocked: boolean; message?: string } {
-  if (result && typeof result === "object") {
-    const r = result as Record<string, unknown>;
-    return {
-      blocked: r.decision === "blocked" || r.safe === false,
-      message: typeof r.message === "string" ? r.message : undefined,
-    };
+/** What a finished tool call came to: refused, not run, or done. */
+type ToolOutcome = "blocked" | "unchecked" | "done";
+
+const OUTCOME_VIEW: Record<ToolOutcome, { badge: string; tone: "danger" | "warning" | "success" }> =
+  {
+    blocked: { badge: "BLOCKED", tone: "danger" },
+    unchecked: { badge: "Not checked", tone: "warning" },
+    done: { badge: "done", tone: "success" },
+  };
+
+/**
+ * Read the outcome out of a tool result (shape varies by tool). A check that
+ * did not run (`checked: false`) is neither blocked nor done — showing it as
+ * either would tell the clinician something nobody verified.
+ */
+export function toolResultInfo(result: unknown): { outcome: ToolOutcome; message?: string } {
+  if (!result || typeof result !== "object") return { outcome: "done" };
+  const r = result as Record<string, unknown>;
+  const text = (v: unknown) => (typeof v === "string" ? v : undefined);
+  if (r.checked === false) return { outcome: "unchecked", message: text(r.notes) };
+  if (r.decision === "blocked" || r.safe === false) {
+    return { outcome: "blocked", message: text(r.message) ?? text(r.notes) };
   }
-  return { blocked: false };
+  return { outcome: "done" };
 }
 
-/** A tool-call chip — turns prominently red when the server BLOCKED the action. */
+/** A tool-call chip — red when the server BLOCKED the action, amber when a check did not run. */
 function ToolView({ toolCall }: { toolCall: ChatToolCall }) {
-  const { blocked, message } = toolResultInfo(toolCall.result);
+  const { outcome, message } = toolResultInfo(toolCall.result);
   const label = AI_TOOL_LABELS[toolCall.name] ?? toolCall.name;
   const running = toolCall.status === "running" || toolCall.status === "pending";
+  const flagged = !running && outcome !== "done";
+  const view = OUTCOME_VIEW[outcome];
+  const boxClass = !flagged
+    ? styles.tool
+    : outcome === "blocked"
+      ? styles.toolBlocked
+      : styles.toolUnchecked;
 
   return (
-    <Box className={blocked ? styles.toolBlocked : styles.tool}>
+    <Box className={boxClass}>
       <Group gap={8} wrap="nowrap">
-        {blocked ? (
-          <IconAlertTriangle size={15} />
+        {flagged ? (
+          <IconAlertTriangle size={16} aria-hidden />
         ) : running ? (
           <Loader size={14} />
         ) : (
-          <IconTool size={14} />
+          <IconTool size={16} aria-hidden />
         )}
-        <Text size="xs" fw={blocked ? 700 : 500}>
+        <Text size="xs" fw={flagged ? 700 : 500}>
           {label}
         </Text>
         {!running && (
-          <Badge tone={blocked ? "danger" : "success"} size="sm">
-            {blocked ? "BLOCKED" : "done"}
+          <Badge tone={view.tone} size="sm">
+            {view.badge}
           </Badge>
         )}
       </Group>
-      {blocked && message && (
-        <Text size="xs" mt={4} className={styles.toolBlockedMsg}>
+      {flagged && message && (
+        <Text
+          size="xs"
+          mt={4}
+          className={outcome === "blocked" ? styles.toolBlockedMsg : undefined}
+        >
           {message}
         </Text>
       )}
