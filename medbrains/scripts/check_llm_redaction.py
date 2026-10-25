@@ -8,7 +8,8 @@ the only ways to make one are `Redactor::redact` and `Redacted::fixed` (a
 source literal). This check closes the gaps types cannot:
 
   1. Only the gateway files may talk to a model provider at all
-     (`rig::providers`, a raw `/chat/completions` POST).
+     (`rig::providers`, a raw `/chat/completions` POST, the Anthropic or
+     Bedrock endpoints).
   2. In those files, every text handed to the model — `.preamble(`,
      `.extract(`, `.stream_prompt(`, `.prompt(`, a chat `"content":` — is read
      through `.for_model()`, i.e. it is a `Redacted`.
@@ -27,8 +28,9 @@ GATEWAYS = {
     "crates/medbrains-ai/src/lib.rs",
     "crates/medbrains-server-services/src/llm.rs",
     "crates/medbrains-server/src/services/simulator/decision.rs",
+    "crates/medbrains-ai-eval/src/live.rs",
 }
-PROVIDER = re.compile(r"rig::providers|/chat/completions")
+PROVIDER = re.compile(r"rig::providers|/chat/completions|api\.anthropic\.com|bedrock-runtime")
 MODEL_INPUT = re.compile(r"\.(preamble|extract|stream_prompt|prompt)\(|\"content\":")
 FIXED = re.compile(r"Redacted::fixed\(\s*([^)]*)\)")
 

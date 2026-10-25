@@ -245,6 +245,14 @@ static NAME_CUES: LazyLock<Result<Vec<(Regex, Kind)>, regex::Error>> = LazyLock:
             ))?,
             Kind::Relative,
         ),
+        // The same cue in Tamil and Hindi script, where names have no
+        // capital letter to find them by: the word after a kinship term.
+        (
+            Regex::new(
+                r"(மனைவி|கணவர்|மகன்|மகள்|தந்தை|அப்பா|தாய்|அம்மா|அண்ணன்|தம்பி|அக்கா|தங்கை|पत्नी|पति|बेटा|बेटी|पिता|माता|माँ|मां|भाई|बहन)\s+([\p{Tamil}\p{Devanagari}]+)",
+            )?,
+            Kind::Relative,
+        ),
         // Not C/o: in a clinical note that is "complains of", not "care of".
         (
             Regex::new(&format!(r"\b([SDW]/[Oo]\.?)\s+{name}"))?,
@@ -256,7 +264,7 @@ static NAME_CUES: LazyLock<Result<Vec<(Regex, Kind)>, regex::Error>> = LazyLock:
 /// Dates as typed in Indian records: ISO, DD/MM/YYYY, DD-MM-YYYY, DD Mon YYYY.
 static DATES: LazyLock<Result<Regex, regex::Error>> = LazyLock::new(|| {
     Regex::new(
-        r"(?i)\b(?:(\d{4})-(\d{1,2})-(\d{1,2})|(\d{1,2})[/.-](\d{1,2})[/.-](\d{4})|(\d{1,2})\s+(jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec)[a-z]*\.?,?\s+(\d{4}))\b",
+        r"(?i)\b(?:(\d{4})-(\d{1,2})-(\d{1,2})(T\d{1,2}:\d{2}(?::\d{2}(?:\.\d+)?)?(?:Z|[+-]\d{2}:?\d{2})?)?|(\d{1,2})[/.-](\d{1,2})[/.-](\d{4})|(\d{1,2})\s+(jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec)[a-z]*\.?,?\s+(\d{4}))\b",
     )
 });
 

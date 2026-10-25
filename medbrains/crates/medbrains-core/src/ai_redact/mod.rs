@@ -162,6 +162,13 @@ impl Redacted {
         &self.0
     }
 
+    /// Whether redaction withheld a restricted clinical class from this text
+    /// ([`sensitive`]) — a question that names one is refused, not sent.
+    #[must_use]
+    pub fn is_withheld(&self) -> bool {
+        self.0.contains(sensitive::WITHHELD)
+    }
+
     /// Two redacted texts joined (e.g. a fixed system prompt and a redacted
     /// context block).
     #[must_use]
@@ -169,6 +176,17 @@ impl Redacted {
         Self(format!("{}{sep}{}", self.0, other.0))
     }
 }
+
+/// Told to the model with every redacted context, so it uses placeholders as
+/// written. Shared by the assistant and its eval harness.
+/// It carries no example placeholder on purpose: given `[PATIENT_1]` (or
+/// even `[KIND_n]`) as an example, a model wrote it into answers about
+/// records that had no such identifier.
+pub const PLACEHOLDER_NOTE: &str = "Identifiers in this conversation (names, numbers, contacts, \
+    addresses) are replaced by bracketed placeholders, and dates by a bracketed offset in days \
+    from today. Use only placeholders that appear in the data, exactly as written; if the data \
+    has none for something, leave it out. Never invent one, and never guess or ask for the real \
+    values.";
 
 /// One placeholder and what it stands for. Server-side only.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -554,6 +572,9 @@ impl Redactor {
         for c in re.captures_iter(text) {
             let Some(m) = c.get(0) else { continue };
             next.push_str(&text[last..m.start()]);
+            // An ISO timestamp's time of day stays; only its date is shifted.
+            let time = c.get(4).map_or("", |t| t.as_str());
+            let date = &m.as_str()[..m.len() - time.len()];
             let placeholder = parse_date(&c).map_or_else(
                 || "[DATE]".to_owned(),
                 |d| format!("[DATE_{:+}d]", (d - today).num_days()),
@@ -566,11 +587,12 @@ impl Redactor {
             {
                 self.map.entries.push(Entry {
                     placeholder: placeholder.clone(),
-                    original: m.as_str().to_owned(),
+                    original: date.to_owned(),
                     kind: Kind::Date,
                 });
             }
             next.push_str(&placeholder);
+            next.push_str(time);
             last = m.end();
         }
         next.push_str(&text[last..]);
@@ -628,13 +650,13 @@ fn parse_date(c: &regex::Captures<'_>) -> Option<NaiveDate> {
     if let (Some(y), Some(m), Some(d)) = (n(1), n(2), n(3)) {
         return NaiveDate::from_ymd_opt(i32::try_from(y).ok()?, m, d);
     }
-    if let (Some(d), Some(m), Some(y)) = (n(4), n(5), n(6)) {
+    if let (Some(d), Some(m), Some(y)) = (n(5), n(6), n(7)) {
         return NaiveDate::from_ymd_opt(i32::try_from(y).ok()?, m, d);
     }
-    let month = c.get(8)?.as_str().get(..3)?.to_lowercase();
+    let month = c.get(9)?.as_str().get(..3)?.to_lowercase();
     let months = [
         "jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec",
     ];
     let m = u32::try_from(months.iter().position(|x| *x == month)? + 1).ok()?;
-    NaiveDate::from_ymd_opt(i32::try_from(n(9)?).ok()?, m, n(7)?)
+    NaiveDate::from_ymd_opt(i32::try_from(n(10)?).ok()?, m, n(8)?)
 }

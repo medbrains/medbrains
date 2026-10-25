@@ -5572,6 +5572,17 @@ dependencies = [
  "uuid",
 ]
 
+
+[[package]]
+name = "medbrains-ai-eval"
+version = "0.1.0"
+dependencies = [
+ "chrono",
+ "medbrains-core",
+ "regex",
+ "serde",
+ "serde_json",
+]
 [[package]]
 name = "medbrains-ambulance"
 version = "0.1.0"

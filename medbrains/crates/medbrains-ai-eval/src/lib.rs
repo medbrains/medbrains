@@ -1,0 +1,232 @@
+//! Golden-case evaluation for `MedBrains` AI features.
+//!
+//! Founder rule: an answer is *exact* — every claim grounded in the source
+//! record, nothing added, nothing important left out — and *operational*:
+//! data quality and clear-cut admin decisions, never a clinical suggestion.
+//!
+//! A case (`cases/*.json`, format 1) is a synthetic source record, the
+//! question asked about it, and what a correct answer must and must not say.
+//! The harness builds the model request exactly as the assistant does — the
+//! assistant's own system prompt, every text through
+//! [`medbrains_core::ai_redact::Redactor`] — then grades the answer with
+//! deterministic rules ([`graders`]). Offline runs replay a recorded answer
+//! (`cases/recorded/<id>.json`); live runs ask the model ([`live`]).
+//!
+//! What is not exercised: the tool-calling loop. The record a tool would
+//! have returned is handed to the model in the request (`SDBench`'s
+//! "gatekeeper", reduced to one reveal).
+
+pub mod graders;
+pub mod live;
+pub mod report;
+
+use std::path::{Path, PathBuf};
+
+use chrono::NaiveDate;
+use medbrains_core::ai_redact::{
+    Kind, KnownIdentifiers, PLACEHOLDER_NOTE, PseudonymMap, RedactError, Redacted, Redactor,
+};
+use serde::{Deserialize, Serialize};
+
+/// The assistant's system prompt — the one in production, not a copy.
+pub const SYSTEM_PROMPT: &str = include_str!("../../medbrains-ai/src/ai_system_prompt.txt");
+
+/// The only case format this harness reads.
+const FORMAT: u32 = 1;
+
+/// What the answer should be.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum Expect {
+    /// Answer from the record.
+    Answer,
+    /// Decline (restricted class, clinical decision, missing data) —
+    /// before the model or in its words.
+    Refuse,
+}
+
+/// One identifier the record carries, as the assistant loads it.
+#[derive(Debug, Clone, Deserialize)]
+pub struct Identifier {
+    pub kind: Kind,
+    pub value: String,
+}
+
+/// One golden case.
+#[derive(Debug, Clone, Deserialize)]
+pub struct Case {
+    pub format: u32,
+    pub id: String,
+    /// Must be `true`: live runs may send a case to a non-India endpoint.
+    pub synthetic: bool,
+    /// Which assistant tool / feature the record stands in for.
+    pub task: String,
+    pub today: NaiveDate,
+    #[serde(default)]
+    pub identifiers: Vec<Identifier>,
+    /// Raw identifiers in free text the redactor must catch by shape.
+    #[serde(default)]
+    pub planted: Vec<String>,
+    pub source: serde_json::Value,
+    pub question: String,
+    pub expect: Expect,
+    /// Regexes (case-insensitive) every one of which the answer must match.
+    #[serde(default)]
+    pub must_include: Vec<String>,
+    /// Regexes none of which the answer may match.
+    #[serde(default)]
+    pub must_not_include: Vec<String>,
+    /// Numbers or drug names the answer may state that are derived, not
+    /// copied: a count, a unit conversion, a translated drug name.
+    #[serde(default)]
+    pub derived_ok: Vec<String>,
+    #[serde(default)]
+    pub max_words: Option<usize>,
+    /// A failure already recorded as a finding; the run fails if it passes,
+    /// so the mark is removed when the bug is fixed.
+    #[serde(default)]
+    pub known_failure: Option<String>,
+}
+
+/// The request as the redactor produced it — all a model ever sees.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct Request {
+    pub system: Redacted,
+    pub user: Redacted,
+}
+
+impl Request {
+    /// Everything sent, as one text (for leak checks).
+    #[must_use]
+    pub fn sent(&self) -> String {
+        format!("{}\n{}", self.system.for_model(), self.user.for_model())
+    }
+}
+
+/// What happened before any model was asked.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Prepared {
+    /// Safe to send.
+    Send(Request),
+    /// The question names a restricted class: refused, nothing sent.
+    RefusedRestricted(Request),
+    /// Redaction failed closed: nothing sent.
+    RefusedUnsafe(String),
+}
+
+impl Case {
+    /// Every case under `dir`, sorted by file name.
+    ///
+    /// # Errors
+    /// A file cannot be read or parsed, is not format 1, or is not synthetic.
+    pub fn load_all(dir: &Path) -> Result<Vec<Self>, String> {
+        let mut paths: Vec<PathBuf> = std::fs::read_dir(dir)
+            .map_err(|e| format!("{}: {e}", dir.display()))?
+            .filter_map(Result::ok)
+            .map(|e| e.path())
+            .filter(|p| p.extension().is_some_and(|x| x == "json"))
+            .collect();
+        paths.sort();
+        paths.iter().map(|p| Self::load(p)).collect()
+    }
+
+    fn load(path: &Path) -> Result<Self, String> {
+        let text = std::fs::read_to_string(path).map_err(|e| format!("{}: {e}", path.display()))?;
+        let case: Self =
+            serde_json::from_str(&text).map_err(|e| format!("{}: {e}", path.display()))?;
+        if case.format != FORMAT {
+            return Err(format!(
+                "{}: format {} (want {FORMAT})",
+                case.id, case.format
+            ));
+        }
+        if !case.synthetic {
+            return Err(format!(
+                "{}: not marked synthetic — refusing to load",
+                case.id
+            ));
+        }
+        Ok(case)
+    }
+
+    /// The source record as the tool would have returned it.
+    #[must_use]
+    pub fn source_text(&self) -> String {
+        self.source
+            .as_str()
+            .map_or_else(|| self.source.to_string(), str::to_owned)
+    }
+
+    /// Build the model request through the redactor, as the assistant does.
+    #[must_use]
+    pub fn prepare(&self) -> Prepared {
+        let mut known = KnownIdentifiers::default();
+        for id in &self.identifiers {
+            known.add(id.kind, Some(&id.value));
+        }
+        let mut r = Redactor::new(PseudonymMap::default(), &known, self.today);
+        match self.redact_parts(&mut r) {
+            Ok((system, record, question)) => {
+                let restricted = question.is_withheld();
+                let request = Request {
+                    system,
+                    user: Redacted::fixed("Tool result —")
+                        .join("\n", &record)
+                        .join("\n\n", &question),
+                };
+                if restricted {
+                    Prepared::RefusedRestricted(request)
+                } else {
+                    Prepared::Send(request)
+                }
+            }
+            Err(e) => Prepared::RefusedUnsafe(e.to_string()),
+        }
+    }
+
+    fn redact_parts(
+        &self,
+        r: &mut Redactor,
+    ) -> Result<(Redacted, Redacted, Redacted), RedactError> {
+        let note = r.redact(PLACEHOLDER_NOTE)?;
+        let system = Redacted::fixed(SYSTEM_PROMPT).join("\n\n", &note);
+        Ok((
+            system,
+            r.redact(&self.source_text())?,
+            r.redact(&self.question)?,
+        ))
+    }
+}
+
+/// A model's answer to one case, with what it cost.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Answer {
+    pub provider: String,
+    pub model: String,
+    /// The request it answered, as sent — a stale recording no longer matches.
+    pub system: String,
+    pub user: String,
+    pub output: String,
+    pub input_tokens: u64,
+    pub output_tokens: u64,
+}
+
+impl Answer {
+    /// Whether this answer was given to exactly `request`.
+    #[must_use]
+    pub fn answers(&self, request: &Request) -> bool {
+        self.system == request.system.for_model() && self.user == request.user.for_model()
+    }
+}
+
+/// Where a case's recording lives.
+#[must_use]
+pub fn recording_path(cases_dir: &Path, id: &str) -> PathBuf {
+    cases_dir.join("recorded").join(format!("{id}.json"))
+}
+
+/// The cases shipped with this crate.
+#[must_use]
+pub fn default_cases_dir() -> PathBuf {
+    Path::new(env!("CARGO_MANIFEST_DIR")).join("cases")
+}

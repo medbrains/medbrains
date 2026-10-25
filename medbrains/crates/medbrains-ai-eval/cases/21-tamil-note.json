@@ -1,0 +1,40 @@
+{
+  "format": 1,
+  "id": "21-tamil-note",
+  "synthetic": true,
+  "task": "nursing_note",
+  "today": "2026-10-25",
+  "identifiers": [
+    {
+      "kind": "Patient",
+      "value": "Murugan Selvaraj"
+    },
+    {
+      "kind": "Patient",
+      "value": "முருகன்"
+    }
+  ],
+  "planted": [
+    "செல்வி",
+    "9840012345"
+  ],
+  "source": {
+    "note_time": "2026-10-24T08:00",
+    "language": "ta",
+    "text": "நோயாளி முருகன் காலை 8 மணிக்கு காய்ச்சல் 101 F. மனைவி செல்வி 9840012345 என்ற எண்ணில் அழைத்தார். பாராசிட்டமால் கொடுக்கப்பட்டது."
+  },
+  "question": "Summarise this note in English.",
+  "expect": "answer",
+  "must_include": [
+    "101",
+    "fever|febrile|temperature|pyrexia",
+    "paracetamol"
+  ],
+  "must_not_include": [
+    "paracetamol \\d"
+  ],
+  "derived_ok": [
+    "paracetamol"
+  ],
+  "max_words": 80
+}

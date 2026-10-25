@@ -152,6 +152,21 @@ pub fn withhold_in_json(value: &mut Value) -> Result<usize, String> {
             for v in map.values_mut() {
                 n += withhold_in_json(v)?;
             }
+            // A key can be the disclosure too (`"mlc": "[WITHHELD…]"`): a
+            // withheld value under a key naming its class loses the key.
+            let mut leaky = Vec::new();
+            for (k, v) in map.iter() {
+                let named = CLASS_KEYS.iter().any(|(c, _)| c == k)
+                    || class_of_text(&k.replace('_', " "))?.is_some();
+                if named && v.as_str() == Some(WITHHELD) {
+                    leaky.push(k.clone());
+                }
+            }
+            for (i, k) in leaky.iter().enumerate() {
+                if let Some(v) = map.remove(k) {
+                    map.insert(format!("withheld_{}", i + 1), v);
+                }
+            }
             Ok(n)
         }
         Value::Array(items) => {
@@ -265,7 +280,14 @@ mod tests {
         let n = withhold_in_json(&mut chart).unwrap_or_default();
         let out = chart.to_string();
         assert_eq!(n, 5, "{out}");
-        for gone in ["schizophrenia", "HIV", "Alcohol", "Reactive", "MLC/2026"] {
+        for gone in [
+            "schizophrenia",
+            "HIV",
+            "Alcohol",
+            "Reactive",
+            "MLC/2026",
+            "mlc",
+        ] {
             assert!(!out.contains(gone), "{gone} reached the model: {out}");
         }
         assert!(

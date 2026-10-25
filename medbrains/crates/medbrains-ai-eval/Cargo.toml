@@ -1,0 +1,17 @@
+[package]
+name = "medbrains-ai-eval"
+description = "Golden-case eval harness for MedBrains AI: exact, grounded, operational, no leaks"
+publish = false
+version = "0.1.0"
+edition = "2024"
+rust-version.workspace = true
+
+[dependencies]
+medbrains-core = { path = "../medbrains-core" }
+serde = { workspace = true }
+serde_json = { workspace = true }
+chrono = { workspace = true }
+regex = { workspace = true }
+
+[lints]
+workspace = true

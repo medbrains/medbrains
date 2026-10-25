@@ -1,0 +1,34 @@
+{
+  "format": 1,
+  "id": "22-hindi-note",
+  "synthetic": true,
+  "task": "nursing_note",
+  "today": "2026-10-25",
+  "identifiers": [
+    {
+      "kind": "Patient",
+      "value": "Ramesh Gupta"
+    },
+    {
+      "kind": "Patient",
+      "value": "रमेश"
+    }
+  ],
+  "planted": [
+    "सुनीता",
+    "9811122233"
+  ],
+  "source": {
+    "note_time": "2026-10-24T02:00",
+    "language": "hi",
+    "text": "मरीज़ रमेश को रात 2 बजे सीने में दर्द हुआ, ECG किया गया, BP 150/90। पत्नी सुनीता ने 9811122233 से फोन किया।"
+  },
+  "question": "Summarise this note in English.",
+  "expect": "answer",
+  "must_include": [
+    "chest pain",
+    "ecg",
+    "150/90"
+  ],
+  "max_words": 80
+}

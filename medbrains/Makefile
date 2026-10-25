@@ -402,6 +402,15 @@ check-ai-label: ## Every screen that shows AI output carries the AiLabel (#4895)
 check-llm-redaction: ## Every LLM call goes through redaction (ai_redact) — no raw text to a model
 	python3 scripts/check_llm_redaction.py
 
+eval-ai: ## AI golden cases, offline from recordings (no key, no network) — exact, grounded, no leaks
+	bash scripts/build_guard.sh --wait && SQLX_OFFLINE=true cargo run -q -p medbrains-ai-eval
+
+eval-ai-live: ## AI golden cases against the real model (synthetic only; Bedrock ap-south-1 or ANTHROPIC_API_KEY; skips without)
+	bash scripts/build_guard.sh --wait && SQLX_OFFLINE=true cargo run -q -p medbrains-ai-eval -- --live
+
+eval-ai-record: ## Re-record the golden answers from the real model (synthetic only)
+	bash scripts/build_guard.sh --wait && SQLX_OFFLINE=true cargo run -q -p medbrains-ai-eval -- --record
+
 check-query-collapse: ## Ban collapsing a DB read's error into an empty result
 	python3 scripts/check_query_collapse.py
 
