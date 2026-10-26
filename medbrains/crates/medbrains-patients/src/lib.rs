@@ -3669,6 +3669,9 @@ pub async fn list_patient_visits(
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
 
+    // An imported or retrospective visit carries its complaint on the
+    // encounter, with no consultation; a consulted one may have both, and the
+    // doctor's note wins.
     let rows = sqlx::query_as_unchecked!(PatientVisitRow,
         "SELECT
             e.id,
@@ -3677,7 +3680,7 @@ pub async fn list_patient_visits(
             e.encounter_date,
             u.full_name AS doctor_name,
             d.name AS department_name,
-            c.chief_complaint,
+            COALESCE(NULLIF(btrim(c.chief_complaint), ''), NULLIF(btrim(e.chief_complaints), '')) AS chief_complaint,
             (SELECT COUNT(*) FROM diagnoses dg WHERE dg.encounter_id = e.id AND dg.deleted_at IS NULL) AS diagnosis_count,
             (SELECT COUNT(*) FROM prescriptions p WHERE p.encounter_id = e.id AND p.deleted_at IS NULL) AS prescription_count,
             (SELECT COUNT(*) FROM lab_orders lo WHERE lo.encounter_id = e.id AND lo.deleted_at IS NULL) AS lab_order_count,

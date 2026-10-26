@@ -178,6 +178,24 @@ async fn a_hospital_imports_its_history_before_go_live() {
         (enc.0 - (at + Duration::hours(1))).num_seconds().abs() < 2,
         "dated when it happened"
     );
+    // The visit history shows what the patient came in with, though no
+    // consultation was imported for it.
+    let patient: Uuid =
+        sqlx::query_scalar("SELECT target_id FROM history_import_records WHERE external_id = $1")
+            .bind(format!("P{t}"))
+            .fetch_one(&app.db)
+            .await
+            .expect("patient");
+    let history: Value = app
+        .client
+        .get(app.url(&format!("/api/patients/{patient}/visits")))
+        .send()
+        .await
+        .expect("visits")
+        .json()
+        .await
+        .expect("visits json");
+    assert_eq!(history[0]["chief_complaint"], "Fever", "{history}");
     let order: Uuid =
         sqlx::query_scalar("SELECT target_id FROM history_import_records WHERE external_id = $1")
             .bind(format!("L{t}"))
