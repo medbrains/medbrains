@@ -445,9 +445,11 @@ pub(crate) fn forget_session(tenant_id: Uuid) {
 }
 
 /// ABDM's refusal (wrong OTP, expired transaction) is the user's to fix and
-/// reads as 400 with ABDM's own words; an outage is 503, never "invalid".
-/// A 401 means ABDM no longer accepts a session we still hold: every cached
-/// session is dropped so the next call signs in afresh.
+/// reads as 400 with ABDM's own words; an outage is 503, never "invalid" —
+/// including one ABDM reports with a 4xx and a code that means "try again
+/// later" (ABDM-1022 too many requests, ABDM-1048 timeout …), so the outbox
+/// retries it. A 401 means ABDM no longer accepts a session we still hold:
+/// every cached session is dropped so the next call signs in afresh.
 pub fn map_abdm_error(error: AbdmError) -> AppError {
     match error {
         AbdmError::Status { status, .. } if status == reqwest::StatusCode::UNAUTHORIZED => {
@@ -460,7 +462,11 @@ pub fn map_abdm_error(error: AbdmError) -> AppError {
             )
         }
         AbdmError::Status { status, message } if status.is_client_error() => {
-            AppError::BadRequest(message)
+            if medbrains_abdm::errors::retry_later(&message) {
+                AppError::ServiceUnavailable(message)
+            } else {
+                AppError::BadRequest(message)
+            }
         }
         AbdmError::Status { .. } | AbdmError::Http(_) => AppError::ServiceUnavailable(
             "ABDM is not responding right now — try again in a minute".to_owned(),
