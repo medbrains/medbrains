@@ -14,6 +14,28 @@ pub enum IcuScoreType {
     Snappe,
     Rass,
     CamIcu,
+    // The bedside scores the ICU and wards record. The Postgres enum carried
+    // these and Rust did not, so reading any NEWS2, qSOFA or other such score
+    // back failed to decode and the scores tab answered 500.
+    Aldrete,
+    News2,
+    Meows,
+    Pews,
+    Qsofa,
+    Cpot,
+    Curb65,
+    ChildPugh,
+    Meld,
+    CiwaAr,
+    WellsPe,
+    WellsDvt,
+    #[sqlx(rename = "cha2ds2_vasc")]
+    #[serde(rename = "cha2ds2_vasc")]
+    Cha2ds2Vasc,
+    HasBled,
+    GlasgowBlatchford,
+    MustNutrition,
+    Hypoglycaemia,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, sqlx::Type)]
