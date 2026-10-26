@@ -17,7 +17,7 @@ export interface PermissionDef {
   module: string;
 }
 
-/** 1152 permissions, one per constant in the Rust source. */
+/** 1153 permissions, one per constant in the Rust source. */
 export const PERMISSIONS: PermissionDef[] = [
   // dashboard
   {
@@ -511,6 +511,12 @@ export const PERMISSIONS: PermissionDef[] = [
     code: "lab.results.verify",
     label: "Release lab results to the treating team",
     description: "Verification is the clinical signature on a result, not another edit of it, and it was gated on `lab.results.update` — the same code that types the value in. One account could therefore enter a result and release it, which NABL and ISO 15189 both write rules against. Splitting the code does not by itself split the duty: this system has a single lab role, and a night shift with one technologist still has to be able to report, so `lab_technician` holds this too and the hard four-eyes rule stays where the harm is — a critical value may not be released by the person who entered it. What the separate code buys is the ability to grant release to a supervisor role without also granting result entry, which could not be expressed at all before.",
+    module: "lab",
+  },
+  {
+    code: "lab.results.analyser_review",
+    label: "Resolve analyser results held for review",
+    description: "Results an analyser sends that cannot be matched to exactly one order -- no barcode, a barcode on two orders, a different patient, a value conflicting with one recorded -- are held rather than guessed. This lets a technologist read them, attach them to the right order, or dismiss them with a reason.",
     module: "lab",
   },
   {
@@ -8833,11 +8839,13 @@ export const P = {
     REPORT_DELIVERY_MANAGE: "lab.report_delivery.manage",
     RESULTS: {
       AMEND: "lab.results.amend",
+      ANALYSER_REVIEW: "lab.results.analyser_review",
       CREATE: "lab.results.create",
       UPDATE: "lab.results.update",
       VERIFY: "lab.results.verify",
     },
     RESULTS_AMEND: "lab.results.amend",
+    RESULTS_ANALYSER_REVIEW: "lab.results.analyser_review",
     RESULTS_CREATE: "lab.results.create",
     RESULTS_UPDATE: "lab.results.update",
     RESULTS_VERIFY: "lab.results.verify",
@@ -11152,6 +11160,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.LAB.QC.MANAGE,
       P.LAB.REPORTS.VIEW,
       P.LAB.RESULTS.AMEND,
+      P.LAB.RESULTS.ANALYSER_REVIEW,
       P.LAB.RESULTS.CREATE,
       P.LAB.RESULTS.UPDATE,
       P.LAB.RESULTS.VERIFY,

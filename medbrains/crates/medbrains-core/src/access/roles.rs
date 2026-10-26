@@ -810,6 +810,7 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
             // rule on critical values is what keeps the duties apart.
             permissions::lab::results::VERIFY,
             permissions::lab::results::AMEND,
+            permissions::lab::results::ANALYSER_REVIEW,
             permissions::lab::qc::LIST,
             permissions::lab::qc::CREATE,
             permissions::lab::qc::MANAGE,

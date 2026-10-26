@@ -100,12 +100,13 @@ pub fn build_orm(order: &Order, analyzer: &str, control_id: &str, now: &str) -> 
 
 /// Whether the analyzer's reply accepts the message, and why not if it doesn't.
 fn accepted(reply: &str) -> (bool, Option<String>) {
-    let segments = hl7::parse_segments(reply);
-    let code = hl7::get_field(&segments, "MSA.1").unwrap_or_default();
+    let msg = hl7::parse(reply);
+    let msa = msg.as_ref().and_then(|m| Some((m, m.first("MSA")?)));
+    let code = msa.map(|(m, s)| m.component(s, 1, 1)).unwrap_or_default();
     if matches!(code.as_str(), "AA" | "CA") {
         (true, None)
     } else {
-        let why = hl7::get_field(&segments, "MSA.3").filter(|t| !t.is_empty());
+        let why = msa.map(|(m, s)| m.text(s, 3)).filter(|t| !t.is_empty());
         (
             false,
             Some(why.unwrap_or_else(|| format!("analyzer answered {code:?}"))),
@@ -204,6 +205,7 @@ pub async fn poll_loop(
 }
 
 #[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used)]
 mod tests {
     use super::*;
 
@@ -227,8 +229,14 @@ mod tests {
     #[test]
     fn the_orm_carries_patient_sample_and_test_where_analyzers_read_them() {
         let msg = build_orm(&order(), "XN-550", "C1", "20261017101500");
-        let segs = hl7::parse_segments(&msg);
-        let f = |p: &str| hl7::get_field(&segs, p).unwrap_or_default();
+        let m = hl7::parse(&msg).expect("an HL7 message");
+        let f = |p: &str| {
+            let (seg, n) = p.split_once('.').expect("SEG.n");
+            let n: usize = n.parse().expect("field number");
+            m.first(seg)
+                .map(|s| s.raw(n).to_owned())
+                .unwrap_or_default()
+        };
         assert_eq!(f("MSH.9"), "ORM^O01");
         assert_eq!(f("MSH.10"), "C1");
         assert_eq!(f("PID.3"), "UH-1001");
@@ -236,6 +244,12 @@ mod tests {
             f("PID.5"),
             "Devi\\F\\Rao^Lakshmi",
             "a | in a name cannot split the field"
+        );
+        let pid = m.first("PID").expect("PID");
+        assert_eq!(
+            m.component(pid, 5, 1),
+            "Devi|Rao",
+            "and it reads back as sent"
         );
         assert_eq!(f("PID.7"), "19800309");
         assert_eq!(f("PID.8"), "F");

@@ -153,6 +153,14 @@ pub fn parse_records(text: &str) -> Vec<SampleResults> {
                 });
             }
             "R" => {
+                // A result before any order record still goes to the server,
+                // which holds an unidentified sample for review.
+                if samples.is_empty() {
+                    samples.push(SampleResults {
+                        patient_id: patient.clone(),
+                        ..Default::default()
+                    });
+                }
                 let Some(sample) = samples.last_mut() else {
                     continue;
                 };
@@ -176,7 +184,10 @@ pub fn parse_records(text: &str) -> Vec<SampleResults> {
             _ => {}
         }
     }
-    samples.retain(|s| !s.sample_barcode.is_empty() && !s.results.is_empty());
+    // An order record with no results reports nothing. One with results but
+    // no barcode is kept: the server holds it for review rather than this
+    // bridge dropping a patient's results unseen.
+    samples.retain(|s| !s.results.is_empty());
     samples
 }
 
@@ -227,7 +238,10 @@ async fn deliver(text: &str, buffer: &MessageBuffer, client: &reqwest::Client, c
     for sample in parse_records(text) {
         let parsed = serde_json::json!({ "message_type": "ASTM", "records": text });
         let mapped = serde_json::json!({
-            "identifiers": { "sample_barcode": sample.sample_barcode, "patient_id": sample.patient_id },
+            "identifiers": {
+                "sample_barcode": Some(&sample.sample_barcode).filter(|b| !b.is_empty()),
+                "patient_id": sample.patient_id,
+            },
             "results": sample.results,
         });
         let ms = i32::try_from(start.elapsed().as_millis()).unwrap_or(i32::MAX);
@@ -310,8 +324,16 @@ mod tests {
     }
 
     #[test]
-    fn results_without_a_sample_or_a_sample_without_results_are_dropped() {
-        assert!(parse_records("H|\\^&\rR|1|^^^WBC|5\rL|1\r").is_empty());
+    fn results_without_a_barcode_are_kept_for_review_and_empty_orders_are_not() {
+        // Dropping these lost a patient's results without a trace; the server
+        // now holds them for a technologist to match.
+        let orphan = parse_records("H|\\^&\rP|1||UH-9\rR|1|^^^WBC|5\rL|1\r");
+        assert_eq!(orphan.len(), 1);
+        assert_eq!(orphan[0].sample_barcode, "");
+        assert_eq!(orphan[0].patient_id.as_deref(), Some("UH-9"));
+        assert_eq!(orphan[0].results.len(), 1);
+        let blank = parse_records("H|\\^&\rO|1||\rR|1|^^^HGB|13\rL|1\r");
+        assert_eq!(blank[0].sample_barcode, "");
         assert!(parse_records("H|\\^&\rO|1|SB1\rL|1\r").is_empty());
     }
 }

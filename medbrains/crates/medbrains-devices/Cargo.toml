@@ -9,6 +9,7 @@ rust-version.workspace = true
 medbrains-server-core = { path = "../medbrains-server-core" }
 medbrains-core = { path = "../medbrains-core" }
 medbrains-db = { path = "../medbrains-db" }
+medbrains-lab = { path = "../medbrains-lab" }
 sha2 = { workspace = true }
 hex = { workspace = true }
 axum = { workspace = true }

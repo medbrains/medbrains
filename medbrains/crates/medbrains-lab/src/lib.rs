@@ -28,8 +28,11 @@ use medbrains_server_core::middleware::authorization::{
 };
 use medbrains_server_core::state::AppState;
 
+pub mod analyser;
+mod analyser_review;
 mod catalog_search;
 pub mod direct;
+mod hl7_flag;
 mod order_filter;
 mod priority;
 mod reference_range;
@@ -185,7 +188,7 @@ pub async fn grant_lab_order_access(
     .await
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Clone, Deserialize)]
 pub struct AddResultInput {
     pub parameter_name: String,
     pub value: String,
@@ -1681,6 +1684,278 @@ async fn auto_flag(
     Ok(judge(&row, numeric, &ctx.band, criticals_decided))
 }
 
+/// Where a batch of results came from.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ResultSource {
+    /// Typed in by a technologist.
+    Manual,
+    /// Sent by an analyser. Its own "normal" flag is not the human judgement
+    /// autoverification stands in for, so it never autovalidates by itself.
+    Analyser,
+}
+
+/// Why results cannot be entered against an order in this state, if they
+/// cannot.
+pub fn closed_reason(status: medbrains_core::lab::LabOrderStatus) -> Option<&'static str> {
+    // Never enter raw results against a closed order: a cancelled order has no
+    // valid sample, and a verified (authorised) report must be corrected
+    // through an amendment, not silently overwritten.
+    match status {
+        medbrains_core::lab::LabOrderStatus::Cancelled => {
+            Some("cancelled — its sample is not valid for results")
+        }
+        medbrains_core::lab::LabOrderStatus::Verified => {
+            Some("already verified — correct a value through an amendment instead")
+        }
+        medbrains_core::lab::LabOrderStatus::Ordered => {
+            Some("not collected yet — collect the sample first")
+        }
+        _ => None,
+    }
+}
+
+/// Post results against `order` -- the one path every writer of results takes.
+///
+/// Reference-range and critical flagging in the reported unit, delta checks,
+/// critical alerts with their notification, and the `LabResultPosted` event,
+/// for the result-entry screen and analysers alike. The caller has checked
+/// `closed_reason`.
+pub async fn post_results_in_tx(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    order: &LabOrder,
+    actor: Uuid,
+    inputs: &[AddResultInput],
+    source: ResultSource,
+) -> Result<Vec<LabResult>, AppError> {
+    let tenant_id = order.tenant_id;
+    let order_id = order.id;
+    // Patient age/sex band for reference-range auto-flagging.
+    let lab_band = patient_lab_band(tx, tenant_id, order.patient_id).await?;
+
+    // Fetch test catalog for delta check threshold
+    #[derive(sqlx::FromRow)]
+    struct TestConfig {
+        delta_check_percent: Option<Decimal>,
+    }
+    let test_config = sqlx::query_as::<_, TestConfig>(
+        "SELECT delta_check_percent \
+         FROM lab_test_catalog WHERE id = $1 AND tenant_id = $2",
+    )
+    .bind(order.test_id)
+    .bind(tenant_id)
+    .fetch_optional(&mut **tx)
+    .await?;
+
+    let mut results = Vec::with_capacity(inputs.len());
+    let mut critical_count = 0_usize;
+    for r in inputs {
+        // Auto-detect a critical value from the global CDS lab reference when
+        // the technician hasn't already flagged one (NABL critical-value
+        // reporting — a value out of the critical range is never missed).
+        let verdict = auto_flag(
+            tx,
+            tenant_id,
+            &r.parameter_name,
+            &r.value,
+            r.unit.as_deref(),
+            &lab_band,
+        )
+        .await?;
+        // The table only overrides the technologist when it actually judged
+        // the value; otherwise their own flag stands.
+        let effective_flag = match &verdict {
+            RefVerdict::Flagged(flag) => Some((*flag).to_owned()),
+            RefVerdict::InRange | RefVerdict::Unknown => r.flag.clone(),
+        };
+
+        // Delta check: find previous result for same patient + parameter
+        #[derive(sqlx::FromRow)]
+        struct PrevResult {
+            value: String,
+        }
+        let prev = sqlx::query_as::<_, PrevResult>(
+            "SELECT lr.value FROM lab_results lr \
+             JOIN lab_orders lo ON lr.order_id = lo.id \
+             WHERE lo.patient_id = $1 AND lo.test_id = $2 \
+               AND lr.parameter_name = $3 AND lo.tenant_id = $4 \
+               AND lo.id != $5 \
+             ORDER BY lr.created_at DESC LIMIT 1",
+        )
+        .bind(order.patient_id)
+        .bind(order.test_id)
+        .bind(&r.parameter_name)
+        .bind(tenant_id)
+        .bind(order_id)
+        .fetch_optional(&mut **tx)
+        .await?;
+
+        let previous_value = prev.as_ref().map(|p| p.value.clone());
+
+        // Calculate delta percent
+        let mut delta_percent: Option<Decimal> = None;
+        let mut is_delta_flagged = false;
+        if let (Some(pv), Ok(new_val)) = (&previous_value, r.value.parse::<Decimal>())
+            && let Ok(old_val) = pv.parse::<Decimal>()
+            && old_val != Decimal::ZERO
+        {
+            let dp = ((new_val - old_val).abs() / old_val.abs()) * Decimal::from(100);
+            delta_percent = Some(dp);
+            is_delta_flagged = test_config
+                .as_ref()
+                .and_then(|tc| tc.delta_check_percent)
+                .is_some_and(|threshold| dp > threshold);
+        }
+
+        // Auto-validate only what is affirmatively known to be in range.
+        //
+        // The `else` branch here used to read "no flag = normal", which made an
+        // empty flag mean normality. An empty flag is what you get when the
+        // analyte is not in the reference table, when the patient's age band is
+        // unpopulated, and when the value is not a number at all -- so a
+        // culture growing a resistant organism was auto-validated. This flag is
+        // carried into the signed report payload, so a wrong stamp is a false
+        // assertion inside a signed record.
+        let is_auto_validated = !is_delta_flagged
+            && match effective_flag.as_deref() {
+                // A technologist marking it normal is the human judgement that
+                // autoverification stands in for, so it still counts.
+                Some("normal") => source == ResultSource::Manual,
+                None => verdict == RefVerdict::InRange,
+                Some(_) => false,
+            };
+
+        let result = sqlx::query_as::<_, LabResult>(
+            "INSERT INTO lab_results \
+             (tenant_id, order_id, parameter_name, value, unit, \
+              normal_range, flag, notes, entered_by, \
+              previous_value, delta_percent, is_delta_flagged, is_auto_validated) \
+             VALUES ($1, $2, $3, $4, $5, $6, $7::lab_result_flag, $8, $9, \
+                     $10, $11, $12, $13) \
+             RETURNING *",
+        )
+        .bind(tenant_id)
+        .bind(order_id)
+        .bind(&r.parameter_name)
+        .bind(&r.value)
+        .bind(&r.unit)
+        .bind(&r.normal_range)
+        .bind(&effective_flag)
+        .bind(&r.notes)
+        .bind(actor)
+        .bind(&previous_value)
+        .bind(delta_percent)
+        .bind(is_delta_flagged)
+        .bind(is_auto_validated)
+        .fetch_one(&mut **tx)
+        .await?;
+
+        // Generate critical alert if flag is critical
+        if let Some(ref flag_str) = effective_flag
+            && (flag_str == "critical_low" || flag_str == "critical_high")
+        {
+            critical_count += 1;
+            // notified_to drives the SMS + escalation chain: the
+            // encounter's doctor when set, else whoever ordered.
+            sqlx::query(
+                "INSERT INTO lab_critical_alerts \
+                 (tenant_id, order_id, result_id, patient_id, \
+                  parameter_name, value, flag, notified_to, notified_at) \
+                 VALUES ($1, $2, $3, $4, $5, $6, $7::lab_result_flag, \
+                   COALESCE( \
+                     (SELECT doctor_id FROM encounters WHERE id = $8 AND tenant_id = $1), \
+                     $9), \
+                   now())",
+            )
+            .bind(tenant_id)
+            .bind(order_id)
+            .bind(result.id)
+            .bind(order.patient_id)
+            .bind(&r.parameter_name)
+            .bind(&r.value)
+            .bind(flag_str)
+            .bind(order.encounter_id)
+            .bind(order.ordered_by)
+            .execute(&mut **tx)
+            .await?;
+
+            // In-app notification to the responsible clinician (encounter
+            // doctor, else the ordering provider) — same recipient rule as
+            // the alert, atomic with it.
+            let recipient: Uuid = sqlx::query_scalar(
+                "SELECT COALESCE( \
+                   (SELECT doctor_id FROM encounters WHERE id = $1 AND tenant_id = $2), $3)",
+            )
+            .bind(order.encounter_id)
+            .bind(tenant_id)
+            .bind(order.ordered_by)
+            .fetch_one(&mut **tx)
+            .await?;
+            // `alert_message` is the third dead column on
+            // `critical_value_rules`: a hospital writes the instruction it
+            // wants its clinicians to see -- "Repeat before treating",
+            // "Call the on-call nephrologist" -- and nothing has ever
+            // shown it. Only looked up when a critical actually fires.
+            let tenant_message = sqlx::query_scalar::<_, String>(
+                "SELECT alert_message FROM critical_value_rules \
+                  WHERE tenant_id = $1 AND is_active = true AND deleted_at IS NULL \
+                    AND (lower(test_code) = lower($2) OR lower(test_name) = lower($2)) \
+                  ORDER BY (gender IS NOT NULL) DESC, \
+                           (age_min IS NOT NULL OR age_max IS NOT NULL) DESC \
+                  LIMIT 1",
+            )
+            .bind(tenant_id)
+            .bind(r.parameter_name.trim())
+            .fetch_optional(&mut **tx)
+            .await?
+            .filter(|message| !message.trim().is_empty());
+
+            let measurement = format!("{}: {} ({})", r.parameter_name, r.value, flag_str);
+            let body = tenant_message
+                .map_or_else(|| measurement.clone(), |m| format!("{measurement} — {m}"));
+            create_notification(
+                tx,
+                tenant_id,
+                NewNotification {
+                    user_id: recipient,
+                    kind: "danger",
+                    title: "Critical lab value",
+                    body: Some(&body),
+                    category: Some("Lab"),
+                    entity_type: Some("lab_order"),
+                    entity_id: Some(order_id),
+                    action_url: Some("/lab"),
+                },
+            )
+            .await?;
+        }
+
+        results.push(result);
+    }
+
+    if !results.is_empty() {
+        let event = ClinicalEventEnvelope::new(
+            tenant_id,
+            ClinicalEventName::LabResultPosted,
+            order.id,
+            actor,
+            serde_json::json!({
+                "order_id": order.id,
+                "patient_id": order.patient_id,
+                "encounter_id": order.encounter_id,
+                "test_id": order.test_id,
+                "ordering_provider_id": order.ordered_by,
+                "result_count": results.len(),
+                "critical_count": critical_count,
+            }),
+        )
+        .with_patient(order.patient_id)
+        .with_encounter(order.encounter_id);
+        medbrains_workflow::events::queue_clinical_event_in_tx(tx, &event).await?;
+    }
+
+    Ok(results)
+}
+
 pub async fn add_results(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
@@ -1711,253 +1986,14 @@ pub async fn add_results(
             .await?
             .ok_or(AppError::NotFound)?;
 
-    // Never enter raw results against a closed order: a cancelled order has no valid sample, and a
-    // verified (authorised) report must be corrected through an amendment, not silently overwritten.
-    let closed_reason = match order.status {
-        medbrains_core::lab::LabOrderStatus::Cancelled => {
-            Some("cancelled — its sample is not valid for results")
-        }
-        medbrains_core::lab::LabOrderStatus::Verified => {
-            Some("already verified — correct a value through an amendment instead")
-        }
-        medbrains_core::lab::LabOrderStatus::Ordered => {
-            Some("not collected yet — collect the sample first")
-        }
-        _ => None,
-    };
-    if let Some(reason) = closed_reason {
+    if let Some(reason) = closed_reason(order.status) {
         return Err(AppError::Conflict(format!(
             "Results cannot be entered: this lab order is {reason}."
         )));
     }
 
-    // Patient age/sex band for reference-range auto-flagging.
-    let lab_band = patient_lab_band(&mut tx, claims.tenant_id, order.patient_id).await?;
-
-    // Fetch test catalog for delta check threshold
-    #[derive(sqlx::FromRow)]
-    struct TestConfig {
-        delta_check_percent: Option<Decimal>,
-    }
-    let test_config = sqlx::query_as::<_, TestConfig>(
-        "SELECT delta_check_percent \
-         FROM lab_test_catalog WHERE id = $1 AND tenant_id = $2",
-    )
-    .bind(order.test_id)
-    .bind(claims.tenant_id)
-    .fetch_optional(&mut *tx)
-    .await?;
-
-    let mut results = Vec::with_capacity(body.results.len());
-    let mut critical_count = 0_usize;
-    for r in &body.results {
-        // Auto-detect a critical value from the global CDS lab reference when
-        // the technician hasn't already flagged one (NABL critical-value
-        // reporting — a value out of the critical range is never missed).
-        let verdict = auto_flag(
-            &mut tx,
-            claims.tenant_id,
-            &r.parameter_name,
-            &r.value,
-            r.unit.as_deref(),
-            &lab_band,
-        )
+    let results = post_results_in_tx(&mut tx, &order, claims.sub, &body.results, ResultSource::Manual)
         .await?;
-        // The table only overrides the technologist when it actually judged
-        // the value; otherwise their own flag stands.
-        let effective_flag = match &verdict {
-            RefVerdict::Flagged(flag) => Some((*flag).to_owned()),
-            RefVerdict::InRange | RefVerdict::Unknown => r.flag.clone(),
-        };
-
-        // Delta check: find previous result for same patient + parameter
-        #[derive(sqlx::FromRow)]
-        struct PrevResult {
-            value: String,
-        }
-        let prev = sqlx::query_as::<_, PrevResult>(
-            "SELECT lr.value FROM lab_results lr \
-             JOIN lab_orders lo ON lr.order_id = lo.id \
-             WHERE lo.patient_id = $1 AND lo.test_id = $2 \
-               AND lr.parameter_name = $3 AND lo.tenant_id = $4 \
-               AND lo.id != $5 \
-             ORDER BY lr.created_at DESC LIMIT 1",
-        )
-        .bind(order.patient_id)
-        .bind(order.test_id)
-        .bind(&r.parameter_name)
-        .bind(claims.tenant_id)
-        .bind(order_id)
-        .fetch_optional(&mut *tx)
-        .await?;
-
-        let previous_value = prev.as_ref().map(|p| p.value.clone());
-
-        // Calculate delta percent
-        let mut delta_percent: Option<Decimal> = None;
-        let mut is_delta_flagged = false;
-        if let (Some(pv), Ok(new_val)) = (&previous_value, r.value.parse::<Decimal>()) {
-            if let Ok(old_val) = pv.parse::<Decimal>() {
-                if old_val != Decimal::ZERO {
-                    let dp = ((new_val - old_val).abs() / old_val.abs()) * Decimal::from(100);
-                    delta_percent = Some(dp);
-                    if let Some(ref tc) = test_config {
-                        if let Some(threshold) = tc.delta_check_percent {
-                            if dp > threshold {
-                                is_delta_flagged = true;
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
-        // Auto-validate only what is affirmatively known to be in range.
-        //
-        // The `else` branch here used to read "no flag = normal", which made an
-        // empty flag mean normality. An empty flag is what you get when the
-        // analyte is not in the reference table, when the patient's age band is
-        // unpopulated, and when the value is not a number at all -- so a
-        // culture growing a resistant organism was auto-validated. This flag is
-        // carried into the signed report payload, so a wrong stamp is a false
-        // assertion inside a signed record.
-        let is_auto_validated = !is_delta_flagged
-            && match effective_flag.as_deref() {
-                // A technologist marking it normal is the human judgement that
-                // autoverification stands in for, so it still counts.
-                Some("normal") => true,
-                None => verdict == RefVerdict::InRange,
-                Some(_) => false,
-            };
-
-        let result = sqlx::query_as::<_, LabResult>(
-            "INSERT INTO lab_results \
-             (tenant_id, order_id, parameter_name, value, unit, \
-              normal_range, flag, notes, entered_by, \
-              previous_value, delta_percent, is_delta_flagged, is_auto_validated) \
-             VALUES ($1, $2, $3, $4, $5, $6, $7::lab_result_flag, $8, $9, \
-                     $10, $11, $12, $13) \
-             RETURNING *",
-        )
-        .bind(claims.tenant_id)
-        .bind(order_id)
-        .bind(&r.parameter_name)
-        .bind(&r.value)
-        .bind(&r.unit)
-        .bind(&r.normal_range)
-        .bind(&effective_flag)
-        .bind(&r.notes)
-        .bind(claims.sub)
-        .bind(&previous_value)
-        .bind(delta_percent)
-        .bind(is_delta_flagged)
-        .bind(is_auto_validated)
-        .fetch_one(&mut *tx)
-        .await?;
-
-        // Generate critical alert if flag is critical
-        if let Some(ref flag_str) = effective_flag {
-            if flag_str == "critical_low" || flag_str == "critical_high" {
-                critical_count += 1;
-                // notified_to drives the SMS + escalation chain: the
-                // encounter's doctor when set, else whoever ordered.
-                sqlx::query(
-                    "INSERT INTO lab_critical_alerts \
-                     (tenant_id, order_id, result_id, patient_id, \
-                      parameter_name, value, flag, notified_to, notified_at) \
-                     VALUES ($1, $2, $3, $4, $5, $6, $7::lab_result_flag, \
-                       COALESCE( \
-                         (SELECT doctor_id FROM encounters WHERE id = $8 AND tenant_id = $1), \
-                         $9), \
-                       now())",
-                )
-                .bind(claims.tenant_id)
-                .bind(order_id)
-                .bind(result.id)
-                .bind(order.patient_id)
-                .bind(&r.parameter_name)
-                .bind(&r.value)
-                .bind(flag_str)
-                .bind(order.encounter_id)
-                .bind(order.ordered_by)
-                .execute(&mut *tx)
-                .await?;
-
-                // In-app notification to the responsible clinician (encounter
-                // doctor, else the ordering provider) — same recipient rule as
-                // the alert, atomic with it.
-                let recipient: Uuid = sqlx::query_scalar(
-                    "SELECT COALESCE( \
-                       (SELECT doctor_id FROM encounters WHERE id = $1 AND tenant_id = $2), $3)",
-                )
-                .bind(order.encounter_id)
-                .bind(claims.tenant_id)
-                .bind(order.ordered_by)
-                .fetch_one(&mut *tx)
-                .await?;
-                // `alert_message` is the third dead column on
-                // `critical_value_rules`: a hospital writes the instruction it
-                // wants its clinicians to see -- "Repeat before treating",
-                // "Call the on-call nephrologist" -- and nothing has ever
-                // shown it. Only looked up when a critical actually fires.
-                let tenant_message = sqlx::query_scalar::<_, String>(
-                    "SELECT alert_message FROM critical_value_rules \
-                      WHERE tenant_id = $1 AND is_active = true AND deleted_at IS NULL \
-                        AND (lower(test_code) = lower($2) OR lower(test_name) = lower($2)) \
-                      ORDER BY (gender IS NOT NULL) DESC, \
-                               (age_min IS NOT NULL OR age_max IS NOT NULL) DESC \
-                      LIMIT 1",
-                )
-                .bind(claims.tenant_id)
-                .bind(r.parameter_name.trim())
-                .fetch_optional(&mut *tx)
-                .await?
-                .filter(|message| !message.trim().is_empty());
-
-                let measurement = format!("{}: {} ({})", r.parameter_name, r.value, flag_str);
-                let body = tenant_message
-                    .map_or_else(|| measurement.clone(), |m| format!("{measurement} — {m}"));
-                create_notification(
-                    &mut tx,
-                    claims.tenant_id,
-                    NewNotification {
-                        user_id: recipient,
-                        kind: "danger",
-                        title: "Critical lab value",
-                        body: Some(&body),
-                        category: Some("Lab"),
-                        entity_type: Some("lab_order"),
-                        entity_id: Some(order_id),
-                        action_url: Some("/lab"),
-                    },
-                )
-                .await?;
-            }
-        }
-
-        results.push(result);
-    }
-
-    if !results.is_empty() {
-        let event = ClinicalEventEnvelope::new(
-            claims.tenant_id,
-            ClinicalEventName::LabResultPosted,
-            order.id,
-            claims.sub,
-            serde_json::json!({
-                "order_id": order.id,
-                "patient_id": order.patient_id,
-                "encounter_id": order.encounter_id,
-                "test_id": order.test_id,
-                "ordering_provider_id": order.ordered_by,
-                "result_count": results.len(),
-                "critical_count": critical_count,
-            }),
-        )
-        .with_patient(order.patient_id)
-        .with_encounter(order.encounter_id);
-        medbrains_workflow::events::queue_clinical_event_in_tx(&mut tx, &event).await?;
-    }
 
     tx.commit().await?;
 
@@ -6046,6 +6082,13 @@ pub async fn get_b2b_credit_summary(
 /// Laboratory (orders, samples, results, catalog, QC) routes.
 pub fn router() -> axum::Router<AppState> {
     axum::Router::new()
+        .route("/api/lab/analyser-review", get(analyser_review::list_held))
+        .route(
+            "/api/lab/analyser-review/{id}/candidates",
+            get(analyser_review::list_candidates),
+        )
+        .route("/api/lab/analyser-review/{id}/attach", post(analyser_review::attach))
+        .route("/api/lab/analyser-review/{id}/dismiss", post(analyser_review::dismiss))
         .route(
             "/api/lab/home-collections",
             get(list_home_collections).post(create_home_collection),
