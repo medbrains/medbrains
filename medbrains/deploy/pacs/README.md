@@ -51,8 +51,12 @@ Then:
    `HOSPPACS`.
 2. **MedBrains.** Radiology → Modalities → PACS: address
    `http://<PACS LAN address>:8042` (reached over the VPN), username
-   `medbrains`. Put the printed password in the MedBrains server's
-   environment as `ORTHANC_PASSWORD`. From then on every imaging order goes
+   `medbrains`, and the printed password. The password is stored sealed for
+   this hospital and this address only, is never shown again, and must be
+   re-entered if the address or username changes. The address must be a
+   private or VPN address (10.x, 172.16–31.x, 192.168.x, 100.64–127.x); a PACS
+   hosted elsewhere needs https and the server operator listing its host in
+   `MEDBRAINS_PACS_ALLOWED_HOSTS`. From then on every imaging order goes
    onto the worklist and studies come back to their orders within a minute of
    the scanner finishing.
 3. **Cloud copy.** From an admin workstation with AWS access:

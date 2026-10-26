@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT ro.id, ro.patient_id,\n                  p.first_name || ' ' || p.last_name AS \"patient_name!\",\n                  p.uhid, rm.name AS modality, ro.body_part,\n                  ro.priority::text AS \"priority!\", ro.status::text AS \"status!\",\n                  ro.notes, ro.scheduled_at, ro.created_at\n           FROM radiology_orders ro\n           JOIN patients p ON p.id = ro.patient_id\n           JOIN radiology_modalities rm ON rm.id = ro.modality_id\n           JOIN tenants t ON t.id = ro.tenant_id\n           WHERE ro.tenant_id = $1\n             AND ro.deleted_at IS NULL\n             AND ro.status NOT IN ('cancelled', 'completed')\n             AND ($2::uuid IS NULL OR ro.modality_id = $2)\n             AND ($3::date IS NULL\n                  OR (COALESCE(ro.scheduled_at, ro.created_at) AT TIME ZONE t.timezone)::date = $3)\n           ORDER BY COALESCE(ro.scheduled_at, ro.created_at)\n           LIMIT 100",
+  "query": "SELECT ro.id, ro.patient_id,\n                  p.first_name || ' ' || p.last_name AS \"patient_name!\",\n                  p.uhid, rm.name AS modality, ro.body_part,\n                  ro.priority::text AS \"priority!\", ro.status::text AS \"status!\",\n                  ro.notes, ro.scheduled_at, ro.created_at\n           FROM radiology_orders ro\n           JOIN patients p ON p.id = ro.patient_id\n           JOIN radiology_modalities rm ON rm.id = ro.modality_id\n           JOIN tenants t ON t.id = ro.tenant_id\n           WHERE ro.tenant_id = $1\n             AND ro.deleted_at IS NULL\n             AND ro.status NOT IN ('cancelled', 'completed')\n             AND ($2::uuid IS NULL OR ro.modality_id = $2)\n             AND ($3::date IS NULL\n                  OR (COALESCE(ro.scheduled_at, ro.created_at) AT TIME ZONE t.timezone)::date = $3)\n             AND ($4::uuid[] IS NULL OR ro.id = ANY($4))\n           ORDER BY COALESCE(ro.scheduled_at, ro.created_at)\n           LIMIT 100",
   "describe": {
     "columns": [
       {
@@ -63,7 +63,8 @@
       "Left": [
         "Uuid",
         "Uuid",
-        "Date"
+        "Date",
+        "UuidArray"
       ]
     },
     "nullable": [
@@ -80,5 +81,5 @@
       false
     ]
   },
-  "hash": "e88cc99c507177863db2b560cff19dcc380fe2aa7fb6fdafddb4f2475af4f73b"
+  "hash": "07f4871c933a6a4a0c52e29e9302f764c1bc7500b9ef8a1f3e979a52c2f264ad"
 }

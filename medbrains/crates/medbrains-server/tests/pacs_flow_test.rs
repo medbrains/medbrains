@@ -112,9 +112,12 @@ async fn an_order_reaches_the_worklist_and_its_study_comes_back_to_it() {
     let mut linked = false;
     for _ in 0..30 {
         tokio::time::sleep(std::time::Duration::from_secs(1)).await;
-        medbrains_server::services::pacs_sync::scan_once(&app.db, &http)
-            .await
-            .expect("sync");
+        medbrains_server::services::pacs_sync::scan_once(
+            &app.db,
+            &medbrains_core::secrets::EnvSecretResolver::new(),
+        )
+        .await
+        .expect("sync");
         let uid: Option<String> =
             sqlx::query_scalar("SELECT pacs_study_uid FROM radiology_orders WHERE id = $1::uuid")
                 .bind(&order_id)

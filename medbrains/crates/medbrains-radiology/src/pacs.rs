@@ -61,35 +61,19 @@ pub fn worklist_tags(e: &WorklistEntry<'_>) -> Value {
     })
 }
 
-/// The PACS this hospital uses, when one is configured.
-pub async fn pacs_url(
+/// Whether this hospital has a PACS address set.
+pub async fn has_pacs(
     tx: &mut Transaction<'_, Postgres>,
     tenant_id: Uuid,
-) -> Result<Option<(String, String)>, AppError> {
-    let config: Option<Value> = sqlx::query_scalar(
-        "SELECT value FROM tenant_settings \
+) -> Result<bool, AppError> {
+    Ok(sqlx::query_scalar::<_, bool>(
+        "SELECT EXISTS (SELECT 1 FROM tenant_settings \
           WHERE tenant_id = $1 AND category = 'radiology' AND key = 'pacs_config' \
-            AND deleted_at IS NULL",
+            AND deleted_at IS NULL AND btrim(COALESCE(value->>'orthanc_url', '')) <> '')",
     )
     .bind(tenant_id)
-    .fetch_optional(&mut **tx)
-    .await?;
-    let get = |k: &str| {
-        config
-            .as_ref()
-            .and_then(|c| c.get(k))
-            .and_then(Value::as_str)
-            .map(str::trim)
-            .unwrap_or_default()
-            .to_owned()
-    };
-    let url = get("orthanc_url");
-    Ok((!url.is_empty()).then(|| {
-        (
-            url.trim_end_matches('/').to_owned(),
-            get("orthanc_username"),
-        )
-    }))
+    .fetch_one(&mut **tx)
+    .await?)
 }
 
 #[derive(sqlx::FromRow)]
@@ -109,9 +93,9 @@ pub async fn queue_worklist(
     tenant_id: Uuid,
     order: &RadiologyOrder,
 ) -> Result<(), AppError> {
-    let Some((url, username)) = pacs_url(tx, tenant_id).await? else {
+    if !has_pacs(tx, tenant_id).await? {
         return Ok(());
-    };
+    }
     let facts = sqlx::query_as::<_, OrderFacts>(
         "SELECT p.uhid, p.first_name, p.last_name, p.date_of_birth, p.gender::text AS gender, \
                 m.code AS modality, \
@@ -144,7 +128,9 @@ pub async fn queue_worklist(
             aggregate_type: "radiology_order",
             aggregate_id: Some(order.id),
             event_type: WORKLIST_EVENT,
-            payload: json!({ "orthanc_url": url, "orthanc_username": username, "tags": tags }),
+            // Where the PACS is, and how to sign in, the handler reads from the
+            // hospital's settings when it sends — never carried in the event.
+            payload: json!({ "tags": tags }),
             idempotency_key: Some(format!("mwl:{}", order.id)),
         },
     )

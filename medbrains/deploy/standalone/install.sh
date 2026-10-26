@@ -210,9 +210,9 @@ env_value() {
 # Keys with no safe default (the server's fallback is a development value in the
 # source). Generated once, here, on new and existing hosts alike; never
 # overwritten — changing the HMAC key orphans every stored ID fingerprint,
-# changing the ABDM or NHCX key makes the stored ABDM or NHCX secrets unreadable. Back
+# changing the ABDM, NHCX or PACS key makes the stored ABDM, NHCX or PACS secrets unreadable. Back
 # /etc/medbrains/env up with the database.
-for key in MEDBRAINS_IDENTIFIER_HMAC_KEY MEDBRAINS_ABDM_SECRET_KEY MEDBRAINS_NHCX_SECRET_KEY; do
+for key in MEDBRAINS_IDENTIFIER_HMAC_KEY MEDBRAINS_ABDM_SECRET_KEY MEDBRAINS_NHCX_SECRET_KEY MEDBRAINS_PACS_SECRET_KEY; do
     if [[ -z "$(env_value "$key")" ]]; then
         sed -i "/^$key=/d" /etc/medbrains/env
         echo "$key=$(openssl rand -base64 48 | tr -d '\n')" >> /etc/medbrains/env

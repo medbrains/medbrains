@@ -22,9 +22,10 @@ const REQUIRED_KEYS: [&str; 1] = ["MEDBRAINS_IDENTIFIER_HMAC_KEY"];
 /// Keys one integration needs, with the integration's name. Production
 /// without one boots with that integration off; it never uses the
 /// development key in the source either way.
-const INTEGRATION_KEYS: [(&str, &str); 2] = [
+const INTEGRATION_KEYS: [(&str, &str); 3] = [
     ("MEDBRAINS_ABDM_SECRET_KEY", "ABDM and UHI"),
     ("MEDBRAINS_NHCX_SECRET_KEY", "NHCX"),
+    ("MEDBRAINS_PACS_SECRET_KEY", "PACS sign-in"),
 ];
 const MIN_KEY_LEN: usize = 32;
 /// PostgreSQL 16: declarative partitioning and the RLS features the schema uses.
@@ -177,6 +178,7 @@ fn key_check_name(key: &str) -> &'static str {
     match key {
         "MEDBRAINS_IDENTIFIER_HMAC_KEY" => "secret.identifier_key",
         "MEDBRAINS_NHCX_SECRET_KEY" => "secret.nhcx_key",
+        "MEDBRAINS_PACS_SECRET_KEY" => "secret.pacs_key",
         _ => "secret.abdm_key",
     }
 }
