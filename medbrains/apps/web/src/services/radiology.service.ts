@@ -1,6 +1,14 @@
 import { api } from "@medbrains/api";
 
 export const radiologyService = {
+  openStudyViewer: (...args: Parameters<typeof api.openStudyViewer>) =>
+    api.openStudyViewer(...args),
+  createRadiologyShareLink: (...args: Parameters<typeof api.createRadiologyShareLink>) =>
+    api.createRadiologyShareLink(...args),
+  listStudyShareLinks: (...args: Parameters<typeof api.listStudyShareLinks>) =>
+    api.listStudyShareLinks(...args),
+  revokeStudyShareLink: (...args: Parameters<typeof api.revokeStudyShareLink>) =>
+    api.revokeStudyShareLink(...args),
   listRadiologyOrders: (...args: Parameters<typeof api.listRadiologyOrders>) =>
     api.listRadiologyOrders(...args),
   cancelRadiologyOrder: (...args: Parameters<typeof api.cancelRadiologyOrder>) =>

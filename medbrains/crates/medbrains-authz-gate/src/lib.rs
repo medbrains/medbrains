@@ -371,6 +371,12 @@ pub mod links {
     pub const RADIATION_DOSE_RECORD: ParentLink = ParentLink::on_patient("radiation_dose_records");
     /// A PACS study, and a critical imaging finding, each on its patient.
     pub const RADIOLOGY_DICOM_STUDY: ParentLink = ParentLink::on_patient("radiology_dicom_studies");
+    /// A share link reaches its patient through the study it opens.
+    pub const RADIOLOGY_SHARE_LINK: ParentLink = ParentLink {
+        table: "radiology_share_links",
+        column: "study_id",
+        parent: ParentKind::Via(&RADIOLOGY_DICOM_STUDY),
+    };
     pub const RADIOLOGY_CRITICAL_ALERT: ParentLink =
         ParentLink::on_patient("radiology_critical_alerts");
 

@@ -3288,6 +3288,33 @@ export interface RadiationDoseRecord {
   created_at: string;
 }
 
+export interface CreateStudyShareLink {
+  study_id: string;
+  recipient_name: string;
+  recipient_email?: string;
+  /** 1 to 168; 72 when absent. */
+  expires_hours?: number;
+}
+
+export interface CreatedStudyShareLink {
+  id: string;
+  /** Path on this server; prefix the origin to send it. */
+  viewer_url: string;
+  expires_at: string;
+}
+
+/** Who a study was shared with. The token itself is never listed. */
+export interface StudyShareLink {
+  id: string;
+  recipient_name: string | null;
+  recipient_email: string | null;
+  expires_at: string;
+  accessed_count: number;
+  last_accessed: string | null;
+  created_at: string;
+  revoked_at: string | null;
+}
+
 /** A study the PACS received that no imaging order claimed. */
 export interface UnmatchedStudy {
   id: string;

@@ -1,14 +1,14 @@
 // PATIENT ImagingTab — split from patient-detail.tsx (pure move).
 
-import { Group, Loader, Stack, Text } from "@mantine/core";
+import { Loader, Stack, Text } from "@mantine/core";
 import { useHasPermission } from "@medbrains/stores";
 import type { RadiologyDicomStudy } from "@medbrains/types";
 import { P } from "@medbrains/types";
-import { IconEye } from "@tabler/icons-react";
 import { useQuery } from "@tanstack/react-query";
 import { PatientDoseHistory } from "@/components/Radiology/PatientDoseHistory";
 import { RadiologyReportList } from "@/components/Radiology/RadiologyReportList";
-import { Badge, Button, Table } from "@/components/ui";
+import { StudyImageActions } from "@/components/Radiology/StudyImageActions";
+import { Badge, Table } from "@/components/ui";
 import { patientDetailService } from "@/services/patientDetail.service";
 
 export function ImagingTab({ patientId }: { patientId: string }) {
@@ -68,39 +68,7 @@ export function ImagingTab({ patientId }: { patientId: string }) {
                   </Text>
                 </Table.Td>
                 <Table.Td>
-                  {study.viewer_url || study.pacs_url ? (
-                    <Group gap="xs" wrap="nowrap">
-                      {study.viewer_url ? (
-                        <Button
-                          tone="secondary"
-                          component="a"
-                          href={study.viewer_url}
-                          target="_blank"
-                          rel="noreferrer"
-                          size="xs"
-                          leftSection={<IconEye size={14} />}
-                        >
-                          Viewer
-                        </Button>
-                      ) : null}
-                      {study.pacs_url ? (
-                        <Button
-                          tone="ghost"
-                          component="a"
-                          href={study.pacs_url}
-                          target="_blank"
-                          rel="noreferrer"
-                          size="xs"
-                        >
-                          DICOM
-                        </Button>
-                      ) : null}
-                    </Group>
-                  ) : (
-                    <Text size="sm" c="dimmed">
-                      Not linked
-                    </Text>
-                  )}
+                  <StudyImageActions studyId={study.id} size="xs" />
                 </Table.Td>
               </Table.Tr>
             ))}

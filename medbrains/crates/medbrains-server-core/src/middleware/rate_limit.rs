@@ -144,21 +144,26 @@ pub async fn tiered_rate_limit_middleware(
         || path.contains("/export")
     {
         ("heavy", 30, 60)
+    } else if path.starts_with("/api/radiology/pacs/") {
+        // The image viewer fetches every frame of a study: one CT is hundreds
+        // of requests, and a department shares one hospital IP. Each request
+        // is still authorised per study.
+        ("imaging", 12_000, 60)
     } else {
         ("api", 600, 60)
     };
 
-    if let Some(ip) = extract_client_ip(&request) {
-        if !limiter.check_and_record_class(ip, class, max, window) {
-            return (
-                StatusCode::TOO_MANY_REQUESTS,
-                axum::Json(serde_json::json!({
-                    "error": "too_many_requests",
-                    "detail": "Request rate limit exceeded. Please slow down.",
-                })),
-            )
-                .into_response();
-        }
+    if let Some(ip) = extract_client_ip(&request)
+        && !limiter.check_and_record_class(ip, class, max, window)
+    {
+        return (
+            StatusCode::TOO_MANY_REQUESTS,
+            axum::Json(serde_json::json!({
+                "error": "too_many_requests",
+                "detail": "Request rate limit exceeded. Please slow down.",
+            })),
+        )
+            .into_response();
     }
 
     next.run(request).await

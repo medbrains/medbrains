@@ -1162,6 +1162,14 @@ pub mod radiology {
         /// with a reason. Filing images under the wrong patient is a
         /// patient-safety event, so it is held by the radiology desk.
         pub const RECONCILE: &str = "radiology.studies.reconcile";
+        /// Share a patient's images by an expiring link.
+        ///
+        /// Makes a link that opens one study in the viewer without signing
+        /// in — for a referring doctor outside the hospital, a second
+        /// opinion, or the patient. It is a disclosure of the record: the
+        /// link is scoped to that study, expires, can be revoked, and every
+        /// open is audited.
+        pub const SHARE: &str = "radiology.studies.share";
     }
 
     /// Radiation dose given to a patient during an imaging exam.
