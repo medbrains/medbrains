@@ -2947,6 +2947,16 @@ pub mod ckb {
         /// Create and edit knowledge-base reports.
         pub const MANAGE: &str = "ckb.reports.manage";
     }
+
+    pub mod notifiable_rules {
+        /// Set which diseases this hospital notifies.
+        /// Adds a disease the hospital's state notifies beyond the national
+        /// list, or takes a national one off it, and sets its reporting body,
+        /// timeframe and ICD-11 code. Changes what every diagnosis and lab
+        /// result in the hospital is checked against, so it is held apart from
+        /// working the report list.
+        pub const MANAGE: &str = "ckb.notifiable_rules.manage";
+    }
 }
 
 /// Remote access for staff working off-site.

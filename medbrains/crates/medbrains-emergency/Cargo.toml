@@ -9,6 +9,7 @@ rust-version.workspace = true
 medbrains-notifications = { path = "../medbrains-notifications" }
 medbrains-server-core = { path = "../medbrains-server-core" }
 medbrains-server-services = { path = "../medbrains-server-services" }
+medbrains-platform = { path = "../medbrains-platform" }
 medbrains-workflow = { path = "../medbrains-workflow" }
 medbrains-outbox = { path = "../medbrains-outbox" }
 medbrains-core = { path = "../medbrains-core" }

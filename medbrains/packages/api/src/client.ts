@@ -1512,6 +1512,8 @@ import type {
   Note,
   NoteSectionPatch,
   NoteType,
+  NotifiableList,
+  NotifiableOverride,
   NotifiableReport,
   NotificationListResponse,
   NuclearMedAdministration,
@@ -2364,6 +2366,7 @@ import type {
   UpsertMarketingAreaRequest,
   UpsertMarketingCampaignRequest,
   UpsertNhcxParticipantRequest,
+  UpsertNotifiableOverrideRequest,
   UpsertParLevelRequest,
   UpsertPreopHandoffInput,
   UpsertQueuePriorityRequest,
@@ -9592,6 +9595,15 @@ export const api = {
     request<StateFormularyRow[]>(`/ckb/state-formulary?state=${encodeURIComponent(state)}`),
   listNotifiableReports: (status?: string) =>
     request<NotifiableReport[]>(`/ckb/notifiable-reports${status ? `?status=${status}` : ""}`),
+  getNotifiableList: () => request<NotifiableList>("/ckb/notifiable-list"),
+  listNotifiableOverrides: () => request<NotifiableOverride[]>("/ckb/notifiable-overrides"),
+  upsertNotifiableOverride: (data: UpsertNotifiableOverrideRequest) =>
+    request<NotifiableOverride>("/ckb/notifiable-overrides", {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
+  deleteNotifiableOverride: (id: string) =>
+    request<{ deleted: boolean }>(`/ckb/notifiable-overrides/${id}`, { method: "DELETE" }),
   updateNotifiableReport: (id: string, data: UpdateNotifiableReportRequest) =>
     request<NotifiableReport>(`/ckb/notifiable-reports/${id}`, {
       method: "PUT",

@@ -1,9 +1,7 @@
-//! Clinical Knowledge Base (CKB) — the clinical-intelligence hub. PR1 ships the
-//! statutory notifiable-disease surface: a global diagnosis reference and the
-//! tenant report worklist, plus `flag_notifiable_diagnosis` — the single,
-//! AI-pluggable hook the diagnosis-create path calls to reach a reporting
-//! conclusion. Future detectors (dose, interaction, ingredient chemistry, lab
-//! criticals) attach the same way.
+//! Clinical Knowledge Base (CKB) — the clinical-intelligence hub.
+//!
+//! The statutory notifiable-disease surface: a global diagnosis reference and
+//! the tenant report worklist. Detection itself is `crate::notifiable`.
 
 use axum::{
     Extension, Json,
@@ -44,7 +42,24 @@ pub struct NotifiableReport {
     pub report_ref: Option<String>,
     pub submitted_at: Option<DateTime<Utc>>,
     pub notes: Option<String>,
+    /// `presumptive` (IDSP P-form) or `confirmed` by the lab (L-form).
+    pub case_class: String,
+    /// Where it was detected: `opd_diagnosis`, `ipd_diagnosis`,
+    /// `er_diagnosis`, `discharge_summary`, `lab_result`.
+    pub source: Option<String>,
+    pub confirmed_at: Option<DateTime<Utc>>,
+    pub lab_order_id: Option<Uuid>,
+    /// The presumptive report's acknowledgement, kept when a lab
+    /// confirmation reopened the row for the L-form.
+    pub presumptive_ref: Option<String>,
+    pub due_at: Option<DateTime<Utc>>,
+    pub escalated_at: Option<DateTime<Utc>>,
 }
+
+/// The columns of a `NotifiableReport`.
+const REPORT_COLUMNS: &str = "id, patient_id, encounter_id, icd10_code, disease_name, \
+     reporting_body, detected_at, status, report_ref, submitted_at, notes, case_class, \
+     source, confirmed_at, lab_order_id, presumptive_ref, due_at, escalated_at";
 
 #[derive(Debug, Deserialize)]
 pub struct DiseaseSearchQuery {
@@ -139,7 +154,12 @@ pub async fn list_nlem_generics(
 ) -> Result<Json<Vec<String>>, AppError> {
     require_any_permission(
         &claims,
-        &["ckb.view", "pharmacy.dispensing.create", "pharmacy.prescriptions.list", "opd.visit.update"],
+        &[
+            "ckb.view",
+            "pharmacy.dispensing.create",
+            "pharmacy.prescriptions.list",
+            "opd.visit.update",
+        ],
     )?;
     let rows = sqlx::query_scalar::<_, String>(
         "SELECT lower(generic_name) FROM cds_drug_reference WHERE is_nlem ORDER BY generic_name",
@@ -220,7 +240,12 @@ pub async fn list_state_formulary(
 ) -> Result<Json<Vec<StateFormularyRow>>, AppError> {
     require_any_permission(
         &claims,
-        &["ckb.view", "pharmacy.dispensing.create", "pharmacy.prescriptions.list", "opd.visit.update"],
+        &[
+            "ckb.view",
+            "pharmacy.dispensing.create",
+            "pharmacy.prescriptions.list",
+            "opd.visit.update",
+        ],
     )?;
     let rows = sqlx::query_as::<_, StateFormularyRow>(
         "SELECT generic_name, scheme_name, coverage FROM cds_state_formulary \
@@ -246,17 +271,16 @@ pub async fn list_notifiable_reports(
     require_permission(&claims, permissions::ckb::reports::LIST)?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
-    let rows = sqlx::query_as::<_, NotifiableReport>(
-        "SELECT id, patient_id, encounter_id, icd10_code, disease_name, reporting_body, \
-                detected_at, status, report_ref, submitted_at, notes \
-         FROM notifiable_disease_reports \
+    let sql = format!(
+        "SELECT {REPORT_COLUMNS} FROM notifiable_disease_reports \
          WHERE tenant_id = $1 AND ($2::text IS NULL OR status = $2) \
-         ORDER BY detected_at DESC LIMIT 500",
-    )
-    .bind(claims.tenant_id)
-    .bind(q.status.as_deref())
-    .fetch_all(&mut *tx)
-    .await?;
+         ORDER BY due_at ASC NULLS LAST, detected_at DESC LIMIT 500"
+    );
+    let rows = sqlx::query_as::<_, NotifiableReport>(&sql)
+        .bind(claims.tenant_id)
+        .bind(q.status.as_deref())
+        .fetch_all(&mut *tx)
+        .await?;
     tx.commit().await?;
     Ok(Json(rows))
 }
@@ -278,78 +302,29 @@ pub async fn update_notifiable_report(
 ) -> Result<Json<NotifiableReport>, AppError> {
     require_permission(&claims, permissions::ckb::reports::MANAGE)?;
     if !["submitted", "exempted"].contains(&body.status.as_str()) {
-        return Err(AppError::BadRequest("Status must be submitted or exempted.".to_owned()));
+        return Err(AppError::BadRequest(
+            "Status must be submitted or exempted.".to_owned(),
+        ));
     }
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
-    let row = sqlx::query_as::<_, NotifiableReport>(
+    let sql = format!(
         "UPDATE notifiable_disease_reports \
          SET status = $1, report_ref = $2, notes = COALESCE($3, notes), \
              submitted_by = $4, submitted_at = now(), updated_at = now() \
          WHERE id = $5 AND tenant_id = $6 \
-         RETURNING id, patient_id, encounter_id, icd10_code, disease_name, reporting_body, \
-                   detected_at, status, report_ref, submitted_at, notes",
-    )
-    .bind(&body.status)
-    .bind(body.report_ref.as_deref())
-    .bind(body.notes.as_deref())
-    .bind(claims.sub)
-    .bind(id)
-    .bind(claims.tenant_id)
-    .fetch_optional(&mut *tx)
-    .await?
-    .ok_or(AppError::NotFound)?;
+         RETURNING {REPORT_COLUMNS}"
+    );
+    let row = sqlx::query_as::<_, NotifiableReport>(&sql)
+        .bind(&body.status)
+        .bind(body.report_ref.as_deref())
+        .bind(body.notes.as_deref())
+        .bind(claims.sub)
+        .bind(id)
+        .bind(claims.tenant_id)
+        .fetch_optional(&mut *tx)
+        .await?
+        .ok_or(AppError::NotFound)?;
     tx.commit().await?;
     Ok(Json(row))
-}
-
-/// The clinical-conclusion hook. Looks up a diagnosis in the global reference;
-/// if it is statutorily notifiable, files a pending report (idempotent per
-/// encounter+code) and returns `(disease_name, reporting_body)` so the caller
-/// raises the notification. Returns `None` when not reportable. This is the
-/// single seam an AI clinical-reasoner can later own/augment.
-pub async fn flag_notifiable_diagnosis(
-    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
-    tenant_id: Uuid,
-    patient_id: Option<Uuid>,
-    encounter_id: Option<Uuid>,
-    detected_by: Option<Uuid>,
-    icd_code: &str,
-) -> Result<Option<(String, Option<String>)>, AppError> {
-    let code = icd_code.trim();
-    if code.is_empty() {
-        return Ok(None);
-    }
-    // Match exact code or a parent prefix (e.g. "A90.1" → "A90"). Global table.
-    let reference = sqlx::query_as::<_, (String, Option<String>)>(
-        "SELECT name, reporting_body FROM cds_diagnosis_reference \
-         WHERE is_notifiable AND ($1 = icd10_code OR $1 LIKE icd10_code || '%') \
-         ORDER BY length(icd10_code) DESC LIMIT 1",
-    )
-    .bind(code)
-    .fetch_optional(&mut **tx)
-    .await?;
-    let Some((disease_name, reporting_body)) = reference else {
-        return Ok(None);
-    };
-
-    sqlx::query(
-        "INSERT INTO notifiable_disease_reports \
-           (tenant_id, patient_id, encounter_id, icd10_code, disease_name, reporting_body, \
-            detected_by, status) \
-         VALUES ($1, $2, $3, $4, $5, $6, $7, 'pending') \
-         ON CONFLICT (tenant_id, encounter_id, icd10_code) WHERE encounter_id IS NOT NULL \
-         DO NOTHING",
-    )
-    .bind(tenant_id)
-    .bind(patient_id)
-    .bind(encounter_id)
-    .bind(code)
-    .bind(&disease_name)
-    .bind(reporting_body.as_deref())
-    .bind(detected_by)
-    .execute(&mut **tx)
-    .await?;
-
-    Ok(Some((disease_name, reporting_body)))
 }

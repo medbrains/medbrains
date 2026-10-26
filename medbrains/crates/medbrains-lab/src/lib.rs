@@ -1376,6 +1376,23 @@ pub async fn verify_results(
         .bind(o.ordered_by)
         .fetch_one(&mut *tx)
         .await?;
+
+        // A released positive (dengue NS1, malaria smear, CBNAAT…) is the
+        // lab-confirmed case the IDSP L-form and Ni-kshay need: open the
+        // report, or confirm the presumptive one, and tell the treating doctor.
+        medbrains_platform::notifiable::detect(
+            &mut tx,
+            medbrains_platform::notifiable::Context {
+                tenant_id: claims.tenant_id,
+                patient_id: Some(o.patient_id),
+                encounter_id: Some(o.encounter_id),
+                actor: claims.sub,
+                notify: Some(recipient),
+            },
+            medbrains_platform::notifiable::Signal::LabOrder { order_id: o.id },
+        )
+        .await?;
+
         if recipient != claims.sub {
             create_notification(
                 &mut tx,

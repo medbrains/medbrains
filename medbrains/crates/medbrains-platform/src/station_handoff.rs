@@ -91,9 +91,13 @@ pub async fn create_station_handoff(
     Json(body): Json<CreateStationHandoffRequest>,
 ) -> Result<Json<StationHandoff>, AppError> {
     if body.title.trim().is_empty() {
-        return Err(AppError::BadRequest("A handoff title is required.".to_owned()));
+        return Err(AppError::BadRequest(
+            "A handoff title is required.".to_owned(),
+        ));
     }
-    let items = body.items.unwrap_or_else(|| serde_json::Value::Array(Vec::new()));
+    let items = body
+        .items
+        .unwrap_or_else(|| serde_json::Value::Array(Vec::new()));
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;

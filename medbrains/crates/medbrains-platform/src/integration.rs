@@ -394,8 +394,14 @@ pub async fn trigger_pipeline(
         .and_then(|v| v.as_str())
         .unwrap_or("manual");
 
-    let _ =
-        medbrains_workflow::events::emit_event(&state.db, claims.tenant_id, claims.sub, event_type, input).await;
+    let _ = medbrains_workflow::events::emit_event(
+        &state.db,
+        claims.tenant_id,
+        claims.sub,
+        event_type,
+        input,
+    )
+    .await;
 
     // Fetch the latest execution for this pipeline (emit_event created one)
     let execution = sqlx::query_as::<_, IntegrationExecution>(
