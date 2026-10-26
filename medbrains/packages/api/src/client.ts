@@ -111,6 +111,7 @@ import type {
   ApprovalListParams,
   ApprovalRequestDetail,
   ApprovalRequestSummary,
+  ApproveClaimSettlementRequest,
   ApproveDisposalRequest,
   ApproveIndentRequest,
   ApproveRejectRequest,
@@ -312,6 +313,9 @@ import type {
   CiwaArRequest,
   CiwaArResult,
   ClaimNhcxView,
+  ClaimSettlementBackfillResult,
+  ClaimSettlementPosting,
+  ClaimSettlementReasonRequest,
   // Housekeeping
   CleaningSchedule,
   CleaningTask,
@@ -1862,6 +1866,7 @@ import type {
   ReconSummary,
   RecordAdherenceRequest,
   RecordBedsideVideoViewRequest,
+  RecordClaimSettlementRequest,
   RecordCssdIndicatorRequest,
   RecordDeviceDaysRequest,
   RecordDoseRequest,
@@ -5803,6 +5808,35 @@ export const api = {
     }),
 
   // -- Write-Offs --
+  listClaimSettlements: (params?: Record<string, string>) => {
+    const qs = params ? `?${new URLSearchParams(params)}` : "";
+    return request<Paginated<ClaimSettlementPosting>>(`/billing/claim-settlements${qs}`);
+  },
+  recordClaimSettlement: (data: RecordClaimSettlementRequest) =>
+    request<ClaimSettlementPosting>("/billing/claim-settlements", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  approveClaimSettlement: (id: string, data: ApproveClaimSettlementRequest) =>
+    request<ClaimSettlementPosting>(`/billing/claim-settlements/${id}/approve`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
+  rejectClaimSettlement: (id: string, data: ClaimSettlementReasonRequest) =>
+    request<ClaimSettlementPosting>(`/billing/claim-settlements/${id}/reject`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
+  reverseClaimSettlement: (id: string, data: ClaimSettlementReasonRequest) =>
+    request<ClaimSettlementPosting>(`/billing/claim-settlements/${id}/reverse`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
+  backfillClaimSettlements: (data: { dry_run: boolean }) =>
+    request<ClaimSettlementBackfillResult>("/billing/claim-settlements/backfill", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
   listWriteOffs: (params?: Record<string, string>) => {
     const qs = params ? `?${new URLSearchParams(params)}` : "";
     return request<Paginated<BadDebtWriteOff>>(`/billing/write-offs${qs}`);

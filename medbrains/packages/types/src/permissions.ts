@@ -17,7 +17,7 @@ export interface PermissionDef {
   module: string;
 }
 
-/** 1147 permissions, one per constant in the Rust source. */
+/** 1151 permissions, one per constant in the Rust source. */
 export const PERMISSIONS: PermissionDef[] = [
   // dashboard
   {
@@ -1215,6 +1215,30 @@ export const PERMISSIONS: PermissionDef[] = [
     code: "billing.write_off.approve",
     label: "Approve Write-Off",
     description: "Approve or reject write-off requests",
+    module: "billing",
+  },
+  {
+    code: "billing.claims.settlement.record",
+    label: "See and record insurer settlements",
+    description: "Open the insurance settlements queue and file a settlement the insurer paid — amount, deductions, TDS and UTR — as a pending posting for finance to approve.",
+    module: "billing",
+  },
+  {
+    code: "billing.claims.settlement.approve",
+    label: "Approve or reject insurer settlements",
+    description: "Post a pending insurer settlement onto its bill as a payment, with its write-off, or reject it with a reason. Never a settlement the same person recorded.",
+    module: "billing",
+  },
+  {
+    code: "billing.claims.settlement.reverse",
+    label: "Reverse an approved insurer settlement",
+    description: "Undo a settlement wrongly posted to a bill: its payment and write-off are taken back off and the bill owes again.",
+    module: "billing",
+  },
+  {
+    code: "billing.claims.settlement.backfill",
+    label: "File pending postings for past settlements",
+    description: "One-time catch-up: claims already settled before postings existed get a pending posting each, still to be approved.",
     module: "billing",
   },
   {
@@ -7430,6 +7454,22 @@ export const P = {
       MANAGE: "billing.catalog.manage",
     },
     CATALOG_MANAGE: "billing.catalog.manage",
+    CLAIMS: {
+      SETTLEMENT: {
+        APPROVE: "billing.claims.settlement.approve",
+        BACKFILL: "billing.claims.settlement.backfill",
+        RECORD: "billing.claims.settlement.record",
+        REVERSE: "billing.claims.settlement.reverse",
+      },
+      SETTLEMENT_APPROVE: "billing.claims.settlement.approve",
+      SETTLEMENT_BACKFILL: "billing.claims.settlement.backfill",
+      SETTLEMENT_RECORD: "billing.claims.settlement.record",
+      SETTLEMENT_REVERSE: "billing.claims.settlement.reverse",
+    },
+    CLAIMS_SETTLEMENT_APPROVE: "billing.claims.settlement.approve",
+    CLAIMS_SETTLEMENT_BACKFILL: "billing.claims.settlement.backfill",
+    CLAIMS_SETTLEMENT_RECORD: "billing.claims.settlement.record",
+    CLAIMS_SETTLEMENT_REVERSE: "billing.claims.settlement.reverse",
     COLLECT: {
       CROSS: "billing.collect.cross",
       EMERGENCY: "billing.collect.emergency",
@@ -11233,6 +11273,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.BILLING.BANK_RECON.MANAGE,
       P.BILLING.BILL_GROUPS.MANAGE,
       P.BILLING.CATALOG.MANAGE,
+      P.BILLING.CLAIMS.SETTLEMENT.RECORD,
       P.BILLING.COLLECT.CROSS,
       P.BILLING.CONCESSIONS.CREATE,
       P.BILLING.CONCESSIONS.LIST,

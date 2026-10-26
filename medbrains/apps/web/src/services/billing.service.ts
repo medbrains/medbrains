@@ -192,6 +192,20 @@ export const billingService = {
   updateAutoConcessionRules: (...args: Parameters<typeof api.updateAutoConcessionRules>) =>
     api.updateAutoConcessionRules(...args),
 
+  // Insurer settlements — pending postings approved by hand
+  listClaimSettlements: (...args: Parameters<typeof api.listClaimSettlements>) =>
+    api.listClaimSettlements(...args),
+  recordClaimSettlement: (...args: Parameters<typeof api.recordClaimSettlement>) =>
+    api.recordClaimSettlement(...args),
+  approveClaimSettlement: (...args: Parameters<typeof api.approveClaimSettlement>) =>
+    api.approveClaimSettlement(...args),
+  rejectClaimSettlement: (...args: Parameters<typeof api.rejectClaimSettlement>) =>
+    api.rejectClaimSettlement(...args),
+  reverseClaimSettlement: (...args: Parameters<typeof api.reverseClaimSettlement>) =>
+    api.reverseClaimSettlement(...args),
+  backfillClaimSettlements: (...args: Parameters<typeof api.backfillClaimSettlements>) =>
+    api.backfillClaimSettlements(...args),
+
   // EMI / Installment Payments
   listInstallments: (...args: Parameters<typeof api.listInstallments>) =>
     api.listInstallments(...args),

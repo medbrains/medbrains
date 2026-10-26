@@ -786,6 +786,34 @@ pub mod billing {
         pub const APPROVE: &str = "billing.write_off.approve";
     }
 
+    pub mod claims {
+        /// Insurer settlements posted against bills.
+        pub mod settlement {
+            /// See and record insurer settlements.
+            ///
+            /// Open the insurance settlements queue and file a settlement the
+            /// insurer paid — amount, deductions, TDS and UTR — as a pending
+            /// posting for finance to approve.
+            pub const RECORD: &str = "billing.claims.settlement.record";
+            /// Approve or reject insurer settlements.
+            ///
+            /// Post a pending insurer settlement onto its bill as a payment,
+            /// with its write-off, or reject it with a reason. Never a
+            /// settlement the same person recorded.
+            pub const APPROVE: &str = "billing.claims.settlement.approve";
+            /// Reverse an approved insurer settlement.
+            ///
+            /// Undo a settlement wrongly posted to a bill: its payment and
+            /// write-off are taken back off and the bill owes again.
+            pub const REVERSE: &str = "billing.claims.settlement.reverse";
+            /// File pending postings for past settlements.
+            ///
+            /// One-time catch-up: claims already settled before postings
+            /// existed get a pending posting each, still to be approved.
+            pub const BACKFILL: &str = "billing.claims.settlement.backfill";
+        }
+    }
+
     pub mod audit {
         pub const VIEW: &str = "billing.audit.view";
     }

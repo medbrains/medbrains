@@ -372,6 +372,17 @@ pub(crate) async fn claim(ctx: &mut Ctx<'_>, r: &ClaimRec) -> Result<Option<Ref>
     .await?;
     ctx.record_provenance("insurance_claims", id, r.submitted_at)
         .await?;
+    // What the insurer paid reaches the bill only once finance approves it.
+    if r.settled_amount.is_some_and(|s| s > Decimal::ZERO) {
+        sqlx::query("SELECT file_claim_settlement($1, $2, 'import', 'claim', $3, 0, NULL, $4, $5)")
+            .bind(ctx.tenant)
+            .bind(id)
+            .bind(r.settled_amount.map(money))
+            .bind(r.settled_at.map(|t| t.date_naive()))
+            .bind(ctx.user)
+            .execute(&mut *ctx.tx)
+            .await?;
+    }
     Ok(Some(Ref {
         id,
         patient: bill.patient,

@@ -377,6 +377,24 @@ pub async fn update_insurance_claim(
     .fetch_optional(&mut *tx)
     .await?
     .ok_or(AppError::NotFound)?;
+    // Settling the claim here files the rise as a pending posting; the bill
+    // waits for finance to approve it.
+    let rise = claim.settled_amount.unwrap_or_default() - gate.settled_amount.unwrap_or_default();
+    if rise > Decimal::ZERO {
+        sqlx::query(
+            "SELECT file_claim_settlement($1, $2, 'claim_update', $3, $4, 0, NULL, NULL, $5)",
+        )
+        .bind(claims.tenant_id)
+        .bind(claim.id)
+        .bind(format!(
+            "settled:{}",
+            claim.settled_amount.unwrap_or_default()
+        ))
+        .bind(rise)
+        .bind(claims.sub)
+        .execute(&mut *tx)
+        .await?;
+    }
     // Doctors paid on insurer realisation earn their share when it settles,
     // cut down by what the insurer disallowed.
     medbrains_doctor_payouts::accrual::sync_after_money(
@@ -1052,6 +1070,17 @@ pub async fn auto_match_bank_transactions(
         .bind(claims.tenant_id)
         .execute(&mut *tx)
         .await?;
+        // The credit reaches the bill once finance approves the posting.
+        sqlx::query("SELECT file_claim_settlement($1, $2, 'bank', $3, $4, 0, $5, $6, $7)")
+            .bind(claims.tenant_id)
+            .bind(claim_id)
+            .bind(txn.id.to_string())
+            .bind(txn.credit_amount)
+            .bind(&txn.reference_number)
+            .bind(txn.transaction_date)
+            .bind(claims.sub)
+            .execute(&mut *tx)
+            .await?;
 
         matched += 1;
     }
@@ -1069,7 +1098,6 @@ pub async fn auto_match_bank_transactions(
 #[derive(Debug, sqlx::FromRow)]
 struct UnmatchedCredit {
     id: Uuid,
-    #[allow(dead_code)]
     transaction_date: NaiveDate,
     credit_amount: Decimal,
     reference_number: Option<String>,
