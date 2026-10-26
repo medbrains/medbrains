@@ -39,19 +39,26 @@ pub(crate) struct SignInOptions {
 }
 
 /// `GET /api/auth/sign-in-options?code=AMH` — public. Without a code, the
-/// hospital whose own domain the request came to; 404 when neither names an
-/// active hospital, so the page asks for the code.
+/// hospital whose own domain the request came to, or `null` when the domain is
+/// no hospital's, so the page asks for the code. A code naming no active
+/// hospital is 404.
+///
+/// The no-code lookup runs on every visit to the sign-in page. Answering it
+/// 404 was correct but put a failed request in every browser console on the
+/// way in; "no hospital here" is an ordinary answer, not an error.
 pub(crate) async fn sign_in_options(
     State(state): State<AppState>,
     Query(query): Query<SignInOptionsQuery>,
     headers: HeaderMap,
-) -> Result<Json<SignInOptions>, AppError> {
+) -> Result<Json<Option<SignInOptions>>, AppError> {
     // An unknown code is "no such hospital"; a fault stays a fault, so an
     // outage never reads as a wrong code.
+    let by_code = query.code.as_deref().is_some_and(|c| !c.trim().is_empty());
     let tenant_id =
         match crate::hospital::login_tenant(&state.db, query.code.as_deref(), &headers).await {
             Ok(Some(id)) => id,
-            Ok(None) | Err(AppError::Unauthorized) => return Err(AppError::NotFound),
+            Ok(None) | Err(AppError::Unauthorized) if by_code => return Err(AppError::NotFound),
+            Ok(None) | Err(AppError::Unauthorized) => return Ok(Json(None)),
             Err(other) => return Err(other),
         };
     let (code, name): (String, String) =
@@ -78,10 +85,10 @@ pub(crate) async fn sign_in_options(
     .await?;
     let password_off =
         disabled.is_some_and(|v| v.as_bool() == Some(true) || v.as_str() == Some("true"));
-    Ok(Json(SignInOptions {
+    Ok(Json(Some(SignInOptions {
         code,
         name,
         password: !password_off,
         providers,
-    }))
+    })))
 }

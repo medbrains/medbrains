@@ -1150,9 +1150,6 @@ import type {
   HistoryImportBatchRequest,
   HistoryImportResult,
   HistoryImportSettings,
-  NewResearchExport,
-  ResearchExport,
-  ResearchExportFile,
   HomeCarePackage,
   HomeCareReferral,
   HomeCollectionStatsRow,
@@ -1482,6 +1479,7 @@ import type {
   NearExpiryRow,
   NeedleStickIncident,
   NewbornRecord,
+  NewResearchExport,
   News2Request,
   News2Result,
   NewsFeedArticle,
@@ -1909,6 +1907,8 @@ import type {
   Requisition,
   RescheduleAppointmentRequest,
   ResearchConsentPrintData,
+  ResearchExport,
+  ResearchExportFile,
   ResearchProposalFormPrintData,
   ResendLinkRequest,
   ResolveCommAlertRequest,
@@ -4597,9 +4597,10 @@ export const api = {
       { method: "PUT", body: JSON.stringify({ visible }) },
     ),
   // Public — how a hospital signs in: by its code, or (no code) by the
-  // hospital's own domain the page is on. 404 when neither names one.
+  // hospital's own domain the page is on. null when the domain names none;
+  // 404 when the code names none.
   getSignInOptions: (code?: string) =>
-    request<SignInOptions>(
+    request<SignInOptions | null>(
       `/auth/sign-in-options${code ? `?code=${encodeURIComponent(code)}` : ""}`,
     ),
   // ── Enterprise SSO (admin config) ──
