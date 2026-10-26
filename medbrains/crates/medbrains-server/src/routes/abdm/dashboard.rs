@@ -228,7 +228,8 @@ pub async fn dashboard(
         .await?;
     let failures_open: i64 = sqlx::query_scalar(
         "SELECT count(*) FROM abdm_care_contexts WHERE tenant_id = $1 AND deleted_at IS NULL \
-           AND (link_status = 'failed' OR (link_status = 'not_linked' AND last_error IS NOT NULL))",
+           AND (link_status = 'failed' OR (link_status = 'not_linked' AND last_error IS NOT NULL) \
+                OR cardinality(conformance_issues) > 0)",
     )
     .bind(tenant)
     .fetch_one(&mut *tx)

@@ -31,6 +31,8 @@ export interface AbdmCareContext {
   notified_at: string | null;
   /** Why ABDM did not accept that notice, when it did not. */
   notify_error: string | null;
+  /** NRCeS profile rules its FHIR bundle broke when last sent; empty when clean. */
+  conformance_issues: string[];
 }
 
 export interface AbdmConsentArtefact {
@@ -132,6 +134,8 @@ export interface AbdmSharingFailure {
   display: string;
   link_status: AbdmLinkStatus;
   last_error: string | null;
+  /** Sent, but its FHIR bundle broke these NRCeS profile rules. */
+  conformance_issues: string[];
   updated_at: string;
 }
 

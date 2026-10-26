@@ -24,8 +24,8 @@ use serde_json::{Value, json};
 use uuid::Uuid;
 
 use medbrains_core::nhcx::{
-    FINANCIAL_TASK_CODE_SYSTEM, NDHM_TASK_OUTPUT_TYPE_SYSTEM, NDHM_TASK_OUTPUT_VALUE_SYSTEM,
-    NhcxOperation, NhcxRecord, TASK_BUNDLE_PROFILE,
+    BUNDLE_IDENTIFIER_SYSTEM, FINANCIAL_TASK_CODE_SYSTEM, NDHM_TASK_OUTPUT_TYPE_SYSTEM,
+    NDHM_TASK_OUTPUT_VALUE_SYSTEM, NhcxOperation, NhcxRecord, TASK_BUNDLE_PROFILE, TASK_PROFILE,
 };
 use medbrains_core::nhcx_wire::WORKFLOW_PAYMENT_SETTLED;
 use medbrains_server_core::error::AppError;
@@ -361,11 +361,12 @@ pub(crate) fn ack_bundle(notice_id: Uuid) -> Value {
         "resourceType": "Bundle",
         "id": Uuid::new_v4(),
         "meta": { "profile": [TASK_BUNDLE_PROFILE] },
-        "identifier": { "value": notice_id },
+        "identifier": { "system": BUNDLE_IDENTIFIER_SYSTEM, "value": notice_id },
         "type": "collection",
         "timestamp": medbrains_core::nhcx_wire::ist_timestamp(Utc::now()),
         "entry": [{ "fullUrl": format!("urn:uuid:{task}"), "resource": {
             "resourceType": "Task", "id": task, "status": "completed", "intent": "order",
+            "meta": { "profile": [TASK_PROFILE] },
             "code": { "coding": [{ "system": FINANCIAL_TASK_CODE_SYSTEM, "code": "status" }] },
             "description": "response for payment status Check",
             "authoredOn": medbrains_core::nhcx_wire::ist_timestamp(Utc::now()),
@@ -421,6 +422,22 @@ async fn acknowledge(tx: &mut Tx<'_>, m: &Inbound<'_>, notice_id: Uuid) -> Resul
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// The acknowledgement meets the NRCeS TaskBundle; with
+    /// `NRCES_BUNDLE_DIR` set it is also written there for the HL7
+    /// validator (`make check-fhir-validator`).
+    #[test]
+    fn the_payment_ack_meets_the_task_bundle_profile() {
+        let ack = ack_bundle(Uuid::new_v4());
+        assert_eq!(
+            medbrains_fhir::nrces::conformance::nhcx_violations(&ack),
+            Vec::<String>::new()
+        );
+        if let Ok(dir) = std::env::var("NRCES_BUNDLE_DIR") {
+            let body = serde_json::to_vec_pretty(&ack).unwrap_or_default();
+            assert!(std::fs::write(format!("{dir}/nhcx-task-payment-ack.json"), body).is_ok());
+        }
+    }
 
     #[test]
     fn the_financial_year_runs_april_to_march() {

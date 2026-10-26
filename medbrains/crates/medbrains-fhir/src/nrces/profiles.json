@@ -1,4 +1,27 @@
 {
+ "bundles": {
+  "ClaimBundle": {
+   "focal": "Claim",
+   "focal_max": "*",
+   "focal_min": 1,
+   "type": "collection",
+   "version": "6.5.0"
+  },
+  "CoverageEligibilityRequestBundle": {
+   "focal": "CoverageEligibilityRequest",
+   "focal_max": "1",
+   "focal_min": 1,
+   "type": "collection",
+   "version": "6.5.0"
+  },
+  "TaskBundle": {
+   "focal": "Task",
+   "focal_max": "1",
+   "focal_min": 1,
+   "type": "collection",
+   "version": "6.5.0"
+  }
+ },
  "compositions": {
   "DiagnosticReportRecord": {
    "entry_max": "2",
@@ -519,6 +542,33 @@
   }
  },
  "resources": {
+  "Claim": {
+   "codings": [],
+   "identifier_requires": [],
+   "required": [
+    "identifier",
+    "status",
+    "type",
+    "use",
+    "patient",
+    "created",
+    "insurer",
+    "provider",
+    "priority",
+    "diagnosis",
+    "insurance",
+    "item"
+   ],
+   "type": "Claim"
+  },
+  "Communication": {
+   "codings": [],
+   "identifier_requires": [],
+   "required": [
+    "status"
+   ],
+   "type": "Communication"
+  },
   "Condition": {
    "codings": [
     {
@@ -551,6 +601,34 @@
     "subject"
    ],
    "type": "Condition"
+  },
+  "Coverage": {
+   "codings": [],
+   "identifier_requires": [],
+   "required": [
+    "status",
+    "beneficiary",
+    "payor"
+   ],
+   "type": "Coverage"
+  },
+  "CoverageEligibilityRequest": {
+   "codings": [],
+   "identifier_requires": [],
+   "required": [
+    "identifier",
+    "status",
+    "priority",
+    "purpose",
+    "patient",
+    "created",
+    "enterer",
+    "provider",
+    "insurer",
+    "facility",
+    "insurance"
+   ],
+   "type": "CoverageEligibilityRequest"
   },
   "DiagnosticReportLab": {
    "codings": [
@@ -798,6 +876,15 @@
     "identifier"
    ],
    "type": "Practitioner"
+  },
+  "Task": {
+   "codings": [],
+   "identifier_requires": [],
+   "required": [
+    "status",
+    "intent"
+   ],
+   "type": "Task"
   }
  },
  "source": "ndhm.in#6.5.0 package (sha256 41fa99955adbd1983a235d7c7136b30f423ce34ff541d86b354d95b7704527d4), extracted by scripts/nrces_profile_fixture.py"

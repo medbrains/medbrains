@@ -92,11 +92,23 @@ pub(crate) struct Outbound<'a> {
 /// Queue the outbox event, in the caller's transaction — the same one that
 /// records the exchange ids on the record, so a callback can never arrive
 /// for a record that does not know its correlation id.
+///
+/// A message that breaks its NRCeS profile is refused here, with every rule
+/// it breaks, and the whole transaction rolls back: the payer would refuse
+/// it anyway, later and less clearly, and the desk would see only "sent".
 pub(crate) async fn queue(
     tx: &mut Tx<'_>,
     claims: &Claims,
     msg: &Outbound<'_>,
 ) -> Result<Value, AppError> {
+    let broken = medbrains_fhir::nrces::conformance::nhcx_violations(msg.payload);
+    if !broken.is_empty() {
+        tracing::warn!(rules = ?broken, "nhcx: message refused before sending, not NRCeS-conformant");
+        return Err(AppError::BadRequest(format!(
+            "This cannot go to NHCX yet — the message is missing what the payer requires: {}",
+            broken.join("; ")
+        )));
+    }
     let event_id = medbrains_outbox::queue_in_tx(
         tx,
         medbrains_outbox::queue::OutboxRow {

@@ -3,6 +3,7 @@ import { Anchor, Stack, Text } from "@mantine/core";
 import type { AbdmDashboard } from "@medbrains/types";
 import { useMemo } from "react";
 import { Link } from "react-router";
+import { AbdmConformanceIssues } from "@/components/Patient/abdm/AbdmConformanceIssues";
 import { LINK_STATUS } from "@/components/Patient/abdm/abdmStatus";
 import { Badge, Card, Table } from "@/components/ui";
 import { formatInr, formatPercent, trendRows } from "@/lib/abdm-dashboard";
@@ -92,9 +93,9 @@ function Failures({ data }: DashboardDetailsProps) {
   if (data.failures_open === 0) {
     return (
       <Card>
-        <Text fw={600}>Records that did not link</Text>
+        <Text fw={600}>Records that did not link or share cleanly</Text>
         <Text size="sm" c="dimmed">
-          No record is waiting on a failed link.
+          No record is waiting on a failed link, and every record sent met the FHIR standard.
         </Text>
       </Card>
     );
@@ -102,7 +103,7 @@ function Failures({ data }: DashboardDetailsProps) {
   return (
     <Card>
       <Stack gap="sm">
-        <Text fw={600}>Records that did not link: {data.failures_open} open</Text>
+        <Text fw={600}>Records that did not link or share cleanly: {data.failures_open} open</Text>
         <Table>
           <Table.Thead>
             <Table.Tr>
@@ -148,7 +149,10 @@ function Failures({ data }: DashboardDetailsProps) {
                   <Badge tone={LINK_STATUS[f.link_status].tone}>
                     {LINK_STATUS[f.link_status].label}
                   </Badge>
-                  <Text size="xs">{f.last_error ?? "No reason recorded"}</Text>
+                  {f.conformance_issues.length === 0 || f.last_error ? (
+                    <Text size="xs">{f.last_error ?? "No reason recorded"}</Text>
+                  ) : null}
+                  <AbdmConformanceIssues issues={f.conformance_issues} />
                 </Table.Td>
               </Table.Tr>
             ))}
