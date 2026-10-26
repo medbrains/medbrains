@@ -85,8 +85,11 @@ async fn a_hospital_code_answers_with_that_hospitals_sign_in_methods_only() {
         StatusCode::NOT_FOUND
     );
     // No code, and the test host is no hospital's own domain: ask for the code
-    // rather than list every hospital's providers.
-    assert_eq!(get(String::new()).await.status(), StatusCode::NOT_FOUND);
+    // rather than list every hospital's providers. That is an answer, not an
+    // error, so it is 200 with nothing in it.
+    let resp = get(String::new()).await;
+    assert_eq!(resp.status(), StatusCode::OK);
+    assert_eq!(resp.json::<Value>().await.expect("json"), Value::Null);
 
     sqlx::query(
         "INSERT INTO tenant_settings (tenant_id, category, key, value) \
