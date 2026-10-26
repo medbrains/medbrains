@@ -17,7 +17,7 @@ export interface PermissionDef {
   module: string;
 }
 
-/** 1157 permissions, one per constant in the Rust source. */
+/** 1159 permissions, one per constant in the Rust source. */
 export const PERMISSIONS: PermissionDef[] = [
   // dashboard
   {
@@ -1879,6 +1879,12 @@ export const PERMISSIONS: PermissionDef[] = [
     code: "radiology.modalities.manage",
     label: "Manage Modalities",
     description: "Manage imaging modality masters",
+    module: "radiology",
+  },
+  {
+    code: "radiology.studies.reconcile",
+    label: "Match unmatched PACS studies to their orders",
+    description: "A walk-in X-ray, a mistyped accession or a study from another site reaches the PACS with no order. This sees that queue — which shows the names and IDs the modality wrote — files a study under the order a person has confirmed it belongs to, or dismisses it with a reason. Filing images under the wrong patient is a patient-safety event, so it is held by the radiology desk.",
     module: "radiology",
   },
   {
@@ -9897,6 +9903,10 @@ export const P = {
     },
     REPORTS_CREATE: "radiology.reports.create",
     REPORTS_VERIFY: "radiology.reports.verify",
+    STUDIES: {
+      RECONCILE: "radiology.studies.reconcile",
+    },
+    STUDIES_RECONCILE: "radiology.studies.reconcile",
   },
   REGULATORY: {
     ADR: {
@@ -11936,6 +11946,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.RADIOLOGY.ORDERS.VIEW,
       P.RADIOLOGY.REPORTS.CREATE,
       P.RADIOLOGY.REPORTS.VERIFY,
+      P.RADIOLOGY.STUDIES.RECONCILE,
       P.TERMINOLOGY.SNOMED.VIEW,
     ],
   },

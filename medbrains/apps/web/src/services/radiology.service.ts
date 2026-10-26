@@ -14,6 +14,12 @@ export const radiologyService = {
   contrastScreening: (...args: Parameters<typeof api.contrastScreening>) =>
     api.contrastScreening(...args),
   cumulativeDose: (...args: Parameters<typeof api.cumulativeDose>) => api.cumulativeDose(...args),
+  listUnmatchedStudies: (...args: Parameters<typeof api.listUnmatchedStudies>) =>
+    api.listUnmatchedStudies(...args),
+  linkUnmatchedStudy: (...args: Parameters<typeof api.linkUnmatchedStudy>) =>
+    api.linkUnmatchedStudy(...args),
+  dismissUnmatchedStudy: (...args: Parameters<typeof api.dismissUnmatchedStudy>) =>
+    api.dismissUnmatchedStudy(...args),
   listPatientDoseRecords: (...args: Parameters<typeof api.listPatientDoseRecords>) =>
     api.listPatientDoseRecords(...args),
   recordRadiationDose: (...args: Parameters<typeof api.recordRadiationDose>) =>

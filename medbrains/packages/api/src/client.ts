@@ -1358,6 +1358,7 @@ import type {
   LinkCampLabSampleRequest,
   LinkHfrRequest,
   LinkMlcRequest,
+  LinkUnmatchedStudyResult,
   ListAssetsParams,
   ListCampAssetCandidatesParams,
   ListMrdCaseSheetPacketsParams,
@@ -2169,6 +2170,8 @@ import type {
   UhiRequest,
   UhiSettingsView,
   UnifiedAsset,
+  UnmatchedStudy,
+  UnmatchedStudyStatus,
   UnreadCountResponse,
   UnsignedNote,
   UpdateAdmissionRequest,
@@ -6812,6 +6815,18 @@ export const api = {
     }),
   markRadiationDoseEnteredInError: (id: string, reason: string) =>
     request<RadiationDoseRecord>(`/radiology/dose-records/${id}/entered-in-error`, {
+      method: "POST",
+      body: JSON.stringify({ reason }),
+    }),
+  listUnmatchedStudies: (status: UnmatchedStudyStatus = "open") =>
+    request<UnmatchedStudy[]>(`/radiology/unmatched-studies?status=${status}`),
+  linkUnmatchedStudy: (id: string, data: { order_id: string; note?: string }) =>
+    request<LinkUnmatchedStudyResult>(`/radiology/unmatched-studies/${id}/link`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  dismissUnmatchedStudy: (id: string, reason: string) =>
+    request<UnmatchedStudy>(`/radiology/unmatched-studies/${id}/dismiss`, {
       method: "POST",
       body: JSON.stringify({ reason }),
     }),

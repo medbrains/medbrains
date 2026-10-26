@@ -1,6 +1,7 @@
 import { Tabs } from "@mantine/core";
+import { useHasPermission } from "@medbrains/stores";
 import { P } from "@medbrains/types";
-import { IconCalendar, IconChartBar, IconEye, IconRadar } from "@tabler/icons-react";
+import { IconCalendar, IconChartBar, IconEye, IconLinkPlus, IconRadar } from "@tabler/icons-react";
 import { useSearchParams } from "react-router";
 import { ClinicalEventProvider } from "@/components";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
@@ -10,6 +11,7 @@ import { ExamsTab } from "./radiology/exams-tab";
 import { ModalitiesTab } from "./radiology/modalities-tab";
 import { RadiologyOrdersTab } from "./radiology/radiology-orders-tab";
 import { TatAnalyticsTab } from "./radiology/tat-analytics-tab";
+import { UnmatchedStudiesTab } from "./radiology/unmatched-studies-tab";
 
 // ══════════════════════════════════════════════════════════
 //  Main Page
@@ -22,6 +24,8 @@ export function RadiologyPage() {
   // reached from a patient's chart.
   const [searchParams, setSearchParams] = useSearchParams();
   const activeTab = searchParams.get("tab") ?? "orders";
+  // The queue shows the names a modality wrote: the radiology desk's only.
+  const canReconcile = useHasPermission(P.RADIOLOGY.STUDIES_RECONCILE);
 
   return (
     <ClinicalEventProvider moduleCode="radiology" contextCode="radiology-orders">
@@ -54,6 +58,11 @@ export function RadiologyPage() {
           <Tabs.Tab value="dicom" leftSection={<IconEye size={16} />}>
             DICOM Studies
           </Tabs.Tab>
+          {canReconcile && (
+            <Tabs.Tab value="unmatched" leftSection={<IconLinkPlus size={16} />}>
+              Unmatched studies
+            </Tabs.Tab>
+          )}
           <Tabs.Tab value="tat" leftSection={<IconChartBar size={16} />}>
             TAT Analytics
           </Tabs.Tab>
@@ -74,6 +83,11 @@ export function RadiologyPage() {
         <Tabs.Panel value="dicom" pt="md">
           <DicomStudiesTab />
         </Tabs.Panel>
+        {canReconcile && (
+          <Tabs.Panel value="unmatched" pt="md">
+            <UnmatchedStudiesTab />
+          </Tabs.Panel>
+        )}
         <Tabs.Panel value="tat" pt="md">
           <TatAnalyticsTab />
         </Tabs.Panel>

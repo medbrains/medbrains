@@ -1669,6 +1669,8 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
             permissions::radiology::orders::CANCEL_ANY,
             // The radiographer who ran the exam records the dose given.
             permissions::radiology::dose::RECORD,
+            // The radiology desk matches studies the PACS could not file.
+            permissions::radiology::studies::RECONCILE,
         ],
     },
     BuiltInRole {
