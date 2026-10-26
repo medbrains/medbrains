@@ -15,6 +15,17 @@ import { DOSE_SOURCE_LABEL, doseFigures } from "@/lib/radiation-dose";
 import { radiologyService } from "@/services/radiology.service";
 import { CumulativeDoseNotice } from "./CumulativeDoseNotice";
 
+const NOT_ESTIMATED = {
+  region_unknown: "Not estimated — body region not recognised",
+  age_unknown: "Not estimated — date of birth not on record",
+} as const;
+
+function estimateText(d: PatientDoseRecord): string {
+  if (d.estimated_msv !== null) return `≈ ${d.estimated_msv.toFixed(2)} mSv (${d.region})`;
+  if (d.not_estimated) return NOT_ESTIMATED[d.not_estimated];
+  return d.dap !== null ? "DAP not converted" : "—";
+}
+
 interface PatientDoseHistoryProps {
   patientId: string;
 }
@@ -58,6 +69,11 @@ export function PatientDoseHistory({ patientId }: PatientDoseHistoryProps) {
               key: "figures",
               label: "Dose",
               render: (d: PatientDoseRecord) => doseFigures(d).join(" · ") || "—",
+            },
+            {
+              key: "estimate",
+              label: "Estimated effective dose",
+              render: (d: PatientDoseRecord) => estimateText(d),
             },
             {
               key: "source",

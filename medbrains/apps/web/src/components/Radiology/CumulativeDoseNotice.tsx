@@ -1,10 +1,13 @@
 /**
- * The patient's recorded CT dose so far, shown wherever more ionising imaging
- * is being decided: on a new imaging order and in the chart. Quiet when there
- * is little, a warning approaching the review level, and a danger past it.
- * A failed load says so — "no dose on record" must never be a guess.
+ * The patient's recorded radiation so far, shown wherever more ionising
+ * imaging is being decided: on a new imaging order and in the chart.
+ *
+ * The figure is an ESTIMATED effective dose from CT, converted per exam by
+ * body region and age, with the method shown beside it. Exams that could not
+ * be estimated are named, never counted as zero, and fluoroscopy dose-area
+ * product is shown unconverted. A failed load says so.
  */
-import { Text } from "@mantine/core";
+import { Stack, Text } from "@mantine/core";
 import { useHasPermission } from "@medbrains/stores";
 import type { CumulativeDoseResult } from "@medbrains/types";
 import { P } from "@medbrains/types";
@@ -17,10 +20,42 @@ interface CumulativeDoseNoticeProps {
   patientId: string;
 }
 
-const plural = (n: number) => `${n} CT stud${n === 1 ? "y" : "ies"}`;
+const exams = (n: number) => `${n} CT exam${n === 1 ? "" : "s"}`;
 
-function title(dose: CumulativeDoseResult) {
-  return `Cumulative radiation ≈ ${Math.round(dose.estimated_effective_msv)} mSv over ${plural(dose.study_count)}`;
+function headline(d: CumulativeDoseResult) {
+  return `Estimated effective dose ≈ ${d.estimated_effective_msv.toFixed(1)} mSv from ${exams(d.estimated_exam_count)}`;
+}
+
+/** What the estimate leaves out, each as its own line. */
+function caveats(d: CumulativeDoseResult): string[] {
+  const lines: string[] = [];
+  if (d.not_estimated_region_unknown > 0)
+    lines.push(
+      `${exams(d.not_estimated_region_unknown)} not estimated: body region not recognised.`,
+    );
+  if (d.not_estimated_age_unknown > 0)
+    lines.push(`${exams(d.not_estimated_age_unknown)} not estimated: date of birth not on record.`);
+  if (d.dap_exam_count > 0)
+    lines.push(
+      `Fluoroscopy / radiographs: dose-area product ${d.dap_total_gy_cm2.toFixed(2)} Gy·cm² over ${d.dap_exam_count} exam${d.dap_exam_count === 1 ? "" : "s"} (not converted).`,
+    );
+  lines.push(`Total CT DLP ${Math.round(d.cumulative_dlp)} mGy·cm.`);
+  return lines;
+}
+
+function Details({ d }: { d: CumulativeDoseResult }) {
+  return (
+    <Stack gap={2}>
+      {caveats(d).map((line) => (
+        <Text key={line} size="sm">
+          {line}
+        </Text>
+      ))}
+      <Text size="xs" c="dimmed">
+        {d.method}
+      </Text>
+    </Stack>
+  );
 }
 
 export function CumulativeDoseNotice({ patientId }: CumulativeDoseNoticeProps) {
@@ -40,19 +75,26 @@ export function CumulativeDoseNotice({ patientId }: CumulativeDoseNoticeProps) {
       />
     );
   const d = dose.data;
-  if (!d || d.study_count === 0) return null;
+  if (!d || (d.ct_exam_count === 0 && d.dap_exam_count === 0)) return null;
   if (!d.near_threshold)
     return (
-      <Text size="sm" c="dimmed">
-        Recorded CT dose: ≈ {d.estimated_effective_msv.toFixed(1)} mSv over {plural(d.study_count)}{" "}
-        (DLP {Math.round(d.cumulative_dlp)} mGy·cm).
-      </Text>
+      <Stack gap={4}>
+        <Text size="sm" fw={600}>
+          {headline(d)}
+        </Text>
+        <Details d={d} />
+      </Stack>
     );
   return (
-    <Alert tone={d.over_threshold ? "danger" : "warning"} title={title(d)}>
-      {d.over_threshold
-        ? `Estimated cumulative effective dose has reached the ${d.review_threshold_msv} mSv review level — justify further imaging and consider a non-ionising alternative (US/MRI).`
-        : "Approaching the cumulative-dose review level — justify further ionising imaging and consider alternatives."}
+    <Alert tone={d.over_threshold ? "danger" : "warning"} title={headline(d)}>
+      <Stack gap={4}>
+        <Text size="sm">
+          {d.over_threshold
+            ? `This has reached the ${d.review_threshold_msv} mSv review level — justify further imaging and consider a non-ionising alternative (US/MRI).`
+            : "Approaching the cumulative-dose review level — justify further ionising imaging and consider alternatives."}
+        </Text>
+        <Details d={d} />
+      </Stack>
     </Alert>
   );
 }

@@ -1034,12 +1034,24 @@ export interface CreateNutritionScreeningRequest {
 }
 
 export interface CumulativeDoseResult {
-  study_count: number;
+  /** CT exams with a DLP on record. */
+  ct_exam_count: number;
   cumulative_dlp: number;
+  /** Sum over the CT exams that could be estimated (by region and age). */
   estimated_effective_msv: number;
+  estimated_exam_count: number;
+  /** CT exams whose body region has no conversion factor. */
+  not_estimated_region_unknown: number;
+  /** CT exams for a patient whose age is not on record. */
+  not_estimated_age_unknown: number;
+  /** Fluoroscopy and radiograph dose-area product (Gy·cm²), not converted. */
+  dap_total_gy_cm2: number;
+  dap_exam_count: number;
   review_threshold_msv: number;
   over_threshold: boolean;
   near_threshold: boolean;
+  /** How the estimate is made, to show with it. */
+  method: string;
 }
 
 export interface ContrastScreeningRequest {

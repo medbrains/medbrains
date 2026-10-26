@@ -26,6 +26,8 @@ use medbrains_server_core::state::AppState;
 pub mod exams;
 pub mod dose;
 pub mod dose_capture;
+pub mod dose_summary;
+pub mod effective_dose;
 pub mod form_f;
 pub mod pacs;
 pub mod pacs_config;
@@ -2238,7 +2240,7 @@ pub fn router() -> axum::Router<AppState> {
         )
         .route(
             "/api/radiology/cumulative-dose",
-            get(dose::cumulative_dose),
+            get(dose_summary::cumulative_dose),
         )
         .route(
             "/api/radiology/orders/{id}",
@@ -2270,7 +2272,7 @@ pub fn router() -> axum::Router<AppState> {
         )
         .route(
             "/api/radiology/patients/{patient_id}/dose-records",
-            get(dose::list_patient_dose_records),
+            get(dose_summary::list_patient_dose_records),
         )
         .route(
             "/api/radiology/reports/{id}/verify",
