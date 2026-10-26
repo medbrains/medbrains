@@ -10,10 +10,13 @@ use serde_json::{Value, json};
 use uuid::Uuid;
 
 use medbrains_core::nhcx::{
-    FINANCIAL_TASK_CODE_SYSTEM, NDHM_REASON_CODE_SYSTEM, NDHM_TASK_CODE_SYSTEM,
-    NDHM_TASK_INPUT_TYPE_SYSTEM, TASK_BUNDLE_PROFILE,
+    BUNDLE_IDENTIFIER_SYSTEM, FINANCIAL_TASK_CODE_SYSTEM, NDHM_REASON_CODE_SYSTEM,
+    NDHM_TASK_CODE_SYSTEM, NDHM_TASK_INPUT_TYPE_SYSTEM, TASK_BUNDLE_PROFILE,
 };
-use medbrains_fhir::mapper::HFR_SYSTEM;
+use medbrains_fhir::nrces::NRCES_PROFILE_BASE;
+
+use crate::nhcx_common::ProviderParty;
+use crate::nhcx_parties::{payer_resource, provider_resource, prune};
 
 /// What the Task asks.
 pub(crate) enum TaskAsk<'a> {
@@ -53,8 +56,7 @@ impl TaskAsk<'_> {
 
 /// The two organisations a Task names.
 pub(crate) struct TaskParties<'a> {
-    pub(crate) hospital_name: &'a str,
-    pub(crate) hfr_id: Option<&'a str>,
+    pub(crate) provider: &'a ProviderParty,
     pub(crate) payer_name: &'a str,
     pub(crate) payer_code: &'a str,
 }
@@ -174,21 +176,17 @@ pub(crate) fn task_bundle(ask: &TaskAsk<'_>, parties: &TaskParties<'_>) -> Value
     };
     let (task_id, hospital, payer) = (Uuid::new_v4(), Uuid::new_v4(), Uuid::new_v4());
     let now = medbrains_core::nhcx_wire::ist_timestamp(Utc::now());
-    let hospital_ids: Vec<Value> = parties
-        .hfr_id
-        .iter()
-        .map(|h| json!({ "system": HFR_SYSTEM, "value": h }))
-        .collect();
-    json!({
+    let mut bundle = json!({
         "resourceType": "Bundle",
         "id": Uuid::new_v4(),
         "meta": { "profile": [TASK_BUNDLE_PROFILE] },
-        "identifier": { "value": task_id },
+        "identifier": { "system": BUNDLE_IDENTIFIER_SYSTEM, "value": task_id },
         "type": "collection",
         "timestamp": now,
         "entry": [
             { "fullUrl": format!("urn:uuid:{task_id}"), "resource": {
                 "resourceType": "Task", "id": task_id,
+                "meta": { "profile": [format!("{NRCES_PROFILE_BASE}Task")] },
                 "status": "requested", "intent": "order",
                 "code": { "coding": [{ "system": system, "code": code }] },
                 "description": description,
@@ -199,16 +197,14 @@ pub(crate) fn task_bundle(ask: &TaskAsk<'_>, parties: &TaskParties<'_>) -> Value
                 "owner": { "reference": format!("urn:uuid:{payer}") },
                 "input": inputs,
             }},
-            { "fullUrl": format!("urn:uuid:{hospital}"), "resource": {
-                "resourceType": "Organization", "id": hospital,
-                "identifier": hospital_ids, "name": parties.hospital_name,
-            }},
-            { "fullUrl": format!("urn:uuid:{payer}"), "resource": {
-                "resourceType": "Organization", "id": payer,
-                "identifier": [{ "value": parties.payer_code }], "name": parties.payer_name,
-            }},
+            { "fullUrl": format!("urn:uuid:{hospital}"),
+              "resource": provider_resource(parties.provider, hospital) },
+            { "fullUrl": format!("urn:uuid:{payer}"),
+              "resource": payer_resource(parties.payer_code, parties.payer_name, payer) },
         ]
-    })
+    });
+    prune(&mut bundle);
+    bundle
 }
 
 #[cfg(test)]
@@ -216,12 +212,21 @@ pub(crate) fn task_bundle(ask: &TaskAsk<'_>, parties: &TaskParties<'_>) -> Value
 mod tests {
     use super::*;
 
-    const PARTIES: TaskParties<'static> = TaskParties {
-        hospital_name: "City Hospital",
-        hfr_id: Some("IN0001"),
-        payer_name: "Payer",
-        payer_code: "payer@sbx",
-    };
+    fn provider() -> ProviderParty {
+        ProviderParty {
+            id: Uuid::new_v4(),
+            name: "City Hospital".to_owned(),
+            hfr_facility_id: Some("IN0001".to_owned()),
+        }
+    }
+
+    fn parties(provider: &ProviderParty) -> TaskParties<'_> {
+        TaskParties {
+            provider,
+            payer_name: "Payer",
+            payer_code: "payer@sbx",
+        }
+    }
 
     #[test]
     fn a_search_task_carries_the_date_range_and_the_ig_search_code() {
@@ -233,7 +238,7 @@ mod tests {
                 to,
                 claim_number: None,
             },
-            &PARTIES,
+            &parties(&provider()),
         );
         let task = &b["entry"][0]["resource"];
         assert_eq!(
@@ -262,7 +267,7 @@ mod tests {
             reason: "Bills attached",
             rejected: true,
         };
-        let task = task_bundle(&ask, &PARTIES)["entry"][0]["resource"].clone();
+        let task = task_bundle(&ask, &parties(&provider()))["entry"][0]["resource"].clone();
         assert_eq!(task["code"]["coding"][0]["code"], json!("reprocess"));
         assert_eq!(
             task["reasonCode"]["coding"][0]["code"],
@@ -275,7 +280,7 @@ mod tests {
             number: "CLM-1",
             reason: "Duplicate",
         };
-        let task = task_bundle(&cancel, &PARTIES)["entry"][0]["resource"].clone();
+        let task = task_bundle(&cancel, &parties(&provider()))["entry"][0]["resource"].clone();
         assert_eq!(
             task["code"]["coding"][0]["system"],
             json!(FINANCIAL_TASK_CODE_SYSTEM)

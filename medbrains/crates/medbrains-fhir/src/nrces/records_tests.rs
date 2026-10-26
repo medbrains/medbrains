@@ -125,7 +125,7 @@ fn an_immunization_record_meets_its_profile() {
         RecordKind::Immunization,
         vec![one("Immunization record", Some(IMMUNIZATION), shots)],
     );
-    assert_eq!(violations(&b), Vec::<String>::new(), "{b:#}");
+    super::golden::assert_conformant(&b);
     assert!(
         b["entry"][0]["resource"].get("encounter").is_none(),
         "no visit, no encounter"
@@ -162,7 +162,7 @@ fn a_wellness_record_puts_each_reading_in_its_titled_section() {
             one("Body Measurement", None, body.clone()),
         ],
     );
-    assert_eq!(violations(&b), Vec::<String>::new(), "{b:#}");
+    super::golden::assert_conformant(&b);
     let wrong = r.bundle(RecordKind::Wellness, vec![one("Vital Signs", None, body)]);
     assert!(
         violations(&wrong)
@@ -190,7 +190,7 @@ fn a_health_document_record_carries_the_document_inline() {
         RecordKind::HealthDocument,
         vec![one("Referral letter", Some(HEALTH_DOCUMENT), vec![doc])],
     );
-    assert_eq!(violations(&b), Vec::<String>::new(), "{b:#}");
+    super::golden::assert_conformant(&b);
 }
 
 #[test]
@@ -227,6 +227,6 @@ fn an_invoice_record_itemises_rate_discount_and_gst() {
         "a bill always has a line"
     );
     let b = r.bundle(RecordKind::Invoice, vec![one("Invoice", None, vec![bill])]);
-    assert_eq!(violations(&b), Vec::<String>::new(), "{b:#}");
+    super::golden::assert_conformant(&b);
     assert_eq!(b["entry"][0]["resource"]["type"]["text"], "Invoice Record");
 }

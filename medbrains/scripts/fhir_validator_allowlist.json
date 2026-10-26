@@ -1,0 +1,84 @@
+{
+  "_doc": "HL7 validator findings we accept, each with its reason. `match` is a substring of the message; `files` an optional glob; `severity` warning (default) or error. An `offline` entry applies only to the -tx n/a run: it covers a code the validator cannot resolve without a terminology server, and the nightly tx.fhir.org run must pass without it. Read by scripts/check_fhir_validator.py.",
+  "allow": [
+    {
+      "match": "dom-6: 'A resource should have narrative",
+      "reason": "Best practice only. The document's narrative lives on the Composition sections; NRCeS does not require per-resource narrative, and its own examples get theirs from the IG publisher."
+    },
+    {
+      "match": "all observations should have a performer",
+      "reason": "Best practice only. A lab result's performer is on its DiagnosticReport (the lab), which the NRCeS DiagnosticReportLab profile carries."
+    },
+    {
+      "match": "'Claim Type Codes' (http://hl7.org/fhir/ValueSet/claim-type",
+      "reason": "Base R4 binding (extensible). NRCeS replaces it with ndhm-claim-type (SNOMED), and NRCeS's own ClaimBundle examples use the same SNOMED code 737481003."
+    },
+    {
+      "match": "'IdentifierType' (http://hl7.org/fhir/ValueSet/identifier-type",
+      "reason": "Base R4 binding (extensible). NRCeS types a claim number with its own ndhm-identifier-type-code CLN, which the NHCX IG defines for exactly this."
+    },
+    {
+      "match": "running without terminology services",
+      "offline": true,
+      "reason": "Offline run: UCUM and other codes are checked by the nightly tx.fhir.org run."
+    },
+    {
+      "match": "Unable to check whether the code is in the value set",
+      "offline": true,
+      "reason": "Offline run: SNOMED and LOINC value-set membership is checked by the nightly tx.fhir.org run."
+    },
+    {
+      "match": "could not be found, so the code cannot be validated",
+      "offline": true,
+      "reason": "Offline run: the SNOMED and LOINC code systems are not in the package cache."
+    },
+    {
+      "match": "Unable to validate code without using server",
+      "offline": true,
+      "reason": "Offline run: UCUM has no enumerated codes offline."
+    },
+    {
+      "match": "None of the codings provided are in the value set",
+      "offline": true,
+      "reason": "Offline run: with LOINC/SNOMED absent the validator cannot see that the codes are members; the nightly run checks them."
+    },
+    {
+      "match": "was not found in the value set 'MimeType'",
+      "severity": "error",
+      "offline": true,
+      "reason": "Offline run: urn:ietf:bcp:13 (MIME types) resolves only through a terminology server; application/pdf is checked nightly."
+    },
+    {
+      "match": "include #0 has system urn:ietf:bcp:13",
+      "severity": "error",
+      "offline": true,
+      "reason": "Offline run: as above, the MIME-type code system is not available offline."
+    },
+    {
+      "match": "was not found in the value set 'CurrencyCode'",
+      "severity": "error",
+      "offline": true,
+      "reason": "Offline run: urn:iso:std:iso:4217 (currencies) resolves only through a terminology server; INR is checked nightly."
+    },
+    {
+      "match": "include #0 has system urn:iso:std:iso:4217",
+      "severity": "error",
+      "offline": true,
+      "reason": "Offline run: as above, the ISO 4217 code system is not available offline."
+    },
+    {
+      "match": "Unable to find a match for profile",
+      "files": "*-HealthDocumentRecord.json",
+      "severity": "error",
+      "offline": true,
+      "reason": "Offline run: the DocumentReference fails its profile only on the MIME code above; the slice match is re-checked nightly."
+    },
+    {
+      "match": "Unable to find a match for profile",
+      "files": "*-InvoiceRecord.json",
+      "severity": "error",
+      "offline": true,
+      "reason": "Offline run: the Invoice fails its profile only on the ISO 4217 code above; the slice match is re-checked nightly."
+    }
+  ]
+}

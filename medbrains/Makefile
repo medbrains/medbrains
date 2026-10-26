@@ -317,6 +317,9 @@ lint: ## Run biome lint + format check
 check-api: ## Verify frontend↔backend API contract
 	python3 ../scripts/check_api_contract.py
 
+check-fhir-validator: ## HL7 validator over our ABDM + NHCX bundles (needs Java; nightly adds TX=https://tx.fhir.org/r4)
+	python3 scripts/check_fhir_validator.py --tx $(or $(TX),n/a)
+
 check-sql-schema: ## Verify runtime SQL resolves against the migrations
 	python3 ../scripts/check_sql_schema.py
 
