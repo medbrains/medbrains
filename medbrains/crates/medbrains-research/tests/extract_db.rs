@@ -114,6 +114,46 @@ async fn an_extract_keeps_to_its_hospital_and_leaves_restricted_records_out() {
         .await
         .unwrap_or_else(|e| panic!("{e}"));
     assert_eq!(visits.len(), 7);
+
+    // The OMOP bundle reads every dataset and takes concept ids from the map.
+    let export = medbrains_research::ExportRow {
+        id: Uuid::nil(),
+        dataset: "omop".into(),
+        period_from: period.0,
+        period_to: period.1,
+        purpose: String::new(),
+        iec_reference: String::new(),
+        status: "requested".into(),
+        requested_by: Uuid::nil(),
+        requested_by_name: None,
+        requested_via: "screen".into(),
+        decided_by: None,
+        decided_by_name: None,
+        decided_at: None,
+        decision_note: None,
+        row_count: None,
+        suppressed_rows: None,
+        suppression_report: None,
+        data_sha256: None,
+        ready_at: None,
+        expires_at: None,
+        created_at: chrono::Utc::now(),
+    };
+    sqlx::query(
+        "INSERT INTO omop_concept_map (vocabulary_id, concept_code, source_concept_id, standard_concept_id) \
+         VALUES ('ICD10', 'E11', 45576876, 201826) ON CONFLICT DO NOTHING",
+    )
+    .execute(&mut *tx)
+    .await
+    .unwrap_or_else(|e| panic!("{e}"));
+    let built = medbrains_research::build::build(&mut tx, a, &export, b"salt")
+        .await
+        .unwrap_or_else(|e| panic!("{e}"));
+    assert!(built.data.starts_with(b"PK"), "a zip");
+    assert_eq!(built.report["persons_released"], 7);
+    assert_eq!(built.report["persons_suppressed"], 0);
+    let readme = String::from_utf8(built.dictionary).unwrap_or_default();
+    assert!(readme.contains("first day of its month"));
     drop(tx);
     sqlx::raw_sql(&clear())
         .execute(&db)

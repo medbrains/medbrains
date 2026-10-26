@@ -17,14 +17,17 @@
 //! release, the minimum data, and de-identification before data leaves the
 //! hospital.
 
+pub mod build;
 pub mod datasets;
 pub mod deid;
+pub mod omop;
 
 use axum::{
     Extension, Json,
     extract::{Path, State},
     routing::{get, post},
 };
+use base64::Engine as _;
 use chrono::{DateTime, NaiveDate, Utc};
 use medbrains_core::permissions;
 use medbrains_server_core::{
@@ -84,6 +87,8 @@ pub struct ExportFile {
     pub filename: String,
     pub sha256: String,
     pub content: String,
+    /// `utf-8` for CSV and text, `base64` for the OMOP zip.
+    pub encoding: String,
 }
 
 #[derive(Debug, Deserialize)]
@@ -111,8 +116,12 @@ async fn tx_for(
 
 /// What is wrong with a request, if anything.
 fn invalid(new: &NewExport) -> Option<String> {
-    if datasets::fields(&new.dataset).is_none() {
-        return Some(format!("choose one of: {}", datasets::NAMES.join(", ")));
+    if datasets::fields(&new.dataset).is_none() && new.dataset != build::OMOP {
+        return Some(format!(
+            "choose one of: {}, {}",
+            datasets::NAMES.join(", "),
+            build::OMOP
+        ));
     }
     let days = (new.period_to - new.period_from).num_days();
     if !(0..=MAX_PERIOD_DAYS).contains(&days) {
@@ -285,16 +294,9 @@ async fn approve(
     require_permission(&claims, permissions::research::dataset::EXPORT)?;
     let mut tx = tx_for(&state, claims.tenant_id).await?;
     let row = decidable(&mut tx, &claims, id).await?;
-    let fields = datasets::fields(&row.dataset).ok_or(AppError::NotFound)?;
-    let read = datasets::read(
-        &mut tx,
-        claims.tenant_id,
-        &row.dataset,
-        (row.period_from, row.period_to),
-    )
-    .await;
-    let raw = match read {
-        Ok(raw) => raw,
+    let salt = salt();
+    let built = match build::build(&mut tx, claims.tenant_id, &row, &salt).await {
+        Ok(built) => built,
         Err(datasets::ReadError::Db(e)) => return Err(e.into()),
         Err(e) => {
             sqlx::query(
@@ -312,12 +314,7 @@ async fn approve(
             return Ok(Json(row));
         }
     };
-    let salt = salt();
-    let reference = id.simple().to_string()[..8].to_owned();
-    let out = deid::release(fields, raw, &salt, &reference);
-    let data = deid::to_csv(&out.header, &out.rows);
-    let hash = hex::encode(Sha256::digest(data.as_bytes()));
-    let dict = datasets::dictionary(&row, fields, &out.report);
+    let hash = hex::encode(Sha256::digest(&built.data));
     sqlx::query(
         "UPDATE research_exports SET status = 'ready', decided_by = $3, decided_at = now(), \
          decision_note = $4, salt = $5, data_csv = $6, dictionary_csv = $7, data_sha256 = $8, \
@@ -329,12 +326,12 @@ async fn approve(
     .bind(claims.sub)
     .bind(decision.note.as_deref().map(str::trim))
     .bind(&salt)
-    .bind(data.as_bytes())
-    .bind(dict.as_bytes())
+    .bind(&built.data)
+    .bind(&built.dictionary)
     .bind(&hash)
-    .bind(i32::try_from(out.rows.len()).unwrap_or(i32::MAX))
-    .bind(i32::try_from(out.suppressed_rows).unwrap_or(i32::MAX))
-    .bind(&out.report)
+    .bind(i32::try_from(built.rows).unwrap_or(i32::MAX))
+    .bind(i32::try_from(built.suppressed).unwrap_or(i32::MAX))
+    .bind(&built.report)
     .bind(i32::try_from(KEEP_HOURS).unwrap_or(24))
     .execute(&mut *tx)
     .await?;
@@ -380,9 +377,22 @@ async fn download(
     .bind(claims.tenant_id)
     .fetch_one(&mut *tx)
     .await?;
-    let content = String::from_utf8(bytes.ok_or(AppError::NotFound)?)
-        .map_err(|e| AppError::Internal(e.to_string()))?;
-    let sha256 = hex::encode(Sha256::digest(content.as_bytes()));
+    let bytes = bytes.ok_or(AppError::NotFound)?;
+    let sha256 = hex::encode(Sha256::digest(&bytes));
+    let (filename, text) = if file == "data" {
+        build::data_file(&row)
+    } else {
+        (build::dictionary_file(&row), true)
+    };
+    let (content, encoding) = if text {
+        let text = String::from_utf8(bytes).map_err(|e| AppError::Internal(e.to_string()))?;
+        (text, "utf-8")
+    } else {
+        (
+            base64::engine::general_purpose::STANDARD.encode(&bytes),
+            "base64",
+        )
+    };
     sqlx::query(
         "INSERT INTO research_export_downloads (tenant_id, export_id, user_id, file, sha256) \
          VALUES ($1, $2, $3, $4, $5)",
@@ -396,13 +406,10 @@ async fn download(
     .await?;
     tx.commit().await?;
     Ok(Json(ExportFile {
-        filename: format!(
-            "research-{}-{}-{file}.csv",
-            row.dataset,
-            &id.simple().to_string()[..8]
-        ),
+        filename,
         sha256,
         content,
+        encoding: encoding.to_owned(),
     }))
 }
 

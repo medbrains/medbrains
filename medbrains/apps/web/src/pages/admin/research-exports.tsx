@@ -9,7 +9,12 @@
 import { Stack, Text } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import { useAuthStore } from "@medbrains/stores";
-import { type NewResearchExport, P, type ResearchExport } from "@medbrains/types";
+import {
+  type NewResearchExport,
+  P,
+  type ResearchExport,
+  type ResearchExportFile,
+} from "@medbrains/types";
 import { IconPlus } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { PageHeader } from "@/components";
@@ -21,9 +26,15 @@ import { RequestForm } from "./research-exports/request-form";
 
 const KEY = ["research-exports"];
 
-/** Hand the browser a file to save. */
-function save(filename: string, content: string) {
-  const url = URL.createObjectURL(new Blob([content], { type: "text/csv" }));
+/** Hand the browser a file to save: CSV or text as is, the OMOP zip from base64. */
+function save({ filename, content, encoding }: ResearchExportFile) {
+  const blob =
+    encoding === "base64"
+      ? new Blob([Uint8Array.from(atob(content), (c) => c.charCodeAt(0))], {
+          type: "application/zip",
+        })
+      : new Blob([content], { type: filename.endsWith(".txt") ? "text/plain" : "text/csv" });
+  const url = URL.createObjectURL(blob);
   const link = Object.assign(document.createElement("a"), { href: url, download: filename });
   link.click();
   URL.revokeObjectURL(url);
@@ -62,7 +73,7 @@ export function ResearchExportsPage() {
   const download = useMutation({
     mutationFn: ({ row, file }: { row: ResearchExport; file: "data" | "dictionary" }) =>
       researchExportsService.file(row.id, file),
-    onSuccess: (f) => save(f.filename, f.content),
+    onSuccess: save,
   });
   const failure = create.error ?? decide.error ?? download.error;
 

@@ -83,3 +83,11 @@ describe("research exports follow maker-checker", () => {
     expect(screen.queryByRole("button", { name: /data/i })).not.toBeInTheDocument();
   });
 });
+
+describe("an OMOP bundle offers its zip and its README", () => {
+  it("labels the second file README", () => {
+    show({ ...base, dataset: "omop", status: "ready", decided_by: "checker" }, "maker");
+    expect(screen.getByText(/OMOP CDM v5\.4 bundle/)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /readme/i })).toBeInTheDocument();
+  });
+});

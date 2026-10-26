@@ -8,6 +8,7 @@ export const DATASET_LABEL: Record<ResearchDataset, string> = {
   labs: "Lab results",
   medicines: "Medicines dispensed",
   vitals: "Vitals (banded)",
+  omop: "OMOP CDM v5.4 bundle",
 };
 
 export const STATUS: Record<ResearchExportStatus, { label: string; tone: BadgeTone }> = {

@@ -54,7 +54,7 @@ GLOBAL_TABLES = {
     "geo_countries", "geo_districts", "geo_states", "geo_subdistricts", "geo_towns",
     "regulatory_bodies", "news_feed_articles", "partition_config",
     "snomed_codes", "snomed_concept", "snomed_description", "snomed_refset_member",
-    "snomed_relationship", "snomed_release", "snomed_transitive_closure",
+    "snomed_relationship", "snomed_release", "snomed_transitive_closure", "omop_concept_map",
     "tenants", "hospital_groups", "hospital_regions",
 }
 

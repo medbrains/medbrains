@@ -74,7 +74,7 @@ function Actions({
           leftSection={<IconDownload size={16} />}
           onClick={() => onDownload(row, "dictionary")}
         >
-          Dictionary
+          {row.dataset === "omop" ? "README" : "Dictionary"}
         </Button>
       </Group>
     );

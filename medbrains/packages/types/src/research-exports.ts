@@ -6,7 +6,9 @@ export type ResearchDataset =
   | "admissions"
   | "labs"
   | "medicines"
-  | "vitals";
+  | "vitals"
+  /** The OMOP CDM v5.4 bundle (zip): person, visits, conditions, measurements, drugs. */
+  | "omop";
 
 /** `expired` is a ready export past its 24 hours. */
 export type ResearchExportStatus = "requested" | "rejected" | "ready" | "expired" | "failed";
@@ -47,4 +49,6 @@ export interface ResearchExportFile {
   filename: string;
   sha256: string;
   content: string;
+  /** `base64` for the OMOP zip, `utf-8` for CSV and text. */
+  encoding: "utf-8" | "base64";
 }
