@@ -10,6 +10,10 @@ pub use accounting::*;
 mod insurance;
 mod nhcx_recon;
 pub use insurance::*;
+// Insurer settlements posted against bills under maker-checker (mig 1227).
+mod claim_settlement_post;
+mod claim_settlement_reverse;
+pub mod claim_settlements;
 
 // Advances and interim billing — money held before the bill exists.
 mod advances;
@@ -3811,6 +3815,27 @@ pub fn router() -> axum::Router<AppState> {
         .route("/api/billing/erp/export", post(export_to_erp))
         .route("/api/billing/erp/exports", get(list_erp_exports))
         .route("/api/billing/er-invoice", post(er_fast_invoice))
+        .route(
+            "/api/billing/claim-settlements",
+            get(claim_settlements::list_claim_settlements)
+                .post(claim_settlements::record_claim_settlement),
+        )
+        .route(
+            "/api/billing/claim-settlements/backfill",
+            post(claim_settlements::backfill_claim_settlements),
+        )
+        .route(
+            "/api/billing/claim-settlements/{id}/approve",
+            put(claim_settlements::approve_claim_settlement),
+        )
+        .route(
+            "/api/billing/claim-settlements/{id}/reject",
+            put(claim_settlements::reject_claim_settlement),
+        )
+        .route(
+            "/api/billing/claim-settlements/{id}/reverse",
+            put(claim_settlements::reverse_claim_settlement),
+        )
         .route(
             "/api/billing/concessions",
             get(list_concessions).post(create_concession),

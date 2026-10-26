@@ -76,6 +76,7 @@ struct Allocation {
     gross_amount: Decimal,
     tds_amount: Decimal,
     payment_date: Option<NaiveDate>,
+    payment_reference: Option<String>,
 }
 
 /// Post one allocation to its claim: settle it, record the TDS, flag a
@@ -87,7 +88,7 @@ pub(crate) async fn post(
     posted_by: Option<Uuid>,
 ) -> Result<(), AppError> {
     let a = sqlx::query_as::<_, Allocation>(
-        "SELECT a.gross_amount, a.tds_amount, n.payment_date \
+        "SELECT a.gross_amount, a.tds_amount, n.payment_date, n.payment_reference \
            FROM nhcx_payment_allocations a JOIN nhcx_payment_notices n ON n.id = a.notice_id \
           WHERE a.id = $1 AND a.tenant_id = $2 AND a.status = 'unmatched' FOR UPDATE OF a",
     )
@@ -140,6 +141,18 @@ pub(crate) async fn post(
     .bind(tenant_id)
     .execute(&mut **tx)
     .await?;
+    // The bill side waits for finance: a pending posting, approved by hand.
+    sqlx::query("SELECT file_claim_settlement($1, $2, 'nhcx', $3, $4, $5, $6, $7, $8)")
+        .bind(tenant_id)
+        .bind(claim_id)
+        .bind(allocation_id.to_string())
+        .bind(a.gross_amount)
+        .bind(a.tds_amount)
+        .bind(&a.payment_reference)
+        .bind(a.payment_date)
+        .bind(posted_by)
+        .execute(&mut **tx)
+        .await?;
     // Doctors paid on insurer realisation earn their share as it settles.
     medbrains_doctor_payouts::accrual::sync_after_money(tx, tenant_id, c.invoice_id).await?;
     Ok(())

@@ -320,7 +320,24 @@ async fn a_payment_notice_settles_the_claim_once_records_tds_and_is_acknowledged
     assert_eq!(
         paid,
         Decimal::ZERO,
-        "insurer money settles on the claim, not the bill"
+        "insurer money reaches the bill only when finance approves it"
+    );
+    let pending: (String, Decimal, Decimal, Option<String>) = sqlx::query_as(
+        "SELECT status, settled_amount, tds_amount, payment_reference \
+           FROM claim_settlement_postings WHERE insurance_claim_id = $1 AND source = 'nhcx'",
+    )
+    .bind(seeded.claim)
+    .fetch_one(&n.app.db)
+    .await
+    .expect("the notice files a pending posting for finance");
+    assert_eq!(
+        pending,
+        (
+            "pending".into(),
+            dec("27000"),
+            dec("2700"),
+            Some(utr.clone())
+        )
     );
 
     let (path, body) = n.send(NhcxOperation::PaymentAck, &correlation).await;
@@ -345,6 +362,14 @@ async fn a_payment_notice_settles_the_claim_once_records_tds_and_is_acknowledged
     assert_eq!(status, StatusCode::ACCEPTED);
     let (settled, _) = claim_money(&n, seeded.claim).await;
     assert_eq!(settled, Some(dec("27000")), "settled once");
+    let postings: i64 = sqlx::query_scalar(
+        "SELECT count(*) FROM claim_settlement_postings WHERE insurance_claim_id = $1",
+    )
+    .bind(seeded.claim)
+    .fetch_one(&n.app.db)
+    .await
+    .expect("postings");
+    assert_eq!(postings, 1, "a redelivered notice files no second posting");
     let counts: (i64, i64, i64) = sqlx::query_as(
         "SELECT (SELECT count(*) FROM tds_deductions WHERE invoice_id = $1), \
                 (SELECT count(*) FROM nhcx_payment_notices WHERE request_api_call_id = $2), \

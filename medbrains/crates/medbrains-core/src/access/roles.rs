@@ -1000,6 +1000,8 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
             permissions::billing::day_close::CREATE,
             permissions::billing::day_close::VERIFY,
             permissions::billing::write_off::CREATE,
+            // Records insurer settlements; approving them stays with finance.
+            permissions::billing::claims::settlement::RECORD,
             permissions::billing::audit::VIEW,
             permissions::patient_packages::VIEW,
             permissions::patient_packages::SUBSCRIBE,
