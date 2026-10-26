@@ -15,10 +15,18 @@ variable "company_alarm_email" {
 data "aws_caller_identity" "current" {}
 
 locals {
-  prod_name     = "medbrains-prod"
-  backup_prefix = "pg-backups"   # nightly pg_dump (medbrains-pg-backup)
-  files_prefix  = "file-backups" # /var/lib/medbrains mirror (same script)
-  wal_prefix    = "wal-g"        # opt-in WAL archive + base backups
+  prod_name      = "medbrains-prod"
+  backup_prefix  = "pg-backups"         # nightly pg_dump, age-sealed (medbrains-pg-backup)
+  monthly_prefix = "pg-backups-monthly" # first dump of each month, kept a year
+  secrets_prefix = "secrets-backups"    # /etc/medbrains, age-sealed
+  files_prefix   = "file-backups"       # /var/lib/medbrains mirror (same script)
+  wal_prefix     = "wal-g"              # opt-in WAL archive + base backups
+}
+
+variable "company_backup_lock_days" {
+  description = "Object Lock (COMPLIANCE) default retention on the backup bucket, in days. Nobody - root included - can delete or overwrite a locked version before then. 0 = no default retention."
+  type        = number
+  default     = 30
 }
 
 variable "company_wal_archiving" {
@@ -167,6 +175,24 @@ resource "aws_s3_bucket_server_side_encryption_configuration" "prod_backups" {
   }
 }
 
+# Ransomware with the host's credentials can only add versions, never remove
+# one; COMPLIANCE mode means the same holds for a stolen root key. Enabling
+# Object Lock on this existing, versioned bucket is in-place (no replacement)
+# and cannot be turned off again - only the default retention can change.
+# Every PUT now needs a checksum header; medbrains-pg-backup passes
+# --checksum-algorithm. Test WAL-G (`wal-g st put`) before opting it in.
+resource "aws_s3_bucket_object_lock_configuration" "prod_backups" {
+  count      = var.company_backup_lock_days > 0 ? 1 : 0
+  bucket     = aws_s3_bucket.prod_backups.id
+  depends_on = [aws_s3_bucket_versioning.prod_backups]
+  rule {
+    default_retention {
+      mode = "COMPLIANCE"
+      days = var.company_backup_lock_days
+    }
+  }
+}
+
 resource "aws_s3_bucket_public_access_block" "prod_backups" {
   bucket                  = aws_s3_bucket.prod_backups.id
   block_public_acls       = true
@@ -175,23 +201,56 @@ resource "aws_s3_bucket_public_access_block" "prod_backups" {
   restrict_public_buckets = true
 }
 
+# Belt and braces over the host's IAM policy, which already grants only
+# Put + List: the bucket itself refuses
+#   - plain HTTP,
+#   - any delete, from anyone (retention is the lifecycle's job, and a
+#     restore never deletes),
+#   - writes from anything but the prod instance's role, once it has one.
+# With that last rule, the writer policy below (PutObject only on *.age keys
+# under the dump and secrets prefixes) is the only way in, so a
+# misconfigured host fails loudly instead of uploading plaintext PHI.
+locals {
+  prod_role_arn = one(data.aws_iam_instance_profile.prod[*].role_arn)
+}
+
 resource "aws_s3_bucket_policy" "prod_backups" {
   bucket = aws_s3_bucket.prod_backups.id
   policy = jsonencode({
     Version = "2012-10-17"
-    Statement = [{
-      Sid       = "DenyInsecureTransport"
-      Effect    = "Deny"
-      Principal = "*"
-      Action    = "s3:*"
-      Resource  = [aws_s3_bucket.prod_backups.arn, "${aws_s3_bucket.prod_backups.arn}/*"]
-      Condition = { Bool = { "aws:SecureTransport" = "false" } }
-    }]
+    Statement = concat([
+      {
+        Sid       = "DenyInsecureTransport"
+        Effect    = "Deny"
+        Principal = "*"
+        Action    = "s3:*"
+        Resource  = [aws_s3_bucket.prod_backups.arn, "${aws_s3_bucket.prod_backups.arn}/*"]
+        Condition = { Bool = { "aws:SecureTransport" = "false" } }
+      },
+      {
+        Sid       = "DenyDelete"
+        Effect    = "Deny"
+        Principal = "*"
+        Action    = ["s3:DeleteObject", "s3:DeleteObjectVersion", "s3:BypassGovernanceRetention"]
+        Resource  = "${aws_s3_bucket.prod_backups.arn}/*"
+      },
+      ], local.prod_role_arn == null ? [] : [{
+        # aws:PrincipalArn, not NotPrincipal: the host calls as an
+        # assumed-role session, which NotPrincipal = <role arn> does not match.
+        Sid       = "OnlyTheProdHostWrites"
+        Effect    = "Deny"
+        Principal = "*"
+        Action    = "s3:PutObject"
+        Resource  = "${aws_s3_bucket.prod_backups.arn}/*"
+        Condition = { ArnNotEquals = { "aws:PrincipalArn" = local.prod_role_arn } }
+    }])
   })
 }
 
 # Retention per prefix, all under the same SSE-KMS key and versioning.
-#   pg-backups/    daily dumps: 30 days Standard, then IA, gone at 90 days.
+#   pg-backups/          daily dumps: 31 days (30 dailies always on hand).
+#   pg-backups-monthly/  the first dump of each month: 366 days (12 monthlies).
+#   secrets-backups/     /etc/medbrains, sealed: 31 days.
 #   file-backups/  a mirror (`aws s3 sync`, never --delete): current objects
 #                  are kept while they exist on the host; an overwritten or
 #                  replaced file's old version stays 90 days.
@@ -199,18 +258,36 @@ resource "aws_s3_bucket_policy" "prod_backups" {
 #                  days apart, so every point in the last ~28 days keeps its
 #                  base and its WAL. The host never deletes - WAL-G's own
 #                  `delete` would need s3:DeleteObject; lifecycle does it.
+# Expiry of a current version only lays a delete marker; the version itself
+# goes a day later (noncurrent rule), and never before its Object Lock date.
 resource "aws_s3_bucket_lifecycle_configuration" "prod_backups" {
   bucket = aws_s3_bucket.prod_backups.id
   rule {
     id     = "pg-dumps"
     status = "Enabled"
     filter { prefix = "${local.backup_prefix}/" }
+    expiration { days = 31 }
+    noncurrent_version_expiration { noncurrent_days = 1 }
+    abort_incomplete_multipart_upload { days_after_initiation = 1 }
+  }
+  rule {
+    id     = "pg-dumps-monthly"
+    status = "Enabled"
+    filter { prefix = "${local.monthly_prefix}/" }
     transition {
       days          = 30
       storage_class = "STANDARD_IA"
     }
-    expiration { days = 90 }
-    noncurrent_version_expiration { noncurrent_days = 30 }
+    expiration { days = 366 }
+    noncurrent_version_expiration { noncurrent_days = 1 }
+    abort_incomplete_multipart_upload { days_after_initiation = 1 }
+  }
+  rule {
+    id     = "secrets"
+    status = "Enabled"
+    filter { prefix = "${local.secrets_prefix}/" }
+    expiration { days = 31 }
+    noncurrent_version_expiration { noncurrent_days = 1 }
     abort_incomplete_multipart_upload { days_after_initiation = 1 }
   }
   rule {
@@ -239,19 +316,24 @@ resource "aws_iam_policy" "prod_backup_writer" {
         Sid    = "WriteDumpsAndFiles"
         Effect = "Allow"
         Action = ["s3:PutObject", "s3:AbortMultipartUpload"]
+        # Dumps and secrets only as age-sealed objects (*.age).
         Resource = [
-          "${aws_s3_bucket.prod_backups.arn}/${local.backup_prefix}/*",
+          "${aws_s3_bucket.prod_backups.arn}/${local.backup_prefix}/*.age",
+          "${aws_s3_bucket.prod_backups.arn}/${local.monthly_prefix}/*.age",
+          "${aws_s3_bucket.prod_backups.arn}/${local.secrets_prefix}/*.age",
           "${aws_s3_bucket.prod_backups.arn}/${local.files_prefix}/*",
         ]
       },
       {
-        # host-check lists the dump prefix; `aws s3 sync` lists the mirror.
+        # host-check lists the dump prefixes, the backup script the monthly
+        # one (has this month's been taken?); `aws s3 sync` lists the mirror.
         Sid      = "ListDumpsAndFiles"
         Effect   = "Allow"
         Action   = "s3:ListBucket"
         Resource = aws_s3_bucket.prod_backups.arn
         Condition = { StringLike = { "s3:prefix" = [
           "${local.backup_prefix}/*",
+          "${local.monthly_prefix}/*",
           "${local.files_prefix}/*",
         ] } }
       },

@@ -1,6 +1,6 @@
 # Backup and restore — production (app.medbrains.in)
 
-Last reviewed 2026-10-12. Read before any prod change, and before you need it.
+Last reviewed 2026-10-26 (age client-side encryption, monthly retention, Object Lock, pre-deploy backup, restore drill script). Read before any prod change, and before you need it.
 
 ## What prod actually is
 
@@ -54,9 +54,10 @@ systemctl list-timers medbrains-pg-backup.timer; ls -lt /var/backups/medbrains |
 ## The fix, as code (not deployed)
 
 1. **`infra/terraform/envs/medbrains-in/ops.tf`** — an offsite bucket `medbrains-prod-pg-backups-<account>`:
-   versioned, SSE-KMS with a dedicated rotating key (`alias/medbrains-prod-backups`), public access blocked,
-   TLS-only bucket policy, lifecycle 30 d Standard → Standard-IA → expire at 90 d, noncurrent versions 30 d,
-   aborted multipart uploads 1 d. An IAM policy lets the host **write and list only** (no read, no delete — a
+   versioned, Object Lock COMPLIANCE 30 d (`company_backup_lock_days`), SSE-KMS with a dedicated rotating key
+   (`alias/medbrains-prod-backups`), public access blocked, bucket policy: TLS only, no deletes by anyone, writes
+   only from the instance role. Lifecycle: `pg-backups/` 31 d (30 dailies), `pg-backups-monthly/` 366 d
+   (12 monthlies, IA after 30 d), `secrets-backups/` 31 d, aborted multipart uploads 1 d. An IAM policy lets the host **write and list only** (no read, no delete — a
    compromised host cannot destroy or exfiltrate history; the opt-in WAL grant below adds read on `wal-g/` only) and publish to the new alert topic. It is attached to
    the instance's role automatically if the instance has a profile. Apply: `docs/ops/MONITORING.md`.
 2. **`deploy/standalone/medbrains-pg-backup`** — no longer passes `--no-privileges` (see drill finding 1), and now
@@ -83,8 +84,24 @@ systemctl list-timers medbrains-pg-backup.timer; ls -lt /var/backups/medbrains |
    Note: with `BACKUP_BUCKET` set the script writes **only** to S3 (it is either/or). Keep the pre-deploy manual
    dump habit for a fast local copy.
 
-Encryption is server-side (SSE-KMS). Client-side encryption (age/gpg) was skipped: it would put a second key on the
-host to manage and lose; add it if a reviewer requires the dump to be unreadable to the AWS account itself.
+### Client-side encryption (age) — added 2026-10-26
+
+Every dump, and a tarball of `/etc/medbrains`, is sealed with [age](https://age-encryption.org) to the public
+key(s) in `deploy/standalone/backup-recipients.txt` (installed to `/etc/medbrains/backup-recipients.txt`)
+inside the `pg_dump | age | aws s3 cp -` pipe — no plaintext touches the disk or the bucket. Only a **public** key
+is on the host, so the earlier objection (a second secret on the host to manage and lose) does not apply: the
+private key is kept offline by the founder (generation: `deploy/standalone/README.md`, "Founder's steps"). The
+backup script refuses an S3 destination without a key, and the writer IAM policy only accepts `*.age` keys under
+the dump and secrets prefixes. Locally (`BACKUP_DIR`) dumps are sealed too once the key is installed
+(`*.dump.age`, `*.secrets.tar.age`). The files mirror stays SSE-KMS only (`aws s3 sync` cannot seal per object).
+
+`/etc/medbrains` is backed up because a restored database is not usable without it:
+`MEDBRAINS_IDENTIFIER_HMAC_KEY` keys every identifier fingerprint, and the ABDM/NHCX/JWT keys and role passwords
+live there. The app (user `medbrains`) cannot read the sealed copy; nobody can without the offline key.
+
+Every run (and every failure) writes a `backup_history` row (`tenant_id` NULL = the installation); Admin →
+Settings → System health shows the newest good one and turns red at 26 h. `install.sh` runs the same unit before
+every re-deploy and stops if it fails (`SKIP_PREDEPLOY_BACKUP=1` only after a manual dump).
 
 ## RPO / RTO
 
@@ -168,10 +185,17 @@ by design). Never restore over the live database directly — restore beside it,
    `sudo systemctl stop medbrains-server medbrains-pg-backup.timer`.
 2. **Take a dump of what is there now**, even if it is broken — it is evidence and a fallback:
    `umask 077; sudo -u postgres pg_dump -Fc -d medbrains -f /var/backups/medbrains/pre-restore-$(date -u +%FT%H-%M-%SZ).dump`
-3. **Pick the archive.**
-   - S3: `aws s3 ls s3://<bucket>/pg-backups/<host>/ | sort | tail` then
-     `aws s3 cp s3://<bucket>/pg-backups/<host>/<stamp>.sql.gz /var/tmp/restore.dump` (custom format despite the name).
-   - Local: `ls -t /var/backups/medbrains/*.dump | head -1`.
+3. **Pick the archive.** First prove it with `deploy/standalone/medbrains-restore-drill` (below) on your machine.
+   - S3: `aws s3 ls s3://<bucket>/pg-backups/<host>/ | sort | tail` (and `pg-backups-monthly/` for older), then
+     `aws s3 cp s3://<bucket>/pg-backups/<host>/<stamp>.dump.age /var/tmp/restore.dump.age`. Objects from before
+     2026-10-26 end in `.sql.gz` and are unsealed custom format.
+   - Local: `ls -t /var/backups/medbrains/*.dump* | head -1`.
+   - Decrypt **with the offline key, which never stays on the server**: decrypt on your machine and copy the
+     plaintext up over SSH, or `age -d -i key.age restore.dump.age | ssh host 'umask 077; cat > /var/tmp/restore.dump'`.
+     Shred both copies afterwards. Secrets, if the host is new:
+     `age -d -i key.age <stamp>.tar.age | tar -xOf - medbrains/env` gives the old `/etc/medbrains/env` — restore at
+     least `MEDBRAINS_IDENTIFIER_HMAC_KEY`, `MEDBRAINS_ABDM_SECRET_KEY`, `MEDBRAINS_NHCX_SECRET_KEY` and the JWT keys
+     before the server starts.
    - Sanity: `pg_restore --list /var/tmp/restore.dump | grep -c 'TABLE DATA'` (expect ~915).
 4. **Roles first (new host only).** Dumps carry no roles. On a fresh cluster create the owner role, then
    `medbrains_app` and `medbrains_outbox_worker` — `deploy/standalone/db-roles.sh` does this and sets their passwords
@@ -257,10 +281,29 @@ Not covered by this drill (do it before calling DR proven): a restore **from S3*
 created by `db-roles.sh`, timed end-to-end, and the uploaded-objects tree. Repeat the drill quarterly and after any
 change to the backup script; append results here.
 
+## Restore drill script (operator machine)
+
+`deploy/standalone/medbrains-restore-drill` (`make restore-drill FROM=… IDENTITY=…`) does steps 3, 5 and 7 into a
+throwaway Postgres 17 container: newest object under `--from` (S3 prefix, directory or file) → `age -d` with the
+offline key (a tampered or truncated object fails here, age authenticates each chunk) → creates the roles the
+archive grants to → `pg_restore --exit-on-error -j 4` → checks: migrations recorded and none failed, exact row
+counts of every table (`--counts-out` writes them), tenants/users present, newest `audit_log`, `SET ROLE
+medbrains_app` can read `patients`; `--secrets-from` decrypts the `/etc/medbrains` archive and lists the key
+**names** only. Prints download/decrypt/restore timings (the RTO evidence) and exits non-zero on any failure.
+The plaintext dump lives only in a 0700 temp dir for the run.
+
+`deploy/standalone/test-backup-drill-e2e.sh` (`make test-backups`) proves the whole chain locally with a throwaway
+key and a directory as the bucket: the uploaded object is age ciphertext (no `PGDMP` magic, `pg_restore` cannot read
+it, a wrong key cannot open it, secret values absent), S3 without a key is refused and recorded, monthly-then-daily
+placement, `backup_history` rows, restored row counts identical to the source, scratch DB dropped, tampered object
+fails, and the drill also runs in its own throwaway container. 15/15 on 2026-10-26.
+
 ## Known gaps
 
 - The files mirror and WAL archiving are code only — inert until `ops.tf` is applied and the host steps are run.
 - The files mirror runs once a day: up to 24 h of generated documents can be lost even with WAL archiving on.
-- No automated restore test (a scheduled restore-into-scratch + row-count job, as in
-  `infra/k8s/cronjobs/pgbackrest-restore-test.yaml`, wired to this host).
-- S3 object keys end in `.sql.gz` but hold `pg_dump` custom format.
+- The restore drill is run by hand (it needs the offline key, so it cannot be scheduled on the host by design).
+  Quarterly, and after any change to the backup script.
+- Losing the offline key (and any second recipient) makes every sealed backup unreadable. Keep two copies.
+- Object Lock requires a checksum on every PUT; the backup script sends one, WAL-G is untested against it — run
+  `wal-g st put` once before opting WAL archiving in.

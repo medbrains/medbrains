@@ -83,11 +83,30 @@ if [[ -n "${BACKUP_BUCKET:-}" ]]; then
     prefix="${BACKUP_PREFIX:-pg-backups}"
     prefix="${prefix%/}"
     s3_path="s3://${BACKUP_BUCKET}/${prefix}/$(hostname)/"
+    # The first dump of each month lands under the monthly prefix instead
+    # (medbrains-pg-backup), so the daily one alone has a hole on that day.
+    monthly_path="s3://${BACKUP_BUCKET}/${BACKUP_MONTHLY_PREFIX:-${prefix}-monthly}/$(hostname)/"
 
-    if ! listing="$(aws s3 ls "$s3_path" 2>/dev/null)"; then
+    # `aws s3 ls` exits 1 both for "nothing there" and for "could not ask";
+    # only the second says anything on stderr.
+    unknown=0 daily="" monthly=""
+    s3_list() { # s3_list <var> <s3-path>
+        local out
+        if out="$(aws s3 ls "$2" 2>&1)"; then
+            printf -v "$1" '%s' "$out"
+        else
+            printf -v "$1" '%s' ""
+            [[ -n "$out" ]] && unknown=1
+        fi
+        return 0
+    }
+    s3_list daily "$s3_path"
+    s3_list monthly "$monthly_path"
+    if [[ $unknown -eq 1 ]]; then
         # Network, credentials, throttling. Not evidence of a missing backup.
         echo "backup: could not list $s3_path — unknown, not treated as failed" >&2
     else
+        listing="${daily}"$'\n'"${monthly}"
         # `aws s3 ls` prints "YYYY-MM-DD HH:MM:SS <size> <key>", so the
         # lexical sort is also the chronological one.
         newest="$(grep -E '^[0-9]{4}-[0-9]{2}-[0-9]{2} ' <<<"$listing" | sort | tail -1)"
@@ -111,8 +130,9 @@ if [[ -n "${BACKUP_BUCKET:-}" ]]; then
 elif [[ -n "${BACKUP_DIR:-}" && -d "${BACKUP_DIR:-/nonexistent}" ]]; then
     # 26h, not 24h: the timer carries RandomizedDelaySec and Persistent,
     # so a run can legitimately land later than exactly a day apart.
-    if [[ -z "$(find "$BACKUP_DIR" -maxdepth 1 -type f -name '*.dump' -mmin -1560 2>/dev/null)" ]]; then
-        newest="$(ls -t "$BACKUP_DIR"/*.dump 2>/dev/null | head -1)"
+    if [[ -z "$(find "$BACKUP_DIR" -maxdepth 1 -type f \( -name '*.dump' -o -name '*.dump.age' \) -mmin -1560 2>/dev/null)" ]]; then
+        # shellcheck disable=SC2012 # our own timestamped names, no odd characters
+        newest="$(ls -t "$BACKUP_DIR"/*.dump "$BACKUP_DIR"/*.dump.age 2>/dev/null | head -1)"
         echo "BACKUP: no dump newer than 26h in $BACKUP_DIR" >&2
         echo "        newest: ${newest:-<none at all>}" >&2
         systemctl status medbrains-pg-backup.timer --no-pager -l 2>&1 | tail -5 >&2 || true

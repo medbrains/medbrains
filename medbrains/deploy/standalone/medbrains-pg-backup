@@ -1,11 +1,13 @@
 #!/usr/bin/env bash
-# /usr/local/bin/medbrains-pg-backup — invoked by the systemd timer.
+# /usr/local/bin/medbrains-pg-backup — invoked by the systemd timer, and by
+# install.sh before every re-deploy (so a migration never runs without a
+# dump taken minutes earlier).
 #
 # Two destinations, because the tiers do not all have the same one.
 #
-#   BACKUP_BUCKET  S3, with Object Lock + versioning making the dumps
-#                  tamper-proof for 5 years (configured in terraform).
-#                  The tiers whose host we own.
+#   BACKUP_BUCKET  S3: versioned, Object Lock, SSE-KMS, the host may write
+#                  and list but never read or delete (terraform:
+#                  infra/terraform/envs/medbrains-in/ops.tf). Offsite.
 #
 #   BACKUP_DIR     a directory on the host. The attach tier: the machine
 #                  belongs to the hospital, there is no bucket, and
@@ -17,6 +19,17 @@
 # BACKUP_DIR is NOT a substitute for offsite. It survives "somebody
 # dropped a table" and does not survive the disk. Say so to the hospital
 # rather than letting a directory of dumps read as disaster recovery.
+#
+# Encryption. Every dump is sealed with age to the PUBLIC keys in
+# BACKUP_AGE_RECIPIENTS_FILE before it leaves pg_dump's pipe. The private
+# key is not on this host — the founder keeps it offline — so nothing on
+# this machine, root included, can read a past backup. S3 refuses to take
+# anything else: an S3 destination without recipients is an error, never
+# a plaintext upload, and the bucket policy only accepts *.age keys there.
+#
+# Every run records a row in backup_history (Admin → Settings → System
+# health shows its age) and exits non-zero on any failure, which
+# OnFailure=medbrains-alert@ turns into a page.
 
 set -euo pipefail
 
@@ -26,6 +39,8 @@ set -euo pipefail
 BACKUP_BUCKET="${BACKUP_BUCKET:-}"
 BACKUP_DIR="${BACKUP_DIR:-}"
 BACKUP_KEEP_DAYS="${BACKUP_KEEP_DAYS:-14}"
+RECIPIENTS="${BACKUP_AGE_RECIPIENTS_FILE:-/etc/medbrains/backup-recipients.txt}"
+SECRETS_DIR="${BACKUP_SECRETS_DIR:-/etc/medbrains}"
 
 if [[ -z "$BACKUP_BUCKET" && -z "$BACKUP_DIR" ]]; then
     echo "ERROR: no backup destination. Set BACKUP_BUCKET (S3) or BACKUP_DIR" >&2
@@ -34,6 +49,7 @@ if [[ -z "$BACKUP_BUCKET" && -z "$BACKUP_DIR" ]]; then
 fi
 
 DATE="$(date -u +%Y-%m-%dT%H-%M-%SZ)"
+STARTED="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 HOSTNAME_TAG="$(hostname)"
 
 # The prefix is configurable because the bucket may not be ours.
@@ -46,18 +62,9 @@ HOSTNAME_TAG="$(hostname)"
 # the bucket policy actually grants.
 BACKUP_PREFIX="${BACKUP_PREFIX:-pg-backups}"
 BACKUP_PREFIX="${BACKUP_PREFIX%/}"
-KEY="${BACKUP_PREFIX}/${HOSTNAME_TAG}/${DATE}.sql.gz"
+MONTHLY_PREFIX="${BACKUP_MONTHLY_PREFIX:-${BACKUP_PREFIX}-monthly}"
+SECRETS_PREFIX="${BACKUP_SECRETS_PREFIX:-secrets-backups}"
 
-# --format=custom + --compress=9 = small, restorable via pg_restore.
-#
-# GRANTs and default privileges ARE kept (no --no-privileges). The app
-# connects as medbrains_app and the workers as medbrains_outbox_worker
-# (migrations 0981/0984); both hold only granted rights. A dump without them
-# restores a database every request is refused on, and the migrations that
-# granted them are already recorded so a reboot does not re-grant. Found by
-# the 2026-10-12 restore drill (docs/ops/BACKUP-RESTORE.md).
-# Streams straight to S3 — no /tmp staging.
-#
 # Two shapes to dump from. The dedicated host runs Postgres in our
 # container, so pg_dump runs inside it and the host needs no client.
 # The attach tier reuses the hospital's own Postgres, where that
@@ -69,24 +76,104 @@ if command -v docker >/dev/null 2>&1 && docker container inspect medbrains-postg
         docker exec -i medbrains-postgres pg_dump \
             -U "$POSTGRES_USER" -d "$POSTGRES_DB" "$@"
     }
+    run_sql() {
+        docker exec -i medbrains-postgres psql -XAq -v ON_ERROR_STOP=1 \
+            -U "$POSTGRES_USER" -d "$POSTGRES_DB" "$@"
+    }
 else
     : "${DATABASE_URL:?DATABASE_URL must be set in /etc/medbrains/env when no medbrains-postgres container exists}"
     # The owner: pg_dump refuses tables whose row level security would filter
     # it, and medbrains_app is filtered by design.
     dump_postgres() { pg_dump "${MIGRATION_DATABASE_URL:-$DATABASE_URL}" "$@"; }
+    run_sql() { psql -XAq -v ON_ERROR_STOP=1 "${MIGRATION_DATABASE_URL:-$DATABASE_URL}" "$@"; }
 fi
 
+# backup_history is what the System health screen reads. tenant_id NULL =
+# the whole installation (the policy on that table admits NULL rows to
+# every tenant's admins). Best effort: the database being down is a likely
+# reason the backup failed in the first place, and the page from
+# OnFailure / host-check does not depend on this row.
+RECORDED=0
+KEEP_FOR="$BACKUP_KEEP_DAYS"
+record() { # record <status> <dest> <size-bytes|""> <error|"">
+    RECORDED=1
+    run_sql -v status="$1" -v dest="$2" -v size="$3" -v err="$4" \
+        -v started="$STARTED" -v keep="$KEEP_FOR" >/dev/null <<'SQL' ||
+INSERT INTO backup_history (tenant_id, backup_type, backup_name, file_path, file_size_bytes,
+                            status, started_at, completed_at, retention_days, expires_at, error_message)
+VALUES (NULL, 'pg_dump', :'dest', :'dest', NULLIF(:'size', '')::bigint, :'status',
+        :'started'::timestamptz, now(), :'keep'::int, now() + make_interval(days => :'keep'::int),
+        NULLIF(:'err', ''));
+SQL
+        echo "WARN: backup ${1}, but could not record it in backup_history" >&2
+}
+on_exit() {
+    local rc=$?
+    if [[ $rc -ne 0 && "$RECORDED" == "0" ]]; then
+        record failed "${DEST:-none}" "" "exit $rc — journalctl -u medbrains-pg-backup"
+    fi
+}
+trap on_exit EXIT
+
+ENCRYPT=0
+if [[ -s "$RECIPIENTS" ]]; then
+    command -v age >/dev/null 2>&1 || { echo "ERROR: $RECIPIENTS is set but age is not installed" >&2; exit 1; }
+    # A malformed recipients file would otherwise surface only after the
+    # whole database had been dumped into a pipe that refuses it.
+    age -R "$RECIPIENTS" </dev/null >/dev/null || { echo "ERROR: $RECIPIENTS holds no valid age recipient" >&2; exit 1; }
+    ENCRYPT=1
+elif [[ -n "$BACKUP_BUCKET" ]]; then
+    echo "ERROR: refusing to send an unencrypted dump off the host." >&2
+    echo "       Put the backup public key (age1…) in $RECIPIENTS —" >&2
+    echo "       deploy/standalone/README.md, 'Encrypted off-site backups'." >&2
+    exit 1
+fi
+seal() { if [[ "$ENCRYPT" == "1" ]]; then age -R "$RECIPIENTS"; else cat; fi; }
+SUFFIX=""; [[ "$ENCRYPT" == "1" ]] && SUFFIX=".age"
+
+# --format=custom + --compress=9 = small, restorable via pg_restore.
+#
+# GRANTs and default privileges ARE kept (no --no-privileges). The app
+# connects as medbrains_app and the workers as medbrains_outbox_worker
+# (migrations 0981/0984); both hold only granted rights. A dump without them
+# restores a database every request is refused on, and the migrations that
+# granted them are already recorded so a reboot does not re-grant. Found by
+# the 2026-10-12 restore drill (docs/ops/BACKUP-RESTORE.md).
+dump() { dump_postgres --format=custom --compress=9 --no-owner | seal; }
+# /etc/medbrains holds what a restored database cannot work without:
+# MEDBRAINS_IDENTIFIER_HMAC_KEY (every identifier fingerprint is keyed on
+# it), the ABDM/NHCX keys, JWT keys, role passwords. Only ever sealed.
+secrets() { tar -C "$(dirname "$SECRETS_DIR")" -cf - "$(basename "$SECRETS_DIR")" | seal; }
+
 if [[ -n "$BACKUP_BUCKET" ]]; then
-    echo "==> dumping postgres → s3://${BACKUP_BUCKET}/${KEY}"
-    dump_postgres \
-        --format=custom \
-        --compress=9 \
-        --no-owner \
-      | aws s3 cp - "s3://${BACKUP_BUCKET}/${KEY}" \
+    KEEP_FOR=31
+    # The first run of each month goes to the monthly prefix (kept a year),
+    # the rest to the daily one (kept 31 days). "First run that finds no
+    # monthly object yet" rather than "the 1st": a failed run on the 1st
+    # would otherwise leave that month with none. A listing error also
+    # lands here — one extra monthly copy is the harmless direction.
+    if aws s3 ls "s3://${BACKUP_BUCKET}/${MONTHLY_PREFIX}/${HOSTNAME_TAG}/$(date -u +%Y-%m)" >/dev/null 2>&1; then
+        KEY="${BACKUP_PREFIX}/${HOSTNAME_TAG}/${DATE}.dump${SUFFIX}"
+    else
+        KEY="${MONTHLY_PREFIX}/${HOSTNAME_TAG}/${DATE}.dump${SUFFIX}"
+        KEEP_FOR=366
+    fi
+    DEST="s3://${BACKUP_BUCKET}/${KEY}"
+
+    # Streams straight to S3 — no plaintext staging anywhere on disk.
+    # --checksum-algorithm: Object Lock buckets refuse a PUT without one.
+    echo "==> dumping postgres → ${DEST}"
+    dump | aws s3 cp - "$DEST" \
         --expected-size 1073741824 \
         --content-type application/octet-stream \
-        --metadata "host=${HOSTNAME_TAG},captured-utc=${DATE}"
-    DEST="s3://${BACKUP_BUCKET}/${KEY}"
+        --metadata "host=${HOSTNAME_TAG},captured-utc=${DATE}" \
+        --checksum-algorithm CRC32
+
+    if [[ -d "$SECRETS_DIR" ]]; then
+        echo "==> sealing ${SECRETS_DIR} → s3://${BACKUP_BUCKET}/${SECRETS_PREFIX}/${HOSTNAME_TAG}/${DATE}.tar${SUFFIX}"
+        secrets | aws s3 cp - "s3://${BACKUP_BUCKET}/${SECRETS_PREFIX}/${HOSTNAME_TAG}/${DATE}.tar${SUFFIX}" \
+            --content-type application/octet-stream --checksum-algorithm CRC32
+    fi
 
     # Files: generated documents, uploads, the cold/archive tiers, the audit
     # sink and the edge doc store. Postgres rows point at these objects; a
@@ -99,6 +186,10 @@ if [[ -n "$BACKUP_BUCKET" ]]; then
     # leaves the previous version recoverable for the lifecycle window.
     # pgdata is excluded: a file copy of a live cluster is not a backup, the
     # dump above is.
+    # ponytail: the file mirror is SSE-KMS only, not age-sealed — `aws s3
+    # sync` cannot encrypt per object. Client-side would mean a tarball per
+    # run (40 GB nightly) or rclone's crypt remote; add the latter if a
+    # reviewer requires the documents unreadable to the AWS account too.
     FILES_PREFIX="${BACKUP_FILES_PREFIX:-file-backups}"
     FILES_PREFIX="${FILES_PREFIX%/}"
     for root in ${BACKUP_FILES_ROOTS:-/var/lib/medbrains /var/lib/medbrains-edge}; do
@@ -106,9 +197,12 @@ if [[ -n "$BACKUP_BUCKET" ]]; then
         echo "==> syncing files ${root} → s3://${BACKUP_BUCKET}/${FILES_PREFIX}/${HOSTNAME_TAG}${root}/"
         aws s3 sync "$root" "s3://${BACKUP_BUCKET}/${FILES_PREFIX}/${HOSTNAME_TAG}${root}/" \
             --exclude 'pgdata/*' --exclude '*.partial' \
-            --no-follow-symlinks --only-show-errors
+            --no-follow-symlinks --only-show-errors --checksum-algorithm CRC32
     done
+
+    SIZE="$(aws s3 ls "$DEST" 2>/dev/null | awk '{print $3}' || true)"
 else
+    KEEP_FOR="$BACKUP_KEEP_DAYS"
     # No file copy on this branch. BACKUP_DIR sits on the same disk as the
     # files, so a second copy there survives nothing the originals do not;
     # the hospital's host backup — the premise of this tier — must cover
@@ -124,7 +218,8 @@ else
     esac
 
     install -d -m 0700 "$BACKUP_DIR"
-    DEST="${BACKUP_DIR}/${HOSTNAME_TAG}-${DATE}.dump"
+    DEST="${BACKUP_DIR}/${HOSTNAME_TAG}-${DATE}.dump${SUFFIX}"
+    [[ "$ENCRYPT" == "1" ]] || echo "WARN: no $RECIPIENTS — this dump is NOT encrypted" >&2
 
     echo "==> dumping postgres → ${DEST}"
     # Written under .partial and renamed. A dump interrupted halfway
@@ -133,33 +228,31 @@ else
     # rename(2) within a directory is atomic, so the final name only ever
     # appears on a dump pg_dump finished writing.
     umask 077
-    dump_postgres \
-        --format=custom \
-        --compress=9 \
-        --no-owner \
-      > "${DEST}.partial"
+    dump > "${DEST}.partial"
     mv "${DEST}.partial" "$DEST"
+    SIZE="$(wc -c < "$DEST" | tr -d ' ')"
 
-    echo "==> pruning dumps older than ${BACKUP_KEEP_DAYS} days"
-    find "$BACKUP_DIR" -maxdepth 1 -type f -name '*.dump' \
+    if [[ "$ENCRYPT" == "1" && -d "$SECRETS_DIR" ]]; then
+        S="${BACKUP_DIR}/${HOSTNAME_TAG}-${DATE}.secrets.tar.age"
+        secrets > "${S}.partial" && mv "${S}.partial" "$S"
+    fi
+
+    echo "==> pruning backups older than ${BACKUP_KEEP_DAYS} days"
+    find "$BACKUP_DIR" -maxdepth 1 -type f \
+        \( -name '*.dump' -o -name '*.dump.age' -o -name '*.secrets.tar.age' \) \
         -mtime "+${BACKUP_KEEP_DAYS}" -print -delete
     # A .partial left behind is a dump that died; it is not a backup and
     # it is not small. Clear yesterday's wreckage.
-    find "$BACKUP_DIR" -maxdepth 1 -type f -name '*.dump.partial' \
+    find "$BACKUP_DIR" -maxdepth 1 -type f -name '*.partial' \
         -mtime +1 -print -delete
 fi
 
-# ponytail: no separate integrity check here. `pg_dump | aws s3 cp` under
-# `set -o pipefail` already fails this unit when pg_dump dies mid-stream,
-# and OnFailure= pages with the journal tail - so a truncated upload is
-# never silent. What is NOT proven is that the bytes restore: pg_restore
-# --list only parses the table of contents and returns 0 on an archive
-# missing 6% of its data section, and reading the object back to check
-# even that costs a full re-download nightly.
-#
-# The real control is a restore test - restore yesterday's archive into a
-# scratch database and count rows. The repo already has that shape at
-# infra/k8s/cronjobs/pgbackrest-restore-test.yaml, pointed at a tier
-# nothing instantiates. Wire it to the tiers carrying patients; do not
-# approximate it here.
+record completed "$DEST" "${SIZE:-}" ""
+
+# ponytail: no integrity check here. `pg_dump | age | aws s3 cp` under
+# `set -o pipefail` already fails this unit when any stage dies mid-stream,
+# and age's per-chunk MAC makes a truncated object fail to decrypt rather
+# than restore short. What is NOT proven here is that the bytes restore —
+# the host cannot read the bucket, by design. That is medbrains-restore-drill,
+# run on the operator's machine with the offline key.
 echo "==> backup complete: ${DEST}"

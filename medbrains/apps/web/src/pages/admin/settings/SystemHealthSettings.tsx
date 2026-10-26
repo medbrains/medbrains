@@ -15,6 +15,7 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { Alert, Badge, Button } from "@/components/ui";
 import { settingsSetupService } from "@/services/settingsSetup.service";
+import { BackupStatusCard } from "./BackupStatusCard";
 
 // ── Completeness thresholds ──────────────────────────────
 
@@ -216,6 +217,8 @@ export function SystemHealthSettings() {
           </Card>
         )}
       </div>
+
+      <BackupStatusCard />
 
       {/* Completeness Check */}
       <div>

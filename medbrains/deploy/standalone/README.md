@@ -80,9 +80,82 @@ curl -I https://hims.amh.org.in                        # 200 once ACME completes
 | Run sweeper now | `sudo systemctl start medbrains-archive.service` |
 | Restart server | `sudo systemctl restart medbrains-server.service` |
 | Tail local ICD-API | `sudo docker logs -f medbrains-icd-api` |
-| Backup postgres | `sudo docker exec medbrains-postgres pg_dump -U medbrains medbrains > backup-$(date +%F).sql` |
+| Backup now (sealed, shipped, recorded) | `sudo systemctl start medbrains-pg-backup.service && journalctl -u medbrains-pg-backup -n 20` |
+| Is the last backup fresh? | Admin → Settings → System health, or `sudo systemctl start medbrains-host-check.service` |
 | Update binary | Replace `/usr/local/bin/medbrains-server` and `systemctl restart medbrains-server.service` |
 | Update SPA | `rsync apps/web/dist/ /var/www/medbrains/` (no restart needed) |
+
+## Encrypted off-site backups
+
+What runs: `medbrains-pg-backup.timer` (02:30 UTC daily, and before every
+re-deploy — `install.sh` refuses to restart onto new migrations if that
+backup fails) dumps Postgres with `pg_dump -Fc`, seals it with
+[age](https://age-encryption.org) to the public key(s) in
+`/etc/medbrains/backup-recipients.txt`, and streams it to S3. `/etc/medbrains`
+(HMAC/ABDM/JWT keys, role passwords — a restored database is unusable without
+them) is sealed and shipped the same way. Nothing is staged on disk in plain
+text. The private key is **never on the server**: the host can write backups
+but neither it, root, nor the app can read one.
+
+| Prefix | What | Kept |
+|---|---|---|
+| `pg-backups/<host>/*.dump.age` | nightly dumps | 31 days |
+| `pg-backups-monthly/<host>/*.dump.age` | first dump of each month | 366 days |
+| `secrets-backups/<host>/*.tar.age` | `/etc/medbrains` | 31 days |
+| `file-backups/<host>/…` | documents mirror (SSE-KMS, not age) | while present; old versions 90 days |
+
+The bucket (`infra/terraform/envs/medbrains-in/ops.tf`): ap-south-1, versioned,
+Object Lock COMPLIANCE 30 days, SSE-KMS, public access blocked, TLS only, no
+deletes by anyone, writes only from the prod instance role and only as `*.age`
+under the dump prefixes. Every run writes a row to `backup_history`; **Admin →
+Settings → System health** shows the age of the last good one and turns red
+after 26 h. `medbrains-host-check` (hourly) pages through `ALERT_TOPIC_ARN`
+on the same threshold, and a failed run pages via `OnFailure=`.
+
+RPO 24 h (≤ 5 min with WAL-G opted in); RTO ≈ 2 h for a lost host — see
+`docs/ops/BACKUP-RESTORE.md`.
+
+### Founder's steps to switch it on (in order)
+
+1. **Make the key, offline** (your own Mac or an air-gapped machine, never the server):
+   ```sh
+   brew install age                                  # or apt install age
+   age-keygen -o medbrains-backup.key                # prints "Public key: age1…"
+   age -p -o medbrains-backup.key.age medbrains-backup.key   # passphrase-protect it
+   rm -P medbrains-backup.key                        # keep only the protected copy
+   ```
+   Store `medbrains-backup.key.age` in two places that do not share a fate
+   (e.g. a USB stick in a safe + your password manager) and the passphrase
+   separately. Lose both and **every backup is unreadable** — consider a
+   second key held by someone you trust, as a second line in step 2.
+2. **Commit the public key** (not secret): put the `age1…` line(s) in
+   `deploy/standalone/backup-recipients.txt`, open a PR, merge. Every
+   install now seals to it; `install.sh` refuses a malformed file.
+3. **Create the bucket**: `cd infra/terraform/envs/medbrains-in`, then
+   `terraform plan -out ops.tfplan` and check it — Object Lock on the existing
+   bucket is in place and **cannot be switched off later** — then
+   `terraform apply ops.tfplan` and `terraform output prod_ops`. If
+   `backup_policy_attached = false`, give the instance an IAM role
+   (EC2 → Actions → Security → Modify IAM role) and apply again.
+4. **Point the deploy at it**: in `medbrains/infra/.env` set
+   `TF_VAR_attach_backup_bucket=<prod_ops.BACKUP_BUCKET>` and
+   `TF_VAR_attach_alert_topic_arn=<prod_ops.ALERT_TOPIC_ARN>`, confirm the
+   alert e-mail subscription, then run the normal deploy. `install.sh`
+   installs `age`, the key, both values, and takes the first sealed backup
+   before restarting the server.
+5. **Prove it** from your machine (needs `age`, Postgres 17 client, docker,
+   and AWS credentials that can read the bucket and decrypt with its KMS key):
+   ```sh
+   make restore-drill FROM=s3://<bucket>/pg-backups/<host>/ IDENTITY=medbrains-backup.key.age
+   # add --secrets-from s3://<bucket>/secrets-backups/<host>/ to check the keys archive
+   ```
+   It downloads the newest dump, decrypts it, restores it into a throwaway
+   Postgres 17, checks migrations, row counts and the app role's grants,
+   and prints the timings. Append the result to `docs/ops/BACKUP-RESTORE.md`.
+   Repeat quarterly.
+
+`make test-backups` runs the kit's own tests (a local directory stands in for
+S3, with a throwaway key).
 
 ## A hospital's own domain
 
@@ -127,6 +200,10 @@ Certbot once the domain is proven and add its route to the proxy config.
 | `medbrains-archive.timer` | daily 02:00 timer |
 | `docker-compose.prod.yml` | postgres-17 plus optional profile-gated sidecars |
 | `env.example` | starter `/etc/medbrains/env` |
+| `medbrains-pg-backup` (+ `.service`, `.timer`) | sealed nightly + pre-deploy backup → S3 or `BACKUP_DIR` |
+| `medbrains-restore-drill` | operator-side: latest backup → scratch DB → integrity report |
+| `backup-recipients.txt` | age public key(s) every backup is sealed to (add it: step 2 above) |
+| `test-pg-backup-local.sh`, `test-backup-drill-e2e.sh` | `make test-backups` |
 | `STORAGE.md` | LocalFs / RustFS / S3+Glacier deployment shapes |
 
 ## Optional local WHO ICD-API
@@ -157,7 +234,7 @@ simpler.
 - YottaDB (Phase 2 hierarchical store — defer until needed).
 - SpiceDB (the Rust authz fallback covers the pilot).
 - ABDM signing keys (real NHCX integration is a separate phase).
-- Multi-server HA, Patroni replication, off-site backups. For
+- Multi-server HA, Patroni replication. For
   multi-server, see `infra/terraform/modules-onprem/`.
 - WAF, intrusion detection. Add per the hospital's IT-security
   policy before connecting real patient traffic.
