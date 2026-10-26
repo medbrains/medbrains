@@ -1,15 +1,4 @@
-import {
-  Badge,
-  Box,
-  Button,
-  Group,
-  NumberInput,
-  SimpleGrid,
-  Stack,
-  Text,
-  Textarea,
-  ThemeIcon,
-} from "@mantine/core";
+import { Box, Group, SimpleGrid, Stack, Text } from "@mantine/core";
 import { isBloodPressureValid, isHypertensiveCrisis } from "@medbrains/schemas";
 import { useLocaleConfig } from "@medbrains/stores";
 import type { CreateVitalRequest, TenantSettingsRow } from "@medbrains/types";
@@ -23,9 +12,17 @@ import {
   IconTemperature,
 } from "@tabler/icons-react";
 import { useQuery } from "@tanstack/react-query";
-import { useMemo, useState } from "react";
+import { useId, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { SignatureHero } from "@/components/ui";
+import {
+  Badge,
+  type BadgeTone,
+  Button,
+  NumberField,
+  SignatureHero,
+  TextArea,
+  ThemeIcon,
+} from "@/components/ui";
 import {
   getHeightConfig,
   getTemperatureConfig,
@@ -69,7 +66,7 @@ function getRangeLabel(config: VitalConfig): string {
 function getRangeStatus(
   config: VitalConfig,
   value: number | undefined,
-): { label: string; color: string } | null {
+): { label: string; color: BadgeTone } | null {
   if (value === undefined) return null;
   const [normalLow, normalHigh] = config.ranges.normal;
   const [borderlineLow, borderlineHigh] = config.ranges.borderline;
@@ -92,10 +89,10 @@ function computeBmi(weightKg: number | undefined, heightCm: number | undefined):
   return weightKg / (heightM * heightM);
 }
 
-function getBmiCategory(bmi: number): { labelKey: string; color: string } {
+function getBmiCategory(bmi: number): { labelKey: string; color: BadgeTone } {
   if (bmi < 18.5) return { labelKey: "vitals.underweight", color: "warning" };
   if (bmi < 25) return { labelKey: "vitals.normal", color: "success" };
-  if (bmi < 30) return { labelKey: "vitals.overweight", color: "orange" };
+  if (bmi < 30) return { labelKey: "vitals.overweight", color: "warning" };
   return { labelKey: "vitals.obese", color: "danger" };
 }
 
@@ -134,6 +131,7 @@ export function VitalsRecorder({
   const [values, setValues] = useState<VitalValues>({});
   const [notes, setNotes] = useState("");
   const [showBpErrors, setShowBpErrors] = useState(false);
+  const idBase = useId();
 
   // Load hospital-configurable vital fields (if customized in settings)
   const { data: clinicalSettings = [] } = useQuery<TenantSettingsRow[]>({
@@ -348,11 +346,13 @@ export function VitalsRecorder({
               }
               showErrors={showBpErrors}
             />
-            {bpLevel === "critical" && (
-              <Badge size="xs" color="danger" variant="light" mt={4}>
-                {t("vitals.hypertensiveCrisis", "Hypertensive crisis")}
-              </Badge>
-            )}
+            <Box role="status" aria-live="polite">
+              {bpLevel === "critical" && (
+                <Badge size="xs" tone="danger" mt={4}>
+                  {t("vitals.hypertensiveCrisis", "Hypertensive crisis")}
+                </Badge>
+              )}
+            </Box>
           </Box>
         )}
         {filteredVitalConfigs.map((config) => {
@@ -361,29 +361,40 @@ export function VitalsRecorder({
           const rangeLabel = getRangeLabel(config);
           const status = getRangeStatus(config, val);
 
+          const labelId = `${idBase}-${config.key}-label`;
+          const name = t(config.labelKey);
+
           return (
-            <div key={config.key} className={styles.vitalCard} data-level={level}>
+            <Box key={config.key} className={styles.vitalCard} data-level={level}>
               <Group gap={6} mb={4} wrap="nowrap">
                 <ThemeIcon
-                  variant="light"
+                  aria-hidden
                   size={28}
-                  radius="md"
-                  color={
+                  tone={
                     level === "critical" ? "danger" : level === "borderline" ? "warning" : "primary"
                   }
                 >
                   {config.icon}
                 </ThemeIcon>
-                <div>
+                <Box id={labelId}>
                   <Text size="xs" fw={600} lh={1.2}>
-                    {t(config.labelKey)}
+                    {name}
                   </Text>
                   <Text size="xs" c="dimmed" lh={1}>
                     {config.unit}
                   </Text>
-                </div>
+                </Box>
               </Group>
-              <NumberInput
+              {/* Named by its visible label and unit, described by its normal
+                  range; the reading's status is announced as it changes. */}
+              <NumberField
+                aria-labelledby={labelId}
+                description={
+                  rangeLabel
+                    ? `${t("vitals.normalRange", "Normal")} ${rangeLabel} ${config.unit}`
+                    : undefined
+                }
+                inputWrapperOrder={["input", "description"]}
                 value={val ?? ""}
                 onChange={(v) => handleChange(config.key, v)}
                 min={config.min}
@@ -394,29 +405,27 @@ export function VitalsRecorder({
                 size="sm"
                 placeholder="—"
                 classNames={{ input: styles.vitalInput }}
+                data-testid={`vital-${config.key}`}
               />
               <Group gap={4} mt={4} justify="center">
-                {rangeLabel && (
-                  <Text size="xs" c="dimmed" ta="center">
-                    {rangeLabel} {config.unit}
-                  </Text>
-                )}
-                {status && (
-                  <Badge size="xs" color={status.color} variant="light">
-                    {status.label}
-                  </Badge>
-                )}
+                <Box role="status" aria-live="polite">
+                  {status && (
+                    <Badge size="xs" tone={status.color}>
+                      {`${name}: ${status.label}`}
+                    </Badge>
+                  )}
+                </Box>
               </Group>
-            </div>
+            </Box>
           );
         })}
       </SimpleGrid>
 
       {/* Auto-calculated values */}
       {(bmi !== null || map !== null) && (
-        <Group gap="md">
+        <Group gap="md" role="status" aria-live="polite">
           {bmi !== null && (
-            <div className={styles.calcBadge}>
+            <Box className={styles.calcBadge}>
               <Text size="xs" c="dimmed">
                 {t("vitals.bmi")}
               </Text>
@@ -424,27 +433,27 @@ export function VitalsRecorder({
                 <Text size="sm" fw={700}>
                   {bmi.toFixed(1)}
                 </Text>
-                <Badge size="xs" color={getBmiCategory(bmi).color} variant="light">
+                <Badge size="xs" tone={getBmiCategory(bmi).color}>
                   {t(getBmiCategory(bmi).labelKey)}
                 </Badge>
               </Group>
-            </div>
+            </Box>
           )}
           {map !== null && (
-            <div className={styles.calcBadge}>
+            <Box className={styles.calcBadge}>
               <Text size="xs" c="dimmed">
                 {t("vitals.map")}
               </Text>
               <Text size="sm" fw={700}>
                 {map} mmHg
               </Text>
-            </div>
+            </Box>
           )}
         </Group>
       )}
 
       {showNotes && (
-        <Textarea
+        <TextArea
           label={t("vitals.notes")}
           placeholder={t("vitals.additionalObservations")}
           value={notes}
@@ -458,11 +467,11 @@ export function VitalsRecorder({
       {showActions && (
         <Group justify="flex-end">
           {onCancel && (
-            <Button variant="default" size="sm" onClick={onCancel}>
+            <Button tone="secondary" size="sm" onClick={onCancel}>
               {t("common:cancel")}
             </Button>
           )}
-          <Button size="sm" onClick={handleSubmit} loading={isSubmitting}>
+          <Button tone="primary" size="sm" onClick={handleSubmit} loading={isSubmitting}>
             {t("vitals.recordVitals")}
           </Button>
         </Group>
