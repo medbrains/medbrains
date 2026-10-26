@@ -86,6 +86,7 @@ import type {
   AmbulanceTripRow,
   AmcContractPrintData,
   AmendResultRequest,
+  AnalyserCandidateOrder,
   AnalyticsDoctorRevenueRow,
   AnalyzerOrderSent,
   AnalyzerWorklist,
@@ -1147,6 +1148,7 @@ import type {
   HasBledResult,
   HealthPackage,
   HealthResponse,
+  HeldAnalyserMessage,
   HemovigilanceReport,
   HfrRegistration,
   HistopathReportPrintData,
@@ -6091,6 +6093,25 @@ export const api = {
     request<LabResult[]>(`/lab/orders/${orderId}/results`, {
       method: "POST",
       body: JSON.stringify(data),
+    }),
+  /** Analyser results held for review (no barcode, ambiguous, conflicting). */
+  listHeldAnalyserResults: (page = 1) =>
+    request<HeldAnalyserMessage[]>(`/lab/analyser-review?page=${page}`),
+  listAnalyserCandidateOrders: (messageId: string, barcode?: string) =>
+    request<AnalyserCandidateOrder[]>(
+      `/lab/analyser-review/${messageId}/candidates${
+        barcode ? `?${new URLSearchParams({ barcode })}` : ""
+      }`,
+    ),
+  attachAnalyserResults: (messageId: string, orderId: string) =>
+    request<{ status: string; order_id: string; posted: number }>(
+      `/lab/analyser-review/${messageId}/attach`,
+      { method: "POST", body: JSON.stringify({ order_id: orderId }) },
+    ),
+  dismissAnalyserResults: (messageId: string, reason: string) =>
+    request<{ status: string }>(`/lab/analyser-review/${messageId}/dismiss`, {
+      method: "POST",
+      body: JSON.stringify({ reason }),
     }),
   listLabResults: (orderId: string) =>
     checkedRequest<LabResult[]>(labResultListResponseSchema, `/lab/orders/${orderId}/results`),

@@ -194,6 +194,8 @@ tokio-tungstenite = "0.27"
 zip = { workspace = true }
 # The ABDM and NHCX mocks in tests decrypt what the server encrypts for them.
 openssl = { version = "0.10", features = ["vendored"] }
+# Analyser tests build ingest payloads with the bridge's own HL7 parser.
+medbrains-adapter-sdk = { path = "../medbrains-adapter-sdk" }
 
 [features]
 # Compile the AWS Secrets Manager backend (`MEDBRAINS_SECRETS_BACKEND=aws`).

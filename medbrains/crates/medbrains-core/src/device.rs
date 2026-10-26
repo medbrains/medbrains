@@ -102,6 +102,9 @@ pub enum DeviceMessageStatus {
     Failed,
     Rejected,
     DeadLetter,
+    /// Held for a technologist: the results could not be matched to exactly
+    /// one order, or conflict with what is recorded.
+    NeedsReview,
 }
 
 // ── Adapter Catalog (global) ───────────────────────────────

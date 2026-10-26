@@ -148,7 +148,8 @@ export type DeviceMessageStatus =
   | "delivered"
   | "failed"
   | "rejected"
-  | "dead_letter";
+  | "dead_letter"
+  | "needs_review";
 
 export interface DeviceMessage {
   id: string;
@@ -165,6 +166,47 @@ export interface DeviceMessage {
   retry_count: number;
   processing_duration_ms: number | null;
   created_at: string;
+}
+
+/** One analyser observation as the bridge forwards it (HL7 OBX or ASTM R). */
+export interface AnalyserObservation {
+  test_code: string;
+  test_name?: string | null;
+  value: string;
+  unit?: string | null;
+  reference_range?: string | null;
+  abnormal_flag?: string | null;
+  status?: string | null;
+  notes?: string | null;
+}
+
+/** Analyser results held because they could not be matched to one order. */
+export interface HeldAnalyserMessage {
+  id: string;
+  created_at: string;
+  device_name: string;
+  protocol: string;
+  reason: string | null;
+  mapped_data: {
+    identifiers?: {
+      sample_barcode?: string | null;
+      patient_id?: string | null;
+      placer_order?: string | null;
+    };
+    results?: AnalyserObservation[];
+  } | null;
+  raw: string | null;
+}
+
+/** An open lab order a held message could belong to. */
+export interface AnalyserCandidateOrder {
+  order_id: string;
+  sample_barcode: string | null;
+  test_name: string;
+  status: string;
+  uhid: string;
+  patient_name: string;
+  collected_at: string | null;
 }
 
 /** A collected sample waiting to be loaded onto an analyzer (#227). */

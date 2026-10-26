@@ -328,6 +328,14 @@ pub mod lab {
         /// role without also granting result entry, which could not be
         /// expressed at all before.
         pub const VERIFY: &str = "lab.results.verify";
+        /// Resolve analyser results held for review.
+        ///
+        /// Results an analyser sends that cannot be matched to exactly one
+        /// order -- no barcode, a barcode on two orders, a different patient,
+        /// a value conflicting with one recorded -- are held rather than
+        /// guessed. This lets a technologist read them, attach them to the
+        /// right order, or dismiss them with a reason.
+        pub const ANALYSER_REVIEW: &str = "lab.results.analyser_review";
     }
 
     pub mod qc {

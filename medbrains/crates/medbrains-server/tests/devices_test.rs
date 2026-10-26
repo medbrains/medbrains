@@ -67,7 +67,10 @@ async fn test_preview_config() {
         "verified adapter should have >0.9 confidence"
     );
     assert!(body["field_mappings"].is_array());
-    assert_eq!(body["default_port"], 5100, "the catalog's port for {LAB_ADAPTER}");
+    assert_eq!(
+        body["default_port"], 5100,
+        "the catalog's port for {LAB_ADAPTER}"
+    );
 }
 
 #[tokio::test]
@@ -142,12 +145,8 @@ async fn test_ingest() {
     assert_eq!(ingest_resp.status(), StatusCode::OK);
 
     let body: serde_json::Value = ingest_resp.json().await.expect("json");
-    // No matching lab order → status should be "mapped" (stored but not routed)
-    assert!(
-        body["status"] == "mapped" || body["status"] == "delivered",
-        "status should be mapped or delivered, got: {}",
-        body["status"]
-    );
+    // No matching order: held for a technologist, never guessed.
+    assert_eq!(body["status"], "needs_review", "{body}");
     assert!(body["message_id"].is_string());
 }
 
