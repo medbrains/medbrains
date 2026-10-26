@@ -167,3 +167,19 @@ fn zero_is_one_number_however_it_is_written() {
         );
     }
 }
+
+#[test]
+fn a_shifted_timestamp_grounds_its_time_of_day() {
+    let c = case("answer", "");
+    if let Some(c) = c {
+        let src = r#"{"note_time": "[DATE_-1d]T22:00"}"#;
+        assert_eq!(
+            rules(ungrounded(&c, src, "Note at 22:00.")),
+            Vec::<&str>::new()
+        );
+        assert_eq!(
+            rules(ungrounded(&c, src, "Note at 23:00.")),
+            vec!["ungrounded_number"]
+        );
+    }
+}

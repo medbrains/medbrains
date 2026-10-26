@@ -6030,6 +6030,7 @@ name = "medbrains-client-errors"
 version = "0.1.0"
 dependencies = [
  "axum",
+ "chrono",
  "hex",
  "medbrains-core",
  "medbrains-db",

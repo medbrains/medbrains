@@ -1,9 +1,10 @@
+use axum::routing::post;
 use axum::{Extension, Json};
-use axum::routing::{post};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use uuid::Uuid;
 
+use medbrains_core::ai_redact::redact_for_record;
 use medbrains_server_core::{error::AppError, middleware::auth::Claims, state::AppState};
 
 #[derive(Debug, Deserialize)]
@@ -101,7 +102,7 @@ impl SanitizedClientErrorReport {
         let route_without_query = body.route.split('?').next().unwrap_or("/");
         let route = redact_uuid_path_segments(route_without_query);
         let name = truncate(body.name.as_deref().unwrap_or("Error"), 80);
-        let message = truncate(&body.message, 500);
+        let message = scrub(&body.message, 500);
         let method = body.method.as_deref().map(|value| truncate(value, 12));
         let source = truncate(body.source.as_deref().unwrap_or("ui"), 24);
         let fingerprint = build_fingerprint(
@@ -118,11 +119,11 @@ impl SanitizedClientErrorReport {
             route: truncate(&route, 256),
             name,
             message,
-            stack: body.stack.as_deref().map(|value| truncate(value, 4_000)),
+            stack: body.stack.as_deref().map(|value| scrub(value, 4_000)),
             component_stack: body
                 .component_stack
                 .as_deref()
-                .map(|value| truncate(value, 3_000)),
+                .map(|value| scrub(value, 3_000)),
             method,
             source,
             status: body.status,
@@ -379,12 +380,37 @@ fn build_fingerprint(
     truncate(&hex::encode(hasher.finalize()), 16)
 }
 
+/// Report text as it may leave the server: cut to `max` characters, then
+/// every identifier removed — bare names too ("Ramesh said…") — by the same
+/// redactor that guards AI calls. The message and stacks go to the log and to
+/// GitHub, outside India.
+fn scrub(text: &str, max: usize) -> String {
+    redact_for_record(&truncate(text, max), chrono::Utc::now().date_naive())
+}
+
 fn truncate(value: &str, max_chars: usize) -> String {
     value.chars().take(max_chars).collect()
 }
 
-/// client_errors routes.
+/// `client_errors` routes.
 pub fn router() -> axum::Router<AppState> {
-    axum::Router::new()
-        .route("/api/client-errors/report", post(report_client_error))
+    axum::Router::new().route("/api/client-errors/report", post(report_client_error))
+}
+
+#[cfg(test)]
+mod scrub_tests {
+    use super::scrub;
+
+    #[test]
+    fn a_crash_report_carries_no_name_or_number() {
+        let out = scrub(
+            "Ramesh said: no bed for UHID MB-2026-000123, call 9845011223",
+            500,
+        );
+        assert!(
+            !out.contains("Ramesh") && !out.contains("000123") && !out.contains("9845011223"),
+            "{out}"
+        );
+        assert!(out.contains("no bed"), "{out}");
+    }
 }
