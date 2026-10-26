@@ -25,9 +25,8 @@
   }
 
   &[data-level="normal"] {
-    border-color: var(--mantine-color-green-3);
+    border-color: var(--mb-normal-border);
     background: var(--mb-normal-bg);
-    box-shadow: 0 0 0 1px var(--mantine-color-green-1);
 
     &::before {
       background: var(--mb-normal-border);
@@ -35,9 +34,8 @@
   }
 
   &[data-level="borderline"] {
-    border-color: var(--mantine-color-yellow-4);
+    border-color: var(--mb-abnormal-border);
     background: var(--mb-abnormal-bg);
-    box-shadow: 0 0 0 1px var(--mantine-color-yellow-1);
 
     &::before {
       background: var(--mb-abnormal-border);
@@ -46,10 +44,10 @@
   }
 
   &[data-level="critical"] {
-    border-color: var(--mantine-color-red-4);
+    border-color: var(--mb-critical-border);
     background: var(--mb-critical-bg);
-    box-shadow: 0 0 0 2px var(--mantine-color-red-1);
-    animation: criticalPulse 2s ease-in-out infinite;
+    box-shadow: 0 0 0 2px var(--mb-critical-border);
+    animation: criticalPulse 2s ease-in-out 3;
 
     &::before {
       background: var(--mb-critical-border);
@@ -61,7 +59,7 @@
 .vitalInput {
   text-align: center;
   font-weight: 700;
-  font-size: 16px;
+  font-size: var(--mantine-font-size-md);
 }
 
 .calcBadge {
@@ -87,14 +85,28 @@
   }
 }
 
+// Three pulses, then still: a critical reading draws the eye once without
+// becoming motion that cannot be stopped (WCAG 2.2.2).
 @keyframes criticalPulse {
   0%,
   100% {
-    box-shadow: 0 0 0 2px var(--mantine-color-red-1);
+    box-shadow: 0 0 0 2px var(--mb-critical-border);
   }
 
   50% {
-    box-shadow: 0 0 0 4px var(--mantine-color-red-2);
+    box-shadow: 0 0 0 4px var(--mb-critical-border);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .vitalCard,
+  .vitalCard[data-level="critical"] {
+    animation: none;
+    transition: none;
+  }
+
+  .vitalCard:hover {
+    transform: none;
   }
 }
 
