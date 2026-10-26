@@ -291,10 +291,19 @@ pub struct BulkCreateSupplyItemsResponse {
 
 #[derive(Debug, Deserialize)]
 pub struct UpdateSupplyItemRequest {
+    /// Correcting the plan (a row entered twice, a count revised) is how a
+    /// shortage that is not real stops blocking activation.
+    pub planned_qty: Option<Decimal>,
     pub packed_qty: Option<Decimal>,
     pub consumed_qty: Option<Decimal>,
     pub returned_qty: Option<Decimal>,
     pub shortage_notes: Option<String>,
+    /// Batch and expiry of a packed medicine. Activation refuses a camp whose
+    /// packed medicines lack them, and they could only be given when the row
+    /// was first added -- so a row packed later could never be completed and
+    /// the camp could never start.
+    pub batch_no: Option<String>,
+    pub expiry_date: Option<NaiveDate>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -5914,12 +5923,31 @@ pub async fn update_supply_item(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
+    if let Some(expiry) = body.expiry_date {
+        let today =
+            medbrains_server_core::hospital_time::tenant_local_today(&mut *tx, claims.tenant_id)
+                .await?;
+        if expiry < today {
+            return Err(AppError::BadRequest(
+                "This batch has already expired; pack an in-date batch.".to_owned(),
+            ));
+        }
+    }
+    let batch_no = body
+        .batch_no
+        .as_deref()
+        .map(str::trim)
+        .filter(|b| !b.is_empty());
+
     let row = sqlx::query_as::<_, CampSupplyItem>(
         "UPDATE camp_supply_items SET \
          packed_qty = COALESCE($2, packed_qty), \
          consumed_qty = COALESCE($3, consumed_qty), \
          returned_qty = COALESCE($4, returned_qty), \
-         shortage_notes = COALESCE($5, shortage_notes) \
+         shortage_notes = COALESCE($5, shortage_notes), \
+         batch_no = COALESCE($7, batch_no), \
+         expiry_date = COALESCE($8, expiry_date), \
+         planned_qty = COALESCE($9, planned_qty) \
          WHERE id = $1 AND tenant_id = $6 \
          RETURNING *",
     )
@@ -5929,6 +5957,9 @@ pub async fn update_supply_item(
     .bind(body.returned_qty)
     .bind(body.shortage_notes)
     .bind(claims.tenant_id)
+    .bind(batch_no)
+    .bind(body.expiry_date)
+    .bind(body.planned_qty)
     .fetch_optional(&mut *tx)
     .await?
     .ok_or(AppError::NotFound)?;

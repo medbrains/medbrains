@@ -56,6 +56,9 @@ export function CampsTab({ onWorkCamp }: { onWorkCamp: (campId: string) => void 
       void qc.invalidateQueries({ queryKey: ["camps"] });
       notifications.show({ title: "Activated", message: "Camp is now active", color: "success" });
     },
+    // A blocked activation says what blocks it; it used to fail silently.
+    onError: (e: Error) =>
+      notifications.show({ title: "Camp not activated", message: e.message, color: "danger" }),
   });
 
   const completeMut = useMutation({
