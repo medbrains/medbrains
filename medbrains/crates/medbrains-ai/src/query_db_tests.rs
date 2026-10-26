@@ -21,7 +21,18 @@ INSERT INTO encounters (id, tenant_id, patient_id, encounter_type, encounter_dat
 INSERT INTO diagnoses (tenant_id, encounter_id, description, icd_code) VALUES
  ('5a110000-0000-0000-0000-00000000000a', '5a110000-0000-0000-0000-0000000000e1', 'Type 2 diabetes', 'E11'),
  ('5a110000-0000-0000-0000-00000000000a', '5a110000-0000-0000-0000-0000000000e1', 'HIV disease', 'B20'),
- ('5a110000-0000-0000-0000-00000000000a', '5a110000-0000-0000-0000-0000000000e1', 'Viral load monitoring', 'Z09');
+ ('5a110000-0000-0000-0000-00000000000a', '5a110000-0000-0000-0000-0000000000e1', 'Viral load monitoring', 'Z09'),
+ ('5a110000-0000-0000-0000-00000000000a', '5a110000-0000-0000-0000-0000000000e1', 'Coded only', '6A20'),
+ ('5a110000-0000-0000-0000-00000000000a', '5a110000-0000-0000-0000-0000000000e1', 'Coded only', '1C62.Z'),
+ ('5a110000-0000-0000-0000-00000000000a', '5a110000-0000-0000-0000-0000000000e1', 'Coded only', 'PB80'),
+ ('5a110000-0000-0000-0000-00000000000a', '5a110000-0000-0000-0000-0000000000e1', 'Coded only', 'PD50'),
+ ('5a110000-0000-0000-0000-00000000000a', '5a110000-0000-0000-0000-0000000000e1', 'Osteoarthritis of hip', 'FA01');
+INSERT INTO lab_test_catalog (id, tenant_id, code, name) VALUES
+ ('5a110000-0000-0000-0000-0000000000f1', '5a110000-0000-0000-0000-00000000000a', 'AIQ-CBC', 'Complete blood count'),
+ ('5a110000-0000-0000-0000-0000000000f2', '5a110000-0000-0000-0000-00000000000a', 'AIQ-HIV', 'HIV 1 and 2 antibody');
+INSERT INTO lab_orders (tenant_id, encounter_id, patient_id, test_id, ordered_by) VALUES
+ ('5a110000-0000-0000-0000-00000000000a', '5a110000-0000-0000-0000-0000000000e1', gen_random_uuid(), '5a110000-0000-0000-0000-0000000000f1', gen_random_uuid()),
+ ('5a110000-0000-0000-0000-00000000000a', '5a110000-0000-0000-0000-0000000000e1', gen_random_uuid(), '5a110000-0000-0000-0000-0000000000f2', gen_random_uuid());
 INSERT INTO invoices (tenant_id, invoice_number, patient_id, total_amount) VALUES
  ('5a110000-0000-0000-0000-00000000000a', 'AIQ-1', gen_random_uuid(), 100),
  ('5a110000-0000-0000-0000-00000000000b', 'AIQ-2', gen_random_uuid(), 200);
@@ -31,6 +42,8 @@ const CLEAR: &str = "
 SET session_replication_role = replica;
 DELETE FROM invoices WHERE tenant_id IN ('5a110000-0000-0000-0000-00000000000a', '5a110000-0000-0000-0000-00000000000b');
 DELETE FROM diagnoses WHERE tenant_id = '5a110000-0000-0000-0000-00000000000a';
+DELETE FROM lab_orders WHERE tenant_id = '5a110000-0000-0000-0000-00000000000a';
+DELETE FROM lab_test_catalog WHERE tenant_id = '5a110000-0000-0000-0000-00000000000a';
 DELETE FROM encounters WHERE tenant_id = '5a110000-0000-0000-0000-00000000000a';
 DELETE FROM tenants WHERE id IN ('5a110000-0000-0000-0000-00000000000a', '5a110000-0000-0000-0000-00000000000b');
 SET session_replication_role = origin;";
@@ -72,7 +85,16 @@ async fn the_database_holds_the_line_on_its_own() {
 
     // Restricted classes are not in the view, so not in any count.
     let diagnoses = rows(run(&db, at_a, "SELECT icd_code FROM diagnoses ORDER BY 1").await);
-    assert_eq!(diagnoses, vec![json!({"icd_code": "E11"})]);
+    // ICD-10 and ICD-11 alike (1222): schizophrenia 6A20, HIV 1C62, self-harm
+    // PB80 and assault PD50 are left out; osteoarthritis FA01 is not mistaken
+    // for an ICD-10 F code.
+    assert_eq!(
+        diagnoses,
+        vec![json!({"icd_code": "E11"}), json!({"icd_code": "FA01"})]
+    );
+    // A restricted test is not in the lab view either.
+    let tests = rows(run(&db, at_a, "SELECT test FROM lab_orders ORDER BY 1").await);
+    assert_eq!(tests, vec![json!({"test": "Complete blood count"})]);
 
     // Each hospital sees its own money and nothing of the other's.
     let sum = "SELECT count(*) AS n, sum(total_amount) AS total FROM invoices";
