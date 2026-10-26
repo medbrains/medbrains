@@ -3287,6 +3287,40 @@ export interface RadiationDoseRecord {
   created_at: string;
 }
 
+/** A study the PACS received that no imaging order claimed. */
+export interface UnmatchedStudy {
+  id: string;
+  orthanc_id: string;
+  study_instance_uid: string;
+  accession_number: string | null;
+  /** As the modality wrote them. */
+  dicom_patient_id: string | null;
+  dicom_patient_name: string | null;
+  dicom_birth_date: string | null;
+  dicom_sex: string | null;
+  modality: string | null;
+  study_date: string | null;
+  study_description: string | null;
+  instance_count: number;
+  series_count: number;
+  status: UnmatchedStudyStatus;
+  linked_order_id: string | null;
+  resolution_note: string | null;
+  resolved_by: string | null;
+  resolved_at: string | null;
+  created_at: string;
+}
+
+export type UnmatchedStudyStatus = "open" | "linked" | "dismissed";
+
+export interface LinkUnmatchedStudyResult {
+  study: UnmatchedStudy;
+  /** How the images differed from the order's patient, confirmed by the note. */
+  mismatches: string[];
+  /** False when the dose could not be read — enter it on the order. */
+  dose_captured: boolean;
+}
+
 export type RadiationDoseSource = "manual" | "rdsr" | "dicom_header";
 
 /** One exam's dose in the patient's history. */

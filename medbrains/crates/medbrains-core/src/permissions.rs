@@ -1135,6 +1135,19 @@ pub mod radiology {
         pub const MANAGE: &str = "radiology.modalities.manage";
     }
 
+    /// Studies the PACS received that no imaging order claimed.
+    pub mod studies {
+        /// Match unmatched PACS studies to their orders.
+        ///
+        /// A walk-in X-ray, a mistyped accession or a study from another
+        /// site reaches the PACS with no order. This sees that queue — which
+        /// shows the names and IDs the modality wrote — files a study under
+        /// the order a person has confirmed it belongs to, or dismisses it
+        /// with a reason. Filing images under the wrong patient is a
+        /// patient-safety event, so it is held by the radiology desk.
+        pub const RECONCILE: &str = "radiology.studies.reconcile";
+    }
+
     /// Radiation dose given to a patient during an imaging exam.
     pub mod dose {
         /// Record radiation dose on an imaging order.

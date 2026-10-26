@@ -31,6 +31,8 @@ pub mod effective_dose;
 pub mod form_f;
 pub mod pacs;
 pub mod pacs_config;
+pub mod pacs_study;
+pub mod unmatched;
 
 // ══════════════════════════════════════════════════════════
 //  Pre-contrast safety screening
@@ -2265,6 +2267,18 @@ pub fn router() -> axum::Router<AppState> {
         .route(
             "/api/radiology/orders/{id}/dose",
             post(dose::record_dose),
+        )
+        .route(
+            "/api/radiology/unmatched-studies",
+            get(unmatched::list_unmatched_studies),
+        )
+        .route(
+            "/api/radiology/unmatched-studies/{id}/link",
+            post(unmatched::link_unmatched_study),
+        )
+        .route(
+            "/api/radiology/unmatched-studies/{id}/dismiss",
+            post(unmatched::dismiss_unmatched_study),
         )
         .route(
             "/api/radiology/dose-records/{id}/entered-in-error",
