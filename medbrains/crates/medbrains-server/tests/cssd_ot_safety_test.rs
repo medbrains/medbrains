@@ -299,10 +299,26 @@ async fn ot_needs_a_consent_linked_to_the_booked_operation() {
         StatusCode::BAD_REQUEST
     );
 
+    let consented = || {
+        sqlx::query_scalar::<_, bool>("SELECT consent_obtained FROM ot_bookings WHERE id = $1")
+            .bind(booking)
+            .fetch_one(&app.db)
+    };
+    assert!(
+        !consented().await.expect("flag"),
+        "half the consent is not consent"
+    );
+
     let anaesthesia = consent(patient_id, "General anaesthesia", "anesthesia").await;
     assert_eq!(
         link(anaesthesia).await.expect("link").status(),
         StatusCode::OK
+    );
+    // Linking the last missing consent is what marks the booking consented;
+    // nobody has to tick it by hand afterwards.
+    assert!(
+        consented().await.expect("flag"),
+        "linking completed the consent"
     );
     let resp = mark_consented().await.expect("update");
     assert_eq!(
