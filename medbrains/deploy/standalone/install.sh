@@ -98,6 +98,12 @@ PACKAGES=(ca-certificates curl gnupg lsb-release openssl)
 # does not exist when the host's own Postgres is the database.
 [[ "$ATTACH_REUSE_POSTGRES" == "1" ]] && PACKAGES+=(postgresql-client)
 apt-get install -y --no-install-recommends "${PACKAGES[@]}"
+# age seals every backup to an offline public key (medbrains-pg-backup).
+# Separate and non-fatal: it lives in Ubuntu's universe component, which a
+# hospital's own host may not enable, and a missing age must not stop a
+# deploy — the backup unit refuses loudly (and pages) instead.
+apt-get install -y --no-install-recommends age \
+    || echo "    WARNING: could not install age — sealed backups will fail until it is installed"
 
 # Docker CE + compose plugin from Docker's official apt repo.
 # Ubuntu 24.04 noble doesn't ship docker-compose-plugin; the
@@ -487,6 +493,19 @@ install -m 0644 "$DEPLOY_DIR/medbrains-host-check.service" /etc/systemd/system/
 install -m 0644 "$DEPLOY_DIR/medbrains-host-check.timer" /etc/systemd/system/
 install -m 0755 "$DEPLOY_DIR/medbrains-host-check" /usr/local/bin/medbrains-host-check
 install -m 0755 "$DEPLOY_DIR/medbrains-pg-backup" /usr/local/bin/medbrains-pg-backup
+# Backup public keys. Not secret — the matching private key lives offline
+# with the founder — so the committed kit file is the source of truth
+# (setup lives in git); BACKUP_AGE_RECIPIENT is the per-install override.
+RECIPIENTS=/etc/medbrains/backup-recipients.txt
+if [[ -s "$DEPLOY_DIR/backup-recipients.txt" ]]; then
+    install -m 0644 "$DEPLOY_DIR/backup-recipients.txt" "$RECIPIENTS"
+elif [[ -n "${BACKUP_AGE_RECIPIENT:-}" ]]; then
+    printf '%s\n' "$BACKUP_AGE_RECIPIENT" > "$RECIPIENTS" && chmod 0644 "$RECIPIENTS"
+fi
+if [[ -s "$RECIPIENTS" ]] && command -v age >/dev/null && ! age -R "$RECIPIENTS" </dev/null >/dev/null; then
+    echo "ERROR: $RECIPIENTS holds no valid age public key (age1…)" >&2
+    exit 1
+fi
 if [[ "$HAVE_EDGE" == "1" ]]; then
     install -m 0644 "$DEPLOY_DIR/medbrains-edge.service" /etc/systemd/system/
 fi
@@ -585,6 +604,23 @@ fi
 
 install_attach_dropins
 systemctl daemon-reload
+# Pre-deploy dump. A re-deploy restarts the server, and the restart runs
+# the new binary's migrations; take a backup first, through the same unit
+# the timer uses, so it is encrypted, shipped and recorded the same way.
+# Refuse to continue if it fails — a migration with no fresh backup behind
+# it is the one change that cannot be walked back. SKIP_PREDEPLOY_BACKUP=1
+# is for the operator who has just taken one by hand.
+if systemctl is-active --quiet medbrains-server.service \
+    && [[ -n "$(env_value BACKUP_BUCKET)$(env_value BACKUP_DIR)" ]] \
+    && [[ "${SKIP_PREDEPLOY_BACKUP:-0}" != "1" ]]; then
+    echo "==> pre-deploy backup (medbrains-pg-backup.service)"
+    if ! systemctl start medbrains-pg-backup.service; then
+        echo "ERROR: pre-deploy backup failed — not restarting onto new migrations." >&2
+        journalctl -u medbrains-pg-backup -n 20 --no-pager >&2 || true
+        echo "       Fix it, or re-run with SKIP_PREDEPLOY_BACKUP=1 after a manual dump." >&2
+        exit 1
+    fi
+fi
 systemctl enable --now medbrains-server.service
 # Restart explicitly so re-runs pick up new env (JWT keys, DATABASE_URL,
 # BACKUP_BUCKET) AND re-run migrations if RESET_PGDATA=1 wiped them.
@@ -612,6 +648,15 @@ fi
 
 if [[ -n "$BACKUP_BUCKET" || -n "$BACKUP_DIR" ]]; then
     systemctl enable --now medbrains-pg-backup.timer
+    if [[ ! -s "$RECIPIENTS" ]]; then
+        if [[ -n "$BACKUP_BUCKET" ]]; then
+            echo "    WARNING: BACKUP_BUCKET is set but there is no $RECIPIENTS —"
+            echo "             every backup will FAIL (and page) until a public key is"
+            echo "             installed: S3 never receives an unencrypted dump."
+        else
+            echo "    WARNING: no $RECIPIENTS — local dumps are NOT encrypted."
+        fi
+    fi
 else
     systemctl disable --now medbrains-pg-backup.timer 2>/dev/null || true
     echo "    WARNING: no BACKUP_BUCKET and no BACKUP_DIR — postgres backups"

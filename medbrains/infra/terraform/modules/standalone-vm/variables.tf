@@ -261,3 +261,15 @@ variable "attach_database_url" {
     error_message = "attach_database_url must not contain a single quote; it is passed through a shell-quoted env file."
   }
 }
+
+variable "attach_backup_bucket" {
+  description = "Offsite backup bucket for an attach host we own (envs/medbrains-in output prod_ops.BACKUP_BUCKET). Empty = dumps stay on the host's disk."
+  type        = string
+  default     = ""
+}
+
+variable "attach_alert_topic_arn" {
+  description = "SNS topic the host's backup and health checks page (prod_ops.ALERT_TOPIC_ARN). Empty = failures reach the journal only."
+  type        = string
+  default     = ""
+}

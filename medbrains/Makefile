@@ -225,6 +225,14 @@ dev-db-roles: ## Give medbrains_app + medbrains_outbox_worker the dev password f
 		| docker compose exec -T postgres psql -X -q -v ON_ERROR_STOP=1 -U medbrains -d medbrains
 	@echo "medbrains_app and medbrains_outbox_worker log in with medbrains_dev"
 
+.PHONY: test-backups restore-drill
+test-backups: ## Backup kit: script checks + encrypted backup → restore drill end to end (docker, age, pg 17 client)
+	bash deploy/standalone/test-pg-backup-local.sh
+	bash deploy/standalone/test-backup-drill-e2e.sh
+
+restore-drill: ## Restore the latest backup into a scratch DB and verify it: make restore-drill FROM=s3://… IDENTITY=~/key.txt
+	bash deploy/standalone/medbrains-restore-drill --from "$(FROM)" --identity "$(IDENTITY)"
+
 db-shell: ## Open psql shell
 	docker compose exec postgres psql -U medbrains -d medbrains
 

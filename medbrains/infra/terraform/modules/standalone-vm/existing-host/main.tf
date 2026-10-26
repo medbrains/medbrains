@@ -69,6 +69,14 @@ variable "attach_database_url" {
   default   = ""
   sensitive = true
 }
+variable "attach_backup_bucket" {
+  type    = string
+  default = ""
+}
+variable "attach_alert_topic_arn" {
+  type    = string
+  default = ""
+}
 
 # No host creation — the operator already owns the box. Terraform
 # only runs install.sh remotely + tracks bootstrap state.
@@ -159,6 +167,8 @@ resource "null_resource" "bootstrap" {
       ATTACH_REUSE_TLS='${var.attach_reuse_tls ? 1 : 0}'
       ATTACH_REUSE_POSTGRES='${var.attach_reuse_postgres ? 1 : 0}'
       ATTACH_DATABASE_URL='${var.attach_database_url}'
+      BACKUP_BUCKET='${var.attach_backup_bucket}'
+      ALERT_TOPIC_ARN='${var.attach_alert_topic_arn}'
     ATTACHENV
     destination = "/tmp/medbrains-attach.env"
   }

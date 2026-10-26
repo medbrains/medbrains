@@ -235,8 +235,8 @@ pre-apply-backup:
 	@# with "hostname contains invalid characters".
 	@set -e; \
 	if [ "$(TIER)" = "attach" ]; then \
-		echo "==> pre-apply-backup: tier=attach - the host and its Postgres are the operator's;"; \
-		echo "    backing them up from here would be presumptuous. Skipping."; \
+		echo "==> pre-apply-backup: tier=attach - install.sh takes the pre-deploy backup on the"; \
+		echo "    host itself (medbrains-pg-backup.service) and stops if it fails. Skipping here."; \
 		exit 0; \
 	fi; \
 	if ! terraform state list 2>/dev/null | grep -q aws_instance.this; then \
