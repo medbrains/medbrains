@@ -18,6 +18,7 @@ import {
   IconHeartRateMonitor,
   IconLungs,
   IconRuler2,
+  IconRulerMeasure,
   IconScale,
   IconTemperature,
 } from "@tabler/icons-react";
@@ -231,6 +232,19 @@ export function VitalsRecorder({
           critical: [0, 9999],
         },
       },
+      {
+        // Charted for children (WHO head circumference-for-age); the growth
+        // chart judges it, so no adult range is drawn here.
+        key: "head_circumference",
+        labelKey: "vitals.headCircumference",
+        unit: "cm",
+        icon: <IconRulerMeasure size={18} />,
+        min: 20,
+        max: 70,
+        step: 0.1,
+        precision: 1,
+        ranges: { normal: [0, 999], borderline: [0, 999], critical: [0, 999] },
+      },
     ];
   }, [localeConfig.temperature_unit, localeConfig.weight_unit, localeConfig.height_unit]);
 
@@ -280,6 +294,9 @@ export function VitalsRecorder({
     }
     if (nextValues.height !== undefined) {
       req.height_cm = Math.round(heightToCm(nextValues.height, localeConfig.height_unit) * 10) / 10;
+    }
+    if (nextValues.head_circumference !== undefined) {
+      req.head_circumference_cm = Math.round(nextValues.head_circumference * 10) / 10;
     }
     if (nextNotes.trim()) req.notes = nextNotes.trim();
     return req;

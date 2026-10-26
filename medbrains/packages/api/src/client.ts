@@ -1143,6 +1143,7 @@ import type {
   GroupTariffMaster,
   GroupTemplate,
   GroupTestMaster,
+  GrowthResponse,
   GstInvoicePrintData,
   GstReturnSummary,
   // Batch 2 — Analytics & Reporting
@@ -17816,6 +17817,13 @@ export const api = {
   /** Ask ABDM to text the patient the ABHA app link (no ABHA here yet). */
   sendAbdmSmsLink: (patientId: string) =>
     request<AbdmSmsLink | null>(`/abdm/patients/${patientId}/sms-link`, { method: "POST" }),
+  /** WHO 0-5 y / IAP 2015 5-18 y growth charts, z-scores computed server-side. */
+  getPatientGrowth: (patientId: string) => request<GrowthResponse>(`/patients/${patientId}/growth`),
+  setPatientBirthGestation: (patientId: string, weeks: number | null) =>
+    request<{ weeks: number | null }>(`/patients/${patientId}/growth/gestation`, {
+      method: "PUT",
+      body: JSON.stringify({ weeks }),
+    }),
   listPatientImmunizations: (patientId: string) =>
     request<PatientImmunization[]>(`/patients/${patientId}/immunizations`),
   recordPatientImmunization: (patientId: string, data: RecordPatientImmunization) =>

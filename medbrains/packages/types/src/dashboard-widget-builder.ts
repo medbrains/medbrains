@@ -1653,6 +1653,7 @@ export interface Vital {
   spo2: number | null;
   weight_kg: string | null;
   height_cm: string | null;
+  head_circumference_cm: string | null;
   bmi: string | null;
   notes: string | null;
   recorded_by: string;
@@ -1677,6 +1678,7 @@ export interface CreateVitalRequest extends EwsScoringInputs {
   spo2?: number;
   weight_kg?: number;
   height_cm?: number;
+  head_circumference_cm?: number;
   notes?: string;
 }
 

@@ -127,6 +127,8 @@ function useVitalsCrdt(
     spo2: e.spo2 ?? null,
     weight_kg: e.weight_kg !== undefined ? String(e.weight_kg) : null,
     height_cm: e.height_cm !== undefined ? String(e.height_cm) : null,
+    head_circumference_cm:
+      e.head_circumference_cm !== undefined ? String(e.head_circumference_cm) : null,
     bmi: null,
     notes: e.notes ?? null,
     recorded_by: e.recordedBy,

@@ -17,7 +17,8 @@
     "underweight": "Underweight",
     "normal": "Normal",
     "overweight": "Overweight",
-    "obese": "Obese"
+    "obese": "Obese",
+    "headCircumference": "Head circ. (child)"
   },
   "soap": {
     "subjective": "Subjective",

@@ -37,6 +37,7 @@ export const PATIENT_DETAIL_TAB_VALUES = [
   "overview",
   "allergies",
   "immunizations",
+  "growth",
   "timeline",
   "visits",
   "prescriptions",

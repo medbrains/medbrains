@@ -6112,6 +6112,7 @@ version = "0.1.0"
 dependencies = [
  "axum",
  "chrono",
+ "medbrains-authz-gate",
  "medbrains-core",
  "medbrains-db",
  "medbrains-server-core",

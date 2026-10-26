@@ -48,6 +48,8 @@ pub struct CreateVitalsReadingRequest {
     pub spo2: Option<i32>,
     pub weight_kg: Option<Decimal>,
     pub height_cm: Option<Decimal>,
+    /// Head circumference; charted on a child's growth chart.
+    pub head_circumference_cm: Option<Decimal>,
     pub notes: Option<String>,
     /// ACVPU, oxygen, capillary refill, respiratory distress — what the
     /// early-warning scores need beyond the classic vitals.
@@ -81,9 +83,9 @@ pub async fn create_vitals_reading(
           systolic_bp, diastolic_bp, respiratory_rate, spo2, \
           weight_kg, height_cm, bmi, notes, recorded_at, \
           consciousness, oxygen_device, oxygen_flow_lpm, fio2_percent, \
-          capillary_refill_seconds, respiratory_distress) \
+          capillary_refill_seconds, respiratory_distress, head_circumference_cm) \
          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, now(), \
-                 $14, $15, $16, $17, $18, $19) \
+                 $14, $15, $16, $17, $18, $19, $20) \
          RETURNING *",
     )
     .bind(claims.tenant_id)
@@ -108,6 +110,7 @@ pub async fn create_vitals_reading(
         sc.respiratory_distress
             .map(|d| crate::nurse_ews::enum_text(&d)),
     )
+    .bind(body.head_circumference_cm)
     .fetch_one(&mut *tx)
     .await?;
 

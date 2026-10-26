@@ -150,6 +150,8 @@ pub struct Vital {
     pub weight_kg: Option<rust_decimal::Decimal>,
     pub height_cm: Option<rust_decimal::Decimal>,
     pub bmi: Option<rust_decimal::Decimal>,
+    /// Occipitofrontal head circumference, charted for children.
+    pub head_circumference_cm: Option<rust_decimal::Decimal>,
     pub notes: Option<String>,
     pub recorded_at: DateTime<Utc>,
     pub created_at: DateTime<Utc>,

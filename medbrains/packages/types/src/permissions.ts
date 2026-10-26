@@ -17,7 +17,7 @@ export interface PermissionDef {
   module: string;
 }
 
-/** 1159 permissions, one per constant in the Rust source. */
+/** 1161 permissions, one per constant in the Rust source. */
 export const PERMISSIONS: PermissionDef[] = [
   // dashboard
   {
@@ -99,6 +99,18 @@ export const PERMISSIONS: PermissionDef[] = [
     code: "patients.delete",
     label: "Delete Patient",
     description: "Remove patient records",
+    module: "patients",
+  },
+  {
+    code: "patients.growth.view",
+    label: "View a child's growth charts",
+    description: "WHO 0-5 year standards and IAP 2015 5-18 year charts, with z-scores and centiles computed from the weights, lengths and head circumferences charted at visits, and flags for values beyond -2/+2 SD or crossing centile lines.",
+    module: "patients",
+  },
+  {
+    code: "patients.growth.record_gestation",
+    label: "Record a child's gestation at birth",
+    description: "The completed weeks of gestation, which correct a preterm child's age on the growth charts until two years. A clinical history fact the charts depend on, so it is kept apart from demographic edits.",
     module: "patients",
   },
   {
@@ -9445,6 +9457,12 @@ export const P = {
     CREATE: "patients.create",
     DELETE: "patients.delete",
     FIND: "patients.find",
+    GROWTH: {
+      RECORD_GESTATION: "patients.growth.record_gestation",
+      VIEW: "patients.growth.view",
+    },
+    GROWTH_RECORD_GESTATION: "patients.growth.record_gestation",
+    GROWTH_VIEW: "patients.growth.view",
     IMMUNIZATIONS: {
       RECORD: "patients.immunizations.record",
     },
@@ -10757,6 +10775,8 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.PATIENT_PACKAGES.VIEW,
       P.PATIENTS.ALLERGIES.VERIFY,
       P.PATIENTS.CREATE,
+      P.PATIENTS.GROWTH.RECORD_GESTATION,
+      P.PATIENTS.GROWTH.VIEW,
       P.PATIENTS.IMMUNIZATIONS.RECORD,
       P.PATIENTS.LIST,
       P.PATIENTS.NOTES.EDIT,
@@ -11024,6 +11044,8 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.OPD.QUEUE.VIEW,
       P.ORDER_SETS.ACTIVATION.CREATE,
       P.ORDER_SETS.ACTIVATION.VIEW,
+      P.PATIENTS.GROWTH.RECORD_GESTATION,
+      P.PATIENTS.GROWTH.VIEW,
       P.PATIENTS.IMMUNIZATIONS.RECORD,
       P.PATIENTS.LIST,
       P.PATIENTS.NOTES.EDIT,
