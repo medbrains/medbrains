@@ -135,6 +135,7 @@ mod new_hospital_sequences_test;
 mod lab_unit_flag_test;
 mod analyser_results_test;
 mod growth_test;
+mod immunization_schedule_test;
 mod lab_worklist_names_patients_test;
 mod linkage_admission_assessment_test;
 mod linkage_billing_test;

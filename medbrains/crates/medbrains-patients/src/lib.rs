@@ -5,6 +5,7 @@ pub mod acquisition;
 mod identifier_key;
 pub mod contact_consent;
 pub mod dpdp_consent;
+pub mod immunization_schedule;
 pub mod privacy_requests;
 mod registration_rules;
 pub mod pharmacy_customer;
@@ -5074,6 +5075,15 @@ fn withhold_timeline(rows: Vec<PatientTimelineEvent>) -> Vec<PatientTimelineEven
 /// Patient master (registration, identifiers, addresses, allergies, consents, documents, masters) routes.
 pub fn router() -> axum::Router<AppState> {
     axum::Router::new()
+        .route(
+            "/api/patients/{id}/immunization-schedule",
+            get(immunization_schedule::patient_schedule),
+        )
+        .route("/api/immunizations/due-list", get(immunization_schedule::due_list))
+        .route(
+            "/api/immunizations/settings",
+            get(immunization_schedule::get_setting).put(immunization_schedule::put_setting),
+        )
         .route(
             "/api/patients/{id}/acquisition",
             get(acquisition::get_acquisition).put(acquisition::correct_acquisition),

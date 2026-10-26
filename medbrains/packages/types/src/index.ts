@@ -171,6 +171,7 @@ export * from "./grn-scan";
 export * from "./growth";
 export * from "./history-import";
 export * from "./housekeeping";
+export * from "./immunization-schedule";
 export * from "./infection-control";
 export * from "./insurance-tpa";
 export * from "./ipd-clinical-expansion";

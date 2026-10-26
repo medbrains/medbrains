@@ -26,6 +26,7 @@ import {
 } from "@/components/ui";
 import { type DoseForm, doseSchema } from "@/forms/immunization.form";
 import { patientDetailService } from "@/services/patientDetail.service";
+import { ImmunizationSchedulePanel, type ScheduledDoseChoice } from "./immunization-schedule-panel";
 
 const ROUTES = [
   { value: "intramuscular", label: "Intramuscular" },
@@ -63,6 +64,9 @@ export function ImmunizationsTab({ patient }: { patient: Patient }) {
       }),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: key });
+      void queryClient.invalidateQueries({
+        queryKey: ["patient-immunization-schedule", patient.id],
+      });
       toast.success("The dose is on the chart.", { title: "Recorded" });
       form.reset();
       close();
@@ -70,10 +74,32 @@ export function ImmunizationsTab({ patient }: { patient: Patient }) {
     onError: (e: Error) => toast.error(e.message, { title: "Not recorded" }),
   });
 
+  const recordFromSchedule = (dose: ScheduledDoseChoice) => {
+    form.reset({
+      vaccine_name: dose.vaccine_name,
+      vaccine_key: dose.vaccine_key,
+      given_elsewhere: false,
+      administered_on: new Date(),
+    });
+    open();
+  };
+
   return (
     <Stack gap="sm">
+      <ImmunizationSchedulePanel
+        patientId={patient.id}
+        canRecord={canRecord}
+        onRecord={recordFromSchedule}
+      />
       {canRecord && (
-        <Button tone="primary" leftSection={<IconPlus size={16} />} onClick={open}>
+        <Button
+          tone="primary"
+          leftSection={<IconPlus size={16} />}
+          onClick={() => {
+            form.reset();
+            open();
+          }}
+        >
           Record a dose
         </Button>
       )}

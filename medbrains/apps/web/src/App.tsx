@@ -368,6 +368,9 @@ const OrderSetsPage = lazy(() =>
 const ChronicCarePage = lazy(() =>
   import("./pages/chronic-care").then((m) => ({ default: m.ChronicCarePage })),
 );
+const ImmunizationClinicPage = lazy(() =>
+  import("./pages/immunization-clinic").then((m) => ({ default: m.ImmunizationClinicPage })),
+);
 const OccupationalHealthPage = lazy(() =>
   import("./pages/occupational-health").then((m) => ({ default: m.OccupationalHealthPage })),
 );
@@ -686,6 +689,7 @@ export function App() {
               <Route path="order-sets" element={<OrderSetsPage />} />
               <Route path="chronic-care" element={<ChronicCarePage />} />
               <Route path="occupational-health" element={<OccupationalHealthPage />} />
+              <Route path="immunization-clinic" element={<ImmunizationClinicPage />} />
               <Route path="utilization-review" element={<UtilizationReviewPage />} />
               <Route path="case-management" element={<CaseManagementPage />} />
               <Route path="scheduling" element={<SchedulingPage />} />
