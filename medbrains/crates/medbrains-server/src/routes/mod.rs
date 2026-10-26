@@ -131,6 +131,8 @@ pub fn build_router(state: AppState) -> Router {
         // Device-code pairing — a display has no credentials yet, so asking for a
         // code and polling for the result are public; approving is not.
         .merge(medbrains_device_pairing::device_code_router())
+        // FHIR CapabilityStatement — clients read it before they authenticate.
+        .merge(medbrains_fhir_api::public_router())
         // Onboarding — public endpoints
         .merge(medbrains_onboarding::public_router())
         // Geo — public read-only endpoints
