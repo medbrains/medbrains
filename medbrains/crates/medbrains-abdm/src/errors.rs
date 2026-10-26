@@ -6,240 +6,38 @@
 //! what happened and what to do next, with ABDM's code kept at the end for
 //! support. A code we have no words for keeps ABDM's own message.
 //!
+//! Each code also says whether to send again ([`Retry`]): an outage clears
+//! by itself, a refusal needs something changed first, and a duplicate
+//! means ABDM already has the request.
+//!
 //! Codes and ABDM's meanings: NHA's M2 list ("Sandbox2.0 M2 and M3 API
 //! review v2", 21 Sep 2026) and the M1 error notes, as catalogued in
-//! nha-in/docs (`catalogue/hiecm/openapi/v3/errors/m2.yaml`,
-//! `site/docs/_notes/hiecm/errors/m1.mdx`, MIT). ABDM-1216, ABDM-1308 and
+//! nha-in/docs 2026.09.16 (`catalogue/hiecm/openapi/v3/errors/m2.yaml`,
+//! `site/docs/_notes/hiecm/errors/m1.mdx`, and the per-endpoint notes and
+//! M1 OpenAPI examples under `catalogue/hiecm/` for ABDM-1021, 1039, 1054,
+//! 1080, 1101, 1124, 1138, 1140, 1157, 1160, 1204, 1207, 1211 and 1224;
+//! MIT). Every one of NHA's 118 codes is here. ABDM-1216, ABDM-1308 and
 //! ABDM-1114 were observed on the sandbox by OHC care-abdm (MIT,
 //! `backend/src/abdm/errors.py`); ABDM-1115 is in NHA's M2 document.
-//! The wording is ours.
+//! Where NHA gives one code two meanings (ABDM-1064, 1108, 1109) the words
+//! cover both and the retry is the safe one. The wording is ours.
 
 use serde_json::Value;
 
-/// `(code, what happened and what to do)`. Sorted by code for review.
-const PLAIN: &[(&str, &str)] = &[
-    (
-        "900900",
-        "ABDM refused our sign-in. Try again; if it repeats, ask the administrator to check the ABDM keys.",
-    ),
-    (
-        "900901",
-        "ABDM did not accept our credentials. Ask the administrator to check the ABDM keys in Settings → ABDM.",
-    ),
-    (
-        "900902",
-        "ABDM received no credentials. Ask the administrator to check the ABDM keys in Settings → ABDM.",
-    ),
-    (
-        "ABDM-1001",
-        "ABDM found nothing for these details. Check what was entered and try again.",
-    ),
-    (
-        "ABDM-1004",
-        "ABDM's SMS service is down, so no SMS could be sent. Try again in a few minutes.",
-    ),
-    (
-        "ABDM-1006",
-        "ABDM could not read the request. Check the details entered; if they are right, give this code to support.",
-    ),
-    ("ABDM-1007", "ABDM timed out. Try again in a minute."),
-    (
-        "ABDM-1008",
-        "ABDM's SMS service is switched off right now. Try again later.",
-    ),
-    (
-        "ABDM-1010",
-        "ABDM did not accept the details entered. Check them and try again.",
-    ),
-    (
-        "ABDM-1012",
-        "ABDM holds no records for this ABHA address. Check the address with the patient.",
-    ),
-    (
-        "ABDM-1013",
-        "ABDM does not recognise this ABHA number. Check the 14 digits with the patient.",
-    ),
-    (
-        "ABDM-1016",
-        "Our server clock is out of step with ABDM. Ask the administrator to check the server time.",
-    ),
-    (
-        "ABDM-1017",
-        "This ABDM step has expired. Start again from the beginning.",
-    ),
-    (
-        "ABDM-1019",
-        "A service ABDM depends on is down. Try again in a few minutes.",
-    ),
-    (
-        "ABDM-1022",
-        "ABDM has had too many requests. Wait a minute, then try again.",
-    ),
-    (
-        "ABDM-1023",
-        "ABDM does not recognise this person. Check the details with the patient.",
-    ),
-    (
-        "ABDM-1024",
-        "A service ABDM depends on is down. Try again in a few minutes.",
-    ),
-    (
-        "ABDM-1025",
-        "ABDM does not recognise this hospital's service ID. Ask the administrator to register the bridge in Settings → ABDM.",
-    ),
-    (
-        "ABDM-1026",
-        "The patient's linking permission is no longer valid. Link the records again.",
-    ),
-    (
-        "ABDM-1027",
-        "ABDM has blocked this ABHA for 24 hours after repeated refusals. Try again tomorrow.",
-    ),
-    (
-        "ABDM-1028",
-        "The hospital that holds the records is not answering ABDM. Try again later.",
-    ),
-    (
-        "ABDM-1031",
-        "This ABHA address is deactivated. Ask the patient to reactivate it in their ABHA app.",
-    ),
-    (
-        "ABDM-1033",
-        "The hospital asking for the records is not answering ABDM. Try again later.",
-    ),
-    (
-        "ABDM-1035",
-        "ABDM does not recognise this hospital's HFR facility ID. Ask the administrator to check Settings → ABDM.",
-    ),
-    (
-        "ABDM-1036",
-        "The details do not match what ABDM holds. Check them with the patient.",
-    ),
-    (
-        "ABDM-1038",
-        "The ABHA address does not match the patient's linking permission. Verify the ABHA again, then link.",
-    ),
-    (
-        "ABDM-1040",
-        "ABDM does not recognise this hospital as a records user. Ask the administrator to register the bridge in Settings → ABDM.",
-    ),
-    (
-        "ABDM-1043",
-        "The ABHA address does not match the person's Aadhaar details. Check the ABHA with the patient.",
-    ),
-    (
-        "ABDM-1046",
-        "ABDM does not accept that purpose. Choose another purpose.",
-    ),
-    (
-        "ABDM-1051",
-        "ABDM does not recognise this ABHA number or address. Check it with the patient.",
-    ),
-    (
-        "ABDM-1056",
-        "These records are already linked to the patient's ABHA. Nothing more to do.",
-    ),
-    (
-        "ABDM-1057",
-        "ABDM did not accept these records. Give this code to support.",
-    ),
-    (
-        "ABDM-1061",
-        "The patient's consent has expired. Ask the patient for a new consent.",
-    ),
-    (
-        "ABDM-1062",
-        "The patient has not granted consent for this. Ask the patient for consent first.",
-    ),
-    (
-        "ABDM-1063",
-        "The dates asked for are outside what the consent allows. Ask for a shorter period.",
-    ),
-    (
-        "ABDM-1065",
-        "The patient's ABHA session has ended. Verify the ABHA again.",
-    ),
-    (
-        "ABDM-1066",
-        "ABDM refused our sign-in. Try again; if it repeats, ask the administrator to check the ABDM keys.",
-    ),
-    (
-        "ABDM-1084",
-        "The ABHA address does not match the patient's ABHA session. Verify the ABHA again.",
-    ),
-    (
-        "ABDM-1085",
-        "The ABHA number does not match the patient's ABHA session. Verify the ABHA again.",
-    ),
-    (
-        "ABDM-1092",
-        "ABDM refused a second linking request for this patient so soon. Wait about seven minutes, then link again.",
-    ),
-    (
-        "ABDM-1112",
-        "The patient's consent was revoked or has expired. Ask the patient for a new consent.",
-    ),
-    (
-        "ABDM-1114",
-        "ABDM found no ABHA for these details. Check them with the patient, or create an ABHA.",
-    ),
-    (
-        "ABDM-1115",
-        "ABDM needs the patient's details to link the records. Check the patient record, then link again.",
-    ),
-    (
-        "ABDM-1170",
-        "ABDM does not recognise this ABHA address. Check the address with the patient.",
-    ),
-    (
-        "ABDM-1201",
-        "ABDM's sign-in service is down. Try again in a few minutes.",
-    ),
-    (
-        "ABDM-1216",
-        "This ABHA address is deactivated. Ask the patient to reactivate it in their ABHA app.",
-    ),
-    (
-        "ABDM-1308",
-        "This ABHA is deactivated. Ask the patient to reactivate it in their ABHA app.",
-    ),
-    (
-        "ABDM-1401",
-        "The hospital that holds the records is not answering ABDM. Try again later.",
-    ),
-    (
-        "ABDM-1402",
-        "The hospital that holds the records did not reply in time. Try again later.",
-    ),
-    (
-        "ABDM-1407",
-        "The ABHA number behind this address is deactivated. Only the patient can reactivate it, in their ABHA app.",
-    ),
-    (
-        "ABDM-2401",
-        "The patient's ABHA session is no longer valid. Verify the ABHA again.",
-    ),
-    (
-        "ABDM-2402",
-        "Our server clock is out of step with ABDM. Ask the administrator to check the server time.",
-    ),
-    (
-        "ABDM-2403",
-        "ABDM did not accept our environment setting. Ask the administrator to check Settings → ABDM.",
-    ),
-    (
-        "ABDM-2406",
-        "The ABDM steps were taken out of order. Start again from the beginning.",
-    ),
-    (
-        "ABDM-2429",
-        "ABDM has had too many requests. Wait a minute, then try again.",
-    ),
-    (
-        "ABDM-2500",
-        "ABDM refused our sign-in. Try again; if it repeats, ask the administrator to check the ABDM keys.",
-    ),
-];
+use crate::error_codes::PLAIN;
+
+/// Whether a call ABDM refused with this code should be sent again.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum Retry {
+    /// An outage, a timeout or a rate limit: send the same request again
+    /// later, with backoff.
+    Later,
+    /// The request itself is wrong, or the patient or setup must change
+    /// first: sending it again unchanged gets the same answer.
+    Fix,
+    /// ABDM already has this request (or its answer): do not send it again.
+    Duplicate,
+}
 
 /// The codes ABDM uses for an ABHA (number or address) that is deactivated
 /// or deleted — records cannot be linked to it until the patient acts.
@@ -254,14 +52,40 @@ pub fn normalize(code: &str) -> String {
         .to_ascii_uppercase()
 }
 
+fn entry(code: &str) -> Option<&'static (&'static str, Retry, &'static str)> {
+    let code = normalize(code);
+    PLAIN
+        .binary_search_by(|(c, _, _)| (*c).cmp(code.as_str()))
+        .ok()
+        .map(|i| &PLAIN[i])
+}
+
 /// Our words for `code`, when we have them.
 #[must_use]
 pub fn plain(code: &str) -> Option<&'static str> {
-    let code = normalize(code);
-    PLAIN
-        .binary_search_by(|(c, _)| (*c).cmp(code.as_str()))
-        .ok()
-        .map(|i| PLAIN[i].1)
+    entry(code).map(|e| e.2)
+}
+
+/// Whether to send again after ABDM refused with `code`; `None` for a code
+/// we do not know (the HTTP status decides then).
+#[must_use]
+pub fn retry(code: &str) -> Option<Retry> {
+    entry(code).map(|e| e.1)
+}
+
+/// The code [`describe`] put at the end of its sentence, when there is one.
+fn code_of(described: &str) -> Option<&str> {
+    described
+        .strip_suffix(')')?
+        .rsplit_once("(code ")
+        .map(|(_, code)| code)
+}
+
+/// Whether a refusal, as [`describe`] worded it, is an outage to send again
+/// later — ABDM reports some (ABDM-1022, ABDM-1048) with a 4xx status.
+#[must_use]
+pub fn retry_later(described: &str) -> bool {
+    code_of(described).and_then(retry) == Some(Retry::Later)
 }
 
 /// Whether `code` says the ABHA is deactivated or deleted.
@@ -329,13 +153,59 @@ pub fn describe_body(body: &Value, fallback: &str) -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::{PLAIN, describe, describe_body, is_deactivated, parse, plain};
+    use super::{
+        PLAIN, Retry, describe, describe_body, is_deactivated, parse, plain, retry, retry_later,
+    };
     use serde_json::json;
 
     /// The table is searched by halving, so it must stay sorted and unique.
     #[test]
     fn the_table_is_sorted_and_unique() {
         assert!(PLAIN.windows(2).all(|w| w[0].0 < w[1].0));
+    }
+
+    /// Every code in NHA's catalogue (nha-in/docs 2026.09.16: the M2 list,
+    /// M1 notes and endpoint notes) has our words and a retry rule.
+    #[test]
+    fn every_nha_code_is_explained() {
+        const NHA: &str = include_str!("nha_error_codes.txt");
+        let missing: Vec<&str> = NHA
+            .lines()
+            .filter(|c| !c.is_empty() && plain(c).is_none())
+            .collect();
+        assert_eq!(missing, Vec::<&str>::new());
+        assert_eq!(NHA.lines().filter(|c| !c.is_empty()).count(), 118);
+    }
+
+    /// An outage is retried, a refusal waits for a fix, a duplicate is never
+    /// resent — including codes NHA gives two meanings.
+    #[test]
+    fn retry_follows_what_the_code_means() {
+        assert_eq!(retry("ABDM-1022"), Some(Retry::Later), "too many requests");
+        assert_eq!(retry("ABDM-1000: "), Some(Retry::Later), "database down");
+        assert_eq!(retry("ABDM-1013"), Some(Retry::Fix), "wrong ABHA number");
+        assert_eq!(retry("ABDM-1027"), Some(Retry::Fix), "blocked for a day");
+        assert_eq!(retry("ABDM-1090"), Some(Retry::Duplicate));
+        assert_eq!(retry("ABDM-1056"), Some(Retry::Duplicate), "already linked");
+        assert_eq!(
+            retry("ABDM-1108"),
+            Some(Retry::Later),
+            "outage or duplicate"
+        );
+        assert_eq!(retry("ABDM-0000"), None);
+    }
+
+    /// The code survives the trip through [`describe`], so a caller that
+    /// holds only the sentence still knows an outage from a refusal.
+    #[test]
+    fn an_outage_is_told_from_a_refusal_by_the_sentence() {
+        assert!(retry_later(&describe(
+            Some("ABDM-1048"),
+            Some("Timeout"),
+            "x"
+        )));
+        assert!(!retry_later(&describe(Some("ABDM-1013"), None, "x")));
+        assert!(!retry_later("ABDM said no"));
     }
 
     /// A code arrives bare, with `": "`, or lower-cased; all read the same.
@@ -380,8 +250,8 @@ mod tests {
         assert!(blocked.starts_with("ABDM has blocked this ABHA for 24 hours"));
         assert!(blocked.ends_with("(code ABDM-1027)"));
         assert_eq!(
-            describe(Some("ABDM-9999"), Some("User not found"), "x"),
-            "User not found (code ABDM-9999)"
+            describe(Some("ABDM-0001"), Some("User not found"), "x"),
+            "User not found (code ABDM-0001)"
         );
         assert_eq!(describe(None, None, "ABDM said no"), "ABDM said no");
     }
