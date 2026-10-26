@@ -6,7 +6,7 @@
   "user": "Already run for this question (check_drug_safety); its result:\n{\"checked\":false,\"drug\":\"Ceftriaxone\",\"notes\":\"Ceftriaxone was not checked: no patient chart is loaded. Open the patient's chart to run the check.\"}\n\nIs ceftriaxone OK for this patient?",
   "output": "Ceftriaxone was not checked: no patient chart is loaded. Open the patient's chart to run the check.",
   "input_tokens": 104,
-  "output_tokens": 146,
+  "output_tokens": 38,
   "cache_read_tokens": 1908,
   "cache_write_tokens": 0,
   "truncated": false

@@ -264,8 +264,10 @@ pub fn ungrounded(case: &Case, source: &str, output: &str) -> Vec<Failure> {
     }
     // Numbers inside the source's placeholders count (`[AGE 56y]` grounds
     // "56 years"); the output's own placeholders were checked above.
+    // A shifted timestamp's time of day ("[DATE_-1d]T22:00") grounds "22:00".
+    let timed = source.replace("]T", "] ");
     let known: HashSet<String> = num
-        .captures_iter(source)
+        .captures_iter(&timed)
         .filter_map(|c| c.get(1).map(|m| canonical(m.as_str())))
         .chain(case.derived_ok.iter().map(|d| canonical(d)))
         .collect();

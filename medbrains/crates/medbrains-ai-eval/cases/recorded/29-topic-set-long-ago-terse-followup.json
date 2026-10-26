@@ -11,9 +11,9 @@
     "Assistant: The duty roster is not recorded in what I can see."
   ],
   "user": "Earlier in this conversation the user asked: \"What is our hospital revenue this month?\"; \"How many patients are waiting in OPD?\". Read a short follow-up in that light.\n\nAlready run for this question (aggregate) and already shown on the user's screen; its result:\n{\"from\":\"[DATE_-364d]\",\"grouped_by\":\"month\",\"metric\":\"revenue_by_period\",\"periods_with_invoices\":[\"2025-10\",\"2025-11\",\"2025-12\",\"2026-01\",\"2026-02\",\"2026-03\",\"2026-04\",\"2026-10\"],\"rows\":[{\"billed\":\"1165601.44\",\"collected\":\"877810.28\",\"invoices\":474,\"month\":\"2025-10\"},{\"billed\":\"6626578.56\",\"collected\":\"5041362.96\",\"invoices\":2188,\"month\":\"2025-11\"},{\"billed\":\"8893439.92\",\"collected\":\"6101086.92\",\"invoices\":2625,\"month\":\"2025-12\"},{\"billed\":\"8938627.04\",\"collected\":\"6224127.92\",\"invoices\":2649,\"month\":\"2026-01\"},{\"billed\":\"6460508.80\",\"collected\":\"4851922.96\",\"invoices\":2033,\"month\":\"2026-02\"},{\"billed\":\"8232945.52\",\"collected\":\"5376090.84\",\"invoices\":2275,\"month\":\"2026-03\"},{\"billed\":\"5160372.24\",\"collected\":\"3413504.40\",\"invoices\":1202,\"month\":\"2026-04\"},{\"billed\":\"0.00\",\"collected\":\"0.00\",\"invoices\":0,\"month\":\"2026-05\"},{\"billed\":\"0.00\",\"collected\":\"0.00\",\"invoices\":0,\"month\":\"2026-06\"},{\"billed\":\"0.00\",\"collected\":\"0.00\",\"invoices\":0,\"month\":\"2026-07\"},{\"billed\":\"0.00\",\"collected\":\"0.00\",\"invoices\":0,\"month\":\"2026-08\"},{\"billed\":\"0.00\",\"collected\":\"0.00\",\"invoices\":0,\"month\":\"2026-09\"},{\"billed\":\"998718.20\",\"collected\":\"449954.84\",\"invoices\":233,\"month\":\"2026-10\"}],\"show_source\":\"aggregate:revenue_by_period\",\"to\":\"[DATE_+0d]\",\"total\":{\"billed\":\"46476791.72\",\"collected\":\"32335861.12\",\"invoices\":13679}}\n\ntotal charges past 12 months",
-  "output": "Total charges billed over the past 12 months are ₹4,64,76,791.72 (13,679 invoices).",
+  "output": "Total billed charges for the past 12 months (from [DATE_-364d] to [DATE_+0d]) are ₹4,64,76,791.72 across 13,679 invoices.",
   "input_tokens": 820,
-  "output_tokens": 446,
+  "output_tokens": 382,
   "cache_read_tokens": 1908,
   "cache_write_tokens": 0,
   "truncated": false

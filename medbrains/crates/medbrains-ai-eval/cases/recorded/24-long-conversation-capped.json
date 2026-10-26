@@ -11,9 +11,9 @@
     "Assistant: Pharmacy return, nursing checklist, discharge summary sign-off and TPA final approval."
   ],
   "user": "Earlier in this conversation the user asked: \"Is [PATIENT_1]'s phone [PHONE_1] on file?\"; \"Which ward is he in?\". Read a short follow-up in that light.\n\nAlready run for this question (discharge_readiness); its result:\n{\"billing\":\"cleared\",\"discharge_summary_signed\":false,\"nursing_checklist\":\"pending\",\"pharmacy_return\":\"pending\",\"tpa_final_approval\":\"awaited\"}\n\nIs the second clearance in your last answer done yet?",
-  "output": "No, the nursing checklist is still pending. It is the second item in my last answer.",
+  "output": "No, the nursing checklist is still pending.",
   "input_tokens": 267,
-  "output_tokens": 230,
+  "output_tokens": 170,
   "cache_read_tokens": 1908,
   "cache_write_tokens": 0,
   "truncated": false

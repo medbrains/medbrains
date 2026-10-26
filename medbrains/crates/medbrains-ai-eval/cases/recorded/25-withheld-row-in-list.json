@@ -6,7 +6,7 @@
   "user": "Already run for this question (patient_list); its result:\n{\"patients\":[{\"allergies\":[\"Penicillin\"],\"label\":\"Bed 4\"},{\"allergies\":[\"Latex\"],\"label\":\"Bed 5\"},{\"active_problems\":[\"[WITHHELD: restricted clinical class, not shared with the AI]\"],\"allergies\":[\"Sulfa drugs\"],\"label\":\"Bed 6\"}]}\n\nWhich allergies are recorded for the patients on this list?",
   "output": "Bed 4: Penicillin\nBed 5: Latex\nBed 6: Sulfa drugs\n\nSome restricted entries were withheld.",
   "input_tokens": 157,
-  "output_tokens": 374,
+  "output_tokens": 380,
   "cache_read_tokens": 1908,
   "cache_write_tokens": 0,
   "truncated": false

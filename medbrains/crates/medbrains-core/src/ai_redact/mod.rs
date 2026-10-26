@@ -26,6 +26,7 @@
 //! AI call rather than send anything.
 
 mod checks;
+mod names;
 mod patterns;
 pub mod sensitive;
 mod stream;
@@ -397,6 +398,7 @@ impl Redactor {
         out = self.replace_patterns(&out, free);
         out = self.replace_known(&out)?;
         out = self.replace_cued_names(&out, cues);
+        out = self.replace_bare_names(&out)?;
         out = self.replace_known(&out)?;
         out = self.replace_dates(&out, dates);
         self.verify(&out)?;
@@ -566,6 +568,21 @@ impl Redactor {
             out = next;
         }
         out
+    }
+
+    /// Names no cue or record marked ([`names`]); fails closed with the text.
+    fn replace_bare_names(&mut self, text: &str) -> Result<String, RedactError> {
+        let hits = names::find(text).map_err(RedactError::Patterns)?;
+        let mut out = String::with_capacity(text.len());
+        let mut last = 0;
+        for r in hits {
+            out.push_str(&text[last..r.start]);
+            let p = self.learn(Kind::Person, &text[r.clone()]);
+            out.push_str(&p);
+            last = r.end;
+        }
+        out.push_str(&text[last..]);
+        Ok(out)
     }
 
     fn replace_patterns(&mut self, text: &str, pats: &[patterns::Pattern]) -> String {
