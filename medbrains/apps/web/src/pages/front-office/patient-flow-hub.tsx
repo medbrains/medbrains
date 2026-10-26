@@ -1,12 +1,8 @@
 // FRONT-OFFICE PatientFlowHub — split from front-office.tsx (pure move).
 
-import { Card, Group, SimpleGrid, Stack, Text, Tooltip } from "@mantine/core";
-import type {
-  ClinicalEventName,
-  ClinicalJourneyActionDefinition,
-  ClinicalJourneyActionId,
-} from "@medbrains/types";
-import { CORE_PATIENT_JOURNEY_ACTIONS, P, TOKEN_BOARD_SURFACE_LIST } from "@medbrains/types";
+import { Card, Group, SimpleGrid, Stack, Text } from "@mantine/core";
+import type { ClinicalJourneyActionDefinition, ClinicalJourneyActionId } from "@medbrains/types";
+import { CORE_PATIENT_JOURNEY_ACTIONS, TOKEN_BOARD_SURFACE_LIST } from "@medbrains/types";
 import {
   IconAmbulance,
   IconArrowRight,
@@ -54,26 +50,10 @@ interface PatientFlowAction {
   enabled: boolean;
   icon: ReactNode;
   journeyActionId?: ClinicalJourneyActionId;
-  activationEvents?: readonly ClinicalEventName[];
-  emittedEvent?: ClinicalEventName;
-  requiredPermissions?: readonly string[];
-  standardRefs?: readonly string[];
 }
 
-function eventLabel(eventName: string) {
-  return eventName.replace(/\./g, " ");
-}
-
-function patientFlowActionMetadata(action: PatientFlowAction) {
-  const journeyAction = patientFlowJourneyAction(action.journeyActionId);
-
-  return {
-    activationEvents: action.activationEvents ?? journeyAction?.activatesAfter ?? [],
-    description: journeyAction?.description ?? action.description,
-    emittedEvent: action.emittedEvent ?? journeyAction?.emitsEvent ?? null,
-    requiredPermissions: action.requiredPermissions ?? journeyAction?.requiredPermissions ?? [],
-    standardRefs: action.standardRefs ?? journeyAction?.standardRefs ?? [],
-  };
+function patientFlowActionDescription(action: PatientFlowAction) {
+  return patientFlowJourneyAction(action.journeyActionId)?.description ?? action.description;
 }
 
 function patientFlowJourneyAction(
@@ -110,9 +90,6 @@ export function PatientFlowHub({
       path: "/patients/register",
       enabled: canRegisterPatient,
       icon: <IconUserPlus size={20} />,
-      emittedEvent: "patient.created",
-      requiredPermissions: [P.PATIENTS.CREATE],
-      standardRefs: ["NABH AAC", "IPSG patient identification"],
     },
     {
       title: "Start OPD Visit",
@@ -140,10 +117,6 @@ export function PatientFlowHub({
       path: "/front-office#token-boards",
       enabled: canViewAnyTokenBoard,
       icon: <IconDeviceTv size={20} />,
-      requiredPermissions: TOKEN_BOARD_SURFACE_LIST.flatMap((surface) => [
-        ...surface.requiredAnyPermissions,
-      ]),
-      standardRefs: TOKEN_BOARD_SURFACE_LIST.flatMap((surface) => [...surface.standardRefs]),
     },
     {
       title: "Emergency Desk",
@@ -233,11 +206,9 @@ export function PatientFlowHub({
 
       <SimpleGrid cols={{ base: 1, sm: 2, lg: 3 }}>
         {actions.map((action) => {
-          const metadata = patientFlowActionMetadata(action);
-          const permissionLabel =
-            metadata.requiredPermissions.length > 1
-              ? `${metadata.requiredPermissions[0]} +${metadata.requiredPermissions.length - 1}`
-              : metadata.requiredPermissions[0];
+          // Reception reads what the step does. Its permission codes, event
+          // names and standards references are for whoever configures it.
+          const description = patientFlowActionDescription(action);
 
           return (
             <Card key={action.title} withBorder padding="md">
@@ -261,40 +232,9 @@ export function PatientFlowHub({
                 <div>
                   <Text fw={600}>{action.title}</Text>
                   <Text size="sm" c="dimmed">
-                    {metadata.description}
+                    {description}
                   </Text>
                 </div>
-                {(metadata.activationEvents.length > 0 || metadata.emittedEvent) && (
-                  <Group gap={4}>
-                    {metadata.activationEvents.slice(0, 2).map((eventName) => (
-                      <Badge key={eventName} size="xs" tone="info">
-                        after {eventLabel(eventName)}
-                      </Badge>
-                    ))}
-                    {metadata.activationEvents.length > 2 && (
-                      <Badge size="xs" tone="info">
-                        +{metadata.activationEvents.length - 2}
-                      </Badge>
-                    )}
-                    {metadata.emittedEvent && (
-                      <Badge size="xs" tone="success">
-                        emits {eventLabel(metadata.emittedEvent)}
-                      </Badge>
-                    )}
-                  </Group>
-                )}
-                {permissionLabel && (
-                  <Tooltip label={metadata.requiredPermissions.join(" / ")}>
-                    <Text size="xs" c="dimmed">
-                      Permission: {permissionLabel}
-                    </Text>
-                  </Tooltip>
-                )}
-                {metadata.standardRefs.length > 0 && (
-                  <Text size="xs" c="dimmed">
-                    Standards: {metadata.standardRefs.slice(0, 2).join(" · ")}
-                  </Text>
-                )}
                 <Button
                   tone={action.enabled ? "secondary" : "ghost"}
                   mt="auto"
