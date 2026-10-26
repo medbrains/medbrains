@@ -120,6 +120,7 @@ mod kpi_department_filter_test;
 mod lab_critical_value_report_test;
 mod lab_report_release_test;
 mod lab_tat_test;
+mod nikshay_notification_test;
 mod notifiable_detection_test;
 mod camp_supply_trace_test;
 mod attendance_lateness_test;

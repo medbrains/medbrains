@@ -49,6 +49,38 @@ struct OverdueReport {
     detected_by: Option<Uuid>,
 }
 
+/// What the overdue notice says, and where it opens. TB goes to Ni-kshay on
+/// its own form and tab; everything else is an IDSP P- or L-form.
+fn overdue_message(report: &OverdueReport) -> (String, &'static str) {
+    let body = report.reporting_body.as_deref().unwrap_or("IDSP");
+    let is_tb = matches!(
+        report.icd10_code.get(..3),
+        Some("A15" | "A16" | "A17" | "A18" | "A19")
+    );
+    if is_tb || body.to_lowercase().contains("ni-kshay") {
+        return (
+            format!(
+                "{} ({}) has not been notified to Ni-kshay within its deadline. \
+                 Non-notification of TB is an offence.",
+                report.disease_name, report.icd10_code
+            ),
+            "/clinical-kb#nikshay",
+        );
+    }
+    let form = if report.case_class == "confirmed" {
+        "L"
+    } else {
+        "P"
+    };
+    (
+        format!(
+            "{} ({}) has not been reported to {body} ({form}-form) within its deadline.",
+            report.disease_name, report.icd10_code
+        ),
+        "/clinical-kb#reports",
+    )
+}
+
 /// One pass: escalate every pending report past its due time.
 ///
 /// # Errors
@@ -80,22 +112,12 @@ pub async fn escalate_overdue(pool: &PgPool) -> Result<u64, AppError> {
         .bind(RECIPIENT_LIMIT)
         .fetch_all(&mut *tx)
         .await?;
-        if let Some(clinician) = report.detected_by {
-            if !recipients.contains(&clinician) {
-                recipients.push(clinician);
-            }
+        if let Some(clinician) = report.detected_by
+            && !recipients.contains(&clinician)
+        {
+            recipients.push(clinician);
         }
-        let form = if report.case_class == "confirmed" {
-            "L"
-        } else {
-            "P"
-        };
-        let body = format!(
-            "{} ({}) has not been reported to {} ({form}-form) within its deadline.",
-            report.disease_name,
-            report.icd10_code,
-            report.reporting_body.as_deref().unwrap_or("IDSP"),
-        );
+        let (body, action_url) = overdue_message(&report);
         for user_id in recipients {
             create_notification(
                 &mut tx,
@@ -108,7 +130,7 @@ pub async fn escalate_overdue(pool: &PgPool) -> Result<u64, AppError> {
                     category: Some("Notifiable Disease"),
                     entity_type: Some("notifiable_disease_reports"),
                     entity_id: Some(report.id),
-                    action_url: Some("/clinical-kb#reports"),
+                    action_url: Some(action_url),
                 },
             )
             .await?;

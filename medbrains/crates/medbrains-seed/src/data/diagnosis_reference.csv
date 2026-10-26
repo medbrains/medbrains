@@ -5,7 +5,10 @@ A03,Shigellosis (bacillary dysentery),Medicine,true,IDSP,weekly,1A02,shigellosis
 A05,Acute diarrhoeal disease / food poisoning,Medicine,true,IDSP,24h,,food poisoning
 A09,Diarrhoea,Paediatrics,false,,,,
 A15,Tuberculosis (pulmonary),Medicine,true,Ni-kshay/RNTCP,24h,1B10,pulmonary tuberculosis|pulmonary tb|tuberculosis|koch's disease
-A19,Miliary tuberculosis,Medicine,true,Ni-kshay/RNTCP,24h,,miliary tuberculosis|miliary tb
+A16,"Tuberculosis, respiratory, not bacteriologically confirmed",Medicine,true,Ni-kshay/RNTCP,24h,,
+A17,Tuberculosis of nervous system,Medicine,true,Ni-kshay/RNTCP,24h,1B11,tuberculous meningitis|tb meningitis
+A18,Tuberculosis of other organs,Medicine,true,Ni-kshay/RNTCP,24h,1B12,extrapulmonary tuberculosis|extra-pulmonary tuberculosis|tuberculous lymphadenitis|abdominal tuberculosis|spinal tuberculosis|pott's spine
+A19,Miliary tuberculosis,Medicine,true,Ni-kshay/RNTCP,24h,1B13,miliary tuberculosis|miliary tb
 A20,Plague,Medicine,true,IDSP,24h,1B93,plague
 A22,Anthrax,Medicine,true,IDSP,24h,1B97,anthrax
 A27,Leptospirosis,Medicine,true,IDSP,24h,,leptospirosis|weil's disease

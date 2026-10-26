@@ -1511,6 +1511,7 @@ import type {
   NhcxSlaReport,
   NhcxStatus,
   NhcxTask,
+  NikshaySheet,
   NmcComplianceReportPrintData,
   NonPayableRule,
   // Scheduling
@@ -1801,6 +1802,7 @@ import type {
   PublicBookingResponse,
   PublicEnquiryRequest,
   PublicEnquiryResponse,
+  PublicHealthFacility,
   PublicInvite,
   PublicTenant,
   PublicTokenLink,
@@ -1974,6 +1976,7 @@ import type {
   SaveBasketDraftRequest,
   SaveDialysisMachineRequest,
   SaveNhcxSettings,
+  SaveTbDetailsRequest,
   SaveUhiSettings,
   ScheduleAnalytics,
   ScheduleAuditsRequest,
@@ -2109,6 +2112,7 @@ import type {
   TatRecord,
   TatRecordSummary,
   TaxCategoryRow,
+  TbCase,
   TdsDeduction,
   TeachingConsentPrintData,
   TeamLeaveResponse,
@@ -9647,6 +9651,17 @@ export const api = {
     request<{ deleted: boolean }>(`/ckb/notifiable-overrides/${id}`, { method: "DELETE" }),
   updateNotifiableReport: (id: string, data: UpdateNotifiableReportRequest) =>
     request<NotifiableReport>(`/ckb/notifiable-reports/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
+  listTbCases: (status?: string) =>
+    request<TbCase[]>(`/ckb/nikshay${status ? `?status=${status}` : ""}`),
+  saveTbDetails: (reportId: string, data: SaveTbDetailsRequest) =>
+    request<TbCase>(`/ckb/nikshay/${reportId}`, { method: "PUT", body: JSON.stringify(data) }),
+  getNikshaySheet: () => request<NikshaySheet>("/ckb/nikshay/sheet"),
+  getPublicHealthFacility: () => request<PublicHealthFacility>("/ckb/facility-codes"),
+  setPublicHealthFacilityCodes: (data: { nikshay_he_code: string | null }) =>
+    request<PublicHealthFacility>("/ckb/facility-codes", {
       method: "PUT",
       body: JSON.stringify(data),
     }),

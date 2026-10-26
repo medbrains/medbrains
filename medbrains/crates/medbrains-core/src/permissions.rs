@@ -2975,6 +2975,12 @@ pub mod ckb {
         pub const LIST: &str = "ckb.reports.list";
         /// Create and edit knowledge-base reports.
         pub const MANAGE: &str = "ckb.reports.manage";
+        /// Export statutory report sheets.
+        /// Builds the Ni-kshay TB notification and IDSP/IHIP line lists:
+        /// patients' names, addresses and phones, prepared for a public
+        /// authority. Every sheet made is a disclosure in the audit trail, so
+        /// it is held apart from working the list.
+        pub const EXPORT: &str = "ckb.reports.export";
     }
 
     pub mod notifiable_rules {

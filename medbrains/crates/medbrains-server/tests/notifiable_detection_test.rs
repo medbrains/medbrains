@@ -14,15 +14,15 @@ use reqwest::{Client, Method, StatusCode};
 use serde_json::{Value, json};
 use uuid::Uuid;
 
-struct Hospital {
-    tenant: Uuid,
-    client: Client,
-    csrf: String,
-    doctor: Uuid,
-    department: Uuid,
+pub(crate) struct Hospital {
+    pub(crate) tenant: Uuid,
+    pub(crate) client: Client,
+    pub(crate) csrf: String,
+    pub(crate) doctor: Uuid,
+    pub(crate) department: Uuid,
 }
 
-async fn hospital(app: &common::TestApp) -> Hospital {
+pub(crate) async fn hospital(app: &common::TestApp) -> Hospital {
     let suffix = Uuid::new_v4().simple().to_string()[..8].to_uppercase();
     let code = format!("NT{suffix}");
     let tenant: Uuid = sqlx::query_scalar(
@@ -82,7 +82,13 @@ async fn hospital(app: &common::TestApp) -> Hospital {
 }
 
 impl Hospital {
-    async fn call(&self, app: &common::TestApp, method: Method, path: &str, body: Value) -> Value {
+    pub(crate) async fn call(
+        &self,
+        app: &common::TestApp,
+        method: Method,
+        path: &str,
+        body: Value,
+    ) -> Value {
         let resp = self
             .client
             .request(method, app.url(path))
@@ -97,7 +103,7 @@ impl Hospital {
         serde_json::from_str(&text).unwrap_or(Value::Null)
     }
 
-    async fn patient(&self, app: &common::TestApp, phone: &str) -> Value {
+    pub(crate) async fn patient(&self, app: &common::TestApp, phone: &str) -> Value {
         self.call(
             app,
             Method::POST,
@@ -108,7 +114,7 @@ impl Hospital {
         .await
     }
 
-    async fn opd_visit(&self, app: &common::TestApp, patient: &Value) -> String {
+    pub(crate) async fn opd_visit(&self, app: &common::TestApp, patient: &Value) -> String {
         let visit = self
             .call(
                 app,
@@ -124,7 +130,7 @@ impl Hospital {
             .to_owned()
     }
 
-    async fn admit(&self, app: &common::TestApp, patient: &Value) -> Value {
+    pub(crate) async fn admit(&self, app: &common::TestApp, patient: &Value) -> Value {
         self.call(
             app,
             Method::POST,
@@ -135,8 +141,63 @@ impl Hospital {
         .await
     }
 
+    /// A lab test ordered, resulted with `value` and verified; its order id.
+    pub(crate) async fn verified_result(
+        &self,
+        app: &common::TestApp,
+        patient: &Value,
+        encounter: &str,
+        (code, name): (&str, &str),
+        value: &str,
+    ) -> String {
+        let test: Uuid = sqlx::query_scalar(
+            "INSERT INTO lab_test_catalog (tenant_id, code, name, price) \
+             VALUES ($1, $2, $3, 400) RETURNING id",
+        )
+        .bind(self.tenant)
+        .bind(code)
+        .bind(name)
+        .fetch_one(&app.db)
+        .await
+        .expect("lab test");
+        let order = self
+            .call(
+                app,
+                Method::POST,
+                "/api/lab/orders",
+                json!({ "patient_id": patient["id"], "encounter_id": encounter, "test_id": test }),
+            )
+            .await;
+        let order_id = order["id"].as_str().expect("order").to_owned();
+        let steps = [
+            (
+                Method::PUT,
+                "collect",
+                json!({ "patient_identifier": patient["uhid"] }),
+            ),
+            (Method::PUT, "process", json!({})),
+            (
+                Method::POST,
+                "results",
+                json!({ "results": [{ "parameter_name": name, "value": value }] }),
+            ),
+            (Method::PUT, "complete", json!({})),
+            (Method::PUT, "verify", json!({})),
+        ];
+        for (method, step, body) in steps {
+            self.call(
+                app,
+                method,
+                &format!("/api/lab/orders/{order_id}/{step}"),
+                body,
+            )
+            .await;
+        }
+        order_id
+    }
+
     /// The worklist rows for one patient: (disease code, case class, source, status).
-    async fn rows(
+    pub(crate) async fn rows(
         &self,
         app: &common::TestApp,
         patient: &Value,
@@ -241,58 +302,16 @@ async fn one_episode_is_one_row_raised_to_lab_confirmed() {
 
     // The lab confirms it: the same row becomes lab-confirmed and is reopened
     // for the L-form, keeping the P-form acknowledgement.
-    let test: Uuid = sqlx::query_scalar(
-        "INSERT INTO lab_test_catalog (tenant_id, code, name, price) \
-         VALUES ($1, 'DNS1', 'Dengue NS1 antigen', 400) RETURNING id",
-    )
-    .bind(h.tenant)
-    .fetch_one(&app.db)
-    .await
-    .expect("lab test");
-    let order = h
-        .call(
+    let order_id = h
+        .verified_result(
             &app,
-            Method::POST,
-            "/api/lab/orders",
-            json!({ "patient_id": patient["id"], "encounter_id": encounter, "test_id": test }),
+            &patient,
+            &encounter,
+            ("DNS1", "Dengue NS1 antigen"),
+            "Positive",
         )
         .await;
-    let order_id = order["id"].as_str().expect("order");
-    h.call(
-        &app,
-        Method::PUT,
-        &format!("/api/lab/orders/{order_id}/collect"),
-        json!({ "patient_identifier": patient["uhid"] }),
-    )
-    .await;
-    h.call(
-        &app,
-        Method::PUT,
-        &format!("/api/lab/orders/{order_id}/process"),
-        json!({}),
-    )
-    .await;
-    h.call(
-        &app,
-        Method::POST,
-        &format!("/api/lab/orders/{order_id}/results"),
-        json!({ "results": [{ "parameter_name": "Dengue NS1 antigen", "value": "Positive" }] }),
-    )
-    .await;
-    h.call(
-        &app,
-        Method::PUT,
-        &format!("/api/lab/orders/{order_id}/complete"),
-        json!({}),
-    )
-    .await;
-    h.call(
-        &app,
-        Method::PUT,
-        &format!("/api/lab/orders/{order_id}/verify"),
-        json!({}),
-    )
-    .await;
+    let order_id = order_id.as_str();
 
     assert_eq!(
         h.rows(&app, &patient).await,

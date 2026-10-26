@@ -308,6 +308,27 @@ pub async fn update_notifiable_report(
     }
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    // A TB notification is not done until Ni-kshay has given it an ID.
+    let is_tb = sqlx::query_scalar::<_, bool>(
+        "SELECT icd10_code ~ '^A1[5-9]' OR reporting_body ILIKE '%ni-kshay%' \
+           FROM notifiable_disease_reports WHERE id = $1 AND tenant_id = $2",
+    )
+    .bind(id)
+    .bind(claims.tenant_id)
+    .fetch_optional(&mut *tx)
+    .await?
+    .ok_or(AppError::NotFound)?;
+    if is_tb
+        && body.status == "submitted"
+        && body
+            .report_ref
+            .as_deref()
+            .is_none_or(|r| r.trim().is_empty())
+    {
+        return Err(AppError::BadRequest(
+            "Give the Ni-kshay ID the notification received.".to_owned(),
+        ));
+    }
     let sql = format!(
         "UPDATE notifiable_disease_reports \
          SET status = $1, report_ref = $2, notes = COALESCE($3, notes), \
@@ -325,6 +346,22 @@ pub async fn update_notifiable_report(
         .fetch_optional(&mut *tx)
         .await?
         .ok_or(AppError::NotFound)?;
+    if row.status == "submitted" {
+        let recipient = row.reporting_body.as_deref().unwrap_or("IDSP");
+        crate::disclosure::record(
+            &mut tx,
+            &claims,
+            &crate::disclosure::Disclosure {
+                stage: "submitted",
+                recipient,
+                statute: "Notifiable disease reporting (state notification; TB: MoHFW 2012/2018)",
+                entity_type: "notifiable_disease_reports",
+                record_ids: &[row.id],
+                reference: row.report_ref.as_deref(),
+            },
+        )
+        .await?;
+    }
     tx.commit().await?;
     Ok(Json(row))
 }
