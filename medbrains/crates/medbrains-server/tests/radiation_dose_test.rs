@@ -13,41 +13,45 @@ struct Exam {
     order: String,
 }
 
-async fn ct_order(app: &common::TestApp, csrf: &str) -> Exam {
-    let tenant: Uuid = sqlx::query_scalar("SELECT tenant_id FROM users WHERE username = 'admin'")
-        .fetch_one(&app.db)
-        .await
-        .expect("tenant");
+async fn new_patient(app: &common::TestApp, date_of_birth: &str) -> Uuid {
     let tag = Uuid::new_v4().simple().to_string()[..8].to_uppercase();
-    let patient: Uuid = sqlx::query_scalar(
-        "INSERT INTO patients (tenant_id, uhid, first_name, last_name, gender, phone) \
-         VALUES ($1, $2, 'Arun', 'Kumar', 'male', '9000000228') RETURNING id",
+    sqlx::query_scalar(
+        "INSERT INTO patients (tenant_id, uhid, first_name, last_name, gender, phone, date_of_birth) \
+         SELECT tenant_id, $1, 'Arun', 'Kumar', 'male', '9000000228', $2::date \
+           FROM users WHERE username = 'admin' RETURNING id",
     )
-    .bind(tenant)
     .bind(format!("UH-RD-{tag}"))
+    .bind(date_of_birth)
     .fetch_one(&app.db)
     .await
-    .expect("patient");
+    .expect("patient")
+}
+
+async fn order_for(app: &common::TestApp, csrf: &str, patient: Uuid, body_part: &str) -> String {
+    let tag = Uuid::new_v4().simple().to_string()[..8].to_uppercase();
     let modality: Uuid = sqlx::query_scalar(
-        "INSERT INTO radiology_modalities (tenant_id, code, name) VALUES ($1, $2, 'CT') RETURNING id",
+        "INSERT INTO radiology_modalities (tenant_id, code, name) \
+         SELECT tenant_id, $1, 'CT' FROM users WHERE username = 'admin' RETURNING id",
     )
-    .bind(tenant)
     .bind(format!("CT{tag}"))
     .fetch_one(&app.db)
     .await
     .expect("modality");
     let (status, order) = send(
         app.client.post(app.url("/api/radiology/orders")).json(
-            &json!({ "patient_id": patient, "modality_id": modality, "body_part": "Abdomen" }),
+            &json!({ "patient_id": patient, "modality_id": modality, "body_part": body_part }),
         ),
         csrf,
     )
     .await;
     assert_eq!(status, StatusCode::OK, "{order}");
-    Exam {
-        patient,
-        order: order["id"].as_str().expect("order id").to_owned(),
-    }
+    order["id"].as_str().expect("order id").to_owned()
+}
+
+async fn ct_order(app: &common::TestApp, csrf: &str) -> Exam {
+    let patient = new_patient(app, "1980-03-09").await;
+    let order = order_for(app, csrf, patient, "Abdomen").await;
+    Exam { patient, order }
 }
 
 async fn send(req: reqwest::RequestBuilder, csrf: &str) -> (StatusCode, Value) {
@@ -141,7 +145,7 @@ async fn a_recorded_dose_counts_until_it_is_marked_entered_in_error() {
     let total = cumulative(&app, &csrf, exam.patient).await;
     assert_eq!(
         (
-            total["study_count"].as_i64(),
+            total["ct_exam_count"].as_i64(),
             total["cumulative_dlp"].as_f64()
         ),
         (Some(1), Some(812.4))
@@ -179,7 +183,7 @@ async fn a_recorded_dose_counts_until_it_is_marked_entered_in_error() {
     assert_eq!(status, StatusCode::OK);
 
     let total = cumulative(&app, &csrf, exam.patient).await;
-    assert_eq!(total["study_count"].as_i64(), Some(0), "{total}");
+    assert_eq!(total["ct_exam_count"].as_i64(), Some(0), "{total}");
     let kept: Option<String> =
         sqlx::query_scalar("SELECT delete_reason FROM radiation_dose_records WHERE id = $1::uuid")
             .bind(record["id"].as_str())
@@ -200,4 +204,77 @@ async fn a_recorded_dose_counts_until_it_is_marked_entered_in_error() {
     .await
     .expect("audit");
     assert_eq!(audited, 2);
+}
+
+async fn record_dlp(app: &common::TestApp, csrf: &str, order: &str, dlp: f64) {
+    let (status, body) = send(
+        app.client
+            .post(app.url(&format!("/api/radiology/orders/{order}/dose")))
+            .json(&json!({ "dlp": dlp })),
+        csrf,
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK, "{body}");
+}
+
+#[tokio::test]
+async fn the_estimate_follows_the_body_region_and_the_patients_age() {
+    let app = common::spawn_app().await;
+    let csrf = app.login_admin().await;
+    let adult = new_patient(&app, "1980-03-09").await;
+    for (part, dlp) in [("Head", 1000.0), ("Abdomen", 1000.0), ("Left knee", 500.0)] {
+        let order = order_for(&app, &csrf, adult, part).await;
+        record_dlp(&app, &csrf, &order, dlp).await;
+    }
+    let total = cumulative(&app, &csrf, adult).await;
+    let msv = total["estimated_effective_msv"].as_f64().expect("msv");
+    assert!(
+        (msv - 17.1).abs() < 1e-6,
+        "head 2.1 + abdomen 15.0, not 2500 × 0.015: {total}"
+    );
+    assert_eq!(total["ct_exam_count"].as_i64(), Some(3));
+    assert_eq!(total["estimated_exam_count"].as_i64(), Some(2));
+    assert_eq!(
+        total["not_estimated_region_unknown"].as_i64(),
+        Some(1),
+        "the knee is named, not zeroed"
+    );
+    assert!(
+        total["method"]
+            .as_str()
+            .is_some_and(|m| m.contains("AAPM Report 96"))
+    );
+
+    let (_, history) = send(
+        app.client
+            .get(app.url(&format!("/api/radiology/patients/{adult}/dose-records"))),
+        &csrf,
+    )
+    .await;
+    let by_region = |region: &str| {
+        history
+            .as_array()
+            .and_then(|rows| rows.iter().find(|r| r["region"] == region))
+            .and_then(|r| r["estimated_msv"].as_f64())
+    };
+    assert!(
+        by_region("head").is_some_and(|m| (m - 2.1).abs() < 1e-6),
+        "{history}"
+    );
+    assert!(
+        history
+            .as_array()
+            .is_some_and(|rows| rows.iter().any(|r| r["not_estimated"] == "region_unknown")),
+        "{history}"
+    );
+
+    let child = new_patient(&app, "2021-06-01").await;
+    let order = order_for(&app, &csrf, child, "Chest").await;
+    record_dlp(&app, &csrf, &order, 100.0).await;
+    let total = cumulative(&app, &csrf, child).await;
+    let msv = total["estimated_effective_msv"].as_f64().expect("msv");
+    assert!(
+        (msv - 1.8).abs() < 1e-6,
+        "a five-year-old's chest: k 0.018, not 0.014: {total}"
+    );
 }

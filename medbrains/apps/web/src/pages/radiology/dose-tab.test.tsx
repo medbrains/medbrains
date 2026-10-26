@@ -40,12 +40,18 @@ const CT: RadiationDoseRecord = {
 };
 
 const HIGH: CumulativeDoseResult = {
-  study_count: 9,
+  ct_exam_count: 8,
   cumulative_dlp: 7000,
   estimated_effective_msv: 105,
+  estimated_exam_count: 7,
+  not_estimated_region_unknown: 1,
+  not_estimated_age_unknown: 0,
+  dap_total_gy_cm2: 25.3,
+  dap_exam_count: 1,
   review_threshold_msv: 100,
   over_threshold: true,
   near_threshold: true,
+  method: "Estimated effective dose = DLP × k, AAPM Report 96",
 };
 
 beforeEach(() => {
@@ -63,8 +69,16 @@ describe("DoseTab", () => {
     expect(screen.getByText("14.9 mGy CTDIvol · 812.4 mGy·cm DLP")).toBeInTheDocument();
     expect(screen.getByText("Scanner dose report")).toBeInTheDocument();
     expect(
-      await screen.findByText(/Cumulative radiation ≈ 105 mSv over 9 CT studies/),
+      await screen.findByText("Estimated effective dose ≈ 105.0 mSv from 7 CT exams"),
     ).toBeInTheDocument();
+    // What the estimate leaves out is named, never folded in as zero.
+    expect(
+      screen.getByText("1 CT exam not estimated: body region not recognised."),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(/dose-area product 25.30 Gy·cm² over 1 exam \(not converted\)/),
+    ).toBeInTheDocument();
+    expect(screen.getByText(/AAPM Report 96/)).toBeInTheDocument();
     // Without radiology.dose.record: no form, no correction.
     expect(screen.queryByRole("form", { name: "Record radiation dose" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Entered in error" })).not.toBeInTheDocument();

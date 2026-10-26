@@ -12,7 +12,7 @@
 
 use axum::{
     Extension, Json,
-    extract::{Path, Query, State},
+    extract::{Path, State},
 };
 use medbrains_core::permissions;
 use medbrains_core::radiology::RadiationDoseRecord;
@@ -21,25 +21,12 @@ use medbrains_server_core::middleware::auth::Claims;
 use medbrains_server_core::middleware::authorization::require_permission;
 use medbrains_server_core::state::AppState;
 use rust_decimal::Decimal;
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
 use serde_json::json;
 use sqlx::{Postgres, Transaction};
 use uuid::Uuid;
 
 use crate::dose_capture::CapturedDose;
-
-/// Effective-dose conversion factor for body CT: mSv per (mGy·cm) of DLP.
-/// 0.015 is the representative adult chest/abdomen/pelvis k-factor; the
-/// result is an ESTIMATE, not a measured dose.
-const DLP_TO_MSV_K: f64 = 0.015;
-/// Cumulative effective dose (mSv) at which further imaging needs explicit
-/// justification.
-const CUMULATIVE_DOSE_REVIEW_MSV: f64 = 100.0;
-const PATIENT_HISTORY_LIMIT: i64 = 200;
-
-fn estimate_effective_msv(total_dlp: f64) -> f64 {
-    total_dlp * DLP_TO_MSV_K
-}
 
 // ponytail: ceilings catch a slipped decimal point, they are not clinical
 // limits — a perfusion CT or a long embolisation legitimately runs high.
@@ -122,59 +109,7 @@ impl RecordDoseRequest {
     }
 }
 
-#[derive(Debug, Deserialize)]
-pub struct CumulativeDoseQuery {
-    pub patient_id: Uuid,
-}
-
-#[derive(Debug, Serialize)]
-pub struct CumulativeDoseResult {
-    pub study_count: i64,
-    pub cumulative_dlp: f64,
-    pub estimated_effective_msv: f64,
-    pub review_threshold_msv: f64,
-    /// True once the estimated cumulative effective dose reaches the review threshold.
-    pub over_threshold: bool,
-    /// True from 75% of the threshold — approaching, justify carefully.
-    pub near_threshold: bool,
-}
-
-/// `GET /api/radiology/cumulative-dose?patient_id=` — the patient's recorded
-/// CT dose (DLP) and estimated cumulative effective dose against the review
-/// threshold.
-pub async fn cumulative_dose(
-    State(state): State<AppState>,
-    Extension(claims): Extension<Claims>,
-    Query(params): Query<CumulativeDoseQuery>,
-) -> Result<Json<CumulativeDoseResult>, AppError> {
-    require_permission(&claims, permissions::radiology::orders::VIEW)?;
-    // A dose history says how often a patient has been imaged and for what.
-    medbrains_authz_gate::require_patient_access(&state, &claims, params.patient_id).await?;
-    let mut tx = open_tx(&state, &claims).await?;
-    let (study_count, total_dlp): (i64, Option<f64>) = sqlx::query_as(
-        "SELECT COUNT(DISTINCT order_id), COALESCE(SUM(dlp), 0)::float8 \
-           FROM radiation_dose_records \
-          WHERE tenant_id = $1 AND patient_id = $2 AND dlp IS NOT NULL AND deleted_at IS NULL",
-    )
-    .bind(claims.tenant_id)
-    .bind(params.patient_id)
-    .fetch_one(&mut *tx)
-    .await?;
-    tx.commit().await?;
-
-    let cumulative_dlp = total_dlp.unwrap_or(0.0);
-    let estimated_effective_msv = estimate_effective_msv(cumulative_dlp);
-    Ok(Json(CumulativeDoseResult {
-        study_count,
-        cumulative_dlp,
-        estimated_effective_msv,
-        review_threshold_msv: CUMULATIVE_DOSE_REVIEW_MSV,
-        over_threshold: estimated_effective_msv >= CUMULATIVE_DOSE_REVIEW_MSV,
-        near_threshold: estimated_effective_msv >= 0.75 * CUMULATIVE_DOSE_REVIEW_MSV,
-    }))
-}
-
-async fn open_tx<'a>(
+pub(crate) async fn open_tx<'a>(
     state: &'a AppState,
     claims: &Claims,
 ) -> Result<Transaction<'a, Postgres>, AppError> {
@@ -337,45 +272,6 @@ pub async fn mark_dose_entered_in_error(
     Ok(Json(record))
 }
 
-/// One exam's dose in the patient's history.
-#[derive(Debug, Serialize, sqlx::FromRow)]
-pub struct PatientDoseRow {
-    #[serde(flatten)]
-    #[sqlx(flatten)]
-    pub record: RadiationDoseRecord,
-    pub accession_number: Option<String>,
-    pub exam: Option<String>,
-}
-
-/// `GET /api/radiology/patients/{patient_id}/dose-records` — every recorded
-/// dose for the patient's chart, newest first.
-pub async fn list_patient_dose_records(
-    State(state): State<AppState>,
-    Extension(claims): Extension<Claims>,
-    Path(patient_id): Path<Uuid>,
-) -> Result<Json<Vec<PatientDoseRow>>, AppError> {
-    require_permission(&claims, permissions::radiology::orders::VIEW)?;
-    medbrains_authz_gate::require_patient_access(&state, &claims, patient_id).await?;
-    let mut tx = open_tx(&state, &claims).await?;
-    let rows = sqlx::query_as::<_, PatientDoseRow>(
-        "SELECT d.*, o.accession_number, \
-                COALESCE(e.name, m.name || COALESCE(' — ' || o.body_part, '')) AS exam \
-           FROM radiation_dose_records d \
-           JOIN radiology_orders o ON o.id = d.order_id AND o.tenant_id = d.tenant_id \
-           JOIN radiology_modalities m ON m.id = o.modality_id \
-           LEFT JOIN radiology_exams e ON e.id = o.exam_id \
-          WHERE d.tenant_id = $1 AND d.patient_id = $2 AND d.deleted_at IS NULL \
-          ORDER BY d.recorded_at DESC LIMIT $3",
-    )
-    .bind(claims.tenant_id)
-    .bind(patient_id)
-    .bind(PATIENT_HISTORY_LIMIT)
-    .fetch_all(&mut *tx)
-    .await?;
-    tx.commit().await?;
-    Ok(Json(rows))
-}
-
 /// Store a dose the PACS sync read for a study. A study is captured once per
 /// source; nothing is stored when the scanner sent no figures. Returns
 /// whether a record was written.
@@ -433,7 +329,7 @@ pub struct CapturedStudy<'a> {
 
 #[cfg(test)]
 mod tests {
-    use super::{RecordDoseRequest, estimate_effective_msv};
+    use super::RecordDoseRequest;
     use rust_decimal::Decimal;
 
     fn empty() -> RecordDoseRequest {
@@ -450,14 +346,6 @@ mod tests {
             kvp: None,
             mas: None,
         }
-    }
-
-    #[test]
-    fn dlp_converts_to_msv() {
-        // 1000 mGy·cm * 0.015 = 15 mSv (a couple of abdominal CTs).
-        assert!((estimate_effective_msv(1000.0) - 15.0).abs() < 1e-9);
-        assert!(estimate_effective_msv(7000.0) >= 100.0);
-        assert!(estimate_effective_msv(5000.0) < 100.0);
     }
 
     #[test]

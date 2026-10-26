@@ -3293,6 +3293,11 @@ export type RadiationDoseSource = "manual" | "rdsr" | "dicom_header";
 export interface PatientDoseRecord extends RadiationDoseRecord {
   accession_number: string | null;
   exam: string | null;
+  /** The body region the estimate used. */
+  region: string | null;
+  /** Estimated effective dose (mSv); null with no DLP or when not estimable. */
+  estimated_msv: number | null;
+  not_estimated: "region_unknown" | "age_unknown" | null;
 }
 
 export interface RadiologyOrderListResponse {
