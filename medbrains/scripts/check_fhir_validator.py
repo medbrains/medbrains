@@ -55,7 +55,8 @@ EXPECTED = [
     "-OPConsultRecord", "-PrescriptionRecord", "-DiagnosticReportRecord",
     "-DischargeSummaryRecord", "-ImmunizationRecord", "-WellnessRecord",
     "-HealthDocumentRecord", "-InvoiceRecord",
-    "nhcx-eligibility", "nhcx-preauth", "nhcx-claim", "nhcx-task-", "nhcx-communication",
+    "nhcx-eligibility", "nhcx-preauth", "nhcx-claim", "nhcx-task-search", "nhcx-task-reprocess",
+    "nhcx-task-payment-ack", "nhcx-communication",
 ]
 FILE_EXT = "http://hl7.org/fhir/StructureDefinition/operationoutcome-file"
 
@@ -87,6 +88,7 @@ def emit_goldens(out: Path) -> None:
     runs = [
         ["cargo", "test", "-q", "-p", "medbrains-fhir", "--lib", "nrces::"],
         ["cargo", "test", "-q", "-p", "medbrains-facilities", "--lib", "nhcx_golden"],
+        ["cargo", "test", "-q", "-p", "medbrains-nhcx-callback", "--lib", "payment_ack"],
     ]
     guard = ROOT / "scripts/build_guard.sh"
     for cmd in runs:

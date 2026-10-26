@@ -11,9 +11,8 @@ use uuid::Uuid;
 
 use medbrains_core::nhcx::{
     BUNDLE_IDENTIFIER_SYSTEM, FINANCIAL_TASK_CODE_SYSTEM, NDHM_REASON_CODE_SYSTEM,
-    NDHM_TASK_CODE_SYSTEM, NDHM_TASK_INPUT_TYPE_SYSTEM, TASK_BUNDLE_PROFILE,
+    NDHM_TASK_CODE_SYSTEM, NDHM_TASK_INPUT_TYPE_SYSTEM, TASK_BUNDLE_PROFILE, TASK_PROFILE,
 };
-use medbrains_fhir::nrces::NRCES_PROFILE_BASE;
 
 use crate::nhcx_common::ProviderParty;
 use crate::nhcx_parties::{payer_resource, provider_resource, prune};
@@ -186,7 +185,7 @@ pub(crate) fn task_bundle(ask: &TaskAsk<'_>, parties: &TaskParties<'_>) -> Value
         "entry": [
             { "fullUrl": format!("urn:uuid:{task_id}"), "resource": {
                 "resourceType": "Task", "id": task_id,
-                "meta": { "profile": [format!("{NRCES_PROFILE_BASE}Task")] },
+                "meta": { "profile": [TASK_PROFILE] },
                 "status": "requested", "intent": "order",
                 "code": { "coding": [{ "system": system, "code": code }] },
                 "description": description,

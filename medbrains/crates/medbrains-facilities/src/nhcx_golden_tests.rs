@@ -11,6 +11,7 @@ use serde_json::Value;
 use uuid::Uuid;
 
 use medbrains_fhir::nrces::Party;
+use medbrains_fhir::nrces::conformance::nhcx_violations;
 
 use crate::nhcx_bundle::{
     ClaimContent, DiagnosisLine, DocumentRef, ItemLine, Parties, claim_bundle, communication,
@@ -190,6 +191,7 @@ fn the_nhcx_bundles_reference_only_their_own_entries() {
     ] {
         assert_eq!(b["type"], "collection", "{name}");
         assert_references_resolve(b);
+        assert_eq!(nhcx_violations(b), Vec::<String>::new(), "{name}");
         emit(name, b);
     }
     let answer = communication(
@@ -199,5 +201,40 @@ fn the_nhcx_bundles_reference_only_their_own_entries() {
         &[discharge_summary()],
     );
     assert_eq!(answer["resourceType"], "Communication");
+    assert_eq!(nhcx_violations(&answer), Vec::<String>::new());
     emit("communication", &answer);
+}
+
+/// Given a final claim with no billed lines and no coded diagnosis (an
+/// admission closed before coding), When the desk submits it, Then the check
+/// names both gaps, so the desk is told before the payer refuses it.
+#[test]
+fn a_claim_without_lines_or_diagnoses_is_refused_with_both_reasons() {
+    let (p, pol, prov) = (patient(), policy(), provider());
+    let parties = Parties {
+        patient: &p,
+        policy: &pol,
+        provider: &prov,
+        doctor: None,
+        recipient: "1000003538@sbx",
+    };
+    let bare = claim_bundle(
+        &parties,
+        &ClaimContent {
+            id: Uuid::new_v4(),
+            use_: "claim",
+            urgent: false,
+            items: &[],
+            diagnoses: &[],
+            documents: &[],
+            pre_auth_ref: None,
+            total: None,
+            notes: &[],
+        },
+    );
+    let broken = nhcx_violations(&bare).join("\n");
+    assert!(broken.contains("Claim.diagnosis is required"), "{broken}");
+    assert!(broken.contains("Claim.item is required"), "{broken}");
+    // A status enquiry carries an empty payload: nothing to check.
+    assert!(nhcx_violations(&serde_json::json!({})).is_empty());
 }

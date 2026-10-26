@@ -7087,6 +7087,7 @@ dependencies = [
  "medbrains-crypto",
  "medbrains-db",
  "medbrains-doctor-payouts",
+ "medbrains-fhir",
  "medbrains-outbox",
  "medbrains-server-core",
  "reqwest 0.13.5",

@@ -24,5 +24,8 @@ medbrains-outbox = { path = "../medbrains-outbox" }
 base64 = { workspace = true }
 reqwest = { workspace = true }
 
+[dev-dependencies]
+medbrains-fhir = { path = "../medbrains-fhir" }
+
 [lints]
 workspace = true

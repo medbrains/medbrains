@@ -310,6 +310,8 @@ pub const FINANCIAL_TASK_CODE_SYSTEM: &str =
     "http://terminology.hl7.org/CodeSystem/financialtaskcode";
 /// NRCeS task codes (`nullify`, `deliver`, `search`).
 pub const NDHM_TASK_CODE_SYSTEM: &str = "https://nrces.in/ndhm/fhir/r4/CodeSystem/ndhm-task-codes";
+/// NRCeS `Task` profile — the focal resource of every `TaskBundle`.
+pub const TASK_PROFILE: &str = "https://nrces.in/ndhm/fhir/r4/StructureDefinition/Task";
 /// NRCeS Task.input types (`claimNumber`, `fromDate`, `toDate`, …).
 pub const NDHM_TASK_INPUT_TYPE_SYSTEM: &str =
     "https://nrces.in/ndhm/fhir/r4/CodeSystem/ndhm-task-input-type-code";
