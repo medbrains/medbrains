@@ -2484,10 +2484,14 @@ export interface BulkCreateCampSupplyItemsResponse {
 }
 
 export interface UpdateCampSupplyItemRequest {
+  planned_qty?: number;
   packed_qty?: number;
   consumed_qty?: number;
   returned_qty?: number;
   shortage_notes?: string;
+  batch_no?: string;
+  /** YYYY-MM-DD; refused when already past. */
+  expiry_date?: string;
 }
 
 export interface ListAssetsParams {

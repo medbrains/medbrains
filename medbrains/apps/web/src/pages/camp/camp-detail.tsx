@@ -26,6 +26,7 @@ import { Badge, Button, IconButton } from "@/components/ui";
 import { campService } from "@/services/camp.service";
 import { CountersTab } from "./counters-tab";
 import { CAMP_TEAM_ROLES, StatCard } from "./shared";
+import { SupplyPackModal } from "./supply-pack-modal";
 
 export function CampDetail({ camp }: { camp: Camp }) {
   const navigate = useNavigate();
@@ -47,6 +48,7 @@ export function CampDetail({ camp }: { camp: Camp }) {
     planned_qty: 0,
     is_critical: false,
   });
+  const [packItem, setPackItem] = useState<CampSupplyItem | null>(null);
   const [incidentForm, setIncidentForm] = useState<{
     incident_type: CampIncident["incident_type"];
     severity: CampIncident["severity"];
@@ -176,6 +178,9 @@ export function CampDetail({ camp }: { camp: Camp }) {
 
   return (
     <Stack>
+      {packItem && (
+        <SupplyPackModal campId={camp.id} item={packItem} onClose={() => setPackItem(null)} />
+      )}
       <Group justify="space-between" align="flex-end">
         <Stack gap={2}>
           <Text fw={600}>Camp Packet</Text>
@@ -295,7 +300,7 @@ export function CampDetail({ camp }: { camp: Camp }) {
                   {remoteOps.supplies.length}
                 </Badge>
               </Group>
-              {remoteOps.supplies.slice(0, 6).map((item) => (
+              {remoteOps.supplies.map((item) => (
                 <Group key={item.id} justify="space-between" wrap="nowrap">
                   <Stack gap={0}>
                     <Text size="sm" fw={500}>
@@ -304,13 +309,32 @@ export function CampDetail({ camp }: { camp: Camp }) {
                     <Text size="xs" c="dimmed">
                       {item.category} · packed {item.packed_qty}/{item.planned_qty}{" "}
                       {item.unit ?? ""}
+                      {item.batch_no ? ` · batch ${item.batch_no}` : ""}
+                      {item.expiry_date ? ` · exp ${item.expiry_date}` : ""}
                     </Text>
                   </Stack>
-                  {item.is_critical && (
-                    <Badge size="xs" tone="danger">
-                      Critical
-                    </Badge>
-                  )}
+                  <Group gap={4} wrap="nowrap">
+                    {isTraceabilityGap(item) && (
+                      <Badge size="xs" tone="danger">
+                        Batch/expiry missing
+                      </Badge>
+                    )}
+                    {item.is_critical && (
+                      <Badge size="xs" tone="danger">
+                        Critical
+                      </Badge>
+                    )}
+                    {canUpdate && (
+                      <Button
+                        tone="ghost"
+                        size="compact-xs"
+                        aria-label={`Edit supply ${item.item_name}`}
+                        onClick={() => setPackItem(item)}
+                      >
+                        Edit
+                      </Button>
+                    )}
+                  </Group>
                 </Group>
               ))}
               {canUpdate && (
@@ -522,3 +546,12 @@ export function CampDetail({ camp }: { camp: Camp }) {
 // ══════════════════════════════════════════════════════════
 //  Registrations Tab
 // ══════════════════════════════════════════════════════════
+
+/** A packed medicine without batch or expiry: it blocks camp activation. */
+function isTraceabilityGap(item: CampSupplyItem): boolean {
+  return (
+    item.category === "medicine" &&
+    Number(item.packed_qty) > 0 &&
+    (!item.batch_no || !item.expiry_date)
+  );
+}
