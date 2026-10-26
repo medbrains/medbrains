@@ -17,4 +17,9 @@ export const ckbService = {
     api.listNotifiableReports(...args),
   updateNotifiableReport: (...args: Parameters<typeof api.updateNotifiableReport>) =>
     api.updateNotifiableReport(...args),
+  getNotifiableList: () => api.getNotifiableList(),
+  listNotifiableOverrides: () => api.listNotifiableOverrides(),
+  upsertNotifiableOverride: (...args: Parameters<typeof api.upsertNotifiableOverride>) =>
+    api.upsertNotifiableOverride(...args),
+  deleteNotifiableOverride: (id: string) => api.deleteNotifiableOverride(id),
 };

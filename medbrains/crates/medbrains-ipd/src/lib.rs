@@ -5451,6 +5451,26 @@ pub async fn finalize_discharge_summary(
     .fetch_one(&mut *tx)
     .await?;
 
+    // The signed final diagnosis is a clinical conclusion like any coded one:
+    // a notifiable disease named in it goes on the statutory worklist.
+    if let Some(final_diagnosis) = row.final_diagnosis.as_deref() {
+        medbrains_platform::notifiable::detect(
+            &mut tx,
+            medbrains_platform::notifiable::Context {
+                tenant_id: claims.tenant_id,
+                patient_id: Some(event_context.patient_id),
+                encounter_id: Some(event_context.encounter_id),
+                actor: claims.sub,
+                notify: None,
+            },
+            medbrains_platform::notifiable::Signal::Text {
+                text: final_diagnosis,
+                source: "discharge_summary",
+            },
+        )
+        .await?;
+    }
+
     let mut event = ClinicalEventEnvelope::new(
         claims.tenant_id,
         ClinicalEventName::IpdDischargeFinalized,
@@ -6555,7 +6575,7 @@ pub async fn complete_bed_turnaround(
     .await?
     .ok_or_else(|| AppError::NotFound)?;
 
-    medbrains_db::beds::release_cleaned_bed(&mut *tx, claims.tenant_id, row.bed_id, claims.sub)
+    medbrains_db::beds::release_cleaned_bed(&mut tx, claims.tenant_id, row.bed_id, claims.sub)
         .await?;
 
     tx.commit().await?;

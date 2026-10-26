@@ -2265,49 +2265,7 @@ pub async fn create_diagnosis(
     .fetch_one(&mut *tx)
     .await?;
 
-    // CKB statutory hook: if this diagnosis is a notifiable disease, file a
-    // pending report and alert the reporter. The conclusion lives in one place
-    // (`ckb::flag_notifiable_diagnosis`) so it can later be AI-driven.
-    let patient_id = sqlx::query_scalar::<_, Option<Uuid>>(
-        "SELECT patient_id FROM encounters WHERE id = $1 AND tenant_id = $2",
-    )
-    .bind(encounter_id)
-    .bind(claims.tenant_id)
-    .fetch_optional(&mut *tx)
-    .await?
-    .flatten();
-    let icd_code = body.icd_code.as_deref().unwrap_or_default();
-    if let Some((disease_name, reporting_body)) =
-        medbrains_platform::ckb::flag_notifiable_diagnosis(
-            &mut tx,
-            claims.tenant_id,
-            patient_id,
-            Some(encounter_id),
-            Some(claims.sub),
-            icd_code,
-        )
-        .await?
-    {
-        let body_text = format!(
-            "{disease_name} ({icd_code}) requires {} reporting.",
-            reporting_body.as_deref().unwrap_or("IDSP")
-        );
-        create_notification(
-            &mut tx,
-            claims.tenant_id,
-            NewNotification {
-                user_id: claims.sub,
-                kind: "warning",
-                title: "Notifiable disease — statutory report due",
-                body: Some(&body_text),
-                category: Some("Notifiable Disease"),
-                entity_type: Some("notifiable_disease_reports"),
-                entity_id: None,
-                action_url: Some("/clinical-kb#reports"),
-            },
-        )
-        .await?;
-    }
+    detect_notifiable_diagnosis(&mut tx, &claims, &row).await?;
 
     tx.commit().await?;
     Ok(Json(filter_diagnosis_response(row, &restricted_fields)))
@@ -2419,8 +2377,57 @@ pub async fn update_diagnosis(
     .await?
     .ok_or(AppError::NotFound)?;
 
+    if body.icd_code.is_some() || body.icd_system.is_some() || body.certainty.is_some() {
+        detect_notifiable_diagnosis(&mut tx, &claims, &row).await?;
+    }
+
     tx.commit().await?;
     Ok(Json(filter_diagnosis_response(row, &restricted_fields)))
+}
+
+/// A coded diagnosis on any encounter -- OPD, an admission's, an ER visit's
+/// -- is checked against the hospital's notifiable list, ICD-10 or ICD-11.
+/// A diagnosis recorded as ruled out is not a case.
+async fn detect_notifiable_diagnosis(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    claims: &Claims,
+    row: &Diagnosis,
+) -> Result<(), AppError> {
+    let Some(code) = row.icd_code.as_deref().filter(|c| !c.trim().is_empty()) else {
+        return Ok(());
+    };
+    if row.certainty.as_deref() == Some("ruled_out") || row.icd_system == "snomed" {
+        return Ok(());
+    }
+    let (patient_id, encounter_type) = sqlx::query_as::<_, (Uuid, String)>(
+        "SELECT patient_id, encounter_type::text FROM encounters WHERE id = $1 AND tenant_id = $2",
+    )
+    .bind(row.encounter_id)
+    .bind(claims.tenant_id)
+    .fetch_one(&mut **tx)
+    .await?;
+    let source = match encounter_type.as_str() {
+        "ipd" => "ipd_diagnosis",
+        "emergency" => "er_diagnosis",
+        _ => "opd_diagnosis",
+    };
+    medbrains_platform::notifiable::detect(
+        tx,
+        medbrains_platform::notifiable::Context {
+            tenant_id: claims.tenant_id,
+            patient_id: Some(patient_id),
+            encounter_id: Some(row.encounter_id),
+            actor: claims.sub,
+            notify: None,
+        },
+        medbrains_platform::notifiable::Signal::Code {
+            code,
+            system: &row.icd_system,
+            source,
+        },
+    )
+    .await?;
+    Ok(())
 }
 
 pub async fn delete_diagnosis(

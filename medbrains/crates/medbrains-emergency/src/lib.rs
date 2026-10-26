@@ -2966,6 +2966,33 @@ pub async fn finalize_discharge_summary(
         AppError::BadRequest("Discharge summary not found or already finalized".to_owned())
     })?;
 
+    // A notifiable disease named in the ER's final diagnosis goes on the
+    // statutory worklist, the same as one coded in OPD.
+    if let Some(final_diagnosis) = row.final_diagnosis.as_deref() {
+        let (patient_id, encounter_id) = sqlx::query_as::<_, (Uuid, Option<Uuid>)>(
+            "SELECT patient_id, encounter_id FROM er_visits WHERE id = $1 AND tenant_id = $2",
+        )
+        .bind(er_visit_id)
+        .bind(claims.tenant_id)
+        .fetch_one(&mut *tx)
+        .await?;
+        medbrains_platform::notifiable::detect(
+            &mut tx,
+            medbrains_platform::notifiable::Context {
+                tenant_id: claims.tenant_id,
+                patient_id: Some(patient_id),
+                encounter_id,
+                actor: claims.sub,
+                notify: None,
+            },
+            medbrains_platform::notifiable::Signal::Text {
+                text: final_diagnosis,
+                source: "er_diagnosis",
+            },
+        )
+        .await?;
+    }
+
     tx.commit().await?;
     Ok(Json(row))
 }

@@ -22,6 +22,55 @@ export interface NotifiableReport {
   report_ref?: string | null;
   submitted_at?: string | null;
   notes?: string | null;
+  /** IDSP P-form (presumptive) or L-form (lab-confirmed). */
+  case_class: "presumptive" | "confirmed";
+  /** opd_diagnosis | ipd_diagnosis | er_diagnosis | discharge_summary | lab_result */
+  source?: string | null;
+  confirmed_at?: string | null;
+  lab_order_id?: string | null;
+  /** The presumptive report's acknowledgement, kept when a lab result reopened it. */
+  presumptive_ref?: string | null;
+  due_at?: string | null;
+  escalated_at?: string | null;
+}
+
+/** A disease on the hospital's effective notifiable list. */
+export interface NotifiableDisease {
+  disease_code: string;
+  icd11_code?: string | null;
+  disease_name: string;
+  reporting_body?: string | null;
+  report_timeframe?: string | null;
+  /** The hospital's state overlay set or changed it. */
+  overridden: boolean;
+}
+
+export interface NotifiableList {
+  state_name?: string | null;
+  diseases: NotifiableDisease[];
+}
+
+/** One row of the hospital's state overlay. */
+export interface NotifiableOverride {
+  id: string;
+  icd10_code: string;
+  icd11_code?: string | null;
+  disease_name?: string | null;
+  is_notifiable: boolean;
+  reporting_body?: string | null;
+  report_timeframe?: string | null;
+  notes?: string | null;
+  updated_at: string;
+}
+
+export interface UpsertNotifiableOverrideRequest {
+  icd10_code: string;
+  icd11_code?: string | null;
+  disease_name?: string | null;
+  is_notifiable: boolean;
+  reporting_body?: string | null;
+  report_timeframe?: "24h" | "weekly" | null;
+  notes?: string | null;
 }
 
 export interface UpdateNotifiableReportRequest {

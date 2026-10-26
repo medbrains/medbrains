@@ -20,7 +20,14 @@ pub(super) async fn seed_diagnosis_reference(
             continue;
         }
         let cols = parse_csv_row(line);
-        // icd10_code,name,department,is_notifiable,reporting_body,report_timeframe
+        // icd10_code,name,department,is_notifiable,reporting_body,report_timeframe,
+        // icd11_code,aliases
+        //
+        // ICD-11 MMS stems are given only where the mapping is unambiguous;
+        // the rest still match by ICD-10 code and by name, and a hospital can
+        // add the ICD-11 code on its notifiable overlay. Aliases (`|`-joined)
+        // are the plain names doctors write, for finding a disease in a
+        // written diagnosis.
         let Some(icd) = cols.first().map(String::as_str).filter(|s| !s.is_empty()) else {
             continue;
         };
@@ -29,16 +36,28 @@ pub(super) async fn seed_diagnosis_reference(
         let is_notifiable = cols.get(3).map_or("false", String::as_str) == "true";
         let reporting_body = non_empty(cols.get(4));
         let report_timeframe = non_empty(cols.get(5));
+        let icd11_code = non_empty(cols.get(6));
+        let aliases: Vec<&str> = cols
+            .get(7)
+            .map(|a| {
+                a.split('|')
+                    .map(str::trim)
+                    .filter(|a| !a.is_empty())
+                    .collect()
+            })
+            .unwrap_or_default();
 
         sqlx::query(
             "INSERT INTO cds_diagnosis_reference \
-               (icd10_code, name, department, is_notifiable, reporting_body, report_timeframe) \
-             VALUES ($1, $2, $3, $4, $5, $6) \
+               (icd10_code, name, department, is_notifiable, reporting_body, report_timeframe, \
+                icd11_code, aliases) \
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8) \
              ON CONFLICT (icd10_code) DO UPDATE SET \
                name = EXCLUDED.name, department = EXCLUDED.department, \
                is_notifiable = EXCLUDED.is_notifiable, \
                reporting_body = EXCLUDED.reporting_body, \
-               report_timeframe = EXCLUDED.report_timeframe",
+               report_timeframe = EXCLUDED.report_timeframe, \
+               icd11_code = EXCLUDED.icd11_code, aliases = EXCLUDED.aliases",
         )
         .bind(icd)
         .bind(name)
@@ -46,6 +65,8 @@ pub(super) async fn seed_diagnosis_reference(
         .bind(is_notifiable)
         .bind(reporting_body)
         .bind(report_timeframe)
+        .bind(icd11_code)
+        .bind(&aliases)
         .execute(&mut *tx)
         .await?;
         count += 1;

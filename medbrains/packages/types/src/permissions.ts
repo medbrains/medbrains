@@ -17,7 +17,7 @@ export interface PermissionDef {
   module: string;
 }
 
-/** 1152 permissions, one per constant in the Rust source. */
+/** 1153 permissions, one per constant in the Rust source. */
 export const PERMISSIONS: PermissionDef[] = [
   // dashboard
   {
@@ -5192,6 +5192,12 @@ export const PERMISSIONS: PermissionDef[] = [
     description: "Create and edit knowledge-base reports",
     module: "ckb",
   },
+  {
+    code: "ckb.notifiable_rules.manage",
+    label: "Set which diseases this hospital notifies",
+    description: "Adds a disease the hospital's state notifies beyond the national list, or takes a national one off it, and sets its reporting body, timeframe and ICD-11 code. Changes what every diagnosis and lab result in the hospital is checked against, so it is held apart from working the report list.",
+    module: "ckb",
+  },
   // vpn
   {
     code: "vpn.enroll",
@@ -7826,6 +7832,10 @@ export const P = {
     TIMELINE_VIEW: "chronic.timeline.view",
   },
   CKB: {
+    NOTIFIABLE_RULES: {
+      MANAGE: "ckb.notifiable_rules.manage",
+    },
+    NOTIFIABLE_RULES_MANAGE: "ckb.notifiable_rules.manage",
     REPORTS: {
       LIST: "ckb.reports.list",
       MANAGE: "ckb.reports.manage",
@@ -11709,6 +11719,9 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.ABDM.RECORDS.NOTIFY,
       P.ABDM.RECORDS.VIEW,
       P.ADMIN.SETTINGS.READ,
+      P.CKB.REPORTS.LIST,
+      P.CKB.REPORTS.MANAGE,
+      P.CKB.VIEW,
       P.CLINICAL_NOTES.EXPORT,
       P.CLINICAL_NOTES.PRINT,
       P.CLINICAL_NOTES.VIEW,
@@ -12004,6 +12017,10 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
     label: "Infection Control Officer",
     permissions: [
       P.ADMIN.SETTINGS.READ,
+      P.CKB.NOTIFIABLE_RULES.MANAGE,
+      P.CKB.REPORTS.LIST,
+      P.CKB.REPORTS.MANAGE,
+      P.CKB.VIEW,
       P.CSSD.ISSUANCE.LIST,
       P.CSSD.STERILIZATION.LIST,
       P.CSSD.STERILIZATION.RECALL,

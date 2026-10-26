@@ -1450,6 +1450,11 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
         description: "Medical records — file room, births, deaths, retrieval",
         permissions: &[
             permissions::terminology::snomed::VIEW,
+            // Statutory reporting runs through medical records where there is
+            // no infection control officer.
+            permissions::ckb::VIEW,
+            permissions::ckb::reports::LIST,
+            permissions::ckb::reports::MANAGE,
             permissions::clinical_notes::VIEW,
             permissions::clinical_notes::PRINT,
             permissions::clinical_notes::EXPORT,
@@ -1844,6 +1849,13 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
             permissions::cssd::sterilization::LIST,
             permissions::cssd::issuance::LIST,
             permissions::cssd::sterilization::RECALL,
+            // Notifiable-disease surveillance (IDSP/IHIP, Ni-kshay) is the
+            // infection control officer's: the worklist, its submission, and
+            // the hospital's state list.
+            permissions::ckb::VIEW,
+            permissions::ckb::reports::LIST,
+            permissions::ckb::reports::MANAGE,
+            permissions::ckb::notifiable_rules::MANAGE,
         ],
     },
     BuiltInRole {
