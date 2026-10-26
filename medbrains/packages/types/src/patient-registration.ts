@@ -1,3 +1,4 @@
+import type { PublicPrivacyContact } from "./dpdp-compliance";
 // Patient registration, identity, allergy, consent and MPI types — split from index.ts, barrel-re-exported.
 
 // ── Patient Registration ─────────────────────────────────
@@ -687,6 +688,8 @@ export interface PortalPrivacy {
   consent: PatientDpdpConsent;
   requests: PrivacyRequest[];
   held: PatientDataSummary;
+  /** Published privacy contacts and notice (DPDP Rules 2025 r.9). */
+  contact: PublicPrivacyContact;
 }
 
 export interface PortalPrivacyRequestInput {

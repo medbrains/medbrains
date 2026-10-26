@@ -1,6 +1,11 @@
 #![allow(clippy::too_many_lines)]
 
 pub mod checklist_score;
+pub mod dpdp_dashboard;
+pub mod dpdp_drills;
+pub mod dpdp_officers;
+pub mod dpdp_policies;
+pub mod dpdp_templates;
 pub mod form_f;
 
 use axum::{
@@ -475,7 +480,9 @@ pub async fn list_checklists(
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
 
-    let mut sql = String::from("SELECT * FROM compliance_checklists WHERE deleted_at IS NULL AND tenant_id = $1");
+    let mut sql = String::from(
+        "SELECT * FROM compliance_checklists WHERE deleted_at IS NULL AND tenant_id = $1",
+    );
     let mut param_idx = 2u32;
 
     if params.department_id.is_some() {
@@ -765,7 +772,8 @@ pub async fn list_adr_reports(
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
 
-    let mut sql = String::from("SELECT * FROM adr_reports WHERE deleted_at IS NULL AND tenant_id = $1");
+    let mut sql =
+        String::from("SELECT * FROM adr_reports WHERE deleted_at IS NULL AND tenant_id = $1");
     let mut param_idx = 2u32;
 
     if params.status.is_some() {
@@ -1406,7 +1414,9 @@ pub async fn list_calendar(
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
 
-    let mut sql = String::from("SELECT * FROM compliance_calendar WHERE deleted_at IS NULL AND tenant_id = $1");
+    let mut sql = String::from(
+        "SELECT * FROM compliance_calendar WHERE deleted_at IS NULL AND tenant_id = $1",
+    );
     let mut param_idx = 2u32;
 
     if params.status.is_some() {
@@ -2160,5 +2170,59 @@ pub fn router() -> axum::Router<AppState> {
         .route(
             "/api/regulatory/nabl/documents",
             get(nabl_document_tracking),
+        )
+        .merge(dpdp_router())
+}
+
+/// DPDP Act 2023 / Rules 2025 and CERT-In 2022: officers, policy pack, drills, gaps.
+fn dpdp_router() -> axum::Router<AppState> {
+    axum::Router::new()
+        .route(
+            "/api/regulatory/dpdp/dashboard",
+            get(dpdp_dashboard::dashboard),
+        )
+        .route(
+            "/api/regulatory/dpdp/officers",
+            get(dpdp_officers::list_officers),
+        )
+        .route(
+            "/api/regulatory/dpdp/officers/{role}",
+            put(dpdp_officers::set_officer),
+        )
+        .route(
+            "/api/regulatory/dpdp/officers/{role}/publish",
+            put(dpdp_officers::publish_officer),
+        )
+        .route(
+            "/api/regulatory/dpdp/public-notice",
+            get(dpdp_officers::public_notice),
+        )
+        .route(
+            "/api/regulatory/dpdp/templates",
+            get(dpdp_policies::list_templates),
+        )
+        .route(
+            "/api/regulatory/dpdp/policies",
+            get(dpdp_policies::list_policies).post(dpdp_policies::start_draft),
+        )
+        .route(
+            "/api/regulatory/dpdp/policies/{id}",
+            put(dpdp_policies::edit_draft),
+        )
+        .route(
+            "/api/regulatory/dpdp/policies/{id}/submit",
+            put(dpdp_policies::submit),
+        )
+        .route(
+            "/api/regulatory/dpdp/policies/{id}/approve",
+            put(dpdp_policies::approve),
+        )
+        .route(
+            "/api/regulatory/dpdp/policies/{id}/return",
+            put(dpdp_policies::return_draft),
+        )
+        .route(
+            "/api/regulatory/dpdp/drills",
+            get(dpdp_drills::list_drills).post(dpdp_drills::record_drill),
         )
 }

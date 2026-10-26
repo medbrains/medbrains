@@ -17,7 +17,7 @@ export interface PermissionDef {
   module: string;
 }
 
-/** 1165 permissions, one per constant in the Rust source. */
+/** 1170 permissions, one per constant in the Rust source. */
 export const PERMISSIONS: PermissionDef[] = [
   // dashboard
   {
@@ -5009,6 +5009,36 @@ export const PERMISSIONS: PermissionDef[] = [
     module: "regulatory",
   },
   {
+    code: "regulatory.dpdp.view",
+    label: "See the privacy compliance pack and its gaps",
+    description: "The DPDP / CERT-In overview: who the Data Protection Officer, grievance officer and CERT-In point of contact are, the policies and their versions, breach drills, and what is still missing.",
+    module: "regulatory",
+  },
+  {
+    code: "regulatory.dpdp.officers",
+    label: "Officers Dpdp",
+    description: "Name the DPO, grievance officer and CERT-In contact. Set and publish the business contact patients use for privacy questions and grievances (DPDP Rules 2025 r.9) and the point of contact CERT-In writes to (Directions 28-04-2022 (iii)).",
+    module: "regulatory",
+  },
+  {
+    code: "regulatory.dpdp.policy_draft",
+    label: "Draft privacy policies from the templates",
+    description: "Start a policy from its template, edit the draft and send it for approval. Drafting never publishes: a second person approves.",
+    module: "regulatory",
+  },
+  {
+    code: "regulatory.dpdp.policy_approve",
+    label: "Approve and publish privacy policies",
+    description: "Approve a draft another person wrote, which publishes it and retires the version it replaces, or send it back with a reason.",
+    module: "regulatory",
+  },
+  {
+    code: "regulatory.dpdp.drills",
+    label: "Record breach-response drills",
+    description: "Log a tabletop or live drill of the breach response plan, what it found, and when the next one is due.",
+    module: "regulatory",
+  },
+  {
     code: "regulatory.checklists.list",
     label: "View Checklists",
     description: "View compliance checklists",
@@ -9983,6 +10013,18 @@ export const P = {
       VIEW: "regulatory.dashboard.view",
     },
     DASHBOARD_VIEW: "regulatory.dashboard.view",
+    DPDP: {
+      DRILLS: "regulatory.dpdp.drills",
+      OFFICERS: "regulatory.dpdp.officers",
+      POLICY_APPROVE: "regulatory.dpdp.policy_approve",
+      POLICY_DRAFT: "regulatory.dpdp.policy_draft",
+      VIEW: "regulatory.dpdp.view",
+    },
+    DPDP_DRILLS: "regulatory.dpdp.drills",
+    DPDP_OFFICERS: "regulatory.dpdp.officers",
+    DPDP_POLICY_APPROVE: "regulatory.dpdp.policy_approve",
+    DPDP_POLICY_DRAFT: "regulatory.dpdp.policy_draft",
+    DPDP_VIEW: "regulatory.dpdp.view",
     MATERIOVIGILANCE: {
       CREATE: "regulatory.materiovigilance.create",
       LIST: "regulatory.materiovigilance.list",
@@ -11695,6 +11737,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.REGULATORY.CALENDAR.MANAGE,
       P.REGULATORY.CHECKLISTS.LIST,
       P.REGULATORY.DASHBOARD.VIEW,
+      P.REGULATORY.DPDP.VIEW,
       P.REGULATORY.MATERIOVIGILANCE.LIST,
       P.REGULATORY.PCPNDT.LIST,
       P.SECURITY.ACCESS.LIST,
@@ -11726,6 +11769,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.ORDER_SETS.ANALYTICS.VIEW,
       P.ORDER_SETS.TEMPLATES.LIST,
       P.ORDER_SETS.TEMPLATES.VIEW,
+      P.PATIENTS.PRIVACY_REQUESTS.LIST,
       P.QA.TEST_CYCLES.MANAGE,
       P.QUALITY.ACCREDITATION.LIST,
       P.QUALITY.ACCREDITATION.MANAGE,
@@ -11750,6 +11794,10 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.REGULATORY.CHECKLISTS.LIST,
       P.REGULATORY.CHECKLISTS.UPDATE,
       P.REGULATORY.DASHBOARD.VIEW,
+      P.REGULATORY.DPDP.DRILLS,
+      P.REGULATORY.DPDP.OFFICERS,
+      P.REGULATORY.DPDP.POLICY_DRAFT,
+      P.REGULATORY.DPDP.VIEW,
       P.REGULATORY.MATERIOVIGILANCE.CREATE,
       P.REGULATORY.MATERIOVIGILANCE.LIST,
       P.REGULATORY.PCPNDT.CREATE,

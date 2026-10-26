@@ -2855,6 +2855,39 @@ pub mod regulatory {
         pub const VIEW: &str = "regulatory.dashboard.view";
     }
 
+    /// DPDP Act 2023 / DPDP Rules 2025 and CERT-In 2022 directions: the
+    /// officers patients and CERT-In contact, the hospital's policy pack, and
+    /// the compliance gaps.
+    pub mod dpdp {
+        /// See the privacy compliance pack and its gaps.
+        ///
+        /// The DPDP / CERT-In overview: who the Data Protection Officer,
+        /// grievance officer and CERT-In point of contact are, the policies
+        /// and their versions, breach drills, and what is still missing.
+        pub const VIEW: &str = "regulatory.dpdp.view";
+        /// Name the DPO, grievance officer and CERT-In contact.
+        ///
+        /// Set and publish the business contact patients use for privacy
+        /// questions and grievances (DPDP Rules 2025 r.9) and the point of
+        /// contact CERT-In writes to (Directions 28-04-2022 (iii)).
+        pub const OFFICERS: &str = "regulatory.dpdp.officers";
+        /// Draft privacy policies from the templates.
+        ///
+        /// Start a policy from its template, edit the draft and send it for
+        /// approval. Drafting never publishes: a second person approves.
+        pub const POLICY_DRAFT: &str = "regulatory.dpdp.policy_draft";
+        /// Approve and publish privacy policies.
+        ///
+        /// Approve a draft another person wrote, which publishes it and
+        /// retires the version it replaces, or send it back with a reason.
+        pub const POLICY_APPROVE: &str = "regulatory.dpdp.policy_approve";
+        /// Record breach-response drills.
+        ///
+        /// Log a tabletop or live drill of the breach response plan, what
+        /// it found, and when the next one is due.
+        pub const DRILLS: &str = "regulatory.dpdp.drills";
+    }
+
     pub mod checklists {
         pub const LIST: &str = "regulatory.checklists.list";
         pub const CREATE: &str = "regulatory.checklists.create";

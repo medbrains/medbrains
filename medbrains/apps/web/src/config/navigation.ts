@@ -278,6 +278,7 @@ const MODULE_BADGE_DEFS: Record<string, ModuleBadge> = {
   "/infection-control": { abbr: "IC", color: "#6929c4" },
   "/consent": { abbr: "Cns", color: "#198038" },
   "/regulatory": { abbr: "Reg", color: "#9f1853" },
+  "/privacy-compliance": { abbr: "DP", color: "#9f1853" },
   "/analytics": { abbr: "Ana", color: "#00539a" },
   "/reports": { abbr: "Rep", color: "#4d5358" },
   "/audit": { abbr: "Aud", color: "#0043ce" },
@@ -1242,6 +1243,12 @@ export const NAV_GROUPS: NavGroupConfig[] = [
         path: "/regulatory",
         icon: "IconScale",
         requiredPermission: "regulatory.dashboard.view",
+      },
+      {
+        i18nKey: "privacyCompliance",
+        path: "/privacy-compliance",
+        icon: "IconUserShield",
+        requiredPermission: "regulatory.dpdp.view",
       },
       {
         i18nKey: "abdmDashboard",
