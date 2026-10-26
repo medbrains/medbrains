@@ -28,7 +28,8 @@ fn plant() -> String {
              VALUES ('7e5e0000-0000-0000-0002-{i:012}', '{tenant}', '7e5e0000-0000-0000-0001-{i:012}', 'opd', '2026-03-14');
              INSERT INTO diagnoses (tenant_id, encounter_id, description, icd_code)
              VALUES ('{tenant}', '7e5e0000-0000-0000-0002-{i:012}', 'Type 2 diabetes', 'E11'),
-                    ('{tenant}', '7e5e0000-0000-0000-0002-{i:012}', 'HIV disease', 'B20');
+                    ('{tenant}', '7e5e0000-0000-0000-0002-{i:012}', 'HIV disease', 'B20'),
+                    ('{tenant}', '7e5e0000-0000-0000-0002-{i:012}', 'Coded only', '6A20');
              INSERT INTO admissions (tenant_id, encounter_id, patient_id, admitting_doctor, admission_number, admitted_at, mlc_case_id)
              VALUES ('{tenant}', '7e5e0000-0000-0000-0002-{i:012}', '7e5e0000-0000-0000-0001-{i:012}', gen_random_uuid(),
                      'RST-A{i}', '2026-03-14', CASE WHEN {i} = 1 THEN gen_random_uuid() END);"
@@ -79,7 +80,7 @@ async fn an_extract_keeps_to_its_hospital_and_leaves_restricted_records_out() {
     let raw = datasets::read(&mut tx, a, "diagnoses", period)
         .await
         .unwrap_or_else(|e| panic!("{e}"));
-    assert_eq!(raw.len(), 14, "7 patients x 2 diagnoses at A, none from B");
+    assert_eq!(raw.len(), 21, "7 patients x 3 diagnoses at A, none from B");
     let fields = datasets::fields("diagnoses").unwrap_or_default();
     let out = deid::release(fields, raw, b"salt", "ref");
     let csv = deid::to_csv(&out.header, &out.rows);
