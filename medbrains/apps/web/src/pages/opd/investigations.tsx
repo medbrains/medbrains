@@ -26,7 +26,7 @@ import type {
   RadiologyDicomStudy,
 } from "@medbrains/types";
 import { P } from "@medbrains/types";
-import { IconAlertTriangle, IconEye, IconFlask, IconPlus, IconX } from "@tabler/icons-react";
+import { IconAlertTriangle, IconFlask, IconPlus, IconX } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Fragment, useMemo, useState } from "react";
 import { Controller, useForm } from "react-hook-form";
@@ -38,6 +38,7 @@ import {
 } from "@/components/Lab/LabOrderHistoryTable";
 import { LabOrderResults } from "@/components/Lab/LabOrderResults";
 import { RadiologyReportList } from "@/components/Radiology/RadiologyReportList";
+import { StudyImageActions } from "@/components/Radiology/StudyImageActions";
 import { Alert, Badge, type BadgeTone, Button, IconButton, Table, toast } from "@/components/ui";
 import {
   DEFAULT_OPD_LAB_ORDER_FORM_VALUES,
@@ -500,32 +501,8 @@ export function InvestigationsTab({
                           </Group>
                         </Table.Td>
                         <Table.Td>
-                          <Group gap="xs" wrap="nowrap" justify="flex-end">
-                            {study.viewer_url ? (
-                              <Button
-                                tone="secondary"
-                                component="a"
-                                href={study.viewer_url}
-                                target="_blank"
-                                rel="noreferrer"
-                                size="xs"
-                                leftSection={<IconEye size={14} />}
-                              >
-                                Viewer
-                              </Button>
-                            ) : null}
-                            {study.pacs_url ? (
-                              <Button
-                                tone="ghost"
-                                component="a"
-                                href={study.pacs_url}
-                                target="_blank"
-                                rel="noreferrer"
-                                size="xs"
-                              >
-                                DICOM
-                              </Button>
-                            ) : null}
+                          <Group justify="flex-end">
+                            <StudyImageActions studyId={study.id} size="xs" />
                           </Group>
                         </Table.Td>
                       </Table.Tr>

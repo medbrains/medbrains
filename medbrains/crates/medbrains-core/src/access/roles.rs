@@ -366,6 +366,8 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
             permissions::radiology::reports::VERIFY,
             // A radiologist screening under fluoroscopy records its dose.
             permissions::radiology::dose::RECORD,
+            // A treating doctor shares a study for a second opinion.
+            permissions::radiology::studies::SHARE,
             permissions::specialty::cath_lab::devices::MANAGE,
             permissions::specialty::cath_lab::stemi::MANAGE,
             permissions::specialty::dental::chart::CREATE,
@@ -1676,6 +1678,8 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
             permissions::radiology::dose::RECORD,
             // The radiology desk matches studies the PACS could not file.
             permissions::radiology::studies::RECONCILE,
+            // …and sends images to a referring doctor on request.
+            permissions::radiology::studies::SHARE,
         ],
     },
     BuiltInRole {

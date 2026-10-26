@@ -573,6 +573,7 @@ import type {
   CreateDrugInteractionRequest,
   CreateDrugScreenRequest,
   CreatedApiKey,
+  CreatedStudyShareLink,
   CreatedVital,
   CreateEmergencyPoRequest,
   CreateEmployeeRequest,
@@ -820,6 +821,7 @@ import type {
   CreateStoreIndentRequest,
   CreateStoreLocationRequest,
   CreateStoreStockMovementRequest,
+  CreateStudyShareLink,
   CreateSupplierPaymentRequest,
   CreateSurgeonPreferenceRequest,
   CreateSurveillanceEventRequest,
@@ -2093,6 +2095,7 @@ import type {
   StoreStockMovement,
   // Phase 6: Academic/Medical College Forms
   StudentAdmissionFormPrintData,
+  StudyShareLink,
   SubmitBedsideFeedbackRequest,
   SubmitPostForReview,
   SubmitPreauthToNhcxRequest,
@@ -17947,10 +17950,18 @@ export const api = {
       `/radiology/critical-alerts/${alertId}/acknowledge`,
       { method: "PUT" },
     ),
-  createRadiologyShareLink: (data: Record<string, unknown>) =>
-    request<unknown>("/radiology/share-links", {
+  createRadiologyShareLink: (data: CreateStudyShareLink) =>
+    request<CreatedStudyShareLink>("/radiology/share-links", {
       method: "POST",
       body: JSON.stringify(data),
+    }),
+  listStudyShareLinks: (studyId: string) =>
+    request<StudyShareLink[]>(`/radiology/dicom-studies/${studyId}/share-links`),
+  revokeStudyShareLink: (id: string) =>
+    request<{ revoked: boolean }>(`/radiology/share-links/${id}/revoke`, { method: "POST" }),
+  openStudyViewer: (studyId: string) =>
+    request<{ viewer_url: string }>(`/radiology/dicom-studies/${studyId}/view`, {
+      method: "POST",
     }),
   getRadiologyPacsConfig: () => request<unknown>("/radiology/pacs-config"),
   updateRadiologyPacsConfig: (data: Record<string, unknown>) =>

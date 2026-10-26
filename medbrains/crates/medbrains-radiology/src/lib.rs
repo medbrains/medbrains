@@ -32,7 +32,9 @@ pub mod form_f;
 pub mod pacs;
 pub mod pacs_config;
 pub mod pacs_study;
+pub mod share;
 pub mod unmatched;
+pub mod viewer;
 
 // ══════════════════════════════════════════════════════════
 //  Pre-contrast safety screening
@@ -1858,125 +1860,6 @@ pub async fn get_prior_studies(
     Ok(Json(result))
 }
 
-/// POST /api/radiology/share-links
-pub async fn create_share_link(
-    State(state): State<AppState>,
-    Extension(claims): Extension<Claims>,
-    Json(body): Json<serde_json::Value>,
-) -> Result<Json<serde_json::Value>, AppError> {
-    // Minting a PUBLIC DICOM viewer link is a management action, not a read —
-    // gate on modalities::MANAGE, not the orders::LIST read permission.
-    require_permission(&claims, permissions::radiology::modalities::MANAGE)?;
-    medbrains_server_core::middleware::entitlement::require_module_enabled(
-        &state.db,
-        claims.tenant_id,
-        "radiology",
-    )
-    .await?;
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
-        .await?;
-
-    let token = Uuid::new_v4().to_string();
-    let study_id = body["study_id"]
-        .as_str()
-        .and_then(|s| Uuid::parse_str(s).ok())
-        .ok_or_else(|| AppError::BadRequest("study_id required".into()))?;
-    // A public link to a patient's images: only for a patient the caller may see.
-    medbrains_authz_gate::require_access_via(
-        &state,
-        &claims,
-        medbrains_authz_gate::links::RADIOLOGY_DICOM_STUDY,
-        study_id,
-    )
-    .await?;
-
-    // Confirm the study belongs to the caller's tenant before minting the link —
-    // the share_links FK to radiology_dicom_studies is validated as the table
-    // owner (RLS-exempt), so without this a foreign-tenant study_id would pass and
-    // expose another tenant's imaging via the public viewer.
-    let study_exists = sqlx::query_scalar::<_, bool>(
-        "SELECT EXISTS(SELECT 1 FROM radiology_dicom_studies WHERE id = $1 AND tenant_id = $2)",
-    )
-    .bind(study_id)
-    .bind(claims.tenant_id)
-    .fetch_one(&mut *tx)
-    .await?;
-    if !study_exists {
-        return Err(AppError::NotFound);
-    }
-    let hours = body["expires_hours"].as_i64().unwrap_or(72);
-    let expires = chrono::Utc::now() + chrono::Duration::hours(hours);
-
-    sqlx::query(
-        "INSERT INTO radiology_share_links (tenant_id, study_id, token, recipient_name, recipient_email, expires_at, created_by) \
-         VALUES ($1, $2, $3, $4, $5, $6, $7)",
-    )
-    .bind(claims.tenant_id).bind(study_id).bind(&token)
-    .bind(body["recipient_name"].as_str()).bind(body["recipient_email"].as_str())
-    .bind(expires).bind(claims.sub)
-    .execute(&mut *tx).await?;
-
-    tx.commit().await?;
-    Ok(Json(serde_json::json!({
-        "token": token,
-        "viewer_url": format!("/api/public/radiology/viewer/{token}"),
-        "expires_at": expires,
-    })))
-}
-
-/// GET /api/public/radiology/viewer/{token} — validate share link (public, no auth)
-pub async fn validate_share_link(
-    State(state): State<AppState>,
-    Path(token): Path<String>,
-) -> Result<Json<serde_json::Value>, AppError> {
-    // Whoever opens a share link has no session and no hospital — the token is
-    // the whole credential, and the row it names is how the tenant is found.
-    // A `SECURITY DEFINER` lookup, the same shape as `app_api_key_by_
-    // fingerprint`, because a token the caller had to already hold is not
-    // something row level security can help with.
-    //
-    // Expiry is now checked inside the function rather than after the fact.
-    // Reading the row and comparing afterwards meant an expired link was still
-    // fetched and its access count still incremented — a link revoked by time
-    // should not leave a trace of having been opened.
-    let row = sqlx::query_as::<_, (Uuid, Uuid, Uuid, chrono::DateTime<chrono::Utc>)>(
-        "SELECT id, tenant_id, study_id, expires_at FROM public.app_share_link_by_token($1)",
-    )
-    .bind(&token)
-    .fetch_optional(&state.db)
-    .await?
-    .ok_or(AppError::NotFound)?;
-    let (link_id, tenant_id, study_id) = (row.0, row.1, row.2);
-
-    // From here the tenant is known, so everything else is scoped to it.
-    let mut conn = medbrains_db::pool::tenant_conn(&state.db, &tenant_id).await?;
-
-    sqlx::query("SELECT public.app_share_link_touch($1, $2)")
-        .bind(link_id)
-        .bind(tenant_id)
-        .execute(&mut *conn)
-        .await?;
-
-    // Get study info
-    let study = sqlx::query_as::<_, (String, Option<String>, Option<String>)>(
-        "SELECT study_instance_uid, viewer_url, study_description \
-         FROM radiology_dicom_studies WHERE id = $1 AND tenant_id = $2",
-    )
-    .bind(study_id)
-    .bind(tenant_id)
-    .fetch_optional(&mut *conn)
-    .await?
-    .ok_or(AppError::NotFound)?;
-
-    Ok(Json(serde_json::json!({
-        "study_uid": study.0,
-        "viewer_url": study.1,
-        "description": study.2,
-        "valid": true,
-    })))
-}
-
 /// GET /api/radiology/dosimetry
 pub async fn list_dosimetry_records(
     State(state): State<AppState>,
@@ -2321,7 +2204,16 @@ pub fn router() -> axum::Router<AppState> {
         // Radiology Phase 2: PACS + Dosimetry
         .route("/api/radiology/dicom-studies", get(list_dicom_studies))
         .route("/api/radiology/dicom-studies/{patient_id}/prior", get(get_prior_studies))
-        .route("/api/radiology/share-links", post(create_share_link))
+        .route("/api/radiology/share-links", post(share::create_share_link))
+        .route("/api/radiology/share-links/{id}/revoke", post(share::revoke_share_link))
+        .route(
+            "/api/radiology/dicom-studies/{id}/share-links",
+            get(share::list_share_links),
+        )
+        .route("/api/radiology/dicom-studies/{id}/view", post(viewer::open_study_viewer))
+        .route("/api/radiology/pacs/ohif/", get(viewer::staff_ohif))
+        .route("/api/radiology/pacs/ohif/{*rest}", get(viewer::staff_ohif))
+        .route("/api/radiology/pacs/dicom-web/{*rest}", get(viewer::staff_dicomweb))
         .route(
             "/api/radiology/pacs-config",
             get(pacs_config::get_pacs_config).put(pacs_config::update_pacs_config),

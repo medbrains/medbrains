@@ -8,10 +8,10 @@ versioned S3 bucket in Mumbai, so a lost machine can be rebuilt.
 
 ```
  scanners ──DICOM 4242──▶ PACS (Orthanc, on-site) ──nightly──▶ S3 (Mumbai, versioned)
-                            ▲  │ OHIF viewer on the LAN
-              worklist out  │  │ studies back
+                            ▲  │ studies back, and the viewer's images
+              worklist out  │  │
                             │  ▼
-                    MedBrains (cloud) over the hospital VPN
+                    MedBrains (cloud) over the hospital VPN ──HTTPS──▶ browsers, anywhere
 ```
 
 ## 1. The machine
@@ -87,5 +87,10 @@ studies are also still on most scanners for a few days.
 
 - The PACS listens only on the LAN address, never on a public interface.
 - Sign-in is required for the web API and viewer; only listed scanners speak DICOM.
+- Browsers never reach the PACS. Images open in MedBrains' viewer (Orthanc's
+  OHIF plugin, served through MedBrains), one study at a time, checked against
+  the user's access to that patient, and every open is audited — so it works
+  from outside the hospital and port 8042 stays on the LAN. A share link opens
+  one study, expires within a week, and can be revoked.
 - The bucket blocks public access; the backup key cannot delete.
 - Images stay in India (ap-south-1).

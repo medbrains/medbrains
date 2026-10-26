@@ -75,7 +75,7 @@ impl Policy {
 
 /// A vetted PACS: a client pinned to its checked addresses, its base URL, and
 /// the credential to present, if any.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Target {
     pub client: reqwest::Client,
     pub base: String,

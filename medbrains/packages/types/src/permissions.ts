@@ -17,7 +17,7 @@ export interface PermissionDef {
   module: string;
 }
 
-/** 1162 permissions, one per constant in the Rust source. */
+/** 1163 permissions, one per constant in the Rust source. */
 export const PERMISSIONS: PermissionDef[] = [
   // dashboard
   {
@@ -1897,6 +1897,12 @@ export const PERMISSIONS: PermissionDef[] = [
     code: "radiology.studies.reconcile",
     label: "Match unmatched PACS studies to their orders",
     description: "A walk-in X-ray, a mistyped accession or a study from another site reaches the PACS with no order. This sees that queue — which shows the names and IDs the modality wrote — files a study under the order a person has confirmed it belongs to, or dismisses it with a reason. Filing images under the wrong patient is a patient-safety event, so it is held by the radiology desk.",
+    module: "radiology",
+  },
+  {
+    code: "radiology.studies.share",
+    label: "Share a patient's images by an expiring link",
+    description: "Makes a link that opens one study in the viewer without signing in — for a referring doctor outside the hospital, a second opinion, or the patient. It is a disclosure of the record: the link is scoped to that study, expires, can be revoked, and every open is audited.",
     module: "radiology",
   },
   {
@@ -9931,8 +9937,10 @@ export const P = {
     REPORTS_VERIFY: "radiology.reports.verify",
     STUDIES: {
       RECONCILE: "radiology.studies.reconcile",
+      SHARE: "radiology.studies.share",
     },
     STUDIES_RECONCILE: "radiology.studies.reconcile",
+    STUDIES_SHARE: "radiology.studies.share",
   },
   REGULATORY: {
     ADR: {
@@ -10805,6 +10813,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.RADIOLOGY.ORDERS.VIEW,
       P.RADIOLOGY.REPORTS.CREATE,
       P.RADIOLOGY.REPORTS.VERIFY,
+      P.RADIOLOGY.STUDIES.SHARE,
       P.REGULATORY.ADR.CREATE,
       P.REGULATORY.ADR.LIST,
       P.REGULATORY.DASHBOARD.VIEW,
@@ -11978,6 +11987,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.RADIOLOGY.REPORTS.CREATE,
       P.RADIOLOGY.REPORTS.VERIFY,
       P.RADIOLOGY.STUDIES.RECONCILE,
+      P.RADIOLOGY.STUDIES.SHARE,
       P.TERMINOLOGY.SNOMED.VIEW,
     ],
   },
