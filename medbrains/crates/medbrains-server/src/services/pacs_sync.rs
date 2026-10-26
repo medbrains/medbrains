@@ -10,6 +10,8 @@
 
 use std::time::Duration;
 
+use medbrains_core::secrets::SecretResolver;
+use medbrains_outbox::handlers::pacs_target::{self, Policy, Target};
 use serde_json::Value;
 use sqlx::PgPool;
 use uuid::Uuid;
@@ -22,9 +24,9 @@ const MAX_PAGES: usize = 20;
 
 pub fn spawn(pool: PgPool) {
     tokio::spawn(async move {
-        let http = reqwest::Client::new();
+        let secrets = crate::secret_backend::build_secret_resolver().await;
         loop {
-            match scan_once(&pool, &http).await {
+            match scan_once(&pool, secrets.as_ref()).await {
                 Ok(linked) if linked > 0 => tracing::info!(linked, "PACS studies linked"),
                 Ok(_) => {}
                 Err(error) => tracing::error!(%error, "PACS sync failed"),
@@ -40,24 +42,16 @@ struct Config {
     value: Value,
 }
 
-/// The PACS's HTTP API for one hospital.
-struct Pacs<'a> {
-    http: &'a reqwest::Client,
-    url: String,
-    username: String,
+/// The PACS's HTTP API for one hospital, vetted by `pacs_target`.
+struct Pacs {
+    target: Target,
 }
 
-impl Pacs<'_> {
+impl Pacs {
     async fn get(&self, path: &str) -> Result<Value, AppError> {
-        let mut request = self
-            .http
-            .get(format!("{}{path}", self.url))
-            .timeout(Duration::from_secs(20));
-        if !self.username.is_empty() {
-            let password = std::env::var("ORTHANC_PASSWORD").unwrap_or_default();
-            request = request.basic_auth(&self.username, Some(password));
-        }
-        let response = request
+        let response = self
+            .target
+            .get(path)
             .send()
             .await
             .map_err(|e| AppError::ServiceUnavailable(format!("PACS unreachable: {e}")))?;
@@ -75,7 +69,7 @@ impl Pacs<'_> {
 }
 
 /// One pass over every hospital with a PACS. Returns how many studies it linked.
-pub async fn scan_once(pool: &PgPool, http: &reqwest::Client) -> Result<u64, AppError> {
+pub async fn scan_once(pool: &PgPool, secrets: &dyn SecretResolver) -> Result<u64, AppError> {
     let configs = sqlx::query_as::<_, Config>(
         "SELECT tenant_id, value FROM tenant_settings \
           WHERE category = 'radiology' AND key = 'pacs_config' AND deleted_at IS NULL \
@@ -83,23 +77,27 @@ pub async fn scan_once(pool: &PgPool, http: &reqwest::Client) -> Result<u64, App
     )
     .fetch_all(pool)
     .await?;
+    let policy = Policy::from_env();
     let mut linked = 0;
     for config in configs {
-        let field = |k: &str| {
-            config
-                .value
-                .get(k)
-                .and_then(Value::as_str)
-                .unwrap_or_default()
-                .trim()
-                .to_owned()
+        // A refused address or an unusable password stops this hospital's
+        // sync before anything is sent; the others carry on.
+        let target = match pacs_target::target_from_config(
+            config.tenant_id,
+            &config.value,
+            secrets,
+            &policy,
+        )
+        .await
+        {
+            Ok(Some(target)) => target,
+            Ok(None) => continue,
+            Err(error) => {
+                tracing::warn!(tenant_id = %config.tenant_id, %error, "PACS not contacted");
+                continue;
+            }
         };
-        let pacs = Pacs {
-            http,
-            url: field("orthanc_url").trim_end_matches('/').to_owned(),
-            username: field("orthanc_username"),
-        };
-        match sync_tenant(pool, config.tenant_id, &pacs).await {
+        match sync_tenant(pool, config.tenant_id, &Pacs { target }).await {
             Ok(n) => linked += n,
             Err(error) => {
                 tracing::warn!(tenant_id = %config.tenant_id, %error, "PACS sync for tenant failed");
@@ -109,7 +107,7 @@ pub async fn scan_once(pool: &PgPool, http: &reqwest::Client) -> Result<u64, App
     Ok(linked)
 }
 
-async fn sync_tenant(pool: &PgPool, tenant_id: Uuid, pacs: &Pacs<'_>) -> Result<u64, AppError> {
+async fn sync_tenant(pool: &PgPool, tenant_id: Uuid, pacs: &Pacs) -> Result<u64, AppError> {
     let mut cursor: i64 = sqlx::query_scalar::<_, Value>(
         "SELECT value FROM tenant_settings \
           WHERE tenant_id = $1 AND category = 'radiology' AND key = 'pacs_cursor' AND deleted_at IS NULL",
@@ -167,7 +165,7 @@ struct Order {
 async fn link_study(
     pool: &PgPool,
     tenant_id: Uuid,
-    pacs: &Pacs<'_>,
+    pacs: &Pacs,
     orthanc_id: &str,
 ) -> Result<bool, AppError> {
     let study = pacs.get(&format!("/studies/{orthanc_id}")).await?;
@@ -202,7 +200,7 @@ async fn link_study(
             .unwrap_or(0)
     };
     let study_date = chrono::NaiveDate::parse_from_str(&text("StudyDate"), "%Y%m%d").ok();
-    let viewer = format!("{}/ohif/viewer?StudyInstanceUIDs={uid}", pacs.url);
+    let viewer = format!("{}/ohif/viewer?StudyInstanceUIDs={uid}", pacs.target.base);
     sqlx::query(
         "INSERT INTO radiology_dicom_studies \
            (tenant_id, order_id, patient_id, study_instance_uid, accession_number, modality, \
@@ -225,7 +223,7 @@ async fn link_study(
     .bind(i32::try_from(count("CountInstances")).unwrap_or(i32::MAX))
     .bind(i32::try_from(count("CountSeries")).unwrap_or(i32::MAX))
     .bind(orthanc_id)
-    .bind(&pacs.url)
+    .bind(&pacs.target.base)
     .bind(&viewer)
     .bind(count("DiskSize"))
     .execute(&mut *tx)

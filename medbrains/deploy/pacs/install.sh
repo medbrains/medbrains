@@ -23,12 +23,12 @@ if [[ ! -f /etc/medbrains-pacs/pacs.env ]]; then
 PACS_BIND_IP=${PACS_BIND_IP}
 PACS_NAME=${PACS_NAME:-Hospital PACS}
 PACS_AET=${PACS_AET:-HOSPPACS}
-# MedBrains signs in as this user (Radiology -> PACS, ORTHANC_PASSWORD secret).
+# MedBrains signs in as this user (enter it in Radiology -> PACS).
 ORTHANC__REGISTERED_USERS={"medbrains": "${PASSWORD}"}
 # Every scanner allowed to store and query: {"CT1": ["CT1AET", "192.168.10.31", 104]}
 ORTHANC__DICOM_MODALITIES={}
 ENV
-    echo "PACS user 'medbrains' password (store it as ORTHANC_PASSWORD in MedBrains): ${PASSWORD}"
+    echo "PACS user 'medbrains' password (enter it in MedBrains: Radiology -> PACS): ${PASSWORD}"
 fi
 if [[ ! -f /etc/medbrains-pacs/backup.env ]]; then
     install -m 600 /dev/null /etc/medbrains-pacs/backup.env

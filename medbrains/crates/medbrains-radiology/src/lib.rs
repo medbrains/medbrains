@@ -26,6 +26,7 @@ use medbrains_server_core::state::AppState;
 pub mod exams;
 pub mod form_f;
 pub mod pacs;
+pub mod pacs_config;
 
 // ══════════════════════════════════════════════════════════
 //  Pre-contrast safety screening
@@ -477,6 +478,32 @@ pub struct RecordDoseRequest {
 //  GET /api/radiology/orders
 // ══════════════════════════════════════════════════════════
 
+/// The radiology orders this caller holds `view` on; `None` for a bypass role
+/// (no filter). An authorization outage is a 503, never an empty list.
+async fn visible_order_ids(
+    state: &AppState,
+    claims: &Claims,
+) -> Result<Option<Vec<Uuid>>, AppError> {
+    let authz_ctx = medbrains_server_core::middleware::authorization::authz_context(claims);
+    if authz_ctx.is_bypass {
+        return Ok(None);
+    }
+    match state
+        .authz
+        .list_accessible(&authz_ctx, "radiology_order", medbrains_authz::Relation::Viewer)
+        .await
+    {
+        Ok(ids) => Ok(Some(ids)),
+        Err(e) => {
+            tracing::error!(error = %e, object_type = "radiology_order",
+                "rebac: list_accessible failed; refusing rather than showing an empty list");
+            Err(AppError::ServiceUnavailable(
+                "authorization backend unavailable".to_owned(),
+            ))
+        }
+    }
+}
+
 pub async fn list_orders(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
@@ -494,24 +521,7 @@ pub async fn list_orders(
     let per_page = params.per_page.unwrap_or(20).clamp(1, 100);
     let offset = (page - 1) * per_page;
 
-    // ── ReBAC scope — only radiology orders caller has `view` on ─
-    let authz_ctx = medbrains_server_core::middleware::authorization::authz_context(&claims);
-    let visible_ids: Option<Vec<Uuid>> = if authz_ctx.is_bypass {
-        None
-    } else {
-        Some(
-            match state.authz.list_accessible(&authz_ctx, "radiology_order", medbrains_authz::Relation::Viewer,).await {
-            Ok(ids) => ids,
-            Err(e) => {
-                tracing::error!(error = %e, object_type = "radiology_order",
-                    "rebac: list_accessible failed; refusing rather than showing an empty list");
-                return Err(AppError::ServiceUnavailable(
-                    "authorization backend unavailable".to_owned(),
-                ));
-            }
-        },
-        )
-    };
+    let visible_ids = visible_order_ids(&state, &claims).await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -519,15 +529,13 @@ pub async fn list_orders(
 
     let mut conditions = vec!["tenant_id = $1".to_owned()];
     let mut bind_idx: usize = 2;
-    if let Some(ref ids) = visible_ids {
-        if ids.is_empty() {
-            return Ok(Json(OrderListResponse {
-                orders: Vec::new(),
-                total: 0,
-                page,
-                per_page,
-            }));
-        }
+    if visible_ids.as_ref().is_some_and(Vec::is_empty) {
+        return Ok(Json(OrderListResponse {
+            orders: Vec::new(),
+            total: 0,
+            page,
+            per_page,
+        }));
     }
 
     #[allow(clippy::items_after_statements)]
@@ -1736,6 +1744,8 @@ pub async fn list_radiology_appointments(
     )
     .await?;
 
+    // The schedule names patients: the same orders the worklist may show.
+    let visible_ids = visible_order_ids(&state, &claims).await?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
@@ -1757,11 +1767,13 @@ pub async fn list_radiology_appointments(
              AND ($2::uuid IS NULL OR ro.modality_id = $2)
              AND ($3::date IS NULL
                   OR (COALESCE(ro.scheduled_at, ro.created_at) AT TIME ZONE t.timezone)::date = $3)
+             AND ($4::uuid[] IS NULL OR ro.id = ANY($4))
            ORDER BY COALESCE(ro.scheduled_at, ro.created_at)
            LIMIT 100"#,
         claims.tenant_id,
         query.modality_id,
         query.date,
+        visible_ids.as_deref(),
     )
     .fetch_all(&mut *tx)
     .await?;
@@ -1894,6 +1906,10 @@ pub async fn list_dicom_studies(
         "radiology",
     )
     .await?;
+    // A study list is a patient's imaging history. A named patient is checked
+    // (404 when not theirs to see); no patient means only the patients this
+    // caller may see — an unanswerable set is a 503, never an empty list.
+    let permitted = medbrains_authz_gate::patient_filter(&state, &claims, params.patient_id).await?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
@@ -1918,10 +1934,11 @@ pub async fn list_dicom_studies(
         "SELECT id, patient_id, study_instance_uid, modality, study_date, study_description, \
          instance_count, series_count, viewer_url, orthanc_id, pacs_url, file_size_bytes \
          FROM radiology_dicom_studies \
-         WHERE deleted_at IS NULL AND tenant_id = $2 AND ($1::uuid IS NULL OR patient_id = $1) \
+         WHERE deleted_at IS NULL AND tenant_id = $2 \
+           AND ($1::uuid[] IS NULL OR patient_id = ANY($1)) \
          ORDER BY study_date DESC NULLS LAST LIMIT 100",
     )
-    .bind(params.patient_id)
+    .bind(permitted)
     .bind(claims.tenant_id)
     .fetch_all(&mut *tx)
     .await?;
@@ -1985,7 +2002,8 @@ pub async fn get_prior_studies(
     >(
         "SELECT id, study_instance_uid, modality, study_date, study_description, \
          instance_count, series_count, viewer_url, pacs_url, file_size_bytes \
-         FROM radiology_dicom_studies WHERE patient_id = $1 AND tenant_id = $2 \
+         FROM radiology_dicom_studies \
+         WHERE patient_id = $1 AND tenant_id = $2 AND deleted_at IS NULL \
          ORDER BY study_date DESC LIMIT 50",
     )
     .bind(patient_id)
@@ -2032,6 +2050,14 @@ pub async fn create_share_link(
         .as_str()
         .and_then(|s| Uuid::parse_str(s).ok())
         .ok_or_else(|| AppError::BadRequest("study_id required".into()))?;
+    // A public link to a patient's images: only for a patient the caller may see.
+    medbrains_authz_gate::require_access_via(
+        &state,
+        &claims,
+        medbrains_authz_gate::links::RADIOLOGY_DICOM_STUDY,
+        study_id,
+    )
+    .await?;
 
     // Confirm the study belongs to the caller's tenant before minting the link —
     // the share_links FK to radiology_dicom_studies is validated as the table
@@ -2117,66 +2143,6 @@ pub async fn validate_share_link(
         "description": study.2,
         "valid": true,
     })))
-}
-
-/// GET /api/radiology/pacs-config
-pub async fn get_pacs_config(
-    State(state): State<AppState>,
-    Extension(claims): Extension<Claims>,
-) -> Result<Json<serde_json::Value>, AppError> {
-    require_permission(&claims, permissions::radiology::orders::LIST)?;
-    medbrains_server_core::middleware::entitlement::require_module_enabled(
-        &state.db,
-        claims.tenant_id,
-        "radiology",
-    )
-    .await?;
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
-        .await?;
-
-    let config: Option<serde_json::Value> = sqlx::query_scalar(
-        "SELECT value FROM tenant_settings WHERE tenant_id=$1 AND category='radiology' AND key='pacs_config'",
-    ).bind(claims.tenant_id).fetch_optional(&mut *tx).await?;
-
-    tx.commit().await?;
-    Ok(Json(config.unwrap_or(serde_json::json!({
-        "orthanc_url": "", "orthanc_username": "", "viewer_type": "ohif",
-        "auto_sync": false, "sync_interval_minutes": 15
-    }))))
-}
-
-/// PUT /api/radiology/pacs-config
-pub async fn update_pacs_config(
-    State(state): State<AppState>,
-    Extension(claims): Extension<Claims>,
-    Json(body): Json<serde_json::Value>,
-) -> Result<Json<serde_json::Value>, AppError> {
-    // Overwriting the tenant's PACS/Orthanc integration config is a management
-    // action — gate on modalities::MANAGE, not the orders::LIST read permission.
-    require_permission(&claims, permissions::radiology::modalities::MANAGE)?;
-    medbrains_server_core::middleware::entitlement::require_module_enabled(
-        &state.db,
-        claims.tenant_id,
-        "radiology",
-    )
-    .await?;
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
-        .await?;
-
-    sqlx::query(
-        "INSERT INTO tenant_settings (id,tenant_id,category,key,value) \
-         VALUES (gen_random_uuid(),$1,'radiology','pacs_config',$2) \
-         ON CONFLICT (tenant_id,category,key) DO UPDATE SET deleted_at = NULL, deleted_by = NULL, delete_reason = NULL, value=$2,updated_at=now()",
-    )
-    .bind(claims.tenant_id)
-    .bind(&body)
-    .execute(&mut *tx)
-    .await?;
-
-    tx.commit().await?;
-    Ok(Json(body))
 }
 
 /// GET /api/radiology/dosimetry
@@ -2292,13 +2258,21 @@ pub async fn get_download_package(
         "radiology",
     )
     .await?;
+    // The study's patient must be one this caller may see; 404 otherwise.
+    medbrains_authz_gate::require_access_via(
+        &state,
+        &claims,
+        medbrains_authz_gate::links::RADIOLOGY_DICOM_STUDY,
+        study_id,
+    )
+    .await?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
 
     let study = sqlx::query_as::<_, (String, String, Option<chrono::NaiveDate>, Option<String>, i32, Option<String>)>(
         "SELECT study_instance_uid, modality, study_date, study_description, instance_count, viewer_url \
-         FROM radiology_dicom_studies WHERE id = $1 AND tenant_id = $2",
+         FROM radiology_dicom_studies WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL",
     )
     .bind(study_id)
     .bind(claims.tenant_id)
@@ -2393,6 +2367,14 @@ pub async fn acknowledge_critical_alert(
     )
     .await?;
 
+    // Acknowledging is a statement in this patient's record.
+    medbrains_authz_gate::require_access_via(
+        &state,
+        &claims,
+        medbrains_authz_gate::links::RADIOLOGY_CRITICAL_ALERT,
+        alert_id,
+    )
+    .await?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
@@ -2488,7 +2470,10 @@ pub fn router() -> axum::Router<AppState> {
         .route("/api/radiology/dicom-studies", get(list_dicom_studies))
         .route("/api/radiology/dicom-studies/{patient_id}/prior", get(get_prior_studies))
         .route("/api/radiology/share-links", post(create_share_link))
-        .route("/api/radiology/pacs-config", get(get_pacs_config).put(update_pacs_config))
+        .route(
+            "/api/radiology/pacs-config",
+            get(pacs_config::get_pacs_config).put(pacs_config::update_pacs_config),
+        )
         .route("/api/radiology/dosimetry", get(list_dosimetry_records).post(create_dosimetry_record))
         .route("/api/radiology/download-package/{study_id}", get(get_download_package))
 }

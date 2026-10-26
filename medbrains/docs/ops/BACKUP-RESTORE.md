@@ -194,7 +194,7 @@ by design). Never restore over the live database directly — restore beside it,
      plaintext up over SSH, or `age -d -i key.age restore.dump.age | ssh host 'umask 077; cat > /var/tmp/restore.dump'`.
      Shred both copies afterwards. Secrets, if the host is new:
      `age -d -i key.age <stamp>.tar.age | tar -xOf - medbrains/env` gives the old `/etc/medbrains/env` — restore at
-     least `MEDBRAINS_IDENTIFIER_HMAC_KEY`, `MEDBRAINS_ABDM_SECRET_KEY`, `MEDBRAINS_NHCX_SECRET_KEY` and the JWT keys
+     least `MEDBRAINS_IDENTIFIER_HMAC_KEY`, `MEDBRAINS_ABDM_SECRET_KEY`, `MEDBRAINS_NHCX_SECRET_KEY`, `MEDBRAINS_PACS_SECRET_KEY` and the JWT keys
      before the server starts.
    - Sanity: `pg_restore --list /var/tmp/restore.dump | grep -c 'TABLE DATA'` (expect ~915).
 4. **Roles first (new host only).** Dumps carry no roles. On a fresh cluster create the owner role, then

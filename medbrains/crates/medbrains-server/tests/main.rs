@@ -187,6 +187,7 @@ mod ophtho_spectacle_rx_test;
 mod order_patient_view_test;
 mod ot_cancellation_report_test;
 mod pacs_flow_test;
+mod pacs_security_test;
 mod patient_acquisition_test;
 mod patient_contact_consent_test;
 mod patient_portal_isolation_test;
