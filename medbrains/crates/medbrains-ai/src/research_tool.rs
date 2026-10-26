@@ -67,7 +67,7 @@ impl rig::tool::Tool for PrepareExportTool {
 
     fn description(&self) -> String {
         "Prepare (never run) a request for a de-identified research dataset, when the user asks \
-        for data for a study. Needs the dataset (visits, diagnoses or admissions), a period \
+        for data for a study. Needs the dataset (visits, diagnoses, admissions, labs, medicines or vitals), a period \
         placeholder such as [LAST_12_MONTHS] or [FY_LAST], the study's purpose (20+ characters) \
         and its IEC approval reference — ask the user for any they have not given. A second \
         approver must approve it; you never receive the data."
@@ -78,7 +78,7 @@ impl rig::tool::Tool for PrepareExportTool {
         json!({
             "type": "object",
             "properties": {
-                "dataset": { "type": "string", "enum": ["visits", "diagnoses", "admissions"] },
+                "dataset": { "type": "string", "enum": ["visits", "diagnoses", "admissions", "labs", "medicines", "vitals"] },
                 "range": { "type": "string", "description": "e.g. [LAST_12_MONTHS]" },
                 "purpose": { "type": "string" },
                 "iec_reference": { "type": "string" }

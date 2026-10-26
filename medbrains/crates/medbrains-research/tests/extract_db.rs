@@ -96,6 +96,19 @@ async fn an_extract_keeps_to_its_hospital_and_leaves_restricted_records_out() {
         .await
         .unwrap_or_else(|e| panic!("{e}"));
     assert_eq!(stays.len(), 6, "the medico-legal stay is not read");
+    // Every dataset's SQL runs against the real schema.
+    for name in datasets::NAMES {
+        datasets::read(&mut tx, a, name, period)
+            .await
+            .unwrap_or_else(|e| panic!("{name}: {e}"));
+    }
+    let raw = datasets::read(&mut tx, a, "diagnoses", period)
+        .await
+        .unwrap_or_else(|e| panic!("{e}"));
+    assert!(
+        raw.iter().all(|r| r.hidden.is_some()),
+        "diagnosis names are read for the class check"
+    );
     let visits = datasets::read(&mut tx, a, "visits", period)
         .await
         .unwrap_or_else(|e| panic!("{e}"));

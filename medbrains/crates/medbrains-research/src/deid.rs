@@ -30,20 +30,52 @@ pub const OTHER: &str = "Other";
 const UNKNOWN: &str = "unknown";
 
 /// How a dataset field is released.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub enum Kind {
     /// A label: rare values become [`OTHER`].
     Category,
     /// A number, released as it is.
     Number,
+    /// A number released only as its band: the label of the first
+    /// `(below, label)` it is under. Rare bands become [`OTHER`] too.
+    Band(&'static [(f64, &'static str)]),
 }
 
 /// One dataset field: its column name, kind and dictionary description.
+/// A quasi-identifier is counted with age band, sex and pincode prefix in
+/// the k-anonymity check.
 #[derive(Debug, Clone, Copy)]
 pub struct Field {
     pub name: &'static str,
     pub kind: Kind,
     pub description: &'static str,
+    pub quasi: bool,
+}
+
+impl Field {
+    /// A label that is not a quasi-identifier.
+    #[must_use]
+    pub const fn category(name: &'static str, description: &'static str) -> Self {
+        Self {
+            name,
+            kind: Kind::Category,
+            description,
+            quasi: false,
+        }
+    }
+}
+
+/// `value` as `kind` releases it, before rare values are folded.
+fn shown(kind: Kind, value: Option<&str>) -> String {
+    let value = value.map(str::trim).unwrap_or_default();
+    match kind {
+        Kind::Band(cuts) => value.parse::<f64>().ok().map_or_else(String::new, |n| {
+            cuts.iter()
+                .find(|(below, _)| n < *below)
+                .map_or_else(String::new, |(_, label)| (*label).to_owned())
+        }),
+        Kind::Category | Kind::Number => value.to_owned(),
+    }
 }
 
 /// A row as read from the database, before anything is released.
@@ -121,19 +153,19 @@ fn restricted(fields: &[Field], row: &RawRow) -> bool {
     medbrains_core::ai_redact::sensitive::withhold_in_json(&mut record).map_or(true, |n| n > 0)
 }
 
-/// Values of each category field held by fewer than [`K`] patients.
-fn rare_values(fields: &[Field], rows: &[RawRow]) -> Vec<HashSet<String>> {
+/// Values of each category or band field held by fewer than [`K`] patients.
+fn rare_values(fields: &[Field], rows: &[(&RawRow, Vec<String>)]) -> Vec<HashSet<String>> {
     fields
         .iter()
         .enumerate()
         .map(|(i, f)| {
-            if f.kind != Kind::Category {
+            if f.kind == Kind::Number {
                 return HashSet::new();
             }
             let mut holders: HashMap<&str, HashSet<Uuid>> = HashMap::new();
-            for r in rows {
-                if let Some(Some(v)) = r.values.get(i) {
-                    holders.entry(v.as_str()).or_default().insert(r.patient);
+            for (raw, shown) in rows {
+                if let Some(v) = shown.get(i).filter(|v| !v.is_empty()) {
+                    holders.entry(v.as_str()).or_default().insert(raw.patient);
                 }
             }
             holders
@@ -145,63 +177,91 @@ fn rare_values(fields: &[Field], rows: &[RawRow]) -> Vec<HashSet<String>> {
         .collect()
 }
 
+/// Age band, sex, pincode prefix, then every quasi-identifying field.
+fn quasi_key(fields: &[Field], (r, shown): &(&RawRow, Vec<String>)) -> Vec<String> {
+    let mut key = vec![
+        age_band(r.birth, r.on),
+        r.sex
+            .as_deref()
+            .map_or_else(|| UNKNOWN.to_owned(), str::to_lowercase),
+        pincode_prefix(r.pincode.as_deref()),
+    ];
+    key.extend(
+        fields
+            .iter()
+            .zip(shown)
+            .filter(|(f, _)| f.quasi)
+            .map(|(_, v)| v.clone()),
+    );
+    key
+}
+
+/// The patients behind each combination of quasi-identifiers.
+fn patients_per_group(
+    fields: &[Field],
+    rows: &[(&RawRow, Vec<String>)],
+) -> HashMap<Vec<String>, HashSet<Uuid>> {
+    let mut groups: HashMap<Vec<String>, HashSet<Uuid>> = HashMap::new();
+    for row in rows {
+        groups
+            .entry(quasi_key(fields, row))
+            .or_default()
+            .insert(row.0.patient);
+    }
+    groups
+}
+
 /// Release `rows` of a dataset with `fields`, keyed under `salt`, each row
 /// stamped with `export_ref`.
 #[must_use]
 pub fn release(fields: &[Field], rows: Vec<RawRow>, salt: &[u8], export_ref: &str) -> Released {
     let before = rows.len();
-    let rows: Vec<RawRow> = rows
+    let kept: Vec<RawRow> = rows
         .into_iter()
         .filter(|r| !restricted(fields, r))
         .collect();
-    let restricted_rows = before - rows.len();
+    let restricted_rows = before - kept.len();
+    let mut rows: Vec<(&RawRow, Vec<String>)> = kept
+        .iter()
+        .map(|r| {
+            let shown = fields
+                .iter()
+                .zip(&r.values)
+                .map(|(f, v)| shown(f.kind, v.as_deref()))
+                .collect();
+            (r, shown)
+        })
+        .collect();
     let rare = rare_values(fields, &rows);
-    let quasi = |r: &RawRow| {
-        (
-            age_band(r.birth, r.on),
-            r.sex
-                .as_deref()
-                .map_or_else(|| UNKNOWN.to_owned(), str::to_lowercase),
-            pincode_prefix(r.pincode.as_deref()),
-        )
-    };
-    let mut groups: HashMap<(String, String, String), HashSet<Uuid>> = HashMap::new();
-    for r in &rows {
-        groups.entry(quasi(r)).or_default().insert(r.patient);
+    for (_, shown) in &mut rows {
+        for (v, rare) in shown.iter_mut().zip(&rare) {
+            if rare.contains(v.as_str()) {
+                OTHER.clone_into(v);
+            }
+        }
     }
-    let small: HashSet<_> = groups
+    let groups = patients_per_group(fields, &rows);
+    let small: HashSet<&Vec<String>> = groups
         .iter()
         .filter(|(_, p)| p.len() < K)
-        .map(|(g, _)| g.clone())
+        .map(|(g, _)| g)
         .collect();
     let mut out = Vec::with_capacity(rows.len());
-    let mut suppressed = 0_usize;
     let mut suppressed_patients = HashSet::new();
-    for r in &rows {
-        let (band, sex, prefix) = quasi(r);
-        if small.contains(&(band.clone(), sex.clone(), prefix.clone())) {
-            suppressed += 1;
-            suppressed_patients.insert(r.patient);
+    for row in &rows {
+        let key = quasi_key(fields, row);
+        if small.contains(&key) {
+            suppressed_patients.insert(row.0.patient);
             continue;
         }
-        let mut line = vec![
-            export_ref.to_owned(),
-            patient_key(salt, r.patient),
-            band,
-            sex,
-            prefix,
-            format!("{:04}-{:02}", r.on.year(), r.on.month()),
-        ];
-        for (i, v) in r.values.iter().enumerate() {
-            let v = v.clone().unwrap_or_default();
-            line.push(if rare[i].contains(&v) {
-                OTHER.to_owned()
-            } else {
-                v
-            });
-        }
+        let (r, shown) = row;
+        let mut line = vec![export_ref.to_owned(), patient_key(salt, r.patient)];
+        line.extend(key.into_iter().take(3));
+        line.push(format!("{:04}-{:02}", r.on.year(), r.on.month()));
+        line.extend(shown.iter().cloned());
         out.push(line);
     }
+    let suppressed = rows.len() - out.len();
     let mut header: Vec<String> = [
         "export_ref",
         "patient_key",
@@ -219,10 +279,13 @@ pub fn release(fields: &[Field], rows: Vec<RawRow>, salt: &[u8], export_ref: &st
         .filter(|(_, r)| !r.is_empty())
         .map(|(f, r)| (f.name, r.len()))
         .collect();
+    let mut quasi_names = vec!["age_band", "sex", "pincode_prefix"];
+    quasi_names.extend(fields.iter().filter(|f| f.quasi).map(|f| f.name));
     Released {
         header,
         report: json!({
             "k": K,
+            "quasi_identifiers": quasi_names,
             "rows_read": before,
             "rows_released": out.len(),
             "restricted_rows_left_out": restricted_rows,

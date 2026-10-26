@@ -8,11 +8,13 @@ const FIELDS: &[Field] = &[
         name: "icd_code",
         kind: Kind::Category,
         description: "ICD-10",
+        quasi: false,
     },
     Field {
         name: "length_of_stay_days",
         kind: Kind::Number,
         description: "days",
+        quasi: false,
     },
 ];
 
@@ -128,4 +130,87 @@ fn a_restricted_name_beside_an_ordinary_code_is_left_out() {
     let out = release(FIELDS, rows, b"salt", "x");
     assert_eq!(out.rows.len(), 6);
     assert_eq!(out.report["restricted_rows_left_out"], 12);
+}
+
+#[test]
+fn numbers_are_released_only_as_their_band() {
+    const CUTS: &[(f64, &str)] = &[(120.0, "<120"), (f64::INFINITY, "120+")];
+    const BANDED: &[Field] = &[Field {
+        name: "systolic_bp_band",
+        kind: Kind::Band(CUTS),
+        description: "banded",
+        quasi: false,
+    }];
+    let mut rows = cohort(6, 1, "x");
+    for (i, r) in rows.iter_mut().enumerate() {
+        r.values = vec![Some(if i < 3 { "118" } else { "142" }.to_owned())];
+    }
+    let out = release(BANDED, rows.clone(), b"salt", "x");
+    let csv = to_csv(&out.header, &out.rows);
+    assert!(!csv.contains("118") && !csv.contains("142"), "{csv}");
+    // Three patients per band is under k: each band is rare, so "Other".
+    assert!(out.rows.iter().all(|r| r[6] == OTHER));
+    rows.extend(cohort(6, 50, "x").into_iter().map(|mut r| {
+        r.values = vec![Some("118".to_owned())];
+        r
+    }));
+    let out = release(BANDED, rows, b"salt", "x");
+    assert!(out.rows.iter().any(|r| r[6] == "<120"));
+}
+
+#[test]
+fn a_quasi_identifying_field_joins_the_k_check() {
+    const WITH_DEPT: &[Field] = &[Field {
+        name: "department",
+        kind: Kind::Category,
+        description: "dept",
+        quasi: true,
+    }];
+    let mut rows = cohort(6, 1, "Cardiology");
+    // Same age band, sex and pincode, but only 2 in Neurology: below k once
+    // the department counts, even though the value itself is not rare here.
+    let mut few = cohort(5, 20, "Neurology");
+    few.truncate(2);
+    rows.extend(few);
+    rows.extend(cohort(5, 40, "Neurology").into_iter().map(|mut r| {
+        r.sex = Some("Male".to_owned());
+        r
+    }));
+    let out = release(WITH_DEPT, rows, b"salt", "x");
+    assert_eq!(out.suppressed_rows, 2);
+    assert!(
+        out.report["quasi_identifiers"]
+            .to_string()
+            .contains("department")
+    );
+}
+
+#[test]
+fn a_medicine_that_discloses_a_class_is_left_out_by_its_atc_code() {
+    const MEDS: &[Field] = &[
+        Field {
+            name: "inn",
+            kind: Kind::Category,
+            description: "inn",
+            quasi: false,
+        },
+        Field {
+            name: "atc_code",
+            kind: Kind::Category,
+            description: "atc",
+            quasi: false,
+        },
+    ];
+    let mut rows = cohort(6, 1, "x");
+    for r in &mut rows {
+        r.values = vec![Some("metformin".to_owned()), Some("A10BA02".to_owned())];
+    }
+    let mut hidden = cohort(6, 10, "x");
+    for r in &mut hidden {
+        r.values = vec![Some("a generic".to_owned()), Some("N05AH03".to_owned())];
+    }
+    rows.extend(hidden);
+    let out = release(MEDS, rows, b"salt", "x");
+    assert_eq!(out.rows.len(), 6);
+    assert_eq!(out.report["restricted_rows_left_out"], 6);
 }

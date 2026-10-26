@@ -94,6 +94,25 @@ fn class_of_icd11(code: &str) -> Option<SensitiveClass> {
     }
 }
 
+/// WHO ATC codes of medicines that disclose a restricted class on their own:
+/// antiretrovirals for HIV, antipsychotics and lithium, drugs for alcohol or
+/// opioid dependence, and medical termination of pregnancy.
+fn class_of_atc(code: &str) -> Option<SensitiveClass> {
+    let code = code.trim().to_ascii_uppercase();
+    let starts = |prefixes: &[&str]| prefixes.iter().any(|p| code.starts_with(p));
+    if starts(&["J05AE", "J05AF", "J05AG", "J05AJ", "J05AR", "J05AX"]) {
+        Some(SensitiveClass::HivSti)
+    } else if starts(&["N05A"]) {
+        Some(SensitiveClass::MentalHealth)
+    } else if starts(&["N07BB", "N07BC"]) {
+        Some(SensitiveClass::SubstanceUse)
+    } else if starts(&["G03XB", "G02AD06"]) {
+        Some(SensitiveClass::Reproductive)
+    } else {
+        None
+    }
+}
+
 /// ICD-10 or ICD-11 codes that are a restricted class on their own.
 fn class_of_icd(code: &str) -> Option<SensitiveClass> {
     let code = code.trim().to_ascii_uppercase();
@@ -154,10 +173,20 @@ pub fn class_of_text(text: &str) -> Result<Option<SensitiveClass>, String> {
 pub fn withhold_in_json(value: &mut Value) -> Result<usize, String> {
     match value {
         Value::Object(map) => {
-            let by_code = ["icd_code", "icd10_code", "code", "diagnosis_code"]
-                .iter()
-                .filter_map(|k| map.get(*k).and_then(Value::as_str))
-                .any(|c| class_of_icd(c).is_some());
+            let by_code = [
+                "icd_code",
+                "icd10_code",
+                "icd11_code",
+                "code",
+                "diagnosis_code",
+            ]
+            .iter()
+            .filter_map(|k| map.get(*k).and_then(Value::as_str))
+            .any(|c| class_of_icd(c).is_some())
+                || ["atc_code", "atc"]
+                    .iter()
+                    .filter_map(|k| map.get(*k).and_then(Value::as_str))
+                    .any(|c| class_of_atc(c).is_some());
             let by_key = CLASS_KEYS.iter().any(|(k, _)| {
                 map.get(*k)
                     .is_some_and(|v| !v.is_null() && v != &Value::Bool(false))
@@ -280,6 +309,21 @@ mod tests {
         for (text, class) in cases {
             assert_eq!(class_of_text(text), Ok(Some(class)), "{text}");
         }
+    }
+
+    #[test]
+    fn medicines_that_disclose_a_class_are_withheld_by_atc_code() {
+        use super::class_of_atc;
+        assert_eq!(class_of_atc("J05AR03"), Some(SensitiveClass::HivSti));
+        assert_eq!(class_of_atc("N05AH03"), Some(SensitiveClass::MentalHealth));
+        assert_eq!(class_of_atc("N05AN01"), Some(SensitiveClass::MentalHealth));
+        assert_eq!(class_of_atc("N07BC02"), Some(SensitiveClass::SubstanceUse));
+        assert_eq!(class_of_atc("G03XB01"), Some(SensitiveClass::Reproductive));
+        for ordinary in ["A10BA02", "C09AA05", "J01CA04", "N02BE01", "J05AB01"] {
+            assert_eq!(class_of_atc(ordinary), None, "{ordinary}");
+        }
+        let mut row = json!({"inn": "a generic", "atc_code": "N05AH03"});
+        assert_eq!(withhold_in_json(&mut row), Ok(1));
     }
 
     #[test]

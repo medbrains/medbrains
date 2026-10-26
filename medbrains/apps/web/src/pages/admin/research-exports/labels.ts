@@ -5,6 +5,9 @@ export const DATASET_LABEL: Record<ResearchDataset, string> = {
   visits: "Visits",
   diagnoses: "Diagnoses",
   admissions: "Admissions",
+  labs: "Lab results",
+  medicines: "Medicines dispensed",
+  vitals: "Vitals (banded)",
 };
 
 export const STATUS: Record<ResearchExportStatus, { label: string; tone: BadgeTone }> = {
