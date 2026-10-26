@@ -342,6 +342,8 @@ pub enum ReadError {
     Unknown,
     #[error("more than {MAX_ROWS} rows — narrow the period")]
     TooMany,
+    #[error("the export could not be written")]
+    Unwritable,
     #[error(transparent)]
     Db(#[from] sqlx::Error),
 }

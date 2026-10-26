@@ -49,6 +49,8 @@ const GLOBAL_TABLES: &[&str] = &[
     "snomed_relationship",
     "snomed_release",
     "snomed_transitive_closure",
+    // OMOP concept ids from Athena (licence-free vocabularies), loaded once.
+    "omop_concept_map",
     // The tenant registry itself: login and domain resolution read it before
     // a tenant is known, and every policy's app_visible_tenants() reads it.
     // Handlers guard it explicitly (require_group_access).

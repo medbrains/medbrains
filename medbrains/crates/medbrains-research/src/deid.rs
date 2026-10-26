@@ -66,7 +66,7 @@ impl Field {
 }
 
 /// `value` as `kind` releases it, before rare values are folded.
-fn shown(kind: Kind, value: Option<&str>) -> String {
+pub(crate) fn shown(kind: Kind, value: Option<&str>) -> String {
     let value = value.map(str::trim).unwrap_or_default();
     match kind {
         Kind::Band(cuts) => value.parse::<f64>().ok().map_or_else(String::new, |n| {
@@ -142,7 +142,7 @@ pub fn patient_key(salt: &[u8], patient: Uuid) -> String {
 
 /// Whether a row's fields name a restricted clinical class (the same rule
 /// that keeps them from the assistant).
-fn restricted(fields: &[Field], row: &RawRow) -> bool {
+pub(crate) fn restricted(fields: &[Field], row: &RawRow) -> bool {
     let mut record = serde_json::Map::new();
     for (f, v) in fields.iter().zip(&row.values) {
         record.insert(f.name.to_owned(), json!(v));
