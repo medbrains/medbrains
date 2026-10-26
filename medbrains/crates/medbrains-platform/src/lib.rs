@@ -9,7 +9,9 @@ use medbrains_server_core::state::AppState;
 
 pub mod ckb;
 pub mod disclosure;
+pub mod facility_codes;
 pub mod geo;
+pub mod ihip;
 pub mod integration;
 pub mod nikshay;
 pub mod nikshay_sheet;
@@ -69,12 +71,14 @@ pub fn router() -> Router<AppState> {
             "/api/ckb/notifiable-reports/{id}",
             put(ckb::update_notifiable_report),
         )
+        .route("/api/ckb/ihip/line-list", get(ihip::line_list))
+        .route("/api/ckb/ihip/submit", post(ihip::submit_line_list))
         .route("/api/ckb/nikshay", get(nikshay::list_cases))
         .route("/api/ckb/nikshay/sheet", get(nikshay_sheet::notification_sheet))
         .route("/api/ckb/nikshay/{report_id}", put(nikshay::save_details))
         .route(
             "/api/ckb/facility-codes",
-            get(nikshay_sheet::facility_codes).put(nikshay_sheet::set_facility_codes),
+            get(facility_codes::facility_codes).put(facility_codes::set_facility_codes),
         )
         .route(
             "/api/ckb/notifiable-list",

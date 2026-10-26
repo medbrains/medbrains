@@ -128,6 +128,27 @@ export interface PublicHealthFacility {
   phone: string | null;
   address: string | null;
   nikshay_he_code: string | null;
+  ihip_unit_id: string | null;
+}
+
+export type IhipForm = "P" | "L";
+
+/** An IDSP P- or L-form line list, for entry on IHIP. */
+export interface IhipLineList {
+  form: IhipForm;
+  facility: PublicHealthFacility;
+  period_from: string;
+  period_to: string;
+  columns: string[];
+  rows: string[][];
+  report_ids: string[];
+  summary: { disease_name: string; icd10_code: string; cases: number }[];
+}
+
+export interface SubmitIhipLineListRequest {
+  form: IhipForm;
+  report_ids: string[];
+  acknowledgement: string;
 }
 
 /** The Ni-kshay notification sheet, in the MoHFW hospital format. */

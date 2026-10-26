@@ -1,6 +1,5 @@
 //! The Ni-kshay notification sheet, in the `MoHFW` format for hospitals
-//! (Annexure II, page 1, of D.O. Z-28015/2/2012-TB), and the hospital's
-//! Health Establishment code that heads it.
+//! (Annexure II, page 1, of D.O. Z-28015/2/2012-TB).
 //!
 //! Making the sheet is a disclosure of patient data to a public authority, so
 //! each one is written to the audit chain with the cases it held.
@@ -8,7 +7,7 @@
 use axum::{Extension, Json, extract::State};
 use chrono::{NaiveDate, Utc};
 use rust_decimal::Decimal;
-use serde::{Deserialize, Serialize};
+use serde::Serialize;
 use uuid::Uuid;
 
 use medbrains_core::permissions;
@@ -18,7 +17,8 @@ use medbrains_server_core::{
     state::AppState,
 };
 
-use crate::disclosure::{self, Disclosure};
+use crate::disclosure::{self, Disclosure, form_date, sex_code};
+use crate::facility_codes::{FACILITY_SQL, Facility};
 
 /// The columns of Annexure II, page 1, in the form's order -- plus the
 /// hospital's own reference, last, so a returned query can be traced.
@@ -44,15 +44,6 @@ pub const COLUMNS: [&str; 17] = [
 
 const STATUTE: &str = "TB notification, MoHFW Govt Order Z-28015/2/2012-TB (2012), \
      gazette notification March 2018";
-
-#[derive(Debug, Serialize, sqlx::FromRow)]
-pub struct Facility {
-    pub name: String,
-    pub registration_no: Option<String>,
-    pub phone: Option<String>,
-    pub address: Option<String>,
-    pub nikshay_he_code: Option<String>,
-}
 
 #[derive(Debug, sqlx::FromRow)]
 struct SheetRow {
@@ -94,45 +85,26 @@ pub struct Sheet {
     pub missing: Vec<MissingFields>,
 }
 
-const FACILITY_SQL: &str = "SELECT name, registration_no, phone, \
-       NULLIF(concat_ws(', ', address_line1, address_line2, city, pincode), '') AS address, \
-       nikshay_he_code FROM tenants WHERE id = $1";
-
-const SHEET_SQL: &str = "\
-    SELECT r.id AS report_id, \
-           NULLIF(concat_ws(' ', p.last_name, p.first_name, p.middle_name), '') AS patient_name, \
-           COALESCE(p.father_name, p.spouse_name) AS guardian, \
-           date_part('year', age(p.date_of_birth))::int AS age, p.gender::text AS gender, \
-           p.abha_number AS gov_id, \
-           COALESCE(NULLIF(concat_ws(', ', pa.address_line1, pa.address_line2, pa.village_town, \
-                                     pa.city), ''), \
-                    NULLIF(concat_ws(', ', p.address->>'line1', p.address->>'line2', \
-                                     p.address->>'city', p.address->>'state'), ''), \
-                    p.address_line1) AS address, \
-           COALESCE(pa.postal_code, p.address->>'pincode') AS pin, p.phone, \
-           COALESCE(n.diagnosed_on, (r.detected_at AT TIME ZONE 'Asia/Kolkata')::date) AS diagnosed_on, \
-           n.treatment_started_on, n.site, n.ep_site, n.patient_type, n.basis, n.weight_kg, \
-           n.regimen, p.uhid \
-      FROM notifiable_disease_reports r \
-      JOIN patients p ON p.id = r.patient_id \
-      LEFT JOIN nikshay_notifications n ON n.report_id = r.id AND n.deleted_at IS NULL \
-      LEFT JOIN LATERAL ( \
-           SELECT address_line1, address_line2, village_town, city, postal_code \
-             FROM patient_addresses \
-            WHERE patient_id = p.id AND deleted_at IS NULL \
-            ORDER BY is_primary DESC, created_at DESC LIMIT 1) pa ON true \
-     WHERE r.tenant_id = $1 AND r.status = 'pending' \
-       AND (r.icd10_code ~ '^A1[5-9]' OR r.reporting_body ILIKE '%ni-kshay%') \
-     ORDER BY r.detected_at LIMIT 500";
-
-fn sex(gender: Option<&str>) -> &'static str {
-    match gender {
-        Some("male") => "M",
-        Some("female") => "F",
-        Some("other") => "O",
-        _ => "",
-    }
-}
+const SHEET_SQL: &str = concat!(
+    "SELECT r.id AS report_id, \
+            NULLIF(concat_ws(' ', p.last_name, p.first_name, p.middle_name), '') AS patient_name, \
+            COALESCE(p.father_name, p.spouse_name) AS guardian, \
+            date_part('year', age(p.date_of_birth))::int AS age, p.gender::text AS gender, \
+            p.abha_number AS gov_id, ",
+    crate::patient_address_sql!(),
+    ", p.phone, \
+            COALESCE(n.diagnosed_on, (r.detected_at AT TIME ZONE 'Asia/Kolkata')::date) \
+              AS diagnosed_on, \
+            n.treatment_started_on, n.site, n.ep_site, n.patient_type, n.basis, n.weight_kg, \
+            n.regimen, p.uhid \
+       FROM notifiable_disease_reports r \
+       JOIN patients p ON p.id = r.patient_id \
+       LEFT JOIN nikshay_notifications n ON n.report_id = r.id AND n.deleted_at IS NULL ",
+    crate::patient_address_join!(),
+    " WHERE r.tenant_id = $1 AND r.status = 'pending' AND ",
+    crate::is_tb_sql!(),
+    " ORDER BY r.detected_at LIMIT 500"
+);
 
 fn patient_type(value: Option<&str>) -> &'static str {
     match value {
@@ -155,11 +127,6 @@ fn basis(value: Option<&str>) -> &'static str {
         Some("xray") => "X-Ray",
         _ => "",
     }
-}
-
-fn date(d: Option<NaiveDate>) -> String {
-    d.map(|d| d.format("%d/%m/%Y").to_string())
-        .unwrap_or_default()
 }
 
 /// What the form needs that this case does not have yet.
@@ -191,13 +158,13 @@ fn cells(sr: usize, r: &SheetRow) -> Vec<String> {
         text(&r.patient_name),
         text(&r.guardian),
         r.age.map(|a| a.to_string()).unwrap_or_default(),
-        sex(r.gender.as_deref()).to_owned(),
+        sex_code(r.gender.as_deref()).to_owned(),
         text(&r.gov_id),
         text(&r.address),
         text(&r.pin),
         text(&r.phone),
-        date(r.diagnosed_on),
-        date(r.treatment_started_on),
+        form_date(r.diagnosed_on),
+        form_date(r.treatment_started_on),
         site,
         patient_type(r.patient_type.as_deref()).to_owned(),
         basis(r.basis.as_deref()).to_owned(),
@@ -264,49 +231,6 @@ pub async fn notification_sheet(
             .collect(),
         missing: missing_fields,
     }))
-}
-
-/// GET /api/ckb/facility-codes — the hospital's codes on public-health portals.
-pub async fn facility_codes(
-    State(state): State<AppState>,
-    Extension(claims): Extension<Claims>,
-) -> Result<Json<Facility>, AppError> {
-    require_permission(&claims, permissions::ckb::reports::LIST)?;
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
-    let row = sqlx::query_as::<_, Facility>(FACILITY_SQL)
-        .bind(claims.tenant_id)
-        .fetch_one(&mut *tx)
-        .await?;
-    tx.commit().await?;
-    Ok(Json(row))
-}
-
-#[derive(Debug, Deserialize)]
-pub struct FacilityCodes {
-    pub nikshay_he_code: Option<String>,
-}
-
-/// PUT /api/ckb/facility-codes — set them.
-pub async fn set_facility_codes(
-    State(state): State<AppState>,
-    Extension(claims): Extension<Claims>,
-    Json(body): Json<FacilityCodes>,
-) -> Result<Json<Facility>, AppError> {
-    require_permission(&claims, permissions::ckb::reports::MANAGE)?;
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
-    sqlx::query("UPDATE tenants SET nikshay_he_code = NULLIF(btrim($2), '') WHERE id = $1")
-        .bind(claims.tenant_id)
-        .bind(body.nikshay_he_code.as_deref())
-        .execute(&mut *tx)
-        .await?;
-    let row = sqlx::query_as::<_, Facility>(FACILITY_SQL)
-        .bind(claims.tenant_id)
-        .fetch_one(&mut *tx)
-        .await?;
-    tx.commit().await?;
-    Ok(Json(row))
 }
 
 #[cfg(test)]

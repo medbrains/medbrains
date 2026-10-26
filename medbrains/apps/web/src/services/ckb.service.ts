@@ -26,6 +26,10 @@ export const ckbService = {
   saveTbDetails: (...args: Parameters<typeof api.saveTbDetails>) => api.saveTbDetails(...args),
   getNikshaySheet: () => api.getNikshaySheet(),
   getPublicHealthFacility: () => api.getPublicHealthFacility(),
+  getIhipLineList: (...args: Parameters<typeof api.getIhipLineList>) =>
+    api.getIhipLineList(...args),
+  submitIhipLineList: (...args: Parameters<typeof api.submitIhipLineList>) =>
+    api.submitIhipLineList(...args),
   setPublicHealthFacilityCodes: (...args: Parameters<typeof api.setPublicHealthFacilityCodes>) =>
     api.setPublicHealthFacilityCodes(...args),
 };

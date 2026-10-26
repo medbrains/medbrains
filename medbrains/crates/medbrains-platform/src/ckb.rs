@@ -309,10 +309,11 @@ pub async fn update_notifiable_report(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
     // A TB notification is not done until Ni-kshay has given it an ID.
-    let is_tb = sqlx::query_scalar::<_, bool>(
-        "SELECT icd10_code ~ '^A1[5-9]' OR reporting_body ILIKE '%ni-kshay%' \
-           FROM notifiable_disease_reports WHERE id = $1 AND tenant_id = $2",
-    )
+    let is_tb = sqlx::query_scalar::<_, bool>(concat!(
+        "SELECT ",
+        crate::is_tb_sql!(),
+        " FROM notifiable_disease_reports r WHERE r.id = $1 AND r.tenant_id = $2"
+    ))
     .bind(id)
     .bind(claims.tenant_id)
     .fetch_optional(&mut *tx)
