@@ -68,6 +68,17 @@ pub struct UpdateProgramRequest {
     pub is_active: Option<bool>,
 }
 
+/// The columns of a `ChronicProgramRow`. `program_type` is a Postgres enum and
+/// the row reads it as text: `SELECT *` decoded the enum into a `String` and
+/// every programme list, create and update answered 500.
+macro_rules! program_columns {
+    () => {
+        "id, tenant_id, name, code, program_type::text AS program_type, description, \
+         protocol_id, default_duration_months, target_outcomes, monitoring_schedule, \
+         is_active, created_by, created_at, updated_at"
+    };
+}
+
 #[derive(Debug, Clone, Serialize, sqlx::FromRow)]
 pub struct ChronicProgramRow {
     pub id: Uuid,
@@ -438,13 +449,15 @@ pub async fn list_programs(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
-    let rows = sqlx::query_as::<_, ChronicProgramRow>(
-        "SELECT * FROM chronic_programs \
+    let rows = sqlx::query_as::<_, ChronicProgramRow>(concat!(
+        "SELECT ",
+        program_columns!(),
+        " FROM chronic_programs \
          WHERE deleted_at IS NULL AND ($1::text IS NULL OR program_type::text = $1) \
          AND ($2::bool IS NULL OR is_active = $2) \
          AND ($3::text IS NULL OR name ILIKE '%' || $3 || '%' OR code ILIKE '%' || $3 || '%') \
-         ORDER BY name ASC LIMIT 200",
-    )
+         ORDER BY name ASC LIMIT 200"
+    ))
     .bind(&params.program_type)
     .bind(params.is_active)
     .bind(&params.search)
@@ -474,14 +487,15 @@ pub async fn create_program(
     )
     .await?;
 
-    let row = sqlx::query_as::<_, ChronicProgramRow>(
+    let row = sqlx::query_as::<_, ChronicProgramRow>(concat!(
         "INSERT INTO chronic_programs \
          (tenant_id, name, code, program_type, description, protocol_id, \
           default_duration_months, target_outcomes, monitoring_schedule, created_by) \
          VALUES ($1, $2, $3, $4::chronic_program_type, $5, $6, $7, \
                  COALESCE($8, '[]'::jsonb), COALESCE($9, '[]'::jsonb), $10) \
-         RETURNING *",
-    )
+         RETURNING ",
+        program_columns!()
+    ))
     .bind(claims.tenant_id)
     .bind(&body.name)
     .bind(&body.code)
@@ -511,7 +525,7 @@ pub async fn update_program(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
-    let row = sqlx::query_as::<_, ChronicProgramRow>(
+    let row = sqlx::query_as::<_, ChronicProgramRow>(concat!(
         "UPDATE chronic_programs SET \
          name = COALESCE($2, name), \
          description = COALESCE($3, description), \
@@ -520,8 +534,9 @@ pub async fn update_program(
          target_outcomes = COALESCE($6, target_outcomes), \
          monitoring_schedule = COALESCE($7, monitoring_schedule), \
          is_active = COALESCE($8, is_active) \
-         WHERE id = $1 RETURNING *",
-    )
+         WHERE id = $1 RETURNING ",
+        program_columns!()
+    ))
     .bind(id)
     .bind(&body.name)
     .bind(&body.description)
@@ -652,8 +667,7 @@ pub async fn create_enrollment(
     // Only a caller-supplied id is available here — the route carries none. This
     // still prevents creating a record against an unreachable patient, but it is
     // weaker than a route-derived check: the caller picks the subject.
-    medbrains_authz_gate::require_patient_access(&state, &claims, body.patient_id)
-        .await?;
+    medbrains_authz_gate::require_patient_access(&state, &claims, body.patient_id).await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -979,8 +993,7 @@ pub async fn create_timeline_event(
     // Only a caller-supplied id is available here — the route carries none. This
     // still prevents creating a record against an unreachable patient, but it is
     // weaker than a route-derived check: the caller picks the subject.
-    medbrains_authz_gate::require_patient_access(&state, &claims, body.patient_id)
-        .await?;
+    medbrains_authz_gate::require_patient_access(&state, &claims, body.patient_id).await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -1078,8 +1091,7 @@ pub async fn record_adherence(
     // Only a caller-supplied id is available here — the route carries none. This
     // still prevents creating a record against an unreachable patient, but it is
     // weaker than a route-derived check: the caller picks the subject.
-    medbrains_authz_gate::require_patient_access(&state, &claims, body.patient_id)
-        .await?;
+    medbrains_authz_gate::require_patient_access(&state, &claims, body.patient_id).await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -1204,8 +1216,7 @@ pub async fn list_outcome_targets(
 
     // The route names the patient; holding the module permission is not the same
     // as being on this patient's care team.
-    medbrains_authz_gate::require_patient_access(&state, &claims, patient_id)
-        .await?;
+    medbrains_authz_gate::require_patient_access(&state, &claims, patient_id).await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -1234,8 +1245,7 @@ pub async fn create_outcome_target(
     // Only a caller-supplied id is available here — the route carries none. This
     // still prevents creating a record against an unreachable patient, but it is
     // weaker than a route-derived check: the caller picks the subject.
-    medbrains_authz_gate::require_patient_access(&state, &claims, body.patient_id)
-        .await?;
+    medbrains_authz_gate::require_patient_access(&state, &claims, body.patient_id).await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -1310,8 +1320,7 @@ pub async fn outcome_dashboard(
 
     // The route names the patient; holding the module permission is not the same
     // as being on this patient's care team.
-    medbrains_authz_gate::require_patient_access(&state, &claims, patient_id)
-        .await?;
+    medbrains_authz_gate::require_patient_access(&state, &claims, patient_id).await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -1449,8 +1458,7 @@ pub async fn list_interaction_alerts(
 
     // The route names the patient; holding the module permission is not the same
     // as being on this patient's care team.
-    medbrains_authz_gate::require_patient_access(&state, &claims, patient_id)
-        .await?;
+    medbrains_authz_gate::require_patient_access(&state, &claims, patient_id).await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -1480,8 +1488,7 @@ pub async fn check_polypharmacy(
 
     // The route names the patient; holding the module permission is not the same
     // as being on this patient's care team.
-    medbrains_authz_gate::require_patient_access(&state, &claims, patient_id)
-        .await?;
+    medbrains_authz_gate::require_patient_access(&state, &claims, patient_id).await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -1637,8 +1644,7 @@ pub async fn treatment_summary(
 
     // The route names the patient; holding the module permission is not the same
     // as being on this patient's care team.
-    medbrains_authz_gate::require_patient_access(&state, &claims, patient_id)
-        .await?;
+    medbrains_authz_gate::require_patient_access(&state, &claims, patient_id).await?;
     let viewer = medbrains_authz_gate::mental_health::MentalHealthViewer::of(&claims);
 
     let mut tx = state.db.begin().await?;
