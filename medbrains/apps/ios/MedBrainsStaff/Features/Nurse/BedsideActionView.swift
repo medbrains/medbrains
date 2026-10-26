@@ -17,6 +17,10 @@ struct BedsideActionView: View {
     @State private var message: String?
     @State private var error: String?
     @State private var showBpErrors = false
+    @State private var consciousness: String?
+    @State private var oxygenDevice: String?
+    @State private var distress: String?
+    @State private var score: EarlyWarning.Score?
     @FocusState private var focus: String?
 
     private var spec: (title: String, badge: String, tone: CarbonTone) {
@@ -48,7 +52,11 @@ struct BedsideActionView: View {
                         field("Pulse", "pulse", .numberPad)
                         BloodPressureFields(systolic: binding("systolic_bp"), diastolic: binding("diastolic_bp"), showErrors: showBpErrors)
                         HStack(spacing: 8) { field("SpO2", "spo2", .numberPad); field("Respiratory rate", "respiratory_rate", .numberPad) }
+                        EarlyWarningFields(consciousness: $consciousness, oxygenDevice: $oxygenDevice, distress: $distress) { label, key, keyboard in
+                            field(label, key, keyboard)
+                        }
                         field("Notes", "notes", .default)
+                        if let score { EarlyWarningResult(score: score) }
                     case .io:
                         Picker("Direction", selection: $direction) {
                             Text("Intake").tag("intake")
@@ -128,11 +136,16 @@ struct BedsideActionView: View {
                     showBpErrors = true
                     throw FormError(failure.message)
                 }
-                let p = CreateVitalsPayload(encounterId: admission.encounterId, temperature: temp, pulse: try int("pulse", "Pulse", 0...300), systolicBp: bp.systolic, diastolicBp: bp.diastolic, respiratoryRate: try int("respiratory_rate", "Respiratory rate", 0...80), spo2: try int("spo2", "SpO2", 0...100), notes: text("notes"))
+                let ews: EarlyWarning.Inputs
+                switch EarlyWarning.inputs(consciousness: consciousness, device: oxygenDevice, flow: form["oxygen_flow_lpm"] ?? "", fio2: form["fio2_percent"] ?? "", capillaryRefill: form["capillary_refill_seconds"] ?? "", distress: distress) {
+                case .success(let inputs): ews = inputs
+                case .failure(let problem): throw FormError(problem.message)
+                }
+                let p = CreateVitalsPayload(encounterId: admission.encounterId, temperature: temp, pulse: try int("pulse", "Pulse", 0...300), systolicBp: bp.systolic, diastolicBp: bp.diastolic, respiratoryRate: try int("respiratory_rate", "Respiratory rate", 0...80), spo2: try int("spo2", "SpO2", 0...100), notes: text("notes"), consciousness: ews.consciousness, oxygenDevice: ews.oxygenDevice, oxygenFlowLpm: ews.oxygenFlowLpm, fio2Percent: ews.fio2Percent, capillaryRefillSeconds: ews.capillaryRefillSeconds, respiratoryDistress: ews.respiratoryDistress)
                 if temp == nil, p.pulse == nil, p.systolicBp == nil, p.diastolicBp == nil, p.respiratoryRate == nil, p.spo2 == nil {
                     throw FormError("Enter at least one vital reading")
                 }
-                _ = try await api.createVitals(p)
+                score = try await api.createVitals(p).ews
                 message = "Saved to bedside chart."
             case .io:
                 guard let category = text("category") else { throw FormError("Category is required") }

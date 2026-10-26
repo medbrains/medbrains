@@ -1,6 +1,7 @@
 package com.medbrains.staff.nurse
 
 import com.medbrains.kit.ApiClient
+import com.medbrains.kit.EarlyWarning
 import kotlinx.serialization.Serializable
 
 // Wire shapes mirror crates/medbrains-ipd, medbrains-nursing, medbrains-care-mgmt
@@ -171,7 +172,18 @@ data class CreateVitalsPayload(
     val respiratory_rate: Int? = null,
     val spo2: Int? = null,
     val notes: String? = null,
+    // What the early-warning score needs beyond the classic vitals
+    // (`EarlyWarning.Inputs`); blank is not charted, never normal.
+    val consciousness: String? = null,
+    val oxygen_device: String? = null,
+    val oxygen_flow_lpm: Double? = null,
+    val fio2_percent: Int? = null,
+    val capillary_refill_seconds: Double? = null,
+    val respiratory_distress: String? = null,
 )
+
+/** The reading as charted, with the score the server gave it. */
+@Serializable data class CreatedVitals(val ews: EarlyWarning.Score)
 
 @Serializable data class CreateIoEntryPayload(val encounter_id: String, val category: String, val direction: String, val volume_ml: Int, val notes: String? = null)
 @Serializable data class IoBalance(val intake_total: Double = 0.0, val output_total: Double = 0.0, val balance: Double = 0.0)
@@ -211,7 +223,7 @@ class NurseApi(private val client: ApiClient) {
     suspend fun recordObservation(transfusionId: String, payload: RecordObservationPayload): TransfusionObservation = client.post("/api/blood-bank/transfusions/$transfusionId/observations", payload)
     suspend fun completeTransfusion(id: String): BedsideTransfusion = client.put("/api/ipd/transfusions/$id/complete", CompleteBody())
 
-    suspend fun createVitals(p: CreateVitalsPayload): Ignored = client.post("/api/nurse/vitals", p)
+    suspend fun createVitals(p: CreateVitalsPayload): CreatedVitals = client.post("/api/nurse/vitals", p)
     suspend fun createIoEntry(p: CreateIoEntryPayload): Ignored = client.post("/api/nurse/io-entries", p)
     suspend fun ioBalance(encounterId: String): IoBalance = client.get("/api/nurse/io-entries/encounter/$encounterId/balance?since_hours=8")
     suspend fun createPain(p: CreatePainEntryPayload): Ignored = client.post("/api/nurse/pain-entries", p)

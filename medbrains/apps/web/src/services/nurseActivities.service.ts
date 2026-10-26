@@ -29,13 +29,13 @@ export const nurseActivitiesService = {
     api.endVitalsSchedule(...args),
   createNurseVital: (...args: Parameters<typeof api.createNurseVital>) =>
     api.createNurseVital(...args),
-  listNurseVitals: async (encounterId: string) => {
-    try {
-      return await api.listNurseVitals(encounterId);
-    } catch {
-      return api.listVitals(encounterId);
-    }
-  },
+  // A failed read is an error on screen, never another encounter list passed
+  // off as this one.
+  listNurseVitals: (encounterId: string) => api.listNurseVitals(encounterId),
+  getEwsPlan: (encounterId: string) => api.getEwsPlan(encounterId),
+  setEwsPlan: (...args: Parameters<typeof api.setEwsPlan>) => api.setEwsPlan(...args),
+  getEwsPolicy: () => api.getEwsPolicy(),
+  setEwsPolicy: (...args: Parameters<typeof api.setEwsPolicy>) => api.setEwsPolicy(...args),
   listIoForEncounter: (...args: Parameters<typeof api.listIoForEncounter>) =>
     api.listIoForEncounter(...args),
   getEncounterIoBalance: (...args: Parameters<typeof api.getEncounterIoBalance>) =>

@@ -29,6 +29,7 @@
   "settings.clinicalNotes": "Clinical notes",
   "settings.compliance": "Compliance",
   "settings.drugInteractions": "Drug Interactions",
+  "settings.earlyWarning": "Early Warning Scores",
   "settings.criticalValues": "Critical Values",
   "settings.clinicalProtocols": "Clinical Protocols",
   "settings.consultationTemplates": "Consultation Templates",

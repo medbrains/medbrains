@@ -121,6 +121,11 @@ const SETTINGS_NAV_META: Record<
     description: "Prescription safety rules",
     kind: "rule",
   },
+  "early-warning": {
+    group: "Clinical Setup",
+    description: "NEWS2 / PEWS / MEOWS observation frequency and escalation",
+    kind: "rule",
+  },
   "critical-values": {
     group: "Clinical Setup",
     description: "Lab escalation thresholds",

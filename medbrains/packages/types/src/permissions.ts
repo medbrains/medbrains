@@ -17,7 +17,7 @@ export interface PermissionDef {
   module: string;
 }
 
-/** 1153 permissions, one per constant in the Rust source. */
+/** 1157 permissions, one per constant in the Rust source. */
 export const PERMISSIONS: PermissionDef[] = [
   // dashboard
   {
@@ -6630,6 +6630,30 @@ export const PERMISSIONS: PermissionDef[] = [
     module: "nurse",
   },
   {
+    code: "nurse.ews.view",
+    label: "See early-warning scores and escalations",
+    description: "The score charted with each vitals reading, its trend, when the next observations are due, and the ward's open escalations.",
+    module: "nurse",
+  },
+  {
+    code: "nurse.ews.acknowledge",
+    label: "Acknowledge an early-warning escalation",
+    description: "Record the response to an urgent or emergency score — who responded and what was done — which stops it escalating further.",
+    module: "nurse",
+  },
+  {
+    code: "nurse.ews.plan",
+    label: "Set a patient's early-warning scoring plan",
+    description: "Prescribe SpO2 Scale 2 for hypercapnic respiratory failure, or choose the scoring tool. RCP NEWS2 requires a clinical decision maker to prescribe Scale 2.",
+    module: "nurse",
+  },
+  {
+    code: "nurse.ews.policy",
+    label: "Set the hospital's early-warning policy",
+    description: "Observation frequency per score band, which bands escalate, and how long an escalation may wait for acknowledgement.",
+    module: "nurse",
+  },
+  {
     code: "nurse.intake_output.view",
     label: "View Intake/Output",
     description: "View I-O entries",
@@ -9066,6 +9090,16 @@ export const P = {
     },
     EQUIPMENT_RECORD: "nurse.equipment.record",
     EQUIPMENT_VIEW: "nurse.equipment.view",
+    EWS: {
+      ACKNOWLEDGE: "nurse.ews.acknowledge",
+      PLAN: "nurse.ews.plan",
+      POLICY: "nurse.ews.policy",
+      VIEW: "nurse.ews.view",
+    },
+    EWS_ACKNOWLEDGE: "nurse.ews.acknowledge",
+    EWS_PLAN: "nurse.ews.plan",
+    EWS_POLICY: "nurse.ews.policy",
+    EWS_VIEW: "nurse.ews.view",
     FALL_RISK: {
       RECORD: "nurse.fall_risk.record",
       VIEW: "nurse.fall_risk.view",
@@ -10650,6 +10684,9 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.MRD.CASE_SHEETS.VIEW,
       P.NOTES.USE,
       P.NURSE.CODE_BLUE.RESPOND,
+      P.NURSE.EWS.ACKNOWLEDGE,
+      P.NURSE.EWS.PLAN,
+      P.NURSE.EWS.VIEW,
       P.OPD.CERTIFICATES.CREATE,
       P.OPD.CERTIFICATES.LIST,
       P.OPD.CERTIFICATES.PRINT,
@@ -10942,6 +10979,8 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.NURSE.DASHBOARD.VIEW,
       P.NURSE.EQUIPMENT.RECORD,
       P.NURSE.EQUIPMENT.VIEW,
+      P.NURSE.EWS.ACKNOWLEDGE,
+      P.NURSE.EWS.VIEW,
       P.NURSE.FALL_RISK.RECORD,
       P.NURSE.FALL_RISK.VIEW,
       P.NURSE.HANDOFF.RECORD,

@@ -11,4 +11,6 @@ export const careViewService = {
   dischargeReadiness: api.dischargeReadiness,
   listPatientScores: api.listPatientScores,
   recordPatientScore: api.recordPatientScore,
+  listEwsEscalations: api.listEwsEscalations,
+  acknowledgeEwsEscalation: api.acknowledgeEwsEscalation,
 };

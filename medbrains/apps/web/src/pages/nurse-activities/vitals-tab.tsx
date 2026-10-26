@@ -2,12 +2,22 @@
 
 import { Card, Group, NumberInput, Stack, Tabs, Text, Timeline } from "@mantine/core";
 import { useHasPermission } from "@medbrains/stores";
-import type { CreateVitalRequest, Vital } from "@medbrains/types";
+import type { CreateVitalRequest, EwsScoringInputs, EwsView, ScoredVital } from "@medbrains/types";
 import { P } from "@medbrains/types";
 import { IconAlertTriangle, IconDeviceHeartMonitor } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { VitalsRecorder } from "@/components";
+import { EwsInputs } from "@/components/EarlyWarning/EwsInputs";
+import { EwsPlanCard } from "@/components/EarlyWarning/EwsPlanCard";
+import { EwsResultCard } from "@/components/EarlyWarning/EwsResultCard";
+import { EwsTrendChart } from "@/components/EarlyWarning/EwsTrendChart";
+import {
+  EWS_BAND_LABEL,
+  EWS_BAND_TONE,
+  EWS_TOOL_LABEL,
+  ewsTotalText,
+} from "@/components/EarlyWarning/ews-display";
 import { Alert, Badge, Button, toast } from "@/components/ui";
 import { nurseActivitiesService } from "@/services/nurseActivities.service";
 import {
@@ -19,7 +29,7 @@ import {
   toNumber,
 } from "./shared";
 
-function VitalsTimeline({ vitals, isLoading }: { vitals: Vital[]; isLoading: boolean }) {
+function VitalsTimeline({ vitals, isLoading }: { vitals: ScoredVital[]; isLoading: boolean }) {
   if (isLoading) {
     return <Text c="dimmed">Loading vitals timeline...</Text>;
   }
@@ -42,6 +52,13 @@ function VitalsTimeline({ vitals, isLoading }: { vitals: Vital[]; isLoading: boo
               {index === 0 && (
                 <Badge tone="success" size="xs">
                   Latest
+                </Badge>
+              )}
+              {row.ews_tool && row.ews_band && row.ews_total != null && (
+                <Badge tone={EWS_BAND_TONE[row.ews_band]} size="xs">
+                  {EWS_TOOL_LABEL[row.ews_tool]}{" "}
+                  {ewsTotalText(row.ews_total, Boolean(row.ews_incomplete))} ·{" "}
+                  {EWS_BAND_LABEL[row.ews_band]}
                 </Badge>
               )}
             </Group>
@@ -132,6 +149,8 @@ export function VitalsTab({
   const [encounterId, setEncounterId] = useState(initialEncounterId);
   const [frequency, setFrequency] = useState<number>(240);
   const [activeVitalsTab, setActiveVitalsTab] = useState<"record" | "timeline">("record");
+  const [ewsInputs, setEwsInputs] = useState<EwsScoringInputs>({});
+  const [lastScore, setLastScore] = useState<EwsView | null>(null);
 
   const { data: schedules, isLoading } = useQuery({
     queryKey: ["nurse-vitals-schedules", encounterId],
@@ -143,7 +162,7 @@ export function VitalsTab({
   });
   const { data: vitals = [], isLoading: vitalsLoading } = useQuery({
     queryKey: ["nurse-vitals", encounterId],
-    queryFn: () => nurseActivitiesService.listNurseVitals(encounterId) as Promise<Vital[]>,
+    queryFn: () => nurseActivitiesService.listNurseVitals(encounterId),
     enabled: canView && encounterId.length > 0,
   });
 
@@ -167,18 +186,15 @@ export function VitalsTab({
     mutationFn: (data: CreateVitalRequest) =>
       nurseActivitiesService.createNurseVital({
         ...data,
+        ...ewsInputs,
         encounter_id: encounterId,
-      }) as Promise<Vital>,
+      }),
     onSuccess: (row) => {
-      qc.setQueryData<Vital[]>(["nurse-vitals", encounterId], (current = []) => [
-        row,
-        ...current.filter((item) => item.id !== row.id),
-      ]);
+      setLastScore(row.ews);
+      setEwsInputs({});
       void qc.invalidateQueries({ queryKey: ["nurse-vitals-schedules"] });
       void qc.invalidateQueries({ queryKey: ["nurse-vitals", encounterId] });
-      if (canView) {
-        setActiveVitalsTab("timeline");
-      }
+      void qc.invalidateQueries({ queryKey: ["care-view"] });
     },
     onError: (e: Error) => toast.error(e.message, { title: "Could not record vitals" }),
   });
@@ -222,6 +238,7 @@ export function VitalsTab({
             </Stack>
             {isLinkedEncounter && <Badge tone="neutral">IPD linked</Badge>}
           </Group>
+          {encounterId && <EwsPlanCard encounterId={encounterId} />}
           <Tabs
             value={activeVitalsTab}
             onChange={(value) => {
@@ -243,11 +260,15 @@ export function VitalsTab({
                     Select or open a linked encounter before recording vitals.
                   </Alert>
                 )}
+                {lastScore && <EwsResultCard ews={lastScore} />}
                 {canRecord && encounterId ? (
-                  <VitalsRecorder
-                    onSubmit={(data) => recordVitals.mutate(data)}
-                    isSubmitting={recordVitals.isPending}
-                  />
+                  <Stack gap="md">
+                    <EwsInputs value={ewsInputs} onChange={setEwsInputs} />
+                    <VitalsRecorder
+                      onSubmit={(data) => recordVitals.mutate(data)}
+                      isSubmitting={recordVitals.isPending}
+                    />
+                  </Stack>
                 ) : (
                   <Text size="sm" c="dimmed">
                     {canRecord
@@ -260,7 +281,10 @@ export function VitalsTab({
 
             {canView && (
               <Tabs.Panel value="timeline" pt="md">
-                <VitalsTimeline vitals={vitals} isLoading={vitalsLoading} />
+                <Stack>
+                  <EwsTrendChart vitals={vitals} />
+                  <VitalsTimeline vitals={vitals} isLoading={vitalsLoading} />
+                </Stack>
               </Tabs.Panel>
             )}
           </Tabs>

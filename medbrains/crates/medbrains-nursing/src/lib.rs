@@ -5,6 +5,10 @@ use medbrains_server_core::state::AppState;
 
 pub mod code_blue_response;
 pub mod nurse_clinical;
+pub mod nurse_ews;
+pub mod nurse_ews_api;
+pub mod nurse_ews_escalate;
+pub mod nurse_ews_overdue;
 pub mod nurse_handoff;
 pub mod nurse_roster;
 pub mod nurse_vitals;
@@ -26,6 +30,19 @@ pub fn router() -> Router<AppState> {
         .route(
             "/api/nurse/vitals",
             post(nurse_vitals::create_vitals_reading),
+        )
+        .route("/api/nurse/ews/escalations", get(nurse_ews_api::list_escalations))
+        .route(
+            "/api/nurse/ews/escalations/{id}/acknowledge",
+            put(nurse_ews_api::acknowledge_escalation),
+        )
+        .route(
+            "/api/nurse/ews/plan/{encounter_id}",
+            get(nurse_ews_api::get_plan).put(nurse_ews_api::set_plan),
+        )
+        .route(
+            "/api/nurse/ews/policy",
+            get(nurse_ews_api::get_policy).put(nurse_ews_api::set_policy),
         )
         .route(
             "/api/nurse/vitals/encounter/{encounter_id}",

@@ -701,6 +701,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // (MHCA 2017 s.97).
     medbrains_server::services::restraint_observation_escalation::spawn(worker_pool.clone());
 
+    // Early-warning scores — an urgent or emergency NEWS2/PEWS/MEOWS nobody
+    // acknowledges goes to the duty doctor, then wider (NABH/IPSG).
+    medbrains_server::services::ews_escalation::spawn(worker_pool.clone());
+
     // Calibration lock — equipment past its calibration date is locked and
     // taken out of service, so an analyser cannot report on an expired one.
     medbrains_server::services::calibration_lock::spawn(worker_pool.clone());

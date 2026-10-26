@@ -23,16 +23,10 @@ import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { DataTable, OperationalSignal, type OperationalSignalTone } from "@/components";
 import type { Column } from "@/components/DataTable";
+import { EwsCardSignals } from "@/components/EarlyWarning/EwsCardSignals";
 import { Badge, Button } from "@/components/ui";
 import { careViewService } from "@/services/careView.service";
 import { urgencyColor } from "./shared";
-
-function news2Tone(score: number | null): OperationalSignalTone {
-  if (score === null) return "neutral";
-  if (score >= 7) return "risk";
-  if (score >= 5) return "blocked";
-  return "ready";
-}
 
 function fallRiskTone(level: string | null): OperationalSignalTone {
   if (!level) return "neutral";
@@ -170,8 +164,6 @@ function PatientCard({ patient }: { patient: PatientCardRow }) {
     patient.overdue_tasks + patient.overdue_meds,
     patient.pending_tasks + patient.pending_meds,
   );
-  const news2Value =
-    patient.latest_news2_score !== null ? patient.latest_news2_score : t("common.notAvailable");
   const fallRiskValue = patient.fall_risk_level ?? t("common.notAvailable");
 
   return (
@@ -233,13 +225,7 @@ function PatientCard({ patient }: { patient: PatientCardRow }) {
 
       <Stack gap={2}>
         <Group gap={4} wrap="wrap">
-          <OperationalSignal
-            label={t("patient.news2")}
-            shape="diamond"
-            size="xs"
-            tone={news2Tone(patient.latest_news2_score)}
-            value={news2Value}
-          />
+          <EwsCardSignals patient={patient} />
           <OperationalSignal
             label={t("patient.fallRisk")}
             shape="diamond"
@@ -283,7 +269,7 @@ function PatientCard({ patient }: { patient: PatientCardRow }) {
               value={patient.overdue_meds}
             />
           )}
-          {patient.vitals_due && (
+          {patient.vitals_due && !patient.ews_next_due_at && (
             <OperationalSignal
               icon={IconTemperature}
               label={t("patient.vitalsDue")}
