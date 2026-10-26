@@ -1,6 +1,12 @@
 /** De-identified research dataset exports (`/api/research/exports`). */
 
-export type ResearchDataset = "visits" | "diagnoses" | "admissions";
+export type ResearchDataset =
+  | "visits"
+  | "diagnoses"
+  | "admissions"
+  | "labs"
+  | "medicines"
+  | "vitals";
 
 /** `expired` is a ready export past its 24 hours. */
 export type ResearchExportStatus = "requested" | "rejected" | "ready" | "expired" | "failed";

@@ -10,7 +10,7 @@ import { DATASET_LABEL } from "./labels";
 
 const schema = z
   .object({
-    dataset: z.enum(["visits", "diagnoses", "admissions"]),
+    dataset: z.enum(["visits", "diagnoses", "admissions", "labs", "medicines", "vitals"]),
     period_from: z.string().min(1, "Choose the first day"),
     period_to: z.string().min(1, "Choose the last day"),
     purpose: z.string().trim().min(20, "Describe the study in at least 20 characters"),
