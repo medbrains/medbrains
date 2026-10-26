@@ -75,6 +75,22 @@ pub mod patients {
     pub const UPDATE: &str = "patients.update";
     pub const DELETE: &str = "patients.delete";
 
+    pub mod growth {
+        /// View a child's growth charts.
+        ///
+        /// WHO 0-5 year standards and IAP 2015 5-18 year charts, with z-scores
+        /// and centiles computed from the weights, lengths and head
+        /// circumferences charted at visits, and flags for values beyond
+        /// -2/+2 SD or crossing centile lines.
+        pub const VIEW: &str = "patients.growth.view";
+        /// Record a child's gestation at birth.
+        ///
+        /// The completed weeks of gestation, which correct a preterm child's
+        /// age on the growth charts until two years. A clinical history fact
+        /// the charts depend on, so it is kept apart from demographic edits.
+        pub const RECORD_GESTATION: &str = "patients.growth.record_gestation";
+    }
+
     pub mod privacy_requests {
         /// See patients' privacy requests.
         ///

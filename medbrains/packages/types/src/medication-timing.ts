@@ -191,6 +191,7 @@ export interface VitalHistoryPoint {
   spo2: number | null;
   weight_kg: number | null;
   height_cm: number | null;
+  head_circumference_cm: number | null;
   bmi: number | null;
   recorded_at: string;
 }

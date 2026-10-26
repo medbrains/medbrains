@@ -246,6 +246,8 @@ pub struct CreateVitalRequest {
     pub spo2: Option<i32>,
     pub weight_kg: Option<Decimal>,
     pub height_cm: Option<Decimal>,
+    /// Head circumference; charted on a child's growth chart.
+    pub head_circumference_cm: Option<Decimal>,
     pub notes: Option<String>,
 }
 
@@ -1878,8 +1880,8 @@ pub async fn create_vital(
         "INSERT INTO vitals \
          (tenant_id, encounter_id, recorded_by, temperature, pulse, \
           systolic_bp, diastolic_bp, respiratory_rate, spo2, \
-          weight_kg, height_cm, bmi, notes, recorded_at) \
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, now()) \
+          weight_kg, height_cm, bmi, notes, head_circumference_cm, recorded_at) \
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, now()) \
          RETURNING *",
     )
     .bind(claims.tenant_id)
@@ -1895,6 +1897,7 @@ pub async fn create_vital(
     .bind(body.height_cm)
     .bind(bmi)
     .bind(&body.notes)
+    .bind(body.head_circumference_cm)
     .fetch_one(&mut *tx)
     .await?;
 
@@ -3946,6 +3949,7 @@ pub struct VitalHistoryPoint {
     pub weight_kg: Option<Decimal>,
     pub height_cm: Option<Decimal>,
     pub bmi: Option<Decimal>,
+    pub head_circumference_cm: Option<Decimal>,
     pub recorded_at: DateTime<Utc>,
 }
 
@@ -3969,7 +3973,7 @@ pub async fn list_patient_vitals_history(
         "SELECT v.id, v.encounter_id, e.encounter_date, \
          v.temperature, v.pulse, v.systolic_bp, v.diastolic_bp, \
          v.respiratory_rate, v.spo2, v.weight_kg, v.height_cm, v.bmi, \
-         v.recorded_at \
+         v.head_circumference_cm, v.recorded_at \
          FROM vitals v \
          JOIN encounters e ON e.id = v.encounter_id \
          WHERE e.patient_id = $1 AND v.deleted_at IS NULL AND e.deleted_at IS NULL \

@@ -26,6 +26,7 @@ import { fieldAccessText, snakeToTitle } from "@medbrains/utils";
 import {
   IconAlertTriangle,
   IconCalendar,
+  IconChartLine,
   IconEye,
   IconFile,
   IconFlask,
@@ -86,6 +87,7 @@ import { CampsTab } from "./camps-tab";
 import { ChronicCareTab } from "./chronic-care-tab";
 import { DetailDocumentsTab } from "./documents-tab";
 import { DetailFamilyLinksTab } from "./family-links-tab";
+import { GrowthTab } from "./growth-tab";
 import { ImagingTab } from "./imaging-tab";
 import { ImmunizationsTab } from "./immunizations-tab";
 import { LabOrdersTab } from "./lab-orders-tab";
@@ -103,6 +105,13 @@ const ACTIVE_ER_VISIT_STATUSES = new Set<ErVisit["status"]>([
   "observation",
 ]);
 
+/** Growth charts run to 18 years. */
+function isChild(dateOfBirth: string | null): boolean {
+  if (!dateOfBirth) return false;
+  const years = (Date.now() - new Date(dateOfBirth).getTime()) / (365.25 * 86_400_000);
+  return years <= 18;
+}
+
 export function PatientDetailPageInner() {
   useRequirePermission(P.PATIENTS.VIEW);
   const { id } = useParams<{ id: string }>();
@@ -117,6 +126,7 @@ export function PatientDetailPageInner() {
   const canViewEmergencyVisits = useHasPermission(P.EMERGENCY.VISITS_LIST);
   const canViewCampRegistrations = useHasPermission(P.CAMP.REGISTRATIONS_LIST);
   const canViewNotes = useHasPermission(P.CLINICAL_NOTES.VIEW);
+  const canViewGrowth = useHasPermission(P.PATIENTS.GROWTH.VIEW);
   const canListLabOrders = useHasPermission(P.LAB.ORDERS_LIST);
   const canListRadiologyOrders = useHasPermission(P.RADIOLOGY.ORDERS_LIST);
   const canListPharmacyOrders = useHasPermission(P.PHARMACY.PRESCRIPTIONS_LIST);
@@ -377,6 +387,16 @@ export function PatientDetailPageInner() {
       section: "Profile",
       icon: <IconVaccine size={14} />,
     },
+    ...(canViewGrowth && isChild(patient.date_of_birth)
+      ? [
+          {
+            value: "growth" as const,
+            label: "Growth",
+            section: "Profile",
+            icon: <IconChartLine size={14} />,
+          },
+        ]
+      : []),
     {
       value: "timeline",
       label: "Timeline",
@@ -585,6 +605,11 @@ export function PatientDetailPageInner() {
               <Tabs.Panel id="patient-immunizations" value="immunizations" pt="md">
                 <ImmunizationsTab patient={patient} />
               </Tabs.Panel>
+              {canViewGrowth && (
+                <Tabs.Panel id="patient-growth" value="growth" pt="md">
+                  <GrowthTab patient={patient} />
+                </Tabs.Panel>
+              )}
               <Tabs.Panel id="patient-timeline" value="timeline" pt="md">
                 <ClinicalTimelineTab patientId={patient.id} />
               </Tabs.Panel>

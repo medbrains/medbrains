@@ -168,6 +168,7 @@ export * from "./form-runtime";
 export * from "./form-templates";
 export * from "./form-versioning";
 export * from "./grn-scan";
+export * from "./growth";
 export * from "./history-import";
 export * from "./housekeeping";
 export * from "./infection-control";
