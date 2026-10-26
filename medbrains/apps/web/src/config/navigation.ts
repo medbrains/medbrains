@@ -79,6 +79,7 @@ import {
   IconUserShield,
   IconUsers,
   IconUsersGroup,
+  IconVaccine,
   IconVideo,
   IconVirus,
   IconWash,
@@ -116,6 +117,7 @@ export interface NavGroupConfig {
 // ── Icon Map ──
 
 const ICON_MAP: Record<string, React.ComponentType<{ size?: number; stroke?: number }>> = {
+  IconVaccine,
   IconLayoutGrid,
   IconSpeakerphone,
   IconHeadset,
@@ -223,6 +225,7 @@ const MODULE_BADGE_DEFS: Record<string, ModuleBadge> = {
   "/token-board": { abbr: "TB", color: "#007d79" },
   "/token-console": { abbr: "TC", color: "#6929c4" },
   "/patients": { abbr: "Pt", color: "#198038" },
+  "/immunization-clinic": { abbr: "Imm", color: "#198038" },
   "/opd": { abbr: "OPD", color: "#9f1853" },
   "/opd/appointments": { abbr: "Apt", color: "#00539a" },
   "/telemedicine": { abbr: "Tel", color: "#4d5358" },
@@ -451,6 +454,12 @@ export const NAV_GROUPS: NavGroupConfig[] = [
         path: "/patients",
         icon: "IconUsers",
         requiredPermission: "patients.list",
+      },
+      {
+        i18nKey: "immunizationClinic",
+        path: "/immunization-clinic",
+        icon: "IconVaccine",
+        requiredPermission: "patients.immunizations.due_list",
       },
       {
         i18nKey: "opdQueue",

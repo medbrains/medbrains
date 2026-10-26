@@ -83,6 +83,7 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
             permissions::patients::growth::VIEW,
             permissions::patients::growth::RECORD_GESTATION,
             permissions::patients::immunizations::RECORD,
+            permissions::patients::immunizations::DUE_LIST,
             permissions::opd::diagnoses::LIST,
             permissions::opd::diagnoses::CREATE,
             permissions::opd::diagnoses::UPDATE,
@@ -595,6 +596,7 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
             permissions::nurse::ews::ACKNOWLEDGE,
             // Nurses give most vaccines and record the dose and lot.
             permissions::patients::immunizations::RECORD,
+            permissions::patients::immunizations::DUE_LIST,
             permissions::nurse::intake_output::VIEW,
             permissions::nurse::intake_output::RECORD,
             permissions::nurse::restraint::VIEW,

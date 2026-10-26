@@ -128,6 +128,18 @@ pub mod patients {
         /// erased. Each dose is shared with the patient's ABHA as an
         /// immunisation record.
         pub const RECORD: &str = "patients.immunizations.record";
+        /// See the immunisation clinic's due list.
+        ///
+        /// Every child with a dose on record here whose next vaccine is due
+        /// or overdue by the hospital's schedule, with the parent's phone,
+        /// so the clinic can plan the day and call the ones who missed it.
+        pub const DUE_LIST: &str = "patients.immunizations.due_list";
+        /// Choose the hospital's immunisation schedule.
+        ///
+        /// UIP or the IAP schedule, whether JE is given (endemic districts),
+        /// and whether parents are sent SMS reminders before a dose is due.
+        /// A hospital-wide clinical decision, kept apart from giving doses.
+        pub const CONFIGURE: &str = "patients.immunizations.configure";
     }
 
     pub mod allergies {

@@ -39,6 +39,8 @@ pub struct Immunization {
     pub id: Uuid,
     pub vaccine_name: String,
     pub vaccine_code: Option<String>,
+    /// The schedule product it was recorded as (`medbrains_core::immunization::products`).
+    pub vaccine_key: Option<String>,
     pub dose_number: Option<i32>,
     pub administered_on: NaiveDate,
     pub lot_number: Option<String>,
@@ -58,6 +60,8 @@ pub struct Immunization {
 pub struct RecordImmunization {
     pub vaccine_name: String,
     pub vaccine_code: Option<String>,
+    /// The schedule product it was recorded as (`medbrains_core::immunization::products`).
+    pub vaccine_key: Option<String>,
     pub dose_number: Option<i32>,
     pub administered_on: NaiveDate,
     pub lot_number: Option<String>,
@@ -85,6 +89,12 @@ fn problem(b: &RecordImmunization, today: NaiveDate) -> Option<&'static str> {
         Some("name the vaccine")
     } else if b.administered_on > today {
         Some("a dose cannot be recorded for a date still to come")
+    } else if b
+        .vaccine_key
+        .as_deref()
+        .is_some_and(|k| medbrains_core::immunization::products::by_key(k).is_none())
+    {
+        Some("the vaccine is not one the schedule knows")
     } else if b.dose_number.is_some_and(|d| !(1..=20).contains(&d)) {
         Some("the dose number is 1 to 20")
     } else if b.route.as_deref().is_some_and(|r| !ROUTES.contains(&r)) {
@@ -96,7 +106,7 @@ fn problem(b: &RecordImmunization, today: NaiveDate) -> Option<&'static str> {
     }
 }
 
-const SELECT: &str = "SELECT i.id, i.vaccine_name, i.vaccine_code, i.dose_number, i.administered_on, \
+const SELECT: &str = "SELECT i.id, i.vaccine_name, i.vaccine_code, i.vaccine_key, i.dose_number, i.administered_on, \
        i.lot_number, i.manufacturer, i.route, i.site, i.given_elsewhere, i.notes, \
        u.full_name AS recorded_by_name, i.created_at, i.deleted_at, i.delete_reason \
   FROM patient_immunizations i LEFT JOIN users u ON u.id = i.recorded_by";
@@ -153,8 +163,8 @@ pub async fn record(
     let id: Uuid = sqlx::query_scalar(
         "INSERT INTO patient_immunizations (tenant_id, patient_id, encounter_id, vaccine_name, \
                 vaccine_code, dose_number, administered_on, lot_number, manufacturer, route, site, \
-                given_elsewhere, notes, recorded_by) \
-         SELECT p.tenant_id, p.id, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14 \
+                given_elsewhere, notes, recorded_by, vaccine_key) \
+         SELECT p.tenant_id, p.id, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15 \
            FROM patients p WHERE p.tenant_id = $1 AND p.id = $2 AND p.deleted_at IS NULL \
          RETURNING id",
     )
@@ -172,6 +182,7 @@ pub async fn record(
     .bind(b.given_elsewhere)
     .bind(text(b.notes.as_ref()))
     .bind(claims.sub)
+    .bind(b.vaccine_key.as_deref())
     .fetch_optional(&mut *tx)
     .await?
     .ok_or(AppError::NotFound)?;
@@ -249,6 +260,7 @@ mod tests {
         RecordImmunization {
             vaccine_name: "Hepatitis B vaccine".into(),
             vaccine_code: None,
+            vaccine_key: None,
             dose_number: Some(2),
             administered_on: NaiveDate::from_ymd_opt(on.0, on.1, on.2).unwrap_or_default(),
             lot_number: lot.map(str::to_owned),

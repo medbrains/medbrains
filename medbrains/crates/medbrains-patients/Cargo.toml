@@ -8,6 +8,7 @@ rust-version.workspace = true
 [dependencies]
 medbrains-clinical-core = { path = "../medbrains-clinical-core" }
 medbrains-authz-gate = { path = "../medbrains-authz-gate" }
+medbrains-outbox = { path = "../medbrains-outbox" }
 medbrains-server-core = { path = "../medbrains-server-core" }
 medbrains-server-services = { path = "../medbrains-server-services" }
 medbrains-workflow = { path = "../medbrains-workflow" }

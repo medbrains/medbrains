@@ -68,6 +68,7 @@ pub mod gst_invoice_print;
 pub mod housekeeping;
 pub mod hr;
 pub mod icu;
+pub mod immunization;
 pub mod indent;
 pub mod infection_control;
 pub mod insurance;

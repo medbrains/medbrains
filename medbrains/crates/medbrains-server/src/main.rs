@@ -674,6 +674,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Appointment reminders — 5-min pass enqueuing outbox SMS events
     // for appointments entering their reminder windows.
     medbrains_server::services::appointment_reminders::spawn(worker_pool.clone());
+    medbrains_server::services::vaccination_reminders::spawn(worker_pool.clone());
 
     // Critical-value escalation — unacknowledged lab alerts escalate
     // to the doctor's supervisor after the tenant's ack window.

@@ -38,6 +38,7 @@ const routePreloaders: Record<string, RoutePreloader> = {
   "/order-sets": () => import("@/pages/order-sets"),
   "/chronic-care": () => import("@/pages/chronic-care"),
   "/occupational-health": () => import("@/pages/occupational-health"),
+  "/immunization-clinic": () => import("@/pages/immunization-clinic"),
   "/utilization-review": () => import("@/pages/utilization-review"),
   "/case-management": () => import("@/pages/case-management"),
   "/scheduling": () => import("@/pages/scheduling"),

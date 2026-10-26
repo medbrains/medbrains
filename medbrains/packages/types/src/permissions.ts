@@ -17,7 +17,7 @@ export interface PermissionDef {
   module: string;
 }
 
-/** 1163 permissions, one per constant in the Rust source. */
+/** 1165 permissions, one per constant in the Rust source. */
 export const PERMISSIONS: PermissionDef[] = [
   // dashboard
   {
@@ -141,6 +141,18 @@ export const PERMISSIONS: PermissionDef[] = [
     code: "patients.immunizations.record",
     label: "Record or correct a patient's vaccine doses",
     description: "A dose given here — vaccine, dose number, date, lot number and route — or one read off the patient's card, recorded as given elsewhere. A wrong entry is struck off with a reason, never erased. Each dose is shared with the patient's ABHA as an immunisation record.",
+    module: "patients",
+  },
+  {
+    code: "patients.immunizations.due_list",
+    label: "See the immunisation clinic's due list",
+    description: "Every child with a dose on record here whose next vaccine is due or overdue by the hospital's schedule, with the parent's phone, so the clinic can plan the day and call the ones who missed it.",
+    module: "patients",
+  },
+  {
+    code: "patients.immunizations.configure",
+    label: "Choose the hospital's immunisation schedule",
+    description: "UIP or the IAP schedule, whether JE is given (endemic districts), and whether parents are sent SMS reminders before a dose is due. A hospital-wide clinical decision, kept apart from giving doses.",
     module: "patients",
   },
   {
@@ -9478,8 +9490,12 @@ export const P = {
     GROWTH_RECORD_GESTATION: "patients.growth.record_gestation",
     GROWTH_VIEW: "patients.growth.view",
     IMMUNIZATIONS: {
+      CONFIGURE: "patients.immunizations.configure",
+      DUE_LIST: "patients.immunizations.due_list",
       RECORD: "patients.immunizations.record",
     },
+    IMMUNIZATIONS_CONFIGURE: "patients.immunizations.configure",
+    IMMUNIZATIONS_DUE_LIST: "patients.immunizations.due_list",
     IMMUNIZATIONS_RECORD: "patients.immunizations.record",
     LIST: "patients.list",
     NOTES: {
@@ -10793,6 +10809,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.PATIENTS.CREATE,
       P.PATIENTS.GROWTH.RECORD_GESTATION,
       P.PATIENTS.GROWTH.VIEW,
+      P.PATIENTS.IMMUNIZATIONS.DUE_LIST,
       P.PATIENTS.IMMUNIZATIONS.RECORD,
       P.PATIENTS.LIST,
       P.PATIENTS.NOTES.EDIT,
@@ -11063,6 +11080,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.ORDER_SETS.ACTIVATION.VIEW,
       P.PATIENTS.GROWTH.RECORD_GESTATION,
       P.PATIENTS.GROWTH.VIEW,
+      P.PATIENTS.IMMUNIZATIONS.DUE_LIST,
       P.PATIENTS.IMMUNIZATIONS.RECORD,
       P.PATIENTS.LIST,
       P.PATIENTS.NOTES.EDIT,

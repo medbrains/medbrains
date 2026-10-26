@@ -90,6 +90,8 @@ export interface PatientImmunization {
   id: string;
   vaccine_name: string;
   vaccine_code: string | null;
+  /** The schedule product it was recorded as. */
+  vaccine_key: string | null;
   dose_number: number | null;
   administered_on: string;
   lot_number: string | null;
@@ -115,6 +117,7 @@ export type ImmunizationRoute =
 export interface RecordPatientImmunization {
   vaccine_name: string;
   vaccine_code?: string;
+  vaccine_key?: string;
   dose_number?: number;
   administered_on: string;
   lot_number?: string;

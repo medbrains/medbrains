@@ -6,6 +6,8 @@ import { z } from "zod";
 export const doseSchema = z
   .object({
     vaccine_name: z.string().trim().min(1, "Name the vaccine"),
+    /** Set when recorded from the schedule; the server checks it. */
+    vaccine_key: z.string().optional(),
     dose_number: z.number().int().min(1).max(20).optional(),
     administered_on: z.date({ message: "When was it given?" }),
     lot_number: z.string().trim().optional(),
