@@ -19,6 +19,7 @@ on:
       - "medbrains/crates/medbrains-core/src/nhcx*"
       - "medbrains/scripts/check_fhir_validator.py"
       - "medbrains/scripts/fhir_validator_allowlist.json"
+      - "medbrains/scripts/nrces_profile_fixture.py"
       - ".github/workflows/fhir-validator.yml"
   schedule:
     - cron: "30 21 * * *" # 03:00 IST

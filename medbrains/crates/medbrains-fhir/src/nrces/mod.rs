@@ -14,6 +14,8 @@ mod resources;
 pub mod sections;
 
 #[cfg(test)]
+mod drift_tests;
+#[cfg(test)]
 mod golden;
 #[cfg(test)]
 mod records_tests;
@@ -38,6 +40,12 @@ use crate::mapper::{
 };
 
 pub const NRCES_PROFILE_BASE: &str = "https://nrces.in/ndhm/fhir/r4/StructureDefinition/";
+/// The NRCeS IG release every builder here follows (`ndhm.in#6.5.0`): the
+/// release `profiles.json` was extracted from and the validator gate pins.
+/// `drift_tests` fails when they part.
+pub const NRCES_IG_VERSION: &str = "6.5.0";
+/// The IG's canonical URL — its `ImplementationGuide` resource.
+pub const NRCES_IG_CANONICAL: &str = "https://nrces.in/ndhm/fhir/r4/ImplementationGuide/ndhm.in";
 const CONFIDENTIALITY_SYSTEM: &str = "http://terminology.hl7.org/CodeSystem/v3-Confidentiality";
 const BUNDLE_IDENTIFIER_SYSTEM: &str = "http://hip.in";
 const V2_0203: &str = "http://terminology.hl7.org/CodeSystem/v2-0203";
