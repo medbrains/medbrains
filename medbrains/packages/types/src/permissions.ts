@@ -17,7 +17,7 @@ export interface PermissionDef {
   module: string;
 }
 
-/** 1151 permissions, one per constant in the Rust source. */
+/** 1152 permissions, one per constant in the Rust source. */
 export const PERMISSIONS: PermissionDef[] = [
   // dashboard
   {
@@ -1873,6 +1873,12 @@ export const PERMISSIONS: PermissionDef[] = [
     code: "radiology.modalities.manage",
     label: "Manage Modalities",
     description: "Manage imaging modality masters",
+    module: "radiology",
+  },
+  {
+    code: "radiology.dose.record",
+    label: "Record radiation dose on an imaging order",
+    description: "CTDIvol and DLP for CT, dose-area product and screening time for fluoroscopy, exposures and technique for radiographs — entered by the radiographer who ran the exam, or marked as entered in error. It feeds the patient's cumulative dose, which every new ionising order is checked against.",
     module: "radiology",
   },
   {
@@ -9809,6 +9815,10 @@ export const P = {
     TRANSFUSION_REACTIONS_UPDATE: "quality.transfusion_reactions.update",
   },
   RADIOLOGY: {
+    DOSE: {
+      RECORD: "radiology.dose.record",
+    },
+    DOSE_RECORD: "radiology.dose.record",
     EXAMS: {
       MANAGE: "radiology.exams.manage",
     },
@@ -10696,6 +10706,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.PHARMACY.RX_QUEUE.LIST,
       P.PHARMACY.SAFETY.VIEW,
       P.PHARMACY.VALIDATION.BYPASS,
+      P.RADIOLOGY.DOSE.RECORD,
       P.RADIOLOGY.ORDERS.CANCEL,
       P.RADIOLOGY.ORDERS.CREATE,
       P.RADIOLOGY.ORDERS.VIEW,
@@ -11854,6 +11865,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.DASHBOARD.VIEW,
       P.NOTES.USE,
       P.PATIENTS.FIND,
+      P.RADIOLOGY.DOSE.RECORD,
       P.RADIOLOGY.EXAMS.MANAGE,
       P.RADIOLOGY.MODALITIES.MANAGE,
       P.RADIOLOGY.ORDERS.CANCEL,

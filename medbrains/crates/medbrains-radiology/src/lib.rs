@@ -24,6 +24,8 @@ use medbrains_server_core::middleware::authorization::{
 use medbrains_server_core::state::AppState;
 
 pub mod exams;
+pub mod dose;
+pub mod dose_capture;
 pub mod form_f;
 pub mod pacs;
 pub mod pacs_config;
@@ -234,102 +236,6 @@ pub async fn contrast_screening(
     )))
 }
 
-// ══════════════════════════════════════════════════════════
-//  Cumulative radiation dose
-// ══════════════════════════════════════════════════════════
-// Ionising radiation is cumulative and stochastic — repeated CT (especially in younger patients)
-// raises lifetime cancer risk, so each new study should be justified against the patient's exposure so
-// far (AERB/ICRP). Per-study dose is recorded (DLP for CT) but the running lifetime total is never
-// surfaced. This sums the recorded CT DLP and estimates the cumulative effective dose so the orderer
-// sees it before adding more.
-
-/// Effective-dose conversion factor for body CT: mSv per (mGy·cm) of DLP. 0.015 is the widely-used
-/// representative adult chest/abdomen/pelvis k-factor; the result is an ESTIMATE, not a measured dose.
-const DLP_TO_MSV_K: f64 = 0.015;
-/// Cumulative effective dose (mSv) at which further imaging warrants explicit justification / review.
-const CUMULATIVE_DOSE_REVIEW_MSV: f64 = 100.0;
-
-fn estimate_effective_msv(total_dlp: f64) -> f64 {
-    total_dlp * DLP_TO_MSV_K
-}
-
-#[derive(Debug, Deserialize)]
-pub struct CumulativeDoseQuery {
-    pub patient_id: Uuid,
-}
-
-#[derive(Debug, Serialize)]
-pub struct CumulativeDoseResult {
-    pub study_count: i64,
-    pub cumulative_dlp: f64,
-    pub estimated_effective_msv: f64,
-    pub review_threshold_msv: f64,
-    /// True once the estimated cumulative effective dose reaches the review threshold.
-    pub over_threshold: bool,
-    /// True from 75% of the threshold — approaching, justify carefully.
-    pub near_threshold: bool,
-}
-
-/// `GET /api/radiology/cumulative-dose?patient_id=` — the patient's cumulative recorded CT dose (DLP)
-/// and estimated lifetime effective dose, versus the review threshold.
-pub async fn cumulative_dose(
-    State(state): State<AppState>,
-    Extension(claims): Extension<Claims>,
-    Query(params): Query<CumulativeDoseQuery>,
-) -> Result<Json<CumulativeDoseResult>, AppError> {
-    require_permission(&claims, permissions::radiology::orders::VIEW)?;
-    // Lifetime radiation dose for one named patient. A dose history says how
-    // often they have been imaged and for what.
-    medbrains_authz_gate::require_patient_access(&state, &claims, params.patient_id)
-        .await?;
-    medbrains_server_core::middleware::entitlement::require_module_enabled(
-        &state.db,
-        claims.tenant_id,
-        "radiology",
-    )
-    .await?;
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
-    let (study_count, total_dlp): (i64, Option<f64>) = sqlx::query_as(
-        "SELECT COUNT(*), COALESCE(SUM(dlp), 0)::float8 FROM radiation_dose_records \
-         WHERE tenant_id = $1 AND patient_id = $2 AND dlp IS NOT NULL",
-    )
-    .bind(claims.tenant_id)
-    .bind(params.patient_id)
-    .fetch_one(&mut *tx)
-    .await?;
-    tx.commit().await?;
-
-    let cumulative_dlp = total_dlp.unwrap_or(0.0);
-    let estimated_effective_msv = estimate_effective_msv(cumulative_dlp);
-    Ok(Json(CumulativeDoseResult {
-        study_count,
-        cumulative_dlp,
-        estimated_effective_msv,
-        review_threshold_msv: CUMULATIVE_DOSE_REVIEW_MSV,
-        over_threshold: estimated_effective_msv >= CUMULATIVE_DOSE_REVIEW_MSV,
-        near_threshold: estimated_effective_msv >= 0.75 * CUMULATIVE_DOSE_REVIEW_MSV,
-    }))
-}
-
-#[cfg(test)]
-mod dose_tests {
-    use super::estimate_effective_msv;
-
-    #[test]
-    fn dlp_converts_to_msv() {
-        // 1000 mGy·cm * 0.015 = 15 mSv (a couple of abdominal CTs).
-        assert!((estimate_effective_msv(1000.0) - 15.0).abs() < 1e-9);
-    }
-
-    #[test]
-    fn threshold_crossing() {
-        // ~6667 mGy·cm cumulative DLP -> ~100 mSv.
-        assert!(estimate_effective_msv(7000.0) >= 100.0);
-        assert!(estimate_effective_msv(5000.0) < 100.0);
-    }
-}
-
 #[cfg(test)]
 mod contrast_tests {
     use super::compute_contrast_screening;
@@ -462,17 +368,6 @@ pub struct UpdateModalityRequest {
     pub is_ultrasound: Option<bool>,
 }
 
-#[derive(Debug, Deserialize)]
-pub struct RecordDoseRequest {
-    pub modality_code: String,
-    pub body_part: Option<String>,
-    pub dose_value: Option<Decimal>,
-    pub dose_unit: Option<String>,
-    pub dlp: Option<Decimal>,
-    pub ctdi_vol: Option<Decimal>,
-    pub dap: Option<Decimal>,
-    pub fluoroscopy_time_seconds: Option<i32>,
-}
 
 // ══════════════════════════════════════════════════════════
 //  GET /api/radiology/orders
@@ -944,7 +839,8 @@ pub async fn get_order(
     .await?;
 
     let dose_records = sqlx::query_as::<_, RadiationDoseRecord>(
-        "SELECT * FROM radiation_dose_records WHERE order_id = $1 AND tenant_id = $2 \
+        "SELECT * FROM radiation_dose_records \
+         WHERE order_id = $1 AND tenant_id = $2 AND deleted_at IS NULL \
          ORDER BY recorded_at LIMIT 5000",
     )
     .bind(id)
@@ -1635,74 +1531,6 @@ pub async fn delete_modality(
     Ok(Json(serde_json::json!({ "deleted": true })))
 }
 
-// ══════════════════════════════════════════════════════════
-//  POST /api/radiology/orders/{id}/dose  — radiation dose recording
-// ══════════════════════════════════════════════════════════
-
-pub async fn record_dose(
-    State(state): State<AppState>,
-    Extension(claims): Extension<Claims>,
-    Path(order_id): Path<Uuid>,
-    Json(body): Json<RecordDoseRequest>,
-) -> Result<Json<RadiationDoseRecord>, AppError> {
-    require_permission(&claims, permissions::radiology::orders::CREATE)?;
-    // Radiation dose is recorded against the patient the order belongs to.
-    medbrains_authz_gate::require_access_via(
-        &state,
-        &claims,
-        medbrains_authz_gate::links::RADIOLOGY_ORDER,
-        order_id,
-    )
-    .await?;
-    medbrains_server_core::middleware::entitlement::require_module_enabled(
-        &state.db,
-        claims.tenant_id,
-        "radiology",
-    )
-    .await?;
-
-    let dose_unit = body.dose_unit.as_deref().unwrap_or("mGy");
-
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
-        .await?;
-
-    // Get patient_id from the order
-    let patient_id = sqlx::query_scalar::<_, Uuid>(
-        "SELECT patient_id FROM radiology_orders WHERE id = $1 AND tenant_id = $2",
-    )
-    .bind(order_id)
-    .bind(claims.tenant_id)
-    .fetch_optional(&mut *tx)
-    .await?
-    .ok_or(AppError::NotFound)?;
-
-    let record = sqlx::query_as::<_, RadiationDoseRecord>(
-        "INSERT INTO radiation_dose_records \
-         (tenant_id, order_id, patient_id, modality_code, body_part, \
-          dose_value, dose_unit, dlp, ctdi_vol, dap, \
-          fluoroscopy_time_seconds, recorded_by) \
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) \
-         RETURNING *",
-    )
-    .bind(claims.tenant_id)
-    .bind(order_id)
-    .bind(patient_id)
-    .bind(&body.modality_code)
-    .bind(&body.body_part)
-    .bind(body.dose_value)
-    .bind(dose_unit)
-    .bind(body.dlp)
-    .bind(body.ctdi_vol)
-    .bind(body.dap)
-    .bind(body.fluoroscopy_time_seconds)
-    .bind(claims.sub)
-    .fetch_one(&mut *tx)
-    .await?;
-
-    tx.commit().await?;
-    Ok(Json(record))
-}
 
 // ══════════════════════════════════════════════════════════
 //  GET /api/radiology/appointments — list scheduled orders
@@ -2410,7 +2238,7 @@ pub fn router() -> axum::Router<AppState> {
         )
         .route(
             "/api/radiology/cumulative-dose",
-            get(cumulative_dose),
+            get(dose::cumulative_dose),
         )
         .route(
             "/api/radiology/orders/{id}",
@@ -2434,7 +2262,15 @@ pub fn router() -> axum::Router<AppState> {
         )
         .route(
             "/api/radiology/orders/{id}/dose",
-            post(record_dose),
+            post(dose::record_dose),
+        )
+        .route(
+            "/api/radiology/dose-records/{id}/entered-in-error",
+            post(dose::mark_dose_entered_in_error),
+        )
+        .route(
+            "/api/radiology/patients/{patient_id}/dose-records",
+            get(dose::list_patient_dose_records),
         )
         .route(
             "/api/radiology/reports/{id}/verify",

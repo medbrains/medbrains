@@ -367,6 +367,8 @@ pub mod links {
     pub const TOKEN: ParentLink = ParentLink::on_patient("tokens");
 
     pub const RADIOLOGY_ORDER: ParentLink = ParentLink::on_patient("radiology_orders");
+    /// A recorded radiation dose, on its patient.
+    pub const RADIATION_DOSE_RECORD: ParentLink = ParentLink::on_patient("radiation_dose_records");
     /// A PACS study, and a critical imaging finding, each on its patient.
     pub const RADIOLOGY_DICOM_STUDY: ParentLink = ParentLink::on_patient("radiology_dicom_studies");
     pub const RADIOLOGY_CRITICAL_ALERT: ParentLink =
