@@ -14,6 +14,8 @@ mod resources;
 pub mod sections;
 
 #[cfg(test)]
+mod golden;
+#[cfg(test)]
 mod records_tests;
 #[cfg(test)]
 mod tests;
@@ -241,7 +243,10 @@ fn identifier(kind: (&str, &str, &str), system: &str, value: &str) -> Value {
             "system": system, "value": value })
 }
 
-fn practitioner(p: &Party) -> Value {
+/// The NRCeS `Practitioner`: HPR ID where known, else our staff ID. NHCX
+/// bundles name their doctor the same way.
+#[must_use]
+pub fn practitioner(p: &Party) -> Value {
     let id = p.id.to_string();
     let ident = p.registry_id.as_deref().map_or_else(
         || identifier((V2_0203, "EI", "Employee number"), STAFF_SYSTEM, &id),
@@ -253,7 +258,9 @@ fn practitioner(p: &Party) -> Value {
     })
 }
 
-fn organization(o: &Party) -> Value {
+/// The NRCeS `Organization`: HFR ID where known, else our facility ID.
+#[must_use]
+pub fn organization(o: &Party) -> Value {
     let id = o.id.to_string();
     let ident = o.registry_id.as_deref().map_or_else(
         || {
@@ -272,7 +279,8 @@ fn organization(o: &Party) -> Value {
 }
 
 /// The NRCeS Patient: the read API's Patient with each identifier typed.
-fn patient(p: &PatientView) -> Value {
+#[must_use]
+pub fn patient(p: &PatientView) -> Value {
     let mut patient = serde_json::to_value(patient_to_fhir(p)).unwrap_or(Value::Null);
     patient["resourceType"] = json!("Patient");
     patient["meta"] = profile("Patient");

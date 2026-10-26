@@ -158,8 +158,7 @@ async fn queue_task(
     let bundle = task_bundle(
         &spec.ask,
         &TaskParties {
-            hospital_name: &provider.name,
-            hfr_id: provider.hfr_facility_id.as_deref(),
+            provider: &provider,
             payer_name: &payer_name,
             payer_code: spec.recipient,
         },

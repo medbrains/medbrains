@@ -8,6 +8,7 @@ use sqlx::FromRow;
 use uuid::Uuid;
 
 use medbrains_core::nhcx::{NhcxOperation, NhcxRecord};
+use medbrains_fhir::nrces::Party;
 use medbrains_server_core::error::AppError;
 use medbrains_server_core::middleware::auth::Claims;
 
@@ -203,6 +204,8 @@ pub(crate) async fn load_policy(
 /// campus first).
 #[derive(Debug, FromRow)]
 pub(crate) struct ProviderParty {
+    /// The facility's id, or the tenant's when no campus is registered.
+    pub(crate) id: Uuid,
     pub(crate) name: String,
     pub(crate) hfr_facility_id: Option<String>,
 }
@@ -214,7 +217,7 @@ pub(crate) async fn load_provider(
     tenant_id: Uuid,
 ) -> Result<ProviderParty, AppError> {
     let facility = sqlx::query_as::<_, ProviderParty>(
-        "SELECT name, hfr_facility_id FROM facilities \
+        "SELECT id, name, hfr_facility_id FROM facilities \
          WHERE tenant_id = $1 AND deleted_at IS NULL AND hfr_facility_id IS NOT NULL \
          ORDER BY (parent_id IS NULL) DESC, (facility_type = 'main_hospital') DESC, created_at \
          LIMIT 1",
@@ -230,22 +233,23 @@ pub(crate) async fn load_provider(
         .fetch_one(&mut **tx)
         .await?;
     Ok(ProviderParty {
+        id: tenant_id,
         name,
         hfr_facility_id: None,
     })
 }
 
-/// The treating doctor's name and HPR id, when known.
+/// A staff member as a bundle names them: name, and HPR id when known.
 pub(crate) async fn load_doctor(
     tx: &mut Tx<'_>,
     tenant_id: Uuid,
     user_id: Option<Uuid>,
-) -> Result<Option<(String, Option<String>)>, AppError> {
+) -> Result<Option<Party>, AppError> {
     let Some(user_id) = user_id else {
         return Ok(None);
     };
-    Ok(sqlx::query_as(
-        "SELECT COALESCE(d.display_name, u.full_name), d.hpr_id \
+    let row: Option<(Uuid, String, Option<String>)> = sqlx::query_as(
+        "SELECT u.id, COALESCE(d.display_name, u.full_name), d.hpr_id \
          FROM users u LEFT JOIN doctor_profiles d \
            ON d.user_id = u.id AND d.tenant_id = u.tenant_id AND d.deleted_at IS NULL \
          WHERE u.id = $1 AND u.tenant_id = $2",
@@ -253,7 +257,12 @@ pub(crate) async fn load_doctor(
     .bind(user_id)
     .bind(tenant_id)
     .fetch_optional(&mut **tx)
-    .await?)
+    .await?;
+    Ok(row.map(|(id, name, registry_id)| Party {
+        id,
+        name,
+        registry_id,
+    }))
 }
 
 const DIAGNOSIS_COLUMNS: &str = "d.icd_code, d.icd_system::text AS icd_system, d.description, \

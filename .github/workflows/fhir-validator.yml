@@ -1,0 +1,80 @@
+name: FHIR validator
+
+# The official HL7 validator over the bundles our builders produce — the 8
+# ABDM hiTypes and the NHCX messages — against the NRCeS IG ndhm.in#6.5.0,
+# both pinned by sha256 in medbrains/scripts/check_fhir_validator.py.
+#
+# PRs that touch FHIR or NHCX code run offline (`-tx n/a`); the nightly run
+# also checks codes against tx.fhir.org. Every bundle is synthetic test data,
+# so nothing real leaves CI. Java is installed here only: it never ships in
+# the product.
+
+on:
+  pull_request:
+    branches: [master, main]
+    paths:
+      - "medbrains/crates/medbrains-fhir/**"
+      - "medbrains/crates/medbrains-fhir-api/**"
+      - "medbrains/crates/medbrains-facilities/src/nhcx_*"
+      - "medbrains/crates/medbrains-core/src/nhcx*"
+      - "medbrains/scripts/check_fhir_validator.py"
+      - "medbrains/scripts/fhir_validator_allowlist.json"
+      - ".github/workflows/fhir-validator.yml"
+  schedule:
+    - cron: "30 21 * * *" # 03:00 IST
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+  SQLX_OFFLINE: true
+
+jobs:
+  validate:
+    name: HL7 validator (ndhm.in 6.5.0)
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    defaults:
+      run:
+        working-directory: medbrains
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            medbrains/target
+          key: ${{ runner.os }}-cargo-fhir-${{ hashFiles('medbrains/**/Cargo.lock') }}
+      # The validator jar, the IG package and the FHIR core packages the
+      # validator pulls in; the script re-checks the pinned hashes.
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/medbrains-fhir
+            ~/.fhir/packages
+          key: fhir-validator-6.3.11-ndhm.in-6.5.0
+      - name: Validate (offline terminology)
+        if: github.event_name == 'pull_request'
+        run: python3 scripts/check_fhir_validator.py
+      - name: Validate (tx.fhir.org)
+        if: github.event_name != 'pull_request'
+        run: python3 scripts/check_fhir_validator.py --tx https://tx.fhir.org/r4
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: fhir-validator-report
+          path: |
+            medbrains/target/fhir-validator-report.json
+            medbrains/target/fhir-golden/
