@@ -200,6 +200,19 @@ struct CreateVitalsPayload: Encodable {
     var respiratoryRate: Int?
     var spo2: Int?
     var notes: String?
+    // What the early-warning score needs beyond the classic vitals
+    // (`EarlyWarning.Inputs`); blank is not charted, never normal.
+    var consciousness: String?
+    var oxygenDevice: String?
+    var oxygenFlowLpm: Double?
+    var fio2Percent: Int?
+    var capillaryRefillSeconds: Double?
+    var respiratoryDistress: String?
+}
+
+/// The reading as charted, with the score the server gave it.
+struct CreatedVitals: Decodable, Sendable {
+    let ews: EarlyWarning.Score
 }
 
 struct CreateIoEntryPayload: Encodable {
@@ -288,7 +301,7 @@ struct NurseApi: Sendable {
         try await client.request(.put, "/api/ipd/transfusions/\(id)/complete", body: CompleteBody(totalVolumeInfusedMl: nil))
     }
 
-    func createVitals(_ p: CreateVitalsPayload) async throws -> Empty { try await client.request(.post, "/api/nurse/vitals", body: p) }
+    func createVitals(_ p: CreateVitalsPayload) async throws -> CreatedVitals { try await client.request(.post, "/api/nurse/vitals", body: p) }
     func createIoEntry(_ p: CreateIoEntryPayload) async throws -> Empty { try await client.request(.post, "/api/nurse/io-entries", body: p) }
     func ioBalance(_ encounterId: String) async throws -> IoBalance { try await client.request(.get, "/api/nurse/io-entries/encounter/\(encounterId)/balance?since_hours=8") }
     func createPain(_ p: CreatePainEntryPayload) async throws -> Empty { try await client.request(.post, "/api/nurse/pain-entries", body: p) }

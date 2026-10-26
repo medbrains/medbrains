@@ -278,6 +278,11 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
             permissions::care_view::DISCHARGE_TRACKER,
             permissions::care_view::scores::LIST,
             permissions::care_view::scores::RECORD,
+            // A doctor responds to early-warning escalations and prescribes
+            // SpO2 Scale 2 (RCP NEWS2: a clinical decision maker's call).
+            permissions::nurse::ews::VIEW,
+            permissions::nurse::ews::ACKNOWLEDGE,
+            permissions::nurse::ews::PLAN,
             // Chronic Care
             permissions::chronic::programs::LIST,
             permissions::chronic::enrollments::LIST,
@@ -579,6 +584,9 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
             permissions::doctor::signoffs::VERBAL_REGISTER,
             permissions::nurse::vitals::VIEW,
             permissions::nurse::vitals::RECORD,
+            // The score charted with each reading, and answering its escalation.
+            permissions::nurse::ews::VIEW,
+            permissions::nurse::ews::ACKNOWLEDGE,
             // Nurses give most vaccines and record the dose and lot.
             permissions::patients::immunizations::RECORD,
             permissions::nurse::intake_output::VIEW,

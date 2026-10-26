@@ -3691,6 +3691,30 @@ pub mod nurse {
         pub const VIEW: &str = "nurse.vitals.view";
         pub const RECORD: &str = "nurse.vitals.record";
     }
+    /// Early-warning scores (NEWS2, PEWS, MEOWS) computed from charted vitals.
+    pub mod ews {
+        /// See early-warning scores and escalations.
+        ///
+        /// The score charted with each vitals reading, its trend, when the
+        /// next observations are due, and the ward's open escalations.
+        pub const VIEW: &str = "nurse.ews.view";
+        /// Acknowledge an early-warning escalation.
+        ///
+        /// Record the response to an urgent or emergency score — who
+        /// responded and what was done — which stops it escalating further.
+        pub const ACKNOWLEDGE: &str = "nurse.ews.acknowledge";
+        /// Set a patient's early-warning scoring plan.
+        ///
+        /// Prescribe SpO2 Scale 2 for hypercapnic respiratory failure, or
+        /// choose the scoring tool. RCP NEWS2 requires a clinical decision
+        /// maker to prescribe Scale 2.
+        pub const PLAN: &str = "nurse.ews.plan";
+        /// Set the hospital's early-warning policy.
+        ///
+        /// Observation frequency per score band, which bands escalate, and
+        /// how long an escalation may wait for acknowledgement.
+        pub const POLICY: &str = "nurse.ews.policy";
+    }
     pub mod intake_output {
         pub const VIEW: &str = "nurse.intake_output.view";
         pub const RECORD: &str = "nurse.intake_output.record";

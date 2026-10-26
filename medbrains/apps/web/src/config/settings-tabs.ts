@@ -49,6 +49,7 @@ import { DepartmentsSettings } from "@/pages/admin/settings/DepartmentsSettings"
 import { DeviceIntegrationsSettings } from "@/pages/admin/settings/DeviceIntegrationsSettings";
 import { DiagnosisCodingSettings } from "@/pages/admin/settings/DiagnosisCodingSettings";
 import { DrugInteractionsSettings } from "@/pages/admin/settings/DrugInteractionsSettings";
+import { EwsPolicySettings } from "@/pages/admin/settings/EwsPolicySettings";
 import { FacilitiesSettings } from "@/pages/admin/settings/FacilitiesSettings";
 import { GeneralSettings } from "@/pages/admin/settings/GeneralSettings";
 import { GeoSettings } from "@/pages/admin/settings/GeoSettings";
@@ -362,6 +363,13 @@ export const SETTINGS_TABS: SettingsTabConfig[] = [
     icon: "IconAlertTriangle",
     requiredPermissions: ["admin.settings.general.manage", "opd.queue.view"],
     component: DrugInteractionsSettings,
+  },
+  {
+    value: "early-warning",
+    i18nKey: "settings.earlyWarning",
+    icon: "IconHeartRateMonitor",
+    requiredPermission: "nurse.ews.policy",
+    component: EwsPolicySettings,
   },
   {
     value: "critical-values",

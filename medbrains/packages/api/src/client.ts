@@ -25,6 +25,7 @@ import type {
   AccessLogEntry,
   AccessLogQuery,
   AcknowledgeAlertRequest,
+  AcknowledgeEwsRequest,
   ActivateOrderSetRequest,
   ActivationResult,
   ActivationWithItems,
@@ -572,6 +573,7 @@ import type {
   CreateDrugInteractionRequest,
   CreateDrugScreenRequest,
   CreatedApiKey,
+  CreatedVital,
   CreateEmergencyPoRequest,
   CreateEmployeeRequest,
   CreateEncounterRequest,
@@ -1062,6 +1064,9 @@ import type {
   EventListResponse,
   EventSchema,
   EvidenceCompilation,
+  EwsEscalation,
+  EwsPlan,
+  EwsPolicy,
   ExamHallTicketPrintData,
   // Billing Phase 3
   ExchangeRate,
@@ -1977,6 +1982,7 @@ import type {
   ScopeStatus,
   ScoreAppointmentRequest,
   ScoreBatchRequest,
+  ScoredVital,
   SearchClinicalCorpusParams,
   SearchTerminologyParams,
   SecureTenantSettingRow,
@@ -2005,6 +2011,7 @@ import type {
   SetCampusFenceRequest,
   SetDiagnosisCodingRequest,
   SetDonorDeferralRequest,
+  SetEwsPlanRequest,
   SetHprRequest,
   SetKeys,
   SettleDayRequest,
@@ -4850,12 +4857,30 @@ export const api = {
       body: JSON.stringify(data),
     }),
   createNurseVital: (data: CreateVitalRequest & { encounter_id: string }) =>
-    request<Vital>("/nurse/vitals", {
+    request<CreatedVital>("/nurse/vitals", {
       method: "POST",
       body: JSON.stringify(data),
     }),
   listNurseVitals: (encounterId: string) =>
-    request<Vital[]>(`/nurse/vitals/encounter/${encounterId}`),
+    request<ScoredVital[]>(`/nurse/vitals/encounter/${encounterId}`),
+  listEwsEscalations: (params?: { status?: "open" | "acknowledged" | "all"; ward_id?: string }) => {
+    const qs = params ? `?${new URLSearchParams(params as Record<string, string>)}` : "";
+    return request<EwsEscalation[]>(`/nurse/ews/escalations${qs}`);
+  },
+  acknowledgeEwsEscalation: (id: string, data: AcknowledgeEwsRequest) =>
+    request<EwsEscalation>(`/nurse/ews/escalations/${id}/acknowledge`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
+  getEwsPlan: (encounterId: string) => request<EwsPlan>(`/nurse/ews/plan/${encounterId}`),
+  setEwsPlan: (encounterId: string, data: SetEwsPlanRequest) =>
+    request<EwsPlan>(`/nurse/ews/plan/${encounterId}`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
+  getEwsPolicy: () => request<EwsPolicy>("/nurse/ews/policy"),
+  setEwsPolicy: (data: EwsPolicy) =>
+    request<EwsPolicy>("/nurse/ews/policy", { method: "PUT", body: JSON.stringify(data) }),
   getConsultation: (encounterId: string) =>
     request<Consultation>(`/opd/encounters/${encounterId}/consultation`),
   listDiagnoses: (encounterId: string) =>

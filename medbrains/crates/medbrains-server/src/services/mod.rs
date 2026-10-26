@@ -13,6 +13,7 @@ pub mod bridge_pusher;
 pub mod calibration_lock;
 pub mod critical_alert_escalation;
 pub mod enquiry_sla_escalation;
+pub mod ews_escalation;
 pub mod marketing_message_status;
 // Moved to medbrains-server-core; re-exported so crate::services::notification_hub still resolves.
 pub use medbrains_server_core::notification_hub;

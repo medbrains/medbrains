@@ -196,6 +196,8 @@ mod patient_portal_isolation_test;
 mod patient_refill_requests_test;
 mod patient_visit_count_test;
 mod payer_split_test;
+mod ews_auto_score_test;
+mod ews_plan_policy_test;
 mod claim_settlement_test;
 mod claim_settlement_backfill_test;
 mod payment_links_test;

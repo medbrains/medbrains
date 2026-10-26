@@ -16,6 +16,7 @@ pub mod child_pugh;
 pub mod ciwa_ar;
 pub mod cpot;
 pub mod curb65;
+pub mod ews;
 pub mod gcs;
 pub mod glasgow_blatchford;
 pub mod has_bled;

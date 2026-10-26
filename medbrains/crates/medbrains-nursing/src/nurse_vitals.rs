@@ -49,15 +49,20 @@ pub struct CreateVitalsReadingRequest {
     pub weight_kg: Option<Decimal>,
     pub height_cm: Option<Decimal>,
     pub notes: Option<String>,
+    /// ACVPU, oxygen, capillary refill, respiratory distress — what the
+    /// early-warning scores need beyond the classic vitals.
+    #[serde(flatten)]
+    pub scoring: crate::nurse_ews::ScoringInputs,
 }
 
 pub async fn create_vitals_reading(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
     Json(body): Json<CreateVitalsReadingRequest>,
-) -> Result<Json<Vital>, AppError> {
+) -> Result<Json<crate::nurse_ews::CreatedVital>, AppError> {
     require_permission(&claims, permissions::nurse::vitals::RECORD)?;
     require_encounter_access(&state, &claims, body.encounter_id).await?;
+    let sc = &body.scoring;
 
     let bmi = match (body.weight_kg, body.height_cm) {
         (Some(weight), Some(height)) if height > Decimal::ZERO => {
@@ -74,8 +79,11 @@ pub async fn create_vitals_reading(
         "INSERT INTO vitals \
          (tenant_id, encounter_id, recorded_by, temperature, pulse, \
           systolic_bp, diastolic_bp, respiratory_rate, spo2, \
-          weight_kg, height_cm, bmi, notes, recorded_at) \
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, now()) \
+          weight_kg, height_cm, bmi, notes, recorded_at, \
+          consciousness, oxygen_device, oxygen_flow_lpm, fio2_percent, \
+          capillary_refill_seconds, respiratory_distress) \
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, now(), \
+                 $14, $15, $16, $17, $18, $19) \
          RETURNING *",
     )
     .bind(claims.tenant_id)
@@ -91,6 +99,15 @@ pub async fn create_vitals_reading(
     .bind(body.height_cm)
     .bind(bmi)
     .bind(&body.notes)
+    .bind(sc.consciousness.map(|c| crate::nurse_ews::enum_text(&c)))
+    .bind(sc.oxygen_device.map(|d| crate::nurse_ews::enum_text(&d)))
+    .bind(sc.oxygen_flow_lpm)
+    .bind(sc.fio2_percent)
+    .bind(sc.capillary_refill_seconds)
+    .bind(
+        sc.respiratory_distress
+            .map(|d| crate::nurse_ews::enum_text(&d)),
+    )
     .fetch_one(&mut *tx)
     .await?;
 
@@ -104,22 +121,42 @@ pub async fn create_vitals_reading(
     .execute(&mut *tx)
     .await?;
 
+    let observed = crate::nurse_ews::Vitals {
+        temperature: body.temperature,
+        pulse: body.pulse,
+        systolic_bp: body.systolic_bp,
+        diastolic_bp: body.diastolic_bp,
+        respiratory_rate: body.respiratory_rate,
+        spo2: body.spo2,
+    };
+    let obs = crate::nurse_ews::observation(&observed, sc);
+    let (ews, outgoing) = crate::nurse_ews::score_reading(
+        &mut tx,
+        (claims.tenant_id, claims.sub),
+        (body.encounter_id, row.id),
+        &obs,
+    )
+    .await?;
+
     tx.commit().await?;
-    Ok(Json(row))
+    for (id, n) in &outgoing {
+        medbrains_notifications::publish_notification(&state, claims.tenant_id, *id, &n.borrow());
+    }
+    Ok(Json(crate::nurse_ews::CreatedVital { vital: row, ews }))
 }
 
 pub async fn list_vitals_for_encounter(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
     Path(encounter_id): Path<Uuid>,
-) -> Result<Json<Vec<Vital>>, AppError> {
+) -> Result<Json<Vec<crate::nurse_ews::ScoredVital>>, AppError> {
     require_permission(&claims, permissions::nurse::vitals::VIEW)?;
     require_encounter_access(&state, &claims, encounter_id).await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
-    let rows = sqlx::query_as::<_, Vital>(
+    let rows = sqlx::query_as::<_, crate::nurse_ews::ScoredVital>(
         "SELECT * FROM vitals WHERE tenant_id = $1 AND encounter_id = $2 AND deleted_at IS NULL \
          ORDER BY recorded_at DESC LIMIT 200",
     )
@@ -446,7 +483,10 @@ pub async fn create_pain_entry(
     .bind(body.recheck_due_at)
     .bind(&body.notes)
     .bind(&body.location_code)
-    .bind(body.location_laterality.map(medbrains_core::body_site::Laterality::as_str))
+    .bind(
+        body.location_laterality
+            .map(medbrains_core::body_site::Laterality::as_str),
+    )
     .fetch_one(&mut *tx)
     .await?;
 

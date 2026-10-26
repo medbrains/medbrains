@@ -1,5 +1,6 @@
 // Dashboard widget builder types — split from index.ts, barrel-re-exported.
 
+import type { EwsReadingFields, EwsScoringInputs, EwsView } from "./early-warning";
 import type { Admission, CreatePoItemInput } from "./index";
 import type { AppointmentStatus, AppointmentType, RxOrderMode } from "./medication-timing";
 
@@ -1647,7 +1648,15 @@ export interface Vital {
   created_at: string;
 }
 
-export interface CreateVitalRequest {
+/** A nursing reading with the early-warning score charted with it. */
+export interface ScoredVital extends Vital, EwsReadingFields {}
+
+/** `POST /nurse/vitals`: the reading and its score. */
+export interface CreatedVital extends Vital {
+  ews: EwsView;
+}
+
+export interface CreateVitalRequest extends EwsScoringInputs {
   temperature?: number;
   pulse?: number;
   systolic_bp?: number;
