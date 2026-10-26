@@ -102,6 +102,21 @@ pub async fn link_booking_consent(
     .bind(claims.tenant_id)
     .execute(&mut *tx)
     .await?;
+    // The booking's flag is what the list, the board and the checklist read.
+    // Unlinking cleared it, but linking never set it, so a booking with its
+    // signed consent attached still showed "consent pending".
+    if booking_consent_gap(&mut tx, claims.tenant_id, booking_id)
+        .await?
+        .is_none()
+    {
+        sqlx::query(
+            "UPDATE ot_bookings SET consent_obtained = true WHERE id = $1 AND tenant_id = $2",
+        )
+        .bind(booking_id)
+        .bind(claims.tenant_id)
+        .execute(&mut *tx)
+        .await?;
+    }
     let values = serde_json::json!({ "consent_id": body.consent_id });
     audit(&mut tx, &claims, "ot.consent.linked", booking_id, &values).await?;
 
