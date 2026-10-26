@@ -357,6 +357,8 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
             permissions::radiology::orders::VIEW,
             permissions::radiology::reports::CREATE,
             permissions::radiology::reports::VERIFY,
+            // A radiologist screening under fluoroscopy records its dose.
+            permissions::radiology::dose::RECORD,
             permissions::specialty::cath_lab::devices::MANAGE,
             permissions::specialty::cath_lab::stemi::MANAGE,
             permissions::specialty::dental::chart::CREATE,
@@ -1651,6 +1653,8 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
             // The radiology desk cancels orders it cannot perform, whoever
             // placed them; a doctor cancels only their own.
             permissions::radiology::orders::CANCEL_ANY,
+            // The radiographer who ran the exam records the dose given.
+            permissions::radiology::dose::RECORD,
         ],
     },
     BuiltInRole {

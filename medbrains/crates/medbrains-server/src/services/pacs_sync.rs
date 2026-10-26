@@ -12,6 +12,8 @@ use std::time::Duration;
 
 use medbrains_core::secrets::SecretResolver;
 use medbrains_outbox::handlers::pacs_target::{self, Policy, Target};
+use medbrains_radiology::dose::{CapturedStudy, store_captured};
+use medbrains_radiology::dose_capture;
 use serde_json::Value;
 use sqlx::PgPool;
 use uuid::Uuid;
@@ -201,7 +203,7 @@ async fn link_study(
     };
     let study_date = chrono::NaiveDate::parse_from_str(&text("StudyDate"), "%Y%m%d").ok();
     let viewer = format!("{}/ohif/viewer?StudyInstanceUIDs={uid}", pacs.target.base);
-    sqlx::query(
+    let study_row: Uuid = sqlx::query_scalar(
         "INSERT INTO radiology_dicom_studies \
            (tenant_id, order_id, patient_id, study_instance_uid, accession_number, modality, \
             study_date, study_description, instance_count, series_count, orthanc_id, pacs_url, \
@@ -210,7 +212,8 @@ async fn link_study(
          ON CONFLICT (tenant_id, study_instance_uid) DO UPDATE SET \
            instance_count = EXCLUDED.instance_count, series_count = EXCLUDED.series_count, \
            file_size_bytes = EXCLUDED.file_size_bytes, updated_at = now(), \
-           deleted_at = NULL, deleted_by = NULL, delete_reason = NULL",
+           deleted_at = NULL, deleted_by = NULL, delete_reason = NULL \
+         RETURNING id",
     )
     .bind(tenant_id)
     .bind(order.id)
@@ -226,7 +229,7 @@ async fn link_study(
     .bind(&pacs.target.base)
     .bind(&viewer)
     .bind(count("DiskSize"))
-    .execute(&mut *tx)
+    .fetch_one(&mut *tx)
     .await?;
     // The images are in: the exam is done, and the radiologist can report it.
     sqlx::query(
@@ -243,5 +246,76 @@ async fn link_study(
     .execute(&mut *tx)
     .await?;
     tx.commit().await?;
+    // The dose is a second reading of the same study. Failing it must not
+    // unlink the images, so it is reported and left for manual entry.
+    let study = CapturedStudy {
+        tenant_id,
+        order_id: order.id,
+        patient_id: order.patient_id,
+        dicom_study_id: study_row,
+        modality: &order.modality,
+    };
+    if let Err(error) = capture_dose(pool, pacs, orthanc_id, &study).await {
+        tracing::warn!(%tenant_id, orthanc_id, %error, "dose not read from the PACS; enter it on the order");
+    }
     Ok(true)
+}
+
+/// Series and images read per study for its dose; a study bigger than this
+/// still gets its RDSR, which is one object.
+const MAX_SERIES: usize = 32;
+const MAX_PROJECTION_IMAGES: usize = 50;
+const MAX_SR_PER_SERIES: usize = 4;
+
+/// Read the dose for a linked study: its RDSR when the scanner sent one,
+/// otherwise the image headers.
+async fn capture_dose(
+    pool: &PgPool,
+    pacs: &Pacs,
+    orthanc_id: &str,
+    study: &CapturedStudy<'_>,
+) -> Result<bool, AppError> {
+    let series = pacs.get(&format!("/studies/{orthanc_id}/series")).await?;
+    let mut headers: Vec<(String, Value)> = Vec::new();
+    let (mut dose, mut source) = (None, "dicom_header");
+    for s in series.as_array().into_iter().flatten().take(MAX_SERIES) {
+        let modality = s["MainDicomTags"]["Modality"]
+            .as_str()
+            .unwrap_or_default()
+            .to_owned();
+        let instances: Vec<&str> = s["Instances"]
+            .as_array()
+            .into_iter()
+            .flatten()
+            .filter_map(Value::as_str)
+            .collect();
+        let take = match modality.as_str() {
+            "SR" => MAX_SR_PER_SERIES,
+            m if dose_capture::is_projection(m) => MAX_PROJECTION_IMAGES,
+            _ => 1,
+        };
+        for instance in instances.into_iter().take(take) {
+            let tags = pacs
+                .get(&format!("/instances/{instance}/tags?simplify"))
+                .await?;
+            if let Some(found) = dose_capture::from_rdsr(&tags) {
+                (dose, source) = (Some(found), "rdsr");
+                break;
+            }
+            if modality != "SR" {
+                headers.push((modality.clone(), tags));
+            }
+        }
+        if dose.is_some() {
+            break;
+        }
+    }
+    let dose = dose.unwrap_or_else(|| {
+        dose_capture::from_headers(headers.iter().map(|(m, t)| (m.as_str(), t)))
+    });
+    let mut tx = pool.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &study.tenant_id).await?;
+    let written = store_captured(&mut tx, study, &dose, source).await?;
+    tx.commit().await?;
+    Ok(written)
 }

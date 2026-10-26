@@ -148,6 +148,14 @@ pub struct RadiationDoseRecord {
     pub ctdi_vol: Option<Decimal>,
     pub dap: Option<Decimal>,
     pub fluoroscopy_time_seconds: Option<i32>,
+    /// Radiographs: how many exposures were taken.
+    pub exposure_count: Option<i32>,
+    pub kvp: Option<Decimal>,
+    pub mas: Option<Decimal>,
+    /// `manual`, `rdsr` (the scanner's dose report) or `dicom_header`.
+    pub source: String,
+    /// The PACS study an automatic figure was read from.
+    pub dicom_study_id: Option<Uuid>,
     pub recorded_by: Option<Uuid>,
     pub recorded_at: DateTime<Utc>,
     pub created_at: DateTime<Utc>,

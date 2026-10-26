@@ -1613,6 +1613,7 @@ import type {
   PatientDataSummary,
   PatientDiagnosisRow,
   PatientDocument,
+  PatientDoseRecord,
   PatientDpdpConsent,
   PatientDues,
   PatientFamilyLink,
@@ -6760,6 +6761,13 @@ export const api = {
       method: "POST",
       body: JSON.stringify(data),
     }),
+  markRadiationDoseEnteredInError: (id: string, reason: string) =>
+    request<RadiationDoseRecord>(`/radiology/dose-records/${id}/entered-in-error`, {
+      method: "POST",
+      body: JSON.stringify({ reason }),
+    }),
+  listPatientDoseRecords: (patientId: string) =>
+    request<PatientDoseRecord[]>(`/radiology/patients/${patientId}/dose-records`),
 
   listRadiologyModalities: () => request<RadiologyModality[]>("/radiology/modalities"),
 

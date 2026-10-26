@@ -3274,9 +3274,25 @@ export interface RadiationDoseRecord {
   ctdi_vol: string | null;
   dap: string | null;
   fluoroscopy_time_seconds: number | null;
+  /** Radiographs: how many exposures were taken. */
+  exposure_count: number | null;
+  kvp: string | null;
+  mas: string | null;
+  /** Typed by a person, read from the scanner's dose report, or from image headers. */
+  source: RadiationDoseSource;
+  dicom_study_id: string | null;
+  /** Null when the PACS sync read it. */
   recorded_by: string | null;
   recorded_at: string;
   created_at: string;
+}
+
+export type RadiationDoseSource = "manual" | "rdsr" | "dicom_header";
+
+/** One exam's dose in the patient's history. */
+export interface PatientDoseRecord extends RadiationDoseRecord {
+  accession_number: string | null;
+  exam: string | null;
 }
 
 export interface RadiologyOrderListResponse {
@@ -3356,14 +3372,21 @@ export interface UpdateModalityRequest {
 }
 
 export interface RecordDoseRequest {
-  modality_code: string;
+  /** Defaults to the order's modality. */
+  modality_code?: string;
   body_part?: string;
   dose_value?: number;
   dose_unit?: string;
+  /** mGy·cm */
   dlp?: number;
+  /** mGy */
   ctdi_vol?: number;
+  /** Gy·cm² */
   dap?: number;
   fluoroscopy_time_seconds?: number;
+  exposure_count?: number;
+  kvp?: number;
+  mas?: number;
 }
 
 // ══════════════════════════════════════════════════════════

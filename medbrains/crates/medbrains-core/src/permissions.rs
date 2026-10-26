@@ -1127,6 +1127,18 @@ pub mod radiology {
         pub const MANAGE: &str = "radiology.modalities.manage";
     }
 
+    /// Radiation dose given to a patient during an imaging exam.
+    pub mod dose {
+        /// Record radiation dose on an imaging order.
+        ///
+        /// CTDIvol and DLP for CT, dose-area product and screening time for
+        /// fluoroscopy, exposures and technique for radiographs — entered by
+        /// the radiographer who ran the exam, or marked as entered in error.
+        /// It feeds the patient's cumulative dose, which every new ionising
+        /// order is checked against.
+        pub const RECORD: &str = "radiology.dose.record";
+    }
+
     /// The exams each modality performs ("CT Brain Plain", "USG Abdomen").
     pub mod exams {
         /// Edit the radiology exam catalogue.

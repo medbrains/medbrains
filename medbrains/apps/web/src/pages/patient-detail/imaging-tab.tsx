@@ -6,6 +6,7 @@ import type { RadiologyDicomStudy } from "@medbrains/types";
 import { P } from "@medbrains/types";
 import { IconEye } from "@tabler/icons-react";
 import { useQuery } from "@tanstack/react-query";
+import { PatientDoseHistory } from "@/components/Radiology/PatientDoseHistory";
 import { RadiologyReportList } from "@/components/Radiology/RadiologyReportList";
 import { Badge, Button, Table } from "@/components/ui";
 import { patientDetailService } from "@/services/patientDetail.service";
@@ -30,6 +31,7 @@ export function ImagingTab({ patientId }: { patientId: string }) {
         </Text>
         <RadiologyReportList patientId={patientId} />
       </Stack>
+      <PatientDoseHistory patientId={patientId} />
       {studies.length > 0 && (
         <Table striped highlightOnHover>
           <Table.Thead>
