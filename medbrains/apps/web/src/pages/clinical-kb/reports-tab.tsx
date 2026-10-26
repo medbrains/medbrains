@@ -69,7 +69,7 @@ export function ReportsTab({ canManage, canList }: { canManage: boolean; canList
             render: (r) => (
               <Group gap={6} wrap="nowrap">
                 <Badge tone={r.case_class === "confirmed" ? "danger" : "warning"}>
-                  {r.case_class === "confirmed" ? "L" : "P"}
+                  {r.case_class === "confirmed" ? "L-form" : "P-form"}
                 </Badge>
                 <Text size="sm">
                   {r.case_class === "confirmed" ? "Lab-confirmed" : "Presumptive"}

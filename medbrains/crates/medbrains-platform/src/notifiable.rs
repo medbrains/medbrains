@@ -133,12 +133,27 @@ async fn notify_due(
                 category: Some("Notifiable Disease"),
                 entity_type: Some("notifiable_disease_reports"),
                 entity_id: Some(row.report_id),
-                action_url: Some("/clinical-kb#reports"),
+                action_url: Some(if is_tb(row) {
+                    "/clinical-kb#nikshay"
+                } else {
+                    "/clinical-kb#reports"
+                }),
             },
         )
         .await?;
     }
     Ok(())
+}
+
+/// TB is notified to Ni-kshay on its own form, from its own tab.
+fn is_tb(row: &Detection) -> bool {
+    matches!(
+        row.disease_code.get(..3),
+        Some("A15" | "A16" | "A17" | "A18" | "A19")
+    ) || row
+        .reporting_body
+        .as_deref()
+        .is_some_and(|b| b.to_lowercase().contains("ni-kshay"))
 }
 
 /// The sentence the reporter reads.

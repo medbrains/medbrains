@@ -73,6 +73,73 @@ export interface UpsertNotifiableOverrideRequest {
   notes?: string | null;
 }
 
+export type TbSite = "P" | "EP";
+export type TbPatientType = "new" | "recurrent" | "treatment_change";
+export type TbBasis =
+  | "smear"
+  | "culture"
+  | "pcr"
+  | "lpa"
+  | "fnac"
+  | "histopathology"
+  | "clinical"
+  | "xray";
+
+/** A TB case owed to Ni-kshay, with the details its notification needs. */
+export interface TbCase {
+  report_id: string;
+  patient_id: string | null;
+  uhid: string | null;
+  patient_name: string | null;
+  icd10_code: string;
+  disease_name: string;
+  case_class: "presumptive" | "confirmed";
+  status: string;
+  nikshay_id: string | null;
+  detected_at: string;
+  due_at: string | null;
+  site: TbSite | null;
+  ep_site: string | null;
+  patient_type: TbPatientType | null;
+  basis: TbBasis | null;
+  diagnosed_on: string | null;
+  treatment_started_on: string | null;
+  weight_kg: string | number | null;
+  regimen: string | null;
+  notifying_doctor_id: string | null;
+  notifying_doctor_name: string | null;
+}
+
+export interface SaveTbDetailsRequest {
+  site: TbSite | null;
+  ep_site: string | null;
+  patient_type: TbPatientType | null;
+  basis: TbBasis | null;
+  diagnosed_on: string | null;
+  treatment_started_on: string | null;
+  weight_kg: number | null;
+  regimen: string | null;
+  notifying_doctor_id: string | null;
+}
+
+export interface PublicHealthFacility {
+  name: string;
+  registration_no: string | null;
+  phone: string | null;
+  address: string | null;
+  nikshay_he_code: string | null;
+}
+
+/** The Ni-kshay notification sheet, in the MoHFW hospital format. */
+export interface NikshaySheet {
+  facility: PublicHealthFacility;
+  period_from: string | null;
+  period_to: string | null;
+  columns: string[];
+  rows: string[][];
+  missing: { report_id: string; patient_name: string | null; fields: string[] }[];
+}
+
 export interface UpdateNotifiableReportRequest {
   status: string;
   report_ref?: string;

@@ -8,8 +8,11 @@ use axum::{
 use medbrains_server_core::state::AppState;
 
 pub mod ckb;
+pub mod disclosure;
 pub mod geo;
 pub mod integration;
+pub mod nikshay;
+pub mod nikshay_sheet;
 pub mod notifiable;
 pub mod notifiable_rules;
 pub mod station_handoff;
@@ -65,6 +68,13 @@ pub fn router() -> Router<AppState> {
         .route(
             "/api/ckb/notifiable-reports/{id}",
             put(ckb::update_notifiable_report),
+        )
+        .route("/api/ckb/nikshay", get(nikshay::list_cases))
+        .route("/api/ckb/nikshay/sheet", get(nikshay_sheet::notification_sheet))
+        .route("/api/ckb/nikshay/{report_id}", put(nikshay::save_details))
+        .route(
+            "/api/ckb/facility-codes",
+            get(nikshay_sheet::facility_codes).put(nikshay_sheet::set_facility_codes),
         )
         .route(
             "/api/ckb/notifiable-list",

@@ -22,4 +22,10 @@ export const ckbService = {
   upsertNotifiableOverride: (...args: Parameters<typeof api.upsertNotifiableOverride>) =>
     api.upsertNotifiableOverride(...args),
   deleteNotifiableOverride: (id: string) => api.deleteNotifiableOverride(id),
+  listTbCases: (status?: string) => api.listTbCases(status),
+  saveTbDetails: (...args: Parameters<typeof api.saveTbDetails>) => api.saveTbDetails(...args),
+  getNikshaySheet: () => api.getNikshaySheet(),
+  getPublicHealthFacility: () => api.getPublicHealthFacility(),
+  setPublicHealthFacilityCodes: (...args: Parameters<typeof api.setPublicHealthFacilityCodes>) =>
+    api.setPublicHealthFacilityCodes(...args),
 };
