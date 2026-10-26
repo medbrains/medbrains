@@ -50,13 +50,14 @@ IG = {
 }
 NEGATIVE_DIR = ROOT / "crates/medbrains-fhir/tests/fhir-negative"
 ALLOWLIST = ROOT / "scripts/fhir_validator_allowlist.json"
-# One golden at least per ABDM hiType profile and per NHCX message we send.
+# One golden at least per ABDM hiType profile, per NHCX message we send, and
+# the CapabilityStatement.
 EXPECTED = [
     "-OPConsultRecord", "-PrescriptionRecord", "-DiagnosticReportRecord",
     "-DischargeSummaryRecord", "-ImmunizationRecord", "-WellnessRecord",
     "-HealthDocumentRecord", "-InvoiceRecord",
     "nhcx-eligibility", "nhcx-preauth", "nhcx-claim", "nhcx-task-search", "nhcx-task-reprocess",
-    "nhcx-task-payment-ack", "nhcx-communication",
+    "nhcx-task-payment-ack", "nhcx-communication", "capability-statement",
 ]
 FILE_EXT = "http://hl7.org/fhir/StructureDefinition/operationoutcome-file"
 
@@ -89,6 +90,7 @@ def emit_goldens(out: Path) -> None:
         ["cargo", "test", "-q", "-p", "medbrains-fhir", "--lib", "nrces::"],
         ["cargo", "test", "-q", "-p", "medbrains-facilities", "--lib", "nhcx_golden"],
         ["cargo", "test", "-q", "-p", "medbrains-nhcx-callback", "--lib", "payment_ack"],
+        ["cargo", "test", "-q", "-p", "medbrains-fhir-api", "--lib", "capability"],
     ]
     guard = ROOT / "scripts/build_guard.sh"
     for cmd in runs:
@@ -191,8 +193,15 @@ def main() -> int:
         return 1
 
     report = out.parent / "fhir-validator-report.json"
-    cmd = ["java", "-jar", str(jar), *map(str, bundles), "-version", "4.0.1",
-           "-ig", str(ig), "-tx", args.tx, "-output", str(report)]
+    report.unlink(missing_ok=True)
+    # A fresh temp dir per run: the validator keeps its terminology cache under
+    # java.io.tmpdir, shared machine-wide, and a tx.fhir.org session id cached
+    # there by an earlier run expires and then reads as errors.
+    tmp = out.parent / "fhir-validator-tmp"
+    shutil.rmtree(tmp, ignore_errors=True)
+    tmp.mkdir(parents=True)
+    cmd = ["java", f"-Djava.io.tmpdir={tmp}", "-jar", str(jar), *map(str, bundles),
+           "-version", "4.0.1", "-ig", str(ig), "-tx", args.tx, "-output", str(report)]
     print(f"validating {len(bundles)} bundles ({len(goldens)} golden), tx={args.tx}")
     subprocess.run(cmd, check=False, stdout=subprocess.DEVNULL)
     if not report.exists():

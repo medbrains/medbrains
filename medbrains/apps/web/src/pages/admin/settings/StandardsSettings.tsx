@@ -25,6 +25,7 @@ import {
 import { useQuery } from "@tanstack/react-query";
 import { useMemo } from "react";
 import { Alert, Badge, type BadgeTone, Button } from "@/components/ui";
+import { fhirGuide } from "@/lib/fhir-capability";
 import { clinicalSupportService } from "@/services/clinicalSupport.service";
 import { labCatalogService } from "@/services/labCatalog.service";
 import { pharmacyCatalogService } from "@/services/pharmacyCatalog.service";
@@ -220,6 +221,7 @@ export function StandardsSettings() {
 
   const standards = useMemo<StandardCard[]>(() => {
     const resources = fhirResources(fhirQuery.data);
+    const guide = fhirGuide(fhirQuery.data);
     const fhirStatus: ReadinessStatus = fhirQuery.isLoading
       ? "loading"
       : fhirQuery.isError
@@ -301,9 +303,12 @@ export function StandardsSettings() {
         title: "FHIR R4 EHR Exchange",
         standard: "HL7 FHIR R4 4.0.1 / ABDM profile surface",
         status: fhirStatus,
-        metric: resources.length > 0 ? resources.join(", ") : "No resources",
+        metric: [
+          resources.length > 0 ? resources.join(", ") : "No resources",
+          guide ? `IG ${guide}` : "No implementation guide declared",
+        ].join(" · "),
         description:
-          "CapabilityStatement should advertise Patient, Encounter, Observation, DiagnosticReport and Patient/$everything for EHR exchange clients.",
+          "The public CapabilityStatement advertises Patient, Encounter, Observation, DiagnosticReport, Composition and Patient/$everything, and the NRCeS implementation guide the ABDM records follow.",
         actionLabel: "Open metadata",
         actionHref: "/api/fhir/metadata",
       },
