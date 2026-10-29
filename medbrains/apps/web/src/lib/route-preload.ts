@@ -35,6 +35,7 @@ const routePreloaders: Record<string, RoutePreloader> = {
   "/reports/nabh": () => import("@/pages/admin/nabh-indicators"),
   "/audit": () => import("@/pages/audit"),
   "/regulatory": () => import("@/pages/regulatory"),
+  "/privacy-compliance": () => import("@/pages/privacy-compliance/PrivacyCompliancePage"),
   "/order-sets": () => import("@/pages/order-sets"),
   "/chronic-care": () => import("@/pages/chronic-care"),
   "/occupational-health": () => import("@/pages/occupational-health"),

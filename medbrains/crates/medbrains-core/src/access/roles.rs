@@ -1242,6 +1242,8 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
         name: "Audit Officer",
         description: "Audit & compliance — read-only access across modules",
         permissions: &[
+            // Read-only: the privacy pack and its gaps.
+            permissions::regulatory::dpdp::VIEW,
             permissions::terminology::snomed::ANALYTICS,
             permissions::admin::settings::READ,
             permissions::doctor_payouts::ledger::VIEW,
@@ -1325,6 +1327,15 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
         name: "Quality Officer",
         description: "Quality & compliance — full regulatory access",
         permissions: &[
+            // Quality & compliance runs the privacy pack: it names the
+            // officers, drafts the policies and records the drills; a
+            // hospital administrator approves and publishes them.
+            permissions::regulatory::dpdp::VIEW,
+            permissions::regulatory::dpdp::OFFICERS,
+            permissions::regulatory::dpdp::POLICY_DRAFT,
+            permissions::regulatory::dpdp::DRILLS,
+            // The grievance register the pack's 90-day clock is measured on.
+            permissions::patients::privacy_requests::LIST,
             permissions::terminology::snomed::ANALYTICS,
             permissions::qa::test_cycles::MANAGE,
             // Documentation completeness by doctor is a quality measure.

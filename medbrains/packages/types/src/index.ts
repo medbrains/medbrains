@@ -122,6 +122,7 @@ export * from "./device-integration";
 export * from "./diagnosis-coding";
 export * from "./doctor-payouts";
 export * from "./documents-module";
+export * from "./dpdp-compliance";
 export * from "./early-warning";
 export * from "./emergency";
 export * from "./emergency-drug-kits";

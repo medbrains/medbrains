@@ -17,6 +17,7 @@ import { NewPrivacyRequestForm } from "@/components/Patient/NewPrivacyRequestFor
 import { daysLeft, PRIVACY_TYPE_LABEL } from "@/components/Patient/privacy-request-labels";
 import { Alert, Badge, Button, Card, toast } from "@/components/ui";
 import { portalService } from "@/services/portal.service";
+import { PortalPrivacyContact } from "./portal-privacy-contact";
 
 /** Hands the browser a file to save; nothing is kept on the page. */
 function saveFile(name: string, text: string) {
@@ -191,6 +192,8 @@ export function PortalPrivacy({ token }: { token: string }) {
           )}
         </Stack>
       </Card>
+
+      <PortalPrivacyContact contact={privacy.data?.contact} />
     </Stack>
   );
 }

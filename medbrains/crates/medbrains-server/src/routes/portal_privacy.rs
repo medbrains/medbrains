@@ -18,6 +18,9 @@ pub struct PortalPrivacy {
     pub consent: PatientDpdpConsent,
     pub requests: Vec<PrivacyRequest>,
     pub held: PatientDataSummary,
+    /// Whom to ask and complain to, and the published notice (DPDP Rules
+    /// 2025 r.9: published, and quoted with every rights response).
+    pub contact: medbrains_regulatory::dpdp_officers::PublicPrivacyContact,
 }
 
 /// `GET /api/portal/privacy`
@@ -32,11 +35,14 @@ pub async fn portal_privacy(
     let requests =
         privacy_requests::requests_for_patient(&mut tx, claims.tenant_id, claims.pid).await?;
     let held = privacy_requests::data_summary(&mut tx, claims.tenant_id, claims.pid).await?;
+    let contact =
+        medbrains_regulatory::dpdp_officers::public_contact(&mut tx, claims.tenant_id).await?;
     tx.commit().await?;
     Ok(Json(PortalPrivacy {
         consent,
         requests,
         held,
+        contact,
     }))
 }
 

@@ -379,7 +379,11 @@ import type {
   ComplianceCheckRow,
   // Regulatory
   ComplianceDashboard,
+  ComplianceDrill,
   ComplianceGap,
+  CompliancePolicy,
+  CompliancePolicyKind,
+  CompliancePolicyTemplate,
   ComplianceRequirement,
   ComplianceRow,
   ComponentSlipPrintData,
@@ -1008,6 +1012,7 @@ import type {
   DonorListResponse,
   DpdpConsentInput,
   DpdpConsentPrintData,
+  DpdpDashboard,
   DrugExpiryAlertPrintData,
   DrugInteraction,
   DrugInteractionCheckRequest,
@@ -1779,6 +1784,8 @@ import type {
   PriorAuthDetail,
   PriorAuthDocument,
   PriorAuthRequestRow,
+  PrivacyOfficer,
+  PrivacyOfficerRole,
   PrivacyRequest,
   ProcedureCatalog,
   ProcedureConsent,
@@ -1811,6 +1818,7 @@ import type {
   PublicEnquiryResponse,
   PublicHealthFacility,
   PublicInvite,
+  PublicPrivacyContact,
   PublicTenant,
   PublicTokenLink,
   PublicTokenStatus,
@@ -1891,6 +1899,7 @@ import type {
   RecordCssdIndicatorRequest,
   RecordDeviceDaysRequest,
   RecordDoseRequest,
+  RecordDrillRequest,
   RecordIncidentNoticeRequest,
   RecordIndicatorValueRequest,
   RecordMarketingConsentRequest,
@@ -2028,6 +2037,7 @@ import type {
   SetEwsPlanRequest,
   SetHprRequest,
   SetKeys,
+  SetPrivacyOfficerRequest,
   SettleDayRequest,
   SettleDayResult,
   SetupUser,
@@ -18162,6 +18172,46 @@ export const api = {
     request<PortalTeleconsult[]>("/portal/teleconsults", portalAuth(token)),
   getPortalRefills: (token: string) =>
     request<PortalRefill[]>("/portal/refills", portalAuth(token)),
+  // DPDP Act 2023 / Rules 2025 and CERT-In 2022 compliance pack
+  getDpdpDashboard: () => request<DpdpDashboard>("/regulatory/dpdp/dashboard"),
+  listPrivacyOfficers: () => request<PrivacyOfficer[]>("/regulatory/dpdp/officers"),
+  setPrivacyOfficer: (role: PrivacyOfficerRole, data: SetPrivacyOfficerRequest) =>
+    request<PrivacyOfficer[]>(`/regulatory/dpdp/officers/${role}`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
+  publishPrivacyOfficer: (role: PrivacyOfficerRole) =>
+    request<PrivacyOfficer[]>(`/regulatory/dpdp/officers/${role}/publish`, { method: "PUT" }),
+  getDpdpPublicNotice: () => request<PublicPrivacyContact>("/regulatory/dpdp/public-notice"),
+  listCompliancePolicyTemplates: () =>
+    request<CompliancePolicyTemplate[]>("/regulatory/dpdp/templates"),
+  listCompliancePolicies: (kind?: CompliancePolicyKind) =>
+    request<CompliancePolicy[]>(`/regulatory/dpdp/policies${kind ? `?kind=${kind}` : ""}`),
+  startCompliancePolicyDraft: (data: { kind: CompliancePolicyKind; language: string }) =>
+    request<CompliancePolicy>("/regulatory/dpdp/policies", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  editCompliancePolicy: (id: string, data: { title: string; body: string }) =>
+    request<CompliancePolicy>(`/regulatory/dpdp/policies/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
+  submitCompliancePolicy: (id: string) =>
+    request<CompliancePolicy>(`/regulatory/dpdp/policies/${id}/submit`, { method: "PUT" }),
+  approveCompliancePolicy: (id: string) =>
+    request<CompliancePolicy>(`/regulatory/dpdp/policies/${id}/approve`, { method: "PUT" }),
+  returnCompliancePolicy: (id: string, reason: string) =>
+    request<CompliancePolicy>(`/regulatory/dpdp/policies/${id}/return`, {
+      method: "PUT",
+      body: JSON.stringify({ reason }),
+    }),
+  listComplianceDrills: () => request<ComplianceDrill[]>("/regulatory/dpdp/drills"),
+  recordComplianceDrill: (data: RecordDrillRequest) =>
+    request<ComplianceDrill[]>("/regulatory/dpdp/drills", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
   getPortalPrivacy: (token: string) => request<PortalPrivacy>("/portal/privacy", portalAuth(token)),
   /** The patient's own record as a FHIR R4 collection bundle. */
   getPortalExport: (token: string) =>

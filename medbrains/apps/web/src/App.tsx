@@ -359,6 +359,16 @@ const SecurityPage = lazy(() =>
 const RegulatoryPage = lazy(() =>
   import("./pages/regulatory").then((m) => ({ default: m.RegulatoryPage })),
 );
+const PrivacyCompliancePage = lazy(() =>
+  import("./pages/privacy-compliance/PrivacyCompliancePage").then((m) => ({
+    default: m.PrivacyCompliancePage,
+  })),
+);
+const PrivacyNoticePrintPage = lazy(() =>
+  import("./pages/privacy-compliance/NoticePrintPage").then((m) => ({
+    default: m.NoticePrintPage,
+  })),
+);
 const InsurancePage = lazy(() =>
   import("./pages/insurance").then((m) => ({ default: m.InsurancePage })),
 );
@@ -686,6 +696,8 @@ export function App() {
               <Route path="terminology/snomed" element={<SnomedPage />} />
               <Route path="abdm/dashboard" element={<AbdmDashboardPage />} />
               <Route path="regulatory" element={<RegulatoryPage />} />
+              <Route path="privacy-compliance" element={<PrivacyCompliancePage />} />
+              <Route path="privacy-compliance/notice" element={<PrivacyNoticePrintPage />} />
               <Route path="order-sets" element={<OrderSetsPage />} />
               <Route path="chronic-care" element={<ChronicCarePage />} />
               <Route path="occupational-health" element={<OccupationalHealthPage />} />
