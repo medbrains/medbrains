@@ -6,6 +6,7 @@
 //! who disclosed whose data, to whom, and under what law -- in the audit chain,
 //! where it cannot be quietly edited away.
 
+use chrono::NaiveDate;
 use medbrains_server_core::{error::AppError, middleware::auth::Claims};
 use serde_json::json;
 use sqlx::{Postgres, Transaction};
@@ -66,4 +67,57 @@ pub async fn record(
     )
     .await?;
     Ok(())
+}
+
+/// A worklist row (`r`) that is a TB notification: TB (A15-A19), or a
+/// disease the hospital's list sends to Ni-kshay. TB goes to Ni-kshay, never
+/// on an IDSP list.
+#[macro_export]
+macro_rules! is_tb_sql {
+    () => {
+        "(r.icd10_code ~ '^A1[5-9]' OR r.reporting_body ILIKE '%ni-kshay%')"
+    };
+}
+
+/// The patient's (`p`) residential address and PIN, as one line each: the
+/// primary structured address (`pa`, joined by [`patient_address_join`]),
+/// else the registration address.
+#[macro_export]
+macro_rules! patient_address_sql {
+    () => {
+        "COALESCE(NULLIF(concat_ws(', ', pa.address_line1, pa.address_line2, pa.village_town, \
+                                   pa.city), ''), \
+                  NULLIF(concat_ws(', ', p.address->>'line1', p.address->>'line2', \
+                                   p.address->>'city', p.address->>'state'), ''), \
+                  p.address_line1) AS address, \
+         COALESCE(pa.postal_code, p.address->>'pincode') AS pin"
+    };
+}
+
+/// The lateral join [`patient_address_sql`] reads.
+#[macro_export]
+macro_rules! patient_address_join {
+    () => {
+        "LEFT JOIN LATERAL ( \
+             SELECT address_line1, address_line2, village_town, city, postal_code \
+               FROM patient_addresses \
+              WHERE patient_id = p.id AND deleted_at IS NULL \
+              ORDER BY is_primary DESC, created_at DESC LIMIT 1) pa ON true"
+    };
+}
+
+/// Sex as the government forms write it.
+pub fn sex_code(gender: Option<&str>) -> &'static str {
+    match gender {
+        Some("male") => "M",
+        Some("female") => "F",
+        Some("other") => "O",
+        _ => "",
+    }
+}
+
+/// A date as the government forms write it: dd/mm/yyyy.
+pub fn form_date(d: Option<NaiveDate>) -> String {
+    d.map(|d| d.format("%d/%m/%Y").to_string())
+        .unwrap_or_default()
 }

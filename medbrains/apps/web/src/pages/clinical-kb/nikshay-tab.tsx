@@ -8,10 +8,9 @@ import { IconFileSpreadsheet, IconPrinter } from "@tabler/icons-react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { DataTable } from "@/components";
-import { exportName, printableReport, toCsv } from "@/components/Reports/report-export";
+import { downloadSheetCsv, printSheet } from "@/components/Reports/statutory-sheet";
 import { Alert, Badge, Button, toast } from "@/components/ui";
 import { ckbService } from "@/services/ckb.service";
-import { downloadBlob } from "@/utils/download";
 import { FacilityCodeField } from "./facility-code-field";
 import { ResolveReportModal } from "./resolve-report-modal";
 import { TbDetailsModal } from "./tb-details-modal";
@@ -36,12 +35,6 @@ export function tbGaps(c: TbCase): string[] {
 
 const isOverdue = (c: TbCase) =>
   c.status === "pending" && !!c.due_at && new Date(c.due_at).getTime() < Date.now();
-
-function sheetRows(sheet: NikshaySheet): Record<string, string>[] {
-  return sheet.rows.map((cells) =>
-    Object.fromEntries(sheet.columns.map((col, i) => [col, cells[i] ?? ""])),
-  );
-}
 
 function sheetTitle(sheet: NikshaySheet): string {
   const f = sheet.facility;
@@ -75,24 +68,8 @@ export function NikshayTab({ canList, canManage, canExport }: NikshayTabProps) {
         deliver(s);
       },
     });
-  const downloadCsv = () =>
-    makeSheet((s) =>
-      downloadBlob(
-        new Blob(["﻿", toCsv(sheetRows(s))], { type: "text/csv;charset=utf-8" }),
-        exportName("nikshay-tb-notification", "csv"),
-      ),
-    );
-  const printSheet = () =>
-    makeSheet((s) => {
-      const page = window.open("", "_blank");
-      if (!page) {
-        toast.error("Allow pop-ups for this site to print the sheet.");
-        return;
-      }
-      page.document.write(printableReport(sheetTitle(s), sheetRows(s), null));
-      page.document.close();
-      page.print();
-    });
+  const downloadCsv = () => makeSheet((s) => downloadSheetCsv(s, "nikshay-tb-notification"));
+  const print = () => makeSheet((s) => printSheet(s, sheetTitle(s)));
 
   return (
     <Stack>
@@ -101,7 +78,7 @@ export function NikshayTab({ canList, canManage, canExport }: NikshayTabProps) {
         2018 gazette notification, failing to notify can be punished under IPC sections 269 and 270
         (up to two years). The Ni-kshay ID you get back is recorded against the case.
       </Alert>
-      {canList && <FacilityCodeField canManage={canManage} />}
+      {canList && <FacilityCodeField field="nikshay_he_code" canManage={canManage} />}
       <Group justify="space-between">
         <Group gap="xs">
           {["pending", "submitted", ""].map((s) => (
@@ -131,7 +108,7 @@ export function NikshayTab({ canList, canManage, canExport }: NikshayTabProps) {
               tone="secondary"
               leftSection={<IconPrinter size={16} />}
               loading={sheet.isPending}
-              onClick={printSheet}
+              onClick={print}
             >
               Print sheet
             </Button>

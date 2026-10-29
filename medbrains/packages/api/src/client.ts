@@ -1200,6 +1200,8 @@ import type {
   IcuScore,
   IcuVentilatorRecord,
   IecApprovalCertificatePrintData,
+  IhipForm,
+  IhipLineList,
   ImmunizationDueList,
   ImmunizationScheduleSetting,
   ImplantRegistryEntry,
@@ -2100,6 +2102,7 @@ import type {
   StudentAdmissionFormPrintData,
   StudyShareLink,
   SubmitBedsideFeedbackRequest,
+  SubmitIhipLineListRequest,
   SubmitPostForReview,
   SubmitPreauthToNhcxRequest,
   SubscribeRequest,
@@ -9666,7 +9669,17 @@ export const api = {
     request<TbCase>(`/ckb/nikshay/${reportId}`, { method: "PUT", body: JSON.stringify(data) }),
   getNikshaySheet: () => request<NikshaySheet>("/ckb/nikshay/sheet"),
   getPublicHealthFacility: () => request<PublicHealthFacility>("/ckb/facility-codes"),
-  setPublicHealthFacilityCodes: (data: { nikshay_he_code: string | null }) =>
+  getIhipLineList: (form: IhipForm, from: string, to: string) =>
+    request<IhipLineList>(`/ckb/ihip/line-list?form=${form}&from=${from}&to=${to}`),
+  submitIhipLineList: (data: SubmitIhipLineListRequest) =>
+    request<{ submitted: number }>("/ckb/ihip/submit", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  setPublicHealthFacilityCodes: (data: {
+    nikshay_he_code: string | null;
+    ihip_unit_id: string | null;
+  }) =>
     request<PublicHealthFacility>("/ckb/facility-codes", {
       method: "PUT",
       body: JSON.stringify(data),

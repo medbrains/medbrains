@@ -3,6 +3,7 @@ import { useHasPermission } from "@medbrains/stores";
 import { P } from "@medbrains/types";
 import {
   IconBuildingBank,
+  IconClipboardList,
   IconFlask,
   IconLungs,
   IconMapPin,
@@ -14,6 +15,7 @@ import { PageHeader, type RailGroup, WorkspaceRail } from "@/components";
 import { useHashTabs } from "@/hooks/useHashTabs";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
 import { FormularyTab } from "./clinical-kb/formulary-tab";
+import { IhipTab } from "./clinical-kb/ihip-tab";
 import { LabReferenceTab } from "./clinical-kb/lab-reference-tab";
 import { NikshayTab } from "./clinical-kb/nikshay-tab";
 import { NotifiableDiseasesTab } from "./clinical-kb/notifiable-diseases-tab";
@@ -27,6 +29,7 @@ const CKB_TABS = [
   "state-list",
   "reports",
   "nikshay",
+  "ihip",
   "formulary",
   "lab",
   "schemes",
@@ -47,6 +50,7 @@ export function ClinicalKbPage() {
         { value: "state-list", label: "This hospital's list", icon: <IconMapPin size={14} /> },
         { value: "reports", label: "Reporting worklist", icon: <IconReportMedical size={14} /> },
         { value: "nikshay", label: "TB · Ni-kshay", icon: <IconLungs size={14} /> },
+        { value: "ihip", label: "IDSP · IHIP lists", icon: <IconClipboardList size={14} /> },
       ],
     },
     {
@@ -79,6 +83,9 @@ export function ClinicalKbPage() {
           </Tabs.Panel>
           <Tabs.Panel value="nikshay">
             <NikshayTab canList={canListReports} canManage={canManage} canExport={canExport} />
+          </Tabs.Panel>
+          <Tabs.Panel value="ihip">
+            <IhipTab canList={canListReports} canManage={canManage} canExport={canExport} />
           </Tabs.Panel>
           <Tabs.Panel value="formulary">
             <FormularyTab />

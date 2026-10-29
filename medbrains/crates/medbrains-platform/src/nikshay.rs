@@ -23,9 +23,7 @@ use medbrains_server_core::{
     state::AppState,
 };
 
-/// A worklist row is a TB notification when its disease is TB (A15-A19), or
-/// the hospital's list sends it to Ni-kshay.
-const IS_TB: &str = "(r.icd10_code ~ '^A1[5-9]' OR r.reporting_body ILIKE '%ni-kshay%')";
+const IS_TB: &str = crate::is_tb_sql!();
 
 /// The basis of diagnosis a confirming lab test implies.
 const LAB_BASIS: &str = "CASE \
