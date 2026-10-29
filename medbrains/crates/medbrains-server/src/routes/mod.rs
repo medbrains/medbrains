@@ -933,21 +933,29 @@ pub fn build_router(state: AppState) -> Router {
         )
         .route(
             "/api/public/radiology/viewer/{token}",
-            get(radiology::share::validate_share_link),
+            get(radiology::share_public::validate_share_link),
         )
         // A shared study, opened by its recipient: the token is the whole
         // credential, scoped to one study, expiring, and every open audited.
         .route(
+            "/api/public/radiology/share/{token}/code",
+            post(radiology::share_public::send_share_code),
+        )
+        .route(
+            "/api/public/radiology/share/{token}/verify",
+            post(radiology::share_public::verify_share_code),
+        )
+        .route(
             "/api/public/radiology/share/{token}/ohif/",
-            get(radiology::share::public_ohif_index),
+            get(radiology::share_public::public_ohif_index),
         )
         .route(
             "/api/public/radiology/share/{token}/ohif/{*rest}",
-            get(radiology::share::public_ohif),
+            get(radiology::share_public::public_ohif),
         )
         .route(
             "/api/public/radiology/share/{token}/dicom-web/{*rest}",
-            get(radiology::share::public_dicomweb),
+            get(radiology::share_public::public_dicomweb),
         )
         // Patient portal sign-in. Unauthenticated by necessity — this is how a
         // patient gets a token in the first place.

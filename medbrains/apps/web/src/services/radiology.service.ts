@@ -1,6 +1,12 @@
 import { api } from "@medbrains/api";
 
 export const radiologyService = {
+  getPublicShareLink: (...args: Parameters<typeof api.getPublicRadiologyViewer>) =>
+    api.getPublicRadiologyViewer(...args),
+  sendShareLinkCode: (...args: Parameters<typeof api.sendShareLinkCode>) =>
+    api.sendShareLinkCode(...args),
+  verifyShareLinkCode: (...args: Parameters<typeof api.verifyShareLinkCode>) =>
+    api.verifyShareLinkCode(...args),
   openStudyViewer: (...args: Parameters<typeof api.openStudyViewer>) =>
     api.openStudyViewer(...args),
   createRadiologyShareLink: (...args: Parameters<typeof api.createRadiologyShareLink>) =>

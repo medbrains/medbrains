@@ -32,7 +32,9 @@ pub mod form_f;
 pub mod pacs;
 pub mod pacs_config;
 pub mod pacs_study;
+pub mod deidentify;
 pub mod share;
+pub mod share_public;
 pub mod unmatched;
 pub mod viewer;
 

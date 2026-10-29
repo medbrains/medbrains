@@ -36,6 +36,9 @@ const PublicEnquiryPage = lazy(() =>
 const PublicBookingPage = lazy(() =>
   import("./pages/public-booking").then((m) => ({ default: m.PublicBookingPage })),
 );
+const SharedImagesPage = lazy(() =>
+  import("./pages/shared-images").then((m) => ({ default: m.SharedImagesPage })),
+);
 const QueueStatusPage = lazy(() =>
   import("./pages/queue-status").then((m) => ({ default: m.QueueStatusPage })),
 );
@@ -537,6 +540,8 @@ export function App() {
             <Route path="/verify/bill" element={<VerifyBillPage />} />
             {/* Scanned off the kiosk slip — the patient has no login. */}
             <Route path="/queue/:token" element={<QueueStatusPage />} />
+            {/* A shared-images link: the viewer opens after the recipient's code. */}
+            <Route path="/shared-images/:token" element={<SharedImagesPage />} />
             {/* Public self-service booking — off unless the tenant enables it. */}
             <Route path="/book/:tenantCode" element={<PublicBookingPage />} />
             {/* The hospital's own "contact us" form — off unless enabled. */}

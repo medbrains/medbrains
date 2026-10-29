@@ -195,6 +195,7 @@ mod ot_cancellation_report_test;
 mod pacs_flow_test;
 mod radiation_dose_test;
 mod pacs_security_test;
+mod pacs_share_test;
 mod pacs_viewer_test;
 mod pacs_unmatched_test;
 mod patient_acquisition_test;
