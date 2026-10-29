@@ -2,6 +2,7 @@
 # generated/ holds the page-gates map the screens matrix judges by)
 e2e/smoke/api/
 e2e/writes/
+e2e/rbac/generated/
 e2e/generated/
 e2e/.auth/
 playwright-report/
