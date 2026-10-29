@@ -546,5 +546,12 @@
   "match.band.certain": "Same person",
   "match.band.likely": "Likely same",
   "match.band.review": "Check",
-  "match.why": "Why"
+  "match.why": "Why",
+  "registrationForm.row.localName": "Name in own script",
+  "registrationForm.localName.script": "Script",
+  "registrationForm.localName.label": "Name in the patient's script",
+  "registrationForm.localName.help": "Optional. Search finds the patient from either spelling.",
+  "registrationForm.localName.suggested": "Suggested:",
+  "registrationForm.localName.suggestedEnglish": "English spelling:",
+  "registrationForm.localName.use": "Use {{name}}"
 }

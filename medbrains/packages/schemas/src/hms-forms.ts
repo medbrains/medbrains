@@ -1535,6 +1535,7 @@ export const patientRegistrationFormSchema = z
     prefix: z.string().optional(),
     first_name: z.string().max(100, "First name must be at most 100 characters"),
     middle_name: z.string().optional(),
+    full_name_local: z.string().max(200).optional(),
     last_name: z.string().max(100, "Last name must be at most 100 characters"),
     is_unknown_patient: z.boolean().optional(),
     suffix: z.string().optional(),

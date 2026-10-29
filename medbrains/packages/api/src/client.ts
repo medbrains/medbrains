@@ -4570,6 +4570,10 @@ export const api = {
   // and the desk has to find them whoever registered them. Identity only.
   findPatients: (q: string) =>
     request<MpiMatchResult[]>(`/patients/find?q=${encodeURIComponent(q)}`),
+  transliterateName: (text: string, to: string) =>
+    request<{ suggestions: string[] }>(
+      `/patients/transliterate?text=${encodeURIComponent(text)}&to=${encodeURIComponent(to)}`,
+    ),
 
   // MPI
   matchPatients: (data: MpiMatchRequest) =>

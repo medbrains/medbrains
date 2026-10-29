@@ -70,6 +70,7 @@ pub mod hr;
 pub mod icu;
 pub mod immunization;
 pub mod indent;
+pub mod indic;
 pub mod infection_control;
 pub mod insurance;
 pub mod integration;
