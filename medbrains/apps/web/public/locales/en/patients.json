@@ -542,5 +542,9 @@
   "registrationForm.label.emailOptIn": "Hospital updates by email",
   "registrationForm.hint.messagingConsent": "Ask the patient and tick only what they agree to. SMS about their registration and visits needs no agreement.",
   "validation.emailOptInNeedsEmail": "Add an email address to send email updates",
-  "validation.contactMethodNeedsConsent": "The patient has to agree to this channel first"
+  "validation.contactMethodNeedsConsent": "The patient has to agree to this channel first",
+  "match.band.certain": "Same person",
+  "match.band.likely": "Likely same",
+  "match.band.review": "Check",
+  "match.why": "Why"
 }

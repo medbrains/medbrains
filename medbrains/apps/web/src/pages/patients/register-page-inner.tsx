@@ -11,7 +11,6 @@ import {
   IconAlertTriangle,
   IconArrowLeft,
   IconClipboardCheck,
-  IconEye,
   IconShieldCheck,
   IconStethoscope,
   IconUserPlus,
@@ -21,12 +20,12 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useLocation, useNavigate, useSearchParams } from "react-router";
-import { DataTable, PageHeader, useClinicalEmit } from "@/components";
+import { PageHeader, useClinicalEmit } from "@/components";
 import { shareRegistrationValues } from "@/components/abha/scanShare";
 import type { PatientRegistrationLinkedServicesOptions } from "@/components/Patient/PatientRegisterForm";
 import { PatientRegisterForm } from "@/components/Patient/PatientRegisterForm";
 import { useCollectAtCheckIn } from "@/components/payments/collect/use-collect-at-checkin";
-import { Alert, Badge, Button, IconButton, toast } from "@/components/ui";
+import { Alert, Badge, Button, toast } from "@/components/ui";
 import { nextCheckState } from "@/lib/advisoryCheck";
 import { abdmScanShareService } from "@/services/abdmScanShare.service";
 import { campService } from "@/services/camp.service";
@@ -35,7 +34,7 @@ import { patientsService } from "@/services/patients.service";
 import type { ScanShareRegistrationState } from "../front-office/scan-share-tab";
 import { patientRegistrationOpdHandoffRoute } from "../patient-registration-flow";
 import classes from "../patients.module.scss";
-import { PharmacyCustomerMatch } from "./pharmacy-customer-match";
+import { DuplicateMatchTable } from "./DuplicateMatchTable";
 import { registrationAction } from "./registrationGate";
 
 const NO_MATCHES: MpiMatchResult[] = [];
@@ -379,6 +378,8 @@ export function PatientRegisterPageInner() {
           last_name: req.last_name,
           date_of_birth: req.date_of_birth ?? undefined,
           phone: req.phone ?? undefined,
+          gender: req.gender,
+          abha_number: req.abha_number,
         });
         check = nextCheckState({ type: "checked", findings: matches }, NO_MATCHES);
       } catch {
@@ -554,62 +555,13 @@ export function PatientRegisterPageInner() {
         <Alert tone="warning" icon={<IconAlertTriangle size={16} />} mb="md">
           {t("registrationPage.duplicateAlert")}
         </Alert>
-        <DataTable
-          columns={[
-            {
-              key: "uhid",
-              label: t("uhid"),
-              render: (m: MpiMatchResult) => (
-                <Text size="sm" fw={500}>
-                  {m.uhid}
-                </Text>
-              ),
-            },
-            {
-              key: "name",
-              label: t("name"),
-              render: (m: MpiMatchResult) => (
-                <Text size="sm">
-                  {m.first_name} {m.last_name}
-                </Text>
-              ),
-            },
-            {
-              key: "phone",
-              label: t("phone"),
-              render: (m: MpiMatchResult) => <Text size="sm">{m.phone || "—"}</Text>,
-            },
-            {
-              key: "score",
-              label: t("score"),
-              render: (m: MpiMatchResult) => (
-                <Badge size="sm" tone={m.score >= 0.8 ? "danger" : "warning"}>
-                  {Math.round(m.score * 100)}%
-                </Badge>
-              ),
-            },
-            {
-              key: "actions",
-              label: "",
-              render: (m: MpiMatchResult) => (
-                <Group gap="xs" wrap="nowrap">
-                  <PharmacyCustomerMatch match={m} onCompleted={dupModalHandlers.close} />
-                  <IconButton
-                    size={44}
-                    aria-label={t("aria.viewDetails")}
-                    onClick={() => {
-                      dupModalHandlers.close();
-                      navigate(`/patients/${m.id}`);
-                    }}
-                  >
-                    <IconEye size={14} />
-                  </IconButton>
-                </Group>
-              ),
-            },
-          ]}
-          data={duplicateMatches}
-          rowKey={(m) => m.id}
+        <DuplicateMatchTable
+          matches={duplicateMatches}
+          onCompleted={dupModalHandlers.close}
+          onOpen={(m) => {
+            dupModalHandlers.close();
+            navigate(`/patients/${m.id}`);
+          }}
         />
         <Group justify="flex-end" mt="md">
           <Button

@@ -21,6 +21,8 @@ rig = { workspace = true }
 rig-agent = { workspace = true }
 rig-reqwest = { workspace = true }
 schemars = { workspace = true }
+# Jaro-Winkler for the duplicate check's names; already in the lock (clap).
+strsim = "0.11"
 tracing = { workspace = true }
 
 [lints]

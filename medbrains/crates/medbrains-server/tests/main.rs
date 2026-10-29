@@ -219,6 +219,7 @@ mod pharmacy_day_close_test;
 mod pharmacy_delivery_choice_test;
 mod pharmacy_delivery_test;
 mod pharmacy_expired_stock_test;
+mod patient_match_scoring_test;
 mod pharmacy_storefront_customer_test;
 mod pharmacy_storefront_test;
 mod pharmacy_transfer_stock_test;

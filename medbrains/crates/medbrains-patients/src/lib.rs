@@ -696,6 +696,10 @@ pub struct MatchRequest {
     pub date_of_birth: Option<NaiveDate>,
     pub phone: Option<String>,
     pub identifier_hash: Option<String>,
+    /// `male` / `female`, weighed when recorded.
+    pub gender: Option<String>,
+    /// A verified ABHA number this hospital already holds is the same person.
+    pub abha_number: Option<String>,
 }
 
 /// The duplicate check's row; the check itself is shared with the
@@ -3285,6 +3289,20 @@ fn filter_match_result(
     } else if patient_field_is_masked(restricted, PATIENT_PHONE_FIELD) {
         row.phone = mask_phone(&row.phone);
     }
+    // "Date of birth matches" says what a hidden field holds: a reason goes
+    // with its field.
+    let restricted_field = |f: &str| {
+        patient_field_is_hidden(restricted, f) || patient_field_is_masked(restricted, f)
+    };
+    let dob = restricted_field(PATIENT_DATE_OF_BIRTH_FIELD);
+    let phone = restricted_field(PATIENT_PHONE_FIELD);
+    let name =
+        restricted_field(PATIENT_FIRST_NAME_FIELD) || restricted_field(PATIENT_LAST_NAME_FIELD);
+    row.reasons.retain(|r| {
+        !((dob && r.contains("birth"))
+            || (phone && r.contains("Mobile"))
+            || (name && r.starts_with("Name")))
+    });
     row
 }
 
@@ -3323,7 +3341,25 @@ pub async fn match_patients(
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
 
-    // Step 1: Check for exact identifier hash match (highest confidence)
+    // Step 0: the same verified ABHA number is the same person.
+    if let Some(abha) = body.abha_number.as_deref() {
+        let same = medbrains_server_services::patient_match::abha_matches(
+            &mut tx,
+            claims.tenant_id,
+            abha,
+        )
+        .await?;
+        if !same.is_empty() {
+            tx.commit().await?;
+            return Ok(Json(
+                same.into_iter()
+                    .map(|m| filter_match_result(m, &restricted))
+                    .collect(),
+            ));
+        }
+    }
+
+    // Step 1: the same identity document (its keyed hash).
     if let Some(ref hash) = body.identifier_hash {
         let id_matches = sqlx::query_as::<_, MatchResult>(
             "SELECT p.id, p.uhid, p.first_name, p.last_name, \
@@ -3344,14 +3380,19 @@ pub async fn match_patients(
             tx.commit().await?;
             let id_matches: Vec<MatchResult> = id_matches
                 .into_iter()
-                .map(|m| filter_match_result(m, &restricted))
+                .map(|mut m| {
+                    m.band = Some(medbrains_server_services::patient_match::MatchBand::Certain);
+                    m.reasons = vec!["Same identity document"];
+                    filter_match_result(m, &restricted)
+                })
                 .collect();
             return Ok(Json(id_matches));
         }
     }
 
-    // Step 2: Fuzzy match on name + DOB + phone — the same check the
-    // storefront's sign-up runs before it makes a pharmacy-customer record.
+    // Step 2: scored match (Fellegi-Sunter over name, DOB, sex and phone,
+    // `patient_match::model`) — the same check the storefront's sign-up
+    // runs before it makes a pharmacy-customer record.
     let matches = medbrains_server_services::patient_match::fuzzy_matches(
         &mut tx,
         claims.tenant_id,
@@ -3360,6 +3401,7 @@ pub async fn match_patients(
             last_name: body.last_name.clone().unwrap_or_default(),
             date_of_birth: body.date_of_birth,
             phone: body.phone.clone().unwrap_or_default(),
+            sex: body.gender.clone(),
         },
     )
     .await?;

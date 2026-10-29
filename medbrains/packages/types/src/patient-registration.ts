@@ -834,7 +834,14 @@ export interface MpiMatchRequest {
   date_of_birth?: string;
   phone?: string;
   identifier_hash?: string;
+  /** `male` / `female`; weighed when recorded. */
+  gender?: string;
+  /** A verified ABHA number already held here is the same person. */
+  abha_number?: string;
 }
+
+/** How sure the duplicate check is (Fellegi-Sunter bands). */
+export type MpiMatchBand = "certain" | "likely" | "review";
 
 export interface MpiMatchResult {
   id: string;
@@ -847,4 +854,8 @@ export interface MpiMatchResult {
   score: number;
   /** A light record from the online pharmacy: complete it, don't register again. */
   pharmacy_customer: boolean;
+  /** Present on duplicate-check results; absent from plain lookups. */
+  band?: MpiMatchBand;
+  /** Why, field by field ("Name matches in another spelling", …). */
+  reasons?: string[];
 }
