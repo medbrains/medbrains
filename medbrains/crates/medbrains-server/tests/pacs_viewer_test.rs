@@ -1,6 +1,6 @@
 //! The viewer behind MedBrains sign-in: one study at a time, checked against
-//! the caller's access to its patient, every open recorded — and share links
-//! that open exactly their study until they expire or are revoked.
+//! the caller's access to its patient, every open recorded. Share links are
+//! in `pacs_share_test`.
 
 use crate::common;
 
@@ -104,7 +104,7 @@ async fn opening_and_sharing_are_refused_without_the_right_permission_or_patient
 }
 
 #[tokio::test]
-async fn the_viewer_opens_one_study_through_medbrains_and_a_link_only_its_own() {
+async fn the_viewer_opens_one_study_through_medbrains() {
     let http = reqwest::Client::new();
     if http.get(format!("{ORTHANC}/system")).send().await.is_err() {
         return;
@@ -221,66 +221,6 @@ async fn the_viewer_opens_one_study_through_medbrains_and_a_link_only_its_own() 
     .expect("audit");
     assert_eq!(viewed, 1, "who opened it is recorded");
 
-    // A share link: its study and nothing else, until revoked.
-    let (status, link) = send(
-        app.client
-            .post(app.url("/api/radiology/share-links"))
-            .json(&json!({ "study_id": study, "recipient_name": "Dr Rao, City Hospital", "expires_hours": 24 })),
-        &csrf,
-    )
-    .await;
-    assert_eq!(status, StatusCode::OK, "{link}");
-    let viewer = link["viewer_url"].as_str().expect("url").to_owned();
-    let base = viewer.split("/ohif/").next().expect("base").to_owned();
-    let outsider = reqwest::Client::new();
-    let public_qido = app.url(&format!("{base}/dicom-web/studies?StudyInstanceUID={uid}"));
-    assert_eq!(
-        outsider
-            .get(&public_qido)
-            .send()
-            .await
-            .expect("qido")
-            .status(),
-        StatusCode::OK
-    );
-    let wrong = app.url(&format!(
-        "{base}/dicom-web/studies?StudyInstanceUID=1.2.3.4.5.6"
-    ));
-    assert_eq!(
-        outsider.get(&wrong).send().await.expect("wrong").status(),
-        StatusCode::NOT_FOUND
-    );
-    let page = outsider.get(app.url(&viewer)).send().await.expect("page");
-    assert_eq!(page.status(), StatusCode::OK);
-    let (opens, audited): (i32, i64) = sqlx::query_as(
-        "SELECT accessed_count, (SELECT count(*) FROM audit_log a WHERE a.entity_id = l.id \
-                                   AND a.action = 'radiology.share_link.open') \
-           FROM radiology_share_links l WHERE l.id = $1::uuid",
-    )
-    .bind(link["id"].as_str())
-    .fetch_one(&app.db)
-    .await
-    .expect("opens");
-    assert_eq!((opens, audited), (1, 1));
-
-    let (status, _) = send(
-        app.client.post(app.url(&format!(
-            "/api/radiology/share-links/{}/revoke",
-            link["id"].as_str().expect("id")
-        ))),
-        &csrf,
-    )
-    .await;
-    assert_eq!(status, StatusCode::OK);
-    assert_eq!(
-        outsider
-            .get(&public_qido)
-            .send()
-            .await
-            .expect("after")
-            .status(),
-        StatusCode::NOT_FOUND
-    );
     let _ = http
         .delete(format!("{ORTHANC}/studies/{orthanc_study}"))
         .send()

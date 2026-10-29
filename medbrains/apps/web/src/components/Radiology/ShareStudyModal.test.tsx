@@ -20,8 +20,10 @@ vi.mock("@medbrains/stores", async (importOriginal) => ({
 
 const OPENED: StudyShareLink = {
   id: "l1",
+  recipient_kind: "clinician",
   recipient_name: "Dr Rao, City Hospital",
   recipient_email: null,
+  deidentify: true,
   expires_at: "2099-01-01T00:00:00Z",
   accessed_count: 2,
   last_accessed: "2026-10-26T10:00:00Z",
@@ -35,30 +37,51 @@ beforeEach(() => {
   service.listStudyShareLinks.mockResolvedValue([OPENED]);
   service.createRadiologyShareLink.mockResolvedValue({
     id: "l2",
-    viewer_url: "/api/public/radiology/share/tok/ohif/viewer?StudyInstanceUIDs=1.2.3",
+    share_url: "/shared-images/tok",
     expires_at: "2099-01-01T00:00:00Z",
   });
   service.revokeStudyShareLink.mockResolvedValue({ revoked: true });
 });
 
 describe("ShareStudyModal", () => {
-  it("makes a link only for a named person, for the chosen time", async () => {
+  it("needs somewhere to send a clinician's code, and lasts a day by default", async () => {
     render(<ShareStudyModal studyId="s1" onClose={() => {}} />);
-    const make = screen.getByRole("button", { name: "Make link" });
-    expect(make).toBeDisabled();
     await userEvent.type(screen.getByLabelText(/^For/), "Dr Mehta");
-    await userEvent.click(screen.getByText("7 days"));
-    await userEvent.click(make);
+    await userEvent.click(screen.getByRole("button", { name: "Make link" }));
+    expect(
+      await screen.findByText("A phone or email: the images open only with a code sent there"),
+    ).toBeInTheDocument();
+    expect(service.createRadiologyShareLink).not.toHaveBeenCalled();
+    await userEvent.type(screen.getByLabelText("Their mobile"), "+91 98450 12210");
+    await userEvent.click(screen.getByRole("switch", { name: /De-identify/ }));
+    expect(screen.getByText(/burned into an image/)).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Make link" }));
     await waitFor(() =>
       expect(service.createRadiologyShareLink).toHaveBeenCalledWith({
         study_id: "s1",
+        recipient_kind: "clinician",
         recipient_name: "Dr Mehta",
+        recipient_phone: "+91 98450 12210",
+        deidentify: true,
+        expires_hours: 24,
+      }),
+    );
+    expect(await screen.findByText(/\/shared-images\/tok/)).toBeInTheDocument();
+  });
+
+  it("sends the patient's own code to the number on their record", async () => {
+    render(<ShareStudyModal studyId="s1" onClose={() => {}} />);
+    await userEvent.click(screen.getByText("The patient"));
+    expect(screen.queryByLabelText("Their mobile")).not.toBeInTheDocument();
+    await userEvent.click(screen.getByText("7 days"));
+    await userEvent.click(screen.getByRole("button", { name: "Make link" }));
+    await waitFor(() =>
+      expect(service.createRadiologyShareLink).toHaveBeenCalledWith({
+        study_id: "s1",
+        recipient_kind: "patient",
         expires_hours: 168,
       }),
     );
-    expect(
-      await screen.findByText(/\/api\/public\/radiology\/share\/tok\/ohif\/viewer/),
-    ).toBeInTheDocument();
   });
 
   it("shows who opened a link and revokes it", async () => {
