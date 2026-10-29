@@ -2263,6 +2263,18 @@ pub mod mrd {
         pub const CREATE: &str = "mrd.deaths.create";
     }
 
+    pub mod crs {
+        /// See births and deaths due for civil registration.
+        /// Every birth and death in the hospital, with the 21-day date by
+        /// which the hospital must report it on the CRS portal, and the
+        /// registrar's report laid out from what the hospital recorded.
+        pub const LIST: &str = "mrd.crs.list";
+        /// Record civil registration of births and deaths.
+        /// Enters the registration number CRS issued, which closes the
+        /// event as reported.
+        pub const MANAGE: &str = "mrd.crs.manage";
+    }
+
     pub mod case_sheets {
         pub const VIEW: &str = "mrd.case_sheets.view";
         pub const GENERATE: &str = "mrd.case_sheets.generate";

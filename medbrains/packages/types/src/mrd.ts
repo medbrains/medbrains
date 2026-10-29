@@ -478,6 +478,39 @@ export interface MrdMorbidityMortalityResponse {
   mortality: MrdMortalityRow[];
 }
 
+/** A birth or death owed to the civil registrar (CRS), 21 days from the event. */
+export interface CrsEvent {
+  id: string;
+  event_type: "birth" | "death";
+  patient_id: string;
+  uhid: string | null;
+  /** The mother, for a birth; the deceased, for a death. */
+  patient_name: string | null;
+  event_date: string;
+  baby_sex: string | null;
+  due_on: string;
+  status: "pending" | "registered";
+  crs_registration_number: string | null;
+  registered_on: string | null;
+  from_maternity: boolean;
+  in_birth_register: boolean;
+  mccd_form: string | null;
+  in_death_register: boolean;
+}
+
+/** The registrar's report for one event; a null value is filled on the portal. */
+export interface CrsForm {
+  event_id: string;
+  form: string;
+  due_on: string;
+  fields: { label: string; value: string | null }[];
+}
+
+export interface RecordCrsRegistrationRequest {
+  crs_registration_number: string;
+  registered_on: string;
+}
+
 export interface MrdAdmissionDischargeRow {
   department_name: string | null;
   total_admitted: number;

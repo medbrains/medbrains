@@ -1497,6 +1497,8 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
             permissions::mrd::births::CREATE,
             permissions::mrd::deaths::LIST,
             permissions::mrd::deaths::CREATE,
+            permissions::mrd::crs::LIST,
+            permissions::mrd::crs::MANAGE,
             permissions::mrd::case_sheets::VIEW,
             permissions::mrd::case_sheets::GENERATE,
             permissions::mrd::case_sheets::PRINT,
