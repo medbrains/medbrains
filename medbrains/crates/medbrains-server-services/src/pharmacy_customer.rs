@@ -178,6 +178,7 @@ pub async fn create(
             last_name: last.to_owned(),
             date_of_birth: details.date_of_birth,
             phone: phone.to_owned(),
+            sex: None,
         },
     )
     .await?;
