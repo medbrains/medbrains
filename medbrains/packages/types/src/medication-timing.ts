@@ -3288,26 +3288,46 @@ export interface RadiationDoseRecord {
   created_at: string;
 }
 
+export type ShareRecipientKind = "clinician" | "patient";
+
 export interface CreateStudyShareLink {
   study_id: string;
-  recipient_name: string;
+  recipient_kind: ShareRecipientKind;
+  /** The clinician's name; the patient's own link uses their record. */
+  recipient_name?: string;
+  /** Where the clinician's code goes — one of the two is required. */
+  recipient_phone?: string;
   recipient_email?: string;
-  /** 1 to 168; 72 when absent. */
+  /** Replace identifying DICOM attributes. Clinician links only. */
+  deidentify?: boolean;
+  /** 1 to 168; 24 when absent. */
   expires_hours?: number;
 }
 
 export interface CreatedStudyShareLink {
   id: string;
-  /** Path on this server; prefix the origin to send it. */
-  viewer_url: string;
+  /** The page the recipient opens and enters their code on; prefix the origin. */
+  share_url: string;
+  expires_at: string;
+}
+
+/** What a share link's landing page may show before the code: no PHI. */
+export interface PublicShareLink {
+  recipient_name: string | null;
+  recipient_kind: ShareRecipientKind;
+  /** Masked: "98•••••210" or "d•••@example.org". */
+  code_sent_to: string | null;
+  deidentified: boolean;
   expires_at: string;
 }
 
 /** Who a study was shared with. The token itself is never listed. */
 export interface StudyShareLink {
   id: string;
+  recipient_kind: ShareRecipientKind;
   recipient_name: string | null;
   recipient_email: string | null;
+  deidentify: boolean;
   expires_at: string;
   accessed_count: number;
   last_accessed: string | null;

@@ -147,17 +147,24 @@ pub async fn tenant_target(state: &AppState, tenant_id: Uuid) -> Result<Target, 
     Ok(target)
 }
 
-/// Relay one GET to the PACS. Only the content type crosses back; nothing
-/// the PACS sets about cookies or caching does, and PHI is never cached.
+/// One PACS answer, read whole.
+#[derive(Debug)]
+pub struct Fetched {
+    pub status: StatusCode,
+    pub content_type: Option<header::HeaderValue>,
+    pub body: axum::body::Bytes,
+}
+
+/// GET from the PACS, passing on only what the client will accept.
 ///
 /// # Errors
-/// 503 when the PACS is unreachable, 502 when its answer is too large.
-pub async fn relay(
+/// 503 when the PACS is unreachable or its answer is too large to relay.
+pub async fn fetch(
     target: &Target,
     path: &str,
     query: Option<&str>,
     headers: &HeaderMap,
-) -> Result<Response, AppError> {
+) -> Result<Fetched, AppError> {
     let url = query.map_or_else(|| path.to_owned(), |q| format!("{path}?{q}"));
     let mut request = target.get(&url);
     if let Some(accept) = headers.get(header::ACCEPT).and_then(|v| v.to_str().ok()) {
@@ -178,19 +185,45 @@ pub async fn relay(
     let status =
         StatusCode::from_u16(upstream.status().as_u16()).unwrap_or(StatusCode::BAD_GATEWAY);
     let content_type = upstream.headers().get("content-type").cloned();
-    let bytes = upstream
+    let body = upstream
         .bytes()
         .await
         .map_err(|e| AppError::ServiceUnavailable(format!("PACS answer cut off: {e}")))?;
+    Ok(Fetched {
+        status,
+        content_type,
+        body,
+    })
+}
+
+/// Hand a PACS answer on. Only the content type crosses back; nothing the
+/// PACS sets about cookies or caching does, and PHI is never cached.
+///
+/// # Errors
+/// When the response cannot be built.
+pub fn respond(fetched: Fetched) -> Result<Response, AppError> {
     let mut response = Response::builder()
-        .status(status)
+        .status(fetched.status)
         .header(header::CACHE_CONTROL, "no-store");
-    if let Some(ct) = content_type {
+    if let Some(ct) = fetched.content_type {
         response = response.header(header::CONTENT_TYPE, ct);
     }
     response
-        .body(Body::from(bytes))
+        .body(Body::from(fetched.body))
         .map_err(|e| AppError::Internal(format!("viewer response: {e}")))
+}
+
+/// Relay one GET to the PACS.
+///
+/// # Errors
+/// As [`fetch`].
+pub async fn relay(
+    target: &Target,
+    path: &str,
+    query: Option<&str>,
+    headers: &HeaderMap,
+) -> Result<Response, AppError> {
+    respond(fetch(target, path, query, headers).await?)
 }
 
 fn text_response(content_type: &'static str, body: String) -> Result<Response, AppError> {

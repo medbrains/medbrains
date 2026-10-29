@@ -1819,6 +1819,7 @@ import type {
   PublicHealthFacility,
   PublicInvite,
   PublicPrivacyContact,
+  PublicShareLink,
   PublicTenant,
   PublicTokenLink,
   PublicTokenStatus,
@@ -18425,7 +18426,15 @@ export const api = {
   /** The link the front desk hands a patient so they can follow their token. */
   getQueueTokenStatusLink: (id: string) =>
     request<PublicTokenLink>(`/opd/queue-tokens/${id}/status-link`),
-  getPublicRadiologyViewer: (id: string) => request<unknown>(`/public/radiology/viewer/${id}`),
+  getPublicRadiologyViewer: (token: string) =>
+    request<PublicShareLink>(`/public/radiology/viewer/${token}`),
+  sendShareLinkCode: (token: string) =>
+    request<{ sent_to: string }>(`/public/radiology/share/${token}/code`, { method: "POST" }),
+  verifyShareLinkCode: (token: string, code: string) =>
+    request<{ viewer_url: string }>(`/public/radiology/share/${token}/verify`, {
+      method: "POST",
+      body: JSON.stringify({ code }),
+    }),
   registerBridge: (data: Record<string, unknown>) =>
     request<unknown>("/bridge/register", {
       method: "POST",
