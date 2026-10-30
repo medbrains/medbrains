@@ -1070,6 +1070,8 @@ import type {
   ErpExportRequest,
   ErQueueDisplay,
   ErResuscitationLog,
+  ErrorTrackingClientConfig,
+  ErrorTrackingSummary,
   ErTriageAssessment,
   // Emergency
   ErVisit,
@@ -3291,6 +3293,9 @@ export const api = {
       method: "POST",
       body: JSON.stringify(data),
     }),
+  getErrorTrackingClientConfig: () =>
+    request<ErrorTrackingClientConfig>("/public/error-tracking/config"),
+  getErrorTrackingSummary: () => request<ErrorTrackingSummary>("/admin/error-tracking/summary"),
   refreshToken: async (): Promise<RefreshResponse> => {
     const resp = await refreshSession();
     if (!resp) {

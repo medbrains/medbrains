@@ -3321,6 +3321,16 @@ pub mod admin {
         pub const MANAGE: &str = "admin.webhooks.manage";
     }
 
+    /// The software's own crash reports, from the self-hosted error tracker.
+    pub mod error_tracking {
+        /// See how often the software is failing.
+        ///
+        /// New errors in the last day, the share of sessions on the running
+        /// release that did not crash, and a link to the error tracker. The
+        /// reports are about the software and carry no patient data.
+        pub const VIEW: &str = "admin.error_tracking.view";
+    }
+
     /// Sprint A: per-tenant operating mode flip (`normal/degraded/read_only`).
     pub mod system_state {
         pub const VIEW: &str = "admin.system_state.view";

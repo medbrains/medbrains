@@ -65,6 +65,39 @@ services:
       acceptLicense: ${ICD_API_ACCEPT_LICENSE:-false}
       saveAnalytics: ${ICD_API_SAVE_ANALYTICS:-false}
 
+  # Optional error tracker (Rustrak, Sentry-protocol compatible), started by
+  # install-rustrak.sh when INSTALL_RUSTRAK=1. SQLite in the named volume, on
+  # this host: error reports never leave the hospital's own server. Bound to
+  # localhost; the Pingora edge serves its dashboard at errors.<domain>. The
+  # image is pinned by tag AND digest — upgrade deliberately, never :latest.
+  rustrak:
+    image: rustrak/rustrak-server:v0.21.0@sha256:6b1547630a678f7fb7d8900c199461dd81a42e8af2b52c95a6ef48b7017af6cb
+    profiles: ["rustrak"]
+    container_name: medbrains-rustrak
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:${RUSTRAK_PORT:-8180}:8080"
+    # The secrets come from install-rustrak.sh via .compose-env. `:-` rather
+    # than `:?` because compose interpolates every service, profile or not;
+    # an empty key is refused by Rustrak itself (SSL_PROXY=true requires a
+    # 64-character SESSION_SECRET_KEY) and by install-rustrak.sh before it.
+    environment:
+      SESSION_SECRET_KEY: ${RUSTRAK_SESSION_SECRET_KEY:-}
+      # Only creates the account when the database has none; ignored after.
+      CREATE_SUPERUSER: ${RUSTRAK_CREATE_SUPERUSER:-}
+      PUBLIC_URL: ${RUSTRAK_PUBLIC_URL:-}
+      SSL_PROXY: "true"
+      RUSTRAK_TELEMETRY: "off"
+      DO_NOT_TRACK: "1"
+      RUSTRAK_METRICS: "off"
+      RUSTRAK_LOG_TIMEZONE: Asia/Kolkata
+      # A small box: a runaway loop must not fill the disk.
+      MAX_EVENTS_PER_MINUTE: "2000"
+      MAX_EVENTS_PER_HOUR: "40000"
+    volumes:
+      - medbrains-rustrak:/data
+    mem_limit: 256m
+
   # Optional: nightly logical-dump backup container. Cron picks it
   # up via the timer-based "medbrains-pg-backup.service" if
   # configured; commented out here because the install script
@@ -76,4 +109,6 @@ services:
 
 volumes:
   medbrains-pgdata:
+    driver: local
+  medbrains-rustrak:
     driver: local

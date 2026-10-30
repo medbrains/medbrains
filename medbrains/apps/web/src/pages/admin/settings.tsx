@@ -216,6 +216,11 @@ const SETTINGS_NAV_META: Record<
     description: "Completeness, import, export, and health checks",
     kind: "support",
   },
+  "error-tracking": {
+    group: "System",
+    description: "New errors and crash-free sessions, from this server's error tracker",
+    kind: "support",
+  },
 };
 
 const DEFAULT_SETTINGS_META: {

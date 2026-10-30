@@ -34,7 +34,17 @@ fi
 
 say() { printf '    %s\n' "$*"; }
 
-echo "==> building server binaries (target=$TARGET)"
+# The release error reports carry (crates/medbrains-error-tracking), baked into
+# the server at compile time. The same string vite.config.ts bakes into the web
+# bundle — the commit, "+local" when crates/apps/packages have uncommitted
+# changes — so a deploy's server and browser errors land on one release.
+MEDBRAINS_RELEASE="$(git rev-parse --short=12 HEAD 2>/dev/null || echo unknown)"
+if [ -n "$(git status --porcelain -- crates apps packages 2>/dev/null)" ]; then
+    MEDBRAINS_RELEASE="$MEDBRAINS_RELEASE+local"
+fi
+export MEDBRAINS_RELEASE
+
+echo "==> building server binaries (target=$TARGET, release=$MEDBRAINS_RELEASE)"
 for spec in "medbrains-server:medbrains-server" \
             "medbrains-server:medbrains-archive" \
             "medbrains-proxy:medbrains-proxy"; do

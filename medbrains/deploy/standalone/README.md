@@ -229,6 +229,34 @@ but this kit keeps the default on Docker Compose because Docker is
 already required for Postgres and makes sidecar lifecycle/rollback
 simpler.
 
+## Optional error tracking (Rustrak)
+
+The server and the browser report crashes with the Sentry SDKs to a
+self-hosted [Rustrak](https://github.com/rustrak/rustrak) on this host —
+never to sentry.io. Every report is scrubbed of patient data before it
+leaves the HMS process (`crates/medbrains-error-tracking`); the browser's
+reports go through the server's tunnel to get the same scrubbing.
+It is off until `SENTRY_DSN` is set: without it the server and the
+browser send nothing, and no other variable is required.
+
+```bash
+# DNS: errors.<domain> → this host, then:
+INSTALL_RUSTRAK=1 sudo -E bash install.sh <domain> <admin-email>
+```
+
+`install-rustrak.sh` starts `rustrak/rustrak-server` pinned by tag and
+digest (SQLite in the `medbrains-rustrak` volume, telemetry off, 30-day
+retention), creates its admin login in `/etc/medbrains/rustrak.env`
+(root only), and writes `SENTRY_DSN`, `RUSTRAK_API_TOKEN` and
+`RUSTRAK_PUBLIC_URL` to `/etc/medbrains/env`. Pingora serves the
+dashboard at `https://errors.<domain>` (a `passthrough` route on the same
+certificate). Admin → Settings → Error tracking shows new issues and the
+crash-free rate of the running release.
+
+Source maps: build with `SENTRY_URL=https://errors.<domain>` and
+`SENTRY_AUTH_TOKEN=<RUSTRAK_API_TOKEN>` in the environment and the web
+build uploads them for its release; they are never served.
+
 ## What this kit does NOT install
 
 - YottaDB (Phase 2 hierarchical store — defer until needed).

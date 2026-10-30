@@ -104,6 +104,9 @@ pub fn build_router(state: AppState) -> Router {
         .merge(login_route)
         .merge(password_reset_routes)
         .route("/api/health", get(health::health_check))
+        // Error tracking: the browser SDK's config and its envelope tunnel —
+        // errors on the sign-in page are reported too.
+        .merge(medbrains_error_tracking::public_router())
         // Caddy on-demand TLS asks before issuing a certificate.
         .merge(medbrains_infra_settings::public_router())
         // Enterprise SSO login flow — pre-auth (no JWT yet).
@@ -161,6 +164,7 @@ pub fn build_router(state: AppState) -> Router {
         // Auth — me/logout/change-password/revocations need Extension<Claims>
         .merge(medbrains_auth::protected_router())
         .merge(medbrains_client_errors::router())
+        .merge(medbrains_error_tracking::router())
         .merge(medbrains_device_pairing::device_code_admin_router())
         // Admin halves of three routers that used to sit on the public side,
         // where their handlers' `Claims` extension never arrived and every
@@ -884,6 +888,9 @@ pub fn build_router(state: AppState) -> Router {
         // device exchanges for JWT + cert fingerprint
         // S3 presigned upload / download URL endpoints
         .merge(medbrains_upload::router())
+        // Innermost: tags the request's error scope with the user hash,
+        // tenant and role, which the auth layer outside it has resolved.
+        .layer(from_fn(medbrains_error_tracking::tag_scope))
         // Sprint A.6 — system_state middleware short-circuits non-GET when
         // tenant is in read_only/degraded mode. Innermost so claims + path
         // are populated and 503 response carries no audit weight.

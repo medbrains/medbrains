@@ -45,6 +45,12 @@ pub struct RouteConfig {
     pub _gzip: Option<bool>,
     /// Per-domain TLS cert (for SNI)
     pub cert_path: Option<String>,
+    /// A self-contained application with its own login and its own security
+    /// headers (the Rustrak error tracker): none of the MedBrains edge policies,
+    /// the MedBrains CSP or the SPA fallback apply — only the global body
+    /// limit, the framing checks and the source-map block.
+    #[serde(default)]
+    pub passthrough: bool,
     pub key_path: Option<String>,
 }
 

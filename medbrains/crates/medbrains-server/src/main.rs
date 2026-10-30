@@ -78,7 +78,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     tracing_subscriber::registry()
         .with(filter)
         .with(tracing_subscriber::fmt::layer().with_ansi(colour))
+        .with(medbrains_error_tracking::tracing_layer())
         .init();
+
+    // Error reports to the self-hosted Rustrak, when SENTRY_DSN is set. The
+    // guard flushes pending reports on shutdown, so it lives as long as main.
+    let _error_tracking = medbrains_error_tracking::init();
 
     // Load configuration
     let config = AppConfig::from_env()?;
@@ -605,6 +610,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             TraceLayer::new_for_http()
                 .on_response(medbrains_server_core::http_trace::on_response),
         )
+        // A Sentry hub per request, outside the trace layer so its log lines
+        // land on the request's scope; a no-op while error tracking is off.
+        .layer(medbrains_error_tracking::http_layer())
         .layer(SetRequestIdLayer::new(request_id_header(), MakeRequestUuid));
 
     // Make the finalized router available to the AI assistant's in-process read

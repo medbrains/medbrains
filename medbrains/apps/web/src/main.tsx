@@ -18,6 +18,7 @@ import {
   getStoredDesktopApiBase,
   isTauriDesktopRuntime,
 } from "./lib/desktop-runtime";
+import { startErrorTracking } from "./lib/error-tracking";
 import { sessionService } from "./services/session.service";
 
 import "@fontsource/ibm-plex-sans/400.css";
@@ -135,6 +136,7 @@ function installConsoleErrorReporter() {
 }
 
 installConsoleErrorReporter();
+void startErrorTracking();
 
 const queryClient = createQueryClient({
   // Safety net: any mutation without its own onError surfaces here

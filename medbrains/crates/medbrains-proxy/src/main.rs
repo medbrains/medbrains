@@ -17,7 +17,11 @@ use config::{EdgePolicyConfig, ProxyConfig, RouteConfig};
 struct RuntimeRoute {
     upstream: String,
     cors_allowed_origins: Vec<String>,
+    passthrough: bool,
 }
+
+/// The edge class of a [`RouteConfig::passthrough`] route.
+const PASSTHROUGH_CLASS: &str = "passthrough";
 
 #[derive(Clone)]
 struct MedBrainsProxy {
@@ -26,6 +30,7 @@ struct MedBrainsProxy {
     edge_policies: Vec<EdgePolicy>,
     default_policy: EdgePolicy,
     block_source_maps: bool,
+    body_limit_bytes: u64,
     downstream_read_timeout: Duration,
     downstream_write_timeout: Duration,
     upstream_connect_timeout: Duration,
@@ -81,6 +86,7 @@ impl MedBrainsProxy {
             let runtime = RuntimeRoute {
                 upstream: route.upstream.clone(),
                 cors_allowed_origins: route.cors_allowed_origins.clone(),
+                passthrough: route.passthrough,
             };
             routes.insert(route.domain.clone(), runtime.clone());
             if default_route.is_none() {
@@ -98,6 +104,7 @@ impl MedBrainsProxy {
             edge_policies,
             default_policy: EdgePolicy::default_api(),
             block_source_maps: cfg.block_source_maps(),
+            body_limit_bytes: cfg.body_limit_bytes(),
             downstream_read_timeout: Duration::from_millis(cfg.downstream_read_timeout_ms()),
             downstream_write_timeout: Duration::from_millis(cfg.downstream_write_timeout_ms()),
             upstream_connect_timeout: Duration::from_millis(cfg.upstream_connect_timeout_ms()),
@@ -117,6 +124,16 @@ impl MedBrainsProxy {
             .unwrap_or_else(|| self.default_policy.clone())
     }
 
+    /// A passthrough route's own application decides its paths and methods;
+    /// every other route gets the MedBrains policy for the path.
+    fn edge_policy_for_route(&self, route: &RuntimeRoute, path: &str) -> EdgePolicy {
+        if route.passthrough {
+            EdgePolicy::passthrough(self.body_limit_bytes)
+        } else {
+            self.edge_policy_for(path)
+        }
+    }
+
     fn known_host(&self, session: &Session) -> bool {
         host_without_port(session).is_some_and(|host| self.routes.contains_key(host))
     }
@@ -129,6 +146,27 @@ impl MedBrainsProxy {
 }
 
 impl EdgePolicy {
+    /// Every method but TRACE, no caching or idempotency rules of ours.
+    fn passthrough(body_limit_bytes: u64) -> Self {
+        Self {
+            prefix: "/".to_owned(),
+            class: PASSTHROUGH_CLASS.to_owned(),
+            upstream: None,
+            body_limit_bytes,
+            upstream_total_timeout: None,
+            upstream_read_timeout: None,
+            require_idempotency_key: false,
+            retry_after_seconds: Some(5),
+            cache_control: None,
+            block: false,
+            allowed_methods: Vec::new(),
+        }
+    }
+
+    fn is_passthrough(&self) -> bool {
+        self.class == PASSTHROUGH_CLASS
+    }
+
     fn default_api() -> Self {
         Self {
             prefix: "/api/".to_owned(),
@@ -381,7 +419,10 @@ impl ProxyHttp for MedBrainsProxy {
         session.set_total_drain_timeout(Some(self.drain_timeout));
 
         ctx.request_id = request_id(session);
-        ctx.edge_policy = self.edge_policy_for(session.req_header().uri.path());
+        ctx.edge_policy = self.edge_policy_for_route(
+            self.route_for_session(session),
+            session.req_header().uri.path(),
+        );
 
         if session.req_header().uri.path() == "/proxy-health" {
             text_response(session, 200, "ok\n").await?;
@@ -565,24 +606,29 @@ impl ProxyHttp for MedBrainsProxy {
     where
         Self::CTX: Send + Sync,
     {
-        if should_normalize_spa_fallback(session, resp) {
+        let passthrough = ctx.edge_policy.is_passthrough();
+        if !passthrough && should_normalize_spa_fallback(session, resp) {
             resp.set_status(StatusCode::OK)?;
         }
         apply_cost_headers(session, resp, &ctx.edge_policy)?;
         resp.insert_header("Server", "MedBrains")?;
         resp.insert_header("X-Request-Id", ctx.request_id.as_str())?;
         resp.insert_header("X-MedBrains-Edge-Class", ctx.edge_policy.class.as_str())?;
-        resp.remove_header("content-security-policy");
         resp.insert_header("X-Content-Type-Options", "nosniff")?;
         resp.insert_header("X-Frame-Options", "SAMEORIGIN")?;
         resp.insert_header("Referrer-Policy", "strict-origin-when-cross-origin")?;
         resp.insert_header("X-Permitted-Cross-Domain-Policies", "none")?;
         strip_cors_headers(resp);
         apply_cors_headers(session, resp, self.route_for_session(session))?;
-        resp.insert_header(
-            "Content-Security-Policy",
-            self.content_security_policy.as_str(),
-        )?;
+        // A passthrough application keeps its own policy: ours would block
+        // the scripts its dashboard needs.
+        if !passthrough {
+            resp.remove_header("content-security-policy");
+            resp.insert_header(
+                "Content-Security-Policy",
+                self.content_security_policy.as_str(),
+            )?;
+        }
         resp.insert_header(
             "Strict-Transport-Security",
             "max-age=31536000; includeSubDomains",
@@ -1168,3 +1214,7 @@ fn main() -> anyhow::Result<()> {
     );
     server.run_forever();
 }
+
+#[cfg(test)]
+#[path = "passthrough_tests.rs"]
+mod tests;

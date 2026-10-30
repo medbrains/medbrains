@@ -3,6 +3,7 @@ import { IconAlertTriangle, IconHome, IconRefresh } from "@tabler/icons-react";
 import type { ErrorInfo, ReactNode } from "react";
 import { Component } from "react";
 import { useLocation } from "react-router";
+import { reportScreenError } from "@/lib/error-tracking";
 import { sessionService } from "@/services/session.service";
 
 type BoundaryState = {
@@ -71,6 +72,9 @@ class AppErrorBoundaryInner extends Component<BoundaryProps, BoundaryState> {
   }
 
   componentDidCatch(error: Error, errorInfo: ErrorInfo) {
+    // Window errors and rejections reach the error tracker through its own
+    // global handlers; a render error is caught here first, so it is sent here.
+    reportScreenError(error, errorInfo);
     this.reportError(error, errorInfo);
   }
 
