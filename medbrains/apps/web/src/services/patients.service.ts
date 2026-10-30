@@ -12,6 +12,7 @@ export const patientsService = {
   getPatientContext: (...args: Parameters<typeof api.getPatientContext>) =>
     api.getPatientContext(...args),
   createPatient: (data: CreatePatientInput) => api.createPatient(data),
+  transliterateName: (text: string, to: string) => api.transliterateName(text, to),
   updatePatient: (...args: Parameters<typeof api.updatePatient>) => api.updatePatient(...args),
   matchPatients: (...args: Parameters<typeof api.matchPatients>) => api.matchPatients(...args),
   completePatientRegistration: (id: string) => api.completePatientRegistration(id),

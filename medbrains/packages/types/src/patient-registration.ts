@@ -557,6 +557,8 @@ export interface PatientListResponse {
 export interface CreatePatientRequest {
   first_name: string;
   last_name: string;
+  /** The name in the patient's own script (Devanagari, Tamil, ...). */
+  full_name_local?: string;
   date_of_birth?: string | null;
   gender: Gender;
   phone: string;
@@ -735,6 +737,8 @@ export interface PatientContactConsents {
 
 export interface UpdatePatientRequest {
   first_name?: string;
+  /** The name in the patient's own script; empty clears it. */
+  full_name_local?: string;
   last_name?: string;
   date_of_birth?: string | null;
   gender?: Gender;

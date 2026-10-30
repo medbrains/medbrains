@@ -76,6 +76,7 @@ import { AbhaLinkPanel } from "./AbhaLinkPanel";
 import { CampaignSelect } from "./CampaignSelect";
 import { DpdpRegistrationSection } from "./DpdpRegistrationSection";
 import { DPDP_NOTICE_VERSION } from "./dpdp-notice";
+import { LocalNameRow } from "./LocalNameRow";
 
 interface PatientRegisterFormProps {
   isSubmitting?: boolean;
@@ -338,6 +339,7 @@ export function PatientRegisterForm({
       prefix: initialValues?.prefix,
       first_name: initialValues?.first_name ?? "",
       middle_name: initialValues?.middle_name,
+      full_name_local: initialValues?.full_name_local ?? "",
       last_name: initialValues?.last_name ?? "",
       is_unknown_patient: initialValues?.is_unknown_patient ?? false,
       suffix: initialValues?.suffix,
@@ -731,6 +733,7 @@ export function PatientRegisterForm({
       email: values.email || null,
       prefix: values.prefix || undefined,
       middle_name: values.middle_name || undefined,
+      full_name_local: values.full_name_local?.trim() || undefined,
       suffix: values.suffix || undefined,
       father_name: values.father_name || undefined,
       guardian_name: values.guardian_name || undefined,
@@ -994,6 +997,26 @@ export function PatientRegisterForm({
                   />
                 </Grid.Col>
               </Grid>
+            </FormRow>
+            <FormRow label={t("registrationForm.row.localName", "Name in own script")}>
+              <Controller
+                control={control}
+                name="full_name_local"
+                render={({ field }) => (
+                  <LocalNameRow
+                    englishName={[watch("first_name"), watch("middle_name"), watch("last_name")]
+                      .filter(Boolean)
+                      .join(" ")}
+                    value={field.value ?? ""}
+                    onChange={field.onChange}
+                    onUseEnglish={(name) => {
+                      const [first, ...rest] = name.split(" ");
+                      setValue("first_name", first ?? "", { shouldDirty: true });
+                      setValue("last_name", rest.join(" "), { shouldDirty: true });
+                    }}
+                  />
+                )}
+              />
             </FormRow>
 
             <FormRow label={t("registrationForm.row.ageDob")}>
