@@ -93,6 +93,7 @@ mod diagnosis_author_test;
 mod diagnosis_coding_test;
 mod dialysis_reuse_test;
 mod discharge_summary_report_test;
+mod discharge_tat_readers_test;
 mod display_pairing_test;
 mod doctor_payouts_access_test;
 mod doctor_payouts_money_test;
