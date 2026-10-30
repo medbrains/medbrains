@@ -196,6 +196,11 @@ const SETTINGS_NAV_META: Record<
     description: "NHCX claims exchange: participant code, gateway keys, certificates",
     kind: "configuration",
   },
+  "hl7-adt": {
+    group: "Interoperability",
+    description: "ADT messages (admit, transfer, discharge) to PACS, LIS and billing over MLLP",
+    kind: "configuration",
+  },
   "device-integrations": {
     group: "Interoperability",
     description: "PACS, lab analyzer, biometric, and print agents",

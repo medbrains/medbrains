@@ -2475,6 +2475,22 @@ pub mod integration {
         /// Turn a built-in pipeline on or off for this hospital.
         pub const TOGGLE: &str = "integration.pipelines.toggle";
     }
+
+    pub mod hl7_adt {
+        /// See the hospital's HL7 ADT feeds.
+        ///
+        /// Where the ADT messages go (MLLP host and port), which triggers
+        /// each destination takes, and every message sent with whether the
+        /// receiver acknowledged it. The messages name patients, so the list
+        /// shows triggers and results, not message contents.
+        pub const VIEW: &str = "integration.hl7_adt.view";
+        /// Add, change or remove an HL7 ADT feed.
+        ///
+        /// Pointing a feed at a system sends it every admission, transfer,
+        /// discharge and demographic change from then on, so it is kept
+        /// apart from the general integration permissions.
+        pub const MANAGE: &str = "integration.hl7_adt.manage";
+    }
 }
 
 pub mod specialty {

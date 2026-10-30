@@ -11,6 +11,7 @@ pub mod ckb;
 pub mod disclosure;
 pub mod facility_codes;
 pub mod geo;
+pub mod hl7_adt;
 pub mod ihip;
 pub mod integration;
 pub mod nikshay;
@@ -23,6 +24,18 @@ pub mod terminology;
 
 pub fn router() -> Router<AppState> {
     Router::new()
+        .route(
+            "/api/integrations/hl7-adt/destinations",
+            get(hl7_adt::list_destinations).post(hl7_adt::create_destination),
+        )
+        .route(
+            "/api/integrations/hl7-adt/destinations/{id}",
+            put(hl7_adt::update_destination).delete(hl7_adt::delete_destination),
+        )
+        .route(
+            "/api/integrations/hl7-adt/deliveries",
+            get(hl7_adt::list_deliveries),
+        )
         .route("/api/geo/countries", get(geo::list_countries))
         .route("/api/geo/countries/{id}/states", get(geo::list_states))
         .route("/api/geo/states/{id}/districts", get(geo::list_districts))

@@ -226,6 +226,7 @@ mod pharmacy_delivery_choice_test;
 mod pharmacy_delivery_test;
 mod pharmacy_expired_stock_test;
 mod group_patient_identity_test;
+mod hl7_adt_feed_test;
 mod patient_match_scoring_test;
 mod pharmacy_storefront_customer_test;
 mod pharmacy_storefront_p2_refunds_test;

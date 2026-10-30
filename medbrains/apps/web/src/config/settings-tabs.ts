@@ -53,6 +53,7 @@ import { EwsPolicySettings } from "@/pages/admin/settings/EwsPolicySettings";
 import { FacilitiesSettings } from "@/pages/admin/settings/FacilitiesSettings";
 import { GeneralSettings } from "@/pages/admin/settings/GeneralSettings";
 import { GeoSettings } from "@/pages/admin/settings/GeoSettings";
+import { Hl7AdtSettings } from "@/pages/admin/settings/Hl7AdtSettings";
 import { LocationsSettings } from "@/pages/admin/settings/LocationsSettings";
 import { MasterDataStatusSettings } from "@/pages/admin/settings/MasterDataStatusSettings";
 import { ModulesSettings } from "@/pages/admin/settings/ModulesSettings";
@@ -307,6 +308,13 @@ export const SETTINGS_TABS: SettingsTabConfig[] = [
     icon: "IconPalette",
     requiredPermission: "admin.settings.branding.manage",
     component: BrandingSettings,
+  },
+  {
+    value: "hl7-adt",
+    i18nKey: "settings.hl7Adt",
+    icon: "IconPlug",
+    requiredPermission: "integration.hl7_adt.view",
+    component: Hl7AdtSettings,
   },
   {
     value: "device-integrations",
