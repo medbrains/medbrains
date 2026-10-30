@@ -233,6 +233,7 @@ INTENTIONALLY_OPEN = {
     "/api/bridge/heartbeat": "agent_key; refuses with Unauthorized when it does not match",
     "/api/integrations/nhcx/hcx/v1/{resource}/{action}": "NHCX gateway callback; RS256 gateway JWT verified, then JWE decrypted",
     "/api/integrations/nhcx/hcx/v1/{action}": "NHCX gateway on_status and error report; RS256 gateway JWT verified",
+    "/api/uhi/hspa/{hospital}/{action}": "UHI gateway and patient apps; Beckn signature verified against the registry",
 
 }
 OPEN_PREFIXES = ("/api/webhooks/", "/api/public/", "/api/abdm/gateway/callback")
@@ -501,6 +502,23 @@ def is_guarded(body: str, bodies: dict[str, str], path: str) -> bool:
     return False
 
 
+def handler_file(router: str, handler: str, name: str, bodies: dict[str, str]) -> str:
+    """The file a route's handler is defined in, as far as the path says.
+
+    `webhooks::create` registered in `lib.rs` lives in the sibling
+    `webhooks.rs`, not in `lib.rs` — which has its own `create` for API keys.
+    Looking in the router's file first described POST /api/admin/webhooks with
+    the API-key handler's permission and body.
+    """
+    parts = handler.split("::")[:-1]
+    if parts and parts[0] not in ("crate", "self", "super"):
+        base = os.path.dirname(router)
+        for candidate in (os.path.join(base, *parts) + ".rs", os.path.join(base, *parts, "mod.rs")):
+            if f"{candidate}::{name}" in bodies:
+                return candidate
+    return router
+
+
 def backend_routes(sources: list[str], bodies: dict[str, str]) -> list[dict]:
     # Bare name -> the file that defines it. A router in `lib.rs` routinely
     # names a handler defined in a sibling module, and a delegate has to be
@@ -536,6 +554,7 @@ def backend_routes(sources: list[str], bodies: dict[str, str]) -> list[dict]:
                 continue
             for verb, handler in VERB_RE.findall(expression):
                 name = handler.split("::")[-1]
+                home = handler_file(os.path.relpath(path, ROOT), handler, name, bodies)
                 key = (verb.upper(), url)
                 if key in seen:
                     continue
@@ -544,9 +563,7 @@ def backend_routes(sources: list[str], bodies: dict[str, str]) -> list[dict]:
                 # case of a router importing handlers from a sibling module,
                 # and is only ambiguous when two crates share a handler name —
                 # which is why it is second.
-                body = bodies.get(
-                    f"{os.path.relpath(path, ROOT)}::{name}"
-                ) or bodies.get(name, "")
+                body = bodies.get(f"{home}::{name}") or bodies.get(name, "")
                 routes.append(
                     {
                         "method": verb.upper(),
@@ -559,9 +576,7 @@ def backend_routes(sources: list[str], bodies: dict[str, str]) -> list[dict]:
                             # The router's own file first — a handler beside
                             # its route is the common case and is never
                             # ambiguous. Only then the unique-name map.
-                            os.path.relpath(path, ROOT)
-                            if f"{os.path.relpath(path, ROOT)}::{name}" in bodies
-                            else defined_in.get(name, ""),
+                            home if f"{home}::{name}" in bodies else defined_in.get(name, ""),
                         ),
                         # Distinguishes "no pattern matched" from "the author
                         # explicitly discarded the identity".
@@ -573,7 +588,7 @@ def backend_routes(sources: list[str], bodies: dict[str, str]) -> list[dict]:
                             and (DISCARDS_STATE.search(body) or STUB.search(body))
                             and "sqlx::query" not in body
                         ),
-                        "file": os.path.relpath(path, ROOT),
+                        "file": home,
                     }
                 )
     return routes

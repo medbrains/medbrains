@@ -12,6 +12,7 @@
 //!   3. Admin → list and revoke codes. A revoked code binds nothing more;
 //!      devices it bound are revoked from Paired devices.
 
+use axum::extract::rejection::JsonRejection;
 use axum::{
     Extension, Json,
     extract::{Path, State},
@@ -120,9 +121,10 @@ pub struct IssueResponse {
 pub async fn issue_binding_code(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
-    Json(body): Json<IssueRequest>,
+    body: Result<Json<IssueRequest>, JsonRejection>,
 ) -> Result<Json<IssueResponse>, AppError> {
     require_permission(&claims, permissions::devices::binding::ISSUE)?;
+    let Json(body) = body?;
     let label = check_label(&body.label)?;
     if !(1..=MAX_LIFETIME_HOURS).contains(&body.expires_in_hours) {
         return Err(AppError::BadRequest(format!(
@@ -236,9 +238,10 @@ pub async fn revoke_binding_code(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
     Path(id): Path<Uuid>,
-    Json(body): Json<RevokeRequest>,
+    body: Result<Json<RevokeRequest>, JsonRejection>,
 ) -> Result<Json<BindingCodeRow>, AppError> {
     require_permission(&claims, permissions::devices::binding::REVOKE)?;
+    let Json(body) = body?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
     let revoked: Option<Uuid> = sqlx::query_scalar(

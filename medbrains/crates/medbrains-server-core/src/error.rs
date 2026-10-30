@@ -155,7 +155,11 @@ impl IntoResponse for AppError {
             }
             Self::TooManyRequests(msg) => {
                 tracing::warn!(detail = %msg, "too many requests");
-                (StatusCode::TOO_MANY_REQUESTS, "too many requests", msg.clone())
+                (
+                    StatusCode::TOO_MANY_REQUESTS,
+                    "too many requests",
+                    msg.clone(),
+                )
             }
             Self::ServiceUnavailable(msg) => {
                 tracing::warn!(detail = %msg, "service unavailable");
@@ -203,9 +207,7 @@ fn db_error_status(code: Option<&str>) -> (StatusCode, &'static str) {
         // that binds a free-text `status`/`type` query param into a `$N::<enum>`
         // cast raises it for an unknown value (`?status=bogus`), which used to
         // 500. Numeric overflow and unparseable dates are the same class.
-        Some("22P02" | "22003" | "22007" | "22008") => {
-            (StatusCode::BAD_REQUEST, "bad request")
-        }
+        Some("22P02" | "22003" | "22007" | "22008") => (StatusCode::BAD_REQUEST, "bad request"),
         _ => (StatusCode::INTERNAL_SERVER_ERROR, "database error"),
     }
 }
@@ -246,7 +248,10 @@ fn extract_db_detail(db_err: &medbrains_db::pool::DbError) -> String {
             // Data exception — e.g. `invalid input value for enum foo_status: "bogus"`.
             // The PG message names the offending value, which is exactly what the
             // caller needs to fix the request.
-            if matches!(e.code().as_deref(), Some("22P02" | "22003" | "22007" | "22008")) {
+            if matches!(
+                e.code().as_deref(),
+                Some("22P02" | "22003" | "22007" | "22008")
+            ) {
                 return format!("Invalid value: {msg}");
             }
             // Other database errors — return the PG message directly
@@ -279,6 +284,19 @@ impl From<medbrains_db::stock::StockError> for AppError {
     }
 }
 
+/// A body that did not parse, surfaced *after* the permission check.
+///
+/// Axum runs a `Json<T>` extractor before the handler body, so a handler that
+/// takes `Json<T>` and then calls `require_permission` answers 415/422 to a
+/// caller who may not use the route at all — the refusal never runs. Taking
+/// `Result<Json<T>, JsonRejection>` and applying `?` after the guard puts the
+/// refusal first; this is what the `?` converts to.
+impl From<axum::extract::rejection::JsonRejection> for AppError {
+    fn from(err: axum::extract::rejection::JsonRejection) -> Self {
+        Self::BadRequest(err.body_text())
+    }
+}
+
 impl From<argon2::password_hash::Error> for AppError {
     fn from(_: argon2::password_hash::Error) -> Self {
         Self::Internal("password hashing error".to_owned())
@@ -306,7 +324,11 @@ mod tests {
     fn data_exceptions_are_bad_request_not_500() {
         for code in ["22P02", "22003", "22007", "22008"] {
             let (status, _) = db_error_status(Some(code));
-            assert_eq!(status, StatusCode::BAD_REQUEST, "SQLSTATE {code} must be a 400");
+            assert_eq!(
+                status,
+                StatusCode::BAD_REQUEST,
+                "SQLSTATE {code} must be a 400"
+            );
         }
     }
 

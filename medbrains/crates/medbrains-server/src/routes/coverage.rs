@@ -1,6 +1,7 @@
 //! Locum / cross-coverage admin endpoints.
 //! See `RFCs/sprints/SPRINT-doctor-activities.md` §2.2.
 
+use axum::extract::rejection::JsonRejection;
 use axum::{
     Extension, Json,
     extract::{Path, Query, State},
@@ -77,9 +78,10 @@ pub async fn list_coverage(
 pub async fn create_coverage(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
-    Json(body): Json<CreateCoverageRequest>,
+    body: Result<Json<CreateCoverageRequest>, JsonRejection>,
 ) -> Result<Json<CoverageAssignment>, AppError> {
     require_permission(&claims, permissions::admin::coverage::MANAGE)?;
+    let Json(body) = body?;
     if body.absent_doctor_id == body.covering_doctor_id {
         return Err(AppError::BadRequest(
             "absent_doctor and covering_doctor must differ".to_owned(),

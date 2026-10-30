@@ -9,6 +9,7 @@
 //! from `MEDBRAINS_SIGNATURE_KEY_ENCRYPTION_KEY`; local dev falls back with a
 //! warning so the app remains runnable.
 
+use axum::extract::rejection::JsonRejection;
 use axum::{
     Extension, Json,
     extract::{Path, Query, State},
@@ -19,11 +20,11 @@ use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 use uuid::Uuid;
 
-use medbrains_signing::signing;
 use medbrains_server_core::{
     error::AppError, middleware::auth::Claims, middleware::authorization::require_permission,
     state::AppState,
 };
+use medbrains_signing::signing;
 
 const SIGNATURE_KEY_SECRET: &str = "MEDBRAINS_SIGNATURE_KEY_ENCRYPTION_KEY";
 const DEV_SIGNATURE_KEY: &[u8] = b"medbrains-dev-signature-key-encryption-rotate-before-production";
@@ -70,9 +71,10 @@ pub struct IssueCredentialResponse {
 pub async fn issue_credential(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
-    Json(body): Json<IssueCredentialRequest>,
+    body: Result<Json<IssueCredentialRequest>, JsonRejection>,
 ) -> Result<Json<IssueCredentialResponse>, AppError> {
     require_permission(&claims, permissions::admin::signature_credentials::ISSUE)?;
+    let Json(body) = body?;
 
     let (priv_key, pub_key) =
         signing::generate_keypair().map_err(|e| AppError::Internal(format!("keygen: {e}")))?;
@@ -139,9 +141,10 @@ pub async fn revoke_credential(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
     Path(id): Path<Uuid>,
-    Json(body): Json<RevokeCredentialRequest>,
+    body: Result<Json<RevokeCredentialRequest>, JsonRejection>,
 ) -> Result<Json<Value>, AppError> {
     require_permission(&claims, permissions::admin::signature_credentials::REVOKE)?;
+    let Json(body) = body?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)

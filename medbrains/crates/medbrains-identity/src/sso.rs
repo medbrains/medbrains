@@ -3,6 +3,7 @@
 //! (token validation + JIT provisioning) live in follow-up modules and read this
 //! configuration. See migration 0200 + memory project_sso_ad_groups.
 
+use axum::extract::rejection::JsonRejection;
 use axum::{
     Extension, Json,
     extract::{Path, State},
@@ -13,7 +14,10 @@ use uuid::Uuid;
 
 use medbrains_server_core::{
     error::AppError,
-    middleware::{auth::Claims, authorization::{BYPASS_ROLES, require_permission}},
+    middleware::{
+        auth::Claims,
+        authorization::{BYPASS_ROLES, require_permission},
+    },
     state::AppState,
 };
 
@@ -73,8 +77,10 @@ async fn fetch_entra_org_name(
     client_secret: &str,
 ) -> Option<String> {
     // Derive the token endpoint from the standard Entra discovery URL shape.
-    let token_url =
-        discovery_url.replace("/v2.0/.well-known/openid-configuration", "/oauth2/v2.0/token");
+    let token_url = discovery_url.replace(
+        "/v2.0/.well-known/openid-configuration",
+        "/oauth2/v2.0/token",
+    );
     if token_url == discovery_url {
         return None; // not the expected Entra URL — skip Graph
     }
@@ -123,8 +129,8 @@ pub async fn seed_from_config(state: &AppState) -> Result<(), AppError> {
     let Ok(raw) = std::fs::read_to_string(&path) else {
         return Ok(()); // no creds file → SSO not seeded (fine)
     };
-    let cfg: SsoSeedConfig = serde_json::from_str(&raw)
-        .map_err(|e| AppError::Internal(format!("{path} parse: {e}")))?;
+    let cfg: SsoSeedConfig =
+        serde_json::from_str(&raw).map_err(|e| AppError::Internal(format!("{path} parse: {e}")))?;
 
     let secret_enc = match cfg.client_secret.as_deref().filter(|s| !s.is_empty()) {
         Some(s) => Some(encrypt_secret(&secret_key(state).await, s)?),
@@ -150,9 +156,10 @@ pub async fn seed_from_config(state: &AppState) -> Result<(), AppError> {
             .filter(|r| !BYPASS_ROLES.contains(&r.as_str())),
     );
 
-    let tenant_id: Uuid = sqlx::query_scalar("SELECT id FROM tenants ORDER BY created_at, id LIMIT 1")
-        .fetch_one(&state.db)
-        .await?;
+    let tenant_id: Uuid =
+        sqlx::query_scalar("SELECT id FROM tenants ORDER BY created_at, id LIMIT 1")
+            .fetch_one(&state.db)
+            .await?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &tenant_id).await?;
     let provider_id: Uuid = sqlx::query_scalar(
@@ -310,7 +317,9 @@ fn validate_protocol(p: &str) -> Result<(), AppError> {
     if p == "oidc" || p == "saml" {
         Ok(())
     } else {
-        Err(AppError::BadRequest("protocol must be 'oidc' or 'saml'".to_owned()))
+        Err(AppError::BadRequest(
+            "protocol must be 'oidc' or 'saml'".to_owned(),
+        ))
     }
 }
 
@@ -337,9 +346,10 @@ pub async fn list_providers(
 pub async fn create_provider(
     Extension(claims): Extension<Claims>,
     State(state): State<AppState>,
-    Json(req): Json<CreateProviderRequest>,
+    req: Result<Json<CreateProviderRequest>, JsonRejection>,
 ) -> Result<Json<ProviderResponse>, AppError> {
     require_permission(&claims, MANAGE)?;
+    let Json(req) = req?;
     validate_protocol(&req.protocol)?;
     validate_default_role(req.default_role.as_deref())?;
 
@@ -387,9 +397,10 @@ pub async fn update_provider(
     Extension(claims): Extension<Claims>,
     State(state): State<AppState>,
     Path(id): Path<Uuid>,
-    Json(req): Json<UpdateProviderRequest>,
+    req: Result<Json<UpdateProviderRequest>, JsonRejection>,
 ) -> Result<Json<ProviderResponse>, AppError> {
     require_permission(&claims, MANAGE)?;
+    let Json(req) = req?;
     validate_default_role(req.default_role.as_deref())?;
 
     let new_secret_enc = match req.client_secret.as_deref().filter(|s| !s.is_empty()) {
@@ -501,9 +512,10 @@ pub async fn create_mapping(
     Extension(claims): Extension<Claims>,
     State(state): State<AppState>,
     Path(provider_id): Path<Uuid>,
-    Json(req): Json<CreateMappingRequest>,
+    req: Result<Json<CreateMappingRequest>, JsonRejection>,
 ) -> Result<Json<GroupMapping>, AppError> {
     require_permission(&claims, MANAGE)?;
+    let Json(req) = req?;
     if req.role_code.is_none() && req.access_group_id.is_none() {
         return Err(AppError::BadRequest(
             "a mapping must set role_code and/or access_group_id".to_owned(),

@@ -12,15 +12,16 @@
 //! `/api/dns/records/{domain}`); a Stalwart error is surfaced verbatim so a
 //! version/path mismatch is obvious rather than silent.
 
-use axum::routing::{post};
+use axum::extract::rejection::JsonRejection;
+use axum::routing::post;
 use axum::{Extension, Json, extract::State};
 use serde::{Deserialize, Serialize};
 
-use medbrains_server_core::{
-    error::AppError, middleware::auth::Claims,
-    middleware::authorization::require_permission, state::AppState,
-};
 use medbrains_core::permissions;
+use medbrains_server_core::{
+    error::AppError, middleware::auth::Claims, middleware::authorization::require_permission,
+    state::AppState,
+};
 
 struct StalwartClient {
     base_url: String,
@@ -51,7 +52,11 @@ impl StalwartClient {
         })
     }
 
-    async fn post(&self, path: &str, body: serde_json::Value) -> Result<serde_json::Value, AppError> {
+    async fn post(
+        &self,
+        path: &str,
+        body: serde_json::Value,
+    ) -> Result<serde_json::Value, AppError> {
         let resp = self
             .http
             .post(format!("{}{path}", self.base_url))
@@ -111,9 +116,10 @@ pub struct ProvisionDomainResponse {
 pub async fn provision_domain(
     State(_state): State<AppState>,
     Extension(claims): Extension<Claims>,
-    Json(body): Json<ProvisionDomainRequest>,
+    body: Result<Json<ProvisionDomainRequest>, JsonRejection>,
 ) -> Result<Json<ProvisionDomainResponse>, AppError> {
     require_permission(&claims, permissions::admin::settings::general::MANAGE)?;
+    let Json(body) = body?;
     let domain = body.domain.trim().to_lowercase();
     if domain.is_empty() || !domain.contains('.') {
         return Err(AppError::BadRequest("Enter a valid domain".to_owned()));
@@ -135,9 +141,7 @@ pub async fn provision_domain(
         }
     }
 
-    let records = client
-        .get(&format!("/api/dns/records/{domain}"))
-        .await?;
+    let records = client.get(&format!("/api/dns/records/{domain}")).await?;
     let dns_records = parse_dns_records(&records);
 
     Ok(Json(ProvisionDomainResponse {
@@ -156,12 +160,15 @@ pub struct CreateMailboxRequest {
 pub async fn create_mailbox(
     State(_state): State<AppState>,
     Extension(claims): Extension<Claims>,
-    Json(body): Json<CreateMailboxRequest>,
+    body: Result<Json<CreateMailboxRequest>, JsonRejection>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     require_permission(&claims, permissions::admin::settings::general::MANAGE)?;
+    let Json(body) = body?;
     let email = body.email.trim().to_lowercase();
     if !email.contains('@') {
-        return Err(AppError::BadRequest("Enter a valid email address".to_owned()));
+        return Err(AppError::BadRequest(
+            "Enter a valid email address".to_owned(),
+        ));
     }
     if body.password.trim().len() < 8 {
         return Err(AppError::BadRequest(
@@ -230,16 +237,9 @@ fn parse_dns_records(value: &serde_json::Value) -> Vec<DnsRecord> {
         .collect()
 }
 
-
 /// mail_provisioning routes.
 pub fn router() -> axum::Router<AppState> {
     axum::Router::new()
-        .route(
-            "/api/admin/mail/provision-domain",
-            post(provision_domain),
-        )
-        .route(
-            "/api/admin/mail/mailboxes",
-            post(create_mailbox),
-        )
+        .route("/api/admin/mail/provision-domain", post(provision_domain))
+        .route("/api/admin/mail/mailboxes", post(create_mailbox))
 }
