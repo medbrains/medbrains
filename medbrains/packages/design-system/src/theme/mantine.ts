@@ -755,6 +755,18 @@ function buildSchemePalette(scheme: typeof lightScheme, name: SchemeName) {
       Object.entries(ANATOMY_PALETTE).map(([k, v]) => [`--mb-anatomy-${k}`, v]),
     ),
 
+    // ── MedBrains Flow floor map: crowd bands 0 (quiet) .. 4 (over limit) ──
+    // Every band is also written as a number and a word on the map; colour
+    // never carries the meaning alone.
+    "--mb-flow-density-0": scheme.bg.subtle,
+    "--mb-flow-density-1": scheme.status.success.bg,
+    "--mb-flow-density-2": scheme.status.warning.bg,
+    "--mb-flow-density-3": scheme.status.warning.border,
+    "--mb-flow-density-4": scheme.status.danger.border,
+    "--mb-flow-alarm": scheme.status.danger.emphasis,
+    "--mb-flow-queue": scheme.status.info.emphasis,
+    "--mb-flow-unknown": scheme.bg.muted,
+
     // ── Surface tiers ────────────────────────────────────────────
     "--mb-bg-canvas": scheme.bg.canvas,
     "--mb-bg-content": scheme.bg.canvas,

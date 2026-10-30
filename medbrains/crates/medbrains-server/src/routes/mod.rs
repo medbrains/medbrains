@@ -689,6 +689,8 @@ pub fn build_router(state: AppState) -> Router {
         // ── Doctor Packages (admin) ─────────────────────────
         .merge(medbrains_doctor_packages::router())
         .merge(medbrains_doctor_payouts::router())
+        // ── MedBrains Flow (crowd + wait add-on, #4901) ─────
+        .merge(medbrains_flow::router())
         // ── Patient Packages ────────────────────────────────
         .merge(medbrains_patient_packages::router())
         // ── Doctor Coverage (admin) ─────────────────────────

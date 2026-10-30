@@ -272,6 +272,7 @@ const MODULE_BADGE_DEFS: Record<string, ModuleBadge> = {
   "/communications": { abbr: "Com", color: "#198038" },
   "/camp": { abbr: "Cmp", color: "#9f1853" },
   "/command-center": { abbr: "CMD", color: "#00539a" },
+  "/flow": { abbr: "FLW", color: "#005d5d" },
   "/facilities": { abbr: "Fac", color: "#4d5358" },
   "/mrd": { abbr: "MRD", color: "#0043ce" },
   "/clinical-kb": { abbr: "KB", color: "#005d5d" },
@@ -1074,6 +1075,14 @@ export const NAV_GROUPS: NavGroupConfig[] = [
         path: "/command-center",
         icon: "IconLayoutDashboard",
         requiredPermission: "command_center.view",
+      },
+      {
+        i18nKey: "flow",
+        path: "/flow",
+        icon: "IconMapPin",
+        moduleCode: "flow",
+        requiredPermission: "flow.view",
+        requiredPermissions: ["flow.view", "flow.manage"],
       },
       {
         i18nKey: "communications",

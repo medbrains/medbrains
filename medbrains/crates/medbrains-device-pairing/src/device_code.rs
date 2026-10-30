@@ -353,13 +353,16 @@ pub struct ApproveRequest {
     pub station_id: Option<Uuid>,
 }
 
-const BOARD_MODULES: [&str; 6] = [
+/// `flow` is the MedBrains Flow floor map (#4901): it shows the floor the
+/// chosen department's zone is on, and answers only while the add-on is on.
+const BOARD_MODULES: [&str; 7] = [
     "registration",
     "opd",
     "lab",
     "radiology",
     "pharmacy",
     "billing",
+    "flow",
 ];
 
 /// A customer display: bound to one billing or pharmacy counter, not a

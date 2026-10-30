@@ -72,6 +72,7 @@ medbrains-auth = { path = "../medbrains-auth" }
 medbrains-payroll = { path = "../medbrains-payroll" }
 medbrains-doctor-packages = { path = "../medbrains-doctor-packages" }
 medbrains-doctor-payouts = { path = "../medbrains-doctor-payouts" }
+medbrains-flow = { path = "../medbrains-flow" }
 medbrains-upload = { path = "../medbrains-upload" }
 medbrains-fhir-api = { path = "../medbrains-fhir-api" }
 medbrains-case-sheet-scan = { path = "../medbrains-case-sheet-scan" }
