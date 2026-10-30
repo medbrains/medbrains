@@ -437,6 +437,9 @@ const PalliativePage = lazy(() =>
 const MaternityPage = lazy(() =>
   import("./pages/specialty/maternity").then((m) => ({ default: m.MaternityPage })),
 );
+const CancerRegistryPage = lazy(() =>
+  import("./pages/specialty/cancer-registry").then((m) => ({ default: m.CancerRegistryPage })),
+);
 const OtherSpecialtiesPage = lazy(() =>
   import("./pages/specialty/other").then((m) => ({ default: m.OtherSpecialtiesPage })),
 );
@@ -739,6 +742,7 @@ export function App() {
                 <Route path="palliative" element={<PalliativePage />} />
                 <Route path="maternity" element={<MaternityPage />} />
                 <Route path="other" element={<OtherSpecialtiesPage />} />
+                <Route path="cancer-registry" element={<CancerRegistryPage />} />
               </Route>
               <Route path="cssd" element={<CssdPage />} />
               <Route path="diet-kitchen" element={<DietKitchenPage />} />

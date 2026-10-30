@@ -17,7 +17,7 @@ export interface PermissionDef {
   module: string;
 }
 
-/** 1190 permissions, one per constant in the Rust source. */
+/** 1193 permissions, one per constant in the Rust source. */
 export const PERMISSIONS: PermissionDef[] = [
   // dashboard
   {
@@ -4947,6 +4947,24 @@ export const PERMISSIONS: PermissionDef[] = [
     module: "specialty",
   },
   {
+    code: "specialty.other.oncology.registry.list",
+    label: "See the cancer registry worklist",
+    description: "Every staged cancer and its NCDIR hospital-based cancer registry abstract: due, in progress, complete or submitted.",
+    module: "specialty",
+  },
+  {
+    code: "specialty.other.oncology.registry.abstract",
+    label: "Complete cancer registry abstracts",
+    description: "Codes the HBCR core form for a case — ICD-O-3, extent, staging system, treatment — as the NCDIR manual sets out.",
+    module: "specialty",
+  },
+  {
+    code: "specialty.other.oncology.registry.export",
+    label: "Export Registry",
+    description: "Export abstracts and record their submission to NCDIR. Builds the HBCR sheet with patients' names, addresses and identifiers for the registry, and records the NCDIR registration once submitted. Every sheet is a disclosure.",
+    module: "specialty",
+  },
+  {
     code: "specialty.other.dialysis.list",
     label: "View Dialysis Sessions",
     description: "View dialysis session records",
@@ -8538,19 +8556,6 @@ export const P = {
       ACK: "flow.alerts.ack",
     },
     ALERTS_ACK: "flow.alerts.ack",
-    FLOW: {
-      ALERTS: {
-        ACK: "flow.alerts.ack",
-      },
-      HISTORY: {
-        VIEW: "flow.history.view",
-      },
-      MANAGE: "flow.manage",
-      RECOMMENDATIONS: {
-        ACT: "flow.recommendations.act",
-      },
-      VIEW: "flow.view",
-    },
     HISTORY: {
       VIEW: "flow.history.view",
     },
@@ -10572,9 +10577,17 @@ export const P = {
       ONCOLOGY: {
         CREATE: "specialty.other.oncology.create",
         LIST: "specialty.other.oncology.list",
+        REGISTRY: {
+          ABSTRACT: "specialty.other.oncology.registry.abstract",
+          EXPORT: "specialty.other.oncology.registry.export",
+          LIST: "specialty.other.oncology.registry.list",
+        },
       },
       ONCOLOGY_CREATE: "specialty.other.oncology.create",
       ONCOLOGY_LIST: "specialty.other.oncology.list",
+      ONCOLOGY_REGISTRY_ABSTRACT: "specialty.other.oncology.registry.abstract",
+      ONCOLOGY_REGISTRY_EXPORT: "specialty.other.oncology.registry.export",
+      ONCOLOGY_REGISTRY_LIST: "specialty.other.oncology.registry.list",
       RECORDS: {
         CREATE: "specialty.other.records.create",
         LIST: "specialty.other.records.list",
@@ -10593,6 +10606,9 @@ export const P = {
     OTHER_DIALYSIS_MANAGE: "specialty.other.dialysis.manage",
     OTHER_ONCOLOGY_CREATE: "specialty.other.oncology.create",
     OTHER_ONCOLOGY_LIST: "specialty.other.oncology.list",
+    OTHER_ONCOLOGY_REGISTRY_ABSTRACT: "specialty.other.oncology.registry.abstract",
+    OTHER_ONCOLOGY_REGISTRY_EXPORT: "specialty.other.oncology.registry.export",
+    OTHER_ONCOLOGY_REGISTRY_LIST: "specialty.other.oncology.registry.list",
     OTHER_RECORDS_CREATE: "specialty.other.records.create",
     OTHER_RECORDS_LIST: "specialty.other.records.list",
     OTHER_TEMPLATES_LIST: "specialty.other.templates.list",
@@ -11126,6 +11142,8 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.SPECIALTY.OTHER.DIALYSIS.MANAGE,
       P.SPECIALTY.OTHER.ONCOLOGY.CREATE,
       P.SPECIALTY.OTHER.ONCOLOGY.LIST,
+      P.SPECIALTY.OTHER.ONCOLOGY.REGISTRY.ABSTRACT,
+      P.SPECIALTY.OTHER.ONCOLOGY.REGISTRY.LIST,
       P.SPECIALTY.OTHER.RECORDS.CREATE,
       P.SPECIALTY.OTHER.RECORDS.LIST,
       P.SPECIALTY.OTHER.TEMPLATES.LIST,
@@ -11388,6 +11406,8 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.SPECIALTY.OTHER.DIALYSIS.MANAGE,
       P.SPECIALTY.OTHER.ONCOLOGY.CREATE,
       P.SPECIALTY.OTHER.ONCOLOGY.LIST,
+      P.SPECIALTY.OTHER.ONCOLOGY.REGISTRY.ABSTRACT,
+      P.SPECIALTY.OTHER.ONCOLOGY.REGISTRY.LIST,
       P.SPECIALTY.OTHER.RECORDS.LIST,
       P.SPECIALTY.OTHER.TEMPLATES.MANAGE,
       P.SPECIALTY.PALLIATIVE.DNR.LIST,
@@ -11815,10 +11835,10 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.FACILITIES.WORK_ORDERS.LIST,
       P.FACILITIES.WORK_ORDERS.MANAGE,
       P.FLOW.ALERTS.ACK,
-      P.FLOW.FLOW.HISTORY.VIEW,
-      P.FLOW.FLOW.MANAGE,
-      P.FLOW.FLOW.RECOMMENDATIONS.ACT,
-      P.FLOW.FLOW.VIEW,
+      P.FLOW.HISTORY.VIEW,
+      P.FLOW.MANAGE,
+      P.FLOW.RECOMMENDATIONS.ACT,
+      P.FLOW.VIEW,
       P.HOUSEKEEPING.CLEANING.CREATE,
       P.HOUSEKEEPING.CLEANING.LIST,
       P.HOUSEKEEPING.CLEANING.MANAGE,
@@ -12130,6 +12150,10 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.PATIENTS.GROUP_IDENTITY.VIEW,
       P.PATIENTS.LIST,
       P.PATIENTS.VIEW,
+      P.SPECIALTY.OTHER.ONCOLOGY.LIST,
+      P.SPECIALTY.OTHER.ONCOLOGY.REGISTRY.ABSTRACT,
+      P.SPECIALTY.OTHER.ONCOLOGY.REGISTRY.EXPORT,
+      P.SPECIALTY.OTHER.ONCOLOGY.REGISTRY.LIST,
       P.TERMINOLOGY.SNOMED.VIEW,
     ],
   },
@@ -12371,9 +12395,9 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.COMMUNICATIONS.MESSAGES.LIST,
       P.DASHBOARD.VIEW,
       P.FLOW.ALERTS.ACK,
-      P.FLOW.FLOW.HISTORY.VIEW,
-      P.FLOW.FLOW.RECOMMENDATIONS.ACT,
-      P.FLOW.FLOW.VIEW,
+      P.FLOW.HISTORY.VIEW,
+      P.FLOW.RECOMMENDATIONS.ACT,
+      P.FLOW.VIEW,
       P.FRONT_OFFICE.ENQUIRY.LIST,
       P.FRONT_OFFICE.PASSES.LIST,
       P.FRONT_OFFICE.PASSES.MANAGE,

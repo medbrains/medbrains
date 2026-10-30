@@ -932,8 +932,6 @@ import type {
   DeliveryRunner,
   DeliveryType,
   DentalChartEntry,
-  PerioChart,
-  PerioTooth,
   DentalExam,
   DentalTreatmentItem,
   DepartmentAlertRow,
@@ -1186,6 +1184,7 @@ import type {
   HandoverSummaryResponse,
   HasBledRequest,
   HasBledResult,
+  HbcrCoding,
   HealthAppReading,
   HealthAppReadingsResult,
   HealthDataSharing,
@@ -1727,6 +1726,8 @@ import type {
   PendingDischargeRow,
   PendingSafetyReview,
   PendingSignoffEntry,
+  PerioChart,
+  PerioTooth,
   PersonalizeDashboardRequest,
   PesoComplianceReportPrintData,
   PestControlLog,
@@ -1961,6 +1962,10 @@ import type {
   RegisterAbdmBridge,
   RegisterHfrRequest,
   RegistrationCardPrintData,
+  RegistryCase,
+  RegistryCodeLists,
+  RegistrySheet,
+  RegistryWorklistRow,
   RegulatoryBody,
   RegulatorySubmission,
   // Specialty Clinical: PMR / Audiology
@@ -11965,6 +11970,21 @@ export const api = {
     }),
 
   // Specialty — Oncology depth
+  listCancerRegistry: () => request<RegistryWorklistRow[]>("/specialty/oncology/registry"),
+  getRegistryCase: (stagingId: string) =>
+    request<RegistryCase>(`/specialty/oncology/registry/${stagingId}`),
+  saveRegistryAbstract: (stagingId: string, data: HbcrCoding) =>
+    request<RegistryCase>(`/specialty/oncology/registry/${stagingId}`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
+  getRegistryCodeLists: () => request<RegistryCodeLists>("/specialty/oncology/registry/codes"),
+  exportRegistrySheet: () => request<RegistrySheet>("/specialty/oncology/registry/export"),
+  markRegistrySubmitted: (stagingId: string, ncdirReference: string) =>
+    request<RegistryCase>(`/specialty/oncology/registry/${stagingId}/submitted`, {
+      method: "POST",
+      body: JSON.stringify({ ncdir_reference: ncdirReference }),
+    }),
   listCancerStagings: (patientId?: string) =>
     request<CancerStaging[]>(
       `/specialty/oncology/staging${patientId ? `?patient_id=${patientId}` : ""}`,
