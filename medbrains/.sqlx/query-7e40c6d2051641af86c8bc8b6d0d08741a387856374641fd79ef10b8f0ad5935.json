@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT id, name, module, scope, scope_id, scope_label, prefix, start_at, pad_width, reset_rule, max_tokens_per_period, lifecycle, valid_from, valid_until, status, early_issue_minutes, board_shows, voice_languages, announce_repeat FROM queues WHERE tenant_id = $1 ORDER BY (status = 'closed'), name",
+  "query": "SELECT id, name, module, scope, scope_id, scope_label, prefix, start_at, pad_width, reset_rule, max_tokens_per_period, lifecycle, valid_from, valid_until, status, early_issue_minutes, board_shows, voice_languages, announce_repeat, number_pool_size, reuse_cooloff_minutes FROM queues WHERE tenant_id = $1 AND module = $2 AND scope = $3 AND scope_id IS NOT DISTINCT FROM $4 AND status <> 'closed'",
   "describe": {
     "columns": [
       {
@@ -97,10 +97,23 @@
         "ordinal": 18,
         "name": "announce_repeat",
         "type_info": "Int2"
+      },
+      {
+        "ordinal": 19,
+        "name": "number_pool_size",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 20,
+        "name": "reuse_cooloff_minutes",
+        "type_info": "Int4"
       }
     ],
     "parameters": {
       "Left": [
+        "Uuid",
+        "Text",
+        "Text",
         "Uuid"
       ]
     },
@@ -123,8 +136,10 @@
       false,
       false,
       false,
+      false,
+      true,
       false
     ]
   },
-  "hash": "9a500399a384ae8066ddbb246600def1f1428a61160191b640eb891738fd4f18"
+  "hash": "7e40c6d2051641af86c8bc8b6d0d08741a387856374641fd79ef10b8f0ad5935"
 }

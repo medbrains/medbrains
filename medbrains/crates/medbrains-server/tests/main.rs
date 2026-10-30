@@ -271,6 +271,7 @@ mod token_board_privacy_test;
 mod token_call_sms_test;
 mod token_hold_test;
 mod token_queue_config_test;
+mod token_number_recycling_test;
 mod token_queue_counters_test;
 mod token_queue_mirror_test;
 mod token_queue_p0_test;

@@ -58,6 +58,8 @@ function defaults(queue: QueueConfig | null): QueueFormInput {
     board_shows: queue?.board_shows ?? "number",
     voice_languages: queue?.voice_languages ?? ["en"],
     announce_repeat: queue?.announce_repeat ?? 1,
+    number_pool_size: queue?.number_pool_size ?? null,
+    reuse_cooloff_minutes: queue?.reuse_cooloff_minutes ?? 30,
   };
 }
 
@@ -79,12 +81,13 @@ export function QueueFormDrawer({ opened, onClose, queue }: QueueFormDrawerProps
     values: defaults(queue),
   });
   const { control, register, watch, handleSubmit, formState } = form;
-  const [prefix, startAt, padWidth, lifecycle, resetRule] = watch([
+  const [prefix, startAt, padWidth, lifecycle, resetRule, cooloff] = watch([
     "prefix",
     "start_at",
     "pad_width",
     "lifecycle",
     "reset_rule",
+    "reuse_cooloff_minutes",
   ]);
 
   const save = useMutation({
@@ -108,6 +111,8 @@ export function QueueFormDrawer({ opened, onClose, queue }: QueueFormDrawerProps
         board_shows: values.board_shows,
         voice_languages: values.voice_languages,
         announce_repeat: values.announce_repeat,
+        number_pool_size: values.reset_rule === "recycle" ? values.number_pool_size : null,
+        reuse_cooloff_minutes: values.reuse_cooloff_minutes,
       };
       return queue ? api.updateQueue(queue.id, input) : api.createQueue(input);
     },
@@ -210,18 +215,19 @@ export function QueueFormDrawer({ opened, onClose, queue }: QueueFormDrawerProps
             name="reset_rule"
             render={({ field }) => (
               <Stack gap={4}>
-                <Text size="sm" fw={500}>
-                  Numbering restarts
-                </Text>
-                <SegmentedControl
-                  aria-label="Numbering restarts"
+                {/* Four choices do not fit a segmented control in this modal. */}
+                <Select
+                  label="Numbering"
+                  allowDeselect={false}
                   value={field.value}
-                  onChange={field.onChange}
+                  onChange={(value) => field.onChange(value ?? "daily")}
                   data={[
-                    { value: "daily", label: "Every day" },
-                    { value: "session", label: "Every session" },
-                    { value: "never", label: "Never" },
+                    { value: "daily", label: "Daily reset" },
+                    { value: "session", label: "Reset each session" },
+                    { value: "never", label: "Never reset" },
+                    { value: "recycle", label: "Recycle numbers" },
                   ]}
+                  data-testid="field-reset_rule"
                 />
                 {field.value === "session" && (
                   <Text size="xs" c="dimmed">
@@ -231,6 +237,43 @@ export function QueueFormDrawer({ opened, onClose, queue }: QueueFormDrawerProps
               </Stack>
             )}
           />
+          {resetRule === "recycle" && (
+            <Group grow align="flex-start">
+              <Controller
+                control={control}
+                name="number_pool_size"
+                render={({ field }) => (
+                  <NumberField
+                    label="Numbers that go round"
+                    description="Like 99 for cards 1 to 99"
+                    min={1}
+                    max={9999}
+                    value={field.value ?? ""}
+                    onChange={(v) => field.onChange(v === "" ? null : Number(v))}
+                    error={errors.number_pool_size?.message}
+                    data-testid="field-number_pool_size"
+                  />
+                )}
+              />
+              <Controller
+                control={control}
+                name="reuse_cooloff_minutes"
+                render={({ field }) => (
+                  <NumberField
+                    label="Cool-off, minutes"
+                    description={`A number is given out again only after its last holder finished at least ${cooloff} minutes ago.`}
+                    min={0}
+                    max={1440}
+                    step={5}
+                    value={field.value}
+                    onChange={(v) => field.onChange(Number(v) || 0)}
+                    error={errors.reuse_cooloff_minutes?.message}
+                    data-testid="field-reuse_cooloff_minutes"
+                  />
+                )}
+              />
+            </Group>
+          )}
           <Controller
             control={control}
             name="max_tokens_per_period"

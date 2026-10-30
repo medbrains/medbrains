@@ -22,6 +22,10 @@ const RESTARTS = {
   session: "restarts each session",
   never: "never restarts",
 } as const;
+const numbering = (row: QueueRow) =>
+  row.reset_rule === "recycle"
+    ? `recycles ${row.number_pool_size ?? 0} numbers after ${row.reuse_cooloff_minutes} min`
+    : RESTARTS[row.reset_rule];
 const day = (iso: string | null) =>
   iso
     ? new Date(`${iso}T00:00:00`).toLocaleDateString("en-IN", {
@@ -89,7 +93,7 @@ export function QueuesPage() {
       key: "numbering",
       label: "Numbering",
       render: (row) =>
-        `${previewQueueNumber(row.prefix, row.start_at, row.pad_width)} · ${RESTARTS[row.reset_rule]}`,
+        `${previewQueueNumber(row.prefix, row.start_at, row.pad_width)} · ${numbering(row)}`,
     },
     {
       key: "today",
