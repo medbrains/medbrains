@@ -17,7 +17,7 @@ export interface PermissionDef {
   module: string;
 }
 
-/** 1181 permissions, one per constant in the Rust source. */
+/** 1183 permissions, one per constant in the Rust source. */
 export const PERMISSIONS: PermissionDef[] = [
   // dashboard
   {
@@ -4270,6 +4270,18 @@ export const PERMISSIONS: PermissionDef[] = [
     code: "integration.pipelines.toggle",
     label: "Toggle Pipelines",
     description: "Turn a built-in pipeline on or off for this hospital.",
+    module: "integration",
+  },
+  {
+    code: "integration.hl7_adt.view",
+    label: "See the hospital's HL7 ADT feeds",
+    description: "Where the ADT messages go (MLLP host and port), which triggers each destination takes, and every message sent with whether the receiver acknowledged it. The messages name patients, so the list shows triggers and results, not message contents.",
+    module: "integration",
+  },
+  {
+    code: "integration.hl7_adt.manage",
+    label: "Add, change or remove an HL7 ADT feed",
+    description: "Pointing a feed at a system sends it every admission, transfer, discharge and demographic change from then on, so it is kept apart from the general integration permissions.",
     module: "integration",
   },
   // specialty
@@ -8795,6 +8807,12 @@ export const P = {
     CREATE: "integration.create",
     DELETE: "integration.delete",
     EXECUTE: "integration.execute",
+    HL7_ADT: {
+      MANAGE: "integration.hl7_adt.manage",
+      VIEW: "integration.hl7_adt.view",
+    },
+    HL7_ADT_MANAGE: "integration.hl7_adt.manage",
+    HL7_ADT_VIEW: "integration.hl7_adt.view",
     LIST: "integration.list",
     PIPELINES: {
       TOGGLE: "integration.pipelines.toggle",
@@ -11747,6 +11765,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.INDENT.LIST,
       P.INDENT.STOCK_MANAGE,
       P.INDENT.VIEW,
+      P.INTEGRATION.HL7_ADT.VIEW,
       P.INTEGRATION.LIST,
       P.INTEGRATION.VIEW,
       P.IPD.BED_DASHBOARD.VIEW,

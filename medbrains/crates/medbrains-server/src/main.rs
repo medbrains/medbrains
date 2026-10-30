@@ -909,6 +909,7 @@ fn build_outbox_registry() -> Arc<medbrains_outbox::Registry> {
     registry.register(medbrains_outbox::handlers::webhook::WebhookDeliverHandler);
     // Radiology orders onto the PACS modality worklist (#226).
     registry.register(medbrains_outbox::handlers::pacs_worklist::WorklistCreateHandler);
+    registry.register(medbrains_outbox::handlers::hl7_adt::AdtSendHandler);
 
     // Fallback: route any unregistered event_type to user-defined pipelines.
     let dispatcher = Arc::new(EventsPipelineDispatcher);

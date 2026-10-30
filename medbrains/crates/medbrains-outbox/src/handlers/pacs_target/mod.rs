@@ -124,7 +124,7 @@ pub const fn is_hospital_network(ip: IpAddr, production: bool) -> bool {
 
 /// Never a PACS, even for an approved name: link-local holds the cloud
 /// metadata service.
-const fn is_reserved(ip: IpAddr, production: bool) -> bool {
+pub const fn is_reserved(ip: IpAddr, production: bool) -> bool {
     match ip.to_canonical() {
         IpAddr::V4(v4) => {
             v4.is_link_local()

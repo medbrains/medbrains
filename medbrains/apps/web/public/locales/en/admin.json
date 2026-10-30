@@ -171,5 +171,6 @@
     "tokens": "Tokens"
   },
   "settings.snomed": "SNOMED CT",
-  "settings.diagnosisCoding": "Diagnosis coding"
+  "settings.diagnosisCoding": "Diagnosis coding",
+  "settings.hl7Adt": "HL7 ADT feeds"
 }

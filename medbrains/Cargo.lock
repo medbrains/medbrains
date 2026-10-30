@@ -7317,6 +7317,7 @@ dependencies = [
  "hex",
  "hmac 0.13.0",
  "lettre",
+ "medbrains-adapter-sdk",
  "medbrains-core",
  "medbrains-crypto",
  "rand 0.10.3",

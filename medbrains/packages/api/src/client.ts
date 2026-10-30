@@ -60,6 +60,9 @@ import type {
   AdmitFromOpdResponse,
   AdrReport,
   AdrReportPrintData,
+  AdtDelivery,
+  AdtDestination,
+  AdtDestinationInput,
   AdvanceAdjustment,
   AdvanceDirective,
   AdvanceReceiptPrintData,
@@ -4596,6 +4599,21 @@ export const api = {
       method: "POST",
       body: JSON.stringify(data),
     }),
+  // HL7 ADT outbound feeds
+  listHl7AdtDestinations: () => request<AdtDestination[]>("/integrations/hl7-adt/destinations"),
+  createHl7AdtDestination: (data: AdtDestinationInput) =>
+    request<AdtDestination>("/integrations/hl7-adt/destinations", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  updateHl7AdtDestination: (id: string, data: AdtDestinationInput) =>
+    request<AdtDestination>(`/integrations/hl7-adt/destinations/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
+  deleteHl7AdtDestination: (id: string) =>
+    request<{ deleted: string }>(`/integrations/hl7-adt/destinations/${id}`, { method: "DELETE" }),
+  listHl7AdtDeliveries: () => request<AdtDelivery[]>("/integrations/hl7-adt/deliveries"),
   unlinkGroupIdentity: (linkId: string, reason: string) =>
     request<{ unlinked: string }>(`/patients/group-identity/links/${linkId}/unlink`, {
       method: "POST",

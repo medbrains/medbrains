@@ -1144,6 +1144,7 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
             permissions::indent::STOCK_MANAGE,
             permissions::integration::LIST,
             permissions::integration::VIEW,
+            permissions::integration::hl7_adt::VIEW,
             // Housekeeping
             permissions::housekeeping::cleaning::LIST,
             permissions::housekeeping::cleaning::CREATE,
