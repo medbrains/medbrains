@@ -443,6 +443,11 @@ themselves now carry the name, for the desk console.
     Recycle numbers; Recycle shows the pool size and cool-off with "A number is
     given out again only after its last holder finished at least N minutes
     ago." Permission unchanged: `front_office.queue.config.manage`.
+  - Follow-up: `requeue` takes only today's no-show and answers 409 in the
+    desk's words for anything else ("P-1 was already seen — issue a new
+    token"), so a finished token whose number went round cannot come back as a
+    second holder. Queues that recycle under one prefix share one pool, and
+    the form says so when a second one is set up.
   - Tests: `token_number_recycling_test.rs` (cool-off, live and recallable
     holders, exhausted reason, concurrent issue, daily/never unchanged, pool
     required), schema test, `token-queue-config` journey.

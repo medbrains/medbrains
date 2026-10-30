@@ -18,6 +18,7 @@ import {
   toast,
 } from "@/components/ui";
 import { VOICE_LANGUAGES } from "@/lib/board-voice";
+import { SharedPoolNote } from "./SharedPoolNote";
 
 interface QueueFormDrawerProps {
   opened: boolean;
@@ -119,6 +120,9 @@ export function QueueFormDrawer({ opened, onClose, queue }: QueueFormDrawerProps
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["queues"] });
       toast.success(queue ? "Queue saved" : "Queue created");
+      // The drawer stays mounted: without this the next "New queue" opened
+      // holding the last queue's name, place and numbering.
+      form.reset(defaults(queue));
       onClose();
     },
     onError: (error: Error) => toast.error(error.message, { title: "Queue not saved" }),
@@ -273,6 +277,9 @@ export function QueueFormDrawer({ opened, onClose, queue }: QueueFormDrawerProps
                 )}
               />
             </Group>
+          )}
+          {resetRule === "recycle" && (
+            <SharedPoolNote prefix={prefix} queueId={queue?.id ?? null} />
           )}
           <Controller
             control={control}

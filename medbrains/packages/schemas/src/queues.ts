@@ -69,3 +69,29 @@ export function previewQueueNumber(prefix: string, startAt: number, padWidth: nu
   const n = String(Math.max(0, startAt)).padStart(Math.min(Math.max(padWidth, 1), 6), "0");
   return `${prefix.trim().toUpperCase() || "?"}-${n}`;
 }
+
+/** The fields that decide whether two queues hand out the same numbers. */
+interface PoolQueue {
+  id: string;
+  prefix: string;
+  reset_rule: string;
+  status: string;
+}
+
+/**
+ * Other live recycling queues under this prefix. A number held anywhere in the
+ * hospital is not given out again, so queues that share a prefix share one
+ * pool: P-07 at one counter keeps P-07 from another.
+ */
+export function queuesSharingPool<T extends PoolQueue>(
+  queues: readonly T[],
+  prefix: string,
+  selfId: string | null,
+): T[] {
+  const wanted = prefix.trim().toUpperCase();
+  if (!wanted) return [];
+  return queues.filter(
+    (q) =>
+      q.id !== selfId && q.reset_rule === "recycle" && q.status !== "closed" && q.prefix === wanted,
+  );
+}

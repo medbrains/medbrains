@@ -180,4 +180,13 @@ test("an administrator recycles numbers, and a number waits out its cool-off", a
   }
   expect((await issue(ctx, dept.id)).number).toBe(`${prefix}-2`);
   await expect(issue(ctx, dept.id)).rejects.toThrow(/cooling off — next free at/);
+
+  // A second recycling queue under the same prefix is told it shares the pool.
+  await page.getByRole("button", { name: "New queue" }).click();
+  const second = page.getByRole("dialog", { name: "New queue" });
+  await second.getByLabel("Prefix").fill(prefix);
+  await expect(second.getByTestId("queue-shared-pool")).toHaveCount(0);
+  await second.getByTestId("field-reset_rule").click();
+  await page.getByRole("option", { name: "Recycle numbers" }).click();
+  await expect(second.getByTestId("queue-shared-pool")).toContainText(name);
 });

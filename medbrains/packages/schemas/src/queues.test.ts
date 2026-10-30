@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { previewQueueNumber, queueFormSchema } from "./queues";
+import { previewQueueNumber, queueFormSchema, queuesSharingPool } from "./queues";
 
 const base = {
   name: "General OPD",
@@ -47,5 +47,27 @@ describe("queue form", () => {
   it("refuses a prefix a slip cannot print", () => {
     expect(queueFormSchema.safeParse({ ...base, prefix: "OPD-1" }).success).toBe(false);
     expect(queueFormSchema.safeParse(base).success).toBe(true);
+  });
+});
+
+describe("shared number pool", () => {
+  const queue = (id: string, prefix: string, reset_rule = "recycle", status = "active") => ({
+    id,
+    prefix,
+    reset_rule,
+    status,
+  });
+
+  it("finds other live recycling queues under the same prefix, not itself", () => {
+    const queues = [
+      queue("a", "P"),
+      queue("b", "P"),
+      queue("c", "P", "daily"),
+      queue("d", "P", "recycle", "closed"),
+      queue("e", "Q"),
+    ];
+    expect(queuesSharingPool(queues, " p ", "a").map((q) => q.id)).toEqual(["b"]);
+    expect(queuesSharingPool(queues, "P", null).map((q) => q.id)).toEqual(["a", "b"]);
+    expect(queuesSharingPool(queues, "", null)).toEqual([]);
   });
 });
