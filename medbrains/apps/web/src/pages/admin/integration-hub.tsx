@@ -3,6 +3,7 @@ import { useHasPermission } from "@medbrains/stores";
 import { P } from "@medbrains/types";
 import { IconInfoCircle } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { HrmsLinkCard } from "@/components/Integration/HrmsLinkCard";
 import { PageHeader } from "@/components/PageHeader";
 import { Alert, Badge, Switch, Table } from "@/components/ui";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
@@ -198,6 +199,8 @@ export function IntegrationHubPage() {
           </Table.Tbody>
         </Table>
       </Card>
+
+      <HrmsLinkCard />
 
       <Card withBorder radius="md">
         <Stack gap="xs">

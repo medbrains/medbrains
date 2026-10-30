@@ -117,6 +117,7 @@ mod handoff_access_test;
 mod health_test;
 mod home_visit_case_sheet_test;
 mod housekeeping_real_deletes_test;
+mod hrms_humanex_sync_test;
 mod iam_access_request_notify_test;
 mod insurance_claim_money_test;
 mod ipd_admission_guard_test;

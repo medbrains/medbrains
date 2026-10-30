@@ -650,6 +650,7 @@ pub fn build_router(state: AppState) -> Router {
         .merge(medbrains_diet::router())
         // ── HR & Staff Management ───────────────────────────
         .merge(medbrains_hr::router())
+        .merge(medbrains_hrms_gateway::router())
         // ── Payroll ──
         .merge(medbrains_payroll::router())
         // ── BME / CMMS ───────────────────────────────────────

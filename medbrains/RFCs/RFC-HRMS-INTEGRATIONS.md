@@ -139,3 +139,42 @@ permission. Built from the `@/components/ui` seam; no new page monster (extract 
 - Enterprise default confirmed = Darwinbox? (product may pin per target customer).
 - Which entity is source-of-truth by default (external employee master vs MedBrains)?
 - Sync cadence (realtime webhook vs nightly batch) for attendance at hospital scale.
+
+
+## 9. Implemented: Humanex adapter (2026-10-09)
+
+Alagappa runs **Humanex** as its HRMIS (system of record for employee master,
+lifecycle, attendance, leave, training, appraisals). P1 ships it as the first
+adapter, ahead of Frappe HR / Darwinbox.
+
+- Crate `medbrains-hrms-gateway`: `GET/PUT /api/hrms/humanex/config`,
+  `POST /api/hrms/humanex/sync`, `GET /api/hrms/humanex/status`
+  (`integration.view|update|execute`), plus a 15-minute background pull for
+  tenants with `hrms.humanex.enabled`.
+- Screen: Admin → Integration Hub → "HR system (Humanex)" card — connect,
+  pause, pull now, per-feed last result and the rows Humanex sent that could
+  not be applied. Editing needs `integration.update` (and `admin.users.list`
+  for the record-as picker); pulling needs `integration.execute`.
+- Provider choice goes through the integration hub
+  (RFC-INTEGRATION-WRAPPER §3.3): `tenant_settings` (`integration`, `hrms`)
+  holds a `RoutingConfig`, resolved by `resolve_route(.., OpKind::Read)`; no
+  row means `single` → `humanex`. A route naming a provider with no adapter
+  is refused, never skipped.
+- Config: `tenant_settings` (`hrms`, `humanex`) =
+  `{base_url, api_key, enabled, system_user_id}`; `system_user_id` fills the
+  NOT NULL `created_by` / `recorded_by` columns.
+- Humanex `/sync/v1/*` already emits MedBrains column names, enum values and
+  business codes, so each entity is a single upsert keyed on
+  `(tenant_id, employee_code)`, department/designation/shift `code`, or
+  `(tenant_id, external_source, external_ref)`.
+- Pulled: departments, designations, employees (+ reporting lines, department
+  heads), credentials, shifts, leave requests, leave balances, duty roster +
+  on-call (−7 … +31 days), attendance (last 7 days; never overwrites rows
+  MedBrains recorded itself).
+- Migration `NNNN_hrms_humanex.sql`: `external_source/external_ref/
+  external_synced_at` on the linked HR tables, `hrms_sync_state` (cursors),
+  `hrms_sync_exceptions` (per-row failures with payload, for replay).
+- Direction of truth: Humanex → MedBrains for these entities. MedBrains HR
+  screens for synced data should become read-only for linked tenants
+  (follow-up). The `HrmsProvider` trait (§5.1) is extracted when the second
+  adapter lands.
