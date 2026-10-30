@@ -7,7 +7,7 @@
 
 use axum::{
     Extension, Json,
-    extract::{Path, State},
+    extract::{Path, State, rejection::JsonRejection},
 };
 use chrono::{DateTime, Utc};
 use medbrains_core::clinical_events::ClinicalEventName;
@@ -124,9 +124,10 @@ pub(crate) async fn list(
 pub(crate) async fn create(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
-    Json(body): Json<WebhookInput>,
+    body: Result<Json<WebhookInput>, JsonRejection>,
 ) -> Result<Json<WebhookWithSecret>, AppError> {
     require_permission(&claims, permissions::admin::webhooks::MANAGE)?;
+    let Json(body) = body?;
     check(&body)?;
     let secret = new_secret()?;
     let mut tx = begin(&state, &claims).await?;
@@ -155,9 +156,10 @@ pub(crate) async fn update(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
     Path(id): Path<Uuid>,
-    Json(body): Json<WebhookInput>,
+    body: Result<Json<WebhookInput>, JsonRejection>,
 ) -> Result<Json<WebhookSubscription>, AppError> {
     require_permission(&claims, permissions::admin::webhooks::MANAGE)?;
+    let Json(body) = body?;
     check(&body)?;
     let mut tx = begin(&state, &claims).await?;
     let row = sqlx::query_as::<_, WebhookSubscription>(&format!(

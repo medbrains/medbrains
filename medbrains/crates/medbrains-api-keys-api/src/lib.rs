@@ -20,6 +20,7 @@
 mod docs;
 mod webhooks;
 
+use axum::extract::rejection::JsonRejection;
 use axum::{
     Json, Router,
     extract::{Path, State},
@@ -172,9 +173,10 @@ fn service_username(name: &str, id: Uuid) -> String {
 async fn create(
     State(state): State<AppState>,
     axum::Extension(claims): axum::Extension<Claims>,
-    Json(body): Json<CreateKeyRequest>,
+    body: Result<Json<CreateKeyRequest>, JsonRejection>,
 ) -> Result<Json<CreatedKey>, AppError> {
     require_permission(&claims, permissions::admin::api_keys::CREATE)?;
+    let Json(body) = body?;
     refuse_escalation(&claims, &body.permissions)?;
 
     let name = body.name.trim().to_owned();
@@ -320,9 +322,10 @@ async fn revoke(
     State(state): State<AppState>,
     axum::Extension(claims): axum::Extension<Claims>,
     Path(id): Path<Uuid>,
-    Json(body): Json<RevokeRequest>,
+    body: Result<Json<RevokeRequest>, JsonRejection>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     require_permission(&claims, permissions::admin::api_keys::REVOKE)?;
+    let Json(body) = body?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;

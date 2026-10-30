@@ -6,6 +6,7 @@
 //! Real tier transitions happen in `medbrains_server_core::storage_archive` — these
 //! handlers only read state and queue manual operations.
 
+use axum::extract::rejection::JsonRejection;
 use axum::{
     Extension, Json,
     extract::{Path, Query, State},
@@ -80,9 +81,10 @@ pub async fn update_policy(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
     Path(category): Path<String>,
-    Json(body): Json<UpdatePolicyBody>,
+    body: Result<Json<UpdatePolicyBody>, JsonRejection>,
 ) -> Result<Json<StoragePolicyRow>, AppError> {
     require_permission(&claims, permissions::storage::policies::MANAGE)?;
+    let Json(body) = body?;
 
     if let Some(years) = body.retention_years
         && !(1..=99).contains(&years)
@@ -283,9 +285,10 @@ pub async fn request_restore(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
     Path(doc_id): Path<Uuid>,
-    Json(_body): Json<RestoreBody>,
+    body: Result<Json<RestoreBody>, JsonRejection>,
 ) -> Result<Json<RestoreAck>, AppError> {
     require_permission(&claims, permissions::storage::RESTORE)?;
+    let _ = body?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;

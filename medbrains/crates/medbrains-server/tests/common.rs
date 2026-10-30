@@ -329,6 +329,17 @@ pub async fn provision_staff(
     role: &str,
     denied: &[&str],
 ) -> Staff {
+    provision_staff_with(app, admin_csrf, role, &[], denied).await
+}
+
+/// As [`provision_staff`], also granting `extra` on top of the role.
+pub async fn provision_staff_with(
+    app: &TestApp,
+    admin_csrf: &str,
+    role: &str,
+    extra: &[&str],
+    denied: &[&str],
+) -> Staff {
     let tag = &uuid::Uuid::new_v4().simple().to_string()[..10];
     let (username, password) = (format!("t{role}_{tag}"), format!("Staff#{tag}Aa9"));
     let resp = app
@@ -352,12 +363,13 @@ pub async fn provision_staff(
         resp.text().await.unwrap_or_default()
     );
     let user_id: uuid::Uuid = sqlx::query_scalar(
-        "UPDATE users SET access_matrix = jsonb_build_object('extra', '[]'::jsonb, 'denied', $2::jsonb), \
+        "UPDATE users SET access_matrix = jsonb_build_object('extra', $3::jsonb, 'denied', $2::jsonb), \
                 perm_version = perm_version + 1 \
           WHERE username = $1 RETURNING id",
     )
     .bind(&username)
     .bind(serde_json::json!(denied))
+    .bind(serde_json::json!(extra))
     .fetch_one(&app.db)
     .await
     .expect("user");

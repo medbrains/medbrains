@@ -20,6 +20,7 @@
 //! holding `device_code`, which is never displayed — so a `user_code` read off
 //! a screen by a passer-by is not enough to take the session.
 
+use axum::extract::rejection::JsonRejection;
 use axum::{Extension, Json, extract::State};
 use chrono::{DateTime, Duration, Utc};
 use medbrains_core::permissions;
@@ -427,9 +428,10 @@ async fn display_account(
 pub async fn approve_pairing_request(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
-    Json(body): Json<ApproveRequest>,
+    body: Result<Json<ApproveRequest>, JsonRejection>,
 ) -> Result<Json<PendingRequest>, AppError> {
     require_permission(&claims, permissions::devices::pairing::TOKEN_CREATE)?;
+    let Json(body) = body?;
 
     let normalized = normalize_user_code(&body.user_code);
     let status = if body.deny { "denied" } else { "approved" };

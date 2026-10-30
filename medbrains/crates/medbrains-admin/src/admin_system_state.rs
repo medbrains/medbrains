@@ -2,6 +2,7 @@
 //!
 //! Sprint A spec: `RFCs/sprints/SPRINT-A-outbox.md` §7.
 
+use axum::extract::rejection::JsonRejection;
 use axum::{Extension, Json, extract::State};
 use medbrains_core::permissions;
 use serde::{Deserialize, Serialize};
@@ -78,9 +79,10 @@ pub async fn get_system_state(
 pub async fn update_system_state(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
-    Json(body): Json<UpdateSystemStateRequest>,
+    body: Result<Json<UpdateSystemStateRequest>, JsonRejection>,
 ) -> Result<Json<SystemStateResponse>, AppError> {
     require_permission(&claims, permissions::admin::system_state::MANAGE)?;
+    let Json(body) = body?;
 
     if !matches!(body.mode.as_str(), "normal" | "degraded" | "read_only") {
         return Err(AppError::BadRequest(format!(

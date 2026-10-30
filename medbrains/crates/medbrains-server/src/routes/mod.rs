@@ -1,15 +1,15 @@
 pub mod abdm;
-pub mod uhi;
 pub mod access;
 pub mod admin;
 pub mod admin_simulator;
-pub mod message_simulator;
 pub mod appointments;
 pub mod audit;
+pub mod bill_verify;
 pub mod coverage;
 pub mod debug;
 pub mod health;
 pub mod immunizations;
+pub mod message_simulator;
 pub mod nhcx_onboarding;
 pub mod portal;
 pub mod portal_deliveries;
@@ -19,20 +19,20 @@ pub mod portal_privacy;
 pub mod portal_refills;
 pub mod portal_store;
 pub mod portal_tele;
-pub mod bill_verify;
 pub mod rx_verify;
 pub mod store_public;
+pub mod uhi;
 pub use medbrains_nabh as nabh_evidence;
 // scheduling routes moved to the medbrains-scheduling leaf; re-exported so
 // reports.rs (which reuses scheduling helpers) keeps resolving crate::routes::scheduling.
 pub use medbrains_identity::sso;
+pub use medbrains_notifications as notifications;
 pub use medbrains_platform::ckb;
 pub use medbrains_print_data::billing as print_data_billing;
 pub use medbrains_print_data::clinical as print_data_clinical;
 pub use medbrains_scheduling::scheduling;
-pub use medbrains_notifications as notifications;
-pub use medbrains_signing::signed_documents;
 pub use medbrains_server_core::step_up;
+pub use medbrains_signing::signed_documents;
 pub use medbrains_telehealth::cds;
 // order_basket reaches diet's order-creation helper via super::diet
 pub use medbrains_diet as diet;
@@ -814,7 +814,7 @@ pub fn build_router(state: AppState) -> Router {
             "/api/admin/simulator/schedules/{id}/run-now",
             post(admin_simulator::run_now),
         )
-        // Message simulator phone view — 404 unless the simulator is on.
+        // Message simulator phone view — 403 without the permission, then 404 unless the simulator is on.
         .route(
             "/api/admin/message-simulator/messages",
             get(message_simulator::list_messages),
@@ -1070,8 +1070,14 @@ pub fn build_router(state: AppState) -> Router {
     // ── The storefront before sign-in: browse, and sign in with a mobile.
     //    Public, so bounded per IP; codes far more tightly than browsing.
     let store_public_routes = Router::new()
-        .route("/api/store/{tenant_code}/about", get(store_public::store_about))
-        .route("/api/store/{tenant_code}/items", get(store_public::store_items))
+        .route(
+            "/api/store/{tenant_code}/about",
+            get(store_public::store_about),
+        )
+        .route(
+            "/api/store/{tenant_code}/items",
+            get(store_public::store_items),
+        )
         .route(
             "/api/store/{tenant_code}/items/{id}",
             get(store_public::store_item),

@@ -28,7 +28,7 @@
 use axum::routing::{delete, get, post};
 use axum::{
     Extension, Json,
-    extract::{Path, State},
+    extract::{Path, State, rejection::JsonRejection},
 };
 
 pub mod binding;
@@ -95,9 +95,10 @@ pub struct MintTokenResponse {
 pub async fn mint_pairing_token(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
-    Json(body): Json<MintTokenRequest>,
+    body: Result<Json<MintTokenRequest>, JsonRejection>,
 ) -> Result<Json<MintTokenResponse>, AppError> {
     require_permission(&claims, permissions::devices::pairing::TOKEN_CREATE)?;
+    let Json(body) = body?;
     if !is_valid_app_variant(&body.intended_app_variant) {
         return Err(AppError::BadRequest(format!(
             "invalid intended_app_variant '{}'",
@@ -422,9 +423,16 @@ pub async fn revoke_paired_device(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
     Path(id): Path<Uuid>,
-    Json(body): Json<RevokeBody>,
+    body: Result<Json<RevokeBody>, JsonRejection>,
 ) -> Result<Json<PairedDeviceRow>, AppError> {
     require_permission(&claims, permissions::devices::pairing::PAIRED_REVOKE)?;
+    // The reason is optional, so a DELETE with no body revokes too; a body
+    // that is there but malformed is still refused.
+    let reason = match body {
+        Ok(Json(body)) => body.reason,
+        Err(JsonRejection::MissingJsonContentType(_)) => None,
+        Err(other) => return Err(other.into()),
+    };
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -435,7 +443,7 @@ pub async fn revoke_paired_device(
          WHERE id = $3 AND tenant_id = $4 AND revoked_at IS NULL \
          RETURNING id",
         claims.sub,
-        body.reason.as_deref(),
+        reason.as_deref(),
         id,
         claims.tenant_id,
     )

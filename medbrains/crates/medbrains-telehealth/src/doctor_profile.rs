@@ -2,6 +2,7 @@
 //!
 //! Per `RFCs/sprints/SPRINT-doctor-activities.md` §2.1.
 
+use axum::extract::rejection::JsonRejection;
 use axum::{
     Extension, Json,
     extract::{Path, Query, State},
@@ -179,9 +180,10 @@ pub async fn get_doctor(
 pub async fn create_doctor(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
-    Json(body): Json<CreateDoctorRequest>,
+    body: Result<Json<CreateDoctorRequest>, JsonRejection>,
 ) -> Result<Json<DoctorProfile>, AppError> {
     require_permission(&claims, permissions::admin::doctors::CREATE)?;
+    let Json(body) = body?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -248,9 +250,10 @@ pub async fn update_doctor(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
     Path(id): Path<Uuid>,
-    Json(body): Json<UpdateDoctorRequest>,
+    body: Result<Json<UpdateDoctorRequest>, JsonRejection>,
 ) -> Result<Json<DoctorProfile>, AppError> {
     require_permission(&claims, permissions::admin::doctors::UPDATE)?;
+    let Json(body) = body?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;

@@ -58,6 +58,7 @@ mod ai_actor_audit_test;
 mod allergy_verification_test;
 mod analyzer_orders_test;
 mod anonymous_incident_test;
+mod admin_authz_order_test;
 mod api_key_limits_test;
 mod api_not_found_test;
 mod attendance_geofence_test;

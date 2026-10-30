@@ -7,20 +7,21 @@
 //! globally then sets the tenant RLS context for the user INSERT. Only the
 //! SHA-256 hash of the token is stored.
 
-use axum::routing::{delete,get,post};
 use argon2::{Argon2, PasswordHasher};
+use axum::extract::rejection::JsonRejection;
 use axum::extract::{Path, State};
+use axum::routing::{delete, get, post};
 use axum::{Extension, Json};
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
 use uuid::Uuid;
 
+use medbrains_core::permissions;
 use medbrains_server_core::middleware::auth::Claims;
 use medbrains_server_core::middleware::authorization::require_permission;
 use medbrains_server_core::validation::{self, ValidationErrors};
 use medbrains_server_core::{error::AppError, state::AppState};
-use medbrains_core::permissions;
 
 const INVITE_TTL_DAYS: i64 = 7;
 const USER_ROLES: &[&str] = &[
@@ -76,9 +77,10 @@ pub async fn create(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
     headers: axum::http::HeaderMap,
-    Json(body): Json<CreateInviteRequest>,
+    body: Result<Json<CreateInviteRequest>, JsonRejection>,
 ) -> Result<Json<InvitationRow>, AppError> {
     require_permission(&claims, permissions::admin::users::CREATE)?;
+    let Json(body) = body?;
 
     let email = body.email.trim().to_lowercase();
     let mut errors = ValidationErrors::new();
