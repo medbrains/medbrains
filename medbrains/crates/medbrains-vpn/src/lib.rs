@@ -6,12 +6,12 @@
 //! Requires the `vpn.enroll` permission; Headscale URL + API key come from the
 //! secret resolver (VPN is unconfigured → a clear 400, since it's opt-in).
 
+use axum::Extension;
 use axum::routing::{get, post};
 use axum::{
     Json,
     extract::{Path, State},
 };
-use axum::Extension;
 use chrono::{Duration, Utc};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
@@ -62,7 +62,9 @@ async fn headscale_config(state: &AppState) -> Result<(String, String), AppError
         .secret_resolver
         .get(HEADSCALE_API_KEY)
         .await
-        .map_err(|_| AppError::BadRequest("VPN is not configured (Headscale API key)".to_owned()))?;
+        .map_err(|_| {
+            AppError::BadRequest("VPN is not configured (Headscale API key)".to_owned())
+        })?;
     Ok((url.trim_end_matches('/').to_owned(), key))
 }
 
@@ -146,7 +148,12 @@ pub async fn enroll(
     .map_err(AppError::from)?;
     tx.commit().await?;
 
-    Ok(Json(EnrollResponse { device_id, login_server: url, auth_key, expires_at }))
+    Ok(Json(EnrollResponse {
+        device_id,
+        login_server: url,
+        auth_key,
+        expires_at,
+    }))
 }
 
 /// GET /api/vpn/status — the caller's enrolled devices.
@@ -210,14 +217,14 @@ pub async fn revoke(
     tx.commit().await?;
 
     // Best-effort: expire the node in Headscale so its key can't reconnect.
-    if let Some(Some(nid)) = node_id {
-        if let Ok((url, api_key)) = headscale_config(&state).await {
-            let _ = reqwest::Client::new()
-                .post(format!("{url}/api/v1/node/{nid}/expire"))
-                .bearer_auth(api_key)
-                .send()
-                .await;
-        }
+    if let Some(Some(nid)) = node_id
+        && let Ok((url, api_key)) = headscale_config(&state).await
+    {
+        let _ = reqwest::Client::new()
+            .post(format!("{url}/api/v1/node/{nid}/expire"))
+            .bearer_auth(api_key)
+            .send()
+            .await;
     }
     Ok(Json(serde_json::json!({ "status": "revoked" })))
 }
@@ -244,15 +251,15 @@ pub async fn revoke_user_devices(
     .await?;
     tx.commit().await?;
 
-    if node_ids.iter().any(Option::is_some) {
-        if let Ok((url, api_key)) = headscale_config(state).await {
-            for nid in node_ids.into_iter().flatten() {
-                let _ = reqwest::Client::new()
-                    .post(format!("{url}/api/v1/node/{nid}/expire"))
-                    .bearer_auth(&api_key)
-                    .send()
-                    .await;
-            }
+    if node_ids.iter().any(Option::is_some)
+        && let Ok((url, api_key)) = headscale_config(state).await
+    {
+        for nid in node_ids.into_iter().flatten() {
+            let _ = reqwest::Client::new()
+                .post(format!("{url}/api/v1/node/{nid}/expire"))
+                .bearer_auth(&api_key)
+                .send()
+                .await;
         }
     }
     Ok(())

@@ -137,7 +137,12 @@ pub async fn create_run(
 
     // Refuse the silent failure at the point where somebody can still fix it.
     if body.channel.eq_ignore_ascii_case("sms")
-        && body.dlt_template_id.as_deref().unwrap_or("").trim().is_empty()
+        && body
+            .dlt_template_id
+            .as_deref()
+            .unwrap_or("")
+            .trim()
+            .is_empty()
     {
         return Err(AppError::BadRequest(
             "an SMS run needs its DLT template id — TRAI drops an unregistered \
@@ -217,15 +222,15 @@ async fn transition(
     // Checked here as well as in the database so the caller gets a sentence
     // rather than a constraint violation. The CHECK stays as the backstop —
     // this module is not the only thing that can write the row.
-    if let Some(approver_id) = approver {
-        if created_by == Some(approver_id) {
-            return Err(AppError::Conflict(
-                "the person who created a campaign cannot approve it — NMC \
+    if let Some(approver_id) = approver
+        && created_by == Some(approver_id)
+    {
+        return Err(AppError::Conflict(
+            "the person who created a campaign cannot approve it — NMC \
                  advertising rules make this a second pair of eyes, not a \
                  formality"
-                    .to_owned(),
-            ));
-        }
+                .to_owned(),
+        ));
     }
 
     let row = sqlx::query_as::<_, OutreachRun>(&format!(
@@ -304,8 +309,15 @@ pub async fn cancel_run(
     match transition(&state, &claims, id, status::DRAFT, status::CANCELLED, None).await {
         Ok(row) => Ok(Json(row)),
         Err(AppError::Conflict(_)) => {
-            let row =
-                transition(&state, &claims, id, status::PENDING, status::CANCELLED, None).await?;
+            let row = transition(
+                &state,
+                &claims,
+                id,
+                status::PENDING,
+                status::CANCELLED,
+                None,
+            )
+            .await?;
             Ok(Json(row))
         }
         Err(other) => Err(other),

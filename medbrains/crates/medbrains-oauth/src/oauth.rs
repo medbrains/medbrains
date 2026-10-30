@@ -97,7 +97,11 @@ fn decrypt(key: &[u8], enc: &str) -> Result<String, AppError> {
 
 /// Per-tenant OAuth app creds from `tenant_settings` (category `oauth`,
 /// key `<provider>_config` → { client_id, client_secret }).
-async fn read_creds(state: &AppState, tenant_id: &Uuid, provider: &str) -> Result<ProviderCreds, AppError> {
+async fn read_creds(
+    state: &AppState,
+    tenant_id: &Uuid,
+    provider: &str,
+) -> Result<ProviderCreds, AppError> {
     let mut conn = medbrains_db::pool::tenant_conn(&state.db, tenant_id).await?;
     let key = format!("{provider}_config");
     let row = sqlx::query_scalar!(
@@ -117,7 +121,10 @@ async fn read_creds(state: &AppState, tenant_id: &Uuid, provider: &str) -> Resul
             "{provider} OAuth client_id/secret missing"
         )));
     }
-    Ok(ProviderCreds { client_id, client_secret })
+    Ok(ProviderCreds {
+        client_id,
+        client_secret,
+    })
 }
 
 /// Build the provider consent URL the browser is redirected to.
@@ -160,10 +167,7 @@ struct TokenResponse {
     token_type: Option<String>,
 }
 
-async fn post_token(
-    token_url: &str,
-    form: &[(&str, &str)],
-) -> Result<TokenResponse, AppError> {
+async fn post_token(token_url: &str, form: &[(&str, &str)]) -> Result<TokenResponse, AppError> {
     let resp = reqwest::Client::new()
         .post(token_url)
         .form(form)
@@ -220,7 +224,9 @@ async fn store_tokens(
         Some(rt) => Some(encrypt(&key, rt)?),
         None => None,
     };
-    let expires_at = token.expires_in.map(|secs| Utc::now() + Duration::seconds(secs));
+    let expires_at = token
+        .expires_in
+        .map(|secs| Utc::now() + Duration::seconds(secs));
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, tenant_id).await?;
@@ -279,17 +285,14 @@ pub async fn get_valid_token(
     let fresh = conn
         .expires_at
         .is_none_or(|exp| exp > Utc::now() + Duration::seconds(60));
-    if fresh {
-        if let Some(enc) = &conn.access_token_enc {
-            return decrypt(&key, enc);
-        }
+    if fresh && let Some(enc) = &conn.access_token_enc {
+        return decrypt(&key, enc);
     }
 
     // Expired — refresh.
-    let refresh_enc = conn
-        .refresh_token_enc
-        .as_ref()
-        .ok_or_else(|| AppError::ServiceUnavailable(format!("{provider} token expired; reconnect")))?;
+    let refresh_enc = conn.refresh_token_enc.as_ref().ok_or_else(|| {
+        AppError::ServiceUnavailable(format!("{provider} token expired; reconnect"))
+    })?;
     let refresh_token = decrypt(&key, refresh_enc)?;
     let creds = read_creds(state, tenant_id, provider).await?;
     let token = post_token(

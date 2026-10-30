@@ -1,10 +1,10 @@
 #![allow(clippy::too_many_lines)]
 
+use axum::routing::{get, post, put};
 use axum::{
     Extension, Json,
     extract::{Path, Query, State},
 };
-use axum::routing::{get,post,put};
 use chrono::Utc;
 use medbrains_core::order_set::{
     OrderSetActivation, OrderSetActivationItem, OrderSetTemplate, OrderSetTemplateItem,
@@ -747,13 +747,13 @@ pub async fn activate_order_set(
     for ti in &template_items {
         if ti.is_mandatory {
             let found = body.items.iter().find(|i| i.template_item_id == ti.id);
-            if let Some(found) = found {
-                if !found.selected {
-                    return Err(AppError::BadRequest(format!(
-                        "Mandatory item {} cannot be deselected",
-                        ti.id
-                    )));
-                }
+            if let Some(found) = found
+                && !found.selected
+            {
+                return Err(AppError::BadRequest(format!(
+                    "Mandatory item {} cannot be deselected",
+                    ti.id
+                )));
             }
         }
     }
@@ -1125,14 +1125,10 @@ pub fn router() -> axum::Router<AppState> {
                 .put(update_template)
                 .delete(delete_template),
         )
-        .route(
-            "/api/order-sets/templates/{id}/items",
-            post(add_item),
-        )
+        .route("/api/order-sets/templates/{id}/items", post(add_item))
         .route(
             "/api/order-sets/templates/{tid}/items/{iid}",
-            put(update_item)
-                .delete(delete_item),
+            put(update_item).delete(delete_item),
         )
         .route(
             "/api/order-sets/templates/{id}/new-version",
@@ -1146,26 +1142,11 @@ pub fn router() -> axum::Router<AppState> {
             "/api/order-sets/templates/{id}/versions",
             get(list_versions),
         )
-        .route(
-            "/api/order-sets/suggest",
-            get(suggest_templates),
-        )
-        .route(
-            "/api/order-sets/activate",
-            post(activate_order_set),
-        )
-        .route(
-            "/api/order-sets/activations",
-            get(list_activations),
-        )
-        .route(
-            "/api/order-sets/activations/{id}",
-            get(get_activation),
-        )
-        .route(
-            "/api/order-sets/analytics",
-            get(get_analytics),
-        )
+        .route("/api/order-sets/suggest", get(suggest_templates))
+        .route("/api/order-sets/activate", post(activate_order_set))
+        .route("/api/order-sets/activations", get(list_activations))
+        .route("/api/order-sets/activations/{id}", get(get_activation))
+        .route("/api/order-sets/analytics", get(get_analytics))
         .route(
             "/api/order-sets/analytics/{template_id}",
             get(get_template_analytics),

@@ -60,10 +60,10 @@ fn parse_dash_pattern(f: &str) -> Option<Vec<u32>> {
     for (idx, part) in parts.iter().enumerate() {
         // Each token must be a small integer (0, 1, 2 ...). Reject anything else.
         let n: u32 = part.parse().ok()?;
-        if n > 0 {
-            if let Some(h) = slot_hours.get(idx) {
-                hours.push(*h);
-            }
+        if n > 0
+            && let Some(h) = slot_hours.get(idx)
+        {
+            hours.push(*h);
         }
     }
     if hours.is_empty() { None } else { Some(hours) }

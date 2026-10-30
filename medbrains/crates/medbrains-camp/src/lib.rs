@@ -3270,10 +3270,10 @@ async fn resolve_camp_patient_id(
     if let Some(id) = patient_id {
         return Ok(id);
     }
-    if let Some(id) = registration_id {
-        if let Some(pid) = patient_for_registration(tx, tenant_id, id).await? {
-            return Ok(pid);
-        }
+    if let Some(id) = registration_id
+        && let Some(pid) = patient_for_registration(tx, tenant_id, id).await?
+    {
+        return Ok(pid);
     }
     Err(AppError::BadRequest(
         "camp sync event requires patient_id or a registration linked to a patient".to_owned(),
@@ -3312,8 +3312,7 @@ async fn create_or_link_patient_for_camp_registration(
         .external_ref
         .as_deref()
         .filter(|r| !r.trim().is_empty())
-    {
-        if let Some(existing_id) = sqlx::query_scalar::<_, Uuid>(
+        && let Some(existing_id) = sqlx::query_scalar::<_, Uuid>(
             "SELECT id FROM patients \
              WHERE tenant_id = $1 \
                AND is_active = true \
@@ -3324,14 +3323,13 @@ async fn create_or_link_patient_for_camp_registration(
         .bind(external_ref)
         .fetch_optional(&mut **tx)
         .await?
-        {
-            apply_camp_corrections(tx, claims, existing_id, body, &first_name, &last_name).await?;
-            return Ok(existing_id);
-        }
+    {
+        apply_camp_corrections(tx, claims, existing_id, body, &first_name, &last_name).await?;
+        return Ok(existing_id);
     }
 
-    if !phone.trim().is_empty() {
-        if let Some(existing_id) = sqlx::query_scalar::<_, Uuid>(
+    if !phone.trim().is_empty()
+        && let Some(existing_id) = sqlx::query_scalar::<_, Uuid>(
             "SELECT id FROM patients \
              WHERE tenant_id = $1 \
                AND is_active = true \
@@ -3347,9 +3345,8 @@ async fn create_or_link_patient_for_camp_registration(
         .bind(&last_name)
         .fetch_optional(&mut **tx)
         .await?
-        {
-            return Ok(existing_id);
-        }
+    {
+        return Ok(existing_id);
     }
 
     let uhid = generate_sequence_code(tx, &claims.tenant_id, "UHID").await?;
@@ -7021,10 +7018,10 @@ pub async fn create_registration(
     // Linking a record puts it on the camp's route: the caller must be able to
     // see that patient — every record with `patients.view`, otherwise the one
     // record they can reach (a patient they just registered at the camp).
-    if let Some(patient_id) = body.patient_id {
-        if !has_patient_record_view(&claims) {
-            medbrains_authz_gate::require_patient_access(&state, &claims, patient_id).await?;
-        }
+    if let Some(patient_id) = body.patient_id
+        && !has_patient_record_view(&claims)
+    {
+        medbrains_authz_gate::require_patient_access(&state, &claims, patient_id).await?;
     }
 
     let restricted_fields = resolve_camp_registration_restricted_fields(&state, &claims).await?;

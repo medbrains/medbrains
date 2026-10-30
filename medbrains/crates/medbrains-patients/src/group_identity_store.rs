@@ -317,9 +317,10 @@ async fn link_pair(
         return Ok(false);
     }
     let person = mine.or(theirs).unwrap_or_else(Uuid::new_v4);
-    if let (Some(a), Some(b)) = (mine, theirs) {
-        if a != b {
-            sqlx::query(
+    if let (Some(a), Some(b)) = (mine, theirs)
+        && a != b
+    {
+        sqlx::query(
                 "UPDATE group_patient_links SET person_id = $1 \
                   WHERE person_id = $2 AND group_id = $3 AND unlinked_at IS NULL AND deleted_at IS NULL",
             )
@@ -328,7 +329,6 @@ async fn link_pair(
             .bind(me.group_id)
             .execute(&mut **tx)
             .await?;
-        }
     }
     for (tenant, patient, how, s) in [
         (me.tenant_id, me.patient_id, method, score),

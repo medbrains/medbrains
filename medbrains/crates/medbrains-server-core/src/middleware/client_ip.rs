@@ -96,12 +96,10 @@ fn parse_forwarded_headers(request: &Request) -> Option<IpAddr> {
         .headers()
         .get("x-forwarded-for")
         .and_then(|v| v.to_str().ok())
+        && let Some(first) = fwd.split(',').next()
+        && let Ok(ip) = first.trim().parse::<IpAddr>()
     {
-        if let Some(first) = fwd.split(',').next() {
-            if let Ok(ip) = first.trim().parse::<IpAddr>() {
-                return Some(ip);
-            }
-        }
+        return Some(ip);
     }
 
     // Try X-Real-IP header (nginx default)
@@ -109,10 +107,9 @@ fn parse_forwarded_headers(request: &Request) -> Option<IpAddr> {
         .headers()
         .get("x-real-ip")
         .and_then(|v| v.to_str().ok())
+        && let Ok(ip) = real.trim().parse::<IpAddr>()
     {
-        if let Ok(ip) = real.trim().parse::<IpAddr>() {
-            return Some(ip);
-        }
+        return Some(ip);
     }
 
     None

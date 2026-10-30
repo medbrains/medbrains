@@ -113,17 +113,17 @@ pub async fn rate_limit_middleware(
 ) -> Response {
     let ip = extract_client_ip(&request);
 
-    if let Some(ip) = ip {
-        if !limiter.check_and_record(ip) {
-            return (
-                StatusCode::TOO_MANY_REQUESTS,
-                axum::Json(serde_json::json!({
-                    "error": "too_many_requests",
-                    "detail": "Too many login attempts. Please try again later.",
-                })),
-            )
-                .into_response();
-        }
+    if let Some(ip) = ip
+        && !limiter.check_and_record(ip)
+    {
+        return (
+            StatusCode::TOO_MANY_REQUESTS,
+            axum::Json(serde_json::json!({
+                "error": "too_many_requests",
+                "detail": "Too many login attempts. Please try again later.",
+            })),
+        )
+            .into_response();
     }
 
     next.run(request).await
@@ -189,17 +189,17 @@ pub async fn storefront_rate_limit_middleware(
     } else {
         ("store_browse", STORE_BROWSE_PER_MINUTE)
     };
-    if let Some(ip) = extract_client_ip(&request) {
-        if !limiter.check_and_record_class(ip, class, max, WINDOW_SECS) {
-            return (
-                StatusCode::TOO_MANY_REQUESTS,
-                axum::Json(serde_json::json!({
-                    "error": "too_many_requests",
-                    "detail": "Too many requests. Please wait a minute and try again.",
-                })),
-            )
-                .into_response();
-        }
+    if let Some(ip) = extract_client_ip(&request)
+        && !limiter.check_and_record_class(ip, class, max, WINDOW_SECS)
+    {
+        return (
+            StatusCode::TOO_MANY_REQUESTS,
+            axum::Json(serde_json::json!({
+                "error": "too_many_requests",
+                "detail": "Too many requests. Please wait a minute and try again.",
+            })),
+        )
+            .into_response();
     }
     next.run(request).await
 }
@@ -219,12 +219,10 @@ fn extract_client_ip(request: &Request) -> Option<IpAddr> {
         .headers()
         .get("x-forwarded-for")
         .and_then(|v| v.to_str().ok())
+        && let Some(first_ip) = forwarded.split(',').next()
+        && let Ok(ip) = first_ip.trim().parse::<IpAddr>()
     {
-        if let Some(first_ip) = forwarded.split(',').next() {
-            if let Ok(ip) = first_ip.trim().parse::<IpAddr>() {
-                return Some(ip);
-            }
-        }
+        return Some(ip);
     }
 
     // Try X-Real-IP header
@@ -232,10 +230,9 @@ fn extract_client_ip(request: &Request) -> Option<IpAddr> {
         .headers()
         .get("x-real-ip")
         .and_then(|v| v.to_str().ok())
+        && let Ok(ip) = real_ip.trim().parse::<IpAddr>()
     {
-        if let Ok(ip) = real_ip.trim().parse::<IpAddr>() {
-            return Some(ip);
-        }
+        return Some(ip);
     }
 
     None

@@ -49,9 +49,9 @@ pub mod pos_returns;
 mod pos_scheduled;
 pub mod quarantine;
 mod return_rules;
-mod terminal_tender;
 pub mod rx_safety;
 pub mod storefront;
+mod terminal_tender;
 
 // ══════════════════════════════════════════════════════════
 //  Request / Response types
@@ -3145,8 +3145,7 @@ pub async fn dispense_order(
     // An order placed online goes out only on batches with the storefront's
     // shelf life left (research §3: 90 days by default).
     let online_shelf_days =
-        storefront::settings::min_shelf_days_for_order(&mut tx, claims.tenant_id, order.id)
-            .await?;
+        storefront::settings::min_shelf_days_for_order(&mut tx, claims.tenant_id, order.id).await?;
     for item in &items {
         if item.quantity <= 0 {
             return Err(AppError::BadRequest(
@@ -3240,19 +3239,19 @@ pub async fn dispense_order(
                 .bind(claims.tenant_id)
                 .execute(&mut *tx)
                 .await?;
-            } else if let Some(dispense_input) = batch_map.get(&item.id) {
-                if dispense_input.batch_number.is_some() {
-                    sqlx::query(
-                        "UPDATE pharmacy_order_items SET \
+            } else if let Some(dispense_input) = batch_map.get(&item.id)
+                && dispense_input.batch_number.is_some()
+            {
+                sqlx::query(
+                    "UPDATE pharmacy_order_items SET \
                          batch_number = COALESCE($1, batch_number) \
                          WHERE id = $2 AND tenant_id = $3",
-                    )
-                    .bind(&dispense_input.batch_number)
-                    .bind(item.id)
-                    .bind(claims.tenant_id)
-                    .execute(&mut *tx)
-                    .await?;
-                }
+                )
+                .bind(&dispense_input.batch_number)
+                .bind(item.id)
+                .bind(claims.tenant_id)
+                .execute(&mut *tx)
+                .await?;
             }
 
             decrement_catalog_stock_for_dispense_in_tx(
@@ -3498,8 +3497,7 @@ async fn enforce_schedule_compliance(
         return Err(AppError::NotFound);
     };
 
-    let has_prescription =
-        prescription_id.is_some() || encounter_id.is_some() || verified_upload;
+    let has_prescription = prescription_id.is_some() || encounter_id.is_some() || verified_upload;
 
     let scheduled_items: Vec<(String, Option<String>)> = sqlx::query_as(
         "SELECT c.name, c.drug_schedule::text \
@@ -3711,36 +3709,36 @@ pub async fn validate_order(
 
             if let Some(drug) = cat {
                 // Schedule H/H1/X surface — block at validation if no prescription source
-                if let Some(sched) = drug.drug_schedule.as_deref() {
-                    if matches!(sched, "H" | "H1" | "X") {
-                        let order_meta: Option<(Option<Uuid>, Option<Uuid>)> = sqlx::query_as(
-                            "SELECT prescription_id, encounter_id FROM pharmacy_orders \
+                if let Some(sched) = drug.drug_schedule.as_deref()
+                    && matches!(sched, "H" | "H1" | "X")
+                {
+                    let order_meta: Option<(Option<Uuid>, Option<Uuid>)> = sqlx::query_as(
+                        "SELECT prescription_id, encounter_id FROM pharmacy_orders \
                              WHERE id = $1 AND tenant_id = $2",
-                        )
-                        .bind(id)
-                        .bind(claims.tenant_id)
-                        .fetch_optional(&mut *tx)
-                        .await?;
-                        let has_rx = order_meta
-                            .as_ref()
-                            .map(|(p, e)| p.is_some() || e.is_some())
-                            .unwrap_or(false);
-                        if !has_rx {
-                            blocks.push(format!(
-                                "{}: Schedule {sched} drug — Rx / encounter required before dispense",
-                                drug.name
-                            ));
-                        } else if sched == "X" {
-                            warnings.push(format!(
-                                "{}: Schedule X — dual signature + duplicate Rx required at dispense",
-                                drug.name
-                            ));
-                        } else {
-                            warnings.push(format!(
-                                "{}: Schedule {sched} — pharmacist must retain Rx",
-                                drug.name
-                            ));
-                        }
+                    )
+                    .bind(id)
+                    .bind(claims.tenant_id)
+                    .fetch_optional(&mut *tx)
+                    .await?;
+                    let has_rx = order_meta
+                        .as_ref()
+                        .map(|(p, e)| p.is_some() || e.is_some())
+                        .unwrap_or(false);
+                    if !has_rx {
+                        blocks.push(format!(
+                            "{}: Schedule {sched} drug — Rx / encounter required before dispense",
+                            drug.name
+                        ));
+                    } else if sched == "X" {
+                        warnings.push(format!(
+                            "{}: Schedule X — dual signature + duplicate Rx required at dispense",
+                            drug.name
+                        ));
+                    } else {
+                        warnings.push(format!(
+                            "{}: Schedule {sched} — pharmacist must retain Rx",
+                            drug.name
+                        ));
                     }
                 }
 
@@ -4014,22 +4012,22 @@ pub async fn create_otc_sale(
     )
     .await?;
 
-    if let (Some(pid), Some(reason)) = (patient_id, allergy_reason) {
-        if !allergy_conflicts.is_empty() {
-            log_allergy_overrides(
-                &mut tx,
-                &allergy_conflicts,
-                &AllergyOverrideLog {
-                    tenant_id: claims.tenant_id,
-                    patient_id: pid,
-                    overridden_by: claims.sub,
-                    reason,
-                    context: "pos_sale",
-                    order_id: Some(order.id),
-                },
-            )
-            .await?;
-        }
+    if let (Some(pid), Some(reason)) = (patient_id, allergy_reason)
+        && !allergy_conflicts.is_empty()
+    {
+        log_allergy_overrides(
+            &mut tx,
+            &allergy_conflicts,
+            &AllergyOverrideLog {
+                tenant_id: claims.tenant_id,
+                patient_id: pid,
+                overridden_by: claims.sub,
+                reason,
+                context: "pos_sale",
+                order_id: Some(order.id),
+            },
+        )
+        .await?;
     }
 
     let mut items = Vec::with_capacity(body.items.len());
@@ -6012,32 +6010,30 @@ pub async fn process_return(
         }
 
         // If returned to stock, increment catalog stock.
-        if restocked {
-            if let Some(catalog_id) = oi.catalog_item_id {
-                sqlx::query(
-                    "UPDATE pharmacy_catalog SET current_stock = current_stock + $1, \
+        if restocked && let Some(catalog_id) = oi.catalog_item_id {
+            sqlx::query(
+                "UPDATE pharmacy_catalog SET current_stock = current_stock + $1, \
                      updated_at = now() WHERE id = $2 AND tenant_id = $3",
-                )
-                .bind(row.quantity_returned)
-                .bind(catalog_id)
-                .bind(claims.tenant_id)
-                .execute(&mut *tx)
-                .await?;
+            )
+            .bind(row.quantity_returned)
+            .bind(catalog_id)
+            .bind(claims.tenant_id)
+            .execute(&mut *tx)
+            .await?;
 
-                if let Some(batch_id) = oi.batch_stock_id {
-                    sqlx::query(
-                        "UPDATE pharmacy_batches SET \
+            if let Some(batch_id) = oi.batch_stock_id {
+                sqlx::query(
+                    "UPDATE pharmacy_batches SET \
                          quantity_on_hand = quantity_on_hand + $1, \
                          quantity_dispensed = GREATEST(quantity_dispensed - $1, 0), \
                          updated_at = now() \
                          WHERE id = $2 AND tenant_id = $3",
-                    )
-                    .bind(row.quantity_returned)
-                    .bind(batch_id)
-                    .bind(claims.tenant_id)
-                    .execute(&mut *tx)
-                    .await?;
-                }
+                )
+                .bind(row.quantity_returned)
+                .bind(batch_id)
+                .bind(claims.tenant_id)
+                .execute(&mut *tx)
+                .await?;
             }
         }
     }
@@ -7315,7 +7311,8 @@ pub async fn create_pos_sale(
     // controlled drugs never; H and H1 only with the patient named (a light
     // pharmacy-customer record when they aren't registered), and for H1 the
     // prescriber and the patient's address recorded (Rule 65).
-    let rx_lines = pos_scheduled::check_scheduled_sale(&mut tx, claims.tenant_id, &mut body).await?;
+    let rx_lines =
+        pos_scheduled::check_scheduled_sale(&mut tx, claims.tenant_id, &mut body).await?;
 
     // Allergy guard — only when the sale is linked to a patient.
     let allergy_reason = body
@@ -7515,22 +7512,22 @@ pub async fn create_pos_sale(
     )
     .await?;
 
-    if let (Some(pid), Some(reason)) = (body.patient_id, allergy_reason) {
-        if !allergy_conflicts.is_empty() {
-            log_allergy_overrides(
-                &mut tx,
-                &allergy_conflicts,
-                &AllergyOverrideLog {
-                    tenant_id: claims.tenant_id,
-                    patient_id: pid,
-                    overridden_by: claims.sub,
-                    reason,
-                    context: "pos_sale",
-                    order_id: Some(order.id),
-                },
-            )
-            .await?;
-        }
+    if let (Some(pid), Some(reason)) = (body.patient_id, allergy_reason)
+        && !allergy_conflicts.is_empty()
+    {
+        log_allergy_overrides(
+            &mut tx,
+            &allergy_conflicts,
+            &AllergyOverrideLog {
+                tenant_id: claims.tenant_id,
+                patient_id: pid,
+                overridden_by: claims.sub,
+                reason,
+                context: "pos_sale",
+                order_id: Some(order.id),
+            },
+        )
+        .await?;
     }
 
     // Create POS sale record
@@ -7758,7 +7755,8 @@ pub async fn create_pos_sale(
         .execute(&mut *tx)
         .await?;
         if let Some(paid_by) = tender.gateway_transaction_id {
-            terminal_tender::claim(&mut tx, claims.tenant_id, paid_by, sale.id, tender.amount).await?;
+            terminal_tender::claim(&mut tx, claims.tenant_id, paid_by, sale.id, tender.amount)
+                .await?;
         }
     }
 
@@ -8551,14 +8549,14 @@ pub fn router() -> axum::Router<AppState> {
     axum::Router::new()
         .merge(storefront::router())
         .route("/api/pharmacy/quarantine", get(quarantine::list))
-        .route("/api/pharmacy/quarantine/destroy", post(quarantine::destroy))
+        .route(
+            "/api/pharmacy/quarantine/destroy",
+            post(quarantine::destroy),
+        )
         .route("/api/pharmacy/nppa-ceilings", get(nppa::list))
         .route("/api/pharmacy/nppa-ceilings/import", post(nppa::import))
         .route("/api/pharmacy/nppa-ceilings/{id}", put(nppa::set))
-        .route(
-            "/api/pharmacy/h1-register",
-            get(h1_register::h1_register),
-        )
+        .route("/api/pharmacy/h1-register", get(h1_register::h1_register))
         .route("/api/pharmacy/orders", get(list_orders).post(create_order))
         .route("/api/pharmacy/orders/{id}", get(get_order))
         .route(

@@ -3,7 +3,7 @@
 //! contraindicates it. The score + risk band are computed server-side from the documented factors,
 //! so the risk stratification can't be mis-entered. NABH/JCI preventable-VTE measure.
 
-use axum::routing::{get,post};
+use axum::routing::{get, post};
 use axum::{
     Extension, Json,
     extract::{Path, State},
@@ -114,10 +114,12 @@ pub async fn create_vte_assessment(
     // A VTE risk score is a clinical assessment of the patient the body
     // names, not of the ward.
     medbrains_authz_gate::require_patient_access(&state, &claims, body.patient_id).await?;
-    if let Some(t) = body.prophylaxis_type.as_deref() {
-        if !["pharmacological", "mechanical", "none"].contains(&t) {
-            return Err(AppError::BadRequest(format!("invalid prophylaxis_type '{t}'")));
-        }
+    if let Some(t) = body.prophylaxis_type.as_deref()
+        && !["pharmacological", "mechanical", "none"].contains(&t)
+    {
+        return Err(AppError::BadRequest(format!(
+            "invalid prophylaxis_type '{t}'"
+        )));
     }
     let score = padua_score(&body);
     let high_risk = score >= 4;

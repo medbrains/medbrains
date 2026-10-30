@@ -82,14 +82,13 @@ fn diagnosis_codings(d: &DiagnosisLine) -> Vec<Value> {
         }
         _ => {}
     }
-    if let Some(code) = non_empty(d.snomed_code.as_ref()) {
-        if !coding
+    if let Some(code) = non_empty(d.snomed_code.as_ref())
+        && !coding
             .iter()
             .any(|c| c["system"] == SNOMED_SYSTEM && c["code"] == code)
-        {
-            let display = non_empty(d.snomed_display.as_ref()).unwrap_or(&d.description);
-            coding.push(json!({ "system": SNOMED_SYSTEM, "code": code, "display": display }));
-        }
+    {
+        let display = non_empty(d.snomed_display.as_ref()).unwrap_or(&d.description);
+        coding.push(json!({ "system": SNOMED_SYSTEM, "code": code, "display": display }));
     }
     coding
 }

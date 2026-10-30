@@ -53,10 +53,10 @@ pub struct PatientView {
 
 pub fn patient_to_fhir(p: &PatientView) -> Patient {
     let mut identifier = vec![Identifier::new(UHID_SYSTEM, &p.uhid)];
-    if let Some(abha) = p.abha_id.as_deref() {
-        if !abha.is_empty() {
-            identifier.push(Identifier::new(ABHA_SYSTEM, abha));
-        }
+    if let Some(abha) = p.abha_id.as_deref()
+        && !abha.is_empty()
+    {
+        identifier.push(Identifier::new(ABHA_SYSTEM, abha));
     }
 
     let given = [
@@ -89,23 +89,23 @@ pub fn patient_to_fhir(p: &PatientView) -> Patient {
     };
 
     let mut telecom = Vec::new();
-    if let Some(phone) = p.phone.as_deref() {
-        if !phone.is_empty() {
-            telecom.push(ContactPoint {
-                system: "phone".to_owned(),
-                value: phone.to_owned(),
-                r#use: Some("mobile".to_owned()),
-            });
-        }
+    if let Some(phone) = p.phone.as_deref()
+        && !phone.is_empty()
+    {
+        telecom.push(ContactPoint {
+            system: "phone".to_owned(),
+            value: phone.to_owned(),
+            r#use: Some("mobile".to_owned()),
+        });
     }
-    if let Some(email) = p.email.as_deref() {
-        if !email.is_empty() {
-            telecom.push(ContactPoint {
-                system: "email".to_owned(),
-                value: email.to_owned(),
-                r#use: None,
-            });
-        }
+    if let Some(email) = p.email.as_deref()
+        && !email.is_empty()
+    {
+        telecom.push(ContactPoint {
+            system: "email".to_owned(),
+            value: email.to_owned(),
+            r#use: None,
+        });
     }
 
     Patient {

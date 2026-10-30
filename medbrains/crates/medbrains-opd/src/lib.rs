@@ -2145,7 +2145,10 @@ fn filter_patient_diagnosis_response(
 ) -> PatientDiagnosisRow {
     // Mental-health content first: its class decides, whatever the role says.
     if row.withheld {
-        tombstone_patient_diagnosis(&mut row, medbrains_authz_gate::mental_health::TOMBSTONE_LABEL);
+        tombstone_patient_diagnosis(
+            &mut row,
+            medbrains_authz_gate::mental_health::TOMBSTONE_LABEL,
+        );
     } else if should_hide_opd_diagnosis(restricted) {
         tombstone_patient_diagnosis(&mut row, "Restricted diagnosis");
     } else if should_mask_opd_diagnosis(restricted) {
@@ -2288,20 +2291,20 @@ pub async fn update_diagnosis(
     let restricted_fields = resolve_opd_restricted_fields(&state, &claims).await?;
     validate_opd_diagnosis_write_access(&restricted_fields)?;
 
-    if let Some(value) = body.icd_system.as_deref() {
-        if !matches!(value, "icd10" | "icd11" | "snomed") {
-            return Err(AppError::BadRequest("invalid icd_system".to_owned()));
-        }
+    if let Some(value) = body.icd_system.as_deref()
+        && !matches!(value, "icd10" | "icd11" | "snomed")
+    {
+        return Err(AppError::BadRequest("invalid icd_system".to_owned()));
     }
-    if let Some(value) = body.severity.as_deref() {
-        if !matches!(value, "mild" | "moderate" | "severe" | "critical") {
-            return Err(AppError::BadRequest("invalid severity".to_owned()));
-        }
+    if let Some(value) = body.severity.as_deref()
+        && !matches!(value, "mild" | "moderate" | "severe" | "critical")
+    {
+        return Err(AppError::BadRequest("invalid severity".to_owned()));
     }
-    if let Some(value) = body.certainty.as_deref() {
-        if !matches!(value, "suspected" | "probable" | "confirmed" | "ruled_out") {
-            return Err(AppError::BadRequest("invalid certainty".to_owned()));
-        }
+    if let Some(value) = body.certainty.as_deref()
+        && !matches!(value, "suspected" | "probable" | "confirmed" | "ruled_out")
+    {
+        return Err(AppError::BadRequest("invalid certainty".to_owned()));
     }
 
     let should_update_onset = body.onset_date.is_some();
@@ -2837,13 +2840,13 @@ pub async fn create_prescription(
 
         let mut by_ingredient: HashMap<String, Vec<String>> = HashMap::new();
         for item in &body.items {
-            if let Some(cid) = item.catalog_item_id {
-                if let Some(ingredient) = id_to_ingredient.get(&cid) {
-                    by_ingredient
-                        .entry(ingredient.clone())
-                        .or_default()
-                        .push(item.drug_name.clone());
-                }
+            if let Some(cid) = item.catalog_item_id
+                && let Some(ingredient) = id_to_ingredient.get(&cid)
+            {
+                by_ingredient
+                    .entry(ingredient.clone())
+                    .or_default()
+                    .push(item.drug_name.clone());
             }
         }
         for (ingredient, drugs) in by_ingredient {
@@ -2929,87 +2932,87 @@ pub async fn create_prescription(
         .await?;
     }
 
-    if let Some(reason) = allergy_reason {
-        if !allergy_conflicts.is_empty() {
-            let audit_values = serde_json::json!({
-                "prescription_id": rx.id,
-                "encounter_id": encounter_id,
-                "override_reason": reason,
-                "conflicts": allergy_conflicts,
-            });
-            medbrains_db::audit::AuditLogger::log(
-                &mut tx,
-                &medbrains_db::audit::AuditEntry {
-                    tenant_id: claims.tenant_id,
-                    user_id: Some(claims.sub),
-                    action: "prescription.allergy_override",
-                    entity_type: "prescription",
-                    entity_id: Some(rx.id),
-                    old_values: None,
-                    new_values: Some(&audit_values),
-                    ip_address: None,
-                },
-            )
-            .await?;
-        }
+    if let Some(reason) = allergy_reason
+        && !allergy_conflicts.is_empty()
+    {
+        let audit_values = serde_json::json!({
+            "prescription_id": rx.id,
+            "encounter_id": encounter_id,
+            "override_reason": reason,
+            "conflicts": allergy_conflicts,
+        });
+        medbrains_db::audit::AuditLogger::log(
+            &mut tx,
+            &medbrains_db::audit::AuditEntry {
+                tenant_id: claims.tenant_id,
+                user_id: Some(claims.sub),
+                action: "prescription.allergy_override",
+                entity_type: "prescription",
+                entity_id: Some(rx.id),
+                old_values: None,
+                new_values: Some(&audit_values),
+                ip_address: None,
+            },
+        )
+        .await?;
     }
 
-    if let Some(reason) = interaction_reason {
-        if !serious_interactions.is_empty() {
-            let audit_values = serde_json::json!({
-                "prescription_id": rx.id,
-                "encounter_id": encounter_id,
-                "override_reason": reason,
-                "interactions": serious_interactions
-                    .iter()
-                    .map(|i| serde_json::json!({
-                        "drug_a": i.drug_a,
-                        "drug_b": i.drug_b,
-                        "severity": i.severity,
-                        "description": i.description,
-                    }))
-                    .collect::<Vec<_>>(),
-            });
-            medbrains_db::audit::AuditLogger::log(
-                &mut tx,
-                &medbrains_db::audit::AuditEntry {
-                    tenant_id: claims.tenant_id,
-                    user_id: Some(claims.sub),
-                    action: "prescription.interaction_override",
-                    entity_type: "prescription",
-                    entity_id: Some(rx.id),
-                    old_values: None,
-                    new_values: Some(&audit_values),
-                    ip_address: None,
-                },
-            )
-            .await?;
-        }
+    if let Some(reason) = interaction_reason
+        && !serious_interactions.is_empty()
+    {
+        let audit_values = serde_json::json!({
+            "prescription_id": rx.id,
+            "encounter_id": encounter_id,
+            "override_reason": reason,
+            "interactions": serious_interactions
+                .iter()
+                .map(|i| serde_json::json!({
+                    "drug_a": i.drug_a,
+                    "drug_b": i.drug_b,
+                    "severity": i.severity,
+                    "description": i.description,
+                }))
+                .collect::<Vec<_>>(),
+        });
+        medbrains_db::audit::AuditLogger::log(
+            &mut tx,
+            &medbrains_db::audit::AuditEntry {
+                tenant_id: claims.tenant_id,
+                user_id: Some(claims.sub),
+                action: "prescription.interaction_override",
+                entity_type: "prescription",
+                entity_id: Some(rx.id),
+                old_values: None,
+                new_values: Some(&audit_values),
+                ip_address: None,
+            },
+        )
+        .await?;
     }
 
-    if let Some(reason) = duplicate_reason {
-        if !duplicate_groups.is_empty() {
-            let audit_values = serde_json::json!({
-                "prescription_id": rx.id,
-                "encounter_id": encounter_id,
-                "override_reason": reason,
-                "duplicates": duplicate_groups,
-            });
-            medbrains_db::audit::AuditLogger::log(
-                &mut tx,
-                &medbrains_db::audit::AuditEntry {
-                    tenant_id: claims.tenant_id,
-                    user_id: Some(claims.sub),
-                    action: "prescription.duplicate_override",
-                    entity_type: "prescription",
-                    entity_id: Some(rx.id),
-                    old_values: None,
-                    new_values: Some(&audit_values),
-                    ip_address: None,
-                },
-            )
-            .await?;
-        }
+    if let Some(reason) = duplicate_reason
+        && !duplicate_groups.is_empty()
+    {
+        let audit_values = serde_json::json!({
+            "prescription_id": rx.id,
+            "encounter_id": encounter_id,
+            "override_reason": reason,
+            "duplicates": duplicate_groups,
+        });
+        medbrains_db::audit::AuditLogger::log(
+            &mut tx,
+            &medbrains_db::audit::AuditEntry {
+                tenant_id: claims.tenant_id,
+                user_id: Some(claims.sub),
+                action: "prescription.duplicate_override",
+                entity_type: "prescription",
+                entity_id: Some(rx.id),
+                old_values: None,
+                new_values: Some(&audit_values),
+                ip_address: None,
+            },
+        )
+        .await?;
     }
 
     let mut items = Vec::with_capacity(body.items.len());
@@ -3237,15 +3240,14 @@ pub async fn update_prescription(
     .fetch_optional(&mut *tx)
     .await?;
 
-    if let Some((_, status, pharmacy_order_id)) = &pharmacy_state {
-        if pharmacy_order_id.is_some()
-            || !matches!(status.as_str(), "pending_review" | "on_hold" | "rejected")
-        {
-            return Err(AppError::Conflict(
-                "Prescription can be edited only before pharmacy approval and billing calculation"
-                    .to_owned(),
-            ));
-        }
+    if let Some((_, status, pharmacy_order_id)) = &pharmacy_state
+        && (pharmacy_order_id.is_some()
+            || !matches!(status.as_str(), "pending_review" | "on_hold" | "rejected"))
+    {
+        return Err(AppError::Conflict(
+            "Prescription can be edited only before pharmacy approval and billing calculation"
+                .to_owned(),
+        ));
     }
 
     let rx = sqlx::query_as::<_, Prescription>(
@@ -4715,10 +4717,10 @@ async fn search_clinical_corpus_rows(
     let normalized_term = term.to_lowercase();
     let section = normalized_optional_text(section_filter);
     let corpus_type = normalized_optional_text(corpus_type_filter);
-    if let Some(value) = corpus_type.as_deref() {
-        if !is_valid_corpus_type(value) {
-            return Err(AppError::BadRequest("invalid corpus_type".to_owned()));
-        }
+    if let Some(value) = corpus_type.as_deref()
+        && !is_valid_corpus_type(value)
+    {
+        return Err(AppError::BadRequest("invalid corpus_type".to_owned()));
     }
 
     let cache_key = ClinicalCorpusCacheKey {
@@ -4830,10 +4832,10 @@ pub async fn create_clinical_corpus_entry(
     if !is_valid_corpus_type(&corpus_type) {
         return Err(AppError::BadRequest("invalid corpus_type".to_owned()));
     }
-    if let Some(value) = body.license_status.as_deref() {
-        if !is_valid_license_status(value) {
-            return Err(AppError::BadRequest("invalid license_status".to_owned()));
-        }
+    if let Some(value) = body.license_status.as_deref()
+        && !is_valid_license_status(value)
+    {
+        return Err(AppError::BadRequest("invalid license_status".to_owned()));
     }
 
     let section = normalized_optional_text(body.section.as_deref());
@@ -4889,10 +4891,10 @@ pub async fn update_clinical_corpus_entry(
         permissions::admin::settings::clinical_masters::UPDATE,
     )?;
 
-    if let Some(value) = body.license_status.as_deref() {
-        if !is_valid_license_status(value) {
-            return Err(AppError::BadRequest("invalid license_status".to_owned()));
-        }
+    if let Some(value) = body.license_status.as_deref()
+        && !is_valid_license_status(value)
+    {
+        return Err(AppError::BadRequest("invalid license_status".to_owned()));
     }
 
     let section = normalized_optional_text(body.section.as_deref());

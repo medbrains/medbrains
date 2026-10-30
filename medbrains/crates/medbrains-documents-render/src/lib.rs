@@ -123,11 +123,11 @@ async fn branding_context(
         "phone": tenant.phone,
         "registration_no": tenant.registration_no,
     });
-    if let Some(serde_json::Value::Object(extra)) = letterhead {
-        if let Some(obj) = branding.as_object_mut() {
-            for (k, v) in extra {
-                obj.insert(k, v);
-            }
+    if let Some(serde_json::Value::Object(extra)) = letterhead
+        && let Some(obj) = branding.as_object_mut()
+    {
+        for (k, v) in extra {
+            obj.insert(k, v);
         }
     }
     Ok(branding)
@@ -605,7 +605,10 @@ pub fn router() -> axum::Router<AppState> {
         .route("/api/documents/render", post(render_document))
         .route("/api/documents/{id}/download", get(download_document))
         .route("/api/documents/{id}/queue-print", post(queue_print))
-        .route("/api/documents/print-jobs/claim", post(delivery::claim_print_jobs))
+        .route(
+            "/api/documents/print-jobs/claim",
+            post(delivery::claim_print_jobs),
+        )
         .route(
             "/api/documents/print-jobs/{id}/result",
             post(delivery::report_print_job),

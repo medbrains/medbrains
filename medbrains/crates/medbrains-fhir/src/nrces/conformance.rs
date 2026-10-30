@@ -183,10 +183,10 @@ fn composition(c: &Value, by_url: &HashMap<&str, &Value>, out: &mut Vec<String>)
             out.push(format!("{name}: Composition.{r} is required"));
         }
     }
-    if let Some(code) = rules["type_code"].as_str() {
-        if c["type"]["coding"][0]["code"] != code {
-            out.push(format!("{name}: Composition.type must be {code}"));
-        }
+    if let Some(code) = rules["type_code"].as_str()
+        && c["type"]["coding"][0]["code"] != code
+    {
+        out.push(format!("{name}: Composition.type must be {code}"));
     }
     let sections = c["section"].as_array().cloned().unwrap_or_default();
     if !below(&rules["section_max"], sections.len()) {
@@ -276,10 +276,10 @@ fn entry_sliced<'a>(
             rules["section_system"]
         ));
     }
-    if let Some(code) = rules["section_code"].as_str() {
-        if coding["code"] != code {
-            out.push(format!("{name}: section code must be {code}"));
-        }
+    if let Some(code) = rules["section_code"].as_str()
+        && coding["code"] != code
+    {
+        out.push(format!("{name}: section code must be {code}"));
     }
     let entries = s["entry"].as_array().cloned().unwrap_or_default();
     let min = rules["entry_min"].as_u64().unwrap_or(0);
@@ -368,21 +368,21 @@ fn codings(name: &str, r: &Value, rule: &Value, out: &mut Vec<String>) {
         .iter()
         .flat_map(|c| c["coding"].as_array().into_iter().flatten())
     {
-        if let Some(allowed) = rule["closed_systems"].as_array() {
-            if !allowed.contains(&coding["system"]) {
-                out.push(format!(
-                    "{name}: {path} coding system {} matches no slice (closed)",
-                    coding["system"]
-                ));
-            }
+        if let Some(allowed) = rule["closed_systems"].as_array()
+            && !allowed.contains(&coding["system"])
+        {
+            out.push(format!(
+                "{name}: {path} coding system {} matches no slice (closed)",
+                coding["system"]
+            ));
         }
-        if let Some(only) = rule["only_system"].as_str() {
-            if coding["system"] != only {
-                out.push(format!(
-                    "{name}: {path} codings must be {only}, got {}",
-                    coding["system"]
-                ));
-            }
+        if let Some(only) = rule["only_system"].as_str()
+            && coding["system"] != only
+        {
+            out.push(format!(
+                "{name}: {path} codings must be {only}, got {}",
+                coding["system"]
+            ));
         }
         if rule["system"]
             .as_str()

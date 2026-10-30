@@ -84,7 +84,10 @@ async fn load_ip_rules(db: &PgPool, tenant_id: uuid::Uuid) -> Result<IpRules, Ap
             .await?;
 
     let Some((allowed, blocked)) = row else {
-        return Ok(IpRules { allowed: Vec::new(), blocked: Vec::new() });
+        return Ok(IpRules {
+            allowed: Vec::new(),
+            blocked: Vec::new(),
+        });
     };
     Ok(IpRules {
         allowed: json_to_cidrs(&allowed),
@@ -154,22 +157,19 @@ fn extract_ip(request: &Request) -> Option<IpAddr> {
         .headers()
         .get("x-forwarded-for")
         .and_then(|v| v.to_str().ok())
+        && let Some(first) = fwd.split(',').next()
+        && let Ok(ip) = first.trim().parse::<IpAddr>()
     {
-        if let Some(first) = fwd.split(',').next() {
-            if let Ok(ip) = first.trim().parse::<IpAddr>() {
-                return Some(ip);
-            }
-        }
+        return Some(ip);
     }
 
     if let Some(real) = request
         .headers()
         .get("x-real-ip")
         .and_then(|v| v.to_str().ok())
+        && let Ok(ip) = real.trim().parse::<IpAddr>()
     {
-        if let Ok(ip) = real.trim().parse::<IpAddr>() {
-            return Some(ip);
-        }
+        return Some(ip);
     }
 
     None
@@ -177,7 +177,7 @@ fn extract_ip(request: &Request) -> Option<IpAddr> {
 
 #[cfg(test)]
 mod tests {
-    use super::{ip_allowed, ip_in_cidr, IpRules};
+    use super::{IpRules, ip_allowed, ip_in_cidr};
 
     fn ip(s: &str) -> std::net::IpAddr {
         s.parse()

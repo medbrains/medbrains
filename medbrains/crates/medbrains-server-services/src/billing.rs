@@ -866,10 +866,10 @@ async fn apply_auto_concessions(
             continue;
         }
         // Match by module
-        if let Some(ref modules) = rule.applicable_modules {
-            if !modules.iter().any(|m| m == source_module) {
-                continue;
-            }
+        if let Some(ref modules) = rule.applicable_modules
+            && !modules.iter().any(|m| m == source_module)
+        {
+            continue;
         }
         // Match by patient category
         if let Some(ref cats) = rule.patient_categories {

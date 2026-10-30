@@ -654,39 +654,39 @@ pub async fn refresh_token(
 
     // ── Device Fingerprint Validation ──
     let current_fp = extract_device_fingerprint(&headers);
-    if let Some(ref stored_fp) = row.device_fingerprint {
-        if *stored_fp != current_fp {
-            // Fingerprint mismatch — possible stolen cookie used in different browser
-            let mut tx = state.db.begin().await?;
-            medbrains_db::pool::set_tenant_context(&mut tx, &row.tenant_id).await?;
+    if let Some(ref stored_fp) = row.device_fingerprint
+        && *stored_fp != current_fp
+    {
+        // Fingerprint mismatch — possible stolen cookie used in different browser
+        let mut tx = state.db.begin().await?;
+        medbrains_db::pool::set_tenant_context(&mut tx, &row.tenant_id).await?;
 
-            medbrains_db::audit::AuditLogger::log(
-                &mut tx,
-                &medbrains_db::audit::AuditEntry {
-                    tenant_id: row.tenant_id,
-                    user_id: Some(row.user_id),
-                    action: "device_fingerprint_mismatch",
-                    entity_type: "refresh_token",
-                    entity_id: Some(row.id),
-                    old_values: None,
-                    new_values: None,
-                    ip_address: None,
-                },
-            )
-            .await
-            .map_err(AppError::from)?;
+        medbrains_db::audit::AuditLogger::log(
+            &mut tx,
+            &medbrains_db::audit::AuditEntry {
+                tenant_id: row.tenant_id,
+                user_id: Some(row.user_id),
+                action: "device_fingerprint_mismatch",
+                entity_type: "refresh_token",
+                entity_id: Some(row.id),
+                old_values: None,
+                new_values: None,
+                ip_address: None,
+            },
+        )
+        .await
+        .map_err(AppError::from)?;
 
-            // Revoke this token
-            sqlx::query!(
-                "UPDATE refresh_tokens SET revoked = true WHERE id = $1",
-                row.id
-            )
-            .execute(&mut *tx)
-            .await?;
+        // Revoke this token
+        sqlx::query!(
+            "UPDATE refresh_tokens SET revoked = true WHERE id = $1",
+            row.id
+        )
+        .execute(&mut *tx)
+        .await?;
 
-            tx.commit().await?;
-            return Err(AppError::Unauthorized);
-        }
+        tx.commit().await?;
+        return Err(AppError::Unauthorized);
     }
 
     // ── Token Rotation ──
@@ -749,26 +749,26 @@ pub async fn refresh_token(
     .await?
     .flatten();
 
-    if let (Some(stored), Some(current)) = (&stored_ip, &client_ip) {
-        if stored != current {
-            let old_vals = serde_json::json!({ "ip": stored });
-            let new_vals = serde_json::json!({ "ip": current });
-            medbrains_db::audit::AuditLogger::log(
-                &mut tx,
-                &medbrains_db::audit::AuditEntry {
-                    tenant_id: row.tenant_id,
-                    user_id: Some(row.user_id),
-                    action: "ip_change_on_refresh",
-                    entity_type: "refresh_token",
-                    entity_id: Some(row.id),
-                    old_values: Some(&old_vals),
-                    new_values: Some(&new_vals),
-                    ip_address: None,
-                },
-            )
-            .await
-            .map_err(AppError::from)?;
-        }
+    if let (Some(stored), Some(current)) = (&stored_ip, &client_ip)
+        && stored != current
+    {
+        let old_vals = serde_json::json!({ "ip": stored });
+        let new_vals = serde_json::json!({ "ip": current });
+        medbrains_db::audit::AuditLogger::log(
+            &mut tx,
+            &medbrains_db::audit::AuditEntry {
+                tenant_id: row.tenant_id,
+                user_id: Some(row.user_id),
+                action: "ip_change_on_refresh",
+                entity_type: "refresh_token",
+                entity_id: Some(row.id),
+                old_values: Some(&old_vals),
+                new_values: Some(&new_vals),
+                ip_address: None,
+            },
+        )
+        .await
+        .map_err(AppError::from)?;
     }
 
     tx.commit().await?;

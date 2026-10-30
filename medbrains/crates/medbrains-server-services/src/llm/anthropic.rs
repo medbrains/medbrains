@@ -31,6 +31,10 @@ impl HttpMiddleware for Bearer {
     }
 }
 
+#[allow(
+    clippy::result_large_err,
+    reason = "the error type is fixed by the http_client HttpMiddleware trait this serves"
+)]
 fn authorize(
     host: Option<&str>,
     token: &HeaderValue,

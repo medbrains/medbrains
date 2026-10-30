@@ -538,7 +538,8 @@ pub async fn list_bookings(
 
     let where_clause = conditions.join(" AND ");
 
-    let count_sql = format!("SELECT COUNT(*) FROM ot_bookings WHERE deleted_at IS NULL AND {where_clause}");
+    let count_sql =
+        format!("SELECT COUNT(*) FROM ot_bookings WHERE deleted_at IS NULL AND {where_clause}");
     let mut count_q = sqlx::query_scalar::<_, i64>(&count_sql).bind(claims.tenant_id);
     for b in &binds {
         if let Some(u) = b.uuid_val {
@@ -777,12 +778,12 @@ pub async fn update_booking(
     // IPSG-4 (safe surgery): `consent_obtained` may only be set true when a signed consent for
     // THIS operation is linked to the booking — not merely attested by the client, and not any
     // consent the patient ever signed.
-    if body.consent_obtained == Some(true) {
-        if let Some(reason) = consent::booking_consent_gap(&mut tx, claims.tenant_id, id).await? {
-            consent::audit_blocked(&mut tx, &claims, id, &reason).await?;
-            tx.commit().await?;
-            return Err(AppError::BadRequest(reason));
-        }
+    if body.consent_obtained == Some(true)
+        && let Some(reason) = consent::booking_consent_gap(&mut tx, claims.tenant_id, id).await?
+    {
+        consent::audit_blocked(&mut tx, &claims, id, &reason).await?;
+        tx.commit().await?;
+        return Err(AppError::BadRequest(reason));
     }
 
     // Blood arranged may only be set true when a live blood request exists for the patient.

@@ -261,10 +261,10 @@ pub fn decode_and_validate(token: &str, key: &DecodingKey) -> Result<Claims, App
 pub fn parse_cookie_value<'a>(header: &'a str, name: &str) -> Option<&'a str> {
     for pair in header.split(';') {
         let trimmed = pair.trim();
-        if let Some(val) = trimmed.strip_prefix(name) {
-            if let Some(val) = val.strip_prefix('=') {
-                return Some(val.trim());
-            }
+        if let Some(val) = trimmed.strip_prefix(name)
+            && let Some(val) = val.strip_prefix('=')
+        {
+            return Some(val.trim());
         }
     }
     None

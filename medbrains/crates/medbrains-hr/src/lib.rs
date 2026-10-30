@@ -16,10 +16,7 @@ use medbrains_core::permissions;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use argon2::{
-    Argon2,
-    PasswordHasher,
-};
+use argon2::{Argon2, PasswordHasher};
 
 use medbrains_notifications::{NewNotification, create_notification};
 use medbrains_server_core::error::AppError;
@@ -819,40 +816,36 @@ pub async fn update_employee(
             | EmployeeStatus::Retired
             | EmployeeStatus::Absconding
     );
-    if revokes_access {
-        if let Some(user_id) = row.user_id {
-            // Deactivate the login + bump perm_version so any cached JWT stops resolving.
-            sqlx::query(
-                "UPDATE users SET is_active = false, perm_version = perm_version + 1, \
+    if revokes_access && let Some(user_id) = row.user_id {
+        // Deactivate the login + bump perm_version so any cached JWT stops resolving.
+        sqlx::query(
+            "UPDATE users SET is_active = false, perm_version = perm_version + 1, \
                  updated_at = now() WHERE id = $1 AND tenant_id = $2",
-            )
+        )
+        .bind(user_id)
+        .bind(claims.tenant_id)
+        .execute(&mut *tx)
+        .await?;
+        // Revoke refresh tokens so the session can't be renewed after the access JWT expires.
+        sqlx::query(
+            "UPDATE refresh_tokens SET revoked = true WHERE user_id = $1 AND revoked = false",
+        )
+        .bind(user_id)
+        .execute(&mut *tx)
+        .await?;
+        // Drop group memberships so group-derived permissions stop applying.
+        sqlx::query("DELETE FROM access_group_members WHERE user_id = $1 AND tenant_id = $2")
             .bind(user_id)
             .bind(claims.tenant_id)
             .execute(&mut *tx)
             .await?;
-            // Revoke refresh tokens so the session can't be renewed after the access JWT expires.
-            sqlx::query(
-                "UPDATE refresh_tokens SET revoked = true WHERE user_id = $1 AND revoked = false",
-            )
-            .bind(user_id)
-            .execute(&mut *tx)
-            .await?;
-            // Drop group memberships so group-derived permissions stop applying.
-            sqlx::query("DELETE FROM access_group_members WHERE user_id = $1 AND tenant_id = $2")
-                .bind(user_id)
-                .bind(claims.tenant_id)
-                .execute(&mut *tx)
-                .await?;
-        }
     }
 
     tx.commit().await?;
 
     // VPN device revocation runs its own transaction (best-effort, same as delete_user).
-    if revokes_access {
-        if let Some(user_id) = row.user_id {
-            medbrains_vpn::revoke_user_devices(&state, claims.tenant_id, user_id).await?;
-        }
+    if revokes_access && let Some(user_id) = row.user_id {
+        medbrains_vpn::revoke_user_devices(&state, claims.tenant_id, user_id).await?;
     }
 
     Ok(Json(row))
@@ -1781,34 +1774,32 @@ pub async fn acknowledge_fatigue(
     .await?;
 
     // Notify the charge nurse on duty that a colleague is working through fatigue.
-    if !codes.is_empty() {
-        if let Some(charge) =
+    if !codes.is_empty()
+        && let Some(charge) =
             todays_scheduled_shift(&mut tx, &claims.tenant_id, employee_id, claims.sub)
                 .await?
                 .and_then(|s| s.charge_nurse_user_id)
-        {
-            if charge != claims.sub {
-                let body_text = format!(
-                    "A staff member is continuing on shift despite a fatigue warning ({}).",
-                    codes.join(", ")
-                );
-                create_notification(
-                    &mut tx,
-                    claims.tenant_id,
-                    NewNotification {
-                        user_id: charge,
-                        kind: "staff_fatigue_ack",
-                        title: "Staff fatigue acknowledged",
-                        body: Some(&body_text),
-                        category: Some("hr"),
-                        entity_type: Some("attendance_records"),
-                        entity_id: Some(session.id),
-                        action_url: None,
-                    },
-                )
-                .await?;
-            }
-        }
+        && charge != claims.sub
+    {
+        let body_text = format!(
+            "A staff member is continuing on shift despite a fatigue warning ({}).",
+            codes.join(", ")
+        );
+        create_notification(
+            &mut tx,
+            claims.tenant_id,
+            NewNotification {
+                user_id: charge,
+                kind: "staff_fatigue_ack",
+                title: "Staff fatigue acknowledged",
+                body: Some(&body_text),
+                category: Some("hr"),
+                entity_type: Some("attendance_records"),
+                entity_id: Some(session.id),
+                action_url: None,
+            },
+        )
+        .await?;
     }
 
     let resp = build_my_shift(&mut tx, &claims.tenant_id, employee_id, claims.sub).await?;
