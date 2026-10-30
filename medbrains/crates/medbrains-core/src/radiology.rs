@@ -48,6 +48,10 @@ pub struct RadiologyModality {
     /// An ultrasound on a pregnant woman needs a PC-PNDT Form F.
     #[sqlx(default)]
     pub is_ultrasound: bool,
+    /// X-ray, CT, fluoroscopy, mammography, nuclear medicine: a woman of
+    /// reproductive age is asked about pregnancy before the exposure.
+    #[sqlx(default)]
+    pub is_ionising: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
@@ -87,6 +91,25 @@ pub struct RadiologyOrder {
     #[sqlx(default)]
     #[serde(default)]
     pub pacs_study_uid: Option<String>,
+    /// `not_pregnant`, `pregnant` or `cannot_rule_out`, asked before an
+    /// ionising exposure.
+    #[sqlx(default)]
+    #[serde(default)]
+    pub pregnancy_status: Option<String>,
+    /// How it was established: asked, LMP, urine or serum test.
+    #[sqlx(default)]
+    #[serde(default)]
+    pub pregnancy_check_method: Option<String>,
+    /// Why the exam goes ahead when she is or may be pregnant.
+    #[sqlx(default)]
+    #[serde(default)]
+    pub pregnancy_justification: Option<String>,
+    #[sqlx(default)]
+    #[serde(default)]
+    pub pregnancy_checked_by: Option<Uuid>,
+    #[sqlx(default)]
+    #[serde(default)]
+    pub pregnancy_checked_at: Option<DateTime<Utc>>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }

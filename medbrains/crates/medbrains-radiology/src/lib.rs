@@ -11,11 +11,10 @@ use medbrains_core::permissions;
 use medbrains_core::radiology::{
     RadiationDoseRecord, RadiologyModality, RadiologyOrder, RadiologyReport,
 };
-use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use axum::routing::{get,post,put};
+use axum::routing::{delete, get, post, put};
 use medbrains_server_core::error::AppError;
 use medbrains_server_core::middleware::auth::Claims;
 use medbrains_server_core::middleware::authorization::{
@@ -27,11 +26,14 @@ pub mod exams;
 pub mod dose;
 pub mod dose_capture;
 pub mod dose_summary;
+pub mod drl;
 pub mod effective_dose;
 pub mod form_f;
 pub mod pacs;
 pub mod pacs_config;
 pub mod pacs_study;
+pub mod pregnancy_check;
+pub mod radiation_safety;
 pub mod deidentify;
 pub mod share;
 pub mod share_public;
@@ -340,6 +342,8 @@ pub struct CreateOrderRequest {
 #[derive(Debug, Serialize)]
 pub struct OrderDetailResponse {
     pub order: RadiologyOrder,
+    /// The pregnancy question must be answered before the exposure.
+    pub pregnancy_check_required: bool,
     pub report: Option<RadiologyReport>,
     pub dose_records: Vec<RadiationDoseRecord>,
 }
@@ -366,6 +370,8 @@ pub struct CreateModalityRequest {
     pub description: Option<String>,
     /// An ultrasound on a pregnant woman needs a PC-PNDT Form F.
     pub is_ultrasound: Option<bool>,
+    /// Uses ionising radiation: the pregnancy question comes first.
+    pub is_ionising: Option<bool>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -374,6 +380,7 @@ pub struct UpdateModalityRequest {
     pub description: Option<String>,
     pub is_active: Option<bool>,
     pub is_ultrasound: Option<bool>,
+    pub is_ionising: Option<bool>,
 }
 
 
@@ -856,9 +863,12 @@ pub async fn get_order(
     .fetch_all(&mut *tx)
     .await?;
 
+    let pregnancy_check_required =
+        pregnancy_check::is_required(&mut tx, claims.tenant_id, order.id).await?;
     tx.commit().await?;
     Ok(Json(OrderDetailResponse {
         order,
+        pregnancy_check_required,
         report,
         dose_records,
     }))
@@ -901,6 +911,11 @@ pub async fn update_order_status(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
+
+    // An X-ray or CT of a woman who may be pregnant waits for the answer.
+    if matches!(body.status.as_str(), "in_progress" | "completed") {
+        pregnancy_check::require_answered(&mut tx, claims.tenant_id, id).await?;
+    }
 
     let completed_clause = if body.status == "completed" {
         ", completed_at = now()"
@@ -1451,14 +1466,18 @@ pub async fn create_modality(
         .await?;
 
     let modality = sqlx::query_as::<_, RadiologyModality>(
-        "INSERT INTO radiology_modalities (tenant_id, code, name, description, is_ultrasound) \
-         VALUES ($1, $2, $3, $4, COALESCE($5, false)) RETURNING *",
+        "INSERT INTO radiology_modalities \
+           (tenant_id, code, name, description, is_ultrasound, is_ionising) \
+         VALUES ($1, $2, $3, $4, COALESCE($5, false), \
+                 COALESCE($6, upper($2) ~ '^(CT|CR|DX|XA|RF|MG|NM|PT|IO|PX|DXA|BMD|XR|FL|OPG)')) \
+         RETURNING *",
     )
     .bind(claims.tenant_id)
     .bind(&body.code)
     .bind(&body.name)
     .bind(&body.description)
     .bind(body.is_ultrasound)
+    .bind(body.is_ionising)
     .fetch_one(&mut *tx)
     .await?;
 
@@ -1490,6 +1509,7 @@ pub async fn update_modality(
          description = COALESCE($2, description), \
          is_active = COALESCE($3, is_active), \
          is_ultrasound = COALESCE($6, is_ultrasound), \
+         is_ionising = COALESCE($7, is_ionising), \
          updated_at = now() \
          WHERE id = $4 AND tenant_id = $5 \
          RETURNING *",
@@ -1500,6 +1520,7 @@ pub async fn update_modality(
     .bind(id)
     .bind(claims.tenant_id)
     .bind(body.is_ultrasound)
+    .bind(body.is_ionising)
     .fetch_optional(&mut *tx)
     .await?
     .ok_or(AppError::NotFound)?;
@@ -1862,106 +1883,6 @@ pub async fn get_prior_studies(
     Ok(Json(result))
 }
 
-/// GET /api/radiology/dosimetry
-pub async fn list_dosimetry_records(
-    State(state): State<AppState>,
-    Extension(claims): Extension<Claims>,
-) -> Result<Json<Vec<serde_json::Value>>, AppError> {
-    require_permission(&claims, permissions::radiology::orders::LIST)?;
-    medbrains_server_core::middleware::entitlement::require_module_enabled(
-        &state.db,
-        claims.tenant_id,
-        "radiology",
-    )
-    .await?;
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
-        .await?;
-
-    let rows = sqlx::query_as::<_, (Uuid, Uuid, String, chrono::NaiveDate, chrono::NaiveDate, Decimal, bool)>(
-        "SELECT d.id, d.staff_id, d.badge_number, d.monitoring_period_start, d.monitoring_period_end, \
-         d.dose_value, d.is_compliant \
-         FROM radiology_dosimetry_records d WHERE d.deleted_at IS NULL AND d.tenant_id = $1 \
-         ORDER BY d.monitoring_period_end DESC LIMIT 100",
-    )
-    .bind(claims.tenant_id)
-    .fetch_all(&mut *tx)
-    .await?;
-
-    let result: Vec<serde_json::Value> = rows
-        .iter()
-        .map(|r| {
-            serde_json::json!({
-                "id": r.0, "staff_id": r.1, "badge_number": r.2,
-                "period_start": r.3, "period_end": r.4, "dose_mSv": r.5, "is_compliant": r.6,
-            })
-        })
-        .collect();
-
-    tx.commit().await?;
-    Ok(Json(result))
-}
-
-/// POST /api/radiology/dosimetry
-pub async fn create_dosimetry_record(
-    State(state): State<AppState>,
-    Extension(claims): Extension<Claims>,
-    Json(body): Json<serde_json::Value>,
-) -> Result<Json<serde_json::Value>, AppError> {
-    // Recording staff radiation-dosimetry compliance is a management action —
-    // gate on modalities::MANAGE, not the orders::LIST read permission.
-    require_permission(&claims, permissions::radiology::modalities::MANAGE)?;
-    medbrains_server_core::middleware::entitlement::require_module_enabled(
-        &state.db,
-        claims.tenant_id,
-        "radiology",
-    )
-    .await?;
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
-        .await?;
-
-    let dose: f64 = body["dose_value"].as_f64().unwrap_or(0.0);
-    let limit: f64 = body["annual_limit"].as_f64().unwrap_or(20.0);
-    let compliant = dose <= limit;
-
-    let id = sqlx::query_scalar::<_, Uuid>(
-        "INSERT INTO radiology_dosimetry_records \
-         (tenant_id, staff_id, badge_number, monitoring_period_start, monitoring_period_end, \
-          dose_value, annual_limit, is_compliant, notes, recorded_by) \
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING id",
-    )
-    .bind(claims.tenant_id)
-    .bind(
-        body["staff_id"]
-            .as_str()
-            .and_then(|s| Uuid::parse_str(s).ok()),
-    )
-    .bind(body["badge_number"].as_str().unwrap_or(""))
-    .bind(
-        body["period_start"]
-            .as_str()
-            .and_then(|s| chrono::NaiveDate::parse_from_str(s, "%Y-%m-%d").ok()),
-    )
-    .bind(
-        body["period_end"]
-            .as_str()
-            .and_then(|s| chrono::NaiveDate::parse_from_str(s, "%Y-%m-%d").ok()),
-    )
-    .bind(dose)
-    .bind(limit)
-    .bind(compliant)
-    .bind(body["notes"].as_str())
-    .bind(claims.sub)
-    .fetch_one(&mut *tx)
-    .await?;
-
-    tx.commit().await?;
-    Ok(Json(
-        serde_json::json!({"id": id, "is_compliant": compliant}),
-    ))
-}
-
 /// GET /api/radiology/download-package/{study_id}
 pub async fn get_download_package(
     State(state): State<AppState>,
@@ -2220,6 +2141,21 @@ pub fn router() -> axum::Router<AppState> {
             "/api/radiology/pacs-config",
             get(pacs_config::get_pacs_config).put(pacs_config::update_pacs_config),
         )
-        .route("/api/radiology/dosimetry", get(list_dosimetry_records).post(create_dosimetry_record))
+        .route(
+            "/api/radiology/dosimetry",
+            get(radiation_safety::list_dosimetry).post(radiation_safety::record_reading),
+        )
+        .route("/api/radiology/dosimetry/{id}", delete(radiation_safety::remove_reading))
+        .route(
+            "/api/radiology/radiation-equipment",
+            get(radiation_safety::list_equipment).put(radiation_safety::save_equipment),
+        )
+        .route(
+            "/api/radiology/orders/{id}/pregnancy-check",
+            post(pregnancy_check::record_pregnancy_check),
+        )
+        .route("/api/radiology/drls", get(drl::list_levels).put(drl::save_level))
+        .route("/api/radiology/drls/{id}", delete(drl::remove_level))
+        .route("/api/radiology/drl-audit", get(drl::drl_audit))
         .route("/api/radiology/download-package/{study_id}", get(get_download_package))
 }

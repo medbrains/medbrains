@@ -3155,6 +3155,8 @@ export interface RadiologyModality {
   is_active: boolean;
   /** An ultrasound on a pregnant woman needs a PC-PNDT Form F. */
   is_ultrasound: boolean;
+  /** Uses ionising radiation: the pregnancy question comes first. */
+  is_ionising: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -3243,6 +3245,59 @@ export interface RadiologyOrder {
   accession_number: string;
   /** The study the PACS holds for this order, once it has arrived. */
   pacs_study_uid?: string | null;
+  pregnancy_status?: PregnancyStatus | null;
+  pregnancy_check_method?: PregnancyCheckMethod | null;
+  pregnancy_justification?: string | null;
+  pregnancy_checked_by?: string | null;
+  pregnancy_checked_at?: string | null;
+}
+
+export type PregnancyStatus = "not_pregnant" | "pregnant" | "cannot_rule_out";
+export type PregnancyCheckMethod = "asked" | "lmp" | "urine_test" | "serum_test";
+
+export interface RecordPregnancyCheck {
+  status: PregnancyStatus;
+  method: PregnancyCheckMethod;
+  /** Required unless she is not pregnant. */
+  justification?: string;
+}
+
+export type DrlRegion = "head" | "head_neck" | "neck" | "chest" | "abdomen_pelvis" | "trunk";
+export type DrlMetric = "ctdi_vol" | "dlp";
+
+/** A diagnostic reference level the hospital audits its median against. */
+export interface DiagnosticReferenceLevel {
+  id: string;
+  region: DrlRegion;
+  metric: DrlMetric;
+  value: string;
+  source: string;
+}
+
+export interface SaveReferenceLevel {
+  region: DrlRegion;
+  metric: DrlMetric;
+  value: number;
+  source: string;
+}
+
+export interface DrlAuditRow {
+  level_id: string;
+  region: DrlRegion;
+  metric: DrlMetric;
+  drl: number;
+  source: string;
+  exams: number;
+  median: number | null;
+  p75: number | null;
+  verdict: "above" | "within" | "too_few";
+}
+
+export interface DrlAuditReport {
+  from: string;
+  to: string;
+  min_exams: number;
+  rows: DrlAuditRow[];
 }
 
 export interface RadiologyReport {
@@ -3369,6 +3424,85 @@ export interface LinkUnmatchedStudyResult {
   dose_captured: boolean;
 }
 
+/** What is expired, due or missing on a register entry. */
+export interface RadiationSafetyAlert {
+  level: "danger" | "warning";
+  message: string;
+}
+
+/** A unit's AERB record, over its biomedical register entry. */
+export interface RadiationEquipment {
+  id: string;
+  bme_equipment_id: string;
+  name: string;
+  make: string | null;
+  model: string | null;
+  serial_number: string | null;
+  modality_id: string | null;
+  modality_code: string | null;
+  aerb_licence_number: string | null;
+  elora_id: string | null;
+  licence_valid_until: string | null;
+  rso_user_id: string | null;
+  rso_name: string | null;
+  qa_agency: string | null;
+  last_qa_date: string | null;
+  qa_due_date: string | null;
+  notes: string | null;
+  alerts: RadiationSafetyAlert[];
+}
+
+export interface SaveRadiationEquipment {
+  bme_equipment_id: string;
+  modality_id?: string;
+  aerb_licence_number?: string;
+  elora_id?: string;
+  licence_valid_until?: string;
+  rso_user_id?: string;
+  qa_agency?: string;
+  last_qa_date?: string;
+  qa_due_date?: string;
+  notes?: string;
+}
+
+export interface DosimetryReading {
+  id: string;
+  staff_id: string;
+  staff_name: string | null;
+  badge_number: string;
+  monitoring_period_start: string;
+  monitoring_period_end: string;
+  /** mSv */
+  dose_value: string;
+  notes: string | null;
+}
+
+/** One person's dose against the AERB occupational limits. */
+export interface StaffDose {
+  staff_id: string;
+  staff_name: string | null;
+  year_msv: number;
+  five_year_msv: number;
+  readings: number;
+  last_period_end: string | null;
+  alerts: RadiationSafetyAlert[];
+}
+
+export interface Dosimetry {
+  year: number;
+  staff: StaffDose[];
+  readings: DosimetryReading[];
+}
+
+export interface RecordDosimetryReading {
+  staff_id: string;
+  badge_number: string;
+  period_start: string;
+  period_end: string;
+  dose_value: number;
+  notes?: string;
+}
+
 export type RadiationDoseSource = "manual" | "rdsr" | "dicom_header";
 
 /** One exam's dose in the patient's history. */
@@ -3412,6 +3546,8 @@ export interface CreateRadiologyOrderRequest {
 
 export interface RadiologyOrderDetailResponse {
   order: RadiologyOrder;
+  /** The pregnancy question must be answered before the exposure. */
+  pregnancy_check_required: boolean;
   report: RadiologyReport | null;
   dose_records: RadiationDoseRecord[];
 }
@@ -3449,6 +3585,7 @@ export interface CreateModalityRequest {
   name: string;
   description?: string;
   is_ultrasound?: boolean;
+  is_ionising?: boolean;
 }
 
 export interface UpdateModalityRequest {
@@ -3456,6 +3593,7 @@ export interface UpdateModalityRequest {
   description?: string;
   is_active?: boolean;
   is_ultrasound?: boolean;
+  is_ionising?: boolean;
 }
 
 export interface RecordDoseRequest {

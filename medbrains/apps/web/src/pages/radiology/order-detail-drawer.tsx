@@ -14,6 +14,7 @@ import { radiologyService } from "@/services/radiology.service";
 import { DoseTab } from "./dose-tab";
 import { OrderImages } from "./OrderImages";
 import { OrderFormFNotice } from "./order-form-f-notice";
+import { PregnancyCheckCard } from "./pregnancy-check-card";
 import { colorToBadgeTone, printRadiologyReportPacket, statusColors } from "./shared";
 
 export function OrderDetailDrawer({
@@ -120,6 +121,7 @@ export function OrderDetailDrawer({
             <Text fw={600}>Priority:</Text>
             <Badge tone={colorToBadgeTone(statusColor(order.priority))}>{order.priority}</Badge>
           </Group>
+          {data?.pregnancy_check_required && <PregnancyCheckCard order={order} />}
           <OrderFormFNotice orderId={order.id} />
           <OrderImages order={order} />
           {order.body_part && <Text size="sm">Body Part: {order.body_part}</Text>}
@@ -143,11 +145,6 @@ export function OrderDetailDrawer({
                   {order.contrast_required && (
                     <Badge size="sm" tone="warning">
                       Contrast Required
-                    </Badge>
-                  )}
-                  {order.pregnancy_checked && (
-                    <Badge size="sm" tone="danger">
-                      Pregnancy Verified
                     </Badge>
                   )}
                   {order.allergy_flagged && (

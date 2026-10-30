@@ -1170,6 +1170,13 @@ pub mod radiology {
         /// contraindication, a study the modality cannot perform — so it is
         /// held by the radiology desk, not by every doctor on the case.
         pub const CANCEL_ANY: &str = "radiology.orders.cancel_any";
+        /// Record the pregnancy check before an exposure.
+        ///
+        /// For a woman aged 12 to 50 having an X-ray, CT, fluoroscopy,
+        /// mammography or nuclear medicine exam: whether she is or may be
+        /// pregnant, how that was established, and — if she may be — why
+        /// the exam still goes ahead. The exam cannot start without it.
+        pub const PREGNANCY_CHECK: &str = "radiology.orders.pregnancy_check";
     }
 
     pub mod reports {
@@ -1200,6 +1207,18 @@ pub mod radiology {
         /// link is scoped to that study, expires, can be revoked, and every
         /// open is audited.
         pub const SHARE: &str = "radiology.studies.share";
+    }
+
+    /// AERB radiation safety: equipment licences, QA, staff dosimetry.
+    pub mod radiation_safety {
+        /// Keep the radiation safety register.
+        ///
+        /// The Radiological Safety Officer's records: each X-ray, CT,
+        /// fluoroscopy or mammography unit's AERB licence, eLORA ID, RSO and
+        /// QA due dates, and every staff member's TLD badge readings against
+        /// the occupational dose limits. Staff doses are personal health
+        /// data, so they are not shown to everyone who reads imaging.
+        pub const MANAGE: &str = "radiology.radiation_safety.manage";
     }
 
     /// Radiation dose given to a patient during an imaging exam.
