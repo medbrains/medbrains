@@ -6,16 +6,12 @@
 //! English spelling of a name typed in one (`medbrains_core::indic`, rules,
 //! on-box). Search finds the patient from either script.
 
-use axum::{
-    Extension, Json,
-    extract::{Query, State},
-};
+use axum::{Extension, Json, extract::Query};
 use medbrains_core::indic::{self, Script};
 use medbrains_core::permissions;
 use medbrains_server_core::{
     error::AppError,
     middleware::{auth::Claims, authorization::require_permission},
-    state::AppState,
 };
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;

@@ -3322,9 +3322,8 @@ fn filter_match_result(
     }
     // "Date of birth matches" says what a hidden field holds: a reason goes
     // with its field.
-    let restricted_field = |f: &str| {
-        patient_field_is_hidden(restricted, f) || patient_field_is_masked(restricted, f)
-    };
+    let restricted_field =
+        |f: &str| patient_field_is_hidden(restricted, f) || patient_field_is_masked(restricted, f);
     let dob = restricted_field(PATIENT_DATE_OF_BIRTH_FIELD);
     let phone = restricted_field(PATIENT_PHONE_FIELD);
     let name =
@@ -3374,12 +3373,9 @@ pub async fn match_patients(
 
     // Step 0: the same verified ABHA number is the same person.
     if let Some(abha) = body.abha_number.as_deref() {
-        let same = medbrains_server_services::patient_match::abha_matches(
-            &mut tx,
-            claims.tenant_id,
-            abha,
-        )
-        .await?;
+        let same =
+            medbrains_server_services::patient_match::abha_matches(&mut tx, claims.tenant_id, abha)
+                .await?;
         if !same.is_empty() {
             tx.commit().await?;
             return Ok(Json(

@@ -214,7 +214,7 @@ fn word_to_devanagari(word: &str, how: Reading) -> String {
                 };
                 out.push(independent);
             } else {
-                out.extend(pending.drain(..));
+                out.extend(std::mem::take(&mut pending));
                 if let Some(sign) = sign {
                     out.push(sign);
                 }
@@ -223,13 +223,13 @@ fn word_to_devanagari(word: &str, how: Reading) -> String {
             rest = next;
         } else {
             let c = rest.chars().next().unwrap_or(' ');
-            out.extend(pending.drain(..));
+            out.extend(std::mem::take(&mut pending));
             out.push(c);
             after_vowel = false;
             rest = &rest[c.len_utf8()..];
         }
     }
-    out.extend(pending.drain(..));
+    out.extend(std::mem::take(&mut pending));
     out
 }
 
@@ -299,7 +299,11 @@ pub fn from_latin(text: &str, script: Script) -> Vec<String> {
 }
 
 /// Latin romanization of one Devanagari consonant.
-fn latin_consonant(c: char) -> Option<&'static str> {
+#[expect(
+    clippy::match_same_arms,
+    reason = "one arm per letter, in alphabet order: the table it is"
+)]
+const fn latin_consonant(c: char) -> Option<&'static str> {
     Some(match c {
         'क' => "k",
         'ख' => "kh",
@@ -338,7 +342,11 @@ fn latin_consonant(c: char) -> Option<&'static str> {
     })
 }
 
-fn latin_vowel(c: char) -> Option<&'static str> {
+#[expect(
+    clippy::match_same_arms,
+    reason = "one arm per letter, in alphabet order: the table it is"
+)]
+const fn latin_vowel(c: char) -> Option<&'static str> {
     Some(match c {
         'अ' => "a",
         'आ' | 'ा' => "a",

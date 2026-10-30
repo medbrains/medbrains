@@ -77,7 +77,7 @@ fn is_consonant(c: char) -> bool {
     ('\u{0B95}'..='\u{0BB9}').contains(&c)
 }
 
-fn vowel_sign(c: char) -> Option<&'static str> {
+const fn vowel_sign(c: char) -> Option<&'static str> {
     Some(match c {
         'ா' => "a",
         'ி' | 'ீ' => "i",
@@ -92,7 +92,11 @@ fn vowel_sign(c: char) -> Option<&'static str> {
 
 /// A Tamil consonant in Latin; `between_vowels` voices k/ch/t/p, as Tamil
 /// names are spelled ("Murugan", not "Murukan").
-fn consonant(c: char, between_vowels: bool) -> &'static str {
+#[expect(
+    clippy::match_same_arms,
+    reason = "one arm per letter: the table it is"
+)]
+const fn consonant(c: char, between_vowels: bool) -> &'static str {
     match (c, between_vowels) {
         ('க', false) => "k",
         ('க', true) => "g",
@@ -120,7 +124,7 @@ fn consonant(c: char, between_vowels: bool) -> &'static str {
     }
 }
 
-fn independent(c: char) -> Option<&'static str> {
+const fn independent(c: char) -> Option<&'static str> {
     Some(match c {
         'அ' | 'ஆ' => "a",
         'இ' | 'ஈ' => "i",
