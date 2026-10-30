@@ -175,6 +175,7 @@ export * from "./growth";
 export * from "./history-import";
 export * from "./hl7-adt";
 export * from "./housekeeping";
+export * from "./hrms-link";
 export * from "./immunization-schedule";
 export * from "./infection-control";
 export * from "./insurance-tpa";

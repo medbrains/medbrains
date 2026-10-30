@@ -1220,7 +1220,11 @@ import type {
   HostelAllotmentOrderPrintData,
   HourlyFlowRow,
   HprCoverage,
+  HrmsEntityOutcome,
+  HrmsSyncStatus,
   HsnSummaryRow,
+  HumanexConfigInput,
+  HumanexConfigView,
   HypoglycemiaRecheckRequest,
   HypoglycemiaView,
   IamAccessRequest,
@@ -9589,6 +9593,17 @@ export const api = {
         last_fired: string | null;
       }>
     >("/integration/uncovered-events"),
+
+  /** The hospital's Humanex HRMS connection (the key is never returned). */
+  getHumanexConfig: () => request<HumanexConfigView>("/hrms/humanex/config"),
+  updateHumanexConfig: (data: HumanexConfigInput) =>
+    request<HumanexConfigView>("/hrms/humanex/config", {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
+  /** Pull from Humanex now rather than at the next 15-minute pass. */
+  syncHumanex: () => request<HrmsEntityOutcome[]>("/hrms/humanex/sync", { method: "POST" }),
+  getHumanexStatus: () => request<HrmsSyncStatus>("/hrms/humanex/status"),
 
   /** Turn one built-in pipeline on or off for this hospital. */
   setDefaultPipelineEnabled: (eventType: string, disabled: boolean) =>
