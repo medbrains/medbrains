@@ -99,11 +99,3 @@ fun HealthTab(openBands: () -> Unit) {
     }
 }
 
-/** Health → Bands: nothing pairs yet, and the screen says what will, which is a fact rather than a promise. */
-@Composable
-fun BandsScreen() {
-    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).testTag("screen-bands")) {
-        CarbonPageHeader("Health", "Bands", "Where a wearable connects, and the truth about it.")
-        CarbonNotification(NotificationKind.Info, "No band connected", "An Apple Watch, a Health Connect device or a MedBrains band will appear here once paired.", Modifier.padding(16.dp))
-    }
-}

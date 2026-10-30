@@ -23,6 +23,12 @@ const DEVICE_FIELDS: Record<string, { key: string; label: string }[]> = {
   weight: [{ key: "weight", label: "Weight kg" }],
 };
 
+/** Readings the patient shared from a phone health app: patient-reported. */
+const PATIENT_APP: Record<string, string> = {
+  healthkit: "Apple Health",
+  health_connect: "Health Connect",
+};
+
 export function RemoteVitalsPanel({
   patientId,
   canManage,
@@ -131,6 +137,11 @@ export function RemoteVitalsPanel({
             {r.is_flagged && (
               <Badge tone="danger" size="xs">
                 abnormal
+              </Badge>
+            )}
+            {PATIENT_APP[r.source] && (
+              <Badge tone="info" size="xs">
+                Patient-reported · {PATIENT_APP[r.source]}
               </Badge>
             )}
             <Text size="xs" c="dimmed">

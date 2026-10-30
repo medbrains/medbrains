@@ -13,6 +13,7 @@ pub mod immunizations;
 pub mod nhcx_onboarding;
 pub mod portal;
 pub mod portal_deliveries;
+pub mod portal_health;
 pub mod portal_pay;
 pub mod portal_privacy;
 pub mod portal_refills;
@@ -1047,6 +1048,9 @@ pub fn build_router(state: AppState) -> Router {
         .route("/api/portal/privacy", get(portal_privacy::portal_privacy))
         .route("/api/portal/privacy/export", get(portal_privacy::portal_export))
         .route("/api/portal/dpdp-consent", put(portal_privacy::portal_set_consent))
+        .route("/api/portal/health-data", get(portal_health::get_sharing))
+        .route("/api/portal/health-data/consent", put(portal_health::set_consent))
+        .route("/api/portal/health-data/readings", post(portal_health::post_readings))
         .route(
             "/api/portal/privacy-requests",
             post(portal_privacy::portal_create_request),

@@ -80,19 +80,8 @@ struct HealthTabView: View {
     }
 }
 
-/// Health → Bands. No pairing is wired yet — HealthKit needs its
-/// entitlement and the MedBrains band its ingest credential — so the list is
-/// empty and says what will connect, which is a fact rather than a promise.
+/// Health → Bands. Apple Health is the band this app reads today; a
+/// MedBrains band pairs through it once its ingest credential exists.
 struct BandsView: View {
-    var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 0) {
-                CarbonPageHeader(eyebrow: "Health", title: "Bands", subtitle: "Where a wearable connects, and the truth about it.")
-                CarbonNotification(kind: .info, title: "No band connected", message: "An Apple Watch, a Health Connect device or a MedBrains band will appear here once paired.").padding(16)
-            }
-        }
-        .background(MedBrainsTheme.canvas)
-        .navigationTitle("Bands").navigationBarTitleDisplayMode(.inline)
-        .accessibilityIdentifier("screen-bands")
-    }
+    var body: some View { HealthDataView() }
 }

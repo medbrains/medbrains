@@ -124,6 +124,22 @@ final class PatientJourneyTests: XCTestCase {
         app.navigationBars.buttons.element(boundBy: 0).tap()
     }
 
+    // MARK: health data
+    /// Sharing from Apple Health starts off: every kind is off until the
+    /// patient turns it on, so there is nothing to share yet.
+    private func healthDataStep() {
+        el("module-health-data").tap()
+        XCTAssertTrue(waitOrDump("screen-health-data"))
+        for kind in ["blood_pressure", "glucose", "weight", "spo2", "heart_rate"] {
+            let toggle = app.switches["share-\(kind)"]
+            XCTAssertTrue(toggle.waitForExistence(timeout: 10), kind)
+            XCTAssertEqual(toggle.value as? String, "0", "\(kind) is not shared until the patient says so")
+        }
+        XCTAssertFalse(app.buttons["share-now"].isEnabled, "nothing to share while every kind is off")
+        shoot("patient-06e-health-data")
+        app.navigationBars.buttons.element(boundBy: 0).tap()
+    }
+
     // MARK: refusals
 
     func testUnregisteredAndRegisteredNumbersGetTheSameReply() {
@@ -173,6 +189,21 @@ final class PatientJourneyTests: XCTestCase {
     }
 
     // MARK: the record
+
+    /// Sharing from Apple Health, alone: sign in and find every kind off.
+    /// Spends the seeded code, so run it on its own seed (`-only-testing`).
+    func testHealthDataSharingStartsOff() {
+        launch()
+        signOutIfSignedIn()
+        enterPhone(phone)
+        el("haveCode").tap()
+        XCTAssertTrue(el("code").waitForExistence(timeout: 5))
+        el("code").tap()
+        el("code").typeText("424242")
+        el("verify").tap()
+        XCTAssertTrue(el("tab-hospital").waitForExistence(timeout: 15), "the hospital record opens")
+        healthDataStep()
+    }
 
     func testTheSeededCodeOpensTheRecordTheDeskHolds() {
         let seed = PortalSeed.admin()
@@ -252,6 +283,7 @@ final class PatientJourneyTests: XCTestCase {
         shoot("patient-06e-delivery-tracked")
         app.navigationBars.buttons.element(boundBy: 0).tap()
         privacyStep(seed, patientId: patientId)
+        healthDataStep()
 
         seed.setModule("companion", enabled: true)
         app.terminate()
