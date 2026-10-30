@@ -958,6 +958,7 @@ import type {
   Diagnosis,
   DiagnosisCodingStatus,
   DiagnosisReference,
+  DiagnosticReferenceLevel,
   DialysisMachine,
   DialysisSession,
   DialysisSlot,
@@ -1012,9 +1013,11 @@ import type {
   DomainStatus,
   // Blood Bank
   DonorListResponse,
+  Dosimetry,
   DpdpConsentInput,
   DpdpConsentPrintData,
   DpdpDashboard,
+  DrlAuditReport,
   DrugExpiryAlertPrintData,
   DrugInteraction,
   DrugInteractionCheckRequest,
@@ -1868,6 +1871,8 @@ import type {
   QuizAttemptResult,
   QuizAttemptStart,
   RadiationDoseRecord,
+  RadiationEquipment,
+  RadiationSafetyAlert,
   RadiationSession,
   RadiologyAppointment,
   RadiologyDicomStudy,
@@ -1907,12 +1912,14 @@ import type {
   RecordCssdIndicatorRequest,
   RecordDeviceDaysRequest,
   RecordDoseRequest,
+  RecordDosimetryReading,
   RecordDrillRequest,
   RecordIncidentNoticeRequest,
   RecordIndicatorValueRequest,
   RecordMarketingConsentRequest,
   RecordPatientImmunization,
   RecordPaymentRequest,
+  RecordPregnancyCheck,
   RecordReactionRequest,
   RecordScoreRequest,
   RecordSecurityTagEventRequest,
@@ -2000,6 +2007,8 @@ import type {
   SaveBasketDraftRequest,
   SaveDialysisMachineRequest,
   SaveNhcxSettings,
+  SaveRadiationEquipment,
+  SaveReferenceLevel,
   SaveTbDetailsRequest,
   SaveUhiSettings,
   ScheduleAnalytics,
@@ -18043,10 +18052,34 @@ export const api = {
       method: "PUT",
       body: JSON.stringify(data),
     }),
-  listRadiologyDosimetry: () => request<unknown>("/radiology/dosimetry"),
-  createRadiologyDosimetry: (data: Record<string, unknown>) =>
-    request<unknown>("/radiology/dosimetry", {
+  listRadiologyDosimetry: (year?: number) =>
+    request<Dosimetry>(`/radiology/dosimetry${year ? `?year=${year}` : ""}`),
+  createRadiologyDosimetry: (data: RecordDosimetryReading) =>
+    request<{ id: string; year_msv: number; alerts: RadiationSafetyAlert[] }>(
+      "/radiology/dosimetry",
+      { method: "POST", body: JSON.stringify(data) },
+    ),
+  removeRadiologyDosimetry: (id: string) =>
+    request<{ removed: boolean }>(`/radiology/dosimetry/${id}`, { method: "DELETE" }),
+  recordPregnancyCheck: (orderId: string, data: RecordPregnancyCheck) =>
+    request<RadiologyOrder>(`/radiology/orders/${orderId}/pregnancy-check`, {
       method: "POST",
+      body: JSON.stringify(data),
+    }),
+  listReferenceLevels: () => request<DiagnosticReferenceLevel[]>("/radiology/drls"),
+  saveReferenceLevel: (data: SaveReferenceLevel) =>
+    request<DiagnosticReferenceLevel>("/radiology/drls", {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
+  removeReferenceLevel: (id: string) =>
+    request<{ removed: boolean }>(`/radiology/drls/${id}`, { method: "DELETE" }),
+  drlAudit: (from: string, to: string) =>
+    request<DrlAuditReport>(`/radiology/drl-audit?from=${from}&to=${to}`),
+  listRadiationEquipment: () => request<RadiationEquipment[]>("/radiology/radiation-equipment"),
+  saveRadiationEquipment: (data: SaveRadiationEquipment) =>
+    request<{ id: string }>("/radiology/radiation-equipment", {
+      method: "PUT",
       body: JSON.stringify(data),
     }),
   downloadRadiologyPackage: (id: string) => request<unknown>(`/radiology/download-package/${id}`),

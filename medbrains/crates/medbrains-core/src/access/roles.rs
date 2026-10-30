@@ -365,6 +365,8 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
             permissions::radiology::orders::VIEW,
             permissions::radiology::reports::CREATE,
             permissions::radiology::reports::VERIFY,
+            // A doctor ordering an X-ray often asks first.
+            permissions::radiology::orders::PREGNANCY_CHECK,
             // A radiologist screening under fluoroscopy records its dose.
             permissions::radiology::dose::RECORD,
             // A treating doctor shares a study for a second opinion.
@@ -1694,6 +1696,10 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
             permissions::radiology::orders::CANCEL_ANY,
             // The radiographer who ran the exam records the dose given.
             permissions::radiology::dose::RECORD,
+            // The radiographer asks before every ionising exposure.
+            permissions::radiology::orders::PREGNANCY_CHECK,
+            // The senior radiographer usually keeps the RSO's registers.
+            permissions::radiology::radiation_safety::MANAGE,
             // The radiology desk matches studies the PACS could not file.
             permissions::radiology::studies::RECONCILE,
             // …and sends images to a referring doctor on request.

@@ -1,7 +1,14 @@
 import { Tabs } from "@mantine/core";
 import { useHasPermission } from "@medbrains/stores";
 import { P } from "@medbrains/types";
-import { IconCalendar, IconChartBar, IconEye, IconLinkPlus, IconRadar } from "@tabler/icons-react";
+import {
+  IconCalendar,
+  IconChartBar,
+  IconEye,
+  IconLinkPlus,
+  IconRadar,
+  IconRadioactive,
+} from "@tabler/icons-react";
 import { useSearchParams } from "react-router";
 import { ClinicalEventProvider } from "@/components";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
@@ -9,6 +16,7 @@ import { AppointmentsTab } from "./radiology/appointments-tab";
 import { DicomStudiesTab } from "./radiology/dicom-studies-tab";
 import { ExamsTab } from "./radiology/exams-tab";
 import { ModalitiesTab } from "./radiology/modalities-tab";
+import { RadiationSafetyTab } from "./radiology/radiation-safety-tab";
 import { RadiologyOrdersTab } from "./radiology/radiology-orders-tab";
 import { TatAnalyticsTab } from "./radiology/tat-analytics-tab";
 import { UnmatchedStudiesTab } from "./radiology/unmatched-studies-tab";
@@ -26,6 +34,8 @@ export function RadiologyPage() {
   const activeTab = searchParams.get("tab") ?? "orders";
   // The queue shows the names a modality wrote: the radiology desk's only.
   const canReconcile = useHasPermission(P.RADIOLOGY.STUDIES_RECONCILE);
+  // Staff doses are personal health data: the RSO's registers only.
+  const canKeepSafety = useHasPermission(P.RADIOLOGY.RADIATION_SAFETY_MANAGE);
 
   return (
     <ClinicalEventProvider moduleCode="radiology" contextCode="radiology-orders">
@@ -63,6 +73,11 @@ export function RadiologyPage() {
               Unmatched studies
             </Tabs.Tab>
           )}
+          {canKeepSafety && (
+            <Tabs.Tab value="safety" leftSection={<IconRadioactive size={16} />}>
+              Radiation safety
+            </Tabs.Tab>
+          )}
           <Tabs.Tab value="tat" leftSection={<IconChartBar size={16} />}>
             TAT Analytics
           </Tabs.Tab>
@@ -86,6 +101,11 @@ export function RadiologyPage() {
         {canReconcile && (
           <Tabs.Panel value="unmatched" pt="md">
             <UnmatchedStudiesTab />
+          </Tabs.Panel>
+        )}
+        {canKeepSafety && (
+          <Tabs.Panel value="safety" pt="md">
+            <RadiationSafetyTab />
           </Tabs.Panel>
         )}
         <Tabs.Panel value="tat" pt="md">

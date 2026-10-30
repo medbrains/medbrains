@@ -17,7 +17,7 @@ export interface PermissionDef {
   module: string;
 }
 
-/** 1172 permissions, one per constant in the Rust source. */
+/** 1176 permissions, one per constant in the Rust source. */
 export const PERMISSIONS: PermissionDef[] = [
   // dashboard
   {
@@ -1900,6 +1900,12 @@ export const PERMISSIONS: PermissionDef[] = [
     module: "radiology",
   },
   {
+    code: "radiology.orders.pregnancy_check",
+    label: "Record the pregnancy check before an exposure",
+    description: "For a woman aged 12 to 50 having an X-ray, CT, fluoroscopy, mammography or nuclear medicine exam: whether she is or may be pregnant, how that was established, and — if she may be — why the exam still goes ahead. The exam cannot start without it.",
+    module: "radiology",
+  },
+  {
     code: "radiology.reports.create",
     label: "Create Radiology Report",
     description: "Create radiology reports and findings",
@@ -1927,6 +1933,12 @@ export const PERMISSIONS: PermissionDef[] = [
     code: "radiology.studies.share",
     label: "Share a patient's images by an expiring link",
     description: "Makes a link that opens one study in the viewer without signing in — for a referring doctor outside the hospital, a second opinion, or the patient. It is a disclosure of the record: the link is scoped to that study, expires, can be revoked, and every open is audited.",
+    module: "radiology",
+  },
+  {
+    code: "radiology.radiation_safety.manage",
+    label: "Keep the radiation safety register",
+    description: "The Radiological Safety Officer's records: each X-ray, CT, fluoroscopy or mammography unit's AERB licence, eLORA ID, RSO and QA due dates, and every staff member's TLD badge readings against the occupational dose limits. Staff doses are personal health data, so they are not shown to everyone who reads imaging.",
     module: "radiology",
   },
   {
@@ -10004,13 +10016,19 @@ export const P = {
       CANCEL_ANY: "radiology.orders.cancel_any",
       CREATE: "radiology.orders.create",
       LIST: "radiology.orders.list",
+      PREGNANCY_CHECK: "radiology.orders.pregnancy_check",
       VIEW: "radiology.orders.view",
     },
     ORDERS_CANCEL: "radiology.orders.cancel",
     ORDERS_CANCEL_ANY: "radiology.orders.cancel_any",
     ORDERS_CREATE: "radiology.orders.create",
     ORDERS_LIST: "radiology.orders.list",
+    ORDERS_PREGNANCY_CHECK: "radiology.orders.pregnancy_check",
     ORDERS_VIEW: "radiology.orders.view",
+    RADIATION_SAFETY: {
+      MANAGE: "radiology.radiation_safety.manage",
+    },
+    RADIATION_SAFETY_MANAGE: "radiology.radiation_safety.manage",
     REPORTS: {
       CREATE: "radiology.reports.create",
       VERIFY: "radiology.reports.verify",
@@ -10905,6 +10923,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.RADIOLOGY.DOSE.RECORD,
       P.RADIOLOGY.ORDERS.CANCEL,
       P.RADIOLOGY.ORDERS.CREATE,
+      P.RADIOLOGY.ORDERS.PREGNANCY_CHECK,
       P.RADIOLOGY.ORDERS.VIEW,
       P.RADIOLOGY.REPORTS.CREATE,
       P.RADIOLOGY.REPORTS.VERIFY,
@@ -12090,7 +12109,9 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.RADIOLOGY.ORDERS.CANCEL_ANY,
       P.RADIOLOGY.ORDERS.CREATE,
       P.RADIOLOGY.ORDERS.LIST,
+      P.RADIOLOGY.ORDERS.PREGNANCY_CHECK,
       P.RADIOLOGY.ORDERS.VIEW,
+      P.RADIOLOGY.RADIATION_SAFETY.MANAGE,
       P.RADIOLOGY.REPORTS.CREATE,
       P.RADIOLOGY.REPORTS.VERIFY,
       P.RADIOLOGY.STUDIES.RECONCILE,
