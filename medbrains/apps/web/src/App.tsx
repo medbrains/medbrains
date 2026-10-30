@@ -181,6 +181,7 @@ const BillingPage = lazy(() => import("./pages/billing").then((m) => ({ default:
 const DoctorPayoutsPage = lazy(() =>
   import("./pages/doctor-payouts").then((m) => ({ default: m.DoctorPayoutsPage })),
 );
+const FlowPage = lazy(() => import("./pages/flow").then((m) => ({ default: m.FlowPage })));
 const MyEarningsPage = lazy(() =>
   import("./pages/my-earnings").then((m) => ({ default: m.MyEarningsPage })),
 );
@@ -701,6 +702,7 @@ export function App() {
                 element={<CampClinicalRoutePage />}
               />
               <Route path="command-center" element={<CommandCenterPage />} />
+              <Route path="flow" element={<FlowPage />} />
               <Route path="facilities" element={<FacilitiesPage />} />
               <Route path="consent" element={<ConsentPage />} />
               <Route path="marketing" element={<MarketingPage />} />

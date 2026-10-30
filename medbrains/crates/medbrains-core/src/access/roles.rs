@@ -1132,6 +1132,13 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
         name: "Facilities Manager",
         description: "Facilities management — dashboard, bed management, indent approval, integrations",
         permissions: &[
+            // MedBrains Flow: the building's crowd map. Facilities owns the
+            // zone limits (owner decision, #4901) and acts on the crowd.
+            permissions::flow::VIEW,
+            permissions::flow::MANAGE,
+            permissions::flow::history::VIEW,
+            permissions::flow::alerts::ACK,
+            permissions::flow::recommendations::ACT,
             permissions::admin::settings::READ,
             permissions::dashboard::VIEW,
             permissions::notes::USE,
@@ -1812,6 +1819,12 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
         name: "Front Office Staff",
         description: "Visitor management, gate pass, queue board, enquiry desk",
         permissions: &[
+            // MedBrains Flow: the desk supervisor opens counters and redirects
+            // the crowd; setting zone limits stays with facilities.
+            permissions::flow::VIEW,
+            permissions::flow::history::VIEW,
+            permissions::flow::alerts::ACK,
+            permissions::flow::recommendations::ACT,
             permissions::billing::collect::REGISTRATION,
             permissions::billing::counter_display::PUBLISH,
             permissions::billing::collect::OPD,

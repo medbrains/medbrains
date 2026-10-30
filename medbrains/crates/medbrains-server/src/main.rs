@@ -698,6 +698,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // told (NABH CL-3).
     medbrains_server::services::nurse_call_escalation::spawn(worker_pool.clone());
 
+    // MedBrains Flow — one bounded aggregate per source per tenant a minute
+    // into flow_zone_minute, then alerts and recommendations (#4901). Only
+    // tenants with the `flow` add-on enabled are read.
+    medbrains_flow::aggregate::spawn(worker_pool.clone());
+
     // Restraint observations — a restrained patient missing the 30-minute
     // check reaches the on-call nurse and whoever started the restraint
     // (MHCA 2017 s.97).

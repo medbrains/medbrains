@@ -1,0 +1,24 @@
+[package]
+name = "medbrains-flow"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.85"
+
+# MedBrains Flow (#4901): the live crowd and wait view of the building, a
+# licensed add-on. Read-only over clinical tables; writes only `flow_*`.
+[dependencies]
+medbrains-server-core = { path = "../medbrains-server-core" }
+medbrains-core = { path = "../medbrains-core" }
+medbrains-db = { path = "../medbrains-db" }
+medbrains-notifications = { path = "../medbrains-notifications" }
+axum = { workspace = true }
+chrono = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+sqlx = { workspace = true }
+tokio = { workspace = true }
+tracing = { workspace = true }
+uuid = { workspace = true }
+
+[lints]
+workspace = true

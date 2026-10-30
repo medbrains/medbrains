@@ -22,6 +22,8 @@ export { Checkbox } from "./Checkbox";
 export { Chip, ChipGroup, type ChipProps } from "./Chip";
 export { Crab, type CrabProps, type CrabState, type CrabVariant } from "./Crab";
 export { Divider } from "./Divider";
+export { FloorMap, type FloorMapProps, type FloorMapZone } from "./FloorMap";
+export { FloorMapTable, type FloorMapTableProps } from "./FloorMapTable";
 export { IconButton, type IconButtonProps, type IconButtonTone } from "./IconButton";
 export { Image, type ImageProps } from "./Image";
 export { Input, NumberField, PasswordField, TextArea } from "./Input";

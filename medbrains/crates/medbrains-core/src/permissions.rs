@@ -13,7 +13,7 @@
 /// for now until the hierarchical `pub const` tree is consolidated
 /// into a flat array (see TODO above). Mirrors the count in
 /// `packages/types/src/permissions.ts::PERMISSIONS.length`.
-pub const PERMISSION_COUNT: usize = 843;
+pub const PERMISSION_COUNT: usize = 848;
 
 /// Returns all known permission codes. Currently hardcoded — see
 /// TODO above. The CI check `make check-permissions-sync` (planned)
@@ -1462,6 +1462,38 @@ pub mod consent {
     pub mod signatures {
         pub const LIST: &str = "consent.signatures.list";
         pub const MANAGE: &str = "consent.signatures.manage";
+    }
+}
+
+/// MedBrains Flow: the live crowd and wait view of the building (#4901).
+///
+/// A licensed add-on (`module_config` code `flow`). Every count is an
+/// aggregate estimate built from queues, check-ins, visitor passes and
+/// rosters; no screen in this module names a patient or a member of staff.
+pub mod flow {
+    /// See the live crowd and wait map.
+    /// Open the Flow floor map: estimated people, queue lengths and waits per zone, and the recommendations.
+    pub const VIEW: &str = "flow.view";
+    /// Set up Flow zones and their limits.
+    /// Set each zone's capacity, comfort limit, attendant factor and wait goal, and map departments and counters to zones.
+    pub const MANAGE: &str = "flow.manage";
+
+    pub mod history {
+        /// Scrub back through today's crowd.
+        /// Replay today's minute-by-minute crowd and wait on the floor map.
+        pub const VIEW: &str = "flow.history.view";
+    }
+
+    pub mod alerts {
+        /// Acknowledge crowding alerts.
+        /// Receive and acknowledge the alert raised when a zone passes its comfort limit or capacity.
+        pub const ACK: &str = "flow.alerts.ack";
+    }
+
+    pub mod recommendations {
+        /// Accept or snooze crowd recommendations.
+        /// Record a decision on a recommendation such as opening another counter. Advisory only: accepting records the decision and changes nothing else.
+        pub const ACT: &str = "flow.recommendations.act";
     }
 }
 

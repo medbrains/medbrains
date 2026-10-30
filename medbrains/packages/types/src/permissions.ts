@@ -17,7 +17,7 @@ export interface PermissionDef {
   module: string;
 }
 
-/** 1183 permissions, one per constant in the Rust source. */
+/** 1190 permissions, one per constant in the Rust source. */
 export const PERMISSIONS: PermissionDef[] = [
   // dashboard
   {
@@ -2420,6 +2420,37 @@ export const PERMISSIONS: PermissionDef[] = [
     label: "Manage Consent Signatures",
     description: "Upload signature metadata",
     module: "consent",
+  },
+  // flow
+  {
+    code: "flow.view",
+    label: "See the live crowd and wait map",
+    description: "Open the Flow floor map: estimated people, queue lengths and waits per zone, and the recommendations.",
+    module: "flow",
+  },
+  {
+    code: "flow.manage",
+    label: "Set up Flow zones and their limits",
+    description: "Set each zone's capacity, comfort limit, attendant factor and wait goal, and map departments and counters to zones.",
+    module: "flow",
+  },
+  {
+    code: "flow.history.view",
+    label: "Scrub back through today's crowd",
+    description: "Replay today's minute-by-minute crowd and wait on the floor map.",
+    module: "flow",
+  },
+  {
+    code: "flow.alerts.ack",
+    label: "Acknowledge crowding alerts",
+    description: "Receive and acknowledge the alert raised when a zone passes its comfort limit or capacity.",
+    module: "flow",
+  },
+  {
+    code: "flow.recommendations.act",
+    label: "Accept or snooze crowd recommendations",
+    description: "Record a decision on a recommendation such as opening another counter. Advisory only: accepting records the decision and changes nothing else.",
+    module: "flow",
   },
   // blood_bank
   {
@@ -8502,6 +8533,35 @@ export const P = {
     WORK_ORDERS_MANAGE: "facilities.work_orders.manage",
     WORK_ORDERS_PERFORM: "facilities.work_orders.perform",
   },
+  FLOW: {
+    ALERTS: {
+      ACK: "flow.alerts.ack",
+    },
+    ALERTS_ACK: "flow.alerts.ack",
+    FLOW: {
+      ALERTS: {
+        ACK: "flow.alerts.ack",
+      },
+      HISTORY: {
+        VIEW: "flow.history.view",
+      },
+      MANAGE: "flow.manage",
+      RECOMMENDATIONS: {
+        ACT: "flow.recommendations.act",
+      },
+      VIEW: "flow.view",
+    },
+    HISTORY: {
+      VIEW: "flow.history.view",
+    },
+    HISTORY_VIEW: "flow.history.view",
+    MANAGE: "flow.manage",
+    RECOMMENDATIONS: {
+      ACT: "flow.recommendations.act",
+    },
+    RECOMMENDATIONS_ACT: "flow.recommendations.act",
+    VIEW: "flow.view",
+  },
   FORMS: {
     DEFINITIONS: {
       READ: "forms.definitions.read",
@@ -11754,6 +11814,11 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.FACILITIES.WORK_ORDERS.CREATE,
       P.FACILITIES.WORK_ORDERS.LIST,
       P.FACILITIES.WORK_ORDERS.MANAGE,
+      P.FLOW.ALERTS.ACK,
+      P.FLOW.FLOW.HISTORY.VIEW,
+      P.FLOW.FLOW.MANAGE,
+      P.FLOW.FLOW.RECOMMENDATIONS.ACT,
+      P.FLOW.FLOW.VIEW,
       P.HOUSEKEEPING.CLEANING.CREATE,
       P.HOUSEKEEPING.CLEANING.LIST,
       P.HOUSEKEEPING.CLEANING.MANAGE,
@@ -12305,6 +12370,10 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.COMMUNICATIONS.MESSAGES.CREATE,
       P.COMMUNICATIONS.MESSAGES.LIST,
       P.DASHBOARD.VIEW,
+      P.FLOW.ALERTS.ACK,
+      P.FLOW.FLOW.HISTORY.VIEW,
+      P.FLOW.FLOW.RECOMMENDATIONS.ACT,
+      P.FLOW.FLOW.VIEW,
       P.FRONT_OFFICE.ENQUIRY.LIST,
       P.FRONT_OFFICE.PASSES.LIST,
       P.FRONT_OFFICE.PASSES.MANAGE,
