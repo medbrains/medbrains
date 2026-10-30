@@ -5,6 +5,8 @@ pub mod acquisition;
 mod identifier_key;
 pub mod contact_consent;
 pub mod dpdp_consent;
+pub mod group_identity;
+mod group_identity_store;
 pub mod immunization_schedule;
 pub mod privacy_requests;
 mod registration_rules;
@@ -1552,6 +1554,15 @@ pub async fn create_patient(
         aadhaar_fingerprint.as_deref(),
     )
     .await?;
+    if let Some(digits) = aadhaar_digits.as_deref() {
+        identifier_key::store_group_fingerprint(
+            &mut tx,
+            &identifier_key::identifier_key(&state).await,
+            (claims.tenant_id, patient.id),
+            digits,
+        )
+        .await?;
+    }
     if let Some(verification_id) = body.abha_verification_id {
         abha_link::link_verified_abha(
             &mut tx,
@@ -3382,7 +3393,7 @@ pub async fn match_patients(
                 .into_iter()
                 .map(|mut m| {
                     m.band = Some(medbrains_server_services::patient_match::MatchBand::Certain);
-                    m.reasons = vec!["Same identity document"];
+                    m.reasons = vec!["Same identity document".to_owned()];
                     filter_match_result(m, &restricted)
                 })
                 .collect();
@@ -5136,6 +5147,26 @@ pub fn router() -> axum::Router<AppState> {
         )
         .route("/api/patients/find", get(find_patients))
         .route("/api/patients/match", post(match_patients))
+        .route(
+            "/api/patients/{id}/group-identity",
+            get(group_identity::get_group_identity),
+        )
+        .route(
+            "/api/patients/{id}/group-identity/scan",
+            post(group_identity::scan_group_identity),
+        )
+        .route(
+            "/api/patients/group-identity/candidates",
+            get(group_identity::list_candidates),
+        )
+        .route(
+            "/api/patients/group-identity/candidates/{id}/decide",
+            post(group_identity::decide_candidate),
+        )
+        .route(
+            "/api/patients/group-identity/links/{id}/unlink",
+            post(group_identity::unlink),
+        )
         .route(
             "/api/patients/{id}/complete-registration",
             post(pharmacy_customer::complete_registration),

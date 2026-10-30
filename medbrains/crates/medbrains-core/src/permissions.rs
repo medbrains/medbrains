@@ -75,6 +75,24 @@ pub mod patients {
     pub const UPDATE: &str = "patients.update";
     pub const DELETE: &str = "patients.delete";
 
+    pub mod group_identity {
+        /// See a patient's records at other group hospitals.
+        ///
+        /// Which hospitals in the same group hold a record linked to this
+        /// patient — hospital, masked UHID and name, how the link was made —
+        /// and the matches waiting for review. Identity only: never a chart.
+        /// Clinical records at another hospital are reached only through the
+        /// existing consent paths (ABDM, transfers).
+        pub const VIEW: &str = "patients.group_identity.view";
+        /// Link a patient's records across the group.
+        ///
+        /// Run the group match for a patient, approve or reject a probable
+        /// match from the review queue, and unlink a wrong link, each with a
+        /// reason on the record. Records are linked, never merged, and only
+        /// in a group whose management declared that it shares records.
+        pub const LINK: &str = "patients.group_identity.link";
+    }
+
     pub mod growth {
         /// View a child's growth charts.
         ///

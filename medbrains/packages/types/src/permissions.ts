@@ -17,7 +17,7 @@ export interface PermissionDef {
   module: string;
 }
 
-/** 1170 permissions, one per constant in the Rust source. */
+/** 1172 permissions, one per constant in the Rust source. */
 export const PERMISSIONS: PermissionDef[] = [
   // dashboard
   {
@@ -99,6 +99,18 @@ export const PERMISSIONS: PermissionDef[] = [
     code: "patients.delete",
     label: "Delete Patient",
     description: "Remove patient records",
+    module: "patients",
+  },
+  {
+    code: "patients.group_identity.view",
+    label: "See a patient's records at other group hospitals",
+    description: "Which hospitals in the same group hold a record linked to this patient — hospital, masked UHID and name, how the link was made — and the matches waiting for review. Identity only: never a chart. Clinical records at another hospital are reached only through the existing consent paths (ABDM, transfers).",
+    module: "patients",
+  },
+  {
+    code: "patients.group_identity.link",
+    label: "Link a patient's records across the group",
+    description: "Run the group match for a patient, approve or reject a probable match from the review queue, and unlink a wrong link, each with a reason on the record. Records are linked, never merged, and only in a group whose management declared that it shares records.",
     module: "patients",
   },
   {
@@ -9513,6 +9525,12 @@ export const P = {
     CREATE: "patients.create",
     DELETE: "patients.delete",
     FIND: "patients.find",
+    GROUP_IDENTITY: {
+      LINK: "patients.group_identity.link",
+      VIEW: "patients.group_identity.view",
+    },
+    GROUP_IDENTITY_LINK: "patients.group_identity.link",
+    GROUP_IDENTITY_VIEW: "patients.group_identity.view",
     GROWTH: {
       RECORD_GESTATION: "patients.growth.record_gestation",
       VIEW: "patients.growth.view",
@@ -11279,6 +11297,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.PATIENTS.ACQUISITION.UPDATE,
       P.PATIENTS.CREATE,
       P.PATIENTS.FIND,
+      P.PATIENTS.GROUP_IDENTITY.VIEW,
       P.PATIENTS.LIST,
       P.PATIENTS.PRIVACY_REQUESTS.CREATE,
       P.PATIENTS.PRIVACY_REQUESTS.LIST,
@@ -11909,6 +11928,8 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.NOTES.USE,
       P.OPD.QUEUE.LIST,
       P.OPD.QUEUE.VIEW,
+      P.PATIENTS.GROUP_IDENTITY.LINK,
+      P.PATIENTS.GROUP_IDENTITY.VIEW,
       P.PATIENTS.LIST,
       P.PATIENTS.VIEW,
       P.TERMINOLOGY.SNOMED.VIEW,
@@ -12343,6 +12364,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.IPD.ADMISSIONS.VIEW,
       P.LAB.REPORTS.VIEW,
       P.NOTES.USE,
+      P.PATIENTS.GROUP_IDENTITY.VIEW,
       P.PATIENTS.VIEW,
     ],
   },

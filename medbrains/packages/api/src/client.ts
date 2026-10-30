@@ -1144,9 +1144,13 @@ import type {
   GrnScanDraft,
   GrnScanListItem,
   GrnScanReview,
+  GroupCandidate,
+  GroupCandidateDecision,
   GroupDashboard,
   GroupDrugMaster,
+  GroupIdentity,
   GroupKpiSnapshot,
+  GroupScanOutcome,
   GroupTariffMaster,
   GroupTemplate,
   GroupTestMaster,
@@ -4560,6 +4564,24 @@ export const api = {
     request<MpiMatchResult[]>("/patients/match", {
       method: "POST",
       body: JSON.stringify(data),
+    }),
+
+  // Group patient identity — linked across a hospital group, never merged
+  getGroupIdentity: (patientId: string) =>
+    request<GroupIdentity>(`/patients/${patientId}/group-identity`),
+  scanGroupIdentity: (patientId: string) =>
+    request<GroupScanOutcome>(`/patients/${patientId}/group-identity/scan`, { method: "POST" }),
+  listGroupIdentityCandidates: (status: "pending" | "linked" | "rejected" = "pending") =>
+    request<GroupCandidate[]>(`/patients/group-identity/candidates?status=${status}`),
+  decideGroupIdentityCandidate: (id: string, data: GroupCandidateDecision) =>
+    request<GroupCandidate>(`/patients/group-identity/candidates/${id}/decide`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  unlinkGroupIdentity: (linkId: string, reason: string) =>
+    request<{ unlinked: string }>(`/patients/group-identity/links/${linkId}/unlink`, {
+      method: "POST",
+      body: JSON.stringify({ reason }),
     }),
 
   // ── Patient: Merge ─────────────────────────────
