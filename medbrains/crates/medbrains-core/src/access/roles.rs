@@ -716,6 +716,7 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
             // shift registered.
             permissions::patients::FIND,
             permissions::patients::VIEW,
+            permissions::patients::group_identity::VIEW,
             permissions::patients::CREATE,
             permissions::patients::UPDATE,
             permissions::patients::privacy_requests::LIST,
@@ -1510,6 +1511,8 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
             // Read-only; MRD doesn't create or edit clinical records.
             permissions::patients::LIST,
             permissions::patients::VIEW,
+            permissions::patients::group_identity::VIEW,
+            permissions::patients::group_identity::LINK,
             permissions::opd::queue::LIST,
             permissions::opd::queue::VIEW,
             permissions::ipd::admissions::LIST,
@@ -2048,6 +2051,7 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
             // and the lab reports as PDFs, printed as the person sending —
             // so the desk reads what it sends to the payer (#4844).
             permissions::patients::VIEW,
+            permissions::patients::group_identity::VIEW,
             permissions::ipd::admissions::VIEW,
             permissions::billing::invoices::VIEW,
             permissions::lab::reports::VIEW,

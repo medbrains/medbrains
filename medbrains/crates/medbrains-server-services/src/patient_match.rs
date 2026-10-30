@@ -49,7 +49,7 @@ pub struct MatchResult {
     /// Why, field by field ("Name matches in another spelling", …).
     #[sqlx(skip)]
     #[serde(skip_serializing_if = "Vec::is_empty")]
-    pub reasons: Vec<&'static str>,
+    pub reasons: Vec<String>,
 }
 
 #[derive(Debug, Default)]
@@ -96,7 +96,7 @@ pub async fn abha_matches(
     .await?;
     for r in &mut rows {
         r.band = Some(MatchBand::Certain);
-        r.reasons = vec!["Same verified ABHA number"];
+        r.reasons = vec!["Same verified ABHA number".to_owned()];
     }
     Ok(rows)
 }
@@ -180,7 +180,7 @@ pub fn rank(q: &MatchQuery, candidates: Vec<MatchResult>) -> Vec<MatchResult> {
             );
             c.band = Some(verdict.band()?);
             c.score = verdict.score();
-            c.reasons = verdict.reasons;
+            c.reasons = verdict.reasons.into_iter().map(str::to_owned).collect();
             Some(c)
         })
         .collect();
@@ -248,7 +248,7 @@ mod tests {
         assert_eq!(sister.and_then(|r| r.band), Some(MatchBand::Review));
         let father = ranked.iter().find(|r| r.date_of_birth != dob);
         assert_eq!(father.and_then(|r| r.band), Some(MatchBand::Review));
-        assert!(father.is_some_and(|f| f.reasons.contains(&"Date of birth differs")));
+        assert!(father.is_some_and(|f| f.reasons.iter().any(|r| r == "Date of birth differs")));
         assert!(ranked.windows(2).all(|w| w[0].score >= w[1].score));
     }
 }

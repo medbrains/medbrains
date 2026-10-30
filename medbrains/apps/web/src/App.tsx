@@ -231,6 +231,11 @@ const InterHospitalTransfersPage = lazy(() =>
     default: m.InterHospitalTransfersPage,
   })),
 );
+const GroupIdentityQueuePage = lazy(() =>
+  import("./pages/patients/group-identity-queue").then((m) => ({
+    default: m.GroupIdentityQueuePage,
+  })),
+);
 const HospitalGroupsPage = lazy(() =>
   import("./pages/hospital-groups").then((m) => ({ default: m.HospitalGroupsPage })),
 );
@@ -609,6 +614,7 @@ export function App() {
               <Route path="remote-access" element={<RemoteAccessPage />} />
               <Route path="patients" element={<PatientsPage />} />
               <Route path="patients/register" element={<PatientRegisterPage />} />
+              <Route path="patients/group-identity" element={<GroupIdentityQueuePage />} />
               <Route path="patients/:id/edit" element={<PatientEditPage />} />
               <Route path="patients/:id" element={<PatientDetailPage />} />
               <Route path="opd" element={<OpdPage />} />
