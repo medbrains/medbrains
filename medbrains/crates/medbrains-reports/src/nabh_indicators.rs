@@ -928,27 +928,41 @@ pub async fn get_indicators(
         note: Some("Computed from post-discharge follow-up table".into()),
     });
 
-    // ── Operations / Discharge TAT (NABH 65) ───────────────
+    // ── Operations / Time taken for discharge (NABH KPI 24) ─
+    // NABH: minutes from the consultant's formal discharge approval to the
+    // patient leaving the unit. `ipd_discharge_tat_log` is the row the
+    // discharge workflow writes: `doctor_cleared_at` is the consultant's
+    // clearance, `discharge_completed_at` the patient leaving. Not
+    // `total_tat_minutes` -- that runs from `discharge_initiated_at`, which is
+    // whenever someone opened the checklist, not the approval.
+    // Rows with completion before approval are bad data and would drag the
+    // mean below zero, so they are left out.
     let discharge_tat = scalar_minutes(
         &mut tx,
-        "SELECT AVG(total_minutes)::float8 \
-         FROM ipd_discharge_tat_logs \
-         WHERE tenant_id = $1 AND total_minutes IS NOT NULL \
-           AND patient_released_at >= date_trunc('month', now())",
+        "SELECT AVG(EXTRACT(EPOCH FROM (discharge_completed_at - doctor_cleared_at)) / 60.0)::float8 \
+         FROM ipd_discharge_tat_log \
+         WHERE tenant_id = $1 AND deleted_at IS NULL \
+           AND doctor_cleared_at IS NOT NULL \
+           AND discharge_completed_at >= doctor_cleared_at \
+           AND discharge_completed_at >= date_trunc('month', now())",
         claims.tenant_id,
     )
     .await;
     indicators.push(Indicator {
         code: "OPS_DISCHARGE_TAT".into(),
-        label: "Discharge turnaround".into(),
+        label: "Time taken for discharge".into(),
         category: "operations".into(),
         direction: "lower_better".into(),
         unit: "minutes".into(),
         target: Some(180.0),
         value_current_month: discharge_tat,
         value_prev_month: None,
-        denominator_label: None,
-        note: Some("Discharge order to patient release".into()),
+        denominator_label: Some("of discharges completed this month".into()),
+        note: Some(
+            "Doctor's discharge clearance to discharge completed. Day-care stays are \
+             not excluded: admissions carry no day-care marker."
+                .into(),
+        ),
     });
 
     // ── Experience / Patient survey score (NABH 67) ───────

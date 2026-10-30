@@ -98,8 +98,8 @@ The quality programme is non-negotiable and roughly 18–30 months:
 | item | body | status for us |
 |---|---|---|
 | **ABDM Milestone M1** — ABHA create/verify | NHA | partway: `medbrains-abdm` has ABHA login, OTP, sessions, gateway callbacks |
-| **ABDM Milestone M2** — link records as HIP | NHA | not started |
-| **ABDM Milestone M3** — consume as HIU | NHA | not started |
+| **ABDM Milestone M2** — link records as HIP | NHA | built, not certified: discovery, linking, consent, FHIR bundles and encrypted data push (`routes/abdm/hip/*`), Scan & Share (`scan_share.rs`), DHIS claim counting (`dhis.rs`); tested against a mock gateway and the sandbox only — NHA's M2 functional test and production keys still to do |
+| **ABDM Milestone M3** — consume as HIU | NHA | built, not certified: consent requests, grants, Fidelius keys, data push receipt, purge on revocation/expiry, staff view (`routes/abdm/hiu/*`); sandbox only — NHA's M3 functional test still to do |
 | **HFR / HPR registration** | NHA | facility and professional registries; ABDM prerequisites |
 | **NABH Digital Health Standards** | NABH | helps *customers* pass accreditation — a sales argument; we already carry the ACMSRC checklists |
 | **STQC certification** | MeitY | needed for government hospital deployments |
@@ -230,7 +230,7 @@ Ranked by leverage for our actual market, not by prestige.
 3. **ABDM M1** — the gate for Indian hospitals, and we are closest to it.
 4. **ISO 27001** — every serious buyer asks; enables 27799/27017/27018/27701.
 5. **VPAT** — days, because the underlying work is already done.
-6. **ABDM M2 / M3** — as customers need record exchange.
+6. **ABDM M2 / M3** — built; take them through NHA certification as customers need record exchange.
 7. Everything else **only when a named buyer asks for it.**
 
 ---
