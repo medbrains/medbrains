@@ -68,8 +68,9 @@ async fn webhook_writes_refuse_before_reading_the_body(app: &common::TestApp, cs
     );
 }
 
-/// 403 to the unpermitted; to the permitted, 404 while the simulator is off
-/// (the test server never turns it on).
+/// 403 to the unpermitted whether or not the simulator is on; to the
+/// permitted, the inbox when it is on and 404 when it is off. The flag comes
+/// from the environment (a dev `.env` turns it on), so the test reads it too.
 async fn the_message_simulator_refuses_before_saying_it_is_off(app: &common::TestApp, csrf: &str) {
     let url = app.url("/api/admin/message-simulator/messages?recipient=9876500000");
 
@@ -80,7 +81,13 @@ async fn the_message_simulator_refuses_before_saying_it_is_off(app: &common::Tes
     let tester =
         common::provision_staff_with(app, csrf, "receptionist", &[SIMULATOR_VIEW], &[]).await;
     let (status, _) = send(&tester, tester.client.get(&url)).await;
-    assert_eq!(status, StatusCode::NOT_FOUND, "permitted, simulator off");
+    let on = std::env::var("MEDBRAINS_NOTIFY_SIMULATOR").is_ok_and(|v| v == "true");
+    let expected = if on {
+        StatusCode::OK
+    } else {
+        StatusCode::NOT_FOUND
+    };
+    assert_eq!(status, expected, "permitted, simulator on = {on}");
 }
 
 async fn revoking_a_device_refuses_with_or_without_a_body(app: &common::TestApp, csrf: &str) {
