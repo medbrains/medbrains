@@ -22,10 +22,11 @@ const PHONE: &str = "9876543210";
 const AADHAAR: &str = "2345 6789 0123";
 const EMAIL: &str = "ramesh.iyer@example.com";
 const IP: &str = "203.0.113.9";
+const JWT: &str = "eyJhbGciOiJFZERTQSJ9.eyJzdWIiOiIxMjMifQ.c2lnbmF0dXJlX3Rlc3Q";
 const TENANT: &str = "1b4e28ba-2fa1-11d2-883f-0016d3cca427";
 
 /// Every fragment a report could leak a patient through.
-const NEEDLES: [&str; 12] = [
+const NEEDLES: [&str; 14] = [
     "Ramesh",
     "Iyer",
     UHID,
@@ -38,6 +39,8 @@ const NEEDLES: [&str; 12] = [
     "q=Ramesh",
     "diabetes",
     "sess-cookie-value",
+    "eyJhbGci",
+    "c2lnbmF0dXJl",
 ];
 
 fn assert_clean(serialized: &str) {
@@ -69,7 +72,7 @@ fn serialized(transport: &TestTransport) -> Result<String, std::io::Error> {
 fn patient_error_event() -> Result<Event<'static>, Box<dyn std::error::Error>> {
     let message = format!(
         "could not save patient '{NAME}' (Mr. {NAME}) UHID {UHID}, phone {PHONE}, \
-         aadhaar {AADHAAR}, email {EMAIL}: Key (phone)=({PHONE}) already exists"
+         aadhaar {AADHAAR}, email {EMAIL}, token {JWT}: Key (phone)=({PHONE}) already exists"
     );
     let mut extra = Map::new();
     extra.insert("patient".to_owned(), Value::String(NAME.to_owned()));
@@ -166,7 +169,7 @@ fn a_browser_envelope_full_of_patient_data_is_forwarded_with_none_of_it() -> Tes
         "level": "error",
         "platform": "javascript",
         "exception": {"values": [{"type": "TypeError",
-            "value": format!("Cannot read 'x' of {NAME} {PHONE}")}]},
+            "value": format!("Cannot read 'x' of {NAME} {PHONE} with {JWT}")}]},
         "request": {"url": format!("https://hims.example.in/patients/{UHID}?q=Ramesh"),
             "headers": {"Cookie": "mb_session=sess-cookie-value"}},
         "user": {"id": "8f14e45fceea167a5a36dedd4bea2543", "email": EMAIL, "ip_address": IP},

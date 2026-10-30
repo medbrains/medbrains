@@ -7,7 +7,9 @@
 //! values are not: anything quoted goes, two or more capitalised words in a
 //! row go (a name with no "Mr" in front of it), and any run of four or more
 //! digits goes (a UHID with no "UHID" in front of it). A lone capitalised word
-//! is not caught — it is also how every sentence starts.
+//! is not caught — it is also how every sentence starts. Before any of that,
+//! credentials go: a JWT, a `Bearer` value, or any opaque run of 32+ token
+//! characters (an API key, a session id).
 
 use std::sync::LazyLock;
 
@@ -20,11 +22,12 @@ use sentry::protocol::{
 /// Error text with identifiers and values removed.
 #[must_use]
 pub(crate) fn scrub_text(text: &str) -> String {
-    let redacted = redact_for_record(text, chrono::Utc::now().date_naive());
-    let Some([quoted, names, digits]) = rules() else {
+    let Some([tokens, quoted, names, digits]) = rules() else {
         // A rule that does not compile withholds the text rather than send it.
         return "[withheld]".to_owned();
     };
+    let text = tokens.replace_all(text, "[token]");
+    let redacted = redact_for_record(&text, chrono::Utc::now().date_naive());
     let text = quoted.replace_all(&redacted, "[value]");
     let text = names.replace_all(&text, "[name]");
     digits.replace_all(&text, "[n]").into_owned()
@@ -234,14 +237,15 @@ fn is_identifier(segment: &str) -> bool {
     uuid || digits
 }
 
-fn rules() -> Option<[&'static Regex; 3]> {
-    static RULES: LazyLock<Result<[Regex; 3], regex::Error>> = LazyLock::new(|| {
+fn rules() -> Option<[&'static Regex; 4]> {
+    static RULES: LazyLock<Result<[Regex; 4], regex::Error>> = LazyLock::new(|| {
         Ok([
+            Regex::new(r"eyJ[\w-]+\.[\w-]+\.[\w-]*|(?i:\bbearer\s+)[\w.~+/-]+=*|\b[\w-]{32,}\b")?,
             Regex::new(r#"'[^'\n]{1,200}'|"[^"\n]{1,200}"|`[^`\n]{1,200}`"#)?,
             Regex::new(r"\b\p{Lu}\p{Ll}+(?:[ .'-]+\p{Lu}\p{Ll}+)+\b")?,
             Regex::new(r"\d{4,}")?,
         ])
     });
-    let [quoted, names, digits] = RULES.as_ref().ok()?;
-    Some([quoted, names, digits])
+    let [tokens, quoted, names, digits] = RULES.as_ref().ok()?;
+    Some([tokens, quoted, names, digits])
 }

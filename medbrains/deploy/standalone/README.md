@@ -236,6 +236,8 @@ self-hosted [Rustrak](https://github.com/rustrak/rustrak) on this host —
 never to sentry.io. Every report is scrubbed of patient data before it
 leaves the HMS process (`crates/medbrains-error-tracking`); the browser's
 reports go through the server's tunnel to get the same scrubbing.
+It is off until `SENTRY_DSN` is set: without it the server and the
+browser send nothing, and no other variable is required.
 
 ```bash
 # DNS: errors.<domain> → this host, then:
