@@ -39,6 +39,10 @@ export const mrdService = {
   createMrdBirth: (...args: Parameters<typeof api.createMrdBirth>) => api.createMrdBirth(...args),
   listMrdDeaths: (...args: Parameters<typeof api.listMrdDeaths>) => api.listMrdDeaths(...args),
   createMrdDeath: (...args: Parameters<typeof api.createMrdDeath>) => api.createMrdDeath(...args),
+  listCrsEvents: (status?: string) => api.listCrsEvents(status),
+  getCrsForm: (id: string) => api.getCrsForm(id),
+  recordCrsRegistration: (...args: Parameters<typeof api.recordCrsRegistration>) =>
+    api.recordCrsRegistration(...args),
   getMrdMorbidityMortality: (...args: Parameters<typeof api.getMrdMorbidityMortality>) =>
     api.getMrdMorbidityMortality(...args),
   getMrdAdmissionDischarge: (...args: Parameters<typeof api.getMrdAdmissionDischarge>) =>

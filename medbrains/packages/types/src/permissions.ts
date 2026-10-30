@@ -17,7 +17,7 @@ export interface PermissionDef {
   module: string;
 }
 
-/** 1170 permissions, one per constant in the Rust source. */
+/** 1172 permissions, one per constant in the Rust source. */
 export const PERMISSIONS: PermissionDef[] = [
   // dashboard
   {
@@ -3955,6 +3955,18 @@ export const PERMISSIONS: PermissionDef[] = [
     code: "mrd.deaths.create",
     label: "Register Deaths",
     description: "Register deaths in MRD",
+    module: "mrd",
+  },
+  {
+    code: "mrd.crs.list",
+    label: "See births and deaths due for civil registration",
+    description: "Every birth and death in the hospital, with the 21-day date by which the hospital must report it on the CRS portal, and the registrar's report laid out from what the hospital recorded.",
+    module: "mrd",
+  },
+  {
+    code: "mrd.crs.manage",
+    label: "Record civil registration of births and deaths",
+    description: "Enters the registration number CRS issued, which closes the event as reported.",
     module: "mrd",
   },
   {
@@ -9120,6 +9132,12 @@ export const P = {
     CASE_SHEETS_PRINT: "mrd.case_sheets.print",
     CASE_SHEETS_REPRINT: "mrd.case_sheets.reprint",
     CASE_SHEETS_VIEW: "mrd.case_sheets.view",
+    CRS: {
+      LIST: "mrd.crs.list",
+      MANAGE: "mrd.crs.manage",
+    },
+    CRS_LIST: "mrd.crs.list",
+    CRS_MANAGE: "mrd.crs.manage",
     DEATHS: {
       CREATE: "mrd.deaths.create",
       LIST: "mrd.deaths.list",
@@ -11899,6 +11917,8 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.MRD.CASE_SHEETS.PRINT,
       P.MRD.CASE_SHEETS.REPRINT,
       P.MRD.CASE_SHEETS.VIEW,
+      P.MRD.CRS.LIST,
+      P.MRD.CRS.MANAGE,
       P.MRD.DEATHS.CREATE,
       P.MRD.DEATHS.LIST,
       P.MRD.RECORDS.CREATE,

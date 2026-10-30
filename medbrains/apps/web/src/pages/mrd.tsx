@@ -4,6 +4,7 @@ import { P } from "@medbrains/types";
 import {
   IconArchive,
   IconBabyCarriage,
+  IconCertificate,
   IconChartBar,
   IconClipboardList,
   IconFileCertificate,
@@ -22,6 +23,7 @@ import {
 } from "@/components";
 import { BirthsTab } from "@/components/Mrd/BirthsTab";
 import { CaseSheetsTab } from "@/components/Mrd/CaseSheetsTab";
+import { CrsTab } from "@/components/Mrd/CrsTab";
 import { DeathsTab } from "@/components/Mrd/DeathsTab";
 import { DigitizeTab } from "@/components/Mrd/DigitizeTab";
 import { RecordsTab } from "@/components/Mrd/RecordsTab";
@@ -43,6 +45,7 @@ const MRD_TAB_VALUES = [
   "digitize",
   "births",
   "deaths",
+  "crs",
   "roi",
   "storage",
   "retention",
@@ -68,6 +71,8 @@ function MrdPageInner() {
   const canViewCaseSheets = useHasPermission(P.MRD.CASE_SHEETS_VIEW);
   const canViewBirths = useHasPermission(P.MRD.BIRTHS_LIST);
   const canViewDeaths = useHasPermission(P.MRD.DEATHS_LIST);
+  const canViewCrs = useHasPermission(P.MRD.CRS_LIST);
+  const canManageCrs = useHasPermission(P.MRD.CRS_MANAGE);
   const canVerifySignatures = useHasPermission(P.DOCTOR.SIGNATURE.VERIFY);
 
   // Rail groups mirror how an MRD department runs the chart lifecycle. Items are
@@ -111,6 +116,11 @@ function MrdPageInner() {
           value: "deaths",
           label: "Death Register",
           icon: <IconSkull size={14} />,
+        },
+        canViewCrs && {
+          value: "crs",
+          label: "Civil registration",
+          icon: <IconCertificate size={14} />,
         },
       ].filter(Boolean) as RailItem[],
     },
@@ -187,6 +197,11 @@ function MrdPageInner() {
           {canViewDeaths && (
             <Tabs.Panel value="deaths">
               <DeathsTab />
+            </Tabs.Panel>
+          )}
+          {canViewCrs && (
+            <Tabs.Panel value="crs">
+              <CrsTab canManage={canManageCrs} />
             </Tabs.Panel>
           )}
           {canViewRecords && (

@@ -867,6 +867,8 @@ import type {
   CrossMatchRequisitionPrintData,
   CrossmatchReportPrintData,
   CrossmatchRequest,
+  CrsEvent,
+  CrsForm,
   CssdIndicatorResult,
   CssdInstrument,
   CssdInstrumentSet,
@@ -1897,6 +1899,7 @@ import type {
   RecordAdherenceRequest,
   RecordBedsideVideoViewRequest,
   RecordClaimSettlementRequest,
+  RecordCrsRegistrationRequest,
   RecordCssdIndicatorRequest,
   RecordDeviceDaysRequest,
   RecordDoseRequest,
@@ -11695,6 +11698,13 @@ export const api = {
       body: JSON.stringify(body),
     }),
   getMrdDeath: (id: string) => request<MrdDeathRegister>(`/mrd/deaths/${id}`),
+
+  // Civil registration (CRS)
+  listCrsEvents: (status?: string) =>
+    request<CrsEvent[]>(`/mrd/crs${status ? `?status=${status}` : ""}`),
+  getCrsForm: (id: string) => request<CrsForm>(`/mrd/crs/${id}/form`),
+  recordCrsRegistration: (id: string, body: RecordCrsRegistrationRequest) =>
+    request<CrsEvent>(`/mrd/crs/${id}`, { method: "PUT", body: JSON.stringify(body) }),
 
   // Retention Policies
   listMrdRetentionPolicies: () => request<MrdRetentionPolicy[]>("/mrd/retention-policies"),
