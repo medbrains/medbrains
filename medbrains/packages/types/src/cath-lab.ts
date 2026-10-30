@@ -345,3 +345,42 @@ export interface CreateCathPostMonitoringRequest {
   vitals?: Record<string, unknown>;
   ambulation_started?: boolean;
 }
+
+/** One tooth on a periodontal chart: six sites (DB, B, MB, DL, L, ML). */
+export interface PerioTooth {
+  tooth: string;
+  missing: boolean;
+  probing: (number | null)[];
+  recession: (number | null)[];
+  bleeding: boolean[];
+  mobility: number | null;
+  furcation: number | null;
+}
+
+export interface PerioSummary {
+  teeth_present: number;
+  sites_probed: number;
+  bleeding_percent: number | null;
+  sites_4mm_or_more: number;
+  sites_6mm_or_more: number;
+  mean_probing_mm: number | null;
+  mean_attachment_level_mm: number | null;
+}
+
+export interface PerioSiteChange {
+  tooth: string;
+  site: string;
+  before_mm: number;
+  after_mm: number;
+}
+
+export interface PerioChart {
+  id: string;
+  exam_id: string;
+  recorded_by_name: string | null;
+  created_at: string;
+  notes: string | null;
+  teeth: PerioTooth[];
+  summary: PerioSummary;
+  changes_since_previous: PerioSiteChange[];
+}

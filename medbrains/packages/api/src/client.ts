@@ -932,6 +932,8 @@ import type {
   DeliveryRunner,
   DeliveryType,
   DentalChartEntry,
+  PerioChart,
+  PerioTooth,
   DentalExam,
   DentalTreatmentItem,
   DepartmentAlertRow,
@@ -11932,6 +11934,13 @@ export const api = {
     request<DentalTreatmentItem>(`/specialty/dental/treatment/${id}/complete`, { method: "POST" }),
   cancelDentalTreatment: (id: string) =>
     request<DentalTreatmentItem>(`/specialty/dental/treatment/${id}/cancel`, { method: "POST" }),
+  recordPerioChart: (examId: string, data: { teeth: PerioTooth[]; notes?: string | null }) =>
+    request<string>(`/specialty/dental/exams/${examId}/perio`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  listPatientPerioCharts: (patientId: string) =>
+    request<PerioChart[]>(`/specialty/dental/patients/${patientId}/perio`),
   createDentalChartEntry: (examId: string, data: CreateDentalChartEntryRequest) =>
     request<DentalChartEntry>(`/specialty/dental/exams/${examId}/chart`, {
       method: "POST",

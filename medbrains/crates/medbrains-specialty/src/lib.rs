@@ -17,6 +17,7 @@ pub mod psych_legal;
 pub mod psych_mhca;
 pub mod psych_screenings;
 pub mod specialty_dental;
+pub mod specialty_dental_perio;
 pub mod specialty_dental_plan;
 pub mod specialty_maternity;
 pub mod specialty_ophtho;
@@ -101,6 +102,14 @@ pub fn router() -> Router<AppState> {
         .route(
             "/api/specialty/dental/exams/{exam_id}/chart",
             get(specialty_dental::list_chart_entries).post(specialty_dental::create_chart_entry),
+        )
+        .route(
+            "/api/specialty/dental/exams/{exam_id}/perio",
+            post(specialty_dental_perio::record_perio_chart),
+        )
+        .route(
+            "/api/specialty/dental/patients/{patient_id}/perio",
+            get(specialty_dental_perio::patient_perio_history),
         )
         .route(
             "/api/specialty/dental/chart/{id}",

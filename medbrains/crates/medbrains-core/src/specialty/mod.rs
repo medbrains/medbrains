@@ -5,5 +5,6 @@ pub mod maternity;
 pub mod ophthalmology;
 pub mod other;
 pub mod palliative;
+pub mod perio;
 pub mod pmr;
 pub mod psychiatry;
