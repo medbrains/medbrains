@@ -29,6 +29,10 @@ export const nurseActivitiesService = {
     api.endVitalsSchedule(...args),
   createNurseVital: (...args: Parameters<typeof api.createNurseVital>) =>
     api.createNurseVital(...args),
+  listMonitorReadings: (encounterId: string) => api.listMonitorReadings(encounterId),
+  confirmMonitorReading: (...args: Parameters<typeof api.confirmMonitorReading>) =>
+    api.confirmMonitorReading(...args),
+  discardMonitorReading: (id: string, reason: string) => api.discardMonitorReading(id, reason),
   // A failed read is an error on screen, never another encounter list passed
   // off as this one.
   listNurseVitals: (encounterId: string) => api.listNurseVitals(encounterId),

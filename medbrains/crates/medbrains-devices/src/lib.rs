@@ -15,6 +15,7 @@ use medbrains_server_core::middleware::auth::Claims;
 use medbrains_server_core::state::AppState;
 
 pub mod analyzer_orders;
+pub mod vitals;
 
 fn require_permission(claims: &Claims, perm: &str) -> Result<(), AppError> {
     if claims.role == "super_admin" || claims.role == "hospital_admin" {
@@ -151,7 +152,7 @@ pub async fn list_manufacturers(
 // ── Device Instances (per-tenant CRUD) ───────────────────────
 // ═══════════════════════════════════════════════════════════════
 
-const INSTANCE_SELECT: &str = "SELECT id, tenant_id, adapter_code, facility_id, department_id, \
+const INSTANCE_SELECT: &str = "SELECT id, tenant_id, adapter_code, facility_id, department_id, bed_location_id, \
     name, code, serial_number, hostname, port, \
     protocol_config, field_mappings, data_transforms, qc_config, \
     ai_config_version, ai_confidence, human_overrides, config_source, \
@@ -370,6 +371,55 @@ pub async fn update_device_instance(
         .fetch_one(&mut *tx)
         .await?;
 
+    tx.commit().await?;
+    Ok(Json(row))
+}
+
+#[derive(Debug, Deserialize)]
+pub struct AssignBedRequest {
+    /// `None` takes the monitor off its bed.
+    pub bed_location_id: Option<Uuid>,
+}
+
+/// `PUT /api/devices/instances/{id}/bed` — the bed a bedside monitor
+/// watches, so its readings reach the patient admitted there.
+pub async fn assign_bed(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Path(id): Path<Uuid>,
+    Json(body): Json<AssignBedRequest>,
+) -> Result<Json<DeviceInstanceRow>, AppError> {
+    require_permission(&claims, permissions::devices::UPDATE)?;
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    if let Some(bed) = body.bed_location_id {
+        let is_bed: bool = sqlx::query_scalar(
+            "SELECT EXISTS (SELECT 1 FROM locations WHERE id = $1 AND tenant_id = $2 \
+               AND level = 'bed' AND deleted_at IS NULL)",
+        )
+        .bind(bed)
+        .bind(claims.tenant_id)
+        .fetch_one(&mut *tx)
+        .await?;
+        if !is_bed {
+            return Err(AppError::BadRequest("Choose a bed.".to_owned()));
+        }
+    }
+    let updated = sqlx::query(
+        "UPDATE device_instances SET bed_location_id = $3, updated_by = $4 \
+          WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL",
+    )
+    .bind(id)
+    .bind(claims.tenant_id)
+    .bind(body.bed_location_id)
+    .bind(claims.sub)
+    .execute(&mut *tx)
+    .await?;
+    if updated.rows_affected() == 0 {
+        return Err(AppError::NotFound);
+    }
+    let q = format!("{INSTANCE_SELECT} WHERE id = $1");
+    let row = sqlx::query_as::<_, DeviceInstanceRow>(&q).bind(id).fetch_one(&mut *tx).await?;
     tx.commit().await?;
     Ok(Json(row))
 }
@@ -786,6 +836,17 @@ pub async fn ingest_device_data(
         .await?
         .ok_or(AppError::NotFound)?;
 
+    // A patient monitor's results are vital signs, whatever path the bridge
+    // posted them to: the bridge sends every ORU as "lab".
+    let is_monitor: bool = sqlx::query_scalar(
+        "SELECT EXISTS (SELECT 1 FROM device_adapter_catalog \
+           WHERE adapter_code = $1 AND device_category IN ('patient_monitor', 'pulse_oximeter'))",
+    )
+    .bind(&device.adapter_code)
+    .fetch_one(&mut *tx)
+    .await?;
+    let module = if is_monitor { "vitals".to_owned() } else { module };
+
     // Store message
     let msg_id = sqlx::query_scalar::<_, Uuid>(
         "INSERT INTO device_messages \
@@ -813,17 +874,17 @@ pub async fn ingest_device_data(
     // An analyser past its calibration (or out of service) must not report
     // patient results. The message is kept, marked rejected, for the lab to
     // rerun the samples once biomedical engineering recalibrates it.
-    if module == "lab" {
-        if let Some(reason) = instrument_lock_reason(&mut tx, body.device_instance_id).await? {
-            refuse_locked_instrument(&mut tx, (device.tenant_id, claims.sub), msg_id, &reason)
-                .await?;
-            tx.commit().await?;
-            return Err(AppError::Conflict(format!(
-                "Results refused: {} is locked — {reason}. Recalibrate it and rerun \
-                 the samples; the message is kept for review.",
-                device.name
-            )));
-        }
+    if module == "lab"
+        && let Some(reason) = instrument_lock_reason(&mut tx, body.device_instance_id).await?
+    {
+        refuse_locked_instrument(&mut tx, (device.tenant_id, claims.sub), msg_id, &reason)
+            .await?;
+        tx.commit().await?;
+        return Err(AppError::Conflict(format!(
+            "Results refused: {} is locked — {reason}. Recalibrate it and rerun \
+             the samples; the message is kept for review.",
+            device.name
+        )));
     }
 
     // ── Route data based on module ──
@@ -859,7 +920,23 @@ pub async fn ingest_device_data(
             }
         }
     }
-    // Future: module == "vitals", "radiology", etc.
+    if module == "vitals" {
+        match vitals::route(&mut tx, (device.tenant_id, device.id), msg_id, &body.mapped_data).await? {
+            vitals::Routed::Draft(id) => routed_entity_id = Some(id),
+            vitals::Routed::Thinned => {
+                note = Some("normal reading within 15 minutes of one already kept".to_owned());
+            }
+            vitals::Routed::Empty => {
+                route_status = "rejected";
+                note = Some("no vital sign in the message".to_owned());
+            }
+            vitals::Routed::Held(id, reason) => {
+                routed_entity_id = Some(id);
+                route_status = "needs_review";
+                note = Some(reason);
+            }
+        }
+    }
 
     sqlx::query(
         "UPDATE device_messages SET processing_status = $2::device_message_status, \
@@ -984,6 +1061,7 @@ pub fn router() -> axum::Router<AppState> {
                 .put(update_device_instance)
                 .delete(decommission_device),
         )
+        .route("/api/devices/instances/{id}/bed", put(assign_bed))
         .route(
             "/api/devices/instances/{id}/test",
             post(test_device_connection),

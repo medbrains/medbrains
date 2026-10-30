@@ -1079,6 +1079,7 @@ import type {
   EwsEscalation,
   EwsPlan,
   EwsPolicy,
+  EwsScoringInputs,
   ExamHallTicketPrintData,
   // Billing Phase 3
   ExchangeRate,
@@ -1479,6 +1480,7 @@ import type {
   ModuleEntitySchema,
   ModuleSummary,
   ModuleToken,
+  MonitorReading,
   MonthlySurveillanceReport,
   MortuaryRecord,
   MoveMarketingStageRequest,
@@ -4924,6 +4926,19 @@ export const api = {
     request<Vital>(`/opd/encounters/${encounterId}/vitals`, {
       method: "POST",
       body: JSON.stringify(data),
+    }),
+  /** Monitor readings waiting for a nurse, newest first. */
+  listMonitorReadings: (encounterId: string) =>
+    request<MonitorReading[]>(`/nurse/encounters/${encounterId}/monitor-readings`),
+  confirmMonitorReading: (id: string, data: EwsScoringInputs & { notes?: string }) =>
+    request<CreatedVital>(`/nurse/monitor-readings/${id}/confirm`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  discardMonitorReading: (id: string, reason: string) =>
+    request<{ status: string }>(`/nurse/monitor-readings/${id}/discard`, {
+      method: "POST",
+      body: JSON.stringify({ reason }),
     }),
   createNurseVital: (data: CreateVitalRequest & { encounter_id: string }) =>
     request<CreatedVital>("/nurse/vitals", {
@@ -16237,6 +16252,12 @@ export const api = {
   createDeviceInstance: (data: CreateDeviceInstanceRequest) =>
     request<DeviceInstance>("/devices/instances", { method: "POST", body: JSON.stringify(data) }),
 
+  /** The bed a bedside monitor watches; `null` takes it off. */
+  assignDeviceBed: (id: string, bedLocationId: string | null) =>
+    request<DeviceInstance>(`/devices/instances/${id}/bed`, {
+      method: "PUT",
+      body: JSON.stringify({ bed_location_id: bedLocationId }),
+    }),
   updateDeviceInstance: (id: string, data: UpdateDeviceInstanceRequest) =>
     request<DeviceInstance>(`/devices/instances/${id}`, {
       method: "PUT",

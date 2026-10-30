@@ -4,6 +4,7 @@ use axum::{Router, routing::{get,post,put}};
 use medbrains_server_core::state::AppState;
 
 pub mod code_blue_response;
+pub mod monitor_readings;
 pub mod nurse_clinical;
 pub mod nurse_ews;
 pub mod nurse_ews_api;
@@ -30,6 +31,18 @@ pub fn router() -> Router<AppState> {
         .route(
             "/api/nurse/vitals",
             post(nurse_vitals::create_vitals_reading),
+        )
+        .route(
+            "/api/nurse/encounters/{encounter_id}/monitor-readings",
+            get(monitor_readings::list_drafts),
+        )
+        .route(
+            "/api/nurse/monitor-readings/{id}/confirm",
+            post(monitor_readings::confirm),
+        )
+        .route(
+            "/api/nurse/monitor-readings/{id}/discard",
+            post(monitor_readings::discard),
         )
         .route("/api/nurse/ews/escalations", get(nurse_ews_api::list_escalations))
         .route(

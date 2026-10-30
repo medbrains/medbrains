@@ -57,13 +57,40 @@ pub struct CreateVitalsReadingRequest {
     pub scoring: crate::nurse_ews::ScoringInputs,
 }
 
-pub async fn create_vitals_reading(
-    State(state): State<AppState>,
-    Extension(claims): Extension<Claims>,
-    Json(body): Json<CreateVitalsReadingRequest>,
-) -> Result<Json<crate::nurse_ews::CreatedVital>, AppError> {
-    require_permission(&claims, permissions::nurse::vitals::RECORD)?;
-    require_encounter_access(&state, &claims, body.encounter_id).await?;
+/// Where a charted reading came from.
+#[derive(Debug, Clone, Copy)]
+pub enum Origin {
+    /// Typed in by a nurse, now.
+    Typed,
+    /// A monitor reading a nurse confirmed: charted at the time it was measured.
+    Monitor(DateTime<Utc>),
+}
+
+impl Origin {
+    const fn recorded_at(self) -> Option<DateTime<Utc>> {
+        match self {
+            Self::Typed => None,
+            Self::Monitor(at) => Some(at),
+        }
+    }
+
+    const fn source(self) -> &'static str {
+        match self {
+            Self::Typed => "manual",
+            Self::Monitor(_) => "device",
+        }
+    }
+}
+
+/// Write a vitals reading and score it -- the one path every charted reading
+/// takes, typed or confirmed from a monitor. Notifications to publish after
+/// commit are returned.
+pub async fn record_reading(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    (tenant_id, actor): (Uuid, Uuid),
+    body: &CreateVitalsReadingRequest,
+    origin: Origin,
+) -> Result<(Vital, crate::nurse_ews::EwsView, crate::nurse_ews::Outgoing), AppError> {
     let sc = &body.scoring;
 
     let bmi = match (body.weight_kg, body.height_cm) {
@@ -74,23 +101,20 @@ pub async fn create_vitals_reading(
         _ => None,
     };
 
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
-
     let row = sqlx::query_as::<_, Vital>(
         "INSERT INTO vitals \
          (tenant_id, encounter_id, recorded_by, temperature, pulse, \
           systolic_bp, diastolic_bp, respiratory_rate, spo2, \
           weight_kg, height_cm, bmi, notes, recorded_at, \
           consciousness, oxygen_device, oxygen_flow_lpm, fio2_percent, \
-          capillary_refill_seconds, respiratory_distress, head_circumference_cm) \
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, now(), \
-                 $14, $15, $16, $17, $18, $19, $20) \
+          capillary_refill_seconds, respiratory_distress, head_circumference_cm, source) \
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, COALESCE($21, now()), \
+                 $14, $15, $16, $17, $18, $19, $20, $22) \
          RETURNING *",
     )
-    .bind(claims.tenant_id)
+    .bind(tenant_id)
     .bind(body.encounter_id)
-    .bind(claims.sub)
+    .bind(actor)
     .bind(body.temperature)
     .bind(body.pulse)
     .bind(body.systolic_bp)
@@ -111,7 +135,9 @@ pub async fn create_vitals_reading(
             .map(|d| crate::nurse_ews::enum_text(&d)),
     )
     .bind(body.head_circumference_cm)
-    .fetch_one(&mut *tx)
+    .bind(origin.recorded_at())
+    .bind(origin.source())
+    .fetch_one(&mut **tx)
     .await?;
 
     sqlx::query(
@@ -119,9 +145,9 @@ pub async fn create_vitals_reading(
            next_due_at = now() + (frequency_minutes::text || ' minutes')::interval \
          WHERE tenant_id = $1 AND encounter_id = $2 AND ended_at IS NULL",
     )
-    .bind(claims.tenant_id)
+    .bind(tenant_id)
     .bind(body.encounter_id)
-    .execute(&mut *tx)
+    .execute(&mut **tx)
     .await?;
 
     let observed = crate::nurse_ews::Vitals {
@@ -134,12 +160,27 @@ pub async fn create_vitals_reading(
     };
     let obs = crate::nurse_ews::observation(&observed, sc);
     let (ews, outgoing) = crate::nurse_ews::score_reading(
-        &mut tx,
-        (claims.tenant_id, claims.sub),
+        tx,
+        (tenant_id, actor),
         (body.encounter_id, row.id),
         &obs,
     )
     .await?;
+
+    Ok((row, ews, outgoing))
+}
+
+pub async fn create_vitals_reading(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Json(body): Json<CreateVitalsReadingRequest>,
+) -> Result<Json<crate::nurse_ews::CreatedVital>, AppError> {
+    require_permission(&claims, permissions::nurse::vitals::RECORD)?;
+    require_encounter_access(&state, &claims, body.encounter_id).await?;
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let (row, ews, outgoing) =
+        record_reading(&mut tx, (claims.tenant_id, claims.sub), &body, Origin::Typed).await?;
 
     tx.commit().await?;
     for (id, n) in &outgoing {

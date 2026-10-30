@@ -18,6 +18,7 @@ import {
   EWS_TOOL_LABEL,
   ewsTotalText,
 } from "@/components/EarlyWarning/ews-display";
+import { MonitorReadingsPanel } from "@/components/Nurse/MonitorReadingsPanel";
 import { Alert, Badge, Button, toast } from "@/components/ui";
 import { nurseActivitiesService } from "@/services/nurseActivities.service";
 import {
@@ -261,6 +262,13 @@ export function VitalsTab({
                   </Alert>
                 )}
                 {lastScore && <EwsResultCard ews={lastScore} />}
+                {canView && encounterId && (
+                  <MonitorReadingsPanel
+                    encounterId={encounterId}
+                    canRecord={canRecord}
+                    onScored={setLastScore}
+                  />
+                )}
                 {canRecord && encounterId ? (
                   <Stack gap="md">
                     <EwsInputs value={ewsInputs} onChange={setEwsInputs} />
