@@ -2794,6 +2794,18 @@ pub mod specialty {
             pub const CREATE: &str = "specialty.dental.exams.create";
             pub const UPDATE: &str = "specialty.dental.exams.update";
         }
+        pub mod perio {
+            /// See periodontal charts.
+            ///
+            /// Probing depths at six sites per tooth, recession, bleeding,
+            /// mobility and furcation, and how each chart compares with the
+            /// patient's earlier ones.
+            pub const LIST: &str = "specialty.dental.perio.list";
+            /// Record a periodontal chart.
+            ///
+            /// Adds a full-mouth periodontal chart to a dental exam.
+            pub const RECORD: &str = "specialty.dental.perio.record";
+        }
         pub mod chart {
             pub const LIST: &str = "specialty.dental.chart.list";
             pub const CREATE: &str = "specialty.dental.chart.create";

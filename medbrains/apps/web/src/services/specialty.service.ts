@@ -30,6 +30,8 @@ export const specialtyService = {
   updateDentalExam: api.updateDentalExam,
   listDentalChart: api.listDentalChart,
   createDentalChartEntry: api.createDentalChartEntry,
+  recordPerioChart: api.recordPerioChart,
+  listPatientPerioCharts: api.listPatientPerioCharts,
   updateDentalChartEntry: api.updateDentalChartEntry,
   removeDentalChartEntry: api.removeDentalChartEntry,
   listDentalTreatment: api.listDentalTreatment,

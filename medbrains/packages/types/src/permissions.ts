@@ -17,7 +17,7 @@ export interface PermissionDef {
   module: string;
 }
 
-/** 1181 permissions, one per constant in the Rust source. */
+/** 1183 permissions, one per constant in the Rust source. */
 export const PERMISSIONS: PermissionDef[] = [
   // dashboard
   {
@@ -4817,6 +4817,18 @@ export const PERMISSIONS: PermissionDef[] = [
     code: "specialty.dental.exams.update",
     label: "Update Exams",
     description: "Update Exams",
+    module: "specialty",
+  },
+  {
+    code: "specialty.dental.perio.list",
+    label: "See periodontal charts",
+    description: "Probing depths at six sites per tooth, recession, bleeding, mobility and furcation, and how each chart compares with the patient's earlier ones.",
+    module: "specialty",
+  },
+  {
+    code: "specialty.dental.perio.record",
+    label: "Record a periodontal chart",
+    description: "Adds a full-mouth periodontal chart to a dental exam.",
     module: "specialty",
   },
   {
@@ -10281,6 +10293,12 @@ export const P = {
       EXAMS_CREATE: "specialty.dental.exams.create",
       EXAMS_LIST: "specialty.dental.exams.list",
       EXAMS_UPDATE: "specialty.dental.exams.update",
+      PERIO: {
+        LIST: "specialty.dental.perio.list",
+        RECORD: "specialty.dental.perio.record",
+      },
+      PERIO_LIST: "specialty.dental.perio.list",
+      PERIO_RECORD: "specialty.dental.perio.record",
       TREATMENT: {
         COMPLETE: "specialty.dental.treatment.complete",
         LIST: "specialty.dental.treatment.list",
@@ -10296,6 +10314,8 @@ export const P = {
     DENTAL_EXAMS_CREATE: "specialty.dental.exams.create",
     DENTAL_EXAMS_LIST: "specialty.dental.exams.list",
     DENTAL_EXAMS_UPDATE: "specialty.dental.exams.update",
+    DENTAL_PERIO_LIST: "specialty.dental.perio.list",
+    DENTAL_PERIO_RECORD: "specialty.dental.perio.record",
     DENTAL_TREATMENT_COMPLETE: "specialty.dental.treatment.complete",
     DENTAL_TREATMENT_LIST: "specialty.dental.treatment.list",
     DENTAL_TREATMENT_MANAGE: "specialty.dental.treatment.manage",
@@ -10999,6 +11019,8 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.SPECIALTY.DENTAL.EXAMS.CREATE,
       P.SPECIALTY.DENTAL.EXAMS.LIST,
       P.SPECIALTY.DENTAL.EXAMS.UPDATE,
+      P.SPECIALTY.DENTAL.PERIO.LIST,
+      P.SPECIALTY.DENTAL.PERIO.RECORD,
       P.SPECIALTY.DENTAL.TREATMENT.COMPLETE,
       P.SPECIALTY.DENTAL.TREATMENT.LIST,
       P.SPECIALTY.DENTAL.TREATMENT.MANAGE,
@@ -11250,6 +11272,8 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.SPECIALTY.DENTAL.EXAMS.CREATE,
       P.SPECIALTY.DENTAL.EXAMS.LIST,
       P.SPECIALTY.DENTAL.EXAMS.UPDATE,
+      P.SPECIALTY.DENTAL.PERIO.LIST,
+      P.SPECIALTY.DENTAL.PERIO.RECORD,
       P.SPECIALTY.DENTAL.TREATMENT.LIST,
       P.SPECIALTY.ENDOSCOPY.PROCEDURES.LIST,
       P.SPECIALTY.ENDOSCOPY.REPROCESSING.LIST,
