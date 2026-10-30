@@ -1946,6 +1946,29 @@ async fn missed_token_recall_after(
         .filter(|n| *n > 0))
 }
 
+/// Why a token cannot be put back in the queue, in the desk's words.
+///
+/// Only today's no-show can: the token is read for today only, and the desk's
+/// "came back" list offers nothing else. Anything finished keeps its place in
+/// the record, and its number may already have gone round to somebody else in
+/// a recycling queue — reopening it would put two holders of one number in the
+/// queue at once.
+fn requeue_refusal(number: &str, status: &str) -> Option<String> {
+    match status {
+        "no_show" => None,
+        "waiting" | "on_hold" | "called" | "serving" => {
+            Some(format!("{number} is still in the queue"))
+        }
+        "completed" => Some(format!(
+            "{number} was already seen — issue a new token if they need to be seen again"
+        )),
+        other => Some(format!(
+            "{number} is {} — only a missed token can be put back in the queue; issue a new one",
+            other.replace('_', " ")
+        )),
+    }
+}
+
 /// POST /api/tokens/{id}/requeue — a no-show who came back.
 ///
 /// Where they land is the hospital's policy, not ours. By default they go to
@@ -1992,6 +2015,16 @@ pub async fn requeue_token(
     .bind(existing.scope_id)
     .execute(&mut *tx)
     .await?;
+
+    // Read again under the lock: a console that was open for a while may be
+    // offering a token another desk has since called back or finished.
+    let status: String = sqlx::query_scalar("SELECT status FROM tokens WHERE id = $1 FOR UPDATE")
+        .bind(id)
+        .fetch_one(&mut *tx)
+        .await?;
+    if let Some(reason) = requeue_refusal(&existing.number, &status) {
+        return Err(AppError::Conflict(reason));
+    }
 
     let seq = match recall_after {
         Some(after) => place_after(&mut tx, &existing, after).await?,
@@ -2310,6 +2343,17 @@ mod queue_permission_tests {
         for module in ["opd", "pharmacy", "lab", "billing"] {
             assert!(require_queue_manage(&claims(&["front_office.queue.manage"]), module).is_ok());
         }
+    }
+
+    #[test]
+    fn only_a_no_show_goes_back_in_the_queue() {
+        assert_eq!(super::requeue_refusal("P-1", "no_show"), None);
+        assert_eq!(
+            super::requeue_refusal("P-1", "completed").as_deref(),
+            Some("P-1 was already seen — issue a new token if they need to be seen again")
+        );
+        assert!(super::requeue_refusal("P-1", "waiting").is_some());
+        assert!(super::requeue_refusal("P-1", "cancelled").is_some());
     }
 
     #[test]

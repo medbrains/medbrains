@@ -259,3 +259,38 @@ async fn a_recycling_queue_needs_a_pool() {
     let body = resp.text().await.unwrap_or_default();
     assert!(body.contains("needs how many go round"), "{body}");
 }
+
+/// Given P-1 was seen and its number has gone round to the next patient, When
+/// a stale console tries to put the first P-1 back in the queue, Then it is
+/// refused in words — two waiting P-1s is the mix-up recycling must prevent.
+#[tokio::test]
+async fn a_finished_token_whose_number_went_round_cannot_be_requeued() {
+    let app = common::spawn_app().await;
+    let csrf = app.login_admin().await;
+    let department = own_department(&app).await;
+    configure(
+        &app,
+        &csrf,
+        department,
+        json!({ "number_pool_size": 1, "reuse_cooloff_minutes": 0 }),
+    )
+    .await;
+
+    let (_, first) = issue(&app, &csrf, department).await;
+    finished_minutes_ago(&app, &csrf, &first, 1).await;
+    let (status, second) = issue(&app, &csrf, department).await;
+    assert_eq!(status, StatusCode::OK, "{second}");
+    assert_eq!(second["number"], first["number"]);
+
+    let id = first["id"].as_str().unwrap_or_default();
+    let resp = app
+        .client
+        .post(app.url(&format!("/api/tokens/{id}/requeue")))
+        .header("x-csrf-token", &csrf)
+        .send()
+        .await
+        .expect("requeue");
+    assert_eq!(resp.status(), StatusCode::CONFLICT);
+    let body = resp.text().await.unwrap_or_default();
+    assert!(body.contains("was already seen"), "{body}");
+}
