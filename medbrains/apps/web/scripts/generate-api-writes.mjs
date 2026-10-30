@@ -21,12 +21,13 @@
 
 import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import {
   moduleOf,
   parseSeedMap,
   parseSkipEndpoints,
   parseSmokeBodies,
+  routeBlocks,
   routeSourceFiles,
   substituteParams,
 } from "./generate-api-smoke.mjs";
@@ -45,7 +46,7 @@ const WRITE_VERBS = ["post", "put", "patch", "delete"];
 // ─── Rust source index ────────────────────────────────────────────
 
 /** Every `.rs` under the src tree of each medbrains crate, as {file, crate, text}. */
-function rustSources() {
+export function rustSources() {
   const out = [];
   const walk = (dir, crate) => {
     for (const name of readdirSync(dir)) {
@@ -69,7 +70,7 @@ const RE_FN = /\b(?:pub(?:\([^)]*\))?\s+)?async\s+fn\s+(\w+)\s*\(/g;
 const RE_STRUCT = /\b(?:pub(?:\([^)]*\))?\s+)?struct\s+(\w+)\s*\{/g;
 
 /** name → [{src, index}] for every async fn and every struct. */
-function indexSources(sources) {
+export function indexSources(sources) {
   const fns = new Map();
   const structs = new Map();
   const add = (map, name, entry) => {
@@ -84,7 +85,7 @@ function indexSources(sources) {
 }
 
 /** Same file, then same crate, then core, then a unique repo-wide match. */
-function pick(candidates, from) {
+export function pick(candidates, from) {
   if (!candidates || candidates.length === 0) return null;
   const same = candidates.find((c) => c.src.file === from.file);
   if (same) return same;
@@ -97,16 +98,13 @@ function pick(candidates, from) {
 
 // ─── Routes with their handlers ───────────────────────────────────
 
-const RE_ROUTE = /\.route\s*\(\s*"([^"]+)"\s*,\s*([\s\S]*?)\)\s*(?=[.;])/g;
-
 /** [{path, method, handler}] for every write registration in one source. */
-function parseWriteRoutes(src) {
-  const stripped = src.text.replace(/\/\/[^\n]*/g, "");
+export function parseWriteRoutes(src) {
   const out = [];
-  for (const m of stripped.matchAll(RE_ROUTE)) {
+  for (const { path, handlers } of routeBlocks(src.text)) {
     for (const verb of WRITE_VERBS) {
-      const h = new RegExp(`\\b(?:axum::routing::)?${verb}\\s*\\(\\s*([\\w:]+)`).exec(m[2]);
-      if (h) out.push({ path: m[1], method: verb.toUpperCase(), handler: h[1].split("::").pop() });
+      const h = new RegExp(`\\b(?:axum::routing::)?${verb}\\s*\\(\\s*([\\w:]+)`).exec(handlers);
+      if (h) out.push({ path, method: verb.toUpperCase(), handler: h[1].split("::").pop() });
     }
   }
   return out;
@@ -115,7 +113,7 @@ function parseWriteRoutes(src) {
 // ─── Request struct ───────────────────────────────────────────────
 
 /** The `Json<T>` type a handler takes, or null (path-only), or "Value". */
-function jsonBodyType(fnEntry) {
+export function jsonBodyType(fnEntry) {
   const { text } = fnEntry.src;
   const end = text.indexOf("{", fnEntry.index);
   const sig = text.slice(fnEntry.index, end === -1 ? undefined : end);
@@ -128,7 +126,7 @@ function jsonBodyType(fnEntry) {
 }
 
 /** Fields of a struct body: [{name, ty, required}], or null when unparseable. */
-function structFields(structEntry) {
+export function structFields(structEntry) {
   const { text } = structEntry.src;
   let depth = 1;
   let i = structEntry.index;
@@ -204,13 +202,16 @@ const ENUM_LIKE =
  * required String is enum-like, a required list must be non-empty, or the
  * struct is all-optional (an empty update is refused as empty, not absent).
  */
-function synthesiseBody(fields, seedData) {
+export function synthesiseBody(fields, seedData, { deserialiseOnly = false } = {}) {
   const required = fields.filter((x) => x.required);
-  if (required.length === 0) return null;
+  // A permission check runs before the handler reads a field, so a body that
+  // merely deserialises is enough there; a not-found case must also pass
+  // the handler's own validation, which is where the stricter rules apply.
+  if (required.length === 0) return deserialiseOnly ? {} : null;
   const body = {};
   for (const f of required) {
-    if (/^Vec</.test(f.ty)) return null;
-    if (f.ty.split("::").pop() === "String" && ENUM_LIKE.test(f.name)) return null;
+    if (!deserialiseOnly && /^Vec</.test(f.ty)) return null;
+    if (!deserialiseOnly && f.ty.split("::").pop() === "String" && ENUM_LIKE.test(f.name)) return null;
     const v = valueFor(f, seedData);
     if (v === undefined) return null;
     body[f.name] = v;
@@ -399,4 +400,5 @@ function main() {
   );
 }
 
-main();
+// Run only as a script; generate-api-rbac-deny.mjs imports the parsers above.
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) main();
