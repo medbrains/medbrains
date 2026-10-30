@@ -1174,6 +1174,11 @@ import type {
   HandoverSummaryResponse,
   HasBledRequest,
   HasBledResult,
+  HealthAppReading,
+  HealthAppReadingsResult,
+  HealthDataSharing,
+  HealthDataSource,
+  HealthDataType,
   HealthPackage,
   HealthResponse,
   HeldAnalyserMessage,
@@ -18331,6 +18336,27 @@ export const api = {
       body: JSON.stringify(data),
     }),
   getPortalPrivacy: (token: string) => request<PortalPrivacy>("/portal/privacy", portalAuth(token)),
+  /** What the patient shares from Apple Health / Health Connect. */
+  getPortalHealthData: (token: string) =>
+    request<HealthDataSharing>("/portal/health-data", portalAuth(token)),
+  setPortalHealthDataConsent: (
+    token: string,
+    data: { source: HealthDataSource; data_type: HealthDataType; granted: boolean },
+  ) =>
+    request<HealthDataSharing>("/portal/health-data/consent", {
+      ...portalAuth(token),
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
+  postPortalHealthReadings: (
+    token: string,
+    data: { source: HealthDataSource; readings: HealthAppReading[] },
+  ) =>
+    request<HealthAppReadingsResult>("/portal/health-data/readings", {
+      ...portalAuth(token),
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
   /** The patient's own record as a FHIR R4 collection bundle. */
   getPortalExport: (token: string) =>
     request<Record<string, unknown>>("/portal/privacy/export", portalAuth(token)),

@@ -206,6 +206,7 @@ mod patient_acquisition_test;
 mod patient_contact_consent_test;
 mod patient_portal_isolation_test;
 mod patient_refill_requests_test;
+mod portal_health_data_test;
 mod patient_visit_count_test;
 mod payer_split_test;
 mod dpdp_compliance_test;

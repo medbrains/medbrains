@@ -2,6 +2,12 @@ package com.medbrains.patient
 
 import androidx.compose.runtime.compositionLocalOf
 import com.medbrains.kit.ApiClient
+import com.medbrains.kit.HealthAppReading
+import com.medbrains.kit.HealthConsentAsk
+import com.medbrains.kit.HealthDataKind
+import com.medbrains.kit.HealthDataSharing
+import com.medbrains.kit.HealthReadingsAsk
+import com.medbrains.kit.HealthReadingsResult
 import com.medbrains.kit.HomeDelivery
 import kotlinx.serialization.Serializable
 
@@ -97,6 +103,13 @@ class PortalApi(private val client: ApiClient) {
     /** The patient's own deliveries, newest first. */
     suspend fun deliveries(): List<PortalDelivery> = client.get("/api/portal/deliveries")
     suspend fun privacy(): PortalPrivacy = client.get("/api/portal/privacy")
+    /** The patient's sharing choices for Health Connect readings. */
+    suspend fun healthData(): HealthDataSharing = client.get("/api/portal/health-data")
+    suspend fun setHealthConsent(kind: HealthDataKind, granted: Boolean): HealthDataSharing =
+        client.put("/api/portal/health-data/consent", HealthConsentAsk(HealthDataSharing.SOURCE, kind, granted))
+    /** Shared as patient-reported; the server checks each kind was agreed to. */
+    suspend fun shareHealthReadings(readings: List<HealthAppReading>): HealthReadingsResult =
+        client.post("/api/portal/health-data/readings", HealthReadingsAsk(HealthDataSharing.SOURCE, readings))
     /** The storefront: what the pharmacy sells online, by brand or generic name. */
     suspend fun searchStore(tenantCode: String, q: String): StoreSearchResult =
         client.get("/api/store/$tenantCode/items?q=${java.net.URLEncoder.encode(q, "UTF-8")}")

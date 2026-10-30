@@ -192,6 +192,8 @@ struct PrivacyRequestAsk: Encodable, Sendable {
     let nomineeName: String?
 }
 
+private struct HealthConsentAsk: Encodable { let source: HealthDataSource; let dataType: HealthDataKind; let granted: Bool }
+private struct HealthReadingsAsk: Encodable { let source: HealthDataSource; let readings: [HealthAppReading] }
 private struct OtpRequest: Encodable { let tenantCode: String; let phone: String }
 private struct OtpVerify: Encodable { let tenantCode: String; let phone: String; let code: String; let patientId: String? }
 
@@ -231,6 +233,15 @@ struct PortalApi: Sendable {
     /// The patient's own change of mind — a new decision on the ledger.
     func setConsent(_ choice: DpdpConsentChoice) async throws -> PatientDpdpConsent {
         try await client.request(.put, "/api/portal/dpdp-consent", body: choice)
+    }
+    /// The patient's sharing choices for Apple Health readings.
+    func healthData() async throws -> HealthDataSharing { try await client.request(.get, "/api/portal/health-data") }
+    func setHealthConsent(kind: HealthDataKind, granted: Bool) async throws -> HealthDataSharing {
+        try await client.request(.put, "/api/portal/health-data/consent", body: HealthConsentAsk(source: .healthkit, dataType: kind, granted: granted))
+    }
+    /// Shared as patient-reported; the server checks each kind was agreed to.
+    func shareHealthReadings(_ readings: [HealthAppReading]) async throws -> HealthReadingsResult {
+        try await client.request(.post, "/api/portal/health-data/readings", body: HealthReadingsAsk(source: .healthkit, readings: readings))
     }
     /// Answered within 90 days; the server applies the same rules as the desk.
     func makePrivacyRequest(_ ask: PrivacyRequestAsk) async throws -> PrivacyRequestRow {

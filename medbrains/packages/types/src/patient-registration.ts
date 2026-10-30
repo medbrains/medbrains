@@ -863,3 +863,35 @@ export interface MpiMatchResult {
   /** Why, field by field ("Name matches in another spelling", …). */
   reasons?: string[];
 }
+
+/** Where a patient's shared health data comes from. */
+export type HealthDataSource = "healthkit" | "health_connect";
+export type HealthDataType = "blood_pressure" | "glucose" | "weight" | "spo2" | "heart_rate";
+
+/** A patient's latest yes/no to sharing one kind of reading from one source. */
+export interface HealthDataConsent {
+  source: HealthDataSource;
+  data_type: HealthDataType;
+  granted: boolean;
+  recorded_at: string;
+}
+
+export interface HealthDataSharing {
+  consents: HealthDataConsent[];
+}
+
+/** One reading from Apple Health / Health Connect. Glucose in mg/dL, weight in kg. */
+export interface HealthAppReading {
+  data_type: HealthDataType;
+  external_id: string;
+  measured_at: string;
+  value?: number;
+  systolic?: number;
+  diastolic?: number;
+}
+
+export interface HealthAppReadingsResult {
+  accepted: number;
+  duplicates: number;
+  refused: { external_id: string; reason: string }[];
+}

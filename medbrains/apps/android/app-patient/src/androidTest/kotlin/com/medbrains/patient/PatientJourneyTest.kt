@@ -4,6 +4,7 @@ import android.content.Intent
 import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
+import androidx.compose.ui.test.assertIsOff
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.v2.createEmptyComposeRule
@@ -43,7 +44,9 @@ class PatientJourneyTest {
     private val phone = InstrumentationRegistry.getArguments().getString("portalPhone") ?: "9876500777"
     private var scenario: ActivityScenario<MainActivity>? = null
 
-    private fun launch(baseUrl: String = "http://10.0.2.2:3000") {
+    private val backend = InstrumentationRegistry.getArguments().getString("baseUrl") ?: "http://10.0.2.2:3000"
+
+    private fun launch(baseUrl: String = backend) {
         scenario?.close()
         val intent = Intent(InstrumentationRegistry.getInstrumentation().targetContext, MainActivity::class.java).putExtra("baseUrl", baseUrl).putExtra("hospitalCode", "DEFAULT")
         scenario = ActivityScenario.launch(intent)
@@ -151,6 +154,34 @@ class PatientJourneyTest {
         check(seed.privacyRequests(patientId).getJSONObject(0).optString("received_via") == "portal") { "on the register as a portal request" }
     }
 
+    /**
+     * Sharing from Health Connect starts off: every kind is off until the
+     * patient turns it on, so there is nothing to share yet.
+     */
+    private fun healthDataStep() {
+        launch()
+        compose.waitUntil(15_000) { has("module-health-data") }
+        compose.onNodeWithTag("module-health-data").performScrollTo().performClick()
+        compose.waitUntil(10_000) { has("share-heart_rate") }
+        for (kind in listOf("blood_pressure", "glucose", "weight", "spo2", "heart_rate")) {
+            compose.onNodeWithTag("share-$kind").performScrollTo().assertIsOff()
+        }
+        compose.onNodeWithTag("share-now").performScrollTo().assertIsNotEnabled()
+    }
+
+    /** Sharing from Health Connect, alone: sign in and find every kind off. Spends the seeded code. */
+    @Test
+    fun healthDataSharingStartsOff() {
+        launch(); signOutIfSignedIn()
+        compose.onNodeWithTag("phone").performTextInput(phone)
+        compose.onNodeWithTag("haveCode").performClick()
+        compose.waitUntil(5_000) { has("code") }
+        compose.onNodeWithTag("code").performTextInput("424242")
+        compose.onNodeWithTag("verify").performClick()
+        compose.waitUntil(15_000) { has("tab-hospital") }
+        healthDataStep()
+    }
+
     @Test
     fun theSeededCodeOpensTheRecordTheDeskHolds() {
         val seed = PortalSeed.admin()
@@ -218,6 +249,7 @@ class PatientJourneyTest {
             launch()
             compose.waitUntil(15_000) { has("module-consent") }
             privacyStep(seed, patientId)
+            healthDataStep()
 
             seed.setModule("companion", enabled = true)
             launch()

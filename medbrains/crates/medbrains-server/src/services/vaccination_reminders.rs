@@ -14,7 +14,7 @@ pub fn spawn(pool: PgPool) {
         loop {
             match medbrains_patients::immunization_schedule::send_due_reminders(&pool).await {
                 Ok(n) if n > 0 => {
-                    tracing::info!(considered = n, "vaccination reminder pass complete")
+                    tracing::info!(considered = n, "vaccination reminder pass complete");
                 }
                 Ok(_) => {}
                 Err(error) => tracing::error!(%error, "vaccination reminder pass failed"),
