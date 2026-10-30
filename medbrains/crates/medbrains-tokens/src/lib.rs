@@ -304,10 +304,20 @@ pub(crate) async fn place_in_queue(
         };
         // A configured queue numbers by its own rule; it does not borrow the
         // visit's number, or the prefix the administrator chose would never show.
+        // `seq` orders the queue and stays monotonic in every mode; recycling
+        // changes only the number on the slip.
         let seq = queues::next_seq(tx, queue.id, &admission.period_key).await?;
+        let number = if queue.reset_rule == "recycle" {
+            match queues::recycled_number(tx, tenant_id, &queue, &admission.prefix).await? {
+                Ok(number) => number,
+                Err(reason) => return Ok(Err(reason)),
+            }
+        } else {
+            queue.number(&admission.prefix, seq)
+        };
         return Ok(Ok(Placement {
             queue_id: Some(queue.id),
-            number: queue.number(&admission.prefix, seq),
+            number,
             period_key: Some(admission.period_key),
             seq,
         }));
@@ -831,6 +841,10 @@ pub struct BoardQuery {
     /// what happened rather than a screen that has forgotten them.
     ///
     /// Off by default, so every existing caller sees exactly what it saw.
+    ///
+    /// A recycling queue can give one number out twice in a day; a finished
+    /// token whose number has a newer holder is left off, so a public board
+    /// never shows one number as both done and waiting.
     #[serde(default)]
     pub include_finished: bool,
     /// Worklist only: `mine` — the caller's own patients, then their
@@ -860,7 +874,13 @@ pub async fn list_board(
            AND ($2::text IS NULL OR scope = $2) \
            AND ($3::uuid IS NULL OR scope_id = $3) \
            AND (status IN ('waiting', 'on_hold', 'called', 'serving') \
-                OR ($4::bool AND status IN ('completed', 'no_show', 'expired'))) \
+                OR ($4::bool AND status IN ('completed', 'no_show', 'expired') \
+                    AND NOT EXISTS (SELECT 1 FROM tokens n \
+                                     WHERE n.tenant_id = tokens.tenant_id \
+                                       AND n.number = tokens.number \
+                                       AND n.token_date = tokens.token_date \
+                                       AND n.queue_id = tokens.queue_id \
+                                       AND n.created_at > tokens.created_at))) \
          ORDER BY token_queue_weight(queue_id, priority, created_at), seq ASC"
     ))
     .bind(&query.module)

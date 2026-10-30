@@ -61,6 +61,11 @@ pub struct QueueInput {
     pub voice_languages: Vec<String>,
     #[serde(default = "default_announce_repeat")]
     pub announce_repeat: i16,
+    /// `recycle` only: how many numbers go round.
+    #[serde(default)]
+    pub number_pool_size: Option<i32>,
+    #[serde(default = "default_reuse_cooloff_minutes")]
+    pub reuse_cooloff_minutes: i32,
 }
 
 const fn default_early_issue_minutes() -> i16 {
@@ -77,6 +82,10 @@ fn default_voice_languages() -> Vec<String> {
 
 const fn default_announce_repeat() -> i16 {
     1
+}
+
+const fn default_reuse_cooloff_minutes() -> i32 {
+    30
 }
 
 /// Languages the board can speak today.
@@ -121,6 +130,18 @@ impl QueueInput {
         if !(0..=240).contains(&self.early_issue_minutes) {
             return bad("Tokens can start at most 4 hours before a session opens");
         }
+        if self.reset_rule != "recycle" {
+            // Only a recycling queue has a pool; a stale one would read as set.
+            self.number_pool_size = None;
+        } else if !self
+            .number_pool_size
+            .is_some_and(|n| (1..=9999).contains(&n))
+        {
+            return bad("A queue that recycles numbers needs how many go round, 1 to 9999");
+        }
+        if !(0..=1440).contains(&self.reuse_cooloff_minutes) {
+            return bad("A number can wait at most a day (1440 minutes) before it is given again");
+        }
         Ok(())
     }
 }
@@ -137,7 +158,8 @@ pub async fn list_queues(
         QueueConfig,
         "SELECT id, name, module, scope, scope_id, scope_label, prefix, start_at, pad_width, \
                 reset_rule, max_tokens_per_period, lifecycle, valid_from, valid_until, status, \
-                early_issue_minutes, board_shows, voice_languages, announce_repeat \
+                early_issue_minutes, board_shows, voice_languages, announce_repeat, \
+                number_pool_size, reuse_cooloff_minutes \
            FROM queues WHERE tenant_id = $1 ORDER BY (status = 'closed'), name",
         claims.tenant_id,
     )
@@ -268,12 +290,13 @@ pub async fn create_queue(
         "INSERT INTO queues (tenant_id, name, module, scope, scope_id, scope_label, prefix, \
            start_at, pad_width, reset_rule, max_tokens_per_period, lifecycle, valid_from, \
            valid_until, status, created_by, early_issue_minutes, board_shows, voice_languages, \
-           announce_repeat) \
+           announce_repeat, number_pool_size, reuse_cooloff_minutes) \
          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, \
-           $18, $19, $20) \
+           $18, $19, $20, $21, $22) \
          RETURNING id, name, module, scope, scope_id, scope_label, prefix, start_at, pad_width, \
            reset_rule, max_tokens_per_period, lifecycle, valid_from, valid_until, status, \
-           early_issue_minutes, board_shows, voice_languages, announce_repeat",
+           early_issue_minutes, board_shows, voice_languages, announce_repeat, \
+           number_pool_size, reuse_cooloff_minutes",
         claims.tenant_id,
         body.name.trim(),
         body.module,
@@ -294,6 +317,8 @@ pub async fn create_queue(
         body.board_shows,
         &body.voice_languages,
         body.announce_repeat,
+        body.number_pool_size,
+        body.reuse_cooloff_minutes,
     )
     .fetch_one(&mut *tx)
     .await
@@ -323,11 +348,13 @@ pub async fn update_queue(
         "UPDATE queues SET name = $3, prefix = $4, start_at = $5, pad_width = $6, \
            reset_rule = $7, max_tokens_per_period = $8, lifecycle = $9, valid_from = $10, \
            valid_until = $11, status = $12, early_issue_minutes = $13, board_shows = $14, \
-           voice_languages = $15, announce_repeat = $16 \
+           voice_languages = $15, announce_repeat = $16, number_pool_size = $17, \
+           reuse_cooloff_minutes = $18 \
          WHERE id = $1 AND tenant_id = $2 \
          RETURNING id, name, module, scope, scope_id, scope_label, prefix, start_at, pad_width, \
            reset_rule, max_tokens_per_period, lifecycle, valid_from, valid_until, status, \
-           early_issue_minutes, board_shows, voice_languages, announce_repeat",
+           early_issue_minutes, board_shows, voice_languages, announce_repeat, \
+           number_pool_size, reuse_cooloff_minutes",
         id,
         claims.tenant_id,
         body.name.trim(),
@@ -344,6 +371,8 @@ pub async fn update_queue(
         body.board_shows,
         &body.voice_languages,
         body.announce_repeat,
+        body.number_pool_size,
+        body.reuse_cooloff_minutes,
     )
     .fetch_optional(&mut *tx)
     .await

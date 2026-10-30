@@ -410,6 +410,43 @@ themselves now carry the name, for the desk console.
   28 server tests picked `tenants LIMIT 1`, wrong once a second tenant exists;
   `device_node_key_test` targets the route #4630 moved (not fixed here).
 
+- **P1d — recycled numbers with a cool-off** *(built 2026-10-29)*: reset rule
+  `recycle` for hospitals with plastic token cards or a pharmacy that calls
+  1–99. `queues.number_pool_size` (1–9999; the numbers run `start_at ..
+  start_at + pool − 1`) and `queues.reuse_cooloff_minutes` (0–1440, default
+  30), migration 1345. The safety rule (IPSG-1): a patient who held "P-07"
+  moments ago may walk back holding it, so a second "P-07" in the meantime is
+  the wrong patient called or the wrong medicine handed over.
+  - **Allocation** — one query, under the queue's advisory lock: the lowest pool
+    number that nobody **holds** and whose last holder **finished** at least the
+    cool-off ago. Held = a live token (`waiting`, `on_hold`, `called`,
+    `serving`); today's `no_show` (the desk can still requeue it); a `completed`
+    token whose patient is live in a queue it referred them to
+    (`return_to_referrer` reopens that very token). Finished =
+    `completed_at`, else `updated_at` (cancelled, and expired by the day-end
+    rollover). `expired` is not held: that day is closed and a returning patient
+    gets a new token. Held is checked tenant-wide by number, because a visit
+    carries its first number into unconfigured queues.
+  - **seq** is unchanged: still `MAX(seq) + 1` per day, so ordering, boards,
+    call-next and KPIs read exactly as before; only the slip's number comes from
+    the pool. The daily limit still counts per day.
+  - **Pool exhausted** — the desk is told "All 99 numbers of Pharmacy are in use
+    or cooling off — next free at 14:05" (hospital clock), or "are in use" when
+    nothing is cooling.
+  - **By-number reads** — nothing on the server looks a token up by number
+    (pharmacy collection joins on `collection_token_id`, patient tracking uses
+    its own link). The one place two holders of a number could meet is a wall
+    board with `include_finished`: a finished token whose number has a newer
+    holder in the same queue today is left off, so a board never shows one
+    number as both done and waiting.
+  - Admin → Queues: *Numbering* — Daily reset / Each session / Never reset /
+    Recycle numbers; Recycle shows the pool size and cool-off with "A number is
+    given out again only after its last holder finished at least N minutes
+    ago." Permission unchanged: `front_office.queue.config.manage`.
+  - Tests: `token_number_recycling_test.rs` (cool-off, live and recallable
+    holders, exhausted reason, concurrent issue, daily/never unchanged, pool
+    required), schema test, `token-queue-config` journey.
+
 ## P2 slices (2026-09-26)
 
 - **P2a — counters and counter staff** *(built 2026-09-26)*: counters are the

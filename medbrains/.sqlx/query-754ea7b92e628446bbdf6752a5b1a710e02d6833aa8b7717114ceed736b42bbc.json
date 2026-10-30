@@ -1,0 +1,30 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "WITH usage AS (\n               SELECT t.number,\n                      bool_or(t.status IN ('waiting', 'on_hold', 'called', 'serving')\n                           OR (t.status = 'no_show' AND t.token_date = CURRENT_DATE)\n                           OR (t.status = 'completed' AND t.patient_id IS NOT NULL\n                               AND EXISTS (\n                                   SELECT 1 FROM tokens r\n                                    WHERE r.tenant_id = t.tenant_id\n                                      AND r.patient_id = t.patient_id\n                                      AND r.referred_from_module = t.module\n                                      AND r.referred_from_scope = t.scope\n                                      AND r.referred_from_scope_id IS NOT DISTINCT FROM t.scope_id\n                                      AND r.token_date = CURRENT_DATE\n                                      AND r.status IN ('waiting', 'on_hold', 'called', 'serving')))\n                      ) AS held,\n                      MAX(COALESCE(t.completed_at, t.updated_at))\n                          + make_interval(mins => $3) AS free_at\n                 FROM tokens t\n                WHERE t.tenant_id = $1 AND t.number = ANY($2)\n                  AND t.token_date >= CURRENT_DATE - 2\n                GROUP BY t.number\n           )\n           SELECT (SELECT p.number FROM unnest($2::text[]) WITH ORDINALITY AS p(number, ord)\n                     LEFT JOIN usage u ON u.number = p.number\n                    WHERE u.number IS NULL OR (NOT u.held AND u.free_at <= now())\n                    ORDER BY p.ord LIMIT 1) AS number,\n                  (SELECT to_char(MIN(u.free_at)\n                                  AT TIME ZONE (SELECT timezone FROM tenants WHERE id = $1),\n                                  'HH24:MI')\n                     FROM usage u WHERE NOT u.held) AS next_free",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "number",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 1,
+        "name": "next_free",
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "TextArray",
+        "Int4"
+      ]
+    },
+    "nullable": [
+      null,
+      null
+    ]
+  },
+  "hash": "754ea7b92e628446bbdf6752a5b1a710e02d6833aa8b7717114ceed736b42bbc"
+}

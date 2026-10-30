@@ -132,3 +132,52 @@ test("an administrator gives a queue its own lanes, and the desk calls by them",
   await expect(page.getByRole("row", { name: /L-002/ })).toContainText("Called");
   await expect(page.getByRole("row", { name: /L-001/ })).toContainText("Waiting");
 });
+
+test("an administrator recycles numbers, and a number waits out its cool-off", async ({
+  page,
+  request,
+}) => {
+  const ctx = await getAuthContextFromCookies(request);
+  const dept = await ownDepartment(ctx);
+  const name = `Pickup ${dept.name}`;
+  // Its own prefix: a number held anywhere in the hospital is not reissued.
+  const prefix = `P${crypto.randomUUID().slice(0, 4).toUpperCase()}`;
+  await routeApiDirect(page);
+  await page.goto("/admin/queues");
+
+  await page.getByRole("button", { name: "New queue" }).click();
+  const drawer = page.getByRole("dialog", { name: "New queue" });
+  await drawer.getByLabel("Name").fill(name);
+  await drawer.getByRole("combobox", { name: "Place it serves" }).click();
+  await drawer.getByRole("combobox", { name: "Place it serves" }).fill(dept.name);
+  await page.getByRole("option", { name: new RegExp(dept.name) }).click();
+  await drawer.getByLabel("Prefix").fill(prefix);
+  await drawer.getByLabel("Digits").fill("1");
+  // The pool appears only once recycling is chosen.
+  await expect(drawer.getByTestId("field-number_pool_size")).toHaveCount(0);
+  await drawer.getByTestId("field-reset_rule").click();
+  await page.getByRole("option", { name: "Recycle numbers" }).click();
+  await drawer.getByTestId("field-number_pool_size").fill("2");
+  await expect(
+    drawer.getByText("only after its last holder finished at least 30 minutes ago"),
+  ).toBeVisible();
+  await drawer.getByRole("button", { name: "Create queue" }).click();
+
+  await page.getByTestId("field-table-search").fill(name);
+  await expect(page.getByRole("row", { name: new RegExp(name) })).toContainText(
+    `${prefix}-1 · recycles 2 numbers after 30 min`,
+  );
+
+  // P-1 is served and gone, but inside its cool-off: it does not go round yet.
+  const first = await api<{ id: string; number: string }>(ctx, "POST", "/api/tokens/issue", {
+    module: "opd",
+    scope: "department",
+    scope_id: dept.id,
+  });
+  expect(first.number).toBe(`${prefix}-1`);
+  for (const step of ["call", "complete"]) {
+    await api(ctx, "POST", `/api/tokens/${first.id}/${step}`, {});
+  }
+  expect((await issue(ctx, dept.id)).number).toBe(`${prefix}-2`);
+  await expect(issue(ctx, dept.id)).rejects.toThrow(/cooling off — next free at/);
+});
