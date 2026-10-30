@@ -174,12 +174,16 @@ pub async fn receive_lines(
         .await?;
 
         if updated.rows_affected() == 0 {
-            // Cleared at the source, so cleared here: the goods are the same.
+            // Cleared at the source, so cleared here: the goods are the same,
+            // and so is the MRP printed on them.
             sqlx::query(
                 "INSERT INTO pharmacy_batches \
                  (tenant_id, catalog_item_id, store_location_id, batch_number, expiry_date, \
-                  quantity_received, quantity_on_hand, purchase_rate, quarantine_status) \
-                 VALUES ($1, $2, $3, $4, $5, $6, $6, $7, 'cleared')",
+                  quantity_received, quantity_on_hand, purchase_rate, quarantine_status, mrp) \
+                 VALUES ($1, $2, $3, $4, $5, $6, $6, $7, 'cleared', \
+                         (SELECT max(mrp) FROM pharmacy_batches \
+                           WHERE tenant_id = $1 AND catalog_item_id = $2 AND batch_number = $4 \
+                             AND deleted_at IS NULL))",
             )
             .bind(tenant_id)
             .bind(line.catalog_item_id)

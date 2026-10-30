@@ -40,11 +40,14 @@ use medbrains_server_core::middleware::authorization::{
 use medbrains_server_core::middleware::field_access;
 use medbrains_server_core::state::AppState;
 
+mod credit_notes;
 mod expired;
 pub mod h1_register;
+pub mod nppa;
 pub mod pos_counter;
 pub mod pos_returns;
 mod pos_scheduled;
+pub mod quarantine;
 mod return_rules;
 mod terminal_tender;
 pub mod rx_safety;
@@ -1677,6 +1680,8 @@ pub struct CreateBatchRequest {
     pub supplier_batch_number: Option<String>,
     pub purchase_rate: Option<Decimal>,
     pub selling_rate: Option<Decimal>,
+    /// The MRP printed on the strip: nothing from this batch sells above it.
+    pub mrp: Option<Decimal>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -2310,14 +2315,16 @@ async fn notify_pharmacists_low_stock_in_tx(
     Ok(())
 }
 
+/// A batch the pharmacist picked by hand. `min_shelf_days` is the shelf
+/// life it must still have — the storefront's floor for an online order, 0
+/// otherwise — so a hand pick can't send out what FEFO would refuse.
 async fn decrement_batch_stock_for_dispense_in_tx(
     tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
     tenant_id: &Uuid,
-    catalog_id: Uuid,
-    batch_id: Uuid,
-    quantity: i32,
-    drug_name: &str,
+    pick: &BatchPick<'_>,
+    min_shelf_days: i32,
 ) -> Result<BatchDispenseTrace, AppError> {
+    let drug_name = pick.drug_name;
     sqlx::query_as::<_, BatchDispenseTrace>(
         "UPDATE pharmacy_batches SET \
          quantity_dispensed = quantity_dispensed + $1, \
@@ -2325,21 +2332,37 @@ async fn decrement_batch_stock_for_dispense_in_tx(
          updated_at = now() \
          WHERE id = $2 AND tenant_id = $3 AND catalog_item_id = $4 \
            AND quantity_on_hand >= $1 \
-           AND expiry_date > CURRENT_DATE \
+           AND expiry_date > CURRENT_DATE + $5 \
            AND quarantine_status = 'cleared' \
          RETURNING id, batch_number, expiry_date",
     )
-    .bind(quantity)
-    .bind(batch_id)
+    .bind(pick.quantity)
+    .bind(pick.batch_id)
     .bind(tenant_id)
-    .bind(catalog_id)
+    .bind(pick.catalog_id)
+    .bind(min_shelf_days.max(0))
     .fetch_optional(&mut **tx)
     .await?
     .ok_or_else(|| {
-        AppError::Conflict(format!(
-            "Insufficient usable batch stock for {drug_name}. Select another non-expired cleared batch."
-        ))
+        if min_shelf_days > 0 {
+            AppError::Conflict(format!(
+                "That batch of {drug_name} can't go on an online order: it needs at least \
+                 {min_shelf_days} days of shelf life left, cleared and in stock. Pick another."
+            ))
+        } else {
+            AppError::Conflict(format!(
+                "Insufficient usable batch stock for {drug_name}. Select another non-expired cleared batch."
+            ))
+        }
     })
+}
+
+/// The batch a pharmacist picked for one line.
+struct BatchPick<'a> {
+    catalog_id: Uuid,
+    batch_id: Uuid,
+    quantity: i32,
+    drug_name: &'a str,
 }
 
 /// `min_shelf_days`: days of shelf life the batch must have left — the
@@ -2386,16 +2409,27 @@ async fn ensure_pharmacy_billing_indent_for_order_in_tx(
     order: &PharmacyOrder,
     items: &[PharmacyOrderItem],
 ) -> Result<PharmacyBillingIndentResult, AppError> {
-    // A walk-in order has nobody to bill; its sale is paid at the counter.
-    let Some(patient_id) = order.patient_id else {
-        return Ok(PharmacyBillingIndentResult::default());
-    };
     if !medbrains_server_services::billing::is_auto_billing_enabled(tx, tenant_id, "pharmacy")
         .await?
     {
         return Ok(PharmacyBillingIndentResult::default());
     }
+    bill_order_items_in_tx(tx, tenant_id, order, items).await
+}
 
+/// Bill an order's lines to the patient, whatever the auto-billing switch
+/// says: an online order is a retail sale and always carries its tax
+/// invoice (Rule 65 cash memo; GST).
+async fn bill_order_items_in_tx(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    tenant_id: &Uuid,
+    order: &PharmacyOrder,
+    items: &[PharmacyOrderItem],
+) -> Result<PharmacyBillingIndentResult, AppError> {
+    // A walk-in order has nobody to bill; its sale is paid at the counter.
+    let Some(patient_id) = order.patient_id else {
+        return Ok(PharmacyBillingIndentResult::default());
+    };
     let mut result = PharmacyBillingIndentResult::default();
 
     // One tax lookup for the order, not one per line. A discharge
@@ -3164,10 +3198,13 @@ pub async fn dispense_order(
                     decrement_batch_stock_for_dispense_in_tx(
                         &mut tx,
                         &claims.tenant_id,
-                        catalog_id,
-                        batch_stock_id,
-                        dispense_qty,
-                        &item.drug_name,
+                        &BatchPick {
+                            catalog_id,
+                            batch_id: batch_stock_id,
+                            quantity: dispense_qty,
+                            drug_name: &item.drug_name,
+                        },
+                        online_shelf_days,
                     )
                     .await?,
                 )
@@ -4929,8 +4966,8 @@ pub async fn create_batch(
         "INSERT INTO pharmacy_batches \
          (tenant_id, catalog_item_id, batch_number, expiry_date, manufacture_date, \
           quantity_received, quantity_on_hand, store_location_id, supplier_info, \
-          invoice_number, supplier_batch_number, purchase_rate, selling_rate) \
-         VALUES ($1, $2, $3, $4, $5, $6, $6, $7, $8, $9, $10, $11, $12) RETURNING *",
+          invoice_number, supplier_batch_number, purchase_rate, selling_rate, mrp) \
+         VALUES ($1, $2, $3, $4, $5, $6, $6, $7, $8, $9, $10, $11, $12, $13) RETURNING *",
     )
     .bind(claims.tenant_id)
     .bind(body.catalog_item_id)
@@ -4944,6 +4981,7 @@ pub async fn create_batch(
     .bind(&body.supplier_batch_number)
     .bind(body.purchase_rate)
     .bind(body.selling_rate)
+    .bind(body.mrp)
     .fetch_one(&mut *tx)
     .await?;
 
@@ -7564,10 +7602,13 @@ pub async fn create_pos_sale(
                     decrement_batch_stock_for_dispense_in_tx(
                         &mut tx,
                         &claims.tenant_id,
-                        catalog_id,
-                        batch_id,
-                        item.quantity,
-                        &item.drug_name,
+                        &BatchPick {
+                            catalog_id,
+                            batch_id,
+                            quantity: item.quantity,
+                            drug_name: &item.drug_name,
+                        },
+                        0,
                     )
                     .await?,
                 )
@@ -8509,6 +8550,11 @@ pub struct AnalyticsDateQuery {
 pub fn router() -> axum::Router<AppState> {
     axum::Router::new()
         .merge(storefront::router())
+        .route("/api/pharmacy/quarantine", get(quarantine::list))
+        .route("/api/pharmacy/quarantine/destroy", post(quarantine::destroy))
+        .route("/api/pharmacy/nppa-ceilings", get(nppa::list))
+        .route("/api/pharmacy/nppa-ceilings/import", post(nppa::import))
+        .route("/api/pharmacy/nppa-ceilings/{id}", put(nppa::set))
         .route(
             "/api/pharmacy/h1-register",
             get(h1_register::h1_register),
@@ -8634,6 +8680,10 @@ pub fn router() -> axum::Router<AppState> {
         .route(
             "/api/pharmacy/pos/receipt-lookup",
             get(pos_returns::lookup_receipt),
+        )
+        .route(
+            "/api/pharmacy/pos/return-policy",
+            get(credit_notes::return_policy),
         )
         .route(
             "/api/pharmacy/pos/credit-notes/{id}",

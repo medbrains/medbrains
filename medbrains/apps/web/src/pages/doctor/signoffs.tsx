@@ -20,6 +20,7 @@ import { UnsignedNotesCard } from "@/components/Clinical/case-sheet/UnsignedNote
 import { CriticalValueInbox } from "@/components/Doctor/CriticalValueInbox";
 import { RefillDecision } from "@/components/Doctor/RefillDecision";
 import { SignWorkspace } from "@/components/Doctor/SignWorkspace";
+import { StoreSubstitutionDecision } from "@/components/Doctor/StoreSubstitutionDecision";
 import { VerbalOrderRegister } from "@/components/Doctor/VerbalOrderRegister";
 import { PageHeader } from "@/components/PageHeader";
 import { Badge, type BadgeTone, IconButton } from "@/components/ui";
@@ -228,6 +229,8 @@ function SignoffList({
               </Stack>
               {item.record_type === "refill_request" ? (
                 <RefillDecision item={item} />
+              ) : item.record_type === "store_substitution" ? (
+                <StoreSubstitutionDecision item={item} />
               ) : (
                 <Tooltip label="Sign">
                   <IconButton
@@ -272,6 +275,8 @@ function labelFor(type: string): string {
       return "Progress Note";
     case "refill_request":
       return "Refill request";
+    case "store_substitution":
+      return "Substitute";
     default:
       return type.replace(/_/g, " ");
   }

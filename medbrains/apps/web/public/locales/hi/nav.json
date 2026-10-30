@@ -32,6 +32,8 @@
   "pharmacyDispatch": "संग्रह काउंटर",
   "pharmacyDeliveries": "होम डिलीवरी",
   "pharmacyOnlineOrders": "ऑनलाइन ऑर्डर",
+  "pharmacyQuarantine": "वापसी क्वारंटीन",
+  "pharmacyNppaCeilings": "NPPA अधिकतम मूल्य",
   "pharmacyH1Register": "H1 रजिस्टर",
   "radiology": "रेडियोलॉजी",
   "bloodBank": "ब्लड बैंक",

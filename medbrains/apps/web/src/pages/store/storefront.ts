@@ -32,6 +32,7 @@ export const ORDER_STATUS_VIEW: Record<StoreOrderStatus, { label: string; tone: 
   released: { label: "Being prepared", tone: "success" },
   rejected: { label: "Not approved", tone: "danger" },
   cancelled: { label: "Cancelled", tone: "neutral" },
+  closed: { label: "Closed", tone: "neutral" },
 };
 
 export const REJECT_REASONS: { value: StoreRejectReason; label: string }[] = [

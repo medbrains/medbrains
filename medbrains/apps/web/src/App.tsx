@@ -159,6 +159,12 @@ const VerifyPackPage = lazy(() =>
 const DeliveriesPage = lazy(() =>
   import("./pages/pharmacy/deliveries").then((m) => ({ default: m.DeliveriesPage })),
 );
+const QuarantinePage = lazy(() =>
+  import("./pages/pharmacy/quarantine").then((m) => ({ default: m.QuarantinePage })),
+);
+const NppaCeilingsPage = lazy(() =>
+  import("./pages/pharmacy/nppa-ceilings").then((m) => ({ default: m.NppaCeilingsPage })),
+);
 const OnlineOrdersPage = lazy(() =>
   import("./pages/pharmacy/online-orders").then((m) => ({ default: m.OnlineOrdersPage })),
 );
@@ -641,6 +647,8 @@ export function App() {
               <Route path="pharmacy/deliveries" element={<DeliveriesPage />} />
               <Route path="pharmacy/online-orders" element={<OnlineOrdersPage />} />
               <Route path="pharmacy/h1-register" element={<H1RegisterPage />} />
+              <Route path="pharmacy/quarantine" element={<QuarantinePage />} />
+              <Route path="pharmacy/nppa-ceilings" element={<NppaCeilingsPage />} />
               <Route path="billing" element={<BillingPage />} />
               <Route path="billing/counter" element={<BillingCounterPage />} />
               <Route path="billing/doctor-payouts" element={<DoctorPayoutsPage />} />

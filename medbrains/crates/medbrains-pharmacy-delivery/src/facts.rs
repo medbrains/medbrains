@@ -125,6 +125,22 @@ async fn setting(
     .await?)
 }
 
+/// Whether an online order's medicines, `goods`, deliver free: at or above
+/// the hospital's `pharmacy.free_delivery_above`.
+pub async fn delivers_free(
+    tx: &mut Transaction<'_, Postgres>,
+    tenant_id: Uuid,
+    goods: Decimal,
+) -> Result<bool, AppError> {
+    let threshold = setting(tx, tenant_id, "free_delivery_above")
+        .await?
+        .and_then(|v| serde_json::from_value::<Decimal>(v).ok())
+        .unwrap_or_else(|| {
+            Decimal::from(medbrains_core::pharmacy_delivery::DEFAULT_FREE_DELIVERY_ABOVE)
+        });
+    Ok(goods >= threshold)
+}
+
 /// The hospital's delivery fee and how many paid deliveries earn cash on
 /// delivery (`pharmacy.delivery_fee`, `pharmacy.cod_min_deliveries`).
 pub async fn settings(

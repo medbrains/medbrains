@@ -1015,6 +1015,27 @@ pub fn build_router(state: AppState) -> Router {
         .route("/api/portal/store/checkout", post(portal_store::store_checkout))
         .route("/api/portal/store/orders", get(portal_store::store_orders))
         .route("/api/portal/store/orders/{id}", get(portal_store::store_order))
+        .route("/api/portal/store/cart/hold", post(portal_store::store_hold_cart))
+        .route(
+            "/api/portal/store/serviceability",
+            get(portal_store::store_serviceability),
+        )
+        .route(
+            "/api/portal/store/orders/{id}/cancel",
+            post(portal_store::store_cancel_order),
+        )
+        .route(
+            "/api/portal/store/orders/{id}/returns",
+            post(portal_store::store_request_return),
+        )
+        .route(
+            "/api/portal/store/orders/{id}/substitutions/{sid}/consent",
+            post(portal_store::store_substitution_consent),
+        )
+        .route(
+            "/api/portal/store/orders/{id}/outside-print",
+            post(portal_store::store_outside_print),
+        )
         .route(
             "/api/portal/store/prescriptions/{id}/order",
             post(portal_store::store_order_prescription),

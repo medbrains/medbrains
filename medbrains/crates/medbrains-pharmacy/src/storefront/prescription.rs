@@ -72,6 +72,10 @@ pub async fn order_prescription(
     if lines.is_empty() {
         return Err(AppError::NotFound);
     }
+    let supply_cap = format!(
+        "{} days",
+        super::rules::load(tx, tenant_id).await?.max_days_supply
+    );
     let cart = ensure_cart(tx, tenant_id, patient_id).await?;
     // The prescription replaces what was in the cart.
     sqlx::query(
@@ -83,7 +87,7 @@ pub async fn order_prescription(
     .execute(&mut **tx)
     .await?;
     let ids: Vec<Uuid> = lines.iter().filter_map(|l| l.catalog_item_id).collect();
-    let rows = rows_by_ids(tx, tenant_id, &ids, &settings).await?;
+    let rows = rows_by_ids(tx, tenant_id, &ids, &settings, Some(cart)).await?;
     let mut left_out = Vec::new();
     for line in &lines {
         let Some(row) = line.catalog_item_id.and_then(|id| rows.get(&id)) else {
@@ -93,8 +97,16 @@ pub async fn order_prescription(
             });
             continue;
         };
+        // At most the hospital's days of supply for one online order
+        // (`max_days_supply_online`, 30 by default): a longer course comes in
+        // refills.
         let quantity =
             crate::estimate_rx_dispense_quantity(&line.dosage, &line.frequency, &line.duration)
+                .min(crate::estimate_rx_dispense_quantity(
+                    &line.dosage,
+                    &line.frequency,
+                    &supply_cap,
+                ))
                 .max(1);
         let quantity = super::cart::line_max(row, &settings, Some(quantity));
         match check_line(row, quantity, &settings, Some(quantity)) {

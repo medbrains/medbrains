@@ -96,7 +96,11 @@ function ReturnDone({ result, onDone }: { result: ReturnResult; onDone: () => vo
             {line.qty} × {line.drug_name}
           </Text>
           <Badge tone={line.destination === "stock" ? "success" : "warning"}>
-            {line.destination === "stock" ? "Back to stock" : "To the expiry bin"}
+            {line.destination === "stock"
+              ? "Back to stock"
+              : line.destination === "quarantine"
+                ? "Quarantined for destruction"
+                : "Not restocked"}
           </Badge>
         </Group>
       ))}

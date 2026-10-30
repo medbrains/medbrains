@@ -122,6 +122,8 @@ pub struct About {
     pub pharmacist_registration: Option<String>,
     pub grievance_officer: Option<GrievanceOfficer>,
     pub return_window_days: i64,
+    /// Shown before purchase (E-Commerce Rules 2020).
+    pub return_policy: String,
 }
 
 /// Hospital name, then address, drug licence, GSTIN, pharmacist and registration.
@@ -177,6 +179,9 @@ pub async fn about(tx: &mut Transaction<'_, Postgres>, tenant_id: Uuid) -> Resul
         pharmacist_registration: registration,
         grievance_officer: settings.grievance_officer,
         return_window_days: settings.return_window_days,
+        return_policy: medbrains_core::pharmacy_returns::return_policy_text(
+            settings.return_window_days,
+        ),
     })
 }
 

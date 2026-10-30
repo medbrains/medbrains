@@ -1,10 +1,14 @@
 //! Checkout: the cart becomes an order. Nothing needing a prescription goes
 //! straight to fulfilment; anything that does waits for a pharmacist to
 //! verify each line against the hospital prescription or the upload.
-//! Schedule X, NDPS and controlled drugs never get this far. Stock is
-//! checked here and again at release, and moves only at dispense. Delivery
-//! is offered exactly as part 3 offers it.
+//! Schedule X, NDPS and controlled drugs never get this far. The order goes
+//! to the store that can fill it and is held there (`hold_cart`) through
+//! review; stock is checked again at release and moves only at dispense.
+//! Delivery is offered as part 3 offers it, within the hospital's slots and
+//! cash-on-delivery cap; a repeat of the same medicine too soon is held for
+//! the pharmacist.
 
+use medbrains_core::pharmacy_delivery::PAY_ON_DELIVERY;
 use medbrains_core::pharmacy_storefront::{
     CartLine as RuleLine, Release, RxSource, SaleClass, checkout as rule_checkout,
 };
@@ -20,6 +24,7 @@ use uuid::Uuid;
 
 use super::cart::{check_line, orderable, stored_lines};
 use super::catalog::{ItemRow, rows_by_ids};
+use super::hold_cart::{Ctx, StorePick, Target, hold, hold_lines};
 use super::orders::{StoreOrderView, patient_order};
 use super::settings::StoreSettings;
 
@@ -31,16 +36,27 @@ pub struct CheckoutRequest {
     pub prescription_id: Option<Uuid>,
     /// Home delivery; absent for pickup at the pharmacy.
     pub delivery: Option<DeliveryChoice>,
+    /// For pickup: the pharmacy the patient chose; the nearest that has
+    /// everything when absent.
+    pub pickup_store_id: Option<Uuid>,
 }
 
-struct Line {
-    id: Uuid,
-    row: ItemRow,
+pub(super) struct Line {
+    pub(super) id: Uuid,
+    pub(super) row: ItemRow,
+    pub(super) quantity: i32,
+    /// A prescription line out of stock online: it goes to the pharmacist,
+    /// unheld, for a doctor-approved substitute or the outside-pharmacy print.
+    pub(super) short: bool,
 }
 
-/// The cart's lines with their catalogue rows, each still orderable, within
-/// its limit and in stock online.
-async fn cart_lines(
+/// The flag on an order with a prescription line out of stock.
+pub(super) const OUT_OF_STOCK: &str = "out_of_stock";
+
+/// The cart's lines with their catalogue rows, each still orderable and
+/// within its limit. Over-the-counter lines must be in stock; a prescription
+/// line out of stock may still be ordered (owner decision 4).
+pub(super) async fn cart_lines(
     tx: &mut Transaction<'_, Postgres>,
     tenant_id: Uuid,
     cart: Uuid,
@@ -48,7 +64,7 @@ async fn cart_lines(
 ) -> Result<Vec<Line>, AppError> {
     let stored = stored_lines(tx, tenant_id, cart).await?;
     let ids: Vec<Uuid> = stored.iter().map(|l| l.catalog_item_id).collect();
-    let mut rows = rows_by_ids(tx, tenant_id, &ids, settings).await?;
+    let mut rows = rows_by_ids(tx, tenant_id, &ids, settings, Some(cart)).await?;
     stored
         .into_iter()
         .map(|l| {
@@ -60,13 +76,19 @@ async fn cart_lines(
                 )));
             }
             check_line(&row, l.quantity, settings, l.prescribed_quantity)?;
-            if row.available < l.quantity {
+            let short = row.available < l.quantity;
+            if short && row.class() != SaleClass::Prescription {
                 return Err(AppError::Conflict(format!(
                     "{} is out of stock for online orders",
                     row.name
                 )));
             }
-            Ok(Line { id: l.id, row })
+            Ok(Line {
+                id: l.id,
+                row,
+                quantity: l.quantity,
+                short,
+            })
         })
         .collect()
 }
@@ -133,22 +155,32 @@ async fn check_hospital_rx(
     }
 }
 
-/// What delivery would be offered for the cart now (part 3's offer).
+/// What delivery would be offered for the cart now (part 3's offer), less
+/// cash on delivery above the hospital's cap.
 pub async fn delivery_options(
     tx: &mut Transaction<'_, Postgres>,
     tenant_id: Uuid,
     patient_id: Uuid,
 ) -> Result<DeliveryOffer, AppError> {
     let settings = super::settings::require_open(tx, tenant_id).await?;
-    let facts = match super::cart_id(tx, tenant_id, patient_id).await? {
-        Some(cart) => cart_lines(tx, tenant_id, cart, &settings)
-            .await?
-            .iter()
-            .map(|l| l.row.line_facts())
-            .collect(),
+    let lines = match super::cart_id(tx, tenant_id, patient_id).await? {
+        Some(cart) => cart_lines(tx, tenant_id, cart, &settings).await?,
         None => Vec::new(),
     };
-    offer_for_lines(tx, tenant_id, patient_id, &facts).await
+    let facts: Vec<_> = lines.iter().map(|l| l.row.line_facts()).collect();
+    let mut offer = offer_for_lines(tx, tenant_id, patient_id, &facts).await?;
+    let rules = super::rules::load(tx, tenant_id).await?;
+    if !super::limits::cod_allowed(&rules, cart_total(&lines, &settings)) {
+        offer.payments.retain(|p| *p != PAY_ON_DELIVERY);
+        if offer.available && offer.payments.is_empty() {
+            offer.available = false;
+            offer.reason = Some(format!(
+                "Cash on delivery is for orders up to ₹{}: collect this one at the pharmacy",
+                rules.cod_max_amount
+            ));
+        }
+    }
+    Ok(offer)
 }
 
 /// Place the patient's cart as an order. Returns the order as they see it.
@@ -203,29 +235,66 @@ pub async fn checkout(
             ));
         }
     }
+    let rules = super::rules::load(tx, tenant_id).await?;
     if let Some(choice) = &request.delivery {
+        super::limits::check_delivery(tx, tenant_id, &rules, choice, cart_total(&lines, &settings))
+            .await?;
         let facts: Vec<_> = lines.iter().map(|l| l.row.line_facts()).collect();
         let checked = check_choice_for_lines(tx, tenant_id, patient_id, &facts, choice).await?;
         record_choice(tx, tenant_id, Source::Store(cart), &checked).await?;
     }
+    let pick = StorePick {
+        delivery_pincode: request.delivery.as_ref().and_then(|d| d.pincode.as_deref()),
+        pickup_store: request.pickup_store_id,
+    };
+    let ctx = Ctx {
+        settings: &settings,
+        rules: &rules,
+    };
+    let store = hold(tx, tenant_id, cart, &lines, &ctx, &pick).await?;
     fix_prices(tx, tenant_id, &lines, &settings).await?;
+    let ids: Vec<Uuid> = lines.iter().map(|l| l.row.id).collect();
+    let mut flags =
+        super::limits::repeat_flags(tx, tenant_id, patient_id, cart, &ids, &rules).await?;
+    if lines.iter().any(|l| l.short) {
+        flags.push(OUT_OF_STOCK.to_owned());
+    }
     // Placed. Release moves it on at once when no pharmacist need read it.
     sqlx::query(
         "UPDATE pharmacy_store_orders \
             SET status = 'awaiting_verification', rx_source = $3, prescription_id = $4, \
-                placed_at = now() \
+                placed_at = now(), store_location_id = $5, flags = $6 \
           WHERE id = $1 AND tenant_id = $2",
     )
     .bind(cart)
     .bind(tenant_id)
     .bind(rx.as_str())
     .bind(prescription_id)
+    .bind(store)
+    .bind(&flags)
     .execute(&mut **tx)
     .await?;
-    if release == Release::Now {
+    if release == Release::Now && flags.is_empty() {
         super::release::release(tx, tenant_id, cart, None).await?;
+    } else {
+        // Held through the pharmacist's review, on the hospital's review ladder.
+        let target = Target {
+            cart,
+            store,
+            kind: "review",
+            lines: &lines,
+        };
+        hold_lines(tx, tenant_id, &target, &ctx).await?;
     }
     patient_order(tx, tenant_id, patient_id, cart).await
+}
+
+/// The cart's total at today's prices.
+pub(super) fn cart_total(lines: &[Line], settings: &StoreSettings) -> Decimal {
+    lines
+        .iter()
+        .filter_map(|l| l.row.price(settings).map(|p| p * Decimal::from(l.quantity)))
+        .sum()
 }
 
 /// Fix each line's price as it stands now, and approve what needs no

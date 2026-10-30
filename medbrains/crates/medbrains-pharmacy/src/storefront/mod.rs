@@ -10,10 +10,23 @@
 pub mod cart;
 pub mod catalog;
 pub mod checkout;
+pub mod floors;
+pub mod hold_cart;
+mod holds;
+mod invoice;
+mod limits;
 pub mod orders;
+pub mod outside;
 pub mod prescription;
+pub mod refunds;
 mod release;
+pub mod returns;
+pub mod returns_desk;
+pub mod rules;
 pub mod settings;
+pub mod stores;
+pub mod substitution;
+pub mod substitution_decide;
 pub mod verify;
 
 use axum::routing::{get, post, put};
@@ -44,6 +57,54 @@ pub fn router() -> axum::Router<AppState> {
         .route(
             "/api/pharmacy/storefront/pharmacists",
             get(settings::pharmacists),
+        )
+        .route(
+            "/api/pharmacy/storefront/rules",
+            get(rules::get_rules).put(rules::put_rules),
+        )
+        .route("/api/pharmacy/storefront/stores", get(stores::list_stores))
+        .route(
+            "/api/pharmacy/storefront/stores/{id}",
+            put(stores::put_store),
+        )
+        .route("/api/pharmacy/storefront/floors", get(floors::list))
+        .route(
+            "/api/pharmacy/storefront/orders/{id}/lines/{item}/substitutes",
+            get(substitution::candidates),
+        )
+        .route(
+            "/api/pharmacy/storefront/orders/{id}/substitutions",
+            post(substitution::propose),
+        )
+        .route(
+            "/api/pharmacy/storefront/orders/{id}/outside-print",
+            post(outside::staff_print),
+        )
+        .route(
+            "/api/doctor/store-substitutions/{id}",
+            get(substitution_decide::get_request),
+        )
+        .route(
+            "/api/doctor/store-substitutions/{id}/decide",
+            post(substitution_decide::decide),
+        )
+        .route("/api/pharmacy/storefront/returns", get(returns_desk::list))
+        .route(
+            "/api/pharmacy/storefront/returns/{id}/acknowledge",
+            post(returns_desk::acknowledge),
+        )
+        .route(
+            "/api/pharmacy/storefront/returns/{id}/receive",
+            post(returns_desk::receive),
+        )
+        .route(
+            "/api/pharmacy/storefront/returns/{id}/refuse",
+            post(returns_desk::refuse),
+        )
+        .route("/api/pharmacy/storefront/refunds", get(refunds::list))
+        .route(
+            "/api/pharmacy/storefront/refunds/{id}/issue",
+            post(refunds::issue),
         )
 }
 

@@ -68,8 +68,10 @@ export interface ReturnedLine {
   qty: number;
   refund: string;
   gst: string;
-  /** `stock` back to its batch, or `expiry_bin` when the batch has expired. */
-  destination: "stock" | "expiry_bin";
+  /** `stock` back to its batch, `quarantine` for destruction, `discarded` off-catalogue. */
+  destination: "stock" | "quarantine" | "discarded";
+  /** Why it was quarantined. */
+  reasons: string[];
 }
 
 export interface ReturnResult {
@@ -84,7 +86,8 @@ export interface ReturnResult {
 }
 
 export interface ReturnPosItemsRequest {
-  items: Array<{ item_id: string; return_qty: number }>;
+  /** `sealed`: the manufacturer's seal is unbroken; unsealed goes to quarantine. */
+  items: Array<{ item_id: string; return_qty: number; sealed?: boolean }>;
   reason?: string;
   /** How the money goes back. Absent, in proportion to how it was paid. */
   refund_to?: Array<{ mode: string; amount: string; reference?: string }>;
