@@ -20,5 +20,8 @@ chrono = { workspace = true }
 sqlx = { workspace = true }
 tracing = { workspace = true }
 
+[dev-dependencies]
+medbrains-adapter-sdk = { path = "../medbrains-adapter-sdk" }
+
 [lints]
 workspace = true

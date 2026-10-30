@@ -48,6 +48,8 @@ export interface DeviceInstance {
   adapter_code: string;
   facility_id: string | null;
   department_id: string | null;
+  /** The bed a bedside monitor watches. */
+  bed_location_id: string | null;
   name: string;
   code: string;
   serial_number: string | null;
@@ -515,4 +517,19 @@ export interface QuizAttemptResult {
   score: number;
   max_score: number;
   pass_percentage: number;
+}
+
+/** A bedside monitor reading waiting for a nurse to confirm or discard. */
+export interface MonitorReading {
+  id: string;
+  device_name: string;
+  observed_at: string;
+  temperature: string | null;
+  pulse: number | null;
+  systolic_bp: number | null;
+  diastolic_bp: number | null;
+  respiratory_rate: number | null;
+  spo2: number | null;
+  /** Outside the range a ward acts on; kept whatever the 15-minute rule says. */
+  is_abnormal: boolean;
 }

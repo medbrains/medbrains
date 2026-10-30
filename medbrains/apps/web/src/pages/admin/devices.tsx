@@ -33,6 +33,7 @@ import { PageHeader } from "@/components/PageHeader";
 import { Badge, type BadgeTone, Button, Table } from "@/components/ui";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
 import { adminDevicesService } from "@/services/adminDevices.service";
+import { DeviceBedSelect } from "./DeviceBedSelect";
 import { DeviceMessagesDrawer } from "./DeviceMessagesDrawer";
 
 // Types inlined until @medbrains/types rebuild propagates
@@ -70,6 +71,7 @@ interface DeviceInstance {
   adapter_code: string;
   facility_id: string | null;
   department_id: string | null;
+  bed_location_id: string | null;
   name: string;
   code: string;
   serial_number: string | null;
@@ -233,6 +235,7 @@ export function DevicesPage() {
 
 function DeviceListTab() {
   const canViewMessages = useHasPermission(P.DEVICES.MESSAGES_VIEW);
+  const canUpdate = useHasPermission(P.DEVICES.UPDATE);
   const [messagesOf, setMessagesOf] = useState<DeviceInstance | null>(null);
   const { data: devices, isLoading } = useQuery({
     queryKey: ["devices", "instances"],
@@ -266,6 +269,7 @@ function DeviceListTab() {
             <Table.Th>Adapter</Table.Th>
             <Table.Th>Protocol</Table.Th>
             <Table.Th>Host</Table.Th>
+            <Table.Th>Bed (monitors)</Table.Th>
             <Table.Th>Status</Table.Th>
             <Table.Th>Messages (24h)</Table.Th>
             <Table.Th>AI Confidence</Table.Th>
@@ -298,6 +302,9 @@ function DeviceListTab() {
                 <Text size="sm" ff="var(--font-mono, monospace)" c="dimmed">
                   {d.hostname ? `${d.hostname}:${d.port ?? ""}` : "Not configured"}
                 </Text>
+              </Table.Td>
+              <Table.Td>
+                <DeviceBedSelect device={d} canUpdate={canUpdate} />
               </Table.Td>
               <Table.Td>
                 <Badge size="sm" tone={STATUS_COLOR[d.status] ?? "neutral"}>

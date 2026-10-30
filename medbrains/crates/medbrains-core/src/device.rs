@@ -149,6 +149,8 @@ pub struct DeviceInstanceRow {
     pub adapter_code: String,
     pub facility_id: Option<Uuid>,
     pub department_id: Option<Uuid>,
+    /// The bed a bedside monitor watches; its readings belong to whoever is admitted there.
+    pub bed_location_id: Option<Uuid>,
     pub name: String,
     pub code: String,
     pub serial_number: Option<String>,
