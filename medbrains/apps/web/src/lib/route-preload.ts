@@ -53,6 +53,7 @@ const routePreloaders: Record<string, RoutePreloader> = {
   "/specialty/palliative": () => import("@/pages/specialty/palliative"),
   "/specialty/maternity": () => import("@/pages/specialty/maternity"),
   "/specialty/other": () => import("@/pages/specialty/other"),
+  "/specialty/cancer-registry": () => import("@/pages/specialty/cancer-registry"),
   "/cssd": () => import("@/pages/cssd"),
   "/diet-kitchen": () => import("@/pages/diet-kitchen"),
   "/emergency": () => import("@/pages/emergency"),

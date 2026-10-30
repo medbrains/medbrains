@@ -178,6 +178,75 @@ export interface CreateDentalChartEntryRequest {
 }
 
 /** Oncology depth — cancer TNM staging + radiation-therapy sessions. */
+/** NCDIR HBCR core-form coding for one staged cancer (item numbers from the 2025 manual). */
+export interface HbcrCoding {
+  hbcr_registration_no: string | null;
+  date_of_first_diagnosis: string | null;
+  case_registered_through: number | null;
+  referral_type: "self" | "other_facility" | "unknown" | null;
+  method_of_diagnosis: number | null;
+  icdo3_topography: string | null;
+  icdo3_morphology: string | null;
+  icd10_code: string | null;
+  laterality: number | null;
+  sequence: number | null;
+  extent_of_disease: number | null;
+  staging_system: number | null;
+  prior_treatment: number | null;
+  intention: number | null;
+  ecog: number | null;
+  treatment_at_ri: number | null;
+}
+
+/** Coded items keyed by abstract field: `[code, meaning]` pairs. */
+export type RegistryCodeLists = Record<string, [number, string][]>;
+
+export type RegistryStatus = "due" | "draft" | "complete" | "submitted";
+
+export interface RegistryWorklistRow {
+  staging_id: string;
+  patient_id: string;
+  patient_name: string;
+  uhid: string;
+  primary_site: string;
+  histology: string | null;
+  staged_at: string | null;
+  status: RegistryStatus;
+  ncdir_reference: string | null;
+  submitted_at: string | null;
+}
+
+export interface RegistryCaseFacts {
+  staging_id: string;
+  patient_id: string;
+  uhid: string;
+  patient_name: string;
+  date_of_birth: string | null;
+  gender: string;
+  address: Record<string, string> | null;
+  primary_site: string;
+  histology: string | null;
+  t_stage: string | null;
+  n_stage: string | null;
+  m_stage: string | null;
+  overall_stage: string | null;
+  staged_at: string | null;
+}
+
+export interface RegistryCase {
+  facts: RegistryCaseFacts;
+  status: RegistryStatus;
+  coding: HbcrCoding;
+  missing: string[];
+  ncdir_reference: string | null;
+}
+
+export interface RegistrySheet {
+  filename: string;
+  content: string;
+  count: number;
+}
+
 export interface CancerStaging {
   id: string;
   tenant_id: string;

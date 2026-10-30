@@ -2892,6 +2892,25 @@ pub mod specialty {
         pub mod oncology {
             pub const LIST: &str = "specialty.other.oncology.list";
             pub const CREATE: &str = "specialty.other.oncology.create";
+
+            pub mod registry {
+                /// See the cancer registry worklist.
+                ///
+                /// Every staged cancer and its NCDIR hospital-based cancer
+                /// registry abstract: due, in progress, complete or submitted.
+                pub const LIST: &str = "specialty.other.oncology.registry.list";
+                /// Complete cancer registry abstracts.
+                ///
+                /// Codes the HBCR core form for a case — ICD-O-3, extent,
+                /// staging system, treatment — as the NCDIR manual sets out.
+                pub const ABSTRACT: &str = "specialty.other.oncology.registry.abstract";
+                /// Export abstracts and record their submission to NCDIR.
+                ///
+                /// Builds the HBCR sheet with patients' names, addresses and
+                /// identifiers for the registry, and records the NCDIR
+                /// registration once submitted. Every sheet is a disclosure.
+                pub const EXPORT: &str = "specialty.other.oncology.registry.export";
+            }
         }
         pub mod dialysis {
             pub const LIST: &str = "specialty.other.dialysis.list";
