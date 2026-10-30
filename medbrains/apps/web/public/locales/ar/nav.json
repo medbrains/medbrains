@@ -32,6 +32,8 @@
   "pharmacyDispatch": "منضدة الاستلام",
   "pharmacyDeliveries": "التوصيل المنزلي",
   "pharmacyOnlineOrders": "الطلبات عبر الإنترنت",
+  "pharmacyQuarantine": "حجر المرتجعات",
+  "pharmacyNppaCeilings": "أسعار NPPA القصوى",
   "pharmacyH1Register": "سجل H1",
   "radiology": "الأشعة",
   "bloodBank": "بنك الدم",

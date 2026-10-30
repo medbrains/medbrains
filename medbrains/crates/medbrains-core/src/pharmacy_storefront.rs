@@ -111,6 +111,18 @@ pub fn online_price(price: Decimal, discount_percent: Decimal, cap: Option<Decim
     cap.map_or(discounted, |c| discounted.min(c))
 }
 
+/// The most an item may be sold for: the batch MRP (Legal Metrology
+/// (Packaged Commodities) Rules — never above the printed price) and the
+/// NPPA ceiling (DPCO 2013 — never above the notified ceiling), whichever is
+/// lower.
+#[must_use]
+pub fn price_cap(mrp: Option<Decimal>, nppa_ceiling: Option<Decimal>) -> Option<Decimal> {
+    match (mrp, nppa_ceiling) {
+        (Some(m), Some(c)) => Some(m.min(c)),
+        (m, c) => m.or(c),
+    }
+}
+
 /// The price before GST, which the bill adds back: a bill never charges
 /// more than the tax-inclusive price.
 #[must_use]
@@ -291,6 +303,19 @@ mod tests {
         assert_eq!(taxable, Decimal::new(10_000, 2));
         let billed = taxable + taxable * Decimal::from(12) / Decimal::ONE_HUNDRED;
         assert!(billed <= Decimal::new(11_200, 2));
+    }
+
+    #[test]
+    fn never_above_mrp_or_the_nppa_ceiling() {
+        let mrp = Some(Decimal::from(12));
+        let ceiling = Some(Decimal::from(10));
+        assert_eq!(price_cap(mrp, ceiling), ceiling);
+        assert_eq!(price_cap(mrp, None), mrp);
+        assert_eq!(price_cap(None, ceiling), ceiling);
+        assert_eq!(
+            online_price(Decimal::from(12), Decimal::ZERO, price_cap(mrp, ceiling)),
+            Decimal::from(10)
+        );
     }
 
     #[test]

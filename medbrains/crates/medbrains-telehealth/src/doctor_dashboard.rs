@@ -157,6 +157,10 @@ async fn compute_pending_signoffs(
     p.clinical += refills;
     p.total += refills;
 
+    let substitutions = crate::substitution_signoffs::count(tx, claims).await?;
+    p.clinical += substitutions;
+    p.total += substitutions;
+
     Ok(p)
 }
 
@@ -403,6 +407,8 @@ pub async fn list_my_pending_signoffs(
             .await?,
         );
     }
+
+    entries.extend(crate::substitution_signoffs::pending(&mut tx, &claims).await?);
 
     tx.commit().await?;
     // Verbal/telephone orders carry a 24h countersign deadline — surface them

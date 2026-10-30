@@ -34,6 +34,10 @@ pub struct Cart {
     /// A prescription has been uploaded for this cart.
     pub prescription_uploaded: bool,
     pub max_lines: usize,
+    /// While checkout holds the stock, until when.
+    pub held_until: Option<chrono::DateTime<chrono::Utc>>,
+    /// The return and refund policy, shown before the order is placed.
+    pub return_policy: String,
 }
 
 /// The patient's cart, made if they have none.
@@ -94,7 +98,8 @@ pub async fn view(
     patient_id: Uuid,
 ) -> Result<Cart, AppError> {
     let settings = super::settings::require_open(tx, tenant_id).await?;
-    let (lines, uploaded) = match super::cart_id(tx, tenant_id, patient_id).await? {
+    let cart = super::cart_id(tx, tenant_id, patient_id).await?;
+    let (lines, uploaded) = match cart {
         Some(cart) => {
             let uploaded: bool = sqlx::query_scalar(
                 "SELECT rx_document_key IS NOT NULL FROM pharmacy_store_orders WHERE id = $1",
@@ -107,7 +112,7 @@ pub async fn view(
         None => (Vec::new(), false),
     };
     let ids: Vec<Uuid> = lines.iter().map(|l| l.catalog_item_id).collect();
-    let rows = rows_by_ids(tx, tenant_id, &ids, &settings).await?;
+    let rows = rows_by_ids(tx, tenant_id, &ids, &settings, cart).await?;
     let lines: Vec<CartLine> = lines
         .iter()
         .filter_map(|l| {
@@ -123,7 +128,25 @@ pub async fn view(
             })
         })
         .collect();
+    let held_until: Option<chrono::DateTime<chrono::Utc>> = match cart {
+        Some(cart) => {
+            sqlx::query_scalar(
+                "SELECT MIN(expires_at) FROM pharmacy_stock_holds \
+                  WHERE tenant_id = $1 AND store_order_id = $2 AND released_at IS NULL \
+                    AND expires_at > now()",
+            )
+            .bind(tenant_id)
+            .bind(cart)
+            .fetch_one(&mut **tx)
+            .await?
+        }
+        None => None,
+    };
     Ok(Cart {
+        held_until,
+        return_policy: medbrains_core::pharmacy_returns::return_policy_text(
+            settings.return_window_days,
+        ),
         total: lines.iter().filter_map(|l| l.line_total).sum(),
         prescription_needed: lines.iter().any(|l| l.item.prescription_needed),
         prescription_uploaded: uploaded,
@@ -174,7 +197,7 @@ pub async fn set_quantity(
     .await?
     .flatten();
     let via_prescription = prescribed.is_some();
-    let mut rows = rows_by_ids(tx, tenant_id, &[catalog_item_id], &settings).await?;
+    let mut rows = rows_by_ids(tx, tenant_id, &[catalog_item_id], &settings, Some(cart)).await?;
     let row = rows
         .remove(&catalog_item_id)
         .filter(|r| r.active && (r.on_sale || via_prescription))
@@ -238,6 +261,45 @@ pub(crate) fn check_line(
             row.name
         )));
     }
+    Ok(())
+}
+
+/// Price lines afresh for what goes out on them — the substitute, when
+/// one stands — at today's online price. One query for the prices, one to
+/// write them.
+pub(crate) async fn reprice_lines(
+    tx: &mut Transaction<'_, Postgres>,
+    tenant_id: Uuid,
+    line_ids: &[Uuid],
+) -> Result<(), AppError> {
+    if line_ids.is_empty() {
+        return Ok(());
+    }
+    let lines: Vec<(Uuid, Uuid)> = sqlx::query_as(
+        "SELECT id, COALESCE(substitute_item_id, catalog_item_id) \
+           FROM pharmacy_store_order_lines WHERE tenant_id = $1 AND id = ANY($2)",
+    )
+    .bind(tenant_id)
+    .bind(line_ids)
+    .fetch_all(&mut **tx)
+    .await?;
+    let settings = super::settings::load(tx, tenant_id).await?;
+    let items: Vec<Uuid> = lines.iter().map(|(_, item)| *item).collect();
+    let rows = rows_by_ids(tx, tenant_id, &items, &settings, None).await?;
+    let (ids, prices): (Vec<Uuid>, Vec<Option<Decimal>>) = lines
+        .iter()
+        .map(|(line, item)| (*line, rows.get(item).and_then(|r| r.price(&settings))))
+        .unzip();
+    sqlx::query(
+        "UPDATE pharmacy_store_order_lines l SET unit_price = COALESCE(v.price, l.unit_price) \
+           FROM unnest($2::uuid[], $3::numeric[]) AS v(id, price) \
+          WHERE l.id = v.id AND l.tenant_id = $1",
+    )
+    .bind(tenant_id)
+    .bind(&ids)
+    .bind(&prices)
+    .execute(&mut **tx)
+    .await?;
     Ok(())
 }
 

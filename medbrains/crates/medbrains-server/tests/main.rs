@@ -24,6 +24,7 @@ mod notes_support;
 mod online_world;
 mod payments_world;
 mod pos_world;
+mod storefront_p2_world;
 mod storefront_world;
 mod uhi_world;
 
@@ -227,6 +228,10 @@ mod pharmacy_expired_stock_test;
 mod group_patient_identity_test;
 mod patient_match_scoring_test;
 mod pharmacy_storefront_customer_test;
+mod pharmacy_storefront_p2_refunds_test;
+mod pharmacy_storefront_p2_returns_test;
+mod pharmacy_storefront_p2_stock_test;
+mod pharmacy_storefront_p2_substitution_test;
 mod pharmacy_storefront_test;
 mod pharmacy_transfer_stock_test;
 mod portal_export_test;

@@ -70,6 +70,7 @@ pub async fn list(
         resolve_restricted_fields(&state.db, claims.tenant_id, claims.sub, &claims.role).await?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    super::substitution::sweep_lapsed(&mut tx, claims.tenant_id).await?;
     let mut rows = sqlx::query_as::<_, QueueRow>(
         "SELECT s.patient_id, s.rx_document_key IS NOT NULL AS has_prescription, \
                 EXISTS (SELECT 1 FROM pharmacy_store_orders o2 \
@@ -83,7 +84,8 @@ pub async fn list(
                                 NULLIF(p.address->>'postal_code', '')), '')) AS record_address, \
                 s.prescriber_name, s.prescriber_registration, s.verified_at, \
                 s.id, s.status, s.rx_source, s.fulfilment, s.delivery_payment, s.placed_at, \
-                s.decision_note, o.status AS pharmacy_stage \
+                s.decision_note, o.status::text AS pharmacy_stage, s.flags, \
+                NULL::text AS return_status \
            FROM pharmacy_store_orders s \
            JOIN patients p ON p.id = s.patient_id AND p.tenant_id = s.tenant_id \
            LEFT JOIN pharmacy_orders o ON o.id = s.pharmacy_order_id \
@@ -207,6 +209,24 @@ pub async fn decide(
     .fetch_optional(&mut *tx)
     .await?
     .ok_or(AppError::NotFound)?;
+    super::substitution::sweep_lapsed(&mut tx, claims.tenant_id).await?;
+    let waiting: Option<String> = sqlx::query_scalar(
+        "SELECT CASE WHEN status = 'with_doctor' THEN 'the doctor' ELSE 'the patient' END \
+           FROM pharmacy_substitution_requests \
+          WHERE tenant_id = $1 AND store_order_id = $2 AND deleted_at IS NULL \
+            AND (status = 'with_doctor' \
+                 OR (status IN ('approved', 'phone_pending') AND patient_consent IS NULL)) \
+          LIMIT 1",
+    )
+    .bind(claims.tenant_id)
+    .bind(id)
+    .fetch_optional(&mut *tx)
+    .await?;
+    if let Some(who) = waiting {
+        return Err(AppError::Conflict(format!(
+            "A substitute on this order is waiting for {who}"
+        )));
+    }
     let pending = sqlx::query_as::<_, Pending>(
         "SELECT l.catalog_item_id, l.quantity, COALESCE(c.drug_schedule = 'H1', false) AS h1 \
            FROM pharmacy_store_order_lines l \

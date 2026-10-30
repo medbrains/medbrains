@@ -66,6 +66,7 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
             permissions::doctor::signoffs::VIEW_OWN,
             permissions::doctor::signoffs::VERBAL_REGISTER,
             permissions::doctor::refill_requests::DECIDE,
+            permissions::doctor::store_substitutions::DECIDE,
             permissions::audit::START,
             permissions::patients::LIST,
             permissions::patients::VIEW,
@@ -881,6 +882,13 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
             // runs the online storefront the hospital's pharmacy sells from.
             permissions::pharmacy::storefront::VERIFY,
             permissions::pharmacy::storefront::MANAGE,
+            // Storefront part 2 (#4864): substitutes go to the doctor; the
+            // pharmacist receives returns, issues refunds, keeps the
+            // quarantine and its destruction register, and the NPPA prices.
+            permissions::pharmacy::storefront::SUBSTITUTE,
+            permissions::pharmacy::storefront::RETURNS,
+            permissions::pharmacy::quarantine::MANAGE,
+            permissions::pharmacy::nppa::MANAGE,
             permissions::pharmacy::h1_register::VIEW,
             // Camp stations are staffed by the same clinicians.
             permissions::camp::queue::MANAGE,

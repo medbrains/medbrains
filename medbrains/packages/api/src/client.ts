@@ -18399,6 +18399,44 @@ export const api = {
       `/portal/store/prescriptions/${prescriptionId}/order`,
       { ...portalAuth(token), method: "POST" },
     ),
+  /** Checkout opened: the cart held at the pharmacy that will fill it. */
+  holdStoreCart: (token: string, data: { pincode?: string; pickup_store_id?: string }) =>
+    request<import("@medbrains/types").StoreHeldCart>("/portal/store/cart/hold", {
+      ...portalAuth(token),
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  getStoreServiceability: (token: string, pincode?: string) =>
+    request<import("@medbrains/types").StoreServiceability>(
+      `/portal/store/serviceability${pincode ? `?pincode=${encodeURIComponent(pincode)}` : ""}`,
+      portalAuth(token),
+    ),
+  cancelStoreOrder: (token: string, id: string) =>
+    request<import("@medbrains/types").StoreOrder>(`/portal/store/orders/${id}/cancel`, {
+      ...portalAuth(token),
+      method: "POST",
+    }),
+  requestStoreReturn: (
+    token: string,
+    id: string,
+    data: import("@medbrains/types").StoreReturnRequest,
+  ) =>
+    request<import("@medbrains/types").StoreReturnTicket>(`/portal/store/orders/${id}/returns`, {
+      ...portalAuth(token),
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  consentStoreSubstitution: (token: string, id: string, sid: string, accept: boolean) =>
+    request<import("@medbrains/types").StoreOrder>(
+      `/portal/store/orders/${id}/substitutions/${sid}/consent`,
+      { ...portalAuth(token), method: "POST", body: JSON.stringify({ accept }) },
+    ),
+  printStoreOutside: (token: string, id: string, catalogItemIds: string[]) =>
+    request<import("@medbrains/types").OutsidePrint>(`/portal/store/orders/${id}/outside-print`, {
+      ...portalAuth(token),
+      method: "POST",
+      body: JSON.stringify({ catalog_item_ids: catalogItemIds }),
+    }),
   listStorefrontOrders: (status?: string) =>
     request<import("@medbrains/types").StorefrontQueue>(
       `/pharmacy/storefront/orders${status ? `?status=${status}` : ""}`,
@@ -18427,6 +18465,95 @@ export const api = {
       method: "PUT",
       body: JSON.stringify(data),
     }),
+  getStorefrontRules: () =>
+    request<import("@medbrains/types").StorefrontRules>("/pharmacy/storefront/rules"),
+  updateStorefrontRules: (data: import("@medbrains/types").StorefrontRules) =>
+    request<import("@medbrains/types").StorefrontRules>("/pharmacy/storefront/rules", {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
+  listOnlineStores: () =>
+    request<import("@medbrains/types").OnlineStore[]>("/pharmacy/storefront/stores"),
+  updateOnlineStore: (id: string, data: import("@medbrains/types").OnlineStoreUpdate) =>
+    request<import("@medbrains/types").OnlineStore[]>(`/pharmacy/storefront/stores/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
+  listStorefrontFloors: () =>
+    request<import("@medbrains/types").StorefrontFloorRow[]>("/pharmacy/storefront/floors"),
+  listStorefrontSubstitutes: (orderId: string, itemId: string) =>
+    request<import("@medbrains/types").SubstituteCandidates>(
+      `/pharmacy/storefront/orders/${orderId}/lines/${itemId}/substitutes`,
+    ),
+  proposeStorefrontSubstitution: (
+    orderId: string,
+    data: import("@medbrains/types").ProposeSubstitution,
+  ) =>
+    request<import("@medbrains/types").StoreOrder>(
+      `/pharmacy/storefront/orders/${orderId}/substitutions`,
+      { method: "POST", body: JSON.stringify(data) },
+    ),
+  printStorefrontOutside: (orderId: string, catalogItemIds: string[]) =>
+    request<import("@medbrains/types").OutsidePrint>(
+      `/pharmacy/storefront/orders/${orderId}/outside-print`,
+      { method: "POST", body: JSON.stringify({ catalog_item_ids: catalogItemIds }) },
+    ),
+  getStoreSubstitutionRequest: (id: string) =>
+    request<import("@medbrains/types").DoctorSubstitutionRequest>(
+      `/doctor/store-substitutions/${id}`,
+    ),
+  decideStoreSubstitution: (
+    id: string,
+    data: import("@medbrains/types").DoctorSubstitutionDecision,
+  ) =>
+    request<import("@medbrains/types").DoctorSubstitutionRequest>(
+      `/doctor/store-substitutions/${id}/decide`,
+      { method: "POST", body: JSON.stringify(data) },
+    ),
+  listStorefrontReturns: () =>
+    request<import("@medbrains/types").StoreReturnQueue>("/pharmacy/storefront/returns"),
+  acknowledgeStorefrontReturn: (id: string) =>
+    request<{ id: string; status: string }>(`/pharmacy/storefront/returns/${id}/acknowledge`, {
+      method: "POST",
+    }),
+  receiveStorefrontReturn: (id: string, data: import("@medbrains/types").StoreReturnReceive) =>
+    request<{ id: string; status: string; credit_note_number: string; refund_id: string | null }>(
+      `/pharmacy/storefront/returns/${id}/receive`,
+      { method: "POST", body: JSON.stringify(data) },
+    ),
+  refuseStorefrontReturn: (id: string, note: string) =>
+    request<{ id: string; status: string }>(`/pharmacy/storefront/returns/${id}/refuse`, {
+      method: "POST",
+      body: JSON.stringify({ note }),
+    }),
+  listStorefrontRefunds: () =>
+    request<import("@medbrains/types").StoreRefund[]>("/pharmacy/storefront/refunds"),
+  issueStorefrontRefund: (id: string) =>
+    request<import("@medbrains/types").StoreRefund>(`/pharmacy/storefront/refunds/${id}/issue`, {
+      method: "POST",
+    }),
+  listQuarantine: () => request<import("@medbrains/types").QuarantineRow[]>("/pharmacy/quarantine"),
+  destroyQuarantine: (data: import("@medbrains/types").QuarantineDestroyRequest) =>
+    request<import("@medbrains/types").QuarantineDestroyed>("/pharmacy/quarantine/destroy", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  listNppaCeilings: (q?: string) =>
+    request<import("@medbrains/types").NppaCeilings>(
+      `/pharmacy/nppa-ceilings${q ? `?q=${encodeURIComponent(q)}` : ""}`,
+    ),
+  setNppaCeiling: (id: string, data: import("@medbrains/types").NppaCeilingUpdate) =>
+    request<import("@medbrains/types").NppaCeilingRow>(`/pharmacy/nppa-ceilings/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
+  importNppaCeilings: (rows: import("@medbrains/types").NppaImportRow[]) =>
+    request<import("@medbrains/types").NppaImported>("/pharmacy/nppa-ceilings/import", {
+      method: "POST",
+      body: JSON.stringify({ rows }),
+    }),
+  getPosReturnPolicy: () =>
+    request<import("@medbrains/types").CounterReturnPolicy>("/pharmacy/pos/return-policy"),
   getH1Register: (from: string, to: string) =>
     request<import("@medbrains/types").H1RegisterEntry[]>(
       `/pharmacy/h1-register?from=${from}&to=${to}`,

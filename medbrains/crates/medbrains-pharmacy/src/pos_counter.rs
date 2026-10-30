@@ -69,11 +69,15 @@ pub(crate) async fn line_prices_in_tx(
         return Ok(HashMap::new());
     }
     let rows = sqlx::query_as::<_, PosLinePrice>(
-        "SELECT c.id AS catalog_item_id, COALESCE(b.selling_rate, NULLIF(c.base_price, 0)) AS mrp, \
+        // Never above the batch's printed MRP or the NPPA ceiling (DPCO
+        // 2013): LEAST skips whichever is not recorded.
+        "SELECT c.id AS catalog_item_id, \
+                LEAST(COALESCE(b.selling_rate, NULLIF(c.base_price, 0)), b.mrp, \
+                      c.nppa_ceiling_price) AS mrp, \
                 c.tax_percent AS gst_rate, c.hsn_code \
            FROM pharmacy_catalog c \
            LEFT JOIN LATERAL ( \
-                SELECT pb.selling_rate FROM pharmacy_batches pb \
+                SELECT pb.selling_rate, pb.mrp FROM pharmacy_batches pb \
                  WHERE pb.tenant_id = c.tenant_id AND pb.catalog_item_id = c.id \
                    AND pb.deleted_at IS NULL AND pb.quantity_on_hand > 0 \
                    AND pb.expiry_date > CURRENT_DATE AND pb.quarantine_status = 'cleared' \

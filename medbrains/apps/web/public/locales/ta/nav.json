@@ -32,6 +32,8 @@
   "pharmacyDispatch": "பெறும் இடம்",
   "pharmacyDeliveries": "வீட்டு விநியோகம்",
   "pharmacyOnlineOrders": "ஆன்லைன் ஆர்டர்கள்",
+  "pharmacyQuarantine": "திருப்பி வைப்பு தனிமை",
+  "pharmacyNppaCeilings": "NPPA உச்ச விலை",
   "pharmacyH1Register": "H1 பதிவேடு",
   "radiology": "கதிரியக்கவியல்",
   "bloodBank": "இரத்த வங்கி",

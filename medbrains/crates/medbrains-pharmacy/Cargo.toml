@@ -19,6 +19,8 @@ medbrains-telehealth = { path = "../medbrains-telehealth" }
 medbrains-core = { path = "../medbrains-core" }
 medbrains-db = { path = "../medbrains-db" }
 medbrains-authz = { path = "../medbrains-authz" }
+medbrains-billing = { path = "../medbrains-billing" }
+medbrains-payment-gateway = { path = "../medbrains-payment-gateway" }
 axum = { workspace = true }
 axum-extra = { version = "0.10", features = ["cookie"] }
 serde = { workspace = true }

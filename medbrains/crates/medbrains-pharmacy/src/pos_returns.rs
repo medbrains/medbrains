@@ -5,9 +5,12 @@
 //! the sale was paid with. It is taken within the hospital's return window, on
 //! an open counter day, for no more than was sold less what already came back
 //! — the sale and its lines are locked for the length of the return, so two
-//! cashiers cannot return the same strip twice. Good stock goes back to the
-//! batch it came from; a batch that has expired takes it into the expiry bin
-//! for the witnessed write-off, never back onto the shelf.
+//! cashiers cannot return the same strip twice. A pack goes back to the batch
+//! it came from only when `pharmacy_returns::disposition` says it may — sealed,
+//! in date, never cold-chain or controlled, its batch known, in the window;
+//! anything else is quarantined for destruction on record
+//! (`crate::quarantine`). An expired batch's return used to be added back to
+//! that batch's stock.
 
 use axum::{
     Extension, Json,
@@ -26,6 +29,8 @@ use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use uuid::Uuid;
+
+use medbrains_core::pharmacy_returns::{Disposition, QuarantineReason, ReturnedPack, disposition};
 
 use crate::pos_counter::{self, CounterShift};
 use crate::return_rules::{
@@ -87,6 +92,7 @@ pub struct ReturnLineFacts {
     pub cold_chain: bool,
     pub controlled: bool,
     pub expired: bool,
+    pub expiry_date: Option<NaiveDate>,
 }
 
 const LINES_SQL: &str = "SELECT i.id AS item_id, i.drug_name, i.catalog_item_id, i.batch_id, \
@@ -96,7 +102,7 @@ const LINES_SQL: &str = "SELECT i.id AS item_id, i.drug_name, i.catalog_item_id,
         (COALESCE(c.is_controlled, false) \
            OR COALESCE(c.drug_schedule::text IN ('X', 'NDPS'), false)) AS controlled, \
         (b.expiry_date IS NOT NULL AND b.expiry_date <= tenant_local_date(i.tenant_id, now())) \
-          AS expired \
+          AS expired, b.expiry_date \
    FROM pharmacy_pos_sale_items i \
    LEFT JOIN pharmacy_catalog c ON c.id = i.catalog_item_id AND c.tenant_id = i.tenant_id \
    LEFT JOIN pharmacy_batches b ON b.id = i.batch_id AND b.tenant_id = i.tenant_id \
@@ -347,6 +353,10 @@ pub struct ReturnPosItemsRequest {
 pub struct ReturnPosItem {
     pub item_id: Uuid,
     pub return_qty: i32,
+    /// The manufacturer's seal is unbroken, as the cashier saw it. Unsealed
+    /// unless said: an opened pack never goes back on the shelf.
+    #[serde(default)]
+    pub sealed: bool,
 }
 
 #[derive(Debug, Deserialize)]
@@ -361,8 +371,11 @@ pub struct ReturnedLine {
     pub qty: i32,
     pub refund: Decimal,
     pub gst: Decimal,
-    /// `stock` back to its batch, or `expiry_bin` when the batch has expired.
+    /// `stock` back to its batch, `quarantine` for destruction, or
+    /// `discarded` for a line sold off the catalogue.
     pub destination: &'static str,
+    /// Why it was quarantined, when it was.
+    pub reasons: Vec<&'static str>,
 }
 
 #[derive(Debug, Serialize)]
@@ -379,8 +392,9 @@ pub struct ReturnResult {
 
 struct ReturnRequest<'a> {
     sale_id: Uuid,
-    /// `(item_id, qty)`; for a void, every line's remaining quantity.
-    items: Vec<(Uuid, i32)>,
+    /// `(item_id, qty, sealed)`; for a void, every line's remaining
+    /// quantity, sealed — it never left the counter.
+    items: Vec<(Uuid, i32, bool)>,
     reason: Option<&'a str>,
     refund_to: Option<&'a [RefundPart]>,
     void: bool,
@@ -399,7 +413,7 @@ pub async fn return_pos_items(
         items: body
             .items
             .iter()
-            .map(|i| (i.item_id, i.return_qty))
+            .map(|i| (i.item_id, i.return_qty, i.sealed))
             .collect(),
         reason: body.reason.as_deref(),
         refund_to: body.refund_to.as_deref(),
@@ -476,8 +490,8 @@ async fn take_return(
     let wanted = if request.void {
         facts
             .iter()
-            .map(|f| (f.item_id, f.quantity - f.returned_qty))
-            .filter(|(_, qty)| *qty > 0)
+            .map(|f| (f.item_id, f.quantity - f.returned_qty, true))
+            .filter(|(_, qty, _)| *qty > 0)
             .collect()
     } else {
         request.items.clone()
@@ -495,7 +509,7 @@ async fn take_return(
 
     let categories = non_returnable_categories(&mut tx, claims.tenant_id).await?;
     let mut lines = Vec::with_capacity(wanted.len());
-    for (item_id, qty) in &wanted {
+    for (item_id, qty, sealed) in &wanted {
         let Some(line) = facts.iter().find(|f| f.item_id == *item_id) else {
             return Err(AppError::BadRequest(
                 "That line is not on this sale".to_owned(),
@@ -533,11 +547,11 @@ async fn take_return(
             line.returned_qty,
             *qty,
         );
-        lines.push((line.clone(), *qty, refund, gst));
+        lines.push((line.clone(), *qty, refund, gst, *sealed));
     }
 
-    let refund_total: Decimal = lines.iter().map(|(_, _, r, _)| *r).sum();
-    let gst_reversed: Decimal = lines.iter().map(|(_, _, _, g)| *g).sum();
+    let refund_total: Decimal = lines.iter().map(|(_, _, r, _, _)| *r).sum();
+    let gst_reversed: Decimal = lines.iter().map(|(_, _, _, g, _)| *g).sum();
     let tenders = sale_tenders(&mut tx, claims.tenant_id, &head).await?;
     let refunds = match request.refund_to {
         Some(chosen) => {
@@ -563,19 +577,23 @@ async fn take_return(
     }
     let business_date = shift.as_ref().map_or(head.today, |s| s.business_date);
 
-    let number: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) + 1 FROM pharmacy_credit_notes \
-          WHERE tenant_id = $1 AND original_pos_sale_id = $2",
-    )
-    .bind(claims.tenant_id)
-    .bind(head.id)
-    .fetch_one(&mut *tx)
-    .await?;
-    let credit_note_number = format!("CN-{}-{number}", head.sale_number);
+    // GST credit note in the legal entity's own series (CGST Rules 53(1A)).
+    let credit_note_number =
+        crate::credit_notes::next_number(&mut tx, claims.tenant_id, head.billing_invoice_id)
+            .await?;
 
     let mut returned = Vec::with_capacity(lines.len());
-    for (line, qty, refund, gst) in &lines {
-        let destination = restock_line(&mut tx, claims, line, *qty, &credit_note_number).await?;
+    for (line, qty, refund, gst, sealed) in &lines {
+        let take = Take {
+            line,
+            qty: *qty,
+            sealed: *sealed,
+            sale_date: head.sale_date,
+            today: head.today,
+            window_days: head.window_days,
+            credit_note_number: &credit_note_number,
+        };
+        let (destination, reasons) = restock_line(&mut tx, claims, &take).await?;
         returned.push(ReturnedLine {
             item_id: line.item_id,
             drug_name: line.drug_name.clone(),
@@ -583,6 +601,7 @@ async fn take_return(
             refund: *refund,
             gst: *gst,
             destination,
+            reasons,
         });
     }
 
@@ -710,16 +729,31 @@ fn require_same_counter_day(head: &SaleHead, shift: Option<&CounterShift>) -> Re
     ))
 }
 
-/// Back to the batch it came from, and the catalogue count with it. A batch
-/// past its date is the expiry bin: FEFO never issues from it and the
-/// witnessed write-off takes it away.
+/// One returned line and what decides where it goes.
+struct Take<'a> {
+    line: &'a ReturnLineFacts,
+    qty: i32,
+    sealed: bool,
+    sale_date: NaiveDate,
+    today: NaiveDate,
+    window_days: i32,
+    credit_note_number: &'a str,
+}
+
+/// Back to the batch it came from, and the catalogue count with it — only
+/// when the law allows it (`pharmacy_returns::disposition`); otherwise into
+/// quarantine for destruction on record. Returns where it went and why.
 async fn restock_line(
     tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
     claims: &Claims,
-    line: &ReturnLineFacts,
-    qty: i32,
-    credit_note_number: &str,
-) -> Result<&'static str, AppError> {
+    take: &Take<'_>,
+) -> Result<(&'static str, Vec<&'static str>), AppError> {
+    let Take {
+        line,
+        qty,
+        credit_note_number,
+        ..
+    } = *take;
     sqlx::query(
         "UPDATE pharmacy_pos_sale_items SET \
            cancelled_qty = COALESCE(cancelled_qty, 0) + $3, \
@@ -731,50 +765,56 @@ async fn restock_line(
     .bind(qty)
     .execute(&mut **tx)
     .await?;
-    let destination = if line.expired { "expiry_bin" } else { "stock" };
+    let pack = ReturnedPack {
+        sealed: take.sealed,
+        expiry: line.batch_id.and(line.expiry_date),
+        cold_chain: line.cold_chain,
+        controlled: line.controlled,
+        sold_on: take.sale_date,
+        returned_on: take.today,
+        window_days: i64::from(take.window_days),
+        // The counter sells down to the expiry date; the online floor is
+        // applied when online stock is counted.
+        shelf_life_floor_days: 0,
+    };
     let Some(catalog_id) = line.catalog_item_id else {
-        return Ok(destination);
+        // Sold off-catalogue: no batch, no shelf to go back to.
+        return Ok(("discarded", vec![QuarantineReason::Untraceable.as_str()]));
     };
-    sqlx::query(
-        "UPDATE pharmacy_catalog SET current_stock = current_stock + $1, updated_at = now() \
-          WHERE id = $2 AND tenant_id = $3",
-    )
-    .bind(qty)
-    .bind(catalog_id)
-    .bind(claims.tenant_id)
-    .execute(&mut **tx)
-    .await?;
-    if let Some(batch_id) = line.batch_id {
-        sqlx::query(
-            "UPDATE pharmacy_batches SET quantity_on_hand = quantity_on_hand + $1, \
-                    quantity_dispensed = GREATEST(quantity_dispensed - $1, 0), updated_at = now() \
-              WHERE id = $2 AND tenant_id = $3",
+    if let Disposition::Quarantine { reasons, route } = disposition(&pack) {
+        let reasons: Vec<&'static str> = reasons.iter().map(|r| r.as_str()).collect();
+        crate::quarantine::put(
+            tx,
+            claims.tenant_id,
+            claims.sub,
+            &crate::quarantine::Quarantine {
+                source: "counter",
+                store_return_line_id: None,
+                pos_sale_item_id: Some(line.item_id),
+                catalog_item_id: catalog_id,
+                drug_name: &line.drug_name,
+                batch_id: line.batch_id,
+                quantity: qty,
+                reasons: reasons.clone(),
+                route: route.as_str(),
+            },
         )
-        .bind(qty)
-        .bind(batch_id)
-        .bind(claims.tenant_id)
-        .execute(&mut **tx)
         .await?;
+        return Ok(("quarantine", reasons));
     }
-    let note = if line.expired {
-        format!("Counter return {credit_note_number}: batch expired, held for write-off")
-    } else {
-        format!("Counter return {credit_note_number}")
-    };
-    sqlx::query(
-        "INSERT INTO pharmacy_stock_transactions \
-         (tenant_id, catalog_item_id, transaction_type, quantity, reference_id, notes, created_by) \
-         VALUES ($1, $2, 'return', $3, $4, $5, $6)",
+    crate::credit_notes::restock(
+        tx,
+        claims,
+        &crate::credit_notes::Restock {
+            catalog_item_id: catalog_id,
+            batch_id: line.batch_id,
+            quantity: qty,
+            reference_id: line.batch_id.unwrap_or(line.item_id),
+            note: &format!("Counter return {credit_note_number}"),
+        },
     )
-    .bind(claims.tenant_id)
-    .bind(catalog_id)
-    .bind(qty)
-    .bind(line.batch_id.unwrap_or(line.item_id))
-    .bind(note)
-    .bind(claims.sub)
-    .execute(&mut **tx)
     .await?;
-    Ok(destination)
+    Ok(("stock", Vec::new()))
 }
 
 /// On the patient's invoice: the credit note reduces what the bill is worth,

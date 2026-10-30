@@ -13,7 +13,7 @@
 /// for now until the hierarchical `pub const` tree is consolidated
 /// into a flat array (see TODO above). Mirrors the count in
 /// `packages/types/src/permissions.ts::PERMISSIONS.length`.
-pub const PERMISSION_COUNT: usize = 838;
+pub const PERMISSION_COUNT: usize = 843;
 
 /// Returns all known permission codes. Currently hardcoded — see
 /// TODO above. The CI check `make check-permissions-sync` (planned)
@@ -508,6 +508,37 @@ pub mod pharmacy {
         /// Choose which catalogue items patients may order online and set
         /// the online discount off MRP.
         pub const MANAGE: &str = "pharmacy.storefront.manage";
+        /// Propose substitutes on online orders.
+        ///
+        /// Offer a same-salt, same-strength substitute for a line the
+        /// pharmacy can't fill; the prescribing doctor and the patient must
+        /// both agree before it goes out.
+        pub const SUBSTITUTE: &str = "pharmacy.storefront.substitute";
+        /// Take back online orders and issue refunds.
+        ///
+        /// Acknowledge and receive returns of online orders, which the law
+        /// sends back to stock or to quarantine, and issue the refunds owed.
+        pub const RETURNS: &str = "pharmacy.storefront.returns";
+    }
+
+    /// Returned medicines held apart until they are destroyed on record.
+    pub mod quarantine {
+        /// Destroy quarantined returns.
+        ///
+        /// See returned packs that may not go back on the shelf and destroy
+        /// them on a destruction certificate: through the biomedical waste
+        /// facility, or for controlled drugs before a witness in the NDPS
+        /// register.
+        pub const MANAGE: &str = "pharmacy.quarantine.manage";
+    }
+
+    /// NPPA ceiling prices.
+    pub mod nppa {
+        /// Keep NPPA ceiling prices.
+        ///
+        /// Record or import the NPPA ceiling price of scheduled formulations;
+        /// no sale, online or at the counter, goes above it.
+        pub const MANAGE: &str = "pharmacy.nppa.manage";
     }
 
     pub mod h1_register {
@@ -3423,6 +3454,15 @@ pub mod doctor {
         /// Approve or decline a refill a patient asked for on a prescription
         /// this doctor wrote; approving sends it to the pharmacy.
         pub const DECIDE: &str = "doctor.refill_requests.decide";
+    }
+
+    pub mod store_substitutions {
+        /// Decide substitutes on online orders.
+        ///
+        /// Approve, change or decline a substitute the pharmacy proposed for
+        /// a medicine this doctor prescribed, or confirm one agreed by phone
+        /// within 24 hours.
+        pub const DECIDE: &str = "doctor.store_substitutions.decide";
     }
 }
 

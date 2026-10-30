@@ -17,7 +17,7 @@ export interface PermissionDef {
   module: string;
 }
 
-/** 1176 permissions, one per constant in the Rust source. */
+/** 1181 permissions, one per constant in the Rust source. */
 export const PERMISSIONS: PermissionDef[] = [
   // dashboard
   {
@@ -746,6 +746,30 @@ export const PERMISSIONS: PermissionDef[] = [
     code: "pharmacy.storefront.manage",
     label: "Run the online storefront",
     description: "Choose which catalogue items patients may order online and set the online discount off MRP.",
+    module: "pharmacy",
+  },
+  {
+    code: "pharmacy.storefront.substitute",
+    label: "Propose substitutes on online orders",
+    description: "Offer a same-salt, same-strength substitute for a line the pharmacy can't fill; the prescribing doctor and the patient must both agree before it goes out.",
+    module: "pharmacy",
+  },
+  {
+    code: "pharmacy.storefront.returns",
+    label: "Take back online orders and issue refunds",
+    description: "Acknowledge and receive returns of online orders, which the law sends back to stock or to quarantine, and issue the refunds owed.",
+    module: "pharmacy",
+  },
+  {
+    code: "pharmacy.quarantine.manage",
+    label: "Destroy quarantined returns",
+    description: "See returned packs that may not go back on the shelf and destroy them on a destruction certificate: through the biomedical waste facility, or for controlled drugs before a witness in the NDPS register.",
+    module: "pharmacy",
+  },
+  {
+    code: "pharmacy.nppa.manage",
+    label: "Keep NPPA ceiling prices",
+    description: "Record or import the NPPA ceiling price of scheduled formulations; no sale, online or at the counter, goes above it.",
     module: "pharmacy",
   },
   {
@@ -5891,6 +5915,12 @@ export const PERMISSIONS: PermissionDef[] = [
     description: "Approve or decline a refill a patient asked for on a prescription this doctor wrote; approving sends it to the pharmacy.",
     module: "doctor",
   },
+  {
+    code: "doctor.store_substitutions.decide",
+    label: "Decide substitutes on online orders",
+    description: "Approve, change or decline a substitute the pharmacy proposed for a medicine this doctor prescribed, or confirm one agreed by phone within 24 hours.",
+    module: "doctor",
+  },
   // patient_packages
   {
     code: "patient_packages.view",
@@ -8240,6 +8270,10 @@ export const P = {
     },
     SIGNOFFS_VERBAL_REGISTER: "doctor.signoffs.verbal_register",
     SIGNOFFS_VIEW_OWN: "doctor.signoffs.view_own",
+    STORE_SUBSTITUTIONS: {
+      DECIDE: "doctor.store_substitutions.decide",
+    },
+    STORE_SUBSTITUTIONS_DECIDE: "doctor.store_substitutions.decide",
   },
   DOCTOR_PAYOUTS: {
     AGREEMENTS: {
@@ -9666,6 +9700,10 @@ export const P = {
     },
     NDPS_LIST: "pharmacy.ndps.list",
     NDPS_MANAGE: "pharmacy.ndps.manage",
+    NPPA: {
+      MANAGE: "pharmacy.nppa.manage",
+    },
+    NPPA_MANAGE: "pharmacy.nppa.manage",
     PATIENTS: {
       SEARCH: "pharmacy.patients.search",
     },
@@ -9692,6 +9730,10 @@ export const P = {
       MANAGE: "pharmacy.pricing.manage",
     },
     PRICING_MANAGE: "pharmacy.pricing.manage",
+    QUARANTINE: {
+      MANAGE: "pharmacy.quarantine.manage",
+    },
+    QUARANTINE_MANAGE: "pharmacy.quarantine.manage",
     RECONCILIATION: {
       MANAGE: "pharmacy.reconciliation.manage",
     },
@@ -9738,9 +9780,13 @@ export const P = {
     STOCK_MANAGE: "pharmacy.stock.manage",
     STOREFRONT: {
       MANAGE: "pharmacy.storefront.manage",
+      RETURNS: "pharmacy.storefront.returns",
+      SUBSTITUTE: "pharmacy.storefront.substitute",
       VERIFY: "pharmacy.storefront.verify",
     },
     STOREFRONT_MANAGE: "pharmacy.storefront.manage",
+    STOREFRONT_RETURNS: "pharmacy.storefront.returns",
+    STOREFRONT_SUBSTITUTE: "pharmacy.storefront.substitute",
     STOREFRONT_VERIFY: "pharmacy.storefront.verify",
     STORES: {
       INDENTS: {
@@ -10738,6 +10784,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.DOCTOR.SIGNATURE.VERIFY,
       P.DOCTOR.SIGNOFFS.VERBAL_REGISTER,
       P.DOCTOR.SIGNOFFS.VIEW_OWN,
+      P.DOCTOR.STORE_SUBSTITUTIONS.DECIDE,
       P.DOCTOR_PAYOUTS.SELF_SERVICE.VIEW,
       P.DOCUMENTS.AUDIT.LIST,
       P.DOCUMENTS.GENERATE,
@@ -11439,6 +11486,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.PHARMACY.H1_REGISTER.VIEW,
       P.PHARMACY.NDPS.LIST,
       P.PHARMACY.NDPS.MANAGE,
+      P.PHARMACY.NPPA.MANAGE,
       P.PHARMACY.PATIENTS.SEARCH,
       P.PHARMACY.POS.CANCEL,
       P.PHARMACY.POS.CREATE,
@@ -11447,6 +11495,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.PHARMACY.PRESCRIPTIONS.LIST,
       P.PHARMACY.PRESCRIPTIONS.VIEW,
       P.PHARMACY.PRICING.MANAGE,
+      P.PHARMACY.QUARANTINE.MANAGE,
       P.PHARMACY.RECONCILIATION.MANAGE,
       P.PHARMACY.RETURNS.APPROVE,
       P.PHARMACY.RETURNS.DESTROY,
@@ -11461,6 +11510,8 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.PHARMACY.STEWARDSHIP.APPROVE,
       P.PHARMACY.STOCK.MANAGE,
       P.PHARMACY.STOREFRONT.MANAGE,
+      P.PHARMACY.STOREFRONT.RETURNS,
+      P.PHARMACY.STOREFRONT.SUBSTITUTE,
       P.PHARMACY.STOREFRONT.VERIFY,
       P.PHARMACY.STORES.INDENTS.APPROVE,
       P.PHARMACY.STORES.INDENTS.CREATE,

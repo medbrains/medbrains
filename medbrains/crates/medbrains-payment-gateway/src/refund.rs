@@ -144,6 +144,50 @@ pub async fn initiate_refund(
         return Err(AppError::NotFound.into());
     }
     require_invoice_billing(&state, &claims, txn.invoice_id).await?;
+    let reason = body
+        .reason
+        .as_deref()
+        .map(str::trim)
+        .filter(|r| !r.is_empty())
+        .unwrap_or("Refund to the patient");
+    let refund = Refund {
+        txn_id,
+        amount: body.amount,
+        reason,
+        refunded_by: Some(claims.sub),
+    };
+    let refund_id = refund_payment(&state, &mut tx, &refund).await?;
+    let updated = settle::lock_txn(&mut tx, txn_id).await?;
+    tx.commit().await?;
+    Ok(Json(RefundResponse {
+        transaction: updated,
+        refund_id,
+    }))
+}
+
+/// A refund of one online payment.
+#[derive(Debug, Clone, Copy)]
+pub struct Refund<'a> {
+    pub txn_id: Uuid,
+    /// All that is left on the payment, when `None`.
+    pub amount: Option<Decimal>,
+    pub reason: &'a str,
+    pub refunded_by: Option<Uuid>,
+}
+
+/// Refund an online payment back to where it came from — the card machine's
+/// provider or the online provider that took it — and take it into the books
+/// once. The caller has authorised it and set the tenant on `tx`.
+/// Exactly-once as the module doc describes.
+///
+/// # Errors
+/// Not captured, more than is left, or the provider refused or did not answer.
+pub async fn refund_payment(
+    state: &AppState,
+    tx: &mut Tx<'_>,
+    refund: &Refund<'_>,
+) -> Result<String, OnlineError> {
+    let txn = settle::lock_txn(tx, refund.txn_id).await?;
     if txn.status != "captured" {
         return Err(AppError::BadRequest(
             "Only a captured payment with money left on it can be refunded".to_owned(),
@@ -156,7 +200,7 @@ pub async fn initiate_refund(
         );
     };
     let refundable = txn.amount - txn.refund_amount.unwrap_or_default();
-    let refund_amount = body.amount.unwrap_or(refundable);
+    let refund_amount = refund.amount.unwrap_or(refundable);
     if refund_amount > refundable {
         return Err(AppError::BadRequest(format!(
             "Refund exceeds the {refundable} left on this payment"
@@ -164,43 +208,25 @@ pub async fn initiate_refund(
         .into());
     }
     let refund_paise = amount_to_paise(refund_amount)?;
-    let reason = body
-        .reason
-        .as_deref()
-        .map(str::trim)
-        .filter(|r| !r.is_empty())
-        .unwrap_or("Refund to the patient");
-
     let refund_id = match txn.terminal_id {
         // A card sale goes back through the machine's provider.
         Some(terminal_id) => {
-            pos::undo::refund_on_machine(&state, &txn, terminal_id, refund_paise).await?
+            pos::undo::refund_on_machine(state, &txn, terminal_id, refund_paise).await?
         }
         None => {
-            refund_online(
-                &mut tx,
-                &state,
-                &txn,
-                (&gateway_payment_id, refund_paise),
-                reason,
-            )
-            .await?
+            refund_online(tx, state, &txn, (&gateway_payment_id, refund_paise), refund.reason)
+                .await?
         }
     };
     let made = settle::RefundMade {
         refund_id: &refund_id,
         amount: refund_amount,
-        reason,
-        refunded_by: Some(claims.sub),
+        reason: refund.reason,
+        refunded_by: refund.refunded_by,
         payload: None,
     };
-    settle::settle_refund(&mut tx, &txn, &made).await?;
-    let updated = settle::lock_txn(&mut tx, txn.id).await?;
-    tx.commit().await?;
-    Ok(Json(RefundResponse {
-        transaction: updated,
-        refund_id,
-    }))
+    settle::settle_refund(tx, &txn, &made).await?;
+    Ok(refund_id)
 }
 
 #[cfg(test)]

@@ -7,7 +7,16 @@ import { Group, Stack, Text } from "@mantine/core";
 import { useFieldAccess } from "@medbrains/stores";
 import type { Returnable, ReturnableLine, ReturnPosItemsRequest } from "@medbrains/types";
 import { useMemo, useState } from "react";
-import { Alert, Badge, Button, Input, NumberField, Table, TextArea } from "@/components/ui";
+import {
+  Alert,
+  Badge,
+  Button,
+  Checkbox,
+  Input,
+  NumberField,
+  Table,
+  TextArea,
+} from "@/components/ui";
 import { fromPaisa, lineRefundPaisa, needsReference, splitRefund } from "./return-refund";
 import { formatInr, renderPharmacySensitiveValue } from "./shared";
 
@@ -36,6 +45,8 @@ export function PosReturnForm({
 }: PosReturnFormProps) {
   const batchAccess = useFieldAccess("pharmacy.batches.batch_number");
   const [qty, setQty] = useState<Record<string, number>>({});
+  // Unsealed unless the cashier ticks it: an opened pack never goes back.
+  const [sealed, setSealed] = useState<Record<string, boolean>>({});
   const [references, setReferences] = useState<Record<string, string>>({});
   const [reason, setReason] = useState("");
   const [problem, setProblem] = useState<string | null>(null);
@@ -62,7 +73,11 @@ export function PosReturnForm({
   const submit = () => {
     const items = returnable.lines
       .filter((l) => (qty[l.item_id] ?? 0) > 0)
-      .map((l) => ({ item_id: l.item_id, return_qty: qty[l.item_id] ?? 0 }));
+      .map((l) => ({
+        item_id: l.item_id,
+        return_qty: qty[l.item_id] ?? 0,
+        sealed: sealed[l.item_id] ?? false,
+      }));
     const missingRef = split.find((p) => needsReference(p.mode) && !references[p.mode]?.trim());
     if (items.length === 0) return setProblem("Enter how many of each medicine is coming back.");
     if (reason.trim().length < REASON_MIN) return setProblem("Give the reason for the return.");
@@ -111,8 +126,19 @@ export function PosReturnForm({
                     )}
                     {line.expired && (
                       <Badge tone="warning" size="xs">
-                        Expired batch: goes to the expiry bin
+                        Expired batch: goes to quarantine for destruction
                       </Badge>
+                    )}
+                    {n > 0 && (
+                      <Checkbox
+                        size="xs"
+                        label="Seal unbroken (else quarantined)"
+                        checked={sealed[line.item_id] ?? false}
+                        onChange={(e) => {
+                          const on = e.currentTarget.checked;
+                          setSealed((s) => ({ ...s, [line.item_id]: on }));
+                        }}
+                      />
                     )}
                     {line.block && (
                       <Text size="xs" c={line.block.kind === "refused" ? "danger" : "warning"}>

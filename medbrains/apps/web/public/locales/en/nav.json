@@ -33,6 +33,8 @@
   "pharmacyDispatch": "Collection Counter",
   "pharmacyDeliveries": "Home Deliveries",
   "pharmacyOnlineOrders": "Online orders",
+  "pharmacyQuarantine": "Returns quarantine",
+  "pharmacyNppaCeilings": "NPPA ceilings",
   "pharmacyH1Register": "H1 register",
   "radiology": "Radiology",
   "bloodBank": "Blood Bank",
