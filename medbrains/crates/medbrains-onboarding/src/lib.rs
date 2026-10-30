@@ -4,10 +4,7 @@ pub mod trial;
 
 use std::collections::HashMap;
 
-use argon2::{
-    Argon2,
-    PasswordHasher,
-};
+use argon2::{Argon2, PasswordHasher};
 use axum::routing::{get, post};
 use axum::{Extension, Json, extract::State, response::IntoResponse};
 use axum_extra::extract::CookieJar;
@@ -156,7 +153,11 @@ pub async fn init(
         trial::throttle(&state.db, signup_ip.as_deref()).await?;
     }
     // Never a platform administrator for a stranger's sign-up.
-    let admin_role = if is_trial { "hospital_admin" } else { "super_admin" };
+    let admin_role = if is_trial {
+        "hospital_admin"
+    } else {
+        "super_admin"
+    };
 
     // ── Field validation ────────────────────────────────
     let mut errors = ValidationErrors::new();
@@ -752,10 +753,10 @@ pub async fn setup(
             "branding.secondary_color",
             &branding.secondary_color,
         );
-        if let Some(ref url) = branding.logo_url {
-            if !url.is_empty() {
-                validation::validate_optional_url(&mut errors, "branding.logo_url", url);
-            }
+        if let Some(ref url) = branding.logo_url
+            && !url.is_empty()
+        {
+            validation::validate_optional_url(&mut errors, "branding.logo_url", url);
         }
     }
 
@@ -1176,9 +1177,10 @@ pub async fn setup(
             .await?;
         }
 
-        if let Some(ref logo_url) = branding.logo_url {
-            if !logo_url.is_empty() {
-                sqlx::query(
+        if let Some(ref logo_url) = branding.logo_url
+            && !logo_url.is_empty()
+        {
+            sqlx::query(
                     "INSERT INTO tenant_settings (tenant_id, category, key, value) \
                      VALUES ($1, 'branding', 'logo_url', to_jsonb($2::text)) \
                      ON CONFLICT (tenant_id, category, key) \
@@ -1188,7 +1190,6 @@ pub async fn setup(
                 .bind(logo_url)
                 .execute(&mut *tx)
                 .await?;
-            }
         }
     }
 

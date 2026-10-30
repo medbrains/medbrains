@@ -447,11 +447,11 @@ fn extract_enrichments(node_results: &Value) -> Option<serde_json::Map<String, V
     let mut merged = serde_json::Map::new();
 
     for (_node_id, result) in map {
-        if let Some(output) = result.get("output") {
-            if let Some(enrichments) = output.get("enrichments").and_then(Value::as_object) {
-                for (k, v) in enrichments {
-                    merged.insert(k.clone(), v.clone());
-                }
+        if let Some(output) = result.get("output")
+            && let Some(enrichments) = output.get("enrichments").and_then(Value::as_object)
+        {
+            for (k, v) in enrichments {
+                merged.insert(k.clone(), v.clone());
             }
         }
     }

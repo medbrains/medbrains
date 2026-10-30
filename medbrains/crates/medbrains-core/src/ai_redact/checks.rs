@@ -68,7 +68,7 @@ pub(super) fn is_card(s: &str) -> bool {
             }
         })
         .sum();
-    sum % 10 == 0
+    sum.is_multiple_of(10)
 }
 
 #[cfg(test)]

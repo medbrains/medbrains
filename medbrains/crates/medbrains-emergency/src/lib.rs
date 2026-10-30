@@ -1446,8 +1446,8 @@ pub async fn create_code_activation(
     tx.commit().await?;
 
     // Emit the SpiceDB tuple (best-effort — failures logged, backfill catches up).
-    if let Some(gid) = group_id {
-        if let Err(e) = state
+    if let Some(gid) = group_id
+        && let Err(e) = state
             .authz
             .write_tuple(
                 &medbrains_server_core::middleware::authorization::authz_context(&claims),
@@ -1459,10 +1459,9 @@ pub async fn create_code_activation(
                 Some("break_glass_code_blue".to_owned()),
             )
             .await
-        {
-            tracing::warn!(error = %e, user = %claims.sub,
+    {
+        tracing::warn!(error = %e, user = %claims.sub,
                 "rebac: failed to write code_blue_team#member tuple — backfill will retry");
-        }
     }
 
     Ok(Json(row))
@@ -2604,12 +2603,12 @@ pub async fn admit_from_er(
         ));
     }
 
-    if let (Some(requested_ward_id), Some(selected_bed_ward_id)) = (body.ward_id, bed_ward_id) {
-        if requested_ward_id != selected_bed_ward_id {
-            return Err(AppError::BadRequest(
-                "Selected bed does not belong to the requested ward".to_owned(),
-            ));
-        }
+    if let (Some(requested_ward_id), Some(selected_bed_ward_id)) = (body.ward_id, bed_ward_id)
+        && requested_ward_id != selected_bed_ward_id
+    {
+        return Err(AppError::BadRequest(
+            "Selected bed does not belong to the requested ward".to_owned(),
+        ));
     }
     let admission_ward_id = bed_ward_id.or(body.ward_id);
     let department_id = match body.department_id {

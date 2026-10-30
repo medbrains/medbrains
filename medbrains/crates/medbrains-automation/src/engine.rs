@@ -65,7 +65,10 @@ pub trait TenantStores: Send + Sync + std::fmt::Debug {
 #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
 pub enum RefusedError {
     #[error("`{node}` needs the `{permission}` permission, which this workflow was not granted")]
-    Permission { node: String, permission: &'static str },
+    Permission {
+        node: String,
+        permission: &'static str,
+    },
 }
 
 /// The automation engine, wired for this deployment.
@@ -157,13 +160,13 @@ impl Automation {
             if node.disabled {
                 continue;
             }
-            if let Some(permission) = required_permission(&node.kind) {
-                if !run_as.allows(permission) {
-                    return Err(RefusedError::Permission {
-                        node: node.label().to_owned(),
-                        permission,
-                    });
-                }
+            if let Some(permission) = required_permission(&node.kind)
+                && !run_as.allows(permission)
+            {
+                return Err(RefusedError::Permission {
+                    node: node.label().to_owned(),
+                    permission,
+                });
             }
         }
         Ok(())
@@ -292,7 +295,12 @@ fn refused_result(message: &str) -> RunResult {
 mod tests {
     // Tests may state what must hold and stop if it does not; that is what a
     // test is. The denials exist for code the hospital runs.
-    #![allow(clippy::expect_used, clippy::unwrap_used, clippy::panic, clippy::indexing_slicing)]
+    #![allow(
+        clippy::expect_used,
+        clippy::unwrap_used,
+        clippy::panic,
+        clippy::indexing_slicing
+    )]
 
     use super::*;
     use r8r_core::NoCredentials;
@@ -384,7 +392,10 @@ mod tests {
             )
             .await;
 
-        assert_eq!(result.last[0]["where"], json!("https://tenant-1.example.org"));
+        assert_eq!(
+            result.last[0]["where"],
+            json!("https://tenant-1.example.org")
+        );
     }
 
     #[tokio::test]
@@ -410,8 +421,14 @@ mod tests {
             )
             .await;
 
-        assert_eq!(first.last[0]["where"], json!("https://tenant-1.example.org"));
-        assert_eq!(second.last[0]["where"], json!("https://tenant-2.example.org"));
+        assert_eq!(
+            first.last[0]["where"],
+            json!("https://tenant-1.example.org")
+        );
+        assert_eq!(
+            second.last[0]["where"],
+            json!("https://tenant-2.example.org")
+        );
     }
 
     #[tokio::test]
@@ -508,7 +525,10 @@ mod tests {
     #[async_trait::async_trait]
     impl TenantStores for Stores {
         fn state(&self, tenant_id: Uuid) -> Arc<dyn StateStore> {
-            Arc::new(FixedState(format!("tenant-{}-watermark", tenant_id.as_u128())))
+            Arc::new(FixedState(format!(
+                "tenant-{}-watermark",
+                tenant_id.as_u128()
+            )))
         }
         async fn variables(&self, tenant_id: Uuid) -> Arc<dyn Variables> {
             Arc::new(r8r_core::StaticVariables::new(
@@ -537,7 +557,9 @@ mod tests {
             &self,
             _: &str,
         ) -> r8r_core::Result<serde_json::Map<String, serde_json::Value>> {
-            Ok([("lastSync".to_owned(), json!(self.0))].into_iter().collect())
+            Ok([("lastSync".to_owned(), json!(self.0))]
+                .into_iter()
+                .collect())
         }
         async fn commit(
             &self,
@@ -564,14 +586,21 @@ mod tests {
 
         assert_eq!(
             refused,
-            RefusedError::Permission { node: "Clinical".into(), permission: "patients.view" }
+            RefusedError::Permission {
+                node: "Clinical".into(),
+                permission: "patients.view"
+            }
         );
     }
 
     #[test]
     fn the_same_workflow_is_allowed_once_the_authority_covers_it() {
         let clinical = workflow_with("medbrains");
-        assert!(automation().check(&clinical, &authority(&["patients.view"])).is_ok());
+        assert!(
+            automation()
+                .check(&clinical, &authority(&["patients.view"]))
+                .is_ok()
+        );
     }
 
     #[test]
@@ -588,8 +617,14 @@ mod tests {
     async fn a_refusal_is_recorded_as_a_failed_run_not_a_crash() {
         let clinical = workflow_with("medbrains");
 
-        let result =
-            automation().run(&clinical, &authority(&[]), ExecutionMode::Schedule, vec![json!({})]).await;
+        let result = automation()
+            .run(
+                &clinical,
+                &authority(&[]),
+                ExecutionMode::Schedule,
+                vec![json!({})],
+            )
+            .await;
 
         assert_eq!(result.status, ExecutionStatus::Error);
         assert!(result.error.unwrap().contains("patients.view"));
@@ -600,8 +635,14 @@ mod tests {
     async fn a_permitted_workflow_actually_runs() {
         let plain = workflow_with("set");
 
-        let result =
-            automation().run(&plain, &authority(&[]), ExecutionMode::Manual, vec![json!({})]).await;
+        let result = automation()
+            .run(
+                &plain,
+                &authority(&[]),
+                ExecutionMode::Manual,
+                vec![json!({})],
+            )
+            .await;
 
         assert_eq!(result.status, ExecutionStatus::Success);
         assert_eq!(result.runs.len(), 2);

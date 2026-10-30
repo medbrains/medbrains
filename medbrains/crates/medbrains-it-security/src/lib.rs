@@ -145,12 +145,12 @@ fn normalize_break_glass_start(body: CreateBreakGlassRequest) -> Result<BreakGla
         ));
     }
 
-    if let Some(scope_id) = body.scope_id {
-        if scope_id != patient_id {
-            return Err(AppError::BadRequest(
-                "Patient break-glass scope_id must match patient_id".to_owned(),
-            ));
-        }
+    if let Some(scope_id) = body.scope_id
+        && scope_id != patient_id
+    {
+        return Err(AppError::BadRequest(
+            "Patient break-glass scope_id must match patient_id".to_owned(),
+        ));
     }
 
     let expires_in_minutes = body.expires_in_minutes.unwrap_or(60);

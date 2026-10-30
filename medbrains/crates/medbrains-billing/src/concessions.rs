@@ -273,12 +273,12 @@ pub async fn create_concession(
         (None, invoice_id) => invoice_id,
     };
 
-    if let Some(item) = &item_context {
-        if item.total_price != body.original_amount {
-            return Err(AppError::BadRequest(
-                "original amount must match the linked invoice item total".to_owned(),
-            ));
-        }
+    if let Some(item) = &item_context
+        && item.total_price != body.original_amount
+    {
+        return Err(AppError::BadRequest(
+            "original amount must match the linked invoice item total".to_owned(),
+        ));
     }
 
     if let Some(invoice_id) = effective_invoice_id {

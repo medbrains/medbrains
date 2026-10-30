@@ -11,11 +11,11 @@
 //!
 //! Schema: migrations/0056_clinical_offline_logs.sql.
 
+use axum::routing::get;
 use axum::{
     Extension, Json,
     extract::{Path, State},
 };
-use axum::routing::{get};
 use chrono::{DateTime, Utc};
 use medbrains_core::permissions;
 use serde::{Deserialize, Serialize};
@@ -30,15 +30,18 @@ use medbrains_server_core::{
 
 // ── Shared helpers ──────────────────────────────────────────────────
 
-async fn author_display_name(pool: &sqlx::PgPool, tenant_id: Uuid, user_id: Uuid) -> Result<String, AppError> {
+async fn author_display_name(
+    pool: &sqlx::PgPool,
+    tenant_id: Uuid,
+    user_id: Uuid,
+) -> Result<String, AppError> {
     let mut conn = medbrains_db::pool::tenant_conn(pool, &tenant_id).await?;
-    let row: Option<(String, Option<String>)> = sqlx::query_as(
-        "SELECT email, display_name FROM users WHERE id = $1 AND tenant_id = $2",
-    )
-    .bind(user_id)
-    .bind(tenant_id)
-    .fetch_optional(&mut *conn)
-    .await?;
+    let row: Option<(String, Option<String>)> =
+        sqlx::query_as("SELECT email, display_name FROM users WHERE id = $1 AND tenant_id = $2")
+            .bind(user_id)
+            .bind(tenant_id)
+            .fetch_optional(&mut *conn)
+            .await?;
     let (email, display) = row.ok_or(AppError::NotFound)?;
     Ok(display.unwrap_or(email))
 }
@@ -294,12 +297,12 @@ pub async fn update_patient_notes(
                 .bind(patient_id)
                 .fetch_optional(&mut *tx)
                 .await?;
-        if let Some((cur,)) = current {
-            if cur > expected {
-                return Err(AppError::Conflict(format!(
-                    "stale write: server version {cur} > if_version {expected}"
-                )));
-            }
+        if let Some((cur,)) = current
+            && cur > expected
+        {
+            return Err(AppError::Conflict(format!(
+                "stale write: server version {cur} > if_version {expected}"
+            )));
         }
     }
 
@@ -404,12 +407,12 @@ pub async fn update_nursing_shift_notes(
                 .bind(&shift_id)
                 .fetch_optional(&mut *tx)
                 .await?;
-        if let Some((cur,)) = current {
-            if cur > expected {
-                return Err(AppError::Conflict(format!(
-                    "stale write: server version {cur} > if_version {expected}"
-                )));
-            }
+        if let Some((cur,)) = current
+            && cur > expected
+        {
+            return Err(AppError::Conflict(format!(
+                "stale write: server version {cur} > if_version {expected}"
+            )));
         }
     }
 
@@ -443,22 +446,18 @@ pub fn router() -> axum::Router<AppState> {
     axum::Router::new()
         .route(
             "/api/clinical/handoff-entries/shifts/{shift_id}",
-            get(list_handoff_entries)
-                .post(create_handoff_entry),
+            get(list_handoff_entries).post(create_handoff_entry),
         )
         .route(
             "/api/clinical/triage-entries/visits/{visit_id}",
-            get(list_triage_entries)
-                .post(create_triage_entry),
+            get(list_triage_entries).post(create_triage_entry),
         )
         .route(
             "/api/clinical/patient-notes/{patient_id}",
-            get(get_patient_notes)
-                .put(update_patient_notes),
+            get(get_patient_notes).put(update_patient_notes),
         )
         .route(
             "/api/clinical/nursing-shift-notes/{shift_id}",
-            get(get_nursing_shift_notes)
-                .put(update_nursing_shift_notes),
+            get(get_nursing_shift_notes).put(update_nursing_shift_notes),
         )
 }

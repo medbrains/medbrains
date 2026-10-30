@@ -84,12 +84,12 @@ pub async fn update_policy(
 ) -> Result<Json<StoragePolicyRow>, AppError> {
     require_permission(&claims, permissions::storage::policies::MANAGE)?;
 
-    if let Some(years) = body.retention_years {
-        if !(1..=99).contains(&years) {
-            return Err(AppError::BadRequest(
-                "retention_years must be between 1 and 99".into(),
-            ));
-        }
+    if let Some(years) = body.retention_years
+        && !(1..=99).contains(&years)
+    {
+        return Err(AppError::BadRequest(
+            "retention_years must be between 1 and 99".into(),
+        ));
     }
 
     let mut tx = state.db.begin().await?;

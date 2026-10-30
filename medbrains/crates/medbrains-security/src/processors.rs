@@ -111,12 +111,12 @@ impl ProcessorInput {
                 "Country is a two-letter code, e.g. IN or US".to_owned(),
             ));
         }
-        if let (Some(signed), Some(expires)) = (self.dpa_signed_on, self.dpa_expires_on) {
-            if expires < signed {
-                return Err(AppError::BadRequest(
-                    "The agreement ends before it was signed".to_owned(),
-                ));
-            }
+        if let (Some(signed), Some(expires)) = (self.dpa_signed_on, self.dpa_expires_on)
+            && expires < signed
+        {
+            return Err(AppError::BadRequest(
+                "The agreement ends before it was signed".to_owned(),
+            ));
         }
         if self
             .status

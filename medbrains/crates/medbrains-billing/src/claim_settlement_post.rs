@@ -201,7 +201,7 @@ pub(crate) async fn apply(
             .await?;
         }
         Decision::Reverse(why) => {
-            crate::claim_settlement_reverse::reverse(tx, claims, id, &p, &why).await?
+            crate::claim_settlement_reverse::reverse(tx, claims, id, &p, &why).await?;
         }
     }
     medbrains_doctor_payouts::accrual::sync_after_money(tx, claims.tenant_id, p.invoice_id).await?;

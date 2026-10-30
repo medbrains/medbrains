@@ -1,7 +1,4 @@
-use argon2::{
-    Argon2,
-    PasswordHasher,
-};
+use argon2::{Argon2, PasswordHasher};
 pub mod workbook;
 use axum::routing::{delete, get, post, put};
 use axum::{
@@ -92,25 +89,26 @@ pub async fn update_tenant(
     if let Some(ref phone) = body.phone {
         validation::validate_optional_phone(&mut errors, "phone", phone);
     }
-    if let Some(ref currency) = body.currency {
-        if currency.len() != 3 {
-            errors.add("currency", "Currency must be exactly 3 characters");
-        }
+    if let Some(ref currency) = body.currency
+        && currency.len() != 3
+    {
+        errors.add("currency", "Currency must be exactly 3 characters");
     }
-    if let Some(fy) = body.fy_start_month {
-        if !(1..=12).contains(&fy) {
-            errors.add("fy_start_month", "Month must be between 1 and 12");
-        }
+    if let Some(fy) = body.fy_start_month
+        && !(1..=12).contains(&fy)
+    {
+        errors.add("fy_start_month", "Month must be between 1 and 12");
     }
     // Normalise the custom domain (trim + lowercase); empty string clears it.
     let custom_domain = body.custom_domain.as_ref().map(|d| d.trim().to_lowercase());
-    if let Some(domain) = custom_domain.as_deref() {
-        if !domain.is_empty() && !is_valid_domain(domain) {
-            errors.add(
-                "custom_domain",
-                "Enter a valid domain like hms.hospital.com",
-            );
-        }
+    if let Some(domain) = custom_domain.as_deref()
+        && !domain.is_empty()
+        && !is_valid_domain(domain)
+    {
+        errors.add(
+            "custom_domain",
+            "Enter a valid domain like hms.hospital.com",
+        );
     }
 
     if errors.has_errors() {
@@ -254,17 +252,16 @@ pub async fn tenant_by_host(
         .filter(|h| !h.is_empty());
 
     // SaaS path: resolve the tenant from the custom domain.
-    if let Some(host) = host {
-        if let Some(tenant) = sqlx::query_as::<_, PublicTenant>(
+    if let Some(host) = host
+        && let Some(tenant) = sqlx::query_as::<_, PublicTenant>(
             "SELECT id, name, logo_url, custom_domain FROM tenants \
              WHERE lower(custom_domain) = $1 AND is_active = true",
         )
         .bind(&host)
         .fetch_optional(&state.db)
         .await?
-        {
-            return Ok(Json(Some(tenant)));
-        }
+    {
+        return Ok(Json(Some(tenant)));
     }
 
     // On-prem path: a single-hospital deployment is bound to its tenant by
@@ -457,10 +454,10 @@ pub async fn create_facility(
     if let Some(ref phone) = body.phone {
         validation::validate_optional_phone(&mut errors, "phone", phone);
     }
-    if let Some(bed_count) = body.bed_count {
-        if bed_count < 0 {
-            errors.add("bed_count", "Bed count cannot be negative");
-        }
+    if let Some(bed_count) = body.bed_count
+        && bed_count < 0
+    {
+        errors.add("bed_count", "Bed count cannot be negative");
     }
     if errors.has_errors() {
         return Err(AppError::ValidationFailed(errors));
@@ -2192,15 +2189,15 @@ pub async fn update_branding(
 ) -> Result<Json<TenantSettings>, AppError> {
     require_permission(&claims, permissions::admin::settings::branding::MANAGE)?;
     let mut errors = ValidationErrors::new();
-    if body.key == "primary_color" || body.key == "secondary_color" {
-        if let Some(color_str) = body.value.as_str() {
-            validation::validate_hex_color(&mut errors, &body.key, color_str);
-        }
+    if (body.key == "primary_color" || body.key == "secondary_color")
+        && let Some(color_str) = body.value.as_str()
+    {
+        validation::validate_hex_color(&mut errors, &body.key, color_str);
     }
-    if body.key == "logo_url" {
-        if let Some(url_str) = body.value.as_str() {
-            validation::validate_optional_url(&mut errors, "logo_url", url_str);
-        }
+    if body.key == "logo_url"
+        && let Some(url_str) = body.value.as_str()
+    {
+        validation::validate_optional_url(&mut errors, "logo_url", url_str);
     }
     if errors.has_errors() {
         return Err(AppError::ValidationFailed(errors));

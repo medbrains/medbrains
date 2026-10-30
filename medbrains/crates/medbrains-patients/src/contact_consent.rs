@@ -34,13 +34,13 @@ const METHODS: [&str; 4] = ["sms", "whatsapp", "email", "call"];
 impl ContactPreferences {
     /// Refuse what cannot be honoured, before anything is written.
     pub fn validate(&self, has_email: bool) -> Result<(), AppError> {
-        if let Some(method) = self.preferred_method.as_deref() {
-            if !METHODS.contains(&method) {
-                return Err(AppError::BadRequest(format!(
-                    "preferred contact method must be one of {}",
-                    METHODS.join(", ")
-                )));
-            }
+        if let Some(method) = self.preferred_method.as_deref()
+            && !METHODS.contains(&method)
+        {
+            return Err(AppError::BadRequest(format!(
+                "preferred contact method must be one of {}",
+                METHODS.join(", ")
+            )));
         }
         if self.email_opt_in && !has_email {
             return Err(AppError::BadRequest(

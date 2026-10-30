@@ -160,10 +160,10 @@ pub async fn create_trial(
             "Protocol number and title are required".to_owned(),
         ));
     }
-    if let Some(s) = &body.status {
-        if !VALID_STATUS.contains(&s.as_str()) {
-            return Err(AppError::BadRequest("Invalid status".to_owned()));
-        }
+    if let Some(s) = &body.status
+        && !VALID_STATUS.contains(&s.as_str())
+    {
+        return Err(AppError::BadRequest("Invalid status".to_owned()));
     }
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -216,10 +216,10 @@ pub async fn update_trial(
     Json(body): Json<UpdateTrialRequest>,
 ) -> Result<Json<ClinicalTrial>, AppError> {
     require_permission(&claims, permissions::specialty::clinical_trials::CREATE)?;
-    if let Some(s) = &body.status {
-        if !VALID_STATUS.contains(&s.as_str()) {
-            return Err(AppError::BadRequest("Invalid status".to_owned()));
-        }
+    if let Some(s) = &body.status
+        && !VALID_STATUS.contains(&s.as_str())
+    {
+        return Err(AppError::BadRequest("Invalid status".to_owned()));
     }
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -815,7 +815,9 @@ pub async fn unblind_randomization(
     )
     .await?;
     if body.reason.trim().is_empty() {
-        return Err(AppError::BadRequest("An unblinding reason is required".to_owned()));
+        return Err(AppError::BadRequest(
+            "An unblinding reason is required".to_owned(),
+        ));
     }
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -844,7 +846,13 @@ const IRB_COLS: &str = "id, submission_type, committee_name, reference_number, s
      status, decision_date, notes, created_at";
 
 const IRB_TYPES: [&str; 5] = ["initial", "amendment", "renewal", "sae_report", "closure"];
-const IRB_STATUS: [&str; 5] = ["submitted", "under_review", "approved", "rejected", "deferred"];
+const IRB_STATUS: [&str; 5] = [
+    "submitted",
+    "under_review",
+    "approved",
+    "rejected",
+    "deferred",
+];
 
 #[derive(Debug, Serialize, sqlx::FromRow)]
 pub struct TrialIrbSubmission {
@@ -897,10 +905,10 @@ pub async fn create_irb_submission(
     Json(body): Json<CreateIrbRequest>,
 ) -> Result<Json<TrialIrbSubmission>, AppError> {
     require_permission(&claims, permissions::specialty::clinical_trials::CREATE)?;
-    if let Some(t) = &body.submission_type {
-        if !IRB_TYPES.contains(&t.as_str()) {
-            return Err(AppError::BadRequest("Invalid submission type".to_owned()));
-        }
+    if let Some(t) = &body.submission_type
+        && !IRB_TYPES.contains(&t.as_str())
+    {
+        return Err(AppError::BadRequest("Invalid submission type".to_owned()));
     }
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;

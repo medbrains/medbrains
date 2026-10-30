@@ -294,11 +294,11 @@ pub async fn get_available_slots(
     .fetch_optional(&mut *tx)
     .await?;
 
-    if let Some(ref exc) = exception {
-        if !exc.is_available {
-            tx.commit().await?;
-            return Ok(Json(vec![]));
-        }
+    if let Some(ref exc) = exception
+        && !exc.is_available
+    {
+        tx.commit().await?;
+        return Ok(Json(vec![]));
     }
 
     // Hospital holiday: no slots unless the doctor has an explicit

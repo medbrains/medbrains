@@ -51,10 +51,10 @@ pub async fn resolve_restricted_fields(
         merge_field_access_map(&mut restricted, &value)?;
     }
 
-    if let Some(Value::Object(matrix)) = user_access_matrix {
-        if let Some(value) = matrix.get("field_access") {
-            merge_field_access_map(&mut restricted, value)?;
-        }
+    if let Some(Value::Object(matrix)) = user_access_matrix
+        && let Some(value) = matrix.get("field_access")
+    {
+        merge_field_access_map(&mut restricted, value)?;
     }
 
     Ok(restricted)

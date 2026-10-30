@@ -405,7 +405,12 @@ async fn ensure_invoice_view_access(
     let invoice = outcome_of(
         state
             .authz
-            .check(&authz_ctx, medbrains_authz::Relation::Viewer, "invoice", invoice_id)
+            .check(
+                &authz_ctx,
+                medbrains_authz::Relation::Viewer,
+                "invoice",
+                invoice_id,
+            )
             .await,
         "invoice",
     );
@@ -430,7 +435,12 @@ async fn ensure_invoice_view_access(
     let direct = outcome_of(
         state
             .authz
-            .check(&authz_ctx, medbrains_authz::Relation::Viewer, "patient", patient)
+            .check(
+                &authz_ctx,
+                medbrains_authz::Relation::Viewer,
+                "patient",
+                patient,
+            )
             .await,
         "patient",
     );
@@ -619,15 +629,15 @@ pub async fn list_invoices(
         )
     };
 
-    if let Some(ref ids) = visible_ids {
-        if ids.is_empty() {
-            return Ok(Json(InvoiceListResponse {
-                invoices: Vec::new(),
-                total: 0,
-                page,
-                per_page,
-            }));
-        }
+    if let Some(ref ids) = visible_ids
+        && ids.is_empty()
+    {
+        return Ok(Json(InvoiceListResponse {
+            invoices: Vec::new(),
+            total: 0,
+            page,
+            per_page,
+        }));
     }
 
     let mut tx = state.db.begin().await?;
@@ -1572,7 +1582,11 @@ pub async fn record_payment(
                 .as_deref()
                 .map(str::trim)
                 .filter(|s| !s.is_empty()),
-            shift: body.shift.as_deref().map(str::trim).filter(|s| !s.is_empty()),
+            shift: body
+                .shift
+                .as_deref()
+                .map(str::trim)
+                .filter(|s| !s.is_empty()),
             collection_id: None,
             station_id: None,
             shift_id: None,

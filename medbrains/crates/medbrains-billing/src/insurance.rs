@@ -322,22 +322,22 @@ pub async fn update_insurance_claim(
     let effective_settled = body.settled_amount.or(gate.settled_amount);
 
     // The insurer cannot approve more than the hospital billed.
-    if let Some(approved) = effective_approved {
-        if approved > gate.invoice_total {
-            return Err(AppError::BadRequest(format!(
-                "Approved amount {approved} exceeds the invoice total {}",
-                gate.invoice_total
-            )));
-        }
+    if let Some(approved) = effective_approved
+        && approved > gate.invoice_total
+    {
+        return Err(AppError::BadRequest(format!(
+            "Approved amount {approved} exceeds the invoice total {}",
+            gate.invoice_total
+        )));
     }
 
     // The insurer cannot settle (pay) more than it sanctioned (approved).
-    if let (Some(settled), Some(approved)) = (effective_settled, effective_approved) {
-        if settled > approved {
-            return Err(AppError::BadRequest(format!(
-                "Settled amount {settled} cannot exceed the approved amount {approved}"
-            )));
-        }
+    if let (Some(settled), Some(approved)) = (effective_settled, effective_approved)
+        && settled > approved
+    {
+        return Err(AppError::BadRequest(format!(
+            "Settled amount {settled} cannot exceed the approved amount {approved}"
+        )));
     }
 
     // Handle settled_at based on status
@@ -484,12 +484,12 @@ pub async fn create_tpa_rate_card(
             "insurance provider is required".to_owned(),
         ));
     }
-    if let (Some(valid_from), Some(valid_to)) = (body.valid_from, body.valid_to) {
-        if valid_to < valid_from {
-            return Err(AppError::BadRequest(
-                "valid to date must be after valid from date".to_owned(),
-            ));
-        }
+    if let (Some(valid_from), Some(valid_to)) = (body.valid_from, body.valid_to)
+        && valid_to < valid_from
+    {
+        return Err(AppError::BadRequest(
+            "valid to date must be after valid from date".to_owned(),
+        ));
     }
 
     let mut tx = state.db.begin().await?;
@@ -543,12 +543,12 @@ pub async fn update_tpa_rate_card(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
-    if let (Some(valid_from), Some(valid_to)) = (body.valid_from, body.valid_to) {
-        if valid_to < valid_from {
-            return Err(AppError::BadRequest(
-                "valid to date must be after valid from date".to_owned(),
-            ));
-        }
+    if let (Some(valid_from), Some(valid_to)) = (body.valid_from, body.valid_to)
+        && valid_to < valid_from
+    {
+        return Err(AppError::BadRequest(
+            "valid to date must be after valid from date".to_owned(),
+        ));
     }
     if let Some(rate_plan_id) = body.rate_plan_id {
         let rate_plan_exists = sqlx::query_scalar::<_, bool>(

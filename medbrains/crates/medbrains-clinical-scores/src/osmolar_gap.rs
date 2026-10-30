@@ -46,8 +46,10 @@ pub fn compute_osmolar_gap(
     ethanol_mg_dl: Option<f64>,
 ) -> OsmolarGapResult {
     let ethanol_term = ethanol_mg_dl.unwrap_or(0.0) / 3.7;
-    let calculated_osm =
-        2.0_f64.mul_add(sodium, glucose_mg_dl / 18.0 + bun_mg_dl / 2.8 + ethanol_term);
+    let calculated_osm = 2.0_f64.mul_add(
+        sodium,
+        glucose_mg_dl / 18.0 + bun_mg_dl / 2.8 + ethanol_term,
+    );
     let osmolar_gap = measured_osm - calculated_osm;
 
     let (category, response) = if osmolar_gap > 10.0 {
@@ -83,21 +85,31 @@ pub async fn osmolar_gap(
 ) -> Result<Json<OsmolarGapResult>, AppError> {
     require_permission(&claims, permissions::lab::orders::LIST)?;
     if !(100.0..=180.0).contains(&body.sodium) {
-        return Err(AppError::BadRequest("sodium must be between 100 and 180 mmol/L".into()));
+        return Err(AppError::BadRequest(
+            "sodium must be between 100 and 180 mmol/L".into(),
+        ));
     }
     if !(20.0..=1500.0).contains(&body.glucose_mg_dl) {
-        return Err(AppError::BadRequest("glucose must be between 20 and 1500 mg/dL".into()));
+        return Err(AppError::BadRequest(
+            "glucose must be between 20 and 1500 mg/dL".into(),
+        ));
     }
     if !(2.0..=300.0).contains(&body.bun_mg_dl) {
-        return Err(AppError::BadRequest("BUN must be between 2 and 300 mg/dL".into()));
+        return Err(AppError::BadRequest(
+            "BUN must be between 2 and 300 mg/dL".into(),
+        ));
     }
     if !(200.0..=400.0).contains(&body.measured_osm) {
-        return Err(AppError::BadRequest("measured osmolality must be between 200 and 400 mOsm/kg".into()));
+        return Err(AppError::BadRequest(
+            "measured osmolality must be between 200 and 400 mOsm/kg".into(),
+        ));
     }
-    if let Some(e) = body.ethanol_mg_dl {
-        if !(0.0..=600.0).contains(&e) {
-            return Err(AppError::BadRequest("ethanol must be between 0 and 600 mg/dL".into()));
-        }
+    if let Some(e) = body.ethanol_mg_dl
+        && !(0.0..=600.0).contains(&e)
+    {
+        return Err(AppError::BadRequest(
+            "ethanol must be between 0 and 600 mg/dL".into(),
+        ));
     }
     Ok(Json(compute_osmolar_gap(
         body.sodium,

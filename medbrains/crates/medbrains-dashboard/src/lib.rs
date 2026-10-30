@@ -8,8 +8,8 @@ use std::collections::HashMap;
 
 mod as_of;
 pub mod management_doctors;
-pub mod my_widgets;
 pub mod management_kpis;
+pub mod my_widgets;
 
 use chrono::{NaiveDate, Utc};
 use medbrains_core::dashboard::{
@@ -1066,10 +1066,11 @@ pub async fn get_widget_data(
     // Enforce the widget's own permission_code — fetching a widget by ID must not
     // bypass the gate fetch_visible_widgets applies when rendering dashboards.
     // 404 (not 403) so a widget the caller can't see isn't confirmed to exist.
-    if let Some(perm) = widget.permission_code.as_ref() {
-        if !is_bypass_role(&claims) && !claims.permissions.iter().any(|p| p == perm) {
-            return Err(AppError::NotFound);
-        }
+    if let Some(perm) = widget.permission_code.as_ref()
+        && !is_bypass_role(&claims)
+        && !claims.permissions.iter().any(|p| p == perm)
+    {
+        return Err(AppError::NotFound);
     }
 
     // Apply the viewer's variant overrides (data_source/config) before resolving.
@@ -1375,13 +1376,18 @@ async fn resolve_sql_count(
             format!("SELECT COUNT(*) FROM {table} WHERE tenant_id = app_current_tenant() AND {f}")
         }
         Some(f) => {
-            tracing::warn!(filter = f, "sql_count widget filter not allowlisted; counting all");
+            tracing::warn!(
+                filter = f,
+                "sql_count widget filter not allowlisted; counting all"
+            );
             format!("SELECT COUNT(*) FROM {table} WHERE tenant_id = app_current_tenant()")
         }
         None => format!("SELECT COUNT(*) FROM {table} WHERE tenant_id = app_current_tenant()"),
     };
 
-    let count = sqlx::query_scalar::<_, i64>(&sql).fetch_one(&mut **tx).await?;
+    let count = sqlx::query_scalar::<_, i64>(&sql)
+        .fetch_one(&mut **tx)
+        .await?;
     Ok(serde_json::json!({ "value": count }))
 }
 
@@ -1398,7 +1404,10 @@ fn redact_widget_data(
     config: &serde_json::Value,
     restricted: &HashMap<String, FieldAccessLevel>,
 ) -> serde_json::Value {
-    let Some(sensitive) = config.get("sensitive").and_then(serde_json::Value::as_object) else {
+    let Some(sensitive) = config
+        .get("sensitive")
+        .and_then(serde_json::Value::as_object)
+    else {
         return data;
     };
     if sensitive.is_empty() || restricted.is_empty() {
@@ -1465,7 +1474,10 @@ async fn fetch_viewer_groups(
     .bind(tenant_id)
     .fetch_all(&mut **tx)
     .await?;
-    Ok(rows.into_iter().map(|(id, pri)| (id.to_string(), pri)).collect())
+    Ok(rows
+        .into_iter()
+        .map(|(id, pri)| (id.to_string(), pri))
+        .collect())
 }
 
 /// Score a variant's `match` audience against the viewer. Higher = more specific:
@@ -1477,10 +1489,10 @@ fn variant_match_score(
     groups: &[(String, i32)],
 ) -> Option<u64> {
     let m = m?;
-    if let Some(users) = m.get("users").and_then(serde_json::Value::as_array) {
-        if users.iter().any(|u| u.as_str() == Some(user_id)) {
-            return Some(1_000_000);
-        }
+    if let Some(users) = m.get("users").and_then(serde_json::Value::as_array)
+        && users.iter().any(|u| u.as_str() == Some(user_id))
+    {
+        return Some(1_000_000);
     }
     if let Some(gids) = m.get("groups").and_then(serde_json::Value::as_array) {
         let best_pri = groups
@@ -1492,10 +1504,10 @@ fn variant_match_score(
             return Some(1000 + u64::try_from(p.max(0)).unwrap_or(0));
         }
     }
-    if let Some(roles) = m.get("roles").and_then(serde_json::Value::as_array) {
-        if roles.iter().any(|r| r.as_str() == Some(role)) {
-            return Some(1);
-        }
+    if let Some(roles) = m.get("roles").and_then(serde_json::Value::as_array)
+        && roles.iter().any(|r| r.as_str() == Some(role))
+    {
+        return Some(1);
     }
     None
 }
@@ -1503,7 +1515,12 @@ fn variant_match_score(
 /// Apply the best-matching variant's overrides onto a widget in place: `title`,
 /// `subtitle` and `data_source` are replaced; `config` is shallow-merged so a
 /// variant can tweak one key (e.g. add `sensitive` or change `format`).
-fn apply_variant(widget: &mut DashboardWidget, role: &str, user_id: Uuid, groups: &[(String, i32)]) {
+fn apply_variant(
+    widget: &mut DashboardWidget,
+    role: &str,
+    user_id: Uuid,
+    groups: &[(String, i32)],
+) {
     let Some(variants) = widget.variants.as_array() else {
         return;
     };
@@ -2166,11 +2183,9 @@ async fn resolve_module_query(
             .bind(dept_filter)
             .fetch_one(&mut **tx)
             .await?;
-            let rows = sqlx::query_as::<
-                _,
-                (String, Option<String>, chrono::DateTime<Utc>, bool, String),
-            >(
-                "SELECT ima.drug_name, ima.dose, ima.scheduled_at, ima.is_high_alert, \
+            let rows =
+                sqlx::query_as::<_, (String, Option<String>, chrono::DateTime<Utc>, bool, String)>(
+                    "SELECT ima.drug_name, ima.dose, ima.scheduled_at, ima.is_high_alert, \
                         CONCAT(p.first_name, ' ', COALESCE(p.last_name, '')) \
                  FROM ipd_medication_administration ima \
                  JOIN admissions a ON a.id = ima.admission_id AND a.status = 'admitted' \
@@ -2180,21 +2195,23 @@ async fn resolve_module_query(
                    AND ima.scheduled_at <= now() + interval '2 hours' \
                    AND ($1::uuid[] IS NULL OR e.department_id = ANY($1)) \
                  ORDER BY ima.scheduled_at ASC LIMIT 20",
-            )
-            .bind(dept_filter)
-            .fetch_all(&mut **tx)
-            .await?;
+                )
+                .bind(dept_filter)
+                .fetch_all(&mut **tx)
+                .await?;
             let items: Vec<serde_json::Value> = rows
                 .into_iter()
-                .map(|(drug_name, dose, scheduled_at, is_high_alert, patient_name)| {
-                    serde_json::json!({
-                        "drug_name": drug_name,
-                        "dose": dose,
-                        "scheduled_at": scheduled_at,
-                        "is_high_alert": is_high_alert,
-                        "patient_name": patient_name,
-                    })
-                })
+                .map(
+                    |(drug_name, dose, scheduled_at, is_high_alert, patient_name)| {
+                        serde_json::json!({
+                            "drug_name": drug_name,
+                            "dose": dose,
+                            "scheduled_at": scheduled_at,
+                            "is_high_alert": is_high_alert,
+                            "patient_name": patient_name,
+                        })
+                    },
+                )
                 .collect();
             Ok(serde_json::json!({
                 "items": items,
@@ -2761,14 +2778,22 @@ mod redaction_tests {
     #[test]
     fn masks_scalar_value() {
         let config = json!({ "sensitive": { "value": "billing.amount" } });
-        let out = redact_widget_data(json!({ "value": 12345 }), &config, &restricted(FieldAccessLevel::Mask));
+        let out = redact_widget_data(
+            json!({ "value": 12345 }),
+            &config,
+            &restricted(FieldAccessLevel::Mask),
+        );
         assert_eq!(out, json!({ "value": "•••" }));
     }
 
     #[test]
     fn hides_scalar_value() {
         let config = json!({ "sensitive": { "value": "billing.amount" } });
-        let out = redact_widget_data(json!({ "value": 12345 }), &config, &restricted(FieldAccessLevel::Hidden));
+        let out = redact_widget_data(
+            json!({ "value": 12345 }),
+            &config,
+            &restricted(FieldAccessLevel::Hidden),
+        );
         assert_eq!(out, json!({}));
     }
 
@@ -2777,7 +2802,10 @@ mod redaction_tests {
         let config = json!({ "sensitive": { "total": "billing.amount" } });
         let data = json!([{ "id": 1, "total": 100 }, { "id": 2, "total": 200 }]);
         let out = redact_widget_data(data, &config, &restricted(FieldAccessLevel::Mask));
-        assert_eq!(out, json!([{ "id": 1, "total": "•••" }, { "id": 2, "total": "•••" }]));
+        assert_eq!(
+            out,
+            json!([{ "id": 1, "total": "•••" }, { "id": 2, "total": "•••" }])
+        );
     }
 
     #[test]
@@ -2792,10 +2820,20 @@ mod redaction_tests {
     fn noop_without_sensitive_config_or_restrictions() {
         let plain = json!({ "value": 7 });
         // no sensitive declaration
-        assert_eq!(redact_widget_data(plain.clone(), &json!({}), &restricted(FieldAccessLevel::Mask)), plain);
+        assert_eq!(
+            redact_widget_data(
+                plain.clone(),
+                &json!({}),
+                &restricted(FieldAccessLevel::Mask)
+            ),
+            plain
+        );
         // sensitive declared but viewer unrestricted (e.g. bypass role)
         let config = json!({ "sensitive": { "value": "billing.amount" } });
-        assert_eq!(redact_widget_data(plain.clone(), &config, &HashMap::new()), plain);
+        assert_eq!(
+            redact_widget_data(plain.clone(), &config, &HashMap::new()),
+            plain
+        );
     }
 }
 
@@ -2834,7 +2872,10 @@ mod variant_tests {
     #[test]
     fn no_match_returns_none() {
         let m = json!({ "roles": ["doctor"], "groups": ["gX"] });
-        assert_eq!(variant_match_score(Some(&m), "nurse", "u1", &[("g1".to_owned(), 5)]), None);
+        assert_eq!(
+            variant_match_score(Some(&m), "nurse", "u1", &[("g1".to_owned(), 5)]),
+            None
+        );
         assert_eq!(variant_match_score(None, "nurse", "u1", &[]), None);
     }
 }
@@ -2856,19 +2897,10 @@ pub fn router() -> axum::Router<AppState> {
             "/api/dashboards/my/report-widgets/{report_id}",
             put(my_widgets::set_my_report_widget),
         )
-        .route(
-            "/api/dashboards/{id}",
-            get(get_dashboard),
-        )
-        .route(
-            "/api/widget-templates",
-            get(list_widget_templates),
-        )
+        .route("/api/dashboards/{id}", get(get_dashboard))
+        .route("/api/widget-templates", get(list_widget_templates))
         .route("/api/dashboard/summary", get(dashboard_summary))
-        .route(
-            "/api/dashboard/widget-data/batch",
-            post(batch_widget_data),
-        )
+        .route("/api/dashboard/widget-data/batch", post(batch_widget_data))
         .route(
             "/api/dashboard/widget-data/{widget_id}",
             get(get_widget_data),

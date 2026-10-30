@@ -328,13 +328,12 @@ pub fn generate_device_config(
                 .and_then(serde_json::Value::as_bool)
                 .unwrap_or(false)
             {
-                if let Some(config) = quirk.get("config") {
-                    if let (serde_json::Value::Object(base), serde_json::Value::Object(patch)) =
+                if let Some(config) = quirk.get("config")
+                    && let (serde_json::Value::Object(base), serde_json::Value::Object(patch)) =
                         (&mut protocol_config, config)
-                    {
-                        for (k, v) in patch {
-                            base.insert(k.clone(), v.clone());
-                        }
+                {
+                    for (k, v) in patch {
+                        base.insert(k.clone(), v.clone());
                     }
                 }
                 if let Some(id) = quirk.get("id").and_then(serde_json::Value::as_str) {

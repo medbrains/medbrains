@@ -488,7 +488,8 @@ pub async fn list_orders(
 
     let (where_clause, binds, next_idx) = build_order_filter(&params, visible_ids.as_deref());
 
-    let count_sql = format!("SELECT COUNT(*) FROM lab_orders WHERE {where_clause} AND deleted_at IS NULL");
+    let count_sql =
+        format!("SELECT COUNT(*) FROM lab_orders WHERE {where_clause} AND deleted_at IS NULL");
     let mut cq = sqlx::query_scalar::<_, i64>(&count_sql).bind(claims.tenant_id);
     for bind in &binds {
         cq = match bind {
@@ -2009,8 +2010,14 @@ pub async fn add_results(
         )));
     }
 
-    let results = post_results_in_tx(&mut tx, &order, claims.sub, &body.results, ResultSource::Manual)
-        .await?;
+    let results = post_results_in_tx(
+        &mut tx,
+        &order,
+        claims.sub,
+        &body.results,
+        ResultSource::Manual,
+    )
+    .await?;
 
     tx.commit().await?;
 
@@ -3292,44 +3299,43 @@ pub async fn create_qc_result(
 
     if let (Some(mean), Some(sd), Some(obs)) =
         (body.target_mean, body.target_sd, body.observed_value)
+        && sd != Decimal::ZERO
     {
-        if sd != Decimal::ZERO {
-            let sdi = (obs - mean) / sd;
-            sd_index = Some(sdi);
+        let sdi = (obs - mean) / sd;
+        sd_index = Some(sdi);
 
-            // The runs before this one, for the same test, lot and level.
-            // Four of the six rules are about a sequence, and nothing used to
-            // fetch it, so they could never fire.
-            //
-            // Nine is the most any rule needs -- 10x counts this run plus
-            // nine -- so the query is bounded there rather than reading a
-            // lot's whole history to look at its tail.
-            let history = sqlx::query_scalar::<_, Option<f64>>(
-                "SELECT sd_index::float8 FROM lab_qc_results \
+        // The runs before this one, for the same test, lot and level.
+        // Four of the six rules are about a sequence, and nothing used to
+        // fetch it, so they could never fire.
+        //
+        // Nine is the most any rule needs -- 10x counts this run plus
+        // nine -- so the query is bounded there rather than reading a
+        // lot's whole history to look at its tail.
+        let history = sqlx::query_scalar::<_, Option<f64>>(
+            "SELECT sd_index::float8 FROM lab_qc_results \
                   WHERE tenant_id = $1 AND test_id = $2 AND lot_id = $3 AND level = $4 \
                     AND sd_index IS NOT NULL AND deleted_at IS NULL \
                   ORDER BY run_date DESC NULLS LAST, run_time DESC \
                   LIMIT 9",
-            )
-            .bind(claims.tenant_id)
-            .bind(body.test_id)
-            .bind(body.lot_id)
-            .bind(&body.level)
-            .fetch_all(&mut *tx)
-            .await?
-            .into_iter()
-            .flatten()
-            .collect::<Vec<f64>>();
+        )
+        .bind(claims.tenant_id)
+        .bind(body.test_id)
+        .bind(body.lot_id)
+        .bind(&body.level)
+        .fetch_all(&mut *tx)
+        .await?
+        .into_iter()
+        .flatten()
+        .collect::<Vec<f64>>();
 
-            let sdi_f64 = f64::try_from(sdi).unwrap_or(0.0);
-            let evaluation = westgard::evaluate(sdi_f64, &history);
-            status = evaluation.status;
-            westgard_violations = evaluation
-                .violations
-                .into_iter()
-                .map(ToOwned::to_owned)
-                .collect();
-        }
+        let sdi_f64 = f64::try_from(sdi).unwrap_or(0.0);
+        let evaluation = westgard::evaluate(sdi_f64, &history);
+        status = evaluation.status;
+        westgard_violations = evaluation
+            .violations
+            .into_iter()
+            .map(ToOwned::to_owned)
+            .collect();
     }
 
     let violations_val: Option<Vec<String>> = if westgard_violations.is_empty() {
@@ -6040,7 +6046,9 @@ pub async fn create_referral_payout(
     require_permission(&claims, permissions::lab::b2b::MANAGE)?;
     require_permission(&claims, permissions::doctor_payouts::statements::PREPARE)?;
     if body.period_end < body.period_start {
-        return Err(AppError::BadRequest("The period ends before it starts".to_owned()));
+        return Err(AppError::BadRequest(
+            "The period ends before it starts".to_owned(),
+        ));
     }
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -6054,7 +6062,9 @@ pub async fn create_referral_payout(
     let statement_id =
         medbrains_doctor_payouts::referral::create_referral_statement(&mut tx, &ask).await?;
     tx.commit().await?;
-    Ok(Json(serde_json::json!({"statement_id": statement_id, "status": "created"})))
+    Ok(Json(
+        serde_json::json!({"statement_id": statement_id, "status": "created"}),
+    ))
 }
 
 #[derive(Debug, Deserialize)]

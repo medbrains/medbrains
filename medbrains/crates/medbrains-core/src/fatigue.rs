@@ -85,13 +85,13 @@ pub fn evaluate(
             limit: t.continuous_h,
         });
     }
-    if let Some(rest) = rest_h {
-        if rest < t.rest_h {
-            flags.push(FatigueFlag::ShortRest {
-                hours: rest,
-                limit: t.rest_h,
-            });
-        }
+    if let Some(rest) = rest_h
+        && rest < t.rest_h
+    {
+        flags.push(FatigueFlag::ShortRest {
+            hours: rest,
+            limit: t.rest_h,
+        });
     }
     if week_h > t.week_h {
         flags.push(FatigueFlag::HeavyWeek {
