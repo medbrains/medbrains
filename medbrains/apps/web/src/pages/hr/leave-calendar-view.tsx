@@ -86,12 +86,10 @@ function windowTitle({ view, date, from, to }: LeaveCalendarWindow): string {
 function EventBody(event: ScheduleEventData) {
   const leave = (event.payload as { leave: LeaveRow }).leave;
   const Icon = TYPE_ICON[leave.leave_type] ?? IconCalendarStar;
-  const pending = isPendingLeave(leave.status);
   return (
     <Group gap={4} wrap="nowrap" className={styles.eventBody}>
       <Icon size={16} aria-hidden />
       <Text size="xs" truncate>
-        {pending ? "Pending: " : ""}
         {event.title}
       </Text>
     </Group>
@@ -105,7 +103,7 @@ function renderEvent(event: ScheduleEventData, props: React.ComponentPropsWithou
     <UnstyledButton
       {...props}
       data-leave-state={isPendingLeave(leave.status) ? "pending" : "approved"}
-      aria-label={`${isPendingLeave(leave.status) ? "Pending" : "Approved"} ${event.title}, ${leave.start_date} to ${leave.end_date}`}
+      aria-label={`${isPendingLeave(leave.status) ? "" : "Approved · "}${event.title}, ${leave.start_date} to ${leave.end_date}`}
     />
   );
 }

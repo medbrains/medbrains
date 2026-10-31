@@ -57,9 +57,13 @@ describe("toLeaveEvents", () => {
     expect(e?.end).toBe("2026-11-05 00:00:00");
   });
 
-  it("names the type and the person, so colour is never the only signal", () => {
-    const [e] = toLeaveEvents([{ ...leave({ leave_type: "loss_of_pay" }), employee_name: "Asha" }]);
-    expect(e?.title).toBe("Loss of Pay · Asha");
+  it("names status, type and person, so colour is never the only signal", () => {
+    const [a, p] = toLeaveEvents([
+      { ...leave({ leave_type: "loss_of_pay" }), employee_name: "Asha" },
+      { ...leave({ id: "p", status: "pending_hod" }), employee_name: "Ravi" },
+    ]);
+    expect(a?.title).toBe("Loss of Pay · Asha");
+    expect(p?.title).toBe("Pending · Casual · Ravi");
   });
 
   it("keeps pending and approved apart and leaves rejected and cancelled off", () => {

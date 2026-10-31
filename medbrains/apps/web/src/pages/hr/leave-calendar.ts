@@ -55,7 +55,14 @@ export function toLeaveEvents<T extends LeaveRow>(rows: T[]): ScheduleEventData<
     .filter((r) => ON_CALENDAR.has(r.status))
     .map((r) => ({
       id: r.id,
-      title: [leaveTypeLabel(r.leave_type), r.employee_name].filter(Boolean).join(" · "),
+      // The week/day all-day row draws the title alone, so status lives in it too.
+      title: [
+        isPendingLeave(r.status) ? "Pending" : null,
+        leaveTypeLabel(r.leave_type),
+        r.employee_name,
+      ]
+        .filter(Boolean)
+        .join(" · "),
       start: `${r.start_date} 00:00:00`,
       end: `${dayjs(r.end_date).add(1, "day").format(DATE)} 00:00:00`,
       color: isPendingLeave(r.status) ? "primary" : "success",

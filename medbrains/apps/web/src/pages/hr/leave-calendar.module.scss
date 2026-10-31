@@ -11,10 +11,11 @@
     border: 1px solid currentColor;
   }
 
+  // Doubled class outranks the schedule's single-class transitions without !important.
   @media (prefers-reduced-motion: reduce) {
-    * {
-      transition: none !important;
-      animation: none !important;
+    &#{&} * {
+      transition: none;
+      animation: none;
     }
   }
 }
