@@ -1,79 +1,92 @@
 # Contributing to MedBrains
 
-Thank you for helping build open health infrastructure. MedBrains is a hospital management system — the code can affect patient safety, so we hold a high bar. This guide gets you productive and explains the rules that keep the project safe and sustainable.
+Thank you for helping. MedBrains runs hospitals, so the code can affect patient safety. We keep a high bar, and we are glad to help you meet it.
 
 ## Ways to contribute
 
-- **Code** — fix a bug, build a module, improve performance or accessibility.
-- **Clinical/domain review** — you're a clinician, pharmacist, or hospital administrator? Tell us where our workflows or regulatory logic are wrong. This is gold.
-- **Docs & translations** — README, module RFCs, UI strings (the app is i18n-ready).
-- **Triage** — reproduce issues, label, and help others.
+- **Clinical review.** Doctors, nurses, pharmacists and administrators: tell us where a workflow or rule is wrong. Open an issue and describe what really happens on the ward.
+- **Code.** Fix a bug, finish a roadmap item, improve speed or accessibility.
+- **Translations.** The web app's interface text is translatable.
+- **Docs.** Setup guides, how-tos, screenshots.
+- **Triage.** Reproduce bugs and help others in Discussions.
+
+Good first tasks are listed in the README under [Contributing](./README.md#contributing) and labelled `good first issue`.
 
 ## Before you start
 
-1. **Search existing [issues](https://github.com/DomnicAmalan/MedBrains/issues) and [discussions](https://github.com/DomnicAmalan/MedBrains/discussions).** Many things are already in progress.
-2. For anything non-trivial, **open an issue first** to agree on the approach — especially for new screens (we plan UI before building) and anything touching clinical or regulatory logic.
-3. Read the architecture, coding standards, and module workflow in [`medbrains/CLAUDE.md`](./medbrains/CLAUDE.md). It's the source of truth for how this codebase is built.
+1. Search the [issues](https://github.com/medbrains/medbrains/issues) and [discussions](https://github.com/medbrains/medbrains/discussions). Someone may already be on it.
+2. For anything bigger than a small fix, **open an issue first** and agree on the approach. This matters most for new screens and for anything touching clinical or regulatory rules.
+3. Read [`CLAUDE.md`](./CLAUDE.md). It holds the architecture, coding standards and module workflow.
 
-## Licensing & the CLA
+## Sign your commits (DCO)
 
-MedBrains is **dual-licensed** (AGPL-3.0 + commercial). To keep that sustainable, every contributor accepts the [Contributor License Agreement](./CLA.md) once, via:
+We use the [Developer Certificate of Origin](https://developercertificate.org/). By signing off you confirm that you wrote the change, or have the right to submit it, under the project's [Apache 2.0 licence](./LICENSE).
 
-- **Sign-off on every commit:** `git commit -s` (adds `Signed-off-by:` — the Developer Certificate of Origin).
-- A one-time CLA confirmation on your first PR (a bot will prompt you).
+Add `-s` to every commit:
 
-No sign-off, no merge — the CI checks for it.
+```bash
+git commit -s -m "Explain why the change is needed"
+```
 
-> **Never commit real patient data.** Use only synthetic or de-identified data in code, tests, seeds, and fixtures. This is a hard rule; PRs containing anything resembling PHI will be rejected and the history scrubbed.
+This adds `Signed-off-by: Your Name <you@example.com>`. Use your real name. Pull requests with unsigned commits cannot be merged. To fix the last commit, run `git commit --amend -s`.
+
+## Never commit real patient data
+
+Use only synthetic or fully de-identified data in code, tests, seeds, screenshots and issues. No real names, phone numbers, IDs or records, and no hospital's internal documents. Pull requests containing anything that looks like patient data are closed, and the history is cleaned.
 
 ## Development setup
 
-See the [Quickstart](./README.md#quickstart). In short:
+**You need:** macOS or Linux, Docker, Rust 1.85+ via `rustup`, Node 24 and pnpm 10.
 
 ```bash
 git submodule update --init                # r8r automation engine (pinned commit)
 cd medbrains
-docker compose up -d                       # PostgreSQL 16
-make dev-backend                           # Axum on :8080 (migrations auto-apply)
-pnpm install && pnpm --filter=@medbrains/web dev   # Vite on :5173
+cp .env.example .env
+make db              # PostgreSQL and supporting services in Docker
+make dev-db-roles    # database roles for the app
+make dev-backend     # server on :3000, runs migrations
+pnpm install
+pnpm dev:web         # web app on http://localhost:5173
 ```
 
-## Coding standards (the short version)
+The workspace has about 119 Rust crates. The first build is slow and uses a lot of disk. Run only one cargo build at a time, and build just the crate you changed (`cargo clippy -p <crate>`). SQL metadata is committed in `.sqlx/`, so builds work offline with `SQLX_OFFLINE=true`.
 
-Full rules live in [`CLAUDE.md`](./medbrains/CLAUDE.md). The essentials:
+## Code style
+
+The full rules are in [`CLAUDE.md`](./CLAUDE.md). The essentials:
 
 **Rust**
-- Edition 2024, MSRV 1.85. `unsafe` is forbidden. Strict clippy (`all` denied; `unwrap_used`/`expect_used`/`panic`/`todo`/`print_*` denied).
-- Compile-time-checked SQL only (`sqlx::query!` family). Every tenant-scoped table has `tenant_id` + RLS; set context per request.
-- Errors: `thiserror` in libraries, `anyhow` at application edges. Propagate with `?`.
-- `cargo fmt` + `cargo clippy` must be clean.
+- Edition 2024. `unsafe` is forbidden.
+- Strict clippy: `unwrap`, `expect`, `panic`, `todo` and `print*` are denied. Propagate errors with `?`, and use `thiserror` in library crates.
+- Compile-time-checked SQL only (`sqlx::query!` and related macros). Every hospital-scoped table has `tenant_id` and row-level security.
+- `cargo fmt` and `cargo clippy` must be clean.
 
 **TypeScript / React**
-- Strict TypeScript — no `any`, no plain `.js`.
-- Build UI from the `@/components/ui` seam; **never hand-roll raw HTML** (`<button>`/`<input>`/`<table>`/inline `<svg>`) — use a component. Layout via Mantine primitives (`Box`/`Stack`/`Group`/`Grid`), not bare `<div>`.
-- **Accessibility is mandatory (WCAG 2.1 AA).** Keyboard-operable everything, visible focus ring, `aria-label` on icon-only controls, real labels on inputs, honour `prefers-reduced-motion`. Enforced by strict Biome a11y rules.
-- All server data through TanStack Query; validate responses with Zod. Avoid `useEffect` (see the useEffect policy in CLAUDE.md).
-- Biome for lint + format.
+- Strict TypeScript, no `any`.
+- Build screens from the `@/components/ui` components and Mantine. No raw `<button>`, `<input>` or `<table>`, and no inline `<svg>` (icons come from `@tabler/icons-react`).
+- Server data goes through TanStack Query; forms use React Hook Form and Zod.
+- Biome formats and lints: run `pnpm lint`.
 
-**General**
-- Remove dead code immediately — no commented-out blocks, no "for later" speculation.
-- Boy-Scout Rule: leave files better than you found them.
-- Check applicable regulatory norms **before** building a clinical feature (see CLAUDE.md → Regulatory & Compliance).
+**Accessibility (required).** Follow WCAG 2.2 AA: everything works from the keyboard, focus is visible, icon-only buttons have an `aria-label`, inputs have labels, and meaning is never shown by colour alone.
+
+**Permissions first.** A new action defines its permission in Rust (`medbrains/crates/medbrains-core/src/permissions.rs`) before any handler or screen. Then run `python3 scripts/generate_permissions_ts.py` from `medbrains/`, and never hand-edit `packages/types/src/permissions.ts`.
+
+**Keep it clean.** Delete dead code; don't comment it out. Don't add code "for later".
 
 ## Pull requests
 
-1. Branch from `master`: `feature/<short-name>`.
-2. Keep PRs focused — one logical change.
-3. Make the checks pass: `cargo clippy`, `cargo fmt --check`, `pnpm typecheck`, `pnpm build`, `make check-all` (API contract + UI/API coverage + type contracts), and the relevant tests.
-4. Write a clear PR description: what changed, why, and how you verified it. Reference the issue.
-5. New modules/endpoints need tests (CRUD + integration). New screens need an accessibility pass.
+1. Branch from `main`: `feature/<short-name>` or `fix/<short-name>`.
+2. Keep one logical change per PR, with its screen, its API and its tests together.
+3. Make the checks pass: `cargo fmt --check`, `cargo clippy`, `pnpm typecheck`, `pnpm build` and `make check-all`.
+4. In the description, say what changed, why, and how you checked it. Link the issue (`Closes #123`).
+5. Add tests for new endpoints and screens. A test should fail if the behaviour breaks.
 
-A maintainer will review. We aim to be responsive and kind — see the [Code of Conduct](./CODE_OF_CONDUCT.md).
+A maintainer will review. Please be kind; see the [Code of Conduct](./CODE_OF_CONDUCT.md).
 
-## Reporting security issues
+## Security
 
-**Do not** open a public issue for a vulnerability. Follow [SECURITY.md](./SECURITY.md).
+Do not report vulnerabilities in public issues. Follow [SECURITY.md](./SECURITY.md).
 
----
+## Licence
 
-Questions? Open a [Discussion](https://github.com/DomnicAmalan/MedBrains/discussions). Welcome aboard. 💚
+By contributing, you agree that your contribution is licensed under the [Apache License 2.0](./LICENSE). You keep your copyright.
