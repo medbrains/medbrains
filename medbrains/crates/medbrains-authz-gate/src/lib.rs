@@ -6,7 +6,7 @@
 //! or admissions (the object-hierarchy edge — the care team is linked to the
 //! encounter/admission, not the patient directly).
 //!
-//! DSA/DP discipline (CLAUDE.md "DSA + dynamic programming everywhere"): the
+//! DSA/DP discipline (ENGINEERING.md "DSA + dynamic programming everywhere"): the
 //! cheap direct check short-circuits first (0 SQL on the common path); the
 //! object fan-out is **bounded** (`MAX_FANOUT`) and **batched** into a single
 //! `bulk_check` (N→1) rather than a per-object loop.

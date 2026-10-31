@@ -21,7 +21,7 @@ two ways that happens, because they need opposite fixes:
   ORPHANED                 neither. Dead vocabulary, or a feature that was
                            planned and never wired.
 
-CLAUDE.md records the shape this comes from: "105 permissions existed in Rust
+ENGINEERING.md records the shape this comes from: "105 permissions existed in Rust
 that the admin UI could not grant". Reporting, not gating — deciding whether a
 code is dead or merely unwired needs a person, and a check that fails the
 build on day one gets excluded from the build.

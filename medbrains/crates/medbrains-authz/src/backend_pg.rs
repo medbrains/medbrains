@@ -78,7 +78,7 @@ impl AuthzBackend for PgAuthzBackend {
         // Single-round-trip resolution: the four subject-match paths (direct
         // user / role / department / group) are OR-ed into one `EXISTS` instead
         // of up to four sequential queries (DSA: batch N round-trips into 1 —
-        // see CLAUDE.md). Semantics are byte-for-byte identical to the previous
+        // see ENGINEERING.md). Semantics are byte-for-byte identical to the previous
         // sequential checks.
         //
         // Multi-hop traversal (department hierarchy, nested groups, tuple-set

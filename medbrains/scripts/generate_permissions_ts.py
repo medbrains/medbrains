@@ -128,7 +128,7 @@ def built_in_roles(constants: dict[str, str]) -> list[tuple[str, str, list[str]]
     """`(code, name, [permission codes])` from the Rust role definitions.
 
     `ROLE_TEMPLATES` was hand-maintained here and `BUILT_IN_ROLES` in Rust,
-    and CLAUDE.md says the two "must stay in sync" — which is the same promise
+    and ENGINEERING.md says the two "must stay in sync" — which is the same promise
     that let the permission catalogue drift 111 codes. Generating it removes
     the third copy.
 

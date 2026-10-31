@@ -615,7 +615,7 @@ ELEMENT_GUARD = re.compile(r"\buseHas(?:All|Any)?Permissions?\s*\(")
 def web_pages() -> list[dict]:
     """Every page component, and whether it guards itself.
 
-    `CLAUDE.md` requires `useRequirePermission()` at the top of every page. A
+    `ENGINEERING.md` requires `useRequirePermission()` at the top of every page. A
     page without it renders for anyone who can reach the route, and the only
     thing standing between them and the data is the API refusing — which, per
     the backend half of this audit, it often does not.

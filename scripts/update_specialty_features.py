@@ -26,7 +26,7 @@ from copy import copy
 
 XLSX_PATH = "/Users/apple/Projects/MedBrains/MedBrains_Features.xlsx"
 
-# Styling constants from CLAUDE.md
+# Styling constants from ENGINEERING.md
 MODULE_FILL = PatternFill(start_color="D6E4F0", end_color="D6E4F0", fill_type="solid")
 SUBMODULE_FILL = PatternFill(start_color="E9EFF7", end_color="E9EFF7", fill_type="solid")
 THIN_BORDER = Border(

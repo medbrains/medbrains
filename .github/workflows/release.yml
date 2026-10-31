@@ -4,7 +4,7 @@
 # Tags and manual runs only. At the old location the docker job had no tag
 # guard and would have pushed an image to GHCR on every push to master once
 # this went live. Production is built with cargo-zigbuild on the operator's
-# machine (CLAUDE.md) — this workflow is a GitHub release, not the deploy.
+# machine (ENGINEERING.md) — this workflow is a GitHub release, not the deploy.
 
 name: Release
 

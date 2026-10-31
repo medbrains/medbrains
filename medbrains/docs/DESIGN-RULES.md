@@ -3,7 +3,7 @@
 The project's design system is **IBM Carbon** with **WCAG 2.2 AA** accessibility
 (patient-safety requirement). These docs extract the IBM Design Language +
 WCAG 2.2 into actionable, enforceable project rules. They are **law** — referenced
-from `CLAUDE.md`; every UI PR must comply.
+from `ENGINEERING.md`; every UI PR must comply.
 
 ## Rule docs
 

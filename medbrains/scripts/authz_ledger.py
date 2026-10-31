@@ -5,7 +5,7 @@
     python3 scripts/authz_ledger.py --module lab    # one module, with detail
     python3 scripts/authz_ledger.py --json          # machine-readable
 
-CLAUDE.md makes authorization repo-wide law: module by module, app by app, API
+ENGINEERING.md makes authorization repo-wide law: module by module, app by app, API
 by API, code by code. Across 127 crates that is only tractable if coverage is
 *measured*. A module is not conformant because somebody looked at it; it is
 conformant when this says so.

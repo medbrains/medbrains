@@ -39,7 +39,7 @@ MODULE_ROLE = {
     "CMS & Blog": "content editor",
 }
 
-# Module-specific regulatory / domain acceptance line (from CLAUDE.md norms).
+# Module-specific regulatory / domain acceptance line (from ENGINEERING.md norms).
 MODULE_REGULATORY = {
     "Onboarding & Setup": "7-layer config hierarchy respected; masters/seed validated; tenant isolation from creation.",
     "Clinical": "Clinical coding applied (ICD-10/11, SNOMED) and IPSG safety enforced (2-ID, allergy/LASA, consent).",

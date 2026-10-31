@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Claude Code PreToolUse hook (Bash): never start a build while one runs.
 
-CLAUDE.md makes `scripts/build_guard.sh` mandatory before any cargo build,
+ENGINEERING.md makes `scripts/build_guard.sh` mandatory before any cargo build,
 check, test or clippy: two builds on this workspace thrash, and on a laptop
 can take the machine down. This turns the rule into a gate. A command that
 already waits on the guard (`build_guard.sh --wait && cargo …`) passes, and

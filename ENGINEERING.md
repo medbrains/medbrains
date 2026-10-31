@@ -1,4 +1,4 @@
-# CLAUDE.md — MedBrains Hospital Management System
+# MedBrains engineering guide
 
 ## Project Overview
 

@@ -16,7 +16,7 @@ Good first tasks are listed in the README under [Contributing](./README.md#contr
 
 1. Search the [issues](https://github.com/medbrains/medbrains/issues) and [discussions](https://github.com/medbrains/medbrains/discussions). Someone may already be on it.
 2. For anything bigger than a small fix, **open an issue first** and agree on the approach. This matters most for new screens and for anything touching clinical or regulatory rules.
-3. Read [`CLAUDE.md`](./CLAUDE.md). It holds the architecture, coding standards and module workflow.
+3. Read [`ENGINEERING.md`](./ENGINEERING.md). It holds the architecture, coding standards and module workflow.
 
 ## Sign your commits (DCO)
 
@@ -52,7 +52,7 @@ The workspace has about 119 Rust crates. The first build is slow and uses a lot 
 
 ## Code style
 
-The full rules are in [`CLAUDE.md`](./CLAUDE.md). The essentials:
+The full rules are in [`ENGINEERING.md`](./ENGINEERING.md). The essentials:
 
 **Rust**
 - Edition 2024. `unsafe` is forbidden.
