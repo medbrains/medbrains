@@ -1,0 +1,17 @@
+[package]
+name = "r8r-workflow"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Pure workflow domain model, expressions and graph algorithms for r8r"
+
+[lints]
+workspace = true
+
+[dependencies]
+chrono.workspace = true
+rhai.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+uuid.workspace = true

@@ -25,9 +25,6 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
-      - uses: ./.github/actions/r8r
-        with:
-          token: ${{ secrets.R8R_READ_TOKEN }}
 
       - name: Install pnpm
         uses: pnpm/action-setup@v4

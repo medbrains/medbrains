@@ -1,0 +1,72 @@
+[workspace]
+resolver = "3"
+members = ["crates/formats", "crates/workflow", "crates/core", "crates/nodes-base", "crates/cli"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+license = "Apache-2.0"
+
+[workspace.dependencies]
+r8r-formats = { path = "crates/formats" }
+r8r-workflow = { path = "crates/workflow" }
+r8r-core = { path = "crates/core" }
+r8r-nodes-base = { path = "crates/nodes-base" }
+
+axum = "0.8.9"
+chrono = { version = "0.4.45", features = ["serde"] }
+croner = "3.0.1"
+reqwest = { version = "0.13.4", default-features = false, features = ["json", "form", "query", "gzip", "rustls", "http2", "charset"] }
+rhai = { version = "1.25.1", features = ["serde"] }
+rusqlite = { version = "0.40.2", features = ["bundled"] }
+serde = { version = "1.0.229", features = ["derive"] }
+serde_json = "1.0.151"
+thiserror = "2.0"
+tokio = { version = "1.53.1", features = ["full"] }
+uuid = { version = "1.24.1", features = ["v4"] }
+
+# Lint policy, in the spirit of NASA/JPL's Power of 10:
+#  1. no unbounded recursion or hidden control flow  -> forbid unsafe, deny panic paths
+#  2. every loop has a bound                         -> reviewed by hand; the server's
+#                                                       accept loop and scheduler tick are
+#                                                       the deliberate exceptions
+#  4. functions stay short                            -> clippy::too_many_lines (60)
+#  5./7. check every result                           -> deny unwrap/expect/indexing
+# 10. build clean                                     -> the whole set is warn-or-worse and CI
+#                                                        runs `cargo clippy -- -D warnings`
+[workspace.lints.rust]
+unsafe_code = "forbid"
+unreachable_pub = "warn"
+missing_debug_implementations = "warn"
+rust_2018_idioms = { level = "warn", priority = -1 }
+
+[workspace.lints.clippy]
+all = { level = "deny", priority = -1 }
+pedantic = { level = "warn", priority = -1 }
+
+# Rule 7: a discarded Result is a bug waiting to happen.
+unwrap_used = "deny"
+expect_used = "deny"
+panic = "deny"
+indexing_slicing = "deny"
+todo = "deny"
+unimplemented = "deny"
+mem_forget = "deny"
+exit = "deny"
+
+# Rule 4: short functions, simple control flow.
+too_many_lines = "warn"
+cognitive_complexity = "warn"
+
+# Noise that fights the way this codebase is organised.
+module_name_repetitions = "allow"
+must_use_candidate = "allow"
+missing_errors_doc = "allow"
+missing_panics_doc = "allow"
+struct_excessive_bools = "allow"
+multiple_crate_versions = "allow"
+
+[profile.release]
+lto = "thin"
+codegen-units = 1
+strip = true
