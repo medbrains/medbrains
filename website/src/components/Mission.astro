@@ -1,0 +1,48 @@
+---
+// Why we build MedBrains: the mission line and four values. Copy lives in data/content.ts.
+import { MISSION } from "../data/content";
+---
+
+<section class="mission" aria-labelledby="mission-title">
+  <div class="wrap">
+    <p class="eyebrow">Why we build MedBrains</p>
+    <h2 id="mission-title" class="line reveal">{MISSION.line}</h2>
+    <p class="sub reveal"><span class="heart" aria-hidden="true">♥</span> {MISSION.sub}</p>
+    <ul class="values">
+      {MISSION.values.map((v) => (
+        <li class="value reveal"><h3>{v.title}</h3><p>{v.body}</p></li>
+      ))}
+    </ul>
+  </div>
+</section>
+
+<style lang="scss">
+  @use "../styles/mixins" as *;
+
+  .mission {
+    padding: 72px 0; text-align: center; color: var(--ink);
+    background:
+      radial-gradient(600px 300px at 15% 0%, var(--blue-tint), transparent 70%),
+      radial-gradient(520px 280px at 90% 100%, rgb(133 27 127 / 8%), transparent 70%), var(--paper);
+  }
+  .eyebrow { color: var(--purple); }
+  .line {
+    font: 900 clamp(1.5rem, 2.8vw, 2.2rem) var(--display); letter-spacing: -.025em; line-height: 1.15; text-wrap: balance;
+    max-width: 34ch; margin: 0 auto 16px;
+  }
+  .sub { color: var(--muted); font-size: 1.1rem; max-width: 52ch; margin: 0 auto 40px; }
+  .heart { color: var(--purple); }
+  .values {
+    list-style: none; padding: 0; margin: 0 auto; max-width: 1040px;
+    display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; text-align: left;
+  }
+  .value {
+    padding: 20px 22px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--paper);
+    border-top: 3px solid var(--blue); box-shadow: var(--shadow-soft);
+    &:nth-child(even) { border-top-color: var(--purple); }
+    h3 { font: 700 1.05rem var(--sans); margin: 0 0 6px; }
+    p { margin: 0; color: var(--muted); font-size: .95rem; }
+  }
+  @include below(md) { .values { grid-template-columns: repeat(2, 1fr); } .mission { padding: 64px 0; } }
+  @include below(sm) { .values { grid-template-columns: 1fr; } }
+</style>
