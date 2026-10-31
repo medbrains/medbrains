@@ -17,20 +17,20 @@ The [DPG Standard](https://digitalpublicgoods.net/standard/) asks nine things. M
 | DPG criterion | MedBrains |
 |---|---|
 | 1. Relevance to SDGs | **SDG 3 (Good Health & Well-being)** — directly. |
-| 2. Open licence | **AGPL-3.0** (OSI-approved, FSF-recommended) — see [LICENSE](./LICENSE). |
-| 3. Clear ownership | Maintained in this repository; CLA in place. |
+| 2. Open licence | **Apache-2.0** (OSI-approved) — see [LICENSE](./LICENSE). |
+| 3. Clear ownership | Copyright Domnic Amalan S and contributors ([NOTICE](./NOTICE)); contributions signed off under the DCO. |
 | 4. Platform independence | Self-hostable; open stack (Rust, PostgreSQL, React); no proprietary runtime. |
 | 5. Documentation | Architecture, module RFCs, and contribution docs in-repo. |
-| 6. Data extraction / no lock-in | Open PostgreSQL schema; HL7 FHIR R4 export on the roadmap; no vendor format. |
+| 6. Data extraction / no lock-in | Open PostgreSQL schema; per-patient FHIR R4 Bundle download; CSV exports; documented backups. Whole-hospital FHIR bulk export on the roadmap. |
 | 7. Privacy & applicable laws | Multi-tenant RLS, field redaction, audit trails, RBAC; designed for NABH/JCI/ABDM & DPDP. |
-| 8. Standards & best practices | ICD-10/11, LOINC, ATC/INN, DICOM, HL7 FHIR R4, ABDM Health ID. |
+| 8. Standards & best practices | ICD-10/11, HL7 v2 (MLLP), DICOM via Orthanc, FHIR R4 (read). LOINC/SNOMED fields present; ABDM M1–M3 in progress. |
 | 9. Do-no-harm by design | Patient-safety rules enforced in code; responsible security disclosure ([SECURITY.md](./SECURITY.md)); de-identified-data-only rule for contributors. |
 
 > Action item: formally register MedBrains with the [DPG Alliance](https://digitalpublicgoods.net/submission-guidelines/) once the FHIR export and ABDM integration land (tracked on the [roadmap](./README.md#roadmap)).
 
 ## Where funding goes
 
-Grants and commercial-licence revenue fund:
+Grants, sponsorship and paid services (setup, training, hosting, support) fund:
 
 1. **Standards & interoperability** — HL7 FHIR R4, ABDM (ABHA) integration, DICOM.
 2. **Compliance depth** — NABH/JCI evidence tracking, statutory reporting (IDSP), clinical coding libraries.
@@ -50,11 +50,11 @@ Non-exhaustive; PRs/leads welcome via [Discussions](https://github.com/DomnicAma
 
 ## Dual-licensing keeps it sustainable
 
-MedBrains is **AGPL-3.0 + commercial** ([COMMERCIAL-LICENSE.md](./COMMERCIAL-LICENSE.md)). Public hospitals, NGOs, and governments use it free under AGPL. Vendors who embed it in closed products buy a commercial licence, which funds the open roadmap. Grants accelerate the public-good work that licence revenue alone can't cover fast enough.
+MedBrains is **Apache-2.0**. Everyone uses it free, forever. The team earns only from optional setup, training, hosting and support. Grants accelerate the public-good work that service revenue alone can't cover fast enough.
 
 ## The one-paragraph pitch (reuse in applications)
 
-> MedBrains is an open-source, standards-aligned Hospital Management System covering 67+ clinical, diagnostic, financial, and administrative modules, engineered in Rust and PostgreSQL with patient-safety logic (medication checks, consent, infection control, statutory disease reporting) enforced in code rather than hidden in a vendor black box. Licensed under AGPL-3.0 and designed against the Digital Public Goods Standard, it lets public hospitals, NGOs, and health ministries in India and other emerging markets deploy, audit, and own their hospital information system without licence lock-in — turning safety-critical health infrastructure into a public good.
+> MedBrains is an open-source, standards-aligned Hospital Management System covering 67+ clinical, diagnostic, financial, and administrative modules, engineered in Rust and PostgreSQL with patient-safety logic (medication checks, consent, infection control, statutory disease reporting) enforced in code rather than hidden in a vendor black box. Licensed under Apache-2.0 and designed against the Digital Public Goods Standard, it lets public hospitals, NGOs, and health ministries in India and other emerging markets deploy, audit, and own their hospital information system without licence lock-in — turning safety-critical health infrastructure into a public good.
 
 ---
 
