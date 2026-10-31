@@ -1,0 +1,63 @@
+{
+  "version": "v1.1.0",
+  "entity": {
+    "type": "individual",
+    "role": "owner",
+    "name": "Domnic Amalan S",
+    "email": "hello@medbrains.in",
+    "description": "Creator and maintainer of MedBrains, a free, open-source hospital management system built in India so that every hospital, big or small, has the tools to give safe care.",
+    "webpageUrl": {
+      "url": "https://www.medbrains.in",
+      "wellKnown": "https://www.medbrains.in/.well-known/funding-manifest-urls"
+    }
+  },
+  "projects": [
+    {
+      "guid": "medbrains",
+      "name": "MedBrains",
+      "description": "Free, open-source hospital management system: registration, OPD, wards, nursing, pharmacy, lab, radiology and billing on one patient record, with patient-safety checks built in (drug interactions, narcotics rules, barcode-verified medicine administration, critical lab alerts). Rust and PostgreSQL, with web and native iOS/Android apps. Built for India's ABDM, interoperable through HL7 FHIR R4, HL7 v2 and DICOM, and self-hostable so small, rural and charitable hospitals can run it at no licence cost.",
+      "webpageUrl": {
+        "url": "https://www.medbrains.in",
+        "wellKnown": "https://www.medbrains.in/.well-known/funding-manifest-urls"
+      },
+      "repositoryUrl": {
+        "url": "https://github.com/medbrains/medbrains"
+      },
+      "licenses": ["spdx:Apache-2.0"],
+      "tags": ["healthcare", "hospital-management", "electronic-health-records", "digital-public-good", "fhir", "hl7", "abdm", "rust", "postgresql", "india"]
+    }
+  ],
+  "funding": {
+    "channels": [
+      {
+        "guid": "bank-transfer",
+        "type": "bank",
+        "address": "",
+        "description": "Bank transfer to the maintainer in India. Write to hello@medbrains.in for account details and an invoice."
+      }
+    ],
+    "plans": [
+      {
+        "guid": "core-development",
+        "status": "active",
+        "name": "Core development and maintenance",
+        "description": "One year of full-time maintenance and development: security fixes and dependency updates, completing ABDM M2/M3 and HL7 FHIR write and search, LOINC mapping, a one-command install for hospitals, documentation, and reviewing community contributions.",
+        "amount": 50000,
+        "currency": "USD",
+        "frequency": "yearly",
+        "channels": ["bank-transfer"]
+      },
+      {
+        "guid": "hospital-go-live",
+        "status": "active",
+        "name": "Go-live for a charitable hospital",
+        "description": "Setting up, migrating data and training staff so a charitable, trust or government hospital can go live on MedBrains at no cost to it.",
+        "amount": 5000,
+        "currency": "USD",
+        "frequency": "one-time",
+        "channels": ["bank-transfer"]
+      }
+    ],
+    "history": []
+  }
+}
