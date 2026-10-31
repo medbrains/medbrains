@@ -4,13 +4,24 @@
 
 <!-- What does this change do, and why? Link the issue: Closes #123 -->
 
+## Call path
+
+<!-- For new or changed behaviour, show how a request flows, entry point first, one line per call, with file:line. New functions marked with +. Skip for docs-only changes. Example:
+
+POST /api/hr/leave-requests                  routes/mod.rs:812
+└─ create_leave_request(claims, body)        hr/src/leave.rs:44
+   ├─ require_permission(HR_LEAVE_REQUEST)   server-core/.../authorization.rs:18
+   ├─ + check_overlap(staff_id, range)       hr/src/leave.rs:101
+   └─ + debit_balance(tx, staff_id, days)    hr/src/leave.rs:130
+-->
+
 ## How I verified
 
 <!-- Commands run / scenarios tested. e.g. cargo clippy, pnpm typecheck, make check-all, manual steps -->
 
 ## Checklist
 
-- [ ] Commits are signed off (`git commit -s`) — required (DCO/CLA)
+- [ ] Commits are signed off (`git commit -s`) — required (DCO)
 - [ ] No real patient data (PHI) anywhere — synthetic/de-identified only
 - [ ] `cargo clippy` + `cargo fmt --check` clean (backend changes)
 - [ ] `pnpm typecheck` + `pnpm build` pass (frontend changes)
