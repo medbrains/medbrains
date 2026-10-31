@@ -19,10 +19,19 @@ pnpm install --frozen-lockfile
 pnpm build
 
 echo "→ syncing dist/ to s3://$WEBSITE_BUCKET"
+# A flaky uplink drops single uploads; let the CLI retry them instead of failing the deploy.
+export AWS_RETRY_MODE=adaptive AWS_MAX_ATTEMPTS=10
+# Each page also lives at its clean address (/pricing), copied below. Those keys are not in
+# dist/, so --delete would remove them and leave the site 404ing until the copy runs, or for
+# good if a sync fails first. Excluding them keeps the live pages up throughout.
+# ponytail: a page removed from the site keeps its clean-address copy until deleted by hand.
+keep=()
+while read -r slug; do keep+=(--exclude "$slug"); done \
+  < <(find dist -mindepth 2 -name index.html | sed 's#^dist/##; s#/index.html$##')
 # hashed assets: cache forever. html + sitemap + the search index: never cache
 # (so redeploys show instantly; Pagefind's entry files keep the same names).
 aws s3 sync dist/ "s3://$WEBSITE_BUCKET" --delete \
-  --exclude "*.html" --exclude "*.xml" --exclude "pagefind/*" \
+  --exclude "*.html" --exclude "*.xml" --exclude "pagefind/*" "${keep[@]}" \
   --cache-control "public,max-age=31536000,immutable"
 aws s3 sync dist/ "s3://$WEBSITE_BUCKET" --delete \
   --exclude "*" --include "*.html" --include "*.xml" --include "pagefind/*" \
