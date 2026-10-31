@@ -1,15 +1,16 @@
-# MedBrains — Feature Build List
+# MedBrains feature list
 
-> Master feature inventory. Each feature is a discrete, buildable unit.
-> Status: `[ ]` pending | `[~]` in progress | `[x]` done
+The full list of planned features, one buildable item per line.
+
+Status: `[ ]` pending, `[~]` in progress, `[x]` done.
 
 ---
 
-## 1. PATIENT MANAGEMENT
+## 1. Patient management
 
 ### 1.1 Registration
 - [ ] Quick patient registration form (name, age, gender, phone, address)
-- [ ] UHID auto-generation (ACMS-YYYY-NNNNNN format)
+- [ ] UHID auto-generation (PREFIX-YYYY-NNNNNN format)
 - [ ] QR code generation per patient
 - [ ] Aadhaar-based deduplication
 - [ ] ABHA ID creation & linking (ABDM M1)
@@ -24,7 +25,7 @@
 - [ ] Digital consent forms (registration consent, treatment consent)
 - [ ] Multi-language support (form labels, consent text)
 
-### 1.2 Patient Categories
+### 1.2 Patient categories
 - [ ] Walk-in patient
 - [ ] Referred patient (with referring doctor capture)
 - [ ] Corporate patient (company linked)
@@ -37,7 +38,7 @@
 
 ---
 
-## 2. OPD (OUT-PATIENT DEPARTMENT)
+## 2. OPD (outpatient department)
 
 ### 2.1 Appointments
 - [ ] Appointment booking (date, time, doctor, department)
@@ -83,7 +84,7 @@
 - [ ] External pharmacy prescription print
 - [ ] Prescription history view
 
-### 2.4 Orders & Referrals
+### 2.4 Orders and referrals
 - [ ] Lab test ordering (from consultation)
 - [ ] Radiology ordering
 - [ ] Procedure ordering
@@ -93,7 +94,7 @@
 - [ ] Cost estimation for ordered services
 - [ ] Pre-authorization request (insurance patients)
 
-### 2.5 Post-Consultation
+### 2.5 Post-consultation
 - [ ] Docket management (doctor daily summary)
 - [ ] Review & reminder management
 - [ ] Patient feedback collection
@@ -107,7 +108,7 @@
 
 ---
 
-## 3. IPD (IN-PATIENT DEPARTMENT)
+## 3. IPD (inpatient department)
 
 ### 3.1 Admission
 - [ ] IP admission form
@@ -124,7 +125,7 @@
 - [ ] Pre-authorization for insurance
 - [ ] MLC registration at admission
 
-### 3.2 Ward & Bed Management
+### 3.2 Ward and bed management
 - [ ] Ward master (name, type, floor, building)
 - [ ] Bed master (bed number, type, features)
 - [ ] Real-time bed occupancy dashboard
@@ -138,7 +139,7 @@
 - [ ] Nursery management
 - [ ] TV display for bed status (ward-level)
 
-### 3.3 Clinical — Inpatient
+### 3.3 Clinical: inpatient
 - [ ] Digital case sheet entry
 - [ ] Doctor rounds notes (daily progress notes)
 - [ ] Nursing notes
@@ -159,7 +160,7 @@
 - [ ] Transfusion documentation
 - [ ] Consent forms (procedure-specific)
 
-### 3.4 OT (Operation Theatre)
+### 3.4 OT (operation theatre)
 - [ ] OT scheduling calendar
 - [ ] OT slot management
 - [ ] Pre-operative assessment form
@@ -193,9 +194,9 @@
 
 ---
 
-## 4. LABORATORY / DIAGNOSTICS
+## 4. Laboratory / diagnostics
 
-### 4.1 Pre-Analytical
+### 4.1 Pre-analytical
 - [ ] Lab test master (test name, sample type, container, department)
 - [ ] Lab panel/profile master (CBC = Hb+WBC+Plt+...)
 - [ ] Lab order management (from OPD/IPD)
@@ -226,7 +227,7 @@
 - [ ] Add-on test to existing sample
 - [ ] Sample archival & retrieval
 
-### 4.3 Post-Analytical
+### 4.3 Post-analytical
 - [ ] Report generation (customizable templates)
 - [ ] Preliminary report generation
 - [ ] Report locking (auto-lock after approval)
@@ -241,7 +242,7 @@
 - [ ] TAT tracking & analytics
 - [ ] STAT test monitoring
 
-### 4.4 Quality Control
+### 4.4 Quality control
 - [ ] QC sample management
 - [ ] Levey-Jennings (LJ) charts
 - [ ] Westgard rules implementation
@@ -253,7 +254,7 @@
 - [ ] CAP accreditation compliance
 - [ ] EQAS (External QA) management
 
-### 4.5 B2B & Referral
+### 4.5 B2B and referral
 - [ ] B2B client registration
 - [ ] B2B rate management (contract pricing)
 - [ ] B2B portal (order placement, report viewing)
@@ -266,10 +267,10 @@
 
 ---
 
-## 5. RADIOLOGY / IMAGING
+## 5. Radiology / imaging
 
 - [ ] Radiology order management
-- [ ] Modality worklist (MWL) — DICOM
+- [ ] Modality worklist (MWL), DICOM
 - [ ] PACS integration (Orthanc)
 - [ ] Radiology reporting templates
 - [ ] Image viewing (DICOM viewer)
@@ -283,7 +284,7 @@
 
 ---
 
-## 6. PHARMACY / INVENTORY
+## 6. Pharmacy / inventory
 
 ### 6.1 Pharmacy
 - [ ] Drug master (name, generic, brand, strength, form)
@@ -307,7 +308,7 @@
 - [ ] Patient credit management
 - [ ] GST/tax computation
 
-### 6.2 Inventory / Procurement
+### 6.2 Inventory / procurement
 - [ ] Product/item master
 - [ ] Supplier/vendor master
 - [ ] Purchase requisition
@@ -331,7 +332,7 @@
 
 ---
 
-## 7. BILLING & FINANCE
+## 7. Billing and finance
 
 ### 7.1 Billing
 - [ ] Service/procedure rate master
@@ -374,7 +375,7 @@
 - [ ] Insurance panel (smart panel view)
 - [ ] NHCX (National Health Claim Exchange) integration
 
-### 7.3 Accounts & Finance
+### 7.3 Accounts and finance
 - [ ] Accounting journal entries
 - [ ] Revenue reports (department-wise, doctor-wise, service-wise)
 - [ ] Collection reports (daily, weekly, monthly)
@@ -389,7 +390,7 @@
 
 ---
 
-## 8. BLOOD BANK
+## 8. Blood bank
 
 - [ ] Donor registration
 - [ ] Donor screening & questionnaire
@@ -427,7 +428,7 @@
 
 ---
 
-## 10. DIET & NUTRITION
+## 10. Diet and nutrition
 
 - [ ] Diet plan master (regular, soft, liquid, diabetic, renal, etc.)
 - [ ] Patient diet order (from doctor/nurse)
@@ -442,7 +443,7 @@
 
 ---
 
-## 11. AMBULANCE MANAGEMENT
+## 11. Ambulance management
 
 - [ ] Ambulance fleet master
 - [ ] Ambulance booking/dispatch
@@ -456,7 +457,7 @@
 
 ---
 
-## 12. BIO-WASTE MANAGEMENT
+## 12. Biomedical waste management
 
 - [ ] Waste category master (yellow, red, blue, white, cytotoxic)
 - [ ] Waste generation recording (per department)
@@ -470,7 +471,7 @@
 
 ---
 
-## 13. INFECTION CONTROL
+## 13. Infection control
 
 - [ ] Hospital-acquired infection (HAI) surveillance
 - [ ] Infection event reporting
@@ -484,7 +485,7 @@
 
 ---
 
-## 14. LINEN MANAGEMENT
+## 14. Linen management
 
 - [ ] Linen inventory master
 - [ ] Linen issue to wards
@@ -496,7 +497,7 @@
 
 ---
 
-## 15. ASSET MANAGEMENT
+## 15. Asset management
 
 - [ ] Asset master (equipment, furniture, vehicles)
 - [ ] Asset tagging (barcode/QR)
@@ -512,7 +513,7 @@
 
 ---
 
-## 16. CAMP MANAGEMENT
+## 16. Camp management
 
 - [ ] Camp planning & scheduling
 - [ ] Camp location & logistics
@@ -525,7 +526,7 @@
 
 ---
 
-## 17. HR & STAFF MANAGEMENT
+## 17. HR and staff management
 
 - [ ] Employee master
 - [ ] Department & designation master
@@ -558,7 +559,7 @@
 
 ---
 
-## 19. QUALITY & COMPLIANCE
+## 19. Quality and compliance
 
 ### 19.1 NABH
 - [ ] NABH indicator tracking (clinical, patient safety, management)
@@ -582,7 +583,7 @@
 - [ ] FHIR resource generation
 - [ ] Digital health locker integration
 
-### 19.3 Accreditation Support
+### 19.3 Accreditation support
 - [ ] JCI standards tracking
 - [ ] NABL standards tracking (laboratory)
 - [ ] NABH pre-entry level checklist
@@ -593,7 +594,7 @@
 
 ---
 
-## 20. COMMUNICATION & NOTIFICATIONS
+## 20. Communication and notifications
 
 - [ ] In-app notifications (real-time WebSocket)
 - [ ] SMS notifications (appointment, lab ready, discharge)
@@ -602,7 +603,7 @@
 - [ ] Push notifications (mobile app)
 - [ ] Omni-channel notification engine (template-based)
 - [ ] Notification preference management (per patient)
-- [ ] Masked communication (Uber model — staff-to-staff)
+- [ ] Masked communication (Uber model, staff to staff)
 - [ ] Emergency code system (Code Blue, Code Red)
 - [ ] Intercom code system
 - [ ] Critical result escalation chain
@@ -610,7 +611,7 @@
 
 ---
 
-## 21. TV / DISPLAY BOARDS
+## 21. TV / display boards
 
 - [ ] OPD queue display (token number → room number)
 - [ ] Lab queue display (token → counter)
@@ -620,15 +621,15 @@
 - [ ] Emergency department status board
 - [ ] Canteen/cafeteria menu display
 - [ ] Visitor information display
-- [ ] Numbers-only mode (privacy — no patient names)
+- [ ] Numbers-only mode (privacy: no patient names)
 - [ ] Auto-refresh via WebSocket
 - [ ] Multi-screen/multi-location support
 
 ---
 
-## 22. MOBILE APPS
+## 22. Mobile apps
 
-### 22.1 Doctor App
+### 22.1 Doctor app
 - [ ] Login & authentication
 - [ ] OPD patient queue
 - [ ] Patient search
@@ -643,7 +644,7 @@
 - [ ] Offline mode (WatermelonDB cache)
 - [ ] On-call schedule view
 
-### 22.2 Patient App
+### 22.2 Patient app
 - [ ] Registration & profile
 - [ ] Appointment booking
 - [ ] Appointment history
@@ -655,7 +656,7 @@
 - [ ] Feedback submission
 - [ ] Push notifications (appointment reminders, report ready)
 
-### 22.3 Phlebo / Runner App
+### 22.3 Phlebo / runner app
 - [ ] Home collection order list
 - [ ] Route/navigation to patient location
 - [ ] Sample collection confirmation
@@ -665,7 +666,7 @@
 
 ---
 
-## 23. DASHBOARDS & ANALYTICS
+## 23. Dashboards and analytics
 
 - [ ] Admin dashboard (hospital overview)
 - [ ] Revenue dashboard (daily/weekly/monthly)
@@ -688,7 +689,7 @@
 
 ---
 
-## 24. SECURITY & ACCESS CONTROL
+## 24. Security and access control
 
 - [ ] RBAC (role-based access control)
 - [ ] ABAC (attribute-based access control)
@@ -712,14 +713,14 @@
 
 ---
 
-## 25. ENCRYPTION & PRIVACY
+## 25. Encryption and privacy
 
 - [ ] TLS 1.3 (transit encryption)
 - [ ] Database encryption at rest (YottaDB DAR, PostgreSQL TDE/LUKS)
 - [ ] Field-level encryption (Aadhaar, phone, HIV status)
 - [ ] Per-patient encryption keys (PDK)
 - [ ] Key hierarchy (MK → KEK → PDK → field keys)
-- [ ] Consent-based encryption (HIV, psychiatry — patient must consent)
+- [ ] Consent-based encryption (HIV, psychiatry; patient must consent)
 - [ ] Password hashing (Argon2id)
 - [ ] JWT signing (Ed25519)
 - [ ] Certificate pinning (mobile app)
@@ -729,7 +730,7 @@
 
 ---
 
-## 26. INTEGRATIONS
+## 26. Integrations
 
 ### 26.1 Government
 - [ ] ABDM (ABHA, care context, consent)
@@ -744,7 +745,7 @@
 - [ ] Zoho Books integration
 - [ ] Webhook-based generic integration
 
-### 26.3 Clinical Standards
+### 26.3 Clinical standards
 - [ ] ICD-10 coding
 - [ ] SNOMED CT
 - [ ] LOINC (lab codes)
@@ -752,7 +753,7 @@
 - [ ] CDSS (Clinical Decision Support)
 - [ ] HL7 FHIR (data exchange)
 
-### 26.4 Lab Machine Interfacing
+### 26.4 Lab machine interfacing
 - [ ] ASTM protocol support
 - [ ] HL7 protocol support
 - [ ] Uni-directional interface (result import)
@@ -772,7 +773,7 @@
 
 ---
 
-## 27. MEDICAL COLLEGE INTEGRATION
+## 27. Medical college integration
 
 - [ ] Student master (MBBS, PG, nursing, paramedical)
 - [ ] Posting/rotation schedule management
@@ -791,9 +792,9 @@
 
 ---
 
-## 28. SPECIALTY MODULES
+## 28. Specialty modules
 
-### 28.1 Emergency Medicine
+### 28.1 Emergency medicine
 - [ ] Triage (color-coded severity)
 - [ ] Trauma assessment forms
 - [ ] Code Blue / Code Red management
@@ -803,7 +804,7 @@
 - [ ] Emergency OT escalation
 - [ ] Mass casualty incident management
 
-### 28.2 Maternity / Obstetrics
+### 28.2 Maternity / obstetrics
 - [ ] Antenatal registration
 - [ ] Antenatal visit tracking
 - [ ] USG report integration
@@ -814,14 +815,14 @@
 - [ ] Postnatal care documentation
 - [ ] NICU admission integration
 
-### 28.3 Pediatrics / Neonatology
+### 28.3 Pediatrics / neonatology
 - [ ] Growth chart tracking
 - [ ] Vaccination schedule
 - [ ] NICU monitoring
 - [ ] Kangaroo mother care documentation
 - [ ] Pediatric dosage calculator
 
-### 28.4 ART (IVF & IUI)
+### 28.4 ART (IVF and IUI)
 - [ ] Patient profile (fertility assessment)
 - [ ] Investigation tracking (hormones, blood tests)
 - [ ] Ovarian stimulation monitoring
@@ -858,7 +859,7 @@
 - [ ] Substance abuse documentation
 - [ ] Counseling session tracking
 - [ ] Mental Health Act compliance
-- [ ] Restricted access (ABAC — psychiatry notes hidden from non-psychiatry)
+- [ ] Restricted access (ABAC: psychiatry notes hidden from non-psychiatry staff)
 
 ### 28.8 Oncology
 - [ ] Cancer staging
@@ -875,7 +876,7 @@
 - [ ] Consumable tracking per session
 - [ ] Monthly adequacy reporting
 
-### 28.10 Physiotherapy / Rehabilitation
+### 28.10 Physiotherapy / rehabilitation
 - [ ] Therapy plan creation
 - [ ] Session tracking
 - [ ] Progress documentation
@@ -884,7 +885,7 @@
 
 ---
 
-## 29. INFRASTRUCTURE MANAGEMENT
+## 29. Infrastructure management
 
 - [ ] Building master (campus, buildings, floors, wings)
 - [ ] Room master (type, capacity, equipment)
@@ -899,7 +900,7 @@
 
 ---
 
-## 30. PATIENT EXPERIENCE
+## 30. Patient experience
 
 - [ ] Patient feedback forms (post-visit, post-discharge)
 - [ ] Net Promoter Score (NPS) tracking
@@ -913,7 +914,7 @@
 
 ---
 
-## 31. WORKFLOW ENGINE
+## 31. Workflow engine
 
 - [ ] Workflow template builder (admin)
 - [ ] Step sequence definition (JSONB)
@@ -932,7 +933,7 @@
 
 ---
 
-## 32. ADMIN & CONFIGURATION
+## 32. Admin and configuration
 
 - [ ] Tenant management (create, configure, activate)
 - [ ] 7-layer config hierarchy (Global → Tenant → Campus → Building → Floor → Dept → User)

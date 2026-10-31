@@ -1,11 +1,12 @@
-# MedBrains Enterprise Roadmap
+# MedBrains roadmap
 
-> Production-ready Hospital Management System
-> Last Updated: 2026-05-24
+The plan for taking the hospital management system to an MVP.
+
+Last updated: 2026-05-24
 
 ---
 
-## Executive Summary
+## Summary
 
 | Metric | Current | Target |
 |--------|---------|--------|
@@ -15,16 +16,16 @@
 
 ---
 
-## Phase 0: Foundation (Week 1-2)
-**Goal: Production-grade infrastructure**
+## Phase 0: Foundation (weeks 1-2)
+**Goal: infrastructure ready for production**
 
-### 0.1 Testing Infrastructure
+### 0.1 Testing infrastructure
 - [ ] Unit tests for type guards (guards.ts, primitives.ts)
 - [ ] API contract tests (frontend ↔ backend)
 - [ ] E2E smoke tests for critical paths
 - [ ] CI/CD pipeline (GitHub Actions)
 
-### 0.2 Security Hardening
+### 0.2 Security hardening
 - [ ] Input validation on all endpoints
 - [ ] Rate limiting
 - [ ] CSRF protection verification
@@ -33,7 +34,7 @@
 - [ ] Audit trail completeness (29% → 80%)
 - [ ] Delegated access policy: define who can request, approve, grant, revoke, and review normal/elevated access by org hierarchy, department, role, and risk tier
 
-### 0.3 Error Handling & Monitoring
+### 0.3 Error handling and monitoring
 - [ ] Structured error responses
 - [ ] Sentry/error tracking integration
 - [ ] Health check endpoints
@@ -46,14 +47,14 @@
 - [ ] Backup/restore procedures
 - [ ] Migration rollback testing
 
-**Exit Criteria:** All tests green, monitoring live, security audit passed
+**Exit criteria:** All tests green, monitoring live, security audit passed
 
 ---
 
-## Phase 1: Clinical Core (Week 3-6)
-**Goal: Complete patient care workflow**
+## Phase 1: Clinical core (weeks 3-6)
+**Goal: a complete patient care workflow**
 
-### 1.1 Patient Journey (Complete)
+### 1.1 Patient journey (complete)
 - [x] Patient Registration (85%)
 - [x] OPD Visit Flow (92%)
 - [x] IPD Admission (94%)
@@ -85,18 +86,18 @@
 - [ ] Pharmacy billing and fast-dispatch redesign: research counter workflow thoroughly, then implement prescription-to-pharmacy queue, charge capture into billing, quick scan/dispatch, partial fills, substitutions, returns/refunds, batch/expiry enforcement, and insurance/TPA/accounting handoff without duplicate data entry
 - [ ] Pharmacy IVR and omnichannel experience: refill requests, order readiness, pickup/delivery status, payment-link nudges, substitution approval, pharmacist callback queue, chronic medicine reminders, controlled-drug safeguards, WhatsApp/SMS/voice status sync, and escalation to live pharmacy staff
 
-### 1.5 Nursing (Part of IPD)
+### 1.5 Nursing (part of IPD)
 - [ ] Medication administration record (MAR)
 - [ ] Nursing notes
 - [ ] Vital signs trending
 - [ ] Shift handoff
 
-**Exit Criteria:** Complete patient admitted → treated → discharged flow works
+**Exit criteria:** Complete patient admitted → treated → discharged flow works
 
 ---
 
-## Phase 2: Revenue Cycle (Week 7-9)
-**Goal: Billing accuracy and compliance**
+## Phase 2: Revenue cycle (weeks 7-9)
+**Goal: accurate, compliant billing**
 
 ### 2.1 Billing (94% → 98%)
 - [ ] Auto-charge capture from orders
@@ -116,7 +117,7 @@
 - [ ] Payer query, rejection/denial, shortfall, appeal, patient self-pay conversion, and write-off handoff
 - [ ] Settlement tracking, unmatched credit auto-match, TPA receivable aging, and final closure
 
-### 2.3 Printing & Forms (26% → 70%)
+### 2.3 Printing and forms (26% → 70%)
 - [ ] Prescription print
 - [ ] Discharge summary
 - [ ] Lab/Radiology reports
@@ -124,14 +125,14 @@
 - [ ] Consent forms
 - [ ] MLC forms
 
-**Exit Criteria:** Bill generation, payment collection, receipt printing works
+**Exit criteria:** Bill generation, payment collection, receipt printing works
 
 ---
 
-## Phase 3: Operations (Week 10-12)
-**Goal: Hospital runs smoothly**
+## Phase 3: Operations (weeks 10-12)
+**Goal: day-to-day hospital operations**
 
-### 3.1 TV Displays & Queue (0% → 80%)
+### 3.1 TV displays and queue (0% → 80%)
 - [ ] OPD token display
 - [ ] Doctor availability board
 - [ ] Bed status board
@@ -150,7 +151,7 @@
 - [ ] Expiry management
 - [ ] Indent approval workflow
 
-### 3.4 Front Office (75% → 90%)
+### 3.4 Front office (75% → 90%)
 - [ ] Appointment scheduling
 - [ ] Walk-in management
 - [ ] Patient search
@@ -163,7 +164,7 @@
 - [ ] Email notifications
 - [ ] Internal messaging
 
-### 3.6 Connected Ward Operations
+### 3.6 Connected ward operations
 - [ ] Food/canteen and diet-kitchen orders linked from IPD admissions
 - [ ] Bedside portal requests and feedback linked to patient/admission context
 - [ ] Nurse activities dual view: due-now shift worklist plus patient timeline for MAR, vitals/NEWS-style observations, I/O, pain, wound, fall risk, restraint, handoff, code blue, and equipment checks
@@ -175,14 +176,14 @@
 - [ ] NMC/MSR and accreditation evidence checklist for bed strength, ward infrastructure, emergency readiness, central kitchen/canteen, BMW, BME/equipment, and clinical material norms
 - [ ] Org chart and reporting hierarchy: hospital group → facility → department → unit/ward/store → role → supervisor → employee, feeding HR, scheduling, access approvals, roster swaps, and escalation rules
 
-**Exit Criteria:** Queues flow, beds managed, stock tracked
+**Exit criteria:** Queues flow, beds managed, stock tracked
 
 ---
 
-## Phase 4: Compliance & Audit (Week 13-14)
-**Goal: Regulatory readiness**
+## Phase 4: Compliance and audit (weeks 13-14)
+**Goal: regulatory readiness**
 
-### 4.1 Audit Trail (29% → 90%)
+### 4.1 Audit trail (29% → 90%)
 - [ ] All CRUD operations logged
 - [ ] User action tracking
 - [ ] PHI access logging
@@ -193,24 +194,24 @@
 - [x] Block IAM self-approval and restrict elevated access-request approvals to bypass hospital/system admin tier until finer delegated authority is implemented
 - [ ] Replace raw user-id activity lookup with a staff picker filtered by HR/user permissions
 
-### 4.2 Consent Management (65% → 90%)
+### 4.2 Consent management (65% → 90%)
 - [ ] Consent capture workflow
 - [ ] Digital signature
 - [ ] Witness recording
 - [ ] Consent withdrawal
 
-### 4.3 Quality & NABH (91% → 95%)
+### 4.3 Quality and NABH (91% → 95%)
 - [ ] Indicator dashboards
 - [ ] Incident reporting
 - [ ] Patient feedback
 - [ ] Quality metrics
 
-### 4.4 Infection Control (96% → 98%)
+### 4.4 Infection control (96% → 98%)
 - [ ] Surveillance dashboards
 - [ ] Outbreak alerts
 - [ ] Antibiotic stewardship reports
 
-### 4.5 Compliance Center UI
+### 4.5 Compliance center UI
 - [ ] Standards register for ABDM, DPDP, DISHA readiness, MoHFW EHR, NABH Digital Health/HIS-EMR, SOC 2, ISO 27001, ISO 27701, HIPAA, GDPR, HL7/FHIR, DICOM, ICD, SNOMED CT, LOINC, ISO 13485, CE/FDA/SaMD, VAPT, and HITRUST
 - [ ] Applicability wizard for deployment geography, SaaS/on-prem mode, patient origin, ABDM/NHCX participation, imaging/PACS scope, payment scope, and AI/SaMD claims
 - [ ] Control matrix that maps standards to modules, screens, fields, permissions, backend routes, tests, and evidence
@@ -218,12 +219,12 @@
 - [ ] Gap dashboard and auditor export bundle with evidence id, timestamp, approver, checksum/hash, and change history
 - [ ] Example SOC 2/ISO controls: encryption at rest for patient/audit/document/backup/log stores, TLS in transit, privileged access reviews, and break-glass review evidence
 
-**Exit Criteria:** NABH mock audit passed, audit trails complete
+**Exit criteria:** NABH mock audit passed, audit trails complete
 
 ---
 
-## Phase 5: Analytics & Reporting (Week 15-16)
-**Goal: Decision support**
+## Phase 5: Analytics and reporting (weeks 15-16)
+**Goal: decision support**
 
 ### 5.1 Dashboards (22% → 70%)
 - [ ] Executive dashboard
@@ -238,14 +239,14 @@
 - [ ] Financial reports
 - [ ] Regulatory reports
 
-### 5.3 Workflow Engine (7% → 50%)
+### 5.3 Workflow engine (7% → 50%)
 - [ ] Basic workflow execution
 - [ ] Approval chains
 - [ ] Escalation rules
 - [ ] SLA monitoring
 - [ ] App launcher/workspace navigation for 67+ modules: keep the side drawer as quick navigation, add an app-grid launcher with clinical, inpatient, revenue, operations, compliance, and admin workspaces
 
-### 5.4 Simulator Control Plane
+### 5.4 Simulator control plane
 - [x] Auto-refresh next-run preview when profile JSON changes, paced with TanStack Pacer debounce
 - [ ] Rework simulator UI into the main HMS visual theme with intelligent, guided component-based configuration instead of raw JSON-first scheduling
 - [ ] Add user-friendly simulator schedule builder with smart defaults, hospital-size presets, validation hints, and preview summaries before save/run-now
@@ -255,36 +256,36 @@
 - [ ] Hourly volume curve chart for OPD/ER/IPD load shaping before a run
 - [ ] Live IMD/OpenWeather feed through a backend adapter with cache, source timestamp, and manual fallback advisory creation
 
-**Exit Criteria:** Management can see KPIs, standard reports available
+**Exit criteria:** Management can see KPIs, standard reports available
 
 ---
 
 ## Phase 6: Integrations (Post-MVP)
-**Goal: External connectivity**
+**Goal: external connectivity**
 
-### 6.1 ABDM Integration
+### 6.1 ABDM integration
 - [ ] Health ID verification
 - [ ] Health records sharing
 - [ ] Consent management
 
-### 6.2 Payment Gateway
+### 6.2 Payment gateway
 - [ ] UPI integration
 - [ ] Card payments
 - [ ] Payment reconciliation
 
-### 6.3 External Lab/Radiology
+### 6.3 External lab/radiology
 - [ ] HL7/FHIR interfaces
 - [ ] Result import
 - [ ] Order export
 
-### 6.4 Government Reporting
+### 6.4 Government reporting
 - [ ] Birth/death registration
 - [ ] Notifiable disease reporting
 - [ ] HMIS integration
 
 ---
 
-## Deferred (Post-Launch)
+## Deferred (post-launch)
 
 | Module | Priority | Reason |
 |--------|----------|--------|
@@ -298,9 +299,9 @@
 
 ---
 
-## Resource Requirements
+## Resource requirements
 
-### Team Structure
+### Team structure
 ```
 Product Owner (1)
 ├── Engineering Lead (1)
@@ -314,14 +315,13 @@ Product Owner (1)
 
 ### Infrastructure
 - PostgreSQL 16 (primary)
-- YottaDB (hierarchical config)
 - Redis (caching, sessions)
 - S3-compatible storage (documents)
 - Load balancer + 2 app servers minimum
 
 ---
 
-## Risk Register
+## Risk register
 
 | Risk | Impact | Mitigation |
 |------|--------|------------|
@@ -333,9 +333,9 @@ Product Owner (1)
 
 ---
 
-## Success Metrics
+## Success metrics
 
-### MVP Launch Criteria
+### MVP launch criteria
 - [ ] 85% feature completion for Phase 1-4
 - [ ] Zero critical bugs
 - [ ] <3s page load times
@@ -343,7 +343,7 @@ Product Owner (1)
 - [ ] Security audit passed
 - [ ] 3 hospitals piloted successfully
 
-### Post-Launch KPIs
+### Post-launch KPIs
 - Patient registration < 2 minutes
 - Bill generation < 30 seconds
 - Zero revenue leakage
@@ -352,7 +352,7 @@ Product Owner (1)
 
 ---
 
-## Weekly Milestones
+## Weekly milestones
 
 | Week | Focus | Deliverable |
 |------|-------|-------------|
@@ -382,4 +382,4 @@ Product Owner (1)
 
 ---
 
-*This roadmap is a living document. Review weekly and adjust based on progress.*
+This roadmap is reviewed weekly and adjusted to progress.
