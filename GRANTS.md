@@ -1,61 +1,61 @@
-# MedBrains as a Digital Public Good — funding & public-good thesis
+# MedBrains as a digital public good
 
-This document is for funders, ministries, health programmes, and anyone deciding whether to support MedBrains. It explains *why* MedBrains is built in the open, what makes it a candidate **Digital Public Good (DPG)**, and how to help.
+This page is for funders, ministries, health programmes and anyone deciding whether to support MedBrains. It explains why MedBrains is built in the open, why it is a candidate **Digital Public Good (DPG)**, and how to help.
 
-## The thesis
+## The case
 
-Hospital software is among the most expensive, most locked-in, least auditable software a health system buys. Proprietary HMS/EHR licences run into crores; the data is trapped in vendor formats; and the very logic that governs patient safety — drug-interaction checks, consent, infection control, statutory reporting — is hidden inside a black box.
+Hospital software is expensive, hard to leave and hard to audit. Proprietary HMS and EHR licences cost crores. The data sits in vendor formats. The logic that governs patient safety, such as drug-interaction checks, consent, infection control and statutory reporting, cannot be inspected.
 
-The institutions that need good hospital software most — **district hospitals, NGO clinics, public health systems in India and other emerging markets** — can least afford it.
+The hospitals that need good software most can least afford it: district hospitals, NGO clinics and public health systems in India and other emerging markets.
 
-**MedBrains exists to make the safety-critical core of a hospital information system open, inspectable, free to run, and standards-aligned**, so that a public hospital can self-host it, a regulator can audit it, and a developer anywhere can extend it.
+MedBrains makes the safety-critical core of a hospital information system open to inspection, free to run and aligned with health standards. A public hospital can host it themselves, a regulator can audit it, and any developer can extend it.
 
-## Why it qualifies as a Digital Public Good
+## Against the DPG Standard
 
-The [DPG Standard](https://digitalpublicgoods.net/standard/) asks nine things. MedBrains' status against them:
+The [DPG Standard](https://digitalpublicgoods.net/standard/) has nine criteria. Where MedBrains stands on each:
 
 | DPG criterion | MedBrains |
 |---|---|
-| 1. Relevance to SDGs | **SDG 3 (Good Health & Well-being)** — directly. |
-| 2. Open licence | **Apache-2.0** (OSI-approved) — see [LICENSE](./LICENSE). |
-| 3. Clear ownership | Copyright Domnic Amalan S and contributors ([NOTICE](./NOTICE)); contributions signed off under the DCO. |
-| 4. Platform independence | Self-hostable; open stack (Rust, PostgreSQL, React); no proprietary runtime. |
-| 5. Documentation | Architecture, module RFCs, and contribution docs in-repo. |
-| 6. Data extraction / no lock-in | Open PostgreSQL schema; per-patient FHIR R4 Bundle download; CSV exports; documented backups. Whole-hospital FHIR bulk export on the roadmap. |
-| 7. Privacy & applicable laws | Multi-tenant RLS, field redaction, audit trails, RBAC; designed for NABH/JCI/ABDM & DPDP. |
-| 8. Standards & best practices | ICD-10/11, HL7 v2 (MLLP), DICOM via Orthanc, FHIR R4 (read). LOINC/SNOMED fields present; ABDM M1–M3 in progress. |
-| 9. Do-no-harm by design | Patient-safety rules enforced in code; responsible security disclosure ([SECURITY.md](./SECURITY.md)); de-identified-data-only rule for contributors. |
+| 1. Relevance to SDGs | SDG 3 (good health and well-being). |
+| 2. Open licence | Apache-2.0 (OSI-approved). See [LICENSE](./LICENSE). |
+| 3. Clear ownership | Copyright Domnic Amalan S and contributors ([NOTICE](./NOTICE)). Contributions are signed off under the DCO. |
+| 4. Platform independence | Self-hostable on an open stack (Rust, PostgreSQL, React). No proprietary runtime. |
+| 5. Documentation | Architecture, module RFCs and contribution docs are in the repository. |
+| 6. Data extraction and no lock-in | Open PostgreSQL schema, per-patient FHIR R4 Bundle download, CSV exports and documented backups. Whole-hospital FHIR bulk export is on the roadmap. |
+| 7. Privacy and applicable laws | Multi-tenant row-level security, field redaction, audit trails and RBAC. Designed for NABH, JCI, ABDM and DPDP. |
+| 8. Standards and best practices | ICD-10/11, HL7 v2 (MLLP), DICOM via Orthanc, FHIR R4 (read). LOINC and SNOMED fields are present. ABDM M1–M3 is in progress. |
+| 9. Do no harm by design | Patient-safety rules are enforced in code. Security issues are disclosed responsibly ([SECURITY.md](./SECURITY.md)). Contributors may use de-identified data only. |
 
-> Action item: formally register MedBrains with the [DPG Alliance](https://digitalpublicgoods.net/submission-guidelines/) once the FHIR export and ABDM integration land (tracked on the [roadmap](./README.md#roadmap)).
+> Next step: register MedBrains with the [DPG Alliance](https://digitalpublicgoods.net/submission-guidelines/) once FHIR export and ABDM integration land (tracked on the [roadmap](./README.md#roadmap)).
 
 ## Where funding goes
 
-Grants, sponsorship and paid services (setup, training, hosting, support) fund:
+Grants, sponsorship and paid services (setup, training, hosting, support) pay for:
 
-1. **Standards & interoperability** — HL7 FHIR R4, ABDM (ABHA) integration, DICOM.
-2. **Compliance depth** — NABH/JCI evidence tracking, statutory reporting (IDSP), clinical coding libraries.
-3. **Scale & longevity** — best-in-class PostgreSQL partitioning, retention, and Citus sharding so a hospital can run on this for decades.
-4. **Reference deployments** — helping a district hospital or NGO actually go live, and turning that into reusable deployment automation.
-5. **Security & audits** — independent security review of health-data paths.
+1. **Standards and interoperability:** HL7 FHIR R4, ABDM (ABHA) integration, DICOM.
+2. **Compliance depth:** NABH and JCI evidence tracking, statutory reporting (IDSP), clinical coding libraries.
+3. **Scale and longevity:** PostgreSQL partitioning, retention and Citus sharding, so a hospital can run on it for decades.
+4. **Reference deployments:** helping a district hospital or NGO go live, and turning that work into reusable deployment automation.
+5. **Security audits:** independent security review of the paths that handle health data.
 
-## Programmes we're aligning to
+## Programmes we are aligning with
 
-Non-exhaustive; PRs/leads welcome via [Discussions](https://github.com/DomnicAmalan/MedBrains/discussions):
+This list is not complete. Suggestions and leads are welcome in [Discussions](https://github.com/medbrains/medbrains/discussions).
 
-- **DPG Alliance** (UNICEF/UNDP-backed) — DPG registry listing.
-- **ABDM / National Health Authority (India)** ecosystem partner programmes.
-- **Open-source / FOSS funds** — e.g. NLnet, FOSS sustainability funds, Sovereign Tech Fund-style programmes.
-- **Global health philanthropies** — Gates Foundation, Wellcome, Patrick J. McGovern, etc., for digital health infrastructure.
-- **GitHub Sponsors / Open Collective** for recurring individual and corporate support (see [`.github/FUNDING.yml`](./.github/FUNDING.yml)).
+- **DPG Alliance** (UNICEF and UNDP backed): listing on the DPG registry.
+- **ABDM / National Health Authority (India)**: ecosystem partner programmes.
+- **Open-source funds**, for example NLnet, FOSS sustainability funds and programmes like the Sovereign Tech Fund.
+- **Global health philanthropies**, such as the Gates Foundation, Wellcome and the Patrick J. McGovern Foundation, for digital health infrastructure.
+- **GitHub Sponsors and Open Collective** for recurring support from individuals and companies (see [`.github/FUNDING.yml`](./.github/FUNDING.yml)).
 
-## Dual-licensing keeps it sustainable
+## How it pays for itself
 
-MedBrains is **Apache-2.0**. Everyone uses it free, forever. The team earns only from optional setup, training, hosting and support. Grants accelerate the public-good work that service revenue alone can't cover fast enough.
+MedBrains is licensed under Apache-2.0 and is free for everyone to use. The team earns only from optional setup, training, hosting and support. Grants speed up the public-good work that service income cannot cover on its own.
 
-## The one-paragraph pitch (reuse in applications)
+## Short description for applications
 
-> MedBrains is an open-source, standards-aligned Hospital Management System covering 67+ clinical, diagnostic, financial, and administrative modules, engineered in Rust and PostgreSQL with patient-safety logic (medication checks, consent, infection control, statutory disease reporting) enforced in code rather than hidden in a vendor black box. Licensed under Apache-2.0 and designed against the Digital Public Goods Standard, it lets public hospitals, NGOs, and health ministries in India and other emerging markets deploy, audit, and own their hospital information system without licence lock-in — turning safety-critical health infrastructure into a public good.
+> MedBrains is an open-source hospital management system built in Rust and PostgreSQL, designed to cover 67+ clinical, diagnostic, financial and administrative modules. Patient-safety logic (medication checks, consent, infection control, statutory disease reporting) is enforced in code that anyone can read. It is licensed under Apache-2.0 and designed against the Digital Public Goods Standard, so public hospitals, NGOs and health ministries in India and other emerging markets can deploy, audit and own their hospital information system without licence lock-in.
 
 ---
 
-**Want to fund, pilot, or partner?** Open a [Discussion](https://github.com/DomnicAmalan/MedBrains/discussions) or reach the maintainers via the contact in [SECURITY.md](./SECURITY.md).
+**Want to fund, pilot or partner?** Open a [Discussion](https://github.com/medbrains/medbrains/discussions) or contact the maintainers through the address in [SECURITY.md](./SECURITY.md).
