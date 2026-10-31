@@ -1,0 +1,62 @@
+{
+  "name": "@r8r/editor",
+  "private": false,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc -b && vite build",
+    "preview": "vite preview",
+    "lint": "biome check ../",
+    "format": "biome check --write ../",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
+    "e2e": "playwright test",
+    "e2e:ui": "playwright test --ui",
+    "build:lib": "vite build --mode lib"
+  },
+  "dependencies": {},
+  "devDependencies": {
+    "@biomejs/biome": "^2.5.9",
+    "@playwright/test": "^1.62.1",
+    "@testing-library/jest-dom": "^7.0.1",
+    "@testing-library/react": "^16.3.2",
+    "@testing-library/user-event": "^14.6.5",
+    "@types/react": "^19.1.0",
+    "@types/react-dom": "^19.1.0",
+    "@vitejs/plugin-react": "^5.0.0",
+    "@vitest/coverage-v8": "^4.1.11",
+    "jsdom": "^30.0.1",
+    "typescript": "^5.8.0",
+    "vite": "^7.0.0",
+    "vite-plugin-dts": "^5.0.3",
+    "vitest": "^4.1.11",
+    "@mantine/core": "^9.5.1",
+    "@mantine/hooks": "^9.5.1",
+    "@mantine/notifications": "^9.5.1",
+    "@tabler/icons-react": "^3.46.0",
+    "@xyflow/react": "^12.8.2",
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0"
+  },
+  "files": [
+    "dist-lib"
+  ],
+  "exports": {
+    ".": {
+      "types": "./dist-lib/index.d.ts",
+      "import": "./dist-lib/r8r-editor.js"
+    },
+    "./styles.css": "./dist-lib/editor.css"
+  },
+  "peerDependencies": {
+    "@mantine/core": "^9.5.1",
+    "@mantine/hooks": "^9.5.1",
+    "@mantine/notifications": "^9.5.1",
+    "@tabler/icons-react": "^3.46.0",
+    "@xyflow/react": "^12.8.2",
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0"
+  }
+}

@@ -39,7 +39,6 @@ Use only synthetic or fully de-identified data in code, tests, seeds, screenshot
 **You need:** macOS or Linux, Docker, Rust 1.85+ via `rustup`, Node 24 and pnpm 10.
 
 ```bash
-git submodule update --init                # r8r automation engine (pinned commit)
 cd medbrains
 cp .env.example .env
 make db              # PostgreSQL and supporting services in Docker

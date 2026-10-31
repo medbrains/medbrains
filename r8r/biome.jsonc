@@ -1,0 +1,48 @@
+{
+  "$schema": "./editor-ui/node_modules/@biomejs/biome/configuration_schema.json",
+  "vcs": { "enabled": true, "clientKind": "git", "useIgnoreFile": true },
+  "files": {
+    "includes": ["editor-ui/src/**/*", "editor-ui/e2e/**/*", "editor-ui/*.ts", "editor-ui/*.json"]
+  },
+  "formatter": {
+    "enabled": true,
+    "indentStyle": "space",
+    "indentWidth": 2,
+    "lineWidth": 100
+  },
+  "javascript": {
+    "formatter": {
+      "quoteStyle": "single",
+      "semicolons": "asNeeded",
+      "trailingCommas": "all",
+      "arrowParentheses": "always"
+    }
+  },
+  "linter": {
+    "enabled": true,
+    "rules": {
+      "recommended": true,
+      "correctness": {
+        "noUnusedVariables": "error",
+        "noUnusedImports": "error",
+        "useExhaustiveDependencies": "warn"
+      },
+      "suspicious": {
+        // The TypeScript counterpart of the Rust lint policy: no untyped
+        // escape hatches, no silently swallowed failures.
+        "noExplicitAny": "error",
+        "noDoubleEquals": "error",
+        "noConsole": { "level": "error", "options": { "allow": ["warn", "error"] } }
+      },
+      "style": {
+        "noNonNullAssertion": "warn",
+        "useConst": "error",
+        "useTemplate": "error"
+      },
+      "complexity": {
+        "noExcessiveCognitiveComplexity": { "level": "warn", "options": { "maxAllowedComplexity": 15 } }
+      }
+    }
+  },
+  "assist": { "actions": { "source": { "organizeImports": "on" } } }
+}

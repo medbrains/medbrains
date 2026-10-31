@@ -164,7 +164,7 @@ Only what the code does today:
 **You need:** macOS or Linux, Docker, Rust 1.85+ (`rustup`), Node 24 and pnpm 10. The first Rust build is large and takes a while; 16 GB RAM and about 60 GB of free disk are recommended.
 
 ```bash
-git clone --recurse-submodules https://github.com/medbrains/medbrains.git
+git clone https://github.com/medbrains/medbrains.git
 cd medbrains/medbrains
 cp .env.example .env
 make db              # PostgreSQL, SpiceDB, Gotenberg, mail server (Docker)
