@@ -21,7 +21,7 @@
 ## 2. Features needed **on top of** the design (the real gap)
 The mockup's formulary is 12 drugs + 6 hardcoded interactions. The live system already carries far more (ccc-confirmed: prescriptions store INN, ATC, drug schedule, AWaRe; DDI/allergy checks logged — `docs/sops/04-pharmacy-dispensing.md`). To be real:
 
-### 2.1 Regulatory drug attributes (MANDATORY — CLAUDE.md §Pharmacology)
+### 2.1 Regulatory drug attributes (MANDATORY — ENGINEERING.md §Pharmacology)
 - **Drug schedule badge** — Schedule H / H1 / X / G (CDSCO). H1 + X demand a written Rx; **Schedule X → duplicate Rx + register entry**; the writer must surface the badge and the print must show it.
 - **NDPS controlled** — controlled substances need the NDPS register + dual-lock; dispensing blocked without a register entry. Flag in formulary + dispense.
 - **Generic/INN name + ATC code + RxNorm** — INN is the prescribing standard; some states **mandate generic prescribing** (toggle: show generic-first).

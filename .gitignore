@@ -1,7 +1,3 @@
-# Claude Code: session state and personal settings stay local; the shared
-# hooks file (.claude/settings.json) is versioned.
-.claude/*
-!.claude/settings.json
 
 # OS
 .DS_Store
@@ -50,3 +46,10 @@ medbrains/apps/web/e2e/smoke/latency-report.jsonl
 *.trace
 server_err.log
 test-results/
+
+# Local AI-assistant config (kept out of the public repo)
+CLAUDE.md
+AGENTS.md
+.claude/
+.mcp.json
+.cocoindex_code/

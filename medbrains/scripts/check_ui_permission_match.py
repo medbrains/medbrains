@@ -16,7 +16,7 @@ existence-based: a gate on `opd.queue.list` passes because *some* handler
 somewhere checks that code, even if the button next to it posts to an endpoint
 demanding `opd.visit.create`.
 
-That is the shape CLAUDE.md names as rule 7 — "the control's gate must match the
+That is the shape ENGINEERING.md names as rule 7 — "the control's gate must match the
 permission its call requires" — and it fails in two directions:
 
   under-gated  the page calls something needing P and gates on nothing, or on a

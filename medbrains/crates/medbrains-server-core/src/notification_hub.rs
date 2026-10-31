@@ -5,7 +5,7 @@
 //! the substrate; P2 wires `create_notification` (post-commit) to `publish` and
 //! adds the authed `/api/ws/notifications` endpoint that calls `subscribe`.
 //!
-//! DSA / DP / cost discipline (CLAUDE.md + DEVICE-CONSTRAINED-RULES):
+//! DSA / DP / cost discipline (ENGINEERING.md + DEVICE-CONSTRAINED-RULES):
 //! - **Topic fan-out is O(subscribers)**, never an O(N) per-event DB scan: an
 //!   event is published once per topic to a `tokio::broadcast` channel and every
 //!   subscriber of that topic receives the shared `Arc`, no cloning of the body.

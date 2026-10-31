@@ -72,7 +72,7 @@ export interface FormularyDrug {
   penicillin?: boolean;
   crossPen?: boolean;
   sedative?: boolean;
-  // ── regulatory (CLAUDE.md §Pharmacology) ──
+  // ── regulatory (ENGINEERING.md §Pharmacology) ──
   /** CDSCO schedule — drives badge + Rx/register rules. */
   schedule?: DrugSchedule;
   /** NDPS controlled substance — register + dual-lock on dispense. */

@@ -76,7 +76,7 @@ The point isn't pixel detail — it's that the entire screen is **one read view 
 | Active visit sticky bar | "Where does this note belong?" is currently ambiguous in our code | Add `activeVisitStore` + `<ActiveVisitBar />` shown when an OPD/IPD/Emergency encounter is open. Auto-attach all clinical mutations to `activeVisit.encounterId` |
 | Inline row actions on medications/orders/labs | Replaces the modal-per-action pattern | Standard `<RowActionsMenu>` on `DataTable` — already aligns with our DataTable Column convention |
 | Split big forms into small workspace-scoped forms | Today's OPD consultation page is one mega-form; users complain | Carve the consultation into: vitals, complaint, exam, diagnosis (ICD-10), prescription (workspace), advice, follow-up. Each opens as a workspace |
-| CIEL/SNOMED/LOINC/RxNORM/ICD-10 mapping columns on existing masters | We already have `icd_code` on diagnoses; extend the pattern | Add `loinc_code` to `lab_test_catalog`, `rxnorm_code` + `atc_code` + `inn_name` (already memo'd as MUST in CLAUDE.md) to `pharmacy_catalog`, `snomed_code` to `diagnoses` and `procedures`. Backfill from CIEL via OCL API as a future job |
+| CIEL/SNOMED/LOINC/RxNORM/ICD-10 mapping columns on existing masters | We already have `icd_code` on diagnoses; extend the pattern | Add `loinc_code` to `lab_test_catalog`, `rxnorm_code` + `atc_code` + `inn_name` (already memo'd as MUST in ENGINEERING.md) to `pharmacy_catalog`, `snomed_code` to `diagnoses` and `procedures`. Backfill from CIEL via OCL API as a future job |
 
 ### 3.2 Defer (valuable but bigger lift)
 

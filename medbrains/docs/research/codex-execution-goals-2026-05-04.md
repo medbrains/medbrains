@@ -36,7 +36,7 @@ Likely files:
 - `.cargo/config.toml`
 - `scripts/check_runtime_sqlx.py`
 - `AGENTS.md`
-- `CLAUDE.md`
+- `ENGINEERING.md`
 - `docs/research/*`
 
 Acceptance:

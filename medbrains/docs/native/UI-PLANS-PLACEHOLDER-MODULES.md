@@ -488,7 +488,7 @@ paired.revoke and roster.read.
 | G-DEV-3 | `GET /api/me/devices`, `DELETE /api/me/devices/{id}` | — (follow-up) |
 | G-SEC-2/3 | patrols/checkpoints, lost & found, key register; incident attachments | follow-up |
 
-**Permission gaps.** Each needs a new code, defined in Rust first, per CLAUDE.md:
+**Permission gaps.** Each needs a new code, defined in Rust first, per ENGINEERING.md:
 
 | ID | New permission | Why |
 |---|---|---|

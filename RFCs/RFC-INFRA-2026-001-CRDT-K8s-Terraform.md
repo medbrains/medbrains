@@ -271,7 +271,7 @@ Path: Secrets in SM under `medbrains/<env>/<service>/<key>`. ESO `ClusterSecretS
 4. Create per-tenant CloudWatch log group via the operator (we run a small Rust controller `medbrains-tenant-operator`)
 
 Tenants share the namespace `medbrains-app` in EKS. Isolation is enforced by:
-- PostgreSQL RLS (already in place, per existing CLAUDE.md)
+- PostgreSQL RLS (already in place, per existing ENGINEERING.md)
 - Tenant claim in JWT validated at every request
 - NetworkPolicy at L7 by Cilium: app pods can only reach Aurora via the configured proxy with `tenant_id` header
 - Per-tenant rate limits via Cilium L7 + envoy filters

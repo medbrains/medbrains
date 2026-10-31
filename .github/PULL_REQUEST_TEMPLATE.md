@@ -17,7 +17,7 @@
 - [ ] `make check-all` passes (API contract / UI-API / type contracts) where relevant
 - [ ] Tests added/updated for new modules or endpoints
 - [ ] New/changed UI is accessible (keyboard, focus, labels, `prefers-reduced-motion`)
-- [ ] Checked applicable regulatory norms for clinical changes (see CLAUDE.md)
+- [ ] Checked applicable regulatory norms for clinical changes (see ENGINEERING.md)
 - [ ] Docs/RFCs updated if behaviour or architecture changed
 
 ## Notes for reviewers
