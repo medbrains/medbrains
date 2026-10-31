@@ -43,3 +43,10 @@ allure-report/
 allure-combined/
 medbrains/apps/web/e2e/smoke/latency-report.jsonl
 .DS_Store
+
+# Office lock files, editor folders, run debris
+~$*
+.idea/
+*.trace
+server_err.log
+test-results/
