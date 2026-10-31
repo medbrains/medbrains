@@ -1,0 +1,24 @@
+// Layout and shape only — every colour comes from the theme via the event's `color`.
+
+.root {
+  min-width: 0;
+
+  [data-leave-state="pending"] {
+    border: 1px dashed currentColor;
+  }
+
+  [data-leave-state="approved"] {
+    border: 1px solid currentColor;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    * {
+      transition: none !important;
+      animation: none !important;
+    }
+  }
+}
+
+.eventBody {
+  min-width: 0;
+}

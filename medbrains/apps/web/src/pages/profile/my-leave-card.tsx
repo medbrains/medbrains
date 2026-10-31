@@ -1,59 +1,31 @@
-// Self-service leave: the signed-in employee's balances, applications and the form to
-// apply. Every call is /hr/me/* — the server decides whose leave it is, never the page.
+// My time off: the signed-in employee's leave on the shared calendar, their balances,
+// and the request form. Every call is /hr/me/* — the server decides whose leave it is.
 
-import { zodResolver } from "@hookform/resolvers/zod";
-import { Group, SimpleGrid, Stack, Text } from "@mantine/core";
-import { useDisclosure } from "@mantine/hooks";
+import { Grid, Group, Skeleton, Stack, Text } from "@mantine/core";
 import type { LeaveRequest } from "@medbrains/types";
 import { IconPlus, IconX } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Controller, useForm } from "react-hook-form";
-import { z } from "zod";
+import dayjs from "dayjs";
+import { useMemo, useState } from "react";
 import { DataTable } from "@/components";
-import {
-  Alert,
-  Badge,
-  Button,
-  Card,
-  IconButton,
-  Input,
-  Modal,
-  Select,
-  Switch,
-  TextArea,
-  Tooltip,
-  toast,
-} from "@/components/ui";
+import { Alert, Badge, Button, Card, IconButton, Tooltip, toast } from "@/components/ui";
 import { hrService } from "@/services/hr.service";
-import { LEAVE_TYPE_OPTIONS, leaveDays } from "../hr/leave-options";
+import { isPendingLeave, leaveTypeLabel, upcomingApproved } from "../hr/leave-calendar";
+import { LeaveCalendarView, useLeaveCalendarWindow } from "../hr/leave-calendar-view";
+import { LeaveDetailsModal } from "../hr/leave-details-modal";
+import { LeaveRequestModal } from "../hr/leave-request-modal";
 
-const schema = z
-  .object({
-    leave_type: z.string().min(1, "Choose a leave type"),
-    start_date: z.string().min(1, "Enter the first day"),
-    end_date: z.string().min(1, "Enter the last day"),
-    is_half_day: z.boolean(),
-    reason: z.string().max(500).optional(),
-  })
-  .refine((v) => leaveDays(v.start_date, v.end_date, v.is_half_day) !== null, {
-    path: ["end_date"],
-    message: "The last day must be on or after the first; a half day is a single date",
-  });
-type FormValues = z.infer<typeof schema>;
-
-const EMPTY: FormValues = {
-  leave_type: "casual",
-  start_date: "",
-  end_date: "",
-  is_half_day: false,
-  reason: "",
-};
-
-const PENDING = new Set(["draft", "pending_hod", "pending_admin"]);
+const UPCOMING_SHOWN = 3;
 
 export function MyLeaveCard() {
   const qc = useQueryClient();
-  const [applyOpen, { open, close }] = useDisclosure(false);
+  const w = useLeaveCalendarWindow();
+  const [requestDate, setRequestDate] = useState<string | null>(null);
+  const [opened, setOpened] = useState<LeaveRequest | null>(null);
+  const today = dayjs().format("YYYY-MM-DD");
+  const year = dayjs().year();
+
+  // At most 500 of the caller's own requests, so the calendar filters them locally.
   const requests = useQuery({
     queryKey: ["my-leaves"],
     queryFn: () => hrService.listMyLeaveRequests(),
@@ -62,67 +34,111 @@ export function MyLeaveCard() {
     queryKey: ["my-leave-balances"],
     queryFn: () => hrService.listMyLeaveBalances(),
   });
-  const form = useForm<FormValues>({ resolver: zodResolver(schema), defaultValues: EMPTY });
-
-  const apply = useMutation({
-    mutationFn: (v: FormValues) =>
-      hrService.createMyLeaveRequest({
-        leave_type: v.leave_type,
-        start_date: v.start_date,
-        end_date: v.end_date,
-        days: leaveDays(v.start_date, v.end_date, v.is_half_day) ?? undefined,
-        is_half_day: v.is_half_day,
-        reason: v.reason || undefined,
-      }),
-    onSuccess: () => {
-      void qc.invalidateQueries({ queryKey: ["my-leaves"] });
-      form.reset(EMPTY);
-      close();
-      toast.success("Sent to your department head for approval", { title: "Leave applied" });
-    },
-    onError: (e: Error) => toast.error(e.message, { title: "Leave not applied" }),
-  });
+  const thisYear = useMemo(
+    () => (balances.data ?? []).filter((b) => b.year === year),
+    [balances.data, year],
+  );
+  const pendingCount = (requests.data ?? []).filter((r) => isPendingLeave(r.status)).length;
+  const upcoming = useMemo(
+    () => upcomingApproved(requests.data ?? [], today, UPCOMING_SHOWN),
+    [requests.data, today],
+  );
 
   const cancel = useMutation({
     mutationFn: (id: string) => hrService.cancelLeave(id),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["my-leaves"] });
-      toast.warning("Leave application withdrawn", { title: "Leave cancelled" });
+      toast.warning("Leave request withdrawn", { title: "Leave cancelled" });
     },
     onError: (e: Error) => toast.error(e.message, { title: "Leave not cancelled" }),
   });
 
+  let balanceList: React.ReactNode;
+  if (balances.isError) {
+    balanceList = (
+      <Alert tone="danger" title="Balances unavailable">
+        {balances.error.message}
+      </Alert>
+    );
+  } else if (balances.isLoading) {
+    balanceList = <Skeleton height={60} />;
+  } else if (thisYear.length === 0) {
+    balanceList = <Text size="sm">No balances set for {year}. Ask HR.</Text>;
+  } else {
+    balanceList = thisYear.map((b) => (
+      <Group key={b.id} justify="space-between">
+        <Text size="sm">{leaveTypeLabel(b.leave_type)}</Text>
+        <Text size="sm" fw={600}>
+          {b.balance} days
+        </Text>
+      </Group>
+    ));
+  }
+
   return (
     <Card withBorder padding="lg">
       <Group justify="space-between" mb="sm">
-        <Text fw={600}>My leave</Text>
-        <Button tone="primary" leftSection={<IconPlus size={16} />} onClick={open}>
-          Apply for leave
+        <Text fw={600}>My time off</Text>
+        <Button
+          tone="primary"
+          leftSection={<IconPlus size={16} />}
+          onClick={() => setRequestDate(today)}
+        >
+          Request leave
         </Button>
       </Group>
 
-      {balances.isError ? (
-        <Alert tone="danger" title="Balances unavailable">
-          {balances.error.message}
-        </Alert>
-      ) : (
-        <SimpleGrid cols={{ base: 2, sm: 4 }} spacing="sm" mb="md">
-          {(balances.data ?? []).map((b) => (
-            <Stack key={b.id} gap={0}>
-              <Text size="xs" c="dimmed" tt="capitalize">
-                {b.leave_type.replace(/_/g, " ")} · {b.year}
+      <Grid gap="md" mb="md">
+        <Grid.Col span={{ base: 12, lg: 9 }}>
+          <LeaveCalendarView
+            window={w}
+            rows={requests.data}
+            isLoading={requests.isLoading}
+            error={requests.error}
+            onRetry={() => void requests.refetch()}
+            onDayClick={setRequestDate}
+            onLeaveClick={setOpened}
+          />
+        </Grid.Col>
+        <Grid.Col span={{ base: 12, lg: 3 }}>
+          <Stack gap="md">
+            <Stack gap={4}>
+              <Text size="xs" c="dimmed" tt="uppercase">
+                Balance {year}
               </Text>
-              <Text fw={600}>{b.balance} days left</Text>
+              {balanceList}
             </Stack>
-          ))}
-        </SimpleGrid>
-      )}
+            {requests.isSuccess && (
+              <>
+                <Stack gap={2}>
+                  <Text size="xs" c="dimmed" tt="uppercase">
+                    Pending
+                  </Text>
+                  <Text fz="xl" fw={600}>
+                    {pendingCount}
+                  </Text>
+                </Stack>
+                <Stack gap={4}>
+                  <Text size="xs" c="dimmed" tt="uppercase">
+                    Upcoming approved
+                  </Text>
+                  {upcoming.length === 0 ? (
+                    <Text size="sm">None</Text>
+                  ) : (
+                    upcoming.map((r) => (
+                      <Text key={r.id} size="sm">
+                        {leaveTypeLabel(r.leave_type)}: {r.start_date} → {r.end_date}
+                      </Text>
+                    ))
+                  )}
+                </Stack>
+              </>
+            )}
+          </Stack>
+        </Grid.Col>
+      </Grid>
 
-      {requests.isError ? (
-        <Alert tone="danger" title="Your leave could not be loaded">
-          {requests.error.message}
-        </Alert>
-      ) : (
+      {!requests.isError && (
         <DataTable
           data={requests.data ?? []}
           loading={requests.isLoading}
@@ -131,9 +147,7 @@ export function MyLeaveCard() {
             {
               key: "type",
               label: "Type",
-              render: (r: LeaveRequest) => (
-                <Badge size="sm">{r.leave_type.replace(/_/g, " ")}</Badge>
-              ),
+              render: (r: LeaveRequest) => <Text size="sm">{leaveTypeLabel(r.leave_type)}</Text>,
             },
             {
               key: "period",
@@ -153,11 +167,11 @@ export function MyLeaveCard() {
               key: "actions",
               label: "",
               render: (r: LeaveRequest) =>
-                PENDING.has(r.status) ? (
+                isPendingLeave(r.status) ? (
                   <Tooltip label="Withdraw">
                     <IconButton
                       onClick={() => cancel.mutate(r.id)}
-                      aria-label="Withdraw leave application"
+                      aria-label="Withdraw leave request"
                     >
                       <IconX size={16} />
                     </IconButton>
@@ -168,59 +182,19 @@ export function MyLeaveCard() {
         />
       )}
 
-      <Modal opened={applyOpen} onClose={close} title="Apply for leave">
-        <form onSubmit={form.handleSubmit((v) => apply.mutate(v))} noValidate>
-          <Stack gap="sm">
-            <Controller
-              control={form.control}
-              name="leave_type"
-              render={({ field, fieldState }) => (
-                <Select
-                  {...field}
-                  label="Leave type"
-                  data={LEAVE_TYPE_OPTIONS}
-                  error={fieldState.error?.message}
-                />
-              )}
-            />
-            <Controller
-              control={form.control}
-              name="start_date"
-              render={({ field, fieldState }) => (
-                <Input {...field} type="date" label="First day" error={fieldState.error?.message} />
-              )}
-            />
-            <Controller
-              control={form.control}
-              name="end_date"
-              render={({ field, fieldState }) => (
-                <Input {...field} type="date" label="Last day" error={fieldState.error?.message} />
-              )}
-            />
-            <Controller
-              control={form.control}
-              name="is_half_day"
-              render={({ field }) => (
-                <Switch
-                  label="Half day"
-                  checked={field.value}
-                  onChange={(e) => field.onChange(e.currentTarget.checked)}
-                />
-              )}
-            />
-            <Controller
-              control={form.control}
-              name="reason"
-              render={({ field, fieldState }) => (
-                <TextArea {...field} label="Reason" error={fieldState.error?.message} />
-              )}
-            />
-            <Button type="submit" tone="primary" loading={apply.isPending}>
-              Submit for approval
-            </Button>
-          </Stack>
-        </form>
-      </Modal>
+      {requestDate && (
+        <LeaveRequestModal
+          date={requestDate}
+          withEmployee={false}
+          submit={(body) => hrService.createMyLeaveRequest(body)}
+          onClose={() => setRequestDate(null)}
+          onSubmitted={() => {
+            void qc.invalidateQueries({ queryKey: ["my-leaves"] });
+            setRequestDate(null);
+          }}
+        />
+      )}
+      {opened && <LeaveDetailsModal leave={opened} onClose={() => setOpened(null)} />}
     </Card>
   );
 }

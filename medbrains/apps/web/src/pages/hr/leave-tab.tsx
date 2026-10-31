@@ -21,6 +21,7 @@ import { EmployeeSearchSelect } from "@/components/EmployeeSearchSelect";
 import { printColumn } from "@/components/Print/printColumn";
 import { Badge, type BadgeTone, Button, IconButton, Modal, toast } from "@/components/ui";
 import { hrService } from "@/services/hr.service";
+import { approvalAction } from "./leave-calendar";
 import { LEAVE_TYPE_OPTIONS } from "./leave-options";
 
 const leaveStatusColors: Record<string, BadgeTone> = {
@@ -47,6 +48,7 @@ export function LeaveTab({ canCreate, canApprove, canManage }: LeaveTabProps) {
     queryFn: () => hrService.getMyProfile(),
   });
   const myEmployeeId = me?.employee?.id;
+  const rights = { canApprove, canManage, myEmployeeId };
   const [statusFilter, setStatusFilter] = useState<string | null>(null);
   const [createOpen, { open: openCreate, close: closeCreate }] = useDisclosure(false);
 
@@ -196,36 +198,30 @@ export function LeaveTab({ canCreate, canApprove, canManage }: LeaveTabProps) {
             label: "",
             render: (r: LeaveRequest) => (
               <Group gap={4}>
-                {canApprove &&
-                  r.employee_id !== myEmployeeId &&
-                  (r.status === "pending_hod" || (canManage && r.status === "pending_admin")) && (
-                    <>
-                      <Tooltip label="Approve">
-                        <IconButton
-                          tone="success"
-                          onClick={() =>
-                            // HR gives final approval; a department head forwards to HR.
-                            actionMut.mutate({
-                              id: r.id,
-                              action: canManage ? "approve" : "approve_hod",
-                            })
-                          }
-                          aria-label="Approve leave"
-                        >
-                          <IconCheck size={16} />
-                        </IconButton>
-                      </Tooltip>
-                      <Tooltip label="Reject">
-                        <IconButton
-                          tone="danger"
-                          onClick={() => actionMut.mutate({ id: r.id, action: "reject" })}
-                          aria-label="Reject leave"
-                        >
-                          <IconX size={16} />
-                        </IconButton>
-                      </Tooltip>
-                    </>
-                  )}
+                {approvalAction(r, rights) && (
+                  <>
+                    <Tooltip label="Approve">
+                      <IconButton
+                        tone="success"
+                        onClick={() =>
+                          actionMut.mutate({ id: r.id, action: approvalAction(r, rights) ?? "" })
+                        }
+                        aria-label="Approve leave"
+                      >
+                        <IconCheck size={16} />
+                      </IconButton>
+                    </Tooltip>
+                    <Tooltip label="Reject">
+                      <IconButton
+                        tone="danger"
+                        onClick={() => actionMut.mutate({ id: r.id, action: "reject" })}
+                        aria-label="Reject leave"
+                      >
+                        <IconX size={16} />
+                      </IconButton>
+                    </Tooltip>
+                  </>
+                )}
                 {(r.status === "draft" || r.status === "pending_hod") &&
                   (canManage || r.employee_id === myEmployeeId) && (
                     <Tooltip label="Cancel">

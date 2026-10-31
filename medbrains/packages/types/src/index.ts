@@ -121,7 +121,6 @@ export * from "./device-binding";
 export * from "./device-integration";
 export * from "./diagnosis-coding";
 export * from "./doctor-payouts";
-export * from "./flow";
 export * from "./documents-module";
 export * from "./dpdp-compliance";
 export * from "./early-warning";
@@ -165,6 +164,7 @@ export {
 } from "./event-actions.js";
 export * from "./field-access-catalogue";
 export * from "./field-mapping";
+export * from "./flow";
 export * from "./form-builder";
 export * from "./form-master";
 export * from "./form-runtime";
@@ -1442,6 +1442,14 @@ export interface LeaveRequest {
   cancel_reason?: string;
   created_at: string;
   updated_at: string;
+}
+
+/** A leave as the HR list returns it — with whose it is and what they have left. */
+export interface LeaveListRow extends LeaveRequest {
+  employee_name: string;
+  department_id?: string;
+  /** Balance for this leave type in the leave's year; null when no balance row exists. */
+  remaining_balance: number | null;
 }
 
 export interface OnCallSchedule {
