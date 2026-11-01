@@ -181,6 +181,7 @@ pub fn build_router(state: AppState) -> Router {
         .merge(medbrains_setup::router())
         .merge(medbrains_history_import::router())
         .merge(medbrains_research::router())
+        .merge(medbrains_knowledge::router())
         // ── FHIR R4 read API (ABDM HIE-CM HIP role + generic interop) ──
         .merge(medbrains_fhir_api::router())
         .route("/api/debug/authz-probe", get(health::authz_probe))

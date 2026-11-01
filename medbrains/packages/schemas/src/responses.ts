@@ -109,6 +109,61 @@ export const pharmacyOrderDetailResponseSchema = z.looseObject({
   items: z.array(pharmacyOrderItem),
 });
 
+// Knowledge change sets: the impact a reviewer approves against, and the
+// status that decides which action is offered, must not drift silently.
+const knowledgeStatus = z.enum([
+  "draft",
+  "previewed",
+  "approved",
+  "applied",
+  "rolled_back",
+  "rejected",
+  "stale",
+]);
+const knowledgeImpact = z.looseObject({
+  entries: z.array(
+    z.looseObject({
+      severity: z.enum(["safety", "access", "money", "info"]),
+      relation: z.string(),
+      summary: z.string(),
+      count: count,
+      examples: z.array(z.looseObject({ label: z.string(), href: z.string().nullable() })),
+      truncated: z.boolean(),
+    }),
+  ),
+  computed_at: z.string(),
+});
+const knowledgeChangeSet = z.looseObject({
+  id,
+  area: z.enum(["drug_interactions", "critical_value_rules"]),
+  title: z.string(),
+  status: knowledgeStatus,
+  author_id: id,
+  approver_id: id.nullable(),
+  impact: knowledgeImpact.nullable(),
+});
+const knowledgeRow = z.record(z.string(), z.union([z.string(), z.number(), z.boolean(), z.null()]));
+export const knowledgeChangeSetListResponseSchema = z.array(knowledgeChangeSet);
+export const knowledgeChangeSetDetailResponseSchema = knowledgeChangeSet.extend({
+  items: z.array(
+    z.looseObject({
+      id,
+      op: z.enum(["create", "update", "delete"]),
+      target_key: z.string().nullable(),
+      before: knowledgeRow.nullable(),
+      after: knowledgeRow.nullable(),
+      seq: count,
+    }),
+  ),
+});
+export const knowledgeLiveRowsResponseSchema = z.array(z.looseObject({ id, fields: knowledgeRow }));
+export const knowledgeProofResponseSchema = z.looseObject({
+  change_set_id: id,
+  canonical: z.string(),
+  proof_hash: z.string().regex(/^[0-9a-f]{64}$/),
+  audit_rows: z.array(z.looseObject({ id, action: z.string(), hash: z.string() })),
+});
+
 /**
  * Where `data` departs from `schema`, as one line naming each field and the
  * problem — never the values, which are patient data. Null when it conforms.

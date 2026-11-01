@@ -7168,6 +7168,26 @@ dependencies = [
 ]
 
 [[package]]
+name = "medbrains-knowledge"
+version = "0.1.0"
+dependencies = [
+ "axum",
+ "chrono",
+ "hex",
+ "medbrains-core",
+ "medbrains-db",
+ "medbrains-lab",
+ "medbrains-server-core",
+ "medbrains-telehealth",
+ "serde",
+ "serde_json",
+ "sha2 0.11.1",
+ "sqlx",
+ "tokio",
+ "uuid",
+]
+
+[[package]]
 name = "medbrains-lab"
 version = "0.1.0"
 dependencies = [
@@ -8246,6 +8266,7 @@ dependencies = [
  "medbrains-ipd",
  "medbrains-ipd-post-discharge",
  "medbrains-it-security",
+ "medbrains-knowledge",
  "medbrains-lab",
  "medbrains-lms",
  "medbrains-mail-provisioning",

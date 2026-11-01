@@ -17,7 +17,7 @@ export interface PermissionDef {
   module: string;
 }
 
-/** 1195 permissions, one per constant in the Rust source. */
+/** 1201 permissions, one per constant in the Rust source. */
 export const PERMISSIONS: PermissionDef[] = [
   // dashboard
   {
@@ -1022,6 +1022,12 @@ export const PERMISSIONS: PermissionDef[] = [
     code: "pharmacy.safety.override",
     label: "Override a medication safety block",
     description: "Lets a pharmacist proceed past a documented drug allergy, a serious drug-drug interaction or another medication safety block, with a recorded clinical reason that is audited.",
+    module: "pharmacy",
+  },
+  {
+    code: "pharmacy.interactions.manage",
+    label: "Propose changes to drug interaction rules",
+    description: "Draft additions, edits and removals of drug-drug interaction rules as knowledge change sets. A change goes live only after a second person approves it; this does not open the direct editor.",
     module: "pharmacy",
   },
   {
@@ -7264,6 +7270,37 @@ export const PERMISSIONS: PermissionDef[] = [
     description: "Tell the patient's app whether the hospital can send the ambulance, has the blood or will do the lab tests. Accepting an ambulance request also needs ambulance trip creation, a blood request blood inventory management, a lab request walk-in lab ordering (and sample management for a home collection).",
     module: "uhi",
   },
+  // knowledge
+  {
+    code: "knowledge.change_sets.list",
+    label: "See knowledge changes and their history",
+    description: "Drafts, approvals, applied changes and rollbacks to drug interactions and critical lab values, with each impact report and the proof an auditor can re-check.",
+    module: "knowledge",
+  },
+  {
+    code: "knowledge.change_sets.create",
+    label: "Draft and preview knowledge changes",
+    description: "Propose edits to drug interactions or critical lab values and see which prescriptions, orders and results they would affect. Also needs the area's own manage permission.",
+    module: "knowledge",
+  },
+  {
+    code: "knowledge.change_sets.approve",
+    label: "Approve someone else's knowledge change",
+    description: "A second person approves or rejects a previewed change after seeing the same diff and impact. Nobody approves their own.",
+    module: "knowledge",
+  },
+  {
+    code: "knowledge.change_sets.apply",
+    label: "Apply approved knowledge changes",
+    description: "Make an approved change live, all items or none. Refused when the live data changed since preview.",
+    module: "knowledge",
+  },
+  {
+    code: "knowledge.change_sets.rollback",
+    label: "Roll back an applied knowledge change",
+    description: "Starts a new change set that reverses an applied one; it is previewed and approved like any other.",
+    module: "knowledge",
+  },
 ];
 
 /**
@@ -9073,6 +9110,20 @@ export const P = {
     WRISTBAND_PRINT: "ipd.wristband.print",
     WRISTBAND_REPRINT: "ipd.wristband.reprint",
   },
+  KNOWLEDGE: {
+    CHANGE_SETS: {
+      APPLY: "knowledge.change_sets.apply",
+      APPROVE: "knowledge.change_sets.approve",
+      CREATE: "knowledge.change_sets.create",
+      LIST: "knowledge.change_sets.list",
+      ROLLBACK: "knowledge.change_sets.rollback",
+    },
+    CHANGE_SETS_APPLY: "knowledge.change_sets.apply",
+    CHANGE_SETS_APPROVE: "knowledge.change_sets.approve",
+    CHANGE_SETS_CREATE: "knowledge.change_sets.create",
+    CHANGE_SETS_LIST: "knowledge.change_sets.list",
+    CHANGE_SETS_ROLLBACK: "knowledge.change_sets.rollback",
+  },
   LAB: {
     B2B: {
       LIST: "lab.b2b.list",
@@ -9809,6 +9860,10 @@ export const P = {
       VIEW: "pharmacy.h1_register.view",
     },
     H1_REGISTER_VIEW: "pharmacy.h1_register.view",
+    INTERACTIONS: {
+      MANAGE: "pharmacy.interactions.manage",
+    },
+    INTERACTIONS_MANAGE: "pharmacy.interactions.manage",
     NDPS: {
       LIST: "pharmacy.ndps.list",
       MANAGE: "pharmacy.ndps.manage",
@@ -11545,6 +11600,8 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.DOCUMENTS.GENERATE,
       P.DOCUMENTS.REPRINT,
       P.DOCUMENTS.TEMPLATES.LIST,
+      P.KNOWLEDGE.CHANGE_SETS.CREATE,
+      P.KNOWLEDGE.CHANGE_SETS.LIST,
       P.LAB.B2B.LIST,
       P.LAB.CATALOG.MANAGE,
       P.LAB.DISPATCH.LIST,
@@ -11601,6 +11658,8 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.IPD.DISCHARGE_TAT.PHARMACY_UPDATE,
       P.IPD.DISCHARGE_TAT.UPDATE,
       P.IPD.DISCHARGE_TAT.VIEW,
+      P.KNOWLEDGE.CHANGE_SETS.CREATE,
+      P.KNOWLEDGE.CHANGE_SETS.LIST,
       P.LMS.CERTIFICATES.LIST,
       P.LMS.COURSES.LIST,
       P.LMS.MY_LEARNING.VIEW,
@@ -11626,6 +11685,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.PHARMACY.FULFILMENT.RELEASE,
       P.PHARMACY.FULFILMENT.VERIFY,
       P.PHARMACY.H1_REGISTER.VIEW,
+      P.PHARMACY.INTERACTIONS.MANAGE,
       P.PHARMACY.NDPS.LIST,
       P.PHARMACY.NDPS.MANAGE,
       P.PHARMACY.NPPA.MANAGE,
@@ -11964,6 +12024,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.INSURANCE.NHCX.VIEW,
       P.IPD.ADMISSIONS.LIST,
       P.IPD.ADMISSIONS.VIEW,
+      P.KNOWLEDGE.CHANGE_SETS.LIST,
       P.LAB.ORDERS.LIST,
       P.LAB.ORDERS.VIEW,
       P.LAB.QC.LIST,
@@ -12011,6 +12072,10 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.ANALYTICS.MANAGEMENT.VIEW,
       P.DASHBOARD.VIEW,
       P.DOCTOR.SIGNOFFS.VERBAL_REGISTER,
+      P.KNOWLEDGE.CHANGE_SETS.APPLY,
+      P.KNOWLEDGE.CHANGE_SETS.APPROVE,
+      P.KNOWLEDGE.CHANGE_SETS.LIST,
+      P.KNOWLEDGE.CHANGE_SETS.ROLLBACK,
       P.LAB.ORDERS.LIST,
       P.LAB.ORDERS.VIEW,
       P.LAB.REPORTS.VIEW,

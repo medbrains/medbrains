@@ -16,9 +16,11 @@ import {
   toCreateCriticalValueRuleRequest,
 } from "@/forms/clinical-settings.form";
 import { clinicalMastersService } from "@/services/clinicalMasters.service";
+import { ProposeButton, ProposeRowActions, useCanPropose } from "./ProposeChange";
 
 export function CriticalValueRulesSettings() {
   const canManage = useHasPermission(P.ADMIN.SETTINGS.GENERAL.MANAGE);
+  const canPropose = useCanPropose("critical_value_rules");
   const queryClient = useQueryClient();
   const [opened, { open, close }] = useDisclosure(false);
   const form = useForm<CriticalValueRuleFormInput>({
@@ -65,11 +67,14 @@ export function CriticalValueRulesSettings() {
     <Stack gap="md">
       <Group justify="space-between">
         <Text fw={600}>Critical Value Rules ({rules.length})</Text>
-        {canManage && (
-          <Button tone="primary" size="xs" leftSection={<IconPlus size={14} />} onClick={open}>
-            Add Rule
-          </Button>
-        )}
+        <Group gap="xs">
+          {canPropose && <ProposeButton area="critical_value_rules" />}
+          {canManage && (
+            <Button tone="primary" size="xs" leftSection={<IconPlus size={14} />} onClick={open}>
+              Add Rule
+            </Button>
+          )}
+        </Group>
       </Group>
 
       <Table striped highlightOnHover>
@@ -83,6 +88,7 @@ export function CriticalValueRulesSettings() {
             <Table.Th>Gender</Table.Th>
             <Table.Th>Alert Message</Table.Th>
             {canManage && <Table.Th w={40} />}
+            {canPropose && <Table.Th w={80}>Propose</Table.Th>}
           </Table.Tr>
         </Table.Thead>
         <Table.Tbody>
@@ -125,11 +131,16 @@ export function CriticalValueRulesSettings() {
                   </IconButton>
                 </Table.Td>
               )}
+              {canPropose && (
+                <Table.Td>
+                  <ProposeRowActions area="critical_value_rules" id={r.id} title={r.test_name} />
+                </Table.Td>
+              )}
             </Table.Tr>
           ))}
           {rules.length === 0 && (
             <Table.Tr>
-              <Table.Td colSpan={canManage ? 8 : 7}>
+              <Table.Td colSpan={7 + Number(canManage) + Number(canPropose)}>
                 <Text size="sm" c="dimmed" ta="center">
                   No critical value rules configured
                 </Text>

@@ -809,6 +809,11 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
         name: "Lab Technician",
         description: "Lab staff — orders, results, QC, phlebotomy, outsourced",
         permissions: &[
+            // The laboratory drafts changes to its critical-value rules as
+            // knowledge change sets; a quality officer or the hospital
+            // administrator approves them (author != approver).
+            permissions::knowledge::change_sets::LIST,
+            permissions::knowledge::change_sets::CREATE,
             permissions::billing::collect::LAB,
             permissions::billing::counter_display::PUBLISH,
             permissions::terminology::snomed::VIEW,
@@ -877,6 +882,11 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
         name: "Pharmacist",
         description: "Pharmacy staff — prescriptions, dispensing, stock",
         permissions: &[
+            // Pharmacists propose drug interaction changes; the change goes
+            // live only after a second person approves and applies it.
+            permissions::pharmacy::interactions::MANAGE,
+            permissions::knowledge::change_sets::LIST,
+            permissions::knowledge::change_sets::CREATE,
             permissions::billing::collect::PHARMACY,
             permissions::billing::counter_display::PUBLISH,
             permissions::terminology::snomed::VIEW,
@@ -1269,6 +1279,8 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
         name: "Audit Officer",
         description: "Audit & compliance — read-only access across modules",
         permissions: &[
+            // Auditors read knowledge changes and download their proofs.
+            permissions::knowledge::change_sets::LIST,
             // Read-only: the privacy pack and its gaps.
             permissions::regulatory::dpdp::VIEW,
             permissions::terminology::snomed::ANALYTICS,
@@ -1354,6 +1366,13 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
         name: "Quality Officer",
         description: "Quality & compliance — full regulatory access",
         permissions: &[
+            // Clinical governance signs off knowledge changes drafted by the
+            // pharmacy and laboratory, applies them and starts rollbacks. It
+            // drafts none itself, so it never approves its own.
+            permissions::knowledge::change_sets::LIST,
+            permissions::knowledge::change_sets::APPROVE,
+            permissions::knowledge::change_sets::APPLY,
+            permissions::knowledge::change_sets::ROLLBACK,
             // Quality & compliance runs the privacy pack: it names the
             // officers, drafts the policies and records the drills; a
             // hospital administrator approves and publishes them.

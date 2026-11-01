@@ -7,6 +7,7 @@ members = [
     "crates/medbrains-automation-api",
     "crates/medbrains-core",
     "crates/medbrains-research",
+    "crates/medbrains-knowledge",
     "crates/medbrains-ai-eval",
     "crates/medbrains-anthropic-auth",
     "crates/medbrains-authz-gate",
