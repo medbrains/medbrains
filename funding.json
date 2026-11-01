@@ -5,7 +5,7 @@
     "role": "owner",
     "name": "Domnic Amalan S",
     "email": "hello@medbrains.in",
-    "description": "Creator and maintainer of MedBrains, a free, open-source hospital management system built in India so that every hospital, big or small, has the tools to give safe care.",
+    "description": "Creator and maintainer of MedBrains, a free, open-source hospital management system built so that every hospital, big or small, has the tools to give safe care.",
     "webpageUrl": {
       "url": "https://www.medbrains.in",
       "wellKnown": "https://www.medbrains.in/.well-known/funding-manifest-urls"
@@ -15,7 +15,7 @@
     {
       "guid": "medbrains",
       "name": "MedBrains",
-      "description": "Free, open-source hospital management system: registration, OPD, wards, nursing, pharmacy, lab, radiology and billing on one patient record, with patient-safety checks built in (drug interactions, narcotics rules, barcode-verified medicine administration, critical lab alerts). Rust and PostgreSQL, with web and native iOS/Android apps. Built for India's ABDM, interoperable through HL7 FHIR R4, HL7 v2 and DICOM, and self-hostable so small, rural and charitable hospitals can run it at no licence cost.",
+      "description": "Free, open-source hospital management system: registration, OPD, wards, nursing, pharmacy, lab, radiology and billing on one patient record, with patient-safety checks built in (drug interactions, narcotics rules, barcode-verified medicine administration, critical lab alerts). Rust and PostgreSQL, with web and native iOS/Android apps. Supports ABDM, interoperable through HL7 FHIR R4, HL7 v2 and DICOM, and self-hostable so small, rural and charitable hospitals can run it at no licence cost.",
       "webpageUrl": {
         "url": "https://www.medbrains.in",
         "wellKnown": "https://www.medbrains.in/.well-known/funding-manifest-urls"
@@ -23,8 +23,20 @@
       "repositoryUrl": {
         "url": "https://github.com/medbrains/medbrains"
       },
-      "licenses": ["spdx:Apache-2.0"],
-      "tags": ["healthcare", "hospital-management", "electronic-health-records", "digital-public-good", "fhir", "hl7", "abdm", "rust", "postgresql", "india"]
+      "licenses": [
+        "spdx:Apache-2.0"
+      ],
+      "tags": [
+        "healthcare",
+        "hospital-management",
+        "electronic-health-records",
+        "digital-public-good",
+        "fhir",
+        "hl7",
+        "abdm",
+        "rust",
+        "postgresql"
+      ]
     }
   ],
   "funding": {
@@ -33,7 +45,7 @@
         "guid": "bank-transfer",
         "type": "bank",
         "address": "",
-        "description": "Bank transfer to the maintainer in India. Write to hello@medbrains.in for account details and an invoice."
+        "description": "Bank transfer to the maintainer. Write to hello@medbrains.in for account details and an invoice."
       }
     ],
     "plans": [
@@ -45,7 +57,9 @@
         "amount": 50000,
         "currency": "USD",
         "frequency": "yearly",
-        "channels": ["bank-transfer"]
+        "channels": [
+          "bank-transfer"
+        ]
       },
       {
         "guid": "hospital-go-live",
@@ -55,7 +69,9 @@
         "amount": 5000,
         "currency": "USD",
         "frequency": "one-time",
-        "channels": ["bank-transfer"]
+        "channels": [
+          "bank-transfer"
+        ]
       }
     ],
     "history": []

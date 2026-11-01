@@ -41,7 +41,7 @@ People reasonably ask what the catch is. Here is the whole answer:
 - **The software is free forever** under the [Apache 2.0 licence](./LICENSE). You can use it, change it, and run it for any hospital, without asking us.
 - **The code is public.** Anyone can read how it checks a drug interaction or who can see a record.
 - **No licence fees, no per-user fees, no selling your data.** We never see your data unless you ask us to host it.
-- **How the team earns:** only from *optional* setup, training, hosting and support for hospitals that want help. If you can run it yourself, you owe us nothing.
+- **How the team earns:** only from *optional* setup, training, hosting and support for hospitals that want help ([pricing](https://www.medbrains.in/pricing)). If you can run it yourself, you owe us nothing.
 
 **Why we are doing this:** good hospital software is expensive and locks hospitals in. The places that need it most (small, rural and charitable hospitals) can least afford it. Patient-safety rules such as drug checks, consent and controlled-drug registers should be open to inspection, and free for anyone to run. MedBrains aims to be a [Digital Public Good](#digital-public-good) for health.
 
@@ -50,7 +50,7 @@ People reasonably ask what the catch is. Here is the whole answer:
 | | |
 |---|---|
 | **Small and rural hospitals** | Run the full hospital on one small server, with no licence budget. |
-| **Charitable and trust hospitals** | Every rupee goes to patients, not software fees. |
+| **Charitable and trust hospitals** | Money goes to patients, not software fees. |
 | **Multi-specialty hospitals** | Many departments, roles and branches, with fine-grained access control. |
 | **Developers and health-tech teams** | A real, tested hospital codebase to learn from, extend, or build on. |
 
@@ -145,9 +145,9 @@ Only what the code does today:
 | **HL7 FHIR R4** | Read API for `Patient` (including `$everything`), `Encounter`, `Observation`, `DiagnosticReport` and `Composition`. Write and search are on the roadmap. |
 | **ABDM** | ABHA (M1) server integration exists and needs your ABDM credentials. Full M1–M3 is on the [roadmap](#roadmap). |
 | **LOINC** | Lab tests carry a LOINC code field. The LOINC dataset is not bundled. |
-| **SNOMED CT** | Optional. A loader script imports RF2 files you obtain yourself. SNOMED needs a licence: free in India through NRCeS, an affiliate licence elsewhere. No SNOMED content ships with MedBrains. |
+| **SNOMED CT** | Optional. A loader script imports RF2 files you obtain yourself. SNOMED needs a licence: free through your country's national release centre where one exists, otherwise an affiliate licence. No SNOMED content ships with MedBrains. |
 
-**Privacy (India's DPDP Act, 2023):** MedBrains records patient consent, and tracks access, correction, erasure, nominee and grievance requests with due dates. It keeps a full audit trail, separates hospitals with database row-level security, and lets you restrict fields by role. Erasure requests are decided by a person, because medical records have legal retention periods. The software helps you comply; your hospital is still the data fiduciary.
+**Privacy (DPDP Act, 2023):** MedBrains records patient consent, and tracks access, correction, erasure, nominee and grievance requests with due dates. It keeps a full audit trail, separates hospitals with database row-level security, and lets you restrict fields by role. Erasure requests are decided by a person, because medical records have legal retention periods. The software helps you comply; your hospital is still the data fiduciary.
 
 ## Your data is yours
 
@@ -253,7 +253,8 @@ We are building MedBrains to meet the [Digital Public Goods Standard](https://di
 ## Get help
 
 - **Community (free):** [GitHub Issues](https://github.com/medbrains/medbrains/issues) for bugs, [Discussions](https://github.com/medbrains/medbrains/discussions) for questions and ideas.
-- **For hospitals (paid, optional):** setup, data migration, staff training, hosting and support contracts. Contact us through [medbrains.in](https://medbrains.in).
+- **For hospitals (paid, optional):** setup, data migration, staff training, hosting and support contracts. See [pricing](https://www.medbrains.in/pricing) or [book a demo](https://www.medbrains.in/#demo).
+- **Install MedBrains for hospitals near you:** join the [partner programme](https://www.medbrains.in/partners).
 - **Security issues:** please don't open a public issue. Follow [SECURITY.md](./SECURITY.md).
 
 ## Sponsor the work
@@ -266,7 +267,7 @@ Sponsorship keeps MedBrains free for hospitals that can't pay. You can sponsor:
 - **A security audit** or ABDM certification.
 
 <!-- TODO: add sponsorship link (GitHub Sponsors / Open Collective) -->
-Sponsorship link: *coming soon*. Until then, reach us through [medbrains.in](https://medbrains.in).
+See [medbrains.in/sponsors](https://www.medbrains.in/sponsors) for how sponsorship works, or write to hello@medbrains.in.
 
 ## Contributing
 
@@ -297,4 +298,4 @@ Created by **Domnic Amalan S** ([@DomnicAmalan](https://github.com/DomnicAmalan)
 
 Built on the shoulders of open source: Rust, Axum, SQLx, PostgreSQL, React, Mantine, Orthanc, SpiceDB, Gotenberg, and many more.
 
-Website: [medbrains.in](https://medbrains.in)
+Website: [medbrains.in](https://www.medbrains.in) · [Health blog](https://www.medbrains.in/blog) · [Partners](https://www.medbrains.in/partners) · [Sponsor](https://www.medbrains.in/sponsors)
