@@ -7,7 +7,7 @@ rust-version.workspace = true
 
 [dependencies]
 medbrains-core = { path = "../medbrains-core" }
-medbrains-db = { path = "../medbrains-db" }
+medbrains-kernel = { path = "../medbrains-kernel" }
 medbrains-server-core = { path = "../medbrains-server-core" }
 axum = { workspace = true }
 chrono = { workspace = true }
@@ -26,4 +26,5 @@ base64 = { workspace = true }
 workspace = true
 
 [dev-dependencies]
+medbrains-db = { path = "../medbrains-db" }
 tokio = { workspace = true }

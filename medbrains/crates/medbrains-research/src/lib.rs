@@ -30,11 +30,8 @@ use axum::{
 use base64::Engine as _;
 use chrono::{DateTime, NaiveDate, Utc};
 use medbrains_core::permissions;
-use medbrains_server_core::{
-    error::AppError,
-    middleware::{auth::Claims, authorization::require_permission},
-    state::AppState,
-};
+use medbrains_kernel::{Actor, AppError, Claims, Tx, require_permission};
+use medbrains_server_core::state::AppState;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use sha2::{Digest, Sha256};
@@ -105,13 +102,8 @@ const SELECT: &str = "SELECT x.id, x.dataset, x.period_from, x.period_to, x.purp
     FROM research_exports x LEFT JOIN users r ON r.id = x.requested_by \
     LEFT JOIN users d ON d.id = x.decided_by WHERE x.tenant_id = $1 AND x.deleted_at IS NULL";
 
-async fn tx_for(
-    state: &AppState,
-    tenant: Uuid,
-) -> Result<sqlx::Transaction<'static, sqlx::Postgres>, AppError> {
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &tenant).await?;
-    Ok(tx)
+async fn tx_for(state: &AppState, claims: &Claims) -> Result<Tx, AppError> {
+    medbrains_kernel::begin(&state.db, Actor::from_claims(claims)).await
 }
 
 /// What is wrong with a request, if anything.
@@ -155,7 +147,7 @@ pub async fn create_request(
     if let Some(why) = invalid(new) {
         return Err(AppError::BadRequest(why));
     }
-    let mut tx = tx_for(state, claims.tenant_id).await?;
+    let mut tx = tx_for(state, claims).await?;
     let id: Uuid = sqlx::query_scalar(
         "INSERT INTO research_exports (tenant_id, dataset, period_from, period_to, purpose, \
          iec_reference, requested_by, requested_via) VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id",
@@ -175,11 +167,7 @@ pub async fn create_request(
     Ok(row)
 }
 
-async fn one(
-    tx: &mut sqlx::Transaction<'static, sqlx::Postgres>,
-    tenant: Uuid,
-    id: Uuid,
-) -> Result<ExportRow, AppError> {
+async fn one(tx: &mut Tx, tenant: Uuid, id: Uuid) -> Result<ExportRow, AppError> {
     sqlx::query_as::<_, ExportRow>(&format!("{SELECT} AND x.id = $2"))
         .bind(tenant)
         .bind(id)
@@ -194,7 +182,7 @@ async fn list(
     Extension(claims): Extension<Claims>,
 ) -> Result<Json<Vec<ExportRow>>, AppError> {
     require_permission(&claims, permissions::research::dataset::EXPORT)?;
-    let mut tx = tx_for(&state, claims.tenant_id).await?;
+    let mut tx = tx_for(&state, &claims).await?;
     purge_expired(&mut tx, claims.tenant_id).await?;
     let rows =
         sqlx::query_as::<_, ExportRow>(&format!("{SELECT} ORDER BY x.created_at DESC LIMIT 100"))
@@ -206,10 +194,7 @@ async fn list(
 }
 
 /// Clear the files and salt of every export past its 24 hours.
-async fn purge_expired(
-    tx: &mut sqlx::Transaction<'static, sqlx::Postgres>,
-    tenant: Uuid,
-) -> Result<(), AppError> {
+async fn purge_expired(tx: &mut Tx, tenant: Uuid) -> Result<(), AppError> {
     sqlx::query(
         "UPDATE research_exports SET data_csv = NULL, dictionary_csv = NULL, salt = NULL \
          WHERE tenant_id = $1 AND expires_at <= now() AND (data_csv IS NOT NULL OR salt IS NOT NULL)",
@@ -230,11 +215,7 @@ async fn create(
 }
 
 /// A requested export, locked, that `claims` may decide.
-async fn decidable(
-    tx: &mut sqlx::Transaction<'static, sqlx::Postgres>,
-    claims: &Claims,
-    id: Uuid,
-) -> Result<ExportRow, AppError> {
+async fn decidable(tx: &mut Tx, claims: &Claims, id: Uuid) -> Result<ExportRow, AppError> {
     sqlx::query("SELECT 1 FROM research_exports WHERE id = $1 AND tenant_id = $2 FOR UPDATE")
         .bind(id)
         .bind(claims.tenant_id)
@@ -263,7 +244,7 @@ async fn reject(
     Json(decision): Json<Decision>,
 ) -> Result<Json<ExportRow>, AppError> {
     require_permission(&claims, permissions::research::dataset::EXPORT)?;
-    let mut tx = tx_for(&state, claims.tenant_id).await?;
+    let mut tx = tx_for(&state, &claims).await?;
     decidable(&mut tx, &claims, id).await?;
     sqlx::query(
         "UPDATE research_exports SET status = 'rejected', decided_by = $3, decided_at = now(), \
@@ -292,7 +273,7 @@ async fn approve(
     Json(decision): Json<Decision>,
 ) -> Result<Json<ExportRow>, AppError> {
     require_permission(&claims, permissions::research::dataset::EXPORT)?;
-    let mut tx = tx_for(&state, claims.tenant_id).await?;
+    let mut tx = tx_for(&state, &claims).await?;
     let row = decidable(&mut tx, &claims, id).await?;
     let salt = salt();
     let built = match build::build(&mut tx, claims.tenant_id, &row, &salt).await {
@@ -367,7 +348,7 @@ async fn download(
         "dictionary" => "dictionary_csv",
         _ => return Err(AppError::NotFound),
     };
-    let mut tx = tx_for(&state, claims.tenant_id).await?;
+    let mut tx = tx_for(&state, &claims).await?;
     let row = one(&mut tx, claims.tenant_id, id).await?;
     may_download(&row, claims.sub, Utc::now())?;
     let bytes: Option<Vec<u8>> = sqlx::query_scalar(&format!(

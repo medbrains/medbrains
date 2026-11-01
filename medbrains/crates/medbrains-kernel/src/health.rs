@@ -7,7 +7,7 @@ use crate::audit::{ChainVerdict, last_verification};
 use crate::{AppError, Tx};
 
 /// Crates and whether they reach the kernel only through this facade,
-/// computed from their manifests at build time (see `build.rs`).
+/// from `boundary.txt` — the baseline `make check-kernel-boundary` enforces.
 const FACADE_CRATES: &[(&str, &str)] = include!(concat!(env!("OUT_DIR"), "/facade_crates.rs"));
 
 /// The database role requests run as, and whether row level security binds it.

@@ -19,7 +19,7 @@ use uuid::Uuid;
 pub use medbrains_authz::decision::Outcome;
 pub use medbrains_authz_gate::require_patient_access;
 pub use medbrains_server_core::middleware::authorization::{
-    authz_context, collapse, require_any_permission, require_permission,
+    authz_context, collapse, is_bypass_role, require_any_permission, require_permission,
 };
 
 /// The record a decision is about: `update` on `patient:456`, never a bare

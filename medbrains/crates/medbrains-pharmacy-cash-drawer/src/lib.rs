@@ -19,13 +19,8 @@ pub mod day_close;
 pub mod day_close_report;
 pub mod day_close_rules;
 
-use medbrains_server_core::{
-    error::AppError,
-    middleware::auth::Claims,
-    middleware::authorization::{require_any_permission, require_permission},
-    middleware::field_access,
-    state::AppState,
-};
+use medbrains_kernel::{Actor, AppError, Claims, require_any_permission, require_permission};
+use medbrains_server_core::{middleware::field_access, state::AppState};
 
 #[derive(Debug, Serialize, sqlx::FromRow)]
 pub struct CashDrawer {
@@ -91,8 +86,7 @@ pub async fn open_drawer(
     let restricted_fields = resolve_pharmacy_finance_restricted_fields(&state, &claims).await?;
     validate_pharmacy_finance_amount_write_access(&restricted_fields)?;
 
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let mut tx = medbrains_kernel::begin(&state.db, Actor::from_claims(&claims)).await?;
 
     // Reject if cashier already has an open drawer.
     let existing: Option<(Uuid,)> = sqlx::query_as(
@@ -158,8 +152,7 @@ pub async fn close_drawer(
     let restricted_fields = resolve_pharmacy_finance_restricted_fields(&state, &claims).await?;
     validate_pharmacy_finance_amount_write_access(&restricted_fields)?;
 
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let mut tx = medbrains_kernel::begin(&state.db, Actor::from_claims(&claims)).await?;
 
     // What the drawer should hold — the same function the day close sums.
     let expected_close: Option<Decimal> = sqlx::query_scalar::<_, Decimal>(
@@ -214,8 +207,7 @@ pub async fn get_my_active_drawer(
         ],
     )?;
 
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let mut tx = medbrains_kernel::begin(&state.db, Actor::from_claims(&claims)).await?;
 
     let row = sqlx::query_as::<_, CashDrawer>(
         "SELECT * FROM pharmacy_cash_drawers \
@@ -247,8 +239,7 @@ pub async fn list_drawers(
 ) -> Result<Json<Vec<CashDrawer>>, AppError> {
     require_permission(&claims, permissions::pharmacy_finance::cash_drawer::VIEW)?;
 
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let mut tx = medbrains_kernel::begin(&state.db, Actor::from_claims(&claims)).await?;
 
     let limit = q.limit.unwrap_or(100).min(500);
 
@@ -289,7 +280,10 @@ pub fn router() -> axum::Router<AppState> {
             "/api/pharmacy/day-close",
             get(day_close::list_counter_days).post(day_close::close_day),
         )
-        .route("/api/pharmacy/day-close/report", get(day_close::get_day_report))
+        .route(
+            "/api/pharmacy/day-close/report",
+            get(day_close::get_day_report),
+        )
         .route(
             "/api/pharmacy/day-close/{id}/reopen",
             post(day_close::reopen_day),

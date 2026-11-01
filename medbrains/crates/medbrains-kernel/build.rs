@@ -1,15 +1,9 @@
-//! Which crates already reach the kernel only through this facade.
+//! Which crates reach the core only through this facade, for Admin → Kernel.
 //!
-//! Computed from the manifests at build time rather than kept as a list, so
-//! the Kernel page cannot drift from the code. A crate is:
-//!
-//! - `on_facade`: depends on `medbrains-kernel` and not on `medbrains-db` or
-//!   `medbrains-authz` directly;
-//! - `partial`: depends on the kernel but still reaches past it;
-//! - `not_yet`: does not use the kernel at all.
-//!
-//! The kernel's own dependencies are its building blocks, not apps, and are
-//! left out. K2 turns this same rule into a CI ratchet.
+//! Read from `boundary.txt`, the baseline `scripts/check_kernel_boundary.py`
+//! computes from the code and CI holds to it — so the page shows exactly what
+//! CI enforces, from one source. A crate is `on_facade` (kernel only),
+//! `partial` (kernel plus direct access) or `not_yet` (no kernel).
 #![allow(clippy::print_stdout)]
 
 use std::error::Error;
@@ -17,56 +11,19 @@ use std::fmt::Write as _;
 use std::fs;
 use std::path::Path;
 
-/// A runtime dependency: listed under `[dependencies]`. Test-only access
-/// (`[dev-dependencies]`) is not a reach past the kernel.
-fn has_dep(manifest: &str, name: &str) -> bool {
-    let mut runtime = false;
-    manifest.lines().any(|line| {
-        let line = line.trim_start();
-        if line.starts_with('[') {
-            runtime = line.starts_with("[dependencies]");
-            return false;
-        }
-        runtime
-            && line
-                .strip_prefix(name)
-                .is_some_and(|rest| rest.trim_start().starts_with('='))
-    })
-}
-
-fn status(manifest: &str) -> &'static str {
-    let direct = has_dep(manifest, "medbrains-db") || has_dep(manifest, "medbrains-authz");
-    match (has_dep(manifest, "medbrains-kernel"), direct) {
-        (true, false) => "on_facade",
-        (true, true) => "partial",
-        (false, _) => "not_yet",
-    }
-}
-
 fn main() -> Result<(), Box<dyn Error>> {
-    let manifest_dir = std::env::var("CARGO_MANIFEST_DIR")?;
-    let own = fs::read_to_string(Path::new(&manifest_dir).join("Cargo.toml"))?;
-    let crates_dir = Path::new(&manifest_dir).join("..");
-    println!("cargo:rerun-if-changed=../../Cargo.toml");
-
-    let mut rows: Vec<(String, &'static str)> = Vec::new();
-    for entry in fs::read_dir(&crates_dir)? {
-        let name = entry?.file_name().to_string_lossy().into_owned();
-        let path = crates_dir.join(&name).join("Cargo.toml");
-        if !name.starts_with("medbrains-") || name == "medbrains-kernel" || !path.exists() {
-            continue;
-        }
-        println!("cargo:rerun-if-changed=../{name}/Cargo.toml");
-        if has_dep(&own, &name) {
-            continue;
-        }
-        rows.push((name, status(&fs::read_to_string(&path)?)));
-    }
-    rows.sort();
-
+    println!("cargo:rerun-if-changed=boundary.txt");
+    let baseline = fs::read_to_string("boundary.txt")?;
     let mut out = String::from("&[\n");
-    for (name, state) in &rows {
-        writeln!(out, "    ({name:?}, {state:?}),")?;
+    for line in baseline
+        .lines()
+        .filter(|l| !l.is_empty() && !l.starts_with('#'))
+    {
+        let mut cols = line.split_whitespace();
+        let (Some(name), Some(status)) = (cols.next(), cols.next()) else {
+            return Err(format!("boundary.txt: malformed line '{line}'").into());
+        };
+        writeln!(out, "    ({name:?}, {status:?}),")?;
     }
     out.push(']');
     fs::write(

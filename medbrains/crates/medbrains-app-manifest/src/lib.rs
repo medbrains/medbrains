@@ -7,7 +7,7 @@
 //! variant + location. A **user-login app** (mobile/desktop) passes its build's `variant` code →
 //! location from the user's primary department. Everything is tenant-scoped from the caller's JWT.
 
-use axum::routing::{get};
+use axum::routing::get;
 use axum::{
     Extension, Json,
     extract::{Query, State},
@@ -15,7 +15,8 @@ use axum::{
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use medbrains_server_core::{error::AppError, middleware::auth::Claims, state::AppState};
+use medbrains_kernel::{Actor, AppError, Claims};
+use medbrains_server_core::state::AppState;
 
 #[derive(Debug, Deserialize)]
 pub struct ManifestQuery {
@@ -59,7 +60,7 @@ pub struct AppManifest {
 }
 
 async fn resolve_station(
-    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    tx: &mut medbrains_kernel::Tx,
     tenant_id: &Uuid,
     station_id: Option<Uuid>,
 ) -> Result<Option<ManifestStation>, AppError> {
@@ -74,17 +75,19 @@ async fn resolve_station(
     .bind(tenant_id)
     .fetch_optional(&mut **tx)
     .await?;
-    Ok(row.map(|(id, code, name, station_type, department_id)| ManifestStation {
-        id,
-        code,
-        name,
-        station_type,
-        department_id,
-    }))
+    Ok(row.map(
+        |(id, code, name, station_type, department_id)| ManifestStation {
+            id,
+            code,
+            name,
+            station_type,
+            department_id,
+        },
+    ))
 }
 
 async fn resolve_dept_label(
-    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    tx: &mut medbrains_kernel::Tx,
     tenant_id: &Uuid,
     department_id: Option<Uuid>,
 ) -> Result<Option<String>, AppError> {
@@ -107,8 +110,7 @@ pub async fn get_app_manifest(
     Extension(claims): Extension<Claims>,
     Query(q): Query<ManifestQuery>,
 ) -> Result<Json<AppManifest>, AppError> {
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let mut tx = medbrains_kernel::begin(&state.db, Actor::from_claims(&claims)).await?;
 
     // Paired device → its stored variant + location (tenant-scoped, non-revoked).
     if let Some(device_id) = q.device_id {
@@ -152,7 +154,11 @@ pub async fn get_app_manifest(
             app_variant: Some(app_variant),
             role: claims.role,
             user_id: claims.sub,
-            device: Some(ManifestDevice { id: device_id, label, paired_at }),
+            device: Some(ManifestDevice {
+                id: device_id,
+                label,
+                paired_at,
+            }),
             location: ManifestLocation {
                 department_id: effective_dept,
                 label: location_label
@@ -187,6 +193,5 @@ pub async fn get_app_manifest(
 
 /// app_manifest routes.
 pub fn router() -> axum::Router<AppState> {
-    axum::Router::new()
-        .route("/api/app/manifest", get(get_app_manifest))
+    axum::Router::new().route("/api/app/manifest", get(get_app_manifest))
 }
