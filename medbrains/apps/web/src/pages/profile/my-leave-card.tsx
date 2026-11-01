@@ -11,7 +11,7 @@ import { DataTable } from "@/components";
 import { Alert, Badge, Button, Card, IconButton, Tooltip, toast } from "@/components/ui";
 import { hrService } from "@/services/hr.service";
 import { isPendingLeave, leaveTypeLabel, upcomingApproved } from "../hr/leave-calendar";
-import { LeaveCalendarView, useLeaveCalendarWindow } from "../hr/leave-calendar-view";
+import { LeaveCalendarView, useHolidays, useLeaveCalendarWindow } from "../hr/leave-calendar-view";
 import { LeaveDetailsModal } from "../hr/leave-details-modal";
 import { LeaveRequestModal } from "../hr/leave-request-modal";
 
@@ -20,6 +20,7 @@ const UPCOMING_SHOWN = 3;
 export function MyLeaveCard() {
   const qc = useQueryClient();
   const w = useLeaveCalendarWindow();
+  const holidays = useHolidays(w.from, w.to);
   const [requestDate, setRequestDate] = useState<string | null>(null);
   const [opened, setOpened] = useState<LeaveRequest | null>(null);
   const today = dayjs().format("YYYY-MM-DD");
@@ -48,7 +49,11 @@ export function MyLeaveCard() {
     mutationFn: (id: string) => hrService.cancelLeave(id),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["my-leaves"] });
-      toast.warning("Leave request withdrawn", { title: "Leave cancelled" });
+      void qc.invalidateQueries({ queryKey: ["my-leave-balances"] });
+      setOpened(null);
+      toast.warning("Leave cancelled. Any days it used are back in your balance.", {
+        title: "Leave cancelled",
+      });
     },
     onError: (e: Error) => toast.error(e.message, { title: "Leave not cancelled" }),
   });
@@ -98,6 +103,8 @@ export function MyLeaveCard() {
             onRetry={() => void requests.refetch()}
             onDayClick={setRequestDate}
             onLeaveClick={setOpened}
+            holidays={holidays.data?.holidays}
+            holidaysError={holidays.error}
           />
         </Grid.Col>
         <Grid.Col span={{ base: 12, lg: 3 }}>
@@ -194,7 +201,13 @@ export function MyLeaveCard() {
           }}
         />
       )}
-      {opened && <LeaveDetailsModal leave={opened} onClose={() => setOpened(null)} />}
+      {opened && (
+        <LeaveDetailsModal
+          leave={opened}
+          onClose={() => setOpened(null)}
+          cancel={{ onCancel: () => cancel.mutate(opened.id), isCancelling: cancel.isPending }}
+        />
+      )}
     </Card>
   );
 }

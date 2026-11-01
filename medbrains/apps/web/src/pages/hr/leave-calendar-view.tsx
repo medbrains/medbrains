@@ -4,6 +4,7 @@
 import { Group, Skeleton, Stack, Text, UnstyledButton } from "@mantine/core";
 import "@mantine/schedule/styles.css";
 import { DayView, MonthView, type ScheduleEventData, WeekView } from "@mantine/schedule";
+import type { Holiday } from "@medbrains/types";
 import {
   IconBabyCarriage,
   IconBeach,
@@ -13,17 +14,22 @@ import {
   IconClockPlus,
   IconCoinOff,
   IconFirstAidKit,
+  IconFlag,
   IconSchool,
   IconStar,
 } from "@tabler/icons-react";
+import { useQuery } from "@tanstack/react-query";
 import dayjs from "dayjs";
 import { type ComponentType, useMemo, useState } from "react";
 import { Alert, Button, IconButton, SegmentedControl } from "@/components/ui";
+import { hrService } from "@/services/hr.service";
 import {
+  type CalendarPayload,
   type CalendarView,
   isPendingLeave,
   type LeaveRow,
   stepDate,
+  toHolidayEvents,
   toLeaveEvents,
   visibleRange,
 } from "./leave-calendar";
@@ -40,6 +46,9 @@ interface LeaveCalendarViewProps<T extends LeaveRow> {
   onLeaveClick: (leave: T) => void;
   /** The server capped the list; some leave in this window is not drawn. */
   isTruncated?: boolean;
+  /** Holidays in the window, drawn as labelled strips in the all-day row. */
+  holidays?: Holiday[];
+  holidaysError?: Error | null;
 }
 
 const TYPE_ICON: Record<string, ComponentType<{ size?: number }>> = {
@@ -69,6 +78,14 @@ export interface LeaveCalendarWindow {
   setDate: (d: string) => void;
 }
 
+/** Holidays and weekly offs for a date window — shared by every calendar and the request form. */
+export function useHolidays(from: string, to: string) {
+  return useQuery({
+    queryKey: ["hr-holidays", from, to],
+    queryFn: () => hrService.listHolidays(from, to),
+  });
+}
+
 /** View + anchor date, and the window they cover — the query key for the caller. */
 export function useLeaveCalendarWindow(initial: CalendarView = "month"): LeaveCalendarWindow {
   const [view, setView] = useState<CalendarView>(initial);
@@ -83,9 +100,13 @@ function windowTitle({ view, date, from, to }: LeaveCalendarWindow): string {
   return `${dayjs(from).format("D MMM")} – ${dayjs(to).format("D MMM YYYY")}`;
 }
 
+function payloadOf(event: ScheduleEventData): CalendarPayload<LeaveRow> {
+  return event.payload as CalendarPayload<LeaveRow>;
+}
+
 function EventBody(event: ScheduleEventData) {
-  const leave = (event.payload as { leave: LeaveRow }).leave;
-  const Icon = TYPE_ICON[leave.leave_type] ?? IconCalendarStar;
+  const p = payloadOf(event);
+  const Icon = "holiday" in p ? IconFlag : (TYPE_ICON[p.leave.leave_type] ?? IconCalendarStar);
   return (
     <Group gap={4} wrap="nowrap" className={styles.eventBody}>
       <Icon size={16} aria-hidden />
@@ -98,7 +119,17 @@ function EventBody(event: ScheduleEventData) {
 
 /** Pending leave draws a dashed border, approved a solid one — shape, not only colour. */
 function renderEvent(event: ScheduleEventData, props: React.ComponentPropsWithoutRef<"button">) {
-  const leave = (event.payload as { leave: LeaveRow }).leave;
+  const p = payloadOf(event);
+  if ("holiday" in p) {
+    return (
+      <UnstyledButton
+        {...props}
+        data-leave-state="holiday"
+        aria-label={`${event.title}, ${p.holiday.holiday_date}`}
+      />
+    );
+  }
+  const leave = p.leave;
   return (
     <UnstyledButton
       {...props}
@@ -117,8 +148,14 @@ export function LeaveCalendarView<T extends LeaveRow>({
   onDayClick,
   onLeaveClick,
   isTruncated,
+  holidays,
+  holidaysError,
 }: LeaveCalendarViewProps<T>) {
-  const events = useMemo(() => toLeaveEvents(rows ?? []), [rows]);
+  const leaveEvents = useMemo(() => toLeaveEvents(rows ?? []), [rows]);
+  const events = useMemo(
+    () => [...toHolidayEvents(holidays ?? []), ...leaveEvents],
+    [holidays, leaveEvents],
+  );
   const shared = {
     date: w.date,
     onDateChange: w.setDate,
@@ -127,7 +164,10 @@ export function LeaveCalendarView<T extends LeaveRow>({
     firstDayOfWeek: 1 as const,
     renderEventBody: EventBody,
     renderEvent,
-    onEventClick: (e: ScheduleEventData) => onLeaveClick((e.payload as { leave: T }).leave),
+    onEventClick: (e: ScheduleEventData) => {
+      const p = e.payload as CalendarPayload<T>;
+      if ("leave" in p) onLeaveClick(p.leave);
+    },
   };
   const onSlot =
     onDayClick && (({ slotStart }: { slotStart: string }) => onDayClick(slotStart.slice(0, 10)));
@@ -204,7 +244,12 @@ export function LeaveCalendarView<T extends LeaveRow>({
         />
       </Group>
       {body}
-      {!error && !isLoading && events.length === 0 && (
+      {holidaysError && (
+        <Alert tone="warning" title="Holidays could not be loaded">
+          The calendar shows leave but not this period's holidays. {holidaysError.message}
+        </Alert>
+      )}
+      {!error && !isLoading && leaveEvents.length === 0 && (
         <Text size="sm" c="dimmed">
           No leave in this period
           {onDayClick ? ". Choose a day to request leave." : "."}
@@ -217,7 +262,7 @@ export function LeaveCalendarView<T extends LeaveRow>({
         </Alert>
       )}
       <Text size="xs" c="dimmed">
-        Solid border: approved · Dashed border: pending
+        Solid border: approved · Dashed border: pending · Flag: holiday
       </Text>
     </Stack>
   );

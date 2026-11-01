@@ -26,8 +26,10 @@ use medbrains_server_core::state::AppState;
 use medbrains_server_core::validation::{self, ValidationErrors};
 
 pub mod geofence;
+pub mod holidays;
 pub mod leave;
 pub mod leave_approval;
+pub mod leave_rules;
 
 // ══════════════════════════════════════════════════════════
 //  Request / Response types
@@ -2417,6 +2419,16 @@ pub fn router() -> axum::Router<AppState> {
             get(leave_approval::list_team_leaves),
         )
         .route("/api/hr/leaves/{id}/cancel", put(leave::cancel_leave))
+        .route("/api/hr/leaves/preview", get(holidays::preview_leave_days))
+        .route(
+            "/api/hr/holidays",
+            get(holidays::list_holidays).post(holidays::create_holiday),
+        )
+        .route(
+            "/api/hr/holidays/{id}",
+            put(holidays::update_holiday).delete(holidays::delete_holiday),
+        )
+        .route("/api/hr/weekly-offs", put(holidays::set_weekly_offs))
         .route("/api/hr/on-call", get(list_on_call).post(create_on_call))
         .route(
             "/api/hr/training-programs",

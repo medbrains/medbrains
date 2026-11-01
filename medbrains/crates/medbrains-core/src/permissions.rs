@@ -1857,6 +1857,15 @@ pub mod hr {
         pub const MANAGE: &str = "hr.leave.manage";
     }
 
+    pub mod holiday {
+        /// Keep the holiday list and weekly offs.
+        ///
+        /// Adds, edits and removes the hospital's holidays and sets which
+        /// weekdays are weekly offs. Leave days are counted from these, so
+        /// changing them changes how much leave every later request takes.
+        pub const MANAGE: &str = "hr.holiday.manage";
+    }
+
     pub mod roster {
         pub const LIST: &str = "hr.roster.list";
         pub const MANAGE: &str = "hr.roster.manage";

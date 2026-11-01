@@ -4,12 +4,14 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Box, Stack, Text } from "@mantine/core";
 import type { CreateLeaveRequestInput } from "@medbrains/types";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { Controller, useForm } from "react-hook-form";
 import { z } from "zod";
 import { EmployeeSearchSelect } from "@/components/EmployeeSearchSelect";
 import { Button, Input, Modal, Select, Switch, TextArea, toast } from "@/components/ui";
-import { LEAVE_TYPE_OPTIONS, leaveDays } from "./leave-options";
+import { hrService } from "@/services/hr.service";
+import { LeaveDayPreview } from "./leave-day-preview";
+import { LEAVE_TYPE_OPTIONS } from "./leave-options";
 
 interface LeaveRequestModalProps {
   /** The first day, prefilled — also the last day until the user changes it. */
@@ -21,19 +23,15 @@ interface LeaveRequestModalProps {
   onSubmitted: () => void;
 }
 
-const schema = z
-  .object({
-    employee_id: z.string(),
-    leave_type: z.string().min(1, "Choose a leave type"),
-    start_date: z.string().min(1, "Enter the first day"),
-    end_date: z.string().min(1, "Enter the last day"),
-    is_half_day: z.boolean(),
-    reason: z.string().max(500).optional(),
-  })
-  .refine((v) => leaveDays(v.start_date, v.end_date, v.is_half_day) !== null, {
-    path: ["end_date"],
-    message: "The last day must be on or after the first; a half day is a single date",
-  });
+// The day count and its rules (weekly offs, holidays, half days) are the server's.
+const schema = z.object({
+  employee_id: z.string(),
+  leave_type: z.string().min(1, "Choose a leave type"),
+  start_date: z.string().min(1, "Enter the first day"),
+  end_date: z.string().min(1, "Enter the last day"),
+  is_half_day: z.boolean(),
+  reason: z.string().max(500).optional(),
+});
 type FormValues = z.infer<typeof schema>;
 
 export function LeaveRequestModal({
@@ -61,6 +59,24 @@ export function LeaveRequestModal({
       reason: "",
     },
   });
+  const [leaveType, startDate, endDate, isHalfDay] = form.watch([
+    "leave_type",
+    "start_date",
+    "end_date",
+    "is_half_day",
+  ]);
+  const previewParams = {
+    leave_type: leaveType,
+    start_date: startDate,
+    end_date: endDate,
+    is_half_day: isHalfDay,
+  };
+  const preview = useQuery({
+    queryKey: ["hr-leave-preview", previewParams],
+    queryFn: () => hrService.previewLeaveDays(previewParams),
+    enabled: Boolean(leaveType && startDate && endDate),
+    retry: false,
+  });
   const apply = useMutation({
     mutationFn: (v: FormValues) =>
       submit({
@@ -68,7 +84,6 @@ export function LeaveRequestModal({
         leave_type: v.leave_type,
         start_date: v.start_date,
         end_date: v.end_date,
-        days: leaveDays(v.start_date, v.end_date, v.is_half_day) ?? undefined,
         is_half_day: v.is_half_day,
         reason: v.reason || undefined,
       }),
@@ -138,6 +153,7 @@ export function LeaveRequestModal({
               />
             )}
           />
+          <LeaveDayPreview query={preview} />
           <Controller
             control={form.control}
             name="reason"
@@ -145,7 +161,7 @@ export function LeaveRequestModal({
               <TextArea {...field} label="Reason" error={fieldState.error?.message} />
             )}
           />
-          <Button type="submit" tone="primary" loading={apply.isPending}>
+          <Button type="submit" tone="primary" loading={apply.isPending} disabled={preview.isError}>
             Submit for approval
           </Button>
         </Stack>

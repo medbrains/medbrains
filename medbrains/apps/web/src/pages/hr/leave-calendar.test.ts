@@ -1,9 +1,11 @@
-import type { LeaveRequest } from "@medbrains/types";
+import type { Holiday, LeaveRequest } from "@medbrains/types";
 import { describe, expect, it } from "vitest";
 import {
   approvalAction,
   countOnLeave,
+  holidayLabel,
   stepDate,
+  toHolidayEvents,
   toLeaveEvents,
   upcomingApproved,
   visibleRange,
@@ -131,5 +133,30 @@ describe("approvalAction", () => {
     expect(
       approvalAction(leave({ status: "pending_hod" }), { ...hr, canApprove: false }),
     ).toBeNull();
+  });
+});
+
+describe("toHolidayEvents", () => {
+  const diwali: Holiday = {
+    id: "h1",
+    holiday_date: "2026-11-08",
+    name: "Diwali",
+    kind: "national",
+  };
+
+  it("draws one all-day strip on the holiday's date", () => {
+    const [e] = toHolidayEvents([diwali]);
+    expect(e?.start).toBe("2026-11-08 00:00:00");
+    expect(e?.end).toBe("2026-11-09 00:00:00");
+    expect(e?.payload).toEqual({ holiday: diwali });
+  });
+
+  it("names the holiday in words, and says when it is only optional", () => {
+    expect(holidayLabel(diwali)).toBe("Holiday · Diwali");
+    expect(holidayLabel({ ...diwali, kind: "restricted" })).toBe("Restricted holiday · Diwali");
+  });
+
+  it("keeps holiday ids apart from leave ids", () => {
+    expect(toHolidayEvents([diwali])[0]?.id).toBe("holiday-h1");
   });
 });

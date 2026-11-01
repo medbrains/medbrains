@@ -48,6 +48,13 @@ export const hrService = {
     api.createLeaveRequest(...args),
   leaveAction: (...args: Parameters<typeof api.leaveAction>) => api.leaveAction(...args),
   cancelLeave: (...args: Parameters<typeof api.cancelLeave>) => api.cancelLeave(...args),
+  previewLeaveDays: (...args: Parameters<typeof api.previewLeaveDays>) =>
+    api.previewLeaveDays(...args),
+  listHolidays: (...args: Parameters<typeof api.listHolidays>) => api.listHolidays(...args),
+  createHoliday: (...args: Parameters<typeof api.createHoliday>) => api.createHoliday(...args),
+  updateHoliday: (...args: Parameters<typeof api.updateHoliday>) => api.updateHoliday(...args),
+  deleteHoliday: (...args: Parameters<typeof api.deleteHoliday>) => api.deleteHoliday(...args),
+  setWeeklyOffs: (...args: Parameters<typeof api.setWeeklyOffs>) => api.setWeeklyOffs(...args),
   getMyProfile: () => api.getMyProfile(),
   listMyLeaveRequests: () => api.listMyLeaveRequests(),
   createMyLeaveRequest: (...args: Parameters<typeof api.createMyLeaveRequest>) =>

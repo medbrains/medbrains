@@ -12,8 +12,8 @@ use axum::{
     Extension, Json,
     extract::{Path, Query, State},
 };
-use chrono::NaiveDate;
-use medbrains_core::hr::{LeaveBalance, LeaveRequest};
+use chrono::{Datelike, NaiveDate};
+use medbrains_core::hr::{LeaveBalance, LeaveRequest, LeaveType};
 use medbrains_core::permissions;
 use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
@@ -23,6 +23,8 @@ use medbrains_server_core::error::AppError;
 use medbrains_server_core::middleware::auth::Claims;
 use medbrains_server_core::middleware::authorization::{is_bypass_role, require_permission};
 use medbrains_server_core::state::AppState;
+
+use crate::leave_rules::{self, LeaveTerms};
 
 pub(crate) type Tx<'a> = sqlx::Transaction<'a, sqlx::Postgres>;
 
@@ -62,10 +64,10 @@ pub struct CreateLeaveRequest {
     /// Whose leave. Omitted means the caller's own; anyone else's needs
     /// `hr.leave.manage`.
     pub employee_id: Option<Uuid>,
-    pub leave_type: String,
-    pub start_date: String,
-    pub end_date: String,
-    pub days: Option<f64>,
+    pub leave_type: LeaveType,
+    pub start_date: NaiveDate,
+    pub end_date: NaiveDate,
+    /// Days are counted on the server — see `leave_rules`.
     pub is_half_day: Option<bool>,
     pub reason: Option<String>,
 }
@@ -75,7 +77,10 @@ pub(crate) fn holds(claims: &Claims, permission: &str) -> bool {
 }
 
 /// The employee record the caller's login is linked to, if any.
-async fn caller_employee_id(tx: &mut Tx<'_>, claims: &Claims) -> Result<Option<Uuid>, AppError> {
+pub(crate) async fn caller_employee_id(
+    tx: &mut Tx<'_>,
+    claims: &Claims,
+) -> Result<Option<Uuid>, AppError> {
     Ok(sqlx::query_scalar::<_, Uuid>(
         "SELECT id FROM employees \
          WHERE tenant_id = $1 AND user_id = $2 AND deleted_at IS NULL LIMIT 1",
@@ -241,27 +246,41 @@ pub async fn list_my_leave_requests(
     Ok(Json(rows))
 }
 
+/// Counts the days, then refuses a clash with leave already asked for and a
+/// request larger than the balance, before anything is written.
 async fn insert_leave(
     tx: &mut Tx<'_>,
     tenant_id: Uuid,
     employee_id: Uuid,
     body: &CreateLeaveRequest,
 ) -> Result<LeaveRequest, AppError> {
+    let range = (body.start_date, body.end_date);
+    let half = body.is_half_day.unwrap_or(false);
+    let count = leave_rules::compute_days(tx, tenant_id, body.leave_type, range, half).await?;
+    leave_rules::refuse_overlap(tx, tenant_id, employee_id, range).await?;
+    let year = body.start_date.year();
+    leave_rules::refuse_over_balance(
+        tx,
+        tenant_id,
+        employee_id,
+        (body.leave_type, year),
+        count.days,
+    )
+    .await?;
     Ok(sqlx::query_as::<_, LeaveRequest>(
         "INSERT INTO leave_requests \
          (tenant_id, employee_id, leave_type, start_date, end_date, \
           days, is_half_day, reason, status) \
-         VALUES ($1, $2, $3::leave_type, $4::date, $5::date, \
-         COALESCE($6, 1), COALESCE($7, false), $8, 'pending_hod') \
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'pending_hod') \
          RETURNING *",
     )
     .bind(tenant_id)
     .bind(employee_id)
-    .bind(&body.leave_type)
-    .bind(&body.start_date)
-    .bind(&body.end_date)
-    .bind(body.days)
-    .bind(body.is_half_day)
+    .bind(body.leave_type)
+    .bind(body.start_date)
+    .bind(body.end_date)
+    .bind(count.days)
+    .bind(half)
     .bind(&body.reason)
     .fetch_one(&mut **tx)
     .await?)
@@ -305,23 +324,31 @@ pub async fn create_my_leave_request(
     Ok(Json(row))
 }
 
-/// The employee a leave belongs to, the login linked to them, and where it stands.
+/// The employee a leave belongs to, the login linked to them, where it
+/// stands, and what it draws on the balance.
 #[derive(sqlx::FromRow)]
 pub(crate) struct LeaveOwner {
     pub(crate) employee_id: Uuid,
     pub(crate) user_id: Option<Uuid>,
     pub(crate) status: String,
+    #[sqlx(flatten)]
+    pub(crate) terms: LeaveTerms,
 }
 
+/// Locks the leave row: two decisions or cancels on one leave run one after
+/// the other, and the second sees where the first left it.
 pub(crate) async fn leave_owner(
     tx: &mut Tx<'_>,
     tenant_id: Uuid,
     leave_id: Uuid,
 ) -> Result<LeaveOwner, AppError> {
     sqlx::query_as::<_, LeaveOwner>(
-        "SELECT l.employee_id, e.user_id, l.status::text AS status FROM leave_requests l \
+        "SELECT l.id, l.employee_id, e.user_id, l.status::text AS status, l.leave_type, \
+                l.start_date, l.days, l.external_source, l.balance_deducted \
+         FROM leave_requests l \
          JOIN employees e ON e.id = l.employee_id AND e.tenant_id = l.tenant_id \
-         WHERE l.id = $2 AND l.tenant_id = $1 AND l.deleted_at IS NULL",
+         WHERE l.id = $2 AND l.tenant_id = $1 AND l.deleted_at IS NULL \
+         FOR UPDATE OF l",
     )
     .bind(tenant_id)
     .bind(leave_id)
@@ -330,7 +357,12 @@ pub(crate) async fn leave_owner(
     .ok_or(AppError::NotFound)
 }
 
+/// Statuses a leave can still be cancelled from.
+const CANCELLABLE: [&str; 4] = ["draft", "pending_hod", "pending_admin", "approved"];
+
 /// Cancels leave — the applicant's own, or anyone's with `hr.leave.manage`.
+/// Cancelling approved leave gives its days back to the balance; both are
+/// written to the audit chain in the same transaction.
 pub async fn cancel_leave(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
@@ -343,6 +375,17 @@ pub async fn cancel_leave(
     if owner.user_id != Some(claims.sub) && !holds(&claims, permissions::hr::leave::MANAGE) {
         return Err(AppError::NotFound);
     }
+    if !CANCELLABLE.contains(&owner.status.as_str()) {
+        return Err(AppError::Conflict(format!(
+            "This leave is already {}. Refresh to see where it stands.",
+            owner.status.replace('_', " ")
+        )));
+    }
+    let restored = if owner.status == "approved" {
+        leave_rules::give_back(&mut tx, claims.tenant_id, &owner.terms).await?
+    } else {
+        None
+    };
 
     let row = sqlx::query_as::<_, LeaveRequest>(
         "UPDATE leave_requests SET \
@@ -354,6 +397,22 @@ pub async fn cancel_leave(
     .bind(claims.tenant_id)
     .bind(claims.sub)
     .fetch_one(&mut *tx)
+    .await?;
+
+    let event = serde_json::json!({ "from": owner.status, "restored": restored });
+    medbrains_db::audit::AuditLogger::log(
+        &mut tx,
+        &medbrains_db::audit::AuditEntry {
+            tenant_id: claims.tenant_id,
+            user_id: Some(claims.sub),
+            action: "leave.cancel",
+            entity_type: "leave_request",
+            entity_id: Some(id),
+            old_values: None,
+            new_values: Some(&event),
+            ip_address: None,
+        },
+    )
     .await?;
 
     tx.commit().await?;

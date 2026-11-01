@@ -17,7 +17,7 @@ export interface PermissionDef {
   module: string;
 }
 
-/** 1194 permissions, one per constant in the Rust source. */
+/** 1195 permissions, one per constant in the Rust source. */
 export const PERMISSIONS: PermissionDef[] = [
   // dashboard
   {
@@ -3143,6 +3143,12 @@ export const PERMISSIONS: PermissionDef[] = [
     code: "hr.leave.manage",
     label: "File and view leave for any employee",
     description: "HR's reach. Without it a caller files leave only for themselves and sees only their own leave and, as a department head, their department's. Nobody approves their own leave, with or without it.",
+    module: "hr",
+  },
+  {
+    code: "hr.holiday.manage",
+    label: "Keep the holiday list and weekly offs",
+    description: "Adds, edits and removes the hospital's holidays and sets which weekdays are weekly offs. Leave days are counted from these, so changing them changes how much leave every later request takes.",
     module: "hr",
   },
   {
@@ -8709,6 +8715,10 @@ export const P = {
     EMPLOYEES_CREATE: "hr.employees.create",
     EMPLOYEES_LIST: "hr.employees.list",
     EMPLOYEES_UPDATE: "hr.employees.update",
+    HOLIDAY: {
+      MANAGE: "hr.holiday.manage",
+    },
+    HOLIDAY_MANAGE: "hr.holiday.manage",
     LEAVE: {
       APPROVE: "hr.leave.approve",
       CREATE: "hr.leave.create",
@@ -12537,6 +12547,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.HR.EMPLOYEES.CREATE,
       P.HR.EMPLOYEES.LIST,
       P.HR.EMPLOYEES.UPDATE,
+      P.HR.HOLIDAY.MANAGE,
       P.HR.LEAVE.APPROVE,
       P.HR.LEAVE.CREATE,
       P.HR.LEAVE.LIST,
