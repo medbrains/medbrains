@@ -17,7 +17,7 @@ export interface PermissionDef {
   module: string;
 }
 
-/** 1210 permissions, one per constant in the Rust source. */
+/** 1212 permissions, one per constant in the Rust source. */
 export const PERMISSIONS: PermissionDef[] = [
   // dashboard
   {

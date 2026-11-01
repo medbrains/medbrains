@@ -1,5 +1,5 @@
 -- ====================================================================
--- Migration: 1400_connected_apps.sql
+-- Migration: 1402_connected_apps.sql
 -- RLS-Posture: tenant-scoped
 -- Tenant-Column: tenant_id
 -- New-Tables: connected_apps
