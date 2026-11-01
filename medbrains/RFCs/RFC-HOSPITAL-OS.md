@@ -105,8 +105,65 @@ both exist; the core stays free (Apache-2.0).
 - **K5 Unified Build area**: switchboard, track builder, forms, dashboards, knowledge changes under
   one "Build" area with one check → preview → approve → publish model.
 - **K6 Store**: catalogue, review workflow, install via change sets.
+- **C1–C5 Connect** (after K1): C1 vendor apps (SMART on FHIR OAuth clients, hospital approval
+  screen; fills the missing API-key creation path); C2 signed webhooks; C3 FHIR write + search;
+  C4 CDS Hooks; C5 sandbox hospital + vendor portal + "Works with MedBrains" certification.
+- **I1–I3 Identity** (after K1): I1 SCIM provisioning; I2 directory group → access group mapping;
+  I3 one-screen directory setup via change sets.
+- **Z1 Zero-licence check**: CI rule over dependencies and deploy kits (§8).
 
-## 7. Not in scope
+## 7. Standards built into the kernel (adopt, never invent)
+
+The kernel speaks the standards hospitals and vendors already use, so anything that works with a
+major EHR can work with MedBrains.
+
+| Need | Standard | Where |
+|---|---|---|
+| Data exchange | **HL7 FHIR R4** (read today; write + search to add) | kernel external data model |
+| Apps inside MedBrains / backend apps | **SMART on FHIR** App Launch + Backend Services (OAuth 2.0) | kernel identity + authorisation |
+| Advice at the right moment | **CDS Hooks** (patient-view, order-sign, …) | kernel before/after events |
+| Lab, devices | **HL7 v2** over MLLP | driver |
+| Imaging | **DICOM** (via Orthanc) | driver |
+| Codes | ICD-10/11, LOINC, SNOMED CT (licence where required), WHO ATC/INN | kernel terminology service |
+| National exchanges | ABDM (and other countries' exchanges as adapters) | driver/adapter layer |
+| Sign-in | OpenID Connect, SAML; **SCIM 2.0** for user provisioning | kernel identity |
+| Notifications out | signed **webhooks** | kernel events |
+
+Vendor apps connect only through these, so they get the same permissions, data walls, audit and
+consent checks as MedBrains' own code, and a hospital admin approves and can revoke each one.
+
+## 8. Zero licence cost, end to end
+
+**A hospital or clinic must be able to run MedBrains without paying for any licence**: not
+Windows, not a database, not office software, not a directory.
+
+- **Server:** Linux (Ubuntu/Debian) on any x86 or ARM machine, or the MedBrains edge box.
+  PostgreSQL, Orthanc, Gotenberg (PDF), Stalwart (mail), SpiceDB (optional) are open source.
+- **Staff devices:** any modern web browser on Linux, ChromeOS, Android, Windows or macOS.
+  Windows and Apple devices are supported, never required. Native apps exist for Android and iOS;
+  Android alone is enough.
+- **Kiosks and TV boards:** Android / Android TV (AOSP-based devices) or Linux in kiosk mode.
+- **Printing:** CUPS/IPP for label, wristband and A4 printers; no vendor driver suite required.
+- **Directory and sign-in:** MedBrains' own accounts, or open directories (Keycloak, Authentik,
+  OpenLDAP); Microsoft Entra/Active Directory and Google Workspace are optional connectors.
+- **Optional paid services stay optional:** cloud hosting, SMS/WhatsApp, payment gateways, hosted
+  AI (Ollama is the open alternative), SNOMED where a national licence isn't free.
+- **Enforced:** a CI check fails if a required dependency or a deploy-kit step needs a proprietary
+  licence; the DPG "platform independence" answer stays true by construction.
+
+## 9. Identity: groups and directories (built in)
+
+Exists today: access groups with permissions (Admin → Groups), SSO with directory-group → role
+mapping (`idp_group_mappings`), permission resolution = role ∪ groups ∪ extras − denials.
+
+To build:
+- **SCIM 2.0 provisioning:** staff added in the hospital directory appear in MedBrains; leavers are
+  disabled at once.
+- **Directory group → access group** mapping (not only roles), e.g. "ICU-Nurses → ICU access".
+- **One-screen setup:** connect directory → map groups → preview who gets what → apply via a change
+  set (reviewed, reversible).
+
+## 10. Not in scope
 
 A separate process per app (MedBrains stays one deployable, a modular monolith), a new language,
 rewriting existing modules. The kernel is a boundary, not a rewrite.
