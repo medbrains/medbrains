@@ -21,21 +21,73 @@ export function routeKeys(stations: FlowStation[], switches: FlowSwitches): stri
   return stations.filter((s) => onRoute(s, switches)).map((s) => s.key);
 }
 
+/** Map geometry, in canvas px at zoom 1. */
+export const METRO = {
+  /** Round station marker; the line runs through its centre. */
+  marker: 24,
+  /** Body-size (14px) label, semibold: average glyph width. */
+  charPx: 8,
+  minWidth: 96,
+  maxWidth: 168,
+  /** Clear space between neighbouring labels. */
+  gap: 32,
+  /** Vertical distance between the main line and each branch lane. */
+  laneHeight: 150,
+} as const;
+
+/**
+ * The width a station's label needs when wrapped to at most two lines: half
+ * the name, but never narrower than its longest word.
+ */
+export function labelWidth(name: string): number {
+  const longestWord = Math.max(...name.split(/\s+/).map((w) => w.length));
+  const chars = Math.max(longestWord, Math.ceil(name.length / 2));
+  return Math.min(METRO.maxWidth, Math.max(METRO.minWidth, chars * METRO.charPx + 8));
+}
+
 export interface Placement {
   key: string;
   /** Order along the line. */
   column: number;
   /** 0 is the main line; each branch gets its own lane below it. */
   lane: number;
+  /** Centre of the station marker. */
+  x: number;
+  y: number;
+  /** Width of the label column, centred on x. */
+  width: number;
 }
 
-/** Column = order, lane = branch. Computed, never dragged. */
+/**
+ * Column = order, lane = branch. Columns are spaced by their labels' widths
+ * so neighbouring names never touch. One column per station means no two
+ * stations ever share a spot, so lanes cannot overlap. Computed, never dragged.
+ */
 export function layoutMetro(stations: FlowStation[]): Placement[] {
   const lanes: string[] = [];
+  let x = 0;
+  let prevWidth = 0;
   return stations.map((s, column) => {
     if (s.lane && !lanes.includes(s.lane)) lanes.push(s.lane);
-    return { key: s.key, column, lane: s.lane ? lanes.indexOf(s.lane) + 1 : 0 };
+    const width = labelWidth(s.name);
+    if (column > 0) x += (prevWidth + width) / 2 + METRO.gap;
+    prevWidth = width;
+    const lane = s.lane ? lanes.indexOf(s.lane) + 1 : 0;
+    return { key: s.key, column, lane, x, y: lane * METRO.laneHeight, width };
   });
+}
+
+/**
+ * Where a lane-changing line turns, as a fraction of its run: in the clear
+ * space just after the station it leaves (going down to a branch) or just
+ * before the one it rejoins (coming back up), so the bend never cuts a label.
+ */
+export function bendAt(from: Placement, to: Placement): number {
+  const x =
+    to.lane > from.lane
+      ? from.x + from.width / 2 + METRO.gap / 2
+      : to.x - to.width / 2 - METRO.gap / 2;
+  return (x - from.x) / (to.x - from.x);
 }
 
 export type LineKind = "active" | "idle" | "ghost";

@@ -37,8 +37,8 @@ export function SwitchLine(props: SwitchLineProps) {
   const mine = history.filter((h) => h.before?.[def.key] !== h.after?.[def.key]);
   return (
     <Stack gap={4} id={`switch-${def.key}`}>
-      <Group justify="space-between" wrap="nowrap" align="flex-start">
-        <Stack gap={2}>
+      <Group justify="space-between" align="flex-start">
+        <Stack gap={2} flex="1 1 15rem">
           <Text fw={600}>{def.sentence}</Text>
           <Text size="sm" c="dimmed">
             {effectOf(def, value)}

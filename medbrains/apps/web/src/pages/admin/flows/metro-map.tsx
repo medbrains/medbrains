@@ -3,26 +3,47 @@
  * route solid, routes not taken dotted, a proposed change's old route as a
  * ghost line, and a list view as the text alternative. Route changes fade in;
  * with reduced motion the map simply redraws (metro-map.module.scss).
+ * Call path: switchboard → layoutMetro + metroLines (metro.ts) → React Flow
+ * nodes (station-node.tsx) and smoothstep edges.
  */
-import { Box, Group, List, Stack, Text } from "@mantine/core";
+import { Box, Group, List, Stack, Text, useComputedColorScheme } from "@mantine/core";
 import type { FlowStation, FlowSwitches } from "@medbrains/types";
-import { type Edge, type Node, ReactFlow } from "@xyflow/react";
+import { Controls, type Edge, type Node, ReactFlow } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 import { useMemo, useState } from "react";
 import { SegmentedControl } from "@/components/ui";
-import { type LineKind, layoutMetro, metroLines, onRoute } from "./metro";
+import {
+  bendAt,
+  type LineKind,
+  layoutMetro,
+  METRO,
+  metroLines,
+  onRoute,
+  type Placement,
+} from "./metro";
 import styles from "./metro-map.module.scss";
-import { StationNode } from "./station-node";
+import { StationNode, type StationNodeData } from "./station-node";
 
-const COLUMN = 130;
-const LANE = 110;
 const NODE_TYPES = { station: StationNode };
 
 const LINE_STYLE: Record<LineKind, React.CSSProperties> = {
-  active: { stroke: "var(--mb-interactive)", strokeWidth: 3 },
-  idle: { stroke: "var(--mb-border)", strokeWidth: 2, strokeDasharray: "2 6" },
-  ghost: { stroke: "var(--mb-text-faint)", strokeWidth: 2, strokeDasharray: "8 6", opacity: 0.7 },
+  active: { stroke: "var(--mb-interactive)", strokeWidth: 6, strokeLinecap: "round" },
+  idle: {
+    stroke: "var(--mb-outline)",
+    strokeWidth: 3,
+    strokeDasharray: "1 9",
+    strokeLinecap: "round",
+  },
+  // Offset a little so the old route shows beside the new one, not under it.
+  ghost: {
+    stroke: "var(--mb-text-faint)",
+    strokeWidth: 3,
+    strokeDasharray: "10 8",
+    transform: "translateY(5px)",
+  },
 };
+/** Painted bottom to top: the live route always on top. */
+const PAINT_ORDER: Record<LineKind, number> = { ghost: 0, idle: 1, active: 2 };
 
 export interface MetroMapProps {
   stations: FlowStation[];
@@ -34,12 +55,17 @@ export interface MetroMapProps {
   announcement: string;
   /** Changes when the map's width changes, so it fits again. */
   fitKey?: string;
+  /** Patients at each station now, when the control room has been loaded. */
+  counts?: ReadonlyMap<string, number>;
+  /** The counts could not be loaded — say so, never show an empty line. */
+  countsError?: boolean;
 }
 
 function RouteList({
   stations,
   switches,
   ghost,
+  counts,
 }: Omit<MetroMapProps, "highlight" | "announcement">) {
   return (
     <List type="ordered" spacing="xs" aria-label="Route, step by step">
@@ -55,6 +81,7 @@ function RouteList({
               {s.lane ? `, ${s.lane.toLowerCase()} branch` : ""}
               {s.locked ? `, always on: ${s.required_by ?? "required"}` : ""}
               {s.kind.type === "signal" ? `, held by ${s.holder.toLowerCase()}` : ""}
+              {counts?.get(s.key) ? `, ${counts.get(s.key)} patients here now` : ""}
               {change}
             </Text>
           </List.Item>
@@ -71,35 +98,55 @@ export function MetroMap({
   highlight,
   announcement,
   fitKey,
+  counts,
+  countsError,
 }: MetroMapProps) {
   const [view, setView] = useState<"map" | "list">("map");
+  const colorMode = useComputedColorScheme("dark");
+  const placed = useMemo(() => layoutMetro(stations), [stations]);
   const nodes: Node[] = useMemo(
     () =>
-      layoutMetro(stations).map((p, i) => {
+      placed.map((p, i) => {
         const station = stations[i] as FlowStation;
+        const data: StationNodeData = {
+          station,
+          onRoute: onRoute(station, switches),
+          highlighted: highlight.has(p.key),
+          width: p.width,
+          count: counts?.get(p.key),
+        };
         return {
           id: p.key,
           type: "station",
-          position: { x: p.column * COLUMN, y: p.lane * LANE },
-          data: { station, onRoute: onRoute(station, switches), highlighted: highlight.has(p.key) },
+          // The marker's centre sits on (x, y); the node box hangs below it.
+          position: { x: p.x - p.width / 2, y: p.y - METRO.marker / 2 },
+          data,
           draggable: false,
           selectable: false,
         };
       }),
-    [stations, switches, highlight],
+    [placed, stations, switches, highlight, counts],
   );
   const edges: Edge[] = useMemo(() => {
-    const lane = new Map(layoutMetro(stations).map((p) => [p.key, p.lane]));
-    return metroLines(stations, switches, ghost).map((l) => ({
-      id: `${l.from}>${l.to}:${l.kind}`,
-      source: l.from,
-      target: l.to,
-      // Along a lane the line is straight; it bends only to change lanes.
-      type: lane.get(l.from) === lane.get(l.to) ? "straight" : "smoothstep",
-      style: LINE_STYLE[l.kind],
-      zIndex: l.kind === "ghost" ? 0 : 1,
-    }));
-  }, [stations, switches, ghost]);
+    const at = new Map(placed.map((p) => [p.key, p]));
+    return metroLines(stations, switches, ghost)
+      .sort((a, b) => PAINT_ORDER[a.kind] - PAINT_ORDER[b.kind])
+      .map((l) => {
+        const from = at.get(l.from) as Placement;
+        const to = at.get(l.to) as Placement;
+        return {
+          id: `${l.from}>${l.to}:${l.kind}`,
+          source: l.from,
+          target: l.to,
+          // Straight along a lane; a rounded bend in the gap between labels
+          // to change lanes, so a branch runs the length of its own lane.
+          type: from.lane === to.lane ? "straight" : "smoothstep",
+          pathOptions: { borderRadius: 16, stepPosition: bendAt(from, to) },
+          style: LINE_STYLE[l.kind],
+        };
+      });
+  }, [placed, stations, switches, ghost]);
+  const lanes = Math.max(0, ...placed.map((p) => p.lane));
 
   return (
     <Stack gap="xs">
@@ -107,6 +154,7 @@ export function MetroMap({
         <Text size="sm" c="dimmed">
           Solid: the route. Dotted: a route not taken.
           {ghost ? " Faint dashes: the route before this change." : ""}
+          {countsError ? " Patient counts could not be loaded." : ""}
         </Text>
         <SegmentedControl
           aria-label="Show the track as"
@@ -124,7 +172,8 @@ export function MetroMap({
       {view === "map" ? (
         <Box
           className={styles.canvas}
-          role="img"
+          h={METRO.laneHeight * lanes + 190}
+          role="group"
           aria-label="Metro map of the flow; use List view for the same route as text"
         >
           <ReactFlow
@@ -132,17 +181,25 @@ export function MetroMap({
             nodes={nodes}
             edges={edges}
             nodeTypes={NODE_TYPES}
+            colorMode={colorMode}
+            style={{ background: "transparent" }}
             fitView
-            fitViewOptions={{ padding: 0.08 }}
+            fitViewOptions={{ padding: 0.04, maxZoom: 1 }}
+            minZoom={0.4}
+            maxZoom={1.5}
             nodesDraggable={false}
             nodesConnectable={false}
+            nodesFocusable={false}
+            edgesFocusable={false}
             elementsSelectable={false}
             zoomOnScroll={false}
             proOptions={{ hideAttribution: true }}
-          />
+          >
+            <Controls showInteractive={false} position="top-right" />
+          </ReactFlow>
         </Box>
       ) : (
-        <RouteList stations={stations} switches={switches} ghost={ghost} />
+        <RouteList stations={stations} switches={switches} ghost={ghost} counts={counts} />
       )}
     </Stack>
   );

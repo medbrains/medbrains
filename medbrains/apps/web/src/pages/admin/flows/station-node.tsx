@@ -1,79 +1,102 @@
-/** One station on the metro map: a round marker, its name, and its signal post. */
-import { Stack, Text } from "@mantine/core";
+/**
+ * One station on the metro map: a round marker sitting on the line (a
+ * diamond for a junction), its name in body text, what kind of stop it is in
+ * words with a glyph, and — when known — how many patients are there now.
+ */
+import { Group, Stack, Text } from "@mantine/core";
 import type { FlowStation } from "@medbrains/types";
 import {
   IconArrowsSplit,
+  IconBolt,
   IconCircleFilled,
   IconFlag,
   IconLock,
-  IconPlayerPlay,
   IconTrafficLights,
   IconUserCheck,
 } from "@tabler/icons-react";
 import { Handle, type NodeProps, Position } from "@xyflow/react";
 import { Badge, ThemeIcon } from "@/components/ui";
+import { METRO } from "./metro";
 import styles from "./metro-map.module.scss";
 
 export interface StationNodeData {
   station: FlowStation;
   onRoute: boolean;
   highlighted: boolean;
+  width: number;
+  /** Patients at this station now, when the control room has been loaded. */
+  count?: number;
   [key: string]: unknown;
 }
 
-function StationIcon({ station }: { station: FlowStation }) {
-  if (station.locked) return <IconLock size={16} aria-hidden />;
+/** What the stop is, in words with its glyph — never colour alone. */
+function kindOf(station: FlowStation) {
+  if (station.locked) return { Icon: IconLock, text: "Required" };
   switch (station.kind.type) {
-    case "signal":
-      return <IconTrafficLights size={16} aria-hidden />;
     case "switch":
-      return <IconArrowsSplit size={16} aria-hidden />;
+      return { Icon: IconArrowsSplit, text: "Junction" };
     case "task":
-      return <IconUserCheck size={16} aria-hidden />;
+      return { Icon: IconUserCheck, text: "Task" };
     case "action":
-      return <IconPlayerPlay size={16} aria-hidden />;
+      return { Icon: IconBolt, text: "Automatic" };
     case "end":
-      return <IconFlag size={16} aria-hidden />;
+      return { Icon: IconFlag, text: "End of line" };
+    default:
+      return { Icon: IconTrafficLights, text: "Signal" };
   }
-  return <IconCircleFilled size={16} aria-hidden />;
 }
 
-/** What the marker means, in words — never colour alone. */
-function caption(station: FlowStation, onRoute: boolean): string {
-  if (station.locked) return "Required";
-  if (!onRoute) return "Not on route";
-  if (station.kind.type === "signal") return "Signal";
-  if (station.kind.type === "switch") return "Junction";
-  return station.lane ? `${station.lane} only` : "";
-}
+// Both handles sit on the marker's centre, so every line meets the station
+// exactly where it is drawn, whatever the label below it.
+const HANDLE_STYLE = { top: METRO.marker / 2, left: "50%" };
 
 export function StationNode({ data }: NodeProps) {
-  const { station, onRoute, highlighted } = data as StationNodeData;
+  const { station, onRoute, highlighted, width, count } = data as StationNodeData;
+  const { Icon, text } = kindOf(station);
+  const junction = station.kind.type === "switch";
   return (
-    <Stack gap={4} align="center" className={styles.node}>
-      <Handle type="target" position={Position.Left} className={styles.handle} />
+    <Stack gap={4} align="center" w={width}>
+      <Handle
+        type="target"
+        position={Position.Left}
+        className={styles.handle}
+        style={HANDLE_STYLE}
+      />
       <ThemeIcon
-        radius="xl"
-        size={32}
-        variant={onRoute ? "filled" : "light"}
-        tone={highlighted ? "accent" : station.locked ? "primary" : onRoute ? "primary" : "neutral"}
+        radius={junction ? 0 : METRO.marker}
+        size={METRO.marker}
+        variant={onRoute ? "filled" : "default"}
+        tone={highlighted ? "accent" : onRoute ? "primary" : "neutral"}
+        className={junction ? styles.diamond : undefined}
+        aria-hidden
       >
-        <StationIcon station={station} />
+        {!junction && <IconCircleFilled size={8} aria-hidden />}
       </ThemeIcon>
-      <Text size="xs" fw={600} className={styles.name} lineClamp={2}>
+      <Text size="sm" fw={600} ta="center" lineClamp={2} c={onRoute ? undefined : "dimmed"}>
         {station.name}
       </Text>
-      {caption(station, onRoute) && (
-        <Text size="xs" c="dimmed" className={styles.name}>
-          {caption(station, onRoute)}
+      <Group gap={4} wrap="nowrap" c="dimmed">
+        <Icon size={16} aria-hidden />
+        <Text size="xs">{text}</Text>
+      </Group>
+      {station.lane && (
+        <Text size="xs" c="dimmed" ta="center">
+          {station.lane} branch
         </Text>
       )}
-      {highlighted && (
-        <Badge tone="accent" size="xs">
-          Changes
-        </Badge>
+      {!onRoute && (
+        <Text size="xs" c="dimmed">
+          Not on route
+        </Text>
       )}
-      <Handle type="source" position={Position.Right} className={styles.handle} />
+      {count !== undefined && count > 0 && <Badge tone="info">{count} here now</Badge>}
+      {highlighted && <Badge tone="accent">Changes</Badge>}
+      <Handle
+        type="source"
+        position={Position.Right}
+        className={styles.handle}
+        style={HANDLE_STYLE}
+      />
     </Stack>
   );
 }
