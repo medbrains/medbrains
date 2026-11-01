@@ -475,6 +475,26 @@ Windows is supported for hospitals that already run it, never required (§8).
   only the needed ports, HL7/DICOM device traffic on the clinical VLAN, and documented ports for
   hospital IT.
 
+## 8m. The best idea from every OS
+
+| OS | Its best idea | How MedBrains takes it |
+|---|---|---|
+| **Linux / Debian** | runs on everything; open; huge driver base | our foundation (§8b) |
+| **Unix / BSD** | small composable parts, clean interfaces; ZFS snapshots | crate design, kernel interface; OpenZFS snapshots for Time Machine |
+| **macOS / iOS** | polish, privacy labels, sandboxing, Handoff, signed apps | signature features (§8d), security layers (§8j) |
+| **Android** | runs on cheap hardware; permissions per app; Play Store reach | Raspberry Pi profile (§8a), per-extension grants, the store |
+| **ChromeOS** | verified boot, automatic updates, nothing to maintain | signed images, A/B updates with rollback, appliance model |
+| **Windows** | works with the hardware and software hospitals already own | Hyper-V/MSI path (§8l), directory (AD/Entra) connectors |
+| **QNX** | microkernel trusted in medical devices and cars; real-time | tiny kernel, critical-alert latency budget (§8i) |
+| **seL4** | a kernel proven correct; capability-based security | capability-style grants (extensions hold only what they're given); formally checked rules where feasible (flow invariants, authz) |
+| **Fuchsia** | capabilities instead of ambient authority | no ambient access: every call carries the actor and its grants through the kernel |
+| **Plan 9** | everything reachable through one namespace | the path tree for settings and data (MUMPS-style), §3.1 item 8 |
+| **NixOS** | the whole system declared in one file, reproducible, roll back any time | declarative hospital setup (switches, flows, settings) as versioned change sets; reproducible builds |
+| **Erlang/OTP** | "let it crash": supervisors restart failed parts; nine-nines uptime | crash-only services, supervised background workers, idempotent retries (OS-PRINCIPLES §4) |
+| **VMS / mainframes** | decades of uptime, clustering, audit everything | hash-chained audit, replicas, careful upgrades |
+
+**Rule:** we borrow ideas, not code that would bring a licence or a proprietary dependency (§8).
+
 ## 9. Identity: groups and directories (built in)
 
 Exists today: access groups with permissions (Admin → Groups), SSO with directory-group → role
