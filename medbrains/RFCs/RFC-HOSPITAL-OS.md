@@ -495,6 +495,41 @@ Windows is supported for hospitals that already run it, never required (§8).
 
 **Rule:** we borrow ideas, not code that would bring a licence or a proprietary dependency (§8).
 
+## 8n. The interface stack (as good as the kernel)
+
+Every great OS pairs its kernel with one consistent interface stack. MedBrains' stack:
+
+| Layer | macOS | Linux | MedBrains |
+|---|---|---|---|
+| Display / compositor | Quartz | Wayland (Mutter, KWin) | the browser on staff devices; on the appliance's own screen, a Wayland kiosk compositor (`cage`) running a minimal browser engine (WPE WebKit or Chromium) |
+| UI toolkit | AppKit / SwiftUI | GTK / Qt | the `@/components/ui` seam on Mantine (web); SwiftUI (iOS), Compose / Material 3 (Android), Compose for TV |
+| Design language | Aqua / Liquid Glass | Adwaita, Breeze | Carbon-based tokens in `@medbrains/design-system`, light and dark |
+| Interface guidelines | Apple HIG | GNOME HIG | **MedBrains HIG**: `UI_GUIDELINES.md` + the Carbon rule docs + device-surface rules, consolidated into one book |
+| Shell | Finder, Dock, menu bar | GNOME Shell, KDE Plasma | the app shell (`AppLayout`), TV and kiosk shells, the appliance console |
+
+**System-level shell features** (every screen gets them free, like an OS):
+- **Spotlight** (exists: `SpotlightProvider`): one command palette for search, actions and
+  navigation, permission-checked, keyboard first (⌘K / Ctrl K).
+- **Notification Center** (exists: `NotificationCenter`) + **Focus** modes (on duty, on call,
+  off duty / critical only).
+- **Patient tabs:** several patients open side by side like browser tabs, with Handoff to the phone.
+- **One status bar:** network/offline state, sync, the clinician's shift, unread critical alerts.
+- **Consistent app chrome:** every flagship app shares header, breadcrumbs, empty/error/loading
+  states and keyboard shortcuts from the seam, so learning one teaches all.
+
+**The appliance's own screen:** a box with a monitor boots straight into `cage` + browser engine
+showing the local console: setup wizard, health, backups, updates, recovery. No desktop
+environment, nothing to maintain, the same web UI as everywhere else.
+
+**Quality bar (measured, like speed):** 60 fps scrolling and animation on mid-range hardware and a
+Raspberry Pi 5 browser; interactions acknowledged within 100 ms; motion per the Carbon motion rules
+with reduced-motion fallbacks; WCAG 2.2 AA in both themes (already enforced by
+`theme-contrast.spec.ts` and Biome a11y rules); type and spacing only from tokens.
+
+Phases: **UI1** shell features made system-level (Spotlight actions registry, Focus, status bar,
+patient tabs); **UI2** the MedBrains HIG book; **UI3** appliance console on `cage` + WPE; **UI4**
+frame-rate and responsiveness budgets in CI (Playwright traces).
+
 ## 9. Identity: groups and directories (built in)
 
 Exists today: access groups with permissions (Admin → Groups), SSO with directory-group → role
