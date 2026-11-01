@@ -5,7 +5,7 @@ need their own go · Owner: Domnic Amalan S
 
 ## 0. North star
 
-**A world-class hospital operating system that costs almost nothing to run.** Free and open
+**A world-class, AI-native hospital operating system that costs almost nothing to run.** Free and open
 (Apache-2.0), runs on any chip down to a Raspberry Pi, needs no paid licence, built on standards,
 safe by construction. The way macOS builds on an open foundation and adds what people love, MedBrains
 builds on Debian and adds the hospital layer: the kernel, signature features and flagship apps.
@@ -315,6 +315,47 @@ copies that so vendors and developers build **around** it without asking us.
 Phases: **E1** publish the extension protocol + manifest + TypeScript and Python SDKs + CLI;
 **E2** public registry (community tier) + hospital install/approve screen; **E3** certification
 tier + more SDKs; **E4** extension kinds beyond the first (CDS Hooks, flow call-out blocks).
+
+## 8h. AI-native, safely
+
+AI is an OS service, not a feature on a few screens. Groundwork exists: `medbrains-ai` (tools,
+redaction, query checks), `medbrains-ai-eval` (evaluation), the `AiLabel` UI component, and the AI
+copilot RFCs.
+
+**Kernel AI service.** Apps and extensions ask the kernel, never a model directly:
+`kernel::ai::draft / summarise / classify / answer(&tx, capability, input)`. The kernel applies the
+same rules as every other call: the user's permissions, consent, data-class redaction, audit of the
+prompt and the output, and an AI label on everything produced.
+
+**Where AI shows up (everywhere, consistently):**
+- **Every screen:** an assistant that answers from what *this user* may see ("which patients on
+  my ward are waiting on a lab result?") and can act only by preparing drafts.
+- **Studio:** describe a change or upload an SOP; AI drafts tracks, switch settings and forms;
+  the builder's checks (RFC-SOP-FLOWS §11) and human approval still decide.
+- **Scribe:** notes drafted from dictation or conversation; the clinician signs.
+- **Command Centre:** "why is discharge slow today?" answered from live numbers, with sources.
+- **Operations:** AI watches the system's own health (disk, backups, slow queries, failed jobs) and
+  explains problems in plain words to the operator.
+- **Agents (later):** multi-step helpers that work through the kernel's MCP tools (§8f), always
+  stopping for a person before anything clinical or financial changes.
+
+**Rules that never bend:**
+1. **AI proposes; people decide.** No AI output changes a record, a flow, an order or money without
+   a named person approving it.
+2. **Always labelled, always traceable:** the model, the inputs used (redacted) and the person who
+   approved are recorded.
+3. **Evaluated before use:** a new model or prompt passes the `medbrains-ai-eval` suite for its task
+   before it reaches users, and the change goes through a change set.
+4. **Grounded, not invented:** answers cite the records or numbers they used; "not enough data" is
+   a valid answer.
+5. **Zero-licence by default:** open models run locally (Ollama on the server or edge box; small
+   models on a Pi-class device or a Snapdragon/Apple NPU where available). Hosted models are an
+   optional, hospital-approved choice, with no patient data leaving without consent and a
+   data-processing agreement.
+
+Phases: **AI1** kernel AI service over `medbrains-ai` + per-call audit + labels; **AI2** assistant on
+every screen (read + drafts); **AI3** Studio drafting from SOPs; **AI4** local-model profiles for the
+edge box and Pi; **AI5** agents through MCP tools.
 
 ## 9. Identity: groups and directories (built in)
 
