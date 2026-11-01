@@ -6395,6 +6395,27 @@ dependencies = [
 ]
 
 [[package]]
+name = "medbrains-connected-apps"
+version = "0.1.0"
+dependencies = [
+ "axum",
+ "base64 0.22.1",
+ "chrono",
+ "getrandom 0.4.3",
+ "hex",
+ "medbrains-api-keys",
+ "medbrains-core",
+ "medbrains-kernel",
+ "medbrains-outbox",
+ "medbrains-server-core",
+ "serde",
+ "serde_json",
+ "sqlx",
+ "tracing",
+ "uuid",
+]
+
+[[package]]
 name = "medbrains-consent"
 version = "0.1.0"
 dependencies = [
@@ -8303,6 +8324,7 @@ dependencies = [
  "medbrains-cms",
  "medbrains-communications",
  "medbrains-community-health",
+ "medbrains-connected-apps",
  "medbrains-consent",
  "medbrains-core",
  "medbrains-crypto",

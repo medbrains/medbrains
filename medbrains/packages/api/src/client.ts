@@ -392,6 +392,9 @@ import type {
   ComponentSlipPrintData,
   ConcessionListResponse,
   ConfirmPoliceReceiptRequest,
+  ConnectedApp,
+  ConnectedAppCredentials,
+  ConnectedAppDelivery,
   // Orchestration Engine
   ConnectorHealthCheckResponse,
   ConnectorRow,
@@ -1610,6 +1613,7 @@ import type {
   OAuthConnection,
   OAuthExchangeRequest,
   OAuthProviderInfo,
+  OAuthTokenResponse,
   OccHealthAnalytics,
   OccHealthDrugScreen,
   OccHealthExposure,
@@ -3537,6 +3541,44 @@ export const api = {
     request<WebhookWithSecret>(`/admin/webhooks/${id}/rotate-secret`, { method: "POST" }),
   listWebhookDeliveries: (id: string) =>
     request<WebhookDelivery[]>(`/admin/webhooks/${id}/deliveries`),
+
+  // ── connected apps (RFC-HOSPITAL-OS C1) ──────────────────────────────────
+  listConnectedApps: () => request<ConnectedApp[]>("/admin/connected-apps"),
+  /** Register from a manifest. The response carries the credentials, once. */
+  registerConnectedApp: (manifest: unknown) =>
+    request<ConnectedAppCredentials>("/admin/connected-apps", {
+      method: "POST",
+      body: JSON.stringify({ manifest }),
+    }),
+  approveConnectedApp: (id: string) =>
+    request<{ approved: boolean }>(`/admin/connected-apps/${id}/approve`, { method: "POST" }),
+  /** Cuts the app off at once: its tokens are revoked in the same transaction. */
+  revokeConnectedApp: (id: string, reason?: string) =>
+    request<{ revoked: boolean; tokens_revoked: number }>(`/admin/connected-apps/${id}/revoke`, {
+      method: "POST",
+      body: JSON.stringify({ reason }),
+    }),
+  rotateConnectedAppSecret: (id: string) =>
+    request<ConnectedAppCredentials>(`/admin/connected-apps/${id}/rotate-secret`, {
+      method: "POST",
+    }),
+  listConnectedAppDeliveries: (id: string) =>
+    request<ConnectedAppDelivery[]>(`/admin/connected-apps/${id}/deliveries`),
+  /**
+   * OAuth 2.0 client credentials. Called by connected apps (see `@medbrains/sdk`),
+   * not by the web app; here so the contract check pairs the route.
+   */
+  oauthToken: (clientId: string, clientSecret: string, scope?: string) =>
+    request<OAuthTokenResponse>("/oauth/token", {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({
+        grant_type: "client_credentials",
+        client_id: clientId,
+        client_secret: clientSecret,
+        ...(scope ? { scope } : {}),
+      }).toString(),
+    }),
 
   // ── central approvals ─────────────────────────────────────────────────────
   //

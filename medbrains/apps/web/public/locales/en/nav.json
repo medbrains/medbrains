@@ -79,6 +79,7 @@
   "integrationHub": "Built-in Pipelines",
   "formTemplates": "Forms",
   "apiKeys": "API keys",
+  "connectedApps": "Connected apps",
   "webhooks": "Webhooks",
   "screenBuilder": "Screen Builder",
   "doctorSchedules": "Doctor Schedules",

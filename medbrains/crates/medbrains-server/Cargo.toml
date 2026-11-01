@@ -121,6 +121,7 @@ medbrains-clinical-ops = { path = "../medbrains-clinical-ops" }
 medbrains-identity = { path = "../medbrains-identity" }
 medbrains-approvals-api = { path = "../medbrains-approvals-api" }
 medbrains-api-keys-api = { path = "../medbrains-api-keys-api" }
+medbrains-connected-apps = { path = "../medbrains-connected-apps" }
 medbrains-materials = { path = "../medbrains-materials" }
 medbrains-facilities = { path = "../medbrains-facilities" }
 medbrains-documents = { path = "../medbrains-documents" }

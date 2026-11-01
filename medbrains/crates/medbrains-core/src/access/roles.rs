@@ -1313,6 +1313,8 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
             permissions::admin::history_import::VIEW,
             // The audit chain verdict is audit evidence.
             permissions::admin::kernel::VIEW,
+            // Which outside apps hold which data is audit evidence too.
+            permissions::admin::connected_apps::VIEW,
             permissions::audit::processors::LIST,
             permissions::audit::processors::MANAGE,
             permissions::patients::privacy_requests::LIST,

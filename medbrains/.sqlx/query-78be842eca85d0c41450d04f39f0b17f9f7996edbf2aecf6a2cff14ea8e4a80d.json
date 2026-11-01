@@ -1,0 +1,16 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "DELETE FROM api_keys WHERE connected_app_id = $1 AND tenant_id = $2 AND expires_at < now() - make_interval(days => $3)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Int4"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "78be842eca85d0c41450d04f39f0b17f9f7996edbf2aecf6a2cff14ea8e4a80d"
+}

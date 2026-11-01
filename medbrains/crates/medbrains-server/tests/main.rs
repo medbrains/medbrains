@@ -296,6 +296,7 @@ mod unique_among_live_rows_test;
 mod user_update_partial_test;
 mod visitor_pass_qr_test;
 mod webhook_subscriptions_test;
+mod connected_apps_test;
 mod workbook_import_test;
 mod retrospective_encounter_test;
 mod history_import_test;

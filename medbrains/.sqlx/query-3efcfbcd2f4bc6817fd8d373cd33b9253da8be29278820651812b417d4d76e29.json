@@ -1,0 +1,16 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE connected_apps SET status = 'approved', approved_at = now(), approved_by = $3 WHERE id = $1 AND tenant_id = $2",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "3efcfbcd2f4bc6817fd8d373cd33b9253da8be29278820651812b417d4d76e29"
+}
