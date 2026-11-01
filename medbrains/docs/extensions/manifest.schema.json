@@ -1,0 +1,87 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://medbrains.dev/schemas/extension-manifest/v1.json",
+  "title": "MedBrains extension manifest v1",
+  "description": "One manifest for every kind of extension (RFC-HOSPITAL-OS §8f item 3, §8g). The hospital sees exactly this before approving, and the extension gets exactly this. Server-side rules that JSON Schema cannot express (a read must be backed by its permission, events need a webhookUrl, data that is read must say where it goes) are listed in PROTOCOL.md §3 and enforced at registration.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["manifestVersion", "kind", "name", "purpose", "publisher", "version", "permissions", "dataClasses"],
+  "properties": {
+    "manifestVersion": { "const": 1 },
+    "kind": {
+      "enum": ["service", "smart-app", "mcp-tool", "wasm-block"],
+      "description": "service = background integration; smart-app = screen launched inside MedBrains; mcp-tool = AI tool; wasm-block = flow block (installed through the store, not connected as an app)."
+    },
+    "name": { "type": "string", "minLength": 1, "maxLength": 80 },
+    "purpose": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 200,
+      "pattern": "^[^\\n]*$",
+      "description": "One sentence: what it does for the hospital."
+    },
+    "publisher": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name"],
+      "properties": {
+        "name": { "type": "string", "minLength": 1, "maxLength": 120 },
+        "url": { "type": "string", "pattern": "^https://\\S+$" },
+        "contact": { "type": "string" }
+      }
+    },
+    "version": {
+      "type": "string",
+      "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+([-+].*)?$"
+    },
+    "permissions": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 50,
+      "uniqueItems": true,
+      "items": { "type": "string", "pattern": "^[a-z][a-z0-9_]*(\\.[a-z0-9_]+)+$" },
+      "description": "MedBrains permission codes (packages/types/src/permissions.ts). Wildcards and bypass roles are refused."
+    },
+    "reads": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": { "enum": ["Patient", "Encounter", "Observation"] },
+      "description": "FHIR R4 resources read in protocol v1. Patient needs patients.view, Encounter needs opd.queue.view, Observation needs lab.orders.view."
+    },
+    "events": {
+      "type": "array",
+      "maxItems": 100,
+      "uniqueItems": true,
+      "items": { "type": "string" },
+      "description": "Clinical event names (packages/types CLINICAL_EVENT_I18N_KEYS), delivered as signed webhooks to webhookUrl."
+    },
+    "dataClasses": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": { "enum": ["routine", "sensitive", "identifying", "restricted", "confidential", "sealed"] }
+    },
+    "sendsDataTo": {
+      "type": "array",
+      "maxItems": 20,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["name", "url", "purpose"],
+        "properties": {
+          "name": { "type": "string", "minLength": 1, "maxLength": 120 },
+          "url": { "type": "string", "pattern": "^https://\\S+$" },
+          "purpose": { "type": "string", "minLength": 1, "maxLength": 200 }
+        }
+      }
+    },
+    "webhookUrl": { "type": "string", "pattern": "^https://\\S+$" },
+    "redirectUris": {
+      "type": "array",
+      "maxItems": 20,
+      "items": { "type": "string", "pattern": "^https://\\S+$" }
+    },
+    "inputSchema": { "type": "object" },
+    "outputSchema": { "type": "object" }
+  }
+}
