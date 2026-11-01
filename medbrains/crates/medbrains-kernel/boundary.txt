@@ -135,7 +135,7 @@ medbrains-setup not_yet 221 medbrains-db,medbrains-authz
 medbrains-sharing not_yet 18 medbrains-db,medbrains-authz
 medbrains-signing not_yet 0 -
 medbrains-snomed not_yet 0 -
-medbrains-sop-flows not_yet 7 medbrains-db,medbrains-authz-gate
+medbrains-sop-flows not_yet 8 medbrains-db,medbrains-authz-gate
 medbrains-specialty not_yet 267 medbrains-db,medbrains-authz,medbrains-authz-gate
 medbrains-specialty-interventional not_yet 75 medbrains-db,medbrains-authz-gate
 medbrains-specialty-other not_yet 139 medbrains-db,medbrains-authz-gate
