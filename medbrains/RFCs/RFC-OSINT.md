@@ -72,6 +72,44 @@ low, in words), the asset, evidence, a **"how to fix"** step and an owner. Criti
 open an incident in the existing breach register (CERT-In 6 h clock) with one click, or
 automatically if the hospital chooses. Duplicates merge; a finding re-opens only if it comes back.
 
+## 3a. Always suspicious: continuous security operations
+
+Owner direction: it must work like a security operations team, regularly and frequently, suspicious
+of everything. Not a report someone opens; a system that **assumes something is wrong and keeps
+proving otherwise**. (Zero trust: never assume, always verify; assume breach.)
+
+**Cadence** (every check is a scheduled job with a known interval):
+| Every | Checks |
+|---|---|
+| 1 minute | failed-login bursts, break-glass use, new admin or permission grants, after-hours bulk reads |
+| 5 minutes | access anomalies (exists), honeytoken access, kernel health (RLS role, authz backend reachable) |
+| 1 hour | audit-chain verification for the last hour (today: nightly), configuration drift, LAN listeners, runtime secret scan of new logs |
+| 1 day | dependency + Debian advisories, TLS/headers/ports on verified hosts, certificate-transparency, leaked credentials, look-alike domains, file-integrity of binaries and OS images, backup restore test status |
+| 1 week | full posture review, digest to the security owner, stale findings chased |
+
+**Suspicious of everything:**
+- **Honeytokens:** a few fake patient records, fake API keys and fake staff accounts that no
+  legitimate workflow ever touches. Any access raises a critical alert at once. Cheap, near-zero
+  false positives, catches insiders and intruders alike.
+- **Configuration drift:** any change to roles, permissions, switches, flows, settings or knowledge
+  that did not come through an approved change set, or any direct database change to those tables,
+  is flagged.
+- **File integrity:** binaries, OS image and web assets are hashed at install/update; any mismatch
+  is critical (tampering or corruption).
+- **Baselines for behaviour:** each user and device has a normal pattern (hours, volume, screens);
+  large departures are flagged for a person to judge, never auto-punished.
+- **Watch the watchers:** every check reports a heartbeat; if a check stops running or fails to
+  report, that itself is an alert. "No news" is never treated as "good news".
+- **Trust is re-earned:** sessions re-verified on privilege use, API keys and vendor apps expire and
+  are re-approved, partner certificates expire.
+
+**Response, not just detection:** each alert has an owner, a severity, a playbook step and a clock;
+critical ones page the on-call person (Focus: critical-only still rings) and can open an incident
+with the CERT-In clock running. Everything is audited.
+
+**Health intelligence runs the same way:** condition counts recomputed hourly, public notices
+fetched every 30 minutes (exists), environment advisories hourly, a stopped feed is an alert.
+
 ## 4. Health intelligence
 
 - **Own signals first (cheapest, most useful):** weekly counts by condition from the
@@ -107,8 +145,9 @@ automatically if the hospital chooses. Duplicates merge; a finding re-opens only
 - external checks also need the hospital admin to verify domain ownership
 
 ## 7. Phases (each ends on a screen)
-1. **Internal security I:** posture page from preflight, vulnerable packages (deps + Debian) into
-   `vulnerabilities`, the Internal tab.
+1. **Internal security I:** the continuous job runner with heartbeats (watch the watchers), posture
+   page from preflight, vulnerable packages (deps + Debian) into `vulnerabilities`, honeytokens,
+   hourly audit-chain verification, the Internal tab.
 2. **Health I:** own-condition baselines + Health → Intelligence screen with public notices and
    server-side weather.
 3. **External security:** domain verification, TLS, headers, ports, CT logs, leaks, look-alikes;
