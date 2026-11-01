@@ -3,6 +3,13 @@
 Status: APPROVED in principle by the owner (2026-11-01: "let's build hospital OS"); phases
 need their own go · Owner: Domnic Amalan S
 
+## 0. North star
+
+**A world-class hospital operating system that costs almost nothing to run.** Free and open
+(Apache-2.0), runs on any chip down to a Raspberry Pi, needs no paid licence, built on standards,
+safe by construction. The way macOS builds on an open foundation and adds what people love, MedBrains
+builds on Debian and adds the hospital layer: the kernel, signature features and flagship apps.
+
 ## 1. Why an OS
 
 MedBrains already runs a whole hospital. To let every hospital work its own way, and let partners
@@ -220,6 +227,38 @@ How: cross-compile with cargo-zigbuild for every target (the project's only cros
 from the distribution's own packages (available on all of these), the web app built once and served
 as static files. A CI matrix job builds every tier and runs the smoke test under emulation for
 tiers 2–3. No CPU-specific code is allowed in the kernel without a portable fallback.
+
+## 8d. Signature features (the "macOS layer")
+
+| Feature | What it does | Groundwork today |
+|---|---|---|
+| **Handoff** | open a patient on the workstation, continue on the phone, same screen | peer device sync, paired devices |
+| **Nearby share** | send a record or order securely between paired devices, even offline | iroh peer sync |
+| **Spotlight** | one permission-checked search across patients, orders, beds, staff, drugs | "search by" slices |
+| **Time Machine** | any record as it was on any date; point-in-time restore of the hospital | hash-chained audit, WAL-G backups |
+| **Focus** | shift modes: on duty, on call, off duty (critical only) | notification hub, shift sessions |
+| **Continuity camera** | phone as scanner at the workstation (wristbands, documents, eye scans) | barcode/BCMA |
+| **Settings tree** | every setting by path, most specific wins | K3 |
+| **Store + Gatekeeper** | reviewed, signed partner blocks and adapters | K4, K6 |
+
+## 8e. Flagship apps (free, like the OS)
+
+| App | Purpose | Built on |
+|---|---|---|
+| **Studio** | build tracks, forms, switchboards, dashboards; test drive, what-if replay | track builder, forms |
+| **Command Centre** | big-screen live hospital control room | control room, bed board, KPIs |
+| **Rounds** | ward-round tablet app for doctors | IPD, case sheet, results inbox |
+| **Theatre** | OT from booking to recovery | OT module |
+| **Scribe** | AI note drafting, clinician signs; always labelled | AI assistant, case sheet |
+| **Imaging Viewer** | built-in DICOM viewer | Orthanc, radiology |
+| **Pharmacy Pro** | dispensing bench | pharmacy |
+| **Clinic** | single-doctor app for a Pi or laptop | OPD, billing, clinic profile |
+| **Camp** | offline health camps | camp module, edge box |
+| **Insight** | management analytics | reports, KPIs |
+
+Flagship apps are free, keeping the pricing promise ("every module, free"). Revenue stays with
+optional hosting, setup, training, support, heavy-AI pass-through at cost, and **hardware kits**
+that run them best (the moat). Order: Studio → Command Centre → Rounds.
 
 ## 9. Identity: groups and directories (built in)
 
