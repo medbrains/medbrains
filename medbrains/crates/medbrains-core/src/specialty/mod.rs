@@ -1,7 +1,7 @@
 pub mod cath_lab;
 pub mod dental;
-pub mod hbcr;
 pub mod endoscopy;
+pub mod hbcr;
 pub mod maternity;
 pub mod ophthalmology;
 pub mod other;
