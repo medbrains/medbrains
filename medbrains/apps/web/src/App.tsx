@@ -374,6 +374,11 @@ const MrdPage = lazy(() => import("./pages/mrd").then((m) => ({ default: m.MrdPa
 const SecurityPage = lazy(() =>
   import("./pages/security").then((m) => ({ default: m.SecurityPage })),
 );
+const SecurityIntelligencePage = lazy(() =>
+  import("./pages/security/intelligence/SecurityIntelligencePage").then((m) => ({
+    default: m.SecurityIntelligencePage,
+  })),
+);
 const RegulatoryPage = lazy(() =>
   import("./pages/regulatory").then((m) => ({ default: m.RegulatoryPage })),
 );
@@ -729,6 +734,7 @@ export function App() {
               <Route path="infection-control" element={<InfectionControlPage />} />
               <Route path="mrd" element={<MrdPage />} />
               <Route path="security" element={<SecurityPage />} />
+              <Route path="security/intelligence" element={<SecurityIntelligencePage />} />
               <Route path="insurance" element={<InsurancePage />} />
               <Route path="analytics" element={<AnalyticsPage />} />
               <Route path="reports" element={<ReportsPage />} />

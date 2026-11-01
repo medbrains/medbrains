@@ -870,6 +870,7 @@ pub fn build_router(state: AppState) -> Router {
         )
         // ── IT Security: Break-Glass ─────────────────────────────────
         .merge(medbrains_it_security::router())
+        .merge(medbrains_security_intel::routes::router())
         // ── IT Security: Clinical Access Monitor ─────────────────────
         // ── IT Security: Stock Disposal ──────────────────────────────
         // ── IT Security: TAT Tracking ────────────────────────────────

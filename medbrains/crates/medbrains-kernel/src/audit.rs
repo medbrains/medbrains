@@ -50,3 +50,14 @@ pub async fn last_verification(tx: &mut Tx) -> Result<Option<ChainVerdict>, AppE
     .await?;
     Ok(row)
 }
+
+/// Re-verify the chain rows written since `since` (the hourly check). Reads
+/// across the hospital's chain on `pool`, which must see its rows: the worker
+/// pool, as the nightly job uses.
+pub async fn verify_since(
+    pool: &sqlx::PgPool,
+    tenant_id: Uuid,
+    since: DateTime<Utc>,
+) -> Result<medbrains_db::audit::ChainVerificationResult, AppError> {
+    Ok(medbrains_db::audit::AuditLogger::verify_chain_since(pool, tenant_id, Some(since)).await?)
+}

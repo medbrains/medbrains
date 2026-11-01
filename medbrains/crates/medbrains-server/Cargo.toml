@@ -110,6 +110,7 @@ medbrains-research = { path = "../medbrains-research" }
 medbrains-knowledge = { path = "../medbrains-knowledge" }
 medbrains-sop-flows = { path = "../medbrains-sop-flows" }
 medbrains-it-security = { path = "../medbrains-it-security" }
+medbrains-security-intel = { path = "../medbrains-security-intel" }
 medbrains-assets = { path = "../medbrains-assets" }
 medbrains-bme = { path = "../medbrains-bme" }
 medbrains-tv = { path = "../medbrains-tv" }

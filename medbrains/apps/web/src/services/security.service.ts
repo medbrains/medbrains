@@ -1,6 +1,14 @@
 import { api } from "@medbrains/api";
 
 export const securityService = {
+  listVulnerabilities: (...args: Parameters<typeof api.listVulnerabilities>) =>
+    api.listVulnerabilities(...args),
+  updateVulnerability: (...args: Parameters<typeof api.updateVulnerability>) =>
+    api.updateVulnerability(...args),
+  listSecurityChecks: () => api.listSecurityChecks(),
+  getSecurityPosture: () => api.getSecurityPosture(),
+  openIncidentFromFinding: (...args: Parameters<typeof api.openIncidentFromFinding>) =>
+    api.openIncidentFromFinding(...args),
   listSecurityZones: (...args: Parameters<typeof api.listSecurityZones>) =>
     api.listSecurityZones(...args),
   createSecurityZone: (...args: Parameters<typeof api.createSecurityZone>) =>

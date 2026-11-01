@@ -688,6 +688,9 @@ pub enum IncidentSeverity {
     Critical,
 }
 
+/// A security finding: entered by hand, or raised by a continuous check
+/// (`check_key` set). `severity` and `remediation_status` are words the
+/// database constrains (migration 1401).
 #[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
 pub struct Vulnerability {
     pub id: Uuid,
@@ -695,10 +698,10 @@ pub struct Vulnerability {
     pub cve_id: Option<String>,
     pub title: String,
     pub description: Option<String>,
-    pub severity: IncidentSeverity,
+    pub severity: String,
     pub affected_component: String,
     pub discovered_at: DateTime<Utc>,
-    pub discovered_by: Option<String>,
+    pub discovered_by: Option<Uuid>,
     pub remediation_status: Option<String>,
     pub remediation_notes: Option<String>,
     pub remediation_deadline: Option<NaiveDate>,
@@ -706,6 +709,28 @@ pub struct Vulnerability {
     pub remediated_by: Option<Uuid>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
+    pub check_key: Option<String>,
+    pub finding_key: Option<String>,
+    pub evidence: serde_json::Value,
+    pub how_to_fix: Option<String>,
+    pub owner_id: Option<Uuid>,
+    pub last_seen_at: DateTime<Utc>,
+    pub occurrences: i32,
+    pub reopened_count: i32,
+    pub incident_id: Option<Uuid>,
+}
+
+impl IncidentSeverity {
+    /// The word stored in text columns.
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Low => "low",
+            Self::Medium => "medium",
+            Self::High => "high",
+            Self::Critical => "critical",
+        }
+    }
 }
 
 #[derive(Debug, Deserialize)]
@@ -716,14 +741,21 @@ pub struct CreateVulnerabilityRequest {
     pub severity: IncidentSeverity,
     pub affected_component: String,
     pub discovered_at: DateTime<Utc>,
-    pub discovered_by: Option<String>,
     pub remediation_deadline: Option<NaiveDate>,
+}
+
+/// Filters for the findings list.
+#[derive(Debug, Deserialize)]
+pub struct VulnerabilityQuery {
+    pub severity: Option<String>,
+    pub status: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
 pub struct UpdateVulnerabilityRequest {
     pub remediation_status: Option<String>,
     pub remediation_notes: Option<String>,
+    pub owner_id: Option<Uuid>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]

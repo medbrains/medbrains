@@ -86,13 +86,16 @@ use medbrains_core::it_security::{
     UpdateComplianceRequest,
     UpdateVulnerabilityRequest,
     Vulnerability,
+    VulnerabilityQuery,
 };
 use medbrains_core::permissions;
 use uuid::Uuid;
 
 use medbrains_server_core::error::AppError;
 use medbrains_server_core::middleware::auth::Claims;
-use medbrains_server_core::middleware::authorization::require_permission;
+use medbrains_server_core::middleware::authorization::{
+    require_any_permission, require_permission,
+};
 use medbrains_server_core::state::AppState;
 
 fn parse_uuid(s: &Option<String>) -> Option<Uuid> {
@@ -1579,19 +1582,52 @@ pub async fn dq_dashboard(
 // CERT-IN COMPLIANCE (Security Incidents & Vulnerabilities)
 // ══════════════════════════════════════════════════════════════
 
-/// List vulnerabilities
+/// Statuses a finding may be moved to by hand.
+const FINDING_STATUSES: [&str; 4] = ["open", "in_progress", "resolved", "accepted"];
+const SEVERITIES: [&str; 4] = ["low", "medium", "high", "critical"];
+
+/// List findings (Security → Intelligence), newest seen first, optionally
+/// filtered by severity and status.
 pub async fn list_vulnerabilities(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
+    Query(query): Query<VulnerabilityQuery>,
 ) -> Result<Json<Vec<Vulnerability>>, AppError> {
-    require_permission(&claims, permissions::admin::SECURITY)?;
+    require_any_permission(
+        &claims,
+        &[
+            permissions::admin::SECURITY,
+            permissions::security::intel::VIEW,
+        ],
+    )?;
+    if query
+        .severity
+        .as_deref()
+        .is_some_and(|s| !SEVERITIES.contains(&s))
+        || query
+            .status
+            .as_deref()
+            .is_some_and(|s| !FINDING_STATUSES.contains(&s))
+    {
+        return Err(AppError::BadRequest(
+            "Unknown severity or status filter".to_owned(),
+        ));
+    }
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
     let rows = sqlx::query_as::<_, Vulnerability>(
-        "SELECT * FROM vulnerabilities WHERE deleted_at IS NULL ORDER BY discovered_at DESC LIMIT 200",
+        "SELECT * FROM vulnerabilities WHERE deleted_at IS NULL \
+           AND ($1::text IS NULL OR severity = $1) \
+           AND ($2::text IS NULL OR remediation_status = $2) \
+         ORDER BY remediation_status IN ('resolved', 'accepted'), \
+                  CASE severity WHEN 'critical' THEN 0 WHEN 'high' THEN 1 \
+                                WHEN 'medium' THEN 2 ELSE 3 END, \
+                  last_seen_at DESC LIMIT 200",
     )
+    .bind(query.severity.as_deref())
+    .bind(query.status.as_deref())
     .fetch_all(&mut *tx)
     .await?;
 
@@ -1623,10 +1659,10 @@ pub async fn create_vulnerability(
     .bind(&body.cve_id)
     .bind(&body.title)
     .bind(&body.description)
-    .bind(body.severity)
+    .bind(body.severity.as_str())
     .bind(&body.affected_component)
     .bind(body.discovered_at)
-    .bind(&body.discovered_by)
+    .bind(claims.sub)
     .bind(body.remediation_deadline)
     .fetch_one(&mut *tx)
     .await?;
@@ -1635,14 +1671,30 @@ pub async fn create_vulnerability(
     Ok(Json(row))
 }
 
-/// Update vulnerability
+/// Update a finding: status, notes, owner.
 pub async fn update_vulnerability(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
     Path(id): Path<Uuid>,
     Json(body): Json<UpdateVulnerabilityRequest>,
 ) -> Result<Json<Vulnerability>, AppError> {
-    require_permission(&claims, permissions::admin::SECURITY)?;
+    require_any_permission(
+        &claims,
+        &[
+            permissions::admin::SECURITY,
+            permissions::security::intel::MANAGE,
+        ],
+    )?;
+    if body
+        .remediation_status
+        .as_deref()
+        .is_some_and(|s| !FINDING_STATUSES.contains(&s))
+    {
+        return Err(AppError::BadRequest(format!(
+            "Status must be one of: {}",
+            FINDING_STATUSES.join(", ")
+        )));
+    }
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -1655,8 +1707,9 @@ pub async fn update_vulnerability(
          remediation_notes = COALESCE($3, remediation_notes),
          remediated_at = CASE WHEN $4 THEN now() ELSE remediated_at END,
          remediated_by = CASE WHEN $4 THEN $5 ELSE remediated_by END,
+         owner_id = COALESCE($6, owner_id),
          updated_at = now()
-         WHERE id = $1
+         WHERE id = $1 AND tenant_id = $7 AND deleted_at IS NULL
          RETURNING *",
     )
     .bind(id)
@@ -1664,8 +1717,11 @@ pub async fn update_vulnerability(
     .bind(&body.remediation_notes)
     .bind(is_resolved)
     .bind(claims.sub)
-    .fetch_one(&mut *tx)
-    .await?;
+    .bind(body.owner_id)
+    .bind(claims.tenant_id)
+    .fetch_optional(&mut *tx)
+    .await?
+    .ok_or(AppError::NotFound)?;
 
     tx.commit().await?;
     Ok(Json(row))
