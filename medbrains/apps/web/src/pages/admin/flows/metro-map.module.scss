@@ -1,0 +1,37 @@
+// Layout and motion only; colour comes from theme tokens on the elements.
+.canvas {
+  height: 280px;
+  width: 100%;
+}
+
+.node {
+  width: 120px;
+}
+
+.name {
+  text-align: center;
+}
+
+// A route change fades the new line in (productive motion, under 240ms).
+.canvas :global(.react-flow__edge-path) {
+  animation: draw 200ms ease-out;
+}
+
+@keyframes draw {
+  from {
+    stroke-opacity: 0;
+  }
+  to {
+    stroke-opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .canvas :global(.react-flow__edge-path) {
+    animation: none;
+  }
+}
+
+.handle {
+  opacity: 0;
+}

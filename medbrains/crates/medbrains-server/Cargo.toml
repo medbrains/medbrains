@@ -106,6 +106,7 @@ medbrains-setup = { path = "../medbrains-setup" }
 medbrains-history-import = { path = "../medbrains-history-import" }
 medbrains-research = { path = "../medbrains-research" }
 medbrains-knowledge = { path = "../medbrains-knowledge" }
+medbrains-sop-flows = { path = "../medbrains-sop-flows" }
 medbrains-it-security = { path = "../medbrains-it-security" }
 medbrains-assets = { path = "../medbrains-assets" }
 medbrains-bme = { path = "../medbrains-bme" }

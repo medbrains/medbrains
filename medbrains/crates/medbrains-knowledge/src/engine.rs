@@ -17,11 +17,13 @@ use uuid::Uuid;
 
 use crate::adapter::{Adapter, Tx};
 use crate::critical_values::CriticalValues;
+use crate::flow_switches::FlowSwitches;
 use crate::flows::{self, Applied};
 use crate::interactions::DrugInteractions;
 use crate::model::{
-    Area, KnowledgeChangeSet, KnowledgeChangeSetDetail, KnowledgeLiveRow, NewKnowledgeChangeSet,
+    Area, KnowledgeChangeSet, KnowledgeChangeSetDetail, KnowledgeLiveRow, NewKnowledgeChangeSet, Op,
 };
+use crate::offices::{approve_as_office, offices};
 use crate::store::{self, NewSet};
 
 /// Run `$f::<Adapter>(args)` for the adapter that owns `$area`.
@@ -30,6 +32,7 @@ macro_rules! by_area {
         match $area {
             Area::DrugInteractions => $($f)::+::<DrugInteractions>($($arg),*).await,
             Area::CriticalValueRules => $($f)::+::<CriticalValues>($($arg),*).await,
+            Area::FlowSwitches => $($f)::+::<FlowSwitches>($($arg),*).await,
         }
     };
 }
@@ -39,6 +42,7 @@ const fn manage(area: Area) -> &'static [&'static str] {
     match area {
         Area::DrugInteractions => DrugInteractions::MANAGE,
         Area::CriticalValueRules => CriticalValues::MANAGE,
+        Area::FlowSwitches => FlowSwitches::MANAGE,
     }
 }
 
@@ -46,10 +50,11 @@ const fn kind(area: Area) -> &'static str {
     match area {
         Area::DrugInteractions => DrugInteractions::KIND,
         Area::CriticalValueRules => CriticalValues::KIND,
+        Area::FlowSwitches => FlowSwitches::KIND,
     }
 }
 
-fn area_of(set: &KnowledgeChangeSet) -> Result<Area, AppError> {
+pub(crate) fn area_of(set: &KnowledgeChangeSet) -> Result<Area, AppError> {
     Area::parse(&set.area).ok_or_else(|| AppError::Internal(format!("unknown area {}", set.area)))
 }
 
@@ -139,6 +144,11 @@ pub async fn create(
     body: &NewKnowledgeChangeSet,
 ) -> Result<KnowledgeChangeSetDetail, AppError> {
     require_drafting(claims, body.area, false)?;
+    if body.area == Area::FlowSwitches && body.items.iter().any(|i| i.op != Op::Update) {
+        return Err(AppError::BadRequest(
+            "Switch settings are changed, never added or removed".to_owned(),
+        ));
+    }
     if body.title.trim().is_empty() || body.reason.trim().is_empty() {
         return Err(AppError::BadRequest(
             "A title and a reason are required".to_owned(),
@@ -242,13 +252,18 @@ pub async fn approve(
             set.status
         )));
     }
-    sqlx::query(
-        "UPDATE knowledge_change_sets SET status = 'approved', approver_id = $3, approved_at = now(), \
-                decision_note = $4 WHERE tenant_id = $1 AND id = $2",
-    )
-    .bind(claims.tenant_id).bind(id).bind(claims.sub).bind(note)
-    .execute(&mut *tx)
-    .await?;
+    let offices = offices(&mut tx, claims, &set).await?;
+    if offices.is_empty() {
+        sqlx::query(
+            "UPDATE knowledge_change_sets SET status = 'approved', approver_id = $3, approved_at = now(), \
+                    decision_note = $4 WHERE tenant_id = $1 AND id = $2",
+        )
+        .bind(claims.tenant_id).bind(id).bind(claims.sub).bind(note)
+        .execute(&mut *tx)
+        .await?;
+    } else {
+        approve_as_office(&mut tx, claims, &set, offices, note).await?;
+    }
     audit_decision(&mut tx, claims, id, "knowledge_change.approve", note).await?;
     let detail = store::detail(&mut tx, claims.tenant_id, id).await?;
     tx.commit().await?;
@@ -305,6 +320,9 @@ pub async fn apply(
     require_permission(claims, permissions::knowledge::change_sets::APPLY)?;
     let mut tx = begin(pool, claims).await?;
     let set = store::load_set(&mut tx, claims.tenant_id, id, true).await?;
+    if area_of(&set)? == Area::FlowSwitches {
+        require_permission(claims, permissions::flows::PUBLISH)?;
+    }
     if set.status != "approved" {
         return Err(AppError::Conflict(format!(
             "Only an approved change can be applied; this one is {}",

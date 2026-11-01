@@ -135,7 +135,7 @@ const knowledgeImpact = z.looseObject({
 });
 const knowledgeChangeSet = z.looseObject({
   id,
-  area: z.enum(["drug_interactions", "critical_value_rules"]),
+  area: z.enum(["drug_interactions", "critical_value_rules", "flow_switches"]),
   title: z.string(),
   status: knowledgeStatus,
   author_id: id,
@@ -163,6 +163,91 @@ export const knowledgeProofResponseSchema = z.looseObject({
   proof_hash: z.string().regex(/^[0-9a-f]{64}$/),
   audit_rows: z.array(z.looseObject({ id, action: z.string(), hash: z.string() })),
 });
+
+// SOP flows: the switchboard, map, control room and ticket decide routes and
+// patient-safety holds from these shapes, so they must not drift silently.
+const flowSwitchValue = z.union([z.boolean(), z.string()]);
+const flowClause = z.record(z.string(), flowSwitchValue).nullable();
+const flowStation = z.looseObject({
+  key: z.string(),
+  name: z.string(),
+  stage: z.string(),
+  kind: z.looseObject({ type: z.enum(["action", "task", "switch", "signal", "end"]) }),
+  lane: z.string().nullable(),
+  switch_when: flowClause,
+  fact_when: flowClause,
+  sla_minutes: count.nullable(),
+  locked: z.boolean(),
+  holder: z.string(),
+  path: z.string(),
+});
+const flowSwitchDef = z.looseObject({
+  key: z.string(),
+  stage: z.string(),
+  sentence: z.string(),
+  kind: z.looseObject({ type: z.enum(["on_off", "choice"]) }),
+  effects: z.array(z.looseObject({ value: z.string(), label: z.string() })),
+  path: z.string(),
+});
+export const flowListResponseSchema = z.array(
+  z.looseObject({ code: z.string(), name: z.string(), in_flight: count }),
+);
+export const flowDetailResponseSchema = z.looseObject({
+  code: z.string(),
+  template_id: id,
+  version: count,
+  switches: z.record(z.string(), flowSwitchValue),
+  switch_defs: z.array(flowSwitchDef),
+  stations: z.array(flowStation),
+  in_flight: z.array(z.looseObject({ version: count, patients: count })),
+  pending_change: z.looseObject({ id, status: knowledgeStatus, approvals: count }).nullable(),
+  history: z.array(z.looseObject({ change_set_id: id, title: z.string() })),
+  path: z.string(),
+});
+export const flowImpactResponseSchema = z.looseObject({
+  route_changes: z.array(z.string()),
+  entries: z.array(
+    z.looseObject({
+      severity: z.enum(["safety", "money", "info"]),
+      summary: z.string(),
+      count: count,
+      examples: z.array(z.looseObject({ label: z.string(), href: z.string().nullable() })),
+    }),
+  ),
+});
+export const flowControlRoomResponseSchema = z.looseObject({
+  flow_code: z.string(),
+  patients_visible: z.boolean(),
+  spotlight: z.string(),
+  stations: z.array(
+    z.looseObject({
+      key: z.string(),
+      count: count,
+      longest_minutes: count.nullable(),
+      label: z.enum(["calm", "busy", "overdue"]),
+      patients: z.array(z.looseObject({ admission_id: id, minutes: count, overdue: z.boolean() })),
+    }),
+  ),
+});
+const flowTicket = z.looseObject({
+  instance_id: id,
+  version: count,
+  status: z.string(),
+  current: z
+    .looseObject({
+      key: z.string(),
+      kind: z.enum(["action", "task", "switch", "signal", "end"]),
+      outstanding: z.array(z.string()),
+      minutes: count,
+      overdue: z.boolean(),
+    })
+    .nullable(),
+  stops: z.array(
+    z.looseObject({ key: z.string(), state: z.enum(["done", "current", "ahead", "skipped"]) }),
+  ),
+});
+export const flowTicketResponseSchema = flowTicket;
+export const flowTicketOrNullResponseSchema = flowTicket.nullable();
 
 /**
  * Where `data` departs from `schema`, as one line naming each field and the

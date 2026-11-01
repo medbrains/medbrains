@@ -530,6 +530,13 @@ const OnboardingWorkbookPage = lazy(() =>
 const HistoryImportPage = lazy(() =>
   import("./pages/admin/history-import").then((m) => ({ default: m.HistoryImportPage })),
 );
+const FlowsPage = lazy(() => import("./pages/admin/flows").then((m) => ({ default: m.FlowsPage })));
+const FlowSwitchboardPage = lazy(() =>
+  import("./pages/admin/flows/switchboard").then((m) => ({ default: m.FlowSwitchboardPage })),
+);
+const FlowControlRoomPage = lazy(() =>
+  import("./pages/admin/flows/control-room").then((m) => ({ default: m.FlowControlRoomPage })),
+);
 const KnowledgeChangesPage = lazy(() =>
   import("./pages/admin/knowledge-changes").then((m) => ({ default: m.KnowledgeChangesPage })),
 );
@@ -790,6 +797,9 @@ export function App() {
                 <Route path="history-import" element={<HistoryImportPage />} />
                 <Route path="research-exports" element={<ResearchExportsPage />} />
                 <Route path="knowledge-changes" element={<KnowledgeChangesPage />} />
+                <Route path="flows" element={<FlowsPage />} />
+                <Route path="flows/:code" element={<FlowSwitchboardPage />} />
+                <Route path="flows/:code/control-room" element={<FlowControlRoomPage />} />
                 <Route path="document-templates" element={<DocumentTemplatesPage />} />
                 <Route
                   path="device-integrations"

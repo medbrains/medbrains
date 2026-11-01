@@ -4325,3 +4325,29 @@ pub mod knowledge {
         pub const ROLLBACK: &str = "knowledge.change_sets.rollback";
     }
 }
+
+/// SOP flows (RFC-SOP-FLOWS).
+///
+/// The routes patients and tasks take, such as IPD discharge. Hospital staff
+/// flip switches on library flows; the tracks
+/// themselves are built in code review, not granted by a permission. Every
+/// registered action a flow runs keeps its own permission.
+pub mod flows {
+    /// See flows, switchboards and the control room.
+    ///
+    /// Read a flow's route, its switches and locked safety signals, where
+    /// patients are on it now, and a patient's discharge ticket.
+    pub const VIEW: &str = "flows.view";
+    /// Propose switch changes on a flow.
+    ///
+    /// Flip switches on a flow's switchboard, preview the new route and who
+    /// it affects, and propose it as a knowledge change set. Nothing changes
+    /// until it is approved and applied.
+    pub const SWITCH: &str = "flows.switch";
+    /// Approve and apply flow switch changes.
+    ///
+    /// Approve someone else's proposed switch change and make it live. A
+    /// clinical flow needs both the quality officer and the medical
+    /// superintendent to approve.
+    pub const PUBLISH: &str = "flows.publish";
+}
