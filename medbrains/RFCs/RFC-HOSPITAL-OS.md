@@ -113,6 +113,8 @@ both exist; the core stays free (Apache-2.0).
 - **Z1 Zero-licence check**: CI rule over dependencies and deploy kits (§8).
 - **D1–D4 OS images** (§8b): D1 Raspberry Pi image + first-boot wizard; D2 bootable x86 ISO;
   D3 VM images (OVA/qcow2/VHDX) + Windows installer; D4 A/B updates with automatic rollback.
+- **A1 Any CPU** (§8c): CI build matrix for tiers 1–3, smoke tests under emulation, tier table
+  published in the README.
 - **P1 Raspberry Pi** (§8a): clinic profile, ARM64 binaries in releases, measured benchmarks on a
   Pi 5, low-memory database tuning, backup-to-USB, then a ready image.
 
@@ -197,6 +199,22 @@ Windows support is an option for hospitals that already have it, never a require
 (or snapshot) scheme so a failed update rolls back by itself; nightly backups to USB disk, network
 share or cloud; a local health screen (disk, memory, backups, update status); offline operation with
 cloud sync when the internet returns (the edge appliance's job today); signed images and checksums.
+
+## 8c. Any CPU (owner goal: "ARM or any kind")
+
+MedBrains is Rust + PostgreSQL + a static web app, all of which build for most CPUs. Support is in
+tiers so we only promise what is tested.
+
+| Tier | CPUs | Promise |
+|---|---|---|
+| **1** | x86-64 (Intel/AMD), ARM64 (Raspberry Pi 4/5, Apple-silicon VMs, ARM servers, most ARM boards) | images for every format in §8b, full test suite in CI, supported |
+| **2** | RISC-V 64 (riscv64) | release binaries built and smoke-tested in CI; images on request |
+| **3** | 32-bit ARM (armv7: older Pi, cheap boards) | best effort: binaries built; WASM block plugins off (the WASM runtime has no 32-bit ARM backend); RAM ≤ 4 GB limits scale |
+
+How: cross-compile with cargo-zigbuild for every target (the project's only cross path), PostgreSQL
+from the distribution's own packages (available on all of these), the web app built once and served
+as static files. A CI matrix job builds every tier and runs the smoke test under emulation for
+tiers 2–3. No CPU-specific code is allowed in the kernel without a portable fallback.
 
 ## 9. Identity: groups and directories (built in)
 
