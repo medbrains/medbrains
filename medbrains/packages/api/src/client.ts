@@ -1108,14 +1108,21 @@ import type {
   // Phase 3 Print Data - Clinical Charts
   FlowAlert,
   FlowConfigZone,
+  FlowControlRoom,
   FlowDecision,
+  FlowDetail,
   FlowFloorLive,
   FlowFloorSetup,
   FlowFloorSummary,
   FlowForecast,
   FlowHistoryPoint,
+  FlowImpactReport,
   FlowRecommendation,
+  FlowRunRequest,
   FlowSourceInput,
+  FlowSummary,
+  FlowSwitches,
+  FlowTicket,
   FlowZoneConfigInput,
   FlowZoneDetail,
   FluidBalanceChartPrintData,
@@ -2604,6 +2611,12 @@ export {
 // Import for internal use
 import {
   describeShapeDrift,
+  flowControlRoomResponseSchema,
+  flowDetailResponseSchema,
+  flowImpactResponseSchema,
+  flowListResponseSchema,
+  flowTicketOrNullResponseSchema,
+  flowTicketResponseSchema,
   invoiceDetailResponseSchema,
   invoiceListResponseSchema,
   knowledgeChangeSetDetailResponseSchema,
@@ -3658,6 +3671,43 @@ export const api = {
     checkedRequest<KnowledgeLiveRow[]>(
       knowledgeLiveRowsResponseSchema,
       `/knowledge/areas/${area}/rows`,
+    ),
+  listFlows: () => checkedRequest<FlowSummary[]>(flowListResponseSchema, "/flows"),
+  getFlow: (code: string) =>
+    checkedRequest<FlowDetail>(flowDetailResponseSchema, `/flows/${encodeURIComponent(code)}`),
+  previewFlowImpact: (code: string, switches: FlowSwitches) =>
+    checkedRequest<FlowImpactReport>(
+      flowImpactResponseSchema,
+      `/flows/${encodeURIComponent(code)}/impact`,
+      { method: "POST", body: JSON.stringify({ switches }) },
+    ),
+  getFlowControlRoom: (code: string) =>
+    checkedRequest<FlowControlRoom>(
+      flowControlRoomResponseSchema,
+      `/flows/${encodeURIComponent(code)}/control-room`,
+    ),
+  startFlow: (code: string, subjectId: string) =>
+    checkedRequest<FlowTicket>(
+      flowTicketResponseSchema,
+      `/flows/${encodeURIComponent(code)}/subjects/${subjectId}/start`,
+      { method: "POST" },
+    ),
+  getFlowTicket: (code: string, subjectId: string) =>
+    checkedRequest<FlowTicket | null>(
+      flowTicketOrNullResponseSchema,
+      `/flows/${encodeURIComponent(code)}/subjects/${subjectId}/ticket`,
+    ),
+  runFlowStation: (code: string, subjectId: string, data: FlowRunRequest) =>
+    checkedRequest<FlowTicket>(
+      flowTicketResponseSchema,
+      `/flows/${encodeURIComponent(code)}/subjects/${subjectId}/run`,
+      { method: "POST", body: JSON.stringify(data) },
+    ),
+  completeFlowTask: (code: string, subjectId: string, station: string) =>
+    checkedRequest<FlowTicket>(
+      flowTicketResponseSchema,
+      `/flows/${encodeURIComponent(code)}/subjects/${subjectId}/tasks/${station}/complete`,
+      { method: "POST" },
     ),
   listResearchExports: () => request<ResearchExport[]>("/research/exports"),
   createResearchExport: (data: NewResearchExport) =>

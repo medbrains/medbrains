@@ -1514,6 +1514,12 @@ export const NAV_GROUPS: NavGroupConfig[] = [
             requiredPermission: "knowledge.change_sets.list",
           },
           {
+            i18nKey: "flows",
+            path: "/admin/flows",
+            icon: "IconRoute",
+            requiredPermission: "flows.view",
+          },
+          {
             i18nKey: "settings",
             path: "/admin/settings",
             icon: "IconSettings",

@@ -8,12 +8,15 @@ use crate::model::{KnowledgeChangeItem, KnowledgeChangeSet, KnowledgeChangeSetDe
 use medbrains_server_core::error::AppError;
 
 const SET_SELECT: &str = "SELECT s.id, s.area, s.title, s.reason, s.status, s.author_id, \
-    au.full_name AS author_name, s.approver_id, ap.full_name AS approver_name, s.decision_note, \
+    au.full_name AS author_name, s.approver_id, ap.full_name AS approver_name, s.approver_role, \
+    s.second_approver_id, ap2.full_name AS second_approver_name, s.second_approver_role, \
+    s.second_approved_at, s.decision_note, \
     s.rejected_by, s.rejected_at, s.applied_by, s.rollback_of_set_id, s.rolled_back_by_set_id, \
     s.created_at, s.previewed_at, s.approved_at, s.applied_at, s.base_hash, s.proof_hash, s.impact \
     FROM knowledge_change_sets s \
     LEFT JOIN users au ON au.id = s.author_id \
     LEFT JOIN users ap ON ap.id = s.approver_id \
+    LEFT JOIN users ap2 ON ap2.id = s.second_approver_id \
     WHERE s.tenant_id = $1 AND s.deleted_at IS NULL";
 
 /// Most sets one list returns.

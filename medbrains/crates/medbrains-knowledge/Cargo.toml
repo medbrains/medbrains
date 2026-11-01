@@ -12,6 +12,7 @@ medbrains-core = { path = "../medbrains-core" }
 medbrains-db = { path = "../medbrains-db" }
 medbrains-lab = { path = "../medbrains-lab" }
 medbrains-server-core = { path = "../medbrains-server-core" }
+medbrains-sop-flows = { path = "../medbrains-sop-flows" }
 axum = { workspace = true }
 chrono = { workspace = true }
 hex = { workspace = true }

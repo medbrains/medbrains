@@ -17,7 +17,7 @@ export interface PermissionDef {
   module: string;
 }
 
-/** 1201 permissions, one per constant in the Rust source. */
+/** 1204 permissions, one per constant in the Rust source. */
 export const PERMISSIONS: PermissionDef[] = [
   // dashboard
   {
@@ -7301,6 +7301,25 @@ export const PERMISSIONS: PermissionDef[] = [
     description: "Starts a new change set that reverses an applied one; it is previewed and approved like any other.",
     module: "knowledge",
   },
+  // flows
+  {
+    code: "flows.view",
+    label: "See flows, switchboards and the control room",
+    description: "Read a flow's route, its switches and locked safety signals, where patients are on it now, and a patient's discharge ticket.",
+    module: "flows",
+  },
+  {
+    code: "flows.switch",
+    label: "Propose switch changes on a flow",
+    description: "Flip switches on a flow's switchboard, preview the new route and who it affects, and propose it as a knowledge change set. Nothing changes until it is approved and applied.",
+    module: "flows",
+  },
+  {
+    code: "flows.publish",
+    label: "Approve and apply flow switch changes",
+    description: "Approve someone else's proposed switch change and make it live. A clinical flow needs both the quality officer and the medical superintendent to approve.",
+    module: "flows",
+  },
 ];
 
 /**
@@ -8619,6 +8638,11 @@ export const P = {
     },
     RECOMMENDATIONS_ACT: "flow.recommendations.act",
     VIEW: "flow.view",
+  },
+  FLOWS: {
+    PUBLISH: "flows.publish",
+    SWITCH: "flows.switch",
+    VIEW: "flows.view",
   },
   FORMS: {
     DEFINITIONS: {
@@ -11006,6 +11030,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.EMERGENCY.TRIAGE.LIST,
       P.EMERGENCY.VISITS.LIST,
       P.EMERGENCY.VISITS.UPDATE,
+      P.FLOWS.VIEW,
       P.FORMS.DEFINITIONS.READ,
       P.HOME_HEALTH.LIST,
       P.HOME_HEALTH.MANAGE,
@@ -11311,6 +11336,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.EMERGENCY.TRIAGE.LIST,
       P.EMERGENCY.VISITS.CREATE,
       P.EMERGENCY.VISITS.LIST,
+      P.FLOWS.VIEW,
       P.FORMS.DEFINITIONS.READ,
       P.HOME_HEALTH.LIST,
       P.HOME_HEALTH.MANAGE,
@@ -11652,6 +11678,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.DOCUMENTS.GENERATE,
       P.DOCUMENTS.REPRINT,
       P.DOCUMENTS.TEMPLATES.LIST,
+      P.FLOWS.VIEW,
       P.INDENT.LIST,
       P.INDENT.STOCK_MANAGE,
       P.INDENT.VIEW,
@@ -11810,6 +11837,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.DOCUMENTS.REPRINT,
       P.DOCUMENTS.TEMPLATES.LIST,
       P.EMERGENCY.VISITS.LIST,
+      P.FLOWS.VIEW,
       P.INSURANCE.APPEALS.CREATE,
       P.INSURANCE.APPEALS.LIST,
       P.INSURANCE.DASHBOARD.VIEW,
@@ -12072,8 +12100,12 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.ANALYTICS.MANAGEMENT.VIEW,
       P.DASHBOARD.VIEW,
       P.DOCTOR.SIGNOFFS.VERBAL_REGISTER,
+      P.FLOWS.PUBLISH,
+      P.FLOWS.SWITCH,
+      P.FLOWS.VIEW,
       P.KNOWLEDGE.CHANGE_SETS.APPLY,
       P.KNOWLEDGE.CHANGE_SETS.APPROVE,
+      P.KNOWLEDGE.CHANGE_SETS.CREATE,
       P.KNOWLEDGE.CHANGE_SETS.LIST,
       P.KNOWLEDGE.CHANGE_SETS.ROLLBACK,
       P.LAB.ORDERS.LIST,
@@ -12655,12 +12687,28 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.TERMINOLOGY.SEARCH,
     ],
   },
+  medical_superintendent: {
+    label: "Medical Superintendent",
+    permissions: [
+      P.ADMIN.SETTINGS.READ,
+      P.DASHBOARD.VIEW,
+      P.FLOWS.PUBLISH,
+      P.FLOWS.VIEW,
+      P.IPD.ADMISSIONS.LIST,
+      P.IPD.ADMISSIONS.VIEW,
+      P.KNOWLEDGE.CHANGE_SETS.APPROVE,
+      P.KNOWLEDGE.CHANGE_SETS.LIST,
+      P.NOTES.USE,
+      P.QUALITY.INDICATORS.LIST,
+    ],
+  },
   insurance_officer: {
     label: "Insurance Officer",
     permissions: [
       P.ADMIN.SETTINGS.READ,
       P.BILLING.INVOICES.VIEW,
       P.DASHBOARD.VIEW,
+      P.FLOWS.VIEW,
       P.INSURANCE.APPEALS.CREATE,
       P.INSURANCE.APPEALS.LIST,
       P.INSURANCE.DASHBOARD.VIEW,

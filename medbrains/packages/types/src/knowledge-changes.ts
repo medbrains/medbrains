@@ -1,6 +1,6 @@
 /** Knowledge change sets (`/api/knowledge`), RFC-KNOWLEDGE-CHANGE-SETS. */
 
-export type KnowledgeArea = "drug_interactions" | "critical_value_rules";
+export type KnowledgeArea = "drug_interactions" | "critical_value_rules" | "flow_switches";
 
 export type KnowledgeChangeStatus =
   | "draft"
@@ -49,6 +49,12 @@ export interface KnowledgeChangeSet {
   author_name: string | null;
   approver_id: string | null;
   approver_name: string | null;
+  /** The office the first approver signed for (flow switch changes). */
+  approver_role: string | null;
+  second_approver_id: string | null;
+  second_approver_name: string | null;
+  second_approver_role: string | null;
+  second_approved_at: string | null;
   decision_note: string | null;
   rejected_by: string | null;
   rejected_at: string | null;

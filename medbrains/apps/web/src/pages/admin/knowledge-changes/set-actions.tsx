@@ -43,7 +43,8 @@ export function SetActions({ set, userId, can, busy, onAction }: SetActionsProps
   const isAuthor = set.author_id === userId;
   const isOpen = ["draft", "previewed", "stale"].includes(set.status);
   const canPreview = isOpen && (can.canDraft || (can.canRollback && !!set.rollback_of_set_id));
-  const canDecide = set.status === "previewed" && can.canApprove && !isAuthor;
+  const canDecide =
+    set.status === "previewed" && can.canApprove && !isAuthor && set.approver_id !== userId;
   const canWithdraw = isAuthor && (isOpen || set.status === "approved");
   const canRollBack = set.status === "applied" && can.canRollback && !set.rolled_back_by_set_id;
   const hasProof = set.status === "applied" || set.status === "rolled_back";
@@ -51,6 +52,13 @@ export function SetActions({ set, userId, can, busy, onAction }: SetActionsProps
 
   return (
     <Stack gap="sm">
+      {set.status === "previewed" && set.approver_id && (
+        <Text size="sm">
+          Approved by {set.approver_name ?? "one approver"}
+          {set.approver_role ? ` (${set.approver_role.replace("_", " ")})` : ""}; waiting for the
+          second approval.
+        </Text>
+      )}
       {set.status === "previewed" && isAuthor && (
         <Text size="sm" c="dimmed">
           You drafted this change, so someone else must approve it.

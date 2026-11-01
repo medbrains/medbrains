@@ -31,6 +31,8 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
         name: "Doctor",
         description: "Clinical staff — patient care, OPD, orders, admissions",
         permissions: &[
+            // Sees where a patient is in discharge and who holds it up.
+            permissions::flows::VIEW,
             // A doctor sees only their own earnings (a per-record check).
             permissions::doctor_payouts::self_service::VIEW,
             permissions::terminology::snomed::VIEW,
@@ -414,6 +416,8 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
         name: "Nurse",
         description: "Nursing staff — patient view, OPD queue, bed management",
         permissions: &[
+            // Sees where a patient is in discharge and who holds it up.
+            permissions::flows::VIEW,
             permissions::abdm::records::VIEW,
             permissions::abdm::consent::VIEW,
             permissions::terminology::snomed::VIEW,
@@ -882,6 +886,8 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
         name: "Pharmacist",
         description: "Pharmacy staff — prescriptions, dispensing, stock",
         permissions: &[
+            // Sees where a patient is in discharge and who holds it up.
+            permissions::flows::VIEW,
             // Pharmacists propose drug interaction changes; the change goes
             // live only after a second person approves and applies it.
             permissions::pharmacy::interactions::MANAGE,
@@ -1007,6 +1013,8 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
         name: "Billing Clerk",
         description: "Billing staff — invoices, payments, advances, corporate, reports",
         permissions: &[
+            // Sees where a patient is in discharge and who holds it up.
+            permissions::flows::VIEW,
             permissions::admin::settings::READ,
             permissions::dashboard::VIEW,
             permissions::notes::USE,
@@ -1368,8 +1376,16 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
         permissions: &[
             // Clinical governance signs off knowledge changes drafted by the
             // pharmacy and laboratory, applies them and starts rollbacks. It
-            // drafts none itself, so it never approves its own.
+            // drafts only flow switch changes (it holds no other area's
+            // manage permission), and the four-eyes CHECK keeps it from
+            // approving its own.
             permissions::knowledge::change_sets::LIST,
+            permissions::knowledge::change_sets::CREATE,
+            // SOP flows: the quality officer runs the switchboards, proposes
+            // switch changes and approves other people's (RFC-SOP-FLOWS §9.3).
+            permissions::flows::VIEW,
+            permissions::flows::SWITCH,
+            permissions::flows::PUBLISH,
             permissions::knowledge::change_sets::APPROVE,
             permissions::knowledge::change_sets::APPLY,
             permissions::knowledge::change_sets::ROLLBACK,
@@ -2087,10 +2103,33 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
         ],
     },
     BuiltInRole {
+        code: "medical_superintendent",
+        name: "Medical Superintendent",
+        description: "Clinical head of the hospital — second approver of clinical flow changes",
+        permissions: &[
+            // Clinical flows (discharge, referrals, admission, orders) change
+            // only with the medical superintendent's approval as well as the
+            // quality officer's (RFC-SOP-FLOWS §9.3).
+            permissions::flows::VIEW,
+            permissions::flows::PUBLISH,
+            permissions::knowledge::change_sets::LIST,
+            permissions::knowledge::change_sets::APPROVE,
+            // Sees who is in discharge from the control room.
+            permissions::ipd::admissions::LIST,
+            permissions::ipd::admissions::VIEW,
+            permissions::quality::indicators::LIST,
+            permissions::admin::settings::READ,
+            permissions::dashboard::VIEW,
+            permissions::notes::USE,
+        ],
+    },
+    BuiltInRole {
         code: "insurance_officer",
         name: "Insurance Officer",
         description: "Eligibility, prior auth, claim submission, appeals",
         permissions: &[
+            // Sees where a patient is in discharge and who holds it up.
+            permissions::flows::VIEW,
             permissions::admin::settings::READ,
             permissions::dashboard::VIEW,
             permissions::notes::USE,

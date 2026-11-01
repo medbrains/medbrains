@@ -6,6 +6,7 @@
  *
  * `?area=…&op=create|update|delete&target=<id>` opens the editor prefilled —
  * the "Propose change" links on the existing settings screens use it.
+ * `?open=<id>` opens one change (links from Admin → Flows).
  */
 import { Group, Stack } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
@@ -52,19 +53,26 @@ export function KnowledgeChangesPage() {
     P.LAB.CATALOG.MANAGE,
     P.ADMIN.SETTINGS.GENERAL.MANAGE,
   ]);
+  const canSwitch = useHasPermission(P.FLOWS.SWITCH);
   const can = {
     canApprove: useHasPermission(P.KNOWLEDGE.CHANGE_SETS.APPROVE),
     canApply: useHasPermission(P.KNOWLEDGE.CHANGE_SETS.APPLY),
     canRollback: useHasPermission(P.KNOWLEDGE.CHANGE_SETS.ROLLBACK),
-    canDraft: canCreate && (manageInteractions || manageCriticals),
+    canDraft: canCreate && (manageInteractions || manageCriticals || canSwitch),
   };
+  // Flow switches are proposed from the switchboard, not this editor.
   const draftAreas = AREAS.filter((a) =>
-    a === "drug_interactions" ? manageInteractions : manageCriticals,
+    a === "flow_switches"
+      ? false
+      : a === "drug_interactions"
+        ? manageInteractions
+        : manageCriticals,
   );
   const [params, setParams] = useSearchParams();
   const [prefill] = useState(() => readPrefill(params));
   const [editorOpen, editor] = useDisclosure(prefill !== null && canCreate);
-  const [openId, setOpenId] = useState<string | null>(null);
+  // `?open=<id>` opens one change, e.g. from a flow switch's history.
+  const [openId, setOpenId] = useState<string | null>(() => params.get("open"));
   const [area, setArea] = useState<KnowledgeArea | null>(null);
   const [status, setStatus] = useState<KnowledgeChangeStatus | null>(null);
 

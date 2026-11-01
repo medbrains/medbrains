@@ -9,6 +9,7 @@ import type { BadgeTone } from "@/components/ui";
 export const AREA_LABEL: Record<KnowledgeArea, string> = {
   drug_interactions: "Drug interactions",
   critical_value_rules: "Critical lab values",
+  flow_switches: "Flow switches",
 };
 
 export const STATUS: Record<KnowledgeChangeStatus, { label: string; tone: BadgeTone }> = {
@@ -82,11 +83,18 @@ export const AREA_FIELDS: Record<KnowledgeArea, FieldDef[]> = {
     },
     { key: "alert_message", label: "Alert message", kind: "longtext", required: true },
   ],
+  // Drafted on Admin → Flows (the switchboard), never in the generic editor.
+  flow_switches: [
+    { key: "flow_code", label: "Flow", kind: "text", required: true },
+    { key: "tpa_before_billing", label: "Insurance patients need TPA clearance", kind: "text" },
+    { key: "final_signoff", label: "Who signs off the final discharge", kind: "text" },
+  ],
 };
 
 /** A short name for a row, for lists and diffs. */
 export function rowTitle(area: KnowledgeArea, fields: Record<string, unknown> | null): string {
   if (!fields) return "—";
+  if (area === "flow_switches") return String(fields.flow_code ?? "");
   return area === "drug_interactions"
     ? `${String(fields.drug_a_name ?? "")} + ${String(fields.drug_b_name ?? "")}`
     : `${String(fields.test_name ?? "")} (${String(fields.test_code ?? "")})`;

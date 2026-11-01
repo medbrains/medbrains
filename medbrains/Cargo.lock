@@ -7178,6 +7178,7 @@ dependencies = [
  "medbrains-db",
  "medbrains-lab",
  "medbrains-server-core",
+ "medbrains-sop-flows",
  "medbrains-telehealth",
  "serde",
  "serde_json",
@@ -8319,6 +8320,7 @@ dependencies = [
  "medbrains-setup",
  "medbrains-sharing",
  "medbrains-signing",
+ "medbrains-sop-flows",
  "medbrains-specialty",
  "medbrains-specialty-interventional",
  "medbrains-specialty-other",
@@ -8491,6 +8493,29 @@ dependencies = [
  "thiserror 2.0.21",
  "tokio",
  "tracing",
+]
+
+[[package]]
+name = "medbrains-sop-flows"
+version = "0.1.0"
+dependencies = [
+ "axum",
+ "chrono",
+ "jsonwebtoken",
+ "medbrains-approvals-core",
+ "medbrains-authz",
+ "medbrains-authz-gate",
+ "medbrains-core",
+ "medbrains-db",
+ "medbrains-db-topology",
+ "medbrains-ipd",
+ "medbrains-outbox",
+ "medbrains-server-core",
+ "serde",
+ "serde_json",
+ "sqlx",
+ "tokio",
+ "uuid",
 ]
 
 [[package]]

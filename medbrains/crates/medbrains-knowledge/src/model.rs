@@ -10,6 +10,8 @@ use uuid::Uuid;
 pub enum Area {
     DrugInteractions,
     CriticalValueRules,
+    /// A hospital's switch settings on a library SOP flow (RFC-SOP-FLOWS).
+    FlowSwitches,
 }
 
 impl Area {
@@ -18,6 +20,7 @@ impl Area {
         match self {
             Self::DrugInteractions => "drug_interactions",
             Self::CriticalValueRules => "critical_value_rules",
+            Self::FlowSwitches => "flow_switches",
         }
     }
 
@@ -26,6 +29,7 @@ impl Area {
         match s {
             "drug_interactions" => Some(Self::DrugInteractions),
             "critical_value_rules" => Some(Self::CriticalValueRules),
+            "flow_switches" => Some(Self::FlowSwitches),
             _ => None,
         }
     }
@@ -143,6 +147,13 @@ pub struct KnowledgeChangeSet {
     pub author_name: Option<String>,
     pub approver_id: Option<Uuid>,
     pub approver_name: Option<String>,
+    /// The office the first approver signed for, when the area names offices.
+    pub approver_role: Option<String>,
+    /// Clinical flow changes need a second office's approval too.
+    pub second_approver_id: Option<Uuid>,
+    pub second_approver_name: Option<String>,
+    pub second_approver_role: Option<String>,
+    pub second_approved_at: Option<DateTime<Utc>>,
     pub decision_note: Option<String>,
     pub rejected_by: Option<Uuid>,
     pub rejected_at: Option<DateTime<Utc>>,

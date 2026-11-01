@@ -133,7 +133,9 @@ pub(crate) async fn preview<A: Adapter>(
     .await?;
     sqlx::query(
         "UPDATE knowledge_change_sets SET status = 'previewed', previewed_at = now(), impact = $3, \
-                base_hash = $4, approver_id = NULL, approved_at = NULL, decision_note = NULL \
+                base_hash = $4, approver_id = NULL, approved_at = NULL, decision_note = NULL, \
+                approver_role = NULL, second_approver_id = NULL, second_approver_role = NULL, \
+                second_approved_at = NULL \
           WHERE tenant_id = $1 AND id = $2",
     )
     .bind(tenant)
@@ -207,6 +209,9 @@ pub(crate) async fn apply<A: Adapter>(
         "set": { "id": set.id, "tenant_id": tenant_id, "area": set.area, "title": set.title,
                  "reason": set.reason, "author_id": set.author_id, "approver_id": set.approver_id,
                  "approved_at": set.approved_at, "decision_note": set.decision_note,
+                 "approver_role": set.approver_role, "second_approver_id": set.second_approver_id,
+                 "second_approver_role": set.second_approver_role,
+                 "second_approved_at": set.second_approved_at,
                  "applied_by": user, "applied_at": applied_at,
                  "rollback_of_set_id": set.rollback_of_set_id },
         "items": proven, "impact": set.impact, "base_hash": set.base_hash,
