@@ -5733,6 +5733,7 @@ dependencies = [
  "medbrains-authz",
  "medbrains-core",
  "medbrains-db",
+ "medbrains-kernel",
  "medbrains-server-core",
  "rust_decimal",
  "serde",
@@ -7168,6 +7169,25 @@ dependencies = [
 ]
 
 [[package]]
+name = "medbrains-kernel"
+version = "0.1.0"
+dependencies = [
+ "chrono",
+ "medbrains-authz",
+ "medbrains-authz-gate",
+ "medbrains-core",
+ "medbrains-db",
+ "medbrains-server-core",
+ "medbrains-workflow",
+ "serde",
+ "serde_json",
+ "sqlx",
+ "tokio",
+ "tracing",
+ "uuid",
+]
+
+[[package]]
 name = "medbrains-knowledge"
 version = "0.1.0"
 dependencies = [
@@ -7669,6 +7689,7 @@ dependencies = [
  "medbrains-clinical-core",
  "medbrains-core",
  "medbrains-db",
+ "medbrains-kernel",
  "medbrains-outbox",
  "medbrains-server-core",
  "medbrains-server-services",
@@ -7723,7 +7744,7 @@ dependencies = [
  "axum",
  "chrono",
  "medbrains-core",
- "medbrains-db",
+ "medbrains-kernel",
  "medbrains-server-core",
  "rust_decimal",
  "serde",
@@ -8267,6 +8288,7 @@ dependencies = [
  "medbrains-ipd",
  "medbrains-ipd-post-discharge",
  "medbrains-it-security",
+ "medbrains-kernel",
  "medbrains-knowledge",
  "medbrains-lab",
  "medbrains-lms",
@@ -8728,9 +8750,8 @@ version = "0.1.0"
 dependencies = [
  "axum",
  "chrono",
- "medbrains-authz-gate",
  "medbrains-core",
- "medbrains-db",
+ "medbrains-kernel",
  "medbrains-server-core",
  "serde",
  "serde_json",

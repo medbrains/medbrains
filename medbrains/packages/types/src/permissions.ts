@@ -17,7 +17,7 @@ export interface PermissionDef {
   module: string;
 }
 
-/** 1204 permissions, one per constant in the Rust source. */
+/** 1205 permissions, one per constant in the Rust source. */
 export const PERMISSIONS: PermissionDef[] = [
   // dashboard
   {
@@ -5550,6 +5550,12 @@ export const PERMISSIONS: PermissionDef[] = [
     module: "admin",
   },
   {
+    code: "admin.kernel.view",
+    label: "See whether the kernel is doing its job",
+    description: "When the audit chain was last verified and whether it held, whether the database enforces hospital separation, which authorisation engine is answering, how settings are resolved, and which modules already go only through the kernel. Shows no patient data.",
+    module: "admin",
+  },
+  {
     code: "admin.system_state.view",
     label: "View System State",
     description: "View System State",
@@ -7451,6 +7457,10 @@ export const P = {
     },
     HISTORY_IMPORT_RUN: "admin.history_import.run",
     HISTORY_IMPORT_VIEW: "admin.history_import.view",
+    KERNEL: {
+      VIEW: "admin.kernel.view",
+    },
+    KERNEL_VIEW: "admin.kernel.view",
     MIGRATION_MANAGE: "admin.migration.manage",
     NOTIFICATIONS: {
       SIMULATOR: {
@@ -12021,6 +12031,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
     permissions: [
       P.ADMIN.ACCESS_REQUESTS.LIST,
       P.ADMIN.HISTORY_IMPORT.VIEW,
+      P.ADMIN.KERNEL.VIEW,
       P.ADMIN.SETTINGS.READ,
       P.AUDIT.ACCESS_VIEW,
       P.AUDIT.BREAK_GLASS_REVIEW,

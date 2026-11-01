@@ -1502,6 +1502,12 @@ export const NAV_GROUPS: NavGroupConfig[] = [
             requiredPermission: "admin.history_import.view",
           },
           {
+            i18nKey: "kernel",
+            path: "/admin/kernel",
+            icon: "IconCpu",
+            requiredPermission: "admin.kernel.view",
+          },
+          {
             i18nKey: "researchExports",
             path: "/admin/research-exports",
             icon: "IconFileAnalytics",

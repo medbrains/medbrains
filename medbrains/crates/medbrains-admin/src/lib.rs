@@ -8,6 +8,7 @@ use axum::{
 use medbrains_server_core::state::AppState;
 
 pub mod admin_db_topology;
+pub mod admin_kernel;
 pub mod admin_system_state;
 pub mod blog;
 pub mod multi_hospital;
@@ -165,6 +166,7 @@ pub fn router() -> Router<AppState> {
             get(multi_hospital::get_group_template)
                 .delete(multi_hospital::delete_group_template),
         )
+        .route("/api/admin/kernel", get(admin_kernel::get_kernel_health))
         .route(
             "/api/admin/system_state",
             get(admin_system_state::get_system_state)

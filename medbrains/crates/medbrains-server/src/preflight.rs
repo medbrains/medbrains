@@ -272,25 +272,18 @@ async fn migrations(pool: &PgPool) -> Finding {
 }
 
 async fn request_role(pool: &PgPool) -> Finding {
-    let row = sqlx::query_as::<_, (String, bool, bool, bool)>(
-        "SELECT current_user::text, r.rolsuper, r.rolbypassrls, \
-                EXISTS (SELECT 1 FROM pg_tables t \
-                        WHERE t.schemaname = 'public' AND t.tableowner = current_user) \
-         FROM pg_roles r WHERE r.rolname = current_user",
-    )
-    .fetch_one(pool)
-    .await;
-    match row {
-        Ok((role, su, bypass, owns)) if su || bypass || owns => Finding::warn(
+    match medbrains_kernel::health::rls_mode(pool).await {
+        Ok(mode) if !mode.enforced => Finding::warn(
             "db.request_role",
             format!(
-                "DATABASE_URL connects as {role}, which row level security does not apply to: tenant isolation rests on each query's own WHERE"
+                "DATABASE_URL connects as {}, which row level security does not apply to: tenant isolation rests on each query's own WHERE",
+                mode.role
             ),
             "Point DATABASE_URL at medbrains_app (docs/ops/DB-ROLES.md)",
         ),
-        Ok((role, ..)) => Finding::ok(
+        Ok(mode) => Finding::ok(
             "db.request_role",
-            format!("{role} is subject to row level security"),
+            format!("{} is subject to row level security", mode.role),
         ),
         Err(e) => Finding::warn(
             "db.request_role",

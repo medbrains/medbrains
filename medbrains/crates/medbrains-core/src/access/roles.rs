@@ -1304,6 +1304,8 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
             permissions::audit::ACCESS_VIEW,
             permissions::audit::REVIEW,
             permissions::admin::history_import::VIEW,
+            // The audit chain verdict is audit evidence.
+            permissions::admin::kernel::VIEW,
             permissions::audit::processors::LIST,
             permissions::audit::processors::MANAGE,
             permissions::patients::privacy_requests::LIST,
