@@ -204,11 +204,77 @@ board); no permission (nothing fetched). Keyboard-operable; meaning never by col
 
 1. Retire the unwired automation crates and `r8r`, or keep them only for system/integration
    steps (HTTP calls, data transforms)?
-2. ~~New flows or library only?~~ **Decided:** hospital staff only flip switches on library
-   flows; tracks are built by MedBrains and Developer partners in code review.
+2. ~~New flows or library only?~~ **Superseded by §11:** hospitals get a full track builder,
+   bounded by registered building blocks and flow-type invariants.
 3. ~~Who approves?~~ **Decided:** the quality officer approves switch changes; clinical flows
    (discharge, referrals, admission, orders) also need the medical superintendent.
 
 ## 10. Not in scope
 
 Patient-facing flow screens, free-form code in flows, cross-hospital flows, AI-built tracks (AI may only propose switch settings, phase 6).
+
+
+## 11. Amendment (2026-11-01): a full track builder for hospitals
+
+**Owner decision:** hospital admins can build and change tracks themselves, not only flip switches.
+This supersedes the "tracks are built only in code review" part of §2 and §9.2. Switchboards stay
+for everyday staff; the builder is for a hospital's **flow designers** (quality team, medical
+administration).
+
+### 11.1 What a designer can do
+- Draw a new track or change one: add stations, branches and rejoins, reorder, remove.
+- Build switch conditions from a form, never code: pick a fact (payer type, ward, age, department,
+  admission type, order value…), an operator, a value. AND/OR groups allowed.
+- Turn any branch into a switch for the switchboard, with its own plain sentence and options.
+- Set each station's expected time, who holds it (role), and who approves changes.
+
+### 11.2 What keeps it safe
+Freedom is in *how stations are arranged*; safety lives in what stations *are* and in rules the
+track must satisfy. A designer can only place **building blocks MedBrains has registered and
+tested** (actions, tasks, signals, facts). Before a track can be proposed it must pass every check:
+
+1. **Flow-type invariants (in code).** Each flow type declares rules every path must satisfy. For
+   discharge: every path to "Discharge" passes "Summary signed" and the billing settlement gate;
+   MLC patients pass the MLC check. A track that breaks one cannot be saved as ready.
+2. **Locked signals stay.** Required safety signals can be moved later in the path only if the
+   invariant still holds; never removed or bypassed.
+3. **Every path ends.** No dead ends, no unreachable stations, no loops without a bound.
+4. **Conditions type-check.** Facts exist, operators fit their type, no branch is always-false or
+   overlapping without a default route.
+5. **Every station is staffable.** Its holder role exists in this hospital and has the permission
+   its action needs.
+6. **Dry run must pass.** Sample patients (one per branch) run through the draft; the result shows
+   each patient's route. Then **what-if replay** on the last 30 days of real journeys: how many would
+   route differently, time saved or added, and confirmation that none would skip a required signal.
+7. **Publishing is a change set:** quality officer + medical superintendent approve; versions are
+   pinned so patients mid-journey finish on the old track; one-click rollback.
+
+### 11.3 Builder screen
+- **Canvas:** the same metro map, now editable: "+" between stations to insert a block from a
+  searchable catalogue (each block shows what it does, who holds it, the permission it needs);
+  drag to reorder along the line; "Add branch" opens the condition form. Layout stays computed, so
+  a track never becomes a tangle.
+- **Checks panel** (always visible): each rule from §11.2 with a pass/fail in words ("Every path
+  to Discharge passes Summary signed: ✓"), clicking a failure highlights the station.
+- **Test drive:** pick sample patients, watch them move along the draft; then run what-if replay.
+- **Propose** is enabled only when every check passes and the dry run has been run.
+- Draft autosaves; drafts never affect patients.
+
+### 11.3a Data and database changes
+- **No database structure changes at run time.** Building or changing a track never runs DDL.
+  Data a designer adds to a station (extra fields, checklist items) lives in versioned
+  **form templates** (`form_templates` / `form_template_versions`) and the journey's
+  `workflow_instances.state`, both already tenant-scoped with RLS.
+- **When a new building block needs a real table or column**, AI drafts the migration from the
+  repo's own rules (`tenant_id` + FORCE RLS, soft delete, the migration pitfalls in ENGINEERING.md,
+  regulatory fields, next free number, never editing an applied migration) together with the
+  block's Rust code and tests. It arrives as a normal pull request: compile-time SQL checks, the
+  repo's migration and RLS checks, and human review must pass. Nothing is applied from a screen.
+
+### 11.4 Permission
+- `flows.build`: draw and test draft tracks (new, defined in Rust first). Proposing and approving
+  stay `flows.switch` / `flows.publish` via change sets.
+
+### 11.5 Phase
+**Phase 1b: track builder for discharge**: canvas editing, condition form, the six checks,
+dry run, what-if replay, propose. Then phases 2–5 use the builder from day one.
