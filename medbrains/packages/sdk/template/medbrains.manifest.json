@@ -1,0 +1,16 @@
+{
+  "manifestVersion": 1,
+  "kind": "service",
+  "name": "__NAME__",
+  "purpose": "Reads a patient's demographics when a patient is registered and shows them on our dashboard.",
+  "publisher": { "name": "Your company", "url": "https://example.com" },
+  "version": "0.1.0",
+  "permissions": ["patients.view"],
+  "reads": ["Patient"],
+  "events": ["patient.created"],
+  "dataClasses": ["routine", "identifying"],
+  "sendsDataTo": [
+    { "name": "Your dashboard (say which country it is hosted in)", "url": "https://example.com", "purpose": "Show the patient's name to the care team" }
+  ],
+  "webhookUrl": "https://example.com/medbrains/webhook"
+}

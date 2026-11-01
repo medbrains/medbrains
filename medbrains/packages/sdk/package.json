@@ -1,0 +1,23 @@
+{
+  "name": "@medbrains/sdk",
+  "version": "0.1.0",
+  "description": "Build extensions for MedBrains, the open hospital OS: sign-in, typed calls, webhook verification, a local mock and the `medbrains ext` CLI.",
+  "license": "Apache-2.0",
+  "type": "module",
+  "repository": { "type": "git", "url": "https://github.com/medbrains/medbrains", "directory": "medbrains/packages/sdk" },
+  "engines": { "node": ">=20" },
+  "exports": {
+    ".": { "types": "./lib/index.d.ts", "import": "./lib/index.js" }
+  },
+  "bin": { "medbrains": "./lib/cli.js" },
+  "files": ["lib", "template", "README.md"],
+  "scripts": {
+    "build": "tsc -b",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "vitest": "^5.0.5"
+  }
+}
