@@ -1,0 +1,117 @@
+---
+// Partner programme: implementers who install, train and support MedBrains near hospitals.
+// Copy lives in src/data/partners.ts.
+import Demo from "../components/Demo.astro";
+import Footer from "../components/Footer.astro";
+import Header from "../components/Header.astro";
+import WhatsAppFloat from "../components/WhatsAppFloat.astro";
+import { SITE } from "../consts";
+import { LEVELS, PARTNER_GETS, PARTNER_RULES, PARTNER_STEPS, PARTNER_WHY, TRACKS } from "../data/partners";
+import Base from "../layouts/Base.astro";
+import "../styles/info-page.scss";
+
+const title = "MedBrains Partner Programme: Install Hospital Software";
+const description = "Become a MedBrains partner: install, train and support free, open-source hospital software near you, with certification and hospital requests.";
+const home = new URL("/", Astro.site).href;
+const url = new URL("/partners", Astro.site).href;
+const schema = [
+  {
+    "@type": "BreadcrumbList",
+    itemListElement: [
+      { "@type": "ListItem", position: 1, name: SITE.brand, item: home },
+      { "@type": "ListItem", position: 2, name: "Partners", item: url },
+    ],
+  },
+  { "@type": "WebPage", name: "MedBrains partner programme", url, description, inLanguage: "en-IN" },
+];
+---
+
+<Base title={title} description={description} schema={schema}>
+  <Header />
+  <main id="main">
+    <section class="ip-hero">
+      <div class="wrap">
+        <nav class="ip-crumbs" aria-label="Breadcrumb"><a href="/">{SITE.brand}</a> / <span>Partners</span></nav>
+        <p class="eyebrow">Partner programme</p>
+        <h1>Help hospitals go live <span>on MedBrains.</span></h1>
+        <p class="ip-lede">{PARTNER_WHY}</p>
+        <div class="ip-actions">
+          <a class="btn btn-primary" href="#demo">Apply to partner <span aria-hidden="true">→</span></a>
+          <a class="btn btn-ghost" href="#tracks">See the tracks</a>
+        </div>
+      </div>
+    </section>
+
+    <div class="ip-paper">
+      <section class="ip-section" aria-labelledby="gets-title">
+        <div class="wrap">
+          <p class="eyebrow ip-tag">Why partner</p>
+          <h2 id="gets-title" class="ip-title">What you get</h2>
+          <div class="ip-grid" style="--cols: 4">
+            {PARTNER_GETS.map((g) => <article class="ip-card"><h3>{g.title}</h3><p>{g.body}</p></article>)}
+          </div>
+        </div>
+      </section>
+
+      <section id="tracks" class="ip-section ip-tinted" aria-labelledby="tracks-title">
+        <div class="wrap">
+          <p class="eyebrow ip-tag">Certification</p>
+          <h2 id="tracks-title" class="ip-title">Three tracks</h2>
+          <div class="ip-grid">
+            {TRACKS.map((t) => <article class="ip-card"><p class="ip-who">{t.who}</p><h3>{t.title}</h3><p>{t.body}</p></article>)}
+          </div>
+        </div>
+      </section>
+
+      <section class="ip-section" aria-labelledby="levels-title">
+        <div class="wrap">
+          <p class="eyebrow ip-tag">Levels</p>
+          <h2 id="levels-title" class="ip-title">Two partner levels</h2>
+          <div class="ip-grid" style="--cols: 2">
+            {LEVELS.map((l) => (
+              <article class="ip-card">
+                <h3>{l.title}</h3>
+                <p class="ip-label">You need</p>
+                <ul>{l.needs.map((n) => <li>{n}</li>)}</ul>
+                <p class="ip-label">You get</p>
+                <ul>{l.gets.map((g) => <li>{g}</li>)}</ul>
+              </article>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      <section class="ip-section ip-tinted" aria-labelledby="rules-title">
+        <div class="wrap">
+          <h2 id="rules-title" class="ip-title">Partner rules</h2>
+          <ul class="ip-list">{PARTNER_RULES.map((r) => <li>{r}</li>)}</ul>
+          <p class="ip-note">These keep hospitals safe and the MedBrains name trustworthy. The software stays free and open source under the Apache 2.0 licence.</p>
+        </div>
+      </section>
+
+      <section class="ip-section" aria-labelledby="steps-title">
+        <div class="wrap">
+          <h2 id="steps-title" class="ip-title">How to join</h2>
+          <ol class="ip-steps">{PARTNER_STEPS.map((s) => <li><h3>{s.title}</h3><p>{s.body}</p></li>)}</ol>
+        </div>
+      </section>
+    </div>
+
+    <Demo
+      source="partners"
+      size={{ label: "What does your company do?", options: ["IT services or system integrator", "Hospital consulting", "Software development", "Hardware and networking", "Other"] }}
+      copy={{
+        eyebrow: "Apply",
+        title: "Become a MedBrains partner.",
+        lede: "Tell us about your company and the region you cover. We reply within a few working days.",
+        points: ["No fee for our first partners", "Training and certification for your team", "Hospital requests from your region"],
+        org: "Company name",
+        ask: "Which region do you cover, and what have you implemented before?",
+        submit: "Apply to partner",
+        intro: "Hi MedBrains, I'd like to become a partner.",
+      }}
+    />
+  </main>
+  <Footer />
+  <WhatsAppFloat />
+</Base>

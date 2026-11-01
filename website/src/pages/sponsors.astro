@@ -1,0 +1,88 @@
+---
+// Sponsors: ways organisations can support MedBrains' development.
+// The ways and rules are the pricing page's SUPPORT_US, so both pages always agree.
+import Demo from "../components/Demo.astro";
+import Footer from "../components/Footer.astro";
+import Header from "../components/Header.astro";
+import WhatsAppFloat from "../components/WhatsAppFloat.astro";
+import { SITE } from "../consts";
+import { SUPPORT_US } from "../data/pricing";
+import Base from "../layouts/Base.astro";
+import "../styles/info-page.scss";
+
+const title = "Sponsor MedBrains: Free Hospital Software for All";
+const description = "Support MedBrains, free and open-source hospital software. Sponsor a feature every hospital gets, fund a charitable hospital's go-live, or lend your team.";
+const home = new URL("/", Astro.site).href;
+const url = new URL("/sponsors", Astro.site).href;
+const schema = [
+  {
+    "@type": "BreadcrumbList",
+    itemListElement: [
+      { "@type": "ListItem", position: 1, name: SITE.brand, item: home },
+      { "@type": "ListItem", position: 2, name: "Sponsors", item: url },
+    ],
+  },
+  { "@type": "WebPage", name: "Sponsor MedBrains", url, description, inLanguage: "en-IN" },
+];
+const FUNDS = [
+  { title: "Features every hospital gets", body: "Finishing ABDM health records, insurance claims, lab code mapping and a one-command install." },
+  { title: "Charitable hospitals going live", body: "Setup, data migration and staff training for a trust or government hospital, at no cost to it." },
+  { title: "Languages", body: "Translating MedBrains into more Indian languages, so every member of staff can use it." },
+  { title: "Security", body: "Independent security reviews of how patient data is handled." },
+];
+---
+
+<Base title={title} description={description} schema={schema}>
+  <Header />
+  <main id="main">
+    <section class="ip-hero">
+      <div class="wrap">
+        <nav class="ip-crumbs" aria-label="Breadcrumb"><a href="/">{SITE.brand}</a> / <span>Sponsors</span></nav>
+        <p class="eyebrow">Sponsors</p>
+        <h1>Keep it free <span>for every hospital.</span></h1>
+        <p class="ip-lede">MedBrains is free and open source, for any hospital, forever. Sponsors help us build faster and bring hospitals that can't pay onto the same tools.</p>
+        <div class="ip-actions">
+          <a class="btn btn-primary" href="#demo">Talk to us <span aria-hidden="true">→</span></a>
+          <a class="btn btn-ghost" href="https://github.com/medbrains/medbrains" target="_blank" rel="noopener">See the code</a>
+        </div>
+      </div>
+    </section>
+
+    <div class="ip-paper">
+      <section class="ip-section" aria-labelledby="funds-title">
+        <div class="wrap">
+          <p class="eyebrow ip-tag">Where it goes</p>
+          <h2 id="funds-title" class="ip-title">What sponsorship pays for</h2>
+          <div class="ip-grid" style="--cols: 4">
+            {FUNDS.map((f) => <article class="ip-card"><h3>{f.title}</h3><p>{f.body}</p></article>)}
+          </div>
+        </div>
+      </section>
+
+      <section class="ip-section ip-tinted" aria-labelledby="ways-title">
+        <div class="wrap">
+          <h2 id="ways-title" class="ip-title">Ways to help</h2>
+          <ul class="ip-list">{SUPPORT_US.ways.map((w) => <li>{w}</li>)}</ul>
+          <p class="ip-note">{SUPPORT_US.rules}</p>
+        </div>
+      </section>
+    </div>
+
+    <Demo
+      source="sponsors"
+      size={{ label: "How would you like to help?", options: ["Sponsor a feature", "Fund a charitable hospital", "Fund a language", "Lend our team's time", "Something else"] }}
+      copy={{
+        eyebrow: "Sponsor",
+        title: "Support MedBrains.",
+        lede: "Tell us how you'd like to help. We'll reply with what it would fund and how we report back.",
+        points: ["Every rupee goes to work every hospital gets", "A yearly report on what your support built", "No pharmaceutical or advertising money"],
+        org: "Organisation",
+        ask: "Anything we should know?",
+        submit: "Send",
+        intro: "Hi MedBrains, I'd like to support MedBrains.",
+      }}
+    />
+  </main>
+  <Footer />
+  <WhatsAppFloat />
+</Base>
