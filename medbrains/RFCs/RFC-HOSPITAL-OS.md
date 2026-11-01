@@ -195,6 +195,11 @@ is an appliance OS on top of it.
 
 Windows support is an option for hospitals that already have it, never a requirement (§8).
 
+**Base: existing Linux, not our own.** Every image is built on **Debian stable** (free, long-term
+supported, official ports for amd64, arm64, armhf and riscv64; Raspberry Pi OS is Debian-based).
+We use Debian's kernel and packages, PostgreSQL included, and add MedBrains on top. We never
+maintain our own kernel. An immutable base (e.g. Debian with A/B partitions) is how D4 updates work.
+
 **What every image includes:** first-boot web setup wizard; automatic updates with an A/B partition
 (or snapshot) scheme so a failed update rolls back by itself; nightly backups to USB disk, network
 share or cloud; a local health screen (disk, memory, backups, update status); offline operation with
