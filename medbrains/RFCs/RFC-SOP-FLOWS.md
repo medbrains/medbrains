@@ -113,6 +113,43 @@ each linked back to its SOP section. A hospital starts from the library, not a b
 - **Preview:** what changes, who is affected now. Then "Propose" (opens a change set; a second
   person approves).
 
+### 5.1 Visual design (React Flow, `@xyflow/react`, already installed)
+
+The track is drawn like a **metro map**, not a flowchart, so non-technical staff read it at a
+glance. Layout is computed, never dragged: staff can't make it messy.
+
+- **Lines and stations:** the main route is one horizontal line; each branch is a parallel lane
+  that leaves at a switch and rejoins. Stations are round markers with a short name under them
+  ("Summary signed"). Computed layered layout (column = order, lane = branch); no layout library.
+- **Switches** are junction markers labelled with the plain sentence, e.g. "Insurance patient?".
+  The active route is drawn solid; the route not taken is a faint dotted line, so staff see both.
+- **Signals** are small signal-post icons beside a station: open/held, plus text. Locked safety
+  signals carry a padlock and "Required". Meaning is always icon + text, never colour alone.
+- **Flip and see:** turning a switch on the switchboard animates the route change on the map
+  (and announces it in text, "Route now skips TPA clearance"). Reduced motion: it simply redraws.
+- **Ghost track for changes:** a proposed change shows the old route as a ghost line under the
+  new one, so the approver sees exactly what moves.
+- **Text alternative:** every map has a "List view" (ordered steps, switches, signals) for
+  keyboard and screen-reader users, per the data-viz rules.
+
+### 5.2 Innovative functions
+
+1. **Control room with live trains:** each station shows how many patients are there now and
+   the longest wait (numbers, with a calm/busy/overdue label). Click a station to see the
+   patients. The station losing the most time is spotlighted with a sentence: "Pharmacy returns
+   is adding 1 h 40 min to discharges today."
+2. **What-if replay:** before approving a switch change, replay the last 30 days of real
+   journeys (from step logs) through the new route: "Median discharge time would go from
+   5 h 12 min to 4 h 05 min; 0 patients would skip a required signal." Data first, then decide.
+3. **Patient ticket:** each patient's journey shown like a train ticket: where they are, what
+   they are waiting for, who holds the signal, expected time. One click from the patient chart.
+4. **SOP beside every switch:** each switch shows the SOP sentence it implements, so a quality
+   officer can audit "does the software do what our SOP says?" line by line.
+5. **Station timetable:** expected time per station, set by the hospital; the map marks
+   stations that miss it most often across the week.
+6. **Later, AI (phase 6):** "Why is discharge slow today?" answered from the control room's own
+   numbers, and switch proposals read from the hospital's SOP; always labelled, always reviewed.
+
 **Track builder** (MedBrains team and Developer partners only): defines stations, switches and
 their allowed options, in code review. Not shown to hospital staff.
 - **Control room:** live board per flow: how many patients at each station, who is over time,
@@ -169,7 +206,8 @@ board); no permission (nothing fetched). Keyboard-operable; meaning never by col
    steps (HTTP calls, data transforms)?
 2. ~~New flows or library only?~~ **Decided:** hospital staff only flip switches on library
    flows; tracks are built by MedBrains and Developer partners in code review.
-3. Who approves a flow change: quality officer, medical superintendent, or both?
+3. ~~Who approves?~~ **Decided:** the quality officer approves switch changes; clinical flows
+   (discharge, referrals, admission, orders) also need the medical superintendent.
 
 ## 10. Not in scope
 
