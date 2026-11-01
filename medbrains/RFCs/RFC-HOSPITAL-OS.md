@@ -118,6 +118,9 @@ both exist; the core stays free (Apache-2.0).
 - **I1–I3 Identity** (after K1): I1 SCIM provisioning; I2 directory group → access group mapping;
   I3 one-screen directory setup via change sets.
 - **Z1 Zero-licence check**: CI rule over dependencies and deploy kits (§8).
+- **R1 Bare metal + recovery** (§8k): installer disk layout, recovery mode, PITR restore wizard,
+  monthly restore test, rescue USB. **W1 Windows** (§8l): Hyper-V VHDX + MSI installer with
+  external switch and firewall setup.
 - **D1–D4 OS images** (§8b): D1 Raspberry Pi image + first-boot wizard; D2 bootable x86 ISO;
   D3 VM images (OVA/qcow2/VHDX) + Windows installer; D4 A/B updates with automatic rollback.
 - **A1 Any CPU** (§8c): CI build matrix for tiers 1–3, smoke tests under emulation, tier table
@@ -424,6 +427,53 @@ the hospital turns it on; every security claim on the website links to its evide
 Phases: **SEC1** signed releases + SBOM + reproducible builds; **SEC2** privacy labels in the
 manifest and the hospital approval screen; **SEC3** secure boot, TPM and disk encryption in OS
 images; **SEC4** bug bounty + external penetration test + ISO 27001 for hosting.
+
+## 8k. Bare-metal installation and recovery
+
+**Bare metal (from the ISO or Pi image, §8b):**
+- Boots a text + browser installer on any supported machine; detects disks, CPU and RAM and refuses
+  hardware below the profile's minimum with a plain reason.
+- Disk layout: EFI, two root slots (A/B) for safe updates, a recovery partition, and an encrypted
+  (LUKS) data partition for PostgreSQL, files and backups. Optional mirrored disks (RAID-1) or
+  OpenZFS for hospitals that want snapshots.
+- Network: DHCP or static IP, hostname, NTP time (critical for clinical records), optional VLAN.
+- First boot: web setup wizard (hospital, admin, backups, TLS), then the appliance is live.
+- Unattended mode for partners: a signed answer file installs a fleet of boxes identically.
+
+**Recovery (designed in, tested every release):**
+| Situation | What happens |
+|---|---|
+| Failed update | the device boots the previous root slot automatically and reports why |
+| Corrupted system | boot menu → **Recovery mode**: reinstall the system partitions, keep all data |
+| Lost or broken disk | reinstall on new hardware → restore from the latest backup with the wizard |
+| Data mistake or ransomware | **point-in-time restore** of the database to any minute in the retention window (WAL-G PITR); the hash-chained audit shows what changed |
+| Whole site lost | restore from the off-site encrypted backup to a new box or the cloud |
+| Forgotten admin password | recovery key printed at setup, plus the documented physical-console reset |
+
+**Targets:** RPO ≤ 5 minutes with continuous WAL shipping; RTO ≤ 1 hour to a replacement box.
+A monthly automatic **restore test** proves backups actually restore, and the health screen shows
+the last successful test. A rescue USB image is published with every release.
+
+## 8l. Windows, Hyper-V and networking
+
+Windows is supported for hospitals that already run it, never required (§8).
+
+- **Recommended: Hyper-V VM** (VHDX image) on Windows Server or Windows 11 Pro.
+  - Networking: an **External virtual switch** bridged to the hospital LAN, so lab analysers,
+    printers, TV boards and staff devices reach MedBrains on a normal LAN address. Internal/NAT
+    switches only for testing. VLAN ID set on the VM's network adapter where the hospital segments
+    clinical networks.
+  - Integration services for clean shutdown with the host; checkpoints are not backups (use the
+    appliance's own backups).
+- **WSL2** for developer and small single-PC setups only: its default NAT networking hides the
+  server from other devices; Windows 11's mirrored networking mode improves this, but a Hyper-V VM
+  with an external switch is the supported path for real hospital use.
+- **Windows installer (MSI):** checks Hyper-V is available, creates the VM, the external switch
+  (asking which network card) and firewall rules, then opens the setup wizard.
+- **Networking principles everywhere:** fixed IP or DHCP reservation for the server, local name via
+  mDNS (`medbrains.local`) and DNS, TLS with a hospital or local CA certificate, firewall allowing
+  only the needed ports, HL7/DICOM device traffic on the clinical VLAN, and documented ports for
+  hospital IT.
 
 ## 9. Identity: groups and directories (built in)
 
