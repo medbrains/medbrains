@@ -308,6 +308,18 @@ on the way out, and a `-9` leaves a lock that blocks the next run with a
 
 ---
 
+## OS Principles Are Law (MANDATORY)
+
+MedBrains is an appliance OS for hospitals (`medbrains/RFCs/RFC-HOSPITAL-OS.md`). Every change,
+in every crate, app and script, follows **`medbrains/docs/OS-PRINCIPLES.md`**: the OSTEP pillars
+(virtualisation, concurrency, persistence), the Saltzer–Schroeder security principles (economy of
+mechanism, fail-safe defaults, complete mediation, open design, separation of privilege, least
+privilege, least common mechanism, psychological acceptability), the Unix rules, and the reliability
+rules (crash-only, idempotent, bounded, stable interfaces, observable, graceful degradation), plus
+hardware safety (RFC-HOSPITAL-OS §8o). Apps reach shared concerns only through the kernel
+(`make check-kernel-boundary`). A design that breaks a principle needs a written reason in its RFC;
+"it was quicker" is not a reason.
+
 ## Code Quality Bar
 
 Senior-architect standard. Project-specific rules:

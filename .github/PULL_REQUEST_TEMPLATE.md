@@ -29,6 +29,7 @@ POST /api/hr/leave-requests                  routes/mod.rs:812
 - [ ] Tests added/updated for new modules or endpoints
 - [ ] New/changed UI is accessible (keyboard, focus, labels, `prefers-reduced-motion`)
 - [ ] Checked applicable regulatory norms for clinical changes (see ENGINEERING.md)
+- [ ] Follows `medbrains/docs/OS-PRINCIPLES.md`: least privilege, fail-safe defaults (faults are Unknown, never Allow), complete mediation through the kernel, crash-only/idempotent, everything bounded
 - [ ] Docs/RFCs updated if behaviour or architecture changed
 
 ## Notes for reviewers
