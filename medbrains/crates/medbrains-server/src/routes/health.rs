@@ -2,7 +2,7 @@ use axum::{Extension, Json, extract::State};
 use serde::Serialize;
 
 use crate::middleware::auth::Claims;
-use medbrains_core::permissions;
+use medbrains_core::{permissions, provenance};
 
 use crate::error::AppError;
 use crate::middleware::authorization::{authz_context, require_permission};
@@ -13,6 +13,8 @@ pub struct HealthResponse {
     pub status: &'static str,
     pub postgres: &'static str,
     pub authz_backend: String,
+    pub engine: &'static str,
+    pub signature: &'static str,
 }
 
 /// `GET /api/health` — checks connectivity to the database.
@@ -27,6 +29,8 @@ pub async fn health_check(State(state): State<AppState>) -> Json<HealthResponse>
         status: overall,
         postgres: if pg_ok { "connected" } else { "disconnected" },
         authz_backend,
+        engine: provenance::ENGINE,
+        signature: provenance::SIGNATURE,
     })
 }
 
