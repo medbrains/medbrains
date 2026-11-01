@@ -32,8 +32,18 @@ approvals engine, versioned form templates, and the knowledge change-set engine 
 | **Timetable** | Expected time per station; the board shows who is late (SLA) |
 | **Control room** | A live board of every patient on every track, and where they are stuck |
 
-A hospital picks a flow from a library built from SOPs, adjusts its switches and signals,
-previews what would change, and applies it **in one click**.
+A hospital picks a flow from a library built from SOPs, sets its switches, previews what would
+change, and applies it **in one click**.
+
+**Two kinds of people, like a railway.** Engineers lay the track; the pointsman only throws the
+switch. In MedBrains:
+
+- **Track builders** (MedBrains, and certified Developer partners) design library flows in code
+  review, with every station, switch and signal tested.
+- **Hospital staff** (administrators, quality officers, department heads), who are not technical,
+  only **flip switches** on a switchboard: plain-language choices like "Insurance patients need
+  TPA clearance before billing: On / Off" or "Who approves a referral: HOD / Medical
+  superintendent". No diagrams, no conditions, no code.
 
 ## 3. Rules that make this safe
 
@@ -92,13 +102,19 @@ each linked back to its SOP section. A hospital starts from the library, not a b
 
 ## 5. Screens (UI plan, to agree before build)
 
-**Admin → Flows**
+**Admin → Flows** (for hospital staff)
 - **Library:** flows by module, each with its SOP, what it covers, and "Use this flow".
-- **Track editor:** the flow drawn as a track, left to right: stations, switches (labelled with
-  their condition in words), signals (locked ones marked "Required by law/safety"). Edit a station
-  in a side panel. No free-form code.
-- **Preview:** what changes, who is affected now, which safety signals are present. Then
-  "Propose" (opens a change set).
+- **Switchboard** (the main screen): one flow at a time, its switches listed as plain sentences
+  with On/Off or a short choice, grouped by stage ("Before billing", "At discharge"). Locked
+  safety signals are listed too, shown as "Always on: required by law/safety", so staff can see
+  them but not change them.
+- **The track, read-only:** a simple left-to-right picture of the stations, which redraws as
+  switches change, so staff see the route their choice creates.
+- **Preview:** what changes, who is affected now. Then "Propose" (opens a change set; a second
+  person approves).
+
+**Track builder** (MedBrains team and Developer partners only): defines stations, switches and
+their allowed options, in code review. Not shown to hospital staff.
 - **Control room:** live board per flow: how many patients at each station, who is over time,
   where the queue builds. Click through to the patient.
 
@@ -107,9 +123,10 @@ board); no permission (nothing fetched). Keyboard-operable; meaning never by col
 
 ## 6. Permissions (Rust first)
 
-- `flows.view`: see flows and the control room
-- `flows.edit`: draft and preview flows
-- `flows.publish`: propose a published flow (approved via change sets)
+- `flows.view`: see flows, the switchboard and the control room
+- `flows.switch`: change switch settings and preview (proposals go through change sets)
+- `flows.publish`: approve and apply switch changes (via change sets)
+- building or changing the tracks themselves is a code change, not a permission
 - each registered action keeps its own permission; the engine checks it for the acting user
 
 ## 7. Phases (each ends on the screen)
@@ -135,13 +152,17 @@ board); no permission (nothing fetched). Keyboard-operable; meaning never by col
   unsettled bill), then the station fails with that reason and the flow does not advance.
 - Given the control room, when a patient waits at "pharmacy returns" longer than its SLA, then
   they show as overdue with the time.
-- Given a user without `flows.edit`, when they open the editor, then no flow data is fetched.
+- Given the discharge switchboard, when an administrator turns "Insurance patients need TPA
+  clearance" Off, then the preview shows the new route and how many current patients it affects,
+  and nothing changes until a second person approves.
+- Given a user without `flows.view`, when they open Flows, then no flow data is fetched.
 
 ## 9. Decisions needed
 
 1. Retire the unwired automation crates and `r8r`, or keep them only for system/integration
    steps (HTTP calls, data transforms)?
-2. Should a hospital be able to create brand-new flows, or only adapt library flows (safer)?
+2. ~~New flows or library only?~~ **Decided:** hospital staff only flip switches on library
+   flows; tracks are built by MedBrains and Developer partners in code review.
 3. Who approves a flow change: quality officer, medical superintendent, or both?
 
 ## 10. Not in scope
