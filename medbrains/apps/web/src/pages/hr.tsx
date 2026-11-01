@@ -5,6 +5,7 @@ import {
   IconCalendar,
   IconCalendarMonth,
   IconClock,
+  IconFlag,
   IconHeartbeat,
   IconIdBadge2,
   IconMapPin,
@@ -20,6 +21,7 @@ import { ComplianceTab } from "./hr/compliance-tab";
 import { DutyHoursTab } from "./hr/duty-hours-tab";
 import { EmployeesTab } from "./hr/employees-tab";
 import { GeofenceTab } from "./hr/geofence-tab";
+import { HolidaysTab } from "./hr/holidays-tab";
 import { LeaveCalendarTab } from "./hr/leave-calendar-tab";
 import { LeaveTab } from "./hr/leave-tab";
 import { RosterTab } from "./hr/roster-tab";
@@ -40,6 +42,7 @@ export function HrPage() {
   const canManageTraining = useHasPermission(P.HR.TRAINING_MANAGE);
   const canManageAppraisal = useHasPermission(P.HR.APPRAISAL_MANAGE);
   const canManageGeofence = useHasPermission(P.HR.ATTENDANCE_GEOFENCE_MANAGE);
+  const canManageHolidays = useHasPermission(P.HR.HOLIDAY_MANAGE);
 
   const [activeTab, setActiveTab] = useState<string | null>(
     canListLeave ? "calendar" : "employees",
@@ -73,6 +76,11 @@ export function HrPage() {
           <Tabs.Tab value="leave" leftSection={<IconCalendar size={16} />}>
             Leave
           </Tabs.Tab>
+          {canManageHolidays && (
+            <Tabs.Tab value="holidays" leftSection={<IconFlag size={16} />}>
+              Holidays
+            </Tabs.Tab>
+          )}
           <Tabs.Tab value="roster" leftSection={<IconCalendar size={16} />}>
             Duty Roster
           </Tabs.Tab>
@@ -114,6 +122,11 @@ export function HrPage() {
             canManage={canManageLeave}
           />
         </Tabs.Panel>
+        {canManageHolidays && (
+          <Tabs.Panel value="holidays">
+            <HolidaysTab />
+          </Tabs.Panel>
+        )}
         <Tabs.Panel value="roster">
           <RosterTab canManage={canManageRoster} canManageOnCall={canManageOnCall} />
         </Tabs.Panel>

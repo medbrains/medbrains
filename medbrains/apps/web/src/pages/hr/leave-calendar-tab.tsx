@@ -14,7 +14,7 @@ import { EmployeeSearchSelect } from "@/components/EmployeeSearchSelect";
 import { Badge, Button, Card, IconButton, Tooltip, toast } from "@/components/ui";
 import { hrService } from "@/services/hr.service";
 import { approvalAction, countOnLeave, isPendingLeave, leaveTypeLabel } from "./leave-calendar";
-import { LeaveCalendarView, useLeaveCalendarWindow } from "./leave-calendar-view";
+import { LeaveCalendarView, useHolidays, useLeaveCalendarWindow } from "./leave-calendar-view";
 import { LeaveDetailsModal } from "./leave-details-modal";
 import { LeaveRequestModal } from "./leave-request-modal";
 
@@ -52,6 +52,7 @@ function Metric({ label, query, value }: { label: string; query: UseQueryResult;
 export function LeaveCalendarTab({ canCreate, canApprove, canManage }: LeaveCalendarTabProps) {
   const qc = useQueryClient();
   const w = useLeaveCalendarWindow();
+  const holidays = useHolidays(w.from, w.to);
   const [departmentId, setDepartmentId] = useState("");
   const [employeeId, setEmployeeId] = useState("");
   // Bumped to remount the staff picker when filters clear (it keeps its own text).
@@ -106,6 +107,18 @@ export function LeaveCalendarTab({ canCreate, canApprove, canManage }: LeaveCale
     onError: (e: Error) => toast.error(e.message, { title: "Leave not decided" }),
   });
 
+  const cancel = useMutation({
+    mutationFn: (id: string) => hrService.cancelLeave(id),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ["hr-leaves"] });
+      setOpened(null);
+      toast.warning("Leave cancelled. Any days it used are back in the balance.", {
+        title: "Leave cancelled",
+      });
+    },
+    onError: (e: Error) => toast.error(e.message, { title: "Leave not cancelled" }),
+  });
+
   const waitingCount = (waiting.data ?? []).filter((r) => approvalAction(r, rights)).length;
   const onDayClick = canCreate ? setRequestDate : undefined;
 
@@ -149,6 +162,8 @@ export function LeaveCalendarTab({ canCreate, canApprove, canManage }: LeaveCale
             onDayClick={onDayClick}
             onLeaveClick={setOpened}
             isTruncated={(leaves.data?.length ?? 0) >= LIST_LIMIT}
+            holidays={holidays.data?.holidays}
+            holidaysError={holidays.error}
           />
         </Grid.Col>
         <Grid.Col span={{ base: 12, lg: 3 }}>
@@ -273,6 +288,11 @@ export function LeaveCalendarTab({ canCreate, canApprove, canManage }: LeaveCale
             onAction: (action) => act.mutate({ id: opened.id, action }),
             isActing: act.isPending,
           }}
+          cancel={
+            canManage
+              ? { onCancel: () => cancel.mutate(opened.id), isCancelling: cancel.isPending }
+              : undefined
+          }
         />
       )}
     </Stack>

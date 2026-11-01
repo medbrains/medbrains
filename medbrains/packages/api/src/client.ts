@@ -1202,6 +1202,9 @@ import type {
   HistoryImportBatchRequest,
   HistoryImportResult,
   HistoryImportSettings,
+  Holiday,
+  HolidayCalendar,
+  HolidayInput,
   HomeCarePackage,
   HomeCareReferral,
   HomeCollectionStatsRow,
@@ -1397,6 +1400,7 @@ import type {
   LeaveActionRequest,
   LeaveApplicationPrintData,
   LeaveBalance,
+  LeaveDayCount,
   LeaveListRow,
   LeaveRequest,
   LicenseDashboardItem,
@@ -10923,6 +10927,35 @@ export const api = {
   cancelLeave: (id: string) =>
     request<LeaveRequest>(`/hr/leaves/${id}/cancel`, {
       method: "PUT",
+    }),
+
+  /** The days a leave of these dates would take — the same rule that files it. */
+  previewLeaveDays: (params: {
+    leave_type: string;
+    start_date: string;
+    end_date: string;
+    is_half_day: boolean;
+  }) => {
+    const qs = new URLSearchParams({ ...params, is_half_day: String(params.is_half_day) });
+    return request<LeaveDayCount>(`/hr/leaves/preview?${qs}`);
+  },
+
+  // Holidays and weekly offs (HR → Holidays)
+  listHolidays: (from: string, to: string) =>
+    request<HolidayCalendar>(`/hr/holidays?${new URLSearchParams({ from, to })}`),
+
+  createHoliday: (data: HolidayInput) =>
+    request<Holiday>("/hr/holidays", { method: "POST", body: JSON.stringify(data) }),
+
+  updateHoliday: (id: string, data: HolidayInput) =>
+    request<Holiday>(`/hr/holidays/${id}`, { method: "PUT", body: JSON.stringify(data) }),
+
+  deleteHoliday: (id: string) => request<Holiday>(`/hr/holidays/${id}`, { method: "DELETE" }),
+
+  setWeeklyOffs: (weeklyOffs: number[]) =>
+    request<{ weekly_offs: number[] }>("/hr/weekly-offs", {
+      method: "PUT",
+      body: JSON.stringify({ weekly_offs: weeklyOffs }),
     }),
 
   // Leave — self-service (the caller's own employee record)

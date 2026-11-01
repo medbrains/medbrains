@@ -7,7 +7,9 @@
 //!    final approval.
 //!
 //! Nobody decides their own leave, and every decision is written to the
-//! audit chain inside the same transaction.
+//! audit chain inside the same transaction. The final approval draws the
+//! leave's days from the balance in that transaction, under a row lock, and
+//! is refused when the balance is short (`leave_rules::draw_balance`).
 
 use axum::{
     Extension, Json,
@@ -116,9 +118,12 @@ pub async fn leave_action(
     }
     let new_status = next_status(&body.action, &owner.status, is_head, manages)?;
 
-    if new_status == "approved" {
+    let drawn = if new_status == "approved" {
         refuse_if_marked_present(&mut tx, claims.tenant_id, id).await?;
-    }
+        crate::leave_rules::draw_balance(&mut tx, claims.tenant_id, &owner.terms).await?
+    } else {
+        None
+    };
 
     let row = sqlx::query_as::<_, LeaveRequest>(
         "UPDATE leave_requests SET \
@@ -151,6 +156,7 @@ pub async fn leave_action(
         "to": new_status,
         "as": if is_head { "department_head" } else { "hr" },
         "remarks": body.remarks,
+        "balance": drawn,
     });
     medbrains_db::audit::AuditLogger::log(
         &mut tx,

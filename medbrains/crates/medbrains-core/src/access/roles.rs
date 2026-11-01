@@ -2025,6 +2025,7 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
             permissions::hr::leave::CREATE,
             permissions::hr::leave::APPROVE,
             permissions::hr::leave::MANAGE,
+            permissions::hr::holiday::MANAGE,
             // Guarded by handlers that exist, granted to no role until now — the same gap as ICU.
             // Granted on the operator's decision, 2026-08-18.
             permissions::hr::payroll::runs::CREATE,

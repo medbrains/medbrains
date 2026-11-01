@@ -1733,9 +1733,45 @@ export interface CreateLeaveRequestInput {
   leave_type: string;
   start_date: string;
   end_date: string;
-  days?: number;
+  /** Days are counted by the server; a half day is a single date. */
   is_half_day?: boolean;
   reason?: string;
+}
+
+/** A restricted holiday is optional, so leave over it still counts that day. */
+export type HolidayKind = "national" | "regional" | "restricted";
+
+export interface Holiday {
+  id: string;
+  holiday_date: string;
+  name: string;
+  kind: HolidayKind;
+}
+
+export interface HolidayInput {
+  holiday_date: string;
+  name: string;
+  kind: HolidayKind;
+}
+
+/** `GET /hr/holidays` — holidays in a window and the weekly offs (0 = Sunday … 6 = Saturday). */
+export interface HolidayCalendar {
+  holidays: Holiday[];
+  weekly_offs: number[];
+}
+
+export interface WeeklyOffsInput {
+  weekly_offs: number[];
+}
+
+/** `GET /hr/leaves/preview` — the days a leave would take, counted by the server's rule. */
+export interface LeaveDayCount {
+  /** A decimal, sent as a string such as "4" or "0.5". */
+  days: string;
+  /** Maternity leave counts calendar days. */
+  counts_calendar_days: boolean;
+  weekly_offs: number[];
+  holidays: Holiday[];
 }
 /** One application from a department the caller heads (`GET /hr/me/team-leaves`). */
 export interface TeamLeave {

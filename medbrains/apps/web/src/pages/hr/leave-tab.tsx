@@ -1,28 +1,18 @@
 // HR LeaveTab — split from hr.tsx (pure move).
 
-import {
-  Group,
-  NumberInput,
-  Select,
-  Stack,
-  Switch,
-  Text,
-  Textarea,
-  TextInput,
-  Tooltip,
-} from "@mantine/core";
+import { Group, Select, Text, Tooltip } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import type { LeaveRequest } from "@medbrains/types";
 import { IconCheck, IconPlus, IconX } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import dayjs from "dayjs";
 import { useState } from "react";
 import { DataTable } from "@/components";
-import { EmployeeSearchSelect } from "@/components/EmployeeSearchSelect";
 import { printColumn } from "@/components/Print/printColumn";
-import { Badge, type BadgeTone, Button, IconButton, Modal, toast } from "@/components/ui";
+import { Badge, type BadgeTone, Button, IconButton, toast } from "@/components/ui";
 import { hrService } from "@/services/hr.service";
 import { approvalAction } from "./leave-calendar";
-import { LEAVE_TYPE_OPTIONS } from "./leave-options";
+import { LeaveRequestModal } from "./leave-request-modal";
 
 const leaveStatusColors: Record<string, BadgeTone> = {
   draft: "neutral",
@@ -55,43 +45,6 @@ export function LeaveTab({ canCreate, canApprove, canManage }: LeaveTabProps) {
   const { data: requests = [], isLoading } = useQuery({
     queryKey: ["hr-leaves", statusFilter],
     queryFn: () => hrService.listLeaveRequests({ status: statusFilter || undefined }),
-  });
-
-  const [form, setForm] = useState({
-    employee_id: "",
-    leave_type: "casual",
-    start_date: "",
-    end_date: "",
-    days: 1,
-    is_half_day: false,
-    reason: "",
-  });
-  const createMut = useMutation({
-    mutationFn: () =>
-      hrService.createLeaveRequest({
-        employee_id: canManage ? form.employee_id : undefined,
-        leave_type: form.leave_type,
-        start_date: form.start_date,
-        end_date: form.end_date,
-        days: form.days,
-        is_half_day: form.is_half_day,
-        reason: form.reason || undefined,
-      }),
-    onSuccess: () => {
-      void qc.invalidateQueries({ queryKey: ["hr-leaves"] });
-      closeCreate();
-      setForm({
-        employee_id: "",
-        leave_type: "casual",
-        start_date: "",
-        end_date: "",
-        days: 1,
-        is_half_day: false,
-        reason: "",
-      });
-      toast.success("Leave request submitted", { title: "Leave Applied" });
-    },
-    onError: (e: Error) => toast.error(e.message, { title: "Leave not submitted" }),
   });
 
   const actionMut = useMutation({
@@ -237,66 +190,18 @@ export function LeaveTab({ canCreate, canApprove, canManage }: LeaveTabProps) {
         ]}
       />
 
-      <Modal opened={createOpen} onClose={closeCreate} title="Apply Leave" fullScreen>
-        <Stack gap="sm">
-          {canManage ? (
-            <EmployeeSearchSelect
-              value={form.employee_id}
-              onChange={(id) => setForm({ ...form, employee_id: id })}
-              required
-            />
-          ) : (
-            <Text size="sm" c="dimmed">
-              You are applying for your own leave.
-            </Text>
-          )}
-          <Select
-            label="Leave Type"
-            value={form.leave_type}
-            onChange={(v) => setForm({ ...form, leave_type: v || "casual" })}
-            data={LEAVE_TYPE_OPTIONS}
-          />
-          <TextInput
-            label="Start Date"
-            required
-            placeholder="YYYY-MM-DD"
-            value={form.start_date}
-            onChange={(e) => setForm({ ...form, start_date: e.currentTarget.value })}
-          />
-          <TextInput
-            label="End Date"
-            required
-            placeholder="YYYY-MM-DD"
-            value={form.end_date}
-            onChange={(e) => setForm({ ...form, end_date: e.currentTarget.value })}
-          />
-          <NumberInput
-            label="Days"
-            value={form.days}
-            onChange={(v) => setForm({ ...form, days: typeof v === "number" ? v : 1 })}
-            min={0.5}
-            step={0.5}
-          />
-          <Switch
-            label="Half Day"
-            checked={form.is_half_day}
-            onChange={(e) => setForm({ ...form, is_half_day: e.currentTarget.checked })}
-          />
-          <Textarea
-            label="Reason"
-            value={form.reason}
-            onChange={(e) => setForm({ ...form, reason: e.currentTarget.value })}
-          />
-          <Button
-            tone="primary"
-            onClick={() => createMut.mutate()}
-            loading={createMut.isPending}
-            disabled={(canManage && !form.employee_id) || !form.start_date || !form.end_date}
-          >
-            Submit Leave
-          </Button>
-        </Stack>
-      </Modal>
+      {createOpen && (
+        <LeaveRequestModal
+          date={dayjs().format("YYYY-MM-DD")}
+          withEmployee={canManage}
+          submit={(body) => hrService.createLeaveRequest(body)}
+          onClose={closeCreate}
+          onSubmitted={() => {
+            void qc.invalidateQueries({ queryKey: ["hr-leaves"] });
+            closeCreate();
+          }}
+        />
+      )}
     </>
   );
 }

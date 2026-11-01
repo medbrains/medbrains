@@ -1,7 +1,7 @@
 // Pure date and layout logic for the leave calendar — no React, so it is tested alone.
 
 import type { ScheduleEventData } from "@mantine/schedule";
-import type { LeaveRequest } from "@medbrains/types";
+import type { Holiday, LeaveRequest } from "@medbrains/types";
 import dayjs, { type Dayjs } from "dayjs";
 import { LEAVE_TYPE_OPTIONS } from "./leave-options";
 
@@ -69,6 +69,27 @@ export function toLeaveEvents<T extends LeaveRow>(rows: T[]): ScheduleEventData<
       variant: "light",
       payload: { leave: r },
     }));
+}
+
+/** What a calendar block carries: a leave, or a holiday drawn as a strip. */
+export type CalendarPayload<T extends LeaveRow> = { leave: T } | { holiday: Holiday };
+
+/** The label a holiday strip reads — words, so the strip never relies on colour. */
+export function holidayLabel(h: Holiday): string {
+  return h.kind === "restricted" ? `Restricted holiday · ${h.name}` : `Holiday · ${h.name}`;
+}
+
+/** One all-day strip per holiday, on its date. */
+export function toHolidayEvents(holidays: Holiday[]): ScheduleEventData<{ holiday: Holiday }>[] {
+  return holidays.map((h) => ({
+    id: `holiday-${h.id}`,
+    title: holidayLabel(h),
+    start: `${h.holiday_date} 00:00:00`,
+    end: `${dayjs(h.holiday_date).add(1, "day").format(DATE)} 00:00:00`,
+    color: "warning",
+    variant: "light",
+    payload: { holiday: h },
+  }));
 }
 
 /** Whether a leave covers the given day. */

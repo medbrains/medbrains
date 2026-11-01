@@ -2,7 +2,7 @@
 // approver who may take that step (the server checks again); the balance sits beside them.
 
 import { Box, Group, SimpleGrid, Stack, Text } from "@mantine/core";
-import { IconCheck, IconX } from "@tabler/icons-react";
+import { IconCalendarX, IconCheck, IconX } from "@tabler/icons-react";
 import { Badge, Button, Modal } from "@/components/ui";
 import {
   type ApprovalRights,
@@ -17,6 +17,8 @@ interface LeaveDetailsModalProps {
   onClose: () => void;
   /** Omit where nobody decides leave (the employee's own view). */
   decide?: { rights: ApprovalRights; onAction: (action: string) => void; isActing: boolean };
+  /** Omit where the viewer may not cancel this leave; the server checks again. */
+  cancel?: { onCancel: () => void; isCancelling: boolean };
 }
 
 function Field({ label, value }: { label: string; value: React.ReactNode }) {
@@ -30,7 +32,7 @@ function Field({ label, value }: { label: string; value: React.ReactNode }) {
   );
 }
 
-export function LeaveDetailsModal({ leave, onClose, decide }: LeaveDetailsModalProps) {
+export function LeaveDetailsModal({ leave, onClose, decide, cancel }: LeaveDetailsModalProps) {
   const approve = decide ? approvalAction(leave, decide.rights) : null;
   const pending = isPendingLeave(leave.status);
   return (
@@ -63,6 +65,23 @@ export function LeaveDetailsModal({ leave, onClose, decide }: LeaveDetailsModalP
           )}
         </SimpleGrid>
         <Field label="Reason" value={leave.reason || "—"} />
+        {cancel && (pending || leave.status === "approved") && (
+          <Group justify="space-between">
+            <Text size="sm" c="dimmed">
+              {leave.status === "approved"
+                ? `Cancelling gives ${leave.days} days back to the balance.`
+                : "Withdraws this request."}
+            </Text>
+            <Button
+              tone="secondary"
+              leftSection={<IconCalendarX size={16} />}
+              onClick={cancel.onCancel}
+              loading={cancel.isCancelling}
+            >
+              Cancel leave
+            </Button>
+          </Group>
+        )}
         {decide && approve && (
           <Group justify="flex-end">
             <Button
