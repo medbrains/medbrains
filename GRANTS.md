@@ -6,7 +6,7 @@ This page is for funders, ministries, health programmes and anyone deciding whet
 
 Hospital software is expensive, hard to leave and hard to audit. Proprietary HMS and EHR licences cost crores. The data sits in vendor formats. The logic that governs patient safety, such as drug-interaction checks, consent, infection control and statutory reporting, cannot be inspected.
 
-The hospitals that need good software most can least afford it: district hospitals, NGO clinics and public health systems in India and other emerging markets.
+The hospitals that need good software most can least afford it: district hospitals, NGO clinics and public health systems around the world.
 
 MedBrains makes the safety-critical core of a hospital information system open to inspection, free to run and aligned with health standards. A public hospital can host it themselves, a regulator can audit it, and any developer can extend it.
 
@@ -43,7 +43,7 @@ Grants, sponsorship and paid services (setup, training, hosting, support) pay fo
 This list is not complete. Suggestions and leads are welcome in [Discussions](https://github.com/medbrains/medbrains/discussions).
 
 - **DPG Alliance** (UNICEF and UNDP backed): listing on the DPG registry.
-- **ABDM / National Health Authority (India)**: ecosystem partner programmes.
+- **ABDM / National Health Authority**: ecosystem partner programmes.
 - **Open-source funds**, for example NLnet, FOSS sustainability funds and programmes like the Sovereign Tech Fund.
 - **Global health philanthropies**, such as the Gates Foundation, Wellcome and the Patrick J. McGovern Foundation, for digital health infrastructure.
 - **GitHub Sponsors and Open Collective** for recurring support from individuals and companies (see [`.github/FUNDING.yml`](./.github/FUNDING.yml)).
@@ -54,7 +54,7 @@ MedBrains is licensed under Apache-2.0 and is free for everyone to use. The team
 
 ## Short description for applications
 
-> MedBrains is an open-source hospital management system built in Rust and PostgreSQL, designed to cover 67+ clinical, diagnostic, financial and administrative modules. Patient-safety logic (medication checks, consent, infection control, statutory disease reporting) is enforced in code that anyone can read. It is licensed under Apache-2.0 and designed against the Digital Public Goods Standard, so public hospitals, NGOs and health ministries in India and other emerging markets can deploy, audit and own their hospital information system without licence lock-in.
+> MedBrains is an open-source hospital management system built in Rust and PostgreSQL, designed to cover 67+ clinical, diagnostic, financial and administrative modules. Patient-safety logic (medication checks, consent, infection control, statutory disease reporting) is enforced in code that anyone can read. It is licensed under Apache-2.0 and designed against the Digital Public Goods Standard, so public hospitals, NGOs and health ministries anywhere can deploy, audit and own their hospital information system without licence lock-in.
 
 ---
 
