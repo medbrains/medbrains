@@ -31,6 +31,7 @@ import {
   IconFlask,
   IconForms,
   IconGift,
+  IconGitCompare,
   IconHandGrab,
   IconHeadset,
   IconHeartbeat,
@@ -203,6 +204,7 @@ const ICON_MAP: Record<string, React.ComponentType<{ size?: number; stroke?: num
   IconCalendarStats,
   IconHistory,
   IconFileAnalytics,
+  IconGitCompare,
   IconBinaryTree,
   IconDental,
   IconVideo,
@@ -1504,6 +1506,12 @@ export const NAV_GROUPS: NavGroupConfig[] = [
             path: "/admin/research-exports",
             icon: "IconFileAnalytics",
             requiredPermission: "research.dataset.export",
+          },
+          {
+            i18nKey: "knowledgeChanges",
+            path: "/admin/knowledge-changes",
+            icon: "IconGitCompare",
+            requiredPermission: "knowledge.change_sets.list",
           },
           {
             i18nKey: "settings",

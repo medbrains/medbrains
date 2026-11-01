@@ -702,6 +702,16 @@ pub mod pharmacy {
         pub const OVERRIDE: &str = "pharmacy.safety.override";
     }
 
+    /// The hospital's own drug-drug interaction rules.
+    pub mod interactions {
+        /// Propose changes to drug interaction rules.
+        ///
+        /// Draft additions, edits and removals of drug-drug interaction rules
+        /// as knowledge change sets. A change goes live only after a second
+        /// person approves it; this does not open the direct editor.
+        pub const MANAGE: &str = "pharmacy.interactions.manage";
+    }
+
     pub mod reconciliation {
         pub const MANAGE: &str = "pharmacy.reconciliation.manage";
     }
@@ -4276,5 +4286,42 @@ pub mod uhi {
         /// request blood inventory management, a lab request walk-in lab
         /// ordering (and sample management for a home collection).
         pub const RESPOND: &str = "uhi.requests.respond";
+    }
+}
+
+/// Knowledge change sets (RFC-KNOWLEDGE-CHANGE-SETS).
+///
+/// Edits to the clinical knowledge a hospital runs on (drug interactions,
+/// critical lab values), drafted, previewed for who they affect, approved by a
+/// second person, applied atomically, rolled back, and proven to an auditor.
+pub mod knowledge {
+    pub mod change_sets {
+        /// See knowledge changes and their history.
+        ///
+        /// Drafts, approvals, applied changes and rollbacks to drug
+        /// interactions and critical lab values, with each impact report and
+        /// the proof an auditor can re-check.
+        pub const LIST: &str = "knowledge.change_sets.list";
+        /// Draft and preview knowledge changes.
+        ///
+        /// Propose edits to drug interactions or critical lab values and see
+        /// which prescriptions, orders and results they would affect. Also
+        /// needs the area's own manage permission.
+        pub const CREATE: &str = "knowledge.change_sets.create";
+        /// Approve someone else's knowledge change.
+        ///
+        /// A second person approves or rejects a previewed change after
+        /// seeing the same diff and impact. Nobody approves their own.
+        pub const APPROVE: &str = "knowledge.change_sets.approve";
+        /// Apply approved knowledge changes.
+        ///
+        /// Make an approved change live, all items or none. Refused when the
+        /// live data changed since preview.
+        pub const APPLY: &str = "knowledge.change_sets.apply";
+        /// Roll back an applied knowledge change.
+        ///
+        /// Starts a new change set that reverses an applied one; it is
+        /// previewed and approved like any other.
+        pub const ROLLBACK: &str = "knowledge.change_sets.rollback";
     }
 }

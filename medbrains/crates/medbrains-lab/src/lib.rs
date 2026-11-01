@@ -31,6 +31,7 @@ use medbrains_server_core::state::AppState;
 pub mod analyser;
 mod analyser_review;
 mod catalog_search;
+pub mod critical_rule;
 pub mod direct;
 mod hl7_flag;
 mod order_filter;
@@ -39,6 +40,7 @@ mod reference_range;
 mod units;
 mod westgard;
 use catalog_search::{search_catalog, search_limit};
+use critical_rule::TenantCritical;
 use medbrains_core::synonyms::clean_synonyms;
 use order_filter::{Bind, build_order_filter};
 use priority::{normalize_lab_priority, token_priority};
@@ -1542,10 +1544,8 @@ async fn patient_lab_band(
             sex,
         });
     };
-    let age_days = chrono::Utc::now()
-        .date_naive()
-        .signed_duration_since(dob)
-        .num_days();
+    let today = chrono::Utc::now().date_naive();
+    let age_days = today.signed_duration_since(dob).num_days();
     let elderly = if sex.as_deref() == Some("female") {
         "elderly_f"
     } else {
@@ -1564,20 +1564,9 @@ async fn patient_lab_band(
     };
     Ok(PatientLabContext {
         band: band.to_owned(),
-        age_years: i32::try_from(age_days / 365).ok(),
+        age_years: critical_rule::age_years(dob, today),
         sex,
     })
-}
-
-/// What the tenant's own critical rules say about a value.
-enum TenantCritical {
-    /// Outside a limit this hospital wrote down.
-    Flagged(&'static str),
-    /// A rule applies and the value is inside it. The shared thresholds must
-    /// then stay out of the way.
-    WithinLimits,
-    /// This hospital has no rule for this analyte and this patient.
-    NoRule,
 }
 
 /// Evaluate `critical_value_rules` -- the table with a full settings screen
@@ -1592,10 +1581,8 @@ enum TenantCritical {
 /// Rules are matched most specific first: a rule naming an age range or a sex
 /// beats a blanket one, so a paediatric limit wins for a child without having
 /// to disable the adult rule beside it.
-/// The casts on `$3` and `$4` are load-bearing. `$3 IS NOT NULL` gives the
-/// planner nothing to infer a type from, and sqlx parses with unspecified
-/// parameter types, so without them the server answers "could not determine
-/// data type of parameter $3" and the query fails every time it is run.
+/// Rule choice and judgement live in `critical_rule`, shared with the
+/// knowledge change-set impact preview so both judge a value identically.
 async fn tenant_critical(
     tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
     tenant_id: Uuid,
@@ -1604,47 +1591,15 @@ async fn tenant_critical(
     unit: Option<&str>,
     ctx: &PatientLabContext,
 ) -> Result<TenantCritical, AppError> {
-    let rule = sqlx::query_as::<_, (Option<f64>, Option<f64>, Option<String>)>(
-        "SELECT low_critical::float8, high_critical::float8, unit \
-           FROM critical_value_rules \
-          WHERE tenant_id = $1 AND is_active = true AND deleted_at IS NULL \
-            AND (lower(test_code) = lower($2) OR lower(test_name) = lower($2)) \
-            AND (age_min IS NULL OR ($3::int IS NOT NULL AND $3::int >= age_min)) \
-            AND (age_max IS NULL OR ($3::int IS NOT NULL AND $3::int <= age_max)) \
-            AND (gender IS NULL OR gender = $4::text) \
-          ORDER BY (gender IS NOT NULL) DESC, \
-                   (age_min IS NOT NULL OR age_max IS NOT NULL) DESC \
-          LIMIT 1",
-    )
-    .bind(tenant_id)
-    .bind(parameter_name.trim())
-    .bind(ctx.age_years)
-    .bind(ctx.sex.as_deref())
-    .fetch_optional(&mut **tx)
-    .await?;
-
-    let Some((low, high, rule_unit)) = rule else {
-        return Ok(TenantCritical::NoRule);
-    };
-    // The rule's limits are in the rule's unit; a value that cannot be put in
-    // it has not been ruled on.
-    let Converted::Value(value) =
-        to_reference_unit(value, unit, rule_unit.as_deref(), parameter_name)
-    else {
-        return Ok(TenantCritical::NoRule);
-    };
-    if low.is_some_and(|limit| value < limit) {
-        return Ok(TenantCritical::Flagged("critical_low"));
-    }
-    if high.is_some_and(|limit| value > limit) {
-        return Ok(TenantCritical::Flagged("critical_high"));
-    }
-    // A rule with neither limit set decides nothing, so it must not silence
-    // the shared thresholds either.
-    if low.is_none() && high.is_none() {
-        return Ok(TenantCritical::NoRule);
-    }
-    Ok(TenantCritical::WithinLimits)
+    let rules =
+        critical_rule::load_rules(tx, tenant_id, &[parameter_name.trim().to_lowercase()]).await?;
+    Ok(critical_rule::evaluate(
+        &rules,
+        parameter_name,
+        value,
+        unit,
+        (ctx.age_years, ctx.sex.as_deref()),
+    ))
 }
 
 /// Judge a result against the global `cds_lab_reference`.

@@ -184,6 +184,7 @@ export * from "./ipd-clinical-expansion";
 export * from "./ipd-phase2";
 export * from "./ipd-phase3a";
 export * from "./ipd-post-discharge";
+export * from "./knowledge-changes";
 export * from "./locale-units";
 export * from "./marketing";
 export * from "./maternity-obgyn";
