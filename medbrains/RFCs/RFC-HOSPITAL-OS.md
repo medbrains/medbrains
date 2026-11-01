@@ -530,6 +530,26 @@ Phases: **UI1** shell features made system-level (Spotlight actions registry, Fo
 patient tabs); **UI2** the MedBrains HIG book; **UI3** appliance console on `cage` + WPE; **UI4**
 frame-rate and responsiveness budgets in CI (Playwright traces).
 
+## 8o. Hardware safety (why our code can't burn a chip, and what can actually hurt hardware)
+
+MedBrains runs in **userspace** on Debian's Linux kernel. It writes no drivers or firmware and never
+controls voltage, clocks or fans. CPU firmware and the kernel throttle and shut down on overheating;
+safe Rust plus kernel memory protection mean a bug crashes a process, not the machine; WASM blocks
+are sandboxed and time-boxed (fuel/epoch limits) so a bad plugin can't spin forever.
+
+Real risks for an appliance, and the defences every image and profile must ship:
+
+| Risk | Defence |
+|---|---|
+| **Flash / SD wear** (most common failure of small boards) | NVMe/SSD required in the clinic profile, never SD for data; quiet logging at normal levels; PostgreSQL + WAL tuned for flash; SMART / wear shown on the health screen with an early warning |
+| **Heat / throttling** | active cooling required on Pi-class boards; temperature and throttle state on the health screen; alert before limits |
+| **Power loss mid-write** | PostgreSQL crash-safe settings never disabled for speed (`fsync`, `full_page_writes` on); UPS support with clean shutdown (NUT); A/B system slots |
+| **Runaway CPU/memory** | systemd `CPUQuota`/`MemoryMax` per service; bounded loops, queues and caches (DSA law); hardware watchdog reboots a frozen box |
+| **Firmware updates** | never auto-flashed; only vendor-tested firmware, applied by a person with a rollback path |
+
+These are checks in the continuous runner (RFC-OSINT §3a): disk health, temperature, throttling,
+memory pressure, UPS state, watchdog status.
+
 ## 9. Identity: groups and directories (built in)
 
 Exists today: access groups with permissions (Admin → Groups), SSO with directory-group → role
