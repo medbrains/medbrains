@@ -1397,6 +1397,7 @@ import type {
   LeaveActionRequest,
   LeaveApplicationPrintData,
   LeaveBalance,
+  LeaveListRow,
   LeaveRequest,
   LicenseDashboardItem,
   LinenCondemnation,
@@ -10893,12 +10894,18 @@ export const api = {
     request<LeaveBalance[]>(`/hr/employees/${employeeId}/leave-balances`),
 
   // Leave Requests
-  listLeaveRequests: (params?: { employee_id?: string; status?: string }) => {
+  /** `status` may list several, comma-separated; `from`/`to` return leave overlapping the window. */
+  listLeaveRequests: (params?: {
+    employee_id?: string;
+    status?: string;
+    from?: string;
+    to?: string;
+    department_id?: string;
+  }) => {
     const qs = new URLSearchParams();
-    if (params?.employee_id) qs.set("employee_id", params.employee_id);
-    if (params?.status) qs.set("status", params.status);
+    for (const [k, v] of Object.entries(params ?? {})) if (v) qs.set(k, v);
     const q = qs.toString();
-    return request<LeaveRequest[]>(`/hr/leaves${q ? `?${q}` : ""}`);
+    return request<LeaveListRow[]>(`/hr/leaves${q ? `?${q}` : ""}`);
   },
 
   createLeaveRequest: (data: CreateLeaveRequestInput) =>

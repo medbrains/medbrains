@@ -12,9 +12,11 @@ use axum::{
     Extension, Json,
     extract::{Path, Query, State},
 };
+use chrono::NaiveDate;
 use medbrains_core::hr::{LeaveBalance, LeaveRequest};
 use medbrains_core::permissions;
-use serde::Deserialize;
+use rust_decimal::Decimal;
+use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use medbrains_server_core::error::AppError;
@@ -27,10 +29,32 @@ pub(crate) type Tx<'a> = sqlx::Transaction<'a, sqlx::Postgres>;
 const NOT_LINKED: &str =
     "Your login is not linked to an employee record. Ask HR to link it before applying for leave.";
 
+/// Upper bound on one list call — a calendar month of a large hospital fits.
+const LIST_LIMIT: i64 = 1000;
+
 #[derive(Debug, Deserialize)]
 pub struct ListLeaveQuery {
     pub employee_id: Option<Uuid>,
+    /// One status, or several comma-separated (`pending_hod,pending_admin`).
     pub status: Option<String>,
+    /// Date window: leave that overlaps `[from, to]` (either end may be open).
+    pub from: Option<NaiveDate>,
+    pub to: Option<NaiveDate>,
+    pub department_id: Option<Uuid>,
+}
+
+/// A leave as the HR list shows it: who it belongs to, and what they have
+/// left of that leave type for the leave's year — so the approver sees the
+/// balance next to Approve without one request per row.
+#[derive(Debug, Serialize, sqlx::FromRow)]
+pub struct LeaveListRow {
+    #[serde(flatten)]
+    #[sqlx(flatten)]
+    pub leave: LeaveRequest,
+    pub employee_name: String,
+    pub department_id: Option<Uuid>,
+    /// `None` when no balance row exists for that type and year.
+    pub remaining_balance: Option<Decimal>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -149,28 +173,48 @@ pub async fn list_leave_requests(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
     Query(params): Query<ListLeaveQuery>,
-) -> Result<Json<Vec<LeaveRequest>>, AppError> {
+) -> Result<Json<Vec<LeaveListRow>>, AppError> {
     require_permission(&claims, permissions::hr::leave::LIST)?;
+    let statuses: Option<Vec<String>> = params
+        .status
+        .as_deref()
+        .map(|s| s.split(',').map(|v| v.trim().to_owned()).collect());
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
-    let rows = sqlx::query_as::<_, LeaveRequest>(
-        "SELECT l.* FROM leave_requests l \
+    let rows = sqlx::query_as::<_, LeaveListRow>(
+        "SELECT l.*, \
+           concat_ws(' ', e.first_name, e.last_name) AS employee_name, \
+           e.department_id, \
+           (SELECT b.balance FROM leave_balances b \
+             WHERE b.tenant_id = l.tenant_id AND b.employee_id = l.employee_id \
+               AND b.leave_type = l.leave_type \
+               AND b.year = EXTRACT(YEAR FROM l.start_date)::int \
+               AND b.deleted_at IS NULL \
+             ORDER BY b.updated_at DESC LIMIT 1) AS remaining_balance \
+         FROM leave_requests l \
          JOIN employees e ON e.id = l.employee_id AND e.tenant_id = l.tenant_id \
          WHERE l.tenant_id = $1 AND l.deleted_at IS NULL \
            AND ($2::uuid IS NULL OR l.employee_id = $2) \
-           AND ($3::text IS NULL OR l.status = $3::leave_status) \
+           AND ($3::text[] IS NULL OR l.status::text = ANY($3)) \
+           AND ($6::date IS NULL OR l.end_date >= $6) \
+           AND ($7::date IS NULL OR l.start_date <= $7) \
+           AND ($8::uuid IS NULL OR e.department_id = $8) \
            AND ($4 OR e.user_id = $5 OR EXISTS( \
              SELECT 1 FROM departments d \
              JOIN employees h ON h.id = d.head_employee_id AND h.deleted_at IS NULL \
              WHERE d.id = e.department_id AND d.tenant_id = $1 \
                AND d.deleted_at IS NULL AND h.user_id = $5)) \
-         ORDER BY l.created_at DESC LIMIT 1000",
+         ORDER BY l.created_at DESC LIMIT $9",
     )
     .bind(claims.tenant_id)
     .bind(params.employee_id)
-    .bind(params.status.as_deref())
+    .bind(statuses)
     .bind(holds(&claims, permissions::hr::leave::MANAGE))
     .bind(claims.sub)
+    .bind(params.from)
+    .bind(params.to)
+    .bind(params.department_id)
+    .bind(LIST_LIMIT)
     .fetch_all(&mut *tx)
     .await?;
     tx.commit().await?;

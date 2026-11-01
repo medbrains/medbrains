@@ -3,6 +3,7 @@ import { useHasPermission } from "@medbrains/stores";
 import { P } from "@medbrains/types";
 import {
   IconCalendar,
+  IconCalendarMonth,
   IconClock,
   IconHeartbeat,
   IconIdBadge2,
@@ -19,6 +20,7 @@ import { ComplianceTab } from "./hr/compliance-tab";
 import { DutyHoursTab } from "./hr/duty-hours-tab";
 import { EmployeesTab } from "./hr/employees-tab";
 import { GeofenceTab } from "./hr/geofence-tab";
+import { LeaveCalendarTab } from "./hr/leave-calendar-tab";
 import { LeaveTab } from "./hr/leave-tab";
 import { RosterTab } from "./hr/roster-tab";
 import { TrainingTab } from "./hr/training-tab";
@@ -29,6 +31,7 @@ export function HrPage() {
   const canCreateEmployee = useHasPermission(P.HR.EMPLOYEES_CREATE);
   const canManageCredentials = useHasPermission(P.HR.CREDENTIALS_MANAGE);
   const canManageAttendance = useHasPermission(P.HR.ATTENDANCE_MANAGE);
+  const canListLeave = useHasPermission(P.HR.LEAVE_LIST);
   const canCreateLeave = useHasPermission(P.HR.LEAVE_CREATE);
   const canApproveLeave = useHasPermission(P.HR.LEAVE_APPROVE);
   const canManageLeave = useHasPermission(P.HR.LEAVE_MANAGE);
@@ -38,7 +41,9 @@ export function HrPage() {
   const canManageAppraisal = useHasPermission(P.HR.APPRAISAL_MANAGE);
   const canManageGeofence = useHasPermission(P.HR.ATTENDANCE_GEOFENCE_MANAGE);
 
-  const [activeTab, setActiveTab] = useState<string | null>("employees");
+  const [activeTab, setActiveTab] = useState<string | null>(
+    canListLeave ? "calendar" : "employees",
+  );
 
   return (
     <div>
@@ -51,6 +56,11 @@ export function HrPage() {
 
       <Tabs value={activeTab} onChange={setActiveTab}>
         <Tabs.List mb="md">
+          {canListLeave && (
+            <Tabs.Tab value="calendar" leftSection={<IconCalendarMonth size={16} />}>
+              Calendar
+            </Tabs.Tab>
+          )}
           <Tabs.Tab value="employees" leftSection={<IconUsers size={16} />}>
             Employees
           </Tabs.Tab>
@@ -79,6 +89,15 @@ export function HrPage() {
           </Tabs.Tab>
         </Tabs.List>
 
+        {canListLeave && (
+          <Tabs.Panel value="calendar">
+            <LeaveCalendarTab
+              canCreate={canCreateLeave}
+              canApprove={canApproveLeave}
+              canManage={canManageLeave}
+            />
+          </Tabs.Panel>
+        )}
         <Tabs.Panel value="employees">
           <EmployeesTab canCreate={canCreateEmployee} canManageCredentials={canManageCredentials} />
         </Tabs.Panel>

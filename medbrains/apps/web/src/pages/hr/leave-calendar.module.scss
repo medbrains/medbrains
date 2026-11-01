@@ -1,0 +1,25 @@
+// Layout and shape only — every colour comes from the theme via the event's `color`.
+
+.root {
+  min-width: 0;
+
+  [data-leave-state="pending"] {
+    border: 1px dashed currentColor;
+  }
+
+  [data-leave-state="approved"] {
+    border: 1px solid currentColor;
+  }
+
+  // Doubled class outranks the schedule's single-class transitions without !important.
+  @media (prefers-reduced-motion: reduce) {
+    &#{&} * {
+      transition: none;
+      animation: none;
+    }
+  }
+}
+
+.eventBody {
+  min-width: 0;
+}
