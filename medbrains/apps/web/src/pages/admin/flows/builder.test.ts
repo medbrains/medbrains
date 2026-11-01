@@ -2,6 +2,7 @@ import type { FlowBlock, FlowCheck, FlowDraft, FlowStation } from "@medbrains/ty
 import { describe, expect, it } from "vitest";
 import {
   checkLines,
+  groupProblems,
   insertBlock,
   moveBy,
   moveTo,
@@ -66,7 +67,7 @@ describe("placing a catalogue block", () => {
     expect(placed.map((p) => p.column)).toEqual([0, 1, 2, 3, 4]);
     // Columns only ever move right, so a new station never sits on another.
     for (let i = 1; i < placed.length; i += 1) {
-      expect((placed[i]?.x ?? 0)).toBeGreaterThan((placed[i - 1]?.x ?? 0));
+      expect(placed[i]?.x ?? 0).toBeGreaterThan(placed[i - 1]?.x ?? 0);
     }
   });
 
@@ -181,5 +182,27 @@ describe("the checks panel", () => {
       proposeState({ draft, checks: [check("invariants", false)], unsaved: false }).reason,
     ).toBe("1 check fails.");
     expect(proposeState({ draft: null, checks: passing, unsaved: false }).ok).toBe(false);
+  });
+});
+
+describe("groupProblems", () => {
+  it("collapses patient types that share an issue into one line with a count", () => {
+    const issue = "reaches Discharge without passing Summary signed";
+    const lines = [
+      `Medico-legal case: yes, Admitting department: ORTHO: ${issue}`,
+      `Medico-legal case: no, Admitting department: ORTHO: ${issue}`,
+      `Medico-legal case: no, Admitting department: (other): ${issue}`,
+    ];
+    const groups = groupProblems(lines);
+    expect(groups).toHaveLength(1);
+    expect(groups[0]?.issue).toBe(issue);
+    expect(groups[0]?.count).toBe(3);
+    expect(groups[0]?.examples).toHaveLength(2);
+  });
+
+  it("keeps different issues and lines without a patient type apart", () => {
+    const groups = groupProblems(["No patient can reach Summary signed", "A: x", "B: y"]);
+    expect(groups.map((g) => g.issue)).toEqual(["No patient can reach Summary signed", "x", "y"]);
+    expect(groups[0]?.examples).toEqual([]);
   });
 });

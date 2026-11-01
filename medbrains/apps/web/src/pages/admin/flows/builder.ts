@@ -119,6 +119,35 @@ export interface CheckLine {
   stations: string[];
 }
 
+/** A problem shown once, with how many patient types hit it and a couple of examples. */
+export interface ProblemGroup {
+  issue: string;
+  count: number;
+  examples: string[];
+}
+
+const EXAMPLES_SHOWN = 2;
+
+/**
+ * Collapse "<patient type>: <issue>" lines that share an issue into one line,
+ * so a designer reads "reaches Discharge without Summary signed (18 patient
+ * types)" instead of eighteen near-identical sentences. Lines without a
+ * patient-type prefix are kept as their own issue.
+ */
+export function groupProblems(problems: string[]): ProblemGroup[] {
+  const groups = new Map<string, ProblemGroup>();
+  for (const line of problems) {
+    const cut = line.lastIndexOf(": ");
+    const issue = cut === -1 ? line : line.slice(cut + 2);
+    const who = cut === -1 ? null : line.slice(0, cut);
+    const g = groups.get(issue) ?? { issue, count: 0, examples: [] };
+    g.count += 1;
+    if (who && g.examples.length < EXAMPLES_SHOWN) g.examples.push(who);
+    groups.set(issue, g);
+  }
+  return [...groups.values()];
+}
+
 export function checkLines(checks: FlowCheck[]): CheckLine[] {
   return [...checks]
     .sort((a, b) => ORDER.indexOf(a.rule) - ORDER.indexOf(b.rule))

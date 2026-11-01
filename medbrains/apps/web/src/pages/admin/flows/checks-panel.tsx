@@ -8,7 +8,7 @@ import { Group, Stack, Text, UnstyledButton } from "@mantine/core";
 import type { FlowCheck } from "@medbrains/types";
 import { IconCircleCheck, IconCircleX } from "@tabler/icons-react";
 import { Alert, Button, Panel, ThemeIcon } from "@/components/ui";
-import { checkLines } from "./builder";
+import { checkLines, groupProblems } from "./builder";
 import styles from "./builder.module.scss";
 
 export interface ChecksPanelProps {
@@ -70,9 +70,13 @@ export function ChecksPanel({ checks, error, onRetry, onHighlight }: ChecksPanel
                   <Text size="sm">
                     <b>{l.verdict}:</b> {l.sentence}
                   </Text>
-                  {l.problems.map((p) => (
-                    <Text key={p} size="xs" c="dimmed">
-                      {p}
+                  {groupProblems(l.problems).map((g) => (
+                    <Text key={g.issue} size="xs" c="dimmed">
+                      {g.count > 1
+                        ? `${capitalise(g.issue)} (${g.count} patient types, e.g. ${g.examples.join("; ")})`
+                        : g.examples.length > 0
+                          ? `${g.examples[0]}: ${g.issue}`
+                          : capitalise(g.issue)}
                     </Text>
                   ))}
                 </Stack>
@@ -82,4 +86,8 @@ export function ChecksPanel({ checks, error, onRetry, onHighlight }: ChecksPanel
       </Stack>
     </Panel>
   );
+}
+
+function capitalise(text: string): string {
+  return text.charAt(0).toUpperCase() + text.slice(1);
 }
