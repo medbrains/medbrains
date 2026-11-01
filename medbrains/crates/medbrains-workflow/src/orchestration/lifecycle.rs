@@ -11,7 +11,7 @@
 
 use medbrains_core::orchestration::EventGateResult;
 use serde_json::Value;
-use sqlx::PgPool;
+use sqlx::{PgConnection, PgPool};
 use uuid::Uuid;
 
 use medbrains_server_core::error::AppError;
@@ -141,6 +141,10 @@ pub async fn emit_before_event(
 ///
 /// Inserts a job into `job_queue` with `job_type = 'pipeline_event'` for
 /// async pickup by the background worker. Never fails the caller.
+///
+/// Runs on its own connection, so call it only after the work it reports has
+/// committed. Inside a unit of work use [`enqueue_after_event`], which rides
+/// the caller's transaction and is dropped with it on rollback.
 pub async fn emit_after_event(
     pool: &PgPool,
     tenant_id: Uuid,
@@ -148,25 +152,12 @@ pub async fn emit_after_event(
     event_code: &str,
     payload: Value,
 ) -> Result<(), AppError> {
-    let job_payload = serde_json::json!({
-        "event_code": event_code,
-        "user_id": user_id.to_string(),
-        "payload": payload,
-    });
-
     // Under the event's hospital: `job_queue` is row level secured, and an
     // insert outside a tenant is refused (and only logged, below).
     let result = match medbrains_db::pool::tenant_conn(pool, &tenant_id).await {
-        Ok(mut conn) => sqlx::query(
-            "INSERT INTO job_queue \
-               (tenant_id, job_type, payload, priority) \
-             VALUES ($1, 'pipeline_event', $2, 5)",
-        )
-        .bind(tenant_id)
-        .bind(&job_payload)
-        .execute(&mut *conn)
-        .await
-        .map_err(AppError::from),
+        Ok(mut conn) => {
+            enqueue_after_event(&mut conn, tenant_id, user_id, event_code, payload).await
+        }
         Err(e) => Err(AppError::from(e)),
     };
 
@@ -180,6 +171,34 @@ pub async fn emit_after_event(
         );
     }
 
+    Ok(())
+}
+
+/// Write the after-event job on `conn` — the outbox row.
+///
+/// On a connection inside a transaction the job commits or rolls back with the work, so an
+/// event is never queued for work that did not happen. Errors propagate.
+pub async fn enqueue_after_event(
+    conn: &mut PgConnection,
+    tenant_id: Uuid,
+    user_id: Uuid,
+    event_code: &str,
+    payload: Value,
+) -> Result<(), AppError> {
+    let job_payload = serde_json::json!({
+        "event_code": event_code,
+        "user_id": user_id.to_string(),
+        "payload": payload,
+    });
+    sqlx::query(
+        "INSERT INTO job_queue \
+           (tenant_id, job_type, payload, priority) \
+         VALUES ($1, 'pipeline_event', $2, 5)",
+    )
+    .bind(tenant_id)
+    .bind(&job_payload)
+    .execute(conn)
+    .await?;
     Ok(())
 }
 

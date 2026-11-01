@@ -8754,12 +8754,17 @@ version = "0.1.0"
 dependencies = [
  "axum",
  "chrono",
+ "jsonwebtoken",
+ "medbrains-authz",
  "medbrains-core",
+ "medbrains-db-topology",
  "medbrains-kernel",
+ "medbrains-outbox",
  "medbrains-server-core",
  "serde",
  "serde_json",
  "sqlx",
+ "tokio",
  "uuid",
 ]
 

@@ -17,11 +17,20 @@ use std::fmt::Write as _;
 use std::fs;
 use std::path::Path;
 
+/// A runtime dependency: listed under `[dependencies]`. Test-only access
+/// (`[dev-dependencies]`) is not a reach past the kernel.
 fn has_dep(manifest: &str, name: &str) -> bool {
+    let mut runtime = false;
     manifest.lines().any(|line| {
         let line = line.trim_start();
-        line.strip_prefix(name)
-            .is_some_and(|rest| rest.trim_start().starts_with('='))
+        if line.starts_with('[') {
+            runtime = line.starts_with("[dependencies]");
+            return false;
+        }
+        runtime
+            && line
+                .strip_prefix(name)
+                .is_some_and(|rest| rest.trim_start().starts_with('='))
     })
 }
 

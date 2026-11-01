@@ -1,12 +1,11 @@
 //! Events: before-events that can refuse, after-events that react.
 //!
 //! Wraps `medbrains_workflow::orchestration::lifecycle::{emit_before_event,
-//! emit_after_event}`. The tenant and user come from the [`Tx`].
+//! enqueue_after_event}`. The tenant and user come from the [`Tx`].
 //!
-//! **Gap:** both open their own tenant connection, so they run outside the
-//! caller's transaction — an after-event is queued even if the unit of work
-//! later rolls back. Moving them onto the caller's transaction (a true outbox
-//! write) changes behaviour and is left for a later phase.
+//! Before-events are synchronous gates and run on their own connection.
+//! After-events are an outbox write on the caller's transaction: they commit
+//! with the work, and a rollback drops them.
 
 use serde_json::Value;
 
@@ -33,13 +32,16 @@ pub async fn before(
     .await
 }
 
-/// Queue the pipelines reacting to `event_code`. Never fails the caller: a
-/// queueing fault is logged by the wrapped function.
+/// Queue the pipelines reacting to `event_code`, inside the unit of work.
+///
+/// The job is visible to the worker only once `tx` commits, and is discarded if it
+/// rolls back. A failed write fails the unit of work rather than committing
+/// work whose event was lost.
 #[inline]
-pub async fn after(tx: &Tx, event_code: &str, payload: Value) -> Result<(), AppError> {
+pub async fn after(tx: &mut Tx, event_code: &str, payload: Value) -> Result<(), AppError> {
     let actor = tx.actor();
-    medbrains_workflow::orchestration::lifecycle::emit_after_event(
-        &tx.pool,
+    medbrains_workflow::orchestration::lifecycle::enqueue_after_event(
+        tx,
         actor.tenant_id,
         actor.user_id,
         event_code,

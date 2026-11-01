@@ -170,6 +170,10 @@ pub async fn list_vte_assessments(
     Path(patient_id): Path<Uuid>,
 ) -> Result<Json<Vec<VteRiskAssessment>>, AppError> {
     require_permission(&claims, permissions::ipd::nursing_assessment::LIST)?;
+    // The path names one patient, so the list is that patient's or nothing:
+    // a refusal answers 404 and an authorisation fault 503 — never `[]`,
+    // which would read as "no VTE risk recorded" for a patient at risk.
+    require_patient_access(&state, &claims, patient_id).await?;
     let mut tx = medbrains_kernel::begin(&state.db, Actor::from_claims(&claims)).await?;
     let rows = sqlx::query_as::<_, VteRiskAssessment>(&format!(
         "SELECT {VTE_COLS} FROM vte_risk_assessments \
@@ -181,6 +185,16 @@ pub async fn list_vte_assessments(
     .await?;
     tx.commit().await?;
     Ok(Json(rows))
+}
+
+/// vte routes.
+pub fn router() -> axum::Router<AppState> {
+    axum::Router::new()
+        .route("/api/vte-assessments", post(create_vte_assessment))
+        .route(
+            "/api/patients/{patient_id}/vte-assessments",
+            get(list_vte_assessments),
+        )
 }
 
 #[cfg(test)]
@@ -219,14 +233,4 @@ mod tests {
         r.recent_trauma_surgery = true; // +2
         assert_eq!(padua_score(&r), 6);
     }
-}
-
-/// vte routes.
-pub fn router() -> axum::Router<AppState> {
-    axum::Router::new()
-        .route("/api/vte-assessments", post(create_vte_assessment))
-        .route(
-            "/api/patients/{patient_id}/vte-assessments",
-            get(list_vte_assessments),
-        )
 }

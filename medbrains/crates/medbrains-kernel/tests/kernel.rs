@@ -336,3 +336,45 @@ async fn facade_overhead_is_within_budget() {
         "facade overhead {overhead:.4} ms exceeds the 0.2 ms budget"
     );
 }
+
+/// An after-event rides the unit of work: rolled-back work queues nothing,
+/// committed work queues exactly one job.
+#[tokio::test]
+#[ignore = "needs-pg"]
+async fn after_events_commit_and_roll_back_with_the_work() {
+    let owner = owner_pool().await;
+    let (a, _) = fixture(&owner).await;
+    let app = app_pool().await;
+    let jobs = async |code: &str| -> i64 {
+        sqlx::query_scalar(
+            "SELECT count(*) FROM job_queue \
+              WHERE tenant_id = $1 AND job_type = 'pipeline_event' \
+                AND payload->>'event_code' = $2",
+        )
+        .bind(a.tenant_id)
+        .bind(code)
+        .fetch_one(&owner)
+        .await
+        .unwrap()
+    };
+
+    let refused = medbrains_kernel::work(&app, a, async |tx: &mut medbrains_kernel::Tx| {
+        medbrains_kernel::events::after(tx, "kernel_test.rolled_back", serde_json::json!({}))
+            .await?;
+        Err::<(), _>(AppError::BadRequest("the work failed".to_owned()))
+    })
+    .await;
+    assert!(refused.is_err());
+    assert_eq!(
+        jobs("kernel_test.rolled_back").await,
+        0,
+        "rollback leaked an event"
+    );
+
+    medbrains_kernel::work(&app, a, async |tx: &mut medbrains_kernel::Tx| {
+        medbrains_kernel::events::after(tx, "kernel_test.committed", serde_json::json!({})).await
+    })
+    .await
+    .unwrap();
+    assert_eq!(jobs("kernel_test.committed").await, 1);
+}
