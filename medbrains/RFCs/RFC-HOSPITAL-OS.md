@@ -286,6 +286,36 @@ Phases: **M1** MCP server over existing `medbrains-ai` tools (read-only first, t
 **M2** hospital-approved MCP client connections; **M3** shared capability manifest for blocks and
 tools.
 
+## 8g. An open extension ecosystem (the way providers build around MCP)
+
+MCP grew because anyone could build a server for it: an open, simple spec; SDKs in every popular
+language; no permission needed to build or publish; one server works with every client. MedBrains
+copies that so vendors and developers build **around** it without asking us.
+
+- **Open extension protocol, published.** An extension is a separate service (any language, any
+  host) that speaks MedBrains' documented protocol: JSON over HTTPS for calls, signed webhooks for
+  events, and the standards in §7 (FHIR, SMART on FHIR, CDS Hooks) where they fit; MCP for AI
+  tools (§8f). The spec, examples and a test suite live in the open repo.
+- **SDKs in many languages:** TypeScript, Python, Go, Java, C#, Rust: sign-in, typed calls,
+  webhook verification, a local mock MedBrains for testing.
+- **Kinds of extension:** screens inside MedBrains (SMART app launch), background services
+  (integrations, billing exports, analytics), clinical advice (CDS Hooks), flow blocks (call-out
+  blocks for SOP flows, §4), device drivers, AI tools (MCP).
+- **One manifest** for every kind (§8f item 3): what it does, which events and data it needs,
+  which permissions, which data classes. Hospitals see exactly this before approving.
+- **No gate to build or publish:** a developer CLI (`medbrains ext init`, `ext test`, `ext publish`)
+  and a public registry where anyone lists an extension. Two tiers: **community** (listed,
+  unreviewed, clearly marked) and **certified** (reviewed and signed by MedBrains, the partner
+  programme). Hospitals choose; certified ones are recommended.
+- **The kernel is still the gate to data:** an extension never touches the database; every call is
+  checked against the permissions the hospital granted it, plus consent and audit. Revoking an
+  extension cuts it off at once.
+- **Free sandbox hospital** to build against, with synthetic data.
+
+Phases: **E1** publish the extension protocol + manifest + TypeScript and Python SDKs + CLI;
+**E2** public registry (community tier) + hospital install/approve screen; **E3** certification
+tier + more SDKs; **E4** extension kinds beyond the first (CDS Hooks, flow call-out blocks).
+
 ## 9. Identity: groups and directories (built in)
 
 Exists today: access groups with permissions (Admin → Groups), SSO with directory-group → role
