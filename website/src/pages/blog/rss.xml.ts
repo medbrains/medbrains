@@ -7,7 +7,7 @@ import { getPosts, postPath } from "../../lib/blog";
 export const GET: APIRoute = async ({ site }) =>
   rss({
     title: `${SITE.brand} blog`,
-    description: "Plain-language health advice for Indian families, and practical writing for hospitals.",
+    description: "Plain-language health advice for families, and practical writing for hospitals.",
     site: site ?? "https://www.medbrains.in",
     customData: "<language>en-IN</language>",
     trailingSlash: false,

@@ -51,7 +51,7 @@ const [DPDP_SHEET, DISCHARGE_SHEET] = RESOURCES;
 /** Free web pages (no PDF): figures to cite and calculators. */
 export const TOOLS = [
   {
-    title: "Indian hospitals in numbers",
+    title: "PM-JAY, ABDM and DHIS in numbers",
     body: "Official, dated figures on PM-JAY, ABHA and ABDM adoption, DHIS incentive rates and IRDAI cashless time limits, each with its source.",
     page: "/resources/indian-hospitals-in-numbers",
   },
@@ -76,7 +76,7 @@ export const GUIDES = {
   abdm: {
     slug: "abdm-incentive",
     title: "ABDM DHIS incentive for hospitals explained | MedBrains",
-    description: "How the ABDM DHIS incentive pays Indian hospitals for digital health records, who qualifies, and what your HMIS needs: ABHA, M2 record linking and M3 consent.",
+    description: "How the ABDM DHIS incentive pays hospitals for digital health records, who qualifies, and what your HMIS needs: ABHA, M2 record linking and M3 consent.",
     eyebrow: "ABDM incentive",
     h1: "Get paid for going digital",
     intro: "The Digital Health Incentive Scheme pays hospitals for health records linked to patients' ABHA and for records shared with consent. The money follows the software: only transactions on a system integrated with ABDM count.",
@@ -128,7 +128,7 @@ export const GUIDES = {
       { text: "The three hours start when the request reaches the insurer — not when the doctor says the patient is fit to go. Finishing the summary, closing the bill and assembling the file before the request goes out is the hospital's time.", sources: [1] },
       { text: "NABH's 6th edition standards (effective 1 January 2025) measure time taken for discharge from the consultant's formal approval to the patient leaving the clinical unit, monthly, in minutes. Monitoring it and setting a benchmark is now a commitment element.", sources: [2] },
       { text: "An audit at AIIMS Bhubaneswar found a mean discharge time of 195 minutes, with billing clearance taking around half of it.", sources: [3] },
-      { text: "A 2024 study of 1,000 discharges at a north Indian tertiary hospital found a mean of 329 minutes, with the summary reaching patients 235 minutes after the discharge instruction. After planning a day ahead and adding dedicated counters, the mean fell to 208 minutes.", sources: [4] },
+      { text: "A 2024 study of 1,000 discharges at a tertiary hospital found a mean of 329 minutes, with the summary reaching patients 235 minutes after the discharge instruction. After planning a day ahead and adding dedicated counters, the mean fell to 208 minutes.", sources: [4] },
     ],
     does: [
       { title: "One pre-authorisation, every stage", body: "Initial request, enhancement and final discharge authorisation are stages of one pre-authorisation, with the time each was sent and answered, the approved amount and a full status history." },
@@ -159,7 +159,7 @@ export const GUIDES = {
   dpdp: {
     slug: "dpdp-readiness",
     title: "DPDP Act for hospitals: readiness guide | MedBrains",
-    description: "The DPDP Act for hospitals in India: the 2023 Act and 2025 Rules timeline, consent, security, 72-hour breach reporting and retention, with a free checklist.",
+    description: "The DPDP Act for hospitals: the 2023 Act and 2025 Rules timeline, consent, security, 72-hour breach reporting and retention, with a free checklist.",
     eyebrow: "DPDP readiness",
     h1: "Ready for the DPDP Act before May 2027",
     intro: "The main duties of the Digital Personal Data Protection Act start eighteen months after the Rules were notified. Most of them land on the registration desk, the medical records department and the hospital's software.",

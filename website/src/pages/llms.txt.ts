@@ -17,7 +17,7 @@ export const GET: APIRoute = async ({ site }) => {
   const body = [
     `# ${SITE.brand}`,
     "",
-    `> ${SITE.brand} is hospital management software (HMS) for Indian hospitals and clinics: registration, OPD, IPD, lab, radiology, pharmacy, GST billing and insurance on one patient record, with native staff and patient apps and TV token boards. It runs in our cloud or on the hospital's own servers.`,
+    `> ${SITE.brand} is hospital management software (HMS) for hospitals and clinics: registration, OPD, IPD, lab, radiology, pharmacy, GST billing and insurance on one patient record, with native staff and patient apps and TV token boards. It runs in our cloud or on the hospital's own servers.`,
     "",
     "## Facts",
     ...TRUST.map((t) => `- ${t.title}: ${t.body}`),
@@ -36,6 +36,8 @@ export const GET: APIRoute = async ({ site }) => {
     `- ${SUPPORT_US.title}: ${SUPPORT_US.rules}`,
     link("Pricing", "/pricing", "what is free, what we charge for, and how to get a quote"),
     link("Commercial terms", "/terms", "our standard terms for implementation, customisation, AMC, hosting and data"),
+    link("Partner programme", "/partners", "for IT companies that install, train and support MedBrains for hospitals near them"),
+    link("Sponsor MedBrains", "/sponsors", "sponsor a feature every hospital gets, fund a charitable hospital's go-live, or lend your team"),
     "",
     "## AI and data safety",
     `- AI is for: ${SCOPE.helps.join("; ")}.`,

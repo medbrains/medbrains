@@ -13,9 +13,9 @@ const checklist: ModulePage = {
   slug: "how-to-choose-hospital-management-software",
   parent: "hospital-management-software",
   title: "How to Choose Hospital Management Software | MedBrains",
-  description: "How to choose hospital management software in India: a 25-point checklist on NABH, drug law, GST and TPA, ABDM, DPDP, data and cost, with a demo test for each.",
+  description: "How to choose hospital management software: a 25-point checklist on NABH, drug law, GST and TPA, ABDM, DPDP, data and cost, with a demo test for each.",
   eyebrow: "Buying guide",
-  h1: "How to choose hospital management software in India: a 25-point checklist",
+  h1: "How to choose hospital management software: a 25-point checklist",
   intro: "Choose hospital management software by testing it, not by reading its brochure. Write down how your hospital actually works, then make every vendor show each of the 25 points below on screen, with your own patients, drugs and tariffs, signed in as the person who will use it. This guide says what to check and how to test it in a demo. It names no vendors and ranks none; at the end we answer the same checklist for MedBrains, including where the answer is \"not yet\".",
   sections: [
     {
@@ -125,7 +125,7 @@ const checklist: ModulePage = {
   ],
   caveat: "This is general guidance on choosing software, not legal advice. The laws and circulars named here change; check the current version with your own advisers.",
   faq: [
-    { q: "What is the best hospital management software in India?", a: "There is no single best hospital management software in India for every hospital. A 30-bed nursing home and a 300-bed multi-specialty hospital need different things. The right one for you is the one that passes this checklist in a demo run with your own scenarios, your own data and your own staff, and whose references confirm it." },
+    { q: "What is the best hospital management software?", a: "There is no single best hospital management software for every hospital. A 30-bed nursing home and a 300-bed multi-specialty hospital need different things. The right one for you is the one that passes this checklist in a demo run with your own scenarios, your own data and your own staff, and whose references confirm it." },
     { q: "What should I look for in hospital management software?", a: "One patient record with a duplicate check, clinical screens doctors will use, NABH workflows built in, drug-law rules at the pharmacy, GST and TPA billing, ABDM and DPDP handling, clear data ownership, backups, a plan for internet outages, training, and a five-year total cost." },
     { q: "How do I check a vendor's ABDM claim?", a: "Ask which milestones (M1, M2, M3) are live, whether the software has passed NHA's certification for production or only works in the sandbox, and look for it on the official ABDM website. Then create or verify an ABHA in the demo." },
     { q: "Is cloud or on-premise hospital software better?", a: "Cloud avoids running a server and keeps updates simple. On-premise keeps data in the building and keeps working on the local network when the internet drops. Choose a product that offers both so you can change your mind later." },
@@ -148,7 +148,7 @@ const excel: ModulePage = {
     {
       title: "Where paper and Excel work",
       body: [
-        "<strong>Paper registers</strong> need no power, no network and no training. An OPD register, a ward census book and a pharmacy sale book are how many Indian hospitals still run, and for low volumes they are quick and reliable.",
+        "<strong>Paper registers</strong> need no power, no network and no training. An OPD register, a ward census book and a pharmacy sale book are how many hospitals still run, and for low volumes they are quick and reliable.",
         "<strong>Excel</strong> adds counting. A patient list you can filter, a monthly revenue sheet, a stock sheet with formulas. For a clinic with one or two doctors, or for a hospital tracking one thing (a camp list, a referral list), a spreadsheet is cheap and everyone knows how to use it.",
         "If that is your hospital and none of the problems below is costing you, you may not need software yet. Most hospitals move when one of these starts to hurt.",
       ],
