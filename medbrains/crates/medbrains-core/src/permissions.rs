@@ -3360,6 +3360,23 @@ pub mod admin {
         pub const MANAGE: &str = "admin.webhooks.manage";
     }
 
+    /// Vendor apps and extensions the hospital lets in (RFC-HOSPITAL-OS C1).
+    pub mod connected_apps {
+        /// See connected apps and what they may read.
+        ///
+        /// Each app's manifest and privacy label — the permissions it holds,
+        /// the kinds of data it touches and where it sends them — when it was
+        /// last used and whether its event deliveries are landing. Shows no
+        /// patient data and no secrets.
+        pub const VIEW: &str = "admin.connected_apps.view";
+        /// Register, approve, revoke and re-key connected apps.
+        ///
+        /// Lets an outside app act in the hospital with the permissions in
+        /// its manifest, or cuts it off at once. Nobody can approve an app
+        /// wider than themselves.
+        pub const MANAGE: &str = "admin.connected_apps.manage";
+    }
+
     /// The software's own crash reports, from the self-hosted error tracker.
     pub mod error_tracking {
         /// See how often the software is failing.

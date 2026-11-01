@@ -298,12 +298,14 @@ async fn list(
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
     // `key_hash` is never selected. There is nothing useful a console does
     // with it and every place it travels is another place it can leak.
+    // Connected apps' short-lived OAuth tokens live on their own screen.
     let rows = sqlx::query_as::<_, KeySummary>(
         "SELECT k.id, k.name, k.description, k.key_prefix, k.permissions, k.expires_at, \
          k.last_used_at, k.revoked_at, k.created_at, u.full_name AS created_by_name, \
          k.rate_limit_per_minute \
          FROM api_keys k LEFT JOIN users u ON u.id = k.created_by \
-         WHERE k.tenant_id = $1 ORDER BY k.created_at DESC LIMIT 500",
+         WHERE k.tenant_id = $1 AND k.connected_app_id IS NULL \
+         ORDER BY k.created_at DESC LIMIT 500",
     )
     .bind(claims.tenant_id)
     .fetch_all(&mut *tx)

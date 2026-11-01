@@ -137,6 +137,9 @@ pub fn build_router(state: AppState) -> Router {
         .merge(medbrains_device_pairing::device_code_router())
         // FHIR CapabilityStatement — clients read it before they authenticate.
         .merge(medbrains_fhir_api::public_router())
+        // OAuth client credentials for connected apps (RFC-HOSPITAL-OS C1) —
+        // the app has no session yet; it presents its client id and secret.
+        .merge(medbrains_connected_apps::public_router())
         // Onboarding — public endpoints
         .merge(medbrains_onboarding::public_router())
         // Geo — public read-only endpoints
@@ -197,6 +200,7 @@ pub fn build_router(state: AppState) -> Router {
         .merge(medbrains_approvals_api::router())
         .merge(medbrains_onboarding::router())
         .merge(medbrains_api_keys_api::router())
+        .merge(medbrains_connected_apps::router())
         .route("/api/auth/step-up", post(step_up::step_up))
         .merge(medbrains_mfa::router())
         // Phase A.1 — offline JWT revocation feed for mobile/TV/edge

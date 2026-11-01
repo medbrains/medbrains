@@ -24,6 +24,7 @@ members = [
     "crates/medbrains-approvals-api",
     "crates/medbrains-api-keys",
     "crates/medbrains-api-keys-api",
+    "crates/medbrains-connected-apps",
     "crates/medbrains-db",
     "crates/medbrains-db-migrations",
     "crates/medbrains-abdm",

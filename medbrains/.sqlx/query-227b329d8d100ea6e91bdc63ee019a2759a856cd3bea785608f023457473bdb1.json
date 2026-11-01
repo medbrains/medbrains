@@ -1,0 +1,25 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE connected_apps SET client_secret_hash = $3, secret_prefix = $4, secret_rotated_at = now() WHERE id = $1 AND tenant_id = $2 AND status <> 'revoked' AND deleted_at IS NULL RETURNING client_id",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "client_id",
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Text",
+        "Text"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "227b329d8d100ea6e91bdc63ee019a2759a856cd3bea785608f023457473bdb1"
+}

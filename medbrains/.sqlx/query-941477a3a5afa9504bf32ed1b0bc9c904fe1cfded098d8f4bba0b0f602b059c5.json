@@ -1,0 +1,22 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO api_keys (id, tenant_id, name, key_prefix, key_hash, permissions, expires_at, created_by, service_user_id, connected_app_id) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $8, $9)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Text",
+        "Text",
+        "Text",
+        "Jsonb",
+        "Timestamptz",
+        "Uuid",
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "941477a3a5afa9504bf32ed1b0bc9c904fe1cfded098d8f4bba0b0f602b059c5"
+}

@@ -17,7 +17,7 @@ export interface PermissionDef {
   module: string;
 }
 
-/** 1210 permissions, one per constant in the Rust source. */
+/** 1212 permissions, one per constant in the Rust source. */
 export const PERMISSIONS: PermissionDef[] = [
   // dashboard
   {
@@ -5562,6 +5562,18 @@ export const PERMISSIONS: PermissionDef[] = [
     module: "admin",
   },
   {
+    code: "admin.connected_apps.view",
+    label: "See connected apps and what they may read",
+    description: "Each app's manifest and privacy label — the permissions it holds, the kinds of data it touches and where it sends them — when it was last used and whether its event deliveries are landing. Shows no patient data and no secrets.",
+    module: "admin",
+  },
+  {
+    code: "admin.connected_apps.manage",
+    label: "Manage Connected Apps",
+    description: "Register, approve, revoke and re-key connected apps. Lets an outside app act in the hospital with the permissions in its manifest, or cuts it off at once. Nobody can approve an app wider than themselves.",
+    module: "admin",
+  },
+  {
     code: "admin.error_tracking.view",
     label: "See how often the software is failing",
     description: "New errors in the last day, the share of sessions on the running release that did not crash, and a link to the error tracker. The reports are about the software and carry no patient data.",
@@ -7448,6 +7460,12 @@ export const P = {
     BACKUP_MANAGE: "admin.backup.manage",
     COMPLIANCE_MANAGE: "admin.compliance.manage",
     CONFIG_MANAGE: "admin.config.manage",
+    CONNECTED_APPS: {
+      MANAGE: "admin.connected_apps.manage",
+      VIEW: "admin.connected_apps.view",
+    },
+    CONNECTED_APPS_MANAGE: "admin.connected_apps.manage",
+    CONNECTED_APPS_VIEW: "admin.connected_apps.view",
     COVERAGE: {
       LIST: "admin.coverage.list",
       MANAGE: "admin.coverage.manage",
@@ -12078,6 +12096,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
     label: "Audit Officer",
     permissions: [
       P.ADMIN.ACCESS_REQUESTS.LIST,
+      P.ADMIN.CONNECTED_APPS.VIEW,
       P.ADMIN.HISTORY_IMPORT.VIEW,
       P.ADMIN.KERNEL.VIEW,
       P.ADMIN.SETTINGS.READ,

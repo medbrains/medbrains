@@ -6152,6 +6152,83 @@ export interface CreatedApiKey {
   acts_as: string;
 }
 
+// ── Connected apps (RFC-HOSPITAL-OS C1) ──────────────────────────────────────
+//
+// A vendor app or extension, registered from its manifest and approved by a
+// person who sees what it reads and where the data goes.
+
+/** One place an extension sends hospital data — the privacy label's core. */
+export interface ManifestDestination {
+  name: string;
+  url: string;
+  purpose: string;
+}
+
+/** The one manifest every extension carries (docs/extensions/manifest.schema.json). */
+export interface ExtensionManifest {
+  manifestVersion: 1;
+  kind: "service" | "smart-app" | "mcp-tool" | "wasm-block";
+  name: string;
+  purpose: string;
+  publisher: { name: string; url?: string; contact?: string };
+  version: string;
+  permissions: string[];
+  reads?: string[];
+  events?: string[];
+  dataClasses: string[];
+  sendsDataTo?: ManifestDestination[];
+  webhookUrl?: string;
+  redirectUris?: string[];
+}
+
+export interface ConnectedApp {
+  id: string;
+  client_id: string;
+  /** e.g. `mbcs_a3f2c1` — identifies the current secret, never the secret. */
+  secret_prefix: string;
+  name: string;
+  publisher: string;
+  purpose: string;
+  version: string;
+  manifest: ExtensionManifest;
+  permissions: string[];
+  status: "pending" | "approved" | "revoked";
+  has_webhook: boolean;
+  approved_at: string | null;
+  approved_by_name: string | null;
+  revoked_at: string | null;
+  revoke_reason: string | null;
+  secret_rotated_at: string | null;
+  last_used_at: string | null;
+  created_at: string;
+}
+
+/** Shown once, on register and on rotate. Nothing can recover them. */
+export interface ConnectedAppCredentials {
+  id: string;
+  client_id: string;
+  client_secret: string;
+  webhook_signing_secret: string | null;
+}
+
+export interface ConnectedAppDelivery {
+  id: string;
+  event_type: string;
+  attempt: number;
+  status: "delivered" | "retrying" | "failed";
+  response_status: number | null;
+  error: string | null;
+  created_at: string;
+}
+
+/** RFC 6749 client-credentials token response. */
+export interface OAuthTokenResponse {
+  access_token: string;
+  token_type: "Bearer";
+  expires_in: number;
+  scope: string;
+}
+
 /** Where the hospital's events are sent (#224). The secret is never listed. */
 export interface WebhookSubscription {
   id: string;

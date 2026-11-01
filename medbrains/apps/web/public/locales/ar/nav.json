@@ -65,6 +65,7 @@
   "integrationHub": "خطوط الأنابيب المدمجة",
   "formTemplates": "النماذج",
   "apiKeys": "مفاتيح API",
+  "connectedApps": "التطبيقات المتصلة",
   "webhooks": "خطافات الويب",
   "screenBuilder": "منشئ الشاشات",
   "doctorSchedules": "جداول الأطباء",
