@@ -139,6 +139,12 @@ board); no permission (nothing fetched). Keyboard-operable; meaning never by col
 3. **OPD journey**: registration → token → consult → orders → billing → pharmacy.
 4. **Admission, lab and pharmacy order flows.**
 5. **SOP library and scopes**: library flows from the 29 SOPs, department/campus overrides.
+6. **AI-assisted setup (later):** a hospital uploads its own SOP document; AI reads it and
+   **proposes** switch settings for the matching library flow ("your SOP says insurance discharges
+   need TPA clearance: turn this switch On"), each with the sentence from the SOP it came from.
+   AI never builds or changes tracks and never applies anything: its proposal is shown with an AI
+   label, a person reviews it, and it goes through a change set like any other switch change.
+   The same reading can flag where a hospital's SOP and its live switches disagree.
 
 ## 8. Acceptance scenarios (phase 1)
 
@@ -167,4 +173,4 @@ board); no permission (nothing fetched). Keyboard-operable; meaning never by col
 
 ## 10. Not in scope
 
-Patient-facing flow screens, free-form code in flows, cross-hospital flows, AI-generated flows.
+Patient-facing flow screens, free-form code in flows, cross-hospital flows, AI-built tracks (AI may only propose switch settings, phase 6).
