@@ -111,6 +111,8 @@ both exist; the core stays free (Apache-2.0).
 - **I1–I3 Identity** (after K1): I1 SCIM provisioning; I2 directory group → access group mapping;
   I3 one-screen directory setup via change sets.
 - **Z1 Zero-licence check**: CI rule over dependencies and deploy kits (§8).
+- **D1–D4 OS images** (§8b): D1 Raspberry Pi image + first-boot wizard; D2 bootable x86 ISO;
+  D3 VM images (OVA/qcow2/VHDX) + Windows installer; D4 A/B updates with automatic rollback.
 - **P1 Raspberry Pi** (§8a): clinic profile, ARM64 binaries in releases, measured benchmarks on a
   Pi 5, low-memory database tuning, backup-to-USB, then a ready image.
 
@@ -172,6 +174,29 @@ installer is partly architecture-aware.
   The website and README claim only what was measured.
 - **Safe by default on small boxes:** automatic nightly backups to a USB disk or the cloud, the
   database tuned for low memory, and a health screen warning when disk or memory runs low.
+
+## 8b. MedBrains OS images (install like an appliance)
+
+MedBrains ships as ready images, the way Home Assistant OS, TrueNAS and pfSense do: a minimal Linux
+base with MedBrains preinstalled. Boot it, open the address it shows in a browser, and a setup
+wizard creates the hospital, the admin and backups. MedBrains does not replace the Linux kernel; it
+is an appliance OS on top of it.
+
+| Image | For | Built with |
+|---|---|---|
+| **Bootable ISO** (x86-64) | any PC or server: install to disk from a USB stick | Debian live-build or mkosi |
+| **Raspberry Pi / ARM image** | Pi 5 / 4 and similar ARM boards, flashed to NVMe or SD | pi-gen (listed in Raspberry Pi Imager) |
+| **Virtual machine images** | OVA (VirtualBox/VMware), qcow2 (Proxmox/KVM), Hyper-V VHDX | Packer / mkosi |
+| **Cloud images** | AWS, other clouds | Packer |
+| **Containers** | Docker / Kubernetes (exists: amd64 + arm64) | release workflow |
+| **Windows** | hospitals that already run Windows: a one-click installer that runs the appliance inside WSL2 or Hyper-V; staff can also use the desktop app | MSI + the VM image |
+
+Windows support is an option for hospitals that already have it, never a requirement (§8).
+
+**What every image includes:** first-boot web setup wizard; automatic updates with an A/B partition
+(or snapshot) scheme so a failed update rolls back by itself; nightly backups to USB disk, network
+share or cloud; a local health screen (disk, memory, backups, update status); offline operation with
+cloud sync when the internet returns (the edge appliance's job today); signed images and checksums.
 
 ## 9. Identity: groups and directories (built in)
 
