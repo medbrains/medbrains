@@ -1,10 +1,10 @@
 ---
-title: "Fit for discharge, still in the bed: where the hours go in Indian hospitals, and how to win them back"
-description: "Why hospital discharge is delayed in India: IRDAI's 3-hour cashless rule, NABH expectations, what Indian studies show, and practical fixes for each step."
-summary: "Discharge in Indian hospitals is slowed mainly by billing clearance and the discharge summary: audits found means of 195 to 329 minutes. IRDAI gives insurers three hours for final authorisation, so the rest of the delay is the hospital's to win back."
+title: "Fit for discharge, still in the bed: where the hours go, and how to win them back"
+description: "Why hospital discharge is delayed: IRDAI's 3-hour cashless rule, NABH expectations, what the studies show, and practical fixes for each step."
+summary: "Hospital discharge is slowed mainly by billing clearance and the discharge summary: audits found means of 195 to 329 minutes. IRDAI gives insurers three hours for final authorisation, so the rest of the delay is the hospital's to win back."
 date: 2026-10-22
 category: operations
-seoTitle: "Discharge delays in Indian hospitals | MedBrains Blog"
+seoTitle: "Hospital discharge delays and fixes | MedBrains Blog"
 featured: false
 tags: ["Discharge", "Patient flow", "TPA", "Cashless insurance", "IRDAI", "NABH", "Ayushman Bharat", "Bed management"]
 sources:
@@ -38,7 +38,7 @@ faq:
   - q: "When does the IRDAI three-hour clock for cashless discharge start?"
     a: "When the insurer receives the hospital's request for final discharge authorisation, not when the doctor declares the patient fit to go. If the insurer takes longer than three hours, any additional amount the hospital charges is to be borne by the insurer from its shareholders' funds (IRDAI Master Circular, 29 May 2024)."
   - q: "Does NABH set a fixed time limit for discharge?"
-    a: "The 6th edition standards (effective January 2025) require hospitals to monitor discharge time, set appropriate benchmarks and keep improving. Its indicator measures from the consultant's formal approval of discharge to the patient leaving the clinical unit. The 180-minute figure often quoted in Indian studies is not written into that standard as a single national limit."
+    a: "The 6th edition standards (effective January 2025) require hospitals to monitor discharge time, set appropriate benchmarks and keep improving. Its indicator measures from the consultant's formal approval of discharge to the patient leaving the clinical unit. The 180-minute figure often quoted in published studies is not written into that standard as a single national limit."
   - q: "Does discharging patients before noon shorten hospital stays?"
     a: "The evidence is mixed. One programme raised morning discharges and saw shorter stays (Wertheimer, 2014), while a large single-centre analysis linked morning discharge with slightly longer stays (Rajkomar, 2016) and a randomised trial found no change in discharge times or length of stay (Burden, 2023)."
 cover:
@@ -69,7 +69,9 @@ desk.
   hospital. The circular says the policyholder should not be made to wait to be
   discharged. If the insurer takes longer than three hours, any additional
   amount the hospital charges is to be borne by the insurer from its
-  shareholders' funds, not by the patient.
+  shareholders' funds, not by the patient. The cashless time limits sit with
+  other official figures in
+  [PM-JAY, ABDM and DHIS in numbers](/resources/indian-hospitals-in-numbers).
 - **Death during treatment.** The insurer must process the claim immediately and
   get the body released from the hospital immediately.
 
@@ -113,13 +115,13 @@ approves discharge and stops when the patient leaves the clinical unit. Extra
 time the patient asks for is not counted, and day-care patients are left out.
 
 You will often see a figure of 180 minutes described as the NABH standard for
-discharge in Indian studies. The 6th edition text we read asks each hospital to
+discharge in published studies. The 6th edition text we read asks each hospital to
 set appropriate benchmarks rather than fixing a single national number. Three
 hours is a reasonable internal target, but it is yours to set.
 
 ## Where the hours actually go
 
-Indian discharge studies are mostly single-hospital audits with wide variation,
+These discharge studies are mostly single-hospital audits with wide variation,
 so treat them as pointers, not national averages. Together they keep naming the
 same culprits.
 

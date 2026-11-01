@@ -65,7 +65,7 @@ const checked = "24 October 2026";
 const page = new URL(Astro.url.pathname, Astro.site).href;
 const dataset = {
   "@type": "Dataset",
-  name: "Indian hospitals in numbers",
+  name: "PM-JAY, ABDM and DHIS in numbers",
   description: "Official figures on PM-JAY, ABDM adoption, the Digital Health Incentive Scheme and IRDAI cashless timelines, each with its source and date.",
   url: page,
   dateModified: "2026-10-24",
@@ -77,10 +77,10 @@ const dataset = {
 ---
 
 <Resource
-  title="Indian hospitals in numbers: PM-JAY, ABDM, DHIS | MedBrains"
-  description="Official, dated figures on India's hospitals: PM-JAY cards and admissions, ABHA and ABDM adoption, DHIS incentive rates and IRDAI cashless time limits."
-  h1="Indian hospitals in numbers"
-  intro="India has 97.61 crore operational ABHA IDs and 38,000+ PM-JAY empanelled hospitals. Below are the official figures behind India's hospital system, each with its source and the date the source gives."
+  title="PM-JAY, ABDM and DHIS in numbers | MedBrains"
+  description="Official, dated figures on PM-JAY cards and admissions, ABHA and ABDM adoption, DHIS incentive rates and IRDAI cashless time limits."
+  h1="PM-JAY, ABDM and DHIS in numbers"
+  intro="There are 97.61 crore operational ABHA IDs and 38,000+ PM-JAY empanelled hospitals. Below are the official figures behind PM-JAY, ABDM and DHIS, each with its source and the date the source gives."
   guide={{ href: "/abdm-incentive", name: "ABDM incentive" }}
   extraSchema={[dataset]}
 >

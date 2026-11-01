@@ -1,6 +1,6 @@
 ---
 title: "HYROX training injuries: how to protect your shins, ankles and calves"
-description: "HYROX training injuries in India: why shin splints, stress fractures and ankle sprains happen, how to build up safely, and when to see a doctor."
+description: "HYROX training injuries: why shin splints, stress fractures and ankle sprains happen, how to build up safely, and when to see a doctor."
 date: 2026-10-24
 category: patient-education
 seoTitle: "HYROX training injuries: shins, ankles | MedBrains Blog"
@@ -61,9 +61,9 @@ cover:
   alt: "Soft 3D illustration of a blue and a purple running shoe on a round pedestal beside a small weighted sled with a rope, a wall ball, a kettlebell, a rolled mat and a water bottle, with floating icons for a bone, a training calendar, a heart and a lightning bolt"
 ---
 
-HYROX has arrived in India in a big way. The fitness race, which its
+HYROX is growing fast. The fitness race, which its
 organisers say drew more than 550,000 athletes across 80-plus races
-worldwide in 2025, has upcoming Indian events listed in Gujarat (26 to 28
+worldwide in 2025, has upcoming events listed in Gujarat (26 to 28
 November 2026), Noida (15 to 17 January 2027) and Bengaluru (19 to 23 May
 2027, at the Bangalore International Exhibition Centre). Many people
 signing up are attempting their first race.
@@ -265,7 +265,7 @@ the final days.
   a few lunges and some short build-up runs.
 - **Pace the first kilometre.** It is easy to get excited and run the first
   1 km far too fast. The legs pay for it at the sled.
-- **Hydrate for the conditions.** Indian venues can be hot and humid. The
+- **Hydrate for the conditions.** Venues can be hot and humid. The
   American College of Sports Medicine advises preventing a loss of more than
   2% of body weight through sweat during exercise. Weigh yourself before and
   after a training session in similar conditions to learn how much you sweat.

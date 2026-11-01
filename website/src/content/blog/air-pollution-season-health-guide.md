@@ -66,7 +66,7 @@ AQI is poor or worse.
 
 The AQI, published by the Central Pollution Control Board, turns several
 pollutants into one number and one of six colour bands. The pollutant that
-matters most for health in an Indian winter is PM2.5: particles small enough
+matters most for health in winter is PM2.5: particles small enough
 to pass deep into the lungs and, from there, into the bloodstream.
 
 The Union Health Ministry's advisory links each band to likely effects:
@@ -85,9 +85,9 @@ The Union Health Ministry's advisory links each band to likely effects:
 The CPCB's Sameer mobile app gives hourly AQI for your city. Checking it
 before planning outdoor time is the single most useful habit of the season.
 
-## Why this matters: the Indian evidence
+## Why this matters: the evidence
 
-Air pollution is often discussed as a long-term lung problem. The Indian data
+Air pollution is often discussed as a long-term lung problem. The data
 show it is also a short-term, heart-and-brain problem, and that it fills
 emergency departments within days.
 
@@ -103,7 +103,7 @@ are chronic obstructive pulmonary disease (COPD), heart disease, stroke and
 lower respiratory infections.
 
 **Day-to-day risk.** A 2024 study in *The Lancet Planetary Health* looked at
-ten Indian cities, including Delhi, Mumbai, Kolkata, Chennai, Bengaluru and
+ten cities, including Delhi, Mumbai, Kolkata, Chennai, Bengaluru and
 Varanasi, from 2008 to 2019. Each rise of 10 µg/m³ in the two-day average of
 PM2.5 was linked to a 1.4% rise in daily deaths. The effect was about twice as
 strong (2.7%) on days below India's own 24-hour standard of 60 µg/m³, which

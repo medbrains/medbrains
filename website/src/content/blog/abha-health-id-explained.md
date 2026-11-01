@@ -1,6 +1,6 @@
 ---
 title: "Your ABHA health ID, explained: what it is and why it helps"
-description: "ABHA health ID explained: India's digital health ID under the Ayushman Bharat Digital Mission, how it keeps your records with you, and how consent works."
+description: "ABHA health ID explained: the digital health ID issued under the Ayushman Bharat Digital Mission, how it keeps your records with you, and how consent works."
 summary: "ABHA is a free, voluntary 14-digit health ID issued under the Ayushman Bharat Digital Mission. It lets your records from different hospitals and labs follow you, and they are shared only with your consent."
 seoTitle: "ABHA health ID explained: what it is | MedBrains Blog"
 date: 2026-10-03
@@ -18,7 +18,7 @@ cover:
 
 If you have changed doctors or moved cities, you know the problem: your reports
 are in a dozen places — a file at home, a WhatsApp chat, a lab's website. The
-**Ayushman Bharat Health Account (ABHA)** is India's answer to that.
+**Ayushman Bharat Health Account (ABHA)** is built to fix that.
 
 ## What ABHA is
 
@@ -51,7 +51,11 @@ and never share an OTP with anyone who calls you about your health ID.
 
 For a hospital, ABDM means fewer repeat tests, faster registration and records
 that arrive complete. It also means building consent and privacy into everyday
-software — which is how we build MedBrains.
+software — which is how we build MedBrains. Hospitals can also earn an
+incentive for linking records to ABHA: our
+[ABDM incentive calculator](/resources/abdm-incentive-calculator) estimates a
+month's payment, and [PM-JAY, ABDM and DHIS in numbers](/resources/indian-hospitals-in-numbers)
+shows how many ABHA IDs exist today.
 
 *This article is general information. For the latest rules, see the official
 ABDM website.*

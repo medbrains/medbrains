@@ -21,7 +21,7 @@ const authorNames = await getAuthorNames();
 const path = `/blog/page/${page.currentPage}`;
 const title = `Older articles, page ${page.currentPage} | ${SITE.brand} blog`;
 // Long enough for the 110-character snippet floor in check-seo.
-const description = `Older articles from the ${SITE.brand} health blog: patient guides, first aid and hospital operations in India. Page ${page.currentPage} of ${page.lastPage}.`;
+const description = `Older articles from the ${SITE.brand} health blog: patient guides, first aid and hospital operations. Page ${page.currentPage} of ${page.lastPage}.`;
 const schema = [
   collectionPage(Astro.site, { name: title, description, path, posts: page.data }),
   breadcrumbs(Astro.site, [{ name: "Blog", path: "/blog" }, { name: `Page ${page.currentPage}`, path }]),
