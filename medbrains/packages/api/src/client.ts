@@ -1351,6 +1351,7 @@ import type {
   JobStats,
   JournalEntry,
   JournalEntryDetail,
+  KernelHealth,
   KioskCheckinResult,
   KitchenAudit,
   KitchenInventory,
@@ -3325,6 +3326,7 @@ export const api = {
   getErrorTrackingClientConfig: () =>
     request<ErrorTrackingClientConfig>("/public/error-tracking/config"),
   getErrorTrackingSummary: () => request<ErrorTrackingSummary>("/admin/error-tracking/summary"),
+  getKernelHealth: () => request<KernelHealth>("/admin/kernel"),
   refreshToken: async (): Promise<RefreshResponse> => {
     const resp = await refreshSession();
     if (!resp) {

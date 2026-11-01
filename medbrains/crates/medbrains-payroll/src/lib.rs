@@ -13,9 +13,7 @@ use rust_decimal::Decimal;
 use serde::Deserialize;
 use uuid::Uuid;
 
-use medbrains_server_core::error::AppError;
-use medbrains_server_core::middleware::auth::Claims;
-use medbrains_server_core::middleware::authorization::require_permission;
+use medbrains_kernel::{Actor, AppError, Claims, require_permission};
 use medbrains_server_core::state::AppState;
 
 // Statutory defaults (India). PF 12% of basic capped at ₹1800 (₹15k ceiling); ESI 0.75%
@@ -46,8 +44,7 @@ pub async fn list_salary_structures(
     Extension(claims): Extension<Claims>,
 ) -> Result<Json<Vec<SalaryStructure>>, AppError> {
     require_permission(&claims, permissions::hr::payroll::structures::LIST)?;
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let mut tx = medbrains_kernel::begin(&state.db, Actor::from_claims(&claims)).await?;
     let rows = sqlx::query_as::<_, SalaryStructure>(
         "SELECT * FROM salary_structures WHERE tenant_id = $1 ORDER BY updated_at DESC LIMIT 5000",
     )
@@ -76,12 +73,15 @@ pub async fn upsert_salary_structure(
     Json(body): Json<UpsertStructureRequest>,
 ) -> Result<Json<SalaryStructure>, AppError> {
     require_permission(&claims, permissions::hr::payroll::structures::MANAGE)?;
-    if body.basic < Decimal::ZERO || body.hra < Decimal::ZERO || body.other_allowances < Decimal::ZERO
+    if body.basic < Decimal::ZERO
+        || body.hra < Decimal::ZERO
+        || body.other_allowances < Decimal::ZERO
     {
-        return Err(AppError::BadRequest("Salary components cannot be negative".to_owned()));
+        return Err(AppError::BadRequest(
+            "Salary components cannot be negative".to_owned(),
+        ));
     }
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let mut tx = medbrains_kernel::begin(&state.db, Actor::from_claims(&claims)).await?;
     let row = sqlx::query_as::<_, SalaryStructure>(
         "INSERT INTO salary_structures \
          (tenant_id, employee_id, basic, hra, other_allowances, monthly_tds, \
@@ -117,8 +117,7 @@ pub async fn list_payroll_runs(
     Extension(claims): Extension<Claims>,
 ) -> Result<Json<Vec<PayrollRun>>, AppError> {
     require_permission(&claims, permissions::hr::payroll::runs::LIST)?;
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let mut tx = medbrains_kernel::begin(&state.db, Actor::from_claims(&claims)).await?;
     let rows = sqlx::query_as::<_, PayrollRun>(
         "SELECT * FROM payroll_runs WHERE tenant_id = $1 \
          ORDER BY period_year DESC, period_month DESC LIMIT 500",
@@ -137,7 +136,11 @@ pub struct CreateRunRequest {
 }
 
 fn days_in_month(year: i32, month: u32) -> Result<i64, AppError> {
-    let (ny, nm) = if month == 12 { (year + 1, 1) } else { (year, month + 1) };
+    let (ny, nm) = if month == 12 {
+        (year + 1, 1)
+    } else {
+        (year, month + 1)
+    };
     let first = chrono::NaiveDate::from_ymd_opt(year, month, 1)
         .ok_or_else(|| AppError::BadRequest("Invalid period".to_owned()))?;
     let first_next = chrono::NaiveDate::from_ymd_opt(ny, nm, 1)
@@ -238,11 +241,11 @@ pub async fn create_payroll_run(
     let working_days_dec = Decimal::from(working_days);
     let first = chrono::NaiveDate::from_ymd_opt(year, month, 1)
         .ok_or_else(|| AppError::BadRequest("Invalid period".to_owned()))?;
-    let last = chrono::NaiveDate::from_ymd_opt(year, month, u32::try_from(working_days).unwrap_or(28))
-        .ok_or_else(|| AppError::BadRequest("Invalid period".to_owned()))?;
+    let last =
+        chrono::NaiveDate::from_ymd_opt(year, month, u32::try_from(working_days).unwrap_or(28))
+            .ok_or_else(|| AppError::BadRequest("Invalid period".to_owned()))?;
 
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let mut tx = medbrains_kernel::begin(&state.db, Actor::from_claims(&claims)).await?;
 
     let exists: bool = sqlx::query_scalar!(
         "SELECT EXISTS(SELECT 1 FROM payroll_runs \
@@ -254,7 +257,9 @@ pub async fn create_payroll_run(
     .fetch_one(&mut *tx)
     .await?;
     if exists {
-        return Err(AppError::Conflict("Payroll for this period already exists".to_owned()));
+        return Err(AppError::Conflict(
+            "Payroll for this period already exists".to_owned(),
+        ));
     }
 
     let structures = sqlx::query_as::<_, StructureCalcRow>(
@@ -351,8 +356,7 @@ pub async fn list_payslips(
     Query(q): Query<PayslipQuery>,
 ) -> Result<Json<Vec<Payslip>>, AppError> {
     require_permission(&claims, permissions::hr::payroll::runs::LIST)?;
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let mut tx = medbrains_kernel::begin(&state.db, Actor::from_claims(&claims)).await?;
     let rows = sqlx::query_as::<_, Payslip>(
         "SELECT * FROM payslips WHERE tenant_id = $1 AND run_id = $2 ORDER BY net_pay DESC LIMIT 5000",
     )
@@ -371,8 +375,7 @@ pub async fn finalize_payroll_run(
     Path(id): Path<Uuid>,
 ) -> Result<Json<PayrollRun>, AppError> {
     require_permission(&claims, permissions::hr::payroll::runs::CREATE)?;
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let mut tx = medbrains_kernel::begin(&state.db, Actor::from_claims(&claims)).await?;
     let run = sqlx::query_as::<_, PayrollRun>(
         "UPDATE payroll_runs SET status = 'finalized', updated_at = now() \
          WHERE id = $1 AND tenant_id = $2 AND status = 'draft' RETURNING *",
@@ -438,7 +441,11 @@ mod tests {
     #[test]
     fn lop_prorates() {
         // 6 LOP of 30 → ratio 0.8 → earned_gross 40000.
-        let c = compute_payslip(&row(30000, 12000, 8000), Decimal::from(30), Decimal::from(6));
+        let c = compute_payslip(
+            &row(30000, 12000, 8000),
+            Decimal::from(30),
+            Decimal::from(6),
+        );
         assert_eq!(c.paid_days, Decimal::from(24));
         assert_eq!(c.earned_gross, Decimal::from(40000));
     }

@@ -1,0 +1,30 @@
+[package]
+name = "medbrains-kernel"
+publish = false
+description = "The MedBrains kernel facade — the one interface apps use for tenancy, authorisation, audit, patient identity, consent, events, config, sequences and storage (RFC-HOSPITAL-OS §3)"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license-file.workspace = true
+
+# Kernel building blocks. Everything the kernel wraps lives in these crates;
+# build.rs reads this list to tell apps from building blocks on the Kernel page.
+[dependencies]
+medbrains-authz = { path = "../medbrains-authz" }
+medbrains-authz-gate = { path = "../medbrains-authz-gate" }
+medbrains-core = { path = "../medbrains-core" }
+medbrains-db = { path = "../medbrains-db" }
+medbrains-server-core = { path = "../medbrains-server-core" }
+medbrains-workflow = { path = "../medbrains-workflow" }
+chrono = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+sqlx = { workspace = true }
+tracing = { workspace = true }
+uuid = { workspace = true }
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
+
+[lints]
+workspace = true

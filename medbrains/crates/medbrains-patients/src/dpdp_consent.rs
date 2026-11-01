@@ -27,12 +27,7 @@ use uuid::Uuid;
 /// consent says which text the patient read.
 pub const NOTICE_VERSION: &str = "2026-10";
 /// The purposes the notice names — the only ones that can be agreed to.
-pub const PURPOSES: [&str; 4] = [
-    "abdm_linking",
-    "insurance_claims",
-    "health_reminders",
-    "research",
-];
+pub use medbrains_kernel::consent::PURPOSES;
 /// Languages the notice exists in.
 pub const NOTICE_LANGUAGES: [&str; 3] = ["en", "hi", "ta"];
 

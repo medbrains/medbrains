@@ -15,6 +15,7 @@ medbrains-db = { path = "../medbrains-db" }
 medbrains-db-migrations = { path = "../medbrains-db-migrations" }
 medbrains-seed = { path = "../medbrains-seed" }
 medbrains-authz-gate = { path = "../medbrains-authz-gate" }
+medbrains-kernel = { path = "../medbrains-kernel" }
 medbrains-nabh = { path = "../medbrains-nabh" }
 medbrains-signing = { path = "../medbrains-signing" }
 medbrains-notifications = { path = "../medbrains-notifications" }

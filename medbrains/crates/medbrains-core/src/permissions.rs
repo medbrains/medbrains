@@ -3350,6 +3350,17 @@ pub mod admin {
         pub const VIEW: &str = "admin.error_tracking.view";
     }
 
+    /// The kernel: the trusted core every module goes through.
+    pub mod kernel {
+        /// See whether the kernel is doing its job.
+        ///
+        /// When the audit chain was last verified and whether it held, whether
+        /// the database enforces hospital separation, which authorisation
+        /// engine is answering, how settings are resolved, and which modules
+        /// already go only through the kernel. Shows no patient data.
+        pub const VIEW: &str = "admin.kernel.view";
+    }
+
     /// Sprint A: per-tenant operating mode flip (`normal/degraded/read_only`).
     pub mod system_state {
         pub const VIEW: &str = "admin.system_state.view";

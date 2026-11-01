@@ -43,7 +43,7 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 MEDBRAINS = REPO_ROOT / "medbrains"
-MIGRATIONS = MEDBRAINS / "crates" / "medbrains-db" / "src" / "migrations"
+MIGRATIONS = MEDBRAINS / "crates" / "medbrains-db-migrations" / "src" / "migrations"
 CRATES = MEDBRAINS / "crates"
 
 # Handlers reading a policed table off-transaction on a caller-supplied id with
