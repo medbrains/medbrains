@@ -357,6 +357,45 @@ Phases: **AI1** kernel AI service over `medbrains-ai` + per-call audit + labels;
 every screen (read + drafts); **AI3** Studio drafting from SOPs; **AI4** local-model profiles for the
 edge box and Pi; **AI5** agents through MCP tools.
 
+## 8i. Speed as a moat (measured, budgeted, enforced)
+
+Goal: **the fastest hospital system on the cheapest hardware, with published numbers.** Speed is
+designed in at every layer and checked in CI, so it never decays.
+
+**Budgets** (enforced by CI benchmarks; regressions fail the build):
+| What | Budget (x86 server) | Budget (Raspberry Pi 5) |
+|---|---|---|
+| Kernel call overhead (authorize + audit + tenant tx setup) | < 0.2 ms | < 1 ms |
+| API p95, typical screen read | < 50 ms | < 150 ms |
+| One round trip per screen | always | always |
+| Offline edge read (local-first) | < 5 ms | < 10 ms |
+| Critical alert end-to-end (critical lab value → clinician device) | < 2 s | < 2 s |
+| Cold start (server ready) | < 3 s | < 10 s |
+
+**How, layer by layer:**
+- **Kernel:** zero-cost wrappers (generics + inlining, no dynamic dispatch on hot paths); per-request
+  memo of permission resolution (DSA law: resolve once per request, never per item); batched
+  authorisation for lists (one query, `ANY($1)`); prepared, compile-time-checked SQL.
+- **Database:** connection pooling sized to cores, partitioning and retention for high-volume tables,
+  covering indexes found from real query plans, `pg_stat_statements` budgets, read replicas when a
+  hospital outgrows one box.
+- **Network and screens:** one round trip per screen, compressed responses, HTTP/2, static web
+  assets cached forever with hashed names, lists virtualised and bounded.
+- **Edge / offline:** local-first reads from the edge box's own database, CRDT sync in the
+  background, so the ward is fast even when the internet is slow.
+- **Linux foundation:** a tuned Debian (low-latency settings for alerts, filesystem and memory
+  tuning for PostgreSQL), and later io_uring for high-throughput I/O and eBPF for zero-overhead
+  production profiling.
+- **Plugins:** WASM blocks run near-native and are time-boxed; out-of-process extensions are
+  async and can never stall a clinical request.
+
+**Proof:** a public performance page (per release: budgets, measured numbers on x86 and a Pi 5,
+the load-test script to reproduce them). Claims come only from these measurements.
+
+Phases: **S1** benchmark harness + budgets in CI (start with kernel call overhead and the top 20
+screens); **S2** fix the slowest screens to budget; **S3** Pi 5 numbers + public performance page;
+**S4** io_uring/eBPF where measurements show they pay.
+
 ## 9. Identity: groups and directories (built in)
 
 Exists today: access groups with permissions (Admin → Groups), SSO with directory-group → role
