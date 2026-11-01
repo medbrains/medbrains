@@ -260,6 +260,32 @@ Flagship apps are free, keeping the pricing promise ("every module, free"). Reve
 optional hosting, setup, training, support, heavy-AI pass-through at cost, and **hardware kits**
 that run them best (the moat). Order: Studio → Command Centre → Rounds.
 
+## 8f. AI and plugins the MCP way
+
+MCP (Model Context Protocol) is how AI assistants plug into tools and data: a server declares
+**tools**, **resources** and **prompts** with JSON schemas; any AI client can discover and use
+them. MedBrains adopts the same idea in three places, all through the kernel.
+
+1. **MedBrains as an MCP server.** Hospital capabilities (find a patient, today's beds, a lab
+   trend, draft a discharge summary, explain a flow's bottleneck) are exposed as MCP tools and
+   resources, so any approved AI assistant can use them. Every call goes through the kernel:
+   the user's own permissions, consent, PHI redaction (`medbrains-ai` redaction exists), audit,
+   and an AI label on anything it produces. Reads are scoped to what that user may see; **writes
+   are drafts a person must approve**, never direct changes. Clients sign in as approved vendor
+   apps (SMART on FHIR / OAuth, phase C1), revocable by the hospital.
+2. **MedBrains AI as an MCP client.** Scribe, Studio and the assistant can call external MCP
+   servers a hospital approves (drug references, clinical guidelines, payer rules). Allow-listed
+   per hospital; no patient data leaves unless consent and a data-processing agreement allow it;
+   every call audited.
+3. **One way to describe a capability.** WASM block plugins (K4) and MCP tools share one manifest:
+   name, one-sentence purpose, input/output JSON schema, required permission, data class touched.
+   A capability written once can be a flow block, an MCP tool, or both, and is reviewed and signed
+   once.
+
+Phases: **M1** MCP server over existing `medbrains-ai` tools (read-only first, then draft-writes);
+**M2** hospital-approved MCP client connections; **M3** shared capability manifest for blocks and
+tools.
+
 ## 9. Identity: groups and directories (built in)
 
 Exists today: access groups with permissions (Admin → Groups), SSO with directory-group → role
