@@ -13,34 +13,38 @@ use axum::{Extension, Json, extract::Path, extract::State};
 use chrono::{DateTime, Utc};
 use medbrains_core::permissions;
 use medbrains_server_core::{error::AppError, middleware::auth::Claims, state::AppState};
-use serde_json::Value;
+use serde_json::{Map, Value};
+use std::collections::HashMap;
 use uuid::Uuid;
 
 pub type Tx<'a> = sqlx::Transaction<'a, sqlx::Postgres>;
 
-pub const SIGNALS: &[&str] = &[
-    "ipd.discharge_summary_signed",
-    "ipd.doctor_cleared",
-    "ipd.nursing_cleared",
-    "ipd.pharmacy_cleared",
-    "ipd.billing_cleared",
-    "insurance.tpa_approved",
-];
-pub const TASKS: &[&str] = &["ipd.ward_handover", "ipd.ms_signoff"];
-pub const FACTS: &[&str] = &["is_insurance"];
-pub const ACTIONS: &[&str] = &["ipd.discharge.finalize"];
+/// Who may complete a task that clears through the flow itself. Tasks
+/// without one clear on their own screen (the ward handover clears from the
+/// checklist).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Completion {
+    /// An office, not a permission: bypass roles do not stand in for it.
+    Office(&'static str),
+    /// Anyone holding the block's permission (physiotherapy clearance).
+    Permission(&'static str),
+}
 
-/// The office that completes a task through the flow itself. Tasks without
-/// one clear on their own screen (the ward handover clears from the checklist).
 #[must_use]
-pub fn task_office(task: &str) -> Option<&'static str> {
-    (task == "ipd.ms_signoff").then_some("medical_superintendent")
+pub fn task_completion(task: &str) -> Option<Completion> {
+    match task {
+        "ipd.ms_signoff" => Some(Completion::Office("medical_superintendent")),
+        "ipd.physio_clearance" => Some(Completion::Permission(
+            permissions::ipd::discharge::PHYSIO_CLEARANCE,
+        )),
+        _ => None,
+    }
 }
 
 /// The permission the acting user needs to run an action.
 #[must_use]
 pub fn action_permission(action: &str) -> Option<&'static str> {
-    (action == "ipd.discharge.finalize").then_some(permissions::ipd::discharge::CREATE)
+    crate::blocks::block("action", action).map(|b| b.permission)
 }
 
 /// The journey's subject: an admission and what hangs off it.
@@ -152,6 +156,20 @@ pub(crate) async fn signal(
             .await?,
             "The TPA to approve the pre-authorisation",
         ),
+        "mlc.police_intimated" => (
+            sqlx::query_scalar::<_, Option<DateTime<Utc>>>(
+                "SELECT MIN(pi.sent_at) FROM mlc_police_intimations pi \
+                   JOIN mlc_cases c ON c.id = pi.mlc_case_id AND c.tenant_id = pi.tenant_id \
+                  WHERE pi.tenant_id = $1 AND pi.deleted_at IS NULL AND c.deleted_at IS NULL \
+                    AND (c.admission_id = $2 OR c.id = (SELECT mlc_case_id FROM admissions \
+                          WHERE tenant_id = $1 AND id = $2))",
+            )
+            .bind(s.tenant)
+            .bind(s.admission)
+            .fetch_one(&mut **tx)
+            .await?,
+            "The police to be informed of this medico-legal discharge",
+        ),
         other => return Err(AppError::Internal(format!("unregistered signal {other}"))),
     };
     Ok(Clearance::from(at, waiting))
@@ -188,6 +206,10 @@ pub(crate) async fn task(
         "ipd.ms_signoff" => Ok(Clearance::from(
             completed_at,
             "The medical superintendent's sign-off",
+        )),
+        "ipd.physio_clearance" => Ok(Clearance::from(
+            completed_at,
+            "Physiotherapy to clear the patient for discharge",
         )),
         other => Err(AppError::Internal(format!("unregistered task {other}"))),
     }
@@ -227,23 +249,70 @@ async fn ward_handover(tx: &mut Tx<'_>, s: &Subject) -> Result<Clearance, AppErr
     })
 }
 
-/// A fact a switch station chooses by.
-pub(crate) async fn fact(tx: &mut Tx<'_>, name: &str, s: &Subject) -> Result<Value, AppError> {
-    match name {
+#[derive(sqlx::FromRow)]
+struct FactRow {
+    id: Uuid,
+    is_insurance: bool,
+    is_mlc: bool,
+    department: Option<String>,
+    age_years: Option<i32>,
+}
+
+/// Every registered fact for these admissions, in one query. Unknown values
+/// stay null: a branch on them then does not match, and a required signal
+/// never hangs on a fact the checks have not proven (they refuse that).
+pub(crate) async fn facts_bulk(
+    tx: &mut Tx<'_>,
+    tenant: Uuid,
+    admissions: &[Uuid],
+) -> Result<HashMap<Uuid, Map<String, Value>>, AppError> {
+    let rows = sqlx::query_as::<_, FactRow>(
         // A cashless stay has a live pre-authorisation on its encounter.
-        "is_insurance" => Ok(Value::Bool(
-            sqlx::query_scalar(
-                "SELECT EXISTS (SELECT 1 FROM pre_authorization_requests \
-                  WHERE tenant_id = $1 AND encounter_id = $2 AND deleted_at IS NULL \
-                    AND status IN ('pending', 'submitted', 'approved'))",
-            )
-            .bind(s.tenant)
-            .bind(s.encounter)
-            .fetch_one(&mut **tx)
-            .await?,
-        )),
-        other => Err(AppError::Internal(format!("unregistered fact {other}"))),
+        "SELECT a.id, \
+                EXISTS (SELECT 1 FROM pre_authorization_requests r WHERE r.tenant_id = $1 \
+                   AND r.encounter_id = a.encounter_id AND r.deleted_at IS NULL \
+                   AND r.status IN ('pending', 'submitted', 'approved')) AS is_insurance, \
+                (a.mlc_case_id IS NOT NULL OR EXISTS (SELECT 1 FROM mlc_cases c \
+                   WHERE c.tenant_id = $1 AND c.admission_id = a.id AND c.deleted_at IS NULL)) AS is_mlc, \
+                d.code AS department, \
+                date_part('year', age(p.date_of_birth))::int AS age_years \
+           FROM admissions a \
+           LEFT JOIN departments d ON d.id = a.department_id AND d.tenant_id = a.tenant_id \
+           LEFT JOIN patients p ON p.id = a.patient_id AND p.tenant_id = a.tenant_id \
+          WHERE a.tenant_id = $1 AND a.id = ANY($2)",
+    )
+    .bind(tenant)
+    .bind(admissions)
+    .fetch_all(&mut **tx)
+    .await?;
+    Ok(rows
+        .into_iter()
+        .map(|r| {
+            let mut m = Map::new();
+            m.insert("is_insurance".to_owned(), Value::Bool(r.is_insurance));
+            m.insert("is_mlc".to_owned(), Value::Bool(r.is_mlc));
+            m.insert(
+                "department".to_owned(),
+                r.department.map_or(Value::Null, Value::String),
+            );
+            m.insert(
+                "age_years".to_owned(),
+                r.age_years.map_or(Value::Null, Value::from),
+            );
+            (r.id, m)
+        })
+        .collect())
+}
+
+/// One registered fact about the subject.
+pub(crate) async fn fact(tx: &mut Tx<'_>, name: &str, s: &Subject) -> Result<Value, AppError> {
+    if crate::blocks::fact(name).is_none() {
+        return Err(AppError::Internal(format!("unregistered fact {name}")));
     }
+    let mut all = facts_bulk(tx, s.tenant, &[s.admission]).await?;
+    all.remove(&s.admission)
+        .and_then(|mut m| m.remove(name))
+        .ok_or(AppError::NotFound)
 }
 
 /// Run a domain action as the acting user. The domain keeps its own checks.

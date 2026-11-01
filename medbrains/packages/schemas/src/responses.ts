@@ -142,7 +142,11 @@ const knowledgeChangeSet = z.looseObject({
   approver_id: id.nullable(),
   impact: knowledgeImpact.nullable(),
 });
-const knowledgeRow = z.record(z.string(), z.union([z.string(), z.number(), z.boolean(), z.null()]));
+// A flow_switches row also carries its track: a list of stations.
+const knowledgeRow = z.record(
+  z.string(),
+  z.union([z.string(), z.number(), z.boolean(), z.null(), z.array(z.looseObject({}))]),
+);
 export const knowledgeChangeSetListResponseSchema = z.array(knowledgeChangeSet);
 export const knowledgeChangeSetDetailResponseSchema = knowledgeChangeSet.extend({
   items: z.array(
@@ -167,7 +171,8 @@ export const knowledgeProofResponseSchema = z.looseObject({
 // SOP flows: the switchboard, map, control room and ticket decide routes and
 // patient-safety holds from these shapes, so they must not drift silently.
 const flowSwitchValue = z.union([z.boolean(), z.string()]);
-const flowClause = z.record(z.string(), flowSwitchValue).nullable();
+// Literals, `{op: value}` and `$any` groups: typed on the server (checks.rs).
+const flowClause = z.record(z.string(), z.unknown()).nullable();
 const flowStation = z.looseObject({
   key: z.string(),
   name: z.string(),
@@ -228,6 +233,65 @@ export const flowControlRoomResponseSchema = z.looseObject({
       patients: z.array(z.looseObject({ admission_id: id, minutes: count, overdue: z.boolean() })),
     }),
   ),
+});
+const flowCheck = z.looseObject({
+  rule: z.enum(["invariants", "locked", "ends", "conditions", "staffed", "dry_run"]),
+  sentence: z.string(),
+  pass: z.boolean(),
+  problems: z.array(z.string()),
+  stations: z.array(z.string()),
+});
+export const flowBuilderResponseSchema = z.looseObject({
+  code: z.string(),
+  template_id: id,
+  version: count,
+  published: z.array(flowStation),
+  library: z.array(flowStation),
+  switches: z.record(z.string(), flowSwitchValue),
+  draft: z
+    .looseObject({
+      id,
+      revision: count,
+      dry_run_revision: count.nullable(),
+      stale: z.boolean(),
+      stations: z.array(flowStation),
+    })
+    .nullable(),
+  checks: z.array(flowCheck),
+  catalogue: z.looseObject({
+    blocks: z.array(
+      z.looseObject({
+        kind: z.enum(["signal", "task", "action"]),
+        code: z.string(),
+        name: z.string(),
+        role: z.string(),
+        permission: z.string(),
+      }),
+    ),
+    facts: z.array(
+      z.looseObject({
+        key: z.string(),
+        type: z.enum(["bool", "number", "text"]),
+        operators: z.array(z.string()),
+      }),
+    ),
+    departments: z.array(z.looseObject({ code: z.string(), name: z.string() })),
+    roles: z.array(z.looseObject({ code: z.string(), name: z.string() })),
+  }),
+});
+export const flowTestDriveResponseSchema = z.looseObject({
+  revision: count,
+  samples: z.array(
+    z.looseObject({ label: z.string(), route: z.array(z.string()), skipped: z.array(z.string()) }),
+  ),
+  replay: z.looseObject({
+    journeys: count,
+    route_differently: count,
+    skip_required: count,
+    median_minutes_before: count.nullable(),
+    median_minutes_after: count.nullable(),
+    sentences: z.array(z.string()),
+  }),
 });
 const flowTicket = z.looseObject({
   instance_id: id,

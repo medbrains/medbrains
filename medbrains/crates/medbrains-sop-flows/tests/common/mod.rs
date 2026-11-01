@@ -151,6 +151,25 @@ impl World {
             "UPDATE ipd_discharge_tat_log SET doctor_cleared_at = now(), nursing_cleared_at = now(), \
              pharmacy_cleared_at = now() WHERE admission_id = '{adm}'")).await;
     }
+    /// The built-in roles with their permissions, as tenant setup seeds them.
+    pub(crate) async fn seed_roles(&self) {
+        let mut tx = self.state.db.begin().await.unwrap();
+        set_tenant(&mut tx, self.tenant).await;
+        for r in medbrains_core::access::roles::BUILT_IN_ROLES {
+            sqlx::query(
+                "INSERT INTO roles (tenant_id, code, name, permissions, is_system) \
+                 VALUES ($1, $2, $3, $4, true)",
+            )
+            .bind(self.tenant)
+            .bind(r.code)
+            .bind(r.name)
+            .bind(serde_json::json!(r.permissions))
+            .execute(&mut *tx)
+            .await
+            .unwrap();
+        }
+        tx.commit().await.unwrap();
+    }
     pub(crate) async fn clear_billing(&self, adm: Uuid) {
         self.sql(&format!("UPDATE ipd_discharge_tat_log SET billing_cleared_at = now() WHERE admission_id = '{adm}'")).await;
     }

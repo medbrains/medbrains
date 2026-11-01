@@ -1028,6 +1028,11 @@ pub mod ipd {
 
     pub mod discharge {
         pub const CREATE: &str = "ipd.discharge.create";
+        /// Clear a patient from physiotherapy.
+        ///
+        /// Record that physiotherapy has seen the patient and cleared them
+        /// for discharge, at a flow's "Physiotherapy clearance" station.
+        pub const PHYSIO_CLEARANCE: &str = "ipd.discharge.physio_clearance";
     }
 
     pub mod beds {
@@ -4361,4 +4366,11 @@ pub mod flows {
     /// clinical flow needs both the quality officer and the medical
     /// superintendent to approve.
     pub const PUBLISH: &str = "flows.publish";
+    /// Build and test draft tracks for a flow.
+    ///
+    /// Arrange a flow's stations and branches from registered building
+    /// blocks, run its safety checks, dry run and what-if replay. Drafts
+    /// never affect patients; proposing one is a switch change set that the
+    /// quality officer and medical superintendent approve.
+    pub const BUILD: &str = "flows.build";
 }

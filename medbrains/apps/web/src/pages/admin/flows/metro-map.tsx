@@ -14,6 +14,7 @@ import { useMemo, useState } from "react";
 import { SegmentedControl } from "@/components/ui";
 import {
   bendAt,
+  dropIndex,
   type LineKind,
   layoutMetro,
   METRO,
@@ -59,6 +60,19 @@ export interface MetroMapProps {
   counts?: ReadonlyMap<string, number>;
   /** The counts could not be loaded — say so, never show an empty line. */
   countsError?: boolean;
+  /** Words on a highlighted station's badge. */
+  highlightLabel?: string;
+  /** The builder: stations are selectable, draggable along the line, and
+   * carry a "+" that places a block after them. */
+  edit?: MapEdit;
+}
+
+export interface MapEdit {
+  selected: string | null;
+  onSelect: (key: string) => void;
+  onInsertAfter: (key: string) => void;
+  /** Drop a dragged station so it becomes the one at `index`. */
+  onMove: (key: string, index: number) => void;
 }
 
 function RouteList({
@@ -66,7 +80,7 @@ function RouteList({
   switches,
   ghost,
   counts,
-}: Omit<MetroMapProps, "highlight" | "announcement">) {
+}: Pick<MetroMapProps, "stations" | "switches" | "ghost" | "counts">) {
   return (
     <List type="ordered" spacing="xs" aria-label="Route, step by step">
       {stations.map((s) => {
@@ -100,8 +114,13 @@ export function MetroMap({
   fitKey,
   counts,
   countsError,
+  highlightLabel = "Changes",
+  edit,
 }: MetroMapProps) {
   const [view, setView] = useState<"map" | "list">("map");
+  // A station being dragged: only its x follows the pointer, so it slides
+  // along the line and the layout stays computed.
+  const [drag, setDrag] = useState<{ key: string; x: number } | null>(null);
   const colorMode = useComputedColorScheme("dark");
   const placed = useMemo(() => layoutMetro(stations), [stations]);
   const nodes: Node[] = useMemo(
@@ -112,20 +131,27 @@ export function MetroMap({
           station,
           onRoute: onRoute(station, switches),
           highlighted: highlight.has(p.key),
+          highlightLabel,
           width: p.width,
           count: counts?.get(p.key),
+          edit: edit && {
+            selected: edit.selected === p.key,
+            onSelect: () => edit.onSelect(p.key),
+            onInsertAfter: () => edit.onInsertAfter(p.key),
+          },
         };
+        const x = drag?.key === p.key ? drag.x : p.x - p.width / 2;
         return {
           id: p.key,
           type: "station",
           // The marker's centre sits on (x, y); the node box hangs below it.
-          position: { x: p.x - p.width / 2, y: p.y - METRO.marker / 2 },
+          position: { x, y: p.y - METRO.marker / 2 },
           data,
-          draggable: false,
+          draggable: Boolean(edit),
           selectable: false,
         };
       }),
-    [placed, stations, switches, highlight, counts],
+    [placed, stations, switches, highlight, highlightLabel, counts, edit, drag],
   );
   const edges: Edge[] = useMemo(() => {
     const at = new Map(placed.map((p) => [p.key, p]));
@@ -174,7 +200,11 @@ export function MetroMap({
           className={styles.canvas}
           h={METRO.laneHeight * lanes + 190}
           role="group"
-          aria-label="Metro map of the flow; use List view for the same route as text"
+          aria-label={
+            edit
+              ? "Track being built: drag a station along the line, or select it to move it with buttons; use List view for text"
+              : "Metro map of the flow; use List view for the same route as text"
+          }
         >
           <ReactFlow
             key={fitKey}
@@ -187,7 +217,14 @@ export function MetroMap({
             fitViewOptions={{ padding: 0.04, maxZoom: 1 }}
             minZoom={0.4}
             maxZoom={1.5}
-            nodesDraggable={false}
+            nodesDraggable={Boolean(edit)}
+            onNodeDrag={(_, node) => setDrag({ key: node.id, x: node.position.x })}
+            onNodeDragStop={(_, node) => {
+              setDrag(null);
+              const p = placed.find((q) => q.key === node.id);
+              if (edit && p)
+                edit.onMove(node.id, dropIndex(placed, node.id, node.position.x + p.width / 2));
+            }}
             nodesConnectable={false}
             nodesFocusable={false}
             edgesFocusable={false}

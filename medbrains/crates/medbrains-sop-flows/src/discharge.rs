@@ -39,6 +39,7 @@ fn station(s: Spec) -> Station {
         sla_minutes: s.sla,
         locked: false,
         holder: s.holder.to_owned(),
+        holder_role: None,
         required_by: None,
         path: String::new(),
     }
@@ -70,6 +71,23 @@ fn stations() -> Vec<Station> {
             kind: signal("ipd.discharge_summary_signed"),
             holder: "Treating doctor",
             sla: Some(120),
+        })
+    };
+    let mlc = Station {
+        locked: true,
+        lane: Some("Medico-legal".to_owned()),
+        fact_when: json!({ "is_mlc": true }),
+        required_by: Some(
+            "MLC rules: the police are informed before a medico-legal patient is discharged"
+                .to_owned(),
+        ),
+        ..station(Spec {
+            key: "mlc_intimation",
+            name: "MLC police intimation",
+            stage: "Clinical sign-off",
+            kind: signal("mlc.police_intimated"),
+            holder: "Treating doctor",
+            sla: Some(60),
         })
     };
     let tpa = Station {
@@ -107,6 +125,7 @@ fn stations() -> Vec<Station> {
             holder: "Treating doctor",
             sla: Some(60),
         }),
+        mlc,
         station(Spec {
             key: "ward_handover",
             name: "Ward handover",

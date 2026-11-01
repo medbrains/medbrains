@@ -32,3 +32,14 @@
   opacity: 0;
   pointer-events: none;
 }
+
+// The builder's "+" sits in the gap after a station, on the line.
+.insert {
+  position: absolute;
+  top: 0;
+  right: calc(-1 * var(--mantine-spacing-md));
+}
+
+.stationName {
+  border-radius: 2px;
+}

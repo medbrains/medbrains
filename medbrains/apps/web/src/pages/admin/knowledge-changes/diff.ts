@@ -11,7 +11,7 @@ import type {
   KnowledgeImpactSeverity,
   KnowledgeRowFields,
 } from "@medbrains/types";
-import { AREA_FIELDS } from "./labels";
+import { AREA_FIELDS, DIFF_ONLY_FIELDS } from "./labels";
 
 export interface FieldChange {
   key: string;
@@ -26,6 +26,14 @@ const EMPTY = "—";
 export function showValue(value: unknown): string {
   if (value === null || value === undefined || value === "") return EMPTY;
   if (typeof value === "boolean") return value ? "Yes" : "No";
+  // A flow track: its stations in order, branches named.
+  if (Array.isArray(value)) {
+    return value
+      .map((s: { name?: string; lane?: string | null }) =>
+        s.lane ? `${s.name} (${s.lane})` : String(s.name ?? ""),
+      )
+      .join(" → ");
+  }
   return String(value);
 }
 
@@ -39,6 +47,7 @@ export function diffItem(area: KnowledgeArea, item: KnowledgeChangeItem): FieldC
     item.op === "delete" && before ? { ...before, is_active: false } : item.after;
   const fields = [
     ...AREA_FIELDS[area],
+    ...(DIFF_ONLY_FIELDS[area] ?? []),
     { key: "is_active", label: "In use", kind: "text" as const },
   ];
   return fields.map(({ key, label }) => {

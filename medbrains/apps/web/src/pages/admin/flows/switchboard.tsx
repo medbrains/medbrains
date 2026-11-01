@@ -4,11 +4,11 @@
  * locked safety signals, the metro map, and — beside it — the preview of a
  * change before it is proposed as a knowledge change set.
  */
-import { Anchor, Grid, Group, Loader, SimpleGrid, Stack, Text } from "@mantine/core";
+import { Anchor, Grid, Group, Loader, SimpleGrid, Stack, Tabs, Text } from "@mantine/core";
 import { useHasPermission } from "@medbrains/stores";
 import type { FlowDetail, FlowSwitches, FlowSwitchValue } from "@medbrains/types";
 import { P } from "@medbrains/types";
-import { IconEye, IconLock, IconTrash } from "@tabler/icons-react";
+import { IconEye, IconLock, IconRoute, IconToggleRight, IconTrash } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { Link, useParams } from "react-router";
@@ -17,6 +17,7 @@ import { Alert, Badge, Breadcrumb, Button, Card, Panel, toast } from "@/componen
 import { useRequirePermission } from "@/hooks/useRequirePermission";
 import { knowledgeChangesService } from "@/services/knowledgeChanges.service";
 import { DISCHARGE_FLOW, sopFlowsService } from "@/services/sopFlows.service";
+import { BuildTab } from "./build-tab";
 import { changedKeys, describeRouteChange, stationsForSwitch } from "./metro";
 import { MetroMap } from "./metro-map";
 import { PreviewPanel } from "./preview-panel";
@@ -48,6 +49,7 @@ export function FlowSwitchboardPage() {
   const canView = useHasPermission(P.FLOWS.VIEW);
   const canSwitch = useHasPermission(P.FLOWS.SWITCH);
   const canDraft = useHasPermission(P.KNOWLEDGE.CHANGE_SETS.CREATE);
+  const canBuild = useHasPermission(P.FLOWS.BUILD);
   const flow = useQuery({
     queryKey: ["flows", code],
     queryFn: () => sopFlowsService.get(code),
@@ -80,7 +82,26 @@ export function FlowSwitchboardPage() {
         </Alert>
       )}
       {flow.data && (
-        <Board flow={flow.data} canSwitch={canSwitch} canPropose={canSwitch && canDraft} />
+        <Tabs defaultValue="switchboard" keepMounted={false}>
+          <Tabs.List>
+            <Tabs.Tab value="switchboard" leftSection={<IconToggleRight size={16} aria-hidden />}>
+              Switchboard
+            </Tabs.Tab>
+            {canBuild && (
+              <Tabs.Tab value="build" leftSection={<IconRoute size={16} aria-hidden />}>
+                Build
+              </Tabs.Tab>
+            )}
+          </Tabs.List>
+          <Tabs.Panel value="switchboard" pt="md">
+            <Board flow={flow.data} canSwitch={canSwitch} canPropose={canSwitch && canDraft} />
+          </Tabs.Panel>
+          {canBuild && (
+            <Tabs.Panel value="build" pt="md">
+              <BuildTab code={code} pendingTitle={flow.data.pending_change?.title ?? null} />
+            </Tabs.Panel>
+          )}
+        </Tabs>
       )}
     </Stack>
   );
@@ -136,7 +157,9 @@ function Board({ flow, canSwitch, canPropose }: BoardProps) {
           {
             op: "update",
             target_id: flow.template_id,
-            after: { flow_code: flow.code, ...current },
+            // The published track rides along unchanged, so the change set
+            // goes stale if a track is published before this applies.
+            after: { flow_code: flow.code, ...current, track: flow.stations },
           },
         ],
       });

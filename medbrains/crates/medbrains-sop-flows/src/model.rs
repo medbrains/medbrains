@@ -51,6 +51,10 @@ pub struct Station {
     pub locked: bool,
     /// Who holds the train here, in plain words.
     pub holder: String,
+    /// The tenant role that holds it (`roles.code`); `None` takes the
+    /// building block's default role.
+    #[serde(default)]
+    pub holder_role: Option<String>,
     /// Why a locked signal is required, shown as "Always on: …".
     pub required_by: Option<String>,
     /// Readable address, e.g. "Hospital › IPD discharge › Billing › Billing cleared".

@@ -167,6 +167,9 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
             permissions::ipd::wristband::PRINT,
             permissions::ipd::wristband::REPRINT,
             permissions::ipd::discharge::CREATE,
+            // Physiotherapy clearance on a discharge track is a clinician's
+            // call (a physiatrist, or a hospital's own physiotherapist role).
+            permissions::ipd::discharge::PHYSIO_CLEARANCE,
             permissions::ipd::discharge_summary::CREATE,
             permissions::ipd::bed_dashboard::VIEW,
             permissions::ipd::reports::VIEW,
@@ -1388,6 +1391,9 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
             permissions::flows::VIEW,
             permissions::flows::SWITCH,
             permissions::flows::PUBLISH,
+            // ...and is a flow designer: builds and tests draft tracks
+            // (RFC-SOP-FLOWS §11.4).
+            permissions::flows::BUILD,
             permissions::knowledge::change_sets::APPROVE,
             permissions::knowledge::change_sets::APPLY,
             permissions::knowledge::change_sets::ROLLBACK,
@@ -2114,6 +2120,8 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
             // quality officer's (RFC-SOP-FLOWS §9.3).
             permissions::flows::VIEW,
             permissions::flows::PUBLISH,
+            // Medical administration designs clinical tracks too (§11).
+            permissions::flows::BUILD,
             permissions::knowledge::change_sets::LIST,
             permissions::knowledge::change_sets::APPROVE,
             // Sees who is in discharge from the control room.

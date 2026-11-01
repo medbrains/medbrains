@@ -12,7 +12,8 @@ use uuid::Uuid;
 
 use crate::adapter::{Adapter, Planned, Tx};
 use crate::model::{
-    KnowledgeChangeSet, KnowledgeImpactReport, MAX_ITEMS, NewKnowledgeChangeItem, Op,
+    KnowledgeChangeItem, KnowledgeChangeSet, KnowledgeImpactReport, MAX_ITEMS,
+    NewKnowledgeChangeItem, Op,
 };
 use crate::proof::{canonical, sha256_hex};
 use crate::store::{load_items, plan};
@@ -46,6 +47,7 @@ pub(crate) async fn check_new<A: Adapter>(
                 let row: A::Row =
                     serde_json::from_value(v.clone()).map_err(|e| fail(&format!("{e}")))?;
                 A::validate(&row).map_err(|e| fail(&e))?;
+                A::check(tx, tenant, &row).await?.map_err(|e| fail(&e))?;
                 Some(row)
             }
             (_, None) => return Err(fail("the new row is missing")),
@@ -97,6 +99,11 @@ pub(crate) async fn preview<A: Adapter>(
         live_matches_op::<A>(item.op, current.as_ref())
             .map_err(|e| AppError::BadRequest(format!("Item {}: {e}", n + 1)))?;
         item.before = current;
+        if let Some(after) = &item.after {
+            A::check(tx, tenant, after)
+                .await?
+                .map_err(|e| AppError::BadRequest(format!("Item {}: {e}", n + 1)))?;
+        }
     }
     let before = A::observe(tx, tenant, &items).await?;
     let after = {
@@ -147,6 +154,22 @@ pub(crate) async fn preview<A: Adapter>(
     Ok(())
 }
 
+async fn recheck<A: Adapter>(
+    tx: &mut Tx<'_>,
+    tenant: Uuid,
+    items: &[Planned<A::Row>],
+    stored: &[KnowledgeChangeItem],
+) -> Result<(), AppError> {
+    for (item, row) in items.iter().zip(stored) {
+        if let Some(after) = &item.after {
+            A::check(tx, tenant, after)
+                .await?
+                .map_err(|e| AppError::Conflict(format!("Item {}: {e}", row.seq)))?;
+        }
+    }
+    Ok(())
+}
+
 pub(crate) enum Applied {
     Done,
     /// Items (by number) whose live row moved since preview.
@@ -173,6 +196,8 @@ pub(crate) async fn apply<A: Adapter>(
     if !drifted.is_empty() {
         return Ok(Applied::Stale(drifted));
     }
+    // Checked again at apply: a role may have lost a permission since.
+    recheck::<A>(tx, tenant_id, &items, &stored).await?;
     let mut proven = Vec::with_capacity(items.len());
     for (item, row) in items.iter().zip(&stored) {
         let id = A::write(tx, tenant_id, item.op, item.target, item.after.as_ref()).await?;

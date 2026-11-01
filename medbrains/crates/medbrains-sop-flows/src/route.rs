@@ -4,8 +4,8 @@
 use medbrains_approvals_core::conditions::matches;
 use serde_json::Value;
 
-use crate::discharge;
 use crate::model::{FlowDef, Station, SwitchKind, Switches};
+use crate::{condition, discharge};
 
 /// Every library flow, by code.
 #[must_use]
@@ -93,18 +93,14 @@ pub fn defaults(flow: &FlowDef) -> Switches {
         .collect()
 }
 
-fn audience(station: &Station) -> &'static str {
-    if station.fact_when.is_null() {
-        "every patient"
-    } else {
-        "insurance patients"
-    }
+fn audience(station: &Station) -> String {
+    condition::audience(&station.fact_when)
 }
 
 /// Plain sentences for what moving from `before` to `after` does to the route.
 #[must_use]
-pub fn route_changes(flow: &FlowDef, before: &Switches, after: &Switches) -> Vec<String> {
-    flow.stations
+pub fn route_changes(stations: &[Station], before: &Switches, after: &Switches) -> Vec<String> {
+    stations
         .iter()
         .filter_map(
             |s| match (on_switch_route(s, before), on_switch_route(s, after)) {
@@ -114,6 +110,51 @@ pub fn route_changes(flow: &FlowDef, before: &Switches, after: &Switches) -> Vec
             },
         )
         .collect()
+}
+
+/// Plain sentences for what replacing the track `before` with `after` does:
+/// stations added, removed, moved, or given a different audience.
+#[must_use]
+pub fn track_changes(before: &[Station], after: &[Station]) -> Vec<String> {
+    let mut out = Vec::new();
+    let old: Vec<&str> = before.iter().map(|s| s.key.as_str()).collect();
+    let kept: Vec<&str> = after
+        .iter()
+        .map(|s| s.key.as_str())
+        .filter(|k| old.contains(k))
+        .collect();
+    let old_kept: Vec<&str> = old.iter().copied().filter(|k| kept.contains(k)).collect();
+    for (i, s) in after.iter().enumerate() {
+        let Some(was) = before.iter().find(|b| b.key == s.key) else {
+            let next = after.get(i + 1).map_or("the end", |n| n.name.as_str());
+            out.push(format!(
+                "Adds {} before {} for {}",
+                s.name,
+                next,
+                audience(s)
+            ));
+            continue;
+        };
+        if was.fact_when != s.fact_when || was.switch_when != s.switch_when {
+            out.push(format!("{} now applies to {}", s.name, audience(s)));
+        }
+        if was.holder_role != s.holder_role || was.sla_minutes != s.sla_minutes {
+            out.push(format!(
+                "{} changes who holds it or its expected time",
+                s.name
+            ));
+        }
+    }
+    if kept != old_kept {
+        out.push("Changes the order of the stations".to_owned());
+    }
+    for s in before
+        .iter()
+        .filter(|b| !after.iter().any(|a| a.key == b.key))
+    {
+        out.push(format!("Removes {}", s.name));
+    }
+    out
 }
 
 #[cfg(test)]
@@ -140,6 +181,7 @@ mod tests {
             [
                 "summary_signed",
                 "doctor_cleared",
+                "mlc_intimation",
                 "ward_handover",
                 "nursing_cleared",
                 "pharmacy_returns",
@@ -184,7 +226,7 @@ mod tests {
         let ms = with(&[(SW_SIGNOFF, json!("medical_superintendent"))]);
         assert!(route_keys(&flow.stations, &ms).contains(&"ms_signoff".to_owned()));
         assert_eq!(
-            route_changes(&flow, &defaults(&flow), &ms),
+            route_changes(&flow.stations, &defaults(&flow), &ms),
             ["Route now stops at Superintendent sign-off for every patient"]
         );
     }
@@ -204,7 +246,8 @@ mod tests {
                 let s = with(&[(SW_TPA, json!(tpa)), (SW_SIGNOFF, json!(signoff))]);
                 for locked in flow.stations.iter().filter(|s| s.locked) {
                     assert!(on_switch_route(locked, &s), "{} dropped", locked.key);
-                    assert!(locked.switch_when.is_null() && locked.fact_when.is_null());
+                    // No switch can drop it; a fact may only scope it (MLC).
+                    assert!(locked.switch_when.is_null());
                 }
             }
         }
@@ -223,15 +266,15 @@ mod tests {
 
     #[test]
     fn every_station_names_a_registered_block() {
+        use crate::blocks::{block, fact};
         use crate::model::StationKind;
-        use crate::registry::{ACTIONS, FACTS, SIGNALS, TASKS};
         for flow in library() {
             for st in &flow.stations {
                 let ok = match &st.kind {
-                    StationKind::Action { action } => ACTIONS.contains(&action.as_str()),
-                    StationKind::Task { task } => TASKS.contains(&task.as_str()),
-                    StationKind::Switch { fact } => FACTS.contains(&fact.as_str()),
-                    StationKind::Signal { signal } => SIGNALS.contains(&signal.as_str()),
+                    StationKind::Action { action } => block("action", action).is_some(),
+                    StationKind::Task { task } => block("task", task).is_some(),
+                    StationKind::Switch { fact: f } => fact(f).is_some(),
+                    StationKind::Signal { signal } => block("signal", signal).is_some(),
                     StationKind::End => true,
                 };
                 assert!(ok, "{} names an unregistered block", st.key);

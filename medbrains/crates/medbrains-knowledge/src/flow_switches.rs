@@ -2,30 +2,59 @@
 //! (RFC-SOP-FLOWS §3.3). One row per flow: its code and every switch value,
 //! flat so the change-set diff shows one field per switch.
 //!
+//! A row may also carry a new track (RFC-SOP-FLOWS §11): the stations a
+//! flow designer built, with the draft and revision it came from. `track`
+//! absent means "keep the published track"; the live row always carries it,
+//! so a track published between preview and apply makes the set stale, and
+//! a rollback restores the old track. A new track passes the six checks
+//! (`builder::check_proposal`) on create, preview and apply.
+//!
 //! Applying publishes the next version of the flow; journeys already running
 //! stay pinned to the version they started on. Locked safety signals are not
 //! switches, so a row naming one fails validation.
 
 use medbrains_core::permissions;
-use medbrains_sop_flows::{catalog, model::Switches, route, store};
+use medbrains_sop_flows::model::{Station, Switches};
+use medbrains_sop_flows::{builder, catalog, drafts, route, store};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use crate::adapter::{Adapter, Planned, Tx};
 use crate::model::{KnowledgeImpactEntry, KnowledgeImpactExample, Op, Severity};
+use medbrains_server_core::error::AppError;
 
 pub(crate) struct FlowSwitches;
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub(crate) struct FlowSwitchRow {
     pub(crate) flow_code: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub(crate) track: Option<Vec<Station>>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub(crate) draft_id: Option<Uuid>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub(crate) draft_revision: Option<i32>,
     #[serde(flatten)]
     pub(crate) switches: Switches,
 }
 
+/// Same flow, same switches, and the same track where both name one: an
+/// absent track means "unchanged". Where a row came from (its draft) is
+/// provenance, not content.
+impl PartialEq for FlowSwitchRow {
+    fn eq(&self, other: &Self) -> bool {
+        self.flow_code == other.flow_code
+            && self.switches == other.switches
+            && match (&self.track, &other.track) {
+                (Some(a), Some(b)) => a == b,
+                _ => true,
+            }
+    }
+}
+
 /// The adapter trait speaks `sqlx::Error`; a flow error past validation is
 /// unexpected, so it travels as a protocol error (a 500), never silently.
-fn db(e: &medbrains_server_core::error::AppError) -> sqlx::Error {
+fn db(e: &AppError) -> sqlx::Error {
     sqlx::Error::Protocol(e.to_string())
 }
 
@@ -43,13 +72,17 @@ async fn row_for(
     let t = store::published(tx, tenant, code, lock)
         .await
         .map_err(|e| db(&e))?;
-    Ok(t.map(|t| {
+    t.map(|t| {
         let row = FlowSwitchRow {
             flow_code: code.to_owned(),
+            track: Some(store::stations(&t).map_err(|e| db(&e))?),
+            draft_id: None,
+            draft_revision: None,
             switches: store::switches(&t),
         };
-        (t.id, row)
-    }))
+        Ok((t.id, row))
+    })
+    .transpose()
 }
 
 impl Adapter for FlowSwitches {
@@ -61,7 +94,23 @@ impl Adapter for FlowSwitches {
     fn validate(row: &FlowSwitchRow) -> Result<(), String> {
         let flow = route::find(&row.flow_code)
             .ok_or_else(|| format!("No library flow \"{}\"", row.flow_code))?;
-        route::validate(&flow, &row.switches)
+        route::validate(&flow, &row.switches)?;
+        if row.draft_id.is_some() != row.draft_revision.is_some() {
+            return Err("A track from a draft names the draft and its revision".to_owned());
+        }
+        Ok(())
+    }
+
+    async fn check(
+        tx: &mut Tx<'_>,
+        tenant: Uuid,
+        row: &FlowSwitchRow,
+    ) -> Result<Result<(), String>, AppError> {
+        let Some(track) = &row.track else {
+            return Ok(Ok(()));
+        };
+        let draft = row.draft_id.zip(row.draft_revision);
+        builder::check_proposal(tx, tenant, &row.flow_code, track, draft).await
     }
 
     /// Switch settings are changed, never removed.
@@ -91,7 +140,7 @@ impl Adapter for FlowSwitches {
         let code = match (target, after) {
             (Some(id), _) => match store::template_by_id(tx, tenant, id).await {
                 Ok(t) => t.code,
-                Err(medbrains_server_core::error::AppError::NotFound) => return Ok(None),
+                Err(AppError::NotFound) => return Ok(None),
                 Err(e) => return Err(db(&e)),
             },
             (None, Some(row)) => row.flow_code.clone(),
@@ -112,9 +161,21 @@ impl Adapter for FlowSwitches {
                 "flow switches are only ever updated".to_owned(),
             ));
         };
-        store::publish_switches(tx, tenant, &row.flow_code, &row.switches)
-            .await
-            .map_err(|e| db(&e))
+        let id = store::publish(
+            tx,
+            tenant,
+            &row.flow_code,
+            &row.switches,
+            row.track.as_deref(),
+        )
+        .await
+        .map_err(|e| db(&e))?;
+        if let Some(draft) = row.draft_id {
+            drafts::close(tx, tenant, draft, Some(id))
+                .await
+                .map_err(|e| db(&e))?;
+        }
+        Ok(id)
     }
 
     // The trait is async; this adapter needs no reads to compare routes.
@@ -142,10 +203,30 @@ impl Adapter for FlowSwitches {
             let Some(flow) = route::find(&after.flow_code) else {
                 continue;
             };
-            let report =
-                catalog::impact_lines(tx, tenant, &flow, &before.switches, &after.switches)
-                    .await
-                    .map_err(|e| db(&e))?;
+            let old_track = before.track.clone().unwrap_or_default();
+            let new_track = after.track.clone().unwrap_or_else(|| old_track.clone());
+            let track_changes = route::track_changes(&old_track, &new_track);
+            if !track_changes.is_empty() {
+                out.push(KnowledgeImpactEntry {
+                    // A new track changes clinical routing: graded safety so
+                    // the approvers read it first.
+                    severity: Severity::Safety,
+                    relation: "track".to_owned(),
+                    summary: track_changes.join("; "),
+                    count: i64::try_from(track_changes.len()).unwrap_or(i64::MAX),
+                    examples: Vec::new(),
+                    truncated: false,
+                });
+            }
+            let report = catalog::impact_lines(
+                tx,
+                tenant,
+                &flow,
+                &new_track,
+                (&before.switches, &after.switches),
+            )
+            .await
+            .map_err(|e| db(&e))?;
             if !report.route_changes.is_empty() {
                 out.push(KnowledgeImpactEntry {
                     severity: Severity::Info,

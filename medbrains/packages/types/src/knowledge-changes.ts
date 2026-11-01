@@ -37,7 +37,8 @@ export interface KnowledgeImpactReport {
 }
 
 /** A row's editable fields, as the area stores them. */
-export type KnowledgeRowFields = Record<string, string | number | boolean | null>;
+/** A row's editable fields; a flow track (`track`) is a list of stations. */
+export type KnowledgeRowFields = Record<string, string | number | boolean | null | object[]>;
 
 export interface KnowledgeChangeSet {
   id: string;

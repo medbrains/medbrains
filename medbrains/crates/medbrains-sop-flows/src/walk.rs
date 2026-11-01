@@ -10,6 +10,7 @@ use chrono::{DateTime, Utc};
 use serde_json::{Value, json};
 use uuid::Uuid;
 
+use crate::condition;
 use crate::model::{Station, StationKind, Switches, Template, Ticket, TicketStation, TicketStop};
 use crate::registry::{self, Clearance, Subject, Tx};
 use crate::route::{find, on_patient_route};
@@ -71,6 +72,32 @@ async fn clearance(
     }))
 }
 
+/// Read every fact a branch on the track tests and the journey has not
+/// recorded yet. A branch never depends on a junction station having been
+/// passed first: an unread fact would make a required MLC signal look
+/// "not for this patient" and skip it.
+async fn read_facts(tx: &mut Tx<'_>, j: &mut Journey, s: &Subject) -> Result<(), AppError> {
+    let mut wanted: Vec<String> = Vec::new();
+    for st in &j.stations {
+        for f in condition::facts(&st.fact_when) {
+            if !wanted.contains(&f) {
+                wanted.push(f);
+            }
+        }
+    }
+    for key in wanted {
+        if j.inst.state.pointer(&format!("/facts/{key}")).is_some() {
+            continue;
+        }
+        let value = registry::fact(tx, &key, s).await?;
+        if let Some(state) = j.inst.state.as_object_mut() {
+            let f = state.entry("facts").or_insert_with(|| json!({}));
+            f[key.as_str()] = value;
+        }
+    }
+    Ok(())
+}
+
 /// Walk forward from the current station. Returns where it stopped, or
 /// `None` when the journey reached its end.
 pub(crate) async fn walk(
@@ -79,6 +106,7 @@ pub(crate) async fn walk(
     s: &Subject,
 ) -> Result<Option<Stop>, AppError> {
     let tenant = s.tenant;
+    read_facts(tx, j, s).await?;
     let logs = store::logs(tx, tenant, j.inst.id).await?;
     let mut index = usize::try_from(j.inst.current_step).unwrap_or(0);
     let mut arrived = arrival(&logs, index).unwrap_or_else(Utc::now);

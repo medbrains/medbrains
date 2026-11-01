@@ -5,8 +5,9 @@
  * so the map redraws the instant a switch flips.
  */
 import type { FlowClause, FlowStation, FlowSwitches } from "@medbrains/types";
+import { audience } from "./condition";
 
-/** Every clause entry holds — equality, as the library flows use it. */
+/** Every clause entry holds — equality, as switch clauses use it. */
 export function clauseHolds(clause: FlowClause, values: FlowSwitches): boolean {
   if (!clause) return true;
   return Object.entries(clause).every(([k, v]) => values[k] === v);
@@ -77,6 +78,11 @@ export function layoutMetro(stations: FlowStation[]): Placement[] {
   });
 }
 
+/** Where a station dragged to `x` lands: before every station right of it. */
+export function dropIndex(placed: Placement[], key: string, x: number): number {
+  return placed.filter((p) => p.key !== key && p.x < x).length;
+}
+
 /**
  * Where a lane-changing line turns, as a fraction of its run: in the clear
  * space just after the station it leaves (going down to a branch) or just
@@ -138,10 +144,6 @@ export function metroLines(
   return lines;
 }
 
-function audience(s: FlowStation): string {
-  return s.fact_when ? "insurance patients" : "every patient";
-}
-
 /** Plain sentences for a route change, announced when a switch flips. */
 export function describeRouteChange(
   stations: FlowStation[],
@@ -152,7 +154,7 @@ export function describeRouteChange(
     const was = onRoute(s, before);
     const now = onRoute(s, after);
     if (was === now) return [];
-    return [`Route now ${now ? "stops at" : "skips"} ${s.name} for ${audience(s)}`];
+    return [`Route now ${now ? "stops at" : "skips"} ${s.name} for ${audience(s.fact_when)}`];
   });
 }
 

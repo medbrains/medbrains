@@ -91,6 +91,12 @@ export const AREA_FIELDS: Record<KnowledgeArea, FieldDef[]> = {
   ],
 };
 
+/** Fields shown in diffs but never edited in the row form: a flow's track
+ * is built on the Build tab, not typed here. */
+export const DIFF_ONLY_FIELDS: Partial<Record<KnowledgeArea, FieldDef[]>> = {
+  flow_switches: [{ key: "track", label: "Track (stations in order)", kind: "text" }],
+};
+
 /** A short name for a row, for lists and diffs. */
 export function rowTitle(area: KnowledgeArea, fields: Record<string, unknown> | null): string {
   if (!fields) return "—";

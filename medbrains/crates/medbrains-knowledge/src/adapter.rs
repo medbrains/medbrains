@@ -5,6 +5,7 @@ use serde::{Serialize, de::DeserializeOwned};
 use uuid::Uuid;
 
 use crate::model::{KnowledgeImpactEntry, Op};
+use medbrains_server_core::error::AppError;
 
 pub(crate) type Tx<'a> = sqlx::Transaction<'a, sqlx::Postgres>;
 
@@ -28,6 +29,17 @@ pub(crate) trait Adapter {
     type State: Send;
 
     fn validate(row: &Self::Row) -> Result<(), String>;
+
+    /// The checks that need the database (a flow track's six checks), run
+    /// when a set is created, previewed and applied. The inner `Err` is the
+    /// refusal in words; the outer one a fault.
+    async fn check(
+        _tx: &mut Tx<'_>,
+        _tenant: Uuid,
+        _row: &Self::Row,
+    ) -> Result<Result<(), String>, AppError> {
+        Ok(Ok(()))
+    }
 
     /// `row` as a delete leaves it.
     fn deactivated(row: &Self::Row) -> Self::Row;
