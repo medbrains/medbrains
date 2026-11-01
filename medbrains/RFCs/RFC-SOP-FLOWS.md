@@ -260,6 +260,17 @@ tested** (actions, tasks, signals, facts). Before a track can be proposed it mus
 - **Propose** is enabled only when every check passes and the dry run has been run.
 - Draft autosaves; drafts never affect patients.
 
+### 11.3a Data and database changes
+- **No database structure changes at run time.** Building or changing a track never runs DDL.
+  Data a designer adds to a station (extra fields, checklist items) lives in versioned
+  **form templates** (`form_templates` / `form_template_versions`) and the journey's
+  `workflow_instances.state`, both already tenant-scoped with RLS.
+- **When a new building block needs a real table or column**, AI drafts the migration from the
+  repo's own rules (`tenant_id` + FORCE RLS, soft delete, the migration pitfalls in ENGINEERING.md,
+  regulatory fields, next free number, never editing an applied migration) together with the
+  block's Rust code and tests. It arrives as a normal pull request: compile-time SQL checks, the
+  repo's migration and RLS checks, and human review must pass. Nothing is applied from a screen.
+
 ### 11.4 Permission
 - `flows.build`: draw and test draft tracks (new, defined in Rust first). Proposing and approving
   stay `flows.switch` / `flows.publish` via change sets.
