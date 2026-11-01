@@ -2,7 +2,7 @@
 //! drawers that day's sales and returns were rung on.
 
 use chrono::{DateTime, NaiveDate, Utc};
-use medbrains_server_core::error::AppError;
+use medbrains_kernel::AppError;
 use rust_decimal::Decimal;
 use serde::Serialize;
 use uuid::Uuid;
@@ -109,7 +109,7 @@ const SUMMARY_SQL: &str = "\
                AND s.deleted_at IS NULL) AS sales_without_drawer";
 
 pub async fn z_report_in_tx(
-    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    tx: &mut medbrains_kernel::Tx,
     tenant_id: Uuid,
     location: Uuid,
     date: NaiveDate,

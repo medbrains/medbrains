@@ -2,7 +2,7 @@
 //! dictionary) or an OMOP CDM v5.4 bundle (zip plus README).
 
 use serde_json::Value;
-use sqlx::{Postgres, Transaction};
+use sqlx::PgConnection;
 use uuid::Uuid;
 
 use super::datasets::{self, ReadError};
@@ -49,7 +49,7 @@ pub fn dictionary_file(row: &ExportRow) -> String {
 /// An unknown dataset, too many rows, a bundle that could not be written,
 /// or a database error.
 pub async fn build(
-    tx: &mut Transaction<'static, Postgres>,
+    tx: &mut PgConnection,
     tenant: Uuid,
     row: &ExportRow,
     salt: &[u8],
@@ -92,7 +92,7 @@ pub async fn build(
 /// OMOP concept ids for `codes`, from the licence-free vocabularies the
 /// hospital loaded into `omop_concept_map`; empty when none are loaded.
 async fn concepts(
-    tx: &mut Transaction<'static, Postgres>,
+    tx: &mut PgConnection,
     codes: &[(String, String)],
 ) -> Result<omop::ConceptMap, ReadError> {
     let (vocabularies, values): (Vec<String>, Vec<String>) = codes.iter().cloned().unzip();
@@ -104,7 +104,7 @@ async fn concepts(
     )
     .bind(&vocabularies)
     .bind(&values)
-    .fetch_all(&mut **tx)
+    .fetch_all(&mut *tx)
     .await?;
     Ok(rows
         .into_iter()

@@ -81,6 +81,10 @@ jobs:
       # same 404 / empty list it answers a real refusal with.
       - name: No authorization check collapses its error
         run: python3 medbrains/scripts/check_authz_collapse.py
+      # Apps reach tenancy, authz, audit, sequences, storage and config only
+      # through medbrains-kernel; existing direct access is baselined, never grown.
+      - name: Kernel boundary only gets better
+        run: python3 medbrains/scripts/check_kernel_boundary.py
 
   rust-fmt:
     name: "Rust format (TODO: 1053 diffs on master)"

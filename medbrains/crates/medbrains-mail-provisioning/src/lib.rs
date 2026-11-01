@@ -18,10 +18,8 @@ use axum::{Extension, Json, extract::State};
 use serde::{Deserialize, Serialize};
 
 use medbrains_core::permissions;
-use medbrains_server_core::{
-    error::AppError, middleware::auth::Claims, middleware::authorization::require_permission,
-    state::AppState,
-};
+use medbrains_kernel::{AppError, Claims, require_permission};
+use medbrains_server_core::state::AppState;
 
 struct StalwartClient {
     base_url: String,
