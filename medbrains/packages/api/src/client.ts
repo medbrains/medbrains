@@ -1637,6 +1637,7 @@ import type {
   OpdProcedureConsentPrintData,
   OpdRegistrationPolicy,
   OpenCampRegistrationEncounterRequest,
+  OpenedIncident,
   OperationNotesPrintData,
   OphthoExam,
   OrderBasketDraft,
@@ -1828,6 +1829,7 @@ import type {
   PostNhcxPaymentRequest,
   PostnatalRecord,
   PostopOrdersPrintData,
+  PostureReport,
   PreAuthorizationRequest,
   PreauthNhcxView,
   PredictionAccuracyReport,
@@ -2090,6 +2092,7 @@ import type {
   SecurityAccessLog,
   SecurityBandMatchResult,
   SecurityCamera,
+  SecurityCheckStatus,
   SecurityCodeDebrief,
   SecurityIncident,
   SecurityIncidentUpdate,
@@ -2529,6 +2532,7 @@ import type {
   VoidMedicalCertificateRequest,
   VteRiskAssessment,
   Vulnerability,
+  VulnerabilityQuery,
   WaitEstimate,
   // IPD Phase 2
   WaitingRoomItem,
@@ -16306,7 +16310,23 @@ export const api = {
       body: JSON.stringify(data),
     }),
 
-  listVulnerabilities: () => request<Vulnerability[]>("/vulnerabilities"),
+  listVulnerabilities: (params?: VulnerabilityQuery) => {
+    const qs = new URLSearchParams();
+    if (params?.severity) qs.set("severity", params.severity);
+    if (params?.status) qs.set("status", params.status);
+    const suffix = qs.toString() ? `?${qs}` : "";
+    return request<Vulnerability[]>(`/vulnerabilities${suffix}`);
+  },
+
+  /** Each continuous security check's cadence and latest heartbeat. */
+  listSecurityChecks: () => request<SecurityCheckStatus[]>("/security/intel/checks"),
+
+  /** The latest posture run; null when it has never run. */
+  getSecurityPosture: () => request<PostureReport | null>("/security/intel/posture"),
+
+  /** Open an incident in the breach register from a finding (once). */
+  openIncidentFromFinding: (id: string) =>
+    request<OpenedIncident>(`/security/intel/findings/${id}/incident`, { method: "POST" }),
 
   createVulnerability: (data: CreateVulnerabilityRequest) =>
     request<Vulnerability>("/vulnerabilities", { method: "POST", body: JSON.stringify(data) }),

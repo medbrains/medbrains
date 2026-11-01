@@ -2508,6 +2508,21 @@ pub mod security {
         pub const LIST: &str = "security.debriefs.list";
         pub const CREATE: &str = "security.debriefs.create";
     }
+
+    pub mod intel {
+        /// View security intelligence findings.
+        ///
+        /// Security → Intelligence: the posture checklist, vulnerable
+        /// packages, honeytoken alarms and each continuous check's last and
+        /// next run (RFC-OSINT §5). Read-only.
+        pub const VIEW: &str = "security.intel.view";
+        /// Assign, close and escalate security findings.
+        ///
+        /// Takes ownership of a finding, changes its status (in progress,
+        /// resolved, risk accepted) and opens an incident from it in the
+        /// breach register (opening also needs security.incidents.create).
+        pub const MANAGE: &str = "security.intel.manage";
+    }
 }
 
 pub mod integration {

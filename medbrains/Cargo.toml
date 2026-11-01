@@ -115,6 +115,7 @@ members = [
     "crates/medbrains-notes",
     "crates/medbrains-vte",
     "crates/medbrains-health-intel",
+    "crates/medbrains-security-intel",
     "crates/medbrains-kernel",
     "crates/medbrains-pharmacy-cash-drawer",
     "crates/medbrains-device-pairing",

@@ -1168,6 +1168,12 @@ export const NAV_GROUPS: NavGroupConfig[] = [
         icon: "IconShieldLock",
         requiredPermission: "security.access.list",
       },
+      {
+        i18nKey: "securityIntel",
+        path: "/security/intelligence",
+        icon: "IconShieldCheck",
+        requiredPermission: "security.intel.view",
+      },
       { i18nKey: "hr", path: "/hr", icon: "IconIdBadge2", requiredPermission: "hr.employees.list" },
       {
         i18nKey: "lms",

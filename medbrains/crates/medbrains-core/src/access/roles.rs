@@ -1292,6 +1292,8 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
         name: "Audit Officer",
         description: "Audit & compliance — read-only access across modules",
         permissions: &[
+            // Read-only: security intelligence findings and check health.
+            permissions::security::intel::VIEW,
             // Auditors read knowledge changes and download their proofs.
             permissions::knowledge::change_sets::LIST,
             // Read-only: the privacy pack and its gaps.
@@ -2139,6 +2141,21 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
             permissions::admin::settings::READ,
             permissions::dashboard::VIEW,
             permissions::notes::USE,
+        ],
+    },
+    BuiltInRole {
+        code: "it_security_officer",
+        name: "IT Security Officer",
+        description: "Watches security intelligence, owns findings, opens security incidents",
+        permissions: &[
+            // Security → Intelligence (RFC-OSINT §6).
+            permissions::security::intel::VIEW,
+            permissions::security::intel::MANAGE,
+            // Opens and follows incidents raised from findings.
+            permissions::security::incidents::LIST,
+            permissions::security::incidents::CREATE,
+            permissions::security::incidents::UPDATE,
+            permissions::dashboard::VIEW,
         ],
     },
     BuiltInRole {

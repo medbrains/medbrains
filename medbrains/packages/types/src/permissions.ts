@@ -17,7 +17,7 @@ export interface PermissionDef {
   module: string;
 }
 
-/** 1208 permissions, one per constant in the Rust source. */
+/** 1210 permissions, one per constant in the Rust source. */
 export const PERMISSIONS: PermissionDef[] = [
   // dashboard
   {
@@ -4276,6 +4276,18 @@ export const PERMISSIONS: PermissionDef[] = [
     code: "security.debriefs.create",
     label: "Create Code Debrief",
     description: "Create post-event debrief documentation",
+    module: "security",
+  },
+  {
+    code: "security.intel.view",
+    label: "View security intelligence findings",
+    description: "Security → Intelligence: the posture checklist, vulnerable packages, honeytoken alarms and each continuous check's last and next run (RFC-OSINT §5). Read-only.",
+    module: "security",
+  },
+  {
+    code: "security.intel.manage",
+    label: "Assign, close and escalate security findings",
+    description: "Takes ownership of a finding, changes its status (in progress, resolved, risk accepted) and opens an incident from it in the breach register (opening also needs security.incidents.create).",
     module: "security",
   },
   // integration
@@ -10440,6 +10452,12 @@ export const P = {
     INCIDENTS_CREATE: "security.incidents.create",
     INCIDENTS_LIST: "security.incidents.list",
     INCIDENTS_UPDATE: "security.incidents.update",
+    INTEL: {
+      MANAGE: "security.intel.manage",
+      VIEW: "security.intel.view",
+    },
+    INTEL_MANAGE: "security.intel.manage",
+    INTEL_VIEW: "security.intel.view",
     PATIENT_SAFETY: {
       LIST: "security.patient_safety.list",
       MANAGE: "security.patient_safety.manage",
@@ -12129,6 +12147,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.SECURITY.CCTV.LIST,
       P.SECURITY.DEBRIEFS.LIST,
       P.SECURITY.INCIDENTS.LIST,
+      P.SECURITY.INTEL.VIEW,
       P.SECURITY.PATIENT_SAFETY.LIST,
       P.TERMINOLOGY.SNOMED.ANALYTICS,
     ],
@@ -12746,6 +12765,17 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.KNOWLEDGE.CHANGE_SETS.LIST,
       P.NOTES.USE,
       P.QUALITY.INDICATORS.LIST,
+    ],
+  },
+  it_security_officer: {
+    label: "IT Security Officer",
+    permissions: [
+      P.DASHBOARD.VIEW,
+      P.SECURITY.INCIDENTS.CREATE,
+      P.SECURITY.INCIDENTS.LIST,
+      P.SECURITY.INCIDENTS.UPDATE,
+      P.SECURITY.INTEL.MANAGE,
+      P.SECURITY.INTEL.VIEW,
     ],
   },
   insurance_officer: {

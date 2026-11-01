@@ -8209,6 +8209,29 @@ dependencies = [
 ]
 
 [[package]]
+name = "medbrains-security-intel"
+version = "0.1.0"
+dependencies = [
+ "argon2",
+ "async-trait",
+ "axum",
+ "chrono",
+ "getrandom 0.4.3",
+ "medbrains-api-keys",
+ "medbrains-core",
+ "medbrains-infra-settings",
+ "medbrains-kernel",
+ "medbrains-server-core",
+ "reqwest 0.13.5",
+ "serde",
+ "serde_json",
+ "sqlx",
+ "tokio",
+ "tracing",
+ "uuid",
+]
+
+[[package]]
 name = "medbrains-seed"
 version = "0.1.0"
 dependencies = [
@@ -8365,6 +8388,7 @@ dependencies = [
  "medbrains-research",
  "medbrains-scheduling",
  "medbrains-security",
+ "medbrains-security-intel",
  "medbrains-seed",
  "medbrains-server-core",
  "medbrains-server-services",

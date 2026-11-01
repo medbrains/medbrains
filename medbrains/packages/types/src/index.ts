@@ -5312,6 +5312,9 @@ export interface AddIncidentNoteRequest {
   description: string;
 }
 
+export type FindingStatus = "open" | "in_progress" | "resolved" | "accepted";
+
+/** A security finding: entered by hand, or raised by a continuous check (`check_key` set). */
 export interface Vulnerability {
   id: string;
   tenant_id: string;
@@ -5322,13 +5325,22 @@ export interface Vulnerability {
   affected_component: string;
   discovered_at: string;
   discovered_by: string | null;
-  remediation_status: string | null;
+  remediation_status: FindingStatus | null;
   remediation_notes: string | null;
   remediation_deadline: string | null;
   remediated_at: string | null;
   remediated_by: string | null;
   created_at: string;
   updated_at: string;
+  check_key: string | null;
+  finding_key: string | null;
+  evidence: Record<string, unknown>;
+  how_to_fix: string | null;
+  owner_id: string | null;
+  last_seen_at: string;
+  occurrences: number;
+  reopened_count: number;
+  incident_id: string | null;
 }
 
 export interface CreateVulnerabilityRequest {
@@ -5338,13 +5350,57 @@ export interface CreateVulnerabilityRequest {
   severity: CertInSeverity;
   affected_component: string;
   discovered_at: string;
-  discovered_by?: string;
   remediation_deadline?: string;
 }
 
+export interface VulnerabilityQuery {
+  severity?: CertInSeverity;
+  status?: FindingStatus;
+}
+
 export interface UpdateVulnerabilityRequest {
-  remediation_status?: string;
+  remediation_status?: FindingStatus;
   remediation_notes?: string;
+  owner_id?: string;
+}
+
+/** A continuous security check's latest heartbeat. */
+export interface SecurityCheckRun {
+  check_key: string;
+  started_at: string;
+  finished_at: string;
+  findings_count: number;
+  outcome: "ok" | "error" | "not_applicable";
+  error: string | null;
+  recent_errors: number;
+}
+
+export interface SecurityCheckStatus {
+  key: string;
+  label: string;
+  every_secs: number;
+  last: SecurityCheckRun | null;
+}
+
+export interface PostureItem {
+  check: string;
+  label: string;
+  status: "pass" | "fail" | "unknown";
+  detail: string;
+  fix: string | null;
+}
+
+export interface PostureReport {
+  started_at: string;
+  finished_at: string;
+  outcome: "ok" | "error" | "not_applicable";
+  error: string | null;
+  detail: { items?: PostureItem[] };
+}
+
+export interface OpenedIncident {
+  incident_id: string;
+  created: boolean;
 }
 
 export interface ComplianceRequirement {

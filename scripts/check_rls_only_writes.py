@@ -84,7 +84,6 @@ RECORDED_UNSCOPED_WRITES = {
     ("medbrains-it-security/src/lib.rs", "resolve_dq_issue"),
     ("medbrains-it-security/src/lib.rs", "update_compliance_requirement"),
     ("medbrains-it-security/src/lib.rs", "update_security_incident"),
-    ("medbrains-it-security/src/lib.rs", "update_vulnerability"),
     ("medbrains-lab/src/lib.rs", "assign_phlebotomist"),
     ("medbrains-lab/src/lib.rs", "auto_validate_result"),
     ("medbrains-lms/src/lib.rs", "delete_course"),

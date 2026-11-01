@@ -1,0 +1,30 @@
+[package]
+name = "medbrains-security-intel"
+publish = false
+description = "Continuous security checks with heartbeats, findings and honeytokens (RFC-OSINT phase 1)"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license-file.workspace = true
+
+[dependencies]
+medbrains-api-keys = { path = "../medbrains-api-keys" }
+medbrains-core = { path = "../medbrains-core" }
+medbrains-infra-settings = { path = "../medbrains-infra-settings" }
+medbrains-kernel = { path = "../medbrains-kernel" }
+medbrains-server-core = { path = "../medbrains-server-core" }
+argon2 = { workspace = true }
+async-trait = { workspace = true }
+axum = { workspace = true }
+chrono = { workspace = true }
+getrandom = { workspace = true }
+reqwest = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+sqlx = { workspace = true }
+tokio = { workspace = true }
+tracing = { workspace = true }
+uuid = { workspace = true }
+
+[lints]
+workspace = true

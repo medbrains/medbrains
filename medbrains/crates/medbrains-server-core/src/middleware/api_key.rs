@@ -101,6 +101,16 @@ pub async fn authenticate(db: &PgPool, presented: &str) -> Result<(Claims, Uuid)
     );
 
     let Some(record) = record else {
+        // Not a key we issued — perhaps the decoy planted in the settings,
+        // which raises a critical finding. Refused the same way regardless.
+        if let Err(error) =
+            sqlx::query_scalar::<_, bool>("SELECT public.app_honeytoken_key_hit($1)")
+                .bind(&fingerprint)
+                .fetch_one(db)
+                .await
+        {
+            tracing::error!(%error, "honeytoken key check failed");
+        }
         return Err(AppError::Unauthorized);
     };
     if !medbrains_api_keys::verify(presented, &record.key_hash) {

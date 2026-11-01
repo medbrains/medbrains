@@ -150,5 +150,9 @@
   "utilization_reviewer": {
     "missing_from_template": 0,
     "template_only": []
+  },
+  "it_security_officer": {
+    "missing_from_template": 0,
+    "template_only": []
   }
 }

@@ -693,6 +693,16 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // CERT-In 6 h / DPDP Board 72 h breach reports overdue — notify once.
     medbrains_server::services::breach_deadline_escalation::spawn(worker_pool.clone());
     medbrains_server::services::access_alert_scan::spawn(worker_pool.clone());
+    // Security intelligence (RFC-OSINT phase 1): continuous checks with
+    // heartbeats, findings into vulnerabilities, honeytokens.
+    medbrains_security_intel::Runner::new(
+        medbrains_security_intel::Ctx {
+            request: db_pool.clone(),
+            worker: worker_pool.clone(),
+        },
+        medbrains_security_intel::all_checks(chrono::Utc::now()),
+    )
+    .spawn();
     medbrains_server::services::prescription_expiry::spawn(worker_pool.clone());
     medbrains_server::services::pacs_sync::spawn(worker_pool.clone());
     medbrains_server::services::marketing_message_status::spawn(worker_pool.clone());

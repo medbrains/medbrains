@@ -161,6 +161,25 @@ fetched every 30 minutes (exists), environment advisories hourly, a stopped feed
    scan.
 5. **Health II:** S-form reporting, HAI cluster suggestions, condition/region tagging of news.
 
+### 7.1 Phase 1 as built
+
+- Runner: `crates/medbrains-security-intel`, one background task in the server; due times are read
+  from the heartbeats (`security_check_runs`, kept 7 days), so a restart neither repeats nor skips a
+  check. Watchers (1 min) flag any check silent for twice its interval or whose last run failed.
+- Findings: `vulnerabilities` (migration 1401) keyed by (check, asset, key); seen again it merges,
+  resolved and seen again it re-opens, gone from a *successful* run it resolves. An error resolves
+  nothing.
+- Advisories: network lookups (OSV) only with `MEDBRAINS_ADVISORY_FETCH=on`, default on only when
+  `MEDBRAINS_HOSTED=true`; otherwise the release's bundle (`MEDBRAINS_ADVISORY_BUNDLE`, built by
+  `scripts/build_advisory_bundle.py`). Neither: "could not check". RustSec informational notices
+  (unmaintained/unsound) are low; an advisory with no stated severity is high.
+- Debian: `apt-get -s upgrade` (simulation, local package lists, no network); not Debian is
+  "not applicable".
+- Honeytokens: three decoy patients and a decoy API key (plaintext as bait in tenant settings) per
+  hospital. A restrictive policy hides decoys from the request role, so every list, search, count
+  and report excludes them; seeding is refused while the request role escapes RLS.
+- Not built here: host hardware (disk/temperature) checks, login anomalies, external checks.
+
 ## 8. Risks and rules
 - **Never scan what the hospital doesn't own;** ownership proven by DNS before any external check.
 - **Alert fatigue:** dedupe, thresholds, owners, and a weekly digest; only critical items interrupt.

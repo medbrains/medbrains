@@ -228,11 +228,22 @@ impl AuditLogger {
         pool: &PgPool,
         tenant_id: Uuid,
     ) -> Result<ChainVerificationResult, sqlx::Error> {
+        Self::verify_chain_since(pool, tenant_id, None).await
+    }
+
+    /// [`Self::verify_chain_for_tenant`] over the rows written at or after
+    /// `since` only (the hourly check); `None` walks the whole chain.
+    pub async fn verify_chain_since(
+        pool: &PgPool,
+        tenant_id: Uuid,
+        since: Option<DateTime<Utc>>,
+    ) -> Result<ChainVerificationResult, sqlx::Error> {
         let mut broken_at: Option<Uuid> = None;
         let mut head: Option<String> = None;
         let mut rows_checked: i64 = 0;
         let mut rows_legacy_skipped: i64 = 0;
-        let mut cursor: Option<(DateTime<Utc>, Uuid)> = None;
+        // Uuid::nil() sorts first, so the first page starts at `since` itself.
+        let mut cursor: Option<(DateTime<Utc>, Uuid)> = since.map(|at| (at, Uuid::nil()));
 
         // Keyset pagination, not `fetch_all`.
         //
