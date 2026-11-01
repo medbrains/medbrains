@@ -103,6 +103,15 @@ function Board({ flow, canSwitch, canPropose }: BoardProps) {
   const pending = proposed(flow);
   const mapSwitches = changes.length > 0 ? current : (pending ?? saved);
   const ghost = changes.length > 0 || pending ? saved : null;
+  // Patients at each station now, shared with the control room's cache.
+  const room = useQuery({
+    queryKey: ["flows", flow.code, "control-room"],
+    queryFn: () => sopFlowsService.controlRoom(flow.code),
+  });
+  const counts = useMemo(
+    () => (room.data ? new Map(room.data.stations.map((s) => [s.key, s.count])) : undefined),
+    [room.data],
+  );
   const highlighted = useMemo(
     () => new Set(highlight ? stationsForSwitch(flow.stations, highlight) : []),
     [flow.stations, highlight],
@@ -201,6 +210,8 @@ function Board({ flow, canSwitch, canPropose }: BoardProps) {
               highlight={highlighted}
               announcement={announcement}
               fitKey={previewOpen ? "narrow" : "wide"}
+              counts={counts}
+              countsError={room.isError}
             />
           </Card>
         </Grid.Col>
