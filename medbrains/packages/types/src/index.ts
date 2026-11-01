@@ -173,6 +173,7 @@ export * from "./form-versioning";
 export * from "./grn-scan";
 export * from "./group-identity";
 export * from "./growth";
+export * from "./health-intel";
 export * from "./history-import";
 export * from "./hl7-adt";
 export * from "./housekeeping";

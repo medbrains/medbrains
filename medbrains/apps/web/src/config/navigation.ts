@@ -54,6 +54,7 @@ import {
   IconPill,
   IconPlug,
   IconQrcode,
+  IconRadar,
   IconRadioactive,
   IconReceipt,
   IconReceiptTax,
@@ -162,6 +163,7 @@ const ICON_MAP: Record<string, React.ComponentType<{ size?: number; stroke?: num
   IconFileTypePdf,
   IconPlug,
   IconQrcode,
+  IconRadar,
   IconRadioactive,
   IconReceipt,
   IconReport,
@@ -230,6 +232,7 @@ export interface ModuleBadge {
 const MODULE_BADGE_DEFS: Record<string, ModuleBadge> = {
   "/dashboard": { abbr: "DB", color: "#4d5358" },
   "/health-pulse": { abbr: "HP", color: "#0f62fe" },
+  "/health-intel": { abbr: "HI", color: "#007d79" },
   "/token-board": { abbr: "TB", color: "#007d79" },
   "/token-console": { abbr: "TC", color: "#6929c4" },
   "/patients": { abbr: "Pt", color: "#198038" },
@@ -444,6 +447,12 @@ export const NAV_GROUPS: NavGroupConfig[] = [
         path: "/health-pulse",
         icon: "IconNews",
         requiredPermission: "dashboard.view",
+      },
+      {
+        i18nKey: "healthIntel",
+        path: "/health-intel",
+        icon: "IconRadar",
+        requiredPermission: "health.intel.view",
       },
       {
         i18nKey: "tokenBoard",

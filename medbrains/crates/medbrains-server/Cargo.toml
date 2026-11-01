@@ -92,6 +92,7 @@ medbrains-news = { path = "../medbrains-news" }
 medbrains-notes = { path = "../medbrains-notes" }
 medbrains-marketing = { path = "../medbrains-marketing" }
 medbrains-vte = { path = "../medbrains-vte" }
+medbrains-health-intel = { path = "../medbrains-health-intel" }
 medbrains-pharmacy-cash-drawer = { path = "../medbrains-pharmacy-cash-drawer" }
 medbrains-device-pairing = { path = "../medbrains-device-pairing" }
 medbrains-nhcx-callback = { path = "../medbrains-nhcx-callback" }

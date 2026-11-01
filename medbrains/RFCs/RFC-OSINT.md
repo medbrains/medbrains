@@ -150,6 +150,11 @@ fetched every 30 minutes (exists), environment advisories hourly, a stopped feed
    hourly audit-chain verification, the Internal tab.
 2. **Health I:** own-condition baselines + Health → Intelligence screen with public notices and
    server-side weather.
+   *Built (crate `medbrains-health-intel`, MIG 1399):* hourly recompute from the notifiable
+   worklist with the CDC historical-limits / 8-week rule, condition + region tagging of news
+   (pulled forward from phase 5), WHO Disease Outbreak News (official API, link + summary),
+   Open-Meteo weather + air per hospital with IMD heat and CPCB AQI bands, heartbeats for every
+   job and feed. IDSP weekly reports have no feed (PDF only) and are not ingested yet.
 3. **External security:** domain verification, TLS, headers, ports, CT logs, leaks, look-alikes;
    the External tab; one-click incident.
 4. **Internal security II:** breached-password check, login anomalies, LAN exposure, runtime secret

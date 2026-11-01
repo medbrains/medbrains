@@ -701,6 +701,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // notify the prescriber + supervisor (NABH medication safety).
     medbrains_server::services::verbal_order_escalation::spawn(worker_pool.clone());
     medbrains_server::services::notifiable_report_escalation::spawn(worker_pool.clone());
+    // Health intelligence (RFC-OSINT §4) — hourly condition counts vs usual,
+    // weather + air per hospital, notice tagging; each writes a heartbeat.
+    medbrains_health_intel::job::spawn(worker_pool.clone());
     medbrains_server::services::crs_registration_escalation::spawn(worker_pool.clone());
 
     // Nurse-call escalation — an unanswered call reaches the ward's on-call
