@@ -1107,6 +1107,7 @@ import type {
   FireMockDrillReportPrintData,
   // Phase 3 Print Data - Clinical Charts
   FlowAlert,
+  FlowBuilder,
   FlowConfigZone,
   FlowControlRoom,
   FlowDecision,
@@ -1119,9 +1120,11 @@ import type {
   FlowImpactReport,
   FlowRecommendation,
   FlowRunRequest,
+  FlowSaveDraft,
   FlowSourceInput,
   FlowSummary,
   FlowSwitches,
+  FlowTestDrive,
   FlowTicket,
   FlowZoneConfigInput,
   FlowZoneDetail,
@@ -2612,10 +2615,12 @@ export {
 // Import for internal use
 import {
   describeShapeDrift,
+  flowBuilderResponseSchema,
   flowControlRoomResponseSchema,
   flowDetailResponseSchema,
   flowImpactResponseSchema,
   flowListResponseSchema,
+  flowTestDriveResponseSchema,
   flowTicketOrNullResponseSchema,
   flowTicketResponseSchema,
   invoiceDetailResponseSchema,
@@ -3704,6 +3709,29 @@ export const api = {
       flowTicketResponseSchema,
       `/flows/${encodeURIComponent(code)}/subjects/${subjectId}/run`,
       { method: "POST", body: JSON.stringify(data) },
+    ),
+  getFlowBuilder: (code: string) =>
+    checkedRequest<FlowBuilder>(
+      flowBuilderResponseSchema,
+      `/flows/${encodeURIComponent(code)}/build`,
+    ),
+  saveFlowDraft: (code: string, data: FlowSaveDraft) =>
+    checkedRequest<FlowBuilder>(
+      flowBuilderResponseSchema,
+      `/flows/${encodeURIComponent(code)}/build/draft`,
+      { method: "PUT", body: JSON.stringify(data) },
+    ),
+  discardFlowDraft: (code: string) =>
+    checkedRequest<FlowBuilder>(
+      flowBuilderResponseSchema,
+      `/flows/${encodeURIComponent(code)}/build/draft`,
+      { method: "DELETE" },
+    ),
+  dryRunFlowDraft: (code: string, revision: number) =>
+    checkedRequest<FlowTestDrive>(
+      flowTestDriveResponseSchema,
+      `/flows/${encodeURIComponent(code)}/build/dry-run`,
+      { method: "POST", body: JSON.stringify({ revision }) },
     ),
   completeFlowTask: (code: string, subjectId: string, station: string) =>
     checkedRequest<FlowTicket>(

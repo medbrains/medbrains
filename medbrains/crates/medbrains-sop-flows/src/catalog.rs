@@ -12,7 +12,7 @@ use uuid::Uuid;
 use crate::engine::{begin, flow};
 use crate::model::{
     FlowDef, FlowDetail, FlowSummary, HistoryEntry, ImpactExample, ImpactLine, ImpactReport,
-    PendingChange, Switches, VersionCount,
+    PendingChange, Station, Switches, VersionCount,
 };
 use crate::registry::Tx;
 use crate::{route, store};
@@ -126,9 +126,9 @@ pub async fn detail(pool: &PgPool, claims: &Claims, code: &str) -> Result<FlowDe
         published_at: t.published_at,
         switches: t.switches.clone(),
         switch_defs: flow.switches.clone(),
-        // The map shows the stations as code defines them now; running
-        // journeys keep their own pinned snapshot.
-        stations: flow.stations.clone(),
+        // The published track: the library default, or the one a hospital
+        // built and approved. Running journeys keep their own pinned snapshot.
+        stations: store::stations(&t)?,
         in_flight: in_flight(&mut tx, claims.tenant_id, code).await?,
         pending_change: pending(&mut tx, claims.tenant_id, code).await?,
         history: history(&mut tx, claims.tenant_id, code).await?,
@@ -214,11 +214,11 @@ pub async fn impact_lines(
     tx: &mut Tx<'_>,
     tenant: Uuid,
     flow: &FlowDef,
-    before: &Switches,
-    after: &Switches,
+    stations: &[Station],
+    (before, after): (&Switches, &Switches),
 ) -> Result<ImpactReport, AppError> {
     route::validate(flow, after).map_err(AppError::BadRequest)?;
-    let route_changes = route::route_changes(flow, before, after);
+    let route_changes = route::route_changes(stations, before, after);
     let mut entries = Vec::new();
     if !route_changes.is_empty() {
         let all = riders(tx, tenant, &flow.code, false).await?;
@@ -233,7 +233,7 @@ pub async fn impact_lines(
         .iter()
         .filter(|d| before.get(&d.key) != after.get(&d.key))
     {
-        let by_fact = flow.stations.iter().any(|s| {
+        let by_fact = stations.iter().any(|s| {
             !s.fact_when.is_null()
                 && s.switch_when
                     .as_object()
@@ -285,8 +285,8 @@ pub async fn impact(
         &mut tx,
         claims.tenant_id,
         &flow,
-        &store::switches(&t),
-        after,
+        &store::stations(&t)?,
+        (&store::switches(&t), after),
     )
     .await?;
     tx.commit().await?;

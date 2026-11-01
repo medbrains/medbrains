@@ -1,8 +1,11 @@
-//! SOP flows (RFCs/RFC-SOP-FLOWS.md), phase 1: the discharge flow.
+//! SOP flows (RFCs/RFC-SOP-FLOWS.md), phase 1: the discharge flow; phase 1b:
+//! the track builder.
 //!
-//! Library flows are defined in code ([`discharge`]); a hospital flips their
-//! switches through knowledge change sets (area `flow_switches`, adapter in
-//! `medbrains-knowledge`). The engine walks a patient through the stations by
+//! Library flows are defined in code ([`discharge`]) as the default a
+//! hospital starts from; a hospital flips their switches, and its flow
+//! designers build their own track from registered blocks ([`builder`],
+//! checked by [`checks`]), through knowledge change sets (area
+//! `flow_switches`, adapter in `medbrains-knowledge`). The engine walks a patient through the stations by
 //! reading the domain's own records and calling its existing actions; it
 //! never writes a domain status itself.
 //!
@@ -16,21 +19,30 @@
 use axum::{
     Extension, Json, Router,
     extract::{Path, State},
-    routing::{get, post},
+    routing::{get, post, put},
 };
 use medbrains_server_core::{error::AppError, middleware::auth::Claims, state::AppState};
 use uuid::Uuid;
 
+pub mod blocks;
+pub mod builder;
 pub mod catalog;
+pub mod checks;
+pub mod condition;
 pub mod control_room;
 pub mod discharge;
+pub mod drafts;
 pub mod engine;
 pub mod model;
+pub mod paths;
 pub mod registry;
+pub mod replay;
 pub mod route;
+pub mod shape;
 pub mod store;
 mod walk;
 
+use builder::{BuilderView, DryRunRequest, SaveDraft, TestDrive};
 use control_room::ControlRoom;
 use model::{FlowDetail, FlowSummary, ImpactReport, ImpactRequest, RunRequest, Ticket};
 
@@ -40,6 +52,12 @@ pub fn router() -> Router<AppState> {
         .route("/api/flows/{code}", get(detail))
         .route("/api/flows/{code}/impact", post(impact))
         .route("/api/flows/{code}/control-room", get(control))
+        .route("/api/flows/{code}/build", get(build))
+        .route(
+            "/api/flows/{code}/build/draft",
+            put(save_draft).delete(discard_draft),
+        )
+        .route("/api/flows/{code}/build/dry-run", post(dry_run))
         .route("/api/flows/{code}/subjects/{subject_id}/start", post(start))
         .route(
             "/api/flows/{code}/subjects/{subject_id}/ticket",
@@ -125,6 +143,44 @@ async fn complete(
     Path((code, subject, station)): Path<(String, Uuid, String)>,
 ) -> Result<Json<Ticket>, AppError> {
     engine::complete_task(&state, &claims, &code, subject, &station)
+        .await
+        .map(Json)
+}
+
+async fn build(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Path(code): Path<String>,
+) -> Result<Json<BuilderView>, AppError> {
+    builder::get(&state.db, &claims, &code).await.map(Json)
+}
+
+async fn save_draft(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Path(code): Path<String>,
+    Json(body): Json<SaveDraft>,
+) -> Result<Json<BuilderView>, AppError> {
+    builder::save(&state.db, &claims, &code, body)
+        .await
+        .map(Json)
+}
+
+async fn discard_draft(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Path(code): Path<String>,
+) -> Result<Json<BuilderView>, AppError> {
+    builder::discard(&state.db, &claims, &code).await.map(Json)
+}
+
+async fn dry_run(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Path(code): Path<String>,
+    Json(body): Json<DryRunRequest>,
+) -> Result<Json<TestDrive>, AppError> {
+    builder::dry_run(&state.db, &claims, &code, &body)
         .await
         .map(Json)
 }

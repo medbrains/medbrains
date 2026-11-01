@@ -238,9 +238,10 @@ pub async fn run(
     Ok(ticket)
 }
 
-/// Complete a task that clears through the flow (the superintendent's
-/// sign-off). Only the task's office may complete it, and only while the
-/// patient waits there.
+/// Complete a task that clears through the flow.
+///
+/// The superintendent's sign-off or physiotherapy clearance. Only the task's office, or a holder
+/// of its permission, may complete it, and only while the patient waits there.
 ///
 /// # Errors
 /// Forbidden for anyone outside the office; conflict elsewhere on the route.
@@ -268,15 +269,20 @@ pub async fn complete_task(
     let StationKind::Task { task } = &st.kind else {
         return Err(AppError::Conflict(format!("{} is not a task", st.name)));
     };
-    let office = registry::task_office(task)
-        .ok_or_else(|| AppError::Conflict(format!("{} clears on its own screen", st.name)))?;
-    // An office, not a permission: bypass roles do not stand in for it.
-    if claims.role != office || is_bypass_role(claims) {
-        return Err(AppError::ForbiddenReason(format!(
-            "{} is completed by the {}",
-            st.name,
-            st.holder.to_lowercase()
-        )));
+    match registry::task_completion(task)
+        .ok_or_else(|| AppError::Conflict(format!("{} clears on its own screen", st.name)))?
+    {
+        // An office, not a permission: bypass roles do not stand in for it.
+        registry::Completion::Office(office) => {
+            if claims.role != office || is_bypass_role(claims) {
+                return Err(AppError::ForbiddenReason(format!(
+                    "{} is completed by the {}",
+                    st.name,
+                    st.holder.to_lowercase()
+                )));
+            }
+        }
+        registry::Completion::Permission(perm) => require_permission(claims, perm)?,
     }
     j.inst.state["signoffs"][st.key.as_str()] = json!({ "by": claims.sub, "at": Utc::now() });
     let ticket = walk_and_ticket(&mut tx, &mut j, &s).await?;

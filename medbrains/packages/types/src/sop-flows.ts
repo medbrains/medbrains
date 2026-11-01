@@ -11,8 +11,12 @@ export type FlowStationKind =
   | { type: "signal"; signal: string }
   | { type: "end" };
 
-/** A clause over switches or facts; null applies always. */
-export type FlowClause = Record<string, FlowSwitchValue> | null;
+/**
+ * A clause over switches or facts; null applies always. Each entry is a
+ * literal to equal or `{ op: value }` (eq, ne, gt, gte, lt, lte, in);
+ * `$any` holds an OR group of clauses.
+ */
+export type FlowClause = Record<string, unknown> | null;
 
 export interface FlowStation {
   key: string;
@@ -27,6 +31,8 @@ export interface FlowStation {
   /** A safety signal no switch can remove. */
   locked: boolean;
   holder: string;
+  /** The tenant role that holds it; null takes the block's default role. */
+  holder_role?: string | null;
   required_by: string | null;
   /** Readable address, e.g. "Hospital › IPD discharge › Billing › Billing cleared". */
   path: string;
@@ -187,4 +193,107 @@ export interface FlowTicket {
 export interface FlowRunRequest {
   station: string;
   input: Record<string, string>;
+}
+
+/** A registered building block a flow designer may place (RFC §11.2). */
+export interface FlowBlock {
+  kind: "signal" | "task" | "action";
+  code: string;
+  name: string;
+  /** What it does, in one sentence. */
+  does: string;
+  holder: string;
+  /** The role that holds it unless the designer picks another. */
+  role: string;
+  /** The permission the holder's role needs. */
+  permission: string;
+  inputs: string[];
+  stage: string;
+  sla_minutes: number | null;
+}
+
+export type FlowFactType = "bool" | "number" | "text";
+
+export interface FlowFact {
+  key: string;
+  label: string;
+  type: FlowFactType;
+  operators: string[];
+}
+
+export interface FlowNamed {
+  code: string;
+  name: string;
+}
+
+export interface FlowCheck {
+  rule: "invariants" | "locked" | "ends" | "conditions" | "staffed" | "dry_run";
+  sentence: string;
+  pass: boolean;
+  problems: string[];
+  stations: string[];
+}
+
+export interface FlowDraft {
+  id: string;
+  flow_code: string;
+  base_template_id: string | null;
+  stations: FlowStation[];
+  revision: number;
+  dry_run_revision: number | null;
+  dry_run_at: string | null;
+  status: string;
+  updated_at: string;
+  updated_by_name: string | null;
+  /** Another change was published after this draft started. */
+  stale: boolean;
+}
+
+/** `GET /api/flows/{code}/build`: everything the Build tab draws. */
+export interface FlowBuilder {
+  code: string;
+  name: string;
+  template_id: string;
+  version: number;
+  published: FlowStation[];
+  library: FlowStation[];
+  switches: FlowSwitches;
+  switch_defs: FlowSwitchDef[];
+  draft: FlowDraft | null;
+  checks: FlowCheck[];
+  catalogue: {
+    blocks: FlowBlock[];
+    facts: FlowFact[];
+    departments: FlowNamed[];
+    roles: FlowNamed[];
+  };
+}
+
+export interface FlowSaveDraft {
+  /** The revision the screen last saw; 0 starts a new draft. */
+  revision: number;
+  stations: FlowStation[];
+}
+
+export interface FlowSample {
+  label: string;
+  facts: Record<string, unknown>;
+  route: string[];
+  skipped: string[];
+}
+
+export interface FlowReplay {
+  journeys: number;
+  route_differently: number;
+  skip_required: number;
+  median_minutes_before: number | null;
+  median_minutes_after: number | null;
+  used_expected_times: boolean;
+  sentences: string[];
+}
+
+export interface FlowTestDrive {
+  revision: number;
+  samples: FlowSample[];
+  replay: FlowReplay;
 }

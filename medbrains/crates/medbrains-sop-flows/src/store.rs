@@ -69,7 +69,8 @@ pub async fn ensure_published(
 }
 
 /// Publish new switch settings as the next version and retire the current
-/// one. Running journeys keep the version they started on. Returns the new id.
+/// one, keeping the published track. Running journeys keep the version they
+/// started on. Returns the new id.
 ///
 /// # Errors
 /// Refuses switches the flow does not allow (a locked signal among them).
@@ -79,9 +80,29 @@ pub async fn publish_switches(
     code: &str,
     switches: &Switches,
 ) -> Result<Uuid, AppError> {
+    publish(tx, tenant, code, switches, None).await
+}
+
+/// Publish the next version: these switches on `track`, or on the current
+/// published track when `None`. The caller has checked a new track
+/// (`builder::check_proposal`); this re-validates the switches only.
+///
+/// # Errors
+/// Refuses switches the flow does not allow.
+pub async fn publish(
+    tx: &mut Tx<'_>,
+    tenant: Uuid,
+    code: &str,
+    switches: &Switches,
+    track: Option<&[Station]>,
+) -> Result<Uuid, AppError> {
     let flow = route::find(code).ok_or(AppError::NotFound)?;
     route::validate(&flow, switches).map_err(AppError::BadRequest)?;
     let current = ensure_published(tx, tenant, &flow).await?;
+    let steps = match track {
+        Some(t) => to_json(&t)?,
+        None => current.steps.clone(),
+    };
     // Lock it so two applies cannot both read version N.
     published(tx, tenant, code, true).await?;
     sqlx::query("UPDATE workflow_templates SET status = 'retired', is_active = false WHERE tenant_id = $1 AND id = $2")
@@ -98,7 +119,7 @@ pub async fn publish_switches(
     .bind(tenant)
     .bind(code)
     .bind(&flow.name)
-    .bind(to_json(&flow.stations)?)
+    .bind(steps)
     .bind(Value::Object(switches.clone()))
     .bind(current.id)
     .fetch_one(&mut **tx)
@@ -106,7 +127,7 @@ pub async fn publish_switches(
 }
 
 /// The template's stations, as pinned when it was published.
-pub(crate) fn stations(t: &Template) -> Result<Vec<Station>, AppError> {
+pub fn stations(t: &Template) -> Result<Vec<Station>, AppError> {
     serde_json::from_value(t.steps.clone())
         .map_err(|e| AppError::Internal(format!("bad steps: {e}")))
 }

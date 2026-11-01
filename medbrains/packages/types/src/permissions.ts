@@ -17,7 +17,7 @@ export interface PermissionDef {
   module: string;
 }
 
-/** 1205 permissions, one per constant in the Rust source. */
+/** 1207 permissions, one per constant in the Rust source. */
 export const PERMISSIONS: PermissionDef[] = [
   // dashboard
   {
@@ -1535,6 +1535,12 @@ export const PERMISSIONS: PermissionDef[] = [
     code: "ipd.discharge.create",
     label: "Discharge Patient",
     description: "Process patient discharge",
+    module: "ipd",
+  },
+  {
+    code: "ipd.discharge.physio_clearance",
+    label: "Clear a patient from physiotherapy",
+    description: "Record that physiotherapy has seen the patient and cleared them for discharge, at a flow's \"Physiotherapy clearance\" station.",
     module: "ipd",
   },
   {
@@ -7326,6 +7332,12 @@ export const PERMISSIONS: PermissionDef[] = [
     description: "Approve someone else's proposed switch change and make it live. A clinical flow needs both the quality officer and the medical superintendent to approve.",
     module: "flows",
   },
+  {
+    code: "flows.build",
+    label: "Build and test draft tracks for a flow",
+    description: "Arrange a flow's stations and branches from registered building blocks, run its safety checks, dry run and what-if replay. Drafts never affect patients; proposing one is a switch change set that the quality officer and medical superintendent approve.",
+    module: "flows",
+  },
 ];
 
 /**
@@ -8650,6 +8662,7 @@ export const P = {
     VIEW: "flow.view",
   },
   FLOWS: {
+    BUILD: "flows.build",
     PUBLISH: "flows.publish",
     SWITCH: "flows.switch",
     VIEW: "flows.view",
@@ -9049,6 +9062,7 @@ export const P = {
     DEATH_RECORDS_MANAGE: "ipd.death_records.manage",
     DISCHARGE: {
       CREATE: "ipd.discharge.create",
+      PHYSIO_CLEARANCE: "ipd.discharge.physio_clearance",
     },
     DISCHARGE_CHECKLIST: {
       LIST: "ipd.discharge_checklist.list",
@@ -9057,6 +9071,7 @@ export const P = {
     DISCHARGE_CHECKLIST_LIST: "ipd.discharge_checklist.list",
     DISCHARGE_CHECKLIST_UPDATE: "ipd.discharge_checklist.update",
     DISCHARGE_CREATE: "ipd.discharge.create",
+    DISCHARGE_PHYSIO_CLEARANCE: "ipd.discharge.physio_clearance",
     DISCHARGE_SUMMARY: {
       CREATE: "ipd.discharge_summary.create",
       FINALIZE: "ipd.discharge_summary.finalize",
@@ -11079,6 +11094,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.IPD.CLINICAL_DOCS.LIST,
       P.IPD.DEATH_RECORDS.MANAGE,
       P.IPD.DISCHARGE.CREATE,
+      P.IPD.DISCHARGE.PHYSIO_CLEARANCE,
       P.IPD.DISCHARGE_SUMMARY.CREATE,
       P.IPD.DISCHARGE_SUMMARY.FINALIZE,
       P.IPD.DISCHARGE_TAT.COMPLETE,
@@ -12111,6 +12127,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.ANALYTICS.MANAGEMENT.VIEW,
       P.DASHBOARD.VIEW,
       P.DOCTOR.SIGNOFFS.VERBAL_REGISTER,
+      P.FLOWS.BUILD,
       P.FLOWS.PUBLISH,
       P.FLOWS.SWITCH,
       P.FLOWS.VIEW,
@@ -12703,6 +12720,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
     permissions: [
       P.ADMIN.SETTINGS.READ,
       P.DASHBOARD.VIEW,
+      P.FLOWS.BUILD,
       P.FLOWS.PUBLISH,
       P.FLOWS.VIEW,
       P.IPD.ADMISSIONS.LIST,

@@ -26,5 +26,9 @@ uuid = { workspace = true }
 workspace = true
 
 [dev-dependencies]
+medbrains-authz = { path = "../medbrains-authz" }
+medbrains-db-topology = { path = "../medbrains-db-topology" }
+medbrains-outbox = { path = "../medbrains-outbox" }
 medbrains-telehealth = { path = "../medbrains-telehealth" }
+jsonwebtoken = { workspace = true }
 tokio = { workspace = true }

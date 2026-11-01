@@ -3,7 +3,7 @@
  * diamond for a junction), its name in body text, what kind of stop it is in
  * words with a glyph, and — when known — how many patients are there now.
  */
-import { Group, Stack, Text } from "@mantine/core";
+import { Group, Stack, Text, UnstyledButton } from "@mantine/core";
 import type { FlowStation } from "@medbrains/types";
 import {
   IconArrowsSplit,
@@ -11,21 +11,33 @@ import {
   IconCircleFilled,
   IconFlag,
   IconLock,
+  IconPlus,
   IconTrafficLights,
   IconUserCheck,
 } from "@tabler/icons-react";
 import { Handle, type NodeProps, Position } from "@xyflow/react";
-import { Badge, ThemeIcon } from "@/components/ui";
+import { Badge, IconButton, ThemeIcon } from "@/components/ui";
 import { METRO } from "./metro";
 import styles from "./metro-map.module.scss";
+
+/** The builder's controls on a station, when the map is editable. */
+export interface StationEdit {
+  selected: boolean;
+  onSelect: () => void;
+  /** Opens the block catalogue to place a block right after this station. */
+  onInsertAfter: () => void;
+}
 
 export interface StationNodeData {
   station: FlowStation;
   onRoute: boolean;
   highlighted: boolean;
+  /** Words on the highlight badge ("Changes", "Check fails", "Here now"). */
+  highlightLabel: string;
   width: number;
   /** Patients at this station now, when the control room has been loaded. */
   count?: number;
+  edit?: StationEdit;
   [key: string]: unknown;
 }
 
@@ -51,7 +63,8 @@ function kindOf(station: FlowStation) {
 const HANDLE_STYLE = { top: METRO.marker / 2, left: "50%" };
 
 export function StationNode({ data }: NodeProps) {
-  const { station, onRoute, highlighted, width, count } = data as StationNodeData;
+  const { station, onRoute, highlighted, highlightLabel, width, count, edit } =
+    data as StationNodeData;
   const { Icon, text } = kindOf(station);
   const junction = station.kind.type === "switch";
   return (
@@ -72,9 +85,28 @@ export function StationNode({ data }: NodeProps) {
       >
         {!junction && <IconCircleFilled size={8} aria-hidden />}
       </ThemeIcon>
-      <Text size="sm" fw={600} ta="center" lineClamp={2} c={onRoute ? undefined : "dimmed"}>
-        {station.name}
-      </Text>
+      {edit ? (
+        <UnstyledButton
+          className={`nodrag ${styles.stationName}`}
+          onClick={edit.onSelect}
+          aria-pressed={edit.selected}
+          aria-label={`${station.name}: edit this station`}
+        >
+          <Text
+            size="sm"
+            fw={edit.selected ? 800 : 600}
+            ta="center"
+            lineClamp={2}
+            td={edit.selected ? "underline" : undefined}
+          >
+            {station.name}
+          </Text>
+        </UnstyledButton>
+      ) : (
+        <Text size="sm" fw={600} ta="center" lineClamp={2} c={onRoute ? undefined : "dimmed"}>
+          {station.name}
+        </Text>
+      )}
       <Group gap={4} wrap="nowrap" c="dimmed">
         <Icon size={16} aria-hidden />
         <Text size="xs">{text}</Text>
@@ -90,7 +122,18 @@ export function StationNode({ data }: NodeProps) {
         </Text>
       )}
       {count !== undefined && count > 0 && <Badge tone="info">{count} here now</Badge>}
-      {highlighted && <Badge tone="accent">Changes</Badge>}
+      {highlighted && <Badge tone="accent">{highlightLabel}</Badge>}
+      {edit && station.kind.type !== "end" && (
+        <IconButton
+          className={`nodrag ${styles.insert}`}
+          size="md"
+          tone="primary"
+          aria-label={`Add a station after ${station.name}`}
+          onClick={edit.onInsertAfter}
+        >
+          <IconPlus size={16} aria-hidden />
+        </IconButton>
+      )}
       <Handle
         type="source"
         position={Position.Right}

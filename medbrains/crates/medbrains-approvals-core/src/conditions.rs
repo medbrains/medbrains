@@ -35,12 +35,22 @@ pub fn matches(conditions: &Value, payload: &Value) -> bool {
     if clauses.is_empty() {
         return true;
     }
-    // Every clause must hold. An "any of" would need nesting, and nothing in
-    // the existing domains asks for it.
-    clauses
-        .iter()
-        .all(|(field, expected)| clause_holds(payload.get(field), expected))
+    // Every clause must hold. `"$any": [c1, c2]` is an OR group: it holds
+    // when any one of its conditions does (an empty group never holds). No
+    // payload field starts with `$`, so existing conditions read as before.
+    clauses.iter().all(|(field, expected)| {
+        if field == ANY {
+            expected
+                .as_array()
+                .is_some_and(|alts| alts.iter().any(|c| !c.is_null() && matches(c, payload)))
+        } else {
+            clause_holds(payload.get(field), expected)
+        }
+    })
 }
+
+/// The key of an OR group inside a condition.
+pub const ANY: &str = "$any";
 
 /// One clause: either a literal to equal, or `{"op": value}`.
 fn clause_holds(actual: Option<&Value>, expected: &Value) -> bool {
@@ -144,6 +154,31 @@ mod tests {
             &json!({"days": {"gt": 5}}),
             &json!({"days": "10"})
         ));
+    }
+
+    #[test]
+    fn an_any_group_holds_when_one_branch_does() {
+        let ortho_or_old = json!({"$any": [{"dept": "ORTHO"}, {"age": {"gte": 65}}], "paid": true});
+        assert!(matches(
+            &ortho_or_old,
+            &json!({"dept": "ORTHO", "age": 30, "paid": true})
+        ));
+        assert!(matches(
+            &ortho_or_old,
+            &json!({"dept": "GEN", "age": 70, "paid": true})
+        ));
+        assert!(!matches(
+            &ortho_or_old,
+            &json!({"dept": "GEN", "age": 30, "paid": true})
+        ));
+        assert!(!matches(
+            &ortho_or_old,
+            &json!({"dept": "ORTHO", "paid": false})
+        ));
+        // An empty or malformed group never holds: it cannot widen a route.
+        assert!(!matches(&json!({"$any": []}), &json!({})));
+        assert!(!matches(&json!({"$any": "x"}), &json!({})));
+        assert!(!matches(&json!({"$any": [null]}), &json!({})));
     }
 
     #[test]

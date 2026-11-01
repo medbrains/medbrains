@@ -116,7 +116,7 @@ async fn defaults_reproduce_todays_discharge() {
         .filter(|s| s.state == "skipped")
         .map(|s| s.key.as_str())
         .collect();
-    assert_eq!(skipped, ["tpa_clearance", "ms_signoff"]);
+    assert_eq!(skipped, ["mlc_intimation", "tpa_clearance", "ms_signoff"]);
 
     // The settlement gate refuses through the flow exactly as it does direct.
     w.sql(&format!(
@@ -344,4 +344,31 @@ async fn a_locked_signal_cannot_be_removed_in_preview() {
         report.route_changes,
         ["Route now stops at TPA clearance for insurance patients"]
     );
+}
+
+#[tokio::test]
+#[ignore = "needs-pg"]
+async fn a_medico_legal_patient_waits_for_the_police_intimation() {
+    let w = world().await;
+    let adm = w.admit(false).await;
+    let t = w.tenant;
+    w.sql(&format!(
+        "INSERT INTO mlc_cases (tenant_id, patient_id, mlc_number, admission_id) \
+         SELECT tenant_id, patient_id, 'MLC-' || gen_random_uuid(), id FROM admissions WHERE id = '{adm}'"
+    ))
+    .await;
+    engine::start(&w.state, &w.ward(), CODE, adm)
+        .await
+        .expect("start");
+    w.clear_to_billing(adm).await;
+    w.clear_billing(adm).await;
+    let held = ticket(&w, adm).await;
+    assert_eq!(at(&held), "mlc_intimation", "the locked MLC signal holds");
+    assert!(held.current.unwrap().outstanding[0].contains("police"));
+    w.sql(&format!(
+        "INSERT INTO mlc_police_intimations (tenant_id, mlc_case_id, intimation_number, police_station) \
+         SELECT '{t}', id, 'PI-1', 'Central' FROM mlc_cases WHERE admission_id = '{adm}'"
+    ))
+    .await;
+    assert_eq!(at(&ticket(&w, adm).await), "finalize");
 }

@@ -1,0 +1,18 @@
+// Layout only; colour comes from theme tokens on the elements.
+.block {
+  display: block;
+  width: 100%;
+  text-align: left;
+}
+
+.checkLine {
+  display: block;
+  width: 100%;
+  text-align: left;
+}
+
+// The checks panel stays in view while the canvas scrolls.
+.sticky {
+  position: sticky;
+  top: var(--mantine-spacing-md);
+}
