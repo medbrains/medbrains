@@ -396,6 +396,35 @@ Phases: **S1** benchmark harness + budgets in CI (start with kernel call overhea
 screens); **S2** fix the slowest screens to budget; **S3** Pi 5 numbers + public performance page;
 **S4** io_uring/eBPF where measurements show they pay.
 
+## 8j. Security as a moat (the Apple way, in the open)
+
+Apple's security story is layers a user never has to think about: a secure boot chain, sandboxed
+apps, signed software, privacy labels, fast updates. MedBrains does the same for hospitals, and
+because the code is open, anyone can verify it.
+
+| Apple idea | MedBrains | Today |
+|---|---|---|
+| Secure boot chain | signed OS images, secure boot + TPM on the edge box, A/B updates that verify signatures and roll back | images planned (§8b) |
+| Encrypted by default | disk encryption (LUKS) on images, TLS everywhere, encryption at rest checks | `check-encryption-at-rest`, backups sealed to an offline key (#5132) |
+| App sandbox | WASM blocks sandboxed and time-boxed; extensions out of process, never touching the database | K4, §8g |
+| Gatekeeper / notarisation | every certified block, adapter and extension reviewed and signed; unsigned ones marked | partner certificate, store |
+| Privacy nutrition labels | each extension and AI tool shows, from its manifest, exactly which data classes it reads and sends where | manifest (§8f, §8g) |
+| Memory-safe code | Rust with `unsafe` forbidden; strict lints deny panics | enforced today |
+| Permission prompts | the kernel's three-outcome authorisation, per-record checks, consent; nothing reads PHI the user can't | enforced today |
+| Fast security updates | signed updates pushed to every install; a security release within 72 h of a critical fix | release process to formalise |
+| Transparency | hash-chained, append-only audit of every change and PHI read; tamper-evident | enforced today |
+
+**Also:** supply-chain safety (`cargo-deny` today; add an SBOM, signed releases and reproducible
+builds), a public security policy and bug bounty, independent penetration tests before each major
+release, and ISO 27001 for MedBrains-hosted installs.
+
+**Rules:** security features are never paid extras; no telemetry or data leaves an install unless
+the hospital turns it on; every security claim on the website links to its evidence.
+
+Phases: **SEC1** signed releases + SBOM + reproducible builds; **SEC2** privacy labels in the
+manifest and the hospital approval screen; **SEC3** secure boot, TPM and disk encryption in OS
+images; **SEC4** bug bounty + external penetration test + ISO 27001 for hosting.
+
 ## 9. Identity: groups and directories (built in)
 
 Exists today: access groups with permissions (Admin → Groups), SSO with directory-group → role
