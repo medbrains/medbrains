@@ -111,6 +111,8 @@ both exist; the core stays free (Apache-2.0).
 - **I1–I3 Identity** (after K1): I1 SCIM provisioning; I2 directory group → access group mapping;
   I3 one-screen directory setup via change sets.
 - **Z1 Zero-licence check**: CI rule over dependencies and deploy kits (§8).
+- **P1 Raspberry Pi** (§8a): clinic profile, ARM64 binaries in releases, measured benchmarks on a
+  Pi 5, low-memory database tuning, backup-to-USB, then a ready image.
 
 ## 7. Standards built into the kernel (adopt, never invent)
 
@@ -150,6 +152,26 @@ Windows, not a database, not office software, not a directory.
   AI (Ollama is the open alternative), SNOMED where a national licence isn't free.
 - **Enforced:** a CI check fails if a required dependency or a deploy-kit step needs a proprietary
   licence; the DPG "platform independence" answer stays true by construction.
+
+## 8a. Runs on a Raspberry Pi (owner goal)
+
+A small clinic or nursing home must be able to run all of MedBrains on a Raspberry Pi-class
+computer. Starting point: release images are already built for `linux/arm64`, and the standalone
+installer is partly architecture-aware.
+
+- **Target hardware:** Raspberry Pi 5 with 8 GB RAM and an NVMe SSD (not an SD card, which wears
+  out under a database). Stretch: Pi 5 / 4 with 4 GB for a single-doctor clinic.
+- **Clinic profile** (`install.sh --profile clinic`): PostgreSQL + MedBrains server + web app only.
+  Optional services stay off unless needed: Orthanc (imaging), SpiceDB (authz uses PostgreSQL
+  instead, already supported), Gotenberg (PDF; a lighter print path or a remote/shared Gotenberg),
+  mail server (use an external SMTP or none).
+- **Prebuilt ARM64 binaries** in each release (cross-compiled with cargo-zigbuild, never built on
+  the Pi), plus a ready SD/NVMe image later.
+- **Measured, never guessed:** publish idle memory, memory and response times at 5 / 10 / 20
+  concurrent users, cold start, and nightly backup time on a Pi 5, from the repo's load tester.
+  The website and README claim only what was measured.
+- **Safe by default on small boxes:** automatic nightly backups to a USB disk or the cloud, the
+  database tuned for low memory, and a health screen warning when disk or memory runs low.
 
 ## 9. Identity: groups and directories (built in)
 
