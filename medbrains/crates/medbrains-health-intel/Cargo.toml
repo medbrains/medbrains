@@ -1,0 +1,30 @@
+[package]
+name = "medbrains-health-intel"
+publish = false
+version = "0.1.0"
+edition = "2024"
+rust-version.workspace = true
+
+[dependencies]
+medbrains-server-core = { path = "../medbrains-server-core" }
+medbrains-core = { path = "../medbrains-core" }
+medbrains-kernel = { path = "../medbrains-kernel" }
+axum = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+sqlx = { workspace = true }
+uuid = { workspace = true }
+chrono = { workspace = true }
+reqwest = { workspace = true }
+tracing = { workspace = true }
+tokio = { workspace = true }
+
+[dev-dependencies]
+medbrains-authz = { path = "../medbrains-authz" }
+medbrains-db-topology = { path = "../medbrains-db-topology" }
+medbrains-outbox = { path = "../medbrains-outbox" }
+jsonwebtoken = { workspace = true }
+tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
+
+[lints]
+workspace = true

@@ -40,6 +40,8 @@ const GLOBAL_TABLES: &[&str] = &[
     "regulatory_bodies",
     // Public medical news, ingested once for everybody.
     "news_feed_articles",
+    "health_intel_terms",
+    "health_intel_heartbeats",
     "partition_config",
     // SNOMED CT release, loaded once per install.
     "snomed_codes",

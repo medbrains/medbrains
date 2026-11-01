@@ -17,7 +17,7 @@ export interface PermissionDef {
   module: string;
 }
 
-/** 1207 permissions, one per constant in the Rust source. */
+/** 1208 permissions, one per constant in the Rust source. */
 export const PERMISSIONS: PermissionDef[] = [
   // dashboard
   {
@@ -7338,6 +7338,13 @@ export const PERMISSIONS: PermissionDef[] = [
     description: "Arrange a flow's stations and branches from registered building blocks, run its safety checks, dry run and what-if replay. Drafts never affect patients; proposing one is a switch change set that the quality officer and medical superintendent approve.",
     module: "flows",
   },
+  // health
+  {
+    code: "health.intel.view",
+    label: "See health intelligence",
+    description: "Read the hospital's notifiable-disease counts this week against its own usual (aggregate only, small counts suppressed), public outbreak notices for the region, weather and air-quality advisories, and whether each feed and recompute is still running.",
+    module: "health",
+  },
 ];
 
 /**
@@ -8724,6 +8731,12 @@ export const P = {
       RECORD: "front_office.visitor_logs.record",
     },
     VISITOR_LOGS_RECORD: "front_office.visitor_logs.record",
+  },
+  HEALTH: {
+    INTEL: {
+      VIEW: "health.intel.view",
+    },
+    INTEL_VIEW: "health.intel.view",
   },
   HOME_HEALTH: {
     LIST: "home_health.list",
@@ -11057,6 +11070,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.EMERGENCY.VISITS.UPDATE,
       P.FLOWS.VIEW,
       P.FORMS.DEFINITIONS.READ,
+      P.HEALTH.INTEL.VIEW,
       P.HOME_HEALTH.LIST,
       P.HOME_HEALTH.MANAGE,
       P.HR.LEAVE.APPROVE,
@@ -12131,6 +12145,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.FLOWS.PUBLISH,
       P.FLOWS.SWITCH,
       P.FLOWS.VIEW,
+      P.HEALTH.INTEL.VIEW,
       P.KNOWLEDGE.CHANGE_SETS.APPLY,
       P.KNOWLEDGE.CHANGE_SETS.APPROVE,
       P.KNOWLEDGE.CHANGE_SETS.CREATE,
@@ -12586,6 +12601,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.CSSD.STERILIZATION.LIST,
       P.CSSD.STERILIZATION.RECALL,
       P.DASHBOARD.VIEW,
+      P.HEALTH.INTEL.VIEW,
       P.INFECTION_CONTROL.BIOWASTE.CREATE,
       P.INFECTION_CONTROL.BIOWASTE.LIST,
       P.INFECTION_CONTROL.HYGIENE.CREATE,
@@ -12723,6 +12739,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.FLOWS.BUILD,
       P.FLOWS.PUBLISH,
       P.FLOWS.VIEW,
+      P.HEALTH.INTEL.VIEW,
       P.IPD.ADMISSIONS.LIST,
       P.IPD.ADMISSIONS.VIEW,
       P.KNOWLEDGE.CHANGE_SETS.APPROVE,

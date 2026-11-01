@@ -177,6 +177,7 @@ pub fn build_router(state: AppState) -> Router {
         .merge(medbrains_clinical_scores::router())
         .merge(medbrains_clinical_ops::router())
         .merge(medbrains_vte::router())
+        .merge(medbrains_health_intel::router())
         .merge(medbrains_marketing::router())
         .merge(medbrains_setup::router())
         .merge(medbrains_history_import::router())

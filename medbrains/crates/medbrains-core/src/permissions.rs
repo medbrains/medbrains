@@ -4374,3 +4374,16 @@ pub mod flows {
     /// quality officer and medical superintendent approve.
     pub const BUILD: &str = "flows.build";
 }
+
+/// Health intelligence: what the hospital is seeing against its usual.
+pub mod health {
+    pub mod intel {
+        /// See health intelligence.
+        ///
+        /// Read the hospital's notifiable-disease counts this week against its
+        /// own usual (aggregate only, small counts suppressed), public outbreak
+        /// notices for the region, weather and air-quality advisories, and
+        /// whether each feed and recompute is still running.
+        pub const VIEW: &str = "health.intel.view";
+    }
+}

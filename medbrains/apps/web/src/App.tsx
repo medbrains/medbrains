@@ -284,6 +284,9 @@ const TokenBoardPage = lazy(() =>
 const TokenConsolePage = lazy(() =>
   import("./pages/token-console").then((m) => ({ default: m.TokenConsolePage })),
 );
+const HealthIntelPage = lazy(() =>
+  import("./pages/health-intel").then((m) => ({ default: m.HealthIntelPage })),
+);
 const HealthPulsePage = lazy(() =>
   import("./pages/health-pulse").then((m) => ({ default: m.HealthPulsePage })),
 );
@@ -680,6 +683,7 @@ export function App() {
               <Route path="quality" element={<QualityPage />} />
               <Route path="front-office" element={<FrontOfficePage />} />
               <Route path="health-pulse" element={<HealthPulsePage />} />
+              <Route path="health-intel" element={<HealthIntelPage />} />
               <Route path="token-board" element={<TokenBoardPage />} />
               <Route path="token-console" element={<TokenConsolePage />} />
               <Route path="housekeeping" element={<HousekeepingPage />} />

@@ -31,6 +31,8 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
         name: "Doctor",
         description: "Clinical staff — patient care, OPD, orders, admissions",
         permissions: &[
+            // This week vs usual, public notices, heat and air (RFC-OSINT §4).
+            permissions::health::intel::VIEW,
             // Sees where a patient is in discharge and who holds it up.
             permissions::flows::VIEW,
             // A doctor sees only their own earnings (a per-record check).
@@ -1379,6 +1381,8 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
         name: "Quality Officer",
         description: "Quality & compliance — full regulatory access",
         permissions: &[
+            // This week vs usual, public notices, heat and air (RFC-OSINT §4).
+            permissions::health::intel::VIEW,
             // Clinical governance signs off knowledge changes drafted by the
             // pharmacy and laboratory, applies them and starts rollbacks. It
             // drafts only flow switch changes (it holds no other area's
@@ -1949,6 +1953,8 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
         name: "Infection Control Officer",
         description: "HAI surveillance, antibiotic stewardship, biowaste, hand hygiene",
         permissions: &[
+            // This week vs usual, public notices, heat and air (RFC-OSINT §4).
+            permissions::health::intel::VIEW,
             permissions::terminology::snomed::VIEW,
             permissions::admin::settings::READ,
             permissions::dashboard::VIEW,
@@ -2115,6 +2121,8 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
         name: "Medical Superintendent",
         description: "Clinical head of the hospital — second approver of clinical flow changes",
         permissions: &[
+            // This week vs usual, public notices, heat and air (RFC-OSINT §4).
+            permissions::health::intel::VIEW,
             // Clinical flows (discharge, referrals, admission, orders) change
             // only with the medical superintendent's approval as well as the
             // quality officer's (RFC-SOP-FLOWS §9.3).

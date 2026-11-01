@@ -1053,6 +1053,7 @@ import type {
   EndoscopyScope,
   EnergyAnalytics,
   EnrollmentWithCourse,
+  EnvironmentView,
   EodDigestHistory,
   EodDigestSubscription,
   EquipmentBreakdownReportPrintData,
@@ -1202,6 +1203,7 @@ import type {
   HealthDataSharing,
   HealthDataSource,
   HealthDataType,
+  HealthIntel,
   HealthPackage,
   HealthResponse,
   HeldAnalyserMessage,
@@ -3332,6 +3334,8 @@ export const api = {
     request<ErrorTrackingClientConfig>("/public/error-tracking/config"),
   getErrorTrackingSummary: () => request<ErrorTrackingSummary>("/admin/error-tracking/summary"),
   getKernelHealth: () => request<KernelHealth>("/admin/kernel"),
+  getHealthIntel: () => request<HealthIntel>("/health-intel"),
+  getHealthEnvironment: () => request<EnvironmentView>("/health-intel/environment"),
   refreshToken: async (): Promise<RefreshResponse> => {
     const resp = await refreshSession();
     if (!resp) {

@@ -63,6 +63,7 @@ medbrains-fhir not_yet 0 -
 medbrains-fhir-api not_yet 15 medbrains-db,medbrains-authz-gate
 medbrains-flow not_yet 6 medbrains-db
 medbrains-forms not_yet 17 medbrains-db
+medbrains-health-intel on_facade 0 -
 medbrains-history-import not_yet 8 medbrains-db
 medbrains-home-health not_yet 101 medbrains-db,medbrains-authz,medbrains-authz-gate
 medbrains-hr not_yet 111 medbrains-db
