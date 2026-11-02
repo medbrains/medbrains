@@ -10,6 +10,63 @@ need their own go · Owner: Domnic Amalan S
 safe by construction. The way macOS builds on an open foundation and adds what people love, MedBrains
 builds on Debian and adds the hospital layer: the kernel, signature features and flagship apps.
 
+### Focus: big hospitals first (owner decision, 2026-11-02)
+
+The first customer is a large hospital or group, because growing regulation forces it to prove control:
+who saw what, on which machine, under which policy. That sets the order of work.
+
+**Small clinics use the application layer only,** on hardware or hosting they already have. They do not need the
+OS, and clinic needs do not set this plan's order. The Raspberry Pi and clinic profile work stays in this RFC as
+proof of how small the system can run, not as a product line for now.
+
+**The moat is the OS on cheap hardware (owner decision, 2026-11-02).** A big hospital should get what today takes
+expensive servers, storage arrays and licences, without them. **The shape (owner, 2026-11-02): one server manages
+everything; everything else is an edge or node, on the smallest hardware that does its job.** Even an i3 is more
+than most nodes need. A node holds no system of record, so it can be replaced in minutes. A standby server and
+offline edges cover a server failure, since one server alone is a single point of failure. This is only true once
+measured, so every claim needs a published test on named hardware, and the cost comparison must include failures
+and support.
+
+**Security and control out of the box.** A hospital gets them by installing, with nothing to configure. Anything
+that weakens a default is an explicit, audited choice. On first boot, already on:
+encrypted data disk, verified read-only system, default-deny firewall, signed updates, sandboxed services, TLS with
+a local certificate authority, per-role permissions, hash-chained audit, automatic encrypted backups with restore
+tests, continuous security checks, and every machine visible in one console once it joins.
+
+Only what no default can decide is asked: where off-site backups go, who the administrators are, and safe keeping
+of the recovery key. **The proof is an automated out-of-the-box test:** boot a fresh image, change nothing, and
+scan it from outside and inside (open ports, encryption, unsigned code, default passwords, service limits). It runs
+in CI for every release, the report is published, and any failure blocks the release.
+
+**The OS hosts many applications (owner, 2026-11-02).** MedBrains is not the one app the OS exists to run. It is an
+application on the OS, alongside others: PACS, lab, vendor and hospital-built apps, installed and managed through
+the OS. Nodes open a home screen showing the apps this person may use, so `cage`'s single full-screen kiosk is only
+the first step (D1), not the design. Proposed path, to be measured on small nodes: **first**, a web-based shell where
+each app is a signed package with a manifest, in its own origin and sandbox; **later, if real need appears**, a full
+Wayland compositor with native apps in sandboxes. All apps still reach data only through the core's permissions.
+
+**PACS is the proof.** Imaging is a hospital's heaviest load in storage and network. If PACS runs fast and safely
+on cheap disks and ordinary machines, the claim holds for everything else. Today `medbrains-radiology` drives
+Orthanc as a separate service. Evaluate whether a Rust DICOM store with tiered storage should replace it, measured
+against Orthanc on the same hardware. A viewer used for diagnosis may be regulated as a medical device, so check
+that with a regulatory expert before any such claim.
+
+**A big hospital will ask for, in rough order:**
+1. **No single point of failure:** replicas, automatic failover, tested recovery, and running through a network
+   or server loss during a shift.
+2. **Proof for regulators and auditors:** evidence on demand from the audit trail, mapped to the rules that apply
+   to them, with independent security testing and recognised certifications.
+3. **Central control:** one console for machines, policies, updates, access and security (§8r), tied to their
+   directory (§9).
+4. **Fits what they own:** runs on their virtual machines and servers as well as our image, and connects to their
+   PACS, LIS, ERP, SIEM and identity systems through open standards.
+5. **Scale and groups:** proven load at their size, and many campuses under one policy.
+6. **A contract they can sign:** response times, a named support organisation, data export, and a reference site.
+
+**What this changes.** Failover moves earlier, the separate core layer and fleet work matter sooner, and a
+compliance evidence screen is added. Their IT team may refuse an unfamiliar OS on day one, so MedBrains must also
+install cleanly on a standard Linux server (D0). The OS image is an option they grow into, not a condition of buying.
+
 ## 1. Why an OS
 
 MedBrains already runs a whole hospital. To let every hospital work its own way, and let partners
