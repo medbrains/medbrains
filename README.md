@@ -186,6 +186,8 @@ To install at a hospital, see the on-site deployment kits in [`medbrains/deploy/
 
 ## Architecture
 
+Full design: [MedBrains OS architecture](medbrains/docs/architecture/HOSPITAL-OS-ARCHITECTURE.md).
+
 ```mermaid
 flowchart LR
   subgraph Clients
