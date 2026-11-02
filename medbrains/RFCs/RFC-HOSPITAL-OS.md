@@ -473,6 +473,29 @@ because the code is open, anyone can verify it.
 | Fast security updates | signed updates pushed to every install; a security release within 72 h of a critical fix | release process to formalise |
 | Transparency | hash-chained, append-only audit of every change and PHI read; tamper-evident | enforced today |
 
+**Added 2026-11-02 (owner: "how does macOS protect their OS" → yes):**
+
+1. **Verified, read-only system partition** (Apple's Signed System Volume). The OS root in every image
+   is read-only and protected by a hash tree (Linux **dm-verity**) whose root hash is signed and
+   checked at boot. Any change to a system file breaks verification and the slot will not boot; the
+   other A/B slot boots instead and the health screen reports why. Writable state (database, files,
+   logs, settings) lives only on the encrypted data partition.
+2. **Service hardening** (Apple's System Integrity Protection + hardened runtime). Every MedBrains
+   service runs as its own unprivileged user under systemd with: `ProtectSystem=strict`,
+   `ProtectHome=true`, `NoNewPrivileges=true`, `PrivateTmp=true`, `PrivateDevices=true` (except the
+   device bridge, which gets only its devices), `ProtectKernelTunables/Modules/Logs=true`,
+   `RestrictAddressFamilies` to what it needs, `MemoryDenyWriteExecute=true`, `LockPersonality=true`,
+   `CapabilityBoundingSet=` empty, and a **seccomp** allow-list (`SystemCallFilter=@system-service`
+   minus anything unused). `systemd-analyze security` scores are part of the release checks: no
+   service ships above "OK".
+3. **Lockdown mode** (Apple's Lockdown Mode) for hospitals at high risk (targeted attacks, VIP
+   patients, conflict areas). One switch, through a change set with two approvals: third-party
+   extensions and plugins off except certified ones the hospital pins, all outside lookups off
+   (advisory fetch, weather, feeds, AI hosted models), shorter sessions with MFA on every
+   privilege use, new device logins need admin approval, exports and bulk reads need a second
+   person, and the security runner moves to its strictest cadence. Lockdown is visible in the
+   header to every user so nobody is surprised by refusals.
+
 **Also:** supply-chain safety (`cargo-deny` today; add an SBOM, signed releases and reproducible
 builds), a public security policy and bug bounty, independent penetration tests before each major
 release, and ISO 27001 for MedBrains-hosted installs.
@@ -481,8 +504,10 @@ release, and ISO 27001 for MedBrains-hosted installs.
 the hospital turns it on; every security claim on the website links to its evidence.
 
 Phases: **SEC1** signed releases + SBOM + reproducible builds; **SEC2** privacy labels in the
-manifest and the hospital approval screen; **SEC3** secure boot, TPM and disk encryption in OS
-images; **SEC4** bug bounty + external penetration test + ISO 27001 for hosting.
+manifest and the hospital approval screen; **SEC3** secure boot, TPM, disk encryption and the
+**dm-verity read-only root** in OS images; **SEC4** bug bounty + external penetration test + ISO
+27001 for hosting; **SEC5** systemd hardening + seccomp for every service (gated by
+`systemd-analyze security`); **SEC6** lockdown mode.
 
 ## 8k. Bare-metal installation and recovery
 
