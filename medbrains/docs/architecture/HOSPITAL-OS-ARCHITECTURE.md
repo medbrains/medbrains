@@ -264,7 +264,7 @@ sets, security intelligence P1, health intelligence P1, connected apps (C1), ext
 SDKs + CLI (E1), provenance markers, release pipeline, CI security scans.
 
 **Delivery order:** see RFC-HOSPITAL-OS §8b: `.deb` (D0), image (D1), offline installer (D2), then
-VM images and A/B updates. Filesystem snapshots stay out until the S1 test passes.
+VM images and A/B updates. Filesystem snapshots stay out until the FS1 test passes.
 
 **Next:** K3a technical-only kernel · SM1 size budgets in CI · release v1.0.0 (signed, SBOM,
 compatibility promise) · GitHub Actions on free runners + cross-OS GUI tests · D1 first Debian-based

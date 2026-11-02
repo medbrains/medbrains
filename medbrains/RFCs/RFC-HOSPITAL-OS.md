@@ -181,7 +181,7 @@ both exist; the core stays free (Apache-2.0).
   wizard; D2 offline x86 USB installer (at most four questions); D3 VM images (OVA/qcow2/VHDX) +
   Windows installer; D4 A/B updates with automatic rollback, a database restore point before
   migrations, and the settings-survive-updates test.
-- **S1 Snapshot test** (§8b): measure candidate filesystems on real NVMe; adopt only through the gate.
+- **FS1 Snapshot test** (§8b): measure candidate filesystems on real NVMe; adopt only through the gate.
 - **A1 Any CPU** (§8c): CI build matrix for tiers 1–3, smoke tests under emulation, tier table
   published in the README.
 - **P1 Raspberry Pi** (§8a): clinic profile, ARM64 binaries in releases, measured benchmarks on a
@@ -789,6 +789,79 @@ Phases: **HW1** device-capability probe + Kernel page + hardware crypto/SIMD aud
 Runtime in the AI service with CPU + one accelerator path, OCR as the first workload; **HW3** local
 Scribe (speech-to-text) on NPU/GPU kits; **HW4** WebGPU imaging viewer; **HW5** imaging AI
 (assistive, research-labelled) on the imaging kit, pending validation.
+
+## 8q. Best in class: network, security, speed, small size (owner goal, 2026-11-02)
+
+"Best in class" is a claim we earn with numbers anyone can reproduce. Nothing is called best in
+class publicly until it has a published test and a named comparison. The rivals are other hospital
+systems on the same hardware, and appliance systems for install and update experience.
+
+### The scoreboard
+
+Published with every release. Targets below that have no figure yet get one when their phase starts;
+§3a and §8i hold the existing budgets.
+
+| Axis | What we measure | Today (2026-11-02) | Honest gap |
+|---|---|---|---|
+| **Small** | kernel lines, kernel dependency closure, packages, image size, idle memory, install time | kernel 428 code lines; closure up to 510 of 1,319 packages; 160 crates; image and memory not yet published | The kernel is short but sits on a large closure, because it depends on `medbrains-server-core`. It is not yet small in the way that counts |
+| **Fast** | §8i budgets, on x86 and a Pi 5 | transaction setup fixed from 15.7 ms to about 0.1 ms; harness (S1) not built | No published numbers, and no comparison |
+| **Secure** | open advisories, boot-to-login verified chain, external penetration test, patch time against `SECURITY-RELEASE-PROCESS.md` | RLS, three-outcome authorisation and audit exist; CI shows open dependency advisories; verified boot planned; no external test | Advisories first, then an independent test. Our own opinion of our security proves nothing |
+| **Network** | below | nothing measured | This section is the plan |
+
+### Networking: the hospital keeps working
+
+**The test every design must pass: pull the internet cable during a busy shift.** Care continues.
+
+- **LAN first.** Everything clinical runs on the hospital's own network. Losing the internet costs
+  only cloud sync and optional services.
+- **Server loss is planned for.** Devices fall back to offline mode and sync with each other over the
+  LAN (iroh peer sync), then reconcile. A hospital that wants it runs a replica with automatic
+  failover and a second network link.
+- **Bad networks are the normal case.** CI replays critical journeys over a simulated poor link
+  (`tc netem`: loss, latency, drops) and holds them to budgets, including the 2-second critical alert.
+- **Plain-language network health.** An Admin screen and the appliance console show which devices,
+  analysers and links are down and what to do, so a ward does not need a network engineer.
+
+### Networking: secure by default
+
+- **Default deny, both directions.** `nftables` allows only the documented ports; each service is
+  limited to the addresses it needs through systemd; outbound is an allowlist (the egress check exists).
+- **Separate networks.** Staff, clinical devices and guests are apart. Older analysers often speak
+  plain HL7 or DICOM, so that traffic stays on the device network and passes through a gateway on the
+  appliance. It never crosses the staff network unencrypted.
+- **Encryption everywhere it can reach.** TLS 1.3 through `rustls` on our own services, with a local
+  certificate authority set up at install. Devices and vendor apps get their own identities (mutual
+  TLS or scoped tokens), so being on the network grants nothing.
+- **No open inbound for remote access.** Site links and remote support use WireGuard, which is in the
+  Linux kernel. Support access is off by default, time-limited, approved by the hospital and audited.
+  There is no vendor backdoor.
+- **Authenticated time.** Clinical records depend on the clock: move from `systemd-timesyncd` to
+  `chrony` with NTS, and warn when the clock drifts. The appliance keeps serving the LAN its time when
+  the internet is gone.
+- **Hostile traffic.** Rate limits, connection limits and slow-client protection at the proxy. Heavy
+  intrusion detection (Suricata) is optional and never in the clinic profile.
+
+### Networking: fast and small
+
+- **One proxy.** The D1 image uses Caddy, and we already own `medbrains-proxy` (Rust, Pingora). Measure
+  size, memory, throughput and certificate handling, then keep exactly one.
+- **Only what measures faster.** BBR congestion control, HTTP/3 for phones on poor links, kernel TLS,
+  `io_uring` and eBPF are each tested against the §8i budgets and adopted only if they pay.
+- **Fewer TLS stacks.** `Cargo.lock` carries OpenSSL, `ring` and `aws-lc-rs`. Find what pulls each in,
+  and reach one for what we ship.
+
+### Rules
+
+- A new appliance package needs a line in the size budget saying why.
+- Security wins over speed, and speed wins over size, when they conflict. A clinical safety rule beats
+  all three.
+- We do not modify Linux and do not ship kernel modules (§8o). Everything above uses what Linux has.
+
+**Phases:** **N1** default-deny firewall and service limits in the image, with `chrony`; **N2** one proxy
+and one TLS stack, by measurement; **N3** the poor-network test in CI and the Network health screen
+(permission defined in Rust first); **N4** device network gateway, local certificate authority and
+device identities; **N5** WireGuard site links and audited remote support; **N6** replica failover, and
+the public scoreboard with a reproducible comparison.
 
 ## 9. Identity: groups and directories (built in)
 

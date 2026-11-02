@@ -79,6 +79,7 @@ built. *Proposed* is waiting for the owner. *Rejected* was considered and turned
 | 2026-11-01 | Extensions follow the MCP pattern: an open protocol in any language | Vendors can build around us without asking | A closed SDK | Done (#5183) |
 | 2026-11-02 | Security the Apple way, in the open: verified read-only root, hardened services, lockdown mode | Security with the code public | Security through secrecy | Plan (#5185) |
 | 2026-11-02 | Accelerators help but are never required, on any vendor | No hospital should need to buy a GPU | Tying AI to one chip vendor | Plan (#5189) |
+| 2026-11-02 | Best in class in network, security, speed and small size, proved by a published scoreboard | The owner's goal; unmeasured claims would not survive a technical reader | Claiming it before there is a reproducible test | Plan (RFC-HOSPITAL-OS §8q) |
 | 2026-11-02 | Delivery follows the Omarchy lessons: staged, offline installer, settings survive updates, own channels, one look | Hospitals with poor internet need this most | Arch as a base | Plan (#5191) |
 | 2026-11-02 | ext4 until the snapshot test passes; a database restore point before any migration | PostgreSQL on copy-on-write must be measured; A/B slots do not roll back a database | Assuming OpenZFS | Plan (#5191) |
 | 2026-11-02 | New server and OS code is Rust, on proven C foundations | Memory safety where we write code; proven data safety where we do not | Rewriting Linux or PostgreSQL; claiming "100% Rust" | Plan (#5191) |
@@ -132,7 +133,7 @@ built. *Proposed* is waiting for the owner. *Rejected* was considered and turned
 | Item | Waiting on |
 |---|---|
 | First OS image (D1) | In progress |
-| Snapshot test (S1) | A Raspberry Pi 5 with NVMe, and an x86 SSD machine |
+| Snapshot test (FS1) | A Raspberry Pi 5 with NVMe, and an x86 SSD machine |
 | Five platform-study changes and ledger-grade audit integrity | Owner approval |
 | CI that fits free runners, and GUI tests on every OS | Owner approval |
 | First signed release (v1.0.0), and npm and PyPI publishing | Owner |
