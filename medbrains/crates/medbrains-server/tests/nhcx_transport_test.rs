@@ -16,12 +16,14 @@ use medbrains_core::nhcx::NhcxOperation;
 use serde_json::{Map, Value, json};
 use uuid::Uuid;
 
+use nhcx_support::claim_seed::{finalise_discharge_summary, seed_claim};
+use nhcx_support::seed::seed_insured_patient;
 use nhcx_support::{gateway_jwt, key_pair};
 
 #[tokio::test]
 async fn a_claim_goes_to_nhcx_encrypted_and_the_payers_answer_lands_on_it() {
     let nhcx = nhcx_support::onboard().await;
-    let (app, csrf, tenant, tag) = (&nhcx.app, &nhcx.csrf, nhcx.tenant, &nhcx.tag);
+    let (app, csrf) = (&nhcx.app, &nhcx.csrf);
     let (hospital, hospital_cert) = (&nhcx.hospital, &nhcx.hospital_cert);
     let (hospital_code, payer_code) = (&nhcx.hospital_code, &nhcx.payer_code);
 
@@ -44,7 +46,12 @@ async fn a_claim_goes_to_nhcx_encrypted_and_the_payers_answer_lands_on_it() {
         "nor the client secret"
     );
 
-    let claim_id = seed_claim(app, tenant, tag).await;
+    // A claim the send gates let through: a coded diagnosis (#5084) and a
+    // finalised discharge summary.
+    let (patient, policy, _) = seed_insured_patient(&nhcx).await;
+    let seeded = seed_claim(&nhcx, patient, policy).await;
+    finalise_discharge_summary(&nhcx, seeded.admission).await;
+    let claim_id = seeded.claim;
     let submitted = app
         .client
         .post(app.url(&format!(
@@ -249,46 +256,4 @@ async fn claim_status(app: &common::TestApp, claim_id: Uuid) -> Option<String> {
         .fetch_one(&app.db)
         .await
         .expect("claim status")
-}
-
-async fn seed_claim(app: &common::TestApp, tenant: Uuid, tag: &str) -> Uuid {
-    let patient: Uuid = sqlx::query_scalar(
-        "INSERT INTO patients (tenant_id, uhid, first_name, last_name, gender, phone) \
-         VALUES ($1, $2, 'Nhcx', 'Patient', 'female'::gender, '9000000103') RETURNING id",
-    )
-    .bind(tenant)
-    .bind(format!("UH-NHCX-{tag}"))
-    .fetch_one(&app.db)
-    .await
-    .expect("patient");
-    let invoice: Uuid = sqlx::query_scalar(
-        "INSERT INTO invoices (tenant_id, invoice_number, patient_id, subtotal, total_amount) \
-         VALUES ($1, $2, $3, 5000, 5000) RETURNING id",
-    )
-    .bind(tenant)
-    .bind(format!("INV-NHCX-{tag}"))
-    .bind(patient)
-    .fetch_one(&app.db)
-    .await
-    .expect("invoice");
-    sqlx::query(
-        "INSERT INTO invoice_items (tenant_id, invoice_id, charge_code, description, unit_price, \
-             total_price, source) \
-         VALUES ($1, $2, 'X', 'Room rent', 5000, 5000, 'manual')",
-    )
-    .bind(tenant)
-    .bind(invoice)
-    .execute(&app.db)
-    .await
-    .expect("item");
-    sqlx::query_scalar(
-        "INSERT INTO insurance_claims (tenant_id, invoice_id, patient_id, insurance_provider, status) \
-         VALUES ($1, $2, $3, 'Mock Payer', 'claim_submitted') RETURNING id",
-    )
-    .bind(tenant)
-    .bind(invoice)
-    .bind(patient)
-    .fetch_one(&app.db)
-    .await
-    .expect("claim")
 }

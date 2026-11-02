@@ -90,9 +90,23 @@ pub async fn seed_canonical_fixtures_for_tenant(
     canonical_fixtures::seed_canonical_fixtures(pool, tenant_id).await
 }
 
+/// Advisory lock key (`"MBSEED"` in ASCII) that serialises seeding.
+const SEED_LOCK: i64 = 0x4d42_5345_4544;
+
+/// Seed the database, one server at a time.
+///
+/// Seeding checks for rows and then inserts them, so two servers starting
+/// together on an empty database both try to create the first hospital and one
+/// exits on a duplicate key. The lock lives in a transaction of its own and is
+/// released whichever way this returns, including with an error.
+pub async fn run_seed(pool: &PgPool) -> Result<(), Box<dyn std::error::Error>> {
+    let _lock = medbrains_db::pool::hold_advisory_lock(pool, SEED_LOCK).await?;
+    seed_everything(pool).await
+}
+
 /// Insert DEFAULT tenant + `super_admin` user + built-in roles + operational
 /// master data if they don't already exist.
-pub async fn run_seed(pool: &PgPool) -> Result<(), Box<dyn std::error::Error>> {
+async fn seed_everything(pool: &PgPool) -> Result<(), Box<dyn std::error::Error>> {
     // The first hospital is created only on an empty database, and found by
     // age afterwards — never by its code. Keyed on `code = 'DEFAULT'`, renaming
     // a live hospital's code (so staff can type something meaningful at sign-in)

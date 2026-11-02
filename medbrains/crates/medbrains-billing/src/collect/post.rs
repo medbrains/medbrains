@@ -192,6 +192,7 @@ async fn lock_open_bills(
     tenant_id: Uuid,
     patient_id: Uuid,
 ) -> Result<Vec<OpenBill>, AppError> {
+    medbrains_db::pool::take_audit_chain_first(tx, &tenant_id).await?;
     sqlx::query(
         "SELECT id FROM invoices WHERE tenant_id = $1 AND patient_id = $2 AND deleted_at IS NULL \
            AND status IN ('draft', 'issued', 'partially_paid') ORDER BY id FOR UPDATE",

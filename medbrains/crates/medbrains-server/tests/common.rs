@@ -197,18 +197,33 @@ pub fn role_url(role: &str) -> String {
     format!("{}{sep}options=-c%20role%3D{role}", database_url())
 }
 
-fn database_url() -> String {
+/// The test database: `DATABASE_URL`, or the dev database.
+pub fn database_url() -> String {
     let _ = dotenvy::dotenv();
     std::env::var("DATABASE_URL").unwrap_or_else(|_| {
         "postgres://medbrains:medbrains_dev@localhost:5435/medbrains".to_owned()
     })
 }
 
+/// A pool like production's, except that it waits for a connection.
+///
+/// Production fails after 2 seconds so a saturated server sheds load, and no test
+/// asserts that. On a busy machine it turned a slow connection into a 500, which
+/// read as a failure of whatever the test was checking (1 run in 100 of the camp
+/// numbering test, on an unchanged `main`).
+async fn test_pool(url: &str) -> Result<sqlx::PgPool, medbrains_db::pool::DbError> {
+    let config = medbrains_db::pool::PoolConfig {
+        acquire_timeout: std::time::Duration::from_secs(30),
+        ..medbrains_db::pool::PoolConfig::default()
+    };
+    medbrains_db::pool::create_pool_with_config(url, &config).await
+}
+
 /// `request_url` names the role the server's requests run as
 /// (`TEST_APP_DATABASE_URL` for a whole run); the owner otherwise.
 async fn spawn(secrets: TestSecrets, request_url: Option<String>) -> TestApp {
     // Connect to DB
-    let db = medbrains_db::pool::create_pool(&database_url())
+    let db = test_pool(&database_url())
         .await
         .expect("DB connection failed — is PostgreSQL running?");
 
@@ -219,7 +234,7 @@ async fn spawn(secrets: TestSecrets, request_url: Option<String>) -> TestApp {
     medbrains_seed::run_seed(&db).await.expect("seed failed");
     let owner = db.clone();
     let db = match request_url {
-        Some(url) => medbrains_db::pool::create_pool(&url)
+        Some(url) => test_pool(&url)
             .await
             .expect("request-role connection failed"),
         None => db,
@@ -311,6 +326,53 @@ async fn spawn(secrets: TestSecrets, request_url: Option<String>) -> TestApp {
         db: owner,
         state,
     }
+}
+
+/// A ward of its own with one vacant bed on it. The seed's beds belong to no
+/// ward, and a shared bed is taken by whichever run admitted to it last.
+pub async fn vacant_ward_bed(app: &TestApp, tenant_id: uuid::Uuid) -> (uuid::Uuid, uuid::Uuid) {
+    // Upper case: location codes are A-Z, 0-9 and hyphens.
+    let suffix = uuid::Uuid::new_v4().simple().to_string().to_uppercase();
+    let ward_id: uuid::Uuid = sqlx::query_scalar(
+        "INSERT INTO wards (tenant_id, code, name, total_beds) VALUES ($1, $2, $3, 1) RETURNING id",
+    )
+    .bind(tenant_id)
+    .bind(format!("LAA-{}", &suffix[..10]))
+    .bind(format!("Linkage ward {}", &suffix[..6]))
+    .fetch_one(&app.db)
+    .await
+    .expect("insert ward");
+    let bed_id: uuid::Uuid = sqlx::query_scalar(
+        "INSERT INTO locations (tenant_id, level, code, name) \
+         VALUES ($1, 'bed', $2, $3) RETURNING id",
+    )
+    .bind(tenant_id)
+    .bind(format!("LAA-BED-{}", &suffix[..10]))
+    .bind(format!("Bed {}", &suffix[..4]))
+    .fetch_one(&app.db)
+    .await
+    .expect("insert bed location");
+    sqlx::query(
+        "INSERT INTO ward_bed_mappings (tenant_id, ward_id, bed_location_id) VALUES ($1, $2, $3)",
+    )
+    .bind(tenant_id)
+    .bind(ward_id)
+    .bind(bed_id)
+    .execute(&app.db)
+    .await
+    .expect("map bed to ward");
+    // A bed location gets its state row by trigger; give it the ward.
+    sqlx::query(
+        "INSERT INTO bed_states (tenant_id, location_id, ward_id) VALUES ($1, $2, $3) \
+         ON CONFLICT (tenant_id, location_id) DO UPDATE SET ward_id = EXCLUDED.ward_id",
+    )
+    .bind(tenant_id)
+    .bind(bed_id)
+    .bind(ward_id)
+    .execute(&app.db)
+    .await
+    .expect("bed state");
+    (ward_id, bed_id)
 }
 
 /// A signed-in user of `role`, with its own cookie jar.
