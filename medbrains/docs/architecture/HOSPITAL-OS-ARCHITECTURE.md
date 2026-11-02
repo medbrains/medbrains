@@ -80,7 +80,7 @@ flowchart TB
 
 ## 2. The kernel
 
-Crate: `crates/medbrains-kernel` (~620 lines; budget ≤ 2,000). **[today: K1, K2, K3a]**
+Crate: `crates/medbrains-kernel` (356 code lines; budget ≤ 2,000). **[today: K1, K2, K3a]**
 
 | Module | Purpose | Interface |
 |---|---|---|
@@ -242,12 +242,12 @@ interface, extension protocol and SDKs promise not to break builders within a ma
 | Budget | Target | Today |
 |---|---|---|
 | Kernel overhead per unit of work | < 0.2 ms | 0.003 ms |
-| Kernel size | ≤ 2,000 lines, no domain deps | ~620 lines; no clinical crates, though `medbrains-core` still holds domain types (RFC §3a) |
+| Kernel size | ≤ 2,000 lines, no domain deps | 356 code lines; no clinical crates, though `medbrains-core` still holds domain types (RFC §3a) |
 | Screen API p95 | < 50 ms server / < 150 ms Pi 5 | to measure (S1) |
 | Critical alert end to end | < 2 s | to measure |
 | OS image | ≤ 1 GB | not built |
 | Idle memory, appliance (Pi 5) | ≤ 512 MB | to measure |
-| Dependencies | ratchet down | 1,319 packages |
+| Dependencies | ratchet down | 1,320 packages |
 | Modules on the kernel | all 150 | 11 |
 
 ## 10. Principles behind every choice

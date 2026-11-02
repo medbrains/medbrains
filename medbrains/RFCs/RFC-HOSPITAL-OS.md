@@ -131,12 +131,12 @@ Numbers measured 2026-11-02 and enforced by `scripts/check_size_budgets.py` (bas
 
 | Budget | Target | Today |
 |---|---|---|
-| Kernel code | ≤ 2,000 lines, no domain dependencies | 428 code lines without comments, blanks and tests (751 raw); hard limit enforced |
-| Kernel dependencies | only std, async runtime, SQL driver, crypto, serde | **Target not met:** 12 direct on an enforced allowlist, including 6 MedBrains crates (`server-core`, `core`, `db`, `authz`, `authz-gate`, `workflow`); these pull in up to 510 of the 1,319 packages (upper bound from `Cargo.lock`, one-off audit, not enforced) |
+| Kernel code | ≤ 2,000 lines, no domain dependencies | 356 code lines without comments, blanks and tests (624 raw); hard limit enforced |
+| Kernel dependencies | only std, async runtime, SQL driver, crypto, serde | **Target not met:** 10 direct on an enforced allowlist, including 5 MedBrains crates (`server-core`, `core`, `db`, `authz`, `workflow`); these pull in up to 509 of the 1,320 packages (upper bound from `Cargo.lock`, one-off audit, not enforced) |
 | Clinic build (server binary for a Pi) | only the modules a clinic needs, compiled in by profile | one binary with all 150 modules |
 | Release binary size | published per profile; must not grow without a reason | not measured: compile profiles arrive with SM2, so there is nothing per profile to measure yet |
-| Workspace dependencies | ratchet down from 1,319 packages | 1,319, ratchet enforced |
-| Workspace crates | ratchet down | 160, ratchet enforced |
+| Workspace dependencies | ratchet down from 1,319 packages | 1,320, ratchet enforced |
+| Workspace crates | ratchet down | 161, ratchet enforced |
 | OS image | Debian minimal + PostgreSQL + one binary + static web; target ≤ 1 GB | not built |
 | Idle memory (clinic profile, Pi 5) | published; target ≤ 512 MB for the whole appliance | not measured: needs the SM2 clinic profile running on a Pi 5; not enforced |
 | Web app first load | budgeted per screen | 1,060,297 bytes gzip for the JS `index.html` loads up front, one entry rather than per screen; ceiling 10% above it, checked after the CI web build |
@@ -824,7 +824,7 @@ Published with every release. Targets below that have no figure yet get one when
 
 | Axis | What we measure | Today (2026-11-02) | Honest gap |
 |---|---|---|---|
-| **Small** | kernel lines, kernel dependency closure, packages, image size, idle memory, install time | kernel 428 code lines; closure up to 510 of 1,319 packages; 160 crates; image and memory not yet published | The kernel is short but sits on a large closure, because it depends on `medbrains-server-core`. It is not yet small in the way that counts |
+| **Small** | kernel lines, kernel dependency closure, packages, image size, idle memory, install time | kernel 356 code lines; closure up to 509 of 1,320 packages; 161 crates; image and memory not yet published | The kernel is short but sits on a large closure, because it depends on `medbrains-server-core`. It is not yet small in the way that counts |
 | **Fast** | §8i budgets, on x86 and a Pi 5 | transaction setup fixed from 15.7 ms to about 0.1 ms; harness (S1) not built | No published numbers, and no comparison |
 | **Secure** | open advisories, boot-to-login verified chain, external penetration test, patch time against `SECURITY-RELEASE-PROCESS.md` | RLS, three-outcome authorisation and audit exist; CI shows open dependency advisories; verified boot planned; no external test | Advisories first, then an independent test. Our own opinion of our security proves nothing |
 | **Network** | below | nothing measured | This section is the plan |
