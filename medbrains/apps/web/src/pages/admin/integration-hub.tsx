@@ -63,7 +63,7 @@ export function IntegrationHubPage() {
         </Alert>
       )}
 
-      <Card withBorder shadow="sm" radius="md">
+      <Card withBorder>
         <Card.Section withBorder inheritPadding py="xs">
           <Group justify="space-between">
             <Text fw={600}>Active subscribers</Text>
@@ -134,7 +134,7 @@ export function IntegrationHubPage() {
         </Table>
       </Card>
 
-      <Card withBorder shadow="sm" radius="md">
+      <Card withBorder>
         <Card.Section withBorder inheritPadding py="xs">
           <Group justify="space-between">
             <Text fw={600}>Events landing nowhere</Text>
@@ -202,7 +202,7 @@ export function IntegrationHubPage() {
 
       <HrmsLinkCard />
 
-      <Card withBorder radius="md">
+      <Card withBorder>
         <Stack gap="xs">
           <Text fw={600} size="sm">
             How a new pipeline gets added

@@ -133,7 +133,7 @@ export function PharmacyDispensingView({ items, patientName, uhid }: PharmacyDis
         if (drugs.length === 0) return null;
 
         return (
-          <Card key={slot} padding="sm" radius="md" withBorder className={classes.timeGroupCard}>
+          <Card key={slot} padding="sm" withBorder className={classes.timeGroupCard}>
             <Group gap="xs" mb="xs">
               {icon}
               <div>
@@ -159,7 +159,7 @@ export function PharmacyDispensingView({ items, patientName, uhid }: PharmacyDis
       })}
 
       {grouped.prnDrugs.length > 0 && (
-        <Card padding="sm" radius="md" withBorder className={classes.timeGroupCard}>
+        <Card padding="sm" withBorder className={classes.timeGroupCard}>
           <Group gap="xs" mb="xs">
             <IconAlertCircle size={18} />
             <div>

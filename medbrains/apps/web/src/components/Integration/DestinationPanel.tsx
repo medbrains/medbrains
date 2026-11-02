@@ -137,7 +137,7 @@ export function DestinationPanel({
     <Stack gap={0} style={{ height: "100%", overflow: "hidden" }}>
       <Box p="xs" style={{ borderBottom: "1px solid var(--mantine-color-gray-2)" }}>
         <Group gap="xs" mb={6}>
-          <Text size="xs" fw={700} tt="uppercase" c="dimmed">
+          <Text size="xs" fw={700} c="dimmed">
             Destination
           </Text>
           <Badge size="xs" variant="light" color="orange">

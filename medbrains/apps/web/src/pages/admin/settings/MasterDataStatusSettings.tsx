@@ -2135,7 +2135,7 @@ export function MasterDataStatusSettings() {
       </Group>
 
       <SimpleGrid cols={{ base: 2, md: 5 }} spacing="sm">
-        <Card withBorder padding="sm" radius="md">
+        <Card withBorder padding="sm">
           <Text size="xs" c="dimmed">
             Ready
           </Text>
@@ -2143,7 +2143,7 @@ export function MasterDataStatusSettings() {
             {readyCount}
           </Text>
         </Card>
-        <Card withBorder padding="sm" radius="md">
+        <Card withBorder padding="sm">
           <Text size="xs" c="dimmed">
             Needs setup
           </Text>
@@ -2151,7 +2151,7 @@ export function MasterDataStatusSettings() {
             {needsSetupCount}
           </Text>
         </Card>
-        <Card withBorder padding="sm" radius="md">
+        <Card withBorder padding="sm">
           <Text size="xs" c="dimmed">
             Check failed
           </Text>
@@ -2159,7 +2159,7 @@ export function MasterDataStatusSettings() {
             {errorCount}
           </Text>
         </Card>
-        <Card withBorder padding="sm" radius="md">
+        <Card withBorder padding="sm">
           <Text size="xs" c="dimmed">
             No access
           </Text>
@@ -2167,7 +2167,7 @@ export function MasterDataStatusSettings() {
             {restrictedCount}
           </Text>
         </Card>
-        <Card withBorder padding="sm" radius="md">
+        <Card withBorder padding="sm">
           <Text size="xs" c="dimmed">
             Not wired
           </Text>
@@ -2178,10 +2178,10 @@ export function MasterDataStatusSettings() {
       </SimpleGrid>
 
       <SimpleGrid cols={{ base: 1, md: 4 }} spacing="sm">
-        <Card withBorder padding="md" radius="md">
+        <Card withBorder padding="md">
           <Stack gap="sm" h="100%">
             <Group justify="space-between">
-              <ThemeIcon color="teal" variant="light" radius="xl">
+              <ThemeIcon color="teal" variant="light">
                 <IconChecklist size={18} />
               </ThemeIcon>
               <Badge tone="success">{settingsOwnedCount}</Badge>
@@ -2198,10 +2198,10 @@ export function MasterDataStatusSettings() {
           </Stack>
         </Card>
 
-        <Card withBorder padding="md" radius="md">
+        <Card withBorder padding="md">
           <Stack gap="sm" h="100%">
             <Group justify="space-between">
-              <ThemeIcon color="blue" variant="light" radius="xl">
+              <ThemeIcon color="blue" variant="light">
                 <IconBuildingWarehouse size={18} />
               </ThemeIcon>
               <Badge tone="info">{moduleOwnedCount}</Badge>
@@ -2218,10 +2218,10 @@ export function MasterDataStatusSettings() {
           </Stack>
         </Card>
 
-        <Card withBorder padding="md" radius="md">
+        <Card withBorder padding="md">
           <Stack gap="sm" h="100%">
             <Group justify="space-between">
-              <ThemeIcon color="orange" variant="light" radius="xl">
+              <ThemeIcon color="orange" variant="light">
                 <IconAlertTriangle size={18} />
               </ThemeIcon>
               <Badge tone="warning">{missingMasterCount}</Badge>
@@ -2239,10 +2239,10 @@ export function MasterDataStatusSettings() {
           </Stack>
         </Card>
 
-        <Card withBorder padding="md" radius="md">
+        <Card withBorder padding="md">
           <Stack gap="sm" h="100%">
             <Group justify="space-between">
-              <ThemeIcon color="grape" variant="light" radius="xl">
+              <ThemeIcon color="grape" variant="light">
                 <IconSettings size={18} />
               </ThemeIcon>
               <Badge tone="accent">{SETTINGS_NON_MASTER_PANELS.length}</Badge>
@@ -2261,7 +2261,7 @@ export function MasterDataStatusSettings() {
         </Card>
       </SimpleGrid>
 
-      <Card withBorder padding="md" radius="md">
+      <Card withBorder padding="md">
         <Stack gap="md">
           <Group justify="space-between" align="flex-start">
             <div>
@@ -2373,7 +2373,7 @@ export function MasterDataStatusSettings() {
 
       <SimpleGrid cols={{ base: 1, md: 3 }} spacing="sm">
         {SETTINGS_SCOPE_NOTES.map((note) => (
-          <Card key={note.label} withBorder padding="sm" radius="md">
+          <Card key={note.label} withBorder padding="sm">
             <Group gap="xs" mb={4}>
               <Badge tone={colorToTone(note.color)}>{note.label}</Badge>
             </Group>
@@ -2384,7 +2384,7 @@ export function MasterDataStatusSettings() {
         ))}
       </SimpleGrid>
 
-      <Card withBorder padding="md" radius="md">
+      <Card withBorder padding="md">
         <Stack gap="sm">
           <Group justify="space-between" align="flex-start">
             <div>
@@ -2463,10 +2463,10 @@ export function MasterDataStatusSettings() {
           <Grid gap="md">
             {filteredGapItems.map((item) => (
               <Grid.Col key={item.key} span={{ base: 12, md: 6, lg: 4 }}>
-                <Card withBorder padding="md" radius="md" h="100%">
+                <Card withBorder padding="md" h="100%">
                   <Stack gap="sm" h="100%">
                     <Group justify="space-between" align="flex-start">
-                      <ThemeIcon size="xl" radius="xl" color="orange" variant="light">
+                      <ThemeIcon size="xl" color="orange" variant="light">
                         {item.icon}
                       </ThemeIcon>
                       <Badge tone="warning">Not wired</Badge>
@@ -2503,7 +2503,7 @@ export function MasterDataStatusSettings() {
       )}
 
       {filter !== "missing" && filteredMasterItems.length === 0 ? (
-        <Card withBorder padding="lg" radius="md">
+        <Card withBorder padding="lg">
           <Text c="dimmed" ta="center">
             {filteredGapItems.length > 0
               ? "No API-backed master-data item matches the current filter."
@@ -2515,9 +2515,7 @@ export function MasterDataStatusSettings() {
           {filteredMasterItems.map((item) => (
             <Grid.Col key={item.key} span={{ base: 12, sm: 6, md: 4, lg: 3 }}>
               <Card
-                shadow="sm"
                 padding="lg"
-                radius="md"
                 withBorder
                 style={{
                   borderColor: item.needsSetup
@@ -2528,12 +2526,7 @@ export function MasterDataStatusSettings() {
               >
                 <Stack gap="sm" h="100%">
                   <Group justify="space-between">
-                    <ThemeIcon
-                      size="xl"
-                      radius="xl"
-                      variant="light"
-                      color={masterStatusColor(item.status)}
-                    >
+                    <ThemeIcon size="xl" variant="light" color={masterStatusColor(item.status)}>
                       {item.icon}
                     </ThemeIcon>
                     <Badge tone={colorToTone(masterStatusColor(item.status))} size="sm">
@@ -2606,15 +2599,9 @@ export function MasterDataStatusSettings() {
       ) : null}
 
       {allMasterDataReady && missingMasterCount === 0 && (
-        <Card
-          shadow="sm"
-          padding="lg"
-          radius="md"
-          withBorder
-          style={{ background: "var(--mb-accent-gradient-soft)" }}
-        >
+        <Card padding="lg" withBorder style={{ background: "var(--mb-accent-gradient-soft)" }}>
           <Group gap="md">
-            <ThemeIcon size="xl" radius="xl" color="success" variant="light">
+            <ThemeIcon size="xl" color="success" variant="light">
               <IconCheck size={28} />
             </ThemeIcon>
             <div style={{ flex: 1 }}>
@@ -2629,7 +2616,7 @@ export function MasterDataStatusSettings() {
         </Card>
       )}
 
-      <Card withBorder padding="md" radius="md" id="settings-support-panels">
+      <Card withBorder padding="md" id="settings-support-panels">
         <Stack gap="sm">
           <Group justify="space-between" align="flex-start">
             <div>
@@ -2652,7 +2639,7 @@ export function MasterDataStatusSettings() {
                 }}
               >
                 <Group align="flex-start" gap="sm" wrap="nowrap">
-                  <ThemeIcon color="grape" variant="light" radius="xl">
+                  <ThemeIcon color="grape" variant="light">
                     {panel.icon}
                   </ThemeIcon>
                   <Stack gap={4} style={{ flex: 1 }}>

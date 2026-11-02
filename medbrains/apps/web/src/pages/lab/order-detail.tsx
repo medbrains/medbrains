@@ -569,8 +569,8 @@ export function LabOrderDetail({
             the system checks it against this order to prevent wrong-blood-in-tube.
           </Alert>
 
-          <Card withBorder padding="md" radius="md">
-            <Text size="xs" c="dimmed" tt="uppercase" fw={600}>
+          <Card withBorder padding="md">
+            <Text size="xs" c="dimmed" fw={600}>
               Collecting from
             </Text>
             <PatientNameCell patientId={order.patient_id} showUhid={false} />

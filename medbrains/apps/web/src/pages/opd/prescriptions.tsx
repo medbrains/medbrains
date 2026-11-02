@@ -149,7 +149,7 @@ export function PrescriptionsTab({
       />
       {/* Pending doctor signature — sign right here (incl. nurse-drafted Rx) */}
       {canSign && unsignedRx.length > 0 && (
-        <Card withBorder padding="sm" radius="md" mt="sm">
+        <Card withBorder padding="sm" mt="sm">
           <Group justify="space-between" mb={6}>
             <Group gap={6}>
               <IconSignature size={15} />

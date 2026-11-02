@@ -513,7 +513,7 @@ export function AdmissionDetail({
       <Box className={classes.sectionSwitch}>
         <Group justify="space-between" align="center" gap="sm">
           <Stack gap={2}>
-            <Text size="xs" fw={700} c="dimmed" tt="uppercase">
+            <Text size="xs" fw={700} c="dimmed">
               {t("workspace.title")}
             </Text>
             <Text size="sm" fw={600}>
@@ -554,7 +554,7 @@ export function AdmissionDetail({
               <Stack gap="sm">
                 {IPD_WORKSPACE_SECTIONS.map((section) => (
                   <Stack key={section} gap={4}>
-                    <Text size="xs" fw={700} c="dimmed" tt="uppercase">
+                    <Text size="xs" fw={700} c="dimmed">
                       {ipdWorkspaceSectionLabel(t, section)}
                     </Text>
                     {IPD_WORKSPACE_TABS.filter((tab) => tab.section === section).map((tab) => {
@@ -722,7 +722,7 @@ export function AdmissionDetail({
             <Box className={classes.actionRail}>
               <Stack gap="sm">
                 <Stack gap={2}>
-                  <Text size="xs" fw={700} c="dimmed" tt="uppercase">
+                  <Text size="xs" fw={700} c="dimmed">
                     {t("actionRail.title")}
                   </Text>
                   <Text size="xs" c="dimmed">

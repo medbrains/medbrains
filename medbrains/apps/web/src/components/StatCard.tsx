@@ -56,7 +56,6 @@ export function StatCard({
       <Group justify="space-between" mb="sm">
         <Text
           size="xs"
-          tt="uppercase"
           c="var(--mb-text-caption)"
           fw={500}
           ff="var(--font-mono, 'JetBrains Mono', monospace)"
@@ -64,7 +63,7 @@ export function StatCard({
         >
           {label}
         </Text>
-        <ThemeIcon variant="light" color={color} size={36} radius="lg">
+        <ThemeIcon variant="light" color={color} size={36}>
           {icon}
         </ThemeIcon>
       </Group>

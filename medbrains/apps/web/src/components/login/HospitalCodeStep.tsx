@@ -52,7 +52,7 @@ export function HospitalCodeStep({
         data-testid="login-hospital-code"
       />
       {failed && (
-        <Alert tone="danger" radius="md" data-testid="login-hospital-failed">
+        <Alert tone="danger" data-testid="login-hospital-failed">
           Couldn't reach the hospital server. This is a connection problem, not a wrong code — try
           again in a moment.
         </Alert>

@@ -249,9 +249,7 @@ export function BmwTab({ canCreate }: { canCreate: boolean }) {
           ({ cat, meta, count, totalWeight, totalContainers, hasManifest }) => (
             <Card
               key={cat}
-              shadow="xs"
               padding="md"
-              radius="md"
               withBorder
               style={{ borderLeft: `4px solid ${meta.color}` }}
             >

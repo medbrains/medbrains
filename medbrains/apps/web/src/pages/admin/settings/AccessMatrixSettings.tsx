@@ -624,7 +624,7 @@ function RoleMatrixEditor({
     <Stack gap="md">
       <SimpleGrid cols={{ base: 1, sm: 2, lg: 4 }}>
         <Card withBorder padding="sm">
-          <Text size="xs" c="dimmed" fw={700} tt="uppercase">
+          <Text size="xs" c="dimmed" fw={700}>
             Role
           </Text>
           <Text fw={700}>{role.name}</Text>
@@ -633,7 +633,7 @@ function RoleMatrixEditor({
           </Text>
         </Card>
         <Card withBorder padding="sm">
-          <Text size="xs" c="dimmed" fw={700} tt="uppercase">
+          <Text size="xs" c="dimmed" fw={700}>
             Granted
           </Text>
           <Text fw={700}>{selectedPermissions.size}</Text>
@@ -642,7 +642,7 @@ function RoleMatrixEditor({
           </Text>
         </Card>
         <Card withBorder padding="sm">
-          <Text size="xs" c="dimmed" fw={700} tt="uppercase">
+          <Text size="xs" c="dimmed" fw={700}>
             Masking Overrides
           </Text>
           <Text fw={700}>
@@ -653,7 +653,7 @@ function RoleMatrixEditor({
           </Text>
         </Card>
         <Card withBorder padding="sm">
-          <Text size="xs" c="dimmed" fw={700} tt="uppercase">
+          <Text size="xs" c="dimmed" fw={700}>
             Role Overlap
           </Text>
           <Text fw={700}>
@@ -1126,7 +1126,7 @@ function EffectiveUserAccessMatrix({
 
       <SimpleGrid cols={{ base: 1, sm: 2, lg: 5 }}>
         <Card withBorder padding="sm">
-          <Text size="xs" c="dimmed" fw={700} tt="uppercase">
+          <Text size="xs" c="dimmed" fw={700}>
             User
           </Text>
           <Text fw={700}>{user.full_name}</Text>
@@ -1135,7 +1135,7 @@ function EffectiveUserAccessMatrix({
           </Text>
         </Card>
         <Card withBorder padding="sm">
-          <Text size="xs" c="dimmed" fw={700} tt="uppercase">
+          <Text size="xs" c="dimmed" fw={700}>
             Role
           </Text>
           <Text fw={700}>{role?.name ?? user.role}</Text>
@@ -1144,7 +1144,7 @@ function EffectiveUserAccessMatrix({
           </Text>
         </Card>
         <Card withBorder padding="sm">
-          <Text size="xs" c="dimmed" fw={700} tt="uppercase">
+          <Text size="xs" c="dimmed" fw={700}>
             Effective
           </Text>
           <Text fw={700}>{effectiveCount}</Text>
@@ -1153,7 +1153,7 @@ function EffectiveUserAccessMatrix({
           </Text>
         </Card>
         <Card withBorder padding="sm">
-          <Text size="xs" c="dimmed" fw={700} tt="uppercase">
+          <Text size="xs" c="dimmed" fw={700}>
             User Overrides
           </Text>
           <Text fw={700}>{extraPermissions.size + deniedPermissions.size}</Text>
@@ -1162,7 +1162,7 @@ function EffectiveUserAccessMatrix({
           </Text>
         </Card>
         <Card withBorder padding="sm">
-          <Text size="xs" c="dimmed" fw={700} tt="uppercase">
+          <Text size="xs" c="dimmed" fw={700}>
             Overlaps
           </Text>
           <Text fw={700}>{overlapCount}</Text>
@@ -1174,7 +1174,7 @@ function EffectiveUserAccessMatrix({
 
       <SimpleGrid cols={{ base: 1, md: 3 }}>
         <Card withBorder padding="sm">
-          <Text size="xs" c="dimmed" fw={700} tt="uppercase">
+          <Text size="xs" c="dimmed" fw={700}>
             Groups
           </Text>
           <Text fw={700}>{userGroups.length}</Text>
@@ -1188,7 +1188,7 @@ function EffectiveUserAccessMatrix({
           )}
         </Card>
         <Card withBorder padding="sm">
-          <Text size="xs" c="dimmed" fw={700} tt="uppercase">
+          <Text size="xs" c="dimmed" fw={700}>
             Temporary
           </Text>
           <Text fw={700}>{temporaryPermissions.size}</Text>
@@ -1197,7 +1197,7 @@ function EffectiveUserAccessMatrix({
           </Text>
         </Card>
         <Card withBorder padding="sm">
-          <Text size="xs" c="dimmed" fw={700} tt="uppercase">
+          <Text size="xs" c="dimmed" fw={700}>
             Field Masking
           </Text>
           <Text fw={700}>{roleFieldRestrictionCount + userFieldOverrideCount}</Text>
@@ -1728,7 +1728,7 @@ function SurfaceCoverageMatrix() {
 
       <SimpleGrid cols={{ base: 1, sm: 2, lg: 4 }}>
         <Card withBorder padding="sm">
-          <Text size="xs" c="dimmed" fw={700} tt="uppercase">
+          <Text size="xs" c="dimmed" fw={700}>
             Surfaces
           </Text>
           <Text fw={700}>{ACCESS_MATRIX_SURFACES.length}</Text>
@@ -1737,7 +1737,7 @@ function SurfaceCoverageMatrix() {
           </Text>
         </Card>
         <Card withBorder padding="sm">
-          <Text size="xs" c="dimmed" fw={700} tt="uppercase">
+          <Text size="xs" c="dimmed" fw={700}>
             Permissions Mapped
           </Text>
           <Text fw={700}>{coveredPermissions.size}</Text>
@@ -1746,7 +1746,7 @@ function SurfaceCoverageMatrix() {
           </Text>
         </Card>
         <Card withBorder padding="sm">
-          <Text size="xs" c="dimmed" fw={700} tt="uppercase">
+          <Text size="xs" c="dimmed" fw={700}>
             Field Keys Mapped
           </Text>
           <Text fw={700}>{coveredFieldKeys.size}</Text>
@@ -1755,7 +1755,7 @@ function SurfaceCoverageMatrix() {
           </Text>
         </Card>
         <Card withBorder padding="sm">
-          <Text size="xs" c="dimmed" fw={700} tt="uppercase">
+          <Text size="xs" c="dimmed" fw={700}>
             Field Governance
           </Text>
           <Text fw={700}>
@@ -1766,7 +1766,7 @@ function SurfaceCoverageMatrix() {
           </Text>
         </Card>
         <Card withBorder padding="sm">
-          <Text size="xs" c="dimmed" fw={700} tt="uppercase">
+          <Text size="xs" c="dimmed" fw={700}>
             Registry Gaps
           </Text>
           <Text fw={700}>{fieldKeysMissingFromRegistry.length}</Text>
@@ -1775,7 +1775,7 @@ function SurfaceCoverageMatrix() {
           </Text>
         </Card>
         <Card withBorder padding="sm">
-          <Text size="xs" c="dimmed" fw={700} tt="uppercase">
+          <Text size="xs" c="dimmed" fw={700}>
             Print Maps
           </Text>
           <Text fw={700}>{printSurfaces.length}</Text>
@@ -1784,7 +1784,7 @@ function SurfaceCoverageMatrix() {
           </Text>
         </Card>
         <Card withBorder padding="sm">
-          <Text size="xs" c="dimmed" fw={700} tt="uppercase">
+          <Text size="xs" c="dimmed" fw={700}>
             Copy Routes
           </Text>
           <Text fw={700}>{copyMappedSurfaces.length}</Text>
@@ -1794,7 +1794,7 @@ function SurfaceCoverageMatrix() {
           </Text>
         </Card>
         <Card withBorder padding="sm">
-          <Text size="xs" c="dimmed" fw={700} tt="uppercase">
+          <Text size="xs" c="dimmed" fw={700}>
             Route Coverage
           </Text>
           <Text fw={700}>
@@ -1805,7 +1805,7 @@ function SurfaceCoverageMatrix() {
           </Text>
         </Card>
         <Card withBorder padding="sm">
-          <Text size="xs" c="dimmed" fw={700} tt="uppercase">
+          <Text size="xs" c="dimmed" fw={700}>
             Printable Routing
           </Text>
           <Text fw={700}>
@@ -1817,7 +1817,7 @@ function SurfaceCoverageMatrix() {
           </Text>
         </Card>
         <Card withBorder padding="sm">
-          <Text size="xs" c="dimmed" fw={700} tt="uppercase">
+          <Text size="xs" c="dimmed" fw={700}>
             Action Matrix
           </Text>
           <Text fw={700}>
@@ -1829,7 +1829,7 @@ function SurfaceCoverageMatrix() {
           </Text>
         </Card>
         <Card withBorder padding="sm">
-          <Text size="xs" c="dimmed" fw={700} tt="uppercase">
+          <Text size="xs" c="dimmed" fw={700}>
             Report Events
           </Text>
           <Text fw={700}>
@@ -1842,7 +1842,7 @@ function SurfaceCoverageMatrix() {
           </Text>
         </Card>
         <Card withBorder padding="sm">
-          <Text size="xs" c="dimmed" fw={700} tt="uppercase">
+          <Text size="xs" c="dimmed" fw={700}>
             Workflow Coverage
           </Text>
           <Text fw={700}>
@@ -1854,7 +1854,7 @@ function SurfaceCoverageMatrix() {
           </Text>
         </Card>
         <Card withBorder padding="sm">
-          <Text size="xs" c="dimmed" fw={700} tt="uppercase">
+          <Text size="xs" c="dimmed" fw={700}>
             Patient Flow
           </Text>
           <Text fw={700}>
@@ -1866,7 +1866,7 @@ function SurfaceCoverageMatrix() {
           </Text>
         </Card>
         <Card withBorder padding="sm">
-          <Text size="xs" c="dimmed" fw={700} tt="uppercase">
+          <Text size="xs" c="dimmed" fw={700}>
             {t("accessMatrix.shapeGovernance.summaryLabel")}
           </Text>
           <Text fw={700}>
@@ -1881,7 +1881,7 @@ function SurfaceCoverageMatrix() {
           </Text>
         </Card>
         <Card withBorder padding="sm">
-          <Text size="xs" c="dimmed" fw={700} tt="uppercase">
+          <Text size="xs" c="dimmed" fw={700}>
             Surface Governance
           </Text>
           <Text fw={700}>
@@ -1892,7 +1892,7 @@ function SurfaceCoverageMatrix() {
           </Text>
         </Card>
         <Card withBorder padding="sm">
-          <Text size="xs" c="dimmed" fw={700} tt="uppercase">
+          <Text size="xs" c="dimmed" fw={700}>
             Platform Matrix
           </Text>
           <Text fw={700}>
@@ -1903,7 +1903,7 @@ function SurfaceCoverageMatrix() {
           </Text>
         </Card>
         <Card withBorder padding="sm">
-          <Text size="xs" c="dimmed" fw={700} tt="uppercase">
+          <Text size="xs" c="dimmed" fw={700}>
             Edge Displays
           </Text>
           <Text fw={700}>
@@ -3453,7 +3453,7 @@ function GroupScopeMatrix({
 
       <SimpleGrid cols={{ base: 1, lg: 3 }}>
         <Card withBorder padding="sm">
-          <Text size="xs" c="dimmed" fw={700} tt="uppercase">
+          <Text size="xs" c="dimmed" fw={700}>
             Access Groups
           </Text>
           <Text fw={700}>{groups.length}</Text>
@@ -3462,7 +3462,7 @@ function GroupScopeMatrix({
           </Text>
         </Card>
         <Card withBorder padding="sm">
-          <Text size="xs" c="dimmed" fw={700} tt="uppercase">
+          <Text size="xs" c="dimmed" fw={700}>
             SpiceDB Resources
           </Text>
           <Text fw={700}>{manifest?.resources.length ?? 0}</Text>
@@ -3471,7 +3471,7 @@ function GroupScopeMatrix({
           </Text>
         </Card>
         <Card withBorder padding="sm">
-          <Text size="xs" c="dimmed" fw={700} tt="uppercase">
+          <Text size="xs" c="dimmed" fw={700}>
             Role Policies
           </Text>
           <Text fw={700}>{manifest?.policies.length ?? 0}</Text>

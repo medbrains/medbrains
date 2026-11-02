@@ -167,7 +167,7 @@ function PatientCard({ patient }: { patient: PatientCardRow }) {
   const fallRiskValue = patient.fall_risk_level ?? t("common.notAvailable");
 
   return (
-    <Card shadow="xs" padding="sm" radius="sm" withBorder>
+    <Card padding="sm" radius="sm" withBorder>
       <Group justify="space-between" mb={4}>
         <div>
           <Text fw={600} size="sm" lineClamp={1}>
@@ -177,7 +177,7 @@ function PatientCard({ patient }: { patient: PatientCardRow }) {
             {patient.uhid} &middot; {patient.bed_name ?? t("patient.noBed")}
           </Text>
         </div>
-        <ThemeIcon size="sm" radius="xl" color={urgency} variant="filled">
+        <ThemeIcon size="sm" color={urgency} variant="filled">
           <IconHeartbeat size={12} />
         </ThemeIcon>
       </Group>

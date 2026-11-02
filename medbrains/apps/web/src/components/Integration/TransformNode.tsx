@@ -34,7 +34,6 @@ export function TransformNode({ data, selected }: NodeProps) {
       <Card
         shadow={selected ? "lg" : "sm"}
         padding="sm"
-        radius="md"
         withBorder
         style={{
           borderColor: selected
@@ -45,7 +44,7 @@ export function TransformNode({ data, selected }: NodeProps) {
         }}
       >
         <Group gap="sm" wrap="nowrap">
-          <ThemeIcon variant="light" color={color} size="lg" radius="md">
+          <ThemeIcon variant="light" color={color} size="lg">
             <IconTransform size={18} />
           </ThemeIcon>
           <Box style={{ flex: 1, minWidth: 0 }}>

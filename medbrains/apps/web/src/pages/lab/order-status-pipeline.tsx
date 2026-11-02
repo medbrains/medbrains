@@ -47,7 +47,7 @@ export function OrderStatusPipeline({
           }}
           onClick={() => onStatusClick(s.value)}
         >
-          <Text size="xs" c="dimmed" tt="uppercase" fw={600}>
+          <Text size="xs" c="dimmed" fw={600}>
             {s.label}
           </Text>
           <Text size="xl" fw={700}>

@@ -47,12 +47,9 @@ export function QueueAppointmentMarker({ row }: { row: QueueEntry }) {
 
   if (!row.appointment_id) {
     return (
-      <OperationalSignal
-        label={t("queueSignals.directQueue")}
-        shape="pill"
-        size="xs"
-        tone="neutral"
-      />
+      <Text size="sm" c="dimmed">
+        {t("queueSignals.directQueue")}
+      </Text>
     );
   }
 
@@ -111,14 +108,19 @@ export function QueueVisitTypeBadge({ row }: { row: QueueEntry }) {
       </Stack>
     );
   }
+  const tone = queueVisitTypeTone(visitType);
   return (
     <Stack gap={2}>
-      <OperationalSignal
-        label={queueVisitTypeLabel(t, visitType)}
-        shape={queueVisitTypeShape(visitType)}
-        size="xs"
-        tone={queueVisitTypeTone(visitType)}
-      />
+      {tone === "neutral" ? (
+        <Text size="sm">{queueVisitTypeLabel(t, visitType)}</Text>
+      ) : (
+        <OperationalSignal
+          label={queueVisitTypeLabel(t, visitType)}
+          shape={queueVisitTypeShape(visitType)}
+          size="xs"
+          tone={tone}
+        />
+      )}
       {visitType === "camp" && row.camp_name && (
         <Text size="xs" c="dimmed" lineClamp={1}>
           {row.camp_name}

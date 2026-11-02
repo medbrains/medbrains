@@ -52,32 +52,32 @@ export function AnalyticsTab() {
         </Text>
       ) : losData ? (
         <SimpleGrid cols={{ base: 2, sm: 3, md: 5 }} spacing="md">
-          <Paper withBorder p="md" radius="md">
-            <Text size="xs" c="dimmed" tt="uppercase" fw={700}>
+          <Paper withBorder p="md">
+            <Text size="xs" c="dimmed" fw={700}>
               Total Admissions
             </Text>
             <Text size="xl" fw={700} mt={4}>
               {losData.total_admissions}
             </Text>
           </Paper>
-          <Paper withBorder p="md" radius="md">
-            <Text size="xs" c="dimmed" tt="uppercase" fw={700}>
+          <Paper withBorder p="md">
+            <Text size="xs" c="dimmed" fw={700}>
               Avg LOS (days)
             </Text>
             <Text size="xl" fw={700} mt={4}>
               {losData.avg_los_days != null ? losData.avg_los_days.toFixed(1) : "—"}
             </Text>
           </Paper>
-          <Paper withBorder p="md" radius="md">
-            <Text size="xs" c="dimmed" tt="uppercase" fw={700}>
+          <Paper withBorder p="md">
+            <Text size="xs" c="dimmed" fw={700}>
               Median LOS (days)
             </Text>
             <Text size="xl" fw={700} mt={4}>
               {losData.median_los_days != null ? losData.median_los_days.toFixed(1) : "—"}
             </Text>
           </Paper>
-          <Paper withBorder p="md" radius="md">
-            <Text size="xs" c="dimmed" tt="uppercase" fw={700}>
+          <Paper withBorder p="md">
+            <Text size="xs" c="dimmed" fw={700}>
               Readmissions (30d)
             </Text>
             <Text
@@ -89,8 +89,8 @@ export function AnalyticsTab() {
               {losData.readmission_count}
             </Text>
           </Paper>
-          <Paper withBorder p="md" radius="md">
-            <Text size="xs" c="dimmed" tt="uppercase" fw={700}>
+          <Paper withBorder p="md">
+            <Text size="xs" c="dimmed" fw={700}>
               Readmission Rate
             </Text>
             <Text

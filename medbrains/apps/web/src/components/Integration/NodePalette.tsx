@@ -95,7 +95,7 @@ export function NodePalette() {
   return (
     <Box>
       <Group gap={6} mb="xs">
-        <Text size="xs" fw={700} tt="uppercase" c="dimmed">
+        <Text size="xs" fw={700} c="dimmed">
           Nodes
         </Text>
         <Badge size="xs" variant="light" color="slate">
@@ -124,7 +124,7 @@ export function NodePalette() {
           <Accordion.Item key={category} value={category}>
             <Accordion.Control>
               <Group gap={6}>
-                <Text size="xs" fw={700} tt="uppercase">
+                <Text size="xs" fw={700}>
                   {category}
                 </Text>
                 <Badge size="xs" variant="light" color="slate" circle>
@@ -167,7 +167,7 @@ export function NodePalette() {
                     }}
                   >
                     <IconGripVertical size={12} color="var(--mantine-color-gray-4)" />
-                    <ThemeIcon variant="light" color={nodeColor} size="md" radius="md">
+                    <ThemeIcon variant="light" color={nodeColor} size="md">
                       <Icon size={14} />
                     </ThemeIcon>
                     <Box style={{ flex: 1, minWidth: 0 }}>

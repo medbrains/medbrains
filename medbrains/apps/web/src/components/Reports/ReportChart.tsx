@@ -245,7 +245,7 @@ export function ReportChart({
 
   if (!canView) {
     return (
-      <Card withBorder radius="md" padding="md" h="100%">
+      <Card withBorder padding="md" h="100%">
         <Stack gap={4}>
           <Text fw={700}>{title}</Text>
           <Text size="sm" c="dimmed">
@@ -258,7 +258,7 @@ export function ReportChart({
 
   return (
     <>
-      <Card withBorder radius="md" padding="md" pos="relative" h="100%">
+      <Card withBorder padding="md" pos="relative" h="100%">
         <LoadingOverlay visible={isLoading} />
         <Stack gap="sm">
           <Group justify="space-between" align="flex-start">

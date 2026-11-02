@@ -127,7 +127,7 @@ function DashboardOverview({
                     }
                   />
                   <div>
-                    <Text size="sm" fw={600} tt="uppercase">
+                    <Text size="sm" fw={600}>
                       {s.body}
                     </Text>
                     <Text size="xs" c="dimmed">

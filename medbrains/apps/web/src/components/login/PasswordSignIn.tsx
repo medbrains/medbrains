@@ -106,7 +106,7 @@ export function PasswordSignIn({ hospitalCode }: PasswordSignInProps) {
           </Anchor>
         </Box>
         {login.isError && (
-          <Alert tone="danger" radius="md" data-testid="login-error">
+          <Alert tone="danger" data-testid="login-error">
             {login.error.message}
           </Alert>
         )}

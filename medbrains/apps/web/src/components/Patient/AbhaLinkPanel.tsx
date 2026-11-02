@@ -46,7 +46,7 @@ export function AbhaLinkPanel({
     <Stack gap="xs">
       <Group justify="space-between" align="center" gap="xs">
         <Group gap="xs" align="center">
-          <ThemeIcon color={meta.color} variant="light" size="sm" radius="xl">
+          <ThemeIcon color={meta.color} variant="light" size="sm">
             <IconFingerprint size={14} />
           </ThemeIcon>
           <Text size="sm" fw={650}>

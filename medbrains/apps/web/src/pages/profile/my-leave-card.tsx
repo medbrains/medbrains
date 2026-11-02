@@ -110,7 +110,7 @@ export function MyLeaveCard() {
         <Grid.Col span={{ base: 12, lg: 3 }}>
           <Stack gap="md">
             <Stack gap={4}>
-              <Text size="xs" c="dimmed" tt="uppercase">
+              <Text size="xs" c="dimmed">
                 Balance {year}
               </Text>
               {balanceList}
@@ -118,7 +118,7 @@ export function MyLeaveCard() {
             {requests.isSuccess && (
               <>
                 <Stack gap={2}>
-                  <Text size="xs" c="dimmed" tt="uppercase">
+                  <Text size="xs" c="dimmed">
                     Pending
                   </Text>
                   <Text fz="xl" fw={600}>
@@ -126,7 +126,7 @@ export function MyLeaveCard() {
                   </Text>
                 </Stack>
                 <Stack gap={4}>
-                  <Text size="xs" c="dimmed" tt="uppercase">
+                  <Text size="xs" c="dimmed">
                     Upcoming approved
                   </Text>
                   {upcoming.length === 0 ? (

@@ -149,7 +149,7 @@ function TokenBoardCard({
                 borderRadius: 0,
               }}
             >
-              <Text size="xs" c="dimmed" tt="uppercase">
+              <Text size="xs" c="dimmed">
                 {item.label}
               </Text>
               <Text fw={800} size="xl">
@@ -238,7 +238,7 @@ function TokenLane({
   return (
     <Stack gap="xs">
       <Group justify="space-between">
-        <Text size="xs" fw={700} c="dimmed" tt="uppercase">
+        <Text size="xs" fw={700} c="dimmed">
           {title}
         </Text>
         <Badge size="xs">{tokens.length}</Badge>
@@ -317,7 +317,7 @@ function ErTriageLane({
     >
       <Group justify="space-between" align="flex-start">
         <Stack gap={0}>
-          <Text size="xs" fw={700} c={color} tt="uppercase">
+          <Text size="xs" fw={700} c={color}>
             {label}
           </Text>
           <Text size="xs" c="dimmed">

@@ -106,7 +106,7 @@ export function ClaimDetailDrawer({
           <NhcxClaimPayments claimId={claim.id} />
 
           {canView && (
-            <Card withBorder padding="sm" radius="md">
+            <Card withBorder padding="sm">
               <Group justify="space-between" mb="xs">
                 <Text fw={600} size="sm">
                   Payer responses received

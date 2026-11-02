@@ -646,9 +646,7 @@ export function DoctorSchedulesPage() {
             {doctors.map((doc) => (
               <Card
                 key={doc.id}
-                shadow="sm"
                 padding="md"
-                radius="md"
                 withBorder
                 style={{ cursor: "pointer" }}
                 onClick={() => setSelectedDoctor(doc)}

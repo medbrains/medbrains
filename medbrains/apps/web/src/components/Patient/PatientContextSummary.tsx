@@ -269,7 +269,7 @@ export function PatientContextSummary({ patientId }: PatientContextSummaryProps)
 
           {chips.length > 0 && (
             <div>
-              <Text size="xs" c="dimmed" mb={4} fw={600} tt="uppercase">
+              <Text size="xs" c="dimmed" mb={4} fw={600}>
                 Alerts
               </Text>
               <Group gap="xs" wrap="wrap">
@@ -282,7 +282,7 @@ export function PatientContextSummary({ patientId }: PatientContextSummaryProps)
 
           {data.drug_allergies.length > 0 && (
             <div>
-              <Text size="xs" c="dimmed" mb={4} fw={600} tt="uppercase">
+              <Text size="xs" c="dimmed" mb={4} fw={600}>
                 Drug allergies
               </Text>
               <Text size="sm">{data.drug_allergies.join(", ")}</Text>
@@ -291,7 +291,7 @@ export function PatientContextSummary({ patientId }: PatientContextSummaryProps)
 
           {data.known_allergies.length > 0 && (
             <div>
-              <Text size="xs" c="dimmed" mb={4} fw={600} tt="uppercase">
+              <Text size="xs" c="dimmed" mb={4} fw={600}>
                 Other allergies
               </Text>
               <Text size="sm">
@@ -302,7 +302,7 @@ export function PatientContextSummary({ patientId }: PatientContextSummaryProps)
 
           {data.pending_consents.length > 0 && (
             <div>
-              <Text size="xs" c="dimmed" mb={4} fw={600} tt="uppercase">
+              <Text size="xs" c="dimmed" mb={4} fw={600}>
                 Pending consents
               </Text>
               <Text size="sm">
@@ -313,7 +313,7 @@ export function PatientContextSummary({ patientId }: PatientContextSummaryProps)
 
           {hasBalance && (
             <div>
-              <Text size="xs" c="dimmed" mb={4} fw={600} tt="uppercase">
+              <Text size="xs" c="dimmed" mb={4} fw={600}>
                 Outstanding balance
               </Text>
               <Text size="sm" c="red" fw={600}>
@@ -324,7 +324,7 @@ export function PatientContextSummary({ patientId }: PatientContextSummaryProps)
 
           {data.primary_insurance && (
             <div>
-              <Text size="xs" c="dimmed" mb={4} fw={600} tt="uppercase">
+              <Text size="xs" c="dimmed" mb={4} fw={600}>
                 Primary insurance
               </Text>
               <Text size="sm">
@@ -338,7 +338,7 @@ export function PatientContextSummary({ patientId }: PatientContextSummaryProps)
 
           {data.last_vitals && (
             <div>
-              <Text size="xs" c="dimmed" mb={4} fw={600} tt="uppercase">
+              <Text size="xs" c="dimmed" mb={4} fw={600}>
                 Last vitals
               </Text>
               <Text size="sm">

@@ -123,7 +123,7 @@ function MessageAvatar({
   if (custom) return <>{custom}</>;
   if (role === "user") {
     return (
-      <ThemeIcon variant="light" radius="md" size="md" aria-hidden>
+      <ThemeIcon variant="light" size="md" aria-hidden>
         <IconUser size={16} />
       </ThemeIcon>
     );

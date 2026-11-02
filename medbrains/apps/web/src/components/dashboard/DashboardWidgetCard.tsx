@@ -64,7 +64,7 @@ function EmptyBody({ label }: { label: string }) {
 function UnavailableBody() {
   return (
     <Stack gap={4} align="center" py="md">
-      <ThemeIcon variant="light" color="orange" size={28} radius="md">
+      <ThemeIcon variant="light" color="orange" size={28}>
         <WidgetIcon name="IconAlertTriangle" size={16} />
       </ThemeIcon>
       <Text size="sm" c="dimmed" ta="center">
@@ -88,7 +88,7 @@ function WidgetShell({ widget, children, onExpand }: ShellProps) {
   return (
     <Card withBorder padding="md" h="100%">
       <Group gap="xs" mb="sm" wrap="nowrap">
-        <ThemeIcon variant="light" color={widget.color ?? "primary"} size={28} radius="md">
+        <ThemeIcon variant="light" color={widget.color ?? "primary"} size={28}>
           <WidgetIcon name={widget.icon} size={16} />
         </ThemeIcon>
         <Box style={{ minWidth: 0 }}>
@@ -350,7 +350,7 @@ function WidgetBody({
     return (
       <WidgetShell widget={widget}>
         <Group gap="xs">
-          <ThemeIcon variant="light" color={status === "ok" ? "teal" : "red"} size={20} radius="xl">
+          <ThemeIcon variant="light" color={status === "ok" ? "teal" : "red"} size={20}>
             <WidgetIcon name="IconServer" size={12} />
           </ThemeIcon>
           <Text size="sm">{status === "ok" ? "All systems operational" : "Degraded"}</Text>

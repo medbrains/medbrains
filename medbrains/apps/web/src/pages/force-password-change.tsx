@@ -59,7 +59,7 @@ export function ForcePasswordChangePage() {
 
   return (
     <Stack align="center" justify="center" mih="100vh" p="md">
-      <Paper withBorder shadow="sm" p="xl" radius="md" maw={420} w="100%">
+      <Paper withBorder p="xl" maw={420} w="100%">
         <form onSubmit={form.handleSubmit((values) => changeMutation.mutate(values))}>
           <Stack>
             <Title order={3}>Set a new password</Title>

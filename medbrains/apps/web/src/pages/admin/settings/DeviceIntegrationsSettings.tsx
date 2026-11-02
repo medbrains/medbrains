@@ -187,7 +187,7 @@ export function DeviceIntegrationsSettings() {
           const row = rowsByKey.get(definition.key);
 
           return (
-            <Card key={definition.key} withBorder radius="md" padding="lg">
+            <Card key={definition.key} withBorder padding="lg">
               <Stack gap="md">
                 <Group justify="space-between" align="flex-start">
                   <div>

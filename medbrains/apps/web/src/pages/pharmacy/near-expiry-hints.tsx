@@ -27,7 +27,7 @@ export function NearExpiryHints({ drugNames }: { drugNames: string[] }) {
   if (relevant.length === 0) return null;
   return (
     <Stack gap={4}>
-      <Text size="xs" tt="uppercase" fw={700} c="dimmed">
+      <Text size="xs" fw={700} c="dimmed">
         FEFO suggestions — earliest-expiry batches in stock
       </Text>
       <Table withRowBorders={false}>

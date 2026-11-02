@@ -108,7 +108,7 @@ function statusFromCoverage(total: number, mapped: number): ReadinessStatus {
 function ReadinessCard({ item }: { item: StandardCard }) {
   const meta = STATUS_META[item.status];
   return (
-    <Card withBorder padding="md" radius="md">
+    <Card withBorder padding="md">
       <Stack gap="sm">
         <Group justify="space-between" align="flex-start">
           <ThemeIcon variant="light" color={meta.color} size="lg">
@@ -442,7 +442,7 @@ export function StandardsSettings() {
         </Button>
       </Group>
 
-      <Card withBorder padding="md" radius="md">
+      <Card withBorder padding="md">
         <Group justify="space-between" mb="xs">
           <Text fw={600}>Go-live readiness</Text>
           <Badge tone={readinessPercent >= 80 ? "success" : "warning"}>{readinessPercent}%</Badge>
@@ -460,7 +460,7 @@ export function StandardsSettings() {
       </SimpleGrid>
 
       <SimpleGrid cols={{ base: 1, md: 2 }}>
-        <Card withBorder padding="md" radius="md">
+        <Card withBorder padding="md">
           <Group gap="sm" mb="sm">
             <ThemeIcon variant="light" color="primary">
               <IconShieldCheck size={18} />
@@ -494,7 +494,7 @@ export function StandardsSettings() {
           </Stack>
         </Card>
 
-        <Card withBorder padding="md" radius="md">
+        <Card withBorder padding="md">
           <Group gap="sm" mb="sm">
             <ThemeIcon variant="light" color="teal">
               <IconPlugConnected size={18} />
@@ -528,7 +528,7 @@ export function StandardsSettings() {
         </Card>
       </SimpleGrid>
 
-      <Card withBorder padding="md" radius="md">
+      <Card withBorder padding="md">
         <Group gap="sm" mb="sm">
           <ThemeIcon variant="light" color="gray">
             <IconDatabase size={18} />

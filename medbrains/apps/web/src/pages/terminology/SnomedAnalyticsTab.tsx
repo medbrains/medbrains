@@ -26,7 +26,7 @@ interface StatProps {
 function Stat({ label, value }: StatProps) {
   return (
     <Card withBorder padding="sm">
-      <Text size="xs" tt="uppercase" fw={700} c="dimmed">
+      <Text size="xs" fw={700} c="dimmed">
         {label}
       </Text>
       <Text size="xl" fw={700}>

@@ -130,7 +130,7 @@ export function BillingTpaPipelinePage() {
             return (
               <Stack key={stage.key} gap="xs" style={{ width: 280, flex: "0 0 280px" }}>
                 <Group justify="space-between">
-                  <Text size="xs" fw={700} tt="uppercase" c="dimmed">
+                  <Text size="xs" fw={700} c="dimmed">
                     {stage.label}
                   </Text>
                   <Badge tone={stage.accent} size="sm">

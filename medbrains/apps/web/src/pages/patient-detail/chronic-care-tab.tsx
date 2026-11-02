@@ -426,7 +426,7 @@ function OutcomesSegment({ patientId }: { patientId: string }) {
     <Stack gap="md">
       <SimpleGrid cols={{ base: 1, sm: 3 }}>
         <Card withBorder padding="md">
-          <Text size="xs" c="dimmed" tt="uppercase">
+          <Text size="xs" c="dimmed">
             Active Enrollments
           </Text>
           <Text fw={700} size="xl">
@@ -434,7 +434,7 @@ function OutcomesSegment({ patientId }: { patientId: string }) {
           </Text>
         </Card>
         <Card withBorder padding="md">
-          <Text size="xs" c="dimmed" tt="uppercase">
+          <Text size="xs" c="dimmed">
             Adherence Rate
           </Text>
           <Text fw={700} size="xl">
@@ -442,7 +442,7 @@ function OutcomesSegment({ patientId }: { patientId: string }) {
           </Text>
         </Card>
         <Card withBorder padding="md">
-          <Text size="xs" c="dimmed" tt="uppercase">
+          <Text size="xs" c="dimmed">
             Duration
           </Text>
           <Text fw={700} size="xl">
@@ -551,7 +551,7 @@ function AdherenceSegment({ patientId }: { patientId: string }) {
         <Stack gap="md">
           <SimpleGrid cols={{ base: 1, sm: 3 }}>
             <Card withBorder padding="md">
-              <Text size="xs" c="dimmed" tt="uppercase">
+              <Text size="xs" c="dimmed">
                 Dose Adherence
               </Text>
               <Text fw={700} size="xl">
@@ -564,7 +564,7 @@ function AdherenceSegment({ patientId }: { patientId: string }) {
               />
             </Card>
             <Card withBorder padding="md">
-              <Text size="xs" c="dimmed" tt="uppercase">
+              <Text size="xs" c="dimmed">
                 Doses
               </Text>
               <Group gap="xs" mt="xs">
@@ -574,7 +574,7 @@ function AdherenceSegment({ patientId }: { patientId: string }) {
               </Group>
             </Card>
             <Card withBorder padding="md">
-              <Text size="xs" c="dimmed" tt="uppercase">
+              <Text size="xs" c="dimmed">
                 Appointments
               </Text>
               <Group gap="xs" mt="xs">

@@ -80,6 +80,8 @@ jobs:
         run: python3 scripts/check_api_contract.py
       - name: Page API references resolve
         run: python3 scripts/check_ui_api_coverage.py
+      - name: Decorative effects only ever go down
+        run: python3 medbrains/scripts/check_ui_slop.py
       - name: Pages build from the @/components/ui seam
         run: python3 medbrains/scripts/check_ui_seam.py
       - name: No raw interactive HTML in shipped JSX

@@ -101,8 +101,8 @@ export function SpecialtyIndexPage() {
       <SimpleGrid cols={{ base: 1, sm: 2, lg: 3 }} spacing="lg" mt="md">
         {visibleSpecialties.map((s) => (
           <UnstyledButton key={s.path} onClick={() => navigate(s.path)}>
-            <Card shadow="sm" padding="lg" radius="md" withBorder style={{ height: "100%" }}>
-              <ThemeIcon size={40} radius="md" color={s.color} mb="sm">
+            <Card padding="lg" withBorder style={{ height: "100%" }}>
+              <ThemeIcon size={40} color={s.color} mb="sm">
                 <s.icon size={24} />
               </ThemeIcon>
               <Text fw={600} size="lg">

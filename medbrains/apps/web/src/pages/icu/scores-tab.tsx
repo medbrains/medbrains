@@ -97,8 +97,8 @@ function MortalityComparison({ scores }: { scores: IcuScore[] }) {
         Predicted Mortality Analysis
       </Text>
       <SimpleGrid cols={{ base: 1, sm: 3 }} spacing="md">
-        <Card withBorder padding="sm" radius="md">
-          <Text size="xs" c="dimmed" tt="uppercase" fw={700}>
+        <Card withBorder padding="sm">
+          <Text size="xs" c="dimmed" fw={700}>
             Latest Prediction ({scoreTypeLabels[latest.score_type] ?? latest.score_type})
           </Text>
           <Text size="xl" fw={700} c={severityColor} mt={4}>
@@ -110,8 +110,8 @@ function MortalityComparison({ scores }: { scores: IcuScore[] }) {
           <Progress value={latestMortality} color={severityColor} mt="xs" size="sm" />
         </Card>
 
-        <Card withBorder padding="sm" radius="md">
-          <Text size="xs" c="dimmed" tt="uppercase" fw={700}>
+        <Card withBorder padding="sm">
+          <Text size="xs" c="dimmed" fw={700}>
             Average Predicted Mortality
           </Text>
           <Text size="xl" fw={700} c={avgMortality >= 50 ? "orange" : "primary"} mt={4}>
@@ -128,8 +128,8 @@ function MortalityComparison({ scores }: { scores: IcuScore[] }) {
           />
         </Card>
 
-        <Card withBorder padding="sm" radius="md">
-          <Text size="xs" c="dimmed" tt="uppercase" fw={700}>
+        <Card withBorder padding="sm">
+          <Text size="xs" c="dimmed" fw={700}>
             Trend
           </Text>
           {mortalityScores.length >= 2 ? (

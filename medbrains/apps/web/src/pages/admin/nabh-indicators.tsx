@@ -79,10 +79,10 @@ function delta(
 function IndicatorTile({ ind }: { ind: NabhIndicator }) {
   const light = trafficLight(ind);
   return (
-    <Card withBorder padding="md" radius="md" style={{ minWidth: 240, flex: 1 }}>
+    <Card withBorder padding="md" style={{ minWidth: 240, flex: 1 }}>
       <Stack gap={6}>
         <Group justify="space-between" align="flex-start">
-          <Text size="xs" tt="uppercase" c="dimmed" fw={700} ff="monospace">
+          <Text size="xs" c="dimmed" fw={700} ff="monospace">
             {ind.code}
           </Text>
           <Tooltip label={`Light: ${light}`} withArrow>
@@ -196,7 +196,7 @@ export default function NabhIndicatorsPage() {
       <Card withBorder className={classes.commandBar}>
         <Group justify="space-between" align="flex-end" gap="md">
           <Stack gap={4}>
-            <Text size="xs" fw={700} c="dimmed" tt="uppercase">
+            <Text size="xs" fw={700} c="dimmed">
               Indicator evidence workspace
             </Text>
             <Group gap="xs">
@@ -282,7 +282,7 @@ export default function NabhIndicatorsPage() {
           <Card withBorder className={classes.evidenceRail}>
             <Stack gap="sm">
               <Stack gap={2}>
-                <Text size="xs" fw={700} c="dimmed" tt="uppercase">
+                <Text size="xs" fw={700} c="dimmed">
                   Coverage
                 </Text>
                 <Text size="sm" fw={700}>

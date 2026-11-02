@@ -35,7 +35,7 @@ function Metric({ label, query, value }: { label: string; query: UseQueryResult;
   else if (query.isError) shown = <Text size="sm">Unavailable</Text>;
   return (
     <Stack gap={2}>
-      <Text size="xs" c="dimmed" tt="uppercase">
+      <Text size="xs" c="dimmed">
         {label}
       </Text>
       {typeof shown === "string" ? (

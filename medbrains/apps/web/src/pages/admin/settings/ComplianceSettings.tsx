@@ -177,7 +177,7 @@ export function ComplianceSettingsTab() {
         </Text>
       </Alert>
 
-      <Card padding="md" radius="md" withBorder>
+      <Card padding="md" withBorder>
         <Title order={5} mb="sm">
           Display Settings
         </Title>
@@ -208,7 +208,7 @@ export function ComplianceSettingsTab() {
 
       <Divider />
 
-      <Card padding="md" radius="md" withBorder>
+      <Card padding="md" withBorder>
         <Group gap="xs" mb="sm">
           <IconAlertTriangle size={18} color="var(--mantine-color-orange-6)" />
           <Title order={5}>Enforcement Settings</Title>

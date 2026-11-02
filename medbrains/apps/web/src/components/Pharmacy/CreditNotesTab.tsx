@@ -728,7 +728,7 @@ function OrderLookupSection({
 
   return (
     <Stack gap={4}>
-      <Text size="xs" fw={600} tt="uppercase" c="dimmed">
+      <Text size="xs" fw={600} c="dimmed">
         Recent Orders — click to auto-fill
       </Text>
       {orders.map((order) => (

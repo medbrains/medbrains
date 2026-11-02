@@ -535,11 +535,11 @@ export function CodesTab({
                   {CRASH_CART_ITEMS.map((item) => (
                     <Group key={item.key} gap="xs">
                       {selectedChecklist[item.key] ? (
-                        <ThemeIcon color="success" size="sm" radius="xl">
+                        <ThemeIcon color="success" size="sm">
                           <IconCheck size={12} />
                         </ThemeIcon>
                       ) : (
-                        <ThemeIcon color="danger" size="sm" radius="xl" variant="light">
+                        <ThemeIcon color="danger" size="sm" variant="light">
                           <IconAlertTriangle size={12} />
                         </ThemeIcon>
                       )}

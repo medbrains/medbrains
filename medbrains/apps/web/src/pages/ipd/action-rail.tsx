@@ -249,7 +249,7 @@ export function ActionRailSectionHeading({
 
   return (
     <Group justify="space-between" gap="xs" align="center" wrap="nowrap">
-      <Text size="xs" fw={700} c="dimmed" tt="uppercase">
+      <Text size="xs" fw={700} c="dimmed">
         {title}
       </Text>
       <Group gap={4} wrap="nowrap">

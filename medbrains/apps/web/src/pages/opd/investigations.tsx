@@ -270,7 +270,7 @@ export function InvestigationsTab({
       )}
 
       <Modal opened={formOpened} onClose={formHandlers.close} title="Order Investigation" size="lg">
-        <Card padding="sm" radius="md" withBorder style={{ border: "none", boxShadow: "none" }}>
+        <Card padding="sm" withBorder style={{ border: "none", boxShadow: "none" }}>
           <Stack gap="xs">
             <Controller
               control={control}
@@ -413,7 +413,7 @@ export function InvestigationsTab({
           <Badge tone="primary">Patient history</Badge>
         </Group>
 
-        <Card padding="xs" radius="md" withBorder>
+        <Card padding="xs" withBorder>
           <Stack gap="xs">
             <Group justify="space-between">
               <Text size="sm" fw={600}>
@@ -455,7 +455,7 @@ export function InvestigationsTab({
         </Card>
 
         <SimpleGrid cols={{ base: 1, lg: 2 }}>
-          <Card padding="xs" radius="md" withBorder>
+          <Card padding="xs" withBorder>
             <Stack gap="xs">
               <Text size="sm" fw={600}>
                 Radiology reports
@@ -464,7 +464,7 @@ export function InvestigationsTab({
             </Stack>
           </Card>
 
-          <Card padding="xs" radius="md" withBorder>
+          <Card padding="xs" withBorder>
             <Stack gap="xs">
               <Group justify="space-between">
                 <Text size="sm" fw={600}>

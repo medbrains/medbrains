@@ -101,7 +101,7 @@ export function VitalsTab({
                 <Group gap="md" mt={4} wrap="wrap">
                   {v.temperature != null && (
                     <Badge tone={Number(v.temperature) > 37.5 ? "danger" : "primary"} size="md">
-                      🌡 {v.temperature}°C
+                      Temp {v.temperature}°C
                       {trend(
                         Number(v.temperature),
                         prev?.temperature ? Number(prev.temperature) : null,
@@ -119,7 +119,7 @@ export function VitalsTab({
                       }
                       size="md"
                     >
-                      ❤ {v.pulse} bpm
+                      Pulse {v.pulse} bpm
                       {trend(Number(v.pulse), prev?.pulse ? Number(prev.pulse) : null)}
                     </Badge>
                   )}
@@ -128,20 +128,18 @@ export function VitalsTab({
                       tone={severityTone(bloodPressureSeverity(v.systolic_bp, v.diastolic_bp))}
                       size="md"
                     >
-                      🩸 {v.systolic_bp}/{v.diastolic_bp} mmHg
+                      BP {v.systolic_bp}/{v.diastolic_bp} mmHg
                     </Badge>
                   )}
                   {v.spo2 != null && (
                     <Badge tone={severityTone(spo2Severity(v.spo2))} size="md">
-                      💨 SpO₂ {v.spo2}%
+                      SpO₂ {v.spo2}%
                     </Badge>
                   )}
-                  {v.respiratory_rate != null && (
-                    <Badge size="sm">🫁 RR {v.respiratory_rate}</Badge>
-                  )}
+                  {v.respiratory_rate != null && <Badge size="sm">RR {v.respiratory_rate}</Badge>}
                   {v.weight_kg != null && (
                     <Badge variant="outline" size="md">
-                      ⚖ {v.weight_kg} kg
+                      Weight {v.weight_kg} kg
                     </Badge>
                   )}
                   {v.bmi != null && (

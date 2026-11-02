@@ -149,7 +149,7 @@ export function IpdNewAdmissionPage() {
         {initialPatientId && (
           <PatientContextBanner patientId={initialPatientId} collectLane="ipd" />
         )}
-        <Card withBorder radius="md" p="md">
+        <Card withBorder p="md">
           <AdmissionForm
             key={initialPatientId}
             initialPatientId={initialPatientId}
