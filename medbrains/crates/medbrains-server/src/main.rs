@@ -252,13 +252,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         std::env::var("SPICEDB_ENDPOINT")
     {
         let token = std::env::var("SPICEDB_TOKEN").unwrap_or_else(|_| "devsecret".to_owned());
-        match medbrains_authz::backend_spicedb::SpiceDbBackend::connect(&endpoint, &token).await {
+        match medbrains_authz_spicedb::backend_spicedb::SpiceDbBackend::connect(&endpoint, &token)
+            .await
+        {
             Ok(client) => {
                 tracing::info!(endpoint = %endpoint, "rebac: connected to SpiceDB sidecar");
                 spicedb_live = Some((endpoint, token));
                 spicedb_outbox_client = Some(client.clone());
                 Arc::new(
-                    medbrains_authz::backend_durable_spicedb::DurableSpiceDbBackend::new(
+                    medbrains_authz_spicedb::backend_durable_spicedb::DurableSpiceDbBackend::new(
                         db_pool.clone(),
                         client,
                     ),
@@ -290,7 +292,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         // on the request role the UPDATE would match no rows.
         let watch_db = worker_pool.clone();
         tokio::spawn(async move {
-            medbrains_authz::watch::run_user_watcher(
+            medbrains_authz_spicedb::watch::run_user_watcher(
                 spicedb_endpoint,
                 watch_token,
                 move |user_ids| {
@@ -327,8 +329,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     if let Some(spicedb) = spicedb_outbox_client {
         let outbox_db = db_pool.clone();
         tokio::spawn(async move {
-            medbrains_authz::backend_durable_spicedb::run_spicedb_outbox_worker(outbox_db, spicedb)
-                .await;
+            medbrains_authz_spicedb::backend_durable_spicedb::run_spicedb_outbox_worker(
+                outbox_db, spicedb,
+            )
+            .await;
         });
         tracing::info!("rebac: SpiceDB outbox worker spawned");
     }

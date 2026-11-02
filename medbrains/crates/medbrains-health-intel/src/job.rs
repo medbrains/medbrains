@@ -12,7 +12,8 @@ use std::collections::HashMap;
 use std::time::Duration;
 
 use chrono::{DateTime, Utc};
-use medbrains_kernel::{Actor, AppError};
+use medbrains_kernel::Actor;
+use medbrains_server_core::error::AppError;
 use serde_json::json;
 use sqlx::PgPool;
 use uuid::Uuid;
@@ -183,7 +184,7 @@ pub async fn recompute_conditions(
         tenant_id,
         user_id: Uuid::nil(),
     };
-    medbrains_kernel::work(pool, actor, async |tx| {
+    medbrains_kernel::work::<_, AppError, _>(pool, actor, async |tx| {
         let cells = sqlx::query_as::<_, Cell>(
             "SELECT r.disease_name AS condition, \
                     floor(extract(epoch FROM ($2 - r.detected_at)) / 604800)::int AS block, \
@@ -295,7 +296,7 @@ pub async fn refresh_environment(pool: &PgPool, tenant_id: Uuid) -> Result<(), S
         tenant_id,
         user_id: Uuid::nil(),
     };
-    let place = medbrains_kernel::work(pool, actor, async |tx| {
+    let place = medbrains_kernel::work::<_, AppError, _>(pool, actor, async |tx| {
         let fetch_on = medbrains_kernel::config::get(tx, ENVIRONMENT_SETTING).await?;
         let coords: Option<(Option<f64>, Option<f64>)> = sqlx::query_as(
             "SELECT latitude::float8, longitude::float8 FROM ( \
@@ -353,7 +354,7 @@ async fn store_environment(
         Err(e) => (None, Some(e)),
     };
     let r = ok.unwrap_or_default();
-    medbrains_kernel::work(pool, actor, async |tx| {
+    medbrains_kernel::work::<_, AppError, _>(pool, actor, async |tx| {
         // A failure moves only the attempt and the reason: the last good
         // reading stays, dated, and the view refuses to show it as current.
         sqlx::query(

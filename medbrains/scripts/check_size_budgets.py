@@ -11,7 +11,7 @@ RFC-HOSPITAL-OS §3a, phase SM1. Reads files only, so no cargo build is needed.
   and test code do not count, so documenting the kernel never costs budget.
 - Kernel direct dependencies: an allowlist in the baseline. `--update` drops
   entries that left, but never adds one: that takes a hand edit, seen in review.
-- Workspace packages and crates: growth fails until `--update` is committed, so
+- Kernel package closure, workspace packages and crates: growth fails until `--update` is committed, so
   it is always a visible choice. A drop also fails until recorded, or the room
   it freed could be silently refilled.
 - Web first-load JS (gzip): a ceiling, checked only when a build output exists.
@@ -86,6 +86,34 @@ def direct_dependencies(manifest: dict) -> set[str]:
     }
 
 
+def lock_closure(lock: dict, start: str) -> int:
+    """How many packages `start` can pull in, itself included, walking `Cargo.lock` by version.
+
+    An upper bound: the lock records what any workspace member enabled, on any platform, and not
+    which features this crate turns on, so `cargo tree -e normal` reports fewer. It needs no
+    build and cannot be fooled by a feature flag, which is why the ratchet uses it.
+    """
+    versions: dict[str, list[str]] = {}
+    packages: dict[tuple[str, str], list[str]] = {}
+    for package in lock["package"]:
+        versions.setdefault(package["name"], []).append(package["version"])
+        packages[(package["name"], package["version"])] = package.get("dependencies", [])
+
+    def resolve(dep: str) -> tuple[str, str]:
+        """The exact package a lock entry means; it names a version only when several are locked."""
+        name, *rest = dep.split()
+        return (name, rest[0] if rest else versions[name][0])
+
+    seen: set[tuple[str, str]] = set()
+    stack = [resolve(start)]
+    while stack:
+        package = stack.pop()
+        if package not in seen:
+            seen.add(package)
+            stack.extend(resolve(dep) for dep in packages[package])
+    return len(seen)
+
+
 def first_load_gzip_bytes(dist: Path) -> int | None:
     """Gzipped size of the JS `index.html` loads up front, or None with no build output."""
     index = dist / "index.html"
@@ -106,6 +134,7 @@ def measure() -> dict:
     return {
         "kernel_lines": measure_kernel_lines(KERNEL / "src"),
         "kernel_deps": direct_dependencies(kernel),
+        "kernel_closure": lock_closure(lock, KERNEL.name),
         "packages": len(lock["package"]),
         "crates": len(workspace["workspace"]["members"]),
         "web_gzip": first_load_gzip_bytes(WEB_DIST),
@@ -122,7 +151,7 @@ def compare(live: dict, base: dict) -> tuple[list[str], list[str], list[str]]:
         hard.append(f"kernel dependencies not on the allowlist: {extra}")
     if gone := sorted(allowed - live["kernel_deps"]):
         dropped.append(f"kernel dependencies no longer used: {gone}")
-    for key in ("packages", "crates"):
+    for key in ("kernel_closure", "packages", "crates"):
         if live[key] > base[key]:
             grown.append(f"{key} grew {base[key]} -> {live[key]}")
         elif live[key] < base[key]:
@@ -140,6 +169,7 @@ def updated_baseline(live: dict, base: dict) -> dict:
         web = int(live["web_gzip"] * WEB_HEADROOM)
     return {
         "kernel_deps": sorted(live["kernel_deps"]),
+        "kernel_closure": live["kernel_closure"],
         "packages": live["packages"],
         "crates": live["crates"],
         "web_first_load_gzip_limit": web,
@@ -162,12 +192,41 @@ def self_test() -> None:
     }
     assert direct_dependencies(manifest) == {"serde", "cc", "libc"}
 
-    live = {"kernel_lines": 10, "kernel_deps": {"serde"}, "packages": 5, "crates": 2, "web_gzip": None}
-    base = {"kernel_deps": ["serde"], "packages": 5, "crates": 2, "web_first_load_gzip_limit": 9}
+    lock = {
+        "package": [
+            {"name": "kernel", "version": "1.0.0", "dependencies": ["a", "b 1.0.0"]},
+            {"name": "a", "version": "1.0.0", "dependencies": ["b 2.0.0", "kernel"]},
+            {"name": "b", "version": "1.0.0"},
+            {"name": "b", "version": "2.0.0"},
+            {"name": "axum", "version": "1.0.0", "dependencies": ["kernel"]},
+        ]
+    }
+    # Versions are distinct packages, a cycle ends, and what depends on the kernel is not in it.
+    assert lock_closure(lock, "kernel") == 4
+    assert lock_closure(lock, "axum") == 5
+
+    live = {
+        "kernel_lines": 10,
+        "kernel_deps": {"serde"},
+        "kernel_closure": 3,
+        "packages": 5,
+        "crates": 2,
+        "web_gzip": None,
+    }
+    base = {
+        "kernel_deps": ["serde"],
+        "kernel_closure": 3,
+        "packages": 5,
+        "crates": 2,
+        "web_first_load_gzip_limit": 9,
+    }
     assert compare(live, base) == ([], [], [])
     assert compare({**live, "kernel_lines": KERNEL_LINE_LIMIT + 1}, base)[0]
     assert compare({**live, "kernel_deps": {"serde", "axum"}}, base)[0]
     assert compare({**live, "kernel_deps": set()}, base)[2]
+    assert compare({**live, "kernel_closure": 4}, base)[1]
+    assert compare({**live, "kernel_closure": 2}, base)[2]
+    assert updated_baseline({**live, "kernel_closure": 2}, base)["kernel_closure"] == 2
     assert compare({**live, "packages": 6}, base)[1]
     assert compare({**live, "packages": 4}, base)[2]
     assert compare({**live, "crates": 3}, base)[1]
@@ -187,7 +246,7 @@ def main() -> int:
     if BASELINE.exists():
         base = json.loads(BASELINE.read_text(encoding="utf-8"))
     elif "--update" in sys.argv:  # the first baseline is seeded from the tree as it stands
-        base = {"kernel_deps": sorted(live["kernel_deps"]), "packages": 0, "crates": 0}
+        base = {"kernel_deps": sorted(live["kernel_deps"]), "kernel_closure": 0, "packages": 0, "crates": 0}
     else:
         print(f"✗ no baseline at {BASELINE.name}; run with --update")
         return 1
@@ -196,7 +255,8 @@ def main() -> int:
     web_note = f"{web} bytes gzip" if web is not None else "skipped, no build output in apps/web/dist"
     summary = (
         f"kernel {live['kernel_lines']}/{KERNEL_LINE_LIMIT} lines, "
-        f"{len(live['kernel_deps'])} kernel deps, {live['packages']} packages, "
+        f"{len(live['kernel_deps'])} kernel deps, {live['kernel_closure']} packages under the kernel, "
+        f"{live['packages']} packages, "
         f"{live['crates']} crates, web first load {web_note}"
     )
     if hard:

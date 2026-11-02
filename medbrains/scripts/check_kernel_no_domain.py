@@ -29,22 +29,12 @@ CRATES = Path(__file__).resolve().parent.parent / "crates"
 KERNEL = "medbrains-kernel"
 
 # ponytail: "not a clinical module", not "free of domain words". core holds domain
-# types the kernel does not use (`medbrains_core::billing`, say); server-core, which
-# gives it `AppError` and `Claims`, print, workflow and db know about patients in
-# places. Splitting the technical part out is its own phase (RFC §3a, known limit).
+# types the kernel does not use (`medbrains_core::billing`, say), and the authz
+# registry names entity types. Splitting them out is its own step (RFC §3a, known limit).
 TECHNICAL = frozenset({
-    "medbrains-adapter-sdk",
-    "medbrains-api-keys",
     "medbrains-authz",
     "medbrains-core",
-    "medbrains-crypto",
     "medbrains-db",
-    "medbrains-db-topology",
-    "medbrains-outbox",
-    "medbrains-print",
-    "medbrains-server-core",
-    "medbrains-spicedb-proto",
-    "medbrains-workflow",
 })
 
 DOMAIN_WORDS = frozenset({

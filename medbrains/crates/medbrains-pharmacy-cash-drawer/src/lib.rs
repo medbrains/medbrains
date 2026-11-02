@@ -19,7 +19,9 @@ pub mod day_close;
 pub mod day_close_report;
 pub mod day_close_rules;
 
-use medbrains_kernel::{Actor, AppError, Claims, require_any_permission, require_permission};
+use medbrains_kernel::{Actor, Claims, require_any_permission, require_permission};
+
+use medbrains_server_core::error::AppError;
 use medbrains_server_core::{middleware::field_access, state::AppState};
 
 #[derive(Debug, Serialize, sqlx::FromRow)]

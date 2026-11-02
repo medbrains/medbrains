@@ -43,16 +43,7 @@ pub async fn setting_in(
     category: &str,
     key: &str,
 ) -> Result<Option<serde_json::Value>, AppError> {
-    let value = sqlx::query_scalar::<_, serde_json::Value>(
-        "SELECT value FROM tenant_settings \
-         WHERE tenant_id = $1 AND category = $2 AND key = $3 AND deleted_at IS NULL",
-    )
-    .bind(*tenant_id)
-    .bind(category)
-    .bind(key)
-    .fetch_optional(conn)
-    .await?;
-    Ok(value)
+    Ok(medbrains_kernel::config::setting_in(conn, tenant_id, category, key).await?)
 }
 
 pub async fn setting_i32(

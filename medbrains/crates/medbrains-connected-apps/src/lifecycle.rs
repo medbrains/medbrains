@@ -6,7 +6,8 @@ use axum::extract::{Path, State};
 use axum::{Extension, Json};
 use medbrains_core::permissions;
 use medbrains_kernel::authz::is_bypass_role;
-use medbrains_kernel::{Actor, AppError, Claims, require_permission};
+use medbrains_kernel::{Actor, Claims, require_permission};
+use medbrains_server_core::error::AppError;
 use medbrains_server_core::middleware::connected_app::new_client_secret;
 use medbrains_server_core::state::AppState;
 use uuid::Uuid;
@@ -40,7 +41,7 @@ pub(crate) async fn approve(
 ) -> Result<Json<serde_json::Value>, AppError> {
     require_permission(&claims, permissions::admin::connected_apps::MANAGE)?;
     let tenant = claims.tenant_id;
-    medbrains_kernel::work(&state.db, Actor::from_claims(&claims), async |tx| {
+    medbrains_kernel::work::<_, AppError, _>(&state.db, Actor::from_claims(&claims), async |tx| {
         let row = sqlx::query!(
             "SELECT status, permissions, webhook_subscription_id FROM connected_apps \
               WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL FOR UPDATE",
@@ -90,7 +91,7 @@ pub(crate) async fn revoke(
     require_permission(&claims, permissions::admin::connected_apps::MANAGE)?;
     let Json(body) = body?;
     let tenant = claims.tenant_id;
-    medbrains_kernel::work(&state.db, Actor::from_claims(&claims), async |tx| {
+    medbrains_kernel::work::<_, AppError, _>(&state.db, Actor::from_claims(&claims), async |tx| {
         // `status <> 'revoked'` in the predicate: two admins revoking at once
         // must not both report success.
         let row = sqlx::query!(
@@ -152,7 +153,7 @@ pub(crate) async fn rotate_secret(
     require_permission(&claims, permissions::admin::connected_apps::MANAGE)?;
     let secret = new_client_secret()?;
     let tenant = claims.tenant_id;
-    let client_id = medbrains_kernel::work(&state.db, Actor::from_claims(&claims), async |tx| {
+    let client_id = medbrains_kernel::work::<_, AppError, _>(&state.db, Actor::from_claims(&claims), async |tx| {
         let client_id = sqlx::query_scalar!(
             "UPDATE connected_apps SET client_secret_hash = $3, secret_prefix = $4, \
                     secret_rotated_at = now() \

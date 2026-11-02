@@ -25,10 +25,16 @@
 //! The kernel is technical only (§3a): domain concepts live in the layers above
 //! it, starting with `medbrains-health-services`.
 //! `scripts/check_kernel_no_domain.py` holds this.
+//!
+//! It is light as well as short (§3a): nothing here or below it knows about
+//! HTTP. `medbrains-server-core` sits above the kernel and maps [`KernelError`]
+//! to a response.
 
 pub mod audit;
 pub mod authz;
+mod claims;
 pub mod config;
+mod error;
 pub mod events;
 pub mod health;
 pub mod seq;
@@ -41,8 +47,8 @@ use uuid::Uuid;
 
 pub use audit::audit;
 pub use authz::{Outcome, authorize, require_any_permission, require_permission};
-pub use medbrains_server_core::error::AppError;
-pub use medbrains_server_core::middleware::auth::Claims;
+pub use claims::{ActingAgent, ActorKind, Claims};
+pub use error::KernelError;
 
 /// Who is acting, and for which tenant.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -86,7 +92,7 @@ impl Tx {
 
     /// Make the work permanent.
     #[inline]
-    pub async fn commit(self) -> Result<(), AppError> {
+    pub async fn commit(self) -> Result<(), KernelError> {
         Ok(self.inner.commit().await?)
     }
 }
@@ -112,7 +118,7 @@ impl DerefMut for Tx {
 /// Wraps `medbrains_db::pool::set_audit_context`. Dropping the [`Tx`] without
 /// [`Tx::commit`] rolls it back.
 #[inline]
-pub async fn begin(pool: &PgPool, actor: Actor) -> Result<Tx, AppError> {
+pub async fn begin(pool: &PgPool, actor: Actor) -> Result<Tx, KernelError> {
     let mut inner = pool.begin().await?;
     medbrains_db::pool::set_audit_context(&mut inner, &actor.tenant_id, &actor.user_id, None)
         .await?;
@@ -126,13 +132,17 @@ pub async fn begin(pool: &PgPool, actor: Actor) -> Result<Tx, AppError> {
 /// Run `f` as one unit of work: commit when it returns `Ok`, roll back when it
 /// returns `Err` (by dropping the transaction, so the original error is the
 /// one the caller sees).
+///
+/// Generic over the error so a caller's closure keeps its own error type: a
+/// route's `AppError`, whose `From<KernelError>` carries the kernel's failures.
 #[inline]
-pub async fn work<T, F>(pool: &PgPool, actor: Actor, f: F) -> Result<T, AppError>
+pub async fn work<T, E, F>(pool: &PgPool, actor: Actor, f: F) -> Result<T, E>
 where
-    F: AsyncFnOnce(&mut Tx) -> Result<T, AppError>,
+    E: From<KernelError>,
+    F: AsyncFnOnce(&mut Tx) -> Result<T, E>,
 {
-    let mut tx = begin(pool, actor).await?;
+    let mut tx = begin(pool, actor).await.map_err(E::from)?;
     let value = f(&mut tx).await?;
-    tx.commit().await?;
+    tx.commit().await.map_err(E::from)?;
     Ok(value)
 }

@@ -7,7 +7,8 @@ use axum::routing::{get, post};
 use axum::{Extension, Json, Router};
 use chrono::{DateTime, Utc};
 use medbrains_core::permissions::security::{incidents, intel};
-use medbrains_kernel::{Actor, AppError, Claims, require_permission};
+use medbrains_kernel::{Actor, Claims, require_permission};
+use medbrains_server_core::error::AppError;
 use medbrains_server_core::state::AppState;
 use serde::Serialize;
 use serde_json::Value;
@@ -59,9 +60,11 @@ pub async fn list_checks(
 ) -> Result<Json<Vec<CheckStatus>>, AppError> {
     require_permission(&claims, intel::VIEW)?;
     let tenant = claims.tenant_id;
-    let mut latest = medbrains_kernel::work(&state.db, Actor::from_claims(&claims), async |tx| {
-        Ok(latest_runs(&mut **tx, tenant).await?)
-    })
+    let mut latest = medbrains_kernel::work::<_, AppError, _>(
+        &state.db,
+        Actor::from_claims(&claims),
+        async |tx| Ok(latest_runs(&mut **tx, tenant).await?),
+    )
     .await?;
     Ok(Json(
         CHECKS
@@ -83,16 +86,20 @@ pub async fn get_posture(
 ) -> Result<Json<Option<PostureReport>>, AppError> {
     require_permission(&claims, intel::VIEW)?;
     let tenant = claims.tenant_id;
-    let report = medbrains_kernel::work(&state.db, Actor::from_claims(&claims), async |tx| {
-        Ok(sqlx::query_as::<_, PostureReport>(
-            "SELECT started_at, finished_at, outcome, error, detail FROM security_check_runs \
+    let report = medbrains_kernel::work::<_, AppError, _>(
+        &state.db,
+        Actor::from_claims(&claims),
+        async |tx| {
+            Ok(sqlx::query_as::<_, PostureReport>(
+                "SELECT started_at, finished_at, outcome, error, detail FROM security_check_runs \
               WHERE tenant_id = $1 AND check_key = $2 ORDER BY started_at DESC LIMIT 1",
-        )
-        .bind(tenant)
-        .bind(POSTURE)
-        .fetch_optional(&mut **tx)
-        .await?)
-    })
+            )
+            .bind(tenant)
+            .bind(POSTURE)
+            .fetch_optional(&mut **tx)
+            .await?)
+        },
+    )
     .await?;
     Ok(Json(report))
 }
@@ -107,7 +114,7 @@ pub async fn open_incident(
     require_permission(&claims, intel::MANAGE)?;
     require_permission(&claims, incidents::CREATE)?;
     let (tenant, user) = (claims.tenant_id, claims.sub);
-    let opened = medbrains_kernel::work(&state.db, Actor::from_claims(&claims), async |tx| {
+    let opened = medbrains_kernel::work::<_, AppError, _>(&state.db, Actor::from_claims(&claims), async |tx| {
         let finding = sqlx::query_as::<_, (String, String, String, Option<String>, Option<Uuid>)>(
             "SELECT title, severity, affected_component, how_to_fix, incident_id FROM vulnerabilities \
               WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL FOR UPDATE",

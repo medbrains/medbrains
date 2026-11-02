@@ -25,7 +25,8 @@ use axum::{Extension, Json, Router};
 use chrono::{DateTime, Utc};
 use medbrains_core::permissions;
 use medbrains_kernel::audit::AuditEntry;
-use medbrains_kernel::{Actor, AppError, Claims, Tx, audit, require_permission};
+use medbrains_kernel::{Actor, Claims, Tx, audit, require_permission};
+use medbrains_server_core::error::AppError;
 use medbrains_server_core::middleware::connected_app::{new_client_id, new_client_secret};
 use medbrains_server_core::state::AppState;
 use serde::{Deserialize, Serialize};
@@ -111,7 +112,7 @@ async fn record(
     values: &serde_json::Value,
 ) -> Result<(), AppError> {
     let actor = tx.actor();
-    audit(
+    Ok(audit(
         tx,
         &AuditEntry {
             tenant_id: actor.tenant_id,
@@ -124,7 +125,7 @@ async fn record(
             ip_address: None,
         },
     )
-    .await
+    .await?)
 }
 
 async fn list(
@@ -133,7 +134,7 @@ async fn list(
 ) -> Result<Json<Vec<AppSummary>>, AppError> {
     require_permission(&claims, permissions::admin::connected_apps::VIEW)?;
     let tenant = claims.tenant_id;
-    medbrains_kernel::work(&state.db, Actor::from_claims(&claims), async |tx| {
+    medbrains_kernel::work::<_, AppError, _>(&state.db, Actor::from_claims(&claims), async |tx| {
         // The secret hash is never selected: a console has no use for it.
         let rows = sqlx::query_as!(
             AppSummary,
@@ -200,7 +201,7 @@ async fn register(
     let tenant = claims.tenant_id;
     let admin = claims.sub;
 
-    medbrains_kernel::work(&state.db, Actor::from_claims(&claims), async |tx| {
+    medbrains_kernel::work::<_, AppError, _>(&state.db, Actor::from_claims(&claims), async |tx| {
         let service_user: Uuid = sqlx::query_scalar!(
             "INSERT INTO users (tenant_id, username, email, full_name, role, is_service_account, \
              is_active, email_verified) \
@@ -276,7 +277,7 @@ async fn deliveries(
 ) -> Result<Json<Vec<Delivery>>, AppError> {
     require_permission(&claims, permissions::admin::connected_apps::VIEW)?;
     let tenant = claims.tenant_id;
-    medbrains_kernel::work(&state.db, Actor::from_claims(&claims), async |tx| {
+    medbrains_kernel::work::<_, AppError, _>(&state.db, Actor::from_claims(&claims), async |tx| {
         let rows = sqlx::query_as!(
             Delivery,
             "SELECT d.id, d.event_type, d.attempt, d.status, d.response_status, d.error, d.created_at \

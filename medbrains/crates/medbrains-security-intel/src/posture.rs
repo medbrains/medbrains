@@ -94,13 +94,17 @@ impl Check for Posture {
             tenant_id: tenant,
             user_id: Uuid::nil(),
         };
-        let tenant_items = medbrains_kernel::work(&ctx.worker, actor, async |tx| {
-            Ok(vec![
-                default_admin(tx, tenant).await?,
-                mfa_coverage(tx, tenant).await?,
-                restore_test(tx, tenant).await?,
-            ])
-        })
+        let tenant_items = medbrains_kernel::work::<_, medbrains_server_core::error::AppError, _>(
+            &ctx.worker,
+            actor,
+            async |tx| {
+                Ok(vec![
+                    default_admin(tx, tenant).await?,
+                    mfa_coverage(tx, tenant).await?,
+                    restore_test(tx, tenant).await?,
+                ])
+            },
+        )
         .await?;
         items.extend(tenant_items);
         Ok(report(&items))
@@ -216,7 +220,7 @@ fn boot_settings() -> Vec<Item> {
         .collect()
 }
 
-type TxResult<T> = Result<T, medbrains_kernel::AppError>;
+type TxResult<T> = Result<T, medbrains_server_core::error::AppError>;
 
 async fn default_admin(tx: &mut medbrains_kernel::Tx, tenant: Uuid) -> TxResult<Item> {
     const LABEL: &str = "Default administrator password removed";

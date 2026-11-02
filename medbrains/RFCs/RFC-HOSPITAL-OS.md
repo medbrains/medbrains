@@ -185,23 +185,46 @@ that is what this section says it is. It records `partial 1 medbrains-authz-gate
 until the patient gate's logic moves up into it, and can only improve. A crate reaching the kernel
 through it (`medbrains-patients`) still counts as on the kernel.
 
-**Known limit:** the allowlist means "not a clinical module", not "free of domain words". Several
-of its crates still know about patients: `medbrains-core` holds domain types the kernel does not use
-(`medbrains_core::billing`, say), and `server-core`, `print`, `workflow` and `db` have domain
-knowledge in places. The kernel takes `AppError` and `Claims` from `server-core`, so this cannot
+**Known limit:** the allowlist means "not a clinical module", not "free of domain words". Its crates
+still know about patients in places: `medbrains-core` holds domain types the kernel does not use
+(`medbrains_core::billing`, say), and the `medbrains-authz` registry names entity types. This cannot
 go away without splitting out their technical part, which is separate work.
+
+### Light as well as short (K3b, 2026-11-02)
+The kernel could pull in 509 of 1,320 packages with 356 code lines. Measured by walking `Cargo.lock`,
+the edges were `server-core` (496 alone: axum, the AWS SDK, reqwest, lettre, openssl) and `workflow`
+(mlua), then `authz` (tonic, hyper, h2, prost; 45 more packages than `db`). So:
+
+- **The kernel is now below `server-core`.** It owns `Claims`, `KernelError`, the permission checks,
+  `outcome_of`, the setting query and the before-event gate. `server-core` maps `KernelError` to
+  `AppError` one to one, and a test pins that every status and body is byte-identical.
+- **Apps take `AppError` from `server-core`.** It is an HTTP type, so the kernel cannot offer it.
+  `kernel::work` is generic over the error, so an app's closure keeps `AppError`.
+- **SpiceDB moved to `medbrains-authz-spicedb`,** because it was the only part of the authorisation
+  engine that needs gRPC. A Cargo feature would not have helped: the lock records optional packages.
+- **Admin → Kernel reads `boundary.txt` through `medbrains-admin`,** which embeds it, and the kernel's
+  build script is gone. The kernel is now under about 100 crates, and a baseline edit must not rebuild them.
+
+Where it stopped, and what is left: the closure is 272 by `Cargo.lock` (163 by `cargo tree -e normal`,
+which knows the features and platforms), against 229 for the kernel's third-party dependencies alone.
+The other 43 are four MedBrains crates (the kernel, `authz`, `core`, `db`) and what they bring: crypto,
+which §3a allows, plus `regex` and `flate2`. Taking those out means splitting `medbrains-core`, a
+46,000-line crate of domain types with most of the workspace above it. That gains at most 40 packages
+for a change far larger than this one, so it waits. It would also shorten the kernel's compile, since
+those 46,000 lines still compile under it. The 229 is the SQL driver with the features the workspace
+enables, TLS included, and §3a allows it.
 
 ### Small by design, with budgets the build enforces
 Numbers measured 2026-11-02 and enforced by `scripts/check_size_budgets.py` (baseline `scripts/size_budgets.json`) unless the row says otherwise.
 
 | Budget | Target | Today |
 |---|---|---|
-| Kernel code | ≤ 2,000 lines, no domain dependencies | 356 code lines without comments, blanks and tests (624 raw); hard limit enforced |
-| Kernel dependencies | only std, async runtime, SQL driver, crypto, serde | **Target not met:** 10 direct on an enforced allowlist, including 5 MedBrains crates (`server-core`, `core`, `db`, `authz`, `workflow`); these pull in up to 509 of the 1,320 packages (upper bound from `Cargo.lock`, one-off audit, not enforced) |
+| Kernel code | ≤ 2,000 lines, no domain dependencies | 873 code lines without comments, blanks and tests; it took in the code that made it heavy (K3b); hard limit enforced |
+| Kernel dependencies | only std, async runtime, SQL driver, crypto, serde | **Close, not met:** 10 direct on an enforced allowlist, including 3 MedBrains crates (`core`, `db`, `authz`). Closure 272 of 1,321 packages (upper bound from `Cargo.lock`, ratchet enforced; 163 by `cargo tree -e normal`, was 509 and 376). No web framework, AWS SDK or gRPC. `medbrains-core` is what remains, see K3b above |
 | Clinic build (server binary for a Pi) | only the modules a clinic needs, compiled in by profile | one binary with all 150 modules |
 | Release binary size | published per profile; must not grow without a reason | not measured: compile profiles arrive with SM2, so there is nothing per profile to measure yet |
-| Workspace dependencies | ratchet down from 1,319 packages | 1,320, ratchet enforced |
-| Workspace crates | ratchet down | 161, ratchet enforced |
+| Workspace dependencies | ratchet down from 1,319 packages | 1,321, ratchet enforced |
+| Workspace crates | ratchet down | 162, ratchet enforced |
 | OS image | Debian minimal + PostgreSQL + one binary + static web; target ≤ 1 GB | not built |
 | Idle memory (clinic profile, Pi 5) | published; target ≤ 512 MB for the whole appliance | not measured: needs the SM2 clinic profile running on a Pi 5; not enforced |
 | Web app first load | budgeted per screen | 1,060,297 bytes gzip for the JS `index.html` loads up front, one entry rather than per screen; ceiling 10% above it, checked after the CI web build |
@@ -219,7 +242,7 @@ Numbers measured 2026-11-02 and enforced by `scripts/check_size_budgets.py` (bas
 4. **Nothing optional on by default:** imaging (Orthanc), SpiceDB, PDF engine, mail server all
    optional in the clinic profile (RFC §8a).
 
-Phases: **K3a** move patient/consent out of the kernel + the no-domain CI rule (done); **SM1** size budgets
+Phases: **K3a** move patient/consent out of the kernel + the no-domain CI rule (done); **K3b** cut the kernel's dependency closure, ratchet it (done); **SM1** size budgets
 measured and enforced in CI (kernel lines, kernel dependencies, package and crate counts, web first load; binary size per profile waits for SM2); **SM2** compile
 profiles (`clinic` first) with the Pi image; **SM3** dependency diet ratchet.
 
@@ -899,7 +922,7 @@ Published with every release. Targets below that have no figure yet get one when
 
 | Axis | What we measure | Today (2026-11-02) | Honest gap |
 |---|---|---|---|
-| **Small** | kernel lines, kernel dependency closure, packages, image size, idle memory, install time | kernel 356 code lines; closure up to 509 of 1,320 packages; 161 crates; image and memory not yet published | The kernel is short but sits on a large closure, because it depends on `medbrains-server-core`. It is not yet small in the way that counts |
+| **Small** | kernel lines, kernel dependency closure, packages, image size, idle memory, install time | kernel 873 code lines; closure 272 of 1,321 packages (163 resolved); 162 crates; image and memory not yet published | The kernel no longer sits on the web stack (K3b, §3a). The workspace is still large, and nothing about the running system is published yet |
 | **Fast** | §8i budgets, on x86 and a Pi 5 | transaction setup fixed from 15.7 ms to about 0.1 ms; harness (S1) not built | No published numbers, and no comparison |
 | **Secure** | open advisories, boot-to-login verified chain, external penetration test, patch time against `SECURITY-RELEASE-PROCESS.md` | RLS, three-outcome authorisation and audit exist; CI shows open dependency advisories; verified boot planned; no external test | Advisories first, then an independent test. Our own opinion of our security proves nothing |
 | **Network** | below | nothing measured | This section is the plan |

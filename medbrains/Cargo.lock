@@ -6006,16 +6006,11 @@ dependencies = [
  "anyhow",
  "async-trait",
  "chrono",
- "medbrains-spicedb-proto",
- "prost",
- "prost-types",
  "serde",
  "serde_json",
- "sha2 0.11.1",
  "sqlx",
  "thiserror 2.0.21",
  "tokio",
- "tonic",
  "tracing",
  "uuid",
 ]
@@ -6029,6 +6024,26 @@ dependencies = [
  "medbrains-db",
  "medbrains-server-core",
  "sqlx",
+ "tracing",
+ "uuid",
+]
+
+[[package]]
+name = "medbrains-authz-spicedb"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "chrono",
+ "medbrains-authz",
+ "medbrains-spicedb-proto",
+ "prost",
+ "prost-types",
+ "serde_json",
+ "sha2 0.11.1",
+ "sqlx",
+ "tokio",
+ "tonic",
  "tracing",
  "uuid",
 ]
@@ -7232,12 +7247,12 @@ dependencies = [
  "medbrains-authz",
  "medbrains-core",
  "medbrains-db",
- "medbrains-server-core",
- "medbrains-workflow",
  "serde",
  "serde_json",
  "sqlx",
+ "thiserror 2.0.21",
  "tokio",
+ "tracing",
  "uuid",
 ]
 
@@ -8319,6 +8334,7 @@ dependencies = [
  "medbrains-auth",
  "medbrains-authz",
  "medbrains-authz-gate",
+ "medbrains-authz-spicedb",
  "medbrains-billing",
  "medbrains-blood-bank",
  "medbrains-bme",
@@ -8491,6 +8507,7 @@ dependencies = [
  "medbrains-crypto",
  "medbrains-db",
  "medbrains-db-topology",
+ "medbrains-kernel",
  "medbrains-outbox",
  "medbrains-print",
  "regex",
@@ -8875,6 +8892,7 @@ dependencies = [
  "hex",
  "medbrains-core",
  "medbrains-db",
+ "medbrains-kernel",
  "medbrains-outbox",
  "medbrains-server-core",
  "mlua",

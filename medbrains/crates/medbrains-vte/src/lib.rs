@@ -13,7 +13,8 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use medbrains_health_services::patient::require_patient_access;
-use medbrains_kernel::{Actor, AppError, Claims, require_permission};
+use medbrains_kernel::{Actor, Claims, require_permission};
+use medbrains_server_core::error::AppError;
 use medbrains_server_core::state::AppState;
 
 #[derive(Debug, Serialize, sqlx::FromRow)]

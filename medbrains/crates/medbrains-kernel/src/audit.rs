@@ -9,7 +9,7 @@ use chrono::{DateTime, Utc};
 use serde::Serialize;
 use uuid::Uuid;
 
-use crate::{AppError, Tx};
+use crate::{KernelError, Tx};
 
 pub use medbrains_db::audit::AuditEntry;
 
@@ -18,10 +18,10 @@ pub use medbrains_db::audit::AuditEntry;
 /// The tenant and actor come from the [`Tx`], not the entry: an entry naming
 /// another tenant or another person is refused rather than written.
 #[inline]
-pub async fn audit(tx: &mut Tx, entry: &AuditEntry<'_>) -> Result<(), AppError> {
+pub async fn audit(tx: &mut Tx, entry: &AuditEntry<'_>) -> Result<(), KernelError> {
     let actor = tx.actor();
     if entry.tenant_id != actor.tenant_id || entry.user_id.is_some_and(|u| u != actor.user_id) {
-        return Err(AppError::Forbidden);
+        return Err(KernelError::Forbidden);
     }
     Ok(medbrains_db::audit::AuditLogger::log(tx.transaction(), entry).await?)
 }
@@ -37,7 +37,7 @@ pub struct ChainVerdict {
 
 /// Read the last verdict the nightly job wrote; `None` when the chain has
 /// never been verified.
-pub async fn last_verification(tx: &mut Tx) -> Result<Option<ChainVerdict>, AppError> {
+pub async fn last_verification(tx: &mut Tx) -> Result<Option<ChainVerdict>, KernelError> {
     let tenant_id = tx.actor().tenant_id;
     let row = sqlx::query_as::<_, ChainVerdict>(
         "SELECT completed_at, valid, rows_checked, broken_at \
@@ -58,6 +58,6 @@ pub async fn verify_since(
     pool: &sqlx::PgPool,
     tenant_id: Uuid,
     since: DateTime<Utc>,
-) -> Result<medbrains_db::audit::ChainVerificationResult, AppError> {
+) -> Result<medbrains_db::audit::ChainVerificationResult, KernelError> {
     Ok(medbrains_db::audit::AuditLogger::verify_chain_since(pool, tenant_id, Some(since)).await?)
 }

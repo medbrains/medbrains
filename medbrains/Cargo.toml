@@ -35,6 +35,7 @@ members = [
     "crates/medbrains-print",
     "crates/medbrains-proxy",
     "crates/medbrains-authz",
+    "crates/medbrains-authz-spicedb",
     "crates/medbrains-crypto",
     "crates/medbrains-fhir",
     "crates/medbrains-outbox",

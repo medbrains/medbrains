@@ -25,7 +25,7 @@ use tonic::{
 };
 use uuid::Uuid;
 
-use crate::{
+use medbrains_authz::{
     AuthzBackend, AuthzContext, AuthzError, RelationTuple, Subject, TupleSource, TupleStatus,
     relations::Relation,
 };

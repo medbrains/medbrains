@@ -9,6 +9,7 @@
 # Security-sensitive: authn/authz, permissions, tenancy, audit, crypto.
 /medbrains/crates/medbrains-auth/                       @DomnicAmalan
 /medbrains/crates/medbrains-authz/                      @DomnicAmalan
+/medbrains/crates/medbrains-authz-spicedb/              @DomnicAmalan
 /medbrains/crates/medbrains-authz-gate/                 @DomnicAmalan
 /medbrains/crates/medbrains-mfa/                        @DomnicAmalan
 /medbrains/crates/medbrains-crypto/                     @DomnicAmalan

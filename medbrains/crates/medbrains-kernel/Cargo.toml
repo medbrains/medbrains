@@ -8,17 +8,18 @@ rust-version.workspace = true
 license-file.workspace = true
 
 # Kernel building blocks. Everything the kernel wraps lives in these crates;
-# build.rs reads this list to tell apps from building blocks on the Kernel page.
+# scripts/check_kernel_boundary.py reads this list to tell apps from building blocks.
+# No web framework, here or below: scripts/check_size_budgets.py ratchets the closure.
 [dependencies]
 medbrains-authz = { path = "../medbrains-authz" }
 medbrains-core = { path = "../medbrains-core" }
 medbrains-db = { path = "../medbrains-db" }
-medbrains-server-core = { path = "../medbrains-server-core" }
-medbrains-workflow = { path = "../medbrains-workflow" }
 chrono = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 sqlx = { workspace = true }
+thiserror = { workspace = true }
+tracing = { workspace = true }
 uuid = { workspace = true }
 
 [dev-dependencies]

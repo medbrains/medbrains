@@ -10,7 +10,8 @@ use std::collections::HashMap;
 use std::time::Duration;
 
 use chrono::{DateTime, Utc};
-use medbrains_kernel::{Actor, AppError};
+use medbrains_kernel::Actor;
+use medbrains_server_core::error::AppError;
 use sqlx::PgPool;
 use uuid::Uuid;
 
@@ -193,7 +194,7 @@ pub async fn record(
     started: DateTime<Utc>,
     result: &Result<Report, CheckError>,
 ) -> Result<(), AppError> {
-    medbrains_kernel::work(pool, system(tenant), async |tx| {
+    medbrains_kernel::work::<_, AppError, _>(pool, system(tenant), async |tx| {
         let (outcome, count, detail, error) = match result {
             Err(e) => ("error", 0, serde_json::json!({}), Some(e.0.as_str())),
             Ok(report) => {

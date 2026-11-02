@@ -8,16 +8,18 @@
 use medbrains_core::object_store::ObjectStore;
 use uuid::Uuid;
 
-use crate::{AppError, Tx};
+use crate::{KernelError, Tx};
 
 /// The stored key for `key` under `tenant_id`. Refuses keys that could climb
 /// out of the prefix.
-fn tenant_key(tenant_id: Uuid, key: &str) -> Result<String, AppError> {
+fn tenant_key(tenant_id: Uuid, key: &str) -> Result<String, KernelError> {
     let climbs = key
         .split('/')
         .any(|part| part.is_empty() || part == "." || part == "..");
     if climbs || key.contains('\\') {
-        return Err(AppError::BadRequest(format!("invalid object key '{key}'")));
+        return Err(KernelError::BadRequest(format!(
+            "invalid object key '{key}'"
+        )));
     }
     Ok(format!("{tenant_id}/{key}"))
 }
@@ -29,12 +31,12 @@ pub async fn put<S: ObjectStore + ?Sized>(
     tx: &Tx,
     key: &str,
     bytes: Vec<u8>,
-) -> Result<(), AppError> {
+) -> Result<(), KernelError> {
     let full = tenant_key(tx.actor().tenant_id, key)?;
     store
         .put(&full, bytes, None)
         .await
-        .map_err(|e| AppError::Internal(e.to_string()))
+        .map_err(|e| KernelError::Internal(e.to_string()))
 }
 
 /// Read the object at `key` for this tenant.
@@ -43,11 +45,11 @@ pub async fn get<S: ObjectStore + ?Sized>(
     store: &S,
     tx: &Tx,
     key: &str,
-) -> Result<Vec<u8>, AppError> {
+) -> Result<Vec<u8>, KernelError> {
     let full = tenant_key(tx.actor().tenant_id, key)?;
     store.get(&full).await.map_err(|e| match e {
-        medbrains_core::object_store::ObjectStoreError::NotFound(_) => AppError::NotFound,
-        other => AppError::Internal(other.to_string()),
+        medbrains_core::object_store::ObjectStoreError::NotFound(_) => KernelError::NotFound,
+        other => KernelError::Internal(other.to_string()),
     })
 }
 

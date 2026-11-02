@@ -16,7 +16,8 @@ use axum::routing::post;
 use axum::{Form, Json, Router};
 use base64::Engine as _;
 use chrono::{Duration, Utc};
-use medbrains_kernel::{Actor, AppError};
+use medbrains_kernel::Actor;
+use medbrains_server_core::error::AppError;
 use medbrains_server_core::middleware::connected_app::{AppCredential, Exchange, exchange};
 use medbrains_server_core::middleware::rate_limit::{RateLimiter, rate_limit_middleware};
 use medbrains_server_core::state::AppState;
@@ -197,7 +198,7 @@ async fn mint(
     };
     let key_id = Uuid::new_v4();
     let expires_at = Utc::now() + Duration::minutes(TOKEN_MINUTES);
-    let issued = medbrains_kernel::work(&state.db, actor, async |tx| {
+    let issued = medbrains_kernel::work::<_, AppError, _>(&state.db, actor, async |tx| {
         // Their usage rows go with them (ON DELETE CASCADE).
         sqlx::query!(
             "DELETE FROM api_keys WHERE connected_app_id = $1 AND tenant_id = $2 \
@@ -249,7 +250,7 @@ mod tests {
     use axum::http::{HeaderMap, HeaderValue, StatusCode, header};
 
     use super::{TokenRequest, client_credentials, fault, narrow};
-    use medbrains_kernel::AppError;
+    use medbrains_server_core::error::AppError;
 
     fn form(id: Option<&str>, secret: Option<&str>) -> TokenRequest {
         TokenRequest {

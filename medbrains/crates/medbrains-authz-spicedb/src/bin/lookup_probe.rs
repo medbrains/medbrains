@@ -1,12 +1,12 @@
 //! Diagnostic probe — call `list_accessible` directly against `SpiceDB`.
 //!
-//! Usage: cargo run -p medbrains-authz --bin lookup-probe -- <`user_uuid`>
+//! Usage: cargo run -p medbrains-authz-spicedb --bin lookup-probe -- <`user_uuid`>
 
 // CLI binary — println is the user-facing UI.
 #![allow(clippy::print_stdout)]
 
-use medbrains_authz::backend_spicedb::SpiceDbBackend;
 use medbrains_authz::{AuthzBackend, AuthzContext, relations::Relation};
+use medbrains_authz_spicedb::backend_spicedb::SpiceDbBackend;
 use uuid::Uuid;
 
 #[tokio::main(flavor = "current_thread")]

@@ -5,7 +5,8 @@ use axum::extract::State;
 use axum::{Extension, Json};
 use chrono::{DateTime, Utc};
 use medbrains_core::permissions;
-use medbrains_kernel::{Actor, AppError, Claims, Tx, require_permission};
+use medbrains_kernel::{Actor, Claims, Tx, require_permission};
+use medbrains_server_core::error::AppError;
 use medbrains_server_core::state::AppState;
 use serde::Serialize;
 use uuid::Uuid;
@@ -212,7 +213,7 @@ pub async fn get_health_intel(
     Extension(claims): Extension<Claims>,
 ) -> Result<Json<HealthIntel>, AppError> {
     require_permission(&claims, permissions::health::intel::VIEW)?;
-    medbrains_kernel::work(&state.db, Actor::from_claims(&claims), async |tx| {
+    medbrains_kernel::work::<_, AppError, _>(&state.db, Actor::from_claims(&claims), async |tx| {
         let rows = sqlx::query_as::<_, SignalRow>(
             "SELECT condition, this_week, usual::float8 AS usual, method, level, series \
                FROM health_intel_condition_signals WHERE tenant_id = $1 \
@@ -249,7 +250,7 @@ pub async fn get_health_environment(
     Extension(claims): Extension<Claims>,
 ) -> Result<Json<EnvironmentView>, AppError> {
     require_permission(&claims, permissions::health::intel::VIEW)?;
-    medbrains_kernel::work(&state.db, Actor::from_claims(&claims), async |tx| {
+    medbrains_kernel::work::<_, AppError, _>(&state.db, Actor::from_claims(&claims), async |tx| {
         read_environment(tx).await.map(Json)
     })
     .await

@@ -7,21 +7,20 @@
 //!
 //! Design choice: Postgres-native, NOT `SpiceDB` or `OpenFGA`. See RFC-INFRA-2026-002 §A.
 //!
-//! Trait `AuthzBackend` keeps the swap path open if scale ever demands it.
+//! Trait `AuthzBackend` keeps the swap path open if scale ever demands it. The
+//! `SpiceDB` backend lives in `medbrains-authz-spicedb`, so a crate that only asks
+//! questions does not compile a gRPC stack.
 
-pub mod backend_durable_spicedb;
 pub mod backend_pg;
 pub mod classification;
 pub mod context;
 pub mod decision;
 pub mod field_class;
-pub mod backend_spicedb;
 pub mod backend_test;
 pub mod caveat;
 pub mod error;
 pub mod registry;
 pub mod relations;
-pub mod watch;
 
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};

@@ -67,7 +67,11 @@ impl Check for Honeytokens {
             tenant_id: tenant,
             user_id: Uuid::nil(),
         };
-        let (patients, findings) = medbrains_kernel::work(&ctx.worker, actor, async |tx| {
+        let (patients, findings) = medbrains_kernel::work::<
+            _,
+            medbrains_server_core::error::AppError,
+            _,
+        >(&ctx.worker, actor, async |tx| {
             retire_removed(tx, tenant).await?;
             let patients = top_up_patients(tx, tenant).await?;
             ensure_key(tx, tenant).await?;
@@ -87,7 +91,7 @@ impl Check for Honeytokens {
 async fn retire_removed(
     tx: &mut medbrains_kernel::Tx,
     tenant: Uuid,
-) -> Result<(), medbrains_kernel::AppError> {
+) -> Result<(), medbrains_server_core::error::AppError> {
     let removed: Vec<String> = sqlx::query_scalar(
         "UPDATE security_honeytokens h SET deleted_at = now(), delete_reason = 'decoy patient removed' \
           WHERE h.tenant_id = $1 AND h.kind = 'patient' AND h.deleted_at IS NULL \
@@ -112,9 +116,10 @@ async fn retire_removed(
     Ok(())
 }
 
-fn random_hex(bytes: usize) -> Result<String, medbrains_kernel::AppError> {
+fn random_hex(bytes: usize) -> Result<String, medbrains_server_core::error::AppError> {
     let mut buf = vec![0_u8; bytes];
-    getrandom::fill(&mut buf).map_err(|e| medbrains_kernel::AppError::Internal(e.to_string()))?;
+    getrandom::fill(&mut buf)
+        .map_err(|e| medbrains_server_core::error::AppError::Internal(e.to_string()))?;
     Ok(buf
         .iter()
         .fold(String::with_capacity(bytes * 2), |mut out, b| {
@@ -129,7 +134,7 @@ fn random_hex(bytes: usize) -> Result<String, medbrains_kernel::AppError> {
 async fn decoy_uhid(
     tx: &mut medbrains_kernel::Tx,
     tenant: Uuid,
-) -> Result<String, medbrains_kernel::AppError> {
+) -> Result<String, medbrains_server_core::error::AppError> {
     let next = sqlx::query_scalar::<_, String>(
         "UPDATE sequences SET current_val = current_val + 1 \
           WHERE tenant_id = $1 AND seq_type = 'UHID' \
@@ -147,7 +152,7 @@ async fn decoy_uhid(
 async fn top_up_patients(
     tx: &mut medbrains_kernel::Tx,
     tenant: Uuid,
-) -> Result<i64, medbrains_kernel::AppError> {
+) -> Result<i64, medbrains_server_core::error::AppError> {
     let have: i64 = sqlx::query_scalar(
         "SELECT count(*) FROM security_honeytokens \
           WHERE tenant_id = $1 AND kind = 'patient' AND deleted_at IS NULL",
@@ -189,7 +194,7 @@ async fn top_up_patients(
 async fn ensure_key(
     tx: &mut medbrains_kernel::Tx,
     tenant: Uuid,
-) -> Result<(), medbrains_kernel::AppError> {
+) -> Result<(), medbrains_server_core::error::AppError> {
     let paired: bool = sqlx::query_scalar(
         "SELECT EXISTS (SELECT 1 FROM security_honeytokens WHERE tenant_id = $1 AND kind = 'api_key' \
                           AND deleted_at IS NULL) \
@@ -208,7 +213,7 @@ async fn ensure_key(
         medbrains_api_keys::Environment::Live,
         &["patients.list".to_owned()],
     )
-    .map_err(|e| medbrains_kernel::AppError::Internal(e.to_string()))?;
+    .map_err(|e| medbrains_server_core::error::AppError::Internal(e.to_string()))?;
     sqlx::query(
         "UPDATE security_honeytokens SET deleted_at = now(), delete_reason = 'bait replaced' \
           WHERE tenant_id = $1 AND kind = 'api_key' AND deleted_at IS NULL",
@@ -241,7 +246,7 @@ async fn ensure_key(
 /// The alarm and the hiding policy are database objects someone could drop.
 async fn alarm_integrity(
     tx: &mut medbrains_kernel::Tx,
-) -> Result<Vec<Found>, medbrains_kernel::AppError> {
+) -> Result<Vec<Found>, medbrains_server_core::error::AppError> {
     let (trigger, policy): (bool, bool) = sqlx::query_as(
         "SELECT EXISTS (SELECT 1 FROM pg_trigger WHERE tgname = 'trg_access_log_honeytoken' \
                           AND tgenabled <> 'D'), \

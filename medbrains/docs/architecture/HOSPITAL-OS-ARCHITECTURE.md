@@ -80,7 +80,7 @@ flowchart TB
 
 ## 2. The kernel
 
-Crate: `crates/medbrains-kernel` (356 code lines; budget ≤ 2,000). **[today: K1, K2, K3a]**
+Crate: `crates/medbrains-kernel` (873 code lines, budget ≤ 2,000; 272 packages under it by `Cargo.lock`, ratcheted, and no web framework). `medbrains-server-core` sits above it and maps its errors to HTTP. **[today: K1, K2, K3a, K3b]**
 
 | Module | Purpose | Interface |
 |---|---|---|
@@ -259,7 +259,7 @@ secure — measured, not claimed. See `docs/OS-PRINCIPLES.md`.
 
 ## 11. What exists vs what's next
 
-**Today:** kernel K1/K2 (11/150 modules), technical only since K3a, SOP flows + switchboard + track builder, knowledge change
+**Today:** kernel K1/K2 (11/150 modules), technical only since K3a and off the web stack since K3b, SOP flows + switchboard + track builder, knowledge change
 sets, security intelligence P1, health intelligence P1, connected apps (C1), extension protocol +
 SDKs + CLI (E1), provenance markers, release pipeline, CI security scans.
 

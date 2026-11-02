@@ -13,7 +13,9 @@ use rust_decimal::Decimal;
 use serde::Deserialize;
 use uuid::Uuid;
 
-use medbrains_kernel::{Actor, AppError, Claims, require_permission};
+use medbrains_kernel::{Actor, Claims, require_permission};
+
+use medbrains_server_core::error::AppError;
 use medbrains_server_core::state::AppState;
 
 // Statutory defaults (India). PF 12% of basic capped at ₹1800 (₹15k ceiling); ESI 0.75%
