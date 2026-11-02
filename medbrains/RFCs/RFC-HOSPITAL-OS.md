@@ -45,6 +45,14 @@ the first step (D1), not the design. Proposed path, to be measured on small node
 each app is a signed package with a manifest, in its own origin and sandbox; **later, if real need appears**, a full
 Wayland compositor with native apps in sandboxes. All apps still reach data only through the core's permissions.
 
+**Hospitals build their own apps, and the kernel handles them like any other.** Any app, whether ours, a vendor's or
+one the hospital wrote, gets the same treatment, so the kernel has no favourites: an identity, an install and approval
+step, granted permissions, a sandbox and resource limits, audit of what it did, events, storage, and clean removal.
+This stays technical, so it does not break the no-domain rule. A hospital's private app is signed with the hospital's
+own key and needs no review or store listing from MedBrains. Today only the connected-apps part exists (C1); install,
+home-screen entry, sandbox and limits are not built. The hospital owns the clinical and regulatory responsibility for
+what its own app does.
+
 **PACS is the proof.** Imaging is a hospital's heaviest load in storage and network. If PACS runs fast and safely
 on cheap disks and ordinary machines, the claim holds for everything else. Today `medbrains-radiology` drives
 Orthanc as a separate service. Evaluate whether a Rust DICOM store with tiered storage should replace it, measured
