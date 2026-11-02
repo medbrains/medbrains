@@ -269,9 +269,27 @@ jobs:
             medbrains/target
           key: ${{ runner.os }}-cargo-test-${{ hashFiles('medbrains/**/Cargo.toml') }}
 
-      # Non-blocking until it has been seen to pass on a runner: several suites
-      # want a database, and which ones has not been established here.
+      # Non-blocking until it has been seen to pass on a runner.
       # medbrains-printing links against CUPS.
-      - run: sudo apt-get update && sudo apt-get install -y libcups2-dev
+      # The integration suite needs PostgreSQL. It runs directly on the runner, because
+      # the OS rule is no Docker. These credentials exist only on this throwaway machine.
+      - name: System packages and PostgreSQL
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libcups2-dev postgresql-common
+          # The migrations need 17 (`transaction_timeout`), and the runner's default is older.
+          sudo /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh -y
+          sudo systemctl stop postgresql
+          for cluster in $(pg_lsclusters -h | awk '{print $1"/"$2}'); do
+            sudo pg_dropcluster --stop "${cluster%/*}" "${cluster#*/}"
+          done
+          sudo apt-get install -y postgresql-17
+          pg_lsclusters -h | grep -q '^17 ' || sudo pg_createcluster 17 main
+          sudo pg_ctlcluster 17 main start
+          pg_lsclusters
+          sudo -u postgres psql -c "CREATE ROLE medbrains SUPERUSER LOGIN PASSWORD 'ci_only'"
+          sudo -u postgres createdb -O medbrains medbrains
       # Report every failing test, not just the first binary's.
       - run: cargo test --workspace --exclude medbrains-desktop --no-fail-fast
+        env:
+          DATABASE_URL: postgres://medbrains:ci_only@localhost:5432/medbrains
