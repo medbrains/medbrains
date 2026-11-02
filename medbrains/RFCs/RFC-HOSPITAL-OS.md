@@ -216,7 +216,7 @@ consent checks as MedBrains' own code, and a hospital admin approves and can rev
 Windows, not a database, not office software, not a directory.
 
 - **Server:** Linux (Ubuntu/Debian) on any x86 or ARM machine, or the MedBrains edge box.
-  PostgreSQL, Orthanc, Gotenberg (PDF), Stalwart (mail), SpiceDB (optional) are open source.
+  PostgreSQL, Orthanc, rustenberg (PDF and label printing), Stalwart (mail), SpiceDB (optional) are open source.
 - **Staff devices:** any modern web browser on Linux, ChromeOS, Android, Windows or macOS.
   Windows and Apple devices are supported, never required. Native apps exist for Android and iOS;
   Android alone is enough.
@@ -239,7 +239,7 @@ installer is partly architecture-aware.
   out under a database). Stretch: Pi 5 / 4 with 4 GB for a single-doctor clinic.
 - **Clinic profile** (`install.sh --profile clinic`): PostgreSQL + MedBrains server + web app only.
   Optional services stay off unless needed: Orthanc (imaging), SpiceDB (authz uses PostgreSQL
-  instead, already supported), Gotenberg (PDF; a lighter print path or a remote/shared Gotenberg),
+  instead, already supported), rustenberg (PDF; an 8 MB binary, but it needs a Chromium on the machine, so see §8n),
   mail server (use an external SMTP or none).
 - **Prebuilt ARM64 binaries** in each release (cross-compiled with cargo-zigbuild, never built on
   the Pi), plus a ready SD/NVMe image later.
@@ -709,6 +709,10 @@ Every great OS pairs its kernel with one consistent interface stack. MedBrains' 
 **The appliance's own screen:** a box with a monitor boots straight into `cage` + browser engine
 showing the local console: setup wizard, health, backups, updates, recovery. No desktop
 environment, nothing to maintain, the same web UI as everywhere else.
+
+**One browser engine if we can.** rustenberg prints through Chromium, while the appliance screen uses WPE
+WebKit. A machine that prints would carry both. Measure size, memory and how the real app runs on each
+(WPE only, Chromium only, or both by profile), and prefer one engine unless the numbers say otherwise.
 
 **Quality bar (measured, like speed):** 60 fps scrolling and animation on mid-range hardware and a
 Raspberry Pi 5 browser; interactions acknowledged within 100 ms; motion per the Carbon motion rules
