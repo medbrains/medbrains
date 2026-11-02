@@ -1,0 +1,9 @@
+[
+  { "trigger": { "url-filter": ".*" }, "action": { "type": "block" } },
+  { "trigger": { "url-filter": "^https://127\\.0\\.0\\.1:8443/" }, "action": { "type": "ignore-previous-rules" } },
+  { "trigger": { "url-filter": "^http://127\\.0\\.0\\.1:3000/api/health$" }, "action": { "type": "ignore-previous-rules" } },
+  { "trigger": { "url-filter": "^file:///usr/share/medbrains/console/" }, "action": { "type": "ignore-previous-rules" } },
+  { "trigger": { "url-filter": "^file:///run/medbrains-console/" }, "action": { "type": "ignore-previous-rules" } },
+  { "trigger": { "url-filter": "^blob:" }, "action": { "type": "ignore-previous-rules" } },
+  { "trigger": { "url-filter": "^data:" }, "action": { "type": "ignore-previous-rules" } }
+]

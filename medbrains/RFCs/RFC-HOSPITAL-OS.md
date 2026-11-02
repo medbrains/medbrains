@@ -818,9 +818,14 @@ Every great OS pairs its kernel with one consistent interface stack. MedBrains' 
 - **Consistent app chrome:** every flagship app shares header, breadcrumbs, empty/error/loading
   states and keyboard shortcuts from the seam, so learning one teaches all.
 
-**The appliance's own screen:** a box with a monitor boots straight into `cage` + browser engine
-showing the local console: setup wizard, health, backups, updates, recovery. No desktop
-environment, nothing to maintain, the same web UI as everywhere else.
+**The appliance's own screen (owner decision, 2026-11-02):** a box with a monitor boots straight
+into the MedBrains app itself, in `cage` + a browser engine, with no separate browser. While the
+server is not ready, or stops answering for 30 seconds, the screen shows a small status page in plain
+words, and returns to the app when it recovers. The screen stays on this machine's own origin: no
+address bar, no other sites, no way out to a shell. Opening the app from a browser on another
+computer stays available as an option, not the main path. There is no auto-lock or user switching yet
+(see `os/README.md`). The console's setup wizard, health, backups, updates and recovery screens are
+later phases. No desktop environment, nothing to maintain, the same web UI as everywhere else.
 
 **One browser engine if we can.** rustenberg prints through Chromium, while the appliance screen uses WPE
 WebKit. A machine that prints would carry both. Measure size, memory and how the real app runs on each

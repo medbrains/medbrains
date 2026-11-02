@@ -1,0 +1,9 @@
+# mkosi applies presets to the whole image, and Debian's presets enable anything
+# not listed. Off: Debian's per-cluster WAL archiving and dump templates; backups
+# are ours to schedule (D2), and an unconfigured pg_receivewal fails at every boot.
+disable pg_*
+# Debian's second caddy unit (config over its admin API). It binds the same ports
+# as caddy.service, so whichever starts second fails.
+disable caddy-api.service
+# The screen is the app; a login prompt on tty1 is text flashing past at boot.
+disable getty@.service

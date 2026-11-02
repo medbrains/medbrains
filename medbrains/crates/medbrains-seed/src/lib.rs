@@ -129,8 +129,7 @@ async fn seed_everything(pool: &PgPool) -> Result<(), Box<dyn std::error::Error>
         // Insert default tenant
         sqlx::query(
             "INSERT INTO tenants (id, code, name, hospital_type, config) \
-             VALUES ($1, 'DEFAULT', 'Alagappa Medical College & Hospital', \
-             'medical_college', '{}')",
+             VALUES ($1, 'DEFAULT', 'My Hospital', 'medical_college', '{}')",
         )
         .bind(tenant_id)
         .execute(pool)
@@ -180,7 +179,7 @@ async fn seed_everything(pool: &PgPool) -> Result<(), Box<dyn std::error::Error>
         // sequences; this gives the seeded hospital its own prefixes.
         sqlx::query(
             "INSERT INTO sequences (tenant_id, seq_type, prefix, current_val, pad_width) VALUES \
-             ($1, 'UHID', 'ACMS-2026-', 0, 5), \
+             ($1, 'UHID', 'MB-', 0, 5), \
              ($1, 'INVOICE', 'INV-', 0, 6), \
              ($1, 'OPD_TOKEN', 'T', 0, 3), \
              ($1, 'INDENT', 'IND-', 0, 6), \

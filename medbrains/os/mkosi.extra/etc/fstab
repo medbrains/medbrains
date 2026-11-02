@@ -1,0 +1,3 @@
+# The data partition (§8k): all writable state. noatime spares flash; growfs
+# follows systemd-repart growing the partition to the full disk on first boot.
+PARTLABEL=medbrains-data  /var  ext4  defaults,noatime,x-systemd.growfs  0  2

@@ -1,0 +1,22 @@
+#!/bin/bash
+# Runs inside the image after packages and extra trees are installed.
+set -euo pipefail
+
+# PostgreSQL: no cluster in the image (each box gets its own system identifier
+# and checksummed cluster at first boot). Its config follows the data onto the
+# data partition, so the system partition holds no database state.
+pg_dropcluster --stop 17 main 2>/dev/null || true
+rm -rf /etc/postgresql /var/lib/postgresql/17
+ln -s /var/lib/postgresql/conf /etc/postgresql
+
+# Secrets live on the data partition.
+ln -sfn /var/lib/medbrains/config /etc/medbrains
+
+systemctl enable systemd-networkd systemd-resolved systemd-timesyncd systemd-repart \
+    medbrains-firstboot medbrains-db-init medbrains-server caddy \
+    medbrains-console-status cage-console
+systemctl disable systemd-networkd-wait-online.service 2>/dev/null || true
+systemctl set-default graphical.target
+
+# Unused in an appliance; trimmed for size (§3a).
+rm -rf /usr/share/doc/* /usr/share/man/* /usr/share/info/* /var/cache/apt/* /var/lib/apt/lists/*

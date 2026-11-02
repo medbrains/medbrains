@@ -1,0 +1,54 @@
+# The appliance's own screen (§8n): the MedBrains app itself, in cage (Wayland kiosk)
+# + cog (WPE WebKit), as `kiosk` on tty1. See console-session.
+[Unit]
+Description=MedBrains appliance screen
+After=systemd-user-sessions.service dbus.socket systemd-logind.service getty@tty1.service medbrains-firstboot.service medbrains-console-status.service
+Wants=dbus.socket systemd-logind.service medbrains-console-status.service
+Conflicts=getty@tty1.service
+ConditionPathExists=/dev/tty1
+
+[Service]
+Type=simple
+User=kiosk
+PAMName=cage
+TTYPath=/dev/tty1
+TTYReset=yes
+TTYVHangup=yes
+TTYVTDisallocate=yes
+StandardInput=tty-fail
+StandardOutput=journal
+StandardError=journal
+UtmpIdentifier=tty1
+UtmpMode=user
+# Software cursor: virtio-gpu's hardware cursor plane showed as a 64x64 black square.
+# NO_DEVICES: a box with no keyboard yet still shows its screen; devices can hotplug.
+# LP_NUM_THREADS=0: software GL (no GPU driver) rasterises in the caller. Threaded, frames
+# were presented before all llvmpipe's 64px tiles finished: black rectangles on screen.
+Environment=LP_NUM_THREADS=0 WLR_RENDERER_ALLOW_SOFTWARE=1 WLR_NO_HARDWARE_CURSORS=1 WLR_LIBINPUT_NO_DEVICES=1 COG_PLATFORM_NAME=wl
+# The kiosk trusts one certificate: this box's own loopback front end. No warning, and no other site.
+BindReadOnlyPaths=/var/lib/kiosk/local-front.pem:/etc/ssl/certs/ca-certificates.crt
+ExecStart=/usr/bin/cage -d -- /usr/lib/medbrains/console-session
+Restart=always
+RestartSec=3s
+TimeoutStopSec=5s
+NoNewPrivileges=yes
+ProtectSystem=strict
+# Not ProtectHome: it hides /run/user, where cage opens its Wayland socket.
+ReadWritePaths=/var/lib/kiosk /run/user
+PrivateTmp=yes
+# Not ProtectKernelTunables, ProtectKernelLogs or ProtectHostname: each stops WebKit's
+# bubblewrap sandbox from mounting /proc. Proven by restoring one at a time. We keep
+# WebKit's sandbox and give these up, not the other way round.
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+ProtectClock=yes
+RestrictAddressFamilies=AF_UNIX AF_NETLINK AF_INET AF_INET6
+RestrictRealtime=yes
+# Not RestrictSUIDSGID: its filter answers openat2 with ENOSYS, and WebKit's own
+# bubblewrap sandbox needs openat2.
+LockPersonality=yes
+CapabilityBoundingSet=
+SystemCallArchitectures=native
+
+[Install]
+WantedBy=graphical.target

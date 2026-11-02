@@ -1,0 +1,6 @@
+# Appliance screen session (cage-console.service): a logind seat, no password.
+auth     required pam_unix.so nullok
+account  required pam_unix.so
+session  required pam_unix.so
+# class=user: kiosk is a system user, and the screen needs a session with a seat.
+session  required pam_systemd.so class=user type=wayland

@@ -985,3 +985,17 @@ demo-restore: ## Restore a demo snapshot into a NEW database (DEMO_DUMP=… DEMO
 	PGPASSWORD="$$PW" createdb -w -h localhost -p $(DEMO_PGPORT) -U medbrains "$(DEMO_DB)"; \
 	PGPASSWORD="$$PW" pg_restore -w -h localhost -p $(DEMO_PGPORT) -U medbrains -d "$(DEMO_DB)" --no-owner "$(DEMO_DUMP)"; \
 	echo "restored $(DEMO_DUMP) into $(DEMO_DB) on :$(DEMO_PGPORT)"
+
+# ── MedBrains OS image (RFCs/RFC-HOSPITAL-OS.md §8b; os/README.md) ──────────
+OS_ARCH_TRIPLE = $(if $(filter arm64,$(or $(ARCH),arm64)),aarch64-unknown-linux-gnu,x86_64-unknown-linux-gnu)
+OS_TARGET_DIR ?= /tmp/mb-target-osimage
+
+.PHONY: os-image os-boot
+os-image: ## Build the MedBrains OS disk image (ARCH=arm64|x86-64, DEBUG=1 for a serial root shell)
+	bash scripts/build_guard.sh --wait
+	CARGO_TARGET_DIR=$(OS_TARGET_DIR) SQLX_OFFLINE=true cargo zigbuild --release --target=$(OS_ARCH_TRIPLE).2.36 -p medbrains-server --bin medbrains-server
+	pnpm turbo run build --filter=@medbrains/web...
+	CARGO_TARGET_DIR=$(OS_TARGET_DIR) os/build.sh --arch $(or $(ARCH),arm64) $(if $(DEBUG),--debug)
+
+os-boot: ## Boot the built arm64 image in QEMU (FRESH=1 for a brand-new box)
+	os/qemu-run.sh $(if $(FRESH),--fresh)
