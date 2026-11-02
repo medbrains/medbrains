@@ -38,6 +38,13 @@ of the recovery key. **The proof is an automated out-of-the-box test:** boot a f
 scan it from outside and inside (open ports, encryption, unsigned code, default passwords, service limits). It runs
 in CI for every release, the report is published, and any failure blocks the release.
 
+**The OS hosts many applications (owner, 2026-11-02).** MedBrains is not the one app the OS exists to run. It is an
+application on the OS, alongside others: PACS, lab, vendor and hospital-built apps, installed and managed through
+the OS. Nodes open a home screen showing the apps this person may use, so `cage`'s single full-screen kiosk is only
+the first step (D1), not the design. Proposed path, to be measured on small nodes: **first**, a web-based shell where
+each app is a signed package with a manifest, in its own origin and sandbox; **later, if real need appears**, a full
+Wayland compositor with native apps in sandboxes. All apps still reach data only through the core's permissions.
+
 **PACS is the proof.** Imaging is a hospital's heaviest load in storage and network. If PACS runs fast and safely
 on cheap disks and ordinary machines, the claim holds for everything else. Today `medbrains-radiology` drives
 Orthanc as a separate service. Evaluate whether a Rust DICOM store with tiered storage should replace it, measured
