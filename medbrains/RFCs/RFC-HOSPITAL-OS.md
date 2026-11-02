@@ -267,6 +267,12 @@ is an appliance OS on top of it.
 
 Windows support is an option for hospitals that already have it, never a requirement (§8).
 
+**No Docker (owner decision, 2026-11-02).** The OS, its installer and its services never use Docker. Everything
+runs directly on Linux under systemd. Images are built on a Linux machine or CI runner with `mkosi` directly.
+Container images remain only as an unadvertised option for hospitals that already run containers; no OS
+feature may depend on them. A Mac cannot run `mkosi` natively, so building on one needs a Linux VM; the
+normal path is CI.
+
 **Base: existing Linux, not our own.** Every image is built on **Debian stable** (free, long-term
 supported, official ports for amd64, arm64, armhf and riscv64; Raspberry Pi OS is Debian-based).
 We use Debian's kernel and packages, PostgreSQL included, and add MedBrains on top. We never
