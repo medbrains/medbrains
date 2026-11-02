@@ -24,6 +24,17 @@ expensive servers, storage arrays and licences, from many ordinary machines. Rel
 several cheap nodes replicating and failing over, so no single machine matters. This is only true once measured,
 so every claim needs a published test on named hardware, and the cost comparison must include failures and support.
 
+**Security and control out of the box.** A hospital gets them by installing, with nothing to configure. Anything
+that weakens a default is an explicit, audited choice. On first boot, already on:
+encrypted data disk, verified read-only system, default-deny firewall, signed updates, sandboxed services, TLS with
+a local certificate authority, per-role permissions, hash-chained audit, automatic encrypted backups with restore
+tests, continuous security checks, and every machine visible in one console once it joins.
+
+Only what no default can decide is asked: where off-site backups go, who the administrators are, and safe keeping
+of the recovery key. **The proof is an automated out-of-the-box test:** boot a fresh image, change nothing, and
+scan it from outside and inside (open ports, encryption, unsigned code, default passwords, service limits). It runs
+in CI for every release, the report is published, and any failure blocks the release.
+
 **PACS is the proof.** Imaging is a hospital's heaviest load in storage and network. If PACS runs fast and safely
 on cheap disks and ordinary machines, the claim holds for everything else. Today `medbrains-radiology` drives
 Orthanc as a separate service. Evaluate whether a Rust DICOM store with tiered storage should replace it, measured
