@@ -40,9 +40,9 @@ the partner programme).
 2. **Authorisation**: one decision function, three outcomes (allow, deny, unknown), scoped to a
    resource (`update` on `patient:456`), never collapsed to a boolean.
 3. **Tenancy**: every unit of work runs inside a tenant-scoped transaction with RLS context set.
-4. **Patient spine**: one patient identity (UHID, merge/unmerge, identifiers) every app refers to.
+4. ~~Patient spine~~ moves to health services (§3a): the kernel stays technical.
 5. **Audit**: one append-only, hash-chained log; every state change and PHI read goes through it.
-6. **Consent**: one check for "may this purpose use this patient's data now".
+6. ~~Consent~~ moves to health services (§3a).
 7. **Events**: before-events (gates that can refuse) and after-events (reactions via the outbox).
 8. **Configuration**: one resolver for settings by path, most specific first
    (`user › ward › department › campus › hospital › default`), the MUMPS-style tree.
@@ -80,6 +80,62 @@ Phase K1 builds this as a **facade over the code that already exists**, not a re
   context is missing; faults never read as permission.
 - **Safety-critical gates are kernel or service code, never configuration.** Flows and plugins can
   add checks, never remove them (RFC-SOP-FLOWS §3, §11).
+
+## 3a. Amendment (2026-11-01): the kernel is technical, and everything is small
+
+**Owner decisions:** "the kernel should handle technicals instead of hospital-focused" and "the OS
+should be very small".
+
+### The kernel holds only technical mechanisms
+Like Linux (processes, memory, files, security) and unlike an application, the kernel knows nothing
+about hospitals. Mechanism in the kernel; policy and domain above it.
+
+| Kernel (technical) | Moves up to **health services** (a layer above the kernel) |
+|---|---|
+| identity and sessions (users, devices, apps, jobs) | patient identity, UHID, merge/unmerge (the patient spine) |
+| authorisation: three outcomes, scoped to any resource | consent for a purpose (DPDP, clinical) |
+| tenancy: isolated units of work | clinical gates (Rx safety, NDPS, MLC), flows' clinical blocks |
+| audit: append-only, hash-chained | health intelligence, terminology |
+| events and jobs: before-gates, transactional after-events, scheduling | |
+| settings tree by path | |
+| sequences, time | |
+| storage (objects, keys scoped to the unit of work) | |
+| crypto, secrets, signing | |
+| resource limits and plugin sandbox (WASM) | |
+| health of the system itself (RLS mode, watchdog, heartbeats) | |
+
+Health services use the kernel exactly like any app does. `kernel::patient` and `kernel::consent`
+(K1) move to a `medbrains-health-services` crate; a CI rule keeps domain words and domain crates out
+of the kernel (the kernel crate may not depend on any clinical, patient or billing crate).
+
+### Small by design, with budgets the build enforces
+| Budget | Target | Today |
+|---|---|---|
+| Kernel code | ≤ 2,000 lines, no domain dependencies | 751 lines |
+| Kernel dependencies | only std, async runtime, SQL driver, crypto, serde | to audit |
+| Clinic build (server binary for a Pi) | only the modules a clinic needs, compiled in by profile | one binary with all 150 modules |
+| Release binary size | published per profile; must not grow without a reason | to measure |
+| Workspace dependencies | ratchet down from 1,319 packages | 1,319 |
+| OS image | Debian minimal + PostgreSQL + one binary + static web; target ≤ 1 GB | not built |
+| Idle memory (clinic profile, Pi 5) | published; target ≤ 512 MB for the whole appliance | to measure |
+| Web app first load | budgeted per screen | to measure |
+
+### How we get small
+1. **Profiles at compile time:** modules become Cargo features grouped into profiles (`clinic`,
+   `hospital`, `full`); the Pi image builds `clinic` (patients, OPD, billing, pharmacy, lab basics),
+   so specialties, marketing, research and similar are not even in the binary. Runtime module
+   enablement (existing entitlement gate) stays for hospitals that want to switch modules on later.
+2. **Dependency diet:** remove unused dependencies (the audit found e.g. `mlua` and the AWS S3 SDK
+   unused in the server), dead crates (stub CMS, unused SNOMED client), and duplicates; a CI ratchet
+   on the package count.
+3. **Release profile tuned for size where it costs no speed:** thin LTO, one codegen unit, stripped
+   symbols (already on); measure `panic = "abort"` and per-profile `opt-level`.
+4. **Nothing optional on by default:** imaging (Orthanc), SpiceDB, PDF engine, mail server all
+   optional in the clinic profile (RFC §8a).
+
+Phases: **K3a** move patient/consent out of the kernel + the no-domain CI rule; **SM1** size budgets
+measured and enforced in CI (kernel lines, binary size per profile, package count); **SM2** compile
+profiles (`clinic` first) with the Pi image; **SM3** dependency diet ratchet.
 
 ## 4. Drivers and plugins (the "userland")
 
