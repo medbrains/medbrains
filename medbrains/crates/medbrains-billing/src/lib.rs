@@ -3315,6 +3315,7 @@ async fn pay_installment_item(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &tenant_id).await?;
 
+    medbrains_db::pool::take_audit_chain_first(&mut tx, &tenant_id).await?;
     let item = sqlx::query_as::<_, medbrains_core::billing::PaymentInstallmentItem>(
         "SELECT * FROM payment_installment_items \
          WHERE id = $1 AND installment_id = $2 AND tenant_id = $3 FOR UPDATE",

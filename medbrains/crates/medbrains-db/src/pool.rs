@@ -226,6 +226,22 @@ pub async fn take_audit_chain_first(
     Ok(())
 }
 
+/// Hold a database-wide advisory lock for as long as the returned transaction lives.
+///
+/// Rolling back or dropping the transaction releases it, on every exit path. It keeps one
+/// connection busy, so the pool needs a second one for the work done under the lock.
+pub async fn hold_advisory_lock(
+    pool: &PgPool,
+    key: i64,
+) -> Result<Transaction<'_, Postgres>, DbError> {
+    let mut lock = pool.begin().await?;
+    sqlx::query("SELECT pg_advisory_xact_lock($1)")
+        .bind(key)
+        .execute(&mut *lock)
+        .await?;
+    Ok(lock)
+}
+
 /// Set both tenant and department context for RLS.
 ///
 /// Sets `app.tenant_id` for tenant isolation and `app.user_department_ids`

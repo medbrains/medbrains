@@ -145,3 +145,50 @@ async fn paying_a_bill_cannot_deadlock_with_a_charge_on_it() {
     assert_eq!(w.payments(invoice).await.len(), 1, "the money posts once");
     assert_eq!(w.invoice(invoice).await.0, rust_decimal::Decimal::from(400));
 }
+
+/// Given a clinical write holding the chain, When a cashier pays an instalment
+/// and queues for the chain, And the clinical write then charges that bill, Then
+/// neither is killed, and the money posts once.
+#[tokio::test]
+async fn paying_an_instalment_cannot_deadlock_with_a_charge_on_the_bill() {
+    let w = world().await;
+    let invoice = w.bill(1000).await;
+    let plan: Uuid = sqlx::query_scalar(
+        "INSERT INTO payment_installments (tenant_id, invoice_id, total_amount, \
+                                           installment_count, installment_amount) \
+         VALUES ($1, $2, 400, 1, 400) RETURNING id",
+    )
+    .bind(w.tenant)
+    .bind(invoice)
+    .fetch_one(&w.app.db)
+    .await
+    .expect("plan");
+    let item: Uuid = sqlx::query_scalar(
+        "INSERT INTO payment_installment_items (tenant_id, installment_id, installment_number, \
+                                                due_date, amount) \
+         VALUES ($1, $2, 1, current_date, 400) RETURNING id",
+    )
+    .bind(w.tenant)
+    .bind(plan)
+    .fetch_one(&w.app.db)
+    .await
+    .expect("item");
+
+    let mut clinical = clinical_write(&w).await;
+    let paying = cashier(
+        &w,
+        format!("/api/billing/installments/{plan}/items/{item}/pay"),
+        json!({ "mode": "cash" }),
+    );
+    cashier_reaches_the_chain(&w.app.db).await;
+    let charged = sqlx::query("UPDATE invoices SET notes = 'charged' WHERE id = $1")
+        .bind(invoice)
+        .execute(&mut *clinical)
+        .await;
+    assert!(charged.is_ok(), "the clinical charge: {charged:?}");
+    clinical.commit().await.expect("clinical commit");
+
+    let (status, body) = paying.await.expect("cashier");
+    assert_eq!(status, StatusCode::OK, "{body}");
+    assert_eq!(w.payments(invoice).await.len(), 1, "the money posts once");
+}

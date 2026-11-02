@@ -100,11 +100,7 @@ const SEED_LOCK: i64 = 0x4d42_5345_4544;
 /// exits on a duplicate key. The lock lives in a transaction of its own and is
 /// released whichever way this returns, including with an error.
 pub async fn run_seed(pool: &PgPool) -> Result<(), Box<dyn std::error::Error>> {
-    let mut lock = pool.begin().await?;
-    sqlx::query("SELECT pg_advisory_xact_lock($1)")
-        .bind(SEED_LOCK)
-        .execute(&mut *lock)
-        .await?;
+    let _lock = medbrains_db::pool::hold_advisory_lock(pool, SEED_LOCK).await?;
     seed_everything(pool).await
 }
 
