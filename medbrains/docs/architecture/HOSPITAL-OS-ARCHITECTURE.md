@@ -13,6 +13,10 @@ Status markers: **[today]** exists on `main` · **[building]** in progress · **
 
 ## 1. The layers
 
+![MedBrains OS architecture](medbrains-os-architecture.png)
+
+Editable version: [`medbrains-os-architecture.excalidraw`](medbrains-os-architecture.excalidraw) (open at excalidraw.com → Open).
+
 ```mermaid
 flowchart TB
     subgraph Clients["Clients (nothing to install)"]
