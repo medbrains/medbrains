@@ -8,9 +8,8 @@
 //! patient's current answer for the purposes in [`PURPOSES`]. Care itself is a
 //! legitimate use under DPDP s.7 and is not asked here.
 
+use medbrains_kernel::{Outcome, Tx};
 use uuid::Uuid;
-
-use crate::{Outcome, Tx};
 
 /// The purposes the DPDP notice names — the only ones that can be agreed to.
 /// `medbrains_patients::dpdp_consent` re-exports this.
@@ -51,7 +50,7 @@ fn outcome_of(newest: Result<Option<bool>, sqlx::Error>) -> Outcome {
         Ok(Some(true)) => Outcome::Allow,
         Ok(Some(false) | None) => Outcome::Deny,
         Err(e) => {
-            tracing::error!(target: "kernel", error = %e, "consent ledger unreadable — unknown, not refused");
+            tracing::error!(target: "health_services", error = %e, "consent ledger unreadable — unknown, not refused");
             Outcome::Unknown
         }
     }

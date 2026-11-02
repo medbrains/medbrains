@@ -1,8 +1,7 @@
 //! Configuration: one resolver for settings by path.
 //!
-//! The RFC's tree resolves most specific first —
-//! `user › ward › department › campus › hospital › default`. K1 reads the
-//! **hospital** scope only, from `tenant_settings` through
+//! The RFC's tree (RFC-HOSPITAL-OS §3.1) resolves most specific scope first.
+//! K1 reads the **tenant-wide** scope only, from `tenant_settings` through
 //! `medbrains_server_core::tenant_config::setting_in`; the narrower scopes
 //! arrive with K3. The path syntax is already the tree's: `category/key`, and
 //! deeper paths parse today (they simply find nothing until K3 stores them).
@@ -42,8 +41,8 @@ fn valid_segment(segment: &str) -> bool {
         })
 }
 
-/// Parse `discharge/tpa_required` into category `discharge`, key
-/// `tpa_required`. At least two segments, each lowercase ASCII letters,
+/// Parse `backup/retention_days` into category `backup`, key
+/// `retention_days`. At least two segments, each lowercase ASCII letters,
 /// digits, `_`, `-` or `.`; no empty segments.
 pub fn parse(path: &str) -> Result<ConfigPath<'_>, InvalidPath> {
     let invalid = || InvalidPath(path.to_owned());
@@ -54,7 +53,7 @@ pub fn parse(path: &str) -> Result<ConfigPath<'_>, InvalidPath> {
     Ok(ConfigPath { category, key })
 }
 
-/// The value at `path` for the unit of work's hospital, most specific scope
+/// The value at `path` for the unit of work's tenant, most specific scope
 /// first; `None` when no scope sets it.
 #[inline]
 pub async fn get(tx: &mut Tx, path: &str) -> Result<Option<Value>, AppError> {

@@ -1,0 +1,21 @@
+[package]
+name = "medbrains-health-services"
+publish = false
+description = "The health services layer above the kernel: patient identity and consent for a purpose (RFC-HOSPITAL-OS §3a)"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license-file.workspace = true
+
+[dependencies]
+medbrains-authz-gate = { path = "../medbrains-authz-gate" }
+medbrains-kernel = { path = "../medbrains-kernel" }
+sqlx = { workspace = true }
+tracing = { workspace = true }
+uuid = { workspace = true }
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
+
+[lints]
+workspace = true

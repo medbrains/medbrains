@@ -16,7 +16,7 @@ pub use medbrains_db::audit::AuditEntry;
 /// Append `entry` to the tenant's chain inside the unit of work.
 ///
 /// The tenant and actor come from the [`Tx`], not the entry: an entry naming
-/// another hospital or another person is refused rather than written.
+/// another tenant or another person is refused rather than written.
 #[inline]
 pub async fn audit(tx: &mut Tx, entry: &AuditEntry<'_>) -> Result<(), AppError> {
     let actor = tx.actor();
@@ -52,7 +52,7 @@ pub async fn last_verification(tx: &mut Tx) -> Result<Option<ChainVerdict>, AppE
 }
 
 /// Re-verify the chain rows written since `since` (the hourly check). Reads
-/// across the hospital's chain on `pool`, which must see its rows: the worker
+/// across the tenant's chain on `pool`, which must see its rows: the worker
 /// pool, as the nightly job uses.
 pub async fn verify_since(
     pool: &sqlx::PgPool,

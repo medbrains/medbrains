@@ -35,6 +35,10 @@ without version numbers; this section summarises what 1.0.0 contains.
   three-outcome authorisation, the hash-chained audit log, events,
   configuration, sequences and storage, with an Admin → Kernel health page.
   App crates are held to the kernel boundary by a CI check.
+- **Health services** (`medbrains-health-services`): patient identity and
+  consent for a purpose, above the kernel, which is now technical only. If you
+  used `kernel::patient`, `kernel::consent` or
+  `kernel::authz::require_patient_access`, import them from here.
 - **SOP flows**: discharge runs as a configurable track that hospital flow
   designers can change, with safety signals that cannot be switched off.
 - **Knowledge change sets**: drug interactions and critical values change

@@ -1,4 +1,4 @@
-//! Sequences: UHIDs, numbers, tokens.
+//! Sequences: atomic, formatted numbers.
 //!
 //! Wraps `medbrains_db::sequence::next_sequence` — the atomic
 //! `INSERT … ON CONFLICT DO UPDATE … RETURNING` on the `sequences` table.
@@ -13,7 +13,7 @@ pub struct Format<'a> {
     pub pad_width: i32,
 }
 
-/// The next value of the unit of work's hospital's `kind` sequence, e.g.
+/// The next value of the unit of work's tenant's `kind` sequence, e.g.
 /// `ACMS-2026-00042`. Atomic: two concurrent callers never get the same value.
 #[inline]
 pub async fn next(tx: &mut Tx, kind: &str, format: Format<'_>) -> Result<String, AppError> {

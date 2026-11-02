@@ -118,6 +118,7 @@ members = [
     "crates/medbrains-health-intel",
     "crates/medbrains-security-intel",
     "crates/medbrains-kernel",
+    "crates/medbrains-health-services",
     "crates/medbrains-pharmacy-cash-drawer",
     "crates/medbrains-device-pairing",
     "crates/medbrains-nhcx-callback",

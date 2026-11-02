@@ -16,19 +16,21 @@
 //!
 //! Three rules hold across every module:
 //!
-//! - authorisation and consent answer `Allow`, `Deny` or `Unknown` — never a
-//!   boolean, so an outage cannot read as a refusal or a grant;
+//! - authorisation answers `Allow`, `Deny` or `Unknown` — never a boolean, so
+//!   an outage cannot read as a refusal or a grant;
 //! - every call is scoped to the tenant of the [`Tx`] it is given, never to a
 //!   tenant the caller passes alongside it;
 //! - missing context is `Unknown`, never `Allow`.
+//!
+//! The kernel is technical only (§3a): domain concepts live in the layers above
+//! it, starting with `medbrains-health-services`.
+//! `scripts/check_kernel_no_domain.py` holds this.
 
 pub mod audit;
 pub mod authz;
 pub mod config;
-pub mod consent;
 pub mod events;
 pub mod health;
-pub mod patient;
 pub mod seq;
 pub mod store;
 
@@ -42,7 +44,7 @@ pub use authz::{Outcome, authorize, require_any_permission, require_permission};
 pub use medbrains_server_core::error::AppError;
 pub use medbrains_server_core::middleware::auth::Claims;
 
-/// Who is acting, and for which hospital.
+/// Who is acting, and for which tenant.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Actor {
     pub tenant_id: Uuid,
@@ -104,7 +106,7 @@ impl DerefMut for Tx {
     }
 }
 
-/// Open a unit of work: begin, set `app.tenant_id` (RLS + the hospital's
+/// Open a unit of work: begin, set `app.tenant_id` (RLS + the tenant's
 /// timezone) and `app.user_id` (audit-trigger attribution) in one round trip.
 ///
 /// Wraps `medbrains_db::pool::set_audit_context`. Dropping the [`Tx`] without

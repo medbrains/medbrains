@@ -24,7 +24,8 @@ the partner programme).
 
 | OS | MedBrains | Today |
 |---|---|---|
-| Kernel | identity, authorisation, tenancy, patient spine, audit, consent, events, config, sequences, storage | spread across `medbrains-core`, `server-core`, `db`, `authz`, `consent`, `outbox`, `platform` |
+| Kernel | identity, authorisation, tenancy, audit, events, config, sequences, storage | `medbrains-kernel`, a facade over `medbrains-core`, `server-core`, `db`, `authz`, `outbox`, `platform` |
+| Health services | patient identity, consent for a purpose; clinical gates next | `medbrains-health-services` (§3a) |
 | System services | SOP flows, knowledge change sets, notifications, jobs, printing, search | built, separate crates |
 | Drivers | device adapters (WASM, `medbrains-adapter-sdk`), HL7 v2 bridge, PACS | built for devices |
 | Apps | OPD, IPD, pharmacy, lab, billing, HR… (~100 crates) | built |
@@ -57,15 +58,15 @@ Apps get these and only these, from one crate, `medbrains-kernel`:
 kernel::work(tenant, actor, |tx| { ... })            // tenant tx + RLS context + actor
 kernel::authorize(&tx, actor, action, resource)      // Outcome: Allow | Deny | Unknown
 kernel::audit(&tx, event)                            // append-only, hash-chained
-kernel::patient::resolve(&tx, identifier)            // the one patient identity
-kernel::consent::check(&tx, patient, purpose)        // Outcome
 kernel::events::before(&tx, event) / after(&tx, event)
 kernel::config::get(&tx, "discharge/tpa_required")   // path-resolved setting
 kernel::seq::next(&tx, "uhid")
 kernel::store::put/get(&tx, key, bytes)
 ```
 
-Phase K1 builds this as a **facade over the code that already exists**, not a rewrite.
+Phase K1 builds this as a **facade over the code that already exists**, not a rewrite. Patient
+identity and consent were here in K1 and moved up in K3a: `medbrains_health_services::patient::resolve`
+and `::consent::check`, which still answer `Outcome` (§3a).
 
 ### 3.3 Kernel rules
 
@@ -104,21 +105,38 @@ about hospitals. Mechanism in the kernel; policy and domain above it.
 | resource limits and plugin sandbox (WASM) | |
 | health of the system itself (RLS mode, watchdog, heartbeats) | |
 
-Health services use the kernel exactly like any app does. `kernel::patient` and `kernel::consent`
-(K1) move to a `medbrains-health-services` crate; a CI rule keeps domain words and domain crates out
-of the kernel (the kernel crate may not depend on any clinical, patient or billing crate).
+Health services use the kernel exactly like any app does. **Done in K3a:** `kernel::patient` and
+`kernel::consent` moved to the `medbrains-health-services` crate, with no re-export from the kernel,
+and `check` keeps its three outcomes (a fault is `Unknown`, never a refusal). So did
+`require_patient_access`: the kernel no longer depends on `medbrains-authz-gate`, which is clinical
+policy (it names encounters, admissions, billing), and health services re-exports the check.
+
+`make check-kernel-no-domain` (`scripts/check_kernel_no_domain.py`, in CI) holds the line: every
+`medbrains-*` crate the kernel runs on, all the way down, is on a technical allowlist, and no domain
+word appears anywhere in its non-test source, comments included.
+
+**How the boundary ratchet treats the new crate:** as an ordinary app, not a building block, because
+that is what this section says it is. It records `partial 1 medbrains-authz-gate`, the honest answer
+until the patient gate's logic moves up into it, and can only improve. A crate reaching the kernel
+through it (`medbrains-patients`) still counts as on the kernel.
+
+**Known limit:** the allowlist means "not a clinical module", not "free of domain words". Several
+of its crates still know about patients: `medbrains-core` holds domain types the kernel does not use
+(`medbrains_core::billing`, say), and `server-core`, `print`, `workflow` and `db` have domain
+knowledge in places. The kernel takes `AppError` and `Claims` from `server-core`, so this cannot
+go away without splitting out their technical part, which is separate work.
 
 ### Small by design, with budgets the build enforces
 Numbers measured 2026-11-02 and enforced by `scripts/check_size_budgets.py` (baseline `scripts/size_budgets.json`) unless the row says otherwise.
 
 | Budget | Target | Today |
 |---|---|---|
-| Kernel code | ≤ 2,000 lines, no domain dependencies | 428 code lines without comments, blanks and tests (751 raw); hard limit enforced |
-| Kernel dependencies | only std, async runtime, SQL driver, crypto, serde | **Target not met:** 12 direct on an enforced allowlist, including 6 MedBrains crates (`server-core`, `core`, `db`, `authz`, `authz-gate`, `workflow`); these pull in up to 510 of the 1,319 packages (upper bound from `Cargo.lock`, one-off audit, not enforced) |
+| Kernel code | ≤ 2,000 lines, no domain dependencies | 356 code lines without comments, blanks and tests (624 raw); hard limit enforced |
+| Kernel dependencies | only std, async runtime, SQL driver, crypto, serde | **Target not met:** 10 direct on an enforced allowlist, including 5 MedBrains crates (`server-core`, `core`, `db`, `authz`, `workflow`); these pull in up to 509 of the 1,320 packages (upper bound from `Cargo.lock`, one-off audit, not enforced) |
 | Clinic build (server binary for a Pi) | only the modules a clinic needs, compiled in by profile | one binary with all 150 modules |
 | Release binary size | published per profile; must not grow without a reason | not measured: compile profiles arrive with SM2, so there is nothing per profile to measure yet |
-| Workspace dependencies | ratchet down from 1,319 packages | 1,319, ratchet enforced |
-| Workspace crates | ratchet down | 160, ratchet enforced |
+| Workspace dependencies | ratchet down from 1,319 packages | 1,320, ratchet enforced |
+| Workspace crates | ratchet down | 161, ratchet enforced |
 | OS image | Debian minimal + PostgreSQL + one binary + static web; target ≤ 1 GB | not built |
 | Idle memory (clinic profile, Pi 5) | published; target ≤ 512 MB for the whole appliance | not measured: needs the SM2 clinic profile running on a Pi 5; not enforced |
 | Web app first load | budgeted per screen | 1,060,297 bytes gzip for the JS `index.html` loads up front, one entry rather than per screen; ceiling 10% above it, checked after the CI web build |
@@ -136,7 +154,7 @@ Numbers measured 2026-11-02 and enforced by `scripts/check_size_budgets.py` (bas
 4. **Nothing optional on by default:** imaging (Orthanc), SpiceDB, PDF engine, mail server all
    optional in the clinic profile (RFC §8a).
 
-Phases: **K3a** move patient/consent out of the kernel + the no-domain CI rule; **SM1** size budgets
+Phases: **K3a** move patient/consent out of the kernel + the no-domain CI rule (done); **SM1** size budgets
 measured and enforced in CI (kernel lines, kernel dependencies, package and crate counts, web first load; binary size per profile waits for SM2); **SM2** compile
 profiles (`clinic` first) with the Pi image; **SM3** dependency diet ratchet.
 
@@ -816,7 +834,7 @@ Published with every release. Targets below that have no figure yet get one when
 
 | Axis | What we measure | Today (2026-11-02) | Honest gap |
 |---|---|---|---|
-| **Small** | kernel lines, kernel dependency closure, packages, image size, idle memory, install time | kernel 428 code lines; closure up to 510 of 1,319 packages; 160 crates; image and memory not yet published | The kernel is short but sits on a large closure, because it depends on `medbrains-server-core`. It is not yet small in the way that counts |
+| **Small** | kernel lines, kernel dependency closure, packages, image size, idle memory, install time | kernel 356 code lines; closure up to 509 of 1,320 packages; 161 crates; image and memory not yet published | The kernel is short but sits on a large closure, because it depends on `medbrains-server-core`. It is not yet small in the way that counts |
 | **Fast** | §8i budgets, on x86 and a Pi 5 | transaction setup fixed from 15.7 ms to about 0.1 ms; harness (S1) not built | No published numbers, and no comparison |
 | **Secure** | open advisories, boot-to-login verified chain, external penetration test, patch time against `SECURITY-RELEASE-PROCESS.md` | RLS, three-outcome authorisation and audit exist; CI shows open dependency advisories; verified boot planned; no external test | Advisories first, then an independent test. Our own opinion of our security proves nothing |
 | **Network** | below | nothing measured | This section is the plan |
