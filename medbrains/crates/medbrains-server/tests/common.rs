@@ -205,11 +205,25 @@ pub fn database_url() -> String {
     })
 }
 
+/// A pool like production's, except that it waits for a connection.
+///
+/// Production fails after 2 seconds so a saturated server sheds load, and no test
+/// asserts that. On a busy machine it turned a slow connection into a 500, which
+/// read as a failure of whatever the test was checking (1 run in 100 of the camp
+/// numbering test, on an unchanged `main`).
+async fn test_pool(url: &str) -> Result<sqlx::PgPool, medbrains_db::pool::DbError> {
+    let config = medbrains_db::pool::PoolConfig {
+        acquire_timeout: std::time::Duration::from_secs(30),
+        ..medbrains_db::pool::PoolConfig::default()
+    };
+    medbrains_db::pool::create_pool_with_config(url, &config).await
+}
+
 /// `request_url` names the role the server's requests run as
 /// (`TEST_APP_DATABASE_URL` for a whole run); the owner otherwise.
 async fn spawn(secrets: TestSecrets, request_url: Option<String>) -> TestApp {
     // Connect to DB
-    let db = medbrains_db::pool::create_pool(&database_url())
+    let db = test_pool(&database_url())
         .await
         .expect("DB connection failed — is PostgreSQL running?");
 
@@ -220,7 +234,7 @@ async fn spawn(secrets: TestSecrets, request_url: Option<String>) -> TestApp {
     medbrains_seed::run_seed(&db).await.expect("seed failed");
     let owner = db.clone();
     let db = match request_url {
-        Some(url) => medbrains_db::pool::create_pool(&url)
+        Some(url) => test_pool(&url)
             .await
             .expect("request-role connection failed"),
         None => db,
