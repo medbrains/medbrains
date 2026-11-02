@@ -276,8 +276,16 @@ jobs:
       - name: System packages and PostgreSQL
         run: |
           sudo apt-get update
-          sudo apt-get install -y libcups2-dev postgresql postgresql-contrib
+          sudo apt-get install -y libcups2-dev postgresql-common
+          # The migrations need 17 (`transaction_timeout`), and the runner's default is older.
+          sudo /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh -y
+          sudo systemctl stop postgresql
+          for cluster in $(pg_lsclusters -h | awk '{print $1"/"$2}'); do
+            sudo pg_dropcluster --stop "${cluster%/*}" "${cluster#*/}"
+          done
+          sudo apt-get install -y postgresql-17 postgresql-contrib-17
           sudo systemctl start postgresql
+          pg_lsclusters
           sudo -u postgres psql -c "CREATE ROLE medbrains SUPERUSER LOGIN PASSWORD 'ci_only'"
           sudo -u postgres createdb -O medbrains medbrains
       # Report every failing test, not just the first binary's.

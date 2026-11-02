@@ -57,7 +57,7 @@ All RFCs live in `RFCs/` at the project root.
 
 | Database | Purpose |
 |----------|---------|
-| PostgreSQL 16+ | **Single source of truth** — tenants, users, patients, departments, workflows, config (`tenant_settings`), sequences/UHID, bed state. Declarative partitioning + retention for high-volume tables; Citus-ready sharding by `tenant_id`. |
+| PostgreSQL 17+ (the migrations use `transaction_timeout`) | **Single source of truth** — tenants, users, patients, departments, workflows, config (`tenant_settings`), sequences/UHID, bed state. Declarative partitioning + retention for high-volume tables; Citus-ready sharding by `tenant_id`. |
 | Redis / Dragonfly | Cache layer + hot real-time state (future) |
 | DuckDB / columnar warehouse | Analytics & research, off the OLTP path (future) |
 | Meilisearch | Full-text search (future) |
