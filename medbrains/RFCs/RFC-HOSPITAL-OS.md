@@ -866,6 +866,72 @@ and one TLS stack, by measurement; **N3** the poor-network test in CI and the Ne
 device identities; **N5** WireGuard site links and audited remote support; **N6** replica failover, and
 the public scoreboard with a reproducible comparison.
 
+## 8r. Fleet management and built-in protection (owner goal, 2026-11-02)
+
+The owner wants what corporate IT has, built in: machines managed and controlled remotely, and
+endpoint security in the OS itself, in the manner of a product like Trellix. A hospital should not
+need to buy either to be safe. No licence, no vendor code: we take the idea and build on open parts.
+
+**A device fleet.** A hospital's IT team manages every appliance, workstation, display, kiosk and phone
+from one screen.
+
+| Capability | What it does | Today |
+|---|---|---|
+| Enrol | one QR code or signed token; the device gets its own identity | device pairing, `paired_devices` and `vpn_devices` exist |
+| Inventory | model, OS version, disk and health, last seen, location | partly, split across those tables |
+| Policies | lock timeout, USB rules, allowed apps and updates, by group or ward | not built |
+| Updates | signed updates by ring and maintenance window, per §8b | planned (D4) |
+| Remote support | see or control a screen, or run approved actions, with the rules below | not built |
+| Lock and wipe | lock a lost device; wipe with two people's approval | not built |
+| Remote access path | no open inbound ports | WireGuard and Headscale exist as an opt-in (`RFC-VPN-PLATFORM`) |
+
+**Protection.** One security screen alongside the fleet.
+
+| Area | How | Today |
+|---|---|---|
+| Only trusted code runs | verified read-only system (§8j), stronger than scanning | planned |
+| Watch for intrusion | system and process events (`osquery`, `Falco`), within the size budgets; the Pi clinic build may get less | not built |
+| Respond | isolate a device from the network in one action, leaving the path IT needs | not built |
+| Scan uploads | malware scan of files people upload (ClamAV) | not built |
+| Data leaving | export limits, watermarks, record-read audit, USB control | app side exists; USB not built |
+| Hospital-aware alerts | signals only we can see, such as one login opening hundreds of records at night | the kernel sees the access; rule not built |
+| Send onward | connector to a hospital's SIEM | not built |
+
+**Remote control is the most dangerous feature in this RFC.** One compromised management tool can reach
+every machine at once, as the 2021 Kaseya attack did. So these rules bind it:
+
+1. **The hospital holds the keys.** Each hospital's fleet has its own keys and console. MedBrains and
+   partners have no master key and no standing access to any hospital. There is no global off switch
+   or backdoor.
+2. **Off until asked.** A session needs a named person, a reason and an approval, runs for a set time,
+   and ends by itself. Vendor access stays off by default (§8q).
+3. **Visible and refusable.** The screen shows when someone is watching. At a clinical workstation the
+   person using it can see who, and end it.
+4. **Patient data rules still apply.** A remote viewer sees patient data, so it is audited like any read.
+   Sessions are logged, and the screen is recorded only where the hospital's policy says so and the
+   recording is itself treated as patient data.
+5. **Do no harm.** No restart, update or lock on a device in clinical use without warning and a
+   maintenance window. An emergency override is logged and reviewed.
+6. **Regulated devices stay out.** Ventilators, monitors, infusion pumps and analysers are never remotely
+   controlled by this system. It reads from them through their interfaces only.
+7. **Signed commands, least privilege.** Each command is signed and checked on the device, and each
+   action has its own permission, defined in Rust first: viewing the fleet, remote control, isolating
+   and wiping are separate grants. Wipe needs two people.
+
+**Limits we state plainly.** We will not match a large vendor's threat research, so we use public feeds
+and open rules. Some auditors and insurers require a named, certified product; hospitals in that position
+can still run one. We do not claim to replace any product until an outside party has tested this.
+
+**Build on, do not reinvent.** Candidates to evaluate for licence, size and fit (§8): `wayvnc` for the
+appliance's screen, Apache Guacamole or MeshCentral for browser-based sessions, osquery for inventory,
+Android Enterprise and Apple device management for phones. A remote session must work with the `cage`
+kiosk, which needs testing.
+
+**Phases:** **M1** one fleet screen over the existing device tables, with permissions; **M2** policies and
+update rings; **M3** remote support on a test device, under all seven rules, then an outside security
+review before it reaches a hospital; **M4** lock, wipe and isolate; **M5** intrusion watching and the
+security screen; **M6** phone management and the SIEM connector.
+
 ## 9. Identity: groups and directories (built in)
 
 Exists today: access groups with permissions (Admin → Groups), SSO with directory-group → role
