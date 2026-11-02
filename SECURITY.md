@@ -24,6 +24,8 @@ Please include:
 - An initial assessment and severity rating within 7 business days.
 - Coordinated disclosure: we agree a timeline with you, fix the issue and credit you, unless you prefer to stay anonymous.
 
+How we rate severity, the fix timelines (critical within 72 hours), staged rollout and when advisories are published: [Security release process](medbrains/docs/SECURITY-RELEASE-PROCESS.md). What stays compatible between versions: [Compatibility promise](medbrains/docs/COMPATIBILITY.md).
+
 We will not pursue legal action against good-faith security research that respects this policy and does not access, modify, or exfiltrate real patient data.
 
 ## Scope
@@ -40,7 +42,7 @@ If you host MedBrains yourself, at a minimum:
 - Keep PostgreSQL Row-Level Security enabled; never disable tenant context.
 - Terminate TLS in front of the server; do not expose the database publicly.
 - Store DICOM/scans/PDFs in access-controlled object storage, not on the app host.
-- Apply security updates promptly. Watch [Releases](https://github.com/medbrains/medbrains/releases).
+- Apply security updates promptly. Watch [Releases](https://github.com/medbrains/medbrains/releases), apply security releases within the timelines in the [security release process](medbrains/docs/SECURITY-RELEASE-PROCESS.md#8-what-hospitals-must-do), and verify their signatures.
 - The repository runs a dependency audit in CI (`cargo audit` and `pnpm audit`). Keep your fork's dependencies patched.
 
 ## Data protection

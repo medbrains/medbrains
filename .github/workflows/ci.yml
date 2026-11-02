@@ -85,6 +85,11 @@ jobs:
       # through medbrains-kernel; existing direct access is baselined, never grown.
       - name: Kernel boundary only gets better
         run: python3 medbrains/scripts/check_kernel_boundary.py
+      # The TypeScript SDK and its conformance suite run under `pnpm run test`
+      # (web job); the Python SDK has no other runner.
+      - name: Python SDK speaks the extension protocol
+        working-directory: medbrains/sdks/python
+        run: python3 -m unittest discover -s tests
 
   rust-fmt:
     name: "Rust format (TODO: 1053 diffs on master)"

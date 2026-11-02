@@ -163,6 +163,11 @@ SDKs beyond TypeScript and Python (E3).
 
 `medbrains ext test` runs the suite against the local mock; `medbrains ext test --url <sandbox>`
 with `MEDBRAINS_CLIENT_ID` / `MEDBRAINS_CLIENT_SECRET` (and `MEDBRAINS_PATIENT_ID` for a real read)
-runs it against a hospital. It checks: the manifest validates, metadata is public, a wrong secret
-is refused, credentials give a token, an ungranted read is `403`, a shared Patient reads, and (mock
-only) revocation refuses the next call.
+runs it against a hospital. It checks: the manifest validates, metadata is public, an unsupported
+grant type is `400` and never cached, a wrong secret is `401`, credentials give a token, a call
+without a token is `401`, an ungranted read is `403`, a shared Patient reads, and (mock only) the
+webhook signature matches the §5 test vector, a delivered webhook verifies, a replayed or tampered
+one is refused, and revocation refuses the next call.
+
+This suite is what the compatibility promise ([`COMPATIBILITY.md`](../COMPATIBILITY.md)) is
+measured against.

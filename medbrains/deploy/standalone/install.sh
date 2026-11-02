@@ -67,6 +67,11 @@ Attach tier (host already runs other applications):
       sudo -E bash install.sh hims.example.org ops@example.org
   Picks free ports, never touches 80/443, never stops another proxy.
 
+Host security updates (unattended-upgrades, security archive only):
+  OS_AUTO_UPDATES=1|0  OS_UPDATE_WINDOW=03:30  OS_UPDATE_REBOOT=0|1  OS_UPDATE_REBOOT_TIME=04:30
+  On by default except on an attach host. MedBrains itself updates through
+  its signed releases, never apt. See os-auto-updates.sh.
+
 Prerequisites:
   - Ubuntu 22.04 / 24.04 or Debian 12 host (root access)
   - DNS A/AAAA record for <domain> already pointing at this server's
@@ -104,6 +109,18 @@ apt-get install -y --no-install-recommends "${PACKAGES[@]}"
 # deploy — the backup unit refuses loudly (and pages) instead.
 apt-get install -y --no-install-recommends age \
     || echo "    WARNING: could not install age — sealed backups will fail until it is installed"
+
+# Host security updates, unattended. Not on an attach host unless asked: its
+# owner already has an update policy, and a reboot there stops their services.
+# shellcheck source=./os-auto-updates.sh
+source "$DEPLOY_DIR/os-auto-updates.sh"
+OS_AUTO_UPDATES_DEFAULT=1
+[[ "$ATTACH_MODE" == "1" ]] && OS_AUTO_UPDATES_DEFAULT=0
+if [[ "${OS_AUTO_UPDATES:-$OS_AUTO_UPDATES_DEFAULT}" == "1" ]]; then
+    configure_os_auto_updates
+else
+    echo "    OS security updates: left to the host's owner (OS_AUTO_UPDATES=1 to turn them on)"
+fi
 
 # Docker CE + compose plugin from Docker's official apt repo.
 # Ubuntu 24.04 noble doesn't ship docker-compose-plugin; the
