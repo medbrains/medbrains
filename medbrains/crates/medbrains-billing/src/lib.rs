@@ -1508,6 +1508,7 @@ pub async fn close_zero_invoice(
 //  POST /api/billing/invoices/{id}/payments
 // ══════════════════════════════════════════════════════════
 
+/// Record a payment on a bill, taking the audit chain before the bill's row.
 pub async fn record_payment(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
@@ -1546,6 +1547,7 @@ pub async fn record_payment(
         status: InvoiceStatus,
     }
 
+    medbrains_db::pool::take_audit_chain_first(&mut tx, &claims.tenant_id).await?;
     let invoice = sqlx::query_as::<_, InvoicePaymentGate>(
         "SELECT patient_id, encounter_id, admission_id, status \
          FROM invoices WHERE id = $1 AND tenant_id = $2 \

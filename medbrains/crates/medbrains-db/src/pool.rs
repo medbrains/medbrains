@@ -209,6 +209,23 @@ pub async fn set_tenant_context(
     apply_context(tx, Some(tenant_id), None, None, None, None, None, None).await
 }
 
+/// Take this hospital's audit chain lock now, before locking a money row.
+///
+/// Every audited write takes this lock and holds it to commit. A transaction
+/// that locks a bill and then writes audit, against one that writes audit and
+/// then locks that bill, deadlock. So: chain first, then the row. Same key as
+/// `audit_log_hash_chain`; migration 1403 does the same for plain `UPDATE`s.
+pub async fn take_audit_chain_first(
+    tx: &mut Transaction<'_, Postgres>,
+    tenant_id: &uuid::Uuid,
+) -> Result<(), DbError> {
+    sqlx::query("SELECT pg_advisory_xact_lock(hashtext('audit_chain'), hashtext($1))")
+        .bind(tenant_id.to_string())
+        .execute(&mut **tx)
+        .await?;
+    Ok(())
+}
+
 /// Set both tenant and department context for RLS.
 ///
 /// Sets `app.tenant_id` for tenant isolation and `app.user_department_ids`

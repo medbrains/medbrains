@@ -139,6 +139,7 @@ built. *Proposed* is waiting for the owner. *Rejected* was considered and turned
 | 2026-11-01 | Every database transaction spent 15.7 ms on timezones | Each one scanned all timezones | Cached once; about 0.1 ms (#5171) |
 | 2026-11-01 | Two branches took the same migration number | Parallel work | Renumbered before merge; check the latest number at merge time |
 | 2026-11-02 | The test that service accounts cannot log in was failing on `main`, unseen | Login moved to a database function in August, the test scanned only Rust, and CI had never run these tests. Login itself stayed safe | The test now checks every definition of that function, and CI reports every failing test |
+| 2026-11-02 | Raising or paying a bill could answer 500 "deadlock detected" while a clinical write charged the same hospital | The per-hospital audit chain lock is held to commit, and the invoice number row and the bill row were locked on either side of it, depending on the path | Chain first, always: statement triggers on `sequences` and `invoices` (migration 1403) and `take_audit_chain_first` before `FOR UPDATE` on a bill. Other rows can still cycle; removing the class means not holding the chain to commit |
 | 2026-11-01 | Generated permission files conflicted between branches | Parallel work | Rebase and regenerate; never hand-merge them |
 | 2026-11-02 | 17 server integration tests failed on their first CI run, and looked like money, claims and ABDM bugs | 14 were tests overwriting each other: all share one hospital, their `SERIAL` locks stop at the file, and CI ran them in parallel. The other 3 were out of date: a table missing from the global list, and two fixtures older than the rules they run into. A real race also showed: seeding an empty database from two servers at once fails on a duplicate key | `RUST_TEST_THREADS=1` in `.cargo/config.toml`; the 3 tests corrected without loosening them; seeding takes an advisory lock, proved by `seed_race_test` |
 
@@ -154,6 +155,7 @@ built. *Proposed* is waiting for the owner. *Rejected* was considered and turned
 | Documenting existing functions (about 582k lines of Rust plus the apps) | Happens as code is touched; a dedicated sweep if the owner wants one |
 | rustenberg lives only in a local repository with no remote and no licence file, though the public installer expects it | Owner: publish it or move it into this repository |
 | An OPD claim (no admission) looks unable to reach NHCX: diagnoses are read only through the admission, so the send gate would refuse it even when the visit is coded. Read from the code, not yet run | Owner: should claims fall back to the bill's encounter? |
+| The audit chain lock serialises every audited write in a hospital until commit: a throughput ceiling, and the cause of the deadlock class above | Owner: part of the ledger-grade audit decision |
 | CI's first real run (2026-11-02, a docs-only PR): 11 jobs fail on existing problems in the code and dependencies | To triage |
 
 ## Keeping this current

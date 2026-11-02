@@ -208,11 +208,13 @@ pub(crate) async fn apply(
     Ok(())
 }
 
+/// Lock the bill and read what is still owed, audit chain first (migration 1403).
 async fn open_balance(
     tx: &mut Tx<'_>,
     tenant_id: Uuid,
     invoice_id: Uuid,
 ) -> Result<Decimal, AppError> {
+    medbrains_db::pool::take_audit_chain_first(tx, &tenant_id).await?;
     Ok(sqlx::query_scalar::<_, Decimal>(
         "SELECT total_amount - paid_amount FROM invoices WHERE id = $1 AND tenant_id = $2 FOR UPDATE",
     )

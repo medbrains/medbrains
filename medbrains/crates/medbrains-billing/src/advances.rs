@@ -308,6 +308,7 @@ pub async fn adjust_advance(
         paid_amount: Decimal,
     }
 
+    medbrains_db::pool::take_audit_chain_first(&mut tx, &claims.tenant_id).await?;
     let invoice = sqlx::query_as::<_, AdvanceInvoiceGate>(
         "SELECT patient_id, status, total_amount, paid_amount \
          FROM invoices WHERE id = $1 AND tenant_id = $2 FOR UPDATE",
