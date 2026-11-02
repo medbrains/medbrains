@@ -49,7 +49,7 @@ flowchart TB
     subgraph System["System parts"]
         PG[("PostgreSQL<br/>row-level security")]
         SD["systemd<br/>hardened services"]
-        OPT["Optional: Orthanc · Gotenberg ·<br/>SpiceDB · mail · Ollama"]
+        OPT["Optional: Orthanc · rustenberg ·<br/>SpiceDB · mail · Ollama"]
     end
 
     subgraph Base["MedBrains OS base"]
@@ -215,7 +215,7 @@ amd64 + arm64 [today]. **Windows MSI + Hyper-V:** [planned W1]. **.deb:** [plann
 | `postgresql.service` | `postgres` | app connects as `medbrains_app` (no RLS bypass) |
 | `medbrains-bridge.service` | `medbrains-bridge` | HL7/device bridge; only its devices |
 | `cage-console.service` | `kiosk` | appliance screen (cage + WPE) |
-| optional | own users | Orthanc, Gotenberg, SpiceDB, mail, Ollama |
+| optional | own users | Orthanc, rustenberg, SpiceDB, mail, Ollama |
 
 Disks: EFI · root A · root B (read-only, verified) · recovery · **encrypted data** (database, files,
 backups, logs). Writable state lives only on the data partition. Hardware safety: NVMe not SD,

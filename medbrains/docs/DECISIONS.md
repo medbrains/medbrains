@@ -82,6 +82,7 @@ built. *Proposed* is waiting for the owner. *Rejected* was considered and turned
 | 2026-11-02 | Best in class in network, security, speed and small size, proved by a published scoreboard | The owner's goal; unmeasured claims would not survive a technical reader | Claiming it before there is a reproducible test | Plan (RFC-HOSPITAL-OS §8q) |
 | 2026-11-02 | Built-in fleet management, remote control and endpoint protection, like corporate IT and products such as Trellix. Each hospital holds its own keys | Hospitals should not have to buy this to be safe, and a shared master key would put every hospital at risk at once | A MedBrains master key or standing vendor access; controlling regulated medical devices | Plan (RFC-HOSPITAL-OS §8r) |
 | 2026-11-02 | First boot asks about network, time, updates and role (administrator machine or sub node), and the app runs on the machine's own screen | A hospital should be able to set up a machine with no IT help and no internet | Opening a browser on another computer as the main path; a setup that blocks without internet | Plan (RFC-HOSPITAL-OS §8s) |
+| 2026-11-02 | The OS prints with rustenberg, not Gotenberg | One 8 MB Rust binary with no Docker or Go, compatible with Gotenberg's API, and it adds thermal label routes. Gotenberg is roughly a 500 MB container | Gotenberg in the OS (it stays in local development for now) | Plan; rustenberg still needs Chromium on the machine |
 | 2026-11-02 | Delivery follows the Omarchy lessons: staged, offline installer, settings survive updates, own channels, one look | Hospitals with poor internet need this most | Arch as a base | Plan (#5191) |
 | 2026-11-02 | ext4 until the snapshot test passes; a database restore point before any migration | PostgreSQL on copy-on-write must be measured; A/B slots do not roll back a database | Assuming OpenZFS | Plan (#5191) |
 | 2026-11-02 | New server and OS code is Rust, on proven C foundations | Memory safety where we write code; proven data safety where we do not | Rewriting Linux or PostgreSQL; claiming "100% Rust" | Plan (#5191) |
@@ -142,6 +143,7 @@ built. *Proposed* is waiting for the owner. *Rejected* was considered and turned
 | CI that fits free runners, and GUI tests on every OS | Owner approval |
 | First signed release (v1.0.0), and npm and PyPI publishing | Owner |
 | Documenting existing functions (about 582k lines of Rust plus the apps) | Happens as code is touched; a dedicated sweep if the owner wants one |
+| rustenberg lives only in a local repository with no remote and no licence file, though the public installer expects it | Owner: publish it or move it into this repository |
 | CI's first real run (2026-11-02, a docs-only PR): 11 jobs fail on existing problems in the code and dependencies | To triage |
 
 ## Keeping this current
