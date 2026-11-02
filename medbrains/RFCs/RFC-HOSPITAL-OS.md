@@ -20,9 +20,12 @@ OS, and clinic needs do not set this plan's order. The Raspberry Pi and clinic p
 proof of how small the system can run, not as a product line for now.
 
 **The moat is the OS on cheap hardware (owner decision, 2026-11-02).** A big hospital should get what today takes
-expensive servers, storage arrays and licences, from many ordinary machines. Reliability comes from software:
-several cheap nodes replicating and failing over, so no single machine matters. This is only true once measured,
-so every claim needs a published test on named hardware, and the cost comparison must include failures and support.
+expensive servers, storage arrays and licences, without them. **The shape (owner, 2026-11-02): one server manages
+everything; everything else is an edge or node, on the smallest hardware that does its job.** Even an i3 is more
+than most nodes need. A node holds no system of record, so it can be replaced in minutes. A standby server and
+offline edges cover a server failure, since one server alone is a single point of failure. This is only true once
+measured, so every claim needs a published test on named hardware, and the cost comparison must include failures
+and support.
 
 **Security and control out of the box.** A hospital gets them by installing, with nothing to configure. Anything
 that weakens a default is an explicit, audited choice. On first boot, already on:
