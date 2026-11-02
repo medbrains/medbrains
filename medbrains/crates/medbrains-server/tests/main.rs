@@ -5,10 +5,11 @@
 //! per file. They are modules of this crate now. Run one file with
 //! `cargo test -p medbrains-server --test integration <file_name>::`.
 //!
-//! Whole suite: `-- --test-threads=1` for now. Files used to be separate
-//! processes that ran one after another, so tests in different files never
-//! overlapped; ~24 of them share hospital-wide settings (payment providers,
-//! ABDM mock addresses) and collide when they do. Give them their own tenant
+//! One test at a time, always: `.cargo/config.toml` sets `RUST_TEST_THREADS=1`.
+//! Files used to be separate processes that ran one after another, so tests in
+//! different files never overlapped; ~24 of them share hospital-wide settings
+//! (payment providers, ABDM mock addresses, the NHCX participant code) and their
+//! per-file `SERIAL` locks do not reach across files. Give them their own tenant
 //! and the default parallelism comes back.
 
 mod common;
@@ -263,6 +264,7 @@ mod sample_rejection_report_test;
 mod scoped_list_filters_test;
 mod screen_contract_test;
 mod security_breach_register_test;
+mod seed_race_test;
 mod service_times_test;
 mod sign_in_options_test;
 mod signatures_test;

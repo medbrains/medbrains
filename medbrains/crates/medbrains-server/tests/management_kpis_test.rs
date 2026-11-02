@@ -419,13 +419,17 @@ async fn department_efficiency_is_read_against_the_usual_day() {
 
 /// Given on a quiet day: one patient in a bed across midnight and one
 /// discharged by afternoon (LAMA, after 6 hours); a death after a 4-day stay;
-/// and a patient readmitted five days after a 3-day stay — When management
-/// reads that day, Then the census is one bed; the week's three discharges
-/// average (0.25 + 4 + 3) / 3 days, one in three died and one in three left
-/// against advice; and one of the week's four admissions is a readmission.
+/// and a patient readmitted five days after a 3-day stay, in house overnight
+/// with no bed recorded — When management reads that day, Then the census is
+/// unknown, not a confident figure; once that admission has its bed, the
+/// census is two beds; the week's three discharges average (0.25 + 4 + 3) / 3
+/// days, one in three died and one in three left against advice; and one of
+/// the week's four admissions is a readmission.
 #[tokio::test]
 async fn ipd_is_read_by_census_and_by_discharge() {
-    let app = common::spawn_app().await;
+    // The census query leans on row level security for its hospital, so it
+    // runs as the role production requests use.
+    let app = common::spawn_app_as_request_role().await;
     let csrf = app.login_admin().await;
     let day = quiet_day(1999);
     let (tenant, doctor): (Uuid, Uuid) =
@@ -450,11 +454,10 @@ async fn ipd_is_read_by_census_and_by_discharge() {
                 .unwrap_or_else(|e| unreachable!("{e}: {sql}"))
         }
     };
-    let bed = exec(format!(
-        "SELECT bed_location_id FROM ward_bed_mappings \
-          WHERE tenant_id = '{tenant}' AND is_active AND deleted_at IS NULL LIMIT 1"
-    ))
-    .await;
+    // Its own beds: the seed's belong to no ward, so a shared one exists only
+    // if an earlier test happened to make it.
+    let (_, bed) = common::vacant_ward_bed(&app, tenant).await;
+    let (_, second_bed) = common::vacant_ward_bed(&app, tenant).await;
     let patient = || {
         exec(format!(
             "INSERT INTO patients (tenant_id, uhid, first_name, last_name, gender, phone) \
@@ -508,7 +511,8 @@ async fn ipd_is_read_by_census_and_by_discharge() {
     .await;
     let returning = patient().await;
     admit(returning, at(-8, 9.0), Some(at(-5, 9.0)), "normal", false).await;
-    admit(returning, at(0, 10.0), None, "", false).await;
+    // Discharged the next day, so no later day of a reused database counts it.
+    let readmission = admit(returning, at(0, 10.0), Some(at(1, 9.0)), "normal", false).await;
 
     let codes = [
         "bed_occupancy_pct",
@@ -540,17 +544,34 @@ async fn ipd_is_read_by_census_and_by_discharge() {
     .fetch_one(&app.db)
     .await
     .expect("beds");
-    let answers: Vec<Value> = app
-        .client
-        .post(app.url("/api/dashboard/widget-data/batch"))
-        .header("x-csrf-token", &csrf)
-        .json(&json!({ "widget_ids": ids, "as_of": day }))
-        .send()
+    let read = || async {
+        app.client
+            .post(app.url("/api/dashboard/widget-data/batch"))
+            .header("x-csrf-token", &csrf)
+            .json(&json!({ "widget_ids": ids, "as_of": day }))
+            .send()
+            .await
+            .expect("batch")
+            .json::<Vec<Value>>()
+            .await
+            .expect("json")
+    };
+    let answers = read().await;
+    let occupancy = answers
+        .iter()
+        .find(|a| a["widget_id"] == json!(ids[0]))
+        .expect("the census widget answers");
+    assert!(
+        occupancy["data"]["value"].is_null(),
+        "an in-house admission with no bed is unknown, not a figure: {occupancy}"
+    );
+    sqlx::query("UPDATE admissions SET bed_id = $1 WHERE id = $2")
+        .bind(second_bed)
+        .bind(readmission)
+        .execute(&app.db)
         .await
-        .expect("batch")
-        .json()
-        .await
-        .expect("json");
+        .expect("the readmission gets its bed");
+    let answers = read().await;
     let value = |i: usize| {
         answers
             .iter()
@@ -559,7 +580,7 @@ async fn ipd_is_read_by_census_and_by_discharge() {
             .unwrap_or(f64::NAN)
     };
     #[allow(clippy::cast_precision_loss)] // a handful of beds
-    let census = 100.0 / beds as f64;
+    let census = 200.0 / beds as f64;
     let expected = [census, 7.25 / 3.0, 100.0 / 3.0, 100.0 / 3.0, 25.0];
     for (i, want) in expected.iter().enumerate() {
         assert!(
