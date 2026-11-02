@@ -1,6 +1,6 @@
 {
   "name": "@medbrains/sdk",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "description": "Build extensions for MedBrains, the open hospital OS: sign-in, typed calls, webhook verification, a local mock and the `medbrains ext` CLI.",
   "license": "Apache-2.0",
   "type": "module",

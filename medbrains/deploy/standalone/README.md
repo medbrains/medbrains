@@ -43,7 +43,13 @@ secrets. Picks up where it left off if interrupted.
 
 ## What the installer does
 
-1. Installs system packages: Docker, `certbot`, `openssl`.
+1. Installs system packages: Docker, `certbot`, `openssl`, and turns on
+   automatic OS security updates (`os-auto-updates.sh`: Debian/Ubuntu
+   security archive only, nightly at 03:30 after the backups, no automatic
+   reboot unless `OS_UPDATE_REBOOT=1`; logs in `/var/log/unattended-upgrades/`).
+   Skipped on an attach host unless `OS_AUTO_UPDATES=1`. MedBrains itself is
+   never updated by apt — it updates through its signed releases
+   (`docs/SECURITY-RELEASE-PROCESS.md`).
 2. Creates `medbrains` system user + directory tree under
    `/var/lib/medbrains/`.
 3. Writes `/etc/medbrains/env` (postgres password, Ed25519 JWT
@@ -190,6 +196,7 @@ Certbot once the domain is proven and add its route to the proxy config.
 | File | Purpose |
 |---|---|
 | `install.sh` | Idempotent bootstrap script |
+| `os-auto-updates.sh` | unattended OS security updates: window, reboot policy, logging (`test-os-auto-updates.sh` checks it) |
 | `PingoraProxy.toml.tmpl` | Pingora edge proxy template |
 | `medbrains-proxy.service` | systemd unit for the Pingora edge proxy |
 | `copy-medbrains-proxy-cert` | Certbot deploy hook that copies renewed certs into `/etc/medbrains/tls` |

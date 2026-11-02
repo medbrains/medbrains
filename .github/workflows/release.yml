@@ -5,6 +5,13 @@
 # guard and would have pushed an image to GHCR on every push to master once
 # this went live. Production is built with cargo-zigbuild on the operator's
 # machine (ENGINEERING.md) — this workflow is a GitHub release, not the deploy.
+#
+# Supply chain (RFC-HOSPITAL-OS §8j, SEC1): the image is signed with cosign
+# keyless (GitHub OIDC, no key to lose), every artefact gets a build-provenance
+# attestation, and the release carries CycloneDX SBOMs and SHA-256 checksums,
+# the checksum file itself signed. Verify with the commands in
+# medbrains/docs/SECURITY-RELEASE-PROCESS.md. The SDKs are never published
+# from here: see publish-sdks.yml.
 
 name: Release
 
@@ -75,6 +82,8 @@ jobs:
     permissions:
       contents: read
       packages: write
+      id-token: write       # keyless signing + provenance
+      attestations: write
     steps:
       - uses: actions/checkout@v4
       - uses: docker/setup-qemu-action@v3
@@ -94,7 +103,8 @@ jobs:
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
             type=sha
-      - uses: docker/build-push-action@v6
+      - id: build
+        uses: docker/build-push-action@v6
         with:
           context: medbrains
           file: medbrains/Dockerfile
@@ -104,6 +114,30 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
+      - uses: sigstore/cosign-installer@v3
+      - name: Sign the image (keyless)
+        env:
+          IMAGE: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}@${{ steps.build.outputs.digest }}
+        run: cosign sign --yes "$IMAGE"
+      - uses: actions/attest-build-provenance@v2
+        with:
+          subject-name: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          subject-digest: ${{ steps.build.outputs.digest }}
+          push-to-registry: true
+      # The image is distroless, so this lists its few OS packages; the
+      # crates and npm packages are in the source SBOM the release job makes.
+      - uses: anchore/sbom-action@v0
+        with:
+          image: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}@${{ steps.build.outputs.digest }}
+          format: cyclonedx-json
+          output-file: medbrains-image.cdx.json
+          upload-artifact: false
+          upload-release-assets: false
+      - uses: actions/upload-artifact@v4
+        with:
+          name: sbom-image
+          path: medbrains-image.cdx.json
+          retention-days: 30
 
   release:
     name: GitHub release
@@ -112,6 +146,8 @@ jobs:
     if: startsWith(github.ref, 'refs/tags/v')
     permissions:
       contents: write
+      id-token: write
+      attestations: write
     steps:
       - uses: actions/checkout@v4
         with:
@@ -119,23 +155,54 @@ jobs:
       - uses: actions/download-artifact@v4
         with:
           path: ./artifacts
-      - name: Changelog
+      # Release notes are the CHANGELOG.md section for this version, written
+      # by a person; the commit list is only a fallback for a missing section.
+      - name: Release notes
+        env:
+          VERSION: ${{ github.ref_name }}
         run: |
-          PREV_TAG=$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || echo "")
-          if [ -n "$PREV_TAG" ]; then
-            { echo "## Changes since $PREV_TAG"; echo; git log --pretty=format:"- %s (%h)" "$PREV_TAG"..HEAD; } > CHANGELOG.md
-          else
-            echo "## Initial release" > CHANGELOG.md
+          mkdir -p dist
+          awk -v v="${VERSION#v}" '
+            $0 ~ "^## \\[" v "\\]" { on = 1; next }
+            on && /^## \[/ { exit }
+            on { print }
+          ' CHANGELOG.md > NOTES.md
+          if [ ! -s NOTES.md ]; then
+            PREV_TAG=$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || echo "")
+            if [ -n "$PREV_TAG" ]; then
+              { echo "## Changes since $PREV_TAG"; echo; git log --pretty=format:"- %s (%h)" "$PREV_TAG"..HEAD; } > NOTES.md
+            else
+              echo "## Initial release" > NOTES.md
+            fi
           fi
-      - name: Tarballs
-        working-directory: artifacts
+      # One tool for both lockfiles: syft reads Cargo.lock and pnpm-lock.yaml
+      # (every crate and npm package that can reach the server and web app),
+      # in CycloneDX, the format hospital procurement and scanners ask for.
+      # cargo-cyclonedx would only cover the Rust half and writes one file per crate.
+      - uses: anchore/sbom-action@v0
+        with:
+          path: medbrains
+          format: cyclonedx-json
+          output-file: dist/medbrains-source.cdx.json
+          upload-artifact: false
+          upload-release-assets: false
+      - name: Tarballs, SBOMs and checksums
         run: |
-          tar -czf medbrains-server-linux-x64.tar.gz medbrains-server/
-          tar -czf medbrains-web-dist.tar.gz web-dist/
+          tar -czf dist/medbrains-server-linux-x64.tar.gz -C artifacts medbrains-server
+          tar -czf dist/medbrains-web-dist.tar.gz -C artifacts web-dist
+          cp artifacts/sbom-image/medbrains-image.cdx.json dist/
+          cd dist && sha256sum -- * > SHA256SUMS
+      - uses: sigstore/cosign-installer@v3
+      - name: Sign the checksums (keyless)
+        working-directory: dist
+        run: cosign sign-blob --yes --bundle SHA256SUMS.sigstore.json SHA256SUMS
+      - uses: actions/attest-build-provenance@v2
+        with:
+          subject-path: |
+            dist/medbrains-server-linux-x64.tar.gz
+            dist/medbrains-web-dist.tar.gz
       - uses: softprops/action-gh-release@v2
         with:
-          body_path: CHANGELOG.md
-          files: |
-            artifacts/medbrains-server-linux-x64.tar.gz
-            artifacts/medbrains-web-dist.tar.gz
+          body_path: NOTES.md
+          files: dist/*
           prerelease: ${{ contains(github.ref, '-alpha') || contains(github.ref, '-beta') || contains(github.ref, '-rc') }}

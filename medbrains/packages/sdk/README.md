@@ -56,6 +56,9 @@ await mock.stop();
 | `medbrains ext test [--url URL]` | conformance suite; with `--url`, against a sandbox using `MEDBRAINS_CLIENT_ID`, `MEDBRAINS_CLIENT_SECRET`, `MEDBRAINS_PATIENT_ID` |
 | `medbrains ext publish` | not yet — the public registry is phase E2; exits 2 and says so |
 
+Versioning: the SDK's major is the protocol version it speaks (1.x = protocol v1). What is
+promised and for how long: [`docs/COMPATIBILITY.md`](../../docs/COMPATIBILITY.md).
+
 The CLI is TypeScript in this package rather than a Rust binary: extension developers already have
 Node, `npx` needs no install, and it shares the validator and mock with the SDK instead of
 reimplementing them.

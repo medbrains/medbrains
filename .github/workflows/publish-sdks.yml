@@ -1,0 +1,80 @@
+# Publish the extension SDKs: @medbrains/sdk to npm, medbrains-sdk to PyPI.
+#
+# By hand only, never on a tag: an SDK release is a promise to every vendor
+# (medbrains/docs/COMPATIBILITY.md), so a person decides when it happens.
+# Trusted publishing (OIDC) — no npm or PyPI token is stored in this repo.
+#
+# Will not work until the owner configures, once:
+#   npm:  npmjs.com → @medbrains/sdk → Settings → Trusted publishing →
+#         GitHub Actions, repo medbrains/medbrains, workflow publish-sdks.yml,
+#         environment npm  (the @medbrains scope must exist and be the owner's)
+#   PyPI: pypi.org → medbrains-sdk → Publishing (or a "pending publisher" for
+#         the first upload) → repo medbrains/medbrains, workflow publish-sdks.yml,
+#         environment pypi
+#   GitHub: Settings → Environments → create `npm` and `pypi`, with the owner
+#         as required reviewer, so every publish waits for an approval.
+
+name: Publish SDKs
+
+on:
+  workflow_dispatch:
+    inputs:
+      target:
+        description: Which SDK to publish
+        type: choice
+        options: [both, npm, pypi]
+        default: both
+
+permissions:
+  contents: read
+
+jobs:
+  npm:
+    name: "@medbrains/sdk → npm"
+    if: github.ref == 'refs/heads/main' && inputs.target != 'pypi'
+    runs-on: ubuntu-latest
+    environment: npm
+    permissions:
+      contents: read
+      id-token: write
+    defaults:
+      run:
+        working-directory: medbrains
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          package_json_file: medbrains/package.json
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: medbrains/.nvmrc
+          registry-url: https://registry.npmjs.org
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @medbrains/sdk test
+      - run: pnpm --filter @medbrains/sdk build
+      # Trusted publishing needs npm >= 11.5.1; provenance links the package to this run.
+      - run: npm install -g npm@latest
+      - working-directory: medbrains/packages/sdk
+        run: npm publish --provenance --access public
+
+  pypi:
+    name: "medbrains-sdk → PyPI"
+    if: github.ref == 'refs/heads/main' && inputs.target != 'npm'
+    runs-on: ubuntu-latest
+    environment: pypi
+    permissions:
+      contents: read
+      id-token: write
+    defaults:
+      run:
+        working-directory: medbrains/sdks/python
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python -m unittest discover -s tests
+      - run: python -m pip install build && python -m build
+      - uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          packages-dir: medbrains/sdks/python/dist
