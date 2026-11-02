@@ -86,8 +86,14 @@ impl From<sqlx::Error> for CheckError {
     }
 }
 
-impl From<medbrains_kernel::AppError> for CheckError {
-    fn from(e: medbrains_kernel::AppError) -> Self {
+impl From<medbrains_kernel::KernelError> for CheckError {
+    fn from(e: medbrains_kernel::KernelError) -> Self {
+        Self(e.to_string())
+    }
+}
+
+impl From<medbrains_server_core::error::AppError> for CheckError {
+    fn from(e: medbrains_server_core::error::AppError) -> Self {
         Self(e.to_string())
     }
 }

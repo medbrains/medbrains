@@ -15,7 +15,9 @@ use axum::{
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use medbrains_kernel::{Actor, AppError, Claims};
+use medbrains_kernel::{Actor, Claims};
+
+use medbrains_server_core::error::AppError;
 use medbrains_server_core::state::AppState;
 
 #[derive(Debug, Deserialize)]

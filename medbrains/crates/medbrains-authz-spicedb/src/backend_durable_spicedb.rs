@@ -11,10 +11,12 @@ use async_trait::async_trait;
 use sqlx::PgPool;
 use uuid::Uuid;
 
-use crate::{
+use medbrains_authz::{
     AuthzBackend, AuthzContext, AuthzError, RelationTuple, Subject, backend_pg::PgAuthzBackend,
-    backend_spicedb::SpiceDbBackend, relations::Relation,
+    relations::Relation,
 };
+
+use crate::backend_spicedb::SpiceDbBackend;
 
 const OUTBOX_BATCH_PER_TENANT: i64 = 100;
 const OUTBOX_IDLE_SLEEP: Duration = Duration::from_secs(5);

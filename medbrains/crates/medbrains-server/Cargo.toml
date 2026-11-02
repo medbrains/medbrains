@@ -188,6 +188,7 @@ schemars = { workspace = true }
 mlua = { workspace = true }
 anyhow = { workspace = true }
 medbrains-authz = { version = "0.1.0", path = "../medbrains-authz" }
+medbrains-authz-spicedb = { path = "../medbrains-authz-spicedb" }
 aws-sdk-s3 = { version = "1", default-features = false, features = ["rt-tokio"] }
 aws-config = { version = "1", default-features = false, features = ["rt-tokio"] }
 # Optional secrets backend — only compiled when the `aws-secrets` feature is on,

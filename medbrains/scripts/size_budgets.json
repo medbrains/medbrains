@@ -4,14 +4,15 @@
     "medbrains-authz",
     "medbrains-core",
     "medbrains-db",
-    "medbrains-server-core",
-    "medbrains-workflow",
     "serde",
     "serde_json",
     "sqlx",
+    "thiserror",
+    "tracing",
     "uuid"
   ],
-  "packages": 1320,
-  "crates": 161,
+  "kernel_closure": 272,
+  "packages": 1321,
+  "crates": 162,
   "web_first_load_gzip_limit": 1166326
 }

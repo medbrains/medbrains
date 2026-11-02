@@ -31,12 +31,13 @@ and is repeated in `medbrains/package.json` and `medbrains/apps/web/package.json
 | **Manifest schema** | [`extensions/manifest.schema.json`](extensions/manifest.schema.json) and the registration rules in PROTOCOL.md §3 | the protocol version |
 | **APIs extensions use** | the endpoints listed in PROTOCOL.md §4 ("Endpoints in v1"), FHIR R4 as published in `/api/fhir/metadata` | the protocol version; FHIR R4 itself is HL7's |
 | **SDKs** | `@medbrains/sdk` (TypeScript, with the `medbrains ext` CLI) and `medbrains-sdk` (Python) | their own SemVer; the **major equals the protocol version** they speak (SDK 1.x speaks protocol v1) |
-| **Kernel interface** | the public items of the `medbrains-kernel` crate: `work`, `begin`, `Tx`, `Actor`, `authorize`, `Outcome`, `require_permission`, `require_any_permission`, `audit`, `events`, `config`, `seq`, `store`, `health` (RFC-HOSPITAL-OS §3.2) | the product version |
+| **Kernel interface** | the public items of the `medbrains-kernel` crate: `work`, `begin`, `Tx`, `Actor`, `Claims`, `KernelError`, `authorize`, `Outcome`, `require_permission`, `require_any_permission`, `audit`, `events`, `config`, `seq`, `store`, `health` (RFC-HOSPITAL-OS §3.2) | the product version |
 | **Conformance suite** | `medbrains ext test` (§5) | the protocol version: a suite only gets stricter in a new major |
 
 `kernel::patient`, `kernel::consent` and `kernel::authz::require_patient_access` left the kernel
 before the first release (RFC-HOSPITAL-OS §3a) and were never covered. They are now in the
-`medbrains-health-services` crate, which is not part of this promise yet.
+`medbrains-health-services` crate, which is not part of this promise yet. `kernel::AppError` left the
+same way (K3b): the kernel answers `KernelError`, and `AppError` is `medbrains-server-core`'s.
 
 The product and the protocol move separately on purpose. MedBrains 1.4 and 2.0 can both speak
 protocol v1; a new protocol major is a much rarer event than a new product major.

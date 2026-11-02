@@ -4,7 +4,7 @@ set -euo pipefail
 # Push the local SpiceDB authorization schema.
 #
 # This used to be the slowest step in `make dev`, and not because SpiceDB is
-# slow: writing the schema means `cargo run -p medbrains-authz`, which builds
+# slow: writing the schema means `cargo run -p medbrains-authz-spicedb`, which builds
 # tonic, prost and the SpiceDB client before it can send a file that changes
 # perhaps once a month. On a cold target that is minutes, every single start.
 #
@@ -50,7 +50,7 @@ fi
 echo "Loading local SpiceDB schema from $SPICEDB_SCHEMA_FILE..."
 SPICEDB_ENDPOINT="$SPICEDB_ENDPOINT" \
 SPICEDB_TOKEN="$SPICEDB_TOKEN" \
-  cargo run -q -p medbrains-authz --bin spicedb-schema-write -- "$SPICEDB_SCHEMA_FILE"
+  cargo run -q -p medbrains-authz-spicedb --bin spicedb-schema-write -- "$SPICEDB_SCHEMA_FILE"
 
 # Stamped only after a successful write — `set -e` means a failure never gets
 # here, so a broken run cannot mark itself done and be skipped next time.

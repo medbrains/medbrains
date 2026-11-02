@@ -2,15 +2,16 @@
 //!
 //! The RFC's tree (RFC-HOSPITAL-OS §3.1) resolves most specific scope first.
 //! K1 reads the **tenant-wide** scope only, from `tenant_settings` through
-//! `medbrains_server_core::tenant_config::setting_in`; the narrower scopes
-//! arrive with K3. The path syntax is already the tree's: `category/key`, and
+//! [`setting_in`]; the narrower scopes arrive with K3. The path syntax is already the tree's: `category/key`, and
 //! deeper paths parse today (they simply find nothing until K3 stores them).
 
 use std::fmt;
 
 use serde_json::Value;
+use sqlx::PgConnection;
+use uuid::Uuid;
 
-use crate::{AppError, Tx};
+use crate::{KernelError, Tx};
 
 /// Scopes the resolver consults today, most specific first.
 pub const RESOLVED_SCOPES: [&str; 1] = ["hospital"];
@@ -56,11 +57,28 @@ pub fn parse(path: &str) -> Result<ConfigPath<'_>, InvalidPath> {
 /// The value at `path` for the unit of work's tenant, most specific scope
 /// first; `None` when no scope sets it.
 #[inline]
-pub async fn get(tx: &mut Tx, path: &str) -> Result<Option<Value>, AppError> {
-    let parsed = parse(path).map_err(|e| AppError::BadRequest(e.to_string()))?;
+pub async fn get(tx: &mut Tx, path: &str) -> Result<Option<Value>, KernelError> {
+    let parsed = parse(path).map_err(|e| KernelError::BadRequest(e.to_string()))?;
     let tenant_id = tx.actor().tenant_id;
-    medbrains_server_core::tenant_config::setting_in(tx, &tenant_id, parsed.category, parsed.key)
-        .await
+    Ok(setting_in(tx, &tenant_id, parsed.category, parsed.key).await?)
+}
+
+/// The tenant's value for `category`/`key` in `tenant_settings`, if set.
+pub async fn setting_in(
+    conn: &mut PgConnection,
+    tenant_id: &Uuid,
+    category: &str,
+    key: &str,
+) -> Result<Option<Value>, sqlx::Error> {
+    sqlx::query_scalar::<_, Value>(
+        "SELECT value FROM tenant_settings \
+         WHERE tenant_id = $1 AND category = $2 AND key = $3 AND deleted_at IS NULL",
+    )
+    .bind(*tenant_id)
+    .bind(category)
+    .bind(key)
+    .fetch_optional(conn)
+    .await
 }
 
 #[cfg(test)]

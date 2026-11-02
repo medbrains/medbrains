@@ -3,7 +3,7 @@
 //! Wraps `medbrains_db::sequence::next_sequence` — the atomic
 //! `INSERT … ON CONFLICT DO UPDATE … RETURNING` on the `sequences` table.
 
-use crate::{AppError, Tx};
+use crate::{KernelError, Tx};
 
 /// How a sequence is formatted when it is first created. Once the row
 /// exists, its stored prefix and width win.
@@ -16,7 +16,7 @@ pub struct Format<'a> {
 /// The next value of the unit of work's tenant's `kind` sequence, e.g.
 /// `ACMS-2026-00042`. Atomic: two concurrent callers never get the same value.
 #[inline]
-pub async fn next(tx: &mut Tx, kind: &str, format: Format<'_>) -> Result<String, AppError> {
+pub async fn next(tx: &mut Tx, kind: &str, format: Format<'_>) -> Result<String, KernelError> {
     let tenant_id = tx.actor().tenant_id;
     let value = medbrains_db::sequence::next_sequence(
         tx.transaction(),

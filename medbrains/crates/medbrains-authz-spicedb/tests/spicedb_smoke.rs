@@ -4,14 +4,13 @@
 //! doesn't fail. Locally:
 //!
 //!     docker compose up -d spicedb
-//!     SPICEDB_TEST=1 cargo test -p medbrains-authz --test spicedb_smoke
+//!     SPICEDB_TEST=1 cargo test -p medbrains-authz-spicedb --test spicedb_smoke
 //!
 //! Verifies write → check → list_accessible → revoke against the
 //! schema in `infra/spicedb/schema.zed`.
 
-use medbrains_authz::{
-    AuthzBackend, AuthzContext, Subject, backend_spicedb::SpiceDbBackend, relations::Relation,
-};
+use medbrains_authz::{AuthzBackend, AuthzContext, Subject, relations::Relation};
+use medbrains_authz_spicedb::backend_spicedb::SpiceDbBackend;
 use uuid::Uuid;
 
 fn skip_if_no_spicedb() -> bool {
@@ -152,8 +151,16 @@ async fn list_filters_to_only_granted_resources() {
         ("patient".to_owned(), Relation::Viewer, not_granted),
     ];
     let verdicts = backend.bulk_check(&ctx, &items).await.expect("bulk_check");
-    assert_eq!(verdicts.get(&items[0]), Some(&true), "granted_a allowed in bulk");
-    assert_eq!(verdicts.get(&items[1]), Some(&false), "not_granted refused in bulk");
+    assert_eq!(
+        verdicts.get(&items[0]),
+        Some(&true),
+        "granted_a allowed in bulk"
+    );
+    assert_eq!(
+        verdicts.get(&items[1]),
+        Some(&false),
+        "not_granted refused in bulk"
+    );
 
     // Cleanup so this test is idempotent.
     for p in [granted_a, granted_b] {

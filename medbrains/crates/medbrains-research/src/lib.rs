@@ -30,7 +30,8 @@ use axum::{
 use base64::Engine as _;
 use chrono::{DateTime, NaiveDate, Utc};
 use medbrains_core::permissions;
-use medbrains_kernel::{Actor, AppError, Claims, Tx, require_permission};
+use medbrains_kernel::{Actor, Claims, Tx, require_permission};
+use medbrains_server_core::error::AppError;
 use medbrains_server_core::state::AppState;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -103,7 +104,7 @@ const SELECT: &str = "SELECT x.id, x.dataset, x.period_from, x.period_to, x.purp
     LEFT JOIN users d ON d.id = x.decided_by WHERE x.tenant_id = $1 AND x.deleted_at IS NULL";
 
 async fn tx_for(state: &AppState, claims: &Claims) -> Result<Tx, AppError> {
-    medbrains_kernel::begin(&state.db, Actor::from_claims(claims)).await
+    Ok(medbrains_kernel::begin(&state.db, Actor::from_claims(claims)).await?)
 }
 
 /// What is wrong with a request, if anything.

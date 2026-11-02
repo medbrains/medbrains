@@ -2,7 +2,7 @@
 //! drawers that day's sales and returns were rung on.
 
 use chrono::{DateTime, NaiveDate, Utc};
-use medbrains_kernel::AppError;
+use medbrains_server_core::error::AppError;
 use rust_decimal::Decimal;
 use serde::Serialize;
 use uuid::Uuid;

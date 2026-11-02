@@ -69,7 +69,7 @@ def main() -> int:
     if "HashMap<String, medbrains_core::form::FieldAccessLevel> = HashMap::new()" in auth_route:
         failures.append("/auth responses still return an empty field_access map")
 
-    spicedb = read("crates/medbrains-authz/src/backend_spicedb.rs")
+    spicedb = read("crates/medbrains-authz-spicedb/src/backend_spicedb.rs")
     if "HasPermission | Permissionship::ConditionalPermission" in spicedb:
         failures.append("SpiceDB Check/BulkCheck treats conditional permission as allowed")
     if "LookupPermissionship::ConditionalPermission" in spicedb:

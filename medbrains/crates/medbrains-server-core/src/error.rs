@@ -270,6 +270,22 @@ impl From<sqlx::Error> for AppError {
     }
 }
 
+/// How a kernel failure answers over HTTP: each variant becomes the `AppError` of
+/// the same name, so the kernel moving below this crate changed no status or body.
+impl From<medbrains_kernel::KernelError> for AppError {
+    fn from(err: medbrains_kernel::KernelError) -> Self {
+        use medbrains_kernel::KernelError as K;
+        match err {
+            K::Database(e) => Self::Database(e),
+            K::Forbidden => Self::Forbidden,
+            K::NotFound => Self::NotFound,
+            K::BadRequest(msg) => Self::BadRequest(msg),
+            K::ServiceUnavailable(msg) => Self::ServiceUnavailable(msg),
+            K::Internal(msg) => Self::Internal(msg),
+        }
+    }
+}
+
 /// A refused stock movement is the caller's problem, not the server's.
 ///
 /// "Short by 12" and "this line was never linked to the catalogue" are both
@@ -305,7 +321,71 @@ impl From<argon2::password_hash::Error> for AppError {
 
 #[cfg(test)]
 mod tests {
-    use super::{StatusCode, db_error_status};
+    use super::{AppError, StatusCode, db_error_status};
+    use axum::response::IntoResponse;
+    use medbrains_kernel::KernelError;
+
+    /// The status and body a client would receive.
+    async fn answer(err: AppError) -> (StatusCode, Vec<u8>) {
+        let response = err.into_response();
+        let status = response.status();
+        let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+            .await
+            .map(|b| b.to_vec())
+            .unwrap_or_default();
+        (status, body)
+    }
+
+    /// Moving the kernel below this crate must not change a byte on the wire:
+    /// a failure through the kernel answers as the `AppError` it always was,
+    /// with the status pinned so a shared regression cannot pass unnoticed.
+    #[tokio::test]
+    async fn a_kernel_failure_answers_exactly_as_the_app_error_did() {
+        let msg = || "why".to_owned();
+        let db = || sqlx::Error::RowNotFound;
+        let cases: Vec<(KernelError, AppError, StatusCode)> = vec![
+            (
+                KernelError::Forbidden,
+                AppError::Forbidden,
+                StatusCode::FORBIDDEN,
+            ),
+            (
+                KernelError::NotFound,
+                AppError::NotFound,
+                StatusCode::NOT_FOUND,
+            ),
+            (
+                KernelError::BadRequest(msg()),
+                AppError::BadRequest(msg()),
+                StatusCode::BAD_REQUEST,
+            ),
+            (
+                KernelError::ServiceUnavailable(msg()),
+                AppError::ServiceUnavailable(msg()),
+                StatusCode::SERVICE_UNAVAILABLE,
+            ),
+            (
+                KernelError::Internal(msg()),
+                AppError::Internal(msg()),
+                StatusCode::INTERNAL_SERVER_ERROR,
+            ),
+            (
+                KernelError::from(db()),
+                AppError::from(db()),
+                StatusCode::NOT_FOUND,
+            ),
+            (
+                KernelError::from(sqlx::Error::PoolClosed),
+                AppError::from(sqlx::Error::PoolClosed),
+                StatusCode::INTERNAL_SERVER_ERROR,
+            ),
+        ];
+        for (kernel, app, status) in cases {
+            let expected = answer(app).await;
+            assert_eq!(expected.0, status);
+            assert_eq!(answer(AppError::from(kernel)).await, expected);
+        }
+    }
 
     #[test]
     fn constraint_violations_are_client_errors() {

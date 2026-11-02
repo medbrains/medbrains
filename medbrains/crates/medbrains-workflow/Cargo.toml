@@ -8,6 +8,7 @@ rust-version.workspace = true
 [dependencies]
 sha2 = { workspace = true }
 hex = { workspace = true }
+medbrains-kernel = { path = "../medbrains-kernel" }
 medbrains-server-core = { path = "../medbrains-server-core" }
 medbrains-core = { path = "../medbrains-core" }
 medbrains-outbox = { path = "../medbrains-outbox" }

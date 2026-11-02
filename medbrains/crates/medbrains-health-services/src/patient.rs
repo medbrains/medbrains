@@ -5,7 +5,7 @@
 //! `merged_into_patient_id`) and nothing else; identifier types beyond UHID
 //! (ABHA, MRN in `patient_identifiers`) are K3+ work.
 
-use medbrains_kernel::{AppError, Tx};
+use medbrains_kernel::{KernelError, Tx};
 use uuid::Uuid;
 
 pub use medbrains_authz_gate::require_patient_access;
@@ -23,7 +23,7 @@ pub enum PatientRef<'a> {
 /// The surviving patient id for `identifier` in the unit of work's tenant,
 /// following merges to the record that was kept. `None` when no such patient
 /// exists in this hospital.
-pub async fn resolve(tx: &mut Tx, identifier: PatientRef<'_>) -> Result<Option<Uuid>, AppError> {
+pub async fn resolve(tx: &mut Tx, identifier: PatientRef<'_>) -> Result<Option<Uuid>, KernelError> {
     let (id, uhid) = match identifier {
         PatientRef::Id(id) => (Some(id), None),
         PatientRef::Uhid(uhid) => (None, Some(uhid)),

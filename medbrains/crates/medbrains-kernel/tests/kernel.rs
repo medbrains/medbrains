@@ -19,7 +19,7 @@
 use medbrains_authz::backend_pg::PgAuthzBackend;
 use medbrains_authz::{AuthzContext, Relation};
 use medbrains_kernel::authz::Resource;
-use medbrains_kernel::{Actor, AppError, Outcome, audit::AuditEntry};
+use medbrains_kernel::{Actor, KernelError, Outcome, audit::AuditEntry};
 use sqlx::PgPool;
 use sqlx::postgres::PgPoolOptions;
 use uuid::Uuid;
@@ -58,7 +58,7 @@ async fn an_unreachable_backend_is_unknown_not_deny() {
     assert_eq!(outcome, Outcome::Unknown);
     assert!(matches!(
         medbrains_kernel::authz::collapse(outcome),
-        Err(AppError::ServiceUnavailable(_))
+        Err(KernelError::ServiceUnavailable(_))
     ));
 
     // A list is never rendered from an outage: every row is Unknown, none dropped.
@@ -161,11 +161,13 @@ async fn work_scopes_reads_to_its_tenant() {
 
     let app = app_pool().await;
     let unfiltered = async |tx: &mut medbrains_kernel::Tx| {
-        Ok(sqlx::query_scalar::<_, i64>(
-            "SELECT count(*) FROM tenant_settings WHERE category = 'kernel_test'",
+        Ok::<_, KernelError>(
+            sqlx::query_scalar::<_, i64>(
+                "SELECT count(*) FROM tenant_settings WHERE category = 'kernel_test'",
+            )
+            .fetch_one(&mut **tx)
+            .await?,
         )
-        .fetch_one(&mut **tx)
-        .await?)
     };
     assert_eq!(
         medbrains_kernel::work(&app, a, &unfiltered).await.unwrap(),
@@ -248,7 +250,7 @@ async fn audit_appends_a_chained_row() {
         medbrains_kernel::audit(tx, &entry).await
     })
     .await;
-    assert!(matches!(refused, Err(AppError::Forbidden)));
+    assert!(matches!(refused, Err(KernelError::Forbidden)));
 }
 
 /// What the facade costs over calling the wrapped functions directly:
@@ -294,7 +296,7 @@ async fn facade_overhead_is_within_budget() {
             patient.id,
         )
         .await;
-        let _ = medbrains_server_core::middleware::authorization::outcome_of(answer, "patient");
+        let _ = medbrains_kernel::authz::outcome_of(answer, "patient");
         medbrains_db::audit::AuditLogger::log(&mut tx, &entry)
             .await
             .unwrap();
@@ -361,7 +363,7 @@ async fn after_events_commit_and_roll_back_with_the_work() {
     let refused = medbrains_kernel::work(&app, a, async |tx: &mut medbrains_kernel::Tx| {
         medbrains_kernel::events::after(tx, "kernel_test.rolled_back", serde_json::json!({}))
             .await?;
-        Err::<(), _>(AppError::BadRequest("the work failed".to_owned()))
+        Err::<(), _>(KernelError::BadRequest("the work failed".to_owned()))
     })
     .await;
     assert!(refused.is_err());
