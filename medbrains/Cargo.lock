@@ -6955,6 +6955,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "medbrains-health-services"
+version = "1.0.0"
+dependencies = [
+ "medbrains-authz-gate",
+ "medbrains-kernel",
+ "sqlx",
+ "tokio",
+ "tracing",
+ "uuid",
+]
+
+[[package]]
 name = "medbrains-history-import"
 version = "0.1.0"
 dependencies = [
@@ -7218,7 +7230,6 @@ version = "1.0.0"
 dependencies = [
  "chrono",
  "medbrains-authz",
- "medbrains-authz-gate",
  "medbrains-core",
  "medbrains-db",
  "medbrains-server-core",
@@ -7227,7 +7238,6 @@ dependencies = [
  "serde_json",
  "sqlx",
  "tokio",
- "tracing",
  "uuid",
 ]
 
@@ -7737,7 +7747,7 @@ dependencies = [
  "medbrains-clinical-core",
  "medbrains-core",
  "medbrains-db",
- "medbrains-kernel",
+ "medbrains-health-services",
  "medbrains-outbox",
  "medbrains-server-core",
  "medbrains-server-services",
@@ -8829,6 +8839,7 @@ dependencies = [
  "medbrains-authz",
  "medbrains-core",
  "medbrains-db-topology",
+ "medbrains-health-services",
  "medbrains-kernel",
  "medbrains-outbox",
  "medbrains-server-core",

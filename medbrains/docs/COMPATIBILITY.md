@@ -34,9 +34,9 @@ and is repeated in `medbrains/package.json` and `medbrains/apps/web/package.json
 | **Kernel interface** | the public items of the `medbrains-kernel` crate: `work`, `begin`, `Tx`, `Actor`, `authorize`, `Outcome`, `require_permission`, `require_any_permission`, `audit`, `events`, `config`, `seq`, `store`, `health` (RFC-HOSPITAL-OS §3.2) | the product version |
 | **Conformance suite** | `medbrains ext test` (§5) | the protocol version: a suite only gets stricter in a new major |
 
-Two kernel modules are not covered: `kernel::patient` and `kernel::consent`. RFC-HOSPITAL-OS §3a
-moves them out of the kernel into health services. They will move with a deprecation notice,
-not a silent break, but code should not treat their kernel path as permanent.
+`kernel::patient`, `kernel::consent` and `kernel::authz::require_patient_access` left the kernel
+before the first release (RFC-HOSPITAL-OS §3a) and were never covered. They are now in the
+`medbrains-health-services` crate, which is not part of this promise yet.
 
 The product and the protocol move separately on purpose. MedBrains 1.4 and 2.0 can both speak
 protocol v1; a new protocol major is a much rarer event than a new product major.

@@ -1,14 +1,14 @@
 //! The patient spine: one identity every app refers to.
 //!
-//! **Gap:** no single resolver existed before K1 — `medbrains-patients` only
-//! exposes HTTP handlers (`find_patients`, `merge_patients`). This follows the
+//! **Gap:** `medbrains-patients` only exposes HTTP handlers (`find_patients`, `merge_patients`). This follows the
 //! merge pointer `merge_patients` writes (`is_merged`,
 //! `merged_into_patient_id`) and nothing else; identifier types beyond UHID
 //! (ABHA, MRN in `patient_identifiers`) are K3+ work.
 
+use medbrains_kernel::{AppError, Tx};
 use uuid::Uuid;
 
-use crate::{AppError, Tx};
+pub use medbrains_authz_gate::require_patient_access;
 
 /// Merges chained deeper than this are a data fault, not a real history.
 const MAX_MERGE_HOPS: i32 = 8;

@@ -2,7 +2,7 @@
 //!
 //! Wraps `medbrains_core::object_store::ObjectStore` (S3 in the cloud, local
 //! disk on premises). Every key is prefixed with the unit of work's tenant —
-//! the `{tenant_id}/…` convention uploads already follow — so one hospital
+//! the `{tenant_id}/…` convention uploads already follow — so one tenant
 //! cannot name another's objects.
 
 use medbrains_core::object_store::ObjectStore;
@@ -22,7 +22,7 @@ fn tenant_key(tenant_id: Uuid, key: &str) -> Result<String, AppError> {
     Ok(format!("{tenant_id}/{key}"))
 }
 
-/// Store `bytes` at `key` for this hospital.
+/// Store `bytes` at `key` for this tenant.
 #[inline]
 pub async fn put<S: ObjectStore + ?Sized>(
     store: &S,
@@ -37,7 +37,7 @@ pub async fn put<S: ObjectStore + ?Sized>(
         .map_err(|e| AppError::Internal(e.to_string()))
 }
 
-/// Read the object at `key` for this hospital.
+/// Read the object at `key` for this tenant.
 #[inline]
 pub async fn get<S: ObjectStore + ?Sized>(
     store: &S,

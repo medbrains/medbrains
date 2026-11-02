@@ -27,7 +27,7 @@ pub struct FacadeCrate {
     pub status: String,
 }
 
-/// Kernel health for one hospital.
+/// Kernel health for one tenant.
 #[derive(Debug, Clone, Serialize)]
 pub struct KernelHealth {
     /// The nightly job's last verdict; `None` when never verified.

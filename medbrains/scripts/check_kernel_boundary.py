@@ -3,6 +3,7 @@
 
     python3 scripts/check_kernel_boundary.py            # check (CI)
     python3 scripts/check_kernel_boundary.py --update   # record an improvement
+    python3 scripts/check_kernel_boundary.py --self-test
 
 RFC-HOSPITAL-OS §3 / §6 phase K2. The kernel (`crates/medbrains-kernel`) owns
 tenancy (the RLS transaction), authorisation, audit, sequences, the object
@@ -26,6 +27,13 @@ The result is compared with `crates/medbrains-kernel/boundary.txt`:
 
 The same file is the single source for Admin → Kernel: the kernel's build.rs
 reads it, so the page shows exactly what CI enforces.
+
+`medbrains-health-services` (RFC §3a) is counted like any app, on purpose: it sits
+above the kernel and gets no pass. Two things follow. Its one re-export of
+`medbrains-authz-gate` shows as `partial` until the patient gate moves up into it;
+it is declared in ALLOWED_AT_BIRTH so the crate could be added, and growing past it
+fails. And a crate that reaches the kernel through it, as `medbrains-patients` does,
+is still on the kernel, so moving a helper up is not recorded as moving off.
 """
 
 from __future__ import annotations
@@ -40,6 +48,13 @@ KERNEL = CRATES / "medbrains-kernel"
 BASELINE = KERNEL / "boundary.txt"
 
 INTERNALS = ("medbrains-db", "medbrains-authz", "medbrains-authz-gate")
+HEALTH_SERVICES = "medbrains-health-services"
+KERNEL_PATHS = {"medbrains-kernel", HEALTH_SERVICES}
+# Left the kernel's dependencies in K3a because it is clinical policy, not mechanism.
+# It is core code in waiting rather than an app: moves up into health services (§3a).
+CLINICAL_GATE = "medbrains-authz-gate"
+# What a new crate may start with: (direct sites, internal deps).
+ALLOWED_AT_BIRTH = {HEALTH_SERVICES: (1, {CLINICAL_GATE})}
 
 PATTERNS = {
     "tenancy": r"\bset_\w*context\(|tenant_conn\(|\b(db|pool)\.begin\(\)"
@@ -95,7 +110,8 @@ def count_sites(src: Path) -> int:
 
 
 def scan() -> dict[str, tuple[str, int, tuple[str, ...]]]:
-    blocks = runtime_deps((KERNEL / "Cargo.toml").read_text(encoding="utf-8"))
+    """Each app crate's status, direct-site count and internal dependencies."""
+    blocks = {CLINICAL_GATE} | runtime_deps((KERNEL / "Cargo.toml").read_text(encoding="utf-8"))
     rows = {}
     for manifest in sorted(CRATES.glob("medbrains-*/Cargo.toml")):
         name = manifest.parent.name
@@ -104,7 +120,7 @@ def scan() -> dict[str, tuple[str, int, tuple[str, ...]]]:
         deps = runtime_deps(manifest.read_text(encoding="utf-8"))
         internal = tuple(d for d in INTERNALS if d in deps)
         sites = count_sites(manifest.parent / "src") if (manifest.parent / "src").exists() else 0
-        on_kernel = "medbrains-kernel" in deps
+        on_kernel = bool(KERNEL_PATHS & deps)
         if not on_kernel:
             status = "not_yet"
         elif internal or sites:
@@ -137,24 +153,50 @@ RANK = {"on_facade": 0, "partial": 1, "not_yet": 2}
 
 
 def compare(live, base) -> tuple[list[str], list[str]]:
+    """Split the differences into regressions and improvements; a status drop is a regression."""
     worse, better = [], []
     for name, (status, sites, deps) in live.items():
         if name not in base:
-            (worse if sites or deps else better).append(
+            allowed_sites, allowed_deps = ALLOWED_AT_BIRTH.get(name, (0, set()))
+            (worse if sites > allowed_sites or set(deps) - allowed_deps else better).append(
                 f"{name}: new crate ({status}, {sites} direct sites, deps {list(deps)})"
             )
             continue
         b_status, b_sites, b_deps = base[name]
         added = set(deps) - set(b_deps)
-        if sites > b_sites or added:
-            worse.append(f"{name}: direct sites {b_sites} -> {sites}, new internal deps {sorted(added)}")
+        if sites > b_sites or added or RANK[status] > RANK[b_status]:
+            worse.append(
+                f"{name}: {b_status} -> {status}, direct sites {b_sites} -> {sites}, "
+                f"new internal deps {sorted(added)}"
+            )
         elif (status, sites, deps) != (b_status, b_sites, b_deps):
             better.append(f"{name}: {b_status}/{b_sites} -> {status}/{sites}")
     better += [f"{name}: crate removed" for name in base.keys() - live.keys()]
     return worse, better
 
 
+def self_test() -> int:
+    """Prove the ratchet refuses what it exists to refuse."""
+    clean = ("on_facade", 0, ())
+    gate = ("partial", 1, (CLINICAL_GATE,))
+    # A crate leaving the kernel is a regression, even if its numbers do not move.
+    assert compare({"a": ("not_yet", 3, ())}, {"a": ("partial", 3, ())})[0]
+    assert compare({"a": ("on_facade", 1, ())}, {"a": clean})[0]
+    assert compare({"a": ("partial", 0, ("medbrains-db",))}, {"a": clean})[0]
+    assert compare({"a": clean}, {"a": ("partial", 1, ())}) == ([], ["a: partial/1 -> on_facade/0"])
+    # Only health services may join holding the gate, and only the gate.
+    assert compare({"new-app": gate}, {})[0]
+    assert not compare({HEALTH_SERVICES: gate}, {})[0]
+    assert compare({HEALTH_SERVICES: ("partial", 0, ("medbrains-db",))}, {})[0]
+    assert compare({HEALTH_SERVICES: ("partial", 2, (CLINICAL_GATE,))}, {})[0]
+    print("✓ self-test passed")
+    return 0
+
+
 def main() -> int:
+    """Compare the code with the baseline; `--update` records improvements only."""
+    if "--self-test" in sys.argv:
+        return self_test()
     live = scan()
     base = read_baseline() if BASELINE.exists() else {}
     worse, better = compare(live, base)

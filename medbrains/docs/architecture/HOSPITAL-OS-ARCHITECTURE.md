@@ -73,13 +73,14 @@ flowchart TB
 - Everything above the kernel reaches shared concerns **only through the kernel** (enforced by
   `make check-kernel-boundary`, a CI ratchet). **[today]**
 - The kernel is **technical only**: it knows nothing about patients, drugs or bills. Hospital
-  concepts live in health services. **[planned: K3a moves patient/consent out]**
+  concepts live in health services (`medbrains-health-services`), which use the kernel like any
+  app; `make check-kernel-no-domain` holds this in CI. **[today: K3a]**
 - Extensions never touch the database; they call the kernel through the open protocol. **[today: C1/E1]**
 - Safety gates are code, never configuration; flows and plugins can add checks, never remove them.
 
 ## 2. The kernel
 
-Crate: `crates/medbrains-kernel` (~750 lines; budget ≤ 2,000). **[today: K1, K2]**
+Crate: `crates/medbrains-kernel` (~620 lines; budget ≤ 2,000). **[today: K1, K2, K3a]**
 
 | Module | Purpose | Interface |
 |---|---|---|
@@ -91,7 +92,6 @@ Crate: `crates/medbrains-kernel` (~750 lines; budget ≤ 2,000). **[today: K1, K
 | `seq` | atomic numbers (UHID, tokens, invoices) | `seq::next(tx, "uhid")` |
 | `store` | object storage with tenant-scoped keys (S3 or local disk) | `store::put`, `store::get` |
 | `health` | the system's own health (RLS role, authz backend, heartbeats) | `health::rls_mode` |
-| `patient`, `consent` | **moving to health services** (§3a of the RFC) | — |
 
 **Kernel guarantees**
 1. **Fail-safe:** missing context or an outage is `Unknown`, never `Allow`; a refusal looks like
@@ -242,7 +242,7 @@ interface, extension protocol and SDKs promise not to break builders within a ma
 | Budget | Target | Today |
 |---|---|---|
 | Kernel overhead per unit of work | < 0.2 ms | 0.003 ms |
-| Kernel size | ≤ 2,000 lines, no domain deps | ~750 lines |
+| Kernel size | ≤ 2,000 lines, no domain deps | ~620 lines; no clinical crates, though `medbrains-core` still holds domain types (RFC §3a) |
 | Screen API p95 | < 50 ms server / < 150 ms Pi 5 | to measure (S1) |
 | Critical alert end to end | < 2 s | to measure |
 | OS image | ≤ 1 GB | not built |
@@ -259,13 +259,13 @@ secure — measured, not claimed. See `docs/OS-PRINCIPLES.md`.
 
 ## 11. What exists vs what's next
 
-**Today:** kernel K1/K2 (11/150 modules), SOP flows + switchboard + track builder, knowledge change
+**Today:** kernel K1/K2 (11/150 modules), technical only since K3a, SOP flows + switchboard + track builder, knowledge change
 sets, security intelligence P1, health intelligence P1, connected apps (C1), extension protocol +
 SDKs + CLI (E1), provenance markers, release pipeline, CI security scans.
 
 **Delivery order:** see RFC-HOSPITAL-OS §8b: `.deb` (D0), image (D1), offline installer (D2), then
 VM images and A/B updates. Filesystem snapshots stay out until the FS1 test passes.
 
-**Next:** K3a technical-only kernel · SM1 size budgets in CI · release v1.0.0 (signed, SBOM,
+**Next:** SM1 size budgets in CI · release v1.0.0 (signed, SBOM,
 compatibility promise) · GitHub Actions on free runners + cross-OS GUI tests · D1 first Debian-based
 MedBrains OS image with the appliance screen, tested in QEMU · K3 settings tree · porting batches.

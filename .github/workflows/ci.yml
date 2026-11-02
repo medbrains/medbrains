@@ -102,7 +102,15 @@ jobs:
       # Apps reach tenancy, authz, audit, sequences, storage and config only
       # through medbrains-kernel; existing direct access is baselined, never grown.
       - name: Kernel boundary only gets better
-        run: python3 medbrains/scripts/check_kernel_boundary.py
+        run: |
+          python3 medbrains/scripts/check_kernel_boundary.py --self-test
+          python3 medbrains/scripts/check_kernel_boundary.py
+      # The kernel is technical only (RFC-HOSPITAL-OS §3a): patients, consent and
+      # billing live above it, in its dependencies and its words alike.
+      - name: Kernel has no domain crates or words
+        run: |
+          python3 medbrains/scripts/check_kernel_no_domain.py --self-test
+          python3 medbrains/scripts/check_kernel_no_domain.py
       # Kernel lines and dependencies, package and crate counts. Reads files only.
       # This job has no web build, so the web job re-runs it for first-load JS.
       - name: Size budgets hold

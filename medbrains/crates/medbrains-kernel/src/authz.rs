@@ -4,8 +4,7 @@
 //! three-outcome mapping `outcome_of` (`medbrains-server-core`). Coarse
 //! permission checks re-export `require_permission` / `require_any_permission`
 //! — they read the permission set resolved once per session into the claims,
-//! so they cost a slice scan and no query. The per-patient check re-exports
-//! `medbrains_authz_gate::require_patient_access`.
+//! so they cost a slice scan and no query.
 //!
 //! Generic over the backend so a concrete backend dispatches statically; the
 //! server's `Arc<dyn AuthzBackend>` passes through as `B = dyn AuthzBackend`.
@@ -17,12 +16,11 @@ use medbrains_server_core::middleware::authorization::outcome_of;
 use uuid::Uuid;
 
 pub use medbrains_authz::decision::Outcome;
-pub use medbrains_authz_gate::require_patient_access;
 pub use medbrains_server_core::middleware::authorization::{
     authz_context, collapse, is_bypass_role, require_any_permission, require_permission,
 };
 
-/// The record a decision is about: `update` on `patient:456`, never a bare
+/// The record a decision is about: `update` on `document:456`, never a bare
 /// `update`.
 #[derive(Debug, Clone, Copy)]
 pub struct Resource<'a> {
