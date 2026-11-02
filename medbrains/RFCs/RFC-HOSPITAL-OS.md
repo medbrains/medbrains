@@ -631,6 +631,60 @@ Real risks for an appliance, and the defences every image and profile must ship:
 These are checks in the continuous runner (RFC-OSINT §3a): disk health, temperature, throttling,
 memory pressure, UPS state, watchdog status.
 
+## 8p. Accelerators: GPUs, NPUs and modern CPUs (any vendor, never required)
+
+Owner direction: use the graphics and AI-chip era (NVIDIA GPUs, NPUs in Snapdragon, Intel, AMD and
+Apple chips, ARM everywhere) for advanced features, across chip architectures.
+
+**Rule:** acceleration is an optimisation, never a requirement. Every feature has a CPU path, so the
+zero-licence and any-chip promises (§8, §8c) still hold. Vendor runtimes that are free but not open
+(e.g. CUDA) are optional add-ons, detected at run time.
+
+### One portable AI runtime, many chips
+The kernel AI service (§8h) runs models through portable runtimes that pick the best device present:
+| Runtime | Accelerates on |
+|---|---|
+| **ONNX Runtime** execution providers | NVIDIA (CUDA/TensorRT) · Snapdragon NPU (QNN) · Intel CPU/GPU/NPU (OpenVINO) · AMD (ROCm / Ryzen AI) · Apple Neural Engine (Core ML) · Windows any GPU (DirectML) · CPU everywhere |
+| **llama.cpp / Ollama** (local language models, GGUF) | NVIDIA (CUDA) · Apple (Metal) · AMD/Intel/ARM GPUs (Vulkan) · CPU (NEON / AVX) |
+| **WebGPU / WebNN in the browser** | the staff device's own GPU/NPU, for client-side work (viewer rendering, small models) |
+
+A device-capability probe at start-up records what the box has (CPU features, GPU, NPU, memory) on
+the Kernel page; models are packaged once (ONNX/GGUF) and the runtime chooses the device.
+
+### Features this unlocks
+| Feature | What the chip does | Minimum hardware |
+|---|---|---|
+| **Scribe on the box** | speech-to-text (Whisper-class) and note drafting with a local model; no audio leaves the hospital | NPU laptop / mini PC, or GPU; CPU works, slower |
+| **Case-sheet and document OCR** | read scanned forms and old records into structured data | Pi 5 + AI accelerator HAT, NPU or GPU |
+| **Imaging AI, assistive** | triage hints on X-ray/CT (e.g. "possible fracture, review first"), always labelled, a radiologist decides | NVIDIA GPU or Jetson-class edge box |
+| **Built-in imaging viewer** | GPU-rendered DICOM, smooth window/level, 3D | any device with WebGPU |
+| **Command Centre at 60 fps** | big-screen live boards rendered on the GPU | any modern GPU / TV box |
+| **Camp screening** | camera-based screening (e.g. eye-scan partners) at the edge, offline | NPU / GPU edge box |
+| **Faster core** | hardware SHA-256 (audit chain), AES (encryption), SIMD for analytics and compression | every modern x86 / ARM CPU (SHA-NI, ARMv8 crypto, AVX2, NEON) |
+
+### Hardware kit tiers (fits the hardware moat)
+| Kit | Chips | For |
+|---|---|---|
+| **Clinic** | Raspberry Pi 5 + optional AI HAT (Hailo-class NPU) | single clinic, OCR, small models |
+| **Hospital edge** | mini PC with Snapdragon X / Intel Core Ultra / AMD Ryzen AI (NPU built in) | Scribe, OCR, local assistant, offline operation |
+| **Imaging & AI** | NVIDIA RTX workstation or Jetson Orin-class box | imaging AI, larger local models |
+
+Each kit certified (lesson 4 of OS-PLATFORM-LESSONS), with measured performance per model published.
+
+### Safety and law
+- Anything that suggests a diagnosis (imaging triage, screening) is **Software as a Medical
+  Device**: it needs clinical validation and regulatory approval (CDSCO in India; FDA/CE elsewhere)
+  before clinical use. Until then it runs only as clearly labelled research/assistive output, off by
+  default, and never decides.
+- Every model passes the `medbrains-ai-eval` suite for its task before release, through a change set.
+- Heat and power: inference jobs respect the hardware-safety limits (§8o): thermal and power caps,
+  throttling, and a queue so clinical requests always come first.
+
+Phases: **HW1** device-capability probe + Kernel page + hardware crypto/SIMD audit; **HW2** ONNX
+Runtime in the AI service with CPU + one accelerator path, OCR as the first workload; **HW3** local
+Scribe (speech-to-text) on NPU/GPU kits; **HW4** WebGPU imaging viewer; **HW5** imaging AI
+(assistive, research-labelled) on the imaging kit, pending validation.
+
 ## 9. Identity: groups and directories (built in)
 
 Exists today: access groups with permissions (Admin → Groups), SSO with directory-group → role
