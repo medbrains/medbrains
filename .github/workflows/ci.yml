@@ -283,8 +283,9 @@ jobs:
           for cluster in $(pg_lsclusters -h | awk '{print $1"/"$2}'); do
             sudo pg_dropcluster --stop "${cluster%/*}" "${cluster#*/}"
           done
-          sudo apt-get install -y postgresql-17 postgresql-contrib-17
-          sudo systemctl start postgresql
+          sudo apt-get install -y postgresql-17
+          pg_lsclusters -h | grep -q '^17 ' || sudo pg_createcluster 17 main
+          sudo pg_ctlcluster 17 main start
           pg_lsclusters
           sudo -u postgres psql -c "CREATE ROLE medbrains SUPERUSER LOGIN PASSWORD 'ci_only'"
           sudo -u postgres createdb -O medbrains medbrains
