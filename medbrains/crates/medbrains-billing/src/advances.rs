@@ -248,6 +248,7 @@ pub async fn create_advance(
     Ok(Json(filter_advance_amounts(advance, &restricted_fields)))
 }
 
+/// Adjust an advance against a bill, taking the audit chain before the bill's row.
 pub async fn adjust_advance(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,

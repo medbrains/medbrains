@@ -197,6 +197,7 @@ pub fn role_url(role: &str) -> String {
     format!("{}{sep}options=-c%20role%3D{role}", database_url())
 }
 
+/// The test database: `DATABASE_URL`, or the dev database.
 pub fn database_url() -> String {
     let _ = dotenvy::dotenv();
     std::env::var("DATABASE_URL").unwrap_or_else(|_| {
