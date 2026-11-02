@@ -103,6 +103,12 @@ jobs:
       # through medbrains-kernel; existing direct access is baselined, never grown.
       - name: Kernel boundary only gets better
         run: python3 medbrains/scripts/check_kernel_boundary.py
+      # Kernel lines and dependencies, package and crate counts. Reads files only.
+      # This job has no web build, so the web job re-runs it for first-load JS.
+      - name: Size budgets hold
+        run: |
+          python3 medbrains/scripts/check_size_budgets.py --self-test
+          python3 medbrains/scripts/check_size_budgets.py
       # The TypeScript SDK and its conformance suite run under `pnpm run test`
       # (web job); the Python SDK has no other runner.
       - name: Python SDK speaks the extension protocol
@@ -160,6 +166,8 @@ jobs:
       # MedBrains web and the packages it uses. The outgoing React Native apps
       # are reference only, and desktop, docs and storybook are not this gate.
       - run: pnpm turbo run build typecheck test --filter=@medbrains/web...
+      - name: Web first-load JS stays under its ceiling
+        run: python3 scripts/check_size_budgets.py
 
   web-lint:
     name: "Web lint"

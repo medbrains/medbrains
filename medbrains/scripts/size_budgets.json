@@ -1,0 +1,19 @@
+{
+  "kernel_deps": [
+    "chrono",
+    "medbrains-authz",
+    "medbrains-authz-gate",
+    "medbrains-core",
+    "medbrains-db",
+    "medbrains-server-core",
+    "medbrains-workflow",
+    "serde",
+    "serde_json",
+    "sqlx",
+    "tracing",
+    "uuid"
+  ],
+  "packages": 1319,
+  "crates": 160,
+  "web_first_load_gzip_limit": 1166326
+}

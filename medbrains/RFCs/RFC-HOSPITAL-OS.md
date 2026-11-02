@@ -109,16 +109,19 @@ Health services use the kernel exactly like any app does. `kernel::patient` and 
 of the kernel (the kernel crate may not depend on any clinical, patient or billing crate).
 
 ### Small by design, with budgets the build enforces
+Numbers measured 2026-11-02 and enforced by `scripts/check_size_budgets.py` (baseline `scripts/size_budgets.json`) unless the row says otherwise.
+
 | Budget | Target | Today |
 |---|---|---|
-| Kernel code | ≤ 2,000 lines, no domain dependencies | 751 lines |
-| Kernel dependencies | only std, async runtime, SQL driver, crypto, serde | to audit |
+| Kernel code | ≤ 2,000 lines, no domain dependencies | 428 code lines without comments, blanks and tests (751 raw); hard limit enforced |
+| Kernel dependencies | only std, async runtime, SQL driver, crypto, serde | **Target not met:** 12 direct on an enforced allowlist, including 6 MedBrains crates (`server-core`, `core`, `db`, `authz`, `authz-gate`, `workflow`); these pull in up to 510 of the 1,319 packages (upper bound from `Cargo.lock`, one-off audit, not enforced) |
 | Clinic build (server binary for a Pi) | only the modules a clinic needs, compiled in by profile | one binary with all 150 modules |
-| Release binary size | published per profile; must not grow without a reason | to measure |
-| Workspace dependencies | ratchet down from 1,319 packages | 1,319 |
+| Release binary size | published per profile; must not grow without a reason | not measured: compile profiles arrive with SM2, so there is nothing per profile to measure yet |
+| Workspace dependencies | ratchet down from 1,319 packages | 1,319, ratchet enforced |
+| Workspace crates | ratchet down | 160, ratchet enforced |
 | OS image | Debian minimal + PostgreSQL + one binary + static web; target ≤ 1 GB | not built |
-| Idle memory (clinic profile, Pi 5) | published; target ≤ 512 MB for the whole appliance | to measure |
-| Web app first load | budgeted per screen | to measure |
+| Idle memory (clinic profile, Pi 5) | published; target ≤ 512 MB for the whole appliance | not measured: needs the SM2 clinic profile running on a Pi 5; not enforced |
+| Web app first load | budgeted per screen | 1,060,297 bytes gzip for the JS `index.html` loads up front, one entry rather than per screen; ceiling 10% above it, checked after the CI web build |
 
 ### How we get small
 1. **Profiles at compile time:** modules become Cargo features grouped into profiles (`clinic`,
@@ -134,7 +137,7 @@ of the kernel (the kernel crate may not depend on any clinical, patient or billi
    optional in the clinic profile (RFC §8a).
 
 Phases: **K3a** move patient/consent out of the kernel + the no-domain CI rule; **SM1** size budgets
-measured and enforced in CI (kernel lines, binary size per profile, package count); **SM2** compile
+measured and enforced in CI (kernel lines, kernel dependencies, package and crate counts, web first load; binary size per profile waits for SM2); **SM2** compile
 profiles (`clinic` first) with the Pi image; **SM3** dependency diet ratchet.
 
 ## 4. Drivers and plugins (the "userland")
