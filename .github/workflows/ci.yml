@@ -253,4 +253,6 @@ jobs:
 
       # Non-blocking until it has been seen to pass on a runner: several suites
       # want a database, and which ones has not been established here.
+      # medbrains-printing links against CUPS.
+      - run: sudo apt-get update && sudo apt-get install -y libcups2-dev
       - run: cargo test --workspace --exclude medbrains-desktop
