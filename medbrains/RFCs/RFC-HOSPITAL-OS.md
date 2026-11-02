@@ -10,6 +10,28 @@ need their own go · Owner: Domnic Amalan S
 safe by construction. The way macOS builds on an open foundation and adds what people love, MedBrains
 builds on Debian and adds the hospital layer: the kernel, signature features and flagship apps.
 
+### Focus: big hospitals first (owner decision, 2026-11-02)
+
+The first customer is a large hospital or group, because growing regulation forces it to prove control:
+who saw what, on which machine, under which policy. That sets the order of work. The clinic and Raspberry Pi
+profiles stay in this RFC, later.
+
+**A big hospital will ask for, in rough order:**
+1. **No single point of failure:** replicas, automatic failover, tested recovery, and running through a network
+   or server loss during a shift.
+2. **Proof for regulators and auditors:** evidence on demand from the audit trail, mapped to the rules that apply
+   to them, with independent security testing and recognised certifications.
+3. **Central control:** one console for machines, policies, updates, access and security (§8r), tied to their
+   directory (§9).
+4. **Fits what they own:** runs on their virtual machines and servers as well as our image, and connects to their
+   PACS, LIS, ERP, SIEM and identity systems through open standards.
+5. **Scale and groups:** proven load at their size, and many campuses under one policy.
+6. **A contract they can sign:** response times, a named support organisation, data export, and a reference site.
+
+**What this changes.** Failover moves earlier, the separate core layer and fleet work matter sooner, and a
+compliance evidence screen is added. Their IT team may refuse an unfamiliar OS on day one, so MedBrains must also
+install cleanly on a standard Linux server (D0). The OS image is an option they grow into, not a condition of buying.
+
 ## 1. Why an OS
 
 MedBrains already runs a whole hospital. To let every hospital work its own way, and let partners
