@@ -129,6 +129,7 @@ built. *Proposed* is waiting for the owner. *Rejected* was considered and turned
 | 2026-10-31 | The website's clean URLs returned 404 twice during deploys | A failed upload stopped the deploy after the delete step could already remove pages | Deploy keeps those pages out of delete, and retries (#5137) |
 | 2026-11-01 | Every database transaction spent 15.7 ms on timezones | Each one scanned all timezones | Cached once; about 0.1 ms (#5171) |
 | 2026-11-01 | Two branches took the same migration number | Parallel work | Renumbered before merge; check the latest number at merge time |
+| 2026-11-02 | The test that service accounts cannot log in was failing on `main`, unseen | Login moved to a database function in August, the test scanned only Rust, and CI had never run these tests. Login itself stayed safe | The test now checks every definition of that function, and CI reports every failing test |
 | 2026-11-01 | Generated permission files conflicted between branches | Parallel work | Rebase and regenerate; never hand-merge them |
 
 ## Open

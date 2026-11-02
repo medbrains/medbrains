@@ -37,6 +37,12 @@ const LOGIN_SOURCES: [&str; 2] = [
 /// query so that reformatting does not break the test.
 const CREDENTIAL_LOOKUPS: [&str; 2] = ["WHERE username = $1", "lower(email) = lower($1)"];
 
+/// Password and PIN sign-in resolve the user through this database function, so
+/// row level security does not hide the row before the tenant is known. The
+/// exclusion therefore lives in SQL, and a Rust-only scan cannot see it.
+const LOGIN_FUNCTION: &str = "app_login_accounts";
+const MIGRATIONS: &str = "../medbrains-db-migrations/src/migrations";
+
 const GUARD: &str = "is_service_account = false";
 
 /// Strip the line continuations Rust uses inside multi-line SQL string
@@ -84,9 +90,47 @@ fn every_login_lookup_excludes_service_accounts() {
     // If a refactor moves these queries elsewhere, this test would otherwise
     // pass by finding nothing at all.
     assert!(
-        checked >= 4,
-        "expected at least 4 credential lookups, found {checked} — have the login \
-         queries moved? This test is only meaningful if it can still see them.",
+        checked >= 1,
+        "expected a credential lookup in the login sources, found {checked} — have the \
+         login queries moved? This test is only meaningful if it can still see them.",
+    );
+
+    assert_login_function_excludes_service_accounts(root);
+}
+
+/// Password sign-in must go through `app_login_accounts`, and every definition of
+/// that function must exclude service accounts. A later migration replacing the
+/// function is the way this breaks, so all definitions are checked, not only one.
+fn assert_login_function_excludes_service_accounts(root: &Path) {
+    let auth = std::fs::read_to_string(root.join("src/lib.rs")).expect("read auth source");
+    assert!(
+        auth.contains(&format!("FROM {LOGIN_FUNCTION}(")),
+        "password sign-in no longer calls {LOGIN_FUNCTION}; move this guard to wherever \
+         it now resolves the user",
+    );
+
+    let definition = format!("FUNCTION public.{LOGIN_FUNCTION}(");
+    let mut definitions = 0;
+    let dir = std::fs::read_dir(root.join(MIGRATIONS)).expect("read migrations");
+    for entry in dir {
+        let path = entry.expect("read migration entry").path();
+        let flat = flatten(&std::fs::read_to_string(&path).expect("read migration"));
+        let mut from = 0;
+        while let Some(at) = flat[from..].find(&format!("CREATE OR REPLACE {definition}")) {
+            let start = from + at;
+            let end = flat[start..].find("$$;").map_or(flat.len(), |e| start + e);
+            assert!(
+                flat[start..end].contains(GUARD),
+                "{}: {LOGIN_FUNCTION} does not exclude service accounts. Add `{GUARD}`.",
+                path.display(),
+            );
+            definitions += 1;
+            from = end;
+        }
+    }
+    assert!(
+        definitions >= 1,
+        "no definition of {LOGIN_FUNCTION} found in {MIGRATIONS}"
     );
 }
 
