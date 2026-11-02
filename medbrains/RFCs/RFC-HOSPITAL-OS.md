@@ -950,6 +950,57 @@ update rings; **M3** remote support on a test device, under all seven rules, the
 review before it reaches a hospital; **M4** lock, wipe and isolate; **M5** intrusion watching and the
 security screen; **M6** phone management and the SIEM connector.
 
+## 8s. First-boot setup and nodes (owner goal, 2026-11-02)
+
+The app runs on the machine's own screen; a browser elsewhere is an option, not the main path. A new
+machine asks a few plain questions, then gets out of the way. Every step works with no internet.
+
+**The flow on every new machine:**
+
+1. **Network.** Connected by cable through DHCP: show the address and move on without asking. Otherwise
+   offer Wi-Fi, or a fixed address, gateway and DNS. Proxy and VLAN sit under "More". The screen tests the
+   local network, then the internet, and says in plain words what works. No internet is a valid answer,
+   not an error.
+2. **Time.** Set from the network; ask only when the clock cannot be trusted, because clinical records
+   depend on it.
+3. **Updates.** With internet, check the signed release channel, show what is available, and offer
+   "Update now" or "Later". Security fixes are marked. With no internet, say so, and offer the signed USB
+   bundle (§8b). Setup is never blocked by this, and the check never installs anything unsigned.
+4. **What is this machine?** Administrator machine, or sub node. If an administrator machine is found on
+   the network, the screen says so and recommends joining it, so nobody creates a second by accident.
+
+**Administrator machine:** create the admin, run the existing hospital setup wizard (`pages/onboarding`),
+and end on the Nodes screen.
+
+**Sub node:** find the hospital (local discovery, address or QR code), choose a type, and show a code for
+the administrator to approve. Reuses device pairing (`medbrains-device-pairing`).
+
+| Type | What it does | Patient data stored on it |
+|---|---|---|
+| Workstation | staff sign in and work | none, or only what offline mode needs |
+| Display | queue board or TV | none |
+| Ward backup | keeps a ward running if the main machine or network fails | yes, encrypted |
+
+**Nodes screen** (administrator machine): machines waiting to join; every node with its name, type,
+location, status and version; rename, move, update and remove. It grows into the fleet console (§8r).
+
+**Rules:**
+- No machine joins without an approval, which is audited. The sub node also verifies the administrator
+  machine's identity, since a code alone does not prove it found the real one.
+- The role is set at first boot. Changing it is a deliberate reset, never silent for a machine holding data.
+- Removing a node ends its access immediately on the server. A machine that is offline learns this only
+  when it reconnects, so ward backups need a stated limit on how long they keep working unconnected.
+- Permissions are defined in Rust first. An existing pairing permission is reused only where it truly fits.
+- Network settings live on the data partition and survive updates (§8b). A change that cuts the network
+  rolls back by itself unless confirmed, so a remote admin cannot lock themselves out.
+
+**Real updates depend on D4.** Until A/B updates exist, step 3 can only check and report; it must say that
+rather than pretend to install.
+
+**Phases:** **B1** network, time and role screens with administrator setup; **B2** join as a workstation,
+and the Nodes screen; **B3** update check against the signed channel, then installing it once D4 lands;
+**B4** display; **B5** ward backup, last, because sync and failover are the hardest and riskiest part.
+
 ## 9. Identity: groups and directories (built in)
 
 Exists today: access groups with permissions (Admin → Groups), SSO with directory-group → role

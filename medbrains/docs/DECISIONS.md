@@ -82,6 +82,7 @@ built. *Proposed* is waiting for the owner. *Rejected* was considered and turned
 | 2026-11-02 | Accelerators help but are never required, on any vendor | No hospital should need to buy a GPU | Tying AI to one chip vendor | Plan (#5189) |
 | 2026-11-02 | Best in class in network, security, speed and small size, proved by a published scoreboard | The owner's goal; unmeasured claims would not survive a technical reader | Claiming it before there is a reproducible test | Plan (RFC-HOSPITAL-OS §8q) |
 | 2026-11-02 | Built-in fleet management, remote control and endpoint protection, like corporate IT and products such as Trellix. Each hospital holds its own keys | Hospitals should not have to buy this to be safe, and a shared master key would put every hospital at risk at once | A MedBrains master key or standing vendor access; controlling regulated medical devices | Plan (RFC-HOSPITAL-OS §8r) |
+| 2026-11-02 | First boot asks about network, time, updates and role (administrator machine or sub node), and the app runs on the machine's own screen | A hospital should be able to set up a machine with no IT help and no internet | Opening a browser on another computer as the main path; a setup that blocks without internet | Plan (RFC-HOSPITAL-OS §8s) |
 | 2026-11-02 | Delivery follows the Omarchy lessons: staged, offline installer, settings survive updates, own channels, one look | Hospitals with poor internet need this most | Arch as a base | Plan (#5191) |
 | 2026-11-02 | ext4 until the snapshot test passes; a database restore point before any migration | PostgreSQL on copy-on-write must be measured; A/B slots do not roll back a database | Assuming OpenZFS | Plan (#5191) |
 | 2026-11-02 | New server and OS code is Rust, on proven C foundations | Memory safety where we write code; proven data safety where we do not | Rewriting Linux or PostgreSQL; claiming "100% Rust" | Plan (#5191) |
@@ -129,6 +130,7 @@ built. *Proposed* is waiting for the owner. *Rejected* was considered and turned
 | 2026-10-31 | The website's clean URLs returned 404 twice during deploys | A failed upload stopped the deploy after the delete step could already remove pages | Deploy keeps those pages out of delete, and retries (#5137) |
 | 2026-11-01 | Every database transaction spent 15.7 ms on timezones | Each one scanned all timezones | Cached once; about 0.1 ms (#5171) |
 | 2026-11-01 | Two branches took the same migration number | Parallel work | Renumbered before merge; check the latest number at merge time |
+| 2026-11-02 | The test that service accounts cannot log in was failing on `main`, unseen | Login moved to a database function in August, the test scanned only Rust, and CI had never run these tests. Login itself stayed safe | The test now checks every definition of that function, and CI reports every failing test |
 | 2026-11-01 | Generated permission files conflicted between branches | Parallel work | Rebase and regenerate; never hand-merge them |
 
 ## Open
