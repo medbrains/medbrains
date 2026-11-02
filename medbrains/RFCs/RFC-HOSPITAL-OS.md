@@ -177,8 +177,11 @@ both exist; the core stays free (Apache-2.0).
 - **R1 Bare metal + recovery** (§8k): installer disk layout, recovery mode, PITR restore wizard,
   monthly restore test, rescue USB. **W1 Windows** (§8l): Hyper-V VHDX + MSI installer with
   external switch and firewall setup.
-- **D1–D4 OS images** (§8b): D1 Raspberry Pi image + first-boot wizard; D2 bootable x86 ISO;
-  D3 VM images (OVA/qcow2/VHDX) + Windows installer; D4 A/B updates with automatic rollback.
+- **D0–D4 OS images** (§8b): D0 signed `.deb` and apt repository; D1 Raspberry Pi image + first-boot
+  wizard; D2 offline x86 USB installer (at most four questions); D3 VM images (OVA/qcow2/VHDX) +
+  Windows installer; D4 A/B updates with automatic rollback, a database restore point before
+  migrations, and the settings-survive-updates test.
+- **S1 Snapshot test** (§8b): measure candidate filesystems on real NVMe; adopt only through the gate.
 - **A1 Any CPU** (§8c): CI build matrix for tiers 1–3, smoke tests under emulation, tier table
   published in the README.
 - **P1 Raspberry Pi** (§8a): clinic profile, ARM64 binaries in releases, measured benchmarks on a
@@ -270,6 +273,95 @@ maintain our own kernel. An immutable base (e.g. Debian with A/B partitions) is 
 (or snapshot) scheme so a failed update rolls back by itself; nightly backups to USB disk, network
 share or cloud; a local health screen (disk, memory, backups, update status); offline operation with
 cloud sync when the internet returns (the edge appliance's job today); signed images and checksums.
+
+### Delivery rules (lessons from Omarchy, 2026-11-02)
+
+Omarchy is an opinionated Arch-based desktop. We keep Debian as the base and take five delivery
+ideas from it. Its speed and size figures are not ours; ours get measured on our own builds.
+
+**1. One install path, in stages.** Omarchy began as a script on an existing system and became an
+ISO later. Our order is the same, and every stage reuses the one before it, so there is one way
+MedBrains gets installed rather than one per image:
+
+| Stage | What | Status |
+|---|---|---|
+| D0 | `apt install medbrains` on existing Debian or Ubuntu LTS: a signed `.deb` with the server, the web UI, hardened systemd units and a PostgreSQL dependency | no packaging exists yet |
+| D1 | OS image: Debian base plus the D0 package (D1's first build copies binaries in; it moves to the package once D0 lands) | building |
+| D2 | Offline USB installer | planned |
+| D3 / D4 | VM images and Windows; A/B updates | planned |
+
+**2. An installer that asks almost nothing, and needs no network.**
+- At most four questions: which disk (with a plain warning that it will be erased), how to unlock
+  it (TPM, or passphrase where there is no TPM), the network (DHCP is the default), and a final
+  confirmation. Hospital, admin and backups stay in the web setup wizard (§8k).
+- The ISO holds everything the profile needs. A hospital with no internet can install and go live.
+  Optional large downloads, such as AI models, stay optional.
+- The hardware profile is detected, not asked. Hardware below the minimum is refused with a reason.
+- A disk that already holds MedBrains data is never erased without typing the hospital's name, and
+  the installer offers Recovery mode first.
+- The recovery key is shown once and must be confirmed as saved before the install finishes.
+- Install time is a budget measured in CI on a reference VM, starting from the first D2 build.
+
+**3. Updates never touch settings.** Three places, with one owner each:
+
+| Where | Holds | Written by |
+|---|---|---|
+| `/usr` (read-only, verified, replaced by updates) | code and shipped defaults | the update only |
+| Data partition, config | what this hospital chose | the wizard and change sets only |
+| Data partition, state | PostgreSQL, files, logs, backups | the running system |
+
+Updates never merge into a hospital's config. Defaults change underneath it, and the hospital's
+choices still win. D4 is not done until a test customises a device, updates it, rolls it back, and
+proves the config is byte-identical each time.
+
+**4. Our own signed channel.** MedBrains controls what reaches a device and when: a signed apt
+repository for D0 and signed system images for D4, on the same release channels (canary, beta,
+stable). A hospital picks its channel and maintenance window. Security fixes follow
+`docs/SECURITY-RELEASE-PROCESS.md`. Hospitals without internet get the same signed bundle on a USB
+stick. Publishing stays with the owner's release key.
+
+**5. One beautiful, opinionated look.** The appliance console, boot screen and web shell are one
+design with nothing to theme: status, the address to open, a QR code, and health in plain words. The
+design system stays the single source of colour and type (WCAG 2.2 AA in light and dark). Emergency
+codes stay fixed. No desktop environment is installed.
+
+### Snapshots: measure before adopting
+
+Filesystem snapshots could give a cheap Time Machine and a restore point before each update. They
+are not adopted yet. D1 stays on **ext4**, the baseline every result is compared with.
+
+**The problem they would solve.** A/B slots roll back the system, but not the database. If an update
+has run a migration and the old system boots, the old code meets a newer schema. D4 therefore needs
+a database restore point before any migration, whichever way this test ends. Without snapshots, that
+restore point is a PITR marker, which is slower to restore.
+
+**Rules that hold whatever the result:**
+- A snapshot is not a backup: it dies with the disk. PITR, off-site backups and the monthly restore
+  test (§8k) stay.
+- Automatic restore is allowed only if no clinical data has been written since the snapshot, meaning
+  the update failed before services accepted writes. After that, going back would silently lose
+  patient records, so it needs a named person's decision and is recorded in the audit log.
+- The data directory and WAL must be in one atomic snapshot. Restoring one is a crash recovery, so
+  the test must prove PostgreSQL recovers from it.
+- `fsync` and `full_page_writes` stay on.
+
+**The test,** on real NVMe (Raspberry Pi 5 and one x86 SSD box), with `pgbench` plus a replay of
+MedBrains' own write-heavy paths:
+
+| Candidate | Note to test |
+|---|---|
+| ext4 (baseline) | no snapshots; PITR marker only |
+| ext4 on LVM thin | snapshots without changing the filesystem; check slowdown while one exists |
+| btrfs, copy-on-write on | keeps checksums; expect the worst write amplification and fragmentation |
+| btrfs, `nodatacow` on the database | loses data checksums and compression, and snapshots still force copies on first write |
+| OpenZFS | strongest snapshots, but an out-of-tree CDDL module; check Secure Boot signing, the verified-root design and Debian `contrib` packaging against §8 and §8j |
+
+**Measure:** throughput and p99 latency, with and without a live snapshot; write amplification (it
+wears cheap SSDs and SD cards); time to snapshot and restore; memory use on an 8 GB Pi; and power
+cuts during writes, with `pg_amcheck` and `pg_checksums` run after each recovery.
+
+**Adopt only if:** every power-cut run recovers cleanly, and p99 write latency on the Pi profile is
+no more than 10% worse than ext4. Otherwise ext4 stays. The result goes in this section either way.
 
 ## 8c. Any CPU (owner goal: "ARM or any kind")
 
@@ -515,8 +607,8 @@ manifest and the hospital approval screen; **SEC3** secure boot, TPM, disk encry
 - Boots a text + browser installer on any supported machine; detects disks, CPU and RAM and refuses
   hardware below the profile's minimum with a plain reason.
 - Disk layout: EFI, two root slots (A/B) for safe updates, a recovery partition, and an encrypted
-  (LUKS) data partition for PostgreSQL, files and backups. Optional mirrored disks (RAID-1) or
-  OpenZFS for hospitals that want snapshots.
+  (LUKS) data partition for PostgreSQL, files and backups, on ext4 unless the snapshot test (§8b)
+  says otherwise. Optional mirrored disks (RAID-1).
 - Network: DHCP or static IP, hostname, NTP time (critical for clinical records), optional VLAN.
 - First boot: web setup wizard (hospital, admin, backups, TLS), then the appliance is live.
 - Unattended mode for partners: a signed answer file installs a fleet of boxes identically.
@@ -561,7 +653,7 @@ Windows is supported for hospitals that already run it, never required (§8).
 | OS | Its best idea | How MedBrains takes it |
 |---|---|---|
 | **Linux / Debian** | runs on everything; open; huge driver base | our foundation (§8b) |
-| **Unix / BSD** | small composable parts, clean interfaces; ZFS snapshots | crate design, kernel interface; OpenZFS snapshots for Time Machine |
+| **Unix / BSD** | small composable parts, clean interfaces; ZFS snapshots | crate design, kernel interface; snapshots for Time Machine if they pass the test (§8b) |
 | **macOS / iOS** | polish, privacy labels, sandboxing, Handoff, signed apps | signature features (§8d), security layers (§8j) |
 | **Android** | runs on cheap hardware; permissions per app; Play Store reach | Raspberry Pi profile (§8a), per-extension grants, the store |
 | **ChromeOS** | verified boot, automatic updates, nothing to maintain | signed images, A/B updates with rollback, appliance model |
@@ -573,8 +665,21 @@ Windows is supported for hospitals that already run it, never required (§8).
 | **NixOS** | the whole system declared in one file, reproducible, roll back any time | declarative hospital setup (switches, flows, settings) as versioned change sets; reproducible builds |
 | **Erlang/OTP** | "let it crash": supervisors restart failed parts; nine-nines uptime | crash-only services, supervised background workers, idempotent retries (OS-PRINCIPLES §4) |
 | **VMS / mainframes** | decades of uptime, clustering, audit everything | hash-chained audit, replicas, careful upgrades |
+| **Omarchy** | a tiny offline installer, settings that survive updates, one opinionated look | delivery rules (§8b) |
 
 **Rule:** we borrow ideas, not code that would bring a licence or a proprietary dependency (§8).
+
+**Languages (2026-11-02).** All new MedBrains server and OS code is Rust. We build on proven C
+foundations (Linux, PostgreSQL, systemd) and replace one only when the Rust version is mature and
+clearly lowers risk. Linux itself has not moved to Rust: it is permanent there, but still a small
+share of the kernel. Do not describe MedBrains as "100% Rust".
+
+**pgrust: watch, do not adopt.** pgrust is a Rust rewrite of PostgreSQL 18 that matches PostgreSQL's
+regression output. Its own README says it is not production-ready. It is also AGPL-3.0, which is
+stricter than the Apache-2.0 terms partners build on here, and regression tests do not prove crash
+recovery or correctness under concurrency, which is what patient records depend on. Review it again
+only when it has real production use, independent crash and corruption testing, and a licence
+compatible with §8. The SQL and migrations stay plain PostgreSQL, so a later move stays possible.
 
 ## 8n. The interface stack (as good as the kernel)
 
