@@ -98,6 +98,7 @@ built. *Proposed* is waiting for the owner. *Rejected* was considered and turned
 | Date | Decision | Why | Rejected | Status |
 |---|---|---|---|---|
 | 2026-11-02 | Document everything from the start: every function, decision, recurring failure and build | Recovering it later is far harder | Backfilling at the end | Done; check enforced on new and changed functions |
+| 2026-11-02 | CI builds only the MedBrains product: every Rust crate except the desktop app, and the web app with its packages. Docs-only PRs skip it | The old build pulled in React Native, desktop and docs, so failures said nothing about the product | One full build of everything on every PR | Done; desktop and native apps are not in this CI yet |
 | 2026-11-02 | The repository is the source of truth; any wiki mirrors it | It versions with the code and contributors can read it | A wiki as the only copy | In force |
 
 ### Earlier major decisions
