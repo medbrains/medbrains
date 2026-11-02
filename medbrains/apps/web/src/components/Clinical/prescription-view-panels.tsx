@@ -155,7 +155,7 @@ export function ProseView({
   return (
     <Stack gap="xs">
       {grouped.map((rx) => (
-        <Card key={`rx-${rx.rxIndex}-${rx.date}`} padding="sm" radius="md" withBorder>
+        <Card key={`rx-${rx.rxIndex}-${rx.date}`} padding="sm" withBorder>
           <Group gap={6} mb="xs">
             <Text size="xs" ff="var(--fc-font-mono, monospace)" c="dimmed">
               {t("prescriptionViews.prosePanel.rxLabel", { index: rx.rxIndex + 1 })}
@@ -215,7 +215,7 @@ export function ProseView({
 function SummaryPill({ label, value }: { label: string; value: string }) {
   return (
     <Stack gap={0} align="center">
-      <Text size="xs" ff="var(--fc-font-mono, monospace)" c="dimmed" tt="uppercase">
+      <Text size="xs" ff="var(--fc-font-mono, monospace)" c="dimmed">
         {label}
       </Text>
       <Text size="lg" fw={600} ff="var(--fc-font-display, serif)">
@@ -260,7 +260,7 @@ export function TimelineView({ items }: { items: FlatItem[] }) {
   }, [drugSlots, items.length, t]);
 
   return (
-    <Card padding="sm" radius="md" withBorder>
+    <Card padding="sm" withBorder>
       <Group gap="lg" mb="sm">
         <SummaryPill
           label={t("prescriptionViews.timelineSummary.drugs")}
@@ -346,7 +346,7 @@ function DoseCalcCard({ item, weight }: { item: FlatItem; weight?: number }) {
   }, [weight, doseMg, dosesPerDay]);
 
   return (
-    <Card padding="sm" radius="md" withBorder>
+    <Card padding="sm" withBorder>
       <Text size="sm" fw={500} mb={4}>
         {item.drug_name}
       </Text>
@@ -455,7 +455,7 @@ function RuleCard({ item }: { item: FlatItem }) {
   };
 
   return (
-    <Card padding={0} radius="md" withBorder>
+    <Card padding={0} withBorder>
       <Group gap={0} wrap="nowrap" style={{ overflow: "hidden" }}>
         <Box
           p="xs"

@@ -247,7 +247,7 @@ function DeviceListTab() {
   if (!devices?.length) {
     return (
       <Card p="xl" ta="center">
-        <ThemeIcon variant="light" size={64} radius="xl" mx="auto" mb="md">
+        <ThemeIcon variant="light" size={64} mx="auto" mb="md">
           <IconPlug size={32} />
         </ThemeIcon>
         <Title order={4} c="var(--mb-text-secondary)">
@@ -553,7 +553,7 @@ function AgentsTab() {
   if (!agents?.length) {
     return (
       <Card p="xl" ta="center">
-        <ThemeIcon variant="light" size={64} radius="xl" mx="auto" mb="md">
+        <ThemeIcon variant="light" size={64} mx="auto" mb="md">
           <IconServer size={32} />
         </ThemeIcon>
         <Title order={4} c="var(--mb-text-secondary)">
@@ -696,7 +696,7 @@ function RoutingRulesTab() {
         <Loader />
       ) : !rules?.length ? (
         <Card p="xl" ta="center">
-          <ThemeIcon variant="light" size={64} radius="xl" mx="auto" mb="md">
+          <ThemeIcon variant="light" size={64} mx="auto" mb="md">
             <IconPlug size={32} />
           </ThemeIcon>
           <Title order={4} c="var(--mb-text-secondary)">

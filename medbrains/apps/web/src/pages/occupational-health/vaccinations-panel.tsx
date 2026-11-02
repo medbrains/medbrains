@@ -124,7 +124,7 @@ export function VaccinationsPanel() {
       {compliance.length > 0 && (
         <SimpleGrid cols={{ base: 1, sm: 2, md: 4 }} mb="md">
           {compliance.map((row) => (
-            <Card key={row.vaccine_name} shadow="xs" padding="md" withBorder>
+            <Card key={row.vaccine_name} padding="md" withBorder>
               <Text fw={600} size="sm" mb={4}>
                 {row.vaccine_name}
               </Text>

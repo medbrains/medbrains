@@ -304,7 +304,7 @@ export function PharmacyOrderDetail({
       <Card withBorder padding="sm">
         <Group justify="space-between" gap="sm" align="center">
           <Stack gap={2}>
-            <Text size="xs" fw={700} c="dimmed" tt="uppercase">
+            <Text size="xs" fw={700} c="dimmed">
               {t("handoff.patient.title")}
             </Text>
             <Text size="xs" c="dimmed">

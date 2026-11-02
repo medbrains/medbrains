@@ -264,7 +264,7 @@ export function LinenTab({
                   if (!meta) return null;
                   const IconComp = meta.icon;
                   return (
-                    <ThemeIcon color={meta.color} variant="light" size="sm" radius="xl">
+                    <ThemeIcon color={meta.color} variant="light" size="sm">
                       <IconComp size={12} />
                     </ThemeIcon>
                   );

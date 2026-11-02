@@ -323,7 +323,7 @@ function UsageTab() {
       <Group grow>
         {tiers.map((t) => (
           <Stack key={t.tier} gap={2}>
-            <Text size="xs" tt="uppercase" c="dimmed" ff="monospace">
+            <Text size="xs" c="dimmed" ff="monospace">
               {t.tier}
             </Text>
             <Text size="xl" fw={600}>
@@ -337,13 +337,13 @@ function UsageTab() {
       </Group>
       <Group align="flex-start" gap="xl">
         <Stack gap={2}>
-          <Text size="xs" tt="uppercase" c="dimmed" ff="monospace">
+          <Text size="xs" c="dimmed" ff="monospace">
             Distribution
           </Text>
           <DonutChart data={donut} size={160} thickness={20} withLabels />
         </Stack>
         <Stack gap={2} style={{ flex: 1 }}>
-          <Text size="xs" tt="uppercase" c="dimmed" ff="monospace">
+          <Text size="xs" c="dimmed" ff="monospace">
             Total
           </Text>
           <Text size="xl" fw={600}>

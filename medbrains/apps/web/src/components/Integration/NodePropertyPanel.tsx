@@ -167,7 +167,7 @@ export function NodePropertyPanel() {
           <ThemeIcon variant="light" color="slate" size="sm">
             <IconSettings size={14} />
           </ThemeIcon>
-          <Text size="xs" fw={700} tt="uppercase" c="dimmed">
+          <Text size="xs" fw={700} c="dimmed">
             Properties
           </Text>
         </Group>
@@ -218,7 +218,7 @@ export function NodePropertyPanel() {
         <ThemeIcon variant="light" color="slate" size="sm">
           <IconSettings size={14} />
         </ThemeIcon>
-        <Text size="xs" fw={700} tt="uppercase" c="dimmed">
+        <Text size="xs" fw={700} c="dimmed">
           Properties
         </Text>
       </Group>
@@ -234,12 +234,7 @@ export function NodePropertyPanel() {
         }}
       >
         <Group gap="sm" mb={6}>
-          <ThemeIcon
-            variant="light"
-            color={String(selectedNode.data.color ?? "slate")}
-            size="md"
-            radius="md"
-          >
+          <ThemeIcon variant="light" color={String(selectedNode.data.color ?? "slate")} size="md">
             <Icon size={16} />
           </ThemeIcon>
           <Box>
@@ -277,7 +272,7 @@ export function NodePropertyPanel() {
           <>
             <Divider
               label={
-                <Text size="xs" fw={700} tt="uppercase" c="dimmed" style={{ fontSize: 10 }}>
+                <Text size="xs" fw={700} c="dimmed" style={{ fontSize: 10 }}>
                   Field Mapping
                 </Text>
               }
@@ -292,7 +287,7 @@ export function NodePropertyPanel() {
           <>
             <Divider
               label={
-                <Text size="xs" fw={700} tt="uppercase" c="dimmed" style={{ fontSize: 10 }}>
+                <Text size="xs" fw={700} c="dimmed" style={{ fontSize: 10 }}>
                   Configuration
                 </Text>
               }
@@ -389,7 +384,7 @@ export function NodePropertyPanel() {
           <>
             <Divider
               label={
-                <Text size="xs" fw={700} tt="uppercase" c="dimmed" style={{ fontSize: 10 }}>
+                <Text size="xs" fw={700} c="dimmed" style={{ fontSize: 10 }}>
                   Event Trigger
                 </Text>
               }
@@ -434,7 +429,7 @@ export function NodePropertyPanel() {
                   label={
                     <Group gap={4}>
                       <IconDatabase size={10} />
-                      <Text size="xs" fw={700} tt="uppercase" c="dimmed" style={{ fontSize: 10 }}>
+                      <Text size="xs" fw={700} c="dimmed" style={{ fontSize: 10 }}>
                         Event Payload ({selectedEventPayload.length} fields)
                       </Text>
                     </Group>
@@ -492,7 +487,7 @@ export function NodePropertyPanel() {
           <>
             <Divider
               label={
-                <Text size="xs" fw={700} tt="uppercase" c="dimmed" style={{ fontSize: 10 }}>
+                <Text size="xs" fw={700} c="dimmed" style={{ fontSize: 10 }}>
                   Connector
                 </Text>
               }
@@ -546,7 +541,7 @@ export function NodePropertyPanel() {
                   label={
                     <Group gap={4}>
                       <IconDatabase size={10} />
-                      <Text size="xs" fw={700} tt="uppercase" c="dimmed" style={{ fontSize: 10 }}>
+                      <Text size="xs" fw={700} c="dimmed" style={{ fontSize: 10 }}>
                         Field Mapping
                       </Text>
                     </Group>

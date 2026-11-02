@@ -11,7 +11,7 @@ interface AbdmStatProps {
 export function AbdmStat({ label, value, hint }: AbdmStatProps) {
   return (
     <Card>
-      <Text size="xs" c="dimmed" tt="uppercase" fw={700}>
+      <Text size="xs" c="dimmed" fw={700}>
         {label}
       </Text>
       <Text size="xl" fw={600}>

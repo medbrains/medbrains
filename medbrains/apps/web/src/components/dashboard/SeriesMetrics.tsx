@@ -39,7 +39,7 @@ export function SeriesMetrics({ values, format = plain, compact = false }: Serie
       <SimpleGrid cols={{ base: 2, xs: compact ? 2 : 5 }} spacing="md" verticalSpacing={4}>
         {cells.map(([label, value]) => (
           <Stack key={label} gap={0}>
-            <Text size="xs" c="dimmed" tt="uppercase">
+            <Text size="xs" c="dimmed">
               {label}
             </Text>
             <Text fw={600} style={{ fontVariantNumeric: "tabular-nums" }}>

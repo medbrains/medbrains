@@ -72,7 +72,7 @@ export function ForgotPasswordPage() {
 
   return (
     <Stack align="center" justify="center" mih="100vh" p="md">
-      <Paper withBorder shadow="sm" p="xl" radius="md" maw={420} w="100%">
+      <Paper withBorder p="xl" maw={420} w="100%">
         {account === null ? (
           <form onSubmit={requestForm.handleSubmit((values) => requestMutation.mutate(values))}>
             <Stack>

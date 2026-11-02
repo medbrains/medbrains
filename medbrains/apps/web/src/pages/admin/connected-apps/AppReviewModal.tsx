@@ -24,7 +24,7 @@ function Section({ title, children }: { title: string; children: React.ReactNode
   return (
     <Card>
       <Stack gap="xs">
-        <Text size="xs" tt="uppercase" ff="var(--mb-font-mono)" c="dimmed">
+        <Text size="xs" ff="var(--mb-font-mono)" c="dimmed">
           {title}
         </Text>
         {children}

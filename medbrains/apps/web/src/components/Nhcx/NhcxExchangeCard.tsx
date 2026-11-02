@@ -32,7 +32,7 @@ export function NhcxExchangeCard({ claim }: NhcxExchangeCardProps) {
   ];
 
   return (
-    <Card withBorder padding="sm" radius="md">
+    <Card withBorder padding="sm">
       <Group justify="space-between" mb="xs">
         <Text fw={600} size="sm">
           NHCX exchange

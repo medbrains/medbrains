@@ -1097,7 +1097,7 @@ export function InvoiceDetail({
           <Box className={classes.contextRail}>
             <Stack gap="sm">
               <Stack gap={2}>
-                <Text size="xs" fw={700} c="dimmed" tt="uppercase">
+                <Text size="xs" fw={700} c="dimmed">
                   Billing workspace
                 </Text>
                 <Text size="sm" fw={700}>
@@ -1136,7 +1136,7 @@ export function InvoiceDetail({
               </SimpleGrid>
               <Divider />
               <Stack gap="xs">
-                <Text size="xs" fw={700} c="dimmed" tt="uppercase">
+                <Text size="xs" fw={700} c="dimmed">
                   Navigate
                 </Text>
                 <Button
@@ -1182,7 +1182,7 @@ export function InvoiceDetail({
               </Stack>
               <Divider />
               <Stack gap="xs">
-                <Text size="xs" fw={700} c="dimmed" tt="uppercase">
+                <Text size="xs" fw={700} c="dimmed">
                   {t("label.actions")}
                 </Text>
                 {canCreate && inv.status === "draft" && (

@@ -12,7 +12,7 @@ export function DietOrderSection({
   loading: boolean;
 }) {
   return (
-    <Card shadow="sm" padding="lg" radius="md" withBorder>
+    <Card padding="lg" withBorder>
       <Title order={4} mb="md">
         Diet & Meals
       </Title>

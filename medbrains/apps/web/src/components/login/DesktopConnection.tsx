@@ -84,11 +84,7 @@ export function DesktopConnection() {
               Reset
             </Button>
           </Box>
-          {status && (
-            <Alert tone={status.color} radius="md">
-              {status.message}
-            </Alert>
-          )}
+          {status && <Alert tone={status.color}>{status.message}</Alert>}
         </Box>
       )}
     </Box>

@@ -30,7 +30,7 @@ export function MyLearningTab() {
         const isOverdue =
           e.due_date && e.status !== "completed" && new Date(e.due_date) < new Date();
         return (
-          <Card key={e.id} shadow="xs" radius="md" padding="md" withBorder>
+          <Card key={e.id} padding="md" withBorder>
             <Group justify="space-between" mb="xs">
               <Text fw={600} size="sm" lineClamp={1}>
                 {e.course_title}

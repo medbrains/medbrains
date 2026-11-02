@@ -99,7 +99,7 @@ function NavList({ tabs }: { tabs: NavTab[] }) {
 
 function SectionLabel({ children }: { children: ReactNode }) {
   return (
-    <Text fw={700} c="dimmed" tt="uppercase" size="xs" mb={2} px={4} className={styles.railLabel}>
+    <Text fw={700} c="dimmed" size="xs" mb={2} px={4} className={styles.railLabel}>
       {children}
     </Text>
   );

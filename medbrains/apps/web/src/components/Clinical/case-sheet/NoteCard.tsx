@@ -100,7 +100,7 @@ function Sections({ note }: { note: Note }) {
       {written.map((s) => (
         <Box key={s.code}>
           <Group gap="xs">
-            <Text size="xs" fw={700} tt="uppercase" c="dimmed">
+            <Text size="xs" fw={700} c="dimmed">
               {s.title}
             </Text>
             {s.ai_assisted && (

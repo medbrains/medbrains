@@ -76,7 +76,7 @@ export function StatusBadge({ status }: StatusBadgeProps) {
   const config = statusMap[status];
   if (!config) {
     return (
-      <Badge color="slate" radius="xl" size="md">
+      <Badge color="slate" size="md">
         {status}
       </Badge>
     );
@@ -85,7 +85,6 @@ export function StatusBadge({ status }: StatusBadgeProps) {
   return (
     <Badge
       color={config.color}
-      radius="xl"
       size="md"
       leftSection={<AnimatedIcon icon={config.icon} size={12} motion={config.motion} />}
     >

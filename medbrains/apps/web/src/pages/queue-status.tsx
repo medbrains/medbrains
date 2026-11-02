@@ -81,7 +81,7 @@ function TokenView({ status }: { status: PublicTokenStatus }) {
 
   return (
     <Stack gap="lg" align="center" w="100%">
-      <Text size="sm" c="dimmed" tt="uppercase" style={{ letterSpacing: "0.12em" }}>
+      <Text size="sm" c="dimmed" style={{ letterSpacing: "0.12em" }}>
         {status.department_name || "Your queue"}
       </Text>
 

@@ -33,13 +33,7 @@ export function WelcomeStep({ onNext }: Props) {
   return (
     <Stack gap="md">
       <div className={classes.welcomeHero}>
-        <ThemeIcon
-          variant="filled"
-          size={64}
-          radius="xl"
-          color="primary"
-          className={classes.welcomeIcon}
-        >
+        <ThemeIcon variant="filled" size={64} color="primary" className={classes.welcomeIcon}>
           <IconBuildingHospital size={32} />
         </ThemeIcon>
         <Title order={2}>Welcome to MedBrains</Title>

@@ -134,7 +134,7 @@ export function ModulesSettings() {
         </Text>
       </div>
 
-      <Card withBorder padding="md" radius="md">
+      <Card withBorder padding="md">
         <Stack gap="sm">
           <div>
             <Text fw={600} size="sm">
@@ -172,7 +172,7 @@ export function ModulesSettings() {
           const isPending = toggleMutation.isPending && toggleMutation.variables?.code === mod.code;
 
           return (
-            <Card key={mod.code} withBorder padding="md" radius="md">
+            <Card key={mod.code} withBorder padding="md">
               <Stack gap="sm">
                 <Group justify="space-between" wrap="nowrap">
                   <Text fw={600} size="sm" lineClamp={1}>

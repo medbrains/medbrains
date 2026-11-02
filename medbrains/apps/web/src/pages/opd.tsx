@@ -234,7 +234,7 @@ export function OpdNewVisitPage() {
         {initialPatientId && (
           <PatientContextBanner patientId={initialPatientId} collectLane="opd" />
         )}
-        <Card withBorder radius="md" p="md">
+        <Card withBorder p="md">
           <OpdVisitForm
             key={initialPatientId}
             initialPatientId={initialPatientId}
@@ -384,7 +384,7 @@ export function OpdVitalsPage() {
             {t("vitals.permissionBlocked")}
           </Alert>
         ) : (
-          <Card withBorder radius="md" p="md">
+          <Card withBorder p="md">
             <VitalsRecorder
               onSubmit={(data) => vitalsMutation.mutate(data)}
               isSubmitting={vitalsMutation.isPending}

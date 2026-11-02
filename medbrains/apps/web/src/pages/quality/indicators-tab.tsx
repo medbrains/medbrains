@@ -310,7 +310,7 @@ export function IndicatorsTab() {
       )}
 
       {indicatorView === "benchmarking" && (
-        <Card withBorder shadow="sm" p="md">
+        <Card withBorder p="md">
           <Text fw={600} mb="md">
             Indicator Benchmarking
           </Text>
@@ -398,7 +398,7 @@ export function IndicatorsTab() {
       )}
 
       {trendIndicator && (
-        <Card withBorder shadow="sm" p="md" mt="md">
+        <Card withBorder p="md" mt="md">
           <Stack>
             <Group justify="space-between">
               <Text fw={600}>Trend Analysis: {trendIndicator.name}</Text>

@@ -93,8 +93,8 @@ function BilirubinPhototherapyPanel({ records }: { records: IcuNeonatalRecord[] 
     <Stack mt="md" gap="md">
       {/* Phototherapy Status Summary */}
       <SimpleGrid cols={{ base: 1, sm: 2, md: 4 }} spacing="md">
-        <Card withBorder padding="sm" radius="md">
-          <Text size="xs" c="dimmed" tt="uppercase" fw={700}>
+        <Card withBorder padding="sm">
+          <Text size="xs" c="dimmed" fw={700}>
             Phototherapy Status
           </Text>
           <Badge
@@ -106,8 +106,8 @@ function BilirubinPhototherapyPanel({ records }: { records: IcuNeonatalRecord[] 
           </Badge>
         </Card>
 
-        <Card withBorder padding="sm" radius="md">
-          <Text size="xs" c="dimmed" tt="uppercase" fw={700}>
+        <Card withBorder padding="sm">
+          <Text size="xs" c="dimmed" fw={700}>
             Total Phototherapy Hours
           </Text>
           <Text size="xl" fw={700} c="yellow.7" mt={4}>
@@ -119,8 +119,8 @@ function BilirubinPhototherapyPanel({ records }: { records: IcuNeonatalRecord[] 
           </Text>
         </Card>
 
-        <Card withBorder padding="sm" radius="md">
-          <Text size="xs" c="dimmed" tt="uppercase" fw={700}>
+        <Card withBorder padding="sm">
+          <Text size="xs" c="dimmed" fw={700}>
             Peak Bilirubin
           </Text>
           <Text
@@ -141,8 +141,8 @@ function BilirubinPhototherapyPanel({ records }: { records: IcuNeonatalRecord[] 
           </Text>
         </Card>
 
-        <Card withBorder padding="sm" radius="md">
-          <Text size="xs" c="dimmed" tt="uppercase" fw={700}>
+        <Card withBorder padding="sm">
+          <Text size="xs" c="dimmed" fw={700}>
             Latest Bilirubin
           </Text>
           <Text
@@ -171,7 +171,7 @@ function BilirubinPhototherapyPanel({ records }: { records: IcuNeonatalRecord[] 
 
       {/* Phototherapy Timeline */}
       {phototherapySummary.firstActive && (
-        <Card withBorder padding="sm" radius="md">
+        <Card withBorder padding="sm">
           <Text size="xs" c="dimmed" fw={600} mb="xs">
             Phototherapy Timeline
           </Text>

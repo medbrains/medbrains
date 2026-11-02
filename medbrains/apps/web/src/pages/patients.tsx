@@ -367,7 +367,7 @@ function PatientsPageInner() {
       <Card withBorder className={classes.directoryCommandBar}>
         <Group justify="space-between" align="flex-end" gap="md">
           <Stack gap={2}>
-            <Text size="xs" fw={700} c="dimmed" tt="uppercase">
+            <Text size="xs" fw={700} c="dimmed">
               {t("directory.commandTitle")}
             </Text>
             <Group gap="xs">

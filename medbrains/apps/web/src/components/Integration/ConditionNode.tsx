@@ -48,7 +48,6 @@ export function ConditionNode({ data, selected }: NodeProps) {
       <Card
         shadow={selected ? "lg" : "sm"}
         padding="sm"
-        radius="md"
         withBorder
         style={{
           borderColor: selected
@@ -60,7 +59,7 @@ export function ConditionNode({ data, selected }: NodeProps) {
         }}
       >
         <Group gap="sm" wrap="nowrap">
-          <ThemeIcon variant="filled" color={color} size="lg" radius="md">
+          <ThemeIcon variant="filled" color={color} size="lg">
             <IconGitBranch size={18} />
           </ThemeIcon>
           <Box style={{ flex: 1, minWidth: 0 }}>

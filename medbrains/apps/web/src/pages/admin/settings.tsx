@@ -425,7 +425,7 @@ export function SettingsPage() {
       <Card withBorder className={classes.settingsCommandBar}>
         <Group justify="space-between" align="flex-start" gap="md">
           <Stack gap={4}>
-            <Text size="xs" fw={700} c="dimmed" tt="uppercase">
+            <Text size="xs" fw={700} c="dimmed">
               Configuration command center
             </Text>
             <Group gap="xs">
@@ -474,7 +474,7 @@ export function SettingsPage() {
 
       <Grid gap="lg" align="flex-start" className={classes.settingsGrid}>
         <Grid.Col span={{ base: 12, md: 3 }}>
-          <Card withBorder padding="sm" radius="md" className={classes.settingsNavCard}>
+          <Card withBorder padding="sm" className={classes.settingsNavCard}>
             <Stack gap="sm">
               <TextInput
                 aria-label="Find settings"
@@ -522,7 +522,7 @@ export function SettingsPage() {
                   ) : (
                     groupedTabs.map((entry) => (
                       <Stack key={entry.group} gap={4}>
-                        <Text size="xs" fw={700} c="dimmed" tt="uppercase">
+                        <Text size="xs" fw={700} c="dimmed">
                           {entry.group}
                         </Text>
                         {entry.tabs.map((cfg) => {
@@ -544,12 +544,7 @@ export function SettingsPage() {
                                 ) : undefined
                               }
                               rightSection={
-                                <Text
-                                  size="10px"
-                                  fw={700}
-                                  c={settingsKindColor(meta.kind)}
-                                  tt="uppercase"
-                                >
+                                <Text size="10px" fw={700} c={settingsKindColor(meta.kind)}>
                                   {settingsKindLabel(meta.kind)}
                                 </Text>
                               }

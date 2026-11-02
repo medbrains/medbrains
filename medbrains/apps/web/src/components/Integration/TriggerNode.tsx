@@ -47,7 +47,6 @@ export function TriggerNode({ data, selected }: NodeProps) {
       <Card
         shadow={selected ? "lg" : "sm"}
         padding="sm"
-        radius="xl"
         withBorder
         style={{
           borderColor: selected
@@ -59,7 +58,7 @@ export function TriggerNode({ data, selected }: NodeProps) {
         }}
       >
         <Group gap="sm" wrap="nowrap">
-          <ThemeIcon variant="filled" color={color} size="lg" radius="xl">
+          <ThemeIcon variant="filled" color={color} size="lg">
             <IconBolt size={18} />
           </ThemeIcon>
           <Box style={{ flex: 1, minWidth: 0 }}>

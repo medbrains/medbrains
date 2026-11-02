@@ -35,7 +35,7 @@ export function VerifyEmailPage() {
             </>
           ) : verified ? (
             <>
-              <ThemeIcon variant="light" color="success" size={64} radius="xl">
+              <ThemeIcon variant="light" color="success" size={64}>
                 <IconCircleCheck size={36} />
               </ThemeIcon>
               <Title order={3}>Email verified</Title>
@@ -45,7 +45,7 @@ export function VerifyEmailPage() {
             </>
           ) : (
             <>
-              <ThemeIcon variant="light" color="danger" size={64} radius="xl">
+              <ThemeIcon variant="light" color="danger" size={64}>
                 <IconCircleX size={36} />
               </ThemeIcon>
               <Title order={3}>Verification failed</Title>

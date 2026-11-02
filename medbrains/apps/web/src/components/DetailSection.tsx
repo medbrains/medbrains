@@ -24,7 +24,7 @@ export function DetailSection({
   columns = 3,
 }: DetailSectionProps) {
   return (
-    <Card className={styles.card} padding={0} radius="md" shadow="xs">
+    <Card className={styles.card} padding={0}>
       <div
         className={styles.leftBorder}
         style={{ backgroundColor: `var(--mantine-color-${color}-5)` }}
@@ -32,7 +32,7 @@ export function DetailSection({
 
       <div className={styles.header}>
         {icon && (
-          <ThemeIcon variant="light" color={color} size={28} radius="md">
+          <ThemeIcon variant="light" color={color} size={28}>
             {icon}
           </ThemeIcon>
         )}

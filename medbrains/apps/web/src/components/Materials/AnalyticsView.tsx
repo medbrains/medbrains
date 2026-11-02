@@ -37,7 +37,7 @@ function Kpi({
   return (
     <Card padding="md">
       <Stack gap={2}>
-        <Text size="xs" c="dimmed" tt="uppercase" fw={600}>
+        <Text size="xs" c="dimmed" fw={600}>
           {label}
         </Text>
         <Text size="xl" fw={700} c={color}>

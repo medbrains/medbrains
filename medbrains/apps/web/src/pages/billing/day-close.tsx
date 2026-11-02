@@ -42,7 +42,7 @@ function DenominationGrid({
 }) {
   return (
     <Stack gap={4}>
-      <Text size="xs" fw={700} c="dimmed" tt="uppercase">
+      <Text size="xs" fw={700} c="dimmed">
         Cash denomination count
       </Text>
       <Table withTableBorder={false} verticalSpacing={2}>
@@ -309,7 +309,7 @@ export function DayCloseTab() {
                     </Text>
                   </Group>
                 </Card>
-                <Text size="xs" fw={700} c="dimmed" tt="uppercase">
+                <Text size="xs" fw={700} c="dimmed">
                   Settlement report (card / UPI)
                 </Text>
                 <NumberInput

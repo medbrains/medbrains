@@ -83,8 +83,6 @@
 
   &:hover {
     color: var(--item-color, var(--mb-text-primary));
-    box-shadow: 0 8px 18px color-mix(in srgb, var(--item-color, var(--mb-interactive)) 12%, transparent);
-    transform: scale(1.05);
 
     &::after {
       opacity: 1;
@@ -207,7 +205,6 @@
 
   &:hover {
     color: var(--item-color, var(--mb-text-primary));
-    box-shadow: 0 8px 20px color-mix(in srgb, var(--item-color, var(--mb-interactive)) 10%, transparent);
     padding-left: 2px;
 
     &::after {

@@ -245,7 +245,7 @@ export function SourcePanel({ availableFields, mappedSourcePaths, viewMode }: So
       {/* ── SOURCE FIELDS ─────────────────────────── */}
       <Box p="xs" style={{ borderBottom: "1px solid var(--mantine-color-gray-2)" }}>
         <Group gap="xs" mb={6}>
-          <Text size="xs" fw={700} tt="uppercase" c="dimmed">
+          <Text size="xs" fw={700} c="dimmed">
             Source Fields
           </Text>
           <Badge size="xs" variant="light" color="primary">
@@ -289,7 +289,7 @@ export function SourcePanel({ availableFields, mappedSourcePaths, viewMode }: So
       {/* ── OPERATIONS ────────────────────────────── */}
       <Divider />
       <Box p="xs" style={{ borderBottom: "1px solid var(--mantine-color-gray-2)" }}>
-        <Text size="xs" fw={700} tt="uppercase" c="dimmed" mb={6}>
+        <Text size="xs" fw={700} c="dimmed" mb={6}>
           Operations
         </Text>
         <TextInput

@@ -109,7 +109,7 @@ export function InfusionsPanel({ admissionId }: Props) {
 
       {past.length > 0 && (
         <Stack gap="xs">
-          <Text size="xs" fw={700} c="dimmed" tt="uppercase">
+          <Text size="xs" fw={700} c="dimmed">
             History
           </Text>
           {past.map((inf) => (
@@ -170,7 +170,7 @@ function BalanceStat({
 }) {
   return (
     <Card padding="sm">
-      <Text size="xs" c="dimmed" tt="uppercase">
+      <Text size="xs" c="dimmed">
         {label}
       </Text>
       <Text fw={700} c={highlight ? (value < 0 ? "red" : "teal") : undefined}>

@@ -67,7 +67,6 @@ export function LoginPage() {
               size="sm"
               fw={600}
               c="var(--mb-text-secondary)"
-              tt="uppercase"
               className={classes.title}
             >
               Sign in
@@ -143,7 +142,7 @@ function HospitalSignIn({
       {hasSso && showPassword && <Divider label="or" labelPosition="center" />}
       {showPassword && <PasswordSignIn hospitalCode={hospital.code} />}
       {!hasSso && !showPassword && (
-        <Alert tone="warning" radius="md" data-testid="login-no-methods">
+        <Alert tone="warning" data-testid="login-no-methods">
           {hospital.name} hasn't set up sign-in yet. Ask your IT desk.
         </Alert>
       )}

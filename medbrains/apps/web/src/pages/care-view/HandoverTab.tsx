@@ -66,7 +66,7 @@ export function HandoverTab({ wardId }: { wardId: string | null }) {
           </Group>
 
           {data.patients.map((patient) => (
-            <Card key={patient.admission_id} shadow="xs" padding="sm" withBorder>
+            <Card key={patient.admission_id} padding="sm" withBorder>
               <Group justify="space-between" mb={4}>
                 <Group gap={8}>
                   <Text fw={600} size="sm">

@@ -234,7 +234,7 @@ export function BedsidePortalPage() {
         <PageHeader title="Bedside Portal" subtitle="Patient bedside tablet interface" />
         <SimpleGrid cols={{ base: 1, lg: canOpenOperations ? 2 : 1 }} spacing="lg" mt="xl">
           {canViewPortal && (
-            <Card shadow="sm" padding="xl" radius="md" withBorder maw={500} mx="auto" w="100%">
+            <Card padding="xl" withBorder maw={500} mx="auto" w="100%">
               <Stack gap="md">
                 <Title order={3}>Bedside session</Title>
                 {hasIpdContext ? (
@@ -284,7 +284,7 @@ export function BedsidePortalPage() {
             one particular bed, and requiring an admission first would have
             made the only screen that can publish a video unreachable. */}
         {canManageVideos && (
-          <Card shadow="sm" padding="lg" radius="md" withBorder mt="xl">
+          <Card padding="lg" withBorder mt="xl">
             <Title order={4} mb="md">
               Patient education library
             </Title>
@@ -320,7 +320,7 @@ export function BedsidePortalPage() {
             <SimpleGrid cols={{ base: 1, md: 2 }} spacing="lg">
               <Stack gap="lg">
                 {/* Daily Schedule */}
-                <Card shadow="sm" padding="lg" radius="md" withBorder>
+                <Card padding="lg" withBorder>
                   <Title order={4} mb="md">
                     Today&apos;s Schedule
                   </Title>
@@ -338,7 +338,6 @@ export function BedsidePortalPage() {
                           bullet={
                             <ThemeIcon
                               size={28}
-                              radius="xl"
                               color={scheduleColor(item.event_type)}
                               variant="light"
                             >
@@ -376,7 +375,7 @@ export function BedsidePortalPage() {
                 </Card>
 
                 {/* Current Medications */}
-                <Card shadow="sm" padding="lg" radius="md" withBorder>
+                <Card padding="lg" withBorder>
                   <Title order={4} mb="md">
                     Current Medications
                   </Title>
@@ -411,7 +410,7 @@ export function BedsidePortalPage() {
                 </Card>
 
                 {/* Lab Results */}
-                <Card shadow="sm" padding="lg" radius="md" withBorder>
+                <Card padding="lg" withBorder>
                   <Title order={4} mb="md">
                     Recent Lab Results
                   </Title>
@@ -423,7 +422,7 @@ export function BedsidePortalPage() {
               <Stack gap="lg">
                 {/* Quick Actions — Nurse Requests */}
                 {canRequest && (
-                  <Card shadow="sm" padding="lg" radius="md" withBorder>
+                  <Card padding="lg" withBorder>
                     <Title order={4} mb="md">
                       Need Help?
                     </Title>
@@ -482,7 +481,7 @@ export function BedsidePortalPage() {
                 )}
 
                 {/* Latest Vitals */}
-                <Card shadow="sm" padding="lg" radius="md" withBorder>
+                <Card padding="lg" withBorder>
                   <Title order={4} mb="md">
                     Your Vitals
                   </Title>
@@ -495,7 +494,7 @@ export function BedsidePortalPage() {
                   <SimpleGrid cols={2} spacing="sm">
                     {vitalsQ.data?.slice(0, 6).map((v: BedsideVitalReading) => (
                       <Card key={v.id} padding="sm" radius="sm" withBorder>
-                        <Text size="xs" c="dimmed" tt="uppercase">
+                        <Text size="xs" c="dimmed">
                           {v.vital_type ?? "Vital"}
                         </Text>
                         <Text fw={700} size="lg">
@@ -514,7 +513,7 @@ export function BedsidePortalPage() {
 
                 {/* Feedback */}
                 {canFeedback && (
-                  <Card shadow="sm" padding="lg" radius="md" withBorder>
+                  <Card padding="lg" withBorder>
                     <Title order={4} mb="md">
                       How Are You Feeling?
                     </Title>
@@ -599,7 +598,7 @@ export function BedsidePortalPage() {
 
                 {/* Education Videos */}
                 {canViewVideos && videosQ.data && videosQ.data.length > 0 && (
-                  <Card shadow="sm" padding="lg" radius="md" withBorder>
+                  <Card padding="lg" withBorder>
                     <Title order={4} mb="md">
                       Education Videos
                     </Title>
@@ -607,7 +606,7 @@ export function BedsidePortalPage() {
                       {videosQ.data.map((video: BedsideEducationVideoRow) => (
                         <Card key={video.id} padding="sm" radius="sm" withBorder>
                           <Group gap="sm">
-                            <ThemeIcon size={40} radius="md" color="grape" variant="light">
+                            <ThemeIcon size={40} color="grape" variant="light">
                               <IconVideo size={22} />
                             </ThemeIcon>
                             <div style={{ flex: 1 }}>

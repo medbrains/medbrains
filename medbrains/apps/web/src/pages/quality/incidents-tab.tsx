@@ -534,7 +534,7 @@ export function IncidentsTab() {
             )}
 
             {selectedCapa && (
-              <Card withBorder shadow="sm" p="md" mt="md">
+              <Card withBorder p="md" mt="md">
                 <Stack gap="sm">
                   <Group justify="space-between">
                     <Text fw={600}>CAPA Effectiveness Review: {selectedCapa.capa_number}</Text>
@@ -569,7 +569,7 @@ export function IncidentsTab() {
                       <>
                         <SimpleGrid cols={3} spacing="sm">
                           <Card withBorder p="xs">
-                            <Text size="xs" c="dimmed" tt="uppercase" fw={700}>
+                            <Text size="xs" c="dimmed" fw={700}>
                               CAPA Age
                             </Text>
                             <Text fw={600} mt={4}>
@@ -577,7 +577,7 @@ export function IncidentsTab() {
                             </Text>
                           </Card>
                           <Card withBorder p="xs">
-                            <Text size="xs" c="dimmed" tt="uppercase" fw={700}>
+                            <Text size="xs" c="dimmed" fw={700}>
                               Due Date
                             </Text>
                             <Text fw={600} mt={4}>
@@ -585,7 +585,7 @@ export function IncidentsTab() {
                             </Text>
                           </Card>
                           <Card withBorder p="xs">
-                            <Text size="xs" c="dimmed" tt="uppercase" fw={700}>
+                            <Text size="xs" c="dimmed" fw={700}>
                               Effectiveness Review
                             </Text>
                             {effectivenessReview ? (

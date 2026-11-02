@@ -36,8 +36,8 @@ export function IndexPage() {
             </Text>
           </Stack>
 
-          <Card withBorder shadow="sm" radius="md" w="100%" padding="lg">
-            <Text size="xs" fw={600} tt="uppercase" c="dimmed" mb="md">
+          <Card withBorder w="100%" padding="lg">
+            <Text size="xs" fw={600} c="dimmed" mb="md">
               System Health
             </Text>
 

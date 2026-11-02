@@ -410,12 +410,14 @@ export function OpdPageInner() {
       sortValue: (row: QueueEntry) => row.token_number,
       accessor: (row: QueueEntry) => queueTokenLabel(row),
       render: (row: QueueEntry) => (
-        <OperationalSignal
-          label={t("queueSignals.token")}
-          shape="token"
-          tone={queueStatusTone(row.status)}
-          value={queueTokenLabel(row)}
-        />
+        <Text
+          size="sm"
+          fw={700}
+          ff="var(--mb-font-mono, monospace)"
+          style={{ whiteSpace: "nowrap" }}
+        >
+          {queueTokenLabel(row)}
+        </Text>
       ),
     },
     {
@@ -488,19 +490,12 @@ export function OpdPageInner() {
       render: (row: QueueEntry) => <QueueAppointmentMarker row={row} />,
     },
     {
-      key: "queue_date",
-      label: t("queueColumns.date"),
-      sortable: true,
-      accessor: (row: QueueEntry) => row.queue_date,
-      render: (row: QueueEntry) => <Text size="sm">{row.queue_date}</Text>,
-    },
-    {
       key: "actions",
       label: t("queueColumns.actions"),
       requiredPermissions: [P.OPD.QUEUE_VIEW, P.OPD.VISIT_UPDATE, P.OPD.VITALS.CREATE],
       permissionMode: "any",
       render: (row: QueueEntry) => (
-        <Group gap="xs">
+        <Group gap="xs" wrap="nowrap">
           {resolveOpdQueueRowActions(row, queueActionPermissions).map((action) =>
             renderQueueAction(action, row),
           )}

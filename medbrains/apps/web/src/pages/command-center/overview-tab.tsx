@@ -332,7 +332,7 @@ function PatientFlowPipeline({ flow }: { flow: PatientFlowSnapshot | null }) {
               background: `var(--mantine-color-${stage.color}-0)`,
             }}
           >
-            <ThemeIcon variant="light" color={stage.color} size={32} radius="xl" mx="auto" mb={4}>
+            <ThemeIcon variant="light" color={stage.color} size={32} mx="auto" mb={4}>
               {stage.icon}
             </ThemeIcon>
             <Text fz={22} fw={700} lh={1.1} c={`var(--mantine-color-${stage.color}-7)`}>

@@ -78,7 +78,7 @@ export function InfrastructurePage() {
         </Group>
         <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="md">
           <Stack gap={2}>
-            <Text size="xs" tt="uppercase" fw={600} c="dimmed">
+            <Text size="xs" fw={600} c="dimmed">
               Secrets backend
             </Text>
             <Group gap="xs">
@@ -89,7 +89,7 @@ export function InfrastructurePage() {
             </Group>
           </Stack>
           <Stack gap={2}>
-            <Text size="xs" tt="uppercase" fw={600} c="dimmed">
+            <Text size="xs" fw={600} c="dimmed">
               Deploy mode
             </Text>
             <Badge tone="neutral" size="sm">

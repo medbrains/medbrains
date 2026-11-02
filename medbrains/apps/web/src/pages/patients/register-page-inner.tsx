@@ -497,7 +497,7 @@ export function PatientRegisterPageInner() {
                     )}
                   </Group>
                   <Divider />
-                  <Text size="xs" fw={700} c="dimmed" tt="uppercase">
+                  <Text size="xs" fw={700} c="dimmed">
                     {t("registrationPage.checklistTitle")}
                   </Text>
                   {[

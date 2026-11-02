@@ -132,7 +132,7 @@ export function ConsentPanel({ contactId }: { contactId: string }) {
 
   return (
     <Stack gap={6}>
-      <Text size="xs" c="dimmed" tt="uppercase" fw={600}>
+      <Text size="xs" c="dimmed" fw={600}>
         Marketing consent
       </Text>
       {states.map(({ key, label, state }) => (

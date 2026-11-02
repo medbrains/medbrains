@@ -134,7 +134,7 @@ export function RxHistoryTab({ patientId }: { patientId: string }) {
   return (
     <Stack gap="sm">
       {(history as PrescriptionHistoryItem[]).map((h) => (
-        <Card key={h.prescription.id} padding="sm" radius="md" withBorder>
+        <Card key={h.prescription.id} padding="sm" withBorder>
           <Group gap={8} mb="xs">
             <Badge size="xs">{new Date(h.encounter_date).toLocaleDateString()}</Badge>
             {h.doctor_name && (
@@ -281,7 +281,7 @@ export function CertificatesTab({
       )}
 
       {certificates.map((cert) => (
-        <Card key={cert.id} padding="sm" radius="md" withBorder>
+        <Card key={cert.id} padding="sm" withBorder>
           <Group justify="space-between" mb="xs">
             <Group gap={8}>
               <IconCertificate size={16} color="var(--mantine-color-blue-5)" />
@@ -881,7 +881,7 @@ export function ProceduresTab({
       )}
 
       {formOpened && (
-        <Card padding="sm" radius="md" withBorder>
+        <Card padding="sm" withBorder>
           <Stack gap="xs">
             <Controller
               control={control}
@@ -1167,7 +1167,7 @@ export function ReferralsTab({
       )}
 
       {(referrals as ReferralWithNames[]).map((ref) => (
-        <Card key={ref.id} padding="sm" radius="md" withBorder>
+        <Card key={ref.id} padding="sm" withBorder>
           <Group justify="space-between" mb="xs">
             <Group gap={8}>
               <IconArrowRight size={16} color="var(--mantine-color-blue-5)" />
@@ -1611,7 +1611,7 @@ export function FeedbackTab({
       ) : (
         <Stack gap="sm">
           {feedback.map((fb) => (
-            <Card key={fb.id} padding="sm" radius="md" withBorder>
+            <Card key={fb.id} padding="sm" withBorder>
               <Group justify="space-between" mb="xs">
                 <Text size="sm" c="dimmed">
                   {new Date(fb.submitted_at).toLocaleDateString()}
@@ -1936,7 +1936,7 @@ export function DocketTab() {
           Loading...
         </Text>
       ) : d ? (
-        <Card padding="md" radius="md" withBorder>
+        <Card padding="md" withBorder>
           <Text size="lg" fw={600} mb="sm">
             Daily Docket — {d.docket_date}
           </Text>

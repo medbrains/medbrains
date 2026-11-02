@@ -101,6 +101,14 @@ built. *Proposed* is waiting for the owner. *Rejected* was considered and turned
 | 2026-11-02 | CI builds only the MedBrains product: every Rust crate except the desktop app, and the web app with its packages. Docs-only PRs skip it | The old build pulled in React Native, desktop and docs, so failures said nothing about the product | One full build of everything on every PR | Done; desktop and native apps are not in this CI yet |
 | 2026-11-02 | The repository is the source of truth; any wiki mirrors it | It versions with the code and contributors can read it | A wiki as the only copy | In force |
 
+### Interface
+
+| Date | Decision | Why | Rejected | Status |
+|---|---|---|---|---|
+| 2026-11-02 | Remove decoration from clinical screens: no glass, no page-surface shadows or rounded corners, squared status chips, sentence-case headers, no chip on a normal state | Clinicians scan these all day, and status chips only mean something if normal rows have none | Rounded SaaS pills | Done for effects and the OPD queue; other screens next |
+| 2026-11-02 | Do not adopt BoardUI | It needs Tailwind v4, which the design rules ban, and a rewrite of about 1,700 screens | Buying or installing it | Rejected; three ideas noted |
+| 2026-11-02 | Keep IBM Plex; do not move to Geist | Plex is the locked design choice, and Geist lists no Devanagari, Tamil or Arabic | Switching font | Proposed; owner to confirm |
+
 ### Earlier major decisions
 
 | Date | Decision | Source |

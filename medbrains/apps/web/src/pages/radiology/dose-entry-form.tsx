@@ -130,7 +130,7 @@ export function DoseEntryForm({ orderId, patientId }: DoseEntryFormProps) {
         </Text>
         {GROUPS.map((group) => (
           <Stack key={group.title} gap={4}>
-            <Text size="xs" c="dimmed" tt="uppercase">
+            <Text size="xs" c="dimmed">
               {group.title}
             </Text>
             <SimpleGrid cols={{ base: 1, sm: 3 }}>
