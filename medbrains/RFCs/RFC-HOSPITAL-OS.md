@@ -13,8 +13,22 @@ builds on Debian and adds the hospital layer: the kernel, signature features and
 ### Focus: big hospitals first (owner decision, 2026-11-02)
 
 The first customer is a large hospital or group, because growing regulation forces it to prove control:
-who saw what, on which machine, under which policy. That sets the order of work. The clinic and Raspberry Pi
-profiles stay in this RFC, later.
+who saw what, on which machine, under which policy. That sets the order of work.
+
+**Small clinics use the application layer only,** on hardware or hosting they already have. They do not need the
+OS, and clinic needs do not set this plan's order. The Raspberry Pi and clinic profile work stays in this RFC as
+proof of how small the system can run, not as a product line for now.
+
+**The moat is the OS on cheap hardware (owner decision, 2026-11-02).** A big hospital should get what today takes
+expensive servers, storage arrays and licences, from many ordinary machines. Reliability comes from software:
+several cheap nodes replicating and failing over, so no single machine matters. This is only true once measured,
+so every claim needs a published test on named hardware, and the cost comparison must include failures and support.
+
+**PACS is the proof.** Imaging is a hospital's heaviest load in storage and network. If PACS runs fast and safely
+on cheap disks and ordinary machines, the claim holds for everything else. Today `medbrains-radiology` drives
+Orthanc as a separate service. Evaluate whether a Rust DICOM store with tiered storage should replace it, measured
+against Orthanc on the same hardware. A viewer used for diagnosis may be regulated as a medical device, so check
+that with a regulatory expert before any such claim.
 
 **A big hospital will ask for, in rough order:**
 1. **No single point of failure:** replicas, automatic failover, tested recovery, and running through a network
