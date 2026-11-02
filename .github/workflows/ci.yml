@@ -56,6 +56,17 @@ jobs:
       - run: python3 scripts/check_no_card_logging.py
       - run: python3 scripts/check_egress_allowlist.py
 
+  docs:
+    name: Every new function is documented
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - run: python3 medbrains/scripts/check_docs_on_new_functions.py --self-test
+      - run: python3 medbrains/scripts/check_docs_on_new_functions.py origin/${{ github.base_ref }}
+
   contracts:
     name: API + UI contracts
     runs-on: ubuntu-latest

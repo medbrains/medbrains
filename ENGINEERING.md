@@ -162,6 +162,7 @@ Six codes, fixed hexes, identical on every deployment regardless of theme:
 - Each feature developed in isolation, merged via PR
 - Do NOT commit directly to `master` — always use feature branches
 - Commit messages: imperative, concise, explain "why" not "what"
+- **Record decisions:** a PR that makes or reverses a decision adds a row to `medbrains/docs/DECISIONS.md` in the same PR: what, why, what was rejected
 
 ---
 
@@ -307,6 +308,23 @@ on the way out, and a `-9` leaves a lock that blocks the next run with a
 - When tempted to write `useEffect`, first ask: "Can this be an event handler, a `useMemo`, or a TanStack Query instead?"
 
 ---
+
+## Document Everything (MANDATORY)
+
+**Everything is documented from the start, because recovering it later is far harder.**
+
+1. **Every function** has a doc comment saying what it does and why it exists, in every language:
+   Rust, TypeScript, Swift, Kotlin, Python. Say what the name cannot. Tests and generated files are
+   exempt. `make check-docs` and CI fail on any function a branch adds or changes without one.
+   Existing functions get theirs when they are touched.
+2. **Every decision** gets a row in `medbrains/docs/DECISIONS.md` in the same PR: what, why, what was
+   rejected. Reversals add a new row; history is never edited.
+3. **Every failure that could recur** gets a row there too: what happened, the cause, the fix.
+4. **Every module and feature** has its RFC or guide updated in the same PR, and every build or setup
+   has the exact commands to repeat it.
+
+The repository is the source of truth; any wiki is a mirror. It is public, so no secrets, patient
+data, server details, or private partner, client or banking information.
 
 ## OS Principles Are Law (MANDATORY)
 
