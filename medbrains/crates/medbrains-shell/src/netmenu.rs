@@ -14,6 +14,7 @@ use crate::{network, ui};
 /// Past this height the panel scrolls, on any screen.
 const PANEL_HEIGHT: i32 = 560;
 const PANEL_WIDTH: i32 = 420;
+const PANEL_INWARD: i32 = 120;
 
 /// The link in use: the default route's, or else the first with an address.
 fn link_in_use(network: &Network) -> Option<&Link> {
@@ -173,7 +174,9 @@ impl Wired {
 /// The top bar's menu button around `face`, opening the shared panel. `open_settings` is its link
 /// to the full network settings.
 pub(crate) fn button(face: &gtk::Box, open_settings: Rc<dyn Fn()>) -> gtk::MenuButton {
-    let popover = gtk::Popover::new();
+    // Moved inward, because `cage` does not slide a menu back on screen when it grows.
+    let popover = gtk::Popover::builder().has_arrow(false).build();
+    popover.set_offset(-PANEL_INWARD, 0);
     let source = popover.clone();
     let panel = network::panel(Some(Rc::new(move || {
         source.popdown();
