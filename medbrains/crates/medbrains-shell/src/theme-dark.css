@@ -1,0 +1,16 @@
+/* The website theme (ENGINEERING.md, design system), dark, as GTK colours. */
+@define-color mb_wall_a #0b1220;
+@define-color mb_wall_b #0a1a3f;
+@define-color mb_wall_c #0f62fe;
+@define-color mb_grid rgba(255, 255, 255, 0.035);
+@define-color mb_bg #111315;
+@define-color mb_bar rgba(17, 19, 21, 0.92);
+@define-color mb_card rgba(28, 31, 35, 0.90);
+@define-color mb_dock rgba(28, 31, 35, 0.92);
+@define-color mb_tile #24272c;
+@define-color mb_tile_hover #30343a;
+@define-color mb_line #30343a;
+@define-color mb_text #e6e8eb;
+@define-color mb_muted #a9afb7;
+@define-color mb_accent #78a9ff;
+@define-color mb_warning #ff8389;

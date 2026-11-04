@@ -51,7 +51,7 @@ a TPM 2.0 module, and start it again.
   To turn off now, type OFF and press Enter.
 
   To carry on WITHOUT encryption, type STORE UNENCRYPTED and press Enter. Do this only
-  if your hospital accepts that risk. It is recorded, and shown on this screen.
+  if your hospital accepts that risk. The choice is recorded.
 
 TEXT
     while read -r -p '> ' answer; do
@@ -177,8 +177,8 @@ seal_with_pin() {
         "${SEAL_ARGS[@]}" "$PART" >/dev/null
 }
 
-# Shows the recovery key on a sealed disk, offers a PIN, then records how this disk is protected. The
-# record is what the status page reads; a sealed disk never has an empty-key slot.
+# Shows the recovery key on a sealed disk, offers a PIN, then records how this disk is protected. The record
+# holds no secret, so the desktop can read it; a sealed disk never has an empty-key slot.
 finish() {
     local state=unencrypted-chosen
     if systemd-cryptenroll "$PART" | grep -qw tpm2; then
@@ -191,7 +191,7 @@ finish() {
         fi
         clear_screen
     fi
-    install -m 0640 -o root -g medbrains /dev/null "$RECORD.new"
+    install -m 0644 -o root -g root /dev/null "$RECORD.new"
     printf '%s\n' "$state" > "$RECORD.new"
     mv "$RECORD.new" "$RECORD"
     echo "data disk protection: $state" >&2

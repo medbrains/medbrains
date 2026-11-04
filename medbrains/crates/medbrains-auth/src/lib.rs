@@ -463,7 +463,7 @@ pub async fn login(
 
     // Store refresh token — set tenant context for RLS
     let device_fp = extract_device_fingerprint(&headers);
-    let client_ip = extract_client_ip(&headers);
+    let client_ip = ip.clone();
     let user_agent = headers
         .get("user-agent")
         .and_then(|v| v.to_str().ok())
@@ -572,6 +572,7 @@ pub struct RefreshResponse {
 #[allow(clippy::too_many_lines)]
 pub async fn refresh_token(
     State(state): State<AppState>,
+    client_ip: Option<Extension<ClientIp>>,
     headers: HeaderMap,
     jar: CookieJar,
     body: Option<Json<RefreshRequestBody>>,
@@ -699,7 +700,7 @@ pub async fn refresh_token(
     let new_refresh_hash = hex::encode(new_hasher.finalize());
     let new_expires = Utc::now() + chrono::Duration::days(7);
 
-    let client_ip = extract_client_ip(&headers);
+    let client_ip = client_ip.map(|Extension(ip)| ip.as_str());
     let user_agent_val = headers
         .get("user-agent")
         .and_then(|v| v.to_str().ok())
@@ -1453,38 +1454,6 @@ fn extract_device_fingerprint(headers: &HeaderMap) -> String {
     hex::encode(hasher.finalize())
 }
 
-/// Extract client IP from request headers (X-Forwarded-For, X-Real-IP, or fallback).
-/// Strips port if present (e.g., "1.2.3.4:12345" → "1.2.3.4").
-fn extract_client_ip(headers: &HeaderMap) -> Option<String> {
-    let raw = headers
-        .get("x-forwarded-for")
-        .and_then(|v| v.to_str().ok())
-        .and_then(|s| s.split(',').next())
-        .map(|s| s.trim().to_owned())
-        .or_else(|| {
-            headers
-                .get("x-real-ip")
-                .and_then(|v| v.to_str().ok())
-                .map(|s| s.trim().to_owned())
-        });
-
-    // The column is `inet`, which takes an address and not a socket address.
-    // Both forms arrive here: a proxy that forwards its peer verbatim sends
-    // `1.2.3.4:5678` or `[::1]:5678`, a conforming one sends the bare IP.
-    // Parsing both beats stripping the port by hand -- the hand-rolled version
-    // skipped anything containing '[', which is precisely the IPv6-with-port
-    // form, so every login over IPv6 died on `invalid input syntax for inet`.
-    // Anything that parses as neither is dropped rather than handed to
-    // Postgres: an unparseable address is not worth failing a login over.
-    raw.and_then(|s| {
-        s.parse::<std::net::SocketAddr>()
-            .map(|socket| socket.ip())
-            .or_else(|_| s.parse::<std::net::IpAddr>())
-            .ok()
-            .map(|ip| ip.to_string())
-    })
-}
-
 /// Resolve `department_ids` for a user from the database.
 /// Bypass roles get an empty list (they can access everything).
 async fn resolve_department_ids(
@@ -1670,59 +1639,6 @@ mod native_client_tests {
             );
         }
         assert!(!wants_native_token_response(&HeaderMap::new()));
-    }
-}
-
-#[cfg(test)]
-mod client_ip_tests {
-    use super::extract_client_ip;
-    use axum::http::HeaderMap;
-
-    fn forwarded(value: &str) -> HeaderMap {
-        let mut headers = HeaderMap::new();
-        headers.insert("x-forwarded-for", value.parse().expect("header value"));
-        headers
-    }
-
-    #[test]
-    fn a_socket_address_is_reduced_to_its_address() {
-        // The bracketed form is the regression: it reached the `inet` column
-        // intact and 400d every login once the proxy started answering on IPv6.
-        for (raw, want) in [
-            ("[::1]:53579", "::1"),
-            ("127.0.0.1:53579", "127.0.0.1"),
-            ("[2001:db8::1]:443", "2001:db8::1"),
-        ] {
-            assert_eq!(
-                extract_client_ip(&forwarded(raw)).as_deref(),
-                Some(want),
-                "{raw} should reduce to {want}"
-            );
-        }
-    }
-
-    #[test]
-    fn a_bare_address_survives_unchanged() {
-        for raw in ["::1", "1.2.3.4", "2001:db8::1"] {
-            assert_eq!(extract_client_ip(&forwarded(raw)).as_deref(), Some(raw));
-        }
-    }
-
-    #[test]
-    fn an_unparseable_address_is_dropped_rather_than_forwarded() {
-        // Whatever this is, it is not something to hand to an `inet` column.
-        for raw in ["not-an-ip", "", "1.2.3.4.5"] {
-            assert_eq!(extract_client_ip(&forwarded(raw)), None, "{raw:?}");
-        }
-        assert_eq!(extract_client_ip(&HeaderMap::new()), None);
-    }
-
-    #[test]
-    fn the_first_hop_wins_in_a_chain() {
-        assert_eq!(
-            extract_client_ip(&forwarded("[::1]:53579, 10.0.0.1")).as_deref(),
-            Some("::1")
-        );
     }
 }
 

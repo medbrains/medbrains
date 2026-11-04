@@ -1,0 +1,2 @@
+# iwd runs only on a machine with a Wi-Fi card, so a wired machine doesn't pay for it.
+ACTION=="add", SUBSYSTEM=="net", ENV{DEVTYPE}=="wlan", TAG+="systemd", ENV{SYSTEMD_WANTS}+="iwd.service"

@@ -70,11 +70,7 @@
   color: var(--mb-text-secondary);
   // Include box-shadow so the active left-accent bar eases in instead of
   // snapping when a tab is selected (and transform for a subtle press).
-  transition:
-    background 120ms ease,
-    color 120ms ease,
-    box-shadow 160ms ease,
-    transform 80ms ease;
+  transition: background 120ms ease, color 120ms ease, box-shadow 160ms ease, transform 80ms ease;
 }
 
 .railTab:active:not([data-active]) {

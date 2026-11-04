@@ -35,9 +35,14 @@ esac
 
 OS_WORK="${OS_WORK:-/tmp/mb-osimage}"
 SERVER="${MEDBRAINS_SERVER_BIN:-${CARGO_TARGET_DIR:-$REPO/target}/$TRIPLE/release/medbrains-server}"
+OS_SETUP="$(dirname "$SERVER")/medbrains-os-setup"
 WEB="${MEDBRAINS_WEB_DIST:-$REPO/apps/web/dist}"
 if [[ ! -x "$SERVER" ]]; then
     echo "no server binary at $SERVER — cross-build it with zigbuild for $TRIPLE (see README)" >&2
+    exit 1
+fi
+if [[ ! -x "$OS_SETUP" ]]; then
+    echo "no setup service at $OS_SETUP — cross-build medbrains-os-setup with the server" >&2
     exit 1
 fi
 if [[ ! -f "$WEB/index.html" ]]; then
@@ -51,28 +56,30 @@ rm -rf "$EXTRA"
 install -d "$EXTRA/usr/bin" "$EXTRA/usr/share/medbrains" "$EXTRA/usr/lib/medbrains" \
     "$OS_WORK/out-$ARCH" "$OS_WORK/cache-$ARCH"
 install -m 0755 "$SERVER" "$EXTRA/usr/bin/medbrains-server"
+install -m 0755 "$OS_SETUP" "$EXTRA/usr/bin/medbrains-os-setup"
 cp -R "$WEB" "$EXTRA/usr/share/medbrains/web"
 # Pre-compressed copies are for a CDN; on the appliance Caddy compresses.
 find "$EXTRA/usr/share/medbrains/web" \( -name '*.br' -o -name '*.gz' -o -name '*.map' \) -delete
 install -m 0644 "$REPO/deploy/standalone/db-roles.sh" "$EXTRA/usr/lib/medbrains/db-roles.sh"
-# The appliance screen uses the web app's own logo and fonts, under stable names.
-CONSOLE="$EXTRA/usr/share/medbrains/console"
-install -d "$CONSOLE"
-install -m 0644 "$WEB/logo/medbrains-mark.svg" "$CONSOLE/logo.svg"
-install -m 0644 "$WEB"/assets/ibm-plex-sans-latin-400-normal-*.woff2 "$CONSOLE/plex-sans-400.woff2"
-install -m 0644 "$WEB"/assets/ibm-plex-sans-latin-600-normal-*.woff2 "$CONSOLE/plex-sans-600.woff2"
-install -m 0644 "$WEB"/assets/ibm-plex-mono-latin-500-normal-*.woff2 "$CONSOLE/plex-mono-500.woff2"
+# The screen uses the web app's own logo.
+install -d "$EXTRA/usr/share/medbrains/shell"
+install -m 0644 "$WEB/logo/medbrains-mark.svg" "$EXTRA/usr/share/medbrains/shell/logo.svg"
 
 VERSION="${OS_VERSION:-$(git -C "$REPO" rev-parse --short HEAD)}"
 DEBUG_ARGS=()
-# A root shell on the serial port that needs no login, PAM or logind, so a broken
-# boot can still be inspected. Kernel command line, because mkosi's presets remove
-# units enabled from an extra tree. mkosi's Autologin= covers hvc0 and tty1 only.
+# A root shell on whichever serial port this VM has: ttyAMA0 under QEMU, hvc0 under Apple
+# Virtualization. A udev rule starts it when the port appears, so a VM without one of them has no
+# failed unit, unlike systemd.debug_shell, which takes one fixed tty and fails if it is missing.
+# It needs no login or PAM, so a broken boot can still be inspected.
 if [[ "$DEBUG" == 1 ]]; then
-    tty=ttyAMA0
-    [[ "$ARCH" == x86-64 ]] && tty=ttyS0
-    DEBUG_ARGS=(--kernel-command-line "systemd.debug_shell=$tty systemd.mask=serial-getty@$tty.service"
-                --package strace --package cryptsetup-bin)
+    install -d "$EXTRA/usr/lib/systemd/system" "$EXTRA/usr/lib/udev/rules.d"
+    install -m 0644 "$HERE/debug/medbrains-debug-shell@.service" "$EXTRA/usr/lib/systemd/system/"
+    install -m 0644 "$HERE/debug/90-medbrains-debug-shell.rules" "$EXTRA/usr/lib/udev/rules.d/"
+    # The shell replaces the login prompt that systemd would put on both ports. wtype and grim let
+    # a test type and take screenshots under Apple Virtualization, which has no QMP. hostapd and iw make
+    # a test Wi-Fi network with mac80211_hwsim.
+    DEBUG_ARGS=(--kernel-command-line "systemd.mask=serial-getty@ttyAMA0.service systemd.mask=serial-getty@hvc0.service systemd.mask=serial-getty@ttyS0.service"
+                --package strace --package cryptsetup-bin --package wtype --package grim --package hostapd --package iw)
 fi
 
 # A debug image gets a throwaway signing key, so the signed path is what gets tested. Never for release.
@@ -95,6 +102,7 @@ build_on_linux() {
     local work
     work="$(mktemp -d)"
     cp -R "$HERE/." "$work/"
+    cp -R "$REPO/crates/medbrains-shell" "$work/medbrains-shell"
     (cd "$work" && mkosi --architecture "$ARCH" --extra-tree "$EXTRA" \
         --output-directory "$OS_WORK/out-$ARCH" --cache-directory "$OS_WORK/cache-$ARCH" \
         --image-version "$VERSION" ${DEBUG_ARGS[@]+"${DEBUG_ARGS[@]}"} ${SIGN_ARGS[@]+"${SIGN_ARGS[@]}"} -f build)
@@ -112,10 +120,10 @@ build_on_mac_with_docker() {
         -f "$HERE/builder.Dockerfile" "$HERE" >/dev/null
     # An anonymous volume for /var/tmp: mkosi's build overlay cannot sit on Docker's own overlay.
     docker run --rm --privileged --platform "$PLATFORM" -v /var/tmp \
-        -v "$HERE:/src:ro" -v "$EXTRA:/extra:ro" \
+        -v "$HERE:/src:ro" -v "$REPO/crates/medbrains-shell:/shell:ro" -v "$EXTRA:/extra:ro" \
         -v "$OS_WORK/out-$ARCH:/out" -v "$OS_WORK/cache-$ARCH:/cache" ${SIGN_MOUNTS[@]+"${SIGN_MOUNTS[@]}"} \
         "medbrains-os-builder:${PLATFORM#linux/}" \
-        bash -c 'cp -R /src /build && cd /build && mkosi "$@" -f build' _ \
+        bash -c 'cp -R /src /build && cp -R /shell /build/medbrains-shell && cd /build && mkosi "$@" -f build' _ \
         --architecture "$ARCH" --extra-tree /extra --output-directory /out \
         --cache-directory /cache --image-version "$VERSION" ${DEBUG_ARGS[@]+"${DEBUG_ARGS[@]}"} \
         ${SIGN_ARGS[@]+"${SIGN_ARGS[@]}"}

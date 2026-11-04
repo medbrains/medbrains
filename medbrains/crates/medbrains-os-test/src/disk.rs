@@ -301,18 +301,6 @@ fn no_tpm_can_turn_off(image: &Path) -> Result<(), String> {
     vm.wait_for_power_off(scaled(SCREEN_LIMIT))
 }
 
-/// The status page's data file comes to name the unencrypted disk.
-fn wait_for_status_page(vm: &mut Vm) -> Result<(), String> {
-    let deadline = Instant::now() + scaled(SCREEN_LIMIT);
-    while Instant::now() < deadline {
-        if vm.run("cat /run/medbrains-console/status.js; true")?.contains("unencrypted-chosen") {
-            return Ok(());
-        }
-        sleep(Duration::from_secs(2));
-    }
-    Err("the status page is not told".to_owned())
-}
-
 /// Typing the choice stores data unencrypted, records and shows that, and later boots ask nothing.
 fn no_tpm_records_the_choice(image: &Path) -> Result<(), String> {
     let mut vm = Vm::start_waiting(image, None)?;
@@ -325,7 +313,6 @@ fn no_tpm_records_the_choice(image: &Path) -> Result<(), String> {
     wait_first_boot_done(&mut vm)?;
     let record = vm.run(&format!("cat {RECORD}"))?;
     ensure(record == "unencrypted-chosen", record)?;
-    wait_for_status_page(&mut vm)?;
     vm.reboot()?;
     wait_open(&mut vm)
 }

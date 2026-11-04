@@ -105,7 +105,7 @@ disposal. No screen for this yet.
 | **`MEDBRAINS_SIGNATURE_KEY_ENCRYPTION_KEY`** | Wraps doctors' signing keys | AEAD, source | same env (new, see gaps) | 0640 | Forever | **None** | Signing keys unusable, doctors re-enrol | Sign as a doctor, given the database |
 | **`MEDBRAINS_OAUTH_TOKEN_KEY`** | SSO and connected-account tokens, sealed | AES-GCM, source | same env (new, see gaps) | 0640 | Forever | **None** | Reconnect accounts | Those tokens, given the database |
 | **Database passwords** (owner, `medbrains_app`, worker) | Local database login | 32 alphanumeric, stored as SCRAM-SHA-256, measured | Same env, three `*_DATABASE_URL`; verifiers in PostgreSQL | 0640 | Forever | Manual `ALTER ROLE` plus env edit; nothing automates it | Reset as `postgres` by peer auth; no data lost | Database access from this machine only (loopback, firewall) |
-| **First admin password** | First sign-in | 8 characters, about 40 bits, rate limited | `config/initial-admin-password`; in env until the seed reads it | 0600 root | Until changed; then deleted | Forced change at first use | Set again by support path: **none yet** (§8k) | Sign in until changed |
+| **First admin password** | First sign-in | Chosen by a person at setup; only its Argon2 hash goes into the env as `MEDBRAINS_SEED_*`, removed once the server has read it | env, briefly | 0640 | Until changed | Password change | **No recovery path yet** (§8k) | Offline guessing while the line exists |
 | **User passwords** | Sign-in | Argon2 with crate defaults, source | Database | RLS | User set | Password change | Reset | Offline guessing |
 | **API keys** | Machine access | 256-bit random, unsalted SHA-256 at rest, source | Database | RLS | Until revoked | Revoke and create | Create new | Hash only; high entropy, so guessing is not practical |
 
@@ -181,7 +181,7 @@ disk to a file on that disk. A test found this: the disk would not open.
 | What fails | Effect | Detected by | What the machine does | Test |
 |---|---|---|---|---|
 | No TPM at first boot | Cannot seal | `/dev/tpmrm0` absent after udev settles | Stops and asks: turn off, or type `STORE UNENCRYPTED`. Nothing stored until then | `no_tpm_can_turn_off` |
-| Person chooses unencrypted | Data readable from any copy | Typed choice; empty-key slot; `disk-protection` record | Stores data; status page says "This disk is not encrypted" at every boot | `no_tpm_records_the_choice` |
+| Person chooses unencrypted | Data readable from any copy | Typed choice; empty-key slot; `disk-protection` record | Stores data and records it. **The desktop does not show the record yet: gap** | `no_tpm_records_the_choice` |
 | Firmware reports a TPM, kernel has no driver | Would stall boot 180 s | `systemd.tpm2_wait=no` | Treated as no TPM, as above; measured on arm64 before and after | manual, arm64 |
 | Boot file changed, signed image | PCR 11 does not match the signature | Unseal fails | Same screen as a copied disk; restoring the file opens it | `changed_boot_file_stays_locked` |
 | PIN wrong | | TPM | Asks again; too many lock it, and the recovery key still works | `pin_is_asked_at_every_start` |

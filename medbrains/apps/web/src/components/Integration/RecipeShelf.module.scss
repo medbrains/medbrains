@@ -12,7 +12,7 @@
 }
 
 .eyebrow {
-  font: 500 10px/1 var(--font-mono);
+  font: 500 10px / 1 var(--font-mono);
   letter-spacing: 0.18em;
   text-transform: uppercase;
   color: var(--mb-text-muted);
@@ -20,7 +20,7 @@
 }
 
 .heroTitle {
-  font: 400 30px/1.05 var(--font-display);
+  font: 400 30px / 1.05 var(--font-display);
   letter-spacing: -0.02em;
   margin: 0;
   color: var(--mb-text-primary);
@@ -63,14 +63,14 @@
 }
 
 .statLabel {
-  font: 500 10px/1 var(--font-mono);
+  font: 500 10px / 1 var(--font-mono);
   letter-spacing: 0.14em;
   text-transform: uppercase;
   color: var(--mb-text-muted);
 }
 
 .statValue {
-  font: 400 28px/1 var(--font-display);
+  font: 400 28px / 1 var(--font-display);
   font-variant-numeric: tabular-nums lining-nums;
   color: var(--mb-text-primary);
   margin-top: 8px;
@@ -83,7 +83,7 @@
   }
 
   .muted {
-    font: 400 14px/1 var(--font-sans);
+    font: 400 14px / 1 var(--font-sans);
     color: var(--mb-text-muted);
     letter-spacing: 0;
   }
@@ -95,7 +95,7 @@
 }
 
 .statDelta {
-  font: 500 11px/1 var(--font-mono);
+  font: 500 11px / 1 var(--font-mono);
   color: var(--mb-success-accent);
   margin-top: 6px;
 }
@@ -124,19 +124,19 @@
 }
 
 .sectionNum {
-  font: 500 11px/1 var(--font-mono);
+  font: 500 11px / 1 var(--font-mono);
   letter-spacing: 0.14em;
   color: var(--mb-text-muted);
 }
 
 .sectionTitle {
   margin: 0;
-  font: 600 14px/1 var(--font-sans);
+  font: 600 14px / 1 var(--font-sans);
   color: var(--mb-text-primary);
 }
 
 .sectionCount {
-  font: 500 11px/1 var(--font-mono);
+  font: 500 11px / 1 var(--font-mono);
   color: var(--mb-text-muted);
   margin-left: auto;
 }
@@ -191,12 +191,12 @@
 }
 
 .recipeTitle {
-  font: 600 14px/1.3 var(--font-sans);
+  font: 600 14px / 1.3 var(--font-sans);
   color: var(--mb-text-primary);
 }
 
 .recipeDesc {
-  font: 400 12.5px/1.5 var(--font-sans);
+  font: 400 12.5px / 1.5 var(--font-sans);
   color: var(--mb-text-secondary);
 }
 
@@ -206,7 +206,7 @@
   flex-wrap: wrap;
   align-items: center;
   gap: 6px;
-  font: 500 11px/1.3 var(--font-mono);
+  font: 500 11px / 1.3 var(--font-mono);
   letter-spacing: 0.04em;
   color: var(--mb-text-secondary);
 }
@@ -246,7 +246,7 @@
   align-items: center;
   padding-top: 6px;
   border-top: 1px dashed var(--mb-border-subtle);
-  font: 500 11px/1 var(--font-mono);
+  font: 500 11px / 1 var(--font-mono);
   letter-spacing: 0.06em;
   color: var(--mb-text-muted);
 }
@@ -295,7 +295,7 @@
   color: white;
   padding: 2px 7px;
   border-radius: 9999px;
-  font: 600 10px/1.2 var(--font-mono);
+  font: 600 10px / 1.2 var(--font-mono);
   letter-spacing: 0.1em;
   text-transform: uppercase;
 }

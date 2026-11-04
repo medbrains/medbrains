@@ -115,7 +115,7 @@ N1 to N6 come from RFC-HOSPITAL-OS §8q. Every task ends on a check or a screen.
 | H5 | Firmware: UEFI required, minimum settings checked and shown; signed firmware updates (`fwupd`) evaluated | Screen says what is wrong in plain words | later, needs H2 |
 | H6 | Kit firmware: Secure Boot on, TPM on, USB boot off, BIOS password, our logo | One kit ships this way | later, needs a hardware partner |
 | H7 | Shrink the image: keep the empty update slot sparse; strip the server binary; drop Perl, unused locales and kernel modules; compare `libLLVM` need on real GPUs | System under 1 GB; each cut proven by booting | next |
-| H4 | Memory below target | Whole machine ≤ 512 MB | next: cause unknown |
+| H4 | Memory below target | Whole machine ≤ 512 MB | next: per-connection growth fixed; WebKit, PostgreSQL pool and zram tests next |
 
 ## D. Devices and performance
 
@@ -135,7 +135,7 @@ N1 to N6 come from RFC-HOSPITAL-OS §8q. Every task ends on a check or a screen.
 | B1 | Credentials out of audit rows; plan to scrub old rows | New rows carry no hash or secret | next; production scrub needs owner approval |
 | B2 | Forced password change enforced on the server | API refuses until changed | next |
 | B3 | Lockout counter reset; lockout denial of service | One host cannot keep accounts locked | next |
-| B4 | Verify and fix the medium findings | Each fixed or recorded | next |
+| B4 | Verify and fix the medium findings | Each fixed or recorded | doing: real client address this PR; rest open |
 | B5 | Vulnerable dependencies | Security checks pass | doing: branch ready, compile check pending |
 
 ## R. Release

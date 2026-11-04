@@ -28,9 +28,7 @@
   border-radius: var(--mantine-radius-md);
   padding: 8px 10px;
   background: var(--mantine-color-body);
-  transition:
-    box-shadow 120ms ease,
-    transform 120ms ease;
+  transition: box-shadow 120ms ease, transform 120ms ease;
 }
 
 .nodeLink:hover {

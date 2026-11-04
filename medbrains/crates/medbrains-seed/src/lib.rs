@@ -25,10 +25,7 @@ mod stations;
 mod store_catalog;
 mod tax_categories;
 
-use argon2::{
-    Argon2,
-    PasswordHasher,
-};
+use argon2::{Argon2, PasswordHasher};
 use medbrains_core::access::{BUILT_IN_ROLES, DEFAULT_GROUPS};
 #[allow(unused_imports)]
 use medbrains_core::permissions;
@@ -126,38 +123,23 @@ async fn seed_everything(pool: &PgPool) -> Result<(), Box<dyn std::error::Error>
 
         tenant_id = uuid::Uuid::new_v4();
 
+        let password_hash = first_password_hash()?;
+
+        // One transaction: a power cut here must not leave a hospital with no administrator,
+        // because the next start would see the hospital and never create one.
+        let mut tx = pool.begin().await?;
+
         // Insert default tenant
         sqlx::query(
             "INSERT INTO tenants (id, code, name, hospital_type, config) \
-             VALUES ($1, 'DEFAULT', 'My Hospital', 'medical_college', '{}')",
+             VALUES ($1, 'DEFAULT', $2, 'medical_college', '{}')",
         )
         .bind(tenant_id)
-        .execute(pool)
+        .bind(env_or("MEDBRAINS_SEED_HOSPITAL_NAME", "My Hospital"))
+        .execute(&mut *tx)
         .await?;
 
-        // Admin password: explicit via env, or dev-only default. Production
-        // refuses the default so admin/admin123 can never reach a real tenant.
-        let admin_password = match std::env::var("MEDBRAINS_SEED_ADMIN_PASSWORD") {
-            Ok(value) if !value.trim().is_empty() => value,
-            _ if production_env() => {
-                return Err(
-                    "MEDBRAINS_SEED_ADMIN_PASSWORD must be set when MEDBRAINS_ENV=production — \
-                     refusing to seed the default admin credential"
-                        .into(),
-                );
-            }
-            _ => "admin123".to_owned(),
-        };
-
-        let argon2 = Argon2::default();
-        let password_hash = argon2
-            .hash_password(admin_password.as_bytes())
-            .map_err(|e| format!("password hash error: {e}"))?
-            .to_string();
-
-        // Insert super_admin user (need to set tenant context first for RLS)
-        let mut tx = pool.begin().await?;
-
+        // The super_admin user needs the tenant context first, for RLS.
         sqlx::query("SELECT set_config('app.tenant_id', $1::text, true)")
             .bind(tenant_id.to_string())
             .execute(&mut *tx)
@@ -166,12 +148,16 @@ async fn seed_everything(pool: &PgPool) -> Result<(), Box<dyn std::error::Error>
         sqlx::query(
             "INSERT INTO users (tenant_id, username, email, password_hash, full_name, role, \
              must_change_password) \
-             VALUES ($1, 'admin', 'admin@medbrains.localhost', $2, \
+             VALUES ($1, $4, 'admin@medbrains.localhost', $2, \
              'System Administrator', 'super_admin', $3)",
         )
         .bind(tenant_id)
         .bind(&password_hash)
-        .bind(production_env())
+        .bind(must_change_first_password(
+            production_env(),
+            std::env::var("MEDBRAINS_SEED_ADMIN_PASSWORD_CHOSEN").is_ok_and(|v| v == "true"),
+        ))
+        .bind(env_or("MEDBRAINS_SEED_ADMIN_USERNAME", "admin"))
         .execute(&mut *tx)
         .await?;
 
@@ -258,6 +244,46 @@ async fn seed_everything(pool: &PgPool) -> Result<(), Box<dyn std::error::Error>
     Ok(())
 }
 
+/// The first administrator's password hash. An OS machine's setup gives a hash, so the password
+/// itself never reaches the disk. Otherwise it is explicit via env, or a dev-only default:
+/// production refuses the default so admin/admin123 can never reach a real tenant.
+fn first_password_hash() -> Result<String, Box<dyn std::error::Error>> {
+    if let Ok(hash) = std::env::var("MEDBRAINS_SEED_ADMIN_PASSWORD_HASH")
+        && !hash.trim().is_empty()
+    {
+        return Ok(hash);
+    }
+    let admin_password = match std::env::var("MEDBRAINS_SEED_ADMIN_PASSWORD") {
+        Ok(value) if !value.trim().is_empty() => value,
+        _ if production_env() => {
+            return Err(
+                "MEDBRAINS_SEED_ADMIN_PASSWORD must be set when MEDBRAINS_ENV=production — \
+                 refusing to seed the default admin credential"
+                    .into(),
+            );
+        }
+        _ => "admin123".to_owned(),
+    };
+    Ok(Argon2::default()
+        .hash_password(admin_password.as_bytes())
+        .map_err(|e| format!("password hash error: {e}"))?
+        .to_string())
+}
+
+/// A setting from the environment, or `default` when unset or blank.
+fn env_or(key: &str, default: &str) -> String {
+    std::env::var(key)
+        .ok()
+        .filter(|value| !value.trim().is_empty())
+        .unwrap_or_else(|| default.to_owned())
+}
+
+/// A production password must be changed at first use unless the person typed it themselves
+/// at the machine's own setup, in which case nobody else has ever seen it.
+const fn must_change_first_password(production: bool, chosen: bool) -> bool {
+    production && !chosen
+}
+
 fn production_env() -> bool {
     std::env::var("MEDBRAINS_ENV")
         .map(|value| value.eq_ignore_ascii_case("production"))
@@ -301,11 +327,10 @@ fn demo_fixture_seed_enabled() -> bool {
 /// Propagates database errors; a tenant that fails stops the run rather than
 /// leaving the rest half-applied silently.
 pub async fn reconcile_built_in_roles(pool: &PgPool) -> Result<usize, Box<dyn std::error::Error>> {
-    let tenants: Vec<uuid::Uuid> = sqlx::query_scalar(
-        "SELECT id FROM tenants WHERE deleted_at IS NULL AND is_active = true",
-    )
-    .fetch_all(pool)
-    .await?;
+    let tenants: Vec<uuid::Uuid> =
+        sqlx::query_scalar("SELECT id FROM tenants WHERE deleted_at IS NULL AND is_active = true")
+            .fetch_all(pool)
+            .await?;
 
     for tenant_id in &tenants {
         seed_built_in_roles(pool, *tenant_id).await?;
@@ -396,4 +421,17 @@ async fn seed_default_groups(
     tracing::info!("Seeded {} default access groups", DEFAULT_GROUPS.len());
 
     Ok(())
+}
+
+#[cfg(test)]
+mod first_password_tests {
+    use super::must_change_first_password;
+
+    /// A generated production password must never skip the change; a chosen one never asks.
+    #[test]
+    fn only_a_password_the_person_chose_skips_the_forced_change() {
+        assert!(must_change_first_password(true, false));
+        assert!(!must_change_first_password(true, true));
+        assert!(!must_change_first_password(false, false));
+    }
 }
