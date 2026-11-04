@@ -26,13 +26,21 @@ def last_line(text):
 def main():
     """Asks for a restart, waits for a new boot, and checks what came back."""
     before = last_line(VM.serial(BOOT_ID))
-    status = last_line(VM.serial(POST))
-    if not status.endswith("200"):
+    # The shell usually dies with the machine before it can print the answer, so only a refusal
+    # counts here; what proves the restart is the new boot id.
+    try:
+        status = last_line(VM.serial(POST, 5))
+    except OSError:
+        status = ""
+    if status.endswith(("403", "422", "500")):
         sys.exit(f"FAIL: /power answered {status}")
     deadline = time.time() + LIMIT_SECONDS
     time.sleep(10)
     while time.time() < deadline:
-        now = last_line(VM.serial(BOOT_ID, 5))
+        try:
+            now = last_line(VM.serial(BOOT_ID, 5))
+        except OSError:
+            now = ""  # The serial socket is briefly refused around a reset.
         if len(now) == 36 and now != before:
             break
         time.sleep(3)
