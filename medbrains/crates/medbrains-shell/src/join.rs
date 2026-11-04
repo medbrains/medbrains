@@ -1,7 +1,7 @@
 //! "Connecting to my hospital": finds main machines through the agent, asks to join one, and shows
 //! the code a person checks against the main machine. The agent holds the key; this only asks it.
 
-use std::cell::Cell;
+use std::cell::{Cell, RefCell};
 use std::io::{BufRead, BufReader, Write};
 use std::os::unix::net::UnixStream;
 use std::rc::Rc;
@@ -82,6 +82,8 @@ struct Parts {
     code: gtk::Label,
     status: gtk::Label,
     finished: Rc<dyn Fn()>,
+    /// What the list shows now.
+    shown: Rc<RefCell<Option<Vec<(String, String)>>>>,
 }
 
 impl Parts {
@@ -166,8 +168,12 @@ impl Parts {
         });
     }
 
-    /// Replaces the list of main machines with `machines`, one button each.
+    /// Replaces the list of main machines with `machines`, one button each. Only when it changed:
+    /// a button rebuilt under the pointer or the keyboard focus would swallow the press.
     fn show_list(&self, machines: Vec<(String, String)>) {
+        if self.shown.replace(Some(machines.clone())).as_ref() == Some(&machines) {
+            return;
+        }
         while let Some(child) = self.list.first_child() {
             self.list.remove(&child);
         }
@@ -257,7 +263,7 @@ pub(crate) fn page(actions: &gtk::Box, finished: Rc<dyn Fn()>) -> gtk::Widget {
     waiting.set_visible(false);
     let parts = Parts {
         name, display, list, problem: problem.clone(), choosing: choosing.clone(),
-        waiting: waiting.clone(), code, status, finished,
+        waiting: waiting.clone(), code, status, finished, shown: Rc::default(),
     };
     parts.show_list(Vec::new());
     address_row(&choosing, &parts);

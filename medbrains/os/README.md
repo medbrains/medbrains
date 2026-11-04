@@ -174,6 +174,8 @@ file. Keep this version's `main_machine` chain, and the rule that a main machine
 - Sign-in limits count every screen as one address, because each connection arrives on loopback.
 - A flood of 20 requests blocks a real machine until they expire, or an administrator rejects them.
 - A node that cannot reach the main machine cannot work: there is no offline path (OS-EDGE-NODES).
+- mDNS uses one network interface, the one with the best multicast route. A machine on two LANs finds main
+  machines on that one only.
 - A node stays passively listening on mDNS after joining, so it can find a main machine whose address changed.
 
 ## How the screen works

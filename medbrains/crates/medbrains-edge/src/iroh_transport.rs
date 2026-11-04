@@ -83,47 +83,43 @@ pub async fn build_endpoint(
     builder.bind().await.context("bind iroh endpoint")
 }
 
-/// What a LAN endpoint is for: the protocols it answers, its port, and whether it says so.
-#[derive(Debug, Clone, Default)]
-pub struct LanEndpoint {
-    /// What this endpoint answers. Empty means it refuses every incoming connection.
-    pub alpns: Vec<Vec<u8>>,
-    /// A fixed UDP port, so a firewall rule can name it. `None` lets the OS choose.
-    pub port: Option<u16>,
-    /// Announce this endpoint by mDNS. `false` only listens for others.
-    pub advertise: bool,
-    /// Keeps these machines apart from every other iroh application on the LAN.
-    pub service_name: String,
-}
-
-/// Build an endpoint for one hospital's LAN: mDNS only, and never a relay or an outside lookup,
-/// for the same reason as [`build_endpoint`]. Also hands back the mDNS service, so the caller
-/// can watch who is on the network.
+/// Build an endpoint for one hospital's LAN: never a relay or an outside lookup, for the same
+/// reason as [`build_endpoint`], and never a request to the router to open a port, because a
+/// hospital's firewall is the hospital's to set. `alpns` empty refuses every incoming connection;
+/// `port` fixes the UDP port so a firewall rule can name it.
 pub async fn build_lan_endpoint(
     secret: iroh::SecretKey,
-    options: LanEndpoint,
-) -> Result<(Endpoint, MdnsAddressLookup)> {
+    alpns: Vec<Vec<u8>>,
+    port: Option<u16>,
+) -> Result<Endpoint> {
     let mut builder = Endpoint::builder(presets::Minimal)
         .secret_key(secret)
-        .alpns(options.alpns)
+        .alpns(alpns)
         .relay_mode(iroh::RelayMode::Disabled)
-        // Never ask the router to open a port: a hospital's firewall is the hospital's to set.
         .portmapper_config(iroh::endpoint::PortmapperConfig::Disabled);
-    if let Some(port) = options.port {
+    if let Some(port) = port {
         let any = std::net::SocketAddr::from(([0, 0, 0, 0], port));
         builder = builder.bind_addr(any).context("fixed port")?;
     }
-    let endpoint = builder.bind().await.context("bind iroh endpoint")?;
+    builder.bind().await.context("bind iroh endpoint")
+}
+
+/// Start mDNS on an endpoint, replacing any it has. `advertise` false only listens for others;
+/// `service_name` keeps these machines apart from other iroh applications on the LAN.
+pub fn start_mdns(
+    endpoint: &Endpoint,
+    advertise: bool,
+    service_name: &str,
+) -> Result<MdnsAddressLookup> {
     let mdns = MdnsAddressLookup::builder()
-        .advertise(options.advertise)
-        .service_name(options.service_name)
+        .advertise(advertise)
+        .service_name(service_name)
         .build(endpoint.id())
         .context("start mDNS")?;
-    endpoint
-        .address_lookup()
-        .context("address lookup")?
-        .add(mdns.clone());
-    Ok((endpoint, mdns))
+    let lookup = endpoint.address_lookup().context("address lookup")?;
+    lookup.clear();
+    lookup.add(mdns.clone());
+    Ok(mdns)
 }
 
 /// Serve one accepted connection.

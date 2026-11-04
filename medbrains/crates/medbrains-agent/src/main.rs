@@ -9,6 +9,7 @@ mod control;
 mod gateway;
 mod hospital;
 mod keys;
+mod mdns;
 mod node;
 mod wire;
 
@@ -16,13 +17,13 @@ use std::net::SocketAddr;
 use std::path::Path;
 use std::sync::Arc;
 
-use medbrains_edge::iroh_transport::{LanEndpoint, build_lan_endpoint};
+use medbrains_edge::iroh_transport::build_lan_endpoint;
 use tokio::net::UdpSocket;
 
 use crate::gateway::Gateway;
 use crate::hospital::Server;
 use crate::node::Node;
-use crate::wire::{IROH_PORT, JOIN_ALPN, MDNS_SERVICE, TUNNEL_ALPN, WHOAMI_PORT};
+use crate::wire::{IROH_PORT, JOIN_ALPN, TUNNEL_ALPN, WHOAMI_PORT};
 
 const STATE_DIR: &str = "/var/lib/medbrains-agent";
 const KEY_FILE: &str = "machine.key";
@@ -40,13 +41,9 @@ async fn run_main(state: &Path) -> anyhow::Result<()> {
     let secret = keys::load_or_create(&state.join(KEY_FILE))?;
     let token = std::fs::read_to_string(state.join(SERVER_TOKEN_FILE))?;
     let certificate = std::fs::read_to_string(state.join(FRONT_CERTIFICATE_FILE))?;
-    let options = LanEndpoint {
-        alpns: vec![JOIN_ALPN.to_vec(), TUNNEL_ALPN.to_vec()],
-        port: Some(IROH_PORT),
-        advertise: true,
-        service_name: MDNS_SERVICE.to_owned(),
-    };
-    let (endpoint, _mdns) = build_lan_endpoint(secret, options).await?;
+    let alpns = vec![JOIN_ALPN.to_vec(), TUNNEL_ALPN.to_vec()];
+    let endpoint = build_lan_endpoint(secret, alpns, Some(IROH_PORT)).await?;
+    tokio::spawn(mdns::follow(endpoint.clone(), true, |_| {}));
     let hospital = Arc::new(Server::new(token.trim().to_owned())?);
     let gateway = Gateway::new(endpoint, hospital, certificate, FRONT);
     let socket = UdpSocket::bind(SocketAddr::from(([0, 0, 0, 0], WHOAMI_PORT))).await?;
@@ -59,15 +56,10 @@ async fn run_main(state: &Path) -> anyhow::Result<()> {
 /// Runs a node's side.
 async fn run_node(state: &Path) -> anyhow::Result<()> {
     let secret = keys::load_or_create(&state.join(KEY_FILE))?;
-    let options = LanEndpoint {
-        alpns: Vec::new(),
-        port: None,
-        advertise: false,
-        service_name: MDNS_SERVICE.to_owned(),
-    };
-    let (endpoint, mdns) = build_lan_endpoint(secret, options).await?;
-    let node = Node::start(endpoint, state, FRONT).await?;
-    tokio::spawn(Arc::clone(&node).watch_network(mdns));
+    let endpoint = build_lan_endpoint(secret, Vec::new(), None).await?;
+    let node = Node::start(endpoint.clone(), state, FRONT).await?;
+    let listener = Arc::clone(&node);
+    tokio::spawn(mdns::follow(endpoint, false, move |event| listener.heard(event)));
     control::serve_forever(node, Path::new(CONTROL_SOCKET)).await
 }
 

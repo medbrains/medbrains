@@ -3,6 +3,9 @@
 // two-machine proof. Prints what the screen shows; never talks to the API directly.
 //
 //   nodes-screen.mjs URL USER PASSWORD list|approve CODE|reject|remove|shot FILE
+//
+// Keeps its session in NODES_SESSION, because sign-in allows five tries a minute per address.
+import { existsSync } from "node:fs";
 import { createRequire } from "node:module";
 
 const require = createRequire(new URL("../../apps/web/package.json", import.meta.url));
@@ -11,7 +14,6 @@ const [url, user, password, action, argument] = process.argv.slice(2);
 
 /** Signs in through the page. */
 async function signIn(page) {
-  await page.goto(`${url}/login`);
   await page.getByLabel(/username/i).fill(user);
   await page.getByLabel(/password/i).first().fill(password);
   await page.getByRole("button", { name: /sign in/i }).click();
@@ -26,9 +28,20 @@ async function listed(page) {
 }
 
 const browser = await chromium.launch();
-const page = await (await browser.newContext({ ignoreHTTPSErrors: true })).newPage();
-await signIn(page);
+const session = process.env.NODES_SESSION ?? "/tmp/nodes-session.json";
+const context = await browser.newContext({
+  ignoreHTTPSErrors: true,
+  storageState: existsSync(session) ? session : undefined,
+});
+const page = await context.newPage();
 await page.goto(`${url}/admin/machines`);
+const ready = page.getByText("Waiting to join");
+await ready.or(page.getByLabel(/username/i)).first().waitFor({ timeout: 60_000 });
+if (!(await ready.isVisible())) {
+  await signIn(page);
+  await context.storageState({ path: session });
+  await page.goto(`${url}/admin/machines`);
+}
 await page.getByText("Waiting to join").waitFor({ timeout: 30_000 });
 await page.waitForTimeout(3_500);
 if (action === "approve") {

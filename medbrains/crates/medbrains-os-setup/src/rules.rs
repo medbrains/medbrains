@@ -130,6 +130,9 @@ pub(crate) fn fixed_network(
     if !dns.is_empty() {
         file += &format!("DNS={dns}\n");
     }
+    // mDNS needs a route, and an isolated hospital network has no gateway to supply one. The metric
+    // puts the address a person chose ahead of any DHCP link.
+    file += "\n[Route]\nDestination=224.0.0.0/4\nScope=link\nMetric=100\n";
     Some(file)
 }
 
@@ -197,6 +200,8 @@ mod tests {
         let file = |address, gateway| fixed_network("en0", address, gateway, "");
         assert!(file("192.168.1.20/24", "192.168.1.1").is_some_and(|f| f.contains("Name=en0")));
         assert!(file("192.168.1.20/24", "").is_some_and(|f| !f.contains("Gateway")));
+        // With no gateway, this route is the only way mDNS can find a main machine.
+        assert!(file("192.168.1.20/24", "").is_some_and(|f| f.contains("Destination=224.0.0.0/4")));
         assert!(file("192.168.1.20", "192.168.1.1").is_none());
         assert!(file("192.168.1.20/33", "192.168.1.1").is_none());
         assert!(file("1.1.1.1/24\nDNS=9.9.9.9", "1.1.1.1").is_none());

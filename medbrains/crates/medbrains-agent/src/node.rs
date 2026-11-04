@@ -12,8 +12,7 @@ use std::time::Duration;
 use anyhow::{Context, bail};
 use iroh::endpoint::Connection;
 use iroh::{Endpoint, EndpointAddr, EndpointId};
-use iroh_mdns_address_lookup::{DiscoveryEvent, MdnsAddressLookup};
-use n0_future::StreamExt;
+use iroh_mdns_address_lookup::DiscoveryEvent;
 use serde::{Deserialize, Serialize};
 use tokio::io::BufReader;
 use tokio::net::{TcpListener, TcpStream, UdpSocket};
@@ -125,25 +124,22 @@ impl Node {
         Ok(self.endpoint.connect(addr, TUNNEL_ALPN).await?)
     }
 
-    /// Keeps the list current from mDNS.
-    pub(crate) async fn watch_network(self: Arc<Self>, mdns: MdnsAddressLookup) {
-        let mut events = mdns.subscribe().await;
-        while let Some(event) = events.next().await {
-            match event {
-                DiscoveryEvent::Discovered { endpoint_info, .. } => {
-                    let name = endpoint_info.data.user_data().map(ToString::to_string);
-                    self.remember(Found {
-                        id: endpoint_info.endpoint_id.to_string(),
-                        name: name.unwrap_or_else(|| "Main machine".to_owned()),
-                        addresses: endpoint_info.data.ip_addrs().copied().collect(),
-                    });
-                }
-                DiscoveryEvent::Expired { endpoint_id } => {
-                    let mut list = self.found.lock().unwrap_or_else(PoisonError::into_inner);
-                    list.remove(&endpoint_id.to_string());
-                }
-                _ => {}
+    /// Takes in what mDNS heard.
+    pub(crate) fn heard(&self, event: DiscoveryEvent) {
+        match event {
+            DiscoveryEvent::Discovered { endpoint_info, .. } => {
+                let name = endpoint_info.data.user_data().map(ToString::to_string);
+                self.remember(Found {
+                    id: endpoint_info.endpoint_id.to_string(),
+                    name: name.unwrap_or_else(|| "Main machine".to_owned()),
+                    addresses: endpoint_info.data.ip_addrs().copied().collect(),
+                });
             }
+            DiscoveryEvent::Expired { endpoint_id } => {
+                let mut list = self.found.lock().unwrap_or_else(PoisonError::into_inner);
+                list.remove(&endpoint_id.to_string());
+            }
+            _ => {}
         }
     }
 

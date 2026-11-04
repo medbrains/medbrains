@@ -8,7 +8,7 @@ use async_trait::async_trait;
 use iroh::endpoint::Connection;
 use iroh::{Endpoint, EndpointAddr, SecretKey};
 use medbrains_core::peer_sync::{PeerBinding, PeerRosterDoc, PeerRosterEntry};
-use medbrains_edge::iroh_transport::{LanEndpoint, PeerGatekeeper, build_lan_endpoint};
+use medbrains_edge::iroh_transport::{PeerGatekeeper, build_lan_endpoint};
 use medbrains_edge::peer_admission::{Admission, RefusalReason};
 use tokio::net::{TcpListener, UdpSocket};
 use uuid::Uuid;
@@ -19,7 +19,6 @@ use crate::node::Node;
 use crate::wire::{JOIN_ALPN, JoinState, Kind, TUNNEL_ALPN};
 
 const CERTIFICATE: &str = "the front end's certificate";
-const SERVICE: &str = "medbrains-test";
 
 /// Stands in for the server: holds one request's state and the admitted keys.
 struct FakeServer {
@@ -91,13 +90,7 @@ fn roster(tenant: Uuid, keys: &[String]) -> PeerRosterDoc {
 
 /// An endpoint on loopback, answering `alpns`.
 async fn endpoint(alpns: Vec<Vec<u8>>) -> anyhow::Result<Endpoint> {
-    let options = LanEndpoint {
-        alpns,
-        port: None,
-        advertise: false,
-        service_name: SERVICE.to_owned(),
-    };
-    Ok(build_lan_endpoint(SecretKey::generate(), options).await?.0)
+    build_lan_endpoint(SecretKey::generate(), alpns, None).await
 }
 
 /// A front end that echoes, so a tunnel can be seen to work.

@@ -11,6 +11,7 @@ use axum::routing::{delete, get, post};
 use axum::{Extension, Json};
 use chrono::{DateTime, Utc};
 use medbrains_core::permissions::devices::machines;
+use medbrains_db::audit::{AuditEntry, AuditLogger};
 use medbrains_server_core::error::AppError;
 use medbrains_server_core::middleware::auth::Claims;
 use medbrains_server_core::middleware::authorization::require_permission;
@@ -106,6 +107,29 @@ fn code_matches(expected: &str, typed: &str) -> bool {
     !expected.is_empty() && constant_time_eq(expected, &typed)
 }
 
+/// Records who decided what about which machine, in the decision's own transaction, so neither can
+/// happen without the other.
+async fn audit(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    claims: &Claims,
+    action: &str,
+    machine: Uuid,
+    details: &serde_json::Value,
+) -> Result<(), AppError> {
+    let entry = AuditEntry {
+        tenant_id: claims.tenant_id,
+        user_id: Some(claims.sub),
+        action,
+        entity_type: "machine",
+        entity_id: Some(machine),
+        old_values: None,
+        new_values: Some(details),
+        ip_address: None,
+    };
+    AuditLogger::log(tx, &entry).await?;
+    Ok(())
+}
+
 /// A waiting request, locked for this decision.
 async fn lock_waiting(
     tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
@@ -191,10 +215,14 @@ pub async fn approve_machine(
         .bind(MAX_CODE_ATTEMPTS)
         .execute(&mut *tx)
         .await?;
+        let details = serde_json::json!({ "node_id": node_id, "label": label });
+        audit(&mut tx, &claims, "machine.wrong_code", id, &details).await?;
         tx.commit().await?;
         return Err(AppError::ForbiddenReason(WRONG_CODE.to_owned()));
     }
     let device = admit_machine(&mut tx, &claims, id, (&node_id, &label, &variant)).await?;
+    let details = serde_json::json!({ "node_id": node_id, "label": label, "type": variant });
+    audit(&mut tx, &claims, "machine.approved", device, &details).await?;
     tx.commit().await?;
     Ok(Json(serde_json::json!({ "id": device })))
 }
@@ -208,11 +236,13 @@ pub async fn reject_machine(
     require_permission(&claims, machines::APPROVE)?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
-    lock_waiting(&mut tx, claims.tenant_id, id).await?;
+    let (node_id, _, label, _) = lock_waiting(&mut tx, claims.tenant_id, id).await?;
     sqlx::query("UPDATE device_pairing_requests SET status = 'denied' WHERE id = $1")
         .bind(id)
         .execute(&mut *tx)
         .await?;
+    let details = serde_json::json!({ "node_id": node_id, "label": label });
+    audit(&mut tx, &claims, "machine.rejected", id, &details).await?;
     tx.commit().await?;
     Ok(Json(serde_json::json!({ "id": id })))
 }
@@ -248,6 +278,7 @@ pub async fn remove_machine(
     .bind(claims.tenant_id)
     .execute(&mut *tx)
     .await?;
+    audit(&mut tx, &claims, "machine.removed", id, &serde_json::json!({})).await?;
     tx.commit().await?;
     Ok(Json(serde_json::json!({ "id": id })))
 }
