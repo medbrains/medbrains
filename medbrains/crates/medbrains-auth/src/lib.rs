@@ -65,8 +65,10 @@ async fn record_failed_login(
 ) -> Result<(), AppError> {
     let now_locked: bool = sqlx::query_scalar(
         "UPDATE users SET \
-           failed_login_attempts = failed_login_attempts + 1, \
+           failed_login_attempts = CASE WHEN locked_until <= now() THEN 1 \
+             ELSE failed_login_attempts + 1 END, \
            locked_until = CASE \
+             WHEN locked_until <= now() THEN NULL \
              WHEN failed_login_attempts + 1 >= $2 \
              THEN now() + make_interval(mins => $3) \
              ELSE locked_until END \
