@@ -79,13 +79,11 @@ fn require_agent(headers: &HeaderMap) -> Result<(), AppError> {
 /// The hospital this box serves, only when there is exactly one, with its name. This is where the
 /// tenant comes from: never from a machine, and never by picking among several.
 async fn this_hospital(db: &sqlx::PgPool) -> Result<(Uuid, String), AppError> {
-    let mut rows = sqlx::query_as::<_, (Uuid, String)>(
-        "SELECT id, name FROM tenants WHERE is_active = true LIMIT 2",
-    )
-    .fetch_all(db)
-    .await?;
+    let mut rows = sqlx::query!("SELECT id, name FROM tenants WHERE is_active = true LIMIT 2")
+        .fetch_all(db)
+        .await?;
     match (rows.pop(), rows.is_empty()) {
-        (Some(hospital), true) => Ok(hospital),
+        (Some(hospital), true) => Ok((hospital.id, hospital.name)),
         _ => Err(AppError::NotFound),
     }
 }
@@ -120,31 +118,34 @@ pub async fn file_join(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &tenant).await?;
     // One filing at a time, so the count below cannot be raced past its limit.
-    sqlx::query("SELECT pg_advisory_xact_lock(hashtext('machine-join'))")
-        .execute(&mut *tx)
-        .await?;
-    let admitted: bool = sqlx::query_scalar(
-        "SELECT EXISTS(SELECT 1 FROM device_node_keys k \
-           JOIN paired_devices d ON d.id = k.paired_device_id \
-          WHERE k.node_id = $1 AND k.tenant_id = $2 AND k.revoked_at IS NULL AND d.revoked_at IS NULL)",
+    sqlx::query_scalar!(
+        r#"SELECT 1 AS "locked!" FROM pg_advisory_xact_lock(hashtext('machine-join'))"#
     )
-    .bind(&body.node_id)
-    .bind(tenant)
+    .fetch_one(&mut *tx)
+    .await?;
+    let admitted = sqlx::query_scalar!(
+        r#"SELECT EXISTS(SELECT 1 FROM device_node_keys k
+           JOIN paired_devices d ON d.id = k.paired_device_id
+          WHERE k.node_id = $1 AND k.tenant_id = $2 AND k.revoked_at IS NULL
+            AND d.revoked_at IS NULL) AS "admitted!""#,
+        body.node_id,
+        tenant,
+    )
     .fetch_one(&mut *tx)
     .await?;
     if admitted {
         return Ok(Json(JoinAnswer { state: JoinState::Approved }));
     }
-    sqlx::query(
+    sqlx::query!(
         "UPDATE device_pairing_requests SET status = 'denied' \
           WHERE node_id = $1 AND status = 'pending'",
+        body.node_id,
     )
-    .bind(&body.node_id)
     .execute(&mut *tx)
     .await?;
-    let waiting: i64 = sqlx::query_scalar(
-        "SELECT count(*) FROM device_pairing_requests \
-          WHERE node_id IS NOT NULL AND status = 'pending' AND expires_at > now()",
+    let waiting = sqlx::query_scalar!(
+        r#"SELECT count(*) AS "count!" FROM device_pairing_requests
+          WHERE node_id IS NOT NULL AND status = 'pending' AND expires_at > now()"#
     )
     .fetch_one(&mut *tx)
     .await?;
@@ -153,21 +154,21 @@ pub async fn file_join(
         return Ok(Json(JoinAnswer { state: JoinState::Busy }));
     }
     let request = Uuid::new_v4();
-    sqlx::query(
+    let reference = format!("machine:{request}");
+    sqlx::query!(
         "INSERT INTO device_pairing_requests \
            (id, tenant_id, device_code, user_code, app_variant, requested_label, expires_at, \
             node_id, join_code) \
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)",
+         VALUES ($1, $2, $3, $3, $4, $5, $6, $7, $8)",
+        request,
+        tenant,
+        reference,
+        variant,
+        body.label.trim(),
+        Utc::now() + Duration::minutes(REQUEST_TTL_MINUTES),
+        body.node_id,
+        body.code,
     )
-    .bind(request)
-    .bind(tenant)
-    .bind(format!("machine:{request}"))
-    .bind(format!("machine:{request}"))
-    .bind(variant)
-    .bind(body.label.trim())
-    .bind(Utc::now() + Duration::minutes(REQUEST_TTL_MINUTES))
-    .bind(&body.node_id)
-    .bind(&body.code)
     .execute(&mut *tx)
     .await?;
     tx.commit().await?;
@@ -184,16 +185,16 @@ pub async fn get_join_state(
     let (tenant, _) = this_hospital(&state.db).await?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &tenant).await?;
-    let row: Option<(String, DateTime<Utc>)> = sqlx::query_as(
+    let row = sqlx::query!(
         "SELECT status, expires_at FROM device_pairing_requests \
           WHERE node_id = $1 ORDER BY created_at DESC LIMIT 1",
+        node_id,
     )
-    .bind(&node_id)
     .fetch_optional(&mut *tx)
     .await?;
     tx.commit().await?;
-    let answer = row.map_or(JoinState::Expired, |(status, expires_at)| {
-        join_state(&status, expires_at, Utc::now())
+    let answer = row.map_or(JoinState::Expired, |row| {
+        join_state(&row.status, row.expires_at, Utc::now())
     });
     Ok(Json(JoinAnswer { state: answer }))
 }
@@ -225,32 +226,37 @@ pub async fn agent_sync(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &tenant).await?;
     if !body.connected.is_empty() {
-        sqlx::query(
+        sqlx::query!(
             "WITH seen AS (UPDATE device_node_keys SET last_seen_at = now() \
                WHERE tenant_id = $1 AND node_id = ANY($2) AND revoked_at IS NULL \
                RETURNING paired_device_id) \
              UPDATE paired_devices SET last_seen_at = now() \
               WHERE id IN (SELECT paired_device_id FROM seen)",
+            tenant,
+            body.connected.as_slice(),
         )
-        .bind(tenant)
-        .bind(&body.connected)
         .execute(&mut *tx)
         .await?;
     }
-    let rows = sqlx::query_as::<_, (String, Uuid, String)>(
+    let rows = sqlx::query!(
         "SELECT k.node_id, k.paired_device_id, d.app_variant \
            FROM device_node_keys k JOIN paired_devices d ON d.id = k.paired_device_id \
           WHERE k.tenant_id = $1 AND k.revoked_at IS NULL AND d.revoked_at IS NULL \
             AND d.app_variant IN ('Desktop-Workstation', 'Desktop-Display') \
           ORDER BY k.node_id LIMIT 5000",
+        tenant,
     )
-    .bind(tenant)
     .fetch_all(&mut *tx)
     .await?;
     tx.commit().await?;
-    let peers = rows.into_iter().map(|(node_id, paired_device_id, app_variant)| PeerRosterEntry {
-        node_id,
-        binding: PeerBinding { paired_device_id, tenant_id: tenant, app_variant, revoked: false },
+    let peers = rows.into_iter().map(|row| PeerRosterEntry {
+        node_id: row.node_id,
+        binding: PeerBinding {
+            paired_device_id: row.paired_device_id,
+            tenant_id: tenant,
+            app_variant: row.app_variant,
+            revoked: false,
+        },
     });
     let roster = PeerRosterDoc {
         tenant_id: tenant,

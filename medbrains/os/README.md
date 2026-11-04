@@ -164,6 +164,29 @@ Approved machines are `paired_devices` rows with `device_node_keys` rows, and re
 `device_pairing_requests` rows, so there are no new tables (migration 1404 adds three columns). The server
 never touches iroh: `medbrains-agent --main` asks it over loopback, with a token in a file only the agent reads.
 
+**Measured** (two debug-image VMs in QEMU on one Mac, 4 vCPUs and 4 GB each, one run; `tests/two-machines.sh`,
+a socket netdev that carries multicast. No hardware):
+
+| | Node | Main machine |
+|---|---|---|
+| Whole machine used, desktop after a reboot (`MemTotal - MemAvailable`) | **290 MB** | 584 MB |
+| The same, signed in, app open | 732 MB | 2,763 MB, of which most is the server after sign-ins |
+| Agent, PSS | 13 MB | 15 MB |
+| `/var` used | 31 MB | 229 MB |
+| Listening beyond loopback | UDP 5353 and the agent's two outbound sockets, which the firewall does not open | 80, 443, 123, 5353, 7844, 7845 |
+
+The agent binary is 16.3 MB stripped. By symbol size, iroh, its QUIC and networking are about 3.6 MB and crypto
+about 1.9 MB, so iroh costs about 5.5 MB; this is approximate, because generic code is attributed to its caller.
+
+From clicking the main machine to the tunnel answering: 17 s, including a browser robot signing in and typing the
+code. A person walking across a building is the slow part. Removal ended access 0.4 s after the database recorded it
+(polling every 2 s, so this can reach about 2 s).
+
+Discovery worked over the virtual wire on a LAN with no gateway, once two things were fixed: multicast needs a
+route (`80-wired.network` and the fixed-address file add one), and the discovery library joins its group once, so
+mDNS restarts when the machine's addresses change. **It has not been tried on a real hospital network**, where
+multicast may be blocked; that is why the typed address exists, and it was proved with mDNS blocked by the firewall.
+
 **Reconciling with the firewall PR:** the branch carries #5217's firewall, whose open commit changes the same
 file. Keep this version's `main_machine` chain, and the rule that a main machine's ports leave the base file.
 

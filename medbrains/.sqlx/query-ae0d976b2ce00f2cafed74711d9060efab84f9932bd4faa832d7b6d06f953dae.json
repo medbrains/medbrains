@@ -1,0 +1,52 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT id, requested_label AS label, app_variant, join_code AS \"code!\",\n                  expires_at, created_at\n             FROM device_pairing_requests\n            WHERE tenant_id = $1 AND node_id IS NOT NULL AND status = 'pending'\n              AND expires_at > now()\n            ORDER BY created_at LIMIT 100",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "label",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 2,
+        "name": "app_variant",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 3,
+        "name": "code!",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 4,
+        "name": "expires_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 5,
+        "name": "created_at",
+        "type_info": "Timestamptz"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      true,
+      false,
+      false
+    ]
+  },
+  "hash": "ae0d976b2ce00f2cafed74711d9060efab84f9932bd4faa832d7b6d06f953dae"
+}

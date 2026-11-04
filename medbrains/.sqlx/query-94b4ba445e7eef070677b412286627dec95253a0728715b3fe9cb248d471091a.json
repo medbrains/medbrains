@@ -1,0 +1,34 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT k.node_id, k.paired_device_id, d.app_variant FROM device_node_keys k JOIN paired_devices d ON d.id = k.paired_device_id WHERE k.tenant_id = $1 AND k.revoked_at IS NULL AND d.revoked_at IS NULL AND d.app_variant IN ('Desktop-Workstation', 'Desktop-Display') ORDER BY k.node_id LIMIT 5000",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "node_id",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 1,
+        "name": "paired_device_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 2,
+        "name": "app_variant",
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "94b4ba445e7eef070677b412286627dec95253a0728715b3fe9cb248d471091a"
+}

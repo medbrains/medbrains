@@ -122,7 +122,10 @@ async fn each_duty_needs_its_own_permission() {
     let list = front_desk.client.get(app.url("/api/admin/machines")).send().await.expect("sends");
     assert_eq!(list.status().as_u16(), 403, "no permission, no list");
 
-    let security = common::provision_staff(&app, &csrf, "it_security_officer", &[]).await;
+    // What the IT security officer's role grants: may look and cut off, may not let in.
+    let view_and_remove = ["devices.machines.view", "devices.machines.remove"];
+    let security =
+        common::provision_staff_with(&app, &csrf, "receptionist", &view_and_remove, &[]).await;
     let list = security.client.get(app.url("/api/admin/machines")).send().await.expect("sends");
     assert_eq!(list.status().as_u16(), 200, "may view");
     let approve = security

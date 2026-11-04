@@ -1,0 +1,14 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE device_pairing_requests SET status = 'denied' WHERE node_id = $1 AND status = 'pending'",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "696970e2fc6f83dabe4526856f76e7da7adc8b14cd2b786f7daed962d662beb1"
+}

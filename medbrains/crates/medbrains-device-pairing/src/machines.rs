@@ -24,7 +24,7 @@ use crate::sha256_hex;
 /// Wrong codes before a request is refused outright. A person mistypes; a script guesses.
 const MAX_CODE_ATTEMPTS: i32 = 3;
 /// A machine counts as online for this long after the agent last reported it connected.
-const ONLINE_SECONDS: i64 = 15;
+const ONLINE_SECONDS: f64 = 15.0;
 const WRONG_CODE: &str = "That is not the code on the machine. Check that you are approving the \
                           right one, because a different code can mean a fake main machine.";
 
@@ -34,7 +34,7 @@ pub(crate) fn constant_time_eq(a: &str, b: &str) -> bool {
 }
 
 /// A machine waiting for a person.
-#[derive(Debug, Serialize, sqlx::FromRow)]
+#[derive(Debug, Serialize)]
 pub struct WaitingMachine {
     pub id: Uuid,
     pub label: String,
@@ -45,7 +45,7 @@ pub struct WaitingMachine {
 }
 
 /// A joined machine. `online` is worked out from when the agent last reported it.
-#[derive(Debug, Serialize, sqlx::FromRow)]
+#[derive(Debug, Serialize)]
 pub struct JoinedMachine {
     pub id: Uuid,
     pub label: String,
@@ -70,25 +70,29 @@ pub async fn list_machines(
     require_permission(&claims, machines::VIEW)?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
-    let waiting = sqlx::query_as::<_, WaitingMachine>(
-        "SELECT id, requested_label AS label, app_variant, join_code AS code, expires_at, created_at \
-           FROM device_pairing_requests \
-          WHERE tenant_id = $1 AND node_id IS NOT NULL AND status = 'pending' AND expires_at > now() \
-          ORDER BY created_at LIMIT 100",
+    let waiting = sqlx::query_as!(
+        WaitingMachine,
+        r#"SELECT id, requested_label AS label, app_variant, join_code AS "code!",
+                  expires_at, created_at
+             FROM device_pairing_requests
+            WHERE tenant_id = $1 AND node_id IS NOT NULL AND status = 'pending'
+              AND expires_at > now()
+            ORDER BY created_at LIMIT 100"#,
+        claims.tenant_id,
     )
-    .bind(claims.tenant_id)
     .fetch_all(&mut *tx)
     .await?;
-    let joined = sqlx::query_as::<_, JoinedMachine>(
-        "SELECT d.id, d.label, d.app_variant, d.paired_at, d.last_seen_at, \
-                COALESCE(d.last_seen_at > now() - make_interval(secs => $2), false) AS online \
-           FROM paired_devices d \
-          WHERE d.tenant_id = $1 AND d.revoked_at IS NULL \
-            AND d.app_variant IN ('Desktop-Workstation', 'Desktop-Display') \
-          ORDER BY d.label LIMIT 1000",
+    let joined = sqlx::query_as!(
+        JoinedMachine,
+        r#"SELECT d.id, d.label, d.app_variant, d.paired_at, d.last_seen_at,
+                  COALESCE(d.last_seen_at > now() - make_interval(secs => $2), false) AS "online!"
+             FROM paired_devices d
+            WHERE d.tenant_id = $1 AND d.revoked_at IS NULL
+              AND d.app_variant IN ('Desktop-Workstation', 'Desktop-Display')
+            ORDER BY d.label LIMIT 1000"#,
+        claims.tenant_id,
+        ONLINE_SECONDS,
     )
-    .bind(claims.tenant_id)
-    .bind(ONLINE_SECONDS as f64)
     .fetch_all(&mut *tx)
     .await?;
     tx.commit().await?;
@@ -136,17 +140,18 @@ async fn lock_waiting(
     tenant: Uuid,
     id: Uuid,
 ) -> Result<(String, String, String, String), AppError> {
-    sqlx::query_as(
-        "SELECT node_id, join_code, requested_label, app_variant \
-           FROM device_pairing_requests \
-          WHERE id = $1 AND tenant_id = $2 AND node_id IS NOT NULL AND status = 'pending' \
-            AND expires_at > now() FOR UPDATE",
+    let row = sqlx::query!(
+        r#"SELECT node_id AS "node_id!", join_code AS "code!", requested_label, app_variant
+             FROM device_pairing_requests
+            WHERE id = $1 AND tenant_id = $2 AND node_id IS NOT NULL AND status = 'pending'
+              AND expires_at > now() FOR UPDATE"#,
+        id,
+        tenant,
     )
-    .bind(id)
-    .bind(tenant)
     .fetch_optional(&mut **tx)
     .await?
-    .ok_or(AppError::NotFound)
+    .ok_or(AppError::NotFound)?;
+    Ok((row.node_id, row.code, row.requested_label, row.app_variant))
 }
 
 /// Writes the machine and its key: the same two rows a device's sync key has, so the roster sees it.
@@ -156,36 +161,36 @@ async fn admit_machine(
     id: Uuid,
     (node_id, label, variant): (&str, &str, &str),
 ) -> Result<Uuid, AppError> {
-    let device: Uuid = sqlx::query_scalar(
+    let device = sqlx::query_scalar!(
         "INSERT INTO paired_devices \
            (tenant_id, label, app_variant, cert_fingerprint, cert_pem) \
          VALUES ($1, $2, $3, $4, $5) RETURNING id",
+        claims.tenant_id,
+        label,
+        variant,
+        // Per request, because a removed machine may be approved again with the same key.
+        sha256_hex(format!("{node_id}:{id}").as_bytes()),
+        format!("iroh:{node_id}"),
     )
-    .bind(claims.tenant_id)
-    .bind(label)
-    .bind(variant)
-    // Per request, because a removed machine may be approved again with the same key.
-    .bind(sha256_hex(format!("{node_id}:{id}").as_bytes()))
-    .bind(format!("iroh:{node_id}"))
     .fetch_one(&mut **tx)
     .await?;
-    sqlx::query(
+    sqlx::query!(
         "INSERT INTO device_node_keys (tenant_id, paired_device_id, node_id, created_by) \
          VALUES ($1, $2, $3, $4)",
+        claims.tenant_id,
+        device,
+        node_id,
+        claims.sub,
     )
-    .bind(claims.tenant_id)
-    .bind(device)
-    .bind(node_id)
-    .bind(claims.sub)
     .execute(&mut **tx)
     .await?;
-    sqlx::query(
+    sqlx::query!(
         "UPDATE device_pairing_requests SET status = 'claimed', approved_by_user_id = $2, \
            approved_at = now(), claimed_at = now(), paired_device_id = $3 WHERE id = $1",
+        id,
+        claims.sub,
+        device,
     )
-    .bind(id)
-    .bind(claims.sub)
-    .bind(device)
     .execute(&mut **tx)
     .await?;
     Ok(device)
@@ -206,13 +211,13 @@ pub async fn approve_machine(
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
     let (node_id, code, label, variant) = lock_waiting(&mut tx, claims.tenant_id, id).await?;
     if !code_matches(&code, &body.code) {
-        sqlx::query(
+        sqlx::query!(
             "UPDATE device_pairing_requests SET code_attempts = code_attempts + 1, \
                status = CASE WHEN code_attempts + 1 >= $2 THEN 'denied' ELSE status END \
              WHERE id = $1",
+            id,
+            MAX_CODE_ATTEMPTS,
         )
-        .bind(id)
-        .bind(MAX_CODE_ATTEMPTS)
         .execute(&mut *tx)
         .await?;
         let details = serde_json::json!({ "node_id": node_id, "label": label });
@@ -237,8 +242,7 @@ pub async fn reject_machine(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
     let (node_id, _, label, _) = lock_waiting(&mut tx, claims.tenant_id, id).await?;
-    sqlx::query("UPDATE device_pairing_requests SET status = 'denied' WHERE id = $1")
-        .bind(id)
+    sqlx::query!("UPDATE device_pairing_requests SET status = 'denied' WHERE id = $1", id)
         .execute(&mut *tx)
         .await?;
     let details = serde_json::json!({ "node_id": node_id, "label": label });
@@ -257,25 +261,25 @@ pub async fn remove_machine(
     require_permission(&claims, machines::REMOVE)?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
-    sqlx::query_scalar::<_, Uuid>(
+    sqlx::query_scalar!(
         "UPDATE paired_devices SET revoked_at = now(), revoked_by_user_id = $2, \
            revoked_reason = 'Removed on the Nodes screen' \
          WHERE id = $1 AND tenant_id = $3 AND revoked_at IS NULL \
            AND app_variant IN ('Desktop-Workstation', 'Desktop-Display') RETURNING id",
+        id,
+        claims.sub,
+        claims.tenant_id,
     )
-    .bind(id)
-    .bind(claims.sub)
-    .bind(claims.tenant_id)
     .fetch_optional(&mut *tx)
     .await?
     .ok_or(AppError::NotFound)?;
-    sqlx::query(
+    sqlx::query!(
         "UPDATE device_node_keys SET revoked_at = now(), revoked_by = $2 \
           WHERE paired_device_id = $1 AND tenant_id = $3 AND revoked_at IS NULL",
+        id,
+        claims.sub,
+        claims.tenant_id,
     )
-    .bind(id)
-    .bind(claims.sub)
-    .bind(claims.tenant_id)
     .execute(&mut *tx)
     .await?;
     audit(&mut tx, &claims, "machine.removed", id, &serde_json::json!({})).await?;
