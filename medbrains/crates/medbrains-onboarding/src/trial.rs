@@ -62,16 +62,6 @@ pub async fn quote(Json(input): Json<SizingInput>) -> Result<Json<Sizing>, AppEr
     Ok(Json(sizing::recommend(&input)))
 }
 
-/// The address the sign-up came from, as the proxy forwards it.
-pub fn client_ip(headers: &axum::http::HeaderMap) -> Option<String> {
-    headers
-        .get("x-forwarded-for")
-        .and_then(|v| v.to_str().ok())
-        .and_then(|v| v.split(',').next())
-        .map(|ip| ip.trim().to_owned())
-        .filter(|ip| !ip.is_empty())
-}
-
 /// Refuse a fourth trial from the same address in a day.
 pub async fn throttle(db: &sqlx::PgPool, ip: Option<&str>) -> Result<(), AppError> {
     let Some(ip) = ip else { return Ok(()) };

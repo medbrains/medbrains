@@ -51,6 +51,7 @@ built. *Proposed* is waiting for the owner. *Rejected* was considered and turned
 | 2026-11-04 | The owner decided: no terminal on staff machines, node computers or other machines. Debug images keep a serial shell; release images have no shell on screen | this branch |
 | 2026-11-04 | Wi-Fi uses iwd: 3 MB of memory against wpa_supplicant's 11 MB, started only where a card exists, with passwords in root-only files and never on a command line. One network panel for the top bar, first boot and Settings | this branch |
 | 2026-11-04 | The setup service moved from TCP to a Unix socket with no token: any local user could bind the port during a restart and receive passwords. Every helper has a time limit, settings are written atomically, the screen's unit may only reach this machine | this branch |
+| 2026-11-04 | The server now takes the client's address from the connection. It was never given one, so forwarded headers decided the address on every route, and sign-in routes had no address at all. Forwarded headers are believed only from a listed proxy, walked from the right; no list means none believed | this PR |
 
 ## Decisions
 
