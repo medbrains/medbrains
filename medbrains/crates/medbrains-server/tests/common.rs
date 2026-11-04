@@ -291,7 +291,7 @@ async fn spawn(secrets: TestSecrets, request_url: Option<String>) -> TestApp {
         },
         queue_broadcaster: routes::ws::QueueBroadcaster::new(),
         notifications: medbrains_server::services::notification_hub::NotificationHub::new(),
-        trusted_proxies: Arc::new(vec![]),
+        trusted_proxies: Arc::new(vec!["127.0.0.1/32".parse().expect("loopback network")]),
         system_state_cache: SystemStateCache::new(),
         outbox: outbox_registry,
         topology: topology_router,
@@ -312,7 +312,9 @@ async fn spawn(secrets: TestSecrets, request_url: Option<String>) -> TestApp {
 
     // Spawn server in background
     tokio::spawn(async move {
-        axum::serve(listener, app).await.expect("server crashed");
+        axum::serve(listener, app.into_make_service_with_connect_info::<SocketAddr>())
+            .await
+            .expect("server crashed");
     });
 
     let client = Client::builder()

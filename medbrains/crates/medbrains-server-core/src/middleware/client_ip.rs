@@ -23,33 +23,12 @@ impl ClientIp {
     }
 }
 
-/// Middleware that extracts the client IP from the request and stores it
-/// in request extensions as `ClientIp`.
+/// Works out the client's address and stores it as `ClientIp`.
 ///
-/// # Security Model
-///
-/// This middleware implements a secure proxy trust model:
-///
-/// 1. Get direct connection IP from `ConnectInfo<SocketAddr>`
-/// 2. Check if direct IP is from a trusted proxy (configured via `TRUSTED_PROXIES`)
-/// 3. If from trusted proxy, parse `X-Forwarded-For` or `X-Real-IP` header
-/// 4. If NOT from trusted proxy, use direct connection IP (ignore headers)
-///
-/// This prevents IP spoofing attacks where a malicious client sets fake
-/// `X-Forwarded-For` headers to bypass rate limiting or IP allowlisting.
-///
-/// # Configuration
-///
-/// Set `TRUSTED_PROXIES` env var to a comma-separated list of CIDRs:
-/// ```text
-/// TRUSTED_PROXIES=10.0.0.0/8,172.16.0.0/12,192.168.0.0/16
-/// ```
-///
-/// Common trusted proxy ranges:
-/// - Docker: `172.17.0.0/16`
-/// - Kubernetes: `10.0.0.0/8`
-/// - AWS ALB/ELB: Varies by region, consult AWS documentation
-/// - Cloudflare: See <https://www.cloudflare.com/ips>/
+/// The connecting address is the only fact here. Forwarded headers are believed only when that
+/// address is a listed proxy, and only back to the first hop no listed proxy vouches for, because
+/// anything further left was written by the client. With no proxies listed, none are believed.
+/// `TRUSTED_PROXIES` is a comma-separated list of CIDRs.
 pub async fn client_ip_middleware(
     State(state): State<AppState>,
     mut request: Request,
@@ -61,56 +40,138 @@ pub async fn client_ip_middleware(
     next.run(request).await
 }
 
-/// Extract client IP from request with trusted proxy validation.
+/// The connecting address, or nothing if the server was started without connection info.
 fn extract_client_ip(request: &Request, trusted_proxies: &[ipnet::IpNet]) -> Option<IpAddr> {
-    // Get direct connection IP
-    let direct_ip = request
+    let direct = request
         .extensions()
-        .get::<ConnectInfo<std::net::SocketAddr>>()
-        .map(|ci| ci.0.ip());
-
-    let Some(direct) = direct_ip else {
-        // No direct connection info available (shouldn't happen in production)
-        // Fall back to header parsing (less secure)
-        return parse_forwarded_headers(request);
-    };
-
-    // Check if direct connection is from a trusted proxy
-    let is_trusted = trusted_proxies.is_empty() || // Empty = trust all (legacy mode)
-        trusted_proxies.iter().any(|net| net.contains(&direct));
-
-    if is_trusted {
-        // Trusted proxy: parse X-Forwarded-For to get real client IP
-        parse_forwarded_headers(request).or(Some(direct))
-    } else {
-        // Untrusted source: use direct connection IP, ignore headers
-        Some(direct)
-    }
+        .get::<ConnectInfo<std::net::SocketAddr>>()?
+        .0
+        .ip();
+    let header = |name: &str| request.headers().get(name).and_then(|v| v.to_str().ok());
+    Some(resolve_client(
+        direct,
+        header("x-forwarded-for"),
+        header("x-real-ip"),
+        trusted_proxies,
+    ))
 }
 
-/// Parse X-Forwarded-For or X-Real-IP headers.
-fn parse_forwarded_headers(request: &Request) -> Option<IpAddr> {
-    // Try X-Forwarded-For header
-    // Format: "client, proxy1, proxy2" - take the first (original client)
-    if let Some(fwd) = request
-        .headers()
-        .get("x-forwarded-for")
-        .and_then(|v| v.to_str().ok())
-        && let Some(first) = fwd.split(',').next()
-        && let Ok(ip) = first.trim().parse::<IpAddr>()
-    {
-        return Some(ip);
+/// The client's address, from the connecting address and any forwarded headers.
+fn resolve_client(
+    direct: IpAddr,
+    forwarded_for: Option<&str>,
+    real_ip: Option<&str>,
+    trusted: &[ipnet::IpNet],
+) -> IpAddr {
+    let vouched = |ip: &IpAddr| trusted.iter().any(|net| net.contains(ip));
+    if !vouched(&direct) {
+        return direct;
+    }
+    let Some(chain) = forwarded_for else {
+        return real_ip.and_then(parse_hop).unwrap_or(direct);
+    };
+    let mut client = direct;
+    for hop in chain.rsplit(',') {
+        let Some(ip) = parse_hop(hop) else { break };
+        client = ip;
+        if !vouched(&ip) {
+            break;
+        }
+    }
+    client
+}
+
+/// One forwarded address. Some proxies send `1.2.3.4:5678` or `[::1]:5678`.
+fn parse_hop(raw: &str) -> Option<IpAddr> {
+    let raw = raw.trim();
+    raw.parse::<std::net::SocketAddr>()
+        .map(|socket| socket.ip())
+        .or_else(|_| raw.parse())
+        .ok()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::resolve_client;
+    use std::net::IpAddr;
+
+    const PROXY: &str = "127.0.0.1";
+    const CLIENT: &str = "203.0.113.7";
+    const FORGED: &str = "198.51.100.1";
+
+    fn ip(raw: &str) -> IpAddr {
+        raw.parse().expect("test address")
     }
 
-    // Try X-Real-IP header (nginx default)
-    if let Some(real) = request
-        .headers()
-        .get("x-real-ip")
-        .and_then(|v| v.to_str().ok())
-        && let Ok(ip) = real.trim().parse::<IpAddr>()
-    {
-        return Some(ip);
+    fn proxies() -> Vec<ipnet::IpNet> {
+        vec![
+            "127.0.0.1/32".parse().expect("test network"),
+            "10.0.0.0/8".parse().expect("test network"),
+        ]
     }
 
-    None
+    #[test]
+    fn a_direct_client_cannot_forge_its_address() {
+        let got = resolve_client(ip(CLIENT), Some(FORGED), Some(FORGED), &proxies());
+        assert_eq!(got, ip(CLIENT));
+    }
+
+    #[test]
+    fn no_listed_proxies_means_no_header_is_believed() {
+        assert_eq!(
+            resolve_client(ip(PROXY), Some(FORGED), None, &[]),
+            ip(PROXY)
+        );
+    }
+
+    #[test]
+    fn a_forged_entry_left_of_the_real_client_is_ignored() {
+        let chain = format!("{FORGED}, {CLIENT}, 10.0.0.2");
+        assert_eq!(
+            resolve_client(ip(PROXY), Some(&chain), None, &proxies()),
+            ip(CLIENT)
+        );
+    }
+
+    #[test]
+    fn garbage_in_the_chain_stops_the_walk() {
+        let chain = format!("{FORGED}, not-an-ip, {CLIENT}");
+        assert_eq!(
+            resolve_client(ip(PROXY), Some(&chain), None, &proxies()),
+            ip(CLIENT)
+        );
+    }
+
+    #[test]
+    fn a_chain_of_only_proxies_gives_the_furthest_one() {
+        assert_eq!(
+            resolve_client(ip(PROXY), Some("10.0.0.2, 10.0.0.3"), None, &proxies()),
+            ip("10.0.0.2")
+        );
+    }
+
+    #[test]
+    fn socket_forms_reduce_to_the_address() {
+        for (raw, want) in [
+            ("[2001:db8::1]:443", "2001:db8::1"),
+            ("203.0.113.7:53579", CLIENT),
+        ] {
+            assert_eq!(
+                resolve_client(ip(PROXY), Some(raw), None, &proxies()),
+                ip(want)
+            );
+        }
+    }
+
+    #[test]
+    fn real_ip_is_used_only_from_a_proxy_and_without_a_chain() {
+        assert_eq!(
+            resolve_client(ip(PROXY), None, Some(CLIENT), &proxies()),
+            ip(CLIENT)
+        );
+        assert_eq!(
+            resolve_client(ip(PROXY), None, Some("junk"), &proxies()),
+            ip(PROXY)
+        );
+    }
 }

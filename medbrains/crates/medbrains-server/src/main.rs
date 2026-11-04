@@ -757,8 +757,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // and let in-flight requests (and their transactions) finish instead
     // of aborting mid-write on every deploy restart.
     // Not `axum::serve(listener, app)`: that form copies the whole route table for every
-    // connection, about 28 MB each and 60 times slower to open one (DECISIONS, 2026-11-04).
-    axum::serve(listener, app.into_make_service())
+    // connection (DECISIONS, 2026-11-04), and gives handlers no connecting address, leaving them
+    // only headers that a client can write.
+    axum::serve(listener, app.into_make_service_with_connect_info::<SocketAddr>())
         .with_graceful_shutdown(shutdown_signal())
         .await?;
 

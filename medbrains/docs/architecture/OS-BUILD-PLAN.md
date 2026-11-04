@@ -135,7 +135,7 @@ N1 to N6 come from RFC-HOSPITAL-OS §8q. Every task ends on a check or a screen.
 | B1 | Credentials out of audit rows; plan to scrub old rows | New rows carry no hash or secret | next; production scrub needs owner approval |
 | B2 | Forced password change enforced on the server | API refuses until changed | next |
 | B3 | Lockout counter reset; lockout denial of service | One host cannot keep accounts locked | next |
-| B4 | Verify and fix the medium findings | Each fixed or recorded | next |
+| B4 | Verify and fix the medium findings | Each fixed or recorded | doing: real client address this PR; rest open |
 | B5 | Vulnerable dependencies | Security checks pass | doing: branch ready, compile check pending |
 
 ## R. Release
