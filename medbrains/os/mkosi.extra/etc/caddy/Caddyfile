@@ -14,7 +14,13 @@
 # Never a blank page when the server is down: a plain sentence, on the same 502.
 (server) {
 	encode zstd gzip
-	reverse_proxy 127.0.0.1:3000
+	# Reused connections took the server from about 200 MB to about 1 GB when a page opened, and
+	# the cause inside the server is still open. A new connection on loopback costs almost nothing.
+	reverse_proxy 127.0.0.1:3000 {
+		transport http {
+			keepalive off
+		}
+	}
 	handle_errors {
 		respond "MedBrains is not answering. Try again in a moment; if it stays like this, call your system administrator." {err.status_code}
 	}
