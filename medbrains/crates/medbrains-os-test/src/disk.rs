@@ -168,7 +168,7 @@ fn changed_boot_file_stays_locked(vm: &mut Vm, _: &Path) -> Result<(), String> {
     let signed = vm.run("test -e /run/systemd/tpm2-pcr-public-key.pem; echo $?")?;
     ensure(signed == "0", "the image is not signed, so this cannot be tested: debug images are")?;
     let (from, to) = ("loglevel=3", "loglevel=4");
-    let patch = |text: &str| format!("f=$(ls /boot/EFI/Linux/*.efi | head -1); o=$(grep -abo {text} \"$f\" | head -1 | cut -d: -f1)");
+    let patch = |text: &str| format!("f=$(ls /boot/EFI/Linux/*.efi | head -1); o=$(grep -abo -m1 {text} \"$f\" | head -1 | cut -d: -f1)");
     vm.run(&format!("{}; printf %s {to} | dd of=\"$f\" bs=1 seek=\"$o\" conv=notrunc 2>/dev/null; sync", patch(from)))?;
     vm.reboot()?;
     vm.wait_for_screen(NOTICE, scaled(SCREEN_LIMIT))?;
