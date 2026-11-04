@@ -998,5 +998,9 @@ os-image: ## Build the MedBrains OS disk image (ARCH=arm64|x86-64, DEBUG=1 for a
 	pnpm turbo run build --filter=@medbrains/web...
 	CARGO_TARGET_DIR=$(OS_TARGET_DIR) os/build.sh --arch $(or $(ARCH),arm64) $(if $(DEBUG),--debug)
 
+os-test: ## Boot a debug image and check security, boot and memory (IMAGE=path/to/image.raw)
+	bash scripts/build_guard.sh --wait
+	cargo run -q -p medbrains-os-test -- $(IMAGE)
+
 os-boot: ## Boot the built arm64 image in QEMU (FRESH=1 for a brand-new box)
 	os/qemu-run.sh $(if $(FRESH),--fresh)
