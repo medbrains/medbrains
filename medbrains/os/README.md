@@ -254,6 +254,11 @@ switching to another console. Nothing on the screen runs a shell.
 **What a session keeps.** The view's session is ephemeral: nothing a page stores reaches the disk, and a
 restart signs you out.
 
+**No terminal on staff machines (owner's decision).** Release images have no terminal program, no debug shell, a
+locked root account and no shell on the serial port. Tried on the release image's screen, in setup, on the desktop and
+in the app: Ctrl+Shift+I and D (GTK's inspector, turned off in code), Ctrl+Shift+C, F12, Ctrl+Alt+F2 and F3, Ctrl+Alt+T.
+None opens anything. The app's right-click menu has Back, Forward, Stop and Reload, with no Inspect.
+
 **Limits we chose or could not avoid:**
 - **`cage` does not show a second window.** A dialog window stayed invisible and its modal grab blocked all
   input, so the power question lives inside its menu, and the file chooser is refused. **Uploads, downloads
@@ -292,7 +297,7 @@ The failure table the flight rules ask for (`docs/OS-PRINCIPLES.md` section 7). 
 | The services can't be asked to start | Setup would be a dead end | `systemctl` fails | Env and marker are taken back, the screen says try again | reasoned |
 | The server never answers | The seed lines stay in the env, because the server still needs them. They hold a hash, as the database would | `console-status` keeps waiting | The desktop names the failed service. The hash stays until it answers | reasoned |
 | The setup service doesn't answer | No setup can start | The screen can't connect | "Starting…", then says so after 30 s, retrying | unit test for the words |
-| The setup service restarts with an address waiting | Its timer is lost | Live and saved differ at start | Undoes the address at start | reasoned |
+| The setup service restarts with an address waiting | Its timer is lost | Live and saved differ at start | Undoes the address at start | tested |
 | A helper hangs | One request would hold the only thread | Time limit in `child.rs` | Killed; the answer says it's unknown | unit test |
 | The marker can't be read | Not knowing isn't "not set up" | `try_exists` errors | Refuses setup, says restart | reasoned |
 | `ip` doesn't answer | "No links" would read as no card | Service reports a fault | "Network unknown" on screen | unit test for the words |
@@ -351,13 +356,13 @@ stays as the baseline; memory is compared here.
 | State | Whole machine used (`MemTotal - MemAvailable`) | Server PSS | Screen PSS |
 |---|---|---|---|
 | Before setup, Network screen | 294 MB | none running | 177 MB (cage 113 + shell 63) |
-| Desktop, MedBrains never opened (WPE: status page, 834 MB) | **641 MB** | 166 MB | 187 MB (cage 113 + shell 74) |
-| Signed in, Patients open (WPE: 2,331 MB) | **1,163 MB** | 209 MB | 626 MB, of which the page's WebProcess 298 MB (WPE: 673 and 412) |
-| After Close | **771 MB** | 209 MB | 255 MB (cage 89 + shell 166). All WebKit processes gone |
+| Desktop, MedBrains never opened (WPE: status page, 834 MB) | **635 MB** | 162 MB | 185 MB (cage 113 + shell 72) |
+| Signed in, Patients open (WPE: 2,331 MB) | **1,215 MB** | 212 MB | 643 MB, of which the page's WebProcess 320 MB (WPE: 673 and 412) |
+| After Close | **783 MB** | 212 MB | 253 MB (cage 89 + shell 164). All WebKit processes gone |
 
 The web figures are one run each, sampled seconds after the page settled, so treat them as similar rather
 than better. These include the route table fix (PR #5221), which took the signed-in server from about 1,150 MB to
-209 MB; the 512 MB target is still not met. Close frees about 390 MB; the shell keeps about 90 MB of it.
+209 MB; the 512 MB target is still not met. Close frees about 430 MB; the shell keeps about 90 MB of it.
 
 Everything here was **measured in QEMU on an Apple-silicon Mac** (HVF, 4 vCPUs, 4 GB RAM, no GPU, so
 software rendering, on a host often under heavy load from other work). None of it is a Raspberry Pi
