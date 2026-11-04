@@ -51,6 +51,7 @@ built. *Proposed* is waiting for the owner. *Rejected* was considered and turned
 | 2026-11-04 | OS desktop in the approved design, dark and light; apps from manifests, each with its own view, storage and default-deny origin; status says only what is checked (firewall on, NTS-verified time, failed service named); time zone chosen at setup and kept on the data partition; screen scale set through wlr-randr because cage has no option; debug shell started by udev on whichever serial port exists | this branch |
 
 ### Project and licence
+| 2026-11-04 | Open apps get Close (ends the view and frees its memory, after any unsaved-changes question), Home (keeps it) and Reload, with keys and a dock menu; apps stay full-screen views, not movable windows | this branch |
 
 | Date | Decision | Why | Rejected | Status |
 |---|---|---|---|---|
