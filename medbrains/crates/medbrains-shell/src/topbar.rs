@@ -68,7 +68,12 @@ pub(crate) fn power_button() -> gtk::MenuButton {
     panel.set_width_request(POWER_MENU_WIDTH);
     panel.append(&choose);
     panel.append(&ask);
-    let popover = gtk::Popover::builder().child(&panel).build();
+    // Moved inward, because `cage` does not slide a menu back on screen by itself.
+    let popover = gtk::Popover::builder()
+        .child(&panel)
+        .has_arrow(false)
+        .build();
+    popover.set_offset(-POWER_MENU_WIDTH / 2, 0);
     let button = gtk::MenuButton::builder()
         .popover(&popover)
         .icon_name("system-shutdown-symbolic")
