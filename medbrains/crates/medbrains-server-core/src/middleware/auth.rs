@@ -108,7 +108,8 @@ pub async fn auth_middleware(
 
     if let Some(ref token) = cookie_token {
         let mut claims = decode_and_validate(token, &state.jwt_decoding_key)?;
-        verify_perm_version(&state.db, &claims).await?;
+        let must_change = verify_perm_version(&state.db, &claims).await?;
+        refuse_until_password_changed(must_change, request.uri().path())?;
         let device_variant = verify_device_not_revoked(&state.db, &claims).await?;
         hydrate_permissions(&state.db, &mut claims, device_variant.as_deref()).await?;
         request.extensions_mut().insert(AuthMethod::Cookie);
@@ -166,7 +167,8 @@ pub async fn auth_middleware(
 
     if let Some(token) = bearer_token {
         let mut claims = decode_and_validate(token, &state.jwt_decoding_key)?;
-        verify_perm_version(&state.db, &claims).await?;
+        let must_change = verify_perm_version(&state.db, &claims).await?;
+        refuse_until_password_changed(must_change, request.uri().path())?;
         let device_variant = verify_device_not_revoked(&state.db, &claims).await?;
         hydrate_permissions(&state.db, &mut claims, device_variant.as_deref()).await?;
         request.extensions_mut().insert(AuthMethod::Bearer);
@@ -326,30 +328,62 @@ const fn device_admitted(live: Option<bool>) -> bool {
 /// user soft-deletes the row and leaves `perm_version` untouched, so a live
 /// token stayed valid until it expired — the account was gone from every
 /// list while its phone kept a ward screen.
-async fn verify_perm_version(db: &PgPool, claims: &Claims) -> Result<(), AppError> {
+async fn verify_perm_version(db: &PgPool, claims: &Claims) -> Result<bool, AppError> {
     let mut conn = medbrains_db::pool::tenant_conn(db, &claims.tenant_id).await?;
     if claims.perm_version <= 0 {
         return Err(AppError::Unauthorized);
     }
 
-    let current: Option<i32> = sqlx::query_scalar!(
-        "SELECT perm_version FROM users \
+    // Runtime query: the same round trip also answers whether a password change
+    // is still owed, so enforcing it costs no extra query.
+    let current: Option<(i32, bool)> = sqlx::query_as(
+        "SELECT perm_version, must_change_password FROM users \
          WHERE id = $1 AND tenant_id = $2 AND is_active AND deleted_at IS NULL",
-        claims.sub,
-        claims.tenant_id
     )
+    .bind(claims.sub)
+    .bind(claims.tenant_id)
     .fetch_optional(&mut *conn)
     .await?;
 
     match current {
-        Some(v) if v == claims.perm_version => Ok(()),
+        Some((version, must_change)) if version == claims.perm_version => Ok(must_change),
         Some(_) | None => Err(AppError::Unauthorized),
     }
 }
 
+/// What someone who still owes a password change may call: who they are, the
+/// change itself, and leaving.
+const BEFORE_PASSWORD_CHANGE: [&str; 4] = [
+    "/api/auth/me",
+    "/api/auth/change-password",
+    "/api/auth/logout",
+    "/api/auth/logout-all",
+];
+
+/// Refuse everything else until a required password change is made. The browser
+/// shows the change screen, but the temporary password must not work on the API.
+fn refuse_until_password_changed(must_change: bool, path: &str) -> Result<(), AppError> {
+    if must_change && !BEFORE_PASSWORD_CHANGE.contains(&path) {
+        return Err(AppError::ForbiddenReason(
+            "Change your temporary password to continue.".to_owned(),
+        ));
+    }
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
-    use super::{device_admitted, device_permissions};
+    use super::{device_admitted, device_permissions, refuse_until_password_changed};
+
+    /// A temporary password opens the change screen and nothing else.
+    #[test]
+    fn a_temporary_password_reaches_only_the_password_change() {
+        assert!(refuse_until_password_changed(true, "/api/patients").is_err());
+        assert!(refuse_until_password_changed(true, "/api/admin/users").is_err());
+        assert!(refuse_until_password_changed(true, "/api/auth/me").is_ok());
+        assert!(refuse_until_password_changed(true, "/api/auth/change-password").is_ok());
+        assert!(refuse_until_password_changed(false, "/api/patients").is_ok());
+    }
 
     /// A paired screen reads boards; any other service-account device, and a
     /// service account with no device at all, can do nothing.
