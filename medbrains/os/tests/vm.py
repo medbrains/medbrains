@@ -96,11 +96,15 @@ def serial(command, timeout=30):
     """Runs a command in the serial root shell and returns what it printed."""
     fd = open_serial()
     end = f"END{int(time.time() * 1000)}"
-    os.write(fd, f"\n{command}; echo {end}$((1+1))\n".encode())
     seen, deadline = b"", time.time() + timeout
-    while time.time() < deadline and f"{end}2".encode() not in seen:
-        if select.select([fd], [], [], 1)[0]:
-            seen += os.read(fd, 65536)
+    try:
+        os.write(fd, f"\n{command}; echo {end}$((1+1))\n".encode())
+        while time.time() < deadline and f"{end}2".encode() not in seen:
+            if select.select([fd], [], [], 1)[0]:
+                seen += os.read(fd, 65536)
+    finally:
+        # QEMU serves one client at a time: left open, the next call's command would wait unread.
+        os.close(fd)
     text = re.sub(r"\x1b\[[0-9;?]*[A-Za-z]", "", seen.decode(errors="replace"))
     body = text.split(f"{end}$((1+1))", 1)[-1]
     return body.split(f"{end}2", 1)[0].strip()
