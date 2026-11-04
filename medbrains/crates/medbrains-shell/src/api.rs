@@ -11,6 +11,8 @@ use serde::de::DeserializeOwned;
 use serde_json::Value;
 
 const SERVICE: &str = "127.0.0.1:3100";
+const SERVER: &str = "127.0.0.1:3000";
+const HEALTH_TIMEOUT: Duration = Duration::from_secs(2);
 const TOKEN_FILE: &str = "/run/medbrains-console/setup-token";
 const TIMEOUT: Duration = Duration::from_secs(10);
 /// Said when the service cannot be asked at all. A fault, so never shown as "no network".
@@ -39,10 +41,10 @@ pub(crate) struct Network {
 #[derive(Debug, Clone, Default, Deserialize)]
 pub(crate) struct Machine {
     pub(crate) system: String,
+    /// Names of the units that failed, shown on the screen.
+    pub(crate) failed: Vec<String>,
     pub(crate) memory_total_kb: u64,
     pub(crate) memory_available_kb: u64,
-    pub(crate) load: String,
-    pub(crate) uptime_seconds: u64,
     pub(crate) disk_total: u64,
     pub(crate) disk_used: u64,
 }
@@ -51,8 +53,13 @@ pub(crate) struct Machine {
 #[derive(Debug, Clone, Default, Deserialize)]
 pub(crate) struct State {
     pub(crate) set_up: bool,
+    /// The hospital's name, once setup has written it.
+    pub(crate) hospital: String,
     pub(crate) main_ready: bool,
-    pub(crate) clock_synced: bool,
+    /// "verified", "checking" or "unconfirmed".
+    pub(crate) clock: String,
+    pub(crate) timezone: String,
+    pub(crate) firewall: bool,
     pub(crate) machine: Machine,
     pub(crate) network: Network,
 }
@@ -163,6 +170,43 @@ pub(crate) fn check_network(done: impl FnOnce(Result<Network, Failure>) + 'stati
     get("/network", done);
 }
 
+/// The time zones people choose from.
+pub(crate) fn fetch_timezones(done: impl FnOnce(Result<Vec<String>, Failure>) + 'static) {
+    get("/timezones", done);
+}
+
+/// Whether the server itself answers, asked directly so the setup service can't delay it.
+pub(crate) fn server_answers(done: impl FnOnce(bool) + 'static) {
+    glib::spawn_future_local(async move {
+        let answer = gio::spawn_blocking(health_is_ok).await;
+        done(answer.unwrap_or(false));
+    });
+}
+
+/// One blocking health request to the server.
+fn health_is_ok() -> bool {
+    let probe = || -> Option<bool> {
+        let address: SocketAddr = SERVER.parse().ok()?;
+        let mut stream = TcpStream::connect_timeout(&address, HEALTH_TIMEOUT).ok()?;
+        stream.set_read_timeout(Some(HEALTH_TIMEOUT)).ok()?;
+        let request =
+            format!("GET /api/health HTTP/1.1\r\nHost: {SERVER}\r\nConnection: close\r\n\r\n");
+        stream.write_all(request.as_bytes()).ok()?;
+        let mut head = [0_u8; 16];
+        let read = stream.read(&mut head).ok()?;
+        Some(is_ok_status(&head[..read]))
+    };
+    probe().unwrap_or(false)
+}
+
+/// True for an answer that begins with a 2xx status line.
+fn is_ok_status(head: &[u8]) -> bool {
+    String::from_utf8_lossy(head)
+        .split_whitespace()
+        .nth(1)
+        .is_some_and(|code| code.starts_with('2'))
+}
+
 /// Sends a change to the machine.
 pub(crate) fn post(
     path: &'static str,
@@ -174,7 +218,7 @@ pub(crate) fn post(
 
 #[cfg(test)]
 mod tests {
-    use super::{Failure, State, outcome, parse_answer};
+    use super::{Failure, State, is_ok_status, outcome, parse_answer};
     use serde_json::json;
 
     #[test]
@@ -182,6 +226,13 @@ mod tests {
         let raw = "HTTP/1.1 422 X\r\nContent-Length: 2\r\n\r\n{}";
         assert_eq!(parse_answer(raw), Some((422, json!({}))));
         assert_eq!(parse_answer("garbage"), None);
+    }
+
+    #[test]
+    fn only_a_2xx_answer_counts_as_healthy() {
+        assert!(is_ok_status(b"HTTP/1.1 200 OK\r\n"));
+        assert!(!is_ok_status(b"HTTP/1.1 503 Ser"));
+        assert!(!is_ok_status(b""));
     }
 
     /// The form shows each problem beside its own field, so the mapping must survive.
@@ -203,9 +254,9 @@ mod tests {
     #[test]
     fn the_shell_understands_the_services_state() {
         let state: Result<State, _> = serde_json::from_value(json!({
-            "set_up": true, "main_ready": false, "clock_synced": false,
-            "machine": { "system": "running", "memory_total_kb": 10, "memory_available_kb": 5,
-                         "load": "0.1", "uptime_seconds": 9, "disk_total": 8, "disk_used": 2 },
+            "set_up": true, "hospital": "City", "main_ready": false, "clock": "checking",
+            "timezone": "Asia/Kolkata", "firewall": true,
+            "machine": { "system": "running", "failed": [], "memory_total_kb": 10, "memory_available_kb": 5,  "disk_total": 8, "disk_used": 2 },
             "network": { "links": [{ "name": "en0", "cable": true, "addresses": ["10.0.2.15"] }],
                          "gateway": null, "wifi": false, "fixed": false },
         }));

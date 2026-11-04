@@ -7,6 +7,7 @@
 
 mod machine;
 mod rules;
+mod status;
 
 use std::io::{BufRead, BufReader, Read, Write};
 use std::net::{TcpListener, TcpStream};
@@ -172,7 +173,9 @@ fn settle_network(state: &State, action: fn() -> Result<(), String>) -> (u16, Va
 fn route(state: &Arc<State>, request: &Request) -> (u16, Value) {
     let body: Value = serde_json::from_slice(&request.body).unwrap_or(Value::Null);
     match (request.method.as_str(), request.path.as_str()) {
-        ("GET", "/state") => (200, machine::state()),
+        ("GET", "/state") => (200, status::state()),
+        ("GET", "/timezones") => (200, json!(status::timezones())),
+        ("POST", "/timezone") => answer(422, status::set_timezone(field(&body, "zone"))),
         ("GET", "/network") => (200, machine::network_check()),
         ("POST", "/hospital/check") => {
             hospital_problems(&body).unwrap_or_else(|| (200, json!({ "ok": true })))

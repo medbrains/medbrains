@@ -4,8 +4,10 @@ devices arrive through, plus the serial root shell to check what the screen clai
 
   OS_WORK=/tmp/mb-osimage-shell os/tests/vm.py shot out.png | key ctrl c | type TEXT
       | click X Y | drag X1 Y1 X2 Y2 | sh 'command' | cable on|off | reset
+
+Under Apple Virtualization only `sh` works, and needs OS_SERIAL=<the path utm-run.sh prints>.
 """
-import json, os, re, socket, sys, time
+import json, os, re, select, socket, sys, termios, time, tty
 
 VM = os.environ.get("OS_WORK", "/tmp/mb-osimage") + "/vm"
 W, H = int(os.environ.get("OS_SCREEN_W", 1280)), int(os.environ.get("OS_SCREEN_H", 800))
@@ -77,19 +79,27 @@ class Qmp:
         self.button(False)
 
 
-def serial(command, timeout=30):
-    """Runs a command in the serial root shell and returns what it printed."""
+def open_serial():
+    """Opens the shell's port: a pty under Apple Virtualization, QEMU's socket otherwise."""
+    path = os.environ.get("OS_SERIAL")
+    if path:
+        fd = os.open(path, os.O_RDWR | os.O_NOCTTY)
+        tty.setraw(fd, termios.TCSANOW)
+        return fd
     sock = socket.socket(socket.AF_UNIX)
     sock.connect(f"{VM}/serial.sock")
-    sock.settimeout(1)
+    return os.dup(sock.fileno())
+
+
+def serial(command, timeout=30):
+    """Runs a command in the serial root shell and returns what it printed."""
+    fd = open_serial()
     end = f"END{int(time.time() * 1000)}"
-    sock.sendall(f"\n{command}; echo {end}$((1+1))\n".encode())
+    os.write(fd, f"\n{command}; echo {end}$((1+1))\n".encode())
     seen, deadline = b"", time.time() + timeout
     while time.time() < deadline and f"{end}2".encode() not in seen:
-        try:
-            seen += sock.recv(65536)
-        except socket.timeout:
-            pass
+        if select.select([fd], [], [], 1)[0]:
+            seen += os.read(fd, 65536)
     text = re.sub(r"\x1b\[[0-9;?]*[A-Za-z]", "", seen.decode(errors="replace"))
     body = text.split(f"{end}$((1+1))", 1)[-1]
     return body.split(f"{end}2", 1)[0].strip()

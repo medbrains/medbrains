@@ -9,6 +9,9 @@ pg_dropcluster --stop 17 main 2>/dev/null || true
 rm -rf /etc/postgresql /var/lib/postgresql/17
 ln -s /var/lib/postgresql/conf /etc/postgresql
 
+# The time zone lives on the data partition, because the root will become read-only.
+ln -sfn /var/lib/medbrains-settings/localtime /etc/localtime
+
 # Secrets live on the data partition.
 ln -sfn /var/lib/medbrains/config /etc/medbrains
 

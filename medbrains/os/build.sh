@@ -64,15 +64,15 @@ install -m 0644 "$WEB/logo/medbrains-mark.svg" "$EXTRA/usr/share/medbrains/shell
 
 VERSION="${OS_VERSION:-$(git -C "$REPO" rev-parse --short HEAD)}"
 DEBUG_ARGS=()
-# A root shell on the serial port that needs no login, PAM or logind, so a broken
-# boot can still be inspected. Kernel command line, because mkosi's presets remove
-# units enabled from an extra tree. mkosi's Autologin= covers hvc0 and tty1 only.
-# Autologin is for hvc0, the serial port under Apple Virtualization; QEMU's port has the debug shell.
+# A root shell on whichever serial port this VM has: ttyAMA0 under QEMU, hvc0 under Apple
+# Virtualization. A udev rule starts it when the port appears, so a VM without one of them has no
+# failed unit, unlike systemd.debug_shell, which takes one fixed tty and fails if it is missing.
+# It needs no login or PAM, so a broken boot can still be inspected.
 if [[ "$DEBUG" == 1 ]]; then
-    tty=ttyAMA0
-    [[ "$ARCH" == x86-64 ]] && tty=ttyS0
-    DEBUG_ARGS=(--kernel-command-line "systemd.debug_shell=$tty systemd.mask=serial-getty@$tty.service"
-                --autologin yes --package strace)
+    install -d "$EXTRA/usr/lib/systemd/system" "$EXTRA/usr/lib/udev/rules.d"
+    install -m 0644 "$HERE/debug/medbrains-debug-shell@.service" "$EXTRA/usr/lib/systemd/system/"
+    install -m 0644 "$HERE/debug/90-medbrains-debug-shell.rules" "$EXTRA/usr/lib/udev/rules.d/"
+    DEBUG_ARGS=(--package strace)
 fi
 
 # Runs mkosi on this Linux machine: a CI runner or a hospital's own build box. Needs root.

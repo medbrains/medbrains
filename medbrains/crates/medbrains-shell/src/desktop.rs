@@ -1,7 +1,6 @@
-//! The desktop after setup: wallpaper, top bar, dock, launcher, widgets, and the two apps.
+//! The desktop after setup: wallpaper, greeting, widgets, dock, launcher and the two apps.
 //! Nothing here shows patient data: it speaks only about the machine.
 
-use std::cell::Cell;
 use std::rc::Rc;
 use std::time::Duration;
 
@@ -10,15 +9,12 @@ use gtk4::glib;
 use gtk4::prelude::{BoxExt, ButtonExt, EditableExt, FlowBoxChildExt, WidgetExt};
 
 use crate::api::{self, State};
-use crate::topbar::{clock_button, power_button, set_clock};
-use crate::{network, ui, webapp::WebApp};
+use crate::topbar::{LOGO, TopBar};
+use crate::widgets::Widgets;
+use crate::{settings, ui, webapp::WebApp};
 
 /// How often the bar and widgets ask the machine for its state.
 const REFRESH_EVERY: Duration = Duration::from_secs(10);
-/// How often the clock is redrawn. Its text changes once a minute.
-const CLOCK_SECONDS: u32 = 5;
-/// The logo for the MedBrains tile and dock icon, staged by `os/build.sh`.
-const LOGO: &str = "/usr/share/medbrains/shell/logo.svg";
 
 /// An app on this machine. Only ones that exist are listed.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -51,7 +47,7 @@ impl App {
     fn image(self, size: i32) -> gtk::Image {
         let image = match self {
             Self::MedBrains => gtk::Image::from_file(LOGO),
-            Self::Settings => gtk::Image::from_icon_name("emblem-system-symbolic"),
+            Self::Settings => gtk::Image::from_icon_name("preferences-system-symbolic"),
         };
         image.set_pixel_size(size);
         image
@@ -69,119 +65,61 @@ fn matches_search(title: &str, query: &str) -> bool {
 #[derive(Clone)]
 struct Desktop {
     content: gtk::Stack,
-    home_button: gtk::Button,
-    brand: gtk::Label,
-    title: gtk::Label,
-    network_status: gtk::Label,
-    clock: gtk::MenuButton,
-    clock_warning: gtk::Label,
-    health: gtk::Label,
-    memory: gtk::Label,
-    uptime: gtk::Label,
-    network_widget: gtk::Label,
-    disk_words: gtk::Label,
-    disk_level: gtk::LevelBar,
+    bar: TopBar,
+    widgets: Widgets,
+    greeting_name: gtk::Label,
+    greeting_status: gtk::Label,
     medbrains: WebApp,
-    /// Whether the server answered at the last poll.
-    medbrains_ready: Rc<Cell<bool>>,
-    /// True once MedBrains has been asked for and is waiting for the server.
-    opening: Rc<Cell<bool>>,
+    running: gtk::Box,
 }
 
 impl Desktop {
     /// Goes back to the wallpaper. Apps stay as they were.
     fn go_home(&self) {
         self.content.set_visible_child_name("home");
-        self.home_button.set_visible(false);
-        self.brand.set_visible(true);
-        self.title.set_label("");
+        self.bar.show_app(None);
     }
 
-    /// Opens an app, full size. MedBrains waits for its server rather than failing.
+    /// Opens an app, full size.
     fn open(&self, app: App) {
         self.content.set_visible_child_name(app.page());
-        self.home_button.set_visible(true);
-        self.brand.set_visible(false);
-        self.title.set_label(app.title());
-        if app != App::MedBrains {
-            return;
-        }
-        if self.medbrains_ready.get() {
+        self.bar.show_app(Some(app.title()));
+        if app == App::MedBrains {
             self.medbrains.open();
-            self.medbrains.focus();
-        } else {
-            self.opening.set(true);
-            self.medbrains.show_starting();
+            self.running.add_css_class("running");
         }
     }
 
     /// Shows the launcher with its search empty and focused.
     fn show_launcher(&self) {
         self.content.set_visible_child_name("launcher");
-        self.home_button.set_visible(true);
-        self.brand.set_visible(false);
-        self.title.set_label("Apps");
+        self.bar.show_app(Some("Apps"));
     }
 
     /// Shows one poll of the machine.
     fn show(&self, state: &State) {
-        let machine = &state.machine;
-        self.network_status
-            .set_label(&ui::network_words(&state.network));
-        self.health.set_label(ui::system_words(
-            &machine.system,
-            state.main_ready,
-            state.set_up,
-        ));
-        self.memory.set_label(&ui::memory_words(machine));
-        self.uptime.set_label(&format!(
-            "On for {}, load {}",
-            ui::uptime_words(machine.uptime_seconds),
-            machine.load
-        ));
-        let gateway = state.network.gateway.as_deref().unwrap_or("none");
-        self.network_widget.set_label(&format!(
-            "{}\nGateway: {gateway}",
-            ui::network_words(&state.network)
-        ));
-        self.disk_words.set_label(&format!(
-            "{} of {} used",
-            ui::size_words(machine.disk_used),
-            ui::size_words(machine.disk_total)
-        ));
-        if machine.disk_total > 0 {
-            self.disk_level
-                .set_value(machine.disk_used as f64 / machine.disk_total as f64);
+        self.bar.show(state);
+        self.widgets.show(state);
+        if !state.hospital.is_empty() {
+            self.greeting_name.set_label(&state.hospital);
         }
-        self.clock_warning.set_visible(!state.clock_synced);
-        if state.clock_synced {
-            self.clock.remove_css_class("warning");
-        } else {
-            self.clock.add_css_class("warning");
-        }
-        self.medbrains_ready.set(state.main_ready);
-        if state.main_ready && self.opening.replace(false) {
-            self.medbrains.open();
-        }
+        let attention = !state.machine.failed.is_empty() || state.machine.system == "degraded";
+        self.greeting_status
+            .set_label(&ui::status_sentence(&state.machine, state.main_ready));
+        ui::set_warning(&self.greeting_status, attention);
     }
 
-    /// Asks the machine now; a failure says so rather than leaving old figures up.
+    /// Asks the machine now. A failure says so, rather than leaving old figures up.
     fn refresh(&self) {
         let desktop = self.clone();
         api::fetch_state(move |result| match result {
             Ok(state) => desktop.show(&state),
-            Err(failure) => desktop.health.set_label(&failure.text()),
+            Err(failure) => {
+                desktop.greeting_status.set_label(&failure.text());
+                ui::set_warning(&desktop.greeting_status, true);
+            }
         });
     }
-}
-
-/// A titled card on the wallpaper.
-fn widget_card(title: &str, body: &gtk::Box) -> gtk::Box {
-    let card = ui::column(ui::GAP / 2);
-    card.add_css_class("widget");
-    card.append(&ui::label(title, "muted"));
-    card.append(body);
-    card
 }
 
 /// The launcher page: search over a grid of tiles for what actually exists.
@@ -236,19 +174,57 @@ fn launcher_page(desktop: &Rc<Desktop>) -> gtk::Box {
     page
 }
 
-/// The dock: the launcher and each app.
+/// One dock entry: a tile, its label under it, and an optional running marker.
+fn dock_app(icon: &gtk::Image, title: &str, brand: bool, marker: &gtk::Box) -> gtk::Button {
+    let tile = gtk::CenterBox::new();
+    tile.add_css_class("dock-tile");
+    if brand {
+        tile.add_css_class("brand");
+    }
+    tile.set_center_widget(Some(icon));
+    let body = ui::column(4);
+    body.append(&tile);
+    let words = ui::label(title, "dock-label");
+    words.set_xalign(0.5);
+    body.append(&words);
+    marker.add_css_class("running-dot");
+    marker.set_halign(gtk::Align::Center);
+    body.append(marker);
+    let button = gtk::Button::builder().child(&body).build();
+    button.add_css_class("dock-app");
+    ui::set_name(&button, title);
+    button
+}
+
+/// The dock: all apps, a line, then each app.
 fn dock(desktop: &Rc<Desktop>) -> gtk::Box {
-    let dock = ui::row(ui::GAP / 2);
+    let dock = ui::row(10);
     dock.add_css_class("dock");
     dock.set_halign(gtk::Align::Center);
     dock.set_valign(gtk::Align::End);
-    let launcher = ui::icon_button("view-app-grid-symbolic", "All apps");
+    dock.set_margin_bottom(18);
+    let grid = gtk::Image::from_icon_name("view-grid-symbolic");
+    grid.set_pixel_size(24);
+    let launcher = dock_app(&grid, "Apps", false, &ui::column(0));
     let target = Rc::clone(desktop);
     launcher.connect_clicked(move |_| target.show_launcher());
     dock.append(&launcher);
+    let line = ui::column(0);
+    line.add_css_class("dock-sep");
+    dock.append(&line);
     for app in APPS {
-        let button = gtk::Button::builder().child(&app.image(40)).build();
-        ui::set_name(&button, app.title());
+        let marker = if app == App::MedBrains {
+            desktop.running.clone()
+        } else {
+            ui::column(0)
+        };
+        let size = if app == App::MedBrains { 40 } else { 24 };
+        let button = dock_app(
+            &app.image(size),
+            app.title(),
+            app == App::MedBrains,
+            &marker,
+        );
         let target = Rc::clone(desktop);
         button.connect_clicked(move |_| target.open(app));
         dock.append(&button);
@@ -256,123 +232,56 @@ fn dock(desktop: &Rc<Desktop>) -> gtk::Box {
     dock
 }
 
-/// Settings: the network panel and what this machine is.
-fn settings_page() -> gtk::Widget {
-    let body = ui::column(ui::GAP);
-    body.append(&ui::label("Network", "heading"));
-    body.append(&network::panel());
-    body.append(&ui::label("This machine", "heading"));
-    let version = std::fs::read_to_string("/etc/os-release").unwrap_or_default();
-    let image = version
-        .lines()
-        .find_map(|line| line.strip_prefix("IMAGE_VERSION="));
-    let image = image.map(|value| value.trim_matches('"'));
-    body.append(&ui::label(
-        &format!("Image version: {}", image.unwrap_or("unknown")),
-        "",
-    ));
-    ui::page("Settings", "", &body, &ui::row(0))
+/// The greeting at the wallpaper's lower left.
+fn greeting(name: &gtk::Label, status: &gtk::Label) -> gtk::Box {
+    let greeting = ui::column(4);
+    greeting.set_halign(gtk::Align::Start);
+    greeting.set_valign(gtk::Align::End);
+    greeting.set_margin_start(64);
+    greeting.set_margin_bottom(150);
+    greeting.append(name);
+    greeting.append(status);
+    greeting
 }
 
-/// Builds the whole desktop and starts its timers.
-pub(crate) fn build() -> gtk::Box {
+/// Builds the whole desktop and starts its timer. `css` is what Settings re-themes.
+pub(crate) fn build(css: &gtk::CssProvider) -> gtk::Box {
     let root = ui::column(0);
-    let bar = gtk::CenterBox::new();
-    bar.add_css_class("topbar");
-    let left = ui::row(ui::GAP / 2);
-    let right = ui::row(ui::GAP / 2);
-    let home_button = gtk::Button::builder()
-        .icon_name("go-home-symbolic")
-        .visible(false)
-        .build();
-    ui::set_name(&home_button, "Home");
-    let title = ui::label("", "heading");
-    let brand = ui::label("MedBrains", "heading");
-    let network_status = ui::label("", "");
-    let (clock, clock_warning) = clock_button();
-    let health = ui::label("Checking…", "");
-    let memory = ui::label("", "");
-    let uptime = ui::label("", "muted");
-    let network_widget = ui::label("", "");
-    let disk_words = ui::label("", "");
-    let disk_level = gtk::LevelBar::builder()
-        .min_value(0.0)
-        .max_value(1.0)
-        .build();
-    let content = gtk::Stack::new();
+    root.add_css_class("wallpaper");
+    let content = ui::stack();
     content.set_vexpand(true);
+    let greeting_name = ui::label("MedBrains", "greeting-name");
+    let greeting_status = ui::label("This machine is starting.", "greeting-status");
+    let bar = TopBar::new();
     let desktop = Rc::new(Desktop {
         content: content.clone(),
-        home_button: home_button.clone(),
-        brand: brand.clone(),
-        title: title.clone(),
-        network_status: network_status.clone(),
-        clock: clock.clone(),
-        clock_warning,
-        health: health.clone(),
-        memory: memory.clone(),
-        uptime: uptime.clone(),
-        network_widget: network_widget.clone(),
-        disk_words: disk_words.clone(),
-        disk_level: disk_level.clone(),
+        bar: bar.clone(),
+        widgets: Widgets::new(),
+        greeting_name: greeting_name.clone(),
+        greeting_status: greeting_status.clone(),
         medbrains: WebApp::new(),
-        medbrains_ready: Rc::default(),
-        opening: Rc::default(),
+        running: ui::column(0),
     });
-    left.append(&brand);
-    left.append(&home_button);
-    left.append(&title);
-    right.append(&network_status);
-    right.append(&power_button());
-    bar.set_start_widget(Some(&left));
-    bar.set_center_widget(Some(&clock));
-    bar.set_end_widget(Some(&right));
-    root.append(&bar);
+    root.append(&bar.root);
 
     let home = gtk::Overlay::new();
-    home.add_css_class("wallpaper");
-    let widgets = ui::column(ui::GAP);
-    widgets.set_halign(gtk::Align::End);
-    widgets.set_valign(gtk::Align::Start);
-    widgets.set_margin_top(ui::GAP);
-    widgets.set_margin_end(ui::GAP);
-    let health_body = ui::column(ui::GAP / 4);
-    health_body.append(&health);
-    health_body.append(&memory);
-    health_body.append(&uptime);
-    widgets.append(&widget_card("Machine health", &health_body));
-    let network_body = ui::column(0);
-    network_body.append(&network_widget);
-    widgets.append(&widget_card("Network", &network_body));
-    let disk_body = ui::column(ui::GAP / 4);
-    disk_body.append(&disk_words);
-    disk_body.append(&disk_level);
-    widgets.append(&widget_card("Data disk", &disk_body));
-    home.add_overlay(&widgets);
-    let dock_bar = dock(&desktop);
-    dock_bar.set_margin_bottom(ui::GAP);
-    home.add_overlay(&dock_bar);
     home.set_child(Some(&ui::column(0)));
+    home.add_overlay(&greeting(&greeting_name, &greeting_status));
+    home.add_overlay(&desktop.widgets.root);
+    home.add_overlay(&dock(&desktop));
 
     content.add_named(&home, Some("home"));
     content.add_named(&launcher_page(&desktop), Some("launcher"));
     content.add_named(&desktop.medbrains.root, Some(App::MedBrains.page()));
-    content.add_named(&settings_page(), Some(App::Settings.page()));
+    content.add_named(&settings::page(css), Some(App::Settings.page()));
     root.append(&content);
 
     let target = Rc::clone(&desktop);
-    home_button.connect_clicked(move |_| target.go_home());
-
-    let target = Rc::clone(&desktop);
-    target.refresh();
-    let ticking = Rc::clone(&target);
+    bar.home.connect_clicked(move |_| target.go_home());
+    desktop.refresh();
+    let ticking = Rc::clone(&desktop);
     glib::timeout_add_local(REFRESH_EVERY, move || {
         ticking.refresh();
-        glib::ControlFlow::Continue
-    });
-    set_clock(&clock);
-    glib::timeout_add_seconds_local(CLOCK_SECONDS, move || {
-        set_clock(&clock);
         glib::ControlFlow::Continue
     });
     root

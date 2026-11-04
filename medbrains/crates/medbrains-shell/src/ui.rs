@@ -12,6 +12,8 @@ pub(crate) const GAP: i32 = 16;
 const FORM_WIDTH: i32 = 640;
 /// Longest line of text, in characters, so a sentence wraps instead of widening its card.
 const MEASURE: i32 = 64;
+/// How long a page takes to fade in.
+const FADE_MS: u32 = 160;
 const KIB: u64 = 1024;
 const MIB: u64 = KIB * KIB;
 const GIB: u64 = KIB * MIB;
@@ -52,6 +54,24 @@ pub(crate) fn set_name(widget: &(impl IsA<gtk::Widget> + IsA<gtk::Accessible>), 
     widget.update_property(&[gtk::accessible::Property::Label(name)]);
 }
 
+/// A stack that fades between its pages, in the time motion rules allow. `gtk-enable-animations`
+/// turns this off too, for people who ask for less motion.
+pub(crate) fn stack() -> gtk::Stack {
+    gtk::Stack::builder()
+        .transition_type(gtk::StackTransitionType::Crossfade)
+        .transition_duration(FADE_MS)
+        .build()
+}
+
+/// Marks a widget as a warning, or not.
+pub(crate) fn set_warning(widget: &impl IsA<gtk::Widget>, warning: bool) {
+    if warning {
+        widget.add_css_class("warning");
+    } else {
+        widget.remove_css_class("warning");
+    }
+}
+
 /// A vertical box.
 pub(crate) fn column(spacing: i32) -> gtk::Box {
     gtk::Box::new(gtk::Orientation::Vertical, spacing)
@@ -69,6 +89,8 @@ pub(crate) fn page(title: &str, intro: &str, body: &gtk::Box, actions: &gtk::Box
     form.set_width_request(FORM_WIDTH);
     form.set_halign(gtk::Align::Center);
     form.set_valign(gtk::Align::Center);
+    form.set_margin_top(GAP);
+    form.set_margin_bottom(GAP);
     form.append(&label(title, "title"));
     if !intro.is_empty() {
         form.append(&label(intro, ""));
@@ -92,40 +114,62 @@ pub(crate) fn size_words(bytes: u64) -> String {
     }
 }
 
-/// How long the machine has been on.
-pub(crate) fn uptime_words(seconds: u64) -> String {
-    let (days, hours, minutes) = (
-        seconds / 86_400,
-        seconds % 86_400 / 3_600,
-        seconds % 3_600 / 60,
-    );
-    match (days, hours) {
-        (0, 0) => format!("{minutes} min"),
-        (0, _) => format!("{hours} h {minutes} min"),
-        _ => format!("{days} d {hours} h"),
+/// The big word on the health widget.
+pub(crate) fn health_word(machine: &Machine, main_ready: bool) -> &'static str {
+    if machine.system == "degraded" || !machine.failed.is_empty() {
+        "Needs attention"
+    } else if machine.system == "running" && main_ready {
+        "Healthy"
+    } else {
+        "Starting"
     }
 }
 
-/// The overall health of the services, in one sentence.
-pub(crate) fn system_words(system: &str, main_ready: bool, set_up: bool) -> &'static str {
-    match (system, set_up && !main_ready) {
-        ("degraded", _) => "A service has a problem.",
-        (_, true) => "MedBrains is starting.",
-        ("running", false) => "All services are running.",
-        _ => "The machine is starting.",
+/// The greeting's plain sentence. It names what failed, so a person can say it on the phone.
+pub(crate) fn status_sentence(machine: &Machine, main_ready: bool) -> String {
+    match machine.failed.as_slice() {
+        [] if machine.system == "degraded" => "A service on this machine has a problem.".to_owned(),
+        [] if machine.system == "running" && main_ready => {
+            "Everything is running normally.".to_owned()
+        }
+        [] => "This machine is starting.".to_owned(),
+        [one] => format!("This service has a problem: {one}"),
+        many => format!("These services have a problem: {}", many.join(", ")),
+    }
+}
+
+/// The word for the clock's state in the Network widget, and whether it is a warning.
+pub(crate) fn clock_words(clock: &str) -> (&'static str, bool) {
+    match clock {
+        "verified" => ("Verified", false),
+        "checking" => ("Checking", false),
+        _ => ("Not confirmed", true),
     }
 }
 
 /// How much memory is in use.
 pub(crate) fn memory_words(machine: &Machine) -> String {
-    let used = machine
-        .memory_total_kb
-        .saturating_sub(machine.memory_available_kb);
+    let used = memory_used_kb(machine) * KIB;
     format!(
-        "{} of {} in use",
-        size_words(used * KIB),
+        "{} of {}",
+        size_words(used),
         size_words(machine.memory_total_kb * KIB)
     )
+}
+
+/// Memory in use, in kB, counted the way `free` does.
+const fn memory_used_kb(machine: &Machine) -> u64 {
+    machine
+        .memory_total_kb
+        .saturating_sub(machine.memory_available_kb)
+}
+
+/// Memory in use, from 0 to 1, for the widget's bars.
+pub(crate) fn memory_fraction(machine: &Machine) -> f64 {
+    if machine.memory_total_kb == 0 {
+        return 0.0;
+    }
+    memory_used_kb(machine) as f64 / machine.memory_total_kb as f64
 }
 
 /// The top bar's short word for the network.
@@ -150,8 +194,10 @@ pub(crate) fn reach_words(answer: Option<bool>, yes: &str, no: &str) -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::{network_words, reach_words, size_words, system_words, uptime_words};
-    use crate::api::{Link, Network};
+    use super::{
+        clock_words, health_word, network_words, reach_words, size_words, status_sentence,
+    };
+    use crate::api::{Link, Machine, Network};
 
     /// Builds a network with one link.
     fn one_link(cable: bool, addresses: &[&str]) -> Network {
@@ -175,38 +221,58 @@ mod tests {
         assert_eq!(network_words(&Network::default()), "No network card");
     }
 
-    /// A degraded machine must never read as healthy, whatever else is true.
+    /// Builds a machine in a given state.
+    fn machine(system: &str, failed: &[&str]) -> Machine {
+        Machine {
+            system: system.to_owned(),
+            failed: failed.iter().map(|name| (*name).to_owned()).collect(),
+            ..Machine::default()
+        }
+    }
+
+    /// A degraded machine must never read as healthy, and must say what failed.
     #[test]
-    fn a_problem_is_never_reported_as_running() {
+    fn a_problem_is_named_and_never_reported_as_healthy() {
+        let broken = machine("degraded", &["caddy.service"]);
+        assert_eq!(health_word(&broken, true), "Needs attention");
         assert_eq!(
-            system_words("degraded", true, true),
-            "A service has a problem."
+            status_sentence(&broken, true),
+            "This service has a problem: caddy.service"
+        );
+        let two = machine("degraded", &["a.service", "b.service"]);
+        assert_eq!(
+            status_sentence(&two, true),
+            "These services have a problem: a.service, b.service"
         );
         assert_eq!(
-            system_words("running", false, true),
-            "MedBrains is starting."
+            health_word(&machine("degraded", &[]), true),
+            "Needs attention"
+        );
+        assert_eq!(health_word(&machine("running", &[]), true), "Healthy");
+        assert_eq!(health_word(&machine("running", &[]), false), "Starting");
+        assert_eq!(
+            status_sentence(&machine("starting", &[]), true),
+            "This machine is starting."
         );
         assert_eq!(
-            system_words("running", true, true),
-            "All services are running."
+            status_sentence(&machine("running", &[]), true),
+            "Everything is running normally."
         );
-        assert_eq!(
-            system_words("running", false, false),
-            "All services are running."
-        );
-        assert_eq!(
-            system_words("starting", true, true),
-            "The machine is starting."
-        );
+    }
+
+    /// Red seconds after boot is what the owner saw: only a real failure may warn.
+    #[test]
+    fn only_a_real_clock_failure_warns() {
+        assert_eq!(clock_words("verified"), ("Verified", false));
+        assert_eq!(clock_words("checking"), ("Checking", false));
+        assert_eq!(clock_words("unconfirmed"), ("Not confirmed", true));
+        assert_eq!(clock_words(""), ("Not confirmed", true));
     }
 
     #[test]
     fn figures_are_said_in_everyday_units() {
         assert_eq!(size_words(1024 * 1024 * 300), "300 MB");
         assert_eq!(size_words(1024 * 1024 * 1024 * 3 / 2), "1.5 GB");
-        assert_eq!(uptime_words(125), "2 min");
-        assert_eq!(uptime_words(3_725), "1 h 2 min");
-        assert_eq!(uptime_words(90_000), "1 d 1 h");
         assert_eq!(reach_words(None, "y", "n"), "Checking…");
         assert_eq!(reach_words(Some(false), "y", "n"), "n");
     }

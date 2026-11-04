@@ -9,7 +9,7 @@ use std::process::Command;
 
 use serde_json::{Value, json};
 
-use crate::rules;
+use crate::{rules, status};
 
 /// Set once the main-machine role is chosen; nothing later asks again.
 const ROLE_MAIN: &str = "/var/lib/medbrains/config/role-main";
@@ -19,11 +19,9 @@ const LIVE_NETWORK: &str = "/run/systemd/network/10-medbrains-fixed.network";
 /// Where a confirmed address is kept: the data partition, since the root becomes read-only.
 /// `medbrains-network-settings.service` copies it to `LIVE_NETWORK` at boot.
 const SAVED_NETWORK: &str = "/var/lib/medbrains/network/10-medbrains-fixed.network";
-const SERVER_HEALTH: &str = "http://127.0.0.1:3000/api/health";
-const DATA_MOUNT: &str = "/var";
 
 /// Runs a command and returns its output if it succeeded.
-fn output(program: &str, args: &[&str]) -> Option<Vec<u8>> {
+pub(crate) fn output(program: &str, args: &[&str]) -> Option<Vec<u8>> {
     let done = Command::new(program).args(args).output().ok()?;
     done.status.success().then_some(done.stdout)
 }
@@ -40,93 +38,8 @@ pub(crate) fn is_set_up() -> bool {
     Path::new(ROLE_MAIN).exists()
 }
 
-/// Everything the desktop shows. Asks only this machine, so polling it sends nothing out.
-pub(crate) fn state() -> Value {
-    let set_up = is_set_up();
-    json!({
-        "set_up": set_up,
-        "main_ready": set_up && output("curl", &["-fsS", "-m", "2", "-o", "/dev/null", SERVER_HEALTH]).is_some(),
-        "clock_synced": clock_synced(),
-        "machine": machine_health(),
-        "network": network_links(),
-    })
-}
-
-/// Whether chrony has a time source it believes.
-fn clock_synced() -> bool {
-    output("chronyc", &["-n", "tracking"])
-        .is_some_and(|raw| is_clock_trusted(&String::from_utf8_lossy(&raw)))
-}
-
-/// Reads `chronyc tracking`. "Normal" alone is not enough: chrony also serves the LAN from
-/// its own clock when cut off (`local orphan`), and then names itself, 127.127.1.1, as source.
-fn is_clock_trusted(tracking: &str) -> bool {
-    let value = |wanted: &str| {
-        tracking.lines().find_map(|line| {
-            let (key, value) = line.split_once(':')?;
-            (key.trim() == wanted).then(|| value.trim())
-        })
-    };
-    value("Leap status") == Some("Normal")
-        && !value("Reference ID").is_some_and(|id| id.starts_with("7F7F0101"))
-}
-
-/// Memory, load, uptime, disk and the overall state of the services.
-fn machine_health() -> Value {
-    let meminfo = fs::read_to_string("/proc/meminfo").unwrap_or_default();
-    let uptime = fs::read_to_string("/proc/uptime").unwrap_or_default();
-    let load = fs::read_to_string("/proc/loadavg").unwrap_or_default();
-    let df = output("df", &["-B1", "--output=size,used", DATA_MOUNT]).unwrap_or_default();
-    let (disk_total, disk_used) = parse_df(&String::from_utf8_lossy(&df)).unwrap_or((0, 0));
-    // `is-system-running` exits non-zero when degraded, and that is the answer we want.
-    let system = Command::new("systemctl")
-        .arg("is-system-running")
-        .output()
-        .map_or_else(
-            |_| String::new(),
-            |o| String::from_utf8_lossy(&o.stdout).trim().to_owned(),
-        );
-    json!({
-        "system": system,
-        "memory_total_kb": meminfo_kb(&meminfo, "MemTotal"),
-        "memory_available_kb": meminfo_kb(&meminfo, "MemAvailable"),
-        "load": load.split_whitespace().next().unwrap_or(""),
-        "uptime_seconds": first_number(&uptime),
-        "disk_total": disk_total,
-        "disk_used": disk_used,
-    })
-}
-
-/// One value from `/proc/meminfo`, in kB.
-fn meminfo_kb(meminfo: &str, key: &str) -> u64 {
-    meminfo
-        .lines()
-        .find_map(|line| {
-            line.strip_prefix(key)?
-                .strip_prefix(':')?
-                .split_whitespace()
-                .next()
-        })
-        .and_then(|value| value.parse().ok())
-        .unwrap_or(0)
-}
-
-/// The first whole number in a text such as `/proc/uptime`.
-fn first_number(text: &str) -> u64 {
-    text.split(['.', ' '])
-        .next()
-        .and_then(|n| n.parse().ok())
-        .unwrap_or(0)
-}
-
-/// Size and used bytes from `df --output=size,used`.
-fn parse_df(df: &str) -> Option<(u64, u64)> {
-    let mut fields = df.lines().nth(1)?.split_whitespace();
-    Some((fields.next()?.parse().ok()?, fields.next()?.parse().ok()?))
-}
-
 /// Links, addresses and the gateway. Nothing here leaves the machine.
-fn network_links() -> Value {
+pub(crate) fn network_links() -> Value {
     let addresses = json_output("ip", &["-j", "addr", "show"]);
     let routes = json_output("ip", &["-j", "-4", "route", "show", "default"]);
     let wifi = fs::read_dir("/sys/class/net").is_ok_and(|dir| {
@@ -277,6 +190,7 @@ pub(crate) fn start_main_machine(
 ) -> Result<(), String> {
     let env = fs::read_to_string(ENV_FILE).map_err(|e| e.to_string())?;
     write_env(&rules::env_with_seed(&env, hospital, username, password))?;
+    fs::write(status::HOSPITAL_NAME, hospital.trim()).map_err(|e| e.to_string())?;
     fs::File::create(ROLE_MAIN)
         .and_then(|marker| marker.sync_all())
         .map_err(|e| e.to_string())?;
@@ -302,33 +216,8 @@ pub(crate) fn power(action: &str) -> Result<(), String> {
 
 #[cfg(test)]
 mod tests {
-    use super::{first_number, is_clock_trusted, meminfo_kb, parse_df, summarise_links};
+    use super::summarise_links;
     use serde_json::json;
-
-    #[test]
-    fn the_clock_is_trusted_only_with_a_real_time_source() {
-        let tracking = |id, leap| format!("Reference ID    : {id}\nLeap status     : {leap}\n");
-        assert!(is_clock_trusted(&tracking(
-            "A29FC801 (162.159.200.1)",
-            "Normal"
-        )));
-        assert!(!is_clock_trusted(&tracking(
-            "00000000 ()",
-            "Not synchronised"
-        )));
-        assert!(!is_clock_trusted(&tracking("7F7F0101 ()", "Normal")));
-        assert!(!is_clock_trusted(""));
-    }
-
-    #[test]
-    fn health_figures_are_read_from_the_kernels_own_format() {
-        let meminfo = "MemTotal:        4015024 kB\nMemAvailable:    3000000 kB\n";
-        assert_eq!(meminfo_kb(meminfo, "MemAvailable"), 3_000_000);
-        assert_eq!(meminfo_kb(meminfo, "Mem"), 0);
-        assert_eq!(first_number("86.13 300.2\n"), 86);
-        assert_eq!(parse_df("1B-blocks Used\n 1000 200\n"), Some((1000, 200)));
-        assert_eq!(parse_df(""), None);
-    }
 
     /// The network screen must tell a pulled cable from a working link.
     #[test]
