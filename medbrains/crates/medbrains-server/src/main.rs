@@ -756,7 +756,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Graceful shutdown: stop accepting new connections on SIGTERM/SIGINT
     // and let in-flight requests (and their transactions) finish instead
     // of aborting mid-write on every deploy restart.
-    axum::serve(listener, app)
+    // Not `axum::serve(listener, app)`: that form copies the whole route table for every
+    // connection, about 28 MB each and 60 times slower to open one (DECISIONS, 2026-11-04).
+    axum::serve(listener, app.into_make_service())
         .with_graceful_shutdown(shutdown_signal())
         .await?;
 

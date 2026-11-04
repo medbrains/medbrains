@@ -44,6 +44,7 @@ built. *Proposed* is waiting for the owner. *Rejected* was considered and turned
 | 2026-11-04 | Known dependency flaws cleared: `zstd` and `zstd-safe` patched, old `zip` removed by the updater upgrade, `calamine` 0.38, yanked `async-executor` updated; the three `zip` exceptions deleted | this PR |
 | 2026-11-04 | An OS machine serves one hospital, so its sign-in asks for no hospital code; `MEDBRAINS_SINGLE_HOSPITAL` refuses sign-in unless exactly one hospital is active | this PR |
 | 2026-11-04 | OS code follows flight rules: NASA's Power of Ten adapted to Rust, failure tables, fault injection, physics limits, proven algorithms. No allocation after start-up cannot hold for a web server, so budgets and limits replace it. No claim of NASA compliance | `docs/OS-PRINCIPLES.md` section 7 |
+| 2026-11-04 | Found why reused connections grew the server: `axum::serve(listener, app)` copied the whole route table per connection. With `into_make_service()`, 100 held connections went from 1,804 MB to 126 MB and a new connection from 124 ms to 1.9 ms (debug build). Proxy keepalive is back on | this PR |
 
 ## Decisions
 
