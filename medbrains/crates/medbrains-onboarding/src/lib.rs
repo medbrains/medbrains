@@ -20,6 +20,7 @@ use medbrains_server_core::{
     error::AppError,
     middleware::{
         auth::{Claims, encode_jwt},
+        client_ip::ClientIp,
         cookies::{build_access_cookie, build_csrf_cookie, build_refresh_cookie},
     },
     state::AppState,
@@ -135,6 +136,7 @@ pub struct InitResponse {
 #[allow(clippy::too_many_lines)]
 pub async fn init(
     State(state): State<AppState>,
+    client_ip: Option<Extension<ClientIp>>,
     headers: axum::http::HeaderMap,
     Json(body): Json<InitRequest>,
 ) -> Result<impl IntoResponse, AppError> {
@@ -148,7 +150,7 @@ pub async fn init(
             "Tell us about your facility to start a trial".to_owned(),
         ));
     }
-    let signup_ip = trial::client_ip(&headers);
+    let signup_ip = client_ip.map(|Extension(ip)| ip.as_str());
     if is_trial {
         trial::throttle(&state.db, signup_ip.as_deref()).await?;
     }

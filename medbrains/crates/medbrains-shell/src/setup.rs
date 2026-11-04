@@ -11,12 +11,14 @@ use serde_json::json;
 use crate::api::{self, Failure};
 use crate::join;
 use crate::network;
+use crate::timezone;
 use crate::ui;
 
 /// The setup screens.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum Step {
     Network,
+    Time,
     Updates,
     Purpose,
     Connecting,
@@ -29,6 +31,7 @@ impl Step {
     const fn name(self) -> &'static str {
         match self {
             Self::Network => "network",
+            Self::Time => "time",
             Self::Updates => "updates",
             Self::Purpose => "purpose",
             Self::Connecting => "connecting",
@@ -41,7 +44,8 @@ impl Step {
     const fn back(self) -> Option<Self> {
         match self {
             Self::Network => None,
-            Self::Updates => Some(Self::Network),
+            Self::Time => Some(Self::Network),
+            Self::Updates => Some(Self::Time),
             Self::Purpose => Some(Self::Updates),
             Self::Connecting | Self::Details => Some(Self::Purpose),
             Self::Review => Some(Self::Details),
@@ -90,10 +94,18 @@ impl Flow {
 
 /// The network screen.
 fn network_page(flow: &Flow) -> gtk::Widget {
-    let next = flow.continue_to(Step::Updates);
+    let next = flow.continue_to(Step::Time);
     let actions = flow.actions(Step::Network, Some(&next));
     let intro = "On a cable there is nothing to do here. No internet is fine.";
-    ui::page("Network", intro, &network::panel(), &actions)
+    ui::page("Network", intro, &network::panel(None), &actions)
+}
+
+/// The time zone screen. Asia/Kolkata unless changed; changing it takes effect at once.
+fn time_page(flow: &Flow) -> gtk::Widget {
+    let next = flow.continue_to(Step::Updates);
+    let actions = flow.actions(Step::Time, Some(&next));
+    let words = "The clock sets itself when this machine can reach a time server.";
+    ui::page("Time zone", words, &timezone::chooser(), &actions)
 }
 
 /// The updates screen. It says what is true: there is nothing to install from yet.
@@ -258,10 +270,17 @@ fn review_page(flow: &Flow, finished: Rc<dyn Fn()>) -> (gtk::Widget, Rc<dyn Fn()
                 *flow.draft.borrow_mut() = Default::default();
                 finished();
             }
-            Err(failure) => {
-                problem.set_label(&failure.text());
-                sending.set_sensitive(true);
-            }
+            // It may have got further than the answer says. Reads the truth before saying anything,
+            // so a machine already set up moves on rather than offering a dead end.
+            Err(failure) => api::fetch_state(move |state| {
+                if state.is_ok_and(|state| state.set_up) {
+                    *flow.draft.borrow_mut() = Default::default();
+                    finished();
+                } else {
+                    problem.set_label(&failure.text());
+                    sending.set_sensitive(true);
+                }
+            }),
         });
     });
 
@@ -277,7 +296,7 @@ fn review_page(flow: &Flow, finished: Rc<dyn Fn()>) -> (gtk::Widget, Rc<dyn Fn()
 
 /// Builds the whole flow. `finished` runs once the service has started the main machine.
 pub(crate) fn build(finished: impl Fn() + 'static) -> gtk::Stack {
-    let stack = gtk::Stack::new();
+    let stack = ui::stack();
     let flow = Flow {
         stack: stack.clone(),
         draft: Rc::default(),
@@ -285,6 +304,7 @@ pub(crate) fn build(finished: impl Fn() + 'static) -> gtk::Stack {
     let finished: Rc<dyn Fn()> = Rc::new(finished);
     let (review, refresh) = review_page(&flow, Rc::clone(&finished));
     stack.add_named(&network_page(&flow), Some(Step::Network.name()));
+    stack.add_named(&time_page(&flow), Some(Step::Time.name()));
     stack.add_named(&updates_page(&flow), Some(Step::Updates.name()));
     stack.add_named(&purpose_page(&flow), Some(Step::Purpose.name()));
     stack.add_named(&connecting_page(&flow, finished), Some(Step::Connecting.name()));
@@ -310,6 +330,6 @@ mod tests {
             step = previous;
             hops += 1;
         }
-        assert_eq!((step, hops), (Step::Network, 4));
+        assert_eq!((step, hops), (Step::Network, 5));
     }
 }

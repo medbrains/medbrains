@@ -9,6 +9,9 @@ pg_dropcluster --stop 17 main 2>/dev/null || true
 rm -rf /etc/postgresql /var/lib/postgresql/17
 ln -s /var/lib/postgresql/conf /etc/postgresql
 
+# The time zone lives on the data partition, because the root will become read-only.
+ln -sfn /var/lib/medbrains-settings/localtime /etc/localtime
+
 # Secrets live on the data partition.
 ln -sfn /var/lib/medbrains/config /etc/medbrains
 
@@ -24,6 +27,8 @@ systemctl enable nftables chrony systemd-networkd systemd-resolved systemd-repar
 # Only medbrains-main.target starts these, and only once setup has finished, so nothing
 # answers on the network before then. Debian's packages enable them by default.
 systemctl disable caddy postgresql 2>/dev/null || true
+# A udev rule starts iwd when a Wi-Fi card appears, so a wired machine doesn't pay for it.
+systemctl disable iwd 2>/dev/null || true
 # chrony.service serves the LAN its time. Debian's restricted variant cannot open the port, and
 # whichever of the two starts first wins, so the LAN's time was down on some boots. chrony-wait
 # would hold the boot for the internet, which setup must never need.

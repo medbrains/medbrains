@@ -88,8 +88,8 @@ impl Node {
             standing: Mutex::new(Standing { state: "idle".to_owned(), code: None }),
             tunnel_open: AtomicBool::new(false),
         });
-        if let Some(joined) = node.joined() {
-            node.open_tunnel(joined).await?;
+        if node.joined().is_some() {
+            node.open_tunnel().await?;
         }
         Ok(node)
     }
@@ -232,7 +232,7 @@ impl Node {
                         certificate: status.certificate.context("approved with no certificate")?,
                     };
                     self.write_joined(&joined)?;
-                    self.open_tunnel(joined).await?;
+                    self.open_tunnel().await?;
                     self.set_standing("approved", Some(code));
                     return Ok(());
                 }
@@ -253,6 +253,31 @@ impl Node {
         Ok(())
     }
 
+    /// Connects to the joined main machine by its key. The saved addresses are a first guess, read
+    /// fresh each time so a typed one takes effect; mDNS says where the key is now.
+    async fn dial_main(&self, alpn: &[u8]) -> anyhow::Result<Connection> {
+        let joined = self.joined().context("this machine has not joined")?;
+        self.dial(joined.main_id.parse()?, &joined.addresses, alpn).await
+    }
+
+    /// Looks for the joined main machine at a typed address, for a network where mDNS cannot find
+    /// it. The key was fixed when a person approved this machine and never changes here: whatever
+    /// answers with another key is refused, and the saved address stays as it was.
+    pub(crate) async fn readdress(&self, address: IpAddr) -> anyhow::Result<()> {
+        self.readdress_at(address, WHOAMI_PORT, IROH_PORT).await
+    }
+
+    /// `readdress`, with the ports spelled out.
+    pub(crate) async fn readdress_at(&self, address: IpAddr, whoami: u16, iroh: u16) -> anyhow::Result<()> {
+        let mut joined = self.joined().context("This machine has not joined.")?;
+        let found = self.find_at(address, whoami, iroh).await.context("Nothing answered at that address.")?;
+        if found.id != joined.main_id {
+            bail!("A different machine answered at that address, so nothing was changed. Check the address, and tell your administrator.");
+        }
+        joined.addresses = found.addresses;
+        self.write_joined(&joined)
+    }
+
     /// Connects to the main machine by its key; nothing else can answer.
     async fn dial(&self, id: EndpointId, addresses: &[SocketAddr], alpn: &[u8]) -> anyhow::Result<Connection> {
         let mut addr = EndpointAddr::new(id);
@@ -264,26 +289,26 @@ impl Node {
     }
 
     /// Opens the screen's loopback path to the main machine. Only ever once.
-    async fn open_tunnel(self: &Arc<Self>, joined: Joined) -> anyhow::Result<()> {
+    async fn open_tunnel(self: &Arc<Self>) -> anyhow::Result<()> {
         if self.tunnel_open.swap(true, Ordering::SeqCst) {
             return Ok(());
         }
         let listener = TcpListener::bind(self.screen_port).await.context("the screen's port")?;
         let clock = UdpSocket::bind(SocketAddr::new(self.screen_port.ip(), NODE_TIME_PORT)).await;
         let this = Arc::clone(self);
-        let (time_joined, time_node) = (joined.clone(), Arc::clone(self));
+        let time_node = Arc::clone(self);
         match clock {
-            Ok(socket) => drop(tokio::spawn(async move { time_node.relay_time_forever(socket, time_joined).await })),
+            Ok(socket) => drop(tokio::spawn(async move { time_node.relay_time_forever(socket).await })),
             // Only a second agent on the test machine: the screen still works, the clock says so.
             Err(error) => tracing::warn!(%error, "no time relay"),
         }
-        tokio::spawn(async move { this.carry_forever(listener, joined).await });
+        tokio::spawn(async move { this.carry_forever(listener).await });
         Ok(())
     }
 
     /// Relays chrony's packets to the main machine for as long as the agent runs; one at a time,
     /// which is plenty at chrony's rate, and each with a time limit.
-    async fn relay_time_forever(self: Arc<Self>, socket: UdpSocket, joined: Joined) {
+    async fn relay_time_forever(self: Arc<Self>, socket: UdpSocket) {
         let mut buffer = [0_u8; 1024];
         let mut held: Option<Connection> = None;
         loop {
@@ -293,7 +318,7 @@ impl Node {
             if !is_time_packet(read) {
                 continue;
             }
-            match self.ask_time(&mut held, &joined, &buffer[..read]).await {
+            match self.ask_time(&mut held, &buffer[..read]).await {
                 Ok(answer) => drop(socket.send_to(&answer, from).await),
                 Err(error) => tracing::info!(%error, "no answer from the main machine's clock"),
             }
@@ -304,12 +329,10 @@ impl Node {
     async fn ask_time(
         &self,
         held: &mut Option<Connection>,
-        joined: &Joined,
         question: &[u8],
     ) -> anyhow::Result<Vec<u8>> {
         if held.as_ref().is_none_or(|conn| conn.close_reason().is_some()) {
-            let id = joined.main_id.parse()?;
-            *held = Some(self.dial(id, &joined.addresses, TIME_ALPN).await?);
+            *held = Some(self.dial_main(TIME_ALPN).await?);
         }
         let conn = held.as_ref().context("no connection")?;
         ask_main(conn, question).await
@@ -317,7 +340,7 @@ impl Node {
 
     /// Carries each connection from the screen over one iroh connection, which is dialled again
     /// when it has dropped. Knows nothing about what it carries: TLS ends at the main machine.
-    async fn carry_forever(self: Arc<Self>, listener: TcpListener, joined: Joined) {
+    async fn carry_forever(self: Arc<Self>, listener: TcpListener) {
         let conn: Arc<tokio::sync::Mutex<Option<Connection>>> = Arc::default();
         let limit = Arc::new(Semaphore::new(MAX_STREAMS));
         loop {
@@ -327,10 +350,10 @@ impl Node {
             let Ok(permit) = Arc::clone(&limit).try_acquire_owned() else {
                 continue;
             };
-            let (this, conn, joined) = (Arc::clone(&self), Arc::clone(&conn), joined.clone());
+            let (this, conn) = (Arc::clone(&self), Arc::clone(&conn));
             tokio::spawn(async move {
                 let _permit = permit;
-                if let Err(error) = this.carry(screen, &conn, &joined).await {
+                if let Err(error) = this.carry(screen, &conn).await {
                     tracing::warn!(%error, "could not reach the main machine");
                 }
             });
@@ -342,15 +365,13 @@ impl Node {
         &self,
         mut screen: TcpStream,
         conn: &tokio::sync::Mutex<Option<Connection>>,
-        joined: &Joined,
     ) -> anyhow::Result<()> {
         let tunnel = {
             let mut held = conn.lock().await;
             match held.as_ref().filter(|c| c.close_reason().is_none()) {
                 Some(open) => open.clone(),
                 None => {
-                    let id = joined.main_id.parse()?;
-                    let dialled = self.dial(id, &joined.addresses, TUNNEL_ALPN).await?;
+                    let dialled = self.dial_main(TUNNEL_ALPN).await?;
                     *held = Some(dialled.clone());
                     dialled
                 }

@@ -338,6 +338,40 @@ async fn a_stale_saved_address_does_not_lose_the_main_machine() -> anyhow::Resul
     Ok(())
 }
 
+/// A network with no mDNS: a person types where the main machine went. Only the same key may move
+/// the saved address, or typing an address could hand the screen to another machine.
+#[tokio::test]
+async fn a_typed_address_is_taken_only_from_the_same_key() -> anyhow::Result<()> {
+    let server = FakeServer::new(Uuid::new_v4(), JoinState::Pending);
+    let (real, addr) = gateway(Arc::clone(&server)).await?;
+    let socket = UdpSocket::bind("127.0.0.1:0").await?;
+    let port = socket.local_addr()?.port();
+    tokio::spawn(Arc::clone(&real).whoami_forever(socket));
+
+    let dir = tempfile::tempdir()?;
+    let joined = |main_id: String| Joined {
+        main_id,
+        addresses: vec![SocketAddr::from(([127, 0, 0, 1], 9))],
+        kind: Kind::Workstation,
+        hospital: "City Hospital".to_owned(),
+        certificate: CERTIFICATE.to_owned(),
+    };
+    let file = dir.path().join("joined.json");
+    std::fs::write(&file, serde_json::to_vec(&joined(addr.id.to_string()))?)?;
+    let node = Node::start(endpoint(Vec::new()).await?, dir.path(), free_port().await?).await?;
+    node.readdress_at([127, 0, 0, 1].into(), port, 7844).await?;
+    let moved = node.joined().ok_or_else(|| anyhow::anyhow!("nothing saved"))?;
+    assert_eq!(moved.addresses, vec![SocketAddr::from(([127, 0, 0, 1], 7844))]);
+
+    let other = SecretKey::generate().public().to_string();
+    std::fs::write(&file, serde_json::to_vec(&joined(other.clone()))?)?;
+    let refused = node.readdress_at([127, 0, 0, 1].into(), port, 7844).await;
+    assert!(refused.is_err(), "a different key must be refused");
+    let kept = node.joined().ok_or_else(|| anyhow::anyhow!("nothing saved"))?;
+    assert_eq!((kept.main_id, kept.addresses), (other, vec![SocketAddr::from(([127, 0, 0, 1], 9))]));
+    Ok(())
+}
+
 /// A rejected, expired or refused request leaves a machine with nothing.
 #[tokio::test]
 async fn a_refused_request_leaves_nothing_behind() -> anyhow::Result<()> {

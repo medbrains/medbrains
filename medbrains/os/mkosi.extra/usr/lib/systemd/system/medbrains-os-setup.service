@@ -1,5 +1,5 @@
-# First-boot setup and machine controls for the screen. Root, because it writes the network
-# and the env and powers the machine off; loopback only, and every call needs the token.
+# First-boot setup and machine controls for the screen. Root, because it writes the network and the
+# env and powers the machine off; on a Unix socket only the screen's group can open.
 [Unit]
 Description=MedBrains setup and machine controls
 After=systemd-tmpfiles-setup.service
@@ -10,9 +10,20 @@ ExecStart=/usr/bin/medbrains-os-setup
 Restart=always
 RestartSec=2s
 ProtectSystem=strict
-ReadWritePaths=/run/medbrains-console /run/systemd/network /var/lib/medbrains/config /var/lib/medbrains/network /var/lib/kiosk
+ReadWritePaths=/run/medbrains-console /run/systemd/network /var/lib/medbrains/config /var/lib/medbrains/network /var/lib/medbrains-settings /var/lib/iwd /var/lib/kiosk
 ProtectHome=yes
 PrivateTmp=yes
+NoNewPrivileges=yes
+# chown and read through other users' directories for the env and socket; nft and networkctl need
+# net admin; ping needs raw sockets; reading which program connected to the socket needs sys_ptrace.
+CapabilityBoundingSet=CAP_CHOWN CAP_DAC_OVERRIDE CAP_FOWNER CAP_NET_ADMIN CAP_NET_RAW CAP_SYS_PTRACE
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6 AF_NETLINK
+RestrictSUIDSGID=yes
+SystemCallFilter=@system-service
+ProtectKernelTunables=yes
+PrivateDevices=yes
+# The helpers count too, and a stuck one is killed at its limit long before this.
+MemoryMax=128M
 ProtectKernelModules=yes
 ProtectKernelLogs=yes
 ProtectControlGroups=yes

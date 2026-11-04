@@ -1,135 +1,291 @@
-//! The top bar's two menus: the clock with its calendar, and power.
+//! The top bar: who this machine is, the clock with its calendar, what is true right now, power.
 
-use std::cell::Cell;
+use std::cell::RefCell;
 use std::rc::Rc;
 
 use gtk4 as gtk;
 use gtk4::glib;
-use gtk4::prelude::{BoxExt, ButtonExt, PopoverExt, WidgetExt};
-use serde_json::json;
+use gtk4::prelude::{BoxExt, WidgetExt};
 
-use crate::{api, ui};
+use crate::api::{Network, State};
+use crate::{netmenu, power, timezone, ui};
 
-/// Wide enough for the longer question and both its answers.
-const POWER_MENU_WIDTH: i32 = 288;
+/// The logo, staged by `os/build.sh`.
+const LOGO: &str = "/usr/share/medbrains/shell/logo.svg";
+/// How often the clock is redrawn. Its text changes once a minute.
+const CLOCK_SECONDS: u32 = 5;
+/// What this machine is, by the role setup gave it.
+const fn role_words(role: &str) -> &'static str {
+    match role.as_bytes() {
+        b"node" => "Connected machine",
+        _ => "Main machine",
+    }
+}
 
-/// The calendar panel the clock opens, with the time zone and any clock warning.
-pub(crate) fn clock_button() -> (gtk::MenuButton, gtk::Label) {
+/// What is on screen below the bar.
+#[derive(Debug, Clone, Copy)]
+pub(crate) enum Screen<'a> {
+    Desktop,
+    Launcher,
+    App { name: &'a str, reloads: bool },
+}
+
+/// The parts of the bar that change after they are built.
+#[derive(Clone)]
+pub(crate) struct TopBar {
+    pub(crate) root: gtk::CenterBox,
+    pub(crate) home: gtk::Button,
+    pub(crate) close: gtk::Button,
+    pub(crate) reload: gtk::Button,
+    name: gtk::Label,
+    role: gtk::Label,
+    day: gtk::Label,
+    time: gtk::Label,
+    zone: gtk::Label,
+    clock_note: gtk::Label,
+    /// Stay on the bar over an app too: certificates and audit depend on the time, and a page that
+    /// cannot reach the main machine may only look slow.
+    time_alert: gtk::Label,
+    main_alert: gtk::Label,
+    machine_role: Rc<std::cell::Cell<&'static str>>,
+    /// The zone's name, because GLib's idea of "local" is read once and setup may change it.
+    zone_name: Rc<RefCell<String>>,
+    firewall_dot: gtk::Box,
+    firewall_words: gtk::Label,
+    network_icon: gtk::Image,
+    network_words: gtk::Label,
+}
+
+/// A small icon, with words beside it.
+fn chip(icon: &gtk::Image, words: &gtk::Label) -> gtk::Box {
+    let chip = ui::row(6);
+    chip.add_css_class("chip");
+    chip.append(icon);
+    chip.append(words);
+    chip
+}
+
+/// The word for the firewall, which `/state` checks by asking nftables.
+const fn firewall_words(on: bool) -> &'static str {
+    if on { "Firewall on" } else { "Firewall off" }
+}
+
+/// What the clock's panel says about whether the time can be trusted.
+const fn clock_note(clock: &str) -> &'static str {
+    match clock.as_bytes() {
+        b"verified" => "The time is confirmed by an authenticated source.",
+        b"checking" => "Checking the time with a time server.",
+        _ => "This machine could not confirm the time, so it may be wrong. A workstation or display \
+              gets its time from the main machine, so check that one first.",
+    }
+}
+
+impl TopBar {
+    /// Builds the bar and starts its clock.
+    pub(crate) fn new(
+        open_settings: Rc<dyn Fn()>,
+        power_accepted: Rc<dyn Fn(&'static str)>,
+    ) -> Self {
+        let root = gtk::CenterBox::new();
+        root.add_css_class("topbar");
+
+        let left = ui::row(ui::GAP / 2 + 4);
+        let close = ui::icon_button("window-close-symbolic", "Close (Ctrl+W)");
+        let home = ui::icon_button("go-home-symbolic", "Home (Alt+Home)");
+        let reload = ui::icon_button("view-refresh-symbolic", "Reload (F5)");
+        for control in [&close, &home, &reload] {
+            control.set_visible(false);
+            left.append(control);
+        }
+        let logo = gtk::Image::from_file(LOGO);
+        logo.set_pixel_size(20);
+        let name = ui::line("MedBrains", "heading");
+        let role = ui::line(role_words(""), "muted");
+        left.append(&logo);
+        left.append(&name);
+        left.append(&role);
+
+        let right = ui::row(ui::GAP);
+        let firewall_dot = ui::column(0);
+        firewall_dot.add_css_class("dot");
+        firewall_dot.set_valign(gtk::Align::Center);
+        let firewall_words = ui::line("", "");
+        let network_icon = gtk::Image::from_icon_name(netmenu::icon_name(&Network::default()));
+        let network_words = ui::line("", "");
+        let firewall = chip(
+            &gtk::Image::from_icon_name("security-high-symbolic"),
+            &firewall_words,
+        );
+        firewall.prepend(&firewall_dot);
+        right.append(&firewall);
+        right.append(&netmenu::button(
+            &chip(&network_icon, &network_words),
+            open_settings,
+        ));
+        right.append(&power::button(power_accepted));
+
+        let zone_name = Rc::new(RefCell::new("UTC".to_owned()));
+        let (day, time) = (ui::line("", ""), ui::line("", "heading"));
+        let (zone, clock_note) = (ui::label("", "muted"), ui::label("", "muted"));
+        clock_note.set_max_width_chars(36);
+        root.set_start_widget(Some(&left));
+        let time_alert = ui::line("Time not confirmed", "problem");
+        let main_alert = ui::line("Cannot reach the main machine", "problem");
+        time_alert.set_visible(false);
+        main_alert.set_visible(false);
+        let center = ui::row(ui::GAP / 2);
+        center.append(&clock_button(&zone_name, &day, &time, &zone, &clock_note));
+        center.append(&time_alert);
+        center.append(&main_alert);
+        root.set_center_widget(Some(&center));
+        root.set_end_widget(Some(&right));
+        let bar = Self {
+            root,
+            home,
+            close,
+            reload,
+            name,
+            role,
+            day,
+            time,
+            zone,
+            clock_note,
+            time_alert,
+            main_alert,
+            machine_role: Rc::new(std::cell::Cell::new(role_words(""))),
+            zone_name,
+            firewall_dot,
+            firewall_words,
+            network_icon,
+            network_words,
+        };
+        bar.draw_clock();
+        let ticking = bar.clone();
+        glib::timeout_add_seconds_local(CLOCK_SECONDS, move || {
+            ticking.draw_clock();
+            glib::ControlFlow::Continue
+        });
+        bar
+    }
+
+    /// Shows what is on screen in place of the machine's role, with the controls that apply.
+    /// `Apps` is the launcher, which has Home only; `App` also offers Close, and Reload if it
+    /// is a web view.
+    pub(crate) fn show_screen(&self, screen: Screen<'_>) {
+        let (title, can_close, can_reload) = match screen {
+            Screen::Desktop => (self.machine_role.get(), false, false),
+            Screen::Launcher => ("Apps", false, false),
+            Screen::App { name, reloads } => (name, true, reloads),
+        };
+        self.home.set_visible(!matches!(screen, Screen::Desktop));
+        self.close.set_visible(can_close);
+        self.reload.set_visible(can_reload);
+        self.role.set_label(title);
+    }
+
+    /// Shows one poll of the machine.
+    pub(crate) fn show(&self, state: &State) {
+        if !state.hospital.is_empty() {
+            self.name.set_label(&state.hospital);
+        }
+        self.firewall_words
+            .set_label(firewall_words(state.firewall));
+        ui::set_warning(&self.firewall_dot, !state.firewall);
+        self.network_icon
+            .set_icon_name(Some(netmenu::icon_name(&state.network)));
+        self.network_words
+            .set_label(&ui::network_words(&state.network));
+        self.clock_note.set_label(clock_note(&state.clock));
+        self.time_alert.set_visible(state.clock == "unconfirmed");
+        self.main_alert.set_visible(state.role == "node" && !state.main_ready);
+        let was_role = self.machine_role.replace(role_words(&state.role));
+        if self.role.label() == was_role {
+            self.role.set_label(self.machine_role.get());
+        }
+        let changed = *self.zone_name.borrow() != state.timezone;
+        if changed {
+            state.timezone.clone_into(&mut self.zone_name.borrow_mut());
+            // GTK's calendar marks today from the process's zone, so that must follow too.
+            timezone::export_for_children();
+            self.draw_clock();
+        }
+    }
+
+    /// Redraws the clock only if its text has changed, so an idle screen repaints nothing.
+    fn draw_clock(&self) {
+        let zone_name = self.zone_name.borrow();
+        let Some(now) = zoned_now(&zone_name) else {
+            return;
+        };
+        let text = |format: &str| {
+            now.format(format)
+                .map(|t| t.to_string())
+                .unwrap_or_default()
+        };
+        let (day, time) = (text("%a %-d %b"), text("%H:%M"));
+        if self.time.label() != time.as_str() {
+            self.time.set_label(&time);
+        }
+        if self.day.label() != day.as_str() {
+            self.day.set_label(&day);
+        }
+        self.zone.set_label(&format!(
+            "Time zone: {zone_name} ({})",
+            now.timezone_abbreviation()
+        ));
+    }
+}
+
+/// Now, in a named zone. GLib's "local" is read once, and setup may have changed the zone since.
+fn zoned_now(zone_name: &str) -> Option<glib::DateTime> {
+    let zone = glib::TimeZone::from_identifier(Some(zone_name)).unwrap_or_else(glib::TimeZone::utc);
+    glib::DateTime::now(&zone).ok()
+}
+
+/// The clock's button and its panel: the calendar, the zone, and whether the time is confirmed.
+fn clock_button(
+    zone_name: &Rc<RefCell<String>>,
+    day: &gtk::Label,
+    time: &gtk::Label,
+    zone: &gtk::Label,
+    note: &gtk::Label,
+) -> gtk::MenuButton {
     let panel = ui::column(ui::GAP / 2);
-    panel.append(&gtk::Calendar::new());
-    let zone = glib::DateTime::now_local()
-        .map(|now| now.timezone_abbreviation().to_string())
-        .unwrap_or_default();
-    panel.append(&ui::label(&format!("Time zone: {zone}"), "muted"));
-    let warning = ui::label(
-        "This machine has not confirmed the time with a time server, so the time may be wrong. \
-         On a workstation or display, the main machine sets the time: check that one first.",
-        "problem",
-    );
-    warning.set_max_width_chars(36);
-    warning.set_visible(false);
-    panel.append(&warning);
+    let calendar = gtk::Calendar::new();
+    // Each time it opens: today is the machine's, wherever the person last browsed to.
+    let names = Rc::clone(zone_name);
+    calendar.connect_map(move |calendar| {
+        if let Some(now) = zoned_now(&names.borrow()) {
+            calendar.select_day(&now);
+        }
+    });
+    panel.append(&calendar);
+    panel.append(zone);
+    panel.append(note);
     let popover = gtk::Popover::builder().child(&panel).build();
+    let face = ui::row(ui::GAP / 2);
+    face.append(day);
+    face.append(time);
     let button = gtk::MenuButton::builder()
         .popover(&popover)
+        .child(&face)
         .always_show_arrow(false)
         .build();
     ui::set_name(&button, "Date and time");
-    (button, warning)
-}
-
-/// The power menu. Both actions ask first, inside the menu, because this may be the hospital's
-/// main machine. No separate window: `cage` did not show a dialog window, and its modal grab
-/// then blocked all input.
-pub(crate) fn power_button() -> gtk::MenuButton {
-    let choose = ui::column(ui::GAP / 2);
-    let restart = ui::button("Restart…", "");
-    let off = ui::button("Power off…", "");
-    choose.append(&restart);
-    choose.append(&off);
-    let ask = ui::column(ui::GAP / 2);
-    ask.set_visible(false);
-    let question = ui::label("", "heading");
-    question.set_max_width_chars(32);
-    let detail = ui::label(
-        "Everyone using MedBrains on this machine is disconnected until it is back.",
-        "",
-    );
-    detail.set_max_width_chars(32);
-    let answers = ui::row(ui::GAP / 2);
-    let cancel = ui::button("Cancel", "");
-    let accept = ui::button("", "destructive-action");
-    answers.append(&cancel);
-    answers.append(&accept);
-    ask.append(&question);
-    ask.append(&detail);
-    ask.append(&answers);
-    let panel = ui::column(0);
-    // Its widest from the start: a menu that grows once open runs off the screen's edge.
-    panel.set_width_request(POWER_MENU_WIDTH);
-    panel.append(&choose);
-    panel.append(&ask);
-    // Moved inward, because `cage` does not slide a menu back on screen by itself.
-    let popover = gtk::Popover::builder()
-        .child(&panel)
-        .has_arrow(false)
-        .build();
-    popover.set_offset(-POWER_MENU_WIDTH / 2, 0);
-    let button = gtk::MenuButton::builder()
-        .popover(&popover)
-        .icon_name("system-shutdown-symbolic")
-        .always_show_arrow(false)
-        .build();
-    ui::set_name(&button, "Power");
-
-    let action = Rc::new(Cell::new("restart"));
-    for (control, words, yes, verb) in [
-        (&restart, "Restart this machine?", "Restart", "restart"),
-        (&off, "Power off this machine?", "Power off", "off"),
-    ] {
-        let (choose, ask, question, cancel, accept, action) = (
-            choose.clone(),
-            ask.clone(),
-            question.clone(),
-            cancel.clone(),
-            accept.clone(),
-            Rc::clone(&action),
-        );
-        control.connect_clicked(move |_| {
-            question.set_label(words);
-            accept.set_label(yes);
-            action.set(verb);
-            choose.set_visible(false);
-            ask.set_visible(true);
-            cancel.grab_focus();
-        });
-    }
-    let source = popover.clone();
-    cancel.connect_clicked(move |_| source.popdown());
-    let source = popover.clone();
-    accept.connect_clicked(move |_| {
-        source.popdown();
-        api::post("/power", &json!({ "action": action.get() }), |_| {});
-    });
-    // Closing by any route, including Escape, starts again from the two choices.
-    popover.connect_closed(move |_| {
-        ask.set_visible(false);
-        choose.set_visible(true);
-    });
     button
 }
 
-/// Redraws the clock only if its text has changed, so an idle screen repaints nothing.
-pub(crate) fn set_clock(clock: &gtk::MenuButton) {
-    if let Some(text) = clock_text() {
-        if clock.label().as_deref() != Some(text.as_str()) {
-            clock.set_label(&text);
-        }
-    }
-}
+#[cfg(test)]
+mod tests {
+    use super::{clock_note, firewall_words};
 
-/// The clock's text, or nothing if the system cannot say.
-fn clock_text() -> Option<String> {
-    let now = glib::DateTime::now_local().ok()?;
-    Some(now.format("%a %-d %b  %H:%M").ok()?.to_string())
+    /// The honesty rule: nothing here may claim more than the check behind it.
+    #[test]
+    fn the_status_says_only_what_was_checked() {
+        assert_eq!(firewall_words(true), "Firewall on");
+        assert_eq!(firewall_words(false), "Firewall off");
+        assert!(clock_note("checking").starts_with("Checking"));
+        assert!(clock_note("unconfirmed").contains("may be wrong"));
+        assert!(clock_note("").contains("may be wrong"));
+    }
 }

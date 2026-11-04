@@ -25,10 +25,7 @@ mod stations;
 mod store_catalog;
 mod tax_categories;
 
-use argon2::{
-    Argon2,
-    PasswordHasher,
-};
+use argon2::{Argon2, PasswordHasher};
 use medbrains_core::access::{BUILT_IN_ROLES, DEFAULT_GROUPS};
 #[allow(unused_imports)]
 use medbrains_core::permissions;
@@ -126,25 +123,7 @@ async fn seed_everything(pool: &PgPool) -> Result<(), Box<dyn std::error::Error>
 
         tenant_id = uuid::Uuid::new_v4();
 
-        // Admin password: explicit via env, or dev-only default. Production
-        // refuses the default so admin/admin123 can never reach a real tenant.
-        let admin_password = match std::env::var("MEDBRAINS_SEED_ADMIN_PASSWORD") {
-            Ok(value) if !value.trim().is_empty() => value,
-            _ if production_env() => {
-                return Err(
-                    "MEDBRAINS_SEED_ADMIN_PASSWORD must be set when MEDBRAINS_ENV=production — \
-                     refusing to seed the default admin credential"
-                        .into(),
-                );
-            }
-            _ => "admin123".to_owned(),
-        };
-
-        let argon2 = Argon2::default();
-        let password_hash = argon2
-            .hash_password(admin_password.as_bytes())
-            .map_err(|e| format!("password hash error: {e}"))?
-            .to_string();
+        let password_hash = first_password_hash()?;
 
         // One transaction: a power cut here must not leave a hospital with no administrator,
         // because the next start would see the hospital and never create one.
@@ -265,6 +244,32 @@ async fn seed_everything(pool: &PgPool) -> Result<(), Box<dyn std::error::Error>
     Ok(())
 }
 
+/// The first administrator's password hash. An OS machine's setup gives a hash, so the password
+/// itself never reaches the disk. Otherwise it is explicit via env, or a dev-only default:
+/// production refuses the default so admin/admin123 can never reach a real tenant.
+fn first_password_hash() -> Result<String, Box<dyn std::error::Error>> {
+    if let Ok(hash) = std::env::var("MEDBRAINS_SEED_ADMIN_PASSWORD_HASH")
+        && !hash.trim().is_empty()
+    {
+        return Ok(hash);
+    }
+    let admin_password = match std::env::var("MEDBRAINS_SEED_ADMIN_PASSWORD") {
+        Ok(value) if !value.trim().is_empty() => value,
+        _ if production_env() => {
+            return Err(
+                "MEDBRAINS_SEED_ADMIN_PASSWORD must be set when MEDBRAINS_ENV=production — \
+                 refusing to seed the default admin credential"
+                    .into(),
+            );
+        }
+        _ => "admin123".to_owned(),
+    };
+    Ok(Argon2::default()
+        .hash_password(admin_password.as_bytes())
+        .map_err(|e| format!("password hash error: {e}"))?
+        .to_string())
+}
+
 /// A setting from the environment, or `default` when unset or blank.
 fn env_or(key: &str, default: &str) -> String {
     std::env::var(key)
@@ -322,11 +327,10 @@ fn demo_fixture_seed_enabled() -> bool {
 /// Propagates database errors; a tenant that fails stops the run rather than
 /// leaving the rest half-applied silently.
 pub async fn reconcile_built_in_roles(pool: &PgPool) -> Result<usize, Box<dyn std::error::Error>> {
-    let tenants: Vec<uuid::Uuid> = sqlx::query_scalar(
-        "SELECT id FROM tenants WHERE deleted_at IS NULL AND is_active = true",
-    )
-    .fetch_all(pool)
-    .await?;
+    let tenants: Vec<uuid::Uuid> =
+        sqlx::query_scalar("SELECT id FROM tenants WHERE deleted_at IS NULL AND is_active = true")
+            .fetch_all(pool)
+            .await?;
 
     for tenant_id in &tenants {
         seed_built_in_roles(pool, *tenant_id).await?;

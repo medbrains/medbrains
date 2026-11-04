@@ -27,6 +27,10 @@ enum Request {
     Join { id: String, name: String, kind: Kind },
     /// How the join stands.
     Status,
+    /// The main machine this machine joined, and where it last looked.
+    Main,
+    /// Look for the joined main machine at a typed address. Its key must match.
+    Readdress { address: String },
 }
 
 /// The answer to one request.
@@ -45,6 +49,16 @@ async fn answer(node: &Arc<Node>, request: Request) -> Value {
             Err(error) => json!({ "error": error.to_string() }),
         },
         Request::Status => json!(node.standing()),
+        Request::Main => node.joined().map_or(json!({ "error": "This machine has not joined." }), |joined| {
+            json!({ "hospital": joined.hospital, "addresses": joined.addresses })
+        }),
+        Request::Readdress { address } => match address.trim().parse() {
+            Ok(ip) => match node.readdress(ip).await {
+                Ok(()) => json!({ "ok": true }),
+                Err(error) => json!({ "error": error.to_string() }),
+            },
+            Err(_) => json!({ "error": "That is not an address, such as 192.168.1.20." }),
+        },
     }
 }
 

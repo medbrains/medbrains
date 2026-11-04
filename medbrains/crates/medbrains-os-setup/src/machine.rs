@@ -1,167 +1,125 @@
 //! What setup does to the machine: read the network and its health, write settings,
-//! start services. Every command has a bound, because the screen waits on the answer.
+//! start services. Every command has a limit, because the screen waits on the answer.
 
 use std::fs;
 use std::io::Write;
-use std::os::unix::fs::{MetadataExt, PermissionsExt, chown};
+use std::os::unix::fs::{MetadataExt, OpenOptionsExt, PermissionsExt, chown};
 use std::path::Path;
-use std::process::Command;
 
+use argon2::{Argon2, PasswordHasher};
 use serde_json::{Value, json};
 
-use crate::rules;
+use crate::child::{self, USUAL_LIMIT};
+use crate::{rules, status};
 
 /// Set once the main-machine role is chosen; nothing later asks again.
 const ROLE_MAIN: &str = "/var/lib/medbrains/config/role-main";
-/// `local stratum 10` in `chrony.conf`: the clock of a machine with nothing to set it by.
-const UNCONFIRMED_STRATUM: u8 = 10;
+const ENV_FILE: &str = "/var/lib/medbrains/config/env";
+/// Set once a person has approved this machine, so it uses a main machine rather than being one.
 const ROLE_NODE: &str = "/var/lib/medbrains/config/role-node";
 /// What the agent recorded when a person approved this machine.
 const JOINED_FILE: &str = "/var/lib/medbrains-agent/joined.json";
 /// The screen's one trusted certificate, bound into its unit. Written in place, so the running
 /// screen sees it: a new file under this name would stay hidden behind the bind mount.
-const SCREEN_CERTIFICATE: &str = "/var/lib/kiosk/local-front.pem";
-/// The main machine's health, as a node's screen would reach it, through the agent.
-const FRONT_HEALTH: &str = "https://127.0.0.1:8443/api/health";
-const ENV_FILE: &str = "/var/lib/medbrains/config/env";
+pub(crate) const SCREEN_CERTIFICATE: &str = "/var/lib/kiosk/local-front.pem";
+/// Making the database and secrets takes seconds, and many on slow storage.
+const FIRST_START_LIMIT: std::time::Duration = std::time::Duration::from_secs(50);
 /// Where a fixed address takes effect. On tmpfs, so a power cut before it is confirmed undoes it.
 const LIVE_NETWORK: &str = "/run/systemd/network/10-medbrains-fixed.network";
+/// Which link is tried first, here and on the data partition. A setting of its own, because a link
+/// with a fixed address already has its own file.
+const LIVE_PREFERRED: &str = "/run/systemd/network/50-medbrains-preferred.network";
+const SAVED_PREFERRED: &str = "/var/lib/medbrains/network/50-medbrains-preferred.network";
+/// systemd-networkd runs as its own user, so it must be able to read these.
+const NETWORK_FILE_MODE: u32 = 0o644;
+const PUBLIC_FILE_MODE: u32 = 0o644;
 /// Where a confirmed address is kept: the data partition, since the root becomes read-only.
 /// `medbrains-network-settings.service` copies it to `LIVE_NETWORK` at boot.
 const SAVED_NETWORK: &str = "/var/lib/medbrains/network/10-medbrains-fixed.network";
-const SERVER_HEALTH: &str = "http://127.0.0.1:3000/api/health";
-const DATA_MOUNT: &str = "/var";
 
-/// Runs a command and returns its output if it succeeded.
-fn output(program: &str, args: &[&str]) -> Option<Vec<u8>> {
-    let done = Command::new(program).args(args).output().ok()?;
-    done.status.success().then_some(done.stdout)
+/// Runs a helper, within the usual limit, and returns its output if it succeeded.
+pub(crate) fn output(program: &str, args: &[&str]) -> Option<Vec<u8>> {
+    let done = child::run(program, args, USUAL_LIMIT)?;
+    done.success.then_some(done.stdout)
 }
 
-/// Runs a command that prints JSON, and parses it.
-fn json_output(program: &str, args: &[&str]) -> Value {
-    output(program, args)
-        .and_then(|raw| serde_json::from_slice(&raw).ok())
-        .unwrap_or_else(|| json!([]))
+/// Runs a helper that prints JSON, and parses it. `None` means no answer, not an empty one.
+fn json_output(program: &str, args: &[&str]) -> Option<Value> {
+    serde_json::from_slice(&output(program, args)?).ok()
 }
 
-/// Whether this machine has finished setup.
-pub(crate) fn is_set_up() -> bool {
-    Path::new(ROLE_MAIN).exists() || Path::new(ROLE_NODE).exists()
-}
-
-/// Whether the app answers: the server on a main machine, the main machine through the agent on
-/// a node. So a removed or cut-off node says so on its desktop.
-fn app_answers() -> bool {
-    if Path::new(ROLE_NODE).exists() {
-        let args = ["-fsS", "-m", "3", "--cacert", SCREEN_CERTIFICATE, "-o", "/dev/null", FRONT_HEALTH];
-        return output("curl", &args).is_some();
-    }
-    is_set_up() && output("curl", &["-fsS", "-m", "2", "-o", "/dev/null", SERVER_HEALTH]).is_some()
-}
-
-/// Everything the desktop shows. Asks only this machine, so polling it sends nothing out.
-pub(crate) fn state() -> Value {
-    let set_up = is_set_up();
-    json!({
-        "set_up": set_up,
-        "main_ready": app_answers(),
-        "node": Path::new(ROLE_NODE).exists(),
-        "clock_synced": clock_synced(),
-        "machine": machine_health(),
-        "network": network_links(),
-    })
-}
-
-/// Whether chrony has a time source it believes.
-fn clock_synced() -> bool {
-    output("chronyc", &["-n", "tracking"])
-        .is_some_and(|raw| is_clock_trusted(&String::from_utf8_lossy(&raw)))
-}
-
-/// Reads `chronyc tracking`. "Normal" alone is not enough: chrony also serves the LAN from
-/// its own clock when cut off (`local orphan`), and then names itself, 127.127.1.1, as source.
-fn is_clock_trusted(tracking: &str) -> bool {
-    let value = |wanted: &str| {
-        tracking.lines().find_map(|line| {
-            let (key, value) = line.split_once(':')?;
-            (key.trim() == wanted).then(|| value.trim())
+/// Whether this machine has finished setup, or the words for why that can't be read.
+pub(crate) fn is_set_up() -> Result<bool, String> {
+    let exists = |marker| {
+        Path::new(marker).try_exists().map_err(|error| {
+            log(&format!("reading the role marker: {error}"));
+            "This machine can't read its own setting. Restart it.".to_owned()
         })
     };
-    // Stratum 10 and over comes from a machine serving its own `local` clock, which a node sees as a
-    // source like any other. Neither that machine nor its nodes can vouch for the time.
-    value("Leap status") == Some("Normal")
-        && !value("Reference ID").is_some_and(|id| id.starts_with("7F7F0101"))
-        && value("Stratum").and_then(|s| s.parse::<u8>().ok()).is_some_and(|s| s < UNCONFIRMED_STRATUM)
+    Ok(exists(ROLE_MAIN)? || exists(ROLE_NODE)?)
 }
 
-/// Memory, load, uptime, disk and the overall state of the services.
-fn machine_health() -> Value {
-    let meminfo = fs::read_to_string("/proc/meminfo").unwrap_or_default();
-    let uptime = fs::read_to_string("/proc/uptime").unwrap_or_default();
-    let load = fs::read_to_string("/proc/loadavg").unwrap_or_default();
-    let df = output("df", &["-B1", "--output=size,used", DATA_MOUNT]).unwrap_or_default();
-    let (disk_total, disk_used) = parse_df(&String::from_utf8_lossy(&df)).unwrap_or((0, 0));
-    // `is-system-running` exits non-zero when degraded, and that is the answer we want.
-    let system = Command::new("systemctl")
-        .arg("is-system-running")
-        .output()
-        .map_or_else(
-            |_| String::new(),
-            |o| String::from_utf8_lossy(&o.stdout).trim().to_owned(),
-        );
-    json!({
-        "system": system,
-        "memory_total_kb": meminfo_kb(&meminfo, "MemTotal"),
-        "memory_available_kb": meminfo_kb(&meminfo, "MemAvailable"),
-        "load": load.split_whitespace().next().unwrap_or(""),
-        "uptime_seconds": first_number(&uptime),
-        "disk_total": disk_total,
-        "disk_used": disk_used,
+/// True if this machine uses a main machine. Unreadable counts as not: the caller has already asked
+/// `is_set_up`, which reports that fault.
+pub(crate) fn is_node() -> bool {
+    Path::new(ROLE_NODE).exists()
+}
+
+/// Records something for whoever reads the journal.
+fn log(line: &str) {
+    // Nothing more can be done if the log itself is unavailable.
+    drop(std::io::stderr().write_all(format!("{line}\n").as_bytes()));
+}
+
+/// Records a failure of something nobody is waiting on.
+pub(crate) fn log_if_failed(doing: &str, result: Result<(), String>) {
+    if let Err(error) = result {
+        log(&format!("{doing} failed: {error}"));
+    }
+}
+
+/// Replaces a file in one step: written aside, flushed, then renamed. A power cut leaves the old file
+/// or the new one, whole, which is what networkd and iwd need to find on the next boot.
+pub(crate) fn write_atomically(path: &str, contents: &[u8], mode: u32) -> Result<(), String> {
+    let temporary = format!("{path}.new");
+    let written = fs::OpenOptions::new()
+        .create(true)
+        .write(true)
+        .truncate(true)
+        .mode(mode)
+        .open(&temporary)
+        .and_then(|mut file| {
+            file.write_all(contents)?;
+            file.sync_all()
+        })
+        .and_then(|()| fs::rename(&temporary, path))
+        .and_then(|()| sync_parent(path));
+    written.map_err(|error| {
+        drop(fs::remove_file(&temporary));
+        error.to_string()
     })
 }
 
-/// One value from `/proc/meminfo`, in kB.
-fn meminfo_kb(meminfo: &str, key: &str) -> u64 {
-    meminfo
-        .lines()
-        .find_map(|line| {
-            line.strip_prefix(key)?
-                .strip_prefix(':')?
-                .split_whitespace()
-                .next()
-        })
-        .and_then(|value| value.parse().ok())
-        .unwrap_or(0)
+/// Flushes a directory, so a rename in it survives a power cut too.
+pub(crate) fn sync_parent(path: &str) -> std::io::Result<()> {
+    let parent = Path::new(path).parent().unwrap_or_else(|| Path::new("/"));
+    fs::File::open(parent)?.sync_all()
 }
 
-/// The first whole number in a text such as `/proc/uptime`.
-fn first_number(text: &str) -> u64 {
-    text.split(['.', ' '])
-        .next()
-        .and_then(|n| n.parse().ok())
-        .unwrap_or(0)
-}
-
-/// Size and used bytes from `df --output=size,used`.
-fn parse_df(df: &str) -> Option<(u64, u64)> {
-    let mut fields = df.lines().nth(1)?.split_whitespace();
-    Some((fields.next()?.parse().ok()?, fields.next()?.parse().ok()?))
-}
-
-/// Links, addresses and the gateway. Nothing here leaves the machine.
-fn network_links() -> Value {
+/// Links, addresses and the gateway. Nothing here leaves the machine. If `ip` doesn't answer that
+/// says so, because "no links" would read as a machine with no network card.
+pub(crate) fn network_links() -> Value {
     let addresses = json_output("ip", &["-j", "addr", "show"]);
     let routes = json_output("ip", &["-j", "-4", "route", "show", "default"]);
-    let wifi = fs::read_dir("/sys/class/net").is_ok_and(|dir| {
-        dir.flatten()
-            .any(|entry| entry.path().join("wireless").exists())
-    });
+    let first_route = routes.as_ref().and_then(|routes| routes.get(0));
     json!({
-        "links": summarise_links(&addresses),
-        "gateway": routes.get(0).and_then(|route| route.get("gateway")),
-        "wifi": wifi,
+        "fault": addresses.is_none() || routes.is_none(),
+        "links": addresses.as_ref().map_or_else(Vec::new, summarise_links),
+        "gateway": first_route.and_then(|route| route.get("gateway")),
+        "default_link": first_route.and_then(|route| route.get("dev")),
+        "preferred": preferred_link(),
         "fixed": Path::new(LIVE_NETWORK).exists(),
+        "unconfirmed": is_unconfirmed(),
     })
 }
 
@@ -169,7 +127,8 @@ fn network_links() -> Value {
 fn summarise_links(links: &Value) -> Vec<Value> {
     let summarise = |link: &Value| {
         let name = link.get("ifname")?.as_str()?;
-        if link.get("link_type")?.as_str()? == "loopback" {
+        // Only real network cards: not loopback, nor a radio's monitor link such as hwsim0.
+        if link.get("link_type")?.as_str()? != "ether" {
             return None;
         }
         let has_flag = |flag: &str| {
@@ -184,7 +143,13 @@ fn summarise_links(links: &Value) -> Vec<Value> {
             .filter(|info| info.get("family").and_then(Value::as_str) == Some("inet"))
             .filter_map(|info| info.get("local")?.as_str())
             .collect();
-        Some(json!({ "name": name, "cable": has_flag("LOWER_UP"), "addresses": addresses }))
+        Some(json!({
+            "name": name,
+            "kind": if link_is_wireless(name) { "wifi" } else { "ethernet" },
+            "cable": has_flag("LOWER_UP"),
+            "addresses": addresses,
+            "speed_mbps": link_speed(name),
+        }))
     };
     links
         .as_array()
@@ -192,6 +157,42 @@ fn summarise_links(links: &Value) -> Vec<Value> {
         .flatten()
         .filter_map(summarise)
         .collect()
+}
+
+/// True if the kernel lists this link as Wi-Fi.
+fn link_is_wireless(name: &str) -> bool {
+    Path::new("/sys/class/net")
+        .join(name)
+        .join("wireless")
+        .exists()
+}
+
+/// A link's speed in Mb/s, if it has one: a link without a cable reports none, or -1.
+fn link_speed(name: &str) -> Option<u64> {
+    let path = Path::new("/sys/class/net").join(name).join("speed");
+    fs::read_to_string(path).ok()?.trim().parse().ok()
+}
+
+/// Makes a link the one tried first, or with an empty name, any. Takes effect at once and survives
+/// a restart. The other links stay up, so this can't cut the machine off.
+pub(crate) fn prefer_link(interface: &str) -> Result<(), String> {
+    if interface.is_empty() {
+        remove_if_present(SAVED_PREFERRED)?;
+        remove_if_present(LIVE_PREFERRED)?;
+        return reload_network();
+    }
+    let file = rules::preferred_network(interface)
+        .ok_or_else(|| "That isn't a network card on this machine.".to_owned())?;
+    write_atomically(LIVE_PREFERRED, file.as_bytes(), NETWORK_FILE_MODE)?;
+    write_atomically(SAVED_PREFERRED, file.as_bytes(), NETWORK_FILE_MODE)?;
+    reload_network()
+}
+
+/// The link tried first, if one was chosen.
+fn preferred_link() -> Option<String> {
+    let file = fs::read_to_string(LIVE_PREFERRED).ok()?;
+    file.lines()
+        .find_map(|line| line.strip_prefix("Name=").map(str::to_owned))
 }
 
 /// The network with what can be reached, for the network screen only: this one sends a
@@ -235,15 +236,40 @@ pub(crate) fn apply_fixed_address(
     let file = rules::fixed_network(interface, address, gateway, dns).ok_or_else(|| {
         "Check the address, gateway and DNS. An address looks like 192.168.1.20/24.".to_owned()
     })?;
-    fs::write(LIVE_NETWORK, file).map_err(|e| e.to_string())?;
-    reload_network()
+    write_atomically(LIVE_NETWORK, file.as_bytes(), NETWORK_FILE_MODE)?;
+    let reloaded = reload_network();
+    if reloaded.is_err() {
+        log_if_failed(
+            "undoing an address that wouldn't apply",
+            undo_fixed_address(),
+        );
+    }
+    reloaded
 }
 
-/// Keeps the address now in effect across restarts. Refused if it has already been undone.
+/// True if the address in effect isn't the saved one: a new one nobody has confirmed.
+fn is_unconfirmed() -> bool {
+    match fs::read(LIVE_NETWORK) {
+        Ok(live) => fs::read(SAVED_NETWORK).ok().as_deref() != Some(live.as_slice()),
+        Err(_) => false,
+    }
+}
+
+/// At startup: an unconfirmed address can only be left over from a run that ended before its timer
+/// did, and nothing would ever undo it now.
+pub(crate) fn reconcile_fixed_address() -> Result<(), String> {
+    if is_unconfirmed() {
+        log("undoing a fixed address left unconfirmed by the last run");
+        return undo_fixed_address();
+    }
+    Ok(())
+}
+
+/// Keeps the address now in effect across restarts.
 pub(crate) fn confirm_fixed_address() -> Result<(), String> {
-    fs::copy(LIVE_NETWORK, SAVED_NETWORK)
-        .map(|_| ())
-        .map_err(|_| "The address was already undone. Enter it again.".to_owned())
+    let live = fs::read(LIVE_NETWORK)
+        .map_err(|_| "The address was already undone. Enter it again.".to_owned())?;
+    write_atomically(SAVED_NETWORK, &live, NETWORK_FILE_MODE)
 }
 
 /// Removes a file; one already gone is what was wanted.
@@ -257,7 +283,8 @@ fn remove_if_present(path: &str) -> Result<(), String> {
 /// Goes back to the last confirmed setting.
 pub(crate) fn undo_fixed_address() -> Result<(), String> {
     if Path::new(SAVED_NETWORK).exists() {
-        fs::copy(SAVED_NETWORK, LIVE_NETWORK).map_err(|e| e.to_string())?;
+        let saved = fs::read(SAVED_NETWORK).map_err(|e| e.to_string())?;
+        write_atomically(LIVE_NETWORK, &saved, NETWORK_FILE_MODE)?;
     } else {
         remove_if_present(LIVE_NETWORK)?;
     }
@@ -292,21 +319,59 @@ fn write_env(contents: &str) -> Result<(), String> {
     fs::rename(&temporary, ENV_FILE).map_err(|e| e.to_string())
 }
 
+/// At startup: seed lines on a machine with no role marker are left over from a setup a power cut
+/// interrupted. Setup will ask again, so nothing needs them.
+pub(crate) fn remove_abandoned_seed() -> Result<(), String> {
+    if is_set_up()? {
+        return Ok(());
+    }
+    let env = fs::read_to_string(ENV_FILE).map_err(|e| e.to_string())?;
+    let cleaned = rules::env_without_seed(&env);
+    if cleaned.len() == env.len() {
+        return Ok(());
+    }
+    log("removing first-administrator details left by an interrupted setup");
+    write_env(&cleaned)
+}
+
 /// Records a new hospital and starts the main machine's services. The role marker is
-/// written last, so a failure before it leaves the machine still in setup.
+/// written last, so a failure before it leaves the machine still in setup. If the services can't
+/// even be asked to start, all of it is taken back: otherwise the screen would be stuck on "already
+/// set up", with the password waiting in the env for a server that never reads it.
 pub(crate) fn start_main_machine(
     hospital: &str,
     username: &str,
     password: &str,
 ) -> Result<(), String> {
+    let hash = Argon2::default()
+        .hash_password(password.as_bytes())
+        .map_err(|e| e.to_string())?
+        .to_string();
     // Only now: a machine that becomes a node never holds a database or these secrets.
-    output("systemctl", &["start", "medbrains-firstboot.service"])
-        .ok_or_else(|| "The machine could not prepare its database.".to_owned())?;
+    child::run("systemctl", &["start", "medbrains-firstboot.service"], FIRST_START_LIMIT)
+        .filter(|done| done.success)
+        .ok_or_else(|| "The machine could not prepare its database. Try again.".to_owned())?;
     let env = fs::read_to_string(ENV_FILE).map_err(|e| e.to_string())?;
-    write_env(&rules::env_with_seed(&env, hospital, username, password))?;
-    fs::File::create(ROLE_MAIN)
-        .and_then(|marker| marker.sync_all())
-        .map_err(|e| e.to_string())?;
+    write_env(&rules::env_with_seed(&env, hospital, username, &hash))?;
+    let started = mark_and_start(hospital);
+    if started.is_err() {
+        log_if_failed(
+            "removing the first administrator's details",
+            write_env(&env),
+        );
+        log_if_failed("removing the role marker", remove_if_present(ROLE_MAIN));
+    }
+    started
+}
+
+/// Writes the name and role marker, then starts the services.
+fn mark_and_start(hospital: &str) -> Result<(), String> {
+    write_atomically(
+        status::HOSPITAL_NAME,
+        hospital.trim().as_bytes(),
+        PUBLIC_FILE_MODE,
+    )?;
+    write_atomically(ROLE_MAIN, b"", PUBLIC_FILE_MODE)?;
     // The agent looks for a main machine until now; this machine is one.
     output("systemctl", &["stop", "medbrains-agent.service"]);
     output(
@@ -314,7 +379,7 @@ pub(crate) fn start_main_machine(
         &["start", "--no-block", "medbrains-main.target"],
     )
     .map(|_| ())
-    .ok_or_else(|| "The services could not start.".to_owned())
+    .ok_or_else(|| "The services could not start. Try again.".to_owned())
 }
 
 /// Makes this machine a node, once the agent says a person approved it. The role goes down last,
@@ -325,9 +390,10 @@ pub(crate) fn finish_node() -> Result<(), String> {
     let certificate = rules::joined_certificate(&joined)
         .ok_or_else(|| "The main machine's answer could not be used. Ask to join again.".to_owned())?;
     fs::write(SCREEN_CERTIFICATE, certificate).map_err(|e| e.to_string())?;
-    fs::File::create(ROLE_NODE)
-        .and_then(|marker| marker.sync_all())
-        .map_err(|e| e.to_string())?;
+    if let Some(hospital) = rules::joined_hospital(&joined) {
+        write_atomically(status::HOSPITAL_NAME, hospital.as_bytes(), PUBLIC_FILE_MODE)?;
+    }
+    write_atomically(ROLE_NODE, b"", PUBLIC_FILE_MODE)?;
     // From now on its clock comes from the main machine. A failure shows on screen as unconfirmed.
     output("systemctl", &["restart", "medbrains-time-role.service", "chrony.service"]);
     output("systemctl", &["start", "--no-block", "medbrains-node.target"])
@@ -335,55 +401,43 @@ pub(crate) fn finish_node() -> Result<(), String> {
         .ok_or_else(|| "The services could not start.".to_owned())
 }
 
-/// Turns the machine off or restarts it.
+/// Turns the machine off or restarts it. Who may ask is decided above this, in one place.
 pub(crate) fn power(action: &str) -> Result<(), String> {
-    let verb = match action {
-        "off" => "poweroff",
-        "restart" => "reboot",
-        _ => return Err("Unknown action.".to_owned()),
-    };
-    output("systemctl", &[verb])
-        .map(|_| ())
-        .ok_or_else(|| "The machine could not do that.".to_owned())
+    let verb = power_verb(action).ok_or_else(|| "Unknown action.".to_owned())?;
+    let done = child::run("systemctl", &[verb], USUAL_LIMIT);
+    if done.as_ref().is_some_and(|done| done.success) {
+        return Ok(());
+    }
+    // The real reason goes to the journal, the plain next step to the screen.
+    let reason = done.map_or_else(
+        || "no answer in time".to_owned(),
+        |done| String::from_utf8_lossy(&done.stderr).trim().to_owned(),
+    );
+    log(&format!("systemctl {verb} failed: {reason}"));
+    Err("The machine refused. Try again, or use its power button.".to_owned())
+}
+
+/// The systemctl verb for a power action.
+fn power_verb(action: &str) -> Option<&'static str> {
+    match action {
+        "off" => Some("poweroff"),
+        "restart" => Some("reboot"),
+        _ => None,
+    }
 }
 
 #[cfg(test)]
 mod tests {
-    use super::{first_number, is_clock_trusted, meminfo_kb, parse_df, summarise_links};
+    use super::{power_verb, summarise_links};
     use serde_json::json;
 
+    /// A wrong word must never reach systemctl as a command of its own.
     #[test]
-    fn the_clock_is_trusted_only_with_a_real_time_source() {
-        let tracking = |id, leap| {
-            format!("Reference ID    : {id}\nStratum         : 3\nLeap status     : {leap}\n")
-        };
-        assert!(is_clock_trusted(&tracking(
-            "A29FC801 (162.159.200.1)",
-            "Normal"
-        )));
-        assert!(!is_clock_trusted(&tracking(
-            "00000000 ()",
-            "Not synchronised"
-        )));
-        assert!(!is_clock_trusted(&tracking("7F7F0101 ()", "Normal")));
-        assert!(!is_clock_trusted(""));
-        // A node of a main machine that has only its own clock: a normal source, but stratum 11.
-        let node_of_unset_main =
-            "Reference ID    : 7F000001 (127.0.0.1)\nStratum         : 11\nLeap status     : Normal\n";
-        assert!(!is_clock_trusted(node_of_unset_main));
-        let node_of_good_main =
-            "Reference ID    : 7F000001 (127.0.0.1)\nStratum         : 4\nLeap status     : Normal\n";
-        assert!(is_clock_trusted(node_of_good_main));
-    }
-
-    #[test]
-    fn health_figures_are_read_from_the_kernels_own_format() {
-        let meminfo = "MemTotal:        4015024 kB\nMemAvailable:    3000000 kB\n";
-        assert_eq!(meminfo_kb(meminfo, "MemAvailable"), 3_000_000);
-        assert_eq!(meminfo_kb(meminfo, "Mem"), 0);
-        assert_eq!(first_number("86.13 300.2\n"), 86);
-        assert_eq!(parse_df("1B-blocks Used\n 1000 200\n"), Some((1000, 200)));
-        assert_eq!(parse_df(""), None);
+    fn only_the_two_power_actions_reach_systemctl() {
+        assert_eq!(power_verb("restart"), Some("reboot"));
+        assert_eq!(power_verb("off"), Some("poweroff"));
+        assert_eq!(power_verb("halt"), None);
+        assert_eq!(power_verb(""), None);
     }
 
     /// The network screen must tell a pulled cable from a working link.
@@ -397,10 +451,10 @@ mod tests {
         ]);
         let summary = summarise_links(&links);
         assert_eq!(summary.len(), 2);
-        assert_eq!(
-            summary[0],
-            json!({ "name": "en0", "cable": true, "addresses": ["10.0.2.15"] })
-        );
+        assert_eq!(summary[0]["name"], "en0");
+        assert_eq!(summary[0]["kind"], "ethernet");
+        assert_eq!(summary[0]["cable"], true);
+        assert_eq!(summary[0]["addresses"], json!(["10.0.2.15"]));
         assert_eq!(summary[1]["cable"], json!(false));
     }
 }

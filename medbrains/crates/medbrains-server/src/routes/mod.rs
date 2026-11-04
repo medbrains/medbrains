@@ -114,10 +114,7 @@ pub fn build_router(state: AppState) -> Router {
         // NHCX gateway callbacks — authenticated by the gateway's RS256 JWT,
         // not a user session, so they live on the public router. The client
         // IP feeds the hospital's optional callback allow-list.
-        .merge(
-            medbrains_nhcx_callback::public_router()
-                .layer(from_fn_with_state(state.clone(), client_ip_middleware)),
-        )
+        .merge(medbrains_nhcx_callback::public_router())
         // ABDM gateway callbacks (HIP) — each authenticated by the gateway's
         // JWT and the HFR facility ID in X-HIP-ID, never by a user session.
         .merge(abdm::hip::public_router())
@@ -921,8 +918,7 @@ pub fn build_router(state: AppState) -> Router {
         .layer(from_fn_with_state(state.clone(), access_log_layer))
         .layer(from_fn_with_state(state.clone(), ip_restrict_middleware))
         .layer(from_fn(csrf_middleware))
-        .layer(from_fn_with_state(state.clone(), auth_middleware))
-        .layer(from_fn_with_state(state.clone(), client_ip_middleware));
+        .layer(from_fn_with_state(state.clone(), auth_middleware));
 
     // ── Bridge Agent Registration (no JWT auth — uses API key) ──
     let bridge_routes = medbrains_devices::bridge_router();
@@ -1118,8 +1114,7 @@ pub fn build_router(state: AppState) -> Router {
         .layer(from_fn_with_state(state.clone(), access_log_layer))
         .layer(from_fn_with_state(state.clone(), ip_restrict_middleware))
         .layer(from_fn(csrf_middleware))
-        .layer(from_fn_with_state(state.clone(), auth_middleware))
-        .layer(from_fn_with_state(state.clone(), client_ip_middleware));
+        .layer(from_fn_with_state(state.clone(), auth_middleware));
 
     public
         .merge(protected)
@@ -1135,5 +1130,7 @@ pub fn build_router(state: AppState) -> Router {
             "/api/{*rest}",
             axum::routing::any(|| async { medbrains_server_core::error::AppError::NotFound }),
         )
+        // Outermost, so sign-in and every public route know the address too.
+        .layer(from_fn_with_state(state.clone(), client_ip_middleware))
         .with_state(state)
 }

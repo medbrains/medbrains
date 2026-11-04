@@ -5,6 +5,9 @@ Description=MedBrains appliance screen
 After=systemd-user-sessions.service dbus.socket systemd-logind.service getty@tty1.service medbrains-os-setup.service
 Wants=dbus.socket systemd-logind.service medbrains-os-setup.service
 Conflicts=getty@tty1.service
+# Starts before them so it stops after them: a restart keeps saying so while the server shuts down,
+# instead of a black screen that looks like nothing happened.
+Before=medbrains-server.service caddy.service
 ConditionPathExists=/dev/tty1
 
 [Service]
@@ -43,6 +46,9 @@ ProtectKernelModules=yes
 ProtectControlGroups=yes
 ProtectClock=yes
 RestrictAddressFamilies=AF_UNIX AF_NETLINK AF_INET AF_INET6
+# The screen and every app in it talk only to this machine. The setup service makes the network checks.
+IPAddressDeny=any
+IPAddressAllow=localhost
 RestrictRealtime=yes
 # Not RestrictSUIDSGID: its filter answers openat2 with ENOSYS, and WebKit's own
 # bubblewrap sandbox needs openat2.

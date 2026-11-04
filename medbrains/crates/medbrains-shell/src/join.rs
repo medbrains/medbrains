@@ -37,7 +37,7 @@ fn ask_agent(request: &Value) -> Option<Value> {
 }
 
 /// Asks the agent on a worker thread, so the screen never waits on it.
-fn agent(request: Value, done: impl FnOnce(Option<Value>) + 'static) {
+pub(crate) fn agent(request: Value, done: impl FnOnce(Option<Value>) + 'static) {
     glib::spawn_future_local(async move {
         done(gio::spawn_blocking(move || ask_agent(&request)).await.ok().flatten());
     });

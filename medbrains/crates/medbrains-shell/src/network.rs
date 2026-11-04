@@ -1,7 +1,7 @@
-//! The network panel, shared by first boot and Settings: what is plugged in, what can be
-//! reached, and a fixed address that undoes itself unless confirmed.
+//! The network panel, the one menu that first boot, Settings and the top bar all show: wired links,
+//! Wi-Fi, what can be reached, and a fixed address that undoes itself unless confirmed.
 
-use std::cell::Cell;
+use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 use std::time::Duration;
 
@@ -13,7 +13,8 @@ use gtk4::prelude::{
 use serde_json::json;
 
 use crate::api::{self, Network};
-use crate::ui;
+use crate::netmenu::Wired;
+use crate::{ui, wifi_panel};
 
 /// How often the panel re-checks while it is on screen.
 const CHECK_EVERY: Duration = Duration::from_secs(10);
@@ -22,11 +23,10 @@ const CHECK_EVERY: Duration = Duration::from_secs(10);
 #[derive(Clone)]
 struct Panel {
     root: gtk::Box,
-    cable: gtk::Label,
-    addresses: gtk::Label,
+    wired: Wired,
+    /// Reachability, in the full panel only; the top bar's menu leaves it to Settings.
     local: gtk::Label,
     internet: gtk::Label,
-    wifi: gtk::Label,
     message: gtk::Label,
     interface: gtk::DropDown,
     names: gtk::StringList,
@@ -61,50 +61,14 @@ pub(crate) fn field(parent: &gtk::Box, name: &str, hint: &str) -> gtk::Entry {
     entry
 }
 
-/// Words for a cable state, across every link.
-fn cable_words(network: &Network) -> String {
-    if network.links.is_empty() {
-        return "No network card found.".to_owned();
-    }
-    let words = network.links.iter().map(|link| {
-        format!(
-            "{}: {}",
-            link.name,
-            if link.cable { "connected" } else { "no cable" }
-        )
-    });
-    words.collect::<Vec<_>>().join(", ")
-}
-
-/// Every address on every link, or a plain word if there are none.
-fn address_words(network: &Network) -> String {
-    let all: Vec<&str> = network
-        .links
-        .iter()
-        .flat_map(|l| &l.addresses)
-        .map(String::as_str)
-        .collect();
-    if all.is_empty() {
-        "No address yet.".to_owned()
-    } else {
-        all.join(", ")
-    }
-}
-
-/// The Wi-Fi sentence: true whichever it is.
-const fn wifi_words(has_card: bool) -> &'static str {
-    if has_card {
-        "This machine has a Wi-Fi card, but joining Wi-Fi is not available in this version. Use a cable."
-    } else {
-        "This machine has no Wi-Fi card. Use a cable."
-    }
-}
-
 impl Panel {
     /// Shows one check's result.
     fn show(&self, network: &Network) {
-        self.cable.set_label(&cable_words(network));
-        self.addresses.set_label(&address_words(network));
+        if network.fault {
+            self.message
+                .set_label("This machine couldn't read its own network state.");
+        }
+        self.wired.show(network);
         let local = if network.gateway.is_some() {
             network.local
         } else {
@@ -120,11 +84,11 @@ impl Panel {
             "Reachable.",
             "Not reachable. That is fine: setup does not need it.",
         ));
-        self.wifi.set_label(wifi_words(network.wifi));
         self.automatic.set_visible(network.fixed);
         let names: Vec<&str> = network
             .links
             .iter()
+            .filter(|link| link.kind != "wifi")
             .map(|link| link.name.as_str())
             .collect();
         let current = self.names.n_items();
@@ -178,15 +142,31 @@ impl Panel {
             panel.countdown.set_label(&undo_words(left.get()));
             if left.get() == 0 {
                 panel.waiting.set_visible(false);
-                panel
-                    .message
-                    .set_label("The address was undone, because nobody confirmed it.");
-                panel.check();
+                panel.report_undo();
                 return glib::ControlFlow::Break;
             }
             glib::ControlFlow::Continue
         });
         self.check();
+    }
+
+    /// Says what became of an unconfirmed address, from what the machine reports, not from the
+    /// countdown having ended.
+    fn report_undo(&self) {
+        let panel = self.clone();
+        api::check_network(move |result| {
+            let words = match &result {
+                Ok(network) if network.unconfirmed => {
+                    "The address could not be undone. Restart the machine to undo it."
+                }
+                Ok(_) => "The address was undone, because nobody confirmed it.",
+                Err(_) => "This machine isn't answering, so it isn't clear what address it has.",
+            };
+            panel.message.set_label(words);
+            if let Ok(network) = &result {
+                panel.show(network);
+            }
+        });
     }
 
     /// Ends the wait by asking the service to do one of its network actions.
@@ -230,28 +210,45 @@ fn fixed_form(panel: &Panel) -> gtk::Expander {
         .build()
 }
 
-/// Builds the panel. It checks while it is on screen and stays silent otherwise.
-pub(crate) fn panel() -> gtk::Box {
+/// The parts that exist only to make the panel: the status lines and the confirm row.
+fn waiting_row(keep: &gtk::Button, undo: &gtk::Button, countdown: &gtk::Label) -> gtk::Box {
+    let waiting = ui::column(ui::GAP / 2);
+    let choices = ui::row(ui::GAP);
+    choices.append(keep);
+    choices.append(undo);
+    waiting.append(countdown);
+    waiting.append(&choices);
+    waiting.set_visible(false);
+    waiting
+}
+
+/// Builds the panel. With `settings_link` it is the top bar's short menu, ending in a link to the
+/// full settings; without, it is the full panel with reachability too. It checks while on screen
+/// and stays silent otherwise.
+pub(crate) fn panel(settings_link: Option<Rc<dyn Fn()>>) -> gtk::Box {
     let root = ui::column(ui::GAP);
+    root.add_css_class("network-panel");
     let status = ui::column(ui::GAP / 2);
     let names = gtk::StringList::new(&[]);
     let keep = ui::button("Keep it", "suggested-action");
     let undo = ui::button("Undo", "");
-    let waiting = ui::column(ui::GAP / 2);
     let countdown = ui::label("", "");
-    let choices = ui::row(ui::GAP);
-    choices.append(&keep);
-    choices.append(&undo);
-    waiting.append(&countdown);
-    waiting.append(&choices);
-    waiting.set_visible(false);
+    let waiting = waiting_row(&keep, &undo, &countdown);
     let message = ui::label("", "problem");
+    let local = status_line(&status, "Local network");
+    let internet = status_line(&status, "Internet");
+    let recheck: Rc<RefCell<Option<Panel>>> = Rc::default();
+    let again = Rc::clone(&recheck);
+    let wired = Wired::new(Rc::new(move || {
+        if let Some(panel) = again.borrow().as_ref() {
+            panel.check();
+        }
+    }));
     let panel = Panel {
-        cable: status_line(&status, "Cable"),
-        addresses: status_line(&status, "Addresses"),
-        local: status_line(&status, "Local network"),
-        internet: status_line(&status, "Internet"),
-        wifi: status_line(&status, "Wi-Fi"),
+        root: root.clone(),
+        wired: wired.clone(),
+        local,
+        internet,
         interface: gtk::DropDown::new(Some(names.clone()), gtk::Expression::NONE),
         automatic: ui::button("Go back to an automatic address", ""),
         message: message.clone(),
@@ -259,14 +256,24 @@ pub(crate) fn panel() -> gtk::Box {
         waiting,
         countdown,
         wait: Rc::new(Cell::new(0)),
-        root: root.clone(),
     };
-    root.append(&status);
+    *recheck.borrow_mut() = Some(panel.clone());
+    if settings_link.is_none() {
+        root.append(&status);
+    }
+    root.append(&wired.root);
+    root.append(&wifi_panel::section());
     root.append(&fixed_form(&panel));
     root.append(&message);
+    let actions = ui::row(ui::GAP);
     let refresh = ui::button("Check again", "");
-    refresh.set_halign(gtk::Align::Start);
-    root.append(&refresh);
+    actions.append(&refresh);
+    if let Some(open) = settings_link {
+        let link = ui::button("Network settings…", "");
+        link.connect_clicked(move |_| open());
+        actions.append(&link);
+    }
+    root.append(&actions);
 
     let target = panel.clone();
     refresh.connect_clicked(move |_| target.check());
@@ -291,34 +298,4 @@ pub(crate) fn panel() -> gtk::Box {
         glib::ControlFlow::Continue
     });
     root
-}
-
-#[cfg(test)]
-mod tests {
-    use super::{address_words, cable_words, wifi_words};
-    use crate::api::{Link, Network};
-
-    #[test]
-    fn the_status_is_said_plainly_for_each_link() {
-        let link = |name: &str, cable, address: &[&str]| Link {
-            name: name.to_owned(),
-            cable,
-            addresses: address.iter().map(|a| (*a).to_owned()).collect(),
-        };
-        let network = Network {
-            links: vec![link("en0", true, &["10.0.2.15"]), link("en1", false, &[])],
-            ..Network::default()
-        };
-        assert_eq!(cable_words(&network), "en0: connected, en1: no cable");
-        assert_eq!(address_words(&network), "10.0.2.15");
-        assert_eq!(cable_words(&Network::default()), "No network card found.");
-        assert_eq!(address_words(&Network::default()), "No address yet.");
-    }
-
-    /// The owner asked for this to be plain: never imply Wi-Fi works.
-    #[test]
-    fn wifi_is_never_promised() {
-        assert!(wifi_words(false).contains("no Wi-Fi card"));
-        assert!(wifi_words(true).contains("not available"));
-    }
 }

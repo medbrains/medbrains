@@ -71,6 +71,21 @@ IMMUTABLE_APPLIED = {
     # which check_rls.py reads; the other three keys can never be added.
     "1016_nurse_call_escalation.sql",
     "1017_partition_rls.sql",
+    # Merged with no header and applied before check_rls.py could report it (the
+    # check exited 2 unseen until it was repointed at the migrations crate).
+    # Named one by one so a new migration without a header still fails.
+    "1094_analyzer_orders.sql",  # one index on device_messages; no table, no policy
+    "1095_ophtho_spectacle_rx.sql",  # columns on ophtho_exams, which keeps its policies
+    "1096_invoice_item_payer.sql",  # columns on invoice_items, which keeps its policies
+    "1097_print_delivery.sql",  # one column and a backfill on document_outputs
+    "1172_seed_default_note_types.sql",  # a seed function and trigger; no new table
+}
+
+# Synonyms authors actually wrote, in migrations that can no longer be edited.
+POSTURE_SYNONYMS = {
+    "not-tenant-scoped": "not-applicable",
+    "unchanged": "not-applicable",
+    "none": "not-applicable",
 }
 
   # migrations >= this must comply
@@ -85,6 +100,17 @@ VALID_POSTURES = {
 }
 
 HEADER_KEY_RE = re.compile(r"--\s*([A-Za-z][A-Za-z\-]+)\s*:\s*(.+?)\s*$", re.MULTILINE)
+
+
+def normalize_posture(posture: str) -> str:
+    """Reduce a written posture to its allowed word.
+
+    A trailing parenthetical narrows the claim rather than weakening it:
+    "tenant-scoped (existing table; policies unchanged)" asserts tenant-scoped
+    and says why nothing new is needed.
+    """
+    base = posture.split("(", 1)[0].strip()
+    return POSTURE_SYNONYMS.get(base.lower(), base)
 
 
 def parse_header(sql: str) -> dict[str, str]:
@@ -128,12 +154,8 @@ def main() -> int:
             if key not in header:
                 errors.append(f"{path.name}: missing required header key '{key}'")
         posture = header.get("RLS-Posture")
-        # A trailing parenthetical narrows the claim rather than weakening it:
-        # "tenant-scoped (per table)" asserts tenant-scoped and says where. The
-        # lint compared the whole string, so the more informative header failed
-        # while the barer one passed.
         if posture:
-            posture = posture.split("(", 1)[0].strip()
+            posture = normalize_posture(posture)
         if posture and posture not in VALID_POSTURES:
             errors.append(
                 f"{path.name}: invalid RLS-Posture '{posture}' "

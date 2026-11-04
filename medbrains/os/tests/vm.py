@@ -3,9 +3,11 @@
 devices arrive through, plus the serial root shell to check what the screen claims.
 
   OS_WORK=/tmp/mb-osimage-shell os/tests/vm.py shot out.png | key ctrl c | type TEXT
-      | click X Y | drag X1 Y1 X2 Y2 | sh 'command' | cable on|off | reset
+      | click X Y | rclick X Y | hold X Y | drag X1 Y1 X2 Y2 | sh 'command' | cable on|off | reset
+
+Under Apple Virtualization only `sh` works, and needs OS_SERIAL=<the path utm-run.sh prints>.
 """
-import json, os, re, socket, sys, time
+import json, os, re, select, socket, sys, termios, time, tty
 
 VM = os.environ.get("OS_WORK", "/tmp/mb-osimage") + "/vm"
 W, H = int(os.environ.get("OS_SCREEN_W", 1280)), int(os.environ.get("OS_SCREEN_H", 800))
@@ -57,16 +59,17 @@ class Qmp:
             {"type": "abs", "data": {"axis": "y", "value": y * 32767 // H}}])
         time.sleep(0.15)
 
-    def button(self, down):
-        """Presses or releases the left button."""
-        self.cmd("input-send-event", events=[{"type": "btn", "data": {"down": down, "button": "left"}}])
+    def button(self, down, which="left"):
+        """Presses or releases a button."""
+        self.cmd("input-send-event", events=[{"type": "btn", "data": {"down": down, "button": which}}])
         time.sleep(0.08)
 
-    def click(self, x, y):
-        """Clicks at a screen position."""
+    def click(self, x, y, which="left", hold=0.0):
+        """Clicks at a screen position, optionally holding the button down."""
         self.move(x, y)
-        self.button(True)
-        self.button(False)
+        self.button(True, which)
+        time.sleep(hold)
+        self.button(False, which)
 
     def drag(self, x1, y1, x2, y2):
         """Drags in steps, as a hand does, so a selection really extends."""
@@ -77,19 +80,31 @@ class Qmp:
         self.button(False)
 
 
-def serial(command, timeout=30):
-    """Runs a command in the serial root shell and returns what it printed."""
+def open_serial():
+    """Opens the shell's port: a pty under Apple Virtualization, QEMU's socket otherwise."""
+    path = os.environ.get("OS_SERIAL")
+    if path:
+        fd = os.open(path, os.O_RDWR | os.O_NOCTTY)
+        tty.setraw(fd, termios.TCSANOW)
+        return fd
     sock = socket.socket(socket.AF_UNIX)
     sock.connect(f"{VM}/serial.sock")
-    sock.settimeout(1)
+    return os.dup(sock.fileno())
+
+
+def serial(command, timeout=30):
+    """Runs a command in the serial root shell and returns what it printed."""
+    fd = open_serial()
     end = f"END{int(time.time() * 1000)}"
-    sock.sendall(f"\n{command}; echo {end}$((1+1))\n".encode())
     seen, deadline = b"", time.time() + timeout
-    while time.time() < deadline and f"{end}2".encode() not in seen:
-        try:
-            seen += sock.recv(65536)
-        except socket.timeout:
-            pass
+    try:
+        os.write(fd, f"\n{command}; echo {end}$((1+1))\n".encode())
+        while time.time() < deadline and f"{end}2".encode() not in seen:
+            if select.select([fd], [], [], 1)[0]:
+                seen += os.read(fd, 65536)
+    finally:
+        # QEMU serves one client at a time: left open, the next call's command would wait unread.
+        os.close(fd)
     text = re.sub(r"\x1b\[[0-9;?]*[A-Za-z]", "", seen.decode(errors="replace"))
     body = text.split(f"{end}$((1+1))", 1)[-1]
     return body.split(f"{end}2", 1)[0].strip()
@@ -109,6 +124,10 @@ def main(op, *args):
         qmp.type(args[0])
     elif op == "click":
         qmp.click(int(args[0]), int(args[1]))
+    elif op == "rclick":
+        qmp.click(int(args[0]), int(args[1]), "right")
+    elif op == "hold":
+        qmp.click(int(args[0]), int(args[1]), hold=1.0)
     elif op == "drag":
         qmp.drag(*map(int, args))
     elif op == "cable":

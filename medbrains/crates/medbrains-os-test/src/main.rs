@@ -20,8 +20,7 @@ const SYSCTLS: [(&str, &str); 4] = [("kernel.kptr_restrict", "2"), ("kernel.kexe
 const CLOSED_FROM_OUTSIDE: [&str; 4] = ["ssh", "server", "database", "edge"];
 const TIME_SYNC_LIMIT: Duration = Duration::from_secs(120);
 const SETUP_LIMIT: Duration = Duration::from_secs(90);
-const SETUP_API: &str = "http://127.0.0.1:3100";
-const SETUP_TOKEN: &str = "/run/medbrains-console/setup-token";
+const SETUP_SOCKET: &str = "/run/medbrains-console/setup.sock";
 const AGENT_API: &str = "http://127.0.0.1:3000/api/machine-agent";
 const AGENT_TOKEN: &str = "/var/lib/medbrains-agent/server-token";
 const TOKEN_HEADER: &str = "x-machine-agent-token";
@@ -216,7 +215,7 @@ fn checks() -> Vec<Check> {
 fn set_up_main(vm: &mut Vm) -> Result<(), String> {
     let body = r#"{"hospital":"Test Hospital","username":"admin","password":"Os-Test-Setup1!"}"#;
     let answer = vm.run_for(
-        &format!("curl -s -m 80 -H \"X-Setup-Token: $(cat {SETUP_TOKEN})\" -d '{body}' {SETUP_API}/hospital"),
+        &format!("curl -s -m 80 --unix-socket {SETUP_SOCKET} -d '{body}' http://machine/hospital"),
         SETUP_LIMIT,
     )?;
     ensure(answer.contains("\"ok\":true"), format!("setup answered {answer}"))

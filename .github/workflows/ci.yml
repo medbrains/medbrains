@@ -236,7 +236,9 @@ jobs:
       # Every RLS-enabled table must carry a policy (0 gaps as of 2026-10-12;
       # the app runs as medbrains_app, NOBYPASSRLS, migration 0981).
       - name: RLS coverage
-        run: python3 scripts/check_rls.py
+        run: |
+          python3 scripts/check_rls.py --self-test
+          python3 scripts/check_rls.py
 
       # 4 raw SQL statements in routes/. Exactly the class of query the
       # backstop above is meant to catch.

@@ -7713,6 +7713,8 @@ dependencies = [
 name = "medbrains-os-setup"
 version = "1.0.0"
 dependencies = [
+ "argon2",
+ "rustix",
  "serde_json",
 ]
 

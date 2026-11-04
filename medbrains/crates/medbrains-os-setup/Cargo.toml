@@ -8,7 +8,12 @@ rust-version.workspace = true
 license-file.workspace = true
 
 [dependencies]
+argon2 = { workspace = true }
 serde_json = { workspace = true }
+
+# Who connected to the socket: only Linux has this, and only Linux runs this. Tests also run on Macs.
+[target.'cfg(target_os = "linux")'.dependencies]
+rustix = { version = "1", features = ["net", "time"] }
 
 [lints]
 workspace = true
