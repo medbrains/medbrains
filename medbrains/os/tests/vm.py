@@ -3,7 +3,7 @@
 devices arrive through, plus the serial root shell to check what the screen claims.
 
   OS_WORK=/tmp/mb-osimage-shell os/tests/vm.py shot out.png | key ctrl c | type TEXT
-      | click X Y | drag X1 Y1 X2 Y2 | sh 'command' | cable on|off | reset
+      | click X Y | rclick X Y | hold X Y | drag X1 Y1 X2 Y2 | sh 'command' | cable on|off | reset
 
 Under Apple Virtualization only `sh` works, and needs OS_SERIAL=<the path utm-run.sh prints>.
 """
@@ -59,16 +59,17 @@ class Qmp:
             {"type": "abs", "data": {"axis": "y", "value": y * 32767 // H}}])
         time.sleep(0.15)
 
-    def button(self, down):
-        """Presses or releases the left button."""
-        self.cmd("input-send-event", events=[{"type": "btn", "data": {"down": down, "button": "left"}}])
+    def button(self, down, which="left"):
+        """Presses or releases a button."""
+        self.cmd("input-send-event", events=[{"type": "btn", "data": {"down": down, "button": which}}])
         time.sleep(0.08)
 
-    def click(self, x, y):
-        """Clicks at a screen position."""
+    def click(self, x, y, which="left", hold=0.0):
+        """Clicks at a screen position, optionally holding the button down."""
         self.move(x, y)
-        self.button(True)
-        self.button(False)
+        self.button(True, which)
+        time.sleep(hold)
+        self.button(False, which)
 
     def drag(self, x1, y1, x2, y2):
         """Drags in steps, as a hand does, so a selection really extends."""
@@ -119,6 +120,10 @@ def main(op, *args):
         qmp.type(args[0])
     elif op == "click":
         qmp.click(int(args[0]), int(args[1]))
+    elif op == "rclick":
+        qmp.click(int(args[0]), int(args[1]), "right")
+    elif op == "hold":
+        qmp.click(int(args[0]), int(args[1]), hold=1.0)
     elif op == "drag":
         qmp.drag(*map(int, args))
     elif op == "cable":

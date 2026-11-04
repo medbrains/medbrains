@@ -284,12 +284,13 @@ stays as the baseline; memory is compared here.
 | State | Whole machine used (`MemTotal - MemAvailable`) | Server PSS | Screen PSS |
 |---|---|---|---|
 | Before setup, Network screen | 294 MB | none running | 177 MB (cage 113 + shell 63) |
-| Desktop, MedBrains never opened (WPE: status page, 834 MB) | **693 MB** | 194 MB | 178 MB (cage 113 + shell 65) |
-| Signed in, Patients open (WPE: 2,331 MB) | **2,181 MB** | 1,154 MB | 617 MB, of which the page's WebProcess 308 MB (WPE: 673 and 412) |
+| Desktop, MedBrains never opened (WPE: status page, 834 MB) | **644 MB** | 166 MB | 186 MB (cage 113 + shell 73) |
+| Signed in, Patients open (WPE: 2,331 MB) | **2,148 MB** | 1,121 MB | 651 MB, of which the page's WebProcess 297 MB (WPE: 673 and 412) |
+| After Close | **1,740 MB** | 1,038 MB | 283 MB (cage 89 + shell 194). All WebKit processes gone |
 
 The web figures are one run each, sampled seconds after the page settled, so treat them as similar rather
-than better. The server still grows by about 1 GB when someone signs in; why is open, and it is the largest
-part of the 512 MB target's gap. The WebKit view stays alive after Home until a restart.
+than better. The server still grows by about 1 GB when someone signs in, and keeps it; why is open, and it is
+the largest part of the 512 MB target's gap. Close frees about 400 MB; the shell keeps about 120 MB of it.
 
 Everything here was **measured in QEMU on an Apple-silicon Mac** (HVF, 4 vCPUs, 4 GB RAM, no GPU, so
 software rendering, on a host often under heavy load from other work). None of it is a Raspberry Pi

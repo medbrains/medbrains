@@ -4,7 +4,10 @@ use std::rc::Rc;
 
 use gtk4 as gtk;
 use gtk4::glib;
-use gtk4::prelude::{BoxExt, ButtonExt, EditableExt, FlowBoxChildExt, PopoverExt, WidgetExt};
+use gtk4::prelude::{
+    BoxExt, ButtonExt, EditableExt, EventControllerExt, FlowBoxChildExt, GestureExt, PopoverExt,
+    WidgetExt,
+};
 
 use crate::apps::App;
 use crate::desktop::Desktop;
@@ -193,8 +196,13 @@ fn add_tile_menu(tile: &gtk::Button, desktop: &Rc<Desktop>, index: usize) {
     right_click.connect_pressed(move |_, _, _, _| trigger());
     tile.add_controller(right_click);
     let long_press = gtk::GestureLongPress::new();
+    // Captured and claimed, or letting go would also count as a click and open the app.
+    long_press.set_propagation_phase(gtk::PropagationPhase::Capture);
     let trigger = Rc::clone(&show);
-    long_press.connect_pressed(move |_, _, _| trigger());
+    long_press.connect_pressed(move |gesture, _, _| {
+        gesture.set_state(gtk::EventSequenceState::Claimed);
+        trigger();
+    });
     tile.add_controller(long_press);
     let keys = gtk::ShortcutController::new();
     let action = gtk::CallbackAction::new(move |_, _| {
