@@ -5,14 +5,17 @@ mod api;
 mod apps;
 mod desktop;
 mod display;
+mod dock;
 mod network;
 mod prefs;
+mod running;
 mod settings;
 mod setup;
 mod timezone;
 mod topbar;
 mod ui;
 mod webapp;
+mod webview;
 mod widgets;
 
 use std::time::Duration;

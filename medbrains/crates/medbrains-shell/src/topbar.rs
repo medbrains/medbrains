@@ -20,11 +20,21 @@ const CLOCK_SECONDS: u32 = 5;
 /// What this machine is. Only one role exists so far.
 const ROLE: &str = "Main machine";
 
+/// What is on screen below the bar.
+#[derive(Debug, Clone, Copy)]
+pub(crate) enum Screen<'a> {
+    Desktop,
+    Launcher,
+    App { name: &'a str, reloads: bool },
+}
+
 /// The parts of the bar that change after they are built.
 #[derive(Clone)]
 pub(crate) struct TopBar {
     pub(crate) root: gtk::CenterBox,
     pub(crate) home: gtk::Button,
+    pub(crate) close: gtk::Button,
+    pub(crate) reload: gtk::Button,
     name: gtk::Label,
     role: gtk::Label,
     day: gtk::Label,
@@ -78,13 +88,17 @@ impl TopBar {
         root.add_css_class("topbar");
 
         let left = ui::row(ui::GAP / 2 + 4);
-        let home = ui::icon_button("go-home-symbolic", "Home");
-        home.set_visible(false);
+        let close = ui::icon_button("window-close-symbolic", "Close (Ctrl+W)");
+        let home = ui::icon_button("go-home-symbolic", "Home (Alt+Home)");
+        let reload = ui::icon_button("view-refresh-symbolic", "Reload (F5)");
+        for control in [&close, &home, &reload] {
+            control.set_visible(false);
+            left.append(control);
+        }
         let logo = gtk::Image::from_file(LOGO);
         logo.set_pixel_size(20);
         let name = ui::line("MedBrains", "heading");
         let role = ui::line(ROLE, "muted");
-        left.append(&home);
         left.append(&logo);
         left.append(&name);
         left.append(&role);
@@ -114,6 +128,8 @@ impl TopBar {
         let bar = Self {
             root,
             home,
+            close,
+            reload,
             name,
             role,
             day,
@@ -135,10 +151,19 @@ impl TopBar {
         bar
     }
 
-    /// Shows an app's name in place of the machine's role, with Home beside it.
-    pub(crate) fn show_app(&self, title: Option<&str>) {
-        self.home.set_visible(title.is_some());
-        self.role.set_label(title.unwrap_or(ROLE));
+    /// Shows what is on screen in place of the machine's role, with the controls that apply.
+    /// `Apps` is the launcher, which has Home only; `App` also offers Close, and Reload if it
+    /// is a web view.
+    pub(crate) fn show_screen(&self, screen: Screen<'_>) {
+        let (title, can_close, can_reload) = match screen {
+            Screen::Desktop => (ROLE, false, false),
+            Screen::Launcher => ("Apps", false, false),
+            Screen::App { name, reloads } => (name, true, reloads),
+        };
+        self.home.set_visible(!matches!(screen, Screen::Desktop));
+        self.close.set_visible(can_close);
+        self.reload.set_visible(can_reload);
+        self.role.set_label(title);
     }
 
     /// Shows one poll of the machine.

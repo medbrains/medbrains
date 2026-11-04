@@ -7,16 +7,13 @@ use std::rc::Rc;
 use std::time::{Duration, Instant};
 
 use gtk4 as gtk;
-use gtk4::prelude::{BoxExt, ButtonExt, Cast, WidgetExt};
+use gtk4::prelude::{BoxExt, ButtonExt, ObjectExt, WidgetExt};
 use gtk4::{gio, glib};
-use webkit6::prelude::{PolicyDecisionExt, WebViewExt};
-use webkit6::{
-    HardwareAccelerationPolicy, LoadEvent, NavigationPolicyDecision, NetworkSession,
-    UserContentFilterStore, WebView,
-};
+use webkit6::prelude::WebViewExt;
+use webkit6::{LoadEvent, UserContentFilterStore, WebView};
 
 use crate::apps::{self, App};
-use crate::{api, timezone, ui};
+use crate::{api, ui, webview};
 
 /// WebKit compiles the filter into a file here, inside the screen's own writable directory.
 const FILTER_STORE: &str = "/var/lib/kiosk/content-filter";
@@ -31,25 +28,11 @@ const FILTER_PATIENCE: Duration = Duration::from_secs(30);
 const PAGE_PATIENCE: Duration = Duration::from_secs(120);
 /// A page crashing this many times in a row stops the automatic reloads.
 const MAX_CRASHES: u32 = 3;
+/// How long a page gets to finish closing before it is ended.
+const CLOSE_PATIENCE: Duration = Duration::from_secs(5);
 
-/// True for a page the view may show: the app's own origin, or what it made in memory.
-fn is_local_page(uri: &str, origin: &str) -> bool {
-    uri.strip_prefix(origin)
-        .is_some_and(|rest| rest.starts_with('/'))
-        || uri.starts_with("blob:")
-        || uri.starts_with("data:")
-        || uri == "about:blank"
-}
-
-/// True for a navigation away from this app. The content filter would block it too, but on a
-/// dead-end page; refusing it here leaves the person where they were.
-fn leaves_this_app(decision: &NavigationPolicyDecision, origin: &str) -> bool {
-    let target = decision
-        .navigation_action()
-        .and_then(|mut action| action.request())
-        .and_then(|request| request.uri());
-    !target.is_some_and(|uri| is_local_page(&uri, origin))
-}
+/// What runs once an app's view has gone.
+type ClosedAction = Rc<dyn Fn()>;
 
 /// The sentence while waiting for an app's service.
 fn waiting_words(name: &str, waited: Duration) -> String {
@@ -77,6 +60,10 @@ pub(crate) struct WebApp {
     crashes: Rc<Cell<u32>>,
     /// True from the first request until the view is showing or a failure stops it.
     busy: Rc<Cell<bool>>,
+    /// Runs once the view has really gone, after any question the page asks.
+    closed: Rc<RefCell<Option<ClosedAction>>>,
+    /// True once the page has asked about unsaved changes, so nothing forces it shut.
+    asking: Rc<Cell<bool>>,
 }
 
 impl WebApp {
@@ -111,6 +98,8 @@ impl WebApp {
             attempt: Rc::default(),
             crashes: Rc::default(),
             busy: Rc::default(),
+            closed: Rc::default(),
+            asking: Rc::default(),
         };
         let target = web.clone();
         web.retry.connect_clicked(move |_| target.start());
@@ -124,6 +113,59 @@ impl WebApp {
                 view.grab_focus();
             }
         } else if !self.busy.get() && !self.retry.is_visible() {
+            self.start();
+        }
+    }
+
+    /// Sets what happens once a close has finished.
+    pub(crate) fn on_closed(&self, action: impl Fn() + 'static) {
+        *self.closed.borrow_mut() = Some(Rc::new(action));
+    }
+
+    /// Asks the app to close. The page may ask about unsaved changes first, in its own view; a
+    /// page that never answers is ended after a limit, unless it is asking a person.
+    pub(crate) fn close(&self) {
+        let Some(view) = self.view.borrow().clone() else {
+            self.finish_close();
+            return;
+        };
+        self.asking.set(false);
+        view.try_close();
+        let (app, closing) = (self.clone(), view.downgrade());
+        glib::timeout_add_local_once(CLOSE_PATIENCE, move || {
+            let still_open = closing.upgrade().is_some();
+            if still_open && !app.asking.get() {
+                glib::g_warning!(LOG, "{} did not close in time, ending it", app.app.id);
+                app.finish_close();
+            }
+        });
+    }
+
+    /// Destroys the view and everything it holds, and returns the page to its starting state.
+    fn finish_close(&self) {
+        self.attempt.set(self.attempt.get() + 1);
+        self.busy.set(false);
+        self.retry.set_visible(false);
+        self.crashes.set(0);
+        self.root.set_visible_child_name("status");
+        let view = self.view.borrow_mut().take();
+        if let Some(view) = view {
+            self.root.remove(&view);
+            glib::g_message!(LOG, "{}: view closed", self.app.id);
+        }
+        let action = self.closed.borrow().clone();
+        if let Some(action) = action {
+            action();
+        }
+    }
+
+    /// Loads the page again, or tries again if it isn't showing.
+    pub(crate) fn reload(&self) {
+        if self.is_showing() {
+            if let Some(view) = self.view.borrow().as_ref() {
+                view.reload();
+            }
+        } else if !self.busy.get() {
             self.start();
         }
     }
@@ -265,53 +307,26 @@ impl WebApp {
         });
     }
 
-    /// Builds the view, with a session of its own, so apps can't read each other's storage.
-    /// Sessions are ephemeral, so nothing a page stores reaches the disk, and downloads, printing and uploads are refused: the appliance has no safe way to do them yet.
+    /// Builds the view and follows it.
     fn make_view(&self, filter: &webkit6::UserContentFilter) {
-        timezone::export_for_children();
-        let session = NetworkSession::new_ephemeral();
-        session.connect_download_started(|_, download| download.cancel());
-        let content = webkit6::UserContentManager::new();
-        content.add_filter(filter);
-        let view = WebView::builder()
-            .network_session(&session)
-            .user_content_manager(&content)
-            .build();
-        if let Some(settings) = WebViewExt::settings(&view) {
-            settings.set_hardware_acceleration_policy(HardwareAccelerationPolicy::Never);
-            settings.set_enable_developer_extras(false);
-        }
-        view.connect_print(|_, _| true);
-        // A file chooser is a second window, and `cage` did not show ours: its modal grab would
-        // block all input. Uploads stay off here, as they were under WPE.
-        view.connect_run_file_chooser(|_, request| {
-            request.cancel();
-            true
-        });
-        let origin = Rc::clone(&self.origin);
-        view.connect_decide_policy(move |_, decision, kind| {
-            let leaves = match kind {
-                // A new window would have no way back in a one-window shell.
-                webkit6::PolicyDecisionType::NewWindowAction => true,
-                webkit6::PolicyDecisionType::NavigationAction => decision
-                    .downcast_ref::<NavigationPolicyDecision>()
-                    .is_some_and(|navigation| leaves_this_app(navigation, &origin)),
-                _ => false,
-            };
-            if leaves {
-                decision.ignore();
-            }
-            leaves
-        });
+        let view = webview::new_view(filter, &self.origin);
         self.connect_view_signals(&view);
-        view.set_vexpand(true);
-        view.set_hexpand(true);
         self.root.add_named(&view, Some("view"));
         *self.view.borrow_mut() = Some(view);
     }
 
-    /// Follows the page's progress and failures.
+    /// Follows the page's progress, failures and closing.
     fn connect_view_signals(&self, view: &WebView) {
+        let app = self.clone();
+        view.connect_close(move |_| app.finish_close());
+        let app = self.clone();
+        // WebKit draws this question inside the view, so it works under `cage`.
+        view.connect_script_dialog(move |_, dialog| {
+            if dialog.dialog_type() == webkit6::ScriptDialogType::BeforeUnloadConfirm {
+                app.asking.set(true);
+            }
+            false
+        });
         let app = self.clone();
         view.connect_estimated_load_progress_notify(move |view| {
             if app.busy.get() {
@@ -360,25 +375,7 @@ impl WebApp {
 
 #[cfg(test)]
 mod tests {
-    use super::{Duration, is_local_page, waiting_words};
-
-    const ORIGIN: &str = "https://127.0.0.1:8443";
-
-    /// A look-alike host must not pass as this app, or a link could leave it.
-    #[test]
-    fn only_an_apps_own_pages_count_as_local() {
-        assert!(is_local_page("https://127.0.0.1:8443/patients", ORIGIN));
-        assert!(is_local_page("blob:https://127.0.0.1:8443/abc", ORIGIN));
-        assert!(!is_local_page("https://deb.debian.org/", ORIGIN));
-        assert!(!is_local_page(
-            "https://127.0.0.1:8443.evil.example/",
-            ORIGIN
-        ));
-        assert!(!is_local_page("https://127.0.0.1:84430/", ORIGIN));
-        assert!(!is_local_page("http://127.0.0.1:8443/", ORIGIN));
-        assert!(!is_local_page("https://127.0.0.1:9000/", ORIGIN));
-        assert!(!is_local_page("file:///etc/passwd", ORIGIN));
-    }
+    use super::{Duration, waiting_words};
 
     /// The owner saw a sentence that never changed: waiting must say how long it has been.
     #[test]

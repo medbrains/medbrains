@@ -1,38 +1,23 @@
 //! The desktop after setup: wallpaper, greeting, widgets, dock, launcher and the two apps.
 //! Nothing here shows patient data: it speaks only about the machine.
 
+use std::cell::RefCell;
 use std::rc::Rc;
 use std::time::Duration;
 
 use gtk4 as gtk;
 use gtk4::glib;
-use gtk4::prelude::{BoxExt, ButtonExt, EditableExt, FlowBoxChildExt, WidgetExt};
+use gtk4::prelude::{BoxExt, ButtonExt, EventControllerExt, WidgetExt};
 
 use crate::api::{self, State};
 use crate::apps::{self, App};
-use crate::topbar::TopBar;
+use crate::running::Running;
+use crate::topbar::{Screen, TopBar};
 use crate::widgets::Widgets;
-use crate::{settings, ui, webapp::WebApp};
+use crate::{dock, settings, ui, webapp::WebApp};
 
 /// How often the bar and widgets ask the machine for its state.
 const REFRESH_EVERY: Duration = Duration::from_secs(10);
-
-/// How many apps the dock shows. The launcher lists them all.
-const DOCK_APPS: usize = 6;
-const BRAND_ICON_SIZE: i32 = 40;
-const DOCK_ICON_SIZE: i32 = 24;
-const TILE_ICON_SIZE: i32 = 64;
-
-/// An app's image: a theme icon by name, or a file by path.
-fn app_image(app: &App, size: i32) -> gtk::Image {
-    let image = if app.icon.starts_with('/') {
-        gtk::Image::from_file(&app.icon)
-    } else {
-        gtk::Image::from_icon_name(&app.icon)
-    };
-    image.set_pixel_size(size);
-    image
-}
 
 /// The page name for an app in the desktop's stack.
 fn page_name(app: &App) -> String {
@@ -40,58 +25,106 @@ fn page_name(app: &App) -> String {
 }
 
 /// One app and the parts of the desktop that show it.
-struct Entry {
-    app: App,
+pub(crate) struct Entry {
+    pub(crate) app: App,
     /// Its view, for an app that opens a URL. Settings has none.
     web: Option<WebApp>,
     /// The dot under its dock tile.
-    running: gtk::Box,
+    pub(crate) running: gtk::Box,
     /// Where its tiles say its unit isn't running: the dock's and the launcher's.
-    notes: [gtk::Label; 2],
-}
-
-/// True when a launcher search should show this name. An empty search shows everything.
-fn matches_search(title: &str, query: &str) -> bool {
-    title
-        .to_lowercase()
-        .contains(query.trim().to_lowercase().as_str())
+    pub(crate) notes: [gtk::Label; 2],
 }
 
 /// The parts of the desktop that change after they are built.
 #[derive(Clone)]
-struct Desktop {
+pub(crate) struct Desktop {
     content: gtk::Stack,
     bar: TopBar,
     widgets: Widgets,
     greeting_name: gtk::Label,
     greeting_status: gtk::Label,
-    entries: Rc<Vec<Entry>>,
+    pub(crate) entries: Rc<Vec<Entry>>,
+    pub(crate) running: Rc<RefCell<Running>>,
 }
 
 impl Desktop {
     /// Goes back to the wallpaper. Apps stay as they were.
-    fn go_home(&self) {
+    pub(crate) fn go_home(&self) {
+        self.running.borrow_mut().home();
         self.content.set_visible_child_name("home");
-        self.bar.show_app(None);
+        self.bar.show_screen(Screen::Desktop);
     }
 
-    /// Opens an app, full size.
-    fn open(&self, index: usize) {
+    /// Opens an app, full size, or switches back to it.
+    pub(crate) fn open(&self, index: usize) {
         let Some(entry) = self.entries.get(index) else {
             return;
         };
+        self.running.borrow_mut().open(index);
         self.content.set_visible_child_name(&page_name(&entry.app));
-        self.bar.show_app(Some(&entry.app.name));
+        let reloads = entry.web.is_some();
+        self.bar.show_screen(Screen::App {
+            name: &entry.app.name,
+            reloads,
+        });
+        entry.running.add_css_class("running");
         if let Some(web) = &entry.web {
             web.open();
-            entry.running.add_css_class("running");
+        }
+    }
+
+    /// Closes an app. A web view may ask about unsaved changes first, so it finishes in `closed`.
+    pub(crate) fn close(&self, index: usize) {
+        let Some(entry) = self.entries.get(index) else {
+            return;
+        };
+        match &entry.web {
+            Some(web) => web.close(),
+            None => self.closed(index),
+        }
+    }
+
+    /// Records that an app has gone.
+    pub(crate) fn closed(&self, index: usize) {
+        let was_showing = self.running.borrow().showing() == Some(index);
+        self.running.borrow_mut().close(index);
+        if let Some(entry) = self.entries.get(index) {
+            entry.running.remove_css_class("running");
+        }
+        if was_showing {
+            self.go_home();
+        }
+    }
+
+    /// Closes the app on screen, if one is.
+    fn close_showing(&self) {
+        let showing = self.running.borrow().showing();
+        if let Some(index) = showing {
+            self.close(index);
+        }
+    }
+
+    /// Reloads the app on screen, if it has a view.
+    fn reload_showing(&self) {
+        let showing = self.running.borrow().showing();
+        if let Some(web) = showing.and_then(|index| self.entries[index].web.as_ref()) {
+            web.reload();
+        }
+    }
+
+    /// Switches to the next open app, if there is one.
+    fn switch_next(&self) {
+        let next = self.running.borrow().next();
+        if let Some(index) = next {
+            self.open(index);
         }
     }
 
     /// Shows the launcher with its search empty and focused.
-    fn show_launcher(&self) {
+    pub(crate) fn show_launcher(&self) {
+        self.running.borrow_mut().home();
         self.content.set_visible_child_name("launcher");
-        self.bar.show_app(Some("Apps"));
+        self.bar.show_screen(Screen::Launcher);
     }
 
     /// Shows one poll of the machine.
@@ -142,130 +175,26 @@ impl Desktop {
     }
 }
 
-/// The launcher page: search over a grid of tiles for what actually exists.
-fn launcher_page(desktop: &Rc<Desktop>) -> gtk::Box {
-    let page = ui::column(ui::GAP);
-    page.add_css_class("launcher");
-    let search = gtk::SearchEntry::builder()
-        .placeholder_text("Search apps")
-        .halign(gtk::Align::Center)
-        .width_request(320)
-        .build();
-    let grid = gtk::FlowBox::builder()
-        .selection_mode(gtk::SelectionMode::None)
-        .halign(gtk::Align::Center)
-        .valign(gtk::Align::Start)
-        .max_children_per_line(6)
-        .build();
-    for (index, entry) in desktop.entries.iter().enumerate() {
-        let body = ui::column(ui::GAP / 2);
-        body.append(&app_image(&entry.app, TILE_ICON_SIZE));
-        let name = ui::line(&entry.app.name, "");
-        name.set_xalign(0.5);
-        body.append(&name);
-        body.append(&entry.notes[0]);
-        let tile = gtk::Button::builder().child(&body).build();
-        tile.add_css_class("tile");
+/// The keyboard's window controls. Captured before the page, or it would take F5 and Ctrl+W.
+fn shortcuts(desktop: &Rc<Desktop>) -> gtk::ShortcutController {
+    let keys = gtk::ShortcutController::new();
+    keys.set_scope(gtk::ShortcutScope::Global);
+    keys.set_propagation_phase(gtk::PropagationPhase::Capture);
+    let bind = |trigger: &str, action: fn(&Desktop)| {
         let target = Rc::clone(desktop);
-        tile.connect_clicked(move |_| target.open(index));
-        grid.insert(&tile, -1);
-    }
-    let (filter_text, filtered) = (search.clone(), Rc::clone(&desktop.entries));
-    grid.set_filter_func(move |child| {
-        let index = child.index() as usize;
-        filtered
-            .get(index)
-            .is_some_and(|e| matches_search(&e.app.name, &filter_text.text()))
-    });
-    let changed = grid.clone();
-    search.connect_search_changed(move |_| changed.invalidate_filter());
-    let target = Rc::clone(desktop);
-    search.connect_activate(move |entry| {
-        let found = target
-            .entries
-            .iter()
-            .position(|e| matches_search(&e.app.name, &entry.text()));
-        if let Some(index) = found {
-            target.open(index);
+        let callback = gtk::CallbackAction::new(move |_, _| {
+            action(&target);
+            glib::Propagation::Stop
+        });
+        if let Some(trigger) = gtk::ShortcutTrigger::parse_string(trigger) {
+            keys.add_shortcut(gtk::Shortcut::new(Some(trigger), Some(callback)));
         }
-    });
-    let target = Rc::clone(desktop);
-    search.connect_stop_search(move |entry| {
-        entry.set_text("");
-        target.go_home();
-    });
-    page.append(&search);
-    page.append(&grid);
-    page
-}
-
-/// One dock entry: a tile, its label under it, and an optional running marker.
-fn dock_app(
-    icon: &gtk::Image,
-    title: &str,
-    brand: bool,
-    marker: &gtk::Box,
-    note: Option<&gtk::Label>,
-) -> gtk::Button {
-    let tile = gtk::CenterBox::new();
-    tile.add_css_class("dock-tile");
-    if brand {
-        tile.add_css_class("brand");
-    }
-    tile.set_center_widget(Some(icon));
-    let body = ui::column(4);
-    body.append(&tile);
-    let words = ui::label(title, "dock-label");
-    words.set_xalign(0.5);
-    body.append(&words);
-    if let Some(note) = note {
-        note.set_xalign(0.5);
-        body.append(note);
-    }
-    marker.add_css_class("running-dot");
-    marker.set_halign(gtk::Align::Center);
-    body.append(marker);
-    let button = gtk::Button::builder().child(&body).build();
-    button.add_css_class("dock-app");
-    ui::set_name(&button, title);
-    button
-}
-
-/// The dock: all apps, a line, then each app.
-fn dock(desktop: &Rc<Desktop>) -> gtk::Box {
-    let dock = ui::row(10);
-    dock.add_css_class("dock");
-    dock.set_halign(gtk::Align::Center);
-    dock.set_valign(gtk::Align::End);
-    dock.set_margin_bottom(18);
-    let grid = gtk::Image::from_icon_name("view-grid-symbolic");
-    grid.set_pixel_size(24);
-    let launcher = dock_app(&grid, "Apps", false, &ui::column(0), None);
-    let target = Rc::clone(desktop);
-    launcher.connect_clicked(move |_| target.show_launcher());
-    dock.append(&launcher);
-    let line = ui::column(0);
-    line.add_css_class("dock-sep");
-    dock.append(&line);
-    for (index, entry) in desktop.entries.iter().enumerate().take(DOCK_APPS) {
-        let size = if entry.app.accent {
-            BRAND_ICON_SIZE
-        } else {
-            DOCK_ICON_SIZE
-        };
-        let image = app_image(&entry.app, size);
-        let button = dock_app(
-            &image,
-            &entry.app.name,
-            entry.app.accent,
-            &entry.running,
-            Some(&entry.notes[1]),
-        );
-        let target = Rc::clone(desktop);
-        button.connect_clicked(move |_| target.open(index));
-        dock.append(&button);
-    }
-    dock
+    };
+    bind("<Control>w", Desktop::close_showing);
+    bind("F5", Desktop::reload_showing);
+    bind("Super_L|Super_R|<Alt>Home", Desktop::go_home);
+    bind("<Alt>Tab|<Control>Tab", Desktop::switch_next);
+    keys
 }
 
 /// This machine's apps, each with its page's parts ready and its view not yet made.
@@ -314,17 +243,28 @@ pub(crate) fn build(css: &gtk::CssProvider, role: &str) -> gtk::Box {
         greeting_name: greeting_name.clone(),
         greeting_status: greeting_status.clone(),
         entries: Rc::new(load_entries(role)),
+        running: Rc::default(),
     });
+    for (index, entry) in desktop.entries.iter().enumerate() {
+        if let Some(web) = &entry.web {
+            let target = Rc::downgrade(&desktop);
+            web.on_closed(move || {
+                if let Some(desktop) = target.upgrade() {
+                    desktop.closed(index);
+                }
+            });
+        }
+    }
     root.append(&bar.root);
 
     let home = gtk::Overlay::new();
     home.set_child(Some(&ui::column(0)));
     home.add_overlay(&greeting(&greeting_name, &greeting_status));
     home.add_overlay(&desktop.widgets.root);
-    home.add_overlay(&dock(&desktop));
+    home.add_overlay(&dock::dock(&desktop));
 
     content.add_named(&home, Some("home"));
-    content.add_named(&launcher_page(&desktop), Some("launcher"));
+    content.add_named(&dock::launcher_page(&desktop), Some("launcher"));
     for entry in desktop.entries.iter() {
         let name = page_name(&entry.app);
         match &entry.web {
@@ -336,6 +276,11 @@ pub(crate) fn build(css: &gtk::CssProvider, role: &str) -> gtk::Box {
 
     let target = Rc::clone(&desktop);
     bar.home.connect_clicked(move |_| target.go_home());
+    let target = Rc::clone(&desktop);
+    bar.close.connect_clicked(move |_| target.close_showing());
+    let target = Rc::clone(&desktop);
+    bar.reload.connect_clicked(move |_| target.reload_showing());
+    root.add_controller(shortcuts(&desktop));
     desktop.refresh();
     let ticking = Rc::clone(&desktop);
     glib::timeout_add_local(REFRESH_EVERY, move || {
@@ -343,17 +288,4 @@ pub(crate) fn build(css: &gtk::CssProvider, role: &str) -> gtk::Box {
         glib::ControlFlow::Continue
     });
     root
-}
-
-#[cfg(test)]
-mod tests {
-    use super::matches_search;
-
-    #[test]
-    fn search_ignores_case_and_space_and_empty_shows_everything() {
-        assert!(matches_search("MedBrains", "med"));
-        assert!(matches_search("MedBrains", " BRAINS "));
-        assert!(matches_search("Settings", ""));
-        assert!(!matches_search("Settings", "med"));
-    }
 }

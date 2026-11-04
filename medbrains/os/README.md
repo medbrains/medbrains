@@ -101,6 +101,12 @@ partial, so expect gaps; that is what D2 is for.
    forever. Sign in with what you chose; nothing forces a change. Home keeps the app as it was, and a
    restart signs you out.
 
+**Apps are full-screen views, not movable windows.** While one is open the top bar shows its name with
+**Close** (ends its view and frees its memory; the page can ask about unsaved changes first), **Home** (keeps it
+running) and **Reload**. The dock marks what is running, and a right click, a long press or the menu key on a
+tile offers Open and Close. Keys: Ctrl+W closes, Super or Alt+Home goes home, Alt+Tab or Ctrl+Tab switches
+between open apps, F5 reloads. Ctrl+Tab and F5 therefore never reach the page.
+
 **What the status says, and only what is checked.** Firewall on means nftables holds our table. Time
 "Verified" means chrony has selected a source using NTS; it reads "Checking" for the first 5 minutes, and
 only then "Not confirmed". A failed service is named on screen. Nothing claims disk encryption or verified
