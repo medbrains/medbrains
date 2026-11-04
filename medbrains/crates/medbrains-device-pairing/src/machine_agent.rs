@@ -8,6 +8,7 @@ use axum::routing::{get, post};
 use axum::Json;
 use chrono::{DateTime, Duration, Utc};
 use medbrains_core::peer_sync::{PeerBinding, PeerRosterDoc, PeerRosterEntry};
+use medbrains_kernel::{Actor, Tx, begin};
 use medbrains_server_core::error::AppError;
 use medbrains_server_core::state::AppState;
 use serde::{Deserialize, Serialize};
@@ -102,6 +103,11 @@ async fn this_hospital(db: &sqlx::PgPool) -> Result<(Uuid, String), AppError> {
     }
 }
 
+/// Who the agent's work runs as: this hospital, and no person.
+const fn agent_actor(tenant_id: Uuid) -> Actor {
+    Actor { tenant_id, user_id: Uuid::nil() }
+}
+
 /// `POST /api/machine-agent/join`'s body. The key and the address come from the iroh connection, as
 /// the agent saw them; a machine says neither.
 #[derive(Debug, Deserialize)]
@@ -123,7 +129,7 @@ pub struct JoinAnswer {
 /// Makes room for one more request. This machine's own waiting request is replaced; past the limits,
 /// the oldest goes, from this address first. Keeps a bounded record of what went.
 async fn make_room(
-    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    tx: &mut Tx,
     filing: &JoinFiling,
 ) -> Result<(), AppError> {
     sqlx::query!(
@@ -175,8 +181,7 @@ pub async fn file_request(
 ) -> Result<JoinState, AppError> {
     let variant = app_variant(&filing.kind)
         .ok_or_else(|| AppError::BadRequest("unknown machine type".to_owned()))?;
-    let mut tx = db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &tenant).await?;
+    let mut tx = begin(db, agent_actor(tenant)).await?;
     // One filing at a time, so the limits below cannot be raced past.
     sqlx::query_scalar!(
         r#"SELECT 1 AS "locked!" FROM pg_advisory_xact_lock(hashtext('machine-join'))"#
@@ -227,7 +232,8 @@ pub async fn file_join(
     Json(body): Json<JoinFiling>,
 ) -> Result<Json<JoinAnswer>, AppError> {
     require_agent(&headers)?;
-    let (tenant, _) = this_hospital(&state.db).await?;
+    let db = &state.db;
+    let (tenant, _) = this_hospital(db).await?;
     let answer = file_request(&state.db, tenant, &body).await?;
     Ok(Json(JoinAnswer { state: answer }))
 }
@@ -239,9 +245,9 @@ pub async fn get_join_state(
     Path(node_id): Path<String>,
 ) -> Result<Json<JoinAnswer>, AppError> {
     require_agent(&headers)?;
-    let (tenant, _) = this_hospital(&state.db).await?;
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &tenant).await?;
+    let db = &state.db;
+    let (tenant, _) = this_hospital(db).await?;
+    let mut tx = begin(&state.db, agent_actor(tenant)).await?;
     let row = sqlx::query!(
         r#"SELECT status, expires_at, drop_reason IS NOT NULL AS "dropped!"
              FROM device_pairing_requests
@@ -280,9 +286,9 @@ pub async fn agent_sync(
     Json(body): Json<SyncBody>,
 ) -> Result<Json<SyncAnswer>, AppError> {
     require_agent(&headers)?;
-    let (tenant, hospital) = this_hospital(&state.db).await?;
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &tenant).await?;
+    let db = &state.db;
+    let (tenant, hospital) = this_hospital(db).await?;
+    let mut tx = begin(&state.db, agent_actor(tenant)).await?;
     if !body.connected.is_empty() {
         sqlx::query!(
             "WITH seen AS (UPDATE device_node_keys SET last_seen_at = now() \

@@ -6644,6 +6644,7 @@ dependencies = [
  "hex",
  "medbrains-core",
  "medbrains-db",
+ "medbrains-kernel",
  "medbrains-server-core",
  "serde",
  "serde_json",

@@ -11,10 +11,10 @@ use axum::routing::{delete, get, post};
 use axum::{Extension, Json};
 use chrono::{DateTime, Utc};
 use medbrains_core::permissions::devices::machines;
-use medbrains_db::audit::{AuditEntry, AuditLogger};
+use medbrains_kernel::audit::AuditEntry;
+use medbrains_kernel::{Actor, Tx, begin, require_permission};
 use medbrains_server_core::error::AppError;
 use medbrains_server_core::middleware::auth::Claims;
-use medbrains_server_core::middleware::authorization::require_permission;
 use medbrains_server_core::state::AppState;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
@@ -79,8 +79,7 @@ pub async fn list_machines(
     Extension(claims): Extension<Claims>,
 ) -> Result<Json<MachineList>, AppError> {
     require_permission(&claims, machines::VIEW)?;
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let mut tx = begin(&state.db, Actor::from_claims(&claims)).await?;
     let waiting = sqlx::query_as!(
         WaitingMachine,
         r#"SELECT id, requested_label AS label, app_variant, join_code AS "code!",
@@ -136,7 +135,7 @@ fn code_matches(expected: &str, typed: &str) -> bool {
 /// Records who decided what about which machine, in the decision's own transaction, so neither can
 /// happen without the other.
 async fn audit(
-    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    tx: &mut Tx,
     claims: &Claims,
     action: &str,
     machine: Uuid,
@@ -152,13 +151,13 @@ async fn audit(
         new_values: Some(details),
         ip_address: None,
     };
-    AuditLogger::log(tx, &entry).await?;
+    medbrains_kernel::audit(tx, &entry).await?;
     Ok(())
 }
 
 /// A waiting request, locked for this decision.
 async fn lock_waiting(
-    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    tx: &mut Tx,
     tenant: Uuid,
     id: Uuid,
 ) -> Result<(String, String, String, String), AppError> {
@@ -178,7 +177,7 @@ async fn lock_waiting(
 
 /// Writes the machine and its key: the same two rows a device's sync key has, so the roster sees it.
 async fn admit_machine(
-    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    tx: &mut Tx,
     claims: &Claims,
     id: Uuid,
     (node_id, label, variant): (&str, &str, &str),
@@ -229,8 +228,7 @@ pub async fn approve_machine(
 ) -> Result<Json<serde_json::Value>, AppError> {
     require_permission(&claims, machines::APPROVE)?;
     let Json(body) = body?;
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let mut tx = begin(&state.db, Actor::from_claims(&claims)).await?;
     let (node_id, code, label, variant) = lock_waiting(&mut tx, claims.tenant_id, id).await?;
     if !code_matches(&code, &body.code) {
         sqlx::query!(
@@ -261,8 +259,7 @@ pub async fn reject_machine(
     Path(id): Path<Uuid>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     require_permission(&claims, machines::APPROVE)?;
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let mut tx = begin(&state.db, Actor::from_claims(&claims)).await?;
     let (node_id, _, label, _) = lock_waiting(&mut tx, claims.tenant_id, id).await?;
     sqlx::query!("UPDATE device_pairing_requests SET status = 'denied' WHERE id = $1", id)
         .execute(&mut *tx)
@@ -281,8 +278,7 @@ pub async fn remove_machine(
     Path(id): Path<Uuid>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     require_permission(&claims, machines::REMOVE)?;
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let mut tx = begin(&state.db, Actor::from_claims(&claims)).await?;
     sqlx::query_scalar!(
         "UPDATE paired_devices SET revoked_at = now(), revoked_by_user_id = $2, \
            revoked_reason = 'Removed on the Nodes screen' \
