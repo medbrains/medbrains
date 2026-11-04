@@ -114,6 +114,7 @@ N1 to N6 come from RFC-HOSPITAL-OS §8q. Every task ends on a check or a screen.
 | H3 | Raspberry Pi 5 | Same results on NVMe | blocked: needs hardware |
 | H5 | Firmware: UEFI required, minimum settings checked and shown; signed firmware updates (`fwupd`) evaluated | Screen says what is wrong in plain words | later, needs H2 |
 | H6 | Kit firmware: Secure Boot on, TPM on, USB boot off, BIOS password, our logo | One kit ships this way | later, needs a hardware partner |
+| H7 | Shrink the image: keep the empty update slot sparse; strip the server binary; drop Perl, unused locales and kernel modules; compare `libLLVM` need on real GPUs | System under 1 GB; each cut proven by booting | next |
 | H4 | Memory below target | Whole machine ≤ 512 MB | next: cause unknown |
 
 ## D. Devices and performance
