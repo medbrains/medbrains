@@ -53,6 +53,9 @@ pub(crate) struct Machine {
 pub(crate) struct State {
     pub(crate) set_up: bool,
     pub(crate) main_ready: bool,
+    /// This machine reaches MedBrains on a main machine, so "not ready" means it cannot reach it.
+    #[serde(default)]
+    pub(crate) node: bool,
     pub(crate) clock_synced: bool,
     pub(crate) machine: Machine,
     pub(crate) network: Network,
@@ -204,7 +207,7 @@ mod tests {
     #[test]
     fn the_shell_understands_the_services_state() {
         let state: Result<State, _> = serde_json::from_value(json!({
-            "set_up": true, "main_ready": false, "clock_synced": false,
+            "set_up": true, "main_ready": false, "node": true, "clock_synced": false,
             "machine": { "system": "running", "memory_total_kb": 10, "memory_available_kb": 5,
                          "load": "0.1", "uptime_seconds": 9, "disk_total": 8, "disk_used": 2 },
             "network": { "links": [{ "name": "en0", "cable": true, "addresses": ["10.0.2.15"] }],

@@ -107,7 +107,15 @@ pub(crate) fn uptime_words(seconds: u64) -> String {
 }
 
 /// The overall health of the services, in one sentence.
-pub(crate) fn system_words(system: &str, main_ready: bool, set_up: bool) -> &'static str {
+pub(crate) fn system_words(
+    system: &str,
+    main_ready: bool,
+    set_up: bool,
+    node: bool,
+) -> &'static str {
+    if node && !main_ready {
+        return "Cannot reach the main machine. This machine keeps trying by itself.";
+    }
     match (system, set_up && !main_ready) {
         ("degraded", _) => "A service has a problem.",
         (_, true) => "MedBrains is starting.",
@@ -177,25 +185,31 @@ mod tests {
 
     /// A degraded machine must never read as healthy, whatever else is true.
     #[test]
+    fn a_node_says_when_it_cannot_reach_the_main_machine() {
+        assert!(system_words("running", false, true, true).contains("main machine"));
+        assert_eq!(system_words("running", true, true, true), "All services are running.");
+    }
+
+    #[test]
     fn a_problem_is_never_reported_as_running() {
         assert_eq!(
-            system_words("degraded", true, true),
+            system_words("degraded", true, true, false),
             "A service has a problem."
         );
         assert_eq!(
-            system_words("running", false, true),
+            system_words("running", false, true, false),
             "MedBrains is starting."
         );
         assert_eq!(
-            system_words("running", true, true),
+            system_words("running", true, true, false),
             "All services are running."
         );
         assert_eq!(
-            system_words("running", false, false),
+            system_words("running", false, false, false),
             "All services are running."
         );
         assert_eq!(
-            system_words("starting", true, true),
+            system_words("starting", true, true, false),
             "The machine is starting."
         );
     }

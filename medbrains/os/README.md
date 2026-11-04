@@ -198,7 +198,8 @@ multicast may be blocked; that is why the typed address exists, and it was prove
 | Server down during a join | Request cannot be filed | The node shows it could not reach the main machine | Grants nothing; a person asks again |
 | Power cut after approval, before the role is written | Setup not finished | Agent has the approval on disk | Asking again finishes without a new request |
 | Roster cannot be fetched | Removal cannot be learned | Agent logs it | Keeps the last roster until stale at 16 hours, then admits nobody |
-| Main machine unreachable | Node cannot work | Desktop says so, the app shows its error | No offline path; the connection is dialled again when the screen next asks |
+| Main machine unreachable | Node cannot work | "Cannot reach the main machine" on the top bar, over the app too | No offline path; the connection is dialled again when the screen next asks |
+| Main machine's address changes | The saved address is dead | An idle path is noticed within 8 s | Dials by key; mDNS says where that key is now, and the saved address is only a first guess |
 | Node has no time source | Certificates and audit at risk | "Time not confirmed" on the top bar | Keeps working, and says so |
 | Node key file readable by others | It may have been copied | The agent checks its mode at start | Refuses to start |
 
@@ -217,6 +218,7 @@ and `one_address_cannot_take_the_places_of_others`; duties separate, `each_duty_
 - A node that cannot reach the main machine cannot work: there is no offline path (OS-EDGE-NODES).
 - mDNS uses one network interface, the one with the best multicast route. A machine on two LANs finds main
   machines on that one only.
+- A node on a network that blocks multicast, joined by typed address, cannot follow a main machine whose address changes: give that machine a fixed address. There is no way yet to type a new one after joining.
 - A node stays passively listening on mDNS after joining, so it can find a main machine whose address changed.
 
 ## How the screen works

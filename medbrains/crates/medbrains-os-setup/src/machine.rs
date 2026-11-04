@@ -66,6 +66,7 @@ pub(crate) fn state() -> Value {
     json!({
         "set_up": set_up,
         "main_ready": app_answers(),
+        "node": Path::new(ROLE_NODE).exists(),
         "clock_synced": clock_synced(),
         "machine": machine_health(),
         "network": network_links(),

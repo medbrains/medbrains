@@ -77,6 +77,8 @@ struct Desktop {
     clock_warning: gtk::Label,
     /// Stays on the top bar over the app too: certificates and the audit trail depend on the time.
     time_note: gtk::Label,
+    /// On a node, stays over the app too: the page alone may only look slow.
+    main_note: gtk::Label,
     health: gtk::Label,
     memory: gtk::Label,
     uptime: gtk::Label,
@@ -134,6 +136,7 @@ impl Desktop {
             &machine.system,
             state.main_ready,
             state.set_up,
+            state.node,
         ));
         self.memory.set_label(&ui::memory_words(machine));
         self.uptime.set_label(&format!(
@@ -157,6 +160,7 @@ impl Desktop {
         }
         self.clock_warning.set_visible(!state.clock_synced);
         self.time_note.set_visible(!state.clock_synced);
+        self.main_note.set_visible(state.node && !state.main_ready);
         if state.clock_synced {
             self.clock.remove_css_class("warning");
         } else {
@@ -295,6 +299,10 @@ pub(crate) fn build() -> gtk::Box {
     let (clock, clock_warning) = clock_button();
     let time_note = ui::label("Time not confirmed", "problem");
     time_note.set_visible(false);
+    time_note.set_wrap(false);
+    let main_note = ui::label("Cannot reach the main machine", "problem");
+    main_note.set_visible(false);
+    main_note.set_wrap(false);
     let health = ui::label("Checking…", "");
     let memory = ui::label("", "");
     let uptime = ui::label("", "muted");
@@ -315,6 +323,7 @@ pub(crate) fn build() -> gtk::Box {
         clock: clock.clone(),
         clock_warning,
         time_note: time_note.clone(),
+        main_note: main_note.clone(),
         health: health.clone(),
         memory: memory.clone(),
         uptime: uptime.clone(),
@@ -334,6 +343,7 @@ pub(crate) fn build() -> gtk::Box {
     let center = ui::row(ui::GAP / 2);
     center.append(&clock);
     center.append(&time_note);
+    center.append(&main_note);
     bar.set_center_widget(Some(&center));
     bar.set_end_widget(Some(&right));
     root.append(&bar);

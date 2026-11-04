@@ -15,7 +15,7 @@ use uuid::Uuid;
 
 use super::{Gateway, RosterGate, WHOAMI_SIZE, clean_label, whoami_reply};
 use crate::hospital::{Answer, Filing, Hospital, Synced};
-use crate::node::Node;
+use crate::node::{Joined, Node};
 use crate::wire::{JOIN_ALPN, JoinState, Kind, TIME_ALPN, TUNNEL_ALPN};
 
 const CERTIFICATE: &str = "the front end's certificate";
@@ -303,6 +303,38 @@ async fn a_machine_already_approved_finishes_without_asking_again() -> anyhow::R
     node.start_join(&addr.id.to_string(), "PC".to_owned(), Kind::Workstation)?;
     assert_eq!(node.standing().state, "approved");
     assert_eq!(server.filings.lock().unwrap_or_else(PoisonError::into_inner).len(), 1);
+    Ok(())
+}
+
+/// A hospital on DHCP: the main machine's address has changed since this node joined. The node
+/// must follow it by its key, with the saved address only a first guess.
+#[tokio::test]
+async fn a_stale_saved_address_does_not_lose_the_main_machine() -> anyhow::Result<()> {
+    let server = FakeServer::new(Uuid::new_v4(), JoinState::Pending);
+    let (_gateway, addr) = gateway(Arc::clone(&server)).await?;
+    let dir = tempfile::tempdir()?;
+    let stale = Joined {
+        main_id: addr.id.to_string(),
+        addresses: vec![SocketAddr::from(([127, 0, 0, 1], 9))],
+        kind: Kind::Workstation,
+        hospital: "City Hospital".to_owned(),
+        certificate: CERTIFICATE.to_owned(),
+    };
+    std::fs::write(dir.path().join("joined.json"), serde_json::to_vec(&stale)?)?;
+    let node_endpoint = endpoint(Vec::new()).await?;
+    server.set_admitted(&[node_endpoint.id().to_string()]);
+    // What mDNS does on a LAN: tells the endpoint where this key is now.
+    let lookup = iroh::address_lookup::MemoryLookup::new();
+    lookup.add_endpoint_info(addr.clone());
+    node_endpoint.address_lookup().map_err(|e| anyhow::anyhow!("{e}"))?.add(lookup);
+    let screen = free_port().await?;
+    let _node = Node::start(node_endpoint, dir.path(), screen).await?;
+    let mut stream = tokio::net::TcpStream::connect(screen).await?;
+    tokio::io::AsyncWriteExt::write_all(&mut stream, b"ping").await?;
+    let mut back = [0_u8; 4];
+    let read = tokio::io::AsyncReadExt::read_exact(&mut stream, &mut back);
+    tokio::time::timeout(Duration::from_secs(15), read).await??;
+    assert_eq!(&back, b"ping");
     Ok(())
 }
 
