@@ -197,8 +197,10 @@ for 4 months, so a machine that misses two needs the binaries in between: `build
 - **Open:** the sign-in page says "Invalid username" for a name that does not exist, so usernames can be listed. Neither
   its config nor our CSS can change this, because the next page differs, not only the words. It has no limit by address
   either; the firewall's 50 connections a second is the only ceiling.
-- The machine's own screen cannot use it: `medbrains-shell` refuses to leave `127.0.0.1:8443`. WebAuthn needs a name,
-  not an IP address, so sharing that origin is not possible either.
+- **It has no tile on the machine's own screen.** A manifest may only name `https://127.0.0.1`, and we saw the shell refuse
+  `idm.medbrains.local`: "its URL is outside this machine". `127.0.0.1` cannot work either: WebAuthn needs a name, not an
+  address, and Kanidm's cookies go to its own name. So this needs a change in the shell, and nobody has shown that its
+  WebKit can use a hardware key at all.
 - Kanidm does not take sign-ins from an upstream directory in this image; that route is closed at the front. A hospital
   with Entra or Okta points MedBrains' own SSO settings at it instead (`tests/sso-entra-fixture.py`, a fixture of Entra's
   shape). **Real Entra and Okta are unverified, and need an account from the owner.** MedBrains' SAML sign-in is not

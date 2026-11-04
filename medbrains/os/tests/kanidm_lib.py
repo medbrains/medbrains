@@ -11,6 +11,7 @@ WEB, IDP = "https://medbrains.local", "https://idm.medbrains.local:9443"
 CONNECT = ["--connect-to", f"medbrains.local:443:127.0.0.1:{os.environ.get('OS_WEB_PORT', 8470)}",
            "--connect-to", f"idm.medbrains.local:9443:127.0.0.1:{os.environ.get('OS_IDP_PORT', 8471)}"]
 SERIAL = os.environ.get("OS_WORK", "/tmp/mb-osimage-kanidm") + "/vm/serial.sock"
+SERIAL_CONNECT_TRIES = 40
 
 
 def curl(url, method="GET", token=None, body=None, form=None, jar=None, csrf=None, extra=()):
@@ -41,7 +42,15 @@ def curl(url, method="GET", token=None, body=None, form=None, jar=None, csrf=Non
 def serial(command, timeout=30):
     """Runs a command in the serial root shell and returns what it printed."""
     sock = socket.socket(socket.AF_UNIX)
-    sock.connect(SERIAL)
+    # QEMU listens again only a moment after the last client left.
+    for attempt in range(SERIAL_CONNECT_TRIES):
+        try:
+            sock.connect(SERIAL)
+            break
+        except ConnectionRefusedError:
+            if attempt == SERIAL_CONNECT_TRIES - 1:
+                raise
+            time.sleep(0.5)
     sock.settimeout(1)
     end = f"END{int(time.time() * 1000)}"
     sock.sendall(f"\n{command}; echo {end}$((1+1))\n".encode())
@@ -52,6 +61,7 @@ def serial(command, timeout=30):
         except socket.timeout:
             pass
     text = re.sub(r"\x1b\[[0-9;?]*[A-Za-z]", "", seen.decode(errors="replace"))
+    sock.close()
     return text.split(f"{end}$((1+1))", 1)[-1].split(f"{end}2", 1)[0].strip()
 
 
