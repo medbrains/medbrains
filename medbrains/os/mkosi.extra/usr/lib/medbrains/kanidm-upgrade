@@ -27,6 +27,11 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 [[ -x "$from_bin" && -x "$to_bin" ]] || { echo "usage: kanidm-upgrade --from-bin PATH --to-bin PATH" >&2; exit 2; }
+# The service has a private /tmp and /var/tmp, so a binary there could not start, and would look like a
+# failed upgrade.
+case "$from_bin $to_bin" in
+    */tmp/*) echo "refused: the service cannot see binaries under /tmp or /var/tmp" >&2; exit 2 ;;
+esac
 
 # Prints a binary's version as major.minor.patch, or nothing.
 version_of() { "$1" version 2>/dev/null | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1 || true; }

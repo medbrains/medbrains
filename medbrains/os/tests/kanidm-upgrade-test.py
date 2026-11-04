@@ -2,7 +2,7 @@
 """A real upgrade on a booted debug image: data made by the previous minor, a refused jump, a failed step
 that must put everything back, and the real step, with the people and signing keys kept.
 
-  OS_WORK=... OS_IDP_PORT=8471 os/tests/kanidm-upgrade-test.py <kanidmd 1.11.2> <kanidmd 1.10.3>
+  OS_WORK=... OS_IDP_PORT=8471 os/tests/kanidm-upgrade-test.py <kanidmd 1.11.2>
 
 It replaces the machine's Kanidm data, so run it on a VM you will throw away.
 """
@@ -11,7 +11,7 @@ import functools, http.server, os, shutil, sys, tempfile, threading
 from kanidm_lib import IDP, curl, kanidm_auth, must, recover_password, serial
 
 PORT = 8473
-OLD, TOO_OLD = "/var/tmp/kanidmd-1.11.2", "/var/tmp/kanidmd-1.10.3"
+OLD, TOO_OLD = "/var/lib/kanidm-steps/kanidmd-1.11.2", "/var/lib/kanidm-steps/kanidmd-1.10.3"
 NEW = "/usr/bin/kanidmd"
 PASSWORD = "Kn-Upgrade-Passphrase-4471-Quartz"
 UPGRADE = "/usr/lib/medbrains/kanidm-upgrade"
@@ -25,17 +25,18 @@ def check(name, ok, detail=""):
         failed.append(name)
 
 
-def fetch_binaries(old_path, too_old_path):
-    """Serves the old binaries from the host, on loopback, and has the machine fetch them. They are too
-    big for the serial shell, so this one test opens the firewall to the host."""
+def fetch_binaries(old_path):
+    """Serves the old binary from the host, on loopback, and has the machine fetch it: too big for the
+    serial shell, so this one test opens the firewall to the host. The jump's refusal goes by the
+    version alone, so a stand-in that reports 1.10.3 is enough for that."""
     folder = tempfile.mkdtemp()
     shutil.copy(old_path, f"{folder}/old")
-    shutil.copy(too_old_path, f"{folder}/too-old")
     handler = functools.partial(http.server.SimpleHTTPRequestHandler, directory=folder)
     server = http.server.ThreadingHTTPServer(("127.0.0.1", PORT), handler)
     threading.Thread(target=server.serve_forever, daemon=True).start()
     print(serial(f"nft insert rule inet medbrains output ip daddr 10.0.2.2 tcp dport {PORT} accept; "
-                 f"curl -fsS -o {OLD} http://10.0.2.2:{PORT}/old; curl -fsS -o {TOO_OLD} http://10.0.2.2:{PORT}/too-old; "
+                 f"mkdir -p /var/lib/kanidm-steps; curl -fsS -o {OLD} http://10.0.2.2:{PORT}/old; "
+                 f"printf '#!/bin/sh\\necho kanidmd 1.10.3\\n' > {TOO_OLD}; "
                  f"chmod 755 {OLD} {TOO_OLD}; {OLD} version 2>&1 | tail -1; {TOO_OLD} version 2>&1 | tail -1; {NEW} version 2>&1 | tail -1", 120)[-200:])
 
 
@@ -44,7 +45,7 @@ def run_old_version_with_new_data():
     print(serial("systemctl stop kanidm-setup kanidmd; rm -f /var/lib/kanidm/kanidm.db* /var/lib/kanidm/.setup-done; "
                  "mkdir -p /run/systemd/system/kanidmd.service.d; "
                  f"printf '[Service]\\nExecStart=\\nExecStart={OLD} server\\n' > /run/systemd/system/kanidmd.service.d/10-binary.conf; "
-                 "systemctl daemon-reload; systemctl start kanidmd; sleep 12; systemctl is-active kanidmd", 60)[-60:])
+                 "systemctl daemon-reload; systemctl reset-failed kanidmd; systemctl start kanidmd; sleep 12; systemctl is-active kanidmd", 60)[-60:])
 
 
 def make_data():
@@ -86,7 +87,7 @@ def running():
 
 def main():
     """Every case, in the order a machine could meet them."""
-    fetch_binaries(sys.argv[1], sys.argv[2])
+    fetch_binaries(sys.argv[1])
     run_old_version_with_new_data()
     keys = make_data()
     print("INFO  made on 1.11.2:", running(), "keys:", str(keys)[:60], flush=True)
@@ -97,8 +98,8 @@ def main():
     check("going down is refused", code == "2", out[:120])
     check("and neither touched the data", data_is_kept(keys))
 
-    serial("printf '#!/bin/sh\\ncase \"$1\" in version) echo kanidmd 1.12.0;; *) exit 1;; esac\\n' > /var/tmp/kanidmd-broken; chmod 755 /var/tmp/kanidmd-broken", 8)
-    code, out = upgrade(OLD, "/var/tmp/kanidmd-broken")
+    serial("printf '#!/bin/sh\\ncase \"$1\" in version) echo kanidmd 1.12.0;; *) exit 1;; esac\\n' > /var/lib/kanidm-steps/kanidmd-broken; chmod 755 /var/lib/kanidm-steps/kanidmd-broken", 8)
+    code, out = upgrade(OLD, "/var/lib/kanidm-steps/kanidmd-broken")
     check("a step that will not start exits 1", code == "1", out[:160])
     check("and the old version is back, running", OLD in running() and running().endswith("active"), running())
     check("with the people and keys intact", data_is_kept(keys))
