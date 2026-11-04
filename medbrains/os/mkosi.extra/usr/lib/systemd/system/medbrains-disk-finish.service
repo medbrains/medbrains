@@ -1,0 +1,19 @@
+# First boot, data disk open, no secret on it yet: show the recovery key once and record the protection.
+# Runs again after a power cut until the recovery key has been confirmed.
+[Unit]
+Description=MedBrains data disk recovery key
+After=local-fs.target systemd-tmpfiles-setup.service
+Before=medbrains-firstboot.service
+ConditionPathExists=!/var/lib/medbrains/config/disk-protection
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/lib/medbrains/disk-setup finish
+TimeoutStartSec=infinity
+UMask=0077
+TTYPath=/dev/tty1
+TTYReset=yes
+StandardInput=tty
+StandardOutput=tty
+StandardError=journal

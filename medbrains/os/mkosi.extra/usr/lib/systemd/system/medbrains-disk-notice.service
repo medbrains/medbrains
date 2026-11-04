@@ -1,0 +1,18 @@
+# Says in plain words what the passphrase prompt means when the data disk does not open by itself.
+[Unit]
+Description=MedBrains data disk notice
+DefaultDependencies=no
+Conflicts=shutdown.target
+After=medbrains-disk-setup.service
+Before=shutdown.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/lib/medbrains/disk-setup notice
+TTYPath=/dev/tty1
+StandardInput=null
+StandardOutput=tty
+StandardError=journal
+
+[Install]
+WantedBy=sysinit.target

@@ -38,6 +38,10 @@ brew install qemu
 make os-boot FRESH=1    # a brand-new box; `make os-boot` keeps the disk across runs
 ```
 
+**arm64 under QEMU has no TPM, so a new box stops and asks about it.** Type `STORE UNENCRYPTED` on its
+screen to carry on. Debian's arm64 kernel has no driver for the only TPM QEMU can offer there. The sealed
+path is tested on x86-64: `MB_OS_TEST_ARCH=x86-64 cargo run -p medbrains-os-test -- <image> disk`.
+
 QEMU runs headless with its sockets in `/tmp/mb-osimage/vm/`: `vnc.sock` is the screen, `qmp.sock` takes
 input, `monitor.sock` takes `screendump`, and `serial.sock` is the shell on debug images. Headless QEMU
 only flips the screen while a display is attached, so connect a VNC client or the screen appears
@@ -89,7 +93,9 @@ not the main path.
 
 ### First boot, underneath
 
-1. `systemd-repart` grows the data partition to fill the disk.
+1. `medbrains-disk-setup` creates the encrypted data partition with `systemd-repart`, filling the disk and
+   sealed to the TPM, then the machine shows a recovery key once and waits for it to be confirmed. A machine
+   with no TPM stops and asks instead. See [Data disk](#data-disk).
 2. `medbrains-firstboot` generates every secret (JWT keys, ID-fingerprint and provider keys, database
    and first admin passwords), a checksummed PostgreSQL cluster and the certificate for the screen's own
    front end. None of it is in the image.
@@ -188,10 +194,27 @@ bears on the engine comparison below.
 | EFI | 512 MB | systemd-boot, the boot file (kernel, initrd, logo) |
 | root A | 2 GB | the system (`/`), ext4 |
 | root B | 2 GB | reserved, labelled `_empty`, for A/B updates |
-| data | 1 GB, grown at first boot to fill the disk | `/var`: PostgreSQL, files, logs, backups, secrets |
+| data | not in the image; made at first boot, fills the disk | `/var`, encrypted: PostgreSQL, files, logs, backups, secrets |
 
 The PostgreSQL configuration and `/etc/medbrains` are symlinks into `/var`, so reinstalling the system
-partitions keeps the data.
+partitions keeps the data. The system partition holds a copy of the image's `/var`, with no secrets in it,
+to start the data partition from.
+
+### Data disk
+
+Task T1, disk half. Every key, what happens if it is lost or stolen, and the failure table are in
+[`docs/architecture/OS-KEYS.md`](../docs/architecture/OS-KEYS.md).
+
+| Situation | What the screen does |
+|---|---|
+| First boot, TPM works | Prepares the disk, shows the recovery key once, and waits until its last group is typed back. Then asks: start by itself (Enter), or a PIN at every start |
+| Every later boot | Nothing, opens with no typing; or the PIN, if one was chosen |
+| Disk copied to another machine, board or TPM changed, or the signed boot file changed | Asks for the recovery key, and after 20 seconds says in plain words why. `/var` stays locked and no service starts |
+| First boot, no TPM | Stops. Nothing is stored until someone types `OFF` or `STORE UNENCRYPTED`. The choice is recorded in `/var/lib/medbrains/config/disk-protection`, and the status page says "This disk is not encrypted" |
+
+**What this does not do yet:** stop someone who can change the system partition and boot it in this machine, since
+nothing verifies that partition. Secure Boot and verity are the rest of T1. A release image is not signed until a
+release key exists, so its boot file is not bound either.
 
 ## What is in D1, and what is not
 
@@ -203,7 +226,7 @@ partitions keeps the data.
 | SSH | not installed |
 | amd64 image | config present, not built or booted |
 | dm-verity read-only root | **not in D1**, SEC3. Root is writable ext4, so a changed system file is not detected. Blockers: `/etc/machine-id` on a read-only root, and mkosi's verity partitions |
-| LUKS data partition | **not in D1**, SEC3: data at rest on the disk is unencrypted. Add `Encrypt=tpm2` in the data partition |
+| LUKS data partition | **in**, sealed to the TPM with a recovery key; see [Data disk](#data-disk). Secure Boot and the boot editor lock are not |
 | A/B updates and rollback | D4. Slot B is reserved; nothing writes to it yet |
 | Recovery partition and boot menu | D4. A failed boot shows systemd's own messages and that the root account is locked |
 | Trusted TLS for other computers | D2. Caddy's local CA means a browser warning on first visit |
@@ -217,7 +240,7 @@ partitions keeps the data.
 ## Files
 
 - `mkosi.conf`, `mkosi.conf.d/`: packages and image settings.
-- `mkosi.repart/`: build-time partitions. `mkosi.extra/usr/lib/repart.d/`: first-boot growth.
+- `mkosi.repart/`: build-time partitions. `mkosi.extra/usr/lib/medbrains/repart/`: the data partition, made at first boot by `disk-setup`.
 - `mkosi.extra/`: units, first-boot scripts, the status page, journald, watchdog, network and Caddy.
 - `mkosi.postinst.chroot`: removes the baked PostgreSQL cluster, enables units.
 - `mkosi.build.chroot`, `patches/`: rebuilds cog's Wayland plugin with the click fix.
@@ -326,6 +349,21 @@ the two run-once setup units are not, which falls short of SEC5's rule and is le
 
 The screen unit scores highest of the running services because WebKit's own sandbox needs what we would
 otherwise take away.
+
+**Data disk cost** (arm64 QEMU, one VM each, host otherwise in use, so small differences mean little). This is the
+no-TPM path, because arm64 QEMU has no usable TPM: it spends about 2 s on an argon2id slot with an empty key, which a
+sealed disk does not. The sealed path's own time was seen only under x86-64 emulation (service CPU 1.8 s), which says
+nothing about real TPMs.
+
+| | Before | After |
+|---|---|---|
+| Normal cold boot, firmware to `graphical.target`, 2 runs | 11.0, 15.8 s | 12.3, 12.7 s |
+| `systemd-cryptsetup` | none | 2.0 to 2.4 s |
+| Memory used 90 s after the server answers (MemTotal - MemAvailable) | 711 MB | 722 MB, one sample |
+
+Sequential `dd` throughput gave 1.2 GB/s write and 8.0 GB/s read before and 2.1 and 2.8 GB/s after: host cache dominates,
+so it shows nothing about encryption. Real flash is unmeasured. One cold boot in four took about 73 s in userspace on
+**both** images; not caused by encryption, cause open (`docs/DECISIONS.md`).
 
 **Hardware safety:** `RuntimeWatchdogUSec=30s` on `/dev/watchdog0` (QEMU's i6300ESB). PostgreSQL shows
 `fsync` on, `full_page_writes` on and `data_checksums` on. The journal was 8 MB, capped at 256 MB.

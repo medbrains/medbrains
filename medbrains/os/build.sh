@@ -10,6 +10,9 @@
 #   MEDBRAINS_WEB_DIST    the built web app [../apps/web/dist]
 #   OS_WORK               build cache + output [/tmp/mb-osimage]
 #
+#   OS_PCR_KEY, OS_PCR_CERT  RSA key and certificate signing the boot file's expected PCR 11. Without them
+#                         a release image's disk seal covers only PCR 7. --debug makes a throwaway.
+#
 # --debug adds a root shell on the serial console, for verification only.
 set -euo pipefail
 
@@ -69,7 +72,21 @@ if [[ "$DEBUG" == 1 ]]; then
     tty=ttyAMA0
     [[ "$ARCH" == x86-64 ]] && tty=ttyS0
     DEBUG_ARGS=(--kernel-command-line "systemd.debug_shell=$tty systemd.mask=serial-getty@$tty.service"
-                --package strace)
+                --package strace --package cryptsetup-bin)
+fi
+
+# A debug image gets a throwaway signing key, so the signed path is what gets tested. Never for release.
+if [[ "$DEBUG" == 1 && -z "${OS_PCR_KEY:-}" ]]; then
+    OS_PCR_KEY="$OS_WORK/throwaway-pcr.key"
+    OS_PCR_CERT="$OS_WORK/throwaway-pcr.crt"
+    [[ -f "$OS_PCR_KEY" ]] || openssl req -x509 -newkey rsa:2048 -nodes -days 30 -subj /CN=throwaway \
+        -keyout "$OS_PCR_KEY" -out "$OS_PCR_CERT" 2>/dev/null
+fi
+SIGN_ARGS=()
+SIGN_MOUNTS=()
+if [[ -n "${OS_PCR_KEY:-}" ]]; then
+    SIGN_ARGS=(--sign-expected-pcr yes --sign-expected-pcr-key "$OS_PCR_KEY" --sign-expected-pcr-certificate "$OS_PCR_CERT")
+    SIGN_MOUNTS=(-v "$OS_PCR_KEY:$OS_PCR_KEY:ro" -v "$OS_PCR_CERT:$OS_PCR_CERT:ro")
 fi
 
 # Runs mkosi on this Linux machine: a CI runner or a hospital's own build box. Needs root.
@@ -80,7 +97,7 @@ build_on_linux() {
     cp -R "$HERE/." "$work/"
     (cd "$work" && mkosi --architecture "$ARCH" --extra-tree "$EXTRA" \
         --output-directory "$OS_WORK/out-$ARCH" --cache-directory "$OS_WORK/cache-$ARCH" \
-        --image-version "$VERSION" ${DEBUG_ARGS[@]+"${DEBUG_ARGS[@]}"} -f build)
+        --image-version "$VERSION" ${DEBUG_ARGS[@]+"${DEBUG_ARGS[@]}"} ${SIGN_ARGS[@]+"${SIGN_ARGS[@]}"} -f build)
     rm -rf "$work"
 }
 
@@ -88,16 +105,20 @@ build_on_linux() {
 # stays inside the container (a real Linux filesystem, removed with it); only the package
 # cache and the output are on the host. Nothing in the image depends on Docker.
 build_on_mac_with_docker() {
-    docker build -q --platform "$PLATFORM" -t "medbrains-os-builder:$ARCH" \
+    # The builder runs natively: emulated x86-64 lacks the mount calls mkosi's sandbox uses (ENOSYS on
+    # Apple silicon). --architecture still picks the image's architecture.
+    [[ "$(uname -m)" == arm64 ]] && PLATFORM=linux/arm64
+    docker build -q --platform "$PLATFORM" -t "medbrains-os-builder:${PLATFORM#linux/}" \
         -f "$HERE/builder.Dockerfile" "$HERE" >/dev/null
     # An anonymous volume for /var/tmp: mkosi's build overlay cannot sit on Docker's own overlay.
     docker run --rm --privileged --platform "$PLATFORM" -v /var/tmp \
         -v "$HERE:/src:ro" -v "$EXTRA:/extra:ro" \
-        -v "$OS_WORK/out-$ARCH:/out" -v "$OS_WORK/cache-$ARCH:/cache" \
-        "medbrains-os-builder:$ARCH" \
+        -v "$OS_WORK/out-$ARCH:/out" -v "$OS_WORK/cache-$ARCH:/cache" ${SIGN_MOUNTS[@]+"${SIGN_MOUNTS[@]}"} \
+        "medbrains-os-builder:${PLATFORM#linux/}" \
         bash -c 'cp -R /src /build && cd /build && mkosi "$@" -f build' _ \
         --architecture "$ARCH" --extra-tree /extra --output-directory /out \
-        --cache-directory /cache --image-version "$VERSION" ${DEBUG_ARGS[@]+"${DEBUG_ARGS[@]}"}
+        --cache-directory /cache --image-version "$VERSION" ${DEBUG_ARGS[@]+"${DEBUG_ARGS[@]}"} \
+        ${SIGN_ARGS[@]+"${SIGN_ARGS[@]}"}
 }
 
 if [[ "$(uname -s)" == Linux ]]; then build_on_linux; else build_on_mac_with_docker; fi

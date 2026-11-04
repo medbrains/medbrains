@@ -9,13 +9,18 @@ pg_dropcluster --stop 17 main 2>/dev/null || true
 rm -rf /etc/postgresql /var/lib/postgresql/17
 ln -s /var/lib/postgresql/conf /etc/postgresql
 
+# Debian's ssl-cert makes a private key at package install, so every machine from one image would share
+# it, in the clear on the system partition. PostgreSQL listens on loopback only and turns TLS off when
+# the key is missing.
+rm -f /etc/ssl/private/ssl-cert-snakeoil.key /etc/ssl/certs/ssl-cert-snakeoil.pem
+
 # Secrets live on the data partition.
 ln -sfn /var/lib/medbrains/config /etc/medbrains
 
 # A firewall file that does not parse would boot a machine with no firewall, so it fails the build.
 nft -c -f /etc/nftables.conf
-systemctl enable nftables chrony systemd-networkd systemd-resolved systemd-repart \
-    medbrains-firstboot medbrains-db-init medbrains-server caddy \
+systemctl enable nftables chrony systemd-networkd systemd-resolved \
+    medbrains-disk-setup medbrains-disk-notice medbrains-firstboot medbrains-db-init medbrains-server caddy \
     medbrains-console-status cage-console
 systemctl disable systemd-networkd-wait-online.service 2>/dev/null || true
 systemctl set-default graphical.target

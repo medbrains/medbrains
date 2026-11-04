@@ -1,10 +1,11 @@
 //! Boots a fresh debug OS image and checks what every image must do, from inside and outside.
 //!
-//!     cargo run -p medbrains-os-test -- <image.raw>
+//!     cargo run -p medbrains-os-test -- <image.raw> [disk]
 //!
-//! Needs `make os-image DEBUG=1` and QEMU. Exits non-zero if any check fails. Budgets are in
+//! `disk` runs only the data disk scenarios. Needs `make os-image DEBUG=1`, QEMU and swtpm. Exits non-zero if any check fails. Budgets are in
 //! `budgets.json`: ratchets to lower as the numbers improve (targets: RFC-HOSPITAL-OS §3a).
 
+mod disk;
 mod vm;
 
 use std::path::Path;
@@ -126,6 +127,14 @@ fn time_authenticated(vm: &mut Vm, _: &Value) -> Result<(), String> {
     ensure(auth.contains("NTS"), "no authenticated time source")
 }
 
+/// Every key that protects something was made on this machine, none baked into the image.
+fn no_shared_private_key(vm: &mut Vm, _: &Value) -> Result<(), String> {
+    let found = vm.run("ls /etc/ssl/private/; true")?;
+    ensure(found.is_empty(), format!("private keys in the image: {found}"))?;
+    let env = vm.run("grep -cE '^MEDBRAINS_(EVENT_TOKEN|SIGNATURE_KEY_ENCRYPTION|OAUTH_TOKEN)_?KEY=.{32}' /etc/medbrains/env")?;
+    ensure(env == "3", format!("{env} of 3 keys that would fall back to public development keys"))
+}
+
 /// Memory at rest is within budget.
 fn idle_memory(vm: &mut Vm, budgets: &Value) -> Result<(), String> {
     let used = number(vm, "awk '/MemTotal/{t=$2}/MemAvailable/{a=$2}END{print int((t-a)/1024)}' /proc/meminfo")?;
@@ -163,13 +172,14 @@ fn checks() -> Vec<Check> {
         ("kernel hardening is applied", kernel_hardening_applied),
         ("kernel lockdown is on", lockdown_on),
         ("time is synced by an authenticated source", time_authenticated),
+        ("no private key is shared between machines", no_shared_private_key),
         ("idle memory is within budget", idle_memory),
         ("system disk is within budget", system_disk),
         ("opening a page does not balloon the server", page_load_memory),
     ]
 }
 
-/// Boots the image and runs every check; returns how many failed.
+/// Boots the image and runs every check, then the data disk scenarios; returns how many failed.
 fn run_suite(image: &Path) -> Result<usize, String> {
     let budgets: Value = serde_json::from_str(BUDGETS).map_err(|e| e.to_string())?;
     let mut vm = Vm::start(image)?;
@@ -185,7 +195,13 @@ fn run_suite(image: &Path) -> Result<usize, String> {
         failed += usize::from(result.is_err());
         drop(std::io::Write::write_all(&mut std::io::stderr(), line.as_bytes()));
     }
-    Ok(failed)
+    Ok(failed + disk::run_sealed_disk(&mut vm, image)? + disk::run_without_sealed_disk(image))
+}
+
+/// Only the data disk scenarios, on a new machine.
+fn run_disk_only(image: &Path) -> Result<usize, String> {
+    let mut vm = Vm::start(image)?;
+    Ok(disk::run_sealed_disk(&mut vm, image)? + disk::run_without_sealed_disk(image))
 }
 
 fn main() -> ExitCode {
@@ -193,7 +209,9 @@ fn main() -> ExitCode {
         drop(std::io::Write::write_all(&mut std::io::stderr(), b"usage: medbrains-os-test <image.raw>\n"));
         return ExitCode::from(2);
     };
-    match run_suite(Path::new(&image)) {
+    let image = Path::new(&image);
+    let result = if std::env::args().nth(2).as_deref() == Some("disk") { run_disk_only(image) } else { run_suite(image) };
+    match result {
         Ok(0) => ExitCode::SUCCESS,
         Ok(_) => ExitCode::FAILURE,
         Err(why) => {

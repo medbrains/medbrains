@@ -115,6 +115,7 @@ async function poll() {
   renderAddresses(status);
   setText("host", status ? status.hostname : "");
   setText("system", status ? "System: " + status.system : "System: unknown");
+  setText("disk", status && status.disk === "unencrypted-chosen" ? "This disk is not encrypted" : "");
   renderFirstSignIn(healthy && status ? status.firstSignIn : null);
 
   if (!status) {

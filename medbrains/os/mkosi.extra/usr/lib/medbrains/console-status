@@ -61,8 +61,8 @@ json_first_signin() {
 write_status() {
     local system new
     system="$(timeout "$CMD_TIMEOUT" systemctl is-system-running 2>/dev/null)"
-    new="$(printf 'window.MB_STATUS={"system":"%s","hostname":"%s","addresses":[%s],"firstSignIn":%s};\n' \
-        "${system:-unknown}" "$(hostname)" "$(json_addresses)" "$(json_first_signin)")"
+    new="$(printf 'window.MB_STATUS={"system":"%s","hostname":"%s","addresses":[%s],"firstSignIn":%s,"disk":"%s"};\n' \
+        "${system:-unknown}" "$(hostname)" "$(json_addresses)" "$(json_first_signin)" "$(cat "$CONF/disk-protection" 2>/dev/null)")"
     if [[ -f "$OUT" ]] && [[ "$(cat "$OUT")" == "$new" ]]; then
         return
     fi
