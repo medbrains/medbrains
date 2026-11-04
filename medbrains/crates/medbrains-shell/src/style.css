@@ -28,6 +28,9 @@ button.suggested-action, button:checked { background: #0f62fe; color: #ffffff; }
 
 .topbar { background: @mb_bar; border-bottom: 1px solid @mb_line; padding: 0 16px; min-height: 44px; font-size: 13px; }
 .topbar button, .topbar menubutton > button { background: none; border: none; min-height: 44px; min-width: 44px; padding: 0 8px; box-shadow: none; color: inherit; }
+.topbar popover button { background: @mb_tile; border: 1px solid @mb_line; color: @mb_text; }
+.topbar popover button.suggested-action { background: #0f62fe; color: #ffffff; border: none; }
+.topbar popover calendar > header > button { background: none; border: none; }
 .topbar button:hover, .topbar menubutton > button:hover { background: @mb_tile_hover; }
 .chip { color: @mb_muted; }
 .chip.warning { color: @mb_warning; }

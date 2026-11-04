@@ -11,7 +11,7 @@ use serde_json::json;
 use crate::api::{self, Link, Network};
 use crate::{network, ui};
 
-/// Tall enough for several sections; past this the panel scrolls, on any screen.
+/// Past this height the panel scrolls, on any screen.
 const PANEL_HEIGHT: i32 = 560;
 const PANEL_WIDTH: i32 = 420;
 
@@ -174,7 +174,8 @@ pub(crate) fn button(face: &gtk::Box, open_settings: Rc<dyn Fn()>) -> gtk::MenuB
         .child(&panel)
         .hscrollbar_policy(gtk::PolicyType::Never)
         .min_content_width(PANEL_WIDTH)
-        .min_content_height(PANEL_HEIGHT)
+        .max_content_height(PANEL_HEIGHT)
+        .propagate_natural_height(true)
         .build();
     popover.set_child(Some(&scroller));
     let button = gtk::MenuButton::builder()

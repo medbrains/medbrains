@@ -60,7 +60,8 @@ pub(crate) fn network_links() -> Value {
 fn summarise_links(links: &Value) -> Vec<Value> {
     let summarise = |link: &Value| {
         let name = link.get("ifname")?.as_str()?;
-        if link.get("link_type")?.as_str()? == "loopback" {
+        // Only real network cards: not loopback, nor a radio's monitor link such as hwsim0.
+        if link.get("link_type")?.as_str()? != "ether" {
             return None;
         }
         let has_flag = |flag: &str| {

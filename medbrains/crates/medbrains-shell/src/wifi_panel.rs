@@ -64,6 +64,20 @@ fn attempt_words(wifi: &Wifi) -> String {
     }
 }
 
+/// The list as the screen should show it. iwd calls a network connected from the start of joining,
+/// so while an attempt runs that network must not read as joined.
+fn shown_networks(wifi: &Wifi) -> Vec<WifiNetwork> {
+    let joining = (wifi.attempt.state == "connecting").then_some(wifi.attempt.ssid.as_str());
+    let mut networks = wifi.networks.clone();
+    for network in networks
+        .iter_mut()
+        .filter(|n| Some(n.ssid.as_str()) == joining)
+    {
+        network.connected = false;
+    }
+    networks
+}
+
 /// The icon for a signal strength.
 const fn signal_icon(signal: u8) -> &'static str {
     match signal {
@@ -117,9 +131,10 @@ impl Section {
         ui::set_warning(&self.result, wifi.attempt.state == "failed");
         self.result.set_label(&result);
         self.result.set_visible(!result.is_empty());
-        if *self.shown.borrow() != wifi.networks {
-            self.fill_list(&wifi.networks);
-            self.shown.borrow_mut().clone_from(&wifi.networks);
+        let networks = shown_networks(wifi);
+        if *self.shown.borrow() != networks {
+            self.fill_list(&networks);
+            *self.shown.borrow_mut() = networks;
         }
     }
 
@@ -213,6 +228,19 @@ impl Section {
         self.refresh();
     }
 
+    /// On opening: reads the state, and scans only if the radio is there to scan with.
+    fn open(&self) {
+        let section = self.clone();
+        api::fetch_wifi(move |result| {
+            if let Ok(wifi) = &result {
+                section.show(wifi);
+                if wifi.hardware && !wifi.fault && wifi.powered {
+                    section.scan();
+                }
+            }
+        });
+    }
+
     /// Starts a scan.
     fn scan(&self) {
         let section = self.clone();
@@ -296,10 +324,7 @@ pub(crate) fn section() -> gtk::Box {
         glib::Propagation::Proceed
     });
     let target = section.clone();
-    root.connect_map(move |_| {
-        target.refresh();
-        target.scan();
-    });
+    root.connect_map(move |_| target.open());
     glib::timeout_add_local(POLL_EVERY, move || {
         if section.root.is_mapped() {
             section.refresh();
@@ -311,7 +336,9 @@ pub(crate) fn section() -> gtk::Box {
 
 #[cfg(test)]
 mod tests {
-    use super::{Wifi, WifiNetwork, attempt_words, network_words, signal_icon, state_words};
+    use super::{
+        Wifi, WifiNetwork, attempt_words, network_words, shown_networks, signal_icon, state_words,
+    };
     use crate::api::WifiAttempt;
 
     /// The owner's rule: a machine with no card says so, and a fault never looks like empty air.
@@ -342,6 +369,27 @@ mod tests {
             ..wifi(true, false, true)
         };
         assert_eq!(state_words(&with_list), None);
+    }
+
+    /// Seen on screen: "Connected" beside a network still checking a wrong password.
+    #[test]
+    fn a_network_being_joined_never_reads_as_connected() {
+        let network = WifiNetwork {
+            ssid: "Ward".to_owned(),
+            connected: true,
+            ..WifiNetwork::default()
+        };
+        let wifi = |state: &str| Wifi {
+            networks: vec![network.clone()],
+            attempt: WifiAttempt {
+                ssid: "Ward".to_owned(),
+                state: state.to_owned(),
+                words: String::new(),
+            },
+            ..Wifi::default()
+        };
+        assert!(!shown_networks(&wifi("connecting"))[0].connected);
+        assert!(shown_networks(&wifi("connected"))[0].connected);
     }
 
     #[test]

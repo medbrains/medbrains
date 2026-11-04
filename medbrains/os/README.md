@@ -139,6 +139,47 @@ drifts. Before setup, `ss` shows TCP only on loopback; UDP 5353 (names) and 123 
 comes last, and the seed creates the hospital and administrator in one transaction. It used to create the
 hospital first, and a failure in between left a hospital nobody could sign in to.
 
+## Network menu
+
+An icon in the top bar shows the link really in use and opens one panel, the same one first boot and Settings
+show. `network.rs` builds it, and `medbrains-os-setup` does the work, on loopback with the setup token like
+everything else it does.
+
+- **Ethernet:** each wired link with its state, address and speed. With more than one, **Use this link** gives
+  it a lower route metric, on the data partition. The others stay up, so this can't cut the machine off.
+- **Fixed address:** on tmpfs until confirmed, so a mistake or a power cut undoes it.
+- **Wi-Fi:** on or off, the list with signal and lock, a password, the true result, Forget. The panel tells no
+  card, software not answering, off and nothing in range apart, so a fault can't read as an empty list. Enterprise
+  (802.1X) and hidden networks aren't available yet.
+
+**iwd, not wpa_supplicant,** because it costs less, measured on the same VM: 3 MB of memory against 11 MB
+(1.7 MB PSS against 5.4 MB), and 2.8 MB of disk against 5.1 MB before shared libraries. It is started by a udev
+rule only when a card appears, so a wired machine pays only for the disk. networkd does the addressing, as on a
+cable. `wireless-regdb` is added for regulatory data.
+
+**Passwords** go from the screen to the service over loopback, into `/var/lib/iwd/<name>.psk`, mode 0600, on the
+data partition, written in one step because iwd refused a file it caught half written. A password that fails is
+removed. It never appears on a command line, which is why this drives iwd over D-Bus with a file rather than
+`iwctl --passphrase`, nor in a log. The disk isn't encrypted yet (T1), so a removed disk would give it up.
+
+**What has been proved:** the whole path with `mac80211_hwsim` and `hostapd`, on the debug image in QEMU. **No real
+card has been tried, and real cards need firmware the image doesn't carry,** such as `firmware-iwlwifi`; add it once
+the hardware is known (H2). DHCP over Wi-Fi is unproved too: the test network has no DHCP server.
+
+## Restart and power off
+
+The menu asks first, then says what happened. A refusal stays in the menu with a next step and the real reason
+goes to the journal. Once accepted, the screen says so until the machine goes down, because the screen's unit stops
+after the server does, and if the machine is somehow still on after 2 minutes it says to use the power button.
+
+**Under Apple Virtualization a guest's restart stops the VM.** Not our behaviour, and nothing in the guest can
+change it. Apple's API has no reset event, only [`guestDidStop`](https://developer.apple.com/documentation/virtualization/vzvirtualmachinedelegate/guestdidstop(_:)),
+and [UTM's handler](https://github.com/utmapp/UTM/blob/main/Services/UTMAppleVirtualMachine.swift) sets the VM to stopped
+and doesn't start it again. Press play in UTM. This is read from their sources, not seen by test here.
+
+**Debug images** used to take 90 seconds more to restart, on a black screen: the serial shell's bash ignores
+SIGTERM, so the final shutdown waited for it. Release images never had this.
+
 ## Network
 
 `/etc/nftables.conf` is default deny in both directions. Inbound: 80, 443, 123 (time for the LAN), 5353

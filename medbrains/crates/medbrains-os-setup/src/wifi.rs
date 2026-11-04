@@ -20,7 +20,8 @@ const BUS_SECONDS: &str = "--timeout=5";
 /// How long joining may take: association, then the key exchange.
 const CONNECT_SECONDS: &str = "--timeout=40";
 /// iwd notices a new password file by watching its directory, so give it a moment.
-const NOTICE_FILE: Duration = Duration::from_millis(300);
+const KNOWN_WAIT: Duration = Duration::from_millis(500);
+const KNOWN_TRIES: u32 = 10;
 /// WPA's own limits on a passphrase.
 const PASSWORD_BYTES: std::ops::RangeInclusive<usize> = 8..=63;
 
@@ -71,8 +72,8 @@ fn has_card() -> bool {
 /// Everything the Wi-Fi panel shows. Three different truths: no card, a card with software that
 /// doesn't answer, and a working card with its list, so a fault can't read as an empty list.
 pub(crate) fn status(attempt: &Arc<Mutex<Attempt>>) -> Value {
-    let attempt = attempt.lock().map_or(
-        Value::Null,
+    let attempt = attempt.lock().map_or_else(
+        |_| json!({}),
         |a| json!({ "ssid": a.ssid, "state": a.state, "words": a.words }),
     );
     if !has_card() {
@@ -105,11 +106,15 @@ pub(crate) fn status(attempt: &Arc<Mutex<Attempt>>) -> Value {
     })
 }
 
-/// The card's object path, or the words for why there isn't one.
+/// The card's object path, or the words for why there isn't one. The card is checked first: asking
+/// iwd would start it through D-Bus, on a machine with no use for it.
 fn device() -> Result<String, String> {
+    if !has_card() {
+        return Err("This machine has no Wi-Fi card.".to_owned());
+    }
     snapshot()?
         .device
-        .ok_or_else(|| "This machine has no Wi-Fi card.".to_owned())
+        .ok_or_else(|| "The Wi-Fi software isn't answering.".to_owned())
 }
 
 /// Turns the radio on or off.
@@ -170,21 +175,41 @@ fn password_contents(password: &str) -> String {
     )
 }
 
-/// Writes a password where only root can read it.
+/// Writes a password where only root can read it, in one step: iwd reads the file as soon as it
+/// appears, and refused one caught half written.
 fn save_password(ssid: &str, password: &str) -> Result<(), String> {
-    fs::OpenOptions::new()
+    let target = password_file(ssid);
+    let temporary = format!("{target}.new");
+    let written = fs::OpenOptions::new()
         .create(true)
         .write(true)
         .truncate(true)
         .mode(0o600)
-        .open(password_file(ssid))
+        .open(&temporary)
         .and_then(|mut file| file.write_all(password_contents(password).as_bytes()))
-        .map_err(|_| "The password could not be saved.".to_owned())
+        .and_then(|()| fs::rename(&temporary, &target));
+    written.map_err(|_| {
+        drop(fs::remove_file(&temporary));
+        "The password could not be saved.".to_owned()
+    })
+}
+
+/// Waits, within a limit, for iwd to have read a new password. Joining sooner fails with no agent.
+fn wait_for_known(ssid: &str) {
+    for _ in 0..KNOWN_TRIES {
+        std::thread::sleep(KNOWN_WAIT);
+        let known = snapshot().is_ok_and(|now| now.known.iter().any(|(name, _)| name == ssid));
+        if known {
+            return;
+        }
+    }
 }
 
 /// The words for a failed join, from iwd's error.
 fn join_failure_words(error: &str) -> &'static str {
-    if error.contains("Aborted") {
+    if error.contains("Agent") {
+        "This machine didn't take the password in time. Try again."
+    } else if error.contains("Aborted") {
         "The attempt was cancelled."
     } else if error.contains("NotSupported") {
         "This machine can't join that kind of network."
@@ -217,7 +242,7 @@ fn join(ssid: &str, password: &str) -> Result<(), String> {
             return Err("A Wi-Fi password has 8 to 63 characters.".to_owned());
         }
         save_password(ssid, password)?;
-        std::thread::sleep(NOTICE_FILE);
+        wait_for_known(ssid);
     }
     let joined = busctl(
         CONNECT_SECONDS,
