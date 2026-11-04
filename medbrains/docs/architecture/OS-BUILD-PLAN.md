@@ -54,6 +54,7 @@ N1 to N6 come from RFC-HOSPITAL-OS §8q. Every task ends on a check or a screen.
 | T1.2 | Daily flaw check of the image's own parts list; rebuild on a Debian security fix | A new Debian advisory opens a tracked item within a day | next, with U1.1 |
 | T2 | Machine keys, hospital root key, recovery key | Node certificate traces to the root | next: owner priority 2026-11-04, needs the key inventory (`OS-KEYS.md`) |
 | T3 | Kanidm as identity provider, chosen on security over FerrisKey (`feature/os-kanidm`) | Physical FIDO2 key passes attestation; advisories confirmed fixed in the shipped version; staff sign in on the OS screen; Entra and directory path decided | doing: passed the key allow-list with software keys only; physical key blocked on hardware |
+| T3.1 | Identity app in the launcher: staff see their profile and keys through Kanidm's pages; IT adds people, groups and allowed key models from an admin screen, which Kanidm lacks | From the launcher, a person adds a key and IT adds a person without a command line | next: owner 2026-11-04 |
 | T4 | Key cards and hardware keys | Password alone refused for an owner | later, needs T3 and cards |
 
 ## J. Nodes and edges
@@ -182,7 +183,7 @@ N1 to N6 come from RFC-HOSPITAL-OS §8q. Every task ends on a check or a screen.
 
 New ideas go to the parked list, not into this. Stable means every line below passes on the final image.
 
-**In:** desktop, setup and restart (#5223); memory and client address fixes; disk encryption and key inventory (T1, T2); Kanidm (T3); node pairing and remote machines (J1, J5); signed A/B updates with rollback and backup with restore (U1, U2); launcher with one app per module for one role, Pharmacy first (O11); responsive OS screens (O12); screen permissions (O13); x86 image (H1).
+**In:** desktop, setup and restart (#5223); memory and client address fixes; disk encryption and key inventory (T1, T2); Kanidm with its Identity app (T3, T3.1); node pairing and remote machines (J1, J5); signed A/B updates with rollback and backup with restore (U1, U2); launcher with one app per module for one role, Pharmacy first (O11); responsive OS screens (O12); screen permissions (O13); x86 image (H1).
 
 **Parked until after it:** connectors beyond one lab analyzer (X10), other roles' module apps, rule builder, MedBrains Control beyond machines and audit, offline second sites (J4), PACS, mail, app store, side-by-side windows.
 
