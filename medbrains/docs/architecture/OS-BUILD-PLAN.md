@@ -35,7 +35,7 @@ N1 to N6 come from RFC-HOSPITAL-OS §8q. Every task ends on a check or a screen.
 
 | Task | What | Done when | State |
 |---|---|---|---|
-| S0 | No hospital code at sign-in | Box signs in directly | doing: on-screen test, fix fail-open |
+| S0 | No hospital code at sign-in | Box signs in directly | done: #5213 |
 | S1 | `medbrains-setup`, "new hospital or connecting?", three fields, Back, Start over | Blank box to dashboard | next |
 | S2 | Administrator and node targets | A node runs no database or server; memory measured | next |
 | S3.1 | `medbrains-shell` in Rust + GTK4, replacing the HTML console | Status and setup render natively in `cage` | next |
@@ -95,7 +95,7 @@ N1 to N6 come from RFC-HOSPITAL-OS §8q. Every task ends on a check or a screen.
 | Task | What | Done when | State |
 |---|---|---|---|
 | O1 | Health: disk wear and space, temperature, watchdog, service restart | A failing disk warns before it fails | next |
-| O2 | Logs: bounded, rotated, no patient data; diagnostics bundle for support | Disk cannot fill with logs; bundle holds no patient data | next |
+| O2 | Logs: bounded, rotated, no patient data; diagnostics bundle for support | Disk cannot fill with logs; bundle holds no patient data | doing: journal bounded, database log joins it; diagnostics bundle open |
 | O3 | Power: safe shutdown on UPS signal, recovery after a power cut | Pull power under load; database comes back clean | next |
 | O4 | Screen: idle lock, switch person, touch, on-screen keyboard, language, accessibility | Keyboard-only and screen-reader checks pass | next, needs S3 |
 | O5 | Printing and peripherals: printers, barcode, card readers | Label prints from a node | later |
@@ -132,11 +132,11 @@ N1 to N6 come from RFC-HOSPITAL-OS §8q. Every task ends on a check or a screen.
 
 | Task | What | Done when | State |
 |---|---|---|---|
-| B1 | Credentials out of audit rows; plan to scrub old rows | New rows carry no hash or secret | next; production scrub needs owner approval |
-| B2 | Forced password change enforced on the server | API refuses until changed | next |
-| B3 | Lockout counter reset; lockout denial of service | One host cannot keep accounts locked | next |
-| B4 | Verify and fix the medium findings | Each fixed or recorded | doing: real client address this PR; rest open |
-| B5 | Vulnerable dependencies | Security checks pass | doing: branch ready, compile check pending |
+| B1 | Credentials out of audit rows; plan to scrub old rows | New rows carry no hash or secret | done: #5214; scrubbing old rows blocked: owner |
+| B2 | Forced password change enforced on the server | API refuses until changed | done: #5214 |
+| B3 | Lockout counter reset; lockout denial of service | One host cannot keep accounts locked | doing: counter fixed #5214; denial of service open |
+| B4 | Verify and fix the medium findings | Each fixed or recorded | doing: real client address #5222, slow-query log parameters this PR; rest open |
+| B5 | Vulnerable dependencies | Security checks pass | done: #5215 |
 
 ## R. Release
 
