@@ -8,6 +8,7 @@
 
 mod child;
 mod machine;
+mod node;
 mod peer;
 mod rules;
 mod status;
@@ -160,7 +161,7 @@ fn new_hospital(body: &Value) -> (u16, Value) {
 /// Handles `POST /node/finish`: this machine has been approved, so it becomes a node.
 fn finish_node() -> (u16, Value) {
     match machine::is_set_up() {
-        Ok(false) => answer(500, machine::finish_node()),
+        Ok(false) => answer(500, node::finish_node()),
         Ok(true) => (409, json!({ "error": "This machine is already set up." })),
         // Not knowing is not "no".
         Err(error) => (500, json!({ "error": error })),

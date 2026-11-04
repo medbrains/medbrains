@@ -59,7 +59,7 @@ const fn role_word(set_up: bool, node: bool) -> &'static str {
 /// on a node. So a removed or cut-off node says so.
 fn app_answers(node: bool) -> bool {
     if node {
-        let certificate = machine::SCREEN_CERTIFICATE;
+        let certificate = crate::node::SCREEN_CERTIFICATE;
         let args = ["-fsS", "-m", "3", "--cacert", certificate, "-o", "/dev/null", FRONT_HEALTH];
         return output("curl", &args).is_some();
     }
