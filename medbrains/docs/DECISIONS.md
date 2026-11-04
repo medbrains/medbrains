@@ -48,6 +48,7 @@ built. *Proposed* is waiting for the owner. *Rejected* was considered and turned
 | 2026-11-04 | OS desktop S3.1 to S3.6: `medbrains-shell` (GTK, gtk4 0.10 with Debian's rustc 1.85, no extra toolchain) replaces the HTML console and cog; `medbrains-os-setup` (root, loopback, token); `medbrains-main.target` with the role condition on every service, so nothing answers before setup; chosen first password, no generated one; network settings on the data partition, fixed addresses on tmpfs until confirmed; ephemeral web sessions | this branch |
 
 ## Decisions
+| 2026-11-04 | OS desktop in the approved design, dark and light; apps from manifests, each with its own view, storage and default-deny origin; status says only what is checked (firewall on, NTS-verified time, failed service named); time zone chosen at setup and kept on the data partition; screen scale set through wlr-randr because cage has no option; debug shell started by udev on whichever serial port exists | this branch |
 
 ### Project and licence
 

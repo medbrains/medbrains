@@ -1,10 +1,33 @@
 //! The time zone chooser, shared by first boot and Settings. The service keeps the setting.
 
 use gtk4 as gtk;
+use gtk4::glib;
 use gtk4::prelude::{BoxExt, Cast, ListModelExt, StaticType};
 use serde_json::json;
 
 use crate::{api, ui};
+
+/// The setting the shell's child processes read for the time zone.
+const LOCALTIME_LINK: &str = "/var/lib/medbrains-settings/localtime";
+
+/// `TZ`'s value for the zone a setting's link points at. WebKit's sandbox cannot see the setting
+/// itself, only `/usr`, so its pages would otherwise show UTC.
+fn tz_value(link_target: &str) -> Option<String> {
+    link_target
+        .starts_with("/usr/share/zoneinfo/")
+        .then(|| format!(":{link_target}"))
+}
+
+/// Tells processes started from now on which zone to use. A page already open keeps the old
+/// one until the machine restarts.
+pub(crate) fn export_for_children() {
+    let target = std::fs::read_link(LOCALTIME_LINK).unwrap_or_default();
+    if let Some(value) = target.to_str().and_then(tz_value) {
+        if glib::setenv("TZ", &value, true).is_err() {
+            glib::g_warning!("medbrains-shell", "could not set the time zone for an app");
+        }
+    }
+}
 
 /// Position of `current` in the list, or the first entry.
 fn position_of(zones: &[String], current: &str) -> u32 {
@@ -63,7 +86,18 @@ pub(crate) fn chooser() -> gtk::Box {
 
 #[cfg(test)]
 mod tests {
-    use super::position_of;
+    use super::{position_of, tz_value};
+
+    /// A wrong link must not reach the environment of a page's process.
+    #[test]
+    fn only_a_real_zone_file_becomes_tz() {
+        assert_eq!(
+            tz_value("/usr/share/zoneinfo/Asia/Kolkata").as_deref(),
+            Some(":/usr/share/zoneinfo/Asia/Kolkata")
+        );
+        assert_eq!(tz_value("/etc/passwd"), None);
+        assert_eq!(tz_value(""), None);
+    }
 
     #[test]
     fn the_list_opens_on_the_current_zone() {

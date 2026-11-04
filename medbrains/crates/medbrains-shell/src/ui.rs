@@ -183,7 +183,7 @@ pub(crate) fn memory_fraction(machine: &Machine) -> f64 {
 pub(crate) fn network_words(network: &Network) -> String {
     let with_address = network.links.iter().find(|link| !link.addresses.is_empty());
     match with_address {
-        Some(link) if link.cable => link.addresses.first().cloned().unwrap_or_default(),
+        Some(link) if link.cable => "Connected".to_owned(),
         _ if network.links.iter().any(|link| link.cable) => "Cable in, no address".to_owned(),
         _ if network.links.is_empty() => "No network card".to_owned(),
         _ => "No cable".to_owned(),
@@ -222,7 +222,7 @@ mod tests {
     /// A pulled cable must read as a pulled cable, and a stale address must not hide it.
     #[test]
     fn the_top_bar_tells_a_pulled_cable_from_a_missing_address() {
-        assert_eq!(network_words(&one_link(true, &["10.0.2.15"])), "10.0.2.15");
+        assert_eq!(network_words(&one_link(true, &["10.0.2.15"])), "Connected");
         assert_eq!(network_words(&one_link(false, &["10.0.2.15"])), "No cable");
         assert_eq!(network_words(&one_link(true, &[])), "Cable in, no address");
         assert_eq!(network_words(&Network::default()), "No network card");

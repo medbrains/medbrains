@@ -16,7 +16,7 @@ use webkit6::{
 };
 
 use crate::apps::{self, App};
-use crate::{api, ui};
+use crate::{api, timezone, ui};
 
 /// WebKit compiles the filter into a file here, inside the screen's own writable directory.
 const FILTER_STORE: &str = "/var/lib/kiosk/content-filter";
@@ -268,6 +268,7 @@ impl WebApp {
     /// Builds the view, with a session of its own, so apps can't read each other's storage.
     /// Sessions are ephemeral, so nothing a page stores reaches the disk, and downloads, printing and uploads are refused: the appliance has no safe way to do them yet.
     fn make_view(&self, filter: &webkit6::UserContentFilter) {
+        timezone::export_for_children();
         let session = NetworkSession::new_ephemeral();
         session.connect_download_started(|_, download| download.cancel());
         let content = webkit6::UserContentManager::new();

@@ -42,7 +42,7 @@ brew install qemu
 make os-boot FRESH=1    # a brand-new box; `make os-boot` keeps the disk across runs
 ```
 
-QEMU runs headless with its sockets in `/tmp/mb-osimage/vm/`: `vnc.sock` is the screen, `qmp.sock` takes
+`os/tests/vm.py` drives it (real input over QMP, screenshots, and a command in the debug shell). QEMU runs headless with its sockets in `/tmp/mb-osimage/vm/`: `vnc.sock` is the screen, `qmp.sock` takes
 input, `monitor.sock` takes `screendump`, and `serial.sock` is the shell on debug images. Headless QEMU
 only flips the screen while a display is attached, so connect a VNC client or the screen appears
 frozen. Set `OS_WEB_PORT` if port 8443 is taken, and `OS_SCREEN_W` / `OS_SCREEN_H` to change its size.
@@ -55,9 +55,14 @@ From another computer the same box answers at `https://<address>` with a certifi
 
 ## Boot in UTM
 
-Create a new "Virtualize" Linux VM for ARM64, tick "Boot from UEFI", remove the default drive, and
-import the `.raw` as a VirtIO drive after resizing it (`qemu-img resize` to 32 GB or more; first boot
-takes the extra space). Add a `virtio-gpu-pci` display. Not exercised for D1.
+```sh
+OS_WORK=/tmp/mb-osimage-shell os/utm-run.sh           # a fresh box, as the VM "MedBrains Dev"
+OS_SERIAL=$(os/utm-run.sh --serial) os/tests/vm.py sh 'systemctl is-system-running'
+```
+
+This uses Apple Virtualization. UTM's AppleScript creates the VM, then the script quits UTM to set the
+keyboard, pointer and display in the bundle's plist, which AppleScript can't reach, so it refuses to run while
+another VM is running. There is no QMP here: a debug image has `grim` and `wtype` in the serial shell instead.
 
 ## Flash to a Raspberry Pi 5
 
@@ -81,16 +86,26 @@ partial, so expect gaps; that is what D2 is for.
 3. **First boot only: setup,** native screens, each with Back, all operable by keyboard:
    - **Network:** cable state, addresses, whether the gateway and the internet answer, and a plain
      sentence about Wi-Fi. A fixed address undoes itself unless confirmed within 60 seconds.
+   - **Time zone:** a searchable list, Asia/Kolkata unless changed.
    - **Updates:** says installing updates is not available in this version.
    - **"What are you doing with this machine?"** "Setting up a new hospital" continues. "Connecting to my
      hospital" says it is not available in this version, with Back.
    - **Three fields:** hospital name, username, password, with the rules shown under each.
    - **Review,** then **Start the main machine**. Nothing is final before this.
-4. **The desktop:** wallpaper, a top bar (network, clock opening a calendar, power), a dock, a launcher
-   with search, and machine widgets (health, network, data disk). It shows no patient data. Tiles exist
-   only for MedBrains and Settings.
-5. **MedBrains,** in an embedded view with a Home button back to the desktop. Sign in with what you
-   chose; nothing forces a change. Home keeps the app as it was, and a restart signs you out.
+4. **The desktop:** wallpaper in MedBrains blue with a faint grid (no GPU needed), a top bar (hospital name,
+   role, clock opening a calendar, firewall state, network, power), a greeting with a plain status sentence,
+   a dock, a launcher with search, and machine widgets with real figures (health, network, storage). It
+   shows no patient data. Dark by default; Settings offers light and reduced motion.
+5. **Apps,** each in its own view with a Home button back to the desktop. MedBrains opens in stated
+   stages, with words and a progress bar, and ends in a sentence and **Try again** rather than waiting
+   forever. Sign in with what you chose; nothing forces a change. Home keeps the app as it was, and a
+   restart signs you out.
+
+**What the status says, and only what is checked.** Firewall on means nftables holds our table. Time
+"Verified" means chrony has selected a source using NTS; it reads "Checking" for the first 5 minutes, and
+only then "Not confirmed". A failed service is named on screen. Nothing claims disk encryption or verified
+boot, because neither exists yet. The Network widget has no internet row: asking would send a request every
+poll, so that check runs only on the network screens.
 
 Opening the app from a browser on another computer on the same network stays available once setup has
 finished, not before.
@@ -131,19 +146,53 @@ Task T1.1, all with settings Linux already has: `/etc/sysctl.d/90-medbrains.conf
 in `/etc/modprobe.d/medbrains-blocklist.conf`, and `lockdown=integrity` with memory protections on the kernel
 command line. Unprivileged user namespaces stay on because WebKit's sandbox needs them.
 
+## Apps on the desktop
+
+A tile exists only if `/usr/share/medbrains/apps/<id>.json` does and fits this machine's role. A missing,
+damaged or refused file loses its own tile, logged in the journal, and nothing else.
+
+```json
+{ "id": "medbrains", "name": "MedBrains", "icon": "/usr/share/medbrains/shell/logo.svg",
+  "url": "https://127.0.0.1:8443/", "role": "main", "unit": "medbrains-server.service",
+  "health": "http://127.0.0.1:3000/api/health", "accent": true }
+```
+
+| Field | Required | Rule |
+|---|---|---|
+| `id` | yes | Lowercase letters, digits, dashes; must match the file name |
+| `name` | yes | Up to 40 characters |
+| `icon` | yes | A theme icon's name, or a file under `/usr/share/medbrains/` |
+| `url` | yes, except Settings | `https://127.0.0.1[:port]/…`. Anything else is refused |
+| `role` | yes | `main` or `any` |
+| `unit` | no | Its tile says so when this isn't running |
+| `health` | no | `http://127.0.0.1:port/path`, asked before opening. Without it, opening waits for `unit` |
+| `accent` | no | Draws the tile in the brand colour |
+
+Each app gets its own WebKit view and ephemeral session, so apps cannot read each other's storage. Its
+navigation limit is built from its own URL's origin and is default deny. A view costs about 400 MB, so it is
+made only when first opened, and stays until a restart.
+
+## High-density screens
+
+`cage` has no scale option, but it speaks wlr-output-management, so the shell asks `wlr-randr` for one at
+start: 2 at 180 PPI or more, 1.5 at 140 or more, and 2 for a width of 2880 or more when the screen reports no
+size. Scale never leaves less than 1280 logical pixels, so 1366x768 and 1280x800 stay at 1. Under UTM the
+softness came from the host upscaling a 1920x1200 guest on a Retina Mac, which nothing in the guest can fix;
+`utm-run.sh` gives the guest 2880x1800 real pixels instead.
+
 ## How the screen works
 
 - `cage` is the Wayland kiosk compositor. `medbrains-shell` (Rust, GTK 4, no libadwaita) runs inside it as
   the unprivileged `kiosk` user, in one full-screen window. If it crashes, `cage` ends and the unit restarts.
 - The shell asks `medbrains-os-setup` once at start whether the machine is set up, and every 10 seconds for
-  the desktop's figures. That poll stays on the machine. Only the network screen, and only while it is on
+  the desktop's figures and each app's unit state. That poll stays on the machine. Only the network screen, and only while it is on
   screen, pings the gateway and makes one request to the internet.
 - WebKitGTK is loaded only when MedBrains is first opened, so the desktop does not pay for it.
 
-**Staying on this machine.** The app loads from `https://127.0.0.1:8443`, a loopback-only front end with a
+**Staying on this machine.** MedBrains loads from `https://127.0.0.1:8443`, a loopback-only front end with a
 self-signed certificate, the only certificate the kiosk trusts, so there is no warning. There is no address
-bar. The content filter (`crates/medbrains-shell/content-filter.json`) blocks everything except that origin,
-`blob:` and `data:`; if it cannot be compiled, the app does not open at all. Navigation off the machine is
+bar. Each app's content filter blocks everything except its origin, `blob:` and `data:`; if it cannot be
+compiled, the app does not open at all. Navigation off the machine is
 refused before the filter, so a person stays where they were, and new windows are refused. `cage` blocks
 switching to another console. Nothing on the screen runs a shell.
 
@@ -156,10 +205,10 @@ restart signs you out.
   and printing do not work on this screen.** The anatomy model's CDN stays blocked too.
 - **Wi-Fi cannot be joined,** and the screen says so.
 - **No lock or switch person.** Anyone at the screen can use a signed-in session until a restart.
-- **The clock shows a warning** in red until chrony has a real time source, including for a moment after
-  every boot, and always on a network with no time server. Its time zone is UTC, with no way to change it.
-- **If the server stops** while MedBrains is open, Caddy's plain sentence shows in the view and the health
-  widget says so. The old automatic return to a status page is gone.
+- **A page keeps the time zone it opened with** until a restart, if the zone is changed later in Settings.
+- **If the server stops** while MedBrains is open, Caddy's plain sentence shows in the view and the desktop
+  names the service. The old automatic return to a status page is gone.
+- **The hospital's name on the desktop** is the one given at setup; renaming it in MedBrains doesn't update it.
 - A password forgotten after setup has no recovery path on the appliance (§8k, later).
 - Sign-in is limited per address, and everyone at the screen is one address (`127.0.0.1`).
 - Anybody on the network can lock the administrator out for 15 minutes with 5 wrong passwords.
