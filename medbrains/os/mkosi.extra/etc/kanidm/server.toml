@@ -1,0 +1,18 @@
+# The identity provider. Loopback only, behind Caddy on 9443. Its own store: no PostgreSQL.
+# "domain" is security critical: it binds every registered hardware key, so renaming it later
+# breaks them all. Changing it means `kanidmd domain rename` and everyone enrolling again.
+version = "2"
+bindaddress = "127.0.0.1:8444"
+db_path = "/var/lib/kanidm/kanidm.db"
+tls_chain = "/var/lib/kanidm/tls-chain.pem"
+tls_key = "/var/lib/kanidm/tls-key.pem"
+domain = "idm.medbrains.local"
+origin = "https://idm.medbrains.local:9443"
+
+[http_client_address_info]
+x-forward-for = ["127.0.0.1"]
+
+[online_backup]
+path = "/var/lib/kanidm/backups/"
+schedule = "00 22 * * *"
+versions = 7

@@ -1,0 +1,23 @@
+/* The hospital's colours on Kanidm's sign-in pages, from the website theme in ENGINEERING.md: the
+   one stylesheet Kanidm loads after its own and leaves empty for this. Its pages are Bootstrap 5. */
+:root, [data-bs-theme="dark"], [data-bs-theme="light"] {
+    --bs-primary: #0f62fe;
+    --bs-primary-rgb: 15, 98, 254;
+    --bs-link-color: #78a9ff;
+    --bs-link-color-rgb: 120, 169, 255;
+    --bs-link-hover-color: #78a9ff;
+    --bs-body-bg: #111315;
+    --bs-body-bg-rgb: 17, 19, 21;
+    --bs-body-color: #e6e8eb;
+    --bs-tertiary-bg: #1c1f23;
+    --bs-tertiary-bg-rgb: 28, 31, 35;
+}
+.btn-primary {
+    --bs-btn-bg: #0f62fe;
+    --bs-btn-border-color: #0f62fe;
+    --bs-btn-color: #ffffff;
+    --bs-btn-hover-bg: #0043ce;
+    --bs-btn-hover-border-color: #0043ce;
+    --bs-btn-active-bg: #0043ce;
+}
+footer.footer { display: none; }

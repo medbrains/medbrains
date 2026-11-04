@@ -8,6 +8,7 @@
 #   MEDBRAINS_SERVER_BIN  the server for the target arch
 #                         [$CARGO_TARGET_DIR/<triple>/release/medbrains-server]
 #   MEDBRAINS_WEB_DIST    the built web app [../apps/web/dist]
+#   KANIDM_DIR            the identity provider, from build-kanidm.sh [$OS_WORK/kanidm-<arch>]
 #   OS_WORK               build cache + output [/tmp/mb-osimage]
 #
 # --debug adds a root shell on the serial console, for verification only.
@@ -32,9 +33,14 @@ esac
 
 OS_WORK="${OS_WORK:-/tmp/mb-osimage}"
 SERVER="${MEDBRAINS_SERVER_BIN:-${CARGO_TARGET_DIR:-$REPO/target}/$TRIPLE/release/medbrains-server}"
+KANIDM="${KANIDM_DIR:-$OS_WORK/kanidm-$ARCH}"
 WEB="${MEDBRAINS_WEB_DIST:-$REPO/apps/web/dist}"
 if [[ ! -x "$SERVER" ]]; then
     echo "no server binary at $SERVER — cross-build it with zigbuild for $TRIPLE (see README)" >&2
+    exit 1
+fi
+if [[ ! -x "$KANIDM/kanidmd" ]]; then
+    echo "no identity provider at $KANIDM — run os/build-kanidm.sh --arch $ARCH" >&2
     exit 1
 fi
 if [[ ! -f "$WEB/index.html" ]]; then
@@ -48,6 +54,11 @@ rm -rf "$EXTRA"
 install -d "$EXTRA/usr/bin" "$EXTRA/usr/share/medbrains" "$EXTRA/usr/lib/medbrains" \
     "$OS_WORK/out-$ARCH" "$OS_WORK/cache-$ARCH"
 install -m 0755 "$SERVER" "$EXTRA/usr/bin/medbrains-server"
+install -m 0755 "$KANIDM/kanidmd" "$EXTRA/usr/bin/kanidmd"
+install -d "$EXTRA/usr/share/kanidm/ui"
+cp -R "$KANIDM/hpkg" "$EXTRA/usr/share/kanidm/ui/hpkg"
+# The hospital's colours, on the one stylesheet Kanidm leaves for this.
+install -m 0644 "$HERE/kanidm-override.css" "$EXTRA/usr/share/kanidm/ui/hpkg/override.css"
 cp -R "$WEB" "$EXTRA/usr/share/medbrains/web"
 # Pre-compressed copies are for a CDN; on the appliance Caddy compresses.
 find "$EXTRA/usr/share/medbrains/web" \( -name '*.br' -o -name '*.gz' -o -name '*.map' \) -delete

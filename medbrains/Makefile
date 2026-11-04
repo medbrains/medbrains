@@ -995,6 +995,7 @@ os-image: ## Build the MedBrains OS disk image (ARCH=arm64|x86-64, DEBUG=1 for a
 	bash scripts/build_guard.sh --wait
 	# jemalloc's build runs make itself, and would read this make's ARCH=... as a target.
 	env -u MAKEFLAGS -u ARCH CARGO_TARGET_DIR=$(OS_TARGET_DIR) SQLX_OFFLINE=true cargo zigbuild --release --target=$(OS_ARCH_TRIPLE).2.36 -p medbrains-server --bin medbrains-server
+	OS_TARGET_DIR=$(OS_TARGET_DIR)-kanidm os/build-kanidm.sh --arch $(or $(ARCH),arm64)
 	pnpm turbo run build --filter=@medbrains/web...
 	CARGO_TARGET_DIR=$(OS_TARGET_DIR) os/build.sh --arch $(or $(ARCH),arm64) $(if $(DEBUG),--debug)
 

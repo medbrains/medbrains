@@ -8,6 +8,7 @@
 # (a brand-new box); without it, a reboot keeps its data.
 #
 #   Web:     https://localhost:8443  (OS_WEB_PORT to change it)
+#   Sign-in: https://localhost:9443  (OS_IDP_PORT to change it)
 #   Serial:  $OS_WORK/vm/serial.sock   (socat -,raw,echo=0 UNIX:<path>)
 #   Monitor: $OS_WORK/vm/monitor.sock  (screendump /path/to/shot.png -f png)
 #   Screen:  $OS_WORK/vm/vnc.sock; size OS_SCREEN_W x OS_SCREEN_H (1280x800)
@@ -39,7 +40,7 @@ exec qemu-system-aarch64 \
     -drive "if=virtio,format=qcow2,file=$VM/disk.qcow2" \
     -device "virtio-gpu-pci,xres=${OS_SCREEN_W:-1280},yres=${OS_SCREEN_H:-800}" -device qemu-xhci -device usb-kbd -device usb-tablet \
     -device i6300esb \
-    -netdev "user,id=net0,hostfwd=tcp:127.0.0.1:${OS_WEB_PORT:-8443}-:443" -device virtio-net-pci,netdev=net0 \
+    -netdev "user,id=net0,hostfwd=tcp:127.0.0.1:${OS_WEB_PORT:-8443}-:443,hostfwd=tcp:127.0.0.1:${OS_IDP_PORT:-9443}-:9443" -device virtio-net-pci,netdev=net0 \
     -display none -vnc "unix:$VM/vnc.sock" \
     -serial "unix:$VM/serial.sock,server,nowait" \
     -monitor "unix:$VM/monitor.sock,server,nowait" \

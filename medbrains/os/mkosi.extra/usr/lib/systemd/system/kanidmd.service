@@ -1,0 +1,56 @@
+# The identity provider (Kanidm). Loopback only, behind Caddy on 9443. It may talk to this machine
+# alone: an upstream directory is a deliberate drop-in that lifts IPAddressDeny, never the default.
+[Unit]
+Description=MedBrains identity provider
+After=medbrains-firstboot.service network.target
+StartLimitIntervalSec=600
+StartLimitBurst=5
+
+[Service]
+Type=notify
+User=kanidm
+Group=kanidm
+RuntimeDirectory=kanidmd
+RuntimeDirectoryMode=0755
+WorkingDirectory=/var/lib/kanidm
+ExecStart=/usr/bin/kanidmd server
+ExecReload=/usr/bin/kanidmd scripting reload
+Restart=on-failure
+RestartSec=5s
+LimitNOFILE=4096
+MemoryMax=512M
+UMask=0027
+
+ProtectSystem=strict
+ReadWritePaths=/var/lib/kanidm
+ProtectHome=yes
+PrivateTmp=yes
+PrivateDevices=yes
+PrivateUsers=yes
+NoNewPrivileges=yes
+CapabilityBoundingSet=
+AmbientCapabilities=
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectKernelLogs=yes
+ProtectControlGroups=yes
+ProtectClock=yes
+ProtectHostname=yes
+ProtectProc=invisible
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX AF_NETLINK
+RestrictNamespaces=yes
+RestrictRealtime=yes
+RestrictSUIDSGID=yes
+LockPersonality=yes
+MemoryDenyWriteExecute=yes
+RemoveIPC=yes
+DevicePolicy=closed
+SystemCallArchitectures=native
+SystemCallFilter=@system-service
+SystemCallFilter=~@privileged @resources
+IPAddressDeny=any
+IPAddressAllow=localhost
+IPAccounting=yes
+
+[Install]
+WantedBy=multi-user.target

@@ -115,10 +115,79 @@ failures.
 
 ## Network
 
-`/etc/nftables.conf` is default deny in both directions. Inbound: 80, 443, 123 (time for the LAN), 5353
-(`medbrains.local`). Outbound: address, names, time, and 443 to any address until Control can hold an allowlist.
-Analysers and PACS have no outbound path until the device network gateway (task N4.2). A file that does not
-parse fails the build. Time is `chrony` with NTS, and keeps serving the LAN with the internet gone.
+`/etc/nftables.conf` is default deny in both directions. Inbound: 80, 443, 9443 (identity provider), 123 (time
+for the LAN), 5353 (`medbrains.local`). Outbound: address, names, time, and 443 to any address until Control can
+hold an allowlist. Analysers and PACS have no outbound path until the device network gateway (task N4.2). A file
+that does not parse fails the build. Time is `chrony` with NTS, and keeps serving the LAN with the internet gone.
+
+## Identity provider (Kanidm)
+
+[Kanidm](https://github.com/kanidm/kanidm) v1.12.0 (MPL-2.0) proves who someone is, so MedBrains can trust it over
+OIDC. **What they may do stays in MedBrains** (RFC-AUTHZ). **Local sign-in stays and stays the default**: nothing
+signs in through Kanidm until an administrator adds it under SSO settings. It was compared with FerrisKey for the
+owner's security decision; see `docs/DECISIONS.md`.
+
+| What | How |
+|---|---|
+| Build | `build-kanidm.sh` compiles one release with zigbuild, from a tarball pinned by SHA-256 and with `--locked`. Debian's OpenSSL debs are pinned too. No Docker, no upstream image. Its UI is server-rendered, so there is no JavaScript build |
+| Runs as | `kanidmd.service`, its own user, hardened, on `127.0.0.1:8444`. `IPAddressDeny=any` except localhost, so it cannot call out. It speaks only TLS, so Caddy reaches it over TLS and trusts that one certificate |
+| Reached at | `https://idm.medbrains.local:9443`, through Caddy. **A name of its own:** its session cookies go to its whole domain and browsers send cookies to every port of a name, so `medbrains.local` would hand them to the app. A hospital's LAN has to resolve this name; `medbrains.local` is the only one announced today |
+| Data | Its own SQLite store in `/var/lib/kanidm`. No PostgreSQL connection |
+| Secrets | No generated admin password: `kanidmd scripting recover-account admin`, as root on the machine, is the way in |
+| Domain | `domain` in `/etc/kanidm/server.toml` binds every registered key. **Changing it later makes everyone enrol again** |
+
+**To connect it:** recover `idm_admin`, make a group and an OAuth2 client with the redirect
+`https://medbrains.local/api/auth/sso/callback`, give the group a scope map of `openid email profile`, a claim map
+for `medbrains_groups`, then add the provider and group mappings in MedBrains' SSO settings.
+`tests/kanidm-acceptance.py` does all of it. Control does not do this yet.
+
+**Only people in a mapped group get in.** A scope map is required to use the client, so someone with no mapped group
+is refused by Kanidm itself, and MedBrains never makes an account for them. New people in a mapped group still get
+one, with their role.
+
+**Hardware keys.** To allow only approved models, an administrator sets a list of makers' CAs and AAGUIDs on a group:
+`kanidm group account-policy webauthn-attestation-ca-list <group> <file>` and `credential-type-minimum <group>
+attested_passkey`. The check repeats at every sign-in, so removing a model stops keys already enrolled.
+`tests/kanidm-softkey` proves this over the network with software authenticators that sign real attestation. **No
+physical key and no real maker's list has been tried**: `fido-mds-tool` makes those lists from the FIDO Alliance's data.
+
+**Measured** in QEMU (debug image of `main`, HTML console showing, idle, host under heavy load; two boots each way,
+three samples each): whole machine 891 MB without it, 900 MB with it, so about **9 MB**, between 3 and 14. That
+understates it, because `MemAvailable` counts file pages it can drop. Its own PSS is 30.5 MB, of which 9 MB is heap
+and 21 MB the mapped binary. After the acceptance run
+it is 76 to 90 MB, about 50 to 63 MB of that its own heap. It adds no database connections. Image: 50 MB more on the
+system partition (binary 48 MB, UI 2 MB), 13 MB of the binary after `zstd -19`.
+
+**Keys at rest.** Its signing keys and password hashes sit in the database without a seal, in `kanidm.db` and in backups:
+we took three EC private keys out of a backup and openssl read them with no passphrase. It has no key-encryption
+setting like FerrisKey's, and its TPM support is not compiled in. So **anyone with the disk or a backup
+can forge a token for any user** until disk encryption arrives. Treat a stolen disk or backup as a stolen identity
+provider.
+
+**Backup.** `[online_backup]` writes a gzip file to `/var/lib/kanidm/backups` every day and keeps 7. `kanidmd database
+restore`, with the service stopped, brought back a deleted person, their password and the signing keys. Restore goes
+by the file's name: a gzip file not named `.gz` fails with a JSON error. Back up `server.toml` too. It must be restored
+into the same Kanidm version.
+
+**Known limits**
+- A stranger who knows a username can lock a **password** account: every wrong guess blocks the account for 1 to 10
+  seconds, and 100 of them, which we measured taking 14.5 minutes, block it until the next UTC midnight. A restart of
+  Kanidm clears it, because the count is in memory. Accounts with keys only have no password to guess: 50 forged
+  signatures in a row did not lock one.
+- It has no limit by address, and the sign-in page says "Invalid username" for a name that does not exist, so usernames
+  can be listed. The firewall's 50 connections a second is the only ceiling.
+- `idm_people_admins` may reset people in `idm_admins`, by design, so a service account in it can become an
+  administrator; we did that. Control must use `idm_people_on_boarding`, `idm_service_desk` and `idm_oauth2_admins`,
+  which can create, reset and disable people and manage clients but cannot delete people.
+- `idm_oauth2_admins` can read every client's secret, including MedBrains'.
+- The machine's own screen cannot use it: `medbrains-shell` refuses to leave `127.0.0.1:8443`. WebAuthn needs a name,
+  not an IP address, so sharing that origin is not possible either.
+- Upstream directories are not a real path yet. There is LDAP sync (RFC 4533) and FreeIPA sync with separate tools,
+  which we did not run. Sign-in through an upstream exists with no CLI or documentation, needs RFC 7662 introspection,
+  which Entra does not offer, and each person must be linked by hand. We got as far as the upstream giving back a code.
+- Upgrades are one minor version at a time, a new minor comes every quarter, and each is supported for 4 months.
+  A machine that misses two cannot jump. Ten advisories were published between April and August 2026, one critical;
+  no third-party audit could be found, and the project is run by volunteers, mostly one person.
 
 ## Linux hardening
 
@@ -223,6 +292,8 @@ partitions keeps the data.
 - `mkosi.build.chroot`, `patches/`: rebuilds cog's Wayland plugin with the click fix.
 - `mkosi.splash.bmp`, `ukify-splash.py`, `install-ukify-splash.sh`: the boot logo.
 - `build.sh`: runs mkosi. `builder.Dockerfile`: the Mac fallback. `qemu-run.sh`: boot it.
+- `build-kanidm.sh`: compiles the identity provider from its pinned release. `kanidm-override.css`: its colours.
+- `tests/kanidm-acceptance.py`, `tests/kanidm-softkey`: the owner's acceptance test and the hardware key test, against a booted debug image.
 
 ## Measured
 

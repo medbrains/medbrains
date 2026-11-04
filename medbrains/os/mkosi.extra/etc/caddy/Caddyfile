@@ -37,3 +37,26 @@ https://127.0.0.1:8443 {
 	}
 	import server
 }
+
+# The identity provider. A name of its own, not medbrains.local, because Kanidm's session cookies go
+# to its whole domain and a browser sends cookies to every port of a name. A port of its own, so the
+# LAN needs no new front end. Only loopback can reach Kanidm itself: see kanidmd.service.
+:9443 {
+	tls /var/lib/caddy/local/idp-cert.pem /var/lib/caddy/local/idp-key.pem
+	encode zstd gzip
+	@internal path /docs* /metrics*
+	handle @internal {
+		respond 404
+	}
+	handle {
+		reverse_proxy https://127.0.0.1:8444 {
+			transport http {
+				tls_trusted_ca_certs /var/lib/caddy/local/kanidm-back.pem
+				tls_server_name idm.medbrains.local
+			}
+		}
+	}
+	handle_errors {
+		respond "Sign-in is not answering. Try again in a moment; if it stays like this, call your system administrator." {err.status_code}
+	}
+}
