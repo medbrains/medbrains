@@ -21,7 +21,6 @@ const DRAIN: Duration = Duration::from_millis(200);
 pub(crate) struct Finished {
     pub(crate) success: bool,
     pub(crate) stdout: Vec<u8>,
-    pub(crate) stderr: Vec<u8>,
 }
 
 /// Reads a pipe on its own thread, so a helper that writes a lot can't block on a full pipe.
@@ -45,10 +44,10 @@ pub(crate) fn run(program: &str, args: &[&str], limit: Duration) -> Option<Finis
         .args(args)
         .stdin(Stdio::null())
         .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
+        .stderr(Stdio::null())
         .spawn()
         .ok()?;
-    let (stdout, stderr) = (collect(child.stdout.take()), collect(child.stderr.take()));
+    let stdout = collect(child.stdout.take());
     let deadline = Instant::now() + limit;
     let status = loop {
         match child.try_wait() {
@@ -65,7 +64,6 @@ pub(crate) fn run(program: &str, args: &[&str], limit: Duration) -> Option<Finis
     Some(Finished {
         success: status.success(),
         stdout: stdout.recv_timeout(DRAIN).unwrap_or_default(),
-        stderr: stderr.recv_timeout(DRAIN).unwrap_or_default(),
     })
 }
 
