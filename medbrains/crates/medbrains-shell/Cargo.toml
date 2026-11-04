@@ -1,0 +1,42 @@
+# Built only inside the Linux image (os/mkosi.build.chroot), with Debian's own compiler, so it
+# sits outside the workspace: GTK needs Linux and cannot be cross-compiled by zigbuild, and
+# Debian trixie's rustc 1.85 is why this is gtk4 0.10 and webkit6 0.5, not the newest.
+[package]
+name = "medbrains-shell"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.85"
+publish = false
+description = "The MedBrains OS screen: first-boot setup, desktop and the app in one GTK window."
+
+[workspace]
+resolver = "3"
+
+[dependencies]
+gtk4 = { version = "0.10", features = ["v4_16"] }
+webkit6 = "0.5"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+[lints.rust]
+unsafe_code = "forbid"
+unused = { level = "deny", priority = -1 }
+dead_code = "deny"
+unreachable_pub = "deny"
+
+[lints.clippy]
+all = { level = "deny", priority = -1 }
+unwrap_used = "deny"
+expect_used = "deny"
+panic = "deny"
+todo = "deny"
+unimplemented = "deny"
+dbg_macro = "deny"
+print_stdout = "deny"
+print_stderr = "deny"
+wildcard_imports = "deny"
+
+[profile.release]
+strip = true
+lto = "thin"
+opt-level = "s"

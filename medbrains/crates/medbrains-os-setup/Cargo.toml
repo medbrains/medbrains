@@ -1,0 +1,14 @@
+[package]
+name = "medbrains-os-setup"
+publish = false
+description = "First-boot setup and machine controls for the OS screen. No database, no web framework."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license-file.workspace = true
+
+[dependencies]
+serde_json = { workspace = true }
+
+[lints]
+workspace = true
