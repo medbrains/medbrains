@@ -80,6 +80,15 @@ pub(crate) fn env_with_seed(env: &str, hospital: &str, username: &str, password:
     out
 }
 
+/// The certificate in what the agent recorded on approval, or `None` if it is not one. It becomes
+/// the only certificate the screen trusts, so anything else is refused.
+pub(crate) fn joined_certificate(joined: &str) -> Option<String> {
+    let parsed: serde_json::Value = serde_json::from_str(joined).ok()?;
+    let certificate = parsed.get("certificate")?.as_str()?;
+    (certificate.starts_with("-----BEGIN CERTIFICATE-----") && certificate.contains("-----END CERTIFICATE-----"))
+        .then(|| certificate.to_owned())
+}
+
 /// True for dotted IPv4 such as `192.168.1.20`.
 fn is_ipv4(value: &str) -> bool {
     value.parse::<std::net::Ipv4Addr>().is_ok()
@@ -126,6 +135,16 @@ pub(crate) fn fixed_network(
 
 #[cfg(test)]
 mod tests {
+    /// This file decides what the screen trusts: a bad one must not reach it.
+    #[test]
+    fn only_a_certificate_is_taken_from_what_the_agent_recorded() {
+        let good = r#"{"certificate":"-----BEGIN CERTIFICATE-----\nx\n-----END CERTIFICATE-----\n"}"#;
+        assert!(super::joined_certificate(good).is_some());
+        assert_eq!(super::joined_certificate(r#"{"certificate":"anything"}"#), None);
+        assert_eq!(super::joined_certificate(r#"{"other":1}"#), None);
+        assert_eq!(super::joined_certificate("not json"), None);
+    }
+
     use super::{check_new_hospital, env_with_seed, fixed_network};
 
     const GOOD: &str = "Ward-Seven7";

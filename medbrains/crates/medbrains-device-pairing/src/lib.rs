@@ -37,6 +37,8 @@ pub mod binding_token;
 pub mod counter_display;
 pub mod counter_display_routes;
 pub mod device_code;
+pub mod machine_agent;
+pub mod machines;
 use chrono::{DateTime, Duration, Utc};
 use medbrains_core::peer_sync::{PeerBinding, PeerRosterDoc, PeerRosterEntry};
 use medbrains_core::permissions;

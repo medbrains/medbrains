@@ -13,6 +13,14 @@ use crate::rules;
 
 /// Set once the main-machine role is chosen; nothing later asks again.
 const ROLE_MAIN: &str = "/var/lib/medbrains/config/role-main";
+const ROLE_NODE: &str = "/var/lib/medbrains/config/role-node";
+/// What the agent recorded when a person approved this machine.
+const JOINED_FILE: &str = "/var/lib/medbrains-agent/joined.json";
+/// The screen's one trusted certificate, bound into its unit. Written in place, so the running
+/// screen sees it: a new file under this name would stay hidden behind the bind mount.
+const SCREEN_CERTIFICATE: &str = "/var/lib/kiosk/local-front.pem";
+/// The main machine's health, as a node's screen would reach it, through the agent.
+const FRONT_HEALTH: &str = "https://127.0.0.1:8443/api/health";
 const ENV_FILE: &str = "/var/lib/medbrains/config/env";
 /// Where a fixed address takes effect. On tmpfs, so a power cut before it is confirmed undoes it.
 const LIVE_NETWORK: &str = "/run/systemd/network/10-medbrains-fixed.network";
@@ -37,7 +45,17 @@ fn json_output(program: &str, args: &[&str]) -> Value {
 
 /// Whether this machine has finished setup.
 pub(crate) fn is_set_up() -> bool {
-    Path::new(ROLE_MAIN).exists()
+    Path::new(ROLE_MAIN).exists() || Path::new(ROLE_NODE).exists()
+}
+
+/// Whether the app answers: the server on a main machine, the main machine through the agent on
+/// a node. So a removed or cut-off node says so on its desktop.
+fn app_answers() -> bool {
+    if Path::new(ROLE_NODE).exists() {
+        let args = ["-fsS", "-m", "3", "--cacert", SCREEN_CERTIFICATE, "-o", "/dev/null", FRONT_HEALTH];
+        return output("curl", &args).is_some();
+    }
+    is_set_up() && output("curl", &["-fsS", "-m", "2", "-o", "/dev/null", SERVER_HEALTH]).is_some()
 }
 
 /// Everything the desktop shows. Asks only this machine, so polling it sends nothing out.
@@ -45,7 +63,7 @@ pub(crate) fn state() -> Value {
     let set_up = is_set_up();
     json!({
         "set_up": set_up,
-        "main_ready": set_up && output("curl", &["-fsS", "-m", "2", "-o", "/dev/null", SERVER_HEALTH]).is_some(),
+        "main_ready": app_answers(),
         "clock_synced": clock_synced(),
         "machine": machine_health(),
         "network": network_links(),
@@ -275,17 +293,38 @@ pub(crate) fn start_main_machine(
     username: &str,
     password: &str,
 ) -> Result<(), String> {
+    // Only now: a machine that becomes a node never holds a database or these secrets.
+    output("systemctl", &["start", "medbrains-firstboot.service"])
+        .ok_or_else(|| "The machine could not prepare its database.".to_owned())?;
     let env = fs::read_to_string(ENV_FILE).map_err(|e| e.to_string())?;
     write_env(&rules::env_with_seed(&env, hospital, username, password))?;
     fs::File::create(ROLE_MAIN)
         .and_then(|marker| marker.sync_all())
         .map_err(|e| e.to_string())?;
+    // The agent looks for a main machine until now; this machine is one.
+    output("systemctl", &["stop", "medbrains-agent.service"]);
     output(
         "systemctl",
         &["start", "--no-block", "medbrains-main.target"],
     )
     .map(|_| ())
     .ok_or_else(|| "The services could not start.".to_owned())
+}
+
+/// Makes this machine a node, once the agent says a person approved it. The role goes down last,
+/// so a power cut before it leaves a machine that simply asks again.
+pub(crate) fn finish_node() -> Result<(), String> {
+    let joined = fs::read_to_string(JOINED_FILE)
+        .map_err(|_| "A person has not approved this machine yet.".to_owned())?;
+    let certificate = rules::joined_certificate(&joined)
+        .ok_or_else(|| "The main machine's answer could not be used. Ask to join again.".to_owned())?;
+    fs::write(SCREEN_CERTIFICATE, certificate).map_err(|e| e.to_string())?;
+    fs::File::create(ROLE_NODE)
+        .and_then(|marker| marker.sync_all())
+        .map_err(|e| e.to_string())?;
+    output("systemctl", &["start", "--no-block", "medbrains-node.target"])
+        .map(|_| ())
+        .ok_or_else(|| "The services could not start.".to_owned())
 }
 
 /// Turns the machine off or restarts it.

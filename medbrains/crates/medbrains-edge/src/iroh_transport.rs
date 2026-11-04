@@ -83,6 +83,49 @@ pub async fn build_endpoint(
     builder.bind().await.context("bind iroh endpoint")
 }
 
+/// What a LAN endpoint is for: the protocols it answers, its port, and whether it says so.
+#[derive(Debug, Clone, Default)]
+pub struct LanEndpoint {
+    /// What this endpoint answers. Empty means it refuses every incoming connection.
+    pub alpns: Vec<Vec<u8>>,
+    /// A fixed UDP port, so a firewall rule can name it. `None` lets the OS choose.
+    pub port: Option<u16>,
+    /// Announce this endpoint by mDNS. `false` only listens for others.
+    pub advertise: bool,
+    /// Keeps these machines apart from every other iroh application on the LAN.
+    pub service_name: String,
+}
+
+/// Build an endpoint for one hospital's LAN: mDNS only, and never a relay or an outside lookup,
+/// for the same reason as [`build_endpoint`]. Also hands back the mDNS service, so the caller
+/// can watch who is on the network.
+pub async fn build_lan_endpoint(
+    secret: iroh::SecretKey,
+    options: LanEndpoint,
+) -> Result<(Endpoint, MdnsAddressLookup)> {
+    let mut builder = Endpoint::builder(presets::Minimal)
+        .secret_key(secret)
+        .alpns(options.alpns)
+        .relay_mode(iroh::RelayMode::Disabled)
+        // Never ask the router to open a port: a hospital's firewall is the hospital's to set.
+        .portmapper_config(iroh::endpoint::PortmapperConfig::Disabled);
+    if let Some(port) = options.port {
+        let any = std::net::SocketAddr::from(([0, 0, 0, 0], port));
+        builder = builder.bind_addr(any).context("fixed port")?;
+    }
+    let endpoint = builder.bind().await.context("bind iroh endpoint")?;
+    let mdns = MdnsAddressLookup::builder()
+        .advertise(options.advertise)
+        .service_name(options.service_name)
+        .build(endpoint.id())
+        .context("start mDNS")?;
+    endpoint
+        .address_lookup()
+        .context("address lookup")?
+        .add(mdns.clone());
+    Ok((endpoint, mdns))
+}
+
 /// Serve one accepted connection.
 ///
 /// The peer's node id comes from the connection rather than anything it says,
@@ -135,7 +178,7 @@ pub async fn serve_connection(
 
 /// Re-admit the peer each time the roster may have changed, and close its
 /// connection the first time it is refused.
-async fn close_when_refused(
+pub async fn close_when_refused(
     gate: Arc<dyn PeerGatekeeper>,
     conn: Connection,
     node_id: String,

@@ -12,7 +12,8 @@ use serde_json::Value;
 
 const SERVICE: &str = "127.0.0.1:3100";
 const TOKEN_FILE: &str = "/run/medbrains-console/setup-token";
-const TIMEOUT: Duration = Duration::from_secs(10);
+/// Long enough for a new main machine to create its database while the screen waits.
+const TIMEOUT: Duration = Duration::from_secs(60);
 /// Said when the service cannot be asked at all. A fault, so never shown as "no network".
 const NOT_ANSWERING: &str = "The machine's setup service is not answering. Try again in a moment.";
 

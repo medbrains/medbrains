@@ -1,0 +1,256 @@
+/**
+ * Admin → Machines. The main machine's Nodes screen (OS-SETUP-AND-TRUST §8): machines asking to
+ * join, each with the code both screens show, and every machine that has joined.
+ *
+ * A person approves by retyping the code from the machine. A code shown here alone could be clicked
+ * through, and clicking through is how a fake main machine would go unnoticed.
+ */
+
+import { Group, PinInput, Stack, Text } from "@mantine/core";
+import { api } from "@medbrains/api";
+import { useHasPermission } from "@medbrains/stores";
+import { type JoinedMachine, P, type WaitingMachine } from "@medbrains/types";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useState } from "react";
+import { PageHeader } from "@/components";
+import { Alert, Badge, Button, Card, Modal, Table, toast } from "@/components/ui";
+import { useRequirePermission } from "@/hooks/useRequirePermission";
+
+const MACHINES_KEY = ["machines"];
+/** A machine is waiting on the other side of the room, so show it promptly. */
+const REFRESH_MS = 3_000;
+const CODE_LENGTH = 6;
+
+/** The type a person chose on the machine, in words. */
+function typeWords(appVariant: string): string {
+  return appVariant === "Desktop-Display" ? "Display" : "Workstation";
+}
+
+interface ApproveDialogProps {
+  machine: WaitingMachine;
+  onClose: () => void;
+}
+
+/** Asks for the code on the machine's own screen, which the server checks. */
+function ApproveDialog({ machine, onClose }: ApproveDialogProps) {
+  const queryClient = useQueryClient();
+  const [code, setCode] = useState("");
+  const approve = useMutation({
+    mutationFn: () => api.approveMachine(machine.id, code),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: MACHINES_KEY });
+      toast.success(`${machine.label} has joined`);
+      onClose();
+    },
+    onError: () => void queryClient.invalidateQueries({ queryKey: MACHINES_KEY }),
+  });
+  return (
+    <Modal opened onClose={onClose} title={`Approve ${machine.label}`} size="sm">
+      <Stack gap="md">
+        <Text size="sm">Type the {CODE_LENGTH} digits shown on that machine's screen.</Text>
+        <PinInput
+          length={CODE_LENGTH}
+          type="number"
+          oneTimeCode={false}
+          value={code}
+          onChange={setCode}
+          aria-label="Code on the machine"
+          data-testid="input-machine-code"
+        />
+        {approve.isError && <Alert tone="danger">{approve.error.message}</Alert>}
+        <Group justify="flex-end">
+          <Button tone="secondary" onClick={onClose}>
+            Cancel
+          </Button>
+          <Button
+            tone="primary"
+            onClick={() => approve.mutate()}
+            loading={approve.isPending}
+            disabled={code.length !== CODE_LENGTH}
+            data-testid="btn-confirm-approve-machine"
+          >
+            Approve
+          </Button>
+        </Group>
+      </Stack>
+    </Modal>
+  );
+}
+
+interface WaitingCardProps {
+  waiting: WaitingMachine[];
+  canApprove: boolean;
+}
+
+/** Machines asking to join. Only those holding the right see Approve and Reject. */
+function WaitingCard({ waiting, canApprove }: WaitingCardProps) {
+  const queryClient = useQueryClient();
+  const [approving, setApproving] = useState<WaitingMachine | null>(null);
+  const reject = useMutation({
+    mutationFn: (id: string) => api.rejectMachine(id),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: MACHINES_KEY });
+      toast.success("Machine refused");
+    },
+    onError: (error: Error) => toast.error(error.message, { title: "Not done" }),
+  });
+  return (
+    <Card>
+      <Stack gap="sm">
+        <Text fw={600}>Waiting to join</Text>
+        {waiting.length === 0 && (
+          <Text size="sm" c="dimmed">
+            No machines are waiting. On a new machine, choose "Connecting to my hospital".
+          </Text>
+        )}
+        {waiting.map((machine) => (
+          <Group key={machine.id} justify="space-between" data-testid={`row-waiting-${machine.id}`}>
+            <Stack gap={0}>
+              <Text fw={600}>{machine.label}</Text>
+              <Text size="xs" c="dimmed">
+                {typeWords(machine.app_variant)} · asks until{" "}
+                {new Date(machine.expires_at).toLocaleTimeString()}
+              </Text>
+            </Stack>
+            <Group gap="sm">
+              <Stack gap={0} align="flex-end">
+                <Text size="xs" c="dimmed">
+                  Code
+                </Text>
+                <Text ff="monospace" fw={700} size="lg" data-testid="text-machine-code">
+                  {machine.code}
+                </Text>
+              </Stack>
+              {canApprove && (
+                <>
+                  <Button
+                    tone="primary"
+                    onClick={() => setApproving(machine)}
+                    data-testid="btn-approve-machine"
+                  >
+                    Approve
+                  </Button>
+                  <Button
+                    tone="subtle-danger"
+                    onClick={() => reject.mutate(machine.id)}
+                    loading={reject.isPending}
+                    data-testid="btn-reject-machine"
+                  >
+                    Reject
+                  </Button>
+                </>
+              )}
+            </Group>
+          </Group>
+        ))}
+      </Stack>
+      {approving && <ApproveDialog machine={approving} onClose={() => setApproving(null)} />}
+    </Card>
+  );
+}
+
+interface JoinedTableProps {
+  machines: JoinedMachine[];
+  canRemove: boolean;
+}
+
+/** Every machine that has joined. */
+function JoinedTable({ machines, canRemove }: JoinedTableProps) {
+  const queryClient = useQueryClient();
+  const remove = useMutation({
+    mutationFn: (id: string) => api.removeMachine(id),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: MACHINES_KEY });
+      toast.success("Machine removed. Its access has ended.");
+    },
+    onError: (error: Error) => toast.error(error.message, { title: "Not done" }),
+  });
+  return (
+    <Card>
+      <Stack gap="sm">
+        <Text fw={600}>Machines</Text>
+        <Table>
+          <Table.Thead>
+            <Table.Tr>
+              <Table.Th>Name</Table.Th>
+              <Table.Th>Type</Table.Th>
+              <Table.Th>Status</Table.Th>
+              <Table.Th>Last seen</Table.Th>
+              {canRemove && <Table.Th>Remove</Table.Th>}
+            </Table.Tr>
+          </Table.Thead>
+          <Table.Tbody>
+            {machines.map((machine) => (
+              <Table.Tr key={machine.id} data-testid={`row-machine-${machine.id}`}>
+                <Table.Td>{machine.label}</Table.Td>
+                <Table.Td>{typeWords(machine.app_variant)}</Table.Td>
+                <Table.Td>
+                  <Badge tone={machine.online ? "success" : "neutral"}>
+                    {machine.online ? "Online" : "Not connected"}
+                  </Badge>
+                </Table.Td>
+                <Table.Td>
+                  {machine.last_seen_at
+                    ? new Date(machine.last_seen_at).toLocaleString()
+                    : "Not yet"}
+                </Table.Td>
+                {canRemove && (
+                  <Table.Td>
+                    <Button
+                      tone="subtle-danger"
+                      onClick={() => remove.mutate(machine.id)}
+                      loading={remove.isPending}
+                      data-testid="btn-remove-machine"
+                    >
+                      Remove
+                    </Button>
+                  </Table.Td>
+                )}
+              </Table.Tr>
+            ))}
+            {machines.length === 0 && (
+              <Table.Tr>
+                <Table.Td colSpan={canRemove ? 5 : 4}>
+                  <Text size="sm" c="dimmed">
+                    No machines have joined yet.
+                  </Text>
+                </Table.Td>
+              </Table.Tr>
+            )}
+          </Table.Tbody>
+        </Table>
+      </Stack>
+    </Card>
+  );
+}
+
+/** The Nodes screen. */
+export function MachinesPage() {
+  useRequirePermission(P.DEVICES.MACHINES.VIEW);
+  const canApprove = useHasPermission(P.DEVICES.MACHINES.APPROVE);
+  const canRemove = useHasPermission(P.DEVICES.MACHINES.REMOVE);
+  const list = useQuery({
+    queryKey: MACHINES_KEY,
+    queryFn: () => api.listMachines(),
+    refetchInterval: REFRESH_MS,
+  });
+  return (
+    <Stack gap="md">
+      <PageHeader
+        title="Machines"
+        subtitle="Workstations and displays that use this main machine."
+      />
+      {list.isError && (
+        <Alert tone="danger">
+          Could not load the machines, so this does not mean there are none.
+        </Alert>
+      )}
+      {list.isSuccess && (
+        <>
+          <WaitingCard waiting={list.data.waiting} canApprove={canApprove} />
+          <JoinedTable machines={list.data.machines} canRemove={canRemove} />
+        </>
+      )}
+    </Stack>
+  );
+}

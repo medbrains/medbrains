@@ -1460,6 +1460,7 @@ import type {
   LtcMedication,
   LungProtectiveRequest,
   LungProtectiveResult,
+  MachineList,
   ManualAutoChargeRequest,
   ManualAutoChargeResponse,
   ManufacturerSummary,
@@ -18018,6 +18019,18 @@ export const api = {
       method: "DELETE",
       body: JSON.stringify({ reason }),
     }),
+
+  // ── MedBrains OS machines joining this main machine ──
+  listMachines: () => request<MachineList>("/admin/machines"),
+  approveMachine: (id: string, code: string) =>
+    request<{ id: string }>(`/admin/machines/requests/${id}/approve`, {
+      method: "POST",
+      body: JSON.stringify({ code }),
+    }),
+  rejectMachine: (id: string) =>
+    request<{ id: string }>(`/admin/machines/requests/${id}/reject`, { method: "POST" }),
+  removeMachine: (id: string) =>
+    request<{ id: string }>(`/admin/machines/${id}`, { method: "DELETE" }),
 
   // ── Hospital binding QR codes (apps scan one to bind to this hospital) ──
   listDeviceBindingCodes: () => request<DeviceBindingCode[]>("/admin/device-binding-codes"),

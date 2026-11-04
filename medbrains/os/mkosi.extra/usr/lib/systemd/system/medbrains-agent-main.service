@@ -1,0 +1,35 @@
+# The main machine's end of what a node's agent does: takes join requests to the server, and carries
+# admitted machines to the local front end. Started by medbrains-main.target only.
+[Unit]
+Description=MedBrains agent (main machine)
+ConditionPathExists=/var/lib/medbrains/config/role-main
+Requires=medbrains-role-network.service
+After=medbrains-firstboot.service medbrains-role-network.service medbrains-server.service
+
+[Service]
+Type=exec
+User=medbrains-agent
+Group=kiosk
+ExecStart=/usr/bin/medbrains-agent --main
+Restart=always
+RestartSec=2s
+ProtectSystem=strict
+ReadWritePaths=/var/lib/medbrains-agent
+ProtectHome=yes
+PrivateTmp=yes
+PrivateDevices=yes
+NoNewPrivileges=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectKernelLogs=yes
+ProtectControlGroups=yes
+ProtectClock=yes
+ProtectHostname=yes
+RestrictNamespaces=yes
+RestrictRealtime=yes
+RestrictSUIDSGID=yes
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6 AF_NETLINK
+LockPersonality=yes
+MemoryDenyWriteExecute=yes
+CapabilityBoundingSet=
+SystemCallArchitectures=native

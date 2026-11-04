@@ -1,0 +1,19 @@
+#!/bin/bash
+# Opens what a main machine offers: the rules into the base firewall's empty chain, and the two
+# services that would otherwise answer on a node. Runs once per boot, on role-main only.
+set -euo pipefail
+
+nft -f /usr/lib/medbrains/main-machine.nft
+
+install -d -m 0755 /run/systemd/resolved.conf.d
+printf '[Resolve]\nMulticastDNS=yes\n' > /run/systemd/resolved.conf.d/20-main-machine.conf
+systemctl restart systemd-resolved
+
+install -d -m 0755 /run/medbrains-role
+cat > /run/medbrains-role/lan-time.conf <<'CHRONY'
+allow 10.0.0.0/8
+allow 172.16.0.0/12
+allow 192.168.0.0/16
+allow fc00::/7
+CHRONY
+systemctl restart chrony

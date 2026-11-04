@@ -6035,6 +6035,32 @@ export interface DevicePairingRequest {
   created_at: string;
 }
 
+/** A machine waiting for a person, with the code both screens show. */
+export interface WaitingMachine {
+  id: string;
+  label: string;
+  app_variant: string;
+  code: string;
+  expires_at: string;
+  created_at: string;
+}
+
+/** A machine that has joined this hospital's main machine. */
+export interface JoinedMachine {
+  id: string;
+  label: string;
+  app_variant: string;
+  online: boolean;
+  paired_at: string;
+  last_seen_at: string | null;
+}
+
+/** The Nodes screen in one call. */
+export interface MachineList {
+  waiting: WaitingMachine[];
+  machines: JoinedMachine[];
+}
+
 /** What the QR on a printed prescription resolves to. */
 export interface VerifiedMedication {
   drug_name: string;

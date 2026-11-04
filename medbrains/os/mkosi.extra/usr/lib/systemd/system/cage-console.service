@@ -2,7 +2,7 @@
 # `kiosk` on tty1. A crash ends cage and restarts this.
 [Unit]
 Description=MedBrains appliance screen
-After=systemd-user-sessions.service dbus.socket systemd-logind.service getty@tty1.service medbrains-firstboot.service medbrains-os-setup.service
+After=systemd-user-sessions.service dbus.socket systemd-logind.service getty@tty1.service medbrains-os-setup.service
 Wants=dbus.socket systemd-logind.service medbrains-os-setup.service
 Conflicts=getty@tty1.service
 ConditionPathExists=/dev/tty1

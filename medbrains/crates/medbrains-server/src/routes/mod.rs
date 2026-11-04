@@ -135,6 +135,8 @@ pub fn build_router(state: AppState) -> Router {
         // Device-code pairing — a display has no credentials yet, so asking for a
         // code and polling for the result are public; approving is not.
         .merge(medbrains_device_pairing::device_code_router())
+        // A machine's agent on this same box, with its own token.
+        .merge(medbrains_device_pairing::machine_agent::router())
         // FHIR CapabilityStatement — clients read it before they authenticate.
         .merge(medbrains_fhir_api::public_router())
         // OAuth client credentials for connected apps (RFC-HOSPITAL-OS C1) —
@@ -173,6 +175,7 @@ pub fn build_router(state: AppState) -> Router {
         // where their handlers' `Claims` extension never arrived and every
         // call answered 500 — see each crate's admin_router doc comment.
         .merge(medbrains_device_pairing::admin_router())
+        .merge(medbrains_device_pairing::machines::admin_router())
         .merge(medbrains_invitations::admin_router())
         .merge(medbrains_cms::admin_router())
         .route("/api/access/manifest", get(access::get_manifest))

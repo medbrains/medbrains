@@ -1,0 +1,40 @@
+# A node's identity on the hospital's network: finds the main machine, asks to join, and gives the
+# screen a loopback path there over iroh. Runs from first boot, so setup can look for a main
+# machine; on a main machine medbrains-agent-main.service takes over.
+[Unit]
+Description=MedBrains agent
+ConditionPathExists=!/var/lib/medbrains/config/role-main
+After=network.target systemd-tmpfiles-setup.service
+
+[Service]
+Type=exec
+User=medbrains-agent
+Group=kiosk
+ExecStart=/usr/bin/medbrains-agent
+Restart=always
+RestartSec=2s
+RuntimeDirectory=medbrains-agent
+RuntimeDirectoryMode=0750
+ProtectSystem=strict
+ReadWritePaths=/var/lib/medbrains-agent
+ProtectHome=yes
+PrivateTmp=yes
+PrivateDevices=yes
+NoNewPrivileges=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectKernelLogs=yes
+ProtectControlGroups=yes
+ProtectClock=yes
+ProtectHostname=yes
+RestrictNamespaces=yes
+RestrictRealtime=yes
+RestrictSUIDSGID=yes
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6 AF_NETLINK
+LockPersonality=yes
+MemoryDenyWriteExecute=yes
+CapabilityBoundingSet=
+SystemCallArchitectures=native
+
+[Install]
+WantedBy=multi-user.target

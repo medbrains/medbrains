@@ -9,6 +9,7 @@ use gtk4::prelude::{AccessibleExtManual, BoxExt, ButtonExt, Cast, EditableExt, W
 use serde_json::json;
 
 use crate::api::{self, Failure};
+use crate::join;
 use crate::network;
 use crate::ui;
 
@@ -135,12 +136,10 @@ fn purpose_page(flow: &Flow) -> gtk::Widget {
     ui::page("What are you doing with this machine?", "", &body, &actions)
 }
 
-/// What the second choice honestly leads to, for now.
-fn connecting_page(flow: &Flow) -> gtk::Widget {
-    let words = "Connecting to a hospital is not available in this version. \
-                 Go back to set this machine up as a new hospital.";
+/// Finds a main machine and asks to join it.
+fn connecting_page(flow: &Flow, finished: Rc<dyn Fn()>) -> gtk::Widget {
     let actions = flow.actions(Step::Connecting, None);
-    ui::page("Connecting to my hospital", words, &ui::column(0), &actions)
+    join::page(&actions, finished)
 }
 
 /// Adds the line under a field that holds its rule, and turns red if the rule is broken.
@@ -283,11 +282,12 @@ pub(crate) fn build(finished: impl Fn() + 'static) -> gtk::Stack {
         stack: stack.clone(),
         draft: Rc::default(),
     };
-    let (review, refresh) = review_page(&flow, Rc::new(finished));
+    let finished: Rc<dyn Fn()> = Rc::new(finished);
+    let (review, refresh) = review_page(&flow, Rc::clone(&finished));
     stack.add_named(&network_page(&flow), Some(Step::Network.name()));
     stack.add_named(&updates_page(&flow), Some(Step::Updates.name()));
     stack.add_named(&purpose_page(&flow), Some(Step::Purpose.name()));
-    stack.add_named(&connecting_page(&flow), Some(Step::Connecting.name()));
+    stack.add_named(&connecting_page(&flow, finished), Some(Step::Connecting.name()));
     stack.add_named(&details_page(&flow, refresh), Some(Step::Details.name()));
     stack.add_named(&review, Some(Step::Review.name()));
     stack

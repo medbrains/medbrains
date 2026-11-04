@@ -12,6 +12,7 @@
 #   Monitor: $OS_WORK/vm/monitor.sock  (screendump /path/to/shot.png -f png)
 #   Screen:  $OS_WORK/vm/vnc.sock; size OS_SCREEN_W x OS_SCREEN_H (1280x800)
 #   Input:   $OS_WORK/vm/qmp.sock (QMP send-key, input-send-event)
+#   LAN:     OS_NET_ARGS replaces the network devices (tests/two-machines.sh wires two boxes)
 set -euo pipefail
 
 OS_WORK="${OS_WORK:-/tmp/mb-osimage}"
@@ -32,6 +33,9 @@ case "$(uname -s)" in
     *) ACCEL=kvm ;;
 esac
 
+# One word per argument, because a caller's devices arrive as a single string.
+# shellcheck disable=SC2086
+NET_ARGS="${OS_NET_ARGS:--netdev user,id=net0,hostfwd=tcp:127.0.0.1:${OS_WEB_PORT:-8443}-:443 -device virtio-net-pci,netdev=net0}"
 exec qemu-system-aarch64 \
     -machine virt -accel "$ACCEL" -cpu host -smp 4 -m 4096 \
     -drive "if=pflash,format=raw,readonly=on,file=$QEMU_SHARE/edk2-aarch64-code.fd" \
@@ -39,7 +43,7 @@ exec qemu-system-aarch64 \
     -drive "if=virtio,format=qcow2,file=$VM/disk.qcow2" \
     -device "virtio-gpu-pci,xres=${OS_SCREEN_W:-1280},yres=${OS_SCREEN_H:-800}" -device qemu-xhci -device usb-kbd -device usb-tablet \
     -device i6300esb \
-    -netdev "user,id=net0,hostfwd=tcp:127.0.0.1:${OS_WEB_PORT:-8443}-:443" -device virtio-net-pci,netdev=net0 \
+    $NET_ARGS \
     -display none -vnc "unix:$VM/vnc.sock" \
     -serial "unix:$VM/serial.sock,server,nowait" \
     -monitor "unix:$VM/monitor.sock,server,nowait" \

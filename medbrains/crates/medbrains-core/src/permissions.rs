@@ -3870,6 +3870,25 @@ pub mod devices {
         pub const ROSTER_READ: &str = "devices.pairing.roster.read";
     }
 
+    /// MedBrains OS machines that join this hospital's main machine.
+    pub mod machines {
+        /// See machines and their join requests.
+        ///
+        /// Lists the machines waiting to join with their codes, and every
+        /// joined machine with its name, type, status and when it was last seen.
+        pub const VIEW: &str = "devices.machines.view";
+        /// Approve or reject a machine that asks to join.
+        ///
+        /// Lets a machine onto the hospital's network of screens. It is a
+        /// separate duty from removing one, and each decision is audited.
+        pub const APPROVE: &str = "devices.machines.approve";
+        /// Remove a joined machine.
+        ///
+        /// Ends the machine's access at once, so a lost or retired machine can
+        /// be cut off by somebody who cannot admit new ones.
+        pub const REMOVE: &str = "devices.machines.remove";
+    }
+
     /// Signed QR codes that bind a staff or patient app to this hospital.
     pub mod binding {
         /// Issue hospital binding QR codes.

@@ -3,6 +3,7 @@
 
 mod api;
 mod desktop;
+mod join;
 mod network;
 mod setup;
 mod topbar;

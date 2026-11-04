@@ -129,6 +129,14 @@ fn new_hospital(body: &Value) -> (u16, Value) {
     answer(500, started)
 }
 
+/// Handles `POST /node/finish`: this machine has been approved, so it becomes a node.
+fn finish_node() -> (u16, Value) {
+    if machine::is_set_up() {
+        return (409, json!({ "error": "This machine is already set up." }));
+    }
+    answer(500, machine::finish_node())
+}
+
 /// Turns the result of a machine action into an answer.
 fn answer(failed_status: u16, result: Result<(), String>) -> (u16, Value) {
     match result {
@@ -178,6 +186,7 @@ fn route(state: &Arc<State>, request: &Request) -> (u16, Value) {
             hospital_problems(&body).unwrap_or_else(|| (200, json!({ "ok": true })))
         }
         ("POST", "/hospital") => new_hospital(&body),
+        ("POST", "/node/finish") => finish_node(),
         ("POST", "/network/fixed") => fixed_address(state, &body),
         ("POST", "/network/confirm") => settle_network(state, machine::confirm_fixed_address),
         ("POST", "/network/undo") => settle_network(state, machine::undo_fixed_address),
