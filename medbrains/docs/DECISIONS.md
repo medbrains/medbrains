@@ -176,3 +176,4 @@ reversed decision gets a new row, and the old row's status changes to point at i
 went wrong in a way that could recur gets a row too.
 | 2026-11-04 | OS test suite in Rust (`medbrains-os-test`): boots a fresh debug image and checks security, boot, memory and disk from inside and outside, with budgets that only go down. Not in CI yet | this PR |
 | 2026-11-04 | OS network N1: default-deny firewall both directions, authenticated time that also serves the LAN, database limited to its own machine; module and task plan for the OS | this PR |
+| Schema + tenancy stays red past the RLS step: 85 raw SQL call sites in routes above the ratchet (`check_tenant_leak.py`) and 64 handlers without a tracing span (`check_tracing_spans.py`). Resetting either baseline would hide them | Owner: move the SQL and add the spans, or accept new baselines |
