@@ -90,9 +90,7 @@
   background: var(--mb-bg-subtle);
   color: var(--mb-text-secondary);
   flex-shrink: 0;
-  transition:
-    background 100ms ease,
-    color 100ms ease;
+  transition: background 100ms ease, color 100ms ease;
 }
 
 // Action label

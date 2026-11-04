@@ -29,7 +29,7 @@ $trace: var(--mb-primary-container); // brand blue trace
 .mainLine {
   fill: none;
   filter: drop-shadow(0 0 4px color-mix(in srgb, $trace 70%, transparent))
-          drop-shadow(0 0 8px color-mix(in srgb, $trace 25%, transparent));
+    drop-shadow(0 0 8px color-mix(in srgb, $trace 25%, transparent));
 }
 
 // Sweep mask — reveals left→right, resets
@@ -38,11 +38,26 @@ $trace: var(--mb-primary-container); // brand blue trace
 }
 
 @keyframes pageSweep {
-  0% { width: 0; opacity: 1; }
-  70% { width: 200; opacity: 1; }
-  85% { width: 200; opacity: 0.6; }
-  95% { width: 200; opacity: 0; }
-  100% { width: 0; opacity: 0; }
+  0% {
+    width: 0;
+    opacity: 1;
+  }
+  70% {
+    width: 200;
+    opacity: 1;
+  }
+  85% {
+    width: 200;
+    opacity: 0.6;
+  }
+  95% {
+    width: 200;
+    opacity: 0;
+  }
+  100% {
+    width: 0;
+    opacity: 0;
+  }
 }
 
 // Brand name — pulses in sync with sweep
@@ -57,8 +72,14 @@ $trace: var(--mb-primary-container); // brand blue trace
 }
 
 @keyframes textPulse {
-  0%, 100% { opacity: 0.3; }
-  40%, 60% { opacity: 1; }
+  0%,
+  100% {
+    opacity: 0.3;
+  }
+  40%,
+  60% {
+    opacity: 1;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
