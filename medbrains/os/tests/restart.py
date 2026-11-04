@@ -14,8 +14,8 @@ VM = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(VM)
 LIMIT_SECONDS = 180
 BOOT_ID = "cat /proc/sys/kernel/random/boot_id"
-POST = ("T=$(cat /run/medbrains-console/setup-token); curl -s -m 10 -o /dev/null -w '%{http_code}' "
-        "-H \"X-Setup-Token: $T\" -d '{\"action\":\"restart\"}' http://127.0.0.1:3100/power")
+POST = ("curl -s -m 10 -o /dev/null -w '%{http_code}' --unix-socket /run/medbrains-console/setup.sock "
+        "-d '{\"action\":\"restart\"}' http://screen/power")
 
 
 def last_line(text):
@@ -32,7 +32,7 @@ def main():
         status = last_line(VM.serial(POST, 5))
     except OSError:
         status = ""
-    if status.endswith(("403", "422", "500")):
+    if status.endswith(("422", "500")):
         sys.exit(f"FAIL: /power answered {status}")
     deadline = time.time() + LIMIT_SECONDS
     time.sleep(10)

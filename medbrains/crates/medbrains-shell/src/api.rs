@@ -3,6 +3,7 @@
 
 use std::io::{Read, Write};
 use std::net::{SocketAddr, TcpStream};
+use std::os::unix::net::UnixStream;
 use std::time::Duration;
 
 use gtk4::{gio, glib};
@@ -12,9 +13,10 @@ use serde_json::Value;
 
 use crate::apps;
 
-const SERVICE: &str = "127.0.0.1:3100";
+/// The setup service. A Unix socket, so nobody else on this machine can pretend to be it: the
+/// screen sends it the first administrator's password and Wi-Fi passwords.
+const SERVICE: &str = "/run/medbrains-console/setup.sock";
 const HEALTH_TIMEOUT: Duration = Duration::from_secs(2);
-const TOKEN_FILE: &str = "/run/medbrains-console/setup-token";
 const TIMEOUT: Duration = Duration::from_secs(10);
 /// Said when the service cannot be asked at all. A fault, so never shown as "no network".
 const NOT_ANSWERING: &str = "The machine's setup service is not answering. Try again in a moment.";
@@ -33,6 +35,12 @@ pub(crate) struct Link {
 /// The network as the service sees it. `local` and `internet` are `None` until checked.
 #[derive(Debug, Clone, Default, Deserialize)]
 pub(crate) struct Network {
+    /// True if the machine couldn't read its links: unknown, not "no links".
+    #[serde(default)]
+    pub(crate) fault: bool,
+    /// True while a fixed address is in effect that nobody has confirmed.
+    #[serde(default)]
+    pub(crate) unconfirmed: bool,
     pub(crate) links: Vec<Link>,
     pub(crate) gateway: Option<String>,
     /// The link the default route uses.
@@ -158,16 +166,12 @@ fn outcome(status: u16, body: Value) -> Result<Value, Failure> {
 
 /// One blocking exchange with the service.
 fn exchange(method: &str, path: &str, body: &str) -> Option<(u16, Value)> {
-    let token = std::fs::read_to_string(TOKEN_FILE).ok()?;
-    let address: SocketAddr = SERVICE.parse().ok()?;
-    let mut stream = TcpStream::connect_timeout(&address, TIMEOUT).ok()?;
+    let mut stream = UnixStream::connect(SERVICE).ok()?;
     stream.set_read_timeout(Some(TIMEOUT)).ok()?;
     stream.set_write_timeout(Some(TIMEOUT)).ok()?;
     let length = body.len();
     let request = format!(
-        "{method} {path} HTTP/1.1\r\nHost: {SERVICE}\r\nX-Setup-Token: {}\r\n\
-         Content-Length: {length}\r\n\r\n{body}",
-        token.trim()
+        "{method} {path} HTTP/1.1\r\nHost: screen\r\nContent-Length: {length}\r\n\r\n{body}"
     );
     stream.write_all(request.as_bytes()).ok()?;
     let mut raw = String::new();

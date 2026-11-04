@@ -181,6 +181,9 @@ pub(crate) fn memory_fraction(machine: &Machine) -> f64 {
 
 /// The top bar's short word for the network.
 pub(crate) fn network_words(network: &Network) -> String {
+    if network.fault {
+        return "Network unknown".to_owned();
+    }
     let with_address = network.links.iter().find(|link| !link.addresses.is_empty());
     match with_address {
         Some(link) if link.cable => "Connected".to_owned(),
@@ -229,6 +232,11 @@ mod tests {
         assert_eq!(network_words(&one_link(false, &["10.0.2.15"])), "No cable");
         assert_eq!(network_words(&one_link(true, &[])), "Cable in, no address");
         assert_eq!(network_words(&Network::default()), "No network card");
+        let unknown = Network {
+            fault: true,
+            ..Network::default()
+        };
+        assert_eq!(network_words(&unknown), "Network unknown");
     }
 
     /// Builds a machine in a given state.

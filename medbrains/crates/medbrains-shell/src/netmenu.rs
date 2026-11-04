@@ -38,6 +38,9 @@ pub(crate) fn address_in_use(network: &Network) -> Option<&String> {
 
 /// The icon for the link in use, or for there being none.
 pub(crate) fn icon_name(network: &Network) -> &'static str {
+    if network.fault {
+        return "network-error-symbolic";
+    }
     match link_in_use(network).map(|link| link.kind.as_str()) {
         Some("wifi") => "network-wireless-symbolic",
         Some(_) => "network-wired-symbolic",
@@ -66,8 +69,9 @@ fn signature(network: &Network) -> String {
     let default_link = network.default_link.as_deref().unwrap_or_default();
     let preferred = network.preferred.as_deref().unwrap_or_default();
     format!(
-        "{}|{default_link}|{preferred}",
-        links.collect::<Vec<_>>().join(";")
+        "{}|{default_link}|{preferred}|{}",
+        links.collect::<Vec<_>>().join(";"),
+        network.fault
     )
 }
 
@@ -116,7 +120,10 @@ impl Wired {
             self.list.remove(&row);
         }
         let several = wired_links(network).count() > 1;
-        if !several && wired_links(network).next().is_none() {
+        if network.fault {
+            self.list
+                .append(&ui::label("Couldn't read the network cards.", "problem"));
+        } else if !several && wired_links(network).next().is_none() {
             self.list.append(&ui::label(
                 "This machine has no wired network card.",
                 "muted",

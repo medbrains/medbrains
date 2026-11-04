@@ -3,15 +3,13 @@
 //! own directory on the data partition. Nothing here logs a password.
 
 use std::fs;
-use std::io::Write;
-use std::os::unix::fs::OpenOptionsExt;
-use std::process::Command;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 use serde_json::{Value, json};
 
 use crate::wifi_parse::{Snapshot, network_list, parse_objects, parse_ordered};
+use crate::{child, machine};
 
 const IWD: &str = "net.connman.iwd";
 const IWD_DIR: &str = "/var/lib/iwd";
@@ -19,6 +17,12 @@ const IWD_DIR: &str = "/var/lib/iwd";
 const BUS_SECONDS: &str = "--timeout=5";
 /// How long joining may take: association, then the key exchange.
 const CONNECT_SECONDS: &str = "--timeout=40";
+const BUS_LIMIT: Duration = Duration::from_secs(7);
+const CONNECT_LIMIT: Duration = Duration::from_secs(45);
+/// iwd may already be joining by itself once it has the password, which refuses our own request.
+/// So after a refusal, wait this long to see how that goes.
+const AUTOJOIN_WAIT: Duration = Duration::from_secs(1);
+const AUTOJOIN_TRIES: u32 = 10;
 /// iwd notices a new password file by watching its directory, so give it a moment.
 const KNOWN_WAIT: Duration = Duration::from_millis(500);
 const KNOWN_TRIES: u32 = 10;
@@ -33,31 +37,34 @@ pub(crate) struct Attempt {
     words: String,
 }
 
-/// Runs `busctl` and returns its JSON, or the words it failed with.
-fn busctl(timeout: &str, args: &[&str]) -> Result<Value, String> {
-    let done = Command::new("busctl")
-        .args(["--json=short", "--no-pager", timeout])
-        .args(args)
-        .output()
-        .map_err(|e| e.to_string())?;
-    if !done.status.success() {
+/// Runs `busctl` and returns its JSON, or the words it failed with. The helper limit is a little
+/// past busctl's own, which is the one that normally applies.
+fn busctl(timeout: &str, limit: Duration, args: &[&str]) -> Result<Value, String> {
+    let all: Vec<&str> = ["--json=short", "--no-pager", timeout]
+        .into_iter()
+        .chain(args.iter().copied())
+        .collect();
+    let done = child::run("busctl", &all, limit).ok_or_else(|| "Timeout".to_owned())?;
+    if !done.success {
         return Err(String::from_utf8_lossy(&done.stderr).trim().to_owned());
     }
     Ok(serde_json::from_slice(&done.stdout).unwrap_or(Value::Null))
 }
 
+/// A read or a short command on iwd.
+fn bus_read(args: &[&str]) -> Result<Value, String> {
+    busctl(BUS_SECONDS, BUS_LIMIT, args)
+}
+
 /// Reads iwd's whole object tree.
 fn snapshot() -> Result<Snapshot, String> {
-    let reply = busctl(
-        BUS_SECONDS,
-        &[
-            "call",
-            IWD,
-            "/",
-            "org.freedesktop.DBus.ObjectManager",
-            "GetManagedObjects",
-        ],
-    )?;
+    let reply = bus_read(&[
+        "call",
+        IWD,
+        "/",
+        "org.freedesktop.DBus.ObjectManager",
+        "GetManagedObjects",
+    ])?;
     Ok(parse_objects(&reply))
 }
 
@@ -84,16 +91,13 @@ pub(crate) fn status(attempt: &Arc<Mutex<Attempt>>) -> Value {
         Ok(_) | Err(_) => return json!({ "hardware": true, "fault": true, "attempt": attempt }),
     };
     let ordered = snapshot.device.as_deref().map_or_else(Vec::new, |device| {
-        busctl(
-            BUS_SECONDS,
-            &[
-                "call",
-                IWD,
-                device,
-                "net.connman.iwd.Station",
-                "GetOrderedNetworks",
-            ],
-        )
+        bus_read(&[
+            "call",
+            IWD,
+            device,
+            "net.connman.iwd.Station",
+            "GetOrderedNetworks",
+        ])
         .map_or_else(|_| Vec::new(), |reply| parse_ordered(&reply))
     });
     json!({
@@ -121,18 +125,15 @@ fn device() -> Result<String, String> {
 pub(crate) fn set_power(on: bool) -> Result<(), String> {
     let device = device()?;
     let value = if on { "true" } else { "false" };
-    busctl(
-        BUS_SECONDS,
-        &[
-            "set-property",
-            IWD,
-            &device,
-            "net.connman.iwd.Device",
-            "Powered",
-            "b",
-            value,
-        ],
-    )
+    bus_read(&[
+        "set-property",
+        IWD,
+        &device,
+        "net.connman.iwd.Device",
+        "Powered",
+        "b",
+        value,
+    ])
     .map(|_| ())
     .map_err(|_| "The Wi-Fi radio could not be changed.".to_owned())
 }
@@ -140,10 +141,7 @@ pub(crate) fn set_power(on: bool) -> Result<(), String> {
 /// Starts a scan. A scan already running is what was wanted.
 pub(crate) fn scan() -> Result<(), String> {
     let device = device()?;
-    match busctl(
-        BUS_SECONDS,
-        &["call", IWD, &device, "net.connman.iwd.Station", "Scan"],
-    ) {
+    match bus_read(&["call", IWD, &device, "net.connman.iwd.Station", "Scan"]) {
         Err(words) if !words.contains("Busy") => Err("The scan could not start.".to_owned()),
         _ => Ok(()),
     }
@@ -167,31 +165,22 @@ fn is_password(password: &str) -> bool {
     PASSWORD_BYTES.contains(&password.len()) && !password.chars().any(char::is_control)
 }
 
-/// The file's contents for a passphrase, with a backslash escaped as the format asks.
+/// The file's contents for a passphrase. A backslash and a space are both escaped, as the format
+/// asks: tested with hostapd, a leading space is otherwise lost and the password fails.
 fn password_contents(password: &str) -> String {
-    format!(
-        "[Security]\nPassphrase={}\n",
-        password.replace('\\', "\\\\")
-    )
+    let escaped = password.replace('\\', "\\\\").replace(' ', "\\s");
+    format!("[Security]\nPassphrase={escaped}\n")
 }
 
 /// Writes a password where only root can read it, in one step: iwd reads the file as soon as it
 /// appears, and refused one caught half written.
 fn save_password(ssid: &str, password: &str) -> Result<(), String> {
-    let target = password_file(ssid);
-    let temporary = format!("{target}.new");
-    let written = fs::OpenOptions::new()
-        .create(true)
-        .write(true)
-        .truncate(true)
-        .mode(0o600)
-        .open(&temporary)
-        .and_then(|mut file| file.write_all(password_contents(password).as_bytes()))
-        .and_then(|()| fs::rename(&temporary, &target));
-    written.map_err(|_| {
-        drop(fs::remove_file(&temporary));
-        "The password could not be saved.".to_owned()
-    })
+    machine::write_atomically(
+        &password_file(ssid),
+        password_contents(password).as_bytes(),
+        0o600,
+    )
+    .map_err(|_| "The password could not be saved.".to_owned())
 }
 
 /// Waits, within a limit, for iwd to have read a new password. Joining sooner fails with no agent.
@@ -244,21 +233,32 @@ fn join(ssid: &str, password: &str) -> Result<(), String> {
         save_password(ssid, password)?;
         wait_for_known(ssid);
     }
+    let path = network.path.clone();
     let joined = busctl(
         CONNECT_SECONDS,
-        &[
-            "call",
-            IWD,
-            &network.path,
-            "net.connman.iwd.Network",
-            "Connect",
-        ],
+        CONNECT_LIMIT,
+        &["call", IWD, &path, "net.connman.iwd.Network", "Connect"],
     );
-    joined.map(|_| ()).map_err(|error| {
-        if new_password {
-            drop(fs::remove_file(password_file(ssid)));
-        }
-        join_failure_words(&error).to_owned()
+    let Err(error) = joined else { return Ok(()) };
+    if new_password && joined_by_itself(ssid) {
+        return Ok(());
+    }
+    if new_password {
+        drop(fs::remove_file(password_file(ssid)));
+    }
+    Err(join_failure_words(&error).to_owned())
+}
+
+/// True if iwd turns out to have joined the network on its own, which it may do the moment it has
+/// a new password, and which then refuses a request to do the same.
+fn joined_by_itself(ssid: &str) -> bool {
+    (0..AUTOJOIN_TRIES).any(|_| {
+        std::thread::sleep(AUTOJOIN_WAIT);
+        snapshot().is_ok_and(|now| {
+            now.networks
+                .iter()
+                .any(|network| network.name == ssid && network.connected)
+        })
     })
 }
 
@@ -304,12 +304,9 @@ pub(crate) fn forget(attempt: &Arc<Mutex<Attempt>>, ssid: &str) -> Result<(), St
     let snapshot = snapshot()?;
     let known = snapshot.known.iter().find(|(name, _)| name == ssid);
     let (_, path) = known.ok_or_else(|| "That network isn't saved.".to_owned())?;
-    busctl(
-        BUS_SECONDS,
-        &["call", IWD, path, "net.connman.iwd.KnownNetwork", "Forget"],
-    )
-    .map(|_| ())
-    .map_err(|_| "That network could not be forgotten.".to_owned())
+    bus_read(&["call", IWD, path, "net.connman.iwd.KnownNetwork", "Forget"])
+        .map(|_| ())
+        .map_err(|_| "That network could not be forgotten.".to_owned())
 }
 
 #[cfg(test)]
@@ -331,6 +328,10 @@ mod tests {
         assert!(!is_password("Ward-Seven7\nEvil=1"));
         assert!(!is_password(&"x".repeat(64)));
         assert_eq!(password_contents("a\\b"), "[Security]\nPassphrase=a\\\\b\n");
+        assert_eq!(
+            password_contents(" a b "),
+            "[Security]\nPassphrase=\\sa\\sb\\s\n"
+        );
     }
 
     #[test]

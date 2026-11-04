@@ -64,15 +64,25 @@ fn env_line(key: &str, value: &str) -> String {
     format!("{key}=\"{quoted}\"\n")
 }
 
-/// The env file with this hospital's seed lines in place of any left by an interrupted
-/// attempt, so repeating setup cannot leave an old password behind.
-pub(crate) fn env_with_seed(env: &str, hospital: &str, username: &str, password: &str) -> String {
+/// The env file with no seed lines.
+pub(crate) fn env_without_seed(env: &str) -> String {
     let kept = env.lines().filter(|line| !line.starts_with(SEED_PREFIX));
-    let mut out: String = kept.map(|line| format!("{line}\n")).collect();
+    kept.map(|line| format!("{line}\n")).collect()
+}
+
+/// The env file with this hospital's seed lines in place of any left by an interrupted attempt. It
+/// carries the password's hash, never the password, so the disk never holds what was typed.
+pub(crate) fn env_with_seed(
+    env: &str,
+    hospital: &str,
+    username: &str,
+    password_hash: &str,
+) -> String {
+    let mut out = env_without_seed(env);
     for (key, value) in [
         ("MEDBRAINS_SEED_HOSPITAL_NAME", hospital.trim()),
         ("MEDBRAINS_SEED_ADMIN_USERNAME", username),
-        ("MEDBRAINS_SEED_ADMIN_PASSWORD", password),
+        ("MEDBRAINS_SEED_ADMIN_PASSWORD_HASH", password_hash),
         ("MEDBRAINS_SEED_ADMIN_PASSWORD_CHOSEN", "true"),
     ] {
         out.push_str(&env_line(key, value));
@@ -169,7 +179,7 @@ mod tests {
         );
         let env = env_with_seed("", "St \"Mary\" \\ Co", "admin", "Ab1!\"\\x$y");
         assert!(env.contains("HOSPITAL_NAME=\"St \\\"Mary\\\" \\\\ Co\""));
-        assert!(env.contains("ADMIN_PASSWORD=\"Ab1!\\\"\\\\x$y\""));
+        assert!(env.contains("PASSWORD_HASH=\"Ab1!\\\"\\\\x$y\""));
         assert_eq!(env.lines().count(), 4);
     }
 

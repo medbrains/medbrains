@@ -1,38 +1,49 @@
 //! Setup and machine controls for the OS screen (OS-SETUP-AND-TRUST §5).
 //!
-//! Listens only on the machine itself. Every call needs a token that is written where only
-//! the screen can read it, so nobody on the network can finish setup or power the machine
-//! off, and the Host check stops a web page reaching this through DNS rebinding. The server
-//! is deliberately small: one connection at a time is plenty for one screen.
+//! Listens on a Unix socket only the screen's group can open, so nothing on the network or under
+//! another local user can reach it, and no local user can stand in for it: a TCP port would let any
+//! of them bind it while this restarts and receive what the screen sends. `peer` then checks who
+//! connected, since WebKit's helpers share the screen's group. The server is
+//! deliberately small: one connection at a time is plenty for one screen.
 
+mod child;
 mod machine;
+mod peer;
 mod rules;
 mod status;
 mod wifi;
 mod wifi_parse;
 
-use std::io::{BufRead, BufReader, Read, Write};
-use std::net::{TcpListener, TcpStream};
-use std::sync::atomic::{AtomicU64, Ordering};
+use std::fs;
+use std::io::{self, BufRead, BufReader, Read, Write};
+use std::os::unix::fs::PermissionsExt;
+use std::os::unix::net::{UnixListener, UnixStream};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use serde_json::{Value, json};
 
-const LISTEN: &str = "127.0.0.1:3100";
-const TOKEN_FILE: &str = "/run/medbrains-console/setup-token";
+/// In a directory only root and the screen's group can enter; the socket's mode says the same.
+const SOCKET: &str = "/run/medbrains-console/setup.sock";
+const SCREEN_GROUP: &str = "kiosk";
 const MAX_BODY: usize = 16 * 1024;
 const MAX_HEADERS: usize = 64;
-const IO_TIMEOUT: Duration = Duration::from_secs(5);
+/// The most one request may send, headers included: read before anything else is checked.
+const MAX_REQUEST: u64 = MAX_BODY as u64 + 8192;
+/// How long one connection gets, in total, however slowly it sends.
+const REQUEST_DEADLINE: Duration = Duration::from_secs(5);
 /// A fixed address not confirmed in this time is undone, so a mistake cannot strand the machine.
 const CONFIRM_WITHIN: Duration = Duration::from_secs(60);
 
 /// Shared between the listener and the rollback timer.
 #[derive(Debug)]
 struct State {
-    token: String,
     /// Bumped by each change and each confirmation; a rollback only runs if it still matches.
     network_change: AtomicU64,
+    /// True while a new fixed address waits to be confirmed. Confirming anything else would say
+    /// "kept" about an address that had already been undone.
+    network_pending: AtomicBool,
     /// The latest Wi-Fi join, which runs on its own thread.
     wifi_attempt: Arc<Mutex<wifi::Attempt>>,
 }
@@ -42,46 +53,55 @@ struct State {
 struct Request {
     method: String,
     path: String,
-    host: String,
-    token: String,
     body: Vec<u8>,
 }
 
-/// Reads one request, refusing anything oversized.
+/// A connection that stops reading at a deadline for the whole request, not per read, so sending
+/// one byte at a time can't hold the only thread.
+#[derive(Debug)]
+struct Deadlined<'a> {
+    stream: &'a UnixStream,
+    deadline: Instant,
+}
+
+impl Read for Deadlined<'_> {
+    fn read(&mut self, buffer: &mut [u8]) -> io::Result<usize> {
+        let left = self.deadline.saturating_duration_since(Instant::now());
+        if left.is_zero() {
+            return Err(io::ErrorKind::TimedOut.into());
+        }
+        self.stream.set_read_timeout(Some(left))?;
+        let mut stream = self.stream;
+        stream.read(buffer)
+    }
+}
+
+/// Reads one request, refusing anything oversized. Everything is bounded by `MAX_REQUEST`.
 fn read_request(stream: impl Read) -> Option<Request> {
-    let mut reader = BufReader::new(stream);
+    let mut reader = BufReader::new(stream.take(MAX_REQUEST));
     let mut line = String::new();
     reader.read_line(&mut line).ok()?;
     let mut parts = line.split_whitespace();
     let (method, path) = (parts.next()?.to_owned(), parts.next()?.to_owned());
-    let (mut host, mut token, mut length) = (String::new(), String::new(), 0_usize);
+    let mut length = 0_usize;
     for _ in 0..MAX_HEADERS {
         let mut header = String::new();
         reader.read_line(&mut header).ok()?;
         if header.trim().is_empty() {
             let mut body = vec![0; length];
             reader.read_exact(&mut body).ok()?;
-            return Some(Request {
-                method,
-                path,
-                host,
-                token,
-                body,
-            });
+            return Some(Request { method, path, body });
         }
         let (name, value) = header.split_once(':')?;
-        match name.trim().to_ascii_lowercase().as_str() {
-            "host" => value.trim().clone_into(&mut host),
-            "x-setup-token" => value.trim().clone_into(&mut token),
-            "content-length" => length = value.trim().parse().ok().filter(|n| *n <= MAX_BODY)?,
-            _ => {}
+        if name.trim().eq_ignore_ascii_case("content-length") {
+            length = value.trim().parse().ok().filter(|n| *n <= MAX_BODY)?;
         }
     }
     None
 }
 
-/// Writes a JSON answer. No CORS headers: only the native screen may read these.
-fn respond(mut stream: &TcpStream, status: u16, body: &Value) {
+/// Writes a JSON answer.
+fn respond(mut stream: &UnixStream, status: u16, body: &Value) {
     let text = body.to_string();
     let head = format!(
         "HTTP/1.1 {status} X\r\nContent-Type: application/json\r\nContent-Length: {}\r\n\
@@ -120,8 +140,11 @@ fn hospital_problems(body: &Value) -> Option<(u16, Value)> {
 
 /// Handles `POST /hospital`: checks the three fields, then starts the main machine.
 fn new_hospital(body: &Value) -> (u16, Value) {
-    if machine::is_set_up() {
-        return (409, json!({ "error": "This machine is already set up." }));
+    match machine::is_set_up() {
+        Ok(false) => {}
+        Ok(true) => return (409, json!({ "error": "This machine is already set up." })),
+        // Not knowing is not "no": setting up twice would overwrite the machine's identity.
+        Err(error) => return (500, json!({ "error": error })),
     }
     if let Some(problems) = hospital_problems(body) {
         return problems;
@@ -154,11 +177,16 @@ fn fixed_address(state: &Arc<State>, body: &Value) -> (u16, Value) {
         return (422, json!({ "error": error }));
     }
     let change = state.network_change.fetch_add(1, Ordering::SeqCst) + 1;
+    state.network_pending.store(true, Ordering::SeqCst);
     let timer = Arc::clone(state);
     std::thread::spawn(move || {
         std::thread::sleep(CONFIRM_WITHIN);
         if timer.network_change.load(Ordering::SeqCst) == change {
-            drop(machine::undo_fixed_address());
+            timer.network_pending.store(false, Ordering::SeqCst);
+            machine::log_if_failed(
+                "undoing an unconfirmed address",
+                machine::undo_fixed_address(),
+            );
         }
     });
     (
@@ -167,17 +195,48 @@ fn fixed_address(state: &Arc<State>, body: &Value) -> (u16, Value) {
     )
 }
 
-/// Cancels a waiting rollback, then does a network action in its place.
-fn settle_network(state: &State, action: fn() -> Result<(), String>) -> (u16, Value) {
+/// Answers Keep or Undo, which only mean something while a new address is waiting. After the
+/// timer, Keep would save whatever is in effect by then and report it as the new address.
+fn settle_pending(state: &State, action: fn() -> Result<(), String>) -> (u16, Value) {
+    if !state.network_pending.swap(false, Ordering::SeqCst) {
+        let words = "No address is waiting. If one was, it has already been undone.";
+        return (409, json!({ "error": words }));
+    }
     state.network_change.fetch_add(1, Ordering::SeqCst);
     answer(409, action())
 }
 
-/// Routes a request that has already passed the Host and token checks.
+/// Forgets any fixed address, cancelling a waiting rollback.
+fn use_automatic(state: &State) -> (u16, Value) {
+    state.network_pending.store(false, Ordering::SeqCst);
+    state.network_change.fetch_add(1, Ordering::SeqCst);
+    answer(409, machine::use_automatic_address())
+}
+
+/// Handles `POST /wifi/power`. It must say on or off: a damaged request mustn't turn the radio off.
+fn wifi_power(body: &Value) -> (u16, Value) {
+    match body.get("on").and_then(Value::as_bool) {
+        Some(on) => answer(422, wifi::set_power(on)),
+        None => (
+            422,
+            json!({ "error": "Say whether Wi-Fi should be on or off." }),
+        ),
+    }
+}
+
+/// The machine's state, or a fault if whether it is set up can't be read.
+fn state_answer() -> (u16, Value) {
+    status::state().map_or_else(
+        |error| (500, json!({ "error": error })),
+        |state| (200, state),
+    )
+}
+
+/// Routes one request.
 fn route(state: &Arc<State>, request: &Request) -> (u16, Value) {
     let body: Value = serde_json::from_slice(&request.body).unwrap_or(Value::Null);
     match (request.method.as_str(), request.path.as_str()) {
-        ("GET", "/state") => (200, status::state()),
+        ("GET", "/state") => state_answer(),
         ("GET", "/timezones") => (200, json!(status::timezones())),
         ("POST", "/timezone") => answer(422, status::set_timezone(field(&body, "zone"))),
         ("GET", "/network") => (200, machine::network_check()),
@@ -186,15 +245,12 @@ fn route(state: &Arc<State>, request: &Request) -> (u16, Value) {
         }
         ("POST", "/hospital") => new_hospital(&body),
         ("POST", "/network/fixed") => fixed_address(state, &body),
-        ("POST", "/network/confirm") => settle_network(state, machine::confirm_fixed_address),
-        ("POST", "/network/undo") => settle_network(state, machine::undo_fixed_address),
-        ("POST", "/network/automatic") => settle_network(state, machine::use_automatic_address),
+        ("POST", "/network/confirm") => settle_pending(state, machine::confirm_fixed_address),
+        ("POST", "/network/undo") => settle_pending(state, machine::undo_fixed_address),
+        ("POST", "/network/automatic") => use_automatic(state),
         ("POST", "/network/prefer") => answer(422, machine::prefer_link(field(&body, "interface"))),
         ("GET", "/wifi") => (200, wifi::status(&state.wifi_attempt)),
-        ("POST", "/wifi/power") => answer(
-            422,
-            wifi::set_power(body.get("on").and_then(Value::as_bool).unwrap_or(false)),
-        ),
+        ("POST", "/wifi/power") => wifi_power(&body),
         ("POST", "/wifi/scan") => answer(422, wifi::scan()),
         ("POST", "/wifi/connect") => answer(
             409,
@@ -212,65 +268,60 @@ fn route(state: &Arc<State>, request: &Request) -> (u16, Value) {
     }
 }
 
-/// The refusal for a request that must not reach `route`, if any.
-fn refusal(request: &Request, token: &str) -> Option<(u16, Value)> {
-    if request.host != LISTEN {
-        return Some((403, json!({ "error": "wrong host" })));
+/// Serves one connection, within its deadline.
+fn handle(state: &Arc<State>, stream: &UnixStream) {
+    drop(stream.set_write_timeout(Some(REQUEST_DEADLINE)));
+    if !peer::is_screen(stream) {
+        return respond(
+            stream,
+            403,
+            &json!({ "error": "Only the screen may ask this." }),
+        );
     }
-    if !constant_time_eq(&request.token, token) {
-        return Some((403, json!({ "error": "wrong token" })));
-    }
-    None
-}
-
-/// Serves one connection.
-fn handle(state: &Arc<State>, stream: &TcpStream) {
-    drop(stream.set_read_timeout(Some(IO_TIMEOUT)));
-    drop(stream.set_write_timeout(Some(IO_TIMEOUT)));
-    let Some(request) = read_request(stream) else {
+    let deadline = Instant::now() + REQUEST_DEADLINE;
+    let Some(request) = read_request(Deadlined { stream, deadline }) else {
         return;
     };
-    let (status, body) = refusal(&request, &state.token).unwrap_or_else(|| route(state, &request));
+    let (status, body) = route(state, &request);
     respond(stream, status, &body);
 }
 
-/// Compares without stopping at the first difference.
-fn constant_time_eq(a: &str, b: &str) -> bool {
-    a.len() == b.len()
-        && a.bytes()
-            .zip(b.bytes())
-            .fold(0_u8, |diff, (x, y)| diff | (x ^ y))
-            == 0
-}
-
-/// A fresh token from the OS, written where only the screen's group can read it.
-fn new_token() -> std::io::Result<String> {
-    let mut bytes = [0_u8; 32];
-    std::fs::File::open("/dev/urandom")?.read_exact(&mut bytes)?;
-    let token: String = bytes.iter().map(|b| format!("{b:02x}")).collect();
-    let temporary = format!("{TOKEN_FILE}.new");
-    std::fs::write(&temporary, &token)?;
-    let chgrp = std::process::Command::new("chgrp")
-        .args(["kiosk", &temporary])
-        .status()?;
-    let chmod = std::process::Command::new("chmod")
-        .args(["0640", &temporary])
-        .status()?;
-    if !chgrp.success() || !chmod.success() {
-        return Err(std::io::Error::other("could not protect the token"));
+/// Opens the socket: only root and the screen's group may connect. A socket left by the last run
+/// is removed first, and the directory above keeps everyone else out until the mode is set.
+fn listen() -> io::Result<UnixListener> {
+    if let Err(error) = fs::remove_file(SOCKET)
+        && error.kind() != io::ErrorKind::NotFound
+    {
+        return Err(error);
     }
-    std::fs::rename(&temporary, TOKEN_FILE)?;
-    Ok(token)
+    let listener = UnixListener::bind(SOCKET)?;
+    let group = child::run("chgrp", &[SCREEN_GROUP, SOCKET], child::USUAL_LIMIT);
+    if !group.is_some_and(|done| done.success) {
+        return Err(io::Error::other(
+            "could not give the socket to the screen's group",
+        ));
+    }
+    fs::set_permissions(SOCKET, fs::Permissions::from_mode(0o660))?;
+    Ok(listener)
 }
 
-/// Writes the token, then serves the screen forever.
-fn main() -> std::io::Result<()> {
+/// Puts things right, then serves the screen forever.
+fn main() -> io::Result<()> {
+    machine::log_if_failed(
+        "undoing an address left unconfirmed",
+        machine::reconcile_fixed_address(),
+    );
+    machine::log_if_failed(
+        "removing an abandoned setup",
+        machine::remove_abandoned_seed(),
+    );
     let state = Arc::new(State {
-        token: new_token()?,
         network_change: AtomicU64::new(0),
+        network_pending: AtomicBool::new(false),
         wifi_attempt: Arc::default(),
     });
-    let listener = TcpListener::bind(LISTEN)?;
+    let listener = listen()?;
+    // Meant to run forever: systemd restarts it if it ends.
     for stream in listener.incoming().flatten() {
         handle(&state, &stream);
     }
@@ -279,53 +330,59 @@ fn main() -> std::io::Result<()> {
 
 #[cfg(test)]
 mod tests {
-    use super::{LISTEN, Request, constant_time_eq, read_request, refusal};
-
-    /// A request as the screen sends it, which `refusal` should let through.
-    fn request(host: &str, token: &str) -> Request {
-        Request {
-            method: "POST".to_owned(),
-            path: "/power".to_owned(),
-            host: host.to_owned(),
-            token: token.to_owned(),
-            body: Vec::new(),
-        }
-    }
-
-    #[test]
-    fn a_token_must_match_exactly() {
-        assert!(constant_time_eq("abc", "abc"));
-        assert!(!constant_time_eq("abc", "abd"));
-        assert!(!constant_time_eq("abc", "abcd"));
-        assert!(!constant_time_eq("", "abc"));
-    }
-
-    /// Powering a hospital machine off must need the token, and must not work through a
-    /// page that rebinds its own domain to this address.
-    #[test]
-    fn only_the_right_host_with_the_right_token_gets_through() {
-        assert!(refusal(&request(LISTEN, "secret"), "secret").is_none());
-        assert_eq!(
-            refusal(&request(LISTEN, "wrong"), "secret").map(|r| r.0),
-            Some(403)
-        );
-        assert_eq!(
-            refusal(&request(LISTEN, ""), "secret").map(|r| r.0),
-            Some(403)
-        );
-        assert_eq!(
-            refusal(&request("evil.example", "secret"), "secret").map(|r| r.0),
-            Some(403)
-        );
-    }
+    use super::{MAX_REQUEST, State, read_request, settle_pending, wifi_power};
+    use serde_json::json;
+    use std::io::Read;
+    use std::sync::Arc;
+    use std::sync::atomic::{AtomicBool, AtomicU64};
 
     #[test]
     fn a_request_is_parsed_and_an_oversized_one_refused() {
-        let good =
-            "POST /power HTTP/1.1\r\nHost: h\r\nX-Setup-Token: t\r\nContent-Length: 2\r\n\r\n{}";
+        let good = "POST /power HTTP/1.1\r\nHost: h\r\nContent-Length: 2\r\n\r\n{}";
         let parsed = read_request(good.as_bytes());
-        assert!(parsed.is_some_and(|r| r.host == "h" && r.token == "t" && r.body == b"{}"));
+        assert!(parsed.is_some_and(|r| r.path == "/power" && r.body == b"{}"));
         let huge = "POST / HTTP/1.1\r\nContent-Length: 99999999\r\n\r\n";
         assert!(read_request(huge.as_bytes()).is_none());
+    }
+
+    /// The finding: a request line with no end must not be read into memory without limit.
+    #[test]
+    fn an_endless_line_stops_at_the_limit() {
+        let endless = std::io::repeat(b'a');
+        assert!(read_request(endless).is_none());
+        let mut bounded = std::io::repeat(b'a').take(MAX_REQUEST * 2);
+        let mut seen = Vec::new();
+        assert!(
+            (&mut bounded)
+                .take(MAX_REQUEST)
+                .read_to_end(&mut seen)
+                .is_ok()
+        );
+        assert_eq!(seen.len() as u64, MAX_REQUEST);
+    }
+
+    /// The finding: after the timer, Keep would have reported the wrong address as kept.
+    #[test]
+    fn keep_with_nothing_waiting_is_refused_and_does_nothing() {
+        let state = State {
+            network_change: AtomicU64::new(0),
+            network_pending: AtomicBool::new(false),
+            wifi_attempt: Arc::default(),
+        };
+        let (status, _) = settle_pending(&state, panic_free_failure);
+        assert_eq!(status, 409);
+    }
+
+    /// Stands in for an action that must not be reached.
+    fn panic_free_failure() -> Result<(), String> {
+        Err("reached".to_owned())
+    }
+
+    /// A damaged request must not turn the radio off.
+    #[test]
+    fn a_radio_request_without_on_or_off_is_refused() {
+        for body in [json!({}), json!({ "on": "yes" }), serde_json::Value::Null] {
+            assert_eq!(wifi_power(&body).0, 422);
+        }
     }
 }

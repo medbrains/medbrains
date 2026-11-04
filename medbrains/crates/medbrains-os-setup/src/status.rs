@@ -3,10 +3,10 @@
 
 use std::fs;
 use std::path::Path;
-use std::process::Command;
 
 use serde_json::{Value, json};
 
+use crate::child::{self, USUAL_LIMIT};
 use crate::machine::{self, output};
 
 /// The current time zone setting: a link into `ZONEINFO`, on the data partition. World
@@ -23,12 +23,12 @@ const FIREWALL_TABLE: [&str; 5] = ["-n", "list", "table", "inet", "medbrains"];
 /// Where setup keeps the hospital's name for the screen.
 pub(crate) const HOSPITAL_NAME: &str = "/var/lib/medbrains-settings/hospital-name";
 
-/// Everything the desktop shows in one poll.
-pub(crate) fn state() -> Value {
-    let set_up = machine::is_set_up();
+/// Everything the desktop shows in one poll, or a fault if the machine can't read what it is.
+pub(crate) fn state() -> Result<Value, String> {
+    let set_up = machine::is_set_up()?;
     let uptime = fs::read_to_string("/proc/uptime").unwrap_or_default();
     let uptime_seconds = first_number(&uptime);
-    json!({
+    Ok(json!({
         "set_up": set_up,
         "role": if set_up { "main" } else { "" },
         "hospital": fs::read_to_string(HOSPITAL_NAME).unwrap_or_default().trim(),
@@ -39,7 +39,7 @@ pub(crate) fn state() -> Value {
         "firewall": output("nft", &FIREWALL_TABLE).is_some(),
         "machine": machine_health(),
         "network": machine::network_links(),
-    })
+    }))
 }
 
 /// The zone setting's name, or `UTC` if it was never set.
@@ -59,6 +59,7 @@ pub(crate) fn set_timezone(zone: &str) -> Result<(), String> {
     drop(fs::remove_file(&temporary));
     std::os::unix::fs::symlink(format!("{ZONEINFO}{zone}"), &temporary)
         .and_then(|()| fs::rename(&temporary, LOCALTIME))
+        .and_then(|()| machine::sync_parent(LOCALTIME))
         .map_err(|e| e.to_string())
 }
 
@@ -139,13 +140,10 @@ fn machine_health() -> Value {
     let df = output("df", &["-B1", "--output=size,used", DATA_MOUNT]).unwrap_or_default();
     let (disk_total, disk_used) = parse_df(&String::from_utf8_lossy(&df)).unwrap_or((0, 0));
     // `is-system-running` exits non-zero when degraded, and that is the answer we want.
-    let system = Command::new("systemctl")
-        .arg("is-system-running")
-        .output()
-        .map_or_else(
-            |_| String::new(),
-            |o| String::from_utf8_lossy(&o.stdout).trim().to_owned(),
-        );
+    let system = child::run("systemctl", &["is-system-running"], USUAL_LIMIT)
+        .map_or_else(String::new, |done| {
+            String::from_utf8_lossy(&done.stdout).trim().to_owned()
+        });
     let failed = output(
         "systemctl",
         &["--failed", "--plain", "--no-legend", "--no-pager"],

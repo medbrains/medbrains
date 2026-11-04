@@ -1,14 +1,15 @@
 //! What setup does to the machine: read the network and its health, write settings,
-//! start services. Every command has a bound, because the screen waits on the answer.
+//! start services. Every command has a limit, because the screen waits on the answer.
 
 use std::fs;
 use std::io::Write;
-use std::os::unix::fs::{MetadataExt, PermissionsExt, chown};
+use std::os::unix::fs::{MetadataExt, OpenOptionsExt, PermissionsExt, chown};
 use std::path::Path;
-use std::process::Command;
 
+use argon2::{Argon2, PasswordHasher};
 use serde_json::{Value, json};
 
+use crate::child::{self, USUAL_LIMIT};
 use crate::{rules, status};
 
 /// Set once the main-machine role is chosen; nothing later asks again.
@@ -20,39 +21,87 @@ const LIVE_NETWORK: &str = "/run/systemd/network/10-medbrains-fixed.network";
 /// with a fixed address already has its own file.
 const LIVE_PREFERRED: &str = "/run/systemd/network/50-medbrains-preferred.network";
 const SAVED_PREFERRED: &str = "/var/lib/medbrains/network/50-medbrains-preferred.network";
+/// systemd-networkd runs as its own user, so it must be able to read these.
+const NETWORK_FILE_MODE: u32 = 0o644;
+const PUBLIC_FILE_MODE: u32 = 0o644;
 /// Where a confirmed address is kept: the data partition, since the root becomes read-only.
 /// `medbrains-network-settings.service` copies it to `LIVE_NETWORK` at boot.
 const SAVED_NETWORK: &str = "/var/lib/medbrains/network/10-medbrains-fixed.network";
 
-/// Runs a command and returns its output if it succeeded.
+/// Runs a helper, within the usual limit, and returns its output if it succeeded.
 pub(crate) fn output(program: &str, args: &[&str]) -> Option<Vec<u8>> {
-    let done = Command::new(program).args(args).output().ok()?;
-    done.status.success().then_some(done.stdout)
+    let done = child::run(program, args, USUAL_LIMIT)?;
+    done.success.then_some(done.stdout)
 }
 
-/// Runs a command that prints JSON, and parses it.
-fn json_output(program: &str, args: &[&str]) -> Value {
-    output(program, args)
-        .and_then(|raw| serde_json::from_slice(&raw).ok())
-        .unwrap_or_else(|| json!([]))
+/// Runs a helper that prints JSON, and parses it. `None` means no answer, not an empty one.
+fn json_output(program: &str, args: &[&str]) -> Option<Value> {
+    serde_json::from_slice(&output(program, args)?).ok()
 }
 
-/// Whether this machine has finished setup.
-pub(crate) fn is_set_up() -> bool {
-    Path::new(ROLE_MAIN).exists()
+/// Whether this machine has finished setup, or the words for why that can't be read.
+pub(crate) fn is_set_up() -> Result<bool, String> {
+    Path::new(ROLE_MAIN).try_exists().map_err(|error| {
+        log(&format!("reading the role marker: {error}"));
+        "This machine can't read its own setting. Restart it.".to_owned()
+    })
 }
 
-/// Links, addresses and the gateway. Nothing here leaves the machine.
+/// Records something for whoever reads the journal.
+fn log(line: &str) {
+    // Nothing more can be done if the log itself is unavailable.
+    drop(std::io::stderr().write_all(format!("{line}\n").as_bytes()));
+}
+
+/// Records a failure of something nobody is waiting on.
+pub(crate) fn log_if_failed(doing: &str, result: Result<(), String>) {
+    if let Err(error) = result {
+        log(&format!("{doing} failed: {error}"));
+    }
+}
+
+/// Replaces a file in one step: written aside, flushed, then renamed. A power cut leaves the old file
+/// or the new one, whole, which is what networkd and iwd need to find on the next boot.
+pub(crate) fn write_atomically(path: &str, contents: &[u8], mode: u32) -> Result<(), String> {
+    let temporary = format!("{path}.new");
+    let written = fs::OpenOptions::new()
+        .create(true)
+        .write(true)
+        .truncate(true)
+        .mode(mode)
+        .open(&temporary)
+        .and_then(|mut file| {
+            file.write_all(contents)?;
+            file.sync_all()
+        })
+        .and_then(|()| fs::rename(&temporary, path))
+        .and_then(|()| sync_parent(path));
+    written.map_err(|error| {
+        drop(fs::remove_file(&temporary));
+        error.to_string()
+    })
+}
+
+/// Flushes a directory, so a rename in it survives a power cut too.
+pub(crate) fn sync_parent(path: &str) -> std::io::Result<()> {
+    let parent = Path::new(path).parent().unwrap_or_else(|| Path::new("/"));
+    fs::File::open(parent)?.sync_all()
+}
+
+/// Links, addresses and the gateway. Nothing here leaves the machine. If `ip` doesn't answer that
+/// says so, because "no links" would read as a machine with no network card.
 pub(crate) fn network_links() -> Value {
     let addresses = json_output("ip", &["-j", "addr", "show"]);
     let routes = json_output("ip", &["-j", "-4", "route", "show", "default"]);
-    let first_route = routes.get(0);
+    let first_route = routes.as_ref().and_then(|routes| routes.get(0));
     json!({
-        "links": summarise_links(&addresses),
+        "fault": addresses.is_none() || routes.is_none(),
+        "links": addresses.as_ref().map_or_else(Vec::new, summarise_links),
         "gateway": first_route.and_then(|route| route.get("gateway")),
         "default_link": first_route.and_then(|route| route.get("dev")),
         "preferred": preferred_link(),
         "fixed": Path::new(LIVE_NETWORK).exists(),
+        "unconfirmed": is_unconfirmed(),
     })
 }
 
@@ -116,8 +165,8 @@ pub(crate) fn prefer_link(interface: &str) -> Result<(), String> {
     }
     let file = rules::preferred_network(interface)
         .ok_or_else(|| "That isn't a network card on this machine.".to_owned())?;
-    fs::write(LIVE_PREFERRED, &file).map_err(|e| e.to_string())?;
-    fs::write(SAVED_PREFERRED, &file).map_err(|e| e.to_string())?;
+    write_atomically(LIVE_PREFERRED, file.as_bytes(), NETWORK_FILE_MODE)?;
+    write_atomically(SAVED_PREFERRED, file.as_bytes(), NETWORK_FILE_MODE)?;
     reload_network()
 }
 
@@ -169,15 +218,40 @@ pub(crate) fn apply_fixed_address(
     let file = rules::fixed_network(interface, address, gateway, dns).ok_or_else(|| {
         "Check the address, gateway and DNS. An address looks like 192.168.1.20/24.".to_owned()
     })?;
-    fs::write(LIVE_NETWORK, file).map_err(|e| e.to_string())?;
-    reload_network()
+    write_atomically(LIVE_NETWORK, file.as_bytes(), NETWORK_FILE_MODE)?;
+    let reloaded = reload_network();
+    if reloaded.is_err() {
+        log_if_failed(
+            "undoing an address that wouldn't apply",
+            undo_fixed_address(),
+        );
+    }
+    reloaded
 }
 
-/// Keeps the address now in effect across restarts. Refused if it has already been undone.
+/// True if the address in effect isn't the saved one: a new one nobody has confirmed.
+fn is_unconfirmed() -> bool {
+    match fs::read(LIVE_NETWORK) {
+        Ok(live) => fs::read(SAVED_NETWORK).ok().as_deref() != Some(live.as_slice()),
+        Err(_) => false,
+    }
+}
+
+/// At startup: an unconfirmed address can only be left over from a run that ended before its timer
+/// did, and nothing would ever undo it now.
+pub(crate) fn reconcile_fixed_address() -> Result<(), String> {
+    if is_unconfirmed() {
+        log("undoing a fixed address left unconfirmed by the last run");
+        return undo_fixed_address();
+    }
+    Ok(())
+}
+
+/// Keeps the address now in effect across restarts.
 pub(crate) fn confirm_fixed_address() -> Result<(), String> {
-    fs::copy(LIVE_NETWORK, SAVED_NETWORK)
-        .map(|_| ())
-        .map_err(|_| "The address was already undone. Enter it again.".to_owned())
+    let live = fs::read(LIVE_NETWORK)
+        .map_err(|_| "The address was already undone. Enter it again.".to_owned())?;
+    write_atomically(SAVED_NETWORK, &live, NETWORK_FILE_MODE)
 }
 
 /// Removes a file; one already gone is what was wanted.
@@ -191,7 +265,8 @@ fn remove_if_present(path: &str) -> Result<(), String> {
 /// Goes back to the last confirmed setting.
 pub(crate) fn undo_fixed_address() -> Result<(), String> {
     if Path::new(SAVED_NETWORK).exists() {
-        fs::copy(SAVED_NETWORK, LIVE_NETWORK).map_err(|e| e.to_string())?;
+        let saved = fs::read(SAVED_NETWORK).map_err(|e| e.to_string())?;
+        write_atomically(LIVE_NETWORK, &saved, NETWORK_FILE_MODE)?;
     } else {
         remove_if_present(LIVE_NETWORK)?;
     }
@@ -226,50 +301,77 @@ fn write_env(contents: &str) -> Result<(), String> {
     fs::rename(&temporary, ENV_FILE).map_err(|e| e.to_string())
 }
 
+/// At startup: seed lines on a machine with no role marker are left over from a setup a power cut
+/// interrupted. Setup will ask again, so nothing needs them.
+pub(crate) fn remove_abandoned_seed() -> Result<(), String> {
+    if is_set_up()? {
+        return Ok(());
+    }
+    let env = fs::read_to_string(ENV_FILE).map_err(|e| e.to_string())?;
+    let cleaned = rules::env_without_seed(&env);
+    if cleaned.len() == env.len() {
+        return Ok(());
+    }
+    log("removing first-administrator details left by an interrupted setup");
+    write_env(&cleaned)
+}
+
 /// Records a new hospital and starts the main machine's services. The role marker is
-/// written last, so a failure before it leaves the machine still in setup.
+/// written last, so a failure before it leaves the machine still in setup. If the services can't
+/// even be asked to start, all of it is taken back: otherwise the screen would be stuck on "already
+/// set up", with the password waiting in the env for a server that never reads it.
 pub(crate) fn start_main_machine(
     hospital: &str,
     username: &str,
     password: &str,
 ) -> Result<(), String> {
+    let hash = Argon2::default()
+        .hash_password(password.as_bytes())
+        .map_err(|e| e.to_string())?
+        .to_string();
     let env = fs::read_to_string(ENV_FILE).map_err(|e| e.to_string())?;
-    write_env(&rules::env_with_seed(&env, hospital, username, password))?;
-    fs::write(status::HOSPITAL_NAME, hospital.trim()).map_err(|e| e.to_string())?;
-    fs::File::create(ROLE_MAIN)
-        .and_then(|marker| marker.sync_all())
-        .map_err(|e| e.to_string())?;
+    write_env(&rules::env_with_seed(&env, hospital, username, &hash))?;
+    let started = mark_and_start(hospital);
+    if started.is_err() {
+        log_if_failed(
+            "removing the first administrator's details",
+            write_env(&env),
+        );
+        log_if_failed("removing the role marker", remove_if_present(ROLE_MAIN));
+    }
+    started
+}
+
+/// Writes the name and role marker, then starts the services.
+fn mark_and_start(hospital: &str) -> Result<(), String> {
+    write_atomically(
+        status::HOSPITAL_NAME,
+        hospital.trim().as_bytes(),
+        PUBLIC_FILE_MODE,
+    )?;
+    write_atomically(ROLE_MAIN, b"", PUBLIC_FILE_MODE)?;
     output(
         "systemctl",
         &["start", "--no-block", "medbrains-main.target"],
     )
     .map(|_| ())
-    .ok_or_else(|| "The services could not start.".to_owned())
+    .ok_or_else(|| "The services could not start. Try again.".to_owned())
 }
 
-/// Turns the machine off or restarts it.
+/// Turns the machine off or restarts it. Who may ask is decided above this, in one place.
 pub(crate) fn power(action: &str) -> Result<(), String> {
     let verb = power_verb(action).ok_or_else(|| "Unknown action.".to_owned())?;
-    let done = Command::new("systemctl")
-        .arg(verb)
-        .output()
-        .map_err(|e| e.to_string())?;
-    if done.status.success() {
+    let done = child::run("systemctl", &[verb], USUAL_LIMIT);
+    if done.as_ref().is_some_and(|done| done.success) {
         return Ok(());
     }
     // The real reason goes to the journal, the plain next step to the screen.
-    log_refusal(verb, &done.stderr);
-    Err("The machine refused. Try again, or use its power button.".to_owned())
-}
-
-/// Records why systemd refused, for whoever reads the journal.
-fn log_refusal(verb: &str, reason: &[u8]) {
-    let line = format!(
-        "systemctl {verb} failed: {}\n",
-        String::from_utf8_lossy(reason).trim()
+    let reason = done.map_or_else(
+        || "no answer in time".to_owned(),
+        |done| String::from_utf8_lossy(&done.stderr).trim().to_owned(),
     );
-    // Nothing more can be done if the log itself is unavailable.
-    drop(std::io::stderr().write_all(line.as_bytes()));
+    log(&format!("systemctl {verb} failed: {reason}"));
+    Err("The machine refused. Try again, or use its power button.".to_owned())
 }
 
 /// The systemctl verb for a power action.

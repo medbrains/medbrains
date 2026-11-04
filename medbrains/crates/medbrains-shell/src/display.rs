@@ -2,9 +2,9 @@
 //! the host then blurs it. `cage` has no scale option of its own, but it speaks
 //! wlr-output-management, so `wlr-randr` can set one before GTK draws anything.
 
-use std::process::Command;
-
 use gtk4::glib;
+
+use crate::child;
 
 /// Above this density a screen gets double scale, and above the lower one, one and a half.
 const DOUBLE_PPI: f64 = 180.0;
@@ -63,7 +63,7 @@ fn scale_for(width_px: u32, width_mm: u32) -> f64 {
 
 /// Sets the scale. Failing leaves a sharp but small desktop, so it is logged and not fatal.
 pub(crate) fn set_scale() {
-    let Ok(listing) = Command::new("wlr-randr").output() else {
+    let Some(listing) = child::run("wlr-randr", &[], child::USUAL_LIMIT) else {
         glib::g_warning!(
             "medbrains-shell",
             "wlr-randr did not run; leaving the scale alone"
@@ -82,10 +82,10 @@ pub(crate) fn set_scale() {
         output.width_mm
     );
     if scale > 1.0 {
-        let done = Command::new("wlr-randr")
-            .args(["--output", &output.name, "--scale", &scale.to_string()])
-            .status();
-        if !done.is_ok_and(|status| status.success()) {
+        let scale = scale.to_string();
+        let args = ["--output", output.name.as_str(), "--scale", scale.as_str()];
+        let done = child::run("wlr-randr", &args, child::USUAL_LIMIT);
+        if !done.is_some_and(|done| done.success) {
             glib::g_warning!("medbrains-shell", "could not set the display's scale");
         }
     }

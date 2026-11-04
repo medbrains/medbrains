@@ -46,6 +46,9 @@ ProtectKernelModules=yes
 ProtectControlGroups=yes
 ProtectClock=yes
 RestrictAddressFamilies=AF_UNIX AF_NETLINK AF_INET AF_INET6
+# The screen and every app in it talk only to this machine. The setup service makes the network checks.
+IPAddressDeny=any
+IPAddressAllow=localhost
 RestrictRealtime=yes
 # Not RestrictSUIDSGID: its filter answers openat2 with ENOSYS, and WebKit's own
 # bubblewrap sandbox needs openat2.

@@ -122,9 +122,13 @@ finished, not before.
 2. `medbrains-firstboot` generates every secret (JWT keys, ID-fingerprint and provider keys, database
    password), a checksummed PostgreSQL cluster and the certificate for the screen's own front end. None
    of it is in the image, and no password is generated for a person.
-3. `medbrains-os-setup` listens on `127.0.0.1:3100`, as root, with a token only the screen's group can
-   read (`/run/medbrains-console/setup-token`). It has no database and no web framework.
-4. **Review** writes the three fields into the env as `MEDBRAINS_SEED_*`, then the role marker
+3. `medbrains-os-setup` listens on the Unix socket `/run/medbrains-console/setup.sock`, as root, mode 0660
+   root:kiosk. A TCP port would let any local user bind it while the service restarts and receive what the
+   screen sends. Permissions alone still let in WebKit's helpers, which share the screen's group, so it also checks
+   the connecting program with the kernel: root or `/usr/bin/medbrains-shell`, nothing else. A process running as
+   the screen's user could still start that program under its own control, so this raises the bar without closing
+   the matter. It has no database and no web framework, and every helper it runs has a time limit.
+4. **Review** writes the three fields into the env as `MEDBRAINS_SEED_*`, the password only as its Argon2 hash, then the role marker
    `/var/lib/medbrains/config/role-main`, then starts `medbrains-main.target`.
 5. `medbrains-db-init` creates the database roles. `medbrains-server` runs migrations and the seed as the
    owner, then serves as `medbrains_app`, which row level security applies to.
@@ -142,12 +146,13 @@ hospital first, and a failure in between left a hospital nobody could sign in to
 ## Network menu
 
 An icon in the top bar shows the link really in use and opens one panel, the same one first boot and Settings
-show. `network.rs` builds it, and `medbrains-os-setup` does the work, on loopback with the setup token like
-everything else it does.
+show. `network.rs` builds it, and `medbrains-os-setup` does the work, over its socket like everything else it
+does.
 
 - **Ethernet:** each wired link with its state, address and speed. With more than one, **Use this link** gives
   it a lower route metric, on the data partition. The others stay up, so this can't cut the machine off.
-- **Fixed address:** on tmpfs until confirmed, so a mistake or a power cut undoes it.
+- **Fixed address:** on tmpfs until confirmed, so a mistake or a power cut undoes it. The timer is only in memory,
+  so if the service restarts while one waits, it undoes it at start. Keep with nothing waiting is refused.
 - **Wi-Fi:** on or off, the list with signal and lock, a password, the true result, Forget. The panel tells no
   card, software not answering, off and nothing in range apart, so a fault can't read as an empty list. Enterprise
   (802.1X) and hidden networks aren't available yet.
@@ -157,7 +162,7 @@ everything else it does.
 rule only when a card appears, so a wired machine pays only for the disk. networkd does the addressing, as on a
 cable. `wireless-regdb` is added for regulatory data.
 
-**Passwords** go from the screen to the service over loopback, into `/var/lib/iwd/<name>.psk`, mode 0600, on the
+**Passwords** go from the screen to the service over its socket, into `/var/lib/iwd/<name>.psk`, mode 0600, on the
 data partition, written in one step because iwd refused a file it caught half written. A password that fails is
 removed. It never appears on a command line, which is why this drives iwd over D-Bus with a file rather than
 `iwctl --passphrase`, nor in a log. The disk isn't encrypted yet (T1), so a removed disk would give it up.
@@ -273,6 +278,25 @@ restart signs you out.
 **Off in D1.** When it is added, the path is `rustenberg`, MedBrains' own Gotenberg-compatible service,
 not Gotenberg. rustenberg drives Chromium on the host, so a machine that prints needs Chromium, which
 bears on the engine comparison below.
+
+### What can fail during first boot
+
+The failure table the flight rules ask for (`docs/OS-PRINCIPLES.md` section 7). "Tested" means on a QEMU VM;
+"reasoned" means from the code only.
+
+| What fails | Effect | How we notice | What the machine does next | Evidence |
+|---|---|---|---|---|
+| Power cut before Review | Nothing has changed but the network and time zone | Next boot has no role marker | Setup starts again; the three fields are retyped | tested for the marker; reasoned for the cut |
+| Power cut while the env is written | Old env or new, whole (`write_atomically`) | Next boot reads one or the other | No marker, so setup starts again; a repeat replaces any old seed lines | unit test for the replacement; cut reasoned |
+| Power cut between the env and the marker | Seed lines sit in the env, unused. They hold a hash, never the password | Next start finds seed lines and no marker | Removes them, and setup starts again | tested with the lines placed by hand |
+| Power cut after the marker, before seeding finishes | Hospital and administrator are one transaction | Next boot has the marker | The server retries; the env's lines are still there | transaction in code; cut reasoned |
+| The services can't be asked to start | Setup would be a dead end | `systemctl` fails | Env and marker are taken back, the screen says try again | reasoned |
+| The server never answers | The seed lines stay in the env, because the server still needs them. They hold a hash, as the database would | `console-status` keeps waiting | The desktop names the failed service. The hash stays until it answers | reasoned |
+| The setup service doesn't answer | No setup can start | The screen can't connect | "Starting…", then says so after 30 s, retrying | unit test for the words |
+| The setup service restarts with an address waiting | Its timer is lost | Live and saved differ at start | Undoes the address at start | reasoned |
+| A helper hangs | One request would hold the only thread | Time limit in `child.rs` | Killed; the answer says it's unknown | unit test |
+| The marker can't be read | Not knowing isn't "not set up" | `try_exists` errors | Refuses setup, says restart | reasoned |
+| `ip` doesn't answer | "No links" would read as no card | Service reports a fault | "Network unknown" on screen | unit test for the words |
 
 ## Disk layout (§8k)
 

@@ -48,8 +48,9 @@ built. *Proposed* is waiting for the owner. *Rejected* was considered and turned
 | 2026-11-04 | OS desktop S3.1 to S3.6: `medbrains-shell` (GTK, gtk4 0.10 with Debian's rustc 1.85, no extra toolchain) replaces the HTML console and cog; `medbrains-os-setup` (root, loopback, token); `medbrains-main.target` with the role condition on every service, so nothing answers before setup; chosen first password, no generated one; network settings on the data partition, fixed addresses on tmpfs until confirmed; ephemeral web sessions | this branch |
 | 2026-11-04 | OS desktop in the approved design, dark and light; apps from manifests, each with its own view, storage and default-deny origin; status says only what is checked (firewall on, NTS-verified time, failed service named); time zone chosen at setup and kept on the data partition; screen scale set through wlr-randr because cage has no option; debug shell started by udev on whichever serial port exists | this branch |
 | 2026-11-04 | Open apps get Close (ends the view and frees its memory, after any unsaved-changes question), Home (keeps it) and Reload, with keys and a dock menu; apps stay full-screen views, not movable windows | this branch |
-| 2026-11-04 | Proposed, awaiting the owner's confirmation: no terminal on node computers or other machines. Debug images keep a serial shell; release images have no shell on screen | this branch |
+| 2026-11-04 | The owner decided: no terminal on staff machines, node computers or other machines. Debug images keep a serial shell; release images have no shell on screen | this branch |
 | 2026-11-04 | Wi-Fi uses iwd: 3 MB of memory against wpa_supplicant's 11 MB, started only where a card exists, with passwords in root-only files and never on a command line. One network panel for the top bar, first boot and Settings | this branch |
+| 2026-11-04 | The setup service moved from TCP to a Unix socket with no token: any local user could bind the port during a restart and receive passwords. Every helper has a time limit, settings are written atomically, the screen's unit may only reach this machine | this branch |
 
 ## Decisions
 

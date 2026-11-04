@@ -3,11 +3,12 @@
 //! The format is documented in `os/README.md`.
 
 use std::path::Path;
-use std::process::Command;
 
 use gtk4::glib;
 use serde::Deserialize;
 use serde_json::{Value, json};
+
+use crate::child;
 
 /// Where manifests live, in the read-only system.
 const APPS_DIR: &str = "/usr/share/medbrains/apps";
@@ -176,8 +177,9 @@ pub(crate) fn load(role: &str) -> Vec<App> {
     load_from(Path::new(APPS_DIR), role)
 }
 
-/// WebKit's content filter for one app: block everything, then allow its own origin and what it
-/// makes in memory. Regex metacharacters in the origin are escaped; the rules run in order.
+/// WebKit's content filter for one app: block everything, then allow its own origin, its WebSockets
+/// to the same host and what it makes in memory. Regex metacharacters in the origin are escaped; the
+/// rules run in order. Seen on the VM: without the second rule, notifications never connected.
 pub(crate) fn content_filter(origin: &str) -> String {
     let escaped = origin.replace('.', "\\.");
     let allow = |pattern: String| -> Value {
@@ -186,6 +188,7 @@ pub(crate) fn content_filter(origin: &str) -> String {
     json!([
         { "trigger": { "url-filter": ".*" }, "action": { "type": "block" } },
         allow(format!("^{escaped}/")),
+        allow(format!("^{}/", escaped.replacen("https://", "wss://", 1))),
         allow("^blob:".to_owned()),
         allow("^data:".to_owned()),
     ])
@@ -194,12 +197,12 @@ pub(crate) fn content_filter(origin: &str) -> String {
 
 /// The state of each unit, in order, asked of systemd in one call.
 pub(crate) fn unit_states(units: &[String]) -> Vec<String> {
-    let Ok(done) = Command::new("systemctl")
-        .arg("is-active")
-        .args(units)
-        .output()
-    else {
-        return units.iter().map(|_| String::new()).collect();
+    let args: Vec<&str> = std::iter::once("is-active")
+        .chain(units.iter().map(String::as_str))
+        .collect();
+    // `is-active` exits non-zero when any unit isn't active, and its output is still the answer.
+    let Some(done) = child::run("systemctl", &args, child::USUAL_LIMIT) else {
+        return Vec::new();
     };
     String::from_utf8_lossy(&done.stdout)
         .lines()
@@ -361,7 +364,11 @@ mod tests {
             rules[1]["trigger"]["url-filter"],
             "^https://127\\.0\\.0\\.1:8443/"
         );
-        assert_eq!(rules.as_array().map(Vec::len), Some(4));
+        assert_eq!(
+            rules[2]["trigger"]["url-filter"],
+            "^wss://127\\.0\\.0\\.1:8443/"
+        );
+        assert_eq!(rules.as_array().map(Vec::len), Some(5));
     }
 
     #[test]

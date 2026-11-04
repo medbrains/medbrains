@@ -64,6 +64,10 @@ pub(crate) fn field(parent: &gtk::Box, name: &str, hint: &str) -> gtk::Entry {
 impl Panel {
     /// Shows one check's result.
     fn show(&self, network: &Network) {
+        if network.fault {
+            self.message
+                .set_label("This machine couldn't read its own network state.");
+        }
         self.wired.show(network);
         let local = if network.gateway.is_some() {
             network.local
@@ -138,15 +142,31 @@ impl Panel {
             panel.countdown.set_label(&undo_words(left.get()));
             if left.get() == 0 {
                 panel.waiting.set_visible(false);
-                panel
-                    .message
-                    .set_label("The address was undone, because nobody confirmed it.");
-                panel.check();
+                panel.report_undo();
                 return glib::ControlFlow::Break;
             }
             glib::ControlFlow::Continue
         });
         self.check();
+    }
+
+    /// Says what became of an unconfirmed address, from what the machine reports, not from the
+    /// countdown having ended.
+    fn report_undo(&self) {
+        let panel = self.clone();
+        api::check_network(move |result| {
+            let words = match &result {
+                Ok(network) if network.unconfirmed => {
+                    "The address could not be undone. Restart the machine to undo it."
+                }
+                Ok(_) => "The address was undone, because nobody confirmed it.",
+                Err(_) => "This machine isn't answering, so it isn't clear what address it has.",
+            };
+            panel.message.set_label(words);
+            if let Ok(network) = &result {
+                panel.show(network);
+            }
+        });
     }
 
     /// Ends the wait by asking the service to do one of its network actions.

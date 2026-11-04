@@ -271,10 +271,17 @@ fn review_page(flow: &Flow, finished: Rc<dyn Fn()>) -> (gtk::Widget, Rc<dyn Fn()
                 *flow.draft.borrow_mut() = Default::default();
                 finished();
             }
-            Err(failure) => {
-                problem.set_label(&failure.text());
-                sending.set_sensitive(true);
-            }
+            // It may have got further than the answer says. Reads the truth before saying anything,
+            // so a machine already set up moves on rather than offering a dead end.
+            Err(failure) => api::fetch_state(move |state| {
+                if state.is_ok_and(|state| state.set_up) {
+                    *flow.draft.borrow_mut() = Default::default();
+                    finished();
+                } else {
+                    problem.set_label(&failure.text());
+                    sending.set_sensitive(true);
+                }
+            }),
         });
     });
 
