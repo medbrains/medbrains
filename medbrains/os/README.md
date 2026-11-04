@@ -45,6 +45,10 @@ frozen. Set `OS_WEB_PORT` if port 8443 is taken, and `OS_SCREEN_W` / `OS_SCREEN_
 
 From another computer the same box answers at `https://<address>` with a certificate warning.
 
+## Test an image
+
+`make os-image DEBUG=1`, then `make os-test IMAGE=<image.raw>` boots a fresh machine and checks firewall, kernel hardening, time, memory and disk. Limits are in `crates/medbrains-os-test/budgets.json`: lower them as numbers improve, and never raise one without a reason in the PR. It needs QEMU, and doesn't run in CI yet.
+
 ## Boot in UTM
 
 Create a new "Virtualize" Linux VM for ARM64, tick "Boot from UEFI", remove the default drive, and
