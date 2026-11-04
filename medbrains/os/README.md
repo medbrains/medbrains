@@ -71,8 +71,8 @@ partial, so expect gaps; that is what D2 is for.
 1. **Firmware.** The logo of the machine's firmware (TianoCore under QEMU; we don't replace it).
 2. **The MedBrains logo**, from the boot file, then a brief dark gap (see [Measured](#measured)).
 3. **Starting.** A status page, on the machine's screen.
-4. **First boot only: the first sign-in details,** with a keyboard-operable Continue button: hospital
-   code `DEFAULT`, user `admin`, and a one-time password shaped like `4KTM-9PXR`. They stay available
+4. **First boot only: the first sign-in details,** with a keyboard-operable Continue button: user
+   `admin`, and a one-time password shaped like `4KTM-9PXR`. They stay available
    until the password has been changed: **Alt+Left** from the sign-in page returns to them, and so does
    a restart.
 5. **The app, in the same window.** Sign in, choose a new password when asked, and work with keyboard and

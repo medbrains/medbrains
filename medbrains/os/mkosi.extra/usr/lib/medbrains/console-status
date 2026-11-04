@@ -51,7 +51,7 @@ json_first_signin() {
         rm -f "$PW_FILE"
         printf 'null'
     elif [[ "$must_change" == "t" ]]; then
-        printf '{"code":"DEFAULT","user":"admin","password":"%s"}' "$(cat "$PW_FILE")"
+        printf '{"user":"admin","password":"%s"}' "$(cat "$PW_FILE")"
     else
         printf '{"pending":true}'
     fi

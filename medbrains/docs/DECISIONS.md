@@ -40,6 +40,7 @@ built. *Proposed* is waiting for the owner. *Rejected* was considered and turned
 | 2026-11-01 | Security and health intelligence, vendor apps (C1), extension protocol and SDKs (E1) | #5177, #5180–#5183 |
 | 2026-11-02 | Technical-only kernel, verified root, platform lessons, architecture, accelerators, v1.0.0 preparation | #5184–#5190 |
 | 2026-11-02 | Omarchy delivery rules, snapshot test, Rust position; first OS image in progress | #5191 |
+| 2026-11-04 | An OS machine serves one hospital, so its sign-in asks for no hospital code; `MEDBRAINS_SINGLE_HOSPITAL` refuses sign-in unless exactly one hospital is active | this PR |
 
 ## Decisions
 

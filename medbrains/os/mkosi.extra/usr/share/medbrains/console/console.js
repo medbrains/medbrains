@@ -80,7 +80,6 @@ function renderFirstSignIn(first) {
     if (show) byId("continue").focus();
   }
   if (show) {
-    setText("code", first.code);
     setText("user", first.user);
     setText("password", first.password);
   }
