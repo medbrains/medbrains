@@ -106,6 +106,7 @@ N1 to N6 come from RFC-HOSPITAL-OS §8q. Every task ends on a check or a screen.
 | O10 | Mail: web mail app over the existing Stalwart plan (`RFC-MAIL-STALWART`), on the main machine; Thunderbird only as an optional app, not on shared nodes | Staff read mail with nothing stored on a node | later, needs S3; Stalwart licence to check |
 | O9 | PACS on the box | Study stored and viewed on the same machine | later |
 | O11 | Module apps: each module an icon sharing one view and sign-in, shown by role. Turning one on brings what it needs, from one dependency list in Rust, with cycles refused; a module others need cannot be turned off, and turning one off deletes nothing | Turning on Pharmacy brings its required modules and icon, and the server refuses a switch-off that would break it | next: owner required 2026-11-04; UI plan first, Pharmacy as the example |
+| O12 | Every OS screen responsive: setup, desktop, dock, menus and apps at phone, tablet, laptop, desktop, TV and mini-display sizes, in both rotations, with touch targets of 44 px and an on-screen keyboard | Automated screenshots at 480x320, 800x480, 390x844, 768x1024, 1280x800 and 1920x1080 show nothing cut off or overlapping; touch-only setup and sign-in work | next: owner required 2026-11-04 |
 
 ## H. Real hardware
 
