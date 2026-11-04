@@ -162,6 +162,20 @@ N1 to N6 come from RFC-HOSPITAL-OS §8q. Every task ends on a check or a screen.
 | F5 | Flash wear, heat and clock drift measured | Years of disk life, speed under an hour of full load, behaviour with no network at boot | blocked: needs hardware |
 | F6 | Property tests for class A invariants: slot switch, permission decision, audit chain, pairing | Each invariant has one, and it fails when the logic is broken | next |
 
+## X. Close the attacks (`OS-THREATS.md`)
+
+| Task | What | Done when | State |
+|---|---|---|---|
+| X1 | Bypass roles give a reason to open a patient record | Read without a reason refused and audited | next: owner 2026-11-04 |
+| X2 | Update signing key offline on hardware, with rotation | Tampered and rolled-back updates refused | next, with U1 |
+| X3 | AI prompt injection tests | Hidden instructions change nothing | next |
+| X4 | Recovery cannot be rushed or done alone | One person's attempt refused | next, with T2 |
+| X5 | No shared secret across machines | Two fresh machines compared, nothing shared | next |
+| X6 | Hardware hardening: TPM encrypted sessions, PIN or card option, IOMMU, Thunderbolt off, memory wiped at shutdown, no serial login in release | Each checked by `medbrains-os-test` where a VM can show it | next; hardware rows blocked |
+| X7 | Pi 5: secure boot and OTP key design, and what it does not protect | Written, then tested on a Pi | blocked: needs hardware |
+| X8 | Attack test per row of `OS-THREATS.md` | Every row has a test or a stated reason | next |
+| X9 | Outside penetration test before a hospital goes live | Report received and findings closed | blocked: owner, cost |
+
 ## Order
 
 Networking now (N1 to N3), with S0 and B alongside because they block every release. Then S1, S2 and J1, so a
