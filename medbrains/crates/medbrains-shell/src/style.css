@@ -24,7 +24,7 @@ window { background-color: @mb_bg; }
 button, entry, passwordentry, dropdown > button, menubutton > button { min-height: 44px; border-radius: 8px; }
 button { transition: background 120ms ease-out, color 120ms ease-out; }
 button:focus-visible, entry:focus-within, passwordentry:focus-within, menubutton > button:focus-visible { outline: 2px solid @mb_accent; outline-offset: 2px; }
-button.suggested-action { background: #0f62fe; color: #ffffff; }
+button.suggested-action, button:checked { background: #0f62fe; color: #ffffff; }
 
 .topbar { background: @mb_bar; border-bottom: 1px solid @mb_line; padding: 0 16px; min-height: 40px; font-size: 13px; }
 .topbar button, .topbar menubutton > button { background: none; border: none; min-height: 32px; min-width: 32px; padding: 0 8px; box-shadow: none; color: inherit; }
