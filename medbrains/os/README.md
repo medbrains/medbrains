@@ -228,9 +228,9 @@ stays as the baseline; memory is compared here.
 
 | State | Whole machine used (`MemTotal - MemAvailable`) | Server PSS | Screen PSS |
 |---|---|---|---|
-| Before setup, Network screen | 303 MB | none running | not sampled |
-| Desktop, MedBrains never opened (WPE: status page, 834 MB) | **663 MB** | 166 MB | 172 MB (cage 109 + shell 62) |
-| Signed in, Patients open (WPE: 2,331 MB) | **2,209 MB** | 1,145 MB | 581 MB, of which the page's WebProcess 272 MB (WPE: 673 and 412) |
+| Before setup, Network screen | 294 MB | none running | 177 MB (cage 113 + shell 63) |
+| Desktop, MedBrains never opened (WPE: status page, 834 MB) | **693 MB** | 194 MB | 178 MB (cage 113 + shell 65) |
+| Signed in, Patients open (WPE: 2,331 MB) | **2,181 MB** | 1,154 MB | 617 MB, of which the page's WebProcess 308 MB (WPE: 673 and 412) |
 
 The web figures are one run each, sampled seconds after the page settled, so treat them as similar rather
 than better. The server still grows by about 1 GB when someone signs in; why is open, and it is the largest
