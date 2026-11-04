@@ -312,6 +312,9 @@ async fn spawn(secrets: TestSecrets, request_url: Option<String>) -> TestApp {
 
     // Spawn server in background
     tokio::spawn(async move {
+        // Hundreds of tests sign in from loopback, so each request gets its own address to stay
+        // clear of per-address limits. A test that sets its own header keeps it.
+        let app = app.layer(axum::middleware::from_fn(give_each_request_an_address));
         axum::serve(listener, app.into_make_service_with_connect_info::<SocketAddr>())
             .await
             .expect("server crashed");
@@ -456,4 +459,20 @@ pub async fn provision_staff_with(
         csrf,
         user_id,
     }
+}
+
+/// Adds a unique `X-Forwarded-For` from the benchmark range unless the test set one.
+async fn give_each_request_an_address(
+    mut request: axum::extract::Request,
+    next: axum::middleware::Next,
+) -> axum::response::Response {
+    static NEXT: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(1);
+    if !request.headers().contains_key("x-forwarded-for") {
+        let n = NEXT.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        let address = format!("198.18.{}.{}", (n >> 8) & 0xFF, n & 0xFF);
+        if let Ok(value) = address.parse() {
+            request.headers_mut().insert("x-forwarded-for", value);
+        }
+    }
+    next.run(request).await
 }
