@@ -13,11 +13,13 @@ use std::{
 };
 
 use axum::{
-    extract::{ConnectInfo, Request, State},
+    extract::{Request, State},
     http::StatusCode,
     middleware::Next,
     response::{IntoResponse, Response},
 };
+
+use super::client_ip::ClientIp;
 
 /// Maximum login attempts per IP within the window.
 const MAX_ATTEMPTS: usize = 5;
@@ -204,36 +206,7 @@ pub async fn storefront_rate_limit_middleware(
     next.run(request).await
 }
 
-/// Extract client IP — tries `ConnectInfo`, `X-Forwarded-For`, `X-Real-IP`.
+/// The address worked out by `client_ip_middleware`, never read from headers here.
 fn extract_client_ip(request: &Request) -> Option<IpAddr> {
-    // Try ConnectInfo (direct connection)
-    if let Some(connect_info) = request
-        .extensions()
-        .get::<ConnectInfo<std::net::SocketAddr>>()
-    {
-        return Some(connect_info.0.ip());
-    }
-
-    // Try X-Forwarded-For header (first IP in chain)
-    if let Some(forwarded) = request
-        .headers()
-        .get("x-forwarded-for")
-        .and_then(|v| v.to_str().ok())
-        && let Some(first_ip) = forwarded.split(',').next()
-        && let Ok(ip) = first_ip.trim().parse::<IpAddr>()
-    {
-        return Some(ip);
-    }
-
-    // Try X-Real-IP header
-    if let Some(real_ip) = request
-        .headers()
-        .get("x-real-ip")
-        .and_then(|v| v.to_str().ok())
-        && let Ok(ip) = real_ip.trim().parse::<IpAddr>()
-    {
-        return Some(ip);
-    }
-
-    None
+    request.extensions().get::<ClientIp>().map(|ip| ip.0)
 }

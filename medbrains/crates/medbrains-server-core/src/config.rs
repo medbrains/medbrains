@@ -240,8 +240,8 @@ impl AppConfig {
 
         if trusted_proxies.is_empty() {
             tracing::warn!(
-                "No TRUSTED_PROXIES configured — X-Forwarded-For headers will be trusted from any source. \
-                 Set TRUSTED_PROXIES to restrict (e.g., '10.0.0.0/8,172.16.0.0/12')"
+                "No TRUSTED_PROXIES configured — forwarded headers are ignored, so behind a proxy every \
+                 client shares its address. Set TRUSTED_PROXIES (e.g., '127.0.0.1/32')"
             );
         } else {
             tracing::info!("Trusted proxy CIDRs: {:?}", trusted_proxies);
