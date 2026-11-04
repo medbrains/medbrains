@@ -2,9 +2,7 @@
 //! words are plain functions so they can be tested without a display.
 
 use gtk4 as gtk;
-use gtk4::prelude::{
-    AccessibleExtManual, BoxExt, ButtonExt, Cast, CastNone, GtkWindowExt, IsA, WidgetExt,
-};
+use gtk4::prelude::{AccessibleExtManual, BoxExt, Cast, IsA, WidgetExt};
 
 use crate::api::{Machine, Network};
 
@@ -83,40 +81,6 @@ pub(crate) fn page(title: &str, intro: &str, body: &gtk::Box, actions: &gtk::Box
         .hscrollbar_policy(gtk::PolicyType::Never)
         .build();
     scroller.upcast()
-}
-
-/// Asks a yes-or-no question over the screen; `action` runs only on yes.
-pub(crate) fn confirm(
-    parent: &impl IsA<gtk::Widget>,
-    question: &str,
-    detail: &str,
-    yes: &str,
-    action: impl Fn() + 'static,
-) {
-    let root = parent.root().and_downcast::<gtk::Window>();
-    let dialog = gtk::Window::builder().modal(true).decorated(false).build();
-    dialog.set_transient_for(root.as_ref());
-    let body = column(GAP);
-    body.add_css_class("card");
-    body.append(&label(question, "title"));
-    body.append(&label(detail, ""));
-    let actions = row(GAP);
-    actions.set_halign(gtk::Align::End);
-    let cancel = button("Cancel", "");
-    let accept = button(yes, "destructive-action");
-    actions.append(&cancel);
-    actions.append(&accept);
-    body.append(&actions);
-    dialog.set_child(Some(&body));
-    let closing = dialog.clone();
-    cancel.connect_clicked(move |_| closing.close());
-    let closing = dialog.clone();
-    accept.connect_clicked(move |_| {
-        closing.close();
-        action();
-    });
-    dialog.present();
-    cancel.grab_focus();
 }
 
 /// A number of bytes in the unit people use for it.
