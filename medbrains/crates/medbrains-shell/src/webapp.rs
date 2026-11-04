@@ -4,10 +4,13 @@ use std::cell::RefCell;
 use std::rc::Rc;
 
 use gtk4 as gtk;
-use gtk4::prelude::{BoxExt, WidgetExt};
+use gtk4::prelude::{BoxExt, Cast, WidgetExt};
 use gtk4::{gio, glib};
 use webkit6::prelude::{PolicyDecisionExt, WebViewExt};
-use webkit6::{HardwareAccelerationPolicy, NetworkSession, UserContentFilterStore, WebView};
+use webkit6::{
+    HardwareAccelerationPolicy, NavigationPolicyDecision, NetworkSession, UserContentFilterStore,
+    WebView,
+};
 
 use crate::ui;
 
@@ -24,6 +27,24 @@ pub(crate) struct WebApp {
     pub(crate) root: gtk::Box,
     words: gtk::Label,
     view: Rc<RefCell<Option<WebView>>>,
+}
+
+/// True for a navigation away from this machine's app. The content filter would block it too,
+/// but on a dead-end page; refusing it here leaves the person where they were.
+fn leaves_this_machine(decision: &NavigationPolicyDecision) -> bool {
+    let target = decision
+        .navigation_action()
+        .and_then(|mut action| action.request())
+        .and_then(|request| request.uri());
+    !target.is_some_and(|uri| is_local_page(&uri))
+}
+
+/// True for a page the view may show: the app itself, or what the app made in memory.
+fn is_local_page(uri: &str) -> bool {
+    uri.starts_with(APP_URL)
+        || uri.starts_with("blob:")
+        || uri.starts_with("data:")
+        || uri == "about:blank"
 }
 
 /// Builds the view. Sessions are ephemeral, so nothing a page stores reaches the disk, and
@@ -50,13 +71,19 @@ fn new_view(filter: &webkit6::UserContentFilter) -> WebView {
     });
     // A crashed page must not leave a blank screen, because a blank screen reads as a fact.
     view.connect_web_process_terminated(|view, _| view.reload());
-    // A new window would have no way back in a one-window shell, so links stay here.
     view.connect_decide_policy(|_, decision, kind| {
-        if kind == webkit6::PolicyDecisionType::NewWindowAction {
+        let leaves = match kind {
+            // A new window would have no way back in a one-window shell.
+            webkit6::PolicyDecisionType::NewWindowAction => true,
+            webkit6::PolicyDecisionType::NavigationAction => decision
+                .downcast_ref::<NavigationPolicyDecision>()
+                .is_some_and(leaves_this_machine),
+            _ => false,
+        };
+        if leaves {
             decision.ignore();
-            return true;
         }
-        false
+        leaves
     });
     view.set_vexpand(true);
     view.set_hexpand(true);
@@ -130,8 +157,19 @@ impl WebApp {
 
 #[cfg(test)]
 mod tests {
-    use super::CONTENT_FILTER;
+    use super::{CONTENT_FILTER, is_local_page};
     use serde_json::Value;
+
+    /// A look-alike host must not pass as this machine, or a link could leave it.
+    #[test]
+    fn only_this_machines_own_pages_count_as_local() {
+        assert!(is_local_page("https://127.0.0.1:8443/patients"));
+        assert!(is_local_page("blob:https://127.0.0.1:8443/abc"));
+        assert!(!is_local_page("https://deb.debian.org/"));
+        assert!(!is_local_page("https://127.0.0.1:8443.evil.example/"));
+        assert!(!is_local_page("http://127.0.0.1:8443/"));
+        assert!(!is_local_page("file:///etc/passwd"));
+    }
 
     /// The rules run in order, so the block must come first and allow only this machine.
     #[test]

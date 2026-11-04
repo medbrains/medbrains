@@ -10,6 +10,9 @@ use serde_json::json;
 
 use crate::{api, ui};
 
+/// Wide enough for the longer question and both its answers.
+const POWER_MENU_WIDTH: i32 = 288;
+
 /// The calendar panel the clock opens, with the time zone and any clock warning.
 pub(crate) fn clock_button() -> (gtk::MenuButton, gtk::Label) {
     let panel = ui::column(ui::GAP / 2);
@@ -61,6 +64,8 @@ pub(crate) fn power_button() -> gtk::MenuButton {
     ask.append(&detail);
     ask.append(&answers);
     let panel = ui::column(0);
+    // Its widest from the start: a menu that grows once open runs off the screen's edge.
+    panel.set_width_request(POWER_MENU_WIDTH);
     panel.append(&choose);
     panel.append(&ask);
     let popover = gtk::Popover::builder().child(&panel).build();

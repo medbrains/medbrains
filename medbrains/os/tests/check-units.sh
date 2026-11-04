@@ -17,4 +17,6 @@ for unit in medbrains-server caddy postgresql medbrains-db-init; do
 done
 grep -qx 'disable caddy.service' "$UNITS/../system-preset/10-medbrains.preset" ||
     { echo "FAIL: Debian's preset would enable caddy"; exit 1; }
+grep -qx 'disable chronyd-restricted.service' "$UNITS/../system-preset/10-medbrains.preset" ||
+    { echo "FAIL: the restricted chrony can take the LAN's time port away"; exit 1; }
 echo PASS

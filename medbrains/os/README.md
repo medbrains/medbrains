@@ -1,13 +1,17 @@
 # MedBrains OS image (D1)
 
 The appliance image from `RFCs/RFC-HOSPITAL-OS.md` §8b: Debian stable, PostgreSQL 17, the MedBrains
-server and web app, and the app itself on the machine's own screen. Boot it and sign in on that
-screen, with no separate browser. D1 means first bootable, not finished; see
+server and web app, and a native desktop on the machine's own screen. Boot it, set it up there, and open
+MedBrains from the desktop, with no separate browser. D1 means first bootable, not finished; see
 [what is in D1](#what-is-in-d1-and-what-is-not).
 
 ## Build
 
-`make os-image` cross-compiles the server, builds the web app and builds the image.
+`make os-image` cross-compiles the server and setup service, builds the web app and builds the image.
+`medbrains-shell` links against GTK and WebKitGTK, so it is compiled inside the image build by
+`mkosi.build.chroot` with Debian's own rustc 1.85. That is why it sits outside the workspace and pins
+gtk4 0.10 and webkit6 0.5: the newest gtk4 needs rustc 1.92, and we chose no extra toolchain download
+over the newest crate.
 
 ```sh
 make os-image ARCH=arm64            # server + web app + image
@@ -74,44 +78,45 @@ partial, so expect gaps; that is what D2 is for.
 
 1. **Firmware.** The logo of the machine's firmware (TianoCore under QEMU; we don't replace it).
 2. **The MedBrains logo**, from the boot file, then a brief dark gap (see [Measured](#measured)).
-3. **Starting.** A status page, on the machine's screen.
-4. **First boot only: the first sign-in details,** with a keyboard-operable Continue button: user
-   `admin`, and a one-time password shaped like `4KTM-9PXR`. They stay available
-   until the password has been changed: **Alt+Left** from the sign-in page returns to them, and so does
-   a restart.
-5. **The app, in the same window.** Sign in, choose a new password when asked, and work with keyboard and
-   mouse. On every later boot the sign-in page is the first thing shown, with no password anywhere.
-6. **If the server stops answering for 30 seconds,** the status page says so in plain words and goes back
-   to the app when the server recovers.
+3. **First boot only: setup,** native screens, each with Back, all operable by keyboard:
+   - **Network:** cable state, addresses, whether the gateway and the internet answer, and a plain
+     sentence about Wi-Fi. A fixed address undoes itself unless confirmed within 60 seconds.
+   - **Updates:** says installing updates is not available in this version.
+   - **"What are you doing with this machine?"** "Setting up a new hospital" continues. "Connecting to my
+     hospital" says it is not available in this version, with Back.
+   - **Three fields:** hospital name, username, password, with the rules shown under each.
+   - **Review,** then **Start the main machine**. Nothing is final before this.
+4. **The desktop:** wallpaper, a top bar (network, clock opening a calendar, power), a dock, a launcher
+   with search, and machine widgets (health, network, data disk). It shows no patient data. Tiles exist
+   only for MedBrains and Settings.
+5. **MedBrains,** in an embedded view with a Home button back to the desktop. Sign in with what you
+   chose; nothing forces a change. Home keeps the app as it was, and a restart signs you out.
 
-Opening the app from a browser on another computer on the same network stays available as an option,
-not the main path.
+Opening the app from a browser on another computer on the same network stays available once setup has
+finished, not before.
 
 ### First boot, underneath
 
 1. `systemd-repart` grows the data partition to fill the disk.
 2. `medbrains-firstboot` generates every secret (JWT keys, ID-fingerprint and provider keys, database
-   and first admin passwords), a checksummed PostgreSQL cluster and the certificate for the screen's own
-   front end. None of it is in the image.
-3. `medbrains-db-init` creates the owner, `medbrains_app` and `medbrains_outbox_worker` roles, using
-   `deploy/standalone/db-roles.sh`.
-4. `medbrains-server` runs migrations and the seed as the owner, then serves as `medbrains_app`, which
-   row level security applies to.
-5. `medbrains-console-status` removes the password from the env once the seed has read it, and removes
-   the password file once the administrator has changed it.
+   password), a checksummed PostgreSQL cluster and the certificate for the screen's own front end. None
+   of it is in the image, and no password is generated for a person.
+3. `medbrains-os-setup` listens on `127.0.0.1:3100`, as root, with a token only the screen's group can
+   read (`/run/medbrains-console/setup-token`). It has no database and no web framework.
+4. **Review** writes the three fields into the env as `MEDBRAINS_SEED_*`, then the role marker
+   `/var/lib/medbrains/config/role-main`, then starts `medbrains-main.target`.
+5. `medbrains-db-init` creates the database roles. `medbrains-server` runs migrations and the seed as the
+   owner, then serves as `medbrains_app`, which row level security applies to.
+6. `medbrains-console-status` removes all the seed lines once the server answers, and exits.
 
-**Why the seeded admin and not the onboarding wizard:** the server seeds a hospital on every empty
-database before it listens, so `/api/onboarding/status` never reports `needs_setup` on a fresh box and
-`/onboarding` refuses. Keeping the seed with a generated password is the path the standalone installer
-already uses. The seed's defaults are now the neutral "My Hospital" and "Main Campus", renamed in Admin.
-Choosing your own password and naming the hospital at first boot is a later step (§8s).
+**Nothing listens before setup.** A condition on the target alone does not do it, because systemd still
+starts what a skipped unit wants, and we measured 443 answering that way. So the server, database roles,
+PostgreSQL and Caddy each carry the role condition themselves, and `tests/check-units.sh` fails if one
+drifts. Before setup, `ss` shows TCP only on loopback; UDP 5353 (names) and 123 (time) remain open.
 
-**The first password is only 8 characters, about 40 bits,** so a person can read it off a screen and
-type it. It comes from the OS random source, in a 31-character alphabet with no 0, O, 1, I or L. The
-password policy does not apply to it: that policy checks passwords people choose, which is why the
-forced change asks for a stronger one. That length is acceptable because it is one-time and guessing is
-limited, as measured below: 5 tries a minute per address, and the account locks for 15 minutes after 5
-failures.
+**A power cut during setup** cannot leave a half-made hospital. The env is replaced in one step, the marker
+comes last, and the seed creates the hospital and administrator in one transaction. It used to create the
+hospital first, and a failure in between left a hospital nobody could sign in to.
 
 ## Network
 
@@ -128,52 +133,41 @@ command line. Unprivileged user namespaces stay on because WebKit's sandbox need
 
 ## How the screen works
 
-- `cage` is the Wayland kiosk compositor. `console-session`, running inside it as the unprivileged
-  `kiosk` user, starts `cog` (WPE WebKit) on the status page.
-- The status page is written once and never reloads. Every 5 seconds it probes the front end and the
-  server and reads `/run/medbrains-console/status.js`, then changes only the text that differs. If nothing
-  differs it touches nothing, so nothing repaints. It is a script file because WebKit cannot fetch
-  `file://` URLs, and the flag that would allow it lets a page read any local file.
-- `medbrains-console-status` rewrites that file only when its content differs, on tmpfs. It asks the
-  database only while the first password exists, and every command has a timeout.
-- The page opens the app by itself when ready, unless the first sign-in details are still waiting.
-- If health checks fail for 30 seconds, `console-session` tells cog to show the status page.
+- `cage` is the Wayland kiosk compositor. `medbrains-shell` (Rust, GTK 4, no libadwaita) runs inside it as
+  the unprivileged `kiosk` user, in one full-screen window. If it crashes, `cage` ends and the unit restarts.
+- The shell asks `medbrains-os-setup` once at start whether the machine is set up, and every 10 seconds for
+  the desktop's figures. That poll stays on the machine. Only the network screen, and only while it is on
+  screen, pings the gateway and makes one request to the internet.
+- WebKitGTK is loaded only when MedBrains is first opened, so the desktop does not pay for it.
 
-**Blips and flapping.** A shorter failure leaves the app alone, because the page may hold a half-typed
-form. After a real outage the app reloads, so an unsaved form is lost at that point. Each return within
-10 minutes doubles the wait before going back (10, 20, 40 seconds, up to 5 minutes).
+**Staying on this machine.** The app loads from `https://127.0.0.1:8443`, a loopback-only front end with a
+self-signed certificate, the only certificate the kiosk trusts, so there is no warning. There is no address
+bar. The content filter (`crates/medbrains-shell/content-filter.json`) blocks everything except that origin,
+`blob:` and `data:`; if it cannot be compiled, the app does not open at all. Navigation off the machine is
+refused before the filter, so a person stays where they were, and new windows are refused. `cage` blocks
+switching to another console. Nothing on the screen runs a shell.
 
-**Staying on this machine.** The app loads from `https://127.0.0.1:8443`, a loopback-only front end with
-a self-signed certificate, the only certificate the kiosk trusts, so there is no warning. cog has no
-address bar. A WebKit content filter blocks everything except that origin, the status page and its
-health probe, and cage blocks switching to another console. Nothing on the screen runs a shell.
+**What a session keeps.** The view's session is ephemeral: nothing a page stores reaches the disk, and a
+restart signs you out.
 
-**Limits we cannot enforce:**
-- cog's history keys stay on: Alt+Left and Alt+Right. Ctrl+Q did nothing when we tried it, and
-  Ctrl+Alt+F2 stayed on the screen's console, as intended.
-- A blocked address shows WebKit's small "blocked by a content blocker" page with "Try again". We reached
-  it only by forcing it with `cogctl`. A link to another site in the app would land on it, and Alt+Left
-  leaves it.
-- The anatomy model's CDN is blocked too, so the body-site picker's 3D model won't load on this screen.
-- WPE has no file picker, so uploads don't work on this screen. Not tested beyond that.
-
-**Known gaps, not built yet:**
-- **No auto-lock or fast user switching.** Anyone standing at the screen can use a signed-in session.
-  Sign-in protects the data until then; nothing locks it afterwards.
-- A password forgotten after the change has no recovery path on the appliance (§8k, later).
-- Sign-in is limited per address, and everyone at the screen is one address (`127.0.0.1`). The limit is 5
-  requests a minute across all `/auth` routes, including the sign-in page's lookups, so busy use of the
-  screen can hit it. We hit it in testing, and the page wrongly blamed the connection.
+**Limits we chose or could not avoid:**
+- **`cage` does not show a second window.** A dialog window stayed invisible and its modal grab blocked all
+  input, so the power question lives inside its menu, and the file chooser is refused. **Uploads, downloads
+  and printing do not work on this screen.** The anatomy model's CDN stays blocked too.
+- **Wi-Fi cannot be joined,** and the screen says so.
+- **No lock or switch person.** Anyone at the screen can use a signed-in session until a restart.
+- **The clock shows a warning** in red until chrony has a real time source, including for a moment after
+  every boot, and always on a network with no time server. Its time zone is UTC, with no way to change it.
+- **If the server stops** while MedBrains is open, Caddy's plain sentence shows in the view and the health
+  widget says so. The old automatic return to a status page is gone.
+- A password forgotten after setup has no recovery path on the appliance (§8k, later).
+- Sign-in is limited per address, and everyone at the screen is one address (`127.0.0.1`).
 - Anybody on the network can lock the administrator out for 15 minutes with 5 wrong passwords.
-- A graceful server stop took up to 29 seconds in testing.
 
-**Web app items to fix elsewhere, not changed in this PR:**
+**Web app items to fix elsewhere, not changed here:**
 - The sign-in page says "For Indian hospitals" and that data "is kept in India", which is not true of
   every appliance.
-- A wrong password shows the bare word "unauthorized".
 - The app shows "Test cases" and asks to verify `admin@medbrains.localhost`, which cannot receive mail.
-- The rate limiter's 429 is reported on the sign-in page as a connection problem.
-- Other mentions of the client's name remain in fixtures and comments; the owner has that list.
 
 ## Printing
 
@@ -207,7 +201,7 @@ partitions keeps the data.
 | A/B updates and rollback | D4. Slot B is reserved; nothing writes to it yet |
 | Recovery partition and boot menu | D4. A failed boot shows systemd's own messages and that the root account is locked |
 | Trusted TLS for other computers | D2. Caddy's local CA means a browser warning on first visit |
-| Setup wizard for hospital, backups, TLS | D2 (§8s) |
+| Backups and TLS in setup | D2 (§8s). Hospital name, first administrator and network are in |
 | Nightly backups, health screen | D2. `/var/backups/medbrains` exists, no timer runs |
 | Clinic compile profile (SM2) | later; today's binary has all modules |
 | Signed images, SBOM | SEC1 |
@@ -218,13 +212,29 @@ partitions keeps the data.
 
 - `mkosi.conf`, `mkosi.conf.d/`: packages and image settings.
 - `mkosi.repart/`: build-time partitions. `mkosi.extra/usr/lib/repart.d/`: first-boot growth.
-- `mkosi.extra/`: units, first-boot scripts, the status page, journald, watchdog, network and Caddy.
+- `mkosi.extra/`: units, first-boot scripts, journald, watchdog, network and Caddy.
 - `mkosi.postinst.chroot`: removes the baked PostgreSQL cluster, enables units.
-- `mkosi.build.chroot`, `patches/`: rebuilds cog's Wayland plugin with the click fix.
+- `mkosi.build.chroot`: compiles `crates/medbrains-shell` and installs its fonts.
+- `tests/`: `check-units.sh` and `console-status.sh` run alone; `vm.py` drives a booted debug image with real input.
 - `mkosi.splash.bmp`, `ukify-splash.py`, `install-ukify-splash.sh`: the boot logo.
 - `build.sh`: runs mkosi. `builder.Dockerfile`: the Mac fallback. `qemu-run.sh`: boot it.
 
 ## Measured
+
+**Everything after the first table below predates the native shell** and describes cage + cog (WPE). It
+stays as the baseline; memory is compared here.
+
+**Native shell against WPE** (same VM: 1280x800, 4 vCPUs, 4 GB, software rendering, debug image)
+
+| State | Whole machine used (`MemTotal - MemAvailable`) | Server PSS | Screen PSS |
+|---|---|---|---|
+| Before setup, Network screen | 303 MB | none running | not sampled |
+| Desktop, MedBrains never opened (WPE: status page, 834 MB) | **663 MB** | 166 MB | 172 MB (cage 109 + shell 62) |
+| Signed in, Patients open (WPE: 2,331 MB) | **2,209 MB** | 1,145 MB | 581 MB, of which the page's WebProcess 272 MB (WPE: 673 and 412) |
+
+The web figures are one run each, sampled seconds after the page settled, so treat them as similar rather
+than better. The server still grows by about 1 GB when someone signs in; why is open, and it is the largest
+part of the 512 MB target's gap. The WebKit view stays alive after Home until a restart.
 
 Everything here was **measured in QEMU on an Apple-silicon Mac** (HVF, 4 vCPUs, 4 GB RAM, no GPU, so
 software rendering, on a host often under heavy load from other work). None of it is a Raspberry Pi
