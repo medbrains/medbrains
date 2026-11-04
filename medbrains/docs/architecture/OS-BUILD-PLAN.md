@@ -63,6 +63,7 @@ N1 to N6 come from RFC-HOSPITAL-OS §8q. Every task ends on a check or a screen.
 | J1 | A node joins: code, approval, agent | Second VM joins and works | next, needs S1, S2 |
 | J2 | Move, swap, replace | Machine moved; printer and queue follow | later |
 | J3 | Device gateway edge | Lab result queued through a link cut | later, needs N4.2 |
+| J5 | Remote machines over the internet: a joined node reaches the main machine through a relay the hospital runs, or a direct address or site link. Off by default, end-to-end encrypted, works behind CGNAT, address can be retyped after joining | A node on another network joins, works and survives an address change, with the relay unable to read traffic | next: owner required 2026-11-04 for the first version; a MedBrains-run relay needs an owner decision and DPDP review |
 | J4 | Second site, ward edge, imaging cache | One at a time; offline rules clinically reviewed | later |
 
 ## C. MedBrains Control
