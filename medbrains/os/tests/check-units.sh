@@ -8,11 +8,12 @@ UNITS="$OS/mkosi.extra/usr/lib/systemd/system"
 ROLE=ConditionPathExists=/var/lib/medbrains/config/role-main
 for unit in medbrains-main.target medbrains-server.service medbrains-db-init.service \
     medbrains-console-status.service caddy.service.d/10-medbrains.conf \
+    ferriskey.service ferriskey-init.service medbrains-signin-limit.service \
     postgresql@.service.d/10-medbrains.conf; do
     grep -qx "$ROLE" "$UNITS/$unit" || { echo "FAIL: $unit has no role condition"; exit 1; }
 done
 enabled="$(sed -n '/^systemctl enable/,/[^\\]$/p' "$OS/mkosi.postinst.chroot")"
-for unit in medbrains-server caddy postgresql medbrains-db-init; do
+for unit in medbrains-server caddy postgresql medbrains-db-init ferriskey ferriskey-init medbrains-signin-limit; do
     if grep -qw "$unit" <<<"$enabled"; then echo "FAIL: postinst enables $unit"; exit 1; fi
 done
 grep -qx 'disable caddy.service' "$UNITS/../system-preset/10-medbrains.preset" ||

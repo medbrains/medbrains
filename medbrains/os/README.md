@@ -116,10 +116,65 @@ hospital first, and a failure in between left a hospital nobody could sign in to
 
 ## Network
 
-`/etc/nftables.conf` is default deny in both directions. Inbound: 80, 443, 123 (time for the LAN), 5353
-(`medbrains.local`). Outbound: address, names, time, and 443 to any address until Control can hold an allowlist.
+`/etc/nftables.conf` is default deny in both directions. Inbound: 80, 443, 9443 (identity provider, after setup), 123 (time for the
+LAN), 5353 (`medbrains.local`). Outbound: address, names, time, and 443 to any address until Control can hold an allowlist.
 Analysers and PACS have no outbound path until the device network gateway (task N4.2). A file that does not
 parse fails the build. Time is `chrony` with NTS, and keeps serving the LAN with the internet gone.
+
+## Identity provider (FerrisKey)
+
+The main machine runs [FerrisKey](https://github.com/ferriskey/ferriskey) (Apache-2.0) as an identity
+provider MedBrains can trust over OIDC. **It proves who someone is; what they may do stays in MedBrains**
+(RFC-AUTHZ), and FerrisKey's built-in roles are not used for people. **Local sign-in stays and stays the
+default**: nothing signs in through FerrisKey until an administrator adds it under SSO settings. The owner's
+acceptance results are in `docs/DECISIONS.md`.
+
+| What | How |
+|---|---|
+| Build | `build-ferriskey.sh` compiles one pinned commit (v0.10.2) with zigbuild, the console with pnpm. Git checks the whole tree against the commit hash; Debian's OpenSSL debs are pinned by SHA-256. No Docker, no upstream image. Rust 1.99, not Debian's 1.85 |
+| Runs as | `ferriskey.service`, its own user, hardened, on `127.0.0.1:3333`, main machine only, after setup. `IPAddressDeny=any` except localhost, so it cannot call out; telemetry is off in its default config |
+| Reached at | `https://medbrains.local:9443`, through Caddy. Its console has no base path, so it cannot share 443 with the app; a port of its own makes it its own origin. The firewall allows 9443 with the same per-address limit as 443. Metrics and API docs answer 404 from outside |
+| Data | Its own database and non-superuser role on the local PostgreSQL. `ferriskey-init` applies its migrations with psql, because its API does not migrate itself |
+| Secrets | Generated on the machine into `/var/lib/medbrains/config/ferriskey.env`, never in the image. **Back this file up with the database** |
+| Trust | The server trusts its own self-signed certificate through `SSL_CERT_FILE`, and still trusts the public roots through `SSL_CERT_DIR` |
+
+**Measured** in QEMU (same VM as below, debug image, desktop showing, idle, host under heavy load; two boots each way,
+three samples each): whole machine 536 MB without it, 601 MB with it, so **about 65 MB**. FerrisKey's own PSS is
+62.5 MB and the limiter's 0.4 MB, against the project's "about 10 MB"; its RSS was 77 MB. Its database connections
+add 22 MB PSS, some of it shared with the rest of PostgreSQL. After the acceptance run: FerrisKey 83 MB, connections
+43 MB. Image: 103 MB more on the system partition (binary 94 MB, console 8 MB), about 21 MB of the binary after
+`zstd -19`; the database starts at 12 MB. Not a Raspberry Pi number.
+
+**To connect it:** read `ADMIN_PASSWORD` from the env file, sign in to the console in the `master` realm, make
+a realm and a confidential client whose redirect is `https://medbrains.local/api/auth/sso/callback`, add a
+client scope holding an `oidc-group-membership-mapper` (bare names, in the ID token) as a default scope, then add
+the provider and its group mappings in MedBrains' SSO settings. `tests/ferriskey-acceptance.py` does all of it.
+Control does not do this yet.
+
+**Signing keys.** FerrisKey issue #1317 says realm keys sit unencrypted in the database, and it is still open.
+At v0.10.2 `SECRETS_ENCRYPTION_KEYS` seals them, TOTP seeds and SMTP passwords, and we set it: we read a
+`fk1:k1:…` value in `jwt_keys.private_key`, not a PEM. But the sealing key is in the env file on the same data
+partition, and that partition is not encrypted yet (SEC3). So **anyone with the disk can still forge a token for
+any user** until LUKS arrives. Treat a stolen disk as a stolen identity provider.
+
+**Sign-in limit.** FerrisKey has no general rate limit (issue #933), and Debian's Caddy 2.6.2 has no rate limit
+module. So Caddy's `forward_auth` asks `medbrains-signin-limit` (standard library only, 1.6 MB resident) before
+each sign-in POST: 5 attempts at once per sign-in session, regaining 5 a minute; 60 at once per address, regaining
+30 a minute. If it is down, sign-ins answer 502 and systemd restarts it within a second. A client that keeps an
+address's bucket empty does slow others behind that address, for as long as it continues. MedBrains' own password
+sign-in is stricter: 5 attempts a minute per address.
+
+**Known limits**
+- FerrisKey locks an account after 10 wrong passwords for 15 minutes, counted per account. We measured that a
+  stranger who knows a username can lock its owner out. The sign-in limit slows this but does not stop it.
+- Sign-in cannot be restricted to approved key cards: no attestation or AAGUID allow-list exists (see DECISIONS).
+- The machine's own screen cannot use it: `medbrains-shell` refuses to navigate off `127.0.0.1:8443`, so SSO works
+  from other computers' browsers only, and `medbrains.local` must resolve for them.
+- Upstream directory: `oidc` federation was tested only against a second realm on this machine, with
+  `WEBHOOK_ALLOW_PRIVATE_ENDPOINTS=true`, which it needs for any private address. Entra or Okta also need a drop-in
+  lifting `IPAddressDeny`. Neither was tested.
+- It is one more thing to patch: security fixes land in the latest minor only, and three advisories were
+  published in three months. Upgrading means changing `FK_COMMIT` and shipping an image.
 
 ## How the screen works
 
@@ -208,6 +263,8 @@ partitions keeps the data.
 - `tests/`: `check-units.sh` and `console-status.sh` run alone; `vm.py` drives a booted debug image with real input.
 - `mkosi.splash.bmp`, `ukify-splash.py`, `install-ukify-splash.sh`: the boot logo.
 - `build.sh`: runs mkosi. `builder.Dockerfile`: the Mac fallback. `qemu-run.sh`: boot it.
+- `build-ferriskey.sh`: compiles the identity provider from its pinned commit.
+- `tests/ferriskey-acceptance.py`: the owner's acceptance test, against a booted debug image.
 
 ## Measured
 

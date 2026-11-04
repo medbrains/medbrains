@@ -37,3 +37,43 @@ https://127.0.0.1:8443 {
 	}
 	import server
 }
+
+# The identity provider's console and API. Its console has no base path, so it cannot share 443 with
+# the app at /; its own port also makes it its own origin. A certificate of its own, for the one name
+# the MedBrains server trusts it by.
+:9443 {
+	tls /var/lib/caddy/local/idp-cert.pem /var/lib/caddy/local/idp-key.pem
+	encode zstd gzip
+	header {
+		Strict-Transport-Security "max-age=31536000"
+		X-Frame-Options SAMEORIGIN
+		X-Content-Type-Options nosniff
+		Referrer-Policy no-referrer
+		Permissions-Policy "camera=(), microphone=(), geolocation=()"
+		Content-Security-Policy "default-src 'self'; script-src 'self' 'sha256-A643BmbChRG74z051c6gsAMQKI2+U7VGv/seGeiTvvA='; style-src 'self' 'unsafe-inline'; font-src 'self' data:; img-src 'self' data:; connect-src 'self'; frame-src 'self'; worker-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'self'"
+	}
+	# Sign-in attempts ask the limiter first (crates/medbrains-signin-limit). If it is down, Caddy
+	# answers 502: sign-ins fail closed, and systemd restarts it within a second.
+	@signin {
+		method POST
+		path /api/realms/*/login-actions/* /api/realms/*/protocol/openid-connect/token /api/realms/*/protocol/openid-connect/registrations /api/realms/*/device/verify
+	}
+	@internal path /api/metrics /api/swagger-ui* /api/scalar* /api/redoc* /api/rapidoc* /api/api-docs*
+	handle @internal {
+		respond 404
+	}
+	handle /api/* {
+		forward_auth @signin 127.0.0.1:3101 {
+			uri /check
+		}
+		reverse_proxy 127.0.0.1:3333
+	}
+	handle {
+		root * /usr/share/ferriskey/web
+		try_files {path} /index.html
+		file_server
+	}
+	handle_errors {
+		respond "Sign-in is not answering. Try again in a moment; if it stays like this, call your system administrator." {err.status_code}
+	}
+}

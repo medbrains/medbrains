@@ -41,6 +41,9 @@ MEDBRAINS_OBJECTS_HOT=/var/lib/medbrains/objects
 MEDBRAINS_OBJECTS_COLD=/var/lib/medbrains/cold
 MEDBRAINS_OBJECTS_ARCHIVE=/var/lib/medbrains/archive
 MEDBRAINS_ICD_LOCAL_SERVICE=false
+MEDBRAINS_PUBLIC_BASE_URL=https://medbrains.local
+SSL_CERT_FILE=$CONF/idp-front.pem
+SSL_CERT_DIR=/etc/ssl/certs
 JWT_PRIVATE_KEY=$priv
 JWT_PUBLIC_KEY=$pub
 MEDBRAINS_IDENTIFIER_HMAC_KEY=$(openssl rand -base64 48 | tr -d '\n')
@@ -83,6 +86,14 @@ create_local_cert() {
         -subj "/CN=MedBrains local screen" -addext "subjectAltName=IP:127.0.0.1" 2>/dev/null
     chown caddy:caddy /var/lib/caddy/local/key.pem /var/lib/caddy/local/cert.pem
     install -m 0644 /var/lib/caddy/local/cert.pem /var/lib/kiosk/local-front.pem
+    # The identity provider's front end, which the MedBrains server must trust by this one name.
+    # CA:FALSE, because rustls refuses a CA certificate used as a server's own.
+    openssl req -x509 -newkey ec -pkeyopt ec_paramgen_curve:prime256v1 -nodes -days 7300 \
+        -keyout /var/lib/caddy/local/idp-key.pem -out /var/lib/caddy/local/idp-cert.pem \
+        -subj "/CN=medbrains.local" -addext "subjectAltName=DNS:medbrains.local" \
+        -addext "basicConstraints=critical,CA:FALSE" 2>/dev/null
+    chown caddy:caddy /var/lib/caddy/local/idp-key.pem /var/lib/caddy/local/idp-cert.pem
+    install -m 0644 /var/lib/caddy/local/idp-cert.pem "$CONF/idp-front.pem"
 }
 
 systemd-tmpfiles --create /usr/lib/tmpfiles.d/medbrains.conf

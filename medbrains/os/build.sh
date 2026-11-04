@@ -8,6 +8,7 @@
 #   MEDBRAINS_SERVER_BIN  the server for the target arch
 #                         [$CARGO_TARGET_DIR/<triple>/release/medbrains-server]
 #   MEDBRAINS_WEB_DIST    the built web app [../apps/web/dist]
+#   FERRISKEY_DIR         the identity provider, from build-ferriskey.sh [$OS_WORK/ferriskey-<arch>]
 #   OS_WORK               build cache + output [/tmp/mb-osimage]
 #
 # --debug adds a root shell on the serial console, for verification only.
@@ -33,6 +34,8 @@ esac
 OS_WORK="${OS_WORK:-/tmp/mb-osimage}"
 SERVER="${MEDBRAINS_SERVER_BIN:-${CARGO_TARGET_DIR:-$REPO/target}/$TRIPLE/release/medbrains-server}"
 OS_SETUP="$(dirname "$SERVER")/medbrains-os-setup"
+SIGNIN_LIMIT="$(dirname "$SERVER")/medbrains-signin-limit"
+FERRISKEY="${FERRISKEY_DIR:-$OS_WORK/ferriskey-$ARCH}"
 WEB="${MEDBRAINS_WEB_DIST:-$REPO/apps/web/dist}"
 if [[ ! -x "$SERVER" ]]; then
     echo "no server binary at $SERVER — cross-build it with zigbuild for $TRIPLE (see README)" >&2
@@ -40,6 +43,14 @@ if [[ ! -x "$SERVER" ]]; then
 fi
 if [[ ! -x "$OS_SETUP" ]]; then
     echo "no setup service at $OS_SETUP — cross-build medbrains-os-setup with the server" >&2
+    exit 1
+fi
+if [[ ! -x "$SIGNIN_LIMIT" ]]; then
+    echo "no sign-in limit at $SIGNIN_LIMIT — cross-build medbrains-signin-limit with the server" >&2
+    exit 1
+fi
+if [[ ! -x "$FERRISKEY/ferriskey-api" ]]; then
+    echo "no identity provider at $FERRISKEY — run os/build-ferriskey.sh --arch $ARCH" >&2
     exit 1
 fi
 if [[ ! -f "$WEB/index.html" ]]; then
@@ -54,6 +65,11 @@ install -d "$EXTRA/usr/bin" "$EXTRA/usr/share/medbrains" "$EXTRA/usr/lib/medbrai
     "$OS_WORK/out-$ARCH" "$OS_WORK/cache-$ARCH"
 install -m 0755 "$SERVER" "$EXTRA/usr/bin/medbrains-server"
 install -m 0755 "$OS_SETUP" "$EXTRA/usr/bin/medbrains-os-setup"
+install -m 0755 "$SIGNIN_LIMIT" "$EXTRA/usr/bin/medbrains-signin-limit"
+install -m 0755 "$FERRISKEY/ferriskey-api" "$EXTRA/usr/bin/ferriskey-api"
+install -d "$EXTRA/usr/share/ferriskey"
+cp -R "$FERRISKEY/web" "$EXTRA/usr/share/ferriskey/web"
+cp -R "$FERRISKEY/migrations" "$EXTRA/usr/share/ferriskey/migrations"
 cp -R "$WEB" "$EXTRA/usr/share/medbrains/web"
 # Pre-compressed copies are for a CDN; on the appliance Caddy compresses.
 find "$EXTRA/usr/share/medbrains/web" \( -name '*.br' -o -name '*.gz' -o -name '*.map' \) -delete
