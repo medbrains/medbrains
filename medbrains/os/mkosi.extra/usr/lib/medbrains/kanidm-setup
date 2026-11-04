@@ -1,0 +1,103 @@
+#!/bin/bash
+# Sets the identity provider's rules on first start, and checks them on every start.
+#
+#   Staff sign in with keys only: no password exists, so nobody can guess one or lock anyone out by trying.
+#   Control's service account gets the narrow groups and no others. idm_people_admins may reset people in
+#   idm_admins, so it reaches administrator; that is why the check below refuses it and anything else.
+#
+#   kanidm-setup          set up if not yet done, then check
+#   kanidm-setup check    fail if Control holds anything but the narrow groups
+set -euo pipefail
+
+STATE=/var/lib/kanidm/.setup-done
+TOKEN_FILE=/var/lib/medbrains/config/idp-control-token
+ORIGIN=https://idm.medbrains.local:8444
+CONTROL=mb_control
+NARROW_GROUPS=(idm_people_on_boarding idm_service_desk idm_oauth2_admins)
+# These grant nothing. idm_high_privilege is a taint a narrow group passes on: it protects Control from
+# lesser administrators, such as a service desk resetting it.
+EVERYONE_GROUPS=(idm_all_accounts idm_high_privilege)
+UP_TRIES=60
+
+# Calls Kanidm on loopback, trusting only its own certificate. Prints the body.
+api() {
+    curl -fsS -m 30 --cacert /var/lib/kanidm/tls-chain.pem --resolve idm.medbrains.local:8444:127.0.0.1 "$@"
+}
+
+# Waits until Kanidm answers, or fails.
+wait_for_kanidm() {
+    local try
+    for ((try = 0; try < UP_TRIES; try++)); do
+        api -o /dev/null "$ORIGIN/status" 2>/dev/null && return 0
+        sleep 2
+    done
+    echo "Kanidm did not answer" >&2
+    return 1
+}
+
+# Prints a privileged token for idm_admin, from a password that exists only for this run.
+admin_token() {
+    local password session
+    password="$(runuser -u kanidm -- kanidmd scripting recover-account idm_admin 2>/dev/null | sed -n 's/.*"output":"\([^"]*\)".*/\1/p')"
+    [[ -n "$password" ]] || { echo "could not recover idm_admin" >&2; return 1; }
+    session="$(api -D - -o /dev/null -H 'Content-Type: application/json' \
+        -d '{"step":{"init2":{"username":"idm_admin","issue":"token","privileged":true}}}' "$ORIGIN/v1/auth" |
+        tr -d '\r' | sed -n 's/^x-kanidm-auth-session-id: //Ip')"
+    api -o /dev/null -H 'Content-Type: application/json' -H "X-KANIDM-AUTH-SESSION-ID: $session" \
+        -d '{"step":{"begin":"password"}}' "$ORIGIN/v1/auth"
+    api -H 'Content-Type: application/json' -H "X-KANIDM-AUTH-SESSION-ID: $session" \
+        -d "{\"step\":{\"cred\":{\"password\":\"$password\"}}}" "$ORIGIN/v1/auth" |
+        sed -n 's/.*"success":"\([^"]*\)".*/\1/p'
+}
+
+# Sets the rules and makes Control's account. The marker comes last, so a power cut repeats it.
+set_up() {
+    local admin group token
+    admin="$(admin_token)"
+    [[ -n "$admin" ]] || { echo "could not sign in as idm_admin" >&2; return 1; }
+    api -o /dev/null -X PUT -H "Authorization: Bearer $admin" -H 'Content-Type: application/json' \
+        -d '["passkey"]' "$ORIGIN/v1/group/idm_all_persons/_attr/credential_type_minimum"
+    # An account left by a power cut is fine: its token below replaces the file.
+    api -o /dev/null -H "Authorization: Bearer $admin" -H 'Content-Type: application/json' \
+        -d "{\"attrs\":{\"name\":[\"$CONTROL\"],\"displayname\":[\"MedBrains Control\"],\"entry_managed_by\":[\"idm_admins\"]}}" \
+        "$ORIGIN/v1/service_account" 2>/dev/null || true
+    for group in "${NARROW_GROUPS[@]}"; do
+        api -o /dev/null -H "Authorization: Bearer $admin" -H 'Content-Type: application/json' \
+            -d "[\"$CONTROL\"]" "$ORIGIN/v1/group/$group/_attr/member"
+    done
+    token="$(api -H "Authorization: Bearer $admin" -H 'Content-Type: application/json' \
+        -d '{"label":"control","expiry":null,"read_write":true,"compact":false}' \
+        "$ORIGIN/v1/service_account/$CONTROL/_api_token" | tr -d '"')"
+    [[ -n "$token" ]] || { echo "no token for Control" >&2; return 1; }
+    install -m 0600 /dev/null "$TOKEN_FILE.new"
+    printf '%s\n' "$token" > "$TOKEN_FILE.new"
+    mv "$TOKEN_FILE.new" "$TOKEN_FILE"
+    touch "$STATE"
+    chown kanidm:kanidm "$STATE"
+}
+
+# Prints the groups Control's own token says it holds, one name per line.
+control_groups() {
+    api -H "Authorization: Bearer $(cat "$TOKEN_FILE")" "$ORIGIN/v1/self" |
+        sed -n 's/.*"memberof":\[\([^]]*\)\].*/\1/p' | tr ',' '\n' | sed 's/^"//; s/@.*//; s/"$//' | grep -v '^$'
+}
+
+# Fails, naming the group, if Control holds anything outside the narrow set. An unknown answer fails too.
+check() {
+    local allowed group groups
+    groups="$(control_groups)" || { echo "could not read Control's groups" >&2; return 1; }
+    [[ -n "$groups" ]] || { echo "could not read Control's groups" >&2; return 1; }
+    allowed=" ${NARROW_GROUPS[*]} ${EVERYONE_GROUPS[*]} "
+    while read -r group; do
+        if [[ "$allowed" != *" $group "* ]]; then
+            echo "Control's account holds $group, outside its narrow set. Remove it." >&2
+            return 1
+        fi
+    done <<<"$groups"
+}
+
+wait_for_kanidm
+if [[ "${1:-}" != check && ! -e "$STATE" ]]; then
+    set_up
+fi
+check

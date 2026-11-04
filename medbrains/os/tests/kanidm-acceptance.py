@@ -11,10 +11,9 @@ FerrisKey test's steps so the two compare. Each step prints PASS, FAIL or what i
   OS_WORK=... os/tests/kanidm-acceptance.py keys        # the deciding test, on its own
 """
 import html, os, re, subprocess, sys, tempfile, time
-from http.cookiejar import MozillaCookieJar
 from urllib.parse import urljoin
 
-from kanidm_lib import IDP, WEB, curl, kanidm_auth, recover_password, serial
+from kanidm_lib import IDP, WEB, cookie, curl, kanidm_auth, local_sign_in, must, new_jar, recover_password, serial
 
 USER_PASSWORD = "Kn-Test-Passphrase-4471-Quartz"
 CLIENT = "medbrains"
@@ -28,26 +27,6 @@ def check(name, ok, detail=""):
     print(f"{'PASS' if ok else 'FAIL'}  {name}  {detail}", flush=True)
     if not ok:
         failed.append(name)
-
-
-def must(result, what):
-    """The body of a successful call, or stop: every later step depends on it."""
-    status, body, _ = result
-    if status not in (200, 201, 204):
-        raise SystemExit(f"{what}: {status} {body}")
-    return body
-
-
-def new_jar():
-    """A cookie file for one browser."""
-    return tempfile.NamedTemporaryFile(suffix=".jar", delete=False).name
-
-
-def cookie(jar, name):
-    """One cookie's value from a jar."""
-    cookies = MozillaCookieJar(jar)
-    cookies.load(ignore_discard=True, ignore_expires=True)
-    return next((c.value for c in cookies if c.name == name), None)
 
 
 def set_password(token, person, password=USER_PASSWORD):
@@ -67,6 +46,37 @@ def add_person(token, name, groups=()):
         must(curl(f"{IDP}/v1/group/{group}/_attr/member", "POST", token, [name]), "member")
 
 
+def test_setup_rules(token, admin_token):
+    """Tests 3 and 4 of the owner's fix list: what kanidm-setup left on a new machine, before anyone
+    changes anything. Fails if Control ever holds a group outside its narrow set."""
+    policy = curl(f"{IDP}/v1/group/idm_all_persons/_attr/credential_type_minimum", token=token)[1]
+    check("staff are key-only by default", policy == ["passkey"], str(policy))
+    print("INFO  setup unit:", serial("systemctl is-active kanidm-setup; ls -la /var/lib/medbrains/config/idp-control-token | cut -c1-50", 10)[-90:])
+    clean = serial("/usr/lib/medbrains/kanidm-setup check; echo rc=$?", 40)
+    check("Control holds only the narrow groups", clean.endswith("rc=0"), clean[-120:])
+    for group in ("idm_people_admins", "idm_admins", "idm_service_account_admins"):
+        must(curl(f"{IDP}/v1/group/{group}/_attr/member", "POST", token, ["mb_control"]), group)
+        widened = serial("/usr/lib/medbrains/kanidm-setup check 2>&1; echo rc=$?", 40)
+        check(f"the check fails if Control is put in {group}", widened.endswith("rc=1") and "outside its narrow set" in widened, widened[-110:])
+        must(curl(f"{IDP}/v1/group/{group}/_attr/member", "DELETE", token, ["mb_control"]), "remove")
+    clean = serial("/usr/lib/medbrains/kanidm-setup check; echo rc=$?", 40)
+    check("and passes again once removed", clean.endswith("rc=0"), clean[-120:])
+    for path in ("/scim/v1/Entry", "/ui/login/oauth2_landing?code=x&state=y", "/docs/"):
+        status = curl(f"{IDP}{path}")[0]
+        check(f"the front answers 404 for {path.split('?')[0]}", status == 404, str(status))
+    check("LDAP is off", serial("ss -lntH | grep -cE ':(636|3636) '", 8).strip().endswith("0"))
+    found = must(curl(f"{IDP}/v1/raw/search", "POST", admin_token, {"filter": {"eq": ["class", "oauth2_client"]}}), "providers")
+    check("no upstream sign-in provider exists", found.get("entries") == [], str(found)[:80])
+    check("a guard on the data path runs before Kanidm", "require-encrypted-data" in serial("systemctl cat kanidmd | grep ExecStartPre", 8))
+    # On a debug image: the marker lets it start, and without the marker it must not, on this plain disk.
+    serial("mv /usr/lib/medbrains/debug-image /run/debug-image; systemctl restart kanidmd; sleep 2", 25)
+    state = serial("systemctl is-active kanidmd", 8).splitlines()[-1].strip()
+    said = serial("journalctl -u kanidmd -n 12 --no-pager | grep -c 'not on an encrypted disk'", 15).splitlines()[-1].strip()
+    check("without the debug marker Kanidm refuses to start on this unencrypted disk", state != "active" and said != "0", f"{state}, said so {said} times")
+    serial("mv /run/debug-image /usr/lib/medbrains/debug-image; systemctl reset-failed kanidmd; systemctl start kanidmd; sleep 6", 30)
+    check("and with it, it starts", serial("systemctl is-active kanidmd", 8).endswith("active"))
+
+
 def set_up_identity_provider(token):
     """A client, a group whose members may use it and carry a claim, and two people: one in, one out."""
     # Kanidm refuses password-only people unless this is lowered. The key test raises it again.
@@ -83,23 +93,6 @@ def set_up_identity_provider(token):
     add_person(token, "mapped.nurse", ["ward_nurses"])
     add_person(token, "unmapped.person")
     return secret
-
-
-def local_sign_in():
-    """Signs in with the first administrator's password: local sign-in must stay. Moves it past the
-    forced change first, because the server refuses everything else until then."""
-    first = serial("cat /var/lib/medbrains/config/initial-admin-password").splitlines()[-1].strip()
-    jar = new_jar()
-    status, body, _ = curl(f"{WEB}/api/auth/login", "POST", body={"username": "admin", "password": first}, jar=jar)
-    check("local sign-in still works", status == 200, f"HTTP {status}")
-    csrf = cookie(jar, "csrf_token")
-    chosen = "Corr3ct-Horse-Battery-77-Kn"
-    changed = curl(f"{WEB}/api/auth/change-password", "POST", jar=jar, csrf=csrf,
-                   body={"current_password": first, "new_password": chosen})
-    print("INFO  first password change:", changed[0], str(changed[1])[:80])
-    status, _, _ = curl(f"{WEB}/api/auth/login", "POST", body={"username": "admin", "password": chosen}, jar=jar)
-    print("INFO  sign in again:", status)
-    return jar
 
 
 def connect_provider(jar, secret, jit=True):
@@ -234,9 +227,9 @@ def test_service_account(token):
     high privilege people, so it reaches administrator; the narrow set below must not. That set can
     create, reset and disable people, and delete only through idm_people_admins."""
     wide = control_token(token, "mb_wide", ["idm_people_admins"])
+    control = serial("cat /var/lib/medbrains/config/idp-control-token", 10).splitlines()[-1].strip()
     add_person(token, "high.priv", ["idm_admins"])
     print("INFO  idm_people_admins taking over a person in idm_admins:", take_over(wide, "high.priv"))
-    control = control_token(token, "mb_control", ["idm_people_on_boarding", "idm_service_desk", "idm_oauth2_admins"])
     made = curl(f"{IDP}/v1/person", "POST", control, {"attrs": {"name": ["control.made"], "displayname": ["c"], "mail": ["c@hospital.test"]}})[0]
     reset = curl(f"{IDP}/v1/person/control.made/_credential/_update_intent/900", token=control)[0]
     expire = curl(f"{IDP}/v1/person/control.made/_attr/account_expire", "PUT", control, ["2020-01-01T00:00:00Z"])[0]
@@ -287,6 +280,7 @@ def test_lockout():
     have nothing to guess, and kanidm-softkey tests those. Each wrong password opens a window of 1,
     3, 5 then 10 seconds, and at 100 the code locks until the next UTC midnight: this measures that."""
     token = kanidm_auth("idm_admin", recover_password("idm_admin"))[0]
+    must(curl(f"{IDP}/v1/group/idm_all_persons/_attr/credential_type_minimum", "PUT", token, ["any"]), "policy")
     person = f"lock.me{int(time.time())}"
     add_person(token, person)
     good, _, spent = kanidm_auth(person, USER_PASSWORD, privileged=False)
@@ -314,6 +308,8 @@ def test_lockout():
 def test_backup():
     """Test 9: what a backup holds, and that a restore brings back people and signing keys. Restore
     picks gzip by the file name, so a compressed backup named .json fails with a JSON error."""
+    must(curl(f"{IDP}/v1/group/idm_all_persons/_attr/credential_type_minimum", "PUT",
+              kanidm_auth("idm_admin", recover_password("idm_admin"))[0], ["any"]), "policy")
     jwks = curl(f"{IDP}/oauth2/openid/{CLIENT}/.well-known/openid-configuration")[1]["jwks_uri"]
     before = curl(jwks)[1]
     backup = "/var/lib/kanidm/backups/manual.json.gz"
@@ -441,6 +437,9 @@ def main():
         token = kanidm_auth("idm_admin", idm_password)[0]
         admin_token = kanidm_auth("admin", admin_password)[0]
         jar = local_sign_in()
+        check("local sign-in still works", curl(f"{WEB}/api/auth/me", jar=jar)[0] == 200)
+        test_setup_rules(token, admin_token)
+        token = kanidm_auth("idm_admin", recover_password("idm_admin"))[0]
         secret = set_up_identity_provider(token)
         provider = connect_provider(jar, secret)
         test_id_token_claims(token)
@@ -449,7 +448,8 @@ def main():
         test_branding(admin_token, provider, mode)
         test_service_account(token)
         test_rate_limit()
-        test_keys(idm_password)
+        must(curl(f"{IDP}/v1/group/idm_all_persons/_attr/credential_type_minimum", "PUT", token, ["passkey"]), "policy back")
+        test_keys(recover_password("idm_admin"))
         test_no_outbound(provider)
         measure()
     print("FAILED: " + ", ".join(failed) if failed else "ALL PASSED")

@@ -1,0 +1,25 @@
+# The identity provider's rules: set on first start, checked on every start. A failure here shows as a
+# failed unit and does not stop Kanidm, because local sign-in and existing staff must keep working.
+[Unit]
+Description=MedBrains identity provider rules
+Requires=kanidmd.service
+After=kanidmd.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/lib/medbrains/kanidm-setup
+UMask=0077
+ProtectHome=yes
+PrivateTmp=yes
+NoNewPrivileges=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectKernelLogs=yes
+ProtectControlGroups=yes
+RestrictRealtime=yes
+LockPersonality=yes
+SystemCallArchitectures=native
+
+[Install]
+WantedBy=multi-user.target

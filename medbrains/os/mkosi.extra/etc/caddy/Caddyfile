@@ -44,7 +44,9 @@ https://127.0.0.1:8443 {
 :9443 {
 	tls /var/lib/caddy/local/idp-cert.pem /var/lib/caddy/local/idp-key.pem
 	encode zstd gzip
-	@internal path /docs* /metrics*
+	# SCIM has crashed Kanidm twice through its filter parser and we do not use it. The landing page is
+	# upstream sign-in, which has no setting to turn off and which we do not use either.
+	@internal path /docs* /metrics* /scim/* /ui/login/oauth2_landing*
 	handle @internal {
 		respond 404
 	}

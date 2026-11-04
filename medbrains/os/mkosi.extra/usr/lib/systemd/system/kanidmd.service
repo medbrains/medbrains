@@ -1,5 +1,6 @@
 # The identity provider (Kanidm). Loopback only, behind Caddy on 9443. It may talk to this machine
 # alone: an upstream directory is a deliberate drop-in that lifts IPAddressDeny, never the default.
+# All its data, keys and backups are under /var, the partition disk-setup encrypts.
 [Unit]
 Description=MedBrains identity provider
 After=medbrains-firstboot.service network.target
@@ -13,6 +14,8 @@ Group=kanidm
 RuntimeDirectory=kanidmd
 RuntimeDirectoryMode=0755
 WorkingDirectory=/var/lib/kanidm
+# Its keys are unsealed on disk, so a release image will not run it on an unencrypted one.
+ExecStartPre=+/usr/lib/medbrains/require-encrypted-data
 ExecStart=/usr/bin/kanidmd server
 ExecReload=/usr/bin/kanidmd scripting reload
 Restart=on-failure

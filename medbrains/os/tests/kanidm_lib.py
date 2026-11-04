@@ -5,6 +5,7 @@ idm.medbrains.local:9443 and medbrains.local:443 reach the VM through OS_IDP_POR
 URLs, Host headers and issuers are the ones a browser on the hospital's network would use.
 """
 import json, os, re, socket, subprocess, tempfile, time
+from http.cookiejar import MozillaCookieJar
 
 WEB, IDP = "https://medbrains.local", "https://idm.medbrains.local:9443"
 CONNECT = ["--connect-to", f"medbrains.local:443:127.0.0.1:{os.environ.get('OS_WEB_PORT', 8470)}",
@@ -78,3 +79,38 @@ def kanidm_auth(username, password, privileged=True, base=IDP):
     _, body, _ = curl(f"{base}/v1/auth", "POST", body={"step": {"cred": {"password": password}}}, extra=extra)
     state = body.get("state", {}) if isinstance(body, dict) else {}
     return state.get("success"), str(state.get("denied", body))[:120], time.time() - started
+
+
+def must(result, what):
+    """The body of a successful call, or stop: every later step depends on it."""
+    status, body, _ = result
+    if status not in (200, 201, 204):
+        raise SystemExit(f"{what}: {status} {body}")
+    return body
+
+
+def new_jar():
+    """A cookie file for one browser."""
+    return tempfile.NamedTemporaryFile(suffix=".jar", delete=False).name
+
+
+def cookie(jar, name):
+    """One cookie's value from a jar."""
+    cookies = MozillaCookieJar(jar)
+    cookies.load(ignore_discard=True, ignore_expires=True)
+    return next((c.value for c in cookies if c.name == name), None)
+
+
+def local_sign_in():
+    """Signs in as the first administrator, past the forced password change the first time, because the
+    server refuses everything else until then. Returns a browser that is signed in."""
+    chosen = "Corr3ct-Horse-Battery-77-Kn"
+    jar = new_jar()
+    if curl(f"{WEB}/api/auth/login", "POST", body={"username": "admin", "password": chosen}, jar=jar)[0] == 200:
+        return jar
+    first = serial("cat /var/lib/medbrains/config/initial-admin-password").splitlines()[-1].strip()
+    must(curl(f"{WEB}/api/auth/login", "POST", body={"username": "admin", "password": first}, jar=jar), "first sign-in")
+    must(curl(f"{WEB}/api/auth/change-password", "POST", jar=jar, csrf=cookie(jar, "csrf_token"),
+              body={"current_password": first, "new_password": chosen}), "password change")
+    must(curl(f"{WEB}/api/auth/login", "POST", body={"username": "admin", "password": chosen}, jar=jar), "sign-in")
+    return jar

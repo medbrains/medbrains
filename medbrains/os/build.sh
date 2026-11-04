@@ -57,6 +57,8 @@ install -m 0755 "$SERVER" "$EXTRA/usr/bin/medbrains-server"
 install -m 0755 "$KANIDM/kanidmd" "$EXTRA/usr/bin/kanidmd"
 install -d "$EXTRA/usr/share/kanidm/ui"
 cp -R "$KANIDM/hpkg" "$EXTRA/usr/share/kanidm/ui/hpkg"
+# Only a debug image may run the identity provider on an unencrypted disk.
+if [[ "$DEBUG" == 1 ]]; then install -m 0644 /dev/null "$EXTRA/usr/lib/medbrains/debug-image"; fi
 # The hospital's colours, on the one stylesheet Kanidm leaves for this.
 install -m 0644 "$HERE/kanidm-override.css" "$EXTRA/usr/share/kanidm/ui/hpkg/override.css"
 cp -R "$WEB" "$EXTRA/usr/share/medbrains/web"

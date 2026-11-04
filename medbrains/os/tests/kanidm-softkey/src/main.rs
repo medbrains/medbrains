@@ -171,6 +171,49 @@ fn new_token() -> Result<(SoftToken, String, String), String> {
     Ok((token, its_model, other_model))
 }
 
+/// The default every member of staff gets from `kanidm-setup`: a key and no password, so guessing has
+/// nothing to count against them.
+async fn key_only_cannot_be_locked_out(
+    base: &str,
+    origin: &Url,
+    admin: &KanidmClient,
+    failed: &mut Failures,
+) -> Result<(), String> {
+    admin
+        .idm_person_account_create("staff.member", "Staff Member")
+        .await
+        .map_err(|e| format!("person: {e:?}"))?;
+    let (who, session, status) = enrol(admin, base, "staff.member").await?;
+    check(failed, "by default a person can have no password", status.primary_state == CUCredState::PolicyDeny, &format!("{:?}", status.primary_state));
+    let refused = who.idm_account_credential_update_set_password(&session, "Correct-Horse-Battery-Staple-99").await;
+    check(failed, "and the server refuses one", refused.is_err(), "");
+    let status = who
+        .idm_account_credential_update_passkey_init(&session)
+        .await
+        .map_err(|e| format!("init: {e:?}"))?;
+    let CURegState::Passkey(challenge) = status.mfaregstate else {
+        return Err("no passkey challenge".to_owned());
+    };
+    let mut key = SoftPasskey::new(true);
+    let response = key.do_registration(origin.clone(), challenge).map_err(|e| format!("authenticator: {e:?}"))?;
+    who.idm_account_credential_update_passkey_finish(&session, "key".to_owned(), response)
+        .await
+        .map_err(|e| format!("finish: {e:?}"))?;
+    who.idm_account_credential_update_commit(&session).await.map_err(|e| format!("commit: {e:?}"))?;
+    let started = Instant::now();
+    let mut refused = 0;
+    for _ in 0..150 {
+        if client(base)?.auth_simple_password("staff.member", "Wrong-Password-1").await.is_err() {
+            refused += 1;
+        }
+    }
+    println!("INFO  150 password guesses took {:?}; refused {refused}", started.elapsed());
+    check(failed, "every password guess is refused", refused == 150, "");
+    let result = sign_in(base, "staff.member", &mut key, origin).await;
+    check(failed, "and the person signs in at once with their key", result.is_ok(), &format!("{result:?}"));
+    Ok(())
+}
+
 /// Runs the whole deciding test. Every refusal is one the server gave over the network.
 async fn run(
     base: &str,
@@ -308,6 +351,8 @@ async fn run(
         result.is_ok(),
         &format!("{result:?}"),
     );
+
+    key_only_cannot_be_locked_out(base, origin, &admin, failed).await?;
 
     // A stranger who knows the username, against a key-only account.
     let fresh = client(base)?;

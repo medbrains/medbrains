@@ -1,0 +1,101 @@
+#!/bin/bash
+# Moves Kanidm's data up exactly one minor version. Kanidm supports nothing else: 1.11 may go to 1.12, and
+# 1.10 may not, so a machine further behind calls this once per minor, with that step's binary.
+#
+#   kanidm-upgrade --from-bin PATH --to-bin PATH
+#
+# Backs up first. If the new version will not start, or will not answer, it puts back the exact files it
+# copied, runs the old version again and exits 1. Exits 2, having touched nothing, for a step it refuses.
+set -euo pipefail
+
+DATA=/var/lib/kanidm
+DB="$DATA/kanidm.db"
+BACKUPS="$DATA/backups"
+DROP_IN_DIR=/run/systemd/system/kanidmd.service.d
+DROP_IN="$DROP_IN_DIR/10-binary.conf"
+INSTALLED=/usr/bin/kanidmd
+ANSWER_TRIES=60
+ORIGIN=https://idm.medbrains.local:8444
+
+from_bin=""
+to_bin=""
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        --from-bin) from_bin="$2"; shift 2 ;;
+        --to-bin) to_bin="$2"; shift 2 ;;
+        *) echo "unknown option: $1" >&2; exit 2 ;;
+    esac
+done
+[[ -x "$from_bin" && -x "$to_bin" ]] || { echo "usage: kanidm-upgrade --from-bin PATH --to-bin PATH" >&2; exit 2; }
+
+# Prints a binary's version as major.minor.patch, or nothing.
+version_of() { "$1" version 2>/dev/null | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1 || true; }
+
+# True if going from version $1 to $2 is one minor up, or a later patch of the same minor.
+is_allowed_step() {
+    local from_major from_minor from_patch to_major to_minor to_patch
+    IFS=. read -r from_major from_minor from_patch <<<"$1"
+    IFS=. read -r to_major to_minor to_patch <<<"$2"
+    [[ "$from_major" == "$to_major" ]] || return 1
+    ((to_minor == from_minor + 1)) && return 0
+    ((to_minor == from_minor && to_patch > from_patch))
+}
+
+# Points the service at a binary until the next reboot, or back at the installed one.
+use_binary() {
+    mkdir -p "$DROP_IN_DIR"
+    if [[ "$1" == "$INSTALLED" ]]; then
+        rm -f "$DROP_IN"
+    else
+        printf '[Service]\nExecStart=\nExecStart=%s server\n' "$1" > "$DROP_IN"
+    fi
+    systemctl daemon-reload
+}
+
+# True once the running service answers and the binary says its config and data are healthy.
+answers() {
+    local try
+    for ((try = 0; try < ANSWER_TRIES; try++)); do
+        if systemctl is-active -q kanidmd && curl -fsS -m 5 -o /dev/null --cacert "$DATA/tls-chain.pem" \
+            --resolve idm.medbrains.local:8444:127.0.0.1 "$ORIGIN/status"; then
+            return 0
+        fi
+        systemctl is-failed -q kanidmd && return 1
+        sleep 2
+    done
+    return 1
+}
+
+from="$(version_of "$from_bin")"
+to="$(version_of "$to_bin")"
+if [[ -z "$from" || -z "$to" ]] || ! is_allowed_step "$from" "$to"; then
+    echo "refused: Kanidm goes up one minor at a time, and '$from' to '$to' is not that" >&2
+    exit 2
+fi
+
+stamp="$from-to-$to-$(date -u +%Y%m%dT%H%M%S)"
+copy="$BACKUPS/pre-upgrade-$stamp"
+systemctl stop kanidmd
+runuser -u kanidm -- "$from_bin" database backup "$copy.json.gz" >/dev/null 2>&1
+runuser -u kanidm -- mkdir -p "$copy"
+runuser -u kanidm -- cp -a "$DB" "$copy/"
+for extra in "$DB-wal" "$DB-shm"; do
+    [[ -e "$extra" ]] && runuser -u kanidm -- cp -a "$extra" "$copy/"
+done
+
+use_binary "$to_bin"
+if systemctl start kanidmd && answers; then
+    echo "Kanidm is now $to. Backup: $copy.json.gz"
+    exit 0
+fi
+
+echo "Kanidm $to did not come up; putting $from back" >&2
+journalctl -u kanidmd -n 15 --no-pager >&2 || true
+systemctl stop kanidmd || true
+systemctl reset-failed kanidmd || true
+runuser -u kanidm -- rm -f "$DB" "$DB-wal" "$DB-shm"
+runuser -u kanidm -- cp -a "$copy/." "$DATA/"
+use_binary "$from_bin"
+systemctl start kanidmd
+answers || { echo "and $from did not come back either; restore $copy.json.gz by hand" >&2; exit 3; }
+exit 1

@@ -15,7 +15,7 @@ ln -sfn /var/lib/medbrains/config /etc/medbrains
 # A firewall file that does not parse would boot a machine with no firewall, so it fails the build.
 nft -c -f /etc/nftables.conf
 systemctl enable nftables chrony systemd-networkd systemd-resolved systemd-repart \
-    medbrains-firstboot medbrains-db-init medbrains-server caddy kanidmd \
+    medbrains-firstboot medbrains-db-init medbrains-server caddy kanidmd kanidm-setup \
     medbrains-console-status cage-console
 systemctl disable systemd-networkd-wait-online.service 2>/dev/null || true
 systemctl set-default graphical.target
