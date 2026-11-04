@@ -97,6 +97,7 @@ impl Parts {
         let parts = self.clone();
         agent(request, move |answer| match answer {
             Some(answer) if answer.get("ok").is_some() => {
+                parts.problem.set_label("");
                 parts.choosing.set_visible(false);
                 parts.waiting.set_visible(true);
                 parts.status.set_label("Connecting to the main machine…");
@@ -139,9 +140,11 @@ impl Parts {
             return true;
         }
         if let Some(words) = decision_words(state) {
-            self.status.set_label(words);
-            self.code.set_label("");
-            self.waiting.set_visible(true);
+            // Back to choosing, with the reason, so a person can simply try again.
+            self.problem.set_label(words);
+            self.waiting.set_visible(false);
+            self.choosing.set_visible(true);
+            refresh_while_shown(self);
             return true;
         }
         if state == "pending" {

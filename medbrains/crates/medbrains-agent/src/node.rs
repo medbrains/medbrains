@@ -190,8 +190,10 @@ impl Node {
 
     /// Starts asking to join a main machine on the list. The answer arrives through `standing`.
     pub(crate) fn start_join(self: &Arc<Self>, main_id: &str, name: String, kind: Kind) -> anyhow::Result<()> {
+        // Approved before a power cut stopped setup finishing: nothing to ask, just finish.
         if self.joined().is_some() {
-            bail!("This machine has already joined.");
+            self.set_standing("approved", None);
+            return Ok(());
         }
         let target = self.found.lock().unwrap_or_else(PoisonError::into_inner).get(main_id).cloned();
         let target = target.context("That main machine is not on the list.")?;

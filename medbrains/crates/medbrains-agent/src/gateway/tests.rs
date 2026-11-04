@@ -268,6 +268,20 @@ async fn both_sides_show_the_same_code_and_approval_delivers_the_certificate() -
     Ok(())
 }
 
+/// A power cut between approval and the end of setup: asking again just finishes.
+#[tokio::test]
+async fn a_machine_already_approved_finishes_without_asking_again() -> anyhow::Result<()> {
+    let server = FakeServer::new(Uuid::new_v4(), JoinState::Approved);
+    let (_gateway, addr) = gateway(Arc::clone(&server)).await?;
+    let (node, _dir) = node_with_main(&addr, "City Hospital").await?;
+    node.start_join(&addr.id.to_string(), "PC".to_owned(), Kind::Workstation)?;
+    wait_for(&node, "approved").await?;
+    node.start_join(&addr.id.to_string(), "PC".to_owned(), Kind::Workstation)?;
+    assert_eq!(node.standing().state, "approved");
+    assert_eq!(server.filings.lock().unwrap_or_else(PoisonError::into_inner).len(), 1);
+    Ok(())
+}
+
 /// A rejected, expired or refused request leaves a machine with nothing.
 #[tokio::test]
 async fn a_refused_request_leaves_nothing_behind() -> anyhow::Result<()> {

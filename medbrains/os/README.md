@@ -83,7 +83,7 @@ partial, so expect gaps; that is what D2 is for.
      sentence about Wi-Fi. A fixed address undoes itself unless confirmed within 60 seconds.
    - **Updates:** says installing updates is not available in this version.
    - **"What are you doing with this machine?"** "Setting up a new hospital" continues. "Connecting to my
-     hospital" says it is not available in this version, with Back.
+     hospital" looks for main machines; see [Joining a machine](#joining-a-machine).
    - **Three fields:** hospital name, username, password, with the rules shown under each.
    - **Review,** then **Start the main machine**. Nothing is final before this.
 4. **The desktop:** wallpaper, a top bar (network, clock opening a calendar, power), a dock, a launcher
@@ -98,13 +98,15 @@ finished, not before.
 ### First boot, underneath
 
 1. `systemd-repart` grows the data partition to fill the disk.
-2. `medbrains-firstboot` generates every secret (JWT keys, ID-fingerprint and provider keys, database
-   password), a checksummed PostgreSQL cluster and the certificate for the screen's own front end. None
-   of it is in the image, and no password is generated for a person.
-3. `medbrains-os-setup` listens on `127.0.0.1:3100`, as root, with a token only the screen's group can
+2. `medbrains-os-setup` listens on `127.0.0.1:3100`, as root, with a token only the screen's group can
    read (`/run/medbrains-console/setup-token`). It has no database and no web framework.
-4. **Review** writes the three fields into the env as `MEDBRAINS_SEED_*`, then the role marker
-   `/var/lib/medbrains/config/role-main`, then starts `medbrains-main.target`.
+3. `medbrains-agent` starts, listening for main machines. It offers nothing.
+4. **Review** starts `medbrains-firstboot`, which generates every secret (JWT keys, ID-fingerprint and
+   provider keys, database password), a checksummed PostgreSQL cluster and the certificate for the
+   screen's own front end. None of it is in the image, no password is generated for a person, and a
+   machine that becomes a node never holds any of it. Review then writes the three fields into the env as
+   `MEDBRAINS_SEED_*`, then the role marker `/var/lib/medbrains/config/role-main`, then starts
+   `medbrains-main.target`.
 5. `medbrains-db-init` creates the database roles. `medbrains-server` runs migrations and the seed as the
    owner, then serves as `medbrains_app`, which row level security applies to.
 6. `medbrains-console-status` removes all the seed lines once the server answers, and exits.
@@ -112,7 +114,8 @@ finished, not before.
 **Nothing listens before setup.** A condition on the target alone does not do it, because systemd still
 starts what a skipped unit wants, and we measured 443 answering that way. So the server, database roles,
 PostgreSQL and Caddy each carry the role condition themselves, and `tests/check-units.sh` fails if one
-drifts. Before setup, `ss` shows TCP only on loopback; UDP 5353 (names) and 123 (time) remain open.
+drifts. Before setup, `ss` shows TCP only on loopback, and the only firewall opening for a service is
+UDP 5353, for finding a main machine.
 
 **A power cut during setup** cannot leave a half-made hospital. The env is replaced in one step, the marker
 comes last, and the seed creates the hospital and administrator in one transaction. It used to create the
@@ -120,8 +123,11 @@ hospital first, and a failure in between left a hospital nobody could sign in to
 
 ## Network
 
-`/etc/nftables.conf` is default deny in both directions. Inbound: 80, 443, 123 (time for the LAN), 5353
-(`medbrains.local`). Outbound: address, names, time, and 443 to any address until Control can hold an allowlist.
+`/etc/nftables.conf` is default deny in both directions, and opens the same things on every machine: inbound
+5353 (finding a main machine); outbound address, names, time, 7844 and 7845 (a node reaching its main machine),
+and 443 to any address until Control can hold an allowlist. **Only a main machine** adds inbound 80, 443, 123
+(time for the LAN), 7844 (iroh) and 7845 ("who are you?" for a typed address), from
+`usr/lib/medbrains/main-machine.nft`, and only it announces `medbrains.local` and serves time.
 Analysers and PACS have no outbound path until the device network gateway (task N4.2). A file that does not
 parse fails the build. Time is `chrony` with NTS, and keeps serving the LAN with the internet gone.
 
@@ -130,6 +136,45 @@ parse fails the build. Time is `chrony` with NTS, and keeps serving the LAN with
 Task T1.1, all with settings Linux already has: `/etc/sysctl.d/90-medbrains.conf`, unused kernel modules blocked
 in `/etc/modprobe.d/medbrains-blocklist.conf`, and `lockdown=integrity` with memory protections on the kernel
 command line. Unprivileged user namespaces stay on because WebKit's sandbox needs them.
+
+## Joining a machine
+
+**What a person does** (OS-SETUP-AND-TRUST §8): on the new machine, choose "Connecting to my hospital", give
+it a name and a type (workstation or display), and pick the main machine from the list, or type its address.
+The screen shows six digits. On the main machine, in MedBrains, **Admin > Machines** lists it with the same
+six digits. Approve asks for the digits from the machine's own screen, and only then does the machine join.
+
+**What a node is:** `medbrains-node.target`, with the screen, the agent and the setup service. No PostgreSQL,
+server or Caddy, and no secrets but its own key. Its endpoint answers no protocol and its firewall opens no
+service. `medbrains-agent` listens on `127.0.0.1:8443`, the address the screen already loads, and carries each
+connection over iroh to the main machine's loopback front end. TLS ends at the main machine, so the agent
+cannot read what it carries, and the screen's one trusted certificate is the main machine's, delivered on approval.
+
+| Rule | How |
+|---|---|
+| A key alone grants nothing | Anyone may speak the join protocol, which only files a request. A tunnel needs a live key on the roster, decided by `medbrains-edge`'s `admit` |
+| A fake main machine is caught | The code covers both keys and a nonce from each side, the node committing to its nonce first. Keys alone would not do: six digits fall to about a million tries, about a second of grinding |
+| Approval cannot be clicked through | The server compares the digits a person typed with the code. Three wrong codes refuse the request, and each is audited as a denial |
+| Requests run out | 10 minutes, at most 20 waiting; more are told the list is full |
+| Tenant | From the hospital this box serves, through admission. The join frames have no such field and refuse unknown ones |
+| Removal | The key leaves the roster at once; the agent asks every 2 seconds and closes that machine's open connection |
+| No outside party | No relay, no outside lookup, no UPnP (`portmapper_config` is off; iroh's default would ask the router for a port) |
+
+Approved machines are `paired_devices` rows with `device_node_keys` rows, and requests are
+`device_pairing_requests` rows, so there are no new tables (migration 1404 adds three columns). The server
+never touches iroh: `medbrains-agent --main` asks it over loopback, with a token in a file only the agent reads.
+
+**Reconciling with the firewall PR:** the branch carries #5217's firewall, whose open commit changes the same
+file. Keep this version's `main_machine` chain, and the rule that a main machine's ports leave the base file.
+
+**Limits:**
+- The machine key is a file (mode 0600), not in a TPM, until SEC3. Anyone who can read the data partition can
+  copy it. Removing the machine ends the copy too.
+- A display gets the same desktop as a workstation; the board is not built, nor is the §8a place or swap flow.
+- Sign-in limits count every screen as one address, because each connection arrives on loopback.
+- A flood of 20 requests blocks a real machine until they expire, or an administrator rejects them.
+- A node that cannot reach the main machine cannot work: there is no offline path (OS-EDGE-NODES).
+- A node stays passively listening on mDNS after joining, so it can find a main machine whose address changed.
 
 ## How the screen works
 
@@ -215,7 +260,8 @@ partitions keeps the data.
 - `mkosi.extra/`: units, first-boot scripts, journald, watchdog, network and Caddy.
 - `mkosi.postinst.chroot`: removes the baked PostgreSQL cluster, enables units.
 - `mkosi.build.chroot`: compiles `crates/medbrains-shell` and installs its fonts.
-- `tests/`: `check-units.sh` and `console-status.sh` run alone; `vm.py` drives a booted debug image with real input.
+- `tests/`: `check-units.sh` and `console-status.sh` run alone; `vm.py` drives a booted debug image with real input;
+  `two-machines.sh` boots a main machine and a node on one LAN; `nodes-screen.mjs` drives the Machines page.
 - `mkosi.splash.bmp`, `ukify-splash.py`, `install-ukify-splash.sh`: the boot logo.
 - `build.sh`: runs mkosi. `builder.Dockerfile`: the Mac fallback. `qemu-run.sh`: boot it.
 
