@@ -174,3 +174,5 @@ built. *Proposed* is waiting for the owner. *Rejected* was considered and turned
 Any PR that makes or reverses a decision adds a row here, in the same PR. Never edit history: a
 reversed decision gets a new row, and the old row's status changes to point at it. Anything that
 went wrong in a way that could recur gets a row too.
+| 2026-11-04 | OS test suite in Rust (`medbrains-os-test`): boots a fresh debug image and checks security, boot, memory and disk from inside and outside, with budgets that only go down. Not in CI yet | this PR |
+| 2026-11-04 | OS network N1: default-deny firewall both directions, authenticated time that also serves the LAN, database limited to its own machine; module and task plan for the OS | this PR |

@@ -1,6 +1,7 @@
 [workspace]
 resolver = "2"
 members = [
+    "crates/medbrains-os-test",
     "crates/medbrains-server",
     "crates/medbrains-automation",
     "crates/medbrains-automation-store",
