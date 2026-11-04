@@ -20,6 +20,10 @@ systemctl enable nftables chrony systemd-networkd systemd-resolved systemd-repar
 # Only medbrains-main.target starts these, and only once setup has finished, so nothing
 # answers on the network before then. Debian's packages enable them by default.
 systemctl disable caddy postgresql 2>/dev/null || true
+# chrony.service serves the LAN its time. Debian's restricted variant cannot open the port, and
+# whichever of the two starts first wins, so the LAN's time was down on some boots. chrony-wait
+# would hold the boot for the internet, which setup must never need.
+systemctl disable chronyd-restricted chrony-wait 2>/dev/null || true
 systemctl disable systemd-networkd-wait-online.service 2>/dev/null || true
 systemctl set-default graphical.target
 

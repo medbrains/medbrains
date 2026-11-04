@@ -10,3 +10,6 @@ disable getty@.service
 # Started by medbrains-main.target once setup has finished, never before.
 disable caddy.service
 disable postgresql.service
+# Only chrony.service may run: see mkosi.postinst.chroot.
+disable chronyd-restricted.service
+disable chrony-wait.service
