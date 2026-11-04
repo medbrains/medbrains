@@ -7,6 +7,10 @@
 //! named by the app or page (`hospital_code`), else by the hospital's own
 //! domain the request came to; when neither names one and the username is
 //! used in more than one hospital, the caller is asked to choose.
+//!
+//! A machine that serves one hospital needs none of this. With
+//! `MEDBRAINS_SINGLE_HOSPITAL=true`, as the OS image sets, the only active
+//! hospital is the answer, and sign-in never asks for a code.
 
 use axum::http::HeaderMap;
 use medbrains_server_core::error::AppError;
@@ -32,6 +36,16 @@ pub(crate) async fn login_tenant(
         .map(Some)
         .ok_or(AppError::Unauthorized);
     }
+    if is_single_hospital() {
+        let rows = sqlx::query_scalar::<_, Uuid>(
+            "SELECT id FROM tenants WHERE is_active = true LIMIT 2",
+        )
+        .fetch_all(db)
+        .await?;
+        // Not exactly one active hospital: refuse, rather than fall through to a
+        // search across every hospital, which is what this mode exists to prevent.
+        return only_hospital(rows).map(Some).ok_or(AppError::Unauthorized);
+    }
     let Some(host) = request_host(headers) else {
         return Ok(None);
     };
@@ -43,6 +57,20 @@ pub(crate) async fn login_tenant(
     .bind(host)
     .fetch_optional(db)
     .await?)
+}
+
+/// True when this install is configured to serve exactly one hospital.
+pub(crate) fn is_single_hospital() -> bool {
+    std::env::var("MEDBRAINS_SINGLE_HOSPITAL").is_ok_and(|v| v == "true")
+}
+
+/// The hospital, only when there is exactly one. A second hospital on a
+/// single-hospital install is never resolved by picking one of them.
+fn only_hospital(rows: Vec<Uuid>) -> Option<Uuid> {
+    match account(rows) {
+        Account::One(id) => Some(id),
+        Account::None | Account::Ambiguous => None,
+    }
 }
 
 /// The host the browser asked for, as the proxy forwards it; no port.
@@ -80,7 +108,16 @@ pub(crate) fn hospital_required() -> axum::Json<serde_json::Value> {
 
 #[cfg(test)]
 mod tests {
-    use super::{Account, account};
+    use super::{Account, account, only_hospital};
+    use uuid::Uuid;
+
+    #[test]
+    fn a_single_hospital_install_names_a_hospital_only_when_there_is_exactly_one() {
+        let (a, b) = (Uuid::new_v4(), Uuid::new_v4());
+        assert_eq!(only_hospital(vec![a]), Some(a));
+        assert_eq!(only_hospital(vec![a, b]), None);
+        assert_eq!(only_hospital(Vec::new()), None);
+    }
 
     #[test]
     fn two_accounts_with_one_name_are_never_resolved_by_picking_one() {

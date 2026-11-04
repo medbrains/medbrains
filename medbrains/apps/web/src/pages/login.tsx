@@ -159,15 +159,17 @@ function HospitalSignIn({
               Administrator? Use a password
             </Anchor>
           )}
-          <Anchor
-            component="button"
-            type="button"
-            size="sm"
-            onClick={onChangeHospital}
-            data-testid="login-change-hospital"
-          >
-            Not {hospital.name}? Change hospital
-          </Anchor>
+          {!hospital.single_hospital && (
+            <Anchor
+              component="button"
+              type="button"
+              size="sm"
+              onClick={onChangeHospital}
+              data-testid="login-change-hospital"
+            >
+              Not {hospital.name}? Change hospital
+            </Anchor>
+          )}
         </Stack>
       </Center>
     </Stack>

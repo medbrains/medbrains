@@ -65,6 +65,8 @@ export interface SsoPublicProvider {
 
 /** How one hospital lets its staff sign in — asked before signing in. */
 export interface SignInOptions {
+  /** This install serves one hospital, so the page offers no way to change it. */
+  single_hospital: boolean;
   code: string;
   name: string;
   /** Username and password are accepted. */

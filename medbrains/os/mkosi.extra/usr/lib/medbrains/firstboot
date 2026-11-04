@@ -39,6 +39,7 @@ write_env() {
 # Generated on first boot by /usr/lib/medbrains/firstboot. Back this file up
 # with the database: the keys below cannot be regenerated without data loss.
 MEDBRAINS_ENV=production
+MEDBRAINS_SINGLE_HOSPITAL=true
 DATABASE_URL=postgres://medbrains:$(rand 32)@127.0.0.1:5432/medbrains
 DB_POOL_MAX_CONNECTIONS=10
 DB_POOL_MIN_CONNECTIONS=1
