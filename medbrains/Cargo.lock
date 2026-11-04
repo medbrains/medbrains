@@ -7684,6 +7684,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "medbrains-os-setup"
+version = "1.0.0"
+dependencies = [
+ "serde_json",
+]
+
+[[package]]
 name = "medbrains-os-test"
 version = "1.0.0"
 dependencies = [

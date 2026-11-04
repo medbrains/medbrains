@@ -2,7 +2,6 @@
 resolver = "2"
 members = [
     "crates/medbrains-os-test",
-    "crates/medbrains-setup",
     "crates/medbrains-os-setup",
     "crates/medbrains-server",
     "crates/medbrains-automation",
