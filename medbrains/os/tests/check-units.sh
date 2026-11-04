@@ -32,6 +32,10 @@ for port in 7844 7845 443 123; do
 done
 grep -q '^allow' "$OS/mkosi.extra/etc/chrony/chrony.conf" &&
     { echo "FAIL: chrony would serve time on a node"; exit 1; }
+grep -q '^server ' "$OS/mkosi.extra/etc/chrony/chrony.conf" &&
+    { echo "FAIL: chrony.conf names sources for every role; a node must ask only its main machine"; exit 1; }
+grep -q 'port 12300' "$OS/mkosi.extra/usr/lib/medbrains/time-role" ||
+    { echo "FAIL: a node has no time source"; exit 1; }
 # Setup starts this for a new hospital only, so a node never holds its secrets or database.
 if grep -qw medbrains-firstboot <<<"$enabled"; then echo "FAIL: postinst enables first boot on a node"; exit 1; fi
 echo PASS

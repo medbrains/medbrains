@@ -20,9 +20,10 @@ use tokio::sync::Semaphore;
 
 use crate::code::{commitment, join_code, new_nonce};
 use crate::gateway::{WHOAMI_SIZE, decode_32};
+use crate::time::{NODE_TIME_PORT, ask_main, is_time_packet};
 use crate::wire::{
-    Hello, IROH_PORT, JOIN_ALPN, JoinState, Kind, NonceFrame, StatusFrame, TUNNEL_ALPN, WHOAMI_PORT,
-    read_frame, write_frame,
+    Hello, IROH_PORT, JOIN_ALPN, JoinState, Kind, NonceFrame, StatusFrame, TIME_ALPN, TUNNEL_ALPN,
+    WHOAMI_PORT, read_frame, write_frame,
 };
 
 /// Where the agent records what it joined. The setup service reads it to finish setup.
@@ -268,9 +269,50 @@ impl Node {
             return Ok(());
         }
         let listener = TcpListener::bind(self.screen_port).await.context("the screen's port")?;
+        let clock = UdpSocket::bind(SocketAddr::new(self.screen_port.ip(), NODE_TIME_PORT)).await;
         let this = Arc::clone(self);
+        let (time_joined, time_node) = (joined.clone(), Arc::clone(self));
+        match clock {
+            Ok(socket) => drop(tokio::spawn(async move { time_node.relay_time_forever(socket, time_joined).await })),
+            // Only a second agent on the test machine: the screen still works, the clock says so.
+            Err(error) => tracing::warn!(%error, "no time relay"),
+        }
         tokio::spawn(async move { this.carry_forever(listener, joined).await });
         Ok(())
+    }
+
+    /// Relays chrony's packets to the main machine for as long as the agent runs; one at a time,
+    /// which is plenty at chrony's rate, and each with a time limit.
+    async fn relay_time_forever(self: Arc<Self>, socket: UdpSocket, joined: Joined) {
+        let mut buffer = [0_u8; 1024];
+        let mut held: Option<Connection> = None;
+        loop {
+            let Ok((read, from)) = socket.recv_from(&mut buffer).await else {
+                continue;
+            };
+            if !is_time_packet(read) {
+                continue;
+            }
+            match self.ask_time(&mut held, &joined, &buffer[..read]).await {
+                Ok(answer) => drop(socket.send_to(&answer, from).await),
+                Err(error) => tracing::info!(%error, "no answer from the main machine's clock"),
+            }
+        }
+    }
+
+    /// One time packet, dialling again if the connection has dropped.
+    async fn ask_time(
+        &self,
+        held: &mut Option<Connection>,
+        joined: &Joined,
+        question: &[u8],
+    ) -> anyhow::Result<Vec<u8>> {
+        if held.as_ref().is_none_or(|conn| conn.close_reason().is_some()) {
+            let id = joined.main_id.parse()?;
+            *held = Some(self.dial(id, &joined.addresses, TIME_ALPN).await?);
+        }
+        let conn = held.as_ref().context("no connection")?;
+        ask_main(conn, question).await
     }
 
     /// Carries each connection from the screen over one iroh connection, which is dialled again

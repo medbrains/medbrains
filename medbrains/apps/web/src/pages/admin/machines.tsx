@@ -9,7 +9,7 @@
 import { Group, PinInput, Stack, Text } from "@mantine/core";
 import { api } from "@medbrains/api";
 import { useHasPermission } from "@medbrains/stores";
-import { type JoinedMachine, P, type WaitingMachine } from "@medbrains/types";
+import { type DroppedRequest, type JoinedMachine, P, type WaitingMachine } from "@medbrains/types";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { PageHeader } from "@/components";
@@ -108,8 +108,8 @@ function WaitingCard({ waiting, canApprove }: WaitingCardProps) {
             <Stack gap={0}>
               <Text fw={600}>{machine.label}</Text>
               <Text size="xs" c="dimmed">
-                {typeWords(machine.app_variant)} · asks until{" "}
-                {new Date(machine.expires_at).toLocaleTimeString()}
+                {typeWords(machine.app_variant)} · {machine.address ?? "address unknown"} · asks
+                until {new Date(machine.expires_at).toLocaleTimeString()}
               </Text>
             </Stack>
             <Group gap="sm">
@@ -224,6 +224,51 @@ function JoinedTable({ machines, canRemove }: JoinedTableProps) {
   );
 }
 
+interface DroppedCardProps {
+  dropped: DroppedRequest[];
+}
+
+/**
+ * Requests that newer ones pushed out. A real machine here simply asks again; many from one address
+ * mean something on the network is flooding this main machine.
+ */
+function DroppedCard({ dropped }: DroppedCardProps) {
+  if (dropped.length === 0) {
+    return null;
+  }
+  return (
+    <Card data-testid="card-dropped-machines">
+      <Stack gap="sm">
+        <Text fw={600}>Pushed out of the waiting list</Text>
+        <Text size="sm" c="dimmed">
+          Nothing was granted. A real machine can ask again. Many from one address may mean
+          something on your network is sending requests.
+        </Text>
+        <Table>
+          <Table.Thead>
+            <Table.Tr>
+              <Table.Th>Name it gave</Table.Th>
+              <Table.Th>Address</Table.Th>
+              <Table.Th>Asked at</Table.Th>
+              <Table.Th>Why</Table.Th>
+            </Table.Tr>
+          </Table.Thead>
+          <Table.Tbody>
+            {dropped.map((request) => (
+              <Table.Tr key={`${request.created_at}-${request.label}`}>
+                <Table.Td>{request.label}</Table.Td>
+                <Table.Td>{request.address ?? "Unknown"}</Table.Td>
+                <Table.Td>{new Date(request.created_at).toLocaleString()}</Table.Td>
+                <Table.Td>{request.reason}</Table.Td>
+              </Table.Tr>
+            ))}
+          </Table.Tbody>
+        </Table>
+      </Stack>
+    </Card>
+  );
+}
+
 /** The Nodes screen. */
 export function MachinesPage() {
   useRequirePermission(P.DEVICES.MACHINES.VIEW);
@@ -249,6 +294,7 @@ export function MachinesPage() {
         <>
           <WaitingCard waiting={list.data.waiting} canApprove={canApprove} />
           <JoinedTable machines={list.data.machines} canRemove={canRemove} />
+          <DroppedCard dropped={list.data.dropped} />
         </>
       )}
     </Stack>

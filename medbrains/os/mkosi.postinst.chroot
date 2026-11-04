@@ -20,7 +20,7 @@ nft -c -f /tmp/whole-firewall.nft
 rm /tmp/whole-firewall.nft
 systemctl enable nftables chrony systemd-networkd systemd-resolved systemd-repart \
     medbrains-network-settings medbrains-os-setup medbrains-main.target medbrains-node.target \
-    medbrains-agent cage-console
+    medbrains-agent medbrains-time-role cage-console
 # Only medbrains-main.target starts these, and only once setup has finished, so nothing
 # answers on the network before then. Debian's packages enable them by default.
 systemctl disable caddy postgresql 2>/dev/null || true

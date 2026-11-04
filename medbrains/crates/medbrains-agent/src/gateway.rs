@@ -2,13 +2,13 @@
 //! end, and closes them the moment they stop being admitted.
 
 use std::collections::HashMap;
-use std::net::SocketAddr;
+use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 use std::sync::{Arc, Mutex, PoisonError, RwLock};
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use anyhow::{Context, bail};
 use iroh::Endpoint;
-use iroh::endpoint::Connection;
+use iroh::endpoint::{Connection, Incoming};
 use medbrains_core::peer_sync::PeerRosterDoc;
 use medbrains_edge::iroh_transport::{PeerGatekeeper, close_when_refused};
 use medbrains_edge::peer_admission::{Admission, RefusalReason, refusal_message};
@@ -20,8 +20,11 @@ use uuid::Uuid;
 
 use crate::code::{commitment, join_code, new_nonce};
 use crate::hospital::{Filing, Hospital};
+use crate::limits::AddressLimits;
+use crate::time;
 use crate::wire::{
-    Hello, JOIN_ALPN, JoinState, NonceFrame, StatusFrame, TUNNEL_ALPN, read_frame, write_frame,
+    Hello, JOIN_ALPN, JoinState, NonceFrame, StatusFrame, TIME_ALPN, TUNNEL_ALPN, read_frame,
+    write_frame,
 };
 
 /// How often the agent asks the server who may be connected, which bounds how long a removed
@@ -31,8 +34,9 @@ const SYNC_EVERY: Duration = Duration::from_secs(2);
 const STATUS_EVERY: Duration = Duration::from_secs(2);
 /// A machine that opens a connection and says nothing is dropped after this.
 const HANDSHAKE_TIMEOUT: Duration = Duration::from_secs(10);
-/// Join conversations at once, so a flood of keys cannot hold every task on the machine.
-const MAX_JOINING: usize = 32;
+/// Join handshakes at once across every address. Each lasts at most `HANDSHAKE_TIMEOUT`, and a
+/// conversation gives its slot back once its request is filed, because the server bounds those.
+const MAX_JOINING: usize = 64;
 /// Connections to the front end, per machine: a screen opens a handful.
 const MAX_STREAMS: usize = 64;
 const MAX_LABEL: usize = 60;
@@ -85,6 +89,7 @@ pub(crate) struct Gateway {
     live: Mutex<HashMap<String, Connection>>,
     name: RwLock<String>,
     joining: Semaphore,
+    limits: Arc<AddressLimits>,
 }
 
 impl Gateway {
@@ -105,6 +110,7 @@ impl Gateway {
             live: Mutex::default(),
             name: RwLock::default(),
             joining: Semaphore::new(MAX_JOINING),
+            limits: Arc::default(),
         })
     }
 
@@ -135,50 +141,72 @@ impl Gateway {
         }
     }
 
-    /// Accepts connections for as long as the agent runs.
+    /// Accepts connections for as long as the agent runs: the one loop meant never to end.
     pub(crate) async fn accept_forever(self: Arc<Self>) {
         while let Some(incoming) = self.endpoint.accept().await {
             let this = Arc::clone(&self);
             tokio::spawn(async move {
-                let result = async {
-                    let conn = incoming.await.context("handshake")?;
-                    if conn.alpn() == JOIN_ALPN {
-                        this.serve_join(&conn).await
-                    } else if conn.alpn() == TUNNEL_ALPN {
-                        this.serve_tunnel(conn).await
-                    } else {
-                        bail!("an unknown protocol")
-                    }
-                };
-                if let Err(error) = result.await {
+                if let Err(error) = this.serve(incoming).await {
                     tracing::info!(%error, "connection ended");
                 }
             });
         }
     }
 
-    /// One join conversation, from the node's commitment until its request is decided.
-    async fn serve_join(&self, conn: &Connection) -> anyhow::Result<()> {
-        let _slot = self.joining.try_acquire().context("too many machines joining")?;
-        let (mut send, recv) =
-            tokio::time::timeout(HANDSHAKE_TIMEOUT, conn.accept_bi()).await.context("silent")??;
-        let mut reader = BufReader::new(recv);
+    /// One accepted connection, by what it asks to speak.
+    async fn serve(&self, incoming: Incoming) -> anyhow::Result<()> {
+        let address = source_address(&incoming);
+        let conn = incoming.await.context("handshake")?;
+        if conn.alpn() == JOIN_ALPN {
+            self.serve_join(&conn, address).await
+        } else if conn.alpn() == TUNNEL_ALPN || conn.alpn() == TIME_ALPN {
+            self.serve_admitted(conn).await
+        } else {
+            bail!("an unknown protocol")
+        }
+    }
+
+    /// The handshake: commit, nonces, reveal. Returns what to file. Every step has a time limit.
+    async fn hear_request(
+        &self,
+        conn: &Connection,
+        address: IpAddr,
+        send: &mut iroh::endpoint::SendStream,
+        reader: &mut BufReader<iroh::endpoint::RecvStream>,
+    ) -> anyhow::Result<Filing> {
         let hello: Hello =
-            tokio::time::timeout(HANDSHAKE_TIMEOUT, read_frame(&mut reader)).await.context("silent")??;
+            tokio::time::timeout(HANDSHAKE_TIMEOUT, read_frame(reader)).await.context("silent")??;
         let label = clean_label(&hello.name).context("no usable name")?;
         let main_nonce = new_nonce()?;
-        write_frame(&mut send, &NonceFrame { nonce: hex::encode(main_nonce) }).await?;
+        write_frame(send, &NonceFrame { nonce: hex::encode(main_nonce) }).await?;
         let reveal: NonceFrame =
-            tokio::time::timeout(HANDSHAKE_TIMEOUT, read_frame(&mut reader)).await.context("silent")??;
+            tokio::time::timeout(HANDSHAKE_TIMEOUT, read_frame(reader)).await.context("silent")??;
         let node_nonce = decode_32(&reveal.nonce)?;
         if hex::encode(commitment(&node_nonce)) != hello.commitment {
             bail!("the nonce does not match its commitment");
         }
         let node = conn.remote_id();
-        let code = join_code(self.endpoint.id().as_bytes(), node.as_bytes(), &main_nonce, &node_nonce);
-        let node_id = node.to_string();
-        let filing = Filing { node_id: node_id.clone(), label, kind: hello.kind, code };
+        let code =
+            join_code(self.endpoint.id().as_bytes(), node.as_bytes(), &main_nonce, &node_nonce);
+        Ok(Filing {
+            node_id: node.to_string(),
+            address: address.to_string(),
+            label,
+            kind: hello.kind,
+            code,
+        })
+    }
+
+    /// One join conversation, from the node's commitment until its request is decided.
+    async fn serve_join(&self, conn: &Connection, address: IpAddr) -> anyhow::Result<()> {
+        let _place = self.limits.enter(address, Instant::now()).context("this address has had its share")?;
+        let slot = self.joining.try_acquire().context("too many machines joining")?;
+        let (mut send, recv) =
+            tokio::time::timeout(HANDSHAKE_TIMEOUT, conn.accept_bi()).await.context("silent")??;
+        let mut reader = BufReader::new(recv);
+        let filing = self.hear_request(conn, address, &mut send, &mut reader).await?;
         let mut answer = self.hospital.file_join(&filing).await?;
+        drop(slot);
         loop {
             write_frame(&mut send, &self.status(answer.state)).await?;
             if answer.state.is_final() {
@@ -187,7 +215,7 @@ impl Gateway {
                 return Ok(());
             }
             tokio::time::sleep(STATUS_EVERY).await;
-            answer = self.hospital.join_state(&node_id).await?;
+            answer = self.hospital.join_state(&filing.node_id).await?;
         }
     }
 
@@ -223,8 +251,8 @@ impl Gateway {
         admitted(&self.gate)
     }
 
-    /// Carries an admitted machine's screen to the front end until it is closed or refused.
-    async fn serve_tunnel(&self, conn: Connection) -> anyhow::Result<()> {
+    /// Serves an admitted machine, its screen or its clock, until it is closed or refused.
+    async fn serve_admitted(&self, conn: Connection) -> anyhow::Result<()> {
         let node_id = conn.remote_id().to_string();
         let Some(tenant) = self.tunnel_admission(&node_id).await else {
             conn.close(CLOSE_REFUSED.into(), refusal_message().as_bytes());
@@ -242,6 +270,17 @@ impl Gateway {
             tenant,
             self.changes.subscribe(),
         ));
+        if conn.alpn() == TIME_ALPN {
+            time::serve_main(&conn).await;
+        } else {
+            self.carry_screen(&conn).await;
+        }
+        watcher.abort();
+        Ok(())
+    }
+
+    /// Carries each connection from a machine's screen to the local front end.
+    async fn carry_screen(&self, conn: &Connection) {
         let limit = Arc::new(Semaphore::new(MAX_STREAMS));
         while let Ok((mut send, mut recv)) = conn.accept_bi().await {
             let Ok(permit) = Arc::clone(&limit).try_acquire_owned() else {
@@ -257,8 +296,6 @@ impl Gateway {
                 drop(tokio::io::copy_bidirectional(&mut stream, &mut upstream).await);
             });
         }
-        watcher.abort();
-        Ok(())
     }
 
     /// Answers "who are you?" with this machine's key and name. Unauthenticated on purpose: a
@@ -276,6 +313,15 @@ impl Gateway {
             let reply = whoami_reply(&self.endpoint.id().to_string(), &name);
             drop(socket.send_to(reply.as_bytes(), from).await);
         }
+    }
+}
+
+/// Where a connection comes from. An address the transport cannot name shares one bucket, so it can
+/// never be a way round the limits.
+fn source_address(incoming: &Incoming) -> IpAddr {
+    match incoming.remote_addr() {
+        iroh::endpoint::IncomingAddr::Ip(address) => address.ip().to_canonical(),
+        _ => IpAddr::V4(Ipv4Addr::UNSPECIFIED),
     }
 }
 

@@ -6041,7 +6041,16 @@ export interface WaitingMachine {
   label: string;
   app_variant: string;
   code: string;
+  address: string | null;
   expires_at: string;
+  created_at: string;
+}
+
+/** A request a newer one pushed out of the waiting list. */
+export interface DroppedRequest {
+  label: string;
+  address: string | null;
+  reason: string;
   created_at: string;
 }
 
@@ -6059,6 +6068,7 @@ export interface JoinedMachine {
 export interface MachineList {
   waiting: WaitingMachine[];
   machines: JoinedMachine[];
+  dropped: DroppedRequest[];
 }
 
 /** What the QR on a printed prescription resolves to. */

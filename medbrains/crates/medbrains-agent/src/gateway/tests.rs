@@ -16,7 +16,7 @@ use uuid::Uuid;
 use super::{Gateway, RosterGate, WHOAMI_SIZE, clean_label, whoami_reply};
 use crate::hospital::{Answer, Filing, Hospital, Synced};
 use crate::node::Node;
-use crate::wire::{JOIN_ALPN, JoinState, Kind, TUNNEL_ALPN};
+use crate::wire::{JOIN_ALPN, JoinState, Kind, TIME_ALPN, TUNNEL_ALPN};
 
 const CERTIFICATE: &str = "the front end's certificate";
 
@@ -110,7 +110,7 @@ async fn echo_front() -> anyhow::Result<SocketAddr> {
 
 /// A running gateway and the address a node dials it at.
 async fn gateway(server: Arc<FakeServer>) -> anyhow::Result<(Arc<Gateway>, EndpointAddr)> {
-    let main = endpoint(vec![JOIN_ALPN.to_vec(), TUNNEL_ALPN.to_vec()]).await?;
+    let main = endpoint(vec![JOIN_ALPN.to_vec(), TUNNEL_ALPN.to_vec(), TIME_ALPN.to_vec()]).await?;
     let addr = main.addr();
     let front = echo_front().await?;
     let gateway = Gateway::new(main, server, CERTIFICATE.to_owned(), front);
@@ -189,6 +189,37 @@ async fn a_key_approved_a_moment_ago_gets_through() -> anyhow::Result<()> {
     let node = endpoint(Vec::new()).await?;
     server.set_admitted(&[node.id().to_string()]);
     assert_eq!(tunnel_answer(&node, addr).await?, b"ping");
+    Ok(())
+}
+
+/// The clock is admitted like the screen: a stranger's time packet is refused, because a removed
+/// node must lose its time source along with its access.
+#[tokio::test]
+async fn an_unapproved_key_gets_no_time() -> anyhow::Result<()> {
+    let server = FakeServer::new(Uuid::new_v4(), JoinState::Pending);
+    let (_gateway, addr) = gateway(server).await?;
+    let stranger = endpoint(Vec::new()).await?;
+    let conn = stranger.connect(addr, TIME_ALPN).await?;
+    let asked = crate::time::ask_main(&conn, &[0_u8; 48]);
+    assert!(tokio::time::timeout(Duration::from_secs(5), asked).await?.is_err());
+    Ok(())
+}
+
+/// One address holding its share of conversations must not stop another from filing.
+#[tokio::test]
+async fn a_full_address_is_turned_away_at_the_door() -> anyhow::Result<()> {
+    let server = FakeServer::new(Uuid::new_v4(), JoinState::Pending);
+    let (_gateway, addr) = gateway(Arc::clone(&server)).await?;
+    let mut waiting = Vec::new();
+    for _ in 0..4 {
+        let (node, dir) = node_with_main(&addr, "City Hospital").await?;
+        node.start_join(&addr.id.to_string(), "PC".to_owned(), Kind::Workstation)?;
+        tokio::time::sleep(Duration::from_millis(300)).await;
+        waiting.push((node, dir));
+    }
+    tokio::time::sleep(Duration::from_secs(1)).await;
+    let filed = server.filings.lock().unwrap_or_else(PoisonError::into_inner).len();
+    assert_eq!(filed, 3, "all four came from one address, which may hold three");
     Ok(())
 }
 
@@ -281,7 +312,7 @@ async fn a_refused_request_leaves_nothing_behind() -> anyhow::Result<()> {
     for (state, word) in [
         (JoinState::Rejected, "rejected"),
         (JoinState::Expired, "expired"),
-        (JoinState::Busy, "busy"),
+        (JoinState::Dropped, "dropped"),
     ] {
         let server = FakeServer::new(Uuid::new_v4(), state);
         let (_gateway, addr) = gateway(server).await?;

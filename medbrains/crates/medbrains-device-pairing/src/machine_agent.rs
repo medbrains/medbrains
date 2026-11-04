@@ -17,9 +17,17 @@ use crate::machines::constant_time_eq;
 
 /// A person has this long to walk to the main machine and approve.
 const REQUEST_TTL_MINUTES: i64 = 10;
-/// How many machines may wait at once, so a flood of keys cannot fill the list. A real machine
-/// that finds it full is told so, and an administrator can reject what is filling it.
+/// How many machines may wait at once. The list never refuses a new request: a stranger on the
+/// LAN must not be able to stop a hospital adding a machine by filling it. Instead the oldest makes
+/// way, and the administrator sees what was pushed out.
 const MAX_WAITING: i64 = 20;
+/// How many of those one address may hold, so one stranger cannot push out everyone else. Its own
+/// oldest goes first. A real machine has one address and asks once.
+const MAX_WAITING_PER_ADDRESS: i64 = 3;
+/// How many pushed-out requests are kept to show, however long a flood lasts.
+const MAX_DROPPED_KEPT: i64 = 50;
+const DROPPED_BY_ADDRESS: &str = "More requests came from the same address.";
+const DROPPED_LIST_FULL: &str = "The waiting list was full, and this was the oldest.";
 const TOKEN_ENV: &str = "MEDBRAINS_MACHINE_AGENT_TOKEN";
 const TOKEN_HEADER: &str = "x-machine-agent-token";
 
@@ -31,16 +39,22 @@ pub enum JoinState {
     Approved,
     Rejected,
     Expired,
-    /// Too many machines are already waiting.
-    Busy,
+    /// A newer request pushed this one out, so this machine should ask again.
+    Dropped,
 }
 
 /// Reads a request row. A pending request past its time has expired, whatever its status says.
-fn join_state(status: &str, expires_at: DateTime<Utc>, now: DateTime<Utc>) -> JoinState {
+fn join_state(
+    status: &str,
+    dropped: bool,
+    expires_at: DateTime<Utc>,
+    now: DateTime<Utc>,
+) -> JoinState {
     match status {
         "pending" if expires_at > now => JoinState::Pending,
         "pending" => JoinState::Expired,
         "claimed" | "approved" => JoinState::Approved,
+        _ if dropped => JoinState::Dropped,
         _ => JoinState::Rejected,
     }
 }
@@ -88,11 +102,13 @@ async fn this_hospital(db: &sqlx::PgPool) -> Result<(Uuid, String), AppError> {
     }
 }
 
-/// `POST /api/machine-agent/join`'s body. The key comes from the iroh connection, as the agent saw it.
+/// `POST /api/machine-agent/join`'s body. The key and the address come from the iroh connection, as
+/// the agent saw them; a machine says neither.
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct JoinFiling {
     pub node_id: String,
+    pub address: String,
     pub label: String,
     pub kind: String,
     pub code: String,
@@ -104,20 +120,64 @@ pub struct JoinAnswer {
     pub state: JoinState,
 }
 
-/// `POST /api/machine-agent/join`: files a request, which grants nothing. A machine already
-/// admitted is told so; one that asks again replaces its own waiting request.
-pub async fn file_join(
-    State(state): State<AppState>,
-    headers: HeaderMap,
-    Json(body): Json<JoinFiling>,
-) -> Result<Json<JoinAnswer>, AppError> {
-    require_agent(&headers)?;
-    let variant = app_variant(&body.kind)
+/// Makes room for one more request. This machine's own waiting request is replaced; past the limits,
+/// the oldest goes, from this address first. Keeps a bounded record of what went.
+async fn make_room(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    filing: &JoinFiling,
+) -> Result<(), AppError> {
+    sqlx::query!(
+        "UPDATE device_pairing_requests SET status = 'denied' \
+          WHERE node_id = $1 AND status = 'pending'",
+        filing.node_id,
+    )
+    .execute(&mut **tx)
+    .await?;
+    sqlx::query!(
+        "UPDATE device_pairing_requests SET status = 'denied', drop_reason = $3 WHERE id IN ( \
+           SELECT id FROM device_pairing_requests \
+            WHERE node_id IS NOT NULL AND status = 'pending' AND expires_at > now() \
+              AND source_address = $1 \
+            ORDER BY created_at DESC OFFSET $2)",
+        filing.address,
+        MAX_WAITING_PER_ADDRESS - 1,
+        DROPPED_BY_ADDRESS,
+    )
+    .execute(&mut **tx)
+    .await?;
+    sqlx::query!(
+        "UPDATE device_pairing_requests SET status = 'denied', drop_reason = $2 WHERE id IN ( \
+           SELECT id FROM device_pairing_requests \
+            WHERE node_id IS NOT NULL AND status = 'pending' AND expires_at > now() \
+            ORDER BY created_at DESC OFFSET $1)",
+        MAX_WAITING - 1,
+        DROPPED_LIST_FULL,
+    )
+    .execute(&mut **tx)
+    .await?;
+    sqlx::query!(
+        "DELETE FROM device_pairing_requests WHERE id IN ( \
+           SELECT id FROM device_pairing_requests WHERE drop_reason IS NOT NULL \
+            ORDER BY created_at DESC OFFSET $1)",
+        MAX_DROPPED_KEPT,
+    )
+    .execute(&mut **tx)
+    .await?;
+    Ok(())
+}
+
+/// Files a request for this hospital, which grants nothing. A machine already admitted is told so.
+/// Public so the flood rules can be tested without an agent token.
+pub async fn file_request(
+    db: &sqlx::PgPool,
+    tenant: Uuid,
+    filing: &JoinFiling,
+) -> Result<JoinState, AppError> {
+    let variant = app_variant(&filing.kind)
         .ok_or_else(|| AppError::BadRequest("unknown machine type".to_owned()))?;
-    let (tenant, _) = this_hospital(&state.db).await?;
-    let mut tx = state.db.begin().await?;
+    let mut tx = db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &tenant).await?;
-    // One filing at a time, so the count below cannot be raced past its limit.
+    // One filing at a time, so the limits below cannot be raced past.
     sqlx::query_scalar!(
         r#"SELECT 1 AS "locked!" FROM pg_advisory_xact_lock(hashtext('machine-join'))"#
     )
@@ -128,51 +188,48 @@ pub async fn file_join(
            JOIN paired_devices d ON d.id = k.paired_device_id
           WHERE k.node_id = $1 AND k.tenant_id = $2 AND k.revoked_at IS NULL
             AND d.revoked_at IS NULL) AS "admitted!""#,
-        body.node_id,
+        filing.node_id,
         tenant,
     )
     .fetch_one(&mut *tx)
     .await?;
     if admitted {
-        return Ok(Json(JoinAnswer { state: JoinState::Approved }));
+        return Ok(JoinState::Approved);
     }
-    sqlx::query!(
-        "UPDATE device_pairing_requests SET status = 'denied' \
-          WHERE node_id = $1 AND status = 'pending'",
-        body.node_id,
-    )
-    .execute(&mut *tx)
-    .await?;
-    let waiting = sqlx::query_scalar!(
-        r#"SELECT count(*) AS "count!" FROM device_pairing_requests
-          WHERE node_id IS NOT NULL AND status = 'pending' AND expires_at > now()"#
-    )
-    .fetch_one(&mut *tx)
-    .await?;
-    if waiting >= MAX_WAITING {
-        tx.commit().await?;
-        return Ok(Json(JoinAnswer { state: JoinState::Busy }));
-    }
+    make_room(&mut tx, filing).await?;
     let request = Uuid::new_v4();
     let reference = format!("machine:{request}");
     sqlx::query!(
         "INSERT INTO device_pairing_requests \
            (id, tenant_id, device_code, user_code, app_variant, requested_label, expires_at, \
-            node_id, join_code) \
-         VALUES ($1, $2, $3, $3, $4, $5, $6, $7, $8)",
+            node_id, join_code, source_address) \
+         VALUES ($1, $2, $3, $3, $4, $5, $6, $7, $8, $9)",
         request,
         tenant,
         reference,
         variant,
-        body.label.trim(),
+        filing.label.trim(),
         Utc::now() + Duration::minutes(REQUEST_TTL_MINUTES),
-        body.node_id,
-        body.code,
+        filing.node_id,
+        filing.code,
+        filing.address,
     )
     .execute(&mut *tx)
     .await?;
     tx.commit().await?;
-    Ok(Json(JoinAnswer { state: JoinState::Pending }))
+    Ok(JoinState::Pending)
+}
+
+/// `POST /api/machine-agent/join`.
+pub async fn file_join(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Json(body): Json<JoinFiling>,
+) -> Result<Json<JoinAnswer>, AppError> {
+    require_agent(&headers)?;
+    let (tenant, _) = this_hospital(&state.db).await?;
+    let answer = file_request(&state.db, tenant, &body).await?;
+    Ok(Json(JoinAnswer { state: answer }))
 }
 
 /// `GET /api/machine-agent/join/{node_id}`: where this key's latest request stands.
@@ -186,15 +243,16 @@ pub async fn get_join_state(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &tenant).await?;
     let row = sqlx::query!(
-        "SELECT status, expires_at FROM device_pairing_requests \
-          WHERE node_id = $1 ORDER BY created_at DESC LIMIT 1",
+        r#"SELECT status, expires_at, drop_reason IS NOT NULL AS "dropped!"
+             FROM device_pairing_requests
+            WHERE node_id = $1 ORDER BY created_at DESC LIMIT 1"#,
         node_id,
     )
     .fetch_optional(&mut *tx)
     .await?;
     tx.commit().await?;
     let answer = row.map_or(JoinState::Expired, |row| {
-        join_state(&row.status, row.expires_at, Utc::now())
+        join_state(&row.status, row.dropped, row.expires_at, Utc::now())
     });
     Ok(Json(JoinAnswer { state: answer }))
 }
@@ -285,17 +343,24 @@ mod tests {
     fn a_pending_request_past_its_time_has_expired() {
         let now = Utc::now();
         let later = now + Duration::minutes(1);
-        assert_eq!(join_state("pending", later, now), JoinState::Pending);
-        assert_eq!(join_state("pending", now, now), JoinState::Expired);
-        assert_eq!(join_state("claimed", now, now), JoinState::Approved);
-        assert_eq!(join_state("denied", later, now), JoinState::Rejected);
+        assert_eq!(join_state("pending", false, later, now), JoinState::Pending);
+        assert_eq!(join_state("pending", false, now, now), JoinState::Expired);
+        assert_eq!(join_state("claimed", false, now, now), JoinState::Approved);
+        assert_eq!(join_state("denied", false, later, now), JoinState::Rejected);
     }
 
     /// Only an approved state may read as approved: anything unknown is a refusal.
     #[test]
     fn an_unknown_status_grants_nothing() {
         let now = Utc::now();
-        assert_eq!(join_state("anything", now + Duration::days(1), now), JoinState::Rejected);
+        assert_eq!(join_state("anything", false, now + Duration::days(1), now), JoinState::Rejected);
+    }
+
+    /// A machine pushed out by a flood must be told to ask again, not that a person refused it.
+    #[test]
+    fn a_dropped_request_says_so() {
+        let now = Utc::now();
+        assert_eq!(join_state("denied", true, now, now), JoinState::Dropped);
     }
 
     /// Off the appliance there is no token, and nothing may pass, including an empty one.

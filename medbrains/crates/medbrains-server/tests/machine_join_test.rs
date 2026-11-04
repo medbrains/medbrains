@@ -1,5 +1,6 @@
 use crate::common;
 
+use medbrains_device_pairing::machine_agent::{JoinFiling, JoinState, file_request};
 use uuid::Uuid;
 
 /// A machine waiting for a person, as the agent files it, with `code` on both screens.
@@ -138,4 +139,76 @@ async fn each_duty_needs_its_own_permission() {
         .expect("sends");
     assert_eq!(approve.status().as_u16(), 403, "removing a machine is not letting one in");
     assert_eq!(live_keys(&app.db, &node_id).await, 0);
+}
+
+/// Files a request the way the agent's route does.
+async fn file(db: &sqlx::PgPool, tenant: Uuid, key: &str, address: &str) -> JoinState {
+    let filing = JoinFiling {
+        node_id: key.to_owned(),
+        address: address.to_owned(),
+        label: format!("Request {key}"),
+        kind: "workstation".to_owned(),
+        code: "123456".to_owned(),
+    };
+    file_request(db, tenant, &filing).await.expect("a filing is never refused")
+}
+
+/// How many requests from `address` are waiting, and how many were pushed out.
+async fn counts(db: &sqlx::PgPool, address: &str) -> (i64, i64) {
+    sqlx::query_as(
+        "SELECT count(*) FILTER (WHERE status = 'pending'), count(*) FILTER (WHERE drop_reason IS NOT NULL) \
+           FROM device_pairing_requests WHERE source_address = $1",
+    )
+    .bind(address)
+    .fetch_one(db)
+    .await
+    .expect("count")
+}
+
+/// A stranger on the LAN must not be able to stop a hospital adding a machine: however much one
+/// address files, a real machine's request goes in, stays in, and the flood's oldest are recorded.
+#[tokio::test]
+async fn one_address_flooding_cannot_block_or_push_out_another() {
+    let app = common::spawn_app().await;
+    let tenant = admin_tenant(&app.db).await;
+    let tag = Uuid::new_v4().simple().to_string();
+    let (stranger, real) = (format!("s-{tag}"), format!("r-{tag}"));
+    assert_eq!(file(&app.db, tenant, &format!("real-{tag}"), &real).await, JoinState::Pending);
+    for i in 0..40 {
+        let key = format!("flood-{tag}-{i}");
+        assert_eq!(file(&app.db, tenant, &key, &stranger).await, JoinState::Pending);
+    }
+    let (waiting, dropped) = counts(&app.db, &stranger).await;
+    assert_eq!(waiting, 3, "one address holds three places at most");
+    assert!(dropped > 0, "what went must be there for the administrator to see");
+    assert_eq!(counts(&app.db, &real).await, (1, 0), "the real machine is untouched");
+}
+
+/// Many addresses at once fill the list, and still a new request goes in, with the oldest making way.
+#[tokio::test]
+async fn a_full_list_lets_the_newest_in_and_stays_bounded() {
+    let app = common::spawn_app().await;
+    let tenant = admin_tenant(&app.db).await;
+    let tag = Uuid::new_v4().simple().to_string();
+    for i in 0..60 {
+        let (key, address) = (format!("wide-{tag}-{i}"), format!("a-{tag}-{i}"));
+        assert_eq!(file(&app.db, tenant, &key, &address).await, JoinState::Pending);
+    }
+    let waiting: i64 = sqlx::query_scalar(
+        "SELECT count(*) FROM device_pairing_requests \
+          WHERE node_id IS NOT NULL AND status = 'pending' AND expires_at > now()",
+    )
+    .fetch_one(&app.db)
+    .await
+    .expect("count");
+    assert!(waiting <= 20, "{waiting} waiting");
+    let last = format!("a-{tag}-59");
+    assert_eq!(counts(&app.db, &last).await, (1, 0), "the newest is in");
+    let kept: i64 = sqlx::query_scalar(
+        "SELECT count(*) FROM device_pairing_requests WHERE drop_reason IS NOT NULL",
+    )
+    .fetch_one(&app.db)
+    .await
+    .expect("count");
+    assert!(kept <= 50, "the record of what went has a ceiling: {kept}");
 }

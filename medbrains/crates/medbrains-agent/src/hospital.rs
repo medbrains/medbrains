@@ -16,6 +16,8 @@ const REQUEST_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(5);
 #[derive(Debug, Clone, Serialize)]
 pub(crate) struct Filing {
     pub(crate) node_id: String,
+    /// Where the connection came from, as this agent saw it. The server limits per address.
+    pub(crate) address: String,
     pub(crate) label: String,
     pub(crate) kind: Kind,
     pub(crate) code: String,

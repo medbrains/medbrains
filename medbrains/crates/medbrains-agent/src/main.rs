@@ -9,8 +9,10 @@ mod control;
 mod gateway;
 mod hospital;
 mod keys;
+mod limits;
 mod mdns;
 mod node;
+mod time;
 mod wire;
 
 use std::net::SocketAddr;
@@ -23,7 +25,7 @@ use tokio::net::UdpSocket;
 use crate::gateway::Gateway;
 use crate::hospital::Server;
 use crate::node::Node;
-use crate::wire::{IROH_PORT, JOIN_ALPN, TUNNEL_ALPN, WHOAMI_PORT};
+use crate::wire::{IROH_PORT, JOIN_ALPN, TIME_ALPN, TUNNEL_ALPN, WHOAMI_PORT};
 
 const STATE_DIR: &str = "/var/lib/medbrains-agent";
 const KEY_FILE: &str = "machine.key";
@@ -41,7 +43,7 @@ async fn run_main(state: &Path) -> anyhow::Result<()> {
     let secret = keys::load_or_create(&state.join(KEY_FILE))?;
     let token = std::fs::read_to_string(state.join(SERVER_TOKEN_FILE))?;
     let certificate = std::fs::read_to_string(state.join(FRONT_CERTIFICATE_FILE))?;
-    let alpns = vec![JOIN_ALPN.to_vec(), TUNNEL_ALPN.to_vec()];
+    let alpns = vec![JOIN_ALPN.to_vec(), TUNNEL_ALPN.to_vec(), TIME_ALPN.to_vec()];
     let endpoint = build_lan_endpoint(secret, alpns, Some(IROH_PORT)).await?;
     tokio::spawn(mdns::follow(endpoint.clone(), true, |_| {}));
     let hospital = Arc::new(Server::new(token.trim().to_owned())?);

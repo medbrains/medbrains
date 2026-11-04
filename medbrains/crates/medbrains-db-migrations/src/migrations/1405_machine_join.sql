@@ -1,5 +1,5 @@
 -- ====================================================================
--- Migration: 1404_machine_join.sql
+-- Migration: 1405_machine_join.sql
 -- RLS-Posture: tenant-scoped
 -- Tenant-Column: tenant_id
 -- New-Tables: none
@@ -14,11 +14,17 @@
 -- Machine requests are never reachable by the TV path: their user_code holds a
 -- `machine:` value that its code normalisation cannot produce, and its list
 -- filters them out.
+--
+-- `source_address` is where the request came from, so one address cannot crowd
+-- out the others; `drop_reason` says why a newer request pushed this one out,
+-- which the Machines screen shows.
 
 ALTER TABLE device_pairing_requests
     ADD COLUMN IF NOT EXISTS node_id text,
     ADD COLUMN IF NOT EXISTS join_code text,
-    ADD COLUMN IF NOT EXISTS code_attempts integer NOT NULL DEFAULT 0;
+    ADD COLUMN IF NOT EXISTS code_attempts integer NOT NULL DEFAULT 0,
+    ADD COLUMN IF NOT EXISTS source_address text,
+    ADD COLUMN IF NOT EXISTS drop_reason text;
 
 ALTER TABLE device_pairing_requests
     DROP CONSTRAINT IF EXISTS device_pairing_requests_app_variant_check,

@@ -13,6 +13,8 @@ use crate::rules;
 
 /// Set once the main-machine role is chosen; nothing later asks again.
 const ROLE_MAIN: &str = "/var/lib/medbrains/config/role-main";
+/// `local stratum 10` in `chrony.conf`: the clock of a machine with nothing to set it by.
+const UNCONFIRMED_STRATUM: u8 = 10;
 const ROLE_NODE: &str = "/var/lib/medbrains/config/role-node";
 /// What the agent recorded when a person approved this machine.
 const JOINED_FILE: &str = "/var/lib/medbrains-agent/joined.json";
@@ -85,8 +87,11 @@ fn is_clock_trusted(tracking: &str) -> bool {
             (key.trim() == wanted).then(|| value.trim())
         })
     };
+    // Stratum 10 and over comes from a machine serving its own `local` clock, which a node sees as a
+    // source like any other. Neither that machine nor its nodes can vouch for the time.
     value("Leap status") == Some("Normal")
         && !value("Reference ID").is_some_and(|id| id.starts_with("7F7F0101"))
+        && value("Stratum").and_then(|s| s.parse::<u8>().ok()).is_some_and(|s| s < UNCONFIRMED_STRATUM)
 }
 
 /// Memory, load, uptime, disk and the overall state of the services.
@@ -322,6 +327,8 @@ pub(crate) fn finish_node() -> Result<(), String> {
     fs::File::create(ROLE_NODE)
         .and_then(|marker| marker.sync_all())
         .map_err(|e| e.to_string())?;
+    // From now on its clock comes from the main machine. A failure shows on screen as unconfirmed.
+    output("systemctl", &["restart", "medbrains-time-role.service", "chrony.service"]);
     output("systemctl", &["start", "--no-block", "medbrains-node.target"])
         .map(|_| ())
         .ok_or_else(|| "The services could not start.".to_owned())
@@ -346,7 +353,9 @@ mod tests {
 
     #[test]
     fn the_clock_is_trusted_only_with_a_real_time_source() {
-        let tracking = |id, leap| format!("Reference ID    : {id}\nLeap status     : {leap}\n");
+        let tracking = |id, leap| {
+            format!("Reference ID    : {id}\nStratum         : 3\nLeap status     : {leap}\n")
+        };
         assert!(is_clock_trusted(&tracking(
             "A29FC801 (162.159.200.1)",
             "Normal"
@@ -357,6 +366,13 @@ mod tests {
         )));
         assert!(!is_clock_trusted(&tracking("7F7F0101 ()", "Normal")));
         assert!(!is_clock_trusted(""));
+        // A node of a main machine that has only its own clock: a normal source, but stratum 11.
+        let node_of_unset_main =
+            "Reference ID    : 7F000001 (127.0.0.1)\nStratum         : 11\nLeap status     : Normal\n";
+        assert!(!is_clock_trusted(node_of_unset_main));
+        let node_of_good_main =
+            "Reference ID    : 7F000001 (127.0.0.1)\nStratum         : 4\nLeap status     : Normal\n";
+        assert!(is_clock_trusted(node_of_good_main));
     }
 
     #[test]

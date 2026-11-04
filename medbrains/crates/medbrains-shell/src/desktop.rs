@@ -75,6 +75,8 @@ struct Desktop {
     network_status: gtk::Label,
     clock: gtk::MenuButton,
     clock_warning: gtk::Label,
+    /// Stays on the top bar over the app too: certificates and the audit trail depend on the time.
+    time_note: gtk::Label,
     health: gtk::Label,
     memory: gtk::Label,
     uptime: gtk::Label,
@@ -154,6 +156,7 @@ impl Desktop {
                 .set_value(machine.disk_used as f64 / machine.disk_total as f64);
         }
         self.clock_warning.set_visible(!state.clock_synced);
+        self.time_note.set_visible(!state.clock_synced);
         if state.clock_synced {
             self.clock.remove_css_class("warning");
         } else {
@@ -290,6 +293,8 @@ pub(crate) fn build() -> gtk::Box {
     let brand = ui::label("MedBrains", "heading");
     let network_status = ui::label("", "");
     let (clock, clock_warning) = clock_button();
+    let time_note = ui::label("Time not confirmed", "problem");
+    time_note.set_visible(false);
     let health = ui::label("Checking…", "");
     let memory = ui::label("", "");
     let uptime = ui::label("", "muted");
@@ -309,6 +314,7 @@ pub(crate) fn build() -> gtk::Box {
         network_status: network_status.clone(),
         clock: clock.clone(),
         clock_warning,
+        time_note: time_note.clone(),
         health: health.clone(),
         memory: memory.clone(),
         uptime: uptime.clone(),
@@ -325,7 +331,10 @@ pub(crate) fn build() -> gtk::Box {
     right.append(&network_status);
     right.append(&power_button());
     bar.set_start_widget(Some(&left));
-    bar.set_center_widget(Some(&clock));
+    let center = ui::row(ui::GAP / 2);
+    center.append(&clock);
+    center.append(&time_note);
+    bar.set_center_widget(Some(&center));
     bar.set_end_widget(Some(&right));
     root.append(&bar);
 

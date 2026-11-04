@@ -40,6 +40,7 @@ pub struct WaitingMachine {
     pub label: String,
     pub app_variant: String,
     pub code: String,
+    pub address: Option<String>,
     pub expires_at: DateTime<Utc>,
     pub created_at: DateTime<Utc>,
 }
@@ -55,11 +56,21 @@ pub struct JoinedMachine {
     pub last_seen_at: Option<DateTime<Utc>>,
 }
 
+/// A request a newer one pushed out, so an administrator can see a flood and who it came from.
+#[derive(Debug, Serialize)]
+pub struct DroppedRequest {
+    pub label: String,
+    pub address: Option<String>,
+    pub reason: String,
+    pub created_at: DateTime<Utc>,
+}
+
 /// The Nodes screen in one call.
 #[derive(Debug, Serialize)]
 pub struct MachineList {
     pub waiting: Vec<WaitingMachine>,
     pub machines: Vec<JoinedMachine>,
+    pub dropped: Vec<DroppedRequest>,
 }
 
 /// `GET /api/admin/machines`: everything the Nodes screen shows.
@@ -73,7 +84,7 @@ pub async fn list_machines(
     let waiting = sqlx::query_as!(
         WaitingMachine,
         r#"SELECT id, requested_label AS label, app_variant, join_code AS "code!",
-                  expires_at, created_at
+                  source_address AS address, expires_at, created_at
              FROM device_pairing_requests
             WHERE tenant_id = $1 AND node_id IS NOT NULL AND status = 'pending'
               AND expires_at > now()
@@ -95,8 +106,19 @@ pub async fn list_machines(
     )
     .fetch_all(&mut *tx)
     .await?;
+    let dropped = sqlx::query_as!(
+        DroppedRequest,
+        r#"SELECT requested_label AS label, source_address AS address,
+                  drop_reason AS "reason!", created_at
+             FROM device_pairing_requests
+            WHERE tenant_id = $1 AND drop_reason IS NOT NULL
+            ORDER BY created_at DESC LIMIT 20"#,
+        claims.tenant_id,
+    )
+    .fetch_all(&mut *tx)
+    .await?;
     tx.commit().await?;
-    Ok(Json(MachineList { waiting, machines: joined }))
+    Ok(Json(MachineList { waiting, machines: joined, dropped }))
 }
 
 /// What a person retypes to approve.

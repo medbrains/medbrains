@@ -22,7 +22,8 @@ pub(crate) fn clock_button() -> (gtk::MenuButton, gtk::Label) {
         .unwrap_or_default();
     panel.append(&ui::label(&format!("Time zone: {zone}"), "muted"));
     let warning = ui::label(
-        "This machine has not confirmed the time with a time server, so the time may be wrong.",
+        "This machine has not confirmed the time with a time server, so the time may be wrong. \
+         On a workstation or display, the main machine sets the time: check that one first.",
         "problem",
     );
     warning.set_max_width_chars(36);

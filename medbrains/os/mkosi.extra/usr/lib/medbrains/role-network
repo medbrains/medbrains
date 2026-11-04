@@ -10,7 +10,9 @@ printf '[Resolve]\nMulticastDNS=yes\n' > /run/systemd/resolved.conf.d/20-main-ma
 systemctl restart systemd-resolved
 
 install -d -m 0755 /run/medbrains-role
+# Loopback too: the agent relays its nodes' clocks to this chrony from there.
 cat > /run/medbrains-role/lan-time.conf <<'CHRONY'
+allow 127.0.0.1
 allow 10.0.0.0/8
 allow 172.16.0.0/12
 allow 192.168.0.0/16

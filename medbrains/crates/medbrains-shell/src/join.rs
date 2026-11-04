@@ -48,9 +48,7 @@ fn decision_words(state: &str) -> Option<&'static str> {
     match state {
         "rejected" => Some("The main machine refused this machine. Ask your administrator."),
         "expired" => Some("Nobody approved this machine in time. Go back and ask again."),
-        "busy" => Some(
-            "Too many machines are waiting. Ask your administrator to clear the list, then try again.",
-        ),
+        "dropped" => Some("Newer requests pushed this one out of the list. Choose the main machine to ask again."),
         "unreachable" => Some("The main machine could not be reached. Check the cable and try again."),
         _ => None,
     }
@@ -298,7 +296,7 @@ mod tests {
     /// Waiting and an unknown state must not read as a refusal, nor a refusal as waiting.
     #[test]
     fn only_final_refusals_have_words() {
-        for state in ["rejected", "expired", "busy", "unreachable"] {
+        for state in ["rejected", "expired", "dropped", "unreachable"] {
             assert!(decision_words(state).is_some(), "{state}");
         }
         for state in ["pending", "connecting", "approved", "idle", ""] {

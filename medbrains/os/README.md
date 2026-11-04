@@ -51,7 +51,7 @@ From another computer the same box answers at `https://<address>` with a certifi
 
 ## Test an image
 
-`make os-image DEBUG=1`, then `make os-test IMAGE=<image.raw>` boots a fresh machine and checks firewall, kernel hardening, time, memory and disk. Limits are in `crates/medbrains-os-test/budgets.json`: lower them as numbers improve, and never raise one without a reason in the PR. It needs QEMU, and doesn't run in CI yet.
+`make os-image DEBUG=1`, then `make os-test IMAGE=<image.raw>` boots a fresh machine, makes it a main machine, and checks firewall, kernel hardening, time, memory, disk and the main machine's half of joining (one VM cannot join itself: `tests/two-machines.sh` is the rest). Limits are in `crates/medbrains-os-test/budgets.json`: lower them as numbers improve, and never raise one without a reason in the PR. It needs QEMU, and doesn't run in CI yet.
 
 ## Boot in UTM
 
@@ -155,13 +155,15 @@ cannot read what it carries, and the screen's one trusted certificate is the mai
 | A key alone grants nothing | Anyone may speak the join protocol, which only files a request. A tunnel needs a live key on the roster, decided by `medbrains-edge`'s `admit` |
 | A fake main machine is caught | The code covers both keys and a nonce from each side, the node committing to its nonce first. Keys alone would not do: six digits fall to about a million tries, about a second of grinding |
 | Approval cannot be clicked through | The server compares the digits a person typed with the code. Three wrong codes refuse the request, and each is audited as a denial |
-| Requests run out | 10 minutes, at most 20 waiting; more are told the list is full |
+| Requests run out | 10 minutes |
+| A stranger cannot stop a machine joining | The list never refuses. One address holds at most 3 waiting (its oldest goes first) and 3 conversations, and starts at most 10 a minute; at 20 waiting the oldest goes. Machines shows what was pushed out, from which address, and the machine pushed out is told to ask again |
+| Time | A node's chrony asks the main machine's chrony, over iroh, so the key authenticates it and removal ends it. A main machine with only its own clock answers stratum 10, and both machines then say "Time not confirmed" on the top bar |
 | Tenant | From the hospital this box serves, through admission. The join frames have no such field and refuse unknown ones |
 | Removal | The key leaves the roster at once; the agent asks every 2 seconds and closes that machine's open connection |
 | No outside party | No relay, no outside lookup, no UPnP (`portmapper_config` is off; iroh's default would ask the router for a port) |
 
 Approved machines are `paired_devices` rows with `device_node_keys` rows, and requests are
-`device_pairing_requests` rows, so there are no new tables (migration 1404 adds three columns). The server
+`device_pairing_requests` rows, so there are no new tables (migration 1405 adds five columns). The server
 never touches iroh: `medbrains-agent --main` asks it over loopback, with a token in a file only the agent reads.
 
 **Measured** (two debug-image VMs in QEMU on one Mac, 4 vCPUs and 4 GB each, one run; `tests/two-machines.sh`,
@@ -187,15 +189,31 @@ route (`80-wired.network` and the fixed-address file add one), and the discovery
 mDNS restarts when the machine's addresses change. **It has not been tried on a real hospital network**, where
 multicast may be blocked; that is why the typed address exists, and it was proved with mDNS blocked by the firewall.
 
-**Reconciling with the firewall PR:** the branch carries #5217's firewall, whose open commit changes the same
-file. Keep this version's `main_machine` chain, and the rule that a main machine's ports leave the base file.
+**Node pairing is class A** (`docs/OS-PRINCIPLES.md` §7). Its failure table:
+
+| What fails | Effect | How we know | What the machine does |
+|---|---|---|---|
+| Fake main machine answers | Node would send its screen there | Codes differ | Approval needs the digits from the node, so a person cannot approve it blind; three wrong refuses |
+| Flood of requests | A real request could be crowded out | Machines lists what went | Per-address limits; the oldest goes; the machine pushed out is told to ask again |
+| Server down during a join | Request cannot be filed | The node shows it could not reach the main machine | Grants nothing; a person asks again |
+| Power cut after approval, before the role is written | Setup not finished | Agent has the approval on disk | Asking again finishes without a new request |
+| Roster cannot be fetched | Removal cannot be learned | Agent logs it | Keeps the last roster until stale at 16 hours, then admits nobody |
+| Main machine unreachable | Node cannot work | Desktop says so, the app shows its error | No offline path; the connection is dialled again when the screen next asks |
+| Node has no time source | Certificates and audit at risk | "Time not confirmed" on the top bar | Keeps working, and says so |
+| Node key file readable by others | It may have been copied | The agent checks its mode at start | Refuses to start |
+
+**Requirements and the tests that prove them:** a key alone grants nothing, `an_unapproved_key_is_refused_a_tunnel`; tenant from admission,
+`the_tenant_comes_from_admission_never_from_a_claim`; codes, `code::tests`; a stranger cannot block a join, `one_address_flooding_cannot_block_or_push_out_another`
+and `one_address_cannot_take_the_places_of_others`; duties separate, `each_duty_needs_its_own_permission`; removal, `an_approved_key_reaches_the_front_end_and_removal_ends_it_at_once`.
 
 **Limits:**
 - The machine key is a file (mode 0600), not in a TPM, until SEC3. Anyone who can read the data partition can
   copy it. Removing the machine ends the copy too.
 - A display gets the same desktop as a workstation; the board is not built, nor is the §8a place or swap flow.
 - Sign-in limits count every screen as one address, because each connection arrives on loopback.
-- A flood of 20 requests blocks a real machine until they expire, or an administrator rejects them.
+- Someone able to use more than 20 addresses on the LAN at once can still push out a real request; the machine says so and asks again, and Machines shows every address. It takes a network-level answer (N4).
+- Machines behind one NAT share one address, so a fourth waiting at once pushes out the first.
+- The node's time is as good as chrony's estimate over the iroh path. Measure on real hardware before relying on it for anything finer than certificates and audit.
 - A node that cannot reach the main machine cannot work: there is no offline path (OS-EDGE-NODES).
 - mDNS uses one network interface, the one with the best multicast route. A machine on two LANs finds main
   machines on that one only.
@@ -226,7 +244,7 @@ restart signs you out.
   and printing do not work on this screen.** The anatomy model's CDN stays blocked too.
 - **Wi-Fi cannot be joined,** and the screen says so.
 - **No lock or switch person.** Anyone at the screen can use a signed-in session until a restart.
-- **The clock shows a warning** in red until chrony has a real time source, including for a moment after
+- **The top bar says "Time not confirmed"** in red until chrony has a real time source, including for a moment after
   every boot, and always on a network with no time server. Its time zone is UTC, with no way to change it.
 - **If the server stops** while MedBrains is open, Caddy's plain sentence shows in the view and the health
   widget says so. The old automatic return to a status page is gone.

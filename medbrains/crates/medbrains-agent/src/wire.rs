@@ -12,6 +12,8 @@ use tokio::io::{AsyncBufRead, AsyncBufReadExt, AsyncReadExt, AsyncWrite, AsyncWr
 pub(crate) const JOIN_ALPN: &[u8] = b"medbrains/join/1";
 /// Carries a screen to the main machine. Only admitted keys get past the door.
 pub(crate) const TUNNEL_ALPN: &[u8] = b"medbrains/tunnel/1";
+/// Carries the node's NTP packets to the main machine's chrony. Admitted keys only, like the tunnel.
+pub(crate) const TIME_ALPN: &[u8] = b"medbrains/time/1";
 /// The main machine's fixed iroh port, which the firewall opens.
 pub(crate) const IROH_PORT: u16 = 7844;
 /// Answers "who are you?" for a typed address, because dialling iroh needs the key.
@@ -53,8 +55,8 @@ pub(crate) enum JoinState {
     Approved,
     Rejected,
     Expired,
-    /// Too many machines are already waiting.
-    Busy,
+    /// A newer request pushed this one out; this machine may ask again.
+    Dropped,
 }
 
 impl JoinState {
