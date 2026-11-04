@@ -224,7 +224,7 @@ damaged or refused file loses its own tile, logged in the journal, and nothing e
 | `accent` | no | Draws the tile in the brand colour |
 
 Each app gets its own WebKit view and ephemeral session, so apps cannot read each other's storage. Its
-navigation limit is built from its own URL's origin and is default deny. A view costs about 400 MB, so it is
+navigation limit is built from its own URL's origin plus WebSockets to the same host, and is default deny. A view costs about 400 MB, so it is
 made only when first opened, and stays until a restart.
 
 ## High-density screens
@@ -258,7 +258,6 @@ restart signs you out.
 - **`cage` does not show a second window.** A dialog window stayed invisible and its modal grab blocked all
   input, so the power question lives inside its menu, and the file chooser is refused. **Uploads, downloads
   and printing do not work on this screen.** The anatomy model's CDN stays blocked too.
-- **Wi-Fi cannot be joined,** and the screen says so.
 - **No lock or switch person.** Anyone at the screen can use a signed-in session until a restart.
 - **A page keeps the time zone it opened with** until a restart, if the zone is changed later in Settings.
 - **If the server stops** while MedBrains is open, Caddy's plain sentence shows in the view and the desktop

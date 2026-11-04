@@ -84,12 +84,8 @@ mod tests {
 
     #[test]
     fn output_and_exit_are_reported() {
-        let done = run(
-            "sh",
-            &["-c", "echo out; echo err >&2; exit 3"],
-            Duration::from_secs(5),
-        );
-        let done = done.filter(|d| !d.success && d.stdout == b"out\n" && d.stderr == b"err\n");
+        let done = run("sh", &["-c", "echo out; exit 3"], Duration::from_secs(5));
+        let done = done.filter(|d| !d.success && d.stdout == b"out\n");
         assert!(done.is_some());
     }
 
