@@ -49,10 +49,10 @@ N1 to N6 come from RFC-HOSPITAL-OS §8q. Every task ends on a check or a screen.
 
 | Task | What | Done when | State |
 |---|---|---|---|
-| T1 | Encrypted disk, Secure Boot, boot editor locked | Copied disk will not open | next |
+| T1 | Encrypted disk, Secure Boot, boot editor locked | Copied disk will not open | doing: owner priority 2026-11-04, disk encryption first |
 | T1.1 | Harden Linux with what it has: block unused kernel modules, kernel lockdown, safer sysctls, no kexec, AppArmor profiles, smaller package set, each tested against the app | Known-bad module refuses to load; checked by a scan on each build | next |
 | T1.2 | Daily flaw check of the image's own parts list; rebuild on a Debian security fix | A new Debian advisory opens a tracked item within a day | next, with U1.1 |
-| T2 | Machine keys, hospital root key, recovery key | Node certificate traces to the root | later |
+| T2 | Machine keys, hospital root key, recovery key | Node certificate traces to the root | next: owner priority 2026-11-04, needs the key inventory (`OS-KEYS.md`) |
 | T3 | FerrisKey as identity provider | Passes its test: memory, sign-in, key card, upstream directory | next |
 | T4 | Key cards and hardware keys | Password alone refused for an owner | later, needs T3 and cards |
 
