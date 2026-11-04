@@ -178,6 +178,22 @@ N1 to N6 come from RFC-HOSPITAL-OS §8q. Every task ends on a check or a screen.
 | X11 | Compliance map on the OS: HIPAA, DPDP, GDPR, CERT-In, NABH and ABDM rows in `docs/CERTIFICATIONS.md` extended to the OS, each with evidence or marked open | No row claims more than its evidence; lawyer review | next: lawyer review blocked on owner |
 | X9 | Outside penetration test before a hospital goes live | Report received and findings closed | blocked: owner, cost |
 
+## First stable version: scope is frozen (owner 2026-11-04)
+
+New ideas go to the parked list, not into this. Stable means every line below passes on the final image.
+
+**In:** desktop, setup and restart (#5223); memory and client address fixes; disk encryption and key inventory (T1, T2); Kanidm (T3); node pairing and remote machines (J1, J5); signed A/B updates with rollback and backup with restore (U1, U2); launcher with one app per module for one role, Pharmacy first (O11); responsive OS screens (O12); screen permissions (O13); x86 image (H1).
+
+**Parked until after it:** connectors beyond one lab analyzer (X10), other roles' module apps, rule builder, MedBrains Control beyond machines and audit, offline second sites (J4), PACS, mail, app store, side-by-side windows.
+
+**Stable means:**
+1. `medbrains-os-test` passes on x86 and ARM64 images, on real hardware for at least one of each.
+2. A week of running with no failed service, no restart needed and memory flat.
+3. Fault tests pass: power cut, full disk, killed services, corrupt update, restore from backup.
+4. Every open row in `OS-THREATS.md` for these parts has a passing test or a written, accepted limit.
+5. A full shift walked through on screen as a pharmacist and an administrator, by a person.
+6. Load test with real sign-ins passes the agreed number of users.
+
 ## Order
 
 Networking now (N1 to N3), with S0 and B alongside because they block every release. Then S1, S2 and J1, so a
