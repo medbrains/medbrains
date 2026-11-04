@@ -53,7 +53,7 @@ N1 to N6 come from RFC-HOSPITAL-OS §8q. Every task ends on a check or a screen.
 | T1.1 | Harden Linux with what it has: block unused kernel modules, kernel lockdown, safer sysctls, no kexec, AppArmor profiles, smaller package set, each tested against the app | Known-bad module refuses to load; checked by a scan on each build | next |
 | T1.2 | Daily flaw check of the image's own parts list; rebuild on a Debian security fix | A new Debian advisory opens a tracked item within a day | next, with U1.1 |
 | T2 | Machine keys, hospital root key, recovery key | Node certificate traces to the root | next: owner priority 2026-11-04, needs the key inventory (`OS-KEYS.md`) |
-| T3 | FerrisKey as identity provider | Passes its test: memory, sign-in, key card, upstream directory | next |
+| T3 | Kanidm as identity provider, chosen on security over FerrisKey (`feature/os-kanidm`) | Physical FIDO2 key passes attestation; advisories confirmed fixed in the shipped version; staff sign in on the OS screen; Entra and directory path decided | doing: passed the key allow-list with software keys only; physical key blocked on hardware |
 | T4 | Key cards and hardware keys | Password alone refused for an owner | later, needs T3 and cards |
 
 ## J. Nodes and edges
