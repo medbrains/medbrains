@@ -14,7 +14,7 @@ const POLL: Duration = Duration::from_secs(2);
 const FORWARDS: [(&str, u16); 6] = [("web", 443), ("http", 80), ("ssh", 22), ("server", 3000), ("database", 5432), ("edge", 7811)];
 
 /// A running QEMU machine on a throwaway overlay. Dropping it stops it and removes the disk.
-pub struct Vm {
+pub(crate) struct Vm {
     dir: PathBuf,
     ports: Vec<(&'static str, u16)>,
     qemu: Child,
@@ -28,7 +28,7 @@ fn free_port() -> std::io::Result<u16> {
 }
 
 /// Removes terminal colour and cursor codes, and carriage returns.
-pub fn strip_terminal_codes(text: &str) -> String {
+pub(crate) fn strip_terminal_codes(text: &str) -> String {
     let mut out = String::with_capacity(text.len());
     let mut chars = text.chars().peekable();
     while let Some(c) = chars.next() {
@@ -48,7 +48,7 @@ pub fn strip_terminal_codes(text: &str) -> String {
 
 /// The text between the two marker lines, once both have arrived. The echoed command line is
 /// skipped because a marker counts only when it fills its whole line.
-pub fn between_markers(text: &str, begin: &str, end: &str) -> Option<String> {
+pub(crate) fn between_markers(text: &str, begin: &str, end: &str) -> Option<String> {
     let mut lines = text.lines().skip_while(|line| *line != begin);
     lines.next()?;
     let mut found = Vec::new();
@@ -63,7 +63,7 @@ pub fn between_markers(text: &str, begin: &str, end: &str) -> Option<String> {
 
 impl Vm {
     /// Boots `image` on a new overlay and waits for a shell.
-    pub fn start(image: &Path) -> Result<Self, String> {
+    pub(crate) fn start(image: &Path) -> Result<Self, String> {
         let stamp = SystemTime::now().duration_since(UNIX_EPOCH).map_err(|e| e.to_string())?.as_millis();
         let dir = std::env::temp_dir().join(format!("mb-os-test-{stamp}"));
         std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
@@ -91,12 +91,12 @@ impl Vm {
     }
 
     /// Runs a command inside the machine with the usual time limit.
-    pub fn run(&mut self, command: &str) -> Result<String, String> {
+    pub(crate) fn run(&mut self, command: &str) -> Result<String, String> {
         self.run_for(command, Duration::from_secs(30))
     }
 
     /// Runs a command inside the machine and returns its output.
-    pub fn run_for(&mut self, command: &str, limit: Duration) -> Result<String, String> {
+    pub(crate) fn run_for(&mut self, command: &str, limit: Duration) -> Result<String, String> {
         self.marker += 1;
         let (begin, end) = (format!("BEGIN{}X", self.marker), format!("END{}X", self.marker));
         // The bare `echo` ends a last line with no newline, which would hide the marker.
@@ -116,12 +116,12 @@ impl Vm {
     }
 
     /// The host port forwarded to a named guest port.
-    pub fn port(&self, name: &str) -> Result<u16, String> {
+    pub(crate) fn port(&self, name: &str) -> Result<u16, String> {
         self.ports.iter().find(|(n, _)| *n == name).map(|(_, p)| *p).ok_or_else(|| format!("no port {name}"))
     }
 
     /// HTTP status from outside the machine; 0 if nothing answered.
-    pub fn status(&self, name: &str, scheme: &str, path: &str) -> Result<u16, String> {
+    pub(crate) fn status(&self, name: &str, scheme: &str, path: &str) -> Result<u16, String> {
         let url = format!("{scheme}://127.0.0.1:{}{path}", self.port(name)?);
         let done = Command::new("curl").args(["-sk", "-m", "8", "-o", "/dev/null", "-w", "%{http_code}", &url]).output().map_err(|e| e.to_string())?;
         Ok(String::from_utf8_lossy(&done.stdout).trim().parse().unwrap_or(0))
@@ -129,7 +129,7 @@ impl Vm {
 
     /// True if a guest port answers or refuses. QEMU accepts the connection itself, so packets
     /// the firewall drops leave it silent, while a closed port ends it at once.
-    pub fn reachable(&self, name: &str) -> Result<bool, String> {
+    pub(crate) fn reachable(&self, name: &str) -> Result<bool, String> {
         let mut client = TcpStream::connect(("127.0.0.1", self.port(name)?)).map_err(|e| e.to_string())?;
         client.set_read_timeout(Some(Duration::from_secs(4))).map_err(|e| e.to_string())?;
         let mut byte = [0_u8; 16];
@@ -137,7 +137,7 @@ impl Vm {
     }
 
     /// Waits for the server to answer through the front proxy.
-    pub fn wait_for_server(&self) -> Result<(), String> {
+    pub(crate) fn wait_for_server(&self) -> Result<(), String> {
         let deadline = Instant::now() + BOOT_TIMEOUT;
         while Instant::now() < deadline {
             if self.status("web", "https", "/api/health")? == 200 {
