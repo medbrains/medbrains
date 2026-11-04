@@ -59,7 +59,8 @@ cp -R "$WEB" "$EXTRA/usr/share/medbrains/web"
 find "$EXTRA/usr/share/medbrains/web" \( -name '*.br' -o -name '*.gz' -o -name '*.map' \) -delete
 install -m 0644 "$REPO/deploy/standalone/db-roles.sh" "$EXTRA/usr/lib/medbrains/db-roles.sh"
 # The screen uses the web app's own logo.
-install -D -m 0644 "$WEB/logo/medbrains-mark.svg" "$EXTRA/usr/share/medbrains/shell/logo.svg"
+install -d "$EXTRA/usr/share/medbrains/shell"
+install -m 0644 "$WEB/logo/medbrains-mark.svg" "$EXTRA/usr/share/medbrains/shell/logo.svg"
 
 VERSION="${OS_VERSION:-$(git -C "$REPO" rev-parse --short HEAD)}"
 DEBUG_ARGS=()
