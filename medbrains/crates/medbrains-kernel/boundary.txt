@@ -102,6 +102,7 @@ medbrains-onboarding not_yet 36 medbrains-db
 medbrains-opd not_yet 244 medbrains-db,medbrains-authz,medbrains-authz-gate
 medbrains-order-basket not_yet 19 medbrains-db,medbrains-authz-gate
 medbrains-order-sets not_yet 36 medbrains-db,medbrains-authz-gate
+medbrains-os-setup not_yet 0 -
 medbrains-os-test not_yet 0 -
 medbrains-ot not_yet 94 medbrains-db,medbrains-authz,medbrains-authz-gate
 medbrains-outbox not_yet 13 -
@@ -138,6 +139,7 @@ medbrains-server partial 561 medbrains-db,medbrains-authz-gate
 medbrains-server-services not_yet 3 medbrains-db
 medbrains-setup not_yet 221 medbrains-db,medbrains-authz
 medbrains-sharing not_yet 18 medbrains-db,medbrains-authz
+medbrains-shell not_yet 0 -
 medbrains-signing not_yet 0 -
 medbrains-snomed not_yet 0 -
 medbrains-sop-flows not_yet 8 medbrains-db,medbrains-authz-gate
