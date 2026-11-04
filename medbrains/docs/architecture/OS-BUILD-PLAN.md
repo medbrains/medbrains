@@ -174,6 +174,8 @@ N1 to N6 come from RFC-HOSPITAL-OS §8q. Every task ends on a check or a screen.
 | X6 | Hardware hardening: TPM encrypted sessions, PIN or card option, IOMMU, Thunderbolt off, memory wiped at shutdown, no serial login in release | Each checked by `medbrains-os-test` where a VM can show it | next; hardware rows blocked |
 | X7 | Pi 5: secure boot and OTP key design, and what it does not protect | Written, then tested on a Pi | blocked: needs hardware |
 | X8 | Attack test per row of `OS-THREATS.md` | Every row has a test or a stated reason | next |
+| X10 | Medical-grade connectors: HL7 v2, FHIR R4, DICOM and ASTM over mutually authenticated TLS, standard codes, a per-connector firewall path, audit of what leaves, one Connections app | Each connector states its data, destination and lawful basis; a false result from outside is rejected or marked | next: owner 2026-11-04 |
+| X11 | Compliance map on the OS: HIPAA, DPDP, GDPR, CERT-In, NABH and ABDM rows in `docs/CERTIFICATIONS.md` extended to the OS, each with evidence or marked open | No row claims more than its evidence; lawyer review | next: lawyer review blocked on owner |
 | X9 | Outside penetration test before a hospital goes live | Report received and findings closed | blocked: owner, cost |
 
 ## Order
