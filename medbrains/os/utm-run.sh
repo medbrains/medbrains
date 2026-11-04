@@ -48,29 +48,31 @@ if [[ -n "$STATUS" ]]; then
     "$UTMCTL" delete "$NAME"
 fi
 
-mkdir -p "$BUNDLE/Data"
-cp -c "$IMAGE" "$BUNDLE/Data/disk.img"
-truncate -s "${DISK_GB}G" "$BUNDLE/Data/disk.img"
-cat > "$BUNDLE/config.json" <<JSON
-{
-  "Backend": "Apple", "ConfigurationVersion": 4,
-  "Display": [{ "DynamicResolution": false, "HeightPixels": $HEIGHT, "PixelsPerInch": $PPI, "WidthPixels": $WIDTH }],
-  "Drive": [{ "Identifier": "$(uuidgen)", "ImageName": "disk.img", "Nvme": false, "ReadOnly": false }],
-  "Information": { "IconCustom": false, "Name": "$NAME", "UUID": "$(uuidgen)" },
-  "Network": [{ "MacAddress": "62:0c:a0:8a:e7:47", "Mode": "Shared" }],
-  "Serial": [{ "Mode": "Ptty" }],
-  "System": { "Architecture": "aarch64", "CPUCount": 4, "MemorySize": 4096,
-              "Boot": { "EfiVariableStoragePath": "efi_vars.fd", "OperatingSystem": "Linux", "SecureBoot": false, "UEFIBoot": true } },
-  "Virtualization": { "Audio": false, "AudioInput": false, "Balloon": true, "ClipboardSharing": false, "Entropy": true, "Keyboard": "Generic", "Pointer": "Mouse" }
-}
-JSON
-plutil -convert xml1 -o "$BUNDLE/config.plist" "$BUNDLE/config.json"
-rm "$BUNDLE/config.json"
+# UTM's AppleScript makes the disk's copy and the EFI store, which nothing else can create, but
+# leaves the keyboard and pointer off and has no way to set them or the display. Those are only in
+# the bundle's plist, which UTM reads at launch, so it must quit; never while another VM runs.
+if "$UTMCTL" list | awk 'NR > 1 && $2 != "stopped"' | grep -q .; then
+    echo "another VM is running in UTM; stop it first, because this has to quit UTM" >&2
+    exit 1
+fi
+osascript <<APPLESCRIPT
+tell application "UTM"
+    make new virtual machine with properties {backend:apple, configuration:{name:"$NAME", memory:4096, cpu cores:4, os:linux, drives:{{source:POSIX file "$IMAGE", removable:false}}, network interfaces:{{mode:shared}}, displays:{{dynamic resolution:false}}}}
+    quit
+end tell
+APPLESCRIPT
+while pgrep -x UTM >/dev/null; do sleep 1; done
 
-open -a UTM "$BUNDLE"
-for _ in $(seq 30); do
-    [[ -n "$(vm_status)" ]] && break
-    sleep 1
+PLIST="$BUNDLE/config.plist"
+for setting in "Virtualization:Keyboard Generic" "Virtualization:Pointer Mouse" \
+    "Display:0:WidthPixels $WIDTH" "Display:0:HeightPixels $HEIGHT" "Display:0:PixelsPerInch $PPI"; do
+    /usr/libexec/PlistBuddy -c "Set :$setting" "$PLIST"
 done
+/usr/libexec/PlistBuddy -c "Print :Serial:0" "$PLIST" >/dev/null 2>&1 ||
+    /usr/libexec/PlistBuddy -c "Add :Serial:0 dict" -c "Add :Serial:0:Mode string Ptty" "$PLIST"
+truncate -s "${DISK_GB}G" "$BUNDLE/Data/$(/usr/libexec/PlistBuddy -c 'Print :Drive:0:ImageName' "$PLIST")"
+
+open -a UTM
+until "$UTMCTL" status "$NAME" >/dev/null 2>&1; do sleep 1; done
 "$UTMCTL" start "$NAME"
 echo "serial: $(serial_path)"
