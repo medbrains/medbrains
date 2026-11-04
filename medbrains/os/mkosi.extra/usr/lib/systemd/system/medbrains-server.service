@@ -1,7 +1,9 @@
 # The MedBrains server: API + web app; runs migrations as the owner at start,
 # serves requests as medbrains_app (row level security applies). SEC5 hardening.
+# Started only by medbrains-main.target, once setup has finished.
 [Unit]
 Description=MedBrains server
+ConditionPathExists=/var/lib/medbrains/config/role-main
 Requires=postgresql@17-main.service medbrains-db-init.service
 After=postgresql@17-main.service medbrains-db-init.service medbrains-firstboot.service
 StartLimitIntervalSec=600
@@ -48,6 +50,3 @@ DevicePolicy=closed
 SystemCallArchitectures=native
 SystemCallFilter=@system-service
 SystemCallFilter=~@privileged @resources
-
-[Install]
-WantedBy=multi-user.target

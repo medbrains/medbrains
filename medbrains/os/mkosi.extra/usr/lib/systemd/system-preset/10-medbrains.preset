@@ -7,3 +7,11 @@ disable pg_*
 disable caddy-api.service
 # The screen is the app; a login prompt on tty1 is text flashing past at boot.
 disable getty@.service
+# Started by medbrains-main.target once setup has finished, never before.
+disable caddy.service
+disable postgresql.service
+# Only chrony.service may run: see mkosi.postinst.chroot.
+disable chronyd-restricted.service
+disable chrony-wait.service
+# Started by a udev rule only when a Wi-Fi card exists.
+disable iwd.service

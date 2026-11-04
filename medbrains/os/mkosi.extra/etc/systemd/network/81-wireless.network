@@ -1,0 +1,8 @@
+# Wi-Fi joins through iwd; addressing stays with networkd, the same as a cable.
+[Match]
+Name=wl*
+
+[Network]
+DHCP=yes
+MulticastDNS=yes
+IgnoreCarrierLoss=3s

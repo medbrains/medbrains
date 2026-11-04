@@ -1,21 +1,21 @@
-# Keeps the status file the appliance screen reads. tmpfs only, and only on change.
+# Takes the seed lines, password included, out of the env once the server has used them.
 [Unit]
-Description=MedBrains screen status
+Description=MedBrains seed clean-up
+ConditionPathExists=/var/lib/medbrains/config/role-main
 After=medbrains-firstboot.service systemd-tmpfiles-setup.service
 
 [Service]
 Type=exec
 ExecStart=/usr/lib/medbrains/console-status
-Restart=always
+Restart=on-failure
 RestartSec=5s
-# Root only for what it must do: read the first password, ask the database as postgres.
 ProtectSystem=strict
-ReadWritePaths=/run/medbrains-console /var/lib/medbrains/config
+ReadWritePaths=/var/lib/medbrains/config
 ProtectHome=yes
 PrivateTmp=yes
 PrivateDevices=yes
 NoNewPrivileges=yes
-CapabilityBoundingSet=CAP_SETUID CAP_SETGID CAP_CHOWN CAP_DAC_OVERRIDE CAP_FOWNER CAP_AUDIT_WRITE
+CapabilityBoundingSet=CAP_CHOWN CAP_DAC_OVERRIDE CAP_FOWNER
 RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6 AF_NETLINK
 RestrictSUIDSGID=yes
 MemoryDenyWriteExecute=yes
@@ -30,6 +30,3 @@ RestrictRealtime=yes
 RestrictNamespaces=yes
 LockPersonality=yes
 SystemCallArchitectures=native
-
-[Install]
-WantedBy=multi-user.target
