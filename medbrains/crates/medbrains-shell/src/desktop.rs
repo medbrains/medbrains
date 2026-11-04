@@ -96,6 +96,14 @@ impl Desktop {
         }
     }
 
+    /// Puts the keyboard on the screen now showing. The closed view held the focus when it was
+    /// destroyed, and without this Tab did nothing afterwards.
+    fn focus_screen(&self) {
+        if let Some(page) = self.content.visible_child() {
+            page.child_focus(gtk::DirectionType::TabForward);
+        }
+    }
+
     /// Closes the app on screen, if one is.
     fn close_showing(&self) {
         let showing = self.running.borrow().showing();
@@ -251,6 +259,7 @@ pub(crate) fn build(css: &gtk::CssProvider, role: &str) -> gtk::Box {
             web.on_closed(move || {
                 if let Some(desktop) = target.upgrade() {
                     desktop.closed(index);
+                    desktop.focus_screen();
                 }
             });
         }
