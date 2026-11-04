@@ -1,0 +1,15 @@
+# Puts a confirmed fixed address where networkd reads it. The setting lives on the data
+# partition, because the root will become read-only (OS-BUILD-PLAN U2.3).
+[Unit]
+Description=MedBrains network settings
+DefaultDependencies=no
+RequiresMountsFor=/var/lib/medbrains/network
+Before=systemd-networkd.service
+ConditionPathExists=/var/lib/medbrains/network/10-medbrains-fixed.network
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/install -D -m 0644 /var/lib/medbrains/network/10-medbrains-fixed.network /run/systemd/network/10-medbrains-fixed.network
+
+[Install]
+WantedBy=systemd-networkd.service

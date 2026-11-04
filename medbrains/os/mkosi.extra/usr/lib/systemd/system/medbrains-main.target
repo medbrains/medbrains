@@ -1,0 +1,10 @@
+# What a main machine runs. Off until setup writes the role, so nothing answers on the network
+# before the first administrator exists (OS-SETUP-AND-TRUST §5).
+[Unit]
+Description=MedBrains main machine
+ConditionPathExists=/var/lib/medbrains/config/role-main
+Wants=medbrains-server.service caddy.service medbrains-console-status.service
+After=medbrains-firstboot.service
+
+[Install]
+WantedBy=multi-user.target

@@ -15,10 +15,16 @@ ln -sfn /var/lib/medbrains/config /etc/medbrains
 # A firewall file that does not parse would boot a machine with no firewall, so it fails the build.
 nft -c -f /etc/nftables.conf
 systemctl enable nftables chrony systemd-networkd systemd-resolved systemd-repart \
-    medbrains-firstboot medbrains-db-init medbrains-server caddy \
-    medbrains-console-status cage-console
+    medbrains-firstboot medbrains-network-settings medbrains-os-setup medbrains-main.target \
+    cage-console
+# Only medbrains-main.target starts these, and only once setup has finished, so nothing
+# answers on the network before then. Debian's packages enable them by default.
+systemctl disable caddy postgresql 2>/dev/null || true
 systemctl disable systemd-networkd-wait-online.service 2>/dev/null || true
 systemctl set-default graphical.target
+
+# The screen's own fonts, installed by mkosi.build.chroot.
+fc-cache -f /usr/share/fonts
 
 # Unused in an appliance; trimmed for size (§3a).
 rm -rf /usr/share/doc/* /usr/share/man/* /usr/share/info/* /var/cache/apt/* /var/lib/apt/lists/*

@@ -1,0 +1,33 @@
+/* The website theme (ENGINEERING.md, design system), dark scheme, as GTK colours. */
+@define-color mb_bg #111315;
+@define-color mb_raised #17191c;
+@define-color mb_card #1c1f23;
+@define-color mb_elevated #24272c;
+@define-color mb_text #e6e8eb;
+@define-color mb_muted #a9afb7;
+@define-color mb_line #30343a;
+@define-color mb_blue #0f62fe;
+@define-color mb_sky #78a9ff;
+@define-color mb_problem #ff8389;
+@define-color mb_wall_top #161a22;
+@define-color mb_wall_bottom #0a2a6e;
+
+window, stack { background: @mb_bg; color: @mb_text; font-family: "IBM Plex Sans", sans-serif; font-size: 14px; }
+.title { font-size: 28px; font-weight: 600; }
+.heading { font-weight: 600; }
+.muted { color: @mb_muted; }
+.problem { color: @mb_problem; }
+.card { background: @mb_card; border: 1px solid @mb_line; border-radius: 2px; padding: 32px; }
+button, entry, dropdown > button, menubutton > button, passwordentry { min-height: 44px; border-radius: 2px; }
+button:focus-visible, entry:focus-within, passwordentry:focus-within, menubutton > button:focus-visible { outline: 2px solid @mb_sky; outline-offset: 2px; }
+button.suggested-action { background: @mb_blue; color: #ffffff; }
+.choice { padding: 16px; }
+.topbar { background: @mb_raised; border-bottom: 1px solid @mb_line; padding: 0 8px; min-height: 44px; }
+.topbar button, .topbar menubutton > button { background: transparent; }
+menubutton.warning > button { color: @mb_problem; }
+.wallpaper { background: linear-gradient(160deg, @mb_wall_top 30%, @mb_wall_bottom 130%); }
+.widget { background: alpha(@mb_card, 0.92); border: 1px solid @mb_line; border-radius: 2px; padding: 16px; min-width: 280px; }
+.dock { background: alpha(@mb_elevated, 0.92); border: 1px solid @mb_line; border-radius: 2px; padding: 8px; }
+.dock button { min-width: 56px; min-height: 56px; -gtk-icon-size: 32px; }
+.launcher { background: @mb_bg; padding: 48px; }
+.tile { padding: 24px; min-width: 112px; }
