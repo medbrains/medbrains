@@ -10,12 +10,11 @@ use crate::{api, ui};
 /// The setting the shell's child processes read for the time zone.
 const LOCALTIME_LINK: &str = "/var/lib/medbrains-settings/localtime";
 
-/// `TZ`'s value for the zone a setting's link points at. WebKit's sandbox cannot see the setting
-/// itself, only `/usr`, so its pages would otherwise show UTC.
-fn tz_value(link_target: &str) -> Option<String> {
-    link_target
-        .starts_with("/usr/share/zoneinfo/")
-        .then(|| format!(":{link_target}"))
+/// `TZ`'s value for the zone a setting's link points at: the bare name, which is the form WebKit's
+/// time zone library accepts. Its sandbox can't see the setting itself, only `/usr`, so its pages
+/// would otherwise show UTC.
+fn tz_value(link_target: &str) -> Option<&str> {
+    link_target.strip_prefix("/usr/share/zoneinfo/")
 }
 
 /// Tells processes started from now on which zone to use. A page already open keeps the old
@@ -23,7 +22,7 @@ fn tz_value(link_target: &str) -> Option<String> {
 pub(crate) fn export_for_children() {
     let target = std::fs::read_link(LOCALTIME_LINK).unwrap_or_default();
     if let Some(value) = target.to_str().and_then(tz_value) {
-        if glib::setenv("TZ", &value, true).is_err() {
+        if glib::setenv("TZ", value, true).is_err() {
             glib::g_warning!("medbrains-shell", "could not set the time zone for an app");
         }
     }
@@ -92,8 +91,8 @@ mod tests {
     #[test]
     fn only_a_real_zone_file_becomes_tz() {
         assert_eq!(
-            tz_value("/usr/share/zoneinfo/Asia/Kolkata").as_deref(),
-            Some(":/usr/share/zoneinfo/Asia/Kolkata")
+            tz_value("/usr/share/zoneinfo/Asia/Kolkata"),
+            Some("Asia/Kolkata")
         );
         assert_eq!(tz_value("/etc/passwd"), None);
         assert_eq!(tz_value(""), None);
