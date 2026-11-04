@@ -131,10 +131,7 @@
   font-size: 12px;
   font-weight: var(--mb-font-weight-action);
   text-align: left;
-  transition:
-    border-color 0.15s ease,
-    box-shadow 0.15s ease,
-    transform 0.15s ease;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease;
 
   &:hover {
     border-color: var(--mb-active-border);

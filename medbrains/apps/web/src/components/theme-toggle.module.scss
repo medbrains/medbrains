@@ -7,13 +7,13 @@
   --container-width: 5em;
   --container-height: 2.5em;
   --container-radius: 6.25em;
-  --container-light-bg: #3d7eae;
-  --container-night-bg: #1d1f2c;
+  --container-light-bg: rgb(61 126 174);
+  --container-night-bg: rgb(29 31 44);
   --circle-container-diameter: 3.375em;
   --sun-moon-diameter: 2.125em;
   --sun-bg: #ecca2f;
   --moon-bg: #c4c9d1;
-  --spot-color: #959db1;
+  --spot-color: rgb(149 157 177);
   --circle-container-offset: calc(
     (var(--circle-container-diameter) - var(--container-height)) / 2 * -1
   );
@@ -57,9 +57,7 @@
   // Outer glow (drop-shadow isn't clipped by the pill) — warm sun glow by day,
   // cool moon glow by night.
   filter: drop-shadow(0 0 0.4em rgba(236, 202, 47, 0.6));
-  transition:
-    var(--transition),
-    filter var(--transition);
+  transition: var(--transition), filter var(--transition);
   position: relative;
 }
 
@@ -112,9 +110,7 @@
   opacity: 0.8;
   pointer-events: none;
   z-index: 1;
-  transition:
-    opacity var(--transition),
-    transform var(--transition);
+  transition: opacity var(--transition), transform var(--transition);
 }
 
 .sunMoon {

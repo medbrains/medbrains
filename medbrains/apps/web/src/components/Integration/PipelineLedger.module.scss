@@ -21,7 +21,7 @@
   padding: 10px 20px;
   border-top: 1px solid var(--mb-border);
   background: var(--mb-bg-default);
-  font: 500 11px/1 var(--font-mono);
+  font: 500 11px / 1 var(--font-mono);
   letter-spacing: 0.06em;
   color: var(--mb-text-muted);
 }
@@ -33,7 +33,7 @@
 }
 
 .ledgerTable thead th {
-  font: 500 10px/1 var(--font-mono);
+  font: 500 10px / 1 var(--font-mono);
   letter-spacing: 0.14em;
   text-transform: uppercase;
   color: var(--mb-text-muted);
@@ -96,7 +96,7 @@
 }
 
 .pcode {
-  font: 500 11px/1 var(--font-mono);
+  font: 500 11px / 1 var(--font-mono);
   letter-spacing: 0.06em;
   color: var(--mb-text-muted);
   margin-top: 3px;
@@ -111,13 +111,13 @@
   border: 1px solid var(--fc-copper);
   padding: 2px 7px;
   border-radius: 9999px;
-  font: 500 11px/1.2 var(--font-sans);
+  font: 500 11px / 1.2 var(--font-sans);
   margin-left: 8px;
 }
 
 /* Trigger pill */
 .trigPill {
-  font: 500 11px/1 var(--font-mono);
+  font: 500 11px / 1 var(--font-mono);
   letter-spacing: 0.06em;
   color: var(--mb-text-secondary);
   padding: 4px 8px;
@@ -132,7 +132,7 @@
   display: flex;
   align-items: center;
   gap: 6px;
-  font: 600 12px/1 var(--font-sans);
+  font: 600 12px / 1 var(--font-sans);
   white-space: nowrap;
 }
 
@@ -145,14 +145,14 @@
 
 /* Runs */
 .runsNum {
-  font: 400 18px/1 var(--font-display);
+  font: 400 18px / 1 var(--font-display);
   font-variant-numeric: tabular-nums lining-nums;
   color: var(--mb-text-primary);
   letter-spacing: -0.01em;
 }
 
 .runsSub {
-  font: 500 10px/1 var(--font-mono);
+  font: 500 10px / 1 var(--font-mono);
   letter-spacing: 0.1em;
   text-transform: uppercase;
   color: var(--mb-text-muted);
@@ -167,7 +167,7 @@
 }
 
 .lastTime {
-  font: 500 11px/1.4 var(--font-mono);
+  font: 500 11px / 1.4 var(--font-mono);
   color: var(--mb-text-secondary);
   white-space: nowrap;
 }

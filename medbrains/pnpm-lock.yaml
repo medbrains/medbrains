@@ -6,7 +6,10 @@ settings:
 
 overrides:
   brace-expansion@<1.1.21: 1.1.21
+  follow-redirects@>=1.16.0 <1.16.2: 1.16.2
+  joi@>=17.1.1 <17.13.9: 17.13.9
   js-cookie@<3.0.7: 3.0.8
+  node-forge@<1.4.1: 1.4.1
   picomatch@<2.3.2: 2.3.2
   picomatch@>=4.0.0 <4.0.4: 4.0.4
   postcss@<8.5.23: 8.5.31
@@ -86,7 +89,7 @@ importers:
     dependencies:
       '@hookform/resolvers':
         specifier: ^5.2.2
-        version: 5.9.2(@sinclair/typebox@0.34.52)(@standard-schema/spec@1.1.0)(ajv@8.20.0)(joi@17.13.8)(react-hook-form@7.90.0(@types/react@19.3.0)(react@19.3.1))(zod@4.6.7)
+        version: 5.9.2(@sinclair/typebox@0.34.52)(@standard-schema/spec@1.1.0)(ajv@8.20.0)(joi@17.13.9)(react-hook-form@7.90.0(@types/react@19.3.0)(react@19.3.1))(zod@4.6.7)
       '@medbrains/api':
         specifier: workspace:*
         version: link:../../packages/api
@@ -338,7 +341,7 @@ importers:
     dependencies:
       '@hookform/resolvers':
         specifier: ^5.2.2
-        version: 5.9.2(@sinclair/typebox@0.34.52)(@standard-schema/spec@1.1.0)(ajv@8.20.0)(joi@17.13.8)(react-hook-form@7.90.0(@types/react@19.1.17)(react@19.1.0))(zod@4.6.7)
+        version: 5.9.2(@sinclair/typebox@0.34.52)(@standard-schema/spec@1.1.0)(ajv@8.20.0)(joi@17.13.9)(react-hook-form@7.90.0(@types/react@19.1.17)(react@19.1.0))(zod@4.6.7)
       '@medbrains/api':
         specifier: workspace:*
         version: link:../../packages/api
@@ -760,7 +763,7 @@ importers:
         version: 5.3.0
       '@hookform/resolvers':
         specifier: ^5.2.2
-        version: 5.9.2(@sinclair/typebox@0.34.52)(@standard-schema/spec@1.1.0)(ajv@8.20.0)(joi@17.13.8)(react-hook-form@7.90.0(@types/react@19.3.0)(react@19.3.1))(zod@4.6.7)
+        version: 5.9.2(@sinclair/typebox@0.34.52)(@standard-schema/spec@1.1.0)(ajv@8.20.0)(joi@17.13.9)(react-hook-form@7.90.0(@types/react@19.3.0)(react@19.3.1))(zod@4.6.7)
       '@lottiefiles/dotlottie-react':
         specifier: 0.20.0
         version: 0.20.0(react@19.3.1)
@@ -1124,7 +1127,7 @@ importers:
     dependencies:
       '@hookform/resolvers':
         specifier: ^5.2.2
-        version: 5.9.2(@sinclair/typebox@0.34.52)(@standard-schema/spec@1.1.0)(ajv@8.20.0)(joi@17.13.8)(react-hook-form@7.90.0(@types/react@19.1.17)(react@19.1.0))(zod@4.6.7)
+        version: 5.9.2(@sinclair/typebox@0.34.52)(@standard-schema/spec@1.1.0)(ajv@8.20.0)(joi@17.13.9)(react-hook-form@7.90.0(@types/react@19.1.17)(react@19.1.0))(zod@4.6.7)
       '@medbrains/design-system':
         specifier: workspace:*
         version: link:../design-system
@@ -3234,7 +3237,7 @@ packages:
       fluentvalidation-ts: ^3.0.0
       fp-ts: ^2.7.0
       io-ts: ^2.0.0
-      joi: ^17.0.0 || ^18.0.0
+      joi: 17.13.9
       nope-validator: '>=0.12.0'
       react-hook-form: ^7.55.0
       superstruct: '>=0.12.0'
@@ -8580,8 +8583,8 @@ packages:
   fn.name@1.1.0:
     resolution: {integrity: sha512-GRnmB5gPyJpAhTQdSZTSp9uaPSvl09KoYcMQtsB9rQoOmzs9dH6ffeccH+Z+cv6P68Hu5bC6JjRh4Ah/mHSNRw==}
 
-  follow-redirects@1.16.1:
-    resolution: {integrity: sha512-FNvFGzoMLWmE6Yj9spb/zjd7yiNCHiAW9/Tg9CXrQ8wuu32HtlJOwWO11OJafl5FfY3DxTdQ0vj42zU1kvv5jg==}
+  follow-redirects@1.16.2:
+    resolution: {integrity: sha512-/kVP2U8z596Ia0gwFrwyIeo74ta5aVmSeU1FfAUMAmcEP5EP7zydmag3SLiN64NaRKef3lxsq7i/g7ltJQDGow==}
     engines: {node: '>=4.0'}
     peerDependencies:
       debug: '*'
@@ -9648,8 +9651,8 @@ packages:
     resolution: {integrity: sha512-AC/7JofJvZGrrneWNaEnJeOLUx+JlGt7tNa0wZiRPT4MY1wmfKjt2+6O2p2uz2+skll8OZZmJMNqeke7kKbNgQ==}
     hasBin: true
 
-  joi@17.13.8:
-    resolution: {integrity: sha512-iPKOGmiRw1jxf/JOPwxmCcUQAOdF359mdzYiP2DJ+TMX0YK2zjK3D+zYOaGjpumWxOFF/l2xVWjRVK5bGSLdEw==}
+  joi@17.13.9:
+    resolution: {integrity: sha512-llFCT2rVtfwgBCaIqxtjim+iHqrgss4ONiGSYiiGH9jnjWq90ppSRffqmqKvwpa8W+YfILyQV6XyGcegXX2T4g==}
 
   js-cookie@3.0.8:
     resolution: {integrity: sha512-yeJd4aNAdYZQjaon2bpD/Gb0B/omw7HQOsynXXcOiWVCacbBcPlgn8S/d1X6blFSaHao7ozqtW7NZW19xpCtIw==}
@@ -10606,8 +10609,8 @@ packages:
       encoding:
         optional: true
 
-  node-forge@1.4.0:
-    resolution: {integrity: sha512-LarFH0+6VfriEhqMMcLX2F7SwSXeWwnEAJEsYm5QKWchiVYVvJyV9v7UDvUv+w5HO23ZpQTXDv/GxdDdMyOuoQ==}
+  node-forge@1.4.1:
+    resolution: {integrity: sha512-w5/MfWaeMrpR/5ba6fZyAUTLSuE6aYz7H/3cYrqwZEmf5eQS3IaaLgJt4MBv7HglGFWmV22K8h4U18RJQmw/ow==}
     engines: {node: '>= 6.13.0'}
 
   node-int64@0.4.0:
@@ -16470,7 +16473,7 @@ snapshots:
       '@types/mdast': 4.0.4
       '@types/react': 19.3.0
       commander: 5.1.0
-      joi: 17.13.8
+      joi: 17.13.9
       react: 19.3.1
       react-dom: 19.3.1(react@19.3.1)
       react-helmet-async: '@slorber/react-helmet-async@1.3.0(react-dom@19.3.1(react@19.3.1))(react@19.3.1)'
@@ -16529,7 +16532,7 @@ snapshots:
       '@docusaurus/utils': 3.10.2(clean-css@5.3.3)(cssnano@6.1.2(postcss@8.5.31))(html-minifier-terser@7.2.0)(postcss@8.5.31)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
       '@docusaurus/utils-common': 3.10.2(clean-css@5.3.3)(cssnano@6.1.2(postcss@8.5.31))(html-minifier-terser@7.2.0)(postcss@8.5.31)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
       fs-extra: 11.4.1
-      joi: 17.13.8
+      joi: 17.13.9
       js-yaml: 4.3.2
       lodash: 4.18.1
       tslib: 2.8.1
@@ -16877,7 +16880,7 @@ snapshots:
       glob: 13.0.6
       lan-network: 0.2.1
       minimatch: 9.0.9
-      node-forge: 1.4.0
+      node-forge: 1.4.1
       npm-package-arg: 11.0.3
       ora: 3.4.0
       picomatch: 4.0.4
@@ -16953,7 +16956,7 @@ snapshots:
       glob: 13.0.6
       lan-network: 0.2.1
       minimatch: 9.0.9
-      node-forge: 1.4.0
+      node-forge: 1.4.1
       npm-package-arg: 11.0.3
       ora: 3.4.0
       picomatch: 4.0.4
@@ -17029,7 +17032,7 @@ snapshots:
       glob: 13.0.6
       lan-network: 0.2.1
       minimatch: 9.0.9
-      node-forge: 1.4.0
+      node-forge: 1.4.1
       npm-package-arg: 11.0.3
       ora: 3.4.0
       picomatch: 4.0.4
@@ -17105,7 +17108,7 @@ snapshots:
       glob: 13.0.6
       lan-network: 0.2.1
       minimatch: 9.0.9
-      node-forge: 1.4.0
+      node-forge: 1.4.1
       npm-package-arg: 11.0.3
       ora: 3.4.0
       picomatch: 4.0.4
@@ -17141,7 +17144,7 @@ snapshots:
 
   '@expo/code-signing-certificates@0.0.6':
     dependencies:
-      node-forge: 1.4.0
+      node-forge: 1.4.1
 
   '@expo/config-plugins@54.0.6':
     dependencies:
@@ -17631,7 +17634,7 @@ snapshots:
     dependencies:
       '@hapi/hoek': 9.3.0
 
-  '@hookform/resolvers@5.9.2(@sinclair/typebox@0.34.52)(@standard-schema/spec@1.1.0)(ajv@8.20.0)(joi@17.13.8)(react-hook-form@7.90.0(@types/react@19.1.17)(react@19.1.0))(zod@4.6.7)':
+  '@hookform/resolvers@5.9.2(@sinclair/typebox@0.34.52)(@standard-schema/spec@1.1.0)(ajv@8.20.0)(joi@17.13.9)(react-hook-form@7.90.0(@types/react@19.1.17)(react@19.1.0))(zod@4.6.7)':
     dependencies:
       '@standard-schema/utils': 0.3.0
       react-hook-form: 7.90.0(@types/react@19.1.17)(react@19.1.0)
@@ -17639,10 +17642,10 @@ snapshots:
       '@sinclair/typebox': 0.34.52
       '@standard-schema/spec': 1.1.0
       ajv: 8.20.0
-      joi: 17.13.8
+      joi: 17.13.9
       zod: 4.6.7
 
-  '@hookform/resolvers@5.9.2(@sinclair/typebox@0.34.52)(@standard-schema/spec@1.1.0)(ajv@8.20.0)(joi@17.13.8)(react-hook-form@7.90.0(@types/react@19.3.0)(react@19.3.1))(zod@4.6.7)':
+  '@hookform/resolvers@5.9.2(@sinclair/typebox@0.34.52)(@standard-schema/spec@1.1.0)(ajv@8.20.0)(joi@17.13.9)(react-hook-form@7.90.0(@types/react@19.3.0)(react@19.3.1))(zod@4.6.7)':
     dependencies:
       '@standard-schema/utils': 0.3.0
       react-hook-form: 7.90.0(@types/react@19.3.0)(react@19.3.1)
@@ -17650,7 +17653,7 @@ snapshots:
       '@sinclair/typebox': 0.34.52
       '@standard-schema/spec': 1.1.0
       ajv: 8.20.0
-      joi: 17.13.8
+      joi: 17.13.9
       zod: 4.6.7
 
   '@humanfs/core@0.19.2':
@@ -23612,7 +23615,7 @@ snapshots:
 
   fn.name@1.1.0: {}
 
-  follow-redirects@1.16.1(debug@4.4.3):
+  follow-redirects@1.16.2(debug@4.4.3):
     optionalDependencies:
       debug: 4.4.3
 
@@ -24174,7 +24177,7 @@ snapshots:
   http-proxy@1.18.1(debug@4.4.3):
     dependencies:
       eventemitter3: 4.0.7
-      follow-redirects: 1.16.1(debug@4.4.3)
+      follow-redirects: 1.16.2(debug@4.4.3)
       requires-port: 1.0.0
     transitivePeerDependencies:
       - debug
@@ -24914,7 +24917,7 @@ snapshots:
 
   jiti@2.7.0: {}
 
-  joi@17.13.8:
+  joi@17.13.9:
     dependencies:
       '@hapi/hoek': 9.3.0
       '@hapi/topo': 5.1.0
@@ -26388,7 +26391,7 @@ snapshots:
     dependencies:
       whatwg-url: 5.0.0
 
-  node-forge@1.4.0: {}
+  node-forge@1.4.1: {}
 
   node-int64@0.4.0: {}
 

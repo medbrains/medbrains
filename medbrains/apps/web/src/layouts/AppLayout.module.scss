@@ -30,12 +30,18 @@
   overflow-y: auto;
   scrollbar-gutter: stable;
 
-  &::-webkit-scrollbar { width: 4px; }
-  &::-webkit-scrollbar-track { background: transparent; }
+  &::-webkit-scrollbar {
+    width: 4px;
+  }
+  &::-webkit-scrollbar-track {
+    background: transparent;
+  }
   &::-webkit-scrollbar-thumb {
     background: var(--mb-text-faint);
     border-radius: 0;
-    &:hover { background: var(--mb-text-muted); }
+    &:hover {
+      background: var(--mb-text-muted);
+    }
   }
 }
 
@@ -131,8 +137,14 @@
 }
 
 @keyframes indicatorSlideIn {
-  from { opacity: 0; transform: scaleY(0.3); }
-  to { opacity: 1; transform: scaleY(1); }
+  from {
+    opacity: 0;
+    transform: scaleY(0.3);
+  }
+  to {
+    opacity: 1;
+    transform: scaleY(1);
+  }
 }
 
 // ── Dividers between groups ──
@@ -266,10 +278,7 @@
   font-weight: 500;
   color: var(--mb-text-secondary);
   padding-left: 28px;
-  transition:
-    color 180ms ease,
-    box-shadow 180ms ease,
-    border-color 180ms ease;
+  transition: color 180ms ease, box-shadow 180ms ease, border-color 180ms ease;
 
   &::after {
     content: "";
@@ -474,7 +483,6 @@
     filter: none;
   }
 }
-
 
 // Focus and scroll-into-view stop a control at the viewport's bottom edge,
 // which is exactly under the floating assistant launcher; this makes them stop
