@@ -67,11 +67,12 @@ DEBUG_ARGS=()
 # A root shell on the serial port that needs no login, PAM or logind, so a broken
 # boot can still be inspected. Kernel command line, because mkosi's presets remove
 # units enabled from an extra tree. mkosi's Autologin= covers hvc0 and tty1 only.
+# Autologin is for hvc0, the serial port under Apple Virtualization; QEMU's port has the debug shell.
 if [[ "$DEBUG" == 1 ]]; then
     tty=ttyAMA0
     [[ "$ARCH" == x86-64 ]] && tty=ttyS0
     DEBUG_ARGS=(--kernel-command-line "systemd.debug_shell=$tty systemd.mask=serial-getty@$tty.service"
-                --package strace)
+                --autologin yes --package strace)
 fi
 
 # Runs mkosi on this Linux machine: a CI runner or a hospital's own build box. Needs root.
