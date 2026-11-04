@@ -2,6 +2,7 @@
 //! It asks the setup service what this machine is, then shows first boot or the desktop.
 
 mod api;
+mod apps;
 mod desktop;
 mod display;
 mod network;
@@ -20,13 +21,15 @@ use gtk4 as gtk;
 use gtk4::prelude::{ApplicationExt, ApplicationExtManual, GtkWindowExt, WidgetExt};
 use gtk4::{gio, glib};
 
+/// The only role setup can give a machine so far.
+const MAIN_ROLE: &str = "main";
 /// How soon to ask again while the service is starting.
 const STARTUP_RETRY: Duration = Duration::from_secs(1);
 
 /// Shows the desktop in place of whatever the window held. Setup is dropped, not hidden: its
 /// fields still hold the password that was typed.
-fn show_desktop(stack: &gtk::Stack, css: &gtk::CssProvider) {
-    stack.add_named(&desktop::build(css), Some("desktop"));
+fn show_desktop(stack: &gtk::Stack, css: &gtk::CssProvider, role: &str) {
+    stack.add_named(&desktop::build(css, role), Some("desktop"));
     stack.set_visible_child_name("desktop");
     if let Some(setup) = stack.child_by_name("setup") {
         stack.remove(&setup);
@@ -36,7 +39,7 @@ fn show_desktop(stack: &gtk::Stack, css: &gtk::CssProvider) {
 /// Shows first boot; finishing it moves on to the desktop.
 fn show_setup(stack: &gtk::Stack, css: &gtk::CssProvider) {
     let (target, theme) = (stack.clone(), css.clone());
-    let flow = setup::build(move || show_desktop(&target, &theme));
+    let flow = setup::build(move || show_desktop(&target, &theme, MAIN_ROLE));
     stack.add_named(&flow, Some("setup"));
     stack.set_visible_child_name("setup");
     if let Some(child) = flow.visible_child() {
@@ -47,7 +50,7 @@ fn show_setup(stack: &gtk::Stack, css: &gtk::CssProvider) {
 /// Asks what this machine is, until the service answers.
 fn route(stack: gtk::Stack, css: gtk::CssProvider) {
     api::fetch_state(move |result| match result {
-        Ok(state) if state.set_up => show_desktop(&stack, &css),
+        Ok(state) if state.set_up => show_desktop(&stack, &css, &state.role),
         Ok(_) => show_setup(&stack, &css),
         Err(_) => {
             glib::timeout_add_local_once(STARTUP_RETRY, move || route(stack, css));

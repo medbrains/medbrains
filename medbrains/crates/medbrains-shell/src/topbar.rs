@@ -12,7 +12,7 @@ use crate::api::{self, State};
 use crate::ui;
 
 /// The logo, staged by `os/build.sh`.
-pub(crate) const LOGO: &str = "/usr/share/medbrains/shell/logo.svg";
+const LOGO: &str = "/usr/share/medbrains/shell/logo.svg";
 /// Wide enough for the longer question and both its answers.
 const POWER_MENU_WIDTH: i32 = 288;
 /// How often the clock is redrawn. Its text changes once a minute.
@@ -82,8 +82,8 @@ impl TopBar {
         home.set_visible(false);
         let logo = gtk::Image::from_file(LOGO);
         logo.set_pixel_size(20);
-        let name = ui::label("MedBrains", "heading");
-        let role = ui::label(ROLE, "muted");
+        let name = ui::line("MedBrains", "heading");
+        let role = ui::line(ROLE, "muted");
         left.append(&home);
         left.append(&logo);
         left.append(&name);
@@ -93,9 +93,9 @@ impl TopBar {
         let firewall_dot = ui::column(0);
         firewall_dot.add_css_class("dot");
         firewall_dot.set_valign(gtk::Align::Center);
-        let firewall_words = ui::label("", "");
+        let firewall_words = ui::line("", "");
         let network_icon = gtk::Image::from_icon_name(network_icon_name(false));
-        let network_words = ui::label("", "");
+        let network_words = ui::line("", "");
         let firewall = chip(
             &gtk::Image::from_icon_name("security-high-symbolic"),
             &firewall_words,
@@ -105,7 +105,7 @@ impl TopBar {
         right.append(&chip(&network_icon, &network_words));
         right.append(&power_button());
 
-        let (day, time) = (ui::label("", ""), ui::label("", "heading"));
+        let (day, time) = (ui::line("", ""), ui::line("", "heading"));
         let (zone, clock_note) = (ui::label("", "muted"), ui::label("", "muted"));
         clock_note.set_max_width_chars(36);
         root.set_start_widget(Some(&left));

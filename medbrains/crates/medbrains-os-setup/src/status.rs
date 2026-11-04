@@ -30,6 +30,7 @@ pub(crate) fn state() -> Value {
     let uptime_seconds = first_number(&uptime);
     json!({
         "set_up": set_up,
+        "role": if set_up { "main" } else { "" },
         "hospital": fs::read_to_string(HOSPITAL_NAME).unwrap_or_default().trim(),
         "main_ready": set_up
             && output("curl", &["-fsS", "-m", "2", "-o", "/dev/null", SERVER_HEALTH]).is_some(),

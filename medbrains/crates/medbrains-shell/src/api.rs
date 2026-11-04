@@ -10,8 +10,9 @@ use serde::Deserialize;
 use serde::de::DeserializeOwned;
 use serde_json::Value;
 
+use crate::apps;
+
 const SERVICE: &str = "127.0.0.1:3100";
-const SERVER: &str = "127.0.0.1:3000";
 const HEALTH_TIMEOUT: Duration = Duration::from_secs(2);
 const TOKEN_FILE: &str = "/run/medbrains-console/setup-token";
 const TIMEOUT: Duration = Duration::from_secs(10);
@@ -53,6 +54,8 @@ pub(crate) struct Machine {
 #[derive(Debug, Clone, Default, Deserialize)]
 pub(crate) struct State {
     pub(crate) set_up: bool,
+    /// What this machine is: "main" once set up.
+    pub(crate) role: String,
     /// The hospital's name, once setup has written it.
     pub(crate) hospital: String,
     pub(crate) main_ready: bool,
@@ -170,27 +173,48 @@ pub(crate) fn check_network(done: impl FnOnce(Result<Network, Failure>) + 'stati
     get("/network", done);
 }
 
+/// The state of these units, in order, read without blocking the screen.
+pub(crate) fn fetch_unit_states(units: Vec<String>, done: impl FnOnce(Vec<String>) + 'static) {
+    glib::spawn_future_local(async move {
+        let states = gio::spawn_blocking(move || apps::unit_states(&units)).await;
+        done(states.unwrap_or_default());
+    });
+}
+
 /// The time zones people choose from.
 pub(crate) fn fetch_timezones(done: impl FnOnce(Result<Vec<String>, Failure>) + 'static) {
     get("/timezones", done);
 }
 
-/// Whether the server itself answers, asked directly so the setup service can't delay it.
-pub(crate) fn server_answers(done: impl FnOnce(bool) + 'static) {
+/// Whether an app is ready to open: its health address answers if it has one, otherwise its unit
+/// is active, and with neither there is nothing to wait for. Asked directly, so the setup
+/// service can't delay it.
+pub(crate) fn app_answers(
+    health: Option<String>,
+    unit: Option<String>,
+    done: impl FnOnce(bool) + 'static,
+) {
     glib::spawn_future_local(async move {
-        let answer = gio::spawn_blocking(health_is_ok).await;
+        let answer = gio::spawn_blocking(move || match (health, unit) {
+            (Some(health), _) => health_is_ok(&health),
+            (None, Some(unit)) => apps::unit_states(std::slice::from_ref(&unit))
+                .first()
+                .is_some_and(|s| s == "active"),
+            (None, None) => true,
+        })
+        .await;
         done(answer.unwrap_or(false));
     });
 }
 
-/// One blocking health request to the server.
-fn health_is_ok() -> bool {
+/// One blocking health request.
+fn health_is_ok(health: &str) -> bool {
     let probe = || -> Option<bool> {
-        let address: SocketAddr = SERVER.parse().ok()?;
+        let (host, path) = apps::health_target(health)?;
+        let address: SocketAddr = host.parse().ok()?;
         let mut stream = TcpStream::connect_timeout(&address, HEALTH_TIMEOUT).ok()?;
         stream.set_read_timeout(Some(HEALTH_TIMEOUT)).ok()?;
-        let request =
-            format!("GET /api/health HTTP/1.1\r\nHost: {SERVER}\r\nConnection: close\r\n\r\n");
+        let request = format!("GET {path} HTTP/1.1\r\nHost: {host}\r\nConnection: close\r\n\r\n");
         stream.write_all(request.as_bytes()).ok()?;
         let mut head = [0_u8; 16];
         let read = stream.read(&mut head).ok()?;
@@ -254,7 +278,7 @@ mod tests {
     #[test]
     fn the_shell_understands_the_services_state() {
         let state: Result<State, _> = serde_json::from_value(json!({
-            "set_up": true, "hospital": "City", "main_ready": false, "clock": "checking",
+            "set_up": true, "role": "main", "hospital": "City", "main_ready": false, "clock": "checking",
             "timezone": "Asia/Kolkata", "firewall": true,
             "machine": { "system": "running", "failed": [], "memory_total_kb": 10, "memory_available_kb": 5,  "disk_total": 8, "disk_used": 2 },
             "network": { "links": [{ "name": "en0", "cable": true, "addresses": ["10.0.2.15"] }],

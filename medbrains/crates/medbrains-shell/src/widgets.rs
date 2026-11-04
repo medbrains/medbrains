@@ -29,9 +29,9 @@ fn card(title: &str, body: &gtk::Box) -> gtk::Box {
 /// One "name, value" row. The value right-aligns, as in the design.
 fn value_row(body: &gtk::Box, name: &str, class: &str) -> gtk::Label {
     let row = ui::row(ui::GAP);
-    let name = ui::label(name, "");
+    let name = ui::line(name, "");
     name.set_hexpand(true);
-    let value = ui::label("", class);
+    let value = ui::line("", class);
     value.set_xalign(1.0);
     row.append(&name);
     row.append(&value);
@@ -88,7 +88,7 @@ impl Widgets {
                 bar.add_css_class("bar");
                 bar.set_valign(gtk::Align::End);
                 bar.set_hexpand(true);
-                bar.set_visible(false);
+                bar.set_height_request(BAR_MIN);
                 graph.append(&bar);
                 bar
             })
@@ -105,8 +105,8 @@ impl Widgets {
 
         let storage = ui::column(ui::GAP / 2);
         let amount = ui::row(ui::GAP / 2);
-        let disk_used = ui::label("", "big");
-        let disk_total = ui::label("", "muted");
+        let disk_used = ui::line("", "big");
+        let disk_total = ui::line("", "muted");
         disk_total.set_valign(gtk::Align::Baseline);
         amount.append(&disk_used);
         amount.append(&disk_total);
@@ -156,7 +156,6 @@ impl Widgets {
         let heights = bar_heights(&self.history.borrow());
         for (bar, height) in self.bars.iter().zip(heights) {
             bar.set_height_request(height);
-            bar.set_visible(true);
         }
         let address = state
             .network

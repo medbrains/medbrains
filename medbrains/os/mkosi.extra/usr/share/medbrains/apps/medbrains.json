@@ -1,0 +1,10 @@
+{
+  "id": "medbrains",
+  "name": "MedBrains",
+  "icon": "/usr/share/medbrains/shell/logo.svg",
+  "url": "https://127.0.0.1:8443/",
+  "role": "main",
+  "unit": "medbrains-server.service",
+  "health": "http://127.0.0.1:3000/api/health",
+  "accent": true
+}

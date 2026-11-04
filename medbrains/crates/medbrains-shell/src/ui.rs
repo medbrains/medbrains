@@ -32,6 +32,13 @@ pub(crate) fn label(text: &str, class: &str) -> gtk::Label {
     label
 }
 
+/// Text that stays on one line, for bars and values.
+pub(crate) fn line(text: &str, class: &str) -> gtk::Label {
+    let label = label(text, class);
+    label.set_wrap(false);
+    label
+}
+
 /// A push button with text.
 pub(crate) fn button(text: &str, class: &str) -> gtk::Button {
     let button = gtk::Button::with_label(text);
