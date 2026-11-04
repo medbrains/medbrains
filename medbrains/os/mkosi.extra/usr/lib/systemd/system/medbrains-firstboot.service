@@ -1,0 +1,29 @@
+# First boot: secrets and the database cluster, generated on this box — never
+# baked into the image. Idempotent; a no-op once both exist.
+[Unit]
+Description=MedBrains first boot (secrets, database cluster)
+After=local-fs.target systemd-sysusers.service systemd-tmpfiles-setup.service
+Before=postgresql@17-main.service medbrains-server.service
+ConditionPathExists=!/var/lib/medbrains/config/.firstboot-done
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/lib/medbrains/firstboot
+UMask=0077
+ProtectHome=yes
+PrivateTmp=yes
+NoNewPrivileges=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectKernelLogs=yes
+ProtectControlGroups=yes
+ProtectClock=yes
+ProtectHostname=yes
+RestrictRealtime=yes
+RestrictNamespaces=yes
+LockPersonality=yes
+SystemCallArchitectures=native
+
+[Install]
+WantedBy=multi-user.target

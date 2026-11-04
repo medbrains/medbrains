@@ -96,6 +96,9 @@ built. *Proposed* is waiting for the owner. *Rejected* was considered and turned
 | 2026-11-02 | ext4 until the snapshot test passes; a database restore point before any migration | PostgreSQL on copy-on-write must be measured; A/B slots do not roll back a database | Assuming OpenZFS | Plan (#5191) |
 | 2026-11-02 | New server and OS code is Rust, on proven C foundations | Memory safety where we write code; proven data safety where we do not | Rewriting Linux or PostgreSQL; claiming "100% Rust" | Plan (#5191) |
 | 2026-11-02 | pgrust: watch, do not adopt | Not production-ready by its own README; AGPL-3.0; crash safety unproven | Adopting it now | Rejected for now (#5191) |
+| 2026-11-02 | The MedBrains app runs on the appliance's own screen, with a status page only while it cannot | A box with a monitor should not need a second computer | A status page pointing at a browser elsewhere | Done (D1), `os/README.md` |
+| 2026-11-02 | The OS image is built with mkosi directly on Linux; Docker is only a fallback for building on a Mac | No Docker in the OS, its services or its build path | Docker as the one build path | Done (D1) |
+| 2026-11-02 | The appliance screen uses WPE WebKit in D1; the engine question (WPE, Chromium or both, given printing needs Chromium) is open | WPE was the RFC's first choice; numbers are in `os/README.md` | Swapping engines without the numbers | Proposed; owner to decide |
 
 ### Security and releases
 

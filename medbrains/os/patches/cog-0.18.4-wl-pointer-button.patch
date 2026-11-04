@@ -1,0 +1,31 @@
+--- a/platform/wayland/cog-platform-wl.c
++++ b/platform/wayland/cog-platform-wl.c
+@@ -911,14 +911,11 @@
+ {
+     wl_data.event_serial = serial;
+ 
+-    /* @FIXME: what is this for?
+-    if (button >= BTN_MOUSE)
+-        button = button - BTN_MOUSE + 1;
+-    else
+-        button = 0;
+-    */
+-
+-    wl_data.pointer.button = !!state ? button : 0;
++    /* WebKit reads 1 as left, 2 as right and 3 as middle. Wayland sends Linux event
++     * codes, which WebKit took for "no button": the press and release reached the page,
++     * but it never made a click. The release must name the button too. */
++    const uint32_t web_button = button == 0x110 ? 1 : button == 0x111 ? 2 : button == 0x112 ? 3 : 0;
++    wl_data.pointer.button = web_button;
+     wl_data.pointer.state = state;
+ 
+     struct wpe_input_pointer_event event = {
+@@ -944,6 +941,8 @@
+     }
+ 
+     wpe_view_backend_dispatch_pointer_event(wpe_view_data.backend, &event);
++    if (!state)
++        wl_data.pointer.button = 0;
+ }
+ 
+ static void

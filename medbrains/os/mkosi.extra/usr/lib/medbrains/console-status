@@ -1,0 +1,77 @@
+#!/bin/bash
+# Keeps /run/medbrains-console/status.js current for the status page: the addresses,
+# the system state, and, until the administrator has changed it, the first sign-in.
+# Rewrites the file only when its content differs. Runs as root (it reads the first
+# password and the database); the page reads the result as the kiosk group.
+set -uo pipefail
+
+CONF=/var/lib/medbrains/config
+OUT=/run/medbrains-console/status.js
+PW_FILE="$CONF/initial-admin-password"
+HEALTH=http://127.0.0.1:3000/api/health
+CMD_TIMEOUT=5s
+FAST_S=3
+SLOW_S=30
+
+# Prints the machine's IPv4 addresses as a JSON array body.
+json_addresses() {
+    timeout "$CMD_TIMEOUT" ip -4 -o addr show scope global 2>/dev/null |
+        awk '{split($4, a, "/"); printf "%s\"%s\"", sep, a[1]; sep=","}'
+}
+
+# Prints "t", "f" or nothing: whether the first administrator must still change password.
+admin_must_change() {
+    timeout "$CMD_TIMEOUT" runuser -u postgres -- psql -X -tAq -d medbrains \
+        -c "SELECT must_change_password FROM users WHERE username = 'admin' ORDER BY created_at LIMIT 1" 2>/dev/null
+}
+
+# Removes the first password from the env once the seed has read it (server answering).
+strip_seed_password() {
+    if [[ -f "$CONF/env" ]] && grep -q '^MEDBRAINS_SEED_ADMIN_PASSWORD=' "$CONF/env"; then
+        sed -i '/^MEDBRAINS_SEED_ADMIN_PASSWORD=/d' "$CONF/env"
+    fi
+}
+
+# Prints the firstSignIn JSON value; removes the password file once it has been changed.
+# The database is asked only while that file exists. While the password cannot be shown
+# yet, prints {"pending":true}, so the page does not open the app past the first sign-in.
+json_first_signin() {
+    local must_change
+    if [[ ! -f "$PW_FILE" ]]; then
+        printf 'null'
+        return
+    fi
+    if ! timeout "$CMD_TIMEOUT" curl -fsS -m 3 -o /dev/null "$HEALTH"; then
+        printf '{"pending":true}'
+        return
+    fi
+    strip_seed_password
+    must_change="$(admin_must_change)"
+    if [[ "$must_change" == "f" ]]; then
+        rm -f "$PW_FILE"
+        printf 'null'
+    elif [[ "$must_change" == "t" ]]; then
+        printf '{"code":"DEFAULT","user":"admin","password":"%s"}' "$(cat "$PW_FILE")"
+    else
+        printf '{"pending":true}'
+    fi
+}
+
+# Writes status.js if it differs: compare, then atomic rename.
+write_status() {
+    local system new
+    system="$(timeout "$CMD_TIMEOUT" systemctl is-system-running 2>/dev/null)"
+    new="$(printf 'window.MB_STATUS={"system":"%s","hostname":"%s","addresses":[%s],"firstSignIn":%s};\n' \
+        "${system:-unknown}" "$(hostname)" "$(json_addresses)" "$(json_first_signin)")"
+    if [[ -f "$OUT" ]] && [[ "$(cat "$OUT")" == "$new" ]]; then
+        return
+    fi
+    install -m 0640 -o root -g kiosk /dev/null "$OUT.new"
+    printf '%s\n' "$new" > "$OUT.new"
+    mv "$OUT.new" "$OUT"
+}
+
+while true; do
+    write_status
+    if [[ -f "$PW_FILE" ]]; then sleep "$FAST_S"; else sleep "$SLOW_S"; fi
+done

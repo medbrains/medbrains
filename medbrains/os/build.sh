@@ -1,0 +1,105 @@
+#!/usr/bin/env bash
+# Builds the MedBrains OS disk image with mkosi: directly on Linux, in a Debian container
+# on a Mac.
+#
+#   ./build.sh [--arch arm64|x86-64] [--debug]
+#
+# Inputs (defaults in brackets):
+#   MEDBRAINS_SERVER_BIN  the server for the target arch
+#                         [$CARGO_TARGET_DIR/<triple>/release/medbrains-server]
+#   MEDBRAINS_WEB_DIST    the built web app [../apps/web/dist]
+#   OS_WORK               build cache + output [/tmp/mb-osimage]
+#
+# --debug adds a root shell on the serial console, for verification only.
+set -euo pipefail
+
+HERE="$(cd "$(dirname "$0")" && pwd)"
+REPO="$(cd "$HERE/.." && pwd)"
+ARCH=arm64
+DEBUG=0
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        --arch) ARCH="$2"; shift 2 ;;
+        --debug) DEBUG=1; shift ;;
+        *) echo "unknown option: $1" >&2; exit 2 ;;
+    esac
+done
+case "$ARCH" in
+    arm64) TRIPLE=aarch64-unknown-linux-gnu; PLATFORM=linux/arm64 ;;
+    x86-64) TRIPLE=x86_64-unknown-linux-gnu; PLATFORM=linux/amd64 ;;
+    *) echo "unsupported arch: $ARCH" >&2; exit 2 ;;
+esac
+
+OS_WORK="${OS_WORK:-/tmp/mb-osimage}"
+SERVER="${MEDBRAINS_SERVER_BIN:-${CARGO_TARGET_DIR:-$REPO/target}/$TRIPLE/release/medbrains-server}"
+WEB="${MEDBRAINS_WEB_DIST:-$REPO/apps/web/dist}"
+if [[ ! -x "$SERVER" ]]; then
+    echo "no server binary at $SERVER — cross-build it with zigbuild for $TRIPLE (see README)" >&2
+    exit 1
+fi
+if [[ ! -f "$WEB/index.html" ]]; then
+    echo "no web app at $WEB — pnpm turbo run build --filter=@medbrains/web..." >&2
+    exit 1
+fi
+
+# The second extra tree: what this repo builds, staged fresh every time.
+EXTRA="$OS_WORK/extra-$ARCH"
+rm -rf "$EXTRA"
+install -d "$EXTRA/usr/bin" "$EXTRA/usr/share/medbrains" "$EXTRA/usr/lib/medbrains" \
+    "$OS_WORK/out-$ARCH" "$OS_WORK/cache-$ARCH"
+install -m 0755 "$SERVER" "$EXTRA/usr/bin/medbrains-server"
+cp -R "$WEB" "$EXTRA/usr/share/medbrains/web"
+# Pre-compressed copies are for a CDN; on the appliance Caddy compresses.
+find "$EXTRA/usr/share/medbrains/web" \( -name '*.br' -o -name '*.gz' -o -name '*.map' \) -delete
+install -m 0644 "$REPO/deploy/standalone/db-roles.sh" "$EXTRA/usr/lib/medbrains/db-roles.sh"
+# The appliance screen uses the web app's own logo and fonts, under stable names.
+CONSOLE="$EXTRA/usr/share/medbrains/console"
+install -d "$CONSOLE"
+install -m 0644 "$WEB/logo/medbrains-mark.svg" "$CONSOLE/logo.svg"
+install -m 0644 "$WEB"/assets/ibm-plex-sans-latin-400-normal-*.woff2 "$CONSOLE/plex-sans-400.woff2"
+install -m 0644 "$WEB"/assets/ibm-plex-sans-latin-600-normal-*.woff2 "$CONSOLE/plex-sans-600.woff2"
+install -m 0644 "$WEB"/assets/ibm-plex-mono-latin-500-normal-*.woff2 "$CONSOLE/plex-mono-500.woff2"
+
+VERSION="${OS_VERSION:-$(git -C "$REPO" rev-parse --short HEAD)}"
+DEBUG_ARGS=()
+# A root shell on the serial port that needs no login, PAM or logind, so a broken
+# boot can still be inspected. Kernel command line, because mkosi's presets remove
+# units enabled from an extra tree. mkosi's Autologin= covers hvc0 and tty1 only.
+if [[ "$DEBUG" == 1 ]]; then
+    tty=ttyAMA0
+    [[ "$ARCH" == x86-64 ]] && tty=ttyS0
+    DEBUG_ARGS=(--kernel-command-line "systemd.debug_shell=$tty systemd.mask=serial-getty@$tty.service"
+                --package strace)
+fi
+
+# Runs mkosi on this Linux machine: a CI runner or a hospital's own build box. Needs root.
+build_on_linux() {
+    "$HERE/install-ukify-splash.sh"
+    local work
+    work="$(mktemp -d)"
+    cp -R "$HERE/." "$work/"
+    (cd "$work" && mkosi --architecture "$ARCH" --extra-tree "$EXTRA" \
+        --output-directory "$OS_WORK/out-$ARCH" --cache-directory "$OS_WORK/cache-$ARCH" \
+        --image-version "$VERSION" ${DEBUG_ARGS[@]+"${DEBUG_ARGS[@]}"} -f build)
+    rm -rf "$work"
+}
+
+# Mac fallback only: a privileged Debian container, because mkosi needs Linux. The workspace
+# stays inside the container (a real Linux filesystem, removed with it); only the package
+# cache and the output are on the host. Nothing in the image depends on Docker.
+build_on_mac_with_docker() {
+    docker build -q --platform "$PLATFORM" -t "medbrains-os-builder:$ARCH" \
+        -f "$HERE/builder.Dockerfile" "$HERE" >/dev/null
+    # An anonymous volume for /var/tmp: mkosi's build overlay cannot sit on Docker's own overlay.
+    docker run --rm --privileged --platform "$PLATFORM" -v /var/tmp \
+        -v "$HERE:/src:ro" -v "$EXTRA:/extra:ro" \
+        -v "$OS_WORK/out-$ARCH:/out" -v "$OS_WORK/cache-$ARCH:/cache" \
+        "medbrains-os-builder:$ARCH" \
+        bash -c 'cp -R /src /build && cd /build && mkosi "$@" -f build' _ \
+        --architecture "$ARCH" --extra-tree /extra --output-directory /out \
+        --cache-directory /cache --image-version "$VERSION" ${DEBUG_ARGS[@]+"${DEBUG_ARGS[@]}"}
+}
+
+if [[ "$(uname -s)" == Linux ]]; then build_on_linux; else build_on_mac_with_docker; fi
+
+ls -lh "$OS_WORK/out-$ARCH"
