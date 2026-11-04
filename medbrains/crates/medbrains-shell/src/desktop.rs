@@ -2,7 +2,7 @@
 //! Nothing here shows patient data: it speaks only about the machine.
 
 use std::cell::RefCell;
-use std::rc::Rc;
+use std::rc::{Rc, Weak};
 use std::time::Duration;
 
 use gtk4 as gtk;
@@ -14,8 +14,10 @@ use crate::apps::{self, App};
 use crate::running::Running;
 use crate::topbar::{Screen, TopBar};
 use crate::widgets::Widgets;
-use crate::{dock, settings, ui, webapp::WebApp};
+use crate::{dock, power, settings, ui, webapp::WebApp};
 
+/// How long a restart or power off may take before the screen says it hasn't happened.
+const POWER_PATIENCE: Duration = Duration::from_secs(120);
 /// How often the bar and widgets ask the machine for its state.
 const REFRESH_EVERY: Duration = Duration::from_secs(10);
 
@@ -45,6 +47,8 @@ pub(crate) struct Desktop {
     greeting_status: gtk::Label,
     pub(crate) entries: Rc<Vec<Entry>>,
     pub(crate) running: Rc<RefCell<Running>>,
+    /// The sentence shown during a restart or power off.
+    power_words: gtk::Label,
 }
 
 impl Desktop {
@@ -102,6 +106,26 @@ impl Desktop {
         if let Some(page) = self.content.visible_child() {
             page.child_focus(gtk::DirectionType::TabForward);
         }
+    }
+
+    /// Opens Settings, for the network menu's link.
+    fn open_settings(&self) {
+        let found = self.entries.iter().position(|entry| entry.web.is_none());
+        if let Some(index) = found {
+            self.open(index);
+        }
+    }
+
+    /// Takes the screen once the machine has accepted a power action, so it can't look frozen. The
+    /// words change if the machine is somehow still on after the limit.
+    fn show_power(&self, action: &'static str) {
+        self.power_words.set_label(power::accepted_words(action));
+        self.content.set_visible_child_name("power");
+        self.bar.show_screen(Screen::Desktop);
+        let words = self.power_words.clone();
+        glib::timeout_add_local_once(POWER_PATIENCE, move || {
+            words.set_label(power::stuck_words(action));
+        });
     }
 
     /// Closes the app on screen, if one is.
@@ -243,7 +267,22 @@ pub(crate) fn build(css: &gtk::CssProvider, role: &str) -> gtk::Box {
     content.set_vexpand(true);
     let greeting_name = ui::label("MedBrains", "greeting-name");
     let greeting_status = ui::label("This machine is starting.", "greeting-status");
-    let bar = TopBar::new();
+    // These controls are built before the desktop they act on, so they find it through this cell.
+    let late: Rc<RefCell<Weak<Desktop>>> = Rc::default();
+    let settings_target = Rc::clone(&late);
+    let power_target = Rc::clone(&late);
+    let bar = TopBar::new(
+        Rc::new(move || {
+            if let Some(desktop) = settings_target.borrow().upgrade() {
+                desktop.open_settings();
+            }
+        }),
+        Rc::new(move |action| {
+            if let Some(desktop) = power_target.borrow().upgrade() {
+                desktop.show_power(action);
+            }
+        }),
+    );
     let desktop = Rc::new(Desktop {
         content: content.clone(),
         bar: bar.clone(),
@@ -252,7 +291,9 @@ pub(crate) fn build(css: &gtk::CssProvider, role: &str) -> gtk::Box {
         greeting_status: greeting_status.clone(),
         entries: Rc::new(load_entries(role)),
         running: Rc::default(),
+        power_words: ui::label("", "title"),
     });
+    *late.borrow_mut() = Rc::downgrade(&desktop);
     for (index, entry) in desktop.entries.iter().enumerate() {
         if let Some(web) = &entry.web {
             let target = Rc::downgrade(&desktop);
@@ -273,6 +314,12 @@ pub(crate) fn build(css: &gtk::CssProvider, role: &str) -> gtk::Box {
     home.add_overlay(&dock::dock(&desktop));
 
     content.add_named(&home, Some("home"));
+    let power_page = ui::column(0);
+    power_page.add_css_class("app-status");
+    power_page.set_valign(gtk::Align::Center);
+    power_page.set_halign(gtk::Align::Center);
+    power_page.append(&desktop.power_words);
+    content.add_named(&power_page, Some("power"));
     content.add_named(&dock::launcher_page(&desktop), Some("launcher"));
     for entry in desktop.entries.iter() {
         let name = page_name(&entry.app);

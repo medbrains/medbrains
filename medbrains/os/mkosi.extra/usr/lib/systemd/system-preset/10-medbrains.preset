@@ -13,3 +13,5 @@ disable postgresql.service
 # Only chrony.service may run: see mkosi.postinst.chroot.
 disable chronyd-restricted.service
 disable chrony-wait.service
+# Started by a udev rule only when a Wi-Fi card exists.
+disable iwd.service

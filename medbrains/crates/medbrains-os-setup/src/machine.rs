@@ -16,6 +16,10 @@ const ROLE_MAIN: &str = "/var/lib/medbrains/config/role-main";
 const ENV_FILE: &str = "/var/lib/medbrains/config/env";
 /// Where a fixed address takes effect. On tmpfs, so a power cut before it is confirmed undoes it.
 const LIVE_NETWORK: &str = "/run/systemd/network/10-medbrains-fixed.network";
+/// Which link is tried first, here and on the data partition. A setting of its own, because a link
+/// with a fixed address already has its own file.
+const LIVE_PREFERRED: &str = "/run/systemd/network/50-medbrains-preferred.network";
+const SAVED_PREFERRED: &str = "/var/lib/medbrains/network/50-medbrains-preferred.network";
 /// Where a confirmed address is kept: the data partition, since the root becomes read-only.
 /// `medbrains-network-settings.service` copies it to `LIVE_NETWORK` at boot.
 const SAVED_NETWORK: &str = "/var/lib/medbrains/network/10-medbrains-fixed.network";
@@ -42,14 +46,12 @@ pub(crate) fn is_set_up() -> bool {
 pub(crate) fn network_links() -> Value {
     let addresses = json_output("ip", &["-j", "addr", "show"]);
     let routes = json_output("ip", &["-j", "-4", "route", "show", "default"]);
-    let wifi = fs::read_dir("/sys/class/net").is_ok_and(|dir| {
-        dir.flatten()
-            .any(|entry| entry.path().join("wireless").exists())
-    });
+    let first_route = routes.get(0);
     json!({
         "links": summarise_links(&addresses),
-        "gateway": routes.get(0).and_then(|route| route.get("gateway")),
-        "wifi": wifi,
+        "gateway": first_route.and_then(|route| route.get("gateway")),
+        "default_link": first_route.and_then(|route| route.get("dev")),
+        "preferred": preferred_link(),
         "fixed": Path::new(LIVE_NETWORK).exists(),
     })
 }
@@ -73,7 +75,13 @@ fn summarise_links(links: &Value) -> Vec<Value> {
             .filter(|info| info.get("family").and_then(Value::as_str) == Some("inet"))
             .filter_map(|info| info.get("local")?.as_str())
             .collect();
-        Some(json!({ "name": name, "cable": has_flag("LOWER_UP"), "addresses": addresses }))
+        Some(json!({
+            "name": name,
+            "kind": if link_is_wireless(name) { "wifi" } else { "ethernet" },
+            "cable": has_flag("LOWER_UP"),
+            "addresses": addresses,
+            "speed_mbps": link_speed(name),
+        }))
     };
     links
         .as_array()
@@ -81,6 +89,42 @@ fn summarise_links(links: &Value) -> Vec<Value> {
         .flatten()
         .filter_map(summarise)
         .collect()
+}
+
+/// True if the kernel lists this link as Wi-Fi.
+fn link_is_wireless(name: &str) -> bool {
+    Path::new("/sys/class/net")
+        .join(name)
+        .join("wireless")
+        .exists()
+}
+
+/// A link's speed in Mb/s, if it has one: a link without a cable reports none, or -1.
+fn link_speed(name: &str) -> Option<u64> {
+    let path = Path::new("/sys/class/net").join(name).join("speed");
+    fs::read_to_string(path).ok()?.trim().parse().ok()
+}
+
+/// Makes a link the one tried first, or with an empty name, any. Takes effect at once and survives
+/// a restart. The other links stay up, so this can't cut the machine off.
+pub(crate) fn prefer_link(interface: &str) -> Result<(), String> {
+    if interface.is_empty() {
+        remove_if_present(SAVED_PREFERRED)?;
+        remove_if_present(LIVE_PREFERRED)?;
+        return reload_network();
+    }
+    let file = rules::preferred_network(interface)
+        .ok_or_else(|| "That isn't a network card on this machine.".to_owned())?;
+    fs::write(LIVE_PREFERRED, &file).map_err(|e| e.to_string())?;
+    fs::write(SAVED_PREFERRED, &file).map_err(|e| e.to_string())?;
+    reload_network()
+}
+
+/// The link tried first, if one was chosen.
+fn preferred_link() -> Option<String> {
+    let file = fs::read_to_string(LIVE_PREFERRED).ok()?;
+    file.lines()
+        .find_map(|line| line.strip_prefix("Name=").map(str::to_owned))
 }
 
 /// The network with what can be reached, for the network screen only: this one sends a
@@ -204,20 +248,51 @@ pub(crate) fn start_main_machine(
 
 /// Turns the machine off or restarts it.
 pub(crate) fn power(action: &str) -> Result<(), String> {
-    let verb = match action {
-        "off" => "poweroff",
-        "restart" => "reboot",
-        _ => return Err("Unknown action.".to_owned()),
-    };
-    output("systemctl", &[verb])
-        .map(|_| ())
-        .ok_or_else(|| "The machine could not do that.".to_owned())
+    let verb = power_verb(action).ok_or_else(|| "Unknown action.".to_owned())?;
+    let done = Command::new("systemctl")
+        .arg(verb)
+        .output()
+        .map_err(|e| e.to_string())?;
+    if done.status.success() {
+        return Ok(());
+    }
+    // The real reason goes to the journal, the plain next step to the screen.
+    log_refusal(verb, &done.stderr);
+    Err("The machine refused. Try again, or use its power button.".to_owned())
+}
+
+/// Records why systemd refused, for whoever reads the journal.
+fn log_refusal(verb: &str, reason: &[u8]) {
+    let line = format!(
+        "systemctl {verb} failed: {}\n",
+        String::from_utf8_lossy(reason).trim()
+    );
+    // Nothing more can be done if the log itself is unavailable.
+    drop(std::io::stderr().write_all(line.as_bytes()));
+}
+
+/// The systemctl verb for a power action.
+fn power_verb(action: &str) -> Option<&'static str> {
+    match action {
+        "off" => Some("poweroff"),
+        "restart" => Some("reboot"),
+        _ => None,
+    }
 }
 
 #[cfg(test)]
 mod tests {
-    use super::summarise_links;
+    use super::{power_verb, summarise_links};
     use serde_json::json;
+
+    /// A wrong word must never reach systemctl as a command of its own.
+    #[test]
+    fn only_the_two_power_actions_reach_systemctl() {
+        assert_eq!(power_verb("restart"), Some("reboot"));
+        assert_eq!(power_verb("off"), Some("poweroff"));
+        assert_eq!(power_verb("halt"), None);
+        assert_eq!(power_verb(""), None);
+    }
 
     /// The network screen must tell a pulled cable from a working link.
     #[test]
@@ -230,10 +305,10 @@ mod tests {
         ]);
         let summary = summarise_links(&links);
         assert_eq!(summary.len(), 2);
-        assert_eq!(
-            summary[0],
-            json!({ "name": "en0", "cable": true, "addresses": ["10.0.2.15"] })
-        );
+        assert_eq!(summary[0]["name"], "en0");
+        assert_eq!(summary[0]["kind"], "ethernet");
+        assert_eq!(summary[0]["cable"], true);
+        assert_eq!(summary[0]["addresses"], json!(["10.0.2.15"]));
         assert_eq!(summary[1]["cable"], json!(false));
     }
 }

@@ -49,6 +49,7 @@ built. *Proposed* is waiting for the owner. *Rejected* was considered and turned
 | 2026-11-04 | Found why reused connections grew the server: `axum::serve(listener, app)` copied the whole route table per connection. With `into_make_service()`, 100 held connections went from 1,804 MB to 126 MB and a new connection from 124 ms to 1.9 ms (debug build). Proxy keepalive is back on | this PR |
 | 2026-11-04 | OS desktop in the approved design, dark and light; apps from manifests, each with its own view, storage and default-deny origin; status says only what is checked (firewall on, NTS-verified time, failed service named); time zone chosen at setup and kept on the data partition; screen scale set through wlr-randr because cage has no option; debug shell started by udev on whichever serial port exists | this branch |
 | 2026-11-04 | Open apps get Close (ends the view and frees its memory, after any unsaved-changes question), Home (keeps it) and Reload, with keys and a dock menu; apps stay full-screen views, not movable windows | this branch |
+| 2026-11-04 | No terminal on node computers or other machines (owner). Debug images keep a serial shell; release images have no shell on screen | this branch |
 
 ## Decisions
 

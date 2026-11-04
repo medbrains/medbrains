@@ -124,9 +124,20 @@ pub(crate) fn fixed_network(
     Some(file)
 }
 
+/// The networkd file that makes a link the one tried first: a lower route metric than the 1024 the
+/// default file gives every link, or `None` if the name isn't safe. The rest stay up.
+pub(crate) fn preferred_network(interface: &str) -> Option<String> {
+    is_interface(interface).then(|| {
+        format!(
+            "[Match]\nName={interface}\n\n[Network]\nDHCP=yes\nMulticastDNS=yes\n\n\
+             [DHCPv4]\nRouteMetric=100\n\n[IPv6AcceptRA]\nRouteMetric=100\n"
+        )
+    })
+}
+
 #[cfg(test)]
 mod tests {
-    use super::{check_new_hospital, env_with_seed, fixed_network};
+    use super::{check_new_hospital, env_with_seed, fixed_network, preferred_network};
 
     const GOOD: &str = "Ward-Seven7";
 
@@ -171,6 +182,13 @@ mod tests {
         assert!(second.contains("Other-Pass2"));
         assert!(second.starts_with("MEDBRAINS_ENV=production\n"));
         assert_eq!(second.lines().count(), 5);
+    }
+
+    #[test]
+    fn the_preferred_link_gets_a_lower_metric_and_a_safe_name() {
+        let file = preferred_network("enp0s4").unwrap_or_default();
+        assert!(file.contains("Name=enp0s4") && file.contains("RouteMetric=100"));
+        assert_eq!(preferred_network("en0\n[Network]"), None);
     }
 
     #[test]

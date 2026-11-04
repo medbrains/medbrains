@@ -96,7 +96,7 @@ fn network_page(flow: &Flow) -> gtk::Widget {
     let next = flow.continue_to(Step::Time);
     let actions = flow.actions(Step::Network, Some(&next));
     let intro = "On a cable there is nothing to do here. No internet is fine.";
-    ui::page("Network", intro, &network::panel(), &actions)
+    ui::page("Network", intro, &network::panel(None), &actions)
 }
 
 /// The time zone screen. Asia/Kolkata unless changed; changing it takes effect at once.

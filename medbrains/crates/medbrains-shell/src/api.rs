@@ -23,8 +23,11 @@ const NOT_ANSWERING: &str = "The machine's setup service is not answering. Try a
 #[derive(Debug, Clone, Default, Deserialize)]
 pub(crate) struct Link {
     pub(crate) name: String,
+    /// "ethernet" or "wifi".
+    pub(crate) kind: String,
     pub(crate) cable: bool,
     pub(crate) addresses: Vec<String>,
+    pub(crate) speed_mbps: Option<u64>,
 }
 
 /// The network as the service sees it. `local` and `internet` are `None` until checked.
@@ -32,10 +35,48 @@ pub(crate) struct Link {
 pub(crate) struct Network {
     pub(crate) links: Vec<Link>,
     pub(crate) gateway: Option<String>,
-    pub(crate) wifi: bool,
+    /// The link the default route uses.
+    pub(crate) default_link: Option<String>,
+    /// The link chosen to be tried first, if any.
+    pub(crate) preferred: Option<String>,
     pub(crate) fixed: bool,
     pub(crate) local: Option<bool>,
     pub(crate) internet: Option<bool>,
+}
+
+/// One Wi-Fi network in range.
+#[derive(Debug, Clone, Default, Deserialize, PartialEq, Eq)]
+pub(crate) struct WifiNetwork {
+    pub(crate) ssid: String,
+    pub(crate) secured: bool,
+    pub(crate) enterprise: bool,
+    pub(crate) saved: bool,
+    pub(crate) connected: bool,
+    /// 0 to 100.
+    pub(crate) signal: u8,
+}
+
+/// The latest attempt to join a network.
+#[derive(Debug, Clone, Default, Deserialize, PartialEq, Eq)]
+#[serde(default)]
+pub(crate) struct WifiAttempt {
+    pub(crate) ssid: String,
+    /// "connecting", "connected", "failed", or empty if none has been made.
+    pub(crate) state: String,
+    pub(crate) words: String,
+}
+
+/// Wi-Fi as the service sees it. No card, a card whose software doesn't answer, and a working card
+/// are three different truths, so none of them can read as an empty list.
+#[derive(Debug, Clone, Default, Deserialize, PartialEq, Eq)]
+#[serde(default)]
+pub(crate) struct Wifi {
+    pub(crate) hardware: bool,
+    pub(crate) fault: bool,
+    pub(crate) powered: bool,
+    pub(crate) scanning: bool,
+    pub(crate) networks: Vec<WifiNetwork>,
+    pub(crate) attempt: WifiAttempt,
 }
 
 /// The machine's health figures.
@@ -181,6 +222,11 @@ pub(crate) fn fetch_unit_states(units: Vec<String>, done: impl FnOnce(Vec<String
     });
 }
 
+/// Reads Wi-Fi's state.
+pub(crate) fn fetch_wifi(done: impl FnOnce(Result<Wifi, Failure>) + 'static) {
+    get("/wifi", done);
+}
+
 /// The time zones people choose from.
 pub(crate) fn fetch_timezones(done: impl FnOnce(Result<Vec<String>, Failure>) + 'static) {
     get("/timezones", done);
@@ -242,7 +288,7 @@ pub(crate) fn post(
 
 #[cfg(test)]
 mod tests {
-    use super::{Failure, State, is_ok_status, outcome, parse_answer};
+    use super::{Failure, State, Wifi, is_ok_status, outcome, parse_answer};
     use serde_json::json;
 
     #[test]
@@ -274,6 +320,23 @@ mod tests {
         assert!(outcome(200, json!({ "ok": true })).is_ok());
     }
 
+    /// These are the three answers the service gives; "no card" must not read as "no networks".
+    #[test]
+    fn the_three_wifi_truths_stay_apart() {
+        let read = |body| serde_json::from_value::<Wifi>(body).unwrap_or_default();
+        let none = read(json!({ "hardware": false, "attempt": {} }));
+        assert!(!none.hardware);
+        let broken = read(json!({ "hardware": true, "fault": true, "attempt": {} }));
+        assert!(broken.hardware && broken.fault);
+        let working = read(
+            json!({ "hardware": true, "powered": true, "scanning": false,
+            "networks": [{ "ssid": "Ward", "secured": true, "enterprise": false, "saved": false,
+                           "connected": false, "signal": 60 }],
+            "attempt": { "ssid": "", "state": "", "words": "" } }),
+        );
+        assert_eq!(working.networks[0].ssid, "Ward");
+    }
+
     /// This is the service's real answer; a renamed field would otherwise show as blank.
     #[test]
     fn the_shell_understands_the_services_state() {
@@ -281,8 +344,8 @@ mod tests {
             "set_up": true, "role": "main", "hospital": "City", "main_ready": false, "clock": "checking",
             "timezone": "Asia/Kolkata", "firewall": true,
             "machine": { "system": "running", "failed": [], "memory_total_kb": 10, "memory_available_kb": 5,  "disk_total": 8, "disk_used": 2 },
-            "network": { "links": [{ "name": "en0", "cable": true, "addresses": ["10.0.2.15"] }],
-                         "gateway": null, "wifi": false, "fixed": false },
+            "network": { "links": [{ "name": "en0", "kind": "ethernet", "cable": true, "addresses": ["10.0.2.15"], "speed_mbps": 1000 }],
+                         "gateway": null, "default_link": null, "preferred": null, "fixed": false },
         }));
         assert!(
             state.is_ok_and(|s| s.set_up && s.network.links[0].cable && s.network.local.is_none())

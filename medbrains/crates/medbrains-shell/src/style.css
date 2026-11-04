@@ -26,8 +26,8 @@ button { transition: background 120ms ease-out, color 120ms ease-out; }
 button:focus-visible, entry:focus-within, passwordentry:focus-within, menubutton > button:focus-visible { outline: 2px solid @mb_accent; outline-offset: 2px; }
 button.suggested-action, button:checked { background: #0f62fe; color: #ffffff; }
 
-.topbar { background: @mb_bar; border-bottom: 1px solid @mb_line; padding: 0 16px; min-height: 40px; font-size: 13px; }
-.topbar button, .topbar menubutton > button { background: none; border: none; min-height: 32px; min-width: 32px; padding: 0 8px; box-shadow: none; color: inherit; }
+.topbar { background: @mb_bar; border-bottom: 1px solid @mb_line; padding: 0 16px; min-height: 44px; font-size: 13px; }
+.topbar button, .topbar menubutton > button { background: none; border: none; min-height: 44px; min-width: 44px; padding: 0 8px; box-shadow: none; color: inherit; }
 .topbar button:hover, .topbar menubutton > button:hover { background: @mb_tile_hover; }
 .chip { color: @mb_muted; }
 .chip.warning { color: @mb_warning; }
@@ -65,3 +65,10 @@ levelbar block.empty { background: transparent; border: none; }
 .app-status { padding: 48px; }
 progressbar trough { min-height: 6px; border-radius: 3px; background: @mb_line; }
 progressbar progress { min-height: 6px; border-radius: 3px; background: #0f62fe; }
+.network-panel { padding: 8px; }
+calendar { color: @mb_text; border: none; background: transparent; }
+calendar > grid > label.day-number { min-height: 28px; min-width: 28px; }
+calendar > grid > label.today { color: @mb_accent; font-weight: 600; }
+calendar > grid > label:selected { background: #0f62fe; color: #ffffff; border-radius: 4px; }
+calendar > grid > label.other-month { color: @mb_muted; }
+calendar > header > button { min-height: 32px; min-width: 32px; }

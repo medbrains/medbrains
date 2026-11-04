@@ -8,11 +8,13 @@
 mod machine;
 mod rules;
 mod status;
+mod wifi;
+mod wifi_parse;
 
 use std::io::{BufRead, BufReader, Read, Write};
 use std::net::{TcpListener, TcpStream};
-use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 use serde_json::{Value, json};
@@ -31,6 +33,8 @@ struct State {
     token: String,
     /// Bumped by each change and each confirmation; a rollback only runs if it still matches.
     network_change: AtomicU64,
+    /// The latest Wi-Fi join, which runs on its own thread.
+    wifi_attempt: Arc<Mutex<wifi::Attempt>>,
 }
 
 /// One parsed request.
@@ -185,6 +189,22 @@ fn route(state: &Arc<State>, request: &Request) -> (u16, Value) {
         ("POST", "/network/confirm") => settle_network(state, machine::confirm_fixed_address),
         ("POST", "/network/undo") => settle_network(state, machine::undo_fixed_address),
         ("POST", "/network/automatic") => settle_network(state, machine::use_automatic_address),
+        ("POST", "/network/prefer") => answer(422, machine::prefer_link(field(&body, "interface"))),
+        ("GET", "/wifi") => (200, wifi::status(&state.wifi_attempt)),
+        ("POST", "/wifi/power") => answer(
+            422,
+            wifi::set_power(body.get("on").and_then(Value::as_bool).unwrap_or(false)),
+        ),
+        ("POST", "/wifi/scan") => answer(422, wifi::scan()),
+        ("POST", "/wifi/connect") => answer(
+            409,
+            wifi::connect(
+                &state.wifi_attempt,
+                field(&body, "ssid"),
+                field(&body, "password"),
+            ),
+        ),
+        ("POST", "/wifi/forget") => answer(422, wifi::forget(field(&body, "ssid"))),
         ("POST", "/power") => answer(422, machine::power(field(&body, "action"))),
         _ => (404, json!({ "error": "not found" })),
     }
@@ -246,6 +266,7 @@ fn main() -> std::io::Result<()> {
     let state = Arc::new(State {
         token: new_token()?,
         network_change: AtomicU64::new(0),
+        wifi_attempt: Arc::default(),
     });
     let listener = TcpListener::bind(LISTEN)?;
     for stream in listener.incoming().flatten() {

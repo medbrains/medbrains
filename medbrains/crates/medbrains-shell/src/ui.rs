@@ -186,6 +186,7 @@ pub(crate) fn network_words(network: &Network) -> String {
         Some(link) if link.cable => "Connected".to_owned(),
         _ if network.links.iter().any(|link| link.cable) => "Cable in, no address".to_owned(),
         _ if network.links.is_empty() => "No network card".to_owned(),
+        _ if network.links.iter().all(|link| link.kind == "wifi") => "Not connected".to_owned(),
         _ => "No cable".to_owned(),
     }
 }
@@ -212,8 +213,10 @@ mod tests {
         Network {
             links: vec![Link {
                 name: "en0".to_owned(),
+                kind: "ethernet".to_owned(),
                 cable,
                 addresses,
+                speed_mbps: None,
             }],
             ..Network::default()
         }

@@ -73,9 +73,10 @@ if [[ "$DEBUG" == 1 ]]; then
     install -m 0644 "$HERE/debug/medbrains-debug-shell@.service" "$EXTRA/usr/lib/systemd/system/"
     install -m 0644 "$HERE/debug/90-medbrains-debug-shell.rules" "$EXTRA/usr/lib/udev/rules.d/"
     # The shell replaces the login prompt that systemd would put on both ports. wtype and grim let
-    # a test type and take screenshots under Apple Virtualization, which has no QMP.
+    # a test type and take screenshots under Apple Virtualization, which has no QMP. hostapd and iw make
+    # a test Wi-Fi network with mac80211_hwsim; wpasupplicant is only there to measure against iwd.
     DEBUG_ARGS=(--kernel-command-line "systemd.mask=serial-getty@ttyAMA0.service systemd.mask=serial-getty@hvc0.service"
-                --package strace --package wtype --package grim)
+                --package strace --package wtype --package grim --package hostapd --package iw --package wpasupplicant)
 fi
 
 # Runs mkosi on this Linux machine: a CI runner or a hospital's own build box. Needs root.

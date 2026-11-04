@@ -56,7 +56,7 @@ pub(crate) fn page(css: &gtk::CssProvider) -> gtk::Widget {
     body.append(&ui::label("Time", "heading"));
     body.append(&timezone::chooser());
     body.append(&ui::label("Network", "heading"));
-    body.append(&network::panel());
+    body.append(&network::panel(None));
     body.append(&ui::label("This machine", "heading"));
     let version = std::fs::read_to_string("/etc/os-release").unwrap_or_default();
     let image = version

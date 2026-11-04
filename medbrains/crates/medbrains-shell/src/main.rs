@@ -6,7 +6,9 @@ mod apps;
 mod desktop;
 mod display;
 mod dock;
+mod netmenu;
 mod network;
+mod power;
 mod prefs;
 mod running;
 mod settings;
@@ -17,6 +19,7 @@ mod ui;
 mod webapp;
 mod webview;
 mod widgets;
+mod wifi_panel;
 
 use std::time::Duration;
 
