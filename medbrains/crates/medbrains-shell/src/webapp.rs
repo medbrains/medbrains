@@ -27,7 +27,7 @@ pub(crate) struct WebApp {
 }
 
 /// Builds the view. Sessions are ephemeral, so nothing a page stores reaches the disk, and
-/// downloads and printing are refused: the appliance has no safe place to put either yet.
+/// downloads, printing and uploads are refused: the appliance has no safe way to do them yet.
 fn new_view(filter: &webkit6::UserContentFilter) -> WebView {
     let session = NetworkSession::new_ephemeral();
     session.connect_download_started(|_, download| download.cancel());
@@ -42,6 +42,12 @@ fn new_view(filter: &webkit6::UserContentFilter) -> WebView {
         settings.set_enable_developer_extras(false);
     }
     view.connect_print(|_, _| true);
+    // A file chooser is a second window, and `cage` did not show ours: its modal grab would
+    // block all input. Uploads stay off here, as they were under WPE.
+    view.connect_run_file_chooser(|_, request| {
+        request.cancel();
+        true
+    });
     // A crashed page must not leave a blank screen, because a blank screen reads as a fact.
     view.connect_web_process_terminated(|view, _| view.reload());
     // A new window would have no way back in a one-window shell, so links stay here.

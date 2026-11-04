@@ -1,5 +1,8 @@
 //! The top bar's two menus: the clock with its calendar, and power.
 
+use std::cell::Cell;
+use std::rc::Rc;
+
 use gtk4 as gtk;
 use gtk4::glib;
 use gtk4::prelude::{BoxExt, ButtonExt, PopoverExt, WidgetExt};
@@ -31,13 +34,35 @@ pub(crate) fn clock_button() -> (gtk::MenuButton, gtk::Label) {
     (button, warning)
 }
 
-/// The power menu: both actions ask first, because this may be the hospital's main machine.
+/// The power menu. Both actions ask first, inside the menu, because this may be the hospital's
+/// main machine. No separate window: `cage` did not show a dialog window, and its modal grab
+/// then blocked all input.
 pub(crate) fn power_button() -> gtk::MenuButton {
-    let panel = ui::column(ui::GAP / 2);
+    let choose = ui::column(ui::GAP / 2);
     let restart = ui::button("Restart…", "");
     let off = ui::button("Power off…", "");
-    panel.append(&restart);
-    panel.append(&off);
+    choose.append(&restart);
+    choose.append(&off);
+    let ask = ui::column(ui::GAP / 2);
+    ask.set_visible(false);
+    let question = ui::label("", "heading");
+    question.set_max_width_chars(32);
+    let detail = ui::label(
+        "Everyone using MedBrains on this machine is disconnected until it is back.",
+        "",
+    );
+    detail.set_max_width_chars(32);
+    let answers = ui::row(ui::GAP / 2);
+    let cancel = ui::button("Cancel", "");
+    let accept = ui::button("", "destructive-action");
+    answers.append(&cancel);
+    answers.append(&accept);
+    ask.append(&question);
+    ask.append(&detail);
+    ask.append(&answers);
+    let panel = ui::column(0);
+    panel.append(&choose);
+    panel.append(&ask);
     let popover = gtk::Popover::builder().child(&panel).build();
     let button = gtk::MenuButton::builder()
         .popover(&popover)
@@ -45,19 +70,41 @@ pub(crate) fn power_button() -> gtk::MenuButton {
         .always_show_arrow(false)
         .build();
     ui::set_name(&button, "Power");
-    let detail = "Everyone using MedBrains on this machine is disconnected until it is back.";
-    for (control, question, yes, action) in [
+
+    let action = Rc::new(Cell::new("restart"));
+    for (control, words, yes, verb) in [
         (&restart, "Restart this machine?", "Restart", "restart"),
         (&off, "Power off this machine?", "Power off", "off"),
     ] {
-        let source = popover.clone();
-        control.connect_clicked(move |control| {
-            source.popdown();
-            ui::confirm(control, question, detail, yes, move || {
-                api::post("/power", &json!({ "action": action }), |_| {});
-            });
+        let (choose, ask, question, cancel, accept, action) = (
+            choose.clone(),
+            ask.clone(),
+            question.clone(),
+            cancel.clone(),
+            accept.clone(),
+            Rc::clone(&action),
+        );
+        control.connect_clicked(move |_| {
+            question.set_label(words);
+            accept.set_label(yes);
+            action.set(verb);
+            choose.set_visible(false);
+            ask.set_visible(true);
+            cancel.grab_focus();
         });
     }
+    let source = popover.clone();
+    cancel.connect_clicked(move |_| source.popdown());
+    let source = popover.clone();
+    accept.connect_clicked(move |_| {
+        source.popdown();
+        api::post("/power", &json!({ "action": action.get() }), |_| {});
+    });
+    // Closing by any route, including Escape, starts again from the two choices.
+    popover.connect_closed(move |_| {
+        ask.set_visible(false);
+        choose.set_visible(true);
+    });
     button
 }
 

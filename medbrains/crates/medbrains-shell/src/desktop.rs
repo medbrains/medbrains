@@ -266,6 +266,7 @@ fn settings_page() -> gtk::Widget {
     let image = version
         .lines()
         .find_map(|line| line.strip_prefix("IMAGE_VERSION="));
+    let image = image.map(|value| value.trim_matches('"'));
     body.append(&ui::label(
         &format!("Image version: {}", image.unwrap_or("unknown")),
         "",
