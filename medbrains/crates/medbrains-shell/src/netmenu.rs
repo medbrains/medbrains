@@ -15,10 +15,10 @@ use crate::{network, ui};
 const PANEL_HEIGHT: i32 = 560;
 const PANEL_WIDTH: i32 = 420;
 
-/// The icon for the link in use, or for there being none.
-pub(crate) fn icon_name(network: &Network) -> &'static str {
+/// The link in use: the default route's, or else the first with an address.
+fn link_in_use(network: &Network) -> Option<&Link> {
     let by_route = network.default_link.as_ref();
-    let in_use = network
+    network
         .links
         .iter()
         .find(|link| by_route.is_some_and(|name| *name == link.name))
@@ -27,8 +27,17 @@ pub(crate) fn icon_name(network: &Network) -> &'static str {
                 .links
                 .iter()
                 .find(|link| link.cable && !link.addresses.is_empty())
-        });
-    match in_use.map(|link| link.kind.as_str()) {
+        })
+}
+
+/// The address of the link in use. Beside the gateway on screen, so they must be the same link.
+pub(crate) fn address_in_use(network: &Network) -> Option<&String> {
+    link_in_use(network)?.addresses.first()
+}
+
+/// The icon for the link in use, or for there being none.
+pub(crate) fn icon_name(network: &Network) -> &'static str {
+    match link_in_use(network).map(|link| link.kind.as_str()) {
         Some("wifi") => "network-wireless-symbolic",
         Some(_) => "network-wired-symbolic",
         None => "network-wired-disconnected-symbolic",
@@ -189,7 +198,7 @@ pub(crate) fn button(face: &gtk::Box, open_settings: Rc<dyn Fn()>) -> gtk::MenuB
 
 #[cfg(test)]
 mod tests {
-    use super::{Link, Network, icon_name, link_words, signature};
+    use super::{Link, Network, address_in_use, icon_name, link_words, signature};
 
     /// Builds a link.
     fn link(name: &str, kind: &str, cable: bool, address: &[&str]) -> Link {
@@ -215,6 +224,10 @@ mod tests {
             ..Network::default()
         };
         assert_eq!(icon_name(&network), "network-wireless-symbolic");
+        assert_eq!(
+            address_in_use(&network).map(String::as_str),
+            Some("10.0.0.5")
+        );
         assert_eq!(
             icon_name(&Network::default()),
             "network-wired-disconnected-symbolic"

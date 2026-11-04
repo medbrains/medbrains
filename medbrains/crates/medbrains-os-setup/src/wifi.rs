@@ -293,8 +293,13 @@ pub(crate) fn connect(
     Ok(())
 }
 
-/// Forgets a saved network and its password.
-pub(crate) fn forget(ssid: &str) -> Result<(), String> {
+/// Forgets a saved network and its password, along with any old result about it.
+pub(crate) fn forget(attempt: &Arc<Mutex<Attempt>>, ssid: &str) -> Result<(), String> {
+    if let Ok(mut current) = attempt.lock() {
+        if current.ssid == ssid && current.state != "connecting" {
+            *current = Attempt::default();
+        }
+    }
     let snapshot = snapshot()?;
     let known = snapshot.known.iter().find(|(name, _)| name == ssid);
     let (_, path) = known.ok_or_else(|| "That network isn't saved.".to_owned())?;

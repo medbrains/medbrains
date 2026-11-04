@@ -204,7 +204,9 @@ fn route(state: &Arc<State>, request: &Request) -> (u16, Value) {
                 field(&body, "password"),
             ),
         ),
-        ("POST", "/wifi/forget") => answer(422, wifi::forget(field(&body, "ssid"))),
+        ("POST", "/wifi/forget") => {
+            answer(422, wifi::forget(&state.wifi_attempt, field(&body, "ssid")))
+        }
         ("POST", "/power") => answer(422, machine::power(field(&body, "action"))),
         _ => (404, json!({ "error": "not found" })),
     }

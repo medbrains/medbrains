@@ -169,8 +169,11 @@ the hardware is known (H2). DHCP over Wi-Fi is unproved too: the test network ha
 ## Restart and power off
 
 The menu asks first, then says what happened. A refusal stays in the menu with a next step and the real reason
-goes to the journal. Once accepted, the screen says so until the machine goes down, because the screen's unit stops
-after the server does, and if the machine is somehow still on after 2 minutes it says to use the power button.
+goes to the journal. Once accepted, the screen says so, and if the machine is somehow still on after 2 minutes it
+says to use the power button. A restart took 17 seconds from click to desktop on an idle VM, and the machine went
+down in about a second. **The sentence only shows until the shutdown ends the screen,** within half a second even
+with the unit ordered to outlast the server, so a slow server stop would be a dark screen. Why it ends so early is
+still open.
 
 **Under Apple Virtualization a guest's restart stops the VM.** Not our behaviour, and nothing in the guest can
 change it. Apple's API has no reset event, only [`guestDidStop`](https://developer.apple.com/documentation/virtualization/vzvirtualmachinedelegate/guestdidstop(_:)),
@@ -325,13 +328,13 @@ stays as the baseline; memory is compared here.
 | State | Whole machine used (`MemTotal - MemAvailable`) | Server PSS | Screen PSS |
 |---|---|---|---|
 | Before setup, Network screen | 294 MB | none running | 177 MB (cage 113 + shell 63) |
-| Desktop, MedBrains never opened (WPE: status page, 834 MB) | **644 MB** | 166 MB | 186 MB (cage 113 + shell 73) |
-| Signed in, Patients open (WPE: 2,331 MB) | **2,148 MB** | 1,121 MB | 651 MB, of which the page's WebProcess 297 MB (WPE: 673 and 412) |
-| After Close | **1,740 MB** | 1,038 MB | 283 MB (cage 89 + shell 194). All WebKit processes gone |
+| Desktop, MedBrains never opened (WPE: status page, 834 MB) | **641 MB** | 166 MB | 187 MB (cage 113 + shell 74) |
+| Signed in, Patients open (WPE: 2,331 MB) | **1,163 MB** | 209 MB | 626 MB, of which the page's WebProcess 298 MB (WPE: 673 and 412) |
+| After Close | **771 MB** | 209 MB | 255 MB (cage 89 + shell 166). All WebKit processes gone |
 
 The web figures are one run each, sampled seconds after the page settled, so treat them as similar rather
-than better. The server still grows by about 1 GB when someone signs in, and keeps it; why is open, and it is
-the largest part of the 512 MB target's gap. Close frees about 400 MB; the shell keeps about 120 MB of it.
+than better. These include the route table fix (PR #5221), which took the signed-in server from about 1,150 MB to
+209 MB; the 512 MB target is still not met. Close frees about 390 MB; the shell keeps about 90 MB of it.
 
 Everything here was **measured in QEMU on an Apple-silicon Mac** (HVF, 4 vCPUs, 4 GB RAM, no GPU, so
 software rendering, on a host often under heavy load from other work). None of it is a Raspberry Pi

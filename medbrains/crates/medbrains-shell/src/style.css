@@ -75,3 +75,5 @@ calendar > grid > label.today { color: @mb_accent; font-weight: 600; }
 calendar > grid > label:selected { background: #0f62fe; color: #ffffff; border-radius: 4px; }
 calendar > grid > label.other-month { color: @mb_muted; }
 calendar > header > button { min-height: 32px; min-width: 32px; }
+switch { min-width: 72px; min-height: 44px; border-radius: 22px; }
+switch > slider { min-width: 40px; min-height: 40px; border-radius: 20px; }

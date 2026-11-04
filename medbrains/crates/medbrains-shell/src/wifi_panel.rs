@@ -1,7 +1,7 @@
 //! The Wi-Fi part of the network menu: on or off, the list, joining and forgetting. It says the
 //! true state at each point: no card, software not answering, off, nothing in range, or the list.
 
-use std::cell::RefCell;
+use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 use std::time::Duration;
 
@@ -30,6 +30,9 @@ struct Section {
     asking_title: gtk::Label,
     password: gtk::PasswordEntry,
     asking_for: Rc<RefCell<String>>,
+    /// True while the switch is being set to match a reading, so that doesn't count as a person
+    /// turning the radio off: seen on screen, a reading from a restarting iwd did exactly that.
+    syncing: Rc<Cell<bool>>,
     /// What the list last showed, so an unchanged list isn't rebuilt under the person's focus.
     shown: Rc<RefCell<Vec<WifiNetwork>>>,
 }
@@ -122,7 +125,9 @@ impl Section {
     fn show(&self, wifi: &Wifi) {
         self.power_row.set_visible(wifi.hardware && !wifi.fault);
         if self.power.is_active() != wifi.powered {
+            self.syncing.set(true);
             self.power.set_active(wifi.powered);
+            self.syncing.set(false);
         }
         let words = state_words(wifi);
         self.words.set_label(words.unwrap_or_default());
@@ -299,6 +304,7 @@ pub(crate) fn section() -> gtk::Box {
         asking_title: ui::line("", "heading"),
         password: gtk::PasswordEntry::builder().show_peek_icon(true).build(),
         asking_for: Rc::default(),
+        syncing: Rc::default(),
         shown: Rc::default(),
     };
     power_row.set_visible(false);
@@ -317,6 +323,9 @@ pub(crate) fn section() -> gtk::Box {
     scan.connect_clicked(move |_| target.scan());
     let target = section.clone();
     power.connect_state_set(move |_, on| {
+        if target.syncing.get() {
+            return glib::Propagation::Proceed;
+        }
         let after = target.clone();
         api::post("/wifi/power", &json!({ "on": on }), move |result| {
             after.report(result.map(|_| ()).map_err(|f| f.text()));

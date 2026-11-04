@@ -8,7 +8,7 @@ use gtk4 as gtk;
 use gtk4::prelude::{BoxExt, Cast, WidgetExt};
 
 use crate::api::State;
-use crate::ui;
+use crate::{netmenu, ui};
 
 /// How many memory samples the bars show. Bounded: the history never grows.
 const BARS: usize = 12;
@@ -157,11 +157,7 @@ impl Widgets {
         for (bar, height) in self.bars.iter().zip(heights) {
             bar.set_height_request(height);
         }
-        let address = state
-            .network
-            .links
-            .iter()
-            .find_map(|link| link.addresses.first());
+        let address = netmenu::address_in_use(&state.network);
         self.address
             .set_label(address.map_or("None", String::as_str));
         self.gateway
