@@ -116,6 +116,12 @@ failures.
 Analysers and PACS have no outbound path until the device network gateway (task N4.2). A file that does not
 parse fails the build. Time is `chrony` with NTS, and keeps serving the LAN with the internet gone.
 
+## Linux hardening
+
+Task T1.1, all with settings Linux already has: `/etc/sysctl.d/90-medbrains.conf`, unused kernel modules blocked
+in `/etc/modprobe.d/medbrains-blocklist.conf`, and `lockdown=integrity` with memory protections on the kernel
+command line. Unprivileged user namespaces stay on because WebKit's sandbox needs them.
+
 ## How the screen works
 
 - `cage` is the Wayland kiosk compositor. `console-session`, running inside it as the unprivileged
