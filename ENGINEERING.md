@@ -334,7 +334,8 @@ in every crate, app and script, follows **`medbrains/docs/OS-PRINCIPLES.md`**: t
 mechanism, fail-safe defaults, complete mediation, open design, separation of privilege, least
 privilege, least common mechanism, psychological acceptability), the Unix rules, and the reliability
 rules (crash-only, idempotent, bounded, stable interfaces, observable, graceful degradation), plus
-hardware safety (RFC-HOSPITAL-OS §8o). Apps reach shared concerns only through the kernel
+hardware safety (RFC-HOSPITAL-OS §8o), and the flight rules (section 7: NASA's Power of Ten for Rust,
+failure tables, fault injection, physics limits, proven algorithms). Apps reach shared concerns only through the kernel
 (`make check-kernel-boundary`), and the kernel holds nothing about hospitals
 (`make check-kernel-no-domain`). A design that breaks a principle needs a written reason in its RFC;
 "it was quicker" is not a reason.

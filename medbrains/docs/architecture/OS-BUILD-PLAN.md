@@ -147,6 +147,17 @@ N1 to N6 come from RFC-HOSPITAL-OS §8q. Every task ends on a check or a screen.
 | R3 | Beta and the Docker image decision | Pre-release published | blocked: owner |
 | R4 | v3.33.0 with the OS image | After H2, U1, T1 and an outside test | later |
 
+## F. Flight rules (`docs/OS-PRINCIPLES.md` section 7)
+
+| Task | What | Done when | State |
+|---|---|---|---|
+| F1 | Failure tables for every class A module | Each failure has effect, detection and response, and a test where it can have one | next |
+| F2 | Machine checks for the rule gaps: recursion, function length, unbounded loops, `let _ =` on a `Result` | Class A code fails CI on a violation | next |
+| F3 | Fault injection in `medbrains-os-test`: full disk, killed services, corrupt update, lost network, hard power-off in the VM | Machine recovers each time, in the report | next |
+| F4 | Real power cuts, repeated under load through a switched socket | Hundreds of cuts: no data loss, always boots | blocked: needs hardware |
+| F5 | Flash wear, heat and clock drift measured | Years of disk life, speed under an hour of full load, behaviour with no network at boot | blocked: needs hardware |
+| F6 | Property tests for class A invariants: slot switch, permission decision, audit chain, pairing | Each invariant has one, and it fails when the logic is broken | next |
+
 ## Order
 
 Networking now (N1 to N3), with S0 and B alongside because they block every release. Then S1, S2 and J1, so a
