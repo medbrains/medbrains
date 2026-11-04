@@ -282,7 +282,7 @@ a socket netdev that carries multicast. No hardware):
 
 | | Node | Main machine |
 |---|---|---|
-| Whole machine used, desktop after a reboot (`MemTotal - MemAvailable`) | **290 MB** | 564 MB |
+| Whole machine used, desktop after a reboot (`MemTotal - MemAvailable`) | **300 MB** | 519 MB |
 | The same, signed in, app open | 732 MB | 2,763 MB, of which most is the server after sign-ins |
 | Agent, PSS | 13 MB | 15 MB |
 | `/var` used | 31 MB | 229 MB |
@@ -292,16 +292,17 @@ The agent binary is 16.3 MB stripped. By symbol size, iroh, its QUIC and network
 about 1.9 MB, so iroh costs about 5.5 MB; this is approximate, because generic code is attributed to its caller.
 
 From clicking the main machine to the tunnel answering: 17 s, including a browser robot signing in and typing the
-code. A person walking across a building is the slow part. Removal ended access 1.6 s after the database recorded
+code. A person walking across a building is the slow part. Removal ended access 1 to 2 s after the database recorded
 it, with both clocks in step; the agent asks every 2 s, so this can reach about 2 s.
 
 **A main machine whose address changes** (changed through the setup service, since the wire has no DHCP server):
 
 | Case | Result |
 |---|---|
-| Node signed in, joined by mDNS | Back with no action after 15 s (36 s before the idle timeout was shortened). The top bar says "Cannot reach the main machine" meanwhile, and the signed-in page stays |
-| Typed-address join, saved address stale, mDNS working | Back with no action, including after both machines rebooted |
-| Saved address stale, agent restarted, mDNS blocked by the firewall | Stays down and says so (76 s, until allowed). Back 4 s after mDNS was allowed |
+| Node signed in, mDNS working | Back with no action after 15 s (36 s before the idle timeout was shortened). The top bar says "Cannot reach the main machine" from its next poll, within about 10 s, and the signed-in page stays |
+| Saved address stale, agent restarted, mDNS working | Back within about 1 s |
+| Saved address stale, agent restarted, mDNS blocked by the firewall | Stays down and says so, for as long as it lasts |
+| The same, with the new address typed in Settings > Main machine | Back about 1 s after pressing the button; a wrong address says "Nothing answered at that address" |
 
 Discovery worked over the virtual wire on a LAN with no gateway, once two things were fixed: multicast needs a
 route (`80-wired.network` and the fixed-address file add one), and the discovery library joins its group once, so
