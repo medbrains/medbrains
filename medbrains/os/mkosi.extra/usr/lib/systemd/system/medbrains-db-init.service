@@ -6,6 +6,7 @@ Requires=postgresql@17-main.service
 After=postgresql@17-main.service medbrains-firstboot.service
 Before=medbrains-server.service
 ConditionPathExists=!/var/lib/medbrains/config/.db-ready
+ConditionPathExists=/var/lib/medbrains/config/role-main
 
 [Service]
 Type=oneshot
@@ -25,6 +26,3 @@ RestrictRealtime=yes
 RestrictNamespaces=yes
 LockPersonality=yes
 SystemCallArchitectures=native
-
-[Install]
-WantedBy=multi-user.target

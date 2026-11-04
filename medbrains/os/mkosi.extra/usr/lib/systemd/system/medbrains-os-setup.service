@@ -1,0 +1,28 @@
+# First-boot setup and machine controls for the screen. Root, because it writes the network
+# and the env and powers the machine off; loopback only, and every call needs the token.
+[Unit]
+Description=MedBrains setup and machine controls
+After=medbrains-firstboot.service systemd-tmpfiles-setup.service
+
+[Service]
+Type=exec
+ExecStart=/usr/bin/medbrains-os-setup
+Restart=always
+RestartSec=2s
+ProtectSystem=strict
+ReadWritePaths=/run/medbrains-console /run/systemd/network /var/lib/medbrains/config /var/lib/medbrains/network
+ProtectHome=yes
+PrivateTmp=yes
+ProtectKernelModules=yes
+ProtectKernelLogs=yes
+ProtectControlGroups=yes
+ProtectClock=yes
+ProtectHostname=yes
+RestrictNamespaces=yes
+RestrictRealtime=yes
+LockPersonality=yes
+MemoryDenyWriteExecute=yes
+SystemCallArchitectures=native
+
+[Install]
+WantedBy=multi-user.target

@@ -1,14 +1,24 @@
 [package]
 name = "medbrains-setup"
 publish = false
-description = "First-boot setup and machine controls for the OS screen. No database, no web framework."
-version.workspace = true
-edition.workspace = true
+version = "0.1.0"
+edition = "2024"
 rust-version.workspace = true
-license-file.workspace = true
 
 [dependencies]
+medbrains-server-core = { path = "../medbrains-server-core" }
+medbrains-vpn = { path = "../medbrains-vpn" }
+medbrains-core = { path = "../medbrains-core" }
+medbrains-db = { path = "../medbrains-db" }
+medbrains-outbox = { path = "../medbrains-outbox" }
+medbrains-authz = { path = "../medbrains-authz" }
+axum = { workspace = true }
+argon2 = { workspace = true }
+getrandom = { workspace = true }
+serde = { workspace = true }
 serde_json = { workspace = true }
-
-[lints]
-workspace = true
+uuid = { workspace = true }
+chrono = { workspace = true }
+rust_decimal = { workspace = true }
+sqlx = { workspace = true }
+tracing = { workspace = true }
