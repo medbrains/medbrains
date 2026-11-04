@@ -109,6 +109,13 @@ forced change asks for a stronger one. That length is acceptable because it is o
 limited, as measured below: 5 tries a minute per address, and the account locks for 15 minutes after 5
 failures.
 
+## Network
+
+`/etc/nftables.conf` is default deny in both directions. Inbound: 80, 443, 123 (time for the LAN), 5353
+(`medbrains.local`). Outbound: address, names, time, and 443 to any address until Control can hold an allowlist.
+Analysers and PACS have no outbound path until the device network gateway (task N4.2). A file that does not
+parse fails the build. Time is `chrony` with NTS, and keeps serving the LAN with the internet gone.
+
 ## How the screen works
 
 - `cage` is the Wayland kiosk compositor. `console-session`, running inside it as the unprivileged
