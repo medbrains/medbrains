@@ -123,3 +123,20 @@ is a gap to close, because the paper's point is that rules must be checkable by 
 9. **Keep a record of anomalies.** Anything unexplained in a test stays open with a row in
    `docs/DECISIONS.md` until its cause is known. A problem that goes away is not a fixed problem.
 10. **Change control.** Class A changes need a second review that did not write the change.
+
+## 8. Extend and scale without weakening security or compliance
+
+The goal is a world-grade medical OS. Growth is allowed only where these hold, and each is a test, not
+a promise:
+
+1. **Everything passes the same gate.** An extension, connector or new machine uses the same kernel
+   checks as our own code: permissions, hospital walls, audit. No privileged path for partners.
+2. **Grants, not trust.** Extensions get only what they declare and a person approves. A denial is
+   refused and audited.
+3. **Limits on everything added.** Memory, CPU, network destinations, storage. One bad extension cannot
+   stop care or reach another's data.
+4. **Scale never relaxes a check.** No cache, batch, replica or shard may skip authorization, audit or
+   the hospital wall. Numbers are measured with the checks on.
+5. **Stable interfaces.** Versioned, with a deprecation window, so extending does not mean forking.
+6. **Claims need evidence.** "World grade", "certified" or "compliant" only with a named test, audit or
+   certificate. HHS certifies nobody as HIPAA compliant, so we never claim it.
