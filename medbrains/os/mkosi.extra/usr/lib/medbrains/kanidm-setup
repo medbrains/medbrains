@@ -13,6 +13,7 @@ STATE=/var/lib/kanidm/.setup-done
 TOKEN_FILE=/var/lib/medbrains/config/idp-control-token
 ORIGIN=https://idm.medbrains.local:8444
 CONTROL=mb_control
+LOGO=/usr/share/medbrains/shell/logo.svg
 NARROW_GROUPS=(idm_people_on_boarding idm_service_desk idm_oauth2_admins)
 # These grant nothing. idm_high_privilege is a taint a narrow group passes on: it protects Control from
 # lesser administrators, such as a service desk resetting it.
@@ -35,13 +36,13 @@ wait_for_kanidm() {
     return 1
 }
 
-# Prints a privileged token for idm_admin, from a password that exists only for this run.
+# Prints a privileged token for a built-in account, from a password that exists only for this run.
 admin_token() {
-    local password session
-    password="$(runuser -u kanidm -- kanidmd scripting recover-account idm_admin 2>/dev/null | sed -n 's/.*"output":"\([^"]*\)".*/\1/p')"
-    [[ -n "$password" ]] || { echo "could not recover idm_admin" >&2; return 1; }
+    local account="$1" password session
+    password="$(runuser -u kanidm -- kanidmd scripting recover-account "$account" 2>/dev/null | sed -n 's/.*"output":"\([^"]*\)".*/\1/p')"
+    [[ -n "$password" ]] || { echo "could not recover $account" >&2; return 1; }
     session="$(api -D - -o /dev/null -H 'Content-Type: application/json' \
-        -d '{"step":{"init2":{"username":"idm_admin","issue":"token","privileged":true}}}' "$ORIGIN/v1/auth" |
+        -d "{\"step\":{\"init2\":{\"username\":\"$account\",\"issue\":\"token\",\"privileged\":true}}}" "$ORIGIN/v1/auth" |
         tr -d '\r' | sed -n 's/^x-kanidm-auth-session-id: //Ip')"
     api -o /dev/null -H 'Content-Type: application/json' -H "X-KANIDM-AUTH-SESSION-ID: $session" \
         -d '{"step":{"begin":"password"}}' "$ORIGIN/v1/auth"
@@ -50,10 +51,21 @@ admin_token() {
         sed -n 's/.*"success":"\([^"]*\)".*/\1/p'
 }
 
+# Puts our name and logo on its pages. Only the system administrator may. A failure here costs looks only.
+set_brand() {
+    local system
+    system="$(admin_token admin)" || return 0
+    api -o /dev/null -X PUT -H "Authorization: Bearer $system" -H 'Content-Type: application/json' \
+        -d '["MedBrains"]' "$ORIGIN/v1/domain/_attr/domain_display_name" || echo "could not set the name" >&2
+    api -o /dev/null -H "Authorization: Bearer $system" \
+        -F "image=@$LOGO;type=image/svg+xml;filename=logo.svg" "$ORIGIN/v1/domain/_image" || echo "could not set the logo" >&2
+}
+
 # Sets the rules and makes Control's account. The marker comes last, so a power cut repeats it.
 set_up() {
     local admin group token
-    admin="$(admin_token)"
+    set_brand
+    admin="$(admin_token idm_admin)"
     [[ -n "$admin" ]] || { echo "could not sign in as idm_admin" >&2; return 1; }
     api -o /dev/null -X PUT -H "Authorization: Bearer $admin" -H 'Content-Type: application/json' \
         -d '["passkey"]' "$ORIGIN/v1/group/idm_all_persons/_attr/credential_type_minimum"

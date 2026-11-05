@@ -272,10 +272,15 @@ for 4 months, so a machine that misses two needs the binaries in between: `build
 - **Open:** the sign-in page says "Invalid username" for a name that does not exist, so usernames can be listed. Neither
   its config nor our CSS can change this, because the next page differs, not only the words. It has no limit by address
   either; the firewall's 50 connections a second is the only ceiling.
-- **It has no tile on the machine's own screen.** A manifest may only name `https://127.0.0.1`, and we saw the shell refuse
-  `idm.medbrains.local`: "its URL is outside this machine". `127.0.0.1` cannot work either: WebAuthn needs a name, not an
-  address, and Kanidm's cookies go to its own name. So this needs a change in the shell, and nobody has shown that its
-  WebKit can use a hardware key at all.
+- **On the machine's own screen, a hardware key does not work.** The Identity tile opens Kanidm's pages (the shell allows
+  its one exact origin, and first boot adds its certificate to what the screen trusts), but WebKitGTK has no WebAuthn:
+  `navigator.credentials` and `PublicKeyCredential` are undefined there, in a secure context, and Kanidm's Add Passkey
+  fails (`tests/webauthn-probe.html`). So **staff with keys only cannot sign in on that screen.** They use a browser on
+  another device, at `https://idm.medbrains.local:9443`, which must resolve that name and trust this machine's certificate.
+  Neither is arranged yet: a hospital's devices need the name published and the certificate installed. Local MedBrains
+  sign-in on the screen is not affected.
+- A debug image has a marked account, `debug.test.account`, whose password is in `os/debug/kanidm-debug-account`. It lowers
+  the key-only rule so the pages can be seen on the screen. A release image has neither the account nor the script.
 - Kanidm does not take sign-ins from an upstream directory in this image; that route is closed at the front. A hospital
   with Entra or Okta points MedBrains' own SSO settings at it instead (`tests/sso-entra-fixture.py`, a fixture of Entra's
   shape). **Real Entra and Okta are unverified, and need an account from the owner.** MedBrains' SAML sign-in is not
@@ -438,6 +443,7 @@ partitions keeps the data.
 - `tests/kanidm-acceptance.py`, `tests/kanidm-softkey`: the owner's acceptance test and the hardware key test, against a booted debug image.
 - `tests/kanidm-attacks.py`, `tests/kanidm-upgrade-test.py`, `tests/sso-entra-fixture.py`: the published crashes, a real upgrade and the Entra-shaped sign-in, each against a booted debug image.
 - `tests/kanidm-pin-test.sh`, `tests/kanidm-disk-guard-test.sh`: the build's pins and the encryption guard, with no VM.
+- `tests/webauthn-probe.html`, `tests/webauthn-probe.js`: what a browser offers for hardware keys, shown on the page. Copy them to a test VM's `/usr/share/kanidm/ui/hpkg/` and open `/pkg/webauthn-probe.html`.
 
 ## Measured
 
