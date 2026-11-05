@@ -36,6 +36,9 @@ struct Platform {
     has_usable_tpm: bool,
     /// Limits are scaled by this: x86-64 on an Apple-silicon host is emulated.
     slowness: u32,
+    /// How long to send nothing after power on: text on the serial port during x86 firmware opens
+    /// its setup menu, and the machine then never boots.
+    firmware: Duration,
 }
 
 const ARM64: Platform = Platform {
@@ -60,6 +63,7 @@ const ARM64: Platform = Platform {
     extra_devices: ["-device", "i6300esb"],
     has_usable_tpm: false,
     slowness: 1,
+    firmware: Duration::ZERO,
 };
 
 const X86_64: Platform = Platform {
@@ -80,6 +84,7 @@ const X86_64: Platform = Platform {
     extra_devices: ["-device", "i6300esb"],
     has_usable_tpm: true,
     slowness: 8,
+    firmware: Duration::from_secs(45),
 };
 
 /// The platform to test: arm64, or x86-64 when `MB_OS_TEST_ARCH=x86-64`.
@@ -312,11 +317,25 @@ impl Vm {
 
     /// Restarts from inside and waits for the shell to come back.
     pub(crate) fn reboot(&mut self) -> Result<(), String> {
+        self.restart_with(
+            b"systemctl reboot
+",
+        )
+    }
+
+    /// Restarts a machine waiting at the disk prompt, where systemd has no bus to ask politely on.
+    pub(crate) fn force_reboot(&mut self) -> Result<(), String> {
+        self.restart_with(
+            b"sync; systemctl --force --force reboot
+",
+        )
+    }
+
+    /// Sends a restart command and waits for a new boot. It cannot wait for the command's answer.
+    fn restart_with(&mut self, command: &[u8]) -> Result<(), String> {
         // The old shell can answer until it is stopped, so a new boot is known by its boot id.
         let before = self.run(BOOT_ID)?;
-        self.serial
-            .write_all(b"systemctl reboot\n")
-            .map_err(|e| e.to_string())?;
+        self.serial.write_all(command).map_err(|e| e.to_string())?;
         let deadline = Instant::now() + scaled(BOOT_TIMEOUT);
         while Instant::now() < deadline {
             if self
@@ -366,21 +385,6 @@ impl Vm {
         Err(format!("the screen never said: {text}"))
     }
 
-    /// Waits for `text` to leave the screen, as it does once the machine has restarted.
-    pub(crate) fn wait_for_screen_gone(&mut self, text: &str) -> Result<(), String> {
-        let deadline = Instant::now() + scaled(BOOT_TIMEOUT);
-        while Instant::now() < deadline {
-            if self
-                .run_for("cat /dev/vcs1 | tr -s ' '", Duration::from_secs(4))
-                .is_ok_and(|shown| !shown.contains(text))
-            {
-                return Ok(());
-            }
-            sleep(POLL);
-        }
-        Err(format!("the screen kept saying: {text}"))
-    }
-
     /// Reads the recovery key off the screen, without confirming it.
     pub(crate) fn read_recovery_key(&mut self) -> Result<String, String> {
         let shown = self.wait_for_screen(RECOVERY_KEY_PROMPT, scaled(BOOT_TIMEOUT))?;
@@ -398,6 +402,7 @@ impl Vm {
 
     /// Waits until a command comes back through the serial shell.
     fn wait_for_shell(&mut self) -> Result<(), String> {
+        sleep(platform().firmware);
         let deadline = Instant::now() + scaled(BOOT_TIMEOUT);
         while Instant::now() < deadline {
             if self

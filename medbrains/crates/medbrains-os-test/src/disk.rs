@@ -225,9 +225,11 @@ fn changed_boot_file_stays_locked(vm: &mut Vm, _: &Path) -> Result<(), String> {
     vm.reboot()?;
     vm.wait_for_screen(NOTICE, scaled(SCREEN_LIMIT))?;
     ensure(!data_open(vm)?, "a changed boot file opened the disk")?;
-    vm.run(&format!("{}; printf %s {from} | dd of=\"$f\" bs=1 seek=\"$o\" conv=notrunc 2>/dev/null; sync; systemctl --force --force reboot", patch(to)))?;
-    sleep(scaled(SETTLE));
-    vm.wait_for_screen_gone(NOTICE)?;
+    vm.run(&format!(
+        "{}; printf %s {from} | dd of=\"$f\" bs=1 seek=\"$o\" conv=notrunc 2>/dev/null; sync",
+        patch(to)
+    ))?;
+    vm.force_reboot()?;
     wait_open(vm)
 }
 
@@ -244,7 +246,7 @@ fn missing_tpm_stays_locked(vm: &mut Vm, _: &Path) -> Result<(), String> {
 fn destroying_the_key_wipes_the_disk(vm: &mut Vm, _: &Path) -> Result<(), String> {
     let key = vm.recovery_key.clone();
     let before = vm.run(&format!(
-        "printf %s {key} | cryptsetup open --test-passphrase --key-file=- {PARTITION}; echo $?"
+        "printf %s {key} | cryptsetup open --test-passphrase --disable-external-tokens --key-file=- {PARTITION}; echo $?"
     ))?;
     ensure(
         before == "0",
@@ -253,7 +255,7 @@ fn destroying_the_key_wipes_the_disk(vm: &mut Vm, _: &Path) -> Result<(), String
     vm.run(&format!(
         "dd if=/dev/urandom of={PARTITION} bs=1M count=32 conv=fsync 2>/dev/null"
     ))?;
-    let after = vm.run(&format!("printf %s {key} | cryptsetup open --test-passphrase --key-file=- {PARTITION} 2>/dev/null; echo $?"))?;
+    let after = vm.run(&format!("printf %s {key} | cryptsetup open --test-passphrase --disable-external-tokens --key-file=- {PARTITION} 2>/dev/null; echo $?"))?;
     ensure(after != "0", "the recovery key still opened after the wipe")
 }
 
@@ -299,13 +301,13 @@ fn power_cut_replaces_unconfirmed_key(vm: &mut Vm, image: &Path) -> Result<(), S
     let second = vm.read_recovery_key()?;
     ensure(first != second, "the same key was shown twice")?;
     let tests = format!(
-        "printf %s {first} | cryptsetup open --test-passphrase --key-file=- {PARTITION}; echo $?; printf %s {second} | cryptsetup open --test-passphrase --key-file=- {PARTITION}; echo $?"
+        "printf %s {first} | cryptsetup open --test-passphrase --disable-external-tokens --key-file=- {PARTITION}; echo $?; printf %s {second} | cryptsetup open --test-passphrase --disable-external-tokens --key-file=- {PARTITION}; echo $?"
     );
     let codes = vm.run(&tests)?;
     let codes: Vec<&str> = codes.lines().filter(|l| l.len() == 1).collect();
     ensure(
         codes == ["2", "0"],
-        "old key should fail and new key should open",
+        format!("old key should fail and new key should open; exit codes {codes:?}"),
     )
 }
 

@@ -304,6 +304,11 @@ fn set_up_main(vm: &mut Vm) -> Result<(), String> {
         .as_millis();
     let body =
         format!(r#"{{"hospital":"Test Hospital","username":"admin","password":"Os-{stamp}-Aa!"}}"#);
+    let deadline = Instant::now() + vm::scaled(SETUP_LIMIT);
+    while vm.run(&format!("test -S {SETUP_SOCKET}; echo $?"))? != "0" {
+        ensure(Instant::now() < deadline, "the setup service never started")?;
+        std::thread::sleep(Duration::from_secs(2));
+    }
     let answer = vm.run_for(
         &format!("curl -s -m 80 --unix-socket {SETUP_SOCKET} -d '{body}' http://machine/hospital"),
         SETUP_LIMIT,
