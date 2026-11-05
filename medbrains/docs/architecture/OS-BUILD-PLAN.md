@@ -130,6 +130,7 @@ N1 to N6 come from RFC-HOSPITAL-OS §8q. Every task ends on a check or a screen.
 | D2 | Device list: printers, scanners, barcode, card readers, displays, with plain status | Plug a device in; the screen names it | later, needs S3 |
 | D3 | Measure before tuning: load, memory, disk, boot on one machine | Numbers recorded (`RFC` §8i) | next, needs H2 |
 | D4 | Tuning with no kernel changes: sysctl, I/O scheduler, BBR, zram, PostgreSQL, each kept only if measured | Before and after numbers for each | later, needs D3 |
+| D4.2 | Do not wear out the hardware (owner 2026-11-05): bytes written per day have a budget and a test; logs batched and capped; temporary files in memory; no disk swap, zram instead; `noatime`; TRIM; few idle wake-ups; heat and disk wear shown in health and alerted | Idle writes per hour and wake-ups per second are within budget in `medbrains-os-test`; disk life is estimated in years on real NVMe and SD | next; life figures need hardware |
 | D5 | GPU and NPU: detect, use through a portable runtime, never required (§8p) | OCR runs on CPU and on one accelerator | later, needs hardware |
 | D6 | Decide NVIDIA's driver: it is a kernel module, against §8o | Owner decision recorded | blocked: owner |
 
@@ -178,7 +179,7 @@ N1 to N6 come from RFC-HOSPITAL-OS §8q. Every task ends on a check or a screen.
 | X10 | Medical-grade connectors: HL7 v2, FHIR R4, DICOM and ASTM over mutually authenticated TLS, standard codes, a per-connector firewall path, audit of what leaves, one Connections app | Each connector states its data, destination and lawful basis; a false result from outside is rejected or marked | next: owner 2026-11-04 |
 | X11 | Compliance map on the OS: HIPAA, DPDP, GDPR, CERT-In, NABH and ABDM rows in `docs/CERTIFICATIONS.md` extended to the OS, each with evidence or marked open | No row claims more than its evidence; lawyer review | next: lawyer review blocked on owner |
 | X12 | Attribute checks in the kernel beside roles and relations: managed or unmanaged device, data class, department, location, shift, network, with break-glass that is reasoned and audited. Every app uses the same check; a fault stays unknown, never allow | A rule refuses an unmanaged device with an audit row; bulk checks stay one round trip; added cost measured | next: owner 2026-11-05; first stable gets device class and data class only |
-| L1 | Web first load: index.html preloads 45 modules, 4.0 MB raw, before any page opens. Trim to what the sign-in page needs, and one language | First-load budget in CI, measured on the OS screen | next |
+| L1 | Web first load: index.html preloads 45 modules, 4.0 MB raw, before any page opens. Trim to what the sign-in page needs, and one language | First-load budget in CI, measured on the OS screen | doing: echarts and the rich-text editor now load on demand; one language next |
 | X9 | Outside penetration test before a hospital goes live | Report received and findings closed | blocked: owner, cost |
 
 ## First stable version: scope is frozen (owner 2026-11-04)

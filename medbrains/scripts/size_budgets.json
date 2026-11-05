@@ -14,5 +14,5 @@
   "kernel_closure": 272,
   "packages": 1320,
   "crates": 164,
-  "web_first_load_gzip_limit": 1166290
+  "web_first_load_gzip_limit": 800000
 }
