@@ -84,9 +84,11 @@ jobs:
         working-directory: website
     steps:
       - uses: actions/checkout@v4
+      # The website's package.json names no pnpm version, so this one is pinned here to match
+      # medbrains/package.json. Without a version the setup step fails and no audit runs.
       - uses: pnpm/action-setup@v4
         with:
-          package_json_file: website/package.json
+          version: 10.30.3
       - uses: actions/setup-node@v4
         with:
           node-version-file: medbrains/.nvmrc

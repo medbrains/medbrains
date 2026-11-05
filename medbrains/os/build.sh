@@ -34,6 +34,7 @@ OS_WORK="${OS_WORK:-/tmp/mb-osimage}"
 SERVER="${MEDBRAINS_SERVER_BIN:-${CARGO_TARGET_DIR:-$REPO/target}/$TRIPLE/release/medbrains-server}"
 OS_SETUP="$(dirname "$SERVER")/medbrains-os-setup"
 FRONT="$(dirname "$SERVER")/medbrains-front"
+AGENT="$(dirname "$SERVER")/medbrains-agent"
 WEB="${MEDBRAINS_WEB_DIST:-$REPO/apps/web/dist}"
 if [[ ! -x "$SERVER" ]]; then
     echo "no server binary at $SERVER — cross-build it with zigbuild for $TRIPLE (see README)" >&2
@@ -45,6 +46,10 @@ if [[ ! -x "$OS_SETUP" ]]; then
 fi
 if [[ ! -x "$FRONT" ]]; then
     echo "no front at $FRONT — cross-build medbrains-front from medbrains-proxy with the server" >&2
+    exit 1
+fi
+if [[ ! -x "$AGENT" ]]; then
+    echo "no agent at $AGENT — cross-build medbrains-agent with the server" >&2
     exit 1
 fi
 if [[ ! -f "$WEB/index.html" ]]; then
@@ -60,6 +65,7 @@ install -d "$EXTRA/usr/bin" "$EXTRA/usr/share/medbrains" "$EXTRA/usr/lib/medbrai
 install -m 0755 "$SERVER" "$EXTRA/usr/bin/medbrains-server"
 install -m 0755 "$OS_SETUP" "$EXTRA/usr/bin/medbrains-os-setup"
 install -m 0755 "$FRONT" "$EXTRA/usr/bin/medbrains-front"
+install -m 0755 "$AGENT" "$EXTRA/usr/bin/medbrains-agent"
 cp -R "$WEB" "$EXTRA/usr/share/medbrains/web"
 # Pre-compressed copies are for a CDN; on the appliance the server compresses as it sends.
 find "$EXTRA/usr/share/medbrains/web" \( -name '*.br' -o -name '*.gz' -o -name '*.map' \) -delete

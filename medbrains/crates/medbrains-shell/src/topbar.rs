@@ -14,8 +14,13 @@ use crate::{netmenu, power, timezone, ui};
 const LOGO: &str = "/usr/share/medbrains/shell/logo.svg";
 /// How often the clock is redrawn. Its text changes once a minute.
 const CLOCK_SECONDS: u32 = 5;
-/// What this machine is. Only one role exists so far.
-const ROLE: &str = "Main machine";
+/// What this machine is, by the role setup gave it.
+const fn role_words(role: &str) -> &'static str {
+    match role.as_bytes() {
+        b"node" => "Connected machine",
+        _ => "Main machine",
+    }
+}
 
 /// What is on screen below the bar.
 #[derive(Debug, Clone, Copy)]
@@ -38,6 +43,11 @@ pub(crate) struct TopBar {
     time: gtk::Label,
     zone: gtk::Label,
     clock_note: gtk::Label,
+    /// Stay on the bar over an app too: certificates and audit depend on the time, and a page that
+    /// cannot reach the main machine may only look slow.
+    time_alert: gtk::Label,
+    main_alert: gtk::Label,
+    machine_role: Rc<std::cell::Cell<&'static str>>,
     /// The zone's name, because GLib's idea of "local" is read once and setup may change it.
     zone_name: Rc<RefCell<String>>,
     firewall_dot: gtk::Box,
@@ -63,9 +73,10 @@ const fn firewall_words(on: bool) -> &'static str {
 /// What the clock's panel says about whether the time can be trusted.
 const fn clock_note(clock: &str) -> &'static str {
     match clock.as_bytes() {
-        b"verified" => "The time is confirmed by an authenticated time server.",
+        b"verified" => "The time is confirmed by an authenticated source.",
         b"checking" => "Checking the time with a time server.",
-        _ => "This machine could not confirm the time with a time server, so it may be wrong.",
+        _ => "This machine could not confirm the time, so it may be wrong. A workstation or display \
+              gets its time from the main machine, so check that one first.",
     }
 }
 
@@ -89,7 +100,7 @@ impl TopBar {
         let logo = gtk::Image::from_file(LOGO);
         logo.set_pixel_size(20);
         let name = ui::line("MedBrains", "heading");
-        let role = ui::line(ROLE, "muted");
+        let role = ui::line(role_words(""), "muted");
         left.append(&logo);
         left.append(&name);
         left.append(&role);
@@ -118,13 +129,15 @@ impl TopBar {
         let (zone, clock_note) = (ui::label("", "muted"), ui::label("", "muted"));
         clock_note.set_max_width_chars(36);
         root.set_start_widget(Some(&left));
-        root.set_center_widget(Some(&clock_button(
-            &zone_name,
-            &day,
-            &time,
-            &zone,
-            &clock_note,
-        )));
+        let time_alert = ui::line("Time not confirmed", "problem");
+        let main_alert = ui::line("Cannot reach the main machine", "problem");
+        time_alert.set_visible(false);
+        main_alert.set_visible(false);
+        let center = ui::row(ui::GAP / 2);
+        center.append(&clock_button(&zone_name, &day, &time, &zone, &clock_note));
+        center.append(&time_alert);
+        center.append(&main_alert);
+        root.set_center_widget(Some(&center));
         root.set_end_widget(Some(&right));
         let bar = Self {
             root,
@@ -137,6 +150,9 @@ impl TopBar {
             time,
             zone,
             clock_note,
+            time_alert,
+            main_alert,
+            machine_role: Rc::new(std::cell::Cell::new(role_words(""))),
             zone_name,
             firewall_dot,
             firewall_words,
@@ -157,7 +173,7 @@ impl TopBar {
     /// is a web view.
     pub(crate) fn show_screen(&self, screen: Screen<'_>) {
         let (title, can_close, can_reload) = match screen {
-            Screen::Desktop => (ROLE, false, false),
+            Screen::Desktop => (self.machine_role.get(), false, false),
             Screen::Launcher => ("Apps", false, false),
             Screen::App { name, reloads } => (name, true, reloads),
         };
@@ -180,6 +196,12 @@ impl TopBar {
         self.network_words
             .set_label(&ui::network_words(&state.network));
         self.clock_note.set_label(clock_note(&state.clock));
+        self.time_alert.set_visible(state.clock == "unconfirmed");
+        self.main_alert.set_visible(state.role == "node" && !state.main_ready);
+        let was_role = self.machine_role.replace(role_words(&state.role));
+        if self.role.label() == was_role {
+            self.role.set_label(self.machine_role.get());
+        }
         let changed = *self.zone_name.borrow() != state.timezone;
         if changed {
             state.timezone.clone_into(&mut self.zone_name.borrow_mut());

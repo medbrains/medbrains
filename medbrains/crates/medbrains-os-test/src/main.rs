@@ -27,6 +27,11 @@ const CLOSED_FROM_OUTSIDE: [&str; 4] = ["ssh", "server", "database", "edge"];
 const TIME_SYNC_LIMIT: Duration = Duration::from_secs(120);
 const SETUP_LIMIT: Duration = Duration::from_secs(150);
 const SETUP_SOCKET: &str = "/run/medbrains-console/setup.sock";
+const AGENT_API: &str = "http://127.0.0.1:3000/api/machine-agent";
+const AGENT_TOKEN: &str = "/var/lib/medbrains-agent/server-token";
+const TOKEN_HEADER: &str = "x-machine-agent-token";
+/// More than one address may hold, so its oldest must go.
+const FLOOD_REQUESTS: usize = 5;
 
 type Check = (&'static str, fn(&mut Vm, &Value) -> Result<(), String>);
 
@@ -172,6 +177,39 @@ fn time_authenticated(vm: &mut Vm, _: &Value) -> Result<(), String> {
     ensure(auth.contains("NTS"), "no authenticated time source")
 }
 
+/// A filing as the agent sends it, run inside the machine with the agent's own token.
+fn file_join(vm: &mut Vm, key: &str, address: &str) -> Result<String, String> {
+    let body = format!(r#"{{"node_id":"{key}","address":"{address}","label":"Test","kind":"display","code":"123456","confirm_code":"654321"}}"#);
+    vm.run(&format!(
+        "curl -s -m 5 -H \"{TOKEN_HEADER}: $(cat {AGENT_TOKEN})\" -H 'content-type: application/json' -d '{body}' {AGENT_API}/join"
+    ))
+}
+
+/// What the server says about one key's request.
+fn join_state(vm: &mut Vm, key: &str) -> Result<String, String> {
+    vm.run(&format!("curl -s -m 5 -H \"{TOKEN_HEADER}: $(cat {AGENT_TOKEN})\" {AGENT_API}/join/{key}"))
+}
+
+/// The main machine opens its join ports, and only the agent's token reaches the agent's routes.
+fn join_ports_and_token(vm: &mut Vm, _: &Value) -> Result<(), String> {
+    let chain = vm.run("nft list chain inet medbrains main_machine")?;
+    ensure(chain.contains("7844") && chain.contains("7845"), "the join ports are not open")?;
+    let listening = vm.run("ss -ulnH | awk '{print $4}'")?;
+    ensure(listening.contains(":7844"), "nothing listens for nodes")?;
+    let code = vm.run(&format!("curl -s -m 5 -o /dev/null -w '%{{http_code}}' -H 'content-type: application/json' -d '{{}}' {AGENT_API}/sync"))?;
+    ensure(code == "404", format!("the agent's route answered {code} with no token"))
+}
+
+/// One address flooding the waiting list pushes out its own requests, not another machine's.
+fn flood_spares_other_addresses(vm: &mut Vm, _: &Value) -> Result<(), String> {
+    ensure(file_join(vm, "os-test-real", "192.0.2.1")?.contains("pending"), "the real request was refused")?;
+    for i in 0..FLOOD_REQUESTS {
+        ensure(file_join(vm, &format!("os-test-flood-{i}"), "192.0.2.66")?.contains("pending"), "the list refused a request")?;
+    }
+    ensure(join_state(vm, "os-test-real")?.contains("pending"), "the flood pushed out another address")?;
+    ensure(join_state(vm, "os-test-flood-0")?.contains("dropped"), "the flood's oldest stayed")
+}
+
 /// Memory at rest is within budget.
 fn idle_memory(vm: &mut Vm, budgets: &Value) -> Result<(), String> {
     let used = number(
@@ -259,10 +297,9 @@ fn checks() -> Vec<Check> {
         ("unused kernel modules cannot load", blocked_modules_refuse),
         ("kernel hardening is applied", kernel_hardening_applied),
         ("kernel lockdown is on", lockdown_on),
-        (
-            "time is synced by an authenticated source",
-            time_authenticated,
-        ),
+        ("join ports are open, and the agent's routes need its token", join_ports_and_token),
+        ("one address flooding requests spares other addresses", flood_spares_other_addresses),
+        ("time is synced by an authenticated source", time_authenticated),
         ("idle memory is within budget", idle_memory),
         ("system disk is within budget", system_disk),
         (
@@ -315,10 +352,8 @@ fn checks() -> Vec<Check> {
             "a key and certificate that differ are replaced",
             front::mismatched_key_is_replaced,
         ),
-        (
-            "a link in the screen's folder is refused",
-            front::kiosk_link_is_refused,
-        ),
+        ("a link in the agent's folder is refused", front::agent_link_is_refused),
+        ("a machine's tunnel keeps its own address", front::tunnel_address_is_kept),
         (
             "the database log holds no values and is bounded",
             database_log_is_safe,

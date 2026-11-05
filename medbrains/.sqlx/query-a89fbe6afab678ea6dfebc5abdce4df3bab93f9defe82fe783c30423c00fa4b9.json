@@ -1,0 +1,23 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT (d.app_variant IN ('Desktop-Workstation', 'Desktop-Display')\n                   AND NOT EXISTS (SELECT 1 FROM device_pairing_requests r\n                                    WHERE r.paired_device_id = d.id AND r.node_id = $2\n                                      AND r.status = 'claimed')) AS \"unapproved_machine!\"\n             FROM paired_devices d WHERE d.id = $1",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "unapproved_machine!",
+        "type_info": "Bool"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Text"
+      ]
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "a89fbe6afab678ea6dfebc5abdce4df3bab93f9defe82fe783c30423c00fa4b9"
+}

@@ -28,7 +28,8 @@ CA="$STATE/ca"
 LAN="$STATE/lan"
 SCREEN="$STATE/screen"
 GROUP=medbrains-front
-KIOSK_COPY=/var/lib/kiosk/local-front.pem
+SCREEN_TRUST=/var/lib/medbrains-settings/local-front.pem
+AGENT_COPY=/var/lib/medbrains-agent/local-front.pem
 EXTRA_NAMES=/var/lib/medbrains/config/front-names
 LOCK=/run/medbrains-front-certs.lock
 MAX_NAMES=64
@@ -208,19 +209,22 @@ issue_lan() {
     rm -rf "$LAN" && mv "$new" "$LAN"
 }
 
-# Copies the screen's certificate to the file its unit binds in as a trust store. /var/lib/kiosk
-# belongs to the screen's user, so this writes as that user: a link planted there can reach nothing
-# the screen could not already. In place, so the running unit sees it.
-write_kiosk_copy() {
-    if [[ -L "$KIOSK_COPY" ]]; then
-        echo "front-certs: refusing to write through a link at $KIOSK_COPY" >&2
-        return 0
+# The screen's trust store, in a folder only root writes, in place because the running unit has this
+# very file bound in, and the copy the agent hands to machines it admits. That copy is in the agent's
+# own folder, so it is written as the agent: a link planted there reaches nothing the agent could not.
+ensure_certificate_copies() {
+    if ! cmp -s "$SCREEN/cert.pem" "$SCREEN_TRUST"; then
+        cat "$SCREEN/cert.pem" > "$SCREEN_TRUST"
+        # A screen that already started holds the old trust in memory.
+        systemctl --no-block try-restart cage-console.service || true
     fi
-    # shellcheck disable=SC2016 # the inner shell expands $1
-    setpriv --reuid=kiosk --regid=kiosk --clear-groups \
-        sh -c 'umask 022; cat > "$1"' sh "$KIOSK_COPY" < "$SCREEN/cert.pem"
-    # A screen that already started holds the old trust in memory.
-    systemctl --no-block try-restart cage-console.service || true
+    if [[ -L "$AGENT_COPY" ]]; then
+        echo "front-certs: refusing to write through a link at $AGENT_COPY" >&2
+    elif [[ -d "${AGENT_COPY%/*}" ]] && ! cmp -s "$SCREEN/cert.pem" "$AGENT_COPY"; then
+        # shellcheck disable=SC2016 # the inner shell expands $1
+        setpriv --reuid=medbrains-agent --regid=kiosk --clear-groups \
+            sh -c 'umask 022; cat > "$1"' sh "$AGENT_COPY" < "$SCREEN/cert.pem"
+    fi
 }
 
 # The screen's own certificate, unless a good one is there.
@@ -233,7 +237,6 @@ ensure_screen() {
         -subj "/CN=MedBrains local screen" -addext "subjectAltName=IP:127.0.0.1" 2>/dev/null
     chgrp "$GROUP" "$SCREEN/key.pem" "$SCREEN/cert.pem"
     chmod 0640 "$SCREEN/key.pem" "$SCREEN/cert.pem"
-    write_kiosk_copy
 }
 
 # The timer and a starting front can run this at once, and must not mix one run's key with another's
@@ -244,6 +247,7 @@ flock -w "$LOCK_WAIT_SECONDS" 9
 install -d -m 0750 -g "$GROUP" "$STATE"
 ensure_ca
 ensure_screen
+ensure_certificate_copies
 wanted="$(names)"
 if ! lan_is_current "$wanted"; then
     if issue_lan "$wanted"; then

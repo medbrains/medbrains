@@ -17,7 +17,8 @@ use crate::apps;
 /// screen sends it the first administrator's password and Wi-Fi passwords.
 const SERVICE: &str = "/run/medbrains-console/setup.sock";
 const HEALTH_TIMEOUT: Duration = Duration::from_secs(2);
-const TIMEOUT: Duration = Duration::from_secs(10);
+/// Long enough for a new main machine to create its database while the screen waits.
+const TIMEOUT: Duration = Duration::from_secs(60);
 /// Said when the service cannot be asked at all. A fault, so never shown as "no network".
 const NOT_ANSWERING: &str = "The machine's setup service is not answering. Try again in a moment.";
 

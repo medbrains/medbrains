@@ -1,0 +1,24 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE paired_devices SET revoked_at = now(), revoked_by_user_id = $2, revoked_reason = 'Removed on the Nodes screen' WHERE id = $1 AND tenant_id = $3 AND revoked_at IS NULL AND app_variant IN ('Desktop-Workstation', 'Desktop-Display') RETURNING id",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "84a961c4c4d0729958c649dcd704c71cfd4798981b3fc347cd86152f90000dee"
+}

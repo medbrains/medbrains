@@ -51,7 +51,7 @@ From another computer the same box answers at `https://<address>` with a certifi
 
 ## Test an image
 
-`make os-image DEBUG=1`, then `make os-test IMAGE=<image.raw>` boots a fresh machine and checks firewall, kernel hardening, time, memory and disk. Limits are in `crates/medbrains-os-test/budgets.json`: lower them as numbers improve, and never raise one without a reason in the PR. It needs QEMU, and doesn't run in CI yet.
+`make os-image DEBUG=1`, then `make os-test IMAGE=<image.raw>` boots a fresh machine, makes it a main machine, and checks firewall, kernel hardening, time, memory, disk and the main machine's half of joining (one VM cannot join itself: `tests/two-machines.sh` is the rest). Limits are in `crates/medbrains-os-test/budgets.json`: lower them as numbers improve, and never raise one without a reason in the PR. It needs QEMU, and doesn't run in CI yet.
 
 ## Boot in UTM
 
@@ -89,7 +89,7 @@ partial, so expect gaps; that is what D2 is for.
    - **Time zone:** a searchable list, Asia/Kolkata unless changed.
    - **Updates:** says installing updates is not available in this version.
    - **"What are you doing with this machine?"** "Setting up a new hospital" continues. "Connecting to my
-     hospital" says it is not available in this version, with Back.
+     hospital" looks for main machines; see [Joining a machine](#joining-a-machine).
    - **Three fields:** hospital name, username, password, with the rules shown under each.
    - **Review,** then **Start the main machine**. Nothing is final before this.
 4. **The desktop:** wallpaper in MedBrains blue with a faint grid (no GPU needed), a top bar (hospital name,
@@ -130,6 +130,15 @@ finished, not before.
    the matter. It has no database and no web framework, and every helper it runs has a time limit.
 4. **Review** writes the three fields into the env as `MEDBRAINS_SEED_*`, the password only as its Argon2 hash, then the role marker
    `/var/lib/medbrains/config/role-main`, then starts `medbrains-main.target`.
+2. `medbrains-os-setup` listens on `127.0.0.1:3100`, as root, with a token only the screen's group can
+   read (`/run/medbrains-console/setup-token`). It has no database and no web framework.
+3. `medbrains-agent` starts, listening for main machines. It offers nothing.
+4. **Review** starts `medbrains-firstboot`, which generates every secret (JWT keys, ID-fingerprint and
+   provider keys, database password), a checksummed PostgreSQL cluster and the certificate for the
+   screen's own front end. None of it is in the image, no password is generated for a person, and a
+   machine that becomes a node never holds any of it. Review then writes the three fields into the env as
+   `MEDBRAINS_SEED_*`, then the role marker `/var/lib/medbrains/config/role-main`, then starts
+   `medbrains-main.target`.
 5. `medbrains-db-init` creates the database roles. `medbrains-server` runs migrations and the seed as the
    owner, then serves as `medbrains_app`, which row level security applies to.
 6. `medbrains-console-status` removes all the seed lines once the server answers, and exits.
@@ -137,7 +146,8 @@ finished, not before.
 **Nothing listens before setup.** A condition on the target alone does not do it, because systemd still
 starts what a skipped unit wants, and we measured 443 answering that way. So the server, database roles,
 PostgreSQL and `medbrains-front` each carry the role condition themselves, and `tests/check-units.sh` fails if one
-drifts. Before setup, `ss` shows TCP only on loopback; UDP 5353 (names) and 123 (time) remain open.
+drifts. Before setup, `ss` shows TCP only on loopback, and the only firewall opening for a service is
+UDP 5353, for finding a main machine.
 
 **A power cut during setup** cannot leave a half-made hospital. The env is replaced in one step, the marker
 comes last, and the seed creates the hospital and administrator in one transaction. It used to create the
@@ -190,8 +200,11 @@ SIGTERM, so the final shutdown waited for it. Release images never had this.
 
 ## Network
 
-`/etc/nftables.conf` is default deny in both directions. Inbound: 80, 443, 123 (time for the LAN), 5353
-(`medbrains.local`). Outbound: address, names, time, and 443 to any address until Control can hold an allowlist.
+`/etc/nftables.conf` is default deny in both directions, and opens the same things on every machine: inbound
+5353 (finding a main machine); outbound address, names, time, 7844 and 7845 (a node reaching its main machine),
+and 443 to any address until Control can hold an allowlist. **Only a main machine** adds inbound 80, 443, 123
+(time for the LAN), 7844 (iroh) and 7845 ("who are you?" for a typed address), from
+`usr/lib/medbrains/main-machine.nft`, and only it announces `medbrains.local` and serves time.
 Analysers and PACS have no outbound path until the device network gateway (task N4.2). A file that does not
 parse fails the build. Time is `chrony` with NTS, and keeps serving the LAN with the internet gone.
 
@@ -235,6 +248,119 @@ size. Scale never leaves less than 1280 logical pixels, so 1366x768 and 1280x800
 softness came from the host upscaling a 1920x1200 guest on a Retina Mac, which nothing in the guest can fix;
 `utm-run.sh` gives the guest 2880x1800 real pixels instead.
 
+## Joining a machine
+
+**What a person does** (OS-SETUP-AND-TRUST §8): on the new machine, choose "Connecting to my hospital", give
+it a name and a type (workstation or display), and pick the main machine from the list, or type its address.
+The screen shows six digits. On the main machine, in MedBrains, **Admin > Machines** lists the machine, and
+Approve asks for those digits. It then shows six other digits, which the person types on the new machine.
+Each side has proved itself to a person, and only then does the machine join.
+
+**What a node is:** `medbrains-node.target`, with the screen, the agent and the setup service. No PostgreSQL,
+server or front, and no secrets but its own key. Its endpoint answers no protocol and its firewall opens no
+service. `medbrains-agent` listens on `127.0.0.1:8443`, the address the screen already loads, and carries each
+connection over iroh to the main machine's loopback front end. TLS ends at the main machine, so the agent
+cannot read what it carries, and the screen's one trusted certificate is the main machine's, delivered on approval.
+
+| Rule | How |
+|---|---|
+| A key alone grants nothing | Anyone may speak the join protocol, which only files a request. A tunnel needs a live key on the roster, decided by `medbrains-edge`'s `admit` |
+| A fake main machine is caught | Anyone can answer "approved", so that alone is believed by nothing. The node saves no certificate and opens no tunnel until a person types the second code from the hospital's own Machines screen. Both codes cover both keys and a nonce from each side, the node committing to its nonce first, so neither can be steered; keys alone fall to about a second of grinding |
+| Approval cannot be clicked through | The code is on the machine's own screen only, never in the list. The server compares what a person typed. Three wrong codes refuse the request on the main machine, and three wrong second codes throw the join away on the node; each is said plainly, and the main machine's are audited |
+| Requests run out | 10 minutes |
+| A stranger cannot stop a machine joining | The list never refuses. One address holds at most 3 waiting (its oldest goes first) and 3 conversations, and starts at most 10 a minute. At 20 waiting, the most crowded address gives way, oldest first, so a real machine's one request goes only when more than 20 addresses are flooding. Machines shows what was pushed out, from which address, and a machine pushed out is told to ask again. mDNS noise cannot push out an address a person typed |
+| Time | A node's chrony asks the main machine's chrony, over iroh, so the key authenticates it and removal ends it. A main machine with only its own clock answers stratum 10, and both machines then say "Time not confirmed" on the top bar |
+| Guessing a code | Six digits are one in a million per try, but tries repeat: someone holding a node on one code can start handshakes with the real main machine and leave quietly on a miss. Those are counted across all addresses, and Machines warns about them. At 60 in ten minutes joining pauses and Machines says so, keeping a guesser near six in a hundred thousand. A win admits only the guesser's key, since the second code still protects the node. An approval whose machine never connects ends after an hour |
+| Flood at the door | Each new connection must prove its address, then gets a place: at most 16 per address, 120 a minute, 128 in all. Past that it is refused before any handshake work, so machines already connected keep their service |
+| Tenant | From the hospital this box serves, through admission. The join frames have no such field and refuse unknown ones |
+| Removal | The key leaves the roster at once; the agent asks every 2 seconds and closes that machine's open connection. If the server stops answering for 30 s the agent can't know who was removed, so it closes every session and admits nobody until it hears again, as a fault and not a refusal |
+| One way onto the roster | The roster holds only keys from a claimed join request, so device-management rights can't add one |
+| Telling machines apart | Each machine's connections reach the front end from its own `127.x.y.z`, derived from its key. So sign-in limits are per machine, the audit log records that address, and Machines shows which machine holds it |
+| No outside party | No relay, no outside lookup, no UPnP (`portmapper_config` is off; iroh's default would ask the router for a port) |
+
+Approved machines are `paired_devices` rows with `device_node_keys` rows, and requests are
+`device_pairing_requests` rows, so there are no new tables (migration 1405 adds five columns). The server
+never touches iroh: `medbrains-agent --main` asks it over loopback, with a token in a file only the agent reads.
+
+**Measured** (two debug-image VMs in QEMU on one Mac, 4 vCPUs and 4 GB each, one run; `tests/two-machines.sh`,
+a socket netdev that carries multicast. No hardware):
+
+| | Node | Main machine |
+|---|---|---|
+| Whole machine used, desktop after a reboot (`MemTotal - MemAvailable`) | **300 MB** | 518 MB |
+| The same, signed in, app open | 732 MB | 2,763 MB, of which most is the server after sign-ins |
+| Agent, PSS | 13 MB | 15 MB |
+| `/var` used | 31 MB | 229 MB |
+| Listening beyond loopback | UDP 5353 and the agent's two outbound sockets, which the firewall does not open | 80, 443, 123, 5353, 7844, 7845 |
+
+The agent binary is 16.3 MB stripped. By symbol size, iroh, its QUIC and networking are about 3.6 MB and crypto
+about 1.9 MB, so iroh costs about 5.5 MB; this is approximate, because generic code is attributed to its caller.
+
+From clicking the main machine to the tunnel answering: 17 s, including a browser robot signing in and typing the
+code. A person walking across a building is the slow part. Removal ended access 1 to 2 s after the database recorded
+it, with both clocks in step; the agent asks every 2 s, so this can reach about 2 s. With the agent's sync broken on
+purpose first, access still ended, 30 s after the sync broke (19 s after the removal), and stayed ended when the sync
+came back.
+
+Flooding the main machine with 1,200 connections from one address: 120 got through the door in the minute, the rest
+were refused. The agent peaked at 17 MB PSS with no restart, and a node's probes answered 88 of 88 throughout. A flood
+from many addresses, and real guessing through to the pause, were tested in-process only. As another user, or even
+root, connecting to the front end from a machine's `127.x.y.z` is refused; only the agent may.
+
+Seven wrong sign-ins from a node answered `401` five times and then `429`, while the main machine's own screen kept
+getting `401`; the audit log records the node's own address, `127.148.222.63`, which Machines shows for that machine.
+
+**A main machine whose address changes** (changed through the setup service, since the wire has no DHCP server):
+
+| Case | Result |
+|---|---|
+| Node signed in, mDNS working | Back with no action after 6 to 15 s (36 s before the idle timeout was shortened). The top bar says "Cannot reach the main machine" from its next poll, within about 10 s, and the signed-in page stays |
+| Saved address stale, agent restarted, mDNS working | Back within about 1 s |
+| Saved address stale, agent restarted, mDNS blocked by the firewall | Stays down and says so, for as long as it lasts |
+| The same, with the new address typed in Settings > Main machine | Back about 1 s after pressing the button; a wrong address says "Nothing answered at that address" |
+
+Discovery worked over the virtual wire on a LAN with no gateway, once two things were fixed: multicast needs a
+route (`80-wired.network` and the fixed-address file add one), and the discovery library joins its group once, so
+mDNS restarts when the machine's addresses change. **It has not been tried on a real hospital network**, where
+multicast may be blocked; that is why the typed address exists, and it was proved with mDNS blocked by the firewall.
+
+**Node pairing is class A** (`docs/OS-PRINCIPLES.md` §7). Its failure table:
+
+| What fails | Effect | How we know | What the machine does |
+|---|---|---|---|
+| Fake main machine answers | Node would send its screen and passwords there | It says "approved", but the real Machines screen has no digits for this machine, or different ones | The node trusts nothing until the second code matches; three wrong throws the join away |
+| Flood of requests | A real request could be crowded out | Machines lists what went | Per-address limits; the oldest goes; the machine pushed out is told to ask again |
+| Server down during a join | Request cannot be filed | The node shows it could not reach the main machine | Grants nothing; a person asks again |
+| Power cut after approval, before the role is written | Setup not finished | Agent has the approval on disk | Asking again finishes without a new request |
+| Main machine unreachable | Node cannot work | "Cannot reach the main machine" on the top bar, over the app too | No offline path; the connection is dialled again when the screen next asks |
+| Main machine's address changes | The saved address is dead | An idle path is noticed within 8 s | Dials by key; mDNS says where that key is now, and the saved address is only a first guess |
+| Server stops answering the agent | A removal cannot be heard | Agent logs it, the screen says it cannot reach the main machine | After 30 s closes every session and admits nobody, as a fault |
+| A crash during first start | Some of its files are missing | Each file is checked by itself on the next start | Rebuilt from what exists, including the agent's token from the env |
+| Something else holds the clock's port | It could set this machine's clock | The bind fails, and the port is below 1024 anyway | The agent stops and systemd restarts it; the screen says time is not confirmed |
+| The record of what it joined is damaged | It cannot tell where its main machine is | The agent reads it at start, as a fault and not as "never joined" | Stops, and the screen says it can't reach the agent, rather than offering to join again |
+| Node has no time source | Certificates and audit at risk | "Time not confirmed" on the top bar | Keeps working, and says so |
+| Node key file readable by others | It may have been copied | The agent checks its mode at start | Refuses to start |
+
+**Requirements and the tests that prove them:** a fake main machine gets nothing, `a_fake_main_machine_gets_nothing_without_the_second_code`; removal cannot fail open, `a_silent_server_ends_every_session_and_admits_nobody`; strangers cost little, `strangers_cause_at_most_one_sync_a_second`; one way onto the roster, `a_machine_key_cannot_be_registered_around_approval`; a key alone grants nothing, `an_unapproved_key_is_refused_a_tunnel`; tenant from admission,
+`the_tenant_comes_from_admission_never_from_a_claim`; codes, `code::tests`; a stranger cannot block a join, `one_address_flooding_cannot_block_or_push_out_another`
+and `one_address_cannot_take_the_places_of_others`; duties separate, `each_duty_needs_its_own_permission`; removal, `an_approved_key_reaches_the_front_end_and_removal_ends_it_at_once`.
+
+**Limits:**
+- The machine key is a file (mode 0600), not in a TPM, until SEC3. Anyone who can read the data partition can
+  copy it. Removing the machine ends the copy too.
+- A display gets the same desktop as a workstation; the board is not built, nor is the §8a place or swap flow.
+- Someone using more than 20 addresses on the LAN at once can still push out a real request. The machine says so and can ask again, and Machines shows every address. The full answer is at the network (N4).
+- A guesser can pause joining for ten minutes at a time while it keeps going. That is a choice: a hospital briefly unable to add a machine, with the screen saying why, over a stranger's guesses running on.
+- **The tenant IP allowlist** (`allowed_ips`) sees a machine's `127.x.y.z`, not its LAN address, so with an allowlist set, anyone but an administrator on a node or on the main machine's own screen is refused. Add `127.0.0.0/8`, or each machine's address from Machines to allow only that one. It is left as a setting on purpose: an automatic exception would quietly widen a rule someone set to narrow access.
+- With the sign-in limit per machine, a person guessing from a node is held by the account lockout, as before, and by that machine's own limit, not everyone's.
+- Machines behind one NAT share one address, so a fourth waiting at once pushes out the first.
+- The node's time is as good as chrony's estimate over the iroh path. Measure on real hardware before relying on it for anything finer than certificates and audit.
+- A node that cannot reach the main machine cannot work: there is no offline path (OS-EDGE-NODES).
+- mDNS uses one network interface, the one with the best multicast route. A machine on two LANs finds main
+  machines on that one only.
+- On a network that blocks multicast, a node cannot follow a main machine whose address changes by itself. **Settings > Main machine** takes the new address, and only if the key it joined still answers there; anything else is refused, and the saved address stays.
+- A node stays passively listening on mDNS after joining, so it can find a main machine whose address changed.
+
 ## How the screen works
 
 - `cage` is the Wayland kiosk compositor. `medbrains-shell` (Rust, GTK 4, no libadwaita) runs inside it as
@@ -268,6 +394,10 @@ None opens anything. The app's right-click menu has Back, Forward, Stop and Relo
 - **If the server stops** while MedBrains is open, the front's plain sentence shows in the view and the desktop
   names the service. The old automatic return to a status page is gone.
 - **The hospital's name on the desktop** is the one given at setup; renaming it in MedBrains doesn't update it.
+- **The top bar says "Time not confirmed"** in red until chrony has a real time source, including for a moment after
+  every boot, and always on a network with no time server. Its time zone is UTC, with no way to change it.
+- **If the server stops** while MedBrains is open, the front's plain sentence shows in the view and the health
+  widget says so. The old automatic return to a status page is gone.
 - A password forgotten after setup has no recovery path on the appliance (§8k, later).
 - Sign-in is limited per address, and everyone at the screen is one address (`127.0.0.1`).
 - Anybody on the network can lock the administrator out for 15 minutes with 5 wrong passwords.
@@ -400,7 +530,8 @@ partitions keeps the data.
 - `mkosi.extra/`: units, first-boot scripts, journald, watchdog, network and the TLS front (`medbrains-front`).
 - `mkosi.postinst.chroot`: removes the baked PostgreSQL cluster, enables units.
 - `mkosi.build.chroot`: compiles `crates/medbrains-shell` and installs its fonts.
-- `tests/`: `check-units.sh` and `console-status.sh` run alone; `vm.py` drives a booted debug image with real input.
+- `tests/`: `check-units.sh` and `console-status.sh` run alone; `vm.py` drives a booted debug image with real input;
+  `two-machines.sh` boots a main machine and a node on one LAN; `nodes-screen.mjs` drives the Machines page.
 - `mkosi.splash.bmp`, `ukify-splash.py`, `install-ukify-splash.sh`: the boot logo.
 - `build.sh`: runs mkosi. `builder.Dockerfile`: the Mac fallback. `qemu-run.sh`: boot it.
 

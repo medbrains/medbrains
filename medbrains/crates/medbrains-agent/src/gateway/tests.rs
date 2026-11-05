@@ -1,0 +1,447 @@
+//! The join and tunnel rules over real iroh connections on loopback. Only the server is a stand-in.
+
+use std::net::SocketAddr;
+use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
+use std::sync::{Arc, Mutex, PoisonError};
+use std::time::Duration;
+
+use async_trait::async_trait;
+use iroh::endpoint::Connection;
+use iroh::{Endpoint, EndpointAddr, SecretKey};
+use medbrains_core::peer_sync::{PeerBinding, PeerRosterDoc, PeerRosterEntry};
+use medbrains_edge::iroh_transport::{PeerGatekeeper, build_lan_endpoint};
+use medbrains_edge::peer_admission::{Admission, RefusalReason};
+use tokio::net::{TcpListener, UdpSocket};
+use uuid::Uuid;
+
+use super::join::clean_label;
+use super::{Gateway, RosterGate, WHOAMI_SIZE, whoami_reply};
+use crate::hospital::{Answer, Filing, GivenUpReport, Hospital, Seen, Synced};
+use crate::node::{Joined, Node};
+use crate::wire::{JOIN_ALPN, JoinState, Kind, TIME_ALPN, TUNNEL_ALPN};
+
+pub(super) const CERTIFICATE: &str = "the front end's certificate";
+
+/// Stands in for the server: holds one request's state and the admitted keys.
+pub(super) struct FakeServer {
+    tenant: Uuid,
+    state: Mutex<JoinState>,
+    pub(super) filings: Mutex<Vec<Filing>>,
+    admitted: Mutex<Vec<String>>,
+    pub(super) syncs: AtomicUsize,
+    pub(super) broken: AtomicBool,
+    pub(super) slow_once: AtomicBool,
+}
+
+impl FakeServer {
+    pub(super) fn new(tenant: Uuid, state: JoinState) -> Arc<Self> {
+        Arc::new(Self {
+            tenant,
+            state: Mutex::new(state),
+            filings: Mutex::default(),
+            admitted: Mutex::default(),
+            syncs: AtomicUsize::new(0),
+            broken: AtomicBool::new(false),
+            slow_once: AtomicBool::new(false),
+        })
+    }
+
+    fn set_state(&self, state: JoinState) {
+        *self.state.lock().unwrap_or_else(PoisonError::into_inner) = state;
+    }
+
+    pub(super) fn set_admitted(&self, keys: &[String]) {
+        *self.admitted.lock().unwrap_or_else(PoisonError::into_inner) = keys.to_vec();
+    }
+
+    fn filed_confirm(&self) -> Option<String> {
+        let filings = self.filings.lock().unwrap_or_else(PoisonError::into_inner);
+        filings.last().map(|f| f.confirm_code.clone())
+    }
+
+    fn filed_code(&self) -> Option<String> {
+        let filings = self.filings.lock().unwrap_or_else(PoisonError::into_inner);
+        filings.last().map(|f| f.code.clone())
+    }
+}
+
+#[async_trait]
+impl Hospital for FakeServer {
+    async fn file_join(&self, filing: &Filing) -> anyhow::Result<Answer> {
+        self.filings.lock().unwrap_or_else(PoisonError::into_inner).push(filing.clone());
+        Ok(Answer { state: *self.state.lock().unwrap_or_else(PoisonError::into_inner) })
+    }
+
+    async fn join_state(&self, _node_id: &str) -> anyhow::Result<Answer> {
+        Ok(Answer { state: *self.state.lock().unwrap_or_else(PoisonError::into_inner) })
+    }
+
+    async fn sync(&self, _connected: &[Seen], _given_up: GivenUpReport) -> anyhow::Result<Synced> {
+        self.syncs.fetch_add(1, Ordering::SeqCst);
+        anyhow::ensure!(!self.broken.load(Ordering::SeqCst), "the server is not answering");
+        // What the server knew when it was asked, however late the answer arrives.
+        let admitted = self.admitted.lock().unwrap_or_else(PoisonError::into_inner).clone();
+        if self.slow_once.swap(false, Ordering::SeqCst) {
+            tokio::time::sleep(Duration::from_millis(400)).await;
+        }
+        Ok(Synced { hospital: "City Hospital".to_owned(), roster: roster(self.tenant, &admitted) })
+    }
+}
+
+fn roster(tenant: Uuid, keys: &[String]) -> PeerRosterDoc {
+    PeerRosterDoc {
+        tenant_id: tenant,
+        issued_at: chrono::Utc::now().timestamp(),
+        peers: keys
+            .iter()
+            .map(|node_id| PeerRosterEntry {
+                node_id: node_id.clone(),
+                binding: PeerBinding {
+                    paired_device_id: Uuid::new_v4(),
+                    tenant_id: tenant,
+                    app_variant: "Desktop-Workstation".to_owned(),
+                    revoked: false,
+                },
+            })
+            .collect(),
+    }
+}
+
+/// An endpoint on loopback, answering `alpns`.
+pub(super) async fn endpoint(alpns: Vec<Vec<u8>>) -> anyhow::Result<Endpoint> {
+    build_lan_endpoint(SecretKey::generate(), alpns, None).await
+}
+
+/// A front end that echoes, so a tunnel can be seen to work.
+pub(super) async fn echo_front() -> anyhow::Result<SocketAddr> {
+    let listener = TcpListener::bind("127.0.0.1:0").await?;
+    let address = listener.local_addr()?;
+    tokio::spawn(async move {
+        while let Ok((mut stream, _)) = listener.accept().await {
+            tokio::spawn(async move {
+                let (mut read, mut write) = stream.split();
+                drop(tokio::io::copy(&mut read, &mut write).await);
+            });
+        }
+    });
+    Ok(address)
+}
+
+/// A running gateway and the address a node dials it at.
+pub(super) async fn gateway(server: Arc<FakeServer>) -> anyhow::Result<(Arc<Gateway>, EndpointAddr)> {
+    let main = endpoint(vec![JOIN_ALPN.to_vec(), TUNNEL_ALPN.to_vec(), TIME_ALPN.to_vec()]).await?;
+    let addr = main.addr();
+    let front = echo_front().await?;
+    let gateway = Gateway::new(main, server, CERTIFICATE.to_owned(), front);
+    gateway.sync().await?;
+    tokio::spawn(Arc::clone(&gateway).accept_forever());
+    Ok((gateway, addr))
+}
+
+/// Sends bytes through a tunnel and reads them back.
+pub(super) async fn echo_through(conn: &Connection) -> anyhow::Result<Vec<u8>> {
+    let (mut send, mut recv) = conn.open_bi().await?;
+    send.write_all(b"ping").await?;
+    let mut back = vec![0_u8; 4];
+    recv.read_exact(&mut back).await?;
+    Ok(back)
+}
+
+/// Dials a node at a gateway's tunnel and tries to use it.
+pub(super) async fn tunnel_answer(from: &Endpoint, addr: EndpointAddr) -> anyhow::Result<Vec<u8>> {
+    let conn = from.connect(addr, TUNNEL_ALPN).await?;
+    tokio::time::timeout(Duration::from_secs(5), echo_through(&conn)).await?
+}
+
+#[tokio::test]
+async fn an_unapproved_key_is_refused_a_tunnel() -> anyhow::Result<()> {
+    let server = FakeServer::new(Uuid::new_v4(), JoinState::Pending);
+    let (_gateway, addr) = gateway(server).await?;
+    let stranger = endpoint(Vec::new()).await?;
+    assert!(
+        tunnel_answer(&stranger, addr).await.is_err(),
+        "a valid key nobody approved must not reach the front end"
+    );
+    Ok(())
+}
+
+/// A join request grants nothing: only a key on the server's roster gets through.
+#[tokio::test]
+async fn a_pending_request_does_not_admit_its_key() -> anyhow::Result<()> {
+    let server = FakeServer::new(Uuid::new_v4(), JoinState::Pending);
+    let (_gateway, addr) = gateway(Arc::clone(&server)).await?;
+    let (node, _dir) = node_with_main(&addr, "main").await?;
+    let id = addr.id.to_string();
+    node.start_join(&id, "Reception PC".to_owned(), Kind::Workstation)?;
+    wait_for(&node, "pending").await?;
+    assert!(node.joined()?.is_none());
+    let conn = node.test_dial_tunnel(addr.clone()).await?;
+    assert!(
+        tokio::time::timeout(Duration::from_secs(5), echo_through(&conn)).await?.is_err(),
+        "the same key that asked must still be refused"
+    );
+    Ok(())
+}
+
+#[tokio::test]
+async fn an_approved_key_reaches_the_front_end_and_removal_ends_it_at_once() -> anyhow::Result<()> {
+    let server = FakeServer::new(Uuid::new_v4(), JoinState::Pending);
+    let (gateway, addr) = gateway(Arc::clone(&server)).await?;
+    let node = endpoint(Vec::new()).await?;
+
+    server.set_admitted(&[node.id().to_string()]);
+    gateway.sync().await?;
+    let conn = node.connect(addr, TUNNEL_ALPN).await?;
+    assert_eq!(echo_through(&conn).await?, b"ping");
+
+    server.set_admitted(&[]);
+    gateway.sync().await?;
+    tokio::time::timeout(Duration::from_secs(5), conn.closed()).await?;
+    Ok(())
+}
+
+/// A key approved after the last sync must not wait for the next one.
+#[tokio::test]
+async fn a_key_approved_a_moment_ago_gets_through() -> anyhow::Result<()> {
+    let server = FakeServer::new(Uuid::new_v4(), JoinState::Pending);
+    let (_gateway, addr) = gateway(Arc::clone(&server)).await?;
+    let node = endpoint(Vec::new()).await?;
+    server.set_admitted(&[node.id().to_string()]);
+    assert_eq!(tunnel_answer(&node, addr).await?, b"ping");
+    Ok(())
+}
+
+/// The clock is admitted like the screen: a stranger's time packet is refused, because a removed
+/// node must lose its time source along with its access.
+#[tokio::test]
+async fn an_unapproved_key_gets_no_time() -> anyhow::Result<()> {
+    let server = FakeServer::new(Uuid::new_v4(), JoinState::Pending);
+    let (_gateway, addr) = gateway(server).await?;
+    let stranger = endpoint(Vec::new()).await?;
+    let conn = stranger.connect(addr, TIME_ALPN).await?;
+    let asked = crate::time::ask_main(&conn, &[0_u8; 48]);
+    assert!(tokio::time::timeout(Duration::from_secs(5), asked).await?.is_err());
+    Ok(())
+}
+
+/// One address holding its share of conversations must not stop another from filing.
+#[tokio::test]
+async fn a_full_address_is_turned_away_at_the_door() -> anyhow::Result<()> {
+    let server = FakeServer::new(Uuid::new_v4(), JoinState::Pending);
+    let (_gateway, addr) = gateway(Arc::clone(&server)).await?;
+    let mut waiting = Vec::new();
+    for _ in 0..4 {
+        let (node, dir) = node_with_main(&addr, "City Hospital").await?;
+        node.start_join(&addr.id.to_string(), "PC".to_owned(), Kind::Workstation)?;
+        tokio::time::sleep(Duration::from_millis(300)).await;
+        waiting.push((node, dir));
+    }
+    tokio::time::sleep(Duration::from_secs(1)).await;
+    let filed = server.filings.lock().unwrap_or_else(PoisonError::into_inner).len();
+    assert_eq!(filed, 3, "all four came from one address, which may hold three");
+    Ok(())
+}
+
+/// The tenant is what the roster says, whatever anyone claims.
+#[test]
+fn the_tenant_comes_from_admission_never_from_a_claim() {
+    let tenant = Uuid::new_v4();
+    let gate = RosterGate::default();
+    gate.replace(&roster(tenant, &["node".to_owned()]));
+    assert_eq!(gate.tenant(), Some(tenant));
+    assert!(matches!(
+        gate.admit("node", tenant),
+        Admission::Admit { tenant_id, .. } if tenant_id == tenant
+    ));
+    assert_eq!(
+        gate.admit("node", Uuid::new_v4()),
+        Admission::Refuse(RefusalReason::TenantMismatch)
+    );
+}
+
+/// Before the server has said anything, a gateway admits nobody, rather than everybody.
+#[test]
+fn a_gateway_with_no_roster_admits_nobody() {
+    assert_eq!(
+        RosterGate::default().admit("node", Uuid::new_v4()),
+        Admission::Refuse(RefusalReason::NotPaired)
+    );
+}
+
+/// A node holding a list of one main machine, and the temporary state directory it lives in.
+pub(super) async fn node_with_main(
+    addr: &EndpointAddr,
+    name: &str,
+) -> anyhow::Result<(Arc<Node>, tempfile::TempDir)> {
+    let dir = tempfile::tempdir()?;
+    let node = Node::start(endpoint(Vec::new()).await?, dir.path(), free_port().await?, free_port().await?).await?;
+    node.test_remember(addr.id.to_string(), name, addr.ip_addrs().copied().collect());
+    Ok((node, dir))
+}
+
+pub(super) async fn free_port() -> anyhow::Result<SocketAddr> {
+    Ok(TcpListener::bind("127.0.0.1:0").await?.local_addr()?)
+}
+
+pub(super) async fn wait_for(node: &Node, state: &str) -> anyhow::Result<()> {
+    for _ in 0..100 {
+        if node.standing().state == state {
+            return Ok(());
+        }
+        tokio::time::sleep(Duration::from_millis(100)).await;
+    }
+    anyhow::bail!("stuck at {:?}, wanted {state}", node.standing().state)
+}
+
+#[tokio::test]
+async fn both_sides_show_the_same_code_and_approval_delivers_the_certificate() -> anyhow::Result<()> {
+    let server = FakeServer::new(Uuid::new_v4(), JoinState::Pending);
+    let (_gateway, addr) = gateway(Arc::clone(&server)).await?;
+    let (node, _dir) = node_with_main(&addr, "City Hospital").await?;
+    node.start_join(&addr.id.to_string(), "Reception PC".to_owned(), Kind::Workstation)?;
+    wait_for(&node, "pending").await?;
+    assert_eq!(node.standing().code, server.filed_code(), "both screens must show one code");
+    assert!(node.joined()?.is_none(), "waiting grants nothing");
+
+    server.set_state(JoinState::Approved);
+    wait_for(&node, "confirm").await?;
+    assert!(node.joined()?.is_none(), "an approval alone is believed by nothing");
+    node.confirm(&server.filed_confirm().ok_or_else(|| anyhow::anyhow!("nothing filed"))?).await?;
+    assert_eq!(node.standing().state, "approved");
+    let joined = node.joined()?.ok_or_else(|| anyhow::anyhow!("nothing saved"))?;
+    assert_eq!(joined.certificate, CERTIFICATE);
+    assert_eq!(joined.main_id, addr.id.to_string());
+    Ok(())
+}
+
+/// A power cut between approval and the end of setup: asking again just finishes.
+#[tokio::test]
+async fn a_machine_already_approved_finishes_without_asking_again() -> anyhow::Result<()> {
+    let server = FakeServer::new(Uuid::new_v4(), JoinState::Approved);
+    let (_gateway, addr) = gateway(Arc::clone(&server)).await?;
+    let (node, _dir) = node_with_main(&addr, "City Hospital").await?;
+    node.start_join(&addr.id.to_string(), "PC".to_owned(), Kind::Workstation)?;
+    wait_for(&node, "confirm").await?;
+    node.confirm(&server.filed_confirm().ok_or_else(|| anyhow::anyhow!("nothing filed"))?).await?;
+    node.start_join(&addr.id.to_string(), "PC".to_owned(), Kind::Workstation)?;
+    assert_eq!(node.standing().state, "approved");
+    assert_eq!(server.filings.lock().unwrap_or_else(PoisonError::into_inner).len(), 1);
+    Ok(())
+}
+
+/// A hospital on DHCP: the main machine's address has changed since this node joined. The node
+/// must follow it by its key, with the saved address only a first guess.
+#[tokio::test]
+async fn a_stale_saved_address_does_not_lose_the_main_machine() -> anyhow::Result<()> {
+    let server = FakeServer::new(Uuid::new_v4(), JoinState::Pending);
+    let (_gateway, addr) = gateway(Arc::clone(&server)).await?;
+    let dir = tempfile::tempdir()?;
+    let stale = Joined {
+        main_id: addr.id.to_string(),
+        addresses: vec![SocketAddr::from(([127, 0, 0, 1], 9))],
+        kind: Kind::Workstation,
+        hospital: "City Hospital".to_owned(),
+        certificate: CERTIFICATE.to_owned(),
+    };
+    std::fs::write(dir.path().join("joined.json"), serde_json::to_vec(&stale)?)?;
+    let node_endpoint = endpoint(Vec::new()).await?;
+    server.set_admitted(&[node_endpoint.id().to_string()]);
+    // What mDNS does on a LAN: tells the endpoint where this key is now.
+    let lookup = iroh::address_lookup::MemoryLookup::new();
+    lookup.add_endpoint_info(addr.clone());
+    node_endpoint.address_lookup().map_err(|e| anyhow::anyhow!("{e}"))?.add(lookup);
+    let screen = free_port().await?;
+    let _node = Node::start(node_endpoint, dir.path(), screen, free_port().await?).await?;
+    let mut stream = tokio::net::TcpStream::connect(screen).await?;
+    tokio::io::AsyncWriteExt::write_all(&mut stream, b"ping").await?;
+    let mut back = [0_u8; 4];
+    let read = tokio::io::AsyncReadExt::read_exact(&mut stream, &mut back);
+    tokio::time::timeout(Duration::from_secs(15), read).await??;
+    assert_eq!(&back, b"ping");
+    Ok(())
+}
+
+/// A network with no mDNS: a person types where the main machine went. Only the same key may move
+/// the saved address, or typing an address could hand the screen to another machine.
+#[tokio::test]
+async fn a_typed_address_is_taken_only_from_the_same_key() -> anyhow::Result<()> {
+    let server = FakeServer::new(Uuid::new_v4(), JoinState::Pending);
+    let (real, addr) = gateway(Arc::clone(&server)).await?;
+    let socket = UdpSocket::bind("127.0.0.1:0").await?;
+    let port = socket.local_addr()?.port();
+    tokio::spawn(Arc::clone(&real).whoami_forever(socket));
+
+    let dir = tempfile::tempdir()?;
+    let joined = |main_id: String| Joined {
+        main_id,
+        addresses: vec![SocketAddr::from(([127, 0, 0, 1], 9))],
+        kind: Kind::Workstation,
+        hospital: "City Hospital".to_owned(),
+        certificate: CERTIFICATE.to_owned(),
+    };
+    let file = dir.path().join("joined.json");
+    std::fs::write(&file, serde_json::to_vec(&joined(addr.id.to_string()))?)?;
+    let node = Node::start(endpoint(Vec::new()).await?, dir.path(), free_port().await?, free_port().await?).await?;
+    let iroh_port = addr.ip_addrs().next().map_or(7844, SocketAddr::port);
+    node.readdress_at([127, 0, 0, 1].into(), port, iroh_port).await?;
+    let moved = node.joined()?.ok_or_else(|| anyhow::anyhow!("nothing saved"))?;
+    assert_eq!(moved.addresses, vec![SocketAddr::from(([127, 0, 0, 1], iroh_port))]);
+
+    let other = SecretKey::generate().public().to_string();
+    std::fs::write(&file, serde_json::to_vec(&joined(other.clone()))?)?;
+    let refused = node.readdress_at([127, 0, 0, 1].into(), port, 7844).await;
+    assert!(refused.is_err(), "a different key must be refused");
+    let kept = node.joined()?.ok_or_else(|| anyhow::anyhow!("nothing saved"))?;
+    assert_eq!((kept.main_id, kept.addresses), (other, vec![SocketAddr::from(([127, 0, 0, 1], 9))]));
+    Ok(())
+}
+
+/// A rejected, expired or refused request leaves a machine with nothing.
+#[tokio::test]
+async fn a_refused_request_leaves_nothing_behind() -> anyhow::Result<()> {
+    for (state, word) in [
+        (JoinState::Rejected, "rejected"),
+        (JoinState::Expired, "expired"),
+        (JoinState::Dropped, "dropped"),
+    ] {
+        let server = FakeServer::new(Uuid::new_v4(), state);
+        let (_gateway, addr) = gateway(server).await?;
+        let (node, _dir) = node_with_main(&addr, "City Hospital").await?;
+        node.start_join(&addr.id.to_string(), "PC".to_owned(), Kind::Display)?;
+        wait_for(&node, word).await?;
+        assert!(node.joined()?.is_none(), "{word} must not join");
+    }
+    Ok(())
+}
+
+/// The typed-address fallback: the node learns the key from the address, and then the code check
+/// is what proves it.
+#[tokio::test]
+async fn a_typed_address_finds_the_main_machine() -> anyhow::Result<()> {
+    let server = FakeServer::new(Uuid::new_v4(), JoinState::Pending);
+    let (gateway, addr) = gateway(server).await?;
+    let socket = UdpSocket::bind("127.0.0.1:0").await?;
+    let port = socket.local_addr()?.port();
+    tokio::spawn(Arc::clone(&gateway).whoami_forever(socket));
+    let dir = tempfile::tempdir()?;
+    let node = Node::start(endpoint(Vec::new()).await?, dir.path(), free_port().await?, free_port().await?).await?;
+    let found = node.find_at([127, 0, 0, 1].into(), port, 7844).await?;
+    assert_eq!(found.id, addr.id.to_string());
+    assert_eq!(found.name, "City Hospital");
+    Ok(())
+}
+
+/// The whoami port must never send more than it received, or it can be aimed at a third party.
+#[test]
+fn a_whoami_answer_is_never_larger_than_its_question() {
+    let reply = whoami_reply("key", &"a very long hospital name ".repeat(40));
+    assert!(reply.len() <= WHOAMI_SIZE);
+    assert!(serde_json::from_str::<serde_json::Value>(&reply).is_ok());
+}
+
+#[test]
+fn a_name_is_cleaned_before_an_administrator_reads_it() {
+    assert_eq!(clean_label("  Ward\n3\u{7} PC "), Some("Ward3 PC".to_owned()));
+    assert_eq!(clean_label(" \n "), None);
+    assert_eq!(clean_label(&"x".repeat(500)).map(|l| l.len()), Some(60));
+}

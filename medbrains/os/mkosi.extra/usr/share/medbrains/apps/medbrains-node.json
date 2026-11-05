@@ -1,0 +1,9 @@
+{
+  "id": "medbrains-node",
+  "name": "MedBrains",
+  "icon": "/usr/share/medbrains/shell/logo.svg",
+  "url": "https://127.0.0.1:8443/",
+  "role": "node",
+  "unit": "medbrains-agent.service",
+  "accent": true
+}
