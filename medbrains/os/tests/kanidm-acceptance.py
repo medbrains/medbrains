@@ -50,7 +50,10 @@ def test_setup_rules(token, admin_token):
     """Tests 3 and 4 of the owner's fix list: what kanidm-setup left on a new machine, before anyone
     changes anything. Fails if Control ever holds a group outside its narrow set."""
     policy = curl(f"{IDP}/v1/group/idm_all_persons/_attr/credential_type_minimum", token=token)[1]
-    check("staff are key-only by default", policy == ["passkey"], str(policy))
+    # A debug image's marked test account needs a password, so it lowers this; release images have none.
+    debug_account = serial("systemctl is-enabled kanidm-debug-account 2>/dev/null; true", 8).endswith("enabled")
+    check("staff are key-only by default, except with a debug image's test account",
+          policy == (["any"] if debug_account else ["passkey"]), f"{policy}, debug account: {debug_account}")
     print("INFO  setup unit:", serial("systemctl is-active kanidm-setup; ls -la /var/lib/medbrains/config/idp-control-token | cut -c1-50", 10)[-90:])
     clean = serial("/usr/lib/medbrains/kanidm-setup check; echo rc=$?", 40)
     check("Control holds only the narrow groups", clean.endswith("rc=0"), clean[-120:])

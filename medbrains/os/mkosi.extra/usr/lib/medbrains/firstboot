@@ -12,20 +12,8 @@ IDP_NAME=idm.medbrains.local
 # Prints N random alphanumeric characters.
 rand() { openssl rand -base64 48 | LC_ALL=C tr -cd 'A-Za-z0-9' | cut -c1-"$1"; }
 
-# Prints the first administrator's one-time password, shaped 4KTM-9PXR: 8 characters from a
-# 31-letter alphabet with no 0, O, 1, I or L, about 40 bits, from the OS random source. Short
-# enough to read off a screen and type. It is safe at this length only because sign-in is rate
-# limited and the password must be changed at first use. Discarding bytes outside the alphabet
-# keeps every character equally likely.
-first_password() {
-    local chars
-    chars="$(openssl rand 512 | LC_ALL=C tr -dc 'ABCDEFGHJKMNPQRSTUVWXYZ23456789' | cut -c1-8)"
-    [[ ${#chars} -eq 8 ]] || return 1
-    printf '%s-%s' "${chars:0:4}" "${chars:4:4}"
-}
-
 write_env() {
-    local tmp priv pub admin_pw
+    local tmp priv pub
     tmp="$(mktemp -d)"
     # JWT: PKCS#8 DER private key; raw 32-byte public key (see install.sh).
     openssl genpkey -algorithm Ed25519 -outform DER -out "$tmp/priv.der" 2>/dev/null
@@ -33,7 +21,6 @@ write_env() {
     priv="$(base64 -w0 < "$tmp/priv.der")"
     pub="$(tail -c 32 "$tmp/spki.der" | base64 -w0)"
     rm -rf "$tmp"
-    admin_pw="$(first_password)"
 
     install -m 0640 -o root -g medbrains /dev/null "$ENV.new"
     cat > "$ENV.new" <<ENVEOF
@@ -64,11 +51,7 @@ MEDBRAINS_IDENTIFIER_HMAC_KEY=$(openssl rand -base64 48 | tr -d '\n')
 MEDBRAINS_ABDM_SECRET_KEY=$(openssl rand -base64 48 | tr -d '\n')
 MEDBRAINS_NHCX_SECRET_KEY=$(openssl rand -base64 48 | tr -d '\n')
 MEDBRAINS_PACS_SECRET_KEY=$(openssl rand -base64 48 | tr -d '\n')
-MEDBRAINS_SEED_ADMIN_PASSWORD=$admin_pw
 ENVEOF
-    # Shown on the appliance screen until the admin changes it (console-status).
-    install -m 0600 /dev/null "$CONF/initial-admin-password"
-    printf '%s\n' "$admin_pw" > "$CONF/initial-admin-password"
     mv "$ENV.new" "$ENV"
 }
 
@@ -90,6 +73,10 @@ wal_compression = on
 checkpoint_timeout = 15min
 max_wal_size = 1GB
 log_min_duration_statement = 2000
+# Slow queries must not copy patient values into the log. The journal bounds its size.
+log_parameter_max_length = 0
+log_parameter_max_length_on_error = 0
+log_destination = 'syslog'
 PGEOF
     # This script runs under UMask=0077; PostgreSQL must be able to read it.
     chown postgres:postgres "/etc/postgresql/$PG_VERSION/main/conf.d/10-medbrains.conf"
@@ -121,6 +108,8 @@ create_idp_certs() {
     self_signed_leaf /var/lib/caddy/local/idp-key.pem /var/lib/caddy/local/idp-cert.pem "$IDP_NAME"
     chown caddy:caddy /var/lib/caddy/local/idp-key.pem /var/lib/caddy/local/idp-cert.pem
     install -m 0644 /var/lib/caddy/local/idp-cert.pem "$CONF/idp-front.pem"
+    # The Identity tile opens this front on the machine's own screen, which trusts only what is here.
+    cat /var/lib/caddy/local/idp-cert.pem >> /var/lib/kiosk/local-front.pem
     self_signed_leaf /var/lib/kanidm/tls-key.pem /var/lib/kanidm/tls-chain.pem "$IDP_NAME"
     chown kanidm:kanidm /var/lib/kanidm/tls-key.pem /var/lib/kanidm/tls-chain.pem
     install -m 0644 /var/lib/kanidm/tls-chain.pem /var/lib/caddy/local/kanidm-back.pem

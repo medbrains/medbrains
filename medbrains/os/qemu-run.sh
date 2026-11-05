@@ -13,6 +13,7 @@
 #   Monitor: $OS_WORK/vm/monitor.sock  (screendump /path/to/shot.png -f png)
 #   Screen:  $OS_WORK/vm/vnc.sock; size OS_SCREEN_W x OS_SCREEN_H (1280x800)
 #   Input:   $OS_WORK/vm/qmp.sock (QMP send-key, input-send-event)
+#   OS_SECOND_NIC=1 adds a second wired link, for choosing between them.
 set -euo pipefail
 
 OS_WORK="${OS_WORK:-/tmp/mb-osimage}"
@@ -41,6 +42,7 @@ exec qemu-system-aarch64 \
     -device "virtio-gpu-pci,xres=${OS_SCREEN_W:-1280},yres=${OS_SCREEN_H:-800}" -device qemu-xhci -device usb-kbd -device usb-tablet \
     -device i6300esb \
     -netdev "user,id=net0,hostfwd=tcp:127.0.0.1:${OS_WEB_PORT:-8443}-:443,hostfwd=tcp:127.0.0.1:${OS_IDP_PORT:-9443}-:9443" -device virtio-net-pci,netdev=net0 \
+    ${OS_SECOND_NIC:+-netdev user,id=net1,net=10.0.3.0/24 -device virtio-net-pci,netdev=net1} \
     -display none -vnc "unix:$VM/vnc.sock" \
     -serial "unix:$VM/serial.sock,server,nowait" \
     -monitor "unix:$VM/monitor.sock,server,nowait" \

@@ -14,7 +14,7 @@ N1 to N6 come from RFC-HOSPITAL-OS §8q. Every task ends on a check or a screen.
 | N1.2 | `chrony` with authenticated time; serves the LAN | Time syncs by NTS; another machine gets time with the internet cut | doing |
 | N1.3 | Per-service network limits | PostgreSQL refuses every non-local address, even with the firewall off | doing |
 | N1.4 | Remove Caddy's unlimited certificates | A made-up hostname gets no certificate stored | next |
-| N2.1 | Measure Caddy against `medbrains-proxy`, keep one | Numbers recorded; one proxy in the image | next |
+| N2.1 | Replace Caddy with Pingora through `medbrains-proxy` (owner 2026-11-05: Rust stack). Must do all Caddy does on the OS: TLS from the hospital root with certificates by name, HTTP redirect, compression, the plain-words error page, WebSockets, per-path blocks and sign-in limits for Kanidm, node tunnels | Passes every OS check and an attack test (smuggling, slow clients, bad TLS, forged headers); memory and speed measured against Caddy; independent review | next, after node pairing and Kanidm land, class A |
 | N2.2 | Find what pulls in OpenSSL, `ring`, `aws-lc-rs`; reach one for what we ship | One TLS stack in the server | later |
 | N3.1 | Network health screen; permission in Rust first | Pull a cable; the screen says what is down in plain words | next |
 | N3.2 | Set network from the screen: Wi-Fi, fixed address, DNS, with auto rollback | A bad address rolls back by itself | next, needs S1 |
@@ -35,7 +35,7 @@ N1 to N6 come from RFC-HOSPITAL-OS §8q. Every task ends on a check or a screen.
 
 | Task | What | Done when | State |
 |---|---|---|---|
-| S0 | No hospital code at sign-in | Box signs in directly | doing: on-screen test, fix fail-open |
+| S0 | No hospital code at sign-in | Box signs in directly | done: #5213 |
 | S1 | `medbrains-setup`, "new hospital or connecting?", three fields, Back, Start over | Blank box to dashboard | next |
 | S2 | Administrator and node targets | A node runs no database or server; memory measured | next |
 | S3.1 | `medbrains-shell` in Rust + GTK4, replacing the HTML console | Status and setup render natively in `cage` | next |
@@ -49,11 +49,12 @@ N1 to N6 come from RFC-HOSPITAL-OS §8q. Every task ends on a check or a screen.
 
 | Task | What | Done when | State |
 |---|---|---|---|
-| T1 | Encrypted disk, Secure Boot, boot editor locked | Copied disk will not open | next |
+| T1 | Encrypted disk, Secure Boot, boot editor locked | Copied disk will not open | doing: owner priority 2026-11-04, disk encryption first |
 | T1.1 | Harden Linux with what it has: block unused kernel modules, kernel lockdown, safer sysctls, no kexec, AppArmor profiles, smaller package set, each tested against the app | Known-bad module refuses to load; checked by a scan on each build | next |
 | T1.2 | Daily flaw check of the image's own parts list; rebuild on a Debian security fix | A new Debian advisory opens a tracked item within a day | next, with U1.1 |
-| T2 | Machine keys, hospital root key, recovery key | Node certificate traces to the root | later |
-| T3 | FerrisKey as identity provider | Passes its test: memory, sign-in, key card, upstream directory | next |
+| T2 | Machine keys, hospital root key, recovery key | Node certificate traces to the root | next: owner priority 2026-11-04, needs the key inventory (`OS-KEYS.md`) |
+| T3 | Kanidm as identity provider, chosen on security over FerrisKey (`feature/os-kanidm`) | Physical FIDO2 key passes attestation; advisories confirmed fixed in the shipped version; staff sign in on the OS screen; Entra and directory path decided | doing: passed the key allow-list with software keys only; physical key blocked on hardware |
+| T3.1 | Identity app in the launcher: staff see their profile and keys through Kanidm's pages; IT adds people, groups and allowed key models from an admin screen, which Kanidm lacks | From the launcher, a person adds a key and IT adds a person without a command line | next: owner 2026-11-04 |
 | T4 | Key cards and hardware keys | Password alone refused for an owner | later, needs T3 and cards |
 
 ## J. Nodes and edges
@@ -63,6 +64,7 @@ N1 to N6 come from RFC-HOSPITAL-OS §8q. Every task ends on a check or a screen.
 | J1 | A node joins: code, approval, agent | Second VM joins and works | next, needs S1, S2 |
 | J2 | Move, swap, replace | Machine moved; printer and queue follow | later |
 | J3 | Device gateway edge | Lab result queued through a link cut | later, needs N4.2 |
+| J5 | Remote machines over the internet: a joined node reaches the main machine through a relay the hospital runs, or a direct address or site link. Off by default, end-to-end encrypted, works behind CGNAT, address can be retyped after joining | A node on another network joins, works and survives an address change, with the relay unable to read traffic | next: owner required 2026-11-04 for the first version; a MedBrains-run relay needs an owner decision and DPDP review |
 | J4 | Second site, ward edge, imaging cache | One at a time; offline rules clinically reviewed | later |
 
 ## C. MedBrains Control
@@ -95,7 +97,7 @@ N1 to N6 come from RFC-HOSPITAL-OS §8q. Every task ends on a check or a screen.
 | Task | What | Done when | State |
 |---|---|---|---|
 | O1 | Health: disk wear and space, temperature, watchdog, service restart | A failing disk warns before it fails | next |
-| O2 | Logs: bounded, rotated, no patient data; diagnostics bundle for support | Disk cannot fill with logs; bundle holds no patient data | next |
+| O2 | Logs: bounded, rotated, no patient data; diagnostics bundle for support | Disk cannot fill with logs; bundle holds no patient data | doing: journal bounded, database log joins it; diagnostics bundle open |
 | O3 | Power: safe shutdown on UPS signal, recovery after a power cut | Pull power under load; database comes back clean | next |
 | O4 | Screen: idle lock, switch person, touch, on-screen keyboard, language, accessibility | Keyboard-only and screen-reader checks pass | next, needs S3 |
 | O5 | Printing and peripherals: printers, barcode, card readers | Label prints from a node | later |
@@ -104,6 +106,9 @@ N1 to N6 come from RFC-HOSPITAL-OS §8q. Every task ends on a check or a screen.
 | O8 | App hosting: sandbox, limits, home screen entry, install and remove | A hospital's own app installs and is removed cleanly | later, needs S3 |
 | O10 | Mail: web mail app over the existing Stalwart plan (`RFC-MAIL-STALWART`), on the main machine; Thunderbird only as an optional app, not on shared nodes | Staff read mail with nothing stored on a node | later, needs S3; Stalwart licence to check |
 | O9 | PACS on the box | Study stored and viewed on the same machine | later |
+| O11 | Module apps: each module is its own app in the launcher and dock, like a Mac, opening and closing alone, with one sign-in and a shared engine underneath, shown by role. Turning one on brings what it needs, from one dependency list in Rust, with cycles refused; a module others need cannot be turned off, and turning one off deletes nothing | Turning on Pharmacy brings its required modules and icon, and the server refuses a switch-off that would break it | next, first after the desktop's security fixes: owner 2026-11-04 wants the OS to draw the side panel, tabs and landing pages from the server's screen list; UI plan first, Pharmacy as the example |
+| O12 | Every OS screen responsive: setup, desktop, dock, menus and apps at phone, tablet, laptop, desktop, TV and mini-display sizes, in both rotations, with touch targets of 44 px and an on-screen keyboard | Automated screenshots at 480x320, 800x480, 390x844, 768x1024, 1280x800 and 1920x1080 show nothing cut off or overlapping; touch-only setup and sign-in work | next: owner required 2026-11-04 |
+| O13 | Who may do what at the screen (owner 2026-11-04): choosing Wi-Fi or a wired link on a node and restarting a node are open to anyone at it; severe actions need sign-in with a new IT permission: stopping or restarting the main machine, changing the main machine's network, fixed addresses, factory reset, removing a machine, turning remote access on | With no sign-in the service refuses each severe action and audits it, and a node's Wi-Fi still changes freely | next: after the desktop PR; permission first |
 
 ## H. Real hardware
 
@@ -132,11 +137,11 @@ N1 to N6 come from RFC-HOSPITAL-OS §8q. Every task ends on a check or a screen.
 
 | Task | What | Done when | State |
 |---|---|---|---|
-| B1 | Credentials out of audit rows; plan to scrub old rows | New rows carry no hash or secret | next; production scrub needs owner approval |
-| B2 | Forced password change enforced on the server | API refuses until changed | next |
-| B3 | Lockout counter reset; lockout denial of service | One host cannot keep accounts locked | next |
-| B4 | Verify and fix the medium findings | Each fixed or recorded | next |
-| B5 | Vulnerable dependencies | Security checks pass | doing: branch ready, compile check pending |
+| B1 | Credentials out of audit rows; plan to scrub old rows | New rows carry no hash or secret | done: #5214; scrubbing old rows blocked: owner |
+| B2 | Forced password change enforced on the server | API refuses until changed | done: #5214 |
+| B3 | Lockout counter reset; lockout denial of service | One host cannot keep accounts locked | doing: counter fixed #5214; denial of service open |
+| B4 | Verify and fix the medium findings | Each fixed or recorded | doing: real client address #5222, slow-query log parameters this PR; rest open |
+| B5 | Vulnerable dependencies | Security checks pass | done: #5215 |
 
 ## R. Release
 
@@ -157,6 +162,60 @@ N1 to N6 come from RFC-HOSPITAL-OS §8q. Every task ends on a check or a screen.
 | F4 | Real power cuts, repeated under load through a switched socket | Hundreds of cuts: no data loss, always boots | blocked: needs hardware |
 | F5 | Flash wear, heat and clock drift measured | Years of disk life, speed under an hour of full load, behaviour with no network at boot | blocked: needs hardware |
 | F6 | Property tests for class A invariants: slot switch, permission decision, audit chain, pairing | Each invariant has one, and it fails when the logic is broken | next |
+
+## X. Close the attacks (`OS-THREATS.md`)
+
+| Task | What | Done when | State |
+|---|---|---|---|
+| X1 | Bypass roles give a reason to open a patient record | Read without a reason refused and audited | next: owner 2026-11-04 |
+| X2 | Update signing key offline on hardware, with rotation | Tampered and rolled-back updates refused | next, with U1 |
+| X3 | AI prompt injection tests | Hidden instructions change nothing | next |
+| X4 | Recovery cannot be rushed or done alone | One person's attempt refused | next, with T2 |
+| X5 | No shared secret across machines | Two fresh machines compared, nothing shared | next |
+| X6 | Hardware hardening: TPM encrypted sessions, PIN or card option, IOMMU, Thunderbolt off, memory wiped at shutdown, no serial login in release | Each checked by `medbrains-os-test` where a VM can show it | next; hardware rows blocked |
+| X7 | Pi 5: secure boot and OTP key design, and what it does not protect | Written, then tested on a Pi | blocked: needs hardware |
+| X8 | Attack test per row of `OS-THREATS.md` | Every row has a test or a stated reason | next |
+| X10 | Medical-grade connectors: HL7 v2, FHIR R4, DICOM and ASTM over mutually authenticated TLS, standard codes, a per-connector firewall path, audit of what leaves, one Connections app | Each connector states its data, destination and lawful basis; a false result from outside is rejected or marked | next: owner 2026-11-04 |
+| X11 | Compliance map on the OS: HIPAA, DPDP, GDPR, CERT-In, NABH and ABDM rows in `docs/CERTIFICATIONS.md` extended to the OS, each with evidence or marked open | No row claims more than its evidence; lawyer review | next: lawyer review blocked on owner |
+| X12 | Attribute checks in the kernel beside roles and relations: managed or unmanaged device, data class, department, location, shift, network, with break-glass that is reasoned and audited. Every app uses the same check; a fault stays unknown, never allow | A rule refuses an unmanaged device with an audit row; bulk checks stay one round trip; added cost measured | next: owner 2026-11-05; first stable gets device class and data class only |
+| L1 | Web first load: index.html preloads 45 modules, 4.0 MB raw, before any page opens. Trim to what the sign-in page needs, and one language | First-load budget in CI, measured on the OS screen | next |
+| X9 | Outside penetration test before a hospital goes live | Report received and findings closed | blocked: owner, cost |
+
+## First stable version: scope is frozen (owner 2026-11-04)
+
+New ideas go to the parked list, not into this. Stable means every line below passes on the final image.
+
+**In:** desktop, setup and restart (#5223); memory and client address fixes; disk encryption and key inventory (T1, T2); Kanidm with its Identity app (T3, T3.1); node pairing and remote machines (J1, J5); signed A/B updates with rollback and backup with restore (U1, U2); launcher with one app per module for one role, Pharmacy first (O11); responsive OS screens (O12); screen permissions (O13); x86 image (H1); every way to run it (P1 to P8); Software Center and Control stage 1 (O14, C1.1).
+
+**Parked until after it:** connectors beyond one lab analyzer (X10), other roles' module apps, rule builder, MedBrains Control beyond machines and audit, offline second sites (J4), PACS, mail, app store, side-by-side windows.
+
+**Stable means:**
+1. `medbrains-os-test` passes on x86 and ARM64 images, on real hardware for at least one of each.
+2. A week of running with no failed service, no restart needed and memory flat.
+3. Fault tests pass: power cut, full disk, killed services, corrupt update, restore from backup.
+4. Every open row in `OS-THREATS.md` for these parts has a passing test or a written, accepted limit.
+5. A full shift walked through on screen as a pharmacist and an administrator, by a person.
+6. Load test with real sign-ins passes the agreed number of users.
+7. **Unbox to first patient:** a person with no IT background, using only what comes in the box, plugs it in, finishes setup and registers a first test patient, in a time we measure. Every question they ask is a defect to fix.
+
+## P. Every way to run MedBrains (owner 2026-11-05)
+
+One server and one web app, four ways to run them. All four are in the first stable version. No clinical feature may need the OS.
+
+| Task | What | Done when | State |
+|---|---|---|---|
+| P1 | One server only: setup without a monitor (one-time code on the machine, then a laptop on the LAN), no screen stack when nobody sits at it | Set up with no screen attached; a stranger on the LAN without the code gets nothing | next |
+| P2 | Staff PCs trust the machine: hospital root with a guided install, or a name with a real certificate | A staff PC opens the app with no warning and no click-through | next, with T2 |
+| P3 | Backup target demanded at setup on a lone server, warning until it has one | Pull the disk, restore elsewhere, sign in | next, with U2 |
+| P4 | Server plus nodes: same image, one question at setup; adding nodes later needs no reinstall | One server gains a node with data kept | doing: `feature/os-node-join` |
+| P5 | Own machines: Linux install, Docker, Windows through Hyper-V, checked against the current server, including the required keys and `TRUSTED_PROXIES` | Fresh install of each passes the same health checks | next |
+| P6 | Cloud: hospital's own account, images and guide, India region by default; outage answer for a hospital that loses internet | Fresh cloud install passes the same health checks | next; running it for hospitals needs an owner decision |
+| P6.1 | MedBrains OS as a cloud machine image, EC2 first: server role, no screen stack, setup with no monitor (P1), nodes joining over J5, disk encryption with the cloud's virtual TPM where it has one | The image boots on the smallest instance, passes `medbrains-os-test`, and a node joins it | next, after P1 and J5; launching in an AWS account and any Marketplace listing need the owner |
+| P7 | Move between them: export from one, restore into another with data and audit intact | One server to cloud and back in a test | next |
+| P8 | One shared acceptance suite run against all four | Same checks in CI where possible; the OS suite covers the rest | next |
+| P9 | Mixed fleets: x86 and ARM machines together; desktops, tablets, TVs, kiosks and mini displays as node roles; phones through native apps; PCs through browsers; OS nodes joined to a main machine in the cloud or on their own server; machines one version apart still working | A test fleet of mixed chip and role runs, updates in stages and recovers from a dead main machine | next: owner 2026-11-05; real devices blocked on hardware |
+| O14 | Software Center: approved apps and modules by role, turn on or off with dependencies, updates; signed and audited | A person installs an approved app with no IT help, and an unsigned one is refused | next |
+| C1.1 | Control stage 1: machines, health, audit, basic policies, staged updates, lock, two-person wipe, signed commands | A policy and a staged update reach a node; one person cannot wipe | next, needs T2, J1, U1 |
 
 ## Order
 

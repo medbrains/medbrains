@@ -1,0 +1,15 @@
+# Puts confirmed network settings where networkd reads it. The setting lives on the data
+# partition, because the root will become read-only (OS-BUILD-PLAN U2.3).
+[Unit]
+Description=MedBrains network settings
+DefaultDependencies=no
+RequiresMountsFor=/var/lib/medbrains/network
+Before=systemd-networkd.service
+ConditionDirectoryNotEmpty=/var/lib/medbrains/network
+
+[Service]
+Type=oneshot
+ExecStart=/bin/sh -c 'install -d /run/systemd/network && cp /var/lib/medbrains/network/*.network /run/systemd/network/'
+
+[Install]
+WantedBy=systemd-networkd.service

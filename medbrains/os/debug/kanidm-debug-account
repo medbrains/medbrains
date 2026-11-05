@@ -1,0 +1,48 @@
+#!/bin/bash
+# DEBUG IMAGES ONLY. A marked account for trying the Identity app on the machine's own screen, where a
+# hardware key may not work. Lowers Kanidm's key-only rule so it can have a password. build.sh puts this
+# only in debug images, and it refuses to run without the debug marker. This password is public on purpose.
+set -euo pipefail
+
+[[ -e /usr/lib/medbrains/debug-image ]] || { echo "not a debug image" >&2; exit 1; }
+MARK=/var/lib/kanidm/.debug-account-done
+[[ ! -e "$MARK" ]] || exit 0
+
+NAME=debug.test.account
+PASSWORD=Debug-Image-Only-Not-A-Secret-4471
+ORIGIN=https://idm.medbrains.local:8444
+
+# Calls Kanidm on loopback, trusting only its own certificate. Prints the body.
+api() {
+    curl -fsS -m 30 --cacert /var/lib/kanidm/tls-chain.pem --resolve idm.medbrains.local:8444:127.0.0.1 "$@"
+}
+
+# Waits for kanidm-setup to finish, because this lowers the rule that sets.
+for ((try = 0; try < 60; try++)); do
+    [[ -e /var/lib/kanidm/.setup-done ]] && break
+    sleep 2
+done
+
+recovered="$(runuser -u kanidm -- kanidmd scripting recover-account idm_admin 2>/dev/null | sed -n 's/.*"output":"\([^"]*\)".*/\1/p')"
+session="$(api -D - -o /dev/null -H 'Content-Type: application/json' \
+    -d '{"step":{"init2":{"username":"idm_admin","issue":"token","privileged":true}}}' "$ORIGIN/v1/auth" |
+    tr -d '\r' | sed -n 's/^x-kanidm-auth-session-id: //Ip')"
+api -o /dev/null -H 'Content-Type: application/json' -H "X-KANIDM-AUTH-SESSION-ID: $session" \
+    -d '{"step":{"begin":"password"}}' "$ORIGIN/v1/auth"
+admin="$(api -H 'Content-Type: application/json' -H "X-KANIDM-AUTH-SESSION-ID: $session" \
+    -d "{\"step\":{\"cred\":{\"password\":\"$recovered\"}}}" "$ORIGIN/v1/auth" | sed -n 's/.*"success":"\([^"]*\)".*/\1/p')"
+
+api -o /dev/null -X PUT -H "Authorization: Bearer $admin" -H 'Content-Type: application/json' \
+    -d '["any"]' "$ORIGIN/v1/group/idm_all_persons/_attr/credential_type_minimum"
+api -o /dev/null -H "Authorization: Bearer $admin" -H 'Content-Type: application/json' \
+    -d "{\"attrs\":{\"name\":[\"$NAME\"],\"displayname\":[\"TEST ACCOUNT, debug image only\"],\"mail\":[\"debug.test.account@hospital.test\"]}}" \
+    "$ORIGIN/v1/person"
+intent="$(api -H "Authorization: Bearer $admin" "$ORIGIN/v1/person/$NAME/_credential/_update_intent/900" |
+    sed -n 's/.*"token":"\([^"]*\)".*/\1/p')"
+cu_session="$(api -H 'Content-Type: application/json' -d "\"$intent\"" "$ORIGIN/v1/credential/_exchange_intent" |
+    sed 's/^\[//; s/,{"spn".*$//')"
+api -o /dev/null -H 'Content-Type: application/json' -d "[{\"password\":\"$PASSWORD\"},$cu_session]" "$ORIGIN/v1/credential/_update"
+api -o /dev/null -H 'Content-Type: application/json' -d "$cu_session" "$ORIGIN/v1/credential/_commit"
+touch "$MARK"
+chown kanidm:kanidm "$MARK"
+echo "debug test account ready: $NAME"

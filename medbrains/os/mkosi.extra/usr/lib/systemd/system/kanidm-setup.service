@@ -2,6 +2,7 @@
 # failed unit and does not stop Kanidm, because local sign-in and existing staff must keep working.
 [Unit]
 Description=MedBrains identity provider rules
+ConditionPathExists=/var/lib/medbrains/config/role-main
 Requires=kanidmd.service
 After=kanidmd.service
 
