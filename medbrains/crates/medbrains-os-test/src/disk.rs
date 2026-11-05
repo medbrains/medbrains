@@ -26,8 +26,11 @@ const SCREEN_LIMIT: Duration = Duration::from_secs(120);
 const OPEN_LIMIT: Duration = Duration::from_secs(60);
 const SETTLE: Duration = Duration::from_secs(8);
 const REPLAY_LIMIT: Duration = Duration::from_secs(120);
-/// More tries than a TPM's dictionary attack protection allows by default.
-const WRONG_PINS_TO_LOCK: u32 = 34;
+/// After this many wrong answers to the PIN prompt, systemd asks for the recovery key instead.
+const WRONG_PINS_BEFORE_KEY: u32 = 2;
+const MANY_WRONG_PINS: u32 = 34;
+const PIN_PROMPT: &str = "enter TPM2 PIN";
+const RECOVERY_PROMPT: &str = "enter recovery key";
 
 type Step = (&'static str, fn(&mut Vm, &Path) -> Result<(), String>);
 type NewMachineStep = (&'static str, fn(&Path) -> Result<(), String>);
@@ -346,24 +349,37 @@ fn pin_is_asked_at_every_start(image: &Path) -> Result<(), String> {
     recovery_key_opens_a_pin_machine(&mut vm)
 }
 
-/// The recovery key still opens a machine with a PIN, typed at the same prompt, before and after
-/// enough wrong PINs to trip the TPM's lockout.
+/// Past a PIN nobody knows: the first two answers go to the PIN prompt, and only then does the disk ask
+/// for the recovery key. A key typed earlier is spent as a wrong PIN.
+fn open_past_the_pin_with_recovery_key(vm: &mut Vm) -> Result<(), String> {
+    vm.wait_for_screen(NOTICE, scaled(SCREEN_LIMIT))?;
+    ensure(!data_open(vm)?, "opened with no PIN")?;
+    for _ in 0..WRONG_PINS_BEFORE_KEY {
+        vm.type_text("wrongpin\n")?;
+        sleep(scaled(SETTLE));
+    }
+    vm.wait_for_screen(RECOVERY_PROMPT, scaled(SCREEN_LIMIT))?;
+    let key = vm.recovery_key.clone();
+    vm.type_text(&format!("{key}\n"))?;
+    wait_open(vm)
+}
+
+/// A forgotten PIN does not lose the data: the recovery key opens the machine, and a restart asks for
+/// the PIN again. Many wrong answers change nothing in one boot: past two it stops asking the TPM.
 fn recovery_key_opens_a_pin_machine(vm: &mut Vm) -> Result<(), String> {
     vm.shut_down()?;
     let disk = vm.disk();
     vm.boot(&disk, Some(OWN_TPM))?;
-    vm.wait_for_screen(NOTICE, scaled(SCREEN_LIMIT))?;
-    let key = vm.recovery_key.clone();
-    vm.type_text(&format!("{key}\n"))?;
-    wait_open(vm)?;
+    open_past_the_pin_with_recovery_key(vm)?;
     vm.shut_down()?;
     vm.boot(&disk, Some(OWN_TPM))?;
-    vm.wait_for_screen(NOTICE, scaled(SCREEN_LIMIT))?;
-    for _ in 0..WRONG_PINS_TO_LOCK {
+    vm.wait_for_screen(PIN_PROMPT, scaled(SCREEN_LIMIT))?;
+    for _ in 0..MANY_WRONG_PINS {
         vm.type_text("wrongpin\n")?;
-        sleep(Duration::from_secs(3));
+        sleep(Duration::from_secs(4));
     }
     ensure(!data_open(vm)?, "wrong PINs opened the disk")?;
+    let key = vm.recovery_key.clone();
     vm.type_text(&format!("{key}\n"))?;
     wait_open(vm)
 }
@@ -381,10 +397,8 @@ fn power_cut_during_pin_setup_recovers(image: &Path) -> Result<(), String> {
     vm.cut_power()?;
     let disk = vm.disk();
     vm.boot(&disk, Some(OWN_TPM))?;
-    vm.wait_for_screen(NOTICE, scaled(SCREEN_LIMIT))?;
+    open_past_the_pin_with_recovery_key(&mut vm)?;
     let key = vm.recovery_key.clone();
-    vm.type_text(&format!("{key}\n"))?;
-    wait_open(&mut vm)?;
     vm.wait_for_screen("setup was interrupted", scaled(SCREEN_LIMIT))?;
     vm.type_text(&format!("{key}\n"))?;
     vm.wait_for_screen("how should this machine start", scaled(SCREEN_LIMIT))?;

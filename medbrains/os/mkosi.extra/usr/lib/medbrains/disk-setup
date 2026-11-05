@@ -110,8 +110,9 @@ MedBrains: the data disk did not open by itself.
 
 This happens if the disk was moved to another machine, or this machine's main board
 or security chip changed, or its boot files were changed. Patient data stays locked.
-If your hospital set a PIN for this machine, type it. Otherwise type the recovery key
-that was written down at setup. Then press Enter. Typed characters are not shown.
+If it asks for a PIN, type your hospital's PIN. After two wrong tries it asks for the
+recovery key instead; restart to try the PIN again. If it asks for the recovery key,
+type what was written down at setup. Then press Enter. Typed characters are not shown.
 
 TEXT
 }
@@ -200,7 +201,8 @@ cut. This protects a disk taken out of the machine. It does not stop someone who
 the whole machine and can change what is on its disk.
 
 Or choose a PIN of at least 6 characters. That protects a stolen machine as well. It is
-asked on this screen at every start, so after a power cut the machine waits for a person.
+asked on this screen at every start, so after a power cut the machine waits for a person. If the PIN is forgotten, the recovery
+key still opens it, after two wrong tries.
 
 TEXT
     while true; do

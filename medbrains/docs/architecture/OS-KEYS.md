@@ -38,7 +38,7 @@ encrypted session, and just forward everything to the real TPM". Binding the ses
 |---|---|---|
 | Power cut | **Comes back by itself** | Waits for a person at the screen, however long that is |
 | Stolen machine, edited system partition | **Opens** | Needs the PIN |
-| Active interposer on the TPM bus | Can get the key | Needs the PIN too; wrong guesses hit the TPM's lockout |
+| Active interposer on the TPM bus | Can get the key | Needs the PIN too. TPM lockout against guessing across boots is not tested |
 
 Setup asks once, at first boot; Enter means no PIN. Recorded as `encrypted-tpm2` or `encrypted-tpm2-pin`. A ward
 with no system until someone types a PIN carries its own patient risk, so no PIN is the default.
@@ -185,7 +185,7 @@ disk to a file on that disk. A test found this: the disk would not open.
 | No TPM at first boot | Cannot seal | `/dev/tpmrm0` absent after udev settles | Stops and asks: turn off, or type `STORE UNENCRYPTED`. Nothing stored until then | `no_tpm_can_turn_off` |
 | Person chooses unencrypted | Data readable from any copy | Typed choice; empty-key slot; `disk-protection` record | Stores data and records it; the top bar says "This disk is not encrypted" at every boot | `no_tpm_records_the_choice` |
 | Boot file changed | PCR 4 and 11 differ | Unseal fails | Same screen as a copied disk; restoring the file opens it | `changed_boot_file_stays_locked` |
-| PIN wrong or forgotten | | TPM | Asks again. The recovery key works at the same prompt, also after 34 wrong PINs | `recovery_key_opens_a_pin_machine` |
+| PIN wrong or forgotten | | Unseal fails | Two wrong tries, then it asks for the recovery key, which opens it; a key typed before that counts as a wrong PIN. A restart asks for the PIN again | `recovery_key_opens_a_pin_machine` |
 | Power cut after the key is saved and before the record | The seal may need a PIN nobody can vouch for | Marker with no record | Disk asks; the saved recovery key opens it; setup asks for it again, re-seals, records what the seal is | `power_cut_during_pin_setup_recovers` |
 | Disk copied to another machine | TPM refuses | Unseal fails | Prompt on the screen, with a notice after 20 s. `/var` not mounted; no service starts | `copy_stays_locked` |
 | Recovery key lost **and** TPM gone | **Data lost** | Nothing opens | Stays at the prompt. Restore from backup; no backup exists until D2 | none: by design |
