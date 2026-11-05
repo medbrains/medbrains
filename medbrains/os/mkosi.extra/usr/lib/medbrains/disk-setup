@@ -178,7 +178,7 @@ seal_with_pin() {
 }
 
 # Shows the recovery key on a sealed disk, offers a PIN, then records how this disk is protected. The record
-# holds no secret, so the desktop can read it; a sealed disk never has an empty-key slot.
+# holds no secret, and the desktop shows it through the setup service; a sealed disk never has an empty-key slot.
 finish() {
     local state=unencrypted-chosen
     if systemd-cryptenroll "$PART" | grep -qw tpm2; then

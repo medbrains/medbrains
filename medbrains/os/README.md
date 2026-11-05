@@ -331,7 +331,7 @@ Task T1, disk half. Every key, what happens if it is lost or stolen, and the fai
 | First boot, TPM works | Prepares the disk, shows the recovery key once, and waits until its last group is typed back. Then asks: start by itself (Enter), or a PIN at every start |
 | Every later boot | Nothing, opens with no typing; or the PIN, if one was chosen |
 | Disk copied to another machine, board or TPM changed, or the signed boot file changed | Asks for the recovery key, and after 20 seconds says in plain words why. `/var` stays locked and no service starts |
-| First boot, no TPM | Stops. Nothing is stored until someone types `OFF` or `STORE UNENCRYPTED`. The choice is recorded in `/var/lib/medbrains/config/disk-protection`. **The desktop does not show this yet**: it replaced the status page that did |
+| First boot, no TPM | Stops. Nothing is stored until someone types `OFF` or `STORE UNENCRYPTED`. The choice is recorded in `/var/lib/medbrains/config/disk-protection`. The top bar then says "This disk is not encrypted" |
 
 **What this does not do yet:** stop someone who can change the system partition and boot it in this machine, since
 nothing verifies that partition. Secure Boot and verity are the rest of T1. A release image is not signed until a

@@ -18,7 +18,12 @@ use medbrains_server_core::config::AppConfig;
 use sqlx::PgPool;
 
 /// Keys whose development fallback is a value in the source.
-const REQUIRED_KEYS: [&str; 1] = ["MEDBRAINS_IDENTIFIER_HMAC_KEY"];
+const REQUIRED_KEYS: [&str; 4] = [
+    "MEDBRAINS_IDENTIFIER_HMAC_KEY",
+    "MEDBRAINS_EVENT_TOKEN_KEY",
+    "MEDBRAINS_SIGNATURE_KEY_ENCRYPTION_KEY",
+    "MEDBRAINS_OAUTH_TOKEN_KEY",
+];
 /// Keys one integration needs, with the integration's name. Production
 /// without one boots with that integration off; it never uses the
 /// development key in the source either way.
@@ -178,6 +183,9 @@ fn static_dir(config: &AppConfig) -> Finding {
 fn key_check_name(key: &str) -> &'static str {
     match key {
         "MEDBRAINS_IDENTIFIER_HMAC_KEY" => "secret.identifier_key",
+        "MEDBRAINS_EVENT_TOKEN_KEY" => "secret.event_token_key",
+        "MEDBRAINS_SIGNATURE_KEY_ENCRYPTION_KEY" => "secret.signature_key",
+        "MEDBRAINS_OAUTH_TOKEN_KEY" => "secret.oauth_token_key",
         "MEDBRAINS_NHCX_SECRET_KEY" => "secret.nhcx_key",
         "MEDBRAINS_PACS_SECRET_KEY" => "secret.pacs_key",
         _ => "secret.abdm_key",
@@ -413,6 +421,16 @@ mod tests {
         );
         let abdm = found.iter().find(|f| f.check == "secret.abdm_key");
         assert_eq!(abdm.map(|f| f.level), Some(Level::Warn));
+    }
+
+    /// Each of these falls back to a key that is public in this repository.
+    #[tokio::test]
+    async fn production_refuses_without_any_key_whose_fallback_is_public() {
+        for key in REQUIRED_KEYS.into_iter().skip(1) {
+            let found = key_check(&OnlyIdentifierKey, key, true).await;
+            assert_eq!(found.level, Level::Fail, "{key}");
+            assert_ne!(found.check, "secret.abdm_key", "{key} needs its own check name");
+        }
     }
 
     #[tokio::test]

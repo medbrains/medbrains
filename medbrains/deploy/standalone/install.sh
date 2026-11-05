@@ -228,8 +228,11 @@ env_value() {
 # source). Generated once, here, on new and existing hosts alike; never
 # overwritten — changing the HMAC key orphans every stored ID fingerprint,
 # changing the ABDM, NHCX or PACS key makes the stored ABDM, NHCX or PACS secrets unreadable. Back
-# /etc/medbrains/env up with the database.
-for key in MEDBRAINS_IDENTIFIER_HMAC_KEY MEDBRAINS_ABDM_SECRET_KEY MEDBRAINS_NHCX_SECRET_KEY MEDBRAINS_PACS_SECRET_KEY; do
+# /etc/medbrains/env up with the database. The server refuses to start in production without the
+# event token, signature and OAuth keys. On a host that ran before they existed, values sealed under
+# the old development fallback stop opening: doctors re-enrol signing keys, accounts reconnect.
+for key in MEDBRAINS_IDENTIFIER_HMAC_KEY MEDBRAINS_ABDM_SECRET_KEY MEDBRAINS_NHCX_SECRET_KEY MEDBRAINS_PACS_SECRET_KEY \
+    MEDBRAINS_EVENT_TOKEN_KEY MEDBRAINS_SIGNATURE_KEY_ENCRYPTION_KEY MEDBRAINS_OAUTH_TOKEN_KEY; do
     if [[ -z "$(env_value "$key")" ]]; then
         sed -i "/^$key=/d" /etc/medbrains/env
         echo "$key=$(openssl rand -base64 48 | tr -d '\n')" >> /etc/medbrains/env

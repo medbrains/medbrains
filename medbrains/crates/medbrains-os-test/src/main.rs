@@ -20,6 +20,8 @@ const BLOCKED_MODULES: [&str; 3] = ["dccp", "sctp", "udf"];
 const SYSCTLS: [(&str, &str); 4] = [("kernel.kptr_restrict", "2"), ("kernel.kexec_load_disabled", "1"), ("kernel.yama.ptrace_scope", "2"), ("net.ipv4.conf.all.accept_redirects", "0")];
 const CLOSED_FROM_OUTSIDE: [&str; 4] = ["ssh", "server", "database", "edge"];
 const TIME_SYNC_LIMIT: Duration = Duration::from_secs(120);
+const SETUP_LIMIT: Duration = Duration::from_secs(90);
+const SETUP_SOCKET: &str = "/run/medbrains-console/setup.sock";
 
 type Check = (&'static str, fn(&mut Vm, &Value) -> Result<(), String>);
 
@@ -179,10 +181,20 @@ fn checks() -> Vec<Check> {
     ]
 }
 
+/// Makes this machine a main machine, as the screen's Review does: nothing runs before that. The
+/// password is made fresh, so none is written down, and the machine is thrown away.
+fn set_up_main(vm: &mut Vm) -> Result<(), String> {
+    let stamp = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map_err(|e| e.to_string())?.as_millis();
+    let body = format!(r#"{{"hospital":"Test Hospital","username":"admin","password":"Os-{stamp}-Aa!"}}"#);
+    let answer = vm.run_for(&format!("curl -s -m 80 --unix-socket {SETUP_SOCKET} -d '{body}' http://machine/hospital"), SETUP_LIMIT)?;
+    ensure(answer.contains("\"ok\":true"), format!("setup answered {answer}"))
+}
+
 /// Boots the image and runs every check, then the data disk scenarios; returns how many failed.
 fn run_suite(image: &Path) -> Result<usize, String> {
     let budgets: Value = serde_json::from_str(BUDGETS).map_err(|e| e.to_string())?;
     let mut vm = Vm::start(image)?;
+    set_up_main(&mut vm)?;
     vm.wait_for_server()?;
     let mut failed = 0;
     for (name, check) in checks() {

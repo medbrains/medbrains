@@ -138,10 +138,9 @@ not about real chips. Side channels and firmware TPMs were not checked.
    until each is rotated, and rotation has no code. Plan T2.
 3. **Keys in one plaintext file once the disk is open.** Any root process or a read of `/var/lib/medbrains`
    gets them all. `systemd-creds` sealing per service is designed in OS-SETUP-AND-TRUST §7, not built.
-4. **`install.sh` still has the fallback problem fixed here.** Standalone installs do not set the event token,
-   signature or OAuth keys, and the server silently uses **development keys that are public in this repository**.
-   The server should refuse in production, not warn: preflight only checks four keys. Backend-only, not done
-   here.
+4. **Sealed values under the old development keys.** `install.sh` now generates the event token, signature and OAuth
+   keys and production refuses to start without them, but a host that ran before keeps nothing it sealed under the
+   development keys: doctors re-enrol signing keys and accounts reconnect. No re-seal job exists.
 5. **Secrets backend is reached by accident.** `os/` sets no `MEDBRAINS_SECRETS_BACKEND` or
    `MEDBRAINS_DEPLOY_MODE`, so the appliance takes the `saas` default and gets env through a fallback.
 6. **A machine fitted with a TPM later** stays on its empty key until someone enrols: the volume key stays what
@@ -181,7 +180,7 @@ disk to a file on that disk. A test found this: the disk would not open.
 | What fails | Effect | Detected by | What the machine does | Test |
 |---|---|---|---|---|
 | No TPM at first boot | Cannot seal | `/dev/tpmrm0` absent after udev settles | Stops and asks: turn off, or type `STORE UNENCRYPTED`. Nothing stored until then | `no_tpm_can_turn_off` |
-| Person chooses unencrypted | Data readable from any copy | Typed choice; empty-key slot; `disk-protection` record | Stores data and records it. **The desktop does not show the record yet: gap** | `no_tpm_records_the_choice` |
+| Person chooses unencrypted | Data readable from any copy | Typed choice; empty-key slot; `disk-protection` record | Stores data and records it; the top bar says "This disk is not encrypted" at every boot | `no_tpm_records_the_choice` |
 | Firmware reports a TPM, kernel has no driver | Would stall boot 180 s | `systemd.tpm2_wait=no` | Treated as no TPM, as above; measured on arm64 before and after | manual, arm64 |
 | Boot file changed, signed image | PCR 11 does not match the signature | Unseal fails | Same screen as a copied disk; restoring the file opens it | `changed_boot_file_stays_locked` |
 | PIN wrong | | TPM | Asks again; too many lock it, and the recovery key still works | `pin_is_asked_at_every_start` |
