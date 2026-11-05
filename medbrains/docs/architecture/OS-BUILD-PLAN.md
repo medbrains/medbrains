@@ -209,6 +209,7 @@ One server and one web app, four ways to run them. All four are in the first sta
 | P6 | Cloud: hospital's own account, images and guide, India region by default; outage answer for a hospital that loses internet | Fresh cloud install passes the same health checks | next; running it for hospitals needs an owner decision |
 | P7 | Move between them: export from one, restore into another with data and audit intact | One server to cloud and back in a test | next |
 | P8 | One shared acceptance suite run against all four | Same checks in CI where possible; the OS suite covers the rest | next |
+| P9 | Mixed fleets: x86 and ARM machines together; desktops, tablets, TVs, kiosks and mini displays as node roles; phones through native apps; PCs through browsers; OS nodes joined to a main machine in the cloud or on their own server; machines one version apart still working | A test fleet of mixed chip and role runs, updates in stages and recovers from a dead main machine | next: owner 2026-11-05; real devices blocked on hardware |
 | O14 | Software Center: approved apps and modules by role, turn on or off with dependencies, updates; signed and audited | A person installs an approved app with no IT help, and an unsigned one is refused | next |
 | C1.1 | Control stage 1: machines, health, audit, basic policies, staged updates, lock, two-person wipe, signed commands | A policy and a staged update reach a node; one person cannot wipe | next, needs T2, J1, U1 |
 
