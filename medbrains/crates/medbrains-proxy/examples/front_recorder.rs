@@ -113,6 +113,20 @@ fn stream_chunks(writer: &mut TcpStream) -> std::io::Result<()> {
     writer.write_all(b"0\r\n\r\n")
 }
 
+/// More than any buffer between here and a client holds, for a client that stops reading.
+fn stream_big(writer: &mut TcpStream) -> std::io::Result<()> {
+    const CHUNK: usize = 64 * 1024;
+    const CHUNKS: usize = 4096;
+    writer.write_all(b"HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\n")?;
+    let body = vec![b'x'; CHUNK];
+    for _ in 0..CHUNKS {
+        write!(writer, "{CHUNK:x}\r\n")?;
+        writer.write_all(&body)?;
+        writer.write_all(b"\r\n")?;
+    }
+    writer.write_all(b"0\r\n\r\n")
+}
+
 /// Answers one recorded request with a short body.
 fn answer(writer: &mut TcpStream, body: &str) -> std::io::Result<()> {
     write!(
@@ -176,6 +190,9 @@ fn serve(stream: TcpStream, seen: &Seen) -> Option<()> {
             }
             "/__stream" => {
                 stream_chunks(&mut writer).ok()?;
+            }
+            "/__big" => {
+                stream_big(&mut writer).ok()?;
             }
             _ => answer(&mut writer, "ok").ok()?,
         }

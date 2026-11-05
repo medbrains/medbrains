@@ -116,6 +116,17 @@ impl Config {
     }
 }
 
+impl Config {
+    /// File descriptors the limits can use: one per connection on a redirect port, two on a site's,
+    /// which also opens one to its back end, and a few for the process itself.
+    pub(crate) fn fds_needed(&self) -> usize {
+        const OWN_FDS: usize = 64;
+        let redirect: usize = self.redirect_listen.iter().map(|l| l.max_connections).sum();
+        let sites = self.sites.iter().flat_map(|site| &site.listen);
+        OWN_FDS + redirect + sites.map(|l| l.max_connections * 2).sum::<usize>()
+    }
+}
+
 impl SiteConfig {
     /// A site must listen somewhere, say something when it fails, and have rules that can match.
     fn validate(&self) -> anyhow::Result<()> {
@@ -203,6 +214,26 @@ mod tests {
         let text = include_str!("../../../../os/mkosi.extra/usr/lib/medbrains/front.toml");
         let config = Config::parse(text)?;
         assert!(config.sites.iter().all(|site| !site.error_page.is_empty()));
+        Ok(())
+    }
+
+    /// A flood that runs the process out of descriptors takes the screen's port down with the rest.
+    #[test]
+    fn the_shipped_limits_fit_the_shipped_unit() -> anyhow::Result<()> {
+        let toml = include_str!("../../../../os/mkosi.extra/usr/lib/medbrains/front.toml");
+        let unit = include_str!(
+            "../../../../os/mkosi.extra/usr/lib/systemd/system/medbrains-front.service"
+        );
+        let limit: usize = unit
+            .lines()
+            .find_map(|line| line.strip_prefix("LimitNOFILE="))
+            .ok_or_else(|| anyhow::anyhow!("no LimitNOFILE"))?
+            .parse()?;
+        let needed = Config::parse(toml)?.fds_needed();
+        assert!(
+            needed <= limit,
+            "{needed} descriptors over the unit's {limit}"
+        );
         Ok(())
     }
 

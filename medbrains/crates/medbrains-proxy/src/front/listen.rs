@@ -27,8 +27,9 @@ const HANDSHAKE: Duration = Duration::from_secs(10);
 const IDLE: Duration = Duration::from_secs(75);
 /// A head is one packet or a few; once it has started, all of it must arrive within this.
 const HEAD_DEADLINE: Duration = Duration::from_secs(10);
-/// Largest head, with its cookies. Pingora would allow 1 MiB per connection.
-const MAX_HEAD: usize = 32 * 1024;
+/// Largest head, with its cookies. Pingora would allow 1 MiB per connection, and this times the
+/// connection limit is the bulk of the front's memory under a flood.
+const MAX_HEAD: usize = 16 * 1024;
 const HEAD_READ_SIZE: usize = 4096;
 /// Sending a refusal to a client that is not reading must not hold the connection.
 const REFUSAL_WRITE: Duration = Duration::from_secs(2);

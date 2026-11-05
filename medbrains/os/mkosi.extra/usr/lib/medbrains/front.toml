@@ -1,10 +1,15 @@
 # What medbrains-front serves. Certificates and the names file come from front-certs.
+#
+# A site's connection uses two open files, one for the client and one for the back end. The front
+# refuses to start if these limits need more than LimitNOFILE in its unit allows.
 
 names_file = "/var/lib/medbrains-front/lan/names"
 
 # Plain HTTP only ever redirects.
 [[redirect_listen]]
 addr = "[::]:80"
+max_connections = 256
+max_per_address = 32
 
 [[sites]]
 name = "medbrains"

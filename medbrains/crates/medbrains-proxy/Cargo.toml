@@ -33,3 +33,9 @@ async-trait = "0.1.92"
 anyhow = "1"
 bytes = "1"
 x509-parser = "0.16"
+
+[dev-dependencies]
+ipnet = "2"
+
+[lints]
+workspace = true

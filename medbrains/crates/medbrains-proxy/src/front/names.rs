@@ -102,10 +102,9 @@ pub(crate) fn parse_host_bytes(value: &[u8]) -> Option<&str> {
 
 /// True if a port is absent where allowed, or is a number that fits.
 fn port_is_valid(port: Option<&str>, absent_allowed: bool) -> bool {
-    match port {
-        None => absent_allowed,
-        Some(port) => !port.starts_with('+') && port.parse::<u16>().is_ok(),
-    }
+    port.map_or(absent_allowed, |port| {
+        !port.starts_with('+') && port.parse::<u16>().is_ok()
+    })
 }
 
 /// True for dot-separated labels of letters, digits and hyphens, 253 bytes at most.

@@ -23,7 +23,8 @@ WatchdogSec=30s
 TimeoutStopSec=10s
 User=medbrains-front
 Group=medbrains-front
-# 5,120 connections, each with one to the back end, plus room for files and the journal.
+# 256 on port 80, plus 4,096 + 1,024 that each hold one to the back end, plus room to spare. The
+# front checks its own configuration against this at start, and a test checks the shipped pair.
 LimitNOFILE=11000
 TasksMax=32
 MemoryHigh=384M

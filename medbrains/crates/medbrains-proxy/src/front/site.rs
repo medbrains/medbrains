@@ -11,7 +11,7 @@ use bytes::Bytes;
 use pingora_core::protocols::tls::CaType;
 use pingora_core::upstreams::peer::HttpPeer;
 use pingora_error::{Error, ErrorSource, ErrorType, Result};
-use pingora_http::{RequestHeader, ResponseHeader};
+use pingora_http::{RequestHeader, ResponseHeader, StatusCode};
 use pingora_proxy::{FailToProxy, ProxyHttp, Session};
 use std::net::{IpAddr, SocketAddr};
 use std::sync::Arc;
@@ -36,8 +36,14 @@ const CLIENT_READ: Duration = Duration::from_secs(30);
 /// Longest wait for a client to accept one write. A stalled reader cannot hold a response open.
 const CLIENT_WRITE: Duration = Duration::from_secs(30);
 const UPSTREAM_CONNECT: Duration = Duration::from_secs(5);
-/// A report may take this long to start answering. A WebSocket has no limit: silence is normal.
+/// A report may take this long to start answering.
 const UPSTREAM_READ: Duration = Duration::from_secs(300);
+/// Silence allowed on an open WebSocket. Long, because silence is normal; bounded, because every wait
+/// is. The web app reconnects.
+const WEBSOCKET_IDLE: Duration = Duration::from_secs(3600);
+/// A client reading slower than this loses the response, however small each write is: a stalled
+/// reader at one chunk per `CLIENT_WRITE` would otherwise hold a large response for days.
+const CLIENT_MIN_BYTES_PER_SEC: usize = 2048;
 const UPSTREAM_WRITE: Duration = Duration::from_secs(30);
 /// How long a connection to the back end is kept for reuse.
 const UPSTREAM_IDLE: Duration = Duration::from_secs(60);
@@ -70,7 +76,10 @@ pub(crate) struct Site {
 pub(crate) struct RequestState {
     body_started: Option<Instant>,
     body_bytes: u64,
-    is_upgrade: bool,
+    /// Asked for a WebSocket: the back end may stay silent for longer.
+    wants_upgrade: bool,
+    /// The back end agreed. Only now do the limits for a normal request stop applying.
+    is_upgraded: bool,
 }
 
 /// An answer that does not need the back end.
@@ -257,16 +266,17 @@ impl ProxyHttp for Site {
         RequestState {
             body_started: None,
             body_bytes: 0,
-            is_upgrade: false,
+            wants_upgrade: false,
+            is_upgraded: false,
         }
     }
 
     /// Applies timeouts, then every rule that can refuse a request before the back end sees it.
     async fn request_filter(&self, session: &mut Session, ctx: &mut Self::CTX) -> Result<bool> {
-        ctx.is_upgrade = session.is_upgrade_req();
-        // Idle silence is normal on a WebSocket, so only other requests get a read limit.
-        session.set_read_timeout((!ctx.is_upgrade).then_some(CLIENT_READ));
+        ctx.wants_upgrade = session.is_upgrade_req();
+        session.set_read_timeout(Some(CLIENT_READ));
         session.set_write_timeout(Some(CLIENT_WRITE));
+        session.set_min_send_rate(Some(CLIENT_MIN_BYTES_PER_SEC));
         if session.req_header().uri.path() == "/proxy-health" {
             answer(session, 200, Bytes::from_static(b"ok\n"), None).await?;
             return Ok(true);
@@ -291,12 +301,16 @@ impl ProxyHttp for Site {
         _end_of_stream: bool,
         ctx: &mut Self::CTX,
     ) -> Result<()> {
+        // Frames on an open WebSocket are not an upload.
+        if ctx.is_upgraded {
+            return Ok(());
+        }
         let started = *ctx.body_started.get_or_insert_with(Instant::now);
         ctx.body_bytes += body.as_ref().map_or(0, |bytes| bytes.len() as u64);
         if ctx.body_bytes > self.max_body_bytes {
             return Error::e_explain(ErrorType::HTTPStatus(413), "body over the limit");
         }
-        if !ctx.is_upgrade && body_too_slow(ctx.body_bytes, started.elapsed()) {
+        if body_too_slow(ctx.body_bytes, started.elapsed()) {
             return Error::e_explain(ErrorType::HTTPStatus(408), "body below the minimum rate");
         }
         Ok(())
@@ -313,7 +327,11 @@ impl ProxyHttp for Site {
         let mut peer = HttpPeer::new(self.upstream, tls, name.unwrap_or_default().to_owned());
         peer.options.connection_timeout = Some(UPSTREAM_CONNECT);
         peer.options.total_connection_timeout = Some(UPSTREAM_CONNECT * 2);
-        peer.options.read_timeout = (!ctx.is_upgrade).then_some(UPSTREAM_READ);
+        peer.options.read_timeout = Some(if ctx.wants_upgrade {
+            WEBSOCKET_IDLE
+        } else {
+            UPSTREAM_READ
+        });
         peer.options.write_timeout = Some(UPSTREAM_WRITE);
         peer.options.idle_timeout = Some(UPSTREAM_IDLE);
         if let Some((ca, _)) = &self.upstream_tls {
@@ -334,6 +352,21 @@ impl ProxyHttp for Site {
         };
         let host = self.upstream_host(req);
         set_forwarding(req, client, &host)
+    }
+
+    /// Relaxes the limits for a normal request once, and only once, the back end opens a WebSocket.
+    async fn response_filter(
+        &self,
+        session: &mut Session,
+        resp: &mut ResponseHeader,
+        ctx: &mut Self::CTX,
+    ) -> Result<()> {
+        if resp.status == StatusCode::SWITCHING_PROTOCOLS {
+            ctx.is_upgraded = true;
+            session.set_read_timeout(Some(WEBSOCKET_IDLE));
+            session.set_min_send_rate(None);
+        }
+        Ok(())
     }
 
     /// Never a blank page: the configured sentence when the back end fails, once nothing else has

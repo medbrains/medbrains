@@ -285,22 +285,26 @@ unknown key stops the service rather than being ignored.
 
 | Port | What |
 |---|---|
-| 80 | Redirects to HTTPS, only ever to a name of this machine or the address the request arrived on |
-| 443 | The LAN, IPv4 and IPv6, up to 4,096 connections and 256 from one address |
+| 80 | Redirects to HTTPS, only ever to a name of this machine or the address the request arrived on. Up to 256 connections, 32 from one address |
+| 443 | The LAN, IPv4 and IPv6, up to 4,096 connections and 256 from one address or IPv6 /64 |
 | 127.0.0.1:8443 | The screen and node tunnels, with its own 1,024, so a LAN flood leaves the screen working |
 
 **Certificates.** `front-certs` runs as root before the front starts, and once a minute. `ca/` holds this
-machine's own authority, made here, root only. `lan/` holds one certificate covering a known set of names:
-`medbrains.local`, the host name, loopback, every live address, and whatever is in
-`/var/lib/medbrains/config/front-names`. Nothing a client sends creates a certificate: a made-up name gets
-the same one and a browser warning. The front restarts when an address changes. To use a hospital root (T2),
-replace `ca/ca.pem` and `ca/ca.key` with a CA it signed; the next run issues from it. A missing certificate is
-made again at start; if that fails the unit fails, visibly, and nothing falls back to plain HTTP.
+machine's own authority, made here, root only. Name constraints limit it to `.local`, `.internal`, `.lan`,
+`.intranet`, `.home.arpa`, `localhost`, the host name, names in `/var/lib/medbrains/config/front-names` at first
+boot, and private and unique-local addresses, so a stolen key cannot sign for any other site, even on a PC that
+trusts it. `lan/` holds one certificate covering what this machine answers to within those limits. Nothing a
+client sends creates a certificate: a made-up name gets the same one and a browser warning. The front restarts
+when a fixed or DHCP address changes. IPv6 addresses learned from a router advertisement are left out, because
+anyone on the LAN can send one; those clients use `medbrains.local`. A bad line in `front-names` is skipped, a
+failed renewal keeps the valid certificate in place, and a key that does not match its certificate is replaced.
+To use a hospital root (T2), replace `ca/ca.pem` and `ca/ca.key` with a CA it signed and remove `ca/permitted`.
+If no usable certificate can be made the unit fails, visibly, and nothing falls back to plain HTTP.
 
 **What gets refused before Pingora parses it** (`head.rs`): anything two parsers could read two ways. Both
 `Content-Length` and `Transfer-Encoding`, a repeated or non-numeric length, any encoding but `chunked`, a bare
 LF or CR, a folded header, a second `Host`, an absolute target, an upgrade to anything but WebSocket, TRACE and
-CONNECT. No browser sends these. Heads are limited to 32 KB and 10 seconds once started.
+CONNECT. No browser sends these. An upgrade counts only as a GET with no body. Heads are limited to 16 KB and 10 seconds once started.
 
 **What the server is told.** The front removes every forwarding header a client sent and sets its own, with
 one address in `X-Forwarded-For`. A `Host` outside the known names becomes `medbrains.local` before the server

@@ -46,9 +46,14 @@ pub(crate) fn scan_head(buf: &[u8], from: usize) -> Scan {
     Scan::Partial(index)
 }
 
-/// The request line: method, target and version, separated by exactly one space each. True when
-/// the version is HTTP/1.0.
-fn check_request_line(line: &[u8]) -> Result<bool, Refusal> {
+/// What the rest of the head is judged against.
+struct RequestLine {
+    is_get: bool,
+    is_http10: bool,
+}
+
+/// The request line: method, target and version, separated by exactly one space each.
+fn check_request_line(line: &[u8]) -> Result<RequestLine, Refusal> {
     let mut parts = line.split(|byte| *byte == b' ');
     let (Some(method), Some(target), Some(version), None) =
         (parts.next(), parts.next(), parts.next(), parts.next())
@@ -65,11 +70,15 @@ fn check_request_line(line: &[u8]) -> Result<bool, Refusal> {
     if !origin_form || !target.iter().all(u8::is_ascii_graphic) {
         return Err(Refusal::Malformed);
     }
-    match version {
-        b"HTTP/1.1" => Ok(false),
-        b"HTTP/1.0" => Ok(true),
-        _ => Err(Refusal::Malformed),
-    }
+    let is_http10 = match version {
+        b"HTTP/1.1" => false,
+        b"HTTP/1.0" => true,
+        _ => return Err(Refusal::Malformed),
+    };
+    Ok(RequestLine {
+        is_get: method == b"GET",
+        is_http10,
+    })
 }
 
 /// True for the bytes of a header name: an RFC 9110 token.
@@ -88,7 +97,7 @@ fn is_field_value(value: &[u8]) -> bool {
 }
 
 /// Removes optional whitespace from both ends of a header value.
-fn trim_value(mut value: &[u8]) -> &[u8] {
+const fn trim_value(mut value: &[u8]) -> &[u8] {
     while let [b' ' | b'\t', rest @ ..] = value {
         value = rest;
     }
@@ -104,6 +113,7 @@ struct Framing {
     hosts: u32,
     content_lengths: u32,
     transfer_encodings: u32,
+    upgrades: u32,
 }
 
 impl Framing {
@@ -124,19 +134,24 @@ impl Framing {
             if !value.eq_ignore_ascii_case(b"chunked") {
                 return Err(Refusal::Malformed);
             }
-        } else if name.eq_ignore_ascii_case(b"upgrade") && !value.eq_ignore_ascii_case(b"websocket")
-        {
+        } else if name.eq_ignore_ascii_case(b"upgrade") {
+            self.upgrades += 1;
             // An h2c upgrade through a proxy opens a tunnel past every rule here.
-            return Err(Refusal::Malformed);
+            if !value.eq_ignore_ascii_case(b"websocket") {
+                return Err(Refusal::Malformed);
+            }
         }
         Ok(())
     }
 
-    /// Exactly one Host, and at most one way of saying where the body ends.
-    fn check(&self, http10: bool) -> Result<(), Refusal> {
-        let one_framing = self.content_lengths + self.transfer_encodings <= 1;
-        let chunked_on_old = http10 && self.transfer_encodings > 0;
-        if self.hosts != 1 || !one_framing || chunked_on_old {
+    /// Exactly one Host, at most one way of saying where the body ends, and an upgrade only as a
+    /// WebSocket opens: one GET with no body on HTTP/1.1.
+    const fn check(&self, line: &RequestLine) -> Result<(), Refusal> {
+        let body_headers = self.content_lengths + self.transfer_encodings;
+        let chunked_on_old = line.is_http10 && self.transfer_encodings > 0;
+        let bad_upgrade = self.upgrades > 0
+            && (self.upgrades > 1 || !line.is_get || line.is_http10 || body_headers > 0);
+        if self.hosts != 1 || body_headers > 1 || chunked_on_old || bad_upgrade {
             return Err(Refusal::Malformed);
         }
         Ok(())
@@ -150,7 +165,7 @@ pub(crate) fn check_head(head: &[u8]) -> Result<(), Refusal> {
     let mut lines = body
         .split(|byte| *byte == b'\n')
         .map(|line| line.strip_suffix(b"\r").unwrap_or(line));
-    let http10 = check_request_line(lines.next().ok_or(Refusal::Malformed)?)?;
+    let request_line = check_request_line(lines.next().ok_or(Refusal::Malformed)?)?;
     let mut framing = Framing::default();
     for (count, line) in lines.enumerate() {
         if count >= MAX_HEADERS || line.contains(&b'\r') {
@@ -165,7 +180,7 @@ pub(crate) fn check_head(head: &[u8]) -> Result<(), Refusal> {
         }
         framing.see(name, trim_value(value))?;
     }
-    framing.check(http10)
+    framing.check(&request_line)
 }
 
 #[cfg(test)]

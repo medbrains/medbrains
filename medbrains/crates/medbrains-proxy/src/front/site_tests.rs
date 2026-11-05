@@ -35,27 +35,9 @@ fn names() -> anyhow::Result<Names> {
     Names::parse("medbrains.local\n10.0.0.5\n").ok_or_else(|| anyhow::anyhow!("no names"))
 }
 
-/// `resolve_client` from `medbrains-server-core/src/middleware/client_ip.rs`: what the server does
-/// with what this proxy sends. Copied rather than imported, as that crate is the whole server.
-fn server_resolves(direct: IpAddr, forwarded_for: Option<&str>, trusted: &[IpAddr]) -> IpAddr {
-    if !trusted.contains(&direct) {
-        return direct;
-    }
-    let Some(chain) = forwarded_for else {
-        return direct;
-    };
-    let mut client = direct;
-    for hop in chain.rsplit(',') {
-        let Ok(ip) = hop.trim().parse::<IpAddr>() else {
-            break;
-        };
-        client = ip;
-        if !trusted.contains(&ip) {
-            break;
-        }
-    }
-    client
-}
+/// The server's own rule: this is its source file, compiled here.
+#[path = "../../../medbrains-server-core/src/middleware/client_resolve.rs"]
+mod client_resolve;
 
 /// The value of a header, which must appear exactly once.
 fn single<'a>(req: &'a RequestHeader, name: &str) -> anyhow::Result<&'a str> {
@@ -116,7 +98,7 @@ fn a_site_with_its_own_name_keeps_it() -> anyhow::Result<()> {
 #[test]
 fn property_the_server_always_resolves_the_true_client() -> anyhow::Result<()> {
     let proxy: IpAddr = PROXY.parse()?;
-    let trusted = [proxy, "::1".parse()?];
+    let trusted: [ipnet::IpNet; 2] = ["127.0.0.1/32".parse()?, "::1/128".parse()?];
     let values = [
         "6.6.6.6",
         "127.0.0.1",
@@ -143,11 +125,9 @@ fn property_the_server_always_resolves_the_true_client() -> anyhow::Result<()> {
         let mut req = request("/", &pairs)?;
         set_forwarding(&mut req, client, "medbrains.local")?;
         let chain = single(&req, "x-forwarded-for")?;
-        assert_eq!(
-            server_resolves(proxy, Some(chain), &trusted),
-            client,
-            "{pairs:?}"
-        );
+        let real_ip = single(&req, "x-real-ip")?;
+        let resolved = client_resolve::resolve_client(proxy, Some(chain), Some(real_ip), &trusted);
+        assert_eq!(resolved, client, "{pairs:?}");
     }
     Ok(())
 }

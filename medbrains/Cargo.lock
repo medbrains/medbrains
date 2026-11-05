@@ -8120,6 +8120,7 @@ dependencies = [
  "anyhow",
  "async-trait",
  "bytes",
+ "ipnet",
  "pingora-core",
  "pingora-error",
  "pingora-http",

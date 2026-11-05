@@ -139,6 +139,29 @@ fn old_http_may_not_use_chunked_and_h2c_may_not_upgrade() {
 }
 
 #[test]
+fn only_a_websocket_open_may_upgrade() {
+    let upgrade = "Host: a\r\nConnection: Upgrade\r\nUpgrade: websocket";
+    for head in [
+        format!("POST /api/auth/login HTTP/1.1\r\n{upgrade}\r\nContent-Length: 100\r\n\r\n"),
+        format!("POST /api/auth/login HTTP/1.1\r\n{upgrade}\r\n\r\n"),
+        format!("PUT /x HTTP/1.1\r\n{upgrade}\r\n\r\n"),
+        format!("get /x HTTP/1.1\r\n{upgrade}\r\n\r\n"),
+        format!("GET /x HTTP/1.1\r\n{upgrade}\r\nContent-Length: 1\r\n\r\n"),
+        format!("GET /x HTTP/1.1\r\n{upgrade}\r\nTransfer-Encoding: chunked\r\n\r\n"),
+        format!("GET /x HTTP/1.1\r\n{upgrade}\r\nUpgrade: websocket\r\n\r\n"),
+        format!("GET /x HTTP/1.0\r\n{upgrade}\r\n\r\n"),
+    ] {
+        assert_eq!(
+            check_head(head.as_bytes()),
+            Err(Refusal::Malformed),
+            "{head}"
+        );
+    }
+    let open = format!("GET /x HTTP/1.1\r\n{upgrade}\r\n\r\n");
+    assert_eq!(check_head(open.as_bytes()), Ok(()));
+}
+
+#[test]
 fn too_many_headers_are_refused() {
     let many = "X: y\r\n".repeat(129);
     let head = format!("GET / HTTP/1.1\r\nHost: a\r\n{many}\r\n");
@@ -196,7 +219,7 @@ fn property_a_head_passes_only_with_unambiguous_framing() {
         let (mut hosts, mut lengths, mut encodings, mut clean) = (0, 0, 0, true);
         for _ in 0..rng.next() % 5 {
             let (name, value) = (rng.pick(&names), rng.pick(&values));
-            head.push_str(&format!("{name}: {value}\r\n"));
+            head += &[name, ": ", value, "\r\n"].concat();
             let trimmed = value.trim();
             match name.to_ascii_lowercase().as_str() {
                 "host" => {

@@ -1,4 +1,4 @@
-//! The MedBrains OS front: the only thing on the machine a stranger on the LAN can reach without
+//! The operating system's front: the only thing on the machine a stranger on the LAN can reach without
 //! signing in. TLS, the HTTP redirect, limits, the error page, and a reverse proxy to the server,
 //! built on Pingora. Class A code under `docs/OS-PRINCIPLES.md` section 7.
 //!
@@ -6,18 +6,10 @@
 //!
 //! Certificates come from `/usr/lib/medbrains/front-certs`, which runs as root before this starts.
 //! This process runs as its own user, holds only leaf keys, and can bind low ports and nothing more.
-#![forbid(unsafe_code)]
-#![deny(
-    clippy::unwrap_used,
-    clippy::expect_used,
-    clippy::panic,
-    clippy::todo,
-    clippy::unimplemented,
-    clippy::dbg_macro,
-    clippy::print_stdout,
-    clippy::print_stderr,
-    clippy::wildcard_imports
-)]
+// Workspace lints deny `unreachable_pub`, so items here are `pub(crate)`, which this lint then dislikes.
+#![allow(clippy::redundant_pub_crate)]
+// Both counters are held across a whole decision on purpose, and a rate does not need `mul_add`.
+#![allow(clippy::significant_drop_tightening, clippy::suboptimal_flops)]
 
 mod config;
 mod head;
@@ -108,8 +100,25 @@ impl Ports {
     }
 }
 
+/// The process's limit on open files, where `/proc` says.
+fn open_file_limit() -> Option<usize> {
+    let limits = std::fs::read_to_string("/proc/self/limits").ok()?;
+    let line = limits
+        .lines()
+        .find(|line| line.starts_with("Max open files"))?;
+    line.split_whitespace().nth(3)?.parse().ok()
+}
+
 /// Runs until systemd asks it to stop.
 async fn serve(config: Config) -> anyhow::Result<()> {
+    // Limits past the process's own would fail at the worst moment, for every port together.
+    if let Some(limit) = open_file_limit() {
+        let needed = config.fds_needed();
+        anyhow::ensure!(
+            needed <= limit,
+            "the limits need {needed} open files, and {limit} are allowed"
+        );
+    }
     let text = std::fs::read_to_string(&config.names_file)
         .with_context(|| format!("cannot read {}", config.names_file.display()))?;
     let names = Names::parse(&text).context("the names file holds no valid name")?;

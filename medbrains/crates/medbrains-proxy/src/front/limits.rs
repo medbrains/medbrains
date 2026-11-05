@@ -6,6 +6,16 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 use std::time::Instant;
 
+/// Who a limit counts: an IPv4 address, or an IPv6 /64. One machine on a LAN can hold a whole /64, so
+/// counting single IPv6 addresses would limit nothing.
+pub(crate) fn limit_key(address: IpAddr) -> IpAddr {
+    const SUBNET_MASK: u128 = !0 << 64;
+    match address {
+        IpAddr::V4(_) => address,
+        IpAddr::V6(v6) => IpAddr::V6((u128::from(v6) & SUBNET_MASK).into()),
+    }
+}
+
 /// Open connections on one listener, in total and per address.
 #[derive(Debug, Default)]
 struct Counts {
@@ -50,6 +60,7 @@ impl ConnectionGate {
     /// A place for a connection from `address`, or `None` if a limit is reached. The map holds at
     /// most `max_total` addresses, so it cannot grow without bound.
     pub(crate) fn admit(self: &Arc<Self>, address: IpAddr) -> Option<Permit> {
+        let address = limit_key(address);
         let mut counts = self.lock();
         let held = counts.by_address.get(&address).copied().unwrap_or(0);
         let over_address = self.max_per_address != 0 && held >= self.max_per_address;
@@ -118,6 +129,7 @@ impl RateLimiter {
     /// addresses still spending tokens, a new address is refused: a limit that fails open stops
     /// nothing during exactly the attack it exists for.
     pub(crate) fn allow(&self, address: IpAddr, now: Instant) -> bool {
+        let address = limit_key(address);
         let mut buckets = self.buckets.lock().unwrap_or_else(PoisonError::into_inner);
         if buckets.len() >= MAX_TRACKED && !buckets.contains_key(&address) {
             let (burst, rate) = (self.burst, self.per_second);
@@ -164,6 +176,26 @@ mod tests {
         assert!(gate.admit(B).is_some(), "another address still gets in");
         assert_eq!(gate.take_refused(), 1);
         assert_eq!(gate.take_refused(), 0);
+    }
+
+    #[test]
+    fn one_ipv6_subnet_counts_as_one_address() -> anyhow::Result<()> {
+        let gate = ConnectionGate::new(10, 2);
+        let held = [
+            gate.admit("2001:db8:1:1::1".parse()?),
+            gate.admit("2001:db8:1:1:ffff::9".parse()?),
+        ];
+        assert!(held.iter().all(Option::is_some));
+        assert!(gate.admit("2001:db8:1:1::3".parse()?).is_none(), "same /64");
+        assert!(
+            gate.admit("2001:db8:1:2::1".parse()?).is_some(),
+            "another /64"
+        );
+        let limiter = RateLimiter::new(1, 1);
+        let now = Instant::now();
+        assert!(limiter.allow("2001:db8:1:1::1".parse()?, now));
+        assert!(!limiter.allow("2001:db8:1:1::2".parse()?, now), "same /64");
+        Ok(())
     }
 
     #[test]
