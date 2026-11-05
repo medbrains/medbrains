@@ -17,7 +17,7 @@ WEB="${JOIN_WEB_PORT:-8450}"
 
 LAN="-device virtio-net-pci,netdev=lan,mac=52:54:00:4a:00"
 MAIN_NET="-netdev socket,id=lan,listen=127.0.0.1:$WIRE $LAN:01"
-MAIN_NET+=" -netdev user,id=net0,hostfwd=tcp:127.0.0.1:$WEB-:443 -device virtio-net-pci,netdev=net0"
+MAIN_NET+=" -netdev user,id=net0,hostfwd=tcp:127.0.0.1:$WEB-:443,hostfwd=udp:127.0.0.1:${JOIN_FLOOD_PORT:-8453}-:7844 -device virtio-net-pci,netdev=net0"
 NODE_NET="-netdev socket,id=lan,connect=127.0.0.1:$WIRE $LAN:02"
 
 OS_WORK="$ROOT/main" OS_NET_ARGS="$MAIN_NET" "$OS/qemu-run.sh" --fresh "$IMAGE" &

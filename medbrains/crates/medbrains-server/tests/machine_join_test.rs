@@ -326,3 +326,73 @@ async fn a_full_list_lets_the_newest_in_and_stays_bounded() {
     .expect("count");
     assert!(kept <= 50, "the record of what went has a ceiling: {kept}");
 }
+
+/// A machine's key is for its own main machine. On the phones' and edge boxes' roster it would be a
+/// peer they admit, which nobody asked for.
+#[tokio::test]
+async fn a_machine_key_stays_off_the_peer_roster() {
+    let app = common::spawn_app().await;
+    let _turn = own_the_list(&app.db).await;
+    let csrf = app.login_admin().await;
+    let tenant = admin_tenant(&app.db).await;
+    let (id, node_id) = waiting_machine(&app.db, tenant, "135790").await;
+    let approved = app
+        .client
+        .post(app.url(&format!("/api/admin/machines/requests/{id}/approve")))
+        .header("x-csrf-token", &csrf)
+        .json(&serde_json::json!({ "code": "135790" }))
+        .send()
+        .await
+        .expect("sends");
+    assert_eq!(approved.status().as_u16(), 200);
+    assert_eq!(live_keys(&app.db, &node_id).await, 1);
+    let roster: serde_json::Value = app
+        .client
+        .get(app.url("/api/device-pairing/peer-roster"))
+        .header("x-csrf-token", &csrf)
+        .send()
+        .await
+        .expect("sends")
+        .json()
+        .await
+        .expect("json");
+    assert!(!roster.to_string().contains(&node_id), "a machine's key must not be listed");
+}
+
+/// Seeing the second code is a step in letting a machine in, so it leaves a trail.
+#[tokio::test]
+async fn showing_the_second_code_is_audited() {
+    let app = common::spawn_app().await;
+    let _turn = own_the_list(&app.db).await;
+    let csrf = app.login_admin().await;
+    let tenant = admin_tenant(&app.db).await;
+    let (id, _) = waiting_machine(&app.db, tenant, "112233").await;
+    let approved: serde_json::Value = app
+        .client
+        .post(app.url(&format!("/api/admin/machines/requests/{id}/approve")))
+        .header("x-csrf-token", &csrf)
+        .json(&serde_json::json!({ "code": "112233" }))
+        .send()
+        .await
+        .expect("sends")
+        .json()
+        .await
+        .expect("json");
+    let device: Uuid = approved["id"].as_str().and_then(|v| v.parse().ok()).expect("the machine's id");
+    let shown = app
+        .client
+        .post(app.url(&format!("/api/admin/machines/{device}/confirm-code")))
+        .header("x-csrf-token", &csrf)
+        .send()
+        .await
+        .expect("sends");
+    assert_eq!(shown.status().as_u16(), 200);
+    let rows: i64 = sqlx::query_scalar(
+        "SELECT count(*) FROM audit_log WHERE action = 'machine.confirm_code_shown' AND entity_id = $1",
+    )
+    .bind(device)
+    .fetch_one(&app.db)
+    .await
+    .expect("count");
+    assert_eq!(rows, 1);
+}

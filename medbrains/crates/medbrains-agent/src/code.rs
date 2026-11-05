@@ -3,8 +3,11 @@
 //! A hash of the two keys alone would not catch a fake main machine: six digits are a million
 //! tries, and an attacker could grind a key whose code matches in about a second. So each side
 //! also adds a random nonce, and the node commits to its nonce before it sees the main machine's.
-//! Neither side can then choose a key or nonce that steers the code, so a machine in the middle
-//! gets one try in a million. Pure, so all of it is tested.
+//! Neither side can then choose a key or nonce that steers the code, so each try is one in a million.
+//! But tries can be repeated: someone holding a node on one code can start handshakes with the real
+//! main machine and leave quietly on a miss, testing a guess each time. The gateway counts those
+//! across all addresses and pauses joining past a limit, which is what bounds the total. Pure, so all
+//! of it is tested.
 
 use sha2::{Digest, Sha256};
 

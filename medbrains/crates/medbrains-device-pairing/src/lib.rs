@@ -38,6 +38,7 @@ pub mod counter_display;
 pub mod counter_display_routes;
 pub mod device_code;
 pub mod machine_agent;
+pub mod machine_sync;
 pub mod machines;
 use chrono::{DateTime, Duration, Utc};
 use medbrains_core::peer_sync::{PeerBinding, PeerRosterDoc, PeerRosterEntry};
@@ -806,6 +807,7 @@ pub async fn get_peer_roster(
          FROM device_node_keys k \
          JOIN paired_devices d ON d.id = k.paired_device_id \
          WHERE k.tenant_id = $1 AND k.revoked_at IS NULL AND d.revoked_at IS NULL \
+           AND d.app_variant NOT IN ('Desktop-Workstation', 'Desktop-Display') \
          ORDER BY k.node_id",
     )
     .bind(claims.tenant_id)

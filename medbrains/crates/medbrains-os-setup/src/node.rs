@@ -1,6 +1,7 @@
 //! Becoming a node: what setup does once a person has approved this machine on the main machine.
 
 use std::fs;
+use std::io::Write;
 
 use crate::machine::{PUBLIC_FILE_MODE, ROLE_NODE, output, write_atomically};
 use crate::{rules, status};
@@ -13,6 +14,14 @@ const JOINED_FILE: &str = "/var/lib/medbrains-agent/joined.json";
 /// name would stay hidden behind the bind mount.
 pub(crate) const SCREEN_CERTIFICATE: &str = "/var/lib/medbrains-settings/local-front.pem";
 
+/// Writes a file in place and to the disk, so a power cut can't leave a durable role marker beside an
+/// empty trust store and a screen that can never reach its main machine.
+fn write_durably(path: &str, contents: &str) -> std::io::Result<()> {
+    let mut file = fs::OpenOptions::new().write(true).truncate(true).open(path)?;
+    file.write_all(contents.as_bytes())?;
+    file.sync_all()
+}
+
 /// Makes this machine a node, once the agent says a person approved it. The role goes down last,
 /// so a power cut before it leaves a machine that simply asks again.
 pub(crate) fn finish_node() -> Result<(), String> {
@@ -23,7 +32,7 @@ pub(crate) fn finish_node() -> Result<(), String> {
     })?;
     let certificate = rules::joined_certificate(&joined)
         .ok_or_else(|| "The main machine's answer could not be used. Ask to join again.".to_owned())?;
-    fs::write(SCREEN_CERTIFICATE, certificate).map_err(|e| e.to_string())?;
+    write_durably(SCREEN_CERTIFICATE, &certificate).map_err(|e| e.to_string())?;
     if let Some(hospital) = rules::joined_hospital(&joined) {
         write_atomically(status::HOSPITAL_NAME, hospital.as_bytes(), PUBLIC_FILE_MODE)?;
     }

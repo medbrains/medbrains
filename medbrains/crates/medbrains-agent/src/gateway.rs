@@ -10,22 +10,17 @@ use anyhow::{Context, bail};
 use iroh::Endpoint;
 use iroh::endpoint::{Connection, Incoming};
 use medbrains_core::peer_sync::PeerRosterDoc;
-use medbrains_edge::iroh_transport::{PeerGatekeeper, close_when_refused};
+use medbrains_edge::iroh_transport::PeerGatekeeper;
 use medbrains_edge::peer_admission::{Admission, RefusalReason, refusal_message};
 use medbrains_edge::peer_roster::PeerRoster;
-use tokio::io::BufReader;
 use tokio::net::UdpSocket;
 use tokio::sync::{Semaphore, watch};
 use uuid::Uuid;
 
-use crate::code::{commitment, confirm_code, join_code, new_nonce};
-use crate::hospital::{Filing, Hospital, Seen};
+use crate::hospital::{GivenUpReport, Hospital, Seen};
 use crate::limits::AddressLimits;
 use crate::time;
-use crate::wire::{
-    CLOSE_GRACE, Hello, JOIN_ALPN, JoinState, NonceFrame, StatusFrame, TIME_ALPN, TUNNEL_ALPN,
-    read_frame, write_frame,
-};
+use crate::wire::{JOIN_ALPN, TIME_ALPN, TUNNEL_ALPN};
 
 /// How often the agent asks the server who may be connected, which bounds how long a removed
 /// machine keeps an open session. On loopback, so this costs next to nothing.
@@ -34,6 +29,28 @@ const SYNC_EVERY: Duration = Duration::from_secs(2);
 const STATUS_EVERY: Duration = Duration::from_secs(2);
 /// A machine that opens a connection and says nothing is dropped after this.
 const HANDSHAKE_TIMEOUT: Duration = Duration::from_secs(10);
+/// Connections one address may have between arriving and being admitted or filed, and how many it
+/// may start a minute. Checked before any handshake work is spent on it.
+const MAX_ARRIVING_PER_ADDRESS: u32 = 16;
+const MAX_ARRIVALS_PER_MINUTE: u32 = 120;
+/// Connections at that stage across every address, so a flood costs a bounded amount of memory. Past
+/// this they are refused at the door, and machines already connected are not touched.
+const MAX_ARRIVING: usize = 128;
+/// Join conversations one address may hold at once. A real machine holds one.
+const MAX_JOINING_PER_ADDRESS: u32 = 3;
+/// Join conversations one address may start a minute. A person retrying stays well under this.
+const MAX_JOINS_PER_MINUTE: u32 = 10;
+/// How long a count of handshakes given up on stays against the limit below.
+const GIVEN_UP_WINDOW: Duration = Duration::from_secs(600);
+/// Handshakes given up on, from anywhere, before joining pauses. Someone guessing a code tests it
+/// after seeing this machine's nonce and leaves quietly on a miss, so each of these is one guess.
+/// With a request living ten minutes, this keeps a guesser near six in a hundred thousand, however
+/// many addresses they have. The cost is that a guesser can pause joining, which Machines says.
+const MAX_GIVEN_UP: u32 = 60;
+/// How often a count of given-up handshakes is reported, so a flood can't flood the audit log.
+const GIVEN_UP_REPORT_EVERY: Duration = Duration::from_secs(30);
+/// Connections one machine may hold: its screen, its clock, and a few left over from a bad network.
+const MAX_CONNECTIONS_PER_MACHINE: usize = 8;
 /// Join handshakes at once across every address. Each lasts at most `HANDSHAKE_TIMEOUT`, and a
 /// conversation gives its slot back once its request is filed, because the server bounds those.
 const MAX_JOINING: usize = 64;
@@ -44,6 +61,8 @@ pub(crate) const WHOAMI_SIZE: usize = 256;
 const CLOSE_REFUSED: u32 = 1;
 /// A fault, not a refusal: this machine cannot say who is admitted right now.
 const CLOSE_UNKNOWN: u32 = 2;
+const TOO_MANY_CONNECTIONS: &str = "this machine holds too many connections";
+const JOINING_PAUSED: &str = "joining is paused on this main machine";
 const UNKNOWN_MESSAGE: &str = "the main machine cannot check admissions right now";
 /// How long the agent keeps trusting its roster with the server not answering. Past this it cannot
 /// know who has been removed, so it closes every session and admits nobody until it hears again.
@@ -106,10 +125,18 @@ pub(crate) struct Gateway {
     pub(crate) front: SocketAddr,
     gate: Arc<RosterGate>,
     changes: watch::Sender<()>,
-    live: Mutex<HashMap<String, Connection>>,
+    /// Every open connection per machine: its screen and its clock are separate ones.
+    live: Mutex<HashMap<String, Vec<Connection>>>,
     name: RwLock<String>,
     joining: Semaphore,
     limits: Arc<AddressLimits>,
+    /// Per address, from a connection's arrival until it is admitted or filed.
+    arrivals: Arc<AddressLimits>,
+    arriving: Arc<Semaphore>,
+    given_up: Mutex<GivenUp>,
+    /// One sync at a time, so an old answer can never land after a newer one and bring back a key
+    /// the newer one removed.
+    sync_lock: tokio::sync::Mutex<()>,
     /// When the server last answered a sync.
     last_sync: Mutex<Instant>,
     /// When a stranger last caused a sync. Holding this lock is the single flight.
@@ -148,7 +175,11 @@ impl Gateway {
             live: Mutex::default(),
             name: RwLock::default(),
             joining: Semaphore::new(MAX_JOINING),
-            limits: Arc::default(),
+            limits: AddressLimits::new(MAX_JOINING_PER_ADDRESS, MAX_JOINS_PER_MINUTE),
+            arrivals: AddressLimits::new(MAX_ARRIVING_PER_ADDRESS, MAX_ARRIVALS_PER_MINUTE),
+            arriving: Arc::new(Semaphore::new(MAX_ARRIVING)),
+            given_up: Mutex::new(GivenUp::new(Instant::now())),
+            sync_lock: tokio::sync::Mutex::new(()),
             last_sync: Mutex::new(Instant::now()),
             stranger_sync: tokio::sync::Mutex::new(None),
             streams: Mutex::default(),
@@ -159,15 +190,10 @@ impl Gateway {
     /// Reports who is connected and takes in who may be; any open session no longer admitted
     /// is then closed by its own watcher.
     async fn sync(&self) -> anyhow::Result<()> {
-        let connected: Vec<Seen> = {
-            let mut live = self.live.lock().unwrap_or_else(PoisonError::into_inner);
-            live.retain(|_, conn| conn.close_reason().is_none());
-            live.iter().map(|(node_id, conn)| Seen {
-                node_id: node_id.clone(),
-                address: machine_source(conn.remote_id().as_bytes()).to_string(),
-            }).collect()
-        };
-        let synced = self.hospital.sync(&connected).await?;
+        let _one_at_a_time = self.sync_lock.lock().await;
+        let connected = self.connected_now();
+        let report = self.given_up_report();
+        let synced = self.hospital.sync(&connected, report).await?;
         *self.last_sync.lock().unwrap_or_else(PoisonError::into_inner) = Instant::now();
         self.gate.replace(&synced.roster);
         self.streams
@@ -178,6 +204,31 @@ impl Gateway {
         *self.name.write().unwrap_or_else(PoisonError::into_inner) = synced.hospital;
         self.changes.send_replace(());
         Ok(())
+    }
+
+    /// The machines with an open connection, forgetting those that have gone.
+    fn connected_now(&self) -> Vec<Seen> {
+        let mut live = self.live.lock().unwrap_or_else(PoisonError::into_inner);
+        live.retain(|_, conns| {
+            conns.retain(|conn| conn.close_reason().is_none());
+            !conns.is_empty()
+        });
+        live.iter()
+            .filter_map(|(node_id, conns)| {
+                let key = conns.first()?.remote_id();
+                Some(Seen {
+                    node_id: node_id.clone(),
+                    address: machine_source(key.as_bytes()).to_string(),
+                })
+            })
+            .collect()
+    }
+
+    /// What the server should record about handshakes given up on, if anything is due.
+    fn given_up_report(&self) -> GivenUpReport {
+        let now = Instant::now();
+        let mut given_up = self.given_up.lock().unwrap_or_else(PoisonError::into_inner);
+        GivenUpReport { count: given_up.due(now), paused: given_up.paused(now) }
     }
 
     /// One round of keeping the roster current. A server silent for too long means a removal could
@@ -193,7 +244,7 @@ impl Gateway {
         }
         self.gate.clear();
         let live = self.live.lock().unwrap_or_else(PoisonError::into_inner);
-        for conn in live.values() {
+        for conn in live.values().flatten() {
             conn.close(CLOSE_UNKNOWN.into(), UNKNOWN_MESSAGE.as_bytes());
         }
         drop(live);
@@ -208,95 +259,19 @@ impl Gateway {
         }
     }
 
-    /// Accepts connections for as long as the agent runs: the one loop meant never to end.
-    pub(crate) async fn accept_forever(self: Arc<Self>) {
-        while let Some(incoming) = self.endpoint.accept().await {
-            let this = Arc::clone(&self);
-            tokio::spawn(async move {
-                if let Err(error) = this.serve(incoming).await {
-                    tracing::info!(%error, "connection ended");
-                }
-            });
-        }
-    }
-
     /// One accepted connection, by what it asks to speak.
-    async fn serve(&self, incoming: Incoming) -> anyhow::Result<()> {
+    async fn serve(self: &Arc<Self>, incoming: Incoming, arrival: Arrival) -> anyhow::Result<()> {
         let address = source_address(&incoming);
-        let conn = incoming.await.context("handshake")?;
+        let conn = tokio::time::timeout(HANDSHAKE_TIMEOUT, incoming)
+            .await
+            .context("silent")?
+            .context("handshake")?;
         if conn.alpn() == JOIN_ALPN {
-            self.serve_join(&conn, address).await
+            self.serve_join(&conn, address, arrival).await
         } else if conn.alpn() == TUNNEL_ALPN || conn.alpn() == TIME_ALPN {
-            self.serve_admitted(conn).await
+            self.serve_admitted(conn, arrival).await
         } else {
             bail!("an unknown protocol")
-        }
-    }
-
-    /// The handshake: commit, nonces, reveal. Returns what to file. Every step has a time limit.
-    async fn hear_request(
-        &self,
-        conn: &Connection,
-        address: IpAddr,
-        send: &mut iroh::endpoint::SendStream,
-        reader: &mut BufReader<iroh::endpoint::RecvStream>,
-    ) -> anyhow::Result<Filing> {
-        let hello: Hello =
-            tokio::time::timeout(HANDSHAKE_TIMEOUT, read_frame(reader)).await.context("silent")??;
-        let label = clean_label(&hello.name).context("no usable name")?;
-        let main_nonce = new_nonce()?;
-        write_frame(send, &NonceFrame { nonce: hex::encode(main_nonce) }).await?;
-        let reveal: NonceFrame =
-            tokio::time::timeout(HANDSHAKE_TIMEOUT, read_frame(reader)).await.context("silent")??;
-        let node_nonce = decode_32(&reveal.nonce)?;
-        if hex::encode(commitment(&node_nonce)) != hello.commitment {
-            bail!("the nonce does not match its commitment");
-        }
-        let node = conn.remote_id();
-        let main = self.endpoint.id();
-        let code = join_code(main.as_bytes(), node.as_bytes(), &main_nonce, &node_nonce);
-        let confirm_code = confirm_code(main.as_bytes(), node.as_bytes(), &main_nonce, &node_nonce);
-        Ok(Filing {
-            node_id: node.to_string(),
-            address: address.to_string(),
-            label,
-            kind: hello.kind,
-            code,
-            confirm_code,
-        })
-    }
-
-    /// One join conversation, from the node's commitment until its request is decided.
-    async fn serve_join(&self, conn: &Connection, address: IpAddr) -> anyhow::Result<()> {
-        let _place = self.limits.enter(address, Instant::now()).context("this address has had its share")?;
-        let slot = self.joining.try_acquire().context("too many machines joining")?;
-        let (mut send, recv) =
-            tokio::time::timeout(HANDSHAKE_TIMEOUT, conn.accept_bi()).await.context("silent")??;
-        let mut reader = BufReader::new(recv);
-        let filing = self.hear_request(conn, address, &mut send, &mut reader).await?;
-        let mut answer = self.hospital.file_join(&filing).await?;
-        drop(slot);
-        loop {
-            write_frame(&mut send, &self.status(answer.state)).await?;
-            if answer.state.is_final() {
-                send.finish().context("finish")?;
-                // Long enough for it to read this; its address's place must not be held for ever.
-                drop(tokio::time::timeout(CLOSE_GRACE, conn.closed()).await);
-                return Ok(());
-            }
-            tokio::time::sleep(STATUS_EVERY).await;
-            answer = self.hospital.join_state(&filing.node_id).await?;
-        }
-    }
-
-    /// What a machine is told. The certificate goes only to an approved one.
-    fn status(&self, state: JoinState) -> StatusFrame {
-        let approved = state == JoinState::Approved;
-        let name = self.name.read().unwrap_or_else(PoisonError::into_inner);
-        StatusFrame {
-            state,
-            hospital: approved.then(|| name.clone()),
-            certificate: approved.then(|| self.certificate.clone()),
         }
     }
 
@@ -342,11 +317,42 @@ impl Gateway {
         }
     }
 
+    /// Remembers an admitted connection, or `false` if this machine already holds its share.
+    fn add_live(&self, node_id: &str, conn: &Connection) -> bool {
+        let mut live = self.live.lock().unwrap_or_else(PoisonError::into_inner);
+        let conns = live.entry(node_id.to_owned()).or_default();
+        conns.retain(|held| held.close_reason().is_none());
+        if conns.len() >= MAX_CONNECTIONS_PER_MACHINE {
+            return false;
+        }
+        conns.push(conn.clone());
+        true
+    }
+
+    /// Re-checks a connection each time the roster may have changed, and closes it the first time
+    /// the answer is not yes, saying which: refused, or not able to tell.
+    async fn close_when_not_admitted(self: Arc<Self>, conn: Connection, node_id: String) {
+        let mut changes = self.changes.subscribe();
+        while changes.changed().await.is_ok() {
+            match self.verdict(&node_id) {
+                Verdict::Admit(_) => {}
+                Verdict::Refuse => {
+                    conn.close(CLOSE_REFUSED.into(), refusal_message().as_bytes());
+                    return;
+                }
+                Verdict::Unknown => {
+                    conn.close(CLOSE_UNKNOWN.into(), UNKNOWN_MESSAGE.as_bytes());
+                    return;
+                }
+            }
+        }
+    }
+
     /// Serves an admitted machine, its screen or its clock, until it is closed or refused.
-    async fn serve_admitted(&self, conn: Connection) -> anyhow::Result<()> {
+    async fn serve_admitted(self: &Arc<Self>, conn: Connection, arrival: Arrival) -> anyhow::Result<()> {
         let node_id = conn.remote_id().to_string();
-        let tenant = match self.tunnel_admission(&node_id).await {
-            Verdict::Admit(tenant) => tenant,
+        match self.tunnel_admission(&node_id).await {
+            Verdict::Admit(_) => {}
             Verdict::Refuse => {
                 conn.close(CLOSE_REFUSED.into(), refusal_message().as_bytes());
                 return Ok(());
@@ -355,19 +361,14 @@ impl Gateway {
                 conn.close(CLOSE_UNKNOWN.into(), UNKNOWN_MESSAGE.as_bytes());
                 return Ok(());
             }
-        };
-        self.live
-            .lock()
-            .unwrap_or_else(PoisonError::into_inner)
-            .insert(node_id.clone(), conn.clone());
-        let gate: Arc<dyn PeerGatekeeper> = Arc::<RosterGate>::clone(&self.gate);
-        let watcher = tokio::spawn(close_when_refused(
-            gate,
-            conn.clone(),
-            node_id,
-            tenant,
-            self.changes.subscribe(),
-        ));
+        }
+        // Admitted: its place at the door goes back, and its own limits apply from here.
+        drop(arrival);
+        if !self.add_live(&node_id, &conn) {
+            conn.close(CLOSE_REFUSED.into(), TOO_MANY_CONNECTIONS.as_bytes());
+            return Ok(());
+        }
+        let watcher = tokio::spawn(Arc::clone(self).close_when_not_admitted(conn.clone(), node_id));
         if conn.alpn() == TIME_ALPN {
             time::serve_main(&conn).await;
         } else {
@@ -416,22 +417,18 @@ pub(crate) fn whoami_reply(id: &str, name: &str) -> String {
     }
 }
 
-/// A name fit for a list on an administrator's screen, or `None`.
-fn clean_label(name: &str) -> Option<String> {
-    let cleaned: String = name.chars().filter(|c| !c.is_control()).take(MAX_LABEL).collect();
-    let cleaned = cleaned.trim();
-    (!cleaned.is_empty()).then(|| cleaned.to_owned())
-}
-
 /// A 32-byte value from hex.
 pub(crate) fn decode_32(value: &str) -> anyhow::Result<[u8; 32]> {
     hex::decode(value)?.try_into().map_err(|_| anyhow::anyhow!("not 32 bytes"))
 }
 
+mod door;
 mod front;
+mod join;
 #[cfg(test)]
 mod attack_tests;
 #[cfg(test)]
 mod tests;
 
+use door::{Arrival, GivenUp};
 pub(crate) use front::machine_source;

@@ -3874,8 +3874,9 @@ pub mod devices {
     pub mod machines {
         /// See machines and their join requests.
         ///
-        /// Lists the machines waiting to join with their codes, and every
-        /// joined machine with its name, type, status and when it was last seen.
+        /// Lists the machines waiting to join, and every joined machine with
+        /// its name, type, status and when it was last seen. It does not show
+        /// the code a person must read from a machine's own screen.
         pub const VIEW: &str = "devices.machines.view";
         /// Approve or reject a machine that asks to join.
         ///

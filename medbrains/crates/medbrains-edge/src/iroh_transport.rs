@@ -190,7 +190,7 @@ pub async fn serve_connection(
 
 /// Re-admit the peer each time the roster may have changed, and close its
 /// connection the first time it is refused.
-pub async fn close_when_refused(
+async fn close_when_refused(
     gate: Arc<dyn PeerGatekeeper>,
     conn: Connection,
     node_id: String,

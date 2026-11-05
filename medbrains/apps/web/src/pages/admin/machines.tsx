@@ -346,6 +346,20 @@ export function MachinesPage() {
           Could not load the machines, so this does not mean there are none.
         </Alert>
       )}
+      {list.isSuccess && list.data.joining_paused && (
+        <Alert tone="danger">
+          New machines can't join for now. Too many attempts stopped partway, which is what guessing
+          a join code looks like. It starts again by itself within ten minutes. Find what is doing
+          this on your network.
+        </Alert>
+      )}
+      {list.isSuccess && !list.data.joining_paused && list.data.given_up > 0 && (
+        <Alert tone="warning">
+          {list.data.given_up} join attempts stopped partway in the last ten minutes. A few may be a
+          machine restarting. Many may be something on your network guessing a join code, so be sure
+          of the digits you type.
+        </Alert>
+      )}
       {list.isSuccess && (
         <>
           <WaitingCard waiting={list.data.waiting} canApprove={canApprove} />

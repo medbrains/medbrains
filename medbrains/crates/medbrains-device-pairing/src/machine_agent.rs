@@ -7,7 +7,6 @@ use axum::http::HeaderMap;
 use axum::routing::{get, post};
 use axum::Json;
 use chrono::{DateTime, Duration, Utc};
-use medbrains_core::peer_sync::{PeerBinding, PeerRosterDoc, PeerRosterEntry};
 use medbrains_kernel::{Actor, Tx, begin};
 use medbrains_server_core::error::AppError;
 use medbrains_server_core::state::AppState;
@@ -82,7 +81,7 @@ fn agent_token_matches(configured: Option<&str>, presented: Option<&str>) -> boo
 }
 
 /// Refuses anything but the agent on this box. The answer says nothing about why.
-fn require_agent(headers: &HeaderMap) -> Result<(), AppError> {
+pub(crate) fn require_agent(headers: &HeaderMap) -> Result<(), AppError> {
     let configured = std::env::var(TOKEN_ENV).ok();
     let presented = headers.get(TOKEN_HEADER).and_then(|v| v.to_str().ok());
     if agent_token_matches(configured.as_deref(), presented) {
@@ -94,7 +93,7 @@ fn require_agent(headers: &HeaderMap) -> Result<(), AppError> {
 
 /// The hospital this box serves, only when there is exactly one, with its name. This is where the
 /// tenant comes from: never from a machine, and never by picking among several.
-async fn this_hospital(db: &sqlx::PgPool) -> Result<(Uuid, String), AppError> {
+pub(crate) async fn this_hospital(db: &sqlx::PgPool) -> Result<(Uuid, String), AppError> {
     let mut rows = sqlx::query!("SELECT id, name FROM tenants WHERE is_active = true LIMIT 2")
         .fetch_all(db)
         .await?;
@@ -105,7 +104,7 @@ async fn this_hospital(db: &sqlx::PgPool) -> Result<(Uuid, String), AppError> {
 }
 
 /// Who the agent's work runs as: this hospital, and no person.
-const fn agent_actor(tenant_id: Uuid) -> Actor {
+pub(crate) const fn agent_actor(tenant_id: Uuid) -> Actor {
     Actor { tenant_id, user_id: Uuid::nil() }
 }
 
@@ -278,94 +277,12 @@ pub async fn get_join_state(
     Ok(Json(JoinAnswer { state: answer }))
 }
 
-/// `POST /api/machine-agent/sync`'s body.
-#[derive(Debug, Deserialize)]
-pub struct SyncBody {
-    /// The machines with an open tunnel right now.
-    #[serde(default)]
-    pub connected: Vec<SeenMachine>,
-}
-
-/// One connected machine, as the agent reports it.
-#[derive(Debug, Deserialize)]
-pub struct SeenMachine {
-    pub node_id: String,
-    /// The loopback address its connections reach the front end from. Recorded on the machine, so
-    /// that address in the audit log names it.
-    pub address: std::net::IpAddr,
-}
-
-/// `POST /api/machine-agent/sync`'s answer.
-#[derive(Debug, Serialize)]
-pub struct SyncAnswer {
-    pub hospital: String,
-    pub roster: PeerRosterDoc,
-}
-
-/// `POST /api/machine-agent/sync`: records who is connected, and answers with who may be. Only keys
-/// a person approved through the join, so no other route onto `device_node_keys` opens a tunnel.
-pub async fn agent_sync(
-    State(state): State<AppState>,
-    headers: HeaderMap,
-    Json(body): Json<SyncBody>,
-) -> Result<Json<SyncAnswer>, AppError> {
-    require_agent(&headers)?;
-    let db = &state.db;
-    let (tenant, hospital) = this_hospital(db).await?;
-    let mut tx = begin(&state.db, agent_actor(tenant)).await?;
-    if !body.connected.is_empty() {
-        let keys: Vec<String> = body.connected.iter().map(|seen| seen.node_id.clone()).collect();
-        let addresses: Vec<String> = body.connected.iter().map(|seen| seen.address.to_string()).collect();
-        sqlx::query!(
-            "WITH seen AS (UPDATE device_node_keys k SET last_seen_at = now() \
-               FROM unnest($2::text[], $3::text[]) AS reported(node_id, address) \
-               WHERE k.tenant_id = $1 AND k.node_id = reported.node_id AND k.revoked_at IS NULL \
-               RETURNING k.paired_device_id, reported.address) \
-             UPDATE paired_devices d SET last_seen_at = now(), last_seen_ip = seen.address::inet \
-               FROM seen WHERE d.id = seen.paired_device_id",
-            tenant,
-            keys.as_slice(),
-            addresses.as_slice(),
-        )
-        .execute(&mut *tx)
-        .await?;
-    }
-    let rows = sqlx::query!(
-        "SELECT k.node_id, k.paired_device_id, d.app_variant \
-           FROM device_node_keys k JOIN paired_devices d ON d.id = k.paired_device_id \
-           JOIN device_pairing_requests r ON r.paired_device_id = d.id AND r.node_id = k.node_id \
-          WHERE k.tenant_id = $1 AND k.revoked_at IS NULL AND d.revoked_at IS NULL \
-            AND d.app_variant IN ('Desktop-Workstation', 'Desktop-Display') \
-            AND r.status = 'claimed' \
-          ORDER BY k.node_id LIMIT 5000",
-        tenant,
-    )
-    .fetch_all(&mut *tx)
-    .await?;
-    tx.commit().await?;
-    let peers = rows.into_iter().map(|row| PeerRosterEntry {
-        node_id: row.node_id,
-        binding: PeerBinding {
-            paired_device_id: row.paired_device_id,
-            tenant_id: tenant,
-            app_variant: row.app_variant,
-            revoked: false,
-        },
-    });
-    let roster = PeerRosterDoc {
-        tenant_id: tenant,
-        issued_at: Utc::now().timestamp(),
-        peers: peers.collect(),
-    };
-    Ok(Json(SyncAnswer { hospital, roster }))
-}
-
 /// The agent's routes. Public to the router; each checks the token only this box's agent holds.
 pub fn router() -> axum::Router<AppState> {
     axum::Router::new()
         .route("/api/machine-agent/join", post(file_join))
         .route("/api/machine-agent/join/{node_id}", get(get_join_state))
-        .route("/api/machine-agent/sync", post(agent_sync))
+        .route("/api/machine-agent/sync", post(crate::machine_sync::agent_sync))
 }
 
 #[cfg(test)]

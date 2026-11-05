@@ -6076,6 +6076,8 @@ export interface MachineList {
   waiting: WaitingMachine[];
   machines: JoinedMachine[];
   dropped: DroppedRequest[];
+  given_up: number;
+  joining_paused: boolean;
 }
 
 /** What the QR on a printed prescription resolves to. */

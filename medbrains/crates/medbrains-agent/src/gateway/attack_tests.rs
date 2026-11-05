@@ -17,7 +17,7 @@ use super::tests::{
 use super::{Gateway, Verdict, WHOAMI_SIZE, whoami_reply};
 use crate::hospital::Hospital;
 use crate::node::{Joined, Node};
-use crate::wire::{JoinState, Kind, TUNNEL_ALPN};
+use crate::wire::{Hello, JOIN_ALPN, JoinState, Kind, NonceFrame, TIME_ALPN, TUNNEL_ALPN, read_frame, write_frame};
 
 /// The review's attack. A fake main machine answers "approved" at once, with its own certificate.
 /// The node must save nothing, trust nothing and open nothing until a person types the digits from
@@ -181,5 +181,122 @@ async fn a_full_list_still_takes_a_typed_address() -> anyhow::Result<()> {
     assert_eq!(found.id, addr.id.to_string());
     assert!(node.found().iter().any(|entry| entry.id == found.id));
     assert_eq!(node.found().len(), 32);
+    Ok(())
+}
+
+/// A slow answer must not land after a newer one, or a removed key comes back for a while.
+#[tokio::test]
+async fn an_old_sync_answer_cannot_bring_back_a_removed_key() -> anyhow::Result<()> {
+    let server = FakeServer::new(Uuid::new_v4(), JoinState::Pending);
+    let (gateway, _addr) = gateway(Arc::clone(&server)).await?;
+    server.set_admitted(&["node".to_owned()]);
+    server.slow_once.store(true, Ordering::SeqCst);
+    let slow = Arc::clone(&gateway);
+    let first = tokio::spawn(async move { slow.sync().await });
+    tokio::time::sleep(Duration::from_millis(100)).await;
+    server.set_admitted(&[]);
+    gateway.sync().await?;
+    first.await??;
+    assert_ne!(
+        gateway.verdict("node"),
+        Verdict::Admit(gateway.gate.tenant().unwrap_or_default()),
+        "the newer answer must be the one that stands"
+    );
+    Ok(())
+}
+
+/// A machine's screen and clock are separate connections: both must be known, and both must close.
+/// A silent server is a fault, and each must say so rather than read as a refusal.
+#[tokio::test]
+async fn every_connection_of_a_machine_closes_with_the_right_reason() -> anyhow::Result<()> {
+    let server = FakeServer::new(Uuid::new_v4(), JoinState::Pending);
+    let main = endpoint(vec![TUNNEL_ALPN.to_vec(), TIME_ALPN.to_vec()]).await?;
+    let addr = main.addr();
+    let gateway = Gateway::with_silence(main, Arc::clone(&server) as Arc<dyn Hospital>, CERTIFICATE.to_owned(), echo_front().await?, Duration::ZERO);
+    let node = endpoint(Vec::new()).await?;
+    server.set_admitted(&[node.id().to_string()]);
+    gateway.sync().await?;
+    tokio::spawn(Arc::clone(&gateway).accept_forever());
+    let screen = node.connect(addr.clone(), TUNNEL_ALPN).await?;
+    let clock = node.connect(addr, TIME_ALPN).await?;
+    echo_through(&screen).await?;
+    drop(clock.open_bi().await?);
+    tokio::time::sleep(Duration::from_millis(300)).await;
+    assert_eq!(
+        gateway.live.lock().unwrap_or_else(PoisonError::into_inner).values().flatten().count(),
+        2,
+        "the second must not overwrite the first"
+    );
+    server.broken.store(true, Ordering::SeqCst);
+    gateway.sync_round().await;
+    for conn in [&screen, &clock] {
+        let reason = tokio::time::timeout(Duration::from_secs(5), conn.closed()).await?.to_string();
+        assert!(reason.contains("cannot check"), "a fault, not a refusal: {reason}");
+    }
+    Ok(())
+}
+
+/// A stranger's connections stop at the door before any handshake work, and others are not affected.
+#[test]
+fn a_flood_from_one_address_is_stopped_at_the_door() {
+    let limits = crate::limits::AddressLimits::new(super::MAX_ARRIVING_PER_ADDRESS, super::MAX_ARRIVALS_PER_MINUTE);
+    let now = std::time::Instant::now();
+    let stranger = std::net::IpAddr::from([10, 0, 0, 66]);
+    let held: Vec<_> = (0..1000).filter_map(|_| limits.enter(stranger, now)).collect();
+    assert_eq!(held.len(), super::MAX_ARRIVING_PER_ADDRESS as usize);
+    assert!(limits.enter(std::net::IpAddr::from([10, 0, 0, 7]), now).is_some());
+}
+
+/// However many addresses a flood has, the door holds a fixed number at once.
+#[tokio::test]
+async fn the_door_has_a_ceiling_across_all_addresses() -> anyhow::Result<()> {
+    let server = FakeServer::new(Uuid::new_v4(), JoinState::Pending);
+    let (gateway, _addr) = gateway(server).await?;
+    let mut held = Vec::new();
+    for i in 0..=super::MAX_ARRIVING {
+        let octets = u32::try_from(i)?.to_be_bytes();
+        held.push(gateway.arrival(std::net::IpAddr::from(octets)));
+    }
+    assert_eq!(held.iter().flatten().count(), super::MAX_ARRIVING);
+    Ok(())
+}
+
+/// Guessing a code means seeing our nonce and leaving: each is counted, across all addresses, and
+/// past the limit joining pauses rather than letting the guesses run on.
+#[test]
+fn handshakes_given_up_on_pause_joining_and_are_reported() {
+    let start = std::time::Instant::now();
+    let mut given_up = super::GivenUp::new(start);
+    for _ in 0..super::MAX_GIVEN_UP - 1 {
+        given_up.count(start);
+    }
+    assert!(!given_up.paused(start));
+    given_up.count(start);
+    assert!(given_up.paused(start), "the guesses must stop here");
+    assert_eq!(given_up.due(start), 0, "not reported more often than the limit");
+    let later = start + super::GIVEN_UP_REPORT_EVERY;
+    assert_eq!(given_up.due(later), super::MAX_GIVEN_UP);
+    assert_eq!(given_up.due(later), 0, "and each only once");
+    assert!(!given_up.paused(start + super::GIVEN_UP_WINDOW), "the pause ends with its window");
+}
+
+/// A stranger that sees our nonce and goes silent is the guess itself, and must be counted.
+#[tokio::test]
+async fn seeing_our_nonce_and_leaving_is_counted() -> anyhow::Result<()> {
+    let server = FakeServer::new(Uuid::new_v4(), JoinState::Pending);
+    let (gateway, addr) = gateway(Arc::clone(&server)).await?;
+    let guesser = endpoint(Vec::new()).await?;
+    let conn = guesser.connect(addr, JOIN_ALPN).await?;
+    let (mut send, recv) = conn.open_bi().await?;
+    let mut reader = tokio::io::BufReader::new(recv);
+    let commitment = hex::encode(crate::code::commitment(&[7; 32]));
+    let hello = Hello { name: "Guess".to_owned(), kind: Kind::Display, commitment };
+    write_frame(&mut send, &hello).await?;
+    let _nonce: NonceFrame = read_frame(&mut reader).await?;
+    conn.close(0_u32.into(), b"a miss");
+    tokio::time::sleep(Duration::from_millis(500)).await;
+    let counted = gateway.given_up.lock().unwrap_or_else(PoisonError::into_inner).in_window;
+    assert_eq!(counted, 1);
+    assert!(server.filings.lock().unwrap_or_else(PoisonError::into_inner).is_empty());
     Ok(())
 }

@@ -19,6 +19,7 @@ use medbrains_server_core::state::AppState;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
+use crate::machine_sync::GIVEN_UP_ACTION;
 use crate::sha256_hex;
 
 /// Wrong codes before a request is refused outright. A person mistypes; a script guesses.
@@ -74,6 +75,10 @@ pub struct MachineList {
     pub waiting: Vec<WaitingMachine>,
     pub machines: Vec<JoinedMachine>,
     pub dropped: Vec<DroppedRequest>,
+    /// Handshakes given up on in the last ten minutes. Each may be someone guessing a code.
+    pub given_up: i64,
+    /// Too many were, so the main machine has stopped taking new requests for now.
+    pub joining_paused: bool,
 }
 
 /// `GET /api/admin/machines`: everything the Nodes screen shows.
@@ -120,8 +125,24 @@ pub async fn list_machines(
     )
     .fetch_all(&mut *tx)
     .await?;
+    let given = sqlx::query!(
+        r#"SELECT COALESCE(sum((new_values->>'count')::bigint), 0)::bigint AS "count!",
+                  COALESCE(bool_or((new_values->>'paused')::boolean), false) AS "paused!"
+             FROM audit_log
+            WHERE tenant_id = $1 AND action = $2 AND created_at > now() - interval '10 minutes'"#,
+        claims.tenant_id,
+        GIVEN_UP_ACTION,
+    )
+    .fetch_one(&mut *tx)
+    .await?;
     tx.commit().await?;
-    Ok(Json(MachineList { waiting, machines: joined, dropped }))
+    Ok(Json(MachineList {
+        waiting,
+        machines: joined,
+        dropped,
+        given_up: given.count,
+        joining_paused: given.paused,
+    }))
 }
 
 /// What a person carries back to the machine, to prove this is really its main machine.
@@ -272,7 +293,10 @@ pub async fn machine_confirm_code(
 ) -> Result<Json<ApprovedMachine>, AppError> {
     require_permission(&claims, machines::APPROVE)?;
     let mut tx = tx_read(&state, &claims).await?;
-    Ok(Json(ApprovedMachine { id, confirm_code: second_code(&mut tx, id).await? }))
+    let confirm_code = second_code(&mut tx, id).await?;
+    audit(&mut tx, &claims, "machine.confirm_code_shown", id, &serde_json::json!({})).await?;
+    tx.commit().await?;
+    Ok(Json(ApprovedMachine { id, confirm_code }))
 }
 
 /// A unit of work for reading what an approval left behind.
@@ -323,6 +347,16 @@ pub async fn remove_machine(
 ) -> Result<Json<serde_json::Value>, AppError> {
     require_permission(&claims, machines::REMOVE)?;
     let mut tx = begin(&state.db, Actor::from_claims(&claims)).await?;
+    // Keys first, then the device: the order the agent's sync takes them in, so the two can't deadlock.
+    sqlx::query!(
+        "UPDATE device_node_keys SET revoked_at = now(), revoked_by = $2 \
+          WHERE paired_device_id = $1 AND tenant_id = $3 AND revoked_at IS NULL",
+        id,
+        claims.sub,
+        claims.tenant_id,
+    )
+    .execute(&mut *tx)
+    .await?;
     sqlx::query_scalar!(
         "UPDATE paired_devices SET revoked_at = now(), revoked_by_user_id = $2, \
            revoked_reason = 'Removed on the Nodes screen' \
@@ -335,15 +369,6 @@ pub async fn remove_machine(
     .fetch_optional(&mut *tx)
     .await?
     .ok_or(AppError::NotFound)?;
-    sqlx::query!(
-        "UPDATE device_node_keys SET revoked_at = now(), revoked_by = $2 \
-          WHERE paired_device_id = $1 AND tenant_id = $3 AND revoked_at IS NULL",
-        id,
-        claims.sub,
-        claims.tenant_id,
-    )
-    .execute(&mut *tx)
-    .await?;
     audit(&mut tx, &claims, "machine.removed", id, &serde_json::json!({})).await?;
     tx.commit().await?;
     Ok(Json(serde_json::json!({ "id": id })))

@@ -33,6 +33,13 @@ pub(crate) struct Seen {
     pub(crate) address: String,
 }
 
+/// Handshakes given up on, for the server to record and Machines to warn about.
+#[derive(Debug, Clone, Copy, Default, Serialize)]
+pub(crate) struct GivenUpReport {
+    pub(crate) count: u32,
+    pub(crate) paused: bool,
+}
+
 /// The server's answer about a join request.
 #[derive(Debug, Clone, Deserialize)]
 pub(crate) struct Answer {
@@ -54,7 +61,7 @@ pub(crate) trait Hospital: Send + Sync {
     /// Where this key's latest request stands.
     async fn join_state(&self, node_id: &str) -> anyhow::Result<Answer>;
     /// Reports who is connected and gets back who may be.
-    async fn sync(&self, connected: &[Seen]) -> anyhow::Result<Synced>;
+    async fn sync(&self, connected: &[Seen], given_up: GivenUpReport) -> anyhow::Result<Synced>;
 }
 
 /// The real server.
@@ -91,9 +98,9 @@ impl Hospital for Server {
         Self::read(request.header(TOKEN_HEADER, &self.token)).await
     }
 
-    async fn sync(&self, connected: &[Seen]) -> anyhow::Result<Synced> {
+    async fn sync(&self, connected: &[Seen], given_up: GivenUpReport) -> anyhow::Result<Synced> {
         let request = self.client.post(format!("{SERVER}/sync"));
-        let body = serde_json::json!({ "connected": connected });
+        let body = serde_json::json!({ "connected": connected, "given_up": given_up });
         Self::read(request.header(TOKEN_HEADER, &self.token).json(&body)).await
     }
 }

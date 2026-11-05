@@ -14,8 +14,9 @@ use medbrains_edge::peer_admission::{Admission, RefusalReason};
 use tokio::net::{TcpListener, UdpSocket};
 use uuid::Uuid;
 
-use super::{Gateway, RosterGate, WHOAMI_SIZE, clean_label, whoami_reply};
-use crate::hospital::{Answer, Filing, Hospital, Seen, Synced};
+use super::join::clean_label;
+use super::{Gateway, RosterGate, WHOAMI_SIZE, whoami_reply};
+use crate::hospital::{Answer, Filing, GivenUpReport, Hospital, Seen, Synced};
 use crate::node::{Joined, Node};
 use crate::wire::{JOIN_ALPN, JoinState, Kind, TIME_ALPN, TUNNEL_ALPN};
 
@@ -29,6 +30,7 @@ pub(super) struct FakeServer {
     admitted: Mutex<Vec<String>>,
     pub(super) syncs: AtomicUsize,
     pub(super) broken: AtomicBool,
+    pub(super) slow_once: AtomicBool,
 }
 
 impl FakeServer {
@@ -40,6 +42,7 @@ impl FakeServer {
             admitted: Mutex::default(),
             syncs: AtomicUsize::new(0),
             broken: AtomicBool::new(false),
+            slow_once: AtomicBool::new(false),
         })
     }
 
@@ -73,10 +76,14 @@ impl Hospital for FakeServer {
         Ok(Answer { state: *self.state.lock().unwrap_or_else(PoisonError::into_inner) })
     }
 
-    async fn sync(&self, _connected: &[Seen]) -> anyhow::Result<Synced> {
+    async fn sync(&self, _connected: &[Seen], _given_up: GivenUpReport) -> anyhow::Result<Synced> {
         self.syncs.fetch_add(1, Ordering::SeqCst);
         anyhow::ensure!(!self.broken.load(Ordering::SeqCst), "the server is not answering");
+        // What the server knew when it was asked, however late the answer arrives.
         let admitted = self.admitted.lock().unwrap_or_else(PoisonError::into_inner).clone();
+        if self.slow_once.swap(false, Ordering::SeqCst) {
+            tokio::time::sleep(Duration::from_millis(400)).await;
+        }
         Ok(Synced { hospital: "City Hospital".to_owned(), roster: roster(self.tenant, &admitted) })
     }
 }

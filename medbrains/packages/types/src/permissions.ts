@@ -6609,7 +6609,7 @@ export const PERMISSIONS: PermissionDef[] = [
   {
     code: "devices.machines.view",
     label: "See machines and their join requests",
-    description: "Lists the machines waiting to join with their codes, and every joined machine with its name, type, status and when it was last seen.",
+    description: "Lists the machines waiting to join, and every joined machine with its name, type, status and when it was last seen. It does not show the code a person must read from a machine's own screen.",
     module: "devices",
   },
   {
