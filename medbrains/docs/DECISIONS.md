@@ -54,6 +54,9 @@ built. *Proposed* is waiting for the owner. *Rejected* was considered and turned
 | 2026-11-04 | The server now takes the client's address from the connection. It was never given one, so forwarded headers decided the address on every route, and sign-in routes had no address at all. Forwarded headers are believed only from a listed proxy, walked from the right; no list means none believed | this PR |
 | 2026-11-04 | Every software and hardware attack in `OS-THREATS.md` gets a task and a test. Bypass roles must give a reason to open a patient record | `docs/architecture/OS-THREATS.md` |
 | 2026-11-04 | Kanidm is the OS identity provider, not FerrisKey: only it can restrict sign-in to approved key models without a patch, shown with software keys. About +9 MB idle against +65 MB. Open: 10 advisories this year, one main maintainer, no Entra or Okta sign-in. Reverses if a physical key fails or those block | `feature/os-kanidm` |
+| 2026-11-05 | The OS front proxy moves from Caddy to Pingora through `medbrains-proxy`, to keep the stack Rust (owner). Caddy ships until the replacement passes the same checks, an attack test and an independent review | `docs/architecture/OS-BUILD-PLAN.md` N2.1 |
+| 2026-11-05 | Authorization stays out of apps: one kernel layer answers allow, deny or unknown for every app. RBAC and ReBAC on PostgreSQL, in the same transaction as the data; ABAC starts with device class and data class in plain Rust; Cedar is tested after the first stable version. SpiceDB, OpenFGA and Oso stay off the OS. Linux's own controls (systemd sandboxes, verity, AppArmor, Landlock) confine programs and do not replace it | `docs/architecture/OS-BUILD-PLAN.md` X12 |
+| 2026-11-05 | Parked until after the first stable version: GPUI test, Polars or DuckDB for analytics, a separate permissions store, app store | `docs/architecture/OS-BUILD-PLAN.md` |
 
 ## Decisions
 
