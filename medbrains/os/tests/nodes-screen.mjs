@@ -2,7 +2,7 @@
 // Drives the main machine's Nodes screen in a real browser, as an administrator would, for the
 // two-machine proof. Prints what the screen shows; never talks to the API directly.
 //
-//   nodes-screen.mjs URL USER PASSWORD list|approve CODE|reject|remove|shot FILE
+//   nodes-screen.mjs URL USER PASSWORD list|approve CODE|show FILE|reject|remove|shot FILE
 //
 // Keeps its session in NODES_SESSION, because sign-in allows five tries a minute per address.
 import { existsSync } from "node:fs";
@@ -54,6 +54,11 @@ if (action === "approve") {
   const second = page.getByTestId("text-confirm-code");
   const confirm = (await second.count()) > 0 ? await second.innerText() : null;
   console.log(JSON.stringify({ refused, confirm }));
+} else if (action === "show") {
+  await page.getByTestId("btn-show-confirm-code").first().click();
+  await page.getByTestId("text-confirm-code").waitFor({ timeout: 10_000 });
+  console.log(JSON.stringify({ shown: await page.getByTestId("text-confirm-code").innerText() }));
+  await page.screenshot({ path: argument });
 } else if (action === "reject") {
   await page.getByTestId("btn-reject-machine").first().click();
   await page.waitForTimeout(1_500);
