@@ -183,7 +183,7 @@ N1 to N6 come from RFC-HOSPITAL-OS §8q. Every task ends on a check or a screen.
 
 New ideas go to the parked list, not into this. Stable means every line below passes on the final image.
 
-**In:** desktop, setup and restart (#5223); memory and client address fixes; disk encryption and key inventory (T1, T2); Kanidm with its Identity app (T3, T3.1); node pairing and remote machines (J1, J5); signed A/B updates with rollback and backup with restore (U1, U2); launcher with one app per module for one role, Pharmacy first (O11); responsive OS screens (O12); screen permissions (O13); x86 image (H1).
+**In:** desktop, setup and restart (#5223); memory and client address fixes; disk encryption and key inventory (T1, T2); Kanidm with its Identity app (T3, T3.1); node pairing and remote machines (J1, J5); signed A/B updates with rollback and backup with restore (U1, U2); launcher with one app per module for one role, Pharmacy first (O11); responsive OS screens (O12); screen permissions (O13); x86 image (H1); every way to run it (P1 to P8); Software Center and Control stage 1 (O14, C1.1).
 
 **Parked until after it:** connectors beyond one lab analyzer (X10), other roles' module apps, rule builder, MedBrains Control beyond machines and audit, offline second sites (J4), PACS, mail, app store, side-by-side windows.
 
@@ -194,6 +194,23 @@ New ideas go to the parked list, not into this. Stable means every line below pa
 4. Every open row in `OS-THREATS.md` for these parts has a passing test or a written, accepted limit.
 5. A full shift walked through on screen as a pharmacist and an administrator, by a person.
 6. Load test with real sign-ins passes the agreed number of users.
+
+## P. Every way to run MedBrains (owner 2026-11-05)
+
+One server and one web app, four ways to run them. All four are in the first stable version. No clinical feature may need the OS.
+
+| Task | What | Done when | State |
+|---|---|---|---|
+| P1 | One server only: setup without a monitor (one-time code on the machine, then a laptop on the LAN), no screen stack when nobody sits at it | Set up with no screen attached; a stranger on the LAN without the code gets nothing | next |
+| P2 | Staff PCs trust the machine: hospital root with a guided install, or a name with a real certificate | A staff PC opens the app with no warning and no click-through | next, with T2 |
+| P3 | Backup target demanded at setup on a lone server, warning until it has one | Pull the disk, restore elsewhere, sign in | next, with U2 |
+| P4 | Server plus nodes: same image, one question at setup; adding nodes later needs no reinstall | One server gains a node with data kept | doing: `feature/os-node-join` |
+| P5 | Own machines: Linux install, Docker, Windows through Hyper-V, checked against the current server, including the required keys and `TRUSTED_PROXIES` | Fresh install of each passes the same health checks | next |
+| P6 | Cloud: hospital's own account, images and guide, India region by default; outage answer for a hospital that loses internet | Fresh cloud install passes the same health checks | next; running it for hospitals needs an owner decision |
+| P7 | Move between them: export from one, restore into another with data and audit intact | One server to cloud and back in a test | next |
+| P8 | One shared acceptance suite run against all four | Same checks in CI where possible; the OS suite covers the rest | next |
+| O14 | Software Center: approved apps and modules by role, turn on or off with dependencies, updates; signed and audited | A person installs an approved app with no IT help, and an unsigned one is refused | next |
+| C1.1 | Control stage 1: machines, health, audit, basic policies, staged updates, lock, two-person wipe, signed commands | A policy and a staged update reach a node; one person cannot wipe | next, needs T2, J1, U1 |
 
 ## Order
 
