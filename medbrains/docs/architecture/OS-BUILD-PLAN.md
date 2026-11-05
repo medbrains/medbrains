@@ -55,6 +55,8 @@ N1 to N6 come from RFC-HOSPITAL-OS §8q. Every task ends on a check or a screen.
 | T2 | Machine keys, hospital root key, recovery key | Node certificate traces to the root | next: owner priority 2026-11-04, needs the key inventory (`OS-KEYS.md`) |
 | T3 | Kanidm as identity provider, chosen on security over FerrisKey (`feature/os-kanidm`) | Physical FIDO2 key passes attestation; advisories confirmed fixed in the shipped version; staff sign in on the OS screen; Entra and directory path decided | doing: passed the key allow-list with software keys only; physical key blocked on hardware |
 | T3.1 | Identity app in the launcher: staff see their profile and keys through Kanidm's pages; IT adds people, groups and allowed key models from an admin screen, which Kanidm lacks | From the launcher, a person adds a key and IT adds a person without a command line | next: owner 2026-11-04 |
+| T3.2 | Sign-in outage (owner 2026-11-05): when Kanidm is down, staff already signed in keep working, new sign-in fails with a plain message, Kanidm restarts itself, and an audited emergency sign-in exists | Test: Kanidm killed during a shift; clinical work continues; emergency sign-in works, is audited and cannot be used without leaving a trace | next: in first stable |
+| T3.3 | Every Kanidm advisory confirmed fixed in the version we ship, with the crash attacks run against it; LDAP and SCIM closed from the network; FerrisKey's latest version retested once before stable | Attack tests pass; each of the 10 advisories marked fixed, not applicable, or an accepted limit | next: in first stable |
 | T4 | Key cards and hardware keys | Password alone refused for an owner | later, needs T3 and cards |
 
 ## J. Nodes and edges
@@ -89,6 +91,7 @@ N1 to N6 come from RFC-HOSPITAL-OS §8q. Every task ends on a check or a screen.
 | U1.5 | Compare the update design with TUF's list of attacks (owner 2026-11-05): old update served again, updates held back, mixed versions, a stolen signing key. Adopt TUF or close each gap another way | Each attack refused by a test, or a written, accepted limit | next, with U1 |
 | U1.6 | A rolled-back version stays refused (owner 2026-11-05): after rollback, automatic updates do not install the same bad version again until a newer one is published. Red Hat's image mode documents this trap: its update timer can reapply the image within hours | Test: a failed update rolls back and is not retried | next, with U1 |
 | U1.7 | Upgrade across Debian major releases, with a pre-upgrade check that says what would break, like Red Hat's Leapp | Debian 13 to 14 in a VM, data kept, rollback works | later, before Debian 13 support ends |
+| U1.8 | Kanidm upgrade every quarter through signed updates: each release is supported for 4 months and upgrades go one version at a time, so no machine may fall behind. Tested before release, data kept, rollback works | Upgrade from the previous version passes in a VM; a machine that missed one catches up in order | next, with U1 |
 | U2 | Backup, restore, recovery | Restore on a new machine from backup | next |
 | U2.1 | Scheduled jobs as systemd timers, listed in Control with last result | A failed nightly backup shows on screen | next |
 | U2.2 | Backups encrypted, to a second disk or another machine; old copies cannot be overwritten by the running system | Ransomware test: wiping the data leaves a restorable copy | next |
@@ -208,7 +211,7 @@ N1 to N6 come from RFC-HOSPITAL-OS §8q. Every task ends on a check or a screen.
 
 New ideas go to the parked list, not into this. Stable means every line below passes on the final image.
 
-**In:** desktop, setup and restart (#5223); memory and client address fixes; disk encryption and key inventory (T1, T2); scheduled data checks (U2.4); Kanidm with its Identity app (T3, T3.1); node pairing and remote machines (J1, J5); signed A/B updates with rollback and backup with restore (U1, U2); launcher with one app per module for one role, Pharmacy first (O11); responsive OS screens (O12); screen permissions (O13); x86 image (H1); every way to run it (P1 to P8); Software Center and Control stage 1 (O14, C1.1).
+**In:** desktop, setup and restart (#5223); memory and client address fixes; disk encryption and key inventory (T1, T2); scheduled data checks (U2.4); Kanidm with its Identity app (T3, T3.1), sign-in outage and advisories (T3.2, T3.3), quarterly upgrade (U1.8); node pairing and remote machines (J1, J5); signed A/B updates with rollback and backup with restore (U1, U2); launcher with one app per module for one role, Pharmacy first (O11); responsive OS screens (O12); screen permissions (O13); x86 image (H1); every way to run it (P1 to P8); Software Center and Control stage 1 (O14, C1.1).
 
 **Parked until after it:** connectors beyond one lab analyzer (X10), other roles' module apps, rule builder, MedBrains Control beyond machines and audit, offline second sites (J4), PACS, mail, app store, side-by-side windows.
 
