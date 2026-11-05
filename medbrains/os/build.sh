@@ -33,6 +33,7 @@ esac
 OS_WORK="${OS_WORK:-/tmp/mb-osimage}"
 SERVER="${MEDBRAINS_SERVER_BIN:-${CARGO_TARGET_DIR:-$REPO/target}/$TRIPLE/release/medbrains-server}"
 OS_SETUP="$(dirname "$SERVER")/medbrains-os-setup"
+OS_UPDATE="$(dirname "$SERVER")/medbrains-os-update"
 WEB="${MEDBRAINS_WEB_DIST:-$REPO/apps/web/dist}"
 if [[ ! -x "$SERVER" ]]; then
     echo "no server binary at $SERVER — cross-build it with zigbuild for $TRIPLE (see README)" >&2
@@ -40,6 +41,10 @@ if [[ ! -x "$SERVER" ]]; then
 fi
 if [[ ! -x "$OS_SETUP" ]]; then
     echo "no setup service at $OS_SETUP — cross-build medbrains-os-setup with the server" >&2
+    exit 1
+fi
+if [[ ! -x "$OS_UPDATE" ]]; then
+    echo "no updater at $OS_UPDATE — cross-build medbrains-os-update with the server" >&2
     exit 1
 fi
 if [[ ! -f "$WEB/index.html" ]]; then
@@ -54,6 +59,16 @@ install -d "$EXTRA/usr/bin" "$EXTRA/usr/share/medbrains" "$EXTRA/usr/lib/medbrai
     "$OS_WORK/out-$ARCH" "$OS_WORK/cache-$ARCH"
 install -m 0755 "$SERVER" "$EXTRA/usr/bin/medbrains-server"
 install -m 0755 "$OS_SETUP" "$EXTRA/usr/bin/medbrains-os-setup"
+install -m 0755 "$OS_UPDATE" "$EXTRA/usr/bin/medbrains-os-update"
+# Public keys that may sign updates. Release keys live in the repository; none exists yet, and an image with
+# no key says so on its Settings screen and refuses every bundle.
+KEYS="$EXTRA/usr/share/medbrains/update-keys"
+install -d "$KEYS"
+find "$HERE/update-keys" -name '*.pub' -exec install -m 0644 {} "$KEYS/" \;
+if find "$KEYS" -name 'test-*' | grep -q .; then
+    echo "a test key is in os/update-keys: it would reach release images" >&2
+    exit 1
+fi
 cp -R "$WEB" "$EXTRA/usr/share/medbrains/web"
 # Pre-compressed copies are for a CDN; on the appliance Caddy compresses.
 find "$EXTRA/usr/share/medbrains/web" \( -name '*.br' -o -name '*.gz' -o -name '*.map' \) -delete
@@ -62,7 +77,13 @@ install -m 0644 "$REPO/deploy/standalone/db-roles.sh" "$EXTRA/usr/lib/medbrains/
 install -d "$EXTRA/usr/share/medbrains/shell"
 install -m 0644 "$WEB/logo/medbrains-mark.svg" "$EXTRA/usr/share/medbrains/shell/logo.svg"
 
-VERSION="${OS_VERSION:-$(git -C "$REPO" rev-parse --short HEAD)}"
+# Versions are plain dotted numbers, so every machine and the boot loader agree on their order. Without
+# OS_VERSION the commit's time gives a number that grows with every commit.
+VERSION="${OS_VERSION:-0.0.$(git -C "$REPO" show -s --format=%ct HEAD)}"
+if [[ ! "$VERSION" =~ ^(0|[1-9][0-9]*)(\.(0|[1-9][0-9]*)){1,3}$ ]]; then
+    echo "OS_VERSION must be dotted numbers: $VERSION" >&2
+    exit 2
+fi
 DEBUG_ARGS=()
 # A root shell on whichever serial port this VM has: ttyAMA0 under QEMU, hvc0 under Apple
 # Virtualization. A udev rule starts it when the port appears, so a VM without one of them has no
@@ -72,12 +93,25 @@ if [[ "$DEBUG" == 1 ]]; then
     install -d "$EXTRA/usr/lib/systemd/system" "$EXTRA/usr/lib/udev/rules.d"
     install -m 0644 "$HERE/debug/medbrains-debug-shell@.service" "$EXTRA/usr/lib/systemd/system/"
     install -m 0644 "$HERE/debug/90-medbrains-debug-shell.rules" "$EXTRA/usr/lib/udev/rules.d/"
+    # A test key for updates, trusted only because of the mark next to it. Never for a release image.
+    TEST_KEY="$OS_WORK/update-test.key"
+    if [[ ! -f "$TEST_KEY" ]]; then
+        openssl genpkey -algorithm ed25519 -outform DER 2>/dev/null | tail -c 32 | base64 > "$TEST_KEY"
+        chmod 600 "$TEST_KEY"
+    fi
+    base64 -d < "$TEST_KEY" > "$OS_WORK/update-test.seed"
+    (printf '\x30\x2e\x02\x01\x00\x30\x05\x06\x03\x2b\x65\x70\x04\x22\x04\x20'; cat "$OS_WORK/update-test.seed") |
+        openssl pkey -inform DER -pubout -outform DER | tail -c 32 | base64 > "$KEYS/test-1.pub"
+    rm -f "$OS_WORK/update-test.seed"
+    : > "$KEYS/THIS-IS-A-DEBUG-IMAGE"
     # The shell replaces the login prompt that systemd would put on both ports. wtype and grim let
     # a test type and take screenshots under Apple Virtualization, which has no QMP. hostapd and iw make
     # a test Wi-Fi network with mac80211_hwsim.
     DEBUG_ARGS=(--kernel-command-line "systemd.mask=serial-getty@ttyAMA0.service systemd.mask=serial-getty@hvc0.service"
                 --package strace --package wtype --package grim --package hostapd --package iw)
 fi
+
+ROOT_ARG="root=PARTLABEL=medbrains_$VERSION"
 
 # Runs mkosi on this Linux machine: a CI runner or a hospital's own build box. Needs root.
 build_on_linux() {
@@ -86,7 +120,7 @@ build_on_linux() {
     work="$(mktemp -d)"
     cp -R "$HERE/." "$work/"
     cp -R "$REPO/crates/medbrains-shell" "$work/medbrains-shell"
-    (cd "$work" && mkosi --architecture "$ARCH" --extra-tree "$EXTRA" \
+    (cd "$work" && mkosi --architecture "$ARCH" --extra-tree "$EXTRA" --kernel-command-line "$ROOT_ARG" \
         --output-directory "$OS_WORK/out-$ARCH" --cache-directory "$OS_WORK/cache-$ARCH" \
         --image-version "$VERSION" ${DEBUG_ARGS[@]+"${DEBUG_ARGS[@]}"} -f build)
     rm -rf "$work"
@@ -104,7 +138,7 @@ build_on_mac_with_docker() {
         -v "$OS_WORK/out-$ARCH:/out" -v "$OS_WORK/cache-$ARCH:/cache" \
         "medbrains-os-builder:$ARCH" \
         bash -c 'cp -R /src /build && cp -R /shell /build/medbrains-shell && cd /build && mkosi "$@" -f build' _ \
-        --architecture "$ARCH" --extra-tree /extra --output-directory /out \
+        --architecture "$ARCH" --extra-tree /extra --kernel-command-line "$ROOT_ARG" --output-directory /out \
         --cache-directory /cache --image-version "$VERSION" ${DEBUG_ARGS[@]+"${DEBUG_ARGS[@]}"}
 }
 

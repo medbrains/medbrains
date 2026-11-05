@@ -1,0 +1,14 @@
+# Proves a new version. Pulled in only on a boot the loader counted: systemd-bless-boot needs
+# boot-complete.target, and that needs this. Passing marks the version good. Failing marks it bad and restarts.
+[Unit]
+Description=Check that the new MedBrains OS version works
+After=multi-user.target medbrains-main.target medbrains-update-reconcile.service
+Before=boot-complete.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/medbrains-os-update health
+TimeoutStartSec=infinity
+
+[Install]
+RequiredBy=boot-complete.target

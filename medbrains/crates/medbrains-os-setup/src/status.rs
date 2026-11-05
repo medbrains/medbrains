@@ -37,6 +37,7 @@ pub(crate) fn state() -> Result<Value, String> {
         "clock": clock_state(uptime_seconds),
         "timezone": timezone(),
         "firewall": output("nft", &FIREWALL_TABLE).is_some(),
+        "update": medbrains_os_update::view::view(),
         "machine": machine_health(),
         "network": machine::network_links(),
     }))

@@ -8,7 +8,7 @@ use std::thread;
 use std::time::{Duration, Instant};
 
 /// How long most helpers may take.
-pub(crate) const USUAL_LIMIT: Duration = Duration::from_secs(5);
+pub const USUAL_LIMIT: Duration = Duration::from_secs(5);
 /// How much of a helper's output is kept. Its reader stops here, so it can't fill the service.
 const MAX_OUTPUT: u64 = 2 * 1024 * 1024;
 const POLL: Duration = Duration::from_millis(20);
@@ -17,10 +17,10 @@ const DRAIN: Duration = Duration::from_millis(200);
 
 /// What a helper left behind.
 #[derive(Debug)]
-pub(crate) struct Finished {
-    pub(crate) success: bool,
-    pub(crate) stdout: Vec<u8>,
-    pub(crate) stderr: Vec<u8>,
+pub struct Finished {
+    pub success: bool,
+    pub stdout: Vec<u8>,
+    pub stderr: Vec<u8>,
 }
 
 /// Reads a pipe on its own thread, so a helper that writes a lot can't block on a full pipe.
@@ -39,7 +39,7 @@ fn collect(pipe: Option<impl Read + Send + 'static>) -> mpsc::Receiver<Vec<u8>> 
 
 /// Runs a helper to the end or to the limit, whichever comes first, killing it at the limit.
 /// `None` means it couldn't start or was killed: not an answer of any kind.
-pub(crate) fn run(program: &str, args: &[&str], limit: Duration) -> Option<Finished> {
+pub fn run(program: &str, args: &[&str], limit: Duration) -> Option<Finished> {
     let mut child = Command::new(program)
         .args(args)
         .stdin(Stdio::null())

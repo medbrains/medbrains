@@ -19,7 +19,9 @@ ln -sfn /var/lib/medbrains/config /etc/medbrains
 nft -c -f /etc/nftables.conf
 systemctl enable nftables chrony systemd-networkd systemd-resolved systemd-repart \
     medbrains-firstboot medbrains-network-settings medbrains-os-setup medbrains-main.target \
-    cage-console
+    cage-console medbrains-update-reconcile medbrains-update-health medbrains-update-deadline.timer \
+    medbrains-update-look.timer medbrains-update-quiet.timer
+systemctl mask systemd-boot-update.service
 # Only medbrains-main.target starts these, and only once setup has finished, so nothing
 # answers on the network before then. Debian's packages enable them by default.
 systemctl disable caddy postgresql 2>/dev/null || true

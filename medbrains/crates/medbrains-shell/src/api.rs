@@ -99,6 +99,45 @@ pub(crate) struct Machine {
     pub(crate) disk_used: u64,
 }
 
+/// How the last update attempt ended.
+#[derive(Debug, Clone, Default, Deserialize, PartialEq, Eq)]
+#[serde(default)]
+pub(crate) struct UpdateLast {
+    /// "good", "rolled_back", "went_back", "refused", "failed" or "interrupted".
+    pub(crate) result: String,
+    pub(crate) words: String,
+    /// Seconds since 1970.
+    pub(crate) at: i64,
+}
+
+/// Updates, as the machine sees them. The screen offers only what these say can be done.
+#[derive(Debug, Clone, Default, Deserialize, PartialEq, Eq)]
+#[serde(default)]
+pub(crate) struct UpdateStatus {
+    pub(crate) current: String,
+    /// "idle", "fetching", "writing", "waiting", "applied" or "fault".
+    pub(crate) stage: String,
+    pub(crate) security: bool,
+    #[serde(deserialize_with = "text_or_nothing")]
+    pub(crate) summary: String,
+    pub(crate) headline: String,
+    pub(crate) last: Option<UpdateLast>,
+    #[serde(deserialize_with = "text_or_nothing")]
+    pub(crate) previous: String,
+    #[serde(deserialize_with = "text_or_nothing")]
+    pub(crate) url: String,
+    #[serde(deserialize_with = "text_or_nothing")]
+    pub(crate) window: String,
+    pub(crate) can_apply: bool,
+    pub(crate) can_go_back: bool,
+    pub(crate) can_install: bool,
+}
+
+/// A text field that may be null: empty means there is none.
+fn text_or_nothing<'de, D: serde::Deserializer<'de>>(reader: D) -> Result<String, D::Error> {
+    Ok(Option::<String>::deserialize(reader)?.unwrap_or_default())
+}
+
 /// One poll of the machine: everything the desktop shows.
 #[derive(Debug, Clone, Default, Deserialize)]
 pub(crate) struct State {
@@ -112,6 +151,8 @@ pub(crate) struct State {
     pub(crate) clock: String,
     pub(crate) timezone: String,
     pub(crate) firewall: bool,
+    #[serde(default)]
+    pub(crate) update: UpdateStatus,
     pub(crate) machine: Machine,
     pub(crate) network: Network,
 }
@@ -229,6 +270,11 @@ pub(crate) fn fetch_unit_states(units: Vec<String>, done: impl FnOnce(Vec<String
 /// Reads Wi-Fi's state.
 pub(crate) fn fetch_wifi(done: impl FnOnce(Result<Wifi, Failure>) + 'static) {
     get("/wifi", done);
+}
+
+/// What the machine says about updates.
+pub(crate) fn fetch_updates(done: impl FnOnce(Result<UpdateStatus, Failure>) + 'static) {
+    get("/update", done);
 }
 
 /// The time zones people choose from.

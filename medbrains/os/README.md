@@ -53,6 +53,8 @@ From another computer the same box answers at `https://<address>` with a certifi
 
 `make os-image DEBUG=1`, then `make os-test IMAGE=<image.raw>` boots a fresh machine and checks firewall, kernel hardening, time, memory and disk. Limits are in `crates/medbrains-os-test/budgets.json`: lower them as numbers improve, and never raise one without a reason in the PR. It needs QEMU, and doesn't run in CI yet.
 
+`make os-test-updates IMAGE=<image> BUNDLES=<folder>` proves updates on real QEMU machines: tampered bundles, power cuts, rollback. `os/tests/make-update-bundles.py` makes the folder. `MB_OS_TEST_ARCH=x86-64` on a merged T1 image runs the sealed-disk scenarios instead.
+
 ## Boot in UTM
 
 ```sh
@@ -307,8 +309,8 @@ The failure table the flight rules ask for (`docs/OS-PRINCIPLES.md` section 7). 
 | Partition | Size | Holds |
 |---|---|---|
 | EFI | 512 MB | systemd-boot, the boot file (kernel, initrd, logo) |
-| root A | 2 GB | the system (`/`), ext4 |
-| root B | 2 GB | reserved, labelled `_empty`, for A/B updates |
+| root A | 2 GB | the system (`/`), ext4, named `medbrains_<version>` |
+| root B | 2 GB | named `_empty` until the first update writes it (`docs/architecture/OS-UPDATES.md`) |
 | data | 1 GB, grown at first boot to fill the disk | `/var`: PostgreSQL, files, logs, backups, secrets |
 
 The PostgreSQL configuration and `/etc/medbrains` are symlinks into `/var`, so reinstalling the system
@@ -325,7 +327,7 @@ partitions keeps the data.
 | amd64 image | config present, not built or booted |
 | dm-verity read-only root | **not in D1**, SEC3. Root is writable ext4, so a changed system file is not detected. Blockers: `/etc/machine-id` on a read-only root, and mkosi's verity partitions |
 | LUKS data partition | **not in D1**, SEC3: data at rest on the disk is unencrypted. Add `Encrypt=tpm2` in the data partition |
-| A/B updates and rollback | D4. Slot B is reserved; nothing writes to it yet |
+| A/B updates and rollback | in: `docs/architecture/OS-UPDATES.md`, including its failure table. No release key exists, so a release image refuses every bundle |
 | Recovery partition and boot menu | D4. A failed boot shows systemd's own messages and that the root account is locked |
 | Trusted TLS for other computers | D2. Caddy's local CA means a browser warning on first visit |
 | Backups and TLS in setup | D2 (§8s). Hospital name, first administrator and network are in |
@@ -339,6 +341,7 @@ partitions keeps the data.
 
 - `mkosi.conf`, `mkosi.conf.d/`: packages and image settings.
 - `mkosi.repart/`: build-time partitions. `mkosi.extra/usr/lib/repart.d/`: first-boot growth.
+- `update-keys/`: public keys that may sign updates. None yet.
 - `mkosi.extra/`: units, first-boot scripts, journald, watchdog, network and Caddy.
 - `mkosi.postinst.chroot`: removes the baked PostgreSQL cluster, enables units.
 - `mkosi.build.chroot`: compiles `crates/medbrains-shell` and installs its fonts.

@@ -5,10 +5,10 @@ use std::rc::Rc;
 
 use gtk4 as gtk;
 use gtk4::glib;
-use gtk4::prelude::{BoxExt, WidgetExt};
+use gtk4::prelude::{BoxExt, ButtonExt, WidgetExt};
 
 use crate::api::{Network, State};
-use crate::{netmenu, power, timezone, ui};
+use crate::{netmenu, power, timezone, ui, updates};
 
 /// The logo, staged by `os/build.sh`.
 const LOGO: &str = "/usr/share/medbrains/shell/logo.svg";
@@ -44,6 +44,9 @@ pub(crate) struct TopBar {
     firewall_words: gtk::Label,
     network_icon: gtk::Image,
     network_words: gtk::Label,
+    update: gtk::Button,
+    update_dot: gtk::Box,
+    update_words: gtk::Label,
 }
 
 /// A small icon, with words beside it.
@@ -107,6 +110,21 @@ impl TopBar {
         );
         firewall.prepend(&firewall_dot);
         right.append(&firewall);
+        let update_words = ui::line("", "");
+        let update_chip = chip(
+            &gtk::Image::from_icon_name("software-update-available-symbolic"),
+            &update_words,
+        );
+        let update_dot = ui::column(0);
+        update_dot.add_css_class("dot");
+        update_dot.set_valign(gtk::Align::Center);
+        update_chip.prepend(&update_dot);
+        let update = gtk::Button::builder().child(&update_chip).visible(false).build();
+        update.add_css_class("flat");
+        ui::set_name(&update, "Updates: open Settings");
+        let open_for_update = Rc::clone(&open_settings);
+        update.connect_clicked(move |_| open_for_update());
+        right.append(&update);
         right.append(&netmenu::button(
             &chip(&network_icon, &network_words),
             open_settings,
@@ -142,6 +160,9 @@ impl TopBar {
             firewall_words,
             network_icon,
             network_words,
+            update,
+            update_dot,
+            update_words,
         };
         bar.draw_clock();
         let ticking = bar.clone();
@@ -175,6 +196,12 @@ impl TopBar {
         self.firewall_words
             .set_label(firewall_words(state.firewall));
         ui::set_warning(&self.firewall_dot, !state.firewall);
+        let update = updates::chip_words(&state.update);
+        self.update.set_visible(update.is_some());
+        if let Some((words, warning)) = update {
+            self.update_words.set_label(words);
+            ui::set_warning(&self.update_dot, warning);
+        }
         self.network_icon
             .set_icon_name(Some(netmenu::icon_name(&state.network)));
         self.network_words

@@ -1,4 +1,4 @@
-//! One machine under test: a serial shell for inside, forwarded ports for outside.
+//! One machine under test: a serial shell for inside, forwarded ports for outside, and its power cord.
 
 use std::io::{Read, Write};
 use std::net::{TcpListener, TcpStream};
@@ -9,6 +9,11 @@ use std::thread::sleep;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 const BOOT_TIMEOUT: Duration = Duration::from_secs(180);
+const SHUTDOWN_TIMEOUT: Duration = Duration::from_secs(90);
+/// Printed by the firmware on every start.
+const FIRMWARE_LINE: &str = "BdsDxe";
+/// The debug shell's prompt.
+const PROMPT: &str = "root@medbrains";
 const POLL: Duration = Duration::from_secs(2);
 /// Guest ports reachable through QEMU, as host name and guest port.
 const FORWARDS: [(&str, u16); 6] = [
@@ -20,12 +25,28 @@ const FORWARDS: [(&str, u16); 6] = [
     ("edge", 7811),
 ];
 
+/// `limit`, stretched for how slow this platform is: not at all here.
+pub(crate) const fn scaled(limit: Duration) -> Duration {
+    limit
+}
+
+/// The machine's own TPM, as a folder name.
+pub(crate) const OWN_TPM: &str = "tpm-own";
+
+/// True if this platform's guest can use a TPM, so sealed-disk scenarios can run. Not on this one:
+/// Debian's arm64 kernel has no driver for the only TPM QEMU can give it (`OS-KEYS.md`).
+pub(crate) const fn tpm_usable() -> bool {
+    false
+}
+
 /// A running QEMU machine on a throwaway overlay. Dropping it stops it and removes the disk.
 pub(crate) struct Vm {
     dir: PathBuf,
+    disk: PathBuf,
     ports: Vec<(&'static str, u16)>,
     qemu: Child,
     serial: UnixStream,
+    monitor: UnixStream,
     marker: u32,
 }
 
@@ -81,21 +102,98 @@ impl Vm {
         for (name, _) in FORWARDS {
             ports.push((name, free_port().map_err(|e| e.to_string())?));
         }
-        let qemu = spawn_qemu(&dir, image, &ports)?;
-        let serial = connect_serial(&dir)?;
+        let share = qemu_share()?;
+        std::fs::copy(share.join("edk2-arm-vars.fd"), dir.join("vars.fd"))
+            .map_err(|e| e.to_string())?;
+        let disk = dir.join("disk.qcow2");
+        make_overlay(image, &disk)?;
+        let qemu = spawn_qemu(&dir, &disk, &ports)?;
+        let serial = connect_socket(&dir.join("serial.sock"))?;
+        let monitor = connect_socket(&dir.join("monitor.sock"))?;
         let mut vm = Self {
             dir,
+            disk,
             ports,
             qemu,
             serial,
+            monitor,
             marker: 0,
         };
         vm.wait_for_shell()?;
         Ok(vm)
     }
 
-    /// Waits until a command comes back through the serial shell.
+    /// The overlay this machine was created with.
+    pub(crate) fn disk(&self) -> PathBuf {
+        self.disk.clone()
+    }
+
+    /// A path for a throwaway file next to the machine's disk.
+    pub(crate) fn scratch_path(&self, name: &str) -> PathBuf {
+        self.dir.join(name)
+    }
+
+    /// Stops the machine the way a pulled plug does.
+    pub(crate) fn cut_power(&mut self) -> Result<(), String> {
+        self.qemu.kill().map_err(|e| e.to_string())?;
+        self.qemu.wait().map_err(|e| e.to_string())?;
+        Ok(())
+    }
+
+    /// Shuts the machine down cleanly, which also flushes its disk.
+    pub(crate) fn shut_down(&mut self) -> Result<(), String> {
+        self.serial
+            .write_all(b"systemctl poweroff\n")
+            .map_err(|e| e.to_string())?;
+        let deadline = Instant::now() + SHUTDOWN_TIMEOUT;
+        while Instant::now() < deadline {
+            if self.qemu.try_wait().map_err(|e| e.to_string())?.is_some() {
+                return Ok(());
+            }
+            sleep(POLL);
+        }
+        Err("the machine did not turn off".to_owned())
+    }
+
+    /// Powers on again from `disk`; the machine must already be off. Returns once QEMU is running, so
+    /// a machine that never gives a shell can still be watched. No TPM on this platform.
+    pub(crate) fn power_on(&mut self, disk: &Path, _tpm: Option<&str>) -> Result<(), String> {
+        self.qemu = spawn_qemu(&self.dir, disk, &self.ports)?;
+        self.serial = connect_socket(&self.dir.join("serial.sock"))?;
+        self.monitor = connect_socket(&self.dir.join("monitor.sock"))?;
+        Ok(())
+    }
+
+    /// Powers on again from `disk` and waits for a shell.
+    pub(crate) fn boot(&mut self, disk: &Path, tpm: Option<&str>) -> Result<(), String> {
+        self.power_on(disk, tpm)?;
+        self.wait_for_shell()
+    }
+
+    /// Restarts from inside and waits for the shell to come back.
+    pub(crate) fn reboot(&mut self) -> Result<(), String> {
+        self.serial
+            .write_all(b"systemctl reboot\n")
+            .map_err(|e| e.to_string())?;
+        self.wait_for_restart(BOOT_TIMEOUT)
+    }
+
+    /// Gives a command to QEMU's monitor, such as plugging in a USB stick.
+    pub(crate) fn monitor(&mut self, command: &str) -> Result<(), String> {
+        self.monitor
+            .write_all(format!("{command}\n").as_bytes())
+            .map_err(|e| e.to_string())?;
+        sleep(Duration::from_millis(500));
+        // Only QEMU's echo, which nothing reads: drained so its buffer never fills.
+        drop(self.monitor.read(&mut [0_u8; 4096]));
+        Ok(())
+    }
+
+    /// Waits until a command comes back through the serial shell, sending nothing until the shell has
+    /// shown its prompt: with two boot entries, a key arriving at the boot loader opens its menu, and
+    /// the machine then waits there for a person.
     fn wait_for_shell(&mut self) -> Result<(), String> {
+        self.watch_serial(BOOT_TIMEOUT, false)?;
         let deadline = Instant::now() + BOOT_TIMEOUT;
         while Instant::now() < deadline {
             if self
@@ -107,6 +205,32 @@ impl Vm {
             sleep(POLL);
         }
         Err("the machine gave no shell".to_owned())
+    }
+
+    /// Reads the serial port, sending nothing, until the shell's prompt appears; after the firmware's
+    /// next message if `restarting`, which an old prompt can't satisfy.
+    fn watch_serial(&mut self, limit: Duration, restarting: bool) -> Result<(), String> {
+        let (mut raw, mut buffer, deadline) = (Vec::new(), [0_u8; 16_384], Instant::now() + limit);
+        while Instant::now() < deadline {
+            if let Ok(count) = self.serial.read(&mut buffer) {
+                raw.extend_from_slice(buffer.get(..count).unwrap_or_default());
+            }
+            let text = String::from_utf8_lossy(&raw);
+            let shown = if restarting {
+                text.rfind(FIRMWARE_LINE).map(|at| &text[at..])
+            } else {
+                Some(&*text)
+            };
+            if shown.is_some_and(|tail| tail.contains(PROMPT)) {
+                return Ok(());
+            }
+        }
+        Err("the machine showed no prompt in time".to_owned())
+    }
+
+    /// Waits, sending nothing, for the machine to restart and show a shell.
+    pub(crate) fn wait_for_restart(&mut self, limit: Duration) -> Result<(), String> {
+        self.watch_serial(limit, true)
     }
 
     /// Runs a command inside the machine with the usual time limit.
@@ -206,22 +330,30 @@ impl Drop for Vm {
     }
 }
 
-/// Starts QEMU with its serial port on a socket in `dir`.
-fn spawn_qemu(dir: &Path, image: &Path, ports: &[(&str, u16)]) -> Result<Child, String> {
-    let share = qemu_share()?;
-    std::fs::copy(share.join("edk2-arm-vars.fd"), dir.join("vars.fd"))
-        .map_err(|e| e.to_string())?;
-    let disk = dir.join("disk.qcow2");
+/// Creates an overlay on `image`, so the image itself is never written. `image` may be raw or qcow2.
+pub(crate) fn make_overlay(image: &Path, overlay: &Path) -> Result<(), String> {
+    let format = if image.extension().is_some_and(|e| e == "qcow2") {
+        "qcow2"
+    } else {
+        "raw"
+    };
     let made = Command::new("qemu-img")
-        .args(["create", "-q", "-f", "qcow2", "-F", "raw", "-b"])
+        .args(["create", "-q", "-f", "qcow2", "-F", format, "-b"])
         .arg(image)
-        .arg(&disk)
+        .arg(overlay)
         .arg("32G")
         .status()
         .map_err(|e| e.to_string())?;
-    if !made.success() {
-        return Err("could not create the overlay".to_owned());
+    if made.success() {
+        Ok(())
+    } else {
+        Err("could not create the overlay".to_owned())
     }
+}
+
+/// Starts QEMU from `disk`, with its serial port and monitor on sockets in `dir`.
+fn spawn_qemu(dir: &Path, disk: &Path, ports: &[(&str, u16)]) -> Result<Child, String> {
+    let share = qemu_share()?;
     let forwards: Vec<String> = ports
         .iter()
         .zip(FORWARDS)
@@ -235,6 +367,7 @@ fn spawn_qemu(dir: &Path, image: &Path, ports: &[(&str, u16)]) -> Result<Child, 
     Command::new("qemu-system-aarch64")
         .args([
             "-machine", "virt", "-accel", accel, "-cpu", "host", "-smp", "4", "-m", "4096",
+            "-device", "i6300esb",
         ])
         .arg("-drive")
         .arg(format!(
@@ -266,6 +399,11 @@ fn spawn_qemu(dir: &Path, image: &Path, ports: &[(&str, u16)]) -> Result<Child, 
             "unix:{},server,nowait",
             dir.join("serial.sock").display()
         ))
+        .arg("-monitor")
+        .arg(format!(
+            "unix:{},server,nowait",
+            dir.join("monitor.sock").display()
+        ))
         .stdout(Stdio::null())
         .stderr(Stdio::null())
         .spawn()
@@ -286,18 +424,20 @@ fn qemu_share() -> Result<PathBuf, String> {
         .ok_or_else(|| "odd QEMU path".to_owned())
 }
 
-/// Connects to the serial socket, which QEMU creates shortly after starting.
-fn connect_serial(dir: &Path) -> Result<UnixStream, String> {
+/// Connects to one of QEMU's sockets, which it creates shortly after starting.
+fn connect_socket(path: &Path) -> Result<UnixStream, String> {
     let deadline = Instant::now() + Duration::from_secs(20);
     loop {
-        match UnixStream::connect(dir.join("serial.sock")) {
+        match UnixStream::connect(path) {
             Ok(stream) => {
                 stream
                     .set_read_timeout(Some(Duration::from_millis(300)))
                     .map_err(|e| e.to_string())?;
                 return Ok(stream);
             }
-            Err(e) if Instant::now() > deadline => return Err(format!("no serial port: {e}")),
+            Err(e) if Instant::now() > deadline => {
+                return Err(format!("no socket {}: {e}", path.display()));
+            }
             Err(_) => sleep(Duration::from_millis(200)),
         }
     }

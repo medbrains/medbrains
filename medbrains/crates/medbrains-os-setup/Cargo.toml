@@ -9,6 +9,7 @@ license-file.workspace = true
 
 [dependencies]
 argon2 = { workspace = true }
+medbrains-os-update = { path = "../medbrains-os-update" }
 serde_json = { workspace = true }
 
 # Who connected to the socket: only Linux has this, and only Linux runs this. Tests also run on Macs.

@@ -81,8 +81,8 @@ N1 to N6 come from RFC-HOSPITAL-OS §8q. Every task ends on a check or a screen.
 
 | Task | What | Done when | State |
 |---|---|---|---|
-| U1 | A/B OS updates, automatic rollback (`OS-UPDATES.md`) | Failed update rolls back; settings byte-identical | next |
-| U1.1 | Release channel and signed bundles, online and USB | Unsigned bundle refused | next |
+| U1 | A/B OS updates, automatic rollback (`OS-UPDATES.md`) | Failed update rolls back; settings byte-identical | doing: built and passes `make os-test-updates` on QEMU; real hardware blocked (F4), and a release with a migration needs U1.3 first |
+| U1.1 | Release channel and signed bundles, online and USB | Unsigned bundle refused | doing: built and tested with a test key; the release key is designed and not made (X2), and no channel is published |
 | U1.2 | App updates separate from the OS | App fix ships without an OS image | next |
 | U1.3 | Backup before migration; CI check that migrations stay compatible one release back | Failed migration restores by itself | next |
 | U1.4 | Main machine serves nodes; rings and windows in Control | One ward updates first; failure stops the rollout | later, needs J1, C1 |

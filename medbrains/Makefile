@@ -994,13 +994,17 @@ OS_TARGET_DIR ?= /tmp/mb-target-osimage
 os-image: ## Build the MedBrains OS disk image (ARCH=arm64|x86-64, DEBUG=1 for a serial root shell)
 	bash scripts/build_guard.sh --wait
 	# jemalloc's build runs make itself, and would read this make's ARCH=... as a target.
-	env -u MAKEFLAGS -u ARCH CARGO_TARGET_DIR=$(OS_TARGET_DIR) SQLX_OFFLINE=true cargo zigbuild --release --target=$(OS_ARCH_TRIPLE).2.36 -p medbrains-server --bin medbrains-server -p medbrains-os-setup --bin medbrains-os-setup
+	env -u MAKEFLAGS -u ARCH CARGO_TARGET_DIR=$(OS_TARGET_DIR) SQLX_OFFLINE=true cargo zigbuild --release --target=$(OS_ARCH_TRIPLE).2.36 -p medbrains-server --bin medbrains-server -p medbrains-os-setup --bin medbrains-os-setup -p medbrains-os-update --bin medbrains-os-update
 	pnpm turbo run build --filter=@medbrains/web...
 	CARGO_TARGET_DIR=$(OS_TARGET_DIR) os/build.sh --arch $(or $(ARCH),arm64) $(if $(DEBUG),--debug)
 
 os-test: ## Boot a debug image and check security, boot and memory (IMAGE=path/to/image.raw)
 	bash scripts/build_guard.sh --wait
 	cargo run -q -p medbrains-os-test -- $(IMAGE)
+
+os-test-updates: ## Prove A/B updates on real QEMU machines (IMAGE=path/to/image.raw BUNDLES=path)
+	bash scripts/build_guard.sh --wait
+	cargo run -q -p medbrains-os-test -- $(IMAGE) updates $(BUNDLES)
 
 os-boot: ## Boot the built arm64 image in QEMU (FRESH=1 for a brand-new box)
 	os/qemu-run.sh $(if $(FRESH),--fresh)

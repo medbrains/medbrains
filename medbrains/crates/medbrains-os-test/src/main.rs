@@ -1,10 +1,13 @@
 //! Boots a fresh debug OS image and checks what every image must do, from inside and outside.
 //!
 //!     cargo run -p medbrains-os-test -- <image.raw>
+//!     cargo run -p medbrains-os-test -- <image.raw> updates <bundles folder>
 //!
 //! Needs `make os-image DEBUG=1` and QEMU. Exits non-zero if any check fails. Budgets are in
 //! `budgets.json`: ratchets to lower as the numbers improve (targets: RFC-HOSPITAL-OS §3a).
 
+mod update_steps;
+mod updates;
 mod vm;
 
 use std::path::Path;
@@ -304,7 +307,13 @@ fn main() -> ExitCode {
         ));
         return ExitCode::from(2);
     };
-    match run_suite(Path::new(&image)) {
+    let result = if std::env::args().nth(2).as_deref() == Some("updates") {
+        let bundles = std::env::args().nth(3).unwrap_or_default();
+        updates::run(Path::new(&image), Path::new(&bundles))
+    } else {
+        run_suite(Path::new(&image))
+    };
+    match result {
         Ok(0) => ExitCode::SUCCESS,
         Ok(_) => ExitCode::FAILURE,
         Err(why) => {
