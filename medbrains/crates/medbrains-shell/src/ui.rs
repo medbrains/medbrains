@@ -145,6 +145,15 @@ pub(crate) fn status_sentence(machine: &Machine, main_ready: bool) -> String {
     }
 }
 
+/// The greeting's sentence for a node that cannot reach its main machine, which matters more than
+/// anything else it could say.
+pub(crate) const fn unreachable_sentence(role: &str, main_ready: bool) -> Option<&'static str> {
+    match (role.as_bytes(), main_ready) {
+        (b"node", false) => Some("Cannot reach the main machine. This machine keeps trying by itself."),
+        _ => None,
+    }
+}
+
 /// The word for the clock's state in the Network widget, and whether it is a warning.
 pub(crate) fn clock_words(clock: &str) -> (&'static str, bool) {
     match clock {
@@ -249,6 +258,13 @@ mod tests {
     }
 
     /// A degraded machine must never read as healthy, and must say what failed.
+    #[test]
+    fn only_a_node_cut_off_says_it_cannot_reach_the_main_machine() {
+        assert!(super::unreachable_sentence("node", false).is_some());
+        assert!(super::unreachable_sentence("node", true).is_none());
+        assert!(super::unreachable_sentence("main", false).is_none());
+    }
+
     #[test]
     fn a_problem_is_named_and_never_reported_as_healthy() {
         let broken = machine("degraded", &["caddy.service"]);

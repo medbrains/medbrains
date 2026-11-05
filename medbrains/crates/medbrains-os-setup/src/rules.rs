@@ -3,6 +3,8 @@
 /// A problem with one field, in words for the screen.
 pub(crate) type Problems = Vec<(&'static str, &'static str)>;
 
+const CERTIFICATE_BEGIN: &str = "-----BEGIN CERTIFICATE-----";
+const CERTIFICATE_END: &str = "-----END CERTIFICATE-----";
 /// What a hospital name must be. The screen shows these as hints before anyone types.
 const HOSPITAL_RULE: &str = "2 to 100 characters, on one line.";
 /// What a username must be, matching what sign-in accepts.
@@ -90,6 +92,37 @@ pub(crate) fn env_with_seed(
     out
 }
 
+/// The certificate in what the agent recorded on approval, or `None` if it is not one. It becomes
+/// the only certificate the screen trusts, so anything else is refused.
+pub(crate) fn joined_certificate(joined: &str) -> Option<String> {
+    let parsed: serde_json::Value = serde_json::from_str(joined).ok()?;
+    let certificate = parsed.get("certificate")?.as_str()?;
+    is_one_certificate(certificate).then(|| certificate.to_owned())
+}
+
+/// True for exactly one PEM certificate and nothing else: this file is the screen's whole trust
+/// store, so a second certificate after the first would be trusted too.
+fn is_one_certificate(text: &str) -> bool {
+    let Some(body) = text
+        .trim_end()
+        .strip_prefix(CERTIFICATE_BEGIN)
+        .and_then(|rest| rest.strip_suffix(CERTIFICATE_END))
+    else {
+        return false;
+    };
+    !body.trim().is_empty()
+        && body
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || matches!(c, '+' | '/' | '=' | '\n' | '\r'))
+}
+
+/// The hospital's name in what the agent recorded, if it is fit to show.
+pub(crate) fn joined_hospital(joined: &str) -> Option<String> {
+    let parsed: serde_json::Value = serde_json::from_str(joined).ok()?;
+    let name = parsed.get("hospital")?.as_str()?.trim();
+    is_hospital_name(name).then(|| name.to_owned())
+}
+
 /// True for dotted IPv4 such as `192.168.1.20`.
 fn is_ipv4(value: &str) -> bool {
     value.parse::<std::net::Ipv4Addr>().is_ok()
@@ -131,6 +164,9 @@ pub(crate) fn fixed_network(
     if !dns.is_empty() {
         file += &format!("DNS={dns}\n");
     }
+    // mDNS needs a route, and an isolated hospital network has no gateway to supply one. The metric
+    // puts the address a person chose ahead of any DHCP link.
+    file += "\n[Route]\nDestination=224.0.0.0/4\nScope=link\nMetric=100\n";
     Some(file)
 }
 
@@ -149,6 +185,23 @@ pub(crate) fn preferred_network(interface: &str) -> Option<String> {
 mod tests {
     use super::{check_new_hospital, env_with_seed, fixed_network, preferred_network};
 
+    /// This file decides what the screen trusts: a bad one must not reach it.
+    #[test]
+    fn only_a_certificate_is_taken_from_what_the_agent_recorded() {
+        let good = r#"{"certificate":"-----BEGIN CERTIFICATE-----\nx\n-----END CERTIFICATE-----\n"}"#;
+        assert!(super::joined_certificate(good).is_some());
+        let two = r#"{"certificate":"-----BEGIN CERTIFICATE-----\nx\n-----END CERTIFICATE-----\n-----BEGIN CERTIFICATE-----\ny\n-----END CERTIFICATE-----\n"}"#;
+        assert_eq!(super::joined_certificate(two), None, "a second certificate would be trusted");
+        let junk = r#"{"certificate":"-----BEGIN CERTIFICATE-----\nx\n-----END CERTIFICATE-----\njunk"}"#;
+        assert_eq!(super::joined_certificate(junk), None);
+        assert_eq!(super::joined_certificate(r#"{"certificate":"anything"}"#), None);
+        assert_eq!(super::joined_certificate(r#"{"other":1}"#), None);
+        assert_eq!(super::joined_certificate("not json"), None);
+        assert_eq!(super::joined_hospital(r#"{"hospital":"City"}"#).as_deref(), Some("City"));
+        assert_eq!(super::joined_hospital("{\"hospital\":\"a\\nb\"}"), None);
+    }
+
+    
     const GOOD: &str = "Ward-Seven7";
 
     #[test]
@@ -206,6 +259,8 @@ mod tests {
         let file = |address, gateway| fixed_network("en0", address, gateway, "");
         assert!(file("192.168.1.20/24", "192.168.1.1").is_some_and(|f| f.contains("Name=en0")));
         assert!(file("192.168.1.20/24", "").is_some_and(|f| !f.contains("Gateway")));
+        // With no gateway, this route is the only way mDNS can find a main machine.
+        assert!(file("192.168.1.20/24", "").is_some_and(|f| f.contains("Destination=224.0.0.0/4")));
         assert!(file("192.168.1.20", "192.168.1.1").is_none());
         assert!(file("192.168.1.20/33", "192.168.1.1").is_none());
         assert!(file("1.1.1.1/24\nDNS=9.9.9.9", "1.1.1.1").is_none());

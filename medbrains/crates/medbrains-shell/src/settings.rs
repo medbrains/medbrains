@@ -3,7 +3,7 @@
 use gtk4 as gtk;
 use gtk4::prelude::{BoxExt, ToggleButtonExt, WidgetExt};
 
-use crate::{network, prefs, timezone, ui};
+use crate::{main_address, network, prefs, timezone, ui};
 
 /// The dark/light choice and the motion switch, applied and saved at once.
 fn appearance(css: &gtk::CssProvider) -> gtk::Box {
@@ -49,7 +49,7 @@ fn appearance(css: &gtk::CssProvider) -> gtk::Box {
 }
 
 /// The Settings page.
-pub(crate) fn page(css: &gtk::CssProvider) -> gtk::Widget {
+pub(crate) fn page(css: &gtk::CssProvider, role: &str) -> gtk::Widget {
     let body = ui::column(ui::GAP);
     body.append(&ui::label("Appearance", "heading"));
     body.append(&appearance(css));
@@ -57,6 +57,10 @@ pub(crate) fn page(css: &gtk::CssProvider) -> gtk::Widget {
     body.append(&timezone::chooser());
     body.append(&ui::label("Network", "heading"));
     body.append(&network::panel(None));
+    if role == "node" {
+        body.append(&ui::label("Main machine", "heading"));
+        body.append(&main_address::panel());
+    }
     body.append(&ui::label("This machine", "heading"));
     let version = std::fs::read_to_string("/etc/os-release").unwrap_or_default();
     let image = version

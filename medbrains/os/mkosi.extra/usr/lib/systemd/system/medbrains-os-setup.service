@@ -2,7 +2,7 @@
 # env and powers the machine off; on a Unix socket only the screen's group can open.
 [Unit]
 Description=MedBrains setup and machine controls
-After=medbrains-firstboot.service systemd-tmpfiles-setup.service
+After=systemd-tmpfiles-setup.service
 
 [Service]
 Type=exec

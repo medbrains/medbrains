@@ -17,7 +17,7 @@ export interface PermissionDef {
   module: string;
 }
 
-/** 1212 permissions, one per constant in the Rust source. */
+/** 1215 permissions, one per constant in the Rust source. */
 export const PERMISSIONS: PermissionDef[] = [
   // dashboard
   {
@@ -6607,6 +6607,24 @@ export const PERMISSIONS: PermissionDef[] = [
     module: "devices",
   },
   {
+    code: "devices.machines.view",
+    label: "See machines and their join requests",
+    description: "Lists the machines waiting to join, and every joined machine with its name, type, status and when it was last seen. It does not show the code a person must read from a machine's own screen.",
+    module: "devices",
+  },
+  {
+    code: "devices.machines.approve",
+    label: "Approve or reject a machine that asks to join",
+    description: "Lets a machine onto the hospital's network of screens. It is a separate duty from removing one, and each decision is audited.",
+    module: "devices",
+  },
+  {
+    code: "devices.machines.remove",
+    label: "Remove a joined machine",
+    description: "Ends the machine's access at once, so a lost or retired machine can be cut off by somebody who cannot admit new ones.",
+    module: "devices",
+  },
+  {
     code: "devices.binding.issue",
     label: "Issue hospital binding QR codes",
     description: "Prints a signed, expiring QR that a staff or patient app scans to bind itself to this hospital's server, so nobody types a hospital code or server address.",
@@ -8383,6 +8401,14 @@ export const P = {
     DELETE: "devices.delete",
     INGEST: "devices.ingest",
     LIST: "devices.list",
+    MACHINES: {
+      APPROVE: "devices.machines.approve",
+      REMOVE: "devices.machines.remove",
+      VIEW: "devices.machines.view",
+    },
+    MACHINES_APPROVE: "devices.machines.approve",
+    MACHINES_REMOVE: "devices.machines.remove",
+    MACHINES_VIEW: "devices.machines.view",
     MESSAGES: {
       RETRY: "devices.messages.retry",
       VIEW: "devices.messages.view",
@@ -12440,6 +12466,9 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.DEVICES.CREATE,
       P.DEVICES.INGEST,
       P.DEVICES.LIST,
+      P.DEVICES.MACHINES.APPROVE,
+      P.DEVICES.MACHINES.REMOVE,
+      P.DEVICES.MACHINES.VIEW,
       P.DEVICES.MESSAGES.VIEW,
       P.DEVICES.ORDERS.SEND,
       P.DEVICES.PAIRING.PAIRED_LIST,
@@ -12790,6 +12819,8 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
     label: "IT Security Officer",
     permissions: [
       P.DASHBOARD.VIEW,
+      P.DEVICES.MACHINES.REMOVE,
+      P.DEVICES.MACHINES.VIEW,
       P.SECURITY.INCIDENTS.CREATE,
       P.SECURITY.INCIDENTS.LIST,
       P.SECURITY.INCIDENTS.UPDATE,
