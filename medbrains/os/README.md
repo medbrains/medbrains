@@ -302,6 +302,11 @@ it, with both clocks in step; the agent asks every 2 s, so this can reach about 
 purpose first, access still ended, 30 s after the sync broke (19 s after the removal), and stayed ended when the sync
 came back.
 
+Flooding the main machine with 1,200 connections from one address: 120 got through the door in the minute, the rest
+were refused. The agent peaked at 17 MB PSS with no restart, and a node's probes answered 88 of 88 throughout. A flood
+from many addresses, and real guessing through to the pause, were tested in-process only. As another user, or even
+root, connecting to the front end from a machine's `127.x.y.z` is refused; only the agent may.
+
 Seven wrong sign-ins from a node answered `401` five times and then `429`, while the main machine's own screen kept
 getting `401`; the audit log records the node's own address, `127.148.222.63`, which Machines shows for that machine.
 
