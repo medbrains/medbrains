@@ -87,6 +87,8 @@ N1 to N6 come from RFC-HOSPITAL-OS §8q. Every task ends on a check or a screen.
 | U1.3 | Backup before migration; CI check that migrations stay compatible one release back | Failed migration restores by itself | next |
 | U1.4 | Main machine serves nodes; rings and windows in Control | One ward updates first; failure stops the rollout | later, needs J1, C1 |
 | U1.5 | Compare the update design with TUF's list of attacks (owner 2026-11-05): old update served again, updates held back, mixed versions, a stolen signing key. Adopt TUF or close each gap another way | Each attack refused by a test, or a written, accepted limit | next, with U1 |
+| U1.6 | A rolled-back version stays refused (owner 2026-11-05): after rollback, automatic updates do not install the same bad version again until a newer one is published. Red Hat's image mode documents this trap: its update timer can reapply the image within hours | Test: a failed update rolls back and is not retried | next, with U1 |
+| U1.7 | Upgrade across Debian major releases, with a pre-upgrade check that says what would break, like Red Hat's Leapp | Debian 13 to 14 in a VM, data kept, rollback works | later, before Debian 13 support ends |
 | U2 | Backup, restore, recovery | Restore on a new machine from backup | next |
 | U2.1 | Scheduled jobs as systemd timers, listed in Control with last result | A failed nightly backup shows on screen | next |
 | U2.2 | Backups encrypted, to a second disk or another machine; old copies cannot be overwritten by the running system | Ransomware test: wiping the data leaves a restorable copy | next |
@@ -100,6 +102,7 @@ N1 to N6 come from RFC-HOSPITAL-OS §8q. Every task ends on a check or a screen.
 |---|---|---|---|
 | O1 | Health: disk wear and space, temperature, watchdog, service restart | A failing disk warns before it fails | next |
 | O2 | Logs: bounded, rotated, no patient data; diagnostics bundle for support | Disk cannot fill with logs; bundle holds no patient data | doing: journal bounded, database log joins it; diagnostics bundle open |
+| O2.1 | Diagnostics bundle like Red Hat's `sos report`: one screen action collects logs and settings, removes patient data and secrets, shows what will leave, and sends nothing itself | A planted patient name and key never appear in the bundle | next, with O2 |
 | O3 | Power: safe shutdown on UPS signal, recovery after a power cut | Pull power under load; database comes back clean | next |
 | O4 | Screen: idle lock, switch person, touch, on-screen keyboard, language, accessibility | Keyboard-only and screen-reader checks pass | next, needs S3 |
 | O5 | Printing and peripherals: printers, barcode, card readers | Label prints from a node | later |
@@ -112,6 +115,7 @@ N1 to N6 come from RFC-HOSPITAL-OS §8q. Every task ends on a check or a screen.
 | O12 | Every OS screen responsive: setup, desktop, dock, menus and apps at phone, tablet, laptop, desktop, TV and mini-display sizes, in both rotations, with touch targets of 44 px and an on-screen keyboard | Automated screenshots at 480x320, 800x480, 390x844, 768x1024, 1280x800 and 1920x1080 show nothing cut off or overlapping; touch-only setup and sign-in work | next: owner required 2026-11-04 |
 | O13 | Who may do what at the screen (owner 2026-11-04): choosing Wi-Fi or a wired link on a node and restarting a node are open to anyone at it; severe actions need sign-in with a new IT permission: stopping or restarting the main machine, changing the main machine's network, fixed addresses, factory reset, removing a machine, turning remote access on | With no sign-in the service refuses each severe action and audits it, and a node's Wi-Fi still changes freely | next: after the desktop PR; permission first |
 | O15 | Safe diagnostics for IT with no terminal: named trace points in the server read with `bpftrace`, only by IT sign-in and audited (`usdt` has no ARM support on Linux yet) | A stuck request is explained from the screen | parked, after first stable |
+| O16 | Local advisor, on the machine with no phone-home: rules read the machine's health and advise in plain words, like Red Hat Insights without its cloud | A planted misconfiguration is named with its fix | parked, after first stable |
 
 ## H. Real hardware
 
@@ -140,6 +144,7 @@ N1 to N6 come from RFC-HOSPITAL-OS §8q. Every task ends on a check or a screen.
 | D4.5 | Hardware-dependent tuning: I/O scheduler per disk type, dm-crypt `no_read_workqueue` and `no_write_workqueue`, MGLRU, THP `madvise`, BBR with `fq`, `preempt=full`, CPU power policy | Numbers on real machines | blocked: needs hardware |
 | D4.6 | Refused, with reasons: `mitigations=off`, KSM, relaxing `fsync` or `synchronous_commit`, a custom or patched kernel, our own `sched_ext` scheduler | Stays out unless the owner changes it | decided 2026-11-05 |
 | D4.7 | Test PostgreSQL 18 and 19 against 17 (owner 2026-11-05; 19 thoroughly), with `io_method` set to `io_uring` and to `worker`, on the same workload and made-up data. Correctness: all migrations, SQLx queries, `tenant_walls.rs`, row level security under every role, audit chain. Safety: repeated power cuts during writes, checksums, `pg_upgrade` from 17, backup and restore, rollback plan. Load: memory, speed, bytes written per day, an hour of sustained load. Features to measure: foreign-key check speed, `REPACK (CONCURRENTLY)`, parallel autovacuum and its scoring, lz4 TOAST and WAL, `NOTIFY` wake-ups, `pg_stat_lock`. 19 ships only as a final release, retested on it. The PostgreSQL project's package repository would be a new trust source, pinned and listed in `OS-THREATS.md` | Results recorded per version; decision in `DECISIONS.md` | next, after the current queue |
+| D4.8 | One tuning profile per machine size and role, chosen at setup, like Red Hat's `tuned` | D4 settings apply from the profile, with numbers per profile | later, after D4.3 |
 | D5 | GPU and NPU: detect, use through a portable runtime, never required (§8p) | OCR runs on CPU and on one accelerator | later, needs hardware |
 | D6 | Decide NVIDIA's driver: it is a kernel module, against §8o | Owner decision recorded | blocked: owner |
 
@@ -161,6 +166,7 @@ N1 to N6 come from RFC-HOSPITAL-OS §8q. Every task ends on a check or a screen.
 | R2 | Auto tags | Merge publishes once | held until B1 to B5 and owner's go |
 | R3 | Beta and the Docker image decision | Pre-release published | blocked: owner |
 | R4 | v3.33.0 with the OS image | After H2, U1, T1 and an outside test | later |
+| R5 | Published promise for each release: how long it gets security fixes, and a plain advisory for each flaw saying who is affected and what to do, like Red Hat's lifecycle pages and errata. The length is the owner's decision | Support dates shown on the machine and on the site; one advisory published through the process in a dry run | blocked: owner, support length |
 
 ## F. Flight rules (`docs/OS-PRINCIPLES.md` section 7)
 
@@ -191,6 +197,10 @@ N1 to N6 come from RFC-HOSPITAL-OS §8q. Every task ends on a check or a screen.
 | X13 | Review the route files that hold raw SQL unlisted by `check_tenant_leak.py`: each query is tenant-scoped or moved to `medbrains-db`, starting with the routes reached without sign-in | `Schema + tenancy` passes, and no route reads another hospital's rows | database wall proved by `tenant_walls.rs` (34 tables, request role, 0 reads, 0 writes); files baselined so new raw SQL fails; moving the SQL to `medbrains-db` still open |
 | X14 | Type-safe IDs in new code with `newtype-uuid`, so a patient ID cannot be passed as a tenant ID; existing code stays until touched | The compiler refuses the mix-up in one module | parked, after first stable |
 | X15 | Generate the OpenAPI description and clients from server code, so the API and screens cannot drift; replaces parsing in `check_api_contract.py` | One module generated end to end, `make check-api` agrees | parked, after first stable |
+| X16 | Hardening report against a public benchmark (CIS Debian, checked with OpenSCAP), as evidence for auditors, on every image | Report in CI; each failure fixed or a written, accepted limit | next |
+| X17 | Disk unlocks only on the hospital network (Clevis and Tang), as an option for sites with a second machine: a stolen server alone stays locked. Needs a recovery key, so a network fault can never block care | Test: stolen disk and TPM without the network stays locked; network down at boot has a documented recovery | later, after T1 |
+| X18 | Remote attestation of nodes with Keylime: the main machine checks that a node booted what it should | Tampered node refused | parked, needs real TPM hardware |
+| X19 | Allow only known programs to run on writable paths (`noexec` on `/var`, or `fapolicyd`) | A dropped binary refuses to run | later |
 | L1 | Web first load: index.html preloads 45 modules, 4.0 MB raw, before any page opens. Trim to what the sign-in page needs, and one language | First-load budget in CI, measured on the OS screen | doing: echarts and the rich-text editor now load on demand; one language next |
 | X9 | Outside penetration test before a hospital goes live | Report received and findings closed | blocked: owner, cost |
 
