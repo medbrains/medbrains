@@ -407,14 +407,20 @@ fn run_suite(image: &Path) -> Result<usize, String> {
             line.as_bytes(),
         ));
     }
-    Ok(failed + disk::run_sealed_disk(&mut vm, image)? + disk::run_without_sealed_disk(image))
+    let sealed = disk::run_sealed_disk(&mut vm, image)?;
+    // One machine at a time: this one goes before the next starts.
+    drop(vm);
+    Ok(failed + sealed + disk::run_without_sealed_disk(image))
 }
 
 /// Only the data disk scenarios, on a new machine.
 fn run_disk_only(image: &Path) -> Result<usize, String> {
     let mut vm = Vm::start(image)?;
     set_up_main(&mut vm)?;
-    Ok(disk::run_sealed_disk(&mut vm, image)? + disk::run_without_sealed_disk(image))
+    let sealed = disk::run_sealed_disk(&mut vm, image)?;
+    // One machine at a time: this one goes before the next starts.
+    drop(vm);
+    Ok(sealed + disk::run_without_sealed_disk(image))
 }
 
 fn main() -> ExitCode {

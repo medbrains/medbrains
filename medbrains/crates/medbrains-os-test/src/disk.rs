@@ -28,7 +28,6 @@ const REPLAY_LIMIT: Duration = Duration::from_secs(120);
 /// After this many wrong answers to the PIN prompt, systemd asks for the recovery key instead.
 const WRONG_PINS_BEFORE_KEY: u32 = 2;
 const MANY_WRONG_PINS: u32 = 34;
-const PIN_PROMPT: &str = "enter TPM2 PIN";
 const RECOVERY_PROMPT: &str = "enter recovery key";
 
 type Step = (&'static str, fn(&mut Vm, &Path) -> Result<(), String>);
@@ -263,7 +262,7 @@ fn stolen_machine_replay_refused(vm: &mut Vm, image: &Path) -> Result<(), String
         &format!(
             "umask 077; printf %s {key} > /run/k; systemd-cryptenroll --unlock-key-file=/run/k --tpm2-device=auto --tpm2-pcrs=7 \
              --tpm2-public-key=/run/pcr-public-key.pem --tpm2-public-key-pcrs=11 --tpm2-signature=/run/pcr-signature.json --wipe-slot=tpm2 {PARTITION} 2>&1 | tail -2; rm -f /run/k; \
-             systemd-cryptsetup attach control {PARTITION} none luks,tpm2-device=auto,tpm2-signature=/run/pcr-signature.json,headless=yes,tries=1 2>&1 | tail -2; echo control=${{PIPESTATUS[0]}}"
+             systemd-cryptsetup attach replay-control {PARTITION} none luks,tpm2-device=auto,tpm2-signature=/run/pcr-signature.json,headless=yes,tries=1 2>&1 | tail -2; echo control=${{PIPESTATUS[0]}}"
         ),
         limit,
     )?;
@@ -345,7 +344,7 @@ fn pin_is_asked_at_every_start(image: &Path) -> Result<(), String> {
     ensure(!data_open(&mut vm)?, "opened with the wrong PIN")?;
     vm.type_text(&format!("{pin}\n"))?;
     wait_open(&mut vm)?;
-    recovery_key_opens_a_pin_machine(&mut vm)
+    recovery_key_opens_a_pin_machine(&mut vm, &pin)
 }
 
 /// Past a PIN nobody knows: the first two answers go to the PIN prompt, and only then does the disk ask
@@ -363,16 +362,22 @@ fn open_past_the_pin_with_recovery_key(vm: &mut Vm) -> Result<(), String> {
     wait_open(vm)
 }
 
-/// A forgotten PIN does not lose the data: the recovery key opens the machine, and a restart asks for
-/// the PIN again. Many wrong answers change nothing in one boot: past two it stops asking the TPM.
-fn recovery_key_opens_a_pin_machine(vm: &mut Vm) -> Result<(), String> {
+/// A forgotten PIN does not lose the data: the recovery key opens the machine. Two wrong tries do not
+/// spoil the PIN: the next boot accepts the right one. Many wrong answers change nothing in one boot,
+/// because past two it stops asking the TPM.
+fn recovery_key_opens_a_pin_machine(vm: &mut Vm, pin: &str) -> Result<(), String> {
     vm.shut_down()?;
     let disk = vm.disk();
     vm.boot(&disk, Some(OWN_TPM))?;
     open_past_the_pin_with_recovery_key(vm)?;
     vm.shut_down()?;
     vm.boot(&disk, Some(OWN_TPM))?;
-    vm.wait_for_screen(PIN_PROMPT, scaled(SCREEN_LIMIT))?;
+    vm.wait_for_screen(NOTICE, scaled(SCREEN_LIMIT))?;
+    vm.type_text(&format!("{pin}\n"))?;
+    wait_open(vm)?;
+    vm.shut_down()?;
+    vm.boot(&disk, Some(OWN_TPM))?;
+    vm.wait_for_screen(NOTICE, scaled(SCREEN_LIMIT))?;
     for _ in 0..MANY_WRONG_PINS {
         vm.type_text("wrongpin\n")?;
         sleep(Duration::from_secs(4));
@@ -538,6 +543,7 @@ pub(crate) fn run_sealed_disk(vm: &mut Vm, image: &Path) -> Result<usize, String
         ),
     ];
     let failed = run_steps(vm, image, &steps);
+    vm.cut_power()?;
     let started = Instant::now();
     let pin_name = "a PIN is asked at every start, and a wrong one refused";
     let mut failed = failed
