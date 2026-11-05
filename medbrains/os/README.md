@@ -444,22 +444,27 @@ sees it, because the server builds links from it.
 flaws have been. Compression is the server's job: it already speaks zstd, gzip and brotli.
 
 **Against Caddy, measured 2026-11-05.** Same VM, same image and server; Debian's Caddy 2.6.2 with the old
-Caddyfile. The host was busy throughout (load 25 to 180), so rates are alternating rounds and vary widely.
+Caddyfile, as root and with no sandbox. Alternating rounds on a host at load about 10.
 
 | | `medbrains-front` | Caddy |
 |---|---|---|
 | Binary | 8.4 MB | 38.3 MB |
-| Memory (PSS) idle / after a page / 200 held TLS connections | 6.7 / 8.6 / 11.7 MB | 41 / 46 / 50 MB |
-| Each held TLS connection | 12 to 18 KB | 22 to 33 KB |
-| Requests a second, reused connections, as a share of direct to the server | median 57% | 52% (55% HTTP/1.1 only): no real difference |
-| New TLS connections a second | 419 to 1,234 | 396 to 1,629: no real difference |
-| A 1.27 MB file over loopback | 43 to 107 MB/s | 15 to 18 MB/s |
-| Cold load of the sign-in page in Chromium, median of medians | about 550 ms | about 340 ms with HTTP/2; about 570 ms HTTP/1.1 only |
-| On the wire, same file: zstd / gzip | 411 / 405 KB | 411 / 405 KB, from the server in both |
+| Memory (PSS) idle / after a page / 200 held TLS connections | 6.9 / 9.6 / 11.8 MB | 39 / 46 / 52 MB |
+| Each held TLS connection | 11 KB | 34 KB |
+| Requests a second, reused connections | 9,900 to 12,000, about 70% of direct | 4,300 to 5,200, about 50% of direct; HTTP/1.1 only the same |
+| New TLS connections a second | 819 to 1,873 | 992 to 1,282; 1,109 to 1,432 HTTP/1.1 only: no clear winner across rounds |
+| A 1.09 MB file over loopback | 274 MB/s | 17 MB/s |
+| Cold load of the sign-in page in Chromium, median of each round | 314, 397, 434 ms | 240, 251, 301 ms with HTTP/2; 553, 570 ms HTTP/1.1 only |
+| On the wire, same file: zstd / gzip | 308 / 328 KB | 308 / 328 KB, from the server in both |
 
-Caddy with HTTP/2 wins the cold page load, because a browser opens only six HTTP/1.1 connections to a host.
-That is the price of HTTP/1.1 only, paid once per browser cache. At its limit of 4,096 finished handshakes the
-front held 102 MB and the screen's port answered in 3 ms. It keeps that memory until restarted: bounded, not returned.
+Caddy with HTTP/2 wins the cold page load by about 130 ms, because a browser opens only six HTTP/1.1
+connections to a host. That is the price of HTTP/1.1 only, paid once per browser cache. Against Caddy on HTTP/1.1,
+the front is faster.
+
+Under a flood of every port at once (real unit limits; the per-address limit and firewall meter off for the
+test), with 4,096 connections each holding a nearly full 15.5 KB head and 256 on port 80, the front peaked at
+197 MB against `MemoryMax=512M`, and the screen's port answered in 2 to 3 ms. It keeps that memory until
+restarted: bounded, not returned.
 
 Adding a site, such as the identity provider, is a `[[sites]]` block: `upstream_tls` for a back end with its own
 certificate, `only_hosts`, `block_paths` (matched after decoding, so `/%73cim/` is `/scim/`) and
