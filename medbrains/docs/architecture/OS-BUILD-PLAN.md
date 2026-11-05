@@ -194,6 +194,7 @@ New ideas go to the parked list, not into this. Stable means every line below pa
 4. Every open row in `OS-THREATS.md` for these parts has a passing test or a written, accepted limit.
 5. A full shift walked through on screen as a pharmacist and an administrator, by a person.
 6. Load test with real sign-ins passes the agreed number of users.
+7. **Unbox to first patient:** a person with no IT background, using only what comes in the box, plugs it in, finishes setup and registers a first test patient, in a time we measure. Every question they ask is a defect to fix.
 
 ## P. Every way to run MedBrains (owner 2026-11-05)
 
