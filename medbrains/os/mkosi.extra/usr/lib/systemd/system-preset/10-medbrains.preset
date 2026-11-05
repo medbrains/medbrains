@@ -2,6 +2,8 @@
 # not listed. Off: Debian's per-cluster WAL archiving and dump templates; backups
 # are ours to schedule (D2), and an unconfigured pg_receivewal fails at every boot.
 disable pg_*
+# Weekly TRIM, not the discard mount option, which sends one on every delete (D4.2).
+enable fstrim.timer
 # Debian's second caddy unit (config over its admin API). It binds the same ports
 # as caddy.service, so whichever starts second fails.
 disable caddy-api.service

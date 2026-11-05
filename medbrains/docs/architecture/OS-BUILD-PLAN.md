@@ -131,6 +131,10 @@ N1 to N6 come from RFC-HOSPITAL-OS §8q. Every task ends on a check or a screen.
 | D3 | Measure before tuning: load, memory, disk, boot on one machine | Numbers recorded (`RFC` §8i) | next, needs H2 |
 | D4 | Tuning with no kernel changes: sysctl, I/O scheduler, BBR, zram, PostgreSQL, each kept only if measured | Before and after numbers for each | later, needs D3 |
 | D4.2 | Do not wear out the hardware (owner 2026-11-05): bytes written per day have a budget and a test; logs batched and capped; temporary files in memory; no disk swap, zram instead; `noatime`; TRIM; few idle wake-ups; heat and disk wear shown in health and alerted | Idle writes per hour and wake-ups per second are within budget in `medbrains-os-test`; disk life is estimated in years on real NVMe and SD | next; life figures need hardware |
+| D4.3 | First tuning group (owner 2026-11-05): zram, `vm.swappiness` and `vm.page-cluster`, CPU and I/O weights for the server and PostgreSQL, weekly TRIM, `wal_compression = lz4`. `noatime` and a capped journal were already in | OS test passes; memory and bytes written recorded before and after | settings written, not yet built or measured |
+| D4.4 | Second tuning group, each kept only if measured: `MemoryMin` from measured use; pressure-based OOM that can never pick PostgreSQL; a smaller boot image (`.efi` 146 MB, initrd 110 MB today) | Before and after numbers; PostgreSQL survives a memory attack | next, after D4.3 |
+| D4.5 | Hardware-dependent tuning: I/O scheduler per disk type, dm-crypt `no_read_workqueue` and `no_write_workqueue`, MGLRU, THP `madvise`, BBR with `fq`, `preempt=full`, CPU power policy | Numbers on real machines | blocked: needs hardware |
+| D4.6 | Refused, with reasons: `mitigations=off`, KSM, relaxing `fsync` or `synchronous_commit`, a custom or patched kernel, our own `sched_ext` scheduler | Stays out unless the owner changes it | decided 2026-11-05 |
 | D5 | GPU and NPU: detect, use through a portable runtime, never required (§8p) | OCR runs on CPU and on one accelerator | later, needs hardware |
 | D6 | Decide NVIDIA's driver: it is a kernel module, against §8o | Owner decision recorded | blocked: owner |
 

@@ -209,6 +209,28 @@ fn flood_spares_other_addresses(vm: &mut Vm, _: &Value) -> Result<(), String> {
     ensure(join_state(vm, "os-test-flood-0")?.contains("dropped"), "the flood's oldest stayed")
 }
 
+/// Swap is compressed memory only, so nothing swapped reaches the disk.
+fn swap_stays_in_memory(vm: &mut Vm, _: &Value) -> Result<(), String> {
+    let swaps = vm.run("swapon --noheadings --show=NAME")?;
+    let names: Vec<&str> = swaps.split_whitespace().collect();
+    ensure(
+        !names.is_empty() && names.iter().all(|name| name.starts_with("/dev/zram")),
+        format!("swap must be zram alone, found {names:?}"),
+    )?;
+    let cluster = number(vm, "sysctl -n vm.page-cluster")?;
+    ensure(cluster == 0, format!("vm.page-cluster is {cluster}"))
+}
+
+/// Settings that spare the disk are in force, and clinical services go first.
+fn disk_and_priority_settings(vm: &mut Vm, _: &Value) -> Result<(), String> {
+    let trim = vm.run("systemctl is-enabled fstrim.timer")?;
+    ensure(trim.trim() == "enabled", format!("fstrim.timer is {trim}"))?;
+    let wal = vm.run("runuser -u postgres -- psql -X -tAc 'SHOW wal_compression'")?;
+    ensure(wal.trim() == "lz4", format!("wal_compression is {wal}"))?;
+    let weight = number(vm, "systemctl show -P CPUWeight medbrains-server")?;
+    ensure(weight == 200, format!("server CPUWeight is {weight}"))
+}
+
 /// Memory at rest is within budget.
 fn idle_memory(vm: &mut Vm, budgets: &Value) -> Result<(), String> {
     let used = number(
@@ -299,6 +321,8 @@ fn checks() -> Vec<Check> {
         ("join ports are open, and the agent's routes need its token", join_ports_and_token),
         ("one address flooding requests spares other addresses", flood_spares_other_addresses),
         ("time is synced by an authenticated source", time_authenticated),
+        ("swap stays in memory", swap_stays_in_memory),
+        ("disk and priority settings hold", disk_and_priority_settings),
         ("idle memory is within budget", idle_memory),
         ("system disk is within budget", system_disk),
         (
