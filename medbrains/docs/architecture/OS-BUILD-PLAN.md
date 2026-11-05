@@ -14,7 +14,7 @@ N1 to N6 come from RFC-HOSPITAL-OS §8q. Every task ends on a check or a screen.
 | N1.2 | `chrony` with authenticated time; serves the LAN | Time syncs by NTS; another machine gets time with the internet cut | doing |
 | N1.3 | Per-service network limits | PostgreSQL refuses every non-local address, even with the firewall off | doing |
 | N1.4 | Remove Caddy's unlimited certificates | A made-up hostname gets no certificate stored | next |
-| N2.1 | Measure Caddy against `medbrains-proxy`, keep one | Numbers recorded; one proxy in the image | next |
+| N2.1 | Replace Caddy with Pingora through `medbrains-proxy` (owner 2026-11-05: Rust stack). Must do all Caddy does on the OS: TLS from the hospital root with certificates by name, HTTP redirect, compression, the plain-words error page, WebSockets, per-path blocks and sign-in limits for Kanidm, node tunnels | Passes every OS check and an attack test (smuggling, slow clients, bad TLS, forged headers); memory and speed measured against Caddy; independent review | next, after node pairing and Kanidm land, class A |
 | N2.2 | Find what pulls in OpenSSL, `ring`, `aws-lc-rs`; reach one for what we ship | One TLS stack in the server | later |
 | N3.1 | Network health screen; permission in Rust first | Pull a cable; the screen says what is down in plain words | next |
 | N3.2 | Set network from the screen: Wi-Fi, fixed address, DNS, with auto rollback | A bad address rolls back by itself | next, needs S1 |
@@ -130,6 +130,7 @@ N1 to N6 come from RFC-HOSPITAL-OS §8q. Every task ends on a check or a screen.
 | D2 | Device list: printers, scanners, barcode, card readers, displays, with plain status | Plug a device in; the screen names it | later, needs S3 |
 | D3 | Measure before tuning: load, memory, disk, boot on one machine | Numbers recorded (`RFC` §8i) | next, needs H2 |
 | D4 | Tuning with no kernel changes: sysctl, I/O scheduler, BBR, zram, PostgreSQL, each kept only if measured | Before and after numbers for each | later, needs D3 |
+| D4.2 | Do not wear out the hardware (owner 2026-11-05): bytes written per day have a budget and a test; logs batched and capped; temporary files in memory; no disk swap, zram instead; `noatime`; TRIM; few idle wake-ups; heat and disk wear shown in health and alerted | Idle writes per hour and wake-ups per second are within budget in `medbrains-os-test`; disk life is estimated in years on real NVMe and SD | next; life figures need hardware |
 | D5 | GPU and NPU: detect, use through a portable runtime, never required (§8p) | OCR runs on CPU and on one accelerator | later, needs hardware |
 | D6 | Decide NVIDIA's driver: it is a kernel module, against §8o | Owner decision recorded | blocked: owner |
 
@@ -177,13 +178,15 @@ N1 to N6 come from RFC-HOSPITAL-OS §8q. Every task ends on a check or a screen.
 | X8 | Attack test per row of `OS-THREATS.md` | Every row has a test or a stated reason | next |
 | X10 | Medical-grade connectors: HL7 v2, FHIR R4, DICOM and ASTM over mutually authenticated TLS, standard codes, a per-connector firewall path, audit of what leaves, one Connections app | Each connector states its data, destination and lawful basis; a false result from outside is rejected or marked | next: owner 2026-11-04 |
 | X11 | Compliance map on the OS: HIPAA, DPDP, GDPR, CERT-In, NABH and ABDM rows in `docs/CERTIFICATIONS.md` extended to the OS, each with evidence or marked open | No row claims more than its evidence; lawyer review | next: lawyer review blocked on owner |
+| X12 | Attribute checks in the kernel beside roles and relations: managed or unmanaged device, data class, department, location, shift, network, with break-glass that is reasoned and audited. Every app uses the same check; a fault stays unknown, never allow | A rule refuses an unmanaged device with an audit row; bulk checks stay one round trip; added cost measured | next: owner 2026-11-05; first stable gets device class and data class only |
+| L1 | Web first load: index.html preloads 45 modules, 4.0 MB raw, before any page opens. Trim to what the sign-in page needs, and one language | First-load budget in CI, measured on the OS screen | doing: echarts and the rich-text editor now load on demand; one language next |
 | X9 | Outside penetration test before a hospital goes live | Report received and findings closed | blocked: owner, cost |
 
 ## First stable version: scope is frozen (owner 2026-11-04)
 
 New ideas go to the parked list, not into this. Stable means every line below passes on the final image.
 
-**In:** desktop, setup and restart (#5223); memory and client address fixes; disk encryption and key inventory (T1, T2); Kanidm with its Identity app (T3, T3.1); node pairing and remote machines (J1, J5); signed A/B updates with rollback and backup with restore (U1, U2); launcher with one app per module for one role, Pharmacy first (O11); responsive OS screens (O12); screen permissions (O13); x86 image (H1).
+**In:** desktop, setup and restart (#5223); memory and client address fixes; disk encryption and key inventory (T1, T2); Kanidm with its Identity app (T3, T3.1); node pairing and remote machines (J1, J5); signed A/B updates with rollback and backup with restore (U1, U2); launcher with one app per module for one role, Pharmacy first (O11); responsive OS screens (O12); screen permissions (O13); x86 image (H1); every way to run it (P1 to P8); Software Center and Control stage 1 (O14, C1.1).
 
 **Parked until after it:** connectors beyond one lab analyzer (X10), other roles' module apps, rule builder, MedBrains Control beyond machines and audit, offline second sites (J4), PACS, mail, app store, side-by-side windows.
 
@@ -194,6 +197,26 @@ New ideas go to the parked list, not into this. Stable means every line below pa
 4. Every open row in `OS-THREATS.md` for these parts has a passing test or a written, accepted limit.
 5. A full shift walked through on screen as a pharmacist and an administrator, by a person.
 6. Load test with real sign-ins passes the agreed number of users.
+7. **Unbox to first patient:** a person with no IT background, using only what comes in the box, plugs it in, finishes setup and registers a first test patient, in a time we measure. Every question they ask is a defect to fix.
+
+## P. Every way to run MedBrains (owner 2026-11-05)
+
+One server and one web app, four ways to run them. All four are in the first stable version. No clinical feature may need the OS.
+
+| Task | What | Done when | State |
+|---|---|---|---|
+| P1 | One server only: setup without a monitor (one-time code on the machine, then a laptop on the LAN), no screen stack when nobody sits at it | Set up with no screen attached; a stranger on the LAN without the code gets nothing | next |
+| P2 | Staff PCs trust the machine: hospital root with a guided install, or a name with a real certificate | A staff PC opens the app with no warning and no click-through | next, with T2 |
+| P3 | Backup target demanded at setup on a lone server, warning until it has one | Pull the disk, restore elsewhere, sign in | next, with U2 |
+| P4 | Server plus nodes: same image, one question at setup; adding nodes later needs no reinstall | One server gains a node with data kept | doing: `feature/os-node-join` |
+| P5 | Own machines: Linux install, Docker, Windows through Hyper-V, checked against the current server, including the required keys and `TRUSTED_PROXIES` | Fresh install of each passes the same health checks | next |
+| P6 | Cloud: hospital's own account, images and guide, India region by default; outage answer for a hospital that loses internet | Fresh cloud install passes the same health checks | next; running it for hospitals needs an owner decision |
+| P6.1 | MedBrains OS as a cloud machine image, EC2 first: server role, no screen stack, setup with no monitor (P1), nodes joining over J5, disk encryption with the cloud's virtual TPM where it has one | The image boots on the smallest instance, passes `medbrains-os-test`, and a node joins it | next, after P1 and J5; launching in an AWS account and any Marketplace listing need the owner |
+| P7 | Move between them: export from one, restore into another with data and audit intact | One server to cloud and back in a test | next |
+| P8 | One shared acceptance suite run against all four | Same checks in CI where possible; the OS suite covers the rest | next |
+| P9 | Mixed fleets: x86 and ARM machines together; desktops, tablets, TVs, kiosks and mini displays as node roles; phones through native apps; PCs through browsers; OS nodes joined to a main machine in the cloud or on their own server; machines one version apart still working | A test fleet of mixed chip and role runs, updates in stages and recovers from a dead main machine | next: owner 2026-11-05; real devices blocked on hardware |
+| O14 | Software Center: approved apps and modules by role, turn on or off with dependencies, updates; signed and audited | A person installs an approved app with no IT help, and an unsigned one is refused | next |
+| C1.1 | Control stage 1: machines, health, audit, basic policies, staged updates, lock, two-person wipe, signed commands | A policy and a staged update reach a node; one person cannot wipe | next, needs T2, J1, U1 |
 
 ## Order
 

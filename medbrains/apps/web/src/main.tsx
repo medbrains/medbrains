@@ -32,7 +32,6 @@ import "@fontsource/ibm-plex-mono/600.css";
 import "@fontsource-variable/archivo/wdth.css";
 import "@mantine/core/styles.css";
 import "@mantine/notifications/styles.css";
-import "@mantine/tiptap/styles.css";
 import "@mantine/dates/styles.css";
 import "@medbrains/design-system/styles/global.scss";
 import "./styles/signature-spectrum.css";
