@@ -318,7 +318,7 @@ pub async fn list_pairing_requests(
     let rows = sqlx::query_as::<_, PendingRequest>(
         "SELECT id, user_code, app_variant, requested_label, expires_at, created_at \
          FROM device_pairing_requests \
-         WHERE status = 'pending' AND expires_at > now() \
+         WHERE status = 'pending' AND expires_at > now() AND node_id IS NULL \
          ORDER BY created_at DESC LIMIT 100",
     )
     .fetch_all(&mut *conn)

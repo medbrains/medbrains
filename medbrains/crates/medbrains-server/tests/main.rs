@@ -93,6 +93,7 @@ mod data_processors_test;
 mod dental_treatment_test;
 mod device_binding_test;
 mod device_node_key_test;
+mod machine_join_test;
 mod devices_test;
 mod diagnosis_author_test;
 mod diagnosis_coding_test;

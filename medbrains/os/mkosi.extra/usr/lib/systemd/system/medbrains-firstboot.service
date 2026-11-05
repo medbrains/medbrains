@@ -1,5 +1,6 @@
-# First boot: secrets and the database cluster, generated on this box — never
-# baked into the image. Idempotent; a no-op once both exist.
+# A main machine's first start: secrets and the database cluster, generated on this box, never
+# baked into the image. Setup starts this when a person chooses a new hospital, so a node never
+# holds any of it. Idempotent; a no-op once both exist.
 [Unit]
 Description=MedBrains first boot (secrets, database cluster)
 Requires=medbrains-disk-finish.service
@@ -25,6 +26,3 @@ RestrictRealtime=yes
 RestrictNamespaces=yes
 LockPersonality=yes
 SystemCallArchitectures=native
-
-[Install]
-WantedBy=multi-user.target

@@ -1,0 +1,16 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE device_node_keys SET revoked_at = now(), revoked_by = $2 WHERE paired_device_id = $1 AND tenant_id = $3 AND revoked_at IS NULL",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "39bbfbf424206bd5e3161556e9f27ceefc8c9f787b86ab2d7c7ed4df3566f139"
+}

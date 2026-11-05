@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE device_pairing_requests SET code_attempts = code_attempts + 1, status = CASE WHEN code_attempts + 1 >= $2 THEN 'denied' ELSE status END WHERE id = $1",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Int4"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "17a37803f5d045a6690706fa69e2231df3ac0ce4dfe39f0eb4bd93b31d40def6"
+}

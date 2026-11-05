@@ -1,0 +1,12 @@
+# What only a main machine offers the network: opens its ports, announces medbrains.local and serves
+# the LAN its time. A machine with any other role opens none of it.
+[Unit]
+Description=MedBrains main machine network services
+ConditionPathExists=/var/lib/medbrains/config/role-main
+After=nftables.service chrony.service systemd-resolved.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+TimeoutStartSec=60
+ExecStart=/usr/lib/medbrains/role-network

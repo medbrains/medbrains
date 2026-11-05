@@ -1,0 +1,16 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "WITH seen AS (UPDATE device_node_keys k SET last_seen_at = now() FROM unnest($2::text[], $3::text[]) AS reported(node_id, address) WHERE k.tenant_id = $1 AND k.node_id = reported.node_id AND k.revoked_at IS NULL RETURNING k.paired_device_id, reported.address) UPDATE paired_devices d SET last_seen_at = now(), last_seen_ip = seen.address::inet FROM seen WHERE d.id = seen.paired_device_id",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "TextArray",
+        "TextArray"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "5b85fec9e53b4defd08cb90fa23f22649040364cdf359b74dcc37ea03b3424ab"
+}

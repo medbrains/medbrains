@@ -5743,6 +5743,31 @@ dependencies = [
 ]
 
 [[package]]
+name = "medbrains-agent"
+version = "1.0.0"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "chrono",
+ "getrandom 0.4.3",
+ "hex",
+ "iroh",
+ "iroh-mdns-address-lookup",
+ "medbrains-core",
+ "medbrains-edge",
+ "n0-future",
+ "reqwest 0.13.5",
+ "serde",
+ "serde_json",
+ "sha2 0.11.1",
+ "tempfile",
+ "tokio",
+ "tracing",
+ "tracing-subscriber",
+ "uuid",
+]
+
+[[package]]
 name = "medbrains-ai"
 version = "0.1.0"
 dependencies = [
@@ -6619,6 +6644,7 @@ dependencies = [
  "hex",
  "medbrains-core",
  "medbrains-db",
+ "medbrains-kernel",
  "medbrains-server-core",
  "serde",
  "serde_json",
