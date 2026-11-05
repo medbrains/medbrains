@@ -15,8 +15,8 @@ on:
   pull_request:
     branches: [master, main]
   schedule:
-    # Weekly, Sunday 00:00 UTC — new advisories land against unchanged code.
-    - cron: "0 0 * * 0"
+    # Daily: new advisories land against unchanged code, and a week is too long for a hospital.
+    - cron: "0 0 * * *"
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -76,6 +76,22 @@ jobs:
       - run: python3 scripts/check_audit_ignores.py
       - run: pnpm audit --prod --audit-level=high
 
+  website-audit:
+    name: "pnpm audit, website (production, high+)"
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: website
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          package_json_file: website/package.json
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: medbrains/.nvmrc
+      - run: pnpm audit --prod --audit-level=high
+
   secrets-scan:
     name: Secrets scan (TruffleHog, verified only)
     runs-on: ubuntu-latest
@@ -85,7 +101,8 @@ jobs:
           fetch-depth: 0
       # Base/head are derived from the event by the action. Passing
       # base=default branch on a push to master made base == head and failed.
-      - uses: trufflesecurity/trufflehog@main
+      # Pinned: a scanner on a moving branch runs whatever that branch holds today. v3.99.8.
+      - uses: trufflesecurity/trufflehog@ea68ca03c865c5f324e86e849ced20ed3cf9dbbb
         with:
           extra_args: --only-verified
 
