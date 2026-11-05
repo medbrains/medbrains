@@ -120,7 +120,10 @@ impl TopBar {
         firewall.prepend(&firewall_dot);
         right.append(&firewall);
         let disk_words = ui::line("", "");
-        let disk = chip(&gtk::Image::from_icon_name("drive-harddisk-symbolic"), &disk_words);
+        let disk = chip(
+            &gtk::Image::from_icon_name("drive-harddisk-symbolic"),
+            &disk_words,
+        );
         let disk_dot = ui::column(0);
         disk_dot.add_css_class("dot");
         disk_dot.set_valign(gtk::Align::Center);
@@ -288,7 +291,10 @@ mod tests {
     fn a_disk_not_known_to_be_encrypted_gets_a_warning() {
         assert_eq!(disk_warning("encrypted-tpm2"), None);
         assert_eq!(disk_warning("encrypted-tpm2-pin"), None);
-        assert_eq!(disk_warning("unencrypted-chosen"), Some("This disk is not encrypted"));
+        assert_eq!(
+            disk_warning("unencrypted-chosen"),
+            Some("This disk is not encrypted")
+        );
         assert_eq!(disk_warning("unknown"), Some("Disk protection unknown"));
         assert_eq!(disk_warning(""), Some("Disk protection unknown"));
     }

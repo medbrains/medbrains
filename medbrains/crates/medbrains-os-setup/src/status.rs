@@ -48,7 +48,8 @@ pub(crate) fn state() -> Result<Value, String> {
 /// How the data disk is protected, or `unknown` if the record cannot be read: a fault must not
 /// read as a disk that is fine.
 fn disk_protection() -> String {
-    fs::read_to_string(DISK_PROTECTION).map_or_else(|_| "unknown".to_owned(), |text| text.trim().to_owned())
+    fs::read_to_string(DISK_PROTECTION)
+        .map_or_else(|_| "unknown".to_owned(), |text| text.trim().to_owned())
 }
 
 /// The zone setting's name, or `UTC` if it was never set.

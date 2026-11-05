@@ -14,7 +14,14 @@ const COMMAND_TIMEOUT: Duration = Duration::from_secs(30);
 const BOOT_ID: &str = "cat /proc/sys/kernel/random/boot_id";
 const POLL: Duration = Duration::from_secs(2);
 /// Guest ports reachable through QEMU, as host name and guest port.
-const FORWARDS: [(&str, u16); 6] = [("web", 443), ("http", 80), ("ssh", 22), ("server", 3000), ("database", 5432), ("edge", 7811)];
+const FORWARDS: [(&str, u16); 6] = [
+    ("web", 443),
+    ("http", 80),
+    ("ssh", 22),
+    ("server", 3000),
+    ("database", 5432),
+    ("edge", 7811),
+];
 
 /// What differs between the architectures an image can be tested on.
 struct Platform {
@@ -33,7 +40,20 @@ struct Platform {
 
 const ARM64: Platform = Platform {
     qemu: "qemu-system-aarch64",
-    machine: ["-machine", "virt", "-accel", if cfg!(target_os = "macos") { "hvf" } else { "kvm" }, "-cpu", "host", "-smp", "4"],
+    machine: [
+        "-machine",
+        "virt",
+        "-accel",
+        if cfg!(target_os = "macos") {
+            "hvf"
+        } else {
+            "kvm"
+        },
+        "-cpu",
+        "host",
+        "-smp",
+        "4",
+    ],
     code: "edk2-aarch64-code.fd",
     vars: "edk2-arm-vars.fd",
     tpm_device: "tpm-tis-device,tpmdev=tpm0,ppi=off",
@@ -44,7 +64,16 @@ const ARM64: Platform = Platform {
 
 const X86_64: Platform = Platform {
     qemu: "qemu-system-x86_64",
-    machine: ["-machine", "q35", "-accel", "tcg,thread=multi", "-cpu", "max", "-smp", "4"],
+    machine: [
+        "-machine",
+        "q35",
+        "-accel",
+        "tcg,thread=multi",
+        "-cpu",
+        "max",
+        "-smp",
+        "4",
+    ],
     code: "edk2-x86_64-code.fd",
     vars: "edk2-i386-vars.fd",
     tpm_device: "tpm-tis,tpmdev=tpm0",
@@ -55,7 +84,11 @@ const X86_64: Platform = Platform {
 
 /// The platform to test: arm64, or x86-64 when `MB_OS_TEST_ARCH=x86-64`.
 fn platform() -> &'static Platform {
-    if std::env::var("MB_OS_TEST_ARCH").as_deref() == Ok("x86-64") { &X86_64 } else { &ARM64 }
+    if std::env::var("MB_OS_TEST_ARCH").as_deref() == Ok("x86-64") {
+        &X86_64
+    } else {
+        &ARM64
+    }
 }
 
 /// True if this platform's guest can use a TPM, so sealed-disk scenarios can run.
@@ -96,7 +129,9 @@ pub(crate) fn find_recovery_key(screen: &str) -> Option<String> {
     screen.split_whitespace().find_map(|word| {
         let groups: Vec<&str> = word.split('-').collect();
         let shaped = groups.len() == RECOVERY_KEY_GROUPS
-            && groups.iter().all(|g| !g.is_empty() && g.chars().all(|c| c.is_ascii_lowercase()));
+            && groups
+                .iter()
+                .all(|g| !g.is_empty() && g.chars().all(|c| c.is_ascii_lowercase()));
         shaped.then(|| word.to_owned())
     })
 }
@@ -183,7 +218,10 @@ impl Vm {
 
     /// Boots `image` on a new overlay and waits for a shell; nothing is typed on its screen.
     pub(crate) fn start_waiting(image: &Path, tpm: Option<&str>) -> Result<Self, String> {
-        let stamp = SystemTime::now().duration_since(UNIX_EPOCH).map_err(|e| e.to_string())?.as_millis();
+        let stamp = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .map_err(|e| e.to_string())?
+            .as_millis();
         let dir = std::env::temp_dir().join(format!("mb-os-test-{stamp}"));
         std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
         let mut ports = Vec::new();
@@ -191,17 +229,35 @@ impl Vm {
             ports.push((name, free_port().map_err(|e| e.to_string())?));
         }
         let share = qemu_share()?;
-        std::fs::copy(share.join(platform().vars), dir.join("vars.fd")).map_err(|e| e.to_string())?;
+        std::fs::copy(share.join(platform().vars), dir.join("vars.fd"))
+            .map_err(|e| e.to_string())?;
         let disk = dir.join("disk.qcow2");
-        let made = Command::new("qemu-img").args(["create", "-q", "-f", "qcow2", "-F", "raw", "-b"]).arg(image).arg(&disk).arg("32G").status().map_err(|e| e.to_string())?;
+        let made = Command::new("qemu-img")
+            .args(["create", "-q", "-f", "qcow2", "-F", "raw", "-b"])
+            .arg(image)
+            .arg(&disk)
+            .arg("32G")
+            .status()
+            .map_err(|e| e.to_string())?;
         if !made.success() {
             return Err("could not create the overlay".to_owned());
         }
         let qemu = spawn_qemu(&dir, &disk, &ports, tpm)?;
         let serial = connect_socket(&dir.join("serial.sock"))?;
         let monitor = connect_socket(&dir.join("monitor.sock"))?;
-        monitor.set_read_timeout(Some(Duration::from_millis(5))).map_err(|e| e.to_string())?;
-        let mut vm = Self { dir, disk, ports, qemu, serial, monitor, marker: 0, recovery_key: String::new() };
+        monitor
+            .set_read_timeout(Some(Duration::from_millis(5)))
+            .map_err(|e| e.to_string())?;
+        let mut vm = Self {
+            dir,
+            disk,
+            ports,
+            qemu,
+            serial,
+            monitor,
+            marker: 0,
+            recovery_key: String::new(),
+        };
         vm.wait_for_shell()?;
         Ok(vm)
     }
@@ -237,7 +293,9 @@ impl Vm {
 
     /// Shuts the machine down cleanly, which also flushes its disk.
     pub(crate) fn shut_down(&mut self) -> Result<(), String> {
-        self.serial.write_all(b"systemctl poweroff\n").map_err(|e| e.to_string())?;
+        self.serial
+            .write_all(b"systemctl poweroff\n")
+            .map_err(|e| e.to_string())?;
         self.wait_for_power_off(scaled(SHUTDOWN_TIMEOUT))
     }
 
@@ -246,7 +304,9 @@ impl Vm {
         self.qemu = spawn_qemu(&self.dir, disk, &self.ports, tpm)?;
         self.serial = connect_socket(&self.dir.join("serial.sock"))?;
         self.monitor = connect_socket(&self.dir.join("monitor.sock"))?;
-        self.monitor.set_read_timeout(Some(Duration::from_millis(5))).map_err(|e| e.to_string())?;
+        self.monitor
+            .set_read_timeout(Some(Duration::from_millis(5)))
+            .map_err(|e| e.to_string())?;
         self.wait_for_shell()
     }
 
@@ -254,10 +314,15 @@ impl Vm {
     pub(crate) fn reboot(&mut self) -> Result<(), String> {
         // The old shell can answer until it is stopped, so a new boot is known by its boot id.
         let before = self.run(BOOT_ID)?;
-        self.serial.write_all(b"systemctl reboot\n").map_err(|e| e.to_string())?;
+        self.serial
+            .write_all(b"systemctl reboot\n")
+            .map_err(|e| e.to_string())?;
         let deadline = Instant::now() + scaled(BOOT_TIMEOUT);
         while Instant::now() < deadline {
-            if self.run_for(BOOT_ID, Duration::from_secs(4)).is_ok_and(|id| id != before) {
+            if self
+                .run_for(BOOT_ID, Duration::from_secs(4))
+                .is_ok_and(|id| id != before)
+            {
                 return Ok(());
             }
             sleep(POLL);
@@ -269,7 +334,9 @@ impl Vm {
     pub(crate) fn type_text(&mut self, text: &str) -> Result<(), String> {
         for c in text.chars() {
             let key = qemu_key(c).ok_or_else(|| format!("no key for {c:?}"))?;
-            self.monitor.write_all(format!("sendkey {key} 30\n").as_bytes()).map_err(|e| e.to_string())?;
+            self.monitor
+                .write_all(format!("sendkey {key} 30\n").as_bytes())
+                .map_err(|e| e.to_string())?;
             sleep(KEY_GAP);
             // Only QEMU's echo, which nothing reads: drained so its buffer never fills.
             drop(self.monitor.read(&mut [0_u8; 4096]));
@@ -283,7 +350,11 @@ impl Vm {
     }
 
     /// Waits for `text` to appear on the machine's own screen.
-    pub(crate) fn wait_for_screen(&mut self, text: &str, limit: Duration) -> Result<String, String> {
+    pub(crate) fn wait_for_screen(
+        &mut self,
+        text: &str,
+        limit: Duration,
+    ) -> Result<String, String> {
         let deadline = Instant::now() + limit;
         while Instant::now() < deadline {
             let shown = self.screen()?;
@@ -299,7 +370,10 @@ impl Vm {
     pub(crate) fn wait_for_screen_gone(&mut self, text: &str) -> Result<(), String> {
         let deadline = Instant::now() + scaled(BOOT_TIMEOUT);
         while Instant::now() < deadline {
-            if self.run_for("cat /dev/vcs1 | tr -s ' '", Duration::from_secs(4)).is_ok_and(|shown| !shown.contains(text)) {
+            if self
+                .run_for("cat /dev/vcs1 | tr -s ' '", Duration::from_secs(4))
+                .is_ok_and(|shown| !shown.contains(text))
+            {
                 return Ok(());
             }
             sleep(POLL);
@@ -326,7 +400,10 @@ impl Vm {
     fn wait_for_shell(&mut self) -> Result<(), String> {
         let deadline = Instant::now() + scaled(BOOT_TIMEOUT);
         while Instant::now() < deadline {
-            if self.run_for("echo ready", Duration::from_secs(4)).is_ok_and(|o| o.contains("ready")) {
+            if self
+                .run_for("echo ready", Duration::from_secs(4))
+                .is_ok_and(|o| o.contains("ready"))
+            {
                 return Ok(());
             }
             sleep(POLL);
@@ -342,10 +419,15 @@ impl Vm {
     /// Runs a command inside the machine and returns its output.
     pub(crate) fn run_for(&mut self, command: &str, limit: Duration) -> Result<String, String> {
         self.marker += 1;
-        let (begin, end) = (format!("BEGIN{}X", self.marker), format!("END{}X", self.marker));
+        let (begin, end) = (
+            format!("BEGIN{}X", self.marker),
+            format!("END{}X", self.marker),
+        );
         // The bare `echo` ends a last line with no newline, which would hide the marker.
         let line = format!("echo {begin}; {command}; echo; echo {end}\n");
-        self.serial.write_all(line.as_bytes()).map_err(|e| e.to_string())?;
+        self.serial
+            .write_all(line.as_bytes())
+            .map_err(|e| e.to_string())?;
         let (mut raw, mut buffer, deadline) = (Vec::new(), [0_u8; 16_384], Instant::now() + limit);
         while Instant::now() < deadline {
             if let Ok(count) = self.serial.read(&mut buffer) {
@@ -361,23 +443,47 @@ impl Vm {
 
     /// The host port forwarded to a named guest port.
     pub(crate) fn port(&self, name: &str) -> Result<u16, String> {
-        self.ports.iter().find(|(n, _)| *n == name).map(|(_, p)| *p).ok_or_else(|| format!("no port {name}"))
+        self.ports
+            .iter()
+            .find(|(n, _)| *n == name)
+            .map(|(_, p)| *p)
+            .ok_or_else(|| format!("no port {name}"))
     }
 
     /// HTTP status from outside the machine; 0 if nothing answered.
     pub(crate) fn status(&self, name: &str, scheme: &str, path: &str) -> Result<u16, String> {
         let url = format!("{scheme}://127.0.0.1:{}{path}", self.port(name)?);
-        let done = Command::new("curl").args(["-sk", "-m", "8", "-o", "/dev/null", "-w", "%{http_code}", &url]).output().map_err(|e| e.to_string())?;
-        Ok(String::from_utf8_lossy(&done.stdout).trim().parse().unwrap_or(0))
+        let done = Command::new("curl")
+            .args([
+                "-sk",
+                "-m",
+                "8",
+                "-o",
+                "/dev/null",
+                "-w",
+                "%{http_code}",
+                &url,
+            ])
+            .output()
+            .map_err(|e| e.to_string())?;
+        Ok(String::from_utf8_lossy(&done.stdout)
+            .trim()
+            .parse()
+            .unwrap_or(0))
     }
 
     /// True if a guest port answers or refuses. QEMU accepts the connection itself, so packets
     /// the firewall drops leave it silent, while a closed port ends it at once.
     pub(crate) fn reachable(&self, name: &str) -> Result<bool, String> {
-        let mut client = TcpStream::connect(("127.0.0.1", self.port(name)?)).map_err(|e| e.to_string())?;
-        client.set_read_timeout(Some(Duration::from_secs(4))).map_err(|e| e.to_string())?;
+        let mut client =
+            TcpStream::connect(("127.0.0.1", self.port(name)?)).map_err(|e| e.to_string())?;
+        client
+            .set_read_timeout(Some(Duration::from_secs(4)))
+            .map_err(|e| e.to_string())?;
         let mut byte = [0_u8; 16];
-        Ok(!matches!(client.read(&mut byte), Err(e) if matches!(e.kind(), std::io::ErrorKind::WouldBlock | std::io::ErrorKind::TimedOut)))
+        Ok(
+            !matches!(client.read(&mut byte), Err(e) if matches!(e.kind(), std::io::ErrorKind::WouldBlock | std::io::ErrorKind::TimedOut)),
+        )
     }
 
     /// Waits for the server to answer through the front proxy.
@@ -409,45 +515,98 @@ fn tpm_args(dir: &Path, name: &str) -> Result<Vec<String>, String> {
     std::fs::create_dir_all(&state).map_err(|e| e.to_string())?;
     let started = Command::new("swtpm")
         .args(["socket", "--tpm2", "--daemon", "--terminate"])
-        .arg("--tpmstate").arg(format!("dir={}", state.display()))
-        .arg("--ctrl").arg(format!("type=unixio,path={}", control.display()))
-        .status().map_err(|e| format!("could not start swtpm (brew install swtpm): {e}"))?;
+        .arg("--tpmstate")
+        .arg(format!("dir={}", state.display()))
+        .arg("--ctrl")
+        .arg(format!("type=unixio,path={}", control.display()))
+        .status()
+        .map_err(|e| format!("could not start swtpm (brew install swtpm): {e}"))?;
     if !started.success() {
         return Err("swtpm did not start".to_owned());
     }
     Ok(vec![
-        "-chardev".to_owned(), format!("socket,id=tpmsock,path={}", control.display()),
-        "-tpmdev".to_owned(), "emulator,id=tpm0,chardev=tpmsock".to_owned(),
-        "-device".to_owned(), platform().tpm_device.to_owned(),
+        "-chardev".to_owned(),
+        format!("socket,id=tpmsock,path={}", control.display()),
+        "-tpmdev".to_owned(),
+        "emulator,id=tpm0,chardev=tpmsock".to_owned(),
+        "-device".to_owned(),
+        platform().tpm_device.to_owned(),
     ])
 }
 
 /// Starts QEMU from `disk`, with its serial port and monitor on sockets in `dir`.
-fn spawn_qemu(dir: &Path, disk: &Path, ports: &[(&str, u16)], tpm: Option<&str>) -> Result<Child, String> {
+fn spawn_qemu(
+    dir: &Path,
+    disk: &Path,
+    ports: &[(&str, u16)],
+    tpm: Option<&str>,
+) -> Result<Child, String> {
     let share = qemu_share()?;
     let tpm = tpm.map_or_else(|| Ok(Vec::new()), |name| tpm_args(dir, name))?;
-    let forwards: Vec<String> = ports.iter().zip(FORWARDS).map(|((_, host), (_, guest))| format!("hostfwd=tcp:127.0.0.1:{host}-:{guest}")).collect();
+    let forwards: Vec<String> = ports
+        .iter()
+        .zip(FORWARDS)
+        .map(|((_, host), (_, guest))| format!("hostfwd=tcp:127.0.0.1:{host}-:{guest}"))
+        .collect();
     Command::new(platform().qemu)
-        .args(platform().machine).args(["-m", "4096"]).args(platform().extra_devices)
-        .arg("-drive").arg(format!("if=pflash,format=raw,readonly=on,file={}", share.join(platform().code).display()))
-        .arg("-drive").arg(format!("if=pflash,format=raw,file={}", dir.join("vars.fd").display()))
-        .arg("-drive").arg(format!("if=virtio,format=qcow2,file={}", disk.display()))
-        .args(["-device", "virtio-gpu-pci,xres=1280,yres=800", "-device", "qemu-xhci", "-device", "usb-kbd", "-device", "usb-tablet"])
-        .arg("-netdev").arg(format!("user,id=net0,{}", forwards.join(",")))
+        .args(platform().machine)
+        .args(["-m", "4096"])
+        .args(platform().extra_devices)
+        .arg("-drive")
+        .arg(format!(
+            "if=pflash,format=raw,readonly=on,file={}",
+            share.join(platform().code).display()
+        ))
+        .arg("-drive")
+        .arg(format!(
+            "if=pflash,format=raw,file={}",
+            dir.join("vars.fd").display()
+        ))
+        .arg("-drive")
+        .arg(format!("if=virtio,format=qcow2,file={}", disk.display()))
+        .args([
+            "-device",
+            "virtio-gpu-pci,xres=1280,yres=800",
+            "-device",
+            "qemu-xhci",
+            "-device",
+            "usb-kbd",
+            "-device",
+            "usb-tablet",
+        ])
+        .arg("-netdev")
+        .arg(format!("user,id=net0,{}", forwards.join(",")))
         .args(["-device", "virtio-net-pci,netdev=net0", "-display", "none"])
-        .arg("-serial").arg(format!("unix:{},server,nowait", dir.join("serial.sock").display()))
-        .arg("-monitor").arg(format!("unix:{},server,nowait", dir.join("monitor.sock").display()))
+        .arg("-serial")
+        .arg(format!(
+            "unix:{},server,nowait",
+            dir.join("serial.sock").display()
+        ))
+        .arg("-monitor")
+        .arg(format!(
+            "unix:{},server,nowait",
+            dir.join("monitor.sock").display()
+        ))
         .args(tpm)
-        .stdout(Stdio::null()).stderr(Stdio::null())
-        .spawn().map_err(|e| format!("could not start QEMU: {e}"))
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .spawn()
+        .map_err(|e| format!("could not start QEMU: {e}"))
 }
 
 /// QEMU's firmware folder, found from where its binary lives.
 fn qemu_share() -> Result<PathBuf, String> {
-    let found = Command::new("sh").arg("-c").arg(format!("command -v {}", platform().qemu)).output().map_err(|e| e.to_string())?;
+    let found = Command::new("sh")
+        .arg("-c")
+        .arg(format!("command -v {}", platform().qemu))
+        .output()
+        .map_err(|e| e.to_string())?;
     let binary = PathBuf::from(String::from_utf8_lossy(&found.stdout).trim());
     let real = std::fs::canonicalize(&binary).map_err(|e| format!("QEMU not found: {e}"))?;
-    real.ancestors().nth(2).map(|root| root.join("share/qemu")).ok_or_else(|| "odd QEMU path".to_owned())
+    real.ancestors()
+        .nth(2)
+        .map(|root| root.join("share/qemu"))
+        .ok_or_else(|| "odd QEMU path".to_owned())
 }
 
 /// Connects to one of QEMU's sockets, which it creates shortly after starting.
@@ -456,10 +615,14 @@ fn connect_socket(path: &Path) -> Result<UnixStream, String> {
     loop {
         match UnixStream::connect(path) {
             Ok(stream) => {
-                stream.set_read_timeout(Some(Duration::from_millis(300))).map_err(|e| e.to_string())?;
+                stream
+                    .set_read_timeout(Some(Duration::from_millis(300)))
+                    .map_err(|e| e.to_string())?;
                 return Ok(stream);
             }
-            Err(e) if Instant::now() > deadline => return Err(format!("no socket {}: {e}", path.display())),
+            Err(e) if Instant::now() > deadline => {
+                return Err(format!("no socket {}: {e}", path.display()));
+            }
             Err(_) => sleep(Duration::from_millis(200)),
         }
     }
@@ -472,7 +635,10 @@ mod tests {
     #[test]
     fn a_recovery_key_is_found_only_in_its_exact_shape() {
         let key = "aa-bb-cc-dd-ee-ff-gg-hh";
-        assert_eq!(find_recovery_key(&format!("write down\n {key} \nYou need")).as_deref(), Some(key));
+        assert_eq!(
+            find_recovery_key(&format!("write down\n {key} \nYou need")).as_deref(),
+            Some(key)
+        );
         assert_eq!(find_recovery_key("a first-boot well-known aa-bb-cc"), None);
         assert_eq!(find_recovery_key("AA-bb-cc-dd-ee-ff-gg-hh"), None);
         assert_eq!(last_group(key), "hh");
@@ -490,7 +656,10 @@ mod tests {
     fn output_is_read_only_between_whole_line_markers() {
         // The shell echoes the command, which also contains the markers: that must not count.
         let text = "echo B1X; ls; echo; echo E1X\nB1X\none\ntwo\n\nE1X\nroot#";
-        assert_eq!(between_markers(text, "B1X", "E1X").as_deref(), Some("one\ntwo"));
+        assert_eq!(
+            between_markers(text, "B1X", "E1X").as_deref(),
+            Some("one\ntwo")
+        );
         assert_eq!(between_markers("B1X\nstill running", "B1X", "E1X"), None);
     }
 

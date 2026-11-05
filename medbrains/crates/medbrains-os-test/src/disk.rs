@@ -36,7 +36,11 @@ fn ensure(ok: bool, message: impl Into<String>) -> Result<(), String> {
 
 /// True if the bytes of `text` occur anywhere in `file`.
 fn found_in_file(file: &Path, text: &str) -> Result<bool, String> {
-    let done = Command::new("grep").args(["-a", "-q", "-F", text]).arg(file).status().map_err(|e| e.to_string())?;
+    let done = Command::new("grep")
+        .args(["-a", "-q", "-F", text])
+        .arg(file)
+        .status()
+        .map_err(|e| e.to_string())?;
     match done.code() {
         Some(0) => Ok(true),
         Some(1) => Ok(false),
@@ -78,21 +82,40 @@ fn wait_first_boot_done(vm: &mut Vm) -> Result<(), String> {
 fn sealed_with_recovery_key(vm: &mut Vm, _: &Path) -> Result<(), String> {
     ensure(data_open(vm)?, "/var is not on the encrypted disk")?;
     let slots = vm.run(&format!("systemd-cryptenroll {PARTITION}"))?;
-    ensure(slots.contains("tpm2") && slots.contains("recovery"), slots.clone())?;
-    ensure(!slots.contains("password"), format!("an extra key slot: {slots}"))?;
+    ensure(
+        slots.contains("tpm2") && slots.contains("recovery"),
+        slots.clone(),
+    )?;
+    ensure(
+        !slots.contains("password"),
+        format!("an extra key slot: {slots}"),
+    )?;
     let header = vm.run(&format!("cryptsetup luksDump {PARTITION}"))?;
-    let is_luks2 = header.lines().any(|line| line.split_whitespace().eq(["Version:", "2"]));
-    ensure(is_luks2 && header.contains("aes-xts-plain64"), "not LUKS2 AES-XTS")?;
+    let is_luks2 = header
+        .lines()
+        .any(|line| line.split_whitespace().eq(["Version:", "2"]));
+    ensure(
+        is_luks2 && header.contains("aes-xts-plain64"),
+        "not LUKS2 AES-XTS",
+    )?;
     let record = vm.run(&format!("cat {RECORD}"))?;
     ensure(record == "encrypted-tpm2", record)
 }
 
 /// The recovery key stayed off the journal.
 fn recovery_key_not_logged(vm: &mut Vm, _: &Path) -> Result<(), String> {
-    let group = vm.recovery_key.rsplit('-').next().unwrap_or_default().to_owned();
+    let group = vm
+        .recovery_key
+        .rsplit('-')
+        .next()
+        .unwrap_or_default()
+        .to_owned();
     ensure(!group.is_empty(), "no recovery key was read")?;
     let count = vm.run(&format!("journalctl -b --no-pager | grep -c {group}; true"))?;
-    ensure(count == "0", format!("{count} journal lines hold the recovery key"))
+    ensure(
+        count == "0",
+        format!("{count} journal lines hold the recovery key"),
+    )
 }
 
 /// A raw copy holds neither the secret marker nor the key file, while the plaintext control is found.
@@ -103,10 +126,22 @@ fn raw_disk_shows_nothing(vm: &mut Vm, _: &Path) -> Result<(), String> {
     ensure(jwt.len() > 16, "could not read the JWT key to look for")?;
     vm.shut_down()?;
     let disk = vm.disk();
-    ensure(found_in_file(&disk, CONTROL_MARKER)?, "the plaintext control was not found: this search proves nothing")?;
-    ensure(!found_in_file(&disk, SECRET_MARKER)?, "the secret marker is readable on the raw disk")?;
-    ensure(!found_in_file(&disk, &jwt)?, "the JWT key is readable on the raw disk")?;
-    ensure(!found_in_file(&disk, &vm.recovery_key.clone())?, "the recovery key is on the raw disk")
+    ensure(
+        found_in_file(&disk, CONTROL_MARKER)?,
+        "the plaintext control was not found: this search proves nothing",
+    )?;
+    ensure(
+        !found_in_file(&disk, SECRET_MARKER)?,
+        "the secret marker is readable on the raw disk",
+    )?;
+    ensure(
+        !found_in_file(&disk, &jwt)?,
+        "the JWT key is readable on the raw disk",
+    )?;
+    ensure(
+        !found_in_file(&disk, &vm.recovery_key.clone())?,
+        "the recovery key is on the raw disk",
+    )
 }
 
 /// A copy of the disk, on a machine with a different TPM, stays locked and says why.
@@ -140,7 +175,10 @@ fn recovery_key_opens_copy(vm: &mut Vm, _: &Path) -> Result<(), String> {
 fn reseal_to_new_tpm(vm: &mut Vm, _: &Path) -> Result<(), String> {
     let key = vm.recovery_key.clone();
     let done = vm.run(&format!("umask 077; printf %s {key} > /run/k; /usr/lib/medbrains/disk-setup reseal /run/k >/dev/null 2>&1; echo $?; rm -f /run/k"))?;
-    ensure(done == "0", format!("sealing to the new TPM returned {done}"))?;
+    ensure(
+        done == "0",
+        format!("sealing to the new TPM returned {done}"),
+    )?;
     vm.reboot()?;
     wait_open(vm)
 }
@@ -160,16 +198,30 @@ fn normal_restarts_need_no_typing(vm: &mut Vm, _: &Path) -> Result<(), String> {
 /// The boot menu and editor are turned off in the loader's file.
 fn boot_editor_off(vm: &mut Vm, _: &Path) -> Result<(), String> {
     let conf = vm.run("cat /boot/loader/loader.conf")?;
-    ensure(conf.lines().any(|line| line.split_whitespace().eq(["editor", "no"])), conf)
+    ensure(
+        conf.lines()
+            .any(|line| line.split_whitespace().eq(["editor", "no"])),
+        conf,
+    )
 }
 
 /// A changed boot file does not open the disk, where the image is signed; restored, it opens again.
 fn changed_boot_file_stays_locked(vm: &mut Vm, _: &Path) -> Result<(), String> {
     let signed = vm.run("test -e /run/systemd/tpm2-pcr-public-key.pem; echo $?")?;
-    ensure(signed == "0", "the image is not signed, so this cannot be tested: debug images are")?;
+    ensure(
+        signed == "0",
+        "the image is not signed, so this cannot be tested: debug images are",
+    )?;
     let (from, to) = ("loglevel=3", "loglevel=4");
-    let patch = |text: &str| format!("f=$(ls /boot/EFI/Linux/*.efi | head -1); o=$(grep -abo -m1 {text} \"$f\" | head -1 | cut -d: -f1)");
-    vm.run(&format!("{}; printf %s {to} | dd of=\"$f\" bs=1 seek=\"$o\" conv=notrunc 2>/dev/null; sync", patch(from)))?;
+    let patch = |text: &str| {
+        format!(
+            "f=$(ls /boot/EFI/Linux/*.efi | head -1); o=$(grep -abo -m1 {text} \"$f\" | head -1 | cut -d: -f1)"
+        )
+    };
+    vm.run(&format!(
+        "{}; printf %s {to} | dd of=\"$f\" bs=1 seek=\"$o\" conv=notrunc 2>/dev/null; sync",
+        patch(from)
+    ))?;
     vm.reboot()?;
     vm.wait_for_screen(NOTICE, scaled(SCREEN_LIMIT))?;
     ensure(!data_open(vm)?, "a changed boot file opened the disk")?;
@@ -191,16 +243,26 @@ fn missing_tpm_stays_locked(vm: &mut Vm, _: &Path) -> Result<(), String> {
 /// Destroying the LUKS header is the disposal path: afterwards even the recovery key opens nothing.
 fn destroying_the_key_wipes_the_disk(vm: &mut Vm, _: &Path) -> Result<(), String> {
     let key = vm.recovery_key.clone();
-    let before = vm.run(&format!("printf %s {key} | cryptsetup open --test-passphrase --key-file=- {PARTITION}; echo $?"))?;
-    ensure(before == "0", format!("the recovery key should open before the wipe: {before}"))?;
-    vm.run(&format!("dd if=/dev/urandom of={PARTITION} bs=1M count=32 conv=fsync 2>/dev/null"))?;
+    let before = vm.run(&format!(
+        "printf %s {key} | cryptsetup open --test-passphrase --key-file=- {PARTITION}; echo $?"
+    ))?;
+    ensure(
+        before == "0",
+        format!("the recovery key should open before the wipe: {before}"),
+    )?;
+    vm.run(&format!(
+        "dd if=/dev/urandom of={PARTITION} bs=1M count=32 conv=fsync 2>/dev/null"
+    ))?;
     let after = vm.run(&format!("printf %s {key} | cryptsetup open --test-passphrase --key-file=- {PARTITION} 2>/dev/null; echo $?"))?;
     ensure(after != "0", "the recovery key still opened after the wipe")
 }
 
 /// A PIN for one throwaway machine, made fresh so none is written down anywhere.
 fn throwaway_pin() -> Result<String, String> {
-    let millis = SystemTime::now().duration_since(UNIX_EPOCH).map_err(|e| e.to_string())?.as_millis();
+    let millis = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map_err(|e| e.to_string())?
+        .as_millis();
     Ok(format!("pin{millis}"))
 }
 
@@ -236,10 +298,15 @@ fn power_cut_replaces_unconfirmed_key(vm: &mut Vm, image: &Path) -> Result<(), S
     vm.boot(&disk, Some(OWN_TPM))?;
     let second = vm.read_recovery_key()?;
     ensure(first != second, "the same key was shown twice")?;
-    let tests = format!("printf %s {first} | cryptsetup open --test-passphrase --key-file=- {PARTITION}; echo $?; printf %s {second} | cryptsetup open --test-passphrase --key-file=- {PARTITION}; echo $?");
+    let tests = format!(
+        "printf %s {first} | cryptsetup open --test-passphrase --key-file=- {PARTITION}; echo $?; printf %s {second} | cryptsetup open --test-passphrase --key-file=- {PARTITION}; echo $?"
+    );
     let codes = vm.run(&tests)?;
     let codes: Vec<&str> = codes.lines().filter(|l| l.len() == 1).collect();
-    ensure(codes == ["2", "0"], "old key should fail and new key should open")
+    ensure(
+        codes == ["2", "0"],
+        "old key should fail and new key should open",
+    )
 }
 
 /// Prints one result line and says whether it passed.
@@ -248,7 +315,10 @@ fn report(name: &str, result: &Result<(), String>, started: Instant) -> bool {
         Ok(()) => format!("pass  {name} ({:.1}s)\n", started.elapsed().as_secs_f32()),
         Err(why) => format!("FAIL  {name}: {why}\n"),
     };
-    drop(std::io::Write::write_all(&mut std::io::stderr(), line.as_bytes()));
+    drop(std::io::Write::write_all(
+        &mut std::io::stderr(),
+        line.as_bytes(),
+    ));
     result.is_ok()
 }
 
@@ -271,24 +341,62 @@ pub(crate) fn run_sealed_disk(vm: &mut Vm, image: &Path) -> Result<usize, String
     }
     wait_first_boot_done(vm)?;
     let steps: [Step; 13] = [
-        ("the data disk is LUKS2, sealed to the TPM, with a recovery key", sealed_with_recovery_key),
-        ("the recovery key is not in the journal", recovery_key_not_logged),
-        ("a raw copy shows no data, while the plaintext control is found", raw_disk_shows_nothing),
-        ("a copied disk on another TPM stays locked and says why", copy_stays_locked),
+        (
+            "the data disk is LUKS2, sealed to the TPM, with a recovery key",
+            sealed_with_recovery_key,
+        ),
+        (
+            "the recovery key is not in the journal",
+            recovery_key_not_logged,
+        ),
+        (
+            "a raw copy shows no data, while the plaintext control is found",
+            raw_disk_shows_nothing,
+        ),
+        (
+            "a copied disk on another TPM stays locked and says why",
+            copy_stays_locked,
+        ),
         ("a wrong recovery key is refused", wrong_key_refused),
-        ("the recovery key opens the copy, with its data", recovery_key_opens_copy),
-        ("after sealing to the new TPM the copy opens by itself", reseal_to_new_tpm),
-        ("the original opens with no typing, cold and on a restart", normal_restarts_need_no_typing),
+        (
+            "the recovery key opens the copy, with its data",
+            recovery_key_opens_copy,
+        ),
+        (
+            "after sealing to the new TPM the copy opens by itself",
+            reseal_to_new_tpm,
+        ),
+        (
+            "the original opens with no typing, cold and on a restart",
+            normal_restarts_need_no_typing,
+        ),
         ("the boot menu and its editor are off", boot_editor_off),
-        ("a changed boot file stays locked; restored, it opens", changed_boot_file_stays_locked),
-        ("a sealed disk with its TPM gone stays locked and says why", missing_tpm_stays_locked),
-        ("destroying the key slots means even the recovery key opens nothing", destroying_the_key_wipes_the_disk),
-        ("a power cut at the key screen replaces the unconfirmed key", power_cut_replaces_unconfirmed_key),
+        (
+            "a changed boot file stays locked; restored, it opens",
+            changed_boot_file_stays_locked,
+        ),
+        (
+            "a sealed disk with its TPM gone stays locked and says why",
+            missing_tpm_stays_locked,
+        ),
+        (
+            "destroying the key slots means even the recovery key opens nothing",
+            destroying_the_key_wipes_the_disk,
+        ),
+        (
+            "a power cut at the key screen replaces the unconfirmed key",
+            power_cut_replaces_unconfirmed_key,
+        ),
     ];
     let failed = run_steps(vm, image, &steps);
     let started = Instant::now();
     let pin_name = "a PIN is asked at every start, and a wrong one refused";
-    Ok(failed + usize::from(!report(pin_name, &pin_is_asked_at_every_start(image), started)))
+    Ok(failed
+        + usize::from(!report(
+            pin_name,
+            &pin_is_asked_at_every_start(image),
+            started,
+        )))
 }
 
 /// Turning off from the no-TPM question stores nothing.
@@ -296,7 +404,10 @@ fn no_tpm_can_turn_off(image: &Path) -> Result<(), String> {
     let mut vm = Vm::start_waiting(image, None)?;
     vm.wait_for_screen(NO_TPM_QUESTION, scaled(SCREEN_LIMIT))?;
     let partition = vm.run(&format!("test -e {PARTITION}; echo $?"))?;
-    ensure(partition == "1", "a data partition exists before anyone chose")?;
+    ensure(
+        partition == "1",
+        "a data partition exists before anyone chose",
+    )?;
     vm.type_text("OFF\n")?;
     vm.wait_for_power_off(scaled(SCREEN_LIMIT))
 }
@@ -320,8 +431,14 @@ fn no_tpm_records_the_choice(image: &Path) -> Result<(), String> {
 /// Every scenario on a machine with no TPM.
 pub(crate) fn run_without_sealed_disk(image: &Path) -> usize {
     let steps: [NewMachineStep; 2] = [
-        ("with no TPM, setup asks and can turn off, storing nothing", no_tpm_can_turn_off),
-        ("with no TPM, typing the choice records it and later boots open", no_tpm_records_the_choice),
+        (
+            "with no TPM, setup asks and can turn off, storing nothing",
+            no_tpm_can_turn_off,
+        ),
+        (
+            "with no TPM, typing the choice records it and later boots open",
+            no_tpm_records_the_choice,
+        ),
     ];
     let mut failed = 0;
     for (name, step) in steps {
