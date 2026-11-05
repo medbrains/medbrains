@@ -245,6 +245,17 @@ fn front_proxy_returns_after_a_crash(vm: &mut Vm, _: &Value) -> Result<(), Strin
     ensure(state.trim() == "active", format!("caddy is {}", state.trim()))
 }
 
+/// PostgreSQL's memory must follow the machine's, not a fixed number.
+fn database_memory_follows_the_machine(vm: &mut Vm, _: &Value) -> Result<(), String> {
+    let total = number(vm, "awk '/MemTotal/{print int($2/1024)}' /proc/meminfo")?;
+    let buffers = number(
+        vm,
+        "runuser -u postgres -- psql -Atc \"select pg_size_bytes(current_setting('shared_buffers')) / 1048576\"",
+    )?;
+    let expected = (total / 16).clamp(128, 8192);
+    ensure(buffers == expected, format!("{buffers} MB, expected {expected} MB for {total} MB"))
+}
+
 /// Every check, in order.
 fn checks() -> Vec<Check> {
     vec![
@@ -285,6 +296,7 @@ fn checks() -> Vec<Check> {
             page_load_memory,
         ),
         ("held connections stay cheap", held_connections_stay_cheap),
+        ("database memory follows the machine", database_memory_follows_the_machine),
         ("the front proxy offers HTTP/1.1 only", front_proxy_offers_http1_only),
         ("the front proxy returns after a crash", front_proxy_returns_after_a_crash),
         (
