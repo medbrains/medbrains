@@ -50,6 +50,7 @@ fn decision_words(state: &str) -> Option<&'static str> {
         "expired" => Some("Nobody approved this machine in time. Go back and ask again."),
         "dropped" => Some("Newer requests pushed this one out of the list. Choose the main machine to ask again."),
         "unreachable" => Some("The main machine could not be reached. Check the cable and try again."),
+        "mismatch" => Some("Those digits did not match, so nothing was saved. This may not be your main machine: tell your administrator before trying again."),
         _ => None,
     }
 }
@@ -79,6 +80,8 @@ struct Parts {
     waiting: gtk::Box,
     code: gtk::Label,
     status: gtk::Label,
+    /// The second code, shown only once the main machine says it has approved this one.
+    confirming: gtk::Box,
     finished: Rc<dyn Fn()>,
     /// What the list shows now.
     shown: Rc<RefCell<Option<Vec<(String, String)>>>>,
@@ -142,6 +145,7 @@ impl Parts {
         if let Some(words) = decision_words(state) {
             // Back to choosing, with the reason, so a person can simply try again.
             self.problem.set_label(words);
+            self.confirming.set_visible(false);
             self.waiting.set_visible(false);
             self.choosing.set_visible(true);
             refresh_while_shown(self);
@@ -149,9 +153,16 @@ impl Parts {
         }
         if state == "pending" {
             self.status.set_label(
-                "Check that the main machine shows these digits, then type them there to approve \
-                 this machine. If they differ, do not approve it.",
+                "On the main machine, open Machines, press Approve for this machine and type these \
+                 digits there.",
             );
+        }
+        if state == "confirm" {
+            self.status.set_label(
+                "The main machine answered. To be sure it is yours, type the digits its Machines \
+                 screen now shows. Nothing is trusted until you do.",
+            );
+            self.confirming.set_visible(true);
         }
         false
     }
@@ -188,6 +199,29 @@ impl Parts {
             self.list.append(&button);
         }
     }
+}
+
+/// Where a person types the digits from the main machine's screen. Only a match makes this machine
+/// trust anything it was sent.
+fn confirm_row(problem: &gtk::Label) -> gtk::Box {
+    let row = ui::column(ui::GAP / 2);
+    let digits = network::field(&row, "Digits on the main machine's screen", "123456");
+    let send = ui::button("Confirm", "suggested-action");
+    row.append(&send);
+    row.set_visible(false);
+    let problem = problem.clone();
+    send.connect_clicked(move |_| {
+        let request = json!({ "op": "confirm", "code": digits.text().to_string() });
+        let problem = problem.clone();
+        agent(request, move |answer| match answer {
+            Some(answer) if answer.get("ok").is_some() => problem.set_label(""),
+            answer => {
+                let error = answer.as_ref().and_then(|a| a.get("error")).and_then(Value::as_str);
+                problem.set_label(error.unwrap_or(NOT_ANSWERING));
+            }
+        });
+    });
+    row
 }
 
 /// The machine-type choice; returns the display option, since workstation is the rest.
@@ -258,10 +292,12 @@ pub(crate) fn page(actions: &gtk::Box, finished: Rc<dyn Fn()>) -> gtk::Widget {
     let status = ui::label("", "");
     waiting.append(&code);
     waiting.append(&status);
+    let confirming = confirm_row(&problem);
+    waiting.append(&confirming);
     waiting.set_visible(false);
     let parts = Parts {
         name, display, list, problem: problem.clone(), choosing: choosing.clone(),
-        waiting: waiting.clone(), code, status, finished, shown: Rc::default(),
+        waiting: waiting.clone(), code, status, confirming, finished, shown: Rc::default(),
     };
     parts.show_list(Vec::new());
     address_row(&choosing, &parts);
@@ -296,10 +332,10 @@ mod tests {
     /// Waiting and an unknown state must not read as a refusal, nor a refusal as waiting.
     #[test]
     fn only_final_refusals_have_words() {
-        for state in ["rejected", "expired", "dropped", "unreachable"] {
+        for state in ["rejected", "expired", "dropped", "unreachable", "mismatch"] {
             assert!(decision_words(state).is_some(), "{state}");
         }
-        for state in ["pending", "connecting", "approved", "idle", ""] {
+        for state in ["pending", "connecting", "approved", "confirm", "idle", ""] {
             assert!(decision_words(state).is_none(), "{state}");
         }
     }

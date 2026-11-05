@@ -23,6 +23,7 @@ ALTER TABLE device_pairing_requests
     ADD COLUMN IF NOT EXISTS node_id text,
     ADD COLUMN IF NOT EXISTS join_code text,
     ADD COLUMN IF NOT EXISTS code_attempts integer NOT NULL DEFAULT 0,
+    ADD COLUMN IF NOT EXISTS confirm_code text,
     ADD COLUMN IF NOT EXISTS source_address text,
     ADD COLUMN IF NOT EXISTS drop_reason text;
 
@@ -31,6 +32,13 @@ ALTER TABLE device_pairing_requests
     ADD CONSTRAINT device_pairing_requests_app_variant_check CHECK (
         app_variant = ANY (ARRAY['staff', 'tv', 'vendor', 'Desktop-Workstation', 'Desktop-Display'])
     );
+
+-- The policy lets a row with no tenant be seen, for a TV that has not been claimed. A machine's
+-- request always knows its hospital, so that gap can never apply to one.
+ALTER TABLE device_pairing_requests
+    DROP CONSTRAINT IF EXISTS device_pairing_requests_machine_has_tenant,
+    ADD CONSTRAINT device_pairing_requests_machine_has_tenant
+        CHECK (node_id IS NULL OR tenant_id IS NOT NULL);
 
 -- One live request per key; a machine that asks again replaces its own.
 CREATE UNIQUE INDEX IF NOT EXISTS uq_device_pairing_requests_pending_node

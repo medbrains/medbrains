@@ -1,0 +1,24 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE device_pairing_requests r SET confirm_code = $3 FROM device_node_keys k JOIN paired_devices d ON d.id = k.paired_device_id WHERE k.node_id = $1 AND k.tenant_id = $2 AND k.revoked_at IS NULL AND d.revoked_at IS NULL AND r.paired_device_id = d.id AND r.node_id = k.node_id AND r.status = 'claimed' RETURNING r.id",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Uuid",
+        "Text"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "db7cbe70d6b8e76e4f1b674b6b48f3df4207ab25802e470b3df1e66b19099af5"
+}

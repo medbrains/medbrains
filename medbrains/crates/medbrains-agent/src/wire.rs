@@ -75,6 +75,9 @@ pub(crate) struct StatusFrame {
     pub(crate) certificate: Option<String>,
 }
 
+/// How long a machine has to read the last answer and hang up.
+pub(crate) const CLOSE_GRACE: std::time::Duration = std::time::Duration::from_secs(10);
+
 /// Reads one frame, refusing anything oversized.
 pub(crate) async fn read_frame<T: DeserializeOwned>(
     reader: &mut (impl AsyncBufRead + Unpin),

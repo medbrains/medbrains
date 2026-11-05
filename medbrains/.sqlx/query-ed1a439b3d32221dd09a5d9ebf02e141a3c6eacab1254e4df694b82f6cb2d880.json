@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT id, requested_label AS label, app_variant, join_code AS \"code!\",\n                  source_address AS address, expires_at, created_at\n             FROM device_pairing_requests\n            WHERE tenant_id = $1 AND node_id IS NOT NULL AND status = 'pending'\n              AND expires_at > now()\n            ORDER BY created_at LIMIT 100",
+  "query": "SELECT id, requested_label AS label, app_variant, source_address AS address, expires_at, created_at\n             FROM device_pairing_requests\n            WHERE tenant_id = $1 AND node_id IS NOT NULL AND status = 'pending'\n              AND expires_at > now()\n            ORDER BY created_at LIMIT 100",
   "describe": {
     "columns": [
       {
@@ -20,21 +20,16 @@
       },
       {
         "ordinal": 3,
-        "name": "code!",
-        "type_info": "Text"
-      },
-      {
-        "ordinal": 4,
         "name": "address",
         "type_info": "Text"
       },
       {
-        "ordinal": 5,
+        "ordinal": 4,
         "name": "expires_at",
         "type_info": "Timestamptz"
       },
       {
-        "ordinal": 6,
+        "ordinal": 5,
         "name": "created_at",
         "type_info": "Timestamptz"
       }
@@ -49,10 +44,9 @@
       false,
       false,
       true,
-      true,
       false,
       false
     ]
   },
-  "hash": "f4c53a3c09164ba6564286a20ef39ff3ec60a9cc030fa5d5a06673f8f8801f07"
+  "hash": "ed1a439b3d32221dd09a5d9ebf02e141a3c6eacab1254e4df694b82f6cb2d880"
 }

@@ -21,6 +21,16 @@ pub(crate) struct Filing {
     pub(crate) label: String,
     pub(crate) kind: Kind,
     pub(crate) code: String,
+    /// What the main machine's screen shows after approval, for a person to type on the node.
+    pub(crate) confirm_code: String,
+}
+
+/// A connected machine, as reported to the server.
+#[derive(Debug, Clone, Serialize)]
+pub(crate) struct Seen {
+    pub(crate) node_id: String,
+    /// The loopback address its connections arrive from, which the audit log records.
+    pub(crate) address: String,
 }
 
 /// The server's answer about a join request.
@@ -44,7 +54,7 @@ pub(crate) trait Hospital: Send + Sync {
     /// Where this key's latest request stands.
     async fn join_state(&self, node_id: &str) -> anyhow::Result<Answer>;
     /// Reports who is connected and gets back who may be.
-    async fn sync(&self, connected: &[String]) -> anyhow::Result<Synced>;
+    async fn sync(&self, connected: &[Seen]) -> anyhow::Result<Synced>;
 }
 
 /// The real server.
@@ -81,7 +91,7 @@ impl Hospital for Server {
         Self::read(request.header(TOKEN_HEADER, &self.token)).await
     }
 
-    async fn sync(&self, connected: &[String]) -> anyhow::Result<Synced> {
+    async fn sync(&self, connected: &[Seen]) -> anyhow::Result<Synced> {
         let request = self.client.post(format!("{SERVER}/sync"));
         let body = serde_json::json!({ "connected": connected });
         Self::read(request.header(TOKEN_HEADER, &self.token).json(&body)).await

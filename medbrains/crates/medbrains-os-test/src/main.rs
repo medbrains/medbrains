@@ -178,7 +178,7 @@ fn time_authenticated(vm: &mut Vm, _: &Value) -> Result<(), String> {
 
 /// A filing as the agent sends it, run inside the machine with the agent's own token.
 fn file_join(vm: &mut Vm, key: &str, address: &str) -> Result<String, String> {
-    let body = format!(r#"{{"node_id":"{key}","address":"{address}","label":"Test","kind":"display","code":"123456"}}"#);
+    let body = format!(r#"{{"node_id":"{key}","address":"{address}","label":"Test","kind":"display","code":"123456","confirm_code":"654321"}}"#);
     vm.run(&format!(
         "curl -s -m 5 -H \"{TOKEN_HEADER}: $(cat {AGENT_TOKEN})\" -H 'content-type: application/json' -d '{body}' {AGENT_API}/join"
     ))

@@ -7,15 +7,20 @@ use crate::{rules, status};
 
 /// What the agent recorded when a person approved this machine.
 const JOINED_FILE: &str = "/var/lib/medbrains-agent/joined.json";
-/// The screen's one trusted certificate, bound into its unit. Written in place, so the running
-/// screen sees it: a new file under this name would stay hidden behind the bind mount.
-pub(crate) const SCREEN_CERTIFICATE: &str = "/var/lib/kiosk/local-front.pem";
+/// The screen's one trusted certificate, bound into its unit. In a directory only root can write,
+/// since the screen's user could otherwise add to what it trusts, or swap this for a link that root
+/// would then write through. Written in place, so the running screen sees it: a new file under this
+/// name would stay hidden behind the bind mount.
+pub(crate) const SCREEN_CERTIFICATE: &str = "/var/lib/medbrains-settings/local-front.pem";
 
 /// Makes this machine a node, once the agent says a person approved it. The role goes down last,
 /// so a power cut before it leaves a machine that simply asks again.
 pub(crate) fn finish_node() -> Result<(), String> {
-    let joined = fs::read_to_string(JOINED_FILE)
-        .map_err(|_| "A person has not approved this machine yet.".to_owned())?;
+    let joined = fs::read_to_string(JOINED_FILE).map_err(|error| match error.kind() {
+        std::io::ErrorKind::NotFound => "A person has not approved this machine yet.".to_owned(),
+        // Not being able to read it is not the same as nobody having approved.
+        _ => format!("This machine can't read what it joined: {error}"),
+    })?;
     let certificate = rules::joined_certificate(&joined)
         .ok_or_else(|| "The main machine's answer could not be used. Ask to join again.".to_owned())?;
     fs::write(SCREEN_CERTIFICATE, certificate).map_err(|e| e.to_string())?;

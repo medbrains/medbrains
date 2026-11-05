@@ -2,8 +2,9 @@
  * Admin → Machines. The main machine's Nodes screen (OS-SETUP-AND-TRUST §8): machines asking to
  * join, each with the code both screens show, and every machine that has joined.
  *
- * A person approves by retyping the code from the machine. A code shown here alone could be clicked
- * through, and clicking through is how a fake main machine would go unnoticed.
+ * Each side proves itself to a person. The machine shows a code that is typed here, which is why it
+ * is never shown here: beside Approve it could be copied without looking at the machine. Approving
+ * then shows a second code to type on the machine, so a fake main machine gets nowhere.
  */
 
 import { Group, PinInput, Stack, Text } from "@mantine/core";
@@ -26,6 +27,31 @@ function typeWords(appVariant: string): string {
   return appVariant === "Desktop-Display" ? "Display" : "Workstation";
 }
 
+interface ConfirmCodeDialogProps {
+  label: string;
+  code: string;
+  onClose: () => void;
+}
+
+/** The second code: read here, typed on the machine, which only then trusts this main machine. */
+function ConfirmCodeDialog({ label, code, onClose }: ConfirmCodeDialogProps) {
+  return (
+    <Modal opened onClose={onClose} title={`One more step for ${label}`} size="sm">
+      <Stack gap="md">
+        <Text size="sm">Type these digits on that machine's screen to finish joining.</Text>
+        <Text ff="monospace" fw={700} size="xl" data-testid="text-confirm-code">
+          {code}
+        </Text>
+        <Group justify="flex-end">
+          <Button tone="primary" onClick={onClose} data-testid="btn-close-confirm-code">
+            Done
+          </Button>
+        </Group>
+      </Stack>
+    </Modal>
+  );
+}
+
 interface ApproveDialogProps {
   machine: WaitingMachine;
   onClose: () => void;
@@ -37,13 +63,14 @@ function ApproveDialog({ machine, onClose }: ApproveDialogProps) {
   const [code, setCode] = useState("");
   const approve = useMutation({
     mutationFn: () => api.approveMachine(machine.id, code),
-    onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: MACHINES_KEY });
-      toast.success(`${machine.label} has joined`);
-      onClose();
-    },
+    onSuccess: () => void queryClient.invalidateQueries({ queryKey: MACHINES_KEY }),
     onError: () => void queryClient.invalidateQueries({ queryKey: MACHINES_KEY }),
   });
+  if (approve.data) {
+    return (
+      <ConfirmCodeDialog label={machine.label} code={approve.data.confirm_code} onClose={onClose} />
+    );
+  }
   return (
     <Modal opened onClose={onClose} title={`Approve ${machine.label}`} size="sm">
       <Stack gap="md">
@@ -113,14 +140,6 @@ function WaitingCard({ waiting, canApprove }: WaitingCardProps) {
               </Text>
             </Stack>
             <Group gap="sm">
-              <Stack gap={0} align="flex-end">
-                <Text size="xs" c="dimmed">
-                  Code
-                </Text>
-                <Text ff="monospace" fw={700} size="lg" data-testid="text-machine-code">
-                  {machine.code}
-                </Text>
-              </Stack>
               {canApprove && (
                 <>
                   <Button
@@ -152,16 +171,42 @@ function WaitingCard({ waiting, canApprove }: WaitingCardProps) {
 interface JoinedTableProps {
   machines: JoinedMachine[];
   canRemove: boolean;
+  canApprove: boolean;
+}
+
+/** Shows the second code again, for a machine still waiting for a person to type it. */
+function ShowCodeButton({ machine }: { machine: JoinedMachine }) {
+  const code = useMutation({ mutationFn: () => api.getMachineConfirmCode(machine.id) });
+  return (
+    <>
+      <Button
+        tone="secondary"
+        onClick={() => code.mutate()}
+        loading={code.isPending}
+        data-testid="btn-show-confirm-code"
+      >
+        Show code
+      </Button>
+      {code.isError && <Alert tone="danger">{code.error.message}</Alert>}
+      {code.data && (
+        <ConfirmCodeDialog
+          label={machine.label}
+          code={code.data.confirm_code}
+          onClose={() => code.reset()}
+        />
+      )}
+    </>
+  );
 }
 
 /** Every machine that has joined. */
-function JoinedTable({ machines, canRemove }: JoinedTableProps) {
+function JoinedTable({ machines, canRemove, canApprove }: JoinedTableProps) {
   const queryClient = useQueryClient();
   const remove = useMutation({
     mutationFn: (id: string) => api.removeMachine(id),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: MACHINES_KEY });
-      toast.success("Machine removed. Its access has ended.");
+      toast.success("Machine removed. Its access ends within 30 seconds.");
     },
     onError: (error: Error) => toast.error(error.message, { title: "Not done" }),
   });
@@ -176,6 +221,7 @@ function JoinedTable({ machines, canRemove }: JoinedTableProps) {
               <Table.Th>Type</Table.Th>
               <Table.Th>Status</Table.Th>
               <Table.Th>Last seen</Table.Th>
+              <Table.Th>Audit address</Table.Th>
               {canRemove && <Table.Th>Remove</Table.Th>}
             </Table.Tr>
           </Table.Thead>
@@ -185,15 +231,25 @@ function JoinedTable({ machines, canRemove }: JoinedTableProps) {
                 <Table.Td>{machine.label}</Table.Td>
                 <Table.Td>{typeWords(machine.app_variant)}</Table.Td>
                 <Table.Td>
-                  <Badge tone={machine.online ? "success" : "neutral"}>
-                    {machine.online ? "Online" : "Not connected"}
-                  </Badge>
+                  <Group gap="xs">
+                    <Badge tone={machine.online ? "success" : "neutral"}>
+                      {machine.awaiting_confirmation
+                        ? "Waiting for the code"
+                        : machine.online
+                          ? "Online"
+                          : "Not connected"}
+                    </Badge>
+                    {machine.awaiting_confirmation && canApprove && (
+                      <ShowCodeButton machine={machine} />
+                    )}
+                  </Group>
                 </Table.Td>
                 <Table.Td>
                   {machine.last_seen_at
                     ? new Date(machine.last_seen_at).toLocaleString()
                     : "Not yet"}
                 </Table.Td>
+                <Table.Td>{machine.screen_address ?? "Not yet"}</Table.Td>
                 {canRemove && (
                   <Table.Td>
                     <Button
@@ -210,7 +266,7 @@ function JoinedTable({ machines, canRemove }: JoinedTableProps) {
             ))}
             {machines.length === 0 && (
               <Table.Tr>
-                <Table.Td colSpan={canRemove ? 5 : 4}>
+                <Table.Td colSpan={canRemove ? 6 : 5}>
                   <Text size="sm" c="dimmed">
                     No machines have joined yet.
                   </Text>
@@ -293,7 +349,11 @@ export function MachinesPage() {
       {list.isSuccess && (
         <>
           <WaitingCard waiting={list.data.waiting} canApprove={canApprove} />
-          <JoinedTable machines={list.data.machines} canRemove={canRemove} />
+          <JoinedTable
+            machines={list.data.machines}
+            canRemove={canRemove}
+            canApprove={canApprove}
+          />
           <DroppedCard dropped={list.data.dropped} />
         </>
       )}

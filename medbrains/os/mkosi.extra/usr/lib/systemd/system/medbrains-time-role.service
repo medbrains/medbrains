@@ -9,6 +9,7 @@ RequiresMountsFor=/var/lib/medbrains
 [Service]
 Type=oneshot
 RemainAfterExit=yes
+TimeoutStartSec=30
 ExecStart=/usr/lib/medbrains/time-role
 
 [Install]

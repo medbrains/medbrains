@@ -39,7 +39,6 @@ pub struct WaitingMachine {
     pub id: Uuid,
     pub label: String,
     pub app_variant: String,
-    pub code: String,
     pub address: Option<String>,
     pub expires_at: DateTime<Utc>,
     pub created_at: DateTime<Utc>,
@@ -52,6 +51,10 @@ pub struct JoinedMachine {
     pub label: String,
     pub app_variant: String,
     pub online: bool,
+    /// Approved, and its screen has not connected, so a person has yet to type the second code.
+    pub awaiting_confirmation: bool,
+    /// The loopback address its connections reach this machine from, which the audit log records.
+    pub screen_address: Option<String>,
     pub paired_at: DateTime<Utc>,
     pub last_seen_at: Option<DateTime<Utc>>,
 }
@@ -82,8 +85,7 @@ pub async fn list_machines(
     let mut tx = begin(&state.db, Actor::from_claims(&claims)).await?;
     let waiting = sqlx::query_as!(
         WaitingMachine,
-        r#"SELECT id, requested_label AS label, app_variant, join_code AS "code!",
-                  source_address AS address, expires_at, created_at
+        r#"SELECT id, requested_label AS label, app_variant, source_address AS address, expires_at, created_at
              FROM device_pairing_requests
             WHERE tenant_id = $1 AND node_id IS NOT NULL AND status = 'pending'
               AND expires_at > now()
@@ -95,7 +97,9 @@ pub async fn list_machines(
     let joined = sqlx::query_as!(
         JoinedMachine,
         r#"SELECT d.id, d.label, d.app_variant, d.paired_at, d.last_seen_at,
-                  COALESCE(d.last_seen_at > now() - make_interval(secs => $2), false) AS "online!"
+                  COALESCE(d.last_seen_at > now() - make_interval(secs => $2), false) AS "online!",
+                  d.last_seen_at IS NULL AS "awaiting_confirmation!",
+                  host(d.last_seen_ip) AS screen_address
              FROM paired_devices d
             WHERE d.tenant_id = $1 AND d.revoked_at IS NULL
               AND d.app_variant IN ('Desktop-Workstation', 'Desktop-Display')
@@ -118,6 +122,13 @@ pub async fn list_machines(
     .await?;
     tx.commit().await?;
     Ok(Json(MachineList { waiting, machines: joined, dropped }))
+}
+
+/// What a person carries back to the machine, to prove this is really its main machine.
+#[derive(Debug, Serialize)]
+pub struct ApprovedMachine {
+    pub id: Uuid,
+    pub confirm_code: String,
 }
 
 /// What a person retypes to approve.
@@ -225,7 +236,7 @@ pub async fn approve_machine(
     Extension(claims): Extension<Claims>,
     Path(id): Path<Uuid>,
     body: Result<Json<ApproveBody>, JsonRejection>,
-) -> Result<Json<serde_json::Value>, AppError> {
+) -> Result<Json<ApprovedMachine>, AppError> {
     require_permission(&claims, machines::APPROVE)?;
     let Json(body) = body?;
     let mut tx = begin(&state.db, Actor::from_claims(&claims)).await?;
@@ -249,7 +260,40 @@ pub async fn approve_machine(
     let details = serde_json::json!({ "node_id": node_id, "label": label, "type": variant });
     audit(&mut tx, &claims, "machine.approved", device, &details).await?;
     tx.commit().await?;
-    Ok(Json(serde_json::json!({ "id": device })))
+    Ok(Json(ApprovedMachine { id: device, confirm_code: second_code(&mut tx_read(&state, &claims).await?, device).await? }))
+}
+
+/// `POST /api/admin/machines/{id}/confirm-code`: the second code again, for a person who closed the
+/// dialog or a machine that restarted and asked afresh. Only someone who may approve sees it.
+pub async fn machine_confirm_code(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Path(id): Path<Uuid>,
+) -> Result<Json<ApprovedMachine>, AppError> {
+    require_permission(&claims, machines::APPROVE)?;
+    let mut tx = tx_read(&state, &claims).await?;
+    Ok(Json(ApprovedMachine { id, confirm_code: second_code(&mut tx, id).await? }))
+}
+
+/// A unit of work for reading what an approval left behind.
+async fn tx_read(state: &AppState, claims: &Claims) -> Result<Tx, AppError> {
+    Ok(begin(&state.db, Actor::from_claims(claims)).await?)
+}
+
+/// The digits a person types on the machine, from the request that admitted it. Only while it has
+/// not connected: once it has, nothing needs them, and nobody should see them.
+async fn second_code(tx: &mut Tx, device: Uuid) -> Result<String, AppError> {
+    sqlx::query_scalar!(
+        r#"SELECT r.confirm_code AS "confirm_code!" FROM device_pairing_requests r
+             JOIN paired_devices d ON d.id = r.paired_device_id
+            WHERE d.id = $1 AND d.revoked_at IS NULL AND d.last_seen_at IS NULL
+              AND r.status = 'claimed' AND r.confirm_code IS NOT NULL
+            ORDER BY r.created_at DESC LIMIT 1"#,
+        device,
+    )
+    .fetch_optional(&mut **tx)
+    .await?
+    .ok_or(AppError::NotFound)
 }
 
 /// `POST /api/admin/machines/requests/{id}/reject`: refuses a waiting machine. Its key gets nothing.
@@ -311,6 +355,7 @@ pub fn admin_router() -> axum::Router<AppState> {
         .route("/api/admin/machines", get(list_machines))
         .route("/api/admin/machines/{id}", delete(remove_machine))
         .route("/api/admin/machines/requests/{id}/approve", post(approve_machine))
+        .route("/api/admin/machines/{id}/confirm-code", post(machine_confirm_code))
         .route("/api/admin/machines/requests/{id}/reject", post(reject_machine))
 }
 

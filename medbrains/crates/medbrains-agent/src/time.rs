@@ -17,8 +17,9 @@ use anyhow::Context;
 use iroh::endpoint::Connection;
 use tokio::net::UdpSocket;
 
-/// Where a node's chrony asks. The same value is in `/usr/lib/medbrains/time-role`.
-pub(crate) const NODE_TIME_PORT: u16 = 12300;
+/// Where a node's chrony asks. The same value is in `/usr/lib/medbrains/time-role`. Below 1024, so
+/// only the agent can bind it: a screen process listening here could set the machine's clock.
+pub(crate) const NODE_TIME_PORT: u16 = 1023;
 const MAIN_CHRONY: SocketAddr = SocketAddr::new(std::net::IpAddr::V4(Ipv4Addr::LOCALHOST), 123);
 /// An answer later than this is no use to a clock, so chrony counts it as lost.
 const ANSWER_TIMEOUT: Duration = Duration::from_secs(2);
@@ -35,9 +36,11 @@ pub(crate) const fn is_time_packet(length: usize) -> bool {
 /// One question on one stream: passes it to the main machine's chrony and returns the answer.
 async fn answer_one(question: &[u8]) -> anyhow::Result<Vec<u8>> {
     let socket = UdpSocket::bind(SocketAddr::new(MAIN_CHRONY.ip(), 0)).await?;
-    socket.send_to(question, MAIN_CHRONY).await?;
+    // Connected, so the kernel takes answers only from chrony.
+    socket.connect(MAIN_CHRONY).await?;
+    socket.send(question).await?;
     let mut buffer = vec![0_u8; MAX_PACKET];
-    let (read, _) = tokio::time::timeout(ANSWER_TIMEOUT, socket.recv_from(&mut buffer))
+    let read = tokio::time::timeout(ANSWER_TIMEOUT, socket.recv(&mut buffer))
         .await
         .context("chrony did not answer")??;
     buffer.truncate(read);

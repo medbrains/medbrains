@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT k.node_id, k.paired_device_id, d.app_variant FROM device_node_keys k JOIN paired_devices d ON d.id = k.paired_device_id WHERE k.tenant_id = $1 AND k.revoked_at IS NULL AND d.revoked_at IS NULL AND d.app_variant IN ('Desktop-Workstation', 'Desktop-Display') ORDER BY k.node_id LIMIT 5000",
+  "query": "SELECT k.node_id, k.paired_device_id, d.app_variant FROM device_node_keys k JOIN paired_devices d ON d.id = k.paired_device_id JOIN device_pairing_requests r ON r.paired_device_id = d.id AND r.node_id = k.node_id WHERE k.tenant_id = $1 AND k.revoked_at IS NULL AND d.revoked_at IS NULL AND d.app_variant IN ('Desktop-Workstation', 'Desktop-Display') AND r.status = 'claimed' ORDER BY k.node_id LIMIT 5000",
   "describe": {
     "columns": [
       {
@@ -30,5 +30,5 @@
       false
     ]
   },
-  "hash": "94b4ba445e7eef070677b412286627dec95253a0728715b3fe9cb248d471091a"
+  "hash": "83b3dba492cc73376b32c627415882113d94bba7d45199990afc0c04e9c00add"
 }

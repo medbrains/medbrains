@@ -51,7 +51,9 @@ if (action === "approve") {
   await page.getByTestId("btn-confirm-approve-machine").click();
   await page.waitForTimeout(2_000);
   const refused = await page.getByRole("dialog").getByRole("alert").allInnerTexts();
-  console.log(JSON.stringify({ refused }));
+  const second = page.getByTestId("text-confirm-code");
+  const confirm = (await second.count()) > 0 ? await second.innerText() : null;
+  console.log(JSON.stringify({ refused, confirm }));
 } else if (action === "reject") {
   await page.getByTestId("btn-reject-machine").first().click();
   await page.waitForTimeout(1_500);

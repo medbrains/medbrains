@@ -118,6 +118,7 @@ import type {
   ApprovalRequestSummary,
   ApproveClaimSettlementRequest,
   ApproveDisposalRequest,
+  ApprovedMachine,
   ApproveIndentRequest,
   ApproveRejectRequest,
   ApproveWriteOffRequest,
@@ -18023,10 +18024,12 @@ export const api = {
   // ── MedBrains OS machines joining this main machine ──
   listMachines: () => request<MachineList>("/admin/machines"),
   approveMachine: (id: string, code: string) =>
-    request<{ id: string }>(`/admin/machines/requests/${id}/approve`, {
+    request<ApprovedMachine>(`/admin/machines/requests/${id}/approve`, {
       method: "POST",
       body: JSON.stringify({ code }),
     }),
+  getMachineConfirmCode: (id: string) =>
+    request<ApprovedMachine>(`/admin/machines/${id}/confirm-code`, { method: "POST" }),
   rejectMachine: (id: string) =>
     request<{ id: string }>(`/admin/machines/requests/${id}/reject`, { method: "POST" }),
   removeMachine: (id: string) =>

@@ -8,4 +8,5 @@ After=nftables.service chrony.service systemd-resolved.service
 [Service]
 Type=oneshot
 RemainAfterExit=yes
+TimeoutStartSec=60
 ExecStart=/usr/lib/medbrains/role-network

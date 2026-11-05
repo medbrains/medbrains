@@ -14,17 +14,17 @@ use medbrains_edge::iroh_transport::{PeerGatekeeper, close_when_refused};
 use medbrains_edge::peer_admission::{Admission, RefusalReason, refusal_message};
 use medbrains_edge::peer_roster::PeerRoster;
 use tokio::io::BufReader;
-use tokio::net::{TcpStream, UdpSocket};
+use tokio::net::UdpSocket;
 use tokio::sync::{Semaphore, watch};
 use uuid::Uuid;
 
-use crate::code::{commitment, join_code, new_nonce};
-use crate::hospital::{Filing, Hospital};
+use crate::code::{commitment, confirm_code, join_code, new_nonce};
+use crate::hospital::{Filing, Hospital, Seen};
 use crate::limits::AddressLimits;
 use crate::time;
 use crate::wire::{
-    Hello, JOIN_ALPN, JoinState, NonceFrame, StatusFrame, TIME_ALPN, TUNNEL_ALPN, read_frame,
-    write_frame,
+    CLOSE_GRACE, Hello, JOIN_ALPN, JoinState, NonceFrame, StatusFrame, TIME_ALPN, TUNNEL_ALPN,
+    read_frame, write_frame,
 };
 
 /// How often the agent asks the server who may be connected, which bounds how long a removed
@@ -37,13 +37,20 @@ const HANDSHAKE_TIMEOUT: Duration = Duration::from_secs(10);
 /// Join handshakes at once across every address. Each lasts at most `HANDSHAKE_TIMEOUT`, and a
 /// conversation gives its slot back once its request is filed, because the server bounds those.
 const MAX_JOINING: usize = 64;
-/// Connections to the front end, per machine: a screen opens a handful.
-const MAX_STREAMS: usize = 64;
 const MAX_LABEL: usize = 60;
 /// A "who are you?" must be this long and the answer may not be longer, so nobody can use the
 /// port to send a larger packet at somebody else.
 pub(crate) const WHOAMI_SIZE: usize = 256;
 const CLOSE_REFUSED: u32 = 1;
+/// A fault, not a refusal: this machine cannot say who is admitted right now.
+const CLOSE_UNKNOWN: u32 = 2;
+const UNKNOWN_MESSAGE: &str = "the main machine cannot check admissions right now";
+/// How long the agent keeps trusting its roster with the server not answering. Past this it cannot
+/// know who has been removed, so it closes every session and admits nobody until it hears again.
+const MAX_SYNC_SILENCE: Duration = Duration::from_secs(30);
+/// A key the roster does not know may ask for a fresh look this often, across all keys. Strangers
+/// must not be able to turn connections into database work.
+const STRANGER_SYNC_EVERY: Duration = Duration::from_secs(1);
 
 /// Admission from the roster the server last issued. Before the first one, nobody is admitted.
 #[derive(Debug, Default)]
@@ -58,6 +65,11 @@ impl RosterGate {
         let roster = PeerRoster::new(doc.tenant_id, doc.issued_at, peers.collect());
         *self.roster.write().unwrap_or_else(PoisonError::into_inner) = Some(roster);
         doc.tenant_id
+    }
+
+    /// Forgets the roster, because it can no longer be believed. Admits nobody until the next one.
+    fn clear(&self) {
+        *self.roster.write().unwrap_or_else(PoisonError::into_inner) = None;
     }
 
     /// The tenant this machine serves. It comes from the server, never from a peer.
@@ -76,6 +88,14 @@ impl PeerGatekeeper for RosterGate {
     }
 }
 
+/// The answer about one key. Not knowing is not "no".
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Verdict {
+    Admit(Uuid),
+    Refuse,
+    Unknown,
+}
+
 /// Everything the main machine's agent holds.
 pub(crate) struct Gateway {
     pub(crate) endpoint: Endpoint,
@@ -90,6 +110,13 @@ pub(crate) struct Gateway {
     name: RwLock<String>,
     joining: Semaphore,
     limits: Arc<AddressLimits>,
+    /// When the server last answered a sync.
+    last_sync: Mutex<Instant>,
+    /// When a stranger last caused a sync. Holding this lock is the single flight.
+    stranger_sync: tokio::sync::Mutex<Option<Instant>>,
+    /// Streams each machine may hold, across all its connections.
+    streams: Mutex<HashMap<String, Arc<Semaphore>>>,
+    max_silence: Duration,
 }
 
 impl Gateway {
@@ -99,6 +126,17 @@ impl Gateway {
         hospital: Arc<dyn Hospital>,
         certificate: String,
         front: SocketAddr,
+    ) -> Arc<Self> {
+        Self::with_silence(endpoint, hospital, certificate, front, MAX_SYNC_SILENCE)
+    }
+
+    /// `new`, with the time it may go without hearing from the server spelled out.
+    pub(crate) fn with_silence(
+        endpoint: Endpoint,
+        hospital: Arc<dyn Hospital>,
+        certificate: String,
+        front: SocketAddr,
+        max_silence: Duration,
     ) -> Arc<Self> {
         Arc::new(Self {
             endpoint,
@@ -111,32 +149,61 @@ impl Gateway {
             name: RwLock::default(),
             joining: Semaphore::new(MAX_JOINING),
             limits: Arc::default(),
+            last_sync: Mutex::new(Instant::now()),
+            stranger_sync: tokio::sync::Mutex::new(None),
+            streams: Mutex::default(),
+            max_silence,
         })
     }
 
     /// Reports who is connected and takes in who may be; any open session no longer admitted
     /// is then closed by its own watcher.
     async fn sync(&self) -> anyhow::Result<()> {
-        let connected: Vec<String> = {
+        let connected: Vec<Seen> = {
             let mut live = self.live.lock().unwrap_or_else(PoisonError::into_inner);
             live.retain(|_, conn| conn.close_reason().is_none());
-            live.keys().cloned().collect()
+            live.iter().map(|(node_id, conn)| Seen {
+                node_id: node_id.clone(),
+                address: machine_source(conn.remote_id().as_bytes()).to_string(),
+            }).collect()
         };
         let synced = self.hospital.sync(&connected).await?;
+        *self.last_sync.lock().unwrap_or_else(PoisonError::into_inner) = Instant::now();
         self.gate.replace(&synced.roster);
+        self.streams
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .retain(|node_id, _| synced.roster.peers.iter().any(|peer| peer.node_id == *node_id));
         self.endpoint.set_user_data_for_address_lookup(synced.hospital.clone().try_into().ok());
         *self.name.write().unwrap_or_else(PoisonError::into_inner) = synced.hospital;
         self.changes.send_replace(());
         Ok(())
     }
 
-    /// Keeps the roster current for as long as the agent runs. If the server stops answering,
-    /// the roster stays until it goes stale, and a stale roster admits nobody.
+    /// One round of keeping the roster current. A server silent for too long means a removal could
+    /// be going unheard, so every session closes, as a fault and not as a refusal.
+    async fn sync_round(&self) {
+        let Err(error) = self.sync().await else {
+            return;
+        };
+        tracing::warn!(%error, "could not sync machines with the server");
+        let heard = *self.last_sync.lock().unwrap_or_else(PoisonError::into_inner);
+        if heard.elapsed() < self.max_silence {
+            return;
+        }
+        self.gate.clear();
+        let live = self.live.lock().unwrap_or_else(PoisonError::into_inner);
+        for conn in live.values() {
+            conn.close(CLOSE_UNKNOWN.into(), UNKNOWN_MESSAGE.as_bytes());
+        }
+        drop(live);
+        self.changes.send_replace(());
+    }
+
+    /// Keeps the roster current: a loop meant never to end, each round with its own time limits.
     pub(crate) async fn sync_forever(self: Arc<Self>) {
         loop {
-            if let Err(error) = self.sync().await {
-                tracing::warn!(%error, "could not sync machines with the server");
-            }
+            self.sync_round().await;
             tokio::time::sleep(SYNC_EVERY).await;
         }
     }
@@ -186,14 +253,16 @@ impl Gateway {
             bail!("the nonce does not match its commitment");
         }
         let node = conn.remote_id();
-        let code =
-            join_code(self.endpoint.id().as_bytes(), node.as_bytes(), &main_nonce, &node_nonce);
+        let main = self.endpoint.id();
+        let code = join_code(main.as_bytes(), node.as_bytes(), &main_nonce, &node_nonce);
+        let confirm_code = confirm_code(main.as_bytes(), node.as_bytes(), &main_nonce, &node_nonce);
         Ok(Filing {
             node_id: node.to_string(),
             address: address.to_string(),
             label,
             kind: hello.kind,
             code,
+            confirm_code,
         })
     }
 
@@ -211,7 +280,8 @@ impl Gateway {
             write_frame(&mut send, &self.status(answer.state)).await?;
             if answer.state.is_final() {
                 send.finish().context("finish")?;
-                conn.closed().await;
+                // Long enough for it to read this; its address's place must not be held for ever.
+                drop(tokio::time::timeout(CLOSE_GRACE, conn.closed()).await);
                 return Ok(());
             }
             tokio::time::sleep(STATUS_EVERY).await;
@@ -230,33 +300,61 @@ impl Gateway {
         }
     }
 
-    /// Whether this key may open a tunnel. A key the last roster did not know gets one fresh look,
-    /// so a machine approved a second ago is not turned away.
-    async fn tunnel_admission(&self, node_id: &str) -> Option<Uuid> {
-        let admitted = |gate: &RosterGate| {
-            let tenant = gate.tenant()?;
-            match gate.admit(node_id, tenant) {
-                Admission::Admit { tenant_id, .. } => Some(tenant_id),
-                Admission::Refuse(reason) => {
-                    tracing::warn!(%node_id, ?reason, "tunnel refused");
-                    None
-                }
-            }
+    /// What the roster says about a key.
+    fn verdict(&self, node_id: &str) -> Verdict {
+        let Some(tenant) = self.gate.tenant() else {
+            return Verdict::Unknown;
         };
-        if let Some(tenant) = admitted(&self.gate) {
-            return Some(tenant);
+        match self.gate.admit(node_id, tenant) {
+            Admission::Admit { tenant_id, .. } => Verdict::Admit(tenant_id),
+            Admission::Refuse(reason) => {
+                tracing::warn!(%node_id, ?reason, "tunnel refused");
+                Verdict::Refuse
+            }
         }
-        // ponytail: a loopback call per refused key; bound by the QUIC handshake it must finish first.
-        drop(self.sync().await);
-        admitted(&self.gate)
+    }
+
+    /// A fresh roster for a key the last one did not know, so a machine approved a second ago is not
+    /// turned away. One at a time and once a second, however many keys ask: anyone on the LAN can
+    /// complete a handshake, and QUIC puts many on one flow past the firewall's limit. Returns
+    /// whether it could say: `false` means the server did not answer this look.
+    async fn fresh_look(&self) -> bool {
+        let Ok(mut last) = self.stranger_sync.try_lock() else {
+            return true;
+        };
+        if last.is_some_and(|at| at.elapsed() < STRANGER_SYNC_EVERY) {
+            return true;
+        }
+        *last = Some(Instant::now());
+        self.sync().await.is_ok()
+    }
+
+    /// Whether this key may open a tunnel.
+    async fn tunnel_admission(&self, node_id: &str) -> Verdict {
+        let first = self.verdict(node_id);
+        if matches!(first, Verdict::Admit(_)) {
+            return first;
+        }
+        if self.fresh_look().await {
+            self.verdict(node_id)
+        } else {
+            Verdict::Unknown
+        }
     }
 
     /// Serves an admitted machine, its screen or its clock, until it is closed or refused.
     async fn serve_admitted(&self, conn: Connection) -> anyhow::Result<()> {
         let node_id = conn.remote_id().to_string();
-        let Some(tenant) = self.tunnel_admission(&node_id).await else {
-            conn.close(CLOSE_REFUSED.into(), refusal_message().as_bytes());
-            return Ok(());
+        let tenant = match self.tunnel_admission(&node_id).await {
+            Verdict::Admit(tenant) => tenant,
+            Verdict::Refuse => {
+                conn.close(CLOSE_REFUSED.into(), refusal_message().as_bytes());
+                return Ok(());
+            }
+            Verdict::Unknown => {
+                conn.close(CLOSE_UNKNOWN.into(), UNKNOWN_MESSAGE.as_bytes());
+                return Ok(());
+            }
         };
         self.live
             .lock()
@@ -273,29 +371,10 @@ impl Gateway {
         if conn.alpn() == TIME_ALPN {
             time::serve_main(&conn).await;
         } else {
-            self.carry_screen(&conn).await;
+            self.carry_screen(&conn, &self.machine_streams(&conn)).await;
         }
         watcher.abort();
         Ok(())
-    }
-
-    /// Carries each connection from a machine's screen to the local front end.
-    async fn carry_screen(&self, conn: &Connection) {
-        let limit = Arc::new(Semaphore::new(MAX_STREAMS));
-        while let Ok((mut send, mut recv)) = conn.accept_bi().await {
-            let Ok(permit) = Arc::clone(&limit).try_acquire_owned() else {
-                continue;
-            };
-            let front = self.front;
-            tokio::spawn(async move {
-                let _permit = permit;
-                let Ok(mut upstream) = TcpStream::connect(front).await else {
-                    return;
-                };
-                let mut stream = tokio::io::join(&mut recv, &mut send);
-                drop(tokio::io::copy_bidirectional(&mut stream, &mut upstream).await);
-            });
-        }
     }
 
     /// Answers "who are you?" with this machine's key and name. Unauthenticated on purpose: a
@@ -349,5 +428,10 @@ pub(crate) fn decode_32(value: &str) -> anyhow::Result<[u8; 32]> {
     hex::decode(value)?.try_into().map_err(|_| anyhow::anyhow!("not 32 bytes"))
 }
 
+mod front;
+#[cfg(test)]
+mod attack_tests;
 #[cfg(test)]
 mod tests;
+
+pub(crate) use front::machine_source;

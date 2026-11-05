@@ -2,10 +2,11 @@
 //! main machine over iroh. Opens nothing to the network: its endpoint has no protocols to answer,
 //! and the screen's way in is loopback.
 
+mod carry;
+
 use std::collections::BTreeMap;
 use std::net::{IpAddr, SocketAddr};
 use std::path::{Path, PathBuf};
-use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex, PoisonError};
 use std::time::Duration;
 
@@ -15,15 +16,13 @@ use iroh::{Endpoint, EndpointAddr, EndpointId};
 use iroh_mdns_address_lookup::DiscoveryEvent;
 use serde::{Deserialize, Serialize};
 use tokio::io::BufReader;
-use tokio::net::{TcpListener, TcpStream, UdpSocket};
-use tokio::sync::Semaphore;
+use tokio::net::UdpSocket;
 
-use crate::code::{commitment, join_code, new_nonce};
+use crate::code::{commitment, confirm_code, join_code, new_nonce};
 use crate::gateway::{WHOAMI_SIZE, decode_32};
-use crate::time::{NODE_TIME_PORT, ask_main, is_time_packet};
 use crate::wire::{
-    Hello, IROH_PORT, JOIN_ALPN, JoinState, Kind, NonceFrame, StatusFrame, TIME_ALPN, TUNNEL_ALPN,
-    WHOAMI_PORT, read_frame, write_frame,
+    Hello, IROH_PORT, JOIN_ALPN, JoinState, Kind, NonceFrame, StatusFrame, TUNNEL_ALPN, WHOAMI_PORT,
+    read_frame, write_frame,
 };
 
 /// Where the agent records what it joined. The setup service reads it to finish setup.
@@ -33,8 +32,16 @@ const WHOAMI_TRIES: usize = 3;
 const WHOAMI_WAIT: Duration = Duration::from_secs(1);
 /// How many main machines one list shows, however many a network claims to have.
 const MAX_FOUND: usize = 32;
-/// Connections from the screen at once. WebKit opens a handful.
-const MAX_STREAMS: usize = 64;
+
+/// True if the digits match, without stopping at the first difference.
+fn same_digits(expected: &str, typed: &str) -> bool {
+    expected.len() == typed.len()
+        && !expected.is_empty()
+        && expected.bytes().zip(typed.bytes()).fold(0_u8, |diff, (x, y)| diff | (x ^ y)) == 0
+}
+
+/// Wrong digits allowed on the node before the join is thrown away.
+const MAX_CONFIRM_TRIES: u32 = 3;
 
 /// A main machine on the network.
 #[derive(Debug, Clone, Serialize)]
@@ -42,6 +49,19 @@ pub(crate) struct Found {
     pub(crate) id: String,
     pub(crate) name: String,
     pub(crate) addresses: Vec<SocketAddr>,
+    /// A person typed this one, so no amount of mDNS noise may push it off the list.
+    #[serde(skip)]
+    pub(crate) typed: bool,
+}
+
+/// An approval that claims to come from the main machine, believed by nothing until a person has
+/// typed the digits from the real main machine's screen.
+#[derive(Debug)]
+struct Unconfirmed {
+    joined: Joined,
+    confirm_code: String,
+    join_code: String,
+    tries: u32,
 }
 
 /// What this machine joined, kept across restarts.
@@ -68,9 +88,13 @@ pub(crate) struct Node {
     state_dir: PathBuf,
     /// Where the screen connects.
     screen_port: SocketAddr,
+    /// Where this machine's chrony asks. Below 1024 on a real machine.
+    time_port: SocketAddr,
+    unconfirmed: Mutex<Option<Unconfirmed>>,
     found: Mutex<BTreeMap<String, Found>>,
     standing: Mutex<Standing>,
-    tunnel_open: AtomicBool,
+    /// Held across opening, so it is only true of a tunnel that really opened.
+    tunnel_open: tokio::sync::Mutex<bool>,
 }
 
 impl Node {
@@ -79,25 +103,34 @@ impl Node {
         endpoint: Endpoint,
         state_dir: &Path,
         screen_port: SocketAddr,
+        time_port: SocketAddr,
     ) -> anyhow::Result<Arc<Self>> {
         let node = Arc::new(Self {
             endpoint,
             state_dir: state_dir.to_owned(),
             screen_port,
+            time_port,
+            unconfirmed: Mutex::default(),
             found: Mutex::default(),
             standing: Mutex::new(Standing { state: "idle".to_owned(), code: None }),
-            tunnel_open: AtomicBool::new(false),
+            tunnel_open: tokio::sync::Mutex::new(false),
         });
-        if node.joined().is_some() {
+        if node.joined()?.is_some() {
             node.open_tunnel().await?;
         }
         Ok(node)
     }
 
-    /// What this machine joined, if anything.
-    pub(crate) fn joined(&self) -> Option<Joined> {
-        let raw = std::fs::read(self.state_dir.join(JOINED_FILE)).ok()?;
-        serde_json::from_slice(&raw).ok()
+    /// What this machine joined. Nothing there means it has not; a file it cannot read is a fault,
+    /// which must not read as "not joined" and send a person through joining again.
+    pub(crate) fn joined(&self) -> anyhow::Result<Option<Joined>> {
+        let raw = match std::fs::read(self.state_dir.join(JOINED_FILE)) {
+            Ok(raw) => raw,
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(None),
+            Err(error) => return Err(error).context("This machine can't read what it joined."),
+        };
+        let joined = serde_json::from_slice(&raw).context("This machine's record of what it joined is damaged.")?;
+        Ok(Some(joined))
     }
 
     /// The main machines seen so far.
@@ -108,15 +141,21 @@ impl Node {
     /// Adds to the list, bounded so a noisy network cannot grow it for ever.
     fn remember(&self, found: Found) {
         let mut list = self.found.lock().unwrap_or_else(PoisonError::into_inner);
-        if list.len() < MAX_FOUND || list.contains_key(&found.id) {
-            list.insert(found.id.clone(), found);
+        if list.len() >= MAX_FOUND && !list.contains_key(&found.id) {
+            // Only something a person typed may push out what mDNS heard, never the reverse.
+            let heard = list.iter().find(|(_, entry)| !entry.typed).map(|(id, _)| id.clone());
+            match heard {
+                Some(id) if found.typed => drop(list.remove(&id)),
+                _ => return,
+            }
         }
+        list.insert(found.id.clone(), found);
     }
 
     /// Puts a main machine on the list directly, as discovery would.
     #[cfg(test)]
     pub(crate) fn test_remember(&self, id: String, name: &str, addresses: Vec<SocketAddr>) {
-        self.remember(Found { id, name: name.to_owned(), addresses });
+        self.remember(Found { id, name: name.to_owned(), addresses, typed: false });
     }
 
     /// Dials the tunnel with this node's own key, ignoring whether it has joined.
@@ -134,6 +173,7 @@ impl Node {
                     id: endpoint_info.endpoint_id.to_string(),
                     name: name.unwrap_or_else(|| "Main machine".to_owned()),
                     addresses: endpoint_info.data.ip_addrs().copied().collect(),
+                    typed: false,
                 });
             }
             DiscoveryEvent::Expired { endpoint_id } => {
@@ -166,6 +206,7 @@ impl Node {
                     id: id.to_owned(),
                     name: answer["name"].as_str().unwrap_or("Main machine").to_owned(),
                     addresses: vec![(address, iroh).into()],
+                    typed: true,
                 };
                 self.remember(found.clone());
                 return Ok(found);
@@ -188,7 +229,7 @@ impl Node {
     /// Starts asking to join a main machine on the list. The answer arrives through `standing`.
     pub(crate) fn start_join(self: &Arc<Self>, main_id: &str, name: String, kind: Kind) -> anyhow::Result<()> {
         // Approved before a power cut stopped setup finishing: nothing to ask, just finish.
-        if self.joined().is_some() {
+        if self.joined()?.is_some() {
             self.set_standing("approved", None);
             return Ok(());
         }
@@ -224,6 +265,7 @@ impl Node {
             match status.state {
                 JoinState::Pending => self.set_standing("pending", Some(code.clone())),
                 JoinState::Approved => {
+                    // Believed by nothing yet: anyone on the LAN can answer "approved".
                     let joined = Joined {
                         main_id: target.id.clone(),
                         addresses: target.addresses.clone(),
@@ -231,9 +273,10 @@ impl Node {
                         hospital: status.hospital.unwrap_or_default(),
                         certificate: status.certificate.context("approved with no certificate")?,
                     };
-                    self.write_joined(&joined)?;
-                    self.open_tunnel().await?;
-                    self.set_standing("approved", Some(code));
+                    let confirm_code = confirm_code(main_id.as_bytes(), self.endpoint.id().as_bytes(), &main_nonce, &node_nonce);
+                    *self.unconfirmed.lock().unwrap_or_else(PoisonError::into_inner) =
+                        Some(Unconfirmed { joined, confirm_code, join_code: code.clone(), tries: 0 });
+                    self.set_standing("confirm", Some(code));
                     return Ok(());
                 }
                 refused => {
@@ -244,19 +287,52 @@ impl Node {
         }
     }
 
-    /// Writes what this machine joined in one step, so a power cut leaves all of it or none.
+    /// Takes the digits a person read off the main machine's screen. Only a match lets this machine
+    /// save the certificate or open its tunnel: this is what stops a fake main machine, which can say
+    /// "approved" but cannot put digits on the hospital's own screen. Three wrong throws it all away.
+    pub(crate) async fn confirm(self: &Arc<Self>, typed: &str) -> anyhow::Result<()> {
+        let typed: String = typed.chars().filter(|c| !c.is_whitespace()).collect();
+        let accepted = {
+            let mut held = self.unconfirmed.lock().unwrap_or_else(PoisonError::into_inner);
+            let waiting = held.as_mut().context("Nothing is waiting for those digits.")?;
+            if same_digits(&waiting.confirm_code, &typed) {
+                held.take()
+            } else {
+                waiting.tries += 1;
+                if waiting.tries >= MAX_CONFIRM_TRIES {
+                    let code = held.take().map(|gone| gone.join_code);
+                    drop(held);
+                    self.set_standing("mismatch", code);
+                }
+                None
+            }
+        };
+        let Some(accepted) = accepted else {
+            bail!("Those are not the digits on the main machine. If you are sure of them, this may not be your main machine: tell your administrator.");
+        };
+        self.write_joined(&accepted.joined)?;
+        self.open_tunnel().await?;
+        self.set_standing("approved", Some(accepted.join_code));
+        Ok(())
+    }
+
+    /// Writes what this machine joined in one step and to the disk, so a power cut leaves all of it
+    /// or none.
     fn write_joined(&self, joined: &Joined) -> anyhow::Result<()> {
         let path = self.state_dir.join(JOINED_FILE);
         let temporary = path.with_extension("new");
-        std::fs::write(&temporary, serde_json::to_vec(joined)?)?;
+        let mut file = std::fs::File::create(&temporary)?;
+        std::io::Write::write_all(&mut file, &serde_json::to_vec(joined)?)?;
+        file.sync_all()?;
         std::fs::rename(&temporary, &path)?;
+        std::fs::File::open(&self.state_dir)?.sync_all()?;
         Ok(())
     }
 
     /// Connects to the joined main machine by its key. The saved addresses are a first guess, read
     /// fresh each time so a typed one takes effect; mDNS says where the key is now.
     async fn dial_main(&self, alpn: &[u8]) -> anyhow::Result<Connection> {
-        let joined = self.joined().context("this machine has not joined")?;
+        let joined = self.joined()?.context("this machine has not joined")?;
         self.dial(joined.main_id.parse()?, &joined.addresses, alpn).await
     }
 
@@ -269,11 +345,14 @@ impl Node {
 
     /// `readdress`, with the ports spelled out.
     pub(crate) async fn readdress_at(&self, address: IpAddr, whoami: u16, iroh: u16) -> anyhow::Result<()> {
-        let mut joined = self.joined().context("This machine has not joined.")?;
+        let mut joined = self.joined()?.context("This machine has not joined.")?;
         let found = self.find_at(address, whoami, iroh).await.context("Nothing answered at that address.")?;
         if found.id != joined.main_id {
             bail!("A different machine answered at that address, so nothing was changed. Check the address, and tell your administrator.");
         }
+        // That answer proves nothing, since anyone can claim a key. Only the key's own handshake does.
+        let conn = self.dial(joined.main_id.parse()?, &found.addresses, TUNNEL_ALPN).await;
+        conn.context("Something at that address claims to be the main machine, but could not prove it, so nothing was changed.")?;
         joined.addresses = found.addresses;
         self.write_joined(&joined)
     }
@@ -286,100 +365,5 @@ impl Node {
         }
         let dialled = tokio::time::timeout(DIAL_TIMEOUT, self.endpoint.connect(addr, alpn));
         Ok(dialled.await.context("timed out")??)
-    }
-
-    /// Opens the screen's loopback path to the main machine. Only ever once.
-    async fn open_tunnel(self: &Arc<Self>) -> anyhow::Result<()> {
-        if self.tunnel_open.swap(true, Ordering::SeqCst) {
-            return Ok(());
-        }
-        let listener = TcpListener::bind(self.screen_port).await.context("the screen's port")?;
-        let clock = UdpSocket::bind(SocketAddr::new(self.screen_port.ip(), NODE_TIME_PORT)).await;
-        let this = Arc::clone(self);
-        let time_node = Arc::clone(self);
-        match clock {
-            Ok(socket) => drop(tokio::spawn(async move { time_node.relay_time_forever(socket).await })),
-            // Only a second agent on the test machine: the screen still works, the clock says so.
-            Err(error) => tracing::warn!(%error, "no time relay"),
-        }
-        tokio::spawn(async move { this.carry_forever(listener).await });
-        Ok(())
-    }
-
-    /// Relays chrony's packets to the main machine for as long as the agent runs; one at a time,
-    /// which is plenty at chrony's rate, and each with a time limit.
-    async fn relay_time_forever(self: Arc<Self>, socket: UdpSocket) {
-        let mut buffer = [0_u8; 1024];
-        let mut held: Option<Connection> = None;
-        loop {
-            let Ok((read, from)) = socket.recv_from(&mut buffer).await else {
-                continue;
-            };
-            if !is_time_packet(read) {
-                continue;
-            }
-            match self.ask_time(&mut held, &buffer[..read]).await {
-                Ok(answer) => drop(socket.send_to(&answer, from).await),
-                Err(error) => tracing::info!(%error, "no answer from the main machine's clock"),
-            }
-        }
-    }
-
-    /// One time packet, dialling again if the connection has dropped.
-    async fn ask_time(
-        &self,
-        held: &mut Option<Connection>,
-        question: &[u8],
-    ) -> anyhow::Result<Vec<u8>> {
-        if held.as_ref().is_none_or(|conn| conn.close_reason().is_some()) {
-            *held = Some(self.dial_main(TIME_ALPN).await?);
-        }
-        let conn = held.as_ref().context("no connection")?;
-        ask_main(conn, question).await
-    }
-
-    /// Carries each connection from the screen over one iroh connection, which is dialled again
-    /// when it has dropped. Knows nothing about what it carries: TLS ends at the main machine.
-    async fn carry_forever(self: Arc<Self>, listener: TcpListener) {
-        let conn: Arc<tokio::sync::Mutex<Option<Connection>>> = Arc::default();
-        let limit = Arc::new(Semaphore::new(MAX_STREAMS));
-        loop {
-            let Ok((screen, _)) = listener.accept().await else {
-                continue;
-            };
-            let Ok(permit) = Arc::clone(&limit).try_acquire_owned() else {
-                continue;
-            };
-            let (this, conn) = (Arc::clone(&self), Arc::clone(&conn));
-            tokio::spawn(async move {
-                let _permit = permit;
-                if let Err(error) = this.carry(screen, &conn).await {
-                    tracing::warn!(%error, "could not reach the main machine");
-                }
-            });
-        }
-    }
-
-    /// One connection from the screen.
-    async fn carry(
-        &self,
-        mut screen: TcpStream,
-        conn: &tokio::sync::Mutex<Option<Connection>>,
-    ) -> anyhow::Result<()> {
-        let tunnel = {
-            let mut held = conn.lock().await;
-            match held.as_ref().filter(|c| c.close_reason().is_none()) {
-                Some(open) => open.clone(),
-                None => {
-                    let dialled = self.dial_main(TUNNEL_ALPN).await?;
-                    *held = Some(dialled.clone());
-                    dialled
-                }
-            }
-        };
-        let (mut send, mut recv) = tunnel.open_bi().await?;
-        let mut stream = tokio::io::join(&mut recv, &mut send);
-        tokio::io::copy_bidirectional(&mut stream, &mut screen).await?;
-        Ok(())
     }
 }

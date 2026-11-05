@@ -19,8 +19,9 @@ use crate::machines::constant_time_eq;
 /// A person has this long to walk to the main machine and approve.
 const REQUEST_TTL_MINUTES: i64 = 10;
 /// How many machines may wait at once. The list never refuses a new request: a stranger on the
-/// LAN must not be able to stop a hospital adding a machine by filling it. Instead the oldest makes
-/// way, and the administrator sees what was pushed out.
+/// LAN must not be able to stop a hospital adding a machine by filling it. Instead the most crowded
+/// address makes way, oldest first, and the administrator sees what was pushed out. A real machine's
+/// single request goes only once every address is down to one, which takes more than this many.
 const MAX_WAITING: i64 = 20;
 /// How many of those one address may hold, so one stranger cannot push out everyone else. Its own
 /// oldest goes first. A real machine has one address and asks once.
@@ -28,7 +29,7 @@ const MAX_WAITING_PER_ADDRESS: i64 = 3;
 /// How many pushed-out requests are kept to show, however long a flood lasts.
 const MAX_DROPPED_KEPT: i64 = 50;
 const DROPPED_BY_ADDRESS: &str = "More requests came from the same address.";
-const DROPPED_LIST_FULL: &str = "The waiting list was full, and this was the oldest.";
+const DROPPED_LIST_FULL: &str = "The waiting list was full, and this address had the most waiting.";
 const TOKEN_ENV: &str = "MEDBRAINS_MACHINE_AGENT_TOKEN";
 const TOKEN_HEADER: &str = "x-machine-agent-token";
 
@@ -118,6 +119,8 @@ pub struct JoinFiling {
     pub label: String,
     pub kind: String,
     pub code: String,
+    /// What the Machines screen shows after approval, for a person to type on the machine.
+    pub confirm_code: String,
 }
 
 /// The answer an agent passes on to its machine.
@@ -132,9 +135,12 @@ async fn make_room(
     tx: &mut Tx,
     filing: &JoinFiling,
 ) -> Result<(), AppError> {
+    // This machine's own waiting request, and anything long expired: gone, so refiling cannot grow
+    // the table. An hour keeps an expiry readable by the machine that is still waiting on it.
     sqlx::query!(
-        "UPDATE device_pairing_requests SET status = 'denied' \
-          WHERE node_id = $1 AND status = 'pending'",
+        "DELETE FROM device_pairing_requests \
+          WHERE node_id IS NOT NULL AND status = 'pending' \
+            AND (node_id = $1 OR expires_at < now() - interval '1 hour')",
         filing.node_id,
     )
     .execute(&mut **tx)
@@ -152,10 +158,13 @@ async fn make_room(
     .execute(&mut **tx)
     .await?;
     sqlx::query!(
+        // From the most crowded address first, so a real machine, with one request, is the last to go.
         "UPDATE device_pairing_requests SET status = 'denied', drop_reason = $2 WHERE id IN ( \
-           SELECT id FROM device_pairing_requests \
-            WHERE node_id IS NOT NULL AND status = 'pending' AND expires_at > now() \
-            ORDER BY created_at DESC OFFSET $1)",
+           SELECT id FROM ( \
+             SELECT id, created_at, count(*) OVER (PARTITION BY source_address) AS crowd \
+               FROM device_pairing_requests \
+              WHERE node_id IS NOT NULL AND status = 'pending' AND expires_at > now()) waiting \
+            ORDER BY crowd ASC, created_at DESC OFFSET $1)",
         MAX_WAITING - 1,
         DROPPED_LIST_FULL,
     )
@@ -188,17 +197,22 @@ pub async fn file_request(
     )
     .fetch_one(&mut *tx)
     .await?;
+    // Agreed by the machine's key: the second code is new because its nonces are. It is what a person
+    // now needs, if the machine restarted before they typed the last one.
     let admitted = sqlx::query_scalar!(
-        r#"SELECT EXISTS(SELECT 1 FROM device_node_keys k
-           JOIN paired_devices d ON d.id = k.paired_device_id
-          WHERE k.node_id = $1 AND k.tenant_id = $2 AND k.revoked_at IS NULL
-            AND d.revoked_at IS NULL) AS "admitted!""#,
+        "UPDATE device_pairing_requests r SET confirm_code = $3 \
+           FROM device_node_keys k JOIN paired_devices d ON d.id = k.paired_device_id \
+          WHERE k.node_id = $1 AND k.tenant_id = $2 AND k.revoked_at IS NULL \
+            AND d.revoked_at IS NULL AND r.paired_device_id = d.id AND r.node_id = k.node_id \
+            AND r.status = 'claimed' RETURNING r.id",
         filing.node_id,
         tenant,
+        filing.confirm_code,
     )
-    .fetch_one(&mut *tx)
+    .fetch_optional(&mut *tx)
     .await?;
-    if admitted {
+    if admitted.is_some() {
+        tx.commit().await?;
         return Ok(JoinState::Approved);
     }
     make_room(&mut tx, filing).await?;
@@ -207,8 +221,8 @@ pub async fn file_request(
     sqlx::query!(
         "INSERT INTO device_pairing_requests \
            (id, tenant_id, device_code, user_code, app_variant, requested_label, expires_at, \
-            node_id, join_code, source_address) \
-         VALUES ($1, $2, $3, $3, $4, $5, $6, $7, $8, $9)",
+            node_id, join_code, confirm_code, source_address) \
+         VALUES ($1, $2, $3, $3, $4, $5, $6, $7, $8, $9, $10)",
         request,
         tenant,
         reference,
@@ -217,6 +231,7 @@ pub async fn file_request(
         Utc::now() + Duration::minutes(REQUEST_TTL_MINUTES),
         filing.node_id,
         filing.code,
+        filing.confirm_code,
         filing.address,
     )
     .execute(&mut *tx)
@@ -266,9 +281,18 @@ pub async fn get_join_state(
 /// `POST /api/machine-agent/sync`'s body.
 #[derive(Debug, Deserialize)]
 pub struct SyncBody {
-    /// The keys with an open tunnel right now.
+    /// The machines with an open tunnel right now.
     #[serde(default)]
-    pub connected: Vec<String>,
+    pub connected: Vec<SeenMachine>,
+}
+
+/// One connected machine, as the agent reports it.
+#[derive(Debug, Deserialize)]
+pub struct SeenMachine {
+    pub node_id: String,
+    /// The loopback address its connections reach the front end from. Recorded on the machine, so
+    /// that address in the audit log names it.
+    pub address: std::net::IpAddr,
 }
 
 /// `POST /api/machine-agent/sync`'s answer.
@@ -278,8 +302,8 @@ pub struct SyncAnswer {
     pub roster: PeerRosterDoc,
 }
 
-/// `POST /api/machine-agent/sync`: records who is connected, and answers with who may be. Live
-/// keys of machines only, so a phone's sync key cannot open a tunnel to the front end.
+/// `POST /api/machine-agent/sync`: records who is connected, and answers with who may be. Only keys
+/// a person approved through the join, so no other route onto `device_node_keys` opens a tunnel.
 pub async fn agent_sync(
     State(state): State<AppState>,
     headers: HeaderMap,
@@ -290,14 +314,18 @@ pub async fn agent_sync(
     let (tenant, hospital) = this_hospital(db).await?;
     let mut tx = begin(&state.db, agent_actor(tenant)).await?;
     if !body.connected.is_empty() {
+        let keys: Vec<String> = body.connected.iter().map(|seen| seen.node_id.clone()).collect();
+        let addresses: Vec<String> = body.connected.iter().map(|seen| seen.address.to_string()).collect();
         sqlx::query!(
-            "WITH seen AS (UPDATE device_node_keys SET last_seen_at = now() \
-               WHERE tenant_id = $1 AND node_id = ANY($2) AND revoked_at IS NULL \
-               RETURNING paired_device_id) \
-             UPDATE paired_devices SET last_seen_at = now() \
-              WHERE id IN (SELECT paired_device_id FROM seen)",
+            "WITH seen AS (UPDATE device_node_keys k SET last_seen_at = now() \
+               FROM unnest($2::text[], $3::text[]) AS reported(node_id, address) \
+               WHERE k.tenant_id = $1 AND k.node_id = reported.node_id AND k.revoked_at IS NULL \
+               RETURNING k.paired_device_id, reported.address) \
+             UPDATE paired_devices d SET last_seen_at = now(), last_seen_ip = seen.address::inet \
+               FROM seen WHERE d.id = seen.paired_device_id",
             tenant,
-            body.connected.as_slice(),
+            keys.as_slice(),
+            addresses.as_slice(),
         )
         .execute(&mut *tx)
         .await?;
@@ -305,8 +333,10 @@ pub async fn agent_sync(
     let rows = sqlx::query!(
         "SELECT k.node_id, k.paired_device_id, d.app_variant \
            FROM device_node_keys k JOIN paired_devices d ON d.id = k.paired_device_id \
+           JOIN device_pairing_requests r ON r.paired_device_id = d.id AND r.node_id = k.node_id \
           WHERE k.tenant_id = $1 AND k.revoked_at IS NULL AND d.revoked_at IS NULL \
             AND d.app_variant IN ('Desktop-Workstation', 'Desktop-Display') \
+            AND r.status = 'claimed' \
           ORDER BY k.node_id LIMIT 5000",
         tenant,
     )

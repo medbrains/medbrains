@@ -1,6 +1,7 @@
 //! The join and tunnel rules over real iroh connections on loopback. Only the server is a stand-in.
 
 use std::net::SocketAddr;
+use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex, PoisonError};
 use std::time::Duration;
 
@@ -14,27 +15,31 @@ use tokio::net::{TcpListener, UdpSocket};
 use uuid::Uuid;
 
 use super::{Gateway, RosterGate, WHOAMI_SIZE, clean_label, whoami_reply};
-use crate::hospital::{Answer, Filing, Hospital, Synced};
+use crate::hospital::{Answer, Filing, Hospital, Seen, Synced};
 use crate::node::{Joined, Node};
 use crate::wire::{JOIN_ALPN, JoinState, Kind, TIME_ALPN, TUNNEL_ALPN};
 
-const CERTIFICATE: &str = "the front end's certificate";
+pub(super) const CERTIFICATE: &str = "the front end's certificate";
 
 /// Stands in for the server: holds one request's state and the admitted keys.
-struct FakeServer {
+pub(super) struct FakeServer {
     tenant: Uuid,
     state: Mutex<JoinState>,
-    filings: Mutex<Vec<Filing>>,
+    pub(super) filings: Mutex<Vec<Filing>>,
     admitted: Mutex<Vec<String>>,
+    pub(super) syncs: AtomicUsize,
+    pub(super) broken: AtomicBool,
 }
 
 impl FakeServer {
-    fn new(tenant: Uuid, state: JoinState) -> Arc<Self> {
+    pub(super) fn new(tenant: Uuid, state: JoinState) -> Arc<Self> {
         Arc::new(Self {
             tenant,
             state: Mutex::new(state),
             filings: Mutex::default(),
             admitted: Mutex::default(),
+            syncs: AtomicUsize::new(0),
+            broken: AtomicBool::new(false),
         })
     }
 
@@ -42,8 +47,13 @@ impl FakeServer {
         *self.state.lock().unwrap_or_else(PoisonError::into_inner) = state;
     }
 
-    fn set_admitted(&self, keys: &[String]) {
+    pub(super) fn set_admitted(&self, keys: &[String]) {
         *self.admitted.lock().unwrap_or_else(PoisonError::into_inner) = keys.to_vec();
+    }
+
+    fn filed_confirm(&self) -> Option<String> {
+        let filings = self.filings.lock().unwrap_or_else(PoisonError::into_inner);
+        filings.last().map(|f| f.confirm_code.clone())
     }
 
     fn filed_code(&self) -> Option<String> {
@@ -63,7 +73,9 @@ impl Hospital for FakeServer {
         Ok(Answer { state: *self.state.lock().unwrap_or_else(PoisonError::into_inner) })
     }
 
-    async fn sync(&self, _connected: &[String]) -> anyhow::Result<Synced> {
+    async fn sync(&self, _connected: &[Seen]) -> anyhow::Result<Synced> {
+        self.syncs.fetch_add(1, Ordering::SeqCst);
+        anyhow::ensure!(!self.broken.load(Ordering::SeqCst), "the server is not answering");
         let admitted = self.admitted.lock().unwrap_or_else(PoisonError::into_inner).clone();
         Ok(Synced { hospital: "City Hospital".to_owned(), roster: roster(self.tenant, &admitted) })
     }
@@ -89,12 +101,12 @@ fn roster(tenant: Uuid, keys: &[String]) -> PeerRosterDoc {
 }
 
 /// An endpoint on loopback, answering `alpns`.
-async fn endpoint(alpns: Vec<Vec<u8>>) -> anyhow::Result<Endpoint> {
+pub(super) async fn endpoint(alpns: Vec<Vec<u8>>) -> anyhow::Result<Endpoint> {
     build_lan_endpoint(SecretKey::generate(), alpns, None).await
 }
 
 /// A front end that echoes, so a tunnel can be seen to work.
-async fn echo_front() -> anyhow::Result<SocketAddr> {
+pub(super) async fn echo_front() -> anyhow::Result<SocketAddr> {
     let listener = TcpListener::bind("127.0.0.1:0").await?;
     let address = listener.local_addr()?;
     tokio::spawn(async move {
@@ -109,7 +121,7 @@ async fn echo_front() -> anyhow::Result<SocketAddr> {
 }
 
 /// A running gateway and the address a node dials it at.
-async fn gateway(server: Arc<FakeServer>) -> anyhow::Result<(Arc<Gateway>, EndpointAddr)> {
+pub(super) async fn gateway(server: Arc<FakeServer>) -> anyhow::Result<(Arc<Gateway>, EndpointAddr)> {
     let main = endpoint(vec![JOIN_ALPN.to_vec(), TUNNEL_ALPN.to_vec(), TIME_ALPN.to_vec()]).await?;
     let addr = main.addr();
     let front = echo_front().await?;
@@ -120,7 +132,7 @@ async fn gateway(server: Arc<FakeServer>) -> anyhow::Result<(Arc<Gateway>, Endpo
 }
 
 /// Sends bytes through a tunnel and reads them back.
-async fn echo_through(conn: &Connection) -> anyhow::Result<Vec<u8>> {
+pub(super) async fn echo_through(conn: &Connection) -> anyhow::Result<Vec<u8>> {
     let (mut send, mut recv) = conn.open_bi().await?;
     send.write_all(b"ping").await?;
     let mut back = vec![0_u8; 4];
@@ -129,7 +141,7 @@ async fn echo_through(conn: &Connection) -> anyhow::Result<Vec<u8>> {
 }
 
 /// Dials a node at a gateway's tunnel and tries to use it.
-async fn tunnel_answer(from: &Endpoint, addr: EndpointAddr) -> anyhow::Result<Vec<u8>> {
+pub(super) async fn tunnel_answer(from: &Endpoint, addr: EndpointAddr) -> anyhow::Result<Vec<u8>> {
     let conn = from.connect(addr, TUNNEL_ALPN).await?;
     tokio::time::timeout(Duration::from_secs(5), echo_through(&conn)).await?
 }
@@ -155,7 +167,7 @@ async fn a_pending_request_does_not_admit_its_key() -> anyhow::Result<()> {
     let id = addr.id.to_string();
     node.start_join(&id, "Reception PC".to_owned(), Kind::Workstation)?;
     wait_for(&node, "pending").await?;
-    assert!(node.joined().is_none());
+    assert!(node.joined()?.is_none());
     let conn = node.test_dial_tunnel(addr.clone()).await?;
     assert!(
         tokio::time::timeout(Duration::from_secs(5), echo_through(&conn)).await?.is_err(),
@@ -250,21 +262,21 @@ fn a_gateway_with_no_roster_admits_nobody() {
 }
 
 /// A node holding a list of one main machine, and the temporary state directory it lives in.
-async fn node_with_main(
+pub(super) async fn node_with_main(
     addr: &EndpointAddr,
     name: &str,
 ) -> anyhow::Result<(Arc<Node>, tempfile::TempDir)> {
     let dir = tempfile::tempdir()?;
-    let node = Node::start(endpoint(Vec::new()).await?, dir.path(), free_port().await?).await?;
+    let node = Node::start(endpoint(Vec::new()).await?, dir.path(), free_port().await?, free_port().await?).await?;
     node.test_remember(addr.id.to_string(), name, addr.ip_addrs().copied().collect());
     Ok((node, dir))
 }
 
-async fn free_port() -> anyhow::Result<SocketAddr> {
+pub(super) async fn free_port() -> anyhow::Result<SocketAddr> {
     Ok(TcpListener::bind("127.0.0.1:0").await?.local_addr()?)
 }
 
-async fn wait_for(node: &Node, state: &str) -> anyhow::Result<()> {
+pub(super) async fn wait_for(node: &Node, state: &str) -> anyhow::Result<()> {
     for _ in 0..100 {
         if node.standing().state == state {
             return Ok(());
@@ -282,11 +294,14 @@ async fn both_sides_show_the_same_code_and_approval_delivers_the_certificate() -
     node.start_join(&addr.id.to_string(), "Reception PC".to_owned(), Kind::Workstation)?;
     wait_for(&node, "pending").await?;
     assert_eq!(node.standing().code, server.filed_code(), "both screens must show one code");
-    assert!(node.joined().is_none(), "waiting grants nothing");
+    assert!(node.joined()?.is_none(), "waiting grants nothing");
 
     server.set_state(JoinState::Approved);
-    wait_for(&node, "approved").await?;
-    let joined = node.joined().ok_or_else(|| anyhow::anyhow!("nothing saved"))?;
+    wait_for(&node, "confirm").await?;
+    assert!(node.joined()?.is_none(), "an approval alone is believed by nothing");
+    node.confirm(&server.filed_confirm().ok_or_else(|| anyhow::anyhow!("nothing filed"))?).await?;
+    assert_eq!(node.standing().state, "approved");
+    let joined = node.joined()?.ok_or_else(|| anyhow::anyhow!("nothing saved"))?;
     assert_eq!(joined.certificate, CERTIFICATE);
     assert_eq!(joined.main_id, addr.id.to_string());
     Ok(())
@@ -299,7 +314,8 @@ async fn a_machine_already_approved_finishes_without_asking_again() -> anyhow::R
     let (_gateway, addr) = gateway(Arc::clone(&server)).await?;
     let (node, _dir) = node_with_main(&addr, "City Hospital").await?;
     node.start_join(&addr.id.to_string(), "PC".to_owned(), Kind::Workstation)?;
-    wait_for(&node, "approved").await?;
+    wait_for(&node, "confirm").await?;
+    node.confirm(&server.filed_confirm().ok_or_else(|| anyhow::anyhow!("nothing filed"))?).await?;
     node.start_join(&addr.id.to_string(), "PC".to_owned(), Kind::Workstation)?;
     assert_eq!(node.standing().state, "approved");
     assert_eq!(server.filings.lock().unwrap_or_else(PoisonError::into_inner).len(), 1);
@@ -328,7 +344,7 @@ async fn a_stale_saved_address_does_not_lose_the_main_machine() -> anyhow::Resul
     lookup.add_endpoint_info(addr.clone());
     node_endpoint.address_lookup().map_err(|e| anyhow::anyhow!("{e}"))?.add(lookup);
     let screen = free_port().await?;
-    let _node = Node::start(node_endpoint, dir.path(), screen).await?;
+    let _node = Node::start(node_endpoint, dir.path(), screen, free_port().await?).await?;
     let mut stream = tokio::net::TcpStream::connect(screen).await?;
     tokio::io::AsyncWriteExt::write_all(&mut stream, b"ping").await?;
     let mut back = [0_u8; 4];
@@ -358,16 +374,17 @@ async fn a_typed_address_is_taken_only_from_the_same_key() -> anyhow::Result<()>
     };
     let file = dir.path().join("joined.json");
     std::fs::write(&file, serde_json::to_vec(&joined(addr.id.to_string()))?)?;
-    let node = Node::start(endpoint(Vec::new()).await?, dir.path(), free_port().await?).await?;
-    node.readdress_at([127, 0, 0, 1].into(), port, 7844).await?;
-    let moved = node.joined().ok_or_else(|| anyhow::anyhow!("nothing saved"))?;
-    assert_eq!(moved.addresses, vec![SocketAddr::from(([127, 0, 0, 1], 7844))]);
+    let node = Node::start(endpoint(Vec::new()).await?, dir.path(), free_port().await?, free_port().await?).await?;
+    let iroh_port = addr.ip_addrs().next().map_or(7844, SocketAddr::port);
+    node.readdress_at([127, 0, 0, 1].into(), port, iroh_port).await?;
+    let moved = node.joined()?.ok_or_else(|| anyhow::anyhow!("nothing saved"))?;
+    assert_eq!(moved.addresses, vec![SocketAddr::from(([127, 0, 0, 1], iroh_port))]);
 
     let other = SecretKey::generate().public().to_string();
     std::fs::write(&file, serde_json::to_vec(&joined(other.clone()))?)?;
     let refused = node.readdress_at([127, 0, 0, 1].into(), port, 7844).await;
     assert!(refused.is_err(), "a different key must be refused");
-    let kept = node.joined().ok_or_else(|| anyhow::anyhow!("nothing saved"))?;
+    let kept = node.joined()?.ok_or_else(|| anyhow::anyhow!("nothing saved"))?;
     assert_eq!((kept.main_id, kept.addresses), (other, vec![SocketAddr::from(([127, 0, 0, 1], 9))]));
     Ok(())
 }
@@ -385,7 +402,7 @@ async fn a_refused_request_leaves_nothing_behind() -> anyhow::Result<()> {
         let (node, _dir) = node_with_main(&addr, "City Hospital").await?;
         node.start_join(&addr.id.to_string(), "PC".to_owned(), Kind::Display)?;
         wait_for(&node, word).await?;
-        assert!(node.joined().is_none(), "{word} must not join");
+        assert!(node.joined()?.is_none(), "{word} must not join");
     }
     Ok(())
 }
@@ -400,7 +417,7 @@ async fn a_typed_address_finds_the_main_machine() -> anyhow::Result<()> {
     let port = socket.local_addr()?.port();
     tokio::spawn(Arc::clone(&gateway).whoami_forever(socket));
     let dir = tempfile::tempdir()?;
-    let node = Node::start(endpoint(Vec::new()).await?, dir.path(), free_port().await?).await?;
+    let node = Node::start(endpoint(Vec::new()).await?, dir.path(), free_port().await?, free_port().await?).await?;
     let found = node.find_at([127, 0, 0, 1].into(), port, 7844).await?;
     assert_eq!(found.id, addr.id.to_string());
     assert_eq!(found.name, "City Hospital");

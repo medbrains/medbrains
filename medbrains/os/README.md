@@ -252,8 +252,9 @@ softness came from the host upscaling a 1920x1200 guest on a Retina Mac, which n
 
 **What a person does** (OS-SETUP-AND-TRUST §8): on the new machine, choose "Connecting to my hospital", give
 it a name and a type (workstation or display), and pick the main machine from the list, or type its address.
-The screen shows six digits. On the main machine, in MedBrains, **Admin > Machines** lists it with the same
-six digits. Approve asks for the digits from the machine's own screen, and only then does the machine join.
+The screen shows six digits. On the main machine, in MedBrains, **Admin > Machines** lists the machine, and
+Approve asks for those digits. It then shows six other digits, which the person types on the new machine.
+Each side has proved itself to a person, and only then does the machine join.
 
 **What a node is:** `medbrains-node.target`, with the screen, the agent and the setup service. No PostgreSQL,
 server or Caddy, and no secrets but its own key. Its endpoint answers no protocol and its firewall opens no
@@ -264,13 +265,15 @@ cannot read what it carries, and the screen's one trusted certificate is the mai
 | Rule | How |
 |---|---|
 | A key alone grants nothing | Anyone may speak the join protocol, which only files a request. A tunnel needs a live key on the roster, decided by `medbrains-edge`'s `admit` |
-| A fake main machine is caught | The code covers both keys and a nonce from each side, the node committing to its nonce first. Keys alone would not do: six digits fall to about a million tries, about a second of grinding |
-| Approval cannot be clicked through | The server compares the digits a person typed with the code. Three wrong codes refuse the request, and each is audited as a denial |
+| A fake main machine is caught | Anyone can answer "approved", so that alone is believed by nothing. The node saves no certificate and opens no tunnel until a person types the second code from the hospital's own Machines screen. Both codes cover both keys and a nonce from each side, the node committing to its nonce first, so neither can be steered; keys alone fall to about a second of grinding |
+| Approval cannot be clicked through | The code is on the machine's own screen only, never in the list. The server compares what a person typed. Three wrong codes refuse the request on the main machine, and three wrong second codes throw the join away on the node; each is said plainly, and the main machine's are audited |
 | Requests run out | 10 minutes |
-| A stranger cannot stop a machine joining | The list never refuses. One address holds at most 3 waiting (its oldest goes first) and 3 conversations, and starts at most 10 a minute; at 20 waiting the oldest goes. Machines shows what was pushed out, from which address, and the machine pushed out is told to ask again |
+| A stranger cannot stop a machine joining | The list never refuses. One address holds at most 3 waiting (its oldest goes first) and 3 conversations, and starts at most 10 a minute. At 20 waiting, the most crowded address gives way, oldest first, so a real machine's one request goes only when more than 20 addresses are flooding. Machines shows what was pushed out, from which address, and a machine pushed out is told to ask again. mDNS noise cannot push out an address a person typed |
 | Time | A node's chrony asks the main machine's chrony, over iroh, so the key authenticates it and removal ends it. A main machine with only its own clock answers stratum 10, and both machines then say "Time not confirmed" on the top bar |
 | Tenant | From the hospital this box serves, through admission. The join frames have no such field and refuse unknown ones |
-| Removal | The key leaves the roster at once; the agent asks every 2 seconds and closes that machine's open connection |
+| Removal | The key leaves the roster at once; the agent asks every 2 seconds and closes that machine's open connection. If the server stops answering for 30 s the agent can't know who was removed, so it closes every session and admits nobody until it hears again, as a fault and not a refusal |
+| One way onto the roster | The roster holds only keys from a claimed join request, so device-management rights can't add one |
+| Telling machines apart | Each machine's connections reach the front end from its own `127.x.y.z`, derived from its key. So sign-in limits are per machine, the audit log records that address, and Machines shows which machine holds it |
 | No outside party | No relay, no outside lookup, no UPnP (`portmapper_config` is off; iroh's default would ask the router for a port) |
 
 Approved machines are `paired_devices` rows with `device_node_keys` rows, and requests are
@@ -313,17 +316,20 @@ multicast may be blocked; that is why the typed address exists, and it was prove
 
 | What fails | Effect | How we know | What the machine does |
 |---|---|---|---|
-| Fake main machine answers | Node would send its screen there | Codes differ | Approval needs the digits from the node, so a person cannot approve it blind; three wrong refuses |
+| Fake main machine answers | Node would send its screen and passwords there | It says "approved", but the real Machines screen has no digits for this machine, or different ones | The node trusts nothing until the second code matches; three wrong throws the join away |
 | Flood of requests | A real request could be crowded out | Machines lists what went | Per-address limits; the oldest goes; the machine pushed out is told to ask again |
 | Server down during a join | Request cannot be filed | The node shows it could not reach the main machine | Grants nothing; a person asks again |
 | Power cut after approval, before the role is written | Setup not finished | Agent has the approval on disk | Asking again finishes without a new request |
-| Roster cannot be fetched | Removal cannot be learned | Agent logs it | Keeps the last roster until stale at 16 hours, then admits nobody |
 | Main machine unreachable | Node cannot work | "Cannot reach the main machine" on the top bar, over the app too | No offline path; the connection is dialled again when the screen next asks |
 | Main machine's address changes | The saved address is dead | An idle path is noticed within 8 s | Dials by key; mDNS says where that key is now, and the saved address is only a first guess |
+| Server stops answering the agent | A removal cannot be heard | Agent logs it, the screen says it cannot reach the main machine | After 30 s closes every session and admits nobody, as a fault |
+| A crash during first start | Some of its files are missing | Each file is checked by itself on the next start | Rebuilt from what exists, including the agent's token from the env |
+| Something else holds the clock's port | It could set this machine's clock | The bind fails, and the port is below 1024 anyway | The agent stops and systemd restarts it; the screen says time is not confirmed |
+| The record of what it joined is damaged | It cannot tell where its main machine is | The agent reads it at start, as a fault and not as "never joined" | Stops, and the screen says it can't reach the agent, rather than offering to join again |
 | Node has no time source | Certificates and audit at risk | "Time not confirmed" on the top bar | Keeps working, and says so |
 | Node key file readable by others | It may have been copied | The agent checks its mode at start | Refuses to start |
 
-**Requirements and the tests that prove them:** a key alone grants nothing, `an_unapproved_key_is_refused_a_tunnel`; tenant from admission,
+**Requirements and the tests that prove them:** a fake main machine gets nothing, `a_fake_main_machine_gets_nothing_without_the_second_code`; removal cannot fail open, `a_silent_server_ends_every_session_and_admits_nobody`; strangers cost little, `strangers_cause_at_most_one_sync_a_second`; one way onto the roster, `a_machine_key_cannot_be_registered_around_approval`; a key alone grants nothing, `an_unapproved_key_is_refused_a_tunnel`; tenant from admission,
 `the_tenant_comes_from_admission_never_from_a_claim`; codes, `code::tests`; a stranger cannot block a join, `one_address_flooding_cannot_block_or_push_out_another`
 and `one_address_cannot_take_the_places_of_others`; duties separate, `each_duty_needs_its_own_permission`; removal, `an_approved_key_reaches_the_front_end_and_removal_ends_it_at_once`.
 
@@ -331,8 +337,8 @@ and `one_address_cannot_take_the_places_of_others`; duties separate, `each_duty_
 - The machine key is a file (mode 0600), not in a TPM, until SEC3. Anyone who can read the data partition can
   copy it. Removing the machine ends the copy too.
 - A display gets the same desktop as a workstation; the board is not built, nor is the §8a place or swap flow.
-- Sign-in limits count every screen as one address, because each connection arrives on loopback.
-- Someone able to use more than 20 addresses on the LAN at once can still push out a real request; the machine says so and asks again, and Machines shows every address. It takes a network-level answer (N4).
+- Someone using more than 20 addresses on the LAN at once can still push out a real request. The machine says so and can ask again, and Machines shows every address. The full answer is at the network (N4).
+- With the sign-in limit per machine, a person guessing from a node is held by the account lockout, as before, and by that machine's own limit, not everyone's.
 - Machines behind one NAT share one address, so a fourth waiting at once pushes out the first.
 - The node's time is as good as chrony's estimate over the iroh path. Measure on real hardware before relying on it for anything finer than certificates and audit.
 - A node that cannot reach the main machine cannot work: there is no offline path (OS-EDGE-NODES).

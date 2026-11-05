@@ -59,7 +59,8 @@ async fn run_main(state: &Path) -> anyhow::Result<()> {
 async fn run_node(state: &Path) -> anyhow::Result<()> {
     let secret = keys::load_or_create(&state.join(KEY_FILE))?;
     let endpoint = build_lan_endpoint(secret, Vec::new(), None).await?;
-    let node = Node::start(endpoint.clone(), state, FRONT).await?;
+    let clock = SocketAddr::new(FRONT.ip(), time::NODE_TIME_PORT);
+    let node = Node::start(endpoint.clone(), state, FRONT, clock).await?;
     let listener = Arc::clone(&node);
     tokio::spawn(mdns::follow(endpoint, false, move |event| listener.heard(event)));
     control::serve_forever(node, Path::new(CONTROL_SOCKET)).await

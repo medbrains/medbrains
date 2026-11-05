@@ -13,6 +13,9 @@ pub(crate) type Nonce = [u8; 32];
 
 const COMMIT_DOMAIN: &[u8] = b"medbrains/join/commit/1";
 const CODE_DOMAIN: &[u8] = b"medbrains/join/code/1";
+/// The second code, which a person carries the other way. Its own domain, so knowing one code says
+/// nothing about the other.
+const CONFIRM_DOMAIN: &[u8] = b"medbrains/join/confirm/1";
 const CODE_SPACE: u64 = 1_000_000;
 
 /// A fresh nonce from the OS.
@@ -31,10 +34,22 @@ pub(crate) fn commitment(nonce: &Nonce) -> [u8; 32] {
         .into()
 }
 
-/// The code, from both keys and both nonces, always six digits.
+/// The code a person reads off the node and types on the main machine, proving the node to it.
 pub(crate) fn join_code(main: &[u8; 32], node: &[u8; 32], main_nonce: &Nonce, node_nonce: &Nonce) -> String {
+    digits(CODE_DOMAIN, main, node, main_nonce, node_nonce)
+}
+
+/// The code a person reads off the main machine's screen and types on the node, proving the main
+/// machine to it. A fake main machine can work this out too, but it is not the hospital's screen, so
+/// nobody reads it from there; and a machine in the middle has two transcripts, so two codes.
+pub(crate) fn confirm_code(main: &[u8; 32], node: &[u8; 32], main_nonce: &Nonce, node_nonce: &Nonce) -> String {
+    digits(CONFIRM_DOMAIN, main, node, main_nonce, node_nonce)
+}
+
+/// Six digits from one domain, both keys and both nonces.
+fn digits(domain: &[u8], main: &[u8; 32], node: &[u8; 32], main_nonce: &Nonce, node_nonce: &Nonce) -> String {
     let hash = Sha256::new()
-        .chain_update(CODE_DOMAIN)
+        .chain_update(domain)
         .chain_update(main)
         .chain_update(node)
         .chain_update(main_nonce)
@@ -47,7 +62,7 @@ pub(crate) fn join_code(main: &[u8; 32], node: &[u8; 32], main_nonce: &Nonce, no
 
 #[cfg(test)]
 mod tests {
-    use super::{commitment, join_code, new_nonce};
+    use super::{commitment, confirm_code, join_code, new_nonce};
 
     const MAIN: [u8; 32] = [1; 32];
     const NODE: [u8; 32] = [2; 32];
@@ -70,6 +85,16 @@ mod tests {
         assert_ne!(base, join_code(&MAIN, &NODE, &[9; 32], &[4; 32]), "main nonce");
         assert_ne!(base, join_code(&MAIN, &NODE, &[3; 32], &[9; 32]), "node nonce");
         assert_ne!(base, join_code(&NODE, &MAIN, &[3; 32], &[4; 32]), "swapped keys");
+    }
+
+    /// The two directions must not share digits, or reading one would give away the other.
+    #[test]
+    fn the_second_code_is_not_the_first() {
+        let first = join_code(&MAIN, &NODE, &[3; 32], &[4; 32]);
+        let second = confirm_code(&MAIN, &NODE, &[3; 32], &[4; 32]);
+        assert_ne!(first, second);
+        assert_eq!(second, confirm_code(&MAIN, &NODE, &[3; 32], &[4; 32]));
+        assert_ne!(second, confirm_code(&[9; 32], &NODE, &[3; 32], &[4; 32]), "another main machine");
     }
 
     /// The keys alone must not fix the code, or an attacker grinds a key until it matches.
