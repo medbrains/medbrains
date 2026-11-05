@@ -16,8 +16,9 @@ use vm::Vm;
 
 const BUDGETS: &str = include_str!("../budgets.json");
 const BLOCKED_MODULES: [&str; 3] = ["dccp", "sctp", "udf"];
-const SYSCTLS: [(&str, &str); 5] = [
-    ("kernel.io_uring_disabled", "2"),
+const SYSCTLS: [(&str, &str); 6] = [
+    ("kernel.io_uring_disabled", "1"),
+    ("kernel.io_uring_group", "977"),
     ("kernel.kptr_restrict", "2"),
     ("kernel.kexec_load_disabled", "1"),
     ("kernel.yama.ptrace_scope", "2"),
