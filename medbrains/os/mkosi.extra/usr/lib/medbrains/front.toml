@@ -1,0 +1,27 @@
+# What medbrains-front serves. Certificates and the names file come from front-certs.
+
+names_file = "/var/lib/medbrains-front/lan/names"
+
+# Plain HTTP only ever redirects.
+[[redirect_listen]]
+addr = "[::]:80"
+
+[[sites]]
+name = "medbrains"
+upstream = "127.0.0.1:3000"
+error_page = "MedBrains is not answering. Try again in a moment; if it stays like this, call your system administrator."
+
+# The LAN: IPv4 and IPv6 together.
+[[sites.listen]]
+addr = "[::]:443"
+cert = "/var/lib/medbrains-front/lan/chain.pem"
+key = "/var/lib/medbrains-front/lan/key.pem"
+
+# The machine's own screen, and tunnels from nodes. Loopback only, with its own limit, so a flood
+# on the LAN port leaves it free. No limit per address, because all of it arrives from loopback.
+[[sites.listen]]
+addr = "127.0.0.1:8443"
+cert = "/var/lib/medbrains-front/screen/cert.pem"
+key = "/var/lib/medbrains-front/screen/key.pem"
+max_connections = 1024
+max_per_address = 0

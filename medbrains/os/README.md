@@ -136,7 +136,7 @@ finished, not before.
 
 **Nothing listens before setup.** A condition on the target alone does not do it, because systemd still
 starts what a skipped unit wants, and we measured 443 answering that way. So the server, database roles,
-PostgreSQL and Caddy each carry the role condition themselves, and `tests/check-units.sh` fails if one
+PostgreSQL and `medbrains-front` each carry the role condition themselves, and `tests/check-units.sh` fails if one
 drifts. Before setup, `ss` shows TCP only on loopback; UDP 5353 (names) and 123 (time) remain open.
 
 **A power cut during setup** cannot leave a half-made hospital. The env is replaced in one step, the marker
@@ -265,7 +265,7 @@ None opens anything. The app's right-click menu has Back, Forward, Stop and Relo
   and printing do not work on this screen.** The anatomy model's CDN stays blocked too.
 - **No lock or switch person.** Anyone at the screen can use a signed-in session until a restart.
 - **A page keeps the time zone it opened with** until a restart, if the zone is changed later in Settings.
-- **If the server stops** while MedBrains is open, Caddy's plain sentence shows in the view and the desktop
+- **If the server stops** while MedBrains is open, the front's plain sentence shows in the view and the desktop
   names the service. The old automatic return to a status page is gone.
 - **The hospital's name on the desktop** is the one given at setup; renaming it in MedBrains doesn't update it.
 - A password forgotten after setup has no recovery path on the appliance (§8k, later).
@@ -276,6 +276,60 @@ None opens anything. The app's right-click menu has Back, Forward, Stop and Relo
 - The sign-in page says "For Indian hospitals" and that data "is kept in India", which is not true of
   every appliance.
 - The app shows "Test cases" and asks to verify `admin@medbrains.localhost`, which cannot receive mail.
+
+## The front
+
+`medbrains-front` (`crates/medbrains-proxy/src/front`, Pingora) is what a stranger on the LAN can reach
+without signing in. Its rules are in `/usr/lib/medbrains/front.toml`, plain and checked at start: an
+unknown key stops the service rather than being ignored.
+
+| Port | What |
+|---|---|
+| 80 | Redirects to HTTPS, only ever to a name of this machine or the address the request arrived on |
+| 443 | The LAN, IPv4 and IPv6, up to 4,096 connections and 256 from one address |
+| 127.0.0.1:8443 | The screen and node tunnels, with its own 1,024, so a LAN flood leaves the screen working |
+
+**Certificates.** `front-certs` runs as root before the front starts, and once a minute. `ca/` holds this
+machine's own authority, made here, root only. `lan/` holds one certificate covering a known set of names:
+`medbrains.local`, the host name, loopback, every live address, and whatever is in
+`/var/lib/medbrains/config/front-names`. Nothing a client sends creates a certificate: a made-up name gets
+the same one and a browser warning. The front restarts when an address changes. To use a hospital root (T2),
+replace `ca/ca.pem` and `ca/ca.key` with a CA it signed; the next run issues from it. A missing certificate is
+made again at start; if that fails the unit fails, visibly, and nothing falls back to plain HTTP.
+
+**What gets refused before Pingora parses it** (`head.rs`): anything two parsers could read two ways. Both
+`Content-Length` and `Transfer-Encoding`, a repeated or non-numeric length, any encoding but `chunked`, a bare
+LF or CR, a folded header, a second `Host`, an absolute target, an upgrade to anything but WebSocket, TRACE and
+CONNECT. No browser sends these. Heads are limited to 32 KB and 10 seconds once started.
+
+**What the server is told.** The front removes every forwarding header a client sent and sets its own, with
+one address in `X-Forwarded-For`. A `Host` outside the known names becomes `medbrains.local` before the server
+sees it, because the server builds links from it.
+
+**HTTP/1.1 only.** Nothing here needs HTTP/2: a LAN has no latency to save, and it is where a proxy's worst
+flaws have been. Compression is the server's job: it already speaks zstd, gzip and brotli.
+
+**Against Caddy, measured 2026-11-05.** Same VM, same image and server; Debian's Caddy 2.6.2 with the old
+Caddyfile. The host was busy throughout (load 25 to 180), so rates are alternating rounds and vary widely.
+
+| | `medbrains-front` | Caddy |
+|---|---|---|
+| Binary | 8.4 MB | 38.3 MB |
+| Memory (PSS) idle / after a page / 200 held TLS connections | 6.7 / 8.6 / 11.7 MB | 41 / 46 / 50 MB |
+| Each held TLS connection | 12 to 18 KB | 22 to 33 KB |
+| Requests a second, reused connections, as a share of direct to the server | median 57% | 52% (55% HTTP/1.1 only): no real difference |
+| New TLS connections a second | 419 to 1,234 | 396 to 1,629: no real difference |
+| A 1.27 MB file over loopback | 43 to 107 MB/s | 15 to 18 MB/s |
+| Cold load of the sign-in page in Chromium, median of medians | about 550 ms | about 340 ms with HTTP/2; about 570 ms HTTP/1.1 only |
+| On the wire, same file: zstd / gzip | 411 / 405 KB | 411 / 405 KB, from the server in both |
+
+Caddy with HTTP/2 wins the cold page load, because a browser opens only six HTTP/1.1 connections to a host.
+That is the price of HTTP/1.1 only, paid once per browser cache. At its limit of 4,096 finished handshakes the
+front held 102 MB and the screen's port answered in 3 ms. It keeps that memory until restarted: bounded, not returned.
+
+Adding a site, such as the identity provider, is a `[[sites]]` block: `upstream_tls` for a back end with its own
+certificate, `only_hosts`, `block_paths` (matched after decoding, so `/%73cim/` is `/scim/`) and
+`[[sites.limits]]` for a rate per address on a path. `os/tests/front-attacks.py` attacks all of it.
 
 ## Printing
 
@@ -327,7 +381,7 @@ partitions keeps the data.
 | LUKS data partition | **not in D1**, SEC3: data at rest on the disk is unencrypted. Add `Encrypt=tpm2` in the data partition |
 | A/B updates and rollback | D4. Slot B is reserved; nothing writes to it yet |
 | Recovery partition and boot menu | D4. A failed boot shows systemd's own messages and that the root account is locked |
-| Trusted TLS for other computers | D2. Caddy's local CA means a browser warning on first visit |
+| Trusted TLS for other computers | D2. The machine's own CA means a browser warning on first visit, until a hospital trusts it or brings its own root (T2) |
 | Backups and TLS in setup | D2 (§8s). Hospital name, first administrator and network are in |
 | Nightly backups, health screen | D2. `/var/backups/medbrains` exists, no timer runs |
 | Clinic compile profile (SM2) | later; today's binary has all modules |
@@ -339,7 +393,7 @@ partitions keeps the data.
 
 - `mkosi.conf`, `mkosi.conf.d/`: packages and image settings.
 - `mkosi.repart/`: build-time partitions. `mkosi.extra/usr/lib/repart.d/`: first-boot growth.
-- `mkosi.extra/`: units, first-boot scripts, journald, watchdog, network and Caddy.
+- `mkosi.extra/`: units, first-boot scripts, journald, watchdog, network and the TLS front (`medbrains-front`).
 - `mkosi.postinst.chroot`: removes the baked PostgreSQL cluster, enables units.
 - `mkosi.build.chroot`: compiles `crates/medbrains-shell` and installs its fonts.
 - `tests/`: `check-units.sh` and `console-status.sh` run alone; `vm.py` drives a booted debug image with real input.
@@ -457,7 +511,6 @@ the two run-once setup units are not, which falls short of SEC5's rule and is le
 |---|---|
 | `medbrains-server` | 1.1 OK |
 | `postgresql@17-main` | 1.7 OK |
-| `caddy` | 1.9 OK |
 | `medbrains-console-status` | 2.8 OK |
 | `cage-console` | 4.8 OK |
 | `medbrains-firstboot`, `medbrains-db-init` | 6.5 MEDIUM: run once, as root, to create secrets and the database |
@@ -514,7 +567,7 @@ How D1 was built, kept so nobody has to rediscover it.
 | Boot | systemd-boot + unified kernel image | one file holding kernel, initrd, command line and logo; the path SEC3 needs | GRUB (more moving parts, nothing gained) |
 | Boot logo | a `.splash` section in the boot file | no package in the image | Plymouth (a package and more initrd). It would cover the dark gap, so it may still be worth it |
 | Server binary | cross-compiled with `cargo zigbuild` for glibc 2.36 | the project's only cross path; no published release exists to reuse | building inside the container (slow, and against project law) |
-| TLS | Caddy from Debian: local CA for the network, a fixed certificate for the screen | production refuses `SECURE_COOKIES=false` and the server has no TLS of its own, so even the LAN needs HTTPS | Pingora proxy from `deploy/standalone` (another binary to cross-build; expects public certificates); relaxing the production check |
+| TLS | `medbrains-front` (Pingora, from `crates/medbrains-proxy`): the machine's own CA for the network, a fixed certificate for the screen, both made on first boot | production refuses `SECURE_COOKIES=false` and the server has no TLS of its own, so even the LAN needs HTTPS. The front is ours, in Rust, with HTTP/1.1 only and limits of its own | Caddy, removed in N2.1: Debian's build carries old Go and HTTP/2 code it will not rebuild; relaxing the production check |
 | Screen trust | the kiosk's certificate store holds one certificate, bound in by its unit | no warning, and no other site is trusted | `--ignore-tls-errors` |
 | Screen navigation | cog driven over D-Bus (`cogctl`), page opens the app itself | same window, no restart, so no flash | restarting cog to change page; an iframe (the server forbids framing) |
 | Status file | a script file on tmpfs, plus a direct probe | no file-access flag, and no heartbeat writes; the probe stops a stale file saying "Ready" | `fetch(file://)` (WebKit refuses it); a meta refresh (repainted the whole page: the flicker) |
@@ -536,7 +589,7 @@ How D1 was built, kept so nobody has to rediscover it.
 | Reading the disk offline showed a directory named `env` and "Bad message" | the VM had been killed, and the mount used `ro,noload`, which skips the ext4 journal. A false alarm | mount read-write on a disposable copy so the journal replays |
 | `postgresql@17-main: Could not change user id` | Debian's unit starts as root and setuid()s down; the empty `CapabilityBoundingSet=` removes that | `User=postgres` in the drop-in |
 | PostgreSQL: `could not open .../conf.d/10-medbrains.conf: Permission denied` | the first-boot script runs under `UMask=0077` as root | `chown` the file to `postgres` |
-| `pg_receivewal@17-main` failed on every boot; `caddy-api.service` or `caddy.service` failed | mkosi applies presets to the image and Debian's enable anything not listed, so unwanted templates and a second Caddy unit on the same ports were on | `10-medbrains.preset` disables them |
+| `pg_receivewal@17-main` failed on every boot | mkosi applies presets to the image and Debian's enable anything not listed, so unwanted templates were on | `10-medbrains.preset` disables them |
 | Black screen; `cage: Unable to open Wayland socket: Invalid argument`; `strace` showed `EACCES` on `/run/user/987/wayland-*.lock` | `ProtectHome=yes` hides `/run/user` too. Changing `ProtectSystem` made no difference, which pointed away from it | removed `ProtectHome` from the screen unit, added `ReadWritePaths=/run/user` |
 | `cage -D` exited 1 and sent the diagnosis the wrong way | cage 0.2.0 has no `-D`; `strace` showed the usage error | no flag |
 | `systemctl restart cage-console` hung for 90 seconds | the stop waited out the default timeout on a stuck cage | `TimeoutStopSec=5s` |
@@ -545,7 +598,7 @@ How D1 was built, kept so nobody has to rediscover it.
 | A page that had rendered sat half-drawn | headless QEMU flips virtio-gpu only when a display asks: every `screendump` advanced it one frame | attach a VNC client in tests; a real display is not affected |
 | **Black 64 px rectangles on screen**, in random places, staying until the next paint. The owner saw them too | llvmpipe rasterises in threads with 64 px tiles, and a frame could be presented before all of them finished. Not a cursor, and not the compositor: `WLR_SCENE_DEBUG_DAMAGE=rerender` did not help, `LP_NUM_THREADS=0` did. A real GPU driver does not use llvmpipe | `LP_NUM_THREADS=0` in the screen unit. One incomplete first paint at boot remains, until the page's next update |
 | **The screen flickered** every 15 seconds | a meta refresh reloaded the whole page, the page carried a minute clock, the timer ran its commands regardless, and a full-screen gradient made every repaint touch every pixel | the page is written once and changes only differing text; no clock; flat colour; the status file changes only on change. Scales with `clamp()` |
-| **Flat background with nothing on it**, until a reboot. The owner saw it | first, the filter failed to compile (`^(blob\|data):`: "Disjunctions are not supported yet") so nothing was allowed. Then, the health probe trusted the front end: Caddy answers 502 with the server down, and to a `no-cors` fetch that looks like success, so the page opened an empty 502 | separate filter rules; the page probes the server too; Caddy's 502 now has a sentence in it, so it is never blank |
+| **Flat background with nothing on it**, until a reboot. The owner saw it | first, the filter failed to compile (`^(blob\|data):`: "Disjunctions are not supported yet") so nothing was allowed. Then, the health probe trusted the front end: it answers 502 with the server down, and to a `no-cors` fetch that looks like success, so the page opened an empty 502 | separate filter rules; the page probes the server too; the front's 502 has a sentence in it, so it is never blank |
 | Returning to the app after an outage painted nothing, in one test | seen with WebKit's page cache on, before the 502 cause above was found, so the cache may not have been at fault | `--enable-page-cache=false` stays; it also saves memory |
 | **Typing in the app reset the page**: fields emptied, and the sign-in step fell back to the hospital code. This is what the owner hit when they could not sign in | `GStreamer element appsink not found`, then `g_signal_connect_data` on a null element, then "Renderer process terminated", on the first keystroke in a real form; cog restarted the page. Found by logging cog's output on a keystroke. Why a keystroke reaches GStreamer was not traced | added `gstreamer1.0-plugins-base` and `-good`. A plain test page never crashed, which is why it looked like a form bug |
 | **A pointer click did nothing**: the button took focus, and the press and release reached the page, but no `click` fired. Enter worked, which hid it | a bug in Debian's cog 0.18.4: its Wayland plugin passes Linux button codes (272) to WebKit, which expects 1, 2 and 3, and sends no button on release. The conversion in its source is commented out with "@FIXME: what is this for?". A logging test page showed `pointerdown`, `mousedown`, `pointerup`, `mouseup` and no `click` | `patches/cog-0.18.4-wl-pointer-button.patch`, rebuilt by `mkosi.build.chroot`. Worth sending upstream, and evidence for the engine question: basic clicks were broken in Debian stable |

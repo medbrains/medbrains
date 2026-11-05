@@ -565,7 +565,7 @@ pub struct PeerOptions {
 }
 
 // MedBrains patch: upstream derives Debug through `derivative` (unmaintained,
-// RUSTSEC-2024-0388). This is the same output by hand — every field except
+// RUSTSEC-2024-0388). This is the same output by hand: every field except
 // the three hook closures, which upstream marks `Debug = "ignore"`.
 impl std::fmt::Debug for PeerOptions {
     fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {

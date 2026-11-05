@@ -33,6 +33,7 @@ esac
 OS_WORK="${OS_WORK:-/tmp/mb-osimage}"
 SERVER="${MEDBRAINS_SERVER_BIN:-${CARGO_TARGET_DIR:-$REPO/target}/$TRIPLE/release/medbrains-server}"
 OS_SETUP="$(dirname "$SERVER")/medbrains-os-setup"
+FRONT="$(dirname "$SERVER")/medbrains-front"
 WEB="${MEDBRAINS_WEB_DIST:-$REPO/apps/web/dist}"
 if [[ ! -x "$SERVER" ]]; then
     echo "no server binary at $SERVER — cross-build it with zigbuild for $TRIPLE (see README)" >&2
@@ -40,6 +41,10 @@ if [[ ! -x "$SERVER" ]]; then
 fi
 if [[ ! -x "$OS_SETUP" ]]; then
     echo "no setup service at $OS_SETUP — cross-build medbrains-os-setup with the server" >&2
+    exit 1
+fi
+if [[ ! -x "$FRONT" ]]; then
+    echo "no front at $FRONT — cross-build medbrains-front from medbrains-proxy with the server" >&2
     exit 1
 fi
 if [[ ! -f "$WEB/index.html" ]]; then
@@ -54,8 +59,9 @@ install -d "$EXTRA/usr/bin" "$EXTRA/usr/share/medbrains" "$EXTRA/usr/lib/medbrai
     "$OS_WORK/out-$ARCH" "$OS_WORK/cache-$ARCH"
 install -m 0755 "$SERVER" "$EXTRA/usr/bin/medbrains-server"
 install -m 0755 "$OS_SETUP" "$EXTRA/usr/bin/medbrains-os-setup"
+install -m 0755 "$FRONT" "$EXTRA/usr/bin/medbrains-front"
 cp -R "$WEB" "$EXTRA/usr/share/medbrains/web"
-# Pre-compressed copies are for a CDN; on the appliance Caddy compresses.
+# Pre-compressed copies are for a CDN; on the appliance the server compresses as it sends.
 find "$EXTRA/usr/share/medbrains/web" \( -name '*.br' -o -name '*.gz' -o -name '*.map' \) -delete
 install -m 0644 "$REPO/deploy/standalone/db-roles.sh" "$EXTRA/usr/lib/medbrains/db-roles.sh"
 # The screen uses the web app's own logo.

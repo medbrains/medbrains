@@ -10,11 +10,17 @@ description = "Pingora-based reverse proxy for MedBrains + all sites"
 name = "medbrains-proxy"
 path = "src/main.rs"
 
+# The MedBrains OS front: TLS, redirect, limits and the error page on the machine itself.
+[[bin]]
+name = "medbrains-front"
+path = "src/front/main.rs"
+
 [dependencies]
-pingora-proxy = "0.9"
-pingora-http = "0.9"
-pingora-core = { version = "0.9", features = ["rustls"] }
-pingora-error = "0.9"
+# Pinned: this crate is the most exposed code on a machine, so a new version arrives by review.
+pingora-proxy = "=0.9.1"
+pingora-http = "=0.9.1"
+pingora-core = { version = "=0.9.1", features = ["rustls"] }
+pingora-error = "=0.9.1"
 
 tokio = { version = "1", features = ["full"] }
 serde = { version = "1", features = ["derive"] }
@@ -26,3 +32,4 @@ rustls = { version = "0.23", default-features = false, features = ["ring", "logg
 async-trait = "0.1.92"
 anyhow = "1"
 bytes = "1"
+x509-parser = "0.16"

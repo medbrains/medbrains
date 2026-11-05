@@ -1,0 +1,9 @@
+# Once a minute, because networkd has no hook for an address changing, and DHCP changes it.
+[Unit]
+Description=Check the front's certificate against this machine's addresses
+ConditionPathExists=/var/lib/medbrains/config/role-main
+
+[Timer]
+OnActiveSec=1min
+OnUnitActiveSec=1min
+AccuracySec=15s

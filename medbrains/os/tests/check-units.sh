@@ -7,16 +7,17 @@ OS="$(cd "$(dirname "$0")/.." && pwd)"
 UNITS="$OS/mkosi.extra/usr/lib/systemd/system"
 ROLE=ConditionPathExists=/var/lib/medbrains/config/role-main
 for unit in medbrains-main.target medbrains-server.service medbrains-db-init.service \
-    medbrains-console-status.service caddy.service.d/10-medbrains.conf \
+    medbrains-console-status.service medbrains-front.service medbrains-front-certs.service \
     postgresql@.service.d/10-medbrains.conf; do
     grep -qx "$ROLE" "$UNITS/$unit" || { echo "FAIL: $unit has no role condition"; exit 1; }
 done
 enabled="$(sed -n '/^systemctl enable/,/[^\\]$/p' "$OS/mkosi.postinst.chroot")"
-for unit in medbrains-server caddy postgresql medbrains-db-init; do
+for unit in medbrains-server medbrains-front postgresql medbrains-db-init; do
     if grep -qw "$unit" <<<"$enabled"; then echo "FAIL: postinst enables $unit"; exit 1; fi
 done
-grep -qx 'disable caddy.service' "$UNITS/../system-preset/10-medbrains.preset" ||
-    { echo "FAIL: Debian's preset would enable caddy"; exit 1; }
+if grep -rqi caddy "$OS/mkosi.conf" "$OS/mkosi.postinst.chroot" "$OS/mkosi.extra"; then
+    echo "FAIL: Caddy is back in the image"; exit 1
+fi
 grep -qx 'disable chronyd-restricted.service' "$UNITS/../system-preset/10-medbrains.preset" ||
     { echo "FAIL: the restricted chrony can take the LAN's time port away"; exit 1; }
 echo PASS

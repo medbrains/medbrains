@@ -1,0 +1,130 @@
+#!/bin/bash
+# Every certificate medbrains-front needs. Run as root before the front starts and once a minute by
+# a timer; a no-op unless something is missing, expiring, or the machine's addresses changed.
+#
+#   ca/     this machine's own certificate authority, made here, shared with nothing. Root only.
+#   lan/    the certificate for the LAN port, signed by ca/, covering every name in lan/names.
+#   screen/ the self-signed certificate for the loopback port, the only one the screen trusts.
+#
+# The set of names is bounded and known ahead of time: nothing a client sends creates a certificate.
+# A hospital's own DNS name goes in /var/lib/medbrains/config/front-names, one per line.
+#
+# To use a hospital root (T2): put a CA certificate it signed in ca/ca.pem, followed by its chain,
+# and that CA's key in ca/ca.key. The next run notices and issues from it. Nothing else changes.
+#
+# --restart: also restart the front if the certificate changed.
+set -euo pipefail
+
+STATE=/var/lib/medbrains-front
+CA="$STATE/ca"
+LAN="$STATE/lan"
+SCREEN="$STATE/screen"
+GROUP=medbrains-front
+EXTRA_NAMES=/var/lib/medbrains/config/front-names
+MAX_NAMES=64
+LEAF_DAYS=397
+RENEW_SECONDS=$((30 * 24 * 3600))
+umask 077
+
+# The certificate's names, one per line: the fixed ones, the hospital's, then every live address.
+names() {
+    {
+        echo medbrains.local
+        cat /proc/sys/kernel/hostname
+        echo "$(cat /proc/sys/kernel/hostname).local"
+        echo localhost
+        echo 127.0.0.1
+        echo ::1
+        if [[ -r "$EXTRA_NAMES" ]]; then cat "$EXTRA_NAMES"; fi
+        ip -o addr show scope global | awk '{print $4}' | cut -d/ -f1
+    } | LC_ALL=C grep -E '^[A-Za-z0-9.:-]+$' | awk '!seen[$0]++' | head -n "$MAX_NAMES"
+}
+
+# Turns names on stdin into an X.509 subjectAltName value.
+san_list() {
+    local name list=""
+    while IFS= read -r name; do
+        if [[ "$name" =~ ^[0-9.]+$ || "$name" == *:* ]]; then
+            list+="IP:$name,"
+        else
+            list+="DNS:$name,"
+        fi
+    done
+    echo "${list%,}"
+}
+
+# This machine's own authority: one key, made here. Kept if it is there, so browsers that trust it
+# keep trusting it, and so a hospital's can replace it.
+ensure_ca() {
+    [[ -s "$CA/ca.key" && -s "$CA/ca.pem" ]] && return
+    install -d -m 0700 "$CA"
+    openssl req -x509 -newkey ec -pkeyopt ec_paramgen_curve:prime256v1 -nodes -days 7300 \
+        -keyout "$CA/ca.key" -out "$CA/ca.pem" -subj "/CN=MedBrains local authority $(cat /proc/sys/kernel/hostname)" \
+        -addext "basicConstraints=critical,CA:TRUE,pathlen:0" \
+        -addext "keyUsage=critical,keyCertSign,cRLSign" 2>/dev/null
+}
+
+# True if the LAN certificate is good for this set of names, from this authority, for a while yet.
+lan_is_current() {
+    local wanted="$1"
+    [[ -s "$LAN/key.pem" && -s "$LAN/chain.pem" && -s "$LAN/names" ]] || return 1
+    [[ "$(cat "$LAN/names")" == "$wanted" ]] || return 1
+    openssl x509 -in "$LAN/chain.pem" -noout -checkend "$RENEW_SECONDS" >/dev/null 2>&1 || return 1
+    openssl verify -partial_chain -CAfile "$CA/ca.pem" "$LAN/chain.pem" >/dev/null 2>&1
+}
+
+# Issues the LAN certificate in a new directory, then swaps it in whole: the key and certificate
+# only ever change together, and a crash midway leaves a missing directory that the next run fills.
+issue_lan() {
+    local wanted="$1" new="$STATE/lan.new" sans
+    sans="$(san_list <<<"$wanted")"
+    rm -rf "$new"
+    install -d -m 0750 -g "$GROUP" "$new"
+    openssl req -new -newkey ec -pkeyopt ec_paramgen_curve:prime256v1 -nodes \
+        -keyout "$new/key.pem" -out "$new/request.csr" -subj "/CN=medbrains.local" 2>/dev/null
+    openssl x509 -req -in "$new/request.csr" -CA "$CA/ca.pem" -CAkey "$CA/ca.key" -CAcreateserial \
+        -days "$LEAF_DAYS" -out "$new/leaf.pem" -extfile <(printf '%s\n' \
+            "subjectAltName=$sans" "basicConstraints=critical,CA:FALSE" \
+            "keyUsage=critical,digitalSignature" "extendedKeyUsage=serverAuth") 2>/dev/null
+    cat "$new/leaf.pem" "$CA/ca.pem" > "$new/chain.pem"
+    printf '%s\n' "$wanted" > "$new/names"
+    rm -f "$new/request.csr" "$new/leaf.pem"
+    chgrp "$GROUP" "$new/key.pem" "$new/chain.pem" "$new/names"
+    chmod 0640 "$new/key.pem" "$new/chain.pem" "$new/names"
+    rm -rf "$LAN"
+    mv "$new" "$LAN"
+}
+
+# The screen's own certificate, unless it is there. The file the screen's unit has bound in as its
+# trust store is written in place, so the running unit sees it.
+ensure_screen() {
+    [[ -s "$SCREEN/key.pem" && -s "$SCREEN/cert.pem" ]] &&
+        openssl x509 -in "$SCREEN/cert.pem" -noout >/dev/null 2>&1 && return
+    install -d -m 0750 -g "$GROUP" "$SCREEN"
+    openssl req -x509 -newkey ec -pkeyopt ec_paramgen_curve:prime256v1 -nodes -days 7300 \
+        -keyout "$SCREEN/key.pem" -out "$SCREEN/cert.pem" \
+        -subj "/CN=MedBrains local screen" -addext "subjectAltName=IP:127.0.0.1" 2>/dev/null
+    chgrp "$GROUP" "$SCREEN/key.pem" "$SCREEN/cert.pem"
+    chmod 0640 "$SCREEN/key.pem" "$SCREEN/cert.pem"
+    install -m 0644 -o kiosk -g kiosk /dev/null /var/lib/kiosk/local-front.pem.new
+    cat "$SCREEN/cert.pem" > /var/lib/kiosk/local-front.pem.new
+    if [[ -e /var/lib/kiosk/local-front.pem ]]; then
+        cat /var/lib/kiosk/local-front.pem.new > /var/lib/kiosk/local-front.pem
+        rm -f /var/lib/kiosk/local-front.pem.new
+        # A screen that already started holds the old trust in memory.
+        systemctl --no-block try-restart cage-console.service || true
+    else
+        mv /var/lib/kiosk/local-front.pem.new /var/lib/kiosk/local-front.pem
+    fi
+}
+
+install -d -m 0750 -g "$GROUP" "$STATE"
+ensure_ca
+ensure_screen
+wanted="$(names)"
+if ! lan_is_current "$wanted"; then
+    issue_lan "$wanted"
+    if [[ "${1:-}" == "--restart" ]]; then
+        systemctl --no-block try-restart medbrains-front.service
+    fi
+fi

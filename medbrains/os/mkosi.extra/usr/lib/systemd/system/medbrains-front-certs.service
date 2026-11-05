@@ -1,0 +1,13 @@
+# Keeps the front's certificate covering the addresses this machine has right now.
+[Unit]
+Description=MedBrains front certificate check
+ConditionPathExists=/var/lib/medbrains/config/role-main
+
+[Service]
+Type=oneshot
+ExecStart=/usr/lib/medbrains/front-certs --restart
+PrivateTmp=yes
+ProtectHome=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes

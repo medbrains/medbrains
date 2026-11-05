@@ -24,6 +24,9 @@ const SYSCTLS: [(&str, &str); 4] = [
 ];
 const CLOSED_FROM_OUTSIDE: [&str; 4] = ["ssh", "server", "database", "edge"];
 const TIME_SYNC_LIMIT: Duration = Duration::from_secs(120);
+const SETUP_LIMIT: Duration = Duration::from_secs(150);
+const SETUP_SOCKET: &str = "/run/medbrains-console/setup.sock";
+const FRONT_STATE: &str = "/var/lib/medbrains-front";
 
 type Check = (&'static str, fn(&mut Vm, &Value) -> Result<(), String>);
 
@@ -227,6 +230,128 @@ fn database_log_is_safe(vm: &mut Vm, _: &Value) -> Result<(), String> {
     )
 }
 
+/// The front must offer HTTP/1.1 only: HTTP/2 stays unreachable until it earns its limits.
+fn front_offers_http1_only(vm: &mut Vm, _: &Value) -> Result<(), String> {
+    let version = vm.run(
+        "curl -sk --http2 -o /dev/null -w '%{http_version}' https://127.0.0.1:8443/api/health",
+    )?;
+    ensure(
+        version.trim() == "1.1",
+        format!("negotiated HTTP {}", version.trim()),
+    )
+}
+
+/// Every screen and browser depends on the front, so a crash must not leave it down.
+fn front_returns_after_a_crash(vm: &mut Vm, _: &Value) -> Result<(), String> {
+    let state = vm.run_for(
+        "pkill -9 -x medbrains-front; sleep 6; systemctl is-active medbrains-front",
+        Duration::from_secs(30),
+    )?;
+    ensure(
+        state.trim() == "active",
+        format!("the front is {}", state.trim()),
+    )?;
+    ensure(
+        vm.status("web", "https", "/api/health")? == 200,
+        "no answer after the crash",
+    )
+}
+
+/// The front runs as its own user, under a memory limit, and always comes back.
+fn front_is_confined(vm: &mut Vm, _: &Value) -> Result<(), String> {
+    let shown = vm.run(
+        "systemctl show medbrains-front -p User -p Restart -p MemoryMax -p WatchdogUSec -p NoNewPrivileges -p CapabilityBoundingSet",
+    )?;
+    ensure(
+        shown.contains("User=medbrains-front"),
+        format!("no own user: {shown}"),
+    )?;
+    ensure(
+        shown.contains("Restart=always"),
+        format!("no restart: {shown}"),
+    )?;
+    ensure(
+        !shown.contains("MemoryMax=infinity"),
+        format!("no memory limit: {shown}"),
+    )?;
+    ensure(
+        shown.contains("NoNewPrivileges=yes"),
+        format!("can gain privileges: {shown}"),
+    )?;
+    let user = vm.run("ps -o user= -C medbrains-front | sort -u")?;
+    ensure(
+        user.trim() == "medbrains-front",
+        format!("running as {user}"),
+    )
+}
+
+/// Only root reads the authority's key, and the front cannot change what it serves.
+fn front_keys_are_held_close(vm: &mut Vm, _: &Value) -> Result<(), String> {
+    let modes = vm.run(&format!(
+        "stat -c '%a %U %G' {FRONT_STATE}/ca {FRONT_STATE}/ca/ca.key {FRONT_STATE}/lan/key.pem {FRONT_STATE}/screen/key.pem"
+    ))?;
+    let lines: Vec<&str> = modes.lines().map(str::trim).collect();
+    ensure(
+        lines.first() == Some(&"700 root root"),
+        format!("authority: {modes}"),
+    )?;
+    ensure(
+        lines.get(1) == Some(&"600 root root"),
+        format!("authority key: {modes}"),
+    )?;
+    let leaf = "640 root medbrains-front";
+    ensure(
+        lines.get(2) == Some(&leaf) && lines.get(3) == Some(&leaf),
+        format!("keys: {modes}"),
+    )
+}
+
+/// A made-up name costs nothing: nothing is issued or stored, and the plain answer still comes.
+fn made_up_name_stores_nothing(vm: &mut Vm, _: &Value) -> Result<(), String> {
+    let count = format!("find {FRONT_STATE} -type f | wc -l");
+    let before = number(vm, &count)?;
+    for index in 0..20 {
+        vm.run(&format!(
+            "curl -sk -m 5 -o /dev/null --resolve made-up-{index}.example:443:127.0.0.1 https://made-up-{index}.example/api/health"
+        ))?;
+    }
+    let after = number(vm, &count)?;
+    ensure(before == after, format!("{before} files became {after}"))
+}
+
+/// A certificate that went missing is made again, and a bad one never means plain HTTP.
+fn front_recovers_a_missing_certificate(vm: &mut Vm, _: &Value) -> Result<(), String> {
+    let state = vm.run_for(
+        &format!("rm -rf {FRONT_STATE}/lan; systemctl restart medbrains-front; sleep 2; systemctl is-active medbrains-front"),
+        Duration::from_secs(30),
+    )?;
+    ensure(
+        state.trim() == "active",
+        format!("the front is {}", state.trim()),
+    )?;
+    ensure(
+        vm.status("web", "https", "/api/health")? == 200,
+        "no answer after recovery",
+    )?;
+    ensure(
+        vm.status("web", "http", "/api/health")? != 200,
+        "plain HTTP answered",
+    )
+}
+
+/// The sentence a person reads when the server is down, not a blank page.
+fn plain_words_when_the_server_stops(vm: &mut Vm, _: &Value) -> Result<(), String> {
+    let page = vm.run_for(
+        "systemctl stop medbrains-server; curl -sk -m 8 https://127.0.0.1:8443/; systemctl start medbrains-server",
+        Duration::from_secs(60),
+    )?;
+    ensure(
+        page.contains("MedBrains is not answering"),
+        format!("answered: {page}"),
+    )?;
+    vm.wait_for_server()
+}
+
 /// Every check, in order.
 fn checks() -> Vec<Check> {
     vec![
@@ -267,6 +392,22 @@ fn checks() -> Vec<Check> {
             page_load_memory,
         ),
         ("held connections stay cheap", held_connections_stay_cheap),
+        ("the front offers HTTP/1.1 only", front_offers_http1_only),
+        ("the front runs confined", front_is_confined),
+        ("the front's keys are held close", front_keys_are_held_close),
+        ("a made-up name stores nothing", made_up_name_stores_nothing),
+        (
+            "the front says so in plain words when the server stops",
+            plain_words_when_the_server_stops,
+        ),
+        (
+            "the front returns after a crash",
+            front_returns_after_a_crash,
+        ),
+        (
+            "the front recovers a missing certificate",
+            front_recovers_a_missing_certificate,
+        ),
         (
             "the database log holds no values and is bounded",
             database_log_is_safe,
@@ -274,10 +415,27 @@ fn checks() -> Vec<Check> {
     ]
 }
 
+/// Makes this machine a main machine, as the screen's Review does: nothing runs before that.
+fn set_up_main(vm: &mut Vm) -> Result<(), String> {
+    let body = r#"{"hospital":"Test Hospital","username":"admin","password":"Os-Test-Setup1!"}"#;
+    let answer = vm.run_for(
+        // The shell can answer before the setup service has opened its socket.
+        &format!(
+            "for i in $(seq 60); do test -S {SETUP_SOCKET} && break; sleep 1; done; curl -s -m 80 --unix-socket {SETUP_SOCKET} -d '{body}' http://machine/hospital"
+        ),
+        SETUP_LIMIT,
+    )?;
+    ensure(
+        answer.contains("\"ok\":true"),
+        format!("setup answered {answer}"),
+    )
+}
+
 /// Boots the image and runs every check; returns how many failed.
 fn run_suite(image: &Path) -> Result<usize, String> {
     let budgets: Value = serde_json::from_str(BUDGETS).map_err(|e| e.to_string())?;
     let mut vm = Vm::start(image)?;
+    set_up_main(&mut vm)?;
     vm.wait_for_server()?;
     let mut failed = 0;
     for (name, check) in checks() {

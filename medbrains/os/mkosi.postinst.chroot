@@ -22,7 +22,7 @@ systemctl enable nftables chrony systemd-networkd systemd-resolved systemd-repar
     cage-console
 # Only medbrains-main.target starts these, and only once setup has finished, so nothing
 # answers on the network before then. Debian's packages enable them by default.
-systemctl disable caddy postgresql 2>/dev/null || true
+systemctl disable postgresql 2>/dev/null || true
 # A udev rule starts iwd when a Wi-Fi card appears, so a wired machine doesn't pay for it.
 systemctl disable iwd 2>/dev/null || true
 # chrony.service serves the LAN its time. Debian's restricted variant cannot open the port, and
