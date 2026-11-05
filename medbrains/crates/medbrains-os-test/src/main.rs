@@ -16,7 +16,12 @@ use vm::Vm;
 
 const BUDGETS: &str = include_str!("../budgets.json");
 const BLOCKED_MODULES: [&str; 3] = ["dccp", "sctp", "udf"];
-const SYSCTLS: [(&str, &str); 4] = [("kernel.kptr_restrict", "2"), ("kernel.kexec_load_disabled", "1"), ("kernel.yama.ptrace_scope", "2"), ("net.ipv4.conf.all.accept_redirects", "0")];
+const SYSCTLS: [(&str, &str); 4] = [
+    ("kernel.kptr_restrict", "2"),
+    ("kernel.kexec_load_disabled", "1"),
+    ("kernel.yama.ptrace_scope", "2"),
+    ("net.ipv4.conf.all.accept_redirects", "0"),
+];
 const CLOSED_FROM_OUTSIDE: [&str; 4] = ["ssh", "server", "database", "edge"];
 const TIME_SYNC_LIMIT: Duration = Duration::from_secs(120);
 const SETUP_LIMIT: Duration = Duration::from_secs(90);
@@ -36,13 +41,28 @@ fn ensure(ok: bool, message: impl Into<String>) -> Result<(), String> {
 
 /// A budget from `budgets.json`, in megabytes.
 fn budget(budgets: &Value, key: &str) -> Result<u64, String> {
-    budgets.get(key).and_then(Value::as_u64).ok_or_else(|| format!("no budget {key}"))
+    budgets
+        .get(key)
+        .and_then(Value::as_u64)
+        .ok_or_else(|| format!("no budget {key}"))
 }
 
 /// A number printed by a command inside the machine.
 fn number(vm: &mut Vm, command: &str) -> Result<u64, String> {
     let text = vm.run(command)?;
-    text.trim().parse().map_err(|_| format!("not a number: {text}"))
+    text.trim()
+        .parse()
+        .map_err(|_| format!("not a number: {text}"))
+}
+
+/// Shows a measured number beside its limit, so a pass still says how close it was.
+fn within(what: &str, used: u64, limit: u64) -> Result<(), String> {
+    let line = format!("      {what}: {used} MB of {limit} MB\n");
+    drop(std::io::Write::write_all(
+        &mut std::io::stderr(),
+        line.as_bytes(),
+    ));
+    ensure(used <= limit, format!("{used} MB over {limit} MB"))
 }
 
 /// No service has failed.
@@ -53,8 +73,14 @@ fn no_failed_services(vm: &mut Vm, _: &Value) -> Result<(), String> {
 
 /// The app answers through the front proxy.
 fn app_answers(vm: &mut Vm, _: &Value) -> Result<(), String> {
-    ensure(vm.status("web", "https", "/api/health")? == 200, "health did not answer")?;
-    ensure(vm.status("web", "https", "/login")? == 200, "sign-in page did not answer")
+    ensure(
+        vm.status("web", "https", "/api/health")? == 200,
+        "health did not answer",
+    )?;
+    ensure(
+        vm.status("web", "https", "/login")? == 200,
+        "sign-in page did not answer",
+    )
 }
 
 /// Plain HTTP does nothing but redirect.
@@ -66,7 +92,10 @@ fn http_only_redirects(vm: &mut Vm, _: &Value) -> Result<(), String> {
 /// Only the listed services answer from outside.
 fn nothing_else_reachable(vm: &mut Vm, _: &Value) -> Result<(), String> {
     for name in CLOSED_FROM_OUTSIDE {
-        ensure(!vm.reachable(name)?, format!("{name} answered from outside"))?;
+        ensure(
+            !vm.reachable(name)?,
+            format!("{name} answered from outside"),
+        )?;
     }
     Ok(())
 }
@@ -80,22 +109,36 @@ fn firewall_denies_by_default(vm: &mut Vm, _: &Value) -> Result<(), String> {
 /// Server and database bind to this machine only.
 fn server_and_database_stay_local(vm: &mut Vm, _: &Value) -> Result<(), String> {
     let listening = vm.run("ss -tlnH | awk '{print $4}'")?;
-    let exposed: Vec<&str> = listening.split_whitespace().filter(|a| (a.ends_with(":3000") || a.ends_with(":5432")) && !a.starts_with("127.") && !a.starts_with("[::1]")).collect();
+    let exposed: Vec<&str> = listening
+        .split_whitespace()
+        .filter(|a| {
+            (a.ends_with(":3000") || a.ends_with(":5432"))
+                && !a.starts_with("127.")
+                && !a.starts_with("[::1]")
+        })
+        .collect();
     ensure(exposed.is_empty(), format!("exposed: {exposed:?}"))
 }
 
 /// The database's own service refuses other addresses, whatever the firewall does.
 fn database_limited_by_systemd(vm: &mut Vm, _: &Value) -> Result<(), String> {
     let shown = vm.run("systemctl show postgresql@17-main -p IPAddressDeny -p IPAddressAllow")?;
-    ensure(shown.contains("0.0.0.0/0") && shown.contains("127.0.0.0/8"), shown)
+    ensure(
+        shown.contains("0.0.0.0/0") && shown.contains("127.0.0.0/8"),
+        shown,
+    )
 }
 
 /// Plain outbound HTTP is dropped, and the drop is logged.
 fn outbound_http_blocked(vm: &mut Vm, _: &Value) -> Result<(), String> {
-    let code = vm.run("curl -s -m 5 -o /dev/null -w '%{http_code}' http://deb.debian.org/; true")?;
+    let code =
+        vm.run("curl -s -m 5 -o /dev/null -w '%{http_code}' http://deb.debian.org/; true")?;
     ensure(code == "000", format!("answered {code}"))?;
     let log = vm.run("journalctl -k --no-pager -g medbrains-drop-out -n 1 -o cat")?;
-    ensure(log.contains("medbrains-drop-out"), "the drop was not logged")
+    ensure(
+        log.contains("medbrains-drop-out"),
+        "the drop was not logged",
+    )
 }
 
 /// Unused kernel modules cannot load.
@@ -168,24 +211,60 @@ fn flood_spares_other_addresses(vm: &mut Vm, _: &Value) -> Result<(), String> {
 
 /// Memory at rest is within budget.
 fn idle_memory(vm: &mut Vm, budgets: &Value) -> Result<(), String> {
-    let used = number(vm, "awk '/MemTotal/{t=$2}/MemAvailable/{a=$2}END{print int((t-a)/1024)}' /proc/meminfo")?;
-    let limit = budget(budgets, "idle_machine_mb")?;
-    ensure(used <= limit, format!("{used} MB over {limit} MB"))
+    let used = number(
+        vm,
+        "awk '/MemTotal/{t=$2}/MemAvailable/{a=$2}END{print int((t-a)/1024)}' /proc/meminfo",
+    )?;
+    within("machine", used, budget(budgets, "idle_machine_mb")?)
 }
 
 /// System disk use is within budget.
 fn system_disk(vm: &mut Vm, budgets: &Value) -> Result<(), String> {
     let used = number(vm, "df -m --output=used / | tail -1 | tr -d ' '")?;
-    let limit = budget(budgets, "system_disk_used_mb")?;
-    ensure(used <= limit, format!("{used} MB over {limit} MB"))
+    within("system disk", used, budget(budgets, "system_disk_used_mb")?)
 }
 
 /// Opening a page must not balloon the server: reused connections once took it past 1 GB.
 fn page_load_memory(vm: &mut Vm, budgets: &Value) -> Result<(), String> {
     vm.run_for("cd /usr/share/medbrains/web/assets; ls | grep -E '\\.(js|css)$' | sort | head -70 | xargs -P 30 -I@ curl -sk -m 40 -o /dev/null https://127.0.0.1:8443/assets/@; cd /", Duration::from_secs(120))?;
-    let used = number(vm, "awk '/^Rss:/{print int($2/1024)}' /proc/$(pidof medbrains-server)/smaps_rollup")?;
-    let limit = budget(budgets, "server_after_page_load_mb")?;
-    ensure(used <= limit, format!("{used} MB over {limit} MB"))
+    let used = number(
+        vm,
+        "awk '/^Rss:/{print int($2/1024)}' /proc/$(pidof medbrains-server)/smaps_rollup",
+    )?;
+    within(
+        "server",
+        used,
+        budget(budgets, "server_after_page_load_mb")?,
+    )
+}
+
+/// Holding connections must not grow the server: each one once kept its own 28 MB route table.
+fn held_connections_stay_cheap(vm: &mut Vm, budgets: &Value) -> Result<(), String> {
+    let rss = "awk '/^Rss:/{print int($2/1024)}' /proc/$(pidof medbrains-server)/smaps_rollup";
+    let before = number(vm, rss)?;
+    let hold = format!(
+        "(for fd in $(seq 10 59); do eval \"exec $fd<>/dev/tcp/127.0.0.1/3000\"; printf 'GET /api/health HTTP/1.1\\r\\nHost: x\\r\\n\\r\\n' >&$fd; done; sleep 3; {rss})"
+    );
+    let after: u64 = vm
+        .run_for(&hold, Duration::from_secs(30))?
+        .trim()
+        .parse()
+        .map_err(|_| "no reading while holding connections".to_owned())?;
+    within(
+        "growth from 50 held connections",
+        after.saturating_sub(before),
+        budget(budgets, "growth_50_connections_mb")?,
+    )
+}
+
+/// Slow-query logging must not copy patient values, and its log must have a size limit.
+fn database_log_is_safe(vm: &mut Vm, _: &Value) -> Result<(), String> {
+    let read = "runuser -u postgres -- psql -Atc \"select current_setting('log_parameter_max_length'), current_setting('log_parameter_max_length_on_error'), current_setting('log_destination')\"";
+    let text = vm.run(read)?;
+    ensure(
+        text.trim() == "0|0|syslog",
+        format!("found {}", text.trim()),
+    )
 }
 
 /// Every check, in order.
@@ -194,11 +273,26 @@ fn checks() -> Vec<Check> {
         ("no service has failed", no_failed_services),
         ("the app answers through the front proxy", app_answers),
         ("plain HTTP only redirects", http_only_redirects),
-        ("nothing else is reachable from outside", nothing_else_reachable),
-        ("the firewall denies by default both ways", firewall_denies_by_default),
-        ("server and database listen only on this machine", server_and_database_stay_local),
-        ("the database service refuses other addresses", database_limited_by_systemd),
-        ("outbound plain HTTP is blocked and logged", outbound_http_blocked),
+        (
+            "nothing else is reachable from outside",
+            nothing_else_reachable,
+        ),
+        (
+            "the firewall denies by default both ways",
+            firewall_denies_by_default,
+        ),
+        (
+            "server and database listen only on this machine",
+            server_and_database_stay_local,
+        ),
+        (
+            "the database service refuses other addresses",
+            database_limited_by_systemd,
+        ),
+        (
+            "outbound plain HTTP is blocked and logged",
+            outbound_http_blocked,
+        ),
         ("unused kernel modules cannot load", blocked_modules_refuse),
         ("kernel hardening is applied", kernel_hardening_applied),
         ("kernel lockdown is on", lockdown_on),
@@ -207,7 +301,15 @@ fn checks() -> Vec<Check> {
         ("time is synced by an authenticated source", time_authenticated),
         ("idle memory is within budget", idle_memory),
         ("system disk is within budget", system_disk),
-        ("opening a page does not balloon the server", page_load_memory),
+        (
+            "opening a page does not balloon the server",
+            page_load_memory,
+        ),
+        ("held connections stay cheap", held_connections_stay_cheap),
+        (
+            "the database log holds no values and is bounded",
+            database_log_is_safe,
+        ),
     ]
 }
 
@@ -236,21 +338,30 @@ fn run_suite(image: &Path) -> Result<usize, String> {
             Err(why) => format!("FAIL  {name}: {why}\n"),
         };
         failed += usize::from(result.is_err());
-        drop(std::io::Write::write_all(&mut std::io::stderr(), line.as_bytes()));
+        drop(std::io::Write::write_all(
+            &mut std::io::stderr(),
+            line.as_bytes(),
+        ));
     }
     Ok(failed)
 }
 
 fn main() -> ExitCode {
     let Some(image) = std::env::args().nth(1) else {
-        drop(std::io::Write::write_all(&mut std::io::stderr(), b"usage: medbrains-os-test <image.raw>\n"));
+        drop(std::io::Write::write_all(
+            &mut std::io::stderr(),
+            b"usage: medbrains-os-test <image.raw>\n",
+        ));
         return ExitCode::from(2);
     };
     match run_suite(Path::new(&image)) {
         Ok(0) => ExitCode::SUCCESS,
         Ok(_) => ExitCode::FAILURE,
         Err(why) => {
-            drop(std::io::Write::write_all(&mut std::io::stderr(), format!("could not run: {why}\n").as_bytes()));
+            drop(std::io::Write::write_all(
+                &mut std::io::stderr(),
+                format!("could not run: {why}\n").as_bytes(),
+            ));
             ExitCode::from(2)
         }
     }
