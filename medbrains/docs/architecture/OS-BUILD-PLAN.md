@@ -86,10 +86,12 @@ N1 to N6 come from RFC-HOSPITAL-OS §8q. Every task ends on a check or a screen.
 | U1.2 | App updates separate from the OS | App fix ships without an OS image | next |
 | U1.3 | Backup before migration; CI check that migrations stay compatible one release back | Failed migration restores by itself | next |
 | U1.4 | Main machine serves nodes; rings and windows in Control | One ward updates first; failure stops the rollout | later, needs J1, C1 |
+| U1.5 | Compare the update design with TUF's list of attacks (owner 2026-11-05): old update served again, updates held back, mixed versions, a stolen signing key. Adopt TUF or close each gap another way | Each attack refused by a test, or a written, accepted limit | next, with U1 |
 | U2 | Backup, restore, recovery | Restore on a new machine from backup | next |
 | U2.1 | Scheduled jobs as systemd timers, listed in Control with last result | A failed nightly backup shows on screen | next |
 | U2.2 | Backups encrypted, to a second disk or another machine; old copies cannot be overwritten by the running system | Ransomware test: wiping the data leaves a restorable copy | next |
 | U2.3 | Read-only system: only `/var` is writable (data, backups, logs, settings); network settings move there | A write to `/usr` or `/etc` fails; settings survive an update | next, with T1 |
+| U2.4 | Check all stored data on a schedule (owner 2026-11-05): read every database page against its checksum with `pg_amcheck`, verify backups the same way, show the last result in health and alert on failure, at a pace that does not wear the disk | A block corrupted on purpose is found and shown on screen before anyone reads it | next: in first stable |
 | U3 | USB installer | Blank PC installed from USB, no internet | later |
 
 ## O. Everyday operation
@@ -109,6 +111,7 @@ N1 to N6 come from RFC-HOSPITAL-OS §8q. Every task ends on a check or a screen.
 | O11 | Module apps: each module is its own app in the launcher and dock, like a Mac, opening and closing alone, with one sign-in and a shared engine underneath, shown by role. Turning one on brings what it needs, from one dependency list in Rust, with cycles refused; a module others need cannot be turned off, and turning one off deletes nothing | Turning on Pharmacy brings its required modules and icon, and the server refuses a switch-off that would break it | next, first after the desktop's security fixes: owner 2026-11-04 wants the OS to draw the side panel, tabs and landing pages from the server's screen list; UI plan first, Pharmacy as the example |
 | O12 | Every OS screen responsive: setup, desktop, dock, menus and apps at phone, tablet, laptop, desktop, TV and mini-display sizes, in both rotations, with touch targets of 44 px and an on-screen keyboard | Automated screenshots at 480x320, 800x480, 390x844, 768x1024, 1280x800 and 1920x1080 show nothing cut off or overlapping; touch-only setup and sign-in work | next: owner required 2026-11-04 |
 | O13 | Who may do what at the screen (owner 2026-11-04): choosing Wi-Fi or a wired link on a node and restarting a node are open to anyone at it; severe actions need sign-in with a new IT permission: stopping or restarting the main machine, changing the main machine's network, fixed addresses, factory reset, removing a machine, turning remote access on | With no sign-in the service refuses each severe action and audits it, and a node's Wi-Fi still changes freely | next: after the desktop PR; permission first |
+| O15 | Safe diagnostics for IT with no terminal: named trace points in the server read with `bpftrace`, only by IT sign-in and audited (`usdt` has no ARM support on Linux yet) | A stuck request is explained from the screen | parked, after first stable |
 
 ## H. Real hardware
 
@@ -121,6 +124,7 @@ N1 to N6 come from RFC-HOSPITAL-OS §8q. Every task ends on a check or a screen.
 | H6 | Kit firmware: Secure Boot on, TPM on, USB boot off, BIOS password, our logo | One kit ships this way | later, needs a hardware partner |
 | H7 | Shrink the image: keep the empty update slot sparse; strip the server binary; drop Perl, unused locales and kernel modules; compare `libLLVM` need on real GPUs | System under 1 GB; each cut proven by booting | next |
 | H4 | Memory below target | Whole machine ≤ 512 MB | next: per-connection growth fixed; WebKit, PostgreSQL pool and zram tests next |
+| H8 | Hardware list: each machine tested, what works, known firmware problems, published | A hospital can check its PC before buying | next, needs H2 |
 
 ## D. Devices and performance
 
@@ -185,6 +189,8 @@ N1 to N6 come from RFC-HOSPITAL-OS §8q. Every task ends on a check or a screen.
 | X11 | Compliance map on the OS: HIPAA, DPDP, GDPR, CERT-In, NABH and ABDM rows in `docs/CERTIFICATIONS.md` extended to the OS, each with evidence or marked open | No row claims more than its evidence; lawyer review | next: lawyer review blocked on owner |
 | X12 | Attribute checks in the kernel beside roles and relations: managed or unmanaged device, data class, department, location, shift, network, with break-glass that is reasoned and audited. Every app uses the same check; a fault stays unknown, never allow | A rule refuses an unmanaged device with an audit row; bulk checks stay one round trip; added cost measured | next: owner 2026-11-05; first stable gets device class and data class only |
 | X13 | Review the route files that hold raw SQL unlisted by `check_tenant_leak.py`: each query is tenant-scoped or moved to `medbrains-db`, starting with the routes reached without sign-in | `Schema + tenancy` passes, and no route reads another hospital's rows | database wall proved by `tenant_walls.rs` (34 tables, request role, 0 reads, 0 writes); files baselined so new raw SQL fails; moving the SQL to `medbrains-db` still open |
+| X14 | Type-safe IDs in new code with `newtype-uuid`, so a patient ID cannot be passed as a tenant ID; existing code stays until touched | The compiler refuses the mix-up in one module | parked, after first stable |
+| X15 | Generate the OpenAPI description and clients from server code, so the API and screens cannot drift; replaces parsing in `check_api_contract.py` | One module generated end to end, `make check-api` agrees | parked, after first stable |
 | L1 | Web first load: index.html preloads 45 modules, 4.0 MB raw, before any page opens. Trim to what the sign-in page needs, and one language | First-load budget in CI, measured on the OS screen | doing: echarts and the rich-text editor now load on demand; one language next |
 | X9 | Outside penetration test before a hospital goes live | Report received and findings closed | blocked: owner, cost |
 
@@ -192,7 +198,7 @@ N1 to N6 come from RFC-HOSPITAL-OS §8q. Every task ends on a check or a screen.
 
 New ideas go to the parked list, not into this. Stable means every line below passes on the final image.
 
-**In:** desktop, setup and restart (#5223); memory and client address fixes; disk encryption and key inventory (T1, T2); Kanidm with its Identity app (T3, T3.1); node pairing and remote machines (J1, J5); signed A/B updates with rollback and backup with restore (U1, U2); launcher with one app per module for one role, Pharmacy first (O11); responsive OS screens (O12); screen permissions (O13); x86 image (H1); every way to run it (P1 to P8); Software Center and Control stage 1 (O14, C1.1).
+**In:** desktop, setup and restart (#5223); memory and client address fixes; disk encryption and key inventory (T1, T2); scheduled data checks (U2.4); Kanidm with its Identity app (T3, T3.1); node pairing and remote machines (J1, J5); signed A/B updates with rollback and backup with restore (U1, U2); launcher with one app per module for one role, Pharmacy first (O11); responsive OS screens (O12); screen permissions (O13); x86 image (H1); every way to run it (P1 to P8); Software Center and Control stage 1 (O14, C1.1).
 
 **Parked until after it:** connectors beyond one lab analyzer (X10), other roles' module apps, rule builder, MedBrains Control beyond machines and audit, offline second sites (J4), PACS, mail, app store, side-by-side windows.
 
