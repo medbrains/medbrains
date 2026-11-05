@@ -1,3 +1,4 @@
+import "@mantine/tiptap/styles.css";
 import { Link, RichTextEditor as MantineRichTextEditor } from "@mantine/tiptap";
 import { useEditor } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
