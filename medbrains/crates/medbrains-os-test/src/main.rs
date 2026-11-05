@@ -16,7 +16,8 @@ use vm::Vm;
 
 const BUDGETS: &str = include_str!("../budgets.json");
 const BLOCKED_MODULES: [&str; 3] = ["dccp", "sctp", "udf"];
-const SYSCTLS: [(&str, &str); 4] = [
+const SYSCTLS: [(&str, &str); 5] = [
+    ("kernel.io_uring_disabled", "2"),
     ("kernel.kptr_restrict", "2"),
     ("kernel.kexec_load_disabled", "1"),
     ("kernel.yama.ptrace_scope", "2"),
@@ -227,6 +228,23 @@ fn database_log_is_safe(vm: &mut Vm, _: &Value) -> Result<(), String> {
     )
 }
 
+/// The front proxy must offer HTTP/1.1 only, so its old HTTP/2 code cannot be reached.
+fn front_proxy_offers_http1_only(vm: &mut Vm, _: &Value) -> Result<(), String> {
+    let version = vm.run(
+        "curl -sk --http2 -o /dev/null -w '%{http_version}' https://127.0.0.1:8443/api/health",
+    )?;
+    ensure(version.trim() == "1.1", format!("negotiated HTTP {}", version.trim()))
+}
+
+/// Every screen and browser depends on the front proxy, so a crash must not leave it down.
+fn front_proxy_returns_after_a_crash(vm: &mut Vm, _: &Value) -> Result<(), String> {
+    let state = vm.run_for(
+        "pkill -9 -x caddy; sleep 6; systemctl is-active caddy",
+        Duration::from_secs(30),
+    )?;
+    ensure(state.trim() == "active", format!("caddy is {}", state.trim()))
+}
+
 /// Every check, in order.
 fn checks() -> Vec<Check> {
     vec![
@@ -267,6 +285,8 @@ fn checks() -> Vec<Check> {
             page_load_memory,
         ),
         ("held connections stay cheap", held_connections_stay_cheap),
+        ("the front proxy offers HTTP/1.1 only", front_proxy_offers_http1_only),
+        ("the front proxy returns after a crash", front_proxy_returns_after_a_crash),
         (
             "the database log holds no values and is bounded",
             database_log_is_safe,

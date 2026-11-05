@@ -4,6 +4,11 @@
 # step (trusted certificate) is D2.
 {
 	admin off
+	# HTTP/1.1 only: Caddy 2.6.2's HTTP/2 code is old and anyone on the LAN can reach it. Until
+	# Pingora replaces it (plan N2.1), nothing here needs HTTP/2.
+	servers {
+		protocols h1
+	}
 	default_sni medbrains.local
 	on_demand_tls {
 		interval 1m

@@ -28,6 +28,16 @@ goes live (X9).
 | 15 | Medical devices on the same network | Cannot be closed by us: separate network required, listed in the install guide; device gateway only (J3) | Guide check; gateway reaches only listed devices | open |
 | 16 | Same secret on two machines | Keys made on first boot, none in the image (X5) | Two fresh machines share no secret | open |
 
+## Known flaws in what we ship (audit 2026-11-05, details kept private)
+
+| Area | Answer | State |
+|---|---|---|
+| Front proxy: old HTTP/2 code reachable from the LAN | HTTP/1.1 only, restart and memory limit now; Pingora next | doing |
+| A machine in the field cannot take a fix | Signed updates (U1) before any install | open |
+| Wi-Fi driver flaw with no release yet | Main machine stays wired; radio off where a cable exists | open |
+| Parsers in the web view | Only our own origin reaches them; remove what is unused | open |
+| Installers and CI that run downloads unverified | Checksums, and Actions pinned to commits | open |
+
 ## Hardware
 
 | # | Attack | What it gets | Closed by | Can it be fully closed? | State |
