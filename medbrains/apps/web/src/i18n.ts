@@ -2,24 +2,9 @@ import i18n from "i18next";
 import HttpBackend from "i18next-http-backend";
 import { initReactI18next } from "react-i18next";
 
-const NS = [
-  "common",
-  "nav",
-  "clinical",
-  "dashboard",
-  "patients",
-  "opd",
-  "lab",
-  "pharmacy",
-  "billing",
-  "camp",
-  "ipd",
-  "careView",
-  "frontOffice",
-  "admin",
-  "emergency",
-  "lms",
-] as const;
+// Loaded at start, because every screen uses them. Each other namespace loads when the first
+// component naming it in `useTranslation` appears, so a screen fetches only its own words.
+const NS = ["common", "nav"] as const;
 
 /** Languages with RTL text direction */
 export const RTL_LANGUAGES = new Set(["ar", "ur", "he", "fa"]);
@@ -43,9 +28,9 @@ i18n
     defaultNS: "common",
     backend: {
       loadPath: "/locales/{{lng}}/{{ns}}.json",
-      // Never serve stale locale JSON from the browser HTTP cache — a reload
-      // always re-fetches, so newly-added keys never show as raw key strings.
-      requestOptions: { cache: "no-store" },
+      // Ask the server each time, so newly-added keys never show as raw strings, but let an
+      // unchanged file answer 304 instead of downloading it again.
+      requestOptions: { cache: "no-cache" },
     },
     interpolation: {
       escapeValue: false,
