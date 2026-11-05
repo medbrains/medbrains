@@ -285,7 +285,7 @@ a socket netdev that carries multicast. No hardware):
 
 | | Node | Main machine |
 |---|---|---|
-| Whole machine used, desktop after a reboot (`MemTotal - MemAvailable`) | **300 MB** | 519 MB |
+| Whole machine used, desktop after a reboot (`MemTotal - MemAvailable`) | **300 MB** | 518 MB |
 | The same, signed in, app open | 732 MB | 2,763 MB, of which most is the server after sign-ins |
 | Agent, PSS | 13 MB | 15 MB |
 | `/var` used | 31 MB | 229 MB |
@@ -296,13 +296,18 @@ about 1.9 MB, so iroh costs about 5.5 MB; this is approximate, because generic c
 
 From clicking the main machine to the tunnel answering: 17 s, including a browser robot signing in and typing the
 code. A person walking across a building is the slow part. Removal ended access 1 to 2 s after the database recorded
-it, with both clocks in step; the agent asks every 2 s, so this can reach about 2 s.
+it, with both clocks in step; the agent asks every 2 s, so this can reach about 2 s. With the agent's sync broken on
+purpose first, access still ended, 30 s after the sync broke (19 s after the removal), and stayed ended when the sync
+came back.
+
+Seven wrong sign-ins from a node answered `401` five times and then `429`, while the main machine's own screen kept
+getting `401`; the audit log records the node's own address, `127.148.222.63`, which Machines shows for that machine.
 
 **A main machine whose address changes** (changed through the setup service, since the wire has no DHCP server):
 
 | Case | Result |
 |---|---|
-| Node signed in, mDNS working | Back with no action after 15 s (36 s before the idle timeout was shortened). The top bar says "Cannot reach the main machine" from its next poll, within about 10 s, and the signed-in page stays |
+| Node signed in, mDNS working | Back with no action after 6 to 15 s (36 s before the idle timeout was shortened). The top bar says "Cannot reach the main machine" from its next poll, within about 10 s, and the signed-in page stays |
 | Saved address stale, agent restarted, mDNS working | Back within about 1 s |
 | Saved address stale, agent restarted, mDNS blocked by the firewall | Stays down and says so, for as long as it lasts |
 | The same, with the new address typed in Settings > Main machine | Back about 1 s after pressing the button; a wrong address says "Nothing answered at that address" |
