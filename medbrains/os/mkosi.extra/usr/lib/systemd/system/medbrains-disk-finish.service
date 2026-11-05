@@ -17,3 +17,7 @@ TTYReset=yes
 StandardInput=tty
 StandardOutput=tty
 StandardError=journal
+
+[Install]
+# Before the setup screen: it comes first on tty1, whatever role this machine later takes.
+WantedBy=multi-user.target
