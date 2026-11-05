@@ -468,7 +468,7 @@ pub(crate) fn run_sealed_disk(vm: &mut Vm, image: &Path) -> Result<usize, String
         return Ok(0);
     }
     wait_first_boot_done(vm)?;
-    let steps: [Step; 15] = [
+    let steps: Vec<Step> = vec![
         (
             "the data disk is LUKS2, sealed to the TPM, with a recovery key",
             sealed_with_recovery_key,
@@ -504,6 +504,14 @@ pub(crate) fn run_sealed_disk(vm: &mut Vm, image: &Path) -> Result<usize, String
             changed_boot_file_stays_locked,
         ),
         (
+            "a stolen machine with an attacker's kernel cannot replay its way in",
+            stolen_machine_replay_refused,
+        ),
+        (
+            "KNOWN GAP: an edited system partition still runs with the disk open",
+            known_gap_system_partition_edit_opens,
+        ),
+        (
             "a sealed disk with its TPM gone stays locked and says why",
             missing_tpm_stays_locked,
         ),
@@ -519,12 +527,20 @@ pub(crate) fn run_sealed_disk(vm: &mut Vm, image: &Path) -> Result<usize, String
     let failed = run_steps(vm, image, &steps);
     let started = Instant::now();
     let pin_name = "a PIN is asked at every start, and a wrong one refused";
-    Ok(failed
+    let mut failed = failed
         + usize::from(!report(
             pin_name,
             &pin_is_asked_at_every_start(image),
             started,
-        )))
+        ));
+    let started = Instant::now();
+    let cut = "a power cut during PIN setup recovers with the saved key";
+    failed += usize::from(!report(
+        cut,
+        &power_cut_during_pin_setup_recovers(image),
+        started,
+    ));
+    Ok(failed)
 }
 
 /// Turning off from the no-TPM question stores nothing.
@@ -555,7 +571,31 @@ fn no_tpm_records_the_choice(image: &Path) -> Result<(), String> {
     let record = vm.run(&format!("cat {RECORD}"))?;
     ensure(record == "unencrypted-chosen", record)?;
     vm.reboot()?;
-    wait_open(&mut vm)
+    wait_open(&mut vm)?;
+    if tpm_usable() {
+        tpm_fitted_later(&mut vm)?;
+    }
+    Ok(())
+}
+
+/// The recipe in OS-KEYS.md for a TPM fitted later: no empty key left, and the disk opens by itself.
+fn tpm_fitted_later(vm: &mut Vm) -> Result<(), String> {
+    vm.shut_down()?;
+    let disk = vm.disk();
+    vm.boot(&disk, Some(OWN_TPM))?;
+    wait_open(vm)?;
+    let done = vm.run(&format!(
+        "umask 077; systemd-cryptenroll --unlock-key-file=/dev/null --recovery-key {PARTITION} 2>/dev/null | tr -d '[:space:]' > /run/k; \
+         systemd-cryptenroll --unlock-key-file=/run/k --tpm2-device=auto --tpm2-pcrs=4+7 --wipe-slot=empty {PARTITION} >/dev/null 2>&1; echo $?; rm -f /run/k"
+    ))?;
+    ensure(done == "0", format!("the recipe returned {done}"))?;
+    let slots = vm.run(&format!("systemd-cryptenroll {PARTITION}"))?;
+    ensure(
+        slots.contains("tpm2") && slots.contains("recovery") && !slots.contains("password"),
+        slots,
+    )?;
+    vm.reboot()?;
+    wait_open(vm)
 }
 
 /// Every scenario on a machine with no TPM.

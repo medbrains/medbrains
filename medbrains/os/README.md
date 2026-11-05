@@ -333,9 +333,9 @@ Task T1, disk half. Every key, what happens if it is lost or stolen, and the fai
 | Disk copied to another machine, board or TPM changed, or the signed boot file changed | Asks for the recovery key, and after 20 seconds says in plain words why. `/var` stays locked and no service starts |
 | First boot, no TPM | Stops. Nothing is stored until someone types `OFF` or `STORE UNENCRYPTED`. The choice is recorded in `/var/lib/medbrains/config/disk-protection`. The top bar then says "This disk is not encrypted" |
 
-**What this does not do yet:** stop someone who can change the system partition and boot it in this machine, since
-nothing verifies that partition. Secure Boot and verity are the rest of T1. A release image is not signed until a
-release key exists, so its boot file is not bound either.
+**What this protects:** a disk that has left the machine. **What it does not, without a PIN:** a stolen machine, from someone
+who changes its system partition and boots it, since nothing verifies that partition. A PIN closes that today; Secure Boot and
+verity are the rest of T1. Any new boot file needs a re-seal until then.
 
 ## What is in D1, and what is not
 

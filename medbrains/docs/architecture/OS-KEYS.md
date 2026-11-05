@@ -10,17 +10,18 @@ a design: root, machine and licence keys are plan T2. A key not listed here is a
 The data partition is `/var`: the database, secrets, files, logs. It is LUKS2, created on first boot, so no
 plaintext copy of it ever exists (`os/mkosi.extra/usr/lib/medbrains/disk-setup`).
 
-The seal is **PCR 7, and PCR 11 by signature when the image is signed**:
+The seal is **PCR 4 and 7, and PCR 11 by signature when the image is signed**. **In one line: this protects a disk that
+has left the machine. Without a PIN it does not protect a stolen machine from someone able to change its disk.**
 
 | Attack | Result today | Evidence |
 |---|---|---|
-| Disk removed or copied, read elsewhere | **Stopped.** Marker and JWT key absent from the raw disk | `raw_disk_shows_nothing` |
-| Copy booted on another machine | **Stopped** without the recovery key | `copy_stays_locked` |
-| Boot file (UKI) changed | **Stopped if the image is signed:** PCR 11 no longer matches any signature. **Not stopped on an unsigned image**, and no release key exists yet | `changed_boot_file_stays_locked` |
-| Kernel command line edited at the boot menu | **Menu and editor off**, tested by file only; **not sealed.** Firmware's own shell can still pass one, with no Secure Boot. Sealing to PCR 12 was tried and dropped: it changed between normal cold boots, so a machine stopped opening itself | `boot_editor_off`, anomaly in DECISIONS |
+| Disk removed or copied, read or booted elsewhere | **Stopped** without the recovery key. Marker and JWT key absent from the raw disk | `raw_disk_shows_nothing`, `copy_stays_locked` |
+| Stolen machine booted from an attacker's own system | **Stopped by PCR 4, tested.** Before that the disk **opened**: with Secure Boot off PCR 7 is the same under any system, and PCR 11 can be extended by hand to the published values and the signature replayed. Measured on swtpm | `stolen_machine_replay_refused`, with a control that still opens without PCR 4 |
+| Boot file (UKI) changed | **Stopped:** PCR 4 and PCR 11 both change | `changed_boot_file_stays_locked` |
+| Kernel command line edited | **Menu and editor off**, tested by file only; **not sealed:** PCR 12 changed between normal cold boots, so a machine stopped opening itself. Starting a firmware shell first changes PCR 4 | `boot_editor_off`, anomaly in DECISIONS |
 | Passive sniffing of the TPM bus | **Stopped.** Unseal runs in a salted HMAC session with response encryption, on by default | Below |
 | Active interposer on the TPM bus, no PIN | **Not stopped.** systemd says so in its source. A PIN closes it | Below |
-| System partition edited, then booted in this machine | **Not stopped.** It is writable and unverified, and nothing measures it: the TPM opens the disk for whatever runs. Needs verity | Plan T1 |
+| System partition edited, then booted in this machine | **Not stopped without a PIN, tested.** Same loader and boot file, so PCR 4 matches and the TPM opens the disk for whatever runs. The same goes for those files copied to a USB stick with another system partition (reasoned, not run). **Only verity and Secure Boot close this. A PIN does, today** | `known_gap_system_partition_edit_opens` |
 | Cold boot, or DMA while running | Volume key is in kernel memory. IOMMU settings help against DMA; nothing here stops cold boot | Below |
 
 ### Sniffing the TPM, and the PIN trade-off
@@ -36,7 +37,8 @@ encrypted session, and just forward everything to the real TPM". Binding the ses
 | | No PIN (default) | PIN at every start |
 |---|---|---|
 | Power cut | **Comes back by itself** | Waits for a person at the screen, however long that is |
-| Active interposer, someone with the machine and tools | Can get the key | Needs the PIN too; wrong guesses hit the TPM's lockout |
+| Stolen machine, edited system partition | **Opens** | Needs the PIN |
+| Active interposer on the TPM bus | Can get the key | Needs the PIN too; wrong guesses hit the TPM's lockout |
 
 Setup asks once, at first boot; Enter means no PIN. Recorded as `encrypted-tpm2` or `encrypted-tpm2-pin`. A ward
 with no system until someone types a PIN carries its own patient risk, so no PIN is the default.
@@ -47,14 +49,14 @@ with no system until someone types a PIN carries its own patient risk, so no PIN
 
 `build.sh` signs the boot file's expected PCR 11 values with `OS_PCR_KEY`; mkosi and `systemd-measure` embed the
 signature, and the stub puts it in `/run/systemd`. `disk-setup` seals to that public key when it is present.
-**A changed boot file does not open the disk.** A new boot file signed by the same key should, which is what A/B
-updates need: by design, **not tested**, since no update path exists yet.
+**PCR 11 alone protects nothing with Secure Boot off**, as the attack above shows. PCR 4 is what stops it, and PCR 4 holds
+the boot file's own hash, so **any new boot file needs a re-seal until Secure Boot lands**; the A/B update path must plan for it.
 
-- **Key today:** debug images make a throwaway. **No release key exists, so a release image is not signed** and
-  falls back to PCR 7 alone. Holding the key is plan T2, offline.
-- **Shown on swtpm:** the policy is enforced, a changed boot file is refused, restoring it opens again, sessions.
-- **swtpm cannot show:** real firmware's PCR 7 across updates (one recovery-key prompt expected after a firmware
-  update), real TPM timing, any physical attack.
+- **Key today:** debug images make a throwaway. **No release key exists, so a release image is not signed.** Holding the key
+  is plan T2, offline.
+- **Shown on swtpm:** the replay is refused and its control opens, a changed boot file is refused, restoring it opens again.
+- **swtpm cannot show:** real firmware's PCR 4 and 7 across updates (one recovery-key prompt expected), real TPM timing, any
+  physical attack.
 
 ### DMA and the IOMMU
 
@@ -132,7 +134,7 @@ not about real chips; the real server was exercised on arm64's no-TPM path. Side
 
 ## Gaps, most serious first
 
-1. **System partition open.** See the top. Nothing measures it, so changed files there run with the disk open.
+1. **A stolen machine without a PIN is not protected.** See the top: nothing measures the system partition, so changed files there run with the disk open.
    Verity and Secure Boot remain open in plan T1, and no release signing key exists.
 2. **No key rotation anywhere.** JWT, HMAC and every sealing key are forever. A stolen `env` is permanent
    until each is rotated, and rotation has no code. Plan T2.
@@ -151,8 +153,6 @@ not about real chips; the real server was exercised on arm64's no-TPM path. Side
 8. **No passphrase on a machine with no TPM.** It can only stop or go unencrypted. Owner decision.
 9. **On-demand TLS with no `ask`** issues for any name asked, 10 a minute, slowly filling the disk under attack.
     The 20-year loopback certificate has no renewal, though only this machine can reach it.
-11. **Discard is off** on the encrypted disk: better secrecy of free space, more flash wear, not measured on flash.
-10. **Setup prompts are text, not the status page,** and replacing a lost recovery key has no screen. Plan T2.
 
 ## How to re-seal or replace a key
 
@@ -164,14 +164,16 @@ PART=/dev/disk/by-partlabel/medbrains-data
 systemd-cryptenroll "$PART"                                  # list key slots
 # After a board or TPM change. Two steps inside: in one, cryptenroll finds the same policy enrolled and does
 # nothing, though that TPM has gone. Tested: reseal_to_new_tpm.
-/usr/lib/medbrains/disk-setup reseal <file with the recovery key>
+/usr/lib/medbrains/disk-setup reseal <file with the recovery key>   # checks the key first; drops any PIN
 # New recovery key; prints it once.
 systemd-cryptenroll --unlock-tpm2-device=auto --wipe-slot=recovery --recovery-key "$PART"
-# Late TPM on a disk set up unencrypted. The volume key stays the same: old copies stay open.
-systemd-cryptenroll --unlock-key-file=/dev/null --tpm2-device=auto --tpm2-pcrs=7 --wipe-slot=empty "$PART"
+# Late TPM on a disk set up unencrypted: first a recovery key, which prints once. Then seal, and remove the empty
+# key. Then write encrypted-tpm2 into the record. The volume key stays the same: old copies stay open.
+systemd-cryptenroll --unlock-key-file=/dev/null --recovery-key "$PART"
+systemd-cryptenroll --unlock-key-file=<file with that key> --tpm2-device=auto --tpm2-pcrs=4+7 --wipe-slot=empty "$PART"
 ```
 
-Enabling Secure Boot later changes PCR 7: the disk then asks for the recovery key once, and needs re-sealing.
+A new boot file, or Secure Boot turned on, changes PCR 4 or 7: the disk asks for the recovery key once, and needs re-sealing.
 To test a typed key, use `cryptsetup --disable-external-tokens`: otherwise the TPM token opens it and any key seems to work.
 `systemd-pcrlock` is disabled: it writes a policy into `/var` that cryptenroll then picks up by itself, sealing the
 disk to a file on that disk. A test found this: the disk would not open.
@@ -182,18 +184,16 @@ disk to a file on that disk. A test found this: the disk would not open.
 |---|---|---|---|---|
 | No TPM at first boot | Cannot seal | `/dev/tpmrm0` absent after udev settles | Stops and asks: turn off, or type `STORE UNENCRYPTED`. Nothing stored until then | `no_tpm_can_turn_off` |
 | Person chooses unencrypted | Data readable from any copy | Typed choice; empty-key slot; `disk-protection` record | Stores data and records it; the top bar says "This disk is not encrypted" at every boot | `no_tpm_records_the_choice` |
-| Firmware reports a TPM, kernel has no driver | Would stall boot 180 s | `systemd.tpm2_wait=no` | Treated as no TPM, as above; measured on arm64 before and after | manual, arm64 |
-| Boot file changed, signed image | PCR 11 does not match the signature | Unseal fails | Same screen as a copied disk; restoring the file opens it | `changed_boot_file_stays_locked` |
-| PIN wrong | | TPM | Asks again; too many lock it, and the recovery key still works | `pin_is_asked_at_every_start` |
-| Power cut while setting a PIN | Seal may need a PIN nobody confirmed | No `disk-protection` record | Next boot shows a new key; recovery key works if the PIN is unknown | Reasoned, not injected: gap |
+| Boot file changed | PCR 4 and 11 differ | Unseal fails | Same screen as a copied disk; restoring the file opens it | `changed_boot_file_stays_locked` |
+| PIN wrong or forgotten | | TPM | Asks again. The recovery key works at the same prompt, also after 34 wrong PINs | `recovery_key_opens_a_pin_machine` |
+| Power cut after the key is saved and before the record | The seal may need a PIN nobody can vouch for | Marker with no record | Disk asks; the saved recovery key opens it; setup asks for it again, re-seals, records what the seal is | `power_cut_during_pin_setup_recovers` |
 | Disk copied to another machine | TPM refuses | Unseal fails | Prompt on the screen, with a notice after 20 s. `/var` not mounted; no service starts | `copy_stays_locked` |
-| Wrong recovery key | | LUKS | Asks again, forever (`tries=0`) | `wrong_key_refused` |
 | Recovery key lost **and** TPM gone | **Data lost** | Nothing opens | Stays at the prompt. Restore from backup; no backup exists until D2 | none: by design |
 | Power cut during partition creation | Half-written | repart writes the table last | Next boot starts over | Reasoned from repart's design, **not injected**: timing not reliably reachable. F3 |
 | Power cut with the key on screen | Key may be unsaved | No `disk-protection` record | Next boot wipes the slot and shows a new key; old one stops working | `power_cut_replaces_unconfirmed_key` |
-| Recovery key cannot be made | No way back if the TPM fails | Shape check on the output | Message; `medbrains-firstboot` does not run, so no secret or patient data is written | Not injected: gap |
+| Key slots unreadable, or a recovery key cannot be made | No way back if the TPM fails | Exit status, and an empty-key slot required before recording unencrypted | Plain message stays on screen; no secrets written; the screen unit does not start | `failed_disk_step_stops_first_boot_visibly`, `os/tests/disk-setup.sh` |
 | Partition creation fails, disk full or TPM error | No data disk | repart's exit status | Message and reason on screen; boot waits with no device | Not injected: gap |
-| PCR 7 changes: firmware update, Secure Boot turned on | Seal no longer matches | Unseal fails | Same as a copied disk: asks for recovery key. Re-seal, above | Same path as `copy_stays_locked`; PCR change itself not injected |
+| PCR 4 or 7 changes: firmware or boot file update, Secure Boot turned on | Seal no longer matches | Unseal fails | Same as a copied disk: asks for recovery key. Re-seal, above | Same path as `copy_stays_locked` |
 | Recovery key leaks into logs | Full data access | `grep` of journal and raw disk | Never written: stderr discarded, stdout captured in the shell only | `recovery_key_not_logged`, `raw_disk_shows_nothing` |
 
 Tests are in `crates/medbrains-os-test/src/disk.rs`.

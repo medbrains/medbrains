@@ -13,6 +13,8 @@ ln -s /var/lib/postgresql/conf /etc/postgresql
 # it, in the clear on the system partition. PostgreSQL listens on loopback only and turns TLS off when
 # the key is missing.
 rm -f /etc/ssl/private/ssl-cert-snakeoil.key /etc/ssl/certs/ssl-cert-snakeoil.pem
+# The same for chrony's command key, which nothing here uses: /etc/chrony/chrony.conf names no keyfile.
+rm -f /etc/chrony/chrony.keys
 
 # The time zone lives on the data partition, because the root will become read-only.
 ln -sfn /var/lib/medbrains-settings/localtime /etc/localtime
