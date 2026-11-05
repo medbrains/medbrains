@@ -111,6 +111,8 @@ pub(crate) const OWN_TPM: &str = "tpm-own";
 const SHUTDOWN_TIMEOUT: Duration = Duration::from_secs(90);
 const KEY_GAP: Duration = Duration::from_millis(60);
 const RECOVERY_KEY_GROUPS: usize = 8;
+/// The question can reach the screen before the USB keyboard works, and keys sent then are lost.
+pub(crate) const KEYBOARD_READY: Duration = Duration::from_secs(10);
 const RECOVERY_KEY_PROMPT: &str = "write down this disk's recovery key";
 const START_QUESTION: &str = "how should this machine start";
 /// What setup says on a machine with no TPM.
@@ -213,6 +215,7 @@ impl Vm {
         if !tpm_usable() {
             let mut vm = Self::start_waiting(image, None)?;
             vm.wait_for_screen(NO_TPM_QUESTION, scaled(BOOT_TIMEOUT))?;
+            sleep(KEYBOARD_READY);
             vm.type_text("STORE UNENCRYPTED\n")?;
             return Ok(vm);
         }

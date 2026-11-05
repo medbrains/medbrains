@@ -82,7 +82,7 @@ dd if=/dev/urandom of=/dev/disk/by-partlabel/medbrains-data bs=1M count=32 conv=
 ```
 
 Then clear the TPM in firmware, destroy the recovery key on paper, and handle any **backups** and copies of the
-env file separately. **Not yet proven:** `destroying_the_key_wipes_the_disk` has not passed, and one scratch attempt was inconclusive.
+env file separately. Tested: `destroying_the_key_wipes_the_disk`, on a boot with no TPM: the recovery key opens before and nothing after.
 **Flash limit:** a drive may keep remapped old sectors with an old header. Only someone holding a matching recovery
 key or old TPM seal could use them. Add the drive's own secure erase, or physically destroy it, for high-risk
 disposal. No screen for this yet.
@@ -128,7 +128,7 @@ disposal. No screen for this yet.
 | Chrony NTS | chrony 4.6.1, GnuTLS 3.8.9, measured. `chronyc -N authdata`: three NTS sources, AEAD 30 (AES-128-GCM-SIV) and 15 (AES-SIV-CMAC-256) | Works. **Post-quantum NTS-KE unverified.** Serving the LAN is plain NTP, unauthenticated |
 
 Every TPM result here came from swtpm on x86-64 under emulation, with a stand-in server: evidence about the logic,
-not about real chips. Side channels and firmware TPMs were not checked.
+not about real chips; the real server was exercised on arm64's no-TPM path. Side channels and firmware TPMs were not checked.
 
 ## Gaps, most serious first
 
@@ -172,6 +172,7 @@ systemd-cryptenroll --unlock-key-file=/dev/null --tpm2-device=auto --tpm2-pcrs=7
 ```
 
 Enabling Secure Boot later changes PCR 7: the disk then asks for the recovery key once, and needs re-sealing.
+To test a typed key, use `cryptsetup --disable-external-tokens`: otherwise the TPM token opens it and any key seems to work.
 `systemd-pcrlock` is disabled: it writes a policy into `/var` that cryptenroll then picks up by itself, sealing the
 disk to a file on that disk. A test found this: the disk would not open.
 
@@ -195,4 +196,4 @@ disk to a file on that disk. A test found this: the disk would not open.
 | PCR 7 changes: firmware update, Secure Boot turned on | Seal no longer matches | Unseal fails | Same as a copied disk: asks for recovery key. Re-seal, above | Same path as `copy_stays_locked`; PCR change itself not injected |
 | Recovery key leaks into logs | Full data access | `grep` of journal and raw disk | Never written: stderr discarded, stdout captured in the shell only | `recovery_key_not_logged`, `raw_disk_shows_nothing` |
 
-Tests are in `crates/medbrains-os-test/src/disk.rs`. **Not yet passed in a full run:** `missing_tpm_stays_locked`, `destroying_the_key_wipes_the_disk`, `power_cut_replaces_unconfirmed_key`; `changed_boot_file_stays_locked` passed by hand only. A TPM removed or dead takes the copied-disk row.
+Tests are in `crates/medbrains-os-test/src/disk.rs`.

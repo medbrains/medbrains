@@ -7,7 +7,7 @@ use std::process::Command;
 use std::thread::sleep;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
-use crate::vm::{NO_TPM_QUESTION, OWN_TPM, Vm, scaled, tpm_usable};
+use crate::vm::{KEYBOARD_READY, NO_TPM_QUESTION, OWN_TPM, Vm, scaled, tpm_usable};
 
 const PARTITION: &str = "/dev/disk/by-partlabel/medbrains-data";
 const MAPPED: &str = "/dev/mapper/medbrains-data";
@@ -405,6 +405,7 @@ pub(crate) fn run_sealed_disk(vm: &mut Vm, image: &Path) -> Result<usize, String
 fn no_tpm_can_turn_off(image: &Path) -> Result<(), String> {
     let mut vm = Vm::start_waiting(image, None)?;
     vm.wait_for_screen(NO_TPM_QUESTION, scaled(SCREEN_LIMIT))?;
+    sleep(KEYBOARD_READY);
     let partition = vm.run(&format!("test -e {PARTITION}; echo $?"))?;
     ensure(
         partition == "1",
@@ -418,6 +419,7 @@ fn no_tpm_can_turn_off(image: &Path) -> Result<(), String> {
 fn no_tpm_records_the_choice(image: &Path) -> Result<(), String> {
     let mut vm = Vm::start_waiting(image, None)?;
     vm.wait_for_screen(NO_TPM_QUESTION, scaled(SCREEN_LIMIT))?;
+    sleep(KEYBOARD_READY);
     vm.type_text("yes\n")?;
     sleep(SETTLE);
     let partition = vm.run(&format!("test -e {PARTITION}; echo $?"))?;
