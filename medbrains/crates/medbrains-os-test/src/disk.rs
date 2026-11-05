@@ -262,8 +262,8 @@ fn stolen_machine_replay_refused(vm: &mut Vm, image: &Path) -> Result<(), String
     let control = vm.run_for(
         &format!(
             "umask 077; printf %s {key} > /run/k; systemd-cryptenroll --unlock-key-file=/run/k --tpm2-device=auto --tpm2-pcrs=7 \
-             --tpm2-public-key=/run/pcr-public-key.pem --tpm2-public-key-pcrs=11 --tpm2-signature=/run/pcr-signature.json {PARTITION} >/dev/null 2>&1; rm -f /run/k; \
-             systemd-cryptsetup attach control {PARTITION} none luks,tpm2-device=auto,tpm2-signature=/run/pcr-signature.json,headless=yes,tries=1 2>/dev/null; echo control=$?"
+             --tpm2-public-key=/run/pcr-public-key.pem --tpm2-public-key-pcrs=11 --tpm2-signature=/run/pcr-signature.json --wipe-slot=tpm2 {PARTITION} 2>&1 | tail -2; rm -f /run/k; \
+             systemd-cryptsetup attach control {PARTITION} none luks,tpm2-device=auto,tpm2-signature=/run/pcr-signature.json,headless=yes,tries=1 2>&1 | tail -2; echo control=${{PIPESTATUS[0]}}"
         ),
         limit,
     )?;
