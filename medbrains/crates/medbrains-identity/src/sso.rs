@@ -26,11 +26,8 @@ const SSO_SECRET_KEY: &str = "MEDBRAINS_OAUTH_TOKEN_KEY";
 const DEV_SSO_SECRET_KEY: &[u8] = b"medbrains-dev-oauth-token-key-32";
 const SSO_SECRET_CONTEXT: &[u8] = b"sso-client-secret";
 
-async fn secret_key(state: &AppState) -> Vec<u8> {
-    match state.secret_resolver.get(SSO_SECRET_KEY).await {
-        Ok(value) if value.len() >= 32 => value.into_bytes(),
-        _ => DEV_SSO_SECRET_KEY.to_vec(),
-    }
+async fn secret_key(state: &AppState) -> Result<Vec<u8>, AppError> {
+    medbrains_core::secrets::sealing::sealing_key(state.secret_resolver.as_ref(), SSO_SECRET_KEY, DEV_SSO_SECRET_KEY).await.map_err(AppError::from)
 }
 
 fn encrypt_secret(key: &[u8], secret: &str) -> Result<String, AppError> {
@@ -133,7 +130,7 @@ pub async fn seed_from_config(state: &AppState) -> Result<(), AppError> {
         serde_json::from_str(&raw).map_err(|e| AppError::Internal(format!("{path} parse: {e}")))?;
 
     let secret_enc = match cfg.client_secret.as_deref().filter(|s| !s.is_empty()) {
-        Some(s) => Some(encrypt_secret(&secret_key(state).await, s)?),
+        Some(s) => Some(encrypt_secret(&secret_key(state).await?, s)?),
         None => None,
     };
     // Button label: configured value, else best-effort org name from Entra Graph, else "SSO".
@@ -355,7 +352,7 @@ pub async fn create_provider(
 
     let secret_enc = match req.client_secret.as_deref().filter(|s| !s.is_empty()) {
         Some(secret) => {
-            let key = secret_key(&state).await;
+            let key = secret_key(&state).await?;
             Some(encrypt_secret(&key, secret)?)
         }
         None => None,
@@ -405,7 +402,7 @@ pub async fn update_provider(
 
     let new_secret_enc = match req.client_secret.as_deref().filter(|s| !s.is_empty()) {
         Some(secret) => {
-            let key = secret_key(&state).await;
+            let key = secret_key(&state).await?;
             Some(encrypt_secret(&key, secret)?)
         }
         None => None,

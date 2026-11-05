@@ -168,7 +168,7 @@ impl Desktop {
         }
         let attention = !state.machine.failed.is_empty() || state.machine.system == "degraded";
         self.greeting_status
-            .set_label(&ui::status_sentence(&state.machine, state.main_ready));
+            .set_label(&ui::status_sentence(&state.machine, state.main_ready, &state.disk));
         ui::set_warning(&self.greeting_status, attention);
     }
 

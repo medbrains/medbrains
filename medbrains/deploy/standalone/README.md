@@ -88,7 +88,7 @@ curl -I https://hims.amh.org.in                        # 200 once ACME completes
 | Tail local ICD-API | `sudo docker logs -f medbrains-icd-api` |
 | Backup now (sealed, shipped, recorded) | `sudo systemctl start medbrains-pg-backup.service && journalctl -u medbrains-pg-backup -n 20` |
 | Is the last backup fresh? | Admin → Settings → System health, or `sudo systemctl start medbrains-host-check.service` |
-| Update binary | Replace `/usr/local/bin/medbrains-server` and `systemctl restart medbrains-server.service` |
+| Update binary | Run `install.sh`. Replacing `/usr/local/bin/medbrains-server` alone now refuses to start on a host without the event token, signature and OAuth keys, which `install.sh` adds to `/etc/medbrains/env`. Values sealed under the old development keys then stop opening: doctors re-enrol signing keys and accounts reconnect |
 | Update SPA | `rsync apps/web/dist/ /var/www/medbrains/` (no restart needed) |
 
 ## Encrypted off-site backups

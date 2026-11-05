@@ -50,7 +50,7 @@ pub async fn run(
     secrets: &dyn SecretResolver,
     pools: &Pools<'_>,
 ) -> Vec<Finding> {
-    let production = config.environment == "production";
+    let production = is_production_mode(config);
     let mut found = env_checks(config, production);
     found.extend(crate::preflight_ai::checks());
     found.extend(crate::preflight_error_tracking::checks(production));
@@ -68,10 +68,15 @@ pub async fn run(
     found
 }
 
-/// Production refuses to serve when any check failed.
+/// True in every mode but development, so a mistyped mode keeps every protection on.
+fn is_production_mode(config: &AppConfig) -> bool {
+    config.environment != medbrains_core::secrets::sealing::DEVELOPMENT
+}
+
+/// Anything but development refuses to serve when any check failed.
 #[must_use]
 pub fn blocks_boot(config: &AppConfig, found: &[Finding]) -> bool {
-    config.environment == "production" && found.iter().any(|f| f.level == Level::Fail)
+    is_production_mode(config) && found.iter().any(|f| f.level == Level::Fail)
 }
 
 /// One log line per finding; failures and warnings at their own level.
@@ -122,7 +127,7 @@ fn env_checks(config: &AppConfig, production: bool) -> Vec<Finding> {
         Finding::fail(
             "env.mode",
             format!(
-                "MEDBRAINS_ENV={} is not a known mode, so every production protection is off",
+                "MEDBRAINS_ENV={} is not a known mode, so the server treats it as production and refuses to start",
                 config.environment
             ),
             "Set MEDBRAINS_ENV to production or development",

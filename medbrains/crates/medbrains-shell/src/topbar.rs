@@ -59,7 +59,7 @@ fn chip(icon: &gtk::Image, words: &gtk::Label) -> gtk::Box {
 
 /// The warning for the data disk, if it needs one. Anything not known to be encrypted gets one, so
 /// a record nobody could read does not pass for a protected disk.
-fn disk_warning(disk: &str) -> Option<&'static str> {
+pub(crate) fn disk_warning(disk: &str) -> Option<&'static str> {
     match disk {
         "encrypted-tpm2" | "encrypted-tpm2-pin" => None,
         "unencrypted-chosen" => Some("This disk is not encrypted"),

@@ -114,6 +114,8 @@ const RECOVERY_KEY_GROUPS: usize = 8;
 /// The question can reach the screen before the USB keyboard works, and keys sent then are lost.
 pub(crate) const KEYBOARD_READY: Duration = Duration::from_secs(10);
 const RECOVERY_KEY_PROMPT: &str = "write down this disk's recovery key";
+const GROUP_QUESTION: &str = "type group ";
+const BARE_KERNEL_LINE: &str = "root=PARTLABEL=medbrains-root-a rw luks.crypttab=no quiet loglevel=1 audit=0 console=tty1 console=ttyS0 systemd.mask=serial-getty@ttyS0.service";
 const START_QUESTION: &str = "how should this machine start";
 /// What setup says on a machine with no TPM.
 pub(crate) const NO_TPM_QUESTION: &str = "no security chip";
@@ -143,9 +145,18 @@ pub(crate) fn find_recovery_key(screen: &str) -> Option<String> {
     })
 }
 
-/// The last group of a recovery key, which the setup screen asks to have typed back.
-fn last_group(key: &str) -> &str {
-    key.rsplit('-').next().unwrap_or(key)
+/// The answer to the screen's question: the group of `key` it asks for, counting from one.
+fn asked_group(screen: &str, key: &str) -> Option<String> {
+    let (_, rest) = screen.split_once(GROUP_QUESTION)?;
+    let number: usize = rest
+        .split_whitespace()
+        .next()?
+        .trim_end_matches(',')
+        .parse()
+        .ok()?;
+    key.split('-')
+        .nth(number.checked_sub(1)?)
+        .map(str::to_owned)
 }
 
 /// QEMU's name for the key that types `c`, if it has one.
@@ -250,7 +261,7 @@ impl Vm {
         if !made.success() {
             return Err("could not create the overlay".to_owned());
         }
-        let qemu = spawn_qemu(&dir, &disk, &ports, tpm)?;
+        let qemu = spawn_qemu(&dir, &disk, &ports, tpm, &[])?;
         let serial = connect_socket(&dir.join("serial.sock"))?;
         let monitor = connect_socket(&dir.join("monitor.sock"))?;
         monitor
@@ -309,7 +320,7 @@ impl Vm {
 
     /// Powers on again from `disk` with the TPM in folder `tpm`; the machine must already be off.
     pub(crate) fn boot(&mut self, disk: &Path, tpm: Option<&str>) -> Result<(), String> {
-        self.qemu = spawn_qemu(&self.dir, disk, &self.ports, tpm)?;
+        self.qemu = spawn_qemu(&self.dir, disk, &self.ports, tpm, &[])?;
         self.serial = connect_socket(&self.dir.join("serial.sock"))?;
         self.monitor = connect_socket(&self.dir.join("monitor.sock"))?;
         self.monitor
@@ -397,10 +408,42 @@ impl Vm {
     /// Reads the recovery key off the screen and types back its last group, as a person does.
     pub(crate) fn confirm_recovery_key(&mut self) -> Result<(), String> {
         let key = self.read_recovery_key()?;
-        self.type_text(&format!("{}\n", last_group(&key)))?;
+        self.type_text("\n")?;
+        let shown = self.wait_for_screen(GROUP_QUESTION, scaled(COMMAND_TIMEOUT))?;
+        if shown.contains(&key) {
+            return Err("the key stayed on the screen while being checked".to_owned());
+        }
+        let answer =
+            asked_group(&shown, &key).ok_or_else(|| "no group was asked for".to_owned())?;
+        self.type_text(&format!("{answer}\n"))?;
         self.recovery_key = key;
         self.wait_for_screen(START_QUESTION, scaled(COMMAND_TIMEOUT))?;
         Ok(())
+    }
+
+    /// Power on from `disk` the way an attacker's own kernel would: from outside the disk, with no
+    /// boot file and so no stub to measure anything. The machine must already be off.
+    pub(crate) fn boot_bare_kernel(
+        &mut self,
+        disk: &Path,
+        tpm: Option<&str>,
+        image: &Path,
+    ) -> Result<(), String> {
+        let extra = vec![
+            "-kernel".to_owned(),
+            image.with_extension("vmlinuz").display().to_string(),
+            "-initrd".to_owned(),
+            image.with_extension("initrd").display().to_string(),
+            "-append".to_owned(),
+            BARE_KERNEL_LINE.to_owned(),
+        ];
+        self.qemu = spawn_qemu(&self.dir, disk, &self.ports, tpm, &extra)?;
+        self.serial = connect_socket(&self.dir.join("serial.sock"))?;
+        self.monitor = connect_socket(&self.dir.join("monitor.sock"))?;
+        self.monitor
+            .set_read_timeout(Some(Duration::from_millis(5)))
+            .map_err(|e| e.to_string())?;
+        self.wait_for_shell()
     }
 
     /// Waits until a command comes back through the serial shell.
@@ -548,6 +591,7 @@ fn spawn_qemu(
     disk: &Path,
     ports: &[(&str, u16)],
     tpm: Option<&str>,
+    extra: &[String],
 ) -> Result<Child, String> {
     let share = qemu_share()?;
     let tpm = tpm.map_or_else(|| Ok(Vec::new()), |name| tpm_args(dir, name))?;
@@ -596,6 +640,7 @@ fn spawn_qemu(
             dir.join("monitor.sock").display()
         ))
         .args(tpm)
+        .args(extra)
         .stdout(Stdio::null())
         .stderr(Stdio::null())
         .spawn()
@@ -638,7 +683,7 @@ fn connect_socket(path: &Path) -> Result<UnixStream, String> {
 
 #[cfg(test)]
 mod tests {
-    use super::{between_markers, find_recovery_key, last_group, qemu_key, strip_terminal_codes};
+    use super::{asked_group, between_markers, find_recovery_key, qemu_key, strip_terminal_codes};
 
     #[test]
     fn a_recovery_key_is_found_only_in_its_exact_shape() {
@@ -649,7 +694,12 @@ mod tests {
         );
         assert_eq!(find_recovery_key("a first-boot well-known aa-bb-cc"), None);
         assert_eq!(find_recovery_key("AA-bb-cc-dd-ee-ff-gg-hh"), None);
-        assert_eq!(last_group(key), "hh");
+        assert_eq!(
+            asked_group("type group 3, counting", key).as_deref(),
+            Some("cc")
+        );
+        assert_eq!(asked_group("type group 9, counting", key), None);
+        assert_eq!(asked_group("type group 0, counting", key), None);
     }
 
     #[test]

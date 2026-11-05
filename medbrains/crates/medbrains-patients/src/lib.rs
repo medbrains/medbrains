@@ -1439,7 +1439,7 @@ pub async fn create_patient(
     let abha_number = body.abha_number.as_deref().and_then(normalize_abha_number);
     let aadhaar_fingerprint = match aadhaar_digits.as_deref() {
         Some(digits) => Some(identifier_key::keyed_fingerprint(
-            &identifier_key::identifier_key(&state).await,
+            &identifier_key::identifier_key(&state).await?,
             claims.tenant_id,
             "aadhaar",
             digits,
@@ -1573,7 +1573,7 @@ pub async fn create_patient(
     if let Some(digits) = aadhaar_digits.as_deref() {
         identifier_key::store_group_fingerprint(
             &mut tx,
-            &identifier_key::identifier_key(&state).await,
+            &identifier_key::identifier_key(&state).await?,
             (claims.tenant_id, patient.id),
             digits,
         )

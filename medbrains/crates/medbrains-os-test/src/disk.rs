@@ -25,6 +25,9 @@ const FIRST_BOOT_DONE: &str = "/var/lib/medbrains/config/.firstboot-done";
 const SCREEN_LIMIT: Duration = Duration::from_secs(120);
 const OPEN_LIMIT: Duration = Duration::from_secs(60);
 const SETTLE: Duration = Duration::from_secs(8);
+const REPLAY_LIMIT: Duration = Duration::from_secs(120);
+/// More tries than a TPM's dictionary attack protection allows by default.
+const WRONG_PINS_TO_LOCK: u32 = 34;
 
 type Step = (&'static str, fn(&mut Vm, &Path) -> Result<(), String>);
 type NewMachineStep = (&'static str, fn(&Path) -> Result<(), String>);
@@ -233,6 +236,58 @@ fn changed_boot_file_stays_locked(vm: &mut Vm, _: &Path) -> Result<(), String> {
     wait_open(vm)
 }
 
+/// The attack in OS-KEYS.md: the stolen machine, its own TPM, an attacker's kernel with no boot file,
+/// and PCR 11 extended by hand to the published values with the signature replayed. It must fail, and
+/// the control proves why: the same replay opens a slot that leaves out PCR 4.
+fn stolen_machine_replay_refused(vm: &mut Vm, image: &Path) -> Result<(), String> {
+    vm.shut_down()?;
+    let copy = vm.scratch_path("stolen.qcow2");
+    std::fs::copy(vm.disk(), &copy).map_err(|e| e.to_string())?;
+    vm.boot_bare_kernel(&copy, Some(OWN_TPM), image)?;
+    vm.run("mkdir -p /mnt/esp; mount -o ro /dev/disk/by-partlabel/esp /mnt/esp")?;
+    let limit = scaled(REPLAY_LIMIT);
+    let attack = vm.run_for(
+        &format!(
+            "/usr/lib/medbrains/pcr11-replay /mnt/esp/EFI/Linux/*.efi {PARTITION} 2>&1 | tail -6"
+        ),
+        limit,
+    )?;
+    ensure(
+        attack.contains("REFUSED"),
+        format!("the replay opened the disk: {attack}"),
+    )?;
+    let key = vm.recovery_key.clone();
+    let control = vm.run_for(
+        &format!(
+            "umask 077; printf %s {key} > /run/k; systemd-cryptenroll --unlock-key-file=/run/k --tpm2-device=auto --tpm2-pcrs=7 \
+             --tpm2-public-key=/run/pcr-public-key.pem --tpm2-public-key-pcrs=11 --tpm2-signature=/run/pcr-signature.json {PARTITION} >/dev/null 2>&1; rm -f /run/k; \
+             systemd-cryptsetup attach control {PARTITION} none luks,tpm2-device=auto,tpm2-signature=/run/pcr-signature.json,headless=yes,tries=1 2>/dev/null; echo control=$?"
+        ),
+        limit,
+    )?;
+    ensure(
+        control.contains("control=0"),
+        format!("the replay itself is broken, so REFUSED proves nothing: {control}"),
+    )?;
+    vm.cut_power()?;
+    let disk = vm.disk();
+    vm.boot(&disk, Some(OWN_TPM))?;
+    wait_open(vm)
+}
+
+/// Known gap, kept visible: a change to the unverified system partition still runs with the disk open.
+/// When verity lands this must start failing, and be turned around.
+fn known_gap_system_partition_edit_opens(vm: &mut Vm, _: &Path) -> Result<(), String> {
+    vm.run("touch /etc/os-test-attacker-file; sync")?;
+    vm.reboot()?;
+    wait_open(vm)?;
+    let kept = vm.run("test -e /etc/os-test-attacker-file; echo $?")?;
+    ensure(
+        kept == "0",
+        "the change did not survive, so verity may have landed: turn this test around",
+    )
+}
+
 /// A sealed disk whose TPM has gone stays locked and says why.
 fn missing_tpm_stays_locked(vm: &mut Vm, _: &Path) -> Result<(), String> {
     vm.shut_down()?;
@@ -287,7 +342,78 @@ fn pin_is_asked_at_every_start(image: &Path) -> Result<(), String> {
     sleep(scaled(SETTLE));
     ensure(!data_open(&mut vm)?, "opened with the wrong PIN")?;
     vm.type_text(&format!("{pin}\n"))?;
+    wait_open(&mut vm)?;
+    recovery_key_opens_a_pin_machine(&mut vm)
+}
+
+/// The recovery key still opens a machine with a PIN, typed at the same prompt, before and after
+/// enough wrong PINs to trip the TPM's lockout.
+fn recovery_key_opens_a_pin_machine(vm: &mut Vm) -> Result<(), String> {
+    vm.shut_down()?;
+    let disk = vm.disk();
+    vm.boot(&disk, Some(OWN_TPM))?;
+    vm.wait_for_screen(NOTICE, scaled(SCREEN_LIMIT))?;
+    let key = vm.recovery_key.clone();
+    vm.type_text(&format!("{key}\n"))?;
+    wait_open(vm)?;
+    vm.shut_down()?;
+    vm.boot(&disk, Some(OWN_TPM))?;
+    vm.wait_for_screen(NOTICE, scaled(SCREEN_LIMIT))?;
+    for _ in 0..WRONG_PINS_TO_LOCK {
+        vm.type_text("wrongpin\n")?;
+        sleep(Duration::from_secs(3));
+    }
+    ensure(!data_open(vm)?, "wrong PINs opened the disk")?;
+    vm.type_text(&format!("{key}\n"))?;
+    wait_open(vm)
+}
+
+/// A power cut after a PIN was sealed and before it was recorded: nobody can vouch for that PIN. The
+/// saved recovery key gets back in, and the record ends up saying what the seal really is.
+fn power_cut_during_pin_setup_recovers(image: &Path) -> Result<(), String> {
+    let mut vm = Vm::start_waiting(image, Some(OWN_TPM))?;
+    vm.confirm_recovery_key()?;
+    let seal = vm.run(&format!(
+        "NEWPIN=lostpin1 systemd-cryptenroll --unlock-tpm2-device=auto --tpm2-with-pin=yes --wipe-slot=tpm2 --tpm2-device=auto --tpm2-pcrs=4+7 \
+         --tpm2-public-key=/run/systemd/tpm2-pcr-public-key.pem --tpm2-public-key-pcrs=11 {PARTITION} >/dev/null 2>&1; echo $?"
+    ))?;
+    ensure(seal == "0", format!("could not set up the case: {seal}"))?;
+    vm.cut_power()?;
+    let disk = vm.disk();
+    vm.boot(&disk, Some(OWN_TPM))?;
+    vm.wait_for_screen(NOTICE, scaled(SCREEN_LIMIT))?;
+    let key = vm.recovery_key.clone();
+    vm.type_text(&format!("{key}\n"))?;
+    wait_open(&mut vm)?;
+    vm.wait_for_screen("setup was interrupted", scaled(SCREEN_LIMIT))?;
+    vm.type_text(&format!("{key}\n"))?;
+    vm.wait_for_screen("how should this machine start", scaled(SCREEN_LIMIT))?;
+    vm.type_text("\n")?;
+    wait_first_boot_done(&mut vm)?;
+    let record = vm.run(&format!("cat {RECORD}"))?;
+    ensure(record == "encrypted-tpm2", record)?;
+    vm.reboot()?;
     wait_open(&mut vm)
+}
+
+/// A real failure in the last disk step: first boot stops, nothing is recorded, and the screen unit does
+/// not start and draw over the message.
+fn failed_disk_step_stops_first_boot_visibly(image: &Path) -> Result<(), String> {
+    let mut vm = Vm::start_waiting(image, None)?;
+    vm.wait_for_screen(NO_TPM_QUESTION, scaled(SCREEN_LIMIT))?;
+    sleep(KEYBOARD_READY);
+    vm.run("mount --bind /bin/false /usr/bin/systemd-cryptenroll")?;
+    vm.type_text("STORE UNENCRYPTED\n")?;
+    vm.wait_for_screen("could not finish setting up", scaled(SCREEN_LIMIT))?;
+    sleep(scaled(SETTLE));
+    vm.wait_for_screen("could not finish setting up", scaled(SETTLE))?;
+    let record = vm.run(&format!("test -e {RECORD}; echo $?"))?;
+    ensure(record == "1", "a failure recorded a protection state")?;
+    let screen = vm.run("systemctl is-active cage-console medbrains-firstboot; true")?;
+    ensure(
+        !screen.contains("\nactive") && !screen.starts_with("active"),
+        screen,
+    )
 }
 
 /// A power cut while the key is on the screen replaces that key: the old one must stop working.
@@ -342,7 +468,7 @@ pub(crate) fn run_sealed_disk(vm: &mut Vm, image: &Path) -> Result<usize, String
         return Ok(0);
     }
     wait_first_boot_done(vm)?;
-    let steps: [Step; 13] = [
+    let steps: [Step; 15] = [
         (
             "the data disk is LUKS2, sealed to the TPM, with a recovery key",
             sealed_with_recovery_key,
@@ -434,7 +560,11 @@ fn no_tpm_records_the_choice(image: &Path) -> Result<(), String> {
 
 /// Every scenario on a machine with no TPM.
 pub(crate) fn run_without_sealed_disk(image: &Path) -> usize {
-    let steps: [NewMachineStep; 2] = [
+    let steps: [NewMachineStep; 3] = [
+        (
+            "a failed disk step stops first boot, and the message stays",
+            failed_disk_step_stops_first_boot_visibly,
+        ),
         (
             "with no TPM, setup asks and can turn off, storing nothing",
             no_tpm_can_turn_off,

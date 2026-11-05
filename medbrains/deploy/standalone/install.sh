@@ -162,6 +162,9 @@ echo "==> [3/9] Writing /etc/medbrains/env (preserving existing if present)"
 # shellcheck source=./db-roles.sh
 . "$DEPLOY_DIR/db-roles.sh"
 ENV_CREATED=0
+# Keys are written into these files before their final modes are set.
+PREVIOUS_UMASK="$(umask)"
+umask 077
 if [[ ! -f /etc/medbrains/env ]]; then
     ENV_CREATED=1
     cp "$DEPLOY_DIR/env.example" /etc/medbrains/env
@@ -171,16 +174,17 @@ if [[ ! -f /etc/medbrains/env ]]; then
     # - JWT_PRIVATE_KEY: PKCS#8 v1 DER (jsonwebtoken EncodingKey::from_ed_der)
     # - JWT_PUBLIC_KEY:  raw 32-byte pub key (ring's Ed25519 verifier — NOT SPKI)
     # Both base64-encoded.
-    PRIV_DER="/tmp/medbrains-jwt-priv.der"
-    SPKI_DER="/tmp/medbrains-jwt-pub-spki.der"
-    PUB_RAW="/tmp/medbrains-jwt-pub-raw.bin"
+    JWT_TMP="$(mktemp -d)"
+    PRIV_DER="$JWT_TMP/priv.der"
+    SPKI_DER="$JWT_TMP/pub-spki.der"
+    PUB_RAW="$JWT_TMP/pub-raw.bin"
     openssl genpkey -algorithm Ed25519 -outform DER -out "$PRIV_DER" 2>/dev/null
     openssl pkey -inform DER -in "$PRIV_DER" -pubout -outform DER -out "$SPKI_DER" 2>/dev/null
     # SPKI for Ed25519 is 44 bytes; raw 32-byte key = last 32 bytes.
     tail -c 32 "$SPKI_DER" > "$PUB_RAW"
     PRIV="$(base64 -w0 < "$PRIV_DER")"
     PUB="$(base64 -w0 < "$PUB_RAW")"
-    rm -f "$PRIV_DER" "$SPKI_DER" "$PUB_RAW"
+    rm -rf "$JWT_TMP"
     sed -i "s|^JWT_PRIVATE_KEY=$|JWT_PRIVATE_KEY=$PRIV|" /etc/medbrains/env
     sed -i "s|^JWT_PUBLIC_KEY=$|JWT_PUBLIC_KEY=$PUB|" /etc/medbrains/env
 
@@ -205,19 +209,21 @@ else
     [[ "${#EXISTING_PUB}" -eq 60 ]] && NEEDS_ROTATE=1
     if [[ "$NEEDS_ROTATE" -eq 1 ]]; then
         echo "    JWT key format incompatible with jsonwebtoken — rotating"
-        PRIV_DER="/tmp/medbrains-jwt-priv.der"
-        SPKI_DER="/tmp/medbrains-jwt-pub-spki.der"
-        PUB_RAW="/tmp/medbrains-jwt-pub-raw.bin"
+        JWT_TMP="$(mktemp -d)"
+        PRIV_DER="$JWT_TMP/priv.der"
+        SPKI_DER="$JWT_TMP/pub-spki.der"
+        PUB_RAW="$JWT_TMP/pub-raw.bin"
         openssl genpkey -algorithm Ed25519 -outform DER -out "$PRIV_DER" 2>/dev/null
         openssl pkey -inform DER -in "$PRIV_DER" -pubout -outform DER -out "$SPKI_DER" 2>/dev/null
         tail -c 32 "$SPKI_DER" > "$PUB_RAW"
         PRIV="$(base64 -w0 < "$PRIV_DER")"
         PUB="$(base64 -w0 < "$PUB_RAW")"
-        rm -f "$PRIV_DER" "$SPKI_DER" "$PUB_RAW"
+        rm -rf "$JWT_TMP"
         sed -i "s|^JWT_PRIVATE_KEY=.*|JWT_PRIVATE_KEY=$PRIV|" /etc/medbrains/env
         sed -i "s|^JWT_PUBLIC_KEY=.*|JWT_PUBLIC_KEY=$PUB|" /etc/medbrains/env
     fi
 fi
+umask "$PREVIOUS_UMASK"
 
 env_value() {
     local key="$1"

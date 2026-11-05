@@ -75,11 +75,12 @@ if [[ "$DEBUG" == 1 ]]; then
     install -d "$EXTRA/usr/lib/systemd/system" "$EXTRA/usr/lib/udev/rules.d"
     install -m 0644 "$HERE/debug/medbrains-debug-shell@.service" "$EXTRA/usr/lib/systemd/system/"
     install -m 0644 "$HERE/debug/90-medbrains-debug-shell.rules" "$EXTRA/usr/lib/udev/rules.d/"
+    install -m 0755 "$HERE/debug/pcr11-replay" "$EXTRA/usr/lib/medbrains/pcr11-replay"
     # The shell replaces the login prompt that systemd would put on both ports. wtype and grim let
     # a test type and take screenshots under Apple Virtualization, which has no QMP. hostapd and iw make
     # a test Wi-Fi network with mac80211_hwsim.
     DEBUG_ARGS=(--kernel-command-line "systemd.mask=serial-getty@ttyAMA0.service systemd.mask=serial-getty@hvc0.service systemd.mask=serial-getty@ttyS0.service"
-                --package strace --package cryptsetup-bin --package wtype --package grim --package hostapd --package iw)
+                --package strace --package tpm2-tools --package wtype --package grim --package hostapd --package iw)
 fi
 
 # A debug image gets a throwaway signing key, so the signed path is what gets tested. Never for release.

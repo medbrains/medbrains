@@ -4,24 +4,30 @@
 #   disk-setup prepare   before /var is mounted: create the partition if this disk has none
 #   disk-setup notice    say what the passphrase prompt means if the disk did not open by itself
 #   disk-setup finish    after /var is mounted: show the recovery key once, offer a PIN, record it
-#   disk-setup reseal KEYFILE   seal to this machine's TPM again, after a board or TPM change
+#   disk-setup reseal KEYFILE   seal to this machine's TPM again, after a board or TPM change; drops a PIN
 set -euo pipefail
 
-PART=/dev/disk/by-partlabel/medbrains-data
+PART="${MEDBRAINS_DISK_PART:-/dev/disk/by-partlabel/medbrains-data}"
 MAPPED=/dev/mapper/medbrains-data
 DEFINITIONS=/usr/lib/medbrains/repart
-RECORD=/var/lib/medbrains/config/disk-protection
-# 7: Secure Boot state. Not 12, which would catch an edited command line: it changed between normal cold
-# boots under test, so the machine would stop opening itself.
-SEAL_PCRS=7
-# Put here by the boot file when the image was signed: then 11, the boot file itself, is sealed by that
-# signature, so a changed boot file does not open the disk and a signed update does.
+CONFIG="${MEDBRAINS_DISK_CONFIG:-/var/lib/medbrains/config}"
+RECORD="$CONFIG/disk-protection"
+# Written once the person has shown they saved the recovery key. Holds no secret.
+KEY_SAVED="$CONFIG/.recovery-key-saved"
+# 4: the boot loader and boot file the firmware started. An attacker's own system cannot produce it,
+# because the firmware measures what it starts before that runs. With Secure Boot off, 7 is the same
+# under any system and proves nothing, and a new boot file needs re-sealing. A proven attack: OS-KEYS.md.
+# Not 12: it changed between normal cold boots under test, so the machine stopped opening itself.
+SEAL_PCRS=4+7
+# Put here by the boot file when the image was signed. 11 alone protects nothing without 4: an attacker's
+# system can extend it to the published values and replay this signature.
 PCR_PUBLIC_KEY=/run/systemd/tpm2-pcr-public-key.pem
 SIGNED_PCRS=11
 MIN_PIN_LENGTH=6
 SETTLE_S=30
 NOTICE_AFTER_S=20
 RECOVERY_KEY_SHAPE='^[a-z]+(-[a-z]+){7}$'
+RECOVERY_KEY_GROUPS=8
 
 # Clears the machine's screen and shows the cursor, which the kernel command line hides.
 clear_screen() { printf '\033c\033[?25h'; }
@@ -110,16 +116,29 @@ that was written down at setup. Then press Enter. Typed characters are not shown
 TEXT
 }
 
-# Makes a new recovery key and shows it until the person proves they wrote it down. Replaces any earlier
-# key: a power cut before the proof means nobody can be relied on to have saved that one.
+# Stops first boot with a plain message. The screen unit needs this step, so nothing draws over it.
+fail() {
+    echo
+    echo "MedBrains could not finish setting up the data disk: $1"
+    echo 'No patient data has been stored. Call your system administrator.'
+    exit 1
+}
+
+# Makes a new recovery key and has the person prove they wrote it down, from their copy, with the screen
+# cleared. Replaces any earlier key: until the proof, nobody can be relied on to have saved that one.
 show_recovery_key() {
-    local key last typed
+    local key typed wanted group
+    local -a groups
     # stderr holds a QR code of the key when it is a terminal, and must never reach the journal.
-    key="$(systemd-cryptenroll --unlock-tpm2-device=auto --wipe-slot=recovery --recovery-key "$PART" 2>/dev/null)"
-    [[ "$key" =~ $RECOVERY_KEY_SHAPE ]] || { echo 'No recovery key was made.'; exit 1; }
-    last="${key##*-}"
-    clear_screen
-    cat <<TEXT
+    key="$(systemd-cryptenroll --unlock-tpm2-device=auto --wipe-slot=recovery --recovery-key "$PART" 2>/dev/null)" \
+        || fail 'the recovery key could not be made.'
+    [[ "$key" =~ $RECOVERY_KEY_SHAPE ]] || fail 'the recovery key could not be made.'
+    IFS=- read -r -a groups <<<"$key"
+    # A loop with no limit, on purpose: the machine holds no data until the key is saved. Printed, not
+    # `read -p`: that writes to stderr, which is the journal.
+    while true; do
+        clear_screen
+        cat <<TEXT
 MedBrains: write down this disk's recovery key. It is shown only now.
 
     $key
@@ -129,14 +148,36 @@ chip fails. MedBrains keeps no copy and cannot get it back. Keep it with your
 hospital's important papers, away from this machine.
 
 TEXT
-    # A loop with no limit, on purpose: the machine holds no data until the key is saved. Printed, not
-    # `read -p`: that writes to stderr, which is the journal, and this holds part of the key.
-    while true; do
-        printf 'When it is written down, type its last group (%s) and press Enter: ' "$last"
-        read -r typed && [[ "$typed" == "$last" ]] && break
-        echo 'That does not match. Check what you wrote down.'
+        printf 'When it is written down, press Enter. The key will leave the screen.'
+        read -r typed
+        clear_screen
+        group=$((RANDOM % RECOVERY_KEY_GROUPS + 1))
+        wanted="${groups[group - 1]}"
+        printf 'From what you wrote down, type group %s, counting from the left, and press Enter: ' "$group"
+        read -r typed
+        [[ "$typed" == "$wanted" ]] && break
     done
     clear_screen
+}
+
+# Asks for a recovery key that was already saved, checks it, and leaves it in the file $1.
+ask_for_saved_key() {
+    local typed
+    clear_screen
+    echo 'MedBrains: setup was interrupted. Your recovery key is still the one you wrote down.'
+    while true; do
+        printf '\nType the recovery key and press Enter: '
+        read -r typed
+        printf '%s' "$typed" > "$1"
+        check_key_file "$1" && return 0
+        echo 'That key does not open this disk.'
+    done
+}
+
+# Succeeds if the file holds a key that opens this disk by itself. Without the flag, a TPM token opens
+# the disk whatever the key says.
+check_key_file() {
+    cryptsetup open --test-passphrase --disable-external-tokens --key-file="$1" "$PART" 2>/dev/null
 }
 
 # Offers a PIN at every start: stronger against someone with the machine in their hands, but it will not
@@ -148,12 +189,11 @@ ask_for_pin() {
 MedBrains: how should this machine start?
 
 Press Enter on its own to start without typing. It comes back by itself after a power
-cut. Someone who has this machine and tools to tap its circuit board has a better chance
-of getting at the data.
+cut. This protects a disk taken out of the machine. It does not stop someone who steals
+the whole machine and can change what is on its disk.
 
-Or choose a PIN of at least 6 characters. It is asked on this screen at every start, so
-after a power cut the machine waits for a person. Too many wrong PINs lock it for a
-while; the recovery key still works.
+Or choose a PIN of at least 6 characters. That protects a stolen machine as well. It is
+asked on this screen at every start, so after a power cut the machine waits for a person.
 
 TEXT
     while true; do
@@ -174,35 +214,77 @@ TEXT
 seal_with_pin() {
     set_seal_args
     NEWPIN="$PIN" systemd-cryptenroll --unlock-tpm2-device=auto --tpm2-with-pin=yes --wipe-slot=tpm2 \
-        "${SEAL_ARGS[@]}" "$PART" >/dev/null
+        "${SEAL_ARGS[@]}" "$PART" >/dev/null || fail 'the PIN could not be set.'
 }
 
-# Shows the recovery key on a sealed disk, offers a PIN, then records how this disk is protected. The record
-# holds no secret, and the desktop shows it through the setup service; a sealed disk never has an empty-key slot.
-finish() {
-    local state=unencrypted-chosen
-    if systemd-cryptenroll "$PART" | grep -qw tpm2; then
-        show_recovery_key
-        state=encrypted-tpm2
-        ask_for_pin
-        if [[ -n "$PIN" ]]; then
-            seal_with_pin
-            state=encrypted-tpm2-pin
-        fi
-        clear_screen
-    fi
-    install -m 0644 -o root -g root /dev/null "$RECORD.new"
-    printf '%s\n' "$state" > "$RECORD.new"
+# Writes how this disk is protected, in one step. It holds no secret: the desktop shows it.
+write_record() {
+    printf '%s\n' "$1" > "$RECORD.new"
+    chmod 0644 "$RECORD.new"
     mv "$RECORD.new" "$RECORD"
-    echo "data disk protection: $state" >&2
+    echo "data disk protection: $1" >&2
 }
 
-# Seals to this machine's TPM again, unlocking with the recovery key in file $1. Two steps: in one,
-# cryptenroll finds the same policy already enrolled and does nothing, though that TPM has gone.
+# First boot's sealed path: the key, then the PIN question, then the record.
+finish_first_time() {
+    show_recovery_key
+    : > "$KEY_SAVED"
+    ask_for_pin
+    [[ -n "$PIN" ]] && seal_with_pin
+    clear_screen
+    if [[ -n "$PIN" ]]; then write_record encrypted-tpm2-pin; else write_record encrypted-tpm2; fi
+}
+
+# A power cut came after the key was saved and before the record. The seal may need a PIN nobody can
+# vouch for, so it is replaced using the saved key, and the record says what the seal is now.
+finish_after_interruption() {
+    local key_file
+    key_file="$(mktemp -p /run)"
+    trap 'rm -f "$key_file"' EXIT
+    ask_for_saved_key "$key_file"
+    ask_for_pin
+    set_seal_args
+    systemd-cryptenroll --wipe-slot=tpm2 "$PART" >/dev/null 2>&1 || fail 'the old seal could not be removed.'
+    if [[ -n "$PIN" ]]; then
+        NEWPIN="$PIN" systemd-cryptenroll --unlock-key-file="$key_file" --tpm2-with-pin=yes "${SEAL_ARGS[@]}" "$PART" >/dev/null \
+            || fail 'the disk could not be sealed.'
+    else
+        systemd-cryptenroll --unlock-key-file="$key_file" "${SEAL_ARGS[@]}" "$PART" >/dev/null \
+            || fail 'the disk could not be sealed.'
+    fi
+    clear_screen
+    if [[ -n "$PIN" ]]; then write_record encrypted-tpm2-pin; else write_record encrypted-tpm2; fi
+}
+
+# Records how this disk is protected, after the steps its slots call for. Only an empty-key slot, which
+# a sealed disk never has, means someone chose to go unencrypted; anything unexplained stops first boot.
+finish() {
+    local slots
+    slots="$(systemd-cryptenroll "$PART")" || fail 'its key slots could not be read.'
+    if grep -qw password <<<"$slots"; then
+        write_record unencrypted-chosen
+    elif [[ -e "$KEY_SAVED" ]]; then
+        finish_after_interruption
+    elif grep -qw tpm2 <<<"$slots"; then
+        finish_first_time
+    else
+        fail 'it has neither a seal nor a recorded choice.'
+    fi
+}
+
+# Seals to this machine's TPM again, unlocking with the recovery key in file $1. Checks the key before
+# touching anything. Two steps: in one, cryptenroll finds the same policy already enrolled and does
+# nothing, though that TPM has gone. The new seal has no PIN, and the record says so.
 reseal() {
+    local key_file
+    key_file="$(mktemp -p /run)"
+    trap 'rm -f "$key_file"' EXIT
+    tr -d '[:space:]' < "$1" > "$key_file"
+    check_key_file "$key_file" || { echo 'That key does not open this disk; nothing changed.' >&2; exit 1; }
     set_seal_args
     systemd-cryptenroll --wipe-slot=tpm2 "$PART"
-    systemd-cryptenroll --unlock-key-file="$1" "${SEAL_ARGS[@]}" "$PART"
+    systemd-cryptenroll --unlock-key-file="$key_file" "${SEAL_ARGS[@]}" "$PART"
+    if mountpoint -q /var; then write_record encrypted-tpm2; fi
 }
 
 case "${1:-}" in
