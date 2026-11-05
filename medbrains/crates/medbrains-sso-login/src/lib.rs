@@ -235,6 +235,12 @@ struct IdClaims {
     sub: String,
     #[serde(default)]
     email: Option<String>,
+    #[serde(default, deserialize_with = "bool_or_string")]
+    email_verified: bool,
+    #[serde(default)]
+    preferred_username: Option<String>,
+    #[serde(default)]
+    tid: Option<String>,
     #[serde(default)]
     name: Option<String>,
     #[serde(default)]
@@ -243,9 +249,22 @@ struct IdClaims {
     extra: serde_json::Map<String, serde_json::Value>,
 }
 
+/// Reads `email_verified`, which some providers send as the string "true".
+fn bool_or_string<'de, D: serde::Deserializer<'de>>(deserializer: D) -> Result<bool, D::Error> {
+    Ok(match serde_json::Value::deserialize(deserializer)? {
+        serde_json::Value::Bool(value) => value,
+        serde_json::Value::String(value) => value.eq_ignore_ascii_case("true"),
+        _ => false,
+    })
+}
+
 struct SsoIdentity {
     subject: String,
     email: Option<String>,
+    /// The provider says it verified `email`. Entra does not, and lets a tenant set it to anything.
+    email_verified: bool,
+    /// For naming a new account only. Never for finding one: providers let it change.
+    preferred_username: Option<String>,
     name: Option<String>,
     groups: Vec<String>,
 }
@@ -507,12 +526,27 @@ async fn validate_id_token(
         return Err(AppError::Unauthorized);
     }
 
+    if !tenant_matches_issuer(issuer, claims.tid.as_deref()) {
+        return Err(AppError::Unauthorized);
+    }
+
     Ok(SsoIdentity {
         subject: claims.sub,
         email: claims.email,
+        email_verified: claims.email_verified,
+        preferred_username: claims.preferred_username,
         name: claims.name,
         groups: extract_groups(&claims.extra, group_claim),
     })
+}
+
+/// False if the token names a tenant other than the one in the issuer's path. Entra's v2.0 issuer holds
+/// the tenant id, so the two must agree. Providers with no `tid`, or no id in the issuer, have nothing
+/// to compare.
+fn tenant_matches_issuer(issuer: &str, tid: Option<&str>) -> bool {
+    let Some(tid) = tid else { return true };
+    let issuer_tenant = issuer.split('/').find(|part| Uuid::parse_str(part).is_ok());
+    issuer_tenant.is_none_or(|tenant| tenant.eq_ignore_ascii_case(tid))
 }
 
 /// Extract IdP groups from the id_token claim, tolerating the shapes real IdPs
@@ -630,7 +664,11 @@ async fn federate_user(
         }
         None => {
             let linked =
-                match identity.email.as_deref() {
+                match identity.email.as_deref().filter(|_| identity.email_verified) {
+                    // Only an email the provider says it verified. Entra's `email` claim is whatever
+                    // the tenant typed, so trusting it let any person sign in as a local account
+                    // with that address, including the first administrator (nOAuth).
+                    //
                     // Service accounts are not claimable.
                     //
                     // This branch adopts an existing local account when the IdP
@@ -811,6 +849,7 @@ fn base_username(identity: &SsoIdentity) -> String {
     let seed = identity
         .email
         .as_deref()
+        .or(identity.preferred_username.as_deref())
         .and_then(|e| e.split('@').next())
         .unwrap_or(&identity.subject);
     let mut s: String = seed
@@ -830,6 +869,28 @@ fn base_username(identity: &SsoIdentity) -> String {
         s = format!("{s}sso");
     }
     s
+}
+
+/// The email for a new account. An unverified one must not sit in another person's way, so if a
+/// local account already has it the new account gets a placeholder.
+async fn new_account_email(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    provider: &LoginProvider,
+    identity: &SsoIdentity,
+    username: &str,
+) -> Result<String, AppError> {
+    let placeholder = format!("{username}@sso.local");
+    let Some(email) = identity.email.as_deref() else {
+        return Ok(placeholder);
+    };
+    let taken = sqlx::query_scalar::<_, bool>(
+        "SELECT EXISTS(SELECT 1 FROM users WHERE tenant_id = $1 AND lower(email) = lower($2))",
+    )
+    .bind(provider.tenant_id)
+    .bind(email)
+    .fetch_one(&mut **tx)
+    .await?;
+    Ok(if taken { placeholder } else { email.to_owned() })
 }
 
 async fn jit_create(
@@ -854,10 +915,7 @@ async fn jit_create(
         }
         username = format!("{}{suffix}", base.chars().take(24).collect::<String>());
     }
-    let email = identity
-        .email
-        .clone()
-        .unwrap_or_else(|| format!("{username}@sso.local"));
+    let email = new_account_email(tx, provider, identity, &username).await?;
     let full_name = identity
         .name
         .clone()
@@ -890,8 +948,8 @@ mod tests {
     use uuid::Uuid;
 
     use super::{
-        STAFF_ROLE, SsoIdentity, base_username, extract_groups, new_user_role, pkce_challenge,
-        resolve_group_targets,
+        IdClaims, STAFF_ROLE, SsoIdentity, base_username, extract_groups, new_user_role,
+        pkce_challenge, resolve_group_targets, tenant_matches_issuer,
     };
 
     fn groups(items: &[&str]) -> HashSet<String> {
@@ -972,6 +1030,8 @@ mod tests {
         let id = SsoIdentity {
             subject: "abc-123".to_owned(),
             email: Some("Jane.Doe@hospital.org".to_owned()),
+            email_verified: false,
+            preferred_username: None,
             name: None,
             groups: vec![],
         };
@@ -979,6 +1039,41 @@ mod tests {
         assert!(u.starts_with("jane"));
         assert!(u.chars().next().unwrap().is_ascii_lowercase());
         assert!(u.len() >= 3 && u.len() <= 30);
+    }
+
+    #[test]
+    fn a_new_account_is_named_from_preferred_username_when_there_is_no_email() {
+        let id = SsoIdentity {
+            subject: "9f8e7d6c-0000-4000-8000-000000000000".to_owned(),
+            email: None,
+            email_verified: false,
+            preferred_username: Some("Asha.Rao@hospital.org".to_owned()),
+            name: None,
+            groups: vec![],
+        };
+        assert!(base_username(&id).starts_with("asha"));
+    }
+
+    #[test]
+    fn a_token_from_another_tenant_does_not_match_the_issuer() {
+        let issuer = "https://login.microsoftonline.com/72f988bf-86f1-41af-91ab-2d7cd011db47/v2.0";
+        assert!(tenant_matches_issuer(issuer, Some("72F988BF-86F1-41AF-91AB-2D7CD011DB47")));
+        assert!(!tenant_matches_issuer(issuer, Some("00000000-0000-4000-8000-000000000000")));
+        assert!(tenant_matches_issuer(issuer, None));
+        assert!(tenant_matches_issuer("https://idm.hospital.test/oauth2/openid/app", Some("x")));
+    }
+
+    #[test]
+    fn email_is_verified_only_if_the_provider_says_so() {
+        let parse = |verified: &str| {
+            let text = format!(r#"{{"sub":"s","aud":"a"{verified}}}"#);
+            serde_json::from_str::<IdClaims>(&text).map(|c| c.email_verified).unwrap_or_default()
+        };
+        assert!(parse(r#","email_verified":true"#));
+        assert!(parse(r#","email_verified":"true""#));
+        assert!(!parse(""));
+        assert!(!parse(r#","email_verified":false"#));
+        assert!(!parse(r#","email_verified":"false""#));
     }
 }
 
