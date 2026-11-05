@@ -41,4 +41,13 @@ check "no seal and no choice records nothing" "SLOT TYPE
    1 recovery" 0 1 ""
 check "a seal whose recovery key cannot be made records nothing" "SLOT TYPE
    0 tpm2" 0 1 ""
+
+# A local variable named in an exit trap is unbound by the time the trap runs, which turned a finished
+# re-seal into a failure and left the key file behind.
+if grep -nE "^ +local .*KEY_FILE|trap .*key_file" "$SCRIPT"; then
+    echo "FAIL  the key file's trap uses a local variable"
+    FAILED=1
+else
+    echo "pass  the key file's trap does not use a local variable"
+fi
 exit "$FAILED"

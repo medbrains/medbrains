@@ -116,6 +116,13 @@ that was written down at setup. Then press Enter. Typed characters are not shown
 TEXT
 }
 
+# Sets KEY_FILE to a private file on tmpfs, removed when this script ends, however it ends. Not a local:
+# the trap runs after the function has returned.
+use_key_file() {
+    KEY_FILE="$(mktemp -p /run)"
+    trap 'rm -f "$KEY_FILE"' EXIT
+}
+
 # Stops first boot with a plain message. The screen unit needs this step, so nothing draws over it.
 fail() {
     echo
@@ -238,18 +245,16 @@ finish_first_time() {
 # A power cut came after the key was saved and before the record. The seal may need a PIN nobody can
 # vouch for, so it is replaced using the saved key, and the record says what the seal is now.
 finish_after_interruption() {
-    local key_file
-    key_file="$(mktemp -p /run)"
-    trap 'rm -f "$key_file"' EXIT
-    ask_for_saved_key "$key_file"
+    use_key_file
+    ask_for_saved_key "$KEY_FILE"
     ask_for_pin
     set_seal_args
     systemd-cryptenroll --wipe-slot=tpm2 "$PART" >/dev/null 2>&1 || fail 'the old seal could not be removed.'
     if [[ -n "$PIN" ]]; then
-        NEWPIN="$PIN" systemd-cryptenroll --unlock-key-file="$key_file" --tpm2-with-pin=yes "${SEAL_ARGS[@]}" "$PART" >/dev/null \
+        NEWPIN="$PIN" systemd-cryptenroll --unlock-key-file="$KEY_FILE" --tpm2-with-pin=yes "${SEAL_ARGS[@]}" "$PART" >/dev/null \
             || fail 'the disk could not be sealed.'
     else
-        systemd-cryptenroll --unlock-key-file="$key_file" "${SEAL_ARGS[@]}" "$PART" >/dev/null \
+        systemd-cryptenroll --unlock-key-file="$KEY_FILE" "${SEAL_ARGS[@]}" "$PART" >/dev/null \
             || fail 'the disk could not be sealed.'
     fi
     clear_screen
@@ -276,14 +281,12 @@ finish() {
 # touching anything. Two steps: in one, cryptenroll finds the same policy already enrolled and does
 # nothing, though that TPM has gone. The new seal has no PIN, and the record says so.
 reseal() {
-    local key_file
-    key_file="$(mktemp -p /run)"
-    trap 'rm -f "$key_file"' EXIT
-    tr -d '[:space:]' < "$1" > "$key_file"
-    check_key_file "$key_file" || { echo 'That key does not open this disk; nothing changed.' >&2; exit 1; }
+    use_key_file
+    tr -d '[:space:]' < "$1" > "$KEY_FILE"
+    check_key_file "$KEY_FILE" || { echo 'That key does not open this disk; nothing changed.' >&2; exit 1; }
     set_seal_args
     systemd-cryptenroll --wipe-slot=tpm2 "$PART"
-    systemd-cryptenroll --unlock-key-file="$key_file" "${SEAL_ARGS[@]}" "$PART"
+    systemd-cryptenroll --unlock-key-file="$KEY_FILE" "${SEAL_ARGS[@]}" "$PART"
     if mountpoint -q /var; then write_record encrypted-tpm2; fi
 }
 
