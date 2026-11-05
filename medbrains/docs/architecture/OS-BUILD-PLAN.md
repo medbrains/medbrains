@@ -14,7 +14,7 @@ N1 to N6 come from RFC-HOSPITAL-OS §8q. Every task ends on a check or a screen.
 | N1.2 | `chrony` with authenticated time; serves the LAN | Time syncs by NTS; another machine gets time with the internet cut | doing |
 | N1.3 | Per-service network limits | PostgreSQL refuses every non-local address, even with the firewall off | doing |
 | N1.4 | Remove Caddy's unlimited certificates | A made-up hostname gets no certificate stored | next |
-| N2.1 | Measure Caddy against `medbrains-proxy`, keep one | Numbers recorded; one proxy in the image | next |
+| N2.1 | Replace Caddy with Pingora through `medbrains-proxy` (owner 2026-11-05: Rust stack). Must do all Caddy does on the OS: TLS from the hospital root with certificates by name, HTTP redirect, compression, the plain-words error page, WebSockets, per-path blocks and sign-in limits for Kanidm, node tunnels | Passes every OS check and an attack test (smuggling, slow clients, bad TLS, forged headers); memory and speed measured against Caddy; independent review | next, after node pairing and Kanidm land, class A |
 | N2.2 | Find what pulls in OpenSSL, `ring`, `aws-lc-rs`; reach one for what we ship | One TLS stack in the server | later |
 | N3.1 | Network health screen; permission in Rust first | Pull a cable; the screen says what is down in plain words | next |
 | N3.2 | Set network from the screen: Wi-Fi, fixed address, DNS, with auto rollback | A bad address rolls back by itself | next, needs S1 |
