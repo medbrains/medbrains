@@ -413,6 +413,7 @@ fn run_suite(image: &Path) -> Result<usize, String> {
 /// Only the data disk scenarios, on a new machine.
 fn run_disk_only(image: &Path) -> Result<usize, String> {
     let mut vm = Vm::start(image)?;
+    set_up_main(&mut vm)?;
     Ok(disk::run_sealed_disk(&mut vm, image)? + disk::run_without_sealed_disk(image))
 }
 

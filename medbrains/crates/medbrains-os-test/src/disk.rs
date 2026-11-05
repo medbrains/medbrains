@@ -21,7 +21,6 @@ const SECRET_MARKER_PARTS: (&str, &str) = ("MBOSTESTSECRET", "MARKER7Q2");
 const CONTROL_MARKER: &str = "MBOSTESTPLAINCONTROL7Q2";
 const OTHER_TPM: &str = "tpm-other";
 const NOTICE: &str = "did not open by itself";
-const FIRST_BOOT_DONE: &str = "/var/lib/medbrains/config/.firstboot-done";
 const SCREEN_LIMIT: Duration = Duration::from_secs(120);
 const OPEN_LIMIT: Duration = Duration::from_secs(60);
 const SETTLE: Duration = Duration::from_secs(8);
@@ -72,16 +71,16 @@ fn wait_open(vm: &mut Vm) -> Result<(), String> {
     Err(format!("the data disk did not open:\n{detail}"))
 }
 
-/// Waits for first boot to finish, which needs the data disk: every secret and the database cluster.
-fn wait_first_boot_done(vm: &mut Vm) -> Result<(), String> {
+/// Waits for the data disk step to finish, which comes before the setup screen.
+fn wait_disk_step_done(vm: &mut Vm) -> Result<(), String> {
     let deadline = Instant::now() + scaled(SCREEN_LIMIT);
     while Instant::now() < deadline {
-        if vm.run(&format!("test -e {FIRST_BOOT_DONE}; echo $?"))? == "0" {
+        if vm.run(&format!("test -e {RECORD}; echo $?"))? == "0" {
             return Ok(());
         }
         sleep(Duration::from_secs(2));
     }
-    Err("first boot did not finish".to_owned())
+    Err("the data disk step did not finish".to_owned())
 }
 
 /// The data disk is mounted through LUKS2, sealed to the TPM, with a recovery key and no empty key.
@@ -333,7 +332,7 @@ fn pin_is_asked_at_every_start(image: &Path) -> Result<(), String> {
     vm.type_text(&format!("{pin}\n"))?;
     sleep(SETTLE);
     vm.type_text(&format!("{pin}\n"))?;
-    wait_first_boot_done(&mut vm)?;
+    wait_disk_step_done(&mut vm)?;
     let record = vm.run(&format!("cat {RECORD}"))?;
     ensure(record == "encrypted-tpm2-pin", record)?;
     vm.shut_down()?;
@@ -403,7 +402,7 @@ fn power_cut_during_pin_setup_recovers(image: &Path) -> Result<(), String> {
     vm.type_text(&format!("{key}\n"))?;
     vm.wait_for_screen("how should this machine start", scaled(SCREEN_LIMIT))?;
     vm.type_text("\n")?;
-    wait_first_boot_done(&mut vm)?;
+    wait_disk_step_done(&mut vm)?;
     let record = vm.run(&format!("cat {RECORD}"))?;
     ensure(record == "encrypted-tpm2", record)?;
     vm.reboot()?;
@@ -481,7 +480,7 @@ pub(crate) fn run_sealed_disk(vm: &mut Vm, image: &Path) -> Result<usize, String
         drop(std::io::Write::write_all(&mut std::io::stderr(), b"skip  sealed disk scenarios: this kernel has no driver for QEMU's TPM; run with MB_OS_TEST_ARCH=x86-64\n"));
         return Ok(0);
     }
-    wait_first_boot_done(vm)?;
+    wait_disk_step_done(vm)?;
     let steps: Vec<Step> = vec![
         (
             "the data disk is LUKS2, sealed to the TPM, with a recovery key",
@@ -581,7 +580,7 @@ fn no_tpm_records_the_choice(image: &Path) -> Result<(), String> {
     let partition = vm.run(&format!("test -e {PARTITION}; echo $?"))?;
     ensure(partition == "1", "any other answer must store nothing")?;
     vm.type_text("STORE UNENCRYPTED\n")?;
-    wait_first_boot_done(&mut vm)?;
+    wait_disk_step_done(&mut vm)?;
     let record = vm.run(&format!("cat {RECORD}"))?;
     ensure(record == "unencrypted-chosen", record)?;
     vm.reboot()?;
