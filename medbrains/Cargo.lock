@@ -7882,6 +7882,7 @@ dependencies = [
  "medbrains-billing",
  "medbrains-core",
  "medbrains-db",
+ "medbrains-kernel",
  "medbrains-notifications",
  "medbrains-outbox",
  "medbrains-payment-gateway",

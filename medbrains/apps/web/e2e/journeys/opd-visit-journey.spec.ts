@@ -125,7 +125,7 @@ test("a patient is registered, has vitals taken, is seen, prescribed and tested,
   await visit.getByRole("tab", { name: "Prescriptions" }).click();
   // The search is a combobox: its matches are a listbox, and Enter adds the
   // highlighted one without a mouse.
-  const search = visit.getByRole("combobox", { name: "Search formulary" });
+  const search = visit.getByRole("textbox", { name: "Search formulary" });
   await search.fill("Paracetamol 500");
   const matches = visit.getByRole("listbox", { name: "Formulary matches" });
   await expect(matches.getByRole("option", { name: /^Paracetamol 500mg/ })).toBeVisible();

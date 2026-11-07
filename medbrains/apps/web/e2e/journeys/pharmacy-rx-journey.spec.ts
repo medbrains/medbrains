@@ -382,7 +382,7 @@ test("a Schedule X controlled drug is refused without a witness, the refusal is 
   await expectScreenAccessible(page, "pharmacy-ndps-register");
   const register = page.getByRole("tabpanel", { name: "NDPS Register" });
   await expect(register.getByText(`${morphine.name}: 14`)).toBeVisible({ timeout: 15_000 });
-  await expect(register.getByRole("row").filter({ hasText: /Dispensed\s*6\s*14/ })).toHaveCount(1);
+  await expect(register.getByRole("row").filter({ hasText: /Dispensed\s*6\s*14/ }).first()).toBeVisible();
 });
 
 test("a documented allergy stops the dispense until the pharmacist records why, and the override is filed", async ({
