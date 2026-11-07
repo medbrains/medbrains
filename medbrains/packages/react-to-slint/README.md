@@ -4,6 +4,43 @@ Converts React + Mantine screens into Slint views for the native OS GUI (`docs/a
 
 **Every rule is in [docs/CONVERSIONS.md](docs/CONVERSIONS.md)**, generated from the converter's own tables, with links to the Mantine 9 and Slint 1.18 documentation.
 
+## Paused 2026-11-07
+
+Work on the converter is paused by owner decision. State at the pause (0.4.0, mapping version 9):
+
+- 1,066 of 1,066 page files compile with the Slint 1.18.1 viewer; 86 of 129 menu entries open a native screen; 34 tests pass.
+- Converted interactive elements: 7,485, every one with an accessible role; 131 have no accessible name (`bin/a11y-audit.mjs`).
+- Target: on the OS, the Slint winit backend inside the cage compositor, not LinuxKMS, because only winit has AccessKit (screen-reader support).
+
+Kit controls at the pause, checked by code review and compile only (no hands-on mouse, keyboard or screen-reader run yet):
+
+| Control | Mouse | Keyboard | Screen reader |
+|---|---|---|---|
+| Text input, password | works (click anywhere in the box focuses; reveal button) | works (Tab, 2px ring) | works: label, required, value, placeholder, error |
+| Number | partly: steppers, no typing | partly: Up and Down step, no typing | works: spinbox with value and range |
+| Textarea | works | works | partly: label and error |
+| Select | works (Slint ComboBox, placeholder, clear button) | partly: no type-to-jump | partly: label and error on the ComboBox |
+| Multi-select | partly: checkable menu; tags need the view model | partly: Space, Enter, Down open the menu | partly: "N selected" |
+| Menu | works (ContextMenuArea) | works when the target is a button (Enter, Space; arrows and Escape inside) | works: native menu |
+| Checkbox, switch, chip | works | works (Space) | works: role and checked |
+| Radio | works | partly: no arrows within the group | works |
+| Segmented control | works | works (Left, Right) | partly |
+| Tabs | works | partly: Enter and Space, no arrows | works: selected |
+| Modal | works (mounted under `if`) | partly: Escape closes; focus is not trapped or returned | partly: announced as a group, not a dialog |
+| Buttons, icon buttons | works | works | works |
+
+Next steps, in order:
+
+1. Text input: typed numbers in the number field, selection and caret checks by hand.
+2. Select: type-to-jump, Alt+Down, focus back on Escape.
+3. Menu: keyboard opening from non-button targets with a single tab stop.
+4. Checkbox and switch: group arrows, hands-on screen-reader pass.
+5. The rest: radio groups, tabs arrows, modal focus trap and return, multi-select values.
+6. The 2D body map.
+7. docs/CONVERSIONS.md: done in 0.4.0; keep it regenerated as the rules change.
+
+Open visual gaps (not blocking): the Patients search field is narrow (its CSS-module width does not reach the field through the flex parent), the empty state shows its title without icon, description or action (the props pass through an inner DataTable), Pharmacy's tab row does not wrap, and the command bar's accent rule has no token (`teal-6` resolves to a colour no semantic token has).
+
 ## Use
 
 ```sh
