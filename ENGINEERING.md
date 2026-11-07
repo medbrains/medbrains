@@ -549,10 +549,15 @@ core of how MedBrains is built, installed, shown and sold. Full design:
 6. **A person sees an app, and each screen in its side panel, only with its permissions.**
    Screens they may not open are left out, not greyed. Inside a screen, fields are shown,
    masked or hidden by data class.
-7. **The server decides every request.** A brick being present grants nothing; the launcher,
+7. **Tabs and panels that belong to another brick are plugged in by that brick.** The EMR tab
+   on a patient record is declared in the EMR brick's manifest ("adds a tab to the patient
+   record") and appears only when EMR is installed for the tenant and the machine and the person
+   holds its permission. The host screen shows whatever tabs are plugged in and imports none;
+   removing a brick removes its tabs everywhere.
+8. **The server decides every request.** A brick being present grants nothing; the launcher,
    the side panel and each screen's check only keep the screen honest about what the server
    allows.
-8. **Same everywhere:** web, the OS launcher, edge machines and native apps read one installed
+9. **Same everywhere:** web, the OS launcher, edge machines and native apps read one installed
    set, then the person's permissions.
 
 A module that is not a brick, a screen reachable without its permission, or an app installed

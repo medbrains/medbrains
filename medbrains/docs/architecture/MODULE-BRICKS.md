@@ -62,3 +62,12 @@ Setup asks which apps the hospital needs, and installs only those bricks with th
 - **Seeds only the roles those apps need**, so the role editor does not offer pharmacy staff a hundred permissions for apps the hospital does not run.
 - **Can grow later:** adding an app from the Software Center (O14) installs its brick and dependencies on the machines whose roles fit, with no reinstall.
 - **Shows the same everywhere:** web, OS launcher, edge machines and native apps all read the one installed set, then the person's permissions.
+
+## Bricks plug tabs into other bricks' screens (owner 2026-11-07)
+
+Some screens gather work from several apps: the patient record shows EMR, Billing, Lab and Pharmacy tabs. Each of those tabs belongs to its own brick, and is plugged in, never imported:
+
+- **The owning brick declares it** in its manifest, for example EMR: "adds the Case sheet tab to `patient.record`", with the permission that tab needs.
+- **The host screen offers named slots** (`patient.record` tabs, `patient.record` side panels) and shows whatever is plugged into them, in a declared order. It imports none of them.
+- **A tab appears only when** its brick is installed for the tenant and the machine, and the person holds its permission. A pharmacy-only hospital never sees an EMR tab; a front-desk clerk without EMR permission does not either.
+- **Removing a brick removes its tabs everywhere**, so nothing points at an app that is not there.
