@@ -45,3 +45,11 @@ A brick snaps in or stays out by permissions alone, so nobody installs or remove
 3. **A person sees a brick**, and each item in its side panel, only when they hold its permissions, on top of the machine's set.
 4. **Changing roles is the only control:** give a machine or a person a role and the bricks it unlocks snap in; take it away and they go, at the next sync, through the Software Center (O14) and signed updates.
 5. **The server still decides every request**, so a brick that is present grants nothing the person's permissions do not.
+
+### Example: a brick installed with only the screens a person may open
+
+Someone holding `pharmacy` and `pharmacy_finance` permissions gets the Pharmacy brick installed whole, and inside it:
+
+- **The side panel lists only the screens their permissions allow**, for example Rx queue, POS, day close and margins. Screens they may not open (an NDPS register or stock transfers without those permissions) are left out of the panel, not shown greyed out, so nobody clicks into a refusal; the server refuses them anyway.
+- **Within a screen they may open, each field is shown, masked or hidden by its data class** (`check-field-classes`), the same way on every screen, never decided by the screen itself.
+- **Someone with `pharmacy_finance` alone** gets the same brick with only the finance screens in its panel.
