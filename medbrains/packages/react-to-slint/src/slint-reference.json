@@ -1,0 +1,1649 @@
+{
+ "_source": "Extracted from the official Slint 1.18.0 reference pages (https://releases.slint.dev/1.18.0/docs/slint/reference/overview/). The 1.18.1 viewer compiles against the same API. Regenerate when the Slint version changes.",
+ "common": {
+  "doc": "https://releases.slint.dev/1.18.0/docs/slint/reference/common/",
+  "properties": {
+   "accessible-checkable": {
+    "dir": "in",
+    "type": "bool"
+   },
+   "accessible-checked": {
+    "dir": "in",
+    "type": "bool"
+   },
+   "accessible-description": {
+    "dir": "in",
+    "type": "string"
+   },
+   "accessible-enabled": {
+    "dir": "in",
+    "type": "bool"
+   },
+   "accessible-label": {
+    "dir": "in",
+    "type": "string"
+   },
+   "accessible-placeholder-text": {
+    "dir": "in",
+    "type": "string"
+   },
+   "accessible-read-only": {
+    "dir": "in",
+    "type": "bool"
+   },
+   "accessible-role": {
+    "dir": "in",
+    "type": "AccessibleRole"
+   },
+   "accessible-value": {
+    "dir": "in",
+    "type": "string"
+   },
+   "cross-axis-self-alignment": {
+    "dir": "in",
+    "type": "CrossAxisAlignment"
+   },
+   "height": {
+    "dir": "in",
+    "type": "length"
+   },
+   "horizontal-stretch": {
+    "dir": "in",
+    "type": "float"
+   },
+   "max-height": {
+    "dir": "in",
+    "type": "length"
+   },
+   "max-width": {
+    "dir": "in",
+    "type": "length"
+   },
+   "min-height": {
+    "dir": "in",
+    "type": "length"
+   },
+   "min-width": {
+    "dir": "in",
+    "type": "length"
+   },
+   "opacity": {
+    "dir": "in",
+    "type": "float"
+   },
+   "preferred-height": {
+    "dir": "in",
+    "type": "length"
+   },
+   "preferred-width": {
+    "dir": "in",
+    "type": "length"
+   },
+   "vertical-stretch": {
+    "dir": "in",
+    "type": "float"
+   },
+   "visible": {
+    "dir": "in",
+    "type": "bool"
+   },
+   "width": {
+    "dir": "in",
+    "type": "length"
+   },
+   "x": {
+    "dir": "in",
+    "type": "length"
+   },
+   "y": {
+    "dir": "in",
+    "type": "length"
+   },
+   "z": {
+    "dir": "in",
+    "type": "float"
+   }
+  }
+ },
+ "elements": {
+  "Button": {
+   "callbacks": {
+    "clicked": ""
+   },
+   "doc": "https://releases.slint.dev/1.18.0/docs/slint/reference/std-widgets/basic-widgets/button/",
+   "properties": {
+    "checkable": {
+     "dir": "in",
+     "type": "bool"
+    },
+    "checked": {
+     "dir": "in-out",
+     "type": "bool"
+    },
+    "colorize-icon": {
+     "dir": "in",
+     "type": "bool"
+    },
+    "enabled": {
+     "dir": "in",
+     "type": "bool"
+    },
+    "has-focus": {
+     "dir": "out",
+     "type": "bool"
+    },
+    "icon": {
+     "dir": "in",
+     "type": "image"
+    },
+    "icon-size": {
+     "dir": "in",
+     "type": "length"
+    },
+    "pressed": {
+     "dir": "out",
+     "type": "bool"
+    },
+    "primary": {
+     "dir": "in",
+     "type": "bool"
+    },
+    "text": {
+     "dir": "in",
+     "type": "string"
+    }
+   }
+  },
+  "CheckBox": {
+   "callbacks": {
+    "toggled": ""
+   },
+   "doc": "https://releases.slint.dev/1.18.0/docs/slint/reference/std-widgets/basic-widgets/checkbox/",
+   "properties": {
+    "checked": {
+     "dir": "in-out",
+     "type": "bool"
+    },
+    "enabled": {
+     "dir": "in",
+     "type": "bool"
+    },
+    "font-size": {
+     "dir": "in",
+     "type": "length"
+    },
+    "font-weight": {
+     "dir": "in",
+     "type": "int"
+    },
+    "has-focus": {
+     "dir": "out",
+     "type": "bool"
+    },
+    "text": {
+     "dir": "in",
+     "type": "string"
+    }
+   }
+  },
+  "ComboBox": {
+   "callbacks": {
+    "selected": "string"
+   },
+   "doc": "https://releases.slint.dev/1.18.0/docs/slint/reference/std-widgets/basic-widgets/combobox/",
+   "properties": {
+    "current-index": {
+     "dir": "in-out",
+     "type": "int"
+    },
+    "current-value": {
+     "dir": "in-out",
+     "type": "string"
+    },
+    "enabled": {
+     "dir": "in",
+     "type": "bool"
+    },
+    "has-focus": {
+     "dir": "out",
+     "type": "bool"
+    },
+    "model": {
+     "dir": "in",
+     "type": "[string]"
+    }
+   }
+  },
+  "FlexboxLayout": {
+   "callbacks": {},
+   "doc": "https://releases.slint.dev/1.18.0/docs/slint/reference/layouts/flexboxlayout/",
+   "properties": {
+    "alignment": {
+     "dir": "in",
+     "type": "LayoutAlignment"
+    },
+    "cross-axis-alignment": {
+     "dir": "in",
+     "type": "CrossAxisAlignment"
+    },
+    "cross-axis-line-alignment": {
+     "dir": "in",
+     "type": "LayoutAlignment"
+    },
+    "cross-axis-self-alignment": {
+     "dir": "in",
+     "type": "CrossAxisAlignment"
+    },
+    "flex-direction": {
+     "dir": "in",
+     "type": "FlexboxLayoutDirection"
+    },
+    "flex-wrap": {
+     "dir": "in",
+     "type": "FlexboxLayoutWrap"
+    },
+    "layout-order": {
+     "dir": "in",
+     "type": "int"
+    },
+    "padding": {
+     "dir": "in",
+     "type": "length"
+    },
+    "padding-bottom": {
+     "dir": "in",
+     "type": "length"
+    },
+    "padding-left": {
+     "dir": "in",
+     "type": "length"
+    },
+    "padding-right": {
+     "dir": "in",
+     "type": "length"
+    },
+    "padding-top": {
+     "dir": "in",
+     "type": "length"
+    },
+    "spacing": {
+     "dir": "in",
+     "type": "length"
+    },
+    "spacing-horizontal": {
+     "dir": "in",
+     "type": "length"
+    },
+    "spacing-vertical": {
+     "dir": "in",
+     "type": "length"
+    }
+   }
+  },
+  "Flickable": {
+   "callbacks": {
+    "flicked": ""
+   },
+   "doc": "https://releases.slint.dev/1.18.0/docs/slint/reference/gestures/flickable/",
+   "properties": {
+    "content-height": {
+     "dir": "in",
+     "type": "length"
+    },
+    "content-width": {
+     "dir": "in",
+     "type": "length"
+    },
+    "content-x": {
+     "dir": "in-out",
+     "type": "length"
+    },
+    "content-y": {
+     "dir": "in-out",
+     "type": "length"
+    },
+    "interactive": {
+     "dir": "in",
+     "type": "bool"
+    },
+    "mouse-drag-pan-enabled": {
+     "dir": "in",
+     "type": "bool"
+    }
+   }
+  },
+  "FocusScope": {
+   "callbacks": {
+    "capture-key-pressed": "event: KeyEvent",
+    "capture-key-released": "event: KeyEvent",
+    "focus-changed-event": "reason: FocusReason",
+    "focus-gained": "reason: FocusReason",
+    "focus-lost": "reason: FocusReason",
+    "key-pressed": "event: KeyEvent",
+    "key-released": "event: KeyEvent"
+   },
+   "doc": "https://releases.slint.dev/1.18.0/docs/slint/reference/keyboard-input/focusscope/",
+   "properties": {
+    "enabled": {
+     "dir": "in",
+     "type": "bool"
+    },
+    "focus-on-click": {
+     "dir": "in",
+     "type": "bool"
+    },
+    "focus-on-tab-navigation": {
+     "dir": "in",
+     "type": "bool"
+    },
+    "has-focus": {
+     "dir": "out",
+     "type": "bool"
+    },
+    "keys": {
+     "dir": "in",
+     "type": "keys"
+    }
+   }
+  },
+  "GridLayout": {
+   "callbacks": {},
+   "doc": "https://releases.slint.dev/1.18.0/docs/slint/reference/layouts/gridlayout/",
+   "properties": {
+    "col": {
+     "dir": "in",
+     "type": "int"
+    },
+    "colspan": {
+     "dir": "in",
+     "type": "int"
+    },
+    "padding": {
+     "dir": "in",
+     "type": "length"
+    },
+    "padding-bottom": {
+     "dir": "in",
+     "type": "length"
+    },
+    "padding-left": {
+     "dir": "in",
+     "type": "length"
+    },
+    "padding-right": {
+     "dir": "in",
+     "type": "length"
+    },
+    "padding-top": {
+     "dir": "in",
+     "type": "length"
+    },
+    "row": {
+     "dir": "in",
+     "type": "int"
+    },
+    "rowspan": {
+     "dir": "in",
+     "type": "int"
+    },
+    "spacing": {
+     "dir": "in",
+     "type": "length"
+    },
+    "spacing-horizontal": {
+     "dir": "in",
+     "type": "length"
+    },
+    "spacing-vertical": {
+     "dir": "in",
+     "type": "length"
+    }
+   }
+  },
+  "HorizontalLayout": {
+   "callbacks": {},
+   "doc": "https://releases.slint.dev/1.18.0/docs/slint/reference/layouts/horizontallayout/",
+   "properties": {
+    "alignment": {
+     "dir": "in",
+     "type": "LayoutAlignment"
+    },
+    "cross-axis-alignment": {
+     "dir": "in",
+     "type": "CrossAxisAlignment"
+    },
+    "cross-axis-self-alignment": {
+     "dir": "in",
+     "type": "CrossAxisAlignment"
+    },
+    "layout-order": {
+     "dir": "in",
+     "type": "int"
+    },
+    "padding": {
+     "dir": "in",
+     "type": "length"
+    },
+    "padding-bottom": {
+     "dir": "in",
+     "type": "length"
+    },
+    "padding-left": {
+     "dir": "in",
+     "type": "length"
+    },
+    "padding-right": {
+     "dir": "in",
+     "type": "length"
+    },
+    "padding-top": {
+     "dir": "in",
+     "type": "length"
+    },
+    "spacing": {
+     "dir": "in",
+     "type": "length"
+    }
+   }
+  },
+  "Image": {
+   "callbacks": {},
+   "doc": "https://releases.slint.dev/1.18.0/docs/slint/reference/elements/image/",
+   "properties": {
+    "colorize": {
+     "dir": "in",
+     "type": "brush"
+    },
+    "horizontal-alignment": {
+     "dir": "in",
+     "type": "ImageHorizontalAlignment"
+    },
+    "horizontal-tiling": {
+     "dir": "in",
+     "type": "ImageTiling"
+    },
+    "image-fit": {
+     "dir": "in",
+     "type": "ImageFit"
+    },
+    "image-rendering": {
+     "dir": "in",
+     "type": "ImageRendering"
+    },
+    "source": {
+     "dir": "in",
+     "type": "image"
+    },
+    "source-clip-height": {
+     "dir": "in",
+     "type": "int"
+    },
+    "source-clip-width": {
+     "dir": "in",
+     "type": "int"
+    },
+    "source-clip-x": {
+     "dir": "in",
+     "type": "int"
+    },
+    "source-clip-y": {
+     "dir": "in",
+     "type": "int"
+    },
+    "vertical-alignment": {
+     "dir": "in",
+     "type": "ImageVerticalAlignment"
+    },
+    "vertical-tiling": {
+     "dir": "in",
+     "type": "ImageTiling"
+    }
+   }
+  },
+  "LineEdit": {
+   "callbacks": {
+    "accepted": "string",
+    "edited": "string",
+    "key-pressed": "KeyEvent",
+    "key-released": "KeyEvent"
+   },
+   "doc": "https://releases.slint.dev/1.18.0/docs/slint/reference/std-widgets/views/lineedit/",
+   "properties": {
+    "enabled": {
+     "dir": "in",
+     "type": "bool"
+    },
+    "font-family": {
+     "dir": "in",
+     "type": "string"
+    },
+    "font-italic": {
+     "dir": "in",
+     "type": "bool"
+    },
+    "font-size": {
+     "dir": "in",
+     "type": "length"
+    },
+    "has-focus": {
+     "dir": "out",
+     "type": "bool"
+    },
+    "horizontal-alignment": {
+     "dir": "in",
+     "type": "TextHorizontalAlignment"
+    },
+    "input-method-hints": {
+     "dir": "in",
+     "type": "InputMethodHints"
+    },
+    "input-type": {
+     "dir": "in",
+     "type": "InputType"
+    },
+    "placeholder-text": {
+     "dir": "in",
+     "type": "string"
+    },
+    "read-only": {
+     "dir": "in",
+     "type": "bool"
+    },
+    "text": {
+     "dir": "in-out",
+     "type": "string"
+    }
+   }
+  },
+  "Path": {
+   "callbacks": {},
+   "doc": "https://releases.slint.dev/1.18.0/docs/slint/reference/elements/path/",
+   "properties": {
+    "anti-alias": {
+     "dir": "in",
+     "type": "bool"
+    },
+    "clip": {
+     "dir": "in",
+     "type": "bool"
+    },
+    "fill": {
+     "dir": "in",
+     "type": "brush"
+    },
+    "fill-rule": {
+     "dir": "in",
+     "type": "FillRule"
+    },
+    "fit": {
+     "dir": "in",
+     "type": "ImageFit"
+    },
+    "height": {
+     "dir": "in",
+     "type": "length"
+    },
+    "stroke": {
+     "dir": "in",
+     "type": "brush"
+    },
+    "stroke-line-cap": {
+     "dir": "in",
+     "type": "LineCap"
+    },
+    "stroke-line-join": {
+     "dir": "in",
+     "type": "LineJoin"
+    },
+    "stroke-miter-limit": {
+     "dir": "in",
+     "type": "float"
+    },
+    "stroke-width": {
+     "dir": "in",
+     "type": "length"
+    },
+    "viewbox-height": {
+     "dir": "in",
+     "type": "float"
+    },
+    "viewbox-width": {
+     "dir": "in",
+     "type": "float"
+    },
+    "viewbox-x": {
+     "dir": "in",
+     "type": "float"
+    },
+    "viewbox-y": {
+     "dir": "in",
+     "type": "float"
+    },
+    "width": {
+     "dir": "in",
+     "type": "length"
+    }
+   }
+  },
+  "PopupWindow": {
+   "callbacks": {},
+   "doc": "https://releases.slint.dev/1.18.0/docs/slint/reference/window/popupwindow/",
+   "properties": {
+    "close-policy": {
+     "dir": "in",
+     "type": "PopupClosePolicy"
+    },
+    "is-open": {
+     "dir": "out",
+     "type": "bool"
+    }
+   }
+  },
+  "ProgressIndicator": {
+   "callbacks": {},
+   "doc": "https://releases.slint.dev/1.18.0/docs/slint/reference/std-widgets/basic-widgets/progressindicator/",
+   "properties": {
+    "indeterminate": {
+     "dir": "in",
+     "type": "bool"
+    },
+    "progress": {
+     "dir": "in",
+     "type": "float"
+    }
+   }
+  },
+  "RadioGroup": {
+   "callbacks": {
+    "selected": "value: string",
+    "toggled": ""
+   },
+   "doc": "https://releases.slint.dev/1.18.0/docs/slint/reference/std-widgets/basic-widgets/radiogroup/",
+   "properties": {
+    "current-value": {
+     "dir": "out",
+     "type": "string"
+    },
+    "enabled": {
+     "dir": "in",
+     "type": "bool"
+    },
+    "has-focus": {
+     "dir": "out",
+     "type": "bool"
+    },
+    "orientation": {
+     "dir": "in",
+     "type": "Orientation"
+    },
+    "title": {
+     "dir": "in",
+     "type": "string"
+    }
+   }
+  },
+  "Rectangle": {
+   "callbacks": {},
+   "doc": "https://releases.slint.dev/1.18.0/docs/slint/reference/elements/rectangle/",
+   "properties": {
+    "background": {
+     "dir": "in",
+     "type": "brush"
+    },
+    "border-bottom-left-radius": {
+     "dir": "in",
+     "type": "length"
+    },
+    "border-bottom-right-radius": {
+     "dir": "in",
+     "type": "length"
+    },
+    "border-color": {
+     "dir": "in",
+     "type": "brush"
+    },
+    "border-radius": {
+     "dir": "in",
+     "type": "length"
+    },
+    "border-top-left-radius": {
+     "dir": "in",
+     "type": "length"
+    },
+    "border-top-right-radius": {
+     "dir": "in",
+     "type": "length"
+    },
+    "border-width": {
+     "dir": "in",
+     "type": "length"
+    },
+    "clip": {
+     "dir": "in",
+     "type": "bool"
+    },
+    "drop-shadow-blur": {
+     "dir": "in",
+     "type": "length"
+    },
+    "drop-shadow-color": {
+     "dir": "in",
+     "type": "color"
+    },
+    "drop-shadow-offset-x": {
+     "dir": "in",
+     "type": "length"
+    },
+    "drop-shadow-offset-y": {
+     "dir": "in",
+     "type": "length"
+    },
+    "drop-shadow-spread": {
+     "dir": "in",
+     "type": "length"
+    },
+    "inner-shadow-blur": {
+     "dir": "in",
+     "type": "length"
+    },
+    "inner-shadow-color": {
+     "dir": "in",
+     "type": "color"
+    },
+    "inner-shadow-offset-x": {
+     "dir": "in",
+     "type": "length"
+    },
+    "inner-shadow-offset-y": {
+     "dir": "in",
+     "type": "length"
+    },
+    "inner-shadow-spread": {
+     "dir": "in",
+     "type": "length"
+    }
+   }
+  },
+  "ScrollView": {
+   "callbacks": {
+    "scrolled": ""
+   },
+   "doc": "https://releases.slint.dev/1.18.0/docs/slint/reference/std-widgets/views/scrollview/",
+   "properties": {
+    "content-height": {
+     "dir": "in-out",
+     "type": "length"
+    },
+    "content-width": {
+     "dir": "in-out",
+     "type": "length"
+    },
+    "content-x": {
+     "dir": "in-out",
+     "type": "length"
+    },
+    "content-y": {
+     "dir": "in-out",
+     "type": "length"
+    },
+    "enabled": {
+     "dir": "in",
+     "type": "bool"
+    },
+    "has-focus": {
+     "dir": "in-out",
+     "type": "bool"
+    },
+    "horizontal-scrollbar-policy": {
+     "dir": "in",
+     "type": "ScrollBarPolicy"
+    },
+    "mouse-drag-pan-enabled": {
+     "dir": "in",
+     "type": "bool"
+    },
+    "vertical-scrollbar-policy": {
+     "dir": "in",
+     "type": "ScrollBarPolicy"
+    },
+    "visible-height": {
+     "dir": "out",
+     "type": "length"
+    },
+    "visible-width": {
+     "dir": "out",
+     "type": "length"
+    }
+   }
+  },
+  "Slider": {
+   "callbacks": {
+    "changed": "float",
+    "released": "float"
+   },
+   "doc": "https://releases.slint.dev/1.18.0/docs/slint/reference/std-widgets/basic-widgets/slider/",
+   "properties": {
+    "enabled": {
+     "dir": "in",
+     "type": "bool"
+    },
+    "has-focus": {
+     "dir": "out",
+     "type": "bool"
+    },
+    "maximum": {
+     "dir": "in",
+     "type": "float"
+    },
+    "minimum": {
+     "dir": "in",
+     "type": "float"
+    },
+    "orientation": {
+     "dir": "in",
+     "type": "Orientation"
+    },
+    "step": {
+     "dir": "in",
+     "type": "float"
+    },
+    "value": {
+     "dir": "in-out",
+     "type": "float"
+    }
+   }
+  },
+  "SpinBox": {
+   "callbacks": {
+    "edited": "int"
+   },
+   "doc": "https://releases.slint.dev/1.18.0/docs/slint/reference/std-widgets/basic-widgets/spinbox/",
+   "properties": {
+    "enabled": {
+     "dir": "in",
+     "type": "bool"
+    },
+    "has-focus": {
+     "dir": "out",
+     "type": "bool"
+    },
+    "horizontal-alignment": {
+     "dir": "in",
+     "type": "TextHorizontalAlignment"
+    },
+    "maximum": {
+     "dir": "in",
+     "type": "int"
+    },
+    "minimum": {
+     "dir": "in",
+     "type": "int"
+    },
+    "read-only": {
+     "dir": "in",
+     "type": "bool"
+    },
+    "step-size": {
+     "dir": "in",
+     "type": "int"
+    },
+    "value": {
+     "dir": "in-out",
+     "type": "int"
+    }
+   }
+  },
+  "Spinner": {
+   "callbacks": {},
+   "doc": "https://releases.slint.dev/1.18.0/docs/slint/reference/std-widgets/basic-widgets/spinner/",
+   "properties": {
+    "indeterminate": {
+     "dir": "in",
+     "type": "bool"
+    },
+    "progress": {
+     "dir": "in",
+     "type": "float"
+    }
+   }
+  },
+  "StandardListView": {
+   "callbacks": {
+    "current-item-changed": "int",
+    "item-pointer-event": "int, PointerEvent, Point"
+   },
+   "doc": "https://releases.slint.dev/1.18.0/docs/slint/reference/std-widgets/views/standardlistview/",
+   "properties": {
+    "current-item": {
+     "dir": "in-out",
+     "type": "int"
+    },
+    "model": {
+     "dir": "in",
+     "type": "[StandardListViewItem]"
+    }
+   }
+  },
+  "StandardTableView": {
+   "callbacks": {
+    "current-row-changed": "int",
+    "row-pointer-event": "int, PointerEvent, Point",
+    "sort-ascending": "int",
+    "sort-descending": "int"
+   },
+   "doc": "https://releases.slint.dev/1.18.0/docs/slint/reference/std-widgets/views/standardtableview/",
+   "properties": {
+    "columns": {
+     "dir": "in-out",
+     "type": "[TableColumn]"
+    },
+    "current-row": {
+     "dir": "in-out",
+     "type": "int"
+    },
+    "current-sort-column": {
+     "dir": "out",
+     "type": "int"
+    },
+    "rows": {
+     "dir": "in",
+     "type": "[[StandardListViewItem]]"
+    }
+   }
+  },
+  "Switch": {
+   "callbacks": {
+    "toggled": ""
+   },
+   "doc": "https://releases.slint.dev/1.18.0/docs/slint/reference/std-widgets/basic-widgets/switch/",
+   "properties": {
+    "checked": {
+     "dir": "in-out",
+     "type": "bool"
+    },
+    "enabled": {
+     "dir": "in",
+     "type": "bool"
+    },
+    "has-focus": {
+     "dir": "out",
+     "type": "bool"
+    },
+    "text": {
+     "dir": "in",
+     "type": "string"
+    }
+   }
+  },
+  "TabWidget": {
+   "callbacks": {},
+   "doc": "https://releases.slint.dev/1.18.0/docs/slint/reference/std-widgets/views/tabwidget/",
+   "properties": {
+    "current-index": {
+     "dir": "in",
+     "type": "int"
+    },
+    "orientation": {
+     "dir": "in",
+     "type": "Orientation"
+    },
+    "title": {
+     "dir": "in",
+     "type": "string"
+    }
+   }
+  },
+  "Text": {
+   "callbacks": {},
+   "doc": "https://releases.slint.dev/1.18.0/docs/slint/reference/elements/text/",
+   "properties": {
+    "color": {
+     "dir": "in",
+     "type": "brush"
+    },
+    "font-family": {
+     "dir": "in",
+     "type": "string"
+    },
+    "font-italic": {
+     "dir": "in",
+     "type": "bool"
+    },
+    "font-metrics": {
+     "dir": "out",
+     "type": "FontMetrics"
+    },
+    "font-size": {
+     "dir": "in",
+     "type": "length"
+    },
+    "font-weight": {
+     "dir": "in",
+     "type": "int"
+    },
+    "horizontal-alignment": {
+     "dir": "in",
+     "type": "TextHorizontalAlignment"
+    },
+    "letter-spacing": {
+     "dir": "in",
+     "type": "length"
+    },
+    "line-height-factor": {
+     "dir": "in",
+     "type": "float"
+    },
+    "max-lines": {
+     "dir": "in",
+     "type": "int"
+    },
+    "overflow": {
+     "dir": "in",
+     "type": "TextOverflow"
+    },
+    "stroke": {
+     "dir": "in",
+     "type": "brush"
+    },
+    "stroke-style": {
+     "dir": "in",
+     "type": "TextStrokeStyle"
+    },
+    "stroke-width": {
+     "dir": "in",
+     "type": "length"
+    },
+    "text": {
+     "dir": "in",
+     "type": "string"
+    },
+    "vertical-alignment": {
+     "dir": "in",
+     "type": "TextVerticalAlignment"
+    },
+    "wrap": {
+     "dir": "in",
+     "type": "TextWrap"
+    }
+   }
+  },
+  "TextEdit": {
+   "callbacks": {
+    "edited": "string",
+    "key-pressed": "KeyEvent",
+    "key-released": "KeyEvent"
+   },
+   "doc": "https://releases.slint.dev/1.18.0/docs/slint/reference/std-widgets/views/textedit/",
+   "properties": {
+    "content-height": {
+     "dir": "in-out",
+     "type": "length"
+    },
+    "content-width": {
+     "dir": "in-out",
+     "type": "length"
+    },
+    "content-x": {
+     "dir": "in-out",
+     "type": "length"
+    },
+    "content-y": {
+     "dir": "in-out",
+     "type": "length"
+    },
+    "enabled": {
+     "dir": "in",
+     "type": "bool"
+    },
+    "font-family": {
+     "dir": "in",
+     "type": "string"
+    },
+    "font-italic": {
+     "dir": "in",
+     "type": "bool"
+    },
+    "font-size": {
+     "dir": "in",
+     "type": "length"
+    },
+    "has-focus": {
+     "dir": "out",
+     "type": "bool"
+    },
+    "horizontal-alignment": {
+     "dir": "in",
+     "type": "TextHorizontalAlignment"
+    },
+    "input-method-hints": {
+     "dir": "in",
+     "type": "InputMethodHints"
+    },
+    "placeholder-text": {
+     "dir": "in",
+     "type": "string"
+    },
+    "read-only": {
+     "dir": "in",
+     "type": "bool"
+    },
+    "text": {
+     "dir": "in-out",
+     "type": "string"
+    },
+    "visible-height": {
+     "dir": "out",
+     "type": "length"
+    },
+    "visible-width": {
+     "dir": "out",
+     "type": "length"
+    },
+    "wrap": {
+     "dir": "in",
+     "type": "TextWrap"
+    }
+   }
+  },
+  "TextInput": {
+   "callbacks": {
+    "accepted": "",
+    "cursor-position-changed": "position: Point",
+    "edited": "",
+    "key-pressed": "event: KeyEvent",
+    "key-released": "event: KeyEvent"
+   },
+   "doc": "https://releases.slint.dev/1.18.0/docs/slint/reference/keyboard-input/textinput/",
+   "properties": {
+    "color": {
+     "dir": "in",
+     "type": "brush"
+    },
+    "font-family": {
+     "dir": "in",
+     "type": "string"
+    },
+    "font-italic": {
+     "dir": "in",
+     "type": "bool"
+    },
+    "font-size": {
+     "dir": "in",
+     "type": "length"
+    },
+    "font-weight": {
+     "dir": "in",
+     "type": "int"
+    },
+    "has-focus": {
+     "dir": "out",
+     "type": "bool"
+    },
+    "horizontal-alignment": {
+     "dir": "in",
+     "type": "TextHorizontalAlignment"
+    },
+    "input-method-hints": {
+     "dir": "in",
+     "type": "InputMethodHints"
+    },
+    "input-type": {
+     "dir": "in",
+     "type": "InputType"
+    },
+    "letter-spacing": {
+     "dir": "in",
+     "type": "length"
+    },
+    "line-height-factor": {
+     "dir": "in",
+     "type": "float"
+    },
+    "page-height": {
+     "dir": "in",
+     "type": "length"
+    },
+    "selection-background-color": {
+     "dir": "in",
+     "type": "color"
+    },
+    "selection-foreground-color": {
+     "dir": "in",
+     "type": "color"
+    },
+    "text": {
+     "dir": "in-out",
+     "type": "string"
+    },
+    "text-cursor-width": {
+     "dir": "in",
+     "type": "length"
+    },
+    "vertical-alignment": {
+     "dir": "in",
+     "type": "TextVerticalAlignment"
+    },
+    "wrap": {
+     "dir": "in",
+     "type": "TextWrap"
+    }
+   }
+  },
+  "Tooltip": {
+   "callbacks": {},
+   "doc": "https://releases.slint.dev/1.18.0/docs/slint/reference/window/tooltip/",
+   "properties": {
+    "text": {
+     "dir": "in",
+     "type": "styled"
+    }
+   }
+  },
+  "TouchArea": {
+   "callbacks": {
+    "clicked": "",
+    "double-clicked": "",
+    "moved": "",
+    "pointer-event": "event: PointerEvent",
+    "scroll-event": "event: PointerScrollEvent"
+   },
+   "doc": "https://releases.slint.dev/1.18.0/docs/slint/reference/gestures/toucharea/",
+   "properties": {
+    "enabled": {
+     "dir": "in",
+     "type": "bool"
+    },
+    "has-hover": {
+     "dir": "out",
+     "type": "bool"
+    },
+    "mouse-cursor": {
+     "dir": "in",
+     "type": "MouseCursor"
+    },
+    "mouse-x": {
+     "dir": "out",
+     "type": "length"
+    },
+    "mouse-y": {
+     "dir": "out",
+     "type": "length"
+    },
+    "pressed": {
+     "dir": "out",
+     "type": "bool"
+    },
+    "pressed-x": {
+     "dir": "out",
+     "type": "length"
+    },
+    "pressed-y": {
+     "dir": "out",
+     "type": "length"
+    }
+   }
+  },
+  "VerticalLayout": {
+   "callbacks": {},
+   "doc": "https://releases.slint.dev/1.18.0/docs/slint/reference/layouts/verticallayout/",
+   "properties": {
+    "alignment": {
+     "dir": "in",
+     "type": "LayoutAlignment"
+    },
+    "cross-axis-alignment": {
+     "dir": "in",
+     "type": "CrossAxisAlignment"
+    },
+    "cross-axis-self-alignment": {
+     "dir": "in",
+     "type": "CrossAxisAlignment"
+    },
+    "layout-order": {
+     "dir": "in",
+     "type": "int"
+    },
+    "padding": {
+     "dir": "in",
+     "type": "length"
+    },
+    "padding-bottom": {
+     "dir": "in",
+     "type": "length"
+    },
+    "padding-left": {
+     "dir": "in",
+     "type": "length"
+    },
+    "padding-right": {
+     "dir": "in",
+     "type": "length"
+    },
+    "padding-top": {
+     "dir": "in",
+     "type": "length"
+    },
+    "spacing": {
+     "dir": "in",
+     "type": "length"
+    }
+   }
+  },
+  "Window": {
+   "callbacks": {},
+   "doc": "https://releases.slint.dev/1.18.0/docs/slint/reference/window/window/",
+   "properties": {
+    "always-on-top": {
+     "dir": "in",
+     "type": "bool"
+    },
+    "background": {
+     "dir": "in",
+     "type": "brush"
+    },
+    "default-font-family": {
+     "dir": "in",
+     "type": "string"
+    },
+    "default-font-size": {
+     "dir": "in",
+     "type": "length"
+    },
+    "default-font-weight": {
+     "dir": "in",
+     "type": "int"
+    },
+    "full-screen": {
+     "dir": "in-out",
+     "type": "bool"
+    },
+    "height": {
+     "dir": "in-out",
+     "type": "length"
+    },
+    "icon": {
+     "dir": "in",
+     "type": "image"
+    },
+    "maximized": {
+     "dir": "in-out",
+     "type": "bool"
+    },
+    "minimized": {
+     "dir": "in-out",
+     "type": "bool"
+    },
+    "no-frame": {
+     "dir": "in",
+     "type": "bool"
+    },
+    "resize-border-width": {
+     "dir": "in",
+     "type": "length"
+    },
+    "safe-area-insets": {
+     "dir": "out",
+     "type": "Edges"
+    },
+    "title": {
+     "dir": "in",
+     "type": "string"
+    },
+    "virtual-keyboard-position": {
+     "dir": "out",
+     "type": "Point"
+    },
+    "virtual-keyboard-size": {
+     "dir": "out",
+     "type": "Size"
+    },
+    "width": {
+     "dir": "in-out",
+     "type": "length"
+    }
+   }
+  }
+ },
+ "enums": {
+  "AccessibleLiveness": [
+   "off",
+   "polite",
+   "assertive"
+  ],
+  "AccessibleRole": [
+   "none",
+   "button",
+   "checkbox",
+   "combobox",
+   "groupbox",
+   "image",
+   "list",
+   "slider",
+   "spinbox",
+   "tab",
+   "tab-list",
+   "tab-panel",
+   "text",
+   "table",
+   "tree",
+   "progress-indicator",
+   "text-input",
+   "switch",
+   "list-item",
+   "radio-button",
+   "radio-group",
+   "window-title-bar",
+   "banner",
+   "complementary",
+   "content-info",
+   "form",
+   "main",
+   "navigation",
+   "region",
+   "search"
+  ],
+  "AnimationDirection": [
+   "normal",
+   "reverse",
+   "alternate",
+   "alternate-reverse"
+  ],
+  "CapitalizationMode": [
+   "none",
+   "sentences",
+   "words",
+   "characters"
+  ],
+  "ColorScheme": [
+   "unknown",
+   "dark",
+   "light"
+  ],
+  "CrossAxisAlignment": [
+   "auto",
+   "stretch",
+   "start",
+   "end",
+   "center"
+  ],
+  "DialogButtonRole": [
+   "none",
+   "accept",
+   "reject",
+   "apply",
+   "reset",
+   "help",
+   "action"
+  ],
+  "DragAction": [
+   "none",
+   "copy",
+   "move",
+   "link"
+  ],
+  "EventResult": [
+   "reject",
+   "accept"
+  ],
+  "FillRule": [
+   "nonzero",
+   "evenodd"
+  ],
+  "FlexboxLayoutDirection": [
+   "row",
+   "row-reverse",
+   "column",
+   "column-reverse"
+  ],
+  "FlexboxLayoutWrap": [
+   "wrap",
+   "no-wrap",
+   "wrap-reverse"
+  ],
+  "FocusReason": [
+   "programmatic",
+   "tab-navigation",
+   "pointer-click",
+   "popup-activation",
+   "window-activation"
+  ],
+  "ImageFit": [
+   "fill",
+   "contain",
+   "cover",
+   "preserve"
+  ],
+  "ImageHorizontalAlignment": [
+   "center",
+   "left",
+   "right"
+  ],
+  "ImageRendering": [
+   "smooth",
+   "pixelated"
+  ],
+  "ImageTiling": [
+   "none",
+   "repeat",
+   "round"
+  ],
+  "ImageVerticalAlignment": [
+   "center",
+   "top",
+   "bottom"
+  ],
+  "InputType": [
+   "text",
+   "password",
+   "number",
+   "decimal",
+   "search"
+  ],
+  "LayoutAlignment": [
+   "stretch",
+   "center",
+   "start",
+   "end",
+   "space-between",
+   "space-around",
+   "space-evenly"
+  ],
+  "LineCap": [
+   "butt",
+   "round",
+   "square"
+  ],
+  "LineJoin": [
+   "miter",
+   "round",
+   "bevel"
+  ],
+  "OperatingSystemType": [
+   "android",
+   "ios",
+   "macos",
+   "linux",
+   "windows",
+   "other"
+  ],
+  "Orientation": [
+   "horizontal",
+   "vertical"
+  ],
+  "PathEvent": [
+   "begin",
+   "line",
+   "quadratic",
+   "cubic",
+   "end-open",
+   "end-closed"
+  ],
+  "PointerEventButton": [
+   "other",
+   "left",
+   "right",
+   "middle",
+   "back",
+   "forward"
+  ],
+  "PointerEventKind": [
+   "cancel",
+   "down",
+   "up",
+   "move"
+  ],
+  "PopupClosePolicy": [
+   "close-on-click",
+   "close-on-click-outside",
+   "no-auto-close"
+  ],
+  "ScrollBarPolicy": [
+   "as-needed",
+   "always-off",
+   "always-on"
+  ],
+  "SortOrder": [
+   "unsorted",
+   "ascending",
+   "descending"
+  ],
+  "StandardButtonKind": [
+   "ok",
+   "cancel",
+   "apply",
+   "close",
+   "reset",
+   "help",
+   "yes",
+   "no",
+   "abort",
+   "retry",
+   "ignore"
+  ],
+  "TextHorizontalAlignment": [
+   "start",
+   "end",
+   "left",
+   "center",
+   "right"
+  ],
+  "TextOverflow": [
+   "clip",
+   "elide"
+  ],
+  "TextStrokeStyle": [
+   "outside",
+   "center"
+  ],
+  "TextVerticalAlignment": [
+   "top",
+   "center",
+   "bottom"
+  ],
+  "TextWrap": [
+   "no-wrap",
+   "word-wrap",
+   "char-wrap"
+  ]
+ }
+}

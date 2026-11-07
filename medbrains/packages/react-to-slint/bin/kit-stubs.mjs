@@ -18,13 +18,15 @@ const PREVIEW = path.resolve(HERE, "../preview");
 /** Mapped targets that are callbacks, not properties. */
 const CALLBACKS = new Set(["clicked", "edited", "toggled", "selected", "changed", "closed", "picked"]);
 const BOOLS = new Set(["checked", "enabled", "busy", "active", "with-time"]);
-const INTS = new Set(["value", "minimum", "maximum", "progress", "current-index", "total", "page", "rating"]);
+const INTS = new Set(["current-index", "total", "page"]);
+const IMAGES = new Set(["icon", "trailing-icon", "source"]);
 const LISTS = new Set(["model", "data", "selected-values", "items"]);
 
 /** The Slint type of one mapped property. */
 function typeOf(name) {
   if (BOOLS.has(name)) return "bool";
   if (INTS.has(name)) return "int";
+  if (IMAGES.has(name)) return "image";
   if (LISTS.has(name)) return "[string]";
   return "string";
 }

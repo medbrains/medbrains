@@ -1,50 +1,22 @@
 /**
- * Converts React + Mantine screens into Slint view skeletons, and counts what could not be mapped.
+ * Converts React + Mantine screens into Slint views, and counts what could not be mapped.
  *
- * Views only: hooks, queries and handlers become declared properties and callbacks, and the
- * report lists the hooks as the logic that moves into a Rust view model
- * (docs/architecture/OS-NATIVE-GUI.md, transition layer).
+ * Each JSX element is converted by the rule for its tag in `mapping.json`. Every value is written
+ * with the type the Slint property declares (`slint-types.mjs`), Mantine's own default props are
+ * applied first (`mantine-defaults.json`), and anything with no Slint equivalent is dropped with
+ * a reason written into the file and counted in the report. Logic that has to live in Rust
+ * (effects, queries, refs, browser APIs) is marked `// rust:` and counted, never left out
+ * silently. The rules are documented in docs/CONVERSIONS.md.
  */
 import fs from "node:fs";
 import path from "node:path";
 import { parse } from "@babel/parser";
+import { iconFile } from "./icons.mjs";
+import { loadTypes } from "./slint-types.mjs";
+import { colorOf, convertStatic, isEnum, lengthOf, quote, staticValue, weightOf } from "./values.mjs";
 
 const HERE = path.dirname(new URL(import.meta.url).pathname);
-
-/** Slint standard widgets, imported from `std-widgets.slint`. */
-const STD_WIDGETS = new Set([
-  "Button", "LineEdit", "ComboBox", "CheckBox", "Switch", "SpinBox", "Slider", "TextEdit",
-  "StandardTableView", "TabWidget", "ScrollView", "Spinner", "ProgressIndicator",
-]);
-
-/** Mantine size and colour names, and the design token each becomes in the kit's `Tokens` global. */
-const SIZE_TOKENS = new Set(["xs", "sm", "md", "lg", "xl"]);
-const TOKEN_PROPS = { spacing: "space", padding: "space", "font-size": "font", color: "color" };
-const COLOR_ALIASES = {
-  dimmed: "text-muted", gray: "text-muted", dark: "text", black: "text", white: "surface",
-  red: "danger", pink: "danger", green: "success", teal: "success", lime: "success",
-  orange: "warning", yellow: "warning", blue: "primary", cyan: "primary", indigo: "primary",
-  violet: "accent", grape: "accent", text: "text", primary: "primary", danger: "danger",
-  success: "success", warning: "warning", accent: "accent", "text-muted": "text-muted",
-};
-/** Slint properties that take numbers rather than text. */
-const NUMBER_PROPS = new Set(["value", "minimum", "maximum", "progress", "current-index", "total", "page"]);
-
-/** A string literal for a token property as its `Tokens` value, or null when it is not a token. */
-function tokenValue(target, value) {
-  const kind = TOKEN_PROPS[target];
-  if (!kind) return null;
-  if (kind === "color") {
-    // Mantine colour names and shades ("red.8", "gray.4") resolve to the nearest semantic token;
-    // CSS values (var(--…), inherit) have no token, so the property is left to the kit.
-    if (/^(var\(|inherit|currentColor|transparent)/.test(value)) return "";
-    const name = value.split(".")[0];
-    return `Tokens.color-${COLOR_ALIASES[name] ?? "text"}`;
-  }
-  if (SIZE_TOKENS.has(value)) return `Tokens.${kind}-${value}`;
-  if (/^\d+$/.test(value)) return `${value}px`;
-  return null;
-}
+export const DEFAULTS = JSON.parse(fs.readFileSync(path.join(HERE, "mantine-defaults.json"), "utf8"));
 
 /**
  * English text for translation keys, from the web app's own language files, flattened to
@@ -69,41 +41,42 @@ export function loadStrings(dir) {
   return strings;
 }
 
-/** Flattens `mapping.json` into `tag -> rule`, plus the wrappers that are dropped. */
+/** Flattens `mapping.json` into `tag -> rule`, plus the dropped wrappers and the style props. */
 export function loadMapping(file = path.join(HERE, "mapping.json")) {
   const raw = JSON.parse(fs.readFileSync(file, "utf8"));
   const rules = {};
   for (const [group, entries] of Object.entries(raw)) {
-    if (group.startsWith("_") || group === "dropped" || group === "version" || group === "html" || group === "webOnly") continue;
+    if (group.startsWith("_") || ["dropped", "version", "html", "webOnly", "styleProps", "commonProps", "rust"].includes(group)) continue;
     Object.assign(rules, entries);
   }
-  return { rules, html: raw.html ?? {}, webOnly: new Set(raw.webOnly ?? []), dropped: new Set(raw.dropped), version: raw.version };
+  return {
+    rules,
+    html: raw.html ?? {},
+    webOnly: new Set(raw.webOnly ?? []),
+    dropped: new Set(raw.dropped),
+    styleProps: raw.styleProps ?? {},
+    commonProps: raw.commonProps ?? {},
+    rust: raw.rust ?? {},
+    version: raw.version,
+    types: loadTypes(),
+  };
 }
 
-/** Names a generated component inherits from `Rectangle`, so a property may not take them. */
+/** Names a generated component inherits from its base, so a property may not take them. */
 const RESERVED = new Set([
   "x", "y", "z", "width", "height", "color", "background", "border-color", "border-width",
-  "border-radius", "opacity", "visible", "clip", "text", "padding", "spacing", "enabled",
+  "border-radius", "opacity", "visible", "clip", "text", "padding", "spacing", "enabled", "alignment",
   "absolute-position", "min-width", "max-width", "min-height", "max-height", "drop-shadow-color",
   "accessible-label", "accessible-role", "accessible-description", "accessible-value", "item", "root", "self", "parent",
+  "padding-left", "padding-right", "padding-top", "padding-bottom", "cross-axis-alignment", "preferred-width", "preferred-height",
+  "horizontal-stretch", "vertical-stretch", "row", "col", "rowspan", "colspan", "init", "changed", "if", "for", "in", "out", "property", "callback", "states", "animate",
 ]);
 
 /** Our components that wrap behaviour rather than draw: rendered as their children. */
 const WRAPPER = /(Provider|Boundary|Guard|Gate|Context|Mount)$/;
 
-/** Slint types for properties whose values are not text. */
-const PROP_TYPES = {
-  color: "brush", background: "brush", "border-color": "brush", source: "image",
-  columns: "[TableColumn]", rows: "[[StandardListViewItem]]", model: "[string]",
-  "selected-values": "[string]", data: "[string]", items: "[string]",
-};
-/** Properties that take lengths, so a bare number gains `px`. */
-const LENGTH_PROPS = new Set(["spacing", "padding", "width", "height", "font-size", "min-width", "min-height", "max-width", "max-height"]);
-/** Widgets that cannot hold children: their JSX children are counted and left out. */
-const LEAF_WIDGETS = new Set(["StandardTableView", "LineEdit", "TextEdit", "SpinBox", "Slider", "ComboBox", "Spinner", "ProgressIndicator", "Image", "MbTextInput", "MbNumberInput", "MbSelect", "MbBadge", "MbDivider", "MbIcon"]);
-
 /** A Slint identifier for a JavaScript expression, unique within one component. */
-function ident(text, used) {
+export function ident(text, used) {
   let base = text.replace(/[^A-Za-z0-9]+/g, "-").replace(/^-+|-+$/g, "").toLowerCase() || "value";
   if (/^[0-9]/.test(base) || RESERVED.has(base)) base = `v-${base}`;
   base = base.slice(0, 40).replace(/-+$/, "");
@@ -113,76 +86,107 @@ function ident(text, used) {
   return name;
 }
 
-/** A Slint string literal. */
-const quote = (s) => `"${s.replace(/\\/g, "\\\\").replace(/"/g, '\\"')}"`;
+/**
+ * JSX text as React renders it: lines are trimmed where they meet a line break, blank lines go,
+ * and the rest join with one space, so `Due {n} today` keeps its spaces and indentation does not.
+ */
+export function jsxText(value) {
+  const lines = value.replace(/\t/g, " ").split(/\r?\n/);
+  const kept = [];
+  lines.forEach((line, i) => {
+    let s = line;
+    if (i > 0) s = s.replace(/^ +/, "");
+    if (i < lines.length - 1) s = s.replace(/ +$/, "");
+    if (s) kept.push(s);
+  });
+  return kept.join(" ");
+}
 
 const isJsx = (n) => n && (n.type === "JSXElement" || n.type === "JSXFragment");
+const unwrap = (n) => (n?.type === "ParenthesizedExpression" || n?.type === "TSAsExpression" || n?.type === "TSNonNullExpression" ? unwrap(n.expression) : n);
+const kebab = (s) => s.replace(/([a-z0-9])([A-Z])/g, "$1-$2").toLowerCase();
 
 /** The JSX tag name as written: `Button`, `Table.Td`, `div`. */
-function tagName(name) {
+export function tagName(name) {
   if (name.type === "JSXIdentifier") return name.name;
   if (name.type === "JSXMemberExpression") return `${tagName(name.object)}.${name.property.name}`;
   return "";
 }
 
-/**
- * The JSX a function body renders. A component's main view is its last top-level `return`;
- * earlier returns inside `if` blocks are loading, error or permission branches, so they are
- * only used when there is no top-level one.
- */
-function returnedJsx(body) {
-  if (isJsx(body)) return body;
-  if (body?.type !== "BlockStatement") return null;
-  for (let i = body.body.length - 1; i >= 0; i -= 1) {
-    const st = body.body[i];
-    const arg = st.type === "ReturnStatement" ? st.argument : null;
-    const jsx = arg?.type === "ParenthesizedExpression" ? arg.expression : arg;
-    if (isJsx(jsx)) return jsx;
-    if (jsx?.type === "ConditionalExpression" && (isJsx(jsx.consequent) || isJsx(jsx.alternate))) return jsx.alternate && isJsx(jsx.alternate) ? jsx.alternate : jsx.consequent;
+/** Generic walk over an AST subtree, not entering nested functions when `shallow`. */
+function walk(node, fn, shallow = false, top = true) {
+  if (!node || typeof node.type !== "string") return;
+  if (!top && shallow && /Function/.test(node.type)) return;
+  fn(node);
+  for (const [k, v] of Object.entries(node)) {
+    if (k === "loc" || k === "start" || k === "end") continue;
+    if (Array.isArray(v)) v.forEach((x) => walk(x, fn, shallow, false));
+    else if (v && typeof v.type === "string") walk(v, fn, shallow, false);
   }
-  return firstReturnedJsx(body);
 }
 
-/** The first JSX value a block returns, without entering nested functions. */
-function firstReturnedJsx(body) {
-  let found = null;
-  const visit = (node) => {
-    if (found || !node || typeof node.type !== "string") return;
-    if (node.type === "ReturnStatement" && isJsx(node.argument)) {
-      found = node.argument;
-      return;
+/** JSX returned by a statement list's `return`, the block's last statement or an arrow body. */
+function jsxOfReturn(st) {
+  if (st?.type === "ReturnStatement") {
+    const arg = unwrap(st.argument);
+    if (isJsx(arg)) return arg;
+    if (arg?.type === "ConditionalExpression" && (isJsx(unwrap(arg.consequent)) || isJsx(unwrap(arg.alternate)))) return arg;
+    if (arg?.type === "NullLiteral") return arg;
+  }
+  if (st?.type === "BlockStatement") {
+    const last = st.body[st.body.length - 1];
+    return st.body.length === 1 || last?.type === "ReturnStatement" ? jsxOfReturn(last) : null;
+  }
+  return null;
+}
+
+/**
+ * What a function component renders: its final top-level `return`, plus every earlier
+ * `if (cond) return <X/>;` as a guarded branch. React returns the first branch whose condition
+ * holds; Slint shows each branch under `if`, with every earlier condition negated, so exactly
+ * one branch is visible at a time, as on the web.
+ */
+export function renderBranches(body) {
+  const b = unwrap(body);
+  if (isJsx(b) || b?.type === "ConditionalExpression") return { branches: [], main: b };
+  if (b?.type !== "BlockStatement") return { branches: [], main: null };
+  const branches = [];
+  let main = null;
+  for (const st of b.body) {
+    if (st.type === "IfStatement" && !st.alternate) {
+      const jsx = jsxOfReturn(st.consequent);
+      if (jsx) branches.push({ test: st.test, jsx });
     }
-    if (/Function/.test(node.type)) return;
-    for (const value of Object.values(node)) {
-      if (Array.isArray(value)) value.forEach(visit);
-      else if (value && typeof value.type === "string") visit(value);
+    if (st.type === "ReturnStatement") {
+      const jsx = jsxOfReturn(st);
+      if (jsx) main = jsx;
     }
-  };
-  body.body.forEach(visit);
-  return found;
+  }
+  if (!main) {
+    // No top-level return: the first JSX any return yields, outside nested functions.
+    walk(b, (n) => {
+      if (!main && n.type === "ReturnStatement" && isJsx(unwrap(n.argument))) main = unwrap(n.argument);
+    }, true);
+    return { branches: [], main };
+  }
+  return { branches, main };
 }
 
 /** Hook calls (`useState`, `useQuery`, ...) in a function body, counted by name. */
 function hookCalls(body) {
   const hooks = {};
-  const visit = (node) => {
-    if (!node || typeof node.type !== "string") return;
+  walk(body, (node) => {
     if (node.type === "CallExpression" && node.callee.type === "Identifier" && /^use[A-Z]/.test(node.callee.name)) {
       hooks[node.callee.name] = (hooks[node.callee.name] ?? 0) + 1;
     }
-    for (const value of Object.values(node)) {
-      if (Array.isArray(value)) value.forEach(visit);
-      else if (value && typeof value.type === "string") visit(value);
-    }
-  };
-  visit(body);
+  });
   return hooks;
 }
 
 /**
- * A component's local state: `const [tab, setTab] = useState("rx")` becomes `tab` with its
- * starting value, plus the setter's name, so handlers that call the setter change the Slint
- * property directly and the screen reacts with no Rust in between.
+ * A component's local state: `useState` and `useDisclosure` values with their setters, so
+ * handlers that set them change the Slint property directly and the screen reacts with no Rust.
+ * `useDisclosure(false)` gives `opened` plus `open` (true), `close` (false) and `toggle` (not).
  */
 function localState(body) {
   const states = new Map();
@@ -191,10 +195,21 @@ function localState(body) {
     if (st.type !== "VariableDeclaration") continue;
     for (const d of st.declarations) {
       const call = d.init;
-      if (d.id?.type !== "ArrayPattern" || call?.type !== "CallExpression" || call.callee?.name !== "useState") continue;
-      const [value, setter] = d.id.elements;
-      if (value?.type === "Identifier" && setter?.type === "Identifier") {
-        states.set(value.name, { setter: setter.name, init: call.arguments[0] });
+      const name = call?.type === "CallExpression" ? call.callee?.name : null;
+      if (d.id?.type !== "ArrayPattern" || !name) continue;
+      const [value, second] = d.id.elements;
+      if (name === "useState" && value?.type === "Identifier" && second?.type === "Identifier") {
+        states.set(value.name, { setter: second.name, init: call.arguments[0] });
+      }
+      if (name === "useDisclosure" && value?.type === "Identifier") {
+        const actions = {};
+        if (second?.type === "ObjectPattern") {
+          for (const p of second.properties) {
+            const local = p.value?.name;
+            if (["open", "close", "toggle"].includes(p.key?.name) && local) actions[local] = p.key.name;
+          }
+        }
+        states.set(value.name, { setter: null, actions, init: call.arguments[0] ?? { type: "BooleanLiteral", value: false } });
       }
     }
   }
@@ -206,15 +221,15 @@ function components(program) {
   const out = [];
   const consider = (name, fn) => {
     if (!name || !/^[A-Z]/.test(name) || !fn?.body) return;
-    const jsx = returnedJsx(fn.body);
-    if (jsx) out.push({ name, jsx, hooks: hookCalls(fn.body), states: localState(fn.body) });
+    const { branches, main } = renderBranches(fn.body);
+    if (main && main.type !== "NullLiteral") out.push({ name, jsx: main, branches, body: fn.body, hooks: hookCalls(fn.body), states: localState(fn.body) });
   };
   for (let st of program.body) {
     if (st.type === "ExportNamedDeclaration" || st.type === "ExportDefaultDeclaration") st = st.declaration ?? st;
     if (st?.type === "FunctionDeclaration") consider(st.id?.name, st);
     if (st?.type === "VariableDeclaration") {
       for (const d of st.declarations) {
-        const init = d.init?.type === "CallExpression" ? d.init.arguments[0] : d.init; // forwardRef(fn), memo(fn)
+        const init = d.init?.type === "CallExpression" ? d.init.arguments.find((a) => /Function/.test(a.type)) : d.init; // forwardRef(fn), memo(fn)
         if (init && /Function/.test(init.type)) consider(d.id?.name, init);
       }
     }
@@ -222,16 +237,39 @@ function components(program) {
   return out;
 }
 
+/** Where each imported name comes from: `mantine`, `seam` (components/ui) or another module. */
+function importsOf(program) {
+  const out = new Map();
+  for (const st of program.body) {
+    if (st.type !== "ImportDeclaration") continue;
+    const src = st.source.value;
+    const lib = src.startsWith("@mantine/") ? "mantine" : src === "@/components/ui" || /(^|\/)components\/ui(\/|$)/.test(src) ? "seam" : src.startsWith("@tabler/") ? "tabler" : "other";
+    for (const s of st.specifiers) out.set(s.local.name, { lib, imported: s.imported?.name ?? s.imported?.value ?? "default", source: src });
+  }
+  return out;
+}
+
 /** Writes one component, collecting its properties, callbacks and the gaps it meets. */
 class ComponentWriter {
-  constructor(name, mapping, source, stats, known, states = new Map()) {
-    Object.assign(this, { name, mapping, source, stats, known, states });
-    this.setters = new Map([...states].map(([v, st]) => [st.setter, v]));
+  constructor(c, ctx) {
+    Object.assign(this, ctx);
+    this.name = c.name;
+    this.states = c.states;
+    this.setters = new Map();
+    for (const [v, st] of c.states) {
+      if (st.setter) this.setters.set(st.setter, { state: v, kind: "set" });
+      for (const [local, action] of Object.entries(st.actions ?? {})) this.setters.set(local, { state: v, kind: action });
+    }
     this.tabState = [];
     this.props = new Map();
-    this.callbacks = new Set();
+    this.callbacks = new Map();
     this.used = new Set();
     this.lines = [];
+    this.rustNotes = [];
+    this.extra = [];
+    this.cells = [];
+    this.changed = new Map();
+    this.counter = 0;
   }
 
   /** Source text of a node. */
@@ -239,60 +277,21 @@ class ComponentWriter {
     return this.source.slice(node.start, node.end);
   }
 
-  /**
-   * A Slint value for an expression when one exists without a property: translated text
-   * (`t("ns.key")` becomes `@tr("ns.key")`), string and number literals, and plain templates.
-   * Returns null when the value has to come from the view model.
-   */
-  literal(expr) {
-    if (!expr) return null;
-    if (expr.type === "StringLiteral") return quote(expr.value);
-    if (expr.type === "NumericLiteral") return String(expr.value);
-    if (expr.type === "BooleanLiteral") return String(expr.value);
-    if (expr.type === "TemplateLiteral" && expr.expressions.length === 0) return quote(expr.quasis[0].value.cooked);
-    if (expr.type === "CallExpression" && expr.callee.type === "Identifier" && expr.callee.name === "t") {
-      const [key, args] = expr.arguments;
-      if (key?.type !== "StringLiteral") return null;
-      this.stats.strings += 1;
-      const english = this.mapping.strings?.get(key.value);
-      if (!english) this.stats.missingStrings += 1;
-      // i18next's {{name}} placeholders become Slint's {} positional ones.
-      const msg = english ? english.replace(/\{\{\s*\w+\s*\}\}/g, "{}") : key.value;
-      if (!args) return `@tr(${quote(msg)})`;
-      // `t("key", { count: n })`: Slint's @tr takes positional values; each becomes a property.
-      if (args.type === "ObjectExpression") {
-        const values = args.properties.map((p) => `root.${this.property(this.text(p.value ?? p))}`);
-        return `@tr(${quote(msg)}${values.map((v) => `, ${v}`).join("")})`;
-      }
-    }
-    return null;
+  emit(line, depth) {
+    this.lines.push(`${"    ".repeat(depth)}${line}`);
   }
 
-  /**
-   * `onClick={() => setOpen(true)}`, `onClick={() => setOpen(!open)}`, `onClick={() => setOpen((v) => !v)}`
-   * as a Slint handler that changes the state property itself, or null when the handler does more.
-   */
-  setterAssignment(expr, slintCallback) {
-    const call = /Function/.test(expr.type) && expr.body?.type === "CallExpression" ? expr.body : null;
-    const setter = call?.callee?.type === "Identifier" ? call.callee.name : null;
-    const stateName = setter ? this.setters.get(setter) : null;
-    if (!stateName) return null;
-    const prop = this.property(stateName, this.stateType(stateName));
-    const arg = call.arguments[0];
-    let value = this.literal(arg);
-    if (!value && arg?.type === "UnaryExpression" && arg.operator === "!" && arg.argument.name === stateName) value = `!root.${prop}`;
-    if (!value && /Function/.test(arg?.type ?? "") && arg.body?.type === "UnaryExpression" && arg.body.operator === "!") value = `!root.${prop}`;
-    if (!value) return null;
-    this.stats.reactive += 1;
-    return `${slintCallback} => { root.${prop} = ${value}; }`;
+  /** Counts a dropped prop and returns the short note written into the element. */
+  drop(tag, prop, reason) {
+    const key = `${tag}.${prop}`;
+    this.stats.droppedProps[key] = (this.stats.droppedProps[key] ?? 0) + 1;
+    return `${prop} (${reason})`;
   }
 
-  /** The Slint type of a local state value, from its starting value. */
-  stateType(stateName) {
-    const init = this.states.get(stateName)?.init;
-    if (init?.type === "BooleanLiteral") return "bool";
-    if (init?.type === "NumericLiteral") return "int";
-    return "string";
+  /** Records logic that moves into the Rust view model, as a marker in the file and a count. */
+  rust(kind, detail) {
+    this.stats.rust[kind] = (this.stats.rust[kind] ?? 0) + 1;
+    this.rustNotes.push(`// rust: ${kind}: ${detail.replace(/\s+/g, " ").slice(0, 110)}`);
   }
 
   /** The Slint property standing for a JavaScript expression, declared once. */
@@ -302,63 +301,168 @@ class ComponentWriter {
     return this.props.get(key).name;
   }
 
-  emit(line, depth) {
-    this.lines.push(`${"    ".repeat(depth)}${line}`);
+  /** A callback the view model implements, declared once. */
+  callback(name, args = "") {
+    if (!this.callbacks.has(name)) this.callbacks.set(name, { name: ident(name, this.used), args });
+    return this.callbacks.get(name).name;
   }
 
-  /** One JSX attribute as a Slint binding. */
-  binding(target, attr, depth) {
-    if (target.startsWith("_")) return;
-    const negate = target.endsWith("!");
-    const name = negate ? target.slice(0, -1) : target;
-    const attrName = attr.name.name;
-    const value = attr.value;
-    if (!value) return this.emit(`${name}: ${negate ? "false" : "true"};`, depth);
-    if (value.type === "StringLiteral") {
-      if (NUMBER_PROPS.has(name) && /^-?\d+$/.test(value.value)) return this.emit(`${name}: ${value.value};`, depth);
-      if (PROP_TYPES[name] === "image") return; // file paths resolve in the product kit, not here
-      const token = tokenValue(name, value.value);
-      if (token === "") return;
-      return this.emit(`${name}: ${token ?? quote(value.value)};`, depth);
+  /**
+   * A Slint value for an expression when one exists without a property: translated text
+   * (`t("ns.key")` becomes `@tr("English sentence")`), string and number literals, plain
+   * templates. Returns null when the value has to come from the view model.
+   */
+  literal(expr) {
+    expr = unwrap(expr);
+    if (!expr) return null;
+    if (expr.type === "StringLiteral") return quote(expr.value);
+    if (expr.type === "NumericLiteral") return String(expr.value);
+    if (expr.type === "BooleanLiteral") return String(expr.value);
+    if (expr.type === "TemplateLiteral" && expr.expressions.length === 0) return quote(expr.quasis[0].value.cooked);
+    if (expr.type === "CallExpression" && expr.callee.type === "Identifier" && expr.callee.name === "t") {
+      const [key, args] = expr.arguments;
+      if (key?.type !== "StringLiteral") return null;
+      this.stats.strings += 1;
+      const english = this.strings?.get(key.value);
+      if (!english) this.stats.missingStrings += 1;
+      // i18next's {{name}} placeholders become Slint's {} positional ones, in order.
+      const names = english ? [...english.matchAll(/\{\{\s*(\w+)\s*\}\}/g)].map((m) => m[1]) : [];
+      // Slint @tr reads {} as a placeholder and {{ }} as literal braces.
+      const escaped = (english ?? key.value).replace(/[{}]/g, (b) => b + b);
+      const hasArgs = args?.type === "ObjectExpression" && names.length;
+      const msg = hasArgs ? escaped.replace(/\{\{\{\{\s*\w+\s*\}\}\}\}/g, "{}") : escaped;
+      if (!args || args.type !== "ObjectExpression" || !names.length) return `@tr(${quote(msg)})`;
+      const byName = new Map(args.properties.filter((p) => p.key).map((p) => [p.key.name ?? p.key.value, p.value ?? p.key]));
+      const values = names.map((n) => {
+        const v = byName.get(n);
+        return v ? (this.literal(v) ?? `root.${this.property(this.text(v))}`) : '""';
+      });
+      return `@tr(${quote(msg)}${values.map((v) => `, ${v}`).join("")})`;
     }
-    const expr = value.type === "JSXExpressionContainer" ? value.expression : value;
-    if (/^on[A-Z]/.test(attrName)) {
-      const assign = this.setterAssignment(expr, name);
-      if (assign) return this.emit(assign, depth);
-      const cb = ident(attrName.slice(2), this.used);
-      this.callbacks.add(cb);
-      return this.emit(`${name} => { root.${cb}(); }`, depth);
-    }
-    const lit = negate ? null : this.literal(expr);
-    if (lit) {
-      const token = expr.type === "StringLiteral" ? tokenValue(name, expr.value) : null;
-      if (token === "") return;
-      const length = expr.type === "NumericLiteral" && LENGTH_PROPS.has(name) ? `${lit}px` : null;
-      return this.emit(`${name}: ${token ?? length ?? lit};`, depth);
-    }
-    const type = ["checked", "enabled", "busy", "open", "active"].includes(name) ? "bool"
-      : PROP_TYPES[name] ?? (NUMBER_PROPS.has(name) ? "int" : LENGTH_PROPS.has(name) ? "length" : "string");
-    this.emit(`${name}: ${negate ? "!" : ""}root.${this.property(this.text(expr), type)};`, depth);
+    return null;
   }
 
+  /** The Slint type of a local state value, from its starting value. */
+  stateType(stateName) {
+    const init = unwrap(this.states.get(stateName)?.init);
+    if (init?.type === "BooleanLiteral") return "bool";
+    if (init?.type === "NumericLiteral") return Number.isInteger(init.value) ? "int" : "float";
+    return "string";
+  }
+
+  /**
+   * `onClick={() => setOpen(true)}`, `onClick={() => setOpen(!open)}`, `onClick={open}` (from
+   * `useDisclosure`) as a Slint handler that changes the state property itself, or null when the
+   * handler does more than set one state.
+   */
+  setterAssignment(expr, slintCallback) {
+    expr = unwrap(expr);
+    let setterName = null;
+    let arg = null;
+    if (expr.type === "Identifier") setterName = expr.name;
+    else if (/Function/.test(expr.type)) {
+      const call = unwrap(expr.body?.type === "BlockStatement" && expr.body.body.length === 1 ? expr.body.body[0].expression : expr.body);
+      if (call?.type === "CallExpression" && call.callee.type === "Identifier") {
+        setterName = call.callee.name;
+        arg = call.arguments[0];
+      }
+    }
+    const setter = setterName ? this.setters.get(setterName) : null;
+    if (!setter) return null;
+    const prop = this.property(setter.state, this.stateType(setter.state));
+    let value = null;
+    if (setter.kind === "open") value = "true";
+    else if (setter.kind === "close") value = "false";
+    else if (setter.kind === "toggle") value = `!root.${prop}`;
+    else if (expr.type !== "Identifier") {
+      value = this.literal(arg);
+      if (!value && unwrap(arg)?.type === "UnaryExpression" && unwrap(arg).operator === "!" && unwrap(arg).argument.name === setter.state) value = `!root.${prop}`;
+      if (!value && /Function/.test(arg?.type ?? "") && unwrap(arg.body)?.type === "UnaryExpression" && unwrap(arg.body).operator === "!") value = `!root.${prop}`;
+    }
+    if (!value) return null;
+    const type = this.stateType(setter.state);
+    const fits = value.startsWith("!root.") ? type === "bool"
+      : /^(true|false)$/.test(value) ? type === "bool"
+      : /^-?\d+(\.\d+)?$/.test(value) ? type === "int" || type === "float"
+      : type === "string";
+    if (!fits) return null;
+    this.stats.reactive += 1;
+    return `${slintCallback} => { root.${prop} = ${value}; }`;
+  }
+
+  /** A JSX `<IconX size={16} stroke={1.5} />` as the Slint image literal of its Tabler SVG. */
+  iconImage(node) {
+    const n = unwrap(node);
+    if (n?.type !== "JSXElement") return null;
+    const tag = tagName(n.openingElement.name);
+    const from = this.imports.get(tag.split(".")[0]);
+    if (!/^Icon[A-Z0-9]/.test(tag) || (from && from.lib !== "tabler")) return null;
+    const attr = (name) => staticValue(n.openingElement.attributes.find((a) => a.name?.name === name)?.value);
+    const icon = iconFile(tag, attr("stroke"));
+    if (!icon) return null;
+    this.stats.icons.set(icon.file, icon);
+    return { image: `@image-url("@medbrains-gui-kit/icons/${icon.file}")`, size: attr("size") };
+  }
+
+  /**
+   * A JSX attribute value as a Slint expression of `type`, or `{ drop }`. Static values convert
+   * by type; translated text becomes @tr; an icon element becomes its image; anything else
+   * becomes a typed `in` property for the view model.
+   */
+  valueFor(type, attrValue, target) {
+    const expr = attrValue?.type === "JSXExpressionContainer" ? attrValue.expression : attrValue;
+    if (!expr) return type === "bool" ? { code: "true" } : { drop: "no value" };
+    const value = staticValue(expr);
+    if (value !== undefined && !(type === "string" && typeof value === "object")) return convertStatic(type, value, target);
+    const e = unwrap(expr);
+    if (type === "image") {
+      const icon = this.iconImage(e);
+      if (icon) return { code: icon.image, iconSize: icon.size };
+    }
+    if (isJsx(e)) return { drop: "an element in a property needs a slot in the kit" };
+    if (type === "string" || type === "styled") {
+      const lit = this.literal(e);
+      if (lit) return { code: lit };
+    }
+    if (e.type === "NullLiteral" || (e.type === "Identifier" && e.name === "undefined")) return { drop: "unset" };
+    const declared = type === "physical-length" ? "length" : type === "styled" ? "string" : type;
+    return { code: `root.${this.property(this.text(e), declared)}` };
+  }
+
+  /**
+   * Mantine's defaults for a tag, then the seam wrapper's, so a prop the source leaves out
+   * still converts with the value the web renders.
+   */
+  defaultsFor(tag, from) {
+    const name = from?.imported ?? tag;
+    const mantine = DEFAULTS.components[name.split(".")[0] === name ? name : name.replace(".", "")] ?? {};
+    const seam = from?.lib === "seam" ? DEFAULTS.seam[name] ?? {} : {};
+    return { ...(from?.lib === "seam" ? DEFAULTS.components[name] ?? {} : mantine), ...seam };
+  }
+
+  /**
+   * One element: resolves the rule, writes wrappers (margins, responsive visibility), the
+   * element with its bindings, then its children.
+   */
   element(node, depth) {
     const tag = tagName(node.openingElement.name);
     const { rules, dropped } = this.mapping;
     this.stats.elements += 1;
     if (dropped.has(tag) || tag === "") return this.children(node.children, depth);
+    const from = this.imports.get(tag.split(".")[0]);
     if (/^[a-z]/.test(tag)) {
       // Raw HTML breaks the components-only rule, so it is always reported, and converted when it can be.
       this.stats.rawHtml[tag] = (this.stats.rawHtml[tag] ?? 0) + 1;
-      if (!this.mapping.html[tag]) {
+      const html = this.mapping.html[tag];
+      if (!html) {
         this.emit(`// raw <${tag}> in the source: use a layout component`, depth);
         return this.children(node.children, depth);
       }
-      const html = this.mapping.html[tag];
       if (html.slint === "_passthrough") {
         this.stats.mapped += 1;
         return this.children(node.children, depth);
       }
-      return this.mapped(node, html, depth);
+      return this.mapped(node, html, tag, null, depth);
     }
     if (this.mapping.webOnly.has(tag)) {
       // Diagram editors and similar: built for a mouse in a browser, kept web-only on purpose.
@@ -366,167 +470,570 @@ class ComponentWriter {
       this.emit(`// web-only: <${tag}>`, depth);
       return;
     }
-    const known = rules[tag] || rules[tag.split(".")[0]] ? null : this.known.get(tag);
+    const icon = this.iconImage(node);
+    if (icon) {
+      this.stats.mapped += 1;
+      this.stats.kit.add("MbIcon");
+      const size = icon.size !== undefined ? ` size: ${lengthOf(icon.size, "size").code ?? "24px"};` : "";
+      return this.emit(`MbIcon { source: ${icon.image};${size} }`, depth);
+    }
+    const rule = rules[`${from?.lib}:${tag}`] ?? rules[tag] ?? (tag.includes(".") ? rules[tag.split(".")[0]] && { slint: "_passthrough", props: {} } : null);
+    const known = rule ? null : this.known.get(tag);
     if (known && WRAPPER.test(tag)) {
       // Providers, boundaries and guards add behaviour, not layout: their children are the screen.
       this.stats.mapped += 1;
       return this.children(node.children, depth);
     }
-    if (known) {
-      // One of our own components: a reference to its own converted file. Every generated
-      // component ends in @children, so what the source nests inside it is kept.
-      this.stats.mapped += 1;
-      this.stats.references.set(tag, known);
-      const inner = node.children.some((c) => c.type !== "JSXText" || c.value.trim());
-      if (!inner) return this.emit(`${tag} { }`, depth);
-      this.emit(`${tag} {`, depth);
-      this.children(node.children, depth + 1);
-      return this.emit("}", depth);
+    if (known && tag === this.name) {
+      this.stats.recursive += 1;
+      this.emit(`// recursive <${tag}>: a Slint component cannot contain itself; the view model flattens the tree`, depth);
+      return;
     }
+    if (known) return this.reference(node, tag, known, depth);
     if (tag === "Controller") {
       // react-hook-form: the screen shows whatever `render` returns; the form state moves to the view model.
       const render = node.openingElement.attributes.find((a) => a.name?.name === "render");
       const fn = render?.value?.expression;
       this.stats.mapped += 1;
-      if (fn && /Function/.test(fn.type)) this.branch(returnedJsx(fn.body) ?? fn.body, depth);
+      this.rust("form", `Controller ${this.text(node.openingElement).slice(0, 60)}`);
+      if (fn && /Function/.test(fn.type)) this.branch(renderBranches(fn.body).main ?? fn.body, depth);
       return;
     }
-    if ((tag === "Tabs.Panel" || tag === "Tabs.Tab") && this.tabState.length) {
-      const state = this.tabState[this.tabState.length - 1];
-      const val = node.openingElement.attributes.find((a) => a.name?.name === "value");
-      const v = val ? this.literal(val.value?.type === "StringLiteral" ? val.value : val.value?.expression) : null;
-      if (v) {
-        this.stats.mapped += 1;
-        this.stats.reactive += 1;
-        if (tag === "Tabs.Panel") {
-          this.emit(`if root.${state} == ${v} : VerticalLayout {`, depth);
-          this.children(node.children, depth + 1);
-          return this.emit("}", depth);
-        }
-        const label = node.children.filter((c) => c.type === "JSXText").map((c) => c.value.trim()).join(" ").trim();
-        const expr = node.children.find((c) => c.type === "JSXExpressionContainer");
-        const text = label ? quote(label) : expr ? this.literal(expr.expression) ?? `root.${this.property(this.text(expr.expression))}` : v;
-        this.stats.kit.add("MbTab");
-        return this.emit(`MbTab { text: ${text}; selected: root.${state} == ${v}; clicked => { root.${state} = ${v}; } }`, depth);
-      }
-    }
+    if ((tag === "Tabs.Panel" || tag === "Tabs.Tab") && this.tabState.length) return this.tab(node, tag, depth);
     if (tag === "Tabs") {
       const val = node.openingElement.attributes.find((a) => a.name?.name === "value" || a.name?.name === "defaultValue");
       const expr = val?.value?.expression;
-      if (expr?.type === "Identifier" && this.states.has(expr.name)) {
-        this.tabState.push(this.property(expr.name, "string"));
+      const stateName = expr?.type === "Identifier" && this.states.has(expr.name) ? expr.name : null;
+      const fixed = val?.value?.type === "StringLiteral" ? val.value.value : null;
+      if (stateName || fixed) {
+        // Uncontrolled tabs (defaultValue="x") keep their own selection, as Mantine does.
+        const prop = stateName ? this.property(stateName, "string") : this.property(`tab-${this.counter++}`, "string");
+        if (fixed) this.props.get(`string:tab-${this.counter - 1}`).init = quote(fixed);
+        this.tabState.push(prop);
         this.stats.mapped += 1;
         this.emit("VerticalLayout {", depth);
-        this.emit("spacing: Tokens.space-md;", depth + 1);
+        this.emit("alignment: LayoutAlignment.start;", depth + 1);
         this.children(node.children, depth + 1);
         this.emit("}", depth);
         this.tabState.pop();
         return;
       }
     }
-    if (/^Icon[A-Z]/.test(tag)) {
-      this.stats.mapped += 1;
-      this.stats.kit.add("MbIcon");
-      const name = tag.slice(4).replace(/([a-z0-9])([A-Z])/g, "$1-$2").toLowerCase();
-      return this.emit(`MbIcon { name: ${quote(name)}; }`, depth);
-    }
-    const rule = rules[tag] ?? rules[tag.split(".")[0]];
     if (!rule) {
       this.stats.unmapped[tag] = (this.stats.unmapped[tag] ?? 0) + 1;
       this.emit(`// unmapped: <${tag}>`, depth);
       return this.children(node.children, depth);
     }
-    if (rule.slint === "_passthrough" || (tag.includes(".") && !rules[tag])) {
+    if (rule.slint === "_passthrough") {
       this.stats.mapped += 1;
+      if (rule.rust) this.rust(rule.rust, `<${tag}>`);
       return this.children(node.children, depth);
     }
-    this.mapped(node, rule, depth);
+    this.mapped(node, rule, tag, from, depth);
   }
 
-  /** Emits a mapped element: fixed properties, attribute bindings, then children or a label. */
-  mapped(node, rule, depth) {
+  /** A tab label or panel under `Tabs` bound to a state value: selection is a Slint property. */
+  tab(node, tag, depth) {
+    const state = this.tabState[this.tabState.length - 1];
+    const val = node.openingElement.attributes.find((a) => a.name?.name === "value");
+    const v = val ? this.literal(val.value?.type === "StringLiteral" ? val.value : val.value?.expression) : null;
+    if (!v) return this.children(node.children, depth);
     this.stats.mapped += 1;
-    if (rule.slint.startsWith("Mb")) this.stats.kit.add(rule.slint);
-    else if (STD_WIDGETS.has(rule.slint)) this.stats.std.add(rule.slint);
-    this.emit(`${rule.slint} {`, depth);
-    for (const [k, v] of Object.entries(rule.fixed ?? {})) this.emit(`${k}: ${v};`, depth + 1);
-    const given = new Set(node.openingElement.attributes.map((a) => rule.props[a.name?.name]).filter(Boolean));
-    for (const [k, v] of Object.entries(rule.default ?? {})) if (!given.has(k)) this.emit(`${k}: ${v};`, depth + 1);
-    if (rule.slint === "StandardTableView") this.tableColumns(node, depth + 1);
+    this.stats.reactive += 1;
+    if (tag === "Tabs.Panel") {
+      this.emit(`if root.${state} == ${v} : VerticalLayout {`, depth);
+      this.emit("alignment: LayoutAlignment.start;", depth + 1);
+      this.styleWrappersInner(node, depth + 1);
+      this.children(node.children, depth + 1);
+      return this.emit("}", depth);
+    }
+    const label = node.children.filter((c) => c.type === "JSXText").map((c) => c.value.trim()).join(" ").trim();
+    const expr = node.children.find((c) => c.type === "JSXExpressionContainer" && c.expression.type !== "JSXEmptyExpression");
+    const text = label ? quote(label) : expr ? this.literal(expr.expression) ?? `root.${this.property(this.text(expr.expression))}` : v;
+    const left = node.openingElement.attributes.find((a) => a.name?.name === "leftSection");
+    const icon = left ? this.iconImage(left.value?.expression) : null;
+    this.stats.kit.add("MbTab");
+    return this.emit(`MbTab { text: ${text};${icon ? ` icon: ${icon.image};` : ""} selected: root.${state} == ${v}; clicked => { root.${state} = ${v}; } }`, depth);
+  }
+
+  /** Tabs.Panel's `pt`: padding inside the panel's own layout. */
+  styleWrappersInner(node, depth) {
+    for (const a of node.openingElement.attributes) {
+      const side = { pt: "padding-top", pb: "padding-bottom", p: "padding" }[a.name?.name];
+      const v = side ? staticValue(a.value) : undefined;
+      if (v !== undefined) {
+        const r = lengthOf(v, side);
+        if (r.code) this.emit(`${side}: ${r.code};`, depth);
+      }
+    }
+  }
+
+  /**
+   * One of our own components: a reference to its converted file, passing each attribute the
+   * component declares as a property (pass 1 recorded which), with the type it declares.
+   */
+  reference(node, tag, known, depth) {
+    this.stats.mapped += 1;
+    this.stats.references.set(tag, known.file);
+    const lines = [];
+    const notes = [];
     for (const attr of node.openingElement.attributes) {
       if (attr.type !== "JSXAttribute") continue;
-      const target = rule.props[attr.name.name];
-      if (this.twoWay(node, rule, attr, depth + 1)) continue;
-      if (/^on[A-Z]/.test(attr.name.name) && this.twoWayPartner(node, attr)) continue;
-      const mapped = rule.values?.[attr.name.name];
-      const raw = attr.value?.type === "StringLiteral" ? attr.value.value
-        : attr.value?.expression?.type === "NumericLiteral" || attr.value?.expression?.type === "StringLiteral" ? String(attr.value.expression.value) : null;
-      if (target && mapped && raw !== null) {
-        if (mapped[raw]) this.emit(`${target}: ${mapped[raw]};`, depth + 1);
-      } else if (target) this.binding(target, attr, depth + 1);
-    }
-    if (rule.props.children) {
-      // A label is its text and any values or translations inside it, joined like a Text.
-      const parts = [];
-      for (const c of node.children) {
-        if (c.type === "JSXText" && c.value.trim()) parts.push(quote(c.value.trim().replace(/\s+/g, " ")));
-        else if (c.type === "JSXExpressionContainer" && c.expression.type !== "JSXEmptyExpression" && !isJsx(c.expression)) {
-          parts.push(this.literal(c.expression) ?? `root.${this.property(this.text(c.expression))}`);
-        }
+      const name = attr.name.name;
+      const decl = known.props?.get(name);
+      if (decl) {
+        const r = this.valueFor(decl.type, attr.value, decl.name);
+        if (r.code && !/^on[A-Z]/.test(name)) lines.push(`${decl.name}: ${r.code};`);
+        continue;
       }
-      if (parts.length) this.emit(`${rule.props.children}: ${parts.join(" + ")};`, depth + 1);
-    } else if (rule.slint === "Text") {
-      this.textChildren(node.children, depth + 1);
-    } else if (LEAF_WIDGETS.has(rule.slint)) {
-      // Rows, cells or adornments written as JSX children: the widget takes them as properties.
-      if (node.children.some((c) => c.type !== "JSXText" || c.value.trim())) this.stats.leafChildren += 1;
-    } else {
-      this.children(node.children, depth + 1);
+      const cb = known.callbacks?.get(kebab(name.replace(/^on/, "")).replace(/^-/, ""));
+      if (cb && /^on[A-Z]/.test(name)) {
+        const assign = this.setterAssignment(attr.value?.expression ?? attr.value, cb);
+        lines.push(assign ?? `${cb} => { root.${this.callback(name.slice(2))}(); }`);
+        continue;
+      }
+      if (!["key", "className", "style"].includes(name)) notes.push(name);
     }
+    const inner = node.children.some((c) => c.type !== "JSXText" || c.value.trim());
+    if (notes.length) this.stats.unpassedProps += notes.length;
+    if (!inner && !lines.length) return this.emit(`${tag} { }`, depth);
+    this.emit(`${tag} {`, depth);
+    for (const l of lines) this.emit(l, depth + 1);
+    this.children(node.children, depth + 1);
     this.emit("}", depth);
   }
 
   /**
-   * A Slint `Text` holds one string, not children: text and values become one `text` binding
-   * joined with `+`; element children (an inline badge, a link) are reported as needing a layout.
+   * The bindings of one element: Mantine defaults first, then the source's attributes, each
+   * written with the type the Slint element declares. Returns `{ lines, notes, wrap }`.
    */
-  textChildren(list, depth) {
+  bindings(node, rule, tag, from, info) {
+    const lines = [];
+    const notes = [];
+    const wrap = { margin: {}, visible: null, background: null };
+    const attrs = node.openingElement.attributes.filter((a) => a.type === "JSXAttribute");
+    const given = new Set(attrs.map((a) => a.name.name));
+    const spreads = node.openingElement.attributes.filter((a) => a.type === "JSXSpreadAttribute");
+    const defaults = this.defaultsFor(tag, from);
+    const synthetic = Object.entries(defaults)
+      .filter(([k]) => !given.has(k) && (rule.props?.[k] || this.mapping.styleProps[k]) && !(rule.ignoreDefaults ?? []).includes(k))
+      .map(([k, v]) => ({ type: "JSXAttribute", name: { name: k }, value: typeof v === "string" ? { type: "StringLiteral", value: v } : { type: "JSXExpressionContainer", expression: { type: typeof v === "number" ? "NumericLiteral" : "BooleanLiteral", value: v } }, synthetic: true }));
+    const written = new Set();
+    const put = (target, code) => {
+      if (written.has(target)) return;
+      written.add(target);
+      lines.push(`${target}: ${code};`);
+    };
+    for (const [k, v] of Object.entries(rule.fixed ?? {})) put(k, v);
+    for (const attr of [...attrs, ...synthetic]) {
+      const name = attr.name.name;
+      if (rule.handled?.[name]) continue;
+      if (rule.gaps?.[name]) {
+        if (!attr.synthetic) notes.push(this.drop(tag, name, rule.gaps[name]));
+        continue;
+      }
+      if (this.twoWay(node, rule, attr, info, lines)) continue;
+      if (/^on[A-Z]/.test(name) && this.twoWayPartner(node, attr)) continue;
+      const target = rule.props?.[name] ?? this.mapping.styleProps[name] ?? this.mapping.commonProps[name];
+      if (!target) {
+        if (!attr.synthetic) notes.push(this.drop(tag, name, this.mapping.commonProps[`_${name}`] ?? "no Slint equivalent"));
+        continue;
+      }
+      if (Array.isArray(target)) {
+        // px, py: one value to two sides.
+        for (const side of target) {
+          const r = info.properties[side] ? this.valueFor(info.properties[side].type, attr.value, side) : { drop: `${rule.slint} has no ${side}` };
+          if (r.code) put(side, r.code);
+          else if (!attr.synthetic) notes.push(this.drop(tag, name, r.drop));
+        }
+        continue;
+      }
+      if (typeof target === "object") {
+        this.special(target, attr, { lines, notes, wrap, put, info, tag });
+        continue;
+      }
+      if (target.startsWith("_")) continue;
+      const negate = target.endsWith("!");
+      const prop = negate ? target.slice(0, -1) : target;
+      // Values listed in the rule (Title order 3 -> heading size) win over generic conversion.
+      const listed = rule.values?.[name];
+      const raw = staticValue(attr.value);
+      if (listed && raw !== undefined && typeof raw !== "object" && listed[String(raw)] !== undefined) {
+        put(prop, listed[String(raw)]);
+        continue;
+      }
+      if (info.callbacks[prop] !== undefined) {
+        if (attr.synthetic) continue;
+        const expr = attr.value?.type === "JSXExpressionContainer" ? attr.value.expression : null;
+        if (!expr) continue;
+        const assign = this.setterAssignment(expr, prop);
+        lines.push(assign ?? `${prop} => { root.${this.callback(name.slice(2) || name)}(); }`);
+        continue;
+      }
+      const decl = info.properties[prop];
+      if (!decl || decl.dir === "private" || decl.dir === "out") {
+        if (!attr.synthetic) notes.push(this.drop(tag, name, `${rule.slint} has no ${prop}`));
+        continue;
+      }
+      if (prop === "accessible-label" && !info.role) {
+        if (!attr.synthetic) notes.push(this.drop(tag, name, "the element has no accessible role"));
+        continue;
+      }
+      if (negate) {
+        const v = staticValue(attr.value);
+        if (v !== undefined || !attr.value) put(prop, String(!(v ?? true)));
+        else put(prop, `!root.${this.property(this.text(attr.value.expression), "bool")}`);
+        continue;
+      }
+      const r = this.valueFor(decl.type, attr.value, prop);
+      if (r.drop) {
+        if (!attr.synthetic) notes.push(this.drop(tag, name, r.drop));
+        continue;
+      }
+      put(prop, r.code);
+      if (r.iconSize !== undefined && info.properties["icon-size"]) put("icon-size", lengthOf(r.iconSize, "icon-size").code);
+    }
+    for (const s of spreads) this.spread(s, rule, info, lines, notes, tag);
+    if (rule.headingWeight) {
+      // A Title's weight follows its order (theme.headings.sizes.hN.fontWeight) unless fw is given.
+      const order = staticValue(attrs.find((a) => a.name.name === "order")?.value) ?? defaults.order ?? 1;
+      put("font-weight", `Tokens.heading-${order}-weight`);
+    }
+    if (rule.iconChild && info.properties[rule.iconChild]) {
+      const child = node.children.find((c) => this.iconImage(c.type === "JSXExpressionContainer" ? c.expression : c));
+      const icon = child && this.iconImage(child.type === "JSXExpressionContainer" ? child.expression : child);
+      if (icon) put(rule.iconChild, icon.image);
+    }
+    for (const [k, v] of Object.entries(rule.default ?? {})) put(k, v);
+    return { lines, notes, wrap };
+  }
+
+  /** `{...form.register("name")}`: a two-way binding to the form field's view-model property. */
+  spread(attr, rule, info, lines, notes, tag) {
+    const call = unwrap(attr.argument);
+    const callee = call?.type === "CallExpression" ? (call.callee.property?.name ?? call.callee.name) : null;
+    const field = call?.arguments?.[0];
+    const target = rule.props?.value;
+    if (callee === "register" && field?.type === "StringLiteral" && target && info.properties[target]) {
+      const prop = this.property(`form.${field.value}`, info.properties[target].type);
+      this.formFields.add(prop);
+      // register() supplies value and onChange: it replaces a one-way value binding.
+      const i = lines.findIndex((l) => l.startsWith(`${target}:`) || l.startsWith(`${target} <=>`));
+      if (i >= 0) lines.splice(i, 1);
+      lines.push(`${target} <=> root.${prop};`);
+      this.stats.reactive += 1;
+      return;
+    }
+    notes.push(this.drop(tag, "{...}", "spread props are only known at run time"));
+  }
+
+  /**
+   * Style props with a rule of their own: margins become a wrapping layout's padding, responsive
+   * visibility becomes `if`, a background on a layout becomes a wrapping Rectangle, `tt`
+   * transforms the text, and `lineClamp`/`truncate` set Text's wrap, max-lines and overflow.
+   */
+  special(target, attr, ctx) {
+    const { lines, notes, wrap, put, info, tag } = ctx;
+    const name = attr.name.name;
+    const value = staticValue(attr.value);
+    const dropIt = (why) => {
+      if (!attr.synthetic) notes.push(this.drop(tag, name, why));
+    };
+    if (target.margin) {
+      if (value === undefined) return dropIt("margins must be static");
+      for (const side of target.margin) {
+        const r = typeof value === "object" ? { drop: "responsive margins" } : String(value).startsWith("-") || value === "auto" ? { drop: `margin "${value}" (negative and auto margins have no layout padding)` } : lengthOf(value, "padding");
+        if (r.drop) return dropIt(r.drop);
+        wrap.margin[side] = r.code;
+      }
+      return;
+    }
+    if (target.visibleFrom || target.hiddenFrom) {
+      if (typeof value !== "string") return dropIt("breakpoint must be static");
+      wrap.visible = target.visibleFrom ? `Tokens.viewport-width >= Tokens.breakpoint-${value}` : `Tokens.viewport-width < Tokens.breakpoint-${value}`;
+      return;
+    }
+    if (target.background) {
+      const r = value === undefined ? { drop: "background must be static" } : colorOf(value, "filled");
+      if (r.drop) return dropIt(r.drop);
+      if (info.properties.background) put("background", r.code);
+      else wrap.background = r.code;
+      return;
+    }
+    if (target.to && target.kind) {
+      const decl = info.properties[target.to];
+      if (!decl) return dropIt(`${tag} has no ${target.to}`);
+      const r = target.kind === "weight" ? (value === undefined ? { code: `root.${this.property(this.text(attr.value.expression), "int")}` } : weightOf(value))
+        : target.kind === "color" ? (value === undefined ? this.valueFor("brush", attr.value, target.to) : colorOf(value, "text"))
+        : target.kind === "font" ? (value === "monospace" || /mono/i.test(String(value)) ? { code: "Metrics.mono" } : value === undefined ? { drop: "font family must be static" } : { code: "Metrics.font" })
+        : target.kind === "italic" ? (value === "italic" ? { code: "true" } : { drop: `font style "${value}"` })
+        : target.kind === "line-height" ? (typeof value === "number" ? { code: String(Math.round((value / Metrics_NATURAL_LINE_HEIGHT) * 1000) / 1000) } : { drop: "line height must be a number" })
+        : { drop: "unknown" };
+      if (r.drop) return dropIt(r.drop);
+      if (target.kind === "font") this.stats.kit.add("Metrics");
+      return put(target.to, r.code);
+    }
+    if (target.transform) {
+      if (value === "uppercase" || value === "lowercase") {
+        wrap.transform = value === "uppercase" ? "to-uppercase" : "to-lowercase";
+        return;
+      }
+      return dropIt(`text-transform "${value}" (Slint strings have to-uppercase and to-lowercase only)`);
+    }
+    if (target.clamp) {
+      if (!info.properties["max-lines"]) return dropIt(`${tag} has no max-lines`);
+      if (name === "truncate") {
+        if (value === false) return;
+        put("wrap", "no-wrap");
+        put("overflow", "elide");
+        return;
+      }
+      const r = value === undefined ? { code: `root.${this.property(this.text(attr.value.expression), "int")}` } : convertStatic("int", value);
+      if (r.drop) return dropIt(r.drop);
+      put("wrap", "word-wrap");
+      put("max-lines", r.code);
+      put("overflow", "elide");
+    }
+  }
+
+  /** Emits a mapped element: wrappers, the element with its bindings, then children or a label. */
+  mapped(node, rule, tag, from, depth) {
+    this.stats.mapped += 1;
+    const slint = this.layoutTarget(node, rule, tag, from);
+    const info = this.mapping.types.describe(slint);
+    if (slint.startsWith("Mb")) this.stats.kit.add(slint);
+    else if (STD_WIDGETS.has(slint)) this.stats.std.add(slint);
+    if (rule.rust) this.rust(rule.rust, `<${tag}>`);
+    const { lines, notes, wrap } = this.bindings(node, { ...rule, slint }, tag, from, info);
+    // Wrappers, outermost first: visibility (an `if`, so a hidden element takes no space, as
+    // display: none), margin (a layout's padding), background (a Rectangle behind a layout).
+    let d = depth;
+    const opened = [];
+    const cond = wrap.visible ? `if ${wrap.visible} : ` : "";
+    const margins = Object.entries(wrap.margin);
+    if (margins.length) {
+      this.emit(`${cond}VerticalLayout {`, d);
+      for (const [side, v] of margins) this.emit(`${side}: ${v};`, d + 1);
+      opened.push(d);
+      d += 1;
+    } else if (cond) {
+      this.emit(`${cond}VerticalLayout {`, d);
+      opened.push(d);
+      d += 1;
+    }
+    if (wrap.background) {
+      this.emit("Rectangle {", d);
+      this.emit(`background: ${wrap.background};`, d + 1);
+      opened.push(d);
+      d += 1;
+    }
+    for (const n of notes) this.emit(`// not converted: ${n}`, d);
+    if (rule.grid && this.gridLayout(node, rule, lines, d)) {
+      for (const o of opened.reverse()) this.emit("}", o);
+      return;
+    }
+    if (rule.grid) {
+      const grid = this.gridCell(node, rule, lines);
+      this.emit("VerticalLayout {", d);
+      this.emit(`spacing: ${grid.vgap};`, d + 1);
+      this.emit("alignment: LayoutAlignment.start;", d + 1);
+      this.cells.push({ depth: d + 1, ...grid });
+      this.children(node.children, d + 1);
+      this.cells.pop();
+      this.emit("}", d);
+      for (const o of opened.reverse()) this.emit("}", o);
+      return;
+    }
+    this.emit(`${slint} {`, d);
+    for (const l of lines) this.emit(l, d + 1);
+    if (slint === "StandardTableView") this.tableColumns(node, d + 1);
+    if (rule.text) {
+      // A label is its text and any values or translations inside it, joined like a Text.
+      const parts = this.textParts(node.children);
+      const already = lines.some((l) => l.startsWith(`${rule.text}:`));
+      if (parts.length && !already) this.emit(`${rule.text}: ${this.transform(parts.join(" + "), wrap)};`, d + 1);
+      if (parts.length && rule.text === "accessible-description" && info.children) this.children(node.children, d + 1);
+    } else if (slint === "Text") {
+      this.textChildren(node.children, d + 1, wrap);
+    } else if (!info.children) {
+      // Rows, cells or adornments written as JSX children: the widget takes them as properties.
+      if (node.children.some((c) => c.type !== "JSXText" || c.value.trim())) this.stats.leafChildren += 1;
+    } else {
+      this.children(node.children, d + 1);
+    }
+    this.emit("}", d);
+    for (const o of opened.reverse()) this.emit("}", o);
+  }
+
+  /**
+   * Group and Flex wrap by default (`flex-wrap: wrap`), so they become a FlexboxLayout; with
+   * `wrap="nowrap"` they become a HorizontalLayout. SimpleGrid and Grid are written by
+   * `gridLayout` and `gridCell`.
+   */
+  layoutTarget(node, rule, tag, from) {
+    if (!rule.wrapping) return rule.slint;
+    const attr = node.openingElement.attributes.find((a) => a.name?.name === "wrap");
+    const value = attr ? staticValue(attr.value) : this.defaultsFor(tag, from).wrap ?? rule.wrapping;
+    return value === "nowrap" ? "HorizontalLayout" : "FlexboxLayout";
+  }
+
+  /** Applies a `tt` text transform to a string expression. */
+  transform(code, wrap) {
+    return wrap?.transform ? `(${code}).${wrap.transform}()` : code;
+  }
+
+  /** The text and values among children, as Slint string expressions. */
+  textParts(list) {
     const parts = [];
     for (const c of list) {
       if (c.type === "JSXText") {
-        const s = c.value.replace(/\s+/g, " ");
-        if (s.trim()) parts.push(quote(s.trim()));
+        const s = jsxText(c.value);
+        if (s.trim()) parts.push(quote(s));
       } else if (c.type === "JSXExpressionContainer" && c.expression.type !== "JSXEmptyExpression") {
-        if (isJsx(c.expression) || c.expression.type === "LogicalExpression" || c.expression.type === "ConditionalExpression") {
+        const e = unwrap(c.expression);
+        if (isJsx(e) || e.type === "LogicalExpression" || e.type === "ConditionalExpression") {
           this.stats.inlineInText += 1;
-          parts.push(`root.${this.property(this.text(c.expression))}`);
-        } else {
-          parts.push(this.literal(c.expression) ?? `root.${this.property(this.text(c.expression))}`);
-        }
+          parts.push(`root.${this.property(this.text(e))}`);
+        } else parts.push(this.literal(e) ?? `root.${this.property(this.text(e))}`);
       } else if (c.type === "JSXElement") {
         this.stats.inlineInText += 1;
         parts.push(`root.${this.property(this.text(c))}`);
       }
     }
-    if (parts.length) this.emit(`text: ${parts.join(" + ")};`, depth);
+    return parts;
+  }
+
+  /**
+   * A Slint `Text` holds one string, not children: text and values become one `text` binding
+   * joined with `+`; element children (an inline badge, a link) are counted as needing a layout.
+   */
+  textChildren(list, depth, wrap) {
+    const parts = this.textParts(list);
+    if (parts.length) this.emit(`text: ${this.transform(parts.join(" + "), wrap)};`, depth);
+  }
+
+  /**
+   * The column count and gaps of a SimpleGrid or Grid whose children include a list
+   * (`rows.map(...)`): the list becomes rows of `cols` equal cells, so cell widths come from
+   * layout stretch, never from the grid's own width (which would be a binding loop).
+   */
+  gridCell(node, rule, lines) {
+    const get = (prefix) => lines.find((l) => l.startsWith(prefix))?.replace(/^[\w-]+:\s*|;$/g, "");
+    const gap = get("spacing-horizontal:") ?? get("spacing:") ?? "0px";
+    const vgap = get("spacing-vertical:") ?? gap;
+    if (rule.grid === "span") return { cols: "1", gap, vgap };
+    const colsAttr = node.openingElement.attributes.find((a) => a.name?.name === "cols");
+    const value = colsAttr ? staticValue(colsAttr.value) : 1;
+    const cols = value === undefined ? `root.${this.property(this.text(colsAttr.value.expression), "int")}` : convertStatic("int", value).code ?? "1";
+    return { cols, gap, vgap };
+  }
+
+  /**
+   * SimpleGrid and Grid with children written out (no `.map`) as a Slint GridLayout: each child
+   * is a cell at a compile-time row and column, all columns stretch equally (zero-height
+   * placeholders on row 0 fix the column count), and Grid.Col `span` is the cell's colspan of 12.
+   * A responsive `cols` or `span` becomes one GridLayout per breakpoint range under `if`, so the
+   * arrangement switches at the same window widths as Mantine's media queries. Returns false
+   * when a child is a list, which keeps the FlexboxLayout cells of `gridCell`.
+   */
+  gridLayout(node, rule, lines, depth) {
+    const kids = node.children.filter((c) => !(c.type === "JSXText" && !c.value.trim()) && !(c.type === "JSXExpressionContainer" && c.expression.type === "JSXEmptyExpression"));
+    const isList = (c) => c.type === "JSXExpressionContainer" && unwrap(c.expression)?.type === "CallExpression" && unwrap(c.expression).callee?.property?.name === "map";
+    if (!kids.length || kids.some(isList)) return false;
+    const span = rule.grid === "span";
+    const columnsAttr = staticValue(node.openingElement.attributes.find((a) => a.name?.name === (span ? "columns" : "cols"))?.value);
+    if (!span && columnsAttr === undefined && node.openingElement.attributes.some((a) => a.name?.name === "cols")) return false;
+    const spanOf = (c) => (c.type === "JSXElement" ? staticValue(c.openingElement.attributes.find((a) => a.name?.name === "span")?.value) : undefined);
+    const values = span ? kids.map(spanOf) : [columnsAttr ?? 1];
+    if (values.some((v) => v !== undefined && typeof v !== "number" && !(v && typeof v === "object"))) return false;
+    // Breakpoint ranges where the arrangement can change, mobile first.
+    const order = ["base", "xs", "sm", "md", "lg", "xl"];
+    const keys = new Set(["base"]);
+    for (const v of values) if (v && typeof v === "object") for (const k of Object.keys(v.responsive)) keys.add(k);
+    const steps = order.filter((k) => keys.has(k));
+    const at = (v, step, fallback) => {
+      if (v === undefined) return fallback;
+      if (typeof v === "number") return v;
+      let out = fallback;
+      for (const k of order.slice(0, order.indexOf(step) + 1)) if (k in v.responsive) out = v.responsive[k];
+      return typeof out === "number" ? out : fallback;
+    };
+    const gapLine = lines.find((l) => l.startsWith("spacing-horizontal:"));
+    const extra = gapLine && !lines.some((l) => l.startsWith("spacing-vertical:")) ? [`spacing-vertical: ${gapLine.replace(/^[\w-]+:\s*|;$/g, "")};`] : [];
+    const columns = span ? (typeof columnsAttr === "number" ? columnsAttr : 12) : null;
+    steps.forEach((step, i) => {
+      const next = steps[i + 1];
+      const conds = [step !== "base" && `Tokens.viewport-width >= Tokens.breakpoint-${step}`, next && `Tokens.viewport-width < Tokens.breakpoint-${next}`].filter(Boolean);
+      const cols = span ? columns : at(values[0], step, 1);
+      this.emit(`${conds.length ? `if ${conds.join(" && ")} : ` : ""}GridLayout {`, depth);
+      const gridProps = this.mapping.types.describe("GridLayout").properties;
+      for (const l of [...lines, ...extra]) if (gridProps[l.split(":")[0]]) this.emit(l, depth + 1);
+      for (let c = 0; c < cols; c += 1) this.emit(`Rectangle { row: 0; col: ${c}; height: 0px; min-width: 0px; preferred-width: 0px; horizontal-stretch: 1; }`, depth + 1);
+      let row = 0;
+      let col = 0;
+      for (const kid of kids) {
+        const width = span ? Math.min(cols, at(spanOf(kid), step, cols)) : 1;
+        if (col + width > cols) {
+          row += 1;
+          col = 0;
+        }
+        this.emit("VerticalLayout {", depth + 1);
+        this.emit(`row: ${row}; col: ${col};${width > 1 ? ` colspan: ${width};` : ""}`, depth + 2);
+        this.emit("min-width: 0px; preferred-width: 0px; horizontal-stretch: 1; alignment: LayoutAlignment.start;", depth + 2);
+        if (span && kid.type === "JSXElement" && tagName(kid.openingElement.name).endsWith(".Col")) this.children(kid.children, depth + 2);
+        else this.child(kid, depth + 2);
+        this.emit("}", depth + 1);
+        col += width;
+        if (col >= cols) {
+          row += 1;
+          col = 0;
+        }
+      }
+      this.emit("}", depth);
+    });
+    return true;
   }
 
   children(list, depth) {
-    for (const child of list) this.child(child, depth);
+    const cell = this.cells[this.cells.length - 1];
+    if (!cell || cell.depth !== depth) {
+      for (const child of list) this.child(child, depth);
+      return;
+    }
+    // Inside a list grid: a list becomes rows of equal cells; anything else takes a full row.
+    this.cells.push({ depth: -1 });
+    for (const child of list) {
+      const e = child.type === "JSXExpressionContainer" ? unwrap(child.expression) : null;
+      if (e?.type !== "CallExpression" || e.callee?.property?.name !== "map") {
+        this.child(child, depth);
+        continue;
+      }
+      const listProp = this.property(this.text(e.callee.object), "[string]");
+      const fn = e.arguments[0];
+      const n = `root.${listProp}.length`;
+      this.emit(`for grid-row in ceil(${n} / ${cell.cols}) : HorizontalLayout {`, depth);
+      this.emit(`spacing: ${cell.gap};`, depth + 1);
+      this.emit(`for grid-col in ${cell.cols} : VerticalLayout {`, depth + 1);
+      this.emit("min-width: 0px; preferred-width: 0px; horizontal-stretch: 1; alignment: LayoutAlignment.start;", depth + 2);
+      this.emit(`if grid-row * ${cell.cols} + grid-col < ${n} : VerticalLayout {`, depth + 2);
+      if (fn && /Function/.test(fn.type)) this.branch(renderBranches(fn.body).main ?? fn.body, depth + 3);
+      this.emit("}", depth + 2);
+      this.emit("}", depth + 1);
+      this.emit("}", depth);
+    }
+    this.cells.pop();
   }
 
   /** `value={tab} onChange={setTab}` (or checked/onChange): a two-way binding to the state property. */
-  twoWay(node, rule, attr, depth) {
-    const target = rule.props[attr.name.name];
-    if (!target || target.startsWith("_") || !["value", "checked", "opened", "active"].includes(attr.name.name)) return false;
+  twoWay(node, rule, attr, info, lines) {
+    const target = rule.props?.[attr.name.name];
+    if (typeof target !== "string" || target.startsWith("_") || !["value", "checked", "opened", "active"].includes(attr.name.name)) return false;
     const expr = attr.value?.expression;
-    if (expr?.type !== "Identifier" || !this.states.has(expr.name)) return false;
-    if (!this.twoWayPartner(node, attr)) return false;
-    // The widget decides the type: a number field binds an int, a multi-select a list.
-    const type = ["checked", "open", "active"].includes(target) ? "bool"
-      : PROP_TYPES[target] ?? (NUMBER_PROPS.has(target) ? "int" : "string");
-    const prop = this.property(expr.name, type);
-    this.emit(`${target} <=> root.${prop};`, depth);
+    if (expr?.type !== "Identifier" || !this.states.has(expr.name) || !this.twoWayPartner(node, attr)) return false;
+    const decl = info.properties[target];
+    if (!decl || decl.dir !== "in-out") return false;
+    const prop = this.property(expr.name, decl.type);
+    lines.push(`${target} <=> root.${prop};`);
     this.stats.reactive += 1;
     return true;
   }
@@ -535,36 +1042,30 @@ class ComponentWriter {
   twoWayPartner(node, attr) {
     const attrs = node.openingElement.attributes.filter((a) => a.type === "JSXAttribute");
     const valueAttr = attrs.find((a) => ["value", "checked", "opened", "active"].includes(a.name.name));
-    const changeAttr = attrs.find((a) => a.name.name === "onChange");
+    const changeAttr = attrs.find((a) => a.name.name === "onChange" || a.name.name === "onClose");
     const state = valueAttr?.value?.expression?.name;
     const setter = changeAttr?.value?.expression?.name;
-    return Boolean(state && setter && this.states.get(state)?.setter === setter);
+    const s = this.setters.get(setter);
+    return Boolean(state && s && s.state === state);
   }
 
   /** A table's column titles, taken from its header cells (`Table.Th` or `th`) as the web shows them. */
   tableColumns(node, depth) {
     const titles = [];
-    const visit = (n) => {
-      if (!n || typeof n.type !== "string") return;
+    walk(node, (n) => {
       if (n.type === "JSXElement" && ["Table.Th", "th"].includes(tagName(n.openingElement.name))) {
-        const t = n.children.map((c) => (c.type === "JSXText" ? c.value : c.type === "JSXExpressionContainer" ? this.literal(c.expression)?.replace(/^@tr\(|\)$/g, "").replace(/^"|"$/g, "") ?? "" : "")).join(" ").replace(/\s+/g, " ").trim();
-        titles.push(t);
-        return;
+        const t = n.children.map((c) => (c.type === "JSXText" ? c.value : c.type === "JSXExpressionContainer" ? this.literal(c.expression) ?? "" : "")).join(" ").replace(/\s+/g, " ").trim();
+        titles.push(t.startsWith("@tr(") || t.startsWith('"') ? t : quote(t));
       }
-      for (const v of Object.values(n)) {
-        if (Array.isArray(v)) v.forEach(visit);
-        else if (v && typeof v.type === "string") visit(v);
-      }
-    };
-    node.children.forEach(visit);
-    if (titles.length) this.emit(`columns: [${titles.map((t) => `{ title: ${quote(t)} }`).join(", ")}];`, depth);
+    });
+    if (titles.length) this.emit(`columns: [${titles.map((t) => `{ title: ${t} }`).join(", ")}];`, depth);
   }
 
   child(node, depth) {
     if (!node) return;
     if (node.type === "JSXText") {
-      const t = node.value.trim().replace(/\s+/g, " ");
-      if (t) this.emit(`Text { text: ${quote(t)}; }`, depth);
+      const t = jsxText(node.value).trim();
+      if (t) this.emit(`Text { text: ${quote(t)}; wrap: word-wrap; }`, depth);
     } else if (node.type === "JSXElement") {
       this.element(node, depth);
     } else if (node.type === "JSXFragment") {
@@ -576,87 +1077,198 @@ class ComponentWriter {
 
   /** `{a && <X/>}`, `{a ? <X/> : <Y/>}`, `{list.map(...)}` and plain values. */
   expression(expr, depth) {
+    expr = unwrap(expr);
+    const open = (head) => this.emit(head, depth);
     if (expr.type === "LogicalExpression" && expr.operator === "&&") {
-      this.emit(`if root.${this.property(this.text(expr.left), "bool")} : VerticalLayout {`, depth);
+      open(`if root.${this.property(this.text(expr.left), "bool")} : VerticalLayout {`);
       this.branch(expr.right, depth + 1);
       return this.emit("}", depth);
     }
     if (expr.type === "ConditionalExpression") {
       const cond = this.property(this.text(expr.test), "bool");
-      this.emit(`if root.${cond} : VerticalLayout {`, depth);
+      open(`if root.${cond} : VerticalLayout {`);
       this.branch(expr.consequent, depth + 1);
       this.emit("}", depth);
-      this.emit(`if !root.${cond} : VerticalLayout {`, depth);
+      open(`if !root.${cond} : VerticalLayout {`);
       this.branch(expr.alternate, depth + 1);
       return this.emit("}", depth);
     }
     if (expr.type === "CallExpression" && expr.callee.type === "MemberExpression" && expr.callee.property.name === "map") {
+      // React's `key` identifies list items for its own diffing; Slint's `for` tracks model rows itself.
       const list = this.property(this.text(expr.callee.object), "[string]");
       const fn = expr.arguments[0];
-      this.emit(`for item in root.${list} : VerticalLayout {`, depth);
-      if (fn && /Function/.test(fn.type)) this.branch(returnedJsx(fn.body) ?? fn.body, depth + 1);
+      open(`for item in root.${list} : VerticalLayout {`);
+      if (fn && /Function/.test(fn.type)) this.branch(renderBranches(fn.body).main ?? fn.body, depth + 1);
       return this.emit("}", depth);
     }
     if (isJsx(expr)) return this.child(expr, depth);
     if (expr.type === "Identifier" && expr.name === "children") return; // the component's @children
     if (expr.type === "MemberExpression" && expr.property?.name === "children") return;
+    if (expr.type === "NullLiteral") return;
     const lit = this.literal(expr);
-    this.emit(`Text { text: ${lit ?? `root.${this.property(this.text(expr))}`}; }`, depth);
+    this.emit(`Text { text: ${lit ?? `root.${this.property(this.text(expr))}`}; wrap: word-wrap; }`, depth);
   }
 
   /** A branch of a condition or loop: JSX, or a value shown as text, or `null`. */
   branch(node, depth) {
+    node = unwrap(node);
     if (!node || node.type === "NullLiteral") return;
     if (isJsx(node)) return this.child(node, depth);
     this.expression(node, depth);
   }
 
   /**
-   * Preview builds only: permission and presence checks (`canView`, `hasRows`) start true and
-   * loading, error and negated checks start false, so a screen shows its content before a view
-   * model exists. Product builds get every value from the view model and the server.
+   * Preview builds only, matching the web reference (a signed-in super admin, every list empty,
+   * nothing loading, no errors): permission checks start true; loading, error and open states
+   * false; empty checks true; data presence false. Product builds get every value from the view
+   * model.
    */
   previewDefault(p) {
-    if (!this.mapping.preview || p.type !== "bool") return "";
-    const src = p.src.trim();
-    if (src.startsWith("!") || /loading|pending|fail|error|empty|denied|outage|unavailable|open|modal|drawer|confirm/i.test(src)) return ": false";
-    return /\b(can|has|is|show|allow|visible)[A-Z_]?/i.test(src) ? ": true" : "";
+    if (!this.preview || p.type !== "bool") return "";
+    return previewBool(p.src) ? ": true" : ": false";
   }
 
-  render(jsx) {
-    this.child(jsx, 1);
-    const head = [`export component ${this.name} inherits VerticalLayout {`];
+  /** Effects, timers, refs, queries and browser APIs: Slint hooks where one exists, markers otherwise. */
+  lifecycle(body) {
+    const effectsDone = new Set();
+    if (body?.type === "BlockStatement") {
+      for (const st of body.body) {
+        const call = st.type === "ExpressionStatement" ? unwrap(st.expression) : null;
+        if (call?.type !== "CallExpression" || !["useEffect", "useLayoutEffect"].includes(call.callee.name)) continue;
+        effectsDone.add(call);
+        this.effect(call);
+      }
+    }
+    walk(body, (n) => {
+      if (n.type === "CallExpression") {
+        const callee = this.text(n.callee);
+        for (const [pattern, kind] of Object.entries(this.mapping.rust)) {
+          if (new RegExp(`^(${pattern})$`).test(callee)) this.rust(kind, `${callee}(...)`);
+        }
+      }
+      if (n.type === "NewExpression" && ["WebSocket", "EventSource", "Notification", "Audio", "BroadcastChannel"].includes(n.callee.name)) this.rust(n.callee.name === "Notification" || n.callee.name === "Audio" ? "notification" : "socket", `new ${n.callee.name}(...)`);
+      if (n.type === "AssignmentExpression" && this.text(n.left) === "document.title") this.rust("title", "document.title = ...; the window title comes from the view model");
+    });
+  }
+
+  /**
+   * `useEffect(fn, [])` runs once on mount: Slint's `init` callback. With dependencies that are
+   * this component's state, `changed <prop> =>` runs it again when one changes. A returned
+   * cleanup, other dependencies, or no dependency list are view-model work, marked.
+   * `setInterval(fn, ms)` / `setTimeout(fn, ms)` inside become a `Timer`.
+   */
+  effect(call) {
+    const [fn, deps] = call.arguments;
+    const id = this.callback(`effect-${this.counter++}`);
+    let cleanup = false;
+    walk(fn?.body, (n) => {
+      if (n.type === "ReturnStatement" && n.argument) cleanup = true;
+      if (n.type === "CallExpression" && ["setInterval", "setTimeout"].includes(n.callee.name)) {
+        const ms = staticValue(n.arguments[1]);
+        const repeat = n.callee.name === "setInterval";
+        if (typeof ms === "number") {
+          const tick = this.callback(`${repeat ? "tick" : "timeout"}-${this.counter++}`);
+          this.extra.push(`    Timer { interval: ${ms}ms; running: true; triggered => { ${repeat ? "" : "self.running = false; "}root.${tick}(); } }`);
+          this.stats.reactive += 1;
+        } else this.rust("timer", `${n.callee.name} with a computed delay`);
+      }
+    }, true);
+    if (deps?.type === "ArrayExpression" && deps.elements.length === 0) {
+      this.extra.push(`    init => { root.${id}(); }`);
+      this.stats.lifecycle += 1;
+    } else if (deps?.type === "ArrayExpression") {
+      const stateDeps = deps.elements.filter((e) => e?.type === "Identifier" && this.states.has(e.name));
+      for (const dep of stateDeps) {
+        const prop = this.property(dep.name, this.stateType(dep.name));
+        // One `changed` handler per property: effects sharing a dependency run in order.
+        const handlers = this.changed.get(prop) ?? [];
+        handlers.push(id);
+        this.changed.set(prop, handlers);
+        this.stats.lifecycle += 1;
+      }
+      if (stateDeps.length < deps.elements.length) this.rust("effect", `${id} depends on ${deps.elements.map((e) => (e ? this.text(e) : "")).join(", ")}: the view model reruns it`);
+    } else this.rust("effect", `${id} has no dependency list: it runs after every render on the web`);
+    if (cleanup) this.rust("cleanup", `${id} returns a cleanup: release in the view model's teardown`);
+  }
+
+  render(c, preamble) {
+    this.lifecycle(c.body);
+    // Early returns (`if (loading) return <Loader/>;`) are branches; the main view shows when none applies.
+    const guards = [];
+    for (const b of c.branches) {
+      const cond = this.property(this.text(b.test), "bool");
+      const prior = guards.map((g) => ` && !root.${g}`).join("");
+      this.emit(`if root.${cond}${prior} : VerticalLayout {`, 1);
+      this.branch(b.jsx, 2);
+      this.emit("}", 1);
+      guards.push(cond);
+    }
+    if (guards.length) {
+      this.emit(`if ${guards.map((g) => `!root.${g}`).join(" && ")} : VerticalLayout {`, 1);
+      this.child(c.jsx.type === "ConditionalExpression" ? { type: "JSXExpressionContainer", expression: c.jsx } : c.jsx, 2);
+      this.emit("}", 1);
+    } else this.child(c.jsx.type === "ConditionalExpression" ? { type: "JSXExpressionContainer", expression: c.jsx } : c.jsx, 1);
+    const head = [`export component ${this.name} inherits VerticalLayout {`, "    alignment: LayoutAlignment.start;"];
+    for (const note of this.rustNotes) head.push(`    ${note}`);
     for (const p of this.props.values()) {
       const state = this.states.get(p.src.trim());
-      const init = state ? this.literal(state.init) : null;
-      const fits = init && ((p.type === "bool" && /^(true|false)$/.test(init)) || (p.type === "int" && /^-?\d+$/.test(init))
-        || (p.type === "string" && init.startsWith('"')) || (p.type === "string" && init.startsWith("@tr")));
+      const init = p.init ?? (state ? this.literal(state.init) : null);
+      const fits = init && ((p.type === "bool" && /^(true|false)$/.test(init)) || ((p.type === "int" || p.type === "float") && /^-?\d+(\.\d+)?$/.test(init))
+        || (p.type === "string" && (init.startsWith('"') || init.startsWith("@tr"))));
       const value = fits ? `: ${init}` : this.previewDefault(p);
-      head.push(`    // from: ${p.src.replace(/\s+/g, " ").slice(0, 100)}`, `    ${state ? "in-out" : "in"} property <${p.type}> ${p.name}${value};`);
+      const inout = state || p.init || this.formFields.has(p.name);
+      head.push(`    // from: ${p.src.replace(/\s+/g, " ").slice(0, 100)}`, `    ${inout ? "in-out" : "in"} property <${p.type}> ${p.name}${value};`);
     }
-    for (const cb of this.callbacks) head.push(`    callback ${cb}();`);
-    return [...head, ...this.lines, "    @children", "}"].join("\n");
+    for (const cb of this.callbacks.values()) head.push(`    callback ${cb.name}(${cb.args});`);
+    for (const [prop, ids] of this.changed) this.extra.push(`    changed ${prop} => { ${ids.map((i) => `root.${i}();`).join(" ")} }`);
+    return [...preamble, ...head, ...this.extra, ...this.lines, "    @children", "}"].join("\n");
   }
+}
+
+/** IBM Plex Sans' natural line height (hhea ascent + descent + gap over units per em). */
+const Metrics_NATURAL_LINE_HEIGHT = 1.3;
+
+/** Slint standard widgets, imported from `std-widgets.slint`. */
+const STD_WIDGETS = new Set([
+  "Button", "LineEdit", "ComboBox", "CheckBox", "Switch", "SpinBox", "Slider", "TextEdit",
+  "StandardTableView", "TabWidget", "ScrollView", "Spinner", "ProgressIndicator", "StandardListView",
+]);
+
+/** The preview's starting value for a condition, as on the mocked web reference. */
+export function previewBool(src) {
+  const s = src.trim().replace(/\s+/g, " ");
+  if (s.startsWith("!") && !s.startsWith("!=")) return !previewBool(s.slice(1).replace(/^\((.*)\)$/, "$1"));
+  if (/&&/.test(s)) return s.split("&&").every((x) => previewBool(x));
+  if (/\|\|/.test(s)) return s.split("||").some((x) => previewBool(x));
+  if (/(===?|<=?)\s*0\b|\bempty\b|isEmpty|==\s*null|===\s*undefined|\bno[A-Z]\w*/i.test(s) && !/!==?\s*(null|undefined)/.test(s)) return true;
+  if (/loading|pending|fetching|error|fail|denied|outage|unavailable|offline|open|modal|drawer|confirm|editing|selected|expanded|dirty|submitting|saving|busy|>\s*0|\.length\b|!==?\s*(null|undefined)/i.test(s)) return false;
+  return /^(can|has|is|show|allow|visible|enabled)[A-Z_]|\b(can|has|show|allow)[A-Z]/.test(s);
 }
 
 /** Converts one module's source: the Slint text and its statistics. */
 export function convertSource(source, fileName = "input.tsx", mapping = loadMapping(), known = new Map(), options = {}) {
-  mapping = { ...mapping, preview: Boolean(options.preview), strings: options.strings };
   const ast = parse(source, { sourceType: "module", plugins: ["jsx", "typescript"], errorRecovery: true });
-  const stats = { elements: 0, mapped: 0, strings: 0, unmapped: {}, rawHtml: {}, kit: new Set(), std: new Set(), hooks: {}, references: new Map(), webOnly: {}, inlineInText: 0, leafChildren: 0, missingStrings: 0, reactive: 0 };
+  const stats = { elements: 0, mapped: 0, strings: 0, unmapped: {}, rawHtml: {}, kit: new Set(), std: new Set(), hooks: {}, references: new Map(), webOnly: {}, inlineInText: 0, leafChildren: 0, missingStrings: 0, reactive: 0, droppedProps: {}, rust: {}, lifecycle: 0, icons: new Map(), unpassedProps: 0, recursive: 0, declared: new Map() };
   const own = new Set();
-  const parts = [];
   const found = components(ast.program);
   for (const c of found) own.add(c.name);
   // Components of this same file are referenced in place; others come from their own file.
   const visible = new Map([...known].filter(([name]) => !own.has(name)));
-  for (const name of own) visible.set(name, null);
+  // A same-named component elsewhere must not lend this one its properties.
+  for (const name of own) visible.set(name, { ...(known.get(name)?.file === fileName ? known.get(name) : {}), file: fileName });
+  const imports = importsOf(ast.program);
   const rendered = new Map();
   for (const c of found) {
-    const writer = new ComponentWriter(c.name, mapping, source, stats, new Map([...visible].map(([n, f]) => [n, f ?? fileName])), c.states);
-    rendered.set(c.name, writer.render(c.jsx));
+    const writer = new ComponentWriter(c, { mapping, source, stats, known: visible, imports, preview: Boolean(options.preview), strings: options.strings, formFields: new Set() });
+    rendered.set(c.name, writer.render(c, []));
+    stats.declared.set(c.name, {
+      // The first declaration of a source name wins: it is the one a caller passes.
+      props: new Map([...writer.props.values()].reverse().map((p) => [p.src, { name: p.name, type: p.type }])),
+      callbacks: new Map([...writer.callbacks.values()].map((cb) => [cb.name, cb.name])),
+    });
     for (const [h, n] of Object.entries(c.hooks)) stats.hooks[h] = (stats.hooks[h] ?? 0) + n;
   }
+  const parts = [];
   const placed = new Set();
   const place = (name, trail = new Set()) => {
     if (placed.has(name) || trail.has(name)) return;
@@ -668,10 +1280,11 @@ export function convertSource(source, fileName = "input.tsx", mapping = loadMapp
     parts.push(rendered.get(name));
   };
   for (const name of rendered.keys()) place(name);
-  const imports = [];
-  if (stats.std.size) imports.push(`import { ${[...stats.std].sort().join(", ")} } from "std-widgets.slint";`);
-  const kit = [...stats.kit, "Tokens"].sort();
-  imports.push(`import { ${kit.join(", ")} } from "@medbrains-gui-kit/kit.slint";`);
+  const body = parts.join("\n");
+  for (const g of ["Metrics", "Tone", "Shell"]) if (new RegExp(`\\b${g}\\.`).test(body)) stats.kit.add(g);
+  const out = [];
+  if (stats.std.size) out.push(`import { ${[...stats.std].sort().join(", ")} } from "std-widgets.slint";`);
+  out.push(`import { ${[...new Set([...stats.kit, "Tokens"])].sort().join(", ")} } from "@medbrains-gui-kit/kit.slint";`);
   const byFile = new Map();
   for (const [name, file] of stats.references) {
     if (own.has(name)) continue;
@@ -680,30 +1293,30 @@ export function convertSource(source, fileName = "input.tsx", mapping = loadMapp
     if (!slintFile.startsWith(".")) slintFile = `./${slintFile}`;
     byFile.set(slintFile, [...(byFile.get(slintFile) ?? []), name]);
   }
-  for (const [file, names] of byFile) imports.push(`import { ${names.sort().join(", ")} } from "${file}";`);
+  for (const [file, names] of byFile) out.push(`import { ${names.sort().join(", ")} } from "${file}";`);
   const header = [
     `// GENERATED from ${fileName} by @medbrains/react-to-slint (mapping version ${mapping.version}).`,
-    "// View skeleton only: logic moves to a Rust view model (docs/architecture/OS-NATIVE-GUI.md).",
+    "// View only: lines marked `rust:` are logic for the Rust view model (docs/architecture/OS-NATIVE-GUI.md).",
   ];
-  return { slint: `${[...header, ...imports, "", ...parts].join("\n")}\n`, stats, components: parts.length };
+  return { slint: `${[...header, ...out, "", ...parts].join("\n")}\n`, stats, components: parts.length };
 }
 
 /**
- * Converts one file from disk. `known` maps our component names to the file defining them;
+ * Converts one file from disk. `known` maps our component names to `{ file, props, callbacks }`;
  * `base` is the project root, so output and imports keep the source tree's folders.
  */
 export function convertFile(file, mapping = loadMapping(), known = new Map(), base = path.dirname(file), options = {}) {
   const rel = (f) => path.relative(base, f);
-  const relKnown = new Map([...known].map(([n, f]) => [n, rel(f)]));
+  const relKnown = new Map([...known].map(([n, k]) => [n, { ...k, file: rel(k.file) }]));
   return convertSource(fs.readFileSync(file, "utf8"), rel(file), mapping, relKnown, options);
 }
 
-/** Every component defined in a source tree, `name -> file`, so references across files convert. */
+/** Every component defined in a source tree, `name -> { file }`, so references across files convert. */
 export function indexComponents(files) {
   const known = new Map();
   for (const file of files) {
     const ast = parse(fs.readFileSync(file, "utf8"), { sourceType: "module", plugins: ["jsx", "typescript"], errorRecovery: true });
-    for (const c of components(ast.program)) if (!known.has(c.name)) known.set(c.name, file);
+    for (const c of components(ast.program)) if (!known.has(c.name)) known.set(c.name, { file });
   }
   return known;
 }
