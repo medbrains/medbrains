@@ -16,7 +16,7 @@ mod wifi;
 mod wifi_parse;
 
 use std::fs;
-use std::io::{self, BufRead, BufReader, Read, Write};
+use std::io::{self, Read, Write};
 use std::os::unix::fs::PermissionsExt;
 use std::os::unix::net::{UnixListener, UnixStream};
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
@@ -78,25 +78,33 @@ impl Read for Deadlined<'_> {
     }
 }
 
+/// One line of the request head, read a byte at a time so no buffer holds what follows it: the body may be a
+/// password, and only its own wiped vector may hold it. The head is a few hundred bytes, so this costs nothing.
+fn read_head_line(reader: &mut impl Read) -> Option<String> {
+    let mut line = Vec::new();
+    let mut byte = [0_u8; 1];
+    while reader.read(&mut byte).ok()? == 1 {
+        line.push(byte[0]);
+        if byte[0] == b'\n' {
+            break;
+        }
+    }
+    String::from_utf8(line).ok()
+}
+
 /// Reads one request, refusing anything oversized. Everything is bounded by `MAX_REQUEST`.
 fn read_request(stream: impl Read) -> Option<Request> {
-    let mut reader = BufReader::new(stream.take(MAX_REQUEST));
-    let mut line = String::new();
-    reader.read_line(&mut line).ok()?;
+    let mut reader = stream.take(MAX_REQUEST);
+    let line = read_head_line(&mut reader)?;
     let mut parts = line.split_whitespace();
     let (method, path) = (parts.next()?.to_owned(), parts.next()?.to_owned());
     let mut length = 0_usize;
     for _ in 0..MAX_HEADERS {
-        let mut header = String::new();
-        reader.read_line(&mut header).ok()?;
+        let header = read_head_line(&mut reader)?;
         if header.trim().is_empty() {
-            let mut body = vec![0; length];
+            let mut body = Zeroizing::new(vec![0; length]);
             reader.read_exact(&mut body).ok()?;
-            return Some(Request {
-                method,
-                path,
-                body: Zeroizing::new(body),
-            });
+            return Some(Request { method, path, body });
         }
         let (name, value) = header.split_once(':')?;
         if name.trim().eq_ignore_ascii_case("content-length") {

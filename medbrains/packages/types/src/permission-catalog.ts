@@ -19,7 +19,7 @@ export interface PermissionDef {
   module: string;
 }
 
-/** 1216 permissions, one per constant in the Rust source. */
+/** 1217 permissions, one per constant in the Rust source. */
 export const PERMISSIONS: PermissionDef[] = [
   // dashboard
   {
@@ -5522,6 +5522,12 @@ export const PERMISSIONS: PermissionDef[] = [
     module: "admin",
   },
   {
+    code: "admin.users.link_identity",
+    label: "Link an account to a sign-in person",
+    description: "Link or unlink a MedBrains account to a person in the hospital's own sign-in service, chosen by name and ID. An email address never links an account there, so existing staff are linked here. Linking an administrator's account needs an administrator.",
+    module: "admin",
+  },
+  {
     code: "admin.approvals.oversee",
     label: "Oversee Approvals",
     description: "See every request in the tenant, not just your own.",
@@ -9185,6 +9191,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
   it_security_officer: {
     label: "IT Security Officer",
     permissions: [
+      P.ADMIN.USERS.LINK_IDENTITY,
       P.DASHBOARD.VIEW,
       P.DEVICES.MACHINES.REMOVE,
       P.DEVICES.MACHINES.VIEW,

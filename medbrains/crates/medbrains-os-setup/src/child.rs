@@ -62,7 +62,8 @@ pub(crate) fn run_with_input(
         .spawn()
         .ok()?;
     if let Some(mut stdin) = child.stdin.take() {
-        let owned = input.to_owned();
+        // Wiped when the thread drops it: this copy may hold a password.
+        let owned = zeroize::Zeroizing::new(input.to_owned());
         // Its own thread, so a helper that never reads cannot hold this past the limit. Dropping it closes
         // stdin. A helper that exits early breaks the pipe, and its exit status tells that story.
         thread::spawn(move || drop(stdin.write_all(&owned)));

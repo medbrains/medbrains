@@ -380,14 +380,28 @@ The problem: Kanidm is down for longer than a shift change, and a nurse who was 
   because a lockout during an outage is the harm this exists to prevent. The front's per-address limit applies as well.
 Open for the reviewer: whether a code or a second person's approval should be the proof at sign-in itself, not only at switch-on.
 
-**Who is linked to which MedBrains account.** For the OS's own Kanidm, an email address never finds an existing account: anyone
-who may make a Kanidm person can give it any address, and Kanidm calls every primary address verified. The first administrator
-is linked at setup by its Kanidm UUID (`kanidm-first-admin` records it; `kanidm-setup` links it). Everyone else signs in to a new
-account with the least role. For any provider, an email never claims a `super_admin` or `hospital_admin` account.
+**Who is linked to which MedBrains account.** A provider's verified email finds an existing account only when its
+`link_by_email` is on (migration 1406, Admin → Single sign-on), and it is off by default and for the OS's own Kanidm: anyone who
+may make a Kanidm person can give it any address, and Kanidm calls every primary address verified. Whatever it says, an email
+never claims a `super_admin` or `hospital_admin` account. The first administrator is linked at setup by its Kanidm UUID
+(`kanidm-first-admin` records it; `kanidm-setup` links it). **Existing staff are linked by hand:** Admin → Users → Link to
+sign-in, with the permission `admin.users.link_identity` (administrators, and the IT security officer role, who cannot link an
+administrator's account). It searches Kanidm's people by name, display name or mail through a read-only directory account
+(`mb_directory`, in `idm_account_mail_read`, its token readable by the server alone), shows each person's UUID and any account
+already linked to them, and links or unlinks, audited as `sso_link` and `sso_unlink`. A new account from a sign-in is named after
+the Kanidm name; if that name is reserved (`admin`, `root`, and those with digits after them) or an account already has it, no
+account is made and the sign-in page says to ask IT to link it, so no look-alike grows beside an existing account. The new-staff
+notice names the Kanidm person and its UUID.
 
-**Signing out on the screen.** The screen asks Kanidm for a fresh login every time (`prompt=login`), and when the MedBrains view
-comes back to its sign-in page it forgets every cookie, Kanidm's session among them, so the next person is asked to sign in.
-Kanidm's own session on the server is not ended: without its cookie nothing can use it, and it expires on its own.
+**Signing out.** Every sign-in through the OS's Kanidm asks for a fresh login (`prompt=login`), on the screen and in
+browsers. On the screen, when the MedBrains view comes back to its sign-in page it forgets every cookie, Kanidm's session among
+them, so the next person is asked to sign in. Kanidm 1.12 has no way for MedBrains to end its session (no OIDC end-session), so
+on a shared computer's browser the next person is asked to re-enter the previous person's password, and cannot pass; they use
+Kanidm's own Sign out first. Kanidm's session on the server expires on its own.
+
+**A passkey while the password is slowed.** Kanidm counts wrong guesses per credential, so a stranger slowing someone's password
+does not touch their passkey: it still signs in at once (tested, `tests/kanidm-passkey-lock.js`). A one-time code is part of the
+password credential and is slowed with it. A crash or restart of Kanidm clears every count, because they are kept in memory.
 
 **What the LAN reaches on 9443.** Only `/ui`, `/pkg`, `/oauth2`, `/v1/auth`, `/v1/reauth` and `/status` (`lan_paths` in
 `front.toml`); the rest of `/v1`, raw and admin among it, answers 404 except to this machine. The port takes 128 connections,

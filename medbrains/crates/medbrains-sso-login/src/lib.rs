@@ -105,12 +105,16 @@ struct LoginProvider {
     group_claim: String,
     default_role: Option<String>,
     jit_enabled: bool,
+    /// Which provider: the OS's own Kanidm is `kanidm`.
+    code: String,
+    /// Whether a verified email from it may find an existing local account (migration 1406).
+    link_by_email: bool,
 }
 
 async fn load_provider(state: &AppState, id: Uuid) -> Result<LoginProvider, AppError> {
     sqlx::query_as::<_, LoginProvider>(
         "SELECT id, tenant_id, protocol, discovery_url, client_id, client_secret_enc, \
-         group_claim, default_role, jit_enabled FROM sso_provider_for_login($1)",
+         group_claim, default_role, jit_enabled, code, link_by_email FROM sso_provider_for_login($1)",
     )
     .bind(id)
     .fetch_optional(&state.db)
@@ -124,19 +128,37 @@ const PROVIDER_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(10)
 const PROVIDER_UNAVAILABLE: &str = "/login?sso_error=unavailable";
 /// Where the login page says sign-in was cancelled or refused.
 const PROVIDER_REFUSED: &str = "/login?sso_error=1";
-/// The host of the OS's own Kanidm. Anyone who can make a person there can give it any address and Kanidm calls
-/// every primary address verified, so its email never finds an existing account.
-const OS_IDENTITY_HOST: &str = "idm.medbrains.local";
+/// Where the login page says the sign-in matches an account that an administrator has to link first.
+const LINK_NEEDED: &str = "/login?sso_error=link";
+/// The OS's own Kanidm, as kanidm-setup registers it. Every sign-in through it asks for a fresh login, because
+/// its pages run on shared computers and its session would otherwise sign the next person in.
+const OS_KANIDM_CODE: &str = "kanidm";
 /// Accounts an email address never claims, whatever the provider says: a takeover of one is the whole hospital.
 const NEVER_LINKED_BY_EMAIL: [&str; 2] = ["super_admin", "hospital_admin"];
+/// Names a new account never takes, nor these with digits or underscores after them: they read as the system's
+/// own, or as an administrator's.
+const RESERVED_USERNAMES: [&str; 14] = [
+    "admin",
+    "administrator",
+    "root",
+    "system",
+    "superadmin",
+    "super_admin",
+    "hospital_admin",
+    "support",
+    "security",
+    "idm_admin",
+    "anonymous",
+    "medbrains",
+    "sysadmin",
+    "it",
+];
 
-/// True when this provider's email may find an existing local account. Never for the OS's own Kanidm: its
-/// accounts are linked by subject only, the first administrator by setup and the rest by an administrator.
-fn may_link_by_email(discovery_url: Option<&str>) -> bool {
-    let host = discovery_url
-        .and_then(|url| url.strip_prefix("https://"))
-        .map(|rest| rest.split(['/', ':']).next().unwrap_or_default());
-    host.is_none_or(|host| !host.eq_ignore_ascii_case(OS_IDENTITY_HOST))
+/// True for a name a new account may not take: a reserved one, or a reserved one with digits or underscores
+/// after it, such as `admin0`.
+fn is_reserved_username(name: &str) -> bool {
+    let stem = name.trim_end_matches(|c: char| c.is_ascii_digit() || c == '_');
+    RESERVED_USERNAMES.contains(&stem)
 }
 
 /// Where a provider's error on the callback sends the person: its own outage reads as "not answering", so a
@@ -255,10 +277,10 @@ pub async fn oidc_authorize(
     .await?;
 
     let base = base_for(&headers);
-    let prompt = if base == public_base() {
-        ""
-    } else {
+    let prompt = if provider.code == OS_KANIDM_CODE || base != public_base() {
         "&prompt=login"
+    } else {
+        ""
     };
     let url = format!(
         "{}?response_type=code&client_id={}&redirect_uri={}&scope={}&state={}&nonce={}&code_challenge={}&code_challenge_method=S256{prompt}",
@@ -427,6 +449,12 @@ pub async fn oidc_callback(
             // JIT disabled for a new user) — audit the refused attempt.
             let _ = tx.rollback().await;
             audit_sso_denied(&state, &provider, &identity).await;
+            if matches!(e, AppError::Conflict(_)) {
+                return Ok((
+                    CookieJar::new(),
+                    Redirect::to(&format!("{base}{LINK_NEEDED}")),
+                ));
+            }
             return Err(e);
         }
     };
@@ -740,9 +768,11 @@ async fn federate_user(
         }
         None => {
             let linked =
-                match identity.email.as_deref().filter(|_| {
-                    identity.email_verified && may_link_by_email(provider.discovery_url.as_deref())
-                }) {
+                match identity
+                    .email
+                    .as_deref()
+                    .filter(|_| identity.email_verified && provider.link_by_email)
+                {
                     // Only an email the provider says it verified. Entra's `email` claim is whatever
                     // the tenant typed, so trusting it let any person sign in as a local account
                     // with that address, including the first administrator (nOAuth).
@@ -861,7 +891,12 @@ async fn tell_admins_of_new_staff(
         .as_deref()
         .or(identity.email.as_deref())
         .unwrap_or("A new member of staff");
-    let body = format!("{who} signed in with single sign-on and needs a role.");
+    let sign_in_name = identity.preferred_username.as_deref().unwrap_or("unnamed");
+    let body = format!(
+        "{who} signed in with single sign-on (sign-in name {sign_in_name}, ID {}) and needs a role. \
+         If they already have an account, link it in Users and remove this one.",
+        identity.subject
+    );
     notify_permission_holders(
         tx,
         provider.tenant_id,
@@ -926,9 +961,9 @@ async fn audit_sso_denied(state: &AppState, provider: &LoginProvider, identity: 
 /// constraint (`^[a-z][a-z0-9_]{2,29}$`).
 fn base_username(identity: &SsoIdentity) -> String {
     let seed = identity
-        .email
+        .preferred_username
         .as_deref()
-        .or(identity.preferred_username.as_deref())
+        .or(identity.email.as_deref())
         .and_then(|e| e.split('@').next())
         .unwrap_or(&identity.subject);
     let mut s: String = seed
@@ -978,21 +1013,20 @@ async fn jit_create(
     identity: &SsoIdentity,
     role: &str,
 ) -> Result<Uuid, AppError> {
-    let base = base_username(identity);
-    // Ensure uniqueness within the tenant.
-    let mut username = base.clone();
-    for suffix in 0..1000 {
-        let taken = sqlx::query_scalar::<_, bool>(
-            "SELECT EXISTS(SELECT 1 FROM users WHERE tenant_id = $1 AND username = $2)",
-        )
-        .bind(provider.tenant_id)
-        .bind(&username)
-        .fetch_one(&mut **tx)
-        .await?;
-        if !taken {
-            break;
-        }
-        username = format!("{}{suffix}", base.chars().take(24).collect::<String>());
+    // A reserved name, or one an account already has, is never taken or varied with a digit: the person is told
+    // to ask IT, who links the existing account instead of a look-alike growing beside it.
+    let username = base_username(identity);
+    let taken = sqlx::query_scalar::<_, bool>(
+        "SELECT EXISTS(SELECT 1 FROM users WHERE tenant_id = $1 AND username = $2)",
+    )
+    .bind(provider.tenant_id)
+    .bind(&username)
+    .fetch_one(&mut **tx)
+    .await?;
+    if taken || is_reserved_username(&username) {
+        return Err(AppError::Conflict(format!(
+            "the sign-in name {username} needs an administrator to link it"
+        )));
     }
     let email = new_account_email(tx, provider, identity, &username).await?;
     let full_name = identity
@@ -1028,7 +1062,7 @@ mod tests {
 
     use super::{
         IdClaims, NEVER_LINKED_BY_EMAIL, PROVIDER_REFUSED, PROVIDER_UNAVAILABLE, STAFF_ROLE,
-        SsoIdentity, base_username, callback_error_target, extract_groups, may_link_by_email,
+        SsoIdentity, base_username, callback_error_target, extract_groups, is_reserved_username,
         new_user_role, pkce_challenge, resolve_group_targets, screen_base, tenant_matches_issuer,
     };
 
@@ -1134,19 +1168,37 @@ mod tests {
         assert!(base_username(&id).starts_with("asha"));
     }
 
-    /// An email from the OS's own Kanidm never finds an account: anyone who may make a Kanidm person can give it
-    /// the administrator's address. Other providers keep the verified-email link.
+    /// The sign-in name wins over the email's local part, so a person given `admin@…` is not named `admin`.
     #[test]
-    fn an_email_from_the_os_kanidm_never_links() {
-        let kanidm = "https://idm.medbrains.local:9443/oauth2/openid/medbrains/.well-known/openid-configuration";
-        assert!(!may_link_by_email(Some(kanidm)));
-        assert!(!may_link_by_email(Some("https://IDM.medbrains.local/x")));
-        assert!(may_link_by_email(Some(
-            "https://login.microsoftonline.com/t/v2.0/.well-known/openid-configuration"
-        )));
-        assert!(may_link_by_email(Some(
-            "https://idm.medbrains.local.evil.example/"
-        )));
+    fn a_new_account_is_named_from_the_sign_in_name_not_the_email() {
+        let id = SsoIdentity {
+            subject: "9f8e7d6c-0000-4000-8000-000000000001".to_owned(),
+            email: Some("admin@medbrains.localhost".to_owned()),
+            email_verified: true,
+            preferred_username: Some("mallory".to_owned()),
+            name: None,
+            groups: vec![],
+        };
+        assert_eq!(base_username(&id), "mallory");
+    }
+
+    /// A new account never takes a reserved name or a look-alike of one with digits after it.
+    #[test]
+    fn a_new_account_never_takes_a_reserved_name_or_a_look_alike() {
+        for name in [
+            "admin",
+            "admin0",
+            "admin_12",
+            "root",
+            "idm_admin",
+            "super_admin",
+            "it",
+        ] {
+            assert!(is_reserved_username(name), "{name}");
+        }
+        for name in ["ward_nurse", "administrator_asha", "admins", "edith"] {
+            assert!(!is_reserved_username(name), "{name}");
+        }
         assert_eq!(NEVER_LINKED_BY_EMAIL, ["super_admin", "hospital_admin"]);
     }
 

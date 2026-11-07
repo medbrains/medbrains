@@ -272,7 +272,7 @@ ensure_certificate_copies() {
         # shellcheck disable=SC2016 # the inner shell expands $1
         timeout "$AGENT_COPY_SECONDS" setpriv --reuid=medbrains-agent --regid=kiosk --clear-groups \
             sh -c 'tmp="$(mktemp "$1.XXXXXX")" && cat > "$tmp" && chmod 0644 "$tmp" && mv -f "$tmp" "$1"' \
-            sh "$AGENT_COPY" < "$SCREEN/cert.pem" ||
+            sh "$AGENT_COPY" 9>&- < "$SCREEN/cert.pem" ||
             echo "front-certs: could not give the agent its copy; nodes it admits wait for the next run" >&2
     fi
 }
@@ -300,7 +300,9 @@ ensure_identity() {
         openssl x509 -in "$IDP/chain.pem" -noout -checkend "$RENEW_SECONDS" >/dev/null 2>&1; }; then
         issue_identity || { echo "front-certs: could not issue the identity provider's certificate" >&2; return 1; }
     fi
-    copy_kanidm_certificate
+    # Fails soft: the LAN certificate below must still renew when Kanidm is broken, and the front keeps the copy
+    # it already has.
+    copy_kanidm_certificate || echo "front-certs: kept the last copy of Kanidm's certificate" >&2
     cmp -s "$CA/ca.pem" "$IDP_SERVER_TRUST" || install -m 0644 "$CA/ca.pem" "$IDP_SERVER_TRUST"
 }
 
@@ -325,11 +327,11 @@ issue_identity() {
 # a time limit, so nothing Kanidm can write makes root open or follow anything.
 copy_kanidm_certificate() {
     local got="$IDP/kanidm-back.pem.new"
-    timeout "$KANIDM_SECONDS" setpriv --reuid=kanidm --regid=kanidm --clear-groups /usr/lib/medbrains/kanidm-tls ||
+    timeout "$KANIDM_SECONDS" setpriv --reuid=kanidm --regid=kanidm --clear-groups /usr/lib/medbrains/kanidm-tls 9>&- ||
         { echo "front-certs: Kanidm has no certificate yet" >&2; return 1; }
     # shellcheck disable=SC2016 # the inner shell expands $1
     timeout "$KANIDM_SECONDS" setpriv --reuid=kanidm --regid=kanidm --clear-groups \
-        sh -c '[ -f "$1" ] && [ ! -L "$1" ] && exec cat "$1"' sh "$KANIDM_CHAIN" > "$got" ||
+        sh -c '[ -f "$1" ] && [ ! -L "$1" ] && exec head -c 65536 "$1"' sh "$KANIDM_CHAIN" 9>&- > "$got" ||
         { rm -f "$got"; echo "front-certs: refusing Kanidm's certificate: not a regular file" >&2; return 1; }
     openssl x509 -in "$got" -noout 2>/dev/null || { rm -f "$got"; echo "front-certs: Kanidm's certificate does not parse" >&2; return 1; }
     if cmp -s "$got" "$IDP/kanidm-back.pem"; then
@@ -347,7 +349,7 @@ flock -w "$LOCK_WAIT_SECONDS" 9
 install -d -m 0750 -g "$GROUP" "$STATE"
 ensure_ca
 ensure_screen
-ensure_identity
+ensure_identity || echo "front-certs: the identity provider's certificate is not current" >&2
 ensure_certificate_copies
 wanted="$(names)"
 if ! lan_is_current "$wanted"; then

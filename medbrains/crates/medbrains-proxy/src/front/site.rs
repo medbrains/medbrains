@@ -177,7 +177,7 @@ impl Site {
             && !self
                 .lan_paths
                 .iter()
-                .any(|allowed| path.starts_with(allowed.as_str()))
+                .any(|allowed| under_path(&path, allowed))
         {
             return Some(Refused::new(404, "Not found."));
         }
@@ -197,6 +197,12 @@ impl Site {
             _ => None,
         }
     }
+}
+
+/// True when `path` is `prefix` or below it, segment by segment: `/ui` covers `/ui` and `/ui/login`, never `/uix`.
+fn under_path(path: &str, prefix: &str) -> bool {
+    path.strip_prefix(prefix)
+        .is_some_and(|rest| rest.is_empty() || rest.starts_with('/') || prefix.ends_with('/'))
 }
 
 /// The raw Host header.

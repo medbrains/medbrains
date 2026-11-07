@@ -9,7 +9,7 @@ import json
 import sys
 from pathlib import Path
 
-from kanidm_lib import ADMIN, IDP, WEB, curl, kanidm_auth, limit_opened, must, new_jar, recover_password, serial
+from kanidm_lib import ADMIN, IDP, WEB, cookie, curl, kanidm_auth, limit_opened, local_sign_in, must, new_jar, recover_password, serial
 
 spec = importlib.util.spec_from_file_location("onelogin", Path(__file__).with_name("kanidm-one-login-test.py"))
 onelogin = importlib.util.module_from_spec(spec)
@@ -76,6 +76,70 @@ def test_no_takeover_by_email():
           isinstance(me, dict) and me.get("username") == ADMIN[0], f"{status} {str(me)[:80]}")
 
 
+def kanidm_person(token, name, password):
+    """A Kanidm person with a password, made afresh."""
+    curl(f"{IDP}/v1/person/{name}", "DELETE", token)
+    must(curl(f"{IDP}/v1/person", "POST", token, {"attrs": {"name": [name], "displayname": [name.replace("_", " ").title()]}}), name)
+    intent = must(curl(f"{IDP}/v1/person/{name}/_credential/_update_intent/900", token=token), "intent")
+    session, _ = must(curl(f"{IDP}/v1/credential/_exchange_intent", "POST", body=intent["token"]), "exchange")
+    must(curl(f"{IDP}/v1/credential/_update", "POST", body=[{"password": password}, session]), "password")
+    must(curl(f"{IDP}/v1/credential/_commit", "POST", body=session), "commit")
+
+
+def sso_try(username, password):
+    """One sign-in through Kanidm. Returns (/api/auth/me answer, where the callback sent the browser)."""
+    provider = serial("runuser -u postgres -- psql -X -tAq -d medbrains -c \"select id from identity_providers where code='kanidm'\"", 10).splitlines()[-1].strip()
+    jar = new_jar()
+    _, _, headers = curl(f"{WEB}/api/auth/sso/{provider}/authorize", jar=jar)
+    _, _, last = onelogin.walk_sign_in(headers["location"], jar, username, password)
+    return curl(f"{WEB}/api/auth/me", jar=jar)[1], last.get("location", "")
+
+
+def sql(statement):
+    """One value from MedBrains' database on the machine."""
+    return serial(f"runuser -u postgres -- psql -X -tAq -d medbrains -c \"{statement}\"", 10).splitlines()[-1].strip()
+
+
+def test_link_by_hand():
+    """N1: an existing account is never shadowed by a look-alike; IT links it by name and UUID, audited, and can
+    unlink it; a reserved name makes no account; the new-staff notice names the Kanidm person and its UUID."""
+    token = kanidm_auth("idm_admin", recover_password("idm_admin"))[0]
+    password = "Doctor Rao reads 9 long charts"
+    sql("INSERT INTO users (tenant_id, username, email, full_name, role) SELECT id, 'dr_rao', 'dr.rao@hospital.test', "
+        "'Dr Rao', 'doctor' FROM tenants ORDER BY created_at LIMIT 1 ON CONFLICT DO NOTHING RETURNING 1")
+    kanidm_person(token, "dr_rao", password)
+    me, went = sso_try("dr_rao", password)
+    check("a sign-in whose name an account already has is sent to ask IT, not given a look-alike",
+          went.endswith("/login?sso_error=link") and sql("select count(*) from users where username like 'dr_rao%'") == "1", went)
+    kanidm_person(token, "admin0", password)
+    me, went = sso_try("admin0", password)
+    check("a reserved look-alike name makes no account", went.endswith("/login?sso_error=link")
+          and sql("select count(*) from users where username like 'admin0%'") == "0", went)
+    jar = local_sign_in()
+    csrf = cookie(jar, "csrf_token")
+    status, people, _ = curl(f"{WEB}/api/admin/identity/kanidm/people?q=dr_rao", jar=jar)
+    person = next((p for p in people if p.get("name") == "dr_rao"), {}) if isinstance(people, list) else {}
+    check("IT finds the Kanidm person by name, with its UUID", status == 200 and len(person.get("uuid", "")) == 36, f"{status} {str(people)[:100]}")
+    user_id = sql("select id from users where username = 'dr_rao'")
+    status = curl(f"{WEB}/api/admin/users/{user_id}/sso-link", "PUT", jar=jar, csrf=csrf, body={"subject": person.get("uuid", "")})[0]
+    check("IT links the account", status == 200, str(status))
+    check("the link is audited", sql(f"select count(*) from audit_log where action = 'sso_link' and entity_id = '{user_id}'") == "1")
+    me, _ = sso_try("dr_rao", password)
+    check("the person now signs in to their own account", isinstance(me, dict) and me.get("username") == "dr_rao", str(me)[:80])
+    status = curl(f"{WEB}/api/admin/users/{user_id}/sso-link", "DELETE", jar=jar, csrf=csrf)[0]
+    check("IT unlinks it, audited", status == 200 and sql(f"select count(*) from audit_log where action = 'sso_unlink' and entity_id = '{user_id}'") == "1", str(status))
+    me, went = sso_try("dr_rao", password)
+    check("after unlinking, the sign-in is sent to ask IT again", went.endswith("/login?sso_error=link"), went)
+    kanidm_person(token, "night_porter", password)
+    sso_try("night_porter", password)
+    uuid = curl(f"{WEB}/api/admin/identity/kanidm/people?q=night_porter", jar=jar)[1]
+    uuid = uuid[0]["uuid"] if isinstance(uuid, list) and uuid else "?"
+    body = sql("select body from notifications where title = 'New sign-in waiting for a role' order by created_at desc limit 1")
+    check("the new-staff notice names the Kanidm person and its UUID", "night_porter" in body and uuid in body, body[:140])
+    flags = sql("select code || '=' || link_by_email from identity_providers")
+    check("the Kanidm provider does not link by email", flags == "kanidm=false", flags)
+
+
 def test_lan_paths():
     """LOW 8: from the LAN, only the sign-in paths; the rest of /v1 answers 404."""
     token = kanidm_auth("idm_admin", recover_password("idm_admin"))[0]
@@ -116,6 +180,7 @@ def main():
         # The rest administers Kanidm from this computer, which the real config refuses.
         limit_opened(True)
         test_no_takeover_by_email()
+        test_link_by_hand()
         test_root_never_follows_kanidms_links()
         test_restart_policy()
         limit_opened(False)

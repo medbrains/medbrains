@@ -211,6 +211,15 @@ export function SsoSettingsPage() {
               setDraft((d) => ({ ...d, jit_enabled: checked }));
             }}
           />
+          <Switch
+            label="Link existing accounts by verified email"
+            description="Only for a provider you trust to own its addresses. Never links an administrator's account. Otherwise link people in Users."
+            checked={draft.link_by_email ?? false}
+            onChange={(e) => {
+              const checked = e.currentTarget.checked;
+              setDraft((d) => ({ ...d, link_by_email: checked }));
+            }}
+          />
           <Group justify="flex-end">
             <Button tone="secondary" onClick={form.close}>
               Cancel

@@ -14,6 +14,9 @@ UMask=0077
 # Writes Control's token and its own markers, and nothing else.
 ProtectSystem=strict
 ReadWritePaths=/var/lib/medbrains/config
+# Where kanidm-lib keeps the copy of Kanidm's certificate that curl trusts.
+RuntimeDirectory=medbrains-kanidm
+RuntimeDirectoryPreserve=yes
 ProtectHome=yes
 PrivateTmp=yes
 NoNewPrivileges=yes

@@ -3320,6 +3320,13 @@ pub mod admin {
         pub const UPDATE: &str = "admin.users.update";
         pub const DELETE: &str = "admin.users.delete";
         pub const FORCE_LOGOUT: &str = "admin.users.force_logout";
+        /// Link an account to a sign-in person.
+        ///
+        /// Link or unlink a MedBrains account to a person in the hospital's own
+        /// sign-in service, chosen by name and ID. An email address never links
+        /// an account there, so existing staff are linked here. Linking an
+        /// administrator's account needs an administrator.
+        pub const LINK_IDENTITY: &str = "admin.users.link_identity";
     }
 
     /// Oversight of the approvals platform.

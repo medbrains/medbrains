@@ -363,7 +363,14 @@ fn the_lan_reaches_only_its_paths_and_the_machine_reaches_all() -> anyhow::Resul
     };
     assert_eq!(ask("/ui/login", CLIENT)?, None);
     assert_eq!(ask("/v1/auth", CLIENT)?, None);
-    for path in ["/v1/raw/search", "/v1/person", "/%761/raw", "/scim/v1"] {
+    for path in [
+        "/v1/raw/search",
+        "/v1/person",
+        "/%761/raw",
+        "/scim/v1",
+        "/uix",
+        "/v1/authority",
+    ] {
         assert_eq!(ask(path, CLIENT)?, Some(404), "{path} from the LAN");
     }
     assert_eq!(

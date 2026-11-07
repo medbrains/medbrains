@@ -27,7 +27,13 @@ const DEV_SSO_SECRET_KEY: &[u8] = b"medbrains-dev-oauth-token-key-32";
 const SSO_SECRET_CONTEXT: &[u8] = b"sso-client-secret";
 
 async fn secret_key(state: &AppState) -> Result<Vec<u8>, AppError> {
-    medbrains_core::secrets::sealing::sealing_key(state.secret_resolver.as_ref(), SSO_SECRET_KEY, DEV_SSO_SECRET_KEY).await.map_err(AppError::from)
+    medbrains_core::secrets::sealing::sealing_key(
+        state.secret_resolver.as_ref(),
+        SSO_SECRET_KEY,
+        DEV_SSO_SECRET_KEY,
+    )
+    .await
+    .map_err(AppError::from)
 }
 
 fn encrypt_secret(key: &[u8], secret: &str) -> Result<String, AppError> {
@@ -216,6 +222,7 @@ struct ProviderRow {
     group_claim: String,
     default_role: Option<String>,
     jit_enabled: bool,
+    link_by_email: bool,
     config: serde_json::Value,
     created_at: DateTime<Utc>,
     updated_at: DateTime<Utc>,
@@ -237,6 +244,8 @@ pub struct ProviderResponse {
     pub group_claim: String,
     pub default_role: Option<String>,
     pub jit_enabled: bool,
+    /// A verified email from this provider may find an existing local account; never an administrator's.
+    pub link_by_email: bool,
     pub config: serde_json::Value,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
@@ -257,6 +266,7 @@ impl From<ProviderRow> for ProviderResponse {
             group_claim: r.group_claim,
             default_role: r.default_role,
             jit_enabled: r.jit_enabled,
+            link_by_email: r.link_by_email,
             config: r.config,
             created_at: r.created_at,
             updated_at: r.updated_at,
@@ -277,6 +287,7 @@ pub struct CreateProviderRequest {
     pub group_claim: Option<String>,
     pub default_role: Option<String>,
     pub jit_enabled: Option<bool>,
+    pub link_by_email: Option<bool>,
     pub is_active: Option<bool>,
     pub config: Option<serde_json::Value>,
 }
@@ -292,6 +303,7 @@ pub struct UpdateProviderRequest {
     pub group_claim: Option<String>,
     pub default_role: Option<String>,
     pub jit_enabled: Option<bool>,
+    pub link_by_email: Option<bool>,
     pub is_active: Option<bool>,
     pub config: Option<serde_json::Value>,
 }
@@ -330,7 +342,7 @@ pub async fn list_providers(
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
     let rows = sqlx::query_as::<_, ProviderRow>(
         "SELECT id, code, name, protocol, is_active, discovery_url, metadata_url, client_id, \
-         client_secret_enc, group_claim, default_role, jit_enabled, config, created_at, updated_at \
+         client_secret_enc, group_claim, default_role, jit_enabled, link_by_email, config, created_at, updated_at \
          FROM identity_providers ORDER BY name LIMIT 200",
     )
     .fetch_all(&mut *tx)
@@ -363,11 +375,11 @@ pub async fn create_provider(
     let row = sqlx::query_as::<_, ProviderRow>(
         "INSERT INTO identity_providers
             (tenant_id, code, name, protocol, is_active, discovery_url, metadata_url, client_id,
-             client_secret_enc, group_claim, default_role, jit_enabled, config)
+             client_secret_enc, group_claim, default_role, jit_enabled, config, link_by_email)
          VALUES ($1,$2,$3,$4,COALESCE($5,true),$6,$7,$8,$9,COALESCE($10,'groups'),$11,
-                 COALESCE($12,true),COALESCE($13,'{}'::jsonb))
+                 COALESCE($12,true),COALESCE($13,'{}'::jsonb),COALESCE($14,false))
          RETURNING id, code, name, protocol, is_active, discovery_url, metadata_url, client_id,
-                   client_secret_enc, group_claim, default_role, jit_enabled, config,
+                   client_secret_enc, group_claim, default_role, jit_enabled, link_by_email, config,
                    created_at, updated_at",
     )
     .bind(claims.tenant_id)
@@ -383,6 +395,7 @@ pub async fn create_provider(
     .bind(&req.default_role)
     .bind(req.jit_enabled)
     .bind(&req.config)
+    .bind(req.link_by_email)
     .fetch_one(&mut *tx)
     .await?;
     tx.commit().await?;
@@ -424,10 +437,11 @@ pub async fn update_provider(
             jit_enabled = COALESCE($9, jit_enabled),
             is_active = COALESCE($10, is_active),
             config = COALESCE($11, config),
+            link_by_email = COALESCE($12, link_by_email),
             updated_at = now()
          WHERE id = $1
          RETURNING id, code, name, protocol, is_active, discovery_url, metadata_url, client_id,
-                   client_secret_enc, group_claim, default_role, jit_enabled, config,
+                   client_secret_enc, group_claim, default_role, jit_enabled, link_by_email, config,
                    created_at, updated_at",
     )
     .bind(id)
@@ -441,6 +455,7 @@ pub async fn update_provider(
     .bind(req.jit_enabled)
     .bind(req.is_active)
     .bind(&req.config)
+    .bind(req.link_by_email)
     .fetch_optional(&mut *tx)
     .await?
     .ok_or(AppError::NotFound)?;

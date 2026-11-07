@@ -30,6 +30,7 @@ import {
   IconCheck,
   IconInfoCircle,
   IconKey,
+  IconLink,
   IconPencil,
   IconPlus,
   IconShield,
@@ -49,6 +50,7 @@ import {
   SelectLabel,
   StatusDot,
 } from "@/components";
+import { KanidmLinkModal } from "@/components/admin/KanidmLinkModal";
 import { UserCreateDrawer } from "@/components/admin/UserCreateDrawer";
 import { UserSupervisorField } from "@/components/admin/UserSupervisorField";
 import { OfflineWriteBanner } from "@/components/OfflineWriteBanner";
@@ -793,7 +795,9 @@ export function UsersPage() {
   const canCreate = useHasPermission(P.ADMIN.USERS.CREATE);
   const canUpdate = useHasPermission(P.ADMIN.USERS.UPDATE);
   const canDelete = useHasPermission(P.ADMIN.USERS.DELETE);
+  const canLink = useHasPermission(P.ADMIN.USERS.LINK_IDENTITY);
   const navigate = useNavigate();
+  const [linkingUser, setLinkingUser] = useState<SetupUser | null>(null);
 
   const [modalOpen, setModalOpen] = useState(false);
   const [editingUser, setEditingUser] = useState<SetupUser | null>(null);
@@ -914,6 +918,17 @@ export function UsersPage() {
               </IconButton>
             </Tooltip>
           )}
+          {canLink && (
+            <Tooltip label="Link to sign-in">
+              <IconButton
+                tone="default"
+                onClick={() => setLinkingUser(row)}
+                aria-label="Link to sign-in"
+              >
+                <IconLink size={16} />
+              </IconButton>
+            </Tooltip>
+          )}
           {canDelete && (
             <Tooltip label="Delete user">
               <IconButton tone="danger" onClick={() => openDelete(row)} aria-label="Delete">
@@ -993,6 +1008,8 @@ export function UsersPage() {
       />
 
       <BulkImportModal opened={bulkImportOpen} onClose={() => setBulkImportOpen(false)} />
+
+      {linkingUser && <KanidmLinkModal user={linkingUser} onClose={() => setLinkingUser(null)} />}
     </div>
   );
 }

@@ -20,6 +20,11 @@ CONNECTED=$OWN/connect-done
 # Written by kanidm-first-admin: the first administrator's username and Kanidm UUID.
 FIRST_ADMIN=$OWN/first-admin
 TOKEN_FILE=/var/lib/medbrains/config/idp-control-token
+# A read-only token for the MedBrains server's link screen: names, UUIDs and mail of people, nothing else.
+DIRECTORY=mb_directory
+DIRECTORY_TOKEN=/var/lib/medbrains/config/idp-directory-token
+DIRECTORY_GROUP=idm_account_mail_read
+SERVER_USER=medbrains
 CONTROL=mb_control
 LOGO=/usr/share/medbrains/shell/logo.svg
 CLIENT=medbrains
@@ -73,6 +78,21 @@ set_up() {
     touch "$STATE"
 }
 
+# The directory account the server's link screen reads people through: read only, in the one group that may
+# read people's names, UUIDs and mail. Its token is the server's alone.
+make_directory_account() {
+    local admin="$1" token
+    printf '{"attrs":{"name":["%s"],"displayname":["MedBrains directory (read only)"],"entry_managed_by":["idm_admins"]}}' "$DIRECTORY" |
+        json_body_as "$admin" -o /dev/null "$ORIGIN/v1/service_account" 2>/dev/null || true
+    printf '["%s"]' "$DIRECTORY" | json_body_as "$admin" -o /dev/null "$ORIGIN/v1/group/$DIRECTORY_GROUP/_attr/member"
+    token="$(printf '{"label":"directory","expiry":null,"read_write":false,"compact":false}' |
+        json_body_as "$admin" "$ORIGIN/v1/service_account/$DIRECTORY/_api_token" | tr -d '"')"
+    [[ -n "$token" ]] || { echo "no token for the directory account" >&2; return 1; }
+    install -m 0400 -o "$SERVER_USER" -g "$SERVER_USER" /dev/null "$DIRECTORY_TOKEN.new"
+    printf '%s\n' "$token" > "$DIRECTORY_TOKEN.new"
+    mv "$DIRECTORY_TOKEN.new" "$DIRECTORY_TOKEN"
+}
+
 # Runs one statement on MedBrains' database, as the machine's superuser, and prints the answer.
 medbrains_sql() {
     runuser -u postgres -- psql -X -tAq -d medbrains -c "$1"
@@ -104,6 +124,7 @@ connect_medbrains() {
         SELECT '$tenant', 'kanidm', 'MedBrains account', 'oidc', '$url', '$CLIENT', true, true
         WHERE NOT EXISTS (SELECT 1 FROM identity_providers WHERE tenant_id = '$tenant' AND code = 'kanidm')" >/dev/null
     link_first_admin "$tenant"
+    make_directory_account "$admin"
     install -d -m 0750 "$OWN"
     touch "$CONNECTED"
 }

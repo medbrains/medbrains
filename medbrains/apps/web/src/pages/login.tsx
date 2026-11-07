@@ -26,6 +26,7 @@ const SSO_ERRORS: Record<string, string> = {
   unavailable:
     "The sign-in service is not answering, so you can't sign in with it right now. Anyone already signed in can carry on. Try again in a minute; if it keeps happening, call IT.",
   "1": "Sign-in was cancelled or refused. Try again.",
+  link: "Your sign-in matches a MedBrains account that is not linked to it yet. Ask IT to link it in Users, then sign in again.",
 };
 
 /**

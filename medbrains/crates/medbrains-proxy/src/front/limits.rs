@@ -72,7 +72,8 @@ impl ConnectionGate {
         let address = limit_key(address);
         let mut counts = self.lock();
         let held = counts.by_address.get(&address).copied().unwrap_or(0);
-        let over_address = self.max_per_address != 0 && held >= self.max_per_address;
+        // The machine itself is one address for every screen and server call, so only its kept places bound it.
+        let over_address = !is_machine && self.max_per_address != 0 && held >= self.max_per_address;
         let room = if is_machine {
             self.max_total
         } else {
@@ -226,6 +227,12 @@ mod tests {
             "the machine takes the kept places"
         );
         assert!(gate.admit(machine).is_none(), "and no more than the total");
+        let busy = ConnectionGate::new(10, 1, 4);
+        let own: Vec<_> = (0..4).map(|_| busy.admit(machine)).collect();
+        assert!(
+            own.iter().all(Option::is_some),
+            "no per-address cap on the machine's kept places"
+        );
         assert!(
             gate.admit("127.4.5.6".parse().unwrap_or(machine)).is_none(),
             "a node's tunnel address is not the machine"

@@ -5,8 +5,20 @@ ORIGIN=https://idm.medbrains.local:8444
 UP_TRIES=60
 
 # Calls Kanidm, trusting only its own certificate. Prints the body. Fails on an HTTP error.
+# Kanidm's certificate, as a file root may read: kanidm itself reads it, a regular file only and at most 64 KiB,
+# into root's own runtime folder. Root never opens a path in Kanidm's folder, where a link could point anywhere.
+KANIDM_CA_COPY=/run/medbrains-kanidm/ca.pem
+kanidm_ca() {
+    install -d -m 0700 "${KANIDM_CA_COPY%/*}"
+    # shellcheck disable=SC2016 # the inner shell expands $1
+    timeout 10 setpriv --reuid=kanidm --regid=kanidm --clear-groups \
+        sh -c '[ -f "$1" ] && [ ! -L "$1" ] && exec head -c 65536 "$1"' sh /var/lib/kanidm/tls-chain.pem \
+        9>&- > "$KANIDM_CA_COPY.new" && mv -f "$KANIDM_CA_COPY.new" "$KANIDM_CA_COPY"
+    echo "$KANIDM_CA_COPY"
+}
+
 api() {
-    curl -fsS -m 30 --cacert /var/lib/kanidm/tls-chain.pem --resolve idm.medbrains.local:8444:127.0.0.1 "$@"
+    curl -fsS -m 30 --cacert "$(kanidm_ca)" --resolve idm.medbrains.local:8444:127.0.0.1 "$@"
 }
 
 # The same with a token, given first. The token goes through a pipe.
