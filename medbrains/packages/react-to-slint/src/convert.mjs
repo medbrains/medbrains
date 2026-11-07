@@ -34,6 +34,29 @@ function tokenValue(target, value) {
   return null;
 }
 
+/**
+ * English text for translation keys, from the web app's own language files, flattened to
+ * `ns.key` and `key` so `t("rxQueue.title")` finds its sentence. Slint's @tr uses that sentence
+ * as the message id, so other languages come from the same files.
+ */
+export function loadStrings(dir) {
+  const strings = new Map();
+  if (!dir || !fs.existsSync(dir)) return strings;
+  const walk = (obj, prefix, ns) => {
+    for (const [k, v] of Object.entries(obj)) {
+      const key = prefix ? `${prefix}.${k}` : k;
+      if (typeof v === "string") {
+        if (!strings.has(key)) strings.set(key, v);
+        strings.set(`${ns}:${key}`, v);
+      } else if (v && typeof v === "object") walk(v, key, ns);
+    }
+  };
+  for (const f of fs.readdirSync(dir).filter((f) => f.endsWith(".json")).sort()) {
+    walk(JSON.parse(fs.readFileSync(path.join(dir, f), "utf8")), "", f.replace(/\.json$/, ""));
+  }
+  return strings;
+}
+
 /** Flattens `mapping.json` into `tag -> rule`, plus the wrappers that are dropped. */
 export function loadMapping(file = path.join(HERE, "mapping.json")) {
   const raw = JSON.parse(fs.readFileSync(file, "utf8"));
@@ -45,10 +68,31 @@ export function loadMapping(file = path.join(HERE, "mapping.json")) {
   return { rules, html: raw.html ?? {}, webOnly: new Set(raw.webOnly ?? []), dropped: new Set(raw.dropped), version: raw.version };
 }
 
+/** Names a generated component inherits from `Rectangle`, so a property may not take them. */
+const RESERVED = new Set([
+  "x", "y", "z", "width", "height", "color", "background", "border-color", "border-width",
+  "border-radius", "opacity", "visible", "clip", "text", "padding", "spacing", "enabled",
+  "absolute-position", "min-width", "max-width", "min-height", "max-height", "drop-shadow-color",
+  "accessible-label", "accessible-role", "accessible-description", "accessible-value", "item", "root", "self", "parent",
+]);
+
+/** Our components that wrap behaviour rather than draw: rendered as their children. */
+const WRAPPER = /(Provider|Boundary|Guard|Gate|Context|Mount)$/;
+
+/** Slint types for properties whose values are not text. */
+const PROP_TYPES = {
+  columns: "[TableColumn]", rows: "[[StandardListViewItem]]", model: "[string]",
+  "selected-values": "[string]", data: "[string]", items: "[string]",
+};
+/** Properties that take lengths, so a bare number gains `px`. */
+const LENGTH_PROPS = new Set(["spacing", "padding", "width", "height", "font-size", "min-width", "min-height", "max-width", "max-height"]);
+/** Widgets that cannot hold children: their JSX children are counted and left out. */
+const LEAF_WIDGETS = new Set(["StandardTableView", "LineEdit", "TextEdit", "SpinBox", "Slider", "ComboBox", "Spinner", "ProgressIndicator", "Image", "MbTextInput", "MbNumberInput", "MbSelect", "MbBadge", "MbDivider", "MbIcon"]);
+
 /** A Slint identifier for a JavaScript expression, unique within one component. */
 function ident(text, used) {
   let base = text.replace(/[^A-Za-z0-9]+/g, "-").replace(/^-+|-+$/g, "").toLowerCase() || "value";
-  if (/^[0-9]/.test(base)) base = `v-${base}`;
+  if (/^[0-9]/.test(base) || RESERVED.has(base)) base = `v-${base}`;
   base = base.slice(0, 40).replace(/-+$/, "");
   let name = base;
   for (let i = 2; used.has(name); i += 1) name = `${base}-${i}`;
@@ -157,11 +201,15 @@ class ComponentWriter {
       const [key, args] = expr.arguments;
       if (key?.type !== "StringLiteral") return null;
       this.stats.strings += 1;
-      if (!args) return `@tr(${quote(key.value)})`;
+      const english = this.mapping.strings?.get(key.value);
+      if (!english) this.stats.missingStrings += 1;
+      // i18next's {{name}} placeholders become Slint's {} positional ones.
+      const msg = english ? english.replace(/\{\{\s*\w+\s*\}\}/g, "{}") : key.value;
+      if (!args) return `@tr(${quote(msg)})`;
       // `t("key", { count: n })`: Slint's @tr takes positional values; each becomes a property.
       if (args.type === "ObjectExpression") {
         const values = args.properties.map((p) => `root.${this.property(this.text(p.value ?? p))}`);
-        return `@tr(${quote(key.value)}${values.map((v) => `, ${v}`).join("")})`;
+        return `@tr(${quote(msg)}${values.map((v) => `, ${v}`).join("")})`;
       }
     }
     return null;
@@ -198,9 +246,11 @@ class ComponentWriter {
     const lit = negate ? null : this.literal(expr);
     if (lit) {
       const token = expr.type === "StringLiteral" ? tokenValue(name, expr.value) : null;
-      return this.emit(`${name}: ${token ?? lit};`, depth);
+      const length = expr.type === "NumericLiteral" && LENGTH_PROPS.has(name) ? `${lit}px` : null;
+      return this.emit(`${name}: ${token ?? length ?? lit};`, depth);
     }
-    const type = ["checked", "enabled", "busy"].includes(name) ? "bool" : NUMBER_PROPS.has(name) ? "int" : "string";
+    const type = ["checked", "enabled", "busy"].includes(name) ? "bool"
+      : PROP_TYPES[name] ?? (NUMBER_PROPS.has(name) ? "int" : LENGTH_PROPS.has(name) ? "length" : "string");
     this.emit(`${name}: ${negate ? "!" : ""}root.${this.property(this.text(expr), type)};`, depth);
   }
 
@@ -230,12 +280,21 @@ class ComponentWriter {
       return;
     }
     const known = rules[tag] || rules[tag.split(".")[0]] ? null : this.known.get(tag);
+    if (known && WRAPPER.test(tag)) {
+      // Providers, boundaries and guards add behaviour, not layout: their children are the screen.
+      this.stats.mapped += 1;
+      return this.children(node.children, depth);
+    }
     if (known) {
-      // One of our own components: a reference to its own converted file.
+      // One of our own components: a reference to its own converted file. Every generated
+      // component ends in @children, so what the source nests inside it is kept.
       this.stats.mapped += 1;
       this.stats.references.set(tag, known);
-      this.emit(`${tag} { }`, depth);
-      return;
+      const inner = node.children.some((c) => c.type !== "JSXText" || c.value.trim());
+      if (!inner) return this.emit(`${tag} { }`, depth);
+      this.emit(`${tag} {`, depth);
+      this.children(node.children, depth + 1);
+      return this.emit("}", depth);
     }
     if (tag === "Controller") {
       // react-hook-form: the screen shows whatever `render` returns; the form state moves to the view model.
@@ -257,7 +316,7 @@ class ComponentWriter {
       this.emit(`// unmapped: <${tag}>`, depth);
       return this.children(node.children, depth);
     }
-    if (rule.slint === "_passthrough" || tag.includes(".")) {
+    if (rule.slint === "_passthrough" || (tag.includes(".") && !rules[tag])) {
       this.stats.mapped += 1;
       return this.children(node.children, depth);
     }
@@ -281,6 +340,9 @@ class ComponentWriter {
       if (label) this.emit(`${rule.props.children}: ${quote(label)};`, depth + 1);
     } else if (rule.slint === "Text") {
       this.textChildren(node.children, depth + 1);
+    } else if (LEAF_WIDGETS.has(rule.slint)) {
+      // Rows, cells or adornments written as JSX children: the widget takes them as properties.
+      if (node.children.some((c) => c.type !== "JSXText" || c.value.trim())) this.stats.leafChildren += 1;
     } else {
       this.children(node.children, depth + 1);
     }
@@ -354,6 +416,8 @@ class ComponentWriter {
       return this.emit("}", depth);
     }
     if (isJsx(expr)) return this.child(expr, depth);
+    if (expr.type === "Identifier" && expr.name === "children") return; // the component's @children
+    if (expr.type === "MemberExpression" && expr.property?.name === "children") return;
     const lit = this.literal(expr);
     this.emit(`Text { text: ${lit ?? `root.${this.property(this.text(expr))}`}; }`, depth);
   }
@@ -365,21 +429,34 @@ class ComponentWriter {
     this.expression(node, depth);
   }
 
+  /**
+   * Preview builds only: permission and presence checks (`canView`, `hasRows`) start true and
+   * loading, error and negated checks start false, so a screen shows its content before a view
+   * model exists. Product builds get every value from the view model and the server.
+   */
+  previewDefault(p) {
+    if (!this.mapping.preview || p.type !== "bool") return "";
+    const src = p.src.trim();
+    if (src.startsWith("!") || /loading|pending|fail|error|empty|denied|outage|unavailable/i.test(src)) return ": false";
+    return /\b(can|has|is|show|allow|visible|open)[A-Z_]?/i.test(src) ? ": true" : "";
+  }
+
   render(jsx) {
     this.child(jsx, 1);
-    const head = [`export component ${this.name} inherits Rectangle {`];
+    const head = [`export component ${this.name} inherits VerticalLayout {`];
     for (const p of this.props.values()) {
-      head.push(`    // from: ${p.src.replace(/\s+/g, " ").slice(0, 100)}`, `    in property <${p.type}> ${p.name};`);
+      head.push(`    // from: ${p.src.replace(/\s+/g, " ").slice(0, 100)}`, `    in property <${p.type}> ${p.name}${this.previewDefault(p)};`);
     }
     for (const cb of this.callbacks) head.push(`    callback ${cb}();`);
-    return [...head, ...this.lines, "}"].join("\n");
+    return [...head, ...this.lines, "    @children", "}"].join("\n");
   }
 }
 
 /** Converts one module's source: the Slint text and its statistics. */
-export function convertSource(source, fileName = "input.tsx", mapping = loadMapping(), known = new Map()) {
+export function convertSource(source, fileName = "input.tsx", mapping = loadMapping(), known = new Map(), options = {}) {
+  mapping = { ...mapping, preview: Boolean(options.preview), strings: options.strings };
   const ast = parse(source, { sourceType: "module", plugins: ["jsx", "typescript"], errorRecovery: true });
-  const stats = { elements: 0, mapped: 0, strings: 0, unmapped: {}, rawHtml: {}, kit: new Set(), std: new Set(), hooks: {}, references: new Map(), webOnly: {}, inlineInText: 0 };
+  const stats = { elements: 0, mapped: 0, strings: 0, unmapped: {}, rawHtml: {}, kit: new Set(), std: new Set(), hooks: {}, references: new Map(), webOnly: {}, inlineInText: 0, leafChildren: 0, missingStrings: 0 };
   const own = new Set();
   const parts = [];
   const found = components(ast.program);
@@ -387,11 +464,23 @@ export function convertSource(source, fileName = "input.tsx", mapping = loadMapp
   // Components of this same file are referenced in place; others come from their own file.
   const visible = new Map([...known].filter(([name]) => !own.has(name)));
   for (const name of own) visible.set(name, null);
+  const rendered = new Map();
   for (const c of found) {
     const writer = new ComponentWriter(c.name, mapping, source, stats, new Map([...visible].map(([n, f]) => [n, f ?? fileName])));
-    parts.push(writer.render(c.jsx));
+    rendered.set(c.name, writer.render(c.jsx));
     for (const [h, n] of Object.entries(c.hooks)) stats.hooks[h] = (stats.hooks[h] ?? 0) + n;
   }
+  const placed = new Set();
+  const place = (name, trail = new Set()) => {
+    if (placed.has(name) || trail.has(name)) return;
+    trail.add(name);
+    for (const other of rendered.keys()) {
+      if (other !== name && new RegExp(`^\\s*${other} \\{`, "m").test(rendered.get(name))) place(other, trail);
+    }
+    placed.add(name);
+    parts.push(rendered.get(name));
+  };
+  for (const name of rendered.keys()) place(name);
   const imports = [];
   if (stats.std.size) imports.push(`import { ${[...stats.std].sort().join(", ")} } from "std-widgets.slint";`);
   const kit = [...stats.kit, "Tokens"].sort();
@@ -399,7 +488,9 @@ export function convertSource(source, fileName = "input.tsx", mapping = loadMapp
   const byFile = new Map();
   for (const [name, file] of stats.references) {
     if (own.has(name)) continue;
-    const slintFile = `./${path.basename(file).replace(/\.tsx$/, ".slint")}`;
+    const target = file.replace(/\.tsx$/, ".slint");
+    let slintFile = path.relative(path.dirname(fileName), target);
+    if (!slintFile.startsWith(".")) slintFile = `./${slintFile}`;
     byFile.set(slintFile, [...(byFile.get(slintFile) ?? []), name]);
   }
   for (const [file, names] of byFile) imports.push(`import { ${names.sort().join(", ")} } from "${file}";`);
@@ -410,9 +501,14 @@ export function convertSource(source, fileName = "input.tsx", mapping = loadMapp
   return { slint: `${[...header, ...imports, "", ...parts].join("\n")}\n`, stats, components: parts.length };
 }
 
-/** Converts one file from disk; `known` maps our component names to the file defining them. */
-export function convertFile(file, mapping = loadMapping(), known = new Map()) {
-  return convertSource(fs.readFileSync(file, "utf8"), path.basename(file), mapping, known);
+/**
+ * Converts one file from disk. `known` maps our component names to the file defining them;
+ * `base` is the project root, so output and imports keep the source tree's folders.
+ */
+export function convertFile(file, mapping = loadMapping(), known = new Map(), base = path.dirname(file), options = {}) {
+  const rel = (f) => path.relative(base, f);
+  const relKnown = new Map([...known].map(([n, f]) => [n, rel(f)]));
+  return convertSource(fs.readFileSync(file, "utf8"), rel(file), mapping, relKnown, options);
 }
 
 /** Every component defined in a source tree, `name -> file`, so references across files convert. */

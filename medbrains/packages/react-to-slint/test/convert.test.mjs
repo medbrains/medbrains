@@ -11,7 +11,7 @@ test("layout and text map to Slint layouts and Text", () => {
   const { slint, stats } = convert(`export function Card() {
     return <Stack gap="md"><Text>Hello</Text></Stack>;
   }`);
-  assert.match(slint, /export component Card inherits Rectangle/);
+  assert.match(slint, /export component Card inherits VerticalLayout/);
   assert.match(slint, /VerticalLayout \{\s+spacing: Tokens\.space-md;\s+Text \{\s+text: "Hello";/);
   assert.equal(stats.mapped, 2);
 });
@@ -82,9 +82,9 @@ test("raw HTML is converted to Slint and still reported against the components r
 });
 
 test("components defined in other files convert as references with an import", () => {
-  const known = new Map([["DrugSearchSelect", "/x/drug-search-select.tsx"]]);
-  const { slint, stats } = convertSource(`export function P() { return <Stack><DrugSearchSelect /></Stack>; }`, "p.tsx", undefined, known);
-  assert.match(slint, /import \{ DrugSearchSelect \} from "\.\/drug-search-select\.slint";/);
+  const known = new Map([["DrugSearchSelect", "components/drug-search-select.tsx"]]);
+  const { slint, stats } = convertSource(`export function P() { return <Stack><DrugSearchSelect /></Stack>; }`, "pages/pharmacy/p.tsx", undefined, known);
+  assert.match(slint, /import \{ DrugSearchSelect \} from "\.\.\/\.\.\/components\/drug-search-select\.slint";/);
   assert.match(slint, /DrugSearchSelect \{ \}/);
   assert.deepEqual(stats.unmapped, {});
 });

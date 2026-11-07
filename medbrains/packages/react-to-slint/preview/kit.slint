@@ -10,6 +10,7 @@ import "fonts/ibm-plex-mono-400.ttf";
 
 export { Tokens }
 
+
 /** Sizes shared by every control: Carbon's 8 px mini-unit and 40 px field height. */
 export global Metrics {
     out property <length> control-height: 40px;
@@ -279,3 +280,23 @@ export component MbPageHeader inherits VerticalLayout {
     Text { text: root.title; font-family: Metrics.font; font-size: 28px; font-weight: 600; color: Tokens.color-content-on-surface; }
     if root.subtitle != "" : Text { text: root.subtitle; font-family: Metrics.font; font-size: Tokens.font-sm; color: Tokens.color-content-on-surface-variant; }
 }
+
+/** One tab label in a tab row, Carbon style: text with a rule under the selected one. */
+export component MbTab inherits Rectangle {
+    in property <string> text;
+    in property <string> value;
+    height: 40px;
+    min-width: tab-label.preferred-width + 32px;
+    horizontal-stretch: 0;
+    tab-label := Text { text: root.text; font-family: Metrics.font; font-size: Tokens.font-sm; color: Tokens.color-content-on-surface; vertical-alignment: center; horizontal-alignment: center; }
+    Rectangle { y: parent.height - 1px; height: 1px; background: Tokens.color-outline-outline-variant; }
+}
+
+/** Tabs as the web seam draws them: in this preview every panel shows, one after another. */
+export component MbTabs inherits VerticalLayout {
+    in property <string> current-value;
+    spacing: Tokens.space-md;
+    @children
+}
+
+export * from "stubs.slint";

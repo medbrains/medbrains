@@ -9,7 +9,7 @@
  */
 import fs from "node:fs";
 import path from "node:path";
-import { convertFile, indexComponents, loadMapping } from "../src/convert.mjs";
+import { convertFile, indexComponents, loadMapping, loadStrings } from "../src/convert.mjs";
 
 /** `.tsx` files under the inputs, without tests and stories. */
 function expand(inputs) {
@@ -38,15 +38,18 @@ function main(argv) {
   const project = flag(argv, "--project");
   const inputs = argv.filter((a, i) => !a.startsWith("--") && !["--out", "--report", "--project"].includes(argv[i - 1]));
   if (!inputs.length) {
-    process.stderr.write("usage: react-to-slint <file.tsx|dir>... [--project DIR] [--out DIR] [--report FILE]\n");
+    process.stderr.write("usage: react-to-slint <file.tsx|dir>... [--project DIR] [--out DIR] [--report FILE] [--preview]\n");
     return 2;
   }
   const mapping = loadMapping();
   // Our own components anywhere in the project, so a reference to one converts instead of failing.
   const known = indexComponents(expand(project ? [project] : inputs));
+  // English text for t("key"), from the web app's language files next to its source.
+  const strings = loadStrings(flag(argv, "--strings") ?? path.resolve(project ?? ".", "../public/locales/en"));
+  const base = path.resolve(project ?? (fs.statSync(inputs[0]).isDirectory() ? inputs[0] : path.dirname(inputs[0])));
   const total = { files: 0, components: 0, elements: 0, mapped: 0, strings: 0, unmapped: {}, rawHtml: {}, webOnly: {}, kit: new Set(), hooks: {} };
   for (const file of expand(inputs)) {
-    const { slint, stats, components } = convertFile(file, mapping, known);
+    const { slint, stats, components } = convertFile(path.resolve(file), mapping, new Map([...known].map(([n, f]) => [n, path.resolve(f)])), base, { preview: argv.includes("--preview"), strings });
     if (!components) continue;
     total.files += 1;
     total.components += components;
@@ -58,8 +61,10 @@ function main(argv) {
     }
     for (const k of stats.kit) total.kit.add(k);
     if (out) {
-      fs.mkdirSync(out, { recursive: true });
-      fs.writeFileSync(path.join(out, `${path.basename(file, ".tsx")}.slint`), slint);
+      // The source tree's folders are kept, so files with the same name do not overwrite each other.
+      const target = path.join(out, path.relative(base, path.resolve(file)).replace(/\.tsx$/, ".slint"));
+      fs.mkdirSync(path.dirname(target), { recursive: true });
+      fs.writeFileSync(target, slint);
     }
   }
   const webOnly = Object.values(total.webOnly).reduce((a, b) => a + b, 0);

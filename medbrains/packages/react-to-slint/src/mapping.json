@@ -1,6 +1,6 @@
 {
   "_doc": "React (Mantine and our components/ui seam) to Slint. Each entry: the Slint element, which props become which Slint properties, and optional fixed properties. Targets starting with _ are handled by the kit component and not emitted; a target ending in ! is negated (disabled becomes enabled). Elements named Mb* come from medbrains-gui-kit, the shared Slint kit in docs/architecture/OS-NATIVE-GUI.md.",
-  "version": 4,
+  "version": 6,
   "layout": {
     "Stack": {
       "slint": "VerticalLayout",
@@ -35,8 +35,11 @@
       }
     },
     "Box": {
-      "slint": "Rectangle",
-      "props": {}
+      "slint": "VerticalLayout",
+      "props": {
+        "p": "padding",
+        "gap": "spacing"
+      }
     },
     "Center": {
       "slint": "VerticalLayout",
@@ -603,9 +606,9 @@
       }
     },
     "Tabs": {
-      "slint": "TabWidget",
+      "slint": "MbTabs",
       "props": {
-        "value": "current-index"
+        "value": "current-value"
       }
     },
     "Modal": {
@@ -755,6 +758,23 @@
     },
     "DragOverlay": {
       "slint": "_passthrough",
+      "props": {}
+    },
+    "Tabs.List": {
+      "slint": "HorizontalLayout",
+      "props": {
+        "gap": "spacing"
+      }
+    },
+    "Tabs.Tab": {
+      "slint": "MbTab",
+      "props": {
+        "value": "value",
+        "children": "text"
+      }
+    },
+    "Tabs.Panel": {
+      "slint": "VerticalLayout",
       "props": {}
     }
   },
