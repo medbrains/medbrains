@@ -49,7 +49,6 @@ import { PageQueryErrorBanner } from "@/components/PageQueryErrorBanner";
 import { PageSkeleton } from "@/components/PageSkeleton";
 import { PageTransition } from "@/components/PageTransition";
 import { CollectDrawer } from "@/components/payments/collect/CollectDrawer";
-import { TestCasesPanel } from "@/components/qa/TestCasesPanel";
 import { StepUpGate } from "@/components/StepUpGate";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { Breadcrumb, ModuleBadge } from "@/components/ui";
@@ -727,7 +726,6 @@ export function AppLayout() {
       <LiveActivityIsland />
       <EmergencyCodeActivity />
       <StepUpGate />
-      <TestCasesPanel />
     </AppShell>
   );
 }
