@@ -57,8 +57,12 @@ export component MbButton inherits Rectangle {
     property <bool> filled: tone == "primary" || tone == "danger";
     accessible-role: button;
     accessible-label: root.text;
-    min-height: Metrics.control-height;
+    height: Metrics.control-height;
     min-width: label.preferred-width + 32px;
+    preferred-width: label.preferred-width + 32px;
+    max-width: label.preferred-width + 32px;
+    horizontal-stretch: 0;
+    vertical-stretch: 0;
     background: !root.enabled ? Tokens.color-surface-surface-container-high
         : root.filled ? (touch.pressed ? Tone.fill(root.tone).darker(20%) : touch.has-hover ? Tone.fill(root.tone).darker(10%) : Tone.fill(root.tone))
         : (touch.pressed ? Tokens.color-surface-surface-container-highest : touch.has-hover ? Tokens.color-surface-surface-container-high : transparent);
@@ -106,7 +110,7 @@ component Field inherits VerticalLayout {
         color: Tokens.color-content-on-surface-variant;
     }
     Rectangle {
-        min-height: Metrics.control-height;
+        height: Metrics.control-height;
         background: Tokens.color-surface-surface-container-high;
         @children
         Rectangle {
@@ -118,6 +122,7 @@ component Field inherits VerticalLayout {
 }
 
 export component MbTextInput inherits Field {
+    vertical-stretch: 0;
     in-out property <string> text;
     in property <string> placeholder-text;
     in property <string> input-type: "text";
@@ -143,6 +148,7 @@ export component MbTextInput inherits Field {
 }
 
 export component MbNumberInput inherits Field {
+    vertical-stretch: 0;
     in-out property <int> value;
     in property <int> minimum: -2147483647;
     in property <int> maximum: 2147483647;
@@ -161,12 +167,13 @@ export component MbNumberInput inherits Field {
             vertical-alignment: center;
             horizontal-stretch: 1;
         }
-        MbButton { text: "−"; enabled: root.value > root.minimum; clicked => { root.value -= 1; root.edited(); } }
-        MbButton { text: "+"; enabled: root.value < root.maximum; clicked => { root.value += 1; root.edited(); } }
+        MbButton { text: "−"; width: Metrics.control-height; accessible-label: "Decrease"; enabled: root.value > root.minimum; clicked => { root.value -= 1; root.edited(); } }
+        MbButton { text: "+"; width: Metrics.control-height; accessible-label: "Increase"; enabled: root.value < root.maximum; clicked => { root.value += 1; root.edited(); } }
     }
 }
 
 export component MbSelect inherits VerticalLayout {
+    vertical-stretch: 0;
     in property <string> label;
     in property <[string]> model;
     in-out property <string> current-value;
@@ -186,12 +193,14 @@ export component MbSwitch inherits Switch { }
 /** A tile as the seam's Card: flat layer, hairline border, padded. */
 export component MbCard inherits Rectangle {
     callback clicked();
+    vertical-stretch: 0;
     background: Tokens.color-surface-surface-container-low;
     border-width: 1px;
     border-color: Tokens.color-outline-outline-variant;
     VerticalLayout {
         padding: Tokens.space-md;
         spacing: Tokens.space-sm;
+        alignment: start;
         @children
     }
 }
@@ -213,6 +222,7 @@ export component MbPanel inherits Rectangle {
 export component MbAlert inherits Rectangle {
     in property <string> tone: "default";
     in property <string> title;
+    vertical-stretch: 0;
     accessible-role: text;
     background: Tone.container(root.tone);
     HorizontalLayout {
@@ -220,6 +230,7 @@ export component MbAlert inherits Rectangle {
         VerticalLayout {
             padding: Tokens.space-md;
             spacing: Tokens.space-xs;
+            alignment: center;
             if root.title != "" : Text { text: root.title; font-family: Metrics.font; font-size: Tokens.font-sm; font-weight: 600; color: Tone.on-container(root.tone); }
             @children
         }
@@ -232,11 +243,14 @@ export component MbBadge inherits Rectangle {
     in property <string> tone: "default";
     height: 24px;
     border-radius: 12px;
+    horizontal-stretch: 0;
+    preferred-width: badge-text.preferred-width + 2 * Tokens.space-sm;
+    max-width: badge-text.preferred-width + 2 * Tokens.space-sm;
     background: Tone.container(root.tone);
     HorizontalLayout {
         padding-left: Tokens.space-sm;
         padding-right: Tokens.space-sm;
-        Text { text: root.text; font-family: Metrics.font; font-size: Tokens.font-xs; color: Tone.on-container(root.tone); vertical-alignment: center; }
+        badge-text := Text { text: root.text; font-family: Metrics.font; font-size: Tokens.font-xs; color: Tone.on-container(root.tone); vertical-alignment: center; }
     }
 }
 
@@ -262,6 +276,6 @@ export component MbPageHeader inherits VerticalLayout {
     in property <string> title;
     in property <string> subtitle;
     spacing: 4px;
-    Text { text: root.title; font-family: Metrics.font; font-size: Tokens.font-xl; font-weight: 600; color: Tokens.color-content-on-surface; }
+    Text { text: root.title; font-family: Metrics.font; font-size: 28px; font-weight: 600; color: Tokens.color-content-on-surface; }
     if root.subtitle != "" : Text { text: root.subtitle; font-family: Metrics.font; font-size: Tokens.font-sm; color: Tokens.color-content-on-surface-variant; }
 }
