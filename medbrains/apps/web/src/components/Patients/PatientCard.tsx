@@ -81,7 +81,7 @@ export function PrintPatientCardButton({
         onClick={() => fetchCard.mutate()}
         aria-label={ariaLabel}
       >
-        Print Card
+        Print patient card
       </Button>
       {/* Encodes the UHID, not the internal id. A scanner drops what it reads
           into a search box, and every search on this path — lab worklist,

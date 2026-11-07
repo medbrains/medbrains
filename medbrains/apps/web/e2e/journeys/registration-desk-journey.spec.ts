@@ -4,7 +4,8 @@
  *   the morning desk registers a new patient → reads out the UHID → lands on
  *   the patient's record, not the doctor's visit → prints the patient card →
  *   the evening desk, who never met this patient, finds them by phone and by
- *   UHID in the hospital register → reprints the card.
+ *   UHID in the hospital register → reprints the card. A nurse gets no
+ *   register lookup, and a lab technician no card.
  *
  * Every person is new staff provisioned by the administrator for this test,
  * so nobody inherits a relationship with the patient from an earlier run.
@@ -65,9 +66,15 @@ test("the desk registers a patient, prints the card, and the next shift finds an
   await expect(morning.page.getByText(uhid).first()).toBeVisible();
   await expectScreenAccessible(morning.page, "patient-record");
   const printed = await printCard(morning.page, () =>
-    morning.page.getByRole("button", { name: "Print Card", exact: true }).click(),
+    morning.page.getByRole("button", { name: "Print patient card", exact: true }).click(),
   );
   await expectCard(printed, uhid, fullName);
+  // The A4 slip is the other print, named for what it is.
+  await morning.page.getByRole("button", { name: "Actions", exact: true }).click();
+  await expect(
+    morning.page.getByRole("menuitem", { name: "Print registration slip (A4)" }),
+  ).toBeVisible();
+  await morning.page.keyboard.press("Escape");
 
   // Evening shift: a receptionist who has never seen this patient. The
   // directory lists only their own patients; the hospital register below it
@@ -90,6 +97,27 @@ test("the desk registers a patient, prints the card, and the next shift finds an
     register.getByRole("button", { name: `Print card for ${uhid}` }).click(),
   );
   await expectCard(reprinted, uhid, fullName);
+
+  // The register is the desk lookup's: a nurse, who browses her own patients
+  // but holds no patients.find, gets no register list and sends no lookup.
+  const nurse = await hospital.newStaff("nurse", "Ward Nurse");
+  const lookups: string[] = [];
+  nurse.page.on("request", (request) => {
+    if (request.url().includes("/api/patients/find")) lookups.push(request.url());
+  });
+  await nurse.page.goto("/patients");
+  // The directory's own, relationship-scoped search answers for this term.
+  const scoped = nurse.page.waitForResponse(
+    (r) => r.url().includes("/api/patients?") && r.url().includes(`search=${uhid}`),
+  );
+  await nurse.page
+    .getByRole("textbox", { name: "Search patients by UHID, name or phone" })
+    .fill(uhid);
+  await scoped;
+  await expect(nurse.page.getByRole("region", { name: "In the hospital register" })).toHaveCount(
+    0,
+  );
+  expect(lookups, "no hospital-wide lookup without patients.find").toEqual([]);
 
   // The reprint is the desk's grant, not a way round the record: a lab
   // technician can look the patient up, but cannot print their card.
