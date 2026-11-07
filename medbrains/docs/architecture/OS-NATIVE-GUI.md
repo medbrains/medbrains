@@ -123,3 +123,10 @@ Separation between people and roles never came from separate views, so sharing o
 3. **Each screen checks on open** (`useRequirePermission`), so typing an address does not get around the launcher.
 4. **Data classes decide masking**, so a sensitive field is hidden or masked the same way on every screen.
 5. **Switching person clears the view**: locking the screen or signing in as someone else ends the session and reloads the view empty, so nothing of the previous person stays in memory or on screen.
+
+## Apps with their own side panel, installed only where needed (owner 2026-11-07)
+
+- **The launcher shows apps, not screens:** about 20 apps from the catalogue above. Opening one shows its own side panel with its screens; Pharmacy lists Rx queue, POS, stock, NDPS register and returns. A person sees only the apps, and the side-panel items, they may open.
+- **A machine installs only the apps its role needs.** A pharmacy edge machine gets the Pharmacy app and the apps it depends on, nothing else: no EMR, no HR, no billing back office. An app that is not installed cannot be opened, attacked, updated or cost memory on that machine. The machine's role is set when it joins (plan section J) and changed from the Software Center (O14) by IT, never from the machine itself.
+- **Two filters apply together:** the machine's installed apps, then the signed-in person's permissions. A pharmacist on the main front-desk machine sees Pharmacy only if that machine has it installed; an admin on the pharmacy edge machine still sees only Pharmacy there.
+- **Web apps follow the same rule:** while modules are still web pages served by the main machine, the launcher and the shared view offer only the installed apps' routes on that machine, and the server keeps refusing anything the person may not do.
