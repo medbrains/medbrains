@@ -263,12 +263,9 @@ export {
 export { patientJourneyActionRoute } from "./patient-journey-routes.js";
 export * from "./patient-registration";
 export * from "./payment-links";
-export type { PermissionDef } from "./permissions.js";
-export {
-  P,
-  PERMISSIONS,
-  ROLE_TEMPLATES,
-} from "./permissions.js";
+export type { PermissionDef } from "./permission-catalog.js";
+export { PERMISSIONS, ROLE_TEMPLATES } from "./permission-catalog.js";
+export { P } from "./permissions.js";
 export * from "./pharmacy-counter-close";
 export * from "./pharmacy-credit-indents";
 export * from "./pharmacy-delivery";
@@ -6383,7 +6380,7 @@ export interface CreateInstallmentRequest {
 }
 
 export type { PermissionGroup } from "./permission-helpers";
-export { buildPermissionTree, isValidPermissionCode } from "./permission-helpers";
+export { buildPermissionTree } from "./permission-helpers";
 
 /** One nurse rostered onto a ward's shift. */
 export interface NurseRosterEntry {
