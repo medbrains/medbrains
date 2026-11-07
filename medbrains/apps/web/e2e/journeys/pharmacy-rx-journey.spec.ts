@@ -453,9 +453,8 @@ test("a documented allergy stops the dispense until the pharmacist records why, 
     page
       .getByRole("region", { name: "Safety record" })
       .getByRole("row")
-      .filter({ hasText: "Overridden" })
-      .first(),
-  ).toContainText("tolerated");
+      .filter({ hasText: "tolerated" }),
+  ).toContainText("Overridden");
 });
 
 test("a Schedule H drug is not sold at the counter until the prescription's patient is recorded", async ({
@@ -501,21 +500,41 @@ test("the pharmacy reaches only what dispensing needs, and only for patients it 
   const get = (path: string) =>
     api2.request.get(`${E2E_BACKEND_URL}${path}`, { headers: { Cookie: api2.cookieHeader } });
 
-  // A patient with a prescription at the pharmacy: the dispensing view only.
-  const view = await get(`/api/pharmacy/patients/${served.patientId}/dispense-context`);
+  // A patient whose only link to the pharmacy is an order raised at the
+  // counter (no visit, no admission): the dispensing view, and nothing else.
+  const walkIn = freshPerson();
+  const counterPatient = await api<{ id: string }>(hospital.admin, "POST", "/api/patients", {
+    first_name: walkIn.firstName,
+    last_name: walkIn.lastName,
+    gender: "male",
+    date_of_birth: "1975-05-05",
+    phone: walkIn.phone,
+  });
+  await api(hospital.admin, "POST", `/api/patients/${counterPatient.id}/allergies`, {
+    allergy_type: "drug",
+    allergen_name: "Sulfa",
+    reaction: "Rash",
+    severity: "mild",
+  });
+  await api(hospital.admin, "POST", "/api/pharmacy/orders", {
+    patient_id: counterPatient.id,
+    items: [{ catalog_item_id: drug.id, drug_name: drug.name, quantity: 1, unit_price: 10 }],
+    dispensing_type: "otc",
+  });
+  const view = await get(`/api/pharmacy/patients/${counterPatient.id}/dispense-context`);
   expect(view.status()).toBe(200);
   const body = (await view.json()) as Record<string, unknown>;
   expect(Object.keys(body).sort()).toEqual(
     ["drug_allergies", "full_name", "no_known_allergies", "patient_id", "uhid"].sort(),
   );
-  expect(JSON.stringify(body)).toContain("Penicillin");
+  expect(JSON.stringify(body)).toContain("Sulfa");
   // ...and nothing else of the record: not the chart, the context, notes or bills.
   for (const path of [
-    `/api/patients/${served.patientId}`,
-    `/api/patients/${served.patientId}/context`,
-    `/api/patients/${served.patientId}/allergies`,
-    `/api/opd/patients/${served.patientId}/diagnoses`,
-    `/api/billing/patients/${served.patientId}/dues`,
+    `/api/patients/${counterPatient.id}`,
+    `/api/patients/${counterPatient.id}/context`,
+    `/api/patients/${counterPatient.id}/allergies`,
+    `/api/opd/patients/${counterPatient.id}/diagnoses`,
+    `/api/billing/patients/${counterPatient.id}/dues`,
   ]) {
     const refused = await get(path);
     expect([403, 404], `${path} stays closed`).toContain(refused.status());

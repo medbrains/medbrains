@@ -1970,10 +1970,17 @@ pub async fn create_order_in_tx(
         // The prescription is the order's authority — its doctor is who the
         // Schedule X gate checks. One belonging to another patient, tenant, or
         // already deleted would let an order borrow somebody else's prescriber.
+        // An OPD prescription names its patient through the visit, an IPD one
+        // through the admission; `patient_id` is set on neither.
         let belongs: bool = sqlx::query_scalar(
-            "SELECT EXISTS (SELECT 1 FROM prescriptions \
-                             WHERE id = $1 AND tenant_id = $2 AND patient_id = $3 \
-                               AND deleted_at IS NULL)",
+            "SELECT EXISTS (SELECT 1 FROM prescriptions rx \
+                             WHERE rx.id = $1 AND rx.tenant_id = $2 AND rx.deleted_at IS NULL \
+                               AND COALESCE(rx.patient_id, \
+                                     (SELECT e.patient_id FROM encounters e \
+                                       WHERE e.id = rx.encounter_id AND e.tenant_id = rx.tenant_id), \
+                                     (SELECT a.patient_id FROM admissions a \
+                                       WHERE a.id = rx.admission_id AND a.tenant_id = rx.tenant_id)) \
+                                   = $3)",
         )
         .bind(prescription_id)
         .bind(claims.tenant_id)
@@ -3626,7 +3633,13 @@ async fn enforce_schedule_compliance(
                            AND s.deleted_at IS NULL) \
          FROM pharmacy_orders o \
          LEFT JOIN prescriptions rx ON rx.id = o.prescription_id AND rx.tenant_id = o.tenant_id \
-                                    AND rx.patient_id = o.patient_id AND rx.deleted_at IS NULL \
+              AND rx.deleted_at IS NULL \
+              AND COALESCE(rx.patient_id, \
+                    (SELECT e.patient_id FROM encounters e \
+                      WHERE e.id = rx.encounter_id AND e.tenant_id = rx.tenant_id), \
+                    (SELECT a.patient_id FROM admissions a \
+                      WHERE a.id = rx.admission_id AND a.tenant_id = rx.tenant_id)) \
+                  = o.patient_id \
          WHERE o.id = $1 AND o.tenant_id = $2",
     )
     .bind(order_id)
