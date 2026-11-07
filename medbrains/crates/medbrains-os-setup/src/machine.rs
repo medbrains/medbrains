@@ -33,7 +33,7 @@ const ENV_FILE: &str = "/var/lib/medbrains/config/env";
 /// Set once a person has approved this machine, so it uses a main machine rather than being one.
 pub(crate) const ROLE_NODE: &str = "/var/lib/medbrains/config/role-node";
 /// Making the database and secrets takes seconds, and many on slow storage.
-const FIRST_START_LIMIT: std::time::Duration = std::time::Duration::from_secs(50);
+const FIRST_START_LIMIT: Duration = Duration::from_secs(50);
 /// Where a fixed address takes effect. On tmpfs, so a power cut before it is confirmed undoes it.
 const LIVE_NETWORK: &str = "/run/systemd/network/10-medbrains-fixed.network";
 /// Which link is tried first, here and on the data partition. A setting of its own, because a link
