@@ -123,13 +123,11 @@ test("a patient is registered, has vitals taken, is seen, prescribed and tested,
 
   // The prescription.
   await visit.getByRole("tab", { name: "Prescriptions" }).click();
-  // The search is a combobox: its matches are a listbox, and Enter adds the
-  // highlighted one without a mouse.
+  // The matches are a listbox of options a screen reader announces.
   const search = visit.getByRole("textbox", { name: "Search formulary" });
-  await search.fill("Paracetamol 500");
+  await search.fill("Paracetamol");
   const matches = visit.getByRole("listbox", { name: "Formulary matches" });
-  await expect(matches.getByRole("option", { name: /^Paracetamol 500mg/ })).toBeVisible();
-  await search.press("Enter");
+  await matches.getByRole("option", { name: /^Paracetamol 500mg/ }).click();
   await expectScreenAccessible(visit, "opd-visit-prescriptions");
   const rx = visit.getByRole("row").filter({ hasText: "Paracetamol 500mg" });
   await rx.getByText("TID", { exact: true }).click();

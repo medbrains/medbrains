@@ -112,6 +112,8 @@ interface Props {
   /** Catalog ids already prescribed on this visit — warns (doesn't block) on re-add. */
   priorDrugIds?: string[];
   onItemsChange?: (items: RxItem[]) => void;
+  /** A drug picked from the server-side search joins the formulary the checks read. */
+  onDrugFound?: (drug: FormularyDrug) => void;
   onSave: (items: RxItem[]) => void;
   onPrint?: () => void;
 }
@@ -139,6 +141,7 @@ export function RxDoctor({
   signAction,
   priorDrugIds,
   onItemsChange,
+  onDrugFound,
   onSave,
   onPrint,
 }: Props) {
@@ -157,6 +160,7 @@ export function RxDoctor({
 
   const addDrug = (drug: FormularyDrug) => {
     searchRef.current?.focus();
+    onDrugFound?.(drug);
     if (items.some((it) => it.id === drug.id)) {
       notifications.show({
         title: "Already added",

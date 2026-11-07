@@ -1,8 +1,15 @@
 import { Box, Combobox, useCombobox } from "@mantine/core";
+import { useQuery } from "@tanstack/react-query";
 import { type Ref, useMemo, useState } from "react";
 import { Input } from "@/components/ui/Input";
+import { usePacedQueryValue } from "@/hooks/usePacedQueryValue";
+import { clinicalSupportService } from "@/services/clinicalSupport.service";
 import classes from "./prescription.module.scss";
+import { catalogToFormulary } from "./rxAdapter";
 import { type FormularyDrug, searchFormulary, stockStatus } from "./rxModel";
+
+/** Fewest characters before the catalogue is searched on the server. */
+const SERVER_SEARCH_MIN = 2;
 
 interface FormularySearchProps {
   formulary: FormularyDrug[];
@@ -24,7 +31,21 @@ const cx = (...c: (string | false | undefined)[]) => c.filter(Boolean).join(" ")
 export function FormularySearch({ formulary, loading, onPick, inputRef }: FormularySearchProps) {
   const [query, setQuery] = useState("");
   const combobox = useCombobox({ onDropdownClose: () => combobox.resetSelectedOption() });
-  const results = useMemo(() => searchFormulary(formulary, query), [formulary, query]);
+  // The loaded formulary is the catalogue's first hundred by name; a drug
+  // after them could not be found at all. The server is asked as well.
+  const paced = usePacedQueryValue(query.trim());
+  const { data: remote = [] } = useQuery({
+    queryKey: ["formulary-search", paced],
+    queryFn: () => clinicalSupportService.listPharmacyCatalog({ search: paced }),
+    enabled: paced.length >= SERVER_SEARCH_MIN,
+    staleTime: 60_000,
+  });
+  const merged = useMemo(() => {
+    const byDrug = new Map(formulary.map((d) => [d.id, d]));
+    for (const d of catalogToFormulary(remote)) if (!byDrug.has(d.id)) byDrug.set(d.id, d);
+    return [...byDrug.values()];
+  }, [formulary, remote]);
+  const results = useMemo(() => searchFormulary(merged, query), [merged, query]);
   const byId = useMemo(() => new Map(results.map((d) => [d.id, d])), [results]);
   const hasQuery = query.trim().length > 0;
 
