@@ -547,7 +547,7 @@ export async function admitToIpd(
       bed_id: bedId,
       encounter_id: args.encounterId,
       admission_source: "opd",
-      admitting_doctor: args.admittingDoctorId ?? getE2EIdentity("doctor").id,
+      doctor_id: args.admittingDoctorId ?? getE2EIdentity("doctor").id,
       admission_type: args.admissionType,
       provisional_diagnosis: args.provisionalDiagnosis,
     },
