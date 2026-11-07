@@ -193,7 +193,7 @@ component NavItem inherits Rectangle {
             if !root.native : Text { text: "web"; font-family: Metrics.mono; font-size: 10px; color: Tokens.color-content-on-surface-variant; vertical-alignment: center; }
         }
         touch := TouchArea { clicked => { root.picked(); } }
-        focus := FocusScope { key-pressed(event) => { if (event.text == " " || event.text == "\n") { root.picked(); return accept; } return reject; } }
+        focus := FocusScope { key-pressed(event) => { if (event.text == " " || event.text == "\\n") { root.picked(); return accept; } return reject; } }
         FocusRing { shown: focus.has-focus; }
     }
 }
@@ -287,7 +287,7 @@ ${screens.length ? nav.filter((l) => l.includes("picked =>")).map((l) => { const
                         Image { source: Tokens.dark ? @image-url("@medbrains-gui-kit/icons/moon.svg") : @image-url("@medbrains-gui-kit/icons/sun.svg"); width: 14px; height: 14px; colorize: Tokens.color-warning-warning; }
                     }
                     TouchArea { clicked => { Tokens.dark = !Tokens.dark; } }
-                    theme-keys := FocusScope { key-pressed(event) => { if (event.text == " " || event.text == "\n") { Tokens.dark = !Tokens.dark; return accept; } return reject; } }
+                    theme-keys := FocusScope { key-pressed(event) => { if (event.text == " " || event.text == "\\n") { Tokens.dark = !Tokens.dark; return accept; } return reject; } }
                     FocusRing { shown: theme-keys.has-focus; }
                 }
                 HeaderIcon { y: 10px; icon: @image-url("@medbrains-gui-kit/icons/language.svg"); accessible-label: "Language"; }
