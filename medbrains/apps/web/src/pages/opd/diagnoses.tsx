@@ -1,6 +1,6 @@
 // OPD DiagnosesTab — split from opd.tsx (pure move).
 
-import { useHasPermission } from "@medbrains/stores";
+import { useHasAnyPermission, useHasPermission } from "@medbrains/stores";
 import type {
   CreateDiagnosisRequest,
   Diagnosis,
@@ -20,15 +20,24 @@ export function DiagnosesTab({
   patientId: string;
 }) {
   const queryClient = useQueryClient();
+  // Gated on what each endpoint enforces, so the tab never asks for a refusal.
+  const canReadVisitDiagnoses = useHasAnyPermission([
+    P.OPD.DIAGNOSES_LIST,
+    P.OPD.DIAGNOSES_CREATE,
+    P.OPD.DIAGNOSES_UPDATE,
+  ]);
+  const canListPatientDiagnoses = useHasPermission(P.OPD.DIAGNOSES_LIST);
 
   const { data: diagnoses = [] } = useQuery<Diagnosis[]>({
     queryKey: ["diagnoses", encounterId],
     queryFn: () => opdService.listDiagnoses(encounterId),
+    enabled: canReadVisitDiagnoses,
   });
 
   const { data: patientDiagnoses = [] } = useQuery<PatientDiagnosisRow[]>({
     queryKey: ["patient-diagnoses", patientId],
     queryFn: () => opdService.listPatientDiagnoses(patientId),
+    enabled: canListPatientDiagnoses,
     staleTime: 120_000,
   });
 
