@@ -26,6 +26,7 @@ const ALIASES = {
   border: "outline/outlineVariant",
   surface: "surface/surface",
   card: "surface/surfaceContainer",
+  "surface-lowest": "surface/surfaceContainerLowest",
   accent: "tertiary/tertiaryBrand",
 };
 const SPACE = { xs: 4, sm: 8, md: 16, lg: 24, xl: 32 };

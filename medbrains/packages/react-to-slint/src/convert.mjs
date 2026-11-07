@@ -20,7 +20,13 @@ const STD_WIDGETS = new Set([
 /** Mantine size and colour names, and the design token each becomes in the kit's `Tokens` global. */
 const SIZE_TOKENS = new Set(["xs", "sm", "md", "lg", "xl"]);
 const TOKEN_PROPS = { spacing: "space", padding: "space", "font-size": "font", color: "color" };
-const COLOR_ALIASES = { dimmed: "text-muted", red: "danger", green: "success", orange: "warning", yellow: "warning", blue: "primary", gray: "text-muted" };
+const COLOR_ALIASES = {
+  dimmed: "text-muted", gray: "text-muted", dark: "text", black: "text", white: "surface",
+  red: "danger", pink: "danger", green: "success", teal: "success", lime: "success",
+  orange: "warning", yellow: "warning", blue: "primary", cyan: "primary", indigo: "primary",
+  violet: "accent", grape: "accent", text: "text", primary: "primary", danger: "danger",
+  success: "success", warning: "warning", accent: "accent", "text-muted": "text-muted",
+};
 /** Slint properties that take numbers rather than text. */
 const NUMBER_PROPS = new Set(["value", "minimum", "maximum", "progress", "current-index", "total", "page"]);
 
@@ -28,7 +34,13 @@ const NUMBER_PROPS = new Set(["value", "minimum", "maximum", "progress", "curren
 function tokenValue(target, value) {
   const kind = TOKEN_PROPS[target];
   if (!kind) return null;
-  if (kind === "color") return `Tokens.color-${COLOR_ALIASES[value] ?? value.replace(/\./g, "-")}`;
+  if (kind === "color") {
+    // Mantine colour names and shades ("red.8", "gray.4") resolve to the nearest semantic token;
+    // CSS values (var(--…), inherit) have no token, so the property is left to the kit.
+    if (/^(var\(|inherit|currentColor|transparent)/.test(value)) return "";
+    const name = value.split(".")[0];
+    return `Tokens.color-${COLOR_ALIASES[name] ?? "text"}`;
+  }
   if (SIZE_TOKENS.has(value)) return `Tokens.${kind}-${value}`;
   if (/^\d+$/.test(value)) return `${value}px`;
   return null;
@@ -81,6 +93,7 @@ const WRAPPER = /(Provider|Boundary|Guard|Gate|Context|Mount)$/;
 
 /** Slint types for properties whose values are not text. */
 const PROP_TYPES = {
+  color: "brush", background: "brush", "border-color": "brush", source: "image",
   columns: "[TableColumn]", rows: "[[StandardListViewItem]]", model: "[string]",
   "selected-values": "[string]", data: "[string]", items: "[string]",
 };
@@ -112,10 +125,26 @@ function tagName(name) {
   return "";
 }
 
-/** The first JSX value a function body returns, without entering nested functions. */
+/**
+ * The JSX a function body renders. A component's main view is its last top-level `return`;
+ * earlier returns inside `if` blocks are loading, error or permission branches, so they are
+ * only used when there is no top-level one.
+ */
 function returnedJsx(body) {
   if (isJsx(body)) return body;
   if (body?.type !== "BlockStatement") return null;
+  for (let i = body.body.length - 1; i >= 0; i -= 1) {
+    const st = body.body[i];
+    const arg = st.type === "ReturnStatement" ? st.argument : null;
+    const jsx = arg?.type === "ParenthesizedExpression" ? arg.expression : arg;
+    if (isJsx(jsx)) return jsx;
+    if (jsx?.type === "ConditionalExpression" && (isJsx(jsx.consequent) || isJsx(jsx.alternate))) return jsx.alternate && isJsx(jsx.alternate) ? jsx.alternate : jsx.consequent;
+  }
+  return firstReturnedJsx(body);
+}
+
+/** The first JSX value a block returns, without entering nested functions. */
+function firstReturnedJsx(body) {
   let found = null;
   const visit = (node) => {
     if (found || !node || typeof node.type !== "string") return;
@@ -235,7 +264,11 @@ class ComponentWriter {
     const value = attr.value;
     if (!value) return this.emit(`${name}: ${negate ? "false" : "true"};`, depth);
     if (value.type === "StringLiteral") {
-      return this.emit(`${name}: ${tokenValue(name, value.value) ?? quote(value.value)};`, depth);
+      if (NUMBER_PROPS.has(name) && /^-?\d+$/.test(value.value)) return this.emit(`${name}: ${value.value};`, depth);
+      if (PROP_TYPES[name] === "image") return; // file paths resolve in the product kit, not here
+      const token = tokenValue(name, value.value);
+      if (token === "") return;
+      return this.emit(`${name}: ${token ?? quote(value.value)};`, depth);
     }
     const expr = value.type === "JSXExpressionContainer" ? value.expression : value;
     if (/^on[A-Z]/.test(attrName)) {
@@ -246,10 +279,11 @@ class ComponentWriter {
     const lit = negate ? null : this.literal(expr);
     if (lit) {
       const token = expr.type === "StringLiteral" ? tokenValue(name, expr.value) : null;
+      if (token === "") return;
       const length = expr.type === "NumericLiteral" && LENGTH_PROPS.has(name) ? `${lit}px` : null;
       return this.emit(`${name}: ${token ?? length ?? lit};`, depth);
     }
-    const type = ["checked", "enabled", "busy"].includes(name) ? "bool"
+    const type = ["checked", "enabled", "busy", "open", "active"].includes(name) ? "bool"
       : PROP_TYPES[name] ?? (NUMBER_PROPS.has(name) ? "int" : LENGTH_PROPS.has(name) ? "length" : "string");
     this.emit(`${name}: ${negate ? "!" : ""}root.${this.property(this.text(expr), type)};`, depth);
   }
@@ -330,10 +364,18 @@ class ComponentWriter {
     else if (STD_WIDGETS.has(rule.slint)) this.stats.std.add(rule.slint);
     this.emit(`${rule.slint} {`, depth);
     for (const [k, v] of Object.entries(rule.fixed ?? {})) this.emit(`${k}: ${v};`, depth + 1);
+    const given = new Set(node.openingElement.attributes.map((a) => rule.props[a.name?.name]).filter(Boolean));
+    for (const [k, v] of Object.entries(rule.default ?? {})) if (!given.has(k)) this.emit(`${k}: ${v};`, depth + 1);
+    if (rule.slint === "StandardTableView") this.tableColumns(node, depth + 1);
     for (const attr of node.openingElement.attributes) {
       if (attr.type !== "JSXAttribute") continue;
       const target = rule.props[attr.name.name];
-      if (target) this.binding(target, attr, depth + 1);
+      const mapped = rule.values?.[attr.name.name];
+      const raw = attr.value?.type === "StringLiteral" ? attr.value.value
+        : attr.value?.expression?.type === "NumericLiteral" || attr.value?.expression?.type === "StringLiteral" ? String(attr.value.expression.value) : null;
+      if (target && mapped && raw !== null) {
+        if (mapped[raw]) this.emit(`${target}: ${mapped[raw]};`, depth + 1);
+      } else if (target) this.binding(target, attr, depth + 1);
     }
     if (rule.props.children) {
       const label = node.children.filter((c) => c.type === "JSXText").map((c) => c.value.trim()).join(" ").trim();
@@ -376,6 +418,25 @@ class ComponentWriter {
 
   children(list, depth) {
     for (const child of list) this.child(child, depth);
+  }
+
+  /** A table's column titles, taken from its header cells (`Table.Th` or `th`) as the web shows them. */
+  tableColumns(node, depth) {
+    const titles = [];
+    const visit = (n) => {
+      if (!n || typeof n.type !== "string") return;
+      if (n.type === "JSXElement" && ["Table.Th", "th"].includes(tagName(n.openingElement.name))) {
+        const t = n.children.map((c) => (c.type === "JSXText" ? c.value : c.type === "JSXExpressionContainer" ? this.literal(c.expression)?.replace(/^@tr\(|\)$/g, "").replace(/^"|"$/g, "") ?? "" : "")).join(" ").replace(/\s+/g, " ").trim();
+        titles.push(t);
+        return;
+      }
+      for (const v of Object.values(n)) {
+        if (Array.isArray(v)) v.forEach(visit);
+        else if (v && typeof v.type === "string") visit(v);
+      }
+    };
+    node.children.forEach(visit);
+    if (titles.length) this.emit(`columns: [${titles.map((t) => `{ title: ${quote(t)} }`).join(", ")}];`, depth);
   }
 
   child(node, depth) {
@@ -437,8 +498,8 @@ class ComponentWriter {
   previewDefault(p) {
     if (!this.mapping.preview || p.type !== "bool") return "";
     const src = p.src.trim();
-    if (src.startsWith("!") || /loading|pending|fail|error|empty|denied|outage|unavailable/i.test(src)) return ": false";
-    return /\b(can|has|is|show|allow|visible|open)[A-Z_]?/i.test(src) ? ": true" : "";
+    if (src.startsWith("!") || /loading|pending|fail|error|empty|denied|outage|unavailable|open|modal|drawer|confirm/i.test(src)) return ": false";
+    return /\b(can|has|is|show|allow|visible)[A-Z_]?/i.test(src) ? ": true" : "";
   }
 
   render(jsx) {

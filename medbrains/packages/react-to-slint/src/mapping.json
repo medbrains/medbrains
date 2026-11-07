@@ -1,29 +1,57 @@
 {
   "_doc": "React (Mantine and our components/ui seam) to Slint. Each entry: the Slint element, which props become which Slint properties, and optional fixed properties. Targets starting with _ are handled by the kit component and not emitted; a target ending in ! is negated (disabled becomes enabled). Elements named Mb* come from medbrains-gui-kit, the shared Slint kit in docs/architecture/OS-NATIVE-GUI.md.",
-  "version": 6,
+  "version": 8,
   "layout": {
     "Stack": {
       "slint": "VerticalLayout",
       "props": {
         "gap": "spacing",
-        "p": "padding"
+        "p": "padding",
+        "justify": "alignment"
+      },
+      "values": {
+        "justify": {
+          "space-between": "space-between",
+          "flex-end": "end",
+          "center": "center",
+          "flex-start": "start"
+        }
       }
     },
     "Group": {
       "slint": "HorizontalLayout",
       "props": {
         "gap": "spacing",
-        "p": "padding"
+        "p": "padding",
+        "justify": "alignment"
+      },
+      "values": {
+        "justify": {
+          "space-between": "space-between",
+          "flex-end": "end",
+          "center": "center",
+          "flex-start": "start",
+          "space-around": "space-around"
+        }
       }
     },
     "Flex": {
       "slint": "HorizontalLayout",
       "props": {
-        "gap": "spacing"
+        "gap": "spacing",
+        "justify": "alignment"
+      },
+      "values": {
+        "justify": {
+          "space-between": "space-between",
+          "flex-end": "end",
+          "center": "center",
+          "flex-start": "start"
+        }
       }
     },
     "SimpleGrid": {
-      "slint": "GridLayout",
+      "slint": "HorizontalLayout",
       "props": {
         "spacing": "spacing"
       }
@@ -76,10 +104,24 @@
     "Title": {
       "slint": "Text",
       "props": {
-        "order": "_heading"
+        "order": "font-size"
       },
       "fixed": {
-        "font-weight": "700"
+        "font-weight": "600",
+        "color": "Tokens.color-content-on-surface"
+      },
+      "values": {
+        "order": {
+          "1": "32px",
+          "2": "26px",
+          "3": "22px",
+          "4": "18px",
+          "5": "16px",
+          "6": "14px"
+        }
+      },
+      "default": {
+        "font-size": "32px"
       }
     },
     "Anchor": {
@@ -531,7 +573,8 @@
     "Card": {
       "slint": "MbCard",
       "props": {
-        "onClick": "clicked"
+        "onClick": "clicked",
+        "p": "padding"
       }
     },
     "Panel": {
@@ -563,6 +606,9 @@
       "props": {
         "src": "source",
         "alt": "accessible-label"
+      },
+      "fixed": {
+        "accessible-role": "image"
       }
     },
     "Avatar": {
@@ -614,7 +660,7 @@
     "Modal": {
       "slint": "MbModal",
       "props": {
-        "opened": "_open",
+        "opened": "open",
         "onClose": "closed",
         "title": "title"
       }
@@ -776,6 +822,14 @@
     "Tabs.Panel": {
       "slint": "VerticalLayout",
       "props": {}
+    },
+    "Drawer": {
+      "slint": "MbModal",
+      "props": {
+        "opened": "open",
+        "onClose": "closed",
+        "title": "title"
+      }
     }
   },
   "html": {
@@ -850,6 +904,9 @@
       "props": {
         "src": "source",
         "alt": "accessible-label"
+      },
+      "fixed": {
+        "accessible-role": "image"
       }
     },
     "table": {

@@ -97,3 +97,12 @@ test("Mantine sizes and colours become tokens, and Text children merge into one 
   assert.match(slint, /color: Tokens\.color-text-muted;/);
   assert.match(slint, /text: "Due" \+ root\.count \+ "today";/);
 });
+
+test("the main view is the last top-level return, not an early loading branch", () => {
+  const { slint } = convert(`export function D() {
+    if (isLoading) return <Center><Loader /></Center>;
+    return <Stack><Text>Ward census</Text></Stack>;
+  }`);
+  assert.match(slint, /text: "Ward census";/);
+  assert.doesNotMatch(slint, /Spinner/);
+});

@@ -84,13 +84,6 @@ export component MbMenu inherits VerticalLayout {
     @children
 }
 
-export component MbModal inherits VerticalLayout {
-    callback closed();
-    in property <string> title;
-    spacing: Tokens.space-xs;
-    @children
-}
-
 export component MbMultiSelect inherits VerticalLayout {
     callback changed();
     in property <[string]> model;

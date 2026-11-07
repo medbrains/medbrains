@@ -299,4 +299,16 @@ export component MbTabs inherits VerticalLayout {
     @children
 }
 
+/** A dialog: hidden, taking no space, until it is open, as on the web. */
+export component MbModal inherits VerticalLayout {
+    in property <bool> open: false;
+    in property <string> title;
+    callback closed();
+    visible: root.open;
+    max-height: root.open ? 100000px : 0px;
+    spacing: Tokens.space-sm;
+    if root.open && root.title != "" : Text { text: root.title; font-family: Metrics.font; font-size: Tokens.font-lg; font-weight: 600; color: Tokens.color-content-on-surface; }
+    @children
+}
+
 export * from "stubs.slint";
