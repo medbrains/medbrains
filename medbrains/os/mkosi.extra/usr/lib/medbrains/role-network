@@ -5,6 +5,15 @@ set -euo pipefail
 
 nft -f /usr/lib/medbrains/main-machine.nft
 
+# No router advertisements on a main machine: anyone on the LAN can send one, and each prefix it
+# accepts gives a sender more /64s to spread past the front's per-address limit, or a route to steal.
+# Every network a main machine can use: the image's two and the two the setup screen writes.
+for network in 80-wired 81-wireless 10-medbrains-fixed 50-medbrains-preferred; do
+    install -d -m 0755 "/run/systemd/network/$network.network.d"
+    printf '[Network]\nIPv6AcceptRA=no\n' > "/run/systemd/network/$network.network.d/60-main-machine.conf"
+done
+networkctl reload
+
 install -d -m 0755 /run/systemd/resolved.conf.d
 printf '[Resolve]\nMulticastDNS=yes\n' > /run/systemd/resolved.conf.d/20-main-machine.conf
 systemctl restart systemd-resolved

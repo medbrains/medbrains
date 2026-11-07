@@ -10,7 +10,7 @@ After=medbrains-disk-finish.service
 Conflicts=getty@tty1.service
 # Starts before them so it stops after them: a restart keeps saying so while the server shuts down,
 # instead of a black screen that looks like nothing happened.
-Before=medbrains-server.service caddy.service
+Before=medbrains-server.service medbrains-front.service
 ConditionPathExists=/dev/tty1
 
 [Service]

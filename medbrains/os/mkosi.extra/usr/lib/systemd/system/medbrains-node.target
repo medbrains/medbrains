@@ -1,4 +1,4 @@
-# What a node runs: the screen and the agent, no database, server or Caddy, and nothing open to
+# What a node runs: the screen and the agent, no database, server or front, and nothing open to
 # the network. Off until setup writes the role, once a person has approved the machine.
 [Unit]
 Description=MedBrains node (workstation or display)

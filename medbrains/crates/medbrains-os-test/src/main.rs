@@ -6,6 +6,7 @@
 //! `budgets.json`: ratchets to lower as the numbers improve (targets: RFC-HOSPITAL-OS §3a).
 
 mod disk;
+mod front;
 mod vm;
 
 use std::path::Path;
@@ -25,7 +26,7 @@ const SYSCTLS: [(&str, &str); 4] = [
 ];
 const CLOSED_FROM_OUTSIDE: [&str; 4] = ["ssh", "server", "database", "edge"];
 const TIME_SYNC_LIMIT: Duration = Duration::from_secs(120);
-const SETUP_LIMIT: Duration = Duration::from_secs(90);
+const SETUP_LIMIT: Duration = Duration::from_secs(150);
 const SETUP_SOCKET: &str = "/run/medbrains-console/setup.sock";
 const AGENT_API: &str = "http://127.0.0.1:3000/api/machine-agent";
 const AGENT_TOKEN: &str = "/var/lib/medbrains-agent/server-token";
@@ -36,7 +37,7 @@ const FLOOD_REQUESTS: usize = 5;
 type Check = (&'static str, fn(&mut Vm, &Value) -> Result<(), String>);
 
 /// Fails with `message` unless `ok`.
-fn ensure(ok: bool, message: impl Into<String>) -> Result<(), String> {
+pub(crate) fn ensure(ok: bool, message: impl Into<String>) -> Result<(), String> {
     if ok { Ok(()) } else { Err(message.into()) }
 }
 
@@ -49,7 +50,7 @@ fn budget(budgets: &Value, key: &str) -> Result<u64, String> {
 }
 
 /// A number printed by a command inside the machine.
-fn number(vm: &mut Vm, command: &str) -> Result<u64, String> {
+pub(crate) fn number(vm: &mut Vm, command: &str) -> Result<u64, String> {
     let text = vm.run(command)?;
     text.trim()
         .parse()
@@ -357,6 +358,53 @@ fn checks() -> Vec<Check> {
         ),
         ("held connections stay cheap", held_connections_stay_cheap),
         (
+            "the front offers HTTP/1.1 only",
+            front::front_offers_http1_only,
+        ),
+        ("the front runs confined", front::front_is_confined),
+        (
+            "the front's keys are held close",
+            front::front_keys_are_held_close,
+        ),
+        (
+            "a made-up name stores nothing",
+            front::made_up_name_stores_nothing,
+        ),
+        (
+            "the front says so in plain words when the server stops",
+            front::plain_words_when_the_server_stops,
+        ),
+        (
+            "the front returns after a crash",
+            front::front_returns_after_a_crash,
+        ),
+        (
+            "the front recovers a missing certificate",
+            front::front_recovers_a_missing_certificate,
+        ),
+        (
+            "the authority cannot sign for other sites",
+            front::authority_is_constrained,
+        ),
+        (
+            "a bad line in the names file stops nothing",
+            front::bad_name_stops_nothing,
+        ),
+        (
+            "a failed issue keeps the certificate in place",
+            front::failed_issue_keeps_the_old_one,
+        ),
+        (
+            "a learned IPv6 address restarts nothing",
+            front::learned_address_restarts_nothing,
+        ),
+        (
+            "a key and certificate that differ are replaced",
+            front::mismatched_key_is_replaced,
+        ),
+        ("a link in the agent's folder is refused", front::agent_link_is_refused),
+        ("a machine's tunnel keeps its own address", front::tunnel_address_is_kept),
+        (
             "the database log holds no values and is bounded",
             database_log_is_safe,
         ),
@@ -378,7 +426,10 @@ fn set_up_main(vm: &mut Vm) -> Result<(), String> {
         std::thread::sleep(Duration::from_secs(2));
     }
     let answer = vm.run_for(
-        &format!("curl -s -m 80 --unix-socket {SETUP_SOCKET} -d '{body}' http://machine/hospital"),
+        // The shell can answer before the setup service has opened its socket.
+        &format!(
+            "for i in $(seq 60); do test -S {SETUP_SOCKET} && break; sleep 1; done; curl -s -m 80 --unix-socket {SETUP_SOCKET} -d '{body}' http://machine/hospital"
+        ),
         SETUP_LIMIT,
     )?;
     ensure(

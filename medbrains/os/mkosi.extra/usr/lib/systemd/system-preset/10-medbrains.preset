@@ -2,16 +2,12 @@
 # not listed. Off: Debian's per-cluster WAL archiving and dump templates; backups
 # are ours to schedule (D2), and an unconfigured pg_receivewal fails at every boot.
 disable pg_*
-# Debian's second caddy unit (config over its admin API). It binds the same ports
-# as caddy.service, so whichever starts second fails.
-disable caddy-api.service
 # systemd-pcrlock writes its policy into /var, and cryptenroll then uses it by itself: a disk sealed
 # that way needs that file to open the place the file is on. Found by test: the disk would not open.
 disable systemd-pcrlock-*
 # The screen is the app; a login prompt on tty1 is text flashing past at boot.
 disable getty@.service
 # Started by medbrains-main.target once setup has finished, never before.
-disable caddy.service
 disable postgresql.service
 # Only chrony.service may run: see mkosi.postinst.chroot.
 disable chronyd-restricted.service
