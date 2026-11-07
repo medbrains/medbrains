@@ -254,6 +254,7 @@ The OS screen moves to a native GUI in Rust that is safe for memory and security
 | G5 | Parity enforced: a module's change cannot merge if its journey passes on only one UI | CI runs each journey against both | with G4 |
 | G6 | WebKit leaves the OS image once every module is native, removing its memory and attack surface | Image has no WebKitGTK | last |
 | G7 | Split into apps as `OS-NATIVE-GUI.md` says: one module per app crate and process, a shared kit, no app importing another, one sign-in through the shell, signed manifests with dependencies; enforced by a check that fails CI if an app crate depends on another app crate | Check in CI; G1's two apps follow it; per-app memory recorded | with G1 |
+| G8 | Transition layer from React to Slint (`OS-NATIVE-GUI.md`): API types, permissions, tokens, text, forms, field rules, view models, states and journey tests written once and read by both UIs | Pharmacy moves by writing only its Slint views; its journeys pass on both | with G1, then grows module by module |
 
 ## P. Every way to run MedBrains (owner 2026-11-05)
 

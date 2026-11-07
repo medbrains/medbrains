@@ -86,3 +86,25 @@ Sign-in works the way Okta or Windows sign-in works in a company: one sign-in, a
 4. **Permissions are checked where they always are.** The server checks every request and, for patient data, every record, exactly as for the web app. The app hides controls the person can't use, from the same Rust permission constants. A fault answers *unknown*, never *allowed*.
 5. **Sign-out and lock reach every app.** Locking the screen or signing out at the shell ends every app's tokens at once. An app closed by the Software Center loses its client registration.
 6. **Outside identity providers** (Entra, Okta) sign in to Kanidm, not to the apps, so nothing in the apps changes when a hospital uses one. Whether Kanidm's trust login works with them is tested under T3.
+
+## Transition layer from React to Slint (owner 2026-11-07)
+
+Two UIs must not mean two of everything. The layer below sits under both, so a module moves to Slint by writing only its views, and the web app keeps working unchanged. Most of a screen is not its view: it is the data, rules, permissions, text and states, and those are written once.
+
+| Layer | Written once, in | React reads it through | Slint reads it through |
+|---|---|---|---|
+| **API types and client** | Rust server types | a TypeScript client generated from the server (X15), replacing hand-written `client.ts` methods | the same generated description, as a Rust client |
+| **Permissions** | `medbrains-core/src/permissions.rs` | the generated `permissions.ts` (already) | the Rust constants directly |
+| **Design tokens** | `figma-varspec.json` | the generated theme (already) | a generated Slint global |
+| **Text and languages** | the translation files in `apps/web/public/locales/` (16 namespaces, English and Arabic) | i18next (already) | a loader for the same JSON files, so a translation is done once |
+| **Forms** | form definitions in the database, resolved by the server (`ResolvedFormDefinition`) | the existing dynamic form renderer | one Slint form renderer for the same definitions, so every configured form works natively at once |
+| **Field rules** (required, ranges, conditions) | moved from `packages/schemas/src/dynamic-form.ts` into one Rust crate | that crate compiled to WebAssembly | the crate directly; the server runs it too, so a rule cannot pass on screen and fail on save |
+| **Screen logic** (state, actions, what happens on each tap) | a Rust view model per screen, actions in and state out, in the style of Crux (`redbadger/crux`, Apache-2.0) and Shopify's Reflex | for new or rewritten screens only, through WebAssembly; existing React screens keep their hooks | the view model directly |
+| **States** (loading, unavailable with a named outage, empty in words) | the view model's state | one React component per state (already in the seam) | one Slint component per state in `medbrains-gui-kit` |
+| **Tests** | one journey file per module, driving the view model (Reflex) | the same journeys against the web build, plus a few browser end-to-end runs | the same journeys against the native build |
+
+**How a module moves:** its API, permissions, text, forms and rules already come from this layer, so moving it means writing its Slint views and, if its logic still lives in React hooks, moving that logic into a Rust view model first. Until a module is native, the native shell opens it in the sandboxed web view (G4), so nothing goes missing.
+
+**Order:** tokens, permissions and text first (cheapest, already half done); then the generated API clients; then field rules in Rust; then the Slint form renderer, which brings every configured form across at once; then view models, module by module, starting with Pharmacy.
+
+**Limits to measure before relying on them:** WebAssembly adds download size to the web app, so field rules and view models go to the web only where the size cost is measured and small; Crux is studied as a pattern first, and adopted only if it beats a plain view model trait.
