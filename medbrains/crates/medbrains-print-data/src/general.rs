@@ -21,7 +21,7 @@ use medbrains_core::print_data::{
 
 use medbrains_server_core::error::AppError;
 use medbrains_server_core::middleware::auth::Claims;
-use medbrains_server_core::middleware::authorization::require_permission;
+use medbrains_server_core::middleware::authorization::{is_bypass_role, require_permission};
 use medbrains_server_core::state::AppState;
 
 // ── Prescription ─────────────────────────────────────────
@@ -332,8 +332,13 @@ pub async fn get_patient_card_print_data(
     Extension(claims): Extension<Claims>,
     Path(patient_id): Path<Uuid>,
 ) -> Result<Json<PatientCardPrintData>, AppError> {
-    require_permission(&claims, permissions::patients::VIEW)?;
-    medbrains_authz_gate::require_patient_access(&state, &claims, patient_id).await?;
+    // The desk reprints a lost card for any patient, identity only. Everyone
+    // else prints through their relationship with the patient.
+    let desk_reprint = holds_card_reprint(&claims);
+    if !desk_reprint {
+        require_permission(&claims, permissions::patients::VIEW)?;
+        medbrains_authz_gate::require_patient_access(&state, &claims, patient_id).await?;
+    }
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -369,8 +374,9 @@ pub async fn get_patient_card_print_data(
         age: row.age.map(|a| format!("{} yrs", a as i64)),
         gender: row.gender,
         phone: row.phone,
-        email: row.email,
-        address: row.address,
+        // The card prints neither; a desk reprint does not carry them at all.
+        email: row.email.filter(|_| !desk_reprint),
+        address: row.address.filter(|_| !desk_reprint),
         category: row.category,
         registered_at: row
             .created_at
@@ -378,6 +384,17 @@ pub async fn get_patient_card_print_data(
             .format("%d-%b-%Y")
             .to_string(),
     }))
+}
+
+/// Whether these claims reprint cards as the desk: holding
+/// `patients.card.reprint` outright, not through a bypass role, which already
+/// reaches every patient through the ordinary path.
+fn holds_card_reprint(claims: &Claims) -> bool {
+    !is_bypass_role(claims)
+        && claims
+            .permissions
+            .iter()
+            .any(|code| code == permissions::patients::card::REPRINT)
 }
 
 // ── Helper: fetch hospital name from tenants table ───────

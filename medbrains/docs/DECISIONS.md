@@ -141,6 +141,8 @@ built. *Proposed* is waiting for the owner. *Rejected* was considered and turned
 |---|---|---|---|---|
 | 2026-11-02 | Remove decoration from clinical screens: no glass, no page-surface shadows or rounded corners, squared status chips, sentence-case headers, no chip on a normal state | Clinicians scan these all day, and status chips only mean something if normal rows have none | Rounded SaaS pills | Done for effects and the OPD queue; other screens next |
 | 2026-11-02 | Do not adopt BoardUI | It needs Tailwind v4, which the design rules ban, and a rewrite of about 1,700 screens | Buying or installing it | Rejected; three ideas noted |
+| 2026-11-07 | The desk reprints any patient's card with a new grant, `patients.card.reprint` (receptionist), from a "hospital register" list under the patient directory that answers from the desk lookup | A returning patient is usually served by a receptionist who did not register them; the relationship-scoped directory found nothing and the patient was registered twice. The card carries identity the desk lookup already shows, never the address or the chart | Widening `patients.view` or `patients.list` to the whole tenant; reusing `patients.find` for printing | Done (this PR) |
+| 2026-11-07 | Registration opens the OPD visit afterwards only for someone who may update the visit | The front desk was dropped on the doctor's workup screen, every read on it refused | Leaving the checkbox on by default for anyone who may queue | Done (this PR) |
 | 2026-11-02 | Keep IBM Plex; do not move to Geist | Plex is the locked design choice, and Geist lists no Devanagari, Tamil or Arabic | Switching font | Proposed; owner to confirm |
 
 ### Earlier major decisions
