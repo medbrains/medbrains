@@ -5,7 +5,8 @@
 //! the general patient reads answer 404 and the allergy banner vanished from
 //! the dispense screen. This read is gated by `require_patient_pharmacy_access`
 //! and returns identity and drug allergies only: no notes, no insurance, no
-//! next of kin, no balance.
+//! next of kin, no balance. Name and UHID are masked per the caller's field
+//! access exactly as the patient record masks them.
 
 use axum::Extension;
 use axum::{
@@ -15,6 +16,8 @@ use axum::{
 use medbrains_core::permissions;
 use medbrains_kernel::{Actor, Claims, require_permission};
 use medbrains_server_core::error::AppError;
+use medbrains_server_core::middleware::field_access::resolve_restricted_fields;
+use medbrains_server_services::patient_identity::patient_identities;
 use medbrains_server_core::state::AppState;
 use serde::Serialize;
 use uuid::Uuid;
@@ -50,16 +53,22 @@ pub async fn patient_dispense_context(
     require_permission(&claims, permissions::pharmacy::dispensing::CREATE)?;
     medbrains_authz_gate::require_patient_pharmacy_access(&state, &claims, patient_id).await?;
 
+    let restricted =
+        resolve_restricted_fields(&state.db, claims.tenant_id, claims.sub, &claims.role).await?;
     let mut tx = medbrains_kernel::begin(&state.db, Actor::from_claims(&claims)).await?;
-    let patient = sqlx::query!(
-        "SELECT uhid, first_name, last_name, no_known_allergies \
-           FROM patients WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL",
+    let no_known_allergies = sqlx::query_scalar!(
+        "SELECT no_known_allergies FROM patients \
+          WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL",
         patient_id,
         claims.tenant_id,
     )
     .fetch_optional(&mut *tx)
     .await?
     .ok_or(AppError::NotFound)?;
+    let identity = patient_identities(&mut tx, claims.tenant_id, &[patient_id], &restricted)
+        .await?
+        .pop()
+        .ok_or(AppError::NotFound)?;
     let drug_allergies = sqlx::query_as!(
         DispenseAllergy,
         "SELECT allergen_name, severity::text AS severity, reaction \
@@ -78,11 +87,9 @@ pub async fn patient_dispense_context(
 
     Ok(Json(DispenseContext {
         patient_id,
-        uhid: patient.uhid,
-        full_name: format!("{} {}", patient.first_name, patient.last_name)
-            .trim()
-            .to_owned(),
-        no_known_allergies: patient.no_known_allergies,
+        uhid: identity.uhid,
+        full_name: identity.full_name,
+        no_known_allergies,
         drug_allergies,
     }))
 }

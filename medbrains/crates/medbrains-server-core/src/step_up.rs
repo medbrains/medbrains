@@ -98,18 +98,35 @@ pub fn require_step_up(state: &AppState, jar: &CookieJar, claims: &Claims) -> Re
     Ok(())
 }
 
-/// Whether `password` is this user's own password, checked on the server.
+/// What a second person's password check came to.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PasswordCheck {
+    /// Their own password: the failure count is cleared.
+    Right,
+    /// Not their password: counted against their account, which may now lock.
+    Wrong,
+    /// Their account is locked; the password was not even tried.
+    Locked,
+}
+
+/// Checks `password` against this user's own, under the shared lockout.
 ///
 /// For a second person who confirms an action at the first person's screen:
-/// the witness to a controlled-drug dispense types their own password. A user
-/// with no password (SSO only) can never confirm this way. The read is scoped
-/// to the tenant, so a user of another hospital is simply not found.
-pub async fn verify_user_password(
+/// the witness to a controlled-drug dispense types their own password. It is
+/// the sign-in counter (`lockout`): a locked account is refused before the
+/// password is tried, a wrong password counts towards the lock and is audited
+/// as `action`, a right one clears the count. A user with no password (SSO
+/// only), or of another hospital, is `Wrong`.
+pub async fn check_user_password(
     state: &AppState,
-    tenant_id: Uuid,
-    user_id: Uuid,
+    (user_id, tenant_id): (Uuid, Uuid),
     password: &str,
-) -> Result<bool, AppError> {
+    action: &str,
+) -> Result<PasswordCheck, AppError> {
+    let account = (user_id, tenant_id);
+    if crate::lockout::is_locked(state, account).await? {
+        return Ok(PasswordCheck::Locked);
+    }
     let mut conn = medbrains_db::pool::tenant_conn(&state.db, &tenant_id).await?;
     let hash = sqlx::query_scalar::<_, Option<String>>(
         "SELECT password_hash FROM users \
@@ -120,13 +137,21 @@ pub async fn verify_user_password(
     .fetch_optional(&mut *conn)
     .await?
     .flatten();
-    let Some(hash) = hash else {
-        return Ok(false);
-    };
-    let Ok(parsed) = PasswordHash::new(&hash) else {
-        return Ok(false);
-    };
-    Ok(Argon2::default()
-        .verify_password(password.as_bytes(), &parsed)
-        .is_ok())
+    drop(conn);
+    let right = hash.as_deref().is_some_and(|hash| {
+        PasswordHash::new(hash).is_ok_and(|parsed| {
+            Argon2::default()
+                .verify_password(password.as_bytes(), &parsed)
+                .is_ok()
+        })
+    });
+    if right {
+        crate::lockout::clear_failed_passwords(state, account).await?;
+        return Ok(PasswordCheck::Right);
+    }
+    // An account that is not there has no counter to add to.
+    if hash.is_some() {
+        crate::lockout::record_failed_password(state, account, None, action).await?;
+    }
+    Ok(PasswordCheck::Wrong)
 }

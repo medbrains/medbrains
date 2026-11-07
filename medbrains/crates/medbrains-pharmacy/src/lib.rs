@@ -1935,9 +1935,13 @@ pub async fn create_order(
     require_permission(&claims, permissions::pharmacy::dispensing::CREATE)?;
     // An order names a patient, and the order is then granted to the Pharmacy
     // department: raising one for a patient the caller cannot reach would hand
-    // the department a way in. Every other caller of `create_order_in_tx`
-    // (discharge dispensing, the discharge checklist) checks this first too.
-    medbrains_authz_gate::require_patient_access(&state, &claims, body.patient_id).await?;
+    // the department a way in. The pharmacy gate: the caller's care team, or
+    // the pharmacy while it is working for the patient (an open prescription
+    // in its queue, a recent order). Every other caller of
+    // `create_order_in_tx` (discharge dispensing, the discharge checklist)
+    // checks patient access first too.
+    medbrains_authz_gate::require_patient_pharmacy_access(&state, &claims, body.patient_id)
+        .await?;
     let restricted_fields = resolve_pharmacy_restricted_fields(&state, &claims).await?;
 
     let mut tx = state.db.begin().await?;
@@ -2974,24 +2978,23 @@ pub async fn dispense_order(
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
 
-    let order = sqlx::query_as::<_, PharmacyOrder>(
-        "SELECT * FROM pharmacy_orders \
-         WHERE id = $1 AND tenant_id = $2 AND status = 'ordered' \
-         FOR UPDATE",
+    // Who the order is for, read without a lock: the witness is checked (a
+    // password hash, and possibly a lockout write) before the order row is
+    // held, so a slow or refused confirmation never holds the order.
+    let (pre_patient, pre_encounter): (Option<Uuid>, Option<Uuid>) = sqlx::query_as(
+        "SELECT patient_id, encounter_id FROM pharmacy_orders WHERE id = $1 AND tenant_id = $2",
     )
     .bind(id)
     .bind(claims.tenant_id)
     .fetch_optional(&mut *tx)
     .await?
     .ok_or(AppError::NotFound)?;
-    // Only prescription orders wait here, and a prescription names a patient.
-    let patient_id = order
-        .patient_id
+    let patient_id = pre_patient
         .ok_or_else(|| AppError::Conflict("This order has no patient to dispense to".to_owned()))?;
     let dispense_subject = rx_safety::Subject {
         patient_id,
-        encounter_id: order.encounter_id,
-        record_id: Some(order.id),
+        encounter_id: pre_encounter,
+        record_id: Some(id),
     };
 
     // The witness, when one is named: a second person, still allowed to
@@ -3028,6 +3031,21 @@ pub async fn dispense_order(
             None,
         )
         .await?;
+    }
+
+    let order = sqlx::query_as::<_, PharmacyOrder>(
+        "SELECT * FROM pharmacy_orders \
+         WHERE id = $1 AND tenant_id = $2 AND status = 'ordered' \
+         FOR UPDATE",
+    )
+    .bind(id)
+    .bind(claims.tenant_id)
+    .fetch_optional(&mut *tx)
+    .await?
+    .ok_or(AppError::NotFound)?;
+    // The order cannot change patient between the read above and this lock.
+    if order.patient_id != Some(patient_id) {
+        return Err(AppError::Conflict("This order changed while it was opened".to_owned()));
     }
 
     // Schedule H/H1/X compliance gate. Drugs and Cosmetics Act 1940
@@ -3610,9 +3628,14 @@ pub async fn dispense_order(
 // fails the gate. Caller already holds an open transaction so the
 // rollback is automatic on error.
 
-/// Prescription, encounter, prescriber, and whether a pharmacist verified an upload.
-type ComplianceOrderRow = (Option<Uuid>, Option<Uuid>, Option<Uuid>, bool);
+/// The prescriber (a real prescription for this patient), and whether a
+/// pharmacist verified an uploaded prescription.
+type ComplianceOrderRow = (Option<Uuid>, bool);
 
+/// Refuses a dispense whose Schedule H, H1 or X lines lack what the Drugs and
+/// Cosmetics Act and the NDPS Act require: a real prescription for this
+/// patient (or a verified upload), and for Schedule X a doctor allowed to
+/// prescribe it and a witness.
 async fn enforce_schedule_compliance(
     tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
     tenant_id: &Uuid,
@@ -3626,7 +3649,7 @@ async fn enforce_schedule_compliance(
     // stamps the pharmacist as `ordered_by`, so a Schedule X order was checked
     // against the pharmacist's (absent) doctor profile and could never pass.
     let order: Option<ComplianceOrderRow> = sqlx::query_as(
-        "SELECT o.prescription_id, o.encounter_id, rx.doctor_id, \
+        "SELECT rx.doctor_id, \
                 EXISTS (SELECT 1 FROM pharmacy_store_orders s \
                          WHERE s.tenant_id = o.tenant_id AND s.pharmacy_order_id = o.id \
                            AND s.rx_source = 'upload' AND s.verified_at IS NOT NULL \
@@ -3647,11 +3670,14 @@ async fn enforce_schedule_compliance(
     .fetch_optional(&mut **tx)
     .await?;
 
-    let Some((prescription_id, encounter_id, prescriber, verified_upload)) = order else {
+    let Some((prescriber, verified_upload)) = order else {
         return Err(AppError::NotFound);
     };
 
-    let has_prescription = prescription_id.is_some() || encounter_id.is_some() || verified_upload;
+    // A prescription counts only when it is a real one for this patient (the
+    // join above checks that), or an uploaded one a pharmacist verified. An
+    // id or a visit alone is not a prescription.
+    let has_prescription = prescriber.is_some() || verified_upload;
 
     let scheduled_items: Vec<(String, Option<String>)> = sqlx::query_as(
         "SELECT c.name, c.drug_schedule::text \

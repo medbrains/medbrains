@@ -3133,20 +3133,11 @@ pub async fn create_prescription(
 
     tx.commit().await?;
 
-    // The prescription reached the pharmacy's queue: pharmacy staff reach the
-    // patient through this visit to dispense it.
-    if pharmacy_rx_queue_id.is_some() {
-        medbrains_authz_gate::hand_off(
-            &state,
-            &claims,
-            medbrains_authz_gate::HandOff {
-                object_type: "encounter",
-                object_id: encounter_id,
-                department_code: medbrains_authz_gate::PHARMACY,
-            },
-        )
-        .await?;
-    }
+    // The prescription reached the pharmacy's queue. The queue is scoped by
+    // the pharmacy's own permission, and what dispensing needs of the patient
+    // goes through `require_patient_pharmacy_access`. The visit is NOT handed
+    // to the Pharmacy department: that tuple opened the patient's whole
+    // record to the department, with no end (migration 1406 revokes them).
 
     let rx_doctor_name =
         sqlx::query_scalar::<_, String>("SELECT full_name FROM users WHERE id = $1")

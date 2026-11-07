@@ -108,6 +108,7 @@ async function signIn(
 
 interface Prescribed {
   patientId: string;
+  encounterId: string;
   prescriptionId: string;
   uhid: string;
   name: string;
@@ -178,6 +179,7 @@ async function prescribe(
   );
   return {
     patientId: patient.id,
+    encounterId: visit.encounter.id,
     prescriptionId: signed.prescription.id,
     uhid: patient.uhid,
     name: `${person.firstName} ${person.lastName}`,
@@ -570,4 +572,123 @@ test("the pharmacy reaches only what dispensing needs, and only for patients it 
   });
   expect(borrowed.status()).toBe(400);
   expect(await borrowed.text()).toContain("prescription does not belong to this patient");
+});
+
+test("a prescription in the Rx queue opens the dispensing view and an order, never the visit", async ({
+  hospital,
+  request,
+}) => {
+  test.setTimeout(240_000);
+  const drug = await addDrug(hospital.admin, { generic: "Pantoprazole", schedule: "H" });
+  await receiveBatch(hospital.admin, drug, { number: `QUEUE-${stamp()}`, expiry: inDays(300), quantity: 30 });
+  const rx = await prescribe(hospital, request, { lines: [{ drug, quantity: 6 }], allergy: "Aspirin" });
+  const pharmacist = await newPharmacist(hospital, "Queue Pharmacist");
+  const ctx = await signIn(request, pharmacist.username, pharmacist.password);
+  const get = (path: string) =>
+    ctx.request.get(`${E2E_BACKEND_URL}${path}`, { headers: { Cookie: ctx.cookieHeader } });
+
+  // The prescription is waiting in the queue, nothing dispensed yet: what
+  // dispensing needs is open, and an order can be raised for the patient.
+  const view = await get(`/api/pharmacy/patients/${rx.patientId}/dispense-context`);
+  expect(view.status(), "the queue opens the dispensing view").toBe(200);
+  expect(JSON.stringify(await view.json())).toContain("Aspirin");
+  const order = await ctx.request.post(`${E2E_BACKEND_URL}/api/pharmacy/orders`, {
+    headers: { Cookie: ctx.cookieHeader, "x-csrf-token": ctx.csrfToken },
+    data: {
+      patient_id: rx.patientId,
+      prescription_id: rx.prescriptionId,
+      items: [{ catalog_item_id: drug.id, drug_name: drug.name, quantity: 6, unit_price: 10 }],
+    },
+  });
+  expect(order.status(), "the queue lets the pharmacist raise the order").toBeLessThan(300);
+
+  // The visit was not handed to the pharmacy: record, notes, diagnoses and
+  // documents stay closed, before and after the order.
+  for (const path of [
+    `/api/patients/${rx.patientId}`,
+    `/api/patients/${rx.patientId}/context`,
+    `/api/patients/${rx.patientId}/documents`,
+    `/api/encounters/${rx.encounterId}/clinical-notes`,
+    `/api/opd/encounters/${rx.encounterId}/diagnoses`,
+    `/api/opd/encounters/${rx.encounterId}/consultation`,
+  ]) {
+    const refused = await get(path);
+    expect([403, 404], `${path} stays closed to the pharmacy`).toContain(refused.status());
+  }
+});
+
+test("a witness's password is guarded by their sign-in lockout", async ({ hospital, request }) => {
+  test.setTimeout(300_000);
+  const pethidine = await addDrug(hospital.admin, { generic: "Pethidine", schedule: "X", controlled: true });
+  await receiveBatch(hospital.admin, pethidine, { number: `LOCK-${stamp()}`, expiry: inDays(300), quantity: 20 });
+  // Two patients: a second controlled-drug order for one patient needs its own reason.
+  const rxs = [
+    await prescribe(hospital, request, { lines: [{ drug: pethidine, quantity: 2 }], scheduleX: true }),
+    await prescribe(hospital, request, { lines: [{ drug: pethidine, quantity: 2 }], scheduleX: true }),
+  ];
+  const staff = await Promise.all(
+    ["Lockout A", "Lockout B", "Lockout C", `Lockout Witness ${stamp()}`].map((n) => newPharmacist(hospital, n)),
+  );
+  await Promise.all(staff.map((p) => p.page.context().close()));
+  const [first, second, third, witness] = staff;
+  const newOrder = async (rx: Prescribed) =>
+    (
+      await api<{ order: { id: string } }>(hospital.admin, "POST", "/api/pharmacy/orders", {
+        patient_id: rx.patientId,
+        prescription_id: rx.prescriptionId,
+        items: [{ catalog_item_id: pethidine.id, drug_name: pethidine.name, quantity: 2, unit_price: 10 }],
+        safety_override_reason: "Post-operative pain; NDPS register to be signed",
+      })
+    ).order.id;
+  /** Dispense `orderId` as `who`, naming the witness with `password`. */
+  const dispenseAs = async (who: { username: string; password: string }) => {
+    const ctx = await signIn(request, who.username, who.password);
+    return (orderId: string, password: string) =>
+      ctx.request.put(`${E2E_BACKEND_URL}/api/pharmacy/orders/${orderId}/dispense`, {
+        headers: { Cookie: ctx.cookieHeader, "x-csrf-token": ctx.csrfToken },
+        data: {
+          witnessed_by: witness.id,
+          witness_password: password,
+          unpaid_override_reason: "Paying at the main billing counter",
+        },
+      });
+  };
+  const [one, two] = [await newOrder(rxs[0]), await newOrder(rxs[1])];
+  const [byFirst, bySecond, byThird] = [
+    await dispenseAs(first),
+    await dispenseAs(second),
+    await dispenseAs(third),
+  ];
+
+  // Four wrong, then the witness types it right: the dispense goes, and the
+  // count is cleared.
+  for (let i = 0; i < 4; i += 1) {
+    const wrong = await byFirst(one, `wrong-${i}`);
+    expect(wrong.status()).toBe(400);
+    expect(await wrong.text()).toContain("not the witness's password");
+  }
+  expect((await byFirst(one, witness.password)).status(), "the right password confirms").toBe(200);
+
+  // Cleared: five more wrong guesses are each just wrong (had the four
+  // counted, the account would lock on the second of these).
+  for (let i = 0; i < 5; i += 1) {
+    const wrong = await bySecond(two, `guess-${i}`);
+    expect(wrong.status()).toBe(400);
+    expect(await wrong.text(), `guess ${i + 1} is only wrong`).toContain("not the witness's password");
+  }
+  // The same dispenser is now held to five failures in fifteen minutes.
+  expect((await bySecond(two, "guess-5")).status(), "per-dispenser limit").toBe(429);
+
+  // The sixth wrong guess finds the witness locked, and so does the right password.
+  const sixth = await byThird(two, "guess-6");
+  expect(sixth.status()).toBe(400);
+  expect(await sixth.text()).toContain("locked");
+  const rightButLocked = await byThird(two, witness.password);
+  expect(rightButLocked.status(), "a locked witness is refused with the right password").toBe(400);
+  expect(await rightButLocked.text()).toContain("locked");
+  // It is their sign-in lockout: the witness cannot sign in either.
+  const signInLocked = await request.post(`${E2E_BACKEND_URL}/api/auth/login`, {
+    data: { username: witness.username, password: witness.password },
+  });
+  expect(signInLocked.status(), "the witness's sign-in is locked").not.toBe(200);
 });

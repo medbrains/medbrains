@@ -753,14 +753,17 @@ pub async fn require_patient_access(
 /// way or not at all.
 const PHARMACY_ACCESS_DAYS: i32 = 30;
 
-/// Gate the **dispensing view** of a patient: name, UHID and drug allergies.
+/// Gate the **dispensing view** of a patient: name, UHID and drug allergies,
+/// and raising a pharmacy order for them.
 ///
 /// Passes for anyone `require_patient_access` passes. Beyond that, it passes
-/// for a holder of `view` on one of the patient's recent pharmacy orders —
-/// the Pharmacy department while it dispenses. It deliberately does not widen
-/// `require_patient_access`: an order can be raised for any patient, so an
-/// edge there would open every patient's full record to the department. Use
-/// it only for reads that return what dispensing needs, nothing more.
+/// while the pharmacy is working for the patient, within
+/// `PHARMACY_ACCESS_DAYS`: an open prescription in the Rx queue (to a holder
+/// of the Rx-queue permission), or a pharmacy order the caller can view (the
+/// Pharmacy department). It deliberately does not widen
+/// `require_patient_access`: the pharmacy used to reach the whole record
+/// through a `handoff:PHARMACY` tuple on the visit, with no end. Use it only
+/// for reads that return what dispensing needs, nothing more.
 pub async fn require_patient_pharmacy_access(
     state: &AppState,
     claims: &Claims,
@@ -772,6 +775,33 @@ pub async fn require_patient_pharmacy_access(
         return care;
     }
     let mut conn = medbrains_db::pool::tenant_conn(&state.db, &claims.tenant_id).await?;
+    // The Rx queue is the pharmacy's worklist, scoped by its permission: an
+    // open prescription for this patient is the pharmacy's work.
+    let rx_queue_holder = medbrains_server_core::middleware::authorization::require_any_permission(
+        claims,
+        &[
+            medbrains_core::permissions::pharmacy::rx_queue::LIST,
+            medbrains_core::permissions::pharmacy::rx_queue::REVIEW,
+        ],
+    )
+    .is_ok();
+    if rx_queue_holder {
+        let open_rx = sqlx::query_scalar!(
+            "SELECT EXISTS(SELECT 1 FROM pharmacy_prescriptions \
+              WHERE patient_id = $1 AND tenant_id = $2 AND deleted_at IS NULL \
+                AND status::text IN ('pending_review', 'on_hold', 'approved', 'dispensing', \
+                                     'partially_dispensed') \
+                AND received_at > now() - make_interval(days => $3)) AS \"exists!\"",
+            patient_id,
+            claims.tenant_id,
+            PHARMACY_ACCESS_DAYS,
+        )
+        .fetch_one(&mut *conn)
+        .await?;
+        if open_rx {
+            return Ok(());
+        }
+    }
     let order_ids: Vec<Uuid> = sqlx::query_scalar!(
         "SELECT id FROM pharmacy_orders WHERE patient_id = $1 AND tenant_id = $2 \
            AND deleted_at IS NULL \

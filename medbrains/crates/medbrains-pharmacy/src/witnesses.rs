@@ -14,6 +14,7 @@ use axum::{Json, extract::State};
 use medbrains_core::permissions;
 use medbrains_kernel::{Actor, Claims, require_permission};
 use medbrains_server_core::error::AppError;
+use medbrains_server_core::step_up::{PasswordCheck, check_user_password};
 use medbrains_server_core::state::AppState;
 use serde::Serialize;
 use uuid::Uuid;
@@ -61,15 +62,21 @@ pub async fn list_dispense_witnesses(
     Ok(Json(rows))
 }
 
+/// How many failed witness confirmations one dispenser may make in the window.
+const DISPENSER_FAILURES: i64 = 5;
+/// The window those failures are counted over, in minutes.
+const DISPENSER_WINDOW_MINUTES: i32 = 15;
+
 /// Checks the witness to a controlled dispense and returns their name.
 ///
-/// Refuses the dispenser as their own witness, anyone who is not an active
-/// colleague still allowed to dispense (role grant, personal grant, minus a
-/// personal denial), and a password that is not the witness's own. Each
-/// refusal is a 400 the dispense screen shows; none of them logs anybody out.
-///
-/// ponytail: no per-witness attempt limit yet; add one if guessing at the
-/// counter is a risk. Every failed attempt is filed on the order's record.
+/// Refuses the dispenser as their own witness; a dispenser with five failed
+/// confirmations in fifteen minutes; anyone who is not an active colleague in
+/// one of the dispenser's departments still allowed to dispense (role grant,
+/// personal grant, minus a personal denial); and a password that is not the
+/// witness's own. The password is checked under the shared sign-in lockout:
+/// a locked witness is refused before the password is tried, a wrong one
+/// counts towards their lock, a right one clears it. Each refusal is a 400
+/// (429 for the dispenser limit) the dispense screen shows, never a 401.
 pub async fn verify_witness(
     state: &AppState,
     claims: &Claims,
@@ -82,40 +89,66 @@ pub async fn verify_witness(
         ));
     }
     let mut tx = medbrains_kernel::begin(&state.db, Actor::from_claims(claims)).await?;
+    // Failed confirmations are filed on the orders (`WITNESS_CONFIRMED`,
+    // blocked): the same record bounds how often one dispenser may try.
+    let recent_failures = sqlx::query_scalar!(
+        "SELECT COUNT(*) AS \"n!\" FROM cpoe_safety_audit \
+          WHERE tenant_id = $1 AND checked_by = $2 AND source_module = 'pharmacy' \
+            AND warning_code = 'WITNESS_CONFIRMED' AND action_taken = 'blocked' \
+            AND checked_at > now() - make_interval(mins => $3)",
+        claims.tenant_id,
+        claims.sub,
+        DISPENSER_WINDOW_MINUTES,
+    )
+    .fetch_one(&mut *tx)
+    .await?;
+    if recent_failures >= DISPENSER_FAILURES {
+        return Err(AppError::TooManyRequests(format!(
+            "Too many failed witness confirmations. Try again in {DISPENSER_WINDOW_MINUTES} minutes."
+        )));
+    }
     let witness = sqlx::query_scalar!(
         "SELECT u.full_name \
            FROM users u \
            JOIN roles r ON r.code = u.role::text AND r.tenant_id = u.tenant_id \
                        AND r.deleted_at IS NULL \
           WHERE u.id = $1 AND u.tenant_id = $2 AND u.is_active AND u.deleted_at IS NULL \
+            AND u.department_ids && $4::uuid[] \
             AND (r.permissions ? $3 OR COALESCE(u.access_matrix->'extra' ? $3, false)) \
             AND NOT COALESCE(u.access_matrix->'denied' ? $3, false)",
         witness_id,
         claims.tenant_id,
         permissions::pharmacy::dispensing::CREATE,
+        &claims.department_ids,
     )
     .fetch_optional(&mut *tx)
     .await?;
     tx.commit().await?;
     let Some(name) = witness else {
         return Err(AppError::BadRequest(
-            "The witness is not an active colleague who may dispense.".to_owned(),
+            "The witness is not an active colleague in your department who may dispense."
+                .to_owned(),
         ));
     };
     let password = password.map(str::trim).filter(|p| !p.is_empty()).ok_or_else(|| {
         AppError::BadRequest("The witness must confirm with their own password.".to_owned())
     })?;
-    if !medbrains_server_core::step_up::verify_user_password(
+    match check_user_password(
         state,
-        claims.tenant_id,
-        witness_id,
+        (witness_id, claims.tenant_id),
         password,
+        "witness_password_failed",
     )
     .await?
     {
-        return Err(AppError::BadRequest(
+        PasswordCheck::Right => Ok(name),
+        PasswordCheck::Wrong => Err(AppError::BadRequest(
             "That is not the witness's password. Ask them to type it again.".to_owned(),
-        ));
+        )),
+        PasswordCheck::Locked => Err(AppError::BadRequest(
+            "The witness's account is locked after repeated wrong passwords. Ask another \
+             colleague to witness, or wait 15 minutes."
+                .to_owned(),
+        )),
     }
-    Ok(name)
 }
