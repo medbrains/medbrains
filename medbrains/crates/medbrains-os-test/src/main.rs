@@ -1,10 +1,12 @@
 //! Boots a fresh debug OS image and checks what every image must do, from inside and outside.
 //!
-//!     cargo run -p medbrains-os-test -- <image.raw>
+//!     cargo run -p medbrains-os-test -- <image.raw> [disk]
 //!
-//! Needs `make os-image DEBUG=1` and QEMU. Exits non-zero if any check fails. Budgets are in
+//! `disk` runs only the data disk scenarios, `pin` only the PIN ones. Needs `make os-image DEBUG=1`, QEMU and swtpm. Exits non-zero if any check fails. Budgets are in
 //! `budgets.json`: ratchets to lower as the numbers improve (targets: RFC-HOSPITAL-OS §3a).
 
+mod disk;
+mod front;
 mod vm;
 
 use std::path::Path;
@@ -24,7 +26,7 @@ const SYSCTLS: [(&str, &str); 4] = [
 ];
 const CLOSED_FROM_OUTSIDE: [&str; 4] = ["ssh", "server", "database", "edge"];
 const TIME_SYNC_LIMIT: Duration = Duration::from_secs(120);
-const SETUP_LIMIT: Duration = Duration::from_secs(90);
+const SETUP_LIMIT: Duration = Duration::from_secs(150);
 const SETUP_SOCKET: &str = "/run/medbrains-console/setup.sock";
 const AGENT_API: &str = "http://127.0.0.1:3000/api/machine-agent";
 const AGENT_TOKEN: &str = "/var/lib/medbrains-agent/server-token";
@@ -35,7 +37,7 @@ const FLOOD_REQUESTS: usize = 5;
 type Check = (&'static str, fn(&mut Vm, &Value) -> Result<(), String>);
 
 /// Fails with `message` unless `ok`.
-fn ensure(ok: bool, message: impl Into<String>) -> Result<(), String> {
+pub(crate) fn ensure(ok: bool, message: impl Into<String>) -> Result<(), String> {
     if ok { Ok(()) } else { Err(message.into()) }
 }
 
@@ -48,7 +50,7 @@ fn budget(budgets: &Value, key: &str) -> Result<u64, String> {
 }
 
 /// A number printed by a command inside the machine.
-fn number(vm: &mut Vm, command: &str) -> Result<u64, String> {
+pub(crate) fn number(vm: &mut Vm, command: &str) -> Result<u64, String> {
     let text = vm.run(command)?;
     text.trim()
         .parse()
@@ -176,9 +178,25 @@ fn time_authenticated(vm: &mut Vm, _: &Value) -> Result<(), String> {
     ensure(auth.contains("NTS"), "no authenticated time source")
 }
 
+/// Every key that protects something was made on this machine, none baked into the image.
+fn no_shared_private_key(vm: &mut Vm, _: &Value) -> Result<(), String> {
+    let found = vm.run("ls /etc/ssl/private/; true")?;
+    ensure(
+        found.is_empty(),
+        format!("private keys in the image: {found}"),
+    )?;
+    let env = vm.run("grep -cE '^MEDBRAINS_(EVENT_TOKEN|SIGNATURE_KEY_ENCRYPTION|OAUTH_TOKEN)_?KEY=.{32}' /etc/medbrains/env")?;
+    ensure(
+        env == "3",
+        format!("{env} of 3 keys that would fall back to public development keys"),
+    )
+}
+
 /// A filing as the agent sends it, run inside the machine with the agent's own token.
 fn file_join(vm: &mut Vm, key: &str, address: &str) -> Result<String, String> {
-    let body = format!(r#"{{"node_id":"{key}","address":"{address}","label":"Test","kind":"display","code":"123456","confirm_code":"654321"}}"#);
+    let body = format!(
+        r#"{{"node_id":"{key}","address":"{address}","label":"Test","kind":"display","code":"123456","confirm_code":"654321"}}"#
+    );
     vm.run(&format!(
         "curl -s -m 5 -H \"{TOKEN_HEADER}: $(cat {AGENT_TOKEN})\" -H 'content-type: application/json' -d '{body}' {AGENT_API}/join"
     ))
@@ -186,27 +204,47 @@ fn file_join(vm: &mut Vm, key: &str, address: &str) -> Result<String, String> {
 
 /// What the server says about one key's request.
 fn join_state(vm: &mut Vm, key: &str) -> Result<String, String> {
-    vm.run(&format!("curl -s -m 5 -H \"{TOKEN_HEADER}: $(cat {AGENT_TOKEN})\" {AGENT_API}/join/{key}"))
+    vm.run(&format!(
+        "curl -s -m 5 -H \"{TOKEN_HEADER}: $(cat {AGENT_TOKEN})\" {AGENT_API}/join/{key}"
+    ))
 }
 
 /// The main machine opens its join ports, and only the agent's token reaches the agent's routes.
 fn join_ports_and_token(vm: &mut Vm, _: &Value) -> Result<(), String> {
     let chain = vm.run("nft list chain inet medbrains main_machine")?;
-    ensure(chain.contains("7844") && chain.contains("7845"), "the join ports are not open")?;
+    ensure(
+        chain.contains("7844") && chain.contains("7845"),
+        "the join ports are not open",
+    )?;
     let listening = vm.run("ss -ulnH | awk '{print $4}'")?;
     ensure(listening.contains(":7844"), "nothing listens for nodes")?;
     let code = vm.run(&format!("curl -s -m 5 -o /dev/null -w '%{{http_code}}' -H 'content-type: application/json' -d '{{}}' {AGENT_API}/sync"))?;
-    ensure(code == "404", format!("the agent's route answered {code} with no token"))
+    ensure(
+        code == "404",
+        format!("the agent's route answered {code} with no token"),
+    )
 }
 
 /// One address flooding the waiting list pushes out its own requests, not another machine's.
 fn flood_spares_other_addresses(vm: &mut Vm, _: &Value) -> Result<(), String> {
-    ensure(file_join(vm, "os-test-real", "192.0.2.1")?.contains("pending"), "the real request was refused")?;
+    ensure(
+        file_join(vm, "os-test-real", "192.0.2.1")?.contains("pending"),
+        "the real request was refused",
+    )?;
     for i in 0..FLOOD_REQUESTS {
-        ensure(file_join(vm, &format!("os-test-flood-{i}"), "192.0.2.66")?.contains("pending"), "the list refused a request")?;
+        ensure(
+            file_join(vm, &format!("os-test-flood-{i}"), "192.0.2.66")?.contains("pending"),
+            "the list refused a request",
+        )?;
     }
-    ensure(join_state(vm, "os-test-real")?.contains("pending"), "the flood pushed out another address")?;
-    ensure(join_state(vm, "os-test-flood-0")?.contains("dropped"), "the flood's oldest stayed")
+    ensure(
+        join_state(vm, "os-test-real")?.contains("pending"),
+        "the flood pushed out another address",
+    )?;
+    ensure(
+        join_state(vm, "os-test-flood-0")?.contains("dropped"),
+        "the flood's oldest stayed",
+    )
 }
 
 /// Memory at rest is within budget.
@@ -296,9 +334,22 @@ fn checks() -> Vec<Check> {
         ("unused kernel modules cannot load", blocked_modules_refuse),
         ("kernel hardening is applied", kernel_hardening_applied),
         ("kernel lockdown is on", lockdown_on),
-        ("join ports are open, and the agent's routes need its token", join_ports_and_token),
-        ("one address flooding requests spares other addresses", flood_spares_other_addresses),
-        ("time is synced by an authenticated source", time_authenticated),
+        (
+            "join ports are open, and the agent's routes need its token",
+            join_ports_and_token,
+        ),
+        (
+            "one address flooding requests spares other addresses",
+            flood_spares_other_addresses,
+        ),
+        (
+            "time is synced by an authenticated source",
+            time_authenticated,
+        ),
+        (
+            "no private key is shared between machines",
+            no_shared_private_key,
+        ),
         ("idle memory is within budget", idle_memory),
         ("system disk is within budget", system_disk),
         (
@@ -307,23 +358,87 @@ fn checks() -> Vec<Check> {
         ),
         ("held connections stay cheap", held_connections_stay_cheap),
         (
+            "the front offers HTTP/1.1 only",
+            front::front_offers_http1_only,
+        ),
+        ("the front runs confined", front::front_is_confined),
+        (
+            "the front's keys are held close",
+            front::front_keys_are_held_close,
+        ),
+        (
+            "a made-up name stores nothing",
+            front::made_up_name_stores_nothing,
+        ),
+        (
+            "the front says so in plain words when the server stops",
+            front::plain_words_when_the_server_stops,
+        ),
+        (
+            "the front returns after a crash",
+            front::front_returns_after_a_crash,
+        ),
+        (
+            "the front recovers a missing certificate",
+            front::front_recovers_a_missing_certificate,
+        ),
+        (
+            "the authority cannot sign for other sites",
+            front::authority_is_constrained,
+        ),
+        (
+            "a bad line in the names file stops nothing",
+            front::bad_name_stops_nothing,
+        ),
+        (
+            "a failed issue keeps the certificate in place",
+            front::failed_issue_keeps_the_old_one,
+        ),
+        (
+            "a learned IPv6 address restarts nothing",
+            front::learned_address_restarts_nothing,
+        ),
+        (
+            "a key and certificate that differ are replaced",
+            front::mismatched_key_is_replaced,
+        ),
+        ("a link in the agent's folder is refused", front::agent_link_is_refused),
+        ("a machine's tunnel keeps its own address", front::tunnel_address_is_kept),
+        (
             "the database log holds no values and is bounded",
             database_log_is_safe,
         ),
     ]
 }
 
-/// Makes this machine a main machine, as the screen's Review does: nothing runs before that.
+/// Makes this machine a main machine, as the screen's Review does: nothing runs before that. The
+/// password is made fresh, so none is written down, and the machine is thrown away.
 fn set_up_main(vm: &mut Vm) -> Result<(), String> {
-    let body = r#"{"hospital":"Test Hospital","username":"admin","password":"Os-Test-Setup1!"}"#;
+    let stamp = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map_err(|e| e.to_string())?
+        .as_millis();
+    let body =
+        format!(r#"{{"hospital":"Test Hospital","username":"admin","password":"Os-{stamp}-Aa!"}}"#);
+    let deadline = Instant::now() + vm::scaled(SETUP_LIMIT);
+    while vm.run(&format!("test -S {SETUP_SOCKET}; echo $?"))? != "0" {
+        ensure(Instant::now() < deadline, "the setup service never started")?;
+        std::thread::sleep(Duration::from_secs(2));
+    }
     let answer = vm.run_for(
-        &format!("curl -s -m 80 --unix-socket {SETUP_SOCKET} -d '{body}' http://machine/hospital"),
+        // The shell can answer before the setup service has opened its socket.
+        &format!(
+            "for i in $(seq 60); do test -S {SETUP_SOCKET} && break; sleep 1; done; curl -s -m 80 --unix-socket {SETUP_SOCKET} -d '{body}' http://machine/hospital"
+        ),
         SETUP_LIMIT,
     )?;
-    ensure(answer.contains("\"ok\":true"), format!("setup answered {answer}"))
+    ensure(
+        answer.contains("\"ok\":true"),
+        format!("setup answered {answer}"),
+    )
 }
 
-/// Boots the image and runs every check; returns how many failed.
+/// Boots the image and runs every check, then the data disk scenarios; returns how many failed.
 fn run_suite(image: &Path) -> Result<usize, String> {
     let budgets: Value = serde_json::from_str(BUDGETS).map_err(|e| e.to_string())?;
     let mut vm = Vm::start(image)?;
@@ -343,7 +458,20 @@ fn run_suite(image: &Path) -> Result<usize, String> {
             line.as_bytes(),
         ));
     }
-    Ok(failed)
+    let sealed = disk::run_sealed_disk(&mut vm, image)?;
+    // One machine at a time: this one goes before the next starts.
+    drop(vm);
+    Ok(failed + sealed + disk::run_without_sealed_disk(image))
+}
+
+/// Only the data disk scenarios, on a new machine.
+fn run_disk_only(image: &Path) -> Result<usize, String> {
+    let mut vm = Vm::start(image)?;
+    set_up_main(&mut vm)?;
+    let sealed = disk::run_sealed_disk(&mut vm, image)?;
+    // One machine at a time: this one goes before the next starts.
+    drop(vm);
+    Ok(sealed + disk::run_without_sealed_disk(image))
 }
 
 fn main() -> ExitCode {
@@ -354,7 +482,13 @@ fn main() -> ExitCode {
         ));
         return ExitCode::from(2);
     };
-    match run_suite(Path::new(&image)) {
+    let image = Path::new(&image);
+    let result = match std::env::args().nth(2).as_deref() {
+        Some("disk") => run_disk_only(image),
+        Some("pin") => Ok(disk::run_pin_only(image)),
+        _ => run_suite(image),
+    };
+    match result {
         Ok(0) => ExitCode::SUCCESS,
         Ok(_) => ExitCode::FAILURE,
         Err(why) => {

@@ -7,7 +7,6 @@ set -euo pipefail
 
 CONF=/var/lib/medbrains/config
 AGENT_DIR=/var/lib/medbrains-agent
-SCREEN_TRUST=/var/lib/medbrains-settings/local-front.pem
 ENV="$CONF/env"
 PG_VERSION=17
 
@@ -52,6 +51,9 @@ MEDBRAINS_IDENTIFIER_HMAC_KEY=$(openssl rand -base64 48 | tr -d '\n')
 MEDBRAINS_ABDM_SECRET_KEY=$(openssl rand -base64 48 | tr -d '\n')
 MEDBRAINS_NHCX_SECRET_KEY=$(openssl rand -base64 48 | tr -d '\n')
 MEDBRAINS_PACS_SECRET_KEY=$(openssl rand -base64 48 | tr -d '\n')
+MEDBRAINS_EVENT_TOKEN_KEY=$(openssl rand -base64 48 | tr -d '\n')
+MEDBRAINS_SIGNATURE_KEY_ENCRYPTION_KEY=$(openssl rand -base64 48 | tr -d '\n')
+MEDBRAINS_OAUTH_TOKEN_KEY=$(openssl rand -base64 48 | tr -d '\n')
 ENVEOF
     mv "$ENV.new" "$ENV"
 }
@@ -67,14 +69,6 @@ ensure_agent_token() {
     install -m 0600 -o medbrains-agent -g kiosk /dev/null "$tmp"
     printf '%s' "$token" > "$tmp"
     mv "$tmp" "$AGENT_DIR/server-token"
-}
-
-# The screen's trust store and the copy the agent hands to machines it admits.
-ensure_certificate_copies() {
-    # In place: the running screen unit has this very file bound in as its trust store.
-    cmp -s /var/lib/caddy/local/cert.pem "$SCREEN_TRUST" || cat /var/lib/caddy/local/cert.pem > "$SCREEN_TRUST"
-    cmp -s /var/lib/caddy/local/cert.pem "$AGENT_DIR/local-front.pem" ||
-        install -m 0644 -o medbrains-agent -g kiosk /var/lib/caddy/local/cert.pem "$AGENT_DIR/local-front.pem"
 }
 
 create_cluster() {
@@ -104,20 +98,9 @@ PGEOF
     chown postgres:postgres "/etc/postgresql/$PG_VERSION/main/conf.d/10-medbrains.conf"
 }
 
-# The certificate for the screen's own loopback front end (Caddyfile): self-signed, and
-# the only certificate the kiosk trusts (cage-console.service).
-create_local_cert() {
-    install -d -m 0750 -o caddy -g caddy /var/lib/caddy/local
-    openssl req -x509 -newkey ec -pkeyopt ec_paramgen_curve:prime256v1 -nodes -days 7300 \
-        -keyout /var/lib/caddy/local/key.pem -out /var/lib/caddy/local/cert.pem \
-        -subj "/CN=MedBrains local screen" -addext "subjectAltName=IP:127.0.0.1" 2>/dev/null
-    chown caddy:caddy /var/lib/caddy/local/key.pem /var/lib/caddy/local/cert.pem
-}
-
 systemd-tmpfiles --create /usr/lib/tmpfiles.d/medbrains.conf
 [[ -s "$ENV" ]] || write_env
 [[ -f "/etc/postgresql/$PG_VERSION/main/postgresql.conf" ]] || create_cluster
-[[ -s /var/lib/caddy/local/cert.pem && -s /var/lib/caddy/local/key.pem ]] || create_local_cert
+/usr/lib/medbrains/front-certs
 ensure_agent_token
-ensure_certificate_copies
 touch "$CONF/.firstboot-done"

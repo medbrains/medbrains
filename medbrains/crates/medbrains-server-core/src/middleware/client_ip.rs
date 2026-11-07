@@ -8,6 +8,10 @@ use axum::{
 
 use crate::state::AppState;
 
+#[path = "client_resolve.rs"]
+mod client_resolve;
+use client_resolve::resolve_client;
+
 /// Newtype wrapper for client IP address stored in request extensions.
 ///
 /// Routes can extract this via `Extension<ClientIp>` to get the client's IP
@@ -56,43 +60,9 @@ fn extract_client_ip(request: &Request, trusted_proxies: &[ipnet::IpNet]) -> Opt
     ))
 }
 
-/// The client's address, from the connecting address and any forwarded headers.
-fn resolve_client(
-    direct: IpAddr,
-    forwarded_for: Option<&str>,
-    real_ip: Option<&str>,
-    trusted: &[ipnet::IpNet],
-) -> IpAddr {
-    let vouched = |ip: &IpAddr| trusted.iter().any(|net| net.contains(ip));
-    if !vouched(&direct) {
-        return direct;
-    }
-    let Some(chain) = forwarded_for else {
-        return real_ip.and_then(parse_hop).unwrap_or(direct);
-    };
-    let mut client = direct;
-    for hop in chain.rsplit(',') {
-        let Some(ip) = parse_hop(hop) else { break };
-        client = ip;
-        if !vouched(&ip) {
-            break;
-        }
-    }
-    client
-}
-
-/// One forwarded address. Some proxies send `1.2.3.4:5678` or `[::1]:5678`.
-fn parse_hop(raw: &str) -> Option<IpAddr> {
-    let raw = raw.trim();
-    raw.parse::<std::net::SocketAddr>()
-        .map(|socket| socket.ip())
-        .or_else(|_| raw.parse())
-        .ok()
-}
-
 #[cfg(test)]
 mod tests {
-    use super::resolve_client;
+    use super::client_resolve::resolve_client;
     use std::net::IpAddr;
 
     const PROXY: &str = "127.0.0.1";

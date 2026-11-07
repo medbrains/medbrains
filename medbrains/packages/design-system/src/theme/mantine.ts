@@ -632,10 +632,15 @@ export function createMedBrainsTheme(opts: CreateMedBrainsThemeOptions = {}): Ma
         defaultProps: {
           withBorder: true,
           radius: "lg",
+          // Mantine's close button is an icon with no name.
+          closeButtonProps: { "aria-label": "Dismiss notification" },
         },
         styles: {
           root: { boxShadow: "var(--mb-shadow-md)" },
           title: { fontWeight: 600, fontSize: "14px", letterSpacing: "-0.01em" },
+          // Mantine dims the message, which on a tinted toast in the dark
+          // theme fell under 4.5:1; the message is what the desk reads out.
+          description: { color: "var(--mb-text-primary)" },
         },
       },
 

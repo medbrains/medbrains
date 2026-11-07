@@ -10,6 +10,9 @@
 #   MEDBRAINS_WEB_DIST    the built web app [../apps/web/dist]
 #   OS_WORK               build cache + output [/tmp/mb-osimage]
 #
+#   OS_PCR_KEY, OS_PCR_CERT  RSA key and certificate signing the boot file's expected PCR 11. Without them
+#                         a release image's disk seal covers only PCR 7. --debug makes a throwaway.
+#
 # --debug adds a root shell on the serial console, for verification only.
 set -euo pipefail
 
@@ -33,6 +36,7 @@ esac
 OS_WORK="${OS_WORK:-/tmp/mb-osimage}"
 SERVER="${MEDBRAINS_SERVER_BIN:-${CARGO_TARGET_DIR:-$REPO/target}/$TRIPLE/release/medbrains-server}"
 OS_SETUP="$(dirname "$SERVER")/medbrains-os-setup"
+FRONT="$(dirname "$SERVER")/medbrains-front"
 AGENT="$(dirname "$SERVER")/medbrains-agent"
 WEB="${MEDBRAINS_WEB_DIST:-$REPO/apps/web/dist}"
 if [[ ! -x "$SERVER" ]]; then
@@ -41,6 +45,10 @@ if [[ ! -x "$SERVER" ]]; then
 fi
 if [[ ! -x "$OS_SETUP" ]]; then
     echo "no setup service at $OS_SETUP — cross-build medbrains-os-setup with the server" >&2
+    exit 1
+fi
+if [[ ! -x "$FRONT" ]]; then
+    echo "no front at $FRONT — cross-build medbrains-front from medbrains-proxy with the server" >&2
     exit 1
 fi
 if [[ ! -x "$AGENT" ]]; then
@@ -59,9 +67,10 @@ install -d "$EXTRA/usr/bin" "$EXTRA/usr/share/medbrains" "$EXTRA/usr/lib/medbrai
     "$OS_WORK/out-$ARCH" "$OS_WORK/cache-$ARCH"
 install -m 0755 "$SERVER" "$EXTRA/usr/bin/medbrains-server"
 install -m 0755 "$OS_SETUP" "$EXTRA/usr/bin/medbrains-os-setup"
+install -m 0755 "$FRONT" "$EXTRA/usr/bin/medbrains-front"
 install -m 0755 "$AGENT" "$EXTRA/usr/bin/medbrains-agent"
 cp -R "$WEB" "$EXTRA/usr/share/medbrains/web"
-# Pre-compressed copies are for a CDN; on the appliance Caddy compresses.
+# Pre-compressed copies are for a CDN; on the appliance the server compresses as it sends.
 find "$EXTRA/usr/share/medbrains/web" \( -name '*.br' -o -name '*.gz' -o -name '*.map' \) -delete
 install -m 0644 "$REPO/deploy/standalone/db-roles.sh" "$EXTRA/usr/lib/medbrains/db-roles.sh"
 # The screen uses the web app's own logo.
@@ -78,11 +87,26 @@ if [[ "$DEBUG" == 1 ]]; then
     install -d "$EXTRA/usr/lib/systemd/system" "$EXTRA/usr/lib/udev/rules.d"
     install -m 0644 "$HERE/debug/medbrains-debug-shell@.service" "$EXTRA/usr/lib/systemd/system/"
     install -m 0644 "$HERE/debug/90-medbrains-debug-shell.rules" "$EXTRA/usr/lib/udev/rules.d/"
+    install -m 0755 "$HERE/debug/pcr11-replay" "$EXTRA/usr/lib/medbrains/pcr11-replay"
     # The shell replaces the login prompt that systemd would put on both ports. wtype and grim let
     # a test type and take screenshots under Apple Virtualization, which has no QMP. hostapd and iw make
     # a test Wi-Fi network with mac80211_hwsim.
-    DEBUG_ARGS=(--kernel-command-line "systemd.mask=serial-getty@ttyAMA0.service systemd.mask=serial-getty@hvc0.service"
-                --package strace --package wtype --package grim --package hostapd --package iw)
+    DEBUG_ARGS=(--kernel-command-line "systemd.mask=serial-getty@ttyAMA0.service systemd.mask=serial-getty@hvc0.service systemd.mask=serial-getty@ttyS0.service"
+                --package strace --package tpm2-tools --package wtype --package grim --package hostapd --package iw)
+fi
+
+# A debug image gets a throwaway signing key, so the signed path is what gets tested. Never for release.
+if [[ "$DEBUG" == 1 && -z "${OS_PCR_KEY:-}" ]]; then
+    OS_PCR_KEY="$OS_WORK/throwaway-pcr.key"
+    OS_PCR_CERT="$OS_WORK/throwaway-pcr.crt"
+    [[ -f "$OS_PCR_KEY" ]] || openssl req -x509 -newkey rsa:2048 -nodes -days 30 -subj /CN=throwaway \
+        -keyout "$OS_PCR_KEY" -out "$OS_PCR_CERT" 2>/dev/null
+fi
+SIGN_ARGS=()
+SIGN_MOUNTS=()
+if [[ -n "${OS_PCR_KEY:-}" ]]; then
+    SIGN_ARGS=(--sign-expected-pcr yes --sign-expected-pcr-key "$OS_PCR_KEY" --sign-expected-pcr-certificate "$OS_PCR_CERT")
+    SIGN_MOUNTS=(-v "$OS_PCR_KEY:$OS_PCR_KEY:ro" -v "$OS_PCR_CERT:$OS_PCR_CERT:ro")
 fi
 
 # Runs mkosi on this Linux machine: a CI runner or a hospital's own build box. Needs root.
@@ -94,7 +118,7 @@ build_on_linux() {
     cp -R "$REPO/crates/medbrains-shell" "$work/medbrains-shell"
     (cd "$work" && mkosi --architecture "$ARCH" --extra-tree "$EXTRA" \
         --output-directory "$OS_WORK/out-$ARCH" --cache-directory "$OS_WORK/cache-$ARCH" \
-        --image-version "$VERSION" ${DEBUG_ARGS[@]+"${DEBUG_ARGS[@]}"} -f build)
+        --image-version "$VERSION" ${DEBUG_ARGS[@]+"${DEBUG_ARGS[@]}"} ${SIGN_ARGS[@]+"${SIGN_ARGS[@]}"} -f build)
     rm -rf "$work"
 }
 
@@ -102,16 +126,20 @@ build_on_linux() {
 # stays inside the container (a real Linux filesystem, removed with it); only the package
 # cache and the output are on the host. Nothing in the image depends on Docker.
 build_on_mac_with_docker() {
-    docker build -q --platform "$PLATFORM" -t "medbrains-os-builder:$ARCH" \
+    # The builder runs natively: emulated x86-64 lacks the mount calls mkosi's sandbox uses (ENOSYS on
+    # Apple silicon). --architecture still picks the image's architecture.
+    [[ "$(uname -m)" == arm64 ]] && PLATFORM=linux/arm64
+    docker build -q --platform "$PLATFORM" -t "medbrains-os-builder:${PLATFORM#linux/}" \
         -f "$HERE/builder.Dockerfile" "$HERE" >/dev/null
     # An anonymous volume for /var/tmp: mkosi's build overlay cannot sit on Docker's own overlay.
     docker run --rm --privileged --platform "$PLATFORM" -v /var/tmp \
         -v "$HERE:/src:ro" -v "$REPO/crates/medbrains-shell:/shell:ro" -v "$EXTRA:/extra:ro" \
-        -v "$OS_WORK/out-$ARCH:/out" -v "$OS_WORK/cache-$ARCH:/cache" \
-        "medbrains-os-builder:$ARCH" \
+        -v "$OS_WORK/out-$ARCH:/out" -v "$OS_WORK/cache-$ARCH:/cache" ${SIGN_MOUNTS[@]+"${SIGN_MOUNTS[@]}"} \
+        "medbrains-os-builder:${PLATFORM#linux/}" \
         bash -c 'cp -R /src /build && cp -R /shell /build/medbrains-shell && cd /build && mkosi "$@" -f build' _ \
         --architecture "$ARCH" --extra-tree /extra --output-directory /out \
-        --cache-directory /cache --image-version "$VERSION" ${DEBUG_ARGS[@]+"${DEBUG_ARGS[@]}"}
+        --cache-directory /cache --image-version "$VERSION" ${DEBUG_ARGS[@]+"${DEBUG_ARGS[@]}"} \
+        ${SIGN_ARGS[@]+"${SIGN_ARGS[@]}"}
 }
 
 if [[ "$(uname -s)" == Linux ]]; then build_on_linux; else build_on_mac_with_docker; fi

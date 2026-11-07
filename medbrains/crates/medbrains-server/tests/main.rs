@@ -179,6 +179,7 @@ mod mlc_documentation_print_test;
 mod mlc_injuries_test;
 mod mlc_record_and_alerts_test;
 mod module_entitlement_test;
+mod brick_gate_test;
 mod mrd_custodian_test;
 mod my_widgets_test;
 mod nhcx_claim_documents_test;

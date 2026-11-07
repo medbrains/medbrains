@@ -124,7 +124,7 @@ medbrains-pharmacy-repeats not_yet 9 medbrains-db
 medbrains-pharmacy-safety not_yet 27 medbrains-db
 medbrains-platform not_yet 104 medbrains-db
 medbrains-print not_yet 0 -
-medbrains-print-data not_yet 391 medbrains-db,medbrains-authz,medbrains-authz-gate
+medbrains-print-data not_yet 390 medbrains-db,medbrains-authz,medbrains-authz-gate
 medbrains-printing not_yet 0 -
 medbrains-proxy not_yet 0 -
 medbrains-quality not_yet 89 medbrains-db

@@ -1,0 +1,23 @@
+# First boot: create the encrypted data partition, before anything uses /var. On later boots the
+# partition exists and this is skipped. See /usr/lib/medbrains/disk-setup.
+[Unit]
+Description=MedBrains data disk setup
+DefaultDependencies=no
+Conflicts=shutdown.target
+After=systemd-udevd.service systemd-udev-trigger.service systemd-remount-fs.service tpm2.target
+Before=systemd-cryptsetup@medbrains\x2ddata.service sysinit.target shutdown.target
+ConditionPathExists=!/dev/disk/by-partlabel/medbrains-data
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/lib/medbrains/disk-setup prepare
+TimeoutStartSec=infinity
+TTYPath=/dev/tty1
+TTYReset=yes
+StandardInput=tty
+StandardOutput=tty
+StandardError=tty
+
+[Install]
+WantedBy=sysinit.target

@@ -133,12 +133,14 @@ pub(crate) fn health_word(machine: &Machine, main_ready: bool) -> &'static str {
 }
 
 /// The greeting's plain sentence. It names what failed, so a person can say it on the phone.
-pub(crate) fn status_sentence(machine: &Machine, main_ready: bool) -> String {
+pub(crate) fn status_sentence(machine: &Machine, main_ready: bool, disk: &str) -> String {
     match machine.failed.as_slice() {
         [] if machine.system == "degraded" => "A service on this machine has a problem.".to_owned(),
-        [] if machine.system == "running" && main_ready => {
-            "Everything is running normally.".to_owned()
-        }
+        [] if machine.system == "running" && main_ready => crate::topbar::disk_warning(disk)
+            .map_or_else(
+                || "Everything is running normally.".to_owned(),
+                |warning| format!("MedBrains is running. {warning}."),
+            ),
         [] => "This machine is starting.".to_owned(),
         [one] => format!("This service has a problem: {one}"),
         many => format!("These services have a problem: {}", many.join(", ")),
@@ -267,11 +269,11 @@ mod tests {
 
     #[test]
     fn a_problem_is_named_and_never_reported_as_healthy() {
-        let broken = machine("degraded", &["caddy.service"]);
+        let broken = machine("degraded", &["medbrains-front.service"]);
         assert_eq!(health_word(&broken, true), "Needs attention");
         assert_eq!(
             status_sentence(&broken, true),
-            "This service has a problem: caddy.service"
+            "This service has a problem: medbrains-front.service"
         );
         let two = machine("degraded", &["a.service", "b.service"]);
         assert_eq!(
@@ -285,12 +287,16 @@ mod tests {
         assert_eq!(health_word(&machine("running", &[]), true), "Healthy");
         assert_eq!(health_word(&machine("running", &[]), false), "Starting");
         assert_eq!(
-            status_sentence(&machine("starting", &[]), true),
+            status_sentence(&machine("starting", &[]), true, "encrypted-tpm2"),
             "This machine is starting."
         );
         assert_eq!(
-            status_sentence(&machine("running", &[]), true),
+            status_sentence(&machine("running", &[]), true, "encrypted-tpm2"),
             "Everything is running normally."
+        );
+        assert_eq!(
+            status_sentence(&machine("running", &[]), true, "unencrypted-chosen"),
+            "MedBrains is running. This disk is not encrypted."
         );
     }
 

@@ -967,8 +967,8 @@ Published with every release. Targets below that have no figure yet get one when
 
 ### Networking: fast and small
 
-- **One proxy.** The D1 image uses Caddy, and we already own `medbrains-proxy` (Rust, Pingora). Measure
-  size, memory, throughput and certificate handling, then keep exactly one.
+- **One proxy.** The OS image uses `medbrains-front` from `medbrains-proxy` (Rust, Pingora). Caddy was
+  measured against it and removed (plan N2.1).
 - **Only what measures faster.** BBR congestion control, HTTP/3 for phones on poor links, kernel TLS,
   `io_uring` and eBPF are each tested against the §8i budgets and adopted only if they pay.
 - **Fewer TLS stacks.** `Cargo.lock` carries OpenSSL, `ring` and `aws-lc-rs`. Find what pulls each in,

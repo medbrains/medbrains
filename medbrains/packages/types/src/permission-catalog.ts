@@ -19,7 +19,7 @@ export interface PermissionDef {
   module: string;
 }
 
-/** 1215 permissions, one per constant in the Rust source. */
+/** 1216 permissions, one per constant in the Rust source. */
 export const PERMISSIONS: PermissionDef[] = [
   // dashboard
   {
@@ -101,6 +101,12 @@ export const PERMISSIONS: PermissionDef[] = [
     code: "patients.delete",
     label: "Delete Patient",
     description: "Remove patient records",
+    module: "patients",
+  },
+  {
+    code: "patients.card.reprint",
+    label: "Reprint any patient's card at the desk",
+    description: "A returning patient who lost the card is usually served by a receptionist who did not register them, and `patients.view` reaches only patients the caller has a relationship with. This reprints the identity card for any patient in the hospital: name, UHID, age, sex, phone and registration date, the same identity the desk lookup already shows. Never the address, the email or the chart.",
     module: "patients",
   },
   {
@@ -8064,6 +8070,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.PATIENT_PACKAGES.SUBSCRIBE,
       P.PATIENT_PACKAGES.VIEW,
       P.PATIENTS.ACQUISITION.UPDATE,
+      P.PATIENTS.CARD.REPRINT,
       P.PATIENTS.CREATE,
       P.PATIENTS.FIND,
       P.PATIENTS.GROUP_IDENTITY.VIEW,

@@ -736,6 +736,8 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
             // shift registered.
             permissions::patients::FIND,
             permissions::patients::VIEW,
+            // A lost card is reprinted by whoever is on the desk.
+            permissions::patients::card::REPRINT,
             permissions::patients::group_identity::VIEW,
             permissions::patients::CREATE,
             permissions::patients::UPDATE,

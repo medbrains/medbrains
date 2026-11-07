@@ -357,7 +357,7 @@ check-raw-html: ## Verify no raw <button>/<input>/<select>/<textarea> in shipped
 check-secrets: ## Verify no live credentials (AWS/PAT/keys) are tracked in git
 	python3 scripts/check_secrets.py
 
-check-all: check-ui-slop check-docs check-kernel-boundary check-kernel-no-domain check-size-budgets check-llm-redaction check-permissions check-permission-codes check-field-classes check-authz-collapse check-ai-label check-query-collapse check-boundary-filter check-parent-id-scoping check-soft-delete-filter check-api check-ui-api check-types check-print-types check-print-placeholders check-requirement-flags check-surface-drift check-role-templates check-tx-error-discard check-pg-enum-parity check-default-parity check-unbounded-reads check-permission-enforcement check-tenant-registry-reads check-pool-reads check-rls-only-writes check-circular check-nav-drift check-ui-seam check-raw-html check-secrets check-rls check-authz-posture check-tenant-leak check-runtime-sqlx check-migrations check-sharing check-audit check-tracing check-migration-headers check-region-pinning check-no-card-logging check-egress-allowlist check-encryption-at-rest check-redaction-masking check-registration-catalogue check-partial-upserts check-updater-events ## Run all static checks (incl. RLS + sharing + audit + tracing + compliance)
+check-all: check-ui-slop check-docs check-kernel-boundary check-kernel-no-domain check-size-budgets check-llm-redaction check-permissions check-permission-codes check-field-classes check-authz-collapse check-ai-label check-query-collapse check-boundary-filter check-parent-id-scoping check-soft-delete-filter check-api check-ui-api check-types check-print-types check-print-placeholders check-requirement-flags check-surface-drift check-role-templates check-tx-error-discard check-pg-enum-parity check-default-parity check-unbounded-reads check-permission-enforcement check-tenant-registry-reads check-pool-reads check-rls-only-writes check-circular check-nav-drift check-ui-seam check-raw-html check-secrets check-rls check-authz-posture check-tenant-leak check-runtime-sqlx check-migrations check-sharing check-audit check-tracing check-migration-headers check-region-pinning check-no-card-logging check-egress-allowlist check-encryption-at-rest check-redaction-masking check-registration-catalogue check-partial-upserts check-updater-events check-bricks ## Run all static checks (incl. RLS + sharing + audit + tracing + compliance)
 
 gen-registration: ## Regenerate the web's registration catalogue + fixtures from the Rust rules
 	bash scripts/build_guard.sh --wait
@@ -519,6 +519,9 @@ check-pool-reads: ## Ban unscoped off-transaction reads of RLS-policed tables
 
 check-rls-only-writes: ## Ratchet writes keyed only on a caller-supplied id
 	python3 ../scripts/check_rls_only_writes.py
+
+check-bricks: ## Every module name comes from bricks.rs; ratchets bricks with no server check
+	python3 ../scripts/check_bricks.py
 
 check-tenant-leak: ## Ban raw sqlx::query* in routes/ (ratchets against baseline)
 	python3 ../scripts/check_tenant_leak.py
@@ -994,7 +997,7 @@ OS_TARGET_DIR ?= /tmp/mb-target-osimage
 os-image: ## Build the MedBrains OS disk image (ARCH=arm64|x86-64, DEBUG=1 for a serial root shell)
 	bash scripts/build_guard.sh --wait
 	# jemalloc's build runs make itself, and would read this make's ARCH=... as a target.
-	env -u MAKEFLAGS -u ARCH CARGO_TARGET_DIR=$(OS_TARGET_DIR) SQLX_OFFLINE=true cargo zigbuild --release --target=$(OS_ARCH_TRIPLE).2.36 -p medbrains-server --bin medbrains-server -p medbrains-os-setup --bin medbrains-os-setup -p medbrains-agent --bin medbrains-agent
+	env -u MAKEFLAGS -u ARCH CARGO_TARGET_DIR=$(OS_TARGET_DIR) SQLX_OFFLINE=true cargo zigbuild --release --target=$(OS_ARCH_TRIPLE).2.36 -p medbrains-server --bin medbrains-server -p medbrains-os-setup --bin medbrains-os-setup -p medbrains-agent --bin medbrains-agent -p medbrains-proxy --bin medbrains-front
 	pnpm turbo run build --filter=@medbrains/web...
 	CARGO_TARGET_DIR=$(OS_TARGET_DIR) os/build.sh --arch $(or $(ARCH),arm64) $(if $(DEBUG),--debug)
 

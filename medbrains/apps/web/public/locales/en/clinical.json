@@ -94,9 +94,9 @@
           "description": "Grant time-bound patient record access."
         },
         "print_card": {
-          "label": "Print patient card",
-          "shortLabel": "Print",
-          "description": "Print a patient card with UHID and approved identifiers."
+          "label": "Print registration slip (A4)",
+          "shortLabel": "Print registration slip (A4)",
+          "description": "Print the A4 registration slip with UHID and approved identifiers."
         }
       },
       "opd": {

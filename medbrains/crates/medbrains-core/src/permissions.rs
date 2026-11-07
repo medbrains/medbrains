@@ -75,6 +75,18 @@ pub mod patients {
     pub const UPDATE: &str = "patients.update";
     pub const DELETE: &str = "patients.delete";
 
+    pub mod card {
+        /// Reprint any patient's card at the desk.
+        ///
+        /// A returning patient who lost the card is usually served by a
+        /// receptionist who did not register them, and `patients.view` reaches
+        /// only patients the caller has a relationship with. This reprints the
+        /// identity card for any patient in the hospital: name, UHID, age, sex,
+        /// phone and registration date, the same identity the desk lookup
+        /// already shows. Never the address, the email or the chart.
+        pub const REPRINT: &str = "patients.card.reprint";
+    }
+
     pub mod group_identity {
         /// See a patient's records at other group hospitals.
         ///

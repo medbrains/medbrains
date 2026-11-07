@@ -2486,6 +2486,10 @@ export const P = {
       VERIFY: "patients.allergies.verify",
     },
     ALLERGIES_VERIFY: "patients.allergies.verify",
+    CARD: {
+      REPRINT: "patients.card.reprint",
+    },
+    CARD_REPRINT: "patients.card.reprint",
     CREATE: "patients.create",
     DELETE: "patients.delete",
     FIND: "patients.find",
