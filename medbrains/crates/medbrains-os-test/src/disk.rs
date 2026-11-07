@@ -362,9 +362,9 @@ fn open_past_the_pin_with_recovery_key(vm: &mut Vm) -> Result<(), String> {
     wait_open(vm)
 }
 
-/// A forgotten PIN does not lose the data: the recovery key opens the machine. Two wrong tries do not
-/// spoil the PIN: the next boot accepts the right one. Many wrong answers change nothing in one boot,
-/// because past two it stops asking the TPM.
+/// A forgotten PIN does not lose the data: the recovery key opens the machine, also once wrong PINs have
+/// tripped the TPM's lockout and it refuses even the right one. Many wrong answers in one boot reach the
+/// TPM only twice.
 fn recovery_key_opens_a_pin_machine(vm: &mut Vm, pin: &str) -> Result<(), String> {
     vm.shut_down()?;
     let disk = vm.disk();
@@ -374,6 +374,14 @@ fn recovery_key_opens_a_pin_machine(vm: &mut Vm, pin: &str) -> Result<(), String
     vm.boot(&disk, Some(OWN_TPM))?;
     vm.wait_for_screen(NOTICE, scaled(SCREEN_LIMIT))?;
     vm.type_text(&format!("{pin}\n"))?;
+    sleep(scaled(SETTLE));
+    if !data_open(vm)? {
+        // Three wrong PINs so far trip swtpm's dictionary-attack lockout, and then the right PIN is
+        // refused too, measured. The recovery key must still open it.
+        vm.wait_for_screen(RECOVERY_PROMPT, scaled(SCREEN_LIMIT))?;
+        let key = vm.recovery_key.clone();
+        vm.type_text(&format!("{key}\n"))?;
+    }
     wait_open(vm)?;
     vm.shut_down()?;
     vm.boot(&disk, Some(OWN_TPM))?;
@@ -477,6 +485,26 @@ fn run_steps(vm: &mut Vm, image: &Path, steps: &[Step]) -> usize {
         }
     }
     0
+}
+
+/// Only the PIN scenarios, each on a new machine.
+pub(crate) fn run_pin_only(image: &Path) -> usize {
+    let mut failed = 0;
+    let started = Instant::now();
+    let pin_name = "a PIN is asked at every start, and a wrong one refused";
+    failed += usize::from(!report(
+        pin_name,
+        &pin_is_asked_at_every_start(image),
+        started,
+    ));
+    let started = Instant::now();
+    let cut = "a power cut during PIN setup recovers with the saved key";
+    failed += usize::from(!report(
+        cut,
+        &power_cut_during_pin_setup_recovers(image),
+        started,
+    ));
+    failed
 }
 
 /// Every scenario on a machine with a TPM, starting from one that is up with its key confirmed.

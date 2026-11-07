@@ -2,7 +2,7 @@
 //!
 //!     cargo run -p medbrains-os-test -- <image.raw> [disk]
 //!
-//! `disk` runs only the data disk scenarios. Needs `make os-image DEBUG=1`, QEMU and swtpm. Exits non-zero if any check fails. Budgets are in
+//! `disk` runs only the data disk scenarios, `pin` only the PIN ones. Needs `make os-image DEBUG=1`, QEMU and swtpm. Exits non-zero if any check fails. Budgets are in
 //! `budgets.json`: ratchets to lower as the numbers improve (targets: RFC-HOSPITAL-OS §3a).
 
 mod disk;
@@ -432,10 +432,10 @@ fn main() -> ExitCode {
         return ExitCode::from(2);
     };
     let image = Path::new(&image);
-    let result = if std::env::args().nth(2).as_deref() == Some("disk") {
-        run_disk_only(image)
-    } else {
-        run_suite(image)
+    let result = match std::env::args().nth(2).as_deref() {
+        Some("disk") => run_disk_only(image),
+        Some("pin") => Ok(disk::run_pin_only(image)),
+        _ => run_suite(image),
     };
     match result {
         Ok(0) => ExitCode::SUCCESS,

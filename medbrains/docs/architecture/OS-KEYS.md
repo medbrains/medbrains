@@ -38,7 +38,7 @@ encrypted session, and just forward everything to the real TPM". Binding the ses
 |---|---|---|
 | Power cut | **Comes back by itself** | Waits for a person at the screen, however long that is |
 | Stolen machine, edited system partition | **Opens** | Needs the PIN |
-| Active interposer on the TPM bus | Can get the key | Needs the PIN too. TPM lockout against guessing across boots is not tested |
+| Active interposer on the TPM bus | Can get the key | Needs the PIN too. Wrong PINs trip the TPM's lockout: on swtpm three, across boots, then even the right PIN is refused for a while (real chips allow more). The recovery key still works, tested |
 
 Setup asks once, at first boot; Enter means no PIN. Recorded as `encrypted-tpm2` or `encrypted-tpm2-pin`. A ward
 with no system until someone types a PIN carries its own patient risk, so no PIN is the default.
