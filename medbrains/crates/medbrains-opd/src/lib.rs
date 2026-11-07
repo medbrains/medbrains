@@ -6308,6 +6308,8 @@ pub async fn admit_from_opd(
     // writes prescriptions on the inpatient visit, so a visit that has any
     // needs the admitting user's fresh step-up, as prescribing does; one with
     // none admits without the password. Refused, the transaction is dropped.
+    // The gate and the copy read the same rows (live prescriptions only): a
+    // deleted OPD prescription is never revived as a live inpatient one.
     let has_prescriptions = sqlx::query_scalar!(
         r#"SELECT EXISTS(SELECT 1 FROM prescriptions
             WHERE encounter_id = $1 AND tenant_id = $2 AND deleted_at IS NULL) AS "exists!""#,
@@ -6322,7 +6324,7 @@ pub async fn admit_from_opd(
     let prescriptions_result = sqlx::query(
         "WITH src AS ( \
            SELECT id AS old_id FROM prescriptions \
-           WHERE encounter_id = $1 AND tenant_id = $3 \
+           WHERE encounter_id = $1 AND tenant_id = $3 AND deleted_at IS NULL \
          ), new_rx AS ( \
            INSERT INTO prescriptions (tenant_id, encounter_id, doctor_id, notes) \
            SELECT p.tenant_id, $2, p.doctor_id, p.notes \

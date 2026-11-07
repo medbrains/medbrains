@@ -186,6 +186,7 @@ pub async fn step_up(
             AppError::ForbiddenReason("That password is not right.".to_owned())
         });
     }
+    crate::lockout::clear_failed_passwords(&state, account).await?;
 
     let bearer = matches!(method.map(|Extension(m)| m), Some(AuthMethod::Bearer));
     if let (true, Some(sid)) = (bearer, proof.session) {
