@@ -19,6 +19,7 @@ RuntimeDirectoryMode=0755
 WorkingDirectory=/var/lib/kanidm
 # Its keys are unsealed on disk, so a release image will not run it on an unencrypted one.
 ExecStartPre=+/usr/lib/medbrains/require-encrypted-data
+ExecStartPre=+/usr/lib/medbrains/kanidm-tls
 ExecStart=/usr/bin/kanidmd server
 ExecReload=/usr/bin/kanidmd scripting reload
 Restart=on-failure

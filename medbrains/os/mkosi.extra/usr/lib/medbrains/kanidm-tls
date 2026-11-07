@@ -1,0 +1,19 @@
+#!/bin/bash
+# Kanidm's own TLS certificate, made the first time Kanidm starts. Kanidm only speaks TLS, and setup starts it
+# to make the first administrator before first boot has run, so it cannot wait for first boot to make this.
+# A 20-year self-signed leaf for its name, CA:FALSE because rustls refuses a CA certificate used as a server's
+# own. Run as root, from kanidmd.service and from firstboot; doing nothing when the pair exists.
+set -euo pipefail
+
+DIR=/var/lib/kanidm
+NAME=idm.medbrains.local
+
+[[ -s "$DIR/tls-key.pem" && -s "$DIR/tls-chain.pem" ]] && exit 0
+openssl req -x509 -newkey ec -pkeyopt ec_paramgen_curve:prime256v1 -nodes -days 7300 \
+    -keyout "$DIR/tls-key.pem.new" -out "$DIR/tls-chain.pem.new" -subj "/CN=$NAME" \
+    -addext "subjectAltName=DNS:$NAME" -addext "basicConstraints=critical,CA:FALSE" 2>/dev/null
+chown kanidm:kanidm "$DIR/tls-key.pem.new" "$DIR/tls-chain.pem.new"
+chmod 0600 "$DIR/tls-key.pem.new"
+# The chain first, so a power cut between the two leaves no key without its certificate.
+mv "$DIR/tls-chain.pem.new" "$DIR/tls-chain.pem"
+mv "$DIR/tls-key.pem.new" "$DIR/tls-key.pem"

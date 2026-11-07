@@ -19,6 +19,10 @@ IFS= read -r username
 IFS= read -r password
 [[ -n "$username" && -n "$password" ]] || { echo "no username or password" >&2; exit 1; }
 
+# Setup starts Kanidm when its screen appears; if that start failed, a retry must start it again, or
+# every retry waits for a service that is not coming. Clearing the failure lets systemd try once more.
+systemctl reset-failed kanidmd 2>/dev/null || true
+systemctl start --no-block kanidmd
 wait_for_kanidm
 /usr/lib/medbrains/kanidm-setup rules
 admin="$(admin_token idm_admin)"

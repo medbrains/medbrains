@@ -141,8 +141,8 @@ create_idp_certs() {
     self_signed_leaf /var/lib/caddy/local/idp-key.pem /var/lib/caddy/local/idp-cert.pem "$IDP_NAME"
     chown caddy:caddy /var/lib/caddy/local/idp-key.pem /var/lib/caddy/local/idp-cert.pem
     install -m 0644 /var/lib/caddy/local/idp-cert.pem "$CONF/idp-front.pem"
-    self_signed_leaf /var/lib/kanidm/tls-key.pem /var/lib/kanidm/tls-chain.pem "$IDP_NAME"
-    chown kanidm:kanidm /var/lib/kanidm/tls-key.pem /var/lib/kanidm/tls-chain.pem
+    # Kanidm's own pair may already exist: setup starts Kanidm before first boot runs.
+    /usr/lib/medbrains/kanidm-tls
     install -m 0644 /var/lib/kanidm/tls-chain.pem /var/lib/caddy/local/kanidm-back.pem
 }
 
@@ -150,7 +150,7 @@ systemd-tmpfiles --create /usr/lib/tmpfiles.d/medbrains.conf
 [[ -s "$ENV" ]] || write_env
 [[ -f "/etc/postgresql/$PG_VERSION/main/postgresql.conf" ]] || create_cluster
 [[ -s /var/lib/caddy/local/cert.pem && -s /var/lib/caddy/local/key.pem ]] || create_local_cert
-[[ -f /var/lib/kanidm/tls-key.pem ]] || create_idp_certs
+[[ -f /var/lib/caddy/local/idp-key.pem ]] || create_idp_certs
 ensure_agent_token
 ensure_certificate_copies
 touch "$CONF/.firstboot-done"
