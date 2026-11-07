@@ -197,6 +197,7 @@ N1 to N6 come from RFC-HOSPITAL-OS §8q. Every task ends on a check or a screen.
 | F12 | Prove the most critical functions with the Kani model checker (permission outcome, tenant wall, slot switch) and test locking with `loom` where money or stock moves | Proofs and loom tests in CI for the named functions | parked, after first stable |
 | F13 | Deterministic simulation tests for node join, sync and updates (as in `mad-turmoil`): faults, crashes and clock jumps replayed in the same order every time | A seeded run reproduces a fault exactly | parked, after first stable |
 | F14 | Multi-phase security audits with independently verified findings (Cloudflare's `security-audit` skill), module by module with a coverage ledger, starting with setup, agent, join, front and disk encryption | Audit report per module; every confirmed finding fixed or an accepted limit | next, after the current agents |
+| F15 | Branch coverage for class A code, measured in CI with `cargo-llvm-cov`, aiming at every branch tested the way SQLite tests to aviation standards (MC/DC); a stable on-disk format promised per release, as SQLite promises its file format | Coverage report per class A crate; uncovered branches listed and closed | next: report in first stable, closing after |
 
 ## X. Close the attacks (`OS-THREATS.md`)
 
