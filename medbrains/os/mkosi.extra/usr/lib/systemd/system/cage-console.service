@@ -4,6 +4,9 @@
 Description=MedBrains appliance screen
 After=systemd-user-sessions.service dbus.socket systemd-logind.service getty@tty1.service medbrains-os-setup.service
 Wants=dbus.socket systemd-logind.service medbrains-os-setup.service
+# If the data disk step failed its message is on tty1, and restarting this every 3 s would clear it.
+Requires=medbrains-disk-finish.service
+After=medbrains-disk-finish.service
 Conflicts=getty@tty1.service
 # Starts before them so it stops after them: a restart keeps saying so while the server shuts down,
 # instead of a black screen that looks like nothing happened.

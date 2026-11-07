@@ -49,10 +49,10 @@ N1 to N6 come from RFC-HOSPITAL-OS §8q. Every task ends on a check or a screen.
 
 | Task | What | Done when | State |
 |---|---|---|---|
-| T1 | Encrypted disk, Secure Boot, boot editor locked | Copied disk will not open | doing: owner priority 2026-11-04, disk encryption first |
+| T1 | Encrypted disk, Secure Boot, boot editor locked | Copied disk will not open | **disk done** (LUKS2 sealed to TPM with signed boot policy, recovery key, optional PIN, editor off, `OS-KEYS.md`), proven on x86-64 swtpm only; real TPM untested. Secure Boot, verity and a release signing key **open**: until then, without a PIN, someone who steals the machine and changes its system partition gets the data |
 | T1.1 | Harden Linux with what it has: block unused kernel modules, kernel lockdown, safer sysctls, no kexec, AppArmor profiles, smaller package set, each tested against the app | Known-bad module refuses to load; checked by a scan on each build | next |
 | T1.2 | Daily flaw check of the image's own parts list; rebuild on a Debian security fix | A new Debian advisory opens a tracked item within a day | next, with U1.1 |
-| T2 | Machine keys, hospital root key, recovery key | Node certificate traces to the root | next: owner priority 2026-11-04, needs the key inventory (`OS-KEYS.md`) |
+| T2 | Machine keys, hospital root key, key rotation, a screen to replace the recovery key | Node certificate traces to the root | later; the disk recovery key itself landed with T1. Gaps listed in `OS-KEYS.md` |
 | T3 | Kanidm as identity provider, chosen on security over FerrisKey (`feature/os-kanidm`) | Physical FIDO2 key passes attestation; advisories confirmed fixed in the shipped version; staff sign in on the OS screen; Entra and directory path decided | doing: passed the key allow-list with software keys only; physical key blocked on hardware |
 | T3.1 | Identity app in the launcher: staff see their profile and keys through Kanidm's pages; IT adds people, groups and allowed key models from an admin screen, which Kanidm lacks | From the launcher, a person adds a key and IT adds a person without a command line | next: owner 2026-11-04 |
 | T4 | Key cards and hardware keys | Password alone refused for an owner | later, needs T3 and cards |

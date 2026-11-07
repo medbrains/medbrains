@@ -52,6 +52,9 @@ MEDBRAINS_IDENTIFIER_HMAC_KEY=$(openssl rand -base64 48 | tr -d '\n')
 MEDBRAINS_ABDM_SECRET_KEY=$(openssl rand -base64 48 | tr -d '\n')
 MEDBRAINS_NHCX_SECRET_KEY=$(openssl rand -base64 48 | tr -d '\n')
 MEDBRAINS_PACS_SECRET_KEY=$(openssl rand -base64 48 | tr -d '\n')
+MEDBRAINS_EVENT_TOKEN_KEY=$(openssl rand -base64 48 | tr -d '\n')
+MEDBRAINS_SIGNATURE_KEY_ENCRYPTION_KEY=$(openssl rand -base64 48 | tr -d '\n')
+MEDBRAINS_OAUTH_TOKEN_KEY=$(openssl rand -base64 48 | tr -d '\n')
 ENVEOF
     mv "$ENV.new" "$ENV"
 }

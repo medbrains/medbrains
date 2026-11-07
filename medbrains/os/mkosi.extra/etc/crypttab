@@ -1,0 +1,4 @@
+# The data partition (OS-KEYS.md). Opens by itself with this machine's TPM; on any other machine it asks
+# for the recovery key, for as long as it takes (tries=0, no device timeout: disk-setup may be waiting
+# for a person). try-empty-password opens a disk whose setup recorded the choice to go unencrypted.
+medbrains-data PARTLABEL=medbrains-data none luks,tpm2-device=auto,try-empty-password=yes,tries=0,x-systemd.device-timeout=0
