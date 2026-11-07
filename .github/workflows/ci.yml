@@ -245,6 +245,11 @@ jobs:
       - name: No raw SQL in routes
         run: python3 scripts/check_tenant_leak.py
 
+      # Every module name (route checks, menu tags, seed rows, permission groups) comes from
+      # crates/medbrains-core/src/bricks.rs. Bricks with no server check may only fall.
+      - name: App bricks
+        run: python3 scripts/check_bricks.py
+
       - name: Migration headers
         run: python3 scripts/migration_header_lint.py
 
