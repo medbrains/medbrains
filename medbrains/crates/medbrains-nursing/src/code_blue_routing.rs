@@ -170,7 +170,7 @@ async fn roster(
            JOIN users u ON u.id = m.user_id AND u.tenant_id = m.tenant_id \
           WHERE m.tenant_id = $1 AND m.code_type = $2 AND m.deleted_at IS NULL \
             AND m.tier <= $3 AND u.is_active = true AND u.deleted_at IS NULL \
-          ORDER BY m.tier LIMIT $4",
+          ORDER BY m.tier, m.user_id LIMIT $4",
     )
     .bind(tenant_id)
     .bind(code_type)
@@ -238,7 +238,7 @@ pub async fn ward_nurses(
           JOIN users u ON u.id = person AND u.is_active = true AND u.deleted_at IS NULL \
          WHERE nsa.tenant_id = $1 AND nsa.ward_id = $2 AND nsa.deleted_at IS NULL \
            AND nsa.shift_date = $3 AND nsa.shift_type = $4 \
-         LIMIT $5",
+         ORDER BY person LIMIT $5",
     )
     .bind(tenant_id)
     .bind(ward_id)

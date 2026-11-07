@@ -13,6 +13,7 @@ medbrains-server-services = { path = "../medbrains-server-services" }
 medbrains-platform = { path = "../medbrains-platform" }
 medbrains-workflow = { path = "../medbrains-workflow" }
 medbrains-outbox = { path = "../medbrains-outbox" }
+tokio = { workspace = true }
 medbrains-core = { path = "../medbrains-core" }
 medbrains-db = { path = "../medbrains-db" }
 medbrains-authz = { path = "../medbrains-authz" }

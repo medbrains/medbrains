@@ -1468,13 +1468,17 @@ pub async fn create_code_activation(
     // in the outbox with the activation (the durable copy, which also covers
     // a Code Pink raised by an infant tag); this sends the in-app alarm
     // without waiting for the worker, and fills in who was reached.
-    medbrains_nursing::code_blue_alert::page_now(
-        &state.db,
+    // Off the request path, as for a code blue: the button returns at once.
+    let (pool, resolver, tenant_id) = (
+        state.db.clone(),
+        std::sync::Arc::clone(&state.secret_resolver),
         claims.tenant_id,
-        medbrains_nursing::code_blue_subject::Subject::ErCode(row.id),
-        state.secret_resolver.as_ref(),
-    )
-    .await;
+    );
+    let subject = medbrains_nursing::code_blue_subject::Subject::ErCode(row.id);
+    tokio::spawn(async move {
+        medbrains_nursing::code_blue_alert::page_now(&pool, tenant_id, subject, resolver.as_ref())
+            .await;
+    });
     let row = reload_code(&state, claims.tenant_id, row).await;
 
     Ok(Json(row))

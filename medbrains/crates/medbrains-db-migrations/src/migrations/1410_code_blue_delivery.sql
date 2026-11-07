@@ -125,6 +125,11 @@ BEGIN
             'er_code:' || NEW.id || ':round:1')
     ON CONFLICT DO NOTHING;
     RETURN NEW;
+EXCEPTION WHEN OTHERS THEN
+    -- Never let paging block recording the code: the handler also pages
+    -- inline, and the screen warns "Paging not confirmed".
+    RAISE WARNING 'er_code_queue_page: page not queued for %: %', NEW.id, SQLERRM;
+    RETURN NEW;
 END $$;
 
 DROP TRIGGER IF EXISTS trg_er_code_queue_page ON public.er_code_activations;
@@ -198,6 +203,10 @@ CREATE POLICY tenant_isolation_lab_critical_calls ON public.lab_critical_calls
 CREATE OR REPLACE FUNCTION public.lab_critical_calls_append_only() RETURNS trigger
 LANGUAGE plpgsql AS $$
 BEGIN
+    -- A tenant's deletion cascades here; only direct edits and deletes are refused.
+    IF TG_OP = 'DELETE' AND pg_trigger_depth() > 1 THEN
+        RETURN OLD;
+    END IF;
     RAISE EXCEPTION 'lab_critical_calls is append-only';
 END $$;
 DROP TRIGGER IF EXISTS trg_lab_critical_calls_append_only ON public.lab_critical_calls;

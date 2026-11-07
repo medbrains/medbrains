@@ -118,20 +118,28 @@ async fn the_code_blue_page_is_routed_delivered_escalated_and_never_faked() {
 
     // ── No roster, no SMS: everyone in-app, said in words, not `sent` ──
     let first = start_code(&app, &csrf, tenant, "A").await;
-    // Round 1 needs no pipeline: queued with the code, and paged in-app
-    // before the request returned. No dispatch has run in this test.
+    // Round 1 needs no pipeline: queued with the code, and paged in-app right
+    // after the request returns (off the request path). No dispatch has run.
     let round_one = app
         .outbox_rows("emergency.code_blue_alert", &first.to_string())
         .await;
     assert_eq!(round_one.len(), 1, "start_code_blue queues round 1 itself");
     assert_eq!(round_one[0]["round"], 1);
-    let paged_inline: i64 = sqlx::query_scalar(
-        "SELECT count(*) FROM notifications WHERE entity_id = $1 AND title = 'CODE BLUE'",
-    )
-    .bind(first)
-    .fetch_one(&app.db)
-    .await
-    .expect("inline pages");
+    // The inline page runs on a spawned task: give it up to five seconds.
+    let mut paged_inline: i64 = 0;
+    for _ in 0..50 {
+        paged_inline = sqlx::query_scalar(
+            "SELECT count(*) FROM notifications WHERE entity_id = $1 AND title = 'CODE BLUE'",
+        )
+        .bind(first)
+        .fetch_one(&app.db)
+        .await
+        .expect("inline pages");
+        if paged_inline >= 1 {
+            break;
+        }
+        tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+    }
     assert!(
         paged_inline >= 1,
         "the in-app page went out with no outbox hop"
@@ -352,11 +360,24 @@ async fn a_floor_code_without_a_roster_pages_the_duty_mo_and_security() {
         .as_str()
         .and_then(|s| s.parse().ok())
         .expect("code id");
+    // The page runs off the request path: wait up to five seconds for it.
+    let mut note: Option<String> = None;
+    for _ in 0..50 {
+        note = sqlx::query_scalar("SELECT routing_note FROM er_code_activations WHERE id = $1")
+            .bind(id)
+            .fetch_one(&app.db)
+            .await
+            .expect("routing note");
+        if note.is_some() {
+            break;
+        }
+        tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+    }
     assert!(
-        code["routing_note"].as_str().is_some_and(|n| {
+        note.as_deref().is_some_and(|n| {
             n.starts_with("No code pink roster: alerting the duty medical officer and security")
         }),
-        "{code}"
+        "{code} / {note:?}"
     );
     let queued = app
         .outbox_rows("emergency.code_blue_alert", &id.to_string())

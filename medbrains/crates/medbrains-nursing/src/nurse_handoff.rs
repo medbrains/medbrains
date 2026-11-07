@@ -311,15 +311,19 @@ pub async fn start_code_blue(
         },
     );
 
-    // The in-app alarm now, with no outbox hop. The queued row above is the
-    // durable copy of the same round (idempotent) and carries the SMS status.
-    crate::code_blue_alert::page_now(
-        &state.db,
+    // The in-app alarm now, with no outbox hop, off the request path so a slow
+    // secret store or lock wait never keeps "Start code" spinning (a second
+    // press would record a second code). The queued row above is the durable
+    // copy of the same round (idempotent) and carries the SMS status.
+    let (pool, resolver, tenant_id) = (
+        state.db.clone(),
+        std::sync::Arc::clone(&state.secret_resolver),
         claims.tenant_id,
-        crate::code_blue_subject::Subject::CodeBlue(row.id),
-        state.secret_resolver.as_ref(),
-    )
-    .await;
+    );
+    let subject = crate::code_blue_subject::Subject::CodeBlue(row.id);
+    tokio::spawn(async move {
+        crate::code_blue_alert::page_now(&pool, tenant_id, subject, resolver.as_ref()).await;
+    });
 
     Ok(Json(row))
 }

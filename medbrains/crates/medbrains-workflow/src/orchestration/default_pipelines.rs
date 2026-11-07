@@ -278,7 +278,9 @@ pub async fn dispatch_default_pipelines(
         }
     }
     if failed > 0 {
-        return Err(format!("{failed} pipeline(s) failed for {event_type}; retrying"));
+        return Err(format!(
+            "{failed} pipeline(s) failed for {event_type}; retrying"
+        ));
     }
     Ok(acted)
 }
@@ -639,6 +641,12 @@ async fn on_emergency_code_blue_activated(
     tenant_id: Uuid,
     payload: &Value,
 ) -> Result<(), sqlx::Error> {
+    // An emergency-department code is paged by the er_code_activations insert
+    // trigger under its own key; queuing it here as a nursing code blue would
+    // only dead-letter as "code not found".
+    if payload.get("code_activation_id").is_some() {
+        return Ok(());
+    }
     let Some(code_blue_id) = uuid_from_payload(payload, "code_blue_id") else {
         tracing::error!(%tenant_id, "code blue activated without a code_blue_id: nobody paged");
         return Ok(());
