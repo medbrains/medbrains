@@ -53,3 +53,12 @@ Someone holding `pharmacy` and `pharmacy_finance` permissions gets the Pharmacy 
 - **The side panel lists only the screens their permissions allow**, for example Rx queue, POS, day close and margins. Screens they may not open (an NDPS register or stock transfers without those permissions) are left out of the panel, not shown greyed out, so nobody clicks into a refusal; the server refuses them anyway.
 - **Within a screen they may open, each field is shown, masked or hidden by its data class** (`check-field-classes`), the same way on every screen, never decided by the screen itself.
 - **Someone with `pharmacy_finance` alone** gets the same brick with only the finance screens in its panel.
+
+## Onboarding picks the bricks (owner 2026-11-07)
+
+Setup asks which apps the hospital needs, and installs only those bricks with the bricks they depend on. A standalone pharmacy picks Pharmacy and gets Pharmacy plus what it needs (Patient Registration for the patient, Billing for its invoices) and nothing else; a full hospital picks more. The same choice:
+
+- **Turns the rest off for the tenant**, through the existing module switches (`disabled_modules` in `/auth/me`, and the server's module entitlement check), so the server refuses an app's routes until it is added, whatever a role holds.
+- **Seeds only the roles those apps need**, so the role editor does not offer pharmacy staff a hundred permissions for apps the hospital does not run.
+- **Can grow later:** adding an app from the Software Center (O14) installs its brick and dependencies on the machines whose roles fit, with no reinstall.
+- **Shows the same everywhere:** web, OS launcher, edge machines and native apps all read the one installed set, then the person's permissions.
