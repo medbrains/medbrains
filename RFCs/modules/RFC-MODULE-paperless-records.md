@@ -20,6 +20,7 @@ Hospitals that have electronic records still print, for four reasons:
 | Piece | Who | Gap |
 |---|---|---|
 | A paperless bedside layer that works "alongside" the existing HMS | Caresoft **Digital IPD**: Android tablets, rollout in "ten days", offline, nursing notes, orders, consent "captured on-device with a signature", "built to meet" NABH and DPDP | No doctor legal signature, no MRD, no court or insurer copy, no transfer, no NMC. Its success story names no hospital and gives no measured results |
+| The same company's wider line | Caresoft Systems (Thane): Digital IPD, Digital OPD, a doctor app and other brands. The India page says "Works alongside your existing hospital systems", but names no HL7, FHIR or API | No doctor signatures, consent method, MRD or ABDM stated. No named customer; the client counters show 0 and template placeholders are unfilled. Pricing sits behind a form |
 | A tablet IPD | PurpleIPD: NABH-ready, ABDM-certified | No signing standard stated |
 | Aadhaar eSign for hospitals | eMudhra emSigner, integrated into one hospital chain's system for consent and TPA pre-authorisation | A separate product, bolted on |
 | ABDM transfer | Many ABDM-certified HMS | Signatures are not verifiable by the receiver |
