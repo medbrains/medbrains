@@ -6150,6 +6150,7 @@ dependencies = [
  "medbrains-db",
  "medbrains-db-topology",
  "medbrains-doctor-payouts",
+ "medbrains-kernel",
  "medbrains-notifications",
  "medbrains-outbox",
  "medbrains-server-core",

@@ -16,12 +16,14 @@ use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
+use medbrains_kernel::{Actor, require_permission};
 use medbrains_server_core::{
     error::AppError,
-    middleware::{auth::Claims, authorization::require_permission},
+    middleware::auth::Claims,
     pagination::{Paginated, Pagination},
     state::AppState,
 };
+use sqlx::PgConnection;
 
 /// One queued charge, with the patient and people joined.
 #[derive(Debug, Serialize, sqlx::FromRow)]
@@ -84,8 +86,7 @@ pub async fn list_charge_attention(
         page: q.page,
         limit: q.limit,
     };
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let mut tx = medbrains_kernel::begin(&state.db, Actor::from_claims(&claims)).await?;
     let filter = "a.tenant_id = $1 AND a.deleted_at IS NULL \
         AND ($2::text IS NULL OR a.status = $2) \
         AND ($3::uuid[] IS NULL OR a.patient_id = ANY($3))";
@@ -126,8 +127,7 @@ pub async fn post_charge_attention(
 ) -> Result<Json<ChargeAttentionItem>, AppError> {
     require_permission(&claims, permissions::billing::charge_attention::RESOLVE)?;
     crate::require_amount_write(&state, &claims).await?;
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let mut tx = medbrains_kernel::begin(&state.db, Actor::from_claims(&claims)).await?;
     let item = lock_open(&mut tx, &claims, id).await?;
     medbrains_authz_gate::require_patient_billing_access(&state, &claims, item.patient_id).await?;
     let req = ChargeRequest {
@@ -147,7 +147,10 @@ pub async fn post_charge_attention(
         },
         apply_concessions: item.apply_concessions,
     };
-    let posted = post_charge(&mut tx, &req).await?;
+    // A savepoint on the unit of work: the billing helpers take a transaction.
+    let mut savepoint = sqlx::Acquire::begin(&mut *tx).await?;
+    let posted = post_charge(&mut savepoint, &req).await?;
+    savepoint.commit().await?;
     sqlx::query(
         "UPDATE charge_attention_items SET status = 'posted', invoice_id = $3, \
                 resolved_by = $4, resolved_at = now() \
@@ -184,8 +187,7 @@ pub async fn dismiss_charge_attention(
             "billing.chargeAttention.reasonRequired".to_owned(),
         ));
     }
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let mut tx = medbrains_kernel::begin(&state.db, Actor::from_claims(&claims)).await?;
     let item = lock_open(&mut tx, &claims, id).await?;
     medbrains_authz_gate::require_patient_billing_access(&state, &claims, item.patient_id).await?;
     sqlx::query(
@@ -207,7 +209,7 @@ pub async fn dismiss_charge_attention(
 /// The open item, locked for this decision. Already resolved is a conflict;
 /// missing (or another tenant's) is 404.
 async fn lock_open(
-    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    tx: &mut PgConnection,
     claims: &Claims,
     id: Uuid,
 ) -> Result<ChargeAttentionItem, AppError> {
@@ -217,7 +219,7 @@ async fn lock_open(
     )
     .bind(id)
     .bind(claims.tenant_id)
-    .fetch_optional(&mut **tx)
+    .fetch_optional(&mut *tx)
     .await?
     .ok_or(AppError::NotFound)?;
     if status != "open" {
@@ -230,7 +232,7 @@ async fn lock_open(
 
 /// One item by id, joined as the list shows it.
 async fn fetch(
-    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    tx: &mut PgConnection,
     tenant_id: Uuid,
     id: Uuid,
 ) -> Result<ChargeAttentionItem, AppError> {
@@ -239,6 +241,6 @@ async fn fetch(
     ))
     .bind(id)
     .bind(tenant_id)
-    .fetch_one(&mut **tx)
+    .fetch_one(&mut *tx)
     .await?)
 }
