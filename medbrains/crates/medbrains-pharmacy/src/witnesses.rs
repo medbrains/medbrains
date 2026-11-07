@@ -67,7 +67,9 @@ pub async fn list_dispense_witnesses(
 /// colleague still allowed to dispense (role grant, personal grant, minus a
 /// personal denial), and a password that is not the witness's own. Each
 /// refusal is a 400 the dispense screen shows; none of them logs anybody out.
-// ponytail: no per-witness attempt limit yet; add one if guessing at the counter is a risk
+///
+/// ponytail: no per-witness attempt limit yet; add one if guessing at the
+/// counter is a risk. Every failed attempt is filed on the order's record.
 pub async fn verify_witness(
     state: &AppState,
     claims: &Claims,
