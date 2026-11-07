@@ -34,6 +34,7 @@ pub mod billing;
 pub mod blood_bank;
 pub mod bme;
 pub mod body_site;
+pub mod bricks;
 pub mod boundary_filter;
 pub mod camp;
 pub mod case_mgmt;
