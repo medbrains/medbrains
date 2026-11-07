@@ -18,7 +18,12 @@ use medbrains_server_core::config::AppConfig;
 use sqlx::PgPool;
 
 /// Keys whose development fallback is a value in the source.
-const REQUIRED_KEYS: [&str; 1] = ["MEDBRAINS_IDENTIFIER_HMAC_KEY"];
+const REQUIRED_KEYS: [&str; 4] = [
+    "MEDBRAINS_IDENTIFIER_HMAC_KEY",
+    "MEDBRAINS_EVENT_TOKEN_KEY",
+    "MEDBRAINS_SIGNATURE_KEY_ENCRYPTION_KEY",
+    "MEDBRAINS_OAUTH_TOKEN_KEY",
+];
 /// Keys one integration needs, with the integration's name. Production
 /// without one boots with that integration off; it never uses the
 /// development key in the source either way.
@@ -45,7 +50,7 @@ pub async fn run(
     secrets: &dyn SecretResolver,
     pools: &Pools<'_>,
 ) -> Vec<Finding> {
-    let production = config.environment == "production";
+    let production = is_production_mode(config);
     let mut found = env_checks(config, production);
     found.extend(crate::preflight_ai::checks());
     found.extend(crate::preflight_error_tracking::checks(production));
@@ -63,10 +68,15 @@ pub async fn run(
     found
 }
 
-/// Production refuses to serve when any check failed.
+/// True in every mode but development, so a mistyped mode keeps every protection on.
+fn is_production_mode(config: &AppConfig) -> bool {
+    config.environment != medbrains_core::secrets::sealing::DEVELOPMENT
+}
+
+/// Anything but development refuses to serve when any check failed.
 #[must_use]
 pub fn blocks_boot(config: &AppConfig, found: &[Finding]) -> bool {
-    config.environment == "production" && found.iter().any(|f| f.level == Level::Fail)
+    is_production_mode(config) && found.iter().any(|f| f.level == Level::Fail)
 }
 
 /// One log line per finding; failures and warnings at their own level.
@@ -117,7 +127,7 @@ fn env_checks(config: &AppConfig, production: bool) -> Vec<Finding> {
         Finding::fail(
             "env.mode",
             format!(
-                "MEDBRAINS_ENV={} is not a known mode, so every production protection is off",
+                "MEDBRAINS_ENV={} is not a known mode, so the server treats it as production and refuses to start",
                 config.environment
             ),
             "Set MEDBRAINS_ENV to production or development",
@@ -178,6 +188,9 @@ fn static_dir(config: &AppConfig) -> Finding {
 fn key_check_name(key: &str) -> &'static str {
     match key {
         "MEDBRAINS_IDENTIFIER_HMAC_KEY" => "secret.identifier_key",
+        "MEDBRAINS_EVENT_TOKEN_KEY" => "secret.event_token_key",
+        "MEDBRAINS_SIGNATURE_KEY_ENCRYPTION_KEY" => "secret.signature_key",
+        "MEDBRAINS_OAUTH_TOKEN_KEY" => "secret.oauth_token_key",
         "MEDBRAINS_NHCX_SECRET_KEY" => "secret.nhcx_key",
         "MEDBRAINS_PACS_SECRET_KEY" => "secret.pacs_key",
         _ => "secret.abdm_key",
@@ -413,6 +426,16 @@ mod tests {
         );
         let abdm = found.iter().find(|f| f.check == "secret.abdm_key");
         assert_eq!(abdm.map(|f| f.level), Some(Level::Warn));
+    }
+
+    /// Each of these falls back to a key that is public in this repository.
+    #[tokio::test]
+    async fn production_refuses_without_any_key_whose_fallback_is_public() {
+        for key in REQUIRED_KEYS.into_iter().skip(1) {
+            let found = key_check(&OnlyIdentifierKey, key, true).await;
+            assert_eq!(found.level, Level::Fail, "{key}");
+            assert_ne!(found.check, "secret.abdm_key", "{key} needs its own check name");
+        }
     }
 
     #[tokio::test]

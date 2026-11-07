@@ -421,3 +421,16 @@ mod tests {
         assert_eq!(db_error_status(None).0, StatusCode::INTERNAL_SERVER_ERROR);
     }
 }
+
+impl From<medbrains_core::secrets::sealing::SealingKeyError> for AppError {
+    /// An unset or short key is a setting to fix; a failed store is a fault, and says so.
+    fn from(error: medbrains_core::secrets::sealing::SealingKeyError) -> Self {
+        use medbrains_core::secrets::sealing::SealingKeyError;
+        match &error {
+            SealingKeyError::Unreadable { .. } => Self::Internal(error.to_string()),
+            SealingKeyError::NotSet(_) | SealingKeyError::TooShort(_) => Self::ServiceUnavailable(
+                format!("This feature is not configured: {error}. Ask your administrator."),
+            ),
+        }
+    }
+}

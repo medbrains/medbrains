@@ -171,7 +171,7 @@ impl Desktop {
             || !state.machine.failed.is_empty()
             || state.machine.system == "degraded";
         let sentence = cut_off.map_or_else(
-            || ui::status_sentence(&state.machine, state.main_ready),
+            || ui::status_sentence(&state.machine, state.main_ready, &state.disk),
             str::to_owned,
         );
         self.greeting_status.set_label(&sentence);

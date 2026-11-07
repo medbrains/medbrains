@@ -987,19 +987,7 @@ fn to_hex(bytes: &[u8]) -> String {
 }
 
 async fn signature_key_encryption_key(state: &AppState) -> Result<Vec<u8>, AppError> {
-    match state.secret_resolver.get(SIGNATURE_KEY_SECRET).await {
-        Ok(value) if value.len() >= 32 => Ok(value.into_bytes()),
-        Ok(_) => Err(AppError::Internal(format!(
-            "{SIGNATURE_KEY_SECRET} must be at least 32 bytes"
-        ))),
-        Err(_) => {
-            tracing::warn!(
-                "{SIGNATURE_KEY_SECRET} missing; using dev-only signature key wrapper. \
-                 Set this before production so doctor signing keys are encrypted with hospital-held material."
-            );
-            Ok(DEV_SIGNATURE_KEY.to_vec())
-        }
-    }
+    medbrains_core::secrets::sealing::sealing_key(state.secret_resolver.as_ref(), SIGNATURE_KEY_SECRET, DEV_SIGNATURE_KEY).await.map_err(AppError::from)
 }
 
 fn signature_key_context(tenant_id: &Uuid, doctor_user_id: &Uuid) -> String {
