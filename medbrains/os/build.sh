@@ -55,6 +55,8 @@ if [[ ! -x "$OS_SETUP" ]]; then
 fi
 if [[ ! -x "$AGENT" ]]; then
     echo "no agent at $AGENT — cross-build medbrains-agent with the server" >&2
+    exit 1
+fi
 if [[ ! -x "$SIGNIN_LIMIT" ]]; then
     echo "no sign-in limit at $SIGNIN_LIMIT — cross-build medbrains-signin-limit with the server" >&2
     exit 1
