@@ -847,7 +847,10 @@ export component MbCard inherits Rectangle {
     in property <brush> accent-color: Tokens.color-primary-primary;
     callback clicked();
     vertical-stretch: 0;
+    accessible-role: groupbox;
     background: Tokens.color-surface-surface-container-lowest;
+    // A card with onClick on the web is clickable; the converter wires clicked when it has one.
+    TouchArea { clicked => { root.clicked(); } }
     border-width: root.with-border ? 1px : 0px;
     border-color: Tokens.color-outline-outline-variant;
     clip: true;

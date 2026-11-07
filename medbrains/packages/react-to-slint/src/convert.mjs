@@ -276,6 +276,7 @@ class ComponentWriter {
     this.extra = [];
     this.cells = [];
     this.axes = [];
+    this.pendingMenu = null;
     this.changed = new Map();
     this.counter = 0;
   }
@@ -614,11 +615,17 @@ class ComponentWriter {
     this.emit("}", depth + 1);
     this.emit("VerticalLayout {", depth + 1);
     this.emit("alignment: LayoutAlignment.start;", depth + 1);
+    // A button target opens the menu from its own clicked (mouse, Enter, Space): one tab stop.
+    this.pendingMenu = `${id}.show({ x: 0px, y: self.height });`;
     if (target) this.children(target.children, depth + 2);
+    const viaButton = this.pendingMenu === null;
+    this.pendingMenu = null;
     this.emit("}", depth + 1);
-    // The target's click and keys open the menu below it.
-    this.emit(`TouchArea { clicked => { ${id}.show({ x: 0px, y: self.height }); } }`, depth + 1);
-    this.emit(`FocusScope { key-pressed(event) => { if (event.text == " " || event.text == "\\n" || event.text == Key.DownArrow) { ${id}.show({ x: 0px, y: 24px }); return accept; } return reject; } }`, depth + 1);
+    if (!viaButton) {
+      // Any other target: a click area and a key handler open the menu below it.
+      this.emit(`TouchArea { clicked => { ${id}.show({ x: 0px, y: self.height }); } }`, depth + 1);
+      this.emit(`FocusScope { key-pressed(event) => { if (event.text == " " || event.text == "\\n" || event.text == Key.DownArrow) { ${id}.show({ x: 0px, y: 24px }); return accept; } return reject; } }`, depth + 1);
+    }
     this.emit("}", depth);
   }
 
@@ -807,6 +814,12 @@ class ComponentWriter {
       if (icon) put(rule.iconChild, icon.image);
     }
     for (const [k, v] of Object.entries(rule.default ?? {})) put(k, v);
+    if (this.pendingMenu && info.callbacks.clicked !== undefined) {
+      const i = lines.findIndex((l) => l.startsWith("clicked =>"));
+      if (i >= 0) lines.splice(i, 1);
+      lines.push(`clicked => { ${this.pendingMenu} }`);
+      this.pendingMenu = null;
+    }
     return { lines, notes, wrap };
   }
 

@@ -250,3 +250,22 @@ test("an unknown component is reported, not dropped", () => {
   assert.equal(stats.unmapped.Mystery, 1);
   assert.match(slint, /\/\/ unmapped: <Mystery>/);
 });
+
+test("Mantine Menu is Slint's ContextMenuArea, opened by the target button's own clicked", () => {
+  const src = 'import { Menu, ActionIcon } from "@mantine/core";\nexport function M() { return <Menu><Menu.Target><ActionIcon aria-label="More" /></Menu.Target><Menu.Dropdown><Menu.Item onClick={edit}>Edit</Menu.Item><Menu.Divider /><Menu.Item disabled>Delete</Menu.Item></Menu.Dropdown></Menu>; }';
+  const { slint } = convertSource(src, "m.tsx", mapping, new Map());
+  assert.match(slint, /menu-\d+ := ContextMenuArea \{\s+Menu \{\s+MenuItem \{ title: "Edit"; activated => \{ root\.[\w-]+\(\); \} \}\s+MenuSeparator \{ \}\s+MenuItem \{ title: "Delete"; enabled: false; \}/);
+  assert.match(slint, /MbIconButton \{[\s\S]*clicked => \{ menu-\d+\.show\(\{ x: 0px, y: self\.height \}\); \}/);
+  assert.doesNotMatch(slint, /FocusScope \{ key-pressed/, "a button target adds no second tab stop");
+});
+
+test("every interactive kit component declares an accessible role and a way to label it", () => {
+  // Fails when a kit control could reach a screen without a role or label (WCAG 2.2 SC 4.1.2).
+  const { kit, describe } = mapping.types;
+  const interactive = [...kit.keys()].filter((n) => n.startsWith("Mb") && Object.keys(kit.get(n).callbacks).some((c) => /clicked|edited|toggled|selected|changed|picked/.test(c)));
+  assert.ok(interactive.length >= 15, `found ${interactive.length} interactive kit components`);
+  // Controls whose role sits on the widget inside them, and stand-ins not drawn yet.
+  const delegated = { MbSelect: "Slint ComboBox (combobox)", MbMultiSelect: "its field box (combobox)", MbFileInput: "MbButton (button)", MbPagination: "MbButton (button)", MbRating: "stub, not drawn yet" };
+  const missing = interactive.filter((n) => !describe(n).role && !delegated[n]);
+  assert.deepEqual(missing, [], "interactive kit components without accessible-role");
+});
