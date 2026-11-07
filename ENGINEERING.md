@@ -528,6 +528,36 @@ handler is how that happens.
 5. **Both directions.** A screen with no endpoint is equally incomplete —
    `make check-api` and `check-ui-api` enforce the pair.
 
+## Apps Are Permission-Gated Bricks (MANDATORY, core rule)
+
+**Every module ships as an app brick, and permissions decide where it fits.** This is the
+core of how MedBrains is built, installed, shown and sold. Full design:
+`medbrains/docs/architecture/MODULE-BRICKS.md`.
+
+1. **One app is one brick on every layer:** its backend crate, its web package, its native
+   app and its manifest, with the same id everywhere. About 20 apps (Pharmacy, EMR, Patient
+   Registration, Billing...), each with its own side panel of screens, never one tile per screen.
+2. **Bricks connect only through the base plate:** the kernel, the shared kit, the API, events
+   and opening another app by id. No brick imports another brick's code on any layer.
+3. **The manifest declares the brick's permission modules and the bricks it depends on**,
+   generated from the Rust permission list, never written by hand.
+4. **Onboarding picks the bricks:** a hospital installs only the apps it needs (a pharmacy-only
+   customer gets Pharmacy and its dependencies), the rest switched off for the tenant and
+   refused by the server.
+5. **A machine gets a brick only when its assigned roles hold the brick's permissions**, with its
+   dependencies: a pharmacy edge has Pharmacy alone. Changing roles is the only control.
+6. **A person sees an app, and each screen in its side panel, only with its permissions.**
+   Screens they may not open are left out, not greyed. Inside a screen, fields are shown,
+   masked or hidden by data class.
+7. **The server decides every request.** A brick being present grants nothing; the launcher,
+   the side panel and each screen's check only keep the screen honest about what the server
+   allows.
+8. **Same everywhere:** web, the OS launcher, edge machines and native apps read one installed
+   set, then the person's permissions.
+
+A module that is not a brick, a screen reachable without its permission, or an app installed
+on a machine whose roles do not need it, is a defect.
+
 ## Permissions First (MANDATORY)
 
 **Every feature defines its permission before any code is written** — before the
