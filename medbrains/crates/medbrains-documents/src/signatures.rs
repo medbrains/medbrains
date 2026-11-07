@@ -493,16 +493,17 @@ pub async fn sign_record(
 
     crate::signature_verify::issue_link_in_tx(&mut tx, &claims, row.id).await?;
 
-    // Best-effort flag update on source record. Different tables have
-    // different shapes — only update is_signed where the column exists.
-    let _ = mark_source_signed(
+    // Every signable table carries `is_signed` and `signed_record_id`. A
+    // failure here aborts the transaction, so it is returned, never swallowed:
+    // swallowed, the commit below would roll the signature back in silence.
+    mark_source_signed(
         &mut tx,
         &claims.tenant_id,
         &body.record_type,
         body.record_id,
         row.id,
     )
-    .await;
+    .await?;
 
     tx.commit().await?;
 
@@ -570,18 +571,22 @@ pub(crate) async fn resolve_signable_payload(
                         'duration', pi.duration, \
                         'route', pi.route, \
                         'instructions', pi.instructions, \
+                        'quantity', pi.quantity, \
+                        'time_slots', pi.time_slots, \
+                        'end_date', pi.end_date, \
                         'catalog_item_id', pi.catalog_item_id, \
                         'created_at', pi.created_at \
                     ) ORDER BY pi.created_at, pi.id) \
                     FROM prescription_items pi \
                     WHERE pi.tenant_id = p.tenant_id AND pi.prescription_id = p.id \
+                      AND pi.deleted_at IS NULL \
                 ), '[]'::jsonb) \
             ) \
             FROM prescriptions p \
             LEFT JOIN encounters e ON e.tenant_id = p.tenant_id AND e.id = p.encounter_id \
             LEFT JOIN patients pat ON pat.tenant_id = p.tenant_id \
                 AND pat.id = COALESCE(p.patient_id, e.patient_id) \
-            WHERE p.tenant_id = $1 AND p.id = $2 \
+            WHERE p.tenant_id = $1 AND p.id = $2 AND p.deleted_at IS NULL \
               AND ($3 <> 'primary' OR p.doctor_id = $4)",
             )
             .bind(tenant_id)
@@ -623,6 +628,12 @@ pub(crate) async fn resolve_signable_payload(
                 'unit', lr.unit, \
                 'normal_range', lr.normal_range, \
                 'flag', lr.flag, \
+                'result_value', lr.result_value, \
+                'reference_range', lr.reference_range, \
+                'is_abnormal', lr.is_abnormal, \
+                'is_critical', lr.is_critical, \
+                'critical_flag', lr.critical_flag, \
+                'method', lr.method, \
                 'notes', lr.notes, \
                 'is_auto_validated', lr.is_auto_validated, \
                 'entered_by', lr.entered_by, \
@@ -631,10 +642,13 @@ pub(crate) async fn resolve_signable_payload(
             FROM lab_results lr \
             JOIN lab_orders lo ON lo.tenant_id = lr.tenant_id AND lo.id = lr.order_id \
             JOIN patients pat ON pat.tenant_id = lo.tenant_id AND pat.id = lo.patient_id \
-            WHERE lr.tenant_id = $1 AND lr.id = $2",
+            WHERE lr.tenant_id = $1 AND lr.id = $2 AND lr.deleted_at IS NULL \
+              AND ($3 <> 'primary' OR lr.entered_by = $4 OR lo.verified_by = $4)",
             )
             .bind(tenant_id)
             .bind(record_id)
+            .bind(signer_role)
+            .bind(signer_user_id)
             .fetch_optional(&mut **tx)
             .await?
         }
@@ -677,10 +691,13 @@ pub(crate) async fn resolve_signable_payload(
             FROM radiology_reports rr \
             JOIN radiology_orders ro ON ro.tenant_id = rr.tenant_id AND ro.id = rr.order_id \
             JOIN patients pat ON pat.tenant_id = ro.tenant_id AND pat.id = ro.patient_id \
-            WHERE rr.tenant_id = $1 AND rr.id = $2",
+            WHERE rr.tenant_id = $1 AND rr.id = $2 AND rr.deleted_at IS NULL \
+              AND ($3 <> 'primary' OR rr.reported_by = $4 OR rr.verified_by = $4)",
             )
             .bind(tenant_id)
             .bind(record_id)
+            .bind(signer_role)
+            .bind(signer_user_id)
             .fetch_optional(&mut **tx)
             .await?
         }
@@ -727,7 +744,7 @@ pub(crate) async fn resolve_signable_payload(
             FROM ipd_discharge_summaries ds \
             JOIN admissions a ON a.tenant_id = ds.tenant_id AND a.id = ds.admission_id \
             JOIN patients pat ON pat.tenant_id = a.tenant_id AND pat.id = a.patient_id \
-            WHERE ds.tenant_id = $1 AND ds.id = $2 \
+            WHERE ds.tenant_id = $1 AND ds.id = $2 AND ds.deleted_at IS NULL \
               AND ($3 <> 'primary' OR ds.prepared_by = $4 OR ds.verified_by = $4)",
             )
             .bind(tenant_id)
@@ -747,6 +764,7 @@ pub(crate) async fn resolve_signable_payload(
     payload.ok_or(AppError::NotFound)
 }
 
+/// Flag the source row as signed and point it at its signature.
 async fn mark_source_signed(
     tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
     tenant_id: &Uuid,
@@ -754,7 +772,7 @@ async fn mark_source_signed(
     record_id: Uuid,
     signed_record_id: Uuid,
 ) -> Result<(), AppError> {
-    // Map record_type → table name. Missing table or column = no-op.
+    // Map record_type → table name; every one carries both columns.
     let table = match record_type {
         "prescription" => "prescriptions",
         "lab_report" => "lab_results",
@@ -762,17 +780,17 @@ async fn mark_source_signed(
         "discharge_summary" => "ipd_discharge_summaries",
         _ => return Ok(()),
     };
-    // Use dynamic SQL — schema is fixed so this is safe.
+    // Dynamic only in the table name, which comes from the fixed match above.
     let sql = format!(
         "UPDATE {table} SET is_signed = TRUE, signed_record_id = $1 \
          WHERE id = $2 AND tenant_id = $3"
     );
-    let _ = sqlx::query(&sql)
+    sqlx::query(&sql)
         .bind(signed_record_id)
         .bind(record_id)
         .bind(tenant_id)
         .execute(&mut **tx)
-        .await;
+        .await?;
     Ok(())
 }
 

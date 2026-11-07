@@ -45,8 +45,13 @@ CREATE UNIQUE INDEX uq_signature_verify_links_live
 CREATE INDEX idx_signature_verify_links_record
     ON public.signature_verify_links (signed_record_id);
 
+-- ENABLE without FORCE, as prescription_verify_links (0400) and api_keys
+-- (0970): `app_signature_verify_link` below is SECURITY DEFINER and must find
+-- a token before any tenant is known, which only the table owner can do when
+-- the policy is not forced on it. FORCE would make every public check answer
+-- "not found" wherever the owner is not a superuser. The request role is still
+-- held to the tenant policy for every direct read and write.
 ALTER TABLE public.signature_verify_links ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.signature_verify_links FORCE ROW LEVEL SECURITY;
 CREATE POLICY tenant_isolation_signature_verify_links ON public.signature_verify_links
     USING (tenant_id::text = current_setting('app.tenant_id', true))
     WITH CHECK (tenant_id::text = current_setting('app.tenant_id', true));
