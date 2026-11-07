@@ -66,7 +66,7 @@ impl Actor {
         }
     }
 
-    /// No signed-in user: a background pass acting for the hospital itself
+    /// No signed-in user: a background pass acting for the tenant itself
     /// (an escalation timer, an outbox handler). Audit rows carry the nil
     /// user, which reads as "the system", never as a person.
     pub const fn system(tenant_id: Uuid) -> Self {
