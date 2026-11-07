@@ -69,8 +69,15 @@ install -d "$EXTRA/usr/share/kanidm/ui"
 cp -R "$KANIDM/hpkg" "$EXTRA/usr/share/kanidm/ui/hpkg"
 # Only a debug image may run the identity provider on an unencrypted disk.
 if [[ "$DEBUG" == 1 ]]; then install -m 0644 /dev/null "$EXTRA/usr/lib/medbrains/debug-image"; fi
-# The hospital's colours, on the one stylesheet Kanidm leaves for this.
-install -m 0644 "$HERE/kanidm-override.css" "$EXTRA/usr/share/kanidm/ui/hpkg/override.css"
+# The MedBrains design on the one stylesheet Kanidm leaves for this: the design system's tokens, refused
+# unless they meet WCAG 2.2 AA, then our rules, and the web app's IBM Plex fonts.
+python3 -I "$HERE/kanidm-tokens.py" --check >/dev/null || { echo "Kanidm's colours fail WCAG 2.2 AA: run os/kanidm-tokens.py --check" >&2; exit 1; }
+{ python3 -I "$HERE/kanidm-tokens.py"; cat "$HERE/kanidm-override.css"; } > "$EXTRA/usr/share/kanidm/ui/hpkg/override.css"
+install -d "$EXTRA/usr/share/kanidm/ui/hpkg/fonts"
+for font in sans-400 sans-500 sans-600 mono-400; do
+    install -m 0644 "$(ls "$WEB"/assets/ibm-plex-"${font%-*}"-latin-"${font#*-}"-normal-*.woff2 | head -1)" \
+        "$EXTRA/usr/share/kanidm/ui/hpkg/fonts/plex-$font.woff2"
+done
 install -m 0755 "$OS_SETUP" "$EXTRA/usr/bin/medbrains-os-setup"
 install -m 0755 "$SIGNIN_LIMIT" "$EXTRA/usr/bin/medbrains-signin-limit"
 cp -R "$WEB" "$EXTRA/usr/share/medbrains/web"
