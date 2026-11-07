@@ -72,6 +72,9 @@ pub struct SignedDocumentCheck {
     /// The record still matches its signature, and the signature verifies;
     /// `None` when the signature predates online checking.
     pub unchanged: Option<bool>,
+    /// The stored hash still verifies against the signer's key. For a
+    /// signature from before online checking this is all that can be said.
+    pub signature_intact: bool,
 }
 
 /// What the check says when the hospital withdrew the link.
@@ -200,6 +203,7 @@ async fn check_signed_record(
         key_status: key_status(row.public_key.is_some(), row.key_revoked_at),
         key_revoked_on: row.key_revoked_at.map(|at| at.date_naive()),
         unchanged,
+        signature_intact: signature_holds,
     })
 }
 

@@ -35,12 +35,16 @@ use crate::{
 };
 
 const STEP_UP_PURPOSE: &str = "step_up";
+/// The token type. Required on decode, so an access token, which is signed
+/// with the same key but carries no `typ`, can never pass as a step-up.
+const STEP_UP_TYP: &str = "step_up";
 const STEP_UP_TTL_SECS: i64 = 300; // 5 minutes
 /// The header a native app sends its step-up token in.
 pub const STEP_UP_HEADER: &str = "x-step-up-token";
 
 #[derive(Serialize, Deserialize)]
 struct StepUpClaims {
+    typ: String,
     sub: Uuid,
     tenant_id: Uuid,
     #[serde(default)]
@@ -111,6 +115,7 @@ fn mint_step_up(
     key: &jsonwebtoken::EncodingKey,
 ) -> Result<String, AppError> {
     let payload = StepUpClaims {
+        typ: STEP_UP_TYP.to_owned(),
         sub: claims.sub,
         tenant_id: claims.tenant_id,
         purpose: STEP_UP_PURPOSE.to_owned(),
@@ -129,6 +134,7 @@ pub async fn step_up(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
     method: Option<Extension<AuthMethod>>,
+    client_ip: Option<Extension<crate::middleware::client_ip::ClientIp>>,
     proof: StepUpProof,
     jar: CookieJar,
     Json(req): Json<StepUpRequest>,
@@ -154,11 +160,32 @@ pub async fn step_up(
     // A wrong password is a refused step-up, not a dead session: 403, never
     // 401. A 401 here made the web client clear its CSRF token and the native
     // apps sign the doctor out, for a typo.
-    let wrong = || AppError::ForbiddenReason("That password is not right.".to_owned());
-    let parsed = PasswordHash::new(&hash).map_err(|_| wrong())?;
-    Argon2::default()
+    // The same per-account lockout as sign-in: an open session must not give
+    // a guesser unlimited tries at the password that signs records.
+    let account = (claims.sub, claims.tenant_id);
+    if crate::lockout::is_locked(&state, account).await? {
+        return Err(locked());
+    }
+    let parsed = PasswordHash::new(&hash)
+        .map_err(|_| AppError::Internal("stored password hash unreadable".to_owned()))?;
+    if Argon2::default()
         .verify_password(req.password.as_bytes(), &parsed)
-        .map_err(|_| wrong())?;
+        .is_err()
+    {
+        let ip = client_ip.map(|Extension(ip)| ip.0.to_string());
+        let now_locked = crate::lockout::record_failed_password(
+            &state,
+            account,
+            ip.as_deref(),
+            "step_up_failed",
+        )
+        .await?;
+        return Err(if now_locked {
+            locked()
+        } else {
+            AppError::ForbiddenReason("That password is not right.".to_owned())
+        });
+    }
 
     let bearer = matches!(method.map(|Extension(m)| m), Some(AuthMethod::Bearer));
     if let (true, Some(sid)) = (bearer, proof.session) {
@@ -169,6 +196,14 @@ pub async fn step_up(
     let token = mint_step_up(&claims, None, &state.jwt_encoding_key)?;
     let jar = jar.add(build_step_up_cookie(&token, &state.cookie_config));
     Ok((jar, Json(serde_json::json!({ "status": "ok" }))))
+}
+
+/// The refusal while the account is locked after repeated wrong passwords.
+fn locked() -> AppError {
+    AppError::ForbiddenReason(format!(
+        "Too many wrong passwords. Try again in {} minutes.",
+        crate::lockout::LOCKOUT_MINUTES
+    ))
 }
 
 /// Guard for high-risk handlers: a fresh step-up by this user.
@@ -209,7 +244,8 @@ fn decode(state: &AppState, token: &str) -> Result<StepUpClaims, AppError> {
 
 /// The proof must be a step-up, for this user, in this hospital.
 fn check_subject(data: &StepUpClaims, claims: &Claims) -> Result<(), AppError> {
-    if data.purpose != STEP_UP_PURPOSE
+    if data.typ != STEP_UP_TYP
+        || data.purpose != STEP_UP_PURPOSE
         || data.sub != claims.sub
         || data.tenant_id != claims.tenant_id
     {

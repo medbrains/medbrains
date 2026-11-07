@@ -21,6 +21,7 @@ const CHECKED_KEYS: &[&str] = &[
     "facility",
     "key_revoked_on",
     "key_status",
+    "signature_intact",
     "signed_at",
     "signer_council",
     "signer_name",
@@ -224,6 +225,7 @@ async fn a_signature_from_before_online_checks_is_never_called_changed() {
         body["unchanged"].is_null(),
         "neither changed nor unchanged: {body}"
     );
+    assert_eq!(body["signature_intact"], true, "the stored hash still verifies: {body}");
     assert_eq!(body["key_status"], "active");
     assert!(body["signer_name"].as_str().is_some_and(|n| !n.is_empty()));
     assert_eq!(keys(&body), CHECKED_KEYS.iter().copied().collect());

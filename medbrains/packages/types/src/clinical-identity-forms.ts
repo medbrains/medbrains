@@ -29,6 +29,8 @@ export interface CheckedSignedDocument {
   key_revoked_on: string | null;
   /** Null when the signature predates online checking. */
   unchanged: boolean | null;
+  /** The stored hash still verifies against the signer's key. */
+  signature_intact: boolean;
 }
 
 /** The hospital withdrew this document's public check link. */

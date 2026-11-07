@@ -6140,6 +6140,7 @@ pub struct AdmitFromOpdResponse {
 pub async fn admit_from_opd(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
+    proof: medbrains_server_core::step_up::StepUpProof,
     Path(encounter_id): Path<Uuid>,
     Json(body): Json<AdmitFromOpdRequest>,
 ) -> Result<Json<AdmitFromOpdResponse>, AppError> {
@@ -6303,7 +6304,21 @@ pub async fn admit_from_opd(
     .execute(&mut *tx)
     .await?;
 
-    // 7. Copy prescriptions from OPD to IPD (prescriptions + items)
+    // 7. Copy prescriptions from OPD to IPD (prescriptions + items). Copying
+    // writes prescriptions on the inpatient visit, so a visit that has any
+    // needs the admitting user's fresh step-up, as prescribing does; one with
+    // none admits without the password. Refused, the transaction is dropped.
+    let has_prescriptions = sqlx::query_scalar!(
+        r#"SELECT EXISTS(SELECT 1 FROM prescriptions
+            WHERE encounter_id = $1 AND tenant_id = $2 AND deleted_at IS NULL) AS "exists!""#,
+        encounter_id,
+        claims.tenant_id,
+    )
+    .fetch_one(&mut *tx)
+    .await?;
+    if has_prescriptions {
+        medbrains_server_core::step_up::require_step_up(&state, &proof, &claims)?;
+    }
     let prescriptions_result = sqlx::query(
         "WITH src AS ( \
            SELECT id AS old_id FROM prescriptions \

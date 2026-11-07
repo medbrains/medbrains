@@ -166,3 +166,110 @@ async fn a_wrong_password_is_refused_without_ending_the_session() {
         .expect("me");
     assert_eq!(me.status(), StatusCode::OK, "the session survives the typo");
 }
+
+/// A token without the step-up `typ` is refused, even with the right
+/// purpose, user and session: the two kinds of token never stand in for
+/// each other.
+#[tokio::test]
+async fn a_token_without_the_step_up_type_is_refused() {
+    let app = common::spawn_app().await;
+    let bearer = native_session(&app).await;
+    let token = native_step_up(&app, &bearer).await;
+    let retyped = tampered(&app, &token, "typ", json!("access"));
+    assert_eq!(
+        guarded(&app, &bearer, &retyped).await,
+        StatusCode::FORBIDDEN
+    );
+}
+
+/// Five wrong passwords at step-up lock the account for fifteen minutes,
+/// the same lock sign-in uses, and every failure is audited. A fresh
+/// account, so the lock touches no other test.
+#[tokio::test]
+async fn repeated_wrong_step_up_passwords_lock_the_account_and_are_audited() {
+    let app = common::spawn_app().await;
+    let csrf = app.login_admin().await;
+    let tag = Uuid::new_v4().simple().to_string()[..10].to_owned();
+    let (username, password) = (format!("lock_{tag}"), format!("Lock#{tag}Aa9"));
+    let user: Value = app
+        .client
+        .post(app.url("/api/setup/users"))
+        .header("x-csrf-token", &csrf)
+        .json(
+            &json!({ "username": username, "email": format!("{username}@example.test"),
+                       "password": password, "full_name": format!("Dr {tag}"), "role": "doctor" }),
+        )
+        .send()
+        .await
+        .expect("create user")
+        .json()
+        .await
+        .expect("user json");
+    let user_id: Uuid = user["id"].as_str().expect("id").parse().expect("uuid");
+    let login: Value = Client::new()
+        .post(app.url("/api/auth/login"))
+        .header("x-medbrains-client", "mobile-staff")
+        .json(&json!({ "username": username, "password": password }))
+        .send()
+        .await
+        .expect("login")
+        .json()
+        .await
+        .expect("login json");
+    let bearer = login["token"].as_str().expect("token").to_owned();
+    let attempt = |pw: String| {
+        let url = app.url("/api/auth/step-up");
+        let bearer = bearer.clone();
+        async move {
+            let resp = Client::new()
+                .post(url)
+                .bearer_auth(bearer)
+                .json(&json!({ "password": pw }))
+                .send()
+                .await
+                .expect("step-up");
+            let status = resp.status();
+            let body: Value = resp.json().await.unwrap_or_default();
+            (
+                status,
+                body["detail"].as_str().unwrap_or_default().to_owned(),
+            )
+        }
+    };
+    for n in 1..=4 {
+        let (status, detail) = attempt("wrong".to_owned()).await;
+        assert_eq!(status, StatusCode::FORBIDDEN, "attempt {n}");
+        assert_eq!(detail, "That password is not right.", "attempt {n}");
+    }
+    let (_, fifth) = attempt("wrong".to_owned()).await;
+    assert!(
+        fifth.starts_with("Too many wrong passwords"),
+        "the fifth locks: {fifth}"
+    );
+    let (status, after) = attempt(password.clone()).await;
+    assert_eq!(
+        status,
+        StatusCode::FORBIDDEN,
+        "locked, even with the right password"
+    );
+    assert!(after.starts_with("Too many wrong passwords"), "{after}");
+
+    let audited: Vec<String> = sqlx::query_scalar(
+        "SELECT action FROM audit_log WHERE user_id = $1 \
+          AND action IN ('step_up_failed', 'account_locked') ORDER BY created_at",
+    )
+    .bind(user_id)
+    .fetch_all(&app.db)
+    .await
+    .expect("audit");
+    assert_eq!(
+        audited.iter().filter(|a| *a == "step_up_failed").count(),
+        5,
+        "{audited:?}"
+    );
+    assert_eq!(
+        audited.iter().filter(|a| *a == "account_locked").count(),
+        1,
+        "{audited:?}"
+    );
+}

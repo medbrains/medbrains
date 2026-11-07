@@ -135,6 +135,10 @@ function CheckedDocument({ doc }: { doc: CheckedSignedDocument }) {
       </Stack>
       <Alert tone={outcome.tone} title={outcome.notice}>
         {outcome.detail}
+        {doc.status === "signed_before_checks" &&
+          (doc.signature_intact
+            ? " The doctor's signature itself is intact."
+            : " The doctor's signature could not be confirmed.")}
       </Alert>
       <Card withBorder padding="md">
         <Stack gap="sm">

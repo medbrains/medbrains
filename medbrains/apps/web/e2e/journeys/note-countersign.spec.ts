@@ -47,6 +47,8 @@ test("a resident's signed note is countersigned by their consultant", async ({ h
   await entry.click();
   const reviewed = review.getByLabel(/^Consultation by /);
   await reviewed.getByRole("button", { name: "Countersign" }).click();
+  // A countersignature asks for the password again, as signing does.
+  await confirmItsYou(review, consultant.password);
   await expect(reviewed).toContainText(`Countersigned by ${consultant.fullName}`, {
     timeout: 15_000,
   });
