@@ -35,3 +35,13 @@ A brick touches the rest of the system only through these, so it can be added, r
 2. Add the no-cross-imports check, reporting first, then failing CI once the current crossings are listed in the untangle log and fixed.
 3. Move web modules into packages one at a time, starting with Pharmacy, alongside its Slint app in G1.
 4. Prove a brick can be turned off cleanly, starting with one that has no dependents.
+
+## Permissions decide which bricks fit (owner 2026-11-07)
+
+A brick snaps in or stays out by permissions alone, so nobody installs or removes one by hand:
+
+1. **The brick declares** in its manifest the permission modules it uses (`pharmacy`, `pharmacy_finance`, ...), the bricks it depends on and its version.
+2. **A machine gets a brick** when the roles assigned to that machine hold at least one of its permissions, together with the bricks it depends on. A pharmacy edge assigned pharmacy roles gets Pharmacy; EMR does not fit there because those roles hold no EMR permission.
+3. **A person sees a brick**, and each item in its side panel, only when they hold its permissions, on top of the machine's set.
+4. **Changing roles is the only control:** give a machine or a person a role and the bricks it unlocks snap in; take it away and they go, at the next sync, through the Software Center (O14) and signed updates.
+5. **The server still decides every request**, so a brick that is present grants nothing the person's permissions do not.
