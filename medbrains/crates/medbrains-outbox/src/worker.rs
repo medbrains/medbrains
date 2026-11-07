@@ -288,24 +288,40 @@ async fn dispatch_one(
         return;
     };
 
-    match handler.handle(&ctx, &payload).await {
-        Ok(result) => match unconfigured_reason(&result) {
-            // The handler had no provider to send through and stubbed. Recording
-            // that as `sent` told every screen a message was delivered when
-            // nobody was messaged.
-            Some(reason) => mark_skipped_unconfigured(&pool, event_id, &reason).await,
-            None => mark_sent(&pool, event_id).await,
-        },
-        Err(HandlerError::Permanent(msg)) => {
-            mark_dlq(&pool, event_id, attempts, &format!("permanent: {msg}")).await;
+    let result = handler.handle(&ctx, &payload).await;
+    match decide(result, attempts) {
+        Decision::Sent => mark_sent(&pool, event_id).await,
+        Decision::Terminal(status, reason) => mark_terminal(&pool, event_id, status, &reason).await,
+        Decision::Dlq(reason) => mark_dlq(&pool, event_id, attempts, &reason).await,
+        Decision::Retry(msg) => schedule_retry(&pool, event_id, attempts, &msg).await,
+    }
+}
+
+/// What the worker does with a row once its handler has answered.
+#[derive(Debug, PartialEq, Eq)]
+enum Decision {
+    Sent,
+    /// A terminal status that is neither `sent` nor `dlq`, with the reason.
+    Terminal(&'static str, String),
+    Dlq(String),
+    Retry(String),
+}
+
+/// Map a handler's answer to the row's next state. `sent` only for a real
+/// send: a stub is `skipped_unconfigured` (it told every screen a message was
+/// delivered when nobody was messaged), and nothing acting on the row is
+/// `undelivered` (how a code-blue SMS with no handler read as delivered).
+fn decide(result: Result<Value, HandlerError>, attempts: i32) -> Decision {
+    match result {
+        Ok(value) => unconfigured_reason(&value).map_or(Decision::Sent, |reason| {
+            Decision::Terminal("skipped_unconfigured", reason)
+        }),
+        Err(HandlerError::Undelivered(reason)) => Decision::Terminal("undelivered", reason),
+        Err(HandlerError::Permanent(msg)) => Decision::Dlq(format!("permanent: {msg}")),
+        Err(HandlerError::Transient(msg)) if attempts >= MAX_ATTEMPTS => {
+            Decision::Dlq(format!("max attempts: {msg}"))
         }
-        Err(HandlerError::Transient(msg)) => {
-            if attempts >= MAX_ATTEMPTS {
-                mark_dlq(&pool, event_id, attempts, &format!("max attempts: {msg}")).await;
-            } else {
-                schedule_retry(&pool, event_id, attempts, &msg).await;
-            }
-        }
+        Err(HandlerError::Transient(msg)) => Decision::Retry(msg),
     }
 }
 
@@ -324,18 +340,21 @@ fn unconfigured_reason(result: &Value) -> Option<String> {
     ))
 }
 
-async fn mark_skipped_unconfigured(pool: &PgPool, event_id: Uuid, reason: &str) {
+/// End a row in a terminal status that is neither `sent` nor `dlq`
+/// (`skipped_unconfigured`, `undelivered`), with the reason in `last_error`.
+async fn mark_terminal(pool: &PgPool, event_id: Uuid, status: &str, reason: &str) {
     let _ = sqlx::query(
         "UPDATE outbox_events \
-            SET status = 'skipped_unconfigured', last_error = $2, \
+            SET status = $3, last_error = $2, \
                 claimed_at = NULL, claimed_by = NULL \
           WHERE id = $1",
     )
     .bind(event_id)
     .bind(reason)
+    .bind(status)
     .execute(pool)
     .await
-    .map_err(|e| tracing::error!(error = %e, "mark_skipped_unconfigured failed"));
+    .map_err(|e| tracing::error!(error = %e, status, "mark_terminal failed"));
 }
 
 async fn mark_sent(pool: &PgPool, event_id: Uuid) {
@@ -499,5 +518,36 @@ mod unconfigured_tests {
             .as_deref(),
             Some("not configured: twilio (creds_unset)")
         );
+    }
+}
+
+#[cfg(test)]
+mod decide_tests {
+    use super::{Decision, decide};
+    use crate::handler::HandlerError;
+    use serde_json::json;
+
+    #[test]
+    fn only_a_real_send_is_sent() {
+        assert_eq!(decide(Ok(json!({ "sid": "SM1" })), 1), Decision::Sent);
+        assert_eq!(
+            decide(
+                Err(HandlerError::Undelivered("SMS is not set up".to_owned())),
+                1
+            ),
+            Decision::Terminal("undelivered", "SMS is not set up".to_owned())
+        );
+        assert!(matches!(
+            decide(Ok(json!({ "stub": true, "provider": "twilio" })), 1),
+            Decision::Terminal("skipped_unconfigured", _)
+        ));
+        assert!(matches!(
+            decide(Err(HandlerError::Transient("x".into())), 1),
+            Decision::Retry(_)
+        ));
+        assert!(matches!(
+            decide(Err(HandlerError::Transient("x".into())), 99),
+            Decision::Dlq(_)
+        ));
     }
 }

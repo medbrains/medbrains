@@ -126,7 +126,7 @@ pub const PIPELINES: &[Pipeline] = &[
     },
     Pipeline {
         event: ClinicalEventName::EmergencyCodeBlueActivated,
-        description: "Page active clinical staff + queue the code-blue alert",
+        description: "Queue the first round of code-blue paging",
         run: |p, t, v| Box::pin(on_emergency_code_blue_activated(p, t, v)),
     },
     Pipeline {
@@ -207,7 +207,9 @@ async fn is_disabled(pool: &PgPool, tenant_id: Uuid, event_type: &str) -> bool {
 }
 
 /// Top-level dispatcher. Called from `events::emit_event` alongside
-/// the DB-backed pipeline lookup.
+/// the DB-backed pipeline lookup. Returns how many acted on the event:
+/// partner webhooks queued plus pipelines that succeeded. Zero tells the
+/// outbox fallback that nothing did, so the row is never called `sent`.
 ///
 /// **Idempotency contract:** every outbox row queued by these
 /// subscribers carries an `idempotency_key`. If a user-built
@@ -219,10 +221,17 @@ pub async fn dispatch_default_pipelines(
     tenant_id: Uuid,
     event_type: &str,
     payload: &Value,
-) {
+) -> usize {
     // Partners hear about the event whatever the hospital does with its own
     // pipelines; their subscription is the switch for that.
-    super::webhook_fanout::fan_out(pool, tenant_id, event_type, payload, domain_payload(payload)).await;
+    let mut acted = super::webhook_fanout::fan_out(
+        pool,
+        tenant_id,
+        event_type,
+        payload,
+        domain_payload(payload),
+    )
+    .await;
 
     if is_disabled(pool, tenant_id, event_type).await {
         tracing::debug!(
@@ -230,11 +239,11 @@ pub async fn dispatch_default_pipelines(
             event_type = event_type,
             "default_pipelines: disabled for tenant, skipping"
         );
-        return;
+        return acted;
     }
 
     let Ok(parsed) = event_type.parse::<ClinicalEventName>() else {
-        return;
+        return acted;
     };
     let payload = domain_payload(payload);
 
@@ -245,18 +254,20 @@ pub async fn dispatch_default_pipelines(
     // Events with no pipeline are not an error. They are a gap to close by
     // writing a subscriber above: `patient.created` has fired 154 times on
     // this database with nothing listening, and the answer is a reviewed
-    // function, not a row somebody assembled in a UI.
+    // function, not a row somebody assembled in a UI. The outbox records such
+    // a row as `undelivered`, which is what it is.
     for pipeline in PIPELINES.iter().filter(|p| p.event == parsed) {
-        let result = (pipeline.run)(pool, tenant_id, payload).await;
-        if let Err(err) = result {
-            tracing::error!(
+        match (pipeline.run)(pool, tenant_id, payload).await {
+            Ok(()) => acted += 1,
+            Err(err) => tracing::error!(
                 tenant_id = %tenant_id,
                 event_type = event_type,
                 error = %err,
                 "default_pipelines: subscriber failed"
-            );
+            ),
         }
     }
+    acted
 }
 
 /// The event as the subscriber wrote it, not the envelope the outbox stored.
@@ -595,96 +606,41 @@ fn uuid_from_value(v: Option<&Value>) -> Option<Uuid> {
 
 // ── 8. Code blue activated → page the people who can respond ───────
 
-/// A cardiac arrest is called and, until now, nothing happened.
+/// The outbox event type that pages a code blue's responders. Its handler,
+/// `medbrains_nursing::code_blue_alert::CodeBlueAlertHandler`, chooses who to
+/// page for the round and sends the in-app alert, the SMS and the WhatsApp.
+pub const CODE_BLUE_ALERT_EVENT: &str = "emergency.code_blue_alert";
+
+/// A cardiac arrest is called: queue the first round of paging.
 ///
 /// `start_code_blue` writes the event, mirrors it to the NABH register, and
-/// emits `emergency.code_blue.activated`. No subscriber existed, so the most
-/// time-critical event in the hospital reached a table and stopped there.
+/// emits `emergency.code_blue.activated`. This queues round 1 of
+/// [`CODE_BLUE_ALERT_EVENT`]; the escalation pass queues the later rounds
+/// when nobody answers. The paging itself used to happen here, to every
+/// active doctor and nurse in the hospital, and the SMS row it queued had no
+/// handler — the outbox marked it sent all the same.
 async fn on_emergency_code_blue_activated(
     pool: &PgPool,
     tenant_id: Uuid,
     payload: &Value,
 ) -> Result<(), sqlx::Error> {
-    let code_blue_id = uuid_from_payload(payload, "code_blue_id");
-    let patient_id = uuid_from_payload(payload, "patient_id");
-    let location = payload
-        .get("location")
-        .and_then(Value::as_str)
-        .unwrap_or("location not recorded");
-
+    let Some(code_blue_id) = uuid_from_payload(payload, "code_blue_id") else {
+        tracing::error!(%tenant_id, "code blue activated without a code_blue_id: nobody paged");
+        return Ok(());
+    };
     let mut tx = tenant_tx(pool, tenant_id).await?;
-
-    // a) The durable alert. Channel-agnostic on purpose: whatever carries it —
-    //    SMS, push, the corridor TV — reads it from the outbox, so adding a
-    //    channel later needs no change here. This is queued first and
-    //    unconditionally, because it is the part that must survive everything
-    //    below failing.
-    let _ = enqueue(
+    enqueue(
         &mut tx,
         tenant_id,
         "code_blue",
-        code_blue_id,
-        "emergency.code_blue_alert",
-        json!({
-            "code_blue_id": code_blue_id,
-            "patient_id": patient_id,
-            "location": location,
-            "body": format!("CODE BLUE — {location}. Respond immediately."),
-        }),
-        code_blue_id.map(|id| format!("code_blue:{id}")),
+        Some(code_blue_id),
+        CODE_BLUE_ALERT_EVENT,
+        json!({ "code_blue_id": code_blue_id, "round": 1 }),
+        Some(format!("code_blue:{code_blue_id}:round:1")),
     )
-    .await;
-
-    // b) In-app notification to clinical staff, in one statement rather than a
-    //    query per user. Deliberately NOT scoped to who is on shift: the
-    //    attendance table is empty, so an on-duty filter would page nobody and
-    //    look like it had worked. Guarded per user so a redelivered event
-    //    does not page the same people twice — the stand-down already was.
-    let notified = sqlx::query!(
-        "INSERT INTO notifications \
-           (tenant_id, user_id, kind, title, body, category, entity_type, \
-            entity_id, action_url) \
-         SELECT $1, u.id, 'error', $2, $3, 'emergency', 'code_blue', $4, $5 \
-           FROM users u \
-          WHERE u.tenant_id = $1 AND u.is_active = true \
-            AND u.role::text IN ('doctor', 'nurse') \
-            AND NOT EXISTS ( \
-              SELECT 1 FROM notifications n \
-               WHERE n.tenant_id = $1 AND n.user_id = u.id \
-                 AND n.entity_type = 'code_blue' AND n.entity_id = $4 \
-                 AND n.title = 'CODE BLUE') \
-          LIMIT 500",
-        tenant_id,
-        "CODE BLUE",
-        format!("{location} — respond immediately."),
-        code_blue_id,
-        // The code blue tab of the nurse activities page. The URL this shipped
-        // with, /ipd/code-blue/{id}, matched no route: the page linked to a 404.
-        Some("/nurse?tab=code-blue".to_owned()),
-    )
-    .execute(&mut *tx)
-    .await?
-    .rows_affected();
-
-    tx.commit().await?;
-
-    // A code blue that reached nobody must not read as success. On this tenant
-    // that is a real possibility — 257 active users, and not one of them a
-    // nurse — and it is the kind of silence a hospital only discovers during
-    // an arrest.
-    if notified == 0 {
-        tracing::error!(
-            %tenant_id,
-            ?code_blue_id,
-            location,
-            "code blue raised but no active clinical staff to notify — the \
-             outbox alert was queued, the in-app page reached no one"
-        );
-    } else {
-        tracing::info!(%tenant_id, ?code_blue_id, notified, "code blue paged");
-    }
-
-    Ok(())
+    .await
+    .map_err(|e| sqlx::Error::Protocol(format!("code blue alert not queued: {e}")))?;
+    tx.commit().await
 }
 
 // ── 9. NDPS movement → the witness nobody was chasing ─────

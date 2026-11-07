@@ -186,6 +186,17 @@ pub struct CodeBlueEvent {
     pub shocks: serde_json::Value,
     pub ecg_rhythm_log: serde_json::Value,
     pub notes: Option<String>,
+    /// Rounds of paging requested; the escalation pass adds one per unanswered window.
+    pub page_round: i16,
+    pub last_paged_at: Option<DateTime<Utc>>,
+    /// Who the latest round reached, in words ("No code team on the roster: …").
+    pub routing_note: Option<String>,
+    /// What did not go out ("SMS is not set up: only in-app alerts went out").
+    pub delivery_warning: Option<String>,
+    /// SMS and WhatsApp delivery read back from the outbox, per channel and
+    /// status. Only the list fills it.
+    #[sqlx(default)]
+    pub delivery: serde_json::Value,
 }
 
 #[derive(Debug, Deserialize)]
@@ -207,8 +218,9 @@ pub async fn start_code_blue(
 
     let row = sqlx::query_as::<_, CodeBlueEvent>(
         "INSERT INTO code_blue_events \
-         (tenant_id, patient_id, encounter_id, location, leader_user_id, recorder_user_id) \
-         VALUES ($1, $2, $3, $4, $5, $6) RETURNING *",
+         (tenant_id, patient_id, encounter_id, location, leader_user_id, recorder_user_id, \
+          page_round, last_paged_at) \
+         VALUES ($1, $2, $3, $4, $5, $6, 1, now()) RETURNING *",
     )
     .bind(claims.tenant_id)
     .bind(body.patient_id)
@@ -219,13 +231,7 @@ pub async fn start_code_blue(
     .fetch_one(&mut *tx)
     .await?;
 
-    medbrains_nabh::mirror_code_blue_started(
-        &mut tx,
-        claims.tenant_id,
-        claims.sub,
-        row.id,
-    )
-    .await?;
+    medbrains_nabh::mirror_code_blue_started(&mut tx, claims.tenant_id, claims.sub, row.id).await?;
     let mut event = ClinicalEventEnvelope::new(
         claims.tenant_id,
         ClinicalEventName::EmergencyCodeBlueActivated,
@@ -361,13 +367,7 @@ pub async fn end_code_blue(
     .await?
     .ok_or(AppError::NotFound)?;
 
-    medbrains_nabh::mirror_code_blue_started(
-        &mut tx,
-        claims.tenant_id,
-        claims.sub,
-        row.id,
-    )
-    .await?;
+    medbrains_nabh::mirror_code_blue_started(&mut tx, claims.tenant_id, claims.sub, row.id).await?;
     medbrains_nabh::mirror_code_blue_ended(&mut tx, claims.tenant_id, row.id).await?;
     let mut event = ClinicalEventEnvelope::new(
         claims.tenant_id,
@@ -409,10 +409,22 @@ pub async fn list_code_blue(
     let active_only = q.active_only.unwrap_or(false);
     let limit = q.limit.unwrap_or(100).min(500);
     let rows = sqlx::query_as::<_, CodeBlueEvent>(
-        "SELECT * FROM code_blue_events \
-         WHERE tenant_id = $1 AND deleted_at IS NULL \
-           AND ($2::bool = false OR ended_at IS NULL) \
-         ORDER BY started_at DESC LIMIT $3",
+        "SELECT e.*, COALESCE((SELECT jsonb_agg(jsonb_build_object( \
+                    'channel', d.channel, 'status', d.status, 'count', d.n)) \
+                  FROM (SELECT split_part(o.event_type, '.', 1) AS channel, \
+                               CASE WHEN o.status IN ('pending', 'retrying') THEN 'queued' \
+                                    WHEN o.status = 'sent' THEN 'sent' \
+                                    WHEN o.status = 'skipped_unconfigured' THEN 'not_configured' \
+                                    ELSE 'failed' END AS status, count(*) AS n \
+                          FROM outbox_events o \
+                         WHERE o.tenant_id = e.tenant_id AND o.aggregate_type = 'code_blue' \
+                           AND o.aggregate_id = e.id AND o.deleted_at IS NULL \
+                           AND o.event_type IN ('sms.code_blue_alert', 'whatsapp.code_blue_alert') \
+                         GROUP BY 1, 2) d), '[]'::jsonb) AS delivery \
+           FROM code_blue_events e \
+         WHERE e.tenant_id = $1 AND e.deleted_at IS NULL \
+           AND ($2::bool = false OR e.ended_at IS NULL) \
+         ORDER BY e.started_at DESC LIMIT $3",
     )
     .bind(claims.tenant_id)
     .bind(active_only)

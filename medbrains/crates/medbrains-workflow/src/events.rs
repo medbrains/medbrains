@@ -34,7 +34,9 @@ pub async fn emit_event(
     event_type: &str,
     payload: Value,
 ) -> Result<(), AppError> {
-    dispatch_to_pipelines(pool, tenant_id, user_id, event_type, &payload).await
+    dispatch_to_pipelines(pool, tenant_id, user_id, event_type, &payload)
+        .await
+        .map(|_| ())
 }
 
 /// Emit a typed cross-module clinical/business event.
@@ -55,6 +57,7 @@ pub async fn emit_clinical_event(
         &event.payload,
     )
     .await
+    .map(|_| ())
 }
 
 /// Build the durable outbox row for a typed clinical event.
@@ -94,7 +97,9 @@ pub async fn queue_clinical_event_in_tx(
 ///
 /// Same semantics as the original `emit_event` body: find active pipelines
 /// matching the event_type, execute each in its own SAVEPOINT, swallow per-
-/// pipeline errors. Returns `Ok` even if individual pipelines failed.
+/// pipeline errors. Returns how many acted (pipelines that succeeded plus
+/// partner webhooks queued), so the outbox never calls an event nothing
+/// handled `sent`.
 pub async fn dispatch_to_pipelines(
     pool: &PgPool,
     tenant_id: Uuid,
@@ -104,16 +109,17 @@ pub async fn dispatch_to_pipelines(
     _user_id: Uuid,
     event_type: &str,
     payload: &Value,
-) -> Result<(), AppError> {
+) -> Result<usize, AppError> {
     // **Architecture decision (RFC):** dynamic `integration_pipelines`
     // dispatch is removed. Cross-module pipelines are hardcoded Rust
     // in `default_pipelines.rs` — version-controlled, code-reviewed,
     // tested. Tenant variants live in `tenant_settings`.
-    crate::orchestration::default_pipelines::dispatch_default_pipelines(
-        pool, tenant_id, event_type, payload,
+    Ok(
+        crate::orchestration::default_pipelines::dispatch_default_pipelines(
+            pool, tenant_id, event_type, payload,
+        )
+        .await,
     )
-    .await;
-    Ok(())
 }
 
 fn validate_clinical_event_payload(event: &ClinicalEventEnvelope) -> Result<(), AppError> {

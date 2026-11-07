@@ -7573,6 +7573,7 @@ dependencies = [
 name = "medbrains-nursing"
 version = "0.1.0"
 dependencies = [
+ "async-trait",
  "axum",
  "chrono",
  "medbrains-authz",
@@ -7589,6 +7590,7 @@ dependencies = [
  "serde",
  "serde_json",
  "sqlx",
+ "tokio",
  "tracing",
  "uuid",
 ]

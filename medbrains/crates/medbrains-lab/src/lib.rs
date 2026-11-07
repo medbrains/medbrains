@@ -31,6 +31,7 @@ use medbrains_server_core::state::AppState;
 pub mod analyser;
 mod analyser_review;
 mod catalog_search;
+pub mod critical_call;
 pub mod critical_rule;
 pub mod direct;
 mod hl7_flag;
@@ -6195,6 +6196,10 @@ pub fn router() -> axum::Router<AppState> {
         .route(
             "/api/lab/critical-alerts/{id}/acknowledge",
             put(acknowledge_critical_alert),
+        )
+        .route(
+            "/api/lab/critical-alerts/{id}/phone-call",
+            post(critical_call::record_critical_call),
         )
         .route(
             "/api/lab/tat-monitoring",

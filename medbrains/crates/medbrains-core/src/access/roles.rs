@@ -855,6 +855,7 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
             permissions::lab::results::VERIFY,
             permissions::lab::results::AMEND,
             permissions::lab::results::ANALYSER_REVIEW,
+            permissions::lab::results::CRITICAL_CALL,
             permissions::lab::qc::LIST,
             permissions::lab::qc::CREATE,
             permissions::lab::qc::MANAGE,
@@ -1388,7 +1389,9 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
         description: "Quality & compliance — full regulatory access",
         permissions: &[
             // This week vs usual, public notices, heat and air (RFC-OSINT §4).
-            permissions::health::intel::VIEW,
+// The resuscitation committee keeps the code-blue team roster.
+            permissions::nurse::code_blue::MANAGE_TEAM,
+                        permissions::health::intel::VIEW,
             // Clinical governance signs off knowledge changes drafted by the
             // pharmacy and laboratory, applies them and starts rollbacks. It
             // drafts only flow switch changes (it holds no other area's

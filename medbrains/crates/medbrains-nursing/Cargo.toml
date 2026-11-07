@@ -16,6 +16,8 @@ medbrains-workflow = { path = "../medbrains-workflow" }
 medbrains-clinical-scores = { path = "../medbrains-clinical-scores" }
 medbrains-notifications = { path = "../medbrains-notifications" }
 medbrains-outbox = { path = "../medbrains-outbox" }
+async-trait = { workspace = true }
+tokio = { workspace = true }
 tracing = { workspace = true }
 axum = { workspace = true }
 serde = { workspace = true }

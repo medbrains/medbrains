@@ -160,6 +160,12 @@ built. *Proposed* is waiting for the owner. *Rejected* was considered and turned
 | 2026-11-07 | Every OPD visit screen read is gated on the permission its endpoint enforces, and the journey test fails on any refused read | A front desk opening a visit sent six reads the server refused; a doctor's queue asked for appointments he may not list and then said there were none | Leaving the server to refuse | Done (this PR) |
 | 2026-11-02 | Keep IBM Plex; do not move to Geist | Plex is the locked design choice, and Geist lists no Devanagari, Tamil or Arabic | Switching font | Proposed; owner to confirm |
 
+### Clinical safety
+
+| Date | Decision | Why | Rejected | Status |
+|---|---|---|---|---|
+| 2026-11-07 | A code blue pages tier 1 of `code_blue_team_members`; with no roster, the on-call doctor plus the ward's nurses on today's shift; only then every clinician, and the code-blue screen says which ("No code team on the roster: alerting all clinicians"). Each window nobody responds (`code_blue_response_secs`, default 60 s) re-pages the team and adds the duty medical officer, then the medical superintendent, up to `code_blue_max_rounds` (default 5); every page is a `code_blue_pages` row. The page row is `sent` only when an SMS or WhatsApp was queued; in-app alone is `undelivered`, with "SMS is not set up: only in-app alerts went out" on the screen. A lab critical value repeats by tier (department head and `lab_seniors` from round 2) and is never marked escalated when no phone was reached; the head is told in-app instead. The lab-to-clinician call is recorded on the alert | The page went to up to 500 people, its SMS had no handler and the outbox called it sent; nobody re-paged an unanswered code; a critical value with no phone on file read as escalated | Reusing the `code_blue_team` access group as the roster (it grants clinical-override access, and break-glass adds the activator to it for 4 h); a per-shift code-team schedule (no screen sets shift hours yet); calling in-app-only delivery `sent` | Done (this) |
+
 ### Earlier major decisions
 
 | Date | Decision | Source |
@@ -182,6 +188,7 @@ built. *Proposed* is waiting for the owner. *Rejected* was considered and turned
 | 2026-11-02 | An integration test failed about 1 run in 100 on a busy machine with a 500, on an unchanged `main` | The test pool inherited production's 2-second wait for a connection, so slow connections read as a failed test | Test pools wait 30 seconds. Production keeps 2 seconds, but answers 500 where its own comment promises 503: see Open |
 | 2026-11-01 | Generated permission files conflicted between branches | Parallel work | Rebase and regenerate; never hand-merge them |
 | 2026-11-02 | 17 server integration tests failed on their first CI run, and looked like money, claims and ABDM bugs | 14 were tests overwriting each other: all share one hospital, their `SERIAL` locks stop at the file, and CI ran them in parallel. The other 3 were out of date: a table missing from the global list, and two fixtures older than the rules they run into. A real race also showed: seeding an empty database from two servers at once fails on a duplicate key | `RUST_TEST_THREADS=1` in `.cargo/config.toml`; the 3 tests corrected without loosening them; seeding takes an advisory lock, proved by `seed_race_test` |
+| 2026-11-07 | The code-blue SMS was never sent, and the outbox said it was | `emergency.code_blue_alert` had no handler; the pipeline fallback marked every row it handled `sent`, whether or not a pipeline acted | A real handler pages the round; the fallback answers `undelivered` with a reason when nothing acted, and the worker records it (status added in migration 1410) |
 
 ## Open
 

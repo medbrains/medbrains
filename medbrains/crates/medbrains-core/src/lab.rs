@@ -259,6 +259,17 @@ pub struct LabCriticalAlert {
     pub readback_value: Option<String>,
     pub readback_verified: bool,
     pub created_at: DateTime<Utc>,
+    /// Escalation rounds sent so far (0 = not escalated).
+    pub escalation_tier: i16,
+    pub escalated_at: Option<DateTime<Utc>>,
+    /// Why the last escalation could not be sent; cleared when one is.
+    pub escalation_blocked_reason: Option<String>,
+    /// The documented lab-to-clinician phone call (NABL/NABH read-back).
+    pub phone_called_by: Option<Uuid>,
+    pub phone_received_by: Option<String>,
+    pub phone_called_at: Option<DateTime<Utc>>,
+    pub phone_attempts: Option<i16>,
+    pub phone_readback_confirmed: Option<bool>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]

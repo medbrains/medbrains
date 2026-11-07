@@ -19,7 +19,7 @@ export interface PermissionDef {
   module: string;
 }
 
-/** 1216 permissions, one per constant in the Rust source. */
+/** 1218 permissions, one per constant in the Rust source. */
 export const PERMISSIONS: PermissionDef[] = [
   // dashboard
   {
@@ -561,6 +561,12 @@ export const PERMISSIONS: PermissionDef[] = [
     code: "lab.results.analyser_review",
     label: "Resolve analyser results held for review",
     description: "Results an analyser sends that cannot be matched to exactly one order -- no barcode, a barcode on two orders, a different patient, a value conflicting with one recorded -- are held rather than guessed. This lets a technologist read them, attach them to the right order, or dismiss them with a reason.",
+    module: "lab",
+  },
+  {
+    code: "lab.results.critical_call",
+    label: "Record the critical-value phone call",
+    description: "NABL and NABH ask for the lab-to-clinician call to be documented: who called, who took the call, when, how many attempts, and that the value was read back. A technologist makes the call, so this is separate from acknowledging, which the clinician does.",
     module: "lab",
   },
   {
@@ -7071,6 +7077,12 @@ export const PERMISSIONS: PermissionDef[] = [
     module: "nurse",
   },
   {
+    code: "nurse.code_blue.manage_team",
+    label: "Set who a code blue pages",
+    description: "The code team, the duty medical officer and the medical superintendent, in that order of escalation. Without a roster the page falls back to the ward's shift team, then to every clinician, and says so on the code-blue screen.",
+    module: "nurse",
+  },
+  {
     code: "nurse.equipment.view",
     label: "View Equipment Checks",
     description: "View equipment check log",
@@ -8117,6 +8129,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.LAB.RESULTS.AMEND,
       P.LAB.RESULTS.ANALYSER_REVIEW,
       P.LAB.RESULTS.CREATE,
+      P.LAB.RESULTS.CRITICAL_CALL,
       P.LAB.RESULTS.UPDATE,
       P.LAB.RESULTS.VERIFY,
       P.LAB.SAMPLES.COLLECT,
@@ -8592,6 +8605,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.LMS.QUIZZES.ATTEMPT,
       P.MARKETING.OUTREACH.APPROVE,
       P.NOTES.USE,
+      P.NURSE.CODE_BLUE.MANAGE_TEAM,
       P.ORDER_SETS.ANALYTICS.VIEW,
       P.ORDER_SETS.TEMPLATES.LIST,
       P.ORDER_SETS.TEMPLATES.VIEW,
