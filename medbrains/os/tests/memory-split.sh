@@ -34,13 +34,17 @@ done | awk -F'\t' '
     END { for (p in sum) printf "%8.1f  %s\n", sum[p] / 1024, p; printf "%8.1f  all processes\n", total / 1024 }' | sort -rn
 
 echo "== Each WebKit web process by kind of page, MB =="
-for pid in $(pgrep -f WebKitWebProcess || true); do
+for pid in $(pgrep -f '^/usr/lib/.*/WebKitWebProcess' || true); do
     awk -v pid="$pid" '
-        /^[0-9a-f]+-[0-9a-f]+ / { path = $6; kind = (path ~ /\.so/) ? "engine code (libraries)" :
-                                   (path == "[heap]") ? "malloc heap" :
-                                   (path ~ /memfd|dri|shm|SYSV|dmabuf/) ? "shared drawing buffers" :
-                                   (path ~ /^\[(stack|vdso|vvar|vsyscall)/) ? "stacks" :
-                                   (path == "") ? "anonymous (JS heap, DOM, images, caches)" : "other files" }
+        /^[0-9a-f]+-[0-9a-f]+ / {
+            path = $6
+            if (path ~ /\.so/) kind = "engine code (libraries)"
+            else if (path == "[heap]") kind = "malloc heap"
+            else if (path ~ /memfd|dri|shm|SYSV|dmabuf/) kind = "shared drawing buffers"
+            else if (path ~ /^\[(stack|vdso|vvar|vsyscall)/) kind = "stacks"
+            else if (path == "") kind = "anonymous (JS heap, DOM, images, caches)"
+            else kind = "other files"
+        }
         /^Pss:/ { sum[kind] += $2 }
         END { for (k in sum) printf "  pid %s %8.1f  %s\n", pid, sum[k] / 1024, k }' "/proc/$pid/smaps" | sort -k3 -rn
 done

@@ -370,6 +370,14 @@ for longer than a shift change, and a nurse who was not signed in must chart. Th
 Open for the reviewer: whether codes or a second signed-in person's approval is the better proof; whether the 2-minute trigger can be
 forced by an attacker who stops Kanidm (it needs root, so it is not a new path).
 
+**Memory, signed in on the screen** (`tests/memory-split.sh`, PSS from smaps, QEMU arm64 with 4 GB, one sample each,
+2026-11-07; MedBrains open and signed in through Kanidm). With `GSK_RENDERER=cairo`, the image's setting: 1,194 MB across
+all processes. WebKit's page processes 428 (the MedBrains page 222, of which 165 is anonymous memory, where the JavaScript
+heap, DOM, decoded images and caches all live and smaps cannot tell them apart, 46 the engine's code, 9 malloc, 6 drawing
+buffers; four idle page processes 40 to 76 each), the server 210, Postgres 192, the shell 125, the compositor 81, WebKit's
+network process 41, kanidmd 36, the front 9. With `ngl`: 1,375 MB; the shell grows to 272, because without a GPU Mesa draws
+in software, and everything else moves by under 20. Cairo stays.
+
 **Kanidm's look.** Every page Kanidm draws (sign-in, password change, people, groups, both themes) is dressed through the one
 stylesheet it loads after its own, so its templates are not patched. `kanidm-tokens.py` prints the design system's `--mb-*` tokens
 for its light and dark themes from `packages/design-system`, and the build refuses tokens that miss WCAG 2.2 AA; `kanidm-override.css`

@@ -93,6 +93,9 @@ def walk_sign_in(url, jar, username, password):
             status, text, headers = curl(target, jar=jar)
         elif 'action="/ui/login/begin"' in str(text):
             status, text, headers = curl(f"{origin}/ui/login/begin", "POST", jar=jar, form={"username": username, "password": "", "totp": ""}, extra=extra)
+        elif 'action="/ui/login/mech_choose"' in str(text):
+            # A person with a passkey as well is asked how to sign in; these tests use the password.
+            status, text, headers = curl(f"{origin}/ui/login/mech_choose", "POST", jar=jar, form={"mech": "password"}, extra=extra)
         elif 'action="/ui/login/pw"' in str(text):
             status, text, headers = curl(f"{origin}/ui/login/pw", "POST", jar=jar, form={"password": password}, extra=extra)
         elif "consent_token" in str(text):
