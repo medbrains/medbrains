@@ -2572,11 +2572,13 @@ export const P = {
       CANCEL: "pharmacy.dispensing.cancel",
       CREATE: "pharmacy.dispensing.create",
       PARTIAL: "pharmacy.dispensing.partial",
+      UNPAID_OVERRIDE: "pharmacy.dispensing.unpaid_override",
       VOID: "pharmacy.dispensing.void",
     },
     DISPENSING_CANCEL: "pharmacy.dispensing.cancel",
     DISPENSING_CREATE: "pharmacy.dispensing.create",
     DISPENSING_PARTIAL: "pharmacy.dispensing.partial",
+    DISPENSING_UNPAID_OVERRIDE: "pharmacy.dispensing.unpaid_override",
     DISPENSING_VOID: "pharmacy.dispensing.void",
     FORMULARY: {
       APPROVE: "pharmacy.formulary.approve",

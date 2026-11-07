@@ -108,10 +108,10 @@ medbrains-os-test not_yet 0 -
 medbrains-ot not_yet 94 medbrains-db,medbrains-authz,medbrains-authz-gate
 medbrains-outbox not_yet 13 -
 medbrains-patient-packages not_yet 13 medbrains-db,medbrains-authz-gate
-medbrains-patients partial 245 medbrains-db,medbrains-authz,medbrains-authz-gate
+medbrains-patients partial 248 medbrains-db,medbrains-authz,medbrains-authz-gate
 medbrains-payment-gateway not_yet 104 medbrains-db,medbrains-authz-gate
 medbrains-payroll on_facade 0 -
-medbrains-pharmacy partial 233 medbrains-db,medbrains-authz,medbrains-authz-gate
+medbrains-pharmacy partial 231 medbrains-db,medbrains-authz,medbrains-authz-gate
 medbrains-pharmacy-cash-drawer on_facade 0 -
 medbrains-pharmacy-delivery not_yet 18 medbrains-db
 medbrains-pharmacy-dispense-ops not_yet 13 medbrains-db

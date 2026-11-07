@@ -97,3 +97,36 @@ pub fn require_step_up(state: &AppState, jar: &CookieJar, claims: &Claims) -> Re
     }
     Ok(())
 }
+
+/// Whether `password` is this user's own password, checked on the server.
+///
+/// For a second person who confirms an action at the first person's screen:
+/// the witness to a controlled-drug dispense types their own password. A user
+/// with no password (SSO only) can never confirm this way. The read is scoped
+/// to the tenant, so a user of another hospital is simply not found.
+pub async fn verify_user_password(
+    state: &AppState,
+    tenant_id: Uuid,
+    user_id: Uuid,
+    password: &str,
+) -> Result<bool, AppError> {
+    let mut conn = medbrains_db::pool::tenant_conn(&state.db, &tenant_id).await?;
+    let hash = sqlx::query_scalar::<_, Option<String>>(
+        "SELECT password_hash FROM users \
+          WHERE id = $1 AND tenant_id = $2 AND is_active AND deleted_at IS NULL",
+    )
+    .bind(user_id)
+    .bind(tenant_id)
+    .fetch_optional(&mut *conn)
+    .await?
+    .flatten();
+    let Some(hash) = hash else {
+        return Ok(false);
+    };
+    let Ok(parsed) = PasswordHash::new(&hash) else {
+        return Ok(false);
+    };
+    Ok(Argon2::default()
+        .verify_password(password.as_bytes(), &parsed)
+        .is_ok())
+}

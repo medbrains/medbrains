@@ -814,3 +814,13 @@ export interface DispenseWitness {
   id: string;
   full_name: string;
 }
+
+/** The patient as the dispensing pharmacist sees them: identity and drug allergies only. */
+export interface PharmacyDispenseContext {
+  patient_id: string;
+  uhid: string;
+  full_name: string;
+  /** null when nobody has asked; true only when recorded as none. */
+  no_known_allergies: boolean | null;
+  drug_allergies: { allergen_name: string; severity: string | null; reaction: string | null }[];
+}

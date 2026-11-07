@@ -1787,6 +1787,7 @@ import type {
   PharmacyDeliveryList,
   PharmacyDestructionLog,
   PharmacyDispatchStatus,
+  PharmacyDispenseContext,
   PharmacyDrugRecall,
   PharmacyEmergencyKit,
   PharmacyOrder,
@@ -7264,6 +7265,8 @@ export const api = {
     data?: {
       items?: unknown[];
       witnessed_by?: string;
+      /** The witness's own password, typed by them; checked on the server. */
+      witness_password?: string;
       allergy_override_reason?: string;
       ndps_override_reason?: string;
       unpaid_override_reason?: string;
@@ -7347,6 +7350,9 @@ export const api = {
     request<PharmacySafetyRecordRow[]>(`/pharmacy/orders/${id}/safety-record`),
 
   listDispenseWitnesses: () => request<DispenseWitness[]>("/pharmacy/dispense-witnesses"),
+
+  getPharmacyDispenseContext: (patientId: string) =>
+    request<PharmacyDispenseContext>(`/pharmacy/patients/${patientId}/dispense-context`),
   createOtcSale: (data: CreateOtcSaleRequest) =>
     request<PharmacyOrderDetailResponse>("/pharmacy/otc-sale", {
       method: "POST",

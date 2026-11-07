@@ -45,9 +45,13 @@ pub const LASA: &str = "LASA_LOOK_ALIKE";
 pub const SCHEDULE_GATE: &str = "SCHEDULE_DISPENSE_REFUSED";
 /// A controlled (NDPS) dispense with no witness: refused, or overridden with a reason.
 pub const NDPS_WITNESS: &str = "NDPS_WITNESS_MISSING";
+/// A witness confirmed a controlled dispense with their own password.
+pub const WITNESS_CONFIRMED: &str = "WITNESS_CONFIRMED";
+/// Medicines handed over on an open bill, on a reason.
+pub const UNPAID_DISPENSE: &str = "UNPAID_DISPENSE";
 
 /// Shortest override reason `cpoe_safety_audit` accepts (its CHECK constraint).
-const MIN_REASON_CHARS: usize = 5;
+pub const MIN_REASON_CHARS: usize = 5;
 /// The most of the patient's other order lines compared for interactions.
 const ACTIVE_MED_LIMIT: i64 = 200;
 
@@ -535,6 +539,31 @@ pub fn ndps_witness_finding() -> MedicationSafetyWarning {
         code: NDPS_WITNESS.to_owned(),
         severity: MedicationSafetySeverity::Block,
         message: "Controlled substance dispensed without a witness".to_owned(),
+        catalog_item_id: None,
+        drug_name: String::new(),
+        detail: json!({}),
+    }
+}
+
+/// The proof that the witness confirmed: who, checked how. Filed as a caution
+/// so it appears, dated, on the order's safety record.
+pub fn witness_confirmed_finding(witness_name: &str) -> MedicationSafetyWarning {
+    MedicationSafetyWarning {
+        code: WITNESS_CONFIRMED.to_owned(),
+        severity: MedicationSafetySeverity::Warn,
+        message: format!("Witnessed by {witness_name}, confirmed with their own password"),
+        catalog_item_id: None,
+        drug_name: String::new(),
+        detail: json!({ "method": "password" }),
+    }
+}
+
+/// An unpaid dispense, filed as overridden with the pharmacist's reason.
+pub fn unpaid_dispense_finding(complaint: &str) -> MedicationSafetyWarning {
+    MedicationSafetyWarning {
+        code: UNPAID_DISPENSE.to_owned(),
+        severity: MedicationSafetySeverity::Block,
+        message: format!("Dispensed before payment: {complaint}"),
         catalog_item_id: None,
         drug_name: String::new(),
         detail: json!({}),

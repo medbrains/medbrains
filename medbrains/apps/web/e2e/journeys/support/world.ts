@@ -37,7 +37,7 @@ export interface Hospital {
     departmentIds?: string[],
     /** Permissions taken away from what the role gives (a cashier who may not collect). */
     deniedPermissions?: string[],
-  ) => Promise<{ id: string; page: Page; password: string }>;
+  ) => Promise<{ id: string; page: Page; username: string; password: string }>;
   /** Set a tenant setting for this test; the old value is restored after. */
   setting: (category: string, key: string, value: unknown) => Promise<void>;
   /** The doctor this run logs in as, by the name the desk picks them by. */
@@ -114,7 +114,7 @@ export const test = base.extend<{ hospital: Hospital }>({
         await loginAsRole(page, username, password);
         pages.push(page);
         // The password, for screens that ask the user to confirm it's them.
-        return { id: user.id, page, password };
+        return { id: user.id, page, username, password };
       },
       asAdmin: async () => {
         const page = await openPage(browser, "e2e/.auth/user.json");

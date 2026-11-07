@@ -108,6 +108,7 @@ async function signIn(
 
 interface Prescribed {
   patientId: string;
+  prescriptionId: string;
   uhid: string;
   name: string;
 }
@@ -158,7 +159,11 @@ async function prescribe(
     doctor_id: doctor.id,
     visit_type: "walk_in",
   });
-  await api(await withStepUp(doctorCtx), "POST", `/api/opd/encounters/${visit.encounter.id}/prescriptions`, {
+  const signed = await api<{ prescription: { id: string } }>(
+    await withStepUp(doctorCtx),
+    "POST",
+    `/api/opd/encounters/${visit.encounter.id}/prescriptions`,
+    {
     items: lines.map(({ drug, quantity }) => ({
       drug_name: drug.name,
       catalog_item_id: drug.id,
@@ -169,8 +174,14 @@ async function prescribe(
       quantity,
     })),
     ...(allergy ? { allergy_override_reason: "Prescribed knowingly; pharmacist to confirm" } : {}),
-  });
-  return { patientId: patient.id, uhid: patient.uhid, name: `${person.firstName} ${person.lastName}` };
+    },
+  );
+  return {
+    patientId: patient.id,
+    prescriptionId: signed.prescription.id,
+    uhid: patient.uhid,
+    name: `${person.firstName} ${person.lastName}`,
+  };
 }
 
 /** A pharmacist on the pharmacy's staff: orders reach the Pharmacy department. */
@@ -364,12 +375,35 @@ test("a Schedule X controlled drug is refused without a witness, the refusal is 
     "Schedule X dispense requires a witness",
   );
 
+  // The server checks the witness, not the screen: the dispenser cannot be
+  // their own witness, and a wrong password is not a confirmation.
+  const orderId = new URL(page.url()).pathname.split("/").pop() ?? "";
+  const pharmacistApi = await signIn(request, pharmacist.username, pharmacist.password);
+  const tryWitness = (witnessedBy: string, password: string) =>
+    pharmacistApi.request.put(`${E2E_BACKEND_URL}/api/pharmacy/orders/${orderId}/dispense`, {
+      headers: { Cookie: pharmacistApi.cookieHeader, "x-csrf-token": pharmacistApi.csrfToken },
+      data: {
+        witnessed_by: witnessedBy,
+        witness_password: password,
+        unpaid_override_reason: "Paying at the main billing counter",
+      },
+    });
+  const self = await tryWitness(pharmacist.id, pharmacist.password);
+  expect(self.status(), "the dispenser is not their own witness").toBe(400);
+  expect(await self.text()).toContain("second person");
+  const wrong = await tryWitness(witness.id, "not-their-password");
+  expect(wrong.status(), "a wrong witness password is refused").toBe(400);
+  expect(await wrong.text()).toContain("not the witness's password");
+
   // The dispense screen will not go without the second pharmacist.
   await page.getByRole("button", { name: "Dispense", exact: true }).click();
   const dispense = page.getByRole("dialog", { name: "Dispense order" });
   await expect(dispense.getByRole("button", { name: "Dispense", exact: true })).toBeDisabled();
   await dispense.getByRole("combobox", { name: /Witness/ }).click();
   await page.getByRole("option", { name: witnessName, exact: true }).click();
+  await expect(dispense.getByRole("button", { name: "Dispense", exact: true })).toBeDisabled();
+  // The witness types their own password at this screen.
+  await dispense.getByLabel("Witness's password").fill(witness.password);
   await expectScreenAccessible(page, "pharmacy-dispense-controlled");
   await dispense.getByRole("button", { name: "Dispense", exact: true }).click();
   await dispenseUnpaid(page);
@@ -449,4 +483,72 @@ test("a Schedule H drug is not sold at the counter until the prescription's pati
     ),
   ).toBeVisible();
   await expectScreenAccessible(page, "pharmacy-pos-schedule-h");
+});
+
+test("the pharmacy reaches only what dispensing needs, and only for patients it serves", async ({
+  hospital,
+  request,
+}) => {
+  test.setTimeout(240_000);
+  const drug = await addDrug(hospital.admin, { generic: "Ondansetron", schedule: "H" });
+  await receiveBatch(hospital.admin, drug, { number: `GATE-${stamp()}`, expiry: inDays(300), quantity: 30 });
+  const served = await prescribe(hospital, request, {
+    lines: [{ drug, quantity: 6 }],
+    allergy: "Penicillin",
+  });
+  const pharmacist = await newPharmacist(hospital, "Gate Pharmacist");
+  const api2 = await signIn(request, pharmacist.username, pharmacist.password);
+  const get = (path: string) =>
+    api2.request.get(`${E2E_BACKEND_URL}${path}`, { headers: { Cookie: api2.cookieHeader } });
+
+  // A patient with a prescription at the pharmacy: the dispensing view only.
+  const view = await get(`/api/pharmacy/patients/${served.patientId}/dispense-context`);
+  expect(view.status()).toBe(200);
+  const body = (await view.json()) as Record<string, unknown>;
+  expect(Object.keys(body).sort()).toEqual(
+    ["drug_allergies", "full_name", "no_known_allergies", "patient_id", "uhid"].sort(),
+  );
+  expect(JSON.stringify(body)).toContain("Penicillin");
+  // ...and nothing else of the record: not the chart, the context, notes or bills.
+  for (const path of [
+    `/api/patients/${served.patientId}`,
+    `/api/patients/${served.patientId}/context`,
+    `/api/patients/${served.patientId}/allergies`,
+    `/api/opd/patients/${served.patientId}/diagnoses`,
+    `/api/billing/patients/${served.patientId}/dues`,
+  ]) {
+    const refused = await get(path);
+    expect([403, 404], `${path} stays closed`).toContain(refused.status());
+  }
+
+  // A patient the pharmacy does not serve: no view, and no order to open one.
+  const stranger = freshPerson();
+  const other = await api<{ id: string }>(hospital.admin, "POST", "/api/patients", {
+    first_name: stranger.firstName,
+    last_name: stranger.lastName,
+    gender: "female",
+    date_of_birth: "1990-03-03",
+    phone: stranger.phone,
+  });
+  expect((await get(`/api/pharmacy/patients/${other.id}/dispense-context`)).status()).toBe(404);
+  const order = await api2.request.post(`${E2E_BACKEND_URL}/api/pharmacy/orders`, {
+    headers: { Cookie: api2.cookieHeader, "x-csrf-token": api2.csrfToken },
+    data: {
+      patient_id: other.id,
+      items: [{ catalog_item_id: drug.id, drug_name: drug.name, quantity: 1, unit_price: 10 }],
+    },
+  });
+  expect(order.status(), "no order for a patient the pharmacist cannot reach").toBe(404);
+
+  // Another patient's prescription cannot back an order, even for an administrator.
+  const borrowed = await hospital.admin.request.post(`${E2E_BACKEND_URL}/api/pharmacy/orders`, {
+    headers: { Cookie: hospital.admin.cookieHeader, "x-csrf-token": hospital.admin.csrfToken },
+    data: {
+      patient_id: other.id,
+      prescription_id: served.prescriptionId,
+      items: [{ catalog_item_id: drug.id, drug_name: drug.name, quantity: 1, unit_price: 10 }],
+    },
+  });
+  expect(borrowed.status()).toBe(400);
+  expect(await borrowed.text()).toContain("prescription does not belong to this patient");
 });

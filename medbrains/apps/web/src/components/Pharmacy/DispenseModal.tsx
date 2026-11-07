@@ -4,7 +4,7 @@ import { IconAlertTriangle } from "@tabler/icons-react";
 import { useQuery } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { Alert, Badge, Button, Modal, Select, Table, toast } from "@/components/ui";
-import { NumberField } from "@/components/ui/Input";
+import { NumberField, PasswordField } from "@/components/ui/Input";
 import { clinicalSupportService } from "@/services/clinicalSupport.service";
 import { pharmacyService } from "@/services/pharmacy.service";
 import { findAllergyConflicts } from "@/utils/allergyMatch";
@@ -22,6 +22,7 @@ interface Props {
   onDispense: (payload: {
     items: { order_item_id: string; batch_stock_id?: string; quantity: number }[];
     witnessed_by?: string;
+    witness_password?: string;
     allergy_override_reason?: string;
     safety_override_reason?: string;
   }) => void;
@@ -83,6 +84,8 @@ export function DispenseModal({
 
   const [rows, setRows] = useState<Record<string, RowState>>({});
   const [witness, setWitness] = useState<string | null>(null);
+  // Typed by the witness, at this screen, and checked on the server.
+  const [witnessPassword, setWitnessPassword] = useState("");
   const [allergyReason, setAllergyReason] = useState("");
   const [safetyReason, setSafetyReason] = useState("");
 
@@ -120,7 +123,7 @@ export function DispenseModal({
     setRows((r) => ({ ...r, [itemId]: { ...rowFor(itemId, 0), ...r[itemId], ...p } }));
 
   const anyControlled = lines.some((l) => isControlled(catalogById[l.item.catalog_item_id ?? ""]));
-  const witnessMissing = anyControlled && !witness;
+  const witnessMissing = anyControlled && (!witness || witnessPassword.length === 0);
 
   const submit = () => {
     if (witnessMissing) {
@@ -146,6 +149,7 @@ export function DispenseModal({
     onDispense({
       items: payloadItems,
       witnessed_by: witness ?? undefined,
+      witness_password: witness ? witnessPassword : undefined,
       allergy_override_reason: allergyConflicts.length > 0 ? allergyReason.trim() : undefined,
       safety_override_reason: safety.needsReason ? safetyReason.trim() : undefined,
     });
@@ -222,7 +226,17 @@ export function DispenseModal({
             value={witness}
             onChange={setWitness}
             searchable
-            error={witnessMissing ? "Required for controlled drugs" : undefined}
+            error={anyControlled && !witness ? "Required for controlled drugs" : undefined}
+          />
+        )}
+        {anyControlled && witness && (
+          <PasswordField
+            label="Witness's password"
+            description="The witness types their own password to confirm they saw this dispense."
+            value={witnessPassword}
+            onChange={(e) => setWitnessPassword(e.currentTarget.value)}
+            autoComplete="off"
+            required
           />
         )}
 

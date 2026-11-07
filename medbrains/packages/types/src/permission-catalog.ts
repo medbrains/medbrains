@@ -19,7 +19,7 @@ export interface PermissionDef {
   module: string;
 }
 
-/** 1216 permissions, one per constant in the Rust source. */
+/** 1217 permissions, one per constant in the Rust source. */
 export const PERMISSIONS: PermissionDef[] = [
   // dashboard
   {
@@ -718,6 +718,12 @@ export const PERMISSIONS: PermissionDef[] = [
     code: "pharmacy.dispensing.void",
     label: "Void Dispensed Medication",
     description: "Approve post-dispense medicine reversal with billing impact",
+    module: "pharmacy",
+  },
+  {
+    code: "pharmacy.dispensing.unpaid_override",
+    label: "Hand over an unpaid bill's medicines on a reason",
+    description: "Credit patients, scheme beneficiaries and staff are served before they pay. The reason is written with the dispense, against the patient, for the cashier and the auditor to see. Without this grant an open bill means payment first.",
     module: "pharmacy",
   },
   {
@@ -8173,6 +8179,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.PHARMACY.DISPENSING.CANCEL,
       P.PHARMACY.DISPENSING.CREATE,
       P.PHARMACY.DISPENSING.PARTIAL,
+      P.PHARMACY.DISPENSING.UNPAID_OVERRIDE,
       P.PHARMACY.DISPENSING.VOID,
       P.PHARMACY.FORMULARY.APPROVE,
       P.PHARMACY.FULFILMENT.DISPATCH,

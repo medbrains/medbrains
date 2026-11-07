@@ -1,6 +1,7 @@
 // Pharmacy PharmacyOrdersTab — split from pharmacy.tsx (pure move).
 
 import { Group, Select, Stack, Text, Tooltip } from "@mantine/core";
+import { useHasPermission } from "@medbrains/stores";
 import type { PharmacyOrder } from "@medbrains/types";
 import { P, PATIENT_BASIC_IDENTITY_FIELD_ACCESS_KEYS } from "@medbrains/types";
 import { IconCheck, IconEye, IconPlus, IconShoppingCart, IconX } from "@tabler/icons-react";
@@ -84,6 +85,8 @@ export function PharmacyOrdersTab({
   const emit = useClinicalEmit();
 
   const [unpaidOrder, setUnpaidOrder] = useState<{ id: string; complaint: string } | null>(null);
+  // Only someone granted it hands over an unpaid bill; others see the refusal.
+  const canUnpaidOverride = useHasPermission(P.PHARMACY.DISPENSING_UNPAID_OVERRIDE);
   const dispenseMutation = useMutation({
     mutationFn: async ({ id, unpaidReason }: DispenseInput) => {
       const detail = await pharmacyService.getPharmacyOrder(id);
@@ -115,7 +118,7 @@ export function PharmacyOrdersTab({
     onError: (e: Error, { id, unpaidReason }) => {
       // An unpaid bill is not a wall: credit patients, schemes and staff are
       // dispensed on a recorded reason. Ask for it rather than dead-end.
-      if (!unpaidReason && e.message.includes(UNPAID_REASON_REQUIRED)) {
+      if (canUnpaidOverride && !unpaidReason && e.message.includes(UNPAID_REASON_REQUIRED)) {
         setUnpaidOrder({ id, complaint: e.message });
         return;
       }

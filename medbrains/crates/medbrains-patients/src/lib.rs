@@ -4690,12 +4690,17 @@ pub async fn get_patient_context(
     )
     .await?;
 
-    // The same per-patient gate as the rest of the record. A direct grant
-    // alone left out everyone who reaches the patient through a visit, an
-    // admission or a pharmacy order: the pharmacist dispensing a prescription
-    // got 404, and the banner carrying the patient's allergies and dues
-    // vanished from the dispense screen.
-    medbrains_authz_gate::require_patient_access(&state, &claims, id).await?;
+    // ReBAC pre-check on the specific patient.
+    let authz_ctx = medbrains_server_core::middleware::authorization::authz_context(&claims);
+    medbrains_server_core::middleware::authorization::collapse(
+        medbrains_server_core::middleware::authorization::outcome_of(
+            state
+                .authz
+                .check(&authz_ctx, medbrains_authz::Relation::Viewer, "patient", id)
+                .await,
+            "patient",
+        ),
+    )?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)

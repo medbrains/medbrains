@@ -719,33 +719,6 @@ pub async fn require_patient_access(
         ));
     }
 
-    // A pharmacy order still being worked reaches the patient too. The order
-    // is granted to the Pharmacy department, and the pharmacist dispensing it
-    // must see the patient's allergies and dues: without this edge the
-    // allergy list answered 404, the dispense screen showed no allergy, and
-    // the server then refused the dispense for an allergy nobody could see.
-    // Bounded to open orders and those dispensed in the last 30 days (returns,
-    // counselling), so a dispensed order does not keep the record open.
-    let pharmacy_order_ids: Vec<Uuid> = sqlx::query_scalar!(
-        "SELECT id FROM pharmacy_orders WHERE patient_id = $1 AND tenant_id = $2 \
-           AND deleted_at IS NULL \
-           AND (status IN ('ordered', 'partially_dispensed') \
-                OR dispensed_at > now() - interval '30 days') \
-         ORDER BY created_at DESC LIMIT $3",
-        patient_id,
-        claims.tenant_id,
-        MAX_FANOUT,
-    )
-    .fetch_all(&mut *conn)
-    .await?;
-    for oid in pharmacy_order_ids {
-        items.push((
-            "pharmacy_order".to_owned(),
-            medbrains_authz::Relation::Viewer,
-            oid,
-        ));
-    }
-
     // No encounters and no admissions is a definite `Deny` for the hierarchy
     // edge — there is nothing to reach the patient through. Combined with the
     // direct check so a failed direct check still surfaces as an outage rather
@@ -771,6 +744,67 @@ pub async fn require_patient_access(
     };
 
     collapse(any([direct, reachable]))
+}
+
+/// How long a pharmacy order keeps the dispensing view of its patient open.
+///
+/// Open orders count only while recent, and a dispensed one only for returns
+/// and counselling. Past this the pharmacist reaches the patient the ordinary
+/// way or not at all.
+const PHARMACY_ACCESS_DAYS: i32 = 30;
+
+/// Gate the **dispensing view** of a patient: name, UHID and drug allergies.
+///
+/// Passes for anyone `require_patient_access` passes. Beyond that, it passes
+/// for a holder of `view` on one of the patient's recent pharmacy orders —
+/// the Pharmacy department while it dispenses. It deliberately does not widen
+/// `require_patient_access`: an order can be raised for any patient, so an
+/// edge there would open every patient's full record to the department. Use
+/// it only for reads that return what dispensing needs, nothing more.
+pub async fn require_patient_pharmacy_access(
+    state: &AppState,
+    claims: &Claims,
+    patient_id: Uuid,
+) -> Result<(), AppError> {
+    let care = require_patient_access(state, claims, patient_id).await;
+    if !matches!(care, Err(AppError::NotFound)) {
+        // Allowed, or a fault that must not turn into a refusal.
+        return care;
+    }
+    let mut conn = medbrains_db::pool::tenant_conn(&state.db, &claims.tenant_id).await?;
+    let order_ids: Vec<Uuid> = sqlx::query_scalar!(
+        "SELECT id FROM pharmacy_orders WHERE patient_id = $1 AND tenant_id = $2 \
+           AND deleted_at IS NULL \
+           AND ((status IN ('ordered', 'partially_dispensed') \
+                 AND created_at > now() - make_interval(days => $3)) \
+                OR dispensed_at > now() - make_interval(days => $3)) \
+         ORDER BY created_at DESC LIMIT $4",
+        patient_id,
+        claims.tenant_id,
+        PHARMACY_ACCESS_DAYS,
+        MAX_FANOUT,
+    )
+    .fetch_all(&mut *conn)
+    .await?;
+    if order_ids.is_empty() {
+        return Err(AppError::NotFound);
+    }
+    let ctx = medbrains_server_core::middleware::authorization::authz_context(claims);
+    let items: Vec<(String, medbrains_authz::Relation, Uuid)> = order_ids
+        .into_iter()
+        .map(|id| ("pharmacy_order".to_owned(), medbrains_authz::Relation::Viewer, id))
+        .collect();
+    let reachable = match state.authz.bulk_check(&ctx, &items).await {
+        Ok(results) => any(results.values().map(|&allowed| {
+            if allowed { Outcome::Allow } else { Outcome::Deny }
+        })),
+        Err(err) => {
+            tracing::error!(target: "authz", error = %err, check = "patient_pharmacy",
+                "authorization backend unavailable — refusing as 503, not as absent");
+            Outcome::Unknown
+        }
+    };
+    collapse(reachable)
 }
 
 /// The set of patients this caller may see, for constraining a list query.

@@ -482,6 +482,13 @@ pub mod pharmacy {
         pub const PARTIAL: &str = "pharmacy.dispensing.partial";
         pub const CANCEL: &str = "pharmacy.dispensing.cancel";
         pub const VOID: &str = "pharmacy.dispensing.void";
+        /// Hand over an unpaid bill's medicines on a reason.
+        ///
+        /// Credit patients, scheme beneficiaries and staff are served before
+        /// they pay. The reason is written with the dispense, against the
+        /// patient, for the cashier and the auditor to see. Without this grant
+        /// an open bill means payment first.
+        pub const UNPAID_OVERRIDE: &str = "pharmacy.dispensing.unpaid_override";
     }
 
     pub mod stock {

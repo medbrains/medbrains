@@ -933,6 +933,7 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
             permissions::pharmacy::dispensing::PARTIAL,
             permissions::pharmacy::dispensing::CANCEL,
             permissions::pharmacy::dispensing::VOID,
+            permissions::pharmacy::dispensing::UNPAID_OVERRIDE,
             permissions::pharmacy::stock::MANAGE,
             permissions::pharmacy::ndps::LIST,
             permissions::pharmacy::ndps::MANAGE,

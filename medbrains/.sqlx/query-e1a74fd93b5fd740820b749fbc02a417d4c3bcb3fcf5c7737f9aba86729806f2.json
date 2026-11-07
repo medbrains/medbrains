@@ -1,0 +1,32 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT u.id, u.full_name FROM users u JOIN roles r ON r.code = u.role::text AND r.tenant_id = u.tenant_id AND r.deleted_at IS NULL WHERE u.tenant_id = $1 AND u.is_active AND u.deleted_at IS NULL AND u.id <> $2 AND u.department_ids && $4::uuid[] AND (r.permissions ? $3 OR COALESCE(u.access_matrix->'extra' ? $3, false)) AND NOT COALESCE(u.access_matrix->'denied' ? $3, false) ORDER BY u.full_name LIMIT $5",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "full_name",
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Text",
+        "UuidArray",
+        "Int8"
+      ]
+    },
+    "nullable": [
+      false,
+      false
+    ]
+  },
+  "hash": "e1a74fd93b5fd740820b749fbc02a417d4c3bcb3fcf5c7737f9aba86729806f2"
+}

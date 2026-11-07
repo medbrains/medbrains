@@ -49,6 +49,7 @@ pub mod pos_returns;
 mod pos_scheduled;
 pub mod quarantine;
 mod return_rules;
+pub mod dispense_context;
 pub mod rx_safety;
 pub mod safety_record;
 pub mod witnesses;
@@ -1592,6 +1593,9 @@ pub struct DischargeMedsRequest {
 pub struct DispenseOrderRequest {
     pub items: Option<Vec<DispenseItemInput>>,
     pub witnessed_by: Option<Uuid>,
+    /// The witness's own password, typed by them at this screen and checked on
+    /// the server. Required whenever `witnessed_by` is given.
+    pub witness_password: Option<String>,
     /// Pharmacist's reason for dispensing despite a documented drug allergy.
     /// Required (non-blank) when a line conflicts with the patient's allergies;
     /// logged to `pharmacy_allergy_check_log` (context `dispensing`).
@@ -1929,6 +1933,11 @@ pub async fn create_order(
     Json(body): Json<CreateOrderRequest>,
 ) -> Result<Json<OrderDetailResponse>, AppError> {
     require_permission(&claims, permissions::pharmacy::dispensing::CREATE)?;
+    // An order names a patient, and the order is then granted to the Pharmacy
+    // department: raising one for a patient the caller cannot reach would hand
+    // the department a way in. Every other caller of `create_order_in_tx`
+    // (discharge dispensing, the discharge checklist) checks this first too.
+    medbrains_authz_gate::require_patient_access(&state, &claims, body.patient_id).await?;
     let restricted_fields = resolve_pharmacy_restricted_fields(&state, &claims).await?;
 
     let mut tx = state.db.begin().await?;
@@ -1955,6 +1964,27 @@ pub async fn create_order_in_tx(
         return Err(AppError::BadRequest(
             "At least one item is required".to_owned(),
         ));
+    }
+
+    if let Some(prescription_id) = body.prescription_id {
+        // The prescription is the order's authority — its doctor is who the
+        // Schedule X gate checks. One belonging to another patient, tenant, or
+        // already deleted would let an order borrow somebody else's prescriber.
+        let belongs: bool = sqlx::query_scalar(
+            "SELECT EXISTS (SELECT 1 FROM prescriptions \
+                             WHERE id = $1 AND tenant_id = $2 AND patient_id = $3 \
+                               AND deleted_at IS NULL)",
+        )
+        .bind(prescription_id)
+        .bind(claims.tenant_id)
+        .bind(body.patient_id)
+        .fetch_one(&mut **tx)
+        .await?;
+        if !belongs {
+            return Err(AppError::BadRequest(
+                "prescription does not belong to this patient".to_owned(),
+            ));
+        }
     }
 
     if let Some(encounter_id) = body.encounter_id {
@@ -2525,20 +2555,19 @@ pub async fn get_order(
     let restricted_fields = resolve_pharmacy_restricted_fields(&state, &claims).await?;
 
     // ── ReBAC pre-check — must hold `view` on the pharmacy_order ─
-    let authz_ctx = medbrains_server_core::middleware::authorization::authz_context(&claims);
-    medbrains_server_core::middleware::authorization::collapse(
-        medbrains_server_core::middleware::authorization::outcome_of(
-            state
-                .authz
-                .check(
-                    &authz_ctx,
-                    medbrains_authz::Relation::Viewer,
-                    "pharmacy_order",
-                    id,
-                )
-                .await,
-            "pharmacy_order",
-        ),
+    // Through the kernel's facade, which keeps the three outcomes apart.
+    let order = medbrains_kernel::authz::Resource {
+        kind: "pharmacy_order",
+        id,
+    };
+    medbrains_kernel::authz::collapse(
+        medbrains_kernel::authz::authorize(
+            &*state.authz,
+            &medbrains_kernel::authz::authz_context(&claims),
+            medbrains_kernel::authz::Relation::Viewer,
+            order,
+        )
+        .await,
     )?;
 
     let mut tx = state.db.begin().await?;
@@ -2958,6 +2987,42 @@ pub async fn dispense_order(
         record_id: Some(order.id),
     };
 
+    // The witness, when one is named: a second person, still allowed to
+    // dispense, who typed their own password here. The confirmation is filed
+    // with the dispense as the proof.
+    if let Some(witness_id) = body.witnessed_by {
+        let witness_name = match witnesses::verify_witness(
+            &state,
+            &claims,
+            witness_id,
+            body.witness_password.as_deref(),
+        )
+        .await
+        {
+            Ok(name) => name,
+            Err(refusal) => {
+                // A failed witness confirmation is a record too.
+                rx_safety::file_dispense_refusal(
+                    &state,
+                    &claims,
+                    &dispense_subject,
+                    rx_safety::WITNESS_CONFIRMED,
+                    &refusal,
+                )
+                .await;
+                return Err(refusal);
+            }
+        };
+        rx_safety::record_in_tx(
+            &mut tx,
+            &claims,
+            &dispense_subject,
+            &[rx_safety::witness_confirmed_finding(&witness_name)],
+            None,
+        )
+        .await?;
+    }
+
     // Schedule H/H1/X compliance gate. Drugs and Cosmetics Act 1940
     // (rules 65, 65A) — must be on a registered medical practitioner's
     // prescription; Schedule X (NDPS Act) further requires a witnessed
@@ -3083,6 +3148,19 @@ pub async fn dispense_order(
                 return Err(refusal);
             }
             Some(reason) => {
+                if !rx_safety::can_override(&claims, rx_safety::NDPS_WITNESS) {
+                    return Err(AppError::ForbiddenReason(
+                        "Dispensing a controlled drug without a witness needs the medication \
+                         safety override right."
+                            .to_owned(),
+                    ));
+                }
+                if reason.chars().count() < rx_safety::MIN_REASON_CHARS {
+                    return Err(AppError::BadRequest(format!(
+                        "Say why there is no witness, in at least {} characters.",
+                        rx_safety::MIN_REASON_CHARS
+                    )));
+                }
                 // Filed with the dispense, so the reason is on the record a
                 // drug inspector reads, not only in an application log.
                 rx_safety::record_in_tx(
@@ -3157,6 +3235,23 @@ pub async fn dispense_order(
                     "Cannot dispense — {complaint}. Provide a reason to dispense unpaid."
                 )));
             };
+            require_permission(&claims, permissions::pharmacy::dispensing::UNPAID_OVERRIDE)?;
+            if reason.chars().count() < rx_safety::MIN_REASON_CHARS {
+                return Err(AppError::BadRequest(format!(
+                    "Say why it goes before payment, in at least {} characters.",
+                    rx_safety::MIN_REASON_CHARS
+                )));
+            }
+            // Filed with the dispense, against the patient: the cashier and the
+            // auditor read it, not only an application log.
+            rx_safety::record_in_tx(
+                &mut tx,
+                &claims,
+                &dispense_subject,
+                &[rx_safety::unpaid_dispense_finding(&complaint)],
+                Some(reason),
+            )
+            .await?;
 
             tracing::warn!(
                 tenant_id = %claims.tenant_id,
@@ -3524,13 +3619,14 @@ async fn enforce_schedule_compliance(
     // stamps the pharmacist as `ordered_by`, so a Schedule X order was checked
     // against the pharmacist's (absent) doctor profile and could never pass.
     let order: Option<ComplianceOrderRow> = sqlx::query_as(
-        "SELECT o.prescription_id, o.encounter_id, COALESCE(rx.doctor_id, o.ordered_by), \
+        "SELECT o.prescription_id, o.encounter_id, rx.doctor_id, \
                 EXISTS (SELECT 1 FROM pharmacy_store_orders s \
                          WHERE s.tenant_id = o.tenant_id AND s.pharmacy_order_id = o.id \
                            AND s.rx_source = 'upload' AND s.verified_at IS NOT NULL \
                            AND s.deleted_at IS NULL) \
          FROM pharmacy_orders o \
          LEFT JOIN prescriptions rx ON rx.id = o.prescription_id AND rx.tenant_id = o.tenant_id \
+                                    AND rx.patient_id = o.patient_id AND rx.deleted_at IS NULL \
          WHERE o.id = $1 AND o.tenant_id = $2",
     )
     .bind(order_id)
@@ -3580,10 +3676,26 @@ async fn enforce_schedule_compliance(
         .any(|(_, s)| s.as_deref() == Some("X"));
 
     if has_x {
+        // A Schedule X order needs a prescription from a doctor for this
+        // patient; with none there is nobody whose authorisation to check.
+        let Some(prescriber) = prescriber else {
+            return Err(AppError::BadRequest(format!(
+                "Schedule H/H1/X gate failed: {}",
+                blocks
+                    .into_iter()
+                    .chain(std::iter::once(
+                        "Schedule X needs a prescription for this patient signed by an \
+                         authorised doctor"
+                            .to_owned(),
+                    ))
+                    .collect::<Vec<_>>()
+                    .join("; ")
+            )));
+        };
         if witnessed_by.is_none() {
             blocks
                 .push("Schedule X dispense requires a witness signature (witnessed_by)".to_owned());
-        } else if witnessed_by == prescriber {
+        } else if witnessed_by == Some(prescriber) {
             blocks.push("Schedule X witness must differ from prescriber".to_owned());
         }
 
@@ -4263,6 +4375,9 @@ pub async fn create_discharge_dispensing(
 //  Catalog CRUD
 // ══════════════════════════════════════════════════════════
 
+/// The most catalogue ids one `ids` filter may name.
+const CATALOG_IDS_LIMIT: usize = 200;
+
 #[derive(Debug, serde::Deserialize)]
 pub struct CatalogQuery {
     pub search: Option<String>,
@@ -4323,6 +4438,11 @@ pub async fn list_catalog(
         })
         .transpose()
         .map_err(|_| AppError::BadRequest("ids must be catalogue ids".to_owned()))?;
+    if ids.as_ref().is_some_and(|ids| ids.len() > CATALOG_IDS_LIMIT) {
+        return Err(AppError::BadRequest(format!(
+            "ask for at most {CATALOG_IDS_LIMIT} catalogue ids at once"
+        )));
+    }
 
     let rows = sqlx::query_as::<_, PharmacyCatalog>(
         "SELECT * FROM pharmacy_catalog
@@ -5104,6 +5224,13 @@ async fn post_ndps_receipt_in_tx(
     if !controlled {
         return Ok(());
     }
+    // One receipt or issue at a time per drug, so two at once cannot both
+    // read the same balance and write the same "after".
+    sqlx::query("SELECT pg_advisory_xact_lock(hashtextextended($1::text || ':' || $2::text, 0))")
+        .bind(claims.tenant_id)
+        .bind(body.catalog_item_id)
+        .execute(&mut **tx)
+        .await?;
     let balance: i64 = sqlx::query_scalar::<_, Option<i64>>(
         "SELECT SUM(CASE WHEN action IN ('receipt', 'adjustment') THEN quantity \
                     ELSE -quantity END) \
@@ -5122,7 +5249,11 @@ async fn post_ndps_receipt_in_tx(
     .bind(claims.tenant_id)
     .bind(body.catalog_item_id)
     .bind(body.quantity_received)
-    .bind(i32::try_from(balance + i64::from(body.quantity_received)).unwrap_or(i32::MAX))
+    .bind(
+        i32::try_from(balance + i64::from(body.quantity_received)).map_err(|_| {
+            AppError::BadRequest("This receipt would overflow the NDPS register balance".to_owned())
+        })?,
+    )
     .bind(claims.sub)
     .bind(format!("Batch {} received", body.batch_number))
     .fetch_one(&mut **tx)
@@ -8699,6 +8830,10 @@ pub fn router() -> axum::Router<AppState> {
         .route(
             "/api/pharmacy/dispense-witnesses",
             get(witnesses::list_dispense_witnesses),
+        )
+        .route(
+            "/api/pharmacy/patients/{id}/dispense-context",
+            get(dispense_context::patient_dispense_context),
         )
         .route("/api/pharmacy/otc-sale", post(create_otc_sale))
         .route(

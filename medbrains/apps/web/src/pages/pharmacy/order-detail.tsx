@@ -36,6 +36,7 @@ import { printDocument } from "@/lib/print/printDocument";
 import { pharmacyService } from "@/services/pharmacy.service";
 import { pharmacyOrderJourneyContext } from "../pharmacy-workspace";
 import { ArrangeDeliveryButton } from "./arrange-delivery-drawer";
+import { DispensePatientCard } from "./dispense-patient-card";
 import { EditablePharmacyQuantity } from "./editable-quantity";
 import { NearExpiryHints } from "./near-expiry-hints";
 import { OrderSafetyRecord } from "./order-safety-record";
@@ -139,14 +140,17 @@ export function PharmacyOrderDetail({
     null,
   );
   // Active drug allergens for the dispense-time allergy guard.
-  const { data: patientAllergies = [] } = useQuery({
-    queryKey: ["patient-allergies", detail?.order.patient_id],
-    queryFn: () => pharmacyService.listPatientAllergies(detail?.order.patient_id ?? ""),
-    enabled: dispenseOpen && Boolean(detail?.order.patient_id),
+  // The dispensing view of the patient (identity and drug allergies), through
+  // the pharmacy's own gate: the pharmacist usually has no relationship with
+  // the patient, and the general reads answer 404.
+  const canUnpaidOverride = useHasPermission(P.PHARMACY.DISPENSING_UNPAID_OVERRIDE);
+  const dispensePatientId = detail?.order.patient_id ?? "";
+  const dispenseContext = useQuery({
+    queryKey: ["pharmacy-dispense-context", dispensePatientId],
+    queryFn: () => pharmacyService.getPharmacyDispenseContext(dispensePatientId),
+    enabled: canDispense && dispensePatientId.length > 0,
   });
-  const drugAllergens = patientAllergies
-    .filter((a) => a.is_active && a.allergy_type === "drug")
-    .map((a) => a.allergen_name);
+  const drugAllergens = (dispenseContext.data?.drug_allergies ?? []).map((a) => a.allergen_name);
   const dispenseMutation = useMutation({
     mutationFn: async (payload?: DispensePayload) => {
       const currentDetail = await pharmacyService.getPharmacyOrder(orderId);
@@ -183,6 +187,7 @@ export function PharmacyOrderDetail({
       // served first. Ask why, then send the same dispense with the reason —
       // this screen used to show the refusal and offer no way to give one.
       if (
+        canUnpaidOverride &&
         payload &&
         !payload.unpaid_override_reason &&
         e.message.includes(UNPAID_REASON_REQUIRED)
@@ -307,10 +312,18 @@ export function PharmacyOrderDetail({
           Edit or remove medicines before dispense. Draft billing lines stay synchronized.
         </Alert>
       )}
-      <PharmacyPatientContext
-        patientId={detail.order.patient_id}
-        canViewPatientRecord={canViewPatientRecord}
-      />
+      {detail.order.patient_id && canDispense ? (
+        <DispensePatientCard
+          context={dispenseContext.data}
+          loading={dispenseContext.isLoading}
+          failed={dispenseContext.isError}
+        />
+      ) : (
+        <PharmacyPatientContext
+          patientId={detail.order.patient_id}
+          canViewPatientRecord={canViewPatientRecord}
+        />
+      )}
       <PatientFlowNavigator
         patientId={detail.order.patient_id}
         active="pharmacy"
