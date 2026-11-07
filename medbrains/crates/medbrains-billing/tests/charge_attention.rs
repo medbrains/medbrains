@@ -85,12 +85,12 @@ async fn pool() -> PgPool {
 /// A hospital, a billing user and a patient. Returns the user's claims and
 /// the patient.
 async fn fixture(db: &PgPool) -> (Claims, Uuid) {
-    let code = Uuid::new_v4().simple().to_string()[..10].to_uppercase();
+    let code = Uuid::new_v4().simple().to_string()[..10].to_owned();
     let t: Uuid = sqlx::query_scalar(
         "INSERT INTO tenants (code, name, hospital_type) \
          VALUES ($1, 'Charge attention test', 'multi_specialty') RETURNING id",
     )
-    .bind(format!("CA{code}"))
+    .bind(format!("CA{}", code.to_uppercase()))
     .fetch_one(db)
     .await
     .expect("tenant");

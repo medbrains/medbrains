@@ -14,7 +14,7 @@ use uuid::Uuid;
 
 /// Charge (or queue) every line of a completed booking under one read of
 /// the `auto_charge_ot` setting.
-pub async fn charge_completion(
+pub(crate) async fn charge_completion(
     tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
     claims: &Claims,
     row: &OtBooking,

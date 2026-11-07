@@ -751,7 +751,7 @@ pub async fn reverse_invoice_item_by_id_in_tx(
 /// A rule that cannot be applied leaves the line at full price and is logged.
 pub(crate) async fn apply_concessions_best_effort(
     tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
-    req: &crate::charge_queue::ChargeRequest<'_>,
+    req: &ChargeRequest<'_>,
     result: &AutoChargeResult,
 ) -> Result<(), AppError> {
     let concession_inp = ConcessionCheckInput {

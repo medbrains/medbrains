@@ -34,7 +34,9 @@ CREATE TABLE public.charge_attention_items (
     -- The charge's idempotency key: `invoice_items.source_id`.
     source_entity_id uuid NOT NULL,
     patient_id uuid NOT NULL REFERENCES public.patients(id),
-    encounter_id uuid REFERENCES public.encounters(id),
+    -- No foreign key: a charge that failed because its encounter id was wrong
+    -- must still be queueable, or the queue would fail the clinical write.
+    encounter_id uuid,
     charge_code text NOT NULL CHECK (length(btrim(charge_code)) BETWEEN 1 AND 80),
     quantity integer NOT NULL CHECK (quantity > 0),
     description_override text,

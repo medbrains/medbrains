@@ -32,7 +32,6 @@ use medbrains_core::ot::{
     OtPreopAssessment, OtPreopHandoff, OtRoom, OtSurgeonPreference, OtSurgicalSafetyChecklist,
 };
 use medbrains_core::permissions;
-use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
