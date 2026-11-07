@@ -3,7 +3,8 @@
 //! The single source for every place that names one: the seed list, the edition presets, the web
 //! menu tags and the server's module checks. See `docs/architecture/MODULE-BRICKS.md`.
 //!
-//! A brick's `id` is the `module_config.code` the server checks with `require_module_enabled`.
+//! A brick's `id` is the `module_config.code` the server checks with `require_module_enabled`
+//! (one handler) or `gated` (a whole router).
 //! `permission_groups` are permission-code prefixes (`pharmacy`, `specialty.dental`): a code
 //! belongs to the brick whose longest prefix matches it. Groups that belong to no brick are
 //! listed in [`BASE_PLATE`] or [`NOT_YET_BRICKS`], so `scripts/check_bricks.py` can fail on a
@@ -79,11 +80,11 @@ pub const BRICKS: &[Brick] = &[
     brick("blood_bank", "Blood Bank", &["registration", "lab"], &["blood_bank"], Some(FULL)),
     brick("ot", "Operation Theatre", &["registration", "ipd"], &["ot", "cssd"], Some(&["multi_specialty", "medical_college", "eye_hospital", "dental_college"])),
     brick("emergency", "Emergency / Casualty", &["registration"], &["emergency", "ambulance"], Some(PUBLIC)),
-    brick("nursing", "Nursing Station", &["registration", "ipd"], &["nurse", "infection_control"], Some(PUBLIC)),
+    brick("nursing", "Nursing Station", &["registration", "ipd"], &["nurse"], Some(PUBLIC)),
     brick("diet", "Diet & Nutrition", &["registration", "ipd"], &["diet"], Some(FULL)),
     brick("hr", "Human Resources", &[], &["hr", "lms"], Some(FULL)),
     brick("inventory", "Inventory & Stores", &[], &["inventory", "indent", "procurement", "assets", "bme"], Some(FULL)),
-    brick("reports", "Reports & Analytics", &[], &["analytics", "command_center", "quality", "regulatory", "retrospective"], Some(FULL)),
+    brick("reports", "Reports & Analytics", &[], &["analytics", "command_center", "retrospective"], Some(FULL)),
     brick("maternity", "Maternity", &["registration", "ipd"], &["specialty.maternity"], Some(PUBLIC)),
     brick("ophthalmology", "Ophthalmology", &["registration", "opd"], &["specialty.ophthalmology"], Some(&["multi_specialty", "medical_college", "eye_hospital"])),
     brick("dental", "Dental", &["registration", "opd"], &["specialty.dental"], Some(&["multi_specialty", "medical_college", "dental_college"])),
@@ -120,6 +121,12 @@ pub const BASE_PLATE: &[&str] = &[
     "ckb",
     "qa",
     "specialty",
+    // Legal and patient-safety duties every facility carries, whatever apps it runs: DPDP,
+    // PCPNDT and ADR reporting; incident reporting (IPSG); infection control and biomedical
+    // waste (BMW Rules 2016). Switching off Reports or Nursing must not switch these off.
+    "regulatory",
+    "quality",
+    "infection_control",
 ];
 
 /// Groups that are apps in their own right but have no module switch yet. Each one is a brick

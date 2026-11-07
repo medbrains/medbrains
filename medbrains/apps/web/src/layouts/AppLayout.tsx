@@ -143,7 +143,9 @@ export function AppLayout() {
   const user = useAuthStore((s) => s.user);
   const clearAuth = useAuthStore((s) => s.clearAuth);
   const hasPermission = usePermissionStore((s) => s.hasPermission);
-  const isModuleEnabled = useModuleStore((s) => s.isModuleEnabled);
+  // Select the set, not the stable `isModuleEnabled` function, so the menu re-renders when a
+  // brick is switched on or off.
+  const disabledModules = useModuleStore((s) => s.disabledModules);
   const { t } = useTranslation("nav");
 
   const isExpanded = sidebarOpen;
@@ -313,7 +315,7 @@ export function AppLayout() {
   // ── Filter nav items by permission only — the sidebar is a flat,
   //    categorized console service-nav (no workspace gating). ──
   const filterItem = (item: ResolvedNavItem): boolean =>
-    itemHasPermission(item) && isModuleEnabled(item.moduleCode);
+    itemHasPermission(item) && !(item.moduleCode && disabledModules.has(item.moduleCode));
 
   // ── Render a single rail icon ──
   const renderRailItem = (item: ResolvedNavItem, active: boolean) => (
