@@ -2,6 +2,17 @@
 
 This package follows semantic versioning. `mapping.json` carries its own `version`, written into every generated file, so a screen can be regenerated with the mapping it was made from.
 
+## 0.4.0 (2026-11-07)
+
+- Every conversion documented: docs/CONVERSIONS.md is generated from the rules, one row per Mantine and seam component the web app uses, with Mantine 9 and Slint 1.18 links; a test fails when it is stale.
+- Mapping version 9. Values are written with the type each Slint property declares (official 1.18 reference, kit sources); Mantine, theme and seam default props apply first; props with no equivalent are dropped with the reason in the file and counted.
+- Theme scale from the design system (spacing, type, headings, control heights, breakpoints, radius 0); colours only through tokens, CSS variables matched by measured light and dark values.
+- Style props, responsive props, margins, CSS module layout declarations, Grid and SimpleGrid as GridLayout cells, early returns as branches, ternaries in text, destructured prop defaults, prop passing to our own components, JSX whitespace as React renders it.
+- Lifecycle: useEffect to init and changed, timers to Timer, Mantine Menu to ContextMenuArea, Modal mounted under if, react-hook-form register to two-way bindings; logic for the Rust view model is marked `// rust:` and counted.
+- Tabler icons as SVG images with colorize; the app shell has the web's top bar, module badges, group headings, breadcrumb and dot grid.
+- Kit: keyboard focus with a 2px ring, Enter and Space, arrows on numbers and segments, Escape on modals, 24px targets, errors announced, password reveal, required marker, select placeholder and clear, multi-select menu; a live gallery; a test that fails when an interactive control has no accessible role, and an audit of unnamed controls.
+- All 1,066 page files compile with the Slint 1.18.1 viewer (1,000 in 0.3.0); 86 of 129 menu entries open a native screen (69 in 0.3.0).
+
 ## 0.3.0 (2026-11-07)
 
 - The preview kit draws the MedBrains design: Carbon-sharp buttons filled for primary, inputs with a label above and a bottom rule, flat cards, inline notifications with a tone rule, pill tags, IBM Plex fonts (OFL, converted to TTF), visible 2 px focus and keyboard activation.

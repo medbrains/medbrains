@@ -1,51 +1,44 @@
 # @medbrains/react-to-slint
 
-Converts React + Mantine screens into Slint view skeletons, for the native OS GUI (`docs/architecture/OS-NATIVE-GUI.md`). The web app stays React; this gives each module's Slint version a correct starting point and a list of what a person still has to do.
+Converts React + Mantine screens into Slint views for the native OS GUI (`docs/architecture/OS-NATIVE-GUI.md`). The web app stays React; each module's Slint version starts from an exact conversion, and the file marks what a person or the Rust view model still has to do.
+
+**Every rule is in [docs/CONVERSIONS.md](docs/CONVERSIONS.md)**, generated from the converter's own tables, with links to the Mantine 9 and Slint 1.18 documentation.
 
 ## Use
 
 ```sh
-pnpm --filter @medbrains/react-to-slint exec react-to-slint apps/web/src/pages/pharmacy --project apps/web/src --out /tmp/pharmacy-slint
+pnpm --filter @medbrains/react-to-slint exec react-to-slint apps/web/src --project apps/web/src --out /tmp/app-slint --preview
+node packages/react-to-slint/bin/app-shell.mjs --web apps/web/src --out /tmp/app-slint
+slint-viewer -L medbrains-gui-kit=packages/react-to-slint/preview /tmp/app-slint/app.slint
 ```
 
-It writes one `.slint` file per converted `.tsx` file and prints a summary:
+It writes one `.slint` per `.tsx`, copies the Tabler icons the screens use into the kit, and prints what mapped, every prop it did not convert (each with its reason in the file), and what moves to Rust (`// rust:` markers).
 
-```text
-files 1547, components 2154, elements 29601
-mapped 29479 of 29582 convertible (99.7%); web-only by design: Handle 16, ReactFlow 3
-translated strings converted to @tr(): 236
-unmapped: SpotlightSearch 1, FormProvider 1, …
-raw HTML (breaks the components rule; converted where possible): div 776, span 264, …
-kit components needed: MbAlert, MbBadge, MbButton, …
-hooks to move into view models: useState 100, useHasPermission 68, useQuery 62, …
-```
+- `--preview` starts permission and feature checks allowed (the web reference is a super admin), lists empty, nothing loading; `--preview-deny canX,canY` starts named checks denied. Preview values only; product builds take every value from the view model.
+- `bin/app-shell.mjs` builds the app around the screens from the web's layout, navigation, module badges and routes.
+- `preview/gallery.slint` shows every kit control live, each wired to a "last action" line.
 
-## What it converts
+## How it converts
 
-| React | Slint |
-|---|---|
-| `Stack`, `Group`, `SimpleGrid`, `Box` | `VerticalLayout`, `HorizontalLayout`, `GridLayout`, `Rectangle` |
-| `Text`, `Title` | `Text` |
-| `TextInput`, `Select`, `Checkbox`, `Switch`, `NumberInput` | `LineEdit`, `ComboBox`, `CheckBox`, `Switch`, `SpinBox` |
-| `Button`, `Badge`, `Card`, `Panel`, `Alert`, `Modal` | the `Mb*` components of `medbrains-gui-kit` |
-| `t("ns.key")` | `@tr("ns.key")` |
-| `{a && <X/>}`, `{a ? <X/> : <Y/>}` | `if root.a : …` |
-| `{rows.map(r => <X/>)}` | `for item in root.rows : …` |
-| `disabled={x}` | `enabled: !root.x` |
-| `onClick={fn}` | `clicked => { root.click(); }` plus `callback click();` |
+- Values are written with the type the Slint property declares: builtins from the official reference (`src/slint-reference.json`), kit components from their own `.slint` source.
+- Mantine's defaults, the theme's `defaultProps` and the seam's defaults apply first (`src/mantine-defaults.json`, `bin/mantine-defaults.mjs`).
+- Sizes and colours come from the design system (`bin/tokens-to-slint.mjs` → `preview/tokens.slint`); colours only through tokens, CSS variables matched by measured light and dark values (`src/css-vars.json`).
+- Layouts follow CSS: Stack/Group alignment, grids as GridLayout cells, margins as wrapping padding, responsive props on the window width, CSS module layout declarations.
+- Lifecycle: `useEffect` → `init` / `changed`, timers → `Timer`, menus → `ContextMenuArea`, modals mounted under `if`.
 
-The full table is `src/mapping.json`. Add a component there, bump its `version`, and note it in `CHANGELOG.md`.
+## Kit
 
-## What it does not do
+`preview/kit.slint` draws the MedBrains design (Carbon shapes, IBM Plex, the website colours). Interactive controls set an accessible role, label, value or checked state and actions, take Tab focus with a 2px ring, activate on Enter and Space, and have 24px targets. Components it does not draw yet are stand-ins in `preview/stubs.slint` (`bin/kit-stubs.mjs`).
 
-- **Logic.** Hooks, queries, mutations and handlers are not converted. Each value a view needs becomes an `in property`, each handler a `callback`, and the report counts the hooks: that is the Rust view model to write.
-- **Compile checks.** The output is a skeleton to finish, not code that is guaranteed to compile. Run it through the Slint compiler and fix what it reports.
-- **Diagram editors.** `ReactFlow` and its handles are web-only by design and reported apart.
-
-`--project DIR` indexes every component under `DIR` first, so a reference to one of our own components in another file converts, with an import of that file's generated `.slint`.
-
-## Test
+## Scripts
 
 ```sh
-pnpm --filter @medbrains/react-to-slint test
+pnpm --filter @medbrains/react-to-slint test      # one test per conversion rule
+pnpm --filter @medbrains/react-to-slint docs      # regenerate docs/CONVERSIONS.md
+pnpm --filter @medbrains/react-to-slint tokens    # regenerate preview/tokens.slint
+pnpm --filter @medbrains/react-to-slint defaults  # regenerate src/mantine-defaults.json
+node bin/usage.mjs apps/web/src                   # which Mantine and seam components and props the app uses
+node bin/a11y-audit.mjs <converted dir>           # interactive elements without an accessible name
 ```
+
+Change a rule in `src/mapping.json`, bump its `version`, regenerate the docs and note it in `CHANGELOG.md`.

@@ -765,7 +765,7 @@ class ComponentWriter {
       const prop = negate ? target.slice(0, -1) : target;
       // Values listed in the rule (Title order 3 -> heading size) win over generic conversion.
       const listed = rule.values?.[name];
-      const raw = staticValue(attr.value);
+      const raw = attr.value ? staticValue(attr.value) : true;
       if (listed && raw !== undefined && typeof raw !== "object" && listed[String(raw)] !== undefined) {
         put(prop, listed[String(raw)]);
         continue;

@@ -1,6 +1,6 @@
 {
   "name": "@medbrains/react-to-slint",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "Converts React and Mantine screens into Slint view skeletons, and reports what still needs a person.",
   "license": "Apache-2.0",
   "private": true,
@@ -14,7 +14,11 @@
     "./mapping.json": "./src/mapping.json"
   },
   "scripts": {
-    "test": "node --test test/convert.test.mjs"
+    "test": "node --test test/convert.test.mjs",
+    "docs": "node bin/conversions-doc.mjs",
+    "tokens": "node bin/tokens-to-slint.mjs --out preview/tokens.slint",
+    "defaults": "node bin/mantine-defaults.mjs",
+    "stubs": "node bin/kit-stubs.mjs"
   },
   "dependencies": {
     "@babel/parser": "^7.29.9"

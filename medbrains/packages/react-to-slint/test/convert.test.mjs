@@ -259,6 +259,15 @@ test("Mantine Menu is Slint's ContextMenuArea, opened by the target button's own
   assert.doesNotMatch(slint, /FocusScope \{ key-pressed/, "a button target adds no second tab stop");
 });
 
+test("docs/CONVERSIONS.md is generated from the current tables", async () => {
+  // Fails when mapping.json, the defaults or the kit change without regenerating the document.
+  const { conversionsDoc } = await import("../bin/conversions-doc.mjs");
+  const here = path.dirname(new URL(import.meta.url).pathname);
+  const web = path.resolve(here, "../../../apps/web/src");
+  if (!fs.existsSync(web)) return;
+  assert.equal(fs.readFileSync(path.resolve(here, "../docs/CONVERSIONS.md"), "utf8"), conversionsDoc({ webSrc: web }));
+});
+
 test("every interactive kit component declares an accessible role and a way to label it", () => {
   // Fails when a kit control could reach a screen without a role or label (WCAG 2.2 SC 4.1.2).
   const { kit, describe } = mapping.types;

@@ -110,7 +110,7 @@
     "aria-label": "accessible-label",
     "title": "accessible-description",
     "_key": "React list identity; Slint `for` tracks model rows itself",
-    "_className": "CSS module class: styling comes from the kit and Tokens, layout from the props",
+    "_className": "CSS module class: its layout declarations convert (docs/CONVERSIONS.md, Layouts), every other declaration is noted in the file",
     "_classNames": "Styles API: styling comes from the kit and Tokens",
     "_styles": "Styles API: styling comes from the kit and Tokens",
     "_style": "inline CSS has no Slint equivalent",
@@ -162,8 +162,8 @@
       },
       "values": {
         "grow": {
-          "true": "stretch",
-          "false": "start"
+          "true": "LayoutAlignment.stretch",
+          "false": "LayoutAlignment.start"
         }
       },
       "handled": {
