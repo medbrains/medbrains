@@ -86,6 +86,7 @@ def seed_rows() -> dict[str, list[str]]:
 
 
 def main() -> int:
+    """Run every check, print the ratchet line and each failure; 1 if anything failed."""
     bricks, placed = read_bricks()
     problems: list[str] = []
 
