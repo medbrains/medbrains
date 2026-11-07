@@ -17,7 +17,7 @@ const SETUP_SOCKET: &str = "/run/medbrains-console/setup.sock";
 const SETUP_LIMIT: Duration = Duration::from_secs(180);
 const POLL: Duration = Duration::from_secs(3);
 /// How long a new version gets here: long enough for the server, short enough to test a failure.
-const HEALTH_SECONDS: u32 = 120;
+const HEALTH_SECONDS: u64 = 120;
 /// Files a person's settings and the machine's identity live in. The screen's shader cache is left out, as
 /// a cache. The database is compared separately, because its files change whenever it runs: what must not
 /// change is what it holds.
@@ -133,7 +133,8 @@ fn write_canaries(vm: &mut Vm, pem: &str) -> Result<(), String> {
         sleep(POLL);
     }
     vm.run(&format!("printf '%s' '{pem}' > /var/lib/medbrains-settings/update-ca.pem"))?;
-    vm.run(&format!("echo {HEALTH_SECONDS} > /var/lib/medbrains-settings/update-health-seconds"))?;
+    let health = vm::scaled(Duration::from_secs(HEALTH_SECONDS)).as_secs();
+    vm.run(&format!("echo {health} > /var/lib/medbrains-settings/update-health-seconds"))?;
     vm.run("head -c 16M /dev/urandom > /var/lib/medbrains/os-test-canary; echo hello > /var/lib/medbrains-settings/os-test-setting")?;
     let sql = format!(
         "CREATE TABLE os_test_canary AS SELECT n, md5(n::text) AS body FROM generate_series(1,{CANARY_ROWS}) n"
