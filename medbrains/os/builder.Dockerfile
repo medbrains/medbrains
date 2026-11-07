@@ -8,4 +8,5 @@ RUN apt-get update \
         cpio kmod zstd xz-utils ca-certificates python3 bubblewrap uidmap \
     && rm -rf /var/lib/apt/lists/*
 COPY mkosi.splash.bmp ukify-splash.py install-ukify-splash.sh /tmp/splash/
+COPY trial-initrd /tmp/splash/trial-initrd
 RUN sh /tmp/splash/install-ukify-splash.sh

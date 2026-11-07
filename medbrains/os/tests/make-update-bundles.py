@@ -117,11 +117,6 @@ debugfs -R 'cat /usr/lib/os-release' root.img | sed "s/^IMAGE_VERSION=.*/IMAGE_V
 debugfs -w -R 'rm /usr/lib/os-release' root.img
 debugfs -w -R 'write os-release /usr/lib/os-release' root.img
 debugfs -w -R 'sif /usr/lib/os-release mode 0100644' root.img
-if [[ -e updater ]]; then
-    debugfs -w -R 'rm /usr/bin/medbrains-os-update' root.img
-    debugfs -w -R 'write updater /usr/bin/medbrains-os-update' root.img
-    debugfs -w -R 'sif /usr/bin/medbrains-os-update mode 0100755' root.img
-fi
 e2fsck -fy root.img >/dev/null || [[ $? -le 2 ]]
 if [[ "$arch" == arm64 ]]; then
     stub=/usr/lib/systemd/boot/efi/linuxaa64.efi.stub
@@ -167,9 +162,6 @@ def derived(name, version, min_version, broken="", key=None):
     run(TOOL, "extract", base + ".raw", f"medbrains_{FIRST}", root)
     run("cp", "-c", base + ".vmlinuz", os.path.join(work, "vmlinuz"))
     run("cp", "-c", base + ".initrd", os.path.join(work, "initrd"))
-    updater = os.environ.get("MB_TEST_UPDATER")
-    if updater:
-        run("cp", updater, os.path.join(work, "updater"))
     line = pe_section(base + ".efi", ".cmdline").replace(f"medbrains_{FIRST}", f"medbrains_{version}")
     with open(os.path.join(work, "cmdline"), "w", encoding="utf8") as file:
         file.write(line)

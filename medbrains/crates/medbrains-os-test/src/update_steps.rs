@@ -7,29 +7,30 @@ use crate::updates::{
     Bench, Scenario, ensure, open_mirror, own_tpm, running_version, same_var, say, status, url,
     var_snapshot, wait_status, wait_version,
 };
+use crate::update_sealed;
 use crate::vm::{self, Vm};
 
 /// Bundle folders, as `make-update-bundles.py` names them. `NEXT` is a real second image build.
-const NEXT: (&str, &str) = ("next", "1.0.2");
+pub(crate) const NEXT: (&str, &str) = ("next", "1.0.2");
 const AFTER: (&str, &str) = ("after", "1.0.3");
 const BAD_SERVER: (&str, &str) = ("bad-server", "1.0.4");
 const BAD_INIT: (&str, &str) = ("bad-init", "1.0.5");
 const INSTALL_LIMIT: Duration = Duration::from_secs(600);
-const RESTART_LIMIT: Duration = Duration::from_secs(300);
+pub(crate) const RESTART_LIMIT: Duration = Duration::from_secs(300);
 /// Long enough for a kernel, an initrd and the machine's own watchdogs to fail three times.
-const ROLLBACK_LIMIT: Duration = Duration::from_secs(1500);
+pub(crate) const ROLLBACK_LIMIT: Duration = Duration::from_secs(1500);
 const COMMAND_LIMIT: Duration = Duration::from_secs(900);
-const SLOT: &str = "$(lsblk -nrpo PATH,PARTTYPE /dev/vda | grep -v \"$(findmnt -no SOURCE /)\" | grep \"$(lsblk -no PARTTYPE \"$(findmnt -no SOURCE /)\")\" | cut -d' ' -f1)";
+pub(crate) const SLOT: &str = "$(lsblk -nrpo PATH,PARTTYPE /dev/vda | grep -v \"$(findmnt -no SOURCE /)\" | grep \"$(lsblk -no PARTTYPE \"$(findmnt -no SOURCE /)\")\" | cut -d' ' -f1)";
 /// A slot, the boot partition and the record: changing any is writing.
-const FINGERPRINT: &str = "lsblk -nro PARTLABEL /dev/vda; ls -1 /boot/EFI/Linux; ls -1 /boot/EFI/MedBrains 2>/dev/null; head -c 16M SLOT | sha256sum; ls /var/lib/medbrains/update/staging 2>/dev/null";
+pub(crate) const FINGERPRINT: &str = "lsblk -nro PARTLABEL /dev/vda; ls -1 /boot/EFI/Linux; ls -1 /boot/EFI/MedBrains 2>/dev/null; head -c 16M SLOT | sha256sum; ls /var/lib/medbrains/update/staging 2>/dev/null";
 
 /// Every scenario, in the order a reader would want them.
 pub(crate) fn scenarios() -> Vec<Scenario> {
     if vm::tpm_usable() {
         return vec![
-            ("a sealed disk opens by itself after an update and after going back", sealed_update),
-            ("a boot file signed by another key is refused before it can lock the disk", sealed_refusal),
-            ("a seal that does fail rolls back with nobody typing", seal_prompt_rolls_back),
+            ("a sealed disk opens by itself after an update and after going back", update_sealed::sealed_update),
+            ("a boot file signed by another key is refused before it can lock the disk", update_sealed::sealed_refusal),
+            ("a seal that does fail rolls back with nobody typing", update_sealed::seal_prompt_rolls_back),
         ];
     }
     vec![
@@ -40,9 +41,19 @@ pub(crate) fn scenarios() -> Vec<Scenario> {
         ("a new version that cannot even start rolls back by itself", failed_start),
         ("a power cut during install leaves a machine that boots", power_cuts_installing),
         ("a power cut while applying and on trial leaves a machine that boots", power_cuts_applying),
+        ("a new version proves good with the network cable out", no_network_on_trial),
         ("too little disk space is refused", low_space),
         ("a security fix waits for a person or a quiet window", waits_for_quiet),
     ]
+}
+
+/// Asks for a restart through the same door the screen uses. Sent in the background: the machine may stop
+/// before the shell can answer, and a restart then proves the request was taken.
+pub(crate) fn ask_restart(vm: &mut Vm, action: &str) -> Result<(), String> {
+    vm.run(&format!(
+        "(curl -s -m 15 --unix-socket /run/medbrains-console/setup.sock -d '{{\"action\":\"{action}\"}}' http://machine/update/action > /dev/null 2>&1 &)"
+    ))
+    .map(|_| ())
 }
 
 /// Asks through the same door the screen uses.
@@ -54,7 +65,7 @@ fn ask(vm: &mut Vm, action: &str) -> Result<(), String> {
 }
 
 /// Runs an install by hand and returns its words and exit status.
-fn install_from(vm: &mut Vm, bench: &Bench, name: &str, retry: bool) -> Result<(String, i32), String> {
+pub(crate) fn install_from(vm: &mut Vm, bench: &Bench, name: &str, retry: bool) -> Result<(String, i32), String> {
     let flag = if retry { "--retry " } else { "" };
     let text = vm.run_for(
         &format!("medbrains-os-update install {flag}--from {} 2>&1; echo EXIT=$?", url(bench, name)),
@@ -69,7 +80,7 @@ fn install_from(vm: &mut Vm, bench: &Bench, name: &str, retry: bool) -> Result<(
 }
 
 /// Installs a bundle that must succeed, and returns how long it took.
-fn install_ok(vm: &mut Vm, bench: &Bench, name: &str, retry: bool) -> Result<Duration, String> {
+pub(crate) fn install_ok(vm: &mut Vm, bench: &Bench, name: &str, retry: bool) -> Result<Duration, String> {
     let started = Instant::now();
     let (text, code) = install_from(vm, bench, name, retry)?;
     ensure(code == 0, format!("{name}: {text}"))?;
@@ -77,9 +88,9 @@ fn install_ok(vm: &mut Vm, bench: &Bench, name: &str, retry: bool) -> Result<Dur
 }
 
 /// Applies a waiting update through the screen's door and waits until the new version has proved good.
-fn apply_and_prove(vm: &mut Vm, bench: &Bench, version: &str) -> Result<Duration, String> {
+pub(crate) fn apply_and_prove(vm: &mut Vm, bench: &Bench, version: &str) -> Result<Duration, String> {
     let started = Instant::now();
-    ask(vm, "apply")?;
+    ask_restart(vm, "apply")?;
     wait_version(vm, version, RESTART_LIMIT)?;
     wait_status(vm, &["last", "version"], version, RESTART_LIMIT)?;
     let value = wait_status(vm, &["last", "result"], "good", RESTART_LIMIT)?;
@@ -143,7 +154,7 @@ fn update_cycle(vm: &mut Vm, bench: &Bench) -> Result<(), String> {
     same_var(&before, &var_snapshot(vm)?)?;
     let after_loader = vm.run("sha256sum /boot/EFI/BOOT/*")?;
     ensure(loader == after_loader, "the boot loader changed")?;
-    ask(vm, "go-back")?;
+    ask_restart(vm, "go-back")?;
     wait_version(vm, &first, RESTART_LIMIT)?;
     vm.wait_for_server()?;
     open_mirror(vm, bench)?;
@@ -161,7 +172,7 @@ fn update_cycle(vm: &mut Vm, bench: &Bench) -> Result<(), String> {
     ensure(code == 2 && text.contains("older than"), format!("old signed bundle: {text}"))?;
     // The third update overwrote the first version's slot and raised the floor to 1.0.3. A person may
     // still go back to 1.0.2, while a signed version below the floor stays refused.
-    ask(vm, "go-back")?;
+    ask_restart(vm, "go-back")?;
     wait_version(vm, NEXT.1, RESTART_LIMIT)?;
     vm.wait_for_server()?;
     open_mirror(vm, bench)?;
@@ -175,7 +186,7 @@ fn usb_install(vm: &mut Vm, bench: &Bench) -> Result<(), String> {
     let before = var_snapshot(vm)?;
     let stick = bench.bundles.join("usb.img");
     vm.monitor(&format!("drive_add 0 if=none,id=stick,format=raw,readonly=on,file={}", stick.display()))?;
-    vm.monitor("device_add usb-storage,drive=stick,id=stick0")?;
+    vm.monitor("device_add usb-storage,drive=stick,id=stick0,removable=on")?;
     sleep(Duration::from_secs(5));
     let seen = vm.run("lsblk -rno PATH,HOTPLUG,RM,FSTYPE")?;
     say(&format!("      sees: {}", seen.replace('\n', "; ")));
@@ -192,7 +203,7 @@ fn usb_install(vm: &mut Vm, bench: &Bench) -> Result<(), String> {
 fn failed_health(vm: &mut Vm, bench: &Bench) -> Result<(), String> {
     let before = var_snapshot(vm)?;
     install_ok(vm, bench, BAD_SERVER.0, false)?;
-    ask(vm, "apply")?;
+    ask_restart(vm, "apply")?;
     let took = wait_version(vm, BAD_SERVER.1, RESTART_LIMIT)?;
     say(&format!("      new version up after {:.0}s", took.as_secs_f32()));
     let took = wait_version(vm, &bench.first, RESTART_LIMIT + RESTART_LIMIT)?;
@@ -211,7 +222,7 @@ fn failed_health(vm: &mut Vm, bench: &Bench) -> Result<(), String> {
 fn failed_start(vm: &mut Vm, bench: &Bench) -> Result<(), String> {
     let before = var_snapshot(vm)?;
     install_ok(vm, bench, BAD_INIT.0, false)?;
-    ask(vm, "apply")?;
+    ask_restart(vm, "apply")?;
     let started = Instant::now();
     sleep(Duration::from_secs(20));
     let took = wait_version(vm, &bench.first, ROLLBACK_LIMIT)?;
@@ -338,6 +349,17 @@ fn power_cuts_applying(vm: &mut Vm, bench: &Bench) -> Result<(), String> {
     same_var(&before, &var_snapshot(vm)?)
 }
 
+/// Requirement 3: a hospital's network being down is no reason to throw away a good update. A machine that
+/// needs the network to pass would roll back on every night the switch is off.
+fn no_network_on_trial(vm: &mut Vm, bench: &Bench) -> Result<(), String> {
+    install_ok(vm, bench, NEXT.0, false)?;
+    vm.monitor("set_link net0 off")?;
+    ask_restart(vm, "apply")?;
+    wait_version(vm, NEXT.1, RESTART_LIMIT)?;
+    let value = wait_status(vm, &["last", "result"], "good", RESTART_LIMIT)?;
+    ensure(value["last"]["version"] == NEXT.1, format!("{value}"))
+}
+
 /// Requirement 2 and the disk-space test: refused with the reason, and nothing written.
 fn low_space(vm: &mut Vm, bench: &Bench) -> Result<(), String> {
     let fingerprint = FINGERPRINT.replace("SLOT", SLOT);
@@ -392,52 +414,4 @@ fn waits_for_quiet(vm: &mut Vm, bench: &Bench) -> Result<(), String> {
     wait_version(vm, NEXT.1, RESTART_LIMIT)?;
     wait_status(vm, &["last", "result"], "good", RESTART_LIMIT)?;
     Ok(())
-}
-
-/// True if the data disk opened through its encrypted mapping.
-fn disk_opened(vm: &mut Vm) -> Result<bool, String> {
-    Ok(vm.run("findmnt -no SOURCE /var")?.contains("/dev/mapper/medbrains-data"))
-}
-
-/// Requirement 6: the boot chain changes twice, and nobody types anything either time.
-fn sealed_update(vm: &mut Vm, bench: &Bench) -> Result<(), String> {
-    ensure(disk_opened(vm)?, "the disk is not sealed")?;
-    let before = var_snapshot(vm)?;
-    install_ok(vm, bench, NEXT.0, false)?;
-    apply_and_prove(vm, bench, NEXT.1)?;
-    ensure(disk_opened(vm)?, "the new version did not open the disk")?;
-    same_var(&before, &var_snapshot(vm)?)?;
-    ask(vm, "go-back")?;
-    wait_version(vm, &bench.first, RESTART_LIMIT)?;
-    vm.wait_for_server()?;
-    ensure(disk_opened(vm)?, "the old version did not open the disk")?;
-    same_var(&before, &var_snapshot(vm)?)
-}
-
-/// Requirement 6: an update that would ask for the recovery key by surprise is never installed.
-fn sealed_refusal(vm: &mut Vm, bench: &Bench) -> Result<(), String> {
-    let fingerprint = FINGERPRINT.replace("SLOT", SLOT);
-    let before = vm.run(&fingerprint)?;
-    let (text, code) = install_from(vm, bench, "other-seal", false)?;
-    ensure(code == 2 && text.contains("recovery key"), format!("{code} {text}"))?;
-    ensure(vm.run(&fingerprint)? == before, "a refused update wrote to the disk")
-}
-
-/// Requirement 6: gets past the updater by hand, as a bug might. The new version stops at the recovery key
-/// prompt with `/var` locked, nobody answers, and the machine returns to a version that opens the disk.
-fn seal_prompt_rolls_back(vm: &mut Vm, bench: &Bench) -> Result<(), String> {
-    install_ok(vm, bench, NEXT.0, false)?;
-    vm.run(&format!(
-        "curl -sS --cacert /var/lib/medbrains-settings/update-ca.pem -o /boot/EFI/Linux/medbrains-os_{}+1-0.efi {}/boot.efi; sync",
-        NEXT.1,
-        url(bench, "other-seal")
-    ))?;
-    vm.reboot()?;
-    wait_version(vm, NEXT.1, RESTART_LIMIT)?;
-    ensure(!disk_opened(vm)?, "the wrong key opened the disk")?;
-    let started = Instant::now();
-    wait_version(vm, &bench.first, ROLLBACK_LIMIT)?;
-    say(&format!("      back by itself after {:.0}s", started.elapsed().as_secs_f32()));
-    vm.wait_for_server()?;
-    ensure(disk_opened(vm)?, "the old version did not open the disk")
 }

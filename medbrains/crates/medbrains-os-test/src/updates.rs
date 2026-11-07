@@ -18,10 +18,12 @@ const SETUP_LIMIT: Duration = Duration::from_secs(180);
 const POLL: Duration = Duration::from_secs(3);
 /// How long a new version gets here: long enough for the server, short enough to test a failure.
 const HEALTH_SECONDS: u32 = 120;
-/// Files a person's settings and the machine's identity live in. The database is compared separately,
-/// because its files change whenever it runs: what must not change is what it holds.
+/// Files a person's settings and the machine's identity live in. The screen's shader cache is left out, as
+/// a cache. The database is compared separately, because its files change whenever it runs: what must not
+/// change is what it holds.
 const KEPT: &str = "/var/lib/medbrains/config /var/lib/medbrains-settings /var/lib/medbrains/network /var/lib/medbrains/os-test-canary /var/lib/iwd /var/lib/kiosk";
 const CANARY_ROWS: u32 = 100_000;
+const READ_VERSION: &str = "sed -n 's/^IMAGE_VERSION=//p' /usr/lib/os-release | tr -d '\"'";
 /// Where the guest finds the host running this test.
 const HOST: &str = "10.0.2.2";
 
@@ -137,12 +139,12 @@ fn write_canaries(vm: &mut Vm, pem: &str) -> Result<(), String> {
 /// itself. Owner and mode count too: a shifted user id would break a service without changing a byte.
 pub(crate) fn var_snapshot(vm: &mut Vm) -> Result<String, String> {
     let files = format!(
-        "find {KEPT} -type f 2>/dev/null | sort | while read -r f; do printf '%s %s ' \"$f\" \"$(stat -c '%U:%G:%a:%s' \"$f\")\"; sha256sum < \"$f\"; done"
+        "find {KEPT} -type f ! -path '*/.cache/*' 2>/dev/null | sort | while read -r f; do printf '%s %s ' \"$f\" \"$(stat -c '%U:%G:%a:%s' \"$f\")\"; sha256sum < \"$f\"; done"
     );
     let tables = "runuser -u postgres -- psql -d medbrains -Atc \"SELECT 'canary', count(*), md5(string_agg(body, '' ORDER BY n)) FROM os_test_canary\"";
     let schema = "echo schema $(runuser -u postgres -- pg_dump -d medbrains --schema-only --restrict-key=mbtest | sha256sum)";
     let users = "runuser -u postgres -- psql -d medbrains -Atc \"SELECT 'people', (SELECT count(*) FROM users), (SELECT md5(string_agg(id::text || password_hash, ',' ORDER BY id)) FROM users), (SELECT md5(string_agg(id::text || name, ',' ORDER BY id)) FROM tenants)\"";
-    let identity = "echo machine-id $(cat /etc/machine-id)";
+    let identity = "echo machine-id $(cat /etc/machine-id) $(stat -c %a /etc/machine-id)";
     let snapshot = vm.run_for(
         &format!("{files}; {tables}; {schema}; {users}; {identity}"),
         Duration::from_secs(120),
@@ -182,7 +184,7 @@ pub(crate) fn url(bench: &Bench, name: &str) -> String {
 
 /// The version the machine is running.
 pub(crate) fn running_version(vm: &mut Vm) -> Result<String, String> {
-    vm.run("sed -n 's/^IMAGE_VERSION=//p' /usr/lib/os-release | tr -d '\"'")
+    vm.run(READ_VERSION)
 }
 
 /// What the screen is told.
@@ -197,7 +199,9 @@ pub(crate) fn wait_version(vm: &mut Vm, version: &str, limit: Duration) -> Resul
     let started = Instant::now();
     let limit = vm::scaled(limit);
     loop {
-        if running_version(vm).is_ok_and(|text| text == version) {
+        // A short wait: reading for longer could swallow the firmware line that `wait_for_restart` needs.
+        let asked = vm.run_for(READ_VERSION, vm::scaled(Duration::from_secs(4)));
+        if asked.is_ok_and(|text| text == version) {
             return Ok(started.elapsed());
         }
         let left = limit.saturating_sub(started.elapsed());
@@ -228,7 +232,10 @@ pub(crate) fn wait_status(
         }
         sleep(POLL);
     }
-    Err(format!("{path:?} never became {want}. Last: {last}"))
+    let earlier = vm.run("journalctl -b -1 --no-pager -p warning -n 30 -o short-monotonic | cut -c1-160");
+    Err(format!(
+        "{path:?} never became {want}. Last: {last}. The boot before said: {earlier:?}"
+    ))
 }
 
 /// Plays one scenario on a copy of the set-up machine, and removes the copy.
@@ -267,11 +274,6 @@ pub(crate) fn run(image: &Path, bundles: &Path) -> Result<usize, String> {
     };
     set_up_main(&mut vm)?;
     write_canaries(&mut vm, &pem)?;
-    // ITERATION ONLY, removed before the final run.
-    open_mirror(&mut vm, &bench)?;
-    if bundles.join("updater").exists() {
-        vm.run(&format!("curl -sS --cacert /var/lib/medbrains-settings/update-ca.pem -o /usr/bin/medbrains-os-update.new {} && chmod 755 /usr/bin/medbrains-os-update.new && mv /usr/bin/medbrains-os-update.new /usr/bin/medbrains-os-update; sync", url(&bench, "updater")))?;
-    }
     vm.shut_down()?;
     let base = vm.disk();
     let mut failed = 0;

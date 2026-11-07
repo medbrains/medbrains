@@ -42,7 +42,8 @@ removes the count only once `boot-complete.target` is reached, which needs `medb
 - A boot stuck anywhere, health never having run: `medbrains-update-deadline.timer` survives emergency mode, needs neither
   `/var` nor the boot partition, and restarts the machine after 10 minutes. Each start used brings the old slot nearer.
 
-`panic=10` restarts a dead kernel. Hardware watchdog as before. `systemd-boot-update.service` is masked: a kernel fix must
+A version that can't reach its own system stops in the initrd, where neither of those run: `os/trial-initrd/` adds one small unit to
+the boot file's initrd that restarts from emergency mode, on a counted boot only. `panic=10` restarts a dead kernel. Hardware watchdog as before. `systemd-boot-update.service` is masked: a kernel fix must
 not rewrite the boot loader on the way past, the one write here with no second copy. Replacing the loader is not built.
 
 **A new system adopts this machine.** It gets the machine id, because a new one would change the DHCP identity and start a
@@ -197,9 +198,10 @@ ready, Last update failed or Updates need attention. It opens Settings.
 | Power cut after publishing | New version on trial | Loader counts | Starts new version on trial | `power_cuts_applying` |
 | Power cut on each trial start | Starts used up | Loader's count | After 3, old version; "rolled back" | `power_cuts_applying` |
 | New version fails health | Would be unusable | Health check | Marks bad, restarts, old version says why, not retried by itself | `failed_health` |
-| New version has no working system | Never reaches health | Deadline, or initrd failure | Restarts until out of starts | `failed_start` |
+| New version has no working system | Stops in the initrd, at a prompt nobody can use. The first run of this test showed it stayed there | Initrd's emergency target | `medbrains-trial-reboot` restarts it, on a counted boot only, until out of starts | `failed_start` |
 | Kernel dies on new version | Never reaches health | `panic=10` | Same | reasoned: same counting |
 | Kernel or initrd hangs with no panic | **Stays hung until power is cycled** unless a hardware watchdog was armed by firmware | | A person powers it off; that start was counted | Stated limit |
+| A key held down during start, with two boot entries | Boot menu opens and **waits for a person**, so a stuck key or a scanner firing would stop an unattended restart | Seen by accident: our test harness typing on the serial port did this | Stays at the menu | Open. Harness now sends nothing during a start. T1's `timeout 0` does not cover it; `menu-disabled` would, and also removes the hand-held way back. Owner call |
 | Health passes, power cut before blessing | Next start counted again | Count still there | Health passes again | reasoned: idempotent |
 | Update record damaged | Would forget the floor | Parse fails | Screen says so; no action offered; a person must act | unit |
 | Boot partition full or read-only at apply | Apply fails | rename fails | Stays waiting; says failed | reasoned |

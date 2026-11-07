@@ -3,6 +3,7 @@
 use std::collections::HashMap;
 use std::fs::{self, File};
 use std::io::{BufReader, Read, Write};
+use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 use std::time::Duration;
@@ -23,6 +24,8 @@ pub const ESP: &str = "/boot";
 pub const BOOT_DIR: &str = "/boot/EFI/Linux";
 /// Where a boot file waits for its update to be applied. The loader never looks here.
 pub const STAGED_BOOT_DIR: &str = "/boot/EFI/MedBrains";
+/// What systemd gives `/etc/machine-id`.
+const MACHINE_ID_MODE: u32 = 0o444;
 const WRITE_CHUNK: usize = 1024 * 1024;
 const PARTITION_LIMIT: Duration = Duration::from_secs(30);
 const MOUNT_LIMIT: Duration = Duration::from_secs(60);
@@ -381,8 +384,20 @@ pub fn adopt_identity(partition: &str, at: &Path) -> Result<(), String> {
             }
         }
         let id = fs::read("/etc/machine-id").map_err(|e| e.to_string())?;
-        state::write_atomically(&at.join("etc/machine-id"), &id).map_err(|e| e.to_string())
+        write_machine_id(&at.join("etc/machine-id"), &id).map_err(|e| e.to_string())
     })
+}
+
+/// Writes a machine id in one step, readable by everyone whatever this program's umask. Found the hard
+/// way: at 0600, networkd's DHCP client gets "Permission denied" and the machine never gets an address.
+fn write_machine_id(path: &Path, id: &[u8]) -> std::io::Result<()> {
+    let temporary = path.with_extension("tmp");
+    let mut file = File::create(&temporary)?;
+    file.write_all(id)?;
+    file.set_permissions(fs::Permissions::from_mode(MACHINE_ID_MODE))?;
+    file.sync_all()?;
+    fs::rename(&temporary, path)?;
+    state::sync_parent(path)
 }
 
 /// A boot file's name with start counting: `name+left-done.efi`, replacing any counts it had. A `+`

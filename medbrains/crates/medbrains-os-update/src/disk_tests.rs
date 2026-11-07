@@ -90,6 +90,19 @@ fn counted_names_replace_only_real_counts() {
     );
 }
 
+/// The unit runs with umask 0077, and a private machine id cuts the machine off the network.
+#[test]
+fn a_machine_id_is_readable_by_everyone() {
+    use std::os::unix::fs::PermissionsExt;
+    let dir = std::env::temp_dir().join(format!("mb-update-id-{}", std::process::id()));
+    assert!(std::fs::create_dir_all(&dir).is_ok());
+    let path = dir.join("machine-id");
+    assert!(super::write_machine_id(&path, b"abc\n").is_ok());
+    let mode = std::fs::metadata(&path).map(|meta| meta.permissions().mode() & 0o777);
+    assert_eq!(mode.ok(), Some(0o444));
+    assert!(std::fs::remove_dir_all(&dir).is_ok());
+}
+
 /// Hashing stops near the limit, so a huge file can't be read without end.
 #[test]
 fn hashing_is_bounded() {
