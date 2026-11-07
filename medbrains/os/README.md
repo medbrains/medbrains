@@ -318,7 +318,43 @@ for 4 months, so a machine that misses two needs the binaries in between: `build
   built: the settings accept a SAML provider and the sign-in refuses it. Over 200 groups, Entra sends none, so that person
   gets least privilege, not their role.
 - Ten advisories were published between April and August 2026, one critical; no third-party audit could be found, and
-  the project is run by volunteers, mostly one person.
+  the project is run by volunteers, mostly one person. Against 1.12.0 (checked 2026-11-07, `gh api
+  repos/kanidm/kanidm/security-advisories`): **fixed** in the tree we build: the SCIM filter overflow (2pm5, high; the depth check
+  now runs before the recursion, `proto/src/scim_v1/mod.rs`), the nested LDAP filter (qcrp, high; `ldap3_lber` 0.9 bounds
+  depth at 128), the set-modification DB write (xxwr, critical, fixed from 1.10.2), passkey-partial HTML injection (gpxg),
+  client-secret timing (53hj), SCIM stack exhaustion (r5fr), image validators before authorisation (84jc). **Not applicable,
+  and fixed anyway:** RADIUS module logging secrets (j4gj; no RADIUS, `/ui/radius*` closed) and the upstream-login subject check
+  (x8cg; upstream login unused, its landing closed). **Accepted limit, low:** the OAuch scan (hh34): the referrer policy is
+  `origin` not `no-referrer`, and a short PKCE verifier is probably accepted; `frame-ancestors 'none'` is set (measured), and our
+  client sends a 48-byte verifier. The two highs with no patched version listed were fired at the image: kanidmd stayed up
+  (`tests/kanidm-attacks.py`, SCIM to depth 30,000 answered 400 or 414, LDAP to depth 50,000), and LDAP and SCIM stay closed
+  to the network: LDAP has no listener, kanidmd binds 127.0.0.1 with `IPAddressAllow=localhost`, and the front refuses `/scim/*`.
+
+**When Kanidm stops** (T3.2, `tests/kanidm-outage-test.py`). Killed with SIGKILL, systemd starts it again in about 6 seconds
+(`Restart=on-failure`, at most 5 times in 10 minutes). Staff already signed in keep working throughout: MedBrains' own session
+does not ask Kanidm again until it is renewed. A new sign-in through Kanidm goes back to MedBrains' sign-in page, which says
+"The sign-in service is not answering…" with what to do; calls to Kanidm give up after 10 seconds instead of hanging. While it is
+down only the first administrator can sign in, by MedBrains' local form.
+
+**Emergency sign-in, designed and not built** (for an independent review before any of it ships). The problem: Kanidm is down
+for longer than a shift change, and a nurse who was not signed in must chart. The design:
+- **Only while Kanidm is down.** The server offers it only after Kanidm's discovery has failed for 2 minutes, and stops offering it
+  when Kanidm answers again.
+- **A named person, not a shared account.** IT names a few people per ward in advance (a new permission, defined in Rust first). Each
+  gets ten single-use emergency codes, shown once when made in Kanidm-time, stored as argon2 hashes; a used code is gone.
+- **Time-limited.** The session lasts at most 4 hours and cannot be renewed; when Kanidm is back it ends after 15 minutes' grace.
+- **Narrow.** The person's own role, minus anything administrative: no user, role, permission or export change.
+- **Audited and flagged.** Start, end and every write carry an emergency mark in the audit log; IT is told at once through the existing
+  break-glass notice; every screen shows "Emergency sign-in, ends at HH:MM"; each session becomes a review item afterwards
+  (`audit.break_glass.review`).
+- **Limited like sign-in.** The front's per-address limit applies; five wrong codes for a name stop that name until IT clears it.
+Open for the reviewer: whether codes or a second signed-in person's approval is the better proof; whether the 2-minute trigger can be
+forced by an attacker who stops Kanidm (it needs root, so it is not a new path).
+
+**Kanidm's look.** Every page Kanidm draws (sign-in, password change, people, groups, both themes) is dressed through the one
+stylesheet it loads after its own, so its templates are not patched. `kanidm-tokens.py` prints the design system's `--mb-*` tokens
+for its light and dark themes from `packages/design-system`, and the build refuses tokens that miss WCAG 2.2 AA; `kanidm-override.css`
+uses only those, with square corners, bottom-rule fields, IBM Plex from the web app and a 2px focus outline.
 
 ## Linux hardening
 

@@ -19,6 +19,14 @@ import classes from "./login.module.scss";
 
 /** `/login?hospital=AMH` — the hospital step 1 chose. */
 const HOSPITAL_PARAM = "hospital";
+/** `/login?sso_error=…` — the server sent the person back from the identity provider. */
+const SSO_ERROR_PARAM = "sso_error";
+/** What each of the server's sign-in failures means, in plain words with a next step. */
+const SSO_ERRORS: Record<string, string> = {
+  unavailable:
+    "The sign-in service is not answering, so you can't sign in with it right now. Anyone already signed in can carry on. Try again in a minute; if it keeps happening, call IT.",
+  "1": "Sign-in was cancelled or refused. Try again.",
+};
 
 /**
  * Sign-in starts with the hospital. Its code (remembered on this device), or
@@ -37,6 +45,7 @@ export function LoginPage() {
   const setCode = (next: string | null) =>
     setParams(next ? { [HOSPITAL_PARAM]: next } : {}, { replace: true });
   const [choosing, setChoosing] = useState(false);
+  const ssoError = SSO_ERRORS[params.get(SSO_ERROR_PARAM) ?? ""];
   const options = useQuery({
     queryKey: ["sign-in-options", code ?? "@domain"],
     queryFn: () => api.getSignInOptions(code ?? undefined).catch(nullOn404),
@@ -81,6 +90,11 @@ export function LoginPage() {
             </Text>
           </Stack>
 
+          {ssoError && (
+            <Alert tone="danger" mb="md" data-testid="login-sso-error">
+              {ssoError}
+            </Alert>
+          )}
           {options.isPending && !choosing ? (
             <Center py="md">
               <Loader size="sm" aria-label="Checking how your hospital signs in" />

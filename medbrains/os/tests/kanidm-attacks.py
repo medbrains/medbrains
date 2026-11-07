@@ -95,11 +95,12 @@ def installed_service():
     serial(f"mkdir -p {drop_in}; printf '[Service]\\nEnvironment=KANIDM_LDAPBINDADDRESS=127.0.0.1:{LDAP_PORT}\\n' > {drop_in}/ldap.conf; "
            "systemctl daemon-reload; systemctl restart kanidmd; sleep 6", 40)
     print("INFO  LDAP listening for the test:", serial(f"ss -lntH | grep -c :{LDAP_PORT}", 8)[-3:].strip(), flush=True)
+    since = serial("date +%s", 8).splitlines()[-1].strip()
     before = service_state()
     attack_scim(8444)
     attack_ldap(LDAP_PORT)
     after = service_state()
-    crashes = serial(f"journalctl -u kanidmd --since '-4min' --no-pager | grep -cE '{LOG_MATCH}'", 10)[-3:].strip()
+    crashes = serial(f"journalctl -u kanidmd --since @{since} --no-pager | grep -cE '{LOG_MATCH}'", 10)[-3:].strip()
     check("kanidmd survives both attacks", before == after and crashes.endswith("0"), f"before {before} after {after} crash lines {crashes}")
     front = curl(f"{IDP}/scim/v1/Entry?filter=" + "(" * 2000 + "name%20pr" + ")" * 2000)[0]
     status = curl(f"{IDP}/status")[0]

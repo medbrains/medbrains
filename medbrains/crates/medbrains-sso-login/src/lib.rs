@@ -60,6 +60,7 @@ fn screen_base(screen: Option<&str>, host: Option<&str>) -> Option<String> {
     (screen.strip_prefix("https://") == host).then(|| screen.to_owned())
 }
 
+/// Where the identity provider sends the browser back, on the address the sign-in started from.
 fn callback_uri(base: &str) -> String {
     format!("{base}/api/auth/sso/callback")
 }
@@ -112,6 +113,11 @@ async fn load_provider(state: &AppState, id: Uuid) -> Result<LoginProvider, AppE
     .ok_or(AppError::NotFound)
 }
 
+/// How long a call to the identity provider may take. A provider that hangs must not hang the sign-in page.
+const PROVIDER_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(10);
+/// Where the login page says the identity provider is not answering, in plain words.
+const PROVIDER_UNAVAILABLE: &str = "/login?sso_error=unavailable";
+
 #[derive(Debug, Deserialize)]
 struct Discovery {
     issuer: String,
@@ -123,6 +129,7 @@ struct Discovery {
 async fn fetch_discovery(url: &str) -> Result<Discovery, AppError> {
     reqwest::Client::new()
         .get(url)
+        .timeout(PROVIDER_TIMEOUT)
         .send()
         .await
         .map_err(|e| AppError::Internal(format!("oidc discovery: {e}")))?
@@ -193,7 +200,11 @@ pub async fn oidc_authorize(
         .client_id
         .as_deref()
         .ok_or_else(|| AppError::BadRequest("provider has no client_id".to_owned()))?;
-    let discovery = fetch_discovery(discovery_url).await?;
+    let Ok(discovery) = fetch_discovery(discovery_url).await.inspect_err(|e| {
+        tracing::warn!(error = %e, "identity provider not answering; sending the person back to sign-in");
+    }) else {
+        return Ok(Redirect::to(&format!("{}{PROVIDER_UNAVAILABLE}", base_for(&headers))));
+    };
 
     let state_tok = random_token(32)?;
     let nonce = random_token(32)?;
@@ -475,6 +486,7 @@ async fn exchange_code(
     }
     let response = reqwest::Client::new()
         .post(token_endpoint)
+        .timeout(PROVIDER_TIMEOUT)
         .form(&form)
         .send()
         .await
@@ -512,6 +524,7 @@ async fn validate_id_token(
 ) -> Result<SsoIdentity, AppError> {
     let jwks = reqwest::Client::new()
         .get(jwks_uri)
+        .timeout(PROVIDER_TIMEOUT)
         .send()
         .await
         .map_err(|e| AppError::Internal(format!("jwks fetch: {e}")))?
