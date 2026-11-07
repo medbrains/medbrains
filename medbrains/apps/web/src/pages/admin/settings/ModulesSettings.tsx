@@ -93,6 +93,7 @@ export function ModulesSettings() {
     },
   });
 
+  /** Switches a brick, refusing an off that would break bricks that need it and offering its needs on an on. */
   const handleToggle = (mod: ModuleConfig, on: boolean) => {
     const all = modules ?? [];
     if (!on) {

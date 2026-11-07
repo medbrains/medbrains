@@ -54,6 +54,7 @@ export function offDependencies(code: string, modules: readonly ModuleConfig[]):
   const byCode = new Map(modules.map((m) => [m.code, m]));
   const seen = new Set<string>();
   const order: ModuleConfig[] = [];
+  /** Adds the off bricks `id` needs, depth first, so each comes after what it needs. */
   const visit = (id: string) => {
     if (seen.has(id)) return;
     seen.add(id);
