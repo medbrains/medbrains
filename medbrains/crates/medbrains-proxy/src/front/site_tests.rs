@@ -76,11 +76,15 @@ fn a_forged_forwarding_header_never_reaches_the_server() -> anyhow::Result<()> {
 fn a_forged_host_does_not_reach_the_server_either() -> anyhow::Result<()> {
     let site = open_site()?;
     let forged = request("/", &[("Host", "evil.example")])?;
-    assert_eq!(site.upstream_host(&forged), "medbrains.local");
+    assert_eq!(site.upstream_host(&forged, false), "medbrains.local");
     let ours = request("/", &[("Host", "10.0.0.5:443")])?;
-    assert_eq!(site.upstream_host(&ours), "10.0.0.5:443");
+    assert_eq!(site.upstream_host(&ours, false), "10.0.0.5:443");
     let mut req = request("/", &[("Host", "evil.example")])?;
-    set_forwarding(&mut req, CLIENT.parse()?, &site.upstream_host(&forged))?;
+    set_forwarding(
+        &mut req,
+        CLIENT.parse()?,
+        &site.upstream_host(&forged, false),
+    )?;
     assert_eq!(single(&req, "host")?, "medbrains.local");
     assert_eq!(single(&req, "x-forwarded-host")?, "medbrains.local");
     Ok(())
@@ -90,7 +94,61 @@ fn a_forged_host_does_not_reach_the_server_either() -> anyhow::Result<()> {
 fn a_site_with_its_own_name_keeps_it() -> anyhow::Result<()> {
     let site = identity_site()?;
     let req = request("/", &[("Host", "idm.medbrains.local:9443")])?;
-    assert_eq!(site.upstream_host(&req), "idm.medbrains.local:9443");
+    assert_eq!(site.upstream_host(&req, false), "idm.medbrains.local:9443");
+    Ok(())
+}
+
+/// The screen's own address must not end up in a link mailed to someone at another machine.
+#[test]
+fn the_loopback_port_forwards_the_machines_name() -> anyhow::Result<()> {
+    let site = open_site()?;
+    let screen = request("/", &[("Host", "127.0.0.1:8443")])?;
+    assert_eq!(site.upstream_host(&screen, true), "medbrains.local");
+    assert_eq!(site.upstream_host(&screen, false), "medbrains.local");
+    let lan = request("/", &[("Host", "10.0.0.5")])?;
+    assert_eq!(site.upstream_host(&lan, true), "medbrains.local");
+    assert_eq!(site.upstream_host(&lan, false), "10.0.0.5");
+    let identity = identity_site()?;
+    let own = request("/", &[("Host", "idm.medbrains.local")])?;
+    assert_eq!(identity.upstream_host(&own, true), "idm.medbrains.local");
+    Ok(())
+}
+
+/// A Wi-Fi roam stalls a reader for a second or two. With the front's own limits a small response
+/// must survive that, which needs the vendored Pingora patch: upstream gave a small write 1 s.
+#[tokio::test]
+async fn a_two_second_stall_does_not_cut_a_small_response_off() -> anyhow::Result<()> {
+    use pingora_core::protocols::http::ServerSession;
+    use tokio::io::{AsyncReadExt, AsyncWriteExt};
+    const STALL: Duration = Duration::from_secs(2);
+    const BODY: usize = 1000;
+    // A pipe smaller than the response, so every write waits for the reader.
+    let (mut client, server) = tokio::io::duplex(64);
+    let mut session = ServerSession::new_http1(Box::new(server));
+    client
+        .write_all(b"GET / HTTP/1.1\r\nHost: medbrains.local\r\n\r\n")
+        .await?;
+    anyhow::ensure!(session.read_request().await?, "no request");
+    session.set_write_timeout(Some(super::CLIENT_WRITE));
+    session.set_min_send_rate(Some(super::CLIENT_MIN_BYTES_PER_SEC));
+    let reader = tokio::spawn(async move {
+        tokio::time::sleep(STALL).await;
+        let mut seen = Vec::new();
+        client.read_to_end(&mut seen).await.map(|_| seen)
+    });
+    let mut resp = pingora_http::ResponseHeader::build(200, None)?;
+    resp.set_content_length(BODY)?;
+    session.write_response_header(Box::new(resp)).await?;
+    session
+        .write_response_body(bytes::Bytes::from(vec![b'x'; BODY]), true)
+        .await?;
+    session.finish_body().await?;
+    drop(session);
+    let seen = reader.await??;
+    assert!(
+        seen.ends_with(&[b'x'; BODY]),
+        "the whole body arrives after the stall"
+    );
     Ok(())
 }
 

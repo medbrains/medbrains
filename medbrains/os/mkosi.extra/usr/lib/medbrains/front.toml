@@ -16,11 +16,15 @@ name = "medbrains"
 upstream = "127.0.0.1:3000"
 error_page = "MedBrains is not answering. Try again in a moment; if it stays like this, call your system administrator."
 
-# The LAN: IPv4 and IPv6 together.
+# The LAN: IPv4 and IPv6 together. The limit per address stops accidents, not attackers: a PC can
+# claim more addresses, so the total and the loopback port's own limit are what hold. An IPv6 /64 is
+# one address here, often a whole ward's VLAN, and a terminal server is one address for all its
+# users, so it is set high enough for either.
 [[sites.listen]]
 addr = "[::]:443"
 cert = "/var/lib/medbrains-front/lan/chain.pem"
 key = "/var/lib/medbrains-front/lan/key.pem"
+max_per_address = 1024
 
 # The machine's own screen, and tunnels from nodes. Loopback only, with its own limit, so a flood
 # on the LAN port leaves it free. No limit per address, because all of it arrives from loopback.

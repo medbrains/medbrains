@@ -48,6 +48,16 @@ grep -q 'CAP_NET_BIND_SERVICE' "$UNITS/medbrains-agent.service" ||
 # The screen's trust store stays out of the screen's own reach.
 grep -q 'BindReadOnlyPaths=/var/lib/medbrains-settings/local-front.pem:' "$UNITS/cage-console.service" ||
     { echo "FAIL: the screen's trust store is somewhere its user can write"; exit 1; }
+# The certificate run is root: sandboxed, and never stuck holding the lock every front start needs.
+for setting in TimeoutStartSec= ProtectSystem=strict NoNewPrivileges=yes CapabilityBoundingSet=; do
+    grep -q "^$setting" "$UNITS/medbrains-front-certs.service" ||
+        { echo "FAIL: medbrains-front-certs.service has no $setting"; exit 1; }
+done
+# A main machine takes no router advertisements, on every network it can use.
+for network in 80-wired 81-wireless 10-medbrains-fixed 50-medbrains-preferred; do
+    grep -q "$network" "$OS/mkosi.extra/usr/lib/medbrains/role-network" ||
+        { echo "FAIL: role-network leaves router advertisements on for $network"; exit 1; }
+done
 # Setup starts this for a new hospital only, so a node never holds its secrets or database.
 if grep -qw medbrains-firstboot <<<"$enabled"; then echo "FAIL: postinst enables first boot on a node"; exit 1; fi
 echo PASS

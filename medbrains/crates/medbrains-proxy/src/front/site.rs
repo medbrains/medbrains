@@ -36,10 +36,12 @@ const CLIENT_READ: Duration = Duration::from_secs(30);
 /// Longest wait for a client to accept one write. A stalled reader cannot hold a response open.
 const CLIENT_WRITE: Duration = Duration::from_secs(30);
 const UPSTREAM_CONNECT: Duration = Duration::from_secs(5);
-/// A report may take this long to start answering.
+/// A report may take this long to start answering. It is also the back end's silence allowed on an
+/// open WebSocket: Pingora fixes a back end's timeout when it connects, before any 101, and asking for
+/// an upgrade must not buy an hour against a slow route. The web app reconnects a quiet socket.
 const UPSTREAM_READ: Duration = Duration::from_secs(300);
-/// Silence allowed on an open WebSocket. Long, because silence is normal; bounded, because every wait
-/// is. The web app reconnects.
+/// The client's silence allowed on an open WebSocket. Long, because silence is normal; bounded,
+/// because every wait is.
 const WEBSOCKET_IDLE: Duration = Duration::from_secs(3600);
 /// A client reading slower than this loses the response, however small each write is: a stalled
 /// reader at one chunk per `CLIENT_WRITE` would otherwise hold a large response for days.
@@ -76,8 +78,6 @@ pub(crate) struct Site {
 pub(crate) struct RequestState {
     body_started: Option<Instant>,
     body_bytes: u64,
-    /// Asked for a WebSocket: the back end may stay silent for longer.
-    wants_upgrade: bool,
     /// The back end agreed. Only now do the limits for a normal request stop applying.
     is_upgraded: bool,
 }
@@ -133,10 +133,13 @@ impl Site {
 
     /// The Host the back end gets. A site with `only_hosts` already refused every other name, and
     /// its back end may check its own; otherwise a name outside the machine's set becomes one in it.
-    fn upstream_host(&self, req: &RequestHeader) -> String {
+    /// On loopback, the screen's `127.0.0.1:8443` would end up in links the server mails to people
+    /// on other machines, so it gets the machine's own name instead.
+    fn upstream_host(&self, req: &RequestHeader, on_loopback: bool) -> String {
         let header = host_header(req);
         match header {
             Some(host) if !self.only_hosts.is_empty() => host.to_owned(),
+            _ if on_loopback => self.names.trusted_host(None).to_owned(),
             _ => self.names.trusted_host(header).to_owned(),
         }
     }
@@ -203,6 +206,14 @@ fn client_ip(session: &Session) -> Option<IpAddr> {
     Some(canonical_ip(inet.ip()))
 }
 
+/// True when the connection arrived on a loopback address: the screen, or a node's tunnel.
+fn arrived_on_loopback(session: &Session) -> bool {
+    session
+        .server_addr()
+        .and_then(|addr| addr.as_inet())
+        .is_some_and(|addr| canonical_ip(addr.ip()).is_loopback())
+}
+
 /// Sets every forwarding header from what this proxy knows, removing whatever the client sent.
 ///
 /// `X-Forwarded-For` holds one address: the server walks it from the right and stops at the first
@@ -266,14 +277,12 @@ impl ProxyHttp for Site {
         RequestState {
             body_started: None,
             body_bytes: 0,
-            wants_upgrade: false,
             is_upgraded: false,
         }
     }
 
     /// Applies timeouts, then every rule that can refuse a request before the back end sees it.
-    async fn request_filter(&self, session: &mut Session, ctx: &mut Self::CTX) -> Result<bool> {
-        ctx.wants_upgrade = session.is_upgrade_req();
+    async fn request_filter(&self, session: &mut Session, _ctx: &mut Self::CTX) -> Result<bool> {
         session.set_read_timeout(Some(CLIENT_READ));
         session.set_write_timeout(Some(CLIENT_WRITE));
         session.set_min_send_rate(Some(CLIENT_MIN_BYTES_PER_SEC));
@@ -320,18 +329,14 @@ impl ProxyHttp for Site {
     async fn upstream_peer(
         &self,
         _session: &mut Session,
-        ctx: &mut Self::CTX,
+        _ctx: &mut Self::CTX,
     ) -> Result<Box<HttpPeer>> {
         let name = self.upstream_tls.as_ref().map(|(_, name)| name.as_str());
         let tls = name.is_some();
         let mut peer = HttpPeer::new(self.upstream, tls, name.unwrap_or_default().to_owned());
         peer.options.connection_timeout = Some(UPSTREAM_CONNECT);
         peer.options.total_connection_timeout = Some(UPSTREAM_CONNECT * 2);
-        peer.options.read_timeout = Some(if ctx.wants_upgrade {
-            WEBSOCKET_IDLE
-        } else {
-            UPSTREAM_READ
-        });
+        peer.options.read_timeout = Some(UPSTREAM_READ);
         peer.options.write_timeout = Some(UPSTREAM_WRITE);
         peer.options.idle_timeout = Some(UPSTREAM_IDLE);
         if let Some((ca, _)) = &self.upstream_tls {
@@ -350,7 +355,7 @@ impl ProxyHttp for Site {
         let Some(client) = client_ip(session) else {
             return Error::e_explain(ErrorType::InternalError, "no client address");
         };
-        let host = self.upstream_host(req);
+        let host = self.upstream_host(req, arrived_on_loopback(session));
         set_forwarding(req, client, &host)
     }
 

@@ -416,8 +416,14 @@ unknown key stops the service rather than being ignored.
 | Port | What |
 |---|---|
 | 80 | Redirects to HTTPS, only ever to a name of this machine or the address the request arrived on. Up to 256 connections, 32 from one address |
-| 443 | The LAN, IPv4 and IPv6, up to 4,096 connections and 256 from one address or IPv6 /64 |
-| 127.0.0.1:8443 | The screen and node tunnels, with its own 1,024, so a LAN flood leaves the screen working |
+| 443 | The LAN, IPv4 and IPv6, up to 4,096 connections and 1,024 from one address or IPv6 /64. A loopback client other than 127.0.0.1 or ::1 is refused, so a local program cannot pass as a node |
+| 127.0.0.1:8443 | The screen and node tunnels, with its own 1,024, so a LAN flood leaves the screen working. The server is told the machine's own name here, never `127.0.0.1:8443` |
+
+The limit per address stops accidents, not attackers: a PC can claim more addresses, so the total and
+the screen's own port are what hold under an attack. An IPv6 /64 counts as one address, often a whole
+ward's VLAN, and a terminal server is one address for all its users, hence 1,024. A main machine
+accepts no router advertisements, so nobody on the LAN can hand it more /64s. Sign-in throttling is the
+server's job: the front can limit a path (`[[sites.limits]]`), and the shipped site uses none.
 
 **Certificates.** `front-certs` runs as root before the front starts, and once a minute. `ca/` holds this
 machine's own authority, made here, root only. Name constraints limit it to `.local`, `.internal`, `.lan`,
@@ -425,7 +431,9 @@ machine's own authority, made here, root only. Name constraints limit it to `.lo
 boot, and private and unique-local addresses, so a stolen key cannot sign for any other site, even on a PC that
 trusts it. `lan/` holds one certificate covering what this machine answers to within those limits. Nothing a
 client sends creates a certificate: a made-up name gets the same one and a browser warning. The front restarts
-when a fixed or DHCP address changes. IPv6 addresses learned from a router advertisement are left out, because
+when a fixed or DHCP address changes, not when `ip` lists the same ones in another order. `lan` is a link to
+a versioned folder, swapped with one rename. A DHCP server cannot rename the machine (`UseHostname=no`),
+and a kernel name no certificate can hold becomes `medbrains`. IPv6 addresses learned from a router advertisement are left out, because
 anyone on the LAN can send one; those clients use `medbrains.local`. A bad line in `front-names` is skipped, a
 failed renewal keeps the valid certificate in place, and a key that does not match its certificate is replaced.
 To use a hospital root (T2), replace `ca/ca.pem` and `ca/ca.key` with a CA it signed and remove `ca/permitted`.

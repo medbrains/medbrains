@@ -6,8 +6,27 @@ ConditionPathExists=/var/lib/medbrains/config/role-main
 [Service]
 Type=oneshot
 ExecStart=/usr/lib/medbrains/front-certs --restart
+# A oneshot otherwise waits forever, and a stuck run holds the lock every start of the front needs.
+TimeoutStartSec=60s
+# Root, but only for what the script does: its own state, the two certificate copies and the lock.
+ProtectSystem=strict
+ReadWritePaths=/var/lib/medbrains-front /var/lib/medbrains-settings /var/lib/medbrains-agent /run
+NoNewPrivileges=yes
+# chgrp, writing the agent's copy as the agent, and reading through the agent's folder to compare.
+CapabilityBoundingSet=CAP_CHOWN CAP_FOWNER CAP_DAC_OVERRIDE CAP_SETUID CAP_SETGID
+# systemctl, and the addresses `ip` reads: nothing here speaks to the network.
+RestrictAddressFamilies=AF_UNIX AF_NETLINK
 PrivateTmp=yes
+PrivateDevices=yes
 ProtectHome=yes
 ProtectKernelTunables=yes
 ProtectKernelModules=yes
+ProtectKernelLogs=yes
 ProtectControlGroups=yes
+ProtectClock=yes
+RestrictNamespaces=yes
+RestrictRealtime=yes
+RestrictSUIDSGID=yes
+LockPersonality=yes
+MemoryDenyWriteExecute=yes
+SystemCallArchitectures=native

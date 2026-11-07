@@ -789,7 +789,11 @@ impl HttpSession {
         // min timeout is 1s
         let ms = (buf_len.max(min_send_rate) as f64 / min_send_rate as f64) * 1000.0;
         // truncates unrealistically large values (we'll be out of memory before this happens)
-        Some(Duration::from_millis(ms as u64))
+        let by_rate = Duration::from_millis(ms as u64);
+        // MedBrains patch: the rate is a floor on progress, not a ceiling on patience. Upstream
+        // returns `by_rate` alone, so a small write got 1 s whatever `write_timeout` said, and a
+        // one-second Wi-Fi stall cut the response off.
+        Some(self.write_timeout.map_or(by_rate, |timeout| timeout.max(by_rate)))
     }
 
     /// Apply keepalive settings according to the client

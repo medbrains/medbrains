@@ -13,7 +13,7 @@ use pingora_core::protocols::http::ServerSession;
 use pingora_core::protocols::l4::stream::Stream as L4Stream;
 use pingora_core::protocols::{GetSocketDigest, SocketDigest, Stream};
 use pingora_core::server::ShutdownWatch;
-use std::net::SocketAddr;
+use std::net::{IpAddr, Ipv4Addr, Ipv6Addr, SocketAddr};
 use std::os::fd::AsRawFd;
 use std::sync::Arc;
 use std::time::Duration;
@@ -71,11 +71,28 @@ pub(crate) fn bind(addr: SocketAddr) -> std::io::Result<TcpListener> {
     socket.listen(LISTEN_BACKLOG)
 }
 
+/// True if a listener takes a connection from `client`. On a LAN port the only loopback client is
+/// the machine itself at `127.0.0.1` or `::1`. Any local program can connect from `127.x.y.z`, the
+/// addresses a node's tunnel arrives from on the loopback port, so taking one here would let it
+/// pass as a machine in the audit log and the sign-in limit. The firewall says the same; this does
+/// not depend on it.
+fn admits_peer(on_lan: bool, client: IpAddr) -> bool {
+    let is_machine =
+        client == IpAddr::V4(Ipv4Addr::LOCALHOST) || client == IpAddr::V6(Ipv6Addr::LOCALHOST);
+    !on_lan || !client.is_loopback() || is_machine
+}
+
 /// Accepts until shutdown. The only loop here meant to run forever.
 pub(crate) async fn accept_loop<A>(listener: Listener, app: Arc<A>, mut shutdown: ShutdownWatch)
 where
     A: HttpServerApp + Send + Sync + 'static,
 {
+    // A port bound to an address this machine cannot be reached on from the LAN is not a LAN port.
+    let on_lan = listener
+        .socket
+        .local_addr()
+        .ok()
+        .is_none_or(|addr| !addr.ip().is_loopback());
     loop {
         let accepted = tokio::select! {
             accepted = listener.socket.accept() => accepted,
@@ -94,6 +111,9 @@ where
             }
         };
         let client = crate::names::canonical_ip(peer.ip());
+        if !admits_peer(on_lan, client) {
+            continue;
+        }
         // Refused with a plain close: nothing has been spent on it yet, least of all a handshake.
         let Some(permit) = listener.gate.admit(client) else {
             continue;
@@ -160,11 +180,7 @@ where
             HeadRead::Gone => return,
         };
         let mut session = ServerSession::new_http1(stream);
-        let mut next = settings
-            .take()
-            .unwrap_or_else(|| HttpPersistentSettings::for_session(&session));
-        next.set_pipelined_prefix(head);
-        next.apply_to_session(&mut session);
+        next_settings(settings.take(), &session, head).apply_to_session(&mut session);
         let Some(reused) = app.process_new_http(session, &shutdown).await else {
             return;
         };
@@ -172,6 +188,22 @@ where
         stream = reused_stream;
         settings = reused_settings;
     }
+}
+
+/// The settings the next request on a connection starts from, with `head` as all it may parse.
+///
+/// Pingora hands back the bytes it read past the last request as a pipelined prefix inside `reused`.
+/// Those never passed `check_head`, so they are replaced here by `head`, which did. Keeping them would
+/// let a second head skip every rule in `head.rs`: smuggling. Pingora gives no way to read them back
+/// out to check them, so they are dropped; a client that pipelines waits, and browsers do not.
+fn next_settings(
+    reused: Option<HttpPersistentSettings>,
+    session: &ServerSession,
+    head: BytesMut,
+) -> HttpPersistentSettings {
+    let mut next = reused.unwrap_or_else(|| HttpPersistentSettings::for_session(session));
+    next.set_pipelined_prefix(head);
+    next
 }
 
 /// Reads one complete head, refusing it at the first sign of trouble.
@@ -214,20 +246,5 @@ fn judge(buf: BytesMut, end: usize) -> HeadRead {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::{BAD_REQUEST, NOT_ALLOWED, TIMED_OUT, TOO_LARGE};
-
-    /// The Content-Length written by hand above must match its body, or a client hangs.
-    #[test]
-    fn every_canned_response_states_its_own_length() {
-        for response in [BAD_REQUEST, NOT_ALLOWED, TIMED_OUT, TOO_LARGE] {
-            let text = std::str::from_utf8(response).unwrap_or_default();
-            let (head, body) = text.split_once("\r\n\r\n").unwrap_or_default();
-            let declared = head
-                .lines()
-                .find_map(|line| line.strip_prefix("Content-Length: "))
-                .and_then(|value| value.parse::<usize>().ok());
-            assert_eq!(declared, Some(body.len()), "{head}");
-        }
-    }
-}
+#[path = "listen_tests.rs"]
+mod tests;

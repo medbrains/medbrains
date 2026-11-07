@@ -6,7 +6,8 @@
 #           Limited by name constraints to local names and private addresses, so a stolen key
 #           cannot sign for a bank on a PC that trusts this machine.
 #   lan/    the certificate for the LAN port, signed by ca/. names lists what the machine answers
-#           to; the certificate covers those the authority is allowed to sign.
+#           to; the certificate covers those the authority is allowed to sign. A link to a lan.<time>
+#           folder, swapped with one rename, so the front only ever finds an old pair or a new one.
 #   screen/ the self-signed certificate for the loopback port, the only one the screen trusts.
 #
 # The set of names is bounded and known ahead of time: nothing a client sends creates a certificate.
@@ -35,14 +36,26 @@ LOCK=/run/medbrains-front-certs.lock
 MAX_NAMES=64
 MAX_NAME_BYTES=253
 LOCK_WAIT_SECONDS=60
+# Longest wait on the agent's copy: a FIFO planted there must not hold the lock forever.
+AGENT_COPY_SECONDS=10
+# What the machine is called when its kernel name could not go in a certificate.
+FALLBACK_HOST=medbrains
 LEAF_DAYS=397
 RENEW_SECONDS=$((30 * 24 * 3600))
 # Local suffixes no public certificate authority can issue for.
 LOCAL_SUFFIXES=(local internal lan intranet home.arpa localhost)
 umask 077
 
-# This machine's name.
-this_host() { cat /proc/sys/kernel/hostname; }
+# This machine's name, only if a certificate can hold it: it goes into the authority's constraints.
+this_host() {
+    local host
+    host="$(cat /proc/sys/kernel/hostname)"
+    if is_valid_name "$host" && [[ ! "$host" =~ ^[0-9.]+$ && "$host" != *:* ]]; then
+        echo "$host"
+    else
+        echo "$FALLBACK_HOST"
+    fi
+}
 
 # True for a dotted IPv4 address.
 is_ipv4() {
@@ -72,8 +85,11 @@ candidate_names() {
     host="$(this_host)"
     printf '%s\n' medbrains.local "$host" "$host.local" localhost 127.0.0.1 ::1
     if [[ -r "$EXTRA_NAMES" ]]; then cat "$EXTRA_NAMES"; fi
-    ip -o -4 addr show scope global | awk '{print $4}' | cut -d/ -f1
-    ip -o -6 addr show scope global permanent | awk '{print $4}' | cut -d/ -f1
+    # Sorted: `ip` may list the same addresses in another order, which is no reason for a restart.
+    {
+        ip -o -4 addr show scope global | awk '{print $4}' | cut -d/ -f1
+        ip -o -6 addr show scope global permanent | awk '{print $4}' | cut -d/ -f1
+    } | sort -u
 }
 
 # What this machine answers to: valid, without repeats, at most MAX_NAMES.
@@ -182,17 +198,31 @@ lan_is_usable() {
 # True if the LAN certificate is good for this set of names, from this authority, for a while yet.
 lan_is_current() {
     lan_is_usable || return 1
-    [[ "$(cat "$LAN/names")" == "$1" ]] || return 1
+    [[ "$(sort -u "$LAN/names")" == "$(sort -u <<<"$1")" ]] || return 1
     openssl x509 -in "$LAN/chain.pem" -noout -checkend "$RENEW_SECONDS" >/dev/null 2>&1 || return 1
     openssl verify -partial_chain -CAfile "$CA/ca.pem" "$LAN/chain.pem" >/dev/null 2>&1
 }
 
-# Issues the LAN certificate in a new directory, then swaps it in whole: the key and certificate
-# only ever change together, and a failure anywhere leaves the old pair in place.
+# Points lan at the folder $1 with one rename, then removes every other lan.* folder. A lan that
+# is still a folder, from before the links, becomes a version first.
+swap_lan() {
+    local version="$1" dir
+    if [[ -d "$LAN" && ! -L "$LAN" ]]; then
+        mv "$LAN" "$STATE/lan.$(date +%s%N).old" || return 1
+    fi
+    ln -sfn "$version" "$STATE/lan.link" && mv -Tf "$STATE/lan.link" "$LAN" || return 1
+    for dir in "$STATE"/lan.*; do
+        [[ "$dir" == "$STATE/$version" ]] || rm -rf "$dir"
+    done
+}
+
+# Issues the LAN certificate in a new folder, then swaps it in whole: the key and certificate only
+# ever change together, and a failure anywhere leaves the old pair in place.
 issue_lan() {
-    local wanted="$1" new="$STATE/lan.new" sans
+    local wanted="$1" version new sans
+    version="lan.$(date +%s%N)"
+    new="$STATE/$version"
     sans="$(san_list <<<"$wanted")" && [[ -n "$sans" ]] || return 1
-    rm -rf "$new"
     install -d -m 0750 -g "$GROUP" "$new" || return 1
     openssl req -new -newkey ec -pkeyopt ec_paramgen_curve:prime256v1 -nodes \
         -keyout "$new/key.pem" -out "$new/request.csr" -subj "/CN=medbrains.local" 2>/dev/null || return 1
@@ -205,25 +235,30 @@ issue_lan() {
     rm -f "$new/request.csr" "$new/leaf.pem"
     chgrp "$GROUP" "$new/key.pem" "$new/chain.pem" "$new/names" || return 1
     chmod 0640 "$new/key.pem" "$new/chain.pem" "$new/names" || return 1
-    keys_match "$new/key.pem" "$new/chain.pem" || return 1
-    rm -rf "$LAN" && mv "$new" "$LAN"
+    keys_match "$new/key.pem" "$new/chain.pem" || { rm -rf "$new"; return 1; }
+    swap_lan "$version"
 }
 
 # The screen's trust store, in a folder only root writes, in place because the running unit has this
 # very file bound in, and the copy the agent hands to machines it admits. That copy is in the agent's
 # own folder, so it is written as the agent: a link planted there reaches nothing the agent could not.
+# Only a regular file or nothing is accepted there, every touch of it is under a time limit, and it is
+# replaced by a rename, so a FIFO or a device cannot hold this script and its lock.
 ensure_certificate_copies() {
     if ! cmp -s "$SCREEN/cert.pem" "$SCREEN_TRUST"; then
         cat "$SCREEN/cert.pem" > "$SCREEN_TRUST"
         # A screen that already started holds the old trust in memory.
         systemctl --no-block try-restart cage-console.service || true
     fi
-    if [[ -L "$AGENT_COPY" ]]; then
-        echo "front-certs: refusing to write through a link at $AGENT_COPY" >&2
-    elif [[ -d "${AGENT_COPY%/*}" ]] && ! cmp -s "$SCREEN/cert.pem" "$AGENT_COPY"; then
+    if [[ -L "$AGENT_COPY" ]] || [[ -e "$AGENT_COPY" && ! -f "$AGENT_COPY" ]]; then
+        echo "front-certs: refusing $AGENT_COPY: not a regular file" >&2
+    elif [[ -d "${AGENT_COPY%/*}" ]] &&
+        ! timeout "$AGENT_COPY_SECONDS" cmp -s "$SCREEN/cert.pem" "$AGENT_COPY"; then
         # shellcheck disable=SC2016 # the inner shell expands $1
-        setpriv --reuid=medbrains-agent --regid=kiosk --clear-groups \
-            sh -c 'umask 022; cat > "$1"' sh "$AGENT_COPY" < "$SCREEN/cert.pem"
+        timeout "$AGENT_COPY_SECONDS" setpriv --reuid=medbrains-agent --regid=kiosk --clear-groups \
+            sh -c 'umask 022; tmp="$(mktemp "$1.XXXXXX")" && cat > "$tmp" && mv -f "$tmp" "$1"' \
+            sh "$AGENT_COPY" < "$SCREEN/cert.pem" ||
+            echo "front-certs: could not give the agent its copy; nodes it admits wait for the next run" >&2
     fi
 }
 
