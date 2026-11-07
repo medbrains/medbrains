@@ -77,12 +77,12 @@ A folder of four files, the same on a USB stick (`medbrains-update/`) and at an 
 
 | File | What |
 |---|---|
-| `manifest.json` | Format, version, architecture, floor, security flag, one sentence, hashes and sizes. Unknown fields refused |
-| `manifest.sig` | One line per signature: `<key id> <base64>`. Up to 4, so one bundle can carry an old and a new key |
+| `manifest.json` | Format, version, architecture, floor, oldest version it upgrades from, expiry, security flag, one sentence, hashes and sizes. Unknown fields refused |
+| `manifest.sig` | One line per signature: `<key id> <base64>`. Up to 4: an old and a new key, or two people's |
 | `root.img.zst` | The system partition, compressed |
 | `boot.efi` | The boot file |
 
-`medbrains-os-bundle` makes them (`keygen`, `extract`, `make`, `sign`). It runs on a build machine and is not in the image.
+`medbrains-os-bundle` makes them (`keygen`, `extract`, `make`, `refresh`, `sign`). It runs on a build machine and is not in the image.
 
 ## Signing keys
 
@@ -111,6 +111,51 @@ offline during that window stay exposed. There is no revocation list: a machine 
 
 **The boot signing key is a different key.** `OS_PCR_KEY` (OS-KEYS.md) signs what may open the disk; this one what may be
 installed. They could be the same physical custody. Keep them apart in software: a mistake with one mustn't release the other.
+
+### Against TUF's attacks (U1.5)
+
+[The Update Framework](https://theupdateframework.github.io/specification/latest/#goals-to-protect-against-specific-attacks) lists the
+attacks an update system must survive. We **did not adopt TUF metadata**: TUF's four roles, delegations and many targets are for
+repositories serving many packages to many publishers; we ship one image per architecture from one publisher, and the Rust client
+(`tough`) would add more code than this whole updater. Each attack is closed another way, or is a written limit:
+
+| TUF attack | Here | Proved by |
+|---|---|---|
+| Arbitrary installation | Ed25519 signature over the manifest, which holds every file's hash | `refusals`: unsigned, wrong key, changed manifest, changed payload |
+| Rollback: an old update served again | Only newer than running, never below the floor; the floor rises when a signed update proves good | `refusals` (older, same), `update_cycle` (old signed bundle, below floor), unit tests |
+| Indefinite freeze: updates held back | Every manifest carries `expires`; releases re-sign the channel's manifest (`medbrains-os-bundle refresh`) weekly, 30 days by default. An expired one is refused, and the screen shows when the machine last read a signed list | `refusals` (expired), unit test |
+| Mix-and-match: files from different releases | One manifest signs the system image and the boot file together | `mixed_refused` |
+| Key compromise | Rotation by shipping the next key in an update; **a threshold** (`update-keys/threshold`) so release images can need two keys held by two people | unit tests: rotation, two keys, one key twice |
+| Fast-forward: a stolen key signs version 999 | Not closed by a single key: such a bundle installs and its floor strands the machine. The threshold is the answer: one stolen key is not enough | Written limit until release images set threshold 2 (X2) |
+| Endless data, slow retrieval | Every file has a signed size, downloads stop at it; a link slower than 1 KB/s for 2 minutes ends | Reasoned; `refusals` (too big) covers the size check |
+| Malicious mirror refusing updates | Same as freeze: the screen's "last looked" date stops moving | Visible, not refused: a mirror that answers nothing has nothing to refuse |
+| Wrong software (other architecture, other product) | Architecture in the signed manifest; one key set per product | `refusals` (wrong architecture) |
+| Extraneous dependencies | Not applicable: one image, nothing fetched beside it | |
+
+**Clock.** Expiry trusts this machine's clock. A clock set far back accepts an expired manifest; one set ahead refuses a good
+one, and the screen says so. Time comes from NTS when there is internet (N1.2), and through the main machine for nodes.
+
+### A rolled-back version stays refused (U1.6)
+
+A version that rolled back joins a bounded list of failed versions. The daily timer and the quiet window never install it again;
+only a person pressing **Try that version again** does. A newer version installs normally. Red Hat's image mode documents the trap
+this avoids: the update timer reapplying a bad image within hours. Proved by `not_retried`: the bad version rolls back, the timer runs
+with the channel still offering it, and the machine stays where it is.
+
+### Upgrading in steps, for Kanidm (U1.8)
+
+Kanidm supports each release for four months and upgrades one minor version at a time (feature/os-kanidm's `kanidm-upgrade`
+refuses anything else). Whole-image updates would let a machine that missed a quarter jump two minors. So every manifest says
+`upgrades_from`: the oldest version that may install it directly. A machine further behind follows that back to the bundle of
+that version, kept beside the newest in a folder named after it (`<url>/<arch>/<version>/`, the same on a stick), verifies it on its
+own, and installs that first; the next look continues. Bounded to eight steps. Proved by `catches_up_in_order`.
+
+**The release rule:** a release may raise Kanidm by at most one minor, and then sets `upgrades_from` to the release that carried the
+minor before. The channel keeps that release while machines may still need it: four months, Kanidm's support window. A health check
+waits for `kanidmd.service` whenever it is enabled.
+
+**Not built:** Kanidm's database moves on the new version's first start. Going back afterwards meets a newer database, the same as
+PostgreSQL in "The hard part" below; `kanidm-upgrade` keeps a backup and U1.3 must restore it on rollback.
 
 ### Why not `systemd-sysupdate`
 

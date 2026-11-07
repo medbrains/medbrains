@@ -125,6 +125,13 @@ fn set_up_main(vm: &mut Vm) -> Result<(), String> {
 
 /// Writes what the scenarios later prove survived: a settings tree, a file of random bytes and a table.
 fn write_canaries(vm: &mut Vm, pem: &str) -> Result<(), String> {
+    // First boot removes the setup lines from the env once the server answers. Waiting keeps that ordinary
+    // first-run change out of every comparison.
+    let deadline = Instant::now() + vm::scaled(SETUP_LIMIT);
+    while vm.run("grep -c MEDBRAINS_SEED /var/lib/medbrains/config/env; true")? != "0" {
+        ensure(Instant::now() < deadline, "the setup lines never left the env")?;
+        sleep(POLL);
+    }
     vm.run(&format!("printf '%s' '{pem}' > /var/lib/medbrains-settings/update-ca.pem"))?;
     vm.run(&format!("echo {HEALTH_SECONDS} > /var/lib/medbrains-settings/update-health-seconds"))?;
     vm.run("head -c 16M /dev/urandom > /var/lib/medbrains/os-test-canary; echo hello > /var/lib/medbrains-settings/os-test-setting")?;
@@ -232,7 +239,7 @@ pub(crate) fn wait_status(
         }
         sleep(POLL);
     }
-    let earlier = vm.run("journalctl -b -1 --no-pager -p warning -n 30 -o short-monotonic | cut -c1-160");
+    let earlier = vm.run("journalctl -b -1 --no-pager -p warning -n 30 -o short-monotonic | cut -c1-160; echo NOW; journalctl -b --no-pager -u 'medbrains-os-update@*' -n 15 -o short-monotonic | cut -c1-200; ps -eo pid,stat,wchan:20,args | grep -E 'sfdisk|udevadm|mount|zstd|dd |medbrains-os-update' | grep -v grep");
     Err(format!(
         "{path:?} never became {want}. Last: {last}. The boot before said: {earlier:?}"
     ))

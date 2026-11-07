@@ -147,14 +147,21 @@ fn old_boot_entries(slots: &Slots) -> Result<Vec<disk::BootEntry>, String> {
 fn stage_payload(source: &Source, manifest: &Manifest, staging: &Path) -> Result<(), Stopped> {
     let check = |name: &str, want_hash: &str, want_size: u64| -> Result<(), Stopped> {
         let to = staging.join(name);
-        source
-            .fetch(name, &to, want_size)
-            .map_err(Stopped::Fault)?;
+        let changed = || {
+            Stopped::Refused(format!(
+                "This update was changed after it was signed ({name} does not match), so it was refused."
+            ))
+        };
+        source.fetch(name, &to, want_size).map_err(|e| {
+            if e.contains(crate::source::TOO_BIG) {
+                changed()
+            } else {
+                Stopped::Fault(e)
+            }
+        })?;
         let (hash, size) = disk::hash_file(&to, want_size).map_err(Stopped::Fault)?;
         if hash != want_hash || size != want_size {
-            return Err(Stopped::Refused(format!(
-                "This update was changed after it was signed ({name} does not match), so it was refused."
-            )));
+            return Err(changed());
         }
         Ok(())
     };

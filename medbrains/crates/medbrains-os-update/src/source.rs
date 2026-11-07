@@ -14,6 +14,10 @@ const DOWNLOAD_LIMIT: Duration = Duration::from_secs(6 * 60 * 60);
 const SMALL_LIMIT: Duration = Duration::from_secs(60);
 const STALL_SECONDS: &str = "120";
 const STALL_BYTES_PER_SECOND: &str = "1024";
+/// Said when a file is longer than its signed size, by either kind of source.
+pub const TOO_BIG: &str = "is bigger than it said";
+/// curl's exit for `--max-filesize`.
+const CURL_TOO_BIG: &str = "(63)";
 /// Removable partitions looked at per request.
 const MAX_USB_PARTITIONS: usize = 8;
 /// The folder on a USB stick.
@@ -78,7 +82,7 @@ fn copy_limited(from: &Path, to: &Path, limit: u64) -> Result<(), String> {
     let copied = std::io::copy(&mut source.take(limit + 1), &mut target)
         .map_err(|e| format!("{}: {e}", from.display()))?;
     if copied > limit {
-        return Err(format!("{} is bigger than it said.", from.display()));
+        return Err(format!("{} {TOO_BIG}.", from.display()));
     }
     Ok(())
 }
@@ -115,6 +119,10 @@ fn download(url: &str, ca: Option<&Path>, to: &Path, limit: u64) -> Result<(), S
         .ok_or_else(|| "The download did not finish in time.".to_owned())?;
     if done.success {
         return Ok(());
+    }
+    let reason = String::from_utf8_lossy(&done.stderr);
+    if reason.contains(CURL_TOO_BIG) {
+        return Err(format!("{url} {TOO_BIG}."));
     }
     Err(format!(
         "The download failed: {}",

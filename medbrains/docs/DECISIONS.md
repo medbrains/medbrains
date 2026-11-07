@@ -57,6 +57,7 @@ built. *Proposed* is waiting for the owner. *Rejected* was considered and turned
 | 2026-11-05 | The OS front proxy moves from Caddy to Pingora through `medbrains-proxy`, to keep the stack Rust (owner). Caddy ships until the replacement passes the same checks, an attack test and an independent review | `docs/architecture/OS-BUILD-PLAN.md` N2.1 |
 | 2026-11-05 | Authorization stays out of apps: one kernel layer answers allow, deny or unknown for every app. RBAC and ReBAC on PostgreSQL, in the same transaction as the data; ABAC starts with device class and data class in plain Rust; Cedar is tested after the first stable version. SpiceDB, OpenFGA and Oso stay off the OS. Linux's own controls (systemd sandboxes, verity, AppArmor, Landlock) confine programs and do not replace it | `docs/architecture/OS-BUILD-PLAN.md` X12 |
 | 2026-11-05 | Parked until after the first stable version: GPUI test, Polars or DuckDB for analytics, a separate permissions store, app store | `docs/architecture/OS-BUILD-PLAN.md` |
+| 2026-11-07 | OS updates (U1, U1.1, U1.5, U1.6, U1.8): two system slots named by version, each boot file naming its own; systemd-boot counts three starts and `systemd-bless-boot` marks good after our health check; our small Rust updater verifies an Ed25519-signed manifest before writing anything. Not `systemd-sysupdate`: it does not verify local files, writes before checking and has no floor. Not TUF metadata: each TUF attack closed another way (expiry, one manifest per release, signing threshold). A rolled-back version is never reinstalled automatically. Releases carry `upgrades_from`, so Kanidm upgrades one minor at a time on machines that missed one. No release key exists yet | `docs/architecture/OS-UPDATES.md` |
 
 ## Decisions
 
@@ -156,6 +157,10 @@ built. *Proposed* is waiting for the owner. *Rejected* was considered and turned
 
 | Date | What happened | Cause | Fix |
 |---|---|---|---|
+| 2026-11-05 | A good update rolled back by itself in the QEMU test, every time, but never when installed by hand | The updater's unit runs with umask 0077, so the new system's `/etc/machine-id` was 0600; networkd's DHCP client then failed with "Permission denied", the network wait timed out, and health saw a failed unit | Machine id written 0444 explicitly, with a unit test; the test compares its mode too |
+| 2026-11-05 | The same symptom would have rolled back good updates on any night the network was down | `systemd-networkd-wait-online` was enabled again by presets, though postinst disabled it, and fails after two minutes with no link | Masked; test `no_network_on_trial` updates with the cable pulled |
+| 2026-11-05 | A new version with no working system stayed at the initrd's emergency prompt, root locked, for ever | Neither the health check nor the deadline timer run in the initrd | `os/trial-initrd/` adds a unit to the boot file's initrd that restarts from emergency mode, on a counted boot only |
+| 2026-11-05 | A test machine sat at the boot menu after an update | The test typed on the serial port while the firmware ran; with two entries a key opens systemd-boot's menu, which then waits | Test sends nothing during a start. A stuck key would do the same on a real machine: open, owner call |
 | 2026-10-31 | The website's clean URLs returned 404 twice during deploys | A failed upload stopped the deploy after the delete step could already remove pages | Deploy keeps those pages out of delete, and retries (#5137) |
 | 2026-11-01 | Every database transaction spent 15.7 ms on timezones | Each one scanned all timezones | Cached once; about 0.1 ms (#5171) |
 | 2026-11-01 | Two branches took the same migration number | Parallel work | Renumbered before merge; check the latest number at merge time |
