@@ -382,16 +382,24 @@ pub async fn create_diet_order_in_tx(
     .await?;
 
     // Auto-bill the diet order: posted, or queued for the billing desk —
-    // never blocking the order and never lost.
+    // never blocking the order and never lost. Setting first, so the
+    // encounter lookup runs only when billing is not off.
+    let setting =
+        medbrains_server_services::billing::read_auto_billing(tx, &claims.tenant_id, "diet")
+            .await?;
+    if setting == medbrains_server_services::billing::AutoBilling::Off {
+        return Ok(row);
+    }
     let encounter_id = medbrains_server_services::billing::encounter_id_for_admission_in_tx(
         tx,
         &claims.tenant_id,
         row.admission_id,
     )
     .await?;
-    medbrains_server_services::billing::charge_or_queue(
+    medbrains_server_services::billing::settle_charges(
         tx,
-        medbrains_server_services::billing::ChargeRequest {
+        setting,
+        &[medbrains_server_services::billing::ChargeRequest {
             tenant_id: claims.tenant_id,
             requested_by: claims.sub,
             setting_module: "diet",
@@ -405,7 +413,7 @@ pub async fn create_diet_order_in_tx(
                 ..Default::default()
             },
             apply_concessions: true,
-        },
+        }],
     )
     .await?;
 

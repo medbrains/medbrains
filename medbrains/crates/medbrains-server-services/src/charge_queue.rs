@@ -49,31 +49,55 @@ pub enum ChargeOutcome {
     Queued,
 }
 
+/// The hospital's `auto_charge_<module>` setting, as far as it could be read.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum AutoBilling {
+    On,
+    Off,
+    /// The read failed. Charges go to the queue rather than being treated as
+    /// off: an unknown answer is not a no.
+    Unknown,
+}
+
 /// Post `req`'s charge, or put it on the attention queue.
 ///
-/// Returns `Err` only when the queue row itself cannot be written; the
-/// caller's transaction then fails as a whole, which is the honest outcome.
+/// Returns `Err` only when the queue row itself cannot be written, or when
+/// the request is malformed (quantity below 1, a caller bug); the caller's
+/// transaction then fails as a whole, which is the honest outcome.
 pub async fn charge_or_queue(
     tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
     req: ChargeRequest<'_>,
 ) -> Result<ChargeOutcome, AppError> {
-    let setting = read_setting(tx, &req.tenant_id, req.setting_module).await?;
+    check_quantity(&req)?;
+    let setting = read_auto_billing(tx, &req.tenant_id, req.setting_module).await?;
     settle(tx, setting, &req).await
 }
 
-/// `charge_or_queue` for several charges from one action under one setting
-/// (an OT completion's surgery, anaesthesia, time and consumables): the
-/// setting is read once, from the first request, not once per line.
-pub async fn charge_or_queue_all(
+/// Post or queue charges whose setting the caller read first with
+/// `read_auto_billing` — so a caller that needs lookups to build its charges
+/// (an encounter, a room rate, an OT's consumables) runs them only when
+/// billing is not off, and a failed lookup never fails a clinical write the
+/// hospital does not bill.
+pub async fn settle_charges(
     tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    setting: AutoBilling,
     reqs: &[ChargeRequest<'_>],
 ) -> Result<(), AppError> {
-    let Some(first) = reqs.first() else {
-        return Ok(());
-    };
-    let setting = read_setting(tx, &first.tenant_id, first.setting_module).await?;
+    for req in reqs {
+        check_quantity(req)?;
+    }
     for req in reqs {
         settle(tx, setting, req).await?;
+    }
+    Ok(())
+}
+
+/// A charge for fewer than one of something is a caller bug, not a charge.
+fn check_quantity(req: &ChargeRequest<'_>) -> Result<(), AppError> {
+    if req.charge.quantity < 1 {
+        return Err(AppError::BadRequest(
+            "billing.error.chargeQuantityBelowOne".to_owned(),
+        ));
     }
     Ok(())
 }
@@ -81,13 +105,13 @@ pub async fn charge_or_queue_all(
 /// Post, skip or queue one charge given the setting's answer.
 async fn settle(
     tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
-    setting: Option<bool>,
+    setting: AutoBilling,
     req: &ChargeRequest<'_>,
 ) -> Result<ChargeOutcome, AppError> {
     match setting {
-        Some(false) => Ok(ChargeOutcome::Disabled),
-        None => queue_charge(tx, req, REASON_SETTING_UNREADABLE).await,
-        Some(true) => match post_charge(tx, req).await {
+        AutoBilling::Off => Ok(ChargeOutcome::Disabled),
+        AutoBilling::Unknown => queue_charge(tx, req, REASON_SETTING_UNREADABLE).await,
+        AutoBilling::On => match post_charge(tx, req).await {
             Ok(result) => Ok(ChargeOutcome::Posted(result)),
             Err(error) => queue_charge(tx, req, reason_for(&error)).await,
         },
@@ -107,24 +131,27 @@ pub async fn post_charge(
     Ok(result)
 }
 
-/// `Some(on)` when the setting was read, `None` when it could not be. The
-/// read runs in a savepoint so a failure leaves the caller's transaction
-/// usable.
-async fn read_setting(
+/// Read `auto_charge_<module>` in a savepoint, so a failure leaves the
+/// caller's transaction usable and answers `Unknown`.
+pub async fn read_auto_billing(
     tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
     tenant_id: &Uuid,
     module: &str,
-) -> Result<Option<bool>, AppError> {
+) -> Result<AutoBilling, AppError> {
     let mut savepoint = sqlx::Acquire::begin(&mut **tx).await?;
     match is_auto_billing_enabled(&mut savepoint, tenant_id, module).await {
         Ok(on) => {
             savepoint.commit().await?;
-            Ok(Some(on))
+            Ok(if on {
+                AutoBilling::On
+            } else {
+                AutoBilling::Off
+            })
         }
         Err(error) => {
             savepoint.rollback().await?;
             tracing::warn!(%error, module, "auto-billing setting unreadable; charge queued");
-            Ok(None)
+            Ok(AutoBilling::Unknown)
         }
     }
 }
@@ -167,7 +194,7 @@ async fn queue_charge(
     .bind(c.patient_id)
     .bind(c.encounter_id)
     .bind(&c.charge_code)
-    .bind(c.quantity.max(1))
+    .bind(c.quantity)
     .bind(&c.description_override)
     .bind(c.unit_price_override)
     .bind(c.tax_percent_override)

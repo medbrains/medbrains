@@ -2242,9 +2242,20 @@ pub async fn discharge_patient(
     .fetch_one(&mut *tx)
     .await?;
 
-    // Auto-billing: charge room/bed for length of stay. `charge_or_queue`
-    // reads the `auto_charge_ipd_room` setting; discharge never waits on it.
-    if !daily_rent_billed {
+    // Auto-billing: charge room/bed for length of stay. The setting is read
+    // first (in a savepoint), so the rate and tax lookups run only when
+    // billing is not off; discharge never waits on an unreadable setting.
+    let room_billing = if daily_rent_billed {
+        medbrains_server_services::billing::AutoBilling::Off
+    } else {
+        medbrains_server_services::billing::read_auto_billing(
+            &mut tx,
+            &claims.tenant_id,
+            "ipd_room",
+        )
+        .await?
+    };
+    if room_billing != medbrains_server_services::billing::AutoBilling::Off {
         let los_hours = (Utc::now() - admission.admitted_at).num_hours();
         #[allow(clippy::cast_precision_loss)]
         let los_days = ((los_hours as f64) / 24.0).ceil() as i32;
@@ -2291,9 +2302,10 @@ pub async fn discharge_patient(
         };
 
         // A failed charge waits on the billing desk's attention queue.
-        medbrains_server_services::billing::charge_or_queue(
+        medbrains_server_services::billing::settle_charges(
             &mut tx,
-            medbrains_server_services::billing::ChargeRequest {
+            room_billing,
+            &[medbrains_server_services::billing::ChargeRequest {
                 tenant_id: claims.tenant_id,
                 requested_by: claims.sub,
                 setting_module: "ipd_room",
@@ -2309,7 +2321,7 @@ pub async fn discharge_patient(
                     tax_percent_override,
                 },
                 apply_concessions: false,
-            },
+            }],
         )
         .await?;
     }

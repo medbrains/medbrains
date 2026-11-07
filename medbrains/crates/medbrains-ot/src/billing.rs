@@ -7,18 +7,25 @@ use medbrains_core::ot::OtBooking;
 use medbrains_server_core::error::AppError;
 use medbrains_server_core::middleware::auth::Claims;
 use medbrains_server_services::billing::{
-    AutoChargeInput, ChargeRequest, charge_or_queue_all, encounter_id_for_admission_in_tx,
+    AutoBilling, AutoChargeInput, ChargeRequest, encounter_id_for_admission_in_tx,
+    read_auto_billing, settle_charges,
 };
 use rust_decimal::Decimal;
 use uuid::Uuid;
 
 /// Charge (or queue) every line of a completed booking under one read of
-/// the `auto_charge_ot` setting.
+/// the `auto_charge_ot` setting, read before any lookup.
 pub(crate) async fn charge_completion(
     tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
     claims: &Claims,
     row: &OtBooking,
 ) -> Result<(), AppError> {
+    // Setting first: the encounter and consumables lookups run only when
+    // billing is not off.
+    let setting = read_auto_billing(tx, &claims.tenant_id, "ot").await?;
+    if setting == AutoBilling::Off {
+        return Ok(());
+    }
     let encounter_id =
         encounter_id_for_admission_in_tx(tx, &claims.tenant_id, row.admission_id).await?;
     let base = AutoChargeInput {
@@ -65,7 +72,7 @@ pub(crate) async fn charge_completion(
             apply_concessions: i < concessions,
         })
         .collect();
-    charge_or_queue_all(tx, &reqs).await
+    settle_charges(tx, setting, &reqs).await
 }
 
 /// Hours of actual theatre occupancy, rounded up; `None` when the times are

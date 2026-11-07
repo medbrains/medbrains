@@ -17,8 +17,8 @@ use uuid::Uuid;
 use medbrains_server_core::error::AppError;
 
 pub use crate::charge_queue::{
-    ChargeOutcome, ChargeRequest, REASON_SETTING_UNREADABLE, charge_or_queue, charge_or_queue_all,
-    post_charge,
+    AutoBilling, ChargeOutcome, ChargeRequest, REASON_SETTING_UNREADABLE, charge_or_queue,
+    post_charge, read_auto_billing, settle_charges,
 };
 
 #[derive(Debug, Clone, Default)]
@@ -547,6 +547,45 @@ pub async fn reverse_auto_charge_for_source(
     .await
 }
 
+/// A service reversed before its charge was ever posted: take it off the
+/// charge attention queue in the same transaction, so "Post charge" cannot
+/// bill a cancelled consult. A full reversal dismisses the open item with the
+/// reversal's reason; a partial one lowers its quantity, dismissing it when
+/// nothing is left.
+async fn dismiss_queued_charge(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    tenant_id: &Uuid,
+    source: &str,
+    source_id: Uuid,
+    reversal_quantity: Option<i32>,
+    reversed_by: Uuid,
+    reason: &str,
+) -> Result<(), AppError> {
+    sqlx::query(
+        "WITH gone AS ( \
+           SELECT id, ($4::int IS NULL OR quantity <= $4) AS whole \
+             FROM charge_attention_items \
+            WHERE tenant_id = $1 AND source_module = $2 AND source_entity_id = $3 \
+              AND status = 'open' AND deleted_at IS NULL FOR UPDATE) \
+         UPDATE charge_attention_items a SET \
+                quantity = CASE WHEN g.whole THEN a.quantity ELSE a.quantity - $4 END, \
+                status = CASE WHEN g.whole THEN 'dismissed' ELSE a.status END, \
+                dismiss_reason = CASE WHEN g.whole THEN $6 ELSE a.dismiss_reason END, \
+                resolved_by = CASE WHEN g.whole THEN $5 ELSE a.resolved_by END, \
+                resolved_at = CASE WHEN g.whole THEN now() ELSE a.resolved_at END \
+           FROM gone g WHERE a.id = g.id",
+    )
+    .bind(tenant_id)
+    .bind(source)
+    .bind(source_id)
+    .bind(reversal_quantity)
+    .bind(reversed_by)
+    .bind(format!("Service reversed: {reason}"))
+    .execute(&mut **tx)
+    .await?;
+    Ok(())
+}
+
 #[allow(clippy::too_many_arguments)]
 pub async fn reverse_auto_charge_quantity_for_source(
     tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
@@ -559,6 +598,16 @@ pub async fn reverse_auto_charge_quantity_for_source(
     reversal_source_module: &str,
     reversal_source_id: Uuid,
 ) -> Result<Option<Uuid>, AppError> {
+    dismiss_queued_charge(
+        tx,
+        tenant_id,
+        source,
+        source_id,
+        reversal_quantity,
+        reversed_by,
+        reason,
+    )
+    .await?;
     let original_id = sqlx::query_scalar!(
         "SELECT id
          FROM invoice_items

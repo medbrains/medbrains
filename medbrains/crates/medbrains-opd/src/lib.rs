@@ -1468,6 +1468,13 @@ async fn charge_visit_fees(
     if q.kind == "returned" || !billing_lanes::consult_due_at(tx, claims.tenant_id, moment).await? {
         return Ok(());
     }
+    // Setting first: the department and price lookups run only when billing
+    // is not off.
+    let setting =
+        medbrains_server_services::billing::read_auto_billing(tx, &claims.tenant_id, "opd").await?;
+    if setting == medbrains_server_services::billing::AutoBilling::Off {
+        return Ok(());
+    }
     let dept_code = sqlx::query_scalar::<_, String>(
         "SELECT code FROM departments WHERE id = $1 AND tenant_id = $2",
     )
@@ -1489,9 +1496,10 @@ async fn charge_visit_fees(
     .await?;
     // `charge_or_queue` reads `auto_charge_opd`; a consult it cannot post
     // waits on the billing desk's attention queue.
-    medbrains_server_services::billing::charge_or_queue(
+    medbrains_server_services::billing::settle_charges(
         tx,
-        medbrains_server_services::billing::ChargeRequest {
+        setting,
+        &[medbrains_server_services::billing::ChargeRequest {
             tenant_id: claims.tenant_id,
             requested_by: claims.sub,
             setting_module: "opd",
@@ -1507,7 +1515,7 @@ async fn charge_visit_fees(
                 tax_percent_override: None,
             },
             apply_concessions: false,
-        },
+        }],
     )
     .await?;
     Ok(())

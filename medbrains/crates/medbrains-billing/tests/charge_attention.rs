@@ -27,6 +27,7 @@ use medbrains_server_core::middleware::auth::Claims;
 use medbrains_server_core::state::{AppState, CookieConfig};
 use medbrains_server_services::billing::{
     AutoChargeInput, ChargeOutcome, ChargeRequest, REASON_SETTING_UNREADABLE, charge_or_queue,
+    reverse_auto_charge_for_source,
 };
 use sqlx::PgPool;
 use sqlx::postgres::PgPoolOptions;
@@ -253,7 +254,11 @@ async fn a_posted_charge_queues_nothing() {
 
 /// Queue a charge the way a failed setting read would, with data that posts.
 async fn queue_one(db: &PgPool, claims: &Claims, patient: Uuid) -> Uuid {
-    let req = diet_charge(claims, patient, None);
+    queue_for(db, claims, patient, Uuid::new_v4()).await
+}
+
+/// Queue a diet charge for `source` (the diet order's id).
+async fn queue_for(db: &PgPool, claims: &Claims, patient: Uuid, source: Uuid) -> Uuid {
     let mut tx = scoped(db, claims.tenant_id).await;
     sqlx::query(
         "INSERT INTO charge_attention_items (tenant_id, source_module, setting_module, \
@@ -261,7 +266,7 @@ async fn queue_one(db: &PgPool, claims: &Claims, patient: Uuid) -> Uuid {
            created_by) VALUES ($1, 'diet', 'diet', $2, $3, 'DIET_ORDER', 1, true, $4, $5)",
     )
     .bind(claims.tenant_id)
-    .bind(req.charge.source_id)
+    .bind(source)
     .bind(patient)
     .bind(REASON_SETTING_UNREADABLE)
     .bind(claims.sub)
@@ -396,4 +401,61 @@ async fn another_hospital_cannot_see_the_rows() {
     };
     assert_eq!(count_as(other.tenant_id).await, 0, "RLS leaked a row");
     assert_eq!(count_as(claims.tenant_id).await, 1);
+}
+
+#[tokio::test]
+#[ignore = "needs DATABASE_URL"]
+async fn a_cancelled_service_cannot_be_posted_from_the_queue() {
+    let _serial = SERIAL.lock().await;
+    let db = pool().await;
+    let (claims, patient) = fixture(&db).await;
+    let order = Uuid::new_v4();
+    let id = queue_for(&db, &claims, patient, order).await;
+
+    // The service is cancelled before its charge was ever posted.
+    let mut tx = scoped(&db, claims.tenant_id).await;
+    let reversed = reverse_auto_charge_for_source(
+        &mut tx,
+        &claims.tenant_id,
+        "diet",
+        order,
+        claims.sub,
+        "Order cancelled",
+    )
+    .await
+    .expect("reversal");
+    tx.commit().await.unwrap();
+    assert!(reversed.is_none(), "nothing was on the bill to reverse");
+    let (status, reason): (String, Option<String>) =
+        sqlx::query_as("SELECT status, dismiss_reason FROM charge_attention_items WHERE id = $1")
+            .bind(id)
+            .fetch_one(&db)
+            .await
+            .unwrap();
+    assert_eq!(status, "dismissed");
+    assert_eq!(reason.as_deref(), Some("Service reversed: Order cancelled"));
+
+    let post = post_charge_attention(State(state(db)), Extension(claims), Path(id)).await;
+    assert!(
+        matches!(post, Err(AppError::Conflict(_))),
+        "billed a cancelled service: {post:?}"
+    );
+}
+
+#[tokio::test]
+#[ignore = "needs DATABASE_URL"]
+async fn a_charge_for_less_than_one_is_refused_not_queued() {
+    let _serial = SERIAL.lock().await;
+    let db = pool().await;
+    let (claims, patient) = fixture(&db).await;
+    let mut req = diet_charge(&claims, patient, None);
+    req.charge.quantity = 0;
+    let mut tx = scoped(&db, claims.tenant_id).await;
+    let refused = charge_or_queue(&mut tx, req).await;
+    tx.rollback().await.unwrap();
+    assert!(
+        matches!(refused, Err(AppError::BadRequest(_))),
+        "{refused:?}"
+    );
+    assert!(queued(&db, claims.tenant_id).await.is_empty());
 }
