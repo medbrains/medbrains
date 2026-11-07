@@ -54,8 +54,8 @@ export component Gallery inherits Window {
                 Text { text: "Choices"; font-weight: 600; color: Tokens.color-content-on-surface; }
                 HorizontalLayout {
                     spacing: 16px;
-                    MbSelect { label: "Route"; model: ["Oral", "IV", "IM", "Topical"]; current-value <=> root.route; size: "sm"; selected(v) => { root.last = "Route chosen: " + v; } }
-                    MbMultiSelect { label: "Allergies"; model: ["Penicillin", "Sulfa", "Latex", "Peanut"]; selected-values: ["Latex"]; size: "sm"; changed => { root.last = "Allergies changed"; } }
+                    MbSelect { label: "Route"; clearable: true; placeholder-text: "Choose a route"; model: ["Oral", "IV", "IM", "Topical"]; current-value <=> root.route; size: "sm"; selected(v) => { root.last = "Route chosen: " + v; } }
+                    MbMultiSelect { label: "Allergies"; placeholder-text: "None recorded"; model: ["Penicillin", "Sulfa", "Latex", "Peanut"]; size: "sm"; changed(v, on) => { root.last = "Allergy " + v + (on ? " added" : " removed"); } }
                 }
                 HorizontalLayout {
                     spacing: 24px;

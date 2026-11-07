@@ -503,18 +503,52 @@ export component MbSelect inherits Field {
     in property <bool> clearable;
     in property <bool> searchable;
     callback selected(string);
-    ComboBox {
-        height: Metrics.input-height(root.size);
-        accessible-label: root.label != "" ? root.label : root.placeholder-text;
-        accessible-description: root.error != "" ? root.error : root.description;
-        model: root.model;
-        enabled: root.enabled;
-        current-value <=> root.current-value;
-        selected(v) => { root.selected(v); }
+    // Slint's ComboBox opens on click, Space, Enter and the arrow keys, keeps its list inside
+    // the window and announces the chosen value; the kit adds the placeholder and a clear button.
+    HorizontalLayout {
+        spacing: 4px;
+        Rectangle {
+            horizontal-stretch: 1;
+            height: Metrics.input-height(root.size);
+            box := ComboBox {
+                width: parent.width;
+                height: parent.height;
+                accessible-label: (root.label != "" ? root.label : root.placeholder-text) + (root.required ? ", required" : "");
+                accessible-description: root.error != "" ? root.error : root.description;
+                model: root.model;
+                enabled: root.enabled;
+                current-value <=> root.current-value;
+                selected(v) => { root.selected(v); }
+            }
+            if root.current-value == "" && root.placeholder-text != "" : Text {
+                x: 12px;
+                width: parent.width - 48px;
+                height: parent.height;
+                text: root.placeholder-text;
+                font-family: Metrics.font;
+                font-size: Metrics.fz(root.size);
+                color: Tokens.color-content-on-surface-variant;
+                vertical-alignment: center;
+                overflow: elide;
+                accessible-role: none;
+            }
+        }
+        if root.clearable && root.current-value != "" : MbIconButton {
+            y: (parent.height - self.height) / 2;
+            icon: @image-url("icons/x.svg");
+            accessible-label: "Clear " + root.label;
+            enabled: root.enabled;
+            clicked => { root.current-value = ""; root.selected(""); }
+        }
     }
 }
 
-/** Mantine MultiSelect: chosen values as tags above a ComboBox that adds one. */
+/**
+ * Mantine MultiSelect: a field that opens a menu of checkable options (Slint's ContextMenuArea:
+ * arrows, Enter, Escape, disabled items skipped). The chosen values come from the view model
+ * as tags: a Slint array cannot grow from Slint code, so `changed(value, checked)` reports
+ * each change for the view model to apply.
+ */
 export component MbMultiSelect inherits Field {
     in property <[string]> model;
     in-out property <[string]> selected-values;
@@ -522,19 +556,52 @@ export component MbMultiSelect inherits Field {
     in property <bool> enabled: true;
     in property <bool> clearable;
     in property <bool> searchable;
-    callback changed();
+    callback changed(string, bool);
     if root.selected-values.length > 0 : HorizontalLayout {
         spacing: 4px;
         alignment: start;
         for v in root.selected-values : MbBadge { text: v; tone: "neutral"; size: "md"; }
     }
-    ComboBox {
-        height: Metrics.input-height(root.size);
-        accessible-label: root.label != "" ? root.label : root.placeholder-text;
-        accessible-description: root.error != "" ? root.error : root.description;
-        model: root.model;
-        enabled: root.enabled;
-        selected(v) => { root.changed(); }
+    options := ContextMenuArea {
+        Menu {
+            for v in root.model : MenuItem {
+                title: v;
+                checkable: true;
+                activated => { root.changed(v, self.checked); }
+            }
+        }
+        FieldBox {
+            height: Metrics.input-height(root.size);
+            focused: keys.has-focus;
+            invalid: root.error != "";
+            accessible-role: combobox;
+            accessible-label: (root.label != "" ? root.label : root.placeholder-text) + (root.required ? ", required" : "");
+            accessible-value: root.selected-values.length + " selected";
+            accessible-description: root.error != "" ? root.error : root.description;
+            accessible-action-default => { options.show({ x: 0px, y: self.height }); }
+            HorizontalLayout {
+                padding-left: Metrics.input-height(root.size) / 3;
+                padding-right: 8px;
+                Text {
+                    text: root.selected-values.length > 0 ? root.selected-values.length + " selected" : root.placeholder-text;
+                    font-family: Metrics.font;
+                    font-size: Metrics.fz(root.size);
+                    color: root.selected-values.length > 0 ? Tokens.color-content-on-surface : Tokens.color-content-on-surface-variant;
+                    vertical-alignment: center;
+                    horizontal-stretch: 1;
+                }
+                Image { source: @image-url("icons/chevron-down.svg"); width: 16px; height: 16px; y: (parent.height - self.height) / 2; colorize: Tokens.color-content-on-surface-variant; }
+            }
+            TouchArea { enabled: root.enabled; clicked => { options.show({ x: 0px, y: parent.height }); } }
+            keys := FocusScope {
+                enabled: root.enabled;
+                key-pressed(event) => {
+                    if (event.text == " " || event.text == "\n" || event.text == Key.DownArrow) { options.show({ x: 0px, y: 24px }); return accept; }
+                    return reject;
+                }
+            }
+            FocusRing { shown: keys.has-focus; }
+        }
     }
 }
 
