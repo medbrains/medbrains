@@ -327,7 +327,7 @@ for 4 months, so a machine that misses two needs the binaries in between: `build
 - **On the machine's own screen, a hardware key does not work.** The Identity tile opens Kanidm's pages (the shell allows
   its one exact origin, and first boot adds its certificate to what the screen trusts), but WebKitGTK has no WebAuthn:
   `navigator.credentials` and `PublicKeyCredential` are undefined there (`tests/webauthn-probe.html`). Staff sign in with a password, so this does
-  not stop them. The screen hides Add Passkey and says to use another device. A browser on another device needs that name published and this
+  not stop them. The screen keeps Add Passkey in view, by the owner's decision that keys are core, and says under it to use a browser on a computer or phone. A browser on another device needs that name published and this
   machine's certificate installed; neither is arranged yet.
 - A debug image has a marked account for tests, `debug.test`, whose password is in `os/debug/kanidm-debug-account` and meets the same rule.
   A release image has neither the account nor the script.

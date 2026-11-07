@@ -7,10 +7,10 @@ use webkit6::{HardwareAccelerationPolicy, NavigationPolicyDecision, NetworkSessi
 
 use crate::timezone;
 
-/// This screen's browser has no WebAuthn, so Kanidm's key buttons could only fail here. They stay for a
-/// browser on another device, and this says so where the button was.
-const NO_KEYS_HERE: &str = "[hx-post='/ui/reset/add_passkey'], [hx-post='/ui/reset/add_attested_passkey'] { display: none !important; }\n\
-    :has(> [hx-post='/ui/reset/add_passkey'])::after { content: 'To add a key, open this page in a browser on another device. This screen cannot use one.'; }";
+/// This screen's browser has no WebAuthn, so a key cannot be added from it. The owner keeps Kanidm's key
+/// buttons in view, because keys are core; this says under them where to use one.
+const NO_KEYS_HERE: &str = ":has(> [hx-post='/ui/reset/add_passkey'])::after { display: block; margin-top: 0.5rem; \
+    content: 'This screen has no key reader. To add a key, open this page in a browser on a computer or phone.'; }";
 
 /// True for a page the view may show: the app's own origin, or what it made in memory.
 fn is_local_page(uri: &str, origin: &str) -> bool {
