@@ -41,7 +41,12 @@ export component Gallery inherits Window {
                     MbTextInput { label: "Password"; input-type: InputType.password; size: "sm"; edited(v) => { root.last = "Password typed (" + v.character-count + " characters)"; } }
                     MbNumberInput { label: "Dose (tablets)"; value <=> root.dose; minimum: 0; maximum: 10; step: 0.5; decimals: 1; size: "sm"; edited(v) => { root.last = "Dose set to " + v; } }
                 }
-                MbTextInput { label: "UHID"; placeholder-text: "MB-000000"; size: "sm"; error: root.drug == "x" ? "Not a valid UHID" : ""; description: "Type x in Drug name to see an error"; }
+                MbTextInput { label: "UHID"; required: true; placeholder-text: "MB-000000"; size: "sm"; error: root.drug == "x" ? "Not a valid UHID" : ""; description: "Type x in Drug name to see an error"; }
+                HorizontalLayout {
+                    spacing: 16px;
+                    MbTextInput { label: "Disabled"; text: "Locked value"; enabled: false; size: "sm"; }
+                    MbTextInput { label: "Read only"; text: "Signed 07 Nov"; read-only: true; size: "sm"; }
+                }
                 MbTextArea { label: "Notes"; placeholder-text: "Clinical notes"; min-rows: 3; size: "sm"; edited(v) => { root.last = "Notes: " + v.character-count + " characters"; } }
             }
 

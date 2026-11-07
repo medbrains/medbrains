@@ -663,7 +663,9 @@
         "size": "size",
         "leftSection": "icon",
         "rightSection": "trailing-icon",
-        "type": "input-type"
+        "type": "input-type",
+        "required": "required",
+        "withAsterisk": "required"
       },
       "gaps": {
         "variant": "Carbon fields have one look",
@@ -685,7 +687,9 @@
         "size": "size",
         "leftSection": "icon",
         "rightSection": "trailing-icon",
-        "type": "input-type"
+        "type": "input-type",
+        "required": "required",
+        "withAsterisk": "required"
       }
     },
     "InputBase": {
@@ -714,7 +718,9 @@
         "onChange": "edited",
         "disabled": "enabled!",
         "size": "size",
-        "leftSection": "icon"
+        "leftSection": "icon",
+        "required": "required",
+        "withAsterisk": "required"
       },
       "fixed": {
         "input-type": "password"
@@ -734,7 +740,9 @@
         "value": "text",
         "onChange": "edited",
         "disabled": "enabled!",
-        "size": "size"
+        "size": "size",
+        "required": "required",
+        "withAsterisk": "required"
       },
       "fixed": {
         "input-type": "password"
@@ -765,7 +773,9 @@
         "disabled": "enabled!",
         "readOnly": "read-only",
         "size": "size",
-        "hideControls": "hide-controls"
+        "hideControls": "hide-controls",
+        "required": "required",
+        "withAsterisk": "required"
       },
       "gaps": {
         "allowDecimal": "decimals sets the precision",
@@ -794,7 +804,9 @@
         "disabled": "enabled!",
         "readOnly": "read-only",
         "size": "size",
-        "hideControls": "hide-controls"
+        "hideControls": "hide-controls",
+        "required": "required",
+        "withAsterisk": "required"
       },
       "gaps": {
         "allowDecimal": "decimals sets the precision",
@@ -822,7 +834,9 @@
         "rows": "min-rows",
         "disabled": "enabled!",
         "readOnly": "read-only",
-        "size": "size"
+        "size": "size",
+        "required": "required",
+        "withAsterisk": "required"
       },
       "gaps": {
         "autosize": "the field grows with its text between min-rows and max-rows"
@@ -842,7 +856,9 @@
         "maxRows": "max-rows",
         "disabled": "enabled!",
         "readOnly": "read-only",
-        "size": "size"
+        "size": "size",
+        "required": "required",
+        "withAsterisk": "required"
       },
       "gaps": {
         "autosize": "the field grows with its text between min-rows and max-rows"
@@ -884,7 +900,9 @@
         "disabled": "enabled!",
         "size": "size",
         "clearable": "clearable",
-        "searchable": "searchable"
+        "searchable": "searchable",
+        "required": "required",
+        "withAsterisk": "required"
       },
       "gaps": {
         "nothingFoundMessage": "search results move to the view model",
@@ -928,7 +946,9 @@
         "disabled": "enabled!",
         "size": "size",
         "clearable": "clearable",
-        "searchable": "searchable"
+        "searchable": "searchable",
+        "required": "required",
+        "withAsterisk": "required"
       },
       "gaps": {
         "nothingFoundMessage": "search results move to the view model",
@@ -1202,7 +1222,9 @@
         "disabled": "enabled!",
         "size": "size",
         "leftSection": "icon",
-        "clearable": "clearable"
+        "clearable": "clearable",
+        "required": "required",
+        "withAsterisk": "required"
       },
       "gaps": {
         "valueFormat": "date formatting moves to the view model",
@@ -1224,7 +1246,9 @@
         "disabled": "enabled!",
         "size": "size",
         "leftSection": "icon",
-        "clearable": "clearable"
+        "clearable": "clearable",
+        "required": "required",
+        "withAsterisk": "required"
       },
       "gaps": {
         "valueFormat": "date formatting moves to the view model",
@@ -1245,7 +1269,9 @@
         "onChange": "edited",
         "disabled": "enabled!",
         "leftSection": "icon",
-        "clearable": "clearable"
+        "clearable": "clearable",
+        "required": "required",
+        "withAsterisk": "required"
       },
       "fixed": {
         "with-time": "true"
