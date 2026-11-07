@@ -1,66 +1,979 @@
 {
   "_doc": "React (Mantine and our components/ui seam) to Slint. Each entry: the Slint element, which props become which Slint properties, and optional fixed properties. Targets starting with _ are handled by the kit component and not emitted; a target ending in ! is negated (disabled becomes enabled). Elements named Mb* come from medbrains-gui-kit, the shared Slint kit in docs/architecture/OS-NATIVE-GUI.md.",
-  "version": 1,
+  "version": 3,
   "layout": {
-    "Stack": { "slint": "VerticalLayout", "props": { "gap": "spacing", "p": "padding" } },
-    "Group": { "slint": "HorizontalLayout", "props": { "gap": "spacing", "p": "padding" } },
-    "Flex": { "slint": "HorizontalLayout", "props": { "gap": "spacing" } },
-    "SimpleGrid": { "slint": "GridLayout", "props": { "spacing": "spacing" } },
-    "Grid": { "slint": "GridLayout", "props": { "gutter": "spacing" } },
-    "Box": { "slint": "Rectangle", "props": {} },
-    "Center": { "slint": "VerticalLayout", "props": {}, "fixed": { "alignment": "center" } },
-    "ScrollArea": { "slint": "ScrollView", "props": {} },
-    "Divider": { "slint": "MbDivider", "props": {} },
-    "Space": { "slint": "Rectangle", "props": { "h": "height", "w": "width" } }
+    "Stack": {
+      "slint": "VerticalLayout",
+      "props": {
+        "gap": "spacing",
+        "p": "padding"
+      }
+    },
+    "Group": {
+      "slint": "HorizontalLayout",
+      "props": {
+        "gap": "spacing",
+        "p": "padding"
+      }
+    },
+    "Flex": {
+      "slint": "HorizontalLayout",
+      "props": {
+        "gap": "spacing"
+      }
+    },
+    "SimpleGrid": {
+      "slint": "GridLayout",
+      "props": {
+        "spacing": "spacing"
+      }
+    },
+    "Grid": {
+      "slint": "GridLayout",
+      "props": {
+        "gutter": "spacing"
+      }
+    },
+    "Box": {
+      "slint": "Rectangle",
+      "props": {}
+    },
+    "Center": {
+      "slint": "VerticalLayout",
+      "props": {},
+      "fixed": {
+        "alignment": "center"
+      }
+    },
+    "ScrollArea": {
+      "slint": "ScrollView",
+      "props": {}
+    },
+    "Divider": {
+      "slint": "MbDivider",
+      "props": {}
+    },
+    "Space": {
+      "slint": "Rectangle",
+      "props": {
+        "h": "height",
+        "w": "width"
+      }
+    }
   },
   "text": {
-    "Text": { "slint": "Text", "props": { "c": "color", "fw": "font-weight", "size": "font-size" } },
-    "Title": { "slint": "Text", "props": { "order": "_heading" }, "fixed": { "font-weight": "700" } },
-    "Anchor": { "slint": "MbLink", "props": { "href": "url" } },
-    "Code": { "slint": "Text", "props": {}, "fixed": { "font-family": "\"IBM Plex Mono\"" } }
+    "Text": {
+      "slint": "Text",
+      "props": {
+        "c": "color",
+        "fw": "font-weight",
+        "size": "font-size"
+      }
+    },
+    "Title": {
+      "slint": "Text",
+      "props": {
+        "order": "_heading"
+      },
+      "fixed": {
+        "font-weight": "700"
+      }
+    },
+    "Anchor": {
+      "slint": "MbLink",
+      "props": {
+        "href": "url"
+      }
+    },
+    "Code": {
+      "slint": "Text",
+      "props": {},
+      "fixed": {
+        "font-family": "\"IBM Plex Mono\""
+      }
+    }
   },
   "input": {
-    "Button": { "slint": "MbButton", "props": { "tone": "tone", "onClick": "clicked", "disabled": "enabled!", "loading": "busy", "children": "text" } },
-    "IconButton": { "slint": "MbIconButton", "props": { "aria-label": "accessible-label", "onClick": "clicked", "tone": "tone" } },
-    "ActionIcon": { "slint": "MbIconButton", "props": { "aria-label": "accessible-label", "onClick": "clicked" } },
-    "TextInput": { "slint": "LineEdit", "props": { "label": "_label", "placeholder": "placeholder-text", "value": "text", "onChange": "edited", "error": "_error", "disabled": "enabled!" } },
-    "Input": { "slint": "LineEdit", "props": { "label": "_label", "placeholder": "placeholder-text", "value": "text", "onChange": "edited" } },
-    "PasswordInput": { "slint": "LineEdit", "props": { "label": "_label", "value": "text", "onChange": "edited" }, "fixed": { "input-type": "password" } },
-    "NumberInput": { "slint": "SpinBox", "props": { "label": "_label", "value": "value", "min": "minimum", "max": "maximum", "onChange": "edited" } },
-    "NumberField": { "slint": "SpinBox", "props": { "label": "_label", "value": "value", "min": "minimum", "max": "maximum", "onChange": "edited" } },
-    "TextArea": { "slint": "TextEdit", "props": { "label": "_label", "value": "text", "onChange": "edited" } },
-    "Textarea": { "slint": "TextEdit", "props": { "label": "_label", "value": "text", "onChange": "edited" } },
-    "Select": { "slint": "ComboBox", "props": { "label": "_label", "data": "model", "value": "current-value", "onChange": "selected" } },
-    "MultiSelect": { "slint": "MbMultiSelect", "props": { "label": "_label", "data": "model", "value": "selected-values", "onChange": "changed" } },
-    "Checkbox": { "slint": "CheckBox", "props": { "label": "text", "checked": "checked", "onChange": "toggled" } },
-    "Switch": { "slint": "Switch", "props": { "label": "text", "checked": "checked", "onChange": "toggled" } },
-    "SegmentedControl": { "slint": "MbSegmented", "props": { "data": "model", "value": "current-value", "onChange": "selected" } },
-    "Slider": { "slint": "Slider", "props": { "value": "value", "min": "minimum", "max": "maximum", "onChange": "changed" } },
-    "Chip": { "slint": "MbChip", "props": { "checked": "checked", "onChange": "toggled", "children": "text" } },
-    "DateInput": { "slint": "MbDateInput", "props": { "label": "_label", "value": "date", "onChange": "edited" } },
-    "DatePickerInput": { "slint": "MbDateInput", "props": { "label": "_label", "value": "date", "onChange": "edited" } }
+    "Button": {
+      "slint": "MbButton",
+      "props": {
+        "tone": "tone",
+        "onClick": "clicked",
+        "disabled": "enabled!",
+        "loading": "busy",
+        "children": "text"
+      }
+    },
+    "IconButton": {
+      "slint": "MbIconButton",
+      "props": {
+        "aria-label": "accessible-label",
+        "onClick": "clicked",
+        "tone": "tone"
+      }
+    },
+    "ActionIcon": {
+      "slint": "MbIconButton",
+      "props": {
+        "aria-label": "accessible-label",
+        "onClick": "clicked"
+      }
+    },
+    "TextInput": {
+      "slint": "LineEdit",
+      "props": {
+        "label": "_label",
+        "placeholder": "placeholder-text",
+        "value": "text",
+        "onChange": "edited",
+        "error": "_error",
+        "disabled": "enabled!"
+      }
+    },
+    "Input": {
+      "slint": "LineEdit",
+      "props": {
+        "label": "_label",
+        "placeholder": "placeholder-text",
+        "value": "text",
+        "onChange": "edited"
+      }
+    },
+    "PasswordInput": {
+      "slint": "LineEdit",
+      "props": {
+        "label": "_label",
+        "value": "text",
+        "onChange": "edited"
+      },
+      "fixed": {
+        "input-type": "password"
+      }
+    },
+    "NumberInput": {
+      "slint": "SpinBox",
+      "props": {
+        "label": "_label",
+        "value": "value",
+        "min": "minimum",
+        "max": "maximum",
+        "onChange": "edited"
+      }
+    },
+    "NumberField": {
+      "slint": "SpinBox",
+      "props": {
+        "label": "_label",
+        "value": "value",
+        "min": "minimum",
+        "max": "maximum",
+        "onChange": "edited"
+      }
+    },
+    "TextArea": {
+      "slint": "TextEdit",
+      "props": {
+        "label": "_label",
+        "value": "text",
+        "onChange": "edited"
+      }
+    },
+    "Textarea": {
+      "slint": "TextEdit",
+      "props": {
+        "label": "_label",
+        "value": "text",
+        "onChange": "edited"
+      }
+    },
+    "Select": {
+      "slint": "ComboBox",
+      "props": {
+        "label": "_label",
+        "data": "model",
+        "value": "current-value",
+        "onChange": "selected"
+      }
+    },
+    "MultiSelect": {
+      "slint": "MbMultiSelect",
+      "props": {
+        "label": "_label",
+        "data": "model",
+        "value": "selected-values",
+        "onChange": "changed"
+      }
+    },
+    "Checkbox": {
+      "slint": "CheckBox",
+      "props": {
+        "label": "text",
+        "checked": "checked",
+        "onChange": "toggled"
+      }
+    },
+    "Switch": {
+      "slint": "Switch",
+      "props": {
+        "label": "text",
+        "checked": "checked",
+        "onChange": "toggled"
+      }
+    },
+    "SegmentedControl": {
+      "slint": "MbSegmented",
+      "props": {
+        "data": "model",
+        "value": "current-value",
+        "onChange": "selected"
+      }
+    },
+    "Slider": {
+      "slint": "Slider",
+      "props": {
+        "value": "value",
+        "min": "minimum",
+        "max": "maximum",
+        "onChange": "changed"
+      }
+    },
+    "Chip": {
+      "slint": "MbChip",
+      "props": {
+        "checked": "checked",
+        "onChange": "toggled",
+        "children": "text"
+      }
+    },
+    "DateInput": {
+      "slint": "MbDateInput",
+      "props": {
+        "label": "_label",
+        "value": "date",
+        "onChange": "edited"
+      }
+    },
+    "DatePickerInput": {
+      "slint": "MbDateInput",
+      "props": {
+        "label": "_label",
+        "value": "date",
+        "onChange": "edited"
+      }
+    }
   },
   "display": {
-    "Badge": { "slint": "MbBadge", "props": { "tone": "tone", "children": "text" } },
-    "Card": { "slint": "MbCard", "props": { "onClick": "clicked" } },
-    "Panel": { "slint": "MbPanel", "props": { "title": "title", "description": "description" } },
-    "Paper": { "slint": "MbCard", "props": {} },
-    "Alert": { "slint": "MbAlert", "props": { "tone": "tone", "title": "title" } },
-    "ThemeIcon": { "slint": "MbIcon", "props": { "tone": "tone" } },
-    "Image": { "slint": "Image", "props": { "src": "source", "alt": "accessible-label" } },
-    "Avatar": { "slint": "MbAvatar", "props": { "src": "source", "alt": "accessible-label" } },
-    "Loader": { "slint": "Spinner", "props": {} },
-    "Skeleton": { "slint": "MbSkeleton", "props": {} },
-    "Progress": { "slint": "ProgressIndicator", "props": { "value": "progress" } },
-    "Tooltip": { "slint": "_passthrough", "props": { "label": "accessible-description" } },
-    "Table": { "slint": "StandardTableView", "props": { "data": "rows" } },
-    "DataTable": { "slint": "StandardTableView", "props": { "records": "rows", "columns": "columns" } },
-    "Tabs": { "slint": "TabWidget", "props": { "value": "current-index" } },
-    "Modal": { "slint": "MbModal", "props": { "opened": "_open", "onClose": "closed", "title": "title" } },
-    "Breadcrumb": { "slint": "MbBreadcrumb", "props": { "items": "model" } },
-    "Crab": { "slint": "MbCrab", "props": { "variant": "variant" } },
-    "SignatureHero": { "slint": "MbHero", "props": { "title": "title" } },
-    "PageHeader": { "slint": "MbPageHeader", "props": { "title": "title", "subtitle": "subtitle" } }
+    "Menu": {
+      "slint": "MbMenu",
+      "props": {}
+    },
+    "UnstyledButton": {
+      "slint": "MbPressable",
+      "props": {
+        "onClick": "clicked",
+        "aria-label": "accessible-label"
+      }
+    },
+    "List": {
+      "slint": "VerticalLayout",
+      "props": {
+        "spacing": "spacing"
+      }
+    },
+    "Stepper": {
+      "slint": "MbStepper",
+      "props": {
+        "active": "current-index"
+      }
+    },
+    "Accordion": {
+      "slint": "MbAccordion",
+      "props": {
+        "value": "current-value"
+      }
+    },
+    "Radio": {
+      "slint": "MbRadio",
+      "props": {
+        "label": "text",
+        "checked": "checked",
+        "onChange": "toggled"
+      }
+    },
+    "RadioGroup": {
+      "slint": "MbRadioGroup",
+      "props": {
+        "value": "current-value",
+        "onChange": "selected"
+      }
+    },
+    "DateTimePicker": {
+      "slint": "MbDateInput",
+      "props": {
+        "label": "_label",
+        "value": "date",
+        "onChange": "edited"
+      },
+      "fixed": {
+        "with-time": "true"
+      }
+    },
+    "TimeInput": {
+      "slint": "MbTimeInput",
+      "props": {
+        "label": "_label",
+        "value": "time",
+        "onChange": "edited"
+      }
+    },
+    "FileInput": {
+      "slint": "MbFileInput",
+      "props": {
+        "label": "_label",
+        "onChange": "picked"
+      }
+    },
+    "Autocomplete": {
+      "slint": "MbAutocomplete",
+      "props": {
+        "label": "_label",
+        "data": "model",
+        "value": "text",
+        "onChange": "edited"
+      }
+    },
+    "PinInput": {
+      "slint": "LineEdit",
+      "props": {
+        "value": "text",
+        "onChange": "edited"
+      }
+    },
+    "ColorInput": {
+      "slint": "LineEdit",
+      "props": {
+        "label": "_label",
+        "value": "text",
+        "onChange": "edited"
+      }
+    },
+    "Rating": {
+      "slint": "MbRating",
+      "props": {
+        "value": "value",
+        "onChange": "changed"
+      }
+    },
+    "BarChart": {
+      "slint": "MbChart",
+      "props": {
+        "data": "data"
+      },
+      "fixed": {
+        "kind": "\"bar\""
+      }
+    },
+    "LineChart": {
+      "slint": "MbChart",
+      "props": {
+        "data": "data"
+      },
+      "fixed": {
+        "kind": "\"line\""
+      }
+    },
+    "AreaChart": {
+      "slint": "MbChart",
+      "props": {
+        "data": "data"
+      },
+      "fixed": {
+        "kind": "\"area\""
+      }
+    },
+    "DonutChart": {
+      "slint": "MbChart",
+      "props": {
+        "data": "data"
+      },
+      "fixed": {
+        "kind": "\"donut\""
+      }
+    },
+    "PieChart": {
+      "slint": "MbChart",
+      "props": {
+        "data": "data"
+      },
+      "fixed": {
+        "kind": "\"pie\""
+      }
+    },
+    "Sparkline": {
+      "slint": "MbChart",
+      "props": {
+        "data": "data"
+      },
+      "fixed": {
+        "kind": "\"sparkline\""
+      }
+    },
+    "Timeline": {
+      "slint": "MbTimeline",
+      "props": {
+        "active": "current-index"
+      }
+    },
+    "Pagination": {
+      "slint": "MbPagination",
+      "props": {
+        "total": "total",
+        "value": "page",
+        "onChange": "changed"
+      }
+    },
+    "Kbd": {
+      "slint": "Text",
+      "props": {},
+      "fixed": {
+        "font-family": "\"IBM Plex Mono\""
+      }
+    },
+    "Highlight": {
+      "slint": "Text",
+      "props": {}
+    },
+    "Indicator": {
+      "slint": "_passthrough",
+      "props": {}
+    },
+    "Popover": {
+      "slint": "MbPopover",
+      "props": {
+        "opened": "_open"
+      }
+    },
+    "HoverCard": {
+      "slint": "_passthrough",
+      "props": {}
+    },
+    "Collapse": {
+      "slint": "_passthrough",
+      "props": {}
+    },
+    "Affix": {
+      "slint": "_passthrough",
+      "props": {}
+    },
+    "Container": {
+      "slint": "VerticalLayout",
+      "props": {}
+    },
+    "AppShell": {
+      "slint": "MbAppShell",
+      "props": {}
+    },
+    "NavLink": {
+      "slint": "MbNavLink",
+      "props": {
+        "label": "text",
+        "onClick": "clicked",
+        "active": "active"
+      }
+    },
+    "CloseButton": {
+      "slint": "MbIconButton",
+      "props": {
+        "onClick": "clicked",
+        "aria-label": "accessible-label"
+      }
+    },
+    "CopyButton": {
+      "slint": "_passthrough",
+      "props": {}
+    },
+    "RingProgress": {
+      "slint": "ProgressIndicator",
+      "props": {}
+    },
+    "SemiCircleProgress": {
+      "slint": "ProgressIndicator",
+      "props": {}
+    },
+    "Spoiler": {
+      "slint": "_passthrough",
+      "props": {}
+    },
+    "Notification": {
+      "slint": "MbAlert",
+      "props": {
+        "title": "title",
+        "color": "tone"
+      }
+    },
+    "Blockquote": {
+      "slint": "Text",
+      "props": {}
+    },
+    "Mark": {
+      "slint": "Text",
+      "props": {}
+    },
+    "Badge": {
+      "slint": "MbBadge",
+      "props": {
+        "tone": "tone",
+        "children": "text"
+      }
+    },
+    "Card": {
+      "slint": "MbCard",
+      "props": {
+        "onClick": "clicked"
+      }
+    },
+    "Panel": {
+      "slint": "MbPanel",
+      "props": {
+        "title": "title",
+        "description": "description"
+      }
+    },
+    "Paper": {
+      "slint": "MbCard",
+      "props": {}
+    },
+    "Alert": {
+      "slint": "MbAlert",
+      "props": {
+        "tone": "tone",
+        "title": "title"
+      }
+    },
+    "ThemeIcon": {
+      "slint": "MbIcon",
+      "props": {
+        "tone": "tone"
+      }
+    },
+    "Image": {
+      "slint": "Image",
+      "props": {
+        "src": "source",
+        "alt": "accessible-label"
+      }
+    },
+    "Avatar": {
+      "slint": "MbAvatar",
+      "props": {
+        "src": "source",
+        "alt": "accessible-label"
+      }
+    },
+    "Loader": {
+      "slint": "Spinner",
+      "props": {}
+    },
+    "Skeleton": {
+      "slint": "MbSkeleton",
+      "props": {}
+    },
+    "Progress": {
+      "slint": "ProgressIndicator",
+      "props": {
+        "value": "progress"
+      }
+    },
+    "Tooltip": {
+      "slint": "_passthrough",
+      "props": {
+        "label": "accessible-description"
+      }
+    },
+    "Table": {
+      "slint": "StandardTableView",
+      "props": {
+        "data": "rows"
+      }
+    },
+    "DataTable": {
+      "slint": "StandardTableView",
+      "props": {
+        "records": "rows",
+        "columns": "columns"
+      }
+    },
+    "Tabs": {
+      "slint": "TabWidget",
+      "props": {
+        "value": "current-index"
+      }
+    },
+    "Modal": {
+      "slint": "MbModal",
+      "props": {
+        "opened": "_open",
+        "onClose": "closed",
+        "title": "title"
+      }
+    },
+    "Breadcrumb": {
+      "slint": "MbBreadcrumb",
+      "props": {
+        "items": "model"
+      }
+    },
+    "Crab": {
+      "slint": "MbCrab",
+      "props": {
+        "variant": "variant"
+      }
+    },
+    "SignatureHero": {
+      "slint": "MbHero",
+      "props": {
+        "title": "title"
+      }
+    },
+    "PageHeader": {
+      "slint": "MbPageHeader",
+      "props": {
+        "title": "title",
+        "subtitle": "subtitle"
+      }
+    },
+    "JsonInput": {
+      "slint": "TextEdit",
+      "props": {
+        "label": "_label",
+        "value": "text",
+        "onChange": "edited"
+      }
+    },
+    "QRCodeSVG": {
+      "slint": "MbQrCode",
+      "props": {
+        "value": "value"
+      }
+    },
+    "Combobox": {
+      "slint": "MbAutocomplete",
+      "props": {}
+    },
+    "TagsInput": {
+      "slint": "MbMultiSelect",
+      "props": {
+        "label": "_label",
+        "data": "model",
+        "value": "selected-values",
+        "onChange": "changed"
+      }
+    },
+    "FileButton": {
+      "slint": "MbFileInput",
+      "props": {
+        "onChange": "picked"
+      }
+    },
+    "ChipGroup": {
+      "slint": "_passthrough",
+      "props": {}
+    },
+    "InputBase": {
+      "slint": "LineEdit",
+      "props": {
+        "label": "_label",
+        "value": "text",
+        "onChange": "edited"
+      }
+    },
+    "Icon": {
+      "slint": "MbIcon",
+      "props": {}
+    },
+    "MantineRichTextEditor": {
+      "slint": "MbRichText",
+      "props": {}
+    },
+    "RichTextEditor": {
+      "slint": "MbRichText",
+      "props": {}
+    },
+    "MantineBadge": {
+      "slint": "MbBadge",
+      "props": {
+        "children": "text"
+      }
+    },
+    "MantineSelect": {
+      "slint": "ComboBox",
+      "props": {
+        "data": "model",
+        "value": "current-value",
+        "onChange": "selected"
+      }
+    },
+    "MantineButton": {
+      "slint": "MbButton",
+      "props": {
+        "onClick": "clicked",
+        "children": "text"
+      }
+    },
+    "Link": {
+      "slint": "MbLink",
+      "props": {
+        "to": "url"
+      }
+    },
+    "Markdown": {
+      "slint": "MbMarkdown",
+      "props": {
+        "children": "text"
+      }
+    },
+    "VisuallyHidden": {
+      "slint": "Text",
+      "props": {},
+      "fixed": {
+        "visible": "false"
+      }
+    },
+    "DatePicker": {
+      "slint": "MbDateInput",
+      "props": {
+        "value": "date",
+        "onChange": "edited"
+      }
+    },
+    "DndContext": {
+      "slint": "_passthrough",
+      "props": {}
+    },
+    "SortableContext": {
+      "slint": "_passthrough",
+      "props": {}
+    },
+    "DragOverlay": {
+      "slint": "_passthrough",
+      "props": {}
+    }
   },
-  "dropped": ["Fragment", "Suspense", "ErrorBoundary", "Trans", "Portal", "Transition"]
+  "html": {
+    "div": {
+      "slint": "Rectangle",
+      "props": {}
+    },
+    "section": {
+      "slint": "VerticalLayout",
+      "props": {}
+    },
+    "form": {
+      "slint": "VerticalLayout",
+      "props": {}
+    },
+    "span": {
+      "slint": "Text",
+      "props": {}
+    },
+    "p": {
+      "slint": "Text",
+      "props": {}
+    },
+    "b": {
+      "slint": "Text",
+      "props": {},
+      "fixed": {
+        "font-weight": "700"
+      }
+    },
+    "strong": {
+      "slint": "Text",
+      "props": {},
+      "fixed": {
+        "font-weight": "700"
+      }
+    },
+    "em": {
+      "slint": "Text",
+      "props": {},
+      "fixed": {
+        "font-italic": "true"
+      }
+    },
+    "small": {
+      "slint": "Text",
+      "props": {},
+      "fixed": {
+        "font-size": "12px"
+      }
+    },
+    "ul": {
+      "slint": "VerticalLayout",
+      "props": {}
+    },
+    "ol": {
+      "slint": "VerticalLayout",
+      "props": {}
+    },
+    "li": {
+      "slint": "HorizontalLayout",
+      "props": {}
+    },
+    "a": {
+      "slint": "MbLink",
+      "props": {
+        "href": "url"
+      }
+    },
+    "img": {
+      "slint": "Image",
+      "props": {
+        "src": "source",
+        "alt": "accessible-label"
+      }
+    },
+    "table": {
+      "slint": "StandardTableView",
+      "props": {}
+    },
+    "thead": {
+      "slint": "_passthrough",
+      "props": {}
+    },
+    "tbody": {
+      "slint": "_passthrough",
+      "props": {}
+    },
+    "tr": {
+      "slint": "_passthrough",
+      "props": {}
+    },
+    "td": {
+      "slint": "_passthrough",
+      "props": {}
+    },
+    "th": {
+      "slint": "_passthrough",
+      "props": {}
+    },
+    "input": {
+      "slint": "LineEdit",
+      "props": {
+        "value": "text",
+        "placeholder": "placeholder-text",
+        "onChange": "edited"
+      }
+    },
+    "button": {
+      "slint": "MbButton",
+      "props": {
+        "onClick": "clicked",
+        "disabled": "enabled!",
+        "children": "text"
+      }
+    },
+    "label": {
+      "slint": "Text",
+      "props": {}
+    },
+    "h1": {
+      "slint": "Text",
+      "props": {},
+      "fixed": {
+        "font-weight": "700"
+      }
+    },
+    "h2": {
+      "slint": "Text",
+      "props": {},
+      "fixed": {
+        "font-weight": "700"
+      }
+    },
+    "h3": {
+      "slint": "Text",
+      "props": {},
+      "fixed": {
+        "font-weight": "700"
+      }
+    },
+    "h4": {
+      "slint": "Text",
+      "props": {},
+      "fixed": {
+        "font-weight": "700"
+      }
+    },
+    "header": {
+      "slint": "VerticalLayout",
+      "props": {}
+    },
+    "footer": {
+      "slint": "VerticalLayout",
+      "props": {}
+    },
+    "nav": {
+      "slint": "VerticalLayout",
+      "props": {}
+    },
+    "main": {
+      "slint": "VerticalLayout",
+      "props": {}
+    },
+    "aside": {
+      "slint": "VerticalLayout",
+      "props": {}
+    },
+    "pre": {
+      "slint": "Text",
+      "props": {},
+      "fixed": {
+        "font-family": "\"IBM Plex Mono\""
+      }
+    },
+    "code": {
+      "slint": "Text",
+      "props": {},
+      "fixed": {
+        "font-family": "\"IBM Plex Mono\""
+      }
+    },
+    "hr": {
+      "slint": "MbDivider",
+      "props": {}
+    },
+    "svg": {
+      "slint": "_passthrough",
+      "props": {}
+    },
+    "path": {
+      "slint": "_passthrough",
+      "props": {}
+    }
+  },
+  "dropped": [
+    "AppErrorBoundaryInner",
+    "BrowserRouter",
+    "ErrorBoundary",
+    "Fragment",
+    "Navigate",
+    "Outlet",
+    "Portal",
+    "ReactFlowProvider",
+    "Route",
+    "Routes",
+    "SpotlightRoot",
+    "Suspense",
+    "Trans",
+    "Transition",
+    "br"
+  ],
+  "webOnly": [
+    "Handle",
+    "ReactFlow",
+    "Background",
+    "Controls",
+    "MiniMap"
+  ]
 }

@@ -5,17 +5,17 @@ Converts React + Mantine screens into Slint view skeletons, for the native OS GU
 ## Use
 
 ```sh
-pnpm --filter @medbrains/react-to-slint exec react-to-slint apps/web/src/pages/pharmacy --out /tmp/pharmacy-slint
+pnpm --filter @medbrains/react-to-slint exec react-to-slint apps/web/src/pages/pharmacy --project apps/web/src --out /tmp/pharmacy-slint
 ```
 
 It writes one `.slint` file per converted `.tsx` file and prints a summary:
 
 ```text
-files 69, components 86, elements 882
-mapped 789 (89%)
-translated strings converted to @tr(): 23
-unmapped: DrugSearchSelect 6, PharmacyPatientContext 5, …
-raw HTML: b 4, form 2, div 1
+files 1547, components 2154, elements 29601
+mapped 29479 of 29582 convertible (99.7%); web-only by design: Handle 16, ReactFlow 3
+translated strings converted to @tr(): 236
+unmapped: SpotlightSearch 1, FormProvider 1, …
+raw HTML (breaks the components rule; converted where possible): div 776, span 264, …
 kit components needed: MbAlert, MbBadge, MbButton, …
 hooks to move into view models: useState 100, useHasPermission 68, useQuery 62, …
 ```
@@ -40,7 +40,9 @@ The full table is `src/mapping.json`. Add a component there, bump its `version`,
 
 - **Logic.** Hooks, queries, mutations and handlers are not converted. Each value a view needs becomes an `in property`, each handler a `callback`, and the report counts the hooks: that is the Rust view model to write.
 - **Compile checks.** The output is a skeleton to finish, not code that is guaranteed to compile. Run it through the Slint compiler and fix what it reports.
-- **Our own components across files.** A component defined in another file shows as unmapped until that file is converted too.
+- **Diagram editors.** `ReactFlow` and its handles are web-only by design and reported apart.
+
+`--project DIR` indexes every component under `DIR` first, so a reference to one of our own components in another file converts, with an import of that file's generated `.slint`.
 
 ## Test
 

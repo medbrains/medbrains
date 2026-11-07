@@ -69,3 +69,22 @@ test("hooks are counted as logic for the view model", () => {
   }`);
   assert.deepEqual(stats.hooks, { useState: 1, useQuery: 1 });
 });
+
+test("raw HTML is converted to Slint and still reported against the components rule", () => {
+  const { slint, stats } = convert(`export function H() {
+    return <div><b>Due</b><button onClick={go}>Open</button></div>;
+  }`);
+  assert.match(slint, /Rectangle \{/);
+  assert.match(slint, /Text \{\s+font-weight: 700;/);
+  assert.match(slint, /MbButton \{[\s\S]*clicked => \{ root\.click\(\); \}[\s\S]*text: "Open";/);
+  assert.deepEqual(stats.rawHtml, { div: 1, b: 1, button: 1 });
+  assert.deepEqual(stats.unmapped, {});
+});
+
+test("components defined in other files convert as references with an import", () => {
+  const known = new Map([["DrugSearchSelect", "/x/drug-search-select.tsx"]]);
+  const { slint, stats } = convertSource(`export function P() { return <Stack><DrugSearchSelect /></Stack>; }`, "p.tsx", undefined, known);
+  assert.match(slint, /import \{ DrugSearchSelect \} from "\.\/drug-search-select\.slint";/);
+  assert.match(slint, /DrugSearchSelect \{ \}/);
+  assert.deepEqual(stats.unmapped, {});
+});

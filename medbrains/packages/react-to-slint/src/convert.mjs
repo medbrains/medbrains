@@ -22,10 +22,10 @@ export function loadMapping(file = path.join(HERE, "mapping.json")) {
   const raw = JSON.parse(fs.readFileSync(file, "utf8"));
   const rules = {};
   for (const [group, entries] of Object.entries(raw)) {
-    if (group.startsWith("_") || group === "dropped" || group === "version") continue;
+    if (group.startsWith("_") || group === "dropped" || group === "version" || group === "html" || group === "webOnly") continue;
     Object.assign(rules, entries);
   }
-  return { rules, dropped: new Set(raw.dropped), version: raw.version };
+  return { rules, html: raw.html ?? {}, webOnly: new Set(raw.webOnly ?? []), dropped: new Set(raw.dropped), version: raw.version };
 }
 
 /** A Slint identifier for a JavaScript expression, unique within one component. */
@@ -112,8 +112,8 @@ function components(program) {
 
 /** Writes one component, collecting its properties, callbacks and the gaps it meets. */
 class ComponentWriter {
-  constructor(name, mapping, source, stats) {
-    Object.assign(this, { name, mapping, source, stats });
+  constructor(name, mapping, source, stats, known) {
+    Object.assign(this, { name, mapping, source, stats, known });
     this.props = new Map();
     this.callbacks = new Set();
     this.used = new Set();
@@ -188,9 +188,32 @@ class ComponentWriter {
     this.stats.elements += 1;
     if (dropped.has(tag) || tag === "") return this.children(node.children, depth);
     if (/^[a-z]/.test(tag)) {
+      // Raw HTML breaks the components-only rule, so it is always reported, and converted when it can be.
       this.stats.rawHtml[tag] = (this.stats.rawHtml[tag] ?? 0) + 1;
-      this.emit(`// raw <${tag}> in the source: use a layout component`, depth);
-      return this.children(node.children, depth);
+      if (!this.mapping.html[tag]) {
+        this.emit(`// raw <${tag}> in the source: use a layout component`, depth);
+        return this.children(node.children, depth);
+      }
+      const html = this.mapping.html[tag];
+      if (html.slint === "_passthrough") {
+        this.stats.mapped += 1;
+        return this.children(node.children, depth);
+      }
+      return this.mapped(node, html, depth);
+    }
+    if (this.mapping.webOnly.has(tag)) {
+      // Diagram editors and similar: built for a mouse in a browser, kept web-only on purpose.
+      this.stats.webOnly[tag] = (this.stats.webOnly[tag] ?? 0) + 1;
+      this.emit(`// web-only: <${tag}>`, depth);
+      return;
+    }
+    const known = rules[tag] || rules[tag.split(".")[0]] ? null : this.known.get(tag);
+    if (known) {
+      // One of our own components: a reference to its own converted file.
+      this.stats.mapped += 1;
+      this.stats.references.set(tag, known);
+      this.emit(`${tag} { }`, depth);
+      return;
     }
     if (tag === "Controller") {
       // react-hook-form: the screen shows whatever `render` returns; the form state moves to the view model.
@@ -212,8 +235,16 @@ class ComponentWriter {
       this.emit(`// unmapped: <${tag}>`, depth);
       return this.children(node.children, depth);
     }
+    if (rule.slint === "_passthrough" || tag.includes(".")) {
+      this.stats.mapped += 1;
+      return this.children(node.children, depth);
+    }
+    this.mapped(node, rule, depth);
+  }
+
+  /** Emits a mapped element: fixed properties, attribute bindings, then children or a label. */
+  mapped(node, rule, depth) {
     this.stats.mapped += 1;
-    if (rule.slint === "_passthrough" || tag.includes(".")) return this.children(node.children, depth);
     if (rule.slint.startsWith("Mb")) this.stats.kit.add(rule.slint);
     else if (STD_WIDGETS.has(rule.slint)) this.stats.std.add(rule.slint);
     this.emit(`${rule.slint} {`, depth);
@@ -297,17 +328,31 @@ class ComponentWriter {
 }
 
 /** Converts one module's source: the Slint text and its statistics. */
-export function convertSource(source, fileName = "input.tsx", mapping = loadMapping()) {
+export function convertSource(source, fileName = "input.tsx", mapping = loadMapping(), known = new Map()) {
   const ast = parse(source, { sourceType: "module", plugins: ["jsx", "typescript"], errorRecovery: true });
-  const stats = { elements: 0, mapped: 0, strings: 0, unmapped: {}, rawHtml: {}, kit: new Set(), std: new Set(), hooks: {} };
+  const stats = { elements: 0, mapped: 0, strings: 0, unmapped: {}, rawHtml: {}, kit: new Set(), std: new Set(), hooks: {}, references: new Map(), webOnly: {} };
+  const own = new Set();
   const parts = [];
-  for (const c of components(ast.program)) {
-    parts.push(new ComponentWriter(c.name, mapping, source, stats).render(c.jsx));
+  const found = components(ast.program);
+  for (const c of found) own.add(c.name);
+  // Components of this same file are referenced in place; others come from their own file.
+  const visible = new Map([...known].filter(([name]) => !own.has(name)));
+  for (const name of own) visible.set(name, null);
+  for (const c of found) {
+    const writer = new ComponentWriter(c.name, mapping, source, stats, new Map([...visible].map(([n, f]) => [n, f ?? fileName])));
+    parts.push(writer.render(c.jsx));
     for (const [h, n] of Object.entries(c.hooks)) stats.hooks[h] = (stats.hooks[h] ?? 0) + n;
   }
   const imports = [];
   if (stats.std.size) imports.push(`import { ${[...stats.std].sort().join(", ")} } from "std-widgets.slint";`);
   if (stats.kit.size) imports.push(`import { ${[...stats.kit].sort().join(", ")} } from "@medbrains-gui-kit/kit.slint";`);
+  const byFile = new Map();
+  for (const [name, file] of stats.references) {
+    if (own.has(name)) continue;
+    const slintFile = `./${path.basename(file).replace(/\.tsx$/, ".slint")}`;
+    byFile.set(slintFile, [...(byFile.get(slintFile) ?? []), name]);
+  }
+  for (const [file, names] of byFile) imports.push(`import { ${names.sort().join(", ")} } from "${file}";`);
   const header = [
     `// GENERATED from ${fileName} by @medbrains/react-to-slint (mapping version ${mapping.version}).`,
     "// View skeleton only: logic moves to a Rust view model (docs/architecture/OS-NATIVE-GUI.md).",
@@ -315,7 +360,17 @@ export function convertSource(source, fileName = "input.tsx", mapping = loadMapp
   return { slint: `${[...header, ...imports, "", ...parts].join("\n")}\n`, stats, components: parts.length };
 }
 
-/** Converts one file from disk. */
-export function convertFile(file, mapping = loadMapping()) {
-  return convertSource(fs.readFileSync(file, "utf8"), path.basename(file), mapping);
+/** Converts one file from disk; `known` maps our component names to the file defining them. */
+export function convertFile(file, mapping = loadMapping(), known = new Map()) {
+  return convertSource(fs.readFileSync(file, "utf8"), path.basename(file), mapping, known);
+}
+
+/** Every component defined in a source tree, `name -> file`, so references across files convert. */
+export function indexComponents(files) {
+  const known = new Map();
+  for (const file of files) {
+    const ast = parse(fs.readFileSync(file, "utf8"), { sourceType: "module", plugins: ["jsx", "typescript"], errorRecovery: true });
+    for (const c of components(ast.program)) if (!known.has(c.name)) known.set(c.name, file);
+  }
+  return known;
 }

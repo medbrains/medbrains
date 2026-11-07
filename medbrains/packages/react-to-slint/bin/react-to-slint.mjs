@@ -9,7 +9,7 @@
  */
 import fs from "node:fs";
 import path from "node:path";
-import { convertFile, loadMapping } from "../src/convert.mjs";
+import { convertFile, indexComponents, loadMapping } from "../src/convert.mjs";
 
 /** `.tsx` files under the inputs, without tests and stories. */
 function expand(inputs) {
@@ -35,22 +35,25 @@ const top = (counts) =>
 function main(argv) {
   const out = flag(argv, "--out");
   const reportFile = flag(argv, "--report");
-  const inputs = argv.filter((a, i) => !a.startsWith("--") && !["--out", "--report"].includes(argv[i - 1]));
+  const project = flag(argv, "--project");
+  const inputs = argv.filter((a, i) => !a.startsWith("--") && !["--out", "--report", "--project"].includes(argv[i - 1]));
   if (!inputs.length) {
-    process.stderr.write("usage: react-to-slint <file.tsx|dir>... [--out DIR] [--report FILE]\n");
+    process.stderr.write("usage: react-to-slint <file.tsx|dir>... [--project DIR] [--out DIR] [--report FILE]\n");
     return 2;
   }
   const mapping = loadMapping();
-  const total = { files: 0, components: 0, elements: 0, mapped: 0, strings: 0, unmapped: {}, rawHtml: {}, kit: new Set(), hooks: {} };
+  // Our own components anywhere in the project, so a reference to one converts instead of failing.
+  const known = indexComponents(expand(project ? [project] : inputs));
+  const total = { files: 0, components: 0, elements: 0, mapped: 0, strings: 0, unmapped: {}, rawHtml: {}, webOnly: {}, kit: new Set(), hooks: {} };
   for (const file of expand(inputs)) {
-    const { slint, stats, components } = convertFile(file, mapping);
+    const { slint, stats, components } = convertFile(file, mapping, known);
     if (!components) continue;
     total.files += 1;
     total.components += components;
     total.elements += stats.elements;
     total.mapped += stats.mapped;
     total.strings += stats.strings;
-    for (const key of ["unmapped", "rawHtml", "hooks"]) {
+    for (const key of ["unmapped", "rawHtml", "hooks", "webOnly"]) {
       for (const [k, v] of Object.entries(stats[key])) total[key][k] = (total[key][k] ?? 0) + v;
     }
     for (const k of stats.kit) total.kit.add(k);
@@ -59,13 +62,15 @@ function main(argv) {
       fs.writeFileSync(path.join(out, `${path.basename(file, ".tsx")}.slint`), slint);
     }
   }
-  const pct = total.elements ? Math.round((100 * total.mapped) / total.elements) : 0;
+  const webOnly = Object.values(total.webOnly).reduce((a, b) => a + b, 0);
+  const convertible = total.elements - webOnly;
+  const pct = convertible ? ((100 * total.mapped) / convertible).toFixed(1) : "0";
   const lines = [
     `files ${total.files}, components ${total.components}, elements ${total.elements}`,
-    `mapped ${total.mapped} (${pct}%)`,
+    `mapped ${total.mapped} of ${convertible} convertible (${pct}%); web-only by design: ${top(total.webOnly)}`,
     `translated strings converted to @tr(): ${total.strings}`,
     `unmapped: ${top(total.unmapped)}`,
-    `raw HTML: ${top(total.rawHtml)}`,
+    `raw HTML (breaks the components rule; converted where possible): ${top(total.rawHtml)}`,
     `kit components needed: ${[...total.kit].sort().join(", ") || "none"}`,
     `hooks to move into view models: ${top(total.hooks)}`,
   ];
