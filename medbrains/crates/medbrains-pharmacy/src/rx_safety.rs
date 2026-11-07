@@ -9,7 +9,10 @@
 //! - a WHO AWaRe Reserve antibiotic with no approved antimicrobial stewardship
 //!   request for this patient (`antibiotic_stewardship_requests`);
 //! - a medicine that is not on the hospital formulary
-//!   (`pharmacy_catalog.formulary_status`).
+//!   (`pharmacy_catalog.formulary_status`);
+//! - a look-alike sound-alike (LASA) medicine, as a caution that never blocks
+//!   (`pharmacy_catalog.is_lasa`, `lasa_group`) — the pharmacist picking from
+//!   the shelf is the one who mixes them up.
 //!
 //! A blocking finding stops the action unless someone holding that finding's
 //! override permission records a reason. Every outcome — refused, overridden or
@@ -36,6 +39,12 @@ pub const ALLERGY: &str = "DRUG_ALLERGY_CONFLICT";
 pub const INTERACTION: &str = "DRUG_INTERACTION";
 pub const RESERVE_ANTIBIOTIC: &str = "RESERVE_ANTIBIOTIC_APPROVAL_REQUIRED";
 pub const NON_FORMULARY: &str = "NON_FORMULARY_APPROVAL_REQUIRED";
+pub const LASA: &str = "LASA_LOOK_ALIKE";
+/// A Schedule H/H1/X dispense refused (no prescription, no witness, prescriber
+/// not authorised).
+pub const SCHEDULE_GATE: &str = "SCHEDULE_DISPENSE_REFUSED";
+/// A controlled (NDPS) dispense with no witness: refused, or overridden with a reason.
+pub const NDPS_WITNESS: &str = "NDPS_WITNESS_MISSING";
 
 /// Shortest override reason `cpoe_safety_audit` accepts (its CHECK constraint).
 const MIN_REASON_CHARS: usize = 5;
@@ -86,6 +95,8 @@ struct LinePolicyRow {
     inn_name: Option<String>,
     formulary_status: String,
     aware_category: Option<String>,
+    is_lasa: bool,
+    lasa_group: Option<String>,
     stewardship_status: Option<String>,
 }
 
@@ -115,10 +126,12 @@ async fn resolve_lines(
     let ids: Vec<Option<Uuid>> = lines.iter().map(|l| l.catalog_item_id).collect();
     let rows = sqlx::query_as::<_, LinePolicyRow>(
         "SELECT l.idx, r.id AS catalog_item_id, r.name, r.generic_name, r.inn_name, \
-                r.formulary_status, r.aware_category, s.request_status AS stewardship_status \
+                r.formulary_status, r.aware_category, r.is_lasa, r.lasa_group, \
+                s.request_status AS stewardship_status \
            FROM unnest($2::text[], $3::uuid[]) WITH ORDINALITY AS l(drug_name, catalog_id, idx) \
            JOIN LATERAL ( \
-                SELECT c.id, c.name, c.generic_name, c.inn_name, c.formulary_status, c.aware_category \
+                SELECT c.id, c.name, c.generic_name, c.inn_name, c.formulary_status, \
+                       c.aware_category, c.is_lasa, c.lasa_group \
                   FROM pharmacy_catalog c \
                  WHERE c.tenant_id = $1 AND c.deleted_at IS NULL \
                    AND (c.id = l.catalog_id OR lower(c.name) = lower(l.drug_name) \
@@ -204,6 +217,9 @@ fn policy_findings(lines: &[RxLine], rows: &[LinePolicyRow]) -> Vec<MedicationSa
             ]);
             out.push(finding);
         }
+        if row.is_lasa {
+            out.push(lasa_caution(line, row));
+        }
         if row.formulary_status == "non_formulary" {
             let message = format!("{} is not on the hospital formulary", line.drug_name);
             let mut finding = block(NON_FORMULARY, line, Some(row.catalog_item_id), message);
@@ -218,6 +234,32 @@ fn policy_findings(lines: &[RxLine], rows: &[LinePolicyRow]) -> Vec<MedicationSa
         }
     }
     out
+}
+
+/// A caution naming the look-alike group, so the pharmacist checks the label.
+fn lasa_caution(line: &RxLine, row: &LinePolicyRow) -> MedicationSafetyWarning {
+    let group = row
+        .lasa_group
+        .as_deref()
+        .map(str::trim)
+        .filter(|g| !g.is_empty());
+    let message = group.map_or_else(
+        || format!("{} is a look-alike sound-alike medicine: check the label", line.drug_name),
+        |g| {
+            format!(
+                "{} is a look-alike sound-alike medicine (group {g}): check the label",
+                line.drug_name
+            )
+        },
+    );
+    MedicationSafetyWarning {
+        code: LASA.to_owned(),
+        severity: MedicationSafetySeverity::Warn,
+        message,
+        catalog_item_id: Some(row.catalog_item_id),
+        drug_name: line.drug_name.clone(),
+        detail: warning_detail(vec![("lasa_group", json!(group))]),
+    }
 }
 
 /// AWaRe Reserve and non-formulary findings only — what the prescriber must
@@ -486,6 +528,52 @@ pub fn authorize<'a>(
     Ok(Some(reason))
 }
 
+/// The controlled-drug dual-lock finding, filed when a dispense goes ahead
+/// without a witness on a recorded reason.
+pub fn ndps_witness_finding() -> MedicationSafetyWarning {
+    MedicationSafetyWarning {
+        code: NDPS_WITNESS.to_owned(),
+        severity: MedicationSafetySeverity::Block,
+        message: "Controlled substance dispensed without a witness".to_owned(),
+        catalog_item_id: None,
+        drug_name: String::new(),
+        detail: json!({}),
+    }
+}
+
+/// File a refused scheduled or controlled dispense as `blocked`.
+///
+/// In its own transaction: the dispense's transaction rolls back with the
+/// refusal. A failure to file is logged and never replaces the refusal itself.
+pub async fn file_dispense_refusal(
+    state: &AppState,
+    claims: &Claims,
+    subject: &Subject,
+    code: &str,
+    refusal: &AppError,
+) {
+    let message = match refusal {
+        AppError::BadRequest(m) | AppError::Conflict(m) => m.clone(),
+        other => other.to_string(),
+    };
+    let finding = MedicationSafetyWarning {
+        code: code.to_owned(),
+        severity: MedicationSafetySeverity::Block,
+        message,
+        catalog_item_id: None,
+        drug_name: String::new(),
+        detail: json!({}),
+    };
+    if let Err(error) = audit_refusal(state, claims, subject, &[finding]).await {
+        tracing::error!(
+            %error,
+            patient_id = %subject.patient_id,
+            code,
+            "could not file a refused controlled-drug dispense"
+        );
+    }
+}
+
 /// `authorize`, filing a refusal as `blocked` in its own transaction — the
 /// caller's transaction rolls back with the refusal and would take the audit
 /// row with it.
@@ -692,6 +780,33 @@ mod tests {
             authorize(&both, &findings, Some("septic shock, ID consulted")),
             Ok(Some("septic shock, ID consulted"))
         ));
+    }
+
+    #[test]
+    fn a_look_alike_drug_is_a_caution_naming_its_group() {
+        let line = RxLine {
+            drug_name: "Amoxicillin 500".to_owned(),
+            catalog_item_id: None,
+        };
+        let row = LinePolicyRow {
+            idx: 1,
+            catalog_item_id: Uuid::nil(),
+            name: "Amoxicillin 500".to_owned(),
+            generic_name: None,
+            inn_name: None,
+            formulary_status: "approved".to_owned(),
+            aware_category: None,
+            is_lasa: true,
+            lasa_group: Some("AMOX-AMOXAPINE".to_owned()),
+            stewardship_status: None,
+        };
+        let findings = policy_findings(std::slice::from_ref(&line), std::slice::from_ref(&row));
+        assert_eq!(findings.len(), 1);
+        assert_eq!(findings[0].code, LASA);
+        assert!(matches!(findings[0].severity, MedicationSafetySeverity::Warn));
+        assert!(findings[0].message.contains("AMOX-AMOXAPINE"));
+        // A caution never stops the pharmacist.
+        assert!(matches!(authorize(&claims_with(&[]), &findings, None), Ok(None)));
     }
 
     #[test]

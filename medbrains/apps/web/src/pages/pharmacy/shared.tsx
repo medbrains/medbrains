@@ -617,3 +617,6 @@ export function posSalePayloadPatientId(payload: Record<string, unknown>) {
   const patientId = payload.patient_id;
   return typeof patientId === "string" ? patientId : "";
 }
+
+/** What the server says when a bill is open and dispensing needs a reason. */
+export const UNPAID_REASON_REQUIRED = "Provide a reason to dispense unpaid";

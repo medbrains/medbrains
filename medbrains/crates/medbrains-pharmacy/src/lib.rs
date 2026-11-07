@@ -50,6 +50,8 @@ mod pos_scheduled;
 pub mod quarantine;
 mod return_rules;
 pub mod rx_safety;
+pub mod safety_record;
+pub mod witnesses;
 pub mod storefront;
 mod terminal_tender;
 
@@ -2936,12 +2938,6 @@ pub async fn dispense_order(
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
 
-    // Schedule H/H1/X compliance gate. Drugs and Cosmetics Act 1940
-    // (rules 65, 65A) — must be on a registered medical practitioner's
-    // prescription; Schedule X (NDPS Act) further requires a witnessed
-    // dispense and duplicate retained Rx.
-    enforce_schedule_compliance(&mut tx, &claims.tenant_id, id, body.witnessed_by).await?;
-
     let order = sqlx::query_as::<_, PharmacyOrder>(
         "SELECT * FROM pharmacy_orders \
          WHERE id = $1 AND tenant_id = $2 AND status = 'ordered' \
@@ -2956,6 +2952,30 @@ pub async fn dispense_order(
     let patient_id = order
         .patient_id
         .ok_or_else(|| AppError::Conflict("This order has no patient to dispense to".to_owned()))?;
+    let dispense_subject = rx_safety::Subject {
+        patient_id,
+        encounter_id: order.encounter_id,
+        record_id: Some(order.id),
+    };
+
+    // Schedule H/H1/X compliance gate. Drugs and Cosmetics Act 1940
+    // (rules 65, 65A) — must be on a registered medical practitioner's
+    // prescription; Schedule X (NDPS Act) further requires a witnessed
+    // dispense and duplicate retained Rx. A refusal is filed, not only
+    // answered: a blocked controlled-drug dispense is itself a record.
+    if let Err(refusal) =
+        enforce_schedule_compliance(&mut tx, &claims.tenant_id, id, body.witnessed_by).await
+    {
+        rx_safety::file_dispense_refusal(
+            &state,
+            &claims,
+            &dispense_subject,
+            rx_safety::SCHEDULE_GATE,
+            &refusal,
+        )
+        .await;
+        return Err(refusal);
+    }
 
     let items = sqlx::query_as::<_, PharmacyOrderItem>(
         "SELECT * FROM pharmacy_order_items \
@@ -3047,20 +3067,39 @@ pub async fn dispense_order(
             .filter(|r| !r.is_empty());
         match reason {
             None => {
-                return Err(AppError::BadRequest(
+                let refusal = AppError::BadRequest(
                     "Controlled substance (NDPS): a witness (dual-lock) is required to dispense, \
                      or provide an override reason."
                         .to_owned(),
-                ));
+                );
+                rx_safety::file_dispense_refusal(
+                    &state,
+                    &claims,
+                    &dispense_subject,
+                    rx_safety::NDPS_WITNESS,
+                    &refusal,
+                )
+                .await;
+                return Err(refusal);
             }
             Some(reason) => {
+                // Filed with the dispense, so the reason is on the record a
+                // drug inspector reads, not only in an application log.
+                rx_safety::record_in_tx(
+                    &mut tx,
+                    &claims,
+                    &dispense_subject,
+                    &[rx_safety::ndps_witness_finding()],
+                    Some(reason),
+                )
+                .await?;
                 tracing::warn!(
                     tenant_id = %claims.tenant_id,
                     order_id = %order.id,
                     %patient_id,
                     dispensed_by = %claims.sub,
                     reason,
-                    "NDPS controlled dispense without a witness — override reason logged"
+                    "NDPS controlled dispense without a witness — override reason filed"
                 );
             }
         }
@@ -3469,7 +3508,7 @@ pub async fn dispense_order(
 // fails the gate. Caller already holds an open transaction so the
 // rollback is automatic on error.
 
-/// Prescription, encounter, ordering user, and whether a pharmacist verified an upload.
+/// Prescription, encounter, prescriber, and whether a pharmacist verified an upload.
 type ComplianceOrderRow = (Option<Uuid>, Option<Uuid>, Option<Uuid>, bool);
 
 async fn enforce_schedule_compliance(
@@ -3480,20 +3519,26 @@ async fn enforce_schedule_compliance(
 ) -> Result<(), AppError> {
     // An online order whose uploaded prescription a pharmacist verified is
     // prescription-backed too.
+    // The prescriber is the doctor who signed the prescription, not whoever
+    // raised the pharmacy order: approving a prescription in the Rx queue
+    // stamps the pharmacist as `ordered_by`, so a Schedule X order was checked
+    // against the pharmacist's (absent) doctor profile and could never pass.
     let order: Option<ComplianceOrderRow> = sqlx::query_as(
-        "SELECT o.prescription_id, o.encounter_id, o.ordered_by, \
+        "SELECT o.prescription_id, o.encounter_id, COALESCE(rx.doctor_id, o.ordered_by), \
                 EXISTS (SELECT 1 FROM pharmacy_store_orders s \
                          WHERE s.tenant_id = o.tenant_id AND s.pharmacy_order_id = o.id \
                            AND s.rx_source = 'upload' AND s.verified_at IS NOT NULL \
                            AND s.deleted_at IS NULL) \
-         FROM pharmacy_orders o WHERE o.id = $1 AND o.tenant_id = $2",
+         FROM pharmacy_orders o \
+         LEFT JOIN prescriptions rx ON rx.id = o.prescription_id AND rx.tenant_id = o.tenant_id \
+         WHERE o.id = $1 AND o.tenant_id = $2",
     )
     .bind(order_id)
     .bind(tenant_id)
     .fetch_optional(&mut **tx)
     .await?;
 
-    let Some((prescription_id, encounter_id, ordered_by, verified_upload)) = order else {
+    let Some((prescription_id, encounter_id, prescriber, verified_upload)) = order else {
         return Err(AppError::NotFound);
     };
 
@@ -3538,7 +3583,7 @@ async fn enforce_schedule_compliance(
         if witnessed_by.is_none() {
             blocks
                 .push("Schedule X dispense requires a witness signature (witnessed_by)".to_owned());
-        } else if witnessed_by == ordered_by {
+        } else if witnessed_by == prescriber {
             blocks.push("Schedule X witness must differ from prescriber".to_owned());
         }
 
@@ -3552,7 +3597,7 @@ async fn enforce_schedule_compliance(
             "SELECT can_prescribe_schedule_x FROM doctor_profiles \
              WHERE user_id = $1 AND tenant_id = $2",
         )
-        .bind(ordered_by)
+        .bind(prescriber)
         .bind(tenant_id)
         .fetch_optional(&mut **tx)
         .await?;
@@ -8576,6 +8621,14 @@ pub fn router() -> axum::Router<AppState> {
             post(create_stock_transaction),
         )
         .route("/api/pharmacy/orders/{id}/validate", post(validate_order))
+        .route(
+            "/api/pharmacy/orders/{id}/safety-record",
+            get(safety_record::order_safety_record),
+        )
+        .route(
+            "/api/pharmacy/dispense-witnesses",
+            get(witnesses::list_dispense_witnesses),
+        )
         .route("/api/pharmacy/otc-sale", post(create_otc_sale))
         .route(
             "/api/pharmacy/discharge-dispensing",

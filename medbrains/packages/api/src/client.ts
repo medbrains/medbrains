@@ -983,6 +983,8 @@ import type {
   DischargeSummary,
   DischargeSummaryPrintData,
   DischargeSummaryTemplate,
+  // Pharmacy Phase 2
+  DispenseWitness,
   DispensingLabelPrintData,
   DisposalQuery,
   DispositionRow,
@@ -1799,13 +1801,13 @@ import type {
   PharmacyQueueDisplay,
   PharmacyReturn,
   PharmacyRxDetailResponse,
+  PharmacySafetyRecordRow,
   PharmacySalesRow,
   PharmacyStockTransaction,
   PharmacyStoreAssignment,
   PharmacyStoreIndent,
   PharmacySubstitute,
   PharmacyTransferRequest,
-  // Pharmacy Phase 2
   PharmacyValidationResult,
   PickLine,
   PincodeResult,
@@ -7340,6 +7342,11 @@ export const api = {
     request<PharmacyValidationResult>(`/pharmacy/orders/${id}/validate`, {
       method: "POST",
     }),
+
+  getPharmacyOrderSafetyRecord: (id: string) =>
+    request<PharmacySafetyRecordRow[]>(`/pharmacy/orders/${id}/safety-record`),
+
+  listDispenseWitnesses: () => request<DispenseWitness[]>("/pharmacy/dispense-witnesses"),
   createOtcSale: (data: CreateOtcSaleRequest) =>
     request<PharmacyOrderDetailResponse>("/pharmacy/otc-sale", {
       method: "POST",

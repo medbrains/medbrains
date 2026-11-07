@@ -23,11 +23,17 @@ export function serializeTiming(timing: Omit<MedicationTiming, "_v">): string {
 
 // ── Frequency → Default Time Slots ──────────────────────────
 
+// Every spelling the prescriber's screen writes. TID was missing, so a
+// three-times-a-day antibiotic was filed under "as needed — take only when
+// required" on the pharmacist's dispensing view.
 const FREQ_SLOT_MAP: Record<string, TimeOfDay[]> = {
   OD: ["morning"],
   BD: ["morning", "evening"],
+  BID: ["morning", "evening"],
   TDS: ["morning", "afternoon", "evening"],
+  TID: ["morning", "afternoon", "evening"],
   QID: ["morning", "afternoon", "evening", "bedtime"],
+  QDS: ["morning", "afternoon", "evening", "bedtime"],
   HS: ["bedtime"],
   STAT: [],
   SOS: [],

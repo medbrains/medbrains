@@ -2,7 +2,9 @@
 
 import { Group, Modal, Stack, Text, Timeline } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
+import { useHasAllPermissions } from "@medbrains/stores";
 import type { CreateVitalRequest, Vital, VitalHistoryPoint } from "@medbrains/types";
+import { P } from "@medbrains/types";
 import { IconHeartbeat, IconPlus } from "@tabler/icons-react";
 import { useQuery } from "@tanstack/react-query";
 import { useMemo } from "react";
@@ -28,9 +30,12 @@ export function VitalsTab({
   // automatically when a tenant turns on tenant_settings.clinical.
   // offline_mode + provides an edge_url. No code change here.
   const { records: vitals, append, unsyncedOps } = useVitalsSource({ encounterId });
+  const canReadHistory = useHasAllPermissions([P.OPD.VITALS_LIST, P.PATIENTS.VIEW]);
   const { data: patientVitals = [] } = useQuery({
     queryKey: ["patient-vitals-history", patientId, "timeline"],
     queryFn: () => opdService.listPatientVitalsHistory(patientId),
+    // The endpoint needs both: the visit's vitals and the patient's record.
+    enabled: canReadHistory,
   });
   const patientVitalsTimeline = useMemo(
     () =>

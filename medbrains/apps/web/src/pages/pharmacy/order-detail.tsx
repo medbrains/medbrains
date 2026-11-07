@@ -38,7 +38,9 @@ import { pharmacyOrderJourneyContext } from "../pharmacy-workspace";
 import { ArrangeDeliveryButton } from "./arrange-delivery-drawer";
 import { EditablePharmacyQuantity } from "./editable-quantity";
 import { NearExpiryHints } from "./near-expiry-hints";
+import { OrderSafetyRecord } from "./order-safety-record";
 import { PrescriptionAuditTrail } from "./prescription-audit-trail";
+import { ReasonModal } from "./reason-modal";
 import {
   dispensingTypeLabels,
   ExpiryCell,
@@ -48,7 +50,17 @@ import {
   renderPharmacySensitiveValue,
   sharedColorBadgeTone,
   statusColors,
+  UNPAID_REASON_REQUIRED,
 } from "./shared";
+
+/** What the dispense screen sends: lines, the witness, and any reasons given. */
+interface DispensePayload {
+  items: { order_item_id: string; batch_stock_id?: string; quantity: number }[];
+  witnessed_by?: string;
+  allergy_override_reason?: string;
+  safety_override_reason?: string;
+  unpaid_override_reason?: string;
+}
 
 export function PharmacyOrderDetail({
   orderId,
@@ -123,6 +135,9 @@ export function PharmacyOrderDetail({
     setSearchParams(next, { replace: true });
   };
   const [dispenseOpen, dispenseModal] = useDisclosure(false);
+  const [unpaid, setUnpaid] = useState<{ payload: DispensePayload; complaint: string } | null>(
+    null,
+  );
   // Active drug allergens for the dispense-time allergy guard.
   const { data: patientAllergies = [] } = useQuery({
     queryKey: ["patient-allergies", detail?.order.patient_id],
@@ -133,12 +148,7 @@ export function PharmacyOrderDetail({
     .filter((a) => a.is_active && a.allergy_type === "drug")
     .map((a) => a.allergen_name);
   const dispenseMutation = useMutation({
-    mutationFn: async (payload?: {
-      items: { order_item_id: string; batch_stock_id?: string; quantity: number }[];
-      witnessed_by?: string;
-      allergy_override_reason?: string;
-      safety_override_reason?: string;
-    }) => {
+    mutationFn: async (payload?: DispensePayload) => {
       const currentDetail = await pharmacyService.getPharmacyOrder(orderId);
       const order = await pharmacyService.dispenseOrder(orderId, payload);
       return { admissionId: currentDetail.admission_id, items: currentDetail.items, order };
@@ -164,7 +174,25 @@ export function PharmacyOrderDetail({
       });
       clearDispenseHandoff();
     },
-    onError: (e: Error) => toast.error(e.message, { title: "Could not dispense order" }),
+    onSettled: () => {
+      // A refusal is filed too; the safety record shows it either way.
+      void queryClient.invalidateQueries({ queryKey: ["pharmacy-order-safety-record", orderId] });
+    },
+    onError: (e: Error, payload) => {
+      // An open bill is not a wall: credit patients, schemes and staff are
+      // served first. Ask why, then send the same dispense with the reason —
+      // this screen used to show the refusal and offer no way to give one.
+      if (
+        payload &&
+        !payload.unpaid_override_reason &&
+        e.message.includes(UNPAID_REASON_REQUIRED)
+      ) {
+        dispenseModal.close();
+        setUnpaid({ payload, complaint: e.message });
+        return;
+      }
+      toast.error(e.message, { title: "Could not dispense order" });
+    },
   });
 
   const canSubstituteDrug = useHasPermission(P.PHARMACY_IMPROVEMENTS.SUBSTITUTION_RECORD);
@@ -217,6 +245,21 @@ export function PharmacyOrderDetail({
         patientAllergens={drugAllergens}
         onDispense={(payload) => dispenseMutation.mutate(payload)}
       />
+      <ReasonModal
+        opened={unpaid !== null}
+        title="Dispense unpaid?"
+        description={unpaid?.complaint ?? ""}
+        label="Why dispense before payment"
+        placeholder="Credit patient, scheme beneficiary, staff…"
+        confirmLabel="Dispense unpaid"
+        pending={dispenseMutation.isPending}
+        onClose={() => setUnpaid(null)}
+        onConfirm={(reason) => {
+          if (!unpaid) return;
+          dispenseMutation.mutate({ ...unpaid.payload, unpaid_override_reason: reason });
+          setUnpaid(null);
+        }}
+      />
       {substituteItem && (
         <SubstituteModal
           opened={Boolean(substituteItem)}
@@ -258,6 +301,7 @@ export function PharmacyOrderDetail({
         <RepeatPanel prescriptionId={detail.order.prescription_id} />
       )}
       <ArrangeDeliveryButton orderId={detail.order.id} orderStatus={detail.order.status} />
+      <OrderSafetyRecord orderId={detail.order.id} />
       {canEditOrderItems && (
         <Alert tone="info" icon={<IconShieldCheck size={16} />}>
           Edit or remove medicines before dispense. Draft billing lines stay synchronized.

@@ -45,12 +45,12 @@ export interface Hospital {
   /**
    * Another doctor, in this department, logged in in their own browser —
    * with `fieldAccess` restrictions, when the test is about them. The
-   * password is for screens that ask the doctor to confirm it's them.
+   * username and password are for steps that sign in again or confirm it's them.
    */
   colleague: (
     department: Department,
     fieldAccess?: Record<string, "view" | "mask" | "hidden">,
-  ) => Promise<{ id: string; fullName: string; page: Page; password: string }>;
+  ) => Promise<{ id: string; fullName: string; page: Page; username: string; password: string }>;
 }
 
 const unique = () => crypto.randomUUID().slice(0, 8).toUpperCase();
@@ -155,7 +155,7 @@ export const test = base.extend<{ hospital: Hospital }>({
         const page = await openPage(browser);
         await loginAsRole(page, username, password);
         pages.push(page);
-        return { id: user.id, fullName, page, password };
+        return { id: user.id, fullName, page, username, password };
       },
       setting: async (category, key, value) => {
         const rows = await api<Array<{ key: string; value: unknown }>>(

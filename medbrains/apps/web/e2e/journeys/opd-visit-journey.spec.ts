@@ -85,6 +85,8 @@ test("a patient is registered, has vitals taken, is seen, prescribed and tested,
   await nurse.page.getByRole("button", { name: "Record vitals" }).last().click();
   // Back on the worklist, the row now carries the reading.
   await expect(nurse.page).toHaveURL(/\/opd$/, { timeout: 15_000 });
+  // The queue says in words that the vitals are taken.
+  await expect((await ward.row(uhid ?? "")).getByText("Vitals taken")).toBeVisible();
 
   // Doctor.
   const clinic = new OpdWorklist(doctor.page);
@@ -121,9 +123,13 @@ test("a patient is registered, has vitals taken, is seen, prescribed and tested,
 
   // The prescription.
   await visit.getByRole("tab", { name: "Prescriptions" }).click();
-  const search = visit.getByRole("textbox", { name: "Search formulary" });
-  await search.fill("Paracetamol");
-  await visit.getByRole("button", { name: /^Paracetamol 500mg / }).click();
+  // The search is a combobox: its matches are a listbox, and Enter adds the
+  // highlighted one without a mouse.
+  const search = visit.getByRole("combobox", { name: "Search formulary" });
+  await search.fill("Paracetamol 500");
+  const matches = visit.getByRole("listbox", { name: "Formulary matches" });
+  await expect(matches.getByRole("option", { name: /^Paracetamol 500mg/ })).toBeVisible();
+  await search.press("Enter");
   await expectScreenAccessible(visit, "opd-visit-prescriptions");
   const rx = visit.getByRole("row").filter({ hasText: "Paracetamol 500mg" });
   await rx.getByText("TID", { exact: true }).click();

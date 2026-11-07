@@ -90,6 +90,7 @@ export interface MedicationSafetyFinding {
     | "DRUG_INTERACTION"
     | "RESERVE_ANTIBIOTIC_APPROVAL_REQUIRED"
     | "NON_FORMULARY_APPROVAL_REQUIRED"
+    | "LASA_LOOK_ALIKE"
     | (string & {});
   severity: "warn" | "block";
   message: string;
@@ -794,4 +795,22 @@ export interface JobStats {
   failed: number;
   dead_letter: number;
   total: number;
+}
+
+/** One finding filed against a pharmacy order: refused, overridden or warned. */
+export interface PharmacySafetyRecordRow {
+  id: string;
+  warning_code: string;
+  severity: "warn" | "block";
+  action_taken: "blocked" | "warned" | "overridden";
+  message: string;
+  override_reason: string | null;
+  checked_by_name: string | null;
+  checked_at: string;
+}
+
+/** A colleague who may witness a controlled (Schedule X / NDPS) dispense. */
+export interface DispenseWitness {
+  id: string;
+  full_name: string;
 }

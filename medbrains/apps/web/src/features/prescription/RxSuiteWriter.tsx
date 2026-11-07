@@ -111,7 +111,7 @@ export function RxSuiteWriter({
   const refillable = (terms: RefillTerms, items: RxItem[]) =>
     controlledNames(items, formularyById).length > 0 ? { ...terms, refills: 0 } : terms;
 
-  const { data: catalog = [] } = useQuery({
+  const { data: catalog = [], isLoading: catalogLoading } = useQuery({
     queryKey: ["pharmacy-catalog"],
     queryFn: () => clinicalSupportService.listPharmacyCatalog(),
     staleTime: 300_000,
@@ -419,6 +419,7 @@ export function RxSuiteWriter({
       )}
       <RxDoctor
         formulary={formulary}
+        formularyLoading={catalogLoading}
         formularyById={formularyById}
         nlemGenerics={nlemGenerics}
         initialItems={[]}

@@ -1,11 +1,10 @@
 import { Group, Stack, Text, Textarea } from "@mantine/core";
-import type { PharmacyCatalog, PharmacyOrderItem, SetupUser } from "@medbrains/types";
+import type { PharmacyCatalog, PharmacyOrderItem } from "@medbrains/types";
 import { IconAlertTriangle } from "@tabler/icons-react";
 import { useQuery } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { Alert, Badge, Button, Modal, Select, Table, toast } from "@/components/ui";
 import { NumberField } from "@/components/ui/Input";
-import { adminAccessService } from "@/services/adminAccess.service";
 import { clinicalSupportService } from "@/services/clinicalSupport.service";
 import { pharmacyService } from "@/services/pharmacy.service";
 import { findAllergyConflicts } from "@/utils/allergyMatch";
@@ -61,9 +60,11 @@ export function DispenseModal({
     [catalog],
   );
 
-  const { data: users = [] } = useQuery({
-    queryKey: ["setup-users"],
-    queryFn: () => adminAccessService.listUsers(),
+  // Colleagues who may dispense, by name. The user directory it read before
+  // is an administrator's, so a pharmacist's witness list was empty.
+  const { data: witnesses = [] } = useQuery({
+    queryKey: ["pharmacy-dispense-witnesses"],
+    queryFn: () => pharmacyService.listDispenseWitnesses(),
     staleTime: 300_000,
     enabled: opened,
   });
@@ -211,7 +212,7 @@ export function DispenseModal({
           <Select
             label="Witness (second pharmacist — required for Schedule X)"
             placeholder="Select witness"
-            data={(users as SetupUser[]).map((u) => ({ value: u.id, label: u.full_name }))}
+            data={witnesses.map((u) => ({ value: u.id, label: u.full_name }))}
             value={witness}
             onChange={setWitness}
             searchable

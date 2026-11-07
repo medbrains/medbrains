@@ -719,6 +719,33 @@ pub async fn require_patient_access(
         ));
     }
 
+    // A pharmacy order still being worked reaches the patient too. The order
+    // is granted to the Pharmacy department, and the pharmacist dispensing it
+    // must see the patient's allergies and dues: without this edge the
+    // allergy list answered 404, the dispense screen showed no allergy, and
+    // the server then refused the dispense for an allergy nobody could see.
+    // Bounded to open orders and those dispensed in the last 30 days (returns,
+    // counselling), so a dispensed order does not keep the record open.
+    let pharmacy_order_ids: Vec<Uuid> = sqlx::query_scalar!(
+        "SELECT id FROM pharmacy_orders WHERE patient_id = $1 AND tenant_id = $2 \
+           AND deleted_at IS NULL \
+           AND (status IN ('ordered', 'partially_dispensed') \
+                OR dispensed_at > now() - interval '30 days') \
+         ORDER BY created_at DESC LIMIT $3",
+        patient_id,
+        claims.tenant_id,
+        MAX_FANOUT,
+    )
+    .fetch_all(&mut *conn)
+    .await?;
+    for oid in pharmacy_order_ids {
+        items.push((
+            "pharmacy_order".to_owned(),
+            medbrains_authz::Relation::Viewer,
+            oid,
+        ));
+    }
+
     // No encounters and no admissions is a definite `Deny` for the hierarchy
     // edge — there is nothing to reach the patient through. Combined with the
     // direct check so a failed direct check still surfaces as an outage rather

@@ -21,6 +21,7 @@ import {
   PharmacyPatientContext,
   pharmacyOrderEventItems,
   statusColors,
+  UNPAID_REASON_REQUIRED,
 } from "./shared";
 
 interface DispenseInput {
@@ -29,7 +30,6 @@ interface DispenseInput {
 }
 
 /** The server's refusal when a bill is short and no reason was given. */
-const UNPAID_REASON_REQUIRED = "Provide a reason to dispense unpaid";
 
 export function PharmacyOrdersTab({
   canViewOrders,
