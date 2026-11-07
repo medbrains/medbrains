@@ -352,13 +352,24 @@ async fn build_sign_preview(
     })
 }
 
+/// `POST /api/signatures/sign` — sign a record with the caller's key.
+///
+/// A signature is the doctor's word that they reviewed this record, so it
+/// needs a fresh step-up (the password again, within five minutes), not only
+/// a session: a session left open on a ward computer must not be able to
+/// sign as its owner. The answer to a missing step-up is 403
+/// `step_up_required`, which the web client turns into the password prompt
+/// and a retry. The record's public verify link is minted in the same
+/// transaction, so every signed print can carry its QR.
 pub async fn sign_record(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
+    jar: axum_extra::extract::CookieJar,
     Json(body): Json<SignRequest>,
 ) -> Result<Json<SignResponse>, AppError> {
     let signer_role = validate_signer_role(body.signer_role.as_deref())?;
     require_sign_permission(&claims, signer_role)?;
+    medbrains_server_core::step_up::require_step_up(&state, &jar, &claims)?;
 
     let legal_class = validate_legal_class(body.legal_class.as_deref())?;
 
@@ -480,6 +491,8 @@ pub async fn sign_record(
     .fetch_one(&mut *tx)
     .await?;
 
+    crate::signature_verify::issue_link_in_tx(&mut tx, &claims, row.id).await?;
+
     // Best-effort flag update on source record. Different tables have
     // different shapes — only update is_signed where the column exists.
     let _ = mark_source_signed(
@@ -505,7 +518,13 @@ pub async fn sign_record(
     }))
 }
 
-async fn resolve_signable_payload(
+/// The canonical content of a signable record, read from its source table.
+///
+/// Content only: workflow state (status, `updated_at`, the bed, the order's
+/// progress) is left out, because it changes after signing without the
+/// document changing, and a public check would then call every signed
+/// document altered. Schema `v2` marks payloads built this way.
+pub(crate) async fn resolve_signable_payload(
     tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
     tenant_id: &Uuid,
     signer_user_id: &Uuid,
@@ -517,7 +536,7 @@ async fn resolve_signable_payload(
         "prescription" => {
             sqlx::query_scalar::<_, Value>(
                 "SELECT jsonb_build_object( \
-                'schema', 'medbrains.signable.prescription.v1', \
+                'schema', 'medbrains.signable.prescription.v2', \
                 'record_type', 'prescription', \
                 'record_id', p.id, \
                 'tenant_id', p.tenant_id, \
@@ -526,7 +545,6 @@ async fn resolve_signable_payload(
                     'id', e.id, \
                     'patient_id', e.patient_id, \
                     'encounter_type', e.encounter_type, \
-                    'status', e.status, \
                     'department_id', e.department_id, \
                     'doctor_id', e.doctor_id, \
                     'encounter_date', e.encounter_date, \
@@ -536,18 +554,13 @@ async fn resolve_signable_payload(
                 'patient', CASE WHEN pat.id IS NULL THEN NULL ELSE jsonb_build_object( \
                     'id', pat.id, \
                     'uhid', pat.uhid, \
-                    'abha_id', pat.abha_id, \
                     'name', CONCAT_WS(' ', NULLIF(pat.prefix, ''), pat.first_name, NULLIF(pat.middle_name, ''), pat.last_name), \
                     'gender', pat.gender, \
-                    'date_of_birth', pat.date_of_birth, \
-                    'phone', pat.phone, \
-                    'category', pat.category, \
-                    'is_medico_legal', pat.is_medico_legal \
+                    'date_of_birth', pat.date_of_birth \
                 ) END, \
                 'doctor_id', p.doctor_id, \
                 'notes', p.notes, \
                 'created_at', p.created_at, \
-                'updated_at', p.updated_at, \
                 'items', COALESCE(( \
                     SELECT jsonb_agg(jsonb_build_object( \
                         'id', pi.id, \
@@ -557,7 +570,6 @@ async fn resolve_signable_payload(
                         'duration', pi.duration, \
                         'route', pi.route, \
                         'instructions', pi.instructions, \
-                        'item_status', pi.item_status, \
                         'catalog_item_id', pi.catalog_item_id, \
                         'created_at', pi.created_at \
                     ) ORDER BY pi.created_at, pi.id) \
@@ -582,7 +594,7 @@ async fn resolve_signable_payload(
         "lab_report" => {
             sqlx::query_scalar::<_, Value>(
                 "SELECT jsonb_build_object( \
-                'schema', 'medbrains.signable.lab_result.v1', \
+                'schema', 'medbrains.signable.lab_result.v2', \
                 'record_type', 'lab_report', \
                 'record_id', lr.id, \
                 'tenant_id', lr.tenant_id, \
@@ -593,7 +605,6 @@ async fn resolve_signable_payload(
                     'patient_id', lo.patient_id, \
                     'test_id', lo.test_id, \
                     'priority', lo.priority, \
-                    'status', lo.status, \
                     'sample_barcode', lo.sample_barcode, \
                     'is_stat', lo.is_stat, \
                     'camp_id', lo.camp_id, \
@@ -602,13 +613,9 @@ async fn resolve_signable_payload(
                 'patient', jsonb_build_object( \
                     'id', pat.id, \
                     'uhid', pat.uhid, \
-                    'abha_id', pat.abha_id, \
                     'name', CONCAT_WS(' ', NULLIF(pat.prefix, ''), pat.first_name, NULLIF(pat.middle_name, ''), pat.last_name), \
                     'gender', pat.gender, \
-                    'date_of_birth', pat.date_of_birth, \
-                    'phone', pat.phone, \
-                    'category', pat.category, \
-                    'is_medico_legal', pat.is_medico_legal \
+                    'date_of_birth', pat.date_of_birth \
                 ), \
                 'parameter_name', lr.parameter_name, \
                 'value', lr.value, \
@@ -619,8 +626,7 @@ async fn resolve_signable_payload(
                 'notes', lr.notes, \
                 'is_auto_validated', lr.is_auto_validated, \
                 'entered_by', lr.entered_by, \
-                'created_at', lr.created_at, \
-                'updated_at', lr.updated_at \
+                'created_at', lr.created_at \
             ) \
             FROM lab_results lr \
             JOIN lab_orders lo ON lo.tenant_id = lr.tenant_id AND lo.id = lr.order_id \
@@ -635,7 +641,7 @@ async fn resolve_signable_payload(
         "radiology_report" => {
             sqlx::query_scalar::<_, Value>(
                 "SELECT jsonb_build_object( \
-                'schema', 'medbrains.signable.radiology_report.v1', \
+                'schema', 'medbrains.signable.radiology_report.v2', \
                 'record_type', 'radiology_report', \
                 'record_id', rr.id, \
                 'tenant_id', rr.tenant_id, \
@@ -648,7 +654,6 @@ async fn resolve_signable_payload(
                     'body_part', ro.body_part, \
                     'clinical_indication', ro.clinical_indication, \
                     'priority', ro.priority, \
-                    'status', ro.status, \
                     'contrast_required', ro.contrast_required, \
                     'pregnancy_checked', ro.pregnancy_checked, \
                     'allergy_flagged', ro.allergy_flagged, \
@@ -657,25 +662,17 @@ async fn resolve_signable_payload(
                 'patient', jsonb_build_object( \
                     'id', pat.id, \
                     'uhid', pat.uhid, \
-                    'abha_id', pat.abha_id, \
                     'name', CONCAT_WS(' ', NULLIF(pat.prefix, ''), pat.first_name, NULLIF(pat.middle_name, ''), pat.last_name), \
                     'gender', pat.gender, \
-                    'date_of_birth', pat.date_of_birth, \
-                    'phone', pat.phone, \
-                    'category', pat.category, \
-                    'is_medico_legal', pat.is_medico_legal \
+                    'date_of_birth', pat.date_of_birth \
                 ), \
                 'reported_by', rr.reported_by, \
-                'verified_by', rr.verified_by, \
-                'status', rr.status, \
                 'findings', rr.findings, \
                 'impression', rr.impression, \
                 'recommendations', rr.recommendations, \
                 'is_critical', rr.is_critical, \
                 'template_name', rr.template_name, \
-                'verified_at', rr.verified_at, \
-                'created_at', rr.created_at, \
-                'updated_at', rr.updated_at \
+                'created_at', rr.created_at \
             ) \
             FROM radiology_reports rr \
             JOIN radiology_orders ro ON ro.tenant_id = rr.tenant_id AND ro.id = rr.order_id \
@@ -690,7 +687,7 @@ async fn resolve_signable_payload(
         "discharge_summary" => {
             sqlx::query_scalar::<_, Value>(
                 "SELECT jsonb_build_object( \
-                'schema', 'medbrains.signable.ipd_discharge_summary.v1', \
+                'schema', 'medbrains.signable.ipd_discharge_summary.v2', \
                 'record_type', 'discharge_summary', \
                 'record_id', ds.id, \
                 'tenant_id', ds.tenant_id, \
@@ -700,28 +697,17 @@ async fn resolve_signable_payload(
                     'encounter_id', a.encounter_id, \
                     'patient_id', a.patient_id, \
                     'admitting_doctor', a.admitting_doctor, \
-                    'status', a.status, \
                     'admitted_at', a.admitted_at, \
-                    'discharged_at', a.discharged_at, \
-                    'ward_id', a.ward_id, \
-                    'bed_id', a.bed_id, \
-                    'ip_type', a.ip_type, \
-                    'is_critical', a.is_critical, \
-                    'isolation_required', a.isolation_required \
+                    'ip_type', a.ip_type \
                 ), \
                 'patient', jsonb_build_object( \
                     'id', pat.id, \
                     'uhid', pat.uhid, \
-                    'abha_id', pat.abha_id, \
                     'name', CONCAT_WS(' ', NULLIF(pat.prefix, ''), pat.first_name, NULLIF(pat.middle_name, ''), pat.last_name), \
                     'gender', pat.gender, \
-                    'date_of_birth', pat.date_of_birth, \
-                    'phone', pat.phone, \
-                    'category', pat.category, \
-                    'is_medico_legal', pat.is_medico_legal \
+                    'date_of_birth', pat.date_of_birth \
                 ), \
                 'template_id', ds.template_id, \
-                'status', ds.status, \
                 'final_diagnosis', ds.final_diagnosis, \
                 'condition_at_discharge', ds.condition_at_discharge, \
                 'course_in_hospital', ds.course_in_hospital, \
@@ -736,10 +722,7 @@ async fn resolve_signable_payload(
                 'warning_signs', ds.warning_signs, \
                 'emergency_contact_info', ds.emergency_contact_info, \
                 'prepared_by', ds.prepared_by, \
-                'verified_by', ds.verified_by, \
-                'finalized_at', ds.finalized_at, \
-                'created_at', ds.created_at, \
-                'updated_at', ds.updated_at \
+                'created_at', ds.created_at \
             ) \
             FROM ipd_discharge_summaries ds \
             JOIN admissions a ON a.tenant_id = ds.tenant_id AND a.id = ds.admission_id \
@@ -978,7 +961,8 @@ fn require_sign_permission(claims: &Claims, signer_role: &str) -> Result<(), App
     }
 }
 
-fn to_hex(bytes: &[u8]) -> String {
+/// Lower-case hex of `bytes`.
+pub(crate) fn to_hex(bytes: &[u8]) -> String {
     bytes.iter().fold(String::new(), |mut acc, b| {
         use std::fmt::Write;
         let _ = write!(acc, "{b:02x}");

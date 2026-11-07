@@ -4,7 +4,7 @@
  * from the sign-off queue (RFC-MODULE-clinical-notes, phase 3b).
  */
 import { createEncounter, createPatientApi } from "../helpers/journey-steps";
-import { expect, test } from "./support/world";
+import { confirmItsYou, expect, test } from "./support/world";
 
 test("a resident's signed note is countersigned by their consultant", async ({ hospital }) => {
   const dept = await hospital.department("Countersign");
@@ -32,6 +32,7 @@ test("a resident's signed note is countersigned by their consultant", async ({ h
   await expect(page.getByText(/^Draft saved/)).toBeVisible({ timeout: 10_000 });
   const note = page.getByLabel(/^Consultation by /);
   await note.getByRole("button", { name: "Sign", exact: true }).click();
+  await confirmItsYou(page, resident.password);
   await expect(note).toContainText(`Awaiting countersign by ${consultant.fullName}`, {
     timeout: 15_000,
   });

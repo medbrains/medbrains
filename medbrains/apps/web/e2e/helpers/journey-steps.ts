@@ -270,7 +270,16 @@ export async function createConsultation(
       { code: "plan", text: paragraph(body.plan) },
     ],
   });
-  await api(ctx, "POST", `/api/clinical-notes/${note.id}/sign`, {});
+  await signNote(ctx, note.id, {});
+}
+
+/**
+ * Sign a note. Signing asks for the password again (step-up), so step up
+ * when the context knows its password; otherwise let the refusal surface.
+ */
+async function signNote(ctx: AuthContext, noteId: string, body: object): Promise<void> {
+  const signing = ctx.password ? await withStepUp(ctx) : ctx;
+  await api(signing, "POST", `/api/clinical-notes/${noteId}/sign`, body);
 }
 
 export interface PrescriptionFanout {
@@ -682,7 +691,7 @@ export async function createIpdProgressNote(
       },
     ],
   });
-  await api(ctx, "POST", `/api/clinical-notes/${note.id}/sign`, {
+  await signNote(ctx, note.id, {
     late_entry_reason: dayOffset < 0 ? "Round written up after the day it was done" : undefined,
   });
   return note;

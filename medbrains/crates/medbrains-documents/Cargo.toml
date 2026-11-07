@@ -14,6 +14,7 @@ medbrains-db = { path = "../medbrains-db" }
 medbrains-authz = { version = "0.1.0", path = "../medbrains-authz" }
 medbrains-crypto = { path = "../medbrains-crypto" }
 axum = { workspace = true }
+axum-extra = { version = "0.10", features = ["cookie"] }
 serde = { workspace = true }
 serde_json = { workspace = true }
 sqlx = { workspace = true }

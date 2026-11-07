@@ -271,6 +271,7 @@ mod seed_race_test;
 mod service_times_test;
 mod sign_in_hardening_test;
 mod sign_in_options_test;
+mod signature_verify_test;
 mod signatures_test;
 mod snomed_terminology_test;
 mod soap_note_access_test;

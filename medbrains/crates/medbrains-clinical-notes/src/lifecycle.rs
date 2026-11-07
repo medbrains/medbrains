@@ -24,13 +24,20 @@ pub struct SignRequest {
 }
 
 /// `POST /api/clinical-notes/{id}/sign`
+///
+/// Signing makes the note the record under the author's name, so it needs a
+/// fresh step-up (the password again, within five minutes) as well as the
+/// permission: a ward computer left signed in must not sign as its owner.
+/// Missing, it answers 403 `step_up_required` and the client prompts.
 pub async fn sign_note(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
+    jar: axum_extra::extract::CookieJar,
     Path(id): Path<Uuid>,
     body: Option<Json<SignRequest>>,
 ) -> Result<Json<Note>, AppError> {
     require_permission(&claims, permissions::clinical_notes::SIGN)?;
+    medbrains_server_core::step_up::require_step_up(&state, &jar, &claims)?;
     let body = body.map(|Json(b)| b).unwrap_or_default();
     let mut tx = begin(&state, &claims).await?;
     let note = own_note(&state, &mut tx, &claims, id).await?;

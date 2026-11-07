@@ -73,7 +73,7 @@ fn test_signature_fails_with_wrong_public_key() {
 // ──────────────────────────────────────────────────────────
 
 /// Helper: login as admin and get the admin user_id from /api/auth/me.
-async fn admin_user_id(app: &common::TestApp, _csrf: &str) -> String {
+pub(crate) async fn admin_user_id(app: &common::TestApp, _csrf: &str) -> String {
     let resp = app
         .client
         .get(app.url("/api/auth/me"))
@@ -88,7 +88,7 @@ async fn admin_user_id(app: &common::TestApp, _csrf: &str) -> String {
 
 /// Helper: issue a default Ed25519 credential for the given user via admin
 /// endpoint. Returns the credential id.
-async fn issue_default_credential(
+pub(crate) async fn issue_default_credential(
     app: &common::TestApp,
     csrf: &str,
     doctor_user_id: &str,
@@ -116,7 +116,7 @@ async fn issue_default_credential(
 /// Helper: a prescription written by `doctor_user_id`. The server signs the
 /// record it reads, not a payload the client sends, so a signature needs a
 /// real record, and a primary signature one this doctor wrote.
-async fn doctor_prescription(app: &common::TestApp, doctor_user_id: &str) -> String {
+pub(crate) async fn doctor_prescription(app: &common::TestApp, doctor_user_id: &str) -> String {
     let doctor_id = uuid::Uuid::parse_str(doctor_user_id).expect("admin id");
     let tenant_id: uuid::Uuid = sqlx::query_scalar("SELECT tenant_id FROM users WHERE id = $1")
         .bind(doctor_id)
@@ -157,6 +157,46 @@ async fn doctor_prescription(app: &common::TestApp, doctor_user_id: &str) -> Str
     prescription_id.to_string()
 }
 
+/// Admin signed in and stepped up: a signature needs the password again
+/// within five minutes, not only a session.
+pub(crate) async fn signer_session(app: &common::TestApp) -> String {
+    let csrf = app.login_admin().await;
+    app.step_up(&app.client, &csrf, "admin123").await;
+    csrf
+}
+
+/// A session alone does not sign. A ward computer left signed in must not be
+/// able to sign as its owner: without a fresh step-up the server refuses with
+/// `step_up_required`, which the web client turns into the password prompt.
+#[tokio::test]
+async fn signing_without_a_fresh_step_up_is_refused() {
+    let app = common::spawn_app().await;
+    let csrf = app.login_admin().await;
+    let admin_id = admin_user_id(&app, &csrf).await;
+    issue_default_credential(&app, &csrf, &admin_id).await;
+    let record_id = doctor_prescription(&app, &admin_id).await;
+
+    let resp = app
+        .client
+        .post(app.url("/api/signatures/sign"))
+        .header("x-csrf-token", &csrf)
+        .json(&json!({ "record_type": "prescription", "record_id": record_id }))
+        .send()
+        .await
+        .expect("sign request");
+    assert_eq!(resp.status(), StatusCode::FORBIDDEN);
+    let body: serde_json::Value = resp.json().await.expect("json");
+    assert_eq!(body["error"], "step_up_required", "{body}");
+    let rows: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM signed_records WHERE record_id = $1::uuid",
+    )
+    .bind(&record_id)
+    .fetch_one(&app.db)
+    .await
+    .expect("count");
+    assert_eq!(rows, 0, "a refused signature writes nothing");
+}
+
 // Note: a "sign without any credential returns 400" test is omitted
 // because the dev-DB is persistent across test runs and unrelated tests
 // create credentials for the admin user. The error path itself is
@@ -166,7 +206,7 @@ async fn doctor_prescription(app: &common::TestApp, doctor_user_id: &str) -> Str
 #[tokio::test]
 async fn test_sign_with_credential_succeeds() {
     let app = common::spawn_app().await;
-    let csrf = app.login_admin().await;
+    let csrf = signer_session(&app).await;
     let admin_id = admin_user_id(&app, &csrf).await;
     let _cred_id = issue_default_credential(&app, &csrf, &admin_id).await;
 
@@ -199,7 +239,7 @@ async fn test_sign_with_credential_succeeds() {
 #[tokio::test]
 async fn test_verify_endpoint_round_trip() {
     let app = common::spawn_app().await;
-    let csrf = app.login_admin().await;
+    let csrf = signer_session(&app).await;
     let admin_id = admin_user_id(&app, &csrf).await;
     issue_default_credential(&app, &csrf, &admin_id).await;
 
@@ -264,7 +304,7 @@ async fn test_verify_endpoint_round_trip() {
 #[tokio::test]
 async fn test_revoked_credential_cannot_sign() {
     let app = common::spawn_app().await;
-    let csrf = app.login_admin().await;
+    let csrf = signer_session(&app).await;
     let admin_id = admin_user_id(&app, &csrf).await;
     let cred_id = issue_default_credential(&app, &csrf, &admin_id).await;
 
@@ -303,7 +343,7 @@ async fn test_revoked_credential_cannot_sign() {
 #[tokio::test]
 async fn test_co_signer_creates_separate_row() {
     let app = common::spawn_app().await;
-    let csrf = app.login_admin().await;
+    let csrf = signer_session(&app).await;
     let admin_id = admin_user_id(&app, &csrf).await;
     issue_default_credential(&app, &csrf, &admin_id).await;
 
@@ -365,7 +405,7 @@ async fn test_co_signer_creates_separate_row() {
 #[tokio::test]
 async fn test_sign_invalid_role_rejected() {
     let app = common::spawn_app().await;
-    let csrf = app.login_admin().await;
+    let csrf = signer_session(&app).await;
     let admin_id = admin_user_id(&app, &csrf).await;
     issue_default_credential(&app, &csrf, &admin_id).await;
 
@@ -388,7 +428,7 @@ async fn test_sign_invalid_role_rejected() {
 #[tokio::test]
 async fn test_sign_invalid_legal_class_rejected() {
     let app = common::spawn_app().await;
-    let csrf = app.login_admin().await;
+    let csrf = signer_session(&app).await;
     let admin_id = admin_user_id(&app, &csrf).await;
     issue_default_credential(&app, &csrf, &admin_id).await;
 

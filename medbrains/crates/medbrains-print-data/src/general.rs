@@ -92,6 +92,24 @@ pub async fn get_prescription_print_data(
     .fetch_all(&mut *tx)
     .await?;
 
+    // A signed prescription prints its signature and the QR to its public check.
+    let prescription_ids = sqlx::query_scalar!(
+        "SELECT id FROM prescriptions \
+         WHERE encounter_id = $1 AND tenant_id = $2 AND deleted_at IS NULL \
+         ORDER BY created_at LIMIT 20",
+        encounter_id,
+        claims.tenant_id,
+    )
+    .fetch_all(&mut *tx)
+    .await?;
+    let signatures = medbrains_signing::signed_documents::fetch_signatures_for_records(
+        &mut tx,
+        &claims.tenant_id,
+        "prescription",
+        &prescription_ids,
+    )
+    .await?;
+
     tx.commit().await?;
 
     let age_str = header.age.map(|a| format!("{} yrs", a as i64));
@@ -113,6 +131,7 @@ pub async fn get_prescription_print_data(
         medications,
         advice: header.advice,
         follow_up: header.follow_up,
+        signatures: medbrains_signing::signed_documents::to_print_signatures(signatures),
     }))
 }
 

@@ -48,6 +48,9 @@ const VerifyPrescriptionPage = lazy(() =>
 const VerifyBillPage = lazy(() =>
   import("./pages/verify-bill").then((m) => ({ default: m.VerifyBillPage })),
 );
+const VerifySignaturePage = lazy(() =>
+  import("./pages/verify-signature").then((m) => ({ default: m.VerifySignaturePage })),
+);
 const KioskSelfCheckinPage = lazy(() =>
   import("./pages/kiosk/self-checkin").then((m) => ({ default: m.KioskSelfCheckinPage })),
 );
@@ -590,6 +593,8 @@ export function App() {
             {/* Scanned off a printed prescription — public by necessity. */}
             <Route path="/verify/rx/:token" element={<VerifyPrescriptionPage />} />
             <Route path="/verify/bill" element={<VerifyBillPage />} />
+            {/* The QR on a signed print — insurers, courts, other hospitals. */}
+            <Route path="/verify/signature/:token" element={<VerifySignaturePage />} />
             {/* Scanned off the kiosk slip — the patient has no login. */}
             <Route path="/queue/:token" element={<QueueStatusPage />} />
             {/* A shared-images link: the viewer opens after the recipient's code. */}

@@ -71,8 +71,8 @@ use crate::{
         csrf::csrf_middleware,
         ip_restrict::ip_restrict_middleware,
         rate_limit::{
-            RateLimiter, rate_limit_middleware, storefront_rate_limit_middleware,
-            tiered_rate_limit_middleware,
+            RateLimiter, public_verify_rate_limit_middleware, rate_limit_middleware,
+            storefront_rate_limit_middleware, tiered_rate_limit_middleware,
         },
         system_state::system_state_layer,
     },
@@ -979,11 +979,25 @@ pub fn build_router(state: AppState) -> Router {
         // patient gets a token in the first place.
         .route("/api/portal/auth/request-otp", post(portal::request_portal_otp))
         .route("/api/portal/auth/verify", post(portal::verify_portal_otp))
-        // Scanned by a pharmacist at a counter, who is not a user of this
-        // system — so the token in the URL is the whole credential.
-        .route(
-            "/api/public/prescriptions/verify/{token}",
-            get(rx_verify::verify_prescription),
+        // The QR checks on paper: a prescription (scanned by a pharmacist) and
+        // a signed document (by an insurer, a court, another hospital). None
+        // of them is a user of this system, so the token in the URL is the
+        // whole credential and no permission applies; the answers carry no
+        // health data. Bounded per address.
+        .merge(
+            Router::new()
+                .route(
+                    "/api/public/prescriptions/verify/{token}",
+                    get(rx_verify::verify_prescription),
+                )
+                .route(
+                    "/api/public/signatures/verify/{token}",
+                    get(medbrains_documents::signature_verify::verify_signature_public),
+                )
+                .layer(from_fn_with_state(
+                    RateLimiter::new(),
+                    public_verify_rate_limit_middleware,
+                )),
         )
         // The QR on a printed bill: insurers and patients check it is genuine.
         .route("/api/public/bills/verify", get(bill_verify::verify_bill))

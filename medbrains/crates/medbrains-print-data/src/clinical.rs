@@ -837,13 +837,29 @@ pub async fn get_discharge_print_data(
     .await?;
 
     // Fetch signatures (primary + co-signers) for the discharge summary.
-    let sigs = medbrains_signing::signed_documents::fetch_all_signatures_for_print(
-        &mut tx,
-        &claims.tenant_id,
-        "discharge_summary",
+    // A discharge summary is signed on its own row (`ipd_discharge_summaries.id`,
+    // what the sign-off queue hands the doctor), not on the admission.
+    let summary_id = sqlx::query_scalar!(
+        "SELECT id FROM ipd_discharge_summaries \
+         WHERE admission_id = $1 AND tenant_id = $2 AND deleted_at IS NULL \
+         ORDER BY created_at DESC LIMIT 1",
         admission_id,
+        claims.tenant_id,
     )
+    .fetch_optional(&mut *tx)
     .await?;
+    let sigs = match summary_id {
+        Some(id) => {
+            medbrains_signing::signed_documents::fetch_all_signatures_for_print(
+                &mut tx,
+                &claims.tenant_id,
+                "discharge_summary",
+                id,
+            )
+            .await?
+        }
+        None => Vec::new(),
+    };
 
     tx.commit().await?;
 
@@ -877,17 +893,7 @@ pub async fn get_discharge_print_data(
         investigation_summary: row.investigation_summary,
         condition_at_discharge: row.condition_at_discharge,
         follow_up_instructions: row.follow_up_instructions,
-        signatures: sigs
-            .into_iter()
-            .map(|s| medbrains_core::print_data::PrintSignatureData {
-                signed_at: s.signed_at.to_rfc3339(),
-                signer_name: s.signer_name,
-                display_image_url: s.display_image_url,
-                display_block: s.display_block,
-                verify_ref: s.verify_ref,
-                legal_class: s.legal_class,
-            })
-            .collect(),
+        signatures: medbrains_signing::signed_documents::to_print_signatures(sigs),
     }))
 }
 
@@ -2024,8 +2030,7 @@ pub async fn get_opd_prescription_print_data(
     .await?;
 
     // Signing keys a prescription on `prescriptions.id`, and a visit can
-    // carry several. ponytail: one signature lookup per prescription (capped
-    // at 20) — batch once the signing crate takes a list of record ids.
+    // carry several; one query for all of them.
     let prescription_ids: Vec<Uuid> = sqlx::query_scalar(
         "SELECT id FROM prescriptions \
          WHERE encounter_id = $1 AND tenant_id = $2 AND deleted_at IS NULL \
@@ -2035,18 +2040,13 @@ pub async fn get_opd_prescription_print_data(
     .bind(claims.tenant_id)
     .fetch_all(&mut *tx)
     .await?;
-    let mut sigs = Vec::new();
-    for prescription_id in prescription_ids {
-        sigs.extend(
-            medbrains_signing::signed_documents::fetch_all_signatures_for_print(
-                &mut tx,
-                &claims.tenant_id,
-                "prescription",
-                prescription_id,
-            )
-            .await?,
-        );
-    }
+    let sigs = medbrains_signing::signed_documents::fetch_signatures_for_records(
+        &mut tx,
+        &claims.tenant_id,
+        "prescription",
+        &prescription_ids,
+    )
+    .await?;
     let preview_signature_url: Option<String> =
         sigs.iter().find_map(|s| s.display_image_url.clone());
 
@@ -2352,18 +2352,13 @@ pub async fn get_lab_report_full_print_data(
     .bind(claims.tenant_id)
     .fetch_all(&mut *tx)
     .await?;
-    let mut lab_sigs = Vec::new();
-    for result_id in result_ids {
-        lab_sigs.extend(
-            medbrains_signing::signed_documents::fetch_all_signatures_for_print(
-                &mut tx,
-                &claims.tenant_id,
-                "lab_report",
-                result_id,
-            )
-            .await?,
-        );
-    }
+    let lab_sigs = medbrains_signing::signed_documents::fetch_signatures_for_records(
+        &mut tx,
+        &claims.tenant_id,
+        "lab_report",
+        &result_ids,
+    )
+    .await?;
 
     tx.commit().await?;
 
@@ -2438,17 +2433,7 @@ pub async fn get_lab_report_full_print_data(
         barcode_data,
         hospital_name: tenant.0,
         hospital_logo_url: tenant.1,
-        signatures: lab_sigs
-            .into_iter()
-            .map(|s| medbrains_core::print_data::PrintSignatureData {
-                signed_at: s.signed_at.to_rfc3339(),
-                signer_name: s.signer_name,
-                display_image_url: s.display_image_url,
-                display_block: s.display_block,
-                verify_ref: s.verify_ref,
-                legal_class: s.legal_class,
-            })
-            .collect(),
+        signatures: medbrains_signing::signed_documents::to_print_signatures(lab_sigs),
         amendments,
     }))
 }
@@ -2779,17 +2764,7 @@ pub async fn get_radiology_report_full_print_data(
         pacs_study_uid: row.pacs_study_uid,
         hospital_name: tenant.0,
         hospital_logo_url: tenant.1,
-        signatures: rad_sigs
-            .into_iter()
-            .map(|s| medbrains_core::print_data::PrintSignatureData {
-                signed_at: s.signed_at.to_rfc3339(),
-                signer_name: s.signer_name,
-                display_image_url: s.display_image_url,
-                display_block: s.display_block,
-                verify_ref: s.verify_ref,
-                legal_class: s.legal_class,
-            })
-            .collect(),
+        signatures: medbrains_signing::signed_documents::to_print_signatures(rad_sigs),
     }))
 }
 

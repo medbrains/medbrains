@@ -1893,6 +1893,7 @@ import type {
   PublicInvite,
   PublicPrivacyContact,
   PublicShareLink,
+  PublicSignatureCheck,
   PublicTenant,
   PublicTokenLink,
   PublicTokenStatus,
@@ -2130,6 +2131,7 @@ import type {
   SharpReplacementRequest,
   ShiftDefinition,
   SignatureCredential,
+  SignatureVerifyLink,
   SignBasketRequest,
   SignBasketResponse,
   SignedRecord,
@@ -17340,6 +17342,20 @@ export const api = {
       method: "POST",
       body: JSON.stringify(data),
     }),
+  /** Public — the QR on a signed print; answers no patient or clinical detail. */
+  verifySignatureLink: (token: string) =>
+    request<PublicSignatureCheck>(`/public/signatures/verify/${encodeURIComponent(token)}`),
+  /** The signed record's live public check link, minted if the last was withdrawn. */
+  issueSignatureVerifyLink: (signedRecordId: string) =>
+    request<SignatureVerifyLink>(`/signatures/${encodeURIComponent(signedRecordId)}/verify-link`, {
+      method: "POST",
+    }),
+  /** Withdraw the record's public check link; printed copies then say "withdrawn". */
+  revokeSignatureVerifyLink: (signedRecordId: string, reason: string) =>
+    request<{ revoked: boolean }>(
+      `/signatures/${encodeURIComponent(signedRecordId)}/verify-link/revoke`,
+      { method: "POST", body: JSON.stringify({ reason }) },
+    ),
 
   // Doctor Packages (admin)
   adminListDoctorPackages: (params?: { is_active?: boolean; search?: string }) => {
