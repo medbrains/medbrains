@@ -144,9 +144,13 @@ async fn drugs_differing_in_schedule_are_never_merged() {
     );
 
     let (status, body) = w
-        .call("POST", "/api/pharmacy/catalog/merge", json!({
-            "survivor_id": original, "merged_id": copy, "reason": "Looks the same to me",
-        }))
+        .call(
+            "POST",
+            "/api/pharmacy/catalog/merge",
+            json!({
+                "survivor_id": original, "merged_id": copy, "reason": "Looks the same to me",
+            }),
+        )
         .await;
     assert_eq!(status, StatusCode::CONFLICT, "{body}");
     let on: Uuid = sqlx::query_scalar("SELECT catalog_item_id FROM pharmacy_batches WHERE id = $1")

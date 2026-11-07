@@ -31,8 +31,8 @@ use uuid::Uuid;
 
 use super::abha::{Abdm, connect, map_abdm_error};
 use super::abha_common::{
-    RESEND_AFTER_SECONDS, VerificationStep, check_resend, digits, env_name, keep_token,
-    peek_token, record_verified, to_profile, update,
+    RESEND_AFTER_SECONDS, VerificationStep, check_resend, digits, env_name, keep_token, peek_token,
+    record_verified, to_profile, update,
 };
 use crate::{
     error::AppError, middleware::auth::Claims, middleware::authorization::require_permission,
@@ -99,7 +99,9 @@ pub(crate) fn aadhaar_digits(aadhaar: &str) -> Result<String, AppError> {
     if aadhaar.len() == 12 {
         Ok(aadhaar)
     } else {
-        Err(AppError::BadRequest("an Aadhaar number has 12 digits".to_owned()))
+        Err(AppError::BadRequest(
+            "an Aadhaar number has 12 digits".to_owned(),
+        ))
     }
 }
 
@@ -369,7 +371,9 @@ pub async fn resend(
     .bind(RESEND_AFTER_SECONDS)
     .fetch_optional(&mut *tx)
     .await?
-    .ok_or_else(|| AppError::BadRequest("this ABHA creation has expired — start again".to_owned()))?;
+    .ok_or_else(|| {
+        AppError::BadRequest("this ABHA creation has expired — start again".to_owned())
+    })?;
     tx.commit().await?;
     check_resend(row.resend_ready, row.resend_count)?;
     let abdm = connect(&state, claims.tenant_id).await?;
@@ -381,7 +385,11 @@ pub async fn resend(
             aadhaar_otp_request(&abdm, &aadhaar_digits(aadhaar)?)?
         }
         ("mobile_otp_sent", Some(mobile)) => mobile_otp_request(&abdm, &row.abdm_txn_id, mobile)?,
-        _ => return Err(AppError::BadRequest("no OTP is waiting — continue below".to_owned())),
+        _ => {
+            return Err(AppError::BadRequest(
+                "no OTP is waiting — continue below".to_owned(),
+            ));
+        }
     };
     let sent = abdm
         .client
@@ -394,8 +402,14 @@ pub async fn resend(
             .push_bind(sent.txn_id);
     })
     .await?;
-    let waiting = if row.stage == "otp_sent" { "otp_sent" } else { "mobile_otp_sent" };
-    Ok(Json(step(id, waiting, sent.message).resent(row.resend_count + 1)))
+    let waiting = if row.stage == "otp_sent" {
+        "otp_sent"
+    } else {
+        "mobile_otp_sent"
+    };
+    Ok(Json(
+        step(id, waiting, sent.message).resent(row.resend_count + 1),
+    ))
 }
 
 /// `POST /api/abdm/abha/enrolments/{id}/mobile-otp` — the OTP sent to the

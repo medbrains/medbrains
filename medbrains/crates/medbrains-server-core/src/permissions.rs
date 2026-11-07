@@ -84,7 +84,8 @@ pub async fn resolve_permissions(
                 if !temporary_grant_is_active(grant) {
                     continue;
                 }
-                if let Some(serde_json::Value::Array(permission_values)) = grant.get("permissions") {
+                if let Some(serde_json::Value::Array(permission_values)) = grant.get("permissions")
+                {
                     for val in permission_values {
                         if let serde_json::Value::String(s) = val {
                             perms.insert(s.clone());

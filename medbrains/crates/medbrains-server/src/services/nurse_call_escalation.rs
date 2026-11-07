@@ -60,7 +60,11 @@ struct LateCall {
 }
 
 /// Which tier a wait has reached, or `None` while it is still within time.
-fn tier_for(waiting_seconds: i32, escalate_secs: i32, supervisor_secs: i32) -> Option<&'static str> {
+fn tier_for(
+    waiting_seconds: i32,
+    escalate_secs: i32,
+    supervisor_secs: i32,
+) -> Option<&'static str> {
     if waiting_seconds >= supervisor_secs {
         Some("supervisor")
     } else if waiting_seconds >= escalate_secs {
@@ -76,7 +80,10 @@ fn tier_for(waiting_seconds: i32, escalate_secs: i32, supervisor_secs: i32) -> O
 /// straight to supervisor and does not also send the charge-nurse message
 /// afterwards: the later tier subsumes the earlier one.
 fn advances(current: Option<&str>, tier: &str) -> bool {
-    matches!((current, tier), (None, _) | (Some("charge_nurse"), "supervisor"))
+    matches!(
+        (current, tier),
+        (None, _) | (Some("charge_nurse"), "supervisor")
+    )
 }
 
 async fn escalate_unanswered(pool: &PgPool) -> Result<u64, AppError> {

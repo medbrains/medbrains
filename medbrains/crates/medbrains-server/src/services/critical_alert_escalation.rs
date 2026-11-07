@@ -28,7 +28,10 @@ pub fn spawn(pool: PgPool) {
             }
             match escalate_radiology_unacknowledged(&pool).await {
                 Ok(escalated) if escalated > 0 => {
-                    tracing::warn!(escalated, "critical radiology alerts escalated — unacknowledged");
+                    tracing::warn!(
+                        escalated,
+                        "critical radiology alerts escalated — unacknowledged"
+                    );
                 }
                 Ok(_) => {}
                 Err(error) => {
@@ -197,7 +200,9 @@ async fn escalate_radiology_unacknowledged(pool: &PgPool) -> Result<u64, AppErro
         medbrains_db::pool::set_tenant_context(&mut tx, &alert.tenant_id).await?;
 
         let has_phone = |phone: &Option<String>| {
-            phone.as_deref().is_some_and(|value| !value.trim().is_empty())
+            phone
+                .as_deref()
+                .is_some_and(|value| !value.trim().is_empty())
         };
         let on_call =
             super::on_call::current_on_call(&mut tx, alert.tenant_id, alert.department_id).await?;
@@ -232,7 +237,9 @@ async fn escalate_radiology_unacknowledged(pool: &PgPool) -> Result<u64, AppErro
                 },
             )
             .await
-            .map_err(|e| AppError::Internal(format!("failed to queue radiology escalation: {e}")))?;
+            .map_err(|e| {
+                AppError::Internal(format!("failed to queue radiology escalation: {e}"))
+            })?;
         } else {
             tracing::error!(
                 alert_id = %alert.id, order_id = %alert.order_id,

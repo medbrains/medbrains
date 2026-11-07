@@ -175,6 +175,19 @@ if [[ -n "$BACKUP_BUCKET" ]]; then
             --content-type application/octet-stream --checksum-algorithm CRC32
     fi
 
+    # Logs: yesterday's (UTC) journal for the server, proxy, authz and Caddy,
+    # so a failure reported days later can still be traced after journald's
+    # 1 GB cap has rotated it off the host. Sealed like the dump — request
+    # paths carry record ids and error details can name a patient's order.
+    LOGS_PREFIX="${BACKUP_LOGS_PREFIX:-log-backups}"
+    LOG_DAY="$(date -u -d yesterday +%Y-%m-%d)"
+    echo "==> logs ${LOG_DAY} → s3://${BACKUP_BUCKET}/${LOGS_PREFIX%/}/${HOSTNAME_TAG}/${LOG_DAY}.log.gz${SUFFIX}"
+    journalctl -u 'medbrains-*' -u caddy -u spicedb -o short-iso-precise --no-pager \
+        --since "${LOG_DAY} 00:00:00 UTC" --until "$(date -u +%Y-%m-%d) 00:00:00 UTC" \
+        | gzip -9 | seal \
+        | aws s3 cp - "s3://${BACKUP_BUCKET}/${LOGS_PREFIX%/}/${HOSTNAME_TAG}/${LOG_DAY}.log.gz${SUFFIX}" \
+            --content-type application/octet-stream --checksum-algorithm CRC32
+
     # Files: generated documents, uploads, the cold/archive tiers, the audit
     # sink and the edge doc store. Postgres rows point at these objects; a
     # database restored without them is a record of documents nobody can open.

@@ -86,7 +86,10 @@ pub async fn notify(
     let well_formed = !consent_id.is_empty()
         && ["GRANTED", "REVOKED", "EXPIRED", "DENIED"].contains(&status.as_str());
     let refusal = if !well_formed {
-        Some(("ABDM-1006", "Consent notification is missing its id or status"))
+        Some((
+            "ABDM-1006",
+            "Consent notification is missing its id or status",
+        ))
     } else if !names_us {
         Some(("ABDM-1035", "Consent artefact names another HIP"))
     } else {
@@ -193,7 +196,9 @@ type Refusal = (&'static str, &'static str);
 /// The HIU's key material must be complete and unexpired (the official HIP
 /// checklist: "key material is valid").
 fn key_material_refusal(km: &Value) -> Option<Refusal> {
-    let complete = km["dhPublicKey"]["keyValue"].as_str().is_some_and(|v| !v.is_empty())
+    let complete = km["dhPublicKey"]["keyValue"]
+        .as_str()
+        .is_some_and(|v| !v.is_empty())
         && km["nonce"].as_str().is_some_and(|v| !v.is_empty());
     if !complete {
         return Some(("ABDM-1010", "Key material is incomplete"));
@@ -263,9 +268,13 @@ pub async fn health_information_request(
         ack["hiRequest"] = json!({ "transactionId": transaction_id,
             "sessionStatus": if refused { "ERRORED" } else { "ACKNOWLEDGED" } });
         if refused {
-            ack["error"] = json!({ "code": "ABDM-1062", "message": "Consent not found or not granted" });
+            ack["error"] =
+                json!({ "code": "ABDM-1062", "message": "Consent not found or not granted" });
         }
-        hip(&state, &caller).await?.send(HI_ON_REQUEST_PATH, None, &ack).await?;
+        hip(&state, &caller)
+            .await?
+            .send(HI_ON_REQUEST_PATH, None, &ack)
+            .await?;
         return Ok(StatusCode::ACCEPTED);
     }
     let consent_id = hi["consent"]["id"].as_str().unwrap_or_default();

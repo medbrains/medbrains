@@ -162,8 +162,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // keep a connection that can alter the schema.
     let bootstrap_pool = match std::env::var("MIGRATION_DATABASE_URL") {
         Ok(url) if !url.trim().is_empty() => {
-            let owner =
-                medbrains_db::pool::create_pool_with_config(&url, &pool_config).await?;
+            let owner = medbrains_db::pool::create_pool_with_config(&url, &pool_config).await?;
             medbrains_db_migrations::run(&owner).await?;
             tracing::info!("migrations ran on the owner connection");
             owner
@@ -396,7 +395,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let findings = medbrains_server::preflight::run(
         &config,
         state.secret_resolver.as_ref(),
-        &medbrains_server::preflight::Pools { request: &db_pool, owner: &bootstrap_pool },
+        &medbrains_server::preflight::Pools {
+            request: &db_pool,
+            owner: &bootstrap_pool,
+        },
     )
     .await;
     medbrains_server::preflight::log(&findings);
@@ -547,17 +549,22 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Same directory, mounted separately so the immutable header lands on the
     // hashed bundles only. No not_found_service: a miss under /assets is a
     // genuine 404, not a route to hand to the SPA.
-    let assets_service = tower::ServiceBuilder::new().layer(immutable_assets).service(
-        tower_http::services::ServeDir::new(format!("{static_dir}/assets"))
-            .precompressed_br()
-            .precompressed_gzip(),
-    );
+    let assets_service = tower::ServiceBuilder::new()
+        .layer(immutable_assets)
+        .service(
+            tower_http::services::ServeDir::new(format!("{static_dir}/assets"))
+                .precompressed_br()
+                .precompressed_gzip(),
+        );
 
     // Real-time notification bridge: LISTEN on the `notification_created`
     // channel (migration 0285 trigger) and republish committed rows to the
     // NotificationHub for WebSocket fan-out. Clone the hub before `state` is
     // moved into the router.
-    medbrains_server::services::notification_listener::spawn(db_pool.clone(), state.notifications.clone());
+    medbrains_server::services::notification_listener::spawn(
+        db_pool.clone(),
+        state.notifications.clone(),
+    );
 
     // Clone state for the simulator scheduler before `state` is moved into
     // the router below — the scheduler needs AppState (AI config) to run
@@ -598,6 +605,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .layer(permissions_policy)
         .layer(coop)
         .layer(cors)
+        // A failed request's query and JSON body, PII/FII masked, so a refused
+        // save can be traced to its field. Inside the trace span for the path.
+        .layer(axum::middleware::from_fn(
+            medbrains_server_core::payload_log::log_failed_payload,
+        ))
         // Negotiated response compression (brotli / zstd / gzip / deflate).
         // JSON API payloads are highly repetitive → typically 70–90% smaller
         // on the wire. Picks the best algorithm from the request's
@@ -608,6 +620,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         // among thousands.
         .layer(
             TraceLayer::new_for_http()
+                .make_span_with(medbrains_server_core::http_trace::make_span)
                 .on_response(medbrains_server_core::http_trace::on_response),
         )
         // A Sentry hub per request, outside the trace layer so its log lines
@@ -759,11 +772,17 @@ async fn run_preflight(config: &AppConfig) -> Result<(), Box<dyn std::error::Err
     let findings = medbrains_server::preflight::run(
         config,
         secrets.as_ref(),
-        &medbrains_server::preflight::Pools { request: &request, owner: &owner },
+        &medbrains_server::preflight::Pools {
+            request: &request,
+            owner: &owner,
+        },
     )
     .await;
     medbrains_server::preflight::log(&findings);
-    if findings.iter().any(|f| f.level == medbrains_infra_settings::preflight::Level::Fail) {
+    if findings
+        .iter()
+        .any(|f| f.level == medbrains_infra_settings::preflight::Level::Fail)
+    {
         return Err(medbrains_server::preflight::failure_summary(&findings).into());
     }
     tracing::info!(checks = findings.len(), "preflight passed");
@@ -854,7 +873,9 @@ fn build_outbox_registry() -> Arc<medbrains_outbox::Registry> {
     registry.register(twilio::SmsSendHandler::new("sms.prescription_expiring"));
     registry.register(email_stub::SmtpSendHandler::new("email.radiology_report"));
     registry.register(email_stub::SmtpSendHandler::new("email.low_stock"));
-    registry.register(email_stub::SmtpSendHandler::new("email.incident_escalation"));
+    registry.register(email_stub::SmtpSendHandler::new(
+        "email.incident_escalation",
+    ));
     registry.register(whatsapp::WhatsAppSendHandler::new(
         "whatsapp.radiology_report_ready",
     ));

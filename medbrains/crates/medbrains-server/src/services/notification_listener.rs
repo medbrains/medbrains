@@ -18,7 +18,9 @@ use sqlx::PgPool;
 use sqlx::postgres::PgListener;
 use uuid::Uuid;
 
-use crate::services::notification_hub::{EventScope, NotificationEvent, NotificationHub, user_topic};
+use crate::services::notification_hub::{
+    EventScope, NotificationEvent, NotificationHub, user_topic,
+};
 
 const CHANNEL: &str = "notification_created";
 const RECONNECT_DELAY: Duration = Duration::from_secs(5);
@@ -50,7 +52,11 @@ pub fn spawn(pool: PgPool, hub: NotificationHub) {
     });
 }
 
-async fn run(pool: &PgPool, hub: &NotificationHub, http: &reqwest::Client) -> Result<(), sqlx::Error> {
+async fn run(
+    pool: &PgPool,
+    hub: &NotificationHub,
+    http: &reqwest::Client,
+) -> Result<(), sqlx::Error> {
     let mut listener = PgListener::connect_with(pool).await?;
     listener.listen(CHANNEL).await?;
     tracing::info!("notification listener connected");

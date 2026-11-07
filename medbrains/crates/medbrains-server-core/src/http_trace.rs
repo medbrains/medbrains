@@ -37,7 +37,7 @@ use std::sync::OnceLock;
 use std::time::Duration;
 
 use axum::body::Body;
-use axum::http::{Response, StatusCode};
+use axum::http::{Request, Response, StatusCode};
 use tracing::Span;
 
 static COLOUR: OnceLock<bool> = OnceLock::new();
@@ -126,6 +126,17 @@ pub fn painted(status: StatusCode) -> String {
     format!("\u{1b}[{}m{code}\u{1b}[0m", shade(status))
 }
 
+/// The span each request runs in: method and path, never the query string.
+///
+/// Without it a refused request is a bare status code, and a log cannot say
+/// which screen broke. The query is left out because search boxes put patient
+/// names and phone numbers there.
+///
+/// Wire in with `TraceLayer::new_for_http().make_span_with(make_span)`.
+pub fn make_span<B>(request: &Request<B>) -> Span {
+    tracing::info_span!("request", method = %request.method(), path = %request.uri().path())
+}
+
 /// Log a finished response at a level and colour that match its status.
 ///
 /// Wire in with `TraceLayer::new_for_http().on_response(on_response)`.
@@ -208,7 +219,11 @@ mod tests {
         let shades = [200, 301, 404, 429, 500].map(|c| shade(status(c)));
         let unique: std::collections::BTreeSet<_> = shades.iter().collect();
 
-        assert_eq!(unique.len(), shades.len(), "two classes share a colour: {shades:?}");
+        assert_eq!(
+            unique.len(),
+            shades.len(),
+            "two classes share a colour: {shades:?}"
+        );
     }
 
     #[test]

@@ -4,21 +4,22 @@
 //! returns a shutdown handle. `main.rs` drives them all on startup
 //! and joins them on graceful shutdown.
 
-pub mod appointment_reminders;
-pub mod vaccination_reminders;
 pub mod access_alert_scan;
-pub mod crs_registration_escalation;
-pub mod prescription_expiry;
-pub mod pacs_sync;
+pub mod appointment_reminders;
 pub mod breach_deadline_escalation;
 pub mod bridge_pusher;
 pub mod calibration_lock;
 pub mod critical_alert_escalation;
+pub mod crs_registration_escalation;
 pub mod enquiry_sla_escalation;
 pub mod ews_escalation;
 pub mod marketing_message_status;
+pub mod pacs_sync;
+pub mod prescription_expiry;
+pub mod vaccination_reminders;
 // Moved to medbrains-server-core; re-exported so crate::services::notification_hub still resolves.
 pub use medbrains_server_core::notification_hub;
+pub mod notifiable_report_escalation;
 pub mod notification_listener;
 pub mod nurse_call_escalation;
 pub mod on_call;
@@ -28,5 +29,4 @@ pub mod retention;
 pub mod room_rent;
 pub mod simulator;
 pub mod spicedb_watch;
-pub mod notifiable_report_escalation;
 pub mod verbal_order_escalation;

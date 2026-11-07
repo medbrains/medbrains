@@ -67,11 +67,20 @@ async fn code_blue_emits_pages_once_records_arrival_and_stands_down() {
         .json()
         .await
         .expect("code blue json");
-    let code_blue_id: Uuid = started["id"].as_str().and_then(|s| s.parse().ok()).expect("code blue id");
+    let code_blue_id: Uuid = started["id"]
+        .as_str()
+        .and_then(|s| s.parse().ok())
+        .expect("code blue id");
     let id_str = code_blue_id.to_string();
 
-    let emitted = app.outbox_rows("emergency.code_blue.activated", &id_str).await;
-    assert_eq!(emitted.len(), 1, "start_code_blue must queue exactly one activation event");
+    let emitted = app
+        .outbox_rows("emergency.code_blue.activated", &id_str)
+        .await;
+    assert_eq!(
+        emitted.len(),
+        1,
+        "start_code_blue must queue exactly one activation event"
+    );
 
     // ── consume, twice: pages once ───────────────────────────────────
     let payload = json!({
@@ -79,10 +88,15 @@ async fn code_blue_emits_pages_once_records_arrival_and_stands_down() {
         "patient_id": patient_id,
         "location": "Linkage Ward",
     });
-    app.dispatch(tenant_id, "emergency.code_blue.activated", &payload).await;
+    app.dispatch(tenant_id, "emergency.code_blue.activated", &payload)
+        .await;
     let paged = count_notifications(&app, code_blue_id, "CODE BLUE").await;
-    assert!(paged >= 1, "a code blue that pages nobody is the failure this exists to catch");
-    app.dispatch(tenant_id, "emergency.code_blue.activated", &payload).await;
+    assert!(
+        paged >= 1,
+        "a code blue that pages nobody is the failure this exists to catch"
+    );
+    app.dispatch(tenant_id, "emergency.code_blue.activated", &payload)
+        .await;
     assert_eq!(
         count_notifications(&app, code_blue_id, "CODE BLUE").await,
         paged,
@@ -109,7 +123,10 @@ async fn code_blue_emits_pages_once_records_arrival_and_stands_down() {
     .await
     .expect("nabh mirror row exists for the activation");
     assert!(arrived, "the first response must fill team_arrived_at");
-    assert!(seconds.is_some(), "response_seconds derives from the arrival");
+    assert!(
+        seconds.is_some(),
+        "response_seconds derives from the arrival"
+    );
 
     // ── end: stand-down to exactly the paged users, once ─────────────
     let ended = app
@@ -121,11 +138,18 @@ async fn code_blue_emits_pages_once_records_arrival_and_stands_down() {
         .await
         .expect("end code blue");
     assert_eq!(ended.status(), StatusCode::OK);
-    assert_eq!(app.outbox_rows("emergency.code_blue.completed", &id_str).await.len(), 1);
+    assert_eq!(
+        app.outbox_rows("emergency.code_blue.completed", &id_str)
+            .await
+            .len(),
+        1
+    );
 
     let done = json!({ "code_blue_id": code_blue_id, "outcome": "rosc" });
-    app.dispatch(tenant_id, "emergency.code_blue.completed", &done).await;
-    app.dispatch(tenant_id, "emergency.code_blue.completed", &done).await;
+    app.dispatch(tenant_id, "emergency.code_blue.completed", &done)
+        .await;
+    app.dispatch(tenant_id, "emergency.code_blue.completed", &done)
+        .await;
     assert_eq!(
         count_notifications(&app, code_blue_id, "Code blue stood down").await,
         paged,
