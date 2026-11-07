@@ -154,7 +154,7 @@ N1 to N6 come from RFC-HOSPITAL-OS §8q. Every task ends on a check or a screen.
 | D4.11 | WPE WebKit and WebKit settings on the screen: WPE against WebKitGTK, one web process, cache limits, unused features off | Same app works; memory before and after | next, after D4.9 |
 | D4.12 | Light pages for single-purpose screens (token boards, kiosks, status): server-rendered, little JavaScript, one shared component set | A token board runs all day on a Pi with memory flat | later |
 | D4.13 | Trial Servo, the Rust web engine, with our real app: which screens render and work, memory, screen reader | Pass or fail per screen recorded | parked, after first stable |
-| D4.14 | Native toolkit for the OS shell and single-purpose screens only, never the clinical apps (the web app stays the one copy): GTK4 now; Slint (licence is the owner's decision) or GPUI only if a trial shows a clear gain with no GPU, on a Pi and with a screen reader | Numbers per toolkit; decision in `DECISIONS.md` | parked, after first stable |
+| D4.14 | Superseded by section G (owner 2026-11-07): native toolkit for the shell only, never the clinical apps (the web app stays the one copy): GTK4 now; Slint (licence is the owner's decision) or GPUI only if a trial shows a clear gain with no GPU, on a Pi and with a screen reader | Numbers per toolkit; decision in `DECISIONS.md` | parked, after first stable |
 | D4.15 | Whole-program optimisation for the release build (`lto = "fat"`, as SQLite gains from one file), kept only if measured | Binary size, speed and build time before and after | later |
 | D5 | GPU and NPU: detect, use through a portable runtime, never required (§8p) | OCR runs on CPU and on one accelerator | later, needs hardware |
 | D6 | Decide NVIDIA's driver: it is a kernel module, against §8o | Owner decision recorded | blocked: owner |
@@ -240,6 +240,19 @@ New ideas go to the parked list, not into this. Stable means every line below pa
 5. A full shift walked through on screen as a pharmacist and an administrator, by a person.
 6. Load test with real sign-ins passes the agreed number of users.
 7. **Unbox to first patient:** a person with no IT background, using only what comes in the box, plugs it in, finishes setup and registers a first test patient, in a time we measure. Every question they ask is a defect to fix.
+
+## G. Native OS GUI (owner 2026-11-07)
+
+The OS screen moves to a native GUI in Rust that is safe for memory and security and needs no GPU. The web app is kept for every other customer and every browser, built in parallel; neither replaces the other. Toolkit: Slint (software renderer; LinuxKMS backend draws straight to the screen with no window system), with iced (MIT, `tiny_skia` software renderer) as the fallback if Slint's licence is refused. GPUI is out: it needs a GPU. Slint's licence (GPLv3 or commercial) is the owner's decision before the first release that ships it.
+
+| Task | What | Done when | State |
+|---|---|---|---|
+| G1 | Trial: the launcher and one Pharmacy list in Slint on a VM with no GPU and on a Raspberry Pi, through the LinuxKMS backend and through `cage`; measure memory, start time, CPU and heat against today's WebKit page; check a screen reader (AccessKit), keyboard and touch | Numbers and screen reader result recorded; toolkit confirmed or iced chosen | next |
+| G2 | One shared contract for both UIs: native screens call the same API as the web app, through a Rust client generated from the server (X15), and every permission gate comes from the same generated catalogue | A native screen and its web screen read the same endpoint and gate | next, with G1 |
+| G3 | Shell native: setup, launcher, dock, lock, status, network, Identity and IT screens, Software Center | GTK4 and WebKit no longer start for these screens | after G1 |
+| G4 | Clinical modules native one by one, Pharmacy first; until a module is native it opens in the sandboxed web view, so nothing is missing on the way | Each module: same journeys pass on web and native (one test file, as in Reflex), memory below the WebKit figure | after G3 |
+| G5 | Parity enforced: a module's change cannot merge if its journey passes on only one UI | CI runs each journey against both | with G4 |
+| G6 | WebKit leaves the OS image once every module is native, removing its memory and attack surface | Image has no WebKitGTK | last |
 
 ## P. Every way to run MedBrains (owner 2026-11-05)
 
