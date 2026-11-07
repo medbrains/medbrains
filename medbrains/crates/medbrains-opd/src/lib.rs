@@ -2637,7 +2637,7 @@ pub async fn create_prescription(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
     Path(encounter_id): Path<Uuid>,
-    jar: axum_extra::extract::CookieJar,
+    proof: medbrains_server_core::step_up::StepUpProof,
     Json(body): Json<CreatePrescriptionRequest>,
 ) -> Result<Json<PrescriptionWithItems>, AppError> {
     // Doctors prescribe directly; nurses may draft (Rx routes to MD countersign).
@@ -2650,7 +2650,7 @@ pub async fn create_prescription(
     )?;
     medbrains_authz_gate::require_encounter_access(&state, &claims, encounter_id).await?;
     // Prescribing — require fresh re-auth (the 5-min window keeps it light).
-    medbrains_server_core::step_up::require_step_up(&state, &jar, &claims)?;
+    medbrains_server_core::step_up::require_step_up(&state, &proof, &claims)?;
 
     if body.items.is_empty() {
         return Err(AppError::BadRequest(
@@ -3189,7 +3189,7 @@ pub async fn update_prescription(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
     Path(id): Path<Uuid>,
-    jar: axum_extra::extract::CookieJar,
+    proof: medbrains_server_core::step_up::StepUpProof,
     Json(body): Json<UpdatePrescriptionRequest>,
 ) -> Result<Json<PrescriptionWithItems>, AppError> {
     // Doctors prescribe directly; nurses may draft (Rx routes to MD countersign).
@@ -3211,7 +3211,7 @@ pub async fn update_prescription(
     )
     .await?;
     // Prescribing — require fresh re-auth (the 5-min window keeps it light).
-    medbrains_server_core::step_up::require_step_up(&state, &jar, &claims)?;
+    medbrains_server_core::step_up::require_step_up(&state, &proof, &claims)?;
 
     if body.items.is_empty() {
         return Err(AppError::BadRequest(

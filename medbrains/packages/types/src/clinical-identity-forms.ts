@@ -18,7 +18,7 @@ export interface VerifiedBill {
  * Never the patient or the clinical content.
  */
 export interface CheckedSignedDocument {
-  status: "unchanged" | "changed";
+  status: "unchanged" | "changed" | "signed_before_checks";
   document_type: string;
   signer_name: string;
   signer_registration: string | null;
@@ -27,7 +27,8 @@ export interface CheckedSignedDocument {
   signed_at: string;
   key_status: "active" | "revoked" | "unknown";
   key_revoked_on: string | null;
-  unchanged: boolean;
+  /** Null when the signature predates online checking. */
+  unchanged: boolean | null;
 }
 
 /** The hospital withdrew this document's public check link. */

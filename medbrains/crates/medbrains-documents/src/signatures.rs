@@ -364,12 +364,12 @@ async fn build_sign_preview(
 pub async fn sign_record(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
-    jar: axum_extra::extract::CookieJar,
+    proof: medbrains_server_core::step_up::StepUpProof,
     Json(body): Json<SignRequest>,
 ) -> Result<Json<SignResponse>, AppError> {
     let signer_role = validate_signer_role(body.signer_role.as_deref())?;
     require_sign_permission(&claims, signer_role)?;
-    medbrains_server_core::step_up::require_step_up(&state, &jar, &claims)?;
+    medbrains_server_core::step_up::require_step_up(&state, &proof, &claims)?;
 
     let legal_class = validate_legal_class(body.legal_class.as_deref())?;
 

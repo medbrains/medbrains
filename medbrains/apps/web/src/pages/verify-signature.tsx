@@ -17,7 +17,7 @@
 import { Group, Stack, Text, Title } from "@mantine/core";
 import { ApiError } from "@medbrains/api";
 import type { CheckedSignedDocument } from "@medbrains/types";
-import { IconCircleCheck, IconCircleX } from "@tabler/icons-react";
+import { IconCircleCheck, IconCircleX, IconClockQuestion } from "@tabler/icons-react";
 import { useQuery } from "@tanstack/react-query";
 import { useParams } from "react-router";
 import { Alert, Badge, Card } from "@/components/ui";
@@ -32,6 +32,7 @@ const DOCUMENT_LABEL: Record<string, string> = {
 
 const PAGE = { p: "md", gap: "md", maw: 640, mx: "auto", w: "100%" } as const;
 
+/** The public check page: reads the token from the URL and shows the outcome. */
 export function VerifySignaturePage() {
   const { token = "" } = useParams<{ token: string }>();
   const check = useQuery({
@@ -69,6 +70,7 @@ export function VerifySignaturePage() {
   return <CheckedDocument doc={check.data} />;
 }
 
+/** No answer: an unknown code ("no match") or a server that did not answer. */
 function CheckFailed({ notOurs }: { notOurs: boolean }) {
   return (
     <Stack {...PAGE}>
@@ -89,8 +91,35 @@ function CheckFailed({ notOurs }: { notOurs: boolean }) {
   );
 }
 
+/** The headline, icon and notice for each outcome of the check. */
+const OUTCOME = {
+  unchanged: {
+    Icon: IconCircleCheck,
+    title: "Unchanged since it was signed",
+    tone: "success",
+    notice: "The record matches the signature",
+    detail: "Compare the paper with the hospital's copy if anything on it looks altered.",
+  },
+  changed: {
+    Icon: IconCircleX,
+    title: "Changed since it was signed",
+    tone: "danger",
+    notice: "Do not rely on this copy",
+    detail:
+      "The hospital's record no longer matches what the doctor signed. Ask the hospital for the current record.",
+  },
+  signed_before_checks: {
+    Icon: IconClockQuestion,
+    title: "Signed before online checking began",
+    tone: "info",
+    notice: "This copy cannot be checked online",
+    detail: "Ask the hospital's records department to confirm this copy.",
+  },
+} as const;
+
+/** The outcome, then who signed, when, and the signing key's status. */
 function CheckedDocument({ doc }: { doc: CheckedSignedDocument }) {
-  const Icon = doc.unchanged ? IconCircleCheck : IconCircleX;
+  const outcome = OUTCOME[doc.status];
   return (
     <Stack {...PAGE}>
       <Stack gap={4}>
@@ -98,22 +127,15 @@ function CheckedDocument({ doc }: { doc: CheckedSignedDocument }) {
           {DOCUMENT_LABEL[doc.document_type] ?? "Signed document"} · {doc.facility}
         </Text>
         <Group gap="xs" wrap="nowrap" align="center">
-          <Icon size={32} aria-hidden />
+          <outcome.Icon size={32} aria-hidden />
           <Title order={1} size="h2">
-            {doc.unchanged ? "Unchanged since it was signed" : "Changed since it was signed"}
+            {outcome.title}
           </Title>
         </Group>
       </Stack>
-      {doc.unchanged ? (
-        <Alert tone="success" title="The record matches the signature">
-          Compare the paper with the hospital's copy if anything on it looks altered.
-        </Alert>
-      ) : (
-        <Alert tone="danger" title="Do not rely on this copy">
-          The hospital's record no longer matches what the doctor signed. Ask the hospital for the
-          current record.
-        </Alert>
-      )}
+      <Alert tone={outcome.tone} title={outcome.notice}>
+        {outcome.detail}
+      </Alert>
       <Card withBorder padding="md">
         <Stack gap="sm">
           <Fact label="Signed by" value={doc.signer_name} />
@@ -135,6 +157,7 @@ function CheckedDocument({ doc }: { doc: CheckedSignedDocument }) {
   );
 }
 
+/** The registration number with its council, or "Not recorded". */
 function registration(doc: CheckedSignedDocument): string {
   if (!doc.signer_registration) return "Not recorded";
   return doc.signer_council
@@ -142,6 +165,7 @@ function registration(doc: CheckedSignedDocument): string {
     : doc.signer_registration;
 }
 
+/** One labelled fact on the card. */
 function Fact({ label, value }: { label: string; value: string }) {
   return (
     <Group justify="space-between" gap="xs" align="flex-start" wrap="nowrap">
@@ -155,6 +179,7 @@ function Fact({ label, value }: { label: string; value: string }) {
   );
 }
 
+/** The signing key's status as a badge, with the revocation date when revoked. */
 function KeyStatus({ doc }: { doc: CheckedSignedDocument }) {
   if (doc.key_status === "active") return <Badge tone="success">Active</Badge>;
   if (doc.key_status === "revoked") {

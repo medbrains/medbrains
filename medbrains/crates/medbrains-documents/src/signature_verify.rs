@@ -52,7 +52,9 @@ const TOKEN_HEX_LEN: usize = 64;
 /// What the check found for a live link.
 #[derive(Debug, Serialize)]
 pub struct SignedDocumentCheck {
-    /// `unchanged` or `changed`.
+    /// `unchanged`, `changed`, or `signed_before_checks` for a signature
+    /// made before the content-only payload (schema v1), which cannot be
+    /// compared against the live record and is never reported as changed.
     pub status: &'static str,
     /// The kind of document: `discharge_summary`, `lab_report`, ...
     pub document_type: String,
@@ -67,8 +69,9 @@ pub struct SignedDocumentCheck {
     /// `active`, `revoked`, or `unknown` when the key is no longer on record.
     pub key_status: &'static str,
     pub key_revoked_on: Option<NaiveDate>,
-    /// The record still matches its signature, and the signature verifies.
-    pub unchanged: bool,
+    /// The record still matches its signature, and the signature verifies;
+    /// `None` when the signature predates online checking.
+    pub unchanged: Option<bool>,
 }
 
 /// What the check says when the hospital withdrew the link.
@@ -144,6 +147,7 @@ async fn check_signed_record(
     let row = sqlx::query!(
         r#"SELECT sr.record_type, sr.record_id, sr.signer_user_id, sr.signer_role,
                   sr.signed_at, sr.payload_hash, sr.signature_bytes,
+                  sr.payload_snapshot->>'schema' AS "schema?",
                   COALESCE(dp.display_name, u.full_name) AS "signer_name?",
                   COALESCE(dp.state_council_number, dp.mci_number) AS "signer_registration?",
                   dp.state_council_name AS "signer_council?",
@@ -165,22 +169,28 @@ async fn check_signed_record(
     .await?
     .ok_or(AppError::NotFound)?;
 
+    let checkable = row.schema.as_deref().is_some_and(is_checkable_schema);
     let source = SignedSource {
         record_type: &row.record_type,
         record_id: row.record_id,
         signer_user_id: row.signer_user_id,
         signer_role: &row.signer_role,
     };
-    let hash_matches = current_hash(tx, tenant_id, source)
-        .await?
-        .is_some_and(|hash| hash.as_slice() == row.payload_hash.as_slice());
+    let hash_matches = checkable
+        && current_hash(tx, tenant_id, source)
+            .await?
+            .is_some_and(|hash| hash.as_slice() == row.payload_hash.as_slice());
     let signature_holds = row.public_key.as_deref().is_some_and(|key| {
         <[u8; 32]>::try_from(row.payload_hash.as_slice())
             .is_ok_and(|hash| signing::verify(key, &hash, &row.signature_bytes).is_ok())
     });
-    let unchanged = hash_matches && signature_holds;
+    let unchanged = checkable.then_some(hash_matches && signature_holds);
     Ok(SignedDocumentCheck {
-        status: if unchanged { "unchanged" } else { "changed" },
+        status: match unchanged {
+            None => "signed_before_checks",
+            Some(true) => "unchanged",
+            Some(false) => "changed",
+        },
         document_type: row.record_type,
         signer_name: row.signer_name.unwrap_or_else(|| "Not recorded".to_owned()),
         signer_registration: row.signer_registration,
@@ -191,6 +201,15 @@ async fn check_signed_record(
         key_revoked_on: row.key_revoked_at.map(|at| at.date_naive()),
         unchanged,
     })
+}
+
+/// Whether a signature's payload can be recomputed from the live record.
+///
+/// Schema v1 payloads carried workflow state (status, `updated_at`) that moves
+/// after signing, so recomputing one would call an untouched document
+/// changed. Owner decision 2026-11-07: never show "changed" for those.
+fn is_checkable_schema(schema: &str) -> bool {
+    schema.starts_with("medbrains.signable.") && schema.rsplit('.').next() != Some("v1")
 }
 
 /// The signing key's status, as the public page words it.
@@ -357,7 +376,14 @@ async fn require_signed_record(
 
 #[cfg(test)]
 mod tests {
-    use super::key_status;
+    use super::{is_checkable_schema, key_status};
+
+    #[test]
+    fn only_content_only_payloads_are_compared_with_the_live_record() {
+        assert!(is_checkable_schema("medbrains.signable.prescription.v2"));
+        assert!(!is_checkable_schema("medbrains.signable.prescription.v1"));
+        assert!(!is_checkable_schema("something.else"));
+    }
 
     #[test]
     fn a_revoked_key_says_revoked_and_a_missing_one_unknown() {

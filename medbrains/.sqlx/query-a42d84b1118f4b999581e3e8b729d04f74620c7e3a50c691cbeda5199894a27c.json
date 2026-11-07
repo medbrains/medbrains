@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT sr.record_type, sr.record_id, sr.signer_user_id, sr.signer_role,\n                  sr.signed_at, sr.payload_hash, sr.signature_bytes,\n                  COALESCE(dp.display_name, u.full_name) AS \"signer_name?\",\n                  COALESCE(dp.state_council_number, dp.mci_number) AS \"signer_registration?\",\n                  dp.state_council_name AS \"signer_council?\",\n                  t.name AS facility,\n                  c.public_key AS \"public_key?\",\n                  c.revoked_at AS \"key_revoked_at?\"\n             FROM signed_records sr\n             JOIN tenants t ON t.id = sr.tenant_id\n             LEFT JOIN doctor_profiles dp\n               ON dp.user_id = sr.signer_user_id AND dp.tenant_id = sr.tenant_id\n             LEFT JOIN users u ON u.id = sr.signer_user_id\n             LEFT JOIN doctor_signature_credentials c\n               ON c.id = sr.signer_credential_id AND c.tenant_id = sr.tenant_id\n            WHERE sr.id = $1 AND sr.tenant_id = $2 AND sr.deleted_at IS NULL",
+  "query": "SELECT sr.record_type, sr.record_id, sr.signer_user_id, sr.signer_role,\n                  sr.signed_at, sr.payload_hash, sr.signature_bytes,\n                  sr.payload_snapshot->>'schema' AS \"schema?\",\n                  COALESCE(dp.display_name, u.full_name) AS \"signer_name?\",\n                  COALESCE(dp.state_council_number, dp.mci_number) AS \"signer_registration?\",\n                  dp.state_council_name AS \"signer_council?\",\n                  t.name AS facility,\n                  c.public_key AS \"public_key?\",\n                  c.revoked_at AS \"key_revoked_at?\"\n             FROM signed_records sr\n             JOIN tenants t ON t.id = sr.tenant_id\n             LEFT JOIN doctor_profiles dp\n               ON dp.user_id = sr.signer_user_id AND dp.tenant_id = sr.tenant_id\n             LEFT JOIN users u ON u.id = sr.signer_user_id\n             LEFT JOIN doctor_signature_credentials c\n               ON c.id = sr.signer_credential_id AND c.tenant_id = sr.tenant_id\n            WHERE sr.id = $1 AND sr.tenant_id = $2 AND sr.deleted_at IS NULL",
   "describe": {
     "columns": [
       {
@@ -40,31 +40,36 @@
       },
       {
         "ordinal": 7,
-        "name": "signer_name?",
+        "name": "schema?",
         "type_info": "Text"
       },
       {
         "ordinal": 8,
-        "name": "signer_registration?",
+        "name": "signer_name?",
         "type_info": "Text"
       },
       {
         "ordinal": 9,
-        "name": "signer_council?",
+        "name": "signer_registration?",
         "type_info": "Text"
       },
       {
         "ordinal": 10,
-        "name": "facility",
+        "name": "signer_council?",
         "type_info": "Text"
       },
       {
         "ordinal": 11,
+        "name": "facility",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 12,
         "name": "public_key?",
         "type_info": "Bytea"
       },
       {
-        "ordinal": 12,
+        "ordinal": 13,
         "name": "key_revoked_at?",
         "type_info": "Timestamptz"
       }
@@ -85,11 +90,12 @@
       false,
       null,
       null,
+      null,
       true,
       false,
       false,
       true
     ]
   },
-  "hash": "10722a052cc516cfa8f054621ca88a17a8e60b9da10a7e3a2622a84155f20cea"
+  "hash": "a42d84b1118f4b999581e3e8b729d04f74620c7e3a50c691cbeda5199894a27c"
 }

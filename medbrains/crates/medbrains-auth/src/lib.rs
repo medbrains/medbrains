@@ -927,7 +927,7 @@ pub struct LogoutAllRequest {
 pub async fn logout_all(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
-    jar: CookieJar,
+    proof: medbrains_server_core::step_up::StepUpProof,
     body: Option<Json<LogoutAllRequest>>,
 ) -> Result<impl IntoResponse, AppError> {
     let target_user = body.as_ref().and_then(|b| b.user_id).unwrap_or(claims.sub);
@@ -941,7 +941,7 @@ pub async fn logout_all(
             return Err(AppError::Forbidden);
         }
         // Force-logging out another user is high-risk → require fresh re-auth.
-        medbrains_server_core::step_up::require_step_up(&state, &jar, &claims)?;
+        medbrains_server_core::step_up::require_step_up(&state, &proof, &claims)?;
     }
 
     let mut tx = state.db.begin().await?;

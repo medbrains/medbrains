@@ -277,6 +277,7 @@ mod snomed_terminology_test;
 mod soap_note_access_test;
 mod soft_delete_lists_test;
 mod soft_deleted_lists_test;
+mod step_up_token_test;
 mod sticky_notes_test;
 mod stock_at_risk_report_test;
 mod teleconsult_visit_test;

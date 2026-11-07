@@ -196,3 +196,35 @@ async fn a_random_token_answers_exactly_like_a_missing_one() {
         "a well-formed guess must not be told apart from nonsense"
     );
 }
+
+#[tokio::test]
+async fn a_signature_from_before_online_checks_is_never_called_changed() {
+    let app = common::spawn_app_as_request_role().await;
+    let (record_id, signed_record_id, token) = signed_prescription(&app).await;
+    // Made the way signatures were before schema v2, then the record moves on.
+    sqlx::query(
+        "UPDATE signed_records SET payload_snapshot = jsonb_set(payload_snapshot, '{schema}', \
+         '\"medbrains.signable.prescription.v1\"') WHERE id = $1::uuid",
+    )
+    .bind(&signed_record_id)
+    .execute(&app.db)
+    .await
+    .expect("age the signature");
+    sqlx::query("UPDATE prescriptions SET notes = 'moved on' WHERE id = $1::uuid")
+        .bind(&record_id)
+        .execute(&app.db)
+        .await
+        .expect("alter the record");
+
+    let (status, text) = check(&app, &token).await;
+    assert_eq!(status, StatusCode::OK, "{text}");
+    let body: Value = serde_json::from_str(&text).expect("json");
+    assert_eq!(body["status"], "signed_before_checks", "{body}");
+    assert!(
+        body["unchanged"].is_null(),
+        "neither changed nor unchanged: {body}"
+    );
+    assert_eq!(body["key_status"], "active");
+    assert!(body["signer_name"].as_str().is_some_and(|n| !n.is_empty()));
+    assert_eq!(keys(&body), CHECKED_KEYS.iter().copied().collect());
+}
