@@ -130,6 +130,9 @@ export function PatientDetailPageInner() {
   const canViewGrowth = useHasPermission(P.PATIENTS.GROWTH.VIEW);
   const canListLabOrders = useHasPermission(P.LAB.ORDERS_LIST);
   const canListRadiologyOrders = useHasPermission(P.RADIOLOGY.ORDERS_LIST);
+  // Admissions and radiology reports are read only by those who may list
+  // them; the front desk opening a record sent both and was refused.
+  const canListAdmissions = useHasPermission(P.IPD.ADMISSIONS_LIST);
   const canListPharmacyOrders = useHasPermission(P.PHARMACY.PRESCRIPTIONS_LIST);
   const uhidAccess = useFieldAccess("patients.uhid");
   const firstNameAccess = useFieldAccess("patients.first_name");
@@ -182,7 +185,7 @@ export function PatientDetailPageInner() {
   const { data: radiologyReports = [] } = useQuery({
     queryKey: ["patient-radiology-reports", patientId],
     queryFn: () => patientDetailService.listRadiologyReports(patientId),
-    enabled: patientId.length > 0,
+    enabled: canListRadiologyOrders && patientId.length > 0,
   });
   // Reports miss orders not yet reported (a desk walk-in, mostly); prescriptions
   // miss direct counter sales. Both lists are read for the flow bar.
@@ -212,7 +215,7 @@ export function PatientDetailPageInner() {
   const { data: activeAdmissions } = useQuery({
     queryKey: ["patient-admissions", patientId, "admitted"],
     queryFn: () => patientDetailService.listPatientAdmissions(patientId, "admitted"),
-    enabled: patientId.length > 0,
+    enabled: canListAdmissions && patientId.length > 0,
   });
   const activeAdmission = activeAdmissions?.admissions[0];
   const { data: emergencyVisits = [] } = useQuery<ErVisit[]>({

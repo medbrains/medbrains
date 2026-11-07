@@ -4,7 +4,9 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { Group, Select, Stack, Textarea } from "@mantine/core";
 import type { OpdQueueVisitFormInput } from "@medbrains/schemas";
 import { opdQueueVisitFormSchema } from "@medbrains/schemas";
+import { useHasPermission } from "@medbrains/stores";
 import type { Camp, CreateEncounterResponse, DepartmentRow } from "@medbrains/types";
+import { P } from "@medbrains/types";
 import { IconAlertTriangle } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo } from "react";
@@ -53,11 +55,14 @@ export function OpdVisitForm({ initialPatientId = "", onCancel, onCreated }: Opd
   const visitType = watch("visit_type");
   const selectedPatientId = watch("patient_id");
 
+  const canListAdmissions = useHasPermission(P.IPD.ADMISSIONS_LIST);
   // An admitted patient can't start a new OPD visit (admission from OPD stays allowed).
   const { data: activeAdmissions } = useQuery({
     queryKey: ["patient-active-admissions", selectedPatientId],
     queryFn: () => ipdService.listAdmissions({ patient_id: selectedPatientId, status: "admitted" }),
-    enabled: Boolean(selectedPatientId),
+    // The desk may not list admissions; the server refuses the visit itself
+    // and says why, and that message is shown below.
+    enabled: Boolean(selectedPatientId) && canListAdmissions,
   });
   const hasActiveAdmission = (activeAdmissions?.admissions ?? []).length > 0;
 
@@ -77,7 +82,10 @@ export function OpdVisitForm({ initialPatientId = "", onCancel, onCreated }: Opd
       })
       .catch(() => null);
     if (!getFieldState("department_id").isDirty) {
-      setValue("department_id", last?.department_id ?? null, { shouldValidate: true });
+      // A first visit has no department to carry over; validating the empty
+      // field here told the desk it had made a mistake before it had chosen.
+      const departmentId = last?.department_id ?? null;
+      setValue("department_id", departmentId, { shouldValidate: departmentId !== null });
     }
     if (!getFieldState("doctor_id").isDirty) {
       setValue("doctor_id", last?.doctor_id ?? null);
@@ -118,7 +126,14 @@ export function OpdVisitForm({ initialPatientId = "", onCancel, onCreated }: Opd
     onSuccess: (result) => {
       void queryClient.invalidateQueries({ queryKey: ["opd-queue"] });
       void queryClient.invalidateQueries({ queryKey: ["opd-appointments"] });
-      toast.success("Patient added to queue", { title: "Visit created" });
+      // The desk reads the number out to the patient, so the toast carries it,
+      // or says why the queue gave none.
+      toast.success(
+        result.token_number
+          ? `Token ${result.token_number}`
+          : (result.token_refused ?? "Patient added to queue"),
+        { title: "Visit created" },
+      );
       void collectAtCheckIn(result.encounter.patient_id, result.encounter.id);
       emit("opd.encounter.created", {
         encounter_id: result.encounter.id,
@@ -135,8 +150,8 @@ export function OpdVisitForm({ initialPatientId = "", onCancel, onCreated }: Opd
       });
       onCreated(result);
     },
-    onError: () => {
-      toast.error("Failed to create visit", { title: "Error" });
+    onError: (error: Error) => {
+      toast.error(error.message || "Failed to create visit", { title: "Visit not created" });
     },
   });
 

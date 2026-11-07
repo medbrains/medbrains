@@ -212,6 +212,7 @@ export function OpdEncounterPage() {
 
 export function OpdNewVisitPage() {
   useRequirePermission(P.OPD.VISIT_CREATE);
+  const canWorkVisit = useHasPermission(P.OPD.VISIT_UPDATE);
 
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -222,7 +223,7 @@ export function OpdNewVisitPage() {
       <Stack>
         <PageHeader
           title="New OPD visit"
-          subtitle="Register a patient into the OPD queue and open the consultation workspace."
+          subtitle="Add a patient to the OPD queue for today."
           icon={<IconStethoscope size={20} stroke={1.5} />}
           color="primary"
           actions={
@@ -239,7 +240,13 @@ export function OpdNewVisitPage() {
             key={initialPatientId}
             initialPatientId={initialPatientId}
             onCancel={() => navigate("/opd")}
-            onCreated={(result) => navigate(`/opd/encounters/${result.encounter.id}#consultation`)}
+            onCreated={(result) =>
+              // Only someone who works the visit is taken into it; the desk
+              // goes back to the queue it is filling.
+              navigate(
+                canWorkVisit ? `/opd/encounters/${result.encounter.id}#consultation` : "/opd",
+              )
+            }
           />
         </Card>
       </Stack>
