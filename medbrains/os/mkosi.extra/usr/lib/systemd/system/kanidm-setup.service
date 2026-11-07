@@ -11,6 +11,9 @@ Type=oneshot
 RemainAfterExit=yes
 ExecStart=/usr/lib/medbrains/kanidm-setup
 UMask=0077
+# Writes Control's token and its own markers, and nothing else.
+ProtectSystem=strict
+ReadWritePaths=/var/lib/medbrains/config
 ProtectHome=yes
 PrivateTmp=yes
 NoNewPrivileges=yes

@@ -316,18 +316,24 @@ for 4 months, so a machine that misses two needs the binaries in between: `build
 `d092e62e72` for the upstream subject check.
 
 **Known limits**
-- **Lockout.** Kanidm counts wrong passwords per account, whoever sends them, with a wait of 1 to 10 seconds after each. It has no
-  setting for this. At 100 in a UTC day it locks until midnight, so we carry one patch
-  (`patches/kanidm-softlock-no-day-long-lock.patch`) that keeps the 10 second wait instead. The password check is not touched.
-  The front also limits one address on each sign-in path (`limits` in `front.toml`): 30 at once, regaining 15 a minute.
-  The screen counts as one address, 127.0.0.1. Each path has its own allowance, so the form and the API together allow twice that. A stranger can still make a person wait up to 10 seconds, while guessing from any address.
+- **Lockout.** Kanidm counts wrong passwords per account, whoever sends them and from any address, with a wait of 1 to 10
+  seconds after each up to 100. It has no setting for this. At 100 in a UTC day it locks until midnight, so we carry one patch
+  (`patches/kanidm-softlock-no-day-long-lock.patch`): from 100 the wait is one minute, doubling every 25 wrong passwords to
+  at most 15 minutes. A day then allows about 270 guesses per account (about 200 in the first six and a half hours, then
+  one per 15 minutes), against 8,640 with the earlier fixed 10 seconds. The password check is not touched.
+  **The trade, stated plainly:** a stranger who keeps guessing once every 15 minutes keeps that person waiting up to 15
+  minutes at a time, for as long as they keep it up, from any address. Nothing stops both guessing and that; restarting
+  Kanidm clears the count, and IT can give the person a new username. The front also limits one address on each sign-in
+  path (`limits` in `front.toml`): 30 at once, regaining 15 a minute. The screen counts as one address, 127.0.0.1. A limit
+  per username at the front was considered and not built: Kanidm's own count is already per username across addresses,
+  so a second one would only make the same wait sooner.
 - **Open:** the sign-in page says "Invalid username" for a name that does not exist, so usernames can be listed. Neither
   its config nor our CSS can change this, because the next page differs, not only the words. It has no limit by address
   either; the firewall's 50 connections a second is the only ceiling.
 - **On the machine's own screen, a hardware key does not work.** The Identity tile opens Kanidm's pages (the shell allows
   its one exact origin, and first boot adds its certificate to what the screen trusts), but WebKitGTK has no WebAuthn:
   `navigator.credentials` and `PublicKeyCredential` are undefined there (`tests/webauthn-probe.html`). Staff sign in with a password, so this does
-  not stop them. The screen keeps Add Passkey in view, by the owner's decision that keys are core, and says under it to use a browser on a computer or phone. A browser on another device needs that name published and this
+  not stop them. The screen keeps Add Passkey in view, by the owner's decision that keys are core, and says under it to use a browser on a computer or phone; its sign-in page hides the Passkey choice, with the same line. A browser on another device needs that name published and this
   machine's certificate installed; neither is arranged yet.
 - A debug image has a marked account for tests, `debug.test`, whose password is in `os/debug/kanidm-debug-account` and meets the same rule.
   A release image has neither the account nor the script.
@@ -355,20 +361,40 @@ does not ask Kanidm again until it is renewed. A new sign-in through Kanidm goes
 "The sign-in service is not answering…" with what to do; calls to Kanidm give up after 10 seconds instead of hanging. While it is
 down only the first administrator can sign in, by MedBrains' local form.
 
-**Emergency sign-in, designed and not built** (for an independent review before any of it ships). The problem: Kanidm is down
-for longer than a shift change, and a nurse who was not signed in must chart. The design:
-- **Only while Kanidm is down.** The server offers it only after Kanidm's discovery has failed for 2 minutes, and stops offering it
-  when Kanidm answers again.
+**Emergency sign-in, designed and not built** (for an independent review before any of it ships; revised after the first review).
+The problem: Kanidm is down for longer than a shift change, and a nurse who was not signed in must chart. The design:
+- **Turned on by people, never by an outage alone.** An outage could be caused from the LAN (flooding the front, or anything that
+  makes the server's check fail), so a failed check only offers IT the switch. IT turns emergency sign-in on from a signed-in
+  session, or a second named person approves it. The server confirms the outage itself by asking Kanidm directly on loopback
+  (`127.0.0.1:8444`), never through the front, so a flood on 9443 cannot fake one. It turns off by itself when that answers again.
 - **A named person, not a shared account.** IT names a few people per ward in advance (a new permission, defined in Rust first). Each
-  gets ten single-use emergency codes, shown once when made in Kanidm-time, stored as argon2 hashes; a used code is gone.
-- **Time-limited.** The session lasts at most 4 hours and cannot be renewed; when Kanidm is back it ends after 15 minutes' grace.
+  gets single-use codes, shown once when made, stored as argon2 hashes, kept in a register: who holds which code, when it was made,
+  used and revoked. Every unused code of a person is revoked when their emergency session ends.
+- **Capped.** At most one emergency session per person per day, and at most 4 hours each, not renewable; when Kanidm is back the
+  session ends after 15 minutes' grace.
 - **Narrow.** The person's own role, minus anything administrative: no user, role, permission or export change.
 - **Audited and flagged.** Start, end and every write carry an emergency mark in the audit log; IT is told at once through the existing
   break-glass notice; every screen shows "Emergency sign-in, ends at HH:MM"; each session becomes a review item afterwards
   (`audit.break_glass.review`).
-- **Limited like sign-in.** The front's per-address limit applies; five wrong codes for a name stop that name until IT clears it.
-Open for the reviewer: whether codes or a second signed-in person's approval is the better proof; whether the 2-minute trigger can be
-forced by an attacker who stops Kanidm (it needs root, so it is not a new path).
+- **Slowed, not locked.** Wrong codes for a name get a time-boxed backoff that doubles to at most 15 minutes, never a lockout,
+  because a lockout during an outage is the harm this exists to prevent. The front's per-address limit applies as well.
+Open for the reviewer: whether a code or a second person's approval should be the proof at sign-in itself, not only at switch-on.
+
+**Who is linked to which MedBrains account.** For the OS's own Kanidm, an email address never finds an existing account: anyone
+who may make a Kanidm person can give it any address, and Kanidm calls every primary address verified. The first administrator
+is linked at setup by its Kanidm UUID (`kanidm-first-admin` records it; `kanidm-setup` links it). Everyone else signs in to a new
+account with the least role. For any provider, an email never claims a `super_admin` or `hospital_admin` account.
+
+**Signing out on the screen.** The screen asks Kanidm for a fresh login every time (`prompt=login`), and when the MedBrains view
+comes back to its sign-in page it forgets every cookie, Kanidm's session among them, so the next person is asked to sign in.
+Kanidm's own session on the server is not ended: without its cookie nothing can use it, and it expires on its own.
+
+**What the LAN reaches on 9443.** Only `/ui`, `/pkg`, `/oauth2`, `/v1/auth`, `/v1/reauth` and `/status` (`lan_paths` in
+`front.toml`); the rest of `/v1`, raw and admin among it, answers 404 except to this machine. The port takes 128 connections,
+16 per address, and keeps 32 for this machine (`reserved_for_machine`): the screen and the server's own calls to Kanidm.
+Kanidm restarts however it ends, at most 30 times an hour; past that it fails, and the screen's health card names it. Its
+certificate on 9443 is signed by this machine's name-constrained authority, so a LAN browser that trusts the authority trusts
+the port. The screen signs in on its own name, `screen.medbrains.local`, which only this machine resolves.
 
 **Memory, signed in on the screen** (`tests/memory-split.sh`, PSS from smaps, QEMU arm64 with 4 GB, one sample each,
 2026-11-07; MedBrains open and signed in through Kanidm). With `GSK_RENDERER=cairo`, the image's setting: 1,194 MB across

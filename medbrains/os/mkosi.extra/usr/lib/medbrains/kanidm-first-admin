@@ -9,8 +9,9 @@ set -euo pipefail
 
 . /usr/lib/medbrains/kanidm-lib.sh
 
-# Setup links this login to the MedBrains administrator by this address, which the seed gives it.
-ADMIN_MAIL=admin@medbrains.localhost
+# Setup links this login to the MedBrains administrator by its UUID, recorded here. Root's folder, not Kanidm's.
+OWN=/var/lib/medbrains/config/kanidm
+RECORD=$OWN/first-admin
 # Enough to add staff and reset their passwords. Not idm_admins: this login has no second step.
 ADMIN_GROUPS=(idm_people_on_boarding idm_service_desk)
 INTENT_SECONDS=300
@@ -28,6 +29,16 @@ wait_for_kanidm
 admin="$(admin_token idm_admin)"
 made=0
 
+# A login made by an earlier attempt that setup then could not finish, under another name: remove it, or two
+# administrator logins would exist. Setup runs this only before the machine has a role.
+if [[ -s "$RECORD" ]]; then
+    read -r earlier _ < "$RECORD" || earlier=""
+    if [[ "$earlier" =~ ^[a-z][a-z0-9_]*$ && "$earlier" != "$username" ]]; then
+        api_as "$admin" -o /dev/null -X DELETE "$ORIGIN/v1/person/$earlier" 2>/dev/null || true
+    fi
+    rm -f "$RECORD"
+fi
+
 # Takes back a person this run made, if the run did not finish.
 undo() {
     if [[ "$made" == 1 ]]; then
@@ -37,7 +48,7 @@ undo() {
 trap undo EXIT
 
 if ! api_as "$admin" "$ORIGIN/v1/person/$username" | grep -q '"attrs"'; then
-    printf '{"attrs":{"name":["%s"],"displayname":["%s"],"mail":["%s"]}}' "$username" "$username" "$ADMIN_MAIL" |
+    printf '{"attrs":{"name":["%s"],"displayname":["%s"]}}' "$username" "$username" |
         json_body_as "$admin" -o /dev/null "$ORIGIN/v1/person"
     made=1
 fi
@@ -56,4 +67,9 @@ for group in "${ADMIN_GROUPS[@]}"; do
 done
 token="$(printf '%s\n' "$password" | token_for_password "$username")"
 [[ -n "$token" ]] || { echo "the new login does not sign in" >&2; exit 1; }
+uuid="$(api_as "$admin" "$ORIGIN/v1/person/$username/_attr/uuid" | sed -n 's/^\["\([0-9a-f-]\{36\}\)"\]$/\1/p')"
+[[ -n "$uuid" ]] || { echo "could not read the new login's UUID" >&2; exit 1; }
+install -d -m 0750 "$OWN"
+printf '%s %s\n' "$username" "$uuid" > "$RECORD.new"
+mv "$RECORD.new" "$RECORD"
 made=0

@@ -47,6 +47,9 @@ only_hosts = ["idm.medbrains.local"]
 # SCIM has crashed Kanidm twice through its filter parser and we do not use it. The landing page is upstream
 # sign-in, which has no setting to turn off; RADIUS is unused too.
 block_paths = ["/docs", "/metrics", "/scim/", "/ui/login/oauth2_landing", "/ui/radius"]
+# From the LAN only what a browser signing in needs. The rest of /v1, raw and admin among it, is for this
+# machine alone (Control and setup reach Kanidm on loopback).
+lan_paths = ["/ui", "/pkg", "/oauth2", "/v1/auth", "/v1/reauth", "/status"]
 # Every path that can carry a guess: one address, 30 at once, regaining 15 a minute. Kanidm's own wait after a
 # wrong password still applies behind this. The screen is one address here, 127.0.0.1.
 limits = [
@@ -62,7 +65,9 @@ limits = [
 [[sites.listen]]
 # Sign-in pages only, so a small share of the front's open files: LimitNOFILE in its unit holds them all.
 addr = "[::]:9443"
-cert = "/var/lib/medbrains-front/idp/cert.pem"
+cert = "/var/lib/medbrains-front/idp/chain.pem"
 key = "/var/lib/medbrains-front/idp/key.pem"
 max_connections = 128
-max_per_address = 64
+max_per_address = 16
+# Kept for this machine: its screen, and the server's own calls to Kanidm, which a LAN flood cannot take.
+reserved_for_machine = 32

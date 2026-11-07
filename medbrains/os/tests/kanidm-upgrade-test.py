@@ -42,7 +42,7 @@ def fetch_binaries(old_path):
 
 def run_old_version_with_new_data():
     """Starts over with an empty database on 1.11.2."""
-    print(serial("systemctl stop kanidm-setup kanidmd; rm -f /var/lib/kanidm/kanidm.db* /var/lib/kanidm/.setup-done; "
+    print(serial("systemctl stop kanidm-setup kanidmd; rm -f /var/lib/kanidm/kanidm.db* /var/lib/medbrains/config/kanidm/setup-done; "
                  "mkdir -p /run/systemd/system/kanidmd.service.d; "
                  f"printf '[Service]\\nExecStart=\\nExecStart={OLD} server\\n' > /run/systemd/system/kanidmd.service.d/10-binary.conf; "
                  "systemctl daemon-reload; systemctl reset-failed kanidmd; systemctl start kanidmd; sleep 12; systemctl is-active kanidmd", 60)[-60:])

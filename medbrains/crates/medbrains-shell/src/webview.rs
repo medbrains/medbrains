@@ -1,16 +1,33 @@
 //! How an app's view is set up: what it may reach, store and do. Everything here is the safety
 //! boundary around a page, so it is kept apart from the steps of opening one.
 
-use gtk4::prelude::{Cast, WidgetExt};
+use gtk4::prelude::{Cast, ObjectExt, WidgetExt};
 use webkit6::prelude::{PolicyDecisionExt, WebViewExt};
-use webkit6::{HardwareAccelerationPolicy, NavigationPolicyDecision, NetworkSession, WebView};
+use webkit6::{
+    HardwareAccelerationPolicy, NavigationPolicyDecision, NetworkSession, WebView, WebsiteDataTypes,
+};
 
 use crate::timezone;
 
-/// This screen's browser has no WebAuthn, so a key cannot be added from it. The owner keeps Kanidm's key
-/// buttons in view, because keys are core; this says under them where to use one.
+/// This screen's browser has no WebAuthn, so a key can neither be added nor used here. The owner keeps
+/// Kanidm's key buttons in view on the credentials page, because keys are core, with a line saying where to use
+/// one; on the sign-in page the Passkey choices are hidden, with the same line, because they could only stall.
 const NO_KEYS_HERE: &str = ":has(> [hx-post='/ui/reset/add_passkey'])::after { display: block; margin-top: 0.5rem; \
-    content: 'This screen has no key reader. To add a key, open this page in a browser on a computer or phone.'; }";
+    content: 'This screen has no key reader. To add a key, open this page in a browser on a computer or phone.'; }\n\
+    li:has(> form > input[name='mech'][value='passkey']), \
+    li:has(> form > input[name='mech'][value='passwordsecuritykey']) { display: none !important; }\n\
+    ul:has(input[name='mech'][value='passkey'])::after, ul:has(input[name='mech'][value='passwordsecuritykey'])::after { \
+    display: block; content: 'A passkey needs a phone or computer: this screen has no key reader.'; }";
+
+/// The app's sign-in page: arriving there means its user signed out, or never signed in.
+const SIGN_IN_PATH: &str = "/login";
+
+/// True when the view has come to the app's own sign-in page.
+fn is_sign_in_page(uri: &str, origin: &str) -> bool {
+    uri.strip_prefix(origin)
+        .and_then(|rest| rest.strip_prefix(SIGN_IN_PATH))
+        .is_some_and(|rest| rest.is_empty() || rest.starts_with(['?', '/', '#']))
+}
 
 /// True for a page the view may show: the app's own origin, or what it made in memory.
 fn is_local_page(uri: &str, origin: &str) -> bool {
@@ -68,6 +85,9 @@ pub(crate) fn new_view(
         request.cancel();
         true
     });
+    if sign_in.is_some() {
+        forget_sign_in_on_sign_out(&view, &session, origin);
+    }
     let (origin, sign_in) = (origin.to_owned(), sign_in.map(str::to_owned));
     view.connect_decide_policy(move |_, decision, kind| {
         let leaves = match kind {
@@ -88,9 +108,33 @@ pub(crate) fn new_view(
     view
 }
 
+/// When an app that signs in elsewhere comes back to its own sign-in page, its view forgets every cookie,
+/// the identity provider's session among them, so the next person at the screen is asked to sign in rather
+/// than handed the last person's session. The app's own session is already gone by then.
+fn forget_sign_in_on_sign_out(view: &WebView, session: &NetworkSession, origin: &str) {
+    let (session, origin) = (session.clone(), origin.to_owned());
+    view.connect_notify_local(Some("uri"), move |view, _| {
+        if view.uri().is_some_and(|uri| is_sign_in_page(&uri, &origin)) {
+            if let Some(data) = session.website_data_manager() {
+                data.clear(WebsiteDataTypes::COOKIES, gtk4::glib::TimeSpan::from_seconds(0), gtk4::gio::Cancellable::NONE, |_| {});
+            }
+        }
+    });
+}
+
 #[cfg(test)]
 mod tests {
-    use super::is_local_page;
+    use super::{is_local_page, is_sign_in_page};
+
+    /// Only the app's own sign-in page clears the view's cookies, not a page that merely looks like it.
+    #[test]
+    fn only_the_apps_own_sign_in_page_counts() {
+        assert!(is_sign_in_page("https://screen.medbrains.local:8443/login", "https://screen.medbrains.local:8443"));
+        assert!(is_sign_in_page("https://screen.medbrains.local:8443/login?sso_error=unavailable", "https://screen.medbrains.local:8443"));
+        assert!(!is_sign_in_page("https://screen.medbrains.local:8443/loginhelp", "https://screen.medbrains.local:8443"));
+        assert!(!is_sign_in_page("https://screen.medbrains.local:8443/dashboard", "https://screen.medbrains.local:8443"));
+        assert!(!is_sign_in_page("https://idm.medbrains.local:9443/login", "https://screen.medbrains.local:8443"));
+    }
 
     const ORIGIN: &str = "https://127.0.0.1:8443";
 

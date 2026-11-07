@@ -358,9 +358,13 @@ pub(crate) fn start_main_machine(
         .map_err(|e| e.to_string())?
         .to_string();
     // Only now: a machine that becomes a node never holds a database or these secrets.
-    child::run("systemctl", &["start", "medbrains-firstboot.service"], FIRST_START_LIMIT)
-        .filter(|done| done.success)
-        .ok_or_else(|| "The machine could not prepare its database. Try again.".to_owned())?;
+    child::run(
+        "systemctl",
+        &["start", "medbrains-firstboot.service"],
+        FIRST_START_LIMIT,
+    )
+    .filter(|done| done.success)
+    .ok_or_else(|| "The machine could not prepare its database. Try again.".to_owned())?;
     let env = fs::read_to_string(ENV_FILE).map_err(|e| e.to_string())?;
     write_env(&rules::env_with_seed(&env, hospital, username, &hash))?;
     let started = mark_and_start(hospital);
@@ -421,7 +425,7 @@ pub(crate) fn make_first_admin(username: &str, password: &str) -> FirstAdmin {
         log_line("the identity provider is off: this disk is not encrypted");
         return FirstAdmin::NoProviderOnThisDisk;
     }
-    let input = format!("{username}\n{password}\n");
+    let input = zeroize::Zeroizing::new(format!("{username}\n{password}\n"));
     let done = child::run_with_input(
         TRANSIENT,
         &[

@@ -13,8 +13,12 @@ set -euo pipefail
 
 . /usr/lib/medbrains/kanidm-lib.sh
 
-STATE=/var/lib/kanidm/.setup-done
-CONNECTED=/var/lib/kanidm/.connect-done
+# Root's own folder, never Kanidm's: root writing in a folder kanidm owns would follow a link kanidm left there.
+OWN=/var/lib/medbrains/config/kanidm
+STATE=$OWN/setup-done
+CONNECTED=$OWN/connect-done
+# Written by kanidm-first-admin: the first administrator's username and Kanidm UUID.
+FIRST_ADMIN=$OWN/first-admin
 TOKEN_FILE=/var/lib/medbrains/config/idp-control-token
 CONTROL=mb_control
 LOGO=/usr/share/medbrains/shell/logo.svg
@@ -65,8 +69,8 @@ set_up() {
     install -m 0600 /dev/null "$TOKEN_FILE.new"
     printf '%s\n' "$token" > "$TOKEN_FILE.new"
     mv "$TOKEN_FILE.new" "$TOKEN_FILE"
+    install -d -m 0750 "$OWN"
     touch "$STATE"
-    chown kanidm:kanidm "$STATE"
 }
 
 # Runs one statement on MedBrains' database, as the machine's superuser, and prints the answer.
@@ -87,7 +91,7 @@ connect_medbrains() {
     admin="$(admin_token idm_admin)"
     printf '{"attrs":{"name":["%s"],"displayname":["MedBrains"],"oauth2_rs_origin_landing":["https://medbrains.local/"],"oauth2_strict_redirect_uri":["true"]}}' "$CLIENT" |
         json_body_as "$admin" -o /dev/null "$ORIGIN/v1/oauth2/_public" 2>/dev/null || true
-    printf '["https://medbrains.local/api/auth/sso/callback","https://127.0.0.1:8443/api/auth/sso/callback"]' |
+    printf '["https://medbrains.local/api/auth/sso/callback","https://screen.medbrains.local:8443/api/auth/sso/callback"]' |
         json_body_as "$admin" -o /dev/null "$ORIGIN/v1/oauth2/$CLIENT/_attr/oauth2_rs_origin"
     printf '["openid","email","profile"]' | json_body_as "$admin" -o /dev/null "$ORIGIN/v1/oauth2/$CLIENT/_scopemap/idm_all_persons"
     # Kanidm asks each person once before sharing their name with MedBrains. Off if it lets us; only a click if not.
@@ -99,8 +103,29 @@ connect_medbrains() {
     medbrains_sql "INSERT INTO identity_providers (tenant_id, code, name, protocol, discovery_url, client_id, jit_enabled, is_active)
         SELECT '$tenant', 'kanidm', 'MedBrains account', 'oidc', '$url', '$CLIENT', true, true
         WHERE NOT EXISTS (SELECT 1 FROM identity_providers WHERE tenant_id = '$tenant' AND code = 'kanidm')" >/dev/null
+    link_first_admin "$tenant"
+    install -d -m 0750 "$OWN"
     touch "$CONNECTED"
-    chown kanidm:kanidm "$CONNECTED"
+}
+
+# Links the first administrator's MedBrains account to its Kanidm login by Kanidm's UUID, which is the `sub`
+# MedBrains receives. Nothing else is linked automatically, and never by email: anyone who can make a Kanidm
+# person can give it any address. Waits for the server to have made the account from setup's seed.
+link_first_admin() {
+    local tenant="$1" username uuid try linked
+    read -r username uuid < "$FIRST_ADMIN" || { echo "no first administrator recorded" >&2; return 1; }
+    [[ "$username" =~ ^[a-z][a-z0-9_]*$ && "$uuid" =~ ^[0-9a-f-]{36}$ ]] || { echo "the first administrator's record is not valid" >&2; return 1; }
+    for ((try = 0; try < SERVER_WAIT_TRIES; try++)); do
+        linked="$(medbrains_sql "UPDATE users SET idp_id = p.id, external_subject = '$uuid'
+            FROM identity_providers p WHERE p.tenant_id = '$tenant' AND p.code = 'kanidm'
+            AND users.tenant_id = '$tenant' AND users.username = '$username'
+            AND (users.idp_id IS NULL OR (users.idp_id = p.id AND users.external_subject = '$uuid'))
+            RETURNING users.id" 2>/dev/null | head -1)"
+        [[ -n "$linked" ]] && return 0
+        sleep 5
+    done
+    echo "could not link the first administrator" >&2
+    return 1
 }
 
 # Prints the groups Control's own token says it holds, one name per line.

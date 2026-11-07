@@ -7758,6 +7758,7 @@ dependencies = [
  "argon2",
  "rustix",
  "serde_json",
+ "zeroize",
  "zxcvbn",
 ]
 

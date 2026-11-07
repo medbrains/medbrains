@@ -68,6 +68,8 @@ pub(crate) struct Site {
     error_page: Bytes,
     only_hosts: Vec<String>,
     block_paths: Vec<String>,
+    /// When not empty, all the LAN may reach.
+    lan_paths: Vec<String>,
     max_body_bytes: u64,
     limits: Vec<PathLimit>,
     names: Names,
@@ -125,6 +127,11 @@ impl Site {
                 .iter()
                 .map(|p| p.to_ascii_lowercase())
                 .collect(),
+            lan_paths: config
+                .lan_paths
+                .iter()
+                .map(|p| p.to_ascii_lowercase())
+                .collect(),
             max_body_bytes: config.max_body_bytes,
             limits: limits.collect(),
             names,
@@ -162,6 +169,15 @@ impl Site {
             .block_paths
             .iter()
             .any(|block| path.starts_with(block.as_str()))
+        {
+            return Some(Refused::new(404, "Not found."));
+        }
+        if !self.lan_paths.is_empty()
+            && !canonical_ip(client).is_loopback()
+            && !self
+                .lan_paths
+                .iter()
+                .any(|allowed| path.starts_with(allowed.as_str()))
         {
             return Some(Refused::new(404, "Not found."));
         }

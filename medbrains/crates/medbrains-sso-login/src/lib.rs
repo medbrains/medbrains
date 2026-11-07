@@ -68,7 +68,13 @@ fn callback_uri(base: &str) -> String {
 }
 
 async fn secret_key(state: &AppState) -> Result<Vec<u8>, AppError> {
-    medbrains_core::secrets::sealing::sealing_key(state.secret_resolver.as_ref(), SSO_SECRET_KEY, DEV_SSO_SECRET_KEY).await.map_err(AppError::from)
+    medbrains_core::secrets::sealing::sealing_key(
+        state.secret_resolver.as_ref(),
+        SSO_SECRET_KEY,
+        DEV_SSO_SECRET_KEY,
+    )
+    .await
+    .map_err(AppError::from)
 }
 
 /// URL-safe random token of `bytes` entropy (state/nonce/PKCE verifier).
@@ -116,6 +122,31 @@ async fn load_provider(state: &AppState, id: Uuid) -> Result<LoginProvider, AppE
 const PROVIDER_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(10);
 /// Where the login page says the identity provider is not answering, in plain words.
 const PROVIDER_UNAVAILABLE: &str = "/login?sso_error=unavailable";
+/// Where the login page says sign-in was cancelled or refused.
+const PROVIDER_REFUSED: &str = "/login?sso_error=1";
+/// The host of the OS's own Kanidm. Anyone who can make a person there can give it any address and Kanidm calls
+/// every primary address verified, so its email never finds an existing account.
+const OS_IDENTITY_HOST: &str = "idm.medbrains.local";
+/// Accounts an email address never claims, whatever the provider says: a takeover of one is the whole hospital.
+const NEVER_LINKED_BY_EMAIL: [&str; 2] = ["super_admin", "hospital_admin"];
+
+/// True when this provider's email may find an existing local account. Never for the OS's own Kanidm: its
+/// accounts are linked by subject only, the first administrator by setup and the rest by an administrator.
+fn may_link_by_email(discovery_url: Option<&str>) -> bool {
+    let host = discovery_url
+        .and_then(|url| url.strip_prefix("https://"))
+        .map(|rest| rest.split(['/', ':']).next().unwrap_or_default());
+    host.is_none_or(|host| !host.eq_ignore_ascii_case(OS_IDENTITY_HOST))
+}
+
+/// Where a provider's error on the callback sends the person: its own outage reads as "not answering", so a
+/// clinician is not told their sign-in was refused when the service was down.
+fn callback_error_target(error: &str) -> &'static str {
+    match error {
+        "server_error" | "temporarily_unavailable" => PROVIDER_UNAVAILABLE,
+        _ => PROVIDER_REFUSED,
+    }
+}
 
 #[derive(Debug, Deserialize)]
 struct Discovery {
@@ -223,11 +254,17 @@ pub async fn oidc_authorize(
     .execute(&mut *medbrains_db::pool::tenant_conn(&state.db, &provider.tenant_id).await?)
     .await?;
 
+    let base = base_for(&headers);
+    let prompt = if base == public_base() {
+        ""
+    } else {
+        "&prompt=login"
+    };
     let url = format!(
-        "{}?response_type=code&client_id={}&redirect_uri={}&scope={}&state={}&nonce={}&code_challenge={}&code_challenge_method=S256",
+        "{}?response_type=code&client_id={}&redirect_uri={}&scope={}&state={}&nonce={}&code_challenge={}&code_challenge_method=S256{prompt}",
         discovery.authorization_endpoint,
         enc(client_id),
-        enc(&callback_uri(&base_for(&headers))),
+        enc(&callback_uri(&base)),
         enc("openid email profile"),
         state_tok,
         nonce,
@@ -308,7 +345,7 @@ pub async fn oidc_callback(
         tracing::warn!(error = %err, "sso callback returned an error");
         return Ok((
             CookieJar::new(),
-            Redirect::to(&format!("{base}/login?sso_error=1")),
+            Redirect::to(&format!("{base}{}", callback_error_target(&err))),
         ));
     }
     let state_tok = q.state.ok_or(AppError::Unauthorized)?;
@@ -334,13 +371,19 @@ pub async fn oidc_callback(
     .ok_or(AppError::Unauthorized)?;
 
     let provider = load_provider(&state, auth.provider_id).await?;
-    let discovery = fetch_discovery(
+    let Ok(discovery) = fetch_discovery(
         provider
             .discovery_url
             .as_deref()
             .ok_or(AppError::Unauthorized)?,
     )
-    .await?;
+    .await
+    .inspect_err(|e| tracing::warn!(error = %e, "identity provider not answering on the way back")) else {
+        return Ok((
+            CookieJar::new(),
+            Redirect::to(&format!("{base}{PROVIDER_UNAVAILABLE}")),
+        ));
+    };
     let client_id = provider.client_id.clone().ok_or(AppError::Unauthorized)?;
     let client_secret = match provider.client_secret_enc.as_deref() {
         Some(enc) => {
@@ -697,11 +740,9 @@ async fn federate_user(
         }
         None => {
             let linked =
-                match identity
-                    .email
-                    .as_deref()
-                    .filter(|_| identity.email_verified)
-                {
+                match identity.email.as_deref().filter(|_| {
+                    identity.email_verified && may_link_by_email(provider.discovery_url.as_deref())
+                }) {
                     // Only an email the provider says it verified. Entra's `email` claim is whatever
                     // the tenant typed, so trusting it let any person sign in as a local account
                     // with that address, including the first administrator (nOAuth).
@@ -722,10 +763,11 @@ async fn federate_user(
                     // let one hospital's IdP adopt another hospital's account.
                     Some(email) => sqlx::query_scalar::<_, Uuid>(
                         "SELECT id FROM users WHERE lower(email) = lower($1) AND idp_id IS NULL \
-                     AND is_service_account = false AND tenant_id = $2",
+                     AND is_service_account = false AND tenant_id = $2 AND role::text <> ALL($3)",
                     )
                     .bind(email)
                     .bind(provider.tenant_id)
+                    .bind(NEVER_LINKED_BY_EMAIL.as_slice())
                     .fetch_optional(&mut **tx)
                     .await?,
                     None => None,
@@ -985,8 +1027,9 @@ mod tests {
     use uuid::Uuid;
 
     use super::{
-        IdClaims, STAFF_ROLE, SsoIdentity, base_username, extract_groups, new_user_role,
-        pkce_challenge, resolve_group_targets, screen_base, tenant_matches_issuer,
+        IdClaims, NEVER_LINKED_BY_EMAIL, PROVIDER_REFUSED, PROVIDER_UNAVAILABLE, STAFF_ROLE,
+        SsoIdentity, base_username, callback_error_target, extract_groups, may_link_by_email,
+        new_user_role, pkce_challenge, resolve_group_targets, screen_base, tenant_matches_issuer,
     };
 
     fn groups(items: &[&str]) -> HashSet<String> {
@@ -1089,6 +1132,33 @@ mod tests {
             groups: vec![],
         };
         assert!(base_username(&id).starts_with("asha"));
+    }
+
+    /// An email from the OS's own Kanidm never finds an account: anyone who may make a Kanidm person can give it
+    /// the administrator's address. Other providers keep the verified-email link.
+    #[test]
+    fn an_email_from_the_os_kanidm_never_links() {
+        let kanidm = "https://idm.medbrains.local:9443/oauth2/openid/medbrains/.well-known/openid-configuration";
+        assert!(!may_link_by_email(Some(kanidm)));
+        assert!(!may_link_by_email(Some("https://IDM.medbrains.local/x")));
+        assert!(may_link_by_email(Some(
+            "https://login.microsoftonline.com/t/v2.0/.well-known/openid-configuration"
+        )));
+        assert!(may_link_by_email(Some(
+            "https://idm.medbrains.local.evil.example/"
+        )));
+        assert_eq!(NEVER_LINKED_BY_EMAIL, ["super_admin", "hospital_admin"]);
+    }
+
+    /// The provider's own outage on the way back reads as "not answering", anything else as refused.
+    #[test]
+    fn an_outage_on_the_callback_is_not_called_a_refusal() {
+        assert_eq!(
+            callback_error_target("temporarily_unavailable"),
+            PROVIDER_UNAVAILABLE
+        );
+        assert_eq!(callback_error_target("server_error"), PROVIDER_UNAVAILABLE);
+        assert_eq!(callback_error_target("access_denied"), PROVIDER_REFUSED);
     }
 
     /// Only the machine's own screen stays on its address, and only where the image names it.

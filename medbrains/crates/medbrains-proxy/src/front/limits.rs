@@ -1,7 +1,7 @@
 //! Bounds that stop one client taking the machine: connections held, and sign-in attempts made.
 
 use std::collections::HashMap;
-use std::net::IpAddr;
+use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 use std::time::Instant;
@@ -30,6 +30,8 @@ pub(crate) struct ConnectionGate {
     max_total: usize,
     /// Zero means no limit per address: loopback, where every node's tunnel arrives.
     max_per_address: usize,
+    /// Places only the machine itself may take.
+    reserved_for_machine: usize,
     counts: Mutex<Counts>,
     refused: AtomicU64,
 }
@@ -42,11 +44,16 @@ pub(crate) struct Permit {
 }
 
 impl ConnectionGate {
-    /// A gate with these limits.
-    pub(crate) fn new(max_total: usize, max_per_address: usize) -> Arc<Self> {
+    /// A gate with these limits, keeping `reserved_for_machine` of its places for 127.0.0.1 and ::1.
+    pub(crate) fn new(
+        max_total: usize,
+        max_per_address: usize,
+        reserved_for_machine: usize,
+    ) -> Arc<Self> {
         Arc::new(Self {
             max_total,
             max_per_address,
+            reserved_for_machine,
             counts: Mutex::default(),
             refused: AtomicU64::new(0),
         })
@@ -60,11 +67,18 @@ impl ConnectionGate {
     /// A place for a connection from `address`, or `None` if a limit is reached. The map holds at
     /// most `max_total` addresses, so it cannot grow without bound.
     pub(crate) fn admit(self: &Arc<Self>, address: IpAddr) -> Option<Permit> {
+        let is_machine = address == IpAddr::V4(Ipv4Addr::LOCALHOST)
+            || address == IpAddr::V6(Ipv6Addr::LOCALHOST);
         let address = limit_key(address);
         let mut counts = self.lock();
         let held = counts.by_address.get(&address).copied().unwrap_or(0);
         let over_address = self.max_per_address != 0 && held >= self.max_per_address;
-        if counts.total >= self.max_total || over_address {
+        let room = if is_machine {
+            self.max_total
+        } else {
+            self.max_total - self.reserved_for_machine
+        };
+        if counts.total >= room || over_address {
             self.refused.fetch_add(1, Ordering::Relaxed);
             return None;
         }
@@ -169,7 +183,7 @@ mod tests {
 
     #[test]
     fn one_address_cannot_take_every_place() {
-        let gate = ConnectionGate::new(10, 2);
+        let gate = ConnectionGate::new(10, 2, 0);
         let held = [gate.admit(A), gate.admit(A)];
         assert!(held.iter().all(Option::is_some));
         assert!(gate.admit(A).is_none(), "third from the same address");
@@ -180,7 +194,7 @@ mod tests {
 
     #[test]
     fn one_ipv6_subnet_counts_as_one_address() -> anyhow::Result<()> {
-        let gate = ConnectionGate::new(10, 2);
+        let gate = ConnectionGate::new(10, 2, 0);
         let held = [
             gate.admit("2001:db8:1:1::1".parse()?),
             gate.admit("2001:db8:1:1:ffff::9".parse()?),
@@ -198,9 +212,29 @@ mod tests {
         Ok(())
     }
 
+    /// A LAN flood fills only the places the LAN may take; the machine still gets in.
+    #[test]
+    fn places_kept_for_the_machine_stay_free_under_a_lan_flood() {
+        let gate = ConnectionGate::new(4, 0, 2);
+        let lan = [gate.admit(A), gate.admit(B)];
+        assert!(lan.iter().all(Option::is_some));
+        assert!(gate.admit(A).is_none(), "the LAN may take only two of four");
+        let machine = IpAddr::V4(Ipv4Addr::LOCALHOST);
+        let own = [gate.admit(machine), gate.admit(machine)];
+        assert!(
+            own.iter().all(Option::is_some),
+            "the machine takes the kept places"
+        );
+        assert!(gate.admit(machine).is_none(), "and no more than the total");
+        assert!(
+            gate.admit("127.4.5.6".parse().unwrap_or(machine)).is_none(),
+            "a node's tunnel address is not the machine"
+        );
+    }
+
     #[test]
     fn a_closed_connection_frees_its_place_and_its_memory() {
-        let gate = ConnectionGate::new(1, 0);
+        let gate = ConnectionGate::new(1, 0, 0);
         let permit = gate.admit(A);
         assert!(permit.is_some());
         assert!(gate.admit(B).is_none(), "total limit");
@@ -212,7 +246,7 @@ mod tests {
 
     #[test]
     fn property_counts_never_drift_over_a_long_random_run() {
-        let gate = ConnectionGate::new(50, 5);
+        let gate = ConnectionGate::new(50, 5, 0);
         let mut held = Vec::new();
         let mut rng = crate::test_rng::Rng(7);
         for _ in 0..20_000 {

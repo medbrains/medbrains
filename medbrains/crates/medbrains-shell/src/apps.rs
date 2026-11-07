@@ -19,8 +19,9 @@ const ICON_ROOT: &str = "/usr/share/medbrains/";
 const ORIGIN_PREFIX: &str = "https://127.0.0.1";
 /// Whole origins allowed besides that, one by one and never by pattern. Kanidm needs a name, because
 /// WebAuthn cannot use an address and its cookies go to its own name. `/etc/hosts` points this name at
-/// this machine, and first boot adds its certificate to what the screen trusts.
-const NAMED_ORIGINS: [&str; 1] = ["https://idm.medbrains.local:9443"];
+/// this machine, and first boot adds its certificate to what the screen trusts. The screen's own name is the
+/// MedBrains app's origin, so Kanidm sends the screen back to a name no other computer resolves.
+const NAMED_ORIGINS: [&str; 2] = ["https://idm.medbrains.local:9443", "https://screen.medbrains.local:8443"];
 const HEALTH_PREFIX: &str = "http://127.0.0.1:";
 const MAX_APPS: usize = 32;
 const MAX_MANIFEST_BYTES: u64 = 16 * 1024;
@@ -429,6 +430,11 @@ mod tests {
         assert_eq!(names(&Dir::with("signin", &[("mail.json", &good)]), "main"), ["Mail"]);
         let bad = with("https://evil.example");
         assert!(names(&Dir::with("badsignin", &[("mail.json", &bad)]), "main").is_empty());
+        assert_eq!(
+            local_origin("https://screen.medbrains.local:8443/dashboard"),
+            Some("https://screen.medbrains.local:8443")
+        );
+        assert_eq!(local_origin("https://screen.medbrains.local:8443.evil.example/"), None);
         let text = content_filter("https://127.0.0.1:8443", Some("https://idm.medbrains.local:9443"));
         let rules: serde_json::Value = serde_json::from_str(&text).unwrap_or_default();
         assert_eq!(rules[5]["trigger"]["url-filter"], "^https://idm\\.medbrains\\.local:9443/");

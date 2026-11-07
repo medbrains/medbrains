@@ -277,7 +277,8 @@ def test_rate_limit():
 def test_lockout():
     """Test 7, slow half: a stranger who knows a username. Password accounts only; key-only accounts
     have nothing to guess, and kanidm-softkey tests those. Each wrong password opens a window of 1,
-    3, 5 then 10 seconds, and Kanidm itself locks until the next UTC midnight at 100. Our patch keeps 10 seconds: this proves it."""
+    3, 5 then 10 seconds, and Kanidm itself locks until the next UTC midnight at 100. Our patch waits a minute from 100,
+    doubling to at most 15: this proves the person is back after that minute, not at midnight."""
     token = kanidm_auth("idm_admin", recover_password("idm_admin"))[0]
     must(curl(f"{IDP}/v1/group/idm_all_persons/_attr/credential_type_minimum", "PUT", token, ["any"]), "policy")
     person = f"lock.me{int(time.time())}"
@@ -295,9 +296,9 @@ def test_lockout():
                 print(f"INFO  right after {bad} bad guesses, the real person: signed_in={bool(good)} {during}", flush=True)
         time.sleep(0.2)
     print(f"INFO  {bad} counted guesses in {time.time() - started:.0f}s; replies: {kinds}", flush=True)
-    time.sleep(12)
+    time.sleep(65)
     good, during, _ = kanidm_auth(person, USER_PASSWORD, privileged=False)
-    print(f"INFO  12 s after the last guess, the real person: signed_in={bool(good)} {during}", flush=True)
+    print(f"INFO  65 s after the last guess, the real person: signed_in={bool(good)} {during}", flush=True)
     check("100 wrong passwords do not lock a person out until midnight", bool(good), during)
     serial("systemctl restart kanidmd; sleep 8", 40)
     good, during, _ = kanidm_auth(person, USER_PASSWORD, privileged=False)

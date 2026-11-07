@@ -9,9 +9,9 @@
 #           to; the certificate covers those the authority is allowed to sign. A link to a lan.<time>
 #           folder, swapped with one rename, so the front only ever finds an old pair or a new one.
 #   screen/ the self-signed certificate for the loopback port, the only one the screen trusts.
-#   idp/    the identity provider's port 9443: a self-signed certificate for its own name, which the
-#           screen and the MedBrains server trust, and a copy of Kanidm's certificate, which the front
-#           trusts on loopback. Only a main machine runs the front, and only it runs Kanidm.
+#   idp/    the identity provider's port 9443: a certificate for its own name signed by ca/, so a LAN
+#           browser that trusts this machine's authority trusts it too, and a copy of Kanidm's own
+#           certificate, which the front trusts on loopback. Only a main machine runs the front and Kanidm.
 #
 # The set of names is bounded and known ahead of time: nothing a client sends creates a certificate.
 # A hospital's own DNS name goes in /var/lib/medbrains/config/front-names, one per line. A name there
@@ -36,6 +36,11 @@ IDP_NAME=idm.medbrains.local
 IDP_SERVER_TRUST=/var/lib/medbrains/config/idp-front.pem
 GROUP=medbrains-front
 SCREEN_TRUST=/var/lib/medbrains-settings/local-front.pem
+# The screen's own name, in /etc/hosts only, so no other computer resolves where the screen signs in.
+SCREEN_NAME=screen.medbrains.local
+# Kanidm's certificate, in Kanidm's folder: read as kanidm, never followed as root.
+KANIDM_CHAIN=/var/lib/kanidm/tls-chain.pem
+KANIDM_SECONDS=10
 AGENT_COPY=/var/lib/medbrains-agent/local-front.pem
 EXTRA_NAMES=/var/lib/medbrains/config/front-names
 LOCK=/run/medbrains-front-certs.lock
@@ -251,8 +256,9 @@ issue_lan() {
 # Only a regular file or nothing is accepted there, every touch of it is under a time limit, and it is
 # replaced by a rename, so a FIFO or a device cannot hold this script and its lock.
 ensure_certificate_copies() {
-    # The screen also opens the identity provider's port, from the Identity tile.
-    cat "$SCREEN/cert.pem" "$IDP/cert.pem" > "$SCREEN_TRUST.new"
+    # The screen also opens the identity provider's port, from the Identity tile, signed by this machine's
+    # authority. That authority signs only for local names and private addresses, and its key stays here.
+    cat "$SCREEN/cert.pem" "$CA/ca.pem" > "$SCREEN_TRUST.new"
     if ! cmp -s "$SCREEN_TRUST.new" "$SCREEN_TRUST"; then
         cat "$SCREEN_TRUST.new" > "$SCREEN_TRUST"
         # A screen that already started holds the old trust in memory.
@@ -274,11 +280,12 @@ ensure_certificate_copies() {
 # The screen's own certificate, unless a good one is there.
 ensure_screen() {
     [[ -s "$SCREEN/key.pem" && -s "$SCREEN/cert.pem" ]] &&
-        keys_match "$SCREEN/key.pem" "$SCREEN/cert.pem" && return
+        keys_match "$SCREEN/key.pem" "$SCREEN/cert.pem" &&
+        openssl x509 -in "$SCREEN/cert.pem" -noout -checkhost "$SCREEN_NAME" 2>/dev/null | grep -q 'does match' && return
     install -d -m 0750 -g "$GROUP" "$SCREEN"
     openssl req -x509 -newkey ec -pkeyopt ec_paramgen_curve:prime256v1 -nodes -days 7300 \
         -keyout "$SCREEN/key.pem" -out "$SCREEN/cert.pem" \
-        -subj "/CN=MedBrains local screen" -addext "subjectAltName=IP:127.0.0.1" 2>/dev/null
+        -subj "/CN=MedBrains local screen" -addext "subjectAltName=IP:127.0.0.1,DNS:$SCREEN_NAME" 2>/dev/null
     chgrp "$GROUP" "$SCREEN/key.pem" "$SCREEN/cert.pem"
     chmod 0640 "$SCREEN/key.pem" "$SCREEN/cert.pem"
 }
@@ -287,18 +294,49 @@ ensure_screen() {
 # side trusts. Kanidm makes its own pair when it first starts; making it here too means the front never
 # starts without the certificate it trusts Kanidm by.
 ensure_identity() {
-    if ! { [[ -s "$IDP/key.pem" && -s "$IDP/cert.pem" ]] && keys_match "$IDP/key.pem" "$IDP/cert.pem"; }; then
-        install -d -m 0750 -g "$GROUP" "$IDP"
-        openssl req -x509 -newkey ec -pkeyopt ec_paramgen_curve:prime256v1 -nodes -days 7300 \
-            -keyout "$IDP/key.pem" -out "$IDP/cert.pem" -subj "/CN=$IDP_NAME" \
-            -addext "subjectAltName=DNS:$IDP_NAME" -addext "basicConstraints=critical,CA:FALSE" 2>/dev/null
-        chgrp "$GROUP" "$IDP/key.pem" "$IDP/cert.pem"
-        chmod 0640 "$IDP/key.pem" "$IDP/cert.pem"
+    install -d -m 0750 -g "$GROUP" "$IDP"
+    if ! { [[ -s "$IDP/key.pem" && -s "$IDP/chain.pem" ]] && keys_match "$IDP/key.pem" "$IDP/chain.pem" &&
+        openssl verify -CAfile "$CA/ca.pem" "$IDP/chain.pem" >/dev/null 2>&1 &&
+        openssl x509 -in "$IDP/chain.pem" -noout -checkend "$RENEW_SECONDS" >/dev/null 2>&1; }; then
+        issue_identity || { echo "front-certs: could not issue the identity provider's certificate" >&2; return 1; }
     fi
-    /usr/lib/medbrains/kanidm-tls
-    cmp -s /var/lib/kanidm/tls-chain.pem "$IDP/kanidm-back.pem" ||
-        install -m 0640 -g "$GROUP" /var/lib/kanidm/tls-chain.pem "$IDP/kanidm-back.pem"
-    cmp -s "$IDP/cert.pem" "$IDP_SERVER_TRUST" || install -m 0644 "$IDP/cert.pem" "$IDP_SERVER_TRUST"
+    copy_kanidm_certificate
+    cmp -s "$CA/ca.pem" "$IDP_SERVER_TRUST" || install -m 0644 "$CA/ca.pem" "$IDP_SERVER_TRUST"
+}
+
+# The identity provider's certificate, signed by this machine's authority, written beside and then renamed over
+# the old one, so the front only ever finds a whole pair.
+issue_identity() {
+    openssl req -new -newkey ec -pkeyopt ec_paramgen_curve:prime256v1 -nodes \
+        -keyout "$IDP/key.pem.new" -out "$IDP/request.csr" -subj "/CN=$IDP_NAME" 2>/dev/null || return 1
+    openssl x509 -req -in "$IDP/request.csr" -CA "$CA/ca.pem" -CAkey "$CA/ca.key" -CAcreateserial \
+        -days "$LEAF_DAYS" -out "$IDP/leaf.pem" -extfile <(printf '%s\n' \
+            "subjectAltName=DNS:$IDP_NAME" "basicConstraints=critical,CA:FALSE" \
+            "keyUsage=critical,digitalSignature" "extendedKeyUsage=serverAuth") 2>/dev/null || return 1
+    cat "$IDP/leaf.pem" "$CA/ca.pem" > "$IDP/chain.pem.new"
+    rm -f "$IDP/request.csr" "$IDP/leaf.pem"
+    chgrp "$GROUP" "$IDP/key.pem.new" "$IDP/chain.pem.new" && chmod 0640 "$IDP/key.pem.new" "$IDP/chain.pem.new"
+    keys_match "$IDP/key.pem.new" "$IDP/chain.pem.new" || return 1
+    mv -f "$IDP/chain.pem.new" "$IDP/chain.pem"
+    mv -f "$IDP/key.pem.new" "$IDP/key.pem"
+}
+
+# Kanidm's own certificate, which the front trusts Kanidm by. Made and read as kanidm, a regular file only, under
+# a time limit, so nothing Kanidm can write makes root open or follow anything.
+copy_kanidm_certificate() {
+    local got="$IDP/kanidm-back.pem.new"
+    timeout "$KANIDM_SECONDS" setpriv --reuid=kanidm --regid=kanidm --clear-groups /usr/lib/medbrains/kanidm-tls ||
+        { echo "front-certs: Kanidm has no certificate yet" >&2; return 1; }
+    # shellcheck disable=SC2016 # the inner shell expands $1
+    timeout "$KANIDM_SECONDS" setpriv --reuid=kanidm --regid=kanidm --clear-groups \
+        sh -c '[ -f "$1" ] && [ ! -L "$1" ] && exec cat "$1"' sh "$KANIDM_CHAIN" > "$got" ||
+        { rm -f "$got"; echo "front-certs: refusing Kanidm's certificate: not a regular file" >&2; return 1; }
+    openssl x509 -in "$got" -noout 2>/dev/null || { rm -f "$got"; echo "front-certs: Kanidm's certificate does not parse" >&2; return 1; }
+    if cmp -s "$got" "$IDP/kanidm-back.pem"; then
+        rm -f "$got"
+    else
+        chgrp "$GROUP" "$got" && chmod 0640 "$got" && mv -f "$got" "$IDP/kanidm-back.pem"
+    fi
 }
 
 # The timer and a starting front can run this at once, and must not mix one run's key with another's

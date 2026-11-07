@@ -144,10 +144,10 @@ def set_up_machine():
 
 
 def limit_opened(opened):
-    """Raises the front's sign-in limits for a test that signs in many times, or puts the real ones back: a copy
-    of its config in /run with the limits raised, for this boot only."""
+    """Raises the front's sign-in limits, and opens Kanidm's whole API to this computer, for a test that signs in many
+    times or administers Kanidm from here; or puts the real config back. A copy of its config in /run, this boot only."""
     if opened:
-        serial("sed -E 's/burst = 30, per_minute = 15/burst = 100000, per_minute = 100000/' /usr/lib/medbrains/front.toml > /run/front-test.toml; "
+        serial("sed -E -e 's/burst = 30, per_minute = 15/burst = 100000, per_minute = 100000/' -e '/^lan_paths = /d' /usr/lib/medbrains/front.toml > /run/front-test.toml; "
                f"mkdir -p {FRONT_DROP_IN}; printf '[Service]\\nExecStart=\\nExecStart=/usr/bin/medbrains-front --config /run/front-test.toml\\n' > {FRONT_DROP_IN}/limits.conf; "
                "systemctl daemon-reload; systemctl restart medbrains-front; sleep 2", 20)
     else:
