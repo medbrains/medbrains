@@ -22,7 +22,8 @@ test("translated text becomes @tr, never a property", () => {
   }`);
   assert.match(slint, /clicked => \{ root\.click\(\); \}/);
   assert.match(slint, /callback click\(\);/);
-  assert.equal(stats.strings, 0, "children of a Button are its label, read as text only");
+  assert.match(slint, /text: @tr\("rx\.save"\);/, "a translated Button label stays translated");
+  assert.equal(stats.strings, 1);
   const titled = convert(`export function T() { return <Panel title={t("rx.title")} />; }`);
   assert.match(titled.slint, /title: @tr\("rx\.title"\);/);
   assert.equal(titled.stats.strings, 1);
