@@ -16,6 +16,7 @@ interface ColumnOptions {
   onAction: (kind: ChargeAttentionAction, item: ChargeAttentionItem) => void;
 }
 
+/** Post and dismiss buttons, only on an open item and only for a resolver. */
 function Actions({ row, o }: { row: ChargeAttentionItem; o: ColumnOptions }) {
   if (row.status !== "open" || !o.canResolve) return null;
   return (
@@ -39,6 +40,7 @@ function Actions({ row, o }: { row: ChargeAttentionItem; o: ColumnOptions }) {
   );
 }
 
+/** Who resolved the item and, when dismissed, why. */
 function Resolution({ row }: { row: ChargeAttentionItem }) {
   if (row.status === "open") return null;
   return (
@@ -49,6 +51,7 @@ function Resolution({ row }: { row: ChargeAttentionItem }) {
   );
 }
 
+/** The queue table's columns for the given viewer and in-flight post. */
 export function chargeAttentionColumns(o: ColumnOptions): Column<ChargeAttentionItem>[] {
   return [
     {

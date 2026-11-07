@@ -26,6 +26,7 @@ const STATUS_OPTIONS: { value: StatusFilter; label: string }[] = [
 
 const PAGE_SIZE = 25;
 
+/** The queue: status filter, the list, post and dismiss — gated on view and resolve. */
 export function ChargeAttentionTab() {
   const canView = useHasPermission(P.BILLING.CHARGE_ATTENTION.VIEW);
   const canResolve = useHasPermission(P.BILLING.CHARGE_ATTENTION.RESOLVE);

@@ -9,6 +9,7 @@ import { billingService } from "@/services/billing.service";
 
 const OPEN_COUNT = { status: "open", limit: "1" };
 
+/** Badge with the open count; hidden at zero, "?" when the count failed. */
 export function ChargeAttentionCount() {
   const canView = useHasPermission(P.BILLING.CHARGE_ATTENTION.VIEW);
   const { data, isError } = useQuery({

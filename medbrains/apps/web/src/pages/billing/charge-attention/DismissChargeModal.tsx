@@ -14,6 +14,7 @@ interface DismissChargeModalProps {
   onClose: () => void;
 }
 
+/** Asks for a reason (3+ characters) and dismisses the queued charge. */
 export function DismissChargeModal({ item, onClose }: DismissChargeModalProps) {
   const queryClient = useQueryClient();
   const [reason, setReason] = useState("");
