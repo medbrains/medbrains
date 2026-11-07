@@ -119,6 +119,7 @@ N1 to N6 come from RFC-HOSPITAL-OS §8q. Every task ends on a check or a screen.
 | O13 | Who may do what at the screen (owner 2026-11-04): choosing Wi-Fi or a wired link on a node and restarting a node are open to anyone at it; severe actions need sign-in with a new IT permission: stopping or restarting the main machine, changing the main machine's network, fixed addresses, factory reset, removing a machine, turning remote access on | With no sign-in the service refuses each severe action and audits it, and a node's Wi-Fi still changes freely | next: after the desktop PR; permission first |
 | O15 | Safe diagnostics for IT with no terminal: named trace points in the server read with `bpftrace`, only by IT sign-in and audited (`usdt` has no ARM support on Linux yet) | A stuck request is explained from the screen | parked, after first stable |
 | O16 | Local advisor, on the machine with no phone-home: rules read the machine's health and advise in plain words, like Red Hat Insights without its cloud | A planted misconfiguration is named with its fix | parked, after first stable |
+| O17 | Screens catch up after a network drop: token boards, ward screens and nodes resume from the last sequence number they saw, then follow live, built on PostgreSQL (the outbox and audit sequences), not a new stream store | Pull the network for a minute; the board shows every change it missed, never blank | next |
 
 ## H. Real hardware
 
@@ -154,6 +155,7 @@ N1 to N6 come from RFC-HOSPITAL-OS §8q. Every task ends on a check or a screen.
 | D4.12 | Light pages for single-purpose screens (token boards, kiosks, status): server-rendered, little JavaScript, one shared component set | A token board runs all day on a Pi with memory flat | later |
 | D4.13 | Trial Servo, the Rust web engine, with our real app: which screens render and work, memory, screen reader | Pass or fail per screen recorded | parked, after first stable |
 | D4.14 | Native toolkit for the OS shell and single-purpose screens only, never the clinical apps (the web app stays the one copy): GTK4 now; Slint (licence is the owner's decision) or GPUI only if a trial shows a clear gain with no GPU, on a Pi and with a screen reader | Numbers per toolkit; decision in `DECISIONS.md` | parked, after first stable |
+| D4.15 | Whole-program optimisation for the release build (`lto = "fat"`, as SQLite gains from one file), kept only if measured | Binary size, speed and build time before and after | later |
 | D5 | GPU and NPU: detect, use through a portable runtime, never required (§8p) | OCR runs on CPU and on one accelerator | later, needs hardware |
 | D6 | Decide NVIDIA's driver: it is a kernel module, against §8o | Owner decision recorded | blocked: owner |
 
@@ -187,6 +189,14 @@ N1 to N6 come from RFC-HOSPITAL-OS §8q. Every task ends on a check or a screen.
 | F4 | Real power cuts, repeated under load through a switched socket | Hundreds of cuts: no data loss, always boots | blocked: needs hardware |
 | F5 | Flash wear, heat and clock drift measured | Years of disk life, speed under an hour of full load, behaviour with no network at boot | blocked: needs hardware |
 | F6 | Property tests for class A invariants: slot switch, permission decision, audit chain, pairing | Each invariant has one, and it fails when the logic is broken | next |
+| F7 | Depth and size limits on every parser of outside input: JSON bodies, search filters, HL7, FHIR, uploads, connector messages (owner 2026-11-07). Kanidm's high advisories were crashes from nested input | A deeply nested or oversized request is refused, never crashes the server, on every listed parser | next: in first stable |
+| F8 | Fuzz every parser and every endpoint reachable without sign-in with `cargo-fuzz`, in CI, sign-in and public endpoints first | Each target runs in CI with a time budget; every crash found becomes a regression test | next: sign-in and public endpoints in first stable |
+| F9 | Overflow checks on in release builds, so money, dose and count arithmetic stops the request instead of wrapping | `overflow-checks = true` in the release profile; speed measured before and after | next: in first stable |
+| F10 | Count `unsafe` in our dependencies with `cargo-geiger` and review the worst; record reviews with `cargo-vet`, starting with crates that touch the network or patient data | Report in CI; top crates reviewed or replaced | next: count in first stable, reviews after |
+| F11 | Shrink the dependency tree: `Cargo.lock` lists 1,323 packages, each with the server's rights. Remove duplicates and crates used for one function, like SQLite's no-dependency approach | Count falls release on release, tracked in `scripts/size_budgets.json` | ongoing |
+| F12 | Prove the most critical functions with the Kani model checker (permission outcome, tenant wall, slot switch) and test locking with `loom` where money or stock moves | Proofs and loom tests in CI for the named functions | parked, after first stable |
+| F13 | Deterministic simulation tests for node join, sync and updates (as in `mad-turmoil`): faults, crashes and clock jumps replayed in the same order every time | A seeded run reproduces a fault exactly | parked, after first stable |
+| F14 | Multi-phase security audits with independently verified findings (Cloudflare's `security-audit` skill), module by module with a coverage ledger, starting with setup, agent, join, front and disk encryption | Audit report per module; every confirmed finding fixed or an accepted limit | next, after the current agents |
 
 ## X. Close the attacks (`OS-THREATS.md`)
 
