@@ -33,9 +33,9 @@ export component MbButton {
 }
 
 export component MbIconButton {
-    in property <string> accessible-label;
     in property <string> tone: "default";
     callback clicked();
+    accessible-role: button;
     Button {
         text: root.accessible-label;
         clicked => { root.clicked(); }
