@@ -99,8 +99,12 @@ async fn signing_a_note_without_a_fresh_step_up_is_refused() {
     let (status, body) = call(&app, &csrf, "POST", &sign, json!({})).await;
     assert_eq!(status, StatusCode::FORBIDDEN, "{body}");
     assert_eq!(body["error"], "step_up_required");
-    let (_, after) = call(&app, &csrf, "GET", &format!("/api/clinical-notes/{id}"), json!({})).await;
-    assert_eq!(after["status"], "draft", "a refused signature leaves the draft");
+    let after: String = sqlx::query_scalar("SELECT status FROM clinical_notes WHERE id = $1::uuid")
+        .bind(&id)
+        .fetch_one(&app.db)
+        .await
+        .expect("note status");
+    assert_eq!(after, "draft", "a refused signature leaves the draft");
 }
 
 async fn set_grace(app: &common::TestApp, minutes: i64) {
