@@ -553,7 +553,11 @@ core of how MedBrains is built, installed, shown and sold. Full design:
    on a patient record is declared in the EMR brick's manifest ("adds a tab to the patient
    record") and appears only when EMR is installed for the tenant and the machine and the person
    holds its permission. The host screen shows whatever tabs are plugged in and imports none;
-   removing a brick removes its tabs everywhere.
+   removing a brick removes its tabs everywhere. The same holds for components a brick adds
+   elsewhere: dashboard widgets, cards on a patient summary, actions in a shared menu.
+   Every control a person can press is gated on the permission its request needs (see
+   "Authorization Is Repo-Wide Law", rule 7). Shared kit components carry no permission of
+   their own; they belong to the base plate.
 8. **The server decides every request.** A brick being present grants nothing; the launcher,
    the side panel and each screen's check only keep the screen honest about what the server
    allows.
