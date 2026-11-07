@@ -17,6 +17,23 @@ const STD_WIDGETS = new Set([
   "StandardTableView", "TabWidget", "ScrollView", "Spinner", "ProgressIndicator",
 ]);
 
+/** Mantine size and colour names, and the design token each becomes in the kit's `Tokens` global. */
+const SIZE_TOKENS = new Set(["xs", "sm", "md", "lg", "xl"]);
+const TOKEN_PROPS = { spacing: "space", padding: "space", "font-size": "font", color: "color" };
+const COLOR_ALIASES = { dimmed: "text-muted", red: "danger", green: "success", orange: "warning", yellow: "warning", blue: "primary", gray: "text-muted" };
+/** Slint properties that take numbers rather than text. */
+const NUMBER_PROPS = new Set(["value", "minimum", "maximum", "progress", "current-index", "total", "page"]);
+
+/** A string literal for a token property as its `Tokens` value, or null when it is not a token. */
+function tokenValue(target, value) {
+  const kind = TOKEN_PROPS[target];
+  if (!kind) return null;
+  if (kind === "color") return `Tokens.color-${COLOR_ALIASES[value] ?? value.replace(/\./g, "-")}`;
+  if (SIZE_TOKENS.has(value)) return `Tokens.${kind}-${value}`;
+  if (/^\d+$/.test(value)) return `${value}px`;
+  return null;
+}
+
 /** Flattens `mapping.json` into `tag -> rule`, plus the wrappers that are dropped. */
 export function loadMapping(file = path.join(HERE, "mapping.json")) {
   const raw = JSON.parse(fs.readFileSync(file, "utf8"));
@@ -169,7 +186,9 @@ class ComponentWriter {
     const attrName = attr.name.name;
     const value = attr.value;
     if (!value) return this.emit(`${name}: ${negate ? "false" : "true"};`, depth);
-    if (value.type === "StringLiteral") return this.emit(`${name}: ${quote(value.value)};`, depth);
+    if (value.type === "StringLiteral") {
+      return this.emit(`${name}: ${tokenValue(name, value.value) ?? quote(value.value)};`, depth);
+    }
     const expr = value.type === "JSXExpressionContainer" ? value.expression : value;
     if (/^on[A-Z]/.test(attrName)) {
       const cb = ident(attrName.slice(2), this.used);
@@ -177,8 +196,11 @@ class ComponentWriter {
       return this.emit(`${name} => { root.${cb}(); }`, depth);
     }
     const lit = negate ? null : this.literal(expr);
-    if (lit) return this.emit(`${name}: ${lit};`, depth);
-    const type = ["checked", "enabled", "busy"].includes(name) ? "bool" : "string";
+    if (lit) {
+      const token = expr.type === "StringLiteral" ? tokenValue(name, expr.value) : null;
+      return this.emit(`${name}: ${token ?? lit};`, depth);
+    }
+    const type = ["checked", "enabled", "busy"].includes(name) ? "bool" : NUMBER_PROPS.has(name) ? "int" : "string";
     this.emit(`${name}: ${negate ? "!" : ""}root.${this.property(this.text(expr), type)};`, depth);
   }
 
@@ -257,10 +279,37 @@ class ComponentWriter {
     if (rule.props.children) {
       const label = node.children.filter((c) => c.type === "JSXText").map((c) => c.value.trim()).join(" ").trim();
       if (label) this.emit(`${rule.props.children}: ${quote(label)};`, depth + 1);
+    } else if (rule.slint === "Text") {
+      this.textChildren(node.children, depth + 1);
     } else {
       this.children(node.children, depth + 1);
     }
     this.emit("}", depth);
+  }
+
+  /**
+   * A Slint `Text` holds one string, not children: text and values become one `text` binding
+   * joined with `+`; element children (an inline badge, a link) are reported as needing a layout.
+   */
+  textChildren(list, depth) {
+    const parts = [];
+    for (const c of list) {
+      if (c.type === "JSXText") {
+        const s = c.value.replace(/\s+/g, " ");
+        if (s.trim()) parts.push(quote(s.trim()));
+      } else if (c.type === "JSXExpressionContainer" && c.expression.type !== "JSXEmptyExpression") {
+        if (isJsx(c.expression) || c.expression.type === "LogicalExpression" || c.expression.type === "ConditionalExpression") {
+          this.stats.inlineInText += 1;
+          parts.push(`root.${this.property(this.text(c.expression))}`);
+        } else {
+          parts.push(this.literal(c.expression) ?? `root.${this.property(this.text(c.expression))}`);
+        }
+      } else if (c.type === "JSXElement") {
+        this.stats.inlineInText += 1;
+        parts.push(`root.${this.property(this.text(c))}`);
+      }
+    }
+    if (parts.length) this.emit(`text: ${parts.join(" + ")};`, depth);
   }
 
   children(list, depth) {
@@ -330,7 +379,7 @@ class ComponentWriter {
 /** Converts one module's source: the Slint text and its statistics. */
 export function convertSource(source, fileName = "input.tsx", mapping = loadMapping(), known = new Map()) {
   const ast = parse(source, { sourceType: "module", plugins: ["jsx", "typescript"], errorRecovery: true });
-  const stats = { elements: 0, mapped: 0, strings: 0, unmapped: {}, rawHtml: {}, kit: new Set(), std: new Set(), hooks: {}, references: new Map(), webOnly: {} };
+  const stats = { elements: 0, mapped: 0, strings: 0, unmapped: {}, rawHtml: {}, kit: new Set(), std: new Set(), hooks: {}, references: new Map(), webOnly: {}, inlineInText: 0 };
   const own = new Set();
   const parts = [];
   const found = components(ast.program);
@@ -345,7 +394,8 @@ export function convertSource(source, fileName = "input.tsx", mapping = loadMapp
   }
   const imports = [];
   if (stats.std.size) imports.push(`import { ${[...stats.std].sort().join(", ")} } from "std-widgets.slint";`);
-  if (stats.kit.size) imports.push(`import { ${[...stats.kit].sort().join(", ")} } from "@medbrains-gui-kit/kit.slint";`);
+  const kit = [...stats.kit, "Tokens"].sort();
+  imports.push(`import { ${kit.join(", ")} } from "@medbrains-gui-kit/kit.slint";`);
   const byFile = new Map();
   for (const [name, file] of stats.references) {
     if (own.has(name)) continue;

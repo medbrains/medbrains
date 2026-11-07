@@ -12,7 +12,7 @@ test("layout and text map to Slint layouts and Text", () => {
     return <Stack gap="md"><Text>Hello</Text></Stack>;
   }`);
   assert.match(slint, /export component Card inherits Rectangle/);
-  assert.match(slint, /VerticalLayout \{\s+spacing: "md";\s+Text \{\s+Text \{ text: "Hello"; \}/);
+  assert.match(slint, /VerticalLayout \{\s+spacing: Tokens\.space-md;\s+Text \{\s+text: "Hello";/);
   assert.equal(stats.mapped, 2);
 });
 
@@ -75,7 +75,7 @@ test("raw HTML is converted to Slint and still reported against the components r
     return <div><b>Due</b><button onClick={go}>Open</button></div>;
   }`);
   assert.match(slint, /Rectangle \{/);
-  assert.match(slint, /Text \{\s+font-weight: 700;/);
+  assert.match(slint, /Text \{\s+font-weight: 700;\s+text: "Due";/);
   assert.match(slint, /MbButton \{[\s\S]*clicked => \{ root\.click\(\); \}[\s\S]*text: "Open";/);
   assert.deepEqual(stats.rawHtml, { div: 1, b: 1, button: 1 });
   assert.deepEqual(stats.unmapped, {});
@@ -87,4 +87,13 @@ test("components defined in other files convert as references with an import", (
   assert.match(slint, /import \{ DrugSearchSelect \} from "\.\/drug-search-select\.slint";/);
   assert.match(slint, /DrugSearchSelect \{ \}/);
   assert.deepEqual(stats.unmapped, {});
+});
+
+test("Mantine sizes and colours become tokens, and Text children merge into one string", () => {
+  const { slint } = convert(`export function M() {
+    return <Text size="sm" c="dimmed">Due {count} today</Text>;
+  }`);
+  assert.match(slint, /font-size: Tokens\.font-sm;/);
+  assert.match(slint, /color: Tokens\.color-text-muted;/);
+  assert.match(slint, /text: "Due" \+ root\.count \+ "today";/);
 });

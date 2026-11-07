@@ -1,0 +1,119 @@
+// Preview kit: the smallest set of Mb* components that lets converted screens compile and be
+// looked at. Not the product kit; medbrains-gui-kit replaces it (docs/architecture/OS-NATIVE-GUI.md).
+// Colours come only from Tokens, which is generated from the design system's single source.
+import { Button } from "std-widgets.slint";
+import { Tokens } from "tokens.slint";
+
+export { Tokens }
+
+/** The tone colour for a component, from the semantic tokens. */
+global Tone {
+    pure public function color(tone: string) -> color {
+        if (tone == "primary") { return Tokens.color-primary; }
+        if (tone == "danger") { return Tokens.color-danger; }
+        if (tone == "warning") { return Tokens.color-warning; }
+        if (tone == "success") { return Tokens.color-success; }
+        if (tone == "accent") { return Tokens.color-accent; }
+        return Tokens.color-text-muted;
+    }
+}
+
+export component MbButton {
+    in property <string> text;
+    in property <string> tone: "default";
+    in property <bool> busy;
+    in property <bool> enabled: true;
+    callback clicked();
+    Button {
+        text: root.busy ? "Working…" : root.text;
+        enabled: root.enabled && !root.busy;
+        primary: root.tone == "primary";
+        clicked => { root.clicked(); }
+    }
+}
+
+export component MbIconButton {
+    in property <string> accessible-label;
+    in property <string> tone: "default";
+    callback clicked();
+    Button {
+        text: root.accessible-label;
+        clicked => { root.clicked(); }
+    }
+}
+
+export component MbCard inherits Rectangle {
+    callback clicked();
+    background: Tokens.color-card;
+    border-color: Tokens.color-border;
+    border-width: 1px;
+    VerticalLayout {
+        padding: Tokens.space-md;
+        spacing: Tokens.space-sm;
+        @children
+    }
+}
+
+export component MbPanel inherits Rectangle {
+    in property <string> title;
+    in property <string> description;
+    background: Tokens.color-card;
+    VerticalLayout {
+        padding: Tokens.space-md;
+        spacing: Tokens.space-sm;
+        Text { text: root.title; font-size: Tokens.font-lg; font-weight: 700; color: Tokens.color-text; }
+        @children
+    }
+}
+
+export component MbAlert inherits Rectangle {
+    in property <string> tone: "default";
+    in property <string> title;
+    background: Tokens.color-card;
+    border-color: Tone.color(root.tone);
+    border-width: 2px;
+    VerticalLayout {
+        padding: Tokens.space-md;
+        spacing: Tokens.space-sm;
+        if root.title != "" : Text { text: root.title; font-weight: 700; color: Tokens.color-text; }
+        @children
+    }
+}
+
+export component MbBadge inherits Rectangle {
+    in property <string> text;
+    in property <string> tone: "default";
+    border-color: Tone.color(root.tone);
+    border-width: 1px;
+    HorizontalLayout {
+        padding-left: Tokens.space-sm;
+        padding-right: Tokens.space-sm;
+        Text { text: root.text; font-size: Tokens.font-xs; color: Tone.color(root.tone); }
+    }
+}
+
+export component MbDivider inherits Rectangle {
+    height: 1px;
+    background: Tokens.color-border;
+}
+
+export component MbIcon inherits Text {
+    in property <string> name;
+    in property <string> tone: "default";
+    text: "•";
+    color: Tone.color(root.tone);
+}
+
+export component MbLink inherits Text {
+    in property <string> url;
+    color: Tokens.color-primary;
+}
+
+export component MbPageHeader {
+    in property <string> title;
+    in property <string> subtitle;
+    VerticalLayout {
+        Text { text: root.title; font-size: Tokens.font-xl; font-weight: 700; color: Tokens.color-text; }
+        if root.subtitle != "" : Text { text: root.subtitle; color: Tokens.color-text-muted; }
+    }
+}
