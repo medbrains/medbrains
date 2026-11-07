@@ -15,7 +15,7 @@ use axum::routing::get;
 use axum::{
     Json,
     extract::{Path, Query, State},
-    http::{HeaderMap, header},
+    http::HeaderMap,
     response::Redirect,
 };
 use axum_extra::extract::CookieJar;
@@ -45,19 +45,21 @@ fn public_base() -> String {
         .unwrap_or_else(|_| "https://127.0.0.1:8443".to_owned())
 }
 /// The base to come back to. A sign-in from the machine's own screen stays on the screen's own address:
-/// `MEDBRAINS_SSO_SCREEN_BASE` names it, and only a request for exactly that host gets it.
+/// `MEDBRAINS_SSO_SCREEN_BASE` names it. The front gives every request the machine's name as its Host, so
+/// the screen is known by its address, which the front writes into `X-Forwarded-For` itself.
 fn base_for(headers: &HeaderMap) -> String {
     let screen = std::env::var("MEDBRAINS_SSO_SCREEN_BASE").ok();
-    let host = headers
-        .get(header::HOST)
+    let client = headers
+        .get("x-forwarded-for")
         .and_then(|value| value.to_str().ok());
-    screen_base(screen.as_deref(), host).unwrap_or_else(public_base)
+    screen_base(screen.as_deref(), client).unwrap_or_else(public_base)
 }
 
-/// The screen's base, if this request's host is exactly the screen's. Pure, so it is tested.
-fn screen_base(screen: Option<&str>, host: Option<&str>) -> Option<String> {
+/// The screen's base, if this request came from the machine itself. The front admits 127.0.0.1 and ::1
+/// only from the machine; a node's tunnel arrives from another 127.x address. Pure, so it is tested.
+fn screen_base(screen: Option<&str>, client: Option<&str>) -> Option<String> {
     let screen = screen?;
-    (screen.strip_prefix("https://") == host).then(|| screen.to_owned())
+    matches!(client, Some("127.0.0.1" | "::1")).then(|| screen.to_owned())
 }
 
 /// Where the identity provider sends the browser back, on the address the sign-in started from.
@@ -1091,16 +1093,16 @@ mod tests {
 
     /// Only the machine's own screen stays on its address, and only where the image names it.
     #[test]
-    fn only_the_screens_own_host_comes_back_to_the_screen() {
+    fn only_the_machines_own_screen_comes_back_to_the_screen() {
         let screen = Some("https://127.0.0.1:8443");
-        assert_eq!(
-            screen_base(screen, Some("127.0.0.1:8443")).as_deref(),
-            screen
-        );
-        assert_eq!(screen_base(screen, Some("medbrains.local")), None);
-        assert_eq!(screen_base(screen, Some("evil.example")), None);
+        assert_eq!(screen_base(screen, Some("127.0.0.1")).as_deref(), screen);
+        assert_eq!(screen_base(screen, Some("::1")).as_deref(), screen);
+        // A node's tunnel, a LAN computer, a list someone typed, nothing at all.
+        assert_eq!(screen_base(screen, Some("127.4.5.6")), None);
+        assert_eq!(screen_base(screen, Some("10.0.2.20")), None);
+        assert_eq!(screen_base(screen, Some("127.0.0.1, 10.0.2.20")), None);
         assert_eq!(screen_base(screen, None), None);
-        assert_eq!(screen_base(None, Some("127.0.0.1:8443")), None);
+        assert_eq!(screen_base(None, Some("127.0.0.1")), None);
     }
 
     #[test]
