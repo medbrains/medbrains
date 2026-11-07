@@ -597,49 +597,49 @@ export function PatientDetailPageInner() {
         <Grid align="flex-start" className={classes.workspaceGrid}>
           <Grid.Col span={12}>
             <Stack className={classes.workspaceMain}>
-              <Tabs.Panel id="patient-overview" value="overview" pt="md">
+              <Tabs.Panel value="overview" pt="md">
                 <OverviewTab patient={patient} />
               </Tabs.Panel>
-              <Tabs.Panel id="patient-allergies" value="allergies" pt="md">
+              <Tabs.Panel value="allergies" pt="md">
                 <AllergiesTab patient={patient} />
               </Tabs.Panel>
-              <Tabs.Panel id="patient-immunizations" value="immunizations" pt="md">
+              <Tabs.Panel value="immunizations" pt="md">
                 <ImmunizationsTab patient={patient} />
               </Tabs.Panel>
               {canViewGrowth && (
-                <Tabs.Panel id="patient-growth" value="growth" pt="md">
+                <Tabs.Panel value="growth" pt="md">
                   <GrowthTab patient={patient} />
                 </Tabs.Panel>
               )}
-              <Tabs.Panel id="patient-timeline" value="timeline" pt="md">
+              <Tabs.Panel value="timeline" pt="md">
                 <ClinicalTimelineTab patientId={patient.id} />
               </Tabs.Panel>
-              <Tabs.Panel id="patient-visits" value="visits" pt="md">
+              <Tabs.Panel value="visits" pt="md">
                 <VisitsTab patientId={patient.id} />
               </Tabs.Panel>
-              <Tabs.Panel id="patient-prescriptions" value="prescriptions" pt="md">
+              <Tabs.Panel value="prescriptions" pt="md">
                 <PrescriptionsTab patient={patient} />
               </Tabs.Panel>
-              <Tabs.Panel id="patient-lab" value="lab" pt="md">
+              <Tabs.Panel value="lab" pt="md">
                 <LabOrdersTab patientId={patient.id} />
               </Tabs.Panel>
-              <Tabs.Panel id="patient-imaging" value="imaging" pt="md">
+              <Tabs.Panel value="imaging" pt="md">
                 <ImagingTab patientId={patient.id} />
               </Tabs.Panel>
-              <Tabs.Panel id="patient-billing" value="billing" pt="md">
+              <Tabs.Panel value="billing" pt="md">
                 <BillingTab patientId={patient.id} />
               </Tabs.Panel>
-              <Tabs.Panel id="patient-camps" value="camps" pt="md">
+              <Tabs.Panel value="camps" pt="md">
                 <CampsTab patientId={patient.id} />
               </Tabs.Panel>
 
-              <Tabs.Panel id="patient-appointments" value="appointments" pt="md">
+              <Tabs.Panel value="appointments" pt="md">
                 <AppointmentsTab patientId={patient.id} />
               </Tabs.Panel>
-              <Tabs.Panel id="patient-family" value="family" pt="md">
+              <Tabs.Panel value="family" pt="md">
                 <DetailFamilyLinksTab patientId={patient.id} />
               </Tabs.Panel>
-              <Tabs.Panel id="patient-documents" value="documents" pt="md">
+              <Tabs.Panel value="documents" pt="md">
                 <Stack>
                   <DetailDocumentsTab patientId={patient.id} />
                   <AbdmRecordsSection patientId={patient.id} />
@@ -648,16 +648,16 @@ export function PatientDetailPageInner() {
                   <PatientAccessLogSection patientId={patient.id} />
                 </Stack>
               </Tabs.Panel>
-              <Tabs.Panel id="patient-chronic" value="chronic" pt="md">
+              <Tabs.Panel value="chronic" pt="md">
                 <ChronicCareTab patientId={patient.id} />
               </Tabs.Panel>
-              <Tabs.Panel id="patient-packages" value="packages" pt="md">
+              <Tabs.Panel value="packages" pt="md">
                 <ActivePackagesSection patientId={patient.id} />
               </Tabs.Panel>
-              <Tabs.Panel id="patient-notes" value="notes" pt="md">
+              <Tabs.Panel value="notes" pt="md">
                 <ChartReview patientId={patient.id} />
               </Tabs.Panel>
-              <Tabs.Panel id="patient-merge" value="merge" pt="md">
+              <Tabs.Panel value="merge" pt="md">
                 <MergeTab patient={patient} />
               </Tabs.Panel>
             </Stack>
