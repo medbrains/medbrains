@@ -171,20 +171,22 @@ fn new_token() -> Result<(SoftToken, String, String), String> {
     Ok((token, its_model, other_model))
 }
 
-/// The default every member of staff gets from `kanidm-setup`: a key and no password, so guessing has
-/// nothing to count against them.
+/// What a hospital gets by turning keys on for a group: a key and no password, so guessing has nothing to
+/// count against them.
 async fn key_only_cannot_be_locked_out(
     base: &str,
     origin: &Url,
     admin: &KanidmClient,
     failed: &mut Failures,
 ) -> Result<(), String> {
+    person_in_group(admin, "staff.member", "key_only_staff").await?;
+    admin.group_account_policy_enable("key_only_staff").await.map_err(|e| format!("enable: {e:?}"))?;
     admin
-        .idm_person_account_create("staff.member", "Staff Member")
+        .group_account_policy_credential_type_minimum_set("key_only_staff", "passkey")
         .await
-        .map_err(|e| format!("person: {e:?}"))?;
+        .map_err(|e| format!("minimum: {e:?}"))?;
     let (who, session, status) = enrol(admin, base, "staff.member").await?;
-    check(failed, "by default a person can have no password", status.primary_state == CUCredState::PolicyDeny, &format!("{:?}", status.primary_state));
+    check(failed, "in a key-only group a person can have no password", status.primary_state == CUCredState::PolicyDeny, &format!("{:?}", status.primary_state));
     let refused = who.idm_account_credential_update_set_password(&session, "Correct-Horse-Battery-Staple-99").await;
     check(failed, "and the server refuses one", refused.is_err(), "");
     let status = who

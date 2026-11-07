@@ -13,10 +13,10 @@ FerrisKey test's steps so the two compare. Each step prints PASS, FAIL or what i
 import html, os, re, subprocess, sys, tempfile, time
 from urllib.parse import urljoin
 
-from kanidm_lib import IDP, WEB, cookie, curl, kanidm_auth, local_sign_in, must, new_jar, recover_password, serial
+from kanidm_lib import ADMIN, IDP, WEB, cookie, curl, kanidm_auth, limit_opened, local_sign_in, must, new_jar, recover_password, serial, set_up_machine
 
 USER_PASSWORD = "Kn-Test-Passphrase-4471-Quartz"
-CLIENT = "medbrains"
+CLIENT = "mb_test"
 CALLBACK = f"{WEB}/api/auth/sso/callback"
 SOFTKEY = os.environ.get("KANIDM_SOFTKEY", "/tmp/mb-target-kanidm/softkey/debug/kanidm-softkey")
 failed = []
@@ -50,10 +50,7 @@ def test_setup_rules(token, admin_token):
     """Tests 3 and 4 of the owner's fix list: what kanidm-setup left on a new machine, before anyone
     changes anything. Fails if Control ever holds a group outside its narrow set."""
     policy = curl(f"{IDP}/v1/group/idm_all_persons/_attr/credential_type_minimum", token=token)[1]
-    # A debug image's marked test account needs a password, so it lowers this; release images have none.
-    debug_account = serial("systemctl is-enabled kanidm-debug-account 2>/dev/null; true", 8).endswith("enabled")
-    check("staff are key-only by default, except with a debug image's test account",
-          policy == (["any"] if debug_account else ["passkey"]), f"{policy}, debug account: {debug_account}")
+    check("staff sign in with a password by default", policy == ["any"], str(policy))
     print("INFO  setup unit:", serial("systemctl is-active kanidm-setup; ls -la /var/lib/medbrains/config/idp-control-token | cut -c1-50", 10)[-90:])
     clean = serial("/usr/lib/medbrains/kanidm-setup check; echo rc=$?", 40)
     check("Control holds only the narrow groups", clean.endswith("rc=0"), clean[-120:])
@@ -83,7 +80,6 @@ def test_setup_rules(token, admin_token):
 def set_up_identity_provider(token):
     """A client, a group whose members may use it and carry a claim, and two people: one in, one out."""
     # Kanidm refuses password-only people unless this is lowered. The key test raises it again.
-    must(curl(f"{IDP}/v1/group/idm_all_persons/_attr/credential_type_minimum", "PUT", token, ["any"]), "min")
     must(curl(f"{IDP}/v1/group", "POST", token, {"attrs": {"name": ["ward_nurses"]}}), "group")
     must(curl(f"{IDP}/v1/oauth2/_basic", "POST", token, {"attrs": {
         "name": [CLIENT], "displayname": ["MedBrains"], "oauth2_rs_origin_landing": [f"{WEB}/"],
@@ -102,7 +98,7 @@ def connect_provider(jar, secret, jit=True):
     """Adds Kanidm through MedBrains' own SSO settings API, the one its admin screen calls."""
     csrf = cookie(jar, "csrf_token")
     provider = must(curl(f"{WEB}/api/admin/sso/providers", "POST", jar=jar, csrf=csrf, body={
-        "code": "kanidm", "name": "Hospital sign-in", "protocol": "oidc",
+        "code": "kanidm_test", "name": "Test sign-in", "protocol": "oidc",
         "discovery_url": f"{IDP}/oauth2/openid/{CLIENT}/.well-known/openid-configuration", "client_id": CLIENT,
         "client_secret": secret, "group_claim": "medbrains_groups", "jit_enabled": jit, "is_active": True}), "provider")
     must(curl(f"{WEB}/api/admin/sso/providers/{provider['id']}/mappings", "POST", jar=jar, csrf=csrf, body={
@@ -281,7 +277,7 @@ def test_rate_limit():
 def test_lockout():
     """Test 7, slow half: a stranger who knows a username. Password accounts only; key-only accounts
     have nothing to guess, and kanidm-softkey tests those. Each wrong password opens a window of 1,
-    3, 5 then 10 seconds, and at 100 the code locks until the next UTC midnight: this measures that."""
+    3, 5 then 10 seconds, and Kanidm itself locks until the next UTC midnight at 100. Our patch keeps 10 seconds: this proves it."""
     token = kanidm_auth("idm_admin", recover_password("idm_admin"))[0]
     must(curl(f"{IDP}/v1/group/idm_all_persons/_attr/credential_type_minimum", "PUT", token, ["any"]), "policy")
     person = f"lock.me{int(time.time())}"
@@ -302,7 +298,7 @@ def test_lockout():
     time.sleep(12)
     good, during, _ = kanidm_auth(person, USER_PASSWORD, privileged=False)
     print(f"INFO  12 s after the last guess, the real person: signed_in={bool(good)} {during}", flush=True)
-    check("a stranger cannot lock a password account for long", bool(good), during)
+    check("100 wrong passwords do not lock a person out until midnight", bool(good), during)
     serial("systemctl restart kanidmd; sleep 8", 40)
     good, during, _ = kanidm_auth(person, USER_PASSWORD, privileged=False)
     print(f"INFO  after restarting Kanidm: signed_in={bool(good)} {during}", flush=True)
@@ -426,6 +422,7 @@ def main():
     if mode == "measure":
         measure()
     elif mode == "lockout":
+        limit_opened(True)
         test_lockout()
     elif mode == "backup":
         test_backup()
@@ -436,6 +433,9 @@ def main():
     elif mode == "keys":
         test_keys(recover_password("idm_admin"))
     else:
+        if serial("ls /var/lib/medbrains/config/role-main 2>/dev/null; true", 8).strip() == "":
+            set_up_machine()
+        limit_opened(True)
         idm_password, admin_password = recover_password("idm_admin"), recover_password("admin")
         token = kanidm_auth("idm_admin", idm_password)[0]
         admin_token = kanidm_auth("admin", admin_password)[0]
@@ -451,10 +451,10 @@ def main():
         test_branding(admin_token, provider, mode)
         test_service_account(token)
         test_rate_limit()
-        must(curl(f"{IDP}/v1/group/idm_all_persons/_attr/credential_type_minimum", "PUT", token, ["passkey"]), "policy back")
         test_keys(recover_password("idm_admin"))
         test_no_outbound(provider)
         measure()
+    limit_opened(False)
     print("FAILED: " + ", ".join(failed) if failed else "ALL PASSED")
     return 1 if failed else 0
 

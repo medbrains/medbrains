@@ -3,7 +3,9 @@
 # All its data, keys and backups are under /var, the partition disk-setup encrypts.
 [Unit]
 Description=MedBrains identity provider
-ConditionPathExists=/var/lib/medbrains/config/role-main
+# Either: setup needs it to make the first administrator. It is on loopback, and Caddy is not running yet.
+ConditionPathExists=|/var/lib/medbrains/config/role-main
+ConditionPathExists=|/run/medbrains-console/kanidm-for-setup
 After=medbrains-firstboot.service network.target
 StartLimitIntervalSec=600
 StartLimitBurst=5

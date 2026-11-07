@@ -1,0 +1,55 @@
+#!/bin/bash
+# Makes the first administrator in Kanidm, with the username and password chosen at setup, so there is one
+# login. Kanidm's own check decides on the password. Reads two lines on stdin, the username and the password,
+# and keeps them in memory: they reach curl through a pipe, and nothing here prints them.
+#
+# Exits 0 when that login signs in, 3 when Kanidm refuses the password, and 1 for anything else. Safe to run
+# again: a person this run made is removed if it fails, and a person left by a power cut is reset.
+set -euo pipefail
+
+. /usr/lib/medbrains/kanidm-lib.sh
+
+# Setup links this login to the MedBrains administrator by this address, which the seed gives it.
+ADMIN_MAIL=admin@medbrains.localhost
+# Enough to add staff and reset their passwords. Not idm_admins: this login has no second step.
+ADMIN_GROUPS=(idm_people_on_boarding idm_service_desk)
+INTENT_SECONDS=300
+
+IFS= read -r username
+IFS= read -r password
+[[ -n "$username" && -n "$password" ]] || { echo "no username or password" >&2; exit 1; }
+
+wait_for_kanidm
+/usr/lib/medbrains/kanidm-setup rules
+admin="$(admin_token idm_admin)"
+made=0
+
+# Takes back a person this run made, if the run did not finish.
+undo() {
+    if [[ "$made" == 1 ]]; then
+        api_as "$admin" -o /dev/null -X DELETE "$ORIGIN/v1/person/$username" || echo "could not remove the unfinished person" >&2
+    fi
+}
+trap undo EXIT
+
+if ! api_as "$admin" "$ORIGIN/v1/person/$username" | grep -q '"attrs"'; then
+    printf '{"attrs":{"name":["%s"],"displayname":["%s"],"mail":["%s"]}}' "$username" "$username" "$ADMIN_MAIL" |
+        json_body_as "$admin" -o /dev/null "$ORIGIN/v1/person"
+    made=1
+fi
+intent="$(api_as "$admin" "$ORIGIN/v1/person/$username/_credential/_update_intent/$INTENT_SECONDS" | sed -n 's/.*"token":"\([^"]*\)".*/\1/p')"
+exchanged="$(printf '"%s"' "$intent" | json_body "$ORIGIN/v1/credential/_exchange_intent")"
+session="${exchanged#\[}"
+session="${session%%,\{\"spn\"*}"
+if ! printf '[{"password":"%s"},%s]' "$(json_escape "$password")" "$session" |
+    json_body -o /dev/null "$ORIGIN/v1/credential/_update" 2>/dev/null; then
+    echo "Kanidm refused the password" >&2
+    exit 3
+fi
+printf '%s' "$session" | json_body -o /dev/null "$ORIGIN/v1/credential/_commit"
+for group in "${ADMIN_GROUPS[@]}"; do
+    printf '["%s"]' "$username" | json_body_as "$admin" -o /dev/null "$ORIGIN/v1/group/$group/_attr/member"
+done
+token="$(printf '%s\n' "$password" | token_for_password "$username")"
+[[ -n "$token" ]] || { echo "the new login does not sign in" >&2; exit 1; }
+made=0

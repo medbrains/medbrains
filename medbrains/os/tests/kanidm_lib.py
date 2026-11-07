@@ -12,6 +12,8 @@ CONNECT = ["--connect-to", f"medbrains.local:443:127.0.0.1:{os.environ.get('OS_W
            "--connect-to", f"idm.medbrains.local:9443:127.0.0.1:{os.environ.get('OS_IDP_PORT', 8471)}"]
 SERIAL = os.environ.get("OS_WORK", "/tmp/mb-osimage-kanidm") + "/vm/serial.sock"
 SERIAL_CONNECT_TRIES = 40
+ADMIN = ("asha_admin", "Blue-River-Walks-At-7!")
+LIMITER_DROP_IN = "/run/systemd/system/medbrains-signin-limit.service.d"
 
 
 def curl(url, method="GET", token=None, body=None, form=None, jar=None, csrf=None, extra=()):
@@ -84,7 +86,7 @@ def kanidm_auth(username, password, privileged=True, base=IDP):
         return None, f"init {status} {body}"[:120], time.time() - started
     extra = ("-H", f"X-KANIDM-AUTH-SESSION-ID: {session}")
     _, body, _ = curl(f"{base}/v1/auth", "POST", body={"step": {"begin": "password"}}, extra=extra)
-    if "continue" not in body.get("state", {}):
+    if not isinstance(body, dict) or "continue" not in body.get("state", {}):
         return None, f"begin {body}"[:120], time.time() - started
     _, body, _ = curl(f"{base}/v1/auth", "POST", body={"step": {"cred": {"password": password}}}, extra=extra)
     state = body.get("state", {}) if isinstance(body, dict) else {}
@@ -112,15 +114,39 @@ def cookie(jar, name):
 
 
 def local_sign_in():
-    """Signs in as the first administrator, past the forced password change the first time, because the
-    server refuses everything else until then. Returns a browser that is signed in."""
-    chosen = "Corr3ct-Horse-Battery-77-Kn"
+    """Signs in as the first administrator, on MedBrains' own form. Returns a browser that is signed in."""
     jar = new_jar()
-    if curl(f"{WEB}/api/auth/login", "POST", body={"username": "admin", "password": chosen}, jar=jar)[0] == 200:
-        return jar
-    first = serial("cat /var/lib/medbrains/config/initial-admin-password").splitlines()[-1].strip()
-    must(curl(f"{WEB}/api/auth/login", "POST", body={"username": "admin", "password": first}, jar=jar), "first sign-in")
-    must(curl(f"{WEB}/api/auth/change-password", "POST", jar=jar, csrf=cookie(jar, "csrf_token"),
-              body={"current_password": first, "new_password": chosen}), "password change")
-    must(curl(f"{WEB}/api/auth/login", "POST", body={"username": "admin", "password": chosen}, jar=jar), "sign-in")
+    must(curl(f"{WEB}/api/auth/login", "POST", body={"username": ADMIN[0], "password": ADMIN[1]}, jar=jar), "sign-in")
     return jar
+
+
+def setup_call(path, body):
+    """A call to the setup service as the screen makes it. Returns (status, answer)."""
+    payload = json.dumps(body)
+    out = serial(f"printf %s '{payload}' | curl -sS -m 140 -w '\\ncode=%{{http_code}}' --unix-socket /run/medbrains-console/setup.sock "
+                 f"-H 'Content-Type: application/json' -d @- http://x{path}", 150)
+    code = out.rsplit("code=", 1)[-1].strip()[:3]
+    return code, out.rsplit("code=", 1)[0][-900:]
+
+
+def set_up_machine():
+    """Sets the machine up with ADMIN, and waits for everything to be running."""
+    code, answer = setup_call("/hospital", {"hospital": "Test Hospital", "username": ADMIN[0], "password": ADMIN[1]})
+    if code != "200":
+        raise SystemExit(f"setup: {code} {answer}")
+    started = time.time()
+    while time.time() - started < 600:
+        time.sleep(5)
+        states = serial("systemctl is-active medbrains-server kanidmd caddy kanidm-setup medbrains-signin-limit | sort -u | tr -d '\\n'", 8).split()[-1]
+        if states == "active" and curl(f"{WEB}/api/health")[0] == 200:
+            return
+    raise SystemExit("setup: the services did not come up")
+
+
+def limit_opened(opened):
+    """Raises the front's limit for a test that signs in many times, or puts the real one back."""
+    if opened:
+        serial(f"mkdir -p {LIMITER_DROP_IN}; printf '[Service]\\nEnvironment=SIGNIN_LIMIT_BURST=100000 SIGNIN_LIMIT_PER_MINUTE=100000\\n' > {LIMITER_DROP_IN}/test.conf; "
+               "systemctl daemon-reload; systemctl restart medbrains-signin-limit; sleep 1", 20)
+    else:
+        serial(f"rm -rf {LIMITER_DROP_IN}; systemctl daemon-reload; systemctl restart medbrains-signin-limit; sleep 1", 20)

@@ -35,6 +35,7 @@ OS_WORK="${OS_WORK:-/tmp/mb-osimage}"
 SERVER="${MEDBRAINS_SERVER_BIN:-${CARGO_TARGET_DIR:-$REPO/target}/$TRIPLE/release/medbrains-server}"
 KANIDM="${KANIDM_DIR:-$OS_WORK/kanidm-$ARCH}"
 OS_SETUP="$(dirname "$SERVER")/medbrains-os-setup"
+SIGNIN_LIMIT="$(dirname "$SERVER")/medbrains-signin-limit"
 WEB="${MEDBRAINS_WEB_DIST:-$REPO/apps/web/dist}"
 if [[ ! -x "$SERVER" ]]; then
     echo "no server binary at $SERVER — cross-build it with zigbuild for $TRIPLE (see README)" >&2
@@ -46,6 +47,10 @@ if [[ ! -x "$KANIDM/kanidmd" ]]; then
 fi
 if [[ ! -x "$OS_SETUP" ]]; then
     echo "no setup service at $OS_SETUP — cross-build medbrains-os-setup with the server" >&2
+    exit 1
+fi
+if [[ ! -x "$SIGNIN_LIMIT" ]]; then
+    echo "no sign-in limit at $SIGNIN_LIMIT — cross-build medbrains-signin-limit with the server" >&2
     exit 1
 fi
 if [[ ! -f "$WEB/index.html" ]]; then
@@ -67,6 +72,7 @@ if [[ "$DEBUG" == 1 ]]; then install -m 0644 /dev/null "$EXTRA/usr/lib/medbrains
 # The hospital's colours, on the one stylesheet Kanidm leaves for this.
 install -m 0644 "$HERE/kanidm-override.css" "$EXTRA/usr/share/kanidm/ui/hpkg/override.css"
 install -m 0755 "$OS_SETUP" "$EXTRA/usr/bin/medbrains-os-setup"
+install -m 0755 "$SIGNIN_LIMIT" "$EXTRA/usr/bin/medbrains-signin-limit"
 cp -R "$WEB" "$EXTRA/usr/share/medbrains/web"
 # Pre-compressed copies are for a CDN; on the appliance Caddy compresses.
 find "$EXTRA/usr/share/medbrains/web" \( -name '*.br' -o -name '*.gz' -o -name '*.map' \) -delete

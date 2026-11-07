@@ -46,11 +46,20 @@ https://127.0.0.1:8443 {
 	encode zstd gzip
 	# SCIM has crashed Kanidm twice through its filter parser and we do not use it. The landing page is
 	# upstream sign-in, which has no setting to turn off and which we do not use either.
-	@internal path /docs* /metrics* /scim/* /ui/login/oauth2_landing*
+	@internal path /docs* /metrics* /scim/* /ui/login/oauth2_landing* /ui/radius*
 	handle @internal {
 		respond 404
 	}
+	# Every request that can carry a guess asks the limiter first: one address, a limited rate. If it is
+	# down, Caddy answers 502: sign-ins fail closed, and systemd restarts it within a second.
+	@signin {
+		method POST
+		path /ui/login/begin /ui/login/pw /ui/login/totp /ui/login/backup_code /v1/auth /v1/reauth
+	}
 	handle {
+		forward_auth @signin 127.0.0.1:3101 {
+			uri /check
+		}
 		reverse_proxy https://127.0.0.1:8444 {
 			transport http {
 				tls_trusted_ca_certs /var/lib/caddy/local/kanidm-back.pem

@@ -4,7 +4,7 @@
 Description=MedBrains identity provider rules
 ConditionPathExists=/var/lib/medbrains/config/role-main
 Requires=kanidmd.service
-After=kanidmd.service
+After=kanidmd.service medbrains-server.service
 
 [Service]
 Type=oneshot

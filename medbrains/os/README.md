@@ -208,7 +208,7 @@ it can restrict sign-in to approved key models; see `docs/DECISIONS.md`.
 | Runs as | `kanidmd.service`, its own user, hardened, on `127.0.0.1:8444`. `IPAddressDeny=any` except localhost, so it cannot call out. It speaks only TLS, so Caddy reaches it over TLS and trusts that one certificate |
 | Reached at | `https://idm.medbrains.local:9443`, through Caddy. **A name of its own:** its session cookies go to its whole domain and browsers send cookies to every port of a name, so `medbrains.local` would hand them to the app. A hospital's LAN has to resolve this name; `medbrains.local` is the only one announced today |
 | Data | Its own SQLite store, its keys and its backups, all in `/var/lib/kanidm`. No PostgreSQL connection |
-| Closed | LDAP is off. At the front, 404 for SCIM, which has crashed it twice through its filter parser, and for upstream sign-in, which has no setting to turn off. We use neither |
+| Closed | LDAP is off. At the front, 404 for SCIM, which has crashed it twice through its filter parser, for upstream sign-in, which has no setting to turn off, and for RADIUS. We use none of them |
 | Secrets | No generated admin password: `kanidmd scripting recover-account admin`, as root on the machine, is the way in. Control's API token is in `/var/lib/medbrains/config/idp-control-token`, for root |
 | Domain | `domain` in `/etc/kanidm/server.toml` binds every registered key. **Changing it later makes everyone enrol again** |
 
@@ -217,18 +217,49 @@ it can restrict sign-in to approved key models; see `docs/DECISIONS.md`.
 for `medbrains_groups`, then add the provider and group mappings in MedBrains' SSO settings.
 `tests/kanidm-acceptance.py` does all of it. Control does not do this yet.
 
-**Set up on first start** by `kanidm-setup`, and checked on every start:
-- **Staff have keys only.** `idm_all_persons` has a minimum of `passkey`, so nobody has a password to guess.
+**One login.** The username and password chosen at setup are the same login for MedBrains and Identity. Setup gives
+them to `kanidm-first-admin` on stdin, never in arguments, a file or a log, and it makes the person through Kanidm's own
+API, so Kanidm's own check decides. That happens before the role marker: if it fails, setup says so, nothing is left and
+it can be tried again. Release images have no default password and no test account. That admin can add staff and reset
+their passwords, and has no second step, so it is not an `idm_admins` member.
+
+**The password rule, measured.** Kanidm has **no setting** that loosens this, and we do not patch it. A password with no second
+step needs 15 characters (`PW_SFA_MIN_LENGTH_NIST`; setting `auth_password_minimum_length` to 1 changed nothing, measured), its strength check
+at the top score (zxcvbn 4), not holding the username or address, and not on its banned list. MedBrains' own rule adds a
+capital, a small letter, a number and a symbol. No rotation is forced. The setup screen checks all of this before submitting.
+Taken: `Blue-River-Walks-At-7!`, `My dog Rocky eats 3 apples`, `Sunflower ward 7 is bright`. Refused: `Test@1234`, `Nurse@2026`,
+`Password@1234567`, `P@ssw0rd1234567!`. **So a short memorable password does not work; a short phrase does.** Kanidm alone takes
+`blue river test`, 15 characters; setup refuses that one for MedBrains' rule, while local sign-in remains. Names Kanidm keeps
+for itself (`admin`, `idm_admin`, `anonymous`) cannot be chosen as the username.
+
+**Signing in to MedBrains through Kanidm.** `kanidm-setup` adds Kanidm as a provider, with a public client and PKCE, so there
+is no client secret to keep. The sign-in page offers it, on the machine's screen and in browsers. New people get MedBrains'
+least role until an administrator gives them one, and MedBrains keeps no password for them. **Local sign-in stays,** so the
+first administrator still has a second copy of the same password in MedBrains until local sign-in is switched off; a reset in
+Kanidm does not change that copy. That is the part not yet done.
+
+**Second step for IT.** `mb_it_admins` needs a password with a one-time code, or a key: Kanidm's `mfa` policy, per group. A hospital can
+set approved key models on any group as well. Staff stay on passwords.
+**Kanidm checks this rule when a credential is saved, not at sign-in** (a TODO in its `authsession/mod.rs`). So joining the group
+does not stop a password the person already has; we measured that. To move someone in: add them, then clear their password
+(`DELETE /v1/person/<name>/_attr/primary_credential`, as `idm_admin`), then give them a reset link. Kanidm then refuses to save a
+password alone, and once a code is saved a password alone no longer signs in. All of it measured with a one-time code; a key
+was not tried on this path. There is no screen for this yet, and nothing notices a member who still has a password alone.
+
+**Set on first start** by `kanidm-setup`, and checked on every start:
 - **Control's service account (`mb_control`) holds `idm_people_on_boarding`, `idm_service_desk` and `idm_oauth2_admins`,
   and no others.** The check fails, as a failed unit, if it ever holds anything else. `idm_people_admins` is the one
   to watch: it may reset people in `idm_admins`, by design, so it reaches administrator; we did that on a test machine.
 - **Control disables people instead of deleting them,** by setting `account_expire`. Only `idm_people_admins` can delete.
-- **Control can read every OAuth2 client's secret,** including MedBrains', because `idm_oauth2_admins` can. Treat its
-  token as holding them. Kanidm has no narrower group.
+- **Control can read every OAuth2 client's secret,** because `idm_oauth2_admins` can. Treat its token as holding them.
 
-**Only people in a mapped group get in.** A scope map is required to use the client, so someone with no mapped group
-is refused by Kanidm itself, and MedBrains never makes an account for them. New people in a mapped group still get
-one, with their role.
+**Resets and recovery.**
+- A member of staff who forgets: IT runs `kanidm-reset-password <username>` on the machine, or Control asks the API for
+  `/v1/person/<username>/_credential/_update_intent/3600`. Either gives a link for that person to choose a new password.
+  There is no button for this on a screen yet.
+- The administrator who forgets: as root on the machine, `kanidmd scripting recover-account <username>`, which prints a new
+  password once, then change it on Identity's Credentials page. **A release image has no root shell, so this needs a button in
+  Settings or in Control that does not exist yet.** Until then a release machine's forgotten administrator is unrecoverable.
 
 **Hardware keys.** To allow only approved models, an administrator sets a list of makers' CAs and AAGUIDs on a group:
 `kanidm group account-policy webauthn-attestation-ca-list <group> <file>` and `credential-type-minimum <group>
@@ -249,7 +280,7 @@ setting, and its TPM support is not compiled in. So **a release image refuses to
 `require-encrypted-data` runs first and wants `/var/lib/kanidm` on dm-crypt and a sealed record from `disk-setup`. A
 machine that chose `STORE UNENCRYPTED` gets local sign-in and no identity provider. A debug image, marked at build, may
 run it anyway. **A backup copied off the machine is not protected by this:** anyone with one can forge a token for any user.
-Until the disk encryption branch is merged, no release image can start Kanidm at all.
+Until the disk encryption branch is merged, a release image finishes setup with local sign-in only, and says so in its log.
 
 **Backup.** `[online_backup]` writes a gzip file to `/var/lib/kanidm/backups` every day and keeps 7. `kanidmd database
 restore`, with the service stopped, brought back a deleted person, their password and the signing keys. Restore goes
@@ -266,21 +297,21 @@ for 4 months, so a machine that misses two needs the binaries in between: `build
 `d092e62e72` for the upstream subject check.
 
 **Known limits**
-- A stranger who knows a username can still lock a **password** account, if someone lowers the key-only default: every
-  wrong guess blocks the account for 1 to 10 seconds, and 100 of them, which we measured taking 14.5 minutes, keep it
-  locked until the next UTC midnight. A restart of Kanidm clears it, because the count is in memory.
+- **Lockout.** Kanidm counts wrong passwords per account, whoever sends them, with a wait of 1 to 10 seconds after each. It has no
+  setting for this. At 100 in a UTC day it locks until midnight, so we carry one patch
+  (`patches/kanidm-softlock-no-day-long-lock.patch`) that keeps the 10 second wait instead. The password check is not touched.
+  `medbrains-signin-limit` also limits one address at the front, on the sign-in paths: 30 at once, regaining 15 a minute, with the screen
+  not counted. A stranger can still make a person wait up to 10 seconds, while guessing from any address.
 - **Open:** the sign-in page says "Invalid username" for a name that does not exist, so usernames can be listed. Neither
   its config nor our CSS can change this, because the next page differs, not only the words. It has no limit by address
   either; the firewall's 50 connections a second is the only ceiling.
 - **On the machine's own screen, a hardware key does not work.** The Identity tile opens Kanidm's pages (the shell allows
   its one exact origin, and first boot adds its certificate to what the screen trusts), but WebKitGTK has no WebAuthn:
-  `navigator.credentials` and `PublicKeyCredential` are undefined there, in a secure context, and Kanidm's Add Passkey
-  fails (`tests/webauthn-probe.html`). So **staff with keys only cannot sign in on that screen.** They use a browser on
-  another device, at `https://idm.medbrains.local:9443`, which must resolve that name and trust this machine's certificate.
-  Neither is arranged yet: a hospital's devices need the name published and the certificate installed. Local MedBrains
-  sign-in on the screen is not affected.
-- A debug image has a marked account, `debug.test.account`, whose password is in `os/debug/kanidm-debug-account`. It lowers
-  the key-only rule so the pages can be seen on the screen. A release image has neither the account nor the script.
+  `navigator.credentials` and `PublicKeyCredential` are undefined there (`tests/webauthn-probe.html`). Staff sign in with a password, so this does
+  not stop them. The screen hides Add Passkey and says to use another device. A browser on another device needs that name published and this
+  machine's certificate installed; neither is arranged yet.
+- A debug image has a marked account for tests, `debug.test`, whose password is in `os/debug/kanidm-debug-account` and meets the same rule.
+  A release image has neither the account nor the script.
 - Kanidm does not take sign-ins from an upstream directory in this image; that route is closed at the front. A hospital
   with Entra or Okta points MedBrains' own SSO settings at it instead (`tests/sso-entra-fixture.py`, a fixture of Entra's
   shape). **Real Entra and Okta are unverified, and need an account from the owner.** MedBrains' SAML sign-in is not
@@ -441,6 +472,7 @@ partitions keeps the data.
 - `build.sh`: runs mkosi. `builder.Dockerfile`: the Mac fallback. `qemu-run.sh`: boot it.
 - `build-kanidm.sh`: compiles the identity provider from its pinned release. `kanidm-override.css`: its colours.
 - `tests/kanidm-acceptance.py`, `tests/kanidm-softkey`: the owner's acceptance test and the hardware key test, against a booted debug image.
+- `tests/kanidm-one-login-test.py`, `tests/kanidm-limit-test.py`: one login from setup, and the limit by address.
 - `tests/kanidm-attacks.py`, `tests/kanidm-upgrade-test.py`, `tests/sso-entra-fixture.py`: the published crashes, a real upgrade and the Entra-shaped sign-in, each against a booted debug image.
 - `tests/kanidm-pin-test.sh`, `tests/kanidm-disk-guard-test.sh`: the build's pins and the encryption guard, with no VM.
 - `tests/webauthn-probe.html`, `tests/webauthn-probe.js`: what a browser offers for hardware keys, shown on the page. Copy them to a test VM's `/usr/share/kanidm/ui/hpkg/` and open `/pkg/webauthn-probe.html`.

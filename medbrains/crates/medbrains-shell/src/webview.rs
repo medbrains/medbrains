@@ -7,6 +7,11 @@ use webkit6::{HardwareAccelerationPolicy, NavigationPolicyDecision, NetworkSessi
 
 use crate::timezone;
 
+/// This screen's browser has no WebAuthn, so Kanidm's key buttons could only fail here. They stay for a
+/// browser on another device, and this says so where the button was.
+const NO_KEYS_HERE: &str = "[hx-post='/ui/reset/add_passkey'], [hx-post='/ui/reset/add_attested_passkey'] { display: none !important; }\n\
+    :has(> [hx-post='/ui/reset/add_passkey'])::after { content: 'To add a key, open this page in a browser on another device. This screen cannot use one.'; }";
+
 /// True for a page the view may show: the app's own origin, or what it made in memory.
 fn is_local_page(uri: &str, origin: &str) -> bool {
     uri.strip_prefix(origin)
@@ -18,23 +23,36 @@ fn is_local_page(uri: &str, origin: &str) -> bool {
 
 /// True for a navigation away from this app. The content filter would block it too, but on a
 /// dead-end page; refusing it here leaves the person where they were.
-fn leaves_this_app(decision: &NavigationPolicyDecision, origin: &str) -> bool {
+fn leaves_this_app(decision: &NavigationPolicyDecision, origin: &str, sign_in: Option<&str>) -> bool {
     let target = decision
         .navigation_action()
         .and_then(|mut action| action.request())
         .and_then(|request| request.uri());
-    !target.is_some_and(|uri| is_local_page(&uri, origin))
+    !target.is_some_and(|uri| {
+        is_local_page(&uri, origin) || sign_in.is_some_and(|other| is_local_page(&uri, other))
+    })
 }
 
 /// Builds a view with a session of its own, so apps can't read each other's storage. Sessions are
 /// ephemeral, so nothing a page stores reaches the disk, and downloads, printing and uploads are
 /// refused: the appliance has no safe way to do them yet.
-pub(crate) fn new_view(filter: &webkit6::UserContentFilter, origin: &str) -> WebView {
+pub(crate) fn new_view(
+    filter: &webkit6::UserContentFilter,
+    origin: &str,
+    sign_in: Option<&str>,
+) -> WebView {
     timezone::export_for_children();
     let session = NetworkSession::new_ephemeral();
     session.connect_download_started(|_, download| download.cancel());
     let content = webkit6::UserContentManager::new();
     content.add_filter(filter);
+    content.add_style_sheet(&webkit6::UserStyleSheet::new(
+        NO_KEYS_HERE,
+        webkit6::UserContentInjectedFrames::AllFrames,
+        webkit6::UserStyleLevel::User,
+        &[],
+        &[],
+    ));
     let view = WebView::builder()
         .network_session(&session)
         .user_content_manager(&content)
@@ -50,14 +68,14 @@ pub(crate) fn new_view(filter: &webkit6::UserContentFilter, origin: &str) -> Web
         request.cancel();
         true
     });
-    let origin = origin.to_owned();
+    let (origin, sign_in) = (origin.to_owned(), sign_in.map(str::to_owned));
     view.connect_decide_policy(move |_, decision, kind| {
         let leaves = match kind {
             // A new window would have no way back in a one-window shell.
             webkit6::PolicyDecisionType::NewWindowAction => true,
             webkit6::PolicyDecisionType::NavigationAction => decision
                 .downcast_ref::<NavigationPolicyDecision>()
-                .is_some_and(|navigation| leaves_this_app(navigation, &origin)),
+                .is_some_and(|navigation| leaves_this_app(navigation, &origin, sign_in.as_deref())),
             _ => false,
         };
         if leaves {

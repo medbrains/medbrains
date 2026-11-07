@@ -5,6 +5,7 @@ use std::fs;
 use std::io::Write;
 use std::os::unix::fs::{MetadataExt, OpenOptionsExt, PermissionsExt, chown};
 use std::path::Path;
+use std::time::Duration;
 
 use argon2::{Argon2, PasswordHasher};
 use serde_json::{Value, json};
@@ -13,6 +14,20 @@ use crate::child::{self, USUAL_LIMIT};
 use crate::{rules, status};
 
 /// Set once the main-machine role is chosen; nothing later asks again.
+/// While this exists, Kanidm may start before setup has finished.
+const IDENTITY_FOR_SETUP: &str = "/run/medbrains-console/kanidm-for-setup";
+const ENCRYPTION_GUARD: &str = "/usr/lib/medbrains/require-encrypted-data";
+const FIRST_ADMIN: &str = "/usr/lib/medbrains/kanidm-first-admin";
+/// This service's sandbox can't switch users or write Kanidm's folder, and should not. So these helpers run
+/// as transient units, and `--pipe` connects them to this process's pipes: the password still only crosses stdin.
+const TRANSIENT: &str = "systemd-run";
+const TRANSIENT_WAIT: &str = "--wait";
+const TRANSIENT_PIPE: &str = "--pipe";
+const TRANSIENT_QUIET: &str = "--quiet";
+const TRANSIENT_COLLECT: &str = "--collect";
+/// Kanidm's first start, with room for a slow machine, and well inside what the screen will wait.
+const FIRST_ADMIN_LIMIT: Duration = Duration::from_secs(120);
+
 const ROLE_MAIN: &str = "/var/lib/medbrains/config/role-main";
 const ENV_FILE: &str = "/var/lib/medbrains/config/env";
 /// Where a fixed address takes effect. On tmpfs, so a power cut before it is confirmed undoes it.
@@ -340,6 +355,92 @@ pub(crate) fn start_main_machine(
         log_if_failed("removing the role marker", remove_if_present(ROLE_MAIN));
     }
     started
+}
+
+/// What became of the first administrator's Kanidm login.
+pub(crate) enum FirstAdmin {
+    Made,
+    /// Kanidm's own check said no. Nothing is left behind.
+    PasswordRefused,
+    /// A release image won't run Kanidm on an unencrypted disk, so there is only local sign-in.
+    NoProviderOnThisDisk,
+    /// In plain words. Nothing is left behind, and setup can be tried again.
+    Failed(String),
+}
+
+/// Starts Kanidm early while setup is showing, on loopback, so that making the admin doesn't wait for it.
+/// A machine already set up starts it from its target instead.
+pub(crate) fn start_identity_for_setup() {
+    if !matches!(is_set_up(), Ok(false)) {
+        return;
+    }
+    log_if_failed(
+        "allowing the identity provider to start for setup",
+        fs::write(IDENTITY_FOR_SETUP, b"").map_err(|e| e.to_string()),
+    );
+    drop(child::run(
+        "systemctl",
+        &["start", "--no-block", "kanidmd"],
+        USUAL_LIMIT,
+    ));
+}
+
+/// Makes the Kanidm login, with this username and password, on a helper's stdin. Never in its arguments, a
+/// file or a log. The helper removes what it made if it fails, so this can be tried again.
+pub(crate) fn make_first_admin(username: &str, password: &str) -> FirstAdmin {
+    let may_run = child::run(
+        TRANSIENT,
+        &[
+            TRANSIENT_WAIT,
+            TRANSIENT_PIPE,
+            TRANSIENT_QUIET,
+            TRANSIENT_COLLECT,
+            ENCRYPTION_GUARD,
+        ],
+        USUAL_LIMIT,
+    )
+    .is_some_and(|done| done.success);
+    if !may_run {
+        log_line("the identity provider is off: this disk is not encrypted");
+        return FirstAdmin::NoProviderOnThisDisk;
+    }
+    let input = format!("{username}\n{password}\n");
+    let done = child::run_with_input(
+        TRANSIENT,
+        &[
+            TRANSIENT_WAIT,
+            TRANSIENT_PIPE,
+            TRANSIENT_QUIET,
+            TRANSIENT_COLLECT,
+            FIRST_ADMIN,
+        ],
+        input.as_bytes(),
+        FIRST_ADMIN_LIMIT,
+    );
+    match done {
+        Some(done) if done.success => FirstAdmin::Made,
+        Some(done) if String::from_utf8_lossy(&done.stderr).contains("refused the password") => {
+            FirstAdmin::PasswordRefused
+        }
+        other => {
+            let reason = other.map_or_else(
+                || "it took too long".to_owned(),
+                |done| String::from_utf8_lossy(&done.stderr).trim().to_owned(),
+            );
+            log_line(&format!(
+                "the first administrator's login was not made: {reason}"
+            ));
+            FirstAdmin::Failed(
+                "The sign-in service could not make your login, so nothing was saved. Try again."
+                    .to_owned(),
+            )
+        }
+    }
+}
+
+/// One line for the journal. This service has no logging crate.
+fn log_line(line: &str) {
+    drop(writeln!(std::io::stderr(), "{line}"));
 }
 
 /// Writes the name and role marker, then starts the services.

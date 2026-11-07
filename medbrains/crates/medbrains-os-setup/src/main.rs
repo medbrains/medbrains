@@ -149,6 +149,17 @@ fn new_hospital(body: &Value) -> (u16, Value) {
     if let Some(problems) = hospital_problems(body) {
         return problems;
     }
+    // Before anything else, and safe to repeat: until the marker below exists, setup can run again.
+    match machine::make_first_admin(field(body, "username"), field(body, "password")) {
+        machine::FirstAdmin::Made | machine::FirstAdmin::NoProviderOnThisDisk => {}
+        machine::FirstAdmin::PasswordRefused => {
+            return (
+                422,
+                json!({ "problems": { "password": rules::PASSWORD_RULE } }),
+            );
+        }
+        machine::FirstAdmin::Failed(error) => return (500, json!({ "error": error })),
+    }
     let started = machine::start_main_machine(
         field(body, "hospital"),
         field(body, "username"),
@@ -315,6 +326,7 @@ fn main() -> io::Result<()> {
         "removing an abandoned setup",
         machine::remove_abandoned_seed(),
     );
+    machine::start_identity_for_setup();
     let state = Arc::new(State {
         network_change: AtomicU64::new(0),
         network_pending: AtomicBool::new(false),

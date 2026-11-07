@@ -43,6 +43,7 @@ MEDBRAINS_OBJECTS_COLD=/var/lib/medbrains/cold
 MEDBRAINS_OBJECTS_ARCHIVE=/var/lib/medbrains/archive
 MEDBRAINS_ICD_LOCAL_SERVICE=false
 MEDBRAINS_PUBLIC_BASE_URL=https://medbrains.local
+MEDBRAINS_SSO_SCREEN_BASE=https://127.0.0.1:8443
 SSL_CERT_FILE=$CONF/idp-front.pem
 SSL_CERT_DIR=/etc/ssl/certs
 JWT_PRIVATE_KEY=$priv

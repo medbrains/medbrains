@@ -15,6 +15,7 @@ use axum::routing::get;
 use axum::{
     Json,
     extract::{Path, Query, State},
+    http::{HeaderMap, header},
     response::Redirect,
 };
 use axum_extra::extract::CookieJar;
@@ -43,8 +44,24 @@ fn public_base() -> String {
     std::env::var("MEDBRAINS_PUBLIC_BASE_URL")
         .unwrap_or_else(|_| "https://127.0.0.1:8443".to_owned())
 }
-fn callback_uri() -> String {
-    format!("{}/api/auth/sso/callback", public_base())
+/// The base to come back to. A sign-in from the machine's own screen stays on the screen's own address:
+/// `MEDBRAINS_SSO_SCREEN_BASE` names it, and only a request for exactly that host gets it.
+fn base_for(headers: &HeaderMap) -> String {
+    let screen = std::env::var("MEDBRAINS_SSO_SCREEN_BASE").ok();
+    let host = headers
+        .get(header::HOST)
+        .and_then(|value| value.to_str().ok());
+    screen_base(screen.as_deref(), host).unwrap_or_else(public_base)
+}
+
+/// The screen's base, if this request's host is exactly the screen's. Pure, so it is tested.
+fn screen_base(screen: Option<&str>, host: Option<&str>) -> Option<String> {
+    let screen = screen?;
+    (screen.strip_prefix("https://") == host).then(|| screen.to_owned())
+}
+
+fn callback_uri(base: &str) -> String {
+    format!("{base}/api/auth/sso/callback")
 }
 
 async fn secret_key(state: &AppState) -> Vec<u8> {
@@ -162,6 +179,7 @@ pub async fn oidc_authorize(
     State(state): State<AppState>,
     Path(provider_id): Path<Uuid>,
     Query(q): Query<AuthorizeQuery>,
+    headers: HeaderMap,
 ) -> Result<Redirect, AppError> {
     let provider = load_provider(&state, provider_id).await?;
     if provider.protocol != "oidc" {
@@ -199,7 +217,7 @@ pub async fn oidc_authorize(
         "{}?response_type=code&client_id={}&redirect_uri={}&scope={}&state={}&nonce={}&code_challenge={}&code_challenge_method=S256",
         discovery.authorization_endpoint,
         enc(client_id),
-        enc(&callback_uri()),
+        enc(&callback_uri(&base_for(&headers))),
         enc("openid email profile"),
         state_tok,
         nonce,
@@ -273,12 +291,14 @@ struct SsoIdentity {
 pub async fn oidc_callback(
     State(state): State<AppState>,
     Query(q): Query<CallbackQuery>,
+    headers: HeaderMap,
 ) -> Result<(CookieJar, Redirect), AppError> {
+    let base = base_for(&headers);
     if let Some(err) = q.error {
         tracing::warn!(error = %err, "sso callback returned an error");
         return Ok((
             CookieJar::new(),
-            Redirect::to(&format!("{}/login?sso_error=1", public_base())),
+            Redirect::to(&format!("{base}/login?sso_error=1")),
         ));
     }
     let state_tok = q.state.ok_or(AppError::Unauthorized)?;
@@ -330,6 +350,7 @@ pub async fn oidc_callback(
         &client_id,
         client_secret.as_deref(),
         &auth.pkce_verifier,
+        &callback_uri(&base),
     )
     .await?;
 
@@ -427,9 +448,9 @@ pub async fn oidc_callback(
     // Land the user on the SPA; the cookie authenticates the session.
     let return_to = auth.return_to.unwrap_or_else(|| "/dashboard".to_owned());
     let target = if return_to.starts_with('/') {
-        format!("{}{return_to}", public_base())
+        format!("{base}{return_to}")
     } else {
-        format!("{}/dashboard", public_base())
+        format!("{base}/dashboard")
     };
     Ok((jar, Redirect::to(&target)))
 }
@@ -440,6 +461,7 @@ async fn exchange_code(
     client_id: &str,
     client_secret: Option<&str>,
     pkce_verifier: &str,
+    redirect: &str,
 ) -> Result<TokenResponse, AppError> {
     let mut form = vec![
         ("grant_type", "authorization_code"),
@@ -447,8 +469,7 @@ async fn exchange_code(
         ("client_id", client_id),
         ("code_verifier", pkce_verifier),
     ];
-    let redirect = callback_uri();
-    form.push(("redirect_uri", &redirect));
+    form.push(("redirect_uri", redirect));
     if let Some(secret) = client_secret {
         form.push(("client_secret", secret));
     }
@@ -664,7 +685,11 @@ async fn federate_user(
         }
         None => {
             let linked =
-                match identity.email.as_deref().filter(|_| identity.email_verified) {
+                match identity
+                    .email
+                    .as_deref()
+                    .filter(|_| identity.email_verified)
+                {
                     // Only an email the provider says it verified. Entra's `email` claim is whatever
                     // the tenant typed, so trusting it let any person sign in as a local account
                     // with that address, including the first administrator (nOAuth).
@@ -949,7 +974,7 @@ mod tests {
 
     use super::{
         IdClaims, STAFF_ROLE, SsoIdentity, base_username, extract_groups, new_user_role,
-        pkce_challenge, resolve_group_targets, tenant_matches_issuer,
+        pkce_challenge, resolve_group_targets, screen_base, tenant_matches_issuer,
     };
 
     fn groups(items: &[&str]) -> HashSet<String> {
@@ -1054,20 +1079,45 @@ mod tests {
         assert!(base_username(&id).starts_with("asha"));
     }
 
+    /// Only the machine's own screen stays on its address, and only where the image names it.
+    #[test]
+    fn only_the_screens_own_host_comes_back_to_the_screen() {
+        let screen = Some("https://127.0.0.1:8443");
+        assert_eq!(
+            screen_base(screen, Some("127.0.0.1:8443")).as_deref(),
+            screen
+        );
+        assert_eq!(screen_base(screen, Some("medbrains.local")), None);
+        assert_eq!(screen_base(screen, Some("evil.example")), None);
+        assert_eq!(screen_base(screen, None), None);
+        assert_eq!(screen_base(None, Some("127.0.0.1:8443")), None);
+    }
+
     #[test]
     fn a_token_from_another_tenant_does_not_match_the_issuer() {
         let issuer = "https://login.microsoftonline.com/72f988bf-86f1-41af-91ab-2d7cd011db47/v2.0";
-        assert!(tenant_matches_issuer(issuer, Some("72F988BF-86F1-41AF-91AB-2D7CD011DB47")));
-        assert!(!tenant_matches_issuer(issuer, Some("00000000-0000-4000-8000-000000000000")));
+        assert!(tenant_matches_issuer(
+            issuer,
+            Some("72F988BF-86F1-41AF-91AB-2D7CD011DB47")
+        ));
+        assert!(!tenant_matches_issuer(
+            issuer,
+            Some("00000000-0000-4000-8000-000000000000")
+        ));
         assert!(tenant_matches_issuer(issuer, None));
-        assert!(tenant_matches_issuer("https://idm.hospital.test/oauth2/openid/app", Some("x")));
+        assert!(tenant_matches_issuer(
+            "https://idm.hospital.test/oauth2/openid/app",
+            Some("x")
+        ));
     }
 
     #[test]
     fn email_is_verified_only_if_the_provider_says_so() {
         let parse = |verified: &str| {
             let text = format!(r#"{{"sub":"s","aud":"a"{verified}}}"#);
-            serde_json::from_str::<IdClaims>(&text).map(|c| c.email_verified).unwrap_or_default()
+            serde_json::from_str::<IdClaims>(&text)
+                .map(|c| c.email_verified)
+                .unwrap_or_default()
         };
         assert!(parse(r#","email_verified":true"#));
         assert!(parse(r#","email_verified":"true""#));

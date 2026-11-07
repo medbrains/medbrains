@@ -87,6 +87,11 @@ if [[ ! -e "$SSL/usr/lib/$MULTIARCH/libssl.so.3" ]]; then
     cp -R "$SSL/usr/include/$MULTIARCH/openssl/." "$SSL/usr/include/openssl/"
 fi
 
+# Our one change to Kanidm: see the patch. Refuses to build if it does not apply exactly.
+for carried in "$HERE"/patches/kanidm-*.patch; do
+    (cd "$SRC" && patch -p1 --forward --fuzz=0 < "$carried")
+done
+
 bash "$HERE/../scripts/build_guard.sh" --wait
 if [[ ! -f "$VENDOR.config" ]]; then
     (cd "$SRC" && RUSTUP_TOOLCHAIN=1.99.0 cargo vendor --locked --versioned-dirs "$VENDOR") > "$VENDOR.config.new"

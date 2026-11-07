@@ -188,7 +188,7 @@ fn details_page(flow: &Flow, review: Rc<dyn Fn()>) -> gtk::Widget {
     let form = ui::column(ui::GAP / 2);
     let hospital = network::field(&form, "Hospital name", "City Hospital");
     let hospital_note = field_note(&form);
-    let username = network::field(&form, "Username", "admin");
+    let username = network::field(&form, "Username", "asha");
     let username_note = field_note(&form);
     let title = ui::label("Password", "");
     let password = gtk::PasswordEntry::builder().show_peek_icon(true).build();

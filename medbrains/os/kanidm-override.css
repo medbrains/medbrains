@@ -34,3 +34,5 @@
     --bs-btn-active-bg: #0043ce;
 }
 footer.footer { display: none; }
+/* Closed at the front, and unused. */
+a[href="/ui/radius"] { display: none !important; }

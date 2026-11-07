@@ -6,5 +6,6 @@
   "role": "main",
   "unit": "medbrains-server.service",
   "health": "http://127.0.0.1:3000/api/health",
-  "accent": true
+  "accent": true,
+  "sign_in_origin": "https://idm.medbrains.local:9443"
 }

@@ -1,64 +1,48 @@
 #!/bin/bash
-# Sets the identity provider's rules on first start, and checks them on every start.
+# Sets the identity provider's rules, connects MedBrains to it, and checks the rules on every start.
 #
-#   Staff sign in with keys only: no password exists, so nobody can guess one or lock anyone out by trying.
+#   Staff sign in with a password. A narrow IT group, mb_it_admins, needs a second step, a key or a
+#   one-time code. Hospitals that want approved key models set them per group; nothing here stops that.
 #   Control's service account gets the narrow groups and no others. idm_people_admins may reset people in
 #   idm_admins, so it reaches administrator; that is why the check below refuses it and anything else.
 #
-#   kanidm-setup          set up if not yet done, then check
+#   kanidm-setup rules    the rules and Control's account, once; setup runs this before the admin exists
+#   kanidm-setup          the rules if not yet done, connects MedBrains if not yet done, then checks
 #   kanidm-setup check    fail if Control holds anything but the narrow groups
 set -euo pipefail
 
+. /usr/lib/medbrains/kanidm-lib.sh
+
 STATE=/var/lib/kanidm/.setup-done
+CONNECTED=/var/lib/kanidm/.connect-done
 TOKEN_FILE=/var/lib/medbrains/config/idp-control-token
-ORIGIN=https://idm.medbrains.local:8444
 CONTROL=mb_control
 LOGO=/usr/share/medbrains/shell/logo.svg
+CLIENT=medbrains
+EXTRA_STEP_GROUP=mb_it_admins
 NARROW_GROUPS=(idm_people_on_boarding idm_service_desk idm_oauth2_admins)
 # These grant nothing. idm_high_privilege is a taint a narrow group passes on: it protects Control from
 # lesser administrators, such as a service desk resetting it.
 EVERYONE_GROUPS=(idm_all_accounts idm_high_privilege)
-UP_TRIES=60
-
-# Calls Kanidm on loopback, trusting only its own certificate. Prints the body.
-api() {
-    curl -fsS -m 30 --cacert /var/lib/kanidm/tls-chain.pem --resolve idm.medbrains.local:8444:127.0.0.1 "$@"
-}
-
-# Waits until Kanidm answers, or fails.
-wait_for_kanidm() {
-    local try
-    for ((try = 0; try < UP_TRIES; try++)); do
-        api -o /dev/null "$ORIGIN/status" 2>/dev/null && return 0
-        sleep 2
-    done
-    echo "Kanidm did not answer" >&2
-    return 1
-}
-
-# Prints a privileged token for a built-in account, from a password that exists only for this run.
-admin_token() {
-    local account="$1" password session
-    password="$(runuser -u kanidm -- kanidmd scripting recover-account "$account" 2>/dev/null | sed -n 's/.*"output":"\([^"]*\)".*/\1/p')"
-    [[ -n "$password" ]] || { echo "could not recover $account" >&2; return 1; }
-    session="$(api -D - -o /dev/null -H 'Content-Type: application/json' \
-        -d "{\"step\":{\"init2\":{\"username\":\"$account\",\"issue\":\"token\",\"privileged\":true}}}" "$ORIGIN/v1/auth" |
-        tr -d '\r' | sed -n 's/^x-kanidm-auth-session-id: //Ip')"
-    api -o /dev/null -H 'Content-Type: application/json' -H "X-KANIDM-AUTH-SESSION-ID: $session" \
-        -d '{"step":{"begin":"password"}}' "$ORIGIN/v1/auth"
-    api -H 'Content-Type: application/json' -H "X-KANIDM-AUTH-SESSION-ID: $session" \
-        -d "{\"step\":{\"cred\":{\"password\":\"$password\"}}}" "$ORIGIN/v1/auth" |
-        sed -n 's/.*"success":"\([^"]*\)".*/\1/p'
-}
+SERVER_WAIT_TRIES=120
 
 # Puts our name and logo on its pages. Only the system administrator may. A failure here costs looks only.
 set_brand() {
     local system
     system="$(admin_token admin)" || return 0
-    api -o /dev/null -X PUT -H "Authorization: Bearer $system" -H 'Content-Type: application/json' \
-        -d '["MedBrains"]' "$ORIGIN/v1/domain/_attr/domain_display_name" || echo "could not set the name" >&2
-    api -o /dev/null -H "Authorization: Bearer $system" \
-        -F "image=@$LOGO;type=image/svg+xml;filename=logo.svg" "$ORIGIN/v1/domain/_image" || echo "could not set the logo" >&2
+    printf '["MedBrains"]' | json_body_as "$system" -o /dev/null -X PUT "$ORIGIN/v1/domain/_attr/domain_display_name" ||
+        echo "could not set the name" >&2
+    api_as "$system" -o /dev/null -F "image=@$LOGO;type=image/svg+xml;filename=logo.svg" "$ORIGIN/v1/domain/_image" ||
+        echo "could not set the logo" >&2
+}
+
+# The group whose members need a second step. Kanidm's policy is per group: `mfa` is a password with a
+# one-time code, or a key. It is checked when a credential is saved, not at sign-in: os/README.md.
+make_extra_step_group() {
+    local admin="$1"
+    printf '{"attrs":{"name":["%s"]}}' "$EXTRA_STEP_GROUP" | json_body_as "$admin" -o /dev/null "$ORIGIN/v1/group" 2>/dev/null || true
+    printf '["account_policy"]' | json_body_as "$admin" -o /dev/null "$ORIGIN/v1/group/$EXTRA_STEP_GROUP/_attr/class"
+    printf '["mfa"]' | json_body_as "$admin" -o /dev/null -X PUT "$ORIGIN/v1/group/$EXTRA_STEP_GROUP/_attr/credential_type_minimum"
 }
 
 # Sets the rules and makes Control's account. The marker comes last, so a power cut repeats it.
@@ -67,19 +51,16 @@ set_up() {
     set_brand
     admin="$(admin_token idm_admin)"
     [[ -n "$admin" ]] || { echo "could not sign in as idm_admin" >&2; return 1; }
-    api -o /dev/null -X PUT -H "Authorization: Bearer $admin" -H 'Content-Type: application/json' \
-        -d '["passkey"]' "$ORIGIN/v1/group/idm_all_persons/_attr/credential_type_minimum"
+    printf '["any"]' | json_body_as "$admin" -o /dev/null -X PUT "$ORIGIN/v1/group/idm_all_persons/_attr/credential_type_minimum"
+    make_extra_step_group "$admin"
     # An account left by a power cut is fine: its token below replaces the file.
-    api -o /dev/null -H "Authorization: Bearer $admin" -H 'Content-Type: application/json' \
-        -d "{\"attrs\":{\"name\":[\"$CONTROL\"],\"displayname\":[\"MedBrains Control\"],\"entry_managed_by\":[\"idm_admins\"]}}" \
-        "$ORIGIN/v1/service_account" 2>/dev/null || true
+    printf '{"attrs":{"name":["%s"],"displayname":["MedBrains Control"],"entry_managed_by":["idm_admins"]}}' "$CONTROL" |
+        json_body_as "$admin" -o /dev/null "$ORIGIN/v1/service_account" 2>/dev/null || true
     for group in "${NARROW_GROUPS[@]}"; do
-        api -o /dev/null -H "Authorization: Bearer $admin" -H 'Content-Type: application/json' \
-            -d "[\"$CONTROL\"]" "$ORIGIN/v1/group/$group/_attr/member"
+        printf '["%s"]' "$CONTROL" | json_body_as "$admin" -o /dev/null "$ORIGIN/v1/group/$group/_attr/member"
     done
-    token="$(api -H "Authorization: Bearer $admin" -H 'Content-Type: application/json' \
-        -d '{"label":"control","expiry":null,"read_write":true,"compact":false}' \
-        "$ORIGIN/v1/service_account/$CONTROL/_api_token" | tr -d '"')"
+    token="$(printf '{"label":"control","expiry":null,"read_write":true,"compact":false}' |
+        json_body_as "$admin" "$ORIGIN/v1/service_account/$CONTROL/_api_token" | tr -d '"')"
     [[ -n "$token" ]] || { echo "no token for Control" >&2; return 1; }
     install -m 0600 /dev/null "$TOKEN_FILE.new"
     printf '%s\n' "$token" > "$TOKEN_FILE.new"
@@ -88,9 +69,43 @@ set_up() {
     chown kanidm:kanidm "$STATE"
 }
 
+# Runs one statement on MedBrains' database, as the machine's superuser, and prints the answer.
+medbrains_sql() {
+    runuser -u postgres -- psql -X -tAq -d medbrains -c "$1"
+}
+
+# Makes MedBrains sign in through Kanidm: a public client, with PKCE and no secret to keep, open to everyone
+# Kanidm knows, with new people getting MedBrains' least role until an administrator gives them one.
+connect_medbrains() {
+    local admin url tenant try
+    for ((try = 0; try < SERVER_WAIT_TRIES; try++)); do
+        [[ "$(medbrains_sql "SELECT count(*) FROM information_schema.tables WHERE table_name = 'identity_providers'" 2>/dev/null)" == 1 ]] &&
+            tenant="$(medbrains_sql "SELECT id FROM tenants ORDER BY created_at LIMIT 1" 2>/dev/null)" && [[ -n "$tenant" ]] && break
+        sleep 5
+    done
+    [[ -n "${tenant:-}" ]] || { echo "MedBrains' database never became ready" >&2; return 1; }
+    admin="$(admin_token idm_admin)"
+    printf '{"attrs":{"name":["%s"],"displayname":["MedBrains"],"oauth2_rs_origin_landing":["https://medbrains.local/"],"oauth2_strict_redirect_uri":["true"]}}' "$CLIENT" |
+        json_body_as "$admin" -o /dev/null "$ORIGIN/v1/oauth2/_public" 2>/dev/null || true
+    printf '["https://medbrains.local/api/auth/sso/callback","https://127.0.0.1:8443/api/auth/sso/callback"]' |
+        json_body_as "$admin" -o /dev/null "$ORIGIN/v1/oauth2/$CLIENT/_attr/oauth2_rs_origin"
+    printf '["openid","email","profile"]' | json_body_as "$admin" -o /dev/null "$ORIGIN/v1/oauth2/$CLIENT/_scopemap/idm_all_persons"
+    # Kanidm asks each person once before sharing their name with MedBrains. Off if it lets us; only a click if not.
+    printf '{"attrs":{"oauth2_consent_prompt_enable":["false"]}}' | json_body_as "$admin" -o /dev/null -X PATCH "$ORIGIN/v1/oauth2/$CLIENT" 2>/dev/null ||
+        echo "the sign-in consent prompt stays on" >&2
+    api_as "$admin" -o /dev/null -F "image=@$LOGO;type=image/svg+xml;filename=logo.svg" "$ORIGIN/v1/oauth2/$CLIENT/_image" ||
+        echo "could not set the application's logo" >&2
+    url="https://idm.medbrains.local:9443/oauth2/openid/$CLIENT/.well-known/openid-configuration"
+    medbrains_sql "INSERT INTO identity_providers (tenant_id, code, name, protocol, discovery_url, client_id, jit_enabled, is_active)
+        SELECT '$tenant', 'kanidm', 'MedBrains account', 'oidc', '$url', '$CLIENT', true, true
+        WHERE NOT EXISTS (SELECT 1 FROM identity_providers WHERE tenant_id = '$tenant' AND code = 'kanidm')" >/dev/null
+    touch "$CONNECTED"
+    chown kanidm:kanidm "$CONNECTED"
+}
+
 # Prints the groups Control's own token says it holds, one name per line.
 control_groups() {
-    api -H "Authorization: Bearer $(cat "$TOKEN_FILE")" "$ORIGIN/v1/self" |
+    api_as "$(cat "$TOKEN_FILE")" "$ORIGIN/v1/self" |
         sed -n 's/.*"memberof":\[\([^]]*\)\].*/\1/p' | tr ',' '\n' | sed 's/^"//; s/@.*//; s/"$//' | grep -v '^$'
 }
 
@@ -109,7 +124,14 @@ check() {
 }
 
 wait_for_kanidm
-if [[ "${1:-}" != check && ! -e "$STATE" ]]; then
-    set_up
-fi
-check
+case "${1:-}" in
+    check) check ;;
+    rules)
+        [[ -e "$STATE" ]] || set_up
+        ;;
+    *)
+        [[ -e "$STATE" ]] || set_up
+        [[ -e "$CONNECTED" ]] || connect_medbrains
+        check
+        ;;
+esac
