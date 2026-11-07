@@ -4,7 +4,8 @@
 set -euo pipefail
 
 [[ -e /usr/lib/medbrains/debug-image ]] || { echo "not a debug image" >&2; exit 1; }
-MARK=/var/lib/kanidm/.debug-account-done
+# Root's own folder: root never writes in Kanidm's.
+MARK=/var/lib/medbrains/config/kanidm/debug-account-done
 [[ ! -e "$MARK" ]] || exit 0
 
 . /usr/lib/medbrains/kanidm-lib.sh
@@ -22,6 +23,6 @@ session="${exchanged#\[}"
 session="${session%%,\{\"spn\"*}"
 printf '[{"password":"%s"},%s]' "$PASSWORD" "$session" | json_body -o /dev/null "$ORIGIN/v1/credential/_update"
 printf '%s' "$session" | json_body -o /dev/null "$ORIGIN/v1/credential/_commit"
+install -d -m 0750 "${MARK%/*}"
 touch "$MARK"
-chown kanidm:kanidm "$MARK"
 echo "debug test account ready: $NAME"

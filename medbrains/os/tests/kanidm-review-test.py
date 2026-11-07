@@ -14,7 +14,7 @@ from kanidm_lib import ADMIN, IDP, WEB, curl, kanidm_auth, limit_opened, must, n
 spec = importlib.util.spec_from_file_location("onelogin", Path(__file__).with_name("kanidm-one-login-test.py"))
 onelogin = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(onelogin)
-PASSWORD = "Mallory picks 7 long words"
+PASSWORD = "Night porter keeps 4 blue lanterns"
 failed = []
 
 
@@ -60,6 +60,7 @@ def test_no_takeover_by_email():
     """HIGH 2: a Kanidm person given the administrator's email address does not become the administrator."""
     email = serial(f"runuser -u postgres -- psql -X -tAq -d medbrains -c \"select email from users where username='{ADMIN[0]}'\"", 10).splitlines()[-1].strip()
     token = kanidm_auth("idm_admin", recover_password("idm_admin"))[0]
+    curl(f"{IDP}/v1/person/mallory", "DELETE", token)  # a run stopped half-way may have left her
     must(curl(f"{IDP}/v1/person", "POST", token, {"attrs": {"name": ["mallory"], "displayname": ["Mallory"], "mail": [email]}}), "person")
     intent = must(curl(f"{IDP}/v1/person/mallory/_credential/_update_intent/900", token=token), "intent")
     session, _ = must(curl(f"{IDP}/v1/credential/_exchange_intent", "POST", body=intent["token"]), "exchange")
