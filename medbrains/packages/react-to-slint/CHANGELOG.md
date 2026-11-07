@@ -2,6 +2,12 @@
 
 This package follows semantic versioning. `mapping.json` carries its own `version`, written into every generated file, so a screen can be regenerated with the mapping it was made from.
 
+## 0.3.0 (2026-11-07)
+
+- The preview kit draws the MedBrains design: Carbon-sharp buttons filled for primary, inputs with a label above and a bottom rule, flat cards, inline notifications with a tone rule, pill tags, IBM Plex fonts (OFL, converted to TTF), visible 2 px focus and keyboard activation.
+- Every colour comes from `Tokens`, generated from the design system's one source, with light and dark both working (`Tokens.dark`).
+- Mapping version 4: text, number and password inputs, selects, checkboxes and switches map to kit components with their labels.
+
 ## 0.2.0 (2026-11-07)
 
 - Whole-project conversion: `--project DIR` indexes every component in the tree, so references to our own components convert, with an import of their generated file. The mapping table still wins over the index, so seam components map to the kit.

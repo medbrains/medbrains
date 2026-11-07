@@ -50,7 +50,7 @@ test("react-hook-form Controller converts the field it renders", () => {
   const { slint, stats } = convert(`export function C() {
     return <Controller name="x" render={({ field }) => <Select data={opts} value={field.value} />} />;
   }`);
-  assert.match(slint, /ComboBox \{/);
+  assert.match(slint, /MbSelect \{/);
   assert.deepEqual(stats.unmapped, {});
 });
 

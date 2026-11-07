@@ -1,52 +1,194 @@
-// Preview kit: the smallest set of Mb* components that lets converted screens compile and be
-// looked at. Not the product kit; medbrains-gui-kit replaces it (docs/architecture/OS-NATIVE-GUI.md).
-// Colours come only from Tokens, which is generated from the design system's single source.
-import { Button } from "std-widgets.slint";
+// Preview kit: draws the MedBrains design (Carbon shapes, IBM Plex, the website colours) so
+// converted screens look like the React app. Not the product kit yet; medbrains-gui-kit grows
+// from it (docs/architecture/OS-NATIVE-GUI.md). Colours come only from Tokens, generated from
+// the design system's single source; light and dark both come from there.
+import { ComboBox, CheckBox, Switch } from "std-widgets.slint";
 import { Tokens } from "tokens.slint";
+import "fonts/ibm-plex-sans-400.ttf";
+import "fonts/ibm-plex-sans-600.ttf";
+import "fonts/ibm-plex-mono-400.ttf";
 
 export { Tokens }
 
-/** The tone colour for a component, from the semantic tokens. */
-global Tone {
-    pure public function color(tone: string) -> color {
-        if (tone == "primary") { return Tokens.color-primary; }
-        if (tone == "danger") { return Tokens.color-danger; }
-        if (tone == "warning") { return Tokens.color-warning; }
-        if (tone == "success") { return Tokens.color-success; }
-        if (tone == "accent") { return Tokens.color-accent; }
-        return Tokens.color-text-muted;
+/** Sizes shared by every control: Carbon's 8 px mini-unit and 40 px field height. */
+export global Metrics {
+    out property <length> control-height: 40px;
+    out property <length> focus-width: 2px;
+    out property <length> label-size: 12px;
+    out property <string> font: "IBM Plex Sans";
+    out property <string> mono: "IBM Plex Mono";
+}
+
+/** The fill, text and container colours for a tone, from the semantic tokens. */
+export global Tone {
+    pure public function fill(tone: string) -> color {
+        if (tone == "primary") { return Tokens.color-primary-primary; }
+        if (tone == "danger") { return Tokens.color-error-error; }
+        if (tone == "warning") { return Tokens.color-warning-warning; }
+        if (tone == "success") { return Tokens.color-success-success; }
+        if (tone == "accent") { return Tokens.color-tertiary-tertiary-brand; }
+        return Tokens.color-content-on-surface-variant;
+    }
+    pure public function container(tone: string) -> color {
+        if (tone == "primary") { return Tokens.color-primary-primary-container; }
+        if (tone == "danger") { return Tokens.color-error-error-container; }
+        if (tone == "warning") { return Tokens.color-warning-warning-container; }
+        if (tone == "success") { return Tokens.color-success-success-container; }
+        if (tone == "accent") { return Tokens.color-tertiary-tertiary-container; }
+        return Tokens.color-surface-surface-container-high;
+    }
+    pure public function on-container(tone: string) -> color {
+        if (tone == "primary") { return Tokens.color-primary-on-primary-container; }
+        if (tone == "danger") { return Tokens.color-error-on-error-container; }
+        if (tone == "warning") { return Tokens.color-warning-on-warning-container; }
+        if (tone == "success") { return Tokens.color-success-on-success-container; }
+        if (tone == "accent") { return Tokens.color-tertiary-on-tertiary-container; }
+        return Tokens.color-content-on-surface;
     }
 }
 
-export component MbButton {
+/** A button as the web seam draws it: sharp, filled for primary, quiet otherwise. */
+export component MbButton inherits Rectangle {
     in property <string> text;
     in property <string> tone: "default";
     in property <bool> busy;
     in property <bool> enabled: true;
     callback clicked();
-    Button {
-        text: root.busy ? "Working…" : root.text;
-        enabled: root.enabled && !root.busy;
-        primary: root.tone == "primary";
-        clicked => { root.clicked(); }
-    }
-}
-
-export component MbIconButton {
-    in property <string> tone: "default";
-    callback clicked();
+    property <bool> filled: tone == "primary" || tone == "danger";
     accessible-role: button;
-    Button {
-        text: root.accessible-label;
+    accessible-label: root.text;
+    min-height: Metrics.control-height;
+    min-width: label.preferred-width + 32px;
+    background: !root.enabled ? Tokens.color-surface-surface-container-high
+        : root.filled ? (touch.pressed ? Tone.fill(root.tone).darker(20%) : touch.has-hover ? Tone.fill(root.tone).darker(10%) : Tone.fill(root.tone))
+        : (touch.pressed ? Tokens.color-surface-surface-container-highest : touch.has-hover ? Tokens.color-surface-surface-container-high : transparent);
+    border-width: root.filled ? 0px : 1px;
+    border-color: Tokens.color-outline-outline;
+    label := Text {
+        text: root.busy ? "Working…" : root.text;
+        font-family: Metrics.font;
+        font-size: Tokens.font-sm;
+        font-weight: 600;
+        color: !root.enabled ? Tokens.color-content-on-surface-variant
+            : root.filled ? Tokens.color-primary-on-primary : Tokens.color-primary-primary-text;
+        horizontal-alignment: center;
+        vertical-alignment: center;
+    }
+    touch := TouchArea {
+        enabled: root.enabled && !root.busy;
         clicked => { root.clicked(); }
+    }
+    focus := FocusScope {
+        key-pressed(event) => {
+            if (event.text == " " || event.text == "\n") { root.clicked(); return accept; }
+            return reject;
+        }
+    }
+    Rectangle {
+        border-width: focus.has-focus ? Metrics.focus-width : 0px;
+        border-color: Tokens.color-primary-primary;
     }
 }
 
+export component MbIconButton inherits MbButton {
+    text: root.accessible-label;
+}
+
+/** A field with its label above and a bottom rule, as Carbon text inputs are drawn. */
+component Field inherits VerticalLayout {
+    in property <string> label;
+    in property <bool> focused;
+    spacing: 4px;
+    if root.label != "" : Text {
+        text: root.label;
+        font-family: Metrics.font;
+        font-size: Metrics.label-size;
+        color: Tokens.color-content-on-surface-variant;
+    }
+    Rectangle {
+        min-height: Metrics.control-height;
+        background: Tokens.color-surface-surface-container-high;
+        @children
+        Rectangle {
+            y: parent.height - self.height;
+            height: root.focused ? 2px : 1px;
+            background: root.focused ? Tokens.color-primary-primary : Tokens.color-outline-outline;
+        }
+    }
+}
+
+export component MbTextInput inherits Field {
+    in-out property <string> text;
+    in property <string> placeholder-text;
+    in property <string> input-type: "text";
+    in property <bool> enabled: true;
+    callback edited();
+    focused: input.has-focus;
+    accessible-role: text-input;
+    accessible-label: root.label;
+    HorizontalLayout {
+        padding-left: 16px;
+        padding-right: 16px;
+        input := TextInput {
+            text <=> root.text;
+            enabled: root.enabled;
+            input-type: root.input-type == "password" ? InputType.password : InputType.text;
+            font-family: Metrics.font;
+            font-size: Tokens.font-sm;
+            color: Tokens.color-content-on-surface;
+            vertical-alignment: center;
+            edited => { root.edited(); }
+        }
+    }
+}
+
+export component MbNumberInput inherits Field {
+    in-out property <int> value;
+    in property <int> minimum: -2147483647;
+    in property <int> maximum: 2147483647;
+    callback edited();
+    focused: false;
+    accessible-role: spinbox;
+    accessible-label: root.label;
+    accessible-value: root.value;
+    HorizontalLayout {
+        padding-left: 16px;
+        Text {
+            text: root.value;
+            font-family: Metrics.font;
+            font-size: Tokens.font-sm;
+            color: Tokens.color-content-on-surface;
+            vertical-alignment: center;
+            horizontal-stretch: 1;
+        }
+        MbButton { text: "−"; enabled: root.value > root.minimum; clicked => { root.value -= 1; root.edited(); } }
+        MbButton { text: "+"; enabled: root.value < root.maximum; clicked => { root.value += 1; root.edited(); } }
+    }
+}
+
+export component MbSelect inherits VerticalLayout {
+    in property <string> label;
+    in property <[string]> model;
+    in-out property <string> current-value;
+    callback selected(string);
+    spacing: 4px;
+    if root.label != "" : Text { text: root.label; font-family: Metrics.font; font-size: Metrics.label-size; color: Tokens.color-content-on-surface-variant; }
+    ComboBox {
+        model: root.model;
+        current-value <=> root.current-value;
+        selected(v) => { root.selected(v); }
+    }
+}
+
+export component MbCheckbox inherits CheckBox { }
+export component MbSwitch inherits Switch { }
+
+/** A tile as the seam's Card: flat layer, hairline border, padded. */
 export component MbCard inherits Rectangle {
     callback clicked();
-    background: Tokens.color-card;
-    border-color: Tokens.color-border;
+    background: Tokens.color-surface-surface-container-low;
     border-width: 1px;
+    border-color: Tokens.color-outline-outline-variant;
     VerticalLayout {
         padding: Tokens.space-md;
         spacing: Tokens.space-sm;
@@ -57,63 +199,69 @@ export component MbCard inherits Rectangle {
 export component MbPanel inherits Rectangle {
     in property <string> title;
     in property <string> description;
-    background: Tokens.color-card;
+    background: Tokens.color-surface-surface-container-low;
     VerticalLayout {
         padding: Tokens.space-md;
         spacing: Tokens.space-sm;
-        Text { text: root.title; font-size: Tokens.font-lg; font-weight: 700; color: Tokens.color-text; }
+        if root.title != "" : Text { text: root.title; font-family: Metrics.font; font-size: Tokens.font-lg; font-weight: 600; color: Tokens.color-content-on-surface; }
+        if root.description != "" : Text { text: root.description; font-family: Metrics.font; font-size: Tokens.font-sm; color: Tokens.color-content-on-surface-variant; wrap: word-wrap; }
         @children
     }
 }
 
+/** An inline notification as Carbon draws it: tinted layer, 3 px rule in the tone colour. */
 export component MbAlert inherits Rectangle {
     in property <string> tone: "default";
     in property <string> title;
-    background: Tokens.color-card;
-    border-color: Tone.color(root.tone);
-    border-width: 2px;
-    VerticalLayout {
-        padding: Tokens.space-md;
-        spacing: Tokens.space-sm;
-        if root.title != "" : Text { text: root.title; font-weight: 700; color: Tokens.color-text; }
-        @children
+    accessible-role: text;
+    background: Tone.container(root.tone);
+    HorizontalLayout {
+        Rectangle { width: 3px; background: Tone.fill(root.tone); }
+        VerticalLayout {
+            padding: Tokens.space-md;
+            spacing: Tokens.space-xs;
+            if root.title != "" : Text { text: root.title; font-family: Metrics.font; font-size: Tokens.font-sm; font-weight: 600; color: Tone.on-container(root.tone); }
+            @children
+        }
     }
 }
 
+/** A tag as Carbon draws it: pill, tone container, 12 px text. */
 export component MbBadge inherits Rectangle {
     in property <string> text;
     in property <string> tone: "default";
-    border-color: Tone.color(root.tone);
-    border-width: 1px;
+    height: 24px;
+    border-radius: 12px;
+    background: Tone.container(root.tone);
     HorizontalLayout {
         padding-left: Tokens.space-sm;
         padding-right: Tokens.space-sm;
-        Text { text: root.text; font-size: Tokens.font-xs; color: Tone.color(root.tone); }
+        Text { text: root.text; font-family: Metrics.font; font-size: Tokens.font-xs; color: Tone.on-container(root.tone); vertical-alignment: center; }
     }
 }
 
 export component MbDivider inherits Rectangle {
     height: 1px;
-    background: Tokens.color-border;
+    background: Tokens.color-outline-outline-variant;
 }
 
 export component MbIcon inherits Text {
     in property <string> name;
     in property <string> tone: "default";
     text: "•";
-    color: Tone.color(root.tone);
+    color: Tone.fill(root.tone);
 }
 
 export component MbLink inherits Text {
     in property <string> url;
-    color: Tokens.color-primary;
+    font-family: Metrics.font;
+    color: Tokens.color-primary-primary-text;
 }
 
-export component MbPageHeader {
+export component MbPageHeader inherits VerticalLayout {
     in property <string> title;
     in property <string> subtitle;
-    VerticalLayout {
-        Text { text: root.title; font-size: Tokens.font-xl; font-weight: 700; color: Tokens.color-text; }
-        if root.subtitle != "" : Text { text: root.subtitle; color: Tokens.color-text-muted; }
-    }
+    spacing: 4px;
+    Text { text: root.title; font-family: Metrics.font; font-size: Tokens.font-xl; font-weight: 600; color: Tokens.color-content-on-surface; }
+    if root.subtitle != "" : Text { text: root.subtitle; font-family: Metrics.font; font-size: Tokens.font-sm; color: Tokens.color-content-on-surface-variant; }
 }

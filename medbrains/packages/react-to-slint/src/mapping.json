@@ -1,6 +1,6 @@
 {
   "_doc": "React (Mantine and our components/ui seam) to Slint. Each entry: the Slint element, which props become which Slint properties, and optional fixed properties. Targets starting with _ are handled by the kit component and not emitted; a target ending in ! is negated (disabled becomes enabled). Elements named Mb* come from medbrains-gui-kit, the shared Slint kit in docs/architecture/OS-NATIVE-GUI.md.",
-  "version": 3,
+  "version": 4,
   "layout": {
     "Stack": {
       "slint": "VerticalLayout",
@@ -120,40 +120,39 @@
       }
     },
     "TextInput": {
-      "slint": "LineEdit",
+      "slint": "MbTextInput",
       "props": {
-        "label": "_label",
+        "label": "label",
         "placeholder": "placeholder-text",
         "value": "text",
         "onChange": "edited",
-        "error": "_error",
         "disabled": "enabled!"
       }
     },
     "Input": {
-      "slint": "LineEdit",
+      "slint": "MbTextInput",
       "props": {
-        "label": "_label",
+        "label": "label",
         "placeholder": "placeholder-text",
         "value": "text",
         "onChange": "edited"
       }
     },
     "PasswordInput": {
-      "slint": "LineEdit",
+      "slint": "MbTextInput",
       "props": {
-        "label": "_label",
+        "label": "label",
         "value": "text",
         "onChange": "edited"
       },
       "fixed": {
-        "input-type": "password"
+        "input-type": "\"password\""
       }
     },
     "NumberInput": {
-      "slint": "SpinBox",
+      "slint": "MbNumberInput",
       "props": {
-        "label": "_label",
+        "label": "label",
         "value": "value",
         "min": "minimum",
         "max": "maximum",
@@ -161,9 +160,9 @@
       }
     },
     "NumberField": {
-      "slint": "SpinBox",
+      "slint": "MbNumberInput",
       "props": {
-        "label": "_label",
+        "label": "label",
         "value": "value",
         "min": "minimum",
         "max": "maximum",
@@ -187,9 +186,9 @@
       }
     },
     "Select": {
-      "slint": "ComboBox",
+      "slint": "MbSelect",
       "props": {
-        "label": "_label",
+        "label": "label",
         "data": "model",
         "value": "current-value",
         "onChange": "selected"
@@ -205,7 +204,7 @@
       }
     },
     "Checkbox": {
-      "slint": "CheckBox",
+      "slint": "MbCheckbox",
       "props": {
         "label": "text",
         "checked": "checked",
@@ -213,7 +212,7 @@
       }
     },
     "Switch": {
-      "slint": "Switch",
+      "slint": "MbSwitch",
       "props": {
         "label": "text",
         "checked": "checked",
