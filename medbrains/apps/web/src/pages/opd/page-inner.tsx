@@ -95,6 +95,7 @@ export function OpdPageInner() {
   const emit = useClinicalEmit();
   const navigate = useNavigate();
   const canCreate = useHasPermission(P.OPD.VISIT_CREATE);
+  const canListAppointments = useHasPermission(P.OPD.APPOINTMENT_LIST);
   const canViewQueue = useHasPermission(P.OPD.QUEUE_VIEW);
   const canManageToken = useHasPermission(P.OPD.TOKEN_MANAGE);
   const canUpdate = useHasPermission(P.OPD.VISIT_UPDATE);
@@ -196,7 +197,10 @@ export function OpdPageInner() {
   const { data: todayAppointments = [], isLoading: loadingAppointments } = useQuery({
     queryKey: ["opd-appointments", appointmentParams],
     queryFn: () => opdService.listAppointments(appointmentParams),
-    enabled: canCreate || canManageToken,
+    // The list needs opd.appointment.list. Gated on visit.create or
+    // token.manage, a doctor sent it on every queue refresh and was refused,
+    // and the panel then said there were no appointments today.
+    enabled: canListAppointments,
   });
 
   const appointmentCheckInMutation = useMutation({
@@ -619,16 +623,18 @@ export function OpdPageInner() {
               />
             </Group>
           </Stack>
-          <TodayAppointmentsPanel
-            appointments={todayAppointments}
-            appointmentDate={appointmentDate}
-            loading={loadingAppointments}
-            canCheckIn={canCreate}
-            checkingInId={appointmentCheckInMutation.variables?.id}
-            isCheckingIn={appointmentCheckInMutation.isPending}
-            patientNameAccess={patientNameAccess}
-            onCheckIn={(appointment) => appointmentCheckInMutation.mutate(appointment)}
-          />
+          {canListAppointments && (
+            <TodayAppointmentsPanel
+              appointments={todayAppointments}
+              appointmentDate={appointmentDate}
+              loading={loadingAppointments}
+              canCheckIn={canCreate}
+              checkingInId={appointmentCheckInMutation.variables?.id}
+              isCheckingIn={appointmentCheckInMutation.isPending}
+              patientNameAccess={patientNameAccess}
+              onCheckIn={(appointment) => appointmentCheckInMutation.mutate(appointment)}
+            />
+          )}
           {/* A filter over one table, not tabs: tabs with no panels told a
               screen reader each one controlled a panel that did not exist
               (axe aria-valid-attr-value). */}
