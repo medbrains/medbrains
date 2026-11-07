@@ -111,3 +111,15 @@ Two UIs must not mean two of everything. The layer below sits under both, so a m
 **Order:** tokens, permissions and text first (cheapest, already half done); then the generated API clients; then field rules in Rust; then the Slint form renderer, which brings every configured form across at once; then view models, module by module, starting with Pharmacy.
 
 **Limits to measure before relying on them:** WebAssembly adds download size to the web app, so field rules and view models go to the web only where the size cost is measured and small; Crux is studied as a pattern first, and adopted only if it beats a plain view model trait.
+
+## One view for MedBrains modules on the OS screen (owner 2026-11-07)
+
+While modules are web pages, every MedBrains module opens in **one shared WebKit view**: a launcher tile switches the route inside it rather than starting a new view, because each view costs about 400 MB. Third-party apps keep a view of their own, because isolation between vendors comes from separate storage and processes.
+
+Separation between people and roles never came from separate views, so sharing one changes nothing about who may open what:
+
+1. **The server refuses** every request the person's permissions do not allow, and checks patient data record by record. A pharmacist's call to an EMR endpoint is refused from any screen.
+2. **The launcher shows only the modules the person may open**, so pharmacy staff see no EMR tile and finance staff no HR tile.
+3. **Each screen checks on open** (`useRequirePermission`), so typing an address does not get around the launcher.
+4. **Data classes decide masking**, so a sensitive field is hidden or masked the same way on every screen.
+5. **Switching person clears the view**: locking the screen or signing in as someone else ends the session and reloads the view empty, so nothing of the previous person stays in memory or on screen.
