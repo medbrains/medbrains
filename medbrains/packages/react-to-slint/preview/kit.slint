@@ -285,11 +285,16 @@ export component MbPageHeader inherits VerticalLayout {
 export component MbTab inherits Rectangle {
     in property <string> text;
     in property <string> value;
+    in property <bool> selected;
+    callback clicked();
+    accessible-role: tab;
+    accessible-label: root.text;
     height: 40px;
     min-width: tab-label.preferred-width + 32px;
     horizontal-stretch: 0;
     tab-label := Text { text: root.text; font-family: Metrics.font; font-size: Tokens.font-sm; color: Tokens.color-content-on-surface; vertical-alignment: center; horizontal-alignment: center; }
-    Rectangle { y: parent.height - 1px; height: 1px; background: Tokens.color-outline-outline-variant; }
+    Rectangle { y: parent.height - self.height; height: root.selected ? 2px : 1px; background: root.selected ? Tokens.color-primary-primary : Tokens.color-outline-outline-variant; animate height { duration: 110ms; } }
+    TouchArea { clicked => { root.clicked(); } }
 }
 
 /** Tabs as the web seam draws them: in this preview every panel shows, one after another. */

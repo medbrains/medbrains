@@ -179,13 +179,35 @@ function hookCalls(body) {
   return hooks;
 }
 
+/**
+ * A component's local state: `const [tab, setTab] = useState("rx")` becomes `tab` with its
+ * starting value, plus the setter's name, so handlers that call the setter change the Slint
+ * property directly and the screen reacts with no Rust in between.
+ */
+function localState(body) {
+  const states = new Map();
+  if (body?.type !== "BlockStatement") return states;
+  for (const st of body.body) {
+    if (st.type !== "VariableDeclaration") continue;
+    for (const d of st.declarations) {
+      const call = d.init;
+      if (d.id?.type !== "ArrayPattern" || call?.type !== "CallExpression" || call.callee?.name !== "useState") continue;
+      const [value, setter] = d.id.elements;
+      if (value?.type === "Identifier" && setter?.type === "Identifier") {
+        states.set(value.name, { setter: setter.name, init: call.arguments[0] });
+      }
+    }
+  }
+  return states;
+}
+
 /** Every PascalCase function component in a module, top level or exported. */
 function components(program) {
   const out = [];
   const consider = (name, fn) => {
     if (!name || !/^[A-Z]/.test(name) || !fn?.body) return;
     const jsx = returnedJsx(fn.body);
-    if (jsx) out.push({ name, jsx, hooks: hookCalls(fn.body) });
+    if (jsx) out.push({ name, jsx, hooks: hookCalls(fn.body), states: localState(fn.body) });
   };
   for (let st of program.body) {
     if (st.type === "ExportNamedDeclaration" || st.type === "ExportDefaultDeclaration") st = st.declaration ?? st;
@@ -202,8 +224,10 @@ function components(program) {
 
 /** Writes one component, collecting its properties, callbacks and the gaps it meets. */
 class ComponentWriter {
-  constructor(name, mapping, source, stats, known) {
-    Object.assign(this, { name, mapping, source, stats, known });
+  constructor(name, mapping, source, stats, known, states = new Map()) {
+    Object.assign(this, { name, mapping, source, stats, known, states });
+    this.setters = new Map([...states].map(([v, st]) => [st.setter, v]));
+    this.tabState = [];
     this.props = new Map();
     this.callbacks = new Set();
     this.used = new Set();
@@ -244,6 +268,33 @@ class ComponentWriter {
     return null;
   }
 
+  /**
+   * `onClick={() => setOpen(true)}`, `onClick={() => setOpen(!open)}`, `onClick={() => setOpen((v) => !v)}`
+   * as a Slint handler that changes the state property itself, or null when the handler does more.
+   */
+  setterAssignment(expr, slintCallback) {
+    const call = /Function/.test(expr.type) && expr.body?.type === "CallExpression" ? expr.body : null;
+    const setter = call?.callee?.type === "Identifier" ? call.callee.name : null;
+    const stateName = setter ? this.setters.get(setter) : null;
+    if (!stateName) return null;
+    const prop = this.property(stateName, this.stateType(stateName));
+    const arg = call.arguments[0];
+    let value = this.literal(arg);
+    if (!value && arg?.type === "UnaryExpression" && arg.operator === "!" && arg.argument.name === stateName) value = `!root.${prop}`;
+    if (!value && /Function/.test(arg?.type ?? "") && arg.body?.type === "UnaryExpression" && arg.body.operator === "!") value = `!root.${prop}`;
+    if (!value) return null;
+    this.stats.reactive += 1;
+    return `${slintCallback} => { root.${prop} = ${value}; }`;
+  }
+
+  /** The Slint type of a local state value, from its starting value. */
+  stateType(stateName) {
+    const init = this.states.get(stateName)?.init;
+    if (init?.type === "BooleanLiteral") return "bool";
+    if (init?.type === "NumericLiteral") return "int";
+    return "string";
+  }
+
   /** The Slint property standing for a JavaScript expression, declared once. */
   property(exprText, type = "string") {
     const key = `${type}:${exprText}`;
@@ -272,6 +323,8 @@ class ComponentWriter {
     }
     const expr = value.type === "JSXExpressionContainer" ? value.expression : value;
     if (/^on[A-Z]/.test(attrName)) {
+      const assign = this.setterAssignment(expr, name);
+      if (assign) return this.emit(assign, depth);
       const cb = ident(attrName.slice(2), this.used);
       this.callbacks.add(cb);
       return this.emit(`${name} => { root.${cb}(); }`, depth);
@@ -338,6 +391,39 @@ class ComponentWriter {
       if (fn && /Function/.test(fn.type)) this.branch(returnedJsx(fn.body) ?? fn.body, depth);
       return;
     }
+    if ((tag === "Tabs.Panel" || tag === "Tabs.Tab") && this.tabState.length) {
+      const state = this.tabState[this.tabState.length - 1];
+      const val = node.openingElement.attributes.find((a) => a.name?.name === "value");
+      const v = val ? this.literal(val.value?.type === "StringLiteral" ? val.value : val.value?.expression) : null;
+      if (v) {
+        this.stats.mapped += 1;
+        this.stats.reactive += 1;
+        if (tag === "Tabs.Panel") {
+          this.emit(`if root.${state} == ${v} : VerticalLayout {`, depth);
+          this.children(node.children, depth + 1);
+          return this.emit("}", depth);
+        }
+        const label = node.children.filter((c) => c.type === "JSXText").map((c) => c.value.trim()).join(" ").trim();
+        const expr = node.children.find((c) => c.type === "JSXExpressionContainer");
+        const text = label ? quote(label) : expr ? this.literal(expr.expression) ?? `root.${this.property(this.text(expr.expression))}` : v;
+        this.stats.kit.add("MbTab");
+        return this.emit(`MbTab { text: ${text}; selected: root.${state} == ${v}; clicked => { root.${state} = ${v}; } }`, depth);
+      }
+    }
+    if (tag === "Tabs") {
+      const val = node.openingElement.attributes.find((a) => a.name?.name === "value" || a.name?.name === "defaultValue");
+      const expr = val?.value?.expression;
+      if (expr?.type === "Identifier" && this.states.has(expr.name)) {
+        this.tabState.push(this.property(expr.name, "string"));
+        this.stats.mapped += 1;
+        this.emit("VerticalLayout {", depth);
+        this.emit("spacing: Tokens.space-md;", depth + 1);
+        this.children(node.children, depth + 1);
+        this.emit("}", depth);
+        this.tabState.pop();
+        return;
+      }
+    }
     if (/^Icon[A-Z]/.test(tag)) {
       this.stats.mapped += 1;
       this.stats.kit.add("MbIcon");
@@ -370,6 +456,8 @@ class ComponentWriter {
     for (const attr of node.openingElement.attributes) {
       if (attr.type !== "JSXAttribute") continue;
       const target = rule.props[attr.name.name];
+      if (this.twoWay(node, rule, attr, depth + 1)) continue;
+      if (/^on[A-Z]/.test(attr.name.name) && this.twoWayPartner(node, attr)) continue;
       const mapped = rule.values?.[attr.name.name];
       const raw = attr.value?.type === "StringLiteral" ? attr.value.value
         : attr.value?.expression?.type === "NumericLiteral" || attr.value?.expression?.type === "StringLiteral" ? String(attr.value.expression.value) : null;
@@ -378,8 +466,15 @@ class ComponentWriter {
       } else if (target) this.binding(target, attr, depth + 1);
     }
     if (rule.props.children) {
-      const label = node.children.filter((c) => c.type === "JSXText").map((c) => c.value.trim()).join(" ").trim();
-      if (label) this.emit(`${rule.props.children}: ${quote(label)};`, depth + 1);
+      // A label is its text and any values or translations inside it, joined like a Text.
+      const parts = [];
+      for (const c of node.children) {
+        if (c.type === "JSXText" && c.value.trim()) parts.push(quote(c.value.trim().replace(/\s+/g, " ")));
+        else if (c.type === "JSXExpressionContainer" && c.expression.type !== "JSXEmptyExpression" && !isJsx(c.expression)) {
+          parts.push(this.literal(c.expression) ?? `root.${this.property(this.text(c.expression))}`);
+        }
+      }
+      if (parts.length) this.emit(`${rule.props.children}: ${parts.join(" + ")};`, depth + 1);
     } else if (rule.slint === "Text") {
       this.textChildren(node.children, depth + 1);
     } else if (LEAF_WIDGETS.has(rule.slint)) {
@@ -418,6 +513,32 @@ class ComponentWriter {
 
   children(list, depth) {
     for (const child of list) this.child(child, depth);
+  }
+
+  /** `value={tab} onChange={setTab}` (or checked/onChange): a two-way binding to the state property. */
+  twoWay(node, rule, attr, depth) {
+    const target = rule.props[attr.name.name];
+    if (!target || target.startsWith("_") || !["value", "checked", "opened", "active"].includes(attr.name.name)) return false;
+    const expr = attr.value?.expression;
+    if (expr?.type !== "Identifier" || !this.states.has(expr.name)) return false;
+    if (!this.twoWayPartner(node, attr)) return false;
+    // The widget decides the type: a number field binds an int, a multi-select a list.
+    const type = ["checked", "open", "active"].includes(target) ? "bool"
+      : PROP_TYPES[target] ?? (NUMBER_PROPS.has(target) ? "int" : "string");
+    const prop = this.property(expr.name, type);
+    this.emit(`${target} <=> root.${prop};`, depth);
+    this.stats.reactive += 1;
+    return true;
+  }
+
+  /** The onChange that sets the same state as a value attribute, if both are on the element. */
+  twoWayPartner(node, attr) {
+    const attrs = node.openingElement.attributes.filter((a) => a.type === "JSXAttribute");
+    const valueAttr = attrs.find((a) => ["value", "checked", "opened", "active"].includes(a.name.name));
+    const changeAttr = attrs.find((a) => a.name.name === "onChange");
+    const state = valueAttr?.value?.expression?.name;
+    const setter = changeAttr?.value?.expression?.name;
+    return Boolean(state && setter && this.states.get(state)?.setter === setter);
   }
 
   /** A table's column titles, taken from its header cells (`Table.Th` or `th`) as the web shows them. */
@@ -506,7 +627,12 @@ class ComponentWriter {
     this.child(jsx, 1);
     const head = [`export component ${this.name} inherits VerticalLayout {`];
     for (const p of this.props.values()) {
-      head.push(`    // from: ${p.src.replace(/\s+/g, " ").slice(0, 100)}`, `    in property <${p.type}> ${p.name}${this.previewDefault(p)};`);
+      const state = this.states.get(p.src.trim());
+      const init = state ? this.literal(state.init) : null;
+      const fits = init && ((p.type === "bool" && /^(true|false)$/.test(init)) || (p.type === "int" && /^-?\d+$/.test(init))
+        || (p.type === "string" && init.startsWith('"')) || (p.type === "string" && init.startsWith("@tr")));
+      const value = fits ? `: ${init}` : this.previewDefault(p);
+      head.push(`    // from: ${p.src.replace(/\s+/g, " ").slice(0, 100)}`, `    ${state ? "in-out" : "in"} property <${p.type}> ${p.name}${value};`);
     }
     for (const cb of this.callbacks) head.push(`    callback ${cb}();`);
     return [...head, ...this.lines, "    @children", "}"].join("\n");
@@ -517,7 +643,7 @@ class ComponentWriter {
 export function convertSource(source, fileName = "input.tsx", mapping = loadMapping(), known = new Map(), options = {}) {
   mapping = { ...mapping, preview: Boolean(options.preview), strings: options.strings };
   const ast = parse(source, { sourceType: "module", plugins: ["jsx", "typescript"], errorRecovery: true });
-  const stats = { elements: 0, mapped: 0, strings: 0, unmapped: {}, rawHtml: {}, kit: new Set(), std: new Set(), hooks: {}, references: new Map(), webOnly: {}, inlineInText: 0, leafChildren: 0, missingStrings: 0 };
+  const stats = { elements: 0, mapped: 0, strings: 0, unmapped: {}, rawHtml: {}, kit: new Set(), std: new Set(), hooks: {}, references: new Map(), webOnly: {}, inlineInText: 0, leafChildren: 0, missingStrings: 0, reactive: 0 };
   const own = new Set();
   const parts = [];
   const found = components(ast.program);
@@ -527,7 +653,7 @@ export function convertSource(source, fileName = "input.tsx", mapping = loadMapp
   for (const name of own) visible.set(name, null);
   const rendered = new Map();
   for (const c of found) {
-    const writer = new ComponentWriter(c.name, mapping, source, stats, new Map([...visible].map(([n, f]) => [n, f ?? fileName])));
+    const writer = new ComponentWriter(c.name, mapping, source, stats, new Map([...visible].map(([n, f]) => [n, f ?? fileName])), c.states);
     rendered.set(c.name, writer.render(c.jsx));
     for (const [h, n] of Object.entries(c.hooks)) stats.hooks[h] = (stats.hooks[h] ?? 0) + n;
   }

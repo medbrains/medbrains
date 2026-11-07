@@ -106,3 +106,25 @@ test("the main view is the last top-level return, not an early loading branch", 
   assert.match(slint, /text: "Ward census";/);
   assert.doesNotMatch(slint, /Spinner/);
 });
+
+test("local state becomes reactive Slint state: setters, toggles, two-way inputs and tabs", () => {
+  const { slint, stats } = convert(`export function R() {
+    const [open, setOpen] = useState(false);
+    const [query, setQuery] = useState("");
+    const [tab, setTab] = useState("rx");
+    return <Stack>
+      <Button onClick={() => setOpen(!open)}>Toggle</Button>
+      <TextInput value={query} onChange={setQuery} />
+      <Tabs value={tab} onChange={setTab}>
+        <Tabs.List><Tabs.Tab value="rx">Queue</Tabs.Tab></Tabs.List>
+        <Tabs.Panel value="rx"><Text>Queue panel</Text></Tabs.Panel>
+      </Tabs>
+    </Stack>;
+  }`);
+  assert.match(slint, /in-out property <bool> open: false;/);
+  assert.match(slint, /clicked => \{ root\.open = !root\.open; \}/);
+  assert.match(slint, /text <=> root\.query;/);
+  assert.match(slint, /MbTab \{ text: "Queue"; selected: root\.tab == "rx"; clicked => \{ root\.tab = "rx"; \} \}/);
+  assert.match(slint, /if root\.tab == "rx" : VerticalLayout/);
+  assert.ok(stats.reactive >= 4);
+});

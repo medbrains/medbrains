@@ -47,7 +47,7 @@ function main(argv) {
   // English text for t("key"), from the web app's language files next to its source.
   const strings = loadStrings(flag(argv, "--strings") ?? path.resolve(project ?? ".", "../public/locales/en"));
   const base = path.resolve(project ?? (fs.statSync(inputs[0]).isDirectory() ? inputs[0] : path.dirname(inputs[0])));
-  const total = { files: 0, components: 0, elements: 0, mapped: 0, strings: 0, unmapped: {}, rawHtml: {}, webOnly: {}, kit: new Set(), hooks: {} };
+  const total = { files: 0, components: 0, elements: 0, mapped: 0, strings: 0, reactive: 0, unmapped: {}, rawHtml: {}, webOnly: {}, kit: new Set(), hooks: {} };
   for (const file of expand(inputs)) {
     const { slint, stats, components } = convertFile(path.resolve(file), mapping, new Map([...known].map(([n, f]) => [n, path.resolve(f)])), base, { preview: argv.includes("--preview"), strings });
     if (!components) continue;
@@ -56,6 +56,7 @@ function main(argv) {
     total.elements += stats.elements;
     total.mapped += stats.mapped;
     total.strings += stats.strings;
+    total.reactive += stats.reactive;
     for (const key of ["unmapped", "rawHtml", "hooks", "webOnly"]) {
       for (const [k, v] of Object.entries(stats[key])) total[key][k] = (total[key][k] ?? 0) + v;
     }
@@ -74,6 +75,7 @@ function main(argv) {
     `files ${total.files}, components ${total.components}, elements ${total.elements}`,
     `mapped ${total.mapped} of ${convertible} convertible (${pct}%); web-only by design: ${top(total.webOnly)}`,
     `translated strings converted to @tr(): ${total.strings}`,
+    `reactive bindings (state, setters, two-way, tabs): ${total.reactive}`,
     `unmapped: ${top(total.unmapped)}`,
     `raw HTML (breaks the components rule; converted where possible): ${top(total.rawHtml)}`,
     `kit components needed: ${[...total.kit].sort().join(", ") || "none"}`,
