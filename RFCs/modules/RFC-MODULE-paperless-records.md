@@ -32,18 +32,22 @@ Caresoft already sells "beside your HMS" for the ward, so the land strategy is p
 
 The strength column says how sure we are. "Lawyer" marks what must be checked before we claim it in sales.
 
-| Rule | What it requires of us | Strength |
+| Rule | What it requires of us | Source and strength |
 |---|---|---|
-| **NMC advisory, 13 Oct 2026** (Ethics and Medical Registration Board; read in two news reports, official text not yet found) | <ul><li>Doctors may authenticate electronic clinical documents remotely, "using recognised digital or electronic signatures".</li><li>A doctor signs only after reviewing the clinical information, and only for facilities they are appointed, empanelled, contracted or associated with.</li><li>Credentials "must remain under the control of the concerned doctor and must not be shared, delegated or transferred".</li><li>Suspected misuse is reported.</li><li>Facilities keep audit trails, authentication logs and time stamps.</li><li>Liability is unchanged.</li></ul> | medium: news reports only. Get the official text |
-| **IT Act 2000** | Electronic records and electronic signatures are legal. Aadhaar eSign and DSC are notified methods | strong |
-| **BSA 2023 s.63** (formerly Evidence Act 65B) | Electronic records are admissible with a certificate | strong. Lawyer: certificate format |
-| **DPDP Act 2023 and Rules 2025** | <ul><li>Consent with plain notice, one per purpose, and withdrawable.</li><li>Consent managers allowed from 13 Nov 2026.</li><li>Security safeguards, logs, breach reporting to the Data Protection Board, children's data: in full from 13 May 2027.</li><li>Erasure yields to laws that require records to be kept.</li></ul> | strong on dates. Lawyer: health data, children, the retention interplay |
-| **Aadhaar Act** | Never store the Aadhaar number. The eSign provider's hosted page handles it; we keep only the signed result and certificate | strong. Also fixes our unsalted Aadhaar hash finding |
-| **Aadhaar eSign API** | eSign 3.0 signs up to 5 document hashes per transaction; 2.1 signed one | medium: secondary source. Get the C-DAC/CCA spec |
-| **NABH** | Each entry identifies its author and is dated, timed and protected from tampering; electronic authentication is allowed under a written policy | medium: inferred from JCI and CMS. Get the NABH text |
-| **MCI 2002 regulations and court practice** | Keep in-patient records at least 3 years; keep MLC records permanently | medium. Lawyer |
+| **NMC Public Notice R-19022/25/2026/Ethics, 13 Oct 2026** (Ethics and Medical Registration Board) | <ul><li>"No prohibition" on remote authentication of lab, pathology and radiology reports, "discharge summaries and other electronic clinical documents", using a signature "recognised under the Information Technology Act, 2000".</li><li>The doctor authenticates only after reviewing the clinical information, and "shall refrain" if it is inadequate.</li><li>Only for an establishment where the doctor is "appointed, empanelled, contracted or otherwise professionally associated", with lawful access.</li><li>Credentials "shall not be shared, disclosed, delegated, transferred"; a suspected compromise is reported promptly.</li><li>Establishments keep "audit trails, authentication logs, date and time stamps", and retain them with the records for the legal period.</li><li>A foreign expert's opinion is documented, but it is not certification of an Indian record.</li><li>The notice is "clarificatory".</li></ul> | strong: the NMC-signed PDF, hosted by Medical Dialogues |
+| **IT Act 2000** | Electronic records and electronic signatures are legal; Aadhaar eSign and DSC are notified methods | strong |
+| **CCA eSign API** | <ul><li>**v2.x, online Aadhaar:** one document hash per call; AuthMode OTP/TOTP (single factor), fingerprint, iris or face (multi-factor); ekycId must be the UID token, not the Aadhaar number; store resCode in the audit log; never log the OTP.</li><li>**v3.3, 9 Dec 2020:** up to 5 hashes per call, through a one-time eKYC account at the certifying authority (offline Aadhaar e-KYC, last 4 digits only), PIN plus SMS-OTP, TOTP or FIDO2.</li><li>We choose 2.x or 3.x per provider.</li></ul> | strong: official CCA specs |
+| **Aadhaar Act s.29** | Never store the Aadhaar number; the eSign specs carry only the UID token or the last 4 digits. Also fixes our unsalted Aadhaar hash finding | medium: check s.29 text |
+| **BSA 2023 s.63** | Electronic records are admissible with a certificate in the Schedule format: Part A filled by the party (device or source, lawful control, hash values with algorithm, hash report, date, time, place), Part B by an expert. The Supreme Court upheld s.63(4) in May 2026 (Pune Bar Association), holding the Part B expert need not be a s.79A examiner | strong. Check who signs Part B for a hospital |
+| **DPDP Act 2023, Rules 2025 (G.S.R. 846(E), 13 Nov 2025)** | <ul><li>s.7 has **no general treatment ground**: routine care rests on consent or data "voluntarily provided" for a purpose (7(a)); emergencies on 7(f); epidemics on 7(g).</li><li>Erasure yields where "retention is necessary for compliance with any law" (s.8(7)).</li><li>Fourth Schedule Part A: clinical establishments are exempt from parental consent and the tracking ban, as far as needed for the child's health services.</li><li>Breach: the Board and patients told "without delay"; a detailed Board report within 72 hours.</li><li>Security and processing logs kept at least one year (rules 6(e), 8(3)).</li><li>Consent managers from one year after publication, about 13 Nov 2026; the rest from eighteen months, about 13 May 2027.</li></ul> | strong: official MeitY texts |
+| **EHR Standards 2016 (MoHFW)** | <ul><li>Records are immutable once saved: a revision is a new record marked active, the old one inactive.</li><li>Audit every action, including viewing, with date, time, record and user.</li><li>Detect alterations; hash with SHA-256 or stronger.</li><li>e-Prescriptions are digitally signed by a registered doctor, with non-repudiation.</li><li>Keep records for the person's lifetime; long-term format PDF/A-2.</li></ul> | strong: official, advisory |
+| **NABH 6th edition, IMS chapter** | IMS3d "Authorised staff make the entry"; IMS3e "signed, dated and timed"; IMS3f "The author of the entry can be identified"; IMS5b integrity and security. E-signatures are not named in the objective elements | medium: a secondary copy. Get the nabh.co text |
+| **IMC Regulations 2002, reg 1.3** | In-patient records kept 3 years from the start of treatment (1.3.1); copies given within 72 hours of a request (1.3.2). The NMC 2023 regulations are reported held in abeyance. PCPNDT records: two years, or until proceedings end. **MLC "permanent": no source found** | medium: secondary copies. Lawyer |
+| **Clinical Establishments Rules 2012, rule 9(iv)** | Keep EMR/EHR as the governments decide; no retention period set | medium |
 | **Delhi HC, 22 Nov 2024** (Dr Rohit Jain's plea) | It asked for central rules against scanned or fake signatures, shared logins, and signatures used after a doctor leaves. The court sent it to the governments; no outcome is known | strong that the problem is recognised |
 | **Mental Healthcare Act 2017, HIV records** | Restricted by default, including inside a transfer, unless the patient consents specifically | strong |
+
+Primary texts are saved with the research notes. The NMC notice, CCA eSign specs, DPDP Act and Rules and EHR Standards were read in full.
 
 ## 4. The design: five parts
 
@@ -61,7 +65,7 @@ The strength column says how sure we are. "Lawyer" marks what must be checked be
 ### 4.2 Documents that leave the hospital
 These are discharge summaries, death and medical certificates, and MLC reports.
 - **Legal signatures behind one interface.** Remote DSC by default, then USB DSC and Aadhaar eSign, all behind one provider-neutral trait with a capability map (the payments pattern).
-- **End-of-shift batch signing.** One approval per 5 documents on eSign 3.0, or per provider limit.
+- **End-of-shift batch signing.** Up to 5 documents per approval on eSign 3.x; one per call on 2.x.
 - **Keys stay with the provider.** Remote DSC keys live in the certifying authority's HSM, under the doctor's PIN or OTP.
 
 ### 4.3 Patients
@@ -71,8 +75,8 @@ These are discharge summaries, death and medical certificates, and MLC reports.
   - who explained it, and that the explanation was read back;
   - a witness for high-risk procedures;
   - the patient's capacity, or the representative and why.
-- **DPDP purposes:** treatment, insurance, research and sharing, each a separate tick, each withdrawable. Accept registered consent managers.
-- **Keep the evidence to a minimum:** encrypted, with retention tied to the record.
+- **DPDP purposes:** treatment, insurance, research and sharing, each a separate tick, each withdrawable. Routine care rests on this consent, because DPDP has no general treatment ground; a medical emergency uses s.7(f) and is logged. Accept registered consent managers.
+- **Keep the evidence to a minimum:** encrypted, with retention tied to the record. For eSign keep the UID token and resCode, never the Aadhaar number or the OTP.
 
 ### 4.4 Outsider trust
 - **A QR verify link on every printout and PDF.** The public page shows only the document type, signer, time and "unchanged: yes or no", so no health data is shown. The full document needs an access link from the hospital.
@@ -133,7 +137,7 @@ The verify page is public but shows no health data. The full document always nee
 
 ## 8. Order of work
 
-1. **Read the official texts:** the NMC advisory, NABH chapter text, the C-DAC/CCA eSign 3.0 spec, MCI retention and DPDP for health data. Get a lawyer's read of the claims marked above. No sales claim before this.
+1. **Official texts:** done for the NMC notice, CCA eSign specs, DPDP and EHR Standards. Still to get: the NABH text from nabh.co, Aadhaar Act s.29, the IMC 2002 gazette text and any source for MLC retention. Then a lawyer's read of the medium rows. No sales claim before this.
 2. **Move keys to the doctor's hardware** (4.1, scenarios 1–5): test WebAuthn signing against PRF wrap, on the NFC badge and the OS screens.
 3. **The verify page and court certificate** (4.4, scenarios 8–10).
 4. **Patient consent** (4.3, scenario 7, plus DPDP purposes).
