@@ -304,7 +304,7 @@ async function reviewAndOpen(page: Page, uhid: string, safetyReason?: string): P
   await detail.getByRole("button", { name: "Approve & Create Billing" }).click();
   const review = page.getByRole("dialog").last();
   if (safetyReason) {
-    await review.getByRole("textbox", { name: "Override reason" }).fill(safetyReason);
+    await review.getByRole("textbox", { name: "Override reason", exact: true }).fill(safetyReason);
   }
   await review.getByRole("button", { name: /Approve/ }).last().click();
   await expect(review).toBeHidden({ timeout: 15_000 });
@@ -338,7 +338,8 @@ test("a Schedule X controlled drug is refused without a witness, the refusal is 
     scheduleX: true,
   });
   const pharmacist = await newPharmacist(hospital, "Charge Pharmacist");
-  const witness = await newPharmacist(hospital, `Witness ${stamp()}`);
+  const witnessName = `Witness ${stamp()}`;
+  const witness = await newPharmacist(hospital, witnessName);
   await witness.page.context().close();
   const page = pharmacist.page;
   await reviewAndOpen(page, rx.uhid);
@@ -367,21 +368,22 @@ test("a Schedule X controlled drug is refused without a witness, the refusal is 
   await page.getByRole("button", { name: "Dispense", exact: true }).click();
   const dispense = page.getByRole("dialog", { name: "Dispense order" });
   await expect(dispense.getByRole("button", { name: "Dispense", exact: true })).toBeDisabled();
-  await dispense.getByRole("textbox", { name: /Witness/ }).click();
-  await page.getByRole("option", { name: new RegExp(witness.fullName) }).click();
+  await dispense.getByRole("combobox", { name: /Witness/ }).click();
+  await page.getByRole("option", { name: witnessName, exact: true }).click();
   await expectScreenAccessible(page, "pharmacy-dispense-controlled");
   await dispense.getByRole("button", { name: "Dispense", exact: true }).click();
   await dispenseUnpaid(page);
   await expect(page.getByText("dispensed", { exact: true }).first()).toBeVisible({ timeout: 15_000 });
 
-  // The NDPS register carries the issue, against the patient.
+  // The NDPS register carries the receipt and the witnessed issue, and its
+  // balance matches the shelf: 20 received, 6 dispensed.
   await page.goto("/pharmacy");
   await page.getByRole("tab", { name: "NDPS Register" }).click();
   await expectScreenAccessible(page, "pharmacy-ndps-register");
-  await expect(
-    page.getByRole("row").filter({ hasText: morphine.name }).first(),
-    "the controlled issue is on the register",
-  ).toBeVisible({ timeout: 15_000 });
+  const register = page.getByRole("tabpanel", { name: "NDPS Register" });
+  await expect(register.getByText(`${morphine.name}: 14`)).toBeVisible({ timeout: 15_000 });
+  await expect(register.getByRole("row").filter({ hasText: /Dispensed\s*6\s*14/ })).toHaveCount(1);
+});
 });
 
 test("a documented allergy stops the dispense until the pharmacist records why, and the override is filed", async ({

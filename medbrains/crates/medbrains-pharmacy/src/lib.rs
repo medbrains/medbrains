@@ -5054,11 +5054,64 @@ pub async fn create_batch(
     .execute(&mut *tx)
     .await?;
 
+    post_ndps_receipt_in_tx(&mut tx, &claims, &body).await?;
+
     tx.commit().await?;
     Ok(Json(filter_pharmacy_batch_response(
         batch,
         &restricted_fields,
     )))
+}
+
+/// A controlled drug received into stock goes on the NDPS register as a
+/// receipt, in the same transaction as the batch.
+///
+/// Receipts were never posted, so the first dispense of a freshly received
+/// controlled drug left the register at a negative balance: a register that
+/// does not match the shelf is the thing an NDPS inspection looks for.
+async fn post_ndps_receipt_in_tx(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    claims: &Claims,
+    body: &CreateBatchRequest,
+) -> Result<(), AppError> {
+    let controlled: bool = sqlx::query_scalar(
+        "SELECT is_controlled OR COALESCE(drug_schedule::text IN ('X', 'NDPS'), false) \
+           FROM pharmacy_catalog WHERE id = $1 AND tenant_id = $2",
+    )
+    .bind(body.catalog_item_id)
+    .bind(claims.tenant_id)
+    .fetch_optional(&mut **tx)
+    .await?
+    .unwrap_or(false);
+    if !controlled {
+        return Ok(());
+    }
+    let balance: i64 = sqlx::query_scalar::<_, Option<i64>>(
+        "SELECT SUM(CASE WHEN action IN ('receipt', 'adjustment') THEN quantity \
+                    ELSE -quantity END) \
+           FROM pharmacy_ndps_register WHERE catalog_item_id = $1 AND tenant_id = $2",
+    )
+    .bind(body.catalog_item_id)
+    .bind(claims.tenant_id)
+    .fetch_one(&mut **tx)
+    .await?
+    .unwrap_or(0);
+    let entry = sqlx::query_as::<_, NdpsRegisterEntry>(
+        "INSERT INTO pharmacy_ndps_register \
+         (tenant_id, catalog_item_id, action, quantity, balance_after, dispensed_by, notes) \
+         VALUES ($1, $2, 'receipt', $3, $4, $5, $6) RETURNING *",
+    )
+    .bind(claims.tenant_id)
+    .bind(body.catalog_item_id)
+    .bind(body.quantity_received)
+    .bind(i32::try_from(balance + i64::from(body.quantity_received)).unwrap_or(i32::MAX))
+    .bind(claims.sub)
+    .bind(format!("Batch {} received", body.batch_number))
+    .fetch_one(&mut **tx)
+    .await?;
+    queue_ndps_movement_created_event_in_tx(tx, claims.tenant_id, claims.sub, &entry, "batch_receipt")
+        .await?;
+    Ok(())
 }
 
 #[derive(Debug, serde::Serialize, sqlx::FromRow)]
