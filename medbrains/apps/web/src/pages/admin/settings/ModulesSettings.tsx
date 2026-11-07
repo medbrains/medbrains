@@ -1,27 +1,35 @@
-import { Card, Group, Loader, SimpleGrid, Stack, Switch, Text, Tooltip } from "@mantine/core";
+import { Group, Loader, SimpleGrid, Stack, Text } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
 import { useModuleStore } from "@medbrains/stores";
 import type { ModuleConfig } from "@medbrains/types";
 import { IconCheck } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
-import { Badge, Button, Select } from "@/components/ui";
+import { Alert, Button, Card, Modal, Select } from "@/components/ui";
 import { EDITIONS } from "@/lib/editions";
 import { sessionService } from "@/services/session.service";
 import { settingsSetupService } from "@/services/settingsSetup.service";
+import { ModuleBrickCard } from "./ModuleBrickCard";
+import { CORE_BRICKS, names, offDependencies, onDependents } from "./module-bricks";
 
-// Core modules that cannot be disabled by the user.
-// These are fundamental to the system and must always remain enabled.
-const CORE_MODULE_CODES = new Set(["registration", "billing"]);
+/** A switch waiting on the operator: turn `mod` on together with the bricks it needs. */
+interface PendingEnable {
+  mod: ModuleConfig;
+  needs: ModuleConfig[];
+}
 
-function isCoreModule(mod: ModuleConfig): boolean {
-  return CORE_MODULE_CODES.has(mod.code);
+/** Switches each brick in order, one at a time, so what a brick needs is on before it is. */
+async function switchInOrder(codes: string[], status: "enabled" | "disabled") {
+  for (const code of codes) {
+    await settingsSetupService.updateModule(code, { status });
+  }
 }
 
 export function ModulesSettings() {
   const queryClient = useQueryClient();
   const setDisabledModules = useModuleStore((s) => s.setDisabledModules);
   const [selectedEdition, setSelectedEdition] = useState<string | null>(null);
+  const [pendingEnable, setPendingEnable] = useState<PendingEnable | null>(null);
 
   const {
     data: modules,
@@ -38,16 +46,18 @@ export function ModulesSettings() {
     queryFn: () => settingsSetupService.getEdition(),
   });
 
+  /** Reloads the module list and the menu's entitlements, so the menu changes without a reload. */
+  const refreshEntitlements = async () => {
+    await queryClient.invalidateQueries({ queryKey: ["setup-modules"] });
+    const me = await sessionService.me();
+    setDisabledModules(me.disabled_modules ?? []);
+  };
+
   const applyEditionMutation = useMutation({
     mutationFn: (hospitalType: string) => settingsSetupService.applyEdition(hospitalType),
     onSuccess: async () => {
-      await Promise.all([
-        queryClient.invalidateQueries({ queryKey: ["setup-modules"] }),
-        queryClient.invalidateQueries({ queryKey: ["setup-edition"] }),
-      ]);
-      // Refresh the module entitlements so the nav updates immediately (no reload).
-      const me = await sessionService.me();
-      setDisabledModules(me.disabled_modules ?? []);
+      await queryClient.invalidateQueries({ queryKey: ["setup-edition"] });
+      await refreshEntitlements();
       notifications.show({
         title: "Edition applied",
         message: "Modules updated for this edition. Your existing data is untouched.",
@@ -64,36 +74,46 @@ export function ModulesSettings() {
     },
   });
 
-  const currentEdition = edition?.hospital_type ?? null;
-  const editionValue = selectedEdition ?? currentEdition;
-
   const toggleMutation = useMutation({
-    mutationFn: ({ code, status }: { code: string; status: string }) =>
-      settingsSetupService.updateModule(code, { status }),
-    onSuccess: (updated: ModuleConfig) => {
-      void queryClient.invalidateQueries({ queryKey: ["setup-modules"] });
-      const label = updated.status === "enabled" ? "enabled" : "disabled";
+    mutationFn: ({ codes, status }: { codes: string[]; status: "enabled" | "disabled" }) =>
+      switchInOrder(codes, status),
+    onSuccess: async (_done, { status }) => {
+      setPendingEnable(null);
+      await refreshEntitlements();
       notifications.show({
-        title: `Module ${label}`,
-        message: `${updated.name} has been ${label} successfully.`,
+        title: status === "enabled" ? "Switched on" : "Switched off",
+        message: "The menu and the API now follow the new setting.",
         color: "success",
         icon: <IconCheck size={16} />,
       });
     },
-    onError: (err: Error) => {
-      notifications.show({
-        title: "Toggle failed",
-        message: err.message,
-        color: "danger",
-      });
+    onError: async (err: Error) => {
+      await queryClient.invalidateQueries({ queryKey: ["setup-modules"] });
+      notifications.show({ title: "Could not switch it", message: err.message, color: "danger" });
     },
   });
 
-  const handleToggle = (mod: ModuleConfig, checked: boolean) => {
-    toggleMutation.mutate({
-      code: mod.code,
-      status: checked ? "enabled" : "disabled",
-    });
+  const handleToggle = (mod: ModuleConfig, on: boolean) => {
+    const all = modules ?? [];
+    if (!on) {
+      const blockers = onDependents(mod.code, all);
+      if (blockers.length > 0) {
+        notifications.show({
+          title: `${mod.name} cannot be switched off`,
+          message: `${names(blockers)} need it. Switch those off first.`,
+          color: "warning",
+        });
+        return;
+      }
+      toggleMutation.mutate({ codes: [mod.code], status: "disabled" });
+      return;
+    }
+    const needs = offDependencies(mod.code, all);
+    if (needs.length > 0) {
+      setPendingEnable({ mod, needs });
+      return;
+    }
+    toggleMutation.mutate({ codes: [mod.code], status: "enabled" });
   };
 
   if (isLoading) {
@@ -107,11 +127,9 @@ export function ModulesSettings() {
 
   if (isError) {
     return (
-      <Stack align="center" py="xl">
-        <Text c="danger">
-          Failed to load modules: {error instanceof Error ? error.message : "Unknown error"}
-        </Text>
-      </Stack>
+      <Alert tone="danger" title="Could not load modules">
+        {error instanceof Error ? error.message : "Unknown error"}. Nothing has been changed.
+      </Alert>
     );
   }
 
@@ -123,20 +141,31 @@ export function ModulesSettings() {
     );
   }
 
+  const editionValue = selectedEdition ?? edition?.hospital_type ?? null;
+  // `disabled` only: the server counts a core brick with any other status as on.
+  const coreOff = modules.filter((m) => CORE_BRICKS.has(m.code) && m.status === "disabled");
+
   return (
     <Stack gap="lg">
-      <div>
+      <Stack gap={4}>
         <Text fw={600} size="lg">
           Modules
         </Text>
         <Text size="sm" c="dimmed">
-          Enable or disable modules based on your hospital's needs. Core modules cannot be disabled.
+          Switch apps on or off for your hospital. An app cannot go off while another app that needs
+          it is on.
         </Text>
-      </div>
+      </Stack>
 
-      <Card withBorder padding="md">
+      {coreOff.length > 0 && (
+        <Alert tone="warning" title="Core apps switched off">
+          {names(coreOff)}: their screens and API are switched off.
+        </Alert>
+      )}
+
+      <Card padding="md">
         <Stack gap="sm">
-          <div>
+          <Stack gap={4}>
             <Text fw={600} size="sm">
               Deployment edition
             </Text>
@@ -144,7 +173,7 @@ export function ModulesSettings() {
               Pick the kind of facility. Applying an edition enables its modules and disables the
               rest — your existing data is kept.
             </Text>
-          </div>
+          </Stack>
           <Group align="flex-end" gap="sm">
             <Select
               label="Edition"
@@ -152,7 +181,7 @@ export function ModulesSettings() {
               value={editionValue}
               onChange={setSelectedEdition}
               placeholder="Select edition"
-              style={{ minWidth: 240 }}
+              miw={240}
             />
             <Button
               onClick={() => editionValue && applyEditionMutation.mutate(editionValue)}
@@ -166,51 +195,42 @@ export function ModulesSettings() {
       </Card>
 
       <SimpleGrid cols={{ base: 1, sm: 2, lg: 3 }} spacing="md">
-        {modules.map((mod) => {
-          const isEnabled = mod.status === "enabled";
-          const isCore = isCoreModule(mod);
-          const isPending = toggleMutation.isPending && toggleMutation.variables?.code === mod.code;
-
-          return (
-            <Card key={mod.code} withBorder padding="md">
-              <Stack gap="sm">
-                <Group justify="space-between" wrap="nowrap">
-                  <Text fw={600} size="sm" lineClamp={1}>
-                    {mod.name}
-                  </Text>
-                  <Badge tone={isEnabled ? "success" : "neutral"} size="sm">
-                    {isEnabled ? "Enabled" : "Disabled"}
-                  </Badge>
-                </Group>
-
-                {mod.description && (
-                  <Text size="xs" c="dimmed" lineClamp={2}>
-                    {mod.description}
-                  </Text>
-                )}
-
-                <Group justify="space-between" mt="auto">
-                  {isCore ? (
-                    <Tooltip label="Core module — cannot be disabled" withArrow>
-                      <div>
-                        <Switch checked={isEnabled} disabled label="Core" size="sm" />
-                      </div>
-                    </Tooltip>
-                  ) : (
-                    <Switch
-                      checked={isEnabled}
-                      onChange={(e) => handleToggle(mod, e.currentTarget.checked)}
-                      disabled={isPending}
-                      label={isEnabled ? "On" : "Off"}
-                      size="sm"
-                    />
-                  )}
-                </Group>
-              </Stack>
-            </Card>
-          );
-        })}
+        {modules.map((mod) => (
+          <ModuleBrickCard
+            key={mod.code}
+            mod={mod}
+            modules={modules}
+            pending={toggleMutation.isPending}
+            onToggle={handleToggle}
+          />
+        ))}
       </SimpleGrid>
+
+      <Modal
+        opened={pendingEnable !== null}
+        onClose={() => setPendingEnable(null)}
+        title={pendingEnable ? `Switch on ${pendingEnable.mod.name}` : "Switch on"}
+        size="md"
+        primaryAction={{
+          label: "Switch them all on",
+          loading: toggleMutation.isPending,
+          onClick: () =>
+            pendingEnable &&
+            toggleMutation.mutate({
+              codes: [...pendingEnable.needs.map((m) => m.code), pendingEnable.mod.code],
+              status: "enabled",
+            }),
+        }}
+        secondaryAction={{ label: "Cancel", onClick: () => setPendingEnable(null) }}
+      >
+        {pendingEnable && (
+          <Text size="sm">
+            {pendingEnable.mod.name} needs {names(pendingEnable.needs)}, which{" "}
+            {pendingEnable.needs.length > 1 ? "are" : "is"} off. Switch{" "}
+            {pendingEnable.needs.length > 1 ? "them" : "it"} on too?
+          </Text>
+        )}
+      </Modal>
     </Stack>
   );
 }

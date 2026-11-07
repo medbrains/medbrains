@@ -69,6 +69,7 @@ use crate::{
         auth::auth_middleware,
         client_ip::client_ip_middleware,
         csrf::csrf_middleware,
+        entitlement::gated,
         ip_restrict::ip_restrict_middleware,
         rate_limit::{
             RateLimiter, rate_limit_middleware, storefront_rate_limit_middleware,
@@ -236,7 +237,7 @@ pub fn build_router(state: AppState) -> Router {
         // Setup — insurance providers
         // Setup — bulk / template / health / config
         // Patients
-        .merge(medbrains_patients::router())
+        .merge(gated("registration", medbrains_patients::router(), &state))
         // Patient — identifiers
         // Patient — addresses
         // Patient — contacts
@@ -282,61 +283,14 @@ pub fn build_router(state: AppState) -> Router {
             post(rx_verify::issue_verify_link),
         )
         .route(
-            "/api/opd/schedules",
-            get(appointments::list_schedules).post(appointments::create_schedule),
-        )
-        .route(
-            "/api/opd/schedules/{id}",
-            put(appointments::update_schedule).delete(appointments::delete_schedule),
-        )
-        .route(
-            "/api/opd/schedule-exceptions",
-            get(appointments::list_exceptions).post(appointments::create_exception),
-        )
-        .route(
-            "/api/opd/schedule-exceptions/{id}",
-            delete(appointments::delete_exception),
-        )
-        .route(
-            "/api/opd/doctors/{doctor_id}/slots",
-            get(appointments::get_available_slots),
-        )
-        .route(
-            "/api/opd/appointments",
-            get(appointments::list_appointments).post(appointments::book_appointment),
-        )
-        .route(
-            "/api/opd/appointments/{id}",
-            get(appointments::get_appointment),
-        )
-        .route(
-            "/api/opd/appointments/{id}/reschedule",
-            put(appointments::reschedule_appointment),
-        )
-        .route(
-            "/api/opd/appointments/{id}/cancel",
-            put(appointments::cancel_appointment),
-        )
-        .route(
-            "/api/opd/appointments/{id}/check-in",
-            put(appointments::check_in_appointment),
-        )
-        .route(
             "/api/opd/queue-tokens/{id}/status-link",
             get(appointments::queue_token_status_link),
         )
-        .route(
-            "/api/opd/appointments/{id}/complete",
-            put(appointments::complete_appointment),
-        )
-        .route(
-            "/api/opd/appointments/{id}/no-show",
-            put(appointments::mark_appointment_no_show),
-        )
+        .merge(gated("opd", appointments::router(), &state))
         .merge(medbrains_platform::router())
         .merge(medbrains_telehealth::router())
         // ── Billing ──────────────────────────────────────
-        .merge(medbrains_billing::router())
+        .merge(gated("billing", medbrains_billing::router(), &state))
         // Interim MUST be before {id} to avoid matching "interim" as a UUID
         // ── Billing Advances ─────────────────────────────
         // ── Billing Corporates ───────────────────────────
@@ -366,19 +320,20 @@ pub fn build_router(state: AppState) -> Router {
         // ── OAuth connect (common token module) ──────────
         .merge(medbrains_oauth::router())
         // ── Lab ──────────────────────────────────────────
-        .merge(medbrains_lab::router())
+        .merge(gated("lab", medbrains_lab::router(), &state))
         .merge(medbrains_radiology::router())
         // ── Pharmacy ────────────────────────────────────
-        .merge(medbrains_pharmacy::router())
-        .merge(medbrains_ward_stock::router())
+        .merge(medbrains_pharmacy::catalog_router())
+        .merge(gated("pharmacy", medbrains_pharmacy::router(), &state))
+        .merge(gated("pharmacy", medbrains_ward_stock::router(), &state))
         .merge(medbrains_clinical_notes::router())
         // ── Pharmacy Finance (credit notes + store indents) ──
-        .merge(medbrains_pharmacy_finance::router())
-        .merge(medbrains_pharmacy_fulfilment::router())
+        .merge(gated("pharmacy", medbrains_pharmacy_finance::router(), &state))
+        .merge(gated("pharmacy", medbrains_pharmacy_fulfilment::router(), &state))
         // ── Pharmacy Safety ──────────────────────────────
-        .merge(medbrains_pharmacy_safety::router())
+        .merge(gated("pharmacy", medbrains_pharmacy_safety::router(), &state))
         // ── Pharmacy Payments ────────────────────────────
-        .merge(medbrains_pharmacy_payments::router())
+        .merge(gated("pharmacy", medbrains_pharmacy_payments::router(), &state))
         // ── ABDM (Phase 11): HFR/HPR registries + gateway HIP relay ─
         .route("/api/abdm/hfr", get(abdm::hfr::list_registrations))
         .route("/api/abdm/hfr/facilities", get(abdm::hfr::list_facilities))
@@ -572,25 +527,26 @@ pub fn build_router(state: AppState) -> Router {
             put(abdm::hip_relay::ack_callback),
         )
         // ── Pharmacy Improvements: Repeats ─────────────────
-        .merge(medbrains_pharmacy_repeats::router())
-        .merge(medbrains_pharmacy_delivery::router())
+        .merge(gated("pharmacy", medbrains_pharmacy_repeats::router(), &state))
+        .merge(gated("pharmacy", medbrains_pharmacy_delivery::router(), &state))
         // ── Pharmacy Finance: Cash Drawer ──────────────────
-        .merge(medbrains_pharmacy_cash_drawer::router())
+        .merge(gated("pharmacy", medbrains_pharmacy_cash_drawer::router(), &state))
         // ── Nurse Activities: MAR (canonical ipd_medication_administration) ──
-        .merge(medbrains_ipd::router())
+        .merge(gated("ipd", medbrains_ipd::router(), &state))
         .merge(medbrains_nursing::router())
+        .merge(gated("nursing", medbrains_nursing::station_router(), &state))
         // ── Clinical offline-mode REST adapters (Phase 7) ─────────────
         // Mirror endpoints for the four CRDT hooks. Same data the edge
         // node holds in Loro containers — surfaced here for tenants
         // running in REST mode.
         .merge(medbrains_clinical_offline::router())
         // ── Pharmacy Improvements: Substitution + Counseling + Coverage
-        .merge(medbrains_pharmacy_dispense_ops::router())
+        .merge(gated("pharmacy", medbrains_pharmacy_dispense_ops::router(), &state))
         // ── Pharmacy Finance: Petty Cash + Float Movements ─
-        .merge(medbrains_pharmacy_petty_cash::router())
+        .merge(gated("pharmacy", medbrains_pharmacy_petty_cash::router(), &state))
         // ── Pharmacy Finance: Free Dispensing + Overrides + Suppliers + Margins
-        .merge(medbrains_pharmacy_free_dispensing::router())
-        .merge(medbrains_indent::router())
+        .merge(gated("pharmacy", medbrains_pharmacy_free_dispensing::router(), &state))
+        .merge(gated("inventory", medbrains_indent::router(), &state))
         .merge(medbrains_materials::router())
         // ── Quality Management ──────────────────────────────
         .merge(medbrains_quality::router())
@@ -650,9 +606,9 @@ pub fn build_router(state: AppState) -> Router {
         // ── IPD Phase 2b: IP Types, Checklists, Reservations, Clinical Docs, etc. ──
         // ── IPD Phase 3a: Cross-module reads ────────────────
         // ── IPD post-discharge workflow (Track 1A.bis.4) ──
-        .merge(medbrains_ipd_post_discharge::router())
+        .merge(gated("ipd", medbrains_ipd_post_discharge::router(), &state))
         // ── NABH KPI rollup ───────────────────────────────
-        .merge(medbrains_reports::nabh_indicators::router())
+        .merge(gated("reports", medbrains_reports::nabh_indicators::router(), &state))
         // ── Operation Theatre ──────────────────────────────
         .merge(medbrains_ot::router())
         .merge(medbrains_blood_bank::router())
@@ -661,19 +617,19 @@ pub fn build_router(state: AppState) -> Router {
         .merge(medbrains_diet::router())
         // ── HR & Staff Management ───────────────────────────
         .merge(medbrains_hr::router())
-        .merge(medbrains_hrms_gateway::router())
+        .merge(gated("hr", medbrains_hrms_gateway::router(), &state))
         // ── Payroll ──
-        .merge(medbrains_payroll::router())
+        .merge(gated("hr", medbrains_payroll::router(), &state))
         // ── BME / CMMS ───────────────────────────────────────
-        .merge(medbrains_bme::router())
+        .merge(gated("inventory", medbrains_bme::router(), &state))
         // ── Unified Assets & Stores ─────────────────────────
         .merge(medbrains_assets::router())
         .merge(medbrains_materials::ops::router())
-        .merge(medbrains_lms::router())
+        .merge(gated("hr", medbrains_lms::router(), &state))
         // ── MRD (Medical Records Department) ────────────────────
         .merge(medbrains_mrd::router())
         // ── Consent Management ───────────────────────────────
-        .merge(medbrains_consent::router())
+        .merge(gated("registration", medbrains_consent::router(), &state))
         .merge(medbrains_forms::router())
         // ── Camp Management ───────────────────────────────────
         .merge(medbrains_camp::router())
@@ -700,11 +656,11 @@ pub fn build_router(state: AppState) -> Router {
         .merge(medbrains_order_basket::router())
         // ── Doctor Packages (admin) ─────────────────────────
         .merge(medbrains_doctor_packages::router())
-        .merge(medbrains_doctor_payouts::router())
+        .merge(gated("billing", medbrains_doctor_payouts::router(), &state))
         // ── MedBrains Flow (crowd + wait add-on, #4901) ─────
         .merge(medbrains_flow::router())
         // ── Patient Packages ────────────────────────────────
-        .merge(medbrains_patient_packages::router())
+        .merge(gated("billing", medbrains_patient_packages::router(), &state))
         // ── Doctor Coverage (admin) ─────────────────────────
         .route(
             "/api/admin/coverage",
@@ -717,11 +673,11 @@ pub fn build_router(state: AppState) -> Router {
         // ── Order Sets ──────────────────────────────────────
         .merge(medbrains_order_sets::router())
         .merge(medbrains_community_health::router())
-        .merge(medbrains_scheduling::router())
+        .merge(gated("opd", medbrains_scheduling::router(), &state))
         // ── Clinical & Operational Analytics ────────────────────
-        .merge(medbrains_reports::analytics::router())
+        .merge(gated("reports", medbrains_reports::analytics::router(), &state))
         // ── Governed Reports Command Center ───────────────────
-        .merge(medbrains_reports::reports::router())
+        .merge(gated("reports", medbrains_reports::reports::router(), &state))
         // ── Print Data (clinical) ─────────────────────────────
         .merge(medbrains_print_data::general::router())
         .merge(medbrains_print_data::clinical::router())
