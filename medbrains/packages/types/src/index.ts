@@ -93,6 +93,7 @@ export * from "./blood-group";
 export * from "./care-view";
 export type { ClinicalScoreRow, RecordScoreRequest } from "./care-view-scores";
 export * from "./cath-lab";
+export * from "./charge-attention";
 export * from "./chronic-care";
 export * from "./claim-settlements";
 export * from "./clinical-identity-forms";

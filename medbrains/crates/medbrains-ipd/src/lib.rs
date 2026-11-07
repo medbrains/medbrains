@@ -2242,15 +2242,9 @@ pub async fn discharge_patient(
     .fetch_one(&mut *tx)
     .await?;
 
-    // Auto-billing: charge room/bed for length of stay
-    if !daily_rent_billed
-        && medbrains_server_services::billing::is_auto_billing_enabled(
-            &mut tx,
-            &claims.tenant_id,
-            "ipd_room",
-        )
-        .await?
-    {
+    // Auto-billing: charge room/bed for length of stay. `charge_or_queue`
+    // reads the `auto_charge_ipd_room` setting; discharge never waits on it.
+    if !daily_rent_billed {
         let los_hours = (Utc::now() - admission.admitted_at).num_hours();
         #[allow(clippy::cast_precision_loss)]
         let los_days = ((los_hours as f64) / 24.0).ceil() as i32;
@@ -2296,22 +2290,28 @@ pub async fn discharge_patient(
             }
         };
 
-        let _ = medbrains_server_services::billing::auto_charge(
+        // A failed charge waits on the billing desk's attention queue.
+        medbrains_server_services::billing::charge_or_queue(
             &mut tx,
-            &claims.tenant_id,
-            medbrains_server_services::billing::AutoChargeInput {
-                patient_id: admission.patient_id,
-                encounter_id: Some(admission.encounter_id),
-                charge_code: charge_code.to_owned(),
-                source: "ipd".to_owned(),
-                source_id: admission.id,
-                quantity: los_days,
-                description_override: Some(description),
-                unit_price_override: configured_rate,
-                tax_percent_override,
+            medbrains_server_services::billing::ChargeRequest {
+                tenant_id: claims.tenant_id,
+                requested_by: claims.sub,
+                setting_module: "ipd_room",
+                charge: medbrains_server_services::billing::AutoChargeInput {
+                    patient_id: admission.patient_id,
+                    encounter_id: Some(admission.encounter_id),
+                    charge_code: charge_code.to_owned(),
+                    source: "ipd".to_owned(),
+                    source_id: admission.id,
+                    quantity: los_days,
+                    description_override: Some(description),
+                    unit_price_override: configured_rate,
+                    tax_percent_override,
+                },
+                apply_concessions: false,
             },
         )
-        .await;
+        .await?;
     }
 
     // Finalize billing: every draft invoice for this stay becomes

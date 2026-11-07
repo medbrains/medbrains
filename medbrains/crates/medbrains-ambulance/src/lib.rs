@@ -783,13 +783,6 @@ pub async fn update_trip_status(
     if body.status == "completed"
         && row.is_billable
         && let Some(patient_id) = row.patient_id
-        && medbrains_server_services::billing::is_auto_billing_enabled(
-            &mut tx,
-            &claims.tenant_id,
-            "ambulance",
-        )
-        .await
-        .unwrap_or(false)
     {
         let encounter_id = match row.er_visit_id {
             Some(visit) => sqlx::query_scalar::<_, Option<Uuid>>(
@@ -802,20 +795,25 @@ pub async fn update_trip_status(
             .flatten(),
             None => None,
         };
-        let _ = medbrains_server_services::billing::create_service_charge(
+        medbrains_server_services::billing::charge_or_queue(
             &mut tx,
-            medbrains_server_services::billing::ServiceChargeInput {
+            medbrains_server_services::billing::ChargeRequest {
                 tenant_id: claims.tenant_id,
-                patient_id,
-                encounter_id,
-                charge_code: "AMBULANCE_TRANSPORT",
-                quantity: 1,
-                source_module: "ambulance",
-                source_entity_id: row.id,
                 requested_by: claims.sub,
+                setting_module: "ambulance",
+                charge: medbrains_server_services::billing::AutoChargeInput {
+                    patient_id,
+                    encounter_id,
+                    charge_code: "AMBULANCE_TRANSPORT".to_owned(),
+                    source: "ambulance".to_owned(),
+                    source_id: row.id,
+                    quantity: 1,
+                    ..Default::default()
+                },
+                apply_concessions: true,
             },
         )
-        .await;
+        .await?;
     }
 
     tx.commit().await?;

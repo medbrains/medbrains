@@ -19,7 +19,7 @@ export interface PermissionDef {
   module: string;
 }
 
-/** 1216 permissions, one per constant in the Rust source. */
+/** 1218 permissions, one per constant in the Rust source. */
 export const PERMISSIONS: PermissionDef[] = [
   // dashboard
   {
@@ -1295,6 +1295,18 @@ export const PERMISSIONS: PermissionDef[] = [
     code: "billing.write_off.approve",
     label: "Approve Write-Off",
     description: "Approve or reject write-off requests",
+    module: "billing",
+  },
+  {
+    code: "billing.charge_attention.view",
+    label: "See charges needing attention",
+    description: "Open the billing desk's queue of automatic charges — a diet order, an OT completion, an ER registration — that could not be posted, with why, so nothing done for a patient goes unbilled unseen.",
+    module: "billing",
+  },
+  {
+    code: "billing.charge_attention.resolve",
+    label: "Post or dismiss charges needing attention",
+    description: "Post a queued charge onto the patient's bill, or dismiss it with a reason when it should not be billed. Who and when is recorded.",
     module: "billing",
   },
   {
@@ -8256,6 +8268,8 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.BILLING.BANK_RECON.MANAGE,
       P.BILLING.BILL_GROUPS.MANAGE,
       P.BILLING.CATALOG.MANAGE,
+      P.BILLING.CHARGE_ATTENTION.RESOLVE,
+      P.BILLING.CHARGE_ATTENTION.VIEW,
       P.BILLING.CLAIMS.SETTLEMENT.RECORD,
       P.BILLING.COLLECT.CROSS,
       P.BILLING.CONCESSIONS.CREATE,
@@ -8499,6 +8513,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.AUDIT.LOG_VIEW,
       P.AUDIT.PROCESSORS.LIST,
       P.AUDIT.PROCESSORS.MANAGE,
+      P.BILLING.CHARGE_ATTENTION.VIEW,
       P.BILLING.INVOICES.LIST,
       P.BILLING.INVOICES.VIEW,
       P.CAMP.LIST,

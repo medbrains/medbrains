@@ -298,6 +298,7 @@ import type {
   CensusWardRow,
   Cha2ds2VascRequest,
   Cha2ds2VascResult,
+  ChargeAttentionItem,
   ChargeMaster,
   ChartPage,
   ChartQuery,
@@ -983,6 +984,7 @@ import type {
   DischargeSummary,
   DischargeSummaryPrintData,
   DischargeSummaryTemplate,
+  DismissChargeAttentionRequest,
   DispensingLabelPrintData,
   DisposalQuery,
   DispositionRow,
@@ -6200,6 +6202,17 @@ export const api = {
     }),
   reverseClaimSettlement: (id: string, data: ClaimSettlementReasonRequest) =>
     request<ClaimSettlementPosting>(`/billing/claim-settlements/${id}/reverse`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
+  listChargeAttention: (params?: Record<string, string>) => {
+    const qs = params ? `?${new URLSearchParams(params)}` : "";
+    return request<Paginated<ChargeAttentionItem>>(`/billing/charge-attention${qs}`);
+  },
+  postChargeAttention: (id: string) =>
+    request<ChargeAttentionItem>(`/billing/charge-attention/${id}/post`, { method: "PUT" }),
+  dismissChargeAttention: (id: string, data: DismissChargeAttentionRequest) =>
+    request<ChargeAttentionItem>(`/billing/charge-attention/${id}/dismiss`, {
       method: "PUT",
       body: JSON.stringify(data),
     }),

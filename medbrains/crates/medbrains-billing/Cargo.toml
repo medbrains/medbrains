@@ -25,5 +25,11 @@ sqlx = { workspace = true }
 chrono = { workspace = true }
 rust_decimal = { workspace = true }
 
+[dev-dependencies]
+medbrains-db-topology = { path = "../medbrains-db-topology" }
+medbrains-outbox = { path = "../medbrains-outbox" }
+jsonwebtoken = { workspace = true }
+tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
+
 [lints]
 workspace = true

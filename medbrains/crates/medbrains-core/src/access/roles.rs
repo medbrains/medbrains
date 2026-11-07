@@ -1063,6 +1063,9 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
             permissions::billing::day_close::CREATE,
             permissions::billing::day_close::VERIFY,
             permissions::billing::write_off::CREATE,
+            // The desk works the automatic charges clinical actions could not post.
+            permissions::billing::charge_attention::VIEW,
+            permissions::billing::charge_attention::RESOLVE,
             // Records insurer settlements; approving them stays with finance.
             permissions::billing::claims::settlement::RECORD,
             permissions::billing::audit::VIEW,
@@ -1342,6 +1345,8 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
             permissions::pharmacy::prescriptions::VIEW,
             permissions::billing::invoices::LIST,
             permissions::billing::invoices::VIEW,
+            // Read-only: charges that went unposted are a revenue-leakage audit.
+            permissions::billing::charge_attention::VIEW,
             permissions::insurance::nhcx::VIEW,
             permissions::pharmacy::day_close::VIEW,
             permissions::admin::access_requests::LIST,

@@ -16,7 +16,12 @@ use uuid::Uuid;
 
 use medbrains_server_core::error::AppError;
 
-#[derive(Debug)]
+pub use crate::charge_queue::{
+    ChargeOutcome, ChargeRequest, REASON_SETTING_UNREADABLE, charge_or_queue, charge_or_queue_all,
+    post_charge,
+};
+
+#[derive(Debug, Clone, Default)]
 pub struct AutoChargeInput {
     pub patient_id: Uuid,
     pub encounter_id: Option<Uuid>,
@@ -139,6 +144,10 @@ pub async fn verified_admission_id_for_invoice_in_tx(
 }
 
 /// Check if auto-billing is enabled for a specific module.
+///
+/// A read error is returned, never read as "off". Callers posting a charge go
+/// through `charge_or_queue`, which reads this in a savepoint and queues the
+/// charge when the answer is unknown.
 pub async fn is_auto_billing_enabled(
     tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
     tenant_id: &Uuid,
@@ -737,67 +746,32 @@ pub async fn reverse_invoice_item_by_id_in_tx(
     recalculate_invoice_totals(tx, original.invoice_id, *tenant_id).await?;
     Ok(Some(reversal_id))
 }
-#[derive(Debug)]
-pub struct ServiceChargeInput<'a> {
-    pub tenant_id: Uuid,
-    pub patient_id: Uuid,
-    /// A real `encounters.id`, or `None` for a patient-level draft. Never an
-    /// admission, ER visit or source-row id: `invoices.encounter_id` is a
-    /// foreign key, and a wrong id fails the charge.
-    pub encounter_id: Option<Uuid>,
-    pub charge_code: &'a str,
-    pub quantity: i32,
-    pub source_module: &'a str,
-    pub source_entity_id: Uuid,
-    pub requested_by: Uuid,
-}
-
-/// Create a service charge on behalf of another module.
-/// Resolves price from charge_master + rate_plan, checks auto-concession rules,
-/// creates invoice_item, and logs any concession applied.
-/// Fails gracefully — callers should not let billing failures block module ops.
-pub async fn create_service_charge(
+/// Run the tenant's auto-concession rules on a line just posted, in its own
+/// savepoint: a failed concession statement must not abort the caller's write.
+/// A rule that cannot be applied leaves the line at full price and is logged.
+pub(crate) async fn apply_concessions_best_effort(
     tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
-    inp: ServiceChargeInput<'_>,
-) -> Result<AutoChargeResult, AppError> {
-    let charge_input = AutoChargeInput {
-        patient_id: inp.patient_id,
-        encounter_id: inp.encounter_id,
-        charge_code: inp.charge_code.to_owned(),
-        source: inp.source_module.to_owned(),
-        source_id: inp.source_entity_id,
-        quantity: inp.quantity,
-        description_override: None,
-        unit_price_override: None,
-        tax_percent_override: None,
+    req: &crate::charge_queue::ChargeRequest<'_>,
+    result: &AutoChargeResult,
+) -> Result<(), AppError> {
+    let concession_inp = ConcessionCheckInput {
+        tenant_id: req.tenant_id,
+        patient_id: req.charge.patient_id,
+        invoice_id: result.invoice_id,
+        invoice_item_id: result.item_id,
+        source_module: &req.charge.source,
+        source_entity_id: req.charge.source_id,
+        requested_by: req.requested_by,
     };
-
-    let result = auto_charge(tx, &inp.tenant_id, charge_input).await?;
-
-    // Check auto-concession rules from tenant_settings
-    if !result.skipped_duplicate {
-        let concession_inp = ConcessionCheckInput {
-            tenant_id: inp.tenant_id,
-            patient_id: inp.patient_id,
-            invoice_id: result.invoice_id,
-            invoice_item_id: result.item_id,
-            source_module: inp.source_module,
-            source_entity_id: inp.source_entity_id,
-            requested_by: inp.requested_by,
-        };
-        // Best-effort, in its own savepoint for the same reason as the charge:
-        // a failed concession statement must not abort the caller's write.
-        let mut savepoint = sqlx::Acquire::begin(&mut **tx).await?;
-        match apply_auto_concessions(&mut savepoint, concession_inp).await {
-            Ok(()) => savepoint.commit().await?,
-            Err(error) => {
-                savepoint.rollback().await?;
-                tracing::warn!(%error, "auto-concession not applied");
-            }
+    let mut savepoint = sqlx::Acquire::begin(&mut **tx).await?;
+    match apply_auto_concessions(&mut savepoint, concession_inp).await {
+        Ok(()) => savepoint.commit().await?,
+        Err(error) => {
+            savepoint.rollback().await?;
+            tracing::warn!(%error, "auto-concession not applied");
         }
     }
-
-    Ok(result)
+    Ok(())
 }
 
 #[derive(Debug)]

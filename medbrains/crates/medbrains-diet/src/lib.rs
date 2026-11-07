@@ -381,32 +381,33 @@ pub async fn create_diet_order_in_tx(
     .fetch_one(&mut **tx)
     .await?;
 
-    // Auto-bill diet order (best-effort, swallowed on failure)
-    if medbrains_server_services::billing::is_auto_billing_enabled(tx, &claims.tenant_id, "diet")
-        .await
-        .unwrap_or(false)
-    {
-        let encounter_id = medbrains_server_services::billing::encounter_id_for_admission_in_tx(
-            tx,
-            &claims.tenant_id,
-            row.admission_id,
-        )
-        .await?;
-        let _ = medbrains_server_services::billing::create_service_charge(
-            tx,
-            medbrains_server_services::billing::ServiceChargeInput {
-                tenant_id: claims.tenant_id,
+    // Auto-bill the diet order: posted, or queued for the billing desk —
+    // never blocking the order and never lost.
+    let encounter_id = medbrains_server_services::billing::encounter_id_for_admission_in_tx(
+        tx,
+        &claims.tenant_id,
+        row.admission_id,
+    )
+    .await?;
+    medbrains_server_services::billing::charge_or_queue(
+        tx,
+        medbrains_server_services::billing::ChargeRequest {
+            tenant_id: claims.tenant_id,
+            requested_by: claims.sub,
+            setting_module: "diet",
+            charge: medbrains_server_services::billing::AutoChargeInput {
                 patient_id: row.patient_id,
                 encounter_id,
-                charge_code: "DIET_ORDER",
+                charge_code: "DIET_ORDER".to_owned(),
+                source: "diet".to_owned(),
+                source_id: row.id,
                 quantity: 1,
-                source_module: "diet",
-                source_entity_id: row.id,
-                requested_by: claims.sub,
+                ..Default::default()
             },
-        )
-        .await;
-    }
+            apply_concessions: true,
+        },
+    )
+    .await?;
 
     Ok(row)
 }
