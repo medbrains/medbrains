@@ -41,6 +41,7 @@ fun StepUpDialog(stepUp: suspend (String) -> Unit, onDismiss: () -> Unit, onConf
     val focus = remember { FocusRequester() }
     val scope = rememberCoroutineScope()
 
+    /** Check the password, then hand back to the action that asked; a refusal stays on the field. */
     fun confirm() {
         if (password.isEmpty() || busy) return
         scope.launch {

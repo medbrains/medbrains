@@ -48,6 +48,7 @@ struct StepUpSheet: View {
         .accessibilityIdentifier("step-up-sheet")
     }
 
+    /// Check the password, then dismiss and retry the action that asked; a refusal stays on the field.
     private func confirm() async {
         guard let client, !password.isEmpty, !busy else { return }
         busy = true
