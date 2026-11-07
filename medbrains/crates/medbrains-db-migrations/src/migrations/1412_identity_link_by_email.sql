@@ -1,5 +1,5 @@
 -- ====================================================================
--- Migration: 1406_identity_link_by_email.sql
+-- Migration: 1412_identity_link_by_email.sql
 -- RLS-Posture: tenant-scoped
 -- Tenant-Column: tenant_id
 -- New-Tables: none
