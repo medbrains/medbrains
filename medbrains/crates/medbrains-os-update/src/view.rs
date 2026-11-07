@@ -49,6 +49,7 @@ fn build_view(
         "summary": state.target.as_ref().map(|t| &t.summary),
         "headline": headline(state),
         "last": state.last,
+        "checked": state.checked,
         "previous": state.previous,
         "url": url,
         "window": window,

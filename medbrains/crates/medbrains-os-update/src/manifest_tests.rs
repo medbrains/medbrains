@@ -36,6 +36,8 @@ fn manifest() -> Manifest {
         version: "1.2.0".to_owned(),
         arch: "arm64".to_owned(),
         min_version: "1.0.0".to_owned(),
+        upgrades_from: "1.0.0".to_owned(),
+        expires: 2_000,
         security: false,
         summary: String::new(),
         root: RootImage {
@@ -62,6 +64,7 @@ fn facts(current: &str) -> Option<Facts> {
         slot_bytes: 2 * GIB,
         data_free: 10 * GIB,
         esp_free: GIB / 4,
+        now: 1_000,
     })
 }
 
@@ -73,14 +76,14 @@ fn only_a_trusted_signature_over_the_exact_bytes_passes() {
     let bytes = b"{\"version\":\"1.2.0\"}";
     let signed = line("release-1", &good, bytes);
     assert_eq!(
-        verify_signature(bytes, &signed, &keys).as_deref(),
-        Ok("release-1")
+        verify_signature(bytes, &signed, &keys, 1),
+        Ok(vec!["release-1".to_owned()])
     );
-    assert!(verify_signature(b"{\"version\":\"9.9.9\"}", &signed, &keys).is_err());
-    assert!(verify_signature(bytes, "", &keys).is_err());
-    assert!(verify_signature(bytes, &line("release-1", &other, bytes), &keys).is_err());
-    assert!(verify_signature(bytes, &line("unknown", &other, bytes), &keys).is_err());
-    assert!(verify_signature(bytes, &signed, &[]).is_err());
+    assert!(verify_signature(b"{\"version\":\"9.9.9\"}", &signed, &keys, 1).is_err());
+    assert!(verify_signature(bytes, "", &keys, 1).is_err());
+    assert!(verify_signature(bytes, &line("release-1", &other, bytes), &keys, 1).is_err());
+    assert!(verify_signature(bytes, &line("unknown", &other, bytes), &keys, 1).is_err());
+    assert!(verify_signature(bytes, &signed, &[], 1).is_err());
 }
 
 /// Rotation: a bundle signed by old and new keys passes on a machine that trusts either one.
@@ -93,8 +96,8 @@ fn a_bundle_signed_by_two_keys_passes_on_old_and_new_machines() {
         line("k-old", &old, bytes),
         line("k-new", &new, bytes)
     );
-    assert!(verify_signature(bytes, &both, &trusted("k-old", &old)).is_ok());
-    assert!(verify_signature(bytes, &both, &trusted("k-new", &new)).is_ok());
+    assert!(verify_signature(bytes, &both, &trusted("k-old", &old), 1).is_ok());
+    assert!(verify_signature(bytes, &both, &trusted("k-new", &new), 1).is_ok());
 }
 
 /// The rule that keeps the test key out of the field: without the debug mark, it does not count.
@@ -123,7 +126,10 @@ fn each_reason_to_refuse_is_applied() {
     assert!(base.is_some());
     let Some(base) = base else { return };
     assert_eq!(refusal(&manifest(), &base), None);
-    let cases: [(fn(&mut Manifest, &mut Facts), &str); 11] = [
+    let cases: [(fn(&mut Manifest, &mut Facts), &str); 14] = [
+        (|m, f| m.expires = f.now, "run out"),
+        (|m, _| "1.3.0".clone_into(&mut m.upgrades_from), "contradict"),
+        (|m, _| "1.1.5".clone_into(&mut m.upgrades_from), "Install version 1.1.5 first"),
         (|m, _| m.format = 2, "format"),
         (|m, _| "x86-64".clone_into(&mut m.arch), "x86-64"),
         (
@@ -189,4 +195,32 @@ fn no_accepted_version_is_ever_old_or_below_the_floor() {
         }
     }
     assert!(accepted > 0, "the rule must not simply refuse everything");
+}
+
+/// TUF's stolen-key defence: with a threshold of two, one key alone, even signing twice, is not enough.
+#[test]
+fn a_threshold_needs_that_many_different_keys() {
+    let (first, second) = (signing(1), signing(2));
+    let mut keys = trusted("a", &first);
+    keys.extend(trusted("b", &second));
+    let bytes = b"manifest";
+    let one = line("a", &first, bytes);
+    let twice = format!("{one}{one}");
+    let both = format!("{}{}", line("a", &first, bytes), line("b", &second, bytes));
+    assert!(verify_signature(bytes, &one, &keys, 2).is_err());
+    assert!(verify_signature(bytes, &twice, &keys, 2).is_err());
+    assert_eq!(verify_signature(bytes, &both, &keys, 2).map(|ids| ids.len()), Ok(2));
+}
+
+/// The threshold file can only raise the bar: missing, zero or junk means one.
+#[test]
+fn the_threshold_is_at_least_one() {
+    let dir = std::env::temp_dir().join(format!("mb-update-threshold-{}", std::process::id()));
+    assert!(std::fs::create_dir_all(&dir).is_ok());
+    assert_eq!(super::load_threshold(&dir), 1);
+    for (text, want) in [("2\n", 2), ("0", 1), ("junk", 1)] {
+        assert!(std::fs::write(dir.join("threshold"), text).is_ok());
+        assert_eq!(super::load_threshold(&dir), want);
+    }
+    assert!(std::fs::remove_dir_all(&dir).is_ok());
 }

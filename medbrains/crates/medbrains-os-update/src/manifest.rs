@@ -30,6 +30,8 @@ pub const ESP_RESERVE: u64 = 4 * 1024 * 1024;
 const FORMAT: u32 = 1;
 const MAX_SIGNATURES: usize = 4;
 const TEST_KEY_PREFIX: &str = "test-";
+/// How many different trusted keys must sign, as one number in this file beside the keys. Absent means one.
+const THRESHOLD_FILE: &str = "threshold";
 const KEY_SUFFIX: &str = ".pub";
 const ED25519_PUBLIC_LEN: usize = 32;
 
@@ -69,6 +71,13 @@ pub struct Manifest {
     pub arch: String,
     /// Versions below this must never be installed again once this one has proved good.
     pub min_version: String,
+    /// The oldest version that may install this one directly. A machine further behind must first install
+    /// the bundle of this version, found beside this one, so parts that upgrade one step at a time, such as
+    /// Kanidm, never skip a step.
+    pub upgrades_from: String,
+    /// When this signature stops counting, in seconds since 1970. Releases re-sign the channel's manifest
+    /// before then, so a machine shown an old copy notices it is being held back.
+    pub expires: u64,
     /// A security fix: urged on the screen, and still never applied by force.
     pub security: bool,
     /// One plain sentence for the screen.
@@ -134,17 +143,28 @@ pub fn load_keys(dir: &Path) -> Vec<TrustedKey> {
     keys
 }
 
-/// Returns the id of a trusted key that signed `manifest`. A signature file holds up to
-/// `MAX_SIGNATURES` lines of `<key id> <base64 signature>`, so one bundle can carry an old key's
-/// signature and a new one's while keys rotate.
+/// How many different keys must sign an update on this image: at least one, from the threshold file.
+pub fn load_threshold(dir: &Path) -> usize {
+    fs::read_to_string(dir.join(THRESHOLD_FILE))
+        .ok()
+        .and_then(|text| text.trim().parse().ok())
+        .unwrap_or(1)
+        .max(1)
+}
+
+/// Returns the ids of the trusted keys that signed `manifest`, if at least `threshold` different ones did.
+/// A signature file holds up to `MAX_SIGNATURES` lines of `<key id> <base64 signature>`, so one bundle can
+/// carry an old key's signature and a new one's while keys rotate, or two people's.
 pub fn verify_signature(
     manifest: &[u8],
     signatures: &str,
     keys: &[TrustedKey],
-) -> Result<String, String> {
+    threshold: usize,
+) -> Result<Vec<String>, String> {
     if keys.is_empty() {
         return Err("This machine holds no key to check updates with.".to_owned());
     }
+    let mut signed_by: Vec<String> = Vec::new();
     for line in signatures.lines().take(MAX_SIGNATURES) {
         let Some((id, text)) = line.split_once(' ') else {
             continue;
@@ -152,17 +172,25 @@ pub fn verify_signature(
         let Some(key) = keys.iter().find(|key| key.id == id) else {
             continue;
         };
-        let Ok(raw) = STANDARD.decode(text.trim()) else {
-            continue;
-        };
-        let Ok(signature) = Signature::from_slice(&raw) else {
-            continue;
-        };
-        if key.key.verify(manifest, &signature).is_ok() {
-            return Ok(key.id.clone());
+        let signature = STANDARD
+            .decode(text.trim())
+            .ok()
+            .and_then(|raw| Signature::from_slice(&raw).ok());
+        let valid = signature.is_some_and(|s| key.key.verify(manifest, &s).is_ok());
+        if valid && !signed_by.contains(&key.id) {
+            signed_by.push(key.id.clone());
         }
     }
-    Err("This update is not signed by a key this machine trusts.".to_owned())
+    if signed_by.is_empty() {
+        return Err("This update is not signed by a key this machine trusts.".to_owned());
+    }
+    if signed_by.len() < threshold {
+        return Err(format!(
+            "This update needs {threshold} signatures from different keys and has {}, so it was refused.",
+            signed_by.len()
+        ));
+    }
+    Ok(signed_by)
 }
 
 /// What this machine knows when it judges a bundle.
@@ -184,6 +212,8 @@ pub struct Facts {
     pub data_free: u64,
     /// Free bytes in the boot partition, counting the old boot file this update would replace.
     pub esp_free: u64,
+    /// Seconds since 1970, by this machine's clock.
+    pub now: u64,
 }
 
 /// The reason this machine must refuse `manifest`, in words for the screen, or `None` if it may take it.
@@ -201,12 +231,29 @@ pub fn refusal(manifest: &Manifest, facts: &Facts) -> Option<String> {
             manifest.arch, facts.arch
         ));
     }
-    let (Some(version), Some(min_version)) = (
+    let (Some(version), Some(min_version), Some(upgrades_from)) = (
         Version::parse(&manifest.version),
         Version::parse(&manifest.min_version),
+        Version::parse(&manifest.upgrades_from),
     ) else {
         return Some("This update has an unreadable version number.".to_owned());
     };
+    if manifest.expires <= facts.now {
+        return Some(
+            "This update's signature has run out. Ask for a freshly signed copy: an old copy is how \
+             someone would keep this machine from hearing about newer fixes."
+                .to_owned(),
+        );
+    }
+    if upgrades_from > version {
+        return Some("This update's version numbers contradict each other.".to_owned());
+    }
+    if facts.current < upgrades_from && version > facts.current {
+        return Some(format!(
+            "Version {version} can only be installed from {upgrades_from} or later. Install version \
+             {upgrades_from} first; the machine looks for it beside this update."
+        ));
+    }
     version_refusal(&version, &min_version, manifest, facts).or_else(|| space_refusal(manifest, facts))
 }
 

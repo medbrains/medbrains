@@ -27,11 +27,10 @@ def run(*args):
     subprocess.run(args, check=True)
 
 
-def make(name, version, min_version, root, boot, security=False):
+def make(name, version, min_version, root, boot, upgrades_from="0.0"):
     """Makes and signs one bundle."""
     folder = os.path.join(OUT, name)
-    extra = ["security", "Fixes a flaw in the kernel."] if security else []
-    run(TOOL, "make", folder, version, ARCH, min_version, root, boot, *extra)
+    run(TOOL, "make", folder, version, ARCH, min_version, root, boot, "--upgrades-from", upgrades_from)
     run(TOOL, "sign", folder, "test-1", KEY)
     return folder
 
@@ -98,6 +97,9 @@ def refused_bundles(next_bundle):
     edit_manifest(clone(next_bundle, "older"), f'"version": "{NEXT}"', '"version": "1.0.0"')
     edit_manifest(clone(next_bundle, "same"), f'"version": "{NEXT}"', f'"version": "{FIRST}"')
     edit_manifest(clone(next_bundle, "below-floor"), f'"version": "{NEXT}"', '"version": "1.0.2.1"')
+    expired = clone(next_bundle, "expired")
+    run(TOOL, "refresh", expired, "0")
+    run(TOOL, "sign", expired, "test-1", KEY)
     security = clone(next_bundle, "next-security")
     edit_manifest(security, '"security": false', '"security": true')
     edit_manifest(security, '"summary": ""', '"summary": "Fixes a flaw in the kernel."')
@@ -105,6 +107,19 @@ def refused_bundles(next_bundle):
     shutil.rmtree(channel, ignore_errors=True)
     os.makedirs(os.path.dirname(channel), exist_ok=True)
     os.symlink(next_bundle, channel)
+
+
+def later_bundles(next_bundle, after, bad_server):
+    """Bundles that need the later versions: a mix of two releases, catching up in order, and a channel
+    still offering a version that failed here."""
+    mixed = clone(next_bundle, "mixed")
+    os.remove(os.path.join(mixed, BOOT_FILE))
+    os.link(os.path.join(after, BOOT_FILE), os.path.join(mixed, BOOT_FILE))
+    steps = clone(after, os.path.join("channel-steps", ARCH))
+    os.symlink(next_bundle, os.path.join(steps, NEXT))
+    bad = os.path.join(OUT, "channel-bad", ARCH)
+    os.makedirs(os.path.dirname(bad), exist_ok=True)
+    os.symlink(bad_server, bad)
 
 
 SCRIPT = r"""
@@ -151,7 +166,7 @@ def pe_section(path, name):
     raise SystemExit(f"{path} has no {name}")
 
 
-def derived(name, version, min_version, broken="", key=None):
+def derived(name, version, min_version, broken="", key=None, upgrades_from="0.0"):
     """Makes a bundle from the first image's root and kernel, under a new version. A real second image
     build proves more, and costs 5 GB and 8 minutes: pass its version as NEXT once one is built."""
     work = os.path.join(OUT, f"derive-{name}")
@@ -171,7 +186,7 @@ def derived(name, version, min_version, broken="", key=None):
         run("openssl", "pkey", "-in", pcr_key, "-pubout", "-out", os.path.join(work, "pcr.pub"))
     run("docker", "run", "--rm", "--platform", "linux/arm64", "-v", f"{work}:/w", BUILDER,
         "bash", "-c", SCRIPT, "_", version, broken, ARCH)
-    folder = make(name, version, min_version, root, os.path.join(work, BOOT_FILE))
+    folder = make(name, version, min_version, root, os.path.join(work, BOOT_FILE), upgrades_from)
     shutil.rmtree(work)
     return folder
 
@@ -203,9 +218,10 @@ def main():
     refused_bundles(next_bundle)
     usb_stick(next_bundle)
     if ARCH == "arm64":
-        derived("after", "1.0.3", "1.0.3")
-        derived("bad-server", "1.0.4", "1.0.0", "server")
+        after = derived("after", "1.0.3", "1.0.3", upgrades_from=NEXT)
+        bad_server = derived("bad-server", "1.0.4", "1.0.0", "server")
         derived("bad-init", "1.0.5", "1.0.0", "init")
+        later_bundles(next_bundle, after, bad_server)
     else:
         other_key = os.path.join(OUT, "other-pcr.key")
         run("openssl", "genrsa", "-out", other_key, "2048")

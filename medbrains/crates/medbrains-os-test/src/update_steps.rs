@@ -7,15 +7,15 @@ use crate::updates::{
     Bench, Scenario, ensure, open_mirror, own_tpm, running_version, same_var, say, status, url,
     var_snapshot, wait_status, wait_version,
 };
-use crate::update_sealed;
+use crate::{update_channel, update_sealed};
 use crate::vm::{self, Vm};
 
 /// Bundle folders, as `make-update-bundles.py` names them. `NEXT` is a real second image build.
 pub(crate) const NEXT: (&str, &str) = ("next", "1.0.2");
-const AFTER: (&str, &str) = ("after", "1.0.3");
-const BAD_SERVER: (&str, &str) = ("bad-server", "1.0.4");
+pub(crate) const AFTER: (&str, &str) = ("after", "1.0.3");
+pub(crate) const BAD_SERVER: (&str, &str) = ("bad-server", "1.0.4");
 const BAD_INIT: (&str, &str) = ("bad-init", "1.0.5");
-const INSTALL_LIMIT: Duration = Duration::from_secs(600);
+pub(crate) const INSTALL_LIMIT: Duration = Duration::from_secs(600);
 pub(crate) const RESTART_LIMIT: Duration = Duration::from_secs(300);
 /// Long enough for a kernel, an initrd and the machine's own watchdogs to fail three times.
 pub(crate) const ROLLBACK_LIMIT: Duration = Duration::from_secs(1500);
@@ -38,6 +38,9 @@ pub(crate) fn scenarios() -> Vec<Scenario> {
         ("updates online, keeps /var, goes back, updates twice", update_cycle),
         ("installs from a USB stick", usb_install),
         ("a new version that fails its checks rolls back by itself", failed_health),
+        ("a version that rolled back is not installed again by the timer", update_channel::not_retried),
+        ("a mix of two releases is refused", update_channel::mixed_refused),
+        ("a machine that missed a release catches up in order", update_channel::catches_up_in_order),
         ("a new version that cannot even start rolls back by itself", failed_start),
         ("a power cut during install leaves a machine that boots", power_cuts_installing),
         ("a power cut while applying and on trial leaves a machine that boots", power_cuts_applying),
@@ -57,7 +60,7 @@ pub(crate) fn ask_restart(vm: &mut Vm, action: &str) -> Result<(), String> {
 }
 
 /// Asks through the same door the screen uses.
-fn ask(vm: &mut Vm, action: &str) -> Result<(), String> {
+pub(crate) fn ask(vm: &mut Vm, action: &str) -> Result<(), String> {
     let answer = vm.run(&format!(
         "curl -s -m 15 --unix-socket /run/medbrains-console/setup.sock -d '{{\"action\":\"{action}\"}}' http://machine/update/action"
     ))?;
@@ -119,6 +122,7 @@ fn refusals(vm: &mut Vm, bench: &Bench) -> Result<(), String> {
         ("wrong-arch", "machines; this one is"),
         ("older", "older than"),
         ("too-big", "does not fit"),
+        ("expired", "signature has run out"),
     ] {
         let (text, code) = install_from(vm, bench, name, false)?;
         ensure(code == 2 && text.contains(expected), format!("{name}: {code} {text}"))?;

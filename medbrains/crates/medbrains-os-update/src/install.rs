@@ -15,6 +15,8 @@ use crate::state::{Ending, Stage, State, Target};
 use crate::version::Version;
 
 const PCR_KEY_SECTION: &str = ".pcrpkey";
+/// Releases a machine may be behind and still catch up in one go, one step per restart.
+const MAX_STEPS: usize = 8;
 /// Where the running boot file's public key is put at boot, when it has one.
 const RUNNING_PCR_KEY: &str = "/run/systemd/tpm2-pcr-public-key.pem";
 
@@ -77,11 +79,34 @@ fn read_manifest(source: &Source, scratch: &Path) -> Result<Manifest, Stopped> {
     let signatures = source
         .fetch_small(manifest::SIGNATURE_FILE, scratch, manifest::MAX_SMALL_FILE)
         .map_err(|_| refused("This update has no signature, so it was refused.".to_owned()))?;
-    let keys = manifest::load_keys(Path::new(paths::KEYS_DIR));
-    manifest::verify_signature(&bytes, &String::from_utf8_lossy(&signatures), &keys)
+    let dir = Path::new(paths::KEYS_DIR);
+    let (keys, threshold) = (manifest::load_keys(dir), manifest::load_threshold(dir));
+    manifest::verify_signature(&bytes, &String::from_utf8_lossy(&signatures), &keys, threshold)
         .map_err(refused)?;
     serde_json::from_slice(&bytes)
         .map_err(|e| refused(format!("This update's description can't be read: {e}")))
+}
+
+/// Follows `upgrades_from` back from the newest bundle to the first one this machine may install, so a machine
+/// that missed releases catches up one step at a time, in order. Each step is verified on its own. Bounded:
+/// a machine further behind than `MAX_STEPS` is told to install an older bundle first.
+fn find_installable(
+    source: &Source,
+    current: &Version,
+    scratch: &Path,
+) -> Result<(Source, Manifest), Stopped> {
+    let (mut source, mut manifest) = (source.clone(), read_manifest(source, scratch)?);
+    for _ in 0..MAX_STEPS {
+        match Version::parse(&manifest.upgrades_from) {
+            Some(from) if *current < from && Version::parse(&manifest.version) > Some(from.clone()) => {
+                let step = source.step(&from.to_string());
+                manifest = read_manifest(&step, scratch)?;
+                source = step;
+            }
+            _ => break,
+        }
+    }
+    Ok((source, manifest))
 }
 
 /// Gathers what the version and space rules need.
@@ -103,6 +128,7 @@ fn gather_facts(state: &State, slots: &Slots, retry: bool) -> Result<Facts, Stri
         slot_bytes: slots.inactive.bytes,
         data_free: disk::free_bytes(paths::STATE_DIR)?,
         esp_free: disk::free_bytes(disk::ESP)?.saturating_add(reclaimed),
+        now: now(),
     })
 }
 
@@ -221,7 +247,11 @@ fn install_checked(source: &Source, retry: bool, state: &mut State) -> Result<St
     clear_staging().map_err(Stopped::Fault)?;
     fs::create_dir_all(staging).map_err(|e| Stopped::Fault(e.to_string()))?;
     let slots = disk::read_slots().map_err(Stopped::Fault)?;
-    let manifest = read_manifest(source, staging)?;
+    let running = Version::parse(&current_version().map_err(Stopped::Fault)?)
+        .ok_or_else(|| Stopped::Fault("This system's version can't be compared.".to_owned()))?;
+    let (source, manifest) = find_installable(source, &running, staging)?;
+    let source = &source;
+    state.checked = Some(now());
     if state.stage == Stage::Waiting
         && state.target.as_ref().is_some_and(|t| t.version == manifest.version)
     {

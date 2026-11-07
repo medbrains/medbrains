@@ -6,6 +6,7 @@
 //! Needs `make os-image DEBUG=1` and QEMU. Exits non-zero if any check fails. Budgets are in
 //! `budgets.json`: ratchets to lower as the numbers improve (targets: RFC-HOSPITAL-OS §3a).
 
+mod update_channel;
 mod update_sealed;
 mod update_steps;
 mod updates;

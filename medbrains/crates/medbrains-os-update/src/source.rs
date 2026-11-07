@@ -43,6 +43,15 @@ impl Source {
         Err("Updates come from an https:// address or a folder.".to_owned())
     }
 
+    /// The bundle of an earlier step, kept beside this one in a folder named after its version. `version`
+    /// has been parsed as dotted numbers, so it can't climb out of the folder.
+    pub fn step(&self, version: &str) -> Self {
+        match self {
+            Self::Folder(folder) => Self::Folder(folder.join(version)),
+            Self::Address(base, ca) => Self::Address(format!("{base}/{version}"), ca.clone()),
+        }
+    }
+
     /// Copies the bundle's `name` to `to`, failing rather than taking more than `limit` bytes.
     pub fn fetch(&self, name: &str, to: &Path, limit: u64) -> Result<(), String> {
         match self {

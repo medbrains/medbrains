@@ -122,6 +122,8 @@ pub(crate) struct UpdateStatus {
     pub(crate) summary: String,
     pub(crate) headline: String,
     pub(crate) last: Option<UpdateLast>,
+    /// When a signed release list was last read, in seconds since 1970.
+    pub(crate) checked: Option<i64>,
     #[serde(deserialize_with = "text_or_nothing")]
     pub(crate) previous: String,
     #[serde(deserialize_with = "text_or_nothing")]

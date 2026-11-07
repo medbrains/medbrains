@@ -11,15 +11,24 @@ use crate::ui;
 const POLL_SECONDS: u32 = 5;
 const WHEN_FORMAT: &str = "%e %b %Y, %H:%M";
 
-/// One line about the last attempt, or nothing if there has not been one.
-pub(crate) fn last_words(status: &UpdateStatus) -> String {
-    let Some(last) = &status.last else {
-        return String::new();
-    };
-    let when = gtk::glib::DateTime::from_unix_local(last.at)
+/// A time for the screen, or nothing if it can't be shown.
+fn when(seconds: i64) -> String {
+    gtk::glib::DateTime::from_unix_local(seconds)
         .and_then(|time| time.format(WHEN_FORMAT))
-        .map_or_else(|_| String::new(), |text| format!(" ({})", text.trim()));
-    format!("Last result: {}{when}", last.words)
+        .map_or_else(|_| String::new(), |text| text.trim().to_owned())
+}
+
+/// One line about the last attempt and the last look, or nothing if neither has happened. The look is shown
+/// so a channel that stops answering, or is held back, is noticed.
+pub(crate) fn last_words(status: &UpdateStatus) -> String {
+    let mut words = Vec::new();
+    if let Some(last) = &status.last {
+        words.push(format!("Last result: {} ({})", last.words, when(last.at)));
+    }
+    if let Some(checked) = status.checked {
+        words.push(format!("Last looked for updates: {}.", when(checked)));
+    }
+    words.join(" ")
 }
 
 /// What the top bar shows, if anything, and whether it is a warning. Nothing when all is well.

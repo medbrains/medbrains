@@ -91,6 +91,8 @@ pub struct State {
     pub health_reason: Option<String>,
     /// The last attempt's result.
     pub last: Option<Outcome>,
+    /// When a signed manifest was last read, so a channel that stops answering shows on the screen.
+    pub checked: Option<u64>,
 }
 
 impl State {

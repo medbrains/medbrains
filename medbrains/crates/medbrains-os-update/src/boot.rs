@@ -21,7 +21,12 @@ const HEALTH_POLL: Duration = Duration::from_secs(5);
 const SERVER_HEALTH: &str = "http://127.0.0.1:3000/api/health";
 const ROLE_MAIN: &str = "/var/lib/medbrains/config/role-main";
 /// Must be running on every machine, whenever they are enabled.
-const ALWAYS_UNITS: [&str; 3] = ["nftables.service", "medbrains-os-setup.service", "cage-console.service"];
+const ALWAYS_UNITS: [&str; 4] = [
+    "nftables.service",
+    "medbrains-os-setup.service",
+    "cage-console.service",
+    "kanidmd.service",
+];
 /// Must also be running on a main machine.
 const MAIN_UNITS: [&str; 2] = ["postgresql@17-main.service", "medbrains-server.service"];
 /// Exists only when the loader started this boot from a counted entry.

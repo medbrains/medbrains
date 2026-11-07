@@ -4,7 +4,9 @@
 //!
 //!     medbrains-os-bundle keygen <out prefix>
 //!     medbrains-os-bundle extract <image.raw> <partition name> <out file>
-//!     medbrains-os-bundle make <out dir> <version> <arch> <min version> <root image> <boot file> [security] [summary]
+//!     medbrains-os-bundle make <out dir> <version> <arch> <min version> <root image> <boot file>
+//!         [--upgrades-from V] [--expires-days N] [--security] [--summary TEXT]
+//!     medbrains-os-bundle refresh <bundle dir> <days>    new expiry; the old signatures are removed
 //!     medbrains-os-bundle sign <bundle dir> <key id> <private key file>
 
 use std::fs::{self, File};
@@ -97,8 +99,50 @@ struct MakeArgs<'a> {
     min_version: &'a str,
     root: &'a str,
     boot: &'a str,
+    upgrades_from: &'a str,
+    expires_days: u64,
     security: bool,
     summary: &'a str,
+}
+
+/// How long a signature counts unless `--expires-days` says otherwise.
+const DEFAULT_EXPIRES_DAYS: u64 = 30;
+/// Any machine may install a bundle that names no earlier step.
+const FROM_ANY: &str = "0.0";
+const DAY_SECONDS: u64 = 24 * 60 * 60;
+
+/// Seconds since 1970, `days` from now.
+fn days_from_now(days: u64) -> Result<u64, String> {
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map_err(|e| e.to_string())?
+        .as_secs();
+    Ok(now + days * DAY_SECONDS)
+}
+
+/// The value after `flag` in `rest`, if it is there.
+fn flag<'a>(rest: &[&'a str], name: &str) -> Option<&'a str> {
+    rest.iter()
+        .position(|arg| *arg == name)
+        .and_then(|at| rest.get(at + 1).copied())
+}
+
+/// Gives a bundle a new expiry and removes its signatures, which no longer match. Releases do this to the
+/// channel's newest bundle every week, so a machine served an old copy can tell.
+fn refresh(bundle: &str, days: &str) -> Result<(), String> {
+    let dir = Path::new(bundle);
+    let days: u64 = days.parse().map_err(|_| "Days must be a number.".to_owned())?;
+    let text = fs::read(dir.join(MANIFEST_FILE)).map_err(|e| e.to_string())?;
+    let mut manifest: Manifest = serde_json::from_slice(&text).map_err(|e| e.to_string())?;
+    manifest.expires = days_from_now(days)?;
+    let text = serde_json::to_vec_pretty(&manifest).map_err(|e| e.to_string())?;
+    // A new file, renamed into place: the old one may be a hard link shared with another bundle.
+    medbrains_os_update::state::write_atomically(&dir.join(MANIFEST_FILE), &text)
+        .map_err(|e| e.to_string())?;
+    match fs::remove_file(dir.join(SIGNATURE_FILE)) {
+        Err(e) if e.kind() != std::io::ErrorKind::NotFound => Err(e.to_string()),
+        _ => Ok(()),
+    }
 }
 
 /// Compresses the root image, hashes everything and writes the manifest. The signature comes after.
@@ -123,6 +167,8 @@ fn make(args: &MakeArgs<'_>) -> Result<(), String> {
         version: args.version.to_owned(),
         arch: args.arch.to_owned(),
         min_version: args.min_version.to_owned(),
+        upgrades_from: args.upgrades_from.to_owned(),
+        expires: days_from_now(args.expires_days)?,
         security: args.security,
         summary: args.summary.to_owned(),
         root: RootImage { sha256, size, raw_sha256, raw_size },
@@ -161,9 +207,14 @@ fn run(args: &[String]) -> Result<(), String> {
             min_version,
             root,
             boot,
-            security: rest.first() == Some(&"security"),
-            summary: rest.get(1).copied().unwrap_or(""),
+            upgrades_from: flag(rest, "--upgrades-from").unwrap_or(FROM_ANY),
+            expires_days: flag(rest, "--expires-days")
+                .map_or(Ok(DEFAULT_EXPIRES_DAYS), str::parse)
+                .map_err(|_| "--expires-days takes a number.".to_owned())?,
+            security: rest.contains(&"--security"),
+            summary: flag(rest, "--summary").unwrap_or(""),
         }),
+        ["refresh", bundle, days] => refresh(bundle, days),
         ["sign", bundle, key_id, key_file] => sign(bundle, key_id, key_file),
         _ => Err("usage: medbrains-os-bundle keygen|extract|make|sign (see the source)".to_owned()),
     }
