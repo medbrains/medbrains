@@ -13,7 +13,7 @@ import type { KanidmPerson } from "@medbrains/types";
 import { IconLink, IconLinkOff, IconSearch } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
-import { Alert, Badge, Button, Input, Modal, Table } from "@/components/ui";
+import { Alert, Button, Input, Modal, Table } from "@/components/ui";
 import { confirmDestructive } from "@/lib/confirm";
 
 /** How long typing rests before the directory is asked. */
@@ -196,7 +196,9 @@ function PeopleTable({
             </Table.Td>
             <Table.Td>
               {person.linked_username ? (
-                <Badge tone="neutral">{person.linked_username}</Badge>
+                <Text size="xs" ff="monospace">
+                  {person.linked_username}
+                </Text>
               ) : (
                 "—"
               )}

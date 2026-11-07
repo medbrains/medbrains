@@ -134,8 +134,9 @@ def test_link_by_hand():
     sso_try("night_porter", password)
     uuid = curl(f"{WEB}/api/admin/identity/kanidm/people?q=night_porter", jar=jar)[1]
     uuid = uuid[0]["uuid"] if isinstance(uuid, list) and uuid else "?"
-    body = sql("select body from notifications where title = 'New sign-in waiting for a role' order by created_at desc limit 1")
-    check("the new-staff notice names the Kanidm person and its UUID", "night_porter" in body and uuid in body, body[:140])
+    named = sql("select body like '%night_porter%' and body like '%" + uuid + "%' from notifications "
+                "where title = 'New sign-in waiting for a role' order by created_at desc limit 1")
+    check("the new-staff notice names the Kanidm person and its UUID", named == "t", named)
     flags = sql("select code || '=' || link_by_email from identity_providers")
     check("the Kanidm provider does not link by email", flags == "kanidm=false", flags)
 
