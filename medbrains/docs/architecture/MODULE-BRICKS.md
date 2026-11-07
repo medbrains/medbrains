@@ -71,3 +71,11 @@ Some screens gather work from several apps: the patient record shows EMR, Billin
 - **The host screen offers named slots** (`patient.record` tabs, `patient.record` side panels) and shows whatever is plugged into them, in a declared order. It imports none of them.
 - **A tab appears only when** its brick is installed for the tenant and the machine, and the person holds its permission. A pharmacy-only hospital never sees an EMR tab; a front-desk clerk without EMR permission does not either.
 - **Removing a brick removes its tabs everywhere**, so nothing points at an app that is not there.
+
+## Administration and settings (owner 2026-11-07)
+
+- **Administration is a brick** (users, roles, audit, integrations, storage, automation), gated by admin permissions and installed on the main machine where IT works. Edge machines carry no admin screens; they are managed from the main machine or MedBrains Control.
+- **Each app plugs its settings into Settings** through a `settings.sections` slot, with the permission each section needs. Removing the app removes its settings.
+- **Hospital-wide settings** (name, departments, branding, the onboarding choice of apps) belong to Administration.
+- **Machine settings** on the OS screen (Wi-Fi, display, time zone, updates) stay in the shell's Settings: everyday actions open, severe ones (reset, role change, update) behind IT sign-in.
+- **Roles decide which bricks fit**, so the role editor is the most protected screen, and every change is audited.

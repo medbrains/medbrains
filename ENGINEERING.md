@@ -558,10 +558,17 @@ core of how MedBrains is built, installed, shown and sold. Full design:
    Every control a person can press is gated on the permission its request needs (see
    "Authorization Is Repo-Wide Law", rule 7). Shared kit components carry no permission of
    their own; they belong to the base plate.
-8. **The server decides every request.** A brick being present grants nothing; the launcher,
+8. **Administration and settings are bricks too.** The Administration app (users, roles,
+   audit, integrations) is installed where IT works, the main machine, not on edge machines,
+   which are managed from the main machine or MedBrains Control. Each app plugs its own
+   settings section into Settings, so Pharmacy settings exist only where Pharmacy is installed
+   and only for people holding its settings permission. Machine settings on the OS screen stay
+   in the shell's Settings: everyday actions open, severe ones behind IT sign-in. Roles are the
+   control that makes bricks fit, so changing them is the most protected and audited action.
+9. **The server decides every request.** A brick being present grants nothing; the launcher,
    the side panel and each screen's check only keep the screen honest about what the server
    allows.
-9. **Same everywhere:** web, the OS launcher, edge machines and native apps read one installed
+10. **Same everywhere:** web, the OS launcher, edge machines and native apps read one installed
    set, then the person's permissions.
 
 A module that is not a brick, a screen reachable without its permission, or an app installed
