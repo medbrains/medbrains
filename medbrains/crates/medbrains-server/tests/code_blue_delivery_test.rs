@@ -10,6 +10,7 @@ use crate::common;
 
 use medbrains_nursing::code_blue_alert::{CodeBlueAlertHandler, SMS_EVENT};
 use medbrains_nursing::code_blue_escalation::escalate_unanswered;
+use medbrains_nursing::code_blue_routing::{current_shift, ward_nurses};
 use medbrains_outbox::handler::{Handler, HandlerError};
 use reqwest::StatusCode;
 use serde_json::{Value, json};
@@ -117,6 +118,24 @@ async fn the_code_blue_page_is_routed_delivered_escalated_and_never_faked() {
 
     // ── No roster, no SMS: everyone in-app, said in words, not `sent` ──
     let first = start_code(&app, &csrf, tenant, "A").await;
+    // Round 1 needs no pipeline: queued with the code, and paged in-app
+    // before the request returned. No dispatch has run in this test.
+    let round_one = app
+        .outbox_rows("emergency.code_blue_alert", &first.to_string())
+        .await;
+    assert_eq!(round_one.len(), 1, "start_code_blue queues round 1 itself");
+    assert_eq!(round_one[0]["round"], 1);
+    let paged_inline: i64 = sqlx::query_scalar(
+        "SELECT count(*) FROM notifications WHERE entity_id = $1 AND title = 'CODE BLUE'",
+    )
+    .bind(first)
+    .fetch_one(&app.db)
+    .await
+    .expect("inline pages");
+    assert!(
+        paged_inline >= 1,
+        "the in-app page went out with no outbox hop"
+    );
     let Err(HandlerError::Undelivered(why)) = page(&app, tenant, first, 1, sms_off()).await else {
         panic!("an alert that only went in-app must not be marked sent");
     };
@@ -231,7 +250,8 @@ async fn the_code_blue_page_is_routed_delivered_escalated_and_never_faked() {
         app.outbox_rows("emergency.code_blue_alert", &second.to_string())
             .await
             .len(),
-        1
+        2,
+        "round 1 from the start, round 2 from the pass"
     );
     page(&app, tenant, second, 2, sms_on())
         .await
@@ -288,4 +308,140 @@ async fn the_code_blue_page_is_routed_delivered_escalated_and_never_faked() {
             .send()
             .await;
     }
+}
+
+/// A floor code with no roster of its own pages the duty medical officer and
+/// security, says so on the code's row, and its page was queued by the
+/// activation itself (the insert trigger), whichever path raised it.
+#[tokio::test]
+async fn a_floor_code_without_a_roster_pages_the_duty_mo_and_security() {
+    let app = common::spawn_app().await;
+    let csrf = app.login_admin().await;
+    let tenant: Uuid = sqlx::query_scalar("SELECT tenant_id FROM users WHERE username = 'admin'")
+        .fetch_one(&app.db)
+        .await
+        .expect("admin tenant");
+    let suffix = &Uuid::new_v4().simple().to_string()[..8];
+    let guard: Uuid = sqlx::query_scalar(
+        "INSERT INTO users (tenant_id, username, email, full_name, role) \
+         VALUES ($1, $2, $3, 'Guard On Duty', 'security_guard') RETURNING id",
+    )
+    .bind(tenant)
+    .bind(format!("cbguard{suffix}"))
+    .bind(format!("cbguard{suffix}@h.test"))
+    .fetch_one(&app.db)
+    .await
+    .expect("guard");
+    sqlx::query("UPDATE code_blue_team_members SET deleted_at = now() WHERE tenant_id = $1 AND code_type = 'code_pink' AND deleted_at IS NULL")
+        .bind(tenant)
+        .execute(&app.db)
+        .await
+        .expect("no code pink roster");
+
+    let resp = app
+        .client
+        .post(app.url("/api/emergency/codes"))
+        .header("x-csrf-token", &csrf)
+        .json(&json!({ "code_type": "code_pink", "location": format!("Maternity {suffix}") }))
+        .send()
+        .await
+        .expect("raise code pink");
+    assert_eq!(resp.status(), StatusCode::OK);
+    let code: Value = resp.json().await.expect("code json");
+    let id: Uuid = code["id"]
+        .as_str()
+        .and_then(|s| s.parse().ok())
+        .expect("code id");
+    assert!(
+        code["routing_note"].as_str().is_some_and(|n| {
+            n.starts_with("No code pink roster: alerting the duty medical officer and security")
+        }),
+        "{code}"
+    );
+    let queued = app
+        .outbox_rows("emergency.code_blue_alert", &id.to_string())
+        .await;
+    assert_eq!(queued.len(), 1, "the activation queued its own page");
+    assert_eq!(queued[0]["code_type"], "code_pink");
+    let told: i64 = sqlx::query_scalar(
+        "SELECT count(*) FROM notifications WHERE user_id = $1 AND entity_id = $2 AND title = 'CODE PINK'",
+    )
+    .bind(guard)
+    .bind(id)
+    .fetch_one(&app.db)
+    .await
+    .expect("guard paged");
+    assert_eq!(told, 1, "security is paged for a code pink with no roster");
+
+    let _ = app
+        .client
+        .put(app.url(&format!("/api/emergency/codes/{id}/deactivate")))
+        .header("x-csrf-token", &csrf)
+        .json(&json!({ "outcome": "false_alarm" }))
+        .send()
+        .await;
+    sqlx::query("UPDATE users SET is_active = false WHERE id = $1")
+        .bind(guard)
+        .execute(&app.db)
+        .await
+        .expect("retire guard");
+}
+
+/// At 02:00 the ward's working shift is yesterday's night: those nurses are
+/// paged, the day's roster is not.
+#[tokio::test]
+async fn at_two_in_the_morning_the_ward_night_shift_is_paged() {
+    let app = common::spawn_app().await;
+    let tenant: Uuid = sqlx::query_scalar("SELECT tenant_id FROM users WHERE username = 'admin'")
+        .fetch_one(&app.db)
+        .await
+        .expect("admin tenant");
+    let (ward, _) = common::vacant_ward_bed(&app, tenant).await;
+    let suffix = &Uuid::new_v4().simple().to_string()[..8];
+    let mut staff = Vec::new();
+    for (name, date, shift) in [
+        ("night", "2026-11-06", "night"),
+        ("day", "2026-11-07", "day"),
+    ] {
+        let nurse: Uuid = sqlx::query_scalar(
+            "INSERT INTO users (tenant_id, username, email, full_name, role) \
+             VALUES ($1, $2, $3, $4, 'nurse') RETURNING id",
+        )
+        .bind(tenant)
+        .bind(format!("cb{name}{suffix}"))
+        .bind(format!("cb{name}{suffix}@h.test"))
+        .bind(format!("Sr {name}"))
+        .fetch_one(&app.db)
+        .await
+        .expect("nurse");
+        sqlx::query(
+            "INSERT INTO nurse_shift_assignments \
+               (tenant_id, nurse_user_id, ward_id, shift_date, shift_type, patient_ids) \
+             VALUES ($1, $2, $3, $4::date, $5, '{}')",
+        )
+        .bind(tenant)
+        .bind(nurse)
+        .bind(ward)
+        .bind(date)
+        .bind(shift)
+        .execute(&app.db)
+        .await
+        .expect("roster");
+        staff.push(nurse);
+    }
+    let two_am = chrono::NaiveDate::from_ymd_opt(2026, 11, 7)
+        .and_then(|d| d.and_hms_opt(2, 0, 0))
+        .expect("02:00");
+    let mut tx = app.db.begin().await.expect("tx");
+    medbrains_db::pool::set_tenant_context(&mut tx, &tenant)
+        .await
+        .expect("tenant");
+    let paged = ward_nurses(&mut tx, tenant, ward, current_shift(two_am))
+        .await
+        .expect("ward");
+    assert_eq!(
+        paged,
+        vec![staff[0]],
+        "02:00 pages the night nurse, not the day roster"
+    );
 }

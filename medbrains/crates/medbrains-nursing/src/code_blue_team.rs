@@ -19,19 +19,28 @@ use medbrains_server_core::{
 };
 
 use crate::code_blue_escalation::{
-    DEFAULT_MAX_ROUNDS, DEFAULT_RESPONSE_SECS, MAX_ROUNDS_KEY, RESPONSE_SECS_KEY,
+    DEFAULT_MAX_ROUNDS, DEFAULT_RESPONSE_SECS, MAX_ROUNDS_KEY, MAX_ROUNDS_RANGE, RESPONSE_SECS_KEY,
+    RESPONSE_SECS_RANGE,
 };
 
-/// Bounds the settings screen enforces: a re-page faster than fifteen seconds
-/// is noise, slower than ten minutes is no escalation at all.
-const RESPONSE_SECS_RANGE: (i32, i32) = (15, 600);
-const MAX_ROUNDS_RANGE: (i32, i32) = (1, 10);
+/// The codes a roster can be kept for: the nursing code blue and the floor
+/// codes on `er_code_activations`.
+const CODE_TYPES: [&str; 7] = [
+    "code_blue",
+    "code_yellow",
+    "code_pink",
+    "code_orange",
+    "code_red",
+    "code_silver",
+    "code_black",
+];
 
 #[derive(Debug, Serialize, sqlx::FromRow)]
 pub struct CodeTeamMember {
     pub id: Uuid,
     pub user_id: Uuid,
     pub full_name: String,
+    pub code_type: String,
     pub tier: i16,
 }
 
@@ -62,20 +71,21 @@ pub async fn get_code_team(
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
     let members = sqlx::query_as::<_, CodeTeamMember>(
-        "SELECT m.id, m.user_id, u.full_name, m.tier FROM code_blue_team_members m \
-           JOIN users u ON u.id = m.user_id \
+        "SELECT m.id, m.user_id, u.full_name, m.code_type, m.tier \
+           FROM code_blue_team_members m \
+           JOIN users u ON u.id = m.user_id AND u.is_active = true AND u.deleted_at IS NULL \
           WHERE m.tenant_id = $1 AND m.deleted_at IS NULL \
-          ORDER BY m.tier, u.full_name LIMIT 500",
+          ORDER BY m.code_type, m.tier, u.full_name LIMIT 500",
     )
     .bind(claims.tenant_id)
     .fetch_all(&mut *tx)
     .await?;
-    // Clinicians and administrators: a medical superintendent is often an
-    // administrator account, not a doctor one.
+    // Clinicians, administrators and security: a medical superintendent is
+    // often an administrator account, and a Code Pink is answered by guards.
     let candidates = sqlx::query_as::<_, CodeTeamCandidate>(
         "SELECT id, full_name, role::text AS role FROM users \
           WHERE tenant_id = $1 AND is_active = true AND deleted_at IS NULL \
-            AND role::text IN ('doctor', 'nurse', 'hospital_admin') \
+            AND role::text IN ('doctor', 'nurse', 'hospital_admin', 'security_guard') \
           ORDER BY full_name LIMIT 500",
     )
     .bind(claims.tenant_id)
@@ -96,11 +106,12 @@ pub async fn get_code_team(
     )
     .await?;
     tx.commit().await?;
+    let clamp = |v: i32, (lo, hi): (i32, i32)| v.clamp(lo, hi);
     Ok(Json(CodeTeamRoster {
         members,
         candidates,
-        response_secs,
-        max_rounds,
+        response_secs: clamp(response_secs, RESPONSE_SECS_RANGE),
+        max_rounds: clamp(max_rounds, MAX_ROUNDS_RANGE),
     }))
 }
 
@@ -109,6 +120,8 @@ pub struct AddCodeTeamMemberRequest {
     pub user_id: Uuid,
     /// 1 code team, 2 duty medical officer, 3 medical superintendent.
     pub tier: i16,
+    /// Which code's roster; the code blue's when left out.
+    pub code_type: Option<String>,
 }
 
 /// `POST /api/nurse/code-blue/team` — put someone on a tier.
@@ -124,18 +137,26 @@ pub async fn add_code_team_member(
                 .to_owned(),
         ));
     }
+    let code_type = body.code_type.as_deref().unwrap_or("code_blue");
+    if !CODE_TYPES.contains(&code_type) {
+        return Err(AppError::BadRequest(format!(
+            "code_type must be one of {}",
+            CODE_TYPES.join(", ")
+        )));
+    }
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
     let id: Uuid = sqlx::query_scalar(
-        "INSERT INTO code_blue_team_members (tenant_id, user_id, tier, added_by) \
-         SELECT $1, u.id, $3, $4 FROM users u \
-          WHERE u.id = $2 AND u.tenant_id = $1 AND u.is_active = true \
+        "INSERT INTO code_blue_team_members (tenant_id, user_id, tier, added_by, code_type) \
+         SELECT $1, u.id, $3, $4, $5 FROM users u \
+          WHERE u.id = $2 AND u.tenant_id = $1 AND u.is_active = true AND u.deleted_at IS NULL \
          RETURNING id",
     )
     .bind(claims.tenant_id)
     .bind(body.user_id)
     .bind(body.tier)
     .bind(claims.sub)
+    .bind(code_type)
     .fetch_optional(&mut *tx)
     .await
     .map_err(|err| match err {

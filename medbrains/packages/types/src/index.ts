@@ -6449,6 +6449,8 @@ export interface CodeTeamMember {
   id: string;
   user_id: string;
   full_name: string;
+  /** Which code's roster: `code_blue`, `code_pink`, … */
+  code_type: string;
   tier: CodeTeamTier;
 }
 

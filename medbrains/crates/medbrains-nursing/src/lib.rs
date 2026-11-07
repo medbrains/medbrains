@@ -7,6 +7,7 @@ pub mod code_blue_alert;
 pub mod code_blue_escalation;
 pub mod code_blue_response;
 pub mod code_blue_routing;
+pub mod code_blue_subject;
 pub mod code_blue_team;
 pub mod monitor_readings;
 pub mod nurse_clinical;

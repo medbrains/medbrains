@@ -21,7 +21,9 @@ const code = (over: Record<string, unknown> = {}) => ({
 
 let listCodes: () => Promise<unknown[]> = async () => [];
 const roster: () => Promise<unknown> = async () => ({
-  members: [{ id: "m-1", user_id: "u-1", full_name: "Dr Meera Nair", tier: 1 }],
+  members: [
+    { id: "m-1", user_id: "u-1", full_name: "Dr Meera Nair", code_type: "code_blue", tier: 1 },
+  ],
   candidates: [],
   response_secs: 60,
   max_rounds: 5,
@@ -80,6 +82,14 @@ describe("the code-blue tab", () => {
       expect(screen.getByText("Active code blues unavailable")).toBeInTheDocument(),
     );
     expect(screen.queryByText("No active code blue events.")).not.toBeInTheDocument();
+  });
+
+  it("warns that paging is not confirmed when the page has not reported back", async () => {
+    listCodes = async () => [
+      code({ routing_note: null, delivery_warning: null, started_at: "2026-11-07T08:00:00Z" }),
+    ];
+    render(tab, { queryClient: silent() });
+    await waitFor(() => expect(screen.getByText("Paging not confirmed")).toBeInTheDocument());
   });
 
   it("lets a manager see the code team on the roster", async () => {

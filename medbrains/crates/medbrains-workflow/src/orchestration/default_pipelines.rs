@@ -211,6 +211,12 @@ async fn is_disabled(pool: &PgPool, tenant_id: Uuid, event_type: &str) -> bool {
 /// partner webhooks queued plus pipelines that succeeded. Zero tells the
 /// outbox fallback that nothing did, so the row is never called `sent`.
 ///
+/// Every matching pipeline runs; if any of them failed, the result is an
+/// error naming how many, so the outbox retries the event instead of
+/// recording it as delivered or as having nothing to do. Pipelines are
+/// idempotent (keyed outbox rows, `NOT EXISTS` guards), so the ones that
+/// succeeded do nothing twice on the retry.
+///
 /// **Idempotency contract:** every outbox row queued by these
 /// subscribers carries an `idempotency_key`. If a user-built
 /// `integration_pipelines` row tries to enqueue the same event with
@@ -221,7 +227,7 @@ pub async fn dispatch_default_pipelines(
     tenant_id: Uuid,
     event_type: &str,
     payload: &Value,
-) -> usize {
+) -> Result<usize, String> {
     // Partners hear about the event whatever the hospital does with its own
     // pipelines; their subscription is the switch for that.
     let mut acted = super::webhook_fanout::fan_out(
@@ -239,11 +245,11 @@ pub async fn dispatch_default_pipelines(
             event_type = event_type,
             "default_pipelines: disabled for tenant, skipping"
         );
-        return acted;
+        return Ok(acted);
     }
 
     let Ok(parsed) = event_type.parse::<ClinicalEventName>() else {
-        return acted;
+        return Ok(acted);
     };
     let payload = domain_payload(payload);
 
@@ -256,18 +262,25 @@ pub async fn dispatch_default_pipelines(
     // this database with nothing listening, and the answer is a reviewed
     // function, not a row somebody assembled in a UI. The outbox records such
     // a row as `undelivered`, which is what it is.
+    let mut failed = 0usize;
     for pipeline in PIPELINES.iter().filter(|p| p.event == parsed) {
         match (pipeline.run)(pool, tenant_id, payload).await {
             Ok(()) => acted += 1,
-            Err(err) => tracing::error!(
-                tenant_id = %tenant_id,
-                event_type = event_type,
-                error = %err,
-                "default_pipelines: subscriber failed"
-            ),
+            Err(err) => {
+                failed += 1;
+                tracing::error!(
+                    tenant_id = %tenant_id,
+                    event_type = event_type,
+                    error = %err,
+                    "default_pipelines: subscriber failed"
+                );
+            }
         }
     }
-    acted
+    if failed > 0 {
+        return Err(format!("{failed} pipeline(s) failed for {event_type}; retrying"));
+    }
+    Ok(acted)
 }
 
 /// The event as the subscriber wrote it, not the envelope the outbox stored.
@@ -595,6 +608,7 @@ async fn patient_phone(
     Ok(phone.flatten().as_deref().and_then(e164))
 }
 
+/// A UUID field of a pipeline payload, if present and well formed.
 pub(super) fn uuid_from_payload(payload: &Value, key: &str) -> Option<Uuid> {
     uuid_from_value(payload.get(key))
 }
@@ -611,14 +625,15 @@ fn uuid_from_value(v: Option<&Value>) -> Option<Uuid> {
 /// page for the round and sends the in-app alert, the SMS and the WhatsApp.
 pub const CODE_BLUE_ALERT_EVENT: &str = "emergency.code_blue_alert";
 
-/// A cardiac arrest is called: queue the first round of paging.
+/// A cardiac arrest is called: make sure round 1 of paging is queued.
 ///
-/// `start_code_blue` writes the event, mirrors it to the NABH register, and
-/// emits `emergency.code_blue.activated`. This queues round 1 of
-/// [`CODE_BLUE_ALERT_EVENT`]; the escalation pass queues the later rounds
-/// when nobody answers. The paging itself used to happen here, to every
-/// active doctor and nurse in the hospital, and the SMS row it queued had no
-/// handler — the outbox marked it sent all the same.
+/// A backstop only. `start_code_blue` queues round 1 of
+/// [`CODE_BLUE_ALERT_EVENT`] in its own transaction and pages in-app inline,
+/// so the page never depends on this pipeline, which a hospital can switch
+/// off. This queues the same row under the same key, which is a no-op for
+/// any code blue the handler recorded, and covers one written any other way.
+/// The paging itself used to happen here, to every active doctor and nurse
+/// in the hospital, and the SMS row it queued had no handler.
 async fn on_emergency_code_blue_activated(
     pool: &PgPool,
     tenant_id: Uuid,
@@ -792,12 +807,17 @@ async fn on_ipd_admission_created(
     // One statement: pick the ward's charge nurse for today — falling back to
     // the primary assigned nurse — and raise the task only if that resolves
     // and this admission has no such task already.
-    let created = sqlx::query!(
+    // The hospital's own date, not the database server's: an admission at
+    // 00:30 in Kolkata is still "yesterday" in UTC. Runtime-checked because
+    // the statement changed and is covered by the admission linkage test.
+    let created = sqlx::query(
         "WITH nurse AS ( \
            SELECT COALESCE(nsa.charge_nurse_user_id, nsa.nurse_user_id) AS uid \
              FROM nurse_shift_assignments nsa \
             WHERE nsa.tenant_id = $1 AND nsa.ward_id = $2 \
-              AND nsa.shift_date = CURRENT_DATE AND nsa.deleted_at IS NULL \
+              AND nsa.shift_date = (now() AT TIME ZONE COALESCE( \
+                    (SELECT timezone FROM tenants WHERE id = $1), 'Asia/Kolkata'))::date \
+              AND nsa.deleted_at IS NULL \
             ORDER BY nsa.primary_assigned DESC, \
                      (nsa.charge_nurse_user_id IS NULL) \
             LIMIT 1 \
@@ -816,10 +836,10 @@ async fn on_ipd_admission_created(
              WHERE nt.tenant_id = $1 AND nt.admission_id = $3 \
                AND nt.task_type = 'initial_assessment' \
                AND nt.deleted_at IS NULL)",
-        tenant_id,
-        ward_id,
-        admission_id,
     )
+    .bind(tenant_id)
+    .bind(ward_id)
+    .bind(admission_id)
     .execute(&mut *medbrains_db::pool::tenant_conn(pool, &tenant_id).await?)
     .await?
     .rows_affected();

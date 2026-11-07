@@ -250,6 +250,24 @@ pub async fn start_code_blue(
     }
     medbrains_workflow::events::queue_clinical_event_in_tx(&mut tx, &event).await?;
 
+    // Round 1 of the page, in this transaction: a code blue cannot be
+    // recorded without its page, and the page does not wait on the
+    // activation pipeline (which a hospital can switch off, and whose failure
+    // used to leave the crash team unpaged).
+    medbrains_outbox::queue::queue_in_tx(
+        &mut tx,
+        medbrains_outbox::queue::OutboxRow {
+            tenant_id: claims.tenant_id,
+            aggregate_type: "code_blue",
+            aggregate_id: Some(row.id),
+            event_type: medbrains_workflow::orchestration::default_pipelines::CODE_BLUE_ALERT_EVENT,
+            payload: serde_json::json!({ "code_blue_id": row.id, "round": 1 }),
+            idempotency_key: Some(format!("code_blue:{}:round:1", row.id)),
+        },
+    )
+    .await
+    .map_err(|e| AppError::Internal(format!("code blue page not queued: {e}")))?;
+
     // Every board in the hospital, without anybody typing.
     //
     // The display path existed and only an operator could start it: somebody
@@ -292,6 +310,16 @@ pub async fn start_code_blue(
             created_at: Utc::now(),
         },
     );
+
+    // The in-app alarm now, with no outbox hop. The queued row above is the
+    // durable copy of the same round (idempotent) and carries the SMS status.
+    crate::code_blue_alert::page_now(
+        &state.db,
+        claims.tenant_id,
+        crate::code_blue_subject::Subject::CodeBlue(row.id),
+        state.secret_resolver.as_ref(),
+    )
+    .await;
 
     Ok(Json(row))
 }

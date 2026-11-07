@@ -1,37 +1,41 @@
-//! The code blue page, delivered — or visibly not.
+//! The emergency page, delivered — or visibly not.
 //!
 //! `emergency.code_blue_alert` had no handler. The outbox sent it to the
 //! pipeline fallback, which found nothing to do and marked it `sent`, so a
-//! hospital without SMS believed its crash team had been texted. This handler
-//! does the paging for one round: an in-app alert to everyone the round
-//! reaches (the phone apps flash on it), an SMS and a `WhatsApp` where the
-//! hospital has them set up, a `code_blue_pages` row per person, and a line on
-//! the code-blue screen saying who was reached and what did not go out.
+//! hospital without SMS believed its crash team had been texted; and the
+//! floor codes (Code Pink, Red, …) paged nobody. This pages one round of a
+//! code blue or a floor code: an in-app alert to everyone the round reaches
+//! (the phone apps flash on it), an SMS and a `WhatsApp` where the hospital
+//! has them set up, a `code_blue_pages` row per person, and a line on the
+//! code's screen saying who was reached and what did not go out.
 //!
-//! The row ends `sent` only when a message left the building. In-app alone is
-//! `undelivered`, with the reason the screen shows; and a round that reached
-//! nobody also alerts the nurse in charge and the administrators.
+//! Round 1 runs twice by design: inline, right after the code is recorded,
+//! so the in-app alarm needs no outbox hop; and from the outbox row queued in
+//! the same transaction, which is the durable copy. Both are idempotent.
+//!
+//! The outbox row ends `sent` only when a message left the building. In-app
+//! alone is `undelivered`, with the reason the screen shows; and a round that
+//! reached nobody also alerts the nurse in charge and the administrators.
 
 use async_trait::async_trait;
 use serde_json::{Value, json};
 use sqlx::{PgPool, Postgres, Transaction};
 use uuid::Uuid;
 
+use medbrains_core::secrets::SecretResolver;
 use medbrains_outbox::handler::{Handler, HandlerCtx, HandlerError};
 use medbrains_outbox::handlers::{twilio, whatsapp};
 use medbrains_outbox::queue::{OutboxRow, queue_in_tx};
 use medbrains_server_core::error::AppError;
 use medbrains_workflow::orchestration::default_pipelines::{CODE_BLUE_ALERT_EVENT, e164};
 
-use crate::code_blue_routing::{self, Place, TeamSource};
+use crate::code_blue_routing::{self, TeamSource, code_words, current_shift, tenant_local_now};
+use crate::code_blue_subject::Subject;
 
 /// The per-person SMS a round queues.
 pub const SMS_EVENT: &str = "sms.code_blue_alert";
 /// The per-person `WhatsApp` a round queues (Meta template `code_blue_alert`).
 pub const WHATSAPP_EVENT: &str = "whatsapp.code_blue_alert";
-/// Title every page carries; the stand-down finds the paged users by it.
-const PAGE_TITLE: &str = "CODE BLUE";
-const NOT_DELIVERED_TITLE: &str = "Code blue alert not delivered";
 /// Administrators told when a round reached nobody.
 const ADMIN_LIMIT: i64 = 20;
 
@@ -42,6 +46,14 @@ pub struct Channels {
     pub whatsapp: bool,
 }
 
+/// Ask the credential store which channels would really send.
+pub async fn channels(resolver: &dyn SecretResolver) -> Channels {
+    Channels {
+        sms: twilio::is_configured(resolver).await,
+        whatsapp: whatsapp::is_configured(resolver).await,
+    }
+}
+
 /// What one round did.
 #[derive(Debug)]
 pub struct PageOutcome {
@@ -50,6 +62,8 @@ pub struct PageOutcome {
     pub newly_paged: usize,
     pub messages_queued: usize,
     pub warning: Option<String>,
+    /// The code had already ended: nothing to page.
+    pub ended: bool,
 }
 
 /// Registered for [`CODE_BLUE_ALERT_EVENT`] in the outbox registry.
@@ -65,32 +79,45 @@ impl Handler for CodeBlueAlertHandler {
 
     /// Page one round and answer `sent` only if a message left the building.
     async fn handle(&self, ctx: &HandlerCtx, payload: &Value) -> Result<Value, HandlerError> {
-        let code_blue_id = payload
-            .get("code_blue_id")
-            .and_then(Value::as_str)
-            .and_then(|s| Uuid::parse_str(s).ok())
-            .ok_or_else(|| HandlerError::Permanent("payload.code_blue_id missing".to_owned()))?;
+        let subject = Subject::from_payload(payload).ok_or_else(|| {
+            HandlerError::Permanent("payload names no code_blue_id or er_code_id".to_owned())
+        })?;
         let round = payload
             .get("round")
             .and_then(Value::as_i64)
             .and_then(|r| i16::try_from(r).ok())
             .unwrap_or(1);
-        let channels = Channels {
-            sms: twilio::is_configured(ctx.secret_resolver.as_ref()).await,
-            whatsapp: whatsapp::is_configured(ctx.secret_resolver.as_ref()).await,
-        };
-        let outcome = page_round(&ctx.pool, ctx.tenant_id, code_blue_id, round, channels)
+        let channels = channels(ctx.secret_resolver.as_ref()).await;
+        let outcome = page_round(&ctx.pool, ctx.tenant_id, (subject, round), channels)
             .await
             .map_err(|e| match e {
-                AppError::NotFound => HandlerError::Permanent("code blue not found".to_owned()),
+                AppError::NotFound => HandlerError::Permanent("code not found".to_owned()),
                 e => HandlerError::Transient(e.to_string()),
             })?;
         handler_result(&outcome)
     }
 }
 
+/// Page round 1 now, inline, after the code is committed. A failure is
+/// logged and left to the outbox copy of the same round, never raised to the
+/// nurse whose code is already recorded.
+pub async fn page_now(
+    pool: &PgPool,
+    tenant_id: Uuid,
+    subject: Subject,
+    resolver: &dyn SecretResolver,
+) {
+    let channels = channels(resolver).await;
+    if let Err(error) = page_round(pool, tenant_id, (subject, 1), channels).await {
+        tracing::error!(%tenant_id, ?subject, %error, "inline emergency page failed; the outbox will retry");
+    }
+}
+
 /// The outbox answer for a round: `sent` only when a message was queued.
 fn handler_result(outcome: &PageOutcome) -> Result<Value, HandlerError> {
+    if outcome.ended {
+        return Ok(json!({ "skipped": "the code had already ended" }));
+    }
     if outcome.messages_queued == 0 {
         return Err(HandlerError::Undelivered(
             outcome
@@ -107,11 +134,11 @@ fn handler_result(outcome: &PageOutcome) -> Result<Value, HandlerError> {
     }))
 }
 
-/// What the code-blue screen warns about a round's delivery, if anything.
+/// What the code's screen warns about a round's delivery, if anything.
 pub fn delivery_warning(reached: usize, channels: Channels, phones: usize) -> Option<String> {
     if reached == 0 {
         return Some(
-            "Alert not delivered: nobody could be paged. Call the code team by phone.".to_owned(),
+            "Alert not delivered: nobody could be paged. Call the team by phone.".to_owned(),
         );
     }
     if !channels.sms && !channels.whatsapp {
@@ -125,100 +152,64 @@ pub fn delivery_warning(reached: usize, channels: Channels, phones: usize) -> Op
     None
 }
 
-#[derive(sqlx::FromRow)]
-struct CodeContext {
-    location: String,
-    recorder_user_id: Option<Uuid>,
-    ended: bool,
-    ward_id: Option<Uuid>,
-    department_id: Option<Uuid>,
+/// The page title: `CODE BLUE`, `CODE PINK`, …; the stand-down finds the
+/// paged users by it.
+fn title(code_type: &str) -> String {
+    code_words(code_type).to_uppercase()
 }
 
-/// Page round `round` of a code blue in one transaction. Idempotent: a
-/// redelivered round pages nobody twice and queues no message twice.
+/// Page one round of a code in one transaction. Idempotent: a redelivered
+/// round pages nobody twice and queues no message twice.
 pub async fn page_round(
     pool: &PgPool,
     tenant_id: Uuid,
-    code_blue_id: Uuid,
-    round: i16,
+    (subject, round): (Subject, i16),
     channels: Channels,
 ) -> Result<PageOutcome, AppError> {
     let mut tx = pool.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &tenant_id).await?;
-    let code = sqlx::query_as::<_, CodeContext>(
-        "SELECT e.location, e.recorder_user_id, e.ended_at IS NOT NULL AS ended, \
-                a.ward_id, a.department_id \
-           FROM code_blue_events e \
-           LEFT JOIN LATERAL ( \
-             SELECT ad.ward_id, ad.department_id FROM admissions ad \
-              WHERE ad.tenant_id = e.tenant_id AND ad.encounter_id = e.encounter_id \
-              ORDER BY ad.admitted_at DESC LIMIT 1) a ON true \
-          WHERE e.id = $1 AND e.tenant_id = $2 AND e.deleted_at IS NULL",
-    )
-    .bind(code_blue_id)
-    .bind(tenant_id)
-    .fetch_optional(&mut *tx)
-    .await?
-    .ok_or(AppError::NotFound)?;
+    let code = subject.load(&mut tx, tenant_id).await?;
     if code.ended {
         return Ok(PageOutcome {
             source: TeamSource::Nobody,
             reached: 0,
             newly_paged: 0,
             messages_queued: 0,
-            warning: Some("the code blue had already ended".to_owned()),
+            warning: None,
+            ended: true,
         });
     }
-
-    let place = Place {
-        ward_id: code.ward_id,
-        department_id: code.department_id,
-    };
-    let routing = code_blue_routing::resolve(&mut tx, tenant_id, place, round).await?;
+    let routing = code_blue_routing::resolve(
+        &mut tx,
+        tenant_id,
+        (code.code_type.as_str(), code.place()),
+        round,
+    )
+    .await?;
     let where_it_is = match code.location.trim() {
         "" => "location not recorded",
         loc => loc,
     };
-    let body = format!("CODE BLUE — {where_it_is}. Respond immediately.");
+    let title = title(&code.code_type);
+    let body = format!("{title} — {where_it_is}. Respond immediately.");
 
-    let newly = record_pages(&mut tx, tenant_id, code_blue_id, round, &routing).await?;
-    notify(&mut tx, tenant_id, code_blue_id, &newly, &body).await?;
+    let newly = record_pages(&mut tx, tenant_id, (subject, round), &routing).await?;
+    notify(&mut tx, tenant_id, subject, &newly, (&title, &body)).await?;
     let paged: Vec<Uuid> = routing.recipients.iter().map(|r| r.user_id).collect();
     let phones = phones_of(&mut tx, tenant_id, &paged).await?;
     let mut queued = 0;
     for to in &phones {
-        queued += queue_messages(
-            &mut tx,
-            tenant_id,
-            (code_blue_id, round),
-            to,
-            &body,
-            channels,
-        )
-        .await?;
+        queued +=
+            queue_messages(&mut tx, tenant_id, (subject, round), (to, &body), channels).await?;
     }
 
     let warning = delivery_warning(paged.len(), channels, phones.len());
-    sqlx::query(
-        "UPDATE code_blue_events SET routing_note = $3, delivery_warning = $4 \
-          WHERE id = $1 AND tenant_id = $2",
-    )
-    .bind(code_blue_id)
-    .bind(tenant_id)
-    .bind(&routing.note)
-    .bind(&warning)
-    .execute(&mut *tx)
-    .await?;
-    if paged.is_empty() {
-        alert_not_delivered(
-            &mut tx,
-            tenant_id,
-            code_blue_id,
-            place.ward_id,
-            code.recorder_user_id,
-        )
+    subject
+        .record_status(&mut tx, tenant_id, (&routing.note, warning.as_deref()))
         .await?;
-        tracing::error!(%tenant_id, %code_blue_id, round, "code blue paged nobody");
+    if paged.is_empty() {
+        alert_not_delivered(&mut tx, tenant_id, subject, &code).await?;
+        tracing::error!(%tenant_id, ?subject, round, "emergency code paged nobody");
     }
     tx.commit().await?;
 
@@ -228,6 +219,7 @@ pub async fn page_round(
         newly_paged: newly.len(),
         messages_queued: queued,
         warning,
+        ended: false,
     })
 }
 
@@ -236,8 +228,7 @@ pub async fn page_round(
 async fn record_pages(
     tx: &mut Transaction<'_, Postgres>,
     tenant_id: Uuid,
-    code_blue_id: Uuid,
-    round: i16,
+    (subject, round): (Subject, i16),
     routing: &code_blue_routing::Routing,
 ) -> Result<Vec<Uuid>, AppError> {
     let users: Vec<Uuid> = routing.recipients.iter().map(|r| r.user_id).collect();
@@ -248,15 +239,18 @@ async fn record_pages(
         .iter()
         .map(|r| if r.tier == 1 { source } else { "roster" })
         .collect();
+    let (code_blue_id, er_code_id) = subject.page_columns();
     Ok(sqlx::query_scalar(
-        "INSERT INTO code_blue_pages (tenant_id, code_blue_id, round, tier, user_id, routing) \
-         SELECT $1, $2, $3, t.tier, t.user_id, t.routing \
-           FROM unnest($4::uuid[], $5::int2[], $6::text[]) AS t(user_id, tier, routing) \
-         ON CONFLICT (tenant_id, code_blue_id, round, user_id) DO NOTHING \
+        "INSERT INTO code_blue_pages \
+           (tenant_id, code_blue_id, er_code_id, round, tier, user_id, routing) \
+         SELECT $1, $2, $3, $4, t.tier, t.user_id, t.routing \
+           FROM unnest($5::uuid[], $6::int2[], $7::text[]) AS t(user_id, tier, routing) \
+         ON CONFLICT DO NOTHING \
          RETURNING user_id",
     )
     .bind(tenant_id)
     .bind(code_blue_id)
+    .bind(er_code_id)
     .bind(round)
     .bind(&users)
     .bind(&tiers)
@@ -269,20 +263,22 @@ async fn record_pages(
 async fn notify(
     tx: &mut Transaction<'_, Postgres>,
     tenant_id: Uuid,
-    code_blue_id: Uuid,
+    subject: Subject,
     users: &[Uuid],
-    body: &str,
+    (title, body): (&str, &str),
 ) -> Result<(), AppError> {
     sqlx::query(
         "INSERT INTO notifications \
            (tenant_id, user_id, kind, title, body, category, entity_type, entity_id, action_url) \
-         SELECT $1, u, 'error', $2, $3, 'emergency', 'code_blue', $4, '/nurse?tab=code-blue' \
-           FROM unnest($5::uuid[]) AS u",
+         SELECT $1, u, 'error', $2, $3, 'emergency', $4, $5, $6 \
+           FROM unnest($7::uuid[]) AS u",
     )
     .bind(tenant_id)
-    .bind(PAGE_TITLE)
+    .bind(title)
     .bind(body)
-    .bind(code_blue_id)
+    .bind(subject.aggregate())
+    .bind(subject.id())
+    .bind(subject.action_url())
     .bind(users)
     .execute(&mut **tx)
     .await?;
@@ -314,9 +310,8 @@ async fn phones_of(
 async fn queue_messages(
     tx: &mut Transaction<'_, Postgres>,
     tenant_id: Uuid,
-    (code_blue_id, round): (Uuid, i16),
-    to: &str,
-    body: &str,
+    (subject, round): (Subject, i16),
+    (to, body): (&str, &str),
     channels: Channels,
 ) -> Result<usize, AppError> {
     let mut rows = Vec::new();
@@ -335,59 +330,70 @@ async fn queue_messages(
         ));
     }
     let count = rows.len();
+    let key = format!("{}:{}:r{round}:{to}", subject.aggregate(), subject.id());
     for (event_type, payload) in rows {
         queue_in_tx(
             tx,
             OutboxRow {
                 tenant_id,
-                aggregate_type: "code_blue",
-                aggregate_id: Some(code_blue_id),
+                aggregate_type: subject.aggregate(),
+                aggregate_id: Some(subject.id()),
                 event_type,
                 payload,
-                idempotency_key: Some(format!("code_blue:{code_blue_id}:r{round}:{to}")),
+                idempotency_key: Some(key.clone()),
             },
         )
         .await
-        .map_err(|e| AppError::Internal(format!("code blue message not queued: {e}")))?;
+        .map_err(|e| AppError::Internal(format!("emergency message not queued: {e}")))?;
     }
     Ok(count)
 }
 
-/// Nobody could be paged: tell the nurse who called it, the ward's charge
-/// nurse and the administrators, once per code.
+/// Nobody could be paged: tell the person who called it, the ward's charge
+/// nurse on the current shift and the administrators, once per code.
 async fn alert_not_delivered(
     tx: &mut Transaction<'_, Postgres>,
     tenant_id: Uuid,
-    code_blue_id: Uuid,
-    ward_id: Option<Uuid>,
-    recorder: Option<Uuid>,
+    subject: Subject,
+    code: &crate::code_blue_subject::CodeContext,
 ) -> Result<(), AppError> {
+    let (shift_date, shift) = current_shift(tenant_local_now(tx, tenant_id).await?);
+    let title = format!("{} alert not delivered", title(&code.code_type));
     sqlx::query(
         "WITH told AS ( \
            SELECT $4::uuid AS id WHERE $4::uuid IS NOT NULL \
            UNION SELECT nsa.charge_nurse_user_id FROM nurse_shift_assignments nsa \
             WHERE nsa.tenant_id = $1 AND nsa.ward_id = $5 AND nsa.deleted_at IS NULL \
-              AND nsa.charge_nurse_user_id IS NOT NULL AND nsa.shift_date = CURRENT_DATE \
+              AND nsa.charge_nurse_user_id IS NOT NULL \
+              AND nsa.shift_date = $9 AND nsa.shift_type = $10 \
            UNION (SELECT u.id FROM users u WHERE u.tenant_id = $1 AND u.is_active = true \
+                    AND u.deleted_at IS NULL \
                     AND u.role::text IN ('hospital_admin', 'super_admin') LIMIT $6) \
          ) \
          INSERT INTO notifications \
            (tenant_id, user_id, kind, title, body, category, entity_type, entity_id, action_url) \
-         SELECT $1, told.id, 'error', $2, $3, 'emergency', 'code_blue', $7, \
-                '/nurse?tab=code-blue' \
+         SELECT $1, told.id, 'error', $2, $3, 'emergency', $8, $7, $11 \
            FROM told \
           WHERE NOT EXISTS (SELECT 1 FROM notifications n \
                              WHERE n.tenant_id = $1 AND n.user_id = told.id \
-                               AND n.entity_type = 'code_blue' AND n.entity_id = $7 \
+                               AND n.entity_type = $8 AND n.entity_id = $7 \
                                AND n.title = $2)",
     )
     .bind(tenant_id)
-    .bind(NOT_DELIVERED_TITLE)
-    .bind("A code blue was called and nobody could be paged: no code team, no ward shift and no clinicians. Call the team by phone and set up the code-blue roster.")
-    .bind(recorder)
-    .bind(ward_id)
+    .bind(&title)
+    .bind(format!(
+        "A {} was called and nobody could be paged. Call the team by phone and set up the \
+         responder roster.",
+        code_words(&code.code_type)
+    ))
+    .bind(code.recorder_user_id)
+    .bind(code.ward_id)
     .bind(ADMIN_LIMIT)
-    .bind(code_blue_id)
+    .bind(subject.id())
+    .bind(subject.aggregate())
+    .bind(shift_date)
+    .bind(shift)
+    .bind(subject.action_url())
     .execute(&mut **tx)
     .await?;
     Ok(())
@@ -396,7 +402,7 @@ async fn alert_not_delivered(
 #[cfg(test)]
 mod tests {
     use super::{
-        Channels, HandlerError, PageOutcome, TeamSource, delivery_warning, handler_result,
+        Channels, HandlerError, PageOutcome, TeamSource, delivery_warning, handler_result, title,
     };
 
     fn outcome(messages_queued: usize, warning: Option<&str>) -> PageOutcome {
@@ -406,6 +412,7 @@ mod tests {
             newly_paged: 3,
             messages_queued,
             warning: warning.map(str::to_owned),
+            ended: false,
         }
     }
 
@@ -433,5 +440,15 @@ mod tests {
         assert!(delivery_warning(3, sms, 3).is_none());
         assert!(delivery_warning(3, sms, 0).is_some_and(|w| w.starts_with("No phone numbers")));
         assert!(delivery_warning(0, sms, 0).is_some_and(|w| w.starts_with("Alert not delivered")));
+    }
+
+    #[test]
+    fn a_page_after_the_stand_down_is_skipped_not_undelivered() {
+        let ended = PageOutcome {
+            ended: true,
+            ..outcome(0, None)
+        };
+        assert!(handler_result(&ended).is_ok_and(|v| v["skipped"].is_string()));
+        assert_eq!(title("code_pink"), "CODE PINK");
     }
 }

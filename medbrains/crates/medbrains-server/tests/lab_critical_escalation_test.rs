@@ -164,14 +164,19 @@ async fn texts_to(app: &common::TestApp, alert: Uuid) -> Vec<String> {
     .expect("texts")
 }
 
+fn sms(on: bool) -> common::TestSecrets {
+    common::TestSecrets::default().with("TWILIO_ACCOUNT_SID", if on { "ACtest" } else { "" })
+}
+
 #[tokio::test]
 async fn a_critical_value_escalates_by_tier_and_never_fakes_an_escalation() {
     let app = common::spawn_app().await;
     let csrf = app.login_admin().await;
     let w = world(&app).await;
+    let (on, off) = (sms(true), sms(false));
 
     // ── No phone on file: not escalated, the department head told in-app ──
-    escalate_unacknowledged(&app.db).await.expect("pass");
+    escalate_unacknowledged(&app.db, &on).await.expect("pass");
     let (tier, escalated, blocked) = state(&app, w.alert).await;
     assert_eq!(
         (tier, escalated),
@@ -194,14 +199,24 @@ async fn a_critical_value_escalates_by_tier_and_never_fakes_an_escalation() {
     );
     assert!(texts_to(&app, w.alert).await.is_empty());
 
-    // ── A phone appears: tier 1 texts the doctor ──
+    // ── A phone, but no SMS set up: still blocked, and said ──
     sqlx::query("UPDATE users SET phone = '9876504444' WHERE id = $1")
         .bind(w.doctor)
         .execute(&app.db)
         .await
         .expect("doctor phone");
     age(&app, w.alert).await;
-    escalate_unacknowledged(&app.db).await.expect("pass");
+    escalate_unacknowledged(&app.db, &off).await.expect("pass");
+    let (tier, escalated, blocked) = state(&app, w.alert).await;
+    assert_eq!((tier, escalated), (0, false));
+    assert_eq!(
+        blocked.as_deref(),
+        Some("Escalation not sent: SMS is not set up")
+    );
+
+    // ── SMS set up: tier 1 texts the doctor ──
+    age(&app, w.alert).await;
+    escalate_unacknowledged(&app.db, &on).await.expect("pass");
     assert_eq!(state(&app, w.alert).await, (1, true, None));
     assert_eq!(
         texts_to(&app, w.alert).await,
@@ -210,7 +225,7 @@ async fn a_critical_value_escalates_by_tier_and_never_fakes_an_escalation() {
 
     // ── Still unacknowledged: tier 2 adds the department head ──
     age(&app, w.alert).await;
-    escalate_unacknowledged(&app.db).await.expect("pass");
+    escalate_unacknowledged(&app.db, &on).await.expect("pass");
     assert_eq!(
         state(&app, w.alert).await.0,
         2,
@@ -222,44 +237,59 @@ async fn a_critical_value_escalates_by_tier_and_never_fakes_an_escalation() {
         "tier 2 reaches the head: {to:?}"
     );
 
-    // ── The read-back call is documented ──
-    let bad = app
-        .client
-        .post(app.url(&format!("/api/lab/critical-alerts/{}/phone-call", w.alert)))
-        .header("x-csrf-token", &csrf)
-        .json(&json!({ "received_by": "Dr Rao", "attempts": 0, "readback_confirmed": true }))
-        .send()
+    // ── The read-back calls are documented, append-only ──
+    let call = |body: serde_json::Value| {
+        app.client
+            .post(app.url(&format!("/api/lab/critical-alerts/{}/phone-call", w.alert)))
+            .header("x-csrf-token", &csrf)
+            .json(&body)
+            .send()
+    };
+    let bad = call(json!({ "received_by": "Dr Rao", "attempts": 0, "readback_value": "6.9" }))
         .await
         .expect("bad call");
     assert_eq!(bad.status(), StatusCode::BAD_REQUEST);
-    let saved = app
-        .client
-        .post(app.url(&format!("/api/lab/critical-alerts/{}/phone-call", w.alert)))
-        .header("x-csrf-token", &csrf)
-        .json(
-            &json!({ "received_by": "Dr Rao, ward 4", "attempts": 2, "readback_confirmed": true }),
-        )
-        .send()
-        .await
-        .expect("call");
-    assert_eq!(saved.status(), StatusCode::OK);
-    let (by, received, attempts, confirmed): (
-        Option<Uuid>,
-        Option<String>,
-        Option<i16>,
-        Option<bool>,
-    ) = sqlx::query_as(
-        "SELECT phone_called_by, phone_received_by, phone_attempts, phone_readback_confirmed \
-               FROM lab_critical_alerts WHERE id = $1 AND tenant_id = $2",
+    let wrong: serde_json::Value =
+        call(json!({ "received_by": "Dr Rao", "attempts": 1, "readback_value": "9.6" }))
+            .await
+            .expect("wrong call")
+            .json()
+            .await
+            .expect("call json");
+    assert_eq!(
+        wrong["readback_confirmed"], false,
+        "the server decides the read-back"
+    );
+    let right: serde_json::Value =
+        call(json!({ "received_by": "Dr Rao, ward 4", "attempts": 2, "readback_value": " 6.9 " }))
+            .await
+            .expect("call")
+            .json()
+            .await
+            .expect("call json");
+    assert_eq!(right["readback_confirmed"], true);
+    let calls: Vec<(Uuid, String, bool)> = sqlx::query_as(
+        "SELECT called_by, received_by, readback_confirmed FROM lab_critical_calls \
+          WHERE alert_id = $1 AND tenant_id = $2 ORDER BY created_at",
     )
     .bind(w.alert)
     .bind(w.tenant)
-    .fetch_one(&app.db)
+    .fetch_all(&app.db)
     .await
-    .expect("call record");
-    assert!(by.is_some(), "the caller is the signed-in user");
-    assert_eq!(received.as_deref(), Some("Dr Rao, ward 4"));
-    assert_eq!((attempts, confirmed), (Some(2), Some(true)));
+    .expect("calls");
+    assert_eq!(
+        calls.len(),
+        2,
+        "a second call is a second row, not an overwrite"
+    );
+    assert_eq!((calls[1].1.as_str(), calls[1].2), ("Dr Rao, ward 4", true));
+    let rewrite = sqlx::query(
+        "UPDATE lab_critical_calls SET received_by = 'someone else' WHERE alert_id = $1",
+    )
+    .bind(w.alert)
+    .execute(&app.db)
+    .await;
+    assert!(rewrite.is_err(), "a call record cannot be edited");
 
     // Acknowledged: the pass leaves it alone.
     sqlx::query("UPDATE lab_critical_alerts SET acknowledged_at = now() WHERE id = $1")
@@ -268,7 +298,7 @@ async fn a_critical_value_escalates_by_tier_and_never_fakes_an_escalation() {
         .await
         .expect("ack");
     age(&app, w.alert).await;
-    escalate_unacknowledged(&app.db).await.expect("pass");
+    escalate_unacknowledged(&app.db, &on).await.expect("pass");
     assert_eq!(
         state(&app, w.alert).await.0,
         2,

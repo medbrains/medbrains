@@ -3,8 +3,9 @@ import { describe, expect, it, vi } from "vitest";
 import { render, screen } from "@/test/test-utils";
 
 /**
- * The critical-value call record on the lab order: offered until a call is
- * documented, then shown with whether the value was read back.
+ * The critical-value call record on the lab order: every documented call is
+ * shown, a read-back that did not match says so, and another call can always
+ * be recorded.
  */
 vi.mock("@medbrains/stores", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@medbrains/stores")>()),
@@ -32,11 +33,7 @@ const alert = (over: Partial<LabCriticalAlert> = {}): LabCriticalAlert => ({
   escalation_tier: 0,
   escalated_at: null,
   escalation_blocked_reason: null,
-  phone_called_by: null,
-  phone_received_by: null,
-  phone_called_at: null,
-  phone_attempts: null,
-  phone_readback_confirmed: null,
+  calls: [],
   ...over,
 });
 
@@ -46,20 +43,28 @@ describe("the critical-value call record", () => {
     expect(screen.getByRole("button", { name: "Record call" })).toBeInTheDocument();
   });
 
-  it("shows a call that was not read back, and a blocked escalation, in words", () => {
+  it("shows a mismatched read-back and a blocked escalation in words", () => {
     render(
       <CriticalCall
         alert={alert({
-          phone_called_at: "2026-11-07T09:10:00Z",
-          phone_received_by: "Dr Rao",
-          phone_attempts: 2,
-          phone_readback_confirmed: false,
-          escalation_blocked_reason: "Escalation not sent: no phone on file",
+          escalation_blocked_reason: "Escalation not sent: SMS is not set up",
+          calls: [
+            {
+              id: "c-1",
+              alert_id: "a-1",
+              called_by: "u",
+              received_by: "Dr Rao",
+              called_at: "2026-11-07T09:10:00Z",
+              attempts: 2,
+              readback_value: "9.6",
+              readback_confirmed: false,
+            },
+          ],
         })}
       />,
     );
-    expect(screen.getByText(/Called Dr Rao/)).toHaveTextContent("NOT read back");
-    expect(screen.getByText("Escalation not sent: no phone on file")).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Record call" })).not.toBeInTheDocument();
+    expect(screen.getByText(/Called Dr Rao/)).toHaveTextContent("DOES NOT MATCH");
+    expect(screen.getByText("Escalation not sent: SMS is not set up")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Record another call" })).toBeInTheDocument();
   });
 });

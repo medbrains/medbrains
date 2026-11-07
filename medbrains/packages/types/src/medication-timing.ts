@@ -2368,20 +2368,30 @@ export interface LabCriticalAlert {
   escalated_at: string | null;
   /** Why the last escalation could not be sent. */
   escalation_blocked_reason: string | null;
-  /** The documented lab-to-clinician phone call. */
-  phone_called_by: string | null;
-  phone_received_by: string | null;
-  phone_called_at: string | null;
-  phone_attempts: number | null;
-  phone_readback_confirmed: boolean | null;
+  /** The documented lab-to-clinician phone calls, oldest first (list only). */
+  calls?: LabCriticalCall[] | null;
 }
 
-/** The lab-to-clinician phone call for a critical value (NABL read-back). */
+/** One lab-to-clinician phone call for a critical value (NABL read-back). Append-only. */
+export interface LabCriticalCall {
+  id: string;
+  alert_id: string;
+  called_by: string;
+  received_by: string;
+  called_at: string;
+  attempts: number;
+  /** What the receiver read back. */
+  readback_value: string;
+  /** Whether it matched the reported value; decided by the server. */
+  readback_confirmed: boolean;
+}
+
+/** Record one critical-value phone call. */
 export interface RecordCriticalCallRequest {
   received_by: string;
   called_at?: string;
   attempts: number;
-  readback_confirmed: boolean;
+  readback_value: string;
 }
 
 export interface LabReagentLot {

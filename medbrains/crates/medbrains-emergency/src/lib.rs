@@ -1464,7 +1464,40 @@ pub async fn create_code_activation(
                 "rebac: failed to write code_blue_team#member tuple — backfill will retry");
     }
 
+    // Page the responders now. The insert trigger already queued this round
+    // in the outbox with the activation (the durable copy, which also covers
+    // a Code Pink raised by an infant tag); this sends the in-app alarm
+    // without waiting for the worker, and fills in who was reached.
+    medbrains_nursing::code_blue_alert::page_now(
+        &state.db,
+        claims.tenant_id,
+        medbrains_nursing::code_blue_subject::Subject::ErCode(row.id),
+        state.secret_resolver.as_ref(),
+    )
+    .await;
+    let row = reload_code(&state, claims.tenant_id, row).await;
+
     Ok(Json(row))
+}
+
+/// The activation as stored now, with the paging note the page just wrote;
+/// the row from the insert if the read fails.
+async fn reload_code(state: &AppState, tenant_id: Uuid, row: ErCodeActivation) -> ErCodeActivation {
+    let fresh = async {
+        let mut tx = state.db.begin().await?;
+        medbrains_db::pool::set_tenant_context(&mut tx, &tenant_id).await?;
+        let fresh = sqlx::query_as::<_, ErCodeActivation>(
+            "SELECT * FROM er_code_activations WHERE id = $1 AND tenant_id = $2",
+        )
+        .bind(row.id)
+        .bind(tenant_id)
+        .fetch_one(&mut *tx)
+        .await?;
+        tx.commit().await?;
+        Ok::<_, AppError>(fresh)
+    }
+    .await;
+    fresh.unwrap_or(row)
 }
 
 pub async fn deactivate_code(

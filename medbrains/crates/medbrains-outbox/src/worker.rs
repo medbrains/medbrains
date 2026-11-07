@@ -146,8 +146,20 @@ async fn drain_loop(
     mut shutdown_rx: watch::Receiver<bool>,
 ) {
     let mut tick = interval(config.poll_interval);
+    // An emergency page wakes the worker at once (`pg_notify('outbox_wake')`
+    // from migration 1410) instead of waiting for the next poll. Without a
+    // listener the poll still runs; the wake only makes it sooner.
+    let mut wake = listen_for_wake(&pool).await;
     loop {
         tokio::select! {
+            woken = next_wake(&mut wake) => {
+                if let Err(e) = woken {
+                    tracing::warn!(error = %e, "outbox wake listener lost; polling only");
+                    wake = None;
+                } else if let Err(e) = drain_once(&pool, &registry, &config).await {
+                    tracing::error!(error = %e, "outbox drain pass failed");
+                }
+            }
             // `res`, not `_`: `changed()` returns Err once every sender has
             // been dropped, and then resolves instantly, forever. Discarding
             // that error turns this select into a busy-loop that pins a whole
@@ -166,6 +178,28 @@ async fn drain_loop(
                 }
             }
         }
+    }
+}
+
+/// The channel emergency pages notify on.
+const WAKE_CHANNEL: &str = "outbox_wake";
+
+/// Listen for wake-ups; `None` (logged) if the listener cannot connect.
+async fn listen_for_wake(pool: &PgPool) -> Option<sqlx::postgres::PgListener> {
+    let listener = async {
+        let mut l = sqlx::postgres::PgListener::connect_with(pool).await?;
+        l.listen(WAKE_CHANNEL).await?;
+        Ok::<_, sqlx::Error>(l)
+    }
+    .await;
+    listener.map_err(|e| tracing::warn!(error = %e, "outbox wake listener unavailable")).ok()
+}
+
+/// The next wake-up, or never when there is no listener.
+async fn next_wake(wake: &mut Option<sqlx::postgres::PgListener>) -> Result<(), sqlx::Error> {
+    match wake {
+        Some(listener) => listener.recv().await.map(|_| ()),
+        None => std::future::pending().await,
     }
 }
 
@@ -253,6 +287,7 @@ fn registry_lookup(
     registry.lookup(event_type)
 }
 
+/// Run one claimed row through its handler and record the outcome.
 #[allow(clippy::too_many_arguments)]
 async fn dispatch_one(
     pool: PgPool,

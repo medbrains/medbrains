@@ -264,12 +264,27 @@ pub struct LabCriticalAlert {
     pub escalated_at: Option<DateTime<Utc>>,
     /// Why the last escalation could not be sent; cleared when one is.
     pub escalation_blocked_reason: Option<String>,
-    /// The documented lab-to-clinician phone call (NABL/NABH read-back).
-    pub phone_called_by: Option<Uuid>,
-    pub phone_received_by: Option<String>,
-    pub phone_called_at: Option<DateTime<Utc>>,
-    pub phone_attempts: Option<i16>,
-    pub phone_readback_confirmed: Option<bool>,
+    /// The documented lab-to-clinician phone calls, oldest first
+    /// (`lab_critical_calls`). Only the critical-alerts list fills it.
+    #[sqlx(default)]
+    #[serde(default)]
+    pub calls: serde_json::Value,
+}
+
+/// One documented lab-to-clinician phone call for a critical value
+/// (NABL/NABH read-back). Append-only.
+#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
+pub struct LabCriticalCall {
+    pub id: Uuid,
+    pub alert_id: Uuid,
+    pub called_by: Uuid,
+    pub received_by: String,
+    pub called_at: DateTime<Utc>,
+    pub attempts: i16,
+    pub readback_value: String,
+    /// Whether the value read back matched the reported one, decided by the
+    /// server.
+    pub readback_confirmed: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]

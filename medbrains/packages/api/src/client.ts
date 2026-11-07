@@ -1383,6 +1383,7 @@ import type {
   LabCalibration,
   LabCollectionCenter,
   LabCriticalAlert,
+  LabCriticalCall,
   LabCrossmatchLink,
   LabCytologyReport,
   LabEqasResult,
@@ -6553,7 +6554,7 @@ export const api = {
     }),
   /** Document the lab-to-clinician phone call for a critical value. */
   recordCriticalCall: (alertId: string, data: RecordCriticalCallRequest) =>
-    request<LabCriticalAlert>(`/lab/critical-alerts/${alertId}/phone-call`, {
+    request<LabCriticalCall>(`/lab/critical-alerts/${alertId}/phone-call`, {
       method: "POST",
       body: JSON.stringify(data),
     }),
@@ -17626,7 +17627,7 @@ export const api = {
   },
   /** The code-blue roster, who can be added, and the re-page settings. */
   getCodeBlueTeam: () => request<CodeTeamRoster>("/nurse/code-blue/team"),
-  addCodeBlueTeamMember: (data: { user_id: string; tier: CodeTeamTier }) =>
+  addCodeBlueTeamMember: (data: { user_id: string; tier: CodeTeamTier; code_type: string }) =>
     request<{ id: string }>("/nurse/code-blue/team", {
       method: "POST",
       body: JSON.stringify(data),

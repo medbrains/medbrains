@@ -193,14 +193,31 @@ export function CodeBlueTab({
   );
 }
 
+/** Seconds after the call by which the page must have reported who it reached. */
+const PAGING_CONFIRM_SECS = 10;
+
+/** Whether a live code's page has not reported back in time. */
+export function isPagingUnconfirmed(row: CodeBlueEventRow, now: number): boolean {
+  return (
+    row.page_round >= 1 &&
+    !row.routing_note &&
+    now - new Date(row.started_at).getTime() > PAGING_CONFIRM_SECS * 1000
+  );
+}
+
+const DELIVERY_TONE = {
+  sent: "success",
+  queued: "info",
+  failed: "danger",
+  not_configured: "danger",
+} as const;
+
 /**
  * Who the page reached and what did not go out. A warning is never silent:
  * "SMS is not set up: only in-app alerts went out" tells the nurse to pick up
  * the phone, and a blank would tell her the team had been texted.
  */
 function PagingStatus({ row }: { row: CodeBlueEventRow }) {
-  const failed = row.delivery.filter((d) => d.status === "failed" || d.status === "not_configured");
-  const sent = row.delivery.filter((d) => d.status === "sent" || d.status === "queued");
   return (
     <Stack gap={4} mt="sm">
       {row.routing_note && (
@@ -209,20 +226,25 @@ function PagingStatus({ row }: { row: CodeBlueEventRow }) {
           {row.page_round > 1 ? ` (round ${row.page_round})` : ""}
         </Text>
       )}
+      {/* The list refetches every 5 s, so this is re-checked as time passes. */}
+      {isPagingUnconfirmed(row, Date.now()) && (
+        <Alert
+          tone="danger"
+          title="Paging not confirmed"
+          data-testid="code-blue-paging-unconfirmed"
+        >
+          The system has not confirmed who this code reached. Call the code team by phone.
+        </Alert>
+      )}
       {row.delivery_warning && (
         <Alert tone="warning" title="Alert delivery" data-testid="code-blue-delivery-warning">
           {row.delivery_warning}
         </Alert>
       )}
-      {(sent.length > 0 || failed.length > 0) && (
+      {row.delivery.length > 0 && (
         <Group gap="xs" wrap="wrap">
-          {sent.map((d) => (
-            <Badge key={`${d.channel}-${d.status}`} tone="success">
-              {d.channel.toUpperCase()} {d.status}: {d.count}
-            </Badge>
-          ))}
-          {failed.map((d) => (
-            <Badge key={`${d.channel}-${d.status}`} tone="danger">
+          {row.delivery.map((d) => (
+            <Badge key={`${d.channel}-${d.status}`} tone={DELIVERY_TONE[d.status]}>
               {d.channel.toUpperCase()} {d.status.replace("_", " ")}: {d.count}
             </Badge>
           ))}

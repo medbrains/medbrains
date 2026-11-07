@@ -7581,6 +7581,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.MRD.CASE_SHEETS.VIEW,
       P.NOTES.USE,
       P.NURSE.CODE_BLUE.RESPOND,
+      P.NURSE.CODE_BLUE.VIEW,
       P.NURSE.EWS.ACKNOWLEDGE,
       P.NURSE.EWS.PLAN,
       P.NURSE.EWS.VIEW,

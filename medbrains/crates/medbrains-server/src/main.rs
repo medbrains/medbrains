@@ -692,7 +692,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Critical-value escalation — unacknowledged lab alerts escalate
     // to the doctor's supervisor after the tenant's ack window.
-    medbrains_server::services::critical_alert_escalation::spawn(worker_pool.clone());
+    // It needs the credential store to know whether SMS is set up: an
+    // escalation it cannot text is reported as blocked, never as sent.
+    medbrains_server::services::critical_alert_escalation::spawn(
+        worker_pool.clone(),
+        medbrains_server::secret_backend::build_secret_resolver().await,
+    );
     // A code blue nobody answers is re-paged wider, a bounded number of times.
     medbrains_nursing::code_blue_escalation::spawn(worker_pool.clone());
     medbrains_server::services::enquiry_sla_escalation::spawn(worker_pool.clone());

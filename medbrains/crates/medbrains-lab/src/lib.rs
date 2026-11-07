@@ -2786,11 +2786,15 @@ pub async fn list_critical_alerts(
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
     let rows = sqlx::query_as::<_, LabCriticalAlert>(
-        "SELECT * FROM lab_critical_alerts \
-          WHERE tenant_id = $1 AND deleted_at IS NULL \
-            AND ($2::uuid IS NULL OR order_id = $2::uuid) \
-            AND ($3::bool IS NULL OR (acknowledged_at IS NOT NULL) = $3::bool) \
-          ORDER BY created_at DESC LIMIT 200",
+        "SELECT a.*, COALESCE((SELECT jsonb_agg(to_jsonb(c) ORDER BY c.called_at) \
+                                 FROM lab_critical_calls c \
+                                WHERE c.tenant_id = a.tenant_id AND c.alert_id = a.id), \
+                              '[]'::jsonb) AS calls \
+           FROM lab_critical_alerts a \
+          WHERE a.tenant_id = $1 AND a.deleted_at IS NULL \
+            AND ($2::uuid IS NULL OR a.order_id = $2::uuid) \
+            AND ($3::bool IS NULL OR (a.acknowledged_at IS NOT NULL) = $3::bool) \
+          ORDER BY a.created_at DESC LIMIT 200",
     )
     .bind(claims.tenant_id)
     .bind(params.order_id)
