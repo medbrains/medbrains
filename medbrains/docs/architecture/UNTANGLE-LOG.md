@@ -30,7 +30,7 @@ Rules for the work: area by area, one PR per area, behaviour unchanged except fo
 ### Web components (`apps/web/src/components/ui`)
 
 - The small seam components (`Divider`, `Tooltip`, `Select`, `Switch` and others) wrap Mantine only to set house defaults. They are not surplus: the seam rule routes every screen through them, and they are used hundreds of times (`Select` 513, `Card` 408). Kept.
-- `Abbr.tsx` and `CrabPlayer.tsx`: no user outside their own file and the barrel. Dead unless a screen is about to use them; delete in the web area PR.
+- `Abbr.tsx` (with `MEDICAL_ABBR`): no user outside its own file and the barrel export. Delete in the web area PR. (`CrabPlayer.tsx` looked unused but `Crab.tsx` loads it, so it stays.)
 - `PermissionGate.tsx`, `TileGroup.tsx`: one user each. Check whether the one caller should hold the code, or whether more screens should use them; a component with one caller is a candidate to fold in.
 
 ### Lessons from outside reading, to apply while untangling
