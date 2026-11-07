@@ -27,6 +27,12 @@ Rules for the work: area by area, one PR per area, behaviour unchanged except fo
 - `crates/medbrains-proxy/src/main.rs:409`: `new_ctx` only calls `RequestContext::new`, which may be required by a trait (check before cutting).
 - Several more in the agent and setup crates; judged one by one, since a named wrapper that hides a protocol detail is not surplus.
 
+### Web components (`apps/web/src/components/ui`)
+
+- The small seam components (`Divider`, `Tooltip`, `Select`, `Switch` and others) wrap Mantine only to set house defaults. They are not surplus: the seam rule routes every screen through them, and they are used hundreds of times (`Select` 513, `Card` 408). Kept.
+- `Abbr.tsx` and `CrabPlayer.tsx`: no user outside their own file and the barrel. Dead unless a screen is about to use them; delete in the web area PR.
+- `PermissionGate.tsx`, `TileGroup.tsx`: one user each. Check whether the one caller should hold the code, or whether more screens should use them; a component with one caller is a candidate to fold in.
+
 ### Lessons from outside reading, to apply while untangling
 
 - An error value must never be able to match a real answer: musl's `crypt()` returned `*` on failure, the same as a locked account, so long passwords opened locked accounts over SSH (sshhole.com). Our three-outcome authorization rule is the same principle; check every place that turns an error into a value.
