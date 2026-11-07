@@ -6,6 +6,7 @@ import { type Page, expect } from "@playwright/test";
 import { RegistrationDesk } from "../journeys/pages/registration-desk";
 import { freshPerson } from "../journeys/support/world";
 import { api, qs, withStepUp } from "./api";
+import { getE2EIdentity } from "./e2e-identities";
 import {
   getOpdDept,
   getFirstDrug,
@@ -525,6 +526,8 @@ export async function admitToIpd(
     encounterId?: string;
     admissionType?: string;
     provisionalDiagnosis?: string;
+    /** Defaults to the E2E doctor: a non-doctor admitting must name one. */
+    admittingDoctorId?: string;
   },
 ): Promise<string> {
   const departmentId = args.departmentId ?? (await getIpdDept(ctx)).id;
@@ -544,6 +547,7 @@ export async function admitToIpd(
       bed_id: bedId,
       encounter_id: args.encounterId,
       admission_source: "opd",
+      admitting_doctor: args.admittingDoctorId ?? getE2EIdentity("doctor").id,
       admission_type: args.admissionType,
       provisional_diagnosis: args.provisionalDiagnosis,
     },
