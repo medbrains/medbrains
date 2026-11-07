@@ -4,7 +4,7 @@
 //! differs, and that difference lives here.
 
 use serde_json::Value;
-use sqlx::{Postgres, Transaction};
+use sqlx::PgConnection;
 use uuid::Uuid;
 
 use medbrains_server_core::error::AppError;
@@ -87,7 +87,7 @@ impl Subject {
     /// Load the record, or `NotFound`.
     pub async fn load(
         self,
-        tx: &mut Transaction<'_, Postgres>,
+        tx: &mut PgConnection,
         tenant_id: Uuid,
     ) -> Result<CodeContext, AppError> {
         let sql = match self {
@@ -114,7 +114,7 @@ impl Subject {
             .bind(self.id())
             .bind(tenant_id)
             .bind(CODE_BLUE)
-            .fetch_optional(&mut **tx)
+            .fetch_optional(&mut *tx)
             .await?
             .ok_or(AppError::NotFound)
     }
@@ -122,7 +122,7 @@ impl Subject {
     /// Write what the screen shows about the latest round.
     pub async fn record_status(
         self,
-        tx: &mut Transaction<'_, Postgres>,
+        tx: &mut PgConnection,
         tenant_id: Uuid,
         (note, warning): (&str, Option<&str>),
     ) -> Result<(), AppError> {
@@ -141,7 +141,7 @@ impl Subject {
             .bind(tenant_id)
             .bind(note)
             .bind(warning)
-            .execute(&mut **tx)
+            .execute(&mut *tx)
             .await?;
         Ok(())
     }

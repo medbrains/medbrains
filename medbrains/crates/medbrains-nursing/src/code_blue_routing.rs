@@ -21,7 +21,7 @@
 use std::collections::HashSet;
 
 use chrono::{Duration, NaiveDate, NaiveDateTime, NaiveTime};
-use sqlx::{Postgres, Transaction};
+use sqlx::PgConnection;
 use uuid::Uuid;
 
 use medbrains_server_core::error::AppError;
@@ -89,7 +89,7 @@ pub fn top_tier(round: i16) -> i16 {
 
 /// The hospital's wall-clock time now, in its own timezone.
 pub async fn tenant_local_now(
-    tx: &mut Transaction<'_, Postgres>,
+    tx: &mut PgConnection,
     tenant_id: Uuid,
 ) -> Result<NaiveDateTime, AppError> {
     Ok(sqlx::query_scalar(
@@ -97,7 +97,7 @@ pub async fn tenant_local_now(
                   (SELECT timezone FROM tenants WHERE id = $1), 'Asia/Kolkata'))",
     )
     .bind(tenant_id)
-    .fetch_one(&mut **tx)
+    .fetch_one(&mut *tx)
     .await?)
 }
 
@@ -123,7 +123,7 @@ pub fn current_shift(local: NaiveDateTime) -> (NaiveDate, &'static str) {
 /// Resolve everyone round `round` of a `code_type` page reaches,
 /// deduplicated (lowest tier wins).
 pub async fn resolve(
-    tx: &mut Transaction<'_, Postgres>,
+    tx: &mut PgConnection,
     tenant_id: Uuid,
     (code_type, place): (&str, Place),
     round: i16,
@@ -160,7 +160,7 @@ pub async fn resolve(
 
 /// Active roster members of a code up to `top` tier.
 async fn roster(
-    tx: &mut Transaction<'_, Postgres>,
+    tx: &mut PgConnection,
     tenant_id: Uuid,
     code_type: &str,
     top: i16,
@@ -176,14 +176,14 @@ async fn roster(
     .bind(code_type)
     .bind(top)
     .bind(PAGE_LIMIT)
-    .fetch_all(&mut **tx)
+    .fetch_all(&mut *tx)
     .await?)
 }
 
 /// Code blue without a team: the ward's shift and the on-call doctor, else
 /// every clinician.
 async fn code_blue_fallback(
-    tx: &mut Transaction<'_, Postgres>,
+    tx: &mut PgConnection,
     tenant_id: Uuid,
     place: Place,
 ) -> Result<(TeamSource, Vec<Uuid>), AppError> {
@@ -203,7 +203,7 @@ async fn code_blue_fallback(
 /// The ward's nurses (charge nurse included) on the shift working now, and
 /// the on-call doctor for the patient's department.
 async fn ward_shift(
-    tx: &mut Transaction<'_, Postgres>,
+    tx: &mut PgConnection,
     tenant_id: Uuid,
     place: Place,
 ) -> Result<Vec<Uuid>, AppError> {
@@ -227,7 +227,7 @@ async fn ward_shift(
 
 /// Active nurses rostered on a ward for one shift.
 pub async fn ward_nurses(
-    tx: &mut Transaction<'_, Postgres>,
+    tx: &mut PgConnection,
     tenant_id: Uuid,
     ward_id: Uuid,
     (date, shift): (NaiveDate, &str),
@@ -245,15 +245,12 @@ pub async fn ward_nurses(
     .bind(date)
     .bind(shift)
     .bind(PAGE_LIMIT)
-    .fetch_all(&mut **tx)
+    .fetch_all(&mut *tx)
     .await?)
 }
 
 /// Every active doctor and nurse: the last resort, never the default.
-async fn all_clinicians(
-    tx: &mut Transaction<'_, Postgres>,
-    tenant_id: Uuid,
-) -> Result<Vec<Uuid>, AppError> {
+async fn all_clinicians(tx: &mut PgConnection, tenant_id: Uuid) -> Result<Vec<Uuid>, AppError> {
     Ok(sqlx::query_scalar(
         "SELECT id FROM users \
           WHERE tenant_id = $1 AND is_active = true AND deleted_at IS NULL \
@@ -262,7 +259,7 @@ async fn all_clinicians(
     )
     .bind(tenant_id)
     .bind(PAGE_LIMIT)
-    .fetch_all(&mut **tx)
+    .fetch_all(&mut *tx)
     .await?)
 }
 
@@ -270,7 +267,7 @@ async fn all_clinicians(
 /// blue roster, and the hospital-wide on-call) plus every active security
 /// guard.
 async fn duty_mo_and_security(
-    tx: &mut Transaction<'_, Postgres>,
+    tx: &mut PgConnection,
     tenant_id: Uuid,
 ) -> Result<Vec<Uuid>, AppError> {
     let mut people: Vec<Uuid> = sqlx::query_scalar(
@@ -285,7 +282,7 @@ async fn duty_mo_and_security(
     .bind(tenant_id)
     .bind(CODE_BLUE)
     .bind(PAGE_LIMIT)
-    .fetch_all(&mut **tx)
+    .fetch_all(&mut *tx)
     .await?;
     let on_call = medbrains_notifications::on_call::current_on_call(tx, tenant_id, None).await?;
     if let Some(user_id) = on_call.and_then(|c| c.user_id)

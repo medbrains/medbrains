@@ -13,15 +13,33 @@ use medbrains_core::permissions;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use medbrains_server_core::{
-    error::AppError, middleware::auth::Claims, middleware::authorization::require_permission,
-    state::AppState, tenant_config,
-};
+use medbrains_kernel::{Actor, require_permission};
+use medbrains_server_core::{error::AppError, middleware::auth::Claims, state::AppState};
 
 use crate::code_blue_escalation::{
     DEFAULT_MAX_ROUNDS, DEFAULT_RESPONSE_SECS, MAX_ROUNDS_KEY, MAX_ROUNDS_RANGE, RESPONSE_SECS_KEY,
     RESPONSE_SECS_RANGE,
 };
+
+/// `tenant_settings` category of the two escalation settings; the
+/// escalation pass reads the same rows.
+const SETTINGS_CATEGORY: &str = "operations";
+
+/// One escalation setting through the kernel's config: a positive integer,
+/// else `default`.
+async fn setting(tx: &mut medbrains_kernel::Tx, key: &str, default: i32) -> Result<i32, AppError> {
+    let tenant_id = tx.actor().tenant_id;
+    let value =
+        medbrains_kernel::config::setting_in(tx, &tenant_id, SETTINGS_CATEGORY, key).await?;
+    Ok(value
+        .and_then(|v| {
+            v.as_i64()
+                .or_else(|| v.as_str().and_then(|s| s.parse().ok()))
+        })
+        .and_then(|n| i32::try_from(n).ok())
+        .filter(|n| *n > 0)
+        .unwrap_or(default))
+}
 
 /// The codes a roster can be kept for: the nursing code blue and the floor
 /// codes on `er_code_activations`.
@@ -67,8 +85,7 @@ pub async fn get_code_team(
     Extension(claims): Extension<Claims>,
 ) -> Result<Json<CodeTeamRoster>, AppError> {
     require_permission(&claims, permissions::nurse::code_blue::MANAGE_TEAM)?;
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let mut tx = medbrains_kernel::begin(&state.db, Actor::from_claims(&claims)).await?;
 
     let members = sqlx::query_as::<_, CodeTeamMember>(
         "SELECT m.id, m.user_id, u.full_name, m.code_type, m.tier \
@@ -91,20 +108,8 @@ pub async fn get_code_team(
     .bind(claims.tenant_id)
     .fetch_all(&mut *tx)
     .await?;
-    let response_secs = tenant_config::setting_i32(
-        &mut tx,
-        &claims.tenant_id,
-        RESPONSE_SECS_KEY,
-        DEFAULT_RESPONSE_SECS,
-    )
-    .await?;
-    let max_rounds = tenant_config::setting_i32(
-        &mut tx,
-        &claims.tenant_id,
-        MAX_ROUNDS_KEY,
-        DEFAULT_MAX_ROUNDS,
-    )
-    .await?;
+    let response_secs = setting(&mut tx, RESPONSE_SECS_KEY, DEFAULT_RESPONSE_SECS).await?;
+    let max_rounds = setting(&mut tx, MAX_ROUNDS_KEY, DEFAULT_MAX_ROUNDS).await?;
     tx.commit().await?;
     let clamp = |v: i32, (lo, hi): (i32, i32)| v.clamp(lo, hi);
     Ok(Json(CodeTeamRoster {
@@ -144,8 +149,7 @@ pub async fn add_code_team_member(
             CODE_TYPES.join(", ")
         )));
     }
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let mut tx = medbrains_kernel::begin(&state.db, Actor::from_claims(&claims)).await?;
     let id: Uuid = sqlx::query_scalar(
         "INSERT INTO code_blue_team_members (tenant_id, user_id, tier, added_by, code_type) \
          SELECT $1, u.id, $3, $4, $5 FROM users u \
@@ -178,8 +182,7 @@ pub async fn remove_code_team_member(
     Path(id): Path<Uuid>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     require_permission(&claims, permissions::nurse::code_blue::MANAGE_TEAM)?;
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let mut tx = medbrains_kernel::begin(&state.db, Actor::from_claims(&claims)).await?;
     let removed = sqlx::query(
         "UPDATE code_blue_team_members SET deleted_at = now(), deleted_by = $3 \
           WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL",
@@ -220,8 +223,7 @@ pub async fn update_code_team_settings(
             RESPONSE_SECS_RANGE.0, RESPONSE_SECS_RANGE.1, MAX_ROUNDS_RANGE.0, MAX_ROUNDS_RANGE.1
         )));
     }
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let mut tx = medbrains_kernel::begin(&state.db, Actor::from_claims(&claims)).await?;
     for (key, value) in [
         (RESPONSE_SECS_KEY, body.response_secs),
         (MAX_ROUNDS_KEY, body.max_rounds),
@@ -234,7 +236,7 @@ pub async fn update_code_team_settings(
                    delete_reason = NULL",
         )
         .bind(claims.tenant_id)
-        .bind(tenant_config::keys::CATEGORY)
+        .bind(SETTINGS_CATEGORY)
         .bind(key)
         .bind(value)
         .execute(&mut *tx)

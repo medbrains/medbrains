@@ -2782,8 +2782,8 @@ pub async fn list_critical_alerts(
 ) -> Result<Json<Vec<LabCriticalAlert>>, AppError> {
     require_permission(&claims, permissions::lab::orders::LIST)?;
 
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let actor = medbrains_kernel::Actor::from_claims(&claims);
+    let mut tx = medbrains_kernel::begin(&state.db, actor).await?;
 
     let rows = sqlx::query_as::<_, LabCriticalAlert>(
         "SELECT a.*, COALESCE((SELECT jsonb_agg(to_jsonb(c) ORDER BY c.called_at) \
@@ -2828,8 +2828,8 @@ pub async fn acknowledge_critical_alert(
     )
     .await?;
 
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let actor = medbrains_kernel::Actor::from_claims(&claims);
+    let mut tx = medbrains_kernel::begin(&state.db, actor).await?;
 
     let existing = sqlx::query_as::<_, LabCriticalAlert>(
         "SELECT * FROM lab_critical_alerts \

@@ -18,14 +18,15 @@
 //! reached nobody also alerts the nurse in charge and the administrators.
 
 use async_trait::async_trait;
+use medbrains_kernel::Actor;
 use serde_json::{Value, json};
-use sqlx::{PgPool, Postgres, Transaction};
+use sqlx::{PgConnection, PgPool};
 use uuid::Uuid;
 
 use medbrains_core::secrets::SecretResolver;
 use medbrains_outbox::handler::{Handler, HandlerCtx, HandlerError};
 use medbrains_outbox::handlers::{twilio, whatsapp};
-use medbrains_outbox::queue::{OutboxRow, queue_in_tx};
+use medbrains_outbox::queue::{OutboxRow, queue_on};
 use medbrains_server_core::error::AppError;
 use medbrains_workflow::orchestration::default_pipelines::{CODE_BLUE_ALERT_EVENT, e164};
 
@@ -166,8 +167,8 @@ pub async fn page_round(
     (subject, round): (Subject, i16),
     channels: Channels,
 ) -> Result<PageOutcome, AppError> {
-    let mut tx = pool.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &tenant_id).await?;
+    // A system unit of work: the page acts for the hospital, not a user.
+    let mut tx = medbrains_kernel::begin(pool, Actor::system(tenant_id)).await?;
     let code = subject.load(&mut tx, tenant_id).await?;
     if code.ended {
         return Ok(PageOutcome {
@@ -226,7 +227,7 @@ pub async fn page_round(
 /// One `code_blue_pages` row per person for the round; returns those not
 /// already paged in it.
 async fn record_pages(
-    tx: &mut Transaction<'_, Postgres>,
+    tx: &mut PgConnection,
     tenant_id: Uuid,
     (subject, round): (Subject, i16),
     routing: &code_blue_routing::Routing,
@@ -255,13 +256,13 @@ async fn record_pages(
     .bind(&users)
     .bind(&tiers)
     .bind(&routes)
-    .fetch_all(&mut **tx)
+    .fetch_all(&mut *tx)
     .await?)
 }
 
 /// The in-app page, which the web shell and the phone apps raise as an alarm.
 async fn notify(
-    tx: &mut Transaction<'_, Postgres>,
+    tx: &mut PgConnection,
     tenant_id: Uuid,
     subject: Subject,
     users: &[Uuid],
@@ -280,14 +281,14 @@ async fn notify(
     .bind(subject.id())
     .bind(subject.action_url())
     .bind(users)
-    .execute(&mut **tx)
+    .execute(&mut *tx)
     .await?;
     Ok(())
 }
 
 /// Usable E.164 numbers of the paged people, deduplicated.
 async fn phones_of(
-    tx: &mut Transaction<'_, Postgres>,
+    tx: &mut PgConnection,
     tenant_id: Uuid,
     users: &[Uuid],
 ) -> Result<Vec<String>, AppError> {
@@ -297,7 +298,7 @@ async fn phones_of(
     )
     .bind(tenant_id)
     .bind(users)
-    .fetch_all(&mut **tx)
+    .fetch_all(&mut *tx)
     .await?;
     let mut phones: Vec<String> = raw.iter().filter_map(|p| e164(p)).collect();
     phones.sort_unstable();
@@ -308,7 +309,7 @@ async fn phones_of(
 /// Queue the SMS and the `WhatsApp` for one number on the channels set up.
 /// Returns how many were queued; keyed so a redelivered round queues none.
 async fn queue_messages(
-    tx: &mut Transaction<'_, Postgres>,
+    tx: &mut PgConnection,
     tenant_id: Uuid,
     (subject, round): (Subject, i16),
     (to, body): (&str, &str),
@@ -332,7 +333,7 @@ async fn queue_messages(
     let count = rows.len();
     let key = format!("{}:{}:r{round}:{to}", subject.aggregate(), subject.id());
     for (event_type, payload) in rows {
-        queue_in_tx(
+        queue_on(
             tx,
             OutboxRow {
                 tenant_id,
@@ -352,7 +353,7 @@ async fn queue_messages(
 /// Nobody could be paged: tell the person who called it, the ward's charge
 /// nurse on the current shift and the administrators, once per code.
 async fn alert_not_delivered(
-    tx: &mut Transaction<'_, Postgres>,
+    tx: &mut PgConnection,
     tenant_id: Uuid,
     subject: Subject,
     code: &crate::code_blue_subject::CodeContext,
@@ -394,7 +395,7 @@ async fn alert_not_delivered(
     .bind(shift_date)
     .bind(shift)
     .bind(subject.action_url())
-    .execute(&mut **tx)
+    .execute(&mut *tx)
     .await?;
     Ok(())
 }

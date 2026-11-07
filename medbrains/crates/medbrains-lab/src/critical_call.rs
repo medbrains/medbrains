@@ -21,10 +21,8 @@ use medbrains_core::permissions;
 use serde::Deserialize;
 use uuid::Uuid;
 
-use medbrains_server_core::{
-    error::AppError, middleware::auth::Claims, middleware::authorization::require_permission,
-    state::AppState,
-};
+use medbrains_kernel::{Actor, require_permission};
+use medbrains_server_core::{error::AppError, middleware::auth::Claims, state::AppState};
 
 #[derive(Debug, Deserialize)]
 pub struct RecordCriticalCallRequest {
@@ -84,8 +82,7 @@ pub async fn record_critical_call(
     )
     .await?;
 
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let mut tx = medbrains_kernel::begin(&state.db, Actor::from_claims(&claims)).await?;
     let (created, reported): (DateTime<Utc>, String) = sqlx::query_as(
         "SELECT created_at, value FROM lab_critical_alerts \
           WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL",

@@ -19,7 +19,8 @@ use serde_json::json;
 use sqlx::PgPool;
 use uuid::Uuid;
 
-use medbrains_outbox::queue::{OutboxRow, queue_in_tx};
+use medbrains_kernel::Actor;
+use medbrains_outbox::queue::{OutboxRow, queue_on};
 use medbrains_server_core::error::AppError;
 use medbrains_workflow::orchestration::default_pipelines::CODE_BLUE_ALERT_EVENT;
 
@@ -115,8 +116,7 @@ async fn repage(
     code_blue_id: Uuid,
     round: i16,
 ) -> Result<bool, AppError> {
-    let mut tx = pool.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &tenant_id).await?;
+    let mut tx = medbrains_kernel::begin(pool, Actor::system(tenant_id)).await?;
     let next: Option<i16> = sqlx::query_scalar(
         "UPDATE code_blue_events SET page_round = page_round + 1, last_paged_at = now() \
           WHERE id = $1 AND tenant_id = $2 AND page_round = $3 AND ended_at IS NULL \
@@ -133,7 +133,7 @@ async fn repage(
     let Some(next) = next else {
         return Ok(false);
     };
-    queue_in_tx(
+    queue_on(
         &mut tx,
         OutboxRow {
             tenant_id,

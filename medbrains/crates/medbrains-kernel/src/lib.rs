@@ -65,6 +65,16 @@ impl Actor {
             user_id: claims.sub,
         }
     }
+
+    /// No signed-in user: a background pass acting for the hospital itself
+    /// (an escalation timer, an outbox handler). Audit rows carry the nil
+    /// user, which reads as "the system", never as a person.
+    pub const fn system(tenant_id: Uuid) -> Self {
+        Self {
+            tenant_id,
+            user_id: Uuid::nil(),
+        }
+    }
 }
 
 /// One unit of work: a transaction with the tenant's RLS context and the
