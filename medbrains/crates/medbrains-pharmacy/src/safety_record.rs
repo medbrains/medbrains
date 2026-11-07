@@ -13,11 +13,9 @@ use axum::{
 use axum::Extension;
 use chrono::{DateTime, Utc};
 use medbrains_core::permissions;
+use medbrains_kernel::authz::{Relation, Resource, authorize, authz_context, collapse};
+use medbrains_kernel::{Actor, Claims, require_permission};
 use medbrains_server_core::error::AppError;
-use medbrains_server_core::middleware::auth::Claims;
-use medbrains_server_core::middleware::authorization::{
-    authz_context, collapse, outcome_of, require_permission,
-};
 use medbrains_server_core::state::AppState;
 use serde::Serialize;
 use uuid::Uuid;
@@ -48,18 +46,13 @@ pub async fn order_safety_record(
 ) -> Result<Json<Vec<SafetyRecordRow>>, AppError> {
     require_permission(&claims, permissions::pharmacy::safety::VIEW)?;
     // The same per-order gate as the order itself.
-    let ctx = authz_context(&claims);
-    collapse(outcome_of(
-        state
-            .authz
-            .check(&ctx, medbrains_authz::Relation::Viewer, "pharmacy_order", id)
-            .await,
-        "pharmacy_order",
-    ))?;
+    let order = Resource {
+        kind: "pharmacy_order",
+        id,
+    };
+    collapse(authorize(&*state.authz, &authz_context(&claims), Relation::Viewer, order).await)?;
 
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
-        .await?;
+    let mut tx = medbrains_kernel::begin(&state.db, Actor::from_claims(&claims)).await?;
     let rows = sqlx::query_as!(
         SafetyRecordRow,
         "SELECT a.id, a.warning_code, a.severity, a.action_taken, a.message, \

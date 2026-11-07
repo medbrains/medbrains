@@ -49,11 +49,17 @@ export function DispenseModal({
   patientAllergens = [],
   onDispense,
 }: Props) {
+  // This order's drugs, by id. The first hundred of the catalogue by name
+  // did not always hold them, and a controlled drug then lost its witness.
+  const catalogIds = useMemo(
+    () => [...new Set(items.map((it) => it.catalog_item_id).filter(Boolean))].sort().join(","),
+    [items],
+  );
   const { data: catalog = [] } = useQuery({
-    queryKey: ["pharmacy-catalog"],
-    queryFn: () => clinicalSupportService.listPharmacyCatalog(),
+    queryKey: ["pharmacy-catalog", "ids", catalogIds],
+    queryFn: () => clinicalSupportService.listPharmacyCatalog({ ids: catalogIds }),
     staleTime: 300_000,
-    enabled: opened,
+    enabled: opened && catalogIds.length > 0,
   });
   const catalogById = useMemo(
     () => Object.fromEntries((catalog as PharmacyCatalog[]).map((c) => [c.id, c])),

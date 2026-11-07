@@ -9,6 +9,7 @@ rust-version.workspace = true
 hex = { workspace = true }
 medbrains-authz-gate = { path = "../medbrains-authz-gate" }
 medbrains-notifications = { path = "../medbrains-notifications" }
+medbrains-kernel = { path = "../medbrains-kernel" }
 medbrains-server-core = { path = "../medbrains-server-core" }
 medbrains-server-services = { path = "../medbrains-server-services" }
 medbrains-workflow = { path = "../medbrains-workflow" }

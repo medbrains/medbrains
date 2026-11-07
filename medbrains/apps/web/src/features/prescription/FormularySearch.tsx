@@ -28,6 +28,7 @@ export function FormularySearch({ formulary, loading, onPick, inputRef }: Formul
   const byId = useMemo(() => new Map(results.map((d) => [d.id, d])), [results]);
   const hasQuery = query.trim().length > 0;
 
+  /** Adds the chosen drug to the prescription and clears the search. */
   const pick = (id: string) => {
     const drug = byId.get(id);
     if (!drug) return;
@@ -84,6 +85,7 @@ export function FormularySearch({ formulary, loading, onPick, inputRef }: Formul
   );
 }
 
+/** One match: name, salt and strength, class, stock and Rx/OTC tags. */
 function FormularyOption({ drug }: { drug: FormularyDrug }) {
   const stock = stockStatus(drug);
   return (

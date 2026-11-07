@@ -4272,6 +4272,10 @@ pub struct CatalogQuery {
     pub category: Option<String>,
     pub formulary_status: Option<String>,
     pub drug_schedule: Option<String>,
+    /// Comma-separated catalogue ids: exactly these drugs. The dispense
+    /// screen reads an order's drugs this way; the first hundred by name did
+    /// not always include them, and a controlled drug then lost its witness.
+    pub ids: Option<String>,
 }
 
 pub async fn list_catalog(
@@ -4307,10 +4311,23 @@ pub async fn list_catalog(
         .await?;
 
     let search = q.search.map(|s| format!("%{s}%"));
+    let ids: Option<Vec<Uuid>> = q
+        .ids
+        .as_deref()
+        .map(|raw| {
+            raw.split(',')
+                .map(str::trim)
+                .filter(|s| !s.is_empty())
+                .map(Uuid::parse_str)
+                .collect::<Result<Vec<_>, _>>()
+        })
+        .transpose()
+        .map_err(|_| AppError::BadRequest("ids must be catalogue ids".to_owned()))?;
 
     let rows = sqlx::query_as::<_, PharmacyCatalog>(
         "SELECT * FROM pharmacy_catalog
          WHERE tenant_id = $1 AND deleted_at IS NULL
+           AND ($7::uuid[] IS NULL OR id = ANY($7))
            AND ($2::text IS NULL OR name ILIKE $2 OR generic_name ILIKE $2 OR code ILIKE $2)
            AND ($3::text IS NULL OR category = $3)
            AND ($4::text IS NULL OR formulary_status::text = $4)
@@ -4329,6 +4346,7 @@ pub async fn list_catalog(
             .map(str::trim)
             .filter(|b| !b.is_empty()),
     )
+    .bind(ids)
     .fetch_all(&mut *tx)
     .await?;
 

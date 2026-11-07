@@ -384,7 +384,6 @@ test("a Schedule X controlled drug is refused without a witness, the refusal is 
   await expect(register.getByText(`${morphine.name}: 14`)).toBeVisible({ timeout: 15_000 });
   await expect(register.getByRole("row").filter({ hasText: /Dispensed\s*6\s*14/ })).toHaveCount(1);
 });
-});
 
 test("a documented allergy stops the dispense until the pharmacist records why, and the override is filed", async ({
   hospital,

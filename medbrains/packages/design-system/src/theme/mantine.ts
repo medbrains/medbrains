@@ -628,6 +628,22 @@ export function createMedBrainsTheme(opts: CreateMedBrainsThemeOptions = {}): Ma
       // Signature Spectrum toast look — applies to EVERY notification
       // (toast.* helper AND raw notifications.show). Theme-level so it is
       // layer-safe (Mantine's notification classes are hashed + layered).
+      // Mantine's previous/next arrows are icons with no name, and a page
+      // number alone does not say it is a page.
+      Pagination: {
+        defaultProps: {
+          getControlProps: (control: "first" | "previous" | "last" | "next") => ({
+            "aria-label": {
+              first: "First page",
+              previous: "Previous page",
+              next: "Next page",
+              last: "Last page",
+            }[control],
+          }),
+          getItemProps: (page: number) => ({ "aria-label": `Page ${page}` }),
+        },
+      },
+
       Notification: {
         defaultProps: {
           withBorder: true,

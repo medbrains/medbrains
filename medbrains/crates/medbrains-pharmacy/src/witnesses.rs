@@ -10,9 +10,8 @@
 use axum::Extension;
 use axum::{Json, extract::State};
 use medbrains_core::permissions;
+use medbrains_kernel::{Actor, Claims, require_permission};
 use medbrains_server_core::error::AppError;
-use medbrains_server_core::middleware::auth::Claims;
-use medbrains_server_core::middleware::authorization::require_permission;
 use medbrains_server_core::state::AppState;
 use serde::Serialize;
 use uuid::Uuid;
@@ -30,14 +29,15 @@ pub struct DispenseWitness {
 /// Lists active colleagues whose role may dispense, excluding the caller (a
 /// witness is a second person). Grants given to one user on top of their
 /// role are not read.
-// ponytail: role grants only; add access_matrix extras if a hospital witnesses that way
+///
+/// ponytail: role grants only; add `access_matrix` extras if a hospital
+/// witnesses that way.
 pub async fn list_dispense_witnesses(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
 ) -> Result<Json<Vec<DispenseWitness>>, AppError> {
     require_permission(&claims, permissions::pharmacy::dispensing::CREATE)?;
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let mut tx = medbrains_kernel::begin(&state.db, Actor::from_claims(&claims)).await?;
     let rows = sqlx::query_as!(
         DispenseWitness,
         "SELECT u.id, u.full_name \
