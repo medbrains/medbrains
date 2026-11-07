@@ -7,6 +7,7 @@ rust-version.workspace = true
 
 [dependencies]
 medbrains-notifications = { path = "../medbrains-notifications" }
+medbrains-outbox = { path = "../medbrains-outbox" }
 medbrains-server-core = { path = "../medbrains-server-core" }
 medbrains-core = { path = "../medbrains-core" }
 medbrains-db = { path = "../medbrains-db" }

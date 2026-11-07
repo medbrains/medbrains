@@ -1,14 +1,16 @@
 /**
  * Link a MedBrains account to a person in the hospital's own sign-in service (Kanidm), or remove the link.
  * An email address never links an account there, so an existing member of staff who signs in through it is
- * linked here by IT, who picks the person by name and ID. Linking an administrator's account needs an
- * administrator; the server refuses anyone else.
+ * linked here by IT, who picks the person by name and ID. The server refuses a link that would hand the caller
+ * more than they hold (an administrator's account, any `admin.*` permission, anything the caller lacks), and
+ * never re-points a linked account: an administrator removes the link first. The holder is told either way.
  */
 
 import { Group, Stack, Text } from "@mantine/core";
 import { useDebouncedValue } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
 import { api } from "@medbrains/api";
+import { BYPASS_ROLES, usePermissionStore } from "@medbrains/stores";
 import type { KanidmPerson } from "@medbrains/types";
 import { IconLink, IconLinkOff, IconSearch } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -30,8 +32,11 @@ interface KanidmLinkModalProps {
   onClose: () => void;
 }
 
+/** The link screen for one account: its current link, and the people it may be linked to. */
 export function KanidmLinkModal({ user, onClose }: KanidmLinkModalProps) {
   const queryClient = useQueryClient();
+  const userRole = usePermissionStore((state) => state.userRole);
+  const canUnlink = userRole !== null && BYPASS_ROLES.has(userRole);
   const [search, setSearch] = useState("");
   const [query] = useDebouncedValue(search.trim(), SEARCH_DELAY_MS);
   const linkKey = ["sso-link", user.id];
@@ -40,11 +45,13 @@ export function KanidmLinkModal({ user, onClose }: KanidmLinkModalProps) {
     queryKey: ["kanidm-people", query],
     queryFn: () => api.listKanidmPeople(query),
   });
+  /** Says the change worked and re-reads the link and the people, whose "linked to" has changed. */
   const done = (title: string) => {
     notifications.show({ title, message: user.full_name, color: "success" });
     void queryClient.invalidateQueries({ queryKey: linkKey });
     void queryClient.invalidateQueries({ queryKey: ["kanidm-people"] });
   };
+  /** Shows the server's reason, such as "remove that link first", when a change is refused. */
   const fail = (err: Error) =>
     notifications.show({ title: "The link did not change", message: err.message, color: "danger" });
   const linkTo = useMutation({
@@ -57,6 +64,7 @@ export function KanidmLinkModal({ user, onClose }: KanidmLinkModalProps) {
     onSuccess: () => done("Link removed"),
     onError: fail,
   });
+  /** Asks before removing the link, since an account without its own password then cannot sign in. */
   const confirmUnlink = () =>
     confirmDestructive({
       title: "Remove the link?",
@@ -72,6 +80,7 @@ export function KanidmLinkModal({ user, onClose }: KanidmLinkModalProps) {
           subject={link.data?.subject ?? null}
           loading={link.isPending}
           failed={link.isError}
+          canUnlink={canUnlink}
           onUnlink={confirmUnlink}
           unlinking={unlink.isPending}
         />
@@ -99,12 +108,23 @@ interface CurrentLinkProps {
   subject: string | null;
   loading: boolean;
   failed: boolean;
+  canUnlink: boolean;
   onUnlink: () => void;
   unlinking: boolean;
 }
 
-/** The account's link now: to whom, and the way to remove it. A failed read says so, never "not linked". */
-function CurrentLink({ subject, loading, failed, onUnlink, unlinking }: CurrentLinkProps) {
+/**
+ * The account's link now: to whom, and, for an administrator, the way to remove it. A failed read says so,
+ * never "not linked".
+ */
+function CurrentLink({
+  subject,
+  loading,
+  failed,
+  canUnlink,
+  onUnlink,
+  unlinking,
+}: CurrentLinkProps) {
   if (failed) {
     return (
       <Alert tone="danger">The account's link could not be read. Close this and try again.</Alert>
@@ -121,22 +141,31 @@ function CurrentLink({ subject, loading, failed, onUnlink, unlinking }: CurrentL
     );
   }
   return (
-    <Group justify="space-between">
-      <Text size="sm">
-        Linked to sign-in ID{" "}
-        <Text span ff="monospace">
-          {subject}
+    <Stack gap="xs">
+      <Group justify="space-between">
+        <Text size="sm">
+          Linked to sign-in ID{" "}
+          <Text span ff="monospace">
+            {subject}
+          </Text>
         </Text>
+        {canUnlink && (
+          <Button
+            tone="danger"
+            leftSection={<IconLinkOff size={16} />}
+            loading={unlinking}
+            onClick={onUnlink}
+          >
+            Remove link
+          </Button>
+        )}
+      </Group>
+      <Text size="xs">
+        {canUnlink
+          ? "To link a different person, remove this link first."
+          : "Only an administrator can remove this link or link a different person."}
       </Text>
-      <Button
-        tone="danger"
-        leftSection={<IconLinkOff size={16} />}
-        loading={unlinking}
-        onClick={onUnlink}
-      >
-        Remove link
-      </Button>
-    </Group>
+    </Stack>
   );
 }
 
@@ -208,7 +237,7 @@ function PeopleTable({
                 tone="primary"
                 size="xs"
                 leftSection={<IconLink size={14} />}
-                disabled={person.uuid === linkedSubject || Boolean(person.linked_username)}
+                disabled={linkedSubject !== null || Boolean(person.linked_username)}
                 loading={linking}
                 onClick={() => onLink(person)}
                 aria-label={`Link to ${person.name}`}

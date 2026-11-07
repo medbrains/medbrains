@@ -7136,6 +7136,7 @@ dependencies = [
  "medbrains-crypto",
  "medbrains-db",
  "medbrains-notifications",
+ "medbrains-outbox",
  "medbrains-server-core",
  "reqwest 0.13.5",
  "serde",

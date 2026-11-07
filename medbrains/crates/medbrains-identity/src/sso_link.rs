@@ -11,14 +11,16 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use medbrains_core::permissions::admin::users::LINK_IDENTITY;
+use medbrains_notifications::publish_notification;
 use medbrains_server_core::{
     error::AppError,
-    middleware::{
-        auth::Claims,
-        authorization::{BYPASS_ROLES, require_permission},
-    },
+    middleware::{auth::Claims, authorization::require_permission},
     state::AppState,
 };
+
+mod target;
+
+use target::{guard_target, holder_notice, is_admin, needs_link_write, notify_holder};
 
 /// The OS's own Kanidm, as kanidm-setup registers it.
 const KANIDM_CODE: &str = "kanidm";
@@ -201,24 +203,6 @@ pub async fn get_link(
     }))
 }
 
-/// Refuses to link or unlink an administrator's account unless the caller is an administrator: whoever controls
-/// the Kanidm person would control the account.
-async fn guard_target(
-    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
-    claims: &Claims,
-    user_id: Uuid,
-) -> Result<(), AppError> {
-    let role = sqlx::query_scalar::<_, String>("SELECT role::text FROM users WHERE id = $1")
-        .bind(user_id)
-        .fetch_optional(&mut **tx)
-        .await?
-        .ok_or(AppError::NotFound)?;
-    if BYPASS_ROLES.contains(&role.as_str()) && !BYPASS_ROLES.contains(&claims.role.as_str()) {
-        return Err(AppError::Forbidden);
-    }
-    Ok(())
-}
-
 /// Writes one audit row for a link change, in the change's own transaction.
 async fn audit_link(
     tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
@@ -259,8 +243,16 @@ pub async fn set_link(
     }
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
-    guard_target(&mut tx, &claims, user_id).await?;
+    let target = guard_target(&state, &mut tx, &claims, user_id).await?;
     let (provider_id, _) = kanidm_provider(&mut tx).await?;
+    let current = target.subject.as_deref().map(|s| (target.idp_id, s));
+    if !needs_link_write(current, (provider_id, &req.subject))? {
+        tx.commit().await?;
+        return Ok(Json(SsoLink {
+            provider_id,
+            subject: req.subject,
+        }));
+    }
     let taken = sqlx::query_scalar::<_, String>(
         "SELECT username FROM users WHERE idp_id = $1 AND external_subject = $2 AND id <> $3",
     )
@@ -286,15 +278,31 @@ pub async fn set_link(
     let details =
         serde_json::json!({ "provider_id": provider_id, "external_subject": req.subject });
     audit_link(&mut tx, &claims, user_id, "sso_link", &details).await?;
+    let notice = notify_holder(
+        &mut tx,
+        claims.tenant_id,
+        user_id,
+        target.email.as_deref(),
+        true,
+    )
+    .await?;
     tx.commit().await?;
+    publish_notification(
+        &state,
+        claims.tenant_id,
+        notice,
+        &holder_notice(user_id, true),
+    );
     Ok(Json(SsoLink {
         provider_id,
         subject: req.subject,
     }))
 }
 
-/// DELETE /api/admin/users/{id}/sso-link — removes the account's link to Kanidm. Audited. An account with no
-/// password of its own cannot sign in afterwards until it is linked again or given one.
+/// DELETE /api/admin/users/{id}/sso-link — removes the account's link to Kanidm.
+///
+/// Only an administrator may remove a link, since removing one is how an account is re-pointed. Audited, and
+/// the holder is told. An account with no password of its own cannot sign in afterwards until it is linked again or given one.
 pub async fn remove_link(
     Extension(claims): Extension<Claims>,
     State(state): State<AppState>,
@@ -303,7 +311,14 @@ pub async fn remove_link(
     require_permission(&claims, LINK_IDENTITY)?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
-    guard_target(&mut tx, &claims, user_id).await?;
+    let target = guard_target(&state, &mut tx, &claims, user_id).await?;
+    if target.subject.is_none() {
+        tx.commit().await?;
+        return Ok(Json(serde_json::json!({ "unlinked": false })));
+    }
+    if !is_admin(&claims) {
+        return Err(AppError::Forbidden);
+    }
     let previous = sqlx::query_as::<_, (Option<Uuid>, Option<String>)>(
         "UPDATE users u SET idp_id = NULL, external_subject = NULL, perm_version = u.perm_version + 1, \
          updated_at = now() FROM users old WHERE u.id = $1 AND old.id = u.id \
@@ -315,7 +330,21 @@ pub async fn remove_link(
     .ok_or(AppError::NotFound)?;
     let details = serde_json::json!({ "provider_id": previous.0, "external_subject": previous.1 });
     audit_link(&mut tx, &claims, user_id, "sso_unlink", &details).await?;
+    let notice = notify_holder(
+        &mut tx,
+        claims.tenant_id,
+        user_id,
+        target.email.as_deref(),
+        false,
+    )
+    .await?;
     tx.commit().await?;
+    publish_notification(
+        &state,
+        claims.tenant_id,
+        notice,
+        &holder_notice(user_id, false),
+    );
     Ok(Json(serde_json::json!({ "unlinked": true })))
 }
 

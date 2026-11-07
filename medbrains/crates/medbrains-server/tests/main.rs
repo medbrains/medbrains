@@ -274,6 +274,7 @@ mod sign_in_options_test;
 mod signatures_test;
 mod snomed_terminology_test;
 mod soap_note_access_test;
+mod sso_link_guard_test;
 mod soft_delete_lists_test;
 mod soft_deleted_lists_test;
 mod sticky_notes_test;
