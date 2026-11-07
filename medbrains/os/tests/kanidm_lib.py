@@ -13,7 +13,7 @@ CONNECT = ["--connect-to", f"medbrains.local:443:127.0.0.1:{os.environ.get('OS_W
 SERIAL = os.environ.get("OS_WORK", "/tmp/mb-osimage-kanidm") + "/vm/serial.sock"
 SERIAL_CONNECT_TRIES = 40
 ADMIN = ("asha_admin", "Blue-River-Walks-At-7!")
-LIMITER_DROP_IN = "/run/systemd/system/medbrains-signin-limit.service.d"
+FRONT_DROP_IN = "/run/systemd/system/medbrains-front.service.d"
 
 
 def curl(url, method="GET", token=None, body=None, form=None, jar=None, csrf=None, extra=()):
@@ -137,16 +137,18 @@ def set_up_machine():
     started = time.time()
     while time.time() - started < 600:
         time.sleep(5)
-        states = serial("systemctl is-active medbrains-server kanidmd caddy kanidm-setup medbrains-signin-limit | sort -u | tr -d '\\n'", 8).split()[-1]
+        states = serial("systemctl is-active medbrains-server kanidmd medbrains-front kanidm-setup | sort -u | tr -d '\\n'", 8).split()[-1]
         if states == "active" and curl(f"{WEB}/api/health")[0] == 200:
             return
     raise SystemExit("setup: the services did not come up")
 
 
 def limit_opened(opened):
-    """Raises the front's limit for a test that signs in many times, or puts the real one back."""
+    """Raises the front's sign-in limits for a test that signs in many times, or puts the real ones back: a copy
+    of its config in /run with the limits raised, for this boot only."""
     if opened:
-        serial(f"mkdir -p {LIMITER_DROP_IN}; printf '[Service]\\nEnvironment=SIGNIN_LIMIT_BURST=100000 SIGNIN_LIMIT_PER_MINUTE=100000\\n' > {LIMITER_DROP_IN}/test.conf; "
-               "systemctl daemon-reload; systemctl restart medbrains-signin-limit; sleep 1", 20)
+        serial("sed -E 's/burst = 30, per_minute = 15/burst = 100000, per_minute = 100000/' /usr/lib/medbrains/front.toml > /run/front-test.toml; "
+               f"mkdir -p {FRONT_DROP_IN}; printf '[Service]\\nExecStart=\\nExecStart=/usr/bin/medbrains-front --config /run/front-test.toml\\n' > {FRONT_DROP_IN}/limits.conf; "
+               "systemctl daemon-reload; systemctl restart medbrains-front; sleep 2", 20)
     else:
-        serial(f"rm -rf {LIMITER_DROP_IN}; systemctl daemon-reload; systemctl restart medbrains-signin-limit; sleep 1", 20)
+        serial(f"rm -rf {FRONT_DROP_IN} /run/front-test.toml; systemctl daemon-reload; systemctl restart medbrains-front; sleep 2", 20)

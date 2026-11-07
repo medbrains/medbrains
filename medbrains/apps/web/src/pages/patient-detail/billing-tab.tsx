@@ -28,6 +28,7 @@ export function BillingTab({ patientId }: { patientId: string }) {
   // list this tab already shows. The ledger button below prints from the rows
   // already fetched and needs nothing extra.
   const canViewInvoice = useHasPermission(P.BILLING.INVOICES_VIEW);
+  const canListAdmissions = useHasPermission(P.IPD.ADMISSIONS_LIST);
   const [printingInvoiceId, setPrintingInvoiceId] = useState<string | null>(null);
   const [printingPatientLedger, setPrintingPatientLedger] = useState(false);
   const { data: invoices, isLoading } = useQuery({
@@ -37,6 +38,7 @@ export function BillingTab({ patientId }: { patientId: string }) {
   const { data: activeAdmissions } = useQuery({
     queryKey: ["patient-admissions", patientId, "admitted"],
     queryFn: () => patientDetailService.listPatientAdmissions(patientId, "admitted"),
+    enabled: canListAdmissions,
   });
   const activeAdmission: AdmissionRow | undefined = activeAdmissions?.admissions[0];
   const { data: ipdBilling } = useQuery({

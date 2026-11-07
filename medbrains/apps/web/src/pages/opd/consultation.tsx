@@ -28,6 +28,7 @@ export function ConsultationTab({
   const emit = useClinicalEmit();
   const queryClient = useQueryClient();
   const canWrite = useHasPermission(P.CLINICAL_NOTES.WRITE);
+  const canViewNotes = useHasPermission(P.CLINICAL_NOTES.VIEW);
   const [templateId, setTemplateId] = useState<string | null>(null);
   // Earlier visits' notes keep the masking the SOAP field always had.
   const soapAccess = useFieldAccess("opd.soap_note");
@@ -35,6 +36,7 @@ export function ConsultationTab({
   const { data: notes = [] } = useQuery({
     queryKey: ["clinical-notes", encounterId],
     queryFn: () => clinicalNotesService.listEncounterNotes(encounterId),
+    enabled: canViewNotes,
   });
   const { data: templates = [] } = useQuery<ConsultationTemplate[]>({
     queryKey: ["consultation-templates"],

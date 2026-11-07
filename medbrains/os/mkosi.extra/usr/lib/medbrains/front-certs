@@ -1,0 +1,326 @@
+#!/bin/bash
+# Every certificate medbrains-front needs. Run as root before the front starts and once a minute by
+# a timer; a no-op unless something is missing, expiring, or the machine's addresses changed.
+#
+#   ca/     this machine's own certificate authority, made here, shared with nothing. Root only.
+#           Limited by name constraints to local names and private addresses, so a stolen key
+#           cannot sign for a bank on a PC that trusts this machine.
+#   lan/    the certificate for the LAN port, signed by ca/. names lists what the machine answers
+#           to; the certificate covers those the authority is allowed to sign. A link to a lan.<time>
+#           folder, swapped with one rename, so the front only ever finds an old pair or a new one.
+#   screen/ the self-signed certificate for the loopback port, the only one the screen trusts.
+#   idp/    the identity provider's port 9443: a self-signed certificate for its own name, which the
+#           screen and the MedBrains server trust, and a copy of Kanidm's certificate, which the front
+#           trusts on loopback. Only a main machine runs the front, and only it runs Kanidm.
+#
+# The set of names is bounded and known ahead of time: nothing a client sends creates a certificate.
+# A hospital's own DNS name goes in /var/lib/medbrains/config/front-names, one per line. A name there
+# at first boot joins the authority's constraints, which can never change afterwards. A later name
+# under an allowed suffix is covered; any other is answered, with a browser warning, until T2.
+#
+# IPv6 addresses learned from a router advertisement are left out: anyone on the LAN can send one, and
+# each would otherwise mean a new certificate and a restart. Such a client uses medbrains.local.
+#
+# To use a hospital root (T2): put a CA certificate it signed in ca/ca.pem, followed by its chain, and
+# that CA's key in ca/ca.key, and remove ca/permitted. The hospital's CA carries its own constraints.
+#
+# --restart: also restart the front if the certificate changed.
+set -euo pipefail
+
+STATE=/var/lib/medbrains-front
+CA="$STATE/ca"
+LAN="$STATE/lan"
+SCREEN="$STATE/screen"
+IDP="$STATE/idp"
+IDP_NAME=idm.medbrains.local
+IDP_SERVER_TRUST=/var/lib/medbrains/config/idp-front.pem
+GROUP=medbrains-front
+SCREEN_TRUST=/var/lib/medbrains-settings/local-front.pem
+AGENT_COPY=/var/lib/medbrains-agent/local-front.pem
+EXTRA_NAMES=/var/lib/medbrains/config/front-names
+LOCK=/run/medbrains-front-certs.lock
+MAX_NAMES=64
+MAX_NAME_BYTES=253
+LOCK_WAIT_SECONDS=60
+# Longest wait on the agent's copy: a FIFO planted there must not hold the lock forever.
+AGENT_COPY_SECONDS=10
+# What the machine is called when its kernel name could not go in a certificate.
+FALLBACK_HOST=medbrains
+LEAF_DAYS=397
+RENEW_SECONDS=$((30 * 24 * 3600))
+# Local suffixes no public certificate authority can issue for.
+LOCAL_SUFFIXES=(local internal lan intranet home.arpa localhost)
+umask 077
+
+# This machine's name, only if a certificate can hold it: it goes into the authority's constraints.
+this_host() {
+    local host
+    host="$(cat /proc/sys/kernel/hostname)"
+    if is_valid_name "$host" && [[ ! "$host" =~ ^[0-9.]+$ && "$host" != *:* ]]; then
+        echo "$host"
+    else
+        echo "$FALLBACK_HOST"
+    fi
+}
+
+# True for a dotted IPv4 address.
+is_ipv4() {
+    local -a octets
+    [[ "$1" =~ ^[0-9]{1,3}(\.[0-9]{1,3}){3}$ ]] || return 1
+    IFS=. read -r -a octets <<<"$1"
+    ((10#${octets[0]} <= 255 && 10#${octets[1]} <= 255 && 10#${octets[2]} <= 255 && 10#${octets[3]} <= 255))
+}
+
+# True for an IPv6 address, as `ip` reads it.
+is_ipv6() {
+    [[ "$1" == *:* && "$1" =~ ^[0-9A-Fa-f:.]+$ ]] && ip -6 addr show to "$1" >/dev/null 2>&1
+}
+
+# True for a name a certificate can hold. Anything else in front-names is skipped, not fatal.
+is_valid_name() {
+    local label='[A-Za-z0-9]([A-Za-z0-9-]*[A-Za-z0-9])?'
+    [[ ${#1} -le $MAX_NAME_BYTES ]] || return 1
+    if [[ "$1" =~ ^[0-9.]+$ ]]; then is_ipv4 "$1"; return; fi
+    if [[ "$1" == *:* ]]; then is_ipv6 "$1"; return; fi
+    [[ "$1" =~ ^($label\.)*$label$ ]]
+}
+
+# Every candidate name, one per line, in order of preference.
+candidate_names() {
+    local host
+    host="$(this_host)"
+    printf '%s\n' medbrains.local "$host" "$host.local" localhost 127.0.0.1 ::1
+    if [[ -r "$EXTRA_NAMES" ]]; then cat "$EXTRA_NAMES"; fi
+    # Sorted: `ip` may list the same addresses in another order, which is no reason for a restart.
+    {
+        ip -o -4 addr show scope global | awk '{print $4}' | cut -d/ -f1
+        ip -o -6 addr show scope global permanent | awk '{print $4}' | cut -d/ -f1
+    } | sort -u
+}
+
+# What this machine answers to: valid, without repeats, at most MAX_NAMES.
+names() {
+    local name count=0
+    local -A seen=()
+    while IFS= read -r name; do
+        [[ -n "$name" && -z "${seen[$name]:-}" ]] || continue
+        if ! is_valid_name "$name"; then
+            echo "front-certs: skipping a line that is no name or address" >&2
+            continue
+        fi
+        seen[$name]=1
+        echo "$name"
+        count=$((count + 1))
+        ((count < MAX_NAMES)) || return 0
+    done < <(candidate_names)
+}
+
+# True for an address the authority may sign: private IPv4, unique local IPv6, or loopback.
+is_private_address() {
+    [[ "$1" =~ ^(10\.|127\.|192\.168\.|172\.(1[6-9]|2[0-9]|3[01])\.) || "$1" =~ ^[fF][cCdD] || "$1" == ::1 ]]
+}
+
+# The DNS names the authority may sign: the local suffixes and what it was made with.
+permitted_dns() {
+    printf '%s\n' "${LOCAL_SUFFIXES[@]}"
+    if [[ -r "$CA/permitted" ]]; then cat "$CA/permitted"; fi
+}
+
+# True if the authority may sign this name. A hospital's authority (no permitted file) decides itself.
+is_in_scope() {
+    local suffix
+    [[ -e "$CA/permitted" ]] || return 0
+    if [[ "$1" == *:* || "$1" =~ ^[0-9.]+$ ]]; then is_private_address "$1"; return; fi
+    while IFS= read -r suffix; do
+        [[ "$1" == "$suffix" || "$1" == *".$suffix" ]] && return 0
+    done < <(permitted_dns)
+    return 1
+}
+
+# Turns names on stdin into an X.509 subjectAltName value, leaving out what the authority cannot sign.
+san_list() {
+    local name list=""
+    while IFS= read -r name; do
+        if ! is_in_scope "$name"; then
+            echo "front-certs: $name is outside this authority's constraints; browsers will warn" >&2
+        elif [[ "$name" =~ ^[0-9.]+$ || "$name" == *:* ]]; then
+            list+="IP:$name,"
+        else
+            list+="DNS:$name,"
+        fi
+    done
+    echo "${list%,}"
+}
+
+# The authority's name constraints, fixed for its whole life.
+constraints() {
+    local name value="critical"
+    # A name file exists from here on, so is_in_scope knows this authority is constrained.
+    while IFS= read -r name; do
+        if [[ ! "$name" =~ ^[0-9.]+$ && "$name" != *:* ]]; then
+            value+=",permitted;DNS:$name"
+        fi
+    done < <(permitted_dns)
+    value+=",permitted;IP:10.0.0.0/255.0.0.0,permitted;IP:172.16.0.0/255.240.0.0"
+    value+=",permitted;IP:192.168.0.0/255.255.0.0,permitted;IP:127.0.0.0/255.0.0.0"
+    value+=",permitted;IP:fc00:0:0:0:0:0:0:0/fe00:0:0:0:0:0:0:0"
+    value+=",permitted;IP:0:0:0:0:0:0:0:1/ffff:ffff:ffff:ffff:ffff:ffff:ffff:ffff"
+    echo "$value"
+}
+
+# This machine's own authority: one key, made here. Kept if it is there, so browsers that trust it
+# keep trusting it, and so a hospital's can replace it.
+ensure_ca() {
+    [[ -s "$CA/ca.key" && -s "$CA/ca.pem" ]] && return
+    install -d -m 0700 "$CA"
+    {
+        this_host
+        names | while IFS= read -r name; do
+            [[ "$name" =~ ^[0-9.]+$ || "$name" == *:* ]] || echo "$name"
+        done
+    } | awk '!seen[$0]++' > "$CA/permitted"
+    openssl req -x509 -newkey ec -pkeyopt ec_paramgen_curve:prime256v1 -nodes -days 7300 \
+        -keyout "$CA/ca.key" -out "$CA/ca.pem" -subj "/CN=MedBrains local authority $(this_host)" \
+        -addext "basicConstraints=critical,CA:TRUE,pathlen:0" \
+        -addext "keyUsage=critical,keyCertSign,cRLSign" \
+        -addext "nameConstraints=$(constraints)" 2>/dev/null
+}
+
+# True if this key belongs to this certificate. A mismatch stops the front from starting.
+keys_match() {
+    local from_key from_cert
+    from_key="$(openssl pkey -in "$1" -pubout 2>/dev/null)" || return 1
+    from_cert="$(openssl x509 -in "$2" -noout -pubkey 2>/dev/null)" || return 1
+    [[ -n "$from_key" && "$from_key" == "$from_cert" ]]
+}
+
+# True if the LAN port can serve what is on disk, whatever it covers.
+lan_is_usable() {
+    [[ -s "$LAN/key.pem" && -s "$LAN/chain.pem" && -s "$LAN/names" ]] || return 1
+    keys_match "$LAN/key.pem" "$LAN/chain.pem" &&
+        openssl x509 -in "$LAN/chain.pem" -noout -checkend 0 >/dev/null 2>&1
+}
+
+# True if the LAN certificate is good for this set of names, from this authority, for a while yet.
+lan_is_current() {
+    lan_is_usable || return 1
+    [[ "$(sort -u "$LAN/names")" == "$(sort -u <<<"$1")" ]] || return 1
+    openssl x509 -in "$LAN/chain.pem" -noout -checkend "$RENEW_SECONDS" >/dev/null 2>&1 || return 1
+    openssl verify -partial_chain -CAfile "$CA/ca.pem" "$LAN/chain.pem" >/dev/null 2>&1
+}
+
+# Points lan at the folder $1 with one rename, then removes every other lan.* folder. A lan that
+# is still a folder, from before the links, becomes a version first.
+swap_lan() {
+    local version="$1" dir
+    if [[ -d "$LAN" && ! -L "$LAN" ]]; then
+        mv "$LAN" "$STATE/lan.$(date +%s%N).old" || return 1
+    fi
+    ln -sfn "$version" "$STATE/lan.link" && mv -Tf "$STATE/lan.link" "$LAN" || return 1
+    for dir in "$STATE"/lan.*; do
+        [[ "$dir" == "$STATE/$version" ]] || rm -rf "$dir"
+    done
+}
+
+# Issues the LAN certificate in a new folder, then swaps it in whole: the key and certificate only
+# ever change together, and a failure anywhere leaves the old pair in place.
+issue_lan() {
+    local wanted="$1" version new sans
+    version="lan.$(date +%s%N)"
+    new="$STATE/$version"
+    sans="$(san_list <<<"$wanted")" && [[ -n "$sans" ]] || return 1
+    install -d -m 0750 -g "$GROUP" "$new" || return 1
+    openssl req -new -newkey ec -pkeyopt ec_paramgen_curve:prime256v1 -nodes \
+        -keyout "$new/key.pem" -out "$new/request.csr" -subj "/CN=medbrains.local" 2>/dev/null || return 1
+    openssl x509 -req -in "$new/request.csr" -CA "$CA/ca.pem" -CAkey "$CA/ca.key" -CAcreateserial \
+        -days "$LEAF_DAYS" -out "$new/leaf.pem" -extfile <(printf '%s\n' \
+            "subjectAltName=$sans" "basicConstraints=critical,CA:FALSE" \
+            "keyUsage=critical,digitalSignature" "extendedKeyUsage=serverAuth") 2>/dev/null || return 1
+    cat "$new/leaf.pem" "$CA/ca.pem" > "$new/chain.pem" || return 1
+    printf '%s\n' "$wanted" > "$new/names" || return 1
+    rm -f "$new/request.csr" "$new/leaf.pem"
+    chgrp "$GROUP" "$new/key.pem" "$new/chain.pem" "$new/names" || return 1
+    chmod 0640 "$new/key.pem" "$new/chain.pem" "$new/names" || return 1
+    keys_match "$new/key.pem" "$new/chain.pem" || { rm -rf "$new"; return 1; }
+    swap_lan "$version"
+}
+
+# The screen's trust store, in a folder only root writes, in place because the running unit has this
+# very file bound in, and the copy the agent hands to machines it admits. That copy is in the agent's
+# own folder, so it is written as the agent: a link planted there reaches nothing the agent could not.
+# Only a regular file or nothing is accepted there, every touch of it is under a time limit, and it is
+# replaced by a rename, so a FIFO or a device cannot hold this script and its lock.
+ensure_certificate_copies() {
+    # The screen also opens the identity provider's port, from the Identity tile.
+    cat "$SCREEN/cert.pem" "$IDP/cert.pem" > "$SCREEN_TRUST.new"
+    if ! cmp -s "$SCREEN_TRUST.new" "$SCREEN_TRUST"; then
+        cat "$SCREEN_TRUST.new" > "$SCREEN_TRUST"
+        # A screen that already started holds the old trust in memory.
+        systemctl --no-block try-restart cage-console.service || true
+    fi
+    rm -f "$SCREEN_TRUST.new"
+    if [[ -L "$AGENT_COPY" ]] || [[ -e "$AGENT_COPY" && ! -f "$AGENT_COPY" ]]; then
+        echo "front-certs: refusing $AGENT_COPY: not a regular file" >&2
+    elif [[ -d "${AGENT_COPY%/*}" ]] &&
+        ! timeout "$AGENT_COPY_SECONDS" cmp -s "$SCREEN/cert.pem" "$AGENT_COPY"; then
+        # shellcheck disable=SC2016 # the inner shell expands $1
+        timeout "$AGENT_COPY_SECONDS" setpriv --reuid=medbrains-agent --regid=kiosk --clear-groups \
+            sh -c 'tmp="$(mktemp "$1.XXXXXX")" && cat > "$tmp" && chmod 0644 "$tmp" && mv -f "$tmp" "$1"' \
+            sh "$AGENT_COPY" < "$SCREEN/cert.pem" ||
+            echo "front-certs: could not give the agent its copy; nodes it admits wait for the next run" >&2
+    fi
+}
+
+# The screen's own certificate, unless a good one is there.
+ensure_screen() {
+    [[ -s "$SCREEN/key.pem" && -s "$SCREEN/cert.pem" ]] &&
+        keys_match "$SCREEN/key.pem" "$SCREEN/cert.pem" && return
+    install -d -m 0750 -g "$GROUP" "$SCREEN"
+    openssl req -x509 -newkey ec -pkeyopt ec_paramgen_curve:prime256v1 -nodes -days 7300 \
+        -keyout "$SCREEN/key.pem" -out "$SCREEN/cert.pem" \
+        -subj "/CN=MedBrains local screen" -addext "subjectAltName=IP:127.0.0.1" 2>/dev/null
+    chgrp "$GROUP" "$SCREEN/key.pem" "$SCREEN/cert.pem"
+    chmod 0640 "$SCREEN/key.pem" "$SCREEN/cert.pem"
+}
+
+# The identity provider's port: its own certificate, unless a good one is there, and copies of what each
+# side trusts. Kanidm makes its own pair when it first starts; making it here too means the front never
+# starts without the certificate it trusts Kanidm by.
+ensure_identity() {
+    if ! { [[ -s "$IDP/key.pem" && -s "$IDP/cert.pem" ]] && keys_match "$IDP/key.pem" "$IDP/cert.pem"; }; then
+        install -d -m 0750 -g "$GROUP" "$IDP"
+        openssl req -x509 -newkey ec -pkeyopt ec_paramgen_curve:prime256v1 -nodes -days 7300 \
+            -keyout "$IDP/key.pem" -out "$IDP/cert.pem" -subj "/CN=$IDP_NAME" \
+            -addext "subjectAltName=DNS:$IDP_NAME" -addext "basicConstraints=critical,CA:FALSE" 2>/dev/null
+        chgrp "$GROUP" "$IDP/key.pem" "$IDP/cert.pem"
+        chmod 0640 "$IDP/key.pem" "$IDP/cert.pem"
+    fi
+    /usr/lib/medbrains/kanidm-tls
+    cmp -s /var/lib/kanidm/tls-chain.pem "$IDP/kanidm-back.pem" ||
+        install -m 0640 -g "$GROUP" /var/lib/kanidm/tls-chain.pem "$IDP/kanidm-back.pem"
+    cmp -s "$IDP/cert.pem" "$IDP_SERVER_TRUST" || install -m 0644 "$IDP/cert.pem" "$IDP_SERVER_TRUST"
+}
+
+# The timer and a starting front can run this at once, and must not mix one run's key with another's
+# certificate. A file in /run is gone after a reboot, so a crash leaves no stale lock.
+exec 9>"$LOCK"
+flock -w "$LOCK_WAIT_SECONDS" 9
+
+install -d -m 0750 -g "$GROUP" "$STATE"
+ensure_ca
+ensure_screen
+ensure_identity
+ensure_certificate_copies
+wanted="$(names)"
+if ! lan_is_current "$wanted"; then
+    if issue_lan "$wanted"; then
+        if [[ "${1:-}" == "--restart" ]]; then
+            systemctl --no-block try-restart medbrains-front.service
+        fi
+    elif lan_is_usable; then
+        echo "front-certs: could not issue a new certificate; keeping the one in place" >&2
+    else
+        echo "front-certs: no usable certificate and could not issue one" >&2
+        exit 1
+    fi
+fi

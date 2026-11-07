@@ -406,7 +406,7 @@ def measure():
     """Test 1: what this machine and the identity provider use now."""
     print(serial(" ; ".join([
         "awk '/MemTotal/{t=$2}/MemAvailable/{a=$2}END{print \"machine_used_mb=\" int((t-a)/1024)}' /proc/meminfo",
-        "for p in kanidmd medbrains-server caddy cage; do pid=$(pidof $p) && "
+        "for p in kanidmd medbrains-server medbrains-front cage; do pid=$(pidof $p) && "
         "awk -v p=$p '/^Pss:/{print p \"_pss_kb=\" $2}' /proc/$pid/smaps_rollup; done",
         "pid=$(pidof kanidmd) && grep -E '^(Pss_Anon|Pss_File):' /proc/$pid/smaps_rollup | tr -s ' ' | tr '\\n' ' '; echo",
         "systemctl show kanidmd -p MemoryPeak -p MemoryCurrent",

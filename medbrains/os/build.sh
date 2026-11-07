@@ -38,8 +38,8 @@ OS_WORK="${OS_WORK:-/tmp/mb-osimage}"
 SERVER="${MEDBRAINS_SERVER_BIN:-${CARGO_TARGET_DIR:-$REPO/target}/$TRIPLE/release/medbrains-server}"
 KANIDM="${KANIDM_DIR:-$OS_WORK/kanidm-$ARCH}"
 OS_SETUP="$(dirname "$SERVER")/medbrains-os-setup"
+FRONT="$(dirname "$SERVER")/medbrains-front"
 AGENT="$(dirname "$SERVER")/medbrains-agent"
-SIGNIN_LIMIT="$(dirname "$SERVER")/medbrains-signin-limit"
 WEB="${MEDBRAINS_WEB_DIST:-$REPO/apps/web/dist}"
 if [[ ! -x "$SERVER" ]]; then
     echo "no server binary at $SERVER — cross-build it with zigbuild for $TRIPLE (see README)" >&2
@@ -53,12 +53,12 @@ if [[ ! -x "$OS_SETUP" ]]; then
     echo "no setup service at $OS_SETUP — cross-build medbrains-os-setup with the server" >&2
     exit 1
 fi
-if [[ ! -x "$AGENT" ]]; then
-    echo "no agent at $AGENT — cross-build medbrains-agent with the server" >&2
+if [[ ! -x "$FRONT" ]]; then
+    echo "no front at $FRONT — cross-build medbrains-front from medbrains-proxy with the server" >&2
     exit 1
 fi
-if [[ ! -x "$SIGNIN_LIMIT" ]]; then
-    echo "no sign-in limit at $SIGNIN_LIMIT — cross-build medbrains-signin-limit with the server" >&2
+if [[ ! -x "$AGENT" ]]; then
+    echo "no agent at $AGENT — cross-build medbrains-agent with the server" >&2
     exit 1
 fi
 if [[ ! -f "$WEB/index.html" ]]; then
@@ -87,10 +87,10 @@ for font in sans-400 sans-500 sans-600 mono-400; do
         "$EXTRA/usr/share/kanidm/ui/hpkg/fonts/plex-$font.woff2"
 done
 install -m 0755 "$OS_SETUP" "$EXTRA/usr/bin/medbrains-os-setup"
+install -m 0755 "$FRONT" "$EXTRA/usr/bin/medbrains-front"
 install -m 0755 "$AGENT" "$EXTRA/usr/bin/medbrains-agent"
-install -m 0755 "$SIGNIN_LIMIT" "$EXTRA/usr/bin/medbrains-signin-limit"
 cp -R "$WEB" "$EXTRA/usr/share/medbrains/web"
-# Pre-compressed copies are for a CDN; on the appliance Caddy compresses.
+# Pre-compressed copies are for a CDN; on the appliance the server compresses as it sends.
 find "$EXTRA/usr/share/medbrains/web" \( -name '*.br' -o -name '*.gz' -o -name '*.map' \) -delete
 install -m 0644 "$REPO/deploy/standalone/db-roles.sh" "$EXTRA/usr/lib/medbrains/db-roles.sh"
 # The screen uses the web app's own logo.

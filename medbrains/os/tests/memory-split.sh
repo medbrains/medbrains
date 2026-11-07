@@ -29,8 +29,7 @@ done | awk -F'\t' '
     $2 ~ /kanidmd/              { part = "kanidmd" }
     $2 ~ /medbrains-server/     { part = "MedBrains server" }
     $2 ~ /postgres/             { part = "Postgres" }
-    $2 ~ /caddy|pingora|medbrains-front/ { part = "front" }
-    $2 ~ /medbrains-signin-limit/ { part = "sign-in limit" }
+    $2 ~ /medbrains-front/ { part = "front" }
     { if (part == "") part = "everything else"; sum[part] += $1; total += $1; part = "" }
     END { for (p in sum) printf "%8.1f  %s\n", sum[p] / 1024, p; printf "%8.1f  all processes\n", total / 1024 }' | sort -rn
 

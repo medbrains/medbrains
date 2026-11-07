@@ -1,4 +1,4 @@
-# The identity provider. Loopback only, behind Caddy on 9443. Its own store: no PostgreSQL.
+# The identity provider. Loopback only, behind medbrains-front on 9443. Its own store: no PostgreSQL.
 # "domain" is security critical: it binds every registered hardware key, so renaming it later
 # breaks them all. Changing it means `kanidmd domain rename` and everyone enrolling again.
 version = "2"

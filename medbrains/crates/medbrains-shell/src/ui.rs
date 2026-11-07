@@ -269,11 +269,11 @@ mod tests {
 
     #[test]
     fn a_problem_is_named_and_never_reported_as_healthy() {
-        let broken = machine("degraded", &["caddy.service"]);
+        let broken = machine("degraded", &["medbrains-front.service"]);
         assert_eq!(health_word(&broken, true), "Needs attention");
         assert_eq!(
             status_sentence(&broken, true),
-            "This service has a problem: caddy.service"
+            "This service has a problem: medbrains-front.service"
         );
         let two = machine("degraded", &["a.service", "b.service"]);
         assert_eq!(

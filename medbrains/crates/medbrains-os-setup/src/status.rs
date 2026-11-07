@@ -317,8 +317,8 @@ mod tests {
         assert_eq!(first_number("86.13 300.2\n"), 86);
         assert_eq!(parse_df("1B-blocks Used\n 1000 200\n"), Some((1000, 200)));
         assert_eq!(parse_df(""), None);
-        let failed = "caddy.service loaded failed failed Caddy\nx.mount loaded failed failed X\n";
-        assert_eq!(parse_failed(failed), ["caddy.service", "x.mount"]);
+        let failed = "medbrains-front.service loaded failed failed Front\nx.mount loaded failed failed X\n";
+        assert_eq!(parse_failed(failed), ["medbrains-front.service", "x.mount"]);
         let zones = "# comment\nIN\t+2232+08822\tAsia/Kolkata\nAQ\t-6617\tAntarctica/Casey\tNote\n";
         assert_eq!(parse_zone_list(zones), ["Asia/Kolkata", "Antarctica/Casey"]);
     }

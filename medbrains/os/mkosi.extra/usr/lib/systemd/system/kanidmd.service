@@ -1,9 +1,9 @@
-# The identity provider (Kanidm). Loopback only, behind Caddy on 9443. It may talk to this machine
+# The identity provider (Kanidm). Loopback only, behind medbrains-front on 9443. It may talk to this machine
 # alone: an upstream directory is a deliberate drop-in that lifts IPAddressDeny, never the default.
 # All its data, keys and backups are under /var, the partition disk-setup encrypts.
 [Unit]
 Description=MedBrains identity provider
-# Either: setup needs it to make the first administrator. It is on loopback, and Caddy is not running yet.
+# Either: setup needs it to make the first administrator. It is on loopback, and the front is not running yet.
 ConditionPathExists=|/var/lib/medbrains/config/role-main
 ConditionPathExists=|/run/medbrains-console/kanidm-for-setup
 After=medbrains-firstboot.service network.target

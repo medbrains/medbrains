@@ -3,7 +3,6 @@ resolver = "2"
 members = [
     "crates/medbrains-os-test",
     "crates/medbrains-os-setup",
-    "crates/medbrains-signin-limit",
     "crates/medbrains-agent",
     "crates/medbrains-server",
     "crates/medbrains-automation",
@@ -285,7 +284,7 @@ loro = "1.4"
 mdns-sd = "0.13"
 
 [patch.crates-io]
-pingora-core = { path = "vendor/pingora-core-0.9.0" }
+pingora-core = { path = "vendor/pingora-core-0.9.1" }
 sqlx = { path = "vendor/sqlx-0.8.6" }
 sqlx-macros-core = { path = "vendor/sqlx-macros-core-0.8.6" }
 
