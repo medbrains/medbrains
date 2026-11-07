@@ -36,7 +36,7 @@ pub(crate) struct App {
     /// The local address it opens. Only the built-in Settings has none.
     #[serde(default)]
     pub(crate) url: Option<String>,
-    /// "main" or "any".
+    /// "main", "node" or "any".
     pub(crate) role: String,
     /// The systemd unit it depends on, whose state its tile shows.
     #[serde(default)]
@@ -126,8 +126,8 @@ fn refusal(app: &App, file_stem: &str) -> Option<&'static str> {
         Some("its name is empty, too long or has control characters")
     } else if !is_icon(&app.icon) {
         Some("its icon must be a theme icon or a file under /usr/share/medbrains/")
-    } else if app.role != "main" && app.role != "any" {
-        Some("its role must be main or any")
+    } else if !matches!(app.role.as_str(), "main" | "node" | "any") {
+        Some("its role must be main, node or any")
     } else if app.unit.as_deref().is_some_and(|unit| !is_unit(unit)) {
         Some("its unit is not a unit name")
     } else if app

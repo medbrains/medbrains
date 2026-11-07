@@ -4,6 +4,7 @@ members = [
     "crates/medbrains-os-test",
     "crates/medbrains-os-setup",
     "crates/medbrains-signin-limit",
+    "crates/medbrains-agent",
     "crates/medbrains-server",
     "crates/medbrains-automation",
     "crates/medbrains-automation-store",

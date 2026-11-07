@@ -977,9 +977,10 @@ export const CORE_PATIENT_JOURNEY_ACTIONS: readonly ClinicalJourneyActionDefinit
   },
   {
     id: "patient.print_card",
-    label: "Print patient card",
-    shortLabel: "Print",
-    description: "Print a patient card with UHID and approved identifiers.",
+    // The A4 slip; the 58 mm card with the QR code is "Print patient card".
+    label: "Print registration slip (A4)",
+    shortLabel: "Print registration slip (A4)",
+    description: "Print the A4 registration slip with UHID and approved identifiers.",
     module: "patients",
     intent: "secondary",
     requiredPermissions: [P.PATIENTS.VIEW],

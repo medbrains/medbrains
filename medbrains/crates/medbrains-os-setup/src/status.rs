@@ -18,7 +18,13 @@ const ZONE_LIST: &str = "/usr/share/zoneinfo/zone1970.tab";
 /// contact over NTS takes several seconds, and a slow network longer.
 const CLOCK_PATIENCE_SECONDS: u64 = 300;
 const SERVER_HEALTH: &str = "http://127.0.0.1:3000/api/health";
+/// The main machine's health, as this machine's screen reaches it, through the agent.
+const FRONT_HEALTH: &str = "https://127.0.0.1:8443/api/health";
 const DATA_MOUNT: &str = "/var";
+/// How setup protected the data disk, written by `disk-setup`.
+const DISK_PROTECTION: &str = "/var/lib/medbrains/config/disk-protection";
+/// `local stratum 10` in `chrony.conf`: the clock of a machine with nothing to set it by.
+const UNCONFIRMED_STRATUM: u32 = 10;
 const FIREWALL_TABLE: [&str; 5] = ["-n", "list", "table", "inet", "medbrains"];
 /// Where setup keeps the hospital's name for the screen.
 pub(crate) const HOSPITAL_NAME: &str = "/var/lib/medbrains-settings/hospital-name";
@@ -28,18 +34,46 @@ pub(crate) fn state() -> Result<Value, String> {
     let set_up = machine::is_set_up()?;
     let uptime = fs::read_to_string("/proc/uptime").unwrap_or_default();
     let uptime_seconds = first_number(&uptime);
+    let node = machine::is_node();
     Ok(json!({
         "set_up": set_up,
-        "role": if set_up { "main" } else { "" },
+        "role": role_word(set_up, node),
         "hospital": fs::read_to_string(HOSPITAL_NAME).unwrap_or_default().trim(),
-        "main_ready": set_up
-            && output("curl", &["-fsS", "-m", "2", "-o", "/dev/null", SERVER_HEALTH]).is_some(),
-        "clock": clock_state(uptime_seconds),
+        "main_ready": set_up && app_answers(node),
+        "clock": clock_state(uptime_seconds, node),
         "timezone": timezone(),
         "firewall": output("nft", &FIREWALL_TABLE).is_some(),
+        "disk": disk_protection(),
         "machine": machine_health(),
         "network": machine::network_links(),
     }))
+}
+
+/// How the data disk is protected, or `unknown` if the record cannot be read: a fault must not
+/// read as a disk that is fine.
+fn disk_protection() -> String {
+    fs::read_to_string(DISK_PROTECTION)
+        .map_or_else(|_| "unknown".to_owned(), |text| text.trim().to_owned())
+}
+
+/// What this machine is, for the screen.
+const fn role_word(set_up: bool, node: bool) -> &'static str {
+    match (set_up, node) {
+        (true, true) => "node",
+        (true, false) => "main",
+        (false, _) => "",
+    }
+}
+
+/// Whether the app answers: the server here on a main machine, the main machine through the agent
+/// on a node. So a removed or cut-off node says so.
+fn app_answers(node: bool) -> bool {
+    if node {
+        let certificate = crate::node::SCREEN_CERTIFICATE;
+        let args = ["-fsS", "-m", "3", "--cacert", certificate, "-o", "/dev/null", FRONT_HEALTH];
+        return output("curl", &args).is_some();
+    }
+    output("curl", &["-fsS", "-m", "2", "-o", "/dev/null", SERVER_HEALTH]).is_some()
 }
 
 /// The zone setting's name, or `UTC` if it was never set.
@@ -92,7 +126,7 @@ fn parse_zone_list(tab: &str) -> Vec<String> {
 }
 
 /// "verified", "checking" or "unconfirmed". Verified needs a synced source using NTS.
-fn clock_state(uptime_seconds: u64) -> &'static str {
+fn clock_state(uptime_seconds: u64, node: bool) -> &'static str {
     let read = |args: &[&str]| {
         output("chronyc", args).map(|raw| String::from_utf8_lossy(&raw).into_owned())
     };
@@ -101,9 +135,13 @@ fn clock_state(uptime_seconds: u64) -> &'static str {
         read(&["-n", "-c", "authdata"]),
     );
     let chrony_answers = sources.is_some();
-    let verified = sources
-        .zip(authdata)
-        .is_some_and(|(sources, authdata)| has_synced_nts_source(&sources, &authdata));
+    let verified = if node {
+        sources.is_some_and(|sources| has_synced_main_source(&sources))
+    } else {
+        sources
+            .zip(authdata)
+            .is_some_and(|(sources, authdata)| has_synced_nts_source(&sources, &authdata))
+    };
     clock_word(verified, chrony_answers, uptime_seconds)
 }
 
@@ -117,6 +155,20 @@ const fn clock_word(verified: bool, chrony_answers: bool, uptime_seconds: u64) -
     } else {
         "unconfirmed"
     }
+}
+
+/// True if a node's chrony has selected the main machine, on loopback through the agent, and that
+/// clock is set by something real. The key authenticates it. A main machine serving only its own
+/// `local` clock answers stratum 10, and neither it nor its nodes can vouch for the time.
+fn has_synced_main_source(sources: &str) -> bool {
+    sources.lines().any(|line| {
+        let mut fields = line.split(',');
+        let (_, state, address) = (fields.next(), fields.next(), fields.next());
+        let stratum = fields.next().and_then(|s| s.parse::<u32>().ok());
+        state == Some("*")
+            && address == Some("127.0.0.1")
+            && stratum.is_some_and(|s| s < UNCONFIRMED_STRATUM)
+    })
 }
 
 /// True if the source chrony selected (`^,*,address,…`) is listed as NTS in `authdata`.
@@ -219,6 +271,23 @@ mod tests {
     }
 
     /// Seconds after boot must not read as a fault, nor must a long failure read as waiting.
+    #[test]
+    fn a_node_trusts_its_main_machines_clock_only_if_that_is_set_by_something() {
+        use super::has_synced_main_source as synced;
+        assert!(synced("^,*,127.0.0.1,3,4,377,5,0.1,0.1,0.1,0.1\n"));
+        assert!(!synced("^,*,127.0.0.1,11,4,377,5,0.1,0.1,0.1,0.1\n"), "its own clock, stratum 10");
+        assert!(!synced("^,?,127.0.0.1,3,4,0,5,0.1,0.1,0.1,0.1\n"), "not selected");
+        assert!(!synced("^,*,192.0.2.1,3,4,377,5,0.1,0.1,0.1,0.1\n"), "not through the agent");
+        assert!(!synced(""));
+    }
+
+    #[test]
+    fn the_role_is_said_only_once_set_up() {
+        assert_eq!(super::role_word(false, false), "");
+        assert_eq!(super::role_word(true, false), "main");
+        assert_eq!(super::role_word(true, true), "node");
+    }
+
     #[test]
     fn the_clock_waits_neutrally_then_warns() {
         assert_eq!(clock_word(true, true, 5), "verified");

@@ -30,6 +30,10 @@ const FIRST_ADMIN_LIMIT: Duration = Duration::from_secs(120);
 
 const ROLE_MAIN: &str = "/var/lib/medbrains/config/role-main";
 const ENV_FILE: &str = "/var/lib/medbrains/config/env";
+/// Set once a person has approved this machine, so it uses a main machine rather than being one.
+pub(crate) const ROLE_NODE: &str = "/var/lib/medbrains/config/role-node";
+/// Making the database and secrets takes seconds, and many on slow storage.
+const FIRST_START_LIMIT: std::time::Duration = std::time::Duration::from_secs(50);
 /// Where a fixed address takes effect. On tmpfs, so a power cut before it is confirmed undoes it.
 const LIVE_NETWORK: &str = "/run/systemd/network/10-medbrains-fixed.network";
 /// Which link is tried first, here and on the data partition. A setting of its own, because a link
@@ -38,7 +42,7 @@ const LIVE_PREFERRED: &str = "/run/systemd/network/50-medbrains-preferred.networ
 const SAVED_PREFERRED: &str = "/var/lib/medbrains/network/50-medbrains-preferred.network";
 /// systemd-networkd runs as its own user, so it must be able to read these.
 const NETWORK_FILE_MODE: u32 = 0o644;
-const PUBLIC_FILE_MODE: u32 = 0o644;
+pub(crate) const PUBLIC_FILE_MODE: u32 = 0o644;
 /// Where a confirmed address is kept: the data partition, since the root becomes read-only.
 /// `medbrains-network-settings.service` copies it to `LIVE_NETWORK` at boot.
 const SAVED_NETWORK: &str = "/var/lib/medbrains/network/10-medbrains-fixed.network";
@@ -56,10 +60,19 @@ fn json_output(program: &str, args: &[&str]) -> Option<Value> {
 
 /// Whether this machine has finished setup, or the words for why that can't be read.
 pub(crate) fn is_set_up() -> Result<bool, String> {
-    Path::new(ROLE_MAIN).try_exists().map_err(|error| {
-        log(&format!("reading the role marker: {error}"));
-        "This machine can't read its own setting. Restart it.".to_owned()
-    })
+    let exists = |marker| {
+        Path::new(marker).try_exists().map_err(|error| {
+            log(&format!("reading the role marker: {error}"));
+            "This machine can't read its own setting. Restart it.".to_owned()
+        })
+    };
+    Ok(exists(ROLE_MAIN)? || exists(ROLE_NODE)?)
+}
+
+/// True if this machine uses a main machine. Unreadable counts as not: the caller has already asked
+/// `is_set_up`, which reports that fault.
+pub(crate) fn is_node() -> bool {
+    Path::new(ROLE_NODE).exists()
 }
 
 /// Records something for whoever reads the journal.
@@ -344,6 +357,10 @@ pub(crate) fn start_main_machine(
         .hash_password(password.as_bytes())
         .map_err(|e| e.to_string())?
         .to_string();
+    // Only now: a machine that becomes a node never holds a database or these secrets.
+    child::run("systemctl", &["start", "medbrains-firstboot.service"], FIRST_START_LIMIT)
+        .filter(|done| done.success)
+        .ok_or_else(|| "The machine could not prepare its database. Try again.".to_owned())?;
     let env = fs::read_to_string(ENV_FILE).map_err(|e| e.to_string())?;
     write_env(&rules::env_with_seed(&env, hospital, username, &hash))?;
     let started = mark_and_start(hospital);
@@ -451,6 +468,8 @@ fn mark_and_start(hospital: &str) -> Result<(), String> {
         PUBLIC_FILE_MODE,
     )?;
     write_atomically(ROLE_MAIN, b"", PUBLIC_FILE_MODE)?;
+    // The agent looks for a main machine until now; this machine is one.
+    output("systemctl", &["stop", "medbrains-agent.service"]);
     output(
         "systemctl",
         &["start", "--no-block", "medbrains-main.target"],

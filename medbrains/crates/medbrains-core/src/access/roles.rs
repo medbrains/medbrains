@@ -736,6 +736,8 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
             // shift registered.
             permissions::patients::FIND,
             permissions::patients::VIEW,
+            // A lost card is reprinted by whoever is on the desk.
+            permissions::patients::card::REPRINT,
             permissions::patients::group_identity::VIEW,
             permissions::patients::CREATE,
             permissions::patients::UPDATE,
@@ -1715,6 +1717,9 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
             permissions::devices::pairing::PAIRED_REVOKE,
             permissions::devices::pairing::ROSTER_READ,
             permissions::devices::pairing::TOKEN_CREATE,
+            permissions::devices::machines::VIEW,
+            permissions::devices::machines::APPROVE,
+            permissions::devices::machines::REMOVE,
             permissions::devices::binding::ISSUE,
             permissions::devices::binding::LIST,
             permissions::devices::binding::REVOKE,
@@ -2157,6 +2162,9 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
             permissions::security::incidents::LIST,
             permissions::security::incidents::CREATE,
             permissions::security::incidents::UPDATE,
+            // Can cut a suspect machine off at once, and cannot let a new one in.
+            permissions::devices::machines::VIEW,
+            permissions::devices::machines::REMOVE,
             permissions::dashboard::VIEW,
         ],
     },

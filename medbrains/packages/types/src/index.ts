@@ -263,12 +263,9 @@ export {
 export { patientJourneyActionRoute } from "./patient-journey-routes.js";
 export * from "./patient-registration";
 export * from "./payment-links";
-export type { PermissionDef } from "./permissions.js";
-export {
-  P,
-  PERMISSIONS,
-  ROLE_TEMPLATES,
-} from "./permissions.js";
+export type { PermissionDef } from "./permission-catalog.js";
+export { PERMISSIONS, ROLE_TEMPLATES } from "./permission-catalog.js";
+export { P } from "./permissions.js";
 export * from "./pharmacy-counter-close";
 export * from "./pharmacy-credit-indents";
 export * from "./pharmacy-delivery";
@@ -6035,6 +6032,51 @@ export interface DevicePairingRequest {
   created_at: string;
 }
 
+/** The digits a person types on a machine, to prove this is really its main machine. */
+export interface ApprovedMachine {
+  id: string;
+  confirm_code: string;
+}
+
+/** A machine waiting for a person. Its code is on its own screen only: a person must read it there. */
+export interface WaitingMachine {
+  id: string;
+  label: string;
+  app_variant: string;
+  address: string | null;
+  expires_at: string;
+  created_at: string;
+}
+
+/** A request a newer one pushed out of the waiting list. */
+export interface DroppedRequest {
+  label: string;
+  address: string | null;
+  reason: string;
+  created_at: string;
+}
+
+/** A machine that has joined this hospital's main machine. */
+export interface JoinedMachine {
+  id: string;
+  label: string;
+  app_variant: string;
+  online: boolean;
+  awaiting_confirmation: boolean;
+  screen_address: string | null;
+  paired_at: string;
+  last_seen_at: string | null;
+}
+
+/** The Nodes screen in one call. */
+export interface MachineList {
+  waiting: WaitingMachine[];
+  machines: JoinedMachine[];
+  dropped: DroppedRequest[];
+  given_up: number;
+  joining_paused: boolean;
+}
+
 /** What the QR on a printed prescription resolves to. */
 export interface VerifiedMedication {
   drug_name: string;
@@ -6338,7 +6380,7 @@ export interface CreateInstallmentRequest {
 }
 
 export type { PermissionGroup } from "./permission-helpers";
-export { buildPermissionTree, isValidPermissionCode } from "./permission-helpers";
+export { buildPermissionTree } from "./permission-helpers";
 
 /** One nurse rostered onto a ward's shift. */
 export interface NurseRosterEntry {

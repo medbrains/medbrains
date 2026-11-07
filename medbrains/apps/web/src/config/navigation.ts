@@ -326,6 +326,7 @@ const MODULE_BADGE_DEFS: Record<string, ModuleBadge> = {
   "/retrospective": { abbr: "Rsp", color: "#6929c4" },
   "/admin/devices": { abbr: "Dev", color: "#198038" },
   "/admin/paired-devices": { abbr: "PD", color: "#9f1853" },
+  "/admin/machines": { abbr: "MC", color: "#9f1853" },
   "/admin/hospital-binding": { abbr: "HB", color: "#9f1853" },
   "/lab": { abbr: "Lab", color: "#0072c3" },
   "/hr": { abbr: "HR", color: "#6929c4" },
@@ -1619,6 +1620,12 @@ export const NAV_GROUPS: NavGroupConfig[] = [
             path: "/admin/paired-devices",
             icon: "IconQrcode",
             requiredPermission: "devices.pairing.paired.list",
+          },
+          {
+            i18nKey: "machines",
+            path: "/admin/machines",
+            icon: "IconDeviceDesktop",
+            requiredPermission: "devices.machines.view",
           },
           {
             i18nKey: "hospitalBinding",

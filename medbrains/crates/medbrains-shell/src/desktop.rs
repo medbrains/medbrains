@@ -166,9 +166,15 @@ impl Desktop {
         if !state.hospital.is_empty() {
             self.greeting_name.set_label(&state.hospital);
         }
-        let attention = !state.machine.failed.is_empty() || state.machine.system == "degraded";
-        self.greeting_status
-            .set_label(&ui::status_sentence(&state.machine, state.main_ready));
+        let cut_off = ui::unreachable_sentence(&state.role, state.main_ready);
+        let attention = cut_off.is_some()
+            || !state.machine.failed.is_empty()
+            || state.machine.system == "degraded";
+        let sentence = cut_off.map_or_else(
+            || ui::status_sentence(&state.machine, state.main_ready, &state.disk),
+            str::to_owned,
+        );
+        self.greeting_status.set_label(&sentence);
         ui::set_warning(&self.greeting_status, attention);
     }
 
@@ -325,7 +331,7 @@ pub(crate) fn build(css: &gtk::CssProvider, role: &str) -> gtk::Box {
         let name = page_name(&entry.app);
         match &entry.web {
             Some(web) => content.add_named(&web.root, Some(&name)),
-            None => content.add_named(&settings::page(css), Some(&name)),
+            None => content.add_named(&settings::page(css, role), Some(&name)),
         };
     }
     root.append(&content);

@@ -17,7 +17,8 @@ use crate::apps;
 /// screen sends it the first administrator's password and Wi-Fi passwords.
 const SERVICE: &str = "/run/medbrains-console/setup.sock";
 const HEALTH_TIMEOUT: Duration = Duration::from_secs(2);
-const TIMEOUT: Duration = Duration::from_secs(10);
+/// Long enough for a new main machine to create its database while the screen waits.
+const TIMEOUT: Duration = Duration::from_secs(60);
 /// Starting the machine: it waits for the identity provider to make the first administrator.
 const START_TIMEOUT: Duration = Duration::from_secs(150);
 /// Said when the service cannot be asked at all. A fault, so never shown as "no network".
@@ -114,6 +115,9 @@ pub(crate) struct State {
     pub(crate) clock: String,
     pub(crate) timezone: String,
     pub(crate) firewall: bool,
+    /// How the data disk is protected: "encrypted-tpm2", "encrypted-tpm2-pin",
+    /// "unencrypted-chosen" or "unknown".
+    pub(crate) disk: String,
     pub(crate) machine: Machine,
     pub(crate) network: Network,
 }
@@ -349,7 +353,7 @@ mod tests {
     fn the_shell_understands_the_services_state() {
         let state: Result<State, _> = serde_json::from_value(json!({
             "set_up": true, "role": "main", "hospital": "City", "main_ready": false, "clock": "checking",
-            "timezone": "Asia/Kolkata", "firewall": true,
+            "timezone": "Asia/Kolkata", "firewall": true, "disk": "encrypted-tpm2",
             "machine": { "system": "running", "failed": [], "memory_total_kb": 10, "memory_available_kb": 5,  "disk_total": 8, "disk_used": 2 },
             "network": { "links": [{ "name": "en0", "kind": "ethernet", "cable": true, "addresses": ["10.0.2.15"], "speed_mbps": 1000 }],
                          "gateway": null, "default_link": null, "preferred": null, "fixed": false },

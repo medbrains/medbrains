@@ -65,11 +65,8 @@ fn callback_uri(base: &str) -> String {
     format!("{base}/api/auth/sso/callback")
 }
 
-async fn secret_key(state: &AppState) -> Vec<u8> {
-    match state.secret_resolver.get(SSO_SECRET_KEY).await {
-        Ok(v) if v.len() >= 32 => v.into_bytes(),
-        _ => DEV_SSO_SECRET_KEY.to_vec(),
-    }
+async fn secret_key(state: &AppState) -> Result<Vec<u8>, AppError> {
+    medbrains_core::secrets::sealing::sealing_key(state.secret_resolver.as_ref(), SSO_SECRET_KEY, DEV_SSO_SECRET_KEY).await.map_err(AppError::from)
 }
 
 /// URL-safe random token of `bytes` entropy (state/nonce/PKCE verifier).
@@ -345,7 +342,7 @@ pub async fn oidc_callback(
     let client_id = provider.client_id.clone().ok_or(AppError::Unauthorized)?;
     let client_secret = match provider.client_secret_enc.as_deref() {
         Some(enc) => {
-            let key = secret_key(&state).await;
+            let key = secret_key(&state).await?;
             Some(
                 medbrains_crypto::aead::decrypt_token::<String>(&key, SSO_SECRET_CONTEXT, enc)
                     .map_err(|_| AppError::Internal("sso secret decrypt".to_owned()))?,

@@ -8,7 +8,8 @@ use serde::{Deserialize, Serialize};
 /// Fields match the env var names (lowercased) and config.toml keys.
 #[derive(Debug, Deserialize, Serialize)]
 struct RawConfig {
-    /// Deployment environment: "development" (default) or "production".
+    /// Deployment environment. Only "development" has production protections off; unset means
+    /// development in a debug build and production in a release build.
     /// Set via MEDBRAINS_ENV. Production refuses to start without real JWT keys.
     #[serde(default)]
     medbrains_env: Option<String>,
@@ -195,20 +196,18 @@ impl AppConfig {
             });
         }
 
-        let environment = raw
-            .medbrains_env
-            .unwrap_or_else(|| "development".to_owned())
-            .to_lowercase();
+        let environment =
+            medbrains_core::secrets::sealing::environment_name(raw.medbrains_env.as_deref());
 
         // JWT keys: if both are set use them, otherwise generate dev keypair.
         // Production must never run on an ephemeral keypair — a restart would
         // silently invalidate every active session.
         let (private_pem, public_pem) = match (raw.jwt_private_key, raw.jwt_public_key) {
             (Some(priv_key), Some(pub_key)) => (priv_key, pub_key),
-            _ if environment == "production" => {
+            _ if environment != medbrains_core::secrets::sealing::DEVELOPMENT => {
                 return Err(ConfigError::Invalid {
                     key: "JWT_PRIVATE_KEY / JWT_PUBLIC_KEY".to_owned(),
-                    reason: "both must be set when MEDBRAINS_ENV=production; refusing to \
+                    reason: "both must be set outside development; refusing to \
                              generate an ephemeral keypair"
                         .to_owned(),
                 });

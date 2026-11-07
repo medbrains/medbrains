@@ -1,0 +1,41 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT node_id AS \"node_id!\", join_code AS \"code!\", requested_label, app_variant\n             FROM device_pairing_requests\n            WHERE id = $1 AND tenant_id = $2 AND node_id IS NOT NULL AND status = 'pending'\n              AND expires_at > now() FOR UPDATE",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "node_id!",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 1,
+        "name": "code!",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 2,
+        "name": "requested_label",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 3,
+        "name": "app_variant",
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      true,
+      true,
+      false,
+      false
+    ]
+  },
+  "hash": "12e0fa87af50e5f5bd417697ae7b732ebb7830aef0efc9fca01088ef1bffc44f"
+}

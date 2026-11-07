@@ -1,0 +1,29 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT COALESCE(sum((new_values->>'count')::bigint), 0)::bigint AS \"count!\",\n                  COALESCE(bool_or((new_values->>'paused')::boolean), false) AS \"paused!\"\n             FROM audit_log\n            WHERE tenant_id = $1 AND action = $2 AND created_at > now() - interval '10 minutes'",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "count!",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 1,
+        "name": "paused!",
+        "type_info": "Bool"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Text"
+      ]
+    },
+    "nullable": [
+      null,
+      null
+    ]
+  },
+  "hash": "3a60e60f3acb96625b89c38cc8bded5ce7a5e43cf71cbbef71d9d38195628ebf"
+}

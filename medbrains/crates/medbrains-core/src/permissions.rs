@@ -75,6 +75,18 @@ pub mod patients {
     pub const UPDATE: &str = "patients.update";
     pub const DELETE: &str = "patients.delete";
 
+    pub mod card {
+        /// Reprint any patient's card at the desk.
+        ///
+        /// A returning patient who lost the card is usually served by a
+        /// receptionist who did not register them, and `patients.view` reaches
+        /// only patients the caller has a relationship with. This reprints the
+        /// identity card for any patient in the hospital: name, UHID, age, sex,
+        /// phone and registration date, the same identity the desk lookup
+        /// already shows. Never the address, the email or the chart.
+        pub const REPRINT: &str = "patients.card.reprint";
+    }
+
     pub mod group_identity {
         /// See a patient's records at other group hospitals.
         ///
@@ -3868,6 +3880,26 @@ pub mod devices {
         /// right means a leaked appliance token enumerates the whole
         /// estate. This is the one thing an appliance needs.
         pub const ROSTER_READ: &str = "devices.pairing.roster.read";
+    }
+
+    /// MedBrains OS machines that join this hospital's main machine.
+    pub mod machines {
+        /// See machines and their join requests.
+        ///
+        /// Lists the machines waiting to join, and every joined machine with
+        /// its name, type, status and when it was last seen. It does not show
+        /// the code a person must read from a machine's own screen.
+        pub const VIEW: &str = "devices.machines.view";
+        /// Approve or reject a machine that asks to join.
+        ///
+        /// Lets a machine onto the hospital's network of screens. It is a
+        /// separate duty from removing one, and each decision is audited.
+        pub const APPROVE: &str = "devices.machines.approve";
+        /// Remove a joined machine.
+        ///
+        /// Ends the machine's access at once, so a lost or retired machine can
+        /// be cut off by somebody who cannot admit new ones.
+        pub const REMOVE: &str = "devices.machines.remove";
     }
 
     /// Signed QR codes that bind a staff or patient app to this hospital.

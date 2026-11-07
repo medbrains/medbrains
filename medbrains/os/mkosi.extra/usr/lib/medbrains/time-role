@@ -1,0 +1,17 @@
+#!/bin/bash
+# Where this machine's clock comes from, chosen before chrony starts. A node asks its main machine,
+# through the agent's relay on loopback (crates/medbrains-agent/src/time.rs), and nothing else; any
+# other machine uses authenticated internet time.
+set -euo pipefail
+
+CONF=/run/medbrains-role/time.conf
+install -d -m 0755 /run/medbrains-role
+if [[ -e /var/lib/medbrains/config/role-node ]]; then
+    printf 'server 127.0.0.1 port 1023 iburst minpoll 4 maxpoll 6\n' > "$CONF"
+else
+    cat > "$CONF" <<'SOURCES'
+server time.cloudflare.com iburst nts
+server ptbtime2.ptb.de iburst nts
+server ptbtime1.ptb.de iburst nts
+SOURCES
+fi

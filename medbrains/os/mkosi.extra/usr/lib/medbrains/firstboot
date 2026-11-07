@@ -1,10 +1,13 @@
 #!/bin/bash
-# First boot on this box: generate every secret and the database cluster.
-# Nothing secret is in the image; everything lands on the data partition.
+# A main machine's first start: generate every secret and the database cluster.
+# Nothing secret is in the image; everything lands on the data partition. Setup runs
+# this when a person chooses a new hospital, so a node never holds any of it.
 # Secret generation mirrors deploy/standalone/install.sh.
 set -euo pipefail
 
 CONF=/var/lib/medbrains/config
+AGENT_DIR=/var/lib/medbrains-agent
+SCREEN_TRUST=/var/lib/medbrains-settings/local-front.pem
 ENV="$CONF/env"
 PG_VERSION=17
 IDP_NAME=idm.medbrains.local
@@ -15,6 +18,7 @@ rand() { openssl rand -base64 48 | LC_ALL=C tr -cd 'A-Za-z0-9' | cut -c1-"$1"; }
 write_env() {
     local tmp priv pub
     tmp="$(mktemp -d)"
+    agent_token="$(rand 48)"
     # JWT: PKCS#8 DER private key; raw 32-byte public key (see install.sh).
     openssl genpkey -algorithm Ed25519 -outform DER -out "$tmp/priv.der" 2>/dev/null
     openssl pkey -inform DER -in "$tmp/priv.der" -pubout -outform DER -out "$tmp/spki.der" 2>/dev/null
@@ -46,14 +50,43 @@ MEDBRAINS_PUBLIC_BASE_URL=https://medbrains.local
 MEDBRAINS_SSO_SCREEN_BASE=https://127.0.0.1:8443
 SSL_CERT_FILE=$CONF/idp-front.pem
 SSL_CERT_DIR=/etc/ssl/certs
+MEDBRAINS_MACHINE_AGENT_TOKEN=$agent_token
 JWT_PRIVATE_KEY=$priv
 JWT_PUBLIC_KEY=$pub
 MEDBRAINS_IDENTIFIER_HMAC_KEY=$(openssl rand -base64 48 | tr -d '\n')
 MEDBRAINS_ABDM_SECRET_KEY=$(openssl rand -base64 48 | tr -d '\n')
 MEDBRAINS_NHCX_SECRET_KEY=$(openssl rand -base64 48 | tr -d '\n')
 MEDBRAINS_PACS_SECRET_KEY=$(openssl rand -base64 48 | tr -d '\n')
+MEDBRAINS_EVENT_TOKEN_KEY=$(openssl rand -base64 48 | tr -d '\n')
+MEDBRAINS_SIGNATURE_KEY_ENCRYPTION_KEY=$(openssl rand -base64 48 | tr -d '\n')
+MEDBRAINS_OAUTH_TOKEN_KEY=$(openssl rand -base64 48 | tr -d '\n')
 ENVEOF
     mv "$ENV.new" "$ENV"
+}
+
+# Each file below is checked by itself, because a crash can fall between any two: the agent's token
+# and the certificate's copies come from what already exists, so repeating this finishes the job.
+
+# The agent's half of the server's token, in its own directory, so it never reads the env.
+ensure_agent_token() {
+    local token tmp="$AGENT_DIR/server-token.new"
+    token="$(sed -n 's/^MEDBRAINS_MACHINE_AGENT_TOKEN=//p' "$ENV")"
+    [[ -n "$token" ]] || { echo "the env has no agent token" >&2; return 1; }
+    install -m 0600 -o medbrains-agent -g kiosk /dev/null "$tmp"
+    printf '%s' "$token" > "$tmp"
+    mv "$tmp" "$AGENT_DIR/server-token"
+}
+
+# The screen's trust store and the copy the agent hands to machines it admits.
+ensure_certificate_copies() {
+    # In place: the running screen unit has this very file bound in as its trust store. It holds the
+    # loopback front and, on a main machine, the identity provider's front that the Identity tile opens.
+    cat /var/lib/caddy/local/cert.pem /var/lib/caddy/local/idp-cert.pem > "$SCREEN_TRUST.new" 2>/dev/null ||
+        cat /var/lib/caddy/local/cert.pem > "$SCREEN_TRUST.new"
+    cmp -s "$SCREEN_TRUST.new" "$SCREEN_TRUST" || cat "$SCREEN_TRUST.new" > "$SCREEN_TRUST"
+    rm -f "$SCREEN_TRUST.new"
+    cmp -s /var/lib/caddy/local/cert.pem "$AGENT_DIR/local-front.pem" ||
+        install -m 0644 -o medbrains-agent -g kiosk /var/lib/caddy/local/cert.pem "$AGENT_DIR/local-front.pem"
 }
 
 create_cluster() {
@@ -91,7 +124,6 @@ create_local_cert() {
         -keyout /var/lib/caddy/local/key.pem -out /var/lib/caddy/local/cert.pem \
         -subj "/CN=MedBrains local screen" -addext "subjectAltName=IP:127.0.0.1" 2>/dev/null
     chown caddy:caddy /var/lib/caddy/local/key.pem /var/lib/caddy/local/cert.pem
-    install -m 0644 /var/lib/caddy/local/cert.pem /var/lib/kiosk/local-front.pem
 }
 
 # Writes a 20-year self-signed certificate for a name: key file, certificate file, name. CA:FALSE,
@@ -109,8 +141,6 @@ create_idp_certs() {
     self_signed_leaf /var/lib/caddy/local/idp-key.pem /var/lib/caddy/local/idp-cert.pem "$IDP_NAME"
     chown caddy:caddy /var/lib/caddy/local/idp-key.pem /var/lib/caddy/local/idp-cert.pem
     install -m 0644 /var/lib/caddy/local/idp-cert.pem "$CONF/idp-front.pem"
-    # The Identity tile opens this front on the machine's own screen, which trusts only what is here.
-    cat /var/lib/caddy/local/idp-cert.pem >> /var/lib/kiosk/local-front.pem
     self_signed_leaf /var/lib/kanidm/tls-key.pem /var/lib/kanidm/tls-chain.pem "$IDP_NAME"
     chown kanidm:kanidm /var/lib/kanidm/tls-key.pem /var/lib/kanidm/tls-chain.pem
     install -m 0644 /var/lib/kanidm/tls-chain.pem /var/lib/caddy/local/kanidm-back.pem
@@ -119,6 +149,8 @@ create_idp_certs() {
 systemd-tmpfiles --create /usr/lib/tmpfiles.d/medbrains.conf
 [[ -s "$ENV" ]] || write_env
 [[ -f "/etc/postgresql/$PG_VERSION/main/postgresql.conf" ]] || create_cluster
-[[ -f /var/lib/caddy/local/cert.pem ]] || create_local_cert
+[[ -s /var/lib/caddy/local/cert.pem && -s /var/lib/caddy/local/key.pem ]] || create_local_cert
 [[ -f /var/lib/kanidm/tls-key.pem ]] || create_idp_certs
+ensure_agent_token
+ensure_certificate_copies
 touch "$CONF/.firstboot-done"

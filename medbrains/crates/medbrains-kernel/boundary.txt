@@ -5,6 +5,7 @@
 medbrains-abdm not_yet 0 -
 medbrains-adapter-sdk not_yet 0 -
 medbrains-admin partial 78 medbrains-db,medbrains-authz
+medbrains-agent not_yet 0 -
 medbrains-ai not_yet 49 medbrains-db,medbrains-authz-gate
 medbrains-ai-eval not_yet 0 -
 medbrains-ambulance not_yet 37 medbrains-db
@@ -48,7 +49,7 @@ medbrains-custom-code not_yet 9 medbrains-db
 medbrains-dashboard not_yet 52 medbrains-db
 medbrains-db-migrations not_yet 0 -
 medbrains-db-topology not_yet 1 medbrains-db
-medbrains-device-pairing not_yet 42 medbrains-db
+medbrains-device-pairing partial 42 medbrains-db
 medbrains-devices not_yet 46 medbrains-db
 medbrains-diet not_yet 41 medbrains-db
 medbrains-doctor-packages not_yet 13 medbrains-db
@@ -123,7 +124,7 @@ medbrains-pharmacy-repeats not_yet 9 medbrains-db
 medbrains-pharmacy-safety not_yet 27 medbrains-db
 medbrains-platform not_yet 104 medbrains-db
 medbrains-print not_yet 0 -
-medbrains-print-data not_yet 391 medbrains-db,medbrains-authz,medbrains-authz-gate
+medbrains-print-data not_yet 390 medbrains-db,medbrains-authz,medbrains-authz-gate
 medbrains-printing not_yet 0 -
 medbrains-proxy not_yet 0 -
 medbrains-quality not_yet 89 medbrains-db

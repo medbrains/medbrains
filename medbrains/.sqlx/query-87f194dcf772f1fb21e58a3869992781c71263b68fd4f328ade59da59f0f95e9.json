@@ -1,0 +1,14 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "DELETE FROM device_pairing_requests WHERE id IN ( SELECT id FROM device_pairing_requests WHERE drop_reason IS NOT NULL ORDER BY created_at DESC OFFSET $1)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int8"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "87f194dcf772f1fb21e58a3869992781c71263b68fd4f328ade59da59f0f95e9"
+}

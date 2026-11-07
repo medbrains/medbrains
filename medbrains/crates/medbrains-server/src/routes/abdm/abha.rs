@@ -304,9 +304,7 @@ pub(crate) async fn server_key_missing(secrets: &dyn SecretResolver) -> Option<&
 /// honoured only in development and tests — `MEDBRAINS_ENV` unset,
 /// `development`, `dev` or `test`. Anywhere else they are ignored.
 pub(crate) fn dev_overrides_allowed() -> bool {
-    std::env::var("MEDBRAINS_ENV")
-        .ok()
-        .is_none_or(|env| matches!(env.as_str(), "development" | "dev" | "test"))
+    medbrains_core::secrets::sealing::is_development()
 }
 
 /// A test stand-in from the secret store (a mock ABDM host, a fixed key),
