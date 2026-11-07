@@ -3,7 +3,7 @@
 
 use std::cell::RefCell;
 use std::rc::{Rc, Weak};
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use gtk4 as gtk;
 use gtk4::glib;
@@ -20,6 +20,9 @@ use crate::{dock, power, settings, ui, webapp::WebApp};
 const POWER_PATIENCE: Duration = Duration::from_secs(120);
 /// How often the bar and widgets ask the machine for its state.
 const REFRESH_EVERY: Duration = Duration::from_secs(10);
+/// How long an app may sit in the background before its view is closed to give its memory back.
+/// Opening it again reloads the page, about a second on a main machine.
+const IDLE_LIMIT: Duration = Duration::from_secs(600);
 
 /// The page name for an app in the desktop's stack.
 fn page_name(app: &App) -> String {
@@ -54,7 +57,7 @@ pub(crate) struct Desktop {
 impl Desktop {
     /// Goes back to the wallpaper. Apps stay as they were.
     pub(crate) fn go_home(&self) {
-        self.running.borrow_mut().home();
+        self.running.borrow_mut().home(Instant::now());
         self.content.set_visible_child_name("home");
         self.bar.show_screen(Screen::Desktop);
     }
@@ -64,7 +67,7 @@ impl Desktop {
         let Some(entry) = self.entries.get(index) else {
             return;
         };
-        self.running.borrow_mut().open(index);
+        self.running.borrow_mut().open(index, Instant::now());
         self.content.set_visible_child_name(&page_name(&entry.app));
         let reloads = entry.web.is_some();
         self.bar.show_screen(Screen::App {
@@ -128,6 +131,17 @@ impl Desktop {
         });
     }
 
+    /// Closes the views of apps left in the background past the limit. A page with unsaved
+    /// changes keeps its view: nothing a person typed is lost to save memory.
+    fn close_idle(&self) {
+        let idle = self.running.borrow().idle(Instant::now(), IDLE_LIMIT);
+        for index in idle {
+            if let Some(web) = self.entries.get(index).and_then(|entry| entry.web.as_ref()) {
+                web.close_if_idle();
+            }
+        }
+    }
+
     /// Closes the app on screen, if one is.
     fn close_showing(&self) {
         let showing = self.running.borrow().showing();
@@ -154,7 +168,7 @@ impl Desktop {
 
     /// Shows the launcher with its search empty and focused.
     pub(crate) fn show_launcher(&self) {
-        self.running.borrow_mut().home();
+        self.running.borrow_mut().home(Instant::now());
         self.content.set_visible_child_name("launcher");
         self.bar.show_screen(Screen::Launcher);
     }
@@ -347,6 +361,7 @@ pub(crate) fn build(css: &gtk::CssProvider, role: &str) -> gtk::Box {
     let ticking = Rc::clone(&desktop);
     glib::timeout_add_local(REFRESH_EVERY, move || {
         ticking.refresh();
+        ticking.close_idle();
         glib::ControlFlow::Continue
     });
     root
