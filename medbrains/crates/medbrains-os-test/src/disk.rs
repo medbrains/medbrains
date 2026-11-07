@@ -347,16 +347,25 @@ fn pin_is_asked_at_every_start(image: &Path) -> Result<(), String> {
     recovery_key_opens_a_pin_machine(&mut vm, &pin)
 }
 
+/// Answers the PIN prompt wrongly until the disk asks for the recovery key, at most two answers more than
+/// systemd's own count, so a prompt that never changes fails instead of hanging.
+fn answer_wrong_pins_until_key_asked(vm: &mut Vm) -> Result<(), String> {
+    for _ in 0..WRONG_PINS_BEFORE_KEY + 2 {
+        if vm.screen()?.contains(RECOVERY_PROMPT) {
+            return Ok(());
+        }
+        vm.type_text("wrongpin\n")?;
+        sleep(scaled(SETTLE));
+    }
+    vm.wait_for_screen(RECOVERY_PROMPT, scaled(SCREEN_LIMIT)).map(drop)
+}
+
 /// Past a PIN nobody knows: the first two answers go to the PIN prompt, and only then does the disk ask
 /// for the recovery key. A key typed earlier is spent as a wrong PIN.
 fn open_past_the_pin_with_recovery_key(vm: &mut Vm) -> Result<(), String> {
     vm.wait_for_screen(NOTICE, scaled(SCREEN_LIMIT))?;
     ensure(!data_open(vm)?, "opened with no PIN")?;
-    for _ in 0..WRONG_PINS_BEFORE_KEY {
-        vm.type_text("wrongpin\n")?;
-        sleep(scaled(SETTLE));
-    }
-    vm.wait_for_screen(RECOVERY_PROMPT, scaled(SCREEN_LIMIT))?;
+    answer_wrong_pins_until_key_asked(vm)?;
     let key = vm.recovery_key.clone();
     vm.type_text(&format!("{key}\n"))?;
     wait_open(vm)
@@ -377,8 +386,8 @@ fn recovery_key_opens_a_pin_machine(vm: &mut Vm, pin: &str) -> Result<(), String
     sleep(scaled(SETTLE));
     if !data_open(vm)? {
         // Three wrong PINs so far trip swtpm's dictionary-attack lockout, and then the right PIN is
-        // refused too, measured. The recovery key must still open it.
-        vm.wait_for_screen(RECOVERY_PROMPT, scaled(SCREEN_LIMIT))?;
+        // refused too, measured, and the PIN prompt comes back. The recovery key must still open it.
+        answer_wrong_pins_until_key_asked(vm)?;
         let key = vm.recovery_key.clone();
         vm.type_text(&format!("{key}\n"))?;
     }

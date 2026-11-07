@@ -389,14 +389,16 @@ impl Vm {
         limit: Duration,
     ) -> Result<String, String> {
         let deadline = Instant::now() + limit;
+        let mut shown = String::new();
         while Instant::now() < deadline {
-            let shown = self.screen()?;
+            shown = self.screen()?;
             if shown.contains(text) {
                 return Ok(shown);
             }
             sleep(POLL);
         }
-        Err(format!("the screen never said: {text}"))
+        let tail: String = shown.chars().rev().take(300).collect::<Vec<_>>().into_iter().rev().collect();
+        Err(format!("the screen never said: {text}; it ended: {}", tail.trim()))
     }
 
     /// Reads the recovery key off the screen, without confirming it.
