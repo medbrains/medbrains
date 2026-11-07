@@ -11,9 +11,10 @@
 import fs from "node:fs";
 import path from "node:path";
 import { parse } from "@babel/parser";
+import { classRefs, cssBindings, moduleImports, parseModule } from "./css-modules.mjs";
 import { iconFile } from "./icons.mjs";
 import { loadTypes } from "./slint-types.mjs";
-import { colorOf, convertStatic, isEnum, lengthOf, quote, staticValue, weightOf } from "./values.mjs";
+import { colorOf, convertStatic, isEnum, lengthOf, quote, staticValue, toneOf, weightOf } from "./values.mjs";
 
 const HERE = path.dirname(new URL(import.meta.url).pathname);
 export const DEFAULTS = JSON.parse(fs.readFileSync(path.join(HERE, "mantine-defaults.json"), "utf8"));
@@ -222,7 +223,13 @@ function components(program) {
   const consider = (name, fn) => {
     if (!name || !/^[A-Z]/.test(name) || !fn?.body) return;
     const { branches, main } = renderBranches(fn.body);
-    if (main && main.type !== "NullLiteral") out.push({ name, jsx: main, branches, body: fn.body, hooks: hookCalls(fn.body), states: localState(fn.body) });
+    // Destructured prop defaults (`{ emptyTitle = "No data found" }`) start the matching properties.
+    const defaults = new Map();
+    const param = fn.params?.[0];
+    if (param?.type === "ObjectPattern") {
+      for (const p of param.properties) if (p.type === "ObjectProperty" && p.value.type === "AssignmentPattern" && p.key.name) defaults.set(p.key.name, p.value.right);
+    }
+    if (main && main.type !== "NullLiteral") out.push({ name, jsx: main, branches, body: fn.body, hooks: hookCalls(fn.body), states: localState(fn.body), defaults });
   };
   for (let st of program.body) {
     if (st.type === "ExportNamedDeclaration" || st.type === "ExportDefaultDeclaration") st = st.declaration ?? st;
@@ -268,6 +275,7 @@ class ComponentWriter {
     this.rustNotes = [];
     this.extra = [];
     this.cells = [];
+    this.axes = [];
     this.changed = new Map();
     this.counter = 0;
   }
@@ -342,6 +350,28 @@ class ComponentWriter {
     return null;
   }
 
+  /**
+   * A string expression: a literal or translation as is, `cond ? a : b` as a Slint conditional
+   * with the condition as a bool property, anything else as a string property.
+   */
+  stringExpr(e) {
+    e = unwrap(e);
+    const lit = this.literal(e);
+    if (lit) return lit;
+    if (e?.type === "ConditionalExpression" && !isJsx(unwrap(e.consequent)) && !isJsx(unwrap(e.alternate))) {
+      return `(root.${this.property(this.text(e.test), "bool")} ? ${this.stringExpr(e.consequent)} : ${this.stringExpr(e.alternate)})`;
+    }
+    if (e?.type === "TemplateLiteral") {
+      const parts = [];
+      e.quasis.forEach((q, i) => {
+        if (q.value.cooked) parts.push(quote(q.value.cooked));
+        if (e.expressions[i]) parts.push(this.stringExpr(e.expressions[i]));
+      });
+      return parts.length ? parts.join(" + ") : '""';
+    }
+    return `root.${this.property(this.text(e))}`;
+  }
+
   /** The Slint type of a local state value, from its starting value. */
   stateType(stateName) {
     const init = unwrap(this.states.get(stateName)?.init);
@@ -400,6 +430,11 @@ class ComponentWriter {
     const attr = (name) => staticValue(n.openingElement.attributes.find((a) => a.name?.name === name)?.value);
     const icon = iconFile(tag, attr("stroke"));
     if (!icon) return null;
+    // An icon the installed Tabler release does not have would fail to load at run time.
+    if (this.tablerDir && !fs.existsSync(path.join(this.tablerDir, "icons", icon.style, `${icon.base}.svg`))) {
+      this.stats.missingIcons.add(tag);
+      return null;
+    }
     this.stats.icons.set(icon.file, icon);
     return { image: `@image-url("@medbrains-gui-kit/icons/${icon.file}")`, size: attr("size") };
   }
@@ -420,10 +455,7 @@ class ComponentWriter {
       if (icon) return { code: icon.image, iconSize: icon.size };
     }
     if (isJsx(e)) return { drop: "an element in a property needs a slot in the kit" };
-    if (type === "string" || type === "styled") {
-      const lit = this.literal(e);
-      if (lit) return { code: lit };
-    }
+    if (type === "string" || type === "styled") return { code: this.stringExpr(e) };
     if (e.type === "NullLiteral" || (e.type === "Identifier" && e.name === "undefined")) return { drop: "unset" };
     const declared = type === "physical-length" ? "length" : type === "styled" ? "string" : type;
     return { code: `root.${this.property(this.text(e), declared)}` };
@@ -477,8 +509,12 @@ class ComponentWriter {
       const size = icon.size !== undefined ? ` size: ${lengthOf(icon.size, "size").code ?? "24px"};` : "";
       return this.emit(`MbIcon { source: ${icon.image};${size} }`, depth);
     }
-    const rule = rules[`${from?.lib}:${tag}`] ?? rules[tag] ?? (tag.includes(".") ? rules[tag.split(".")[0]] && { slint: "_passthrough", props: {} } : null);
-    const known = rule ? null : this.known.get(tag);
+    // An aliased import (`Badge as SBadge`) converts by the name it was exported under.
+    const canonical = from && from.lib !== "other" && from.imported !== "default" ? [from.imported, ...tag.split(".").slice(1)].join(".") : tag;
+    const rule = rules[`${from?.lib}:${canonical}`] ?? rules[canonical] ?? rules[tag] ?? (tag.includes(".") ? rules[tag.split(".")[0]] && { slint: "_passthrough", props: {} } : null);
+    if (canonical === "Menu" && from?.lib === "mantine") return this.menu(node, depth);
+    const own = from?.lib === "other" && this.known.has(tag) && !rule?.own;
+    const known = rule && !own ? null : this.known.get(tag);
     if (known && WRAPPER.test(tag)) {
       // Providers, boundaries and guards add behaviour, not layout: their children are the screen.
       this.stats.mapped += 1;
@@ -530,6 +566,60 @@ class ComponentWriter {
       return this.children(node.children, depth);
     }
     this.mapped(node, rule, tag, from, depth);
+  }
+
+  /**
+   * Mantine Menu as Slint's ContextMenuArea: Menu.Item becomes MenuItem (title, icon, enabled,
+   * activated), Menu.Divider a MenuSeparator, Menu.Label a disabled MenuItem. Slint draws the
+   * popup and handles arrows, Enter, Escape and skipping disabled items. The target opens it on
+   * click, on Enter or Space, and on the Menu key.
+   */
+  menu(node, depth) {
+    this.stats.mapped += 1;
+    this.stats.menus += 1;
+    const id = `menu-${this.counter++}`;
+    const kids = (n) => n.children.filter((c) => c.type === "JSXElement");
+    const target = kids(node).find((c) => tagName(c.openingElement.name).endsWith(".Target"));
+    const dropdown = kids(node).find((c) => tagName(c.openingElement.name).endsWith(".Dropdown"));
+    this.emit(`${id} := ContextMenuArea {`, depth);
+    this.emit("Menu {", depth + 1);
+    const item = (c, d, prefix = "") => {
+      if (c.type === "JSXExpressionContainer") {
+        const e = unwrap(c.expression);
+        if (e?.type === "LogicalExpression" && e.operator === "&&" && isJsx(unwrap(e.right))) return item(unwrap(e.right), d, `if root.${this.property(this.text(e.left), "bool")} : `);
+        if (e?.type === "CallExpression" && e.callee?.property?.name === "map") {
+          const body = renderBranches(e.arguments[0]?.body).main;
+          if (body) return item(body, d, `for item in root.${this.property(this.text(e.callee.object), "[string]")} : `);
+        }
+        return;
+      }
+      if (c.type !== "JSXElement") return;
+      const t = tagName(c.openingElement.name);
+      this.stats.elements += 1;
+      this.stats.mapped += 1;
+      if (t.endsWith(".Divider")) return this.emit(`${prefix}MenuSeparator { }`, d);
+      const title = this.textParts(c.children).join(" + ") || '""';
+      if (t.endsWith(".Label")) return this.emit(`${prefix}MenuItem { title: ${title}; enabled: false; }`, d);
+      if (!t.endsWith(".Item")) return;
+      const attrs = Object.fromEntries(c.openingElement.attributes.filter((a) => a.type === "JSXAttribute").map((a) => [a.name.name, a]));
+      const parts = [`title: ${title};`];
+      if (attrs.disabled) parts.push(`enabled: ${attrs.disabled.value ? this.condition(attrs.disabled.value) === "true" ? "false" : `!${this.condition(attrs.disabled.value)}` : "false"};`);
+      const icon = attrs.leftSection ? this.iconImage(attrs.leftSection.value?.expression) : null;
+      if (icon) parts.push(`icon: ${icon.image};`);
+      const click = attrs.onClick?.value?.expression;
+      if (click) parts.push(this.setterAssignment(click, "activated") ?? `activated => { root.${this.callback(`menu-${this.text(c).slice(0, 0)}item-${this.counter++}`)}(); }`);
+      this.emit(`${prefix}MenuItem { ${parts.join(" ")} }`, d);
+    };
+    for (const c of dropdown?.children ?? []) item(c, depth + 2);
+    this.emit("}", depth + 1);
+    this.emit("VerticalLayout {", depth + 1);
+    this.emit("alignment: LayoutAlignment.start;", depth + 1);
+    if (target) this.children(target.children, depth + 2);
+    this.emit("}", depth + 1);
+    // The target's click and keys open the menu below it.
+    this.emit(`TouchArea { clicked => { ${id}.show({ x: 0px, y: self.height }); } }`, depth + 1);
+    this.emit(`FocusScope { key-pressed(event) => { if (event.text == " " || event.text == "\\n" || event.text == Key.DownArrow) { ${id}.show({ x: 0px, y: 24px }); return accept; } return reject; } }`, depth + 1);
+    this.emit("}", depth);
   }
 
   /** A tab label or panel under `Tabs` bound to a state value: selection is a Slint property. */
@@ -619,21 +709,32 @@ class ComponentWriter {
       .filter(([k]) => !given.has(k) && (rule.props?.[k] || this.mapping.styleProps[k]) && !(rule.ignoreDefaults ?? []).includes(k))
       .map(([k, v]) => ({ type: "JSXAttribute", name: { name: k }, value: typeof v === "string" ? { type: "StringLiteral", value: v } : { type: "JSXExpressionContainer", expression: { type: typeof v === "number" ? "NumericLiteral" : "BooleanLiteral", value: v } }, synthetic: true }));
     const written = new Set();
+    // value + onChange bound two ways: the onChange is then the binding, not a callback.
+    let twoWayDone = false;
     const put = (target, code) => {
       if (written.has(target)) return;
+      const axis = /^(min|max)-(width|height)$/.exec(target)?.[2];
+      if (axis && info.bound?.has(axis)) {
+        notes.push(this.drop(tag, target, `the kit fixes this control's ${axis}`));
+        return;
+      }
       written.add(target);
       lines.push(`${target}: ${code};`);
     };
     for (const [k, v] of Object.entries(rule.fixed ?? {})) put(k, v);
     for (const attr of [...attrs, ...synthetic]) {
       const name = attr.name.name;
+      if (name === "className" && this.cssClasses(attr, info, { put, notes, wrap, tag })) continue;
       if (rule.handled?.[name]) continue;
       if (rule.gaps?.[name]) {
         if (!attr.synthetic) notes.push(this.drop(tag, name, rule.gaps[name]));
         continue;
       }
-      if (this.twoWay(node, rule, attr, info, lines)) continue;
-      if (/^on[A-Z]/.test(name) && this.twoWayPartner(node, attr)) continue;
+      if (this.twoWay(node, rule, attr, info, lines)) {
+        twoWayDone = true;
+        continue;
+      }
+      if (/^on[A-Z]/.test(name) && twoWayDone && this.twoWayPartner(node, attr)) continue;
       const target = rule.props?.[name] ?? this.mapping.styleProps[name] ?? this.mapping.commonProps[name];
       if (!target) {
         if (!attr.synthetic) notes.push(this.drop(tag, name, this.mapping.commonProps[`_${name}`] ?? "no Slint equivalent"));
@@ -685,7 +786,8 @@ class ComponentWriter {
         else put(prop, `!root.${this.property(this.text(attr.value.expression), "bool")}`);
         continue;
       }
-      const r = this.valueFor(decl.type, attr.value, prop);
+      const toneValue = prop === "tone" && name === "color" ? staticValue(attr.value) : undefined;
+      const r = typeof toneValue === "string" ? toneOf(toneValue) : this.valueFor(decl.type, attr.value, prop);
       if (r.drop) {
         if (!attr.synthetic) notes.push(this.drop(tag, name, r.drop));
         continue;
@@ -706,6 +808,27 @@ class ComponentWriter {
     }
     for (const [k, v] of Object.entries(rule.default ?? {})) put(k, v);
     return { lines, notes, wrap };
+  }
+
+  /**
+   * `className={classes.bar}`: the declarations of that CSS module class with a Slint
+   * equivalent (css-modules.mjs), each other declaration noted. False when no class resolves.
+   */
+  cssClasses(attr, info, { put, notes, wrap, tag }) {
+    const expr = attr.value?.type === "JSXExpressionContainer" ? attr.value.expression : null;
+    const refs = expr ? classRefs(expr).filter((r) => this.cssModules.has(r.module)) : [];
+    if (!refs.length) return false;
+    for (const ref of refs) {
+      const decls = parseModule(this.cssModules.get(ref.module)).get(ref.cls);
+      if (!decls) continue;
+      const r = cssBindings(decls, info, this.axes[this.axes.length - 1] ?? "column");
+      for (const [p, code] of r.set) put(p, code);
+      if (r.wrap.background && !wrap.background) wrap.background = r.wrap.background;
+      if (r.wrap.transform) wrap.transform = r.wrap.transform;
+      for (const n of r.notes) notes.push(this.drop(tag, `.${ref.cls}`, n));
+      this.stats.cssClasses += 1;
+    }
+    return true;
   }
 
   /** `{...form.register("name")}`: a two-way binding to the form field's view-model property. */
@@ -809,7 +932,11 @@ class ComponentWriter {
     // display: none), margin (a layout's padding), background (a Rectangle behind a layout).
     let d = depth;
     const opened = [];
-    const cond = wrap.visible ? `if ${wrap.visible} : ` : "";
+    // A Modal mounts its content only while open (Mantine keepMounted=false): an `if`, not a hidden element.
+    const mountAttr = rule.mountWhen ? node.openingElement.attributes.find((a) => a.name?.name === rule.mountWhen) : null;
+    const mount = mountAttr ? this.condition(mountAttr.value) : null;
+    const conds = [wrap.visible, mount].filter(Boolean);
+    const cond = conds.length ? `if ${conds.join(" && ")} : ` : "";
     const margins = Object.entries(wrap.margin);
     if (margins.length) {
       this.emit(`${cond}VerticalLayout {`, d);
@@ -859,7 +986,9 @@ class ComponentWriter {
       // Rows, cells or adornments written as JSX children: the widget takes them as properties.
       if (node.children.some((c) => c.type !== "JSXText" || c.value.trim())) this.stats.leafChildren += 1;
     } else {
+      this.axes.push(slint === "HorizontalLayout" || (slint === "FlexboxLayout" && !lines.some((l) => l.includes("flex-direction") && l.includes("column"))) ? "row" : "column");
       this.children(node.children, d + 1);
+      this.axes.pop();
     }
     this.emit("}", d);
     for (const o of opened.reverse()) this.emit("}", o);
@@ -877,6 +1006,16 @@ class ComponentWriter {
     return value === "nowrap" ? "HorizontalLayout" : "FlexboxLayout";
   }
 
+  /** A JSX attribute as a Slint bool expression: a literal, a state or a view-model property. */
+  condition(value) {
+    const v = staticValue(value);
+    if (typeof v === "boolean") return String(v);
+    const e = value?.type === "JSXExpressionContainer" ? unwrap(value.expression) : null;
+    if (!e) return "true";
+    const type = e.type === "Identifier" && this.states.has(e.name) ? this.stateType(e.name) : "bool";
+    return type === "bool" ? `root.${this.property(this.text(e), "bool")}` : "true";
+  }
+
   /** Applies a `tt` text transform to a string expression. */
   transform(code, wrap) {
     return wrap?.transform ? `(${code}).${wrap.transform}()` : code;
@@ -891,10 +1030,10 @@ class ComponentWriter {
         if (s.trim()) parts.push(quote(s));
       } else if (c.type === "JSXExpressionContainer" && c.expression.type !== "JSXEmptyExpression") {
         const e = unwrap(c.expression);
-        if (isJsx(e) || e.type === "LogicalExpression" || e.type === "ConditionalExpression") {
+        if (isJsx(e) || e.type === "LogicalExpression" || (e.type === "ConditionalExpression" && (isJsx(unwrap(e.consequent)) || isJsx(unwrap(e.alternate))))) {
           this.stats.inlineInText += 1;
           parts.push(`root.${this.property(this.text(e))}`);
-        } else parts.push(this.literal(e) ?? `root.${this.property(this.text(e))}`);
+        } else parts.push(this.stringExpr(e));
       } else if (c.type === "JSXElement") {
         this.stats.inlineInText += 1;
         parts.push(`root.${this.property(this.text(c))}`);
@@ -1125,7 +1264,7 @@ class ComponentWriter {
    */
   previewDefault(p) {
     if (!this.preview || p.type !== "bool") return "";
-    return previewBool(p.src) ? ": true" : ": false";
+    return previewBool(p.src, this.previewDeny) ? ": true" : ": false";
   }
 
   /** Effects, timers, refs, queries and browser APIs: Slint hooks where one exists, markers otherwise. */
@@ -1212,7 +1351,8 @@ class ComponentWriter {
     for (const note of this.rustNotes) head.push(`    ${note}`);
     for (const p of this.props.values()) {
       const state = this.states.get(p.src.trim());
-      const init = p.init ?? (state ? this.literal(state.init) : null);
+      const given = c.defaults.get(p.src.trim());
+      const init = p.init ?? (state ? this.literal(state.init) : given ? this.literal(given) : null);
       const fits = init && ((p.type === "bool" && /^(true|false)$/.test(init)) || ((p.type === "int" || p.type === "float") && /^-?\d+(\.\d+)?$/.test(init))
         || (p.type === "string" && (init.startsWith('"') || init.startsWith("@tr"))));
       const value = fits ? `: ${init}` : this.previewDefault(p);
@@ -1235,11 +1375,15 @@ const STD_WIDGETS = new Set([
 ]);
 
 /** The preview's starting value for a condition, as on the mocked web reference. */
-export function previewBool(src) {
+export function previewBool(src, deny = new Set()) {
   const s = src.trim().replace(/\s+/g, " ");
-  if (s.startsWith("!") && !s.startsWith("!=")) return !previewBool(s.slice(1).replace(/^\((.*)\)$/, "$1"));
-  if (/&&/.test(s)) return s.split("&&").every((x) => previewBool(x));
-  if (/\|\|/.test(s)) return s.split("||").some((x) => previewBool(x));
+  if (s.startsWith("!") && !s.startsWith("!=")) return !previewBool(s.slice(1).replace(/^\((.*)\)$/, "$1"), deny);
+  if (/&&/.test(s)) return s.split("&&").every((x) => previewBool(x, deny));
+  if (/\|\|/.test(s)) return s.split("||").some((x) => previewBool(x, deny));
+  // Permission and feature checks: allowed, like the super admin of the web reference, unless
+  // the preview is asked to deny them (--preview-deny). The runtime gate is untouched.
+  if (/^(can|allow|has[A-Z]\w*(Permission|Access|Feature)|is\w*(Enabled|Allowed))[A-Z_]?\w*$/.test(s)) return !deny.has(s);
+  if (/column|step|page|index|tab|width|height|level|depth/i.test(s) && /(===?|<=?|>)\s*\d/.test(s)) return false;
   if (/(===?|<=?)\s*0\b|\bempty\b|isEmpty|==\s*null|===\s*undefined|\bno[A-Z]\w*/i.test(s) && !/!==?\s*(null|undefined)/.test(s)) return true;
   if (/loading|pending|fetching|error|fail|denied|outage|unavailable|offline|open|modal|drawer|confirm|editing|selected|expanded|dirty|submitting|saving|busy|>\s*0|\.length\b|!==?\s*(null|undefined)/i.test(s)) return false;
   return /^(can|has|is|show|allow|visible|enabled)[A-Z_]|\b(can|has|show|allow)[A-Z]/.test(s);
@@ -1248,7 +1392,7 @@ export function previewBool(src) {
 /** Converts one module's source: the Slint text and its statistics. */
 export function convertSource(source, fileName = "input.tsx", mapping = loadMapping(), known = new Map(), options = {}) {
   const ast = parse(source, { sourceType: "module", plugins: ["jsx", "typescript"], errorRecovery: true });
-  const stats = { elements: 0, mapped: 0, strings: 0, unmapped: {}, rawHtml: {}, kit: new Set(), std: new Set(), hooks: {}, references: new Map(), webOnly: {}, inlineInText: 0, leafChildren: 0, missingStrings: 0, reactive: 0, droppedProps: {}, rust: {}, lifecycle: 0, icons: new Map(), unpassedProps: 0, recursive: 0, declared: new Map() };
+  const stats = { elements: 0, mapped: 0, strings: 0, unmapped: {}, rawHtml: {}, kit: new Set(), std: new Set(), hooks: {}, references: new Map(), webOnly: {}, inlineInText: 0, leafChildren: 0, missingStrings: 0, reactive: 0, droppedProps: {}, rust: {}, lifecycle: 0, icons: new Map(), unpassedProps: 0, recursive: 0, cssClasses: 0, menus: 0, missingIcons: new Set(), declared: new Map() };
   const own = new Set();
   const found = components(ast.program);
   for (const c of found) own.add(c.name);
@@ -1257,9 +1401,10 @@ export function convertSource(source, fileName = "input.tsx", mapping = loadMapp
   // A same-named component elsewhere must not lend this one its properties.
   for (const name of own) visible.set(name, { ...(known.get(name)?.file === fileName ? known.get(name) : {}), file: fileName });
   const imports = importsOf(ast.program);
+  const cssModules = moduleImports(ast.program, options.absFile);
   const rendered = new Map();
   for (const c of found) {
-    const writer = new ComponentWriter(c, { mapping, source, stats, known: visible, imports, preview: Boolean(options.preview), strings: options.strings, formFields: new Set() });
+    const writer = new ComponentWriter(c, { mapping, source, stats, known: visible, imports, cssModules, tablerDir: options.tablerDir, preview: Boolean(options.preview), previewDeny: new Set(options.previewDeny ?? []), strings: options.strings, formFields: new Set() });
     rendered.set(c.name, writer.render(c, []));
     stats.declared.set(c.name, {
       // The first declaration of a source name wins: it is the one a caller passes.
@@ -1308,7 +1453,7 @@ export function convertSource(source, fileName = "input.tsx", mapping = loadMapp
 export function convertFile(file, mapping = loadMapping(), known = new Map(), base = path.dirname(file), options = {}) {
   const rel = (f) => path.relative(base, f);
   const relKnown = new Map([...known].map(([n, k]) => [n, { ...k, file: rel(k.file) }]));
-  return convertSource(fs.readFileSync(file, "utf8"), rel(file), mapping, relKnown, options);
+  return convertSource(fs.readFileSync(file, "utf8"), rel(file), mapping, relKnown, { ...options, absFile: path.resolve(file) });
 }
 
 /** Every component defined in a source tree, `name -> { file }`, so references across files convert. */

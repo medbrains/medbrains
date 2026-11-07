@@ -55,6 +55,8 @@ export function parseKit(source) {
       callbacks,
       children: /@children/.test(body),
       role: /accessible-role\s*:/.test(top),
+      // Geometry the component binds itself: a caller may not add min/max on the same axis.
+      bound: new Set([...top.matchAll(/(?:^|;)\s*(width|height)\s*:/gm)].map((b) => b[1])),
     });
   }
   return out;
@@ -82,6 +84,7 @@ export function loadTypes(dir = KIT_DIR) {
         callbacks: { ...base.callbacks, ...own.callbacks },
         children: own.children || (base.children && !own.children && LAYOUTS.has(own.base)),
         role: own.role || base.role,
+        bound: new Set([...own.bound, ...(base.bound ?? [])]),
         layout: false,
         known: true,
         kit: true,
@@ -99,6 +102,7 @@ export function loadTypes(dir = KIT_DIR) {
         children: CONTAINERS.has(name),
         role: ["Image", "Text"].includes(name) ? false : Boolean(el) && !layout && !["Rectangle", "TouchArea", "FocusScope", "Flickable", "Window", "PopupWindow", "Path"].includes(name),
         layout,
+        bound: new Set(),
         known: Boolean(el),
         doc: el?.doc,
       };

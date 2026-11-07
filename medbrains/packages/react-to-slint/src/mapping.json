@@ -1,5 +1,5 @@
 {
-  "_doc": "React (Mantine 9 and the components/ui seam) to Slint 1.18. Each rule: `slint` is the element written; `props` maps a JSX prop to the Slint property it sets (a trailing ! negates a bool); every value is converted with the type the Slint element declares (src/slint-types.mjs). `values` lists fixed conversions for a prop's literal values; `fixed` is always written; `gaps` names props with no Slint equivalent and why; `handled` names props the converter turns into structure rather than a property (grid cells, tab state); `text` is the property that takes the element's children as text; `iconChild` takes an icon child as an image property; `wrapping` and `grid` select the flex layouts; `rust` marks logic for the view model. Mantine's default props (mantine-defaults.json) apply before the source's own. A rule keyed `seam:Tag` or `mantine:Tag` applies only to that import. docs/CONVERSIONS.md is generated from this file.",
+  "_doc": "React (Mantine 9 and the components/ui seam) to Slint 1.18. Each rule: `slint` is the element written; `props` maps a JSX prop to the Slint property it sets (a trailing ! negates a bool); every value is converted with the type the Slint element declares (src/slint-types.mjs). `values` lists fixed conversions for a prop's literal values; `fixed` is always written; `gaps` names props with no Slint equivalent and why; `handled` names props the converter turns into structure rather than a property (grid cells, tab state); `text` is the property that takes the element's children as text; `iconChild` takes an icon child as an image property; `wrapping` and `grid` select the flex layouts; `mountWhen` mounts the element only while that prop is true (an `if`); `rust` marks logic for the view model. Mantine's default props (mantine-defaults.json) apply before the source's own. `own` lets a rule replace our own component of that name (otherwise our component converts from its own source). A rule keyed `seam:Tag` or `mantine:Tag` applies only to that import. docs/CONVERSIONS.md is generated from this file.",
   "version": 9,
   "styleProps": {
     "_doc": "Mantine style props (https://mantine.dev/styles/style-props/), on every component with a root element.",
@@ -152,9 +152,8 @@
       "fixed": {}
     },
     "Group": {
-      "slint": "FlexboxLayout",
+      "slint": "HorizontalLayout",
       "mantine": "core/group",
-      "wrapping": "wrap",
       "props": {
         "gap": "spacing",
         "justify": "alignment",
@@ -168,7 +167,7 @@
         }
       },
       "handled": {
-        "wrap": "selects FlexboxLayout (wrap) or HorizontalLayout (nowrap)",
+        "wrap": "wrap=\"nowrap\" and the default both become a HorizontalLayout: Slint FlexboxLayout reports a one-column preferred width inside a row, so it wraps where the web does not; a Group that overflows its row is the one case that differs",
         "preventGrowOverflow": "grow shares space evenly in FlexboxLayout alignment: stretch"
       }
     },
@@ -1646,7 +1645,8 @@
         "primaryAction": "the action row is written by the screen",
         "secondaryAction": "the action row is written by the screen",
         "danger": "the action tone is written by the screen"
-      }
+      },
+      "mountWhen": "opened"
     },
     "Drawer": {
       "slint": "MbModal",
@@ -1658,7 +1658,8 @@
       },
       "fixed": {
         "full-screen": "true"
-      }
+      },
+      "mountWhen": "opened"
     },
     "Breadcrumbs": {
       "slint": "MbBreadcrumb",
@@ -1799,7 +1800,8 @@
         "icon": "the module badge comes from the route (Shell global), as matchModuleBadge does on the web",
         "color": "the module colour comes from the route",
         "actions": "actions are written by the screen next to the header"
-      }
+      },
+      "own": true
     },
     "Panel": {
       "slint": "MbPanel",

@@ -114,6 +114,13 @@ export global Tone {
     }
 }
 
+/** The visible focus indicator: a 2px primary outline around the control (WCAG 2.2 SC 2.4.13). */
+export component FocusRing inherits Rectangle {
+    in property <bool> shown;
+    border-width: root.shown ? Metrics.focus-width : 0px;
+    border-color: Tokens.color-primary-primary;
+}
+
 /** A Tabler icon (SVG) drawn as a mask in a token colour. */
 export component MbIcon inherits Image {
     in property <length> size: 24px;
@@ -196,26 +203,36 @@ export component MbIconButton inherits Rectangle {
     callback clicked();
     accessible-role: button;
     accessible-enabled: root.enabled;
-    accessible-action-default => { root.clicked(); }
-    /** Mantine ActionIcon sizes: xs 18, sm 22, md 28, lg 34, xl 44. */
+    accessible-action-default => { if (root.enabled) { root.clicked(); } }
+    /** Mantine ActionIcon sizes: xs 18, sm 22, md 28, lg 34, xl 44; the target is never under 24px. */
     property <length> side: root.size == "xs" ? 18px : root.size == "sm" ? 22px : root.size == "lg" ? 34px : root.size == "xl" ? 44px : 28px;
-    width: root.side;
-    height: root.side;
+    width: max(root.side, 24px);
+    height: max(root.side, 24px);
     background: touch.has-hover ? Tokens.color-surface-surface-container-high : transparent;
-    Image { source: root.icon; width: root.side * 0.64; height: root.side * 0.64; colorize: root.tone == "default" ? Tokens.color-content-on-surface : Tone.fill(root.tone); }
+    Image { source: root.icon; width: root.side * 0.64; height: root.side * 0.64; colorize: !root.enabled ? Tokens.color-content-on-surface-variant : root.tone == "default" ? Tokens.color-content-on-surface : Tone.fill(root.tone); }
     touch := TouchArea { enabled: root.enabled; clicked => { root.clicked(); } }
-    focus := FocusScope { key-pressed(event) => { if (event.text == " " || event.text == "\n") { root.clicked(); return accept; } return reject; } }
-    Rectangle { border-width: focus.has-focus ? Metrics.focus-width : 0px; border-color: Tokens.color-primary-primary; }
+    focus := FocusScope {
+        enabled: root.enabled;
+        key-pressed(event) => { if (event.text == " " || event.text == "\n") { root.clicked(); return accept; } return reject; }
+    }
+    FocusRing { shown: focus.has-focus; }
 }
 
-/** Mantine UnstyledButton: a pressable area around its children. */
+/** Mantine UnstyledButton: a pressable area around its children, keyboard operable. */
 export component MbPressable inherits Rectangle {
     in property <bool> enabled: true;
     callback clicked();
     accessible-role: button;
-    accessible-action-default => { root.clicked(); }
+    accessible-enabled: root.enabled;
+    accessible-action-default => { if (root.enabled) { root.clicked(); } }
+    min-height: 24px;
     VerticalLayout { @children }
     TouchArea { enabled: root.enabled; clicked => { root.clicked(); } }
+    focus := FocusScope {
+        enabled: root.enabled;
+        key-pressed(event) => { if (event.text == " " || event.text == "\n") { root.clicked(); return accept; } return reject; }
+    }
+    FocusRing { shown: focus.has-focus; }
 }
 
 /** Mantine Input.Wrapper: label, description and error around a field (Input.module.css sizes). */
@@ -261,10 +278,14 @@ export component MbTextInput inherits Field {
     accessible-label: root.label != "" ? root.label : root.placeholder-text;
     accessible-value: root.text;
     accessible-placeholder-text: root.placeholder-text;
+    accessible-description: root.error != "" ? root.error : root.description;
+    accessible-read-only: root.read-only;
+    accessible-enabled: root.enabled;
     FieldBox {
         height: root.box-height;
         focused: input.has-focus;
         invalid: root.error != "";
+        FocusRing { shown: input.has-focus; }
         HorizontalLayout {
             padding-left: root.icon.width > 0 ? 0px : root.box-height / 3;
             padding-right: root.box-height / 3;
@@ -326,8 +347,28 @@ export component MbNumberInput inherits Field {
     accessible-value-minimum: root.minimum;
     accessible-value-maximum: root.maximum;
     accessible-value-step: root.step;
+    accessible-description: root.error != "" ? root.error : root.description;
+    accessible-action-increment => { root.step-by(1); }
+    accessible-action-decrement => { root.step-by(-1); }
+    function step-by(n: int) {
+        if (root.enabled && !root.read-only) {
+            root.value = clamp(root.value + n * root.step, root.minimum, root.maximum);
+            root.edited(root.value);
+        }
+    }
     FieldBox {
         height: root.box-height;
+        focused: keys.has-focus;
+        invalid: root.error != "";
+        keys := FocusScope {
+            enabled: root.enabled;
+            key-pressed(event) => {
+                if (event.text == Key.UpArrow) { root.step-by(1); return accept; }
+                if (event.text == Key.DownArrow) { root.step-by(-1); return accept; }
+                return reject;
+            }
+        }
+        FocusRing { shown: keys.has-focus; }
         HorizontalLayout {
             padding-left: root.box-height / 3;
             Text {
@@ -369,8 +410,10 @@ export component MbTextArea inherits Field {
     accessible-role: text-input;
     accessible-label: root.label;
     accessible-value: root.text;
+    accessible-description: root.error != "" ? root.error : root.description;
     FieldBox {
         focused: area.has-focus;
+        FocusRing { shown: area.has-focus; }
         invalid: root.error != "";
         min-height: max(Metrics.input-height(root.size), root.min-rows * Metrics.fz(root.size) * 1.45 + 16px);
         HorizontalLayout {
@@ -440,6 +483,8 @@ export component MbSelect inherits Field {
     callback selected(string);
     ComboBox {
         height: Metrics.input-height(root.size);
+        accessible-label: root.label != "" ? root.label : root.placeholder-text;
+        accessible-description: root.error != "" ? root.error : root.description;
         model: root.model;
         enabled: root.enabled;
         current-value <=> root.current-value;
@@ -463,6 +508,8 @@ export component MbMultiSelect inherits Field {
     }
     ComboBox {
         height: Metrics.input-height(root.size);
+        accessible-label: root.label != "" ? root.label : root.placeholder-text;
+        accessible-description: root.error != "" ? root.error : root.description;
         model: root.model;
         enabled: root.enabled;
         selected(v) => { root.changed(); }
@@ -503,9 +550,13 @@ export component MbCheckbox inherits HorizontalLayout {
     accessible-checkable: true;
     accessible-checked: root.checked;
     accessible-enabled: root.enabled;
+    accessible-description: root.error != "" ? root.error : root.description;
     accessible-action-default => { root.toggle(); }
     function toggle() { if (root.enabled) { root.checked = !root.checked; root.toggled(root.checked); } }
     Rectangle {
+        width: max(root.box, 24px);
+        height: max(root.box, 24px);
+        Rectangle {
         width: root.box;
         height: root.box;
         background: root.checked || root.indeterminate ? Tokens.color-primary-primary : Tokens.color-surface-surface-container-lowest;
@@ -516,6 +567,7 @@ export component MbCheckbox inherits HorizontalLayout {
         TouchArea { clicked => { root.toggle(); } }
         focus := FocusScope { key-pressed(event) => { if (event.text == " ") { root.toggle(); return accept; } return reject; } }
         Rectangle { width: parent.width + 4px; height: parent.height + 4px; border-width: focus.has-focus ? Metrics.focus-width : 0px; border-color: Tokens.color-primary-primary; }
+        }
     }
     if root.text != "" || root.description != "" : VerticalLayout {
         alignment: center;
@@ -542,9 +594,14 @@ export component MbSwitch inherits HorizontalLayout {
     accessible-label: root.text;
     accessible-checkable: true;
     accessible-checked: root.checked;
+    accessible-enabled: root.enabled;
+    accessible-description: root.error != "" ? root.error : root.description;
     accessible-action-default => { root.toggle(); }
     function toggle() { if (root.enabled) { root.checked = !root.checked; root.toggled(root.checked); } }
     Rectangle {
+        height: max(root.track-h, 24px);
+        width: root.track-h * 1.9;
+        Rectangle {
         width: root.track-h * 1.9;
         height: root.track-h;
         border-radius: root.track-h / 2;
@@ -561,15 +618,17 @@ export component MbSwitch inherits HorizontalLayout {
         TouchArea { clicked => { root.toggle(); } }
         focus := FocusScope { key-pressed(event) => { if (event.text == " ") { root.toggle(); return accept; } return reject; } }
         Rectangle { width: parent.width + 4px; height: parent.height + 4px; border-width: focus.has-focus ? Metrics.focus-width : 0px; border-color: Tokens.color-primary-primary; }
+        }
     }
     if root.text != "" || root.description != "" : VerticalLayout {
         alignment: center;
         if root.text != "" : Text { text: root.text; font-family: Metrics.font; font-size: Metrics.fz(root.size); color: Tokens.color-content-on-surface; wrap: word-wrap; }
         if root.description != "" : Text { text: root.description; font-family: Metrics.font; font-size: Metrics.fz(root.size) - 2px; color: Tokens.color-content-on-surface-variant; wrap: word-wrap; }
+        if root.error != "" : Text { text: root.error; font-family: Metrics.font; font-size: Metrics.fz(root.size) - 2px; color: Tokens.color-error-error; wrap: word-wrap; }
     }
 }
 
-/** Mantine Radio: one option of a group. */
+/** Mantine Radio: one option of a group; Space selects it. */
 export component MbRadio inherits HorizontalLayout {
     in property <string> text;
     in property <string> description;
@@ -581,14 +640,24 @@ export component MbRadio inherits HorizontalLayout {
     alignment: start;
     accessible-role: radio-button;
     accessible-label: root.text;
+    accessible-checkable: true;
     accessible-checked: root.checked;
+    accessible-enabled: root.enabled;
+    accessible-action-default => { root.pick(); }
+    function pick() { if (root.enabled) { root.checked = true; root.toggled(true); } }
     Rectangle {
-        width: 20px;
-        height: 20px;
-        border-radius: 10px;
-        border-width: root.checked ? 6px : 1px;
-        border-color: root.checked ? Tokens.color-primary-primary : Tokens.color-outline-outline;
-        TouchArea { clicked => { if (root.enabled) { root.checked = true; root.toggled(true); } } }
+        width: 24px;
+        height: 24px;
+        Rectangle {
+            width: 20px;
+            height: 20px;
+            border-radius: 10px;
+            border-width: root.checked ? 6px : 1px;
+            border-color: root.checked ? Tokens.color-primary-primary : Tokens.color-outline-outline;
+        }
+        TouchArea { clicked => { root.pick(); } }
+        focus := FocusScope { enabled: root.enabled; key-pressed(event) => { if (event.text == " ") { root.pick(); return accept; } return reject; } }
+        FocusRing { shown: focus.has-focus; }
     }
     if root.text != "" : Text { text: root.text; font-family: Metrics.font; font-size: Tokens.font-sm; color: Tokens.color-content-on-surface; vertical-alignment: center; }
 }
@@ -610,25 +679,41 @@ export component MbSegmented inherits Rectangle {
     in property <string> size: "sm";
     callback selected(string);
     accessible-role: tab-list;
+    accessible-value: root.current-value;
     height: Metrics.input-height(root.size);
     horizontal-stretch: root.full-width ? 1 : 0;
     background: Tokens.color-surface-surface-container-high;
+    // The chosen segment's position, kept by the segments themselves (functions cannot loop).
+    in-out property <int> index: -1;
+    function choose(i: int) {
+        if (root.enabled && i >= 0 && i < root.model.length) { root.index = i; root.current-value = root.model[i]; root.selected(root.model[i]); }
+    }
+    keys := FocusScope {
+        enabled: root.enabled;
+        key-pressed(event) => {
+            if (event.text == Key.RightArrow) { root.choose(root.index + 1); return accept; }
+            if (event.text == Key.LeftArrow) { root.choose(root.index - 1); return accept; }
+            return reject;
+        }
+    }
+    FocusRing { shown: keys.has-focus; }
     HorizontalLayout {
         padding: 3px;
-        for item in root.model : Rectangle {
+        for item[i] in root.model : Rectangle {
+            init => { if (item == root.current-value) { root.index = i; } }
             accessible-role: tab;
             accessible-label: item;
             accessible-item-selected: item == root.current-value;
-            accessible-action-default => { root.current-value = item; root.selected(item); }
+            accessible-action-default => { root.choose(i); }
             background: item == root.current-value ? Tokens.color-surface-surface-container-lowest : transparent;
             min-width: seg-text.preferred-width + 24px;
             seg-text := Text { text: item; font-family: Metrics.font; font-size: Metrics.fz(root.size); font-weight: item == root.current-value ? 600 : 400; color: Tokens.color-content-on-surface; }
-            TouchArea { enabled: root.enabled; clicked => { root.current-value = item; root.selected(item); } }
+            TouchArea { enabled: root.enabled; clicked => { root.choose(i); } }
         }
     }
 }
 
-/** Mantine Chip: a toggle tag. */
+/** Mantine Chip: a toggle tag; Space toggles it. */
 export component MbChip inherits Rectangle {
     in property <string> text;
     in property <string> value;
@@ -637,15 +722,27 @@ export component MbChip inherits Rectangle {
     callback toggled(bool);
     accessible-role: checkbox;
     accessible-label: root.text;
+    accessible-checkable: true;
     accessible-checked: root.checked;
+    accessible-enabled: root.enabled;
+    accessible-action-default => { root.toggle(); }
+    function toggle() { if (root.enabled) { root.checked = !root.checked; root.toggled(root.checked); } }
     height: 32px;
-    min-width: chip-text.preferred-width + 32px;
+    min-width: chip-row.preferred-width + 24px;
     horizontal-stretch: 0;
     border-width: 1px;
     border-color: root.checked ? Tokens.color-primary-primary : Tokens.color-outline-outline-variant;
     background: root.checked ? Tokens.color-primary-primary-container : Tokens.color-surface-surface-container-lowest;
-    chip-text := Text { text: root.text; font-family: Metrics.font; font-size: Tokens.font-sm; color: root.checked ? Tokens.color-primary-on-primary-container : Tokens.color-content-on-surface; }
-    TouchArea { enabled: root.enabled; clicked => { root.checked = !root.checked; root.toggled(root.checked); } }
+    // The check mark shows the state, not the colour alone (SC 1.4.1).
+    chip-row := HorizontalLayout {
+        alignment: center;
+        spacing: 6px;
+        if root.checked : Image { source: @image-url("icons/check.svg"); width: 14px; height: 14px; colorize: Tokens.color-primary-on-primary-container; y: (parent.height - self.height) / 2; }
+        Text { text: root.text; font-family: Metrics.font; font-size: Tokens.font-sm; color: root.checked ? Tokens.color-primary-on-primary-container : Tokens.color-content-on-surface; vertical-alignment: center; }
+    }
+    TouchArea { enabled: root.enabled; clicked => { root.toggle(); } }
+    focus := FocusScope { enabled: root.enabled; key-pressed(event) => { if (event.text == " ") { root.toggle(); return accept; } return reject; } }
+    FocusRing { shown: focus.has-focus; }
 }
 
 /**
@@ -656,6 +753,9 @@ export component MbCard inherits Rectangle {
     in property <length> inner-padding: Tokens.space-md;
     in property <bool> with-border: true;
     in property <bool> pattern: true;
+    /** A left accent rule (a CSS module's border-left), 0 for none. */
+    in property <length> accent-width: 0px;
+    in property <brush> accent-color: Tokens.color-primary-primary;
     callback clicked();
     vertical-stretch: 0;
     background: Tokens.color-surface-surface-container-lowest;
@@ -676,8 +776,10 @@ export component MbCard inherits Rectangle {
     if root.pattern : Rectangle {
         background: @linear-gradient(225deg, root.background.with-alpha(0) 0%, root.background 60%);
     }
+    if root.accent-width > 0 : Rectangle { x: 0; width: root.accent-width; background: root.accent-color; }
     VerticalLayout {
         padding: root.inner-padding;
+        padding-left: root.inner-padding + root.accent-width;
         spacing: Tokens.space-sm;
         alignment: start;
         @children
@@ -748,10 +850,15 @@ export component MbLink inherits Text {
     in property <string> url;
     callback clicked();
     accessible-role: button;
+    accessible-label: root.text;
     accessible-action-default => { root.clicked(); }
     font-family: Metrics.font;
     color: Tokens.color-primary-primary-text;
+    min-height: 24px;
+    vertical-alignment: center;
     TouchArea { clicked => { root.clicked(); } }
+    focus := FocusScope { key-pressed(event) => { if (event.text == "\n") { root.clicked(); return accept; } return reject; } }
+    FocusRing { shown: focus.has-focus; }
 }
 
 /**
@@ -820,6 +927,11 @@ export component MbTab inherits Rectangle {
     height: tab-row.preferred-height + 2px;
     width: tab-row.preferred-width;
     horizontal-stretch: 0;
+    focus := FocusScope {
+        enabled: root.enabled;
+        key-pressed(event) => { if (event.text == " " || event.text == "\n") { root.clicked(); return accept; } return reject; }
+    }
+    FocusRing { shown: focus.has-focus; }
     tab-row := HorizontalLayout {
         padding-left: 16px;
         padding-right: 16px;
@@ -827,15 +939,15 @@ export component MbTab inherits Rectangle {
         padding-bottom: 8px;
         spacing: 8px;
         if root.icon.width > 0 : Image { source: root.icon; width: 16px; height: 16px; colorize: tab-label.color; y: (parent.height - self.height) / 2; }
-        tab-label := Text { text: root.text; font-family: Metrics.font; font-size: Tokens.font-sm; font-weight: 400; color: root.selected ? Tokens.color-content-on-surface : Tokens.color-content-on-surface-variant; vertical-alignment: center; }
+        tab-label := Text { text: root.text; font-family: Metrics.font; font-size: Tokens.font-sm; font-weight: root.selected ? 600 : 400; color: root.selected ? Tokens.color-content-on-surface : Tokens.color-content-on-surface-variant; vertical-alignment: center; }
     }
     Rectangle { y: parent.height - self.height; height: 2px; background: root.selected ? Tokens.color-primary-primary : Tokens.color-outline-outline-variant; animate background { duration: Metrics.fast; } }
     TouchArea { enabled: root.enabled; clicked => { root.clicked(); } }
 }
 
 /**
- * Mantine Modal: a dialog over a scrim, drawn in place while open (a PopupWindow cannot take
- * bound content from outside, slint #4438). Closed, it takes no space, as on the web.
+ * Mantine Modal: a dialog drawn in place (a PopupWindow cannot take bound content from
+ * outside, slint #4438). The converter mounts it only while open, as Mantine does.
  */
 export component MbModal inherits VerticalLayout {
     in property <bool> open: false;
@@ -843,8 +955,12 @@ export component MbModal inherits VerticalLayout {
     in property <bool> full-screen;
     in property <string> size: "md";
     callback closed();
-    visible: root.open;
-    max-height: root.open ? 100000px : 0px;
+    accessible-role: groupbox;
+    accessible-label: root.title;
+    init => { keys.focus(); }
+    keys := FocusScope {
+        key-pressed(event) => { if (event.text == Key.Escape) { root.closed(); return accept; } return reject; }
+    }
     Rectangle {
         background: Tokens.color-surface-surface-container-lowest;
         border-width: 1px;
@@ -917,7 +1033,10 @@ export component MbAccordionControl inherits Rectangle {
     callback clicked();
     accessible-role: button;
     accessible-label: root.text;
+    accessible-action-default => { root.clicked(); }
     height: 48px;
+    focus := FocusScope { key-pressed(event) => { if (event.text == " " || event.text == "\n") { root.clicked(); return accept; } return reject; } }
+    FocusRing { shown: focus.has-focus; }
     HorizontalLayout {
         padding-left: Tokens.space-md;
         spacing: Tokens.space-xs;
@@ -936,7 +1055,11 @@ export component MbNavLink inherits Rectangle {
     callback clicked();
     accessible-role: button;
     accessible-label: root.text;
+    accessible-item-selected: root.active;
+    accessible-action-default => { root.clicked(); }
     height: 40px;
+    focus := FocusScope { key-pressed(event) => { if (event.text == " " || event.text == "\n") { root.clicked(); return accept; } return reject; } }
+    FocusRing { shown: focus.has-focus; }
     background: root.active ? Tokens.color-primary-primary-container : touch.has-hover ? Tokens.color-surface-surface-container-high : transparent;
     HorizontalLayout {
         padding-left: 12px;

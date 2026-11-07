@@ -49,7 +49,8 @@ export function lengthOf(value, target) {
   m = v.match(/^(-?\d*\.?\d+)r?em$/);
   if (m) return { code: `${Number(m[1]) * REM}px` };
   m = v.match(/^(\d*\.?\d+)%$/);
-  if (m && ["width", "height", "min-width", "min-height", "max-width", "max-height"].includes(target)) return { code: `${Number(m[1])}%` };
+  // Slint converts a percentage only for width, height and the preferred sizes (type-conversions reference).
+  if (m && ["width", "height", "preferred-width", "preferred-height"].includes(target)) return { code: `${Number(m[1])}%` };
   if (/^-?\d*\.?\d+$/.test(v)) return { code: `${Number(v)}px` };
   return { drop: `CSS length "${v}" has no Slint length (auto, calc(), vh/vw and var() are web-only)` };
 }
@@ -97,6 +98,16 @@ export function enumOf(type, value) {
   // Qualified, so a component property with the same name (`start`) cannot shadow the value.
   if (REFERENCE.enums[type]?.includes(mapped)) return { code: `${type}.${mapped}` };
   return { drop: `"${v}" is not a ${type} value (${(REFERENCE.enums[type] ?? []).join(", ")})` };
+}
+
+/**
+ * A Mantine colour name as a kit tone: the seam's tone names pass through; Mantine palette
+ * names take the semantic tone the seam assigns them (components/ui Badge, Alert, ThemeIcon).
+ */
+export function toneOf(value) {
+  const v = String(value).split(".")[0];
+  const tones = { red: "danger", pink: "danger", danger: "danger", green: "success", teal: "success", lime: "success", success: "success", yellow: "warning", orange: "warning", warning: "warning", blue: "primary", cyan: "info", indigo: "primary", primary: "primary", info: "info", violet: "accent", grape: "accent", purple: "accent", accent: "accent", gray: "neutral", dark: "neutral", slate: "neutral", neutral: "neutral" };
+  return tones[v] ? { code: quote(tones[v]) } : { drop: `colour "${value}" has no tone` };
 }
 
 /** A font weight: a number, or a CSS keyword. */

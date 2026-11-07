@@ -1,131 +1,252 @@
 /**
- * Behaviour of the converter: each test fails if the mapping it names breaks.
+ * One test per conversion rule in docs/CONVERSIONS.md: each fails if its rule breaks.
  */
 import assert from "node:assert/strict";
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
 import test from "node:test";
-import { convertSource } from "../src/convert.mjs";
+import { convertSource, jsxText, loadMapping, previewBool } from "../src/convert.mjs";
+import { iconFile } from "../src/icons.mjs";
+import { parseKit } from "../src/slint-types.mjs";
+import { colorOf, lengthOf, responsive } from "../src/values.mjs";
 
-const convert = (src) => convertSource(src, "fixture.tsx");
+const MANTINE = 'import { Stack, Group, Text, Title, Card, SimpleGrid, Grid, Box, Badge, Modal, NumberInput, TextInput } from "@mantine/core";\n';
+const SEAM = 'import { Button, Badge as SBadge } from "@/components/ui";\n';
+const ICONS = 'import { IconUserPlus } from "@tabler/icons-react";\n';
+const mapping = loadMapping();
+const convert = (body, options = {}) => convertSource(MANTINE + SEAM + ICONS + body, "fixture.tsx", mapping, new Map(), options);
 
-test("layout and text map to Slint layouts and Text", () => {
-  const { slint, stats } = convert(`export function Card() {
-    return <Stack gap="md"><Text>Hello</Text></Stack>;
-  }`);
-  assert.match(slint, /export component Card inherits VerticalLayout/);
-  assert.match(slint, /VerticalLayout \{\s+spacing: Tokens\.space-md;\s+Text \{\s+text: "Hello";/);
-  assert.equal(stats.mapped, 2);
+test("Stack takes Mantine's defaults: gap md, start alignment, stretched cross axis", () => {
+  const { slint } = convert("export function A() { return <Stack><Text>x</Text></Stack>; }");
+  assert.match(slint, /VerticalLayout \{\s+spacing: Tokens\.space-md;\s+cross-axis-alignment: CrossAxisAlignment\.stretch;\s+alignment: LayoutAlignment\.start;/);
 });
 
-test("translated text becomes @tr, never a property", () => {
-  const { slint, stats } = convert(`export function T() {
-    return <Button onClick={save}>{t("rx.save")}</Button>;
-  }`);
-  assert.match(slint, /clicked => \{ root\.click\(\); \}/);
-  assert.match(slint, /callback click\(\);/);
-  assert.match(slint, /text: @tr\("rx\.save"\);/, "a translated Button label stays translated");
-  assert.equal(stats.strings, 1);
-  const titled = convert(`export function T() { return <Panel title={t("rx.title")} />; }`);
-  assert.match(titled.slint, /title: @tr\("rx\.title"\);/);
-  assert.equal(titled.stats.strings, 1);
+test("Group is a HorizontalLayout centred on the cross axis, with justify as alignment", () => {
+  const { slint } = convert('export function A() { return <Group justify="space-between"><Text>a</Text></Group>; }');
+  assert.match(slint, /HorizontalLayout \{\s+alignment: LayoutAlignment\.space-between;/);
+  assert.match(slint, /cross-axis-alignment: CrossAxisAlignment\.center;/);
 });
 
-test("conditions and lists become if and for", () => {
-  const { slint } = convert(`export function L() {
-    return <Stack>{failed && <Alert title="Down" />}{rows.map((r) => <Badge>{r}</Badge>)}</Stack>;
-  }`);
-  assert.match(slint, /if root\.failed : VerticalLayout/);
-  assert.match(slint, /for item in root\.rows : VerticalLayout/);
-  assert.match(slint, /in property <bool> failed;/);
-  assert.match(slint, /in property <\[string\]> rows;/);
+test("Text wraps like a block, takes the theme body colour and the md size unless sized", () => {
+  const plain = convert("export function A() { return <Text>Hello</Text>; }").slint;
+  assert.match(plain, /wrap: word-wrap;/);
+  assert.match(plain, /color: Tokens\.color-content-on-surface;/);
+  assert.match(plain, /font-size: Tokens\.font-md;/);
+  const sized = convert('export function A() { return <Text size="sm" c="dimmed">Hi</Text>; }').slint;
+  assert.match(sized, /font-size: Tokens\.font-sm;/);
+  assert.match(sized, /color: Tokens\.color-content-on-surface-variant;/);
 });
 
-test("disabled becomes a negated enabled, numbers stay numbers", () => {
-  const { slint } = convert(`export function F() {
-    return <Stack><TextInput disabled={busy} /><NumberInput min={0} max={600} /></Stack>;
-  }`);
-  assert.match(slint, /enabled: !root\.busy;/);
-  assert.match(slint, /minimum: 0;\s+maximum: 600;/);
+test("Title order sets the theme heading size and weight", () => {
+  const { slint } = convert("export function A() { return <Title order={3}>T</Title>; }");
+  assert.match(slint, /font-size: Tokens\.heading-3-size;/);
+  assert.match(slint, /font-weight: Tokens\.heading-3-weight;/);
 });
 
-test("react-hook-form Controller converts the field it renders", () => {
-  const { slint, stats } = convert(`export function C() {
-    return <Controller name="x" render={({ field }) => <Select data={opts} value={field.value} />} />;
-  }`);
-  assert.match(slint, /MbSelect \{/);
-  assert.deepEqual(stats.unmapped, {});
+test("a prop with no Slint equivalent is dropped with its reason and counted", () => {
+  const { slint, stats } = convert('export function A() { return <Card radius="lg">x</Card>; }');
+  assert.match(slint, /\/\/ not converted: radius \(Carbon corners are 0/);
+  assert.equal(stats.droppedProps["Card.radius"], 1);
 });
 
-test("raw HTML and unknown components are reported, not silently dropped", () => {
-  const { slint, stats } = convert(`export function R() {
-    return <Stack><div>x</div><Mystery /></Stack>;
+test("margins become the padding of a wrapping layout", () => {
+  const { slint } = convert('export function A() { return <Stack><Text mt="lg" mb={8}>x</Text></Stack>; }');
+  assert.match(slint, /VerticalLayout \{\s+padding-top: Tokens\.space-lg;\s+padding-bottom: 8px;\s+Text \{/);
+});
+
+test("hiddenFrom and visibleFrom become an if on the window width", () => {
+  const { slint } = convert('export function A() { return <Stack><Text hiddenFrom="sm">m</Text></Stack>; }');
+  assert.match(slint, /if Tokens\.viewport-width < Tokens\.breakpoint-sm : VerticalLayout \{/);
+});
+
+test("SimpleGrid with written-out children is a GridLayout per breakpoint range", () => {
+  const { slint } = convert("export function A() { return <SimpleGrid cols={{ base: 1, md: 2 }}><Text>a</Text><Text>b</Text></SimpleGrid>; }");
+  assert.match(slint, /if Tokens\.viewport-width < Tokens\.breakpoint-md : GridLayout \{/);
+  assert.match(slint, /if Tokens\.viewport-width >= Tokens\.breakpoint-md : GridLayout \{/);
+  assert.match(slint, /row: 0; col: 1;/, "two columns from md: b sits beside a");
+  assert.match(slint, /row: 1; col: 0;/, "one column below md: b sits under a");
+});
+
+test("Grid.Col span is a colspan of the 12 columns", () => {
+  const { slint } = convert("export function A() { return <Grid><Grid.Col span={8}><Text>a</Text></Grid.Col><Grid.Col span={4}><Text>b</Text></Grid.Col></Grid>; }");
+  assert.match(slint, /row: 0; col: 0; colspan: 8;/);
+  assert.match(slint, /row: 0; col: 8; colspan: 4;/);
+});
+
+test("a grid over a list becomes rows of equal cells, never widths read from the grid", () => {
+  const { slint } = convert("export function A() { return <SimpleGrid cols={3}>{rows.map((r) => <Text>{r}</Text>)}</SimpleGrid>; }");
+  assert.match(slint, /for grid-row in ceil\(root\.rows\.length \/ 3\) : HorizontalLayout/);
+  assert.match(slint, /if grid-row \* 3 \+ grid-col < root\.rows\.length/);
+  assert.doesNotMatch(slint, /\.width - /);
+});
+
+test("Tabler icons become their SVG as an image, and a section icon becomes the kit's icon", () => {
+  const { slint, stats } = convert("export function A() { return <Stack><IconUserPlus size={16} /><Button leftSection={<IconUserPlus size={16} />}>Add</Button></Stack>; }");
+  assert.match(slint, /MbIcon \{ source: @image-url\("@medbrains-gui-kit\/icons\/user-plus\.svg"\); size: 16px; \}/);
+  assert.match(slint, /MbButton \{[\s\S]*icon: @image-url\("@medbrains-gui-kit\/icons\/user-plus\.svg"\);/);
+  assert.ok(stats.icons.has("user-plus.svg"));
+  assert.deepEqual(iconFile("IconSquareNumber1"), { style: "outline", base: "square-number-1", file: "square-number-1.svg", stroke: 2 });
+  assert.equal(iconFile("IconStarFilled").file, "filled-star.svg");
+  assert.equal(iconFile("IconHelp", 1.5).file, "help-s1_5.svg");
+});
+
+test("t() becomes @tr with the English sentence, its values in order, and braces escaped", () => {
+  const strings = new Map([["rx.count", "{{count}} waiting for {{who}}"], ["rx.brace", "Use {x}"]]);
+  const a = convert('export function A() { return <Text>{t("rx.count", { who: name, count: n })}</Text>; }', { strings }).slint;
+  assert.match(a, /@tr\("\{\} waiting for \{\}", root\.n, root\.name\)/);
+  const b = convert('export function A() { return <Text>{t("rx.brace")}</Text>; }', { strings }).slint;
+  assert.match(b, /@tr\("Use \{\{x\}\}"\)/);
+});
+
+test("early returns are branches, each shown only when the earlier ones do not apply", () => {
+  const { slint } = convert("export function A() { if (isLoading) return <Text>Wait</Text>; if (failed) return <Text>Down</Text>; return <Text>Ward</Text>; }");
+  assert.match(slint, /if root\.isloading : VerticalLayout/);
+  assert.match(slint, /if root\.failed && !root\.isloading : VerticalLayout/);
+  assert.match(slint, /if !root\.isloading && !root\.failed : VerticalLayout \{[\s\S]*"Ward"/);
+});
+
+test("useEffect: mount runs in init, state deps in one changed handler, cleanup is marked for Rust", () => {
+  const { slint, stats } = convert(`export function A() {
+    const [tab, setTab] = useState("a");
+    useEffect(() => { load(); }, []);
+    useEffect(() => { a(); }, [tab]);
+    useEffect(() => { b(); return () => stop(); }, [tab]);
+    return <Text>{tab}</Text>;
   }`);
-  assert.equal(stats.rawHtml.div, 1);
+  assert.match(slint, /init => \{ root\.effect-0\(\); \}/);
+  assert.match(slint, /changed tab => \{ root\.effect-1\(\); root\.effect-2\(\); \}/);
+  assert.match(slint, /\/\/ rust: cleanup: effect-2 returns a cleanup/);
+  assert.equal(stats.rust.cleanup, 1);
+});
+
+test("setInterval and setTimeout with a literal delay become a Slint Timer", () => {
+  const { slint } = convert("export function A() { useEffect(() => { setInterval(tick, 5000); setTimeout(done, 300); }, []); return <Text>x</Text>; }");
+  assert.match(slint, /Timer \{ interval: 5000ms; running: true; triggered => \{ root\.tick-\d+\(\); \} \}/);
+  assert.match(slint, /Timer \{ interval: 300ms; running: true; triggered => \{ self\.running = false; root\.timeout-\d+\(\); \} \}/);
+});
+
+test("useDisclosure handlers set the state, and a Modal mounts only while opened", () => {
+  const { slint } = convert(`export function A() {
+    const [opened, { open, close }] = useDisclosure(false);
+    return <Stack><Button onClick={open}>Open</Button><Modal opened={opened} onClose={close} title="T"><Text>Body</Text></Modal></Stack>;
+  }`);
+  assert.match(slint, /clicked => \{ root\.opened = true; \}/);
+  assert.match(slint, /if root\.opened : VerticalLayout \{\s+MbModal \{/);
+  assert.match(slint, /closed => \{ root\.opened = false; \}/);
+});
+
+test("react-hook-form register() binds the field both ways", () => {
+  const { slint } = convert('export function A() { return <TextInput label="Name" {...form.register("name")} />; }');
+  assert.match(slint, /text <=> root\.form-name;/);
+  assert.match(slint, /in-out property <string> form-name;/);
+});
+
+test("a CSS module class converts its layout declarations and notes the rest", () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "r2s-"));
+  fs.writeFileSync(path.join(dir, "a.module.scss"), ".bar { gap: var(--mantine-spacing-xs); flex: 1; box-shadow: 0 1px red; }\n.bar:hover { gap: 0; }\n");
+  const src = `${MANTINE}import classes from "./a.module.scss";\nexport function A() { return <Group><Stack className={classes.bar}><Text>x</Text></Stack></Group>; }`;
+  const { slint, stats } = convertSource(src, "a.tsx", mapping, new Map(), { absFile: path.join(dir, "a.tsx") });
+  assert.match(slint, /spacing: Tokens\.space-xs;/);
+  assert.match(slint, /horizontal-stretch: 1;/, "flex: 1 in a row grows horizontally");
+  assert.match(slint, /not converted: \.bar \(box-shadow: 0 1px red \(no Slint equivalent\)\)/);
+  assert.equal(stats.cssClasses, 1);
+});
+
+test("colours come only from tokens: raw colours and unmatched palette shades are dropped", () => {
+  assert.equal(colorOf("var(--mb-text-secondary)").code, "Tokens.color-content-on-surface-variant");
+  assert.match(colorOf("#ff0000").drop, /raw colour/);
+  assert.match(colorOf("gray.3").drop ?? "", /no token/);
+  const { slint } = convert('export function A() { return <Box bg="#fff"><Text>x</Text></Box>; }');
+  assert.doesNotMatch(slint, /background: #fff/);
+});
+
+test("lengths: numbers are px, rem is 16 px, theme keys read the scale, percent only where Slint allows", () => {
+  assert.equal(lengthOf(12, "width").code, "12px");
+  assert.equal(lengthOf("1.5rem", "padding").code, "24px");
+  assert.equal(lengthOf("md", "font-size").code, "Tokens.font-md");
+  assert.equal(lengthOf("md", "spacing").code, "Tokens.space-md");
+  assert.equal(lengthOf("100%", "width").code, "100%");
+  assert.ok(lengthOf("100%", "max-width").drop);
+  assert.ok(lengthOf("calc(100vh - 2px)", "height").drop);
+  assert.equal(responsive({ responsive: { base: 1, sm: 2 } }, (v) => ({ code: String(v) })).code, "(Tokens.viewport-width >= Tokens.breakpoint-sm ? 2 : 1)");
+});
+
+test("our own components convert from their source and receive the props they declare", () => {
+  const known = new Map([["DataTable", { file: "components/DataTable.tsx", props: new Map([["emptyTitle", { name: "emptytitle", type: "string" }]]), callbacks: new Map() }]]);
+  const { slint } = convertSource('import { DataTable } from "../components/DataTable";\nexport function P() { return <DataTable emptyTitle="None" />; }', "pages/p.tsx", mapping, known);
+  assert.match(slint, /import \{ DataTable \} from "\.\.\/components\/DataTable\.slint";/);
+  assert.match(slint, /DataTable \{\s+emptytitle: "None";/);
+  assert.doesNotMatch(slint, /StandardTableView/, "a library rule of the same name does not replace our component");
+});
+
+test("destructured prop defaults start the properties", () => {
+  const { slint } = convert('export function E({ title = "No data found" }) { return <Text>{title}</Text>; }');
+  assert.match(slint, /in property <string> title: "No data found";/);
+});
+
+test("JSX text keeps its spaces and drops indentation, as React renders it", () => {
+  assert.equal(jsxText("Due "), "Due ");
+  assert.equal(jsxText("\n      Ward census\n    "), "Ward census");
+  const { slint } = convert("export function A() { return <Text>Due {n} today</Text>; }");
+  assert.match(slint, /text: "Due " \+ root\.n \+ " today";/);
+});
+
+test("a ternary in text is a Slint conditional", () => {
+  const { slint } = convert('export function A() { return <Text>{busy ? "Saving" : "Save"}</Text>; }');
+  assert.match(slint, /text: \(root\.busy \? "Saving" : "Save"\);/);
+});
+
+test("preview values mirror the mocked web: permitted, loaded, no errors, empty lists", () => {
+  assert.equal(previewBool("canCreate"), true);
+  assert.equal(previewBool("isLoading"), false);
+  assert.equal(previewBool("error"), false);
+  assert.equal(previewBool("rows.length === 0"), true);
+  assert.equal(previewBool("rows.length > 0"), false);
+  assert.equal(previewBool("!data"), true);
+  assert.equal(previewBool("columnCount === 0"), false);
+});
+
+test("queries, mutations and browser APIs are marked for the Rust view model and counted", () => {
+  const { slint, stats } = convert('export function A() { const q = useQuery({}); localStorage.setItem("k", "v"); navigator.clipboard.writeText("x"); return <Text>x</Text>; }');
+  assert.match(slint, /\/\/ rust: query: useQuery/);
+  assert.equal(stats.rust.storage, 1);
+  assert.equal(stats.rust.clipboard, 1);
+});
+
+test("lineClamp, truncate and tt map to max-lines, elide and string case", () => {
+  const { slint } = convert('export function A() { return <Stack><Text lineClamp={2}>a</Text><Text truncate>b</Text><Text tt="uppercase">c</Text></Stack>; }');
+  assert.match(slint, /max-lines: 2;\s+overflow: elide;/);
+  assert.match(slint, /wrap: no-wrap;\s+overflow: elide;|overflow: elide;/);
+  assert.match(slint, /text: \("c"\)\.to-uppercase\(\);/);
+});
+
+test("Mantine colour names become kit tones; seam tones pass through", () => {
+  const { slint } = convert('export function A() { return <Stack><Badge color="green">a</Badge><SBadge tone="warning">b</SBadge></Stack>; }');
+  assert.match(slint, /tone: "success";/);
+  assert.match(slint, /tone: "warning";/);
+});
+
+test("values are written with the type the kit declares", () => {
+  const kit = parseKit("export component X inherits Rectangle { in-out property <float> value; in property <[string]> model; callback edited(float); accessible-role: spinbox; width: 2px; }");
+  const x = kit.get("X");
+  assert.deepEqual(x.properties.value, { type: "float", dir: "in-out" });
+  assert.equal(x.properties.model.type, "[string]");
+  assert.ok(x.role);
+  assert.ok(x.bound.has("width"));
+  const { slint } = convert("export function A() { return <NumberInput value={dose} min={0} />; }");
+  assert.match(slint, /value: root\.dose;/);
+  assert.match(slint, /in property <float> dose;/);
+});
+
+test("raw HTML converts where it can and is always reported against the components rule", () => {
+  const { slint, stats } = convert("export function H() { return <div><b>Due</b></div>; }");
+  assert.match(slint, /Text \{\s+font-weight: 700;\s+text: "Due";/);
+  assert.deepEqual(stats.rawHtml, { div: 1, b: 1 });
+});
+
+test("an unknown component is reported, not dropped", () => {
+  const { slint, stats } = convert('import { Mystery } from "mystery-lib";\nexport function R() { return <Stack><Mystery /></Stack>; }');
   assert.equal(stats.unmapped.Mystery, 1);
   assert.match(slint, /\/\/ unmapped: <Mystery>/);
-});
-
-test("hooks are counted as logic for the view model", () => {
-  const { stats } = convert(`export function H() {
-    const [a] = useState(1); const q = useQuery({}); return <Text>{a}</Text>;
-  }`);
-  assert.deepEqual(stats.hooks, { useState: 1, useQuery: 1 });
-});
-
-test("raw HTML is converted to Slint and still reported against the components rule", () => {
-  const { slint, stats } = convert(`export function H() {
-    return <div><b>Due</b><button onClick={go}>Open</button></div>;
-  }`);
-  assert.match(slint, /Rectangle \{/);
-  assert.match(slint, /Text \{\s+font-weight: 700;\s+text: "Due";/);
-  assert.match(slint, /MbButton \{[\s\S]*clicked => \{ root\.click\(\); \}[\s\S]*text: "Open";/);
-  assert.deepEqual(stats.rawHtml, { div: 1, b: 1, button: 1 });
-  assert.deepEqual(stats.unmapped, {});
-});
-
-test("components defined in other files convert as references with an import", () => {
-  const known = new Map([["DrugSearchSelect", "components/drug-search-select.tsx"]]);
-  const { slint, stats } = convertSource(`export function P() { return <Stack><DrugSearchSelect /></Stack>; }`, "pages/pharmacy/p.tsx", undefined, known);
-  assert.match(slint, /import \{ DrugSearchSelect \} from "\.\.\/\.\.\/components\/drug-search-select\.slint";/);
-  assert.match(slint, /DrugSearchSelect \{ \}/);
-  assert.deepEqual(stats.unmapped, {});
-});
-
-test("Mantine sizes and colours become tokens, and Text children merge into one string", () => {
-  const { slint } = convert(`export function M() {
-    return <Text size="sm" c="dimmed">Due {count} today</Text>;
-  }`);
-  assert.match(slint, /font-size: Tokens\.font-sm;/);
-  assert.match(slint, /color: Tokens\.color-text-muted;/);
-  assert.match(slint, /text: "Due" \+ root\.count \+ "today";/);
-});
-
-test("the main view is the last top-level return, not an early loading branch", () => {
-  const { slint } = convert(`export function D() {
-    if (isLoading) return <Center><Loader /></Center>;
-    return <Stack><Text>Ward census</Text></Stack>;
-  }`);
-  assert.match(slint, /text: "Ward census";/);
-  assert.doesNotMatch(slint, /Spinner/);
-});
-
-test("local state becomes reactive Slint state: setters, toggles, two-way inputs and tabs", () => {
-  const { slint, stats } = convert(`export function R() {
-    const [open, setOpen] = useState(false);
-    const [query, setQuery] = useState("");
-    const [tab, setTab] = useState("rx");
-    return <Stack>
-      <Button onClick={() => setOpen(!open)}>Toggle</Button>
-      <TextInput value={query} onChange={setQuery} />
-      <Tabs value={tab} onChange={setTab}>
-        <Tabs.List><Tabs.Tab value="rx">Queue</Tabs.Tab></Tabs.List>
-        <Tabs.Panel value="rx"><Text>Queue panel</Text></Tabs.Panel>
-      </Tabs>
-    </Stack>;
-  }`);
-  assert.match(slint, /in-out property <bool> open: false;/);
-  assert.match(slint, /clicked => \{ root\.open = !root\.open; \}/);
-  assert.match(slint, /text <=> root\.query;/);
-  assert.match(slint, /MbTab \{ text: "Queue"; selected: root\.tab == "rx"; clicked => \{ root\.tab = "rx"; \} \}/);
-  assert.match(slint, /if root\.tab == "rx" : VerticalLayout/);
-  assert.ok(stats.reactive >= 4);
 });

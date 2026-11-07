@@ -1,0 +1,125 @@
+// Kit gallery: every kit control live, each wired to the "Last action" line, so a press, a
+// keystroke or a choice visibly does something. Open with the Slint viewer:
+//   slint-viewer preview/gallery.slint
+import { Tokens, Metrics, FocusRing, MbButton, MbIconButton, MbTextInput, MbNumberInput, MbTextArea, MbSelect, MbMultiSelect, MbCheckbox, MbRadio, MbSwitch, MbSegmented, MbTab, MbModal, MbBadge, MbAlert, MbCard, MbChip } from "kit.slint";
+import { ScrollView, Palette } from "std-widgets.slint";
+
+export component Gallery inherits Window {
+    title: "MedBrains kit gallery";
+    preferred-width: 1100px;
+    preferred-height: 900px;
+    default-font-family: Metrics.font;
+    background: Tokens.color-surface-surface;
+    in-out property <string> last: "Nothing yet: use any control below.";
+    in-out property <string> tab: "queue";
+    in-out property <bool> modal-open;
+    in-out property <string> drug: "";
+    in-out property <string> route: "Oral";
+    in-out property <float> dose: 1;
+    in-out property <bool> controlled;
+    in-out property <bool> notify: true;
+    in-out property <string> pick: "Morning";
+    property <bool> dark-flag: Tokens.dark;
+    changed dark-flag => { Palette.color-scheme = Tokens.dark ? ColorScheme.dark : ColorScheme.light; }
+    ScrollView {
+        VerticalLayout {
+            padding: 24px;
+            spacing: 16px;
+            alignment: start;
+            HorizontalLayout {
+                spacing: 12px;
+                Text { text: "Kit gallery"; font-size: Tokens.heading-2-size; font-weight: 600; color: Tokens.color-content-on-surface; horizontal-stretch: 1; }
+                MbButton { text: Tokens.dark ? "Light theme" : "Dark theme"; clicked => { Tokens.dark = !Tokens.dark; root.last = "Theme switched"; } }
+            }
+            MbAlert { tone: "info"; title: "Last action"; Text { text: root.last; font-size: Tokens.font-sm; color: Tokens.color-content-on-surface; wrap: word-wrap; } }
+
+            MbCard {
+                Text { text: "Text inputs"; font-weight: 600; color: Tokens.color-content-on-surface; }
+                HorizontalLayout {
+                    spacing: 16px;
+                    MbTextInput { label: "Drug name"; placeholder-text: "Type a drug"; text <=> root.drug; size: "sm"; edited(v) => { root.last = "Drug name typed: " + v; } accepted(v) => { root.last = "Drug name entered: " + v; } }
+                    MbTextInput { label: "Password"; input-type: InputType.password; size: "sm"; edited(v) => { root.last = "Password typed (" + v.character-count + " characters)"; } }
+                    MbNumberInput { label: "Dose (tablets)"; value <=> root.dose; minimum: 0; maximum: 10; step: 0.5; decimals: 1; size: "sm"; edited(v) => { root.last = "Dose set to " + v; } }
+                }
+                MbTextInput { label: "UHID"; placeholder-text: "MB-000000"; size: "sm"; error: root.drug == "x" ? "Not a valid UHID" : ""; description: "Type x in Drug name to see an error"; }
+                MbTextArea { label: "Notes"; placeholder-text: "Clinical notes"; min-rows: 3; size: "sm"; edited(v) => { root.last = "Notes: " + v.character-count + " characters"; } }
+            }
+
+            MbCard {
+                Text { text: "Choices"; font-weight: 600; color: Tokens.color-content-on-surface; }
+                HorizontalLayout {
+                    spacing: 16px;
+                    MbSelect { label: "Route"; model: ["Oral", "IV", "IM", "Topical"]; current-value <=> root.route; size: "sm"; selected(v) => { root.last = "Route chosen: " + v; } }
+                    MbMultiSelect { label: "Allergies"; model: ["Penicillin", "Sulfa", "Latex", "Peanut"]; selected-values: ["Latex"]; size: "sm"; changed => { root.last = "Allergies changed"; } }
+                }
+                HorizontalLayout {
+                    spacing: 24px;
+                    alignment: start;
+                    MbCheckbox { text: "Controlled substance"; checked <=> root.controlled; toggled(v) => { root.last = "Controlled: " + (v ? "yes" : "no"); } }
+                    MbSwitch { text: "Notify the doctor"; checked <=> root.notify; toggled(v) => { root.last = "Notify: " + (v ? "on" : "off"); } }
+                    MbChip { text: "Urgent"; toggled(v) => { root.last = "Urgent chip: " + (v ? "on" : "off"); } }
+                }
+                HorizontalLayout {
+                    spacing: 24px;
+                    alignment: start;
+                    MbRadio { text: "Morning"; checked: root.pick == "Morning"; toggled => { root.pick = "Morning"; root.last = "Slot: Morning"; } }
+                    MbRadio { text: "Evening"; checked: root.pick == "Evening"; toggled => { root.pick = "Evening"; root.last = "Slot: Evening"; } }
+                    MbSegmented { model: ["Day", "Week", "Month"]; current-value: "Day"; selected(v) => { root.last = "Period: " + v; } }
+                }
+            }
+
+            MbCard {
+                Text { text: "Tabs"; font-weight: 600; color: Tokens.color-content-on-surface; }
+                HorizontalLayout {
+                    alignment: start;
+                    MbTab { text: "Rx Queue"; selected: root.tab == "queue"; clicked => { root.tab = "queue"; root.last = "Tab: Rx Queue"; } }
+                    MbTab { text: "Stock"; selected: root.tab == "stock"; clicked => { root.tab = "stock"; root.last = "Tab: Stock"; } }
+                    MbTab { text: "Returns"; selected: root.tab == "returns"; clicked => { root.tab = "returns"; root.last = "Tab: Returns"; } }
+                }
+                if root.tab == "queue" : Text { text: "Prescription queue panel"; color: Tokens.color-content-on-surface; }
+                if root.tab == "stock" : Text { text: "Stock panel"; color: Tokens.color-content-on-surface; }
+                if root.tab == "returns" : Text { text: "Returns panel"; color: Tokens.color-content-on-surface; }
+            }
+
+            MbCard {
+                Text { text: "Buttons, menu and modal"; font-weight: 600; color: Tokens.color-content-on-surface; }
+                HorizontalLayout {
+                    spacing: 12px;
+                    alignment: start;
+                    MbButton { text: "Dispense"; tone: "primary"; size: "sm"; clicked => { root.last = "Dispense pressed"; } }
+                    MbButton { text: "Cancel"; size: "sm"; clicked => { root.last = "Cancel pressed"; } }
+                    MbButton { text: "Disabled"; size: "sm"; enabled: false; clicked => { root.last = "This should never show"; } }
+                    MbIconButton { icon: @image-url("icons/x.svg"); accessible-label: "Close"; clicked => { root.last = "Icon button pressed"; } }
+                    actions := ContextMenuArea {
+                        Menu {
+                            MenuItem { title: "Edit"; activated => { root.last = "Menu: Edit"; } }
+                            MenuItem { title: "Print label"; activated => { root.last = "Menu: Print label"; } }
+                            MenuSeparator { }
+                            MenuItem { title: "Delete (disabled)"; enabled: false; activated => { root.last = "This should never show"; } }
+                        }
+                        MbButton { text: "Actions ▾"; size: "sm"; clicked => { actions.show({ x: 0px, y: self.height }); } }
+                    }
+                    MbButton { text: "Open modal"; tone: "tertiary"; size: "sm"; clicked => { root.modal-open = true; root.last = "Modal opened"; } }
+                }
+                HorizontalLayout {
+                    spacing: 8px;
+                    alignment: start;
+                    MbBadge { text: "Loading records"; tone: "success"; size: "sm"; }
+                    MbBadge { text: "Permissioned fields"; tone: "info"; size: "sm"; }
+                    MbBadge { text: "Paced search"; tone: "warning"; size: "sm"; }
+                }
+            }
+            if root.modal-open : MbModal {
+                title: "Confirm dispense";
+                closed => { root.modal-open = false; root.last = "Modal closed"; }
+                Text { text: "Dispense 1 strip of paracetamol? Escape or the close button closes this."; color: Tokens.color-content-on-surface; wrap: word-wrap; }
+                HorizontalLayout {
+                    spacing: 8px;
+                    alignment: end;
+                    MbButton { text: "Cancel"; size: "sm"; clicked => { root.modal-open = false; root.last = "Modal cancelled"; } }
+                    MbButton { text: "Dispense"; tone: "primary"; size: "sm"; clicked => { root.modal-open = false; root.last = "Dispensed from the modal"; } }
+                }
+            }
+        }
+    }
+}
