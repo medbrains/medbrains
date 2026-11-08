@@ -46,11 +46,38 @@ permissions:
   contents: read
 
 jobs:
+  # A PR that touches only documentation runs none of the build, test or scan
+  # jobs: they report "skipped", which a required check counts as passing, so
+  # the PR still merges. Pushes to main and scheduled runs always run everything.
+  changes:
+    name: Code or docs only
+    runs-on: ubuntu-latest
+    if: github.event_name != 'pull_request' || !github.event.pull_request.draft
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      code: ${{ steps.diff.outputs.code }}
+    steps:
+      - id: diff
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR: ${{ github.event.pull_request.number }}
+        run: |
+          if [ "$GITHUB_EVENT_NAME" != pull_request ]; then echo code=true >> "$GITHUB_OUTPUT"; exit 0; fi
+          files=$(gh api --paginate "repos/$GITHUB_REPOSITORY/pulls/$PR/files" -q '.[].filename')
+          # Docs: Markdown, Office/PDF documents, docs/ and RFCs/ folders, issue templates, LICENSE.
+          docs='(\.(md|docx|pdf)$)|(^(medbrains/)?(docs|RFCs)/)|(^\.github/ISSUE_TEMPLATE/)|(^LICENSE$)'
+          if printf '%s\n' "$files" | grep -qvE "$docs"; then code=true; else code=false; fi
+          echo "code=$code" >> "$GITHUB_OUTPUT"
+          echo "code=$code"; printf '%s\n' "$files" | head -40
+
   # ── Blocking: run against master and verified green ──────────────
 
   audit-checks:
     # A draft PR spends no build; marking it ready for review runs everything.
-    if: github.event_name != 'pull_request' || !github.event.pull_request.draft
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
     name: Audit checks (RLS, sharing, egress, PCI)
     runs-on: ubuntu-latest
     steps:
@@ -72,7 +99,8 @@ jobs:
   docs:
     name: Every new function is documented
     runs-on: ubuntu-latest
-    if: github.event_name == 'pull_request' && !github.event.pull_request.draft
+    needs: changes
+    if: github.event_name == 'pull_request' && needs.changes.outputs.code == 'true'
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
@@ -85,7 +113,8 @@ jobs:
 
   contracts:
     # A draft PR spends no build; marking it ready for review runs everything.
-    if: github.event_name != 'pull_request' || !github.event.pull_request.draft
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
     name: API + UI contracts
     runs-on: ubuntu-latest
     steps:
@@ -140,7 +169,8 @@ jobs:
 
   rust-fmt:
     # A draft PR spends no build; marking it ready for review runs everything.
-    if: github.event_name != 'pull_request' || !github.event.pull_request.draft
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
     name: "Rust format (TODO: 1053 diffs on master)"
     runs-on: ubuntu-latest
     continue-on-error: true
@@ -161,7 +191,8 @@ jobs:
 
   web:
     # A draft PR spends no build; marking it ready for review runs everything.
-    if: github.event_name != 'pull_request' || !github.event.pull_request.draft
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
     name: Web typecheck, lint, test, build
     runs-on: ubuntu-latest
     defaults:
@@ -202,7 +233,8 @@ jobs:
 
   web-lint:
     # A draft PR spends no build; marking it ready for review runs everything.
-    if: github.event_name != 'pull_request' || !github.event.pull_request.draft
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
     name: "Web lint"
     runs-on: ubuntu-latest
     continue-on-error: true
@@ -226,7 +258,8 @@ jobs:
 
   rust-clippy:
     # A draft PR spends no build; marking it ready for review runs everything.
-    if: github.event_name != 'pull_request' || !github.event.pull_request.draft
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
     name: "Rust clippy"
     runs-on: ubuntu-latest
     continue-on-error: true
@@ -256,7 +289,8 @@ jobs:
 
   schema-and-tenancy:
     # A draft PR spends no build; marking it ready for review runs everything.
-    if: github.event_name != 'pull_request' || !github.event.pull_request.draft
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
     name: "Schema + tenancy"
     runs-on: ubuntu-latest
     continue-on-error: true
@@ -295,7 +329,8 @@ jobs:
 
   rust-test:
     # A draft PR spends no build; marking it ready for review runs everything.
-    if: github.event_name != 'pull_request' || !github.event.pull_request.draft
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
     name: "Rust tests"
     runs-on: ubuntu-latest
     continue-on-error: true

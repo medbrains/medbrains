@@ -27,9 +27,36 @@ permissions:
   contents: read
 
 jobs:
+  # A PR that touches only documentation runs none of the build, test or scan
+  # jobs: they report "skipped", which a required check counts as passing, so
+  # the PR still merges. Pushes to main and scheduled runs always run everything.
+  changes:
+    name: Code or docs only
+    runs-on: ubuntu-latest
+    if: github.event_name != 'pull_request' || !github.event.pull_request.draft
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      code: ${{ steps.diff.outputs.code }}
+    steps:
+      - id: diff
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR: ${{ github.event.pull_request.number }}
+        run: |
+          if [ "$GITHUB_EVENT_NAME" != pull_request ]; then echo code=true >> "$GITHUB_OUTPUT"; exit 0; fi
+          files=$(gh api --paginate "repos/$GITHUB_REPOSITORY/pulls/$PR/files" -q '.[].filename')
+          # Docs: Markdown, Office/PDF documents, docs/ and RFCs/ folders, issue templates, LICENSE.
+          docs='(\.(md|docx|pdf)$)|(^(medbrains/)?(docs|RFCs)/)|(^\.github/ISSUE_TEMPLATE/)|(^LICENSE$)'
+          if printf '%s\n' "$files" | grep -qvE "$docs"; then code=true; else code=false; fi
+          echo "code=$code" >> "$GITHUB_OUTPUT"
+          echo "code=$code"; printf '%s\n' "$files" | head -40
+
   cargo-audit:
     # A draft PR spends no build; marking it ready for review runs everything.
-    if: github.event_name != 'pull_request' || !github.event.pull_request.draft
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
     name: Cargo audit (RustSec advisories)
     runs-on: ubuntu-latest
     defaults:
@@ -50,7 +77,8 @@ jobs:
 
   cargo-deny:
     # A draft PR spends no build; marking it ready for review runs everything.
-    if: github.event_name != 'pull_request' || !github.event.pull_request.draft
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
     name: Cargo deny (advisories, licences, bans, sources)
     runs-on: ubuntu-latest
     steps:
@@ -66,7 +94,8 @@ jobs:
 
   pnpm-audit:
     # A draft PR spends no build; marking it ready for review runs everything.
-    if: github.event_name != 'pull_request' || !github.event.pull_request.draft
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
     name: "pnpm audit (production, high+)"
     runs-on: ubuntu-latest
     defaults:
@@ -91,7 +120,8 @@ jobs:
 
   website-audit:
     # A draft PR spends no build; marking it ready for review runs everything.
-    if: github.event_name != 'pull_request' || !github.event.pull_request.draft
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
     name: "pnpm audit, website (production, high+)"
     runs-on: ubuntu-latest
     defaults:
@@ -131,7 +161,8 @@ jobs:
   dependency-review:
     name: Dependency review
     runs-on: ubuntu-latest
-    if: github.event_name == 'pull_request' && !github.event.pull_request.draft
+    needs: changes
+    if: github.event_name == 'pull_request' && needs.changes.outputs.code == 'true'
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
@@ -143,7 +174,8 @@ jobs:
 
   codeql:
     # A draft PR spends no build; marking it ready for review runs everything.
-    if: github.event_name != 'pull_request' || !github.event.pull_request.draft
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
     name: CodeQL (${{ matrix.language }})
     runs-on: ubuntu-latest
     permissions:
@@ -174,7 +206,8 @@ jobs:
   osv-scanner:
     # CVEs in every lockfile cargo-audit and pnpm audit cannot see: uv.lock, r8r,
     # the native apps (Gradle, SwiftPM), Python requirements, the OS image.
-    if: github.event_name != 'pull_request' || !github.event.pull_request.draft
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
     name: "OSV scan, every lockfile (report-only)"
     runs-on: ubuntu-latest
     continue-on-error: true
@@ -205,7 +238,8 @@ jobs:
   iac-compliance:
     # Terraform and Dockerfiles against CIS benchmarks: open buckets, unencrypted
     # volumes, public databases, missing logging.
-    if: github.event_name != 'pull_request' || !github.event.pull_request.draft
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
     name: "IaC compliance, Checkov (report-only)"
     runs-on: ubuntu-latest
     continue-on-error: true
@@ -230,7 +264,8 @@ jobs:
   workflow-audit:
     # The workflows themselves: script injection from PR titles, over-broad tokens,
     # unpinned third-party actions, credentials left in checkouts.
-    if: github.event_name != 'pull_request' || !github.event.pull_request.draft
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
     name: "Workflow audit, zizmor (report-only)"
     runs-on: ubuntu-latest
     continue-on-error: true
