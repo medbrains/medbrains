@@ -26,6 +26,8 @@ use medbrains_server_core::{
 };
 use medbrains_signing::signing;
 
+use crate::signable;
+
 const SIGNATURE_KEY_SECRET: &str = "MEDBRAINS_SIGNATURE_KEY_ENCRYPTION_KEY";
 const DEV_SIGNATURE_KEY: &[u8] = b"medbrains-dev-signature-key-encryption-rotate-before-production";
 
@@ -213,7 +215,14 @@ pub async fn list_my_credentials(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
 ) -> Result<Json<Vec<SignatureCredentialPublic>>, AppError> {
-    require_permission(&claims, permissions::doctor::signature::SIGN)?;
+    // A nurse signs nursing entries with her own key, so she lists it too.
+    medbrains_kernel::require_any_permission(
+        &claims,
+        &[
+            permissions::doctor::signature::SIGN,
+            permissions::nurse::signature::SIGN,
+        ],
+    )?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -292,6 +301,9 @@ pub struct SignedRecord {
     pub display_image_snapshot: Option<String>,
     pub display_block: Option<String>,
     pub legal_class: String,
+    /// When the signer last opened this exact content to review it; `None`
+    /// when they signed without the review screen (an older client).
+    pub reviewed_at: Option<DateTime<Utc>>,
     pub created_at: DateTime<Utc>,
 }
 
@@ -304,44 +316,42 @@ pub struct SignResponse {
     pub signature_hex: String,
 }
 
-pub async fn preview_sign_record_get(
+/// `POST /api/signatures/review` — the signer opens the record to sign it.
+///
+/// One call when the review screen opens: it returns the canonical snapshot
+/// the signer reads and records that they opened it (`signature_reviews`).
+/// Signing needs this review, of the same content, within 30 minutes.
+pub async fn review_record(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
-    Query(body): Query<SignPreviewRequest>,
+    Json(body): Json<SignPreviewRequest>,
 ) -> Result<Json<SignPreviewResponse>, AppError> {
-    Ok(Json(build_sign_preview(&state, &claims, body).await?))
-}
-
-async fn build_sign_preview(
-    state: &AppState,
-    claims: &Claims,
-    body: SignPreviewRequest,
-) -> Result<SignPreviewResponse, AppError> {
+    let spec = signable::find(&body.record_type)?;
     let signer_role = validate_signer_role(body.signer_role.as_deref())?;
-    require_sign_permission(claims, signer_role)?;
-
-    let legal_class = validate_legal_class(body.legal_class.as_deref())?;
+    signable::require_sign_permission(&claims, spec, signer_role)?;
+    let legal_class = validate_legal_class(body.legal_class.as_deref().or(Some(spec.legal_class)))?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
-
-    let payload_snapshot = resolve_signable_payload(
-        &mut tx,
-        &claims.tenant_id,
-        &claims.sub,
-        signer_role,
-        &body.record_type,
-        body.record_id,
+    let opened =
+        signable::open_for_signing(&state, &mut tx, &claims, spec, signer_role, body.record_id)
+            .await?;
+    let (payload_snapshot, payload_hash) = (opened.payload, opened.hash);
+    sqlx::query(
+        "INSERT INTO signature_reviews (tenant_id, record_type, record_id, reviewer_id, payload_hash) \
+         VALUES ($1, $2, $3, $4, $5)",
     )
+    .bind(claims.tenant_id)
+    .bind(spec.record_type)
+    .bind(body.record_id)
+    .bind(claims.sub)
+    .bind(payload_hash.as_slice())
+    .execute(&mut *tx)
     .await?;
-
-    let canonical = signing::canonicalize(&payload_snapshot)
-        .map_err(|e| AppError::BadRequest(format!("canonicalize: {e}")))?;
-    let payload_hash = signing::payload_hash(&canonical);
     tx.commit().await?;
 
-    Ok(SignPreviewResponse {
+    Ok(Json(SignPreviewResponse {
         record_type: body.record_type,
         record_id: body.record_id,
         signer_role: signer_role.to_owned(),
@@ -349,7 +359,7 @@ async fn build_sign_preview(
         payload_snapshot,
         payload_hash_hex: to_hex(&payload_hash),
         generated_at: Utc::now(),
-    })
+    }))
 }
 
 /// `POST /api/signatures/sign` — sign a record with the caller's key.
@@ -367,25 +377,25 @@ pub async fn sign_record(
     proof: medbrains_server_core::step_up::StepUpProof,
     Json(body): Json<SignRequest>,
 ) -> Result<Json<SignResponse>, AppError> {
+    let spec = signable::find(&body.record_type)?;
     let signer_role = validate_signer_role(body.signer_role.as_deref())?;
-    require_sign_permission(&claims, signer_role)?;
+    signable::require_sign_permission(&claims, spec, signer_role)?;
     medbrains_server_core::step_up::require_step_up(&state, &proof, &claims)?;
 
-    let legal_class = validate_legal_class(body.legal_class.as_deref())?;
+    let legal_class = validate_legal_class(body.legal_class.as_deref().or(Some(spec.legal_class)))?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
-
-    let payload_snapshot = resolve_signable_payload(
-        &mut tx,
-        &claims.tenant_id,
-        &claims.sub,
-        signer_role,
-        &body.record_type,
-        body.record_id,
-    )
-    .await?;
+    let opened =
+        signable::open_for_signing(&state, &mut tx, &claims, spec, signer_role, body.record_id)
+            .await?;
+    if signer_role == "primary" && opened.already_signed {
+        return Err(signable::already_signed(spec));
+    }
+    // The signer must have opened this exact content on the review screen.
+    signable::require_reviewed(&mut tx, &claims, spec, body.record_id, &opened.hash).await?;
+    let payload_snapshot = opened.payload;
 
     // Resolve credential — explicit id or doctor's default
     type CredentialRow = (Uuid, Option<Vec<u8>>, Option<String>, Option<String>);
@@ -468,15 +478,18 @@ pub async fn sign_record(
         "INSERT INTO signed_records ( \
             tenant_id, record_type, record_id, signer_user_id, signer_role, \
             signer_credential_id, payload_snapshot, payload_hash, signature_bytes, \
-            display_image_snapshot, display_block, legal_class, notes \
-         ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13) \
+            display_image_snapshot, display_block, legal_class, notes, reviewed_at \
+         ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13, \
+            (SELECT max(r.reviewed_at) FROM signature_reviews r \
+              WHERE r.tenant_id = $1 AND r.record_type = $2 AND r.record_id = $3 \
+                AND r.reviewer_id = $4 AND r.payload_hash = $8)) \
          RETURNING id, tenant_id, record_type, record_id, signer_user_id, \
                    signer_role, signer_credential_id, signed_at, payload_snapshot, \
                    payload_hash, signature_bytes, display_image_snapshot, \
-                   display_block, legal_class, created_at",
+                   display_block, legal_class, reviewed_at, created_at",
     )
     .bind(claims.tenant_id)
-    .bind(&body.record_type)
+    .bind(spec.record_type)
     .bind(body.record_id)
     .bind(claims.sub)
     .bind(signer_role)
@@ -496,14 +509,7 @@ pub async fn sign_record(
     // Every signable table carries `is_signed` and `signed_record_id`. A
     // failure here aborts the transaction, so it is returned, never swallowed:
     // swallowed, the commit below would roll the signature back in silence.
-    mark_source_signed(
-        &mut tx,
-        &claims.tenant_id,
-        &body.record_type,
-        body.record_id,
-        row.id,
-    )
-    .await?;
+    signable::mark_source_signed(&mut tx, &claims.tenant_id, spec, body.record_id, row.id).await?;
 
     tx.commit().await?;
 
@@ -517,281 +523,6 @@ pub async fn sign_record(
         payload_hash_hex,
         signature_hex,
     }))
-}
-
-/// The canonical content of a signable record, read from its source table.
-///
-/// Content only: workflow state (status, `updated_at`, the bed, the order's
-/// progress) is left out, because it changes after signing without the
-/// document changing, and a public check would then call every signed
-/// document altered. Schema `v2` marks payloads built this way.
-pub(crate) async fn resolve_signable_payload(
-    tx: &mut sqlx::PgConnection,
-    tenant_id: &Uuid,
-    signer_user_id: &Uuid,
-    signer_role: &str,
-    record_type: &str,
-    record_id: Uuid,
-) -> Result<Value, AppError> {
-    let payload = match record_type {
-        "prescription" => {
-            sqlx::query_scalar::<_, Value>(
-                "SELECT jsonb_build_object( \
-                'schema', 'medbrains.signable.prescription.v2', \
-                'record_type', 'prescription', \
-                'record_id', p.id, \
-                'tenant_id', p.tenant_id, \
-                'encounter_id', p.encounter_id, \
-                'encounter', jsonb_build_object( \
-                    'id', e.id, \
-                    'patient_id', e.patient_id, \
-                    'encounter_type', e.encounter_type, \
-                    'department_id', e.department_id, \
-                    'doctor_id', e.doctor_id, \
-                    'encounter_date', e.encounter_date, \
-                    'visit_type', e.visit_type \
-                ), \
-                'patient_id', COALESCE(p.patient_id, e.patient_id), \
-                'patient', CASE WHEN pat.id IS NULL THEN NULL ELSE jsonb_build_object( \
-                    'id', pat.id, \
-                    'uhid', pat.uhid, \
-                    'name', CONCAT_WS(' ', NULLIF(pat.prefix, ''), pat.first_name, NULLIF(pat.middle_name, ''), pat.last_name), \
-                    'gender', pat.gender, \
-                    'date_of_birth', pat.date_of_birth \
-                ) END, \
-                'doctor_id', p.doctor_id, \
-                'notes', p.notes, \
-                'created_at', p.created_at, \
-                'items', COALESCE(( \
-                    SELECT jsonb_agg(jsonb_build_object( \
-                        'id', pi.id, \
-                        'drug_name', pi.drug_name, \
-                        'dosage', pi.dosage, \
-                        'frequency', pi.frequency, \
-                        'duration', pi.duration, \
-                        'route', pi.route, \
-                        'instructions', pi.instructions, \
-                        'quantity', pi.quantity, \
-                        'time_slots', pi.time_slots, \
-                        'end_date', pi.end_date, \
-                        'catalog_item_id', pi.catalog_item_id, \
-                        'created_at', pi.created_at \
-                    ) ORDER BY pi.created_at, pi.id) \
-                    FROM prescription_items pi \
-                    WHERE pi.tenant_id = p.tenant_id AND pi.prescription_id = p.id \
-                      AND pi.deleted_at IS NULL \
-                ), '[]'::jsonb) \
-            ) \
-            FROM prescriptions p \
-            LEFT JOIN encounters e ON e.tenant_id = p.tenant_id AND e.id = p.encounter_id \
-            LEFT JOIN patients pat ON pat.tenant_id = p.tenant_id \
-                AND pat.id = COALESCE(p.patient_id, e.patient_id) \
-            WHERE p.tenant_id = $1 AND p.id = $2 AND p.deleted_at IS NULL \
-              AND ($3 <> 'primary' OR p.doctor_id = $4)",
-            )
-            .bind(tenant_id)
-            .bind(record_id)
-            .bind(signer_role)
-            .bind(signer_user_id)
-            .fetch_optional(&mut *tx)
-            .await?
-        }
-        "lab_report" => {
-            sqlx::query_scalar::<_, Value>(
-                "SELECT jsonb_build_object( \
-                'schema', 'medbrains.signable.lab_result.v2', \
-                'record_type', 'lab_report', \
-                'record_id', lr.id, \
-                'tenant_id', lr.tenant_id, \
-                'order_id', lr.order_id, \
-                'order', jsonb_build_object( \
-                    'id', lo.id, \
-                    'encounter_id', lo.encounter_id, \
-                    'patient_id', lo.patient_id, \
-                    'test_id', lo.test_id, \
-                    'priority', lo.priority, \
-                    'sample_barcode', lo.sample_barcode, \
-                    'is_stat', lo.is_stat, \
-                    'camp_id', lo.camp_id, \
-                    'department_id', lo.department_id \
-                ), \
-                'patient', jsonb_build_object( \
-                    'id', pat.id, \
-                    'uhid', pat.uhid, \
-                    'name', CONCAT_WS(' ', NULLIF(pat.prefix, ''), pat.first_name, NULLIF(pat.middle_name, ''), pat.last_name), \
-                    'gender', pat.gender, \
-                    'date_of_birth', pat.date_of_birth \
-                ), \
-                'parameter_name', lr.parameter_name, \
-                'value', lr.value, \
-                'numeric_value', lr.numeric_value, \
-                'unit', lr.unit, \
-                'normal_range', lr.normal_range, \
-                'flag', lr.flag, \
-                'result_value', lr.result_value, \
-                'reference_range', lr.reference_range, \
-                'is_abnormal', lr.is_abnormal, \
-                'is_critical', lr.is_critical, \
-                'critical_flag', lr.critical_flag, \
-                'method', lr.method, \
-                'notes', lr.notes, \
-                'is_auto_validated', lr.is_auto_validated, \
-                'entered_by', lr.entered_by, \
-                'created_at', lr.created_at \
-            ) \
-            FROM lab_results lr \
-            JOIN lab_orders lo ON lo.tenant_id = lr.tenant_id AND lo.id = lr.order_id \
-            JOIN patients pat ON pat.tenant_id = lo.tenant_id AND pat.id = lo.patient_id \
-            WHERE lr.tenant_id = $1 AND lr.id = $2 AND lr.deleted_at IS NULL \
-              AND ($3 <> 'primary' OR lr.entered_by = $4 OR lo.verified_by = $4)",
-            )
-            .bind(tenant_id)
-            .bind(record_id)
-            .bind(signer_role)
-            .bind(signer_user_id)
-            .fetch_optional(&mut *tx)
-            .await?
-        }
-        "radiology_report" => {
-            sqlx::query_scalar::<_, Value>(
-                "SELECT jsonb_build_object( \
-                'schema', 'medbrains.signable.radiology_report.v2', \
-                'record_type', 'radiology_report', \
-                'record_id', rr.id, \
-                'tenant_id', rr.tenant_id, \
-                'order_id', rr.order_id, \
-                'order', jsonb_build_object( \
-                    'id', ro.id, \
-                    'patient_id', ro.patient_id, \
-                    'encounter_id', ro.encounter_id, \
-                    'modality_id', ro.modality_id, \
-                    'body_part', ro.body_part, \
-                    'clinical_indication', ro.clinical_indication, \
-                    'priority', ro.priority, \
-                    'contrast_required', ro.contrast_required, \
-                    'pregnancy_checked', ro.pregnancy_checked, \
-                    'allergy_flagged', ro.allergy_flagged, \
-                    'pacs_study_uid', ro.pacs_study_uid \
-                ), \
-                'patient', jsonb_build_object( \
-                    'id', pat.id, \
-                    'uhid', pat.uhid, \
-                    'name', CONCAT_WS(' ', NULLIF(pat.prefix, ''), pat.first_name, NULLIF(pat.middle_name, ''), pat.last_name), \
-                    'gender', pat.gender, \
-                    'date_of_birth', pat.date_of_birth \
-                ), \
-                'reported_by', rr.reported_by, \
-                'findings', rr.findings, \
-                'impression', rr.impression, \
-                'recommendations', rr.recommendations, \
-                'is_critical', rr.is_critical, \
-                'template_name', rr.template_name, \
-                'created_at', rr.created_at \
-            ) \
-            FROM radiology_reports rr \
-            JOIN radiology_orders ro ON ro.tenant_id = rr.tenant_id AND ro.id = rr.order_id \
-            JOIN patients pat ON pat.tenant_id = ro.tenant_id AND pat.id = ro.patient_id \
-            WHERE rr.tenant_id = $1 AND rr.id = $2 AND rr.deleted_at IS NULL \
-              AND ($3 <> 'primary' OR rr.reported_by = $4 OR rr.verified_by = $4)",
-            )
-            .bind(tenant_id)
-            .bind(record_id)
-            .bind(signer_role)
-            .bind(signer_user_id)
-            .fetch_optional(&mut *tx)
-            .await?
-        }
-        "discharge_summary" => {
-            sqlx::query_scalar::<_, Value>(
-                "SELECT jsonb_build_object( \
-                'schema', 'medbrains.signable.ipd_discharge_summary.v2', \
-                'record_type', 'discharge_summary', \
-                'record_id', ds.id, \
-                'tenant_id', ds.tenant_id, \
-                'admission_id', ds.admission_id, \
-                'admission', jsonb_build_object( \
-                    'id', a.id, \
-                    'encounter_id', a.encounter_id, \
-                    'patient_id', a.patient_id, \
-                    'admitting_doctor', a.admitting_doctor, \
-                    'admitted_at', a.admitted_at, \
-                    'ip_type', a.ip_type \
-                ), \
-                'patient', jsonb_build_object( \
-                    'id', pat.id, \
-                    'uhid', pat.uhid, \
-                    'name', CONCAT_WS(' ', NULLIF(pat.prefix, ''), pat.first_name, NULLIF(pat.middle_name, ''), pat.last_name), \
-                    'gender', pat.gender, \
-                    'date_of_birth', pat.date_of_birth \
-                ), \
-                'template_id', ds.template_id, \
-                'final_diagnosis', ds.final_diagnosis, \
-                'condition_at_discharge', ds.condition_at_discharge, \
-                'course_in_hospital', ds.course_in_hospital, \
-                'treatment_given', ds.treatment_given, \
-                'procedures_performed', ds.procedures_performed, \
-                'investigation_summary', ds.investigation_summary, \
-                'medications_on_discharge', ds.medications_on_discharge, \
-                'follow_up_instructions', ds.follow_up_instructions, \
-                'follow_up_date', ds.follow_up_date, \
-                'dietary_advice', ds.dietary_advice, \
-                'activity_restrictions', ds.activity_restrictions, \
-                'warning_signs', ds.warning_signs, \
-                'emergency_contact_info', ds.emergency_contact_info, \
-                'prepared_by', ds.prepared_by, \
-                'created_at', ds.created_at \
-            ) \
-            FROM ipd_discharge_summaries ds \
-            JOIN admissions a ON a.tenant_id = ds.tenant_id AND a.id = ds.admission_id \
-            JOIN patients pat ON pat.tenant_id = a.tenant_id AND pat.id = a.patient_id \
-            WHERE ds.tenant_id = $1 AND ds.id = $2 AND ds.deleted_at IS NULL \
-              AND ($3 <> 'primary' OR ds.prepared_by = $4 OR ds.verified_by = $4)",
-            )
-            .bind(tenant_id)
-            .bind(record_id)
-            .bind(signer_role)
-            .bind(signer_user_id)
-            .fetch_optional(&mut *tx)
-            .await?
-        }
-        _ => {
-            return Err(AppError::BadRequest(format!(
-                "record_type '{record_type}' is not signable"
-            )));
-        }
-    };
-
-    payload.ok_or(AppError::NotFound)
-}
-
-/// Flag the source row as signed and point it at its signature.
-async fn mark_source_signed(
-    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
-    tenant_id: &Uuid,
-    record_type: &str,
-    record_id: Uuid,
-    signed_record_id: Uuid,
-) -> Result<(), AppError> {
-    // Map record_type → table name; every one carries both columns.
-    let table = match record_type {
-        "prescription" => "prescriptions",
-        "lab_report" => "lab_results",
-        "radiology_report" => "radiology_reports",
-        "discharge_summary" => "ipd_discharge_summaries",
-        _ => return Ok(()),
-    };
-    // Dynamic only in the table name, which comes from the fixed match above.
-    let sql = format!(
-        "UPDATE {table} SET is_signed = TRUE, signed_record_id = $1 \
-         WHERE id = $2 AND tenant_id = $3"
-    );
-    sqlx::query(&sql)
-        .bind(signed_record_id)
-        .bind(record_id)
-        .bind(tenant_id)
-        .execute(&mut **tx)
-        .await?;
-    Ok(())
 }
 
 // ══════════════════════════════════════════════════════════
@@ -819,7 +550,7 @@ pub async fn list_signatures(
         "SELECT id, tenant_id, record_type, record_id, signer_user_id, \
                 signer_role, signer_credential_id, signed_at, \
                 payload_snapshot, payload_hash, signature_bytes, display_image_snapshot, \
-                display_block, legal_class, created_at \
+                display_block, legal_class, reviewed_at, created_at \
          FROM signed_records \
          WHERE deleted_at IS NULL AND tenant_id = $1 AND record_type = $2 AND record_id = $3 \
          ORDER BY signed_at LIMIT 5000",
@@ -971,14 +702,6 @@ fn validate_legal_class(class: Option<&str>) -> Result<&str, AppError> {
     }
 }
 
-fn require_sign_permission(claims: &Claims, signer_role: &str) -> Result<(), AppError> {
-    if signer_role == "primary" {
-        require_permission(claims, permissions::doctor::signature::SIGN)
-    } else {
-        require_permission(claims, permissions::doctor::signature::CO_SIGN)
-    }
-}
-
 /// Lower-case hex of `bytes`.
 pub(crate) fn to_hex(bytes: &[u8]) -> String {
     bytes.iter().fold(String::new(), |mut acc, b| {
@@ -989,7 +712,13 @@ pub(crate) fn to_hex(bytes: &[u8]) -> String {
 }
 
 async fn signature_key_encryption_key(state: &AppState) -> Result<Vec<u8>, AppError> {
-    medbrains_core::secrets::sealing::sealing_key(state.secret_resolver.as_ref(), SIGNATURE_KEY_SECRET, DEV_SIGNATURE_KEY).await.map_err(AppError::from)
+    medbrains_core::secrets::sealing::sealing_key(
+        state.secret_resolver.as_ref(),
+        SIGNATURE_KEY_SECRET,
+        DEV_SIGNATURE_KEY,
+    )
+    .await
+    .map_err(AppError::from)
 }
 
 fn signature_key_context(tenant_id: &Uuid, doctor_user_id: &Uuid) -> String {
