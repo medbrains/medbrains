@@ -28,6 +28,9 @@ const mailboxSchema = z.object({
 });
 type MailboxFormInput = z.infer<typeof mailboxSchema>;
 
+/** The server's short-name rule for a hospital's secret names (medbrains-core `tenant_name`). */
+const SECRET_NAME = /^[a-z0-9-]{1,40}$/;
+
 const PROVIDERS = [
   { value: "stalwart", label: "Stalwart (self-hosted)" },
   { value: "smtp", label: "SMTP (Zoho / Workspace / relay)" },
@@ -126,6 +129,19 @@ export function DomainsEmailPage() {
   });
 
   const isSmtp = value.provider === "smtp" || value.provider === "stalwart";
+  // The server keeps the password under this hospital's own name: the field
+  // takes a short name, and shows the operator where the saved one lives.
+  const savedPath =
+    email && value.smtp_password_secret === (email.smtp_password_secret ?? "")
+      ? email.smtp_password_secret_path
+      : null;
+  const secretHint = savedPath
+    ? `Not the password itself. The operator keeps it at ${savedPath}.`
+    : "Not the password itself: a short name (lowercase letters, digits, hyphens) for a secret kept for this hospital.";
+  const secretError =
+    value.smtp_password_secret !== "" && !SECRET_NAME.test(value.smtp_password_secret)
+      ? "Use only lowercase letters, digits and hyphens, at most 40 characters. Server setting names are not accepted."
+      : undefined;
   const domain = tenant?.custom_domain ?? "";
   const mailHost = domain ? `mail.${domain}` : "mail.<your-domain>";
 
@@ -366,9 +382,10 @@ export function DomainsEmailPage() {
                 onChange={(e) => set({ smtp_username: e.currentTarget.value })}
               />
               <Input
-                label="Password reference"
-                placeholder="SMTP_PASSWORD"
-                description="A key in the secrets backend — not the password itself."
+                label="Password secret name"
+                placeholder="mailbox"
+                description={secretHint}
+                error={secretError}
                 value={value.smtp_password_secret}
                 onChange={(e) => set({ smtp_password_secret: e.currentTarget.value })}
               />
