@@ -15,6 +15,7 @@ import { IconPencil } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { useClinicalEmit } from "@/components";
+import { SignRecordButton } from "@/components/Signatures/SignRecordButton";
 import { Badge, Button, toast } from "@/components/ui";
 import { confirmDestructive } from "@/lib/confirm-destructive";
 import { ipdService } from "@/services/ipd.service";
@@ -104,6 +105,12 @@ export function DischargeSummaryTab({
             )}
           </Group>
           <Group>
+            <SignRecordButton
+              recordType="discharge_summary"
+              authorId={summary.verified_by ?? summary.prepared_by}
+              recordId={summary.id}
+              summary="Discharge summary"
+            />
             {summary.status === "draft" && canCreate && (
               <Button
                 tone="secondary"

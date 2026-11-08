@@ -24,6 +24,7 @@ on:
   push:
     branches: [master, main]
   pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
     branches: [master, main]
     # Words alone cannot break the product, so they do not spend a build.
     paths-ignore:
@@ -45,6 +46,8 @@ jobs:
   # ── Blocking: run against master and verified green ──────────────
 
   audit-checks:
+    # A draft PR spends no build; marking it ready for review runs everything.
+    if: github.event_name != 'pull_request' || !github.event.pull_request.draft
     name: Audit checks (RLS, sharing, egress, PCI)
     runs-on: ubuntu-latest
     steps:
@@ -64,7 +67,7 @@ jobs:
   docs:
     name: Every new function is documented
     runs-on: ubuntu-latest
-    if: github.event_name == 'pull_request'
+    if: github.event_name == 'pull_request' && !github.event.pull_request.draft
     steps:
       - uses: actions/checkout@v4
         with:
@@ -73,6 +76,8 @@ jobs:
       - run: python3 medbrains/scripts/check_docs_on_new_functions.py origin/${{ github.base_ref }}
 
   contracts:
+    # A draft PR spends no build; marking it ready for review runs everything.
+    if: github.event_name != 'pull_request' || !github.event.pull_request.draft
     name: API + UI contracts
     runs-on: ubuntu-latest
     steps:
@@ -124,6 +129,8 @@ jobs:
         run: python3 -m unittest discover -s tests
 
   rust-fmt:
+    # A draft PR spends no build; marking it ready for review runs everything.
+    if: github.event_name != 'pull_request' || !github.event.pull_request.draft
     name: "Rust format (TODO: 1053 diffs on master)"
     runs-on: ubuntu-latest
     continue-on-error: true
@@ -141,6 +148,8 @@ jobs:
       - run: cargo fmt --all -- --check
 
   web:
+    # A draft PR spends no build; marking it ready for review runs everything.
+    if: github.event_name != 'pull_request' || !github.event.pull_request.draft
     name: Web typecheck, lint, test, build
     runs-on: ubuntu-latest
     defaults:
@@ -178,6 +187,8 @@ jobs:
         run: python3 scripts/check_size_budgets.py
 
   web-lint:
+    # A draft PR spends no build; marking it ready for review runs everything.
+    if: github.event_name != 'pull_request' || !github.event.pull_request.draft
     name: "Web lint"
     runs-on: ubuntu-latest
     continue-on-error: true
@@ -198,6 +209,8 @@ jobs:
       - run: pnpm turbo run lint --filter=@medbrains/web...
 
   rust-clippy:
+    # A draft PR spends no build; marking it ready for review runs everything.
+    if: github.event_name != 'pull_request' || !github.event.pull_request.draft
     name: "Rust clippy"
     runs-on: ubuntu-latest
     continue-on-error: true
@@ -224,6 +237,8 @@ jobs:
       - run: cargo clippy --workspace --exclude medbrains-desktop
 
   schema-and-tenancy:
+    # A draft PR spends no build; marking it ready for review runs everything.
+    if: github.event_name != 'pull_request' || !github.event.pull_request.draft
     name: "Schema + tenancy"
     runs-on: ubuntu-latest
     continue-on-error: true
@@ -259,6 +274,8 @@ jobs:
         run: python3 scripts/check_tracing_spans.py
 
   rust-test:
+    # A draft PR spends no build; marking it ready for review runs everything.
+    if: github.event_name != 'pull_request' || !github.event.pull_request.draft
     name: "Rust tests"
     runs-on: ubuntu-latest
     continue-on-error: true

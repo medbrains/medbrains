@@ -5,8 +5,9 @@ export const signoffService = {
     api.getMyPendingSignoffs(...args),
   listVerbalOrders: (...args: Parameters<typeof api.listVerbalOrders>) =>
     api.listVerbalOrders(...args),
-  previewSignature: (...args: Parameters<typeof api.previewSignature>) =>
-    api.previewSignature(...args),
+  reviewSignature: (...args: Parameters<typeof api.reviewSignature>) =>
+    api.reviewSignature(...args),
+  listSignableTypes: () => api.listSignableTypes(),
   getMySignatureCredentials: (...args: Parameters<typeof api.getMySignatureCredentials>) =>
     api.getMySignatureCredentials(...args),
   signRecord: (...args: Parameters<typeof api.signRecord>) => api.signRecord(...args),

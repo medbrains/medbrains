@@ -402,6 +402,8 @@ pub struct Staff {
     pub client: Client,
     pub csrf: String,
     pub user_id: uuid::Uuid,
+    /// For the step-up a signature needs.
+    pub password: String,
 }
 
 /// Provision a user of `role` through the admin API (the way a hospital
@@ -474,6 +476,7 @@ pub async fn provision_staff_with(
         client,
         csrf,
         user_id,
+        password,
     }
 }
 

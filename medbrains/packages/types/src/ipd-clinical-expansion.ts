@@ -1144,6 +1144,8 @@ export interface BedsideTransfusion {
   total_volume_infused_ml: number | null;
   adverse_reaction: boolean;
   reaction_type: string | null;
+  /** The nurse who hung the unit: the record's author, who signs it. */
+  started_by_id: string | null;
 }
 
 export interface StartBedsideTransfusionRequest {

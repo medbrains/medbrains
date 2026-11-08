@@ -198,6 +198,7 @@ import type {
   BillingLaneInput,
   BillingLaneName,
   BillingPackage,
+  BillingPaymentSettings,
   BillingQueueDisplay,
   BillingServicePackage,
   BillingSummaryReport,
@@ -2141,6 +2142,7 @@ import type {
   SetupUser,
   SharpReplacementRequest,
   ShiftDefinition,
+  SignableTypeInfo,
   SignatureCredential,
   SignatureVerifyLink,
   SignBasketRequest,
@@ -2318,6 +2320,7 @@ import type {
   UpdateBedStatusRequest,
   UpdateBedsideRequestStatusPayload,
   UpdateBedsideVideoRequest,
+  UpdateBillingPaymentSettings,
   UpdateBirthRecordRequest,
   UpdateBmeBreakdownStatusRequest,
   UpdateBmeCalibrationRequest,
@@ -17085,6 +17088,13 @@ export const api = {
     }),
   cancelPaymentLink: (id: string) =>
     request<PaymentLinkView>(`/payments/links/${id}/cancel`, { method: "POST" }),
+  /** The billing screen's UPI ID and payment-link terms (never provider keys). */
+  getBillingPaymentSettings: () => request<BillingPaymentSettings>("/billing/payment-settings"),
+  updateBillingPaymentSettings: (data: UpdateBillingPaymentSettings) =>
+    request<BillingPaymentSettings>("/billing/payment-settings", {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
   getOnlineSettings: () => request<OnlineSettings>("/payments/online-settings"),
   updateOnlineSettings: (data: ChooseProviders) =>
     request<ChooseProviders>("/payments/online-settings", {
@@ -17367,15 +17377,14 @@ export const api = {
     }),
 
   getMySignatureCredentials: () => request<SignatureCredential[]>("/signatures/my-credentials"),
-  previewSignature: (data: SignPreviewRequest) => {
-    const qs = new URLSearchParams({
-      record_type: data.record_type,
-      record_id: data.record_id,
-    });
-    if (data.signer_role) qs.set("signer_role", data.signer_role);
-    if (data.legal_class) qs.set("legal_class", data.legal_class);
-    return request<SignPreviewResponse>(`/signatures/preview?${qs.toString()}`);
-  },
+  /** Open a record to sign it: its canonical snapshot, and the review is recorded. */
+  reviewSignature: (data: SignPreviewRequest) =>
+    request<SignPreviewResponse>("/signatures/review", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  /** The record types the server signs, so no screen offers one it refuses. */
+  listSignableTypes: () => request<SignableTypeInfo[]>("/signatures/types"),
   signRecord: (data: SignRequest) =>
     request<SignResponse>("/signatures/sign", {
       method: "POST",
