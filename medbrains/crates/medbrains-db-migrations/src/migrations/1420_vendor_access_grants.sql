@@ -340,8 +340,15 @@ BEGIN
 END;
 $$;
 
+-- No column list on the UPDATE trigger: a column-specific trigger fires on the
+-- columns an UPDATE names, not on a column a BEFORE trigger changes, and the
+-- flag is usually set by `users_flag_vendor_on_write` below.
 CREATE TRIGGER trg_users_revoke_vendor_credentials
-    AFTER INSERT OR UPDATE OF is_vendor_staff ON public.users
+    AFTER UPDATE ON public.users
+    FOR EACH ROW WHEN (NEW.is_vendor_staff AND NOT OLD.is_vendor_staff)
+    EXECUTE FUNCTION public.revoke_vendor_credentials();
+CREATE TRIGGER trg_users_revoke_vendor_credentials_on_insert
+    AFTER INSERT ON public.users
     FOR EACH ROW WHEN (NEW.is_vendor_staff)
     EXECUTE FUNCTION public.revoke_vendor_credentials();
 
@@ -397,20 +404,52 @@ AS $$
 $$;
 REVOKE ALL ON FUNCTION public.app_set_vendor_domains(text[]) FROM PUBLIC;
 
--- An account created on, or moved to, a vendor domain is flagged then and
--- there; the AFTER trigger above revokes what it holds. Never clears a flag.
-CREATE OR REPLACE FUNCTION public.users_flag_vendor_on_write()
-RETURNS trigger
-LANGUAGE plpgsql
+-- The stored list, for code that may not read the table itself.
+CREATE OR REPLACE FUNCTION public.app_vendor_domains()
+RETURNS text[]
+LANGUAGE sql
+STABLE
 SECURITY DEFINER
 SET search_path = public, pg_temp
 AS $$
+    SELECT ARRAY(SELECT domain FROM public.vendor_email_domains ORDER BY domain)
+$$;
+REVOKE ALL ON FUNCTION public.app_vendor_domains() FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.app_vendor_domains() TO medbrains_app;
+
+-- An account created on a vendor domain is flagged then and there; the AFTER
+-- trigger above revokes what it holds. Adding a MedBrains support account is
+-- the intended flow, so INSERT is allowed.
+--
+-- Moving an existing account's address onto a vendor domain is refused from
+-- the application — an administrator renaming a colleague, or anyone renaming
+-- themselves — because the flag is permanent and revokes what the account set
+-- up: a typo would cost a colleague their keys and channels for good. Only the
+-- platform path may do it: a role that is a member of the table's owner (the
+-- migration, seed and boot connections), never the request role. SECURITY
+-- INVOKER so `current_user` is the caller; the domain list comes through
+-- `app_vendor_domains`.
+CREATE OR REPLACE FUNCTION public.users_flag_vendor_on_write()
+RETURNS trigger
+LANGUAGE plpgsql
+SET search_path = public, pg_temp
+AS $$
+DECLARE
+    v_domains text[] := public.app_vendor_domains();
 BEGIN
-    IF NOT NEW.is_vendor_staff
-       AND public.app_email_is_vendor(
-               NEW.email, ARRAY(SELECT domain FROM public.vendor_email_domains)) THEN
-        NEW.is_vendor_staff := true;
+    IF NEW.is_vendor_staff OR NOT public.app_email_is_vendor(NEW.email, v_domains) THEN
+        RETURN NEW;
     END IF;
+    IF TG_OP = 'UPDATE'
+       AND NOT public.app_email_is_vendor(OLD.email, v_domains)
+       AND NOT pg_has_role(current_user,
+                           (SELECT relowner FROM pg_class WHERE oid = 'public.users'::regclass),
+                           'MEMBER') THEN
+        RAISE EXCEPTION 'an existing account cannot be moved onto a MedBrains address; '
+            'add a separate MedBrains account instead'
+            USING ERRCODE = 'check_violation';
+    END IF;
+    NEW.is_vendor_staff := true;
     RETURN NEW;
 END;
 $$;
@@ -425,7 +464,8 @@ CREATE TRIGGER trg_users_flag_vendor_on_write BEFORE INSERT OR UPDATE OF email O
 --
 -- Only a mistake in the list itself stops the boot (raises, flagging no one):
 --   * an entry with no dot, or a public suffix (`in`, `co.in`, ...);
---   * an entry that is, or is a parent of, a hospital's own site domain;
+--   * an entry that is, contains, or sits under a hospital's own domain (its
+--     custom domain or a site domain not issued by the platform);
 --   * a list that would flag more than `p_max` accounts.
 -- Anything about one account is not a reason to take every hospital offline.
 -- An account whose flag would leave its hospital with no active, non-deleted
@@ -435,7 +475,8 @@ CREATE TRIGGER trg_users_flag_vendor_on_write BEFORE INSERT OR UPDATE OF email O
 CREATE OR REPLACE FUNCTION public.app_flag_vendor_accounts(
     p_domains text[],
     p_public_suffixes text[],
-    p_max integer
+    p_max integer,
+    p_platform_domains text[]
 )
 RETURNS TABLE (flagged integer, skipped uuid[])
 LANGUAGE plpgsql
@@ -456,11 +497,24 @@ BEGIN
             'every account under it would become a MedBrains account', v_bad;
     END IF;
 
-    SELECT array_agg(DISTINCT d) INTO v_bad FROM unnest(p_domains) AS d
-     WHERE EXISTS (SELECT 1 FROM public.site_domains s
-                    WHERE public.app_email_is_vendor('x@' || s.domain, ARRAY[d]));
+    -- A hospital's own domains: its custom domain and its site domains, except
+    -- those equal to or under a platform domain (MedBrains' own site, and the
+    -- `hospital-x.medbrains.in` sites MedBrains issues to hospitals). An entry is
+    -- refused when it equals one of them, sits under one, or has one under it.
+    WITH own AS (
+        SELECT lower(btrim(s.domain)) AS h FROM public.site_domains s
+        UNION
+        SELECT lower(btrim(t.custom_domain)) FROM public.tenants t
+         WHERE COALESCE(btrim(t.custom_domain), '') <> ''
+    )
+    SELECT array_agg(DISTINCT d) INTO v_bad
+      FROM unnest(p_domains) AS d, own
+     WHERE NOT public.app_email_is_vendor('x@' || own.h, p_platform_domains)
+       AND (public.app_email_is_vendor('x@' || own.h, ARRAY[d])
+            OR public.app_email_is_vendor('x@' || d, ARRAY[own.h]));
     IF v_bad IS NOT NULL THEN
-        RAISE EXCEPTION 'vendor domain list refused: % is a hospital''s own site domain', v_bad;
+        RAISE EXCEPTION 'vendor domain list refused: % is, contains or sits under a hospital''s '
+            'own domain', v_bad;
     END IF;
 
     SELECT count(*) INTO v_count FROM public.users
@@ -500,7 +554,7 @@ BEGIN
 END;
 $$;
 
-REVOKE ALL ON FUNCTION public.app_flag_vendor_accounts(text[], text[], integer) FROM PUBLIC;
+REVOKE ALL ON FUNCTION public.app_flag_vendor_accounts(text[], text[], integer, text[]) FROM PUBLIC;
 
 -- Back-fill: accounts already on the default MedBrains domain become MedBrains
 -- accounts now, which revokes what they made — through the same guarded
@@ -510,7 +564,8 @@ REVOKE ALL ON FUNCTION public.app_flag_vendor_accounts(text[], text[], integer) 
 -- is wrong.
 DO $$
 BEGIN
-    PERFORM public.app_flag_vendor_accounts(ARRAY['medbrains.in'], ARRAY[]::text[], 2147483647);
+    PERFORM public.app_flag_vendor_accounts(ARRAY['medbrains.in'], ARRAY[]::text[], 2147483647,
+                                            ARRAY['medbrains.in', 'medbrains.localhost']);
 EXCEPTION WHEN raise_exception THEN
     RAISE WARNING 'vendor back-fill skipped in migration 1420: %', SQLERRM;
 END;

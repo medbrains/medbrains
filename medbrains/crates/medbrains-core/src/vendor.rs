@@ -14,6 +14,14 @@ use std::sync::{LazyLock, RwLock};
 /// The address domain the seeded first administrator is created with.
 pub const SEED_ADMIN_DOMAIN: &str = "medbrains.localhost";
 
+/// The platform's own domains.
+///
+/// A site under one of these — the vendor's own website, or a
+/// `hospital-x.medbrains.in` site issued to a hospital — is the platform's,
+/// never a hospital's own domain, so it does not make the default vendor list
+/// look like a hospital's domain at boot.
+pub const PLATFORM_DOMAINS: &[&str] = &["medbrains.in", SEED_ADMIN_DOMAIN];
+
 /// Suffixes no vendor owns.
 ///
 /// A list entry equal to one of these would make

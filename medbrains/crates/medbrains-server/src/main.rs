@@ -413,10 +413,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
     let domains = medbrains_core::vendor::vendor_domains();
     let (flagged, skipped): (i32, Vec<uuid::Uuid>) =
-        sqlx::query_as("SELECT flagged, skipped FROM public.app_flag_vendor_accounts($1, $2, $3)")
+        sqlx::query_as(
+            "SELECT flagged, skipped FROM public.app_flag_vendor_accounts($1, $2, $3, $4)",
+        )
             .bind(&domains)
             .bind(medbrains_core::vendor::PUBLIC_SUFFIXES)
             .bind(medbrains_core::vendor::backfill_max())
+            .bind(medbrains_core::vendor::PLATFORM_DOMAINS)
             .fetch_one(&bootstrap_pool)
             .await
             .map_err(|e| format!("vendor-domain list refused, server not started: {e}"))?;

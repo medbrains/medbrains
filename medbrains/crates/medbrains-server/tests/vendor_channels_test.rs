@@ -279,11 +279,12 @@ async fn the_startup_back_fill_switches_off_what_vendor_accounts_set_up() {
 /// how many it flagged and which accounts it skipped.
 async fn back_fill(app: &TestApp, domains: &[&str], max: i32) -> Result<(i32, Vec<Uuid>), String> {
     sqlx::query_as::<_, (i32, Vec<Uuid>)>(
-        "SELECT flagged, skipped FROM public.app_flag_vendor_accounts($1, $2, $3)",
+        "SELECT flagged, skipped FROM public.app_flag_vendor_accounts($1, $2, $3, $4)",
     )
     .bind(domains)
     .bind(medbrains_core::vendor::PUBLIC_SUFFIXES)
     .bind(max)
+    .bind(medbrains_core::vendor::PLATFORM_DOMAINS)
     .fetch_one(&app.db)
     .await
     .map_err(|e| e.to_string())
@@ -338,7 +339,7 @@ async fn the_hospitals_own_domain_is_refused() {
     let refused = back_fill(&app, &[site.as_str()], 20)
         .await
         .expect_err("site domain accepted");
-    assert!(refused.contains("own site domain"), "{refused}");
+    assert!(refused.contains("own domain"), "{refused}");
     assert!(!flagged(&app, staff).await);
 }
 
@@ -438,6 +439,23 @@ async fn a_vendor_domain_account_is_flagged_when_written() {
 
     let moved = user_with_email(&app, tenant, "desk@example.test").await;
     assert!(!flagged(&app, moved).await);
+    let digest: Uuid = sqlx::query_scalar(
+        "INSERT INTO eod_digest_subscriptions (tenant_id, user_id) VALUES ($1, $2) RETURNING id",
+    )
+    .bind(tenant)
+    .bind(moved)
+    .fetch_one(&app.db)
+    .await
+    .expect("digest");
+    let workflow: Uuid = sqlx::query_scalar(
+        "INSERT INTO automation_workflows (tenant_id, name, active, created_by) \
+         VALUES ($1, 'Nightly export', true, $2) RETURNING id",
+    )
+    .bind(tenant)
+    .bind(moved)
+    .fetch_one(&app.db)
+    .await
+    .expect("workflow");
     sqlx::query("UPDATE users SET email = 'moved.' || id || '@help.medbrains.in' WHERE id = $1")
         .bind(moved)
         .execute(&app.db)
@@ -447,6 +465,77 @@ async fn a_vendor_domain_account_is_flagged_when_written() {
         flagged(&app, moved).await,
         "not flagged when the address moved"
     );
+
+    // The flag came from the BEFORE trigger, not from the UPDATE's own SET
+    // list: the revocations must still run.
+    let (digest_on, workflow_on): (bool, bool) = sqlx::query_as(
+        "SELECT (SELECT is_active FROM eod_digest_subscriptions WHERE id = $1), \
+                (SELECT active FROM automation_workflows WHERE id = $2)",
+    )
+    .bind(digest)
+    .bind(workflow)
+    .fetch_one(&app.db)
+    .await
+    .expect("rows kept");
+    assert!(
+        !digest_on && !workflow_on,
+        "the trigger-set flag revoked nothing"
+    );
+    let revoked: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM vendor_credential_revocations WHERE user_id = $1 \
+            AND kind IN ('eod_digest_subscription', 'automation_workflow')",
+    )
+    .bind(moved)
+    .fetch_one(&app.db)
+    .await
+    .expect("revocations");
+    assert_eq!(revoked, 2);
+}
+
+/// Given a site MedBrains issued to a hospital under `medbrains.in`, and
+/// MedBrains' own site there, the default list still boots; a hospital's own
+/// custom domain is still refused.
+#[tokio::test]
+async fn platform_issued_sites_do_not_block_the_default_list() {
+    let app = common::spawn_app().await;
+    let (tenant, _) = home(&app).await;
+    let issued = format!(
+        "hospital-{}.medbrains.in",
+        &Uuid::new_v4().simple().to_string()[..8]
+    );
+    for domain in [issued.as_str(), "medbrains.in"] {
+        sqlx::query(
+            "INSERT INTO site_domains (tenant_id, domain) VALUES ($1, $2) \
+             ON CONFLICT (tenant_id, domain) DO NOTHING",
+        )
+        .bind(tenant)
+        .bind(domain)
+        .execute(&app.db)
+        .await
+        .expect("site");
+    }
+    back_fill(&app, &["medbrains.in"], 1000)
+        .await
+        .expect("the default list was refused over platform-issued sites");
+
+    let custom = fresh_domain("custom");
+    let other: Uuid = sqlx::query_scalar(
+        "INSERT INTO tenants (code, name, hospital_type, custom_domain) \
+         VALUES ($1, 'Custom', 'standalone_clinic', $2) RETURNING id",
+    )
+    .bind(format!(
+        "CD{}",
+        &Uuid::new_v4().simple().to_string()[..8].to_uppercase()
+    ))
+    .bind(&custom)
+    .fetch_one(&app.db)
+    .await
+    .expect("tenant");
+    assert_ne!(other, tenant);
+    let refused = back_fill(&app, &[custom.as_str()], 20)
+        .await
+        .expect_err("a hospital's own custom domain was accepted");
+    assert!(refused.contains("own domain"), "{refused}");
 }
 
 /// Given a correct list, only the accounts on it are flagged.

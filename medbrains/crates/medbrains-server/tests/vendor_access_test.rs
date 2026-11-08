@@ -706,3 +706,64 @@ async fn the_notification_socket_refuses_a_vendor_account() {
         "a MedBrains account opened the notification socket"
     );
 }
+
+/// `PUT /api/setup/users/{id}` with a new email, as `who`; returns the status.
+async fn change_email(app: &TestApp, who: (&Client, &str), user: Uuid, email: &str) -> StatusCode {
+    who.0
+        .put(app.url(&format!("/api/setup/users/{user}")))
+        .header("x-csrf-token", who.1)
+        .json(&json!({ "email": email }))
+        .send()
+        .await
+        .expect("update")
+        .status()
+}
+
+/// Whether `user` is flagged as a vendor account, and its current address.
+async fn flag_and_email(app: &TestApp, user: Uuid) -> (bool, String) {
+    sqlx::query_as("SELECT is_vendor_staff, email FROM users WHERE id = $1")
+        .bind(user)
+        .fetch_one(&app.db)
+        .await
+        .expect("user")
+}
+
+/// Given the request role (what production runs as), an administrator who
+/// moves a colleague's address onto `@medbrains.in` is refused: the flag would
+/// be permanent and revoke everything the colleague set up.
+#[tokio::test]
+async fn an_admin_cannot_move_a_colleague_onto_a_medbrains_address() {
+    let app = common::spawn_app_as_request_role().await;
+    let csrf = app.login_admin().await;
+    let colleague = account(&app, &csrf, "receptionist", "example.test").await;
+    let target = format!("moved.{}@medbrains.in", colleague.user_id.simple());
+    let status = change_email(&app, (&app.client, &csrf), colleague.user_id, &target).await;
+    assert_eq!(status, StatusCode::BAD_REQUEST);
+    assert_eq!(
+        flag_and_email(&app, colleague.user_id).await,
+        (false, colleague.email)
+    );
+}
+
+/// Given the request role, an administrator who moves their own address onto
+/// a MedBrains domain is refused too.
+#[tokio::test]
+async fn nobody_can_move_themselves_onto_a_medbrains_address() {
+    let app = common::spawn_app_as_request_role().await;
+    let csrf = app.login_admin().await;
+    let me = account(&app, &csrf, "hospital_admin", "example.test").await;
+    let target = format!("me.{}@medbrains.in", me.user_id.simple());
+    let status = change_email(&app, (&me.client, &me.csrf), me.user_id, &target).await;
+    assert_eq!(status, StatusCode::BAD_REQUEST);
+    assert_eq!(flag_and_email(&app, me.user_id).await, (false, me.email));
+}
+
+/// Given the request role, adding a MedBrains support account — the intended
+/// flow — works, and the account is a vendor account from its first write.
+#[tokio::test]
+async fn adding_a_medbrains_account_flags_it() {
+    let app = common::spawn_app_as_request_role().await;
+    let csrf = app.login_admin().await;
+    let support = account(&app, &csrf, "receptionist", "medbrains.in").await;
+    assert!(flag_and_email(&app, support.user_id).await.0);
+}
