@@ -1,0 +1,34 @@
+-- Signable payload: death_certificate. Binds $1 tenant, $2 record, $3 signer role, $4 signer.
+SELECT jsonb_build_object('schema',
+    'medbrains.signable.death_certificate.v2',
+    'record_type',
+    'death_certificate',
+    'record_id', d.id,
+    'tenant_id', d.tenant_id,
+    'admission_id', d.admission_id,
+    'patient_id', d.patient_id,
+    'patient', jsonb_build_object('id', pat.id,
+    'uhid', pat.uhid,
+    'name', CONCAT_WS(' ', NULLIF(pat.prefix,
+    ''), pat.first_name, NULLIF(pat.middle_name,
+    ''), pat.last_name),
+    'gender', pat.gender,
+    'date_of_birth', pat.date_of_birth),
+    'form_type', d.form_type,
+    'date_of_death', d.date_of_death,
+    'time_of_death', d.time_of_death,
+    'cause_of_death_primary', d.cause_of_death_primary,
+    'cause_of_death_secondary', d.cause_of_death_secondary,
+    'cause_of_death_tertiary', d.cause_of_death_tertiary,
+    'cause_of_death_underlying', d.cause_of_death_underlying,
+    'manner_of_death', d.manner_of_death,
+    'duration_of_illness', d.duration_of_illness,
+    'autopsy_requested', d.autopsy_requested,
+    'is_medico_legal', d.is_medico_legal,
+    'certifying_doctor_id', d.certifying_doctor_id,
+    'witness_name', d.witness_name,
+    'notes', d.notes)
+FROM ipd_death_summaries d
+JOIN patients pat ON pat.tenant_id = d.tenant_id AND pat.id = d.patient_id
+WHERE d.tenant_id = $1 AND d.id = $2 AND d.deleted_at IS NULL
+AND ($3 <> 'primary' OR d.certifying_doctor_id = $4)

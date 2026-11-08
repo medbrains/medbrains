@@ -1,0 +1,42 @@
+-- Signable payload: icu_flowsheet. Binds $1 tenant, $2 record, $3 signer role, $4 signer.
+SELECT jsonb_build_object('schema',
+    'medbrains.signable.icu_flowsheet.v2',
+    'record_type',
+    'icu_flowsheet',
+    'record_id', f.id,
+    'tenant_id', f.tenant_id,
+    'admission_id', f.admission_id,
+    'admission', jsonb_build_object('id', a.id,
+    'encounter_id', a.encounter_id,
+    'patient_id', a.patient_id,
+    'admitting_doctor', a.admitting_doctor,
+    'admitted_at', a.admitted_at),
+    'patient_id', a.patient_id,
+    'patient', jsonb_build_object('id', pat.id,
+    'uhid', pat.uhid,
+    'name', CONCAT_WS(' ', NULLIF(pat.prefix,
+    ''), pat.first_name, NULLIF(pat.middle_name,
+    ''), pat.last_name),
+    'gender', pat.gender,
+    'date_of_birth', pat.date_of_birth),
+    'recorded_at', f.recorded_at,
+    'recorded_by', f.recorded_by,
+    'heart_rate', f.heart_rate,
+    'systolic_bp', f.systolic_bp,
+    'diastolic_bp', f.diastolic_bp,
+    'mean_arterial_bp', f.mean_arterial_bp,
+    'respiratory_rate', f.respiratory_rate,
+    'spo2', f.spo2,
+    'temperature', f.temperature,
+    'cvp', f.cvp,
+    'intake_ml', f.intake_ml,
+    'output_ml', f.output_ml,
+    'urine_ml', f.urine_ml,
+    'drain_ml', f.drain_ml,
+    'infusions', f.infusions,
+    'notes', f.notes)
+FROM icu_flowsheets f
+JOIN admissions a ON a.tenant_id = f.tenant_id AND a.id = f.admission_id
+JOIN patients pat ON pat.tenant_id = a.tenant_id AND pat.id = a.patient_id
+WHERE f.tenant_id = $1 AND f.id = $2 AND f.deleted_at IS NULL
+AND ($3 <> 'primary' OR f.recorded_by = $4)

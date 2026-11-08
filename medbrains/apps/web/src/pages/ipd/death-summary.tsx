@@ -22,6 +22,7 @@ import { P } from "@medbrains/types";
 import { IconPlus } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
+import { SignRecordButton } from "@/components/Signatures/SignRecordButton";
 import { Badge, Button, toast } from "@/components/ui";
 import { ipdService } from "@/services/ipd.service";
 
@@ -70,7 +71,14 @@ export function DeathSummaryTab({
   if (summary) {
     return (
       <Stack>
-        <Text fw={600}>Death Summary</Text>
+        <Group justify="space-between">
+          <Text fw={600}>Death Summary</Text>
+          <SignRecordButton
+            recordType="death_certificate"
+            recordId={summary.id}
+            summary="Death certificate (MCCD)"
+          />
+        </Group>
         <Card withBorder p="sm">
           <SimpleGrid cols={{ base: 1, sm: 2 }}>
             <div>

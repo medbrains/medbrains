@@ -9,6 +9,7 @@ import type { OtCaseRecord } from "@medbrains/types";
 import { P } from "@medbrains/types";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Controller, useForm } from "react-hook-form";
+import { SignRecordButton } from "@/components/Signatures/SignRecordButton";
 import { Button, toast } from "@/components/ui";
 import { DEFAULT_OT_CASE_RECORD_FORM_VALUES, toCreateCaseRecordRequest } from "@/forms/ot.form";
 import { otService } from "@/services/ot.service";
@@ -58,7 +59,14 @@ export function CaseRecordTab({ bookingId }: { bookingId: string }) {
   if (record) {
     return (
       <Stack>
-        <Text fw={600}>Surgical Case Record</Text>
+        <Group justify="space-between">
+          <Text fw={600}>Surgical Case Record</Text>
+          <SignRecordButton
+            recordType="operation_note"
+            recordId={record.id}
+            summary={record.procedure_performed}
+          />
+        </Group>
         <Text size="sm" fw={500}>
           Procedure: {record.procedure_performed}
         </Text>

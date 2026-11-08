@@ -1,0 +1,35 @@
+-- Signable payload: transfusion_record. Binds $1 tenant, $2 record, $3 signer role, $4 signer.
+SELECT jsonb_build_object('schema',
+    'medbrains.signable.transfusion_record.v2',
+    'record_type',
+    'transfusion_record',
+    'record_id', t.id,
+    'tenant_id', t.tenant_id,
+    'patient_id', t.patient_id,
+    'patient', jsonb_build_object('id', pat.id,
+    'uhid', pat.uhid,
+    'name', CONCAT_WS(' ', NULLIF(pat.prefix,
+    ''), pat.first_name, NULLIF(pat.middle_name,
+    ''), pat.last_name),
+    'gender', pat.gender,
+    'date_of_birth', pat.date_of_birth),
+    'component_id', t.component_id,
+    'crossmatch_id', t.crossmatch_id,
+    'administered_by', t.administered_by,
+    'verified_by', t.verified_by,
+    'patient_verified_by', t.patient_verified_by,
+    'product_verified_by', t.product_verified_by,
+    'started_at', t.started_at,
+    'completed_at', t.completed_at,
+    'volume_transfused_ml', t.volume_transfused_ml,
+    'has_reaction', t.has_reaction,
+    'reaction_type', t.reaction_type,
+    'reaction_severity', t.reaction_severity,
+    'reaction_details', t.reaction_details,
+    'emergency_release', t.emergency_release,
+    'emergency_reason', t.emergency_reason,
+    'notes', t.notes)
+FROM transfusion_records t
+JOIN patients pat ON pat.tenant_id = t.tenant_id AND pat.id = t.patient_id
+WHERE t.tenant_id = $1 AND t.id = $2 AND t.deleted_at IS NULL
+AND ($3 <> 'primary' OR t.administered_by = $4 OR t.verified_by = $4)

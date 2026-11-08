@@ -42,7 +42,7 @@ use medbrains_server_core::{error::AppError, middleware::auth::Claims, state::Ap
 use medbrains_signing::signing;
 use sqlx::PgConnection;
 
-use crate::signatures::resolve_signable_payload;
+use crate::signable::resolve_signable_payload;
 
 /// A token is 32 random bytes as hex. Anything else is not one of ours, and
 /// is refused before it reaches the database, the same way an unknown one is.

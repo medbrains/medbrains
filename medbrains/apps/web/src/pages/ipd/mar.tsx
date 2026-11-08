@@ -6,6 +6,7 @@ import type { MarListRow } from "@medbrains/types";
 import { P } from "@medbrains/types";
 import { IconAlertTriangle } from "@tabler/icons-react";
 import { useQuery } from "@tanstack/react-query";
+import { SignRecordButton } from "@/components/Signatures/SignRecordButton";
 import type { BadgeTone } from "@/components/ui";
 import { Badge, Table } from "@/components/ui";
 import { ipdService } from "@/services/ipd.service";
@@ -43,6 +44,7 @@ export function MarTab({ admissionId }: { admissionId: string }) {
             <Table.Th>Scheduled</Table.Th>
             <Table.Th>Status</Table.Th>
             <Table.Th>Double-Check</Table.Th>
+            <Table.Th>Signature</Table.Th>
           </Table.Tr>
         </Table.Thead>
         <Table.Tbody>
@@ -96,6 +98,13 @@ export function MarTab({ admissionId }: { admissionId: string }) {
                     Pending
                   </Badge>
                 ) : null}
+              </Table.Td>
+              <Table.Td>
+                <SignRecordButton
+                  recordType="medication_administration"
+                  recordId={m.id}
+                  summary={`${m.drug_name} ${m.dose}`}
+                />
               </Table.Td>
             </Table.Tr>
           ))}

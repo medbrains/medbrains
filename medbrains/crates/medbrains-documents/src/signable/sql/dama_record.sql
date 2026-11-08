@@ -1,0 +1,42 @@
+-- Signable payload: dama_record. Binds $1 tenant, $2 record, $3 signer role, $4 signer.
+SELECT jsonb_build_object('schema',
+    'medbrains.signable.dama_record.v2',
+    'record_type',
+    'dama_record',
+    'record_id', d.id,
+    'tenant_id', d.tenant_id,
+    'admission_id', d.admission_id,
+    'admission', jsonb_build_object('id', a.id,
+    'encounter_id', a.encounter_id,
+    'patient_id', a.patient_id,
+    'admitting_doctor', a.admitting_doctor,
+    'admitted_at', a.admitted_at),
+    'patient_id', a.patient_id,
+    'patient', jsonb_build_object('id', pat.id,
+    'uhid', pat.uhid,
+    'name', CONCAT_WS(' ', NULLIF(pat.prefix,
+    ''), pat.first_name, NULLIF(pat.middle_name,
+    ''), pat.last_name),
+    'gender', pat.gender,
+    'date_of_birth', pat.date_of_birth),
+    'dama_type', d.record_type,
+    'declared_at', d.declared_at,
+    'declared_by', d.declared_by,
+    'patient_signed', d.patient_signed,
+    'patient_signature_url', d.patient_signature_url,
+    'relative_name', d.relative_name,
+    'relative_relation', d.relative_relation,
+    'relative_signed', d.relative_signed,
+    'relative_signature_url', d.relative_signature_url,
+    'witness_name', d.witness_name,
+    'witness_signed', d.witness_signed,
+    'witness_signature_url', d.witness_signature_url,
+    'risks_explained', d.risks_explained,
+    'reason_for_leaving', d.reason_for_leaving,
+    'is_mlc_case', d.is_mlc_case,
+    'notes', d.notes)
+FROM ipd_dama_records d
+JOIN admissions a ON a.tenant_id = d.tenant_id AND a.id = d.admission_id
+JOIN patients pat ON pat.tenant_id = a.tenant_id AND pat.id = a.patient_id
+WHERE d.tenant_id = $1 AND d.id = $2 AND d.deleted_at IS NULL
+AND ($3 <> 'primary' OR d.declared_by = $4)

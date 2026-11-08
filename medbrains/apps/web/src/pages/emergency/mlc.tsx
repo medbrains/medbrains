@@ -20,6 +20,7 @@ import { PatientNameCell } from "@/components/PatientNameCell";
 import { PatientSearchSelect } from "@/components/PatientSearchSelect";
 import { PrintDocumentIconMenu } from "@/components/Print/PrintDocumentIconMenu";
 import { PrintRegisterButton } from "@/components/Print/PrintRegisterButton";
+import { SignRecordButton } from "@/components/Signatures/SignRecordButton";
 import { Alert, Button, IconButton, Modal } from "@/components/ui";
 import {
   emergencyMlcBroughtByOptions,
@@ -367,6 +368,7 @@ export function MlcTab({
       label: "Actions",
       render: (r: MlcCase) => (
         <Group gap="xs">
+          <SignRecordButton recordType="mlc_report" recordId={r.id} summary={r.mlc_number} />
           {canViewDetails && (
             <Tooltip label="View Details & Documents">
               <IconButton

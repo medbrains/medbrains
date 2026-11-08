@@ -87,12 +87,21 @@ pub(crate) async fn admin_user_id(app: &common::TestApp, _csrf: &str) -> String 
 }
 
 /// Helper: issue a default Ed25519 credential for the given user via admin
-/// endpoint. Returns the credential id.
+/// endpoint, and give them a registered doctor profile. Returns the
+/// credential id.
 pub(crate) async fn issue_default_credential(
     app: &common::TestApp,
     csrf: &str,
     doctor_user_id: &str,
 ) -> String {
+    let id = issue_key(app, csrf, doctor_user_id).await;
+    register_doctor(app, doctor_user_id).await;
+    id
+}
+
+/// Helper: issue a default signing key to `user_id`, with no profile.
+pub(crate) async fn issue_key(app: &common::TestApp, csrf: &str, user_id: &str) -> String {
+    let doctor_user_id = user_id;
     let resp = app
         .client
         .post(app.url("/api/admin/signature-credentials"))
@@ -111,6 +120,27 @@ pub(crate) async fn issue_default_credential(
     );
     let body: serde_json::Value = resp.json().await.expect("cred json");
     body["credential"]["id"].as_str().unwrap_or("").to_owned()
+}
+
+/// Helper: give `user_id` a registered doctor profile allowed to sign every
+/// certificate. A signature is a registered practitioner's (NMC), so the
+/// server refuses a signer with no registration on their profile.
+pub(crate) async fn register_doctor(app: &common::TestApp, user_id: &str) {
+    sqlx::query(
+        "INSERT INTO doctor_profiles (tenant_id, user_id, display_name, mci_number, \
+            can_sign_mlc, can_sign_death_certificate, can_sign_fitness_certificate) \
+         SELECT u.tenant_id, u.id, u.username, 'NMC-TEST-' || left(u.id::text, 8), true, true, true \
+           FROM users u WHERE u.id = $1::uuid \
+         ON CONFLICT (tenant_id, user_id) DO UPDATE SET \
+            mci_number = COALESCE(doctor_profiles.mci_number, EXCLUDED.mci_number), \
+            is_active = true, registration_revoked = false, registration_valid_until = NULL, \
+            can_sign_mlc = true, \
+            can_sign_death_certificate = true, can_sign_fitness_certificate = true",
+    )
+    .bind(user_id)
+    .execute(&app.db)
+    .await
+    .expect("doctor profile");
 }
 
 /// Helper: a prescription written by `doctor_user_id`. The server signs the
@@ -187,13 +217,12 @@ async fn signing_without_a_fresh_step_up_is_refused() {
     assert_eq!(resp.status(), StatusCode::FORBIDDEN);
     let body: serde_json::Value = resp.json().await.expect("json");
     assert_eq!(body["error"], "step_up_required", "{body}");
-    let rows: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM signed_records WHERE record_id = $1::uuid",
-    )
-    .bind(&record_id)
-    .fetch_one(&app.db)
-    .await
-    .expect("count");
+    let rows: i64 =
+        sqlx::query_scalar("SELECT COUNT(*) FROM signed_records WHERE record_id = $1::uuid")
+            .bind(&record_id)
+            .fetch_one(&app.db)
+            .await
+            .expect("count");
     assert_eq!(rows, 0, "a refused signature writes nothing");
 }
 

@@ -15,6 +15,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { BloodPressureField, DataTable } from "@/components";
+import { SignRecordButton } from "@/components/Signatures/SignRecordButton";
 import { Button, Modal } from "@/components/ui";
 import { DEFAULT_ICU_FLOWSHEET_FORM_VALUES, toCreateIcuFlowsheetRequest } from "@/forms/icu.form";
 import { icuService } from "@/services/icu.service";
@@ -349,6 +350,17 @@ export function FlowsheetsTab({ admissionId }: { admissionId: string }) {
       render: (r: IcuFlowsheet) => (r.output_ml != null ? `${r.output_ml} mL` : "—"),
     },
     { key: "notes", label: "Notes", render: (r: IcuFlowsheet) => r.notes ?? "" },
+    {
+      key: "id",
+      label: "Signature",
+      render: (r: IcuFlowsheet) => (
+        <SignRecordButton
+          recordType="icu_flowsheet"
+          recordId={r.id}
+          summary={`ICU chart ${new Date(r.recorded_at).toLocaleString()}`}
+        />
+      ),
+    },
   ];
 
   return (

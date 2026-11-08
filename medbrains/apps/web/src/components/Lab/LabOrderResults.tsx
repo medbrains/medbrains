@@ -5,6 +5,7 @@ import { P } from "@medbrains/types";
 import { IconAlertTriangle, IconArrowDown, IconArrowUp, IconCheck } from "@tabler/icons-react";
 import { useQuery } from "@tanstack/react-query";
 import type { ReactNode } from "react";
+import { SignRecordButton } from "@/components/Signatures/SignRecordButton";
 import { Alert, Badge, type BadgeTone, Table } from "@/components/ui";
 import { labService } from "@/services/lab.service";
 import { PrintLabReportButton } from "./LabReportPrint";
@@ -87,6 +88,7 @@ function ResultTable({ results }: { results: LabResult[] }) {
           <Table.Th>Reference range</Table.Th>
           <Table.Th>Since last</Table.Th>
           <Table.Th>Flag</Table.Th>
+          <Table.Th>Signature</Table.Th>
         </Table.Tr>
       </Table.Thead>
       <Table.Tbody>
@@ -118,6 +120,13 @@ function ResultTable({ results }: { results: LabResult[] }) {
             </Table.Td>
             <Table.Td>
               <FlagBadge flag={result.flag} />
+            </Table.Td>
+            <Table.Td>
+              <SignRecordButton
+                recordType="lab_report"
+                recordId={result.id}
+                summary={result.parameter_name}
+              />
             </Table.Td>
           </Table.Tr>
         ))}

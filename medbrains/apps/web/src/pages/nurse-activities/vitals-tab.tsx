@@ -19,6 +19,7 @@ import {
   ewsTotalText,
 } from "@/components/EarlyWarning/ews-display";
 import { MonitorReadingsPanel } from "@/components/Nurse/MonitorReadingsPanel";
+import { SignRecordButton } from "@/components/Signatures/SignRecordButton";
 import { Alert, Badge, Button, toast } from "@/components/ui";
 import { nurseActivitiesService } from "@/services/nurseActivities.service";
 import {
@@ -62,6 +63,11 @@ function VitalsTimeline({ vitals, isLoading }: { vitals: ScoredVital[]; isLoadin
                   {EWS_BAND_LABEL[row.ews_band]}
                 </Badge>
               )}
+              <SignRecordButton
+                recordType="vitals"
+                recordId={row.id}
+                summary={`Vitals ${formatDateTime(row.recorded_at)}`}
+              />
             </Group>
           }
         >

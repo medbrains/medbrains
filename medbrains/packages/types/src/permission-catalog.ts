@@ -19,7 +19,7 @@ export interface PermissionDef {
   module: string;
 }
 
-/** 1222 permissions, one per constant in the Rust source. */
+/** 1223 permissions, one per constant in the Rust source. */
 export const PERMISSIONS: PermissionDef[] = [
   // dashboard
   {
@@ -6873,6 +6873,12 @@ export const PERMISSIONS: PermissionDef[] = [
   },
   // nurse
   {
+    code: "nurse.signature.sign",
+    label: "Sign own nursing entries",
+    description: "Put a digital signature on the medication administrations, vitals, ICU chart entries, OT checklists, transfusions and triage this nurse recorded. Needs a nurse profile with a licence number and a fresh password step-up.",
+    module: "nurse",
+  },
+  {
     code: "nurse.profile.view",
     label: "View Nurse Profile",
     description: "View nurse profiles",
@@ -7935,6 +7941,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.NURSE.SHIFT.VIEW,
       P.NURSE.SHIFT_NOTES.EDIT,
       P.NURSE.SHIFT_NOTES.VIEW,
+      P.NURSE.SIGNATURE.SIGN,
       P.NURSE.TRANSFUSION.ADMINISTER,
       P.NURSE.TRANSFUSION.VIEW,
       P.NURSE.VITALS.RECORD,

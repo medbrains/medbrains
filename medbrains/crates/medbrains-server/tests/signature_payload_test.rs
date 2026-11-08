@@ -55,7 +55,7 @@ async fn sign(
 }
 
 /// The public page's status for `token`.
-async fn status_of(app: &common::TestApp, token: &str) -> String {
+pub(crate) async fn status_of(app: &common::TestApp, token: &str) -> String {
     let body: Value = reqwest::Client::new()
         .get(app.url(&format!("/api/public/signatures/verify/{token}")))
         .send()
@@ -68,7 +68,7 @@ async fn status_of(app: &common::TestApp, token: &str) -> String {
 }
 
 /// Change one column of one row, expect "changed", put it back, expect "unchanged".
-async fn each_field_counts(
+pub(crate) async fn each_field_counts(
     app: &common::TestApp,
     token: &str,
     table: &str,

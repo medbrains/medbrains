@@ -4,6 +4,7 @@ import type { PatientRadiologyReport } from "@medbrains/types";
 import { P } from "@medbrains/types";
 import { IconAlertTriangle, IconCheck } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { SignRecordButton } from "@/components/Signatures/SignRecordButton";
 import { Alert, Badge, Button, toast } from "@/components/ui";
 import { patientDetailService } from "@/services/patientDetail.service";
 
@@ -54,6 +55,11 @@ function ReportCard({
                 Acknowledge
               </Button>
             ))}
+          <SignRecordButton
+            recordType="radiology_report"
+            recordId={report.report_id}
+            summary={report.modality ?? "Imaging report"}
+          />
         </Group>
         <Text size="xs" c="dimmed">
           {new Date(report.ordered_at).toLocaleDateString()}

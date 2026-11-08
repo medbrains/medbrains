@@ -4,6 +4,7 @@ import type { ErTriageAssessment } from "@medbrains/types";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Controller, useForm } from "react-hook-form";
 import { BloodPressureField } from "@/components/Clinical/BloodPressureField";
+import { SignRecordButton } from "@/components/Signatures/SignRecordButton";
 import { Alert, Badge, Button, Input, NumberField, Select, TextArea, toast } from "@/components/ui";
 import { triageInfo } from "@/pages/emergency/shared";
 import { emergencyService } from "@/services/emergency.service";
@@ -178,6 +179,11 @@ export function ErTriageAssessmentPanel({
                   {summary(a)} · {new Date(a.assessed_at).toLocaleString()}
                 </Text>
               </Stack>
+              <SignRecordButton
+                recordType="er_triage"
+                recordId={a.id}
+                summary={a.chief_complaint ?? "Triage"}
+              />
             </Group>
           ))
         ))}

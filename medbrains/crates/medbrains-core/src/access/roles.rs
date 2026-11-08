@@ -440,6 +440,8 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
             permissions::clinical_notes::VIEW,
             permissions::clinical_notes::WRITE,
             permissions::clinical_notes::SIGN,
+            // Signs the MAR, vitals and charting she recorded (signable.rs).
+            permissions::nurse::signature::SIGN,
             permissions::clinical_notes::MARK_IN_ERROR,
             permissions::home_health::LIST,
             permissions::home_health::MANAGE,
