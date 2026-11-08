@@ -399,10 +399,26 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // now, which revokes the keys, channels and devices it set up (audited per
     // hospital). Migration 1420 only knew the default domain; this run knows
     // the configured ones. Idempotent, so every start repeats it safely.
-    let flagged: i32 = sqlx::query_scalar("SELECT public.app_flag_vendor_accounts($1)")
+    // A list entry that is a single label or public suffix is refused loudly
+    // rather than dropped quietly; the database refuses the rest (a hospital's
+    // own domain, too many accounts, an administrator, a hospital left with
+    // no administrator) and the boot stops with its reason.
+    let refused = medbrains_core::vendor::configured_refusals();
+    if !refused.is_empty() {
+        return Err(format!(
+            "MEDBRAINS_VENDOR_EMAIL_DOMAINS refused: {refused:?} is a single label or a public \
+             suffix, which would make every account under it a MedBrains account. Fix the \
+             setting and restart."
+        )
+        .into());
+    }
+    let flagged: i32 = sqlx::query_scalar("SELECT public.app_flag_vendor_accounts($1, $2, $3)")
         .bind(medbrains_core::vendor::vendor_domains())
+        .bind(medbrains_core::vendor::PUBLIC_SUFFIXES)
+        .bind(medbrains_core::vendor::backfill_max())
         .fetch_one(&bootstrap_pool)
-        .await?;
+        .await
+        .map_err(|e| format!("vendor-account back-fill refused, server not started: {e}"))?;
     if flagged > 0 {
         tracing::warn!(flagged, "accounts on vendor domains flagged; what they set up is revoked");
     }

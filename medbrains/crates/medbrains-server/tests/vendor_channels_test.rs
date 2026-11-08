@@ -238,15 +238,16 @@ async fn the_startup_back_fill_switches_off_what_vendor_accounts_set_up() {
     .expect("digest");
     let pipeline = pipeline_by(&app, tenant, "vendor_test.after", vendor).await;
 
-    let flag = || async {
-        sqlx::query_scalar::<_, i32>("SELECT public.app_flag_vendor_accounts($1)")
-            .bind(medbrains_core::vendor::vendor_domains())
-            .fetch_one(&app.db)
-            .await
-            .expect("flag")
-    };
-    assert!(flag().await >= 1, "nothing was flagged");
-    assert_eq!(flag().await, 0, "a second run flagged again");
+    let domains = ["partner-support.example"];
+    assert!(
+        back_fill(&app, &domains, 20).await.expect("flag") >= 1,
+        "nothing was flagged"
+    );
+    assert_eq!(
+        back_fill(&app, &domains, 20).await.expect("flag"),
+        0,
+        "a second run flagged again"
+    );
 
     let (digest_on, pipeline_status): (bool, String) = sqlx::query_as(
         "SELECT (SELECT is_active FROM eod_digest_subscriptions WHERE id = $1), \
@@ -272,4 +273,146 @@ async fn the_startup_back_fill_switches_off_what_vendor_accounts_set_up() {
         audited, 2,
         "each switch-off is on the hospital's audit chain"
     );
+}
+
+/// Run the start-up back-fill with `domains` and a ceiling of `max`.
+async fn back_fill(app: &TestApp, domains: &[&str], max: i32) -> Result<i32, String> {
+    sqlx::query_scalar::<_, i32>("SELECT public.app_flag_vendor_accounts($1, $2, $3)")
+        .bind(domains)
+        .bind(medbrains_core::vendor::PUBLIC_SUFFIXES)
+        .bind(max)
+        .fetch_one(&app.db)
+        .await
+        .map_err(|e| e.to_string())
+}
+
+/// Whether `user` is flagged as a vendor account.
+async fn flagged(app: &TestApp, user: Uuid) -> bool {
+    sqlx::query_scalar("SELECT is_vendor_staff FROM users WHERE id = $1")
+        .bind(user)
+        .fetch_one(&app.db)
+        .await
+        .expect("user")
+}
+
+/// A fresh domain nobody else's test uses.
+fn fresh_domain(label: &str) -> String {
+    format!(
+        "{label}{}.example",
+        &Uuid::new_v4().simple().to_string()[..8]
+    )
+}
+
+/// Given `in` (a public suffix) in the list, the back-fill refuses and flags
+/// no one, and the parser refuses it before the database is asked.
+#[tokio::test]
+async fn a_public_suffix_is_refused() {
+    let app = common::spawn_app().await;
+    let (tenant, _) = home(&app).await;
+    let person = user_with_email(&app, tenant, "nurse@hospital.in").await;
+    let refused = back_fill(&app, &["in"], 20)
+        .await
+        .expect_err("in was accepted");
+    assert!(refused.contains("public suffix"), "{refused}");
+    assert!(!flagged(&app, person).await);
+    assert_eq!(medbrains_core::vendor::parse_domains("in").1, vec!["in"]);
+}
+
+/// Given a domain that is the hospital's own (its site domain, or the domain
+/// its administrator signs in with), the back-fill refuses and flags no one.
+#[tokio::test]
+async fn the_hospitals_own_domain_is_refused() {
+    let app = common::spawn_app().await;
+    let (tenant, _) = home(&app).await;
+    let site = fresh_domain("site");
+    sqlx::query("INSERT INTO site_domains (tenant_id, domain) VALUES ($1, $2)")
+        .bind(tenant)
+        .bind(&site)
+        .execute(&app.db)
+        .await
+        .expect("site domain");
+    let staff = user_with_email(&app, tenant, &format!("desk@{site}")).await;
+    let refused = back_fill(&app, &[site.as_str()], 20)
+        .await
+        .expect_err("site domain accepted");
+    assert!(refused.contains("own domain"), "{refused}");
+    assert!(!flagged(&app, staff).await);
+
+    let mail = fresh_domain("mail");
+    let admin = user_with_email(&app, tenant, &format!("chief@{mail}")).await;
+    sqlx::query("UPDATE users SET role = 'hospital_admin' WHERE id = $1")
+        .bind(admin)
+        .execute(&app.db)
+        .await
+        .expect("admin");
+    let refused = back_fill(&app, &[mail.as_str()], 20)
+        .await
+        .expect_err("admin domain accepted");
+    assert!(refused.contains("own domain"), "{refused}");
+    assert!(!flagged(&app, admin).await);
+}
+
+/// Given more matching accounts than the ceiling, the back-fill refuses and
+/// flags no one.
+#[tokio::test]
+async fn the_ceiling_stops_the_back_fill() {
+    let app = common::spawn_app().await;
+    let (tenant, _) = home(&app).await;
+    let bulk = fresh_domain("bulk");
+    let mut people = Vec::new();
+    for n in 0..3 {
+        people.push(user_with_email(&app, tenant, &format!("p{n}@{bulk}")).await);
+    }
+    let refused = back_fill(&app, &[bulk.as_str()], 2)
+        .await
+        .expect_err("ceiling ignored");
+    assert!(refused.contains("ceiling"), "{refused}");
+    for person in people {
+        assert!(!flagged(&app, person).await, "flagged despite the refusal");
+    }
+}
+
+/// Given the seeded admin as a hospital's only administrator, adding its
+/// domain (what `MEDBRAINS_HOSTED=true` does) is refused rather than locking
+/// the hospital out.
+#[tokio::test]
+async fn hosted_mode_never_locks_a_hospital_out() {
+    let app = common::spawn_app().await;
+    let other: Uuid = sqlx::query_scalar(
+        "INSERT INTO tenants (code, name, hospital_type) VALUES ($1, 'Lone', 'standalone_clinic') RETURNING id",
+    )
+    .bind(format!("LN{}", &Uuid::new_v4().simple().to_string()[..8].to_uppercase()))
+    .fetch_one(&app.db)
+    .await
+    .expect("tenant");
+    let lone = fresh_domain("lone");
+    let only_admin = user_with_email(&app, other, &format!("admin@{lone}")).await;
+    sqlx::query("UPDATE users SET role = 'super_admin' WHERE id = $1")
+        .bind(only_admin)
+        .execute(&app.db)
+        .await
+        .expect("admin");
+    let refused = back_fill(&app, &[lone.as_str()], 20)
+        .await
+        .expect_err("lock-out accepted");
+    assert!(refused.contains("no administrator"), "{refused}");
+    assert!(!flagged(&app, only_admin).await);
+}
+
+/// Given a correct list, only the accounts on it are flagged.
+#[tokio::test]
+async fn a_correct_list_flags_only_vendor_accounts() {
+    let app = common::spawn_app().await;
+    let (tenant, _) = home(&app).await;
+    let support = fresh_domain("support");
+    let vendor = user_with_email(&app, tenant, &format!("eng@help.{support}")).await;
+    let colleague = user_with_email(&app, tenant, &format!("nurse@{}", fresh_domain("ward"))).await;
+    assert_eq!(
+        back_fill(&app, &[support.as_str()], 20)
+            .await
+            .expect("flag"),
+        1
+    );
+    assert!(flagged(&app, vendor).await);
+    assert!(!flagged(&app, colleague).await);
 }
