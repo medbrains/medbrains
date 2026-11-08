@@ -129,6 +129,15 @@ pub enum ParentKind {
     Admission,
     /// Clinical: a direct grant **or** reachability via a recent encounter.
     Patient,
+    /// Clinical like `Patient`; failing that, the child row's own `view`
+    /// under this object type.
+    ///
+    /// For work that reaches a department as an order. A lab order is handed
+    /// to the laboratory on the order itself (`lab_order#dept_member`), so the
+    /// lab reaches that order, its specimen and its results, and not the
+    /// patient's record. The visit used to be handed over instead, which
+    /// opened every note, diagnosis and document to the whole department.
+    PatientOrOwn(&'static str),
     /// Administrative: a direct grant only.
     ///
     /// Financial records do not follow the care team. Treating a patient does
@@ -191,20 +200,44 @@ pub mod links {
     /// A tele-consultation is an encounter, and its triage record hangs off it.
     pub const TELE_CONSULTATION: ParentLink = ParentLink::on_patient("tele_consultations");
 
-    pub const LAB_ORDER: ParentLink = ParentLink::on_patient("lab_orders");
+    /// A lab order: its patient's care team, or whoever the order itself was
+    /// handed to (the laboratory, `grant_lab_order_access`).
+    pub const LAB_ORDER: ParentLink = ParentLink {
+        table: "lab_orders",
+        column: "patient_id",
+        parent: ParentKind::PatientOrOwn("lab_order"),
+    };
 
     /// The draw that happens at somebody's address, where the only person
-    /// present is the phlebotomist. It carries `patient_id` itself.
-    pub const LAB_HOME_COLLECTION: ParentLink = ParentLink::on_patient("lab_home_collections");
+    /// present is the phlebotomist. Reached through its order (`order_id` is
+    /// NOT NULL), so the lab that holds the order holds the draw.
+    pub const LAB_HOME_COLLECTION: ParentLink = ParentLink {
+        table: "lab_home_collections",
+        column: "order_id",
+        parent: ParentKind::Via(&LAB_ORDER),
+    };
 
-    /// A panic value and who was telephoned about it.
-    pub const LAB_CRITICAL_ALERT: ParentLink = ParentLink::on_patient("lab_critical_alerts");
+    /// A panic value and who was telephoned about it, through its order.
+    pub const LAB_CRITICAL_ALERT: ParentLink = ParentLink {
+        table: "lab_critical_alerts",
+        column: "order_id",
+        parent: ParentKind::Via(&LAB_ORDER),
+    };
 
-    /// Who is waiting for a needle, and where.
-    pub const LAB_PHLEBOTOMY_QUEUE: ParentLink = ParentLink::on_patient("lab_phlebotomy_queue");
+    /// Who is waiting for a needle, and where, through the order to draw for.
+    pub const LAB_PHLEBOTOMY_QUEUE: ParentLink = ParentLink {
+        table: "lab_phlebotomy_queue",
+        column: "order_id",
+        parent: ParentKind::Via(&LAB_ORDER),
+    };
 
-    /// A retained specimen, kept for repeat and add-on testing.
-    pub const LAB_SAMPLE_ARCHIVE: ParentLink = ParentLink::on_patient("lab_sample_archive");
+    /// A retained specimen, kept for repeat and add-on testing, through the
+    /// order it was drawn for.
+    pub const LAB_SAMPLE_ARCHIVE: ParentLink = ParentLink {
+        table: "lab_sample_archive",
+        column: "order_id",
+        parent: ParentKind::Via(&LAB_ORDER),
+    };
 
     /// A test sent to a reference laboratory. It reaches its patient through
     /// the order it was raised from; it has no `patient_id` of its own.
@@ -526,6 +559,9 @@ pub async fn require_access_via_optional(
             ParentKind::Encounter => require_encounter_access(state, claims, parent_id).await,
             ParentKind::Admission => require_admission_access(state, claims, parent_id).await,
             ParentKind::Patient => require_patient_access(state, claims, parent_id).await,
+            ParentKind::PatientOrOwn(own) => {
+                require_patient_or_own(state, claims, parent_id, (own, child_id)).await
+            }
             ParentKind::PatientDirect => {
                 require_object_view(state, claims, "patient", parent_id).await
             }
@@ -537,6 +573,24 @@ pub async fn require_access_via_optional(
             )),
         },
     }
+}
+
+/// The patient's care team passes; anyone else must hold `view` on the child
+/// object itself (`own` = object type and id).
+///
+/// Only a refusal falls through to the second check: an outage on the first
+/// stays an outage (503), never a 404.
+async fn require_patient_or_own(
+    state: &AppState,
+    claims: &Claims,
+    patient_id: Uuid,
+    own: (&str, Uuid),
+) -> Result<(), AppError> {
+    let care = require_patient_access(state, claims, patient_id).await;
+    if !matches!(care, Err(AppError::NotFound)) {
+        return care;
+    }
+    require_object_view(state, claims, own.0, own.1).await
 }
 
 /// Resolve a child row to its parent, then authorize the parent.
@@ -587,6 +641,9 @@ pub async fn require_access_via(
             }
             ParentKind::Patient => {
                 return require_patient_access(state, claims, parent_id).await;
+            }
+            ParentKind::PatientOrOwn(own) => {
+                return require_patient_or_own(state, claims, parent_id, (own, id)).await;
             }
             ParentKind::PatientDirect => {
                 return require_object_view(state, claims, "patient", parent_id).await;

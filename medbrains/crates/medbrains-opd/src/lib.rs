@@ -92,14 +92,6 @@ const OPD_ENCOUNTER_WORKSPACE_PERMISSIONS: &[&str] = &[
     permissions::mrd::case_sheets::GENERATE,
 ];
 
-fn claims_have_permission(claims: &Claims, permission: &str) -> bool {
-    medbrains_server_core::middleware::authorization::is_bypass_role(claims)
-        || claims
-            .permissions
-            .iter()
-            .any(|granted| granted == permission)
-}
-
 // ══════════════════════════════════════════════════════════
 //  Query / Request / Response types
 // ══════════════════════════════════════════════════════════
@@ -1112,9 +1104,11 @@ pub async fn get_encounter(
 ) -> Result<Json<Encounter>, AppError> {
     require_any_permission(&claims, OPD_ENCOUNTER_WORKSPACE_PERMISSIONS)?;
 
-    if claims_have_permission(&claims, permissions::opd::queue::VIEW)
-        && !medbrains_server_core::middleware::authorization::is_bypass_role(&claims)
-    {
+    // The record check binds everyone who is not a bypass role. It used to
+    // run only for holders of `opd.queue.view`, so lab, pharmacy and
+    // radiology staff (who hold other workspace permissions) read any visit
+    // by id with no check at all.
+    if !medbrains_server_core::middleware::authorization::is_bypass_role(&claims) {
         let authz_ctx = medbrains_server_core::middleware::authorization::authz_context(&claims);
         medbrains_server_core::middleware::authorization::collapse(
             medbrains_server_core::middleware::authorization::outcome_of(
