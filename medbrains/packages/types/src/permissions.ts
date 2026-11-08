@@ -588,6 +588,12 @@ export const P = {
       MANAGE: "billing.lanes.manage",
     },
     LANES_MANAGE: "billing.lanes.manage",
+    LEAKAGE: {
+      RESOLVE: "billing.leakage.resolve",
+      VIEW: "billing.leakage.view",
+    },
+    LEAKAGE_RESOLVE: "billing.leakage.resolve",
+    LEAKAGE_VIEW: "billing.leakage.view",
     PAYER_SPLIT: {
       MANAGE: "billing.payer_split.manage",
     },
@@ -2134,6 +2140,12 @@ export const P = {
       MANAGE: "mrd.storage.manage",
     },
     STORAGE_MANAGE: "mrd.storage.manage",
+    VERIFY_LINKS: {
+      ISSUE: "mrd.verify_links.issue",
+      REVOKE: "mrd.verify_links.revoke",
+    },
+    VERIFY_LINKS_ISSUE: "mrd.verify_links.issue",
+    VERIFY_LINKS_REVOKE: "mrd.verify_links.revoke",
   },
   NOTES: {
     MODERATE: "notes.moderate",

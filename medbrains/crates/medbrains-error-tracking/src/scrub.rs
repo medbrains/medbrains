@@ -229,6 +229,15 @@ fn split_origin(url: &str) -> (&str, &str) {
 /// digits in a row (a UHID, a bill number, a phone number).
 fn is_identifier(segment: &str) -> bool {
     let uuid = segment.len() == 36 && uuid::Uuid::parse_str(segment).is_ok();
+    // A link token (a public verify link, a share link) is a credential: 24
+    // or more URL-safe characters is treated as one whatever its digits.
+    let token = segment.len() >= 24
+        && segment
+            .bytes()
+            .all(|b| b.is_ascii_alphanumeric() || b == b'-' || b == b'_');
+    if token {
+        return true;
+    }
     let mut run = 0;
     let digits = segment.chars().any(|c| {
         run = if c.is_ascii_digit() { run + 1 } else { 0 };

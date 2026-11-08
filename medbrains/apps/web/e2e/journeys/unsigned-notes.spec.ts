@@ -6,7 +6,8 @@
 import { loginAsRoleApi } from "../helpers/api";
 import { createEncounter, createPatientApi } from "../helpers/journey-steps";
 import { getOpdDept } from "../helpers/seed-resolvers";
-import { expect, test } from "./support/world";
+import { getE2EIdentity } from "../helpers/e2e-identities";
+import { confirmItsYou, expect, test } from "./support/world";
 
 test("an unsigned note waits on the doctor's list until it is signed", async ({
   hospital,
@@ -38,6 +39,7 @@ test("an unsigned note waits on the doctor's list until it is signed", async ({
   const note = page.getByLabel(/^Consultation by /);
   await expect(note).toContainText("Draft — not signed", { timeout: 15_000 });
   await note.getByRole("button", { name: "Sign", exact: true }).click();
+  await confirmItsYou(page, getE2EIdentity("doctor").password);
   await expect(page.getByText(/Signed \w+ \d/).first()).toBeVisible({ timeout: 15_000 });
 
   await page.goto("/doctor/signoffs");

@@ -21,6 +21,8 @@ export interface PrescriptionPrintData {
   medications: MedicationLine[];
   advice: string | null;
   follow_up: string | null;
+  /** Signatures on the visit's prescriptions; empty when none is signed. */
+  signatures: PrintSignatureData[];
 }
 
 export interface MedicationLine {
@@ -195,6 +197,11 @@ export interface PrintSignatureData {
   display_block: string | null;
   /** `signed_records.id` as hex — used by verifier endpoint. */
   verify_ref: string;
+  /**
+   * The public check page the print's QR opens (`/verify/signature/…`);
+   * absent when the record has no live link or no public address is set.
+   */
+  verify_url: string | null;
   /**
    * Drives watermark style: "administrative" | "clinical" |
    * "`medico_legal`" | "`statutory_export`"

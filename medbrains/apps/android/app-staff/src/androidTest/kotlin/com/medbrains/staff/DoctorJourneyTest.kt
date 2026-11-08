@@ -5,8 +5,10 @@ import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
+import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performImeAction
 import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performScrollToNode
 import androidx.compose.ui.test.performTextInput
@@ -123,6 +125,15 @@ class DoctorJourneyTest {
         check(api.section(draft, "assessment") == "<p>Viral URTI</p>")
 
         compose.onNodeWithTag("consultation-sign").performScrollTo().performClick()
+        // Signing asks for the password again; the draft stays saved meanwhile.
+        compose.waitUntil(15_000) { has("step-up-password") }
+        check(has("consultation-confirm-identity")) { "the form says the draft is saved and why it waits" }
+        check(api.notes(encounterId).first().optString("status") == "draft") { "not signed without the password" }
+        compose.onNodeWithTag("step-up-password").performTextInput("not-the-password")
+        compose.onNodeWithTag("step-up-password").performImeAction()
+        compose.waitUntil(10_000) { compose.onAllNodesWithText("That password is not right.").fetchSemanticsNodes().isNotEmpty() }
+        compose.onNodeWithTag("step-up-password").performTextInput(doctor.password)
+        compose.onNodeWithTag("step-up-password").performImeAction()
         compose.waitUntil(15_000) { has("note-status-signed") }
         val signed = api.notes(encounterId).first()
         check(signed.optString("status") == "signed")

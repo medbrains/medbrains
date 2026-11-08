@@ -1,30 +1,48 @@
-// The charge attention queue's columns: who, what charge, where it came from,
-// why it is here, and what the viewer may do about it.
+// The charge attention queue's columns: who, what charge, its amount and age,
+// where it came from, why it is here, and what the viewer may do about it.
 
 import { Group, Stack, Text } from "@mantine/core";
 import type { ChargeAttentionItem } from "@medbrains/types";
 import { IconReceipt, IconX } from "@tabler/icons-react";
 import type { Column } from "@/components";
 import { Badge, IconButton, Tooltip } from "@/components/ui";
-import { moduleLabel, reasonLabel, STATUS_LABEL, STATUS_TONE } from "./charge-attention-labels";
+import {
+  ageLabel,
+  moduleLabel,
+  NO_TARIFF,
+  REASON_UNBILLED,
+  reasonLabel,
+  rupees,
+  STATUS_LABEL,
+  STATUS_TONE,
+} from "./charge-attention-labels";
 
 export type ChargeAttentionAction = "post" | "dismiss";
 
 interface ColumnOptions {
+  /** May work charges a module could not post. */
   canResolve: boolean;
+  /** May work orders done but never billed. */
+  canResolveUnbilled: boolean;
+  /** Amounts are hidden from this viewer: show that, not "No tariff". */
+  amountsHidden: boolean;
   pendingId: string | null;
   onAction: (kind: ChargeAttentionAction, item: ChargeAttentionItem) => void;
 }
 
-/** Post and dismiss buttons, only on an open item and only for a resolver. */
+/** Post and dismiss buttons, only on an open item and only for its kind's resolver. */
 function Actions({ row, o }: { row: ChargeAttentionItem; o: ColumnOptions }) {
-  if (row.status !== "open" || !o.canResolve) return null;
+  const allowed = row.reason === REASON_UNBILLED ? o.canResolveUnbilled : o.canResolve;
+  if (row.status !== "open" || !allowed) return null;
+  // An unbilled order with no tariff would post ₹0; the server refuses it too.
+  const unpriced = row.reason === REASON_UNBILLED && row.unit_price_override === null;
   return (
     <Group gap={4} wrap="nowrap">
-      <Tooltip label="Post this charge to the patient's bill">
+      <Tooltip label={unpriced ? NO_TARIFF : "Post this charge to the patient's bill"}>
         <IconButton
           tone="success"
           aria-label="Post charge"
+          disabled={unpriced}
           loading={o.pendingId === row.id}
           onClick={() => o.onAction("post", row)}
         >
@@ -79,11 +97,24 @@ export function chargeAttentionColumns(o: ColumnOptions): Column<ChargeAttention
       ),
     },
     {
+      key: "amount",
+      label: "Amount",
+      render: (r) => (
+        <Text size="sm" ff="monospace" c={r.amount === null ? "dimmed" : undefined}>
+          {o.amountsHidden ? "Hidden" : rupees(r.amount)}
+        </Text>
+      ),
+    },
+    { key: "age", label: "Age", render: (r) => <Text size="sm">{ageLabel(r.age_days)}</Text> },
+    {
       key: "from",
       label: "From",
       render: (r) => (
         <Stack gap={0}>
-          <Text size="sm">{moduleLabel(r.source_module)}</Text>
+          <Text size="sm">
+            {moduleLabel(r.source_module)}
+            {r.department_name ? ` · ${r.department_name}` : ""}
+          </Text>
           <Text size="xs" ff="monospace" c="dimmed">
             {new Date(r.created_at).toLocaleString()} · {r.created_by_name ?? "System"}
           </Text>
