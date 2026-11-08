@@ -2110,6 +2110,16 @@ export const P = {
     },
     DEATHS_CREATE: "mrd.deaths.create",
     DEATHS_LIST: "mrd.deaths.list",
+    FILE_REQUEST: {
+      FULFIL: "mrd.file_request.fulfil",
+      STATUS: "mrd.file_request.status",
+      SUPERVISE: "mrd.file_request.supervise",
+      VIEW: "mrd.file_request.view",
+    },
+    FILE_REQUEST_FULFIL: "mrd.file_request.fulfil",
+    FILE_REQUEST_STATUS: "mrd.file_request.status",
+    FILE_REQUEST_SUPERVISE: "mrd.file_request.supervise",
+    FILE_REQUEST_VIEW: "mrd.file_request.view",
     RECORDS: {
       CREATE: "mrd.records.create",
       LIST: "mrd.records.list",

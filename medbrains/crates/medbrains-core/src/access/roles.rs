@@ -268,6 +268,8 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
             permissions::mrd::case_sheets::VIEW,
             permissions::mrd::case_sheets::GENERATE,
             permissions::mrd::case_sheets::PRINT,
+            // The consultation's paper-file chip and digital summary.
+            permissions::mrd::file_request::STATUS,
             // Order Sets
             permissions::order_sets::templates::LIST,
             permissions::order_sets::templates::VIEW,
@@ -1603,6 +1605,11 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
             permissions::mrd::case_sheets::FILE,
             permissions::mrd::case_sheets::REPRINT,
             permissions::mrd::storage::MANAGE,
+            // The runner's queue: fetch, deliver, be told when one is late.
+            permissions::mrd::file_request::VIEW,
+            permissions::mrd::file_request::FULFIL,
+            permissions::mrd::file_request::SUPERVISE,
+            permissions::mrd::file_request::STATUS,
             // File-room work needs patient demographics + encounter lookup.
             // Read-only; MRD doesn't create or edit clinical records.
             permissions::patients::LIST,

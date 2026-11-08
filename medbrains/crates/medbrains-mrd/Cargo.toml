@@ -13,6 +13,8 @@ medbrains-workflow = { path = "../medbrains-workflow" }
 medbrains-core = { path = "../medbrains-core" }
 medbrains-db = { path = "../medbrains-db" }
 medbrains-platform = { path = "../medbrains-platform" }
+medbrains-kernel = { path = "../medbrains-kernel" }
+medbrains-notifications = { path = "../medbrains-notifications" }
 axum = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
@@ -20,6 +22,15 @@ uuid = { workspace = true }
 chrono = { workspace = true }
 sqlx = { workspace = true }
 tracing = { workspace = true }
+tokio = { workspace = true }
+
+[dev-dependencies]
+medbrains-authz = { path = "../medbrains-authz" }
+medbrains-db-migrations = { path = "../medbrains-db-migrations" }
+medbrains-db-topology = { path = "../medbrains-db-topology" }
+medbrains-outbox = { path = "../medbrains-outbox" }
+jsonwebtoken = { workspace = true }
+tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
 
 [lints]
 workspace = true

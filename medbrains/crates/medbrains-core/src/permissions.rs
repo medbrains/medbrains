@@ -2444,6 +2444,29 @@ pub mod mrd {
     pub mod storage {
         pub const MANAGE: &str = "mrd.storage.manage";
     }
+
+    pub mod file_request {
+        /// See the paper-file requests queue.
+        /// Every open request for a patient's physical file — who it is for,
+        /// where it is shelved, where it must go and how long is left — plus
+        /// the night-before pull list, the back-scanning order and the
+        /// delivery times.
+        pub const VIEW: &str = "mrd.file_request.view";
+        /// Pick up and deliver requested paper files.
+        /// The runner's scans: the file barcode at the shelf ("picked") and
+        /// at the clinic ("delivered"), each written as a record movement;
+        /// marking a file not found; and building the pull list on demand.
+        pub const FULFIL: &str = "mrd.file_request.fulfil";
+        /// Be told when a requested file is late or missing.
+        /// Receives the escalation when a file request passes its due time
+        /// or a runner cannot find the file.
+        pub const SUPERVISE: &str = "mrd.file_request.supervise";
+        /// See whether a visit's paper file has arrived.
+        /// The consultation's file chip (requested, on the way, arrived)
+        /// and the summary from the digital record that lets the doctor
+        /// start before the file comes, for visits the doctor can open.
+        pub const STATUS: &str = "mrd.file_request.status";
+    }
 }
 
 pub mod facilities {
