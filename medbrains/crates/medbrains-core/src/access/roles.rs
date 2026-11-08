@@ -412,6 +412,10 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
             permissions::specialty::pmr::psychometric::MANAGE,
             permissions::specialty::psychiatry::restraint::MANAGE,
             // A doctor is paged by the code blue and answers it like a nurse does.
+            // They see the active codes too: the phone apps raise the emergency flash
+            // only for holders of `.view`, and a doctor who could answer but never
+            // saw the alarm was not paged in any useful sense.
+            permissions::nurse::code_blue::VIEW,
             permissions::nurse::code_blue::RESPOND,
             permissions::ai::assistant::USE,
         ],
@@ -855,6 +859,7 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
             permissions::lab::results::VERIFY,
             permissions::lab::results::AMEND,
             permissions::lab::results::ANALYSER_REVIEW,
+            permissions::lab::results::CRITICAL_CALL,
             permissions::lab::qc::LIST,
             permissions::lab::qc::CREATE,
             permissions::lab::qc::MANAGE,
@@ -1064,6 +1069,9 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
             permissions::billing::day_close::CREATE,
             permissions::billing::day_close::VERIFY,
             permissions::billing::write_off::CREATE,
+            // The desk works the automatic charges clinical actions could not post.
+            permissions::billing::charge_attention::VIEW,
+            permissions::billing::charge_attention::RESOLVE,
             // Records insurer settlements; approving them stays with finance.
             permissions::billing::claims::settlement::RECORD,
             permissions::billing::audit::VIEW,
@@ -1343,6 +1351,8 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
             permissions::pharmacy::prescriptions::VIEW,
             permissions::billing::invoices::LIST,
             permissions::billing::invoices::VIEW,
+            // Read-only: charges that went unposted are a revenue-leakage audit.
+            permissions::billing::charge_attention::VIEW,
             permissions::insurance::nhcx::VIEW,
             permissions::pharmacy::day_close::VIEW,
             permissions::admin::access_requests::LIST,
@@ -1389,6 +1399,8 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
         description: "Quality & compliance — full regulatory access",
         permissions: &[
             // This week vs usual, public notices, heat and air (RFC-OSINT §4).
+            // The resuscitation committee keeps the code-blue team roster.
+            permissions::nurse::code_blue::MANAGE_TEAM,
             permissions::health::intel::VIEW,
             // Clinical governance signs off knowledge changes drafted by the
             // pharmacy and laboratory, applies them and starts rollbacks. It

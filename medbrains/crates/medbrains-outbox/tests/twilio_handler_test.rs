@@ -252,8 +252,8 @@ async fn sms_timeout_retries() {
         HandlerError::Transient(msg) => {
             assert!(msg.contains("network") || msg.contains("reqwest"));
         }
-        HandlerError::Permanent(msg) => {
-            panic!("expected Transient for timeout, got Permanent: {msg}")
+        HandlerError::Permanent(msg) | HandlerError::Undelivered(msg) => {
+            panic!("expected Transient for timeout, got a terminal error: {msg}")
         }
     }
 }

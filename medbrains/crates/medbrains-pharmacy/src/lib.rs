@@ -3628,9 +3628,10 @@ pub async fn dispense_order(
 // fails the gate. Caller already holds an open transaction so the
 // rollback is automatic on error.
 
-/// The prescriber (a real prescription for this patient), and whether a
-/// pharmacist verified an uploaded prescription.
-type ComplianceOrderRow = (Option<Uuid>, bool);
+/// The prescriber (a real prescription for this patient), whether a
+/// pharmacist verified an uploaded prescription, and whether the order comes
+/// from this patient's signed or finalized discharge summary.
+type ComplianceOrderRow = (Option<Uuid>, bool, bool);
 
 /// Refuses a dispense whose Schedule H, H1 or X lines lack what the Drugs and
 /// Cosmetics Act and the NDPS Act require: a real prescription for this
@@ -3653,7 +3654,14 @@ async fn enforce_schedule_compliance(
                 EXISTS (SELECT 1 FROM pharmacy_store_orders s \
                          WHERE s.tenant_id = o.tenant_id AND s.pharmacy_order_id = o.id \
                            AND s.rx_source = 'upload' AND s.verified_at IS NOT NULL \
-                           AND s.deleted_at IS NULL) \
+                           AND s.deleted_at IS NULL), \
+                EXISTS (SELECT 1 FROM ipd_discharge_summaries ds \
+                          JOIN admissions a ON a.id = ds.admission_id \
+                                           AND a.tenant_id = ds.tenant_id \
+                         WHERE ds.id = o.discharge_summary_id AND ds.tenant_id = o.tenant_id \
+                           AND ds.deleted_at IS NULL \
+                           AND (ds.is_signed OR ds.status::text = 'finalized') \
+                           AND a.patient_id = o.patient_id) \
          FROM pharmacy_orders o \
          LEFT JOIN prescriptions rx ON rx.id = o.prescription_id AND rx.tenant_id = o.tenant_id \
               AND rx.deleted_at IS NULL \
@@ -3670,14 +3678,17 @@ async fn enforce_schedule_compliance(
     .fetch_optional(&mut **tx)
     .await?;
 
-    let Some((prescriber, verified_upload)) = order else {
+    let Some((prescriber, verified_upload, signed_discharge)) = order else {
         return Err(AppError::NotFound);
     };
 
     // A prescription counts only when it is a real one for this patient (the
-    // join above checks that), or an uploaded one a pharmacist verified. An
-    // id or a visit alone is not a prescription.
-    let has_prescription = prescriber.is_some() || verified_upload;
+    // join above checks that), an uploaded one a pharmacist verified, or the
+    // medicines on this patient's discharge summary once the doctor has signed
+    // or finalized it (discharge dispensing carries no prescription row). An
+    // id, a visit or a draft summary alone is not a prescription. Schedule X
+    // still needs a real prescription: below.
+    let has_prescription = prescriber.is_some() || verified_upload || signed_discharge;
 
     let scheduled_items: Vec<(String, Option<String>)> = sqlx::query_as(
         "SELECT c.name, c.drug_schedule::text \
@@ -3703,7 +3714,8 @@ async fn enforce_schedule_compliance(
     if !has_prescription {
         for (name, sched) in &scheduled_items {
             blocks.push(format!(
-                "{name}: Schedule {} drug — no prescription / encounter linked to order",
+                "{name}: Schedule {} drug — no prescription for this patient on the order \
+                 (a doctor's prescription, a verified upload, or a signed discharge summary)",
                 sched.as_deref().unwrap_or("?")
             ));
         }
@@ -8830,7 +8842,18 @@ pub struct AnalyticsDateQuery {
     pub days: Option<i32>,
 }
 
-/// Pharmacy (orders, dispensing, catalog, stock, transfers, analytics, finance) routes.
+/// The drug catalog. Not behind the Pharmacy switch: a clinic without a pharmacy still
+/// prescribes, and the prescription writer and drug search read the catalog.
+pub fn catalog_router() -> axum::Router<AppState> {
+    axum::Router::new()
+        .route(
+            "/api/pharmacy/catalog",
+            get(list_catalog).post(create_catalog_entry),
+        )
+        .route("/api/pharmacy/catalog/{id}", put(update_catalog_entry))
+}
+
+/// The Pharmacy app's routes; the server puts them behind the `pharmacy` brick switch.
 pub fn router() -> axum::Router<AppState> {
     axum::Router::new()
         .merge(storefront::router())
@@ -8851,11 +8874,6 @@ pub fn router() -> axum::Router<AppState> {
         )
         .route("/api/pharmacy/orders/{id}/dispense", put(dispense_order))
         .route("/api/pharmacy/orders/{id}/cancel", put(cancel_order))
-        .route(
-            "/api/pharmacy/catalog",
-            get(list_catalog).post(create_catalog_entry),
-        )
-        .route("/api/pharmacy/catalog/{id}", put(update_catalog_entry))
         .route("/api/pharmacy/stock", get(list_stock))
         .route(
             "/api/pharmacy/stock/transactions",

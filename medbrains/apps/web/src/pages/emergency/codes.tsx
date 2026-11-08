@@ -276,6 +276,22 @@ export function CodesTab({
     { key: "location", label: "Location", render: (r: ErCodeActivation) => r.location ?? "---" },
     { key: "outcome", label: "Outcome", render: (r: ErCodeActivation) => r.outcome ?? "---" },
     {
+      key: "paging",
+      label: "Paging",
+      // Who the code paged, and what did not go out, in words. A blank here
+      // for a live code means paging has not been confirmed.
+      render: (r: ErCodeActivation) => (
+        <Stack gap={2}>
+          <Text size="sm">{r.routing_note ?? "Paging not confirmed"}</Text>
+          {r.delivery_warning && (
+            <Badge tone="warning" size="sm">
+              {r.delivery_warning}
+            </Badge>
+          )}
+        </Stack>
+      ),
+    },
+    {
       key: "deactivated_at",
       label: "Status",
       render: (r: ErCodeActivation) =>

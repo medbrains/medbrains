@@ -10,6 +10,7 @@
  */
 import type { APIRequestContext, Page } from "@playwright/test";
 import { type AuthContext, api, E2E_BACKEND_URL, withStepUp } from "../helpers/api";
+import { admitToIpd, createPatientApi, freshWardBeds } from "../helpers/journey-steps";
 import { expectScreenAccessible } from "./support/a11y";
 import {
   addByKeyboard,
@@ -691,4 +692,43 @@ test("a witness's password is guarded by their sign-in lockout", async ({ hospit
     data: { username: witness.username, password: witness.password },
   });
   expect(signInLocked.status(), "the witness's sign-in is locked").not.toBe(200);
+});
+
+test("discharge medicines on Schedule H dispense once the doctor has finalized the discharge summary", async ({
+  hospital,
+}) => {
+  test.setTimeout(180_000);
+  const drug = await addDrug(hospital.admin, { generic: "Amoxicillin", schedule: "H" });
+  await receiveBatch(hospital.admin, drug, { number: `DIS-${stamp()}`, expiry: inDays(300), quantity: 30 });
+  const patient = await createPatientApi(hospital.admin);
+  const [bed] = await freshWardBeds(hospital.admin, 1);
+  const admissionId = await admitToIpd(hospital.admin, { patientId: patient.id, bedId: bed?.bed_id });
+  const base = `/api/ipd/admissions/${admissionId}/discharge-summary`;
+  const summary = await api<{ id: string }>(hospital.admin, "POST", base, {
+    final_diagnosis: "Community-acquired pneumonia",
+    condition_at_discharge: "Stable",
+    course_in_hospital: "IV antibiotics, switched to oral",
+    follow_up_instructions: "Review in 1 week",
+    medications_on_discharge: [{ drug_name: drug.name, catalog_item_id: drug.id, quantity: 15 }],
+  });
+  // Discharge dispensing carries no prescription row: the summary is the source.
+  const order = await api<{ order: { id: string } }>(hospital.admin, "POST", "/api/pharmacy/discharge-dispensing", {
+    patient_id: patient.id,
+    discharge_summary_id: summary.id,
+    items: [{ catalog_item_id: drug.id, drug_name: drug.name, quantity: 15, unit_price: 8 }],
+  });
+  const dispense = () =>
+    hospital.admin.request.put(`${E2E_BACKEND_URL}/api/pharmacy/orders/${order.order.id}/dispense`, {
+      headers: { Cookie: hospital.admin.cookieHeader, "x-csrf-token": hospital.admin.csrfToken },
+      data: { unpaid_override_reason: "Settled on the final IPD bill" },
+    });
+
+  // A draft summary is not a prescription.
+  const draft = await dispense();
+  expect(draft.status(), "a draft discharge summary does not back Schedule H").toBe(400);
+  expect(await draft.text()).toContain("signed discharge summary");
+
+  // Signed off by the doctor: the same order now dispenses.
+  await api(hospital.admin, "POST", `${base}/finalize`, {});
+  expect((await dispense()).status(), "a finalized discharge summary backs Schedule H").toBe(200);
 });

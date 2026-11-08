@@ -11,6 +11,7 @@ mod insurance;
 mod nhcx_recon;
 pub use insurance::*;
 // Insurer settlements posted against bills under maker-checker (mig 1227).
+pub mod charge_attention;
 mod claim_settlement_post;
 mod claim_settlement_reverse;
 pub mod claim_settlements;
@@ -3852,6 +3853,18 @@ pub fn router() -> axum::Router<AppState> {
         .route(
             "/api/billing/claim-settlements/{id}/reverse",
             put(claim_settlements::reverse_claim_settlement),
+        )
+        .route(
+            "/api/billing/charge-attention",
+            get(charge_attention::list_charge_attention),
+        )
+        .route(
+            "/api/billing/charge-attention/{id}/post",
+            put(charge_attention::post_charge_attention),
+        )
+        .route(
+            "/api/billing/charge-attention/{id}/dismiss",
+            put(charge_attention::dismiss_charge_attention),
         )
         .route(
             "/api/billing/concessions",

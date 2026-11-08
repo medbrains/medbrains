@@ -1333,6 +1333,7 @@ pub async fn setup(
     .map_err(AppError::from)?;
 
     tx.commit().await?;
+    medbrains_server_core::middleware::entitlement::invalidate_modules(claims.tenant_id);
 
     tracing::info!(tenant_id = %claims.tenant_id, "Onboarding setup completed");
 
@@ -1550,6 +1551,7 @@ pub async fn apply_edition(
     .await?;
 
     tx.commit().await?;
+    medbrains_server_core::middleware::entitlement::invalidate_modules(claims.tenant_id);
     Ok(Json(serde_json::json!({
         "hospital_type": body.hospital_type,
         "enabled": enabled.len(),

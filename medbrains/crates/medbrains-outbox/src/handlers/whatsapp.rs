@@ -30,6 +30,16 @@ use crate::queue::{OutboxRow, queue_in_tx};
 
 const META_GRAPH_BASE: &str = "https://graph.facebook.com/v20.0";
 
+/// Whether a WhatsApp queued now would really leave: the simulator captures
+/// it, or a Meta sender number is set.
+pub async fn is_configured(resolver: &dyn medbrains_core::secrets::SecretResolver) -> bool {
+    crate::simulator::enabled()
+        || resolver
+            .get("WHATSAPP_PHONE_NUMBER_ID")
+            .await
+            .is_ok_and(|id| !id.is_empty())
+}
+
 #[derive(Debug)]
 pub struct WhatsAppSendHandler {
     event_type: &'static str,
@@ -111,7 +121,10 @@ impl Handler for WhatsAppSendHandler {
                     recipient: to,
                     subject: None,
                     body: &body,
-                    attachments: payload.get("attachments").cloned().unwrap_or_else(|| json!([])),
+                    attachments: payload
+                        .get("attachments")
+                        .cloned()
+                        .unwrap_or_else(|| json!([])),
                     template_id: payload.get("template_name").and_then(Value::as_str),
                 },
             )

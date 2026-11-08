@@ -420,7 +420,7 @@ pub async fn sign_basket(
     }
     // A prescription from the basket reaches the pharmacy's queue, which its
     // permission scopes; the visit is not handed to the Pharmacy department
-    // (that opened the whole record, with no end — migration 1406).
+    // (that opened the whole record, with no end — migration 1413).
 
     // Post-commit side-effects via outbox (durable, non-blocking).
     // SMS to patient + pharmacy notification queued; failures here do not

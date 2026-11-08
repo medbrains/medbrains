@@ -1,5 +1,5 @@
 -- ====================================================================
--- Migration: 1406_revoke_pharmacy_visit_handoff.sql
+-- Migration: 1413_revoke_pharmacy_visit_handoff.sql
 -- RLS-Posture: not-applicable
 -- Tenant-Column: N/A
 -- New-Tables: none

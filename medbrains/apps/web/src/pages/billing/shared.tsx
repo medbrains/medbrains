@@ -91,6 +91,7 @@ export const BILLING_TAB_VALUES = [
   "financial-mis",
   "erp-export",
   "concessions",
+  "charge-attention",
   "insurance-settlements",
   "payment-exceptions",
   "settings",
