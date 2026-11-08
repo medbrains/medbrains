@@ -180,6 +180,26 @@ pub async fn auth_middleware(
     Err(AppError::Unauthorized)
 }
 
+/// Run the auth middleware's account checks on a token a handler decoded
+/// itself — a WebSocket upgrade, which no middleware sees.
+///
+/// Refuses a deactivated or deleted account and a stale permission version
+/// (401), a temporary password not yet changed (403) and a revoked device
+/// (401), then fills in the account's permissions.
+///
+/// # Errors
+/// Any refusal above, or a database failure.
+pub async fn verify_decoded(db: &PgPool, claims: &mut Claims) -> Result<(), AppError> {
+    let must_change = verify_perm_version(db, claims).await?;
+    if must_change {
+        return Err(AppError::ForbiddenReason(
+            "Change your temporary password to continue.".to_owned(),
+        ));
+    }
+    let device_variant = verify_device_not_revoked(db, claims).await?;
+    hydrate_permissions(db, claims, device_variant.as_deref()).await
+}
+
 /// Decode and validate an Ed25519 JWT token.
 pub fn decode_and_validate(token: &str, key: &DecodingKey) -> Result<Claims, AppError> {
     let mut validation = Validation::new(Algorithm::EdDSA);

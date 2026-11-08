@@ -2141,6 +2141,7 @@ import type {
   SetupUser,
   SharpReplacementRequest,
   ShiftDefinition,
+  SignableTypeInfo,
   SignatureCredential,
   SignatureVerifyLink,
   SignBasketRequest,
@@ -17367,15 +17368,14 @@ export const api = {
     }),
 
   getMySignatureCredentials: () => request<SignatureCredential[]>("/signatures/my-credentials"),
-  previewSignature: (data: SignPreviewRequest) => {
-    const qs = new URLSearchParams({
-      record_type: data.record_type,
-      record_id: data.record_id,
-    });
-    if (data.signer_role) qs.set("signer_role", data.signer_role);
-    if (data.legal_class) qs.set("legal_class", data.legal_class);
-    return request<SignPreviewResponse>(`/signatures/preview?${qs.toString()}`);
-  },
+  /** Open a record to sign it: its canonical snapshot, and the review is recorded. */
+  reviewSignature: (data: SignPreviewRequest) =>
+    request<SignPreviewResponse>("/signatures/review", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  /** The record types the server signs, so no screen offers one it refuses. */
+  listSignableTypes: () => request<SignableTypeInfo[]>("/signatures/types"),
   signRecord: (data: SignRequest) =>
     request<SignResponse>("/signatures/sign", {
       method: "POST",

@@ -13,12 +13,13 @@ A row the system made that a clinician answers for, in one of:
 
 | Type | Table | Signed when | Department |
 |---|---|---|---|
-| Every signable type (`medbrains_documents::signable::SIGNABLE`; on main: prescription, lab report, radiology report, discharge summary; #5259 grows it to 21) | the type's `table` | a live `signed_records` row for `(record_type, record_id)` | the record's `department_id`, else its order's (`lab_orders`, `radiology_orders`), else its encounter's, else its admission's |
+| Every signable type (`medbrains_documents::signable::SIGNABLE`, 21 types since #5259) | the type's `table`, dated by `created_at` (`signed_at` for the order basket) | a live `signed_records` row for `(record_type, record_id)` | the record's `department_id` or `from_department_id`, else its registry parent's (`related` with a link column: lab/radiology order, OT booking), else the encounter's, else the admission's, reached from the record, the parent or its ER visit |
 | Clinical note (OPD consultation, progress, nursing, ...) | `clinical_notes` (not `entered_in_error`) | `status = 'signed'` (its own ledger) | `service_department_id`, else the encounter's |
 
 The department is found from the columns each table has, read from the
 catalogue at run time, so a type added to the registry is counted with no
-change to the meter. A type whose table has no `created_at` is listed on the
+change to the meter. A blood transfusion record names only the patient, so
+it counts under "No department". A type whose table has no `created_at` is listed on the
 screen as not counted.
 
 Paper still in use:

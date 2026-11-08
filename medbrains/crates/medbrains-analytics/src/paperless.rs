@@ -28,6 +28,7 @@ use sqlx::PgPool;
 use uuid::Uuid;
 
 mod read;
+mod route;
 mod sources;
 pub mod summary;
 
@@ -66,18 +67,18 @@ async fn clock(tx: &mut Tx, tenant_id: Uuid) -> Result<(String, NaiveDate), AppE
     .await?)
 }
 
-/// The [`sources::LOOKED_FOR`] columns of the signable tables and their order
-/// parents, read from the catalogue in one query.
-async fn columns(tx: &mut Tx) -> Result<sources::Columns, AppError> {
+/// The columns the routing looks for on the signable tables, their parents
+/// and the ER visit, read from the catalogue in one query.
+async fn columns(tx: &mut Tx) -> Result<route::Columns, AppError> {
     let rows: Vec<(String, String)> = sqlx::query_as(
         "SELECT table_name::text, column_name::text FROM information_schema.columns \
           WHERE table_schema = 'public' AND table_name = ANY($1) AND column_name = ANY($2)",
     )
-    .bind(sources::tables_to_read(SIGNABLE))
-    .bind(sources::LOOKED_FOR)
+    .bind(route::tables_to_read(SIGNABLE))
+    .bind(route::columns_to_read(SIGNABLE))
     .fetch_all(&mut **tx)
     .await?;
-    let mut map = sources::Columns::new();
+    let mut map = route::Columns::new();
     for (table, column) in rows {
         map.entry(table).or_default().insert(column);
     }
@@ -136,7 +137,7 @@ async fn rebuild(
     let mut rows = 0;
     let mut skipped = Vec::new();
     for spec in SIGNABLE {
-        match sources::signable_statement(spec, &cols) {
+        match route::signable_statement(spec, &cols) {
             Some(sql) => rows += insert_counts(tx, &sql, window, Some(spec.record_type)).await?,
             None => skipped.push(spec.label),
         }

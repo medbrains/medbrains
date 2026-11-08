@@ -322,3 +322,92 @@ async fn an_outage_is_an_error_not_an_empty_meter() {
     };
     assert!(view(&db, &manager(&w), &q).await.is_err());
 }
+
+/// An admission to `dept` with an OT booking, and a sign-in checklist on it.
+async fn ot_checklist(db: &PgPool, w: &World, dept: Uuid) {
+    let mut tx = scoped(db, w.tenant).await;
+    let visit = id(
+        &mut tx,
+        "INSERT INTO encounters (tenant_id, patient_id, encounter_type) \
+         VALUES ($1, $2, $3::text::encounter_type) RETURNING id",
+        &[w.tenant, w.patient],
+        "ipd",
+    )
+    .await;
+    let admission = id(
+        &mut tx,
+        "INSERT INTO admissions (tenant_id, encounter_id, patient_id, admitting_doctor, \
+            department_id, admission_number) \
+         VALUES ($1, $2, $3, $4, $5, $6) RETURNING id",
+        &[w.tenant, visit, w.patient, w.user, dept],
+        &format!("ADM-{}", Uuid::new_v4().simple()),
+    )
+    .await;
+    let room = id(
+        &mut tx,
+        "INSERT INTO ot_rooms (tenant_id, name, code) VALUES ($1, 'OT 1', $2) RETURNING id",
+        &[w.tenant],
+        &format!("OT{}", &Uuid::new_v4().simple().to_string()[..6]),
+    )
+    .await;
+    let booking = id(
+        &mut tx,
+        "INSERT INTO ot_bookings (tenant_id, patient_id, admission_id, ot_room_id, \
+            primary_surgeon_id, scheduled_date, scheduled_start, scheduled_end, procedure_name) \
+         VALUES ($1, $2, $3, $4, $5, CURRENT_DATE, now(), now() + INTERVAL '1 hour', $6) \
+         RETURNING id",
+        &[w.tenant, w.patient, admission, room, w.user],
+        "Appendicectomy",
+    )
+    .await;
+    id(
+        &mut tx,
+        "INSERT INTO ot_surgical_safety_checklists (tenant_id, booking_id, phase) \
+         VALUES ($1, $2, $3::text::checklist_phase) RETURNING id",
+        &[w.tenant, booking],
+        "sign_in",
+    )
+    .await;
+    tx.commit().await.unwrap();
+}
+
+/// Given an OT safety checklist (a type #5259 made signable) on a booking for
+/// a Surgery admission, When the meter recounts, Then it is counted under
+/// Surgery, reached through the booking's admission; and every registered
+/// type is listed and countable on this schema.
+#[tokio::test]
+#[ignore = "needs DATABASE_URL"]
+async fn a_new_signable_type_finds_its_department_through_its_parent() {
+    let db = pool().await;
+    let w = world(&db).await;
+    ot_checklist(&db, &w, w.surgery).await;
+    refresh(&db, &manager(&w), Some(7)).await.expect("refresh");
+    let r = read(&db, &w).await;
+    let ot = r
+        .doc_types
+        .iter()
+        .find(|t| t.doc_type == "ot_safety_checklist")
+        .expect("type");
+    assert_eq!((ot.created, ot.signed), (1, 0));
+    let surgery = r
+        .departments
+        .iter()
+        .find(|d| d.department_id == Some(w.surgery))
+        .expect("row");
+    assert_eq!(
+        surgery.counts.created, 1,
+        "reached through ot_bookings, then admissions"
+    );
+    let registered = medbrains_documents::signable::SIGNABLE.len();
+    assert!(registered >= 21, "registry holds {registered}");
+    assert_eq!(
+        r.doc_types.len(),
+        registered + 1,
+        "every signable type and clinical notes"
+    );
+    assert!(
+        !r.not_counted.iter().any(|n| n.contains("no creation time")),
+        "every registered table is countable: {:?}",
+        r.not_counted
+    );
+}

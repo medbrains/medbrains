@@ -13,7 +13,7 @@ use sqlx::PgPool;
 use uuid::Uuid;
 
 use super::summary::{Counts, Halves, sentence};
-use super::{ReportQuery, sources};
+use super::{ReportQuery, route};
 
 /// Days read when the caller names no start.
 const DEFAULT_DAYS: i64 = 30;
@@ -243,7 +243,7 @@ async fn skipped_types(tx: &mut Tx) -> Result<Vec<&'static str>, AppError> {
     let cols = super::columns(tx).await?;
     Ok(SIGNABLE
         .iter()
-        .filter(|t| sources::signable_statement(t, &cols).is_none())
+        .filter(|t| route::signable_statement(t, &cols).is_none())
         .map(|t| t.label)
         .collect())
 }
