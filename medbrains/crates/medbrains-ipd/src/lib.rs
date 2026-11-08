@@ -5278,21 +5278,26 @@ pub async fn update_discharge_summary(
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
 
-    // Check status is draft
-    let current_status = sqlx::query_scalar::<_, DischargeSummaryStatus>(
-        "SELECT status FROM ipd_discharge_summaries \
-         WHERE admission_id = $1 AND tenant_id = $2",
+    // The row is locked until the edit commits, so a finalize running at the
+    // same moment waits for it, and is read again after it, rather than the
+    // edit landing on a summary that has just been finalized.
+    let (summary_id, current_status, cleared_signature): (
+        Uuid,
+        DischargeSummaryStatus,
+        Option<Uuid>,
+    ) = sqlx::query_as(
+        "SELECT id, status, CASE WHEN is_signed THEN signed_record_id END \
+           FROM ipd_discharge_summaries \
+          WHERE admission_id = $1 AND tenant_id = $2 AND deleted_at IS NULL \
+          FOR UPDATE",
     )
     .bind(admission_id)
     .bind(claims.tenant_id)
     .fetch_optional(&mut *tx)
     .await?
-    .ok_or_else(|| AppError::NotFound)?;
-
+    .ok_or(AppError::NotFound)?;
     if current_status == DischargeSummaryStatus::Finalized {
-        return Err(AppError::BadRequest(
-            "Cannot update a finalized discharge summary".to_owned(),
-        ));
+        return Err(finalized_summary_conflict());
     }
 
     let row = sqlx::query_as::<_, IpdDischargeSummary>(
@@ -5309,8 +5314,10 @@ pub async fn update_discharge_summary(
            dietary_advice = COALESCE($12, dietary_advice), \
            activity_restrictions = COALESCE($13, activity_restrictions), \
            warning_signs = COALESCE($14, warning_signs), \
-           emergency_contact_info = COALESCE($15, emergency_contact_info) \
+           emergency_contact_info = COALESCE($15, emergency_contact_info), \
+           is_signed = false, signed_record_id = NULL \
          WHERE admission_id = $1 AND tenant_id = $2 \
+           AND status = 'draft'::discharge_summary_status \
          RETURNING *",
     )
     .bind(admission_id)
@@ -5330,7 +5337,29 @@ pub async fn update_discharge_summary(
     .bind(&body.emergency_contact_info)
     .fetch_optional(&mut *tx)
     .await?
-    .ok_or_else(|| AppError::NotFound)?;
+    .ok_or_else(finalized_summary_conflict)?;
+
+    // A signed draft that is edited is no longer what the doctor signed: the
+    // signature is taken off (its record stays in `signed_records` as
+    // history) and the summary must be signed again before it backs any
+    // discharge medicine.
+    if let Some(signed_record_id) = cleared_signature {
+        let cleared = serde_json::json!({ "signed_record_id": signed_record_id });
+        medbrains_db::audit::AuditLogger::log(
+            &mut tx,
+            &medbrains_db::audit::AuditEntry {
+                tenant_id: claims.tenant_id,
+                user_id: Some(claims.sub),
+                action: "ipd.discharge_summary.signature_cleared",
+                entity_type: "ipd_discharge_summary",
+                entity_id: Some(summary_id),
+                old_values: Some(&cleared),
+                new_values: None,
+                ip_address: None,
+            },
+        )
+        .await?;
+    }
 
     tx.commit().await?;
 
@@ -5338,6 +5367,13 @@ pub async fn update_discharge_summary(
         row,
         &restricted_fields,
     )))
+}
+
+/// The answer to an edit of a finalized discharge summary (409).
+fn finalized_summary_conflict() -> AppError {
+    AppError::Conflict(
+        "This discharge summary is finalized and can no longer be edited.".to_owned(),
+    )
 }
 
 /// NABH-mandatory discharge-summary elements that must be present before a summary can be finalized.

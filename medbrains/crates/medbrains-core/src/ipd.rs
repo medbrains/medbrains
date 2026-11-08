@@ -463,6 +463,9 @@ pub struct IpdDischargeSummary {
     pub prepared_by: Option<Uuid>,
     pub verified_by: Option<Uuid>,
     pub finalized_at: Option<DateTime<Utc>>,
+    /// A doctor has signed this version. Editing clears it: the signature was
+    /// for what the doctor read, not for what was changed after.
+    pub is_signed: bool,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }

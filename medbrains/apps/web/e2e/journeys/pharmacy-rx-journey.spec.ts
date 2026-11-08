@@ -721,7 +721,21 @@ async function dischargeWithSummary(hospital: Hospital, request: APIRequestConte
     const ctx = by === "doctor" ? await signIn(request, doctor.username, doctor.password) : hospital.admin;
     await api(ctx, "POST", `${base}/finalize`, {});
   };
-  return { patientId: patient.id, summaryId: summary.id, finalize };
+  return { patientId: patient.id, summaryId: summary.id, admissionId, doctorId: doctor.id, finalize };
+}
+
+/**
+ * Sign the summary as `signerId`: the signature record the documents module
+ * writes, set straight in the database (the e-sign flow needs a signing
+ * credential the journey does not provision). Returns the record's id.
+ */
+function signSummary(hospital: Hospital, summaryId: string, signerId: string): string {
+  return dbExec(
+    `WITH s AS (INSERT INTO signed_records (tenant_id, record_type, record_id, signer_user_id, signer_role, payload_hash, signature_bytes, legal_class)
+       VALUES (${sqlId(hospital.admin.tenantId)}, 'discharge_summary', ${sqlId(summaryId)}, ${sqlId(signerId)}, 'primary', '\\x00', '\\x00', 'clinical') RETURNING id),
+     u AS (UPDATE ipd_discharge_summaries SET is_signed = true, signed_record_id = (SELECT id FROM s) WHERE id = ${sqlId(summaryId)})
+     SELECT id FROM s`,
+  );
 }
 
 /** Discharge medicines from `summaryId`, raised on the discharge desk's own route. */
@@ -850,11 +864,7 @@ test("a discharge summary backs only its own patient's discharge medicines, list
   const signedRx = await dischargeWithSummary(hospital, request, listed);
   const admin = hospital.admin.userId;
   expect(dbExec(`SELECT count(*) FROM doctor_profiles WHERE user_id = ${sqlId(admin)}`)).toBe("0");
-  dbExec(
-    `WITH s AS (INSERT INTO signed_records (tenant_id, record_type, record_id, signer_user_id, signer_role, payload_hash, signature_bytes, legal_class)
-       VALUES (${sqlId(hospital.admin.tenantId)}, 'discharge_summary', ${sqlId(signedRx.summaryId)}, ${sqlId(admin)}, 'primary', '\\x00', '\\x00', 'clinical') RETURNING id)
-     UPDATE ipd_discharge_summaries SET is_signed = true, signed_record_id = (SELECT id FROM s) WHERE id = ${sqlId(signedRx.summaryId)}`,
-  );
+  signSummary(hospital, signedRx.summaryId, admin);
   await expectNoPrescription(
     hospital,
     await dischargeOrder(hospital, signedRx, listed),
@@ -870,4 +880,55 @@ test("a discharge summary backs only its own patient's discharge medicines, list
     await dischargeOrder(hospital, adminFinalized, listed),
     "a summary finalized by someone with no doctor profile",
   );
+});
+
+test("editing a signed discharge summary takes the signature off, and a finalized one cannot be edited", async ({
+  hospital,
+  request,
+}) => {
+  test.setTimeout(240_000);
+  const drug = await addDrug(hospital.admin, { generic: "Doxycycline", schedule: "H" });
+  const added = await addDrug(hospital.admin, { generic: "Azithromycin", schedule: "H" });
+  for (const d of [drug, added]) {
+    await receiveBatch(hospital.admin, d, { number: `SGN-${stamp()}`, expiry: inDays(300), quantity: 30 });
+  }
+  const rx = await dischargeWithSummary(hospital, request, drug);
+  const base = `/api/ipd/admissions/${rx.admissionId}/discharge-summary`;
+
+  // Signed by the admitting doctor: the signature backs the listed medicine.
+  const firstSignature = signSummary(hospital, rx.summaryId, rx.doctorId);
+  const before = await dischargeOrder(hospital, rx, drug);
+  expect((await dispenseAsAdmin(hospital, before)).status(), "the doctor's signature backs it").toBe(200);
+
+  // Someone adds a medicine after the doctor signed: the signature comes off,
+  // and its record stays as history, with the clearing audited.
+  const edited = await api<{ is_signed: boolean }>(hospital.admin, "PUT", base, {
+    medications_on_discharge: [
+      { drug_name: drug.name, catalog_item_id: drug.id, quantity: 4 },
+      { drug_name: added.name, catalog_item_id: added.id, quantity: 4 },
+    ],
+  });
+  expect(edited.is_signed, "an edit removes the signature").toBe(false);
+  expect(dbExec(`SELECT count(*) FROM signed_records WHERE id = ${sqlId(firstSignature)} AND deleted_at IS NULL`)).toBe("1");
+  expect(
+    dbExec(
+      `SELECT count(*) FROM audit_log WHERE action = 'ipd.discharge_summary.signature_cleared' AND entity_id = ${sqlId(rx.summaryId)}`,
+    ),
+  ).toBe("1");
+
+  // Until it is signed again, neither the added medicine nor the original backs a dispense.
+  const addedOrder = await dischargeOrder(hospital, rx, added);
+  await expectNoPrescription(hospital, addedOrder, "an added medicine under a removed signature");
+  await expectNoPrescription(hospital, await dischargeOrder(hospital, rx, drug), "the edited summary, unsigned");
+  signSummary(hospital, rx.summaryId, rx.doctorId);
+  expect((await dispenseAsAdmin(hospital, addedOrder)).status(), "signed again, it backs the added medicine").toBe(200);
+
+  // Finalized by the doctor: no more edits.
+  await rx.finalize("doctor");
+  const late = await hospital.admin.request.put(`${E2E_BACKEND_URL}${base}`, {
+    headers: { Cookie: hospital.admin.cookieHeader, "x-csrf-token": hospital.admin.csrfToken },
+    data: { warning_signs: "Fever above 101F" },
+  });
+  expect(late.status(), "a finalized summary cannot be edited").toBe(409);
+  expect(await late.text()).toContain("finalized and can no longer be edited");
 });

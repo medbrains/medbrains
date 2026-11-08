@@ -16,6 +16,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { useClinicalEmit } from "@/components";
 import { Badge, Button, toast } from "@/components/ui";
+import { confirmDestructive } from "@/lib/confirm-destructive";
 import { ipdService } from "@/services/ipd.service";
 import { DischargeMedicinesEditor } from "./discharge-medicines-editor";
 
@@ -68,6 +69,7 @@ export function DischargeSummaryTab({
       void queryClient.invalidateQueries({ queryKey: ["ipd-discharge-summary", admissionId] });
       setEditing(false);
     },
+    onError: (e: Error) => toast.error(e.message, { title: "Cannot save" }),
   });
 
   const finalizeMutation = useMutation({
@@ -91,9 +93,16 @@ export function DischargeSummaryTab({
     return (
       <Stack>
         <Group justify="space-between">
-          <Badge size="lg" tone={summary.status === "finalized" ? "success" : "warning"}>
-            {summary.status}
-          </Badge>
+          <Group gap="xs">
+            <Badge size="lg" tone={summary.status === "finalized" ? "success" : "warning"}>
+              {summary.status}
+            </Badge>
+            {summary.is_signed && (
+              <Badge size="lg" tone="success">
+                Signed
+              </Badge>
+            )}
+          </Group>
           <Group>
             {summary.status === "draft" && canCreate && (
               <Button
@@ -224,7 +233,16 @@ export function DischargeSummaryTab({
       warning_signs: warningSigns || undefined,
       medications_on_discharge: medicines,
     };
-    if (summary) {
+    if (summary?.is_signed) {
+      // The signature is for what the doctor read; saving changes takes it off.
+      confirmDestructive({
+        title: "Remove the signature?",
+        message:
+          "This removes the signature. The summary must be signed again before its medicines can be dispensed.",
+        confirmLabel: "Save and remove signature",
+        onConfirm: () => updateMutation.mutate(payload),
+      });
+    } else if (summary) {
       updateMutation.mutate(payload);
     } else {
       createMutation.mutate(payload);

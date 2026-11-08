@@ -125,6 +125,8 @@ export interface IpdDischargeSummary {
   procedures_performed: unknown[];
   investigation_summary: string | null;
   medications_on_discharge: DischargeMedicine[];
+  /** A doctor has signed this version; editing it removes the signature. */
+  is_signed: boolean;
   follow_up_instructions: string | null;
   follow_up_date: string | null;
   dietary_advice: string | null;
