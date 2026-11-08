@@ -5,6 +5,7 @@ import { usePermissionStore } from "@medbrains/stores";
 import type { ReportDataResponse } from "@medbrains/types";
 import { P } from "@medbrains/types";
 import { IconFileAnalytics } from "@tabler/icons-react";
+import { QueryError } from "@/components/QueryError";
 import { NabhIndicatorMatrix } from "@/components/Reports/NabhIndicatorMatrix";
 import { ReportChart } from "@/components/Reports/ReportChart";
 import { Badge, Button } from "@/components/ui";
@@ -16,7 +17,12 @@ import {
   READINESS_META,
   reportStatusLabel,
 } from "./report-helpers";
-import type { ReportDefinition, ReportLoadingState, ReportRuntimeData } from "./types";
+import type {
+  ReportDefinition,
+  ReportFailure,
+  ReportLoadingState,
+  ReportRuntimeData,
+} from "./types";
 import { useReportOnDashboard } from "./useReportOnDashboard";
 
 export function ReportTile({
@@ -25,6 +31,7 @@ export function ReportTile({
   loadingState,
   reportData,
   isReportLoading,
+  failure,
   onDetails,
 }: {
   report: ReportDefinition;
@@ -32,6 +39,7 @@ export function ReportTile({
   loadingState: ReportLoadingState;
   reportData?: ReportDataResponse<unknown>;
   isReportLoading?: boolean;
+  failure?: ReportFailure;
   onDetails: (report: ReportDefinition) => void;
 }) {
   const canView = usePermissionStore((state) =>
@@ -76,6 +84,21 @@ export function ReportTile({
               Restricted by permission: {report.permissions.join(", ")}
             </Text>
           )}
+        </Stack>
+      </Card>
+    );
+  }
+
+  if (failure) {
+    return (
+      <Card withBorder padding="md" h="100%">
+        <Stack gap="sm">
+          <Text fw={800}>{report.title}</Text>
+          <QueryError
+            error={failure.error}
+            onRetry={failure.retry}
+            title="This report didn't load"
+          />
         </Stack>
       </Card>
     );

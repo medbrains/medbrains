@@ -44,6 +44,7 @@ use serde::Serialize;
 use medbrains_server_core::error::AppError;
 use medbrains_server_core::middleware::auth::Claims;
 use medbrains_server_core::middleware::authorization::require_permission;
+use medbrains_server_core::report_runner::begin_report;
 use medbrains_server_core::state::AppState;
 
 fn default_range(params: &DateRangeQuery) -> (String, String) {
@@ -66,8 +67,7 @@ pub async fn dept_revenue(
     Query(params): Query<DateRangeQuery>,
 ) -> Result<Json<Vec<DeptRevenueRow>>, AppError> {
     require_permission(&claims, permissions::analytics::VIEW)?;
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let (mut tx, run) = begin_report(&state, &claims, "dept_revenue").await?;
     let (from, to) = default_range(&params);
     let rows = sqlx::query_as::<_, DeptRevenueRow>(
         "SELECT COALESCE(d.name, 'Unassigned') AS department_name, \
@@ -84,7 +84,7 @@ pub async fn dept_revenue(
     .bind(&to)
     .fetch_all(&mut *tx)
     .await?;
-    tx.commit().await?;
+    run.finish(tx, rows.len()).await?;
     Ok(Json(rows))
 }
 
@@ -95,8 +95,7 @@ pub async fn doctor_revenue(
     Query(params): Query<DateRangeQuery>,
 ) -> Result<Json<Vec<DoctorRevenueRow>>, AppError> {
     require_permission(&claims, permissions::analytics::VIEW)?;
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let (mut tx, run) = begin_report(&state, &claims, "doctor_revenue").await?;
     let (from, to) = default_range(&params);
     let rows = sqlx::query_as::<_, DoctorRevenueRow>(
         "SELECT COALESCE(u.full_name, 'Unknown') AS doctor_name, \
@@ -115,7 +114,7 @@ pub async fn doctor_revenue(
     .bind(&to)
     .fetch_all(&mut *tx)
     .await?;
-    tx.commit().await?;
+    run.finish(tx, rows.len()).await?;
     Ok(Json(rows))
 }
 
@@ -126,8 +125,7 @@ pub async fn ipd_census(
     Query(params): Query<DateRangeQuery>,
 ) -> Result<Json<Vec<IpdCensusRow>>, AppError> {
     require_permission(&claims, permissions::analytics::VIEW)?;
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let (mut tx, run) = begin_report(&state, &claims, "ipd_census").await?;
     let (from, to) = default_range(&params);
     let rows = sqlx::query_as::<_, IpdCensusRow>(
         "WITH dates AS ( \
@@ -143,7 +141,7 @@ pub async fn ipd_census(
          GROUP BY dates.date ORDER BY dates.date LIMIT 5000",
     )
     .bind(&from).bind(&to).fetch_all(&mut *tx).await?;
-    tx.commit().await?;
+    run.finish(tx, rows.len()).await?;
     Ok(Json(rows))
 }
 
@@ -154,8 +152,7 @@ pub async fn lab_tat(
     Query(params): Query<DateRangeQuery>,
 ) -> Result<Json<Vec<LabTatRow>>, AppError> {
     require_permission(&claims, permissions::analytics::VIEW)?;
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let (mut tx, run) = begin_report(&state, &claims, "lab_tat").await?;
     let (from, to) = default_range(&params);
     let rows = sqlx::query_as::<_, LabTatRow>(
         "SELECT tc.name AS test_name, COUNT(lo.id)::bigint AS order_count, \
@@ -168,7 +165,7 @@ pub async fn lab_tat(
          GROUP BY tc.name ORDER BY avg_tat_mins DESC LIMIT 5000",
     )
     .bind(&from).bind(&to).fetch_all(&mut *tx).await?;
-    tx.commit().await?;
+    run.finish(tx, rows.len()).await?;
     Ok(Json(rows))
 }
 
@@ -179,8 +176,7 @@ pub async fn pharmacy_sales(
     Query(params): Query<DateRangeQuery>,
 ) -> Result<Json<Vec<PharmacySalesRow>>, AppError> {
     require_permission(&claims, permissions::analytics::VIEW)?;
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let (mut tx, run) = begin_report(&state, &claims, "pharmacy_sales").await?;
     let (from, to) = default_range(&params);
     let rows = sqlx::query_as::<_, PharmacySalesRow>(
         "SELECT poi.drug_name, pc.category, \
@@ -192,7 +188,7 @@ pub async fn pharmacy_sales(
          GROUP BY poi.drug_name, pc.category ORDER BY total_revenue DESC LIMIT 5000",
     )
     .bind(&from).bind(&to).fetch_all(&mut *tx).await?;
-    tx.commit().await?;
+    run.finish(tx, rows.len()).await?;
     Ok(Json(rows))
 }
 
@@ -203,8 +199,7 @@ pub async fn ot_utilization(
     Query(params): Query<DateRangeQuery>,
 ) -> Result<Json<Vec<OtUtilizationRow>>, AppError> {
     require_permission(&claims, permissions::analytics::VIEW)?;
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let (mut tx, run) = begin_report(&state, &claims, "ot_utilization").await?;
     let (from, to) = default_range(&params);
     let rows = sqlx::query_as::<_, OtUtilizationRow>(
         "SELECT r.name AS room_name, COUNT(b.id)::bigint AS total_bookings, \
@@ -220,7 +215,7 @@ pub async fn ot_utilization(
          WHERE r.is_active = true GROUP BY r.name ORDER BY total_bookings DESC LIMIT 5000",
     )
     .bind(&from).bind(&to).fetch_all(&mut *tx).await?;
-    tx.commit().await?;
+    run.finish(tx, rows.len()).await?;
     Ok(Json(rows))
 }
 
@@ -231,8 +226,7 @@ pub async fn er_volume(
     Query(params): Query<DateRangeQuery>,
 ) -> Result<Json<Vec<ErVolumeRow>>, AppError> {
     require_permission(&claims, permissions::analytics::VIEW)?;
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let (mut tx, run) = begin_report(&state, &claims, "er_volume").await?;
     let (from, to) = default_range(&params);
     let rows = sqlx::query_as::<_, ErVolumeRow>(
         "SELECT arrival_time::date AS date, COUNT(*)::bigint AS total_visits, \
@@ -250,7 +244,7 @@ pub async fn er_volume(
     .bind(&to)
     .fetch_all(&mut *tx)
     .await?;
-    tx.commit().await?;
+    run.finish(tx, rows.len()).await?;
     Ok(Json(rows))
 }
 
@@ -261,8 +255,7 @@ pub async fn clinical_indicators(
     Query(params): Query<DateRangeQuery>,
 ) -> Result<Json<Vec<ClinicalIndicatorRow>>, AppError> {
     require_permission(&claims, permissions::analytics::VIEW)?;
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let (mut tx, run) = begin_report(&state, &claims, "clinical_indicators").await?;
     let (from, to) = default_range(&params);
     let rows = sqlx::query_as::<_, ClinicalIndicatorRow>(
         "WITH monthly AS ( \
@@ -288,7 +281,7 @@ pub async fn clinical_indicators(
          FROM monthly ORDER BY period LIMIT 5000",
     )
     .bind(&from).bind(&to).fetch_all(&mut *tx).await?;
-    tx.commit().await?;
+    run.finish(tx, rows.len()).await?;
     Ok(Json(rows))
 }
 
@@ -299,8 +292,7 @@ pub async fn opd_footfall(
     Query(params): Query<DateRangeQuery>,
 ) -> Result<Json<Vec<OpdFootfallRow>>, AppError> {
     require_permission(&claims, permissions::analytics::VIEW)?;
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let (mut tx, run) = begin_report(&state, &claims, "opd_footfall").await?;
     let (from, to) = default_range(&params);
     let rows = sqlx::query_as::<_, OpdFootfallRow>(
         "SELECT e.encounter_date AS date, COALESCE(d.name, 'Unassigned') AS department_name, \
@@ -318,7 +310,7 @@ pub async fn opd_footfall(
          GROUP BY e.encounter_date, d.name ORDER BY date, department_name LIMIT 5000",
     )
     .bind(&from).bind(&to).fetch_all(&mut *tx).await?;
-    tx.commit().await?;
+    run.finish(tx, rows.len()).await?;
     Ok(Json(rows))
 }
 
@@ -339,8 +331,7 @@ pub async fn opd_queue_wait(
     Query(params): Query<DateRangeQuery>,
 ) -> Result<Json<Vec<OpdQueueWaitRow>>, AppError> {
     require_permission(&claims, permissions::analytics::VIEW)?;
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let (mut tx, run) = begin_report(&state, &claims, "opd_queue_wait").await?;
     let (from, to) = default_range(&params);
     let rows = sqlx::query_as::<_, OpdQueueWaitRow>(
         "SELECT q.queue_date, \
@@ -369,7 +360,7 @@ pub async fn opd_queue_wait(
     .bind(&to)
     .fetch_all(&mut *tx)
     .await?;
-    tx.commit().await?;
+    run.finish(tx, rows.len()).await?;
     Ok(Json(rows))
 }
 
@@ -389,8 +380,7 @@ pub async fn lab_critical_value_compliance(
     Query(params): Query<DateRangeQuery>,
 ) -> Result<Json<Vec<LabCriticalValueComplianceRow>>, AppError> {
     require_permission(&claims, permissions::analytics::VIEW)?;
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let (mut tx, run) = begin_report(&state, &claims, "lab_critical_value_compliance").await?;
     let (from, to) = default_range(&params);
     let rows = sqlx::query_as::<_, LabCriticalValueComplianceRow>(
         "SELECT a.created_at::date AS alert_date, \
@@ -421,7 +411,7 @@ pub async fn lab_critical_value_compliance(
     .bind(&to)
     .fetch_all(&mut *tx)
     .await?;
-    tx.commit().await?;
+    run.finish(tx, rows.len()).await?;
     Ok(Json(rows))
 }
 
@@ -441,8 +431,7 @@ pub async fn credential_expiry(
     Extension(claims): Extension<Claims>,
 ) -> Result<Json<Vec<CredentialExpiryRow>>, AppError> {
     require_permission(&claims, permissions::analytics::VIEW)?;
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let (mut tx, run) = begin_report(&state, &claims, "credential_expiry").await?;
     let rows = sqlx::query_as::<_, CredentialExpiryRow>(
         "SELECT c.credential_type::text AS credential_type, \
                 COUNT(*)::bigint AS total_credentials, \
@@ -469,7 +458,7 @@ pub async fn credential_expiry(
     .bind(claims.tenant_id)
     .fetch_all(&mut *tx)
     .await?;
-    tx.commit().await?;
+    run.finish(tx, rows.len()).await?;
     Ok(Json(rows))
 }
 
@@ -494,8 +483,7 @@ pub async fn capa_aging(
     Extension(claims): Extension<Claims>,
 ) -> Result<Json<Vec<CapaAgingRow>>, AppError> {
     require_permission(&claims, permissions::analytics::VIEW)?;
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let (mut tx, run) = begin_report(&state, &claims, "capa_aging").await?;
     let rows = sqlx::query_as::<_, CapaAgingRow>(
         "SELECT COALESCE(c.capa_type, 'unspecified') AS capa_type, \
                 COUNT(*)::bigint AS total_capas, \
@@ -527,7 +515,7 @@ pub async fn capa_aging(
     .bind(claims.tenant_id)
     .fetch_all(&mut *tx)
     .await?;
-    tx.commit().await?;
+    run.finish(tx, rows.len()).await?;
     Ok(Json(rows))
 }
 
@@ -548,8 +536,7 @@ pub async fn discharge_summary_completion(
     Query(params): Query<DateRangeQuery>,
 ) -> Result<Json<Vec<DischargeSummaryCompletionRow>>, AppError> {
     require_permission(&claims, permissions::analytics::VIEW)?;
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let (mut tx, run) = begin_report(&state, &claims, "discharge_summary_completion").await?;
     let (from, to) = default_range(&params);
     let rows = sqlx::query_as::<_, DischargeSummaryCompletionRow>(
         "SELECT a.discharged_at::date AS discharge_date, \
@@ -580,7 +567,7 @@ pub async fn discharge_summary_completion(
     .bind(&to)
     .fetch_all(&mut *tx)
     .await?;
-    tx.commit().await?;
+    run.finish(tx, rows.len()).await?;
     Ok(Json(rows))
 }
 
@@ -602,8 +589,7 @@ pub async fn hai_rate(
     Query(params): Query<DateRangeQuery>,
 ) -> Result<Json<Vec<HaiRateRow>>, AppError> {
     require_permission(&claims, permissions::analytics::VIEW)?;
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let (mut tx, run) = begin_report(&state, &claims, "hai_rate").await?;
     let (from, to) = default_range(&params);
     let rows = sqlx::query_as::<_, HaiRateRow>(
         "WITH events AS ( \
@@ -662,7 +648,7 @@ pub async fn hai_rate(
     .bind(&to)
     .fetch_all(&mut *tx)
     .await?;
-    tx.commit().await?;
+    run.finish(tx, rows.len()).await?;
     Ok(Json(rows))
 }
 
@@ -689,8 +675,7 @@ pub async fn hand_hygiene_compliance(
     Query(params): Query<DateRangeQuery>,
 ) -> Result<Json<Vec<HandHygieneComplianceRow>>, AppError> {
     require_permission(&claims, permissions::analytics::VIEW)?;
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let (mut tx, run) = begin_report(&state, &claims, "hand_hygiene_compliance").await?;
     let (from, to) = default_range(&params);
     let rows = sqlx::query_as::<_, HandHygieneComplianceRow>(
         "SELECT date_trunc('month', a.audit_date)::date AS month, \
@@ -713,7 +698,7 @@ pub async fn hand_hygiene_compliance(
     .bind(&to)
     .fetch_all(&mut *tx)
     .await?;
-    tx.commit().await?;
+    run.finish(tx, rows.len()).await?;
     Ok(Json(rows))
 }
 
@@ -741,8 +726,7 @@ pub async fn readmission_watch(
     Query(params): Query<DateRangeQuery>,
 ) -> Result<Json<Vec<ReadmissionRow>>, AppError> {
     require_permission(&claims, permissions::analytics::VIEW)?;
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let (mut tx, run) = begin_report(&state, &claims, "readmission_watch").await?;
     let (from, to) = default_range(&params);
     let rows = sqlx::query_as::<_, ReadmissionRow>(
         "SELECT date_trunc('month', a.discharged_at)::date AS month, \
@@ -790,7 +774,7 @@ pub async fn readmission_watch(
     .bind(&to)
     .fetch_all(&mut *tx)
     .await?;
-    tx.commit().await?;
+    run.finish(tx, rows.len()).await?;
     Ok(Json(rows))
 }
 
@@ -814,8 +798,7 @@ pub async fn ot_cancellations(
     Query(params): Query<DateRangeQuery>,
 ) -> Result<Json<Vec<OtCancellationRow>>, AppError> {
     require_permission(&claims, permissions::analytics::VIEW)?;
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let (mut tx, run) = begin_report(&state, &claims, "ot_cancellations").await?;
     let (from, to) = default_range(&params);
     let rows = sqlx::query_as::<_, OtCancellationRow>(
         "WITH scheduled AS ( \
@@ -852,7 +835,7 @@ pub async fn ot_cancellations(
     .bind(&to)
     .fetch_all(&mut *tx)
     .await?;
-    tx.commit().await?;
+    run.finish(tx, rows.len()).await?;
     Ok(Json(rows))
 }
 
@@ -878,8 +861,7 @@ pub async fn sample_rejections(
     Query(params): Query<DateRangeQuery>,
 ) -> Result<Json<Vec<SampleRejectionRow>>, AppError> {
     require_permission(&claims, permissions::analytics::VIEW)?;
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let (mut tx, run) = begin_report(&state, &claims, "sample_rejections").await?;
     let (from, to) = default_range(&params);
     let rows = sqlx::query_as::<_, SampleRejectionRow>(
         "WITH ordered AS ( \
@@ -914,7 +896,7 @@ pub async fn sample_rejections(
     .bind(&to)
     .fetch_all(&mut *tx)
     .await?;
-    tx.commit().await?;
+    run.finish(tx, rows.len()).await?;
     Ok(Json(rows))
 }
 
@@ -941,8 +923,7 @@ pub async fn radiology_tat(
     Query(params): Query<DateRangeQuery>,
 ) -> Result<Json<Vec<RadiologyTatRow>>, AppError> {
     require_permission(&claims, permissions::analytics::VIEW)?;
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let (mut tx, run) = begin_report(&state, &claims, "radiology_tat").await?;
     let (from, to) = default_range(&params);
     let rows = sqlx::query_as::<_, RadiologyTatRow>(
         "SELECT date_trunc('month', o.created_at)::date AS month, \
@@ -974,7 +955,7 @@ pub async fn radiology_tat(
     .bind(&to)
     .fetch_all(&mut *tx)
     .await?;
-    tx.commit().await?;
+    run.finish(tx, rows.len()).await?;
     Ok(Json(rows))
 }
 
@@ -999,8 +980,7 @@ pub async fn stock_at_risk(
     Extension(claims): Extension<Claims>,
 ) -> Result<Json<Vec<StockAtRiskRow>>, AppError> {
     require_permission(&claims, permissions::analytics::VIEW)?;
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let (mut tx, run) = begin_report(&state, &claims, "stock_at_risk").await?;
     let rows = sqlx::query_as::<_, StockAtRiskRow>(
         "SELECT c.code AS item_code, \
                 c.name AS item_name, \
@@ -1033,7 +1013,7 @@ pub async fn stock_at_risk(
     .bind(claims.tenant_id)
     .fetch_all(&mut *tx)
     .await?;
-    tx.commit().await?;
+    run.finish(tx, rows.len()).await?;
     Ok(Json(rows))
 }
 
@@ -1043,8 +1023,7 @@ pub async fn bed_occupancy(
     Extension(claims): Extension<Claims>,
 ) -> Result<Json<Vec<BedOccupancyRow>>, AppError> {
     require_permission(&claims, permissions::analytics::VIEW)?;
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let (mut tx, run) = begin_report(&state, &claims, "bed_occupancy").await?;
     let rows = sqlx::query_as::<_, BedOccupancyRow>(
         "SELECT w.name AS ward_name, w.total_beds::bigint, \
          COUNT(bs.id) FILTER (WHERE bs.status = 'occupied')::bigint AS occupied, \
@@ -1058,7 +1037,7 @@ pub async fn bed_occupancy(
          WHERE w.is_active = true GROUP BY w.id, w.name, w.total_beds ORDER BY occupancy_pct DESC LIMIT 5000",
     )
     .fetch_all(&mut *tx).await?;
-    tx.commit().await?;
+    run.finish(tx, rows.len()).await?;
     Ok(Json(rows))
 }
 

@@ -189,6 +189,10 @@ impl IntoResponse for AppError {
     }
 }
 
+/// What a reader sees when a report ran past its statement timeout.
+pub const REPORT_TIMEOUT_MESSAGE: &str = "This report took too long and was stopped so it \
+     cannot slow the wards. Narrow the date range and try again.";
+
 /// Map a Postgres SQLSTATE to the HTTP status it deserves.
 ///
 /// Constraint violations and malformed input are the *client's* fault, so they
@@ -209,6 +213,9 @@ fn db_error_status(code: Option<&str>) -> (StatusCode, &'static str) {
         // cast raises it for an unknown value (`?status=bogus`), which used to
         // 500. Numeric overflow and unparseable dates are the same class.
         Some("22P02" | "22003" | "22007" | "22008") => (StatusCode::BAD_REQUEST, "bad request"),
+        // Query cancelled — a bounded read (report_runner) ran past its
+        // statement timeout. A refusal to wait, never an empty result.
+        Some("57014") => (StatusCode::SERVICE_UNAVAILABLE, "report_timeout"),
         _ => (StatusCode::INTERNAL_SERVER_ERROR, "database error"),
     }
 }
@@ -254,6 +261,9 @@ fn extract_db_detail(db_err: &medbrains_db::pool::DbError) -> String {
                 Some("22P02" | "22003" | "22007" | "22008")
             ) {
                 return format!("Invalid value: {msg}");
+            }
+            if e.code().as_deref() == Some("57014") {
+                return REPORT_TIMEOUT_MESSAGE.to_owned();
             }
             // Other database errors — return the PG message directly
             msg.to_owned()
@@ -421,6 +431,14 @@ mod tests {
             StatusCode::INTERNAL_SERVER_ERROR
         );
         assert_eq!(db_error_status(None).0, StatusCode::INTERNAL_SERVER_ERROR);
+    }
+
+    #[test]
+    fn a_statement_timeout_is_a_named_503_not_a_500() {
+        assert_eq!(
+            db_error_status(Some("57014")),
+            (StatusCode::SERVICE_UNAVAILABLE, "report_timeout")
+        );
     }
 }
 
