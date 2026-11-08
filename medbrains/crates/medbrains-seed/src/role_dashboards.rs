@@ -1286,7 +1286,7 @@ const ADMIN_WIDGETS: &[WidgetDef] = &[
         h: 2,
         perm: "analytics.management.view",
         sort: 27,
-        refresh_ms: Some(300000),
+        refresh_ms: Some(300_000),
     },
 ];
 

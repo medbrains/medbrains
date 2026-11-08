@@ -23,6 +23,7 @@ import { RANGE_OPTIONS } from "./paperless/labels";
 import { PaperCard } from "./paperless/paper-card";
 import { TrendCard } from "./paperless/trend-card";
 
+/** The paperless meter screen: shares, trend, departments and paper, for `analytics.paperless.view`. */
 export function PaperlessPage() {
   useRequirePermission(P.ANALYTICS.PAPERLESS.VIEW);
   const canView = useHasPermission(P.ANALYTICS.PAPERLESS.VIEW);

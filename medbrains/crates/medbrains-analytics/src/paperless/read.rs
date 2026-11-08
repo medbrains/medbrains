@@ -112,7 +112,7 @@ fn range(q: &ReportQuery, today: NaiveDate) -> Result<(NaiveDate, NaiveDate), Ap
     let days = q.days.unwrap_or(DEFAULT_DAYS).clamp(1, MAX_DAYS);
     let from = q
         .from
-        .unwrap_or(to - Duration::days(days - 1))
+        .unwrap_or_else(|| to - Duration::days(days - 1))
         .max(to - Duration::days(MAX_DAYS - 1));
     if from > to {
         return Err(AppError::BadRequest(
@@ -150,7 +150,7 @@ pub async fn report(
     let types = by_type(&mut tx, scope).await?;
     let skipped = skipped_types(&mut tx).await?;
     tx.commit().await?;
-    Ok(assemble(Parts {
+    Ok(assemble(&Parts {
         from,
         to,
         mid,
@@ -184,6 +184,9 @@ async fn by_day(tx: &mut Tx, s: Scope) -> Result<Vec<(NaiveDate, Sums)>, AppErro
         .collect())
 }
 
+/// A department row as read: `(id, name, later half?, created, signed, scanned, printed)`.
+type DeptRow = (Option<Uuid>, String, Option<bool>, i64, i64, i64, i64);
+
 /// One department's sums in one half: `(id, name, later half?, sums)`.
 type DeptSums = (Option<Uuid>, String, Option<bool>, Sums);
 
@@ -191,7 +194,7 @@ type DeptSums = (Option<Uuid>, String, Option<bool>, Sums);
 /// when it made no documents, a retired one only while it has documents in
 /// the range, and "no department" when anything lacks one.
 async fn by_department(tx: &mut Tx, s: Scope, mid: NaiveDate) -> Result<Vec<DeptSums>, AppError> {
-    let rows: Vec<(Option<Uuid>, String, Option<bool>, i64, i64, i64, i64)> = sqlx::query_as(
+    let rows: Vec<DeptRow> = sqlx::query_as(
         "WITH agg AS ( \
            SELECT department_id, day >= $4 AS later, SUM(created)::int8 AS c, \
                   SUM(signed)::int8 AS s, SUM(scanned)::int8 AS sc, SUM(printed)::int8 AS p \
@@ -258,14 +261,14 @@ struct Parts {
 }
 
 /// The report from the rows read.
-fn assemble(p: Parts) -> PaperlessReport {
-    let series = trend(&p);
+fn assemble(p: &Parts) -> PaperlessReport {
+    let series = trend(p);
     let (mut before, mut after) = (Counts::default(), Counts::default());
     for (day, sums) in &p.days {
         if *day >= p.mid {
-            after += counts(*sums)
+            after += counts(*sums);
         } else {
-            before += counts(*sums)
+            before += counts(*sums);
         }
     }
     let mut totals = before;

@@ -1,7 +1,9 @@
-//! Daily paperless-meter pass: every hospital's last week of clinical
-//! documents, signatures and paper recounted into `paperless_daily`
-//! (`medbrains_analytics::paperless`). Idempotent, so the pass that runs at
-//! every start as well as every day changes nothing it has already counted.
+//! Daily paperless-meter pass.
+//!
+//! Every hospital's last week of clinical documents, signatures and paper is
+//! recounted into `paperless_daily` (`medbrains_analytics::paperless`).
+//! Idempotent, so the pass that runs at every start as well as every day
+//! changes nothing it has already counted.
 
 use std::time::Duration;
 

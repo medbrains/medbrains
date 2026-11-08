@@ -11,6 +11,7 @@
 //! admission's. A table with none counts under "no department".
 
 use std::collections::{HashMap, HashSet};
+use std::fmt::Write as _;
 
 use medbrains_documents::signable::SignableType;
 
@@ -111,9 +112,10 @@ fn department_of(
         terms.push("r.department_id");
     }
     if let Some((table, cols)) = parent.filter(|(t, _)| is_identifier(t)) {
-        joins.push_str(&format!(
+        let _ = write!(
+            joins,
             " LEFT JOIN {table} o ON o.tenant_id = r.tenant_id AND o.id = r.order_id"
-        ));
+        );
         if cols.contains("department_id") {
             terms.push("o.department_id");
         }
@@ -125,10 +127,11 @@ fn department_of(
         visit.insert(0, "r.encounter_id");
     }
     if !visit.is_empty() {
-        joins.push_str(&format!(
+        let _ = write!(
+            joins,
             " LEFT JOIN encounters e ON e.tenant_id = r.tenant_id AND e.id = COALESCE({}, NULL::uuid)",
             visit.join(", ")
-        ));
+        );
         terms.push("e.department_id");
     }
     if own.contains("admission_id") {
