@@ -2246,6 +2246,10 @@ export const P = {
     SHIFT_NOTES_EDIT: "nurse.shift_notes.edit",
     SHIFT_NOTES_VIEW: "nurse.shift_notes.view",
     SHIFT_VIEW: "nurse.shift.view",
+    SIGNATURE: {
+      SIGN: "nurse.signature.sign",
+    },
+    SIGNATURE_SIGN: "nurse.signature.sign",
     TRANSFUSION: {
       ADMINISTER: "nurse.transfusion.administer",
       VIEW: "nurse.transfusion.view",

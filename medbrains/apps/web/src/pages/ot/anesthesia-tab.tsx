@@ -1,7 +1,7 @@
 // IPD AnesthesiaTab — split from ot.tsx (pure move).
 
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Select, Stack, Text, Textarea, TextInput } from "@mantine/core";
+import { Group, Select, Stack, Text, Textarea, TextInput } from "@mantine/core";
 import type { OtAnesthesiaRecordFormInput } from "@medbrains/schemas";
 import { otAnesthesiaRecordFormSchema } from "@medbrains/schemas";
 import { useHasPermission } from "@medbrains/stores";
@@ -9,6 +9,7 @@ import type { OtAnesthesiaRecord } from "@medbrains/types";
 import { P } from "@medbrains/types";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Controller, useForm } from "react-hook-form";
+import { SignRecordButton } from "@/components/Signatures/SignRecordButton";
 import { Button, toast } from "@/components/ui";
 import {
   DEFAULT_OT_ANESTHESIA_RECORD_FORM_VALUES,
@@ -63,7 +64,15 @@ export function AnesthesiaTab({ bookingId }: { bookingId: string }) {
   if (record) {
     return (
       <Stack>
-        <Text fw={600}>Anesthesia Record</Text>
+        <Group justify="space-between">
+          <Text fw={600}>Anesthesia Record</Text>
+          <SignRecordButton
+            recordType="anaesthesia_record"
+            authorId={record.anesthetist_id}
+            recordId={record.id}
+            summary={record.anesthesia_type.replace("_", " ")}
+          />
+        </Group>
         <Text size="sm">Type: {record.anesthesia_type.replace("_", " ")}</Text>
         {record.asa_class && (
           <Text size="sm">ASA Class: {record.asa_class.replace("_", " ").toUpperCase()}</Text>

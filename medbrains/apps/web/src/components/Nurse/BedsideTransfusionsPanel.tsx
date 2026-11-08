@@ -8,6 +8,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { DataTable } from "@/components";
 import { PrintDocumentIconMenu } from "@/components/Print/PrintDocumentIconMenu";
+import { SignRecordButton } from "@/components/Signatures/SignRecordButton";
 import { Alert, Badge, Button, Modal, NumberField, toast } from "@/components/ui";
 import { TransfusionMonitorDrawer } from "@/pages/blood-bank/TransfusionMonitorDrawer";
 import { ipdService } from "@/services/ipd.service";
@@ -100,6 +101,12 @@ export function BedsideTransfusionsPanel({ admissionId }: Props) {
       label: "Actions",
       render: (t: BedsideTransfusion) => (
         <Group gap={4} wrap="nowrap">
+          <SignRecordButton
+            recordType="bedside_transfusion"
+            authorId={t.started_by_id}
+            recordId={t.id}
+            summary={t.bag_number ?? "Transfusion"}
+          />
           <Button
             tone="ghost"
             size="compact-xs"

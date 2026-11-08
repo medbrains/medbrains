@@ -8,6 +8,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Controller, useForm } from "react-hook-form";
 import { z } from "zod";
 import { DocumentActions } from "@/components/DocumentActions";
+import { SignRecordButton } from "@/components/Signatures/SignRecordButton";
 import { Alert, Badge, Button, Card, TextArea, toast } from "@/components/ui";
 import { emergencyService } from "@/services/emergency.service";
 
@@ -126,6 +127,12 @@ export function ErDischargeSummaryPanel({ visitId }: { visitId: string }) {
                   {finalized ? "Finalized" : "Draft"}
                 </Badge>
               )}
+              <SignRecordButton
+                recordType="er_discharge_summary"
+                authorId={summary?.verified_by ?? summary?.prepared_by}
+                recordId={summary?.id}
+                summary="Emergency discharge summary"
+              />
             </Group>
             {summary && (
               <DocumentActions
