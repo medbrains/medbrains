@@ -99,9 +99,12 @@ struct Kinds {
 }
 
 /// The rows' kind filter in SQL, bound as `$n` (failed) and `$n+1` (unbilled).
+/// Charge rows only: the insurance kinds on the same table are
+/// `revenue_alerts`', under their own permissions.
 fn kind_filter(n: u8) -> String {
     format!(
-        "(${n} OR a.reason <> 'unbilled_order') AND (${} OR a.reason = 'unbilled_order')",
+        "a.kind = 'charge_not_posted' \
+         AND (${n} OR a.reason <> 'unbilled_order') AND (${} OR a.reason = 'unbilled_order')",
         n + 1
     )
 }

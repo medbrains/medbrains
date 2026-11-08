@@ -1644,6 +1644,12 @@ export const P = {
       VIEW: "insurance.dashboard.view",
     },
     DASHBOARD_VIEW: "insurance.dashboard.view",
+    ENHANCEMENT: {
+      REQUEST: "insurance.enhancement.request",
+      VIEW: "insurance.enhancement.view",
+    },
+    ENHANCEMENT_REQUEST: "insurance.enhancement.request",
+    ENHANCEMENT_VIEW: "insurance.enhancement.view",
     NHCX: {
       CANCEL: "insurance.nhcx.cancel",
       CONFIGURE: "insurance.nhcx.configure",
@@ -1668,6 +1674,14 @@ export const P = {
     PRIOR_AUTH_LIST: "insurance.prior_auth.list",
     PRIOR_AUTH_SUBMIT: "insurance.prior_auth.submit",
     PRIOR_AUTH_UPDATE: "insurance.prior_auth.update",
+    ROOM_ELIGIBILITY: {
+      CONFIGURE: "insurance.room_eligibility.configure",
+      RESOLVE: "insurance.room_eligibility.resolve",
+      VIEW: "insurance.room_eligibility.view",
+    },
+    ROOM_ELIGIBILITY_CONFIGURE: "insurance.room_eligibility.configure",
+    ROOM_ELIGIBILITY_RESOLVE: "insurance.room_eligibility.resolve",
+    ROOM_ELIGIBILITY_VIEW: "insurance.room_eligibility.view",
     RULES: {
       LIST: "insurance.rules.list",
       MANAGE: "insurance.rules.manage",

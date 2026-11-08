@@ -212,6 +212,12 @@ export const billingService = {
   scanUnbilledOrders: () => api.scanUnbilledOrders(),
   dismissChargeAttention: (...args: Parameters<typeof api.dismissChargeAttention>) =>
     api.dismissChargeAttention(...args),
+  listRevenueAlerts: (...args: Parameters<typeof api.listRevenueAlerts>) =>
+    api.listRevenueAlerts(...args),
+  requestPreauthEnhancement: (...args: Parameters<typeof api.requestPreauthEnhancement>) =>
+    api.requestPreauthEnhancement(...args),
+  recordRoomConsent: (...args: Parameters<typeof api.recordRoomConsent>) =>
+    api.recordRoomConsent(...args),
   backfillClaimSettlements: (...args: Parameters<typeof api.backfillClaimSettlements>) =>
     api.backfillClaimSettlements(...args),
 

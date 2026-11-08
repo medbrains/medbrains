@@ -1,0 +1,49 @@
+// Words and numbers for the insurance desk's alerts: pre-auths nearly used up
+// and rooms above the policy limit.
+
+import type { RevenueAlert } from "@medbrains/types";
+
+const INR = new Intl.NumberFormat("en-IN", {
+  style: "currency",
+  currency: "INR",
+  maximumFractionDigits: 0,
+});
+
+/** "₹1,00,000", or an em dash for a missing figure. */
+export function inr(value: unknown): string {
+  const n = Number(value);
+  return value === null || value === undefined || !Number.isFinite(n) ? "—" : INR.format(n);
+}
+
+/** A number from an evidence field, or null. */
+export function evidenceNumber(row: RevenueAlert, key: string): number | null {
+  const raw = row.evidence?.[key];
+  const n = Number(raw);
+  return raw === null || raw === undefined || !Number.isFinite(n) ? null : n;
+}
+
+/** Share of the approval the running bill has used, as a whole percent. */
+export function percentUsed(row: RevenueAlert): number | null {
+  const approved = evidenceNumber(row, "approved_amount");
+  const running = evidenceNumber(row, "running_bill");
+  if (approved === null || running === null || approved <= 0) return null;
+  return Math.round((running / approved) * 100);
+}
+
+/** What the insurer may cut from `bill` of room-linked charges at `ratio`. */
+export function estimateDeduction(bill: number, ratio: number): number {
+  return Math.round(bill * (1 - ratio) * 100) / 100;
+}
+
+/** The row's state in words; the `_unknown` reasons say the check failed. */
+export const REASON_LABEL: Record<RevenueAlert["reason"], string> = {
+  preauth_used_up: "80% of approval used",
+  preauth_approval_unknown: "Approval amount unknown",
+  room_over_limit: "Room above policy limit",
+  room_eligibility_unknown: "Could not check room",
+};
+
+/** Whether the row is a fault rather than a finding. */
+export function isUnknown(row: RevenueAlert): boolean {
+  return row.reason.endsWith("_unknown");
+}

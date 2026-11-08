@@ -8,6 +8,7 @@ import type {
   PharmacyReturnStatusType,
 } from "./medication-timing";
 import type { MedicationSafetyFinding } from "./pharmacy-phase3";
+import type { RoomConsentInput } from "./revenue-alerts";
 
 // ── Pharmacy Phase 2 ──────────────────────────────────────
 
@@ -962,6 +963,8 @@ export interface CreateAdmissionRequest {
   admission_height_cm?: number;
   expected_discharge_date?: string;
   ward_id?: string;
+  /** Consent for a room above the policy's room rent limit. */
+  room_consent?: RoomConsentInput;
 }
 
 export interface CreateAdmissionResponse {
@@ -984,6 +987,7 @@ export interface UpdateAdmissionRequest {
 export interface TransferBedRequest {
   bed_id: string;
   notes?: string;
+  room_consent?: RoomConsentInput;
 }
 
 export interface DischargeRequest {

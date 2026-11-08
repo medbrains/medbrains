@@ -302,6 +302,7 @@ export * from "./psychiatry";
 export * from "./queues";
 export * from "./regulatory-compliance";
 export * from "./research-exports";
+export * from "./revenue-alerts";
 export * from "./schema-registry";
 export * from "./screen-layout-zone";
 export * from "./screen-system";

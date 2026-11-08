@@ -162,6 +162,10 @@ export const ipdService = {
   generateDischargeSummary: (...args: Parameters<typeof api.generateDischargeSummary>) =>
     api.generateDischargeSummary(...args),
   bedTransfer: (...args: Parameters<typeof api.bedTransfer>) => api.bedTransfer(...args),
+  checkRoomEligibility: (...args: Parameters<typeof api.checkRoomEligibility>) =>
+    api.checkRoomEligibility(...args),
+  setRoomRentLimit: (...args: Parameters<typeof api.setRoomRentLimit>) =>
+    api.setRoomRentLimit(...args),
   expectedDischarges: (...args: Parameters<typeof api.expectedDischarges>) =>
     api.expectedDischarges(...args),
   listAnesthesiaComplications: (...args: Parameters<typeof api.listAnesthesiaComplications>) =>
