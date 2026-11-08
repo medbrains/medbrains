@@ -1,13 +1,10 @@
 //! Secret names a hospital may choose.
 //!
 //! Some settings let a hospital's administrator point at a secret instead of
-//! typing it in (the SMTP password, an AI provider key). The resolver behind
-//! them is not tenant-scoped: the `env` backend maps any name to a process
-//! environment variable, and the `file` and `aws` backends read whatever they
-//! are given. Letting a tenant hand the resolver a name of its own choosing
-//! therefore lets it name the platform's secrets.
+//! typing it in (the SMTP password, an AI provider key). Secret references a
+//! tenant supplies are restricted to that tenant's own namespace.
 //!
-//! So a hospital never supplies a resolver key. It supplies a **short name**,
+//! A hospital never supplies a resolver key. It supplies a **short name**,
 //! `[a-z0-9-]{1,40}`, and the server builds the key inside that hospital's own
 //! namespace: `medbrains/<env>/<tenant>/<purpose>-<name>`, the same shape as
 //! the payment keys (`medbrains/<env>/<tenant>/razorpay-key-id`). A platform
@@ -150,8 +147,8 @@ mod tests {
     }
 
     const REFUSED: [&str; 10] = [
-        "JWT_PRIVATE_KEY_PEM",
-        "DATABASE_URL",
+        "PLATFORM_SECRET_NAME",
+        "PLATFORM_SETTING_NAME",
         "SMTP_PASSWORD",
         "../x",
         "medbrains/prod/00000000-0000-0000-0000-000000000000/smtp-x",
@@ -191,7 +188,7 @@ mod tests {
     #[test]
     fn the_refusal_message_never_repeats_the_name() {
         let msg = TenantSecretError::Refused(InvalidSecretName).to_string();
-        assert!(!msg.contains("JWT"));
+        assert!(!msg.contains("PLATFORM"));
         assert!(msg.contains("lowercase letters"));
     }
 

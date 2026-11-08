@@ -24,7 +24,7 @@
 //! time — outbox rows carry keys, never document bytes.
 
 use async_trait::async_trait;
-use medbrains_core::secrets::{TenantSecretError, resolve_tenant_secret};
+use medbrains_core::secrets::{SecretError, TenantSecretError, resolve_tenant_secret};
 use serde_json::{Value, json};
 
 use crate::handler::{Handler, HandlerCtx, HandlerError};
@@ -165,7 +165,13 @@ async fn smtp_credentials(
                             .to_owned(),
                     ));
                 }
-                Err(TenantSecretError::Store(_)) => None,
+                Err(TenantSecretError::Store(SecretError::NotFound(_))) => None,
+                // An unreadable store is retried, never sent without a login.
+                Err(TenantSecretError::Store(e)) => {
+                    return Err(HandlerError::Transient(format!(
+                        "smtp: the password secret could not be read: {e}"
+                    )));
+                }
             }
         }
         None if to_platform => ctx.secret_resolver.get("SMTP_PASSWORD").await.ok(),
@@ -179,6 +185,12 @@ async fn smtp_credentials(
     Ok(username
         .filter(|u| !u.is_empty())
         .zip(password.filter(|p| !p.is_empty())))
+}
+
+/// Whether the dev-only `SMTP_INSECURE_TLS` flag must be refused in `env`:
+/// a production server never accepts an unverified mail server certificate.
+fn insecure_tls_refused(env: &str) -> bool {
+    matches!(env.trim().to_ascii_lowercase().as_str(), "prod" | "production")
 }
 
 #[derive(Debug)]
@@ -496,6 +508,11 @@ async fn send_via_smtp(
     // SMTP_INSECURE_TLS is set, accept the cert — same dev-only flag style as
     // STALWART_INSECURE_TLS. Never set this in production.
     if std::env::var("SMTP_INSECURE_TLS").is_ok() && tls_mode != "none" {
+        if insecure_tls_refused(&medbrains_core::secrets::tenant_name::deploy_env()) {
+            return Err(HandlerError::Permanent(
+                "smtp: SMTP_INSECURE_TLS is set on a production server; unset it".to_owned(),
+            ));
+        }
         use lettre::transport::smtp::client::{Tls, TlsParameters};
         let params = TlsParameters::builder(host.clone())
             .dangerous_accept_invalid_certs(true)
@@ -545,5 +562,18 @@ async fn send_via_smtp(
                 Err(HandlerError::Transient(format!("smtp: {error}")))
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::insecure_tls_refused;
+
+    #[test]
+    fn the_insecure_tls_flag_is_refused_only_in_production() {
+        assert!(insecure_tls_refused("prod"));
+        assert!(insecure_tls_refused("Production"));
+        assert!(!insecure_tls_refused("dev"));
+        assert!(!insecure_tls_refused("staging"));
     }
 }

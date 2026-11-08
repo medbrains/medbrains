@@ -5,7 +5,7 @@
 //! Scenarios, per site:
 //! - a legal short name is accepted and resolves to
 //!   `medbrains/<env>/<tenant>/<purpose>-<name>`;
-//! - `JWT_PRIVATE_KEY_PEM`, `DATABASE_URL`, `../x` and a full path are refused
+//! - a platform secret name, `../x` and a full path are refused
 //!   when saved and when resolved;
 //! - a legacy platform name already stored is refused when resolved and is
 //!   never looked up, so nothing is sent;
@@ -24,8 +24,8 @@ use crate::common;
 
 /// Names that must never be resolved for a hospital.
 const REFUSED: [&str; 5] = [
-    "JWT_PRIVATE_KEY_PEM",
-    "DATABASE_URL",
+    "PLATFORM_SECRET_NAME",
+    "PLATFORM_SETTING_NAME",
     "../x",
     "medbrains/dev/00000000-0000-0000-0000-000000000000/smtp-x",
     "SMTP_PASSWORD",
@@ -36,12 +36,17 @@ const REFUSED: [&str; 5] = [
 struct Recording {
     asked: Mutex<Vec<String>>,
     values: HashMap<String, String>,
+    /// Keys under `medbrains/` answer with a store fault instead.
+    store_down: bool,
 }
 
 #[async_trait::async_trait]
 impl SecretResolver for Recording {
     async fn get(&self, key: &str) -> Result<String, SecretError> {
         self.asked.lock().expect("lock").push(key.to_owned());
+        if self.store_down && key.starts_with("medbrains/") {
+            return Err(SecretError::Backend("store unavailable".to_owned()));
+        }
         self.values
             .get(key)
             .cloned()
@@ -62,7 +67,10 @@ async fn new_tenant(app: &common::TestApp) -> Uuid {
         "INSERT INTO tenants (code, name, hospital_type) \
          VALUES ($1, 'Secret Names Hospital', 'multi_specialty') RETURNING id",
     )
-    .bind(format!("SN{}", Uuid::new_v4().simple().to_string()[..10].to_uppercase()))
+    .bind(format!(
+        "SN{}",
+        Uuid::new_v4().simple().to_string()[..10].to_uppercase()
+    ))
     .fetch_one(&app.db)
     .await
     .expect("tenant")
@@ -132,9 +140,7 @@ async fn a_stored_platform_name_is_never_resolved_for_smtp() {
         );
         let asked = resolver.asked();
         assert!(
-            asked
-                .iter()
-                .all(|k| k != name && !k.contains("JWT") && !k.contains("DATABASE")),
+            asked.iter().all(|k| k != name && !k.contains("PLATFORM_")),
             "{name} was looked up: {asked:?}"
         );
         assert!(!asked.iter().any(|k| k == "SMTP_PASSWORD"), "{asked:?}");
@@ -174,6 +180,22 @@ async fn the_platform_smtp_password_goes_only_to_the_platform_host() {
     let asked = resolver.asked();
     assert!(!asked.iter().any(|k| k == "SMTP_PASSWORD"), "{asked:?}");
     assert!(!asked.iter().any(|k| k == "SMTP_USERNAME"), "{asked:?}");
+}
+
+#[tokio::test]
+async fn an_unreadable_secret_store_is_retried_not_sent_without_a_login() {
+    let app = common::spawn_app().await;
+    let tenant = new_tenant(&app).await;
+    store_config(&app, tenant, "email", &smtp_config(Some("mailbox"))).await;
+    let resolver = Arc::new(Recording {
+        store_down: true,
+        ..Recording::default()
+    });
+    let got = send(&ctx(&app, tenant, resolver)).await;
+    assert!(
+        matches!(&got, Err(HandlerError::Transient(m)) if m.contains("could not be read")),
+        "{got:?}"
+    );
 }
 
 #[tokio::test]
@@ -313,7 +335,7 @@ async fn generic_writers_refuse_categories_with_their_own_endpoint() {
             .put(app.url("/api/setup/settings"))
             .header("x-csrf-token", &csrf)
             .json(&json!({ "category": category, "key": "config",
-                           "value": { "provider": "openrouter", "api_key_secret": "JWT_PRIVATE_KEY_PEM" } }))
+                           "value": { "provider": "openrouter", "api_key_secret": "PLATFORM_SECRET_NAME" } }))
             .send()
             .await
             .expect("put");
@@ -323,7 +345,7 @@ async fn generic_writers_refuse_categories_with_their_own_endpoint() {
             "bundle_version": 1, "exported_at": "2026-11-08T00:00:00Z", "document_templates": [],
             "settings": [
                 { "category": "regression_test", "key": "secret_names_import", "value": "x" },
-                { "category": category, "key": "config", "value": { "api_key_secret": "DATABASE_URL" } },
+                { "category": category, "key": "config", "value": { "api_key_secret": "PLATFORM_SETTING_NAME" } },
             ] } });
         let resp = app
             .client

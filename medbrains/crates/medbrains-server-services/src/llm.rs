@@ -131,10 +131,10 @@ pub async fn resolve_config(state: &AppState, tenant_id: &Uuid) -> Result<AiConf
 /// `ai.config.api_key_secret` resolves to `medbrains/<env>/<tenant>/ai-<name>`.
 pub const AI_SECRET_PURPOSE: &str = "ai";
 
-/// The hospital's own AI key, named by the short name it stored. A legacy
-/// stored name outside its namespace (an environment variable, a full path) is
-/// refused and logged before the resolver is asked, so a platform secret can
-/// never be sent to a provider as this hospital's key.
+/// The hospital's own AI key, named by the short name it stored.
+///
+/// A stored name outside the hospital's namespace is refused and logged
+/// before the resolver is asked.
 ///
 /// # Errors
 /// `BadRequest` when the name is refused or the secret cannot be read.
