@@ -355,4 +355,9 @@ jobs:
         run: |
           pre=()
           case "$TAG" in *-alpha*|*-beta*|*-rc*) pre=(--prerelease) ;; esac
-          gh release create "$TAG" dist/* --repo "$GITHUB_REPOSITORY" --draft --title "$TAG" --notes-file NOTES.md "${pre[@]}"
+          # A re-run of the same tag replaces the files instead of failing on the existing draft.
+          if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release upload "$TAG" dist/* --repo "$GITHUB_REPOSITORY" --clobber
+          else
+            gh release create "$TAG" dist/* --repo "$GITHUB_REPOSITORY" --draft --title "$TAG" --notes-file NOTES.md "${pre[@]}"
+          fi
