@@ -10,10 +10,59 @@ GitHub release notes, so write each section for a hospital IT team.
 
 ## [Unreleased]
 
-## [1.0.0]
+## [3.33.0] - TBD
 
 The first versioned release. Everything before it was built on `main`
-without version numbers; this section summarises what 1.0.0 contains.
+without version numbers; this section summarises what 3.33.0 contains.
+Why 3.33.0: the first versioned release.
+
+### Since the summary below was written
+
+PRs still open when this release was cut are not included.
+
+#### Security
+
+- Signing a clinical document needs a fresh step-up, and anyone holding a
+  signed print can check it by its QR code (#5241).
+- Board updates reach only the sockets of the hospital they belong to, and a
+  deactivated account or revoked device loses its live notification stream (#5261).
+- Secret references in a hospital's settings are restricted to that
+  hospital's own namespace; affected settings are flagged for an
+  administrator to re-enter (#5264).
+- npm audit high findings in the web app's build tools cleared (#5256), and
+  web server dependency updates for four security advisories (#5240).
+- SSO sign-ins link to a local account only by a verified email (#5225).
+
+#### Clinical
+
+- Every clinical record type can be signed, by its registered author (#5259).
+- The lab receives its order, not the patient's whole visit (#5252).
+- A code-blue page is delivered, or the screen says plainly that it was not (#5245).
+- The next shift can find a returning patient and reprint the card (#5237).
+
+#### Billing and revenue
+
+- Orders done but never billed are found daily and queued for the billing desk (#5251).
+- Automatic charges a clinical action cannot post are queued for attention
+  instead of being lost (#5246).
+
+#### Operations
+
+- Switching off a core module also switches off its API, not only its menu (#5243).
+- The OS screen uses less memory: smaller WebKit cache and idle app views closed (#5247).
+- The OS data disk is encrypted, with every key accounted for (#5230), and
+  extra machines join the main one by approval (#5226).
+- Faster web loading: charts, the rich-text editor and language packs load
+  only when needed (#5229, #5231).
+
+### Upgrade notes
+
+- New database migrations apply automatically when the server starts; take a
+  backup first.
+- After upgrading, check notifications: a hospital whose email or AI settings
+  name a secret in an old format is asked to re-enter it (#5264).
+- Hospitals that bill a module at the counter can leave its automatic charges
+  off; the unbilled-orders check skips those modules (#5251).
 
 ### The hospital system
 
@@ -58,7 +107,8 @@ without version numbers; this section summarises what 1.0.0 contains.
 - Security and health intelligence: the install is watched continuously
   (host checks, advisories) and notifiable counts are shown against the
   hospital's usual.
-- Backups sealed to an offline key, with restore drills that prove them.
+- Backups can be sealed to an offline key; restore drills prove them.
+  Sealing must be configured per install.
 - Crash reports to a self-hosted Rustrak with patient data scrubbed out.
 - Dependency audits (`cargo audit`, `cargo deny`, `pnpm audit`) as CI gates,
   with every accepted risk carrying a reason and an expiry.

@@ -301,7 +301,7 @@ doctor: ## Find dev traps (root-owned caches, disk, stale master, busy cargo, .e
 	@bash scripts/doctor.sh
 
 .PHONY: release
-release: ## Check a release is ready (VERSION=1.0.0) and print the tag commands; never tags or pushes
+release: ## Check a release is ready (VERSION=3.33.0) and print the tag commands; never tags or pushes
 	@bash scripts/release.sh "$(VERSION)"
 
 gate: ## Strict pre-merge gate: biome, packages+typecheck, check-all, targeted clippy+tests (CRATES=, TESTS=)

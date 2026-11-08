@@ -5717,7 +5717,7 @@ dependencies = [
 
 [[package]]
 name = "medbrains-abdm"
-version = "1.0.0"
+version = "3.33.0"
 dependencies = [
  "chrono",
  "reqwest 0.13.5",
@@ -5729,7 +5729,7 @@ dependencies = [
 
 [[package]]
 name = "medbrains-adapter-sdk"
-version = "1.0.0"
+version = "3.33.0"
 dependencies = [
  "chrono",
  "serde",
@@ -5756,7 +5756,7 @@ dependencies = [
 
 [[package]]
 name = "medbrains-agent"
-version = "1.0.0"
+version = "3.33.0"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -6209,7 +6209,7 @@ dependencies = [
 
 [[package]]
 name = "medbrains-bridge"
-version = "1.0.0"
+version = "3.33.0"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -6329,7 +6329,7 @@ dependencies = [
 
 [[package]]
 name = "medbrains-clinical-core"
-version = "1.0.0"
+version = "3.33.0"
 dependencies = [
  "serde",
  "serde_json",
@@ -6491,7 +6491,7 @@ dependencies = [
 
 [[package]]
 name = "medbrains-core"
-version = "1.0.0"
+version = "3.33.0"
 dependencies = [
  "async-trait",
  "chrono",
@@ -6583,7 +6583,7 @@ dependencies = [
 
 [[package]]
 name = "medbrains-db"
-version = "1.0.0"
+version = "3.33.0"
 dependencies = [
  "chrono",
  "hex",
@@ -6794,7 +6794,7 @@ dependencies = [
 
 [[package]]
 name = "medbrains-edge"
-version = "1.0.0"
+version = "3.33.0"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -6819,7 +6819,7 @@ dependencies = [
 
 [[package]]
 name = "medbrains-edge-app"
-version = "1.0.0"
+version = "3.33.0"
 dependencies = [
  "anyhow",
  "clap",
@@ -6843,7 +6843,7 @@ dependencies = [
 
 [[package]]
 name = "medbrains-edge-rn"
-version = "1.0.0"
+version = "3.33.0"
 dependencies = [
  "getrandom 0.4.3",
  "hex",
@@ -6947,7 +6947,7 @@ dependencies = [
 
 [[package]]
 name = "medbrains-fhir-api"
-version = "1.0.0"
+version = "3.33.0"
 dependencies = [
  "axum",
  "chrono",
@@ -7018,7 +7018,7 @@ dependencies = [
 
 [[package]]
 name = "medbrains-health-services"
-version = "1.0.0"
+version = "3.33.0"
 dependencies = [
  "medbrains-authz-gate",
  "medbrains-kernel",
@@ -7086,7 +7086,7 @@ dependencies = [
 
 [[package]]
 name = "medbrains-hrms-gateway"
-version = "1.0.0"
+version = "3.33.0"
 dependencies = [
  "axum",
  "chrono",
@@ -7198,7 +7198,7 @@ dependencies = [
 
 [[package]]
 name = "medbrains-integration-hub"
-version = "1.0.0"
+version = "3.33.0"
 dependencies = [
  "serde",
  "serde_json",
@@ -7288,7 +7288,7 @@ dependencies = [
 
 [[package]]
 name = "medbrains-kernel"
-version = "1.0.0"
+version = "3.33.0"
 dependencies = [
  "chrono",
  "medbrains-authz",
@@ -7375,7 +7375,7 @@ dependencies = [
 
 [[package]]
 name = "medbrains-loadtest"
-version = "1.0.0"
+version = "3.33.0"
 dependencies = [
  "chrono",
  "goose",
@@ -7626,7 +7626,7 @@ dependencies = [
 
 [[package]]
 name = "medbrains-offline-core"
-version = "1.0.0"
+version = "3.33.0"
 dependencies = [
  "chrono",
  "ed25519-dalek",
@@ -7736,7 +7736,7 @@ dependencies = [
 
 [[package]]
 name = "medbrains-os-setup"
-version = "1.0.0"
+version = "3.33.0"
 dependencies = [
  "argon2",
  "rustix",
@@ -7745,7 +7745,7 @@ dependencies = [
 
 [[package]]
 name = "medbrains-os-test"
-version = "1.0.0"
+version = "3.33.0"
 dependencies = [
  "serde_json",
 ]
@@ -8156,7 +8156,7 @@ dependencies = [
 
 [[package]]
 name = "medbrains-printing"
-version = "1.0.0"
+version = "3.33.0"
 dependencies = [
  "printers",
  "serde",
@@ -8166,7 +8166,7 @@ dependencies = [
 
 [[package]]
 name = "medbrains-proxy"
-version = "1.0.0"
+version = "3.33.0"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -8325,7 +8325,7 @@ dependencies = [
 
 [[package]]
 name = "medbrains-security-intel"
-version = "1.0.0"
+version = "3.33.0"
 dependencies = [
  "argon2",
  "async-trait",
@@ -8364,7 +8364,7 @@ dependencies = [
 
 [[package]]
 name = "medbrains-server"
-version = "1.0.0"
+version = "3.33.0"
 dependencies = [
  "anyhow",
  "argon2",

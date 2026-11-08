@@ -201,8 +201,11 @@ jobs:
           subject-path: |
             dist/medbrains-server-linux-x64.tar.gz
             dist/medbrains-web-dist.tar.gz
+      # Draft: the owner presses Publish. The image push and signing above are
+      # public at tag time regardless.
       - uses: softprops/action-gh-release@v2
         with:
           body_path: NOTES.md
           files: dist/*
+          draft: true
           prerelease: ${{ contains(github.ref, '-alpha') || contains(github.ref, '-beta') || contains(github.ref, '-rc') }}
