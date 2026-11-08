@@ -3,27 +3,8 @@
 //! Single source of truth for all permission codes, mirroring
 //! the frontend `P` object in `packages/types/src/permissions.ts`.
 //!
-//! TODO (next iteration): add a flat `PERMISSIONS: &[PermissionDef]`
-//! array alongside the hierarchical const modules so the access
-//! manifest can iterate them without macros. See
-//! `crates/medbrains-core/src/access/mod.rs` for the consolidated
-//! access table this should plug into.
-
-/// Permission count surfaced to the runtime manifest API. Hardcoded
-/// for now until the hierarchical `pub const` tree is consolidated
-/// into a flat array (see TODO above). Mirrors the count in
-/// `packages/types/src/permissions.ts::PERMISSIONS.length`.
-pub const PERMISSION_COUNT: usize = 848;
-
-/// Returns all known permission codes. Currently hardcoded — see
-/// TODO above. The CI check `make check-permissions-sync` (planned)
-/// will validate this against `packages/types/src/permissions.ts`.
-#[must_use]
-pub const fn all_codes() -> Vec<&'static str> {
-    // Placeholder — once the flat array lands this returns &[&str].
-    // For now the manifest API just exposes the count.
-    Vec::new()
-}
+//! The flat list of every code, for questions such as "every code in module
+//! `opd`", is `crate::access::catalogue::all_codes`, read from this file.
 
 pub mod dashboard {
     pub const VIEW: &str = "dashboard.view";
@@ -2586,6 +2567,35 @@ pub mod security {
         /// resolved, risk accepted) and opens an incident from it in the
         /// breach register (opening also needs security.incidents.create).
         pub const MANAGE: &str = "security.intel.manage";
+    }
+
+    /// MedBrains staff reaching this hospital's data. Under DPDP the hospital
+    /// is the Data Fiduciary and MedBrains its Data Processor, so every
+    /// support or engineering session needs the hospital's own, scoped,
+    /// time-limited grant (`docs/compliance/vendor-access.md`). No grant, no
+    /// access — whatever role the MedBrains account holds.
+    pub mod vendor_access {
+        /// See MedBrains access grants and their actions.
+        ///
+        /// Security → MedBrains access: every grant this hospital gave
+        /// MedBrains support or engineering staff, active and past, and every
+        /// request made under each one.
+        pub const VIEW: &str = "security.vendor_access.view";
+        /// Give MedBrains staff time-limited access.
+        ///
+        /// Names the MedBrains person, the reason, the modules (or
+        /// configuration only) and an expiry of at most 72 hours. Patient data
+        /// stays masked unless a second person approves unmasked access.
+        pub const GRANT: &str = "security.vendor_access.grant";
+        /// Approve unmasked MedBrains access.
+        ///
+        /// The second approval an unmasked grant needs before it opens. The
+        /// approver must be a different person from the one who asked for it.
+        pub const APPROVE_UNMASKED: &str = "security.vendor_access.approve_unmasked";
+        /// End MedBrains access at once.
+        ///
+        /// Revokes a grant; the MedBrains person's next request is refused.
+        pub const REVOKE: &str = "security.vendor_access.revoke";
     }
 }
 

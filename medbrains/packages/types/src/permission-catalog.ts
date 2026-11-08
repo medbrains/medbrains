@@ -19,7 +19,7 @@ export interface PermissionDef {
   module: string;
 }
 
-/** 1222 permissions, one per constant in the Rust source. */
+/** 1228 permissions, one per constant in the Rust source. */
 export const PERMISSIONS: PermissionDef[] = [
   // dashboard
   {
@@ -4340,6 +4340,30 @@ export const PERMISSIONS: PermissionDef[] = [
     description: "Takes ownership of a finding, changes its status (in progress, resolved, risk accepted) and opens an incident from it in the breach register (opening also needs security.incidents.create).",
     module: "security",
   },
+  {
+    code: "security.vendor_access.view",
+    label: "See MedBrains access grants and their actions",
+    description: "Security → MedBrains access: every grant this hospital gave MedBrains support or engineering staff, active and past, and every request made under each one.",
+    module: "security",
+  },
+  {
+    code: "security.vendor_access.grant",
+    label: "Give MedBrains staff time-limited access",
+    description: "Names the MedBrains person, the reason, the modules (or configuration only) and an expiry of at most 72 hours. Patient data stays masked unless a second person approves unmasked access.",
+    module: "security",
+  },
+  {
+    code: "security.vendor_access.approve_unmasked",
+    label: "Approve unmasked MedBrains access",
+    description: "The second approval an unmasked grant needs before it opens. The approver must be a different person from the one who asked for it.",
+    module: "security",
+  },
+  {
+    code: "security.vendor_access.revoke",
+    label: "End MedBrains access at once",
+    description: "Revokes a grant; the MedBrains person's next request is refused.",
+    module: "security",
+  },
   // integration
   {
     code: "integration.list",
@@ -8617,6 +8641,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.SECURITY.INCIDENTS.LIST,
       P.SECURITY.INTEL.VIEW,
       P.SECURITY.PATIENT_SAFETY.LIST,
+      P.SECURITY.VENDOR_ACCESS.VIEW,
       P.TERMINOLOGY.SNOMED.ANALYTICS,
     ],
   },
@@ -9240,6 +9265,8 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.KNOWLEDGE.CHANGE_SETS.LIST,
       P.NOTES.USE,
       P.QUALITY.INDICATORS.LIST,
+      P.SECURITY.VENDOR_ACCESS.APPROVE_UNMASKED,
+      P.SECURITY.VENDOR_ACCESS.VIEW,
     ],
   },
   it_security_officer: {
@@ -9253,6 +9280,10 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.SECURITY.INCIDENTS.UPDATE,
       P.SECURITY.INTEL.MANAGE,
       P.SECURITY.INTEL.VIEW,
+      P.SECURITY.VENDOR_ACCESS.APPROVE_UNMASKED,
+      P.SECURITY.VENDOR_ACCESS.GRANT,
+      P.SECURITY.VENDOR_ACCESS.REVOKE,
+      P.SECURITY.VENDOR_ACCESS.VIEW,
     ],
   },
   insurance_officer: {

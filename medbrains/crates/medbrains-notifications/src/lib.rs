@@ -401,6 +401,17 @@ pub async fn notifications_ws_handler(
         .or(q.token)
         .ok_or(AppError::Unauthorized)?;
     let claims = medbrains_server_core::middleware::auth::decode_and_validate(&token, &state.jwt_decoding_key)?;
+    // The socket skips the auth middleware, and with it the MedBrains-access
+    // gate. A stream cannot be masked or recorded per request, so a MedBrains
+    // account gets none, grant or no grant; a failed lookup is a 503.
+    let is_vendor =
+        medbrains_server_core::middleware::vendor_access::is_vendor_account(&state.db, &claims)
+            .await?;
+    if is_vendor {
+        return Err(AppError::ForbiddenReason(
+            "Live notifications are not available to MedBrains accounts.".to_owned(),
+        ));
+    }
     let topics = socket_topics(&claims);
     Ok(ws.on_upgrade(move |socket| handle_notifications_socket(socket, state, topics)))
 }

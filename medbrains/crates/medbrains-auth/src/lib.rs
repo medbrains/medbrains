@@ -1023,12 +1023,24 @@ pub async fn me(
         return Err(AppError::NotFound);
     };
 
-    let permissions = resolve_permissions(&state.db, row.tenant_id, row.id, &row.role).await?;
-
-    let field_access = field_access_to_wire(
-        field_access::resolve_restricted_fields(&state.db, row.tenant_id, row.id, &row.role)
-            .await?,
-    );
+    // A MedBrains account is what its grant makes it this request — the
+    // grant's codes and no bypass — not the role on its row, which would have
+    // the web app draw every screen and the server refuse each one.
+    let is_vendor = claims.role == medbrains_server_core::middleware::vendor_access::VENDOR_ROLE;
+    let (role, permissions, field_access) = if is_vendor {
+        (
+            claims.role.clone(),
+            claims.permissions.clone(),
+            HashMap::new(),
+        )
+    } else {
+        let permissions = resolve_permissions(&state.db, row.tenant_id, row.id, &row.role).await?;
+        let field_access = field_access_to_wire(
+            field_access::resolve_restricted_fields(&state.db, row.tenant_id, row.id, &row.role)
+                .await?,
+        );
+        (row.role.clone(), permissions, field_access)
+    };
 
     let must_change_password = fetch_must_change_password(&state.db, row.tenant_id, row.id).await?;
 
@@ -1049,7 +1061,7 @@ pub async fn me(
             username: row.username,
             email: row.email,
             full_name: row.full_name,
-            role: row.role,
+            role,
             must_change_password,
             email_verified,
         },

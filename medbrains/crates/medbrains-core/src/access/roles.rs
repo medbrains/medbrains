@@ -1307,6 +1307,8 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
         permissions: &[
             // Read-only: security intelligence findings and check health.
             permissions::security::intel::VIEW,
+            // Read-only: what MedBrains staff were allowed and what they did.
+            permissions::security::vendor_access::VIEW,
             // Auditors read knowledge changes and download their proofs.
             permissions::knowledge::change_sets::LIST,
             // Read-only: the privacy pack and its gaps.
@@ -2162,6 +2164,10 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
             permissions::flows::BUILD,
             permissions::knowledge::change_sets::LIST,
             permissions::knowledge::change_sets::APPROVE,
+            // The clinical head is the second approver before MedBrains staff
+            // see patient data unmasked (docs/compliance/vendor-access.md).
+            permissions::security::vendor_access::VIEW,
+            permissions::security::vendor_access::APPROVE_UNMASKED,
             // Sees who is in discharge from the control room.
             permissions::ipd::admissions::LIST,
             permissions::ipd::admissions::VIEW,
@@ -2179,6 +2185,13 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
             // Security → Intelligence (RFC-OSINT §6).
             permissions::security::intel::VIEW,
             permissions::security::intel::MANAGE,
+            // Gives, approves and ends MedBrains support access. Approving
+            // their own request is refused by the server, so one officer alone
+            // cannot open patient data unmasked.
+            permissions::security::vendor_access::VIEW,
+            permissions::security::vendor_access::GRANT,
+            permissions::security::vendor_access::APPROVE_UNMASKED,
+            permissions::security::vendor_access::REVOKE,
             // Opens and follows incidents raised from findings.
             permissions::security::incidents::LIST,
             permissions::security::incidents::CREATE,

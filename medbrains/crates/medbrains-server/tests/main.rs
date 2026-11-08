@@ -316,3 +316,4 @@ mod history_import_test;
 mod history_import_audit_skip_test;
 mod leave_calendar_window_test;
 mod leave_rules_test;
+mod vendor_access_test;

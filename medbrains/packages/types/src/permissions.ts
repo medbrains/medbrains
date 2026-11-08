@@ -3154,6 +3154,16 @@ export const P = {
     PATIENT_SAFETY_MANAGE: "security.patient_safety.manage",
     PATIENT_SAFETY_REPORT_EVENT: "security.patient_safety.report_event",
     PATIENT_SAFETY_VERIFY_MATCH: "security.patient_safety.verify_match",
+    VENDOR_ACCESS: {
+      APPROVE_UNMASKED: "security.vendor_access.approve_unmasked",
+      GRANT: "security.vendor_access.grant",
+      REVOKE: "security.vendor_access.revoke",
+      VIEW: "security.vendor_access.view",
+    },
+    VENDOR_ACCESS_APPROVE_UNMASKED: "security.vendor_access.approve_unmasked",
+    VENDOR_ACCESS_GRANT: "security.vendor_access.grant",
+    VENDOR_ACCESS_REVOKE: "security.vendor_access.revoke",
+    VENDOR_ACCESS_VIEW: "security.vendor_access.view",
   },
   SPECIALTY: {
     CATH_LAB: {
