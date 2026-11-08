@@ -12,6 +12,7 @@ import type { APIRequestContext, Page } from "@playwright/test";
 import { type AuthContext, api, E2E_BACKEND_URL, withStepUp } from "../helpers/api";
 import { admitToIpd, createPatientApi, freshWardBeds } from "../helpers/journey-steps";
 import { expectScreenAccessible } from "./support/a11y";
+import { dbExec, sqlId } from "./support/db";
 import {
   addByKeyboard,
   keepSheetsOpen,
@@ -695,12 +696,8 @@ test("a witness's password is guarded by their sign-in lockout", async ({ hospit
   expect(signInLocked.status(), "the witness's sign-in is locked").not.toBe(200);
 });
 
-test("discharge medicines on Schedule H dispense once the doctor has finalized the discharge summary", async ({
-  hospital,
-}) => {
-  test.setTimeout(180_000);
-  const drug = await addDrug(hospital.admin, { generic: "Amoxicillin", schedule: "H" });
-  await receiveBatch(hospital.admin, drug, { number: `DIS-${stamp()}`, expiry: inDays(300), quantity: 30 });
+/** An admitted patient with a discharge summary listing one Schedule H drug. */
+async function dischargeWithSummary(hospital: Hospital, listed: Drug) {
   const patient = await createPatientApi(hospital.admin);
   const [bed] = await freshWardBeds(hospital.admin, 1);
   const doctor = await hospital.colleague(await hospital.department("Rx Ward"));
@@ -715,26 +712,110 @@ test("discharge medicines on Schedule H dispense once the doctor has finalized t
     condition_at_discharge: "Stable",
     course_in_hospital: "IV antibiotics, switched to oral",
     follow_up_instructions: "Review in 1 week",
-    medications_on_discharge: [{ drug_name: drug.name, catalog_item_id: drug.id, quantity: 15 }],
+    medications_on_discharge: [{ drug_name: listed.name, catalog_item_id: listed.id, quantity: 4 }],
   });
-  // Discharge dispensing carries no prescription row: the summary is the source.
+  return { patientId: patient.id, summaryId: summary.id, finalize: () => api(hospital.admin, "POST", `${base}/finalize`, {}) };
+}
+
+/** Discharge medicines from `summaryId`, raised on the discharge desk's own route. */
+async function dischargeOrder(hospital: Hospital, rx: { patientId: string; summaryId: string }, drug: Drug) {
   const order = await api<{ order: { id: string } }>(hospital.admin, "POST", "/api/pharmacy/discharge-dispensing", {
-    patient_id: patient.id,
-    discharge_summary_id: summary.id,
-    items: [{ catalog_item_id: drug.id, drug_name: drug.name, quantity: 15, unit_price: 8 }],
+    patient_id: rx.patientId,
+    discharge_summary_id: rx.summaryId,
+    items: [{ catalog_item_id: drug.id, drug_name: drug.name, quantity: 2, unit_price: 8 }],
   });
-  const dispense = () =>
-    hospital.admin.request.put(`${E2E_BACKEND_URL}/api/pharmacy/orders/${order.order.id}/dispense`, {
-      headers: { Cookie: hospital.admin.cookieHeader, "x-csrf-token": hospital.admin.csrfToken },
-      data: { unpaid_override_reason: "Settled on the final IPD bill" },
-    });
+  return order.order.id;
+}
 
+/** Dispense an order as the administrator, unpaid with a reason. */
+function dispenseAsAdmin(hospital: Hospital, orderId: string) {
+  return hospital.admin.request.put(`${E2E_BACKEND_URL}/api/pharmacy/orders/${orderId}/dispense`, {
+    headers: { Cookie: hospital.admin.cookieHeader, "x-csrf-token": hospital.admin.csrfToken },
+    data: { unpaid_override_reason: "Settled on the final IPD bill" },
+  });
+}
+
+async function expectNoPrescription(hospital: Hospital, orderId: string, why: string) {
+  const refused = await dispenseAsAdmin(hospital, orderId);
+  expect(refused.status(), why).toBe(400);
+  expect(await refused.text()).toContain("no prescription for this patient");
+}
+
+test("discharge medicines on Schedule H dispense once the doctor has finalized the discharge summary", async ({
+  hospital,
+}) => {
+  test.setTimeout(180_000);
+  const drug = await addDrug(hospital.admin, { generic: "Amoxicillin", schedule: "H" });
+  await receiveBatch(hospital.admin, drug, { number: `DIS-${stamp()}`, expiry: inDays(300), quantity: 30 });
+  const rx = await dischargeWithSummary(hospital, drug);
+  const orderId = await dischargeOrder(hospital, rx, drug);
   // A draft summary is not a prescription.
-  const draft = await dispense();
-  expect(draft.status(), "a draft discharge summary does not back Schedule H").toBe(400);
-  expect(await draft.text()).toContain("signed discharge summary");
-
+  await expectNoPrescription(hospital, orderId, "a draft discharge summary does not back Schedule H");
   // Signed off by the doctor: the same order now dispenses.
-  await api(hospital.admin, "POST", `${base}/finalize`, {});
-  expect((await dispense()).status(), "a finalized discharge summary backs Schedule H").toBe(200);
+  await rx.finalize();
+  expect((await dispenseAsAdmin(hospital, orderId)).status(), "a finalized summary backs its medicines").toBe(200);
+});
+
+test("a discharge summary backs only its own patient's discharge medicines, listed on it, signed off by a doctor, within the week", async ({
+  hospital,
+}) => {
+  test.setTimeout(240_000);
+  const listed = await addDrug(hospital.admin, { generic: "Cefuroxime", schedule: "H" });
+  const unlisted = await addDrug(hospital.admin, { generic: "Linezolid", schedule: "H" });
+  for (const drug of [listed, unlisted]) {
+    await receiveBatch(hospital.admin, drug, { number: `DSC-${stamp()}`, expiry: inDays(300), quantity: 30 });
+  }
+  const rx = await dischargeWithSummary(hospital, listed);
+  await rx.finalize();
+
+  // 5. Another patient's summary cannot be attached to an order.
+  const stranger = await createPatientApi(hospital.admin);
+  const borrowed = await hospital.admin.request.post(`${E2E_BACKEND_URL}/api/pharmacy/orders`, {
+    headers: { Cookie: hospital.admin.cookieHeader, "x-csrf-token": hospital.admin.csrfToken },
+    data: {
+      patient_id: stranger.id,
+      discharge_summary_id: rx.summaryId,
+      dispensing_type: "discharge",
+      items: [{ catalog_item_id: listed.id, drug_name: listed.name, quantity: 2, unit_price: 8 }],
+    },
+  });
+  expect(borrowed.status(), "another patient's summary is refused when the order is raised").toBe(400);
+  expect(await borrowed.text()).toContain("does not belong to this patient");
+
+  // 1. Only a discharge dispense: the same summary on an ordinary order backs nothing.
+  const ordinary = await api<{ order: { id: string } }>(hospital.admin, "POST", "/api/pharmacy/orders", {
+    patient_id: rx.patientId,
+    discharge_summary_id: rx.summaryId,
+    items: [{ catalog_item_id: listed.id, drug_name: listed.name, quantity: 2, unit_price: 8 }],
+  });
+  await expectNoPrescription(hospital, ordinary.order.id, "a summary on a non-discharge order");
+
+  // 2. Only what the summary lists.
+  await expectNoPrescription(hospital, await dischargeOrder(hospital, rx, unlisted), "a drug the summary does not list");
+
+  // 3. Only within the week: the same summary, finalized and discharged eight days ago.
+  const stale = await dischargeOrder(hospital, rx, listed);
+  dbExec(
+    `UPDATE ipd_discharge_summaries SET finalized_at = now() - interval '8 days' WHERE id = ${sqlId(rx.summaryId)}`,
+  );
+  dbExec(
+    `UPDATE admissions SET discharged_at = now() - interval '8 days' WHERE id = (SELECT admission_id FROM ipd_discharge_summaries WHERE id = ${sqlId(rx.summaryId)})`,
+  );
+  await expectNoPrescription(hospital, stale, "a summary signed off more than a week ago");
+
+  // 4. A signature alone counts only when the signer is a doctor: a draft
+  // summary signed by the administrator (no doctor profile) backs nothing.
+  const signedRx = await dischargeWithSummary(hospital, listed);
+  const signer = hospital.admin.userId;
+  dbExec(
+    `WITH s AS (INSERT INTO signed_records (tenant_id, record_type, record_id, signer_user_id, signer_role, payload_hash, signature_bytes, legal_class)
+       VALUES (${sqlId(hospital.admin.tenantId)}, 'discharge_summary', ${sqlId(signedRx.summaryId)}, ${sqlId(signer)}, 'primary', '\\x00', '\\x00', 'clinical') RETURNING id)
+     UPDATE ipd_discharge_summaries SET is_signed = true, signed_record_id = (SELECT id FROM s) WHERE id = ${sqlId(signedRx.summaryId)}`,
+  );
+  expect(dbExec(`SELECT count(*) FROM doctor_profiles WHERE user_id = ${sqlId(signer)}`)).toBe("0");
+  await expectNoPrescription(
+    hospital,
+    await dischargeOrder(hospital, signedRx, listed),
+    "a summary signed by someone with no doctor profile",
+  );
 });

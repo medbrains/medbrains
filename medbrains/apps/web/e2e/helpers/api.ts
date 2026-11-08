@@ -214,8 +214,27 @@ export async function api<T = unknown>(
     `${method} ${path} → ${result.status}\nbody: ${result.bodyText}` +
       (options.variants
         ? `\nvariants tried: ${options.variants.join(", ")}`
-        : ""),
+        : "") +
+      (result.status === 401 ? `\n${describeSession(ctx)}` : ""),
   );
+}
+
+/**
+ * What the refused session was, for a 401: the access token's issue and
+ * expiry times, user and permission version, against the time of the call.
+ * The body only says "unauthorized"; this tells an expired token from a
+ * revoked one.
+ */
+function describeSession(ctx: AuthContext): string {
+  const token = /(?:^|;\s*)access_token=([^;]+)/.exec(ctx.cookieHeader)?.[1];
+  if (!token) return `session: no access_token cookie sent (at ${new Date().toISOString()})`;
+  try {
+    const claims = JSON.parse(Buffer.from(token.split(".")[1] ?? "", "base64url").toString("utf8"));
+    const at = (seconds: number) => new Date(seconds * 1000).toISOString();
+    return `session: iat=${at(claims.iat)} exp=${at(claims.exp)} now=${new Date().toISOString()} sub=${claims.sub} perm_version=${claims.perm_version}`;
+  } catch {
+    return "session: access_token is not a readable JWT";
+  }
 }
 
 /** Make an unauthenticated public API call. */

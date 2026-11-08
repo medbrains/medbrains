@@ -49,6 +49,7 @@ pub mod pos_returns;
 mod pos_scheduled;
 pub mod quarantine;
 mod return_rules;
+pub mod discharge_rx;
 pub mod dispense_context;
 pub mod rx_safety;
 pub mod safety_record;
@@ -2063,6 +2064,12 @@ pub async fn create_order_in_tx(
     }
 
     let dispensing_type = body.dispensing_type.as_deref().unwrap_or("prescription");
+    // A discharge summary on the order is the prescription behind its
+    // medicines (`discharge_rx`): it must be this patient's.
+    if let Some(summary_id) = body.discharge_summary_id {
+        discharge_rx::check_summary_patient(tx, claims.tenant_id, summary_id, body.patient_id)
+            .await?;
+    }
 
     let order = sqlx::query_as::<_, PharmacyOrder>(
         "INSERT INTO pharmacy_orders
@@ -3628,10 +3635,9 @@ pub async fn dispense_order(
 // fails the gate. Caller already holds an open transaction so the
 // rollback is automatic on error.
 
-/// The prescriber (a real prescription for this patient), whether a
-/// pharmacist verified an uploaded prescription, and whether the order comes
-/// from this patient's signed or finalized discharge summary.
-type ComplianceOrderRow = (Option<Uuid>, bool, bool);
+/// The prescriber (a real prescription for this patient), and whether a
+/// pharmacist verified an uploaded prescription.
+type ComplianceOrderRow = (Option<Uuid>, bool);
 
 /// Refuses a dispense whose Schedule H, H1 or X lines lack what the Drugs and
 /// Cosmetics Act and the NDPS Act require: a real prescription for this
@@ -3654,14 +3660,7 @@ async fn enforce_schedule_compliance(
                 EXISTS (SELECT 1 FROM pharmacy_store_orders s \
                          WHERE s.tenant_id = o.tenant_id AND s.pharmacy_order_id = o.id \
                            AND s.rx_source = 'upload' AND s.verified_at IS NOT NULL \
-                           AND s.deleted_at IS NULL), \
-                EXISTS (SELECT 1 FROM ipd_discharge_summaries ds \
-                          JOIN admissions a ON a.id = ds.admission_id \
-                                           AND a.tenant_id = ds.tenant_id \
-                         WHERE ds.id = o.discharge_summary_id AND ds.tenant_id = o.tenant_id \
-                           AND ds.deleted_at IS NULL \
-                           AND (ds.is_signed OR ds.status::text = 'finalized') \
-                           AND a.patient_id = o.patient_id) \
+                           AND s.deleted_at IS NULL) \
          FROM pharmacy_orders o \
          LEFT JOIN prescriptions rx ON rx.id = o.prescription_id AND rx.tenant_id = o.tenant_id \
               AND rx.deleted_at IS NULL \
@@ -3678,20 +3677,25 @@ async fn enforce_schedule_compliance(
     .fetch_optional(&mut **tx)
     .await?;
 
-    let Some((prescriber, verified_upload, signed_discharge)) = order else {
+    let Some((prescriber, verified_upload)) = order else {
         return Err(AppError::NotFound);
     };
 
     // A prescription counts only when it is a real one for this patient (the
-    // join above checks that), an uploaded one a pharmacist verified, or the
-    // medicines on this patient's discharge summary once the doctor has signed
-    // or finalized it (discharge dispensing carries no prescription row). An
-    // id, a visit or a draft summary alone is not a prescription. Schedule X
+    // join above checks that) or an uploaded one a pharmacist verified. An id
+    // or a visit alone is not a prescription. Discharge dispensing has no
+    // prescription row: there, each H/H1 line must be listed on the patient's
+    // recent, doctor-signed discharge summary (`discharge_rx`). Schedule X
     // still needs a real prescription: below.
-    let has_prescription = prescriber.is_some() || verified_upload || signed_discharge;
+    let has_prescription = prescriber.is_some() || verified_upload;
+    let discharge_listed = if has_prescription {
+        None
+    } else {
+        discharge_rx::discharge_medicines(tx, *tenant_id, order_id).await?
+    };
 
-    let scheduled_items: Vec<(String, Option<String>)> = sqlx::query_as(
-        "SELECT c.name, c.drug_schedule::text \
+    let scheduled_items: Vec<(Uuid, String, String, Option<String>)> = sqlx::query_as(
+        "SELECT c.id, c.name, oi.drug_name, c.drug_schedule::text \
          FROM pharmacy_order_items oi \
          JOIN pharmacy_catalog c ON c.id = oi.catalog_item_id \
          WHERE oi.order_id = $1 AND oi.tenant_id = $2 \
@@ -3712,10 +3716,18 @@ async fn enforce_schedule_compliance(
 
     // Anything Schedule H/H1/X requires a prescription source on the order.
     if !has_prescription {
-        for (name, sched) in &scheduled_items {
+        for (catalog_id, name, line_name, sched) in &scheduled_items {
+            let on_summary = sched.as_deref() != Some("X")
+                && discharge_listed.as_deref().is_some_and(|listed| {
+                    discharge_rx::lists(listed, *catalog_id, [name.as_str(), line_name.as_str()])
+                });
+            if on_summary {
+                continue;
+            }
             blocks.push(format!(
                 "{name}: Schedule {} drug — no prescription for this patient on the order \
-                 (a doctor's prescription, a verified upload, or a signed discharge summary)",
+                 (a doctor's prescription, a verified upload, or a recent discharge summary, \
+                 finalized or doctor-signed, that lists it)",
                 sched.as_deref().unwrap_or("?")
             ));
         }
@@ -3724,7 +3736,7 @@ async fn enforce_schedule_compliance(
     // Schedule X: dual signature + prescriber must be authorised.
     let has_x = scheduled_items
         .iter()
-        .any(|(_, s)| s.as_deref() == Some("X"));
+        .any(|(_, _, _, s)| s.as_deref() == Some("X"));
 
     if has_x {
         // A Schedule X order needs a prescription from a doctor for this
@@ -4308,6 +4320,13 @@ pub async fn create_discharge_dispensing(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
+    discharge_rx::check_summary_patient(
+        &mut tx,
+        claims.tenant_id,
+        body.discharge_summary_id,
+        body.patient_id,
+    )
+    .await?;
 
     let order = sqlx::query_as::<_, PharmacyOrder>(
         "INSERT INTO pharmacy_orders \
