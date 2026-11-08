@@ -328,9 +328,12 @@ async fn spawn(secrets: TestSecrets, request_url: Option<String>) -> TestApp {
         // Hundreds of tests sign in from loopback, so each request gets its own address to stay
         // clear of per-address limits. A test that sets its own header keeps it.
         let app = app.layer(axum::middleware::from_fn(give_each_request_an_address));
-        axum::serve(listener, app.into_make_service_with_connect_info::<SocketAddr>())
-            .await
-            .expect("server crashed");
+        axum::serve(
+            listener,
+            app.into_make_service_with_connect_info::<SocketAddr>(),
+        )
+        .await
+        .expect("server crashed");
     });
 
     let client = Client::builder()
@@ -488,4 +491,27 @@ async fn give_each_request_an_address(
         }
     }
     next.run(request).await
+}
+
+/// A handler context for driving one outbox handler directly, with `secrets`
+/// as the tenant's credentials (empty = nothing configured).
+pub fn handler_ctx(
+    app: &TestApp,
+    tenant_id: uuid::Uuid,
+    event_type: &str,
+    secrets: TestSecrets,
+) -> medbrains_outbox::handler::HandlerCtx {
+    medbrains_outbox::handler::HandlerCtx {
+        pool: app.db.clone(),
+        tenant_id,
+        event_id: uuid::Uuid::new_v4(),
+        event_type: event_type.to_owned(),
+        actor_user_id: None,
+        attempts: 1,
+        secret_resolver: Arc::new(secrets),
+        http_client: Client::new(),
+        object_store: Arc::new(medbrains_core::object_store::LocalFsObjectStore::new(
+            std::env::temp_dir().join("medbrains-handler-tests"),
+        )),
+    }
 }

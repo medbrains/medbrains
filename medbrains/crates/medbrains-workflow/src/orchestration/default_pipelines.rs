@@ -126,7 +126,7 @@ pub const PIPELINES: &[Pipeline] = &[
     },
     Pipeline {
         event: ClinicalEventName::EmergencyCodeBlueActivated,
-        description: "Page active clinical staff + queue the code-blue alert",
+        description: "Queue the first round of code-blue paging",
         run: |p, t, v| Box::pin(on_emergency_code_blue_activated(p, t, v)),
     },
     Pipeline {
@@ -207,7 +207,15 @@ async fn is_disabled(pool: &PgPool, tenant_id: Uuid, event_type: &str) -> bool {
 }
 
 /// Top-level dispatcher. Called from `events::emit_event` alongside
-/// the DB-backed pipeline lookup.
+/// the DB-backed pipeline lookup. Returns how many acted on the event:
+/// partner webhooks queued plus pipelines that succeeded. Zero tells the
+/// outbox fallback that nothing did, so the row is never called `sent`.
+///
+/// Every matching pipeline runs; if any of them failed, the result is an
+/// error naming how many, so the outbox retries the event instead of
+/// recording it as delivered or as having nothing to do. Pipelines are
+/// idempotent (keyed outbox rows, `NOT EXISTS` guards), so the ones that
+/// succeeded do nothing twice on the retry.
 ///
 /// **Idempotency contract:** every outbox row queued by these
 /// subscribers carries an `idempotency_key`. If a user-built
@@ -219,10 +227,17 @@ pub async fn dispatch_default_pipelines(
     tenant_id: Uuid,
     event_type: &str,
     payload: &Value,
-) {
+) -> Result<usize, String> {
     // Partners hear about the event whatever the hospital does with its own
     // pipelines; their subscription is the switch for that.
-    super::webhook_fanout::fan_out(pool, tenant_id, event_type, payload, domain_payload(payload)).await;
+    let mut acted = super::webhook_fanout::fan_out(
+        pool,
+        tenant_id,
+        event_type,
+        payload,
+        domain_payload(payload),
+    )
+    .await;
 
     if is_disabled(pool, tenant_id, event_type).await {
         tracing::debug!(
@@ -230,11 +245,11 @@ pub async fn dispatch_default_pipelines(
             event_type = event_type,
             "default_pipelines: disabled for tenant, skipping"
         );
-        return;
+        return Ok(acted);
     }
 
     let Ok(parsed) = event_type.parse::<ClinicalEventName>() else {
-        return;
+        return Ok(acted);
     };
     let payload = domain_payload(payload);
 
@@ -245,18 +260,29 @@ pub async fn dispatch_default_pipelines(
     // Events with no pipeline are not an error. They are a gap to close by
     // writing a subscriber above: `patient.created` has fired 154 times on
     // this database with nothing listening, and the answer is a reviewed
-    // function, not a row somebody assembled in a UI.
+    // function, not a row somebody assembled in a UI. The outbox records such
+    // a row as `undelivered`, which is what it is.
+    let mut failed = 0usize;
     for pipeline in PIPELINES.iter().filter(|p| p.event == parsed) {
-        let result = (pipeline.run)(pool, tenant_id, payload).await;
-        if let Err(err) = result {
-            tracing::error!(
-                tenant_id = %tenant_id,
-                event_type = event_type,
-                error = %err,
-                "default_pipelines: subscriber failed"
-            );
+        match (pipeline.run)(pool, tenant_id, payload).await {
+            Ok(()) => acted += 1,
+            Err(err) => {
+                failed += 1;
+                tracing::error!(
+                    tenant_id = %tenant_id,
+                    event_type = event_type,
+                    error = %err,
+                    "default_pipelines: subscriber failed"
+                );
+            }
         }
     }
+    if failed > 0 {
+        return Err(format!(
+            "{failed} pipeline(s) failed for {event_type}; retrying"
+        ));
+    }
+    Ok(acted)
 }
 
 /// The event as the subscriber wrote it, not the envelope the outbox stored.
@@ -584,6 +610,7 @@ async fn patient_phone(
     Ok(phone.flatten().as_deref().and_then(e164))
 }
 
+/// A UUID field of a pipeline payload, if present and well formed.
 pub(super) fn uuid_from_payload(payload: &Value, key: &str) -> Option<Uuid> {
     uuid_from_value(payload.get(key))
 }
@@ -595,96 +622,48 @@ fn uuid_from_value(v: Option<&Value>) -> Option<Uuid> {
 
 // ── 8. Code blue activated → page the people who can respond ───────
 
-/// A cardiac arrest is called and, until now, nothing happened.
+/// The outbox event type that pages a code blue's responders. Its handler,
+/// `medbrains_nursing::code_blue_alert::CodeBlueAlertHandler`, chooses who to
+/// page for the round and sends the in-app alert, the SMS and the WhatsApp.
+pub const CODE_BLUE_ALERT_EVENT: &str = "emergency.code_blue_alert";
+
+/// A cardiac arrest is called: make sure round 1 of paging is queued.
 ///
-/// `start_code_blue` writes the event, mirrors it to the NABH register, and
-/// emits `emergency.code_blue.activated`. No subscriber existed, so the most
-/// time-critical event in the hospital reached a table and stopped there.
+/// A backstop only. `start_code_blue` queues round 1 of
+/// [`CODE_BLUE_ALERT_EVENT`] in its own transaction and pages in-app inline,
+/// so the page never depends on this pipeline, which a hospital can switch
+/// off. This queues the same row under the same key, which is a no-op for
+/// any code blue the handler recorded, and covers one written any other way.
+/// The paging itself used to happen here, to every active doctor and nurse
+/// in the hospital, and the SMS row it queued had no handler.
 async fn on_emergency_code_blue_activated(
     pool: &PgPool,
     tenant_id: Uuid,
     payload: &Value,
 ) -> Result<(), sqlx::Error> {
-    let code_blue_id = uuid_from_payload(payload, "code_blue_id");
-    let patient_id = uuid_from_payload(payload, "patient_id");
-    let location = payload
-        .get("location")
-        .and_then(Value::as_str)
-        .unwrap_or("location not recorded");
-
+    // An emergency-department code is paged by the er_code_activations insert
+    // trigger under its own key; queuing it here as a nursing code blue would
+    // only dead-letter as "code not found".
+    if payload.get("code_activation_id").is_some() {
+        return Ok(());
+    }
+    let Some(code_blue_id) = uuid_from_payload(payload, "code_blue_id") else {
+        tracing::error!(%tenant_id, "code blue activated without a code_blue_id: nobody paged");
+        return Ok(());
+    };
     let mut tx = tenant_tx(pool, tenant_id).await?;
-
-    // a) The durable alert. Channel-agnostic on purpose: whatever carries it —
-    //    SMS, push, the corridor TV — reads it from the outbox, so adding a
-    //    channel later needs no change here. This is queued first and
-    //    unconditionally, because it is the part that must survive everything
-    //    below failing.
-    let _ = enqueue(
+    enqueue(
         &mut tx,
         tenant_id,
         "code_blue",
-        code_blue_id,
-        "emergency.code_blue_alert",
-        json!({
-            "code_blue_id": code_blue_id,
-            "patient_id": patient_id,
-            "location": location,
-            "body": format!("CODE BLUE — {location}. Respond immediately."),
-        }),
-        code_blue_id.map(|id| format!("code_blue:{id}")),
+        Some(code_blue_id),
+        CODE_BLUE_ALERT_EVENT,
+        json!({ "code_blue_id": code_blue_id, "round": 1 }),
+        Some(format!("code_blue:{code_blue_id}:round:1")),
     )
-    .await;
-
-    // b) In-app notification to clinical staff, in one statement rather than a
-    //    query per user. Deliberately NOT scoped to who is on shift: the
-    //    attendance table is empty, so an on-duty filter would page nobody and
-    //    look like it had worked. Guarded per user so a redelivered event
-    //    does not page the same people twice — the stand-down already was.
-    let notified = sqlx::query!(
-        "INSERT INTO notifications \
-           (tenant_id, user_id, kind, title, body, category, entity_type, \
-            entity_id, action_url) \
-         SELECT $1, u.id, 'error', $2, $3, 'emergency', 'code_blue', $4, $5 \
-           FROM users u \
-          WHERE u.tenant_id = $1 AND u.is_active = true \
-            AND u.role::text IN ('doctor', 'nurse') \
-            AND NOT EXISTS ( \
-              SELECT 1 FROM notifications n \
-               WHERE n.tenant_id = $1 AND n.user_id = u.id \
-                 AND n.entity_type = 'code_blue' AND n.entity_id = $4 \
-                 AND n.title = 'CODE BLUE') \
-          LIMIT 500",
-        tenant_id,
-        "CODE BLUE",
-        format!("{location} — respond immediately."),
-        code_blue_id,
-        // The code blue tab of the nurse activities page. The URL this shipped
-        // with, /ipd/code-blue/{id}, matched no route: the page linked to a 404.
-        Some("/nurse?tab=code-blue".to_owned()),
-    )
-    .execute(&mut *tx)
-    .await?
-    .rows_affected();
-
-    tx.commit().await?;
-
-    // A code blue that reached nobody must not read as success. On this tenant
-    // that is a real possibility — 257 active users, and not one of them a
-    // nurse — and it is the kind of silence a hospital only discovers during
-    // an arrest.
-    if notified == 0 {
-        tracing::error!(
-            %tenant_id,
-            ?code_blue_id,
-            location,
-            "code blue raised but no active clinical staff to notify — the \
-             outbox alert was queued, the in-app page reached no one"
-        );
-    } else {
-        tracing::info!(%tenant_id, ?code_blue_id, notified, "code blue paged");
-    }
-
-    Ok(())
+    .await
+    .map_err(|e| sqlx::Error::Protocol(format!("code blue alert not queued: {e}")))?;
+    tx.commit().await
 }
 
 // ── 9. NDPS movement → the witness nobody was chasing ─────
@@ -836,12 +815,17 @@ async fn on_ipd_admission_created(
     // One statement: pick the ward's charge nurse for today — falling back to
     // the primary assigned nurse — and raise the task only if that resolves
     // and this admission has no such task already.
-    let created = sqlx::query!(
+    // The hospital's own date, not the database server's: an admission at
+    // 00:30 in Kolkata is still "yesterday" in UTC. Runtime-checked because
+    // the statement changed and is covered by the admission linkage test.
+    let created = sqlx::query(
         "WITH nurse AS ( \
            SELECT COALESCE(nsa.charge_nurse_user_id, nsa.nurse_user_id) AS uid \
              FROM nurse_shift_assignments nsa \
             WHERE nsa.tenant_id = $1 AND nsa.ward_id = $2 \
-              AND nsa.shift_date = CURRENT_DATE AND nsa.deleted_at IS NULL \
+              AND nsa.shift_date = (now() AT TIME ZONE COALESCE( \
+                    (SELECT timezone FROM tenants WHERE id = $1), 'Asia/Kolkata'))::date \
+              AND nsa.deleted_at IS NULL \
             ORDER BY nsa.primary_assigned DESC, \
                      (nsa.charge_nurse_user_id IS NULL) \
             LIMIT 1 \
@@ -860,10 +844,10 @@ async fn on_ipd_admission_created(
              WHERE nt.tenant_id = $1 AND nt.admission_id = $3 \
                AND nt.task_type = 'initial_assessment' \
                AND nt.deleted_at IS NULL)",
-        tenant_id,
-        ward_id,
-        admission_id,
     )
+    .bind(tenant_id)
+    .bind(ward_id)
+    .bind(admission_id)
     .execute(&mut *medbrains_db::pool::tenant_conn(pool, &tenant_id).await?)
     .await?
     .rows_affected();

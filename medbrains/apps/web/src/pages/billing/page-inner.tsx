@@ -63,6 +63,8 @@ import {
 } from "./accounting-tabs";
 import { AdvancesTab } from "./advances";
 import { AuditLogTab } from "./audit-log";
+import { ChargeAttentionCount } from "./charge-attention/ChargeAttentionCount";
+import { ChargeAttentionTab } from "./charge-attention/ChargeAttentionTab";
 import { ChargeMasterTab } from "./charge-master";
 import { CorporateTab } from "./corporate";
 import { CreateInvoiceDrawer } from "./create-invoice-drawer";
@@ -107,6 +109,7 @@ export function BillingPageInner() {
   const canConcessions = useHasPermission(P.BILLING.CONCESSIONS_LIST);
   const canApproveConcessions = useHasPermission(P.BILLING.CONCESSIONS_APPROVE);
   const canReconcile = useHasPermission(P.BILLING.PAYMENTS_RECONCILE);
+  const canChargeAttention = useHasPermission(P.BILLING.CHARGE_ATTENTION.VIEW);
   const canSettlements = useHasAnyPermission([
     P.BILLING.CLAIMS.SETTLEMENT.RECORD,
     P.BILLING.CLAIMS.SETTLEMENT.APPROVE,
@@ -134,6 +137,7 @@ export function BillingPageInner() {
     "financial-mis",
     ...(canErp ? ["erp-export"] : []),
     ...(canConcessions ? ["concessions"] : []),
+    ...(canChargeAttention ? ["charge-attention"] : []),
     ...(canSettlements ? ["insurance-settlements"] : []),
     ...(canReconcile ? ["payment-exceptions"] : []),
     "settings",
@@ -563,6 +567,15 @@ export function BillingPageInner() {
               Concessions
             </Tabs.Tab>
           )}
+          {canChargeAttention && (
+            <Tabs.Tab
+              value="charge-attention"
+              leftSection={<IconAlertTriangle size={14} />}
+              rightSection={<ChargeAttentionCount />}
+            >
+              Charges needing attention
+            </Tabs.Tab>
+          )}
           {canSettlements && (
             <Tabs.Tab value="insurance-settlements" leftSection={<IconShieldCheck size={14} />}>
               Insurance settlements
@@ -697,6 +710,12 @@ export function BillingPageInner() {
         {canConcessions && (
           <Tabs.Panel value="concessions">
             <ConcessionsTab canApprove={canApproveConcessions} />
+          </Tabs.Panel>
+        )}
+
+        {canChargeAttention && (
+          <Tabs.Panel value="charge-attention">
+            <ChargeAttentionTab />
           </Tabs.Panel>
         )}
 

@@ -991,13 +991,23 @@ pub async fn me(
     .await?;
 
     // Edition entitlement: the modules this tenant has switched off (drives nav/route hiding).
-    let disabled_modules: Vec<String> = sqlx::query_scalar(
+    let mut disabled_modules: Vec<String> = sqlx::query_scalar(
         "SELECT code FROM module_config \
          WHERE tenant_id = $1 AND status::text IN ('disabled', 'coming_soon')",
     )
     .bind(claims.tenant_id)
     .fetch_all(&mut *tx)
     .await?;
+    // A brick that needs a switched-off brick is off too, as the server's module check has it.
+    let implied: Vec<&str> = disabled_modules
+        .iter()
+        .flat_map(|code| medbrains_core::bricks::dependents(code))
+        .collect();
+    for code in implied {
+        if !disabled_modules.iter().any(|c| c == code) {
+            disabled_modules.push(code.to_owned());
+        }
+    }
     let restrict_copy: bool = sqlx::query_scalar(
         "SELECT EXISTS(SELECT 1 FROM tenant_settings WHERE tenant_id = $1 \
          AND category = 'security' AND key = 'restrict_copy' \
