@@ -66,6 +66,9 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
             permissions::doctor::profile::VIEW_OWN,
             permissions::doctor::profile::UPDATE_OWN,
             permissions::doctor::signature::SIGN,
+            // The consultant's countersignature on a resident's or a
+            // colleague's record (signer_role co_signer).
+            permissions::doctor::signature::CO_SIGN,
             permissions::doctor::signature::VERIFY,
             permissions::doctor::signoffs::VIEW_OWN,
             permissions::doctor::signoffs::VERBAL_REGISTER,
@@ -412,6 +415,10 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
             permissions::specialty::pmr::psychometric::MANAGE,
             permissions::specialty::psychiatry::restraint::MANAGE,
             // A doctor is paged by the code blue and answers it like a nurse does.
+            // They see the active codes too: the phone apps raise the emergency flash
+            // only for holders of `.view`, and a doctor who could answer but never
+            // saw the alarm was not paged in any useful sense.
+            permissions::nurse::code_blue::VIEW,
             permissions::nurse::code_blue::RESPOND,
             permissions::ai::assistant::USE,
         ],
@@ -436,6 +443,8 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
             permissions::clinical_notes::VIEW,
             permissions::clinical_notes::WRITE,
             permissions::clinical_notes::SIGN,
+            // Signs the MAR, vitals and charting she recorded (signable.rs).
+            permissions::nurse::signature::SIGN,
             permissions::clinical_notes::MARK_IN_ERROR,
             permissions::home_health::LIST,
             permissions::home_health::MANAGE,
@@ -855,6 +864,7 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
             permissions::lab::results::VERIFY,
             permissions::lab::results::AMEND,
             permissions::lab::results::ANALYSER_REVIEW,
+            permissions::lab::results::CRITICAL_CALL,
             permissions::lab::qc::LIST,
             permissions::lab::qc::CREATE,
             permissions::lab::qc::MANAGE,
@@ -1038,6 +1048,7 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
             permissions::billing::payments::CREATE,
             permissions::billing::payments::VOID,
             permissions::billing::payments::RECONCILE,
+            permissions::billing::payment_settings::VIEW,
             // The central cashier collects every department's dues (#4885).
             permissions::billing::collect::CROSS,
             permissions::billing::counter_display::PUBLISH,
@@ -1063,6 +1074,12 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
             permissions::billing::day_close::CREATE,
             permissions::billing::day_close::VERIFY,
             permissions::billing::write_off::CREATE,
+            // The desk works the automatic charges clinical actions could not post.
+            permissions::billing::charge_attention::VIEW,
+            permissions::billing::charge_attention::RESOLVE,
+            // and the orders done for a patient that never reached a bill.
+            permissions::billing::leakage::VIEW,
+            permissions::billing::leakage::RESOLVE,
             // Records insurer settlements; approving them stays with finance.
             permissions::billing::claims::settlement::RECORD,
             permissions::billing::audit::VIEW,
@@ -1342,6 +1359,9 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
             permissions::pharmacy::prescriptions::VIEW,
             permissions::billing::invoices::LIST,
             permissions::billing::invoices::VIEW,
+            // Read-only: charges that went unposted are a revenue-leakage audit.
+            permissions::billing::charge_attention::VIEW,
+            permissions::billing::leakage::VIEW,
             permissions::insurance::nhcx::VIEW,
             permissions::pharmacy::day_close::VIEW,
             permissions::admin::access_requests::LIST,
@@ -1388,6 +1408,8 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
         description: "Quality & compliance — full regulatory access",
         permissions: &[
             // This week vs usual, public notices, heat and air (RFC-OSINT §4).
+            // The resuscitation committee keeps the code-blue team roster.
+            permissions::nurse::code_blue::MANAGE_TEAM,
             permissions::health::intel::VIEW,
             // Clinical governance signs off knowledge changes drafted by the
             // pharmacy and laboratory, applies them and starts rollbacks. It
@@ -1591,6 +1613,11 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
             permissions::mrd::case_sheets::FILE,
             permissions::mrd::case_sheets::REPRINT,
             permissions::mrd::storage::MANAGE,
+            // Medical records answers "is this paper genuine?" for insurers
+            // and courts, and withdraws a copy's public link when asked.
+            permissions::doctor::signature::VERIFY,
+            permissions::mrd::verify_links::ISSUE,
+            permissions::mrd::verify_links::REVOKE,
             // File-room work needs patient demographics + encounter lookup.
             // Read-only; MRD doesn't create or edit clinical records.
             permissions::patients::LIST,

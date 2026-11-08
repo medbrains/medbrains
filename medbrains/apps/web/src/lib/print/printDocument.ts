@@ -1,3 +1,6 @@
+import { QRCodeSVG } from "qrcode.react";
+import { createElement } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
 import { printDocumentDef } from "./print-registry";
 
 /**
@@ -55,7 +58,8 @@ function renderSheet(title: string, data: Record<string, unknown>): string {
  * the three outcomes — worse than not printing at all, because it gets filed.
  */
 function renderFields(data: Record<string, unknown>): string {
-  const entries = Object.entries(data);
+  const entries = Object.entries(data).filter(([key]) => key !== "verify_url");
+  const qr = typeof data.verify_url === "string" ? verifyQrHtml(data.verify_url) : "";
   const scalars = entries.filter(([, v]) => typeof v !== "object" || v === null);
   const nested = entries.filter(([, v]) => typeof v === "object" && v !== null);
 
@@ -73,7 +77,18 @@ function renderFields(data: Record<string, unknown>): string {
     })
     .join("");
 
-  return table + sections;
+  return table + qr + sections;
+}
+
+/**
+ * A signature's public check link, drawn as the QR an outsider scans (an
+ * insurer, a court, another hospital), not printed as a URL nobody types.
+ * Static markup from `qrcode.react`, as the bill print does, because this path
+ * writes an HTML string into a popup rather than mounting React.
+ */
+function verifyQrHtml(url: string): string {
+  const svg = renderToStaticMarkup(createElement(QRCodeSVG, { value: url, size: 88, level: "M" }));
+  return `<div class="verify-qr">${svg}<p>Scan to check this document is unchanged</p></div>`;
 }
 
 /** One nested value: an object becomes its own block, a scalar a line. */
@@ -104,6 +119,7 @@ const PRINT_CSS = `
   section { margin-top: 8px; }
   .block { margin: 8px 0 12px; padding-left: 10px; border-left: 2px solid #e0e0e0; }
   .tick { font-family: "IBM Plex Mono", monospace; padding: 2px 0; }
+  .verify-qr { margin: 8px 0; font-size: 11px; color: #525252; }
   @media print { body { padding: 0; } }
 `;
 

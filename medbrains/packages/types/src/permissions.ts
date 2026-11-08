@@ -472,6 +472,12 @@ export const P = {
       MANAGE: "billing.catalog.manage",
     },
     CATALOG_MANAGE: "billing.catalog.manage",
+    CHARGE_ATTENTION: {
+      RESOLVE: "billing.charge_attention.resolve",
+      VIEW: "billing.charge_attention.view",
+    },
+    CHARGE_ATTENTION_RESOLVE: "billing.charge_attention.resolve",
+    CHARGE_ATTENTION_VIEW: "billing.charge_attention.view",
     CLAIMS: {
       SETTLEMENT: {
         APPROVE: "billing.claims.settlement.approve",
@@ -582,6 +588,12 @@ export const P = {
       MANAGE: "billing.lanes.manage",
     },
     LANES_MANAGE: "billing.lanes.manage",
+    LEAKAGE: {
+      RESOLVE: "billing.leakage.resolve",
+      VIEW: "billing.leakage.view",
+    },
+    LEAKAGE_RESOLVE: "billing.leakage.resolve",
+    LEAKAGE_VIEW: "billing.leakage.view",
     PAYER_SPLIT: {
       MANAGE: "billing.payer_split.manage",
     },
@@ -596,6 +608,12 @@ export const P = {
     PAYMENTS_CREATE: "billing.payments.create",
     PAYMENTS_RECONCILE: "billing.payments.reconcile",
     PAYMENTS_VOID: "billing.payments.void",
+    PAYMENT_SETTINGS: {
+      MANAGE: "billing.payment_settings.manage",
+      VIEW: "billing.payment_settings.view",
+    },
+    PAYMENT_SETTINGS_MANAGE: "billing.payment_settings.manage",
+    PAYMENT_SETTINGS_VIEW: "billing.payment_settings.view",
     RECEIPTS: {
       PRINT: "billing.receipts.print",
       REPRINT: "billing.receipts.reprint",
@@ -1919,12 +1937,14 @@ export const P = {
       AMEND: "lab.results.amend",
       ANALYSER_REVIEW: "lab.results.analyser_review",
       CREATE: "lab.results.create",
+      CRITICAL_CALL: "lab.results.critical_call",
       UPDATE: "lab.results.update",
       VERIFY: "lab.results.verify",
     },
     RESULTS_AMEND: "lab.results.amend",
     RESULTS_ANALYSER_REVIEW: "lab.results.analyser_review",
     RESULTS_CREATE: "lab.results.create",
+    RESULTS_CRITICAL_CALL: "lab.results.critical_call",
     RESULTS_UPDATE: "lab.results.update",
     RESULTS_VERIFY: "lab.results.verify",
     SAMPLES: {
@@ -2116,6 +2136,12 @@ export const P = {
       MANAGE: "mrd.storage.manage",
     },
     STORAGE_MANAGE: "mrd.storage.manage",
+    VERIFY_LINKS: {
+      ISSUE: "mrd.verify_links.issue",
+      REVOKE: "mrd.verify_links.revoke",
+    },
+    VERIFY_LINKS_ISSUE: "mrd.verify_links.issue",
+    VERIFY_LINKS_REVOKE: "mrd.verify_links.revoke",
   },
   NOTES: {
     MODERATE: "notes.moderate",
@@ -2123,10 +2149,12 @@ export const P = {
   },
   NURSE: {
     CODE_BLUE: {
+      MANAGE_TEAM: "nurse.code_blue.manage_team",
       RECORD: "nurse.code_blue.record",
       RESPOND: "nurse.code_blue.respond",
       VIEW: "nurse.code_blue.view",
     },
+    CODE_BLUE_MANAGE_TEAM: "nurse.code_blue.manage_team",
     CODE_BLUE_RECORD: "nurse.code_blue.record",
     CODE_BLUE_RESPOND: "nurse.code_blue.respond",
     CODE_BLUE_VIEW: "nurse.code_blue.view",
@@ -2224,6 +2252,10 @@ export const P = {
     SHIFT_NOTES_EDIT: "nurse.shift_notes.edit",
     SHIFT_NOTES_VIEW: "nurse.shift_notes.view",
     SHIFT_VIEW: "nurse.shift.view",
+    SIGNATURE: {
+      SIGN: "nurse.signature.sign",
+    },
+    SIGNATURE_SIGN: "nurse.signature.sign",
     TRANSFUSION: {
       ADMINISTER: "nurse.transfusion.administer",
       VIEW: "nurse.transfusion.view",

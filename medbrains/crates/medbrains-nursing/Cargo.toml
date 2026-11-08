@@ -10,12 +10,15 @@ medbrains-authz-gate = { path = "../medbrains-authz-gate" }
 medbrains-nabh = { path = "../medbrains-nabh" }
 medbrains-server-core = { path = "../medbrains-server-core" }
 medbrains-core = { path = "../medbrains-core" }
+medbrains-kernel = { path = "../medbrains-kernel" }
 medbrains-db = { path = "../medbrains-db" }
 medbrains-authz = { version = "0.1.0", path = "../medbrains-authz" }
 medbrains-workflow = { path = "../medbrains-workflow" }
 medbrains-clinical-scores = { path = "../medbrains-clinical-scores" }
 medbrains-notifications = { path = "../medbrains-notifications" }
 medbrains-outbox = { path = "../medbrains-outbox" }
+async-trait = { workspace = true }
+tokio = { workspace = true }
 tracing = { workspace = true }
 axum = { workspace = true }
 serde = { workspace = true }

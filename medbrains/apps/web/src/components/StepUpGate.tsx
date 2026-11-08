@@ -1,8 +1,8 @@
 import { Group, getDefaultZIndex, Stack, Text } from "@mantine/core";
-import { api, setStepUpHandler } from "@medbrains/api";
+import { ApiError, api, setStepUpHandler } from "@medbrains/api";
 import { useRef, useState } from "react";
 import { useEffectOnce } from "react-use";
-import { Button, Input, Modal, toast } from "@/components/ui";
+import { Button, Input, Modal } from "@/components/ui";
 
 /**
  * App-wide step-up re-auth prompt. When any API call gets a `step_up_required`
@@ -14,6 +14,8 @@ export function StepUpGate() {
   const [open, setOpen] = useState(false);
   const [password, setPassword] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  /** Why the last try was refused, as the server worded it (wrong, or locked). */
+  const [problem, setProblem] = useState<string | null>(null);
   const resolverRef = useRef<((ok: boolean) => void) | null>(null);
 
   useEffectOnce(() => {
@@ -32,6 +34,7 @@ export function StepUpGate() {
     resolverRef.current = null;
     setOpen(false);
     setPassword("");
+    setProblem(null);
   };
 
   const submit = async () => {
@@ -39,8 +42,12 @@ export function StepUpGate() {
     try {
       await api.stepUp(password);
       finish(true);
-    } catch {
-      toast.error("Incorrect password");
+    } catch (error) {
+      // The server says which: a wrong password, or the account locked after
+      // too many ("Too many wrong passwords. Try again in 15 minutes.").
+      const detail = error instanceof ApiError ? error.body.detail : undefined;
+      setProblem(typeof detail === "string" ? detail : "Could not check the password. Try again.");
+      setPassword("");
     } finally {
       setSubmitting(false);
     }
@@ -61,7 +68,11 @@ export function StepUpGate() {
           type="password"
           label="Password"
           value={password}
-          onChange={(e) => setPassword(e.currentTarget.value)}
+          error={problem}
+          onChange={(e) => {
+            setPassword(e.currentTarget.value);
+            setProblem(null);
+          }}
           onKeyDown={(e) => {
             if (e.key === "Enter" && password) {
               void submit();

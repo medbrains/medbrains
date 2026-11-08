@@ -93,6 +93,7 @@ export * from "./blood-group";
 export * from "./care-view";
 export type { ClinicalScoreRow, RecordScoreRequest } from "./care-view-scores";
 export * from "./cath-lab";
+export * from "./charge-attention";
 export * from "./chronic-care";
 export * from "./claim-settlements";
 export * from "./clinical-identity-forms";
@@ -5511,8 +5512,10 @@ export interface EmailSettings {
   from_address: string;
   from_name: string;
   smtp_username: string;
-  /** Reference (not the value) to the SMTP password in the secret backend. */
+  /** Short name (not the value) of the SMTP password in the secret backend. */
   smtp_password_secret: string | null;
+  /** Where that password is kept, in this hospital's namespace; null when unset or a legacy name. */
+  smtp_password_secret_path: string | null;
   env_fallback: boolean;
 }
 
@@ -6415,6 +6418,13 @@ export interface CodeBlueResponder {
   seconds_after_call: number;
 }
 
+/** SMS or WhatsApp messages of one code blue in one delivery state. */
+export interface CodeBlueDelivery {
+  channel: "sms" | "whatsapp";
+  status: "queued" | "sent" | "not_configured" | "failed";
+  count: number;
+}
+
 /** An arrest in progress, as the code blue list returns it. */
 export interface CodeBlueEventRow {
   id: string;
@@ -6424,6 +6434,44 @@ export interface CodeBlueEventRow {
   started_at: string;
   ended_at?: string | null;
   outcome?: string | null;
+  /** Rounds of paging so far; one more each window nobody answers. */
+  page_round: number;
+  last_paged_at?: string | null;
+  /** Who the latest round reached, in words. */
+  routing_note?: string | null;
+  /** What did not go out, e.g. "SMS is not set up: only in-app alerts went out". */
+  delivery_warning?: string | null;
+  delivery: CodeBlueDelivery[];
+}
+
+/** 1 code team, 2 duty medical officer, 3 medical superintendent. */
+export type CodeTeamTier = 1 | 2 | 3;
+
+/** One person on the code-blue roster. */
+export interface CodeTeamMember {
+  id: string;
+  user_id: string;
+  full_name: string;
+  /** Which code's roster: `code_blue`, `code_pink`, … */
+  code_type: string;
+  tier: CodeTeamTier;
+}
+
+/** Someone who can be put on the code-blue roster. */
+export interface CodeTeamCandidate {
+  id: string;
+  full_name: string;
+  role: string;
+}
+
+/** The code-blue roster screen in one call. */
+export interface CodeTeamRoster {
+  members: CodeTeamMember[];
+  candidates: CodeTeamCandidate[];
+  /** Seconds without a response before the next round of paging. */
+  response_secs: number;
+  /** Rounds of paging at most. */
+  max_rounds: number;
 }
 
 /** One emergency code called on the floor — fire, abduction, disaster, and the rest. */

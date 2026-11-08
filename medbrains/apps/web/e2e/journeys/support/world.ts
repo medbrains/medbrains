@@ -6,7 +6,7 @@
  * step the journey is *about* is done through the screen, by the role that
  * does it in a real hospital.
  */
-import { test as base, type Browser, type Page } from "@playwright/test";
+import { test as base, type Browser, expect, type Page } from "@playwright/test";
 import { loginAsRole, routeApiDirect } from "../../helpers";
 import { type AuthContext, api, getAuthContextFromCookies } from "../../helpers/api";
 import { getE2EIdentity } from "../../helpers/e2e-identities";
@@ -177,6 +177,18 @@ export const test = base.extend<{ hospital: Hospital }>({
 });
 
 export { expect } from "@playwright/test";
+
+/**
+ * Answer the "Confirm it's you" prompt a signature raises (step-up). It comes
+ * once per person per five minutes, so call it after the first signature a
+ * person makes in a journey.
+ */
+export async function confirmItsYou(page: Page, password: string): Promise<void> {
+  const confirm = page.getByRole("dialog", { name: "Confirm it's you" });
+  await confirm.getByLabel("Password").fill(password);
+  await confirm.getByRole("button", { name: "Confirm" }).click();
+  await expect(confirm).toBeHidden({ timeout: 15_000 });
+}
 
 const SYLLABLES = ["ka", "ri", "mo", "tha", "vel", "shan", "ni", "ra", "lu", "dev", "an", "ya"];
 

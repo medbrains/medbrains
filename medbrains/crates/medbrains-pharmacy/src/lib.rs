@@ -4704,12 +4704,12 @@ pub async fn list_ndps_entries(
 pub async fn create_ndps_entry(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
-    jar: axum_extra::extract::CookieJar,
+    proof: medbrains_server_core::step_up::StepUpProof,
     Json(body): Json<CreateNdpsEntryRequest>,
 ) -> Result<Json<NdpsRegisterEntry>, AppError> {
     require_permission(&claims, permissions::pharmacy::ndps::MANAGE)?;
     // Controlled-substance (NDPS) register entry — require fresh re-auth.
-    medbrains_server_core::step_up::require_step_up(&state, &jar, &claims)?;
+    medbrains_server_core::step_up::require_step_up(&state, &proof, &claims)?;
     let restricted_fields = resolve_pharmacy_restricted_fields(&state, &claims).await?;
 
     let mut tx = state.db.begin().await?;
@@ -8544,7 +8544,18 @@ pub struct AnalyticsDateQuery {
     pub days: Option<i32>,
 }
 
-/// Pharmacy (orders, dispensing, catalog, stock, transfers, analytics, finance) routes.
+/// The drug catalog. Not behind the Pharmacy switch: a clinic without a pharmacy still
+/// prescribes, and the prescription writer and drug search read the catalog.
+pub fn catalog_router() -> axum::Router<AppState> {
+    axum::Router::new()
+        .route(
+            "/api/pharmacy/catalog",
+            get(list_catalog).post(create_catalog_entry),
+        )
+        .route("/api/pharmacy/catalog/{id}", put(update_catalog_entry))
+}
+
+/// The Pharmacy app's routes; the server puts them behind the `pharmacy` brick switch.
 pub fn router() -> axum::Router<AppState> {
     axum::Router::new()
         .merge(storefront::router())
@@ -8565,11 +8576,6 @@ pub fn router() -> axum::Router<AppState> {
         )
         .route("/api/pharmacy/orders/{id}/dispense", put(dispense_order))
         .route("/api/pharmacy/orders/{id}/cancel", put(cancel_order))
-        .route(
-            "/api/pharmacy/catalog",
-            get(list_catalog).post(create_catalog_entry),
-        )
-        .route("/api/pharmacy/catalog/{id}", put(update_catalog_entry))
         .route("/api/pharmacy/stock", get(list_stock))
         .route(
             "/api/pharmacy/stock/transactions",

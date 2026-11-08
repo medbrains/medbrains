@@ -3,13 +3,14 @@
  * the medical record: the MRD officer finds it on the packet's notes page
  * (RFC-MODULE-clinical-notes, phase 4).
  */
-import { api, loginAsRoleApi } from "../helpers/api";
+import { api, loginAsRoleApi, withStepUp } from "../helpers/api";
 import { createEncounter, createPatientApi } from "../helpers/journey-steps";
 import { getOpdDept } from "../helpers/seed-resolvers";
 import { expect, test } from "./support/world";
 
 test("a printed case sheet is filed to the medical record", async ({ hospital, request }) => {
-  const doctorCtx = await loginAsRoleApi(request, "doctor");
+  // Signing a note asks for the password again (step-up).
+  const doctorCtx = await withStepUp(await loginAsRoleApi(request, "doctor"));
   const patient = await createPatientApi(hospital.admin);
   const encounterId = await createEncounter(doctorCtx, patient.id, {
     departmentId: (await getOpdDept(doctorCtx)).id,

@@ -14,6 +14,7 @@ medbrains-workflow = { path = "../medbrains-workflow" }
 medbrains-tokens = { path = "../medbrains-tokens" }
 medbrains-core = { path = "../medbrains-core" }
 medbrains-db = { path = "../medbrains-db" }
+medbrains-kernel = { path = "../medbrains-kernel" }
 medbrains-doctor-payouts = { path = "../medbrains-doctor-payouts" }
 medbrains-authz = { path = "../medbrains-authz" }
 axum = { workspace = true }
@@ -24,6 +25,12 @@ uuid = { workspace = true }
 sqlx = { workspace = true }
 chrono = { workspace = true }
 rust_decimal = { workspace = true }
+
+[dev-dependencies]
+medbrains-db-topology = { path = "../medbrains-db-topology" }
+medbrains-outbox = { path = "../medbrains-outbox" }
+jsonwebtoken = { workspace = true }
+tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
 
 [lints]
 workspace = true

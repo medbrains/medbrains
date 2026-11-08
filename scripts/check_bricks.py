@@ -4,6 +4,8 @@
 Fails when:
   - a route's module check (`require_module_enabled`, `module_entitlement`) names no brick;
   - a web menu tag (`moduleCode` in navigation.ts) names no brick;
+  - a web menu entry whose permissions all belong to one brick carries no tag for it, so the
+    menu would still show it with the brick off;
   - the module seed list names no brick, or its dependencies differ from the table;
   - a permission group in permissions.rs is placed nowhere (no brick, not the base plate, not
     listed as a brick still to be made).
@@ -26,7 +28,7 @@ NAV = ROOT / "apps/web/src/config/navigation.ts"
 CRATES = ROOT / "crates"
 
 # Bricks switched off by the Modules screen whose API still answers. Lower this as checks land.
-UNGUARDED_CEILING = 10
+UNGUARDED_CEILING = 0
 
 STRING = re.compile(r'"([a-z_.]+)"')
 
@@ -73,10 +75,41 @@ def route_codes() -> dict[str, list[str]]:
     """Module code -> files whose routes check it."""
     found: dict[str, list[str]] = {}
     call = re.compile(r'(?:require_module_enabled|module_entitlement)\([^;]*?"([a-z_]+)"\s*,?\s*\)', re.S)
+    # A whole router behind its brick switch: `gated("pharmacy", router, &state)`.
+    gate = re.compile(r'\bgated\(\s*"([a-z_]+)"')
     for path in CRATES.rglob("*.rs"):
-        for code in call.findall(path.read_text(errors="ignore")):
+        text = path.read_text(errors="ignore")
+        for code in call.findall(text) + gate.findall(text):
             found.setdefault(code, []).append(str(path.relative_to(ROOT)))
     return found
+
+
+def owner(code: str, groups: dict[str, str | None]) -> str | None:
+    """The brick a permission code belongs to: the one with the longest matching group."""
+    best = ""
+    for group in groups:
+        if (code == group or code.startswith(group + ".")) and len(group) > len(best):
+            best = group
+    return groups.get(best)
+
+
+def untagged_menu_entries(bricks: dict[str, dict], placed: set[str]) -> list[str]:
+    """Menu entries whose permissions all belong to one brick but whose `moduleCode` is not it."""
+    groups: dict[str, str | None] = {g: None for g in placed}
+    groups |= {g: ident for ident, brick in bricks.items() for g in brick["groups"]}
+    problems = []
+    for entry in re.split(r"(?=\bi18nKey:)", NAV.read_text())[1:]:
+        entry = entry.split("children:")[0]
+        key = re.match(r'i18nKey: "([^"]+)"', entry)
+        perms = re.findall(r'"([a-z_]+(?:\.[a-z_0-9]+)+)"', entry)
+        owners = {owner(code, groups) for code in perms}
+        if not key or len(owners) != 1 or None in owners:
+            continue
+        brick = owners.pop()
+        tag = re.search(r'moduleCode: "([a-z_]+)"', entry)
+        if not tag or tag.group(1) != brick:
+            problems.append(f"navigation.ts entry {key.group(1)} is {brick}'s but has no moduleCode \"{brick}\"")
+    return problems
 
 
 def seed_rows() -> dict[str, list[str]]:
@@ -101,6 +134,7 @@ def main() -> int:
             problems.append(f"seed module names no brick: {code}")
         elif sorted(deps) != sorted(bricks[code]["deps"]):
             problems.append(f"seed dependencies for {code} {deps} differ from bricks.rs {bricks[code]['deps']}")
+    problems += untagged_menu_entries(bricks, placed)
     in_bricks = {group for brick in bricks.values() for group in brick["groups"]}
     for group in sorted(permission_groups() - in_bricks - placed):
         problems.append(f"permission group placed nowhere: {group} (add it to a brick, BASE_PLATE or NOT_YET_BRICKS)")

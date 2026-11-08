@@ -394,6 +394,13 @@ pub mod lab {
         /// guessed. This lets a technologist read them, attach them to the
         /// right order, or dismiss them with a reason.
         pub const ANALYSER_REVIEW: &str = "lab.results.analyser_review";
+        /// Record the critical-value phone call.
+        ///
+        /// NABL and NABH ask for the lab-to-clinician call to be documented:
+        /// who called, who took the call, when, how many attempts, and that
+        /// the value was read back. A technologist makes the call, so this is
+        /// separate from acknowledging, which the clinician does.
+        pub const CRITICAL_CALL: &str = "lab.results.critical_call";
     }
 
     pub mod qc {
@@ -768,6 +775,18 @@ pub mod billing {
         pub const CONFIGURE: &str = "billing.payments.configure";
     }
 
+    /// The billing screen's own payment settings: the hospital's UPI ID and
+    /// its payment-link terms. Provider keys are not part of it.
+    pub mod payment_settings {
+        /// View billing payment settings.
+        /// See the hospital's UPI ID and its payment-link terms (part
+        /// payments, least part, days a link stays open, reminders).
+        pub const VIEW: &str = "billing.payment_settings.view";
+        /// Change billing payment settings.
+        /// Change the hospital's UPI ID and its payment-link terms.
+        pub const MANAGE: &str = "billing.payment_settings.manage";
+    }
+
     /// Taking a patient's money at a department desk (#4885).
     ///
     /// Each desk collects its own department's dues; collecting another
@@ -891,6 +910,37 @@ pub mod billing {
     pub mod write_off {
         pub const CREATE: &str = "billing.write_off.create";
         pub const APPROVE: &str = "billing.write_off.approve";
+    }
+
+    /// Automatic charges a clinical action could not post.
+    pub mod charge_attention {
+        /// See charges needing attention.
+        ///
+        /// Open the billing desk's queue of automatic charges — a diet order,
+        /// an OT completion, an ER registration — that could not be posted,
+        /// with why, so nothing done for a patient goes unbilled unseen.
+        pub const VIEW: &str = "billing.charge_attention.view";
+        /// Post or dismiss charges needing attention.
+        ///
+        /// Post a queued charge onto the patient's bill, or dismiss it with a
+        /// reason when it should not be billed. Who and when is recorded.
+        pub const RESOLVE: &str = "billing.charge_attention.resolve";
+    }
+
+    /// Revenue leakage: services done for a patient that were never billed.
+    pub mod leakage {
+        /// See done-but-unbilled orders.
+        ///
+        /// See lab tests, imaging and procedures that were completed for a
+        /// patient but have no charge on any bill, with the tariff amount and
+        /// how many days each has waited.
+        pub const VIEW: &str = "billing.leakage.view";
+        /// Post, dismiss or rescan unbilled orders.
+        ///
+        /// Post an unbilled order's charge onto the patient's bill, dismiss
+        /// it with a reason (package-included, free by policy, duplicate), or
+        /// run the unbilled-orders check now. Who and when is recorded.
+        pub const RESOLVE: &str = "billing.leakage.resolve";
     }
 
     pub mod claims {
@@ -2421,6 +2471,20 @@ pub mod mrd {
 
     pub mod storage {
         pub const MANAGE: &str = "mrd.storage.manage";
+    }
+
+    pub mod verify_links {
+        /// Show a signed record's public check link.
+        /// Gives the link an outsider (an insurer, a court, another
+        /// hospital) opens from the QR on the paper, minting a new one when
+        /// the last was withdrawn. The page it opens names the document type,
+        /// the signer and whether it is unchanged, never the patient.
+        pub const ISSUE: &str = "mrd.verify_links.issue";
+        /// Withdraw a signed record's public check link.
+        /// The QR on every copy already printed then answers that the
+        /// hospital withdrew it, and on which date. The signature itself is
+        /// untouched.
+        pub const REVOKE: &str = "mrd.verify_links.revoke";
     }
 }
 
@@ -4031,6 +4095,15 @@ pub mod ai {
 }
 
 pub mod nurse {
+    pub mod signature {
+        /// Sign own nursing entries.
+        ///
+        /// Put a digital signature on the medication administrations, vitals,
+        /// ICU chart entries, OT checklists, transfusions and triage this
+        /// nurse recorded. Needs a nurse profile with a licence number and a
+        /// fresh password step-up.
+        pub const SIGN: &str = "nurse.signature.sign";
+    }
     pub mod profile {
         pub const VIEW: &str = "nurse.profile.view";
         pub const MANAGE: &str = "nurse.profile.manage";
@@ -4152,6 +4225,13 @@ pub mod nurse {
         /// the activation reaches, so the team lead can see who is coming.
         /// The first response is also the arrival time NABH measures.
         pub const RESPOND: &str = "nurse.code_blue.respond";
+        /// Set who a code blue pages.
+        ///
+        /// The code team, the duty medical officer and the medical
+        /// superintendent, in that order of escalation. Without a roster the
+        /// page falls back to the ward's shift team, then to every clinician,
+        /// and says so on the code-blue screen.
+        pub const MANAGE_TEAM: &str = "nurse.code_blue.manage_team";
     }
     pub mod equipment {
         pub const VIEW: &str = "nurse.equipment.view";

@@ -102,6 +102,17 @@ async fn render_with_dlt_template(
 
 const TWILIO_API_BASE: &str = "https://api.twilio.com/2010-04-01/Accounts";
 
+/// Whether an SMS queued now would really leave: the simulator captures it,
+/// or Twilio has an account to send from. Otherwise this handler stubs, and a
+/// caller that must say "SMS is not set up" asks here first.
+pub async fn is_configured(resolver: &dyn medbrains_core::secrets::SecretResolver) -> bool {
+    crate::simulator::enabled()
+        || resolver
+            .get("TWILIO_ACCOUNT_SID")
+            .await
+            .is_ok_and(|sid| !sid.is_empty())
+}
+
 fn is_e164_phone(value: &str) -> bool {
     let Some(digits) = value.strip_prefix('+') else {
         return false;

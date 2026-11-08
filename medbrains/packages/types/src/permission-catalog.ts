@@ -19,7 +19,7 @@ export interface PermissionDef {
   module: string;
 }
 
-/** 1216 permissions, one per constant in the Rust source. */
+/** 1227 permissions, one per constant in the Rust source. */
 export const PERMISSIONS: PermissionDef[] = [
   // dashboard
   {
@@ -561,6 +561,12 @@ export const PERMISSIONS: PermissionDef[] = [
     code: "lab.results.analyser_review",
     label: "Resolve analyser results held for review",
     description: "Results an analyser sends that cannot be matched to exactly one order -- no barcode, a barcode on two orders, a different patient, a value conflicting with one recorded -- are held rather than guessed. This lets a technologist read them, attach them to the right order, or dismiss them with a reason.",
+    module: "lab",
+  },
+  {
+    code: "lab.results.critical_call",
+    label: "Record the critical-value phone call",
+    description: "NABL and NABH ask for the lab-to-clinician call to be documented: who called, who took the call, when, how many attempts, and that the value was read back. A technologist makes the call, so this is separate from acknowledging, which the clinician does.",
     module: "lab",
   },
   {
@@ -1112,6 +1118,18 @@ export const PERMISSIONS: PermissionDef[] = [
     module: "billing",
   },
   {
+    code: "billing.payment_settings.view",
+    label: "View billing payment settings",
+    description: "See the hospital's UPI ID and its payment-link terms (part payments, least part, days a link stays open, reminders).",
+    module: "billing",
+  },
+  {
+    code: "billing.payment_settings.manage",
+    label: "Change billing payment settings",
+    description: "Change the hospital's UPI ID and its payment-link terms.",
+    module: "billing",
+  },
+  {
     code: "billing.collect.registration",
     label: "Collect registration fees",
     description: "Take the registration fee at the front desk.",
@@ -1295,6 +1313,30 @@ export const PERMISSIONS: PermissionDef[] = [
     code: "billing.write_off.approve",
     label: "Approve Write-Off",
     description: "Approve or reject write-off requests",
+    module: "billing",
+  },
+  {
+    code: "billing.charge_attention.view",
+    label: "See charges needing attention",
+    description: "Open the billing desk's queue of automatic charges — a diet order, an OT completion, an ER registration — that could not be posted, with why, so nothing done for a patient goes unbilled unseen.",
+    module: "billing",
+  },
+  {
+    code: "billing.charge_attention.resolve",
+    label: "Post or dismiss charges needing attention",
+    description: "Post a queued charge onto the patient's bill, or dismiss it with a reason when it should not be billed. Who and when is recorded.",
+    module: "billing",
+  },
+  {
+    code: "billing.leakage.view",
+    label: "See done-but-unbilled orders",
+    description: "See lab tests, imaging and procedures that were completed for a patient but have no charge on any bill, with the tariff amount and how many days each has waited.",
+    module: "billing",
+  },
+  {
+    code: "billing.leakage.resolve",
+    label: "Post, dismiss or rescan unbilled orders",
+    description: "Post an unbilled order's charge onto the patient's bill, dismiss it with a reason (package-included, free by policy, duplicate), or run the unbilled-orders check now. Who and when is recorded.",
     module: "billing",
   },
   {
@@ -4110,6 +4152,18 @@ export const PERMISSIONS: PermissionDef[] = [
     description: "Manage MRD rooms, racks, shelves, bins, and barcodes",
     module: "mrd",
   },
+  {
+    code: "mrd.verify_links.issue",
+    label: "Show a signed record's public check link",
+    description: "Gives the link an outsider (an insurer, a court, another hospital) opens from the QR on the paper, minting a new one when the last was withdrawn. The page it opens names the document type, the signer and whether it is unchanged, never the patient.",
+    module: "mrd",
+  },
+  {
+    code: "mrd.verify_links.revoke",
+    label: "Withdraw a signed record's public check link",
+    description: "The QR on every copy already printed then answers that the hospital withdrew it, and on which date. The signature itself is untouched.",
+    module: "mrd",
+  },
   // facilities
   {
     code: "facilities.gas.list",
@@ -6843,6 +6897,12 @@ export const PERMISSIONS: PermissionDef[] = [
   },
   // nurse
   {
+    code: "nurse.signature.sign",
+    label: "Sign own nursing entries",
+    description: "Put a digital signature on the medication administrations, vitals, ICU chart entries, OT checklists, transfusions and triage this nurse recorded. Needs a nurse profile with a licence number and a fresh password step-up.",
+    module: "nurse",
+  },
+  {
     code: "nurse.profile.view",
     label: "View Nurse Profile",
     description: "View nurse profiles",
@@ -7068,6 +7128,12 @@ export const PERMISSIONS: PermissionDef[] = [
     code: "nurse.code_blue.respond",
     label: "Say you are responding to a code blue",
     description: "The page is one-way until somebody answers it. Held by everyone the activation reaches, so the team lead can see who is coming. The first response is also the arrival time NABH measures.",
+    module: "nurse",
+  },
+  {
+    code: "nurse.code_blue.manage_team",
+    label: "Set who a code blue pages",
+    description: "The code team, the duty medical officer and the medical superintendent, in that order of escalation. Without a roster the page falls back to the ward's shift team, then to every clinician, and says so on the code-blue screen.",
     module: "nurse",
   },
   {
@@ -7459,6 +7525,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.DOCTOR.PROFILE.UPDATE_OWN,
       P.DOCTOR.PROFILE.VIEW_OWN,
       P.DOCTOR.REFILL_REQUESTS.DECIDE,
+      P.DOCTOR.SIGNATURE.CO_SIGN,
       P.DOCTOR.SIGNATURE.SIGN,
       P.DOCTOR.SIGNATURE.VERIFY,
       P.DOCTOR.SIGNOFFS.VERBAL_REGISTER,
@@ -7569,6 +7636,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.MRD.CASE_SHEETS.VIEW,
       P.NOTES.USE,
       P.NURSE.CODE_BLUE.RESPOND,
+      P.NURSE.CODE_BLUE.VIEW,
       P.NURSE.EWS.ACKNOWLEDGE,
       P.NURSE.EWS.PLAN,
       P.NURSE.EWS.VIEW,
@@ -7898,6 +7966,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.NURSE.SHIFT.VIEW,
       P.NURSE.SHIFT_NOTES.EDIT,
       P.NURSE.SHIFT_NOTES.VIEW,
+      P.NURSE.SIGNATURE.SIGN,
       P.NURSE.TRANSFUSION.ADMINISTER,
       P.NURSE.TRANSFUSION.VIEW,
       P.NURSE.VITALS.RECORD,
@@ -8117,6 +8186,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.LAB.RESULTS.AMEND,
       P.LAB.RESULTS.ANALYSER_REVIEW,
       P.LAB.RESULTS.CREATE,
+      P.LAB.RESULTS.CRITICAL_CALL,
       P.LAB.RESULTS.UPDATE,
       P.LAB.RESULTS.VERIFY,
       P.LAB.SAMPLES.COLLECT,
@@ -8256,6 +8326,8 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.BILLING.BANK_RECON.MANAGE,
       P.BILLING.BILL_GROUPS.MANAGE,
       P.BILLING.CATALOG.MANAGE,
+      P.BILLING.CHARGE_ATTENTION.RESOLVE,
+      P.BILLING.CHARGE_ATTENTION.VIEW,
       P.BILLING.CLAIMS.SETTLEMENT.RECORD,
       P.BILLING.COLLECT.CROSS,
       P.BILLING.CONCESSIONS.CREATE,
@@ -8283,7 +8355,10 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.BILLING.JOURNAL.CREATE,
       P.BILLING.JOURNAL.LIST,
       P.BILLING.JOURNAL.POST,
+      P.BILLING.LEAKAGE.RESOLVE,
+      P.BILLING.LEAKAGE.VIEW,
       P.BILLING.PAYER_SPLIT.MANAGE,
+      P.BILLING.PAYMENT_SETTINGS.VIEW,
       P.BILLING.PAYMENTS.CREATE,
       P.BILLING.PAYMENTS.RECONCILE,
       P.BILLING.PAYMENTS.VOID,
@@ -8499,8 +8574,10 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.AUDIT.LOG_VIEW,
       P.AUDIT.PROCESSORS.LIST,
       P.AUDIT.PROCESSORS.MANAGE,
+      P.BILLING.CHARGE_ATTENTION.VIEW,
       P.BILLING.INVOICES.LIST,
       P.BILLING.INVOICES.VIEW,
+      P.BILLING.LEAKAGE.VIEW,
       P.CAMP.LIST,
       P.CONSENT.AUDIT.LIST,
       P.CONSENT.TEMPLATES.LIST,
@@ -8592,6 +8669,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.LMS.QUIZZES.ATTEMPT,
       P.MARKETING.OUTREACH.APPROVE,
       P.NOTES.USE,
+      P.NURSE.CODE_BLUE.MANAGE_TEAM,
       P.ORDER_SETS.ANALYTICS.VIEW,
       P.ORDER_SETS.TEMPLATES.LIST,
       P.ORDER_SETS.TEMPLATES.VIEW,
@@ -8716,6 +8794,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.CLINICAL_NOTES.PRINT,
       P.CLINICAL_NOTES.VIEW,
       P.DASHBOARD.VIEW,
+      P.DOCTOR.SIGNATURE.VERIFY,
       P.IPD.ADMISSIONS.LIST,
       P.IPD.ADMISSIONS.VIEW,
       P.MRD.BIRTHS.CREATE,
@@ -8734,6 +8813,8 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.MRD.RECORDS.MANAGE,
       P.MRD.RECORDS.VIEW_ALL,
       P.MRD.STORAGE.MANAGE,
+      P.MRD.VERIFY_LINKS.ISSUE,
+      P.MRD.VERIFY_LINKS.REVOKE,
       P.NOTES.USE,
       P.OPD.QUEUE.LIST,
       P.OPD.QUEUE.VIEW,

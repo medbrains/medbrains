@@ -2179,6 +2179,8 @@ export interface PatientIdentity {
   uhid: string;
   full_name: string;
   gender: Gender;
+  /** Whole years; null when not recorded or not readable whole by the caller. */
+  age_years: number | null;
 }
 
 export interface LabOrderListResponse {
@@ -2222,6 +2224,9 @@ export interface LabOrderDetailResponse {
   /** What the catalogue says this test is measured in. Absent when the
    *  catalogue row has been retired since the order was placed. */
   test: LabTestDefaults | null;
+  /** Who the order is for (name, UHID, sex, age): the lab reaches the order,
+   *  not the patient's record. */
+  patient: PatientIdentity | null;
 }
 
 export interface LabTestDefaults {
@@ -2363,6 +2368,35 @@ export interface LabCriticalAlert {
   readback_value: string | null;
   readback_verified: boolean;
   created_at: string;
+  /** Escalation rounds sent so far (0 = not escalated). */
+  escalation_tier: number;
+  escalated_at: string | null;
+  /** Why the last escalation could not be sent. */
+  escalation_blocked_reason: string | null;
+  /** The documented lab-to-clinician phone calls, oldest first (list only). */
+  calls?: LabCriticalCall[] | null;
+}
+
+/** One lab-to-clinician phone call for a critical value (NABL read-back). Append-only. */
+export interface LabCriticalCall {
+  id: string;
+  alert_id: string;
+  called_by: string;
+  received_by: string;
+  called_at: string;
+  attempts: number;
+  /** What the receiver read back. */
+  readback_value: string;
+  /** Whether it matched the reported value; decided by the server. */
+  readback_confirmed: boolean;
+}
+
+/** Record one critical-value phone call. */
+export interface RecordCriticalCallRequest {
+  received_by: string;
+  called_at?: string;
+  attempts: number;
+  readback_value: string;
 }
 
 export interface LabReagentLot {

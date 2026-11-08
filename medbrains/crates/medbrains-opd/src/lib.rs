@@ -92,14 +92,6 @@ const OPD_ENCOUNTER_WORKSPACE_PERMISSIONS: &[&str] = &[
     permissions::mrd::case_sheets::GENERATE,
 ];
 
-fn claims_have_permission(claims: &Claims, permission: &str) -> bool {
-    medbrains_server_core::middleware::authorization::is_bypass_role(claims)
-        || claims
-            .permissions
-            .iter()
-            .any(|granted| granted == permission)
-}
-
 // ══════════════════════════════════════════════════════════
 //  Query / Request / Response types
 // ══════════════════════════════════════════════════════════
@@ -1112,9 +1104,11 @@ pub async fn get_encounter(
 ) -> Result<Json<Encounter>, AppError> {
     require_any_permission(&claims, OPD_ENCOUNTER_WORKSPACE_PERMISSIONS)?;
 
-    if claims_have_permission(&claims, permissions::opd::queue::VIEW)
-        && !medbrains_server_core::middleware::authorization::is_bypass_role(&claims)
-    {
+    // The record check binds everyone who is not a bypass role. It used to
+    // run only for holders of `opd.queue.view`, so lab, pharmacy and
+    // radiology staff (who hold other workspace permissions) read any visit
+    // by id with no check at all.
+    if !medbrains_server_core::middleware::authorization::is_bypass_role(&claims) {
         let authz_ctx = medbrains_server_core::middleware::authorization::authz_context(&claims);
         medbrains_server_core::middleware::authorization::collapse(
             medbrains_server_core::middleware::authorization::outcome_of(
@@ -1465,15 +1459,14 @@ async fn charge_visit_fees(
         moment,
     )
     .await?;
-    if q.kind == "returned"
-        || !billing_lanes::consult_due_at(tx, claims.tenant_id, moment).await?
-        || !medbrains_server_services::billing::is_auto_billing_enabled(
-            tx,
-            &claims.tenant_id,
-            "opd",
-        )
-        .await?
-    {
+    if q.kind == "returned" || !billing_lanes::consult_due_at(tx, claims.tenant_id, moment).await? {
+        return Ok(());
+    }
+    // Setting first: the department and price lookups run only when billing
+    // is not off.
+    let setting =
+        medbrains_server_services::billing::read_auto_billing(tx, &claims.tenant_id, "opd").await?;
+    if setting == medbrains_server_services::billing::AutoBilling::Off {
         return Ok(());
     }
     let dept_code = sqlx::query_scalar::<_, String>(
@@ -1495,22 +1488,30 @@ async fn charge_visit_fees(
         q.department_id,
     )
     .await?;
-    let _ = medbrains_server_services::billing::auto_charge(
+    // `charge_or_queue` reads `auto_charge_opd`; a consult it cannot post
+    // waits on the billing desk's attention queue.
+    medbrains_server_services::billing::settle_charges(
         tx,
-        &claims.tenant_id,
-        medbrains_server_services::billing::AutoChargeInput {
-            patient_id,
-            encounter_id: Some(q.encounter_id),
-            charge_code,
-            source: "opd".to_owned(),
-            source_id: q.id,
-            quantity: 1,
-            description_override: Some(priced.description),
-            unit_price_override: priced.price,
-            tax_percent_override: None,
-        },
+        setting,
+        &[medbrains_server_services::billing::ChargeRequest {
+            tenant_id: claims.tenant_id,
+            requested_by: claims.sub,
+            setting_module: "opd",
+            charge: medbrains_server_services::billing::AutoChargeInput {
+                patient_id,
+                encounter_id: Some(q.encounter_id),
+                charge_code,
+                source: "opd".to_owned(),
+                source_id: q.id,
+                quantity: 1,
+                description_override: Some(priced.description),
+                unit_price_override: priced.price,
+                tax_percent_override: None,
+            },
+            apply_concessions: false,
+        }],
     )
-    .await;
+    .await?;
     Ok(())
 }
 
@@ -2637,7 +2638,7 @@ pub async fn create_prescription(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
     Path(encounter_id): Path<Uuid>,
-    jar: axum_extra::extract::CookieJar,
+    proof: medbrains_server_core::step_up::StepUpProof,
     Json(body): Json<CreatePrescriptionRequest>,
 ) -> Result<Json<PrescriptionWithItems>, AppError> {
     // Doctors prescribe directly; nurses may draft (Rx routes to MD countersign).
@@ -2650,7 +2651,7 @@ pub async fn create_prescription(
     )?;
     medbrains_authz_gate::require_encounter_access(&state, &claims, encounter_id).await?;
     // Prescribing — require fresh re-auth (the 5-min window keeps it light).
-    medbrains_server_core::step_up::require_step_up(&state, &jar, &claims)?;
+    medbrains_server_core::step_up::require_step_up(&state, &proof, &claims)?;
 
     if body.items.is_empty() {
         return Err(AppError::BadRequest(
@@ -3189,7 +3190,7 @@ pub async fn update_prescription(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
     Path(id): Path<Uuid>,
-    jar: axum_extra::extract::CookieJar,
+    proof: medbrains_server_core::step_up::StepUpProof,
     Json(body): Json<UpdatePrescriptionRequest>,
 ) -> Result<Json<PrescriptionWithItems>, AppError> {
     // Doctors prescribe directly; nurses may draft (Rx routes to MD countersign).
@@ -3211,7 +3212,7 @@ pub async fn update_prescription(
     )
     .await?;
     // Prescribing — require fresh re-auth (the 5-min window keeps it light).
-    medbrains_server_core::step_up::require_step_up(&state, &jar, &claims)?;
+    medbrains_server_core::step_up::require_step_up(&state, &proof, &claims)?;
 
     if body.items.is_empty() {
         return Err(AppError::BadRequest(
@@ -6140,6 +6141,7 @@ pub struct AdmitFromOpdResponse {
 pub async fn admit_from_opd(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
+    proof: medbrains_server_core::step_up::StepUpProof,
     Path(encounter_id): Path<Uuid>,
     Json(body): Json<AdmitFromOpdRequest>,
 ) -> Result<Json<AdmitFromOpdResponse>, AppError> {
@@ -6303,11 +6305,27 @@ pub async fn admit_from_opd(
     .execute(&mut *tx)
     .await?;
 
-    // 7. Copy prescriptions from OPD to IPD (prescriptions + items)
+    // 7. Copy prescriptions from OPD to IPD (prescriptions + items). Copying
+    // writes prescriptions on the inpatient visit, so a visit that has any
+    // needs the admitting user's fresh step-up, as prescribing does; one with
+    // none admits without the password. Refused, the transaction is dropped.
+    // The gate and the copy read the same rows (live prescriptions only): a
+    // deleted OPD prescription is never revived as a live inpatient one.
+    let has_prescriptions = sqlx::query_scalar!(
+        r#"SELECT EXISTS(SELECT 1 FROM prescriptions
+            WHERE encounter_id = $1 AND tenant_id = $2 AND deleted_at IS NULL) AS "exists!""#,
+        encounter_id,
+        claims.tenant_id,
+    )
+    .fetch_one(&mut *tx)
+    .await?;
+    if has_prescriptions {
+        medbrains_server_core::step_up::require_step_up(&state, &proof, &claims)?;
+    }
     let prescriptions_result = sqlx::query(
         "WITH src AS ( \
            SELECT id AS old_id FROM prescriptions \
-           WHERE encounter_id = $1 AND tenant_id = $3 \
+           WHERE encounter_id = $1 AND tenant_id = $3 AND deleted_at IS NULL \
          ), new_rx AS ( \
            INSERT INTO prescriptions (tenant_id, encounter_id, doctor_id, notes) \
            SELECT p.tenant_id, $2, p.doctor_id, p.notes \

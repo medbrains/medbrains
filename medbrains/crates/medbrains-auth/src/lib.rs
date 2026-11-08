@@ -51,65 +51,16 @@ pub struct UserInfo {
     pub email_verified: bool,
 }
 
-const MAX_FAILED_LOGINS: i32 = 5;
-const LOCKOUT_MINUTES: i32 = 15;
-
-/// Increment the per-account failure counter, lock the account once the
-/// threshold is reached, and audit the failure with the caller's address —
-/// every failure, not only the lockout, so a slow guess below the threshold
-/// still leaves a trail (DPDP Rule 6, NABH IMS).
+/// Count a wrong sign-in password against the account's shared lockout
+/// (`medbrains_server_core::lockout`, which step-up counts against too).
 async fn record_failed_login(
     state: &AppState,
-    (user_id, tenant_id): (Uuid, Uuid),
+    account: (Uuid, Uuid),
     ip: Option<&str>,
 ) -> Result<(), AppError> {
-    let now_locked: bool = sqlx::query_scalar(
-        "UPDATE users SET \
-           failed_login_attempts = CASE WHEN locked_until <= now() THEN 1 \
-             ELSE failed_login_attempts + 1 END, \
-           locked_until = CASE \
-             WHEN locked_until <= now() THEN NULL \
-             WHEN failed_login_attempts + 1 >= $2 \
-             THEN now() + make_interval(mins => $3) \
-             ELSE locked_until END \
-         WHERE id = $1 \
-         RETURNING failed_login_attempts >= $2",
-    )
-    .bind(user_id)
-    .bind(MAX_FAILED_LOGINS)
-    .bind(LOCKOUT_MINUTES)
-    .fetch_one(&mut *medbrains_db::pool::tenant_conn(&state.db, &tenant_id).await?)
-    .await?;
-
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &tenant_id).await?;
-    let actions: &[&str] = if now_locked {
-        &["login_failed", "account_locked"]
-    } else {
-        &["login_failed"]
-    };
-    for action in actions {
-        medbrains_db::audit::AuditLogger::log(
-            &mut tx,
-            &medbrains_db::audit::AuditEntry {
-                tenant_id,
-                user_id: Some(user_id),
-                action,
-                entity_type: "user",
-                entity_id: Some(user_id),
-                old_values: None,
-                new_values: None,
-                ip_address: ip,
-            },
-        )
+    medbrains_server_core::lockout::record_failed_password(state, account, ip, "login_failed")
         .await
-        .map_err(AppError::from)?;
-    }
-    tx.commit().await?;
-    if now_locked {
-        tracing::warn!(%user_id, "account locked after repeated failed logins");
-    }
-    Ok(())
+        .map(|_| ())
 }
 
 /// A sign-in for a name no account in that hospital has. Audited against the
@@ -927,7 +878,7 @@ pub struct LogoutAllRequest {
 pub async fn logout_all(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
-    jar: CookieJar,
+    proof: medbrains_server_core::step_up::StepUpProof,
     body: Option<Json<LogoutAllRequest>>,
 ) -> Result<impl IntoResponse, AppError> {
     let target_user = body.as_ref().and_then(|b| b.user_id).unwrap_or(claims.sub);
@@ -941,7 +892,7 @@ pub async fn logout_all(
             return Err(AppError::Forbidden);
         }
         // Force-logging out another user is high-risk → require fresh re-auth.
-        medbrains_server_core::step_up::require_step_up(&state, &jar, &claims)?;
+        medbrains_server_core::step_up::require_step_up(&state, &proof, &claims)?;
     }
 
     let mut tx = state.db.begin().await?;
@@ -1040,13 +991,23 @@ pub async fn me(
     .await?;
 
     // Edition entitlement: the modules this tenant has switched off (drives nav/route hiding).
-    let disabled_modules: Vec<String> = sqlx::query_scalar(
+    let mut disabled_modules: Vec<String> = sqlx::query_scalar(
         "SELECT code FROM module_config \
          WHERE tenant_id = $1 AND status::text IN ('disabled', 'coming_soon')",
     )
     .bind(claims.tenant_id)
     .fetch_all(&mut *tx)
     .await?;
+    // A brick that needs a switched-off brick is off too, as the server's module check has it.
+    let implied: Vec<&str> = disabled_modules
+        .iter()
+        .flat_map(|code| medbrains_core::bricks::dependents(code))
+        .collect();
+    for code in implied {
+        if !disabled_modules.iter().any(|c| c == code) {
+            disabled_modules.push(code.to_owned());
+        }
+    }
     let restrict_copy: bool = sqlx::query_scalar(
         "SELECT EXISTS(SELECT 1 FROM tenant_settings WHERE tenant_id = $1 \
          AND category = 'security' AND key = 'restrict_copy' \

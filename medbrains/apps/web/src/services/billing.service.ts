@@ -90,6 +90,9 @@ export const billingService = {
     api.getTenantSettings(...args),
   updateTenantSetting: (...args: Parameters<typeof api.updateTenantSetting>) =>
     api.updateTenantSetting(...args),
+  getBillingPaymentSettings: () => api.getBillingPaymentSettings(),
+  updateBillingPaymentSettings: (...args: Parameters<typeof api.updateBillingPaymentSettings>) =>
+    api.updateBillingPaymentSettings(...args),
   listAdvances: (...args: Parameters<typeof api.listAdvances>) => api.listAdvances(...args),
   createAdvance: (...args: Parameters<typeof api.createAdvance>) => api.createAdvance(...args),
   getFinalBillChecklist: (...args: Parameters<typeof api.getFinalBillChecklist>) =>
@@ -203,6 +206,15 @@ export const billingService = {
     api.rejectClaimSettlement(...args),
   reverseClaimSettlement: (...args: Parameters<typeof api.reverseClaimSettlement>) =>
     api.reverseClaimSettlement(...args),
+  listChargeAttention: (...args: Parameters<typeof api.listChargeAttention>) =>
+    api.listChargeAttention(...args),
+  postChargeAttention: (...args: Parameters<typeof api.postChargeAttention>) =>
+    api.postChargeAttention(...args),
+  chargeAttentionSummary: (...args: Parameters<typeof api.chargeAttentionSummary>) =>
+    api.chargeAttentionSummary(...args),
+  scanUnbilledOrders: () => api.scanUnbilledOrders(),
+  dismissChargeAttention: (...args: Parameters<typeof api.dismissChargeAttention>) =>
+    api.dismissChargeAttention(...args),
   backfillClaimSettlements: (...args: Parameters<typeof api.backfillClaimSettlements>) =>
     api.backfillClaimSettlements(...args),
 

@@ -47,5 +47,8 @@ async fn database_fault_answers_503_for_core_and_add_on() {
             Some(StatusCode::SERVICE_UNAVAILABLE),
             "{code}: an outage must be neither allow nor 403"
         );
+        // A fault is never cached as an answer: asked again, it is still unknown.
+        let again = require_module_enabled(&broken, tenant, code).await;
+        assert_eq!(status_of(again), Some(StatusCode::SERVICE_UNAVAILABLE));
     }
 }

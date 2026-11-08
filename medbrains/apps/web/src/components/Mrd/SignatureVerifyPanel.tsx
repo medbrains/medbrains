@@ -5,6 +5,7 @@ import { useMutation } from "@tanstack/react-query";
 import { useState } from "react";
 import { Alert, Badge, Button, Card, Input } from "@/components/ui";
 import { signatureService } from "@/services/signature.service";
+import { SignatureVerifyLinkCard } from "./SignatureVerifyLinkCard";
 
 /**
  * Tamper-evident signature verification. Paste/scan a signed-record id (from a
@@ -96,6 +97,10 @@ export function SignatureVerifyPanel() {
             <Detail label="Recomputed hash" value={result.recomputed_hash_hex} mono />
           </Stack>
         </Card>
+      )}
+
+      {result && verify.variables && (
+        <SignatureVerifyLinkCard signedRecordId={verify.variables.trim()} />
       )}
     </Stack>
   );

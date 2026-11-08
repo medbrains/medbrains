@@ -9,8 +9,19 @@ import Foundation
 public struct ApiError: Error, LocalizedError, Sendable {
     public let status: Int
     public let message: String
+    /// The server's machine-readable `error` (e.g. `step_up_required`).
+    public let code: String?
+
+    public init(status: Int, message: String, code: String? = nil) {
+        self.status = status
+        self.message = message
+        self.code = code
+    }
 
     public var errorDescription: String? { message }
+
+    /// The server wants the password again before this action (a signature).
+    public var isStepUpRequired: Bool { status == 403 && code == "step_up_required" }
 }
 
 public enum HttpMethod: String, Sendable {
@@ -23,6 +34,9 @@ public actor ApiClient {
     private let secrets: SecretStore
     private let session: URLSession
     private var onUnauthorized: (@Sendable () async -> Void)?
+    /// The last step-up proof, sent as `X-Step-Up-Token`. Memory only: it is
+    /// bound to this session on the server and lives five minutes.
+    private var stepUpToken: String?
 
     /// - Parameter variant: `staff`, `patient`, `camp`, `vendor` — becomes `mobile-<variant>`.
     public init(baseURL: URL, variant: String, secrets: SecretStore, session: URLSession = .shared) {
@@ -43,6 +57,13 @@ public actor ApiClient {
         return try JSONDecoder.medbrains.decode(T.self, from: data)
     }
 
+    /// Re-enter the password before a signature. The server answers a proof
+    /// bound to this session, which every request then carries.
+    public func stepUp(password: String) async throws {
+        let data = try await perform(.post, "/api/auth/step-up", body: StepUpBody(password: password))
+        stepUpToken = try JSONDecoder.medbrains.decode(StepUpAnswer.self, from: data).stepUpToken
+    }
+
     /// The response exactly as sent — a file to save or share, not a value to decode.
     public func download(_ path: String) async throws -> Data {
         try await perform(.get, path, body: Optional<Empty>.none)
@@ -61,6 +82,9 @@ public actor ApiClient {
         if let used {
             req.setValue("Bearer \(used)", forHTTPHeaderField: "Authorization")
         }
+        if let stepUpToken {
+            req.setValue(stepUpToken, forHTTPHeaderField: "X-Step-Up-Token")
+        }
         if let body {
             req.setValue("application/json", forHTTPHeaderField: "Content-Type")
             req.httpBody = try JSONEncoder.medbrains.encode(body)
@@ -72,21 +96,33 @@ public actor ApiClient {
             // A 401 for the token this request carried; a poll answered after a
             // fresh sign-in must not sign the new session out.
             if status == 401, used == (try? secrets.read(.jwt)) { await onUnauthorized?() }
-            throw ApiError(status: status, message: Self.errorMessage(from: data, status: status))
+            let error = Self.apiError(from: data, status: status)
+            if error.isStepUpRequired { stepUpToken = nil }
+            throw error
         }
         return data
     }
 
-    private static func errorMessage(from data: Data, status: Int) -> String {
+    /// The server's error body as an `ApiError`; a body it cannot read keeps the status text.
+    static func apiError(from data: Data, status: Int) -> ApiError {
         if let payload = try? JSONDecoder().decode(ErrorPayload.self, from: data) {
-            return payload.detail ?? payload.error
+            return ApiError(status: status, message: payload.detail ?? payload.error, code: payload.error)
         }
-        return HTTPURLResponse.localizedString(forStatusCode: status)
+        return ApiError(status: status, message: HTTPURLResponse.localizedString(forStatusCode: status))
     }
 }
 
 public struct Empty: Codable, Sendable {
     public init() {}
+}
+
+private struct StepUpBody: Encodable {
+    let password: String
+}
+
+/// What `/api/auth/step-up` answers a native client.
+struct StepUpAnswer: Decodable {
+    let stepUpToken: String
 }
 
 struct ErrorPayload: Decodable {

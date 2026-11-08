@@ -612,6 +612,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         // among thousands.
         .layer(
             TraceLayer::new_for_http()
+                .make_span_with(medbrains_server_core::http_trace::make_span)
                 .on_response(medbrains_server_core::http_trace::on_response),
         )
         // A Sentry hub per request, outside the trace layer so its log lines
@@ -682,6 +683,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Room-rent auto-billing — hourly idempotent pass posting one
     // bed charge per occupied admission per hospital-local day.
     medbrains_server::services::room_rent::spawn(worker_pool.clone());
+    // Revenue leakage — daily pass queueing orders done but never billed.
+    medbrains_server::services::unbilled_orders::spawn(worker_pool.clone());
     // Humanex HRMS pull (RFC-HRMS-INTEGRATIONS); no-op for tenants without hrms.humanex.
     medbrains_hrms_gateway::spawn(worker_pool.clone());
 
@@ -692,7 +695,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Critical-value escalation — unacknowledged lab alerts escalate
     // to the doctor's supervisor after the tenant's ack window.
-    medbrains_server::services::critical_alert_escalation::spawn(worker_pool.clone());
+    // It needs the credential store to know whether SMS is set up: an
+    // escalation it cannot text is reported as blocked, never as sent.
+    medbrains_server::services::critical_alert_escalation::spawn(
+        worker_pool.clone(),
+        medbrains_server::secret_backend::build_secret_resolver().await,
+    );
+    // A code blue nobody answers is re-paged wider, a bounded number of times.
+    medbrains_nursing::code_blue_escalation::spawn(worker_pool.clone());
     medbrains_server::services::enquiry_sla_escalation::spawn(worker_pool.clone());
     // CERT-In 6 h / DPDP Board 72 h breach reports overdue — notify once.
     medbrains_server::services::breach_deadline_escalation::spawn(worker_pool.clone());
@@ -883,6 +893,16 @@ fn build_outbox_registry() -> Arc<medbrains_outbox::Registry> {
     // them sent without sending anything.
     registry.register(twilio::SmsSendHandler::new("sms.mlc_police_intimation"));
     registry.register(twilio::SmsSendHandler::new("sms.mass_casualty_alert"));
+    // The code blue page: one round of paging, then its SMS and WhatsApp per
+    // person. Unregistered, the fallback marked the page sent while no
+    // pipeline acted on it (medbrains-nursing::code_blue_alert).
+    registry.register(medbrains_nursing::code_blue_alert::CodeBlueAlertHandler);
+    registry.register(twilio::SmsSendHandler::new(
+        medbrains_nursing::code_blue_alert::SMS_EVENT,
+    ));
+    registry.register(whatsapp::WhatsAppSendHandler::new(
+        medbrains_nursing::code_blue_alert::WHATSAPP_EVENT,
+    ));
     registry.register(email_stub::SmtpSendHandler::new(
         "email.mlc_police_intimation",
     ));
@@ -969,7 +989,7 @@ impl medbrains_outbox::handlers::pipeline_fallback::PipelineDispatcher
         user_id: uuid::Uuid,
         event_type: &str,
         payload: &serde_json::Value,
-    ) -> Result<(), String> {
+    ) -> Result<usize, String> {
         medbrains_server::events::dispatch_to_pipelines(
             pool, tenant_id, user_id, event_type, payload,
         )

@@ -5,7 +5,8 @@
  */
 import { api } from "../helpers/api";
 import { createPatientApi } from "../helpers/journey-steps";
-import { expect, test } from "./support/world";
+import { getE2EIdentity } from "../helpers/e2e-identities";
+import { confirmItsYou, expect, test } from "./support/world";
 
 test("a home visit's nursing note is signed on its case sheet", async ({ hospital }) => {
   const patient = await createPatientApi(hospital.admin);
@@ -29,6 +30,7 @@ test("a home visit's nursing note is signed on its case sheet", async ({ hospita
   await page.keyboard.type("Wound clean, dressing changed");
   await expect(sheet.getByText(/^Draft saved/)).toBeVisible({ timeout: 10_000 });
   await sheet.getByRole("button", { name: "Sign", exact: true }).click();
+  await confirmItsYou(page, getE2EIdentity("super_admin").password);
   await expect(sheet.getByText(/Signed \w+ \d/).first()).toBeVisible({ timeout: 15_000 });
 
   await page.goto("/home-healthcare");
