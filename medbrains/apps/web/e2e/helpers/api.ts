@@ -110,19 +110,21 @@ export async function getAuthContextFromCookies(
 ): Promise<AuthContext> {
   const state = await request.storageState();
   const csrf = state.cookies.find((c) => c.name === "csrf_token")?.value ?? "";
-  if (!csrf) return loginAsAdmin(request);
   // The stored session is global-setup's, and its access cookie lives 15
-  // minutes. A test that starts with less than a long test's worth left would
-  // lose it half-way (a 401 that reads as a refusal), so sign in again.
+  // minutes (gone from the store once expired). A test that starts with less
+  // than a long test's worth left would lose it half-way (a 401 that reads as
+  // a refusal), so sign in again.
   const access = state.cookies.find((c) => c.name === "access_token");
-  if (access && access.expires > 0 && access.expires * 1000 - Date.now() < SESSION_MARGIN_MS) {
+  const stale =
+    !csrf || !access || (access.expires > 0 && access.expires * 1000 - Date.now() < SESSION_MARGIN_MS);
+  if (stale) {
     return freshSetupAdmin(request);
   }
   const cookieHeader = cookieHeaderFromStorageState(state.cookies);
   const me = await request.get(`${E2E_BACKEND_URL}/api/auth/me`, {
     headers: { "x-csrf-token": csrf, cookie: cookieHeader },
   });
-  if (!me.ok()) return loginAsAdmin(request);
+  if (!me.ok()) return freshSetupAdmin(request);
   const body = await me.json().catch(() => ({}));
   const userId = body.user?.id ?? body.id ?? "";
 
