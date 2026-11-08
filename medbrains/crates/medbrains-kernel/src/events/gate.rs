@@ -65,7 +65,7 @@ pub(super) async fn emit_before_event(
     .bind(tenant_id)
     .bind(&trigger_match)
     // A pipeline a vendor account set up never runs: it would act on, or send
-    // out, hospital data after the support grant that allowed it had ended.
+    // out, tenant data after the support grant that allowed it had ended.
     .bind(medbrains_core::vendor::vendor_domains())
     .fetch_all(&mut *conn)
     .await?;
