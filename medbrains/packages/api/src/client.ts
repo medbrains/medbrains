@@ -7373,7 +7373,10 @@ export const api = {
   getPharmacyOrderSafetyRecord: (id: string) =>
     request<PharmacySafetyRecordRow[]>(`/pharmacy/orders/${id}/safety-record`),
 
-  listDispenseWitnesses: () => request<DispenseWitness[]>("/pharmacy/dispense-witnesses"),
+  listDispenseWitnesses: (q?: string) =>
+    request<DispenseWitness[]>(
+      `/pharmacy/dispense-witnesses${q ? `?q=${encodeURIComponent(q)}` : ""}`,
+    ),
 
   getPharmacyDispenseContext: (patientId: string) =>
     request<PharmacyDispenseContext>(`/pharmacy/patients/${patientId}/dispense-context`),

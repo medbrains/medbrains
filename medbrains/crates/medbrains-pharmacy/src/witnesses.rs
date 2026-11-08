@@ -3,20 +3,25 @@
 //!
 //! `GET /api/pharmacy/dispense-witnesses` lists, by name only, active
 //! colleagues in the caller's own departments who may dispense — after any
-//! permission taken away from them personally. The dispense screen asked the
-//! administrator's user directory before, so a pharmacist saw nobody.
+//! permission taken away from them personally, narrowed by `?q=` (part of the
+//! name). The dispense screen asked the administrator's user directory before,
+//! so a pharmacist saw nobody; and the list is capped, so the picker searches
+//! the server rather than filtering a page that may not hold the colleague.
 //!
 //! `verify_witness` is what the dispense runs: a second person, still allowed
 //! to dispense, who has typed their own password at this screen.
 
 use axum::Extension;
-use axum::{Json, extract::State};
+use axum::{
+    Json,
+    extract::{Query, State},
+};
 use medbrains_core::permissions;
 use medbrains_kernel::{Actor, Claims, require_permission};
 use medbrains_server_core::error::AppError;
 use medbrains_server_core::step_up::{PasswordCheck, check_user_password};
 use medbrains_server_core::state::AppState;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 /// The most names the picker offers.
@@ -29,12 +34,26 @@ pub struct DispenseWitness {
     pub full_name: String,
 }
 
+/// `?q=`: part of the witness's name.
+#[derive(Debug, Deserialize)]
+pub struct WitnessQuery {
+    pub q: Option<String>,
+}
+
 /// Lists active colleagues in the caller's departments who may dispense,
-/// excluding the caller (a witness is a second person).
+/// excluding the caller (a witness is a second person), whose name contains
+/// `q` when given.
 pub async fn list_dispense_witnesses(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
+    Query(query): Query<WitnessQuery>,
 ) -> Result<Json<Vec<DispenseWitness>>, AppError> {
+    let name = query
+        .q
+        .as_deref()
+        .map(str::trim)
+        .filter(|q| !q.is_empty())
+        .map(|q| format!("%{}%", q.replace('\\', "\\\\").replace('%', "\\%").replace('_', "\\_")));
     require_permission(&claims, permissions::pharmacy::dispensing::CREATE)?;
     let mut tx = medbrains_kernel::begin(&state.db, Actor::from_claims(&claims)).await?;
     let rows = sqlx::query_as!(
@@ -48,6 +67,7 @@ pub async fn list_dispense_witnesses(
             AND u.department_ids && $4::uuid[] \
             AND (r.permissions ? $3 OR COALESCE(u.access_matrix->'extra' ? $3, false)) \
             AND NOT COALESCE(u.access_matrix->'denied' ? $3, false) \
+            AND ($6::text IS NULL OR u.full_name ILIKE $6) \
           ORDER BY u.full_name \
           LIMIT $5",
         claims.tenant_id,
@@ -55,6 +75,7 @@ pub async fn list_dispense_witnesses(
         permissions::pharmacy::dispensing::CREATE,
         &claims.department_ids,
         WITNESS_LIMIT,
+        name,
     )
     .fetch_all(&mut *tx)
     .await?;

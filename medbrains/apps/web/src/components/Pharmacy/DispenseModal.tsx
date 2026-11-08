@@ -1,4 +1,5 @@
 import { Group, Stack, Text, Textarea } from "@mantine/core";
+import { useDebouncedValue } from "@mantine/hooks";
 import type { PharmacyCatalog, PharmacyOrderItem } from "@medbrains/types";
 import { IconAlertTriangle } from "@tabler/icons-react";
 import { useQuery } from "@tanstack/react-query";
@@ -68,11 +69,15 @@ export function DispenseModal({
   );
 
   // Colleagues who may dispense, by name. The user directory it read before
-  // is an administrator's, so a pharmacist's witness list was empty.
+  // is an administrator's, so a pharmacist's witness list was empty. The list
+  // is capped on the server, so typing searches the server, not this page.
+  const [witnessSearch, setWitnessSearch] = useState("");
+  const [witnessQuery] = useDebouncedValue(witnessSearch.trim(), 250);
   const { data: witnesses = [] } = useQuery({
-    queryKey: ["pharmacy-dispense-witnesses"],
-    queryFn: () => pharmacyService.listDispenseWitnesses(),
-    staleTime: 300_000,
+    queryKey: ["pharmacy-dispense-witnesses", witnessQuery],
+    queryFn: () => pharmacyService.listDispenseWitnesses(witnessQuery || undefined),
+    staleTime: 60_000,
+    placeholderData: (previous) => previous,
     enabled: opened,
   });
 
@@ -226,6 +231,9 @@ export function DispenseModal({
             value={witness}
             onChange={setWitness}
             searchable
+            searchValue={witnessSearch}
+            onSearchChange={setWitnessSearch}
+            filter={({ options }) => options}
             error={anyControlled && !witness ? "Required for controlled drugs" : undefined}
           />
         )}

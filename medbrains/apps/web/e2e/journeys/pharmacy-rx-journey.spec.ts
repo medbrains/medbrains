@@ -402,7 +402,8 @@ test("a Schedule X controlled drug is refused without a witness, the refusal is 
   await page.getByRole("button", { name: "Dispense", exact: true }).click();
   const dispense = page.getByRole("dialog", { name: "Dispense order" });
   await expect(dispense.getByRole("button", { name: "Dispense", exact: true })).toBeDisabled();
-  await dispense.getByRole("combobox", { name: /Witness/ }).click();
+  // The picker searches the server by name: a large team does not fit one list.
+  await dispense.getByRole("combobox", { name: /Witness/ }).fill(witnessName);
   await page.getByRole("option", { name: witnessName, exact: true }).click();
   await expect(dispense.getByRole("button", { name: "Dispense", exact: true })).toBeDisabled();
   // The witness types their own password at this screen.

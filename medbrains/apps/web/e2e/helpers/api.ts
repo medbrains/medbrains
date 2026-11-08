@@ -10,7 +10,7 @@
 
 import { expect, type APIRequestContext } from "@playwright/test";
 import { getE2EIdentity } from "./e2e-identities";
-import { provisionIdentity } from "./identities";
+import { login, provisionIdentity } from "./identities";
 import type { ApiCallOptions, AuthContext } from "./types";
 
 export const E2E_BACKEND_URL =
@@ -111,6 +111,13 @@ export async function getAuthContextFromCookies(
   const state = await request.storageState();
   const csrf = state.cookies.find((c) => c.name === "csrf_token")?.value ?? "";
   if (!csrf) return loginAsAdmin(request);
+  // The stored session is global-setup's, and its access cookie lives 15
+  // minutes. A test that starts with less than a long test's worth left would
+  // lose it half-way (a 401 that reads as a refusal), so sign in again.
+  const access = state.cookies.find((c) => c.name === "access_token");
+  if (access && access.expires > 0 && access.expires * 1000 - Date.now() < SESSION_MARGIN_MS) {
+    return freshSetupAdmin(request);
+  }
   const cookieHeader = cookieHeaderFromStorageState(state.cookies);
   const me = await request.get(`${E2E_BACKEND_URL}/api/auth/me`, {
     headers: { "x-csrf-token": csrf, cookie: cookieHeader },
@@ -143,6 +150,28 @@ export async function getAuthContextFromCookies(
     userId,
     tenantId: body.user?.tenant_id ?? body.tenant_id ?? "",
     password,
+  };
+}
+
+/** A test needs at least this much session left, or it signs in again. */
+const SESSION_MARGIN_MS = 6 * 60_000;
+
+/** The setup admin, signed in again for a full session. */
+async function freshSetupAdmin(request: APIRequestContext): Promise<AuthContext> {
+  let identity: ReturnType<typeof getE2EIdentity>;
+  try {
+    identity = getE2EIdentity("super_admin");
+  } catch {
+    return loginAsAdmin(request);
+  }
+  const session = await login(request, identity.username, identity.password);
+  return {
+    csrfToken: session.csrf,
+    cookieHeader: session.cookieHeader,
+    request,
+    userId: session.user?.id ?? "",
+    tenantId: session.user?.tenant_id ?? "",
+    password: identity.password,
   };
 }
 

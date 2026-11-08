@@ -24,7 +24,7 @@ export const pharmacyService = {
   validatePharmacyOrder: (...args: Parameters<typeof api.validatePharmacyOrder>) =>
     api.validatePharmacyOrder(...args),
   getPharmacyDispenseContext: (patientId: string) => api.getPharmacyDispenseContext(patientId),
-  listDispenseWitnesses: () => api.listDispenseWitnesses(),
+  listDispenseWitnesses: (q?: string) => api.listDispenseWitnesses(q),
   getPharmacyOrderSafetyRecord: (...args: Parameters<typeof api.getPharmacyOrderSafetyRecord>) =>
     api.getPharmacyOrderSafetyRecord(...args),
   listPatientAllergies: (...args: Parameters<typeof api.listPatientAllergies>) =>
