@@ -27,9 +27,13 @@
 -- * The night-before pull list writes `pull_list` rows for tomorrow's
 --   appointments (`uq_mrd_file_requests_appointment`); the visit, when it is
 --   created, takes over that row instead of asking again.
--- * Cancelling the visit (or the appointment) closes the request. A request
---   still open when its visit day has ended is closed by the MRD job as
---   `cancelled` / `day_ended`, so yesterday's errands never crowd today's queue.
+-- * Cancelling the visit (or the appointment) closes the request. After its
+--   visit day, the MRD job closes a request that was never picked up as
+--   `cancelled` / `day_ended` once its visit is over (completed or cancelled,
+--   or it never had one), so yesterday's errands never crowd today's queue but
+--   an evening clinic running past midnight keeps its file. A picked-up file
+--   is never closed automatically: it is told to the supervisor as out
+--   overnight, because someone has to return it.
 -- * Due time: `tenant_settings` mrd / `file_request_due_minutes`, default 10,
 --   clamped to 1..240 so a typo cannot switch escalation off.
 --
@@ -61,6 +65,9 @@ CREATE TABLE public.mrd_file_requests (
     delivered_by uuid REFERENCES public.users(id),
     pick_movement_id uuid REFERENCES public.mrd_record_movements(id),
     escalated_at timestamptz,
+    -- A picked file still with its runner after the visit day: told to the
+    -- supervisor once, never closed automatically (someone must return it).
+    overnight_flagged_at timestamptz,
     closed_reason text CHECK (closed_reason IS NULL OR closed_reason ~ '^[a-z_]{3,40}$'),
     created_by uuid REFERENCES public.users(id),
     created_at timestamptz NOT NULL DEFAULT now(),

@@ -10,9 +10,13 @@
 //!   unescalated, is retried, and the queue still shows it late. Each hospital
 //!   gets at most [`PER_TENANT_LIMIT`] of a pass, so one hospital with nobody to
 //!   tell cannot fill every pass and starve the rest.
-//! * **Day end**, every fifteen minutes: a request still open after its visit
-//!   day (hospital clock) is closed as `cancelled` / `day_ended`, so yesterday's
-//!   unfinished errands never crowd today's queue.
+//! * **Day end**, every fifteen minutes, after a request's visit day (hospital
+//!   clock): a request never picked up is closed as `cancelled` / `day_ended`
+//!   once its visit is over (completed or cancelled, or a pull-list row that
+//!   never got one), so yesterday's errands never crowd today's queue while an
+//!   evening clinic past midnight keeps its file. A picked-up file is never
+//!   closed by the job: its runner still holds it, so the supervisor is told
+//!   once that it is out overnight, and a person returns it.
 //! * **Pull list**, every fifteen minutes from 18:00 on the hospital's clock:
 //!   tomorrow's appointments become pre-pulled requests. Idempotent, so later
 //!   bookings join on the next run.
@@ -187,8 +191,8 @@ async fn escalate_one(pool: &PgPool, tenant_id: Uuid, id: Uuid) -> Result<bool, 
     Ok(true)
 }
 
-/// Close every request still open after its visit day, hospital by hospital
-/// on each one's clock. Returns how many it closed.
+/// The day-end pass, hospital by hospital on each one's clock: close what
+/// can be closed, flag what is out overnight. Returns how many it closed.
 pub async fn close_ended_days(pool: &PgPool) -> Result<u64, AppError> {
     let tenants: Vec<Uuid> = sqlx::query_scalar(
         "SELECT DISTINCT tenant_id FROM mrd_file_requests \
@@ -205,24 +209,102 @@ pub async fn close_ended_days(pool: &PgPool) -> Result<u64, AppError> {
             Ok(n) => closed += n,
             Err(error) => tracing::error!(%tenant_id, %error, "MRD day-end close failed"),
         }
+        if let Err(error) = flag_out_overnight(pool, tenant_id).await {
+            tracing::error!(%tenant_id, %error, "MRD overnight flag failed");
+        }
     }
     Ok(closed)
 }
 
-/// One hospital's day-end close, on its own clock (the unit of work's zone).
+/// One hospital's day-end close: requests from an earlier day that were
+/// never picked up and whose visit is over (or that never had a visit).
 async fn close_ended_day(pool: &PgPool, tenant_id: Uuid) -> Result<u64, AppError> {
     let mut tx = medbrains_kernel::begin(pool, Actor::system(tenant_id)).await?;
     let done = sqlx::query(
-        "UPDATE mrd_file_requests SET status = 'cancelled', closed_reason = 'day_ended' \
-          WHERE tenant_id = $1 AND deleted_at IS NULL \
-            AND status IN ('requested', 'picked', 'not_found') \
-            AND visit_date < CURRENT_DATE",
+        "UPDATE mrd_file_requests f SET status = 'cancelled', closed_reason = 'day_ended' \
+          WHERE f.tenant_id = $1 AND f.deleted_at IS NULL \
+            AND f.status IN ('requested', 'not_found') \
+            AND f.visit_date < CURRENT_DATE \
+            AND NOT EXISTS (SELECT 1 FROM encounters e \
+                             WHERE e.id = f.encounter_id AND e.tenant_id = f.tenant_id \
+                               AND e.status NOT IN ('completed', 'cancelled'))",
     )
     .bind(tenant_id)
     .execute(&mut *tx)
     .await?;
     tx.commit().await?;
     Ok(done.rows_affected())
+}
+
+/// A picked file still out after its visit day, as the supervisor is told.
+#[derive(sqlx::FromRow)]
+struct OutOvernight {
+    id: Uuid,
+    record_number: String,
+    runner: Option<String>,
+}
+
+/// Tell the supervisors, once per file, that a picked-up file was neither
+/// delivered nor returned by the end of its day (and its visit is over, so an
+/// evening clinic past midnight is not flagged). Rolled back (retried next
+/// pass) when nobody holds the permission. Returns how many were flagged.
+async fn flag_out_overnight(pool: &PgPool, tenant_id: Uuid) -> Result<usize, AppError> {
+    let mut tx = medbrains_kernel::begin(pool, Actor::system(tenant_id)).await?;
+    let rows: Vec<OutOvernight> = sqlx::query_as(
+        "UPDATE mrd_file_requests f SET overnight_flagged_at = now() \
+           FROM mrd_medical_records r \
+          WHERE f.tenant_id = $1 AND r.id = f.medical_record_id AND f.deleted_at IS NULL \
+            AND f.status = 'picked' AND f.visit_date < CURRENT_DATE \
+            AND f.overnight_flagged_at IS NULL \
+            AND NOT EXISTS (SELECT 1 FROM encounters e \
+                             WHERE e.id = f.encounter_id AND e.tenant_id = f.tenant_id \
+                               AND e.status NOT IN ('completed', 'cancelled')) \
+         RETURNING f.id, r.record_number, \
+                   (SELECT u.full_name FROM users u WHERE u.id = f.picked_by) AS runner",
+    )
+    .bind(tenant_id)
+    .fetch_all(&mut *tx)
+    .await?;
+    if rows.is_empty() {
+        return Ok(0);
+    }
+    let mut savepoint = sqlx::Acquire::begin(&mut *tx).await?;
+    for row in &rows {
+        let body = overnight_message(row);
+        let told = notify_permission_holders(
+            &mut savepoint,
+            tenant_id,
+            permissions::mrd::file_request::SUPERVISE,
+            Uuid::nil(),
+            |user_id| NewNotification {
+                user_id,
+                kind: "warning",
+                title: "File out overnight",
+                body: Some(&body),
+                category: Some("Medical Records"),
+                entity_type: Some("mrd_file_requests"),
+                entity_id: Some(row.id),
+                action_url: Some("/mrd#file-requests"),
+            },
+        )
+        .await?;
+        if told == 0 {
+            tracing::warn!(%tenant_id, "MRD file out overnight, but nobody supervises files");
+            return Ok(0);
+        }
+    }
+    savepoint.commit().await?;
+    tx.commit().await?;
+    Ok(rows.len())
+}
+
+/// The overnight message: the file and who has it, never the patient.
+fn overnight_message(row: &OutOvernight) -> String {
+    format!(
+        "File {} was picked up by {} and neither delivered nor returned. Return it to its shelf.",
+        row.record_number,
+        row.runner.as_deref().unwrap_or("a runner")
+    )
 }
 
 /// Build tomorrow's pull list for every hospital whose clock is past

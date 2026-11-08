@@ -244,8 +244,9 @@ async fn count_diagnoses(
 }
 
 /// Active prescription items from the last [`RECENT_DAYS`] days.
-// ponytail: "current" is active and recent; a course's duration is free text,
-// so a finished five-day course still shows until it ages out.
+///
+/// ponytail: "current" is active and recent; a course's duration is free
+/// text, so a finished five-day course still shows until it ages out.
 async fn current_medicines(
     conn: &mut PgConnection,
     tenant_id: Uuid,

@@ -45,9 +45,12 @@ system asks for it, so the request travels by word of mouth and patients wait 30
    second request (the file must travel again); asking again for the same visit returns the same
    request.
 6. **Cancellation and day end.** When the visit is cancelled (or the patient is a no-show, or a
-   pre-pulled appointment is cancelled), the open request is closed as cancelled. A request still
-   open after its visit day is closed as `cancelled` / `day_ended`, so today's queue holds today's
-   errands only. Teleconsultation and back-dated visits ask for no file.
+   pre-pulled appointment is cancelled), the open request is closed as cancelled. After its visit
+   day, a request never picked up is closed as `cancelled` / `day_ended` once its visit is over
+   (completed or cancelled, or a pull-list row that never got a visit); an evening clinic running
+   past midnight keeps its request. A picked-up file is never closed by the job: the supervisor is
+   told once that it is out overnight, and a person returns it. Teleconsultation and back-dated
+   visits ask for no file.
 7. **Wrong file.** When the runner scans another file's barcode, the scan is refused (409) and
    nothing changes. A file cannot be delivered before it was picked.
 8. **Late.** When a request passes its due time, everyone holding `mrd.file_request.supervise` gets
@@ -98,7 +101,8 @@ Setting: `tenant_settings` category `mrd`, key `file_request_due_minutes`.
 | GET | `/api/mrd/file-requests/by-encounter/{id}/summary` | `opd.diagnoses.list` + `patients.view` + encounter access, audited |
 
 Jobs (`file_requests::jobs::spawn`): escalation every minute (at most 20 per hospital per pass);
-day-end close and the pull list every 15 minutes, the pull list from 18:00 on the hospital's clock. KPIs `mrd_file_delivery_minutes` and `mrd_file_delivery_p90_minutes` in
+day-end close (and the out-overnight flag) and the pull list every 15 minutes, the pull list from
+18:00 on the hospital's clock. KPIs `mrd_file_delivery_minutes` and `mrd_file_delivery_p90_minutes` in
 the management catalogue (per OPD).
 
 ## UI plan

@@ -17,6 +17,7 @@ use axum::Json;
 use axum::extract::{Path, State};
 use medbrains_core::permissions;
 use medbrains_mrd::file_requests::jobs::{self, PER_TENANT_LIMIT};
+use medbrains_mrd::file_requests::scan::{ScanRequest, ScanStep, scan_file_request};
 use medbrains_mrd::file_requests::summary::visit_digital_summary;
 use medbrains_server_core::error::AppError;
 use medbrains_server_core::middleware::authorization::authz_context;
@@ -198,26 +199,98 @@ async fn one_hospital_cannot_take_a_whole_escalation_pass() {
     );
 }
 
+/// The request's status and closing reason.
+async fn request_state(db: &sqlx::PgPool, w: &World, encounter: Uuid) -> (String, Option<String>) {
+    let mut tx = scoped(db, w.claims.tenant_id).await;
+    let row = sqlx::query_as(
+        "SELECT status, closed_reason FROM mrd_file_requests WHERE encounter_id = $1",
+    )
+    .bind(encounter)
+    .fetch_one(&mut *tx)
+    .await
+    .unwrap();
+    tx.commit().await.unwrap();
+    row
+}
+
+/// Set a visit's status, as finishing or cancelling it does.
+async fn set_visit_status(db: &sqlx::PgPool, w: &World, encounter: Uuid, status: &str) {
+    let mut tx = scoped(db, w.claims.tenant_id).await;
+    sqlx::query("UPDATE encounters SET status = $2::encounter_status WHERE id = $1")
+        .bind(encounter)
+        .bind(status)
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+    tx.commit().await.unwrap();
+}
+
 #[tokio::test]
 #[ignore = "needs DATABASE_URL"]
-async fn yesterdays_open_errands_close_at_day_end_and_todays_stay() {
+async fn after_midnight_an_open_evening_visit_keeps_its_request_and_a_finished_one_closes() {
     let _serial = SERIAL.lock().await;
     let db = pool().await;
     let w = world(&db).await;
-    let yesterday = visit(&db, &w, w.patient, -1).await;
+    // Yesterday's 23:30 clinic, the patient still with the doctor.
+    let evening = visit(&db, &w, w.patient, -1).await;
+    set_visit_status(&db, &w, evening, "in_progress").await;
+    // Yesterday's visit that was seen and closed without the file arriving.
+    let finished = visit(&db, &w, w.patient, -1).await;
+    set_visit_status(&db, &w, finished, "completed").await;
     let today = visit(&db, &w, w.patient, 0).await;
+
     jobs::close_ended_days(&db).await.unwrap();
-    assert_eq!(requests_for(&db, &w, yesterday).await[0].1, "cancelled");
-    assert_eq!(requests_for(&db, &w, today).await[0].1, "requested");
+    assert_eq!(
+        request_state(&db, &w, evening).await,
+        ("requested".to_owned(), None)
+    );
+    assert_eq!(
+        request_state(&db, &w, finished).await,
+        ("cancelled".to_owned(), Some("day_ended".to_owned()))
+    );
+    assert_eq!(request_state(&db, &w, today).await.0, "requested");
+}
+
+#[tokio::test]
+#[ignore = "needs DATABASE_URL"]
+async fn a_picked_file_is_never_closed_by_the_job_and_is_flagged_out_overnight_once() {
+    let _serial = SERIAL.lock().await;
+    let db = pool().await;
+    let w = world(&db).await;
+    let encounter = visit(&db, &w, w.patient, -1).await;
+    let id = requests_for(&db, &w, encounter).await[0].0;
+    let Json(picked) = scan_file_request(
+        State(state(db.clone())),
+        Extension(w.claims.clone()),
+        Path(id),
+        Json(ScanRequest {
+            barcode: w.record_number.clone(),
+            step: ScanStep::Picked,
+        }),
+    )
+    .await
+    .unwrap();
+    assert_eq!(picked.status, "picked");
+    set_visit_status(&db, &w, encounter, "completed").await;
+
+    jobs::close_ended_days(&db).await.unwrap();
+    jobs::close_ended_days(&db).await.unwrap();
+    assert_eq!(
+        request_state(&db, &w, encounter).await,
+        ("picked".to_owned(), None)
+    );
     let mut tx = scoped(&db, w.claims.tenant_id).await;
-    let reason: Option<String> =
-        sqlx::query_scalar("SELECT closed_reason FROM mrd_file_requests WHERE encounter_id = $1")
-            .bind(yesterday)
-            .fetch_one(&mut *tx)
-            .await
-            .unwrap();
+    let told: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM notifications \
+          WHERE entity_id = $1 AND user_id = $2 AND title = 'File out overnight'",
+    )
+    .bind(id)
+    .bind(w.claims.sub)
+    .fetch_one(&mut *tx)
+    .await
+    .unwrap();
     tx.commit().await.unwrap();
-    assert_eq!(reason.as_deref(), Some("day_ended"));
+    assert_eq!(told, 1, "the supervisor is told once, not every pass");
 }
 
 #[tokio::test]
