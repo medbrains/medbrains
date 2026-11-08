@@ -38,23 +38,30 @@ system asks for it, so the request travels by word of mouth and patients wait 30
    not found. When a runner cannot find a requested file, they mark it not found. Either way the
    supervisors are told; a later pick-up scan still closes it as found.
 4. **File out with another clinic.** Given the file's open movement is with another department, the
-   queue says "Out with Orthopaedics OPD — collect it from there"; the pick-up scan closes that
-   movement.
+   queue says "Out with Orthopaedics OPD — ask them to return it to MRD first", and a pick-up scan
+   is refused (409, naming the holder) until the clinic returns it. A scan never takes a file out
+   of another clinic's hands.
 5. **Second visit the same day.** Given the patient already had a visit today, a second visit is a
    second request (the file must travel again); asking again for the same visit returns the same
    request.
-6. **Cancellation.** When the visit is cancelled (or the patient is a no-show, or a pre-pulled
-   appointment is cancelled), the open request is closed as cancelled.
+6. **Cancellation and day end.** When the visit is cancelled (or the patient is a no-show, or a
+   pre-pulled appointment is cancelled), the open request is closed as cancelled. A request still
+   open after its visit day is closed as `cancelled` / `day_ended`, so today's queue holds today's
+   errands only. Teleconsultation and back-dated visits ask for no file.
 7. **Wrong file.** When the runner scans another file's barcode, the scan is refused (409) and
    nothing changes. A file cannot be delivered before it was picked.
 8. **Late.** When a request passes its due time, everyone holding `mrd.file_request.supervise` gets
    one in-app notification naming the file number and the clinic (not the patient). With nobody to
-   tell, the request stays unescalated and is retried.
+   tell, the request stays unescalated and is retried; no hospital gets more than 20 of a pass.
 9. **The doctor does not wait.** The consultation shows "File: requested / on the way / arrived /
    not found", or "File: not requested" for a paper file with no request, and nothing for a patient
    with no paper file. Beside it, a summary from the digital record (allergies, recent diagnoses,
-   current medicines, abnormal results in the last 90 days). The consultation is open in every state.
+   current medicines, abnormal results in the last 90 days), each list saying how many it left out.
+   A mental-health diagnosis the doctor may not see (MHCA 2017 s.23) reads "Restricted entry", as on
+   the diagnosis list. The consultation is open in every state.
 10. **Permission denied.** Without the code, every route answers 403 and the screen sends no read.
+    The summary needs `opd.diagnoses.list` and `patients.view`; the MRD officer, who holds the chip's
+    code only, is refused it.
     Diagnoses are withheld (with a count) for a role whose `opd.diagnosis` field access is masked
     or hidden.
 11. **Outage.** A failed read is shown as a fault with a retry, never as "no files waiting" or as a
@@ -67,7 +74,8 @@ system asks for it, so the request travels by word of mouth and patients wait 30
 | `mrd.file_request.view` | MRD officer | The queue, pull list, back-scanning order, file wait |
 | `mrd.file_request.fulfil` | MRD officer | Scans, not found, build the pull list |
 | `mrd.file_request.supervise` | MRD officer | Receives late / not-found escalations |
-| `mrd.file_request.status` | Doctor, MRD officer | The consultation chip and digital summary |
+| `mrd.file_request.status` | Doctor, MRD officer | The consultation chip (nothing clinical) |
+| `opd.diagnoses.list` + `patients.view` | Doctor, nurse (existing) | The digital summary |
 
 ## Data
 
@@ -87,10 +95,10 @@ Setting: `tenant_settings` category `mrd`, key `file_request_due_minutes`.
 | GET | `/api/mrd/file-requests/backscan?days=` | view |
 | GET | `/api/mrd/file-requests/delivery-times?from=&to=` | view |
 | GET | `/api/mrd/file-requests/by-encounter/{id}` | status + encounter access |
-| GET | `/api/mrd/file-requests/by-encounter/{id}/summary` | status + encounter access, audited |
+| GET | `/api/mrd/file-requests/by-encounter/{id}/summary` | `opd.diagnoses.list` + `patients.view` + encounter access, audited |
 
-Jobs (`file_requests::jobs::spawn`): escalation every minute; pull list every 15 minutes from 18:00
-on the hospital's clock. KPIs `mrd_file_delivery_minutes` and `mrd_file_delivery_p90_minutes` in
+Jobs (`file_requests::jobs::spawn`): escalation every minute (at most 20 per hospital per pass);
+day-end close and the pull list every 15 minutes, the pull list from 18:00 on the hospital's clock. KPIs `mrd_file_delivery_minutes` and `mrd_file_delivery_p90_minutes` in
 the management catalogue (per OPD).
 
 ## UI plan

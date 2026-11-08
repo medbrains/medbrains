@@ -3,8 +3,10 @@
 //! The file barcode (the record number on the folder) is
 //! scanned at the shelf ("picked") and at the clinic ("delivered"); a scan of
 //! any other file is refused, so the wrong patient's folder cannot be logged
-//! as delivered. Each scan closes the file's open movement and opens the next
-//! one in `mrd_record_movements`: the runner holds it, then the clinic does.
+//! as delivered. Each scan opens the next movement in `mrd_record_movements`:
+//! the runner holds it, then the clinic does. A scan never takes a file out of
+//! another clinic's hands: if anyone but this errand holds it, the scan is
+//! refused with who has it, and the file is returned to MRD first.
 
 use axum::{
     Extension, Json,
@@ -44,6 +46,7 @@ struct Locked {
     record_number: String,
     department_id: Option<Uuid>,
     doctor_id: Option<Uuid>,
+    pick_movement_id: Option<Uuid>,
 }
 
 /// Whether a scanned barcode names this file: the record number, ignoring
@@ -88,16 +91,25 @@ pub async fn scan_file_request(
     }
     if !scan_allowed(body.step, &locked.status) {
         return Err(AppError::Conflict(format!(
-            "This file is {} and cannot be marked {:?} now.",
-            locked.status, body.step
+            "This file is {} and cannot be marked {} now.",
+            locked.status,
+            match body.step {
+                ScanStep::Picked => "picked up",
+                ScanStep::Delivered => "delivered",
+            }
         )));
     }
+    let ours = match body.step {
+        ScanStep::Picked => None,
+        ScanStep::Delivered => locked.pick_movement_id,
+    };
+    require_free(&mut tx, claims.tenant_id, locked.medical_record_id, ours).await?;
     match body.step {
         ScanStep::Picked => {
             let movement = move_file(
                 &mut tx,
                 &claims,
-                locked.medical_record_id,
+                (locked.medical_record_id, ours),
                 (Some(claims.sub), None),
                 "OPD file request: picked up",
             )
@@ -119,7 +131,7 @@ pub async fn scan_file_request(
             move_file(
                 &mut tx,
                 &claims,
-                locked.medical_record_id,
+                (locked.medical_record_id, ours),
                 to,
                 "OPD file request: delivered",
             )
@@ -187,7 +199,8 @@ pub async fn mark_file_not_found(
 /// The request, locked for this change. Missing (or another tenant's) is 404.
 async fn lock(conn: &mut PgConnection, tenant_id: Uuid, id: Uuid) -> Result<Locked, AppError> {
     sqlx::query_as::<_, Locked>(
-        "SELECT f.status, f.medical_record_id, r.record_number, f.department_id, f.doctor_id \
+        "SELECT f.status, f.medical_record_id, r.record_number, f.department_id, f.doctor_id, \
+                f.pick_movement_id \
            FROM mrd_file_requests f \
            JOIN mrd_medical_records r ON r.id = f.medical_record_id AND r.tenant_id = f.tenant_id \
           WHERE f.id = $1 AND f.tenant_id = $2 AND f.deleted_at IS NULL \
@@ -200,22 +213,55 @@ async fn lock(conn: &mut PgConnection, tenant_id: Uuid, id: Uuid) -> Result<Lock
     .ok_or(AppError::NotFound)
 }
 
-/// Hand the file on: close whatever movement holds it now and open one to
-/// `(user, department)`, due back tomorrow. Returns the new movement.
+/// Refuse the scan if anyone but this errand (`ours`, the runner's own
+/// pick-up movement) holds the file: a clinic's file is returned to MRD
+/// first, never taken from it by a scan.
+async fn require_free(
+    conn: &mut PgConnection,
+    tenant_id: Uuid,
+    record_id: Uuid,
+    ours: Option<Uuid>,
+) -> Result<(), AppError> {
+    let holder: Option<Option<String>> = sqlx::query_scalar(
+        "SELECT COALESCE(d.name, u.full_name) FROM mrd_record_movements m \
+           LEFT JOIN departments d ON d.id = m.issued_to_department_id \
+           LEFT JOIN users u ON u.id = m.issued_to_user_id \
+          WHERE m.tenant_id = $1 AND m.medical_record_id = $2 \
+            AND m.returned_at IS NULL AND m.deleted_at IS NULL \
+            AND m.id IS DISTINCT FROM $3 \
+          ORDER BY m.issued_at DESC LIMIT 1",
+    )
+    .bind(tenant_id)
+    .bind(record_id)
+    .bind(ours)
+    .fetch_optional(&mut *conn)
+    .await?;
+    holder.map_or(Ok(()), |who| {
+        Err(AppError::Conflict(format!(
+            "The file is with {}. Return it to MRD first.",
+            who.as_deref().unwrap_or("someone else")
+        )))
+    })
+}
+
+/// Hand the file on: close this errand's own movement (`ours`, if any) and
+/// open one to `(user, department)`, due back tomorrow. Returns the new
+/// movement. The caller has checked [`require_free`].
 async fn move_file(
     conn: &mut PgConnection,
     claims: &Claims,
-    record_id: Uuid,
+    (record_id, ours): (Uuid, Option<Uuid>),
     (to_user, to_department): (Option<Uuid>, Option<Uuid>),
     purpose: &str,
 ) -> Result<Uuid, AppError> {
     sqlx::query(
         "UPDATE mrd_record_movements SET returned_at = now(), status = 'returned' \
-          WHERE tenant_id = $1 AND medical_record_id = $2 \
+          WHERE tenant_id = $1 AND medical_record_id = $2 AND id = $3 \
             AND returned_at IS NULL AND deleted_at IS NULL",
     )
     .bind(claims.tenant_id)
     .bind(record_id)
+    .bind(ours)
     .execute(&mut *conn)
     .await?;
     let movement: Uuid = sqlx::query_scalar(

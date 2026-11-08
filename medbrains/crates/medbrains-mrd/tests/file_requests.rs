@@ -350,11 +350,13 @@ async fn a_file_out_with_another_clinic_shows_where_it_is_and_a_second_visit_ask
 
     // Asking again for the same visit is the same request.
     let mut tx = scoped(&db, w.claims.tenant_id).await;
-    let again: Option<Uuid> = sqlx::query_scalar("SELECT public.mrd_request_file_for_visit($1)")
-        .bind(first)
-        .fetch_one(&mut *tx)
-        .await
-        .unwrap();
+    let again: Option<Uuid> = sqlx::query_scalar(
+        "SELECT public.mrd_request_file_for_visit(e) FROM encounters e WHERE e.id = $1",
+    )
+    .bind(first)
+    .fetch_one(&mut *tx)
+    .await
+    .unwrap();
     tx.commit().await.unwrap();
     assert_eq!(again, Some(a[0].0));
 
@@ -367,6 +369,30 @@ async fn a_file_out_with_another_clinic_shows_where_it_is_and_a_second_visit_ask
     .unwrap();
     let row = queue.iter().find(|r| r.id == a[0].0).unwrap();
     assert_eq!(row.holder_department.as_deref(), Some("Orthopaedics OPD"));
+
+    // The runner may not take it out of that clinic's hands with a scan.
+    let refused = scan(&w, &db, a[0].0, &w.record_number, ScanStep::Picked).await;
+    let Err(AppError::Conflict(why)) = refused else {
+        panic!("a file held by another clinic must be refused: {refused:?}");
+    };
+    assert!(why.contains("Orthopaedics OPD"), "{why}");
+    // Once that clinic returns it, the pick-up goes through.
+    let mut tx = scoped(&db, w.claims.tenant_id).await;
+    sqlx::query(
+        "UPDATE mrd_record_movements SET returned_at = now(), status = 'returned' \
+          WHERE medical_record_id = $1 AND returned_at IS NULL",
+    )
+    .bind(w.record)
+    .execute(&mut *tx)
+    .await
+    .unwrap();
+    tx.commit().await.unwrap();
+    assert_eq!(
+        scan(&w, &db, a[0].0, &w.record_number, ScanStep::Picked)
+            .await
+            .unwrap(),
+        "picked"
+    );
 }
 
 #[tokio::test]

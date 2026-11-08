@@ -7,7 +7,12 @@
 //!   late file, so nothing is queued there: an outbox row with no handler
 //!   ends `undelivered`, and a notification row is the delivery. A request is
 //!   marked escalated only when somebody was told; with no supervisor it stays
-//!   unescalated, is retried, and the queue still shows it late.
+//!   unescalated, is retried, and the queue still shows it late. Each hospital
+//!   gets at most [`PER_TENANT_LIMIT`] of a pass, so one hospital with nobody to
+//!   tell cannot fill every pass and starve the rest.
+//! * **Day end**, every fifteen minutes: a request still open after its visit
+//!   day (hospital clock) is closed as `cancelled` / `day_ended`, so yesterday's
+//!   unfinished errands never crowd today's queue.
 //! * **Pull list**, every fifteen minutes from 18:00 on the hospital's clock:
 //!   tomorrow's appointments become pre-pulled requests. Idempotent, so later
 //!   bookings join on the next run.
@@ -37,6 +42,8 @@ const PULL_EVERY_PASSES: u64 = 15;
 const PULL_LIST_FROM_HOUR: i32 = 18;
 /// Requests escalated per pass, across every hospital.
 const PASS_LIMIT: i64 = 200;
+/// Requests escalated per pass for any one hospital.
+pub const PER_TENANT_LIMIT: i64 = 20;
 /// Hospitals given a pull list per pass.
 const TENANT_LIMIT: i64 = 1000;
 
@@ -51,6 +58,11 @@ pub fn spawn(pool: PgPool) {
                 Err(error) => tracing::error!(%error, "MRD file escalation pass failed"),
             }
             if pass.is_multiple_of(PULL_EVERY_PASSES) {
+                match close_ended_days(&pool).await {
+                    Ok(n) if n > 0 => tracing::info!(n, "MRD file requests closed at day end"),
+                    Ok(_) => {}
+                    Err(error) => tracing::error!(%error, "MRD day-end close failed"),
+                }
                 match build_tomorrows_pull_lists(&pool).await {
                     Ok(n) if n > 0 => tracing::info!(n, "MRD pull list requests written"),
                     Ok(_) => {}
@@ -67,12 +79,18 @@ pub fn spawn(pool: PgPool) {
 /// many were told to someone.
 pub async fn escalate_late(pool: &PgPool) -> Result<u64, AppError> {
     let due: Vec<(Uuid, Uuid)> = sqlx::query_as(
-        "SELECT id, tenant_id FROM mrd_file_requests \
-          WHERE deleted_at IS NULL AND escalated_at IS NULL \
-            AND (status = 'not_found' OR (status IN ('requested', 'picked') AND due_at < now())) \
+        "SELECT id, tenant_id FROM ( \
+           SELECT id, tenant_id, due_at, \
+                  row_number() OVER (PARTITION BY tenant_id ORDER BY due_at) AS nth \
+             FROM mrd_file_requests \
+            WHERE deleted_at IS NULL AND escalated_at IS NULL \
+              AND (status = 'not_found' \
+                   OR (status IN ('requested', 'picked') AND due_at < now()))) late \
+          WHERE nth <= $2 \
           ORDER BY due_at LIMIT $1",
     )
     .bind(PASS_LIMIT)
+    .bind(PER_TENANT_LIMIT)
     .fetch_all(pool)
     .await?;
     let mut told = 0u64;
@@ -167,6 +185,44 @@ async fn escalate_one(pool: &PgPool, tenant_id: Uuid, id: Uuid) -> Result<bool, 
     savepoint.commit().await?;
     tx.commit().await?;
     Ok(true)
+}
+
+/// Close every request still open after its visit day, hospital by hospital
+/// on each one's clock. Returns how many it closed.
+pub async fn close_ended_days(pool: &PgPool) -> Result<u64, AppError> {
+    let tenants: Vec<Uuid> = sqlx::query_scalar(
+        "SELECT DISTINCT tenant_id FROM mrd_file_requests \
+          WHERE deleted_at IS NULL AND status IN ('requested', 'picked', 'not_found') \
+            AND visit_date <= CURRENT_DATE \
+          LIMIT $1",
+    )
+    .bind(TENANT_LIMIT)
+    .fetch_all(pool)
+    .await?;
+    let mut closed = 0u64;
+    for tenant_id in tenants {
+        match close_ended_day(pool, tenant_id).await {
+            Ok(n) => closed += n,
+            Err(error) => tracing::error!(%tenant_id, %error, "MRD day-end close failed"),
+        }
+    }
+    Ok(closed)
+}
+
+/// One hospital's day-end close, on its own clock (the unit of work's zone).
+async fn close_ended_day(pool: &PgPool, tenant_id: Uuid) -> Result<u64, AppError> {
+    let mut tx = medbrains_kernel::begin(pool, Actor::system(tenant_id)).await?;
+    let done = sqlx::query(
+        "UPDATE mrd_file_requests SET status = 'cancelled', closed_reason = 'day_ended' \
+          WHERE tenant_id = $1 AND deleted_at IS NULL \
+            AND status IN ('requested', 'picked', 'not_found') \
+            AND visit_date < CURRENT_DATE",
+    )
+    .bind(tenant_id)
+    .execute(&mut *tx)
+    .await?;
+    tx.commit().await?;
+    Ok(done.rows_affected())
 }
 
 /// Build tomorrow's pull list for every hospital whose clock is past

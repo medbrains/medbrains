@@ -83,19 +83,31 @@ export interface MrdVisitFileStatus {
   request: MrdVisitFileRequest | null;
 }
 
+/** A cut-off list: the rows shown and how many more there were. */
+export interface MrdListed<T> {
+  items: T[];
+  more: number;
+}
+
 export interface MrdDigitalSummary {
-  allergies: Array<{ allergen_name: string; reaction: string | null; severity: string | null }>;
-  diagnoses: Array<{ description: string; icd_code: string | null; encounter_date: string }>;
+  allergies: MrdListed<{ allergen_name: string; reaction: string | null; severity: string | null }>;
+  /** A withheld mental-health diagnosis (MHCA s.23) reads "Restricted entry". */
+  diagnoses: MrdListed<{
+    description: string;
+    icd_code: string | null;
+    encounter_date: string;
+    withheld: boolean;
+  }>;
   /** Set when the role may not read OPD diagnoses: how many are withheld. */
   diagnoses_withheld: number | null;
-  medicines: Array<{
+  medicines: MrdListed<{
     drug_name: string;
     dosage: string;
     frequency: string;
     duration: string;
     prescribed_on: string;
   }>;
-  abnormal_results: Array<{
+  abnormal_results: MrdListed<{
     test_name: string;
     parameter_name: string;
     value: string;

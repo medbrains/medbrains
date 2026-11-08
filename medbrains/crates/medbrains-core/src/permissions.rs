@@ -2462,9 +2462,9 @@ pub mod mrd {
         /// or a runner cannot find the file.
         pub const SUPERVISE: &str = "mrd.file_request.supervise";
         /// See whether a visit's paper file has arrived.
-        /// The consultation's file chip (requested, on the way, arrived)
-        /// and the summary from the digital record that lets the doctor
-        /// start before the file comes, for visits the doctor can open.
+        /// The consultation's file chip (requested, on the way, arrived),
+        /// for visits the caller can open. Nothing clinical: the summary
+        /// beside it needs `opd.diagnoses.list` and `patients.view`.
         pub const STATUS: &str = "mrd.file_request.status";
     }
 }

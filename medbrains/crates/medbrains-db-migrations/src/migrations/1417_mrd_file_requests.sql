@@ -27,7 +27,9 @@
 -- * The night-before pull list writes `pull_list` rows for tomorrow's
 --   appointments (`uq_mrd_file_requests_appointment`); the visit, when it is
 --   created, takes over that row instead of asking again.
--- * Cancelling the visit (or the appointment) closes the request.
+-- * Cancelling the visit (or the appointment) closes the request. A request
+--   still open when its visit day has ended is closed by the MRD job as
+--   `cancelled` / `day_ended`, so yesterday's errands never crowd today's queue.
 -- * Due time: `tenant_settings` mrd / `file_request_due_minutes`, default 10,
 --   clamped to 1..240 so a typo cannot switch escalation off.
 --
@@ -134,18 +136,14 @@ $$;
 -- Ask for the file of an OPD visit. Takes over today's pre-pulled request for
 -- the patient if there is one, otherwise writes a new one; idempotent per
 -- visit. Returns the request id, or NULL when the patient has no physical file.
-CREATE OR REPLACE FUNCTION public.mrd_request_file_for_visit(p_encounter uuid)
+-- Takes the visit's row, so the trigger never reads back the row it was handed.
+CREATE OR REPLACE FUNCTION public.mrd_request_file_for_visit(e public.encounters)
 RETURNS uuid LANGUAGE plpgsql AS $$
 DECLARE
-    e public.encounters%ROWTYPE;
     f record;
     due_mins integer;
     req uuid;
 BEGIN
-    SELECT * INTO e FROM public.encounters WHERE id = p_encounter;
-    IF NOT FOUND THEN
-        RETURN NULL;
-    END IF;
     SELECT id INTO req FROM public.mrd_file_requests
      WHERE tenant_id = e.tenant_id AND encounter_id = e.id
        AND status <> 'cancelled' AND deleted_at IS NULL;
@@ -187,12 +185,14 @@ BEGIN
     RETURN req;
 END $$;
 
--- Every OPD visit asks for its file. Camp and test visits do not: a camp is
--- held away from the records room, and a dummy visit has no paper.
+-- Every OPD visit asks for its file. Camp, teleconsultation, back-dated and
+-- test visits do not: a camp is held away from the records room, a
+-- teleconsultation has no patient at the clinic, a back-dated entry records a
+-- visit already over, and a dummy visit has no paper.
 CREATE OR REPLACE FUNCTION public.mrd_file_request_on_visit() RETURNS trigger
 LANGUAGE plpgsql AS $$
 BEGIN
-    PERFORM public.mrd_request_file_for_visit(NEW.id);
+    PERFORM public.mrd_request_file_for_visit(NEW);
     RETURN NULL;
 EXCEPTION WHEN OTHERS THEN
     RAISE WARNING 'mrd_file_request_on_visit: no file request for encounter % (SQLSTATE %)',
@@ -202,8 +202,8 @@ END $$;
 
 CREATE TRIGGER trg_mrd_file_request_on_visit AFTER INSERT ON public.encounters
     FOR EACH ROW
-    WHEN (NEW.encounter_type = 'opd' AND NOT NEW.is_dummy
-          AND COALESCE(NEW.visit_type, '') <> 'camp')
+    WHEN (NEW.encounter_type = 'opd' AND NOT NEW.is_dummy AND NOT NEW.is_retrospective
+          AND COALESCE(NEW.visit_type, '') NOT IN ('camp', 'teleconsultation'))
     EXECUTE FUNCTION public.mrd_file_request_on_visit();
 
 -- A cancelled visit (or a no-show) does not need its file.

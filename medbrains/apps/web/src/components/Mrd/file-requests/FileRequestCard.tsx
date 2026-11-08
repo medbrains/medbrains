@@ -55,7 +55,7 @@ export function FileRequestCard({
           <Group gap={4} wrap="nowrap">
             <IconAlertTriangle size={16} aria-hidden />
             <Text size="sm" fw={600}>
-              {holder} — collect it from there
+              {holder} — ask them to return it to MRD first
             </Text>
           </Group>
         )}

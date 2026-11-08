@@ -7,59 +7,88 @@ const service = vi.hoisted(() => ({
   getVisitDigitalSummary: vi.fn(),
 }));
 vi.mock("@/services/mrd.service", () => ({ mrdService: service }));
-const perms = vi.hoisted(() => ({ status: true }));
+const perms = vi.hoisted(() => ({ chip: true, summary: true }));
 vi.mock("@medbrains/stores", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@medbrains/stores")>()),
-  useHasPermission: () => perms.status,
+  useHasPermission: () => perms.chip,
+  useHasAllPermissions: () => perms.summary,
 }));
 
 const { VisitFilePanel } = await import("./VisitFilePanel");
 
 const summary = {
-  allergies: [{ allergen_name: "Penicillin", reaction: "rash", severity: "life_threatening" }],
-  diagnoses: [{ description: "Type 2 diabetes", icd_code: "E11", encounter_date: "2026-09-01" }],
+  allergies: {
+    items: [{ allergen_name: "Penicillin", reaction: "rash", severity: "life_threatening" }],
+    more: 0,
+  },
+  diagnoses: {
+    items: [
+      {
+        description: "Type 2 diabetes",
+        icd_code: "E11",
+        encounter_date: "2026-09-01",
+        withheld: false,
+      },
+      {
+        description: "Restricted entry",
+        icd_code: null,
+        encounter_date: "2026-08-01",
+        withheld: true,
+      },
+    ],
+    more: 3,
+  },
   diagnoses_withheld: null,
-  medicines: [
-    {
-      drug_name: "Metformin",
-      dosage: "500 mg",
-      frequency: "BD",
-      duration: "30 days",
-      prescribed_on: "2026-10-01",
-    },
-  ],
-  abnormal_results: [
-    {
-      test_name: "HbA1c",
-      parameter_name: "HbA1c",
-      value: "9.1",
-      unit: "%",
-      flag: "high",
-      is_critical: false,
-      resulted_on: "2026-10-01",
-    },
-  ],
+  medicines: {
+    items: [
+      {
+        drug_name: "Metformin",
+        dosage: "500 mg",
+        frequency: "BD",
+        duration: "30 days",
+        prescribed_on: "2026-10-01",
+      },
+    ],
+    more: 0,
+  },
+  abnormal_results: {
+    items: [
+      {
+        test_name: "HbA1c",
+        parameter_name: "HbA1c",
+        value: "9.1",
+        unit: "%",
+        flag: "high",
+        is_critical: false,
+        resulted_on: "2026-10-01",
+      },
+    ],
+    more: 0,
+  },
+};
+
+const delivered = {
+  has_physical_file: true,
+  request: {
+    id: "r",
+    status: "delivered",
+    record_number: "MRD-1",
+    requested_at: "",
+    due_at: "",
+    picked_at: null,
+    delivered_at: "",
+  },
 };
 
 describe("VisitFilePanel", () => {
   beforeEach(() => {
-    perms.status = true;
+    perms.chip = true;
+    perms.summary = true;
     vi.clearAllMocks();
   });
 
   it("says the file arrived and shows the digital record beside it", async () => {
-    service.getVisitFileStatus.mockResolvedValue({
-      has_physical_file: true,
-      request: {
-        id: "r",
-        status: "delivered",
-        record_number: "MRD-1",
-        requested_at: "",
-        due_at: "",
-        picked_at: null,
-        delivered_at: "",
-      },
-    });
+    service.getVisitFileStatus.mockResolvedValue(delivered);
     service.getVisitDigitalSummary.mockResolvedValue(summary);
     render(<VisitFilePanel encounterId="e1" />);
     expect(await screen.findByText("File: arrived")).toBeInTheDocument();
@@ -69,11 +98,19 @@ describe("VisitFilePanel", () => {
     expect(screen.getByText(/HbA1c 9.1 % \(high\)/)).toBeInTheDocument();
   });
 
+  it("shows a withheld mental-health diagnosis as a restricted entry, and what was cut off", async () => {
+    service.getVisitFileStatus.mockResolvedValue(delivered);
+    service.getVisitDigitalSummary.mockResolvedValue(summary);
+    render(<VisitFilePanel encounterId="e1" />);
+    expect(await screen.findByText(/Restricted entry/)).toBeInTheDocument();
+    expect(screen.getByText("3 more not shown")).toBeInTheDocument();
+  });
+
   it("says diagnoses are withheld rather than that there are none", async () => {
     service.getVisitFileStatus.mockResolvedValue({ has_physical_file: false, request: null });
     service.getVisitDigitalSummary.mockResolvedValue({
       ...summary,
-      diagnoses: [],
+      diagnoses: { items: [], more: 0 },
       diagnoses_withheld: 3,
     });
     render(<VisitFilePanel encounterId="e1" />);
@@ -94,8 +131,17 @@ describe("VisitFilePanel", () => {
     expect(await screen.findByText(/Penicillin/)).toBeInTheDocument();
   });
 
-  it("sends neither read for a role without the permission", () => {
-    perms.status = false;
+  it("gives a chip-only role (the records room) the chip and never asks for the summary", async () => {
+    perms.summary = false;
+    service.getVisitFileStatus.mockResolvedValue(delivered);
+    render(<VisitFilePanel encounterId="e1" />);
+    expect(await screen.findByText("File: arrived")).toBeInTheDocument();
+    expect(service.getVisitDigitalSummary).not.toHaveBeenCalled();
+  });
+
+  it("sends neither read for a role with neither permission", () => {
+    perms.chip = false;
+    perms.summary = false;
     render(<VisitFilePanel encounterId="e1" />);
     expect(service.getVisitFileStatus).not.toHaveBeenCalled();
     expect(service.getVisitDigitalSummary).not.toHaveBeenCalled();

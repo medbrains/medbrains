@@ -5,13 +5,14 @@
 //! runner works the queue here, scanning the file barcode at the shelf and at
 //! the clinic; each scan is an ordinary `mrd_record_movements` row. A request
 //! past its due time, or a file nobody can find, is escalated by [`jobs`].
-//! The doctor's screen reads [`visit`]: the file chip and a summary from the
-//! digital record, so the consultation never waits for the paper.
+//! The doctor's screen reads [`visit`] (the file chip) and [`summary`] (from the
+//! digital record), so the consultation never waits for the paper.
 
 pub mod jobs;
 pub mod pull_list;
 pub mod reports;
 pub mod scan;
+pub mod summary;
 pub mod visit;
 
 use axum::{
@@ -176,6 +177,6 @@ pub fn router() -> axum::Router<AppState> {
         )
         .route(
             "/api/mrd/file-requests/by-encounter/{encounter_id}/summary",
-            get(visit::visit_digital_summary),
+            get(summary::visit_digital_summary),
         )
 }
