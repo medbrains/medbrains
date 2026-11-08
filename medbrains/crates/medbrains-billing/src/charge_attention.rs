@@ -31,8 +31,10 @@ use medbrains_server_core::{
 use sqlx::PgConnection;
 
 mod name_patient;
-pub use name_patient::{NamePatientRequest, name_patient_charge_attention};
+mod select;
 use name_patient::require_row_access;
+pub use name_patient::{NamePatientRequest, name_patient_charge_attention};
+use select::ITEM_SELECT;
 
 /// One queued charge, with the patient and people joined.
 #[derive(Debug, Serialize, sqlx::FromRow)]
@@ -69,24 +71,11 @@ pub struct ChargeAttentionItem {
     pub age_days: i32,
     /// Unit price × quantity, when the row carries a price.
     pub amount: Option<Decimal>,
+    /// On an implant used without a patient: who the implant registry has
+    /// an implant of the same batch for, near the usage date. A hint that
+    /// it may be the same implant. Only in the list, for an unscoped desk.
+    pub registry_patients: Option<String>,
 }
-
-/// The queue's one query: item, patient and both people joined once.
-const ITEM_SELECT: &str = "SELECT a.id, a.source_module, a.setting_module, a.source_entity_id, \
-        a.patient_id, a.encounter_id, a.charge_code, a.quantity, a.description_override, \
-        a.unit_price_override, a.tax_percent_override, a.apply_concessions, a.reason, a.status, \
-        a.invoice_id, a.dismiss_reason, ru.full_name AS resolved_by_name, a.resolved_at, \
-        cu.full_name AS created_by_name, a.created_at, \
-        CASE WHEN p.id IS NOT NULL \
-             THEN btrim(concat_ws(' ', p.first_name, p.last_name)) END AS patient_name, p.uhid, \
-        a.department_id, d.name AS department_name, a.service_at, \
-        (now()::date - COALESCE(a.service_at, a.created_at)::date)::int4 AS age_days, \
-        a.unit_price_override * a.quantity AS amount \
-   FROM charge_attention_items a \
-   LEFT JOIN patients p ON p.id = a.patient_id AND p.tenant_id = a.tenant_id \
-   LEFT JOIN departments d ON d.id = a.department_id \
-   LEFT JOIN users ru ON ru.id = a.resolved_by \
-   LEFT JOIN users cu ON cu.id = a.created_by";
 
 #[derive(Debug, Deserialize)]
 pub struct ListChargeAttentionQuery {
@@ -225,10 +214,14 @@ pub async fn list_charge_attention(
     .fetch_all(&mut *tx)
     .await?;
     tx.commit().await?;
-    if hide_amounts {
-        for row in &mut rows {
+    for row in &mut rows {
+        if hide_amounts {
             row.unit_price_override = None;
             row.amount = None;
+        }
+        // The hint names other patients: only for a desk that bills everyone.
+        if visible.is_some() {
+            row.registry_patients = None;
         }
     }
     Ok(Json(Paginated::new(rows, total, &page)))
@@ -421,17 +414,20 @@ async fn lock_open(
     fetch(tx, claims.tenant_id, id).await
 }
 
-/// One item by id, joined as the list shows it.
+/// One item by id, joined as the list shows it, without the registry hint
+/// (it names other patients; the list carries it, scoped).
 async fn fetch(
     tx: &mut PgConnection,
     tenant_id: Uuid,
     id: Uuid,
 ) -> Result<ChargeAttentionItem, AppError> {
-    Ok(sqlx::query_as::<_, ChargeAttentionItem>(&format!(
+    let mut item = sqlx::query_as::<_, ChargeAttentionItem>(&format!(
         "{ITEM_SELECT} WHERE a.id = $1 AND a.tenant_id = $2"
     ))
     .bind(id)
     .bind(tenant_id)
     .fetch_one(&mut *tx)
-    .await?)
+    .await?;
+    item.registry_patients = None;
+    Ok(item)
 }

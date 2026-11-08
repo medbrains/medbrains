@@ -22,7 +22,7 @@ use rust_decimal::Decimal;
 use sqlx::{Postgres, Transaction};
 
 use crate::CreateImplantRequest;
-use crate::consignment::{RegistryUsage, registry_usage};
+use crate::registry_usage::{RegistryUsage, registry_usage};
 
 /// `auto_charge_implant`: an implant from the hospital's stock, entered in the registry.
 const SETTING_IMPLANT: &str = "implant";
@@ -147,6 +147,10 @@ async fn audit_usage(
         } => (
             "indent.consignment_usage.patient_named",
             serde_json::json!({ "movement_id": movement, "charge_attention_id": queue_row }),
+        ),
+        RegistryUsage::Split { movement, from } => (
+            "indent.consignment_usage.unit_named",
+            serde_json::json!({ "movement_id": movement, "split_from_movement_id": from }),
         ),
         RegistryUsage::AlreadyRecorded => (
             "indent.consignment_usage.matched",

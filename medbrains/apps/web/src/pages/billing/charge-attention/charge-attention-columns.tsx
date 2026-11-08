@@ -21,6 +21,9 @@ import {
 
 export type ChargeAttentionAction = "post" | "dismiss" | "name_patient";
 
+/** The lead-in to who the implant registry has an implant of this batch for. */
+export const REGISTRY_HINT = "May be the same implant as the registry entry for:";
+
 /** What a row with no patient named says in the patient column. */
 export const NO_PATIENT = "No patient named";
 
@@ -119,6 +122,11 @@ export function chargeAttentionColumns(o: ColumnOptions): Column<ChargeAttention
                 {r.uhid}
               </Text>
             </>
+          )}
+          {r.registry_patients && (
+            <Text size="xs" c="dimmed">
+              {REGISTRY_HINT} {r.registry_patients}
+            </Text>
           )}
         </Stack>
       ),

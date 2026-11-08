@@ -43,6 +43,11 @@ export interface ChargeAttentionItem {
   age_days: number;
   /** Unit price × quantity; null when unpriced or hidden from the viewer. */
   amount: string | null;
+  /**
+   * On an implant used without a patient: who the implant registry has an implant
+   * of the same batch for, near the usage date. A hint that it may be the same implant.
+   */
+  registry_patients?: string | null;
 }
 
 /** Which rows: care or stock never billed (leakage), or charges a module could not post. */

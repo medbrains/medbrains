@@ -242,6 +242,18 @@ describe("stock used on a patient and implants with no patient", () => {
     expect(posts[1]).toBeDisabled();
   });
 
+  it("tells the desk whose registry entry an unnamed implant may be", async () => {
+    for (const p of LEAKAGE) held.add(p);
+    service.listChargeAttention.mockResolvedValue({
+      data: [implantRow({ registry_patients: "Ravi K (UH-9)" })],
+      meta: { total: 1, page: 1, limit: 25 },
+    });
+    render(<ChargeAttentionTab />);
+    expect(
+      await screen.findByText("May be the same implant as the registry entry for: Ravi K (UH-9)"),
+    ).toBeInTheDocument();
+  });
+
   it("lets the leakage desk, and only it, post stock used and never billed", async () => {
     held.add("billing.leakage.view");
     held.add("billing.charge_attention.view");

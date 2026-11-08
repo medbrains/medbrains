@@ -185,6 +185,9 @@ pub(crate) async fn check_before_post(
         item.reason == REASON_UNBILLED_ORDER || item.reason == REASON_UNBILLED_CONSUMPTION;
     let stock = item.reason == REASON_UNBILLED_CONSUMPTION || item.source_module == "consumable";
     require_price(item, detected)?;
+    if item.reason == medbrains_server_services::billing::REASON_IMPLANT_NO_PATIENT {
+        require_not_registry_duplicate(&mut tx, claims.tenant_id, item).await?;
+    }
     if !detected && !stock {
         return Ok((tx, item.quantity));
     }
@@ -227,6 +230,45 @@ fn require_price(
         return Err(AppError::BadRequest(
             "Set a tariff for this service first.".to_owned(),
         ));
+    }
+    Ok(())
+}
+
+/// Refuse (409) to post a store usage that would bill a patient for more
+/// units of the batch than the implant registry says they received.
+///
+/// The OT can enter the implant first, which records its usage and bills it;
+/// the store may then record the same implant again with no patient. Named
+/// after the fact, it would bill the patient twice. When the patient has any
+/// registry entry on the batch, the units used on them may not exceed the
+/// entries: the desk dismisses the duplicate, or the second implant is
+/// entered in the registry first.
+async fn require_not_registry_duplicate(
+    conn: &mut PgConnection,
+    tenant_id: Uuid,
+    item: &crate::charge_attention::ChargeAttentionItem,
+) -> Result<(), AppError> {
+    let (entries, units): (i64, i64) = sqlx::query_as(
+        "WITH mv AS (SELECT batch_stock_id, patient_id FROM store_stock_movements \
+                      WHERE id = $2 AND tenant_id = $1) \
+         SELECT (SELECT COUNT(*) FROM implant_registry r, mv \
+                  WHERE r.tenant_id = $1 AND r.batch_stock_id = mv.batch_stock_id \
+                    AND r.patient_id = mv.patient_id AND r.deleted_at IS NULL), \
+                (SELECT COALESCE(SUM(-m.quantity), 0)::int8 FROM store_stock_movements m, mv \
+                  WHERE m.tenant_id = $1 AND m.batch_stock_id = mv.batch_stock_id \
+                    AND m.patient_id = mv.patient_id AND m.deleted_at IS NULL \
+                    AND m.reference_type = 'consignment_usage')",
+    )
+    .bind(tenant_id)
+    .bind(item.source_entity_id)
+    .fetch_one(&mut *conn)
+    .await?;
+    if entries > 0 && units > entries {
+        return Err(AppError::Conflict(format!(
+            "The implant registry has {entries} implant(s) of this batch for this patient, \
+             and this would bill unit {units}. Dismiss it as a duplicate, or enter the \
+             second implant in the registry first."
+        )));
     }
     Ok(())
 }

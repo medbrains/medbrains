@@ -32,6 +32,7 @@ use medbrains_server_services::billing::{
 
 pub mod consignment;
 pub mod implants;
+mod registry_usage;
 
 pub use consignment::{ConsignmentUsageRequest, record_consignment_usage};
 

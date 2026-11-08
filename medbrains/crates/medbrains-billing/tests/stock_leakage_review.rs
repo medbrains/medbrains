@@ -18,19 +18,15 @@ mod common;
 
 use axum::extract::{Path, State};
 use axum::{Extension, Json};
+use common::implants::{audits, code_lines, knee, name, registry_entry, row, unnamed_usage};
 use common::stock::{
     Ward, age_stock, consignment, consignment_priced, consume, failing_code, leakage_desk,
     lift_fault, lines, refuse_failing_codes, scan, store_item, store_stock, ward,
 };
 use common::{fixture, insert_patient, pool, scoped, state};
-use medbrains_billing::charge_attention::{
-    NamePatientRequest, name_patient_charge_attention, post_charge_attention,
-};
-use medbrains_core::inventory::ImplantRegistryEntry;
-use medbrains_indent::implants::create_implant_entry;
+use medbrains_billing::charge_attention::post_charge_attention;
 use medbrains_indent::{
-    ConsignmentUsageRequest, CreateImplantRequest, IssueToPatientRequest, ReturnToStoreRequest,
-    issue_to_patient, record_consignment_usage, return_to_store,
+    IssueToPatientRequest, ReturnToStoreRequest, issue_to_patient, return_to_store,
 };
 use medbrains_server_core::error::AppError;
 use medbrains_server_core::middleware::auth::Claims;
@@ -38,118 +34,6 @@ use medbrains_ward_stock::consume::ConsumeCharge;
 use rust_decimal::Decimal;
 use sqlx::PgPool;
 use uuid::Uuid;
-
-/// The store records one knee implant of `batch` used, naming no one.
-async fn unnamed_usage(db: &PgPool, claims: &Claims, batch: Uuid) -> Uuid {
-    record_consignment_usage(
-        State(state(db.clone())),
-        Extension(claims.clone()),
-        Json(ConsignmentUsageRequest {
-            batch_stock_id: batch,
-            quantity: 1,
-            patient_id: None,
-            encounter_id: None,
-            admission_id: None,
-            notes: None,
-        }),
-    )
-    .await
-    .expect("usage saves")
-    .0
-    .id
-}
-
-/// The OT nurse enters an implant of `batch` in the registry for `patient`.
-async fn registry_entry(
-    db: &PgPool,
-    claims: &Claims,
-    w: &Ward,
-    batch: Uuid,
-    patient: Uuid,
-) -> ImplantRegistryEntry {
-    create_implant_entry(
-        State(state(db.clone())),
-        Extension(claims.clone()),
-        Json(CreateImplantRequest {
-            catalog_item_id: knee(db, w.v.tenant).await,
-            batch_stock_id: Some(batch),
-            patient_id: patient,
-            serial_number: Some("SN-1".to_owned()),
-            implant_date: "2026-11-08".to_owned(),
-            implant_site: Some("Left knee".to_owned()),
-            surgeon_id: None,
-            manufacturer: None,
-            model_number: None,
-            warranty_expiry: None,
-            notes: None,
-        }),
-    )
-    .await
-    .expect("entry saves")
-    .0
-}
-
-/// The knee implant store item of the tenant.
-async fn knee(db: &PgPool, tenant: Uuid) -> Uuid {
-    sqlx::query_scalar("SELECT id FROM store_catalog WHERE tenant_id = $1 AND code = 'LKKNEE'")
-        .bind(tenant)
-        .fetch_one(db)
-        .await
-        .unwrap()
-}
-
-/// Every bill line of the tenant under `code`: (source, source id, quantity).
-async fn code_lines(db: &PgPool, tenant: Uuid, code: &str) -> Vec<(String, Uuid, i32)> {
-    sqlx::query_as(
-        "SELECT source::text, source_id, quantity FROM invoice_items \
-          WHERE tenant_id = $1 AND charge_code = $2",
-    )
-    .bind(tenant)
-    .bind(code)
-    .fetch_all(db)
-    .await
-    .unwrap()
-}
-
-/// The queue row for `source`: (id, status, quantity, patient).
-async fn row(db: &PgPool, source: Uuid) -> (Uuid, String, i32, Option<Uuid>) {
-    sqlx::query_as(
-        "SELECT id, status, quantity, patient_id FROM charge_attention_items \
-          WHERE source_entity_id = $1",
-    )
-    .bind(source)
-    .fetch_one(db)
-    .await
-    .unwrap()
-}
-
-/// Audit rows of the tenant under `action`.
-async fn audits(db: &PgPool, tenant: Uuid, action: &str) -> i64 {
-    sqlx::query_scalar("SELECT COUNT(*) FROM audit_log WHERE tenant_id = $1 AND action = $2")
-        .bind(tenant)
-        .bind(action)
-        .fetch_one(db)
-        .await
-        .unwrap()
-}
-
-/// Name `patient` on the queue row `id`.
-async fn name(
-    db: &PgPool,
-    claims: &Claims,
-    id: Uuid,
-    patient: Uuid,
-) -> Result<Json<medbrains_billing::charge_attention::ChargeAttentionItem>, AppError> {
-    name_patient_charge_attention(
-        State(state(db.clone())),
-        Extension(claims.clone()),
-        Path(id),
-        Json(NamePatientRequest {
-            patient_id: patient,
-        }),
-    )
-    .await
-}
 
 #[tokio::test]
 #[ignore = "needs DATABASE_URL"]

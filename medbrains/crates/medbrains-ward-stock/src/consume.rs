@@ -243,18 +243,35 @@ async fn charge_use(
         },
         apply_concessions: true,
     };
-    let outcome = charge_or_queue(&mut savepoint, req).await?;
-    savepoint.commit().await?;
-    Ok(match outcome {
+    let charge = match charge_or_queue(&mut savepoint, req).await? {
         ChargeOutcome::Posted(posted) => {
-            if let Some((admission_id, _)) = use_.admission {
-                stamp_admission(tx, claims.tenant_id, posted.invoice_id, admission_id).await?;
+            // Inside the savepoint too: tying the bill to the admission is
+            // billing, and must never fail the nurse's use. If it fails the
+            // charge goes with it, and the daily check raises the use.
+            let stamped = match use_.admission {
+                Some((admission_id, _)) => {
+                    stamp_admission(
+                        &mut savepoint,
+                        claims.tenant_id,
+                        posted.invoice_id,
+                        admission_id,
+                    )
+                    .await
+                }
+                None => Ok(()),
+            };
+            if let Err(error) = stamped {
+                savepoint.rollback().await?;
+                tracing::warn!(%error, consumption = %use_.id, "ward-stock charge deferred to the daily check");
+                return Ok(ConsumeCharge::Deferred);
             }
             ConsumeCharge::Posted
         }
         ChargeOutcome::Queued => ConsumeCharge::Queued,
         ChargeOutcome::Disabled => ConsumeCharge::Disabled,
-    })
+    };
+    savepoint.commit().await?;
+    Ok(charge)
 }
 
 /// The item to charge, or `None` when a package on the bill includes it.

@@ -15,6 +15,7 @@ use sqlx::PgPool;
 use sqlx::postgres::PgPoolOptions;
 use uuid::Uuid;
 
+pub(crate) mod implants;
 pub(crate) mod orders;
 pub(crate) mod stock;
 
