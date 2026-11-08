@@ -126,6 +126,37 @@ pub fn painted(status: StatusCode) -> String {
     format!("\u{1b}[{}m{code}\u{1b}[0m", shade(status))
 }
 
+/// The request span, with any verify token in the path replaced.
+///
+/// `TraceLayer`'s default span records the full URI. A public verify link
+/// (`/api/public/signatures/verify/{token}`, `/verify/rx/{token}`) is the
+/// whole credential for that check, so a log holding it could replay it.
+/// Wire in with `TraceLayer::new_for_http().make_span_with(make_span)`.
+pub fn make_span(request: &axum::http::Request<Body>) -> Span {
+    tracing::debug_span!(
+        "request",
+        method = %request.method(),
+        uri = %redact_verify_tokens(request.uri().path()),
+        version = ?request.version(),
+    )
+}
+
+/// `path` with every long token after a `verify` segment replaced by `:token`.
+#[must_use]
+pub fn redact_verify_tokens(path: &str) -> String {
+    let mut after_verify = false;
+    path.split('/')
+        .map(|segment| {
+            let looks_like_token = segment.len() >= 24
+                && segment.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'-' || b == b'_');
+            let shown = if after_verify && looks_like_token { ":token" } else { segment };
+            after_verify = after_verify || segment == "verify";
+            shown
+        })
+        .collect::<Vec<_>>()
+        .join("/")
+}
+
 /// Log a finished response at a level and colour that match its status.
 ///
 /// Wire in with `TraceLayer::new_for_http().on_response(on_response)`.
@@ -148,6 +179,17 @@ pub fn on_response(response: &Response<Body>, latency: Duration, _span: &Span) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_verify_token_never_reaches_the_log() {
+        let token = "ab".repeat(32);
+        assert_eq!(
+            redact_verify_tokens(&format!("/api/public/signatures/verify/{token}")),
+            "/api/public/signatures/verify/:token"
+        );
+        assert_eq!(redact_verify_tokens(&format!("/verify/rx/{token}")), "/verify/rx/:token");
+        assert_eq!(redact_verify_tokens("/api/patients/123"), "/api/patients/123");
+    }
 
     fn status(code: u16) -> StatusCode {
         StatusCode::from_u16(code).expect("a real status")

@@ -1071,6 +1071,9 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
             // The desk works the automatic charges clinical actions could not post.
             permissions::billing::charge_attention::VIEW,
             permissions::billing::charge_attention::RESOLVE,
+            // and the orders done for a patient that never reached a bill.
+            permissions::billing::leakage::VIEW,
+            permissions::billing::leakage::RESOLVE,
             // Records insurer settlements; approving them stays with finance.
             permissions::billing::claims::settlement::RECORD,
             permissions::billing::audit::VIEW,
@@ -1352,6 +1355,7 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
             permissions::billing::invoices::VIEW,
             // Read-only: charges that went unposted are a revenue-leakage audit.
             permissions::billing::charge_attention::VIEW,
+            permissions::billing::leakage::VIEW,
             permissions::insurance::nhcx::VIEW,
             permissions::pharmacy::day_close::VIEW,
             permissions::admin::access_requests::LIST,
@@ -1603,6 +1607,11 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
             permissions::mrd::case_sheets::FILE,
             permissions::mrd::case_sheets::REPRINT,
             permissions::mrd::storage::MANAGE,
+            // Medical records answers "is this paper genuine?" for insurers
+            // and courts, and withdraws a copy's public link when asked.
+            permissions::doctor::signature::VERIFY,
+            permissions::mrd::verify_links::ISSUE,
+            permissions::mrd::verify_links::REVOKE,
             // File-room work needs patient demographics + encounter lookup.
             // Read-only; MRD doesn't create or edit clinical records.
             permissions::patients::LIST,

@@ -235,7 +235,7 @@ pub async fn start_break_glass(
     Extension(claims): Extension<Claims>,
     client_ip: Option<Extension<medbrains_server_core::middleware::client_ip::ClientIp>>,
     headers: axum::http::HeaderMap,
-    jar: axum_extra::extract::CookieJar,
+    proof: medbrains_server_core::step_up::StepUpProof,
     Json(body): Json<CreateBreakGlassRequest>,
 ) -> Result<Json<BreakGlassEvent>, AppError> {
     require_permission(&claims, permissions::audit::START)?;
@@ -244,7 +244,7 @@ pub async fn start_break_glass(
     // permission, fresh step-up re-authentication, a mandatory justification,
     // an expiry, and a reviewable audit event — not a prior relationship.
     // Emergency override (out-of-scope access) — require fresh re-auth.
-    medbrains_server_core::step_up::require_step_up(&state, &jar, &claims)?;
+    medbrains_server_core::step_up::require_step_up(&state, &proof, &claims)?;
 
     let start = normalize_break_glass_start(body)?;
     let mut tx = state.db.begin().await?;

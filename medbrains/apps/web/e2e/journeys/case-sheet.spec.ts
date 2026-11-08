@@ -8,7 +8,8 @@ import type { Page } from "@playwright/test";
 import { loginAsRoleApi } from "../helpers/api";
 import { createEncounter, createPatientApi } from "../helpers/journey-steps";
 import { getOpdDept } from "../helpers/seed-resolvers";
-import { expect, test } from "./support/world";
+import { getE2EIdentity } from "../helpers/e2e-identities";
+import { confirmItsYou, expect, test } from "./support/world";
 
 async function newNote(page: Page, type: string) {
   await page.getByRole("button", { name: "New note" }).click();
@@ -42,6 +43,7 @@ test("a doctor and a nurse write, sign and correct their own notes on one visit"
   await write(doctor, "Subjective", "Dry cough for three weeks");
   await write(doctor, "Plan", "Chest X-ray");
   await doctor.getByRole("button", { name: "Sign", exact: true }).click();
+  await confirmItsYou(doctor, getE2EIdentity("doctor").password);
   const consult = doctor.getByLabel(`Consultation by ${drA.fullName}`);
   await expect(consult).toContainText(/Signed \w+ \d/, { timeout: 15_000 });
   await expect(consult).toContainText(drA.fullName);
@@ -71,6 +73,7 @@ test("a doctor and a nurse write, sign and correct their own notes on one visit"
   await nurse.getByRole("menuitem", { name: "Nursing note" }).click();
   await write(nurse, "Observation", "Afebrile, SpO2 97%");
   await nurse.getByRole("button", { name: "Sign", exact: true }).click();
+  await confirmItsYou(nurse, getE2EIdentity("nurse").password);
   await expect(nurse.getByLabel(/^Nursing note by/)).toContainText(/Signed \w+ \d/, { timeout: 15_000 });
   await expect(nurse.getByText("Afebrile, SpO2 97%")).toBeVisible();
   // The doctor's unsigned progress note is visible to the team, and says so.

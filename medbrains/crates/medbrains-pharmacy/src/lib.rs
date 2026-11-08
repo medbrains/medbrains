@@ -4704,12 +4704,12 @@ pub async fn list_ndps_entries(
 pub async fn create_ndps_entry(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
-    jar: axum_extra::extract::CookieJar,
+    proof: medbrains_server_core::step_up::StepUpProof,
     Json(body): Json<CreateNdpsEntryRequest>,
 ) -> Result<Json<NdpsRegisterEntry>, AppError> {
     require_permission(&claims, permissions::pharmacy::ndps::MANAGE)?;
     // Controlled-substance (NDPS) register entry — require fresh re-auth.
-    medbrains_server_core::step_up::require_step_up(&state, &jar, &claims)?;
+    medbrains_server_core::step_up::require_step_up(&state, &proof, &claims)?;
     let restricted_fields = resolve_pharmacy_restricted_fields(&state, &claims).await?;
 
     let mut tx = state.db.begin().await?;
