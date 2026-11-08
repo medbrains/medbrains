@@ -67,6 +67,8 @@ pub struct BedsideTransfusion {
     pub total_volume_infused_ml: Option<i32>,
     pub adverse_reaction: bool,
     pub reaction_type: Option<String>,
+    /// The nurse who hung the unit: the transfusion record's author.
+    pub started_by_id: Option<Uuid>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -107,7 +109,7 @@ pub async fn list_bedside_transfusions(
                 rh_factor, volume_ml, expiry_date, crossmatch_compatible, \
                 patient_verified_by_id, product_verified_by_id, consent_on_file, \
                 transfusion_start_time, transfusion_end_time, total_volume_infused_ml, \
-                adverse_reaction, reaction_type \
+                adverse_reaction, reaction_type, started_by_id \
            FROM transfusions \
           WHERE tenant_id = $1 AND admission_id = $2 AND deleted_at IS NULL \
           ORDER BY transfusion_start_time DESC NULLS LAST, created_at DESC \
@@ -384,7 +386,7 @@ pub async fn start_bedside_transfusion(
                    rh_factor, volume_ml, expiry_date, crossmatch_compatible, \
                    patient_verified_by_id, product_verified_by_id, consent_on_file, \
                    transfusion_start_time, transfusion_end_time, total_volume_infused_ml, \
-                   adverse_reaction, reaction_type",
+                   adverse_reaction, reaction_type, started_by_id",
     )
     .bind(claims.tenant_id)
     .bind(admission_id)
@@ -437,7 +439,7 @@ pub async fn complete_bedside_transfusion(
                    rh_factor, volume_ml, expiry_date, crossmatch_compatible, \
                    patient_verified_by_id, product_verified_by_id, consent_on_file, \
                    transfusion_start_time, transfusion_end_time, total_volume_infused_ml, \
-                   adverse_reaction, reaction_type",
+                   adverse_reaction, reaction_type, started_by_id",
     )
     .bind(id)
     .bind(claims.sub)

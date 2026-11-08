@@ -198,8 +198,9 @@ fn db_error_status(code: Option<&str>) -> (StatusCode, &'static str) {
     match code {
         // Foreign key violation — referenced row doesn't exist.
         Some("23503") => (StatusCode::NOT_FOUND, "not found"),
-        // Unique constraint violation — duplicate.
-        Some("23505") => (StatusCode::CONFLICT, "conflict"),
+        // Unique constraint violation — duplicate; MB409 is an edit to a
+        // signed field of a finalized record (migration 1418's edit guard).
+        Some("23505" | "MB409") => (StatusCode::CONFLICT, "conflict"),
         // Check constraint, not-null — bad input.
         Some("23514" | "23502") => (StatusCode::BAD_REQUEST, "bad request"),
         // Data exceptions — the request carried a value Postgres can't even
@@ -391,6 +392,7 @@ mod tests {
     fn constraint_violations_are_client_errors() {
         assert_eq!(db_error_status(Some("23503")).0, StatusCode::NOT_FOUND);
         assert_eq!(db_error_status(Some("23505")).0, StatusCode::CONFLICT);
+        assert_eq!(db_error_status(Some("MB409")).0, StatusCode::CONFLICT);
         assert_eq!(db_error_status(Some("23514")).0, StatusCode::BAD_REQUEST);
         assert_eq!(db_error_status(Some("23502")).0, StatusCode::BAD_REQUEST);
     }

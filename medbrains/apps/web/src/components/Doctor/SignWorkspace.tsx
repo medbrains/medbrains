@@ -1,7 +1,10 @@
 /**
- * Sign Workspace — slide-in for signing a single pending record.
+ * Sign Workspace — the review screen for signing one record.
  *
- * Mantine Drawer placeholder until useWorkspace() ships.
+ * Opening it calls `POST /api/signatures/review` once: the server returns the
+ * canonical snapshot the signer reads and records that they opened it, so
+ * the signature carries when its signer reviewed that exact content. The
+ * legal class comes from the server's table of signable types.
  * Per RFCs/sprints/SPRINT-doctor-activities.md §5.3.
  */
 
@@ -23,7 +26,7 @@ import {
   ThemeIcon,
 } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
-import type { PendingSignoffEntry, SignPreviewResponse } from "@medbrains/types";
+import type { SignPreviewResponse, SignTarget } from "@medbrains/types";
 import {
   IconAlertTriangle,
   IconCheck,
@@ -41,22 +44,15 @@ import { signoffService } from "@/services/signoff.service";
 
 interface SignWorkspaceProps {
   opened: boolean;
-  target: PendingSignoffEntry;
+  target: SignTarget;
   onClose: () => void;
   onSigned: () => void;
-}
-
-function legalClassFor(recordType: string): string {
-  if (recordType.startsWith("mlc") || recordType.includes("death")) return "medico_legal";
-  if (recordType.includes("certificate")) return "medico_legal";
-  return "clinical";
 }
 
 export function SignWorkspace({ opened, target, onClose, onSigned }: SignWorkspaceProps) {
   const [notes, setNotes] = useState("");
   const [attested, setAttested] = useState(false);
   const [isSigning, setIsSigning] = useState(false);
-  const legalClass = legalClassFor(target.record_type);
 
   const {
     data: preview,
@@ -64,16 +60,19 @@ export function SignWorkspace({ opened, target, onClose, onSigned }: SignWorkspa
     error: previewError,
     refetch: refetchPreview,
   } = useQuery({
-    queryKey: ["signature-preview", target.record_type, target.record_id, legalClass],
+    queryKey: ["signature-review", target.record_type, target.record_id],
     queryFn: () =>
-      signoffService.previewSignature({
+      signoffService.reviewSignature({
         record_type: target.record_type,
         record_id: target.record_id,
         signer_role: "primary",
-        legal_class: legalClass,
       }),
     enabled: opened,
-    staleTime: 0,
+    // One review per opening: not refetched on focus, forgotten on close.
+    staleTime: Number.POSITIVE_INFINITY,
+    gcTime: 0,
+    refetchOnWindowFocus: false,
+    retry: false,
   });
   const { data: credentials = [], isLoading: credentialsLoading } = useQuery({
     queryKey: ["my-signature-credentials"],
@@ -93,7 +92,7 @@ export function SignWorkspace({ opened, target, onClose, onSigned }: SignWorkspa
         record_type: target.record_type,
         record_id: target.record_id,
         signer_role: "primary",
-        legal_class: legalClass,
+        legal_class: preview?.legal_class,
         notes: notes.trim() || undefined,
       });
       notifications.show({
@@ -146,9 +145,11 @@ export function SignWorkspace({ opened, target, onClose, onSigned }: SignWorkspa
             <Badge size="sm" variant="light">
               {target.record_type}
             </Badge>
-            <Badge size="sm" color={legalColor(legalClassFor(target.record_type))}>
-              {legalClassFor(target.record_type).replace("_", " ")}
-            </Badge>
+            {preview && (
+              <Badge size="sm" color={legalColor(preview.legal_class)}>
+                {preview.legal_class.replace("_", " ")}
+              </Badge>
+            )}
           </Group>
           <Text size="sm" fw={600}>
             {target.patient_name || target.summary || target.record_type.replace("_", " ")}
@@ -158,9 +159,11 @@ export function SignWorkspace({ opened, target, onClose, onSigned }: SignWorkspa
               UHID {target.uhid}
             </Text>
           )}
-          <Text size="xs" c="dimmed">
-            Created {new Date(target.created_at).toLocaleString()}
-          </Text>
+          {target.created_at && (
+            <Text size="xs" c="dimmed">
+              Created {new Date(target.created_at).toLocaleString()}
+            </Text>
+          )}
         </Stack>
 
         <Divider />
@@ -198,9 +201,8 @@ export function SignWorkspace({ opened, target, onClose, onSigned }: SignWorkspa
                 Signing credential required
               </Text>
               <Text size="xs">
-                An administrator must issue a default signature credential for this doctor before
-                records can be signed. Go to Admin → Doctors → Signature credentials → Generate
-                Ed25519 keypair.
+                An administrator must issue you a default signature credential before you can sign.
+                Go to Admin → Doctors → Signature credentials → Generate Ed25519 keypair.
               </Text>
             </Stack>
           </Alert>
@@ -222,7 +224,7 @@ export function SignWorkspace({ opened, target, onClose, onSigned }: SignWorkspa
           checked={attested}
           onChange={(e) => setAttested(e.currentTarget.checked)}
           disabled={!preview}
-          label="I have reviewed the patient identity and signoff details, and I am signing this record as the responsible doctor."
+          label="I have reviewed the patient identity and signoff details, and I am signing this record as the responsible clinician."
         />
 
         <Alert color="warning" variant="light">
