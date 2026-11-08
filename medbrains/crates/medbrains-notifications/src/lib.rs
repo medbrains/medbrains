@@ -302,7 +302,7 @@ pub fn publish_surface_board_signal(
     publish_to_board(
         state,
         tenant_id,
-        medbrains_server_core::notification_hub::board_topic(surface),
+        medbrains_server_core::notification_hub::board_topic(tenant_id, surface),
         kind,
         entity_type,
         entity_id,
@@ -400,7 +400,12 @@ pub async fn notifications_ws_handler(
         .and_then(|c| medbrains_server_core::middleware::auth::parse_cookie_value(c, "access_token").map(str::to_owned))
         .or(q.token)
         .ok_or(AppError::Unauthorized)?;
-    let claims = medbrains_server_core::middleware::auth::decode_and_validate(&token, &state.jwt_decoding_key)?;
+    let mut claims = medbrains_server_core::middleware::auth::decode_and_validate(&token, &state.jwt_decoding_key)?;
+    // The upgrade skips the auth middleware, so its checks run here: a token
+    // for a deactivated or deleted account, a stale permission version or a
+    // revoked device is refused before the socket opens, and the permissions
+    // the board topics are chosen by are the account's real ones.
+    medbrains_server_core::middleware::auth::verify_decoded(&state.db, &mut claims).await?;
     let topics = socket_topics(&claims);
     Ok(ws.on_upgrade(move |socket| handle_notifications_socket(socket, state, topics)))
 }
@@ -412,7 +417,7 @@ pub async fn notifications_ws_handler(
 ///
 /// Capped so a malformed or oversized token cannot spawn unbounded forwarders
 /// (DEVICE-CONSTRAINED-RULES: bound every fan-out).
-fn socket_topics(claims: &Claims) -> Vec<String> {
+pub fn socket_topics(claims: &Claims) -> Vec<String> {
     const MAX_DEPARTMENT_TOPICS: usize = 64;
 
     let mut topics = Vec::with_capacity(claims.department_ids.len() + 1);
@@ -429,7 +434,7 @@ fn socket_topics(claims: &Claims) -> Vec<String> {
                 .iter()
                 .any(|needed| claims.permissions.iter().any(|held| held == needed));
         if permitted {
-            topics.push(medbrains_server_core::notification_hub::board_topic(surface));
+            topics.push(medbrains_server_core::notification_hub::board_topic(claims.tenant_id, surface));
         }
     }
     topics

@@ -72,10 +72,14 @@ pub fn department_topic(department_id: Uuid) -> String {
     format!("department:{department_id}")
 }
 
-/// Topic key for a public board surface (e.g. `board:opd`, `board:pharmacy`).
+/// Topic key for one hospital's board surface (`board:<tenant>:lab`).
+///
+/// The tenant is part of the key because the hub is shared by every hospital on
+/// the server. Keyed by surface alone, a lab board in one hospital received the
+/// lab signals of every other hospital on the same server.
 #[must_use]
-pub fn board_topic(surface: &str) -> String {
-    format!("board:{surface}")
+pub fn board_topic(tenant_id: Uuid, surface: &str) -> String {
+    format!("board:{tenant_id}:{surface}")
 }
 
 /// Global emergency-broadcast topic (every display).
