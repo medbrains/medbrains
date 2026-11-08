@@ -33,7 +33,9 @@ use uuid::Uuid;
 
 /// Run the check as the claims' user.
 async fn scan(db: &PgPool, claims: &Claims) -> u64 {
-    run_for(db, Actor::from_claims(claims)).await.expect("scan")
+    run_for(db, Actor::from_claims(claims), false)
+        .await
+        .expect("scan")
 }
 
 /// The open unbilled-order rows: (order, amount, age in days, department).
@@ -350,5 +352,9 @@ async fn an_outage_is_an_error_never_an_empty_queue() {
     )
     .await;
     assert!(summary.is_err(), "an outage read as ₹0 unbilled");
-    assert!(run_for(&down, Actor::from_claims(&claims)).await.is_err());
+    assert!(
+        run_for(&down, Actor::from_claims(&claims), false)
+            .await
+            .is_err()
+    );
 }

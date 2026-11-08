@@ -4,9 +4,11 @@ import { render, screen } from "@/test/test-utils";
 import { ChargeAttentionTab } from "./ChargeAttentionTab";
 
 const held = vi.hoisted(() => new Set<string>());
+const access = vi.hoisted(() => ({ amount: "edit" }));
 vi.mock("@medbrains/stores", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@medbrains/stores")>()),
   useHasPermission: (code: string) => held.has(code),
+  useFieldAccess: (code: string) => (code === "billing.amount" ? access.amount : "edit"),
 }));
 
 const service = vi.hoisted(() => ({
@@ -56,6 +58,7 @@ const LEAKAGE = ["billing.leakage.view", "billing.leakage.resolve"];
 
 beforeEach(() => {
   held.clear();
+  access.amount = "edit";
   for (const fn of Object.values(service)) fn.mockReset();
   service.listChargeAttention.mockResolvedValue({
     data: [unbilledRow()],
@@ -119,8 +122,9 @@ describe("orders done but never billed on the charge attention queue", () => {
     expect(screen.queryByRole("heading", { name: "₹0.00" })).not.toBeInTheDocument();
   });
 
-  it("says amounts are hidden rather than that a row has no tariff", async () => {
+  it("says amounts are hidden, from field access, rather than that a row has no tariff", async () => {
     for (const p of LEAKAGE) held.add(p);
+    access.amount = "hidden";
     service.listChargeAttention.mockResolvedValue({
       data: [unbilledRow({ amount: null, unit_price_override: null })],
       meta: { total: 1, page: 1, limit: 25 },
@@ -132,6 +136,19 @@ describe("orders done but never billed on the charge attention queue", () => {
     });
     render(<ChargeAttentionTab />);
     expect(await screen.findByText("Hidden")).toBeInTheDocument();
-    expect(screen.queryByText("No tariff")).not.toBeInTheDocument();
+    expect(screen.queryByText("No tariff: set price")).not.toBeInTheDocument();
+  });
+
+  it("will not post an unpriced unbilled order, and says to set a price", async () => {
+    for (const p of LEAKAGE) held.add(p);
+    service.listChargeAttention.mockResolvedValue({
+      data: [unbilledRow({ amount: null, unit_price_override: null })],
+      meta: { total: 1, page: 1, limit: 25 },
+    });
+    render(<ChargeAttentionTab />);
+    expect(await screen.findByText("No tariff: set price")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Post charge" })).toBeDisabled();
+    // Dismissing stays open to the desk.
+    expect(screen.getByRole("button", { name: "Dismiss" })).toBeEnabled();
   });
 });

@@ -6,7 +6,7 @@
 // amount first, with the ₹ total of the open work at the top.
 
 import { Group, Stack, Text } from "@mantine/core";
-import { useHasPermission } from "@medbrains/stores";
+import { useFieldAccess, useHasPermission } from "@medbrains/stores";
 import {
   type ChargeAttentionItem,
   type ChargeAttentionKind,
@@ -89,7 +89,9 @@ export function ChargeAttentionTab() {
     queryFn: () => billingService.chargeAttentionSummary(summaryParams),
     enabled: canView,
   });
-  const amountsHidden = summary.data?.open_amount === null;
+  // Hidden by field access (the server scrubs them too), not inferred from data.
+  const amountAccess = useFieldAccess("billing.amount");
+  const amountsHidden = amountAccess === "mask" || amountAccess === "hidden";
 
   const columns = useMemo(
     () =>

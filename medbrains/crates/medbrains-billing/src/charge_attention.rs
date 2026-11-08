@@ -275,8 +275,11 @@ pub async fn charge_attention_summary(
 }
 
 /// `PUT /api/billing/charge-attention/{id}/post` — post the queued charge
-/// onto the patient's bill. A charge that still fails answers the error and
-/// the item stays open.
+/// onto the patient's bill.
+///
+/// A charge that still fails answers the error and the item stays open. An
+/// unbilled order is checked again first, in this transaction: see
+/// `leakage::check_unbilled_order`.
 pub async fn post_charge_attention(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
@@ -287,6 +290,9 @@ pub async fn post_charge_attention(
     let mut tx = medbrains_kernel::begin(&state.db, Actor::from_claims(&claims)).await?;
     let item = lock_open(&mut tx, &claims, kinds, id).await?;
     medbrains_authz_gate::require_patient_billing_access(&state, &claims, item.patient_id).await?;
+    if item.reason == crate::leakage::REASON_UNBILLED_ORDER {
+        tx = crate::leakage::check_unbilled_order(tx, &claims, &item).await?;
+    }
     let req = ChargeRequest {
         tenant_id: claims.tenant_id,
         requested_by: claims.sub,
@@ -347,6 +353,19 @@ pub async fn dismiss_charge_attention(
     let mut tx = medbrains_kernel::begin(&state.db, Actor::from_claims(&claims)).await?;
     let item = lock_open(&mut tx, &claims, kinds, id).await?;
     medbrains_authz_gate::require_patient_billing_access(&state, &claims, item.patient_id).await?;
+    mark_dismissed(&mut tx, &claims, id, reason).await?;
+    let row = fetch(&mut tx, claims.tenant_id, id).await?;
+    tx.commit().await?;
+    Ok(Json(row))
+}
+
+/// Close an open item as dismissed, with the reason and who.
+pub(crate) async fn mark_dismissed(
+    conn: &mut PgConnection,
+    claims: &Claims,
+    id: Uuid,
+    reason: &str,
+) -> Result<(), AppError> {
     sqlx::query(
         "UPDATE charge_attention_items SET status = 'dismissed', dismiss_reason = $3, \
                 resolved_by = $4, resolved_at = now() \
@@ -356,11 +375,9 @@ pub async fn dismiss_charge_attention(
     .bind(claims.tenant_id)
     .bind(reason)
     .bind(claims.sub)
-    .execute(&mut *tx)
+    .execute(&mut *conn)
     .await?;
-    let row = fetch(&mut tx, claims.tenant_id, id).await?;
-    tx.commit().await?;
-    Ok(Json(row))
+    Ok(())
 }
 
 /// The open item, locked for this decision. Already resolved is a conflict;

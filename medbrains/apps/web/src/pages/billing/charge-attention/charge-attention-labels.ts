@@ -55,9 +55,12 @@ export function reasonLabel(reason: string): string {
 
 const INR = new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR" });
 
-/** A rupee amount, e.g. "₹1,050.00"; "No tariff" when the row has no price. */
+/** What an unpriced row says, and why its Post is disabled. */
+export const NO_TARIFF = "No tariff: set price";
+
+/** A rupee amount, e.g. "₹1,050.00"; [`NO_TARIFF`] when the row has no price. */
 export function rupees(amount: string | null): string {
-  return amount === null ? "No tariff" : INR.format(Number(amount));
+  return amount === null ? NO_TARIFF : INR.format(Number(amount));
 }
 
 /** "Today", "1 day", "12 days". */

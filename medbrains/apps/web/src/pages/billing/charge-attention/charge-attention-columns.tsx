@@ -9,6 +9,7 @@ import { Badge, IconButton, Tooltip } from "@/components/ui";
 import {
   ageLabel,
   moduleLabel,
+  NO_TARIFF,
   REASON_UNBILLED,
   reasonLabel,
   rupees,
@@ -33,12 +34,15 @@ interface ColumnOptions {
 function Actions({ row, o }: { row: ChargeAttentionItem; o: ColumnOptions }) {
   const allowed = row.reason === REASON_UNBILLED ? o.canResolveUnbilled : o.canResolve;
   if (row.status !== "open" || !allowed) return null;
+  // An unbilled order with no tariff would post ₹0; the server refuses it too.
+  const unpriced = row.reason === REASON_UNBILLED && row.unit_price_override === null;
   return (
     <Group gap={4} wrap="nowrap">
-      <Tooltip label="Post this charge to the patient's bill">
+      <Tooltip label={unpriced ? NO_TARIFF : "Post this charge to the patient's bill"}>
         <IconButton
           tone="success"
           aria-label="Post charge"
+          disabled={unpriced}
           loading={o.pendingId === row.id}
           onClick={() => o.onAction("post", row)}
         >
