@@ -11,6 +11,7 @@ name: FHIR validator
 
 on:
   pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
     branches: [master, main]
     paths:
       - "medbrains/crates/medbrains-fhir/**"
@@ -36,6 +37,8 @@ env:
 
 jobs:
   validate:
+    # A draft PR spends no build; marking it ready for review runs everything.
+    if: github.event_name != 'pull_request' || !github.event.pull_request.draft
     name: HL7 validator (ndhm.in 6.5.0)
     runs-on: ubuntu-latest
     timeout-minutes: 90

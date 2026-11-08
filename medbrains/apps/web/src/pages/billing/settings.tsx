@@ -2,7 +2,7 @@
 
 import { Group, Select, Stack, Switch, Text, TextInput } from "@mantine/core";
 import { useHasAnyPermission, useHasPermission } from "@medbrains/stores";
-import type { TenantSettingsRow } from "@medbrains/types";
+import type { TenantSettingsRow, UpdateBillingPaymentSettings } from "@medbrains/types";
 import { P } from "@medbrains/types";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Alert, toast } from "@/components/ui";
@@ -69,13 +69,23 @@ function BillingTenantSettings() {
   });
 
   const settingsMap = new Map(settings.map((s: TenantSettingsRow) => [s.key, s.value]));
-  // The UPI ID lives with payments: the counter's QR reads it too.
-  const { data: paymentSettings = [], isLoading: paymentsLoading } = useQuery({
-    queryKey: ["tenant-settings", "payments"],
-    queryFn: () => billingService.getTenantSettings("payments"),
-    enabled: canRead,
+  // The UPI ID and link terms have their own endpoint and permission: the
+  // `payments` category also holds provider keys, which this screen never reads.
+  const canViewPayments = useHasPermission(P.BILLING.PAYMENT_SETTINGS.VIEW);
+  const canManagePayments = useHasPermission(P.BILLING.PAYMENT_SETTINGS.MANAGE);
+  const { data: paymentSettings, isLoading: paymentsLoading } = useQuery({
+    queryKey: ["billing-payment-settings"],
+    queryFn: () => billingService.getBillingPaymentSettings(),
+    enabled: canViewPayments,
   });
-  const upiVpa = paymentSettings.find((s: TenantSettingsRow) => s.key === "upi_vpa")?.value;
+  const upiVpa = paymentSettings?.upi_vpa ?? "";
+
+  const paymentsMutation = useMutation({
+    mutationFn: (data: UpdateBillingPaymentSettings) =>
+      billingService.updateBillingPaymentSettings(data),
+    onSuccess: (saved) => queryClient.setQueryData(["billing-payment-settings"], saved),
+    onError: (err: Error) => toast.error(err.message, { title: "Payment settings not saved" }),
+  });
 
   const updateMutation = useMutation({
     mutationFn: (data: { category: string; key: string; value: unknown }) =>
@@ -116,7 +126,9 @@ function BillingTenantSettings() {
     );
   }
 
-  if (isLoading || paymentsLoading) return <Text c="dimmed">Loading settings...</Text>;
+  if (isLoading || (canViewPayments && paymentsLoading)) {
+    return <Text c="dimmed">Loading settings...</Text>;
+  }
 
   return (
     <Stack>
@@ -178,33 +190,34 @@ function BillingTenantSettings() {
           disabled={!canManage}
           onBlur={(e) => updateStr("drug_licence", e.currentTarget.value.trim())}
         />
-        <TextInput
-          label="UPI ID"
-          description="Payments to this ID go to the hospital's account"
-          placeholder="e.g. hospital@okaxis"
-          defaultValue={typeof upiVpa === "string" ? upiVpa : ""}
-          disabled={!canManage}
-          onBlur={(e) =>
-            updateMutation.mutate({
-              category: "payments",
-              key: "upi_vpa",
-              value: e.currentTarget.value.trim(),
-            })
-          }
-        />
+        {canViewPayments && (
+          <TextInput
+            label="UPI ID"
+            description="Payments to this ID go to the hospital's account"
+            placeholder="e.g. hospital@okaxis"
+            defaultValue={upiVpa}
+            disabled={!canManagePayments}
+            onBlur={(e) => {
+              const next = e.currentTarget.value.trim();
+              if (next !== upiVpa) paymentsMutation.mutate({ upi_vpa: next });
+            }}
+          />
+        )}
       </Group>
 
-      <PaymentLinkSettingsCard
-        value={paymentSettings.find((s: TenantSettingsRow) => s.key === "balance_link")?.value}
-        canManage={canManage}
-        saving={updateMutation.isPending}
-        onSave={(value) =>
-          updateMutation.mutate(
-            { category: "payments", key: "balance_link", value },
-            { onSuccess: () => toast.success("Payment link terms saved", { title: "Billing" }) },
-          )
-        }
-      />
+      {canViewPayments && (
+        <PaymentLinkSettingsCard
+          value={paymentSettings?.balance_link}
+          canManage={canManagePayments}
+          saving={paymentsMutation.isPending}
+          onSave={(value) =>
+            paymentsMutation.mutate(
+              { balance_link: value },
+              { onSuccess: () => toast.success("Payment link terms saved", { title: "Billing" }) },
+            )
+          }
+        />
+      )}
 
       <Text fw={600} mt="lg">
         Advance Settings

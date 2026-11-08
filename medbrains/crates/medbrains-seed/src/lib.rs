@@ -60,7 +60,6 @@ async fn seed_dev_email_defaults(
         "from_address": "noreply@medbrains.localhost",
         "from_name": "MedBrains",
         "smtp_username": "noreply@medbrains.localhost",
-        "smtp_password_secret": "SMTP_PASSWORD",
     });
     let mut tx = pool.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &tenant_id).await?;

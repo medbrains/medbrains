@@ -5,15 +5,19 @@
 //! plus active `document_templates` overrides. Import is two-phase:
 //! `dry_run: true` returns the per-entry diff (create / update /
 //! unchanged) without touching anything; the apply path upserts in one
-//! transaction and writes an audit entry. Secrets never live in
-//! tenant_settings (they're in the secret resolver), so bundles are
-//! safe to move between environments.
+//! transaction and writes an audit entry.
+//!
+//! Categories with their own endpoint ([`OWN_ENDPOINT_CATEGORIES`]: the AI
+//! provider, SMTP, ABDM, PACS …) are neither exported nor imported: they hold
+//! secrets or secret names, and their own endpoint validates what is written.
+//! A bundle naming one is refused whole, before anything is written.
 
 use axum::{Extension, Json, extract::State};
 use serde::{Deserialize, Serialize};
 
 use medbrains_server_core::{
     error::AppError, middleware::auth::Claims, middleware::authorization::require_permission,
+    settings_guard::{OWN_ENDPOINT_CATEGORIES, refuse_own_endpoint_category},
     state::AppState,
 };
 use medbrains_core::permissions;
@@ -55,10 +59,11 @@ pub async fn export_config(
 
     let settings = sqlx::query_as::<_, SettingEntry>(
         "SELECT category, key, value FROM tenant_settings \
-         WHERE tenant_id = $1 AND deleted_at IS NULL \
+         WHERE tenant_id = $1 AND deleted_at IS NULL AND NOT (category = ANY($2)) \
          ORDER BY category, key",
     )
     .bind(claims.tenant_id)
+    .bind(OWN_ENDPOINT_CATEGORIES)
     .fetch_all(&mut *tx)
     .await?;
 
@@ -110,6 +115,9 @@ pub async fn import_config(
             "unsupported bundle_version {} (expected {BUNDLE_VERSION})",
             body.bundle.bundle_version
         )));
+    }
+    for entry in &body.bundle.settings {
+        refuse_own_endpoint_category(&entry.category)?;
     }
 
     // Validate template overrides compile before anything is written.

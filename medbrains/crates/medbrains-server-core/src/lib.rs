@@ -16,6 +16,7 @@ pub mod notification_hub;
 pub mod permissions;
 pub mod queue_broadcast;
 pub mod s3_presign;
+pub mod settings_guard;
 pub mod state;
 pub mod step_up;
 pub mod tenant_config;
