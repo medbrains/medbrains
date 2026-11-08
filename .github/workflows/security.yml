@@ -153,3 +153,107 @@ jobs:
       - uses: github/codeql-action/analyze@v3
         with:
           category: /language:${{ matrix.language }}
+
+  # Report-only to start: each one uploads to Security > Code scanning so findings
+  # get triaged there, then flips to blocking once its backlog is zero. Tool
+  # versions are pinned and at least two weeks old; binaries are checksum-verified.
+
+  osv-scanner:
+    # CVEs in every lockfile cargo-audit and pnpm audit cannot see: uv.lock, r8r,
+    # the native apps (Gradle, SwiftPM), Python requirements, the OS image.
+    if: github.event_name != 'pull_request' || !github.event.pull_request.draft
+    name: "OSV scan, every lockfile (report-only)"
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    permissions:
+      contents: read
+      security-events: write
+    env:
+      OSV_VERSION: v2.7.0
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install osv-scanner (checksum-verified)
+        run: |
+          base=https://github.com/google/osv-scanner/releases/download/$OSV_VERSION
+          curl -fsSLO "$base/osv-scanner_linux_amd64" -fsSLO "$base/osv-scanner_SHA256SUMS"
+          grep ' osv-scanner_linux_amd64$' osv-scanner_SHA256SUMS | sha256sum -c -
+          install -m 755 osv-scanner_linux_amd64 /usr/local/bin/osv-scanner
+      - name: Scan
+        # Vendored crates are patched copies; their upstream advisories are tracked
+        # in the vendor README, not here.
+        run: osv-scanner scan source -r . --x-exclude=vendor --x-exclude=node_modules --format sarif --output osv.sarif || true
+      - uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: osv.sarif
+          category: osv-scanner
+
+  iac-compliance:
+    # Terraform and Dockerfiles against CIS benchmarks: open buckets, unencrypted
+    # volumes, public databases, missing logging.
+    if: github.event_name != 'pull_request' || !github.event.pull_request.draft
+    name: "IaC compliance, Checkov (report-only)"
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    permissions:
+      contents: read
+      security-events: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install checkov==3.3.30
+      - name: Scan
+        run: checkov -d medbrains/infra --framework terraform dockerfile --skip-path medbrains/vendor -o sarif --output-file-path . --soft-fail
+      - uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: results_sarif.sarif
+          category: checkov
+
+  workflow-audit:
+    # The workflows themselves: script injection from PR titles, over-broad tokens,
+    # unpinned third-party actions, credentials left in checkouts.
+    if: github.event_name != 'pull_request' || !github.event.pull_request.draft
+    name: "Workflow audit, zizmor (report-only)"
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    permissions:
+      contents: read
+      security-events: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install zizmor==1.31.1
+      - run: zizmor --offline --format sarif .github/workflows > zizmor.sarif || true
+      - uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: zizmor.sarif
+          category: zizmor
+
+  sbom:
+    # The bill of materials a hospital's security team (and CERT-In) asks for,
+    # kept 90 days per commit on main and nightly. Not run on PRs.
+    if: github.event_name != 'pull_request'
+    name: SBOM (CycloneDX)
+    runs-on: ubuntu-latest
+    env:
+      SYFT_VERSION: 1.55.0
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install syft (checksum-verified)
+        run: |
+          base=https://github.com/anchore/syft/releases/download/v$SYFT_VERSION
+          tgz=syft_${SYFT_VERSION}_linux_amd64.tar.gz
+          curl -fsSLO "$base/$tgz" -fsSLO "$base/syft_${SYFT_VERSION}_checksums.txt"
+          grep " $tgz\$" syft_${SYFT_VERSION}_checksums.txt | sha256sum -c -
+          tar -xzf "$tgz" syft && install -m 755 syft /usr/local/bin/syft
+      - run: syft dir:. --exclude ./medbrains/vendor --exclude '**/node_modules' -o cyclonedx-json=sbom.cdx.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: sbom-${{ github.sha }}
+          path: sbom.cdx.json
+          retention-days: 90
