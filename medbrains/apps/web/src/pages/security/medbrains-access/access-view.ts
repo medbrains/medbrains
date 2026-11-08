@@ -10,10 +10,10 @@ export const CONFIG_SCOPE = "config";
 
 /**
  * Modules a grant can never open, so not offered: every code in them is on
- * the server's never-under-a-grant list (`vendor_access.rs`). The server
+ * the server's never-under-a-grant list (`vendor_access/scope.rs`). The server
  * refuses them anyway; this only keeps a dead option off the list.
  */
-const NOT_OFFERED = new Set(["vpn"]);
+const NOT_OFFERED = new Set(["vpn", "integration", "storage"]);
 
 const STATUS: Record<VendorAccessStatus, { tone: BadgeTone; label: string }> = {
   pending_approval: { tone: "warning", label: "Waiting for a second approver" },

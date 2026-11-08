@@ -288,12 +288,19 @@ async fn verify_device_not_revoked(
     // Runtime query rather than the checked macro: this crate's queries are
     // runtime by convention, and a macro here would need `.sqlx` metadata
     // regenerated against a migrated database to build at all.
+    //
+    // A device issued to a vendor account is refused like a revoked one: a
+    // tablet paired by a support engineer must not outlive their grant.
     let row: Option<(bool, String)> = sqlx::query_as(
-        "SELECT revoked_at IS NULL, app_variant FROM paired_devices \
-          WHERE id = $1 AND tenant_id = $2",
+        "SELECT d.revoked_at IS NULL AND NOT COALESCE(u.is_vendor_staff \
+                    OR public.app_email_is_vendor(u.email, $3), false), \
+                d.app_variant \
+           FROM paired_devices d LEFT JOIN users u ON u.id = d.issued_to_user_id \
+          WHERE d.id = $1 AND d.tenant_id = $2",
     )
     .bind(device_id)
     .bind(claims.tenant_id)
+    .bind(super::vendor_access::vendor_domains())
     .fetch_optional(&mut *conn)
     .await?;
 
@@ -359,7 +366,7 @@ async fn verify_perm_version(db: &PgPool, claims: &Claims) -> Result<AccountStat
 
     let current: Option<(i32, bool, bool)> = sqlx::query_as(
         "SELECT perm_version, must_change_password, \
-                COALESCE(is_vendor_staff OR lower(split_part(email, '@', 2)) = ANY($3), false) \
+                COALESCE(is_vendor_staff OR public.app_email_is_vendor(email, $3), false) \
            FROM users \
          WHERE id = $1 AND tenant_id = $2 AND is_active AND deleted_at IS NULL",
     )

@@ -18,7 +18,10 @@ use medbrains_core::permissions;
 use medbrains_kernel::{Actor, require_permission};
 use medbrains_server_core::{
     error::AppError,
-    middleware::{auth::Claims, vendor_access::is_valid_scope},
+    middleware::{
+        auth::Claims,
+        vendor_access::{is_valid_scope, vendor_domains},
+    },
     pagination::{Paginated, Pagination},
     state::AppState,
     step_up::{StepUpProof, require_step_up},
@@ -190,15 +193,17 @@ pub async fn create_grant(
     let (reason, hours) = validate(&body)?;
     let email = body.grantee_email.trim().to_lowercase();
     let mut tx = medbrains_kernel::begin(&state.db, Actor::from_claims(&claims)).await?;
-    let grantee: Option<Uuid> = sqlx::query_scalar(
-        "SELECT id FROM users WHERE tenant_id = $1 AND lower(email) = $2 \
-           AND is_active AND deleted_at IS NULL",
+    let grantee: Option<(Uuid, bool)> = sqlx::query_as(
+        "SELECT id, COALESCE(is_vendor_staff OR public.app_email_is_vendor(email, $3), false) \
+           FROM users WHERE tenant_id = $1 AND lower(btrim(email)) = $2 \
+            AND is_active AND deleted_at IS NULL",
     )
     .bind(claims.tenant_id)
     .bind(&email)
+    .bind(vendor_domains())
     .fetch_optional(&mut *tx)
     .await?;
-    let Some(grantee) = grantee else {
+    let Some((grantee, is_vendor)) = grantee else {
         return Err(AppError::BadRequest(
             "No account with this email at this hospital. Add the person under Admin → Users \
              first."
@@ -208,6 +213,14 @@ pub async fn create_grant(
     if grantee == claims.sub {
         return Err(AppError::BadRequest(
             "You cannot give MedBrains access to your own account.".to_owned(),
+        ));
+    }
+    // Never turn a hospital colleague into a MedBrains account: flagging is
+    // permanent and revokes everything the account made.
+    if !is_vendor {
+        return Err(AppError::BadRequest(
+            "This is not a MedBrains account. Access can be given only to a MedBrains address."
+                .to_owned(),
         ));
     }
     let live: bool = sqlx::query_scalar(
@@ -224,8 +237,8 @@ pub async fn create_grant(
             "This person already has access. End it before giving new access.".to_owned(),
         ));
     }
-    // From here the account is a vendor account for good, so it is gated
-    // even after this grant ends (the column's trigger refuses clearing it).
+    // Flagged for good, so it stays gated if the domain list ever changes (the
+    // column's trigger refuses clearing it, and revokes what it made).
     sqlx::query("UPDATE users SET is_vendor_staff = true WHERE id = $1 AND tenant_id = $2")
         .bind(grantee)
         .bind(claims.tenant_id)

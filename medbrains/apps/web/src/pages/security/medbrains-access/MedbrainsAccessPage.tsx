@@ -81,6 +81,7 @@ export function MedbrainsAccessPage() {
     queryFn: () => api.listVendorAccessGrants(page),
     enabled: canView,
   });
+  /** Reload the grants list after any change. */
   const refresh = () => void qc.invalidateQueries({ queryKey: GRANTS_KEY });
   const create = useMutation({
     mutationFn: api.createVendorAccessGrant,
@@ -112,6 +113,7 @@ export function MedbrainsAccessPage() {
   });
 
   const total = grants.data?.meta.total ?? 0;
+  /** The row buttons a grant offers to this viewer, gated on what the server checks. */
   const actions = (g: VendorAccessGrant) => (
     <Group gap="xs" wrap="nowrap">
       <Button tone="tertiary" size="compact-sm" onClick={() => setWatching(g)}>

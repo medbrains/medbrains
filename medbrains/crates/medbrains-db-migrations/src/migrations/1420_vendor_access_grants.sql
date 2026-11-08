@@ -2,7 +2,7 @@
 -- Migration: 1420_vendor_access_grants.sql
 -- RLS-Posture: tenant-scoped
 -- Tenant-Column: tenant_id
--- New-Tables: vendor_access_grants, vendor_access_events
+-- New-Tables: vendor_access_grants, vendor_access_events, vendor_credential_revocations
 -- Drops: none
 -- ====================================================================
 -- MedBrains staff reaching a hospital's data, only with that hospital's say.
@@ -17,9 +17,15 @@
 --
 -- `users.is_vendor_staff` marks a MedBrains identity. The auth middleware also
 -- treats any address on a MedBrains domain (MEDBRAINS_VENDOR_EMAIL_DOMAINS) as
--- one, so an account is gated from the moment it exists, not from the first
--- grant. The flag only ever goes on: a grant sets it, and nothing may clear it,
--- because clearing it would hand a MedBrains account the ungated bypass back.
+-- one, so an account is gated from the moment it exists. A grant may only
+-- name an account that is already one of these: it never turns a hospital
+-- colleague into a MedBrains account. The flag only ever goes on, and nothing
+-- may clear it, because clearing it would hand the ungated bypass back.
+--
+-- Credentials a MedBrains account made or owns — API keys, connected apps it
+-- registered or approved, devices issued to it, webhooks it set up — would
+-- keep working after the person is gated, so they are revoked (never deleted)
+-- the moment an account is flagged, each revocation on the audit chain.
 --
 -- `vendor_access_events` holds one row per request made under a grant, written
 -- before the handler runs: an action the hospital cannot see is not allowed to
@@ -158,3 +164,153 @@ $$;
 
 CREATE TRIGGER trg_vendor_access_events_status_once BEFORE UPDATE ON public.vendor_access_events
     FOR EACH ROW EXECUTE FUNCTION public.vendor_access_event_status_once();
+
+-- ── Which accounts are MedBrains accounts ────────────────────────────
+-- The host is the part after the last @, trimmed, lower-cased, without a
+-- trailing dot; it matches a domain or any subdomain of it. One definition, used
+-- by the auth middleware, the API-key check and the notification queries.
+CREATE OR REPLACE FUNCTION public.app_email_is_vendor(p_email text, p_domains text[])
+RETURNS boolean
+LANGUAGE sql
+IMMUTABLE
+AS $$
+    SELECT CASE
+        WHEN p_email IS NULL OR position('@' IN p_email) = 0 THEN false
+        ELSE EXISTS (
+            SELECT 1
+              FROM unnest(p_domains) AS d(domain),
+                   LATERAL (SELECT rtrim(regexp_replace(lower(btrim(p_email)), '^.*@', ''), '.')
+                                AS host) h
+             WHERE btrim(d.domain) <> ''
+               AND (h.host = lower(btrim(d.domain))
+                    OR h.host LIKE '%.' || lower(btrim(d.domain)))
+        )
+    END
+$$;
+
+-- ── An approved grant is what was approved ───────────────────────────
+-- Once a second person has approved it, who it is for, what it opens, whether
+-- it masks and when it ends are fixed. Only ending it (revoked_*) may change.
+CREATE OR REPLACE FUNCTION public.vendor_access_grant_frozen_once_approved()
+RETURNS trigger
+LANGUAGE plpgsql
+AS $$
+BEGIN
+    IF OLD.approved_at IS NOT NULL
+       AND (NEW.grantee_user_id, NEW.scope, NEW.is_masked, NEW.expires_at,
+            NEW.approved_by, NEW.approved_at, NEW.created_by)
+           IS DISTINCT FROM
+           (OLD.grantee_user_id, OLD.scope, OLD.is_masked, OLD.expires_at,
+            OLD.approved_by, OLD.approved_at, OLD.created_by) THEN
+        RAISE EXCEPTION 'an approved MedBrains access grant cannot be changed, only ended'
+            USING ERRCODE = 'check_violation';
+    END IF;
+    RETURN NEW;
+END;
+$$;
+
+CREATE TRIGGER trg_vendor_access_grants_frozen BEFORE UPDATE ON public.vendor_access_grants
+    FOR EACH ROW EXECUTE FUNCTION public.vendor_access_grant_frozen_once_approved();
+
+-- ── Credentials a MedBrains account made stop working ─────────────────
+CREATE TABLE public.vendor_credential_revocations (
+    id uuid DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY,
+    tenant_id uuid NOT NULL REFERENCES public.tenants(id),
+    -- The MedBrains account whose credential it was.
+    user_id uuid NOT NULL REFERENCES public.users(id),
+    kind text NOT NULL
+        CHECK (kind IN ('api_key', 'connected_app', 'paired_device', 'webhook_subscription')),
+    credential_id uuid NOT NULL,
+    created_at timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE INDEX idx_vendor_credential_revocations_tenant
+    ON public.vendor_credential_revocations (tenant_id, created_at DESC);
+
+ALTER TABLE public.vendor_credential_revocations ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.vendor_credential_revocations FORCE ROW LEVEL SECURITY;
+CREATE POLICY tenant_isolation_vendor_credential_revocations
+    ON public.vendor_credential_revocations
+    USING (tenant_id = public.app_current_tenant())
+    WITH CHECK (tenant_id = public.app_current_tenant());
+
+CREATE TRIGGER trg_vendor_credential_revocations_no_change
+    BEFORE UPDATE OR DELETE ON public.vendor_credential_revocations
+    FOR EACH ROW EXECUTE FUNCTION public.audit_append_only();
+CREATE TRIGGER audit_vendor_credential_revocations AFTER INSERT
+    ON public.vendor_credential_revocations
+    FOR EACH ROW EXECUTE FUNCTION public.audit_trigger_func('security');
+
+-- Revoke, never delete: the hospital keeps the record of what existed.
+--
+-- The account's own hospital is set as the tenant context while this runs, so
+-- each revocation row reaches that hospital's audit chain even from the
+-- back-fill below, which runs with no context; the caller's is put back after.
+CREATE OR REPLACE FUNCTION public.revoke_vendor_credentials()
+RETURNS trigger
+LANGUAGE plpgsql
+AS $$
+DECLARE
+    v_prev_tenant text := current_setting('app.tenant_id', true);
+BEGIN
+    PERFORM set_config('app.tenant_id', NEW.tenant_id::text, true);
+
+    WITH keys AS (
+        UPDATE public.api_keys SET revoked_at = now()
+         WHERE tenant_id = NEW.tenant_id AND created_by = NEW.id AND revoked_at IS NULL
+        RETURNING id
+    )
+    INSERT INTO public.vendor_credential_revocations (tenant_id, user_id, kind, credential_id)
+    SELECT NEW.tenant_id, NEW.id, 'api_key', id FROM keys;
+
+    WITH apps AS (
+        UPDATE public.connected_apps
+           SET status = 'revoked', revoked_at = now(),
+               revoke_reason = 'Registered or approved by a MedBrains account'
+         WHERE tenant_id = NEW.tenant_id AND (created_by = NEW.id OR approved_by = NEW.id)
+           AND status <> 'revoked'
+        RETURNING id
+    )
+    INSERT INTO public.vendor_credential_revocations (tenant_id, user_id, kind, credential_id)
+    SELECT NEW.tenant_id, NEW.id, 'connected_app', id FROM apps;
+
+    -- An app's tokens are API keys; ending the app ends them too.
+    UPDATE public.api_keys k SET revoked_at = now()
+      FROM public.connected_apps a
+     WHERE k.connected_app_id = a.id AND a.tenant_id = NEW.tenant_id
+       AND (a.created_by = NEW.id OR a.approved_by = NEW.id) AND k.revoked_at IS NULL;
+
+    WITH devices AS (
+        UPDATE public.paired_devices
+           SET revoked_at = now(), revoked_reason = 'Issued to a MedBrains account'
+         WHERE tenant_id = NEW.tenant_id AND issued_to_user_id = NEW.id AND revoked_at IS NULL
+        RETURNING id
+    )
+    INSERT INTO public.vendor_credential_revocations (tenant_id, user_id, kind, credential_id)
+    SELECT NEW.tenant_id, NEW.id, 'paired_device', id FROM devices;
+
+    WITH hooks AS (
+        UPDATE public.webhook_subscriptions SET is_active = false
+         WHERE tenant_id = NEW.tenant_id AND created_by = NEW.id AND is_active
+        RETURNING id
+    )
+    INSERT INTO public.vendor_credential_revocations (tenant_id, user_id, kind, credential_id)
+    SELECT NEW.tenant_id, NEW.id, 'webhook_subscription', id FROM hooks;
+
+    PERFORM set_config('app.tenant_id', COALESCE(v_prev_tenant, ''), true);
+    RETURN NEW;
+END;
+$$;
+
+CREATE TRIGGER trg_users_revoke_vendor_credentials
+    AFTER INSERT OR UPDATE OF is_vendor_staff ON public.users
+    FOR EACH ROW WHEN (NEW.is_vendor_staff)
+    EXECUTE FUNCTION public.revoke_vendor_credentials();
+
+-- Back-fill: accounts already on the default MedBrains domain become MedBrains
+-- accounts now, which revokes what they made. A deployment with other domains
+-- in MEDBRAINS_VENDOR_EMAIL_DOMAINS is gated at sign-in by the domain rule and
+-- its credentials by the API-key and device checks; flagging those accounts is
+-- the operator's step (docs/compliance/vendor-access.md).
+UPDATE public.users SET is_vendor_staff = true
+ WHERE NOT is_vendor_staff AND public.app_email_is_vendor(email, ARRAY['medbrains.in']);

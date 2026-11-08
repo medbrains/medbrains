@@ -21,6 +21,7 @@ const HOLDERS_SQL: &str = "\
                        AND r.is_active = true \
      WHERE u.tenant_id = $1 AND u.is_active = true AND u.deleted_at IS NULL \
        AND u.id <> $2 \
+       AND NOT (u.is_vendor_staff OR public.app_email_is_vendor(u.email, $5)) \
        AND NOT COALESCE(u.access_matrix -> 'denied' ? $3, false) \
        AND (u.role::text IN ('super_admin', 'hospital_admin') \
             OR COALESCE(r.permissions ? $3, false) \
@@ -53,6 +54,7 @@ where
         .bind(exclude)
         .bind(permission)
         .bind(MAX_HOLDERS)
+        .bind(medbrains_server_core::middleware::vendor_access::vendor_domains())
         .fetch_all(&mut **tx)
         .await?;
     for user_id in &holders {

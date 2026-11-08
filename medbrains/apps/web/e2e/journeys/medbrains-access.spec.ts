@@ -6,6 +6,8 @@
  * next request is refused.
  */
 import type { Page } from "@playwright/test";
+import { loginAsRole } from "../helpers";
+import { api } from "../helpers/api";
 import { expect, test } from "./support/world";
 
 /** The status of one API call made from inside the signed-in page. */
@@ -17,10 +19,22 @@ test("the hospital gives MedBrains masked access, watches it, and ends it", asyn
   test.setTimeout(120_000);
   const t = Date.now().toString(36).toUpperCase().slice(-6);
   const officer = await hospital.newStaff("it_security_officer", `Security Officer ${t}`);
-  const support = await hospital.newStaff("receptionist", `MedBrains Support ${t}`);
+  // The MedBrains person's account, on a MedBrains address: gated from the
+  // moment it exists, and the only kind of account a grant may name.
+  const username = `mbsupport_${t.toLowerCase()}`;
+  const password = `Support-${t}-Pass1!`;
+  const email = `${username}@medbrains.in`;
+  await api(hospital.admin, "POST", "/api/setup/users", {
+    username,
+    email,
+    password,
+    full_name: `MedBrains Support ${t}`,
+    role: "receptionist",
+  });
+  const support = { page: await hospital.asPublic() };
+  await loginAsRole(support.page, username, password);
   await support.page.goto("/dashboard");
-  const me = await support.page.evaluate(async () => (await fetch("/api/auth/me")).json());
-  const email: string = me.email;
+  expect(await statusOf(support.page, "/api/admin/kernel")).toBe(403);
 
   const page = officer.page;
   await page.goto("/security/medbrains-access");

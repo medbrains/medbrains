@@ -55,7 +55,7 @@ export function GrantForm({ saving, error, onSave }: GrantFormProps) {
             {...field}
             type="email"
             label="MedBrains person's email"
-            description="Their account at this hospital. Add it under Admin → Users first."
+            description="A MedBrains address with an account at this hospital. Add it under Admin → Users first."
             withAsterisk
             error={fieldState.error?.message}
           />
@@ -82,7 +82,7 @@ export function GrantForm({ saving, error, onSave }: GrantFormProps) {
         render={({ field, fieldState }) => (
           <MultiSelect
             label="What they may reach"
-            description="Account, role and access settings are never included."
+            description="Read only. Configuration only also allows master-data edits. Accounts, keys, webhooks and integrations are never included."
             data={options}
             searchable
             value={field.value}
@@ -115,7 +115,7 @@ export function GrantForm({ saving, error, onSave }: GrantFormProps) {
         render={({ field }) => (
           <Switch
             label="Mask patient data"
-            description="Names, contacts, IDs and clinical notes are hidden on the server."
+            description="Only ids, statuses, dates and counts are shown; everything else is hidden on the server."
             checked={field.value}
             onChange={(e) => field.onChange(e.currentTarget.checked)}
           />

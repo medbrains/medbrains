@@ -195,7 +195,8 @@ async fn no_grant_refuses_even_a_bypass_role() {
     .fetch_one(&app.db)
     .await
     .expect("audit");
-    assert!(audited >= 2, "refusals audited: {audited}");
+    // Once a minute per account, counting the rest: two refusals, one row.
+    assert_eq!(audited, 1, "refusals audited: {audited}");
 }
 
 /// Given a masked grant for patients, the MedBrains person sees the list with
@@ -206,7 +207,7 @@ async fn masked_grant_masks_patient_data() {
     let app = common::spawn_app().await;
     let csrf = app.login_admin().await;
     let tenant = home_tenant(&app).await;
-    let vendor = account(&app, &csrf, "super_admin", "example.test").await;
+    let vendor = account(&app, &csrf, "super_admin", "medbrains.in").await;
     let patient = patient_seen_by(&app, tenant, vendor.user_id).await;
 
     let (status, made) = grant(&app, &csrf, &vendor.email, &["patients"], true).await;
@@ -263,7 +264,7 @@ async fn unmasked_needs_a_second_approver() {
     let app = common::spawn_app().await;
     let csrf = app.login_admin().await;
     let tenant = home_tenant(&app).await;
-    let vendor = account(&app, &csrf, "super_admin", "medbrains.in").await;
+    let vendor = account(&app, &csrf, "super_admin", "sub.medbrains.in").await;
     patient_seen_by(&app, tenant, vendor.user_id).await;
 
     let (status, made) = grant(&app, &csrf, &vendor.email, &["patients"], false).await;
@@ -420,6 +421,7 @@ async fn a_grant_must_be_well_formed() {
     let app = common::spawn_app().await;
     let csrf = app.login_admin().await;
     let vendor = account(&app, &csrf, "receptionist", "medbrains.in").await;
+    let colleague = account(&app, &csrf, "receptionist", "example.test").await;
     app.step_up(&app.client, &csrf, "admin123").await;
     let path = "/api/security/vendor-access/grants";
     let with = |email: &str, reason: &str, scope: Value, hours: i64| json!({ "grantee_email": email, "reason": reason, "scope": scope, "hours": hours });
@@ -455,6 +457,15 @@ async fn a_grant_must_be_well_formed() {
             ),
             "self",
         ),
+        (
+            with(
+                &colleague.email,
+                "Investigating ticket 12",
+                json!(["opd"]),
+                4,
+            ),
+            "colleague",
+        ),
     ];
     for (body, why) in cases {
         let (status, _) = post(&app, (&app.client, &csrf), path, body).await;
@@ -471,4 +482,194 @@ async fn a_grant_must_be_well_formed() {
     assert_eq!(made["is_masked"], true, "masked unless asked otherwise");
     let (status, _) = post(&app, (&app.client, &csrf), path, ok).await;
     assert_eq!(status, StatusCode::CONFLICT, "one live grant at a time");
+}
+
+/// Issue an API key as the admin; returns (id, secret).
+async fn issue_key(app: &TestApp, csrf: &str) -> (Uuid, String) {
+    let resp = app
+        .client
+        .post(app.url("/api/admin/api-keys"))
+        .header("x-csrf-token", csrf)
+        .json(
+            &json!({ "name": format!("va{}", &Uuid::new_v4().simple().to_string()[..8]),
+                       "permissions": ["patients.list"], "rate_limit_per_minute": 60 }),
+        )
+        .send()
+        .await
+        .expect("issue");
+    assert_eq!(resp.status(), StatusCode::OK);
+    let body: Value = resp.json().await.expect("issue json");
+    let secret = body["secret"].as_str().expect("secret").to_owned();
+    let id: Uuid = sqlx::query_scalar("SELECT id FROM api_keys ORDER BY created_at DESC LIMIT 1")
+        .fetch_one(&app.db)
+        .await
+        .expect("key id");
+    (id, secret)
+}
+
+/// GET with an API key; returns the status.
+async fn with_key(app: &TestApp, secret: &str, path: &str) -> StatusCode {
+    Client::new()
+        .get(app.url(path))
+        .bearer_auth(secret)
+        .send()
+        .await
+        .expect("key request")
+        .status()
+}
+
+/// Given an API key made by an account on a MedBrains domain, the key is
+/// refused: a key must not outlive the grant of the person who made it.
+#[tokio::test]
+async fn a_key_a_vendor_account_made_is_refused() {
+    let app = common::spawn_app().await;
+    let csrf = app.login_admin().await;
+    let vendor = account(&app, &csrf, "receptionist", "medbrains.in").await;
+    let (key, secret) = issue_key(&app, &csrf).await;
+    assert_eq!(
+        with_key(&app, &secret, "/api/patients").await,
+        StatusCode::OK
+    );
+    sqlx::query("UPDATE api_keys SET created_by = $2 WHERE id = $1")
+        .bind(key)
+        .bind(vendor.user_id)
+        .execute(&app.db)
+        .await
+        .expect("made by the vendor");
+    assert_eq!(
+        with_key(&app, &secret, "/api/patients").await,
+        StatusCode::FORBIDDEN
+    );
+}
+
+/// Given an account that made a key and a webhook, when it becomes a
+/// MedBrains account, both are revoked (not deleted) and each revocation is
+/// on the audit chain.
+#[tokio::test]
+async fn flagging_an_account_revokes_what_it_made() {
+    let app = common::spawn_app().await;
+    let csrf = app.login_admin().await;
+    let person = account(&app, &csrf, "receptionist", "example.test").await;
+    let (key, secret) = issue_key(&app, &csrf).await;
+    sqlx::query("UPDATE api_keys SET created_by = $2 WHERE id = $1")
+        .bind(key)
+        .bind(person.user_id)
+        .execute(&app.db)
+        .await
+        .expect("made by the person");
+    assert_eq!(
+        with_key(&app, &secret, "/api/patients").await,
+        StatusCode::OK
+    );
+
+    sqlx::query("UPDATE users SET is_vendor_staff = true WHERE id = $1")
+        .bind(person.user_id)
+        .execute(&app.db)
+        .await
+        .expect("flag");
+    let revoked: bool =
+        sqlx::query_scalar("SELECT revoked_at IS NOT NULL FROM api_keys WHERE id = $1")
+            .bind(key)
+            .fetch_one(&app.db)
+            .await
+            .expect("key row kept");
+    assert!(revoked, "the key was not revoked");
+    let audited: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM vendor_credential_revocations r \
+          JOIN audit_log a ON a.entity_id = r.id AND a.entity_type = 'vendor_credential_revocations' \
+         WHERE r.credential_id = $1 AND r.kind = 'api_key'",
+    )
+    .bind(key)
+    .fetch_one(&app.db)
+    .await
+    .expect("audit");
+    assert_eq!(audited, 1, "the revocation is not on the audit chain");
+    assert_eq!(
+        with_key(&app, &secret, "/api/patients").await,
+        StatusCode::UNAUTHORIZED
+    );
+    let cleared = sqlx::query("UPDATE users SET is_vendor_staff = false WHERE id = $1")
+        .bind(person.user_id)
+        .execute(&app.db)
+        .await;
+    assert!(cleared.is_err(), "the flag was cleared");
+}
+
+/// Given an approved unmasked grant, what it opens is fixed; it can only end.
+#[tokio::test]
+async fn an_approved_grant_cannot_be_widened() {
+    let app = common::spawn_app().await;
+    let csrf = app.login_admin().await;
+    let vendor = account(&app, &csrf, "receptionist", "medbrains.in").await;
+    let (_, made) = grant(&app, &csrf, &vendor.email, &["patients"], false).await;
+    let officer = account(&app, &csrf, "it_security_officer", "example.test").await;
+    app.step_up(&officer.client, &officer.csrf, &officer.password)
+        .await;
+    let approve = format!(
+        "/api/security/vendor-access/grants/{}/approve",
+        id_of(&made)
+    );
+    let (status, _) = post(&app, (&officer.client, &officer.csrf), &approve, json!({})).await;
+    assert_eq!(status, StatusCode::OK);
+
+    for change in [
+        "scope = ARRAY['patients','admin']",
+        "is_masked = true",
+        "expires_at = expires_at + interval '1 hour'",
+    ] {
+        let widened = sqlx::query(&format!(
+            "UPDATE vendor_access_grants SET {change} WHERE id = $1::uuid"
+        ))
+        .bind(id_of(&made))
+        .execute(&app.db)
+        .await;
+        assert!(widened.is_err(), "{change} was allowed after approval");
+    }
+    let revoke = format!("/api/security/vendor-access/grants/{}/revoke", id_of(&made));
+    let (status, _) = post(&app, (&app.client, &csrf), &revoke, json!({})).await;
+    assert_eq!(status, StatusCode::OK, "ending it is still allowed");
+}
+
+/// Given a MedBrains account holding a bypass role, "tell every holder of a
+/// permission" does not tell it.
+#[tokio::test]
+async fn permission_holders_never_include_a_vendor_account() {
+    let app = common::spawn_app().await;
+    let csrf = app.login_admin().await;
+    let tenant = home_tenant(&app).await;
+    let vendor = account(&app, &csrf, "hospital_admin", "medbrains.in").await;
+    let mut tx = app.db.begin().await.expect("tx");
+    sqlx::query("SELECT set_config('app.tenant_id', $1::text, true)")
+        .bind(tenant.to_string())
+        .execute(&mut *tx)
+        .await
+        .expect("tenant");
+    let marker = format!("va-holders-{}", Uuid::new_v4().simple());
+    medbrains_notifications::notify_permission_holders(
+        &mut tx,
+        tenant,
+        "admin.users.list",
+        Uuid::nil(),
+        |user_id| medbrains_notifications::NewNotification {
+            user_id,
+            kind: "test",
+            title: &marker,
+            body: None,
+            category: None,
+            entity_type: None,
+            entity_id: None,
+            action_url: None,
+        },
+    )
+    .await
+    .expect("notify");
+    tx.commit().await.expect("commit");
+    let told: i64 =
+        sqlx::query_scalar("SELECT COUNT(*) FROM notifications WHERE user_id = $1 AND title = $2")
+            .bind(vendor.user_id)
+            .bind(&marker)
+            .fetch_one(&app.db)
+            .await
+            .expect("count");
+    assert_eq!(told, 0, "a MedBrains account was told");
 }

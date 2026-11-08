@@ -19,14 +19,15 @@ hospital's explicit, scoped, time-limited and audited permission.**
 
 | Duty | How it is met | Where |
 |---|---|---|
-| Off by default | A MedBrains account is refused on every request without a live grant: 403, audited as `vendor_access_refused`. Its role does not matter: `super_admin` and `hospital_admin` lose their bypass, because the account's role is replaced for the request by `vendor_support`, which no check treats as a bypass | `medbrains-server-core/src/middleware/vendor_access.rs` |
-| Which accounts are MedBrains accounts | `users.is_vendor_staff`, set by the first grant and never cleared (a trigger refuses it), or any address on a MedBrains domain (`MEDBRAINS_VENDOR_EMAIL_DOMAINS`, default `medbrains.in`) | migration 1420, `auth.rs` |
+| Off by default | A MedBrains account is refused on every request without a live grant: 403, audited as `vendor_access_refused` (one row per account per minute, carrying how many refusals it stands for). Its role does not matter: `super_admin` and `hospital_admin` lose their bypass, because the account's role is replaced for the request by `vendor_support`, which no check treats as a bypass | `medbrains-server-core/src/middleware/vendor_access/` |
+| Which accounts are MedBrains accounts | `users.is_vendor_staff` (never cleared; a trigger refuses it), or an address whose host — the part after the last `@`, trimmed, without a trailing dot — is a MedBrains domain or a subdomain of one (`MEDBRAINS_VENDOR_EMAIL_DOMAINS`, default `medbrains.in`). One SQL definition, `app_email_is_vendor` | migration 1420 |
 | Explicit | Only the hospital creates a grant, on Security → MedBrains access, with a step-up (password again) | `medbrains-it-security/src/vendor_access.rs` |
-| Named person | The grant names the account by email; it must already exist at this hospital | same |
+| Named person | The grant names the account by email; it must already exist at this hospital **and already be a MedBrains account**. A grant never turns a hospital colleague into one | same |
 | Purpose | A reason of at least 10 characters is required and kept on the grant | same, and a table check |
-| Scoped | A list of permission modules, or "configuration only". The grant carries exactly those modules' codes, minus codes that would let it widen or outlive itself (accounts, roles, API keys, access requests, connected apps, sharing, backups, break-glass, the audit log, device enrolment, VPN, and granting vendor access) | `permissions_for_scope` |
+| Scoped | An **allowlist**. A module scope carries only that module's read codes (`list`, `view`, `read`, `search`). Configuration only adds a named list of master-data edits (departments, locations, facilities, services, clinical masters, bed types, tax, branding). No grant carries a code that makes a credential, opens an outbound channel (webhooks, integrations, messages, campaigns) or sets up something the system runs later (automations, flows, pipelines, retries, restores, system state), nor reads keys, endpoints, raw payloads or the audit log. A new code is excluded until it is added on purpose | `vendor_access/scope.rs` |
 | Time-limited | 4 hours by default, 72 at most (also a database check) | migration 1420 |
-| Masked by default | Masked unless the hospital chooses otherwise. Masking is done on the server, before the answer leaves: restricted clinical records (HIV, mental health, medico-legal and others) are withheld whole, then every identity field the AI redactor knows, every field class above routine, and free-text clinical fields read `[MASKED]`. A download, image or stream cannot be masked, so it is refused | `mask_value`, `ai_redact`, `field_class` |
+| Masked by default | Masked unless the hospital chooses otherwise. Masking is done on the server by **allowlist**, error bodies included: restricted clinical records are withheld whole, then a value survives only if its key and shape are both safe — a UUID id, a parsable timestamp, a count, an `is_`/`has_` flag, a short enum status or type that the AI redactor's value scan leaves alone. Everything else, under any key (`name`, `patient_label`, camelCase, free text, an age), reads `[MASKED]` | `vendor_access/mask.rs` |
+| Files and streams | Refused under **every** grant, masked or not: a file or stream cannot be masked or described by the event row. Streams are refused from their headers, never buffered | same |
 | Separation of duty | Unmasked access opens only when a **different** person with `security.vendor_access.approve_unmasked` approves it, with a step-up. The database refuses an approver who asked for it or who is the MedBrains account | migration 1420 check, `approve_grant` |
 | Audit | Every request under a grant writes a `vendor_access_events` row **before** the handler runs; if the row cannot be written the request is refused (503). The row is never deleted and takes its status once. Grant changes are on the audit chain by trigger | migration 1420 |
 | Visibility | Security → MedBrains access lists every grant, active and past, who gave, approved and ended it, and every request made under it | `apps/web/src/pages/security/medbrains-access/` |
@@ -34,6 +35,9 @@ hospital's explicit, scoped, time-limited and audited permission.**
 | Isolation | A grant opens one hospital. Its rows are visible only to that hospital, even inside a hospital group | RLS on `app_current_tenant()` |
 | Never fail open | If the grant cannot be checked, the answer is 503, never allow and never a 404 that reads as "no such record" | `live_grant` |
 | Live streams | The notification socket refuses MedBrains accounts outright: a stream cannot be masked or recorded per request | `medbrains-notifications` |
+| Nothing outlives the grant | When an account becomes a MedBrains account, every API key it made, connected app it registered or approved (and that app's tokens), device issued to it and webhook it set up is revoked — never deleted — and each revocation is a `vendor_credential_revocations` row on the audit chain. Migration 1420 does this for existing `medbrains.in` accounts. At request time a key made or approved by a MedBrains account, or a device issued to one, is refused even if never flagged | migration 1420, `api_key.rs`, `auth.rs` |
+| Not told hospital business | "Tell every holder of a permission", break-glass alerts and push notifications leave MedBrains accounts out | `holders.rs`, `break_glass_notify.rs`, `notification_listener.rs` |
+| Fixed once approved | An approved grant's person, scope, masking and expiry cannot change; it can only be ended | migration 1420 trigger |
 
 Permissions: `security.vendor_access.view`, `.grant`, `.approve_unmasked`, `.revoke`. Hospital
 admins hold all four through their bypass; the IT security officer holds all four; the medical
@@ -58,18 +62,28 @@ superintendent may view and approve unmasked access; the audit officer may view.
    access there.
 7. **Outage.** Given the grant check cannot be answered, the request is 503.
 8. **Well-formed.** A short reason, an unknown or ungrantable module, more than 72 hours, an
-   unknown account, one's own account, and a second live grant for the same person are all
-   refused; the default is masked.
+   unknown account, one's own account, a hospital colleague's (non-MedBrains) account, and a second
+   live grant for the same person are all refused; the default is masked.
+9. **A key a MedBrains account made** is refused at request time.
+10. **Flagging an account** revokes its API key (the row is kept), puts the revocation on the audit
+    chain, and the flag cannot be cleared.
+11. **An approved grant** cannot have its scope, masking or expiry changed; it can still be ended.
+12. **Notifying permission holders** never reaches a MedBrains account, even one with a bypass role.
+
+Unit tests (`vendor_access/tests.rs`) pin the allowlist per class (credentials, outbound channels,
+scheduled and system actions, secret-bearing reads) and the masking of the three handlers the
+review named: the immunisation due list, the early-warning context and PCPNDT Form F, plus error
+bodies.
 
 ## What was found before this was built
 
 - **The seeded first administrator is a `super_admin`** (`medbrains-seed`, `admin@medbrains.localhost`;
   `medbrains-onboarding` also makes the first sign-up on an empty server a `super_admin`). On an
   installation MedBrains runs, whoever holds that login had full, unrecorded-as-vendor access to the
-  hospital's records. It is not gated by this change, because on a hospital's own installation it is
-  the hospital's administrator and gating it would lock every new installation out. **Owner
-  decision needed:** on MedBrains-hosted tenants, give that account a `medbrains.in` address (it is
-  then gated) or hand it to the hospital and use named, granted accounts for support.
+  hospital's records. **Proposed, for the owner to confirm:** `MEDBRAINS_HOSTED=true` on every
+  installation MedBrains runs for a hospital adds `medbrains.localhost` to the vendor domains, so
+  that login is a MedBrains account and gated like any other. On a hospital's own server the setting
+  is unset and the login stays the hospital's.
 - **`super_admin` bypasses every permission check** (`kernel::authz::BYPASS_ROLES`) and the field
   hiding in `field_access.rs`. A MedBrains account can no longer use it: its role is replaced per
   request. A hospital's own `super_admin` keeps it.
@@ -94,9 +108,9 @@ superintendent may view and approve unmasked access; the audit officer may view.
   relation (lists filtered by ReBAC, a chart) are not opened by the grant alone. Support on a
   specific chart needs the hospital to add the person to that patient's care team, which is itself
   audited. A `vendor_grant` relation is the upgrade if that proves too narrow.
-- Masking is by field name. A new identifying field must be added to `field_class.rs` or the AI
-  redactor's identity keys; `name` alone is not masked because it names departments and drugs far
-  more often than people (patient names have their own keys).
+- Masking is by allowlist, so it over-masks: department names, drug names and other harmless
+  labels read `[MASKED]` too. That is the safe direction; a masked session is for configuration
+  and flow problems, not reading records. A key is kept only by adding its shape to `mask.rs`.
 - The domain rule treats any `medbrains.in` address as MedBrains staff. On a tenant MedBrains runs
   for itself, set `MEDBRAINS_VENDOR_EMAIL_DOMAINS` to an empty string.
 
@@ -137,3 +151,16 @@ its own duties to the Data Protection Board and to Data Principals.
 
 T8. *Infrastructure access.* Access to servers or databases outside the application (for hosting or
 recovery) is covered by [separate clause — counsel], and is logged and notified to the Fiduciary.
+
+## Hand-over on a hosted installation (`MEDBRAINS_HOSTED=true`)
+
+1. Before go-live, MedBrains creates the hospital's own administrator (a `hospital_admin` on the
+   hospital's address) from the seeded login, and hands the credentials over in person or through
+   the hospital's chosen channel.
+2. The hospital's administrator signs in, changes the password, and enrols MFA.
+3. Set `MEDBRAINS_HOSTED=true` and restart. From then on `admin@medbrains.localhost` is a MedBrains
+   account: refused without a grant, its credentials refused.
+4. Rotate the seeded login's password anyway, and record the hand-over (date, who, how) in the
+   hospital's onboarding record.
+5. Support from then on uses named `@medbrains.in` accounts the hospital creates, each opened by a
+   grant on Security → MedBrains access.
