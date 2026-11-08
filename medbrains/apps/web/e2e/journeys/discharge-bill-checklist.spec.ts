@@ -2,7 +2,7 @@
  * The IPD billing desk closes a stay (#292): the discharge checklist shows the
  * stay's charges by department with nothing outstanding, the clerk issues the
  * final bill, applies the advance to it, and refunds what the advance had
- * left over.
+ * left over, and its leakage check finds nothing unbilled.
  */
 import { api } from "../helpers/api";
 import { admitToIpd, createPatientApi, freshWardBeds } from "../helpers/journey-steps";
@@ -49,4 +49,12 @@ test("the billing desk issues the final bill and refunds the unused advance", as
   await refund.click();
   await expect(page.getByText("The unused advance has been refunded.")).toBeVisible();
   await expect(checklist.getByRole("listitem", { name: "Advance applied" })).toContainText("₹0.00");
+
+  // The desk's daily revenue-leakage check, run on demand from the queue, with
+  // the open total at the top. The hospital may hold other tests' orders, so
+  // only that the check ran and answered is asserted, never a count.
+  await page.goto("/billing?tab=charge-attention");
+  await expect(page.getByRole("heading", { name: /^(₹|Amounts hidden)/ })).toBeVisible();
+  await page.getByRole("button", { name: "Check for unbilled orders" }).click();
+  await expect(page.getByText(/^(No new unbilled orders|\d+ unbilled order\(s\) added)/)).toBeVisible();
 });

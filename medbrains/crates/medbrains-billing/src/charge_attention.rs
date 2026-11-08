@@ -4,6 +4,11 @@
 //! The desk posts one — the same charge the module meant, rebuilt from the
 //! row — or dismisses it with a reason. Either way the row records who and
 //! when, and the table's audit trigger keeps the change.
+//!
+//! The same queue carries the orders done but never billed that the leakage
+//! check finds (`leakage`, reason `unbilled_order`). Those rows are seen and
+//! worked under `billing.leakage.*`; the rest under `billing.charge_attention.*`.
+//! A row of a kind the caller may not work answers 404, as if absent.
 
 use axum::{
     Extension, Json,
@@ -16,7 +21,7 @@ use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use medbrains_kernel::{Actor, require_permission};
+use medbrains_kernel::{Actor, KernelError, require_any_permission, require_permission};
 use medbrains_server_core::{
     error::AppError,
     middleware::auth::Claims,
@@ -50,6 +55,14 @@ pub struct ChargeAttentionItem {
     pub created_at: DateTime<Utc>,
     pub patient_name: String,
     pub uhid: String,
+    pub department_id: Option<Uuid>,
+    pub department_name: Option<String>,
+    /// When the service was done (leakage rows); the age counts from here.
+    pub service_at: Option<DateTime<Utc>>,
+    /// Whole days since the service (or, without one, since it was queued).
+    pub age_days: i32,
+    /// Unit price × quantity, when the row carries a price.
+    pub amount: Option<Decimal>,
 }
 
 /// The queue's one query: item, patient and both people joined once.
@@ -58,52 +71,145 @@ const ITEM_SELECT: &str = "SELECT a.id, a.source_module, a.setting_module, a.sou
         a.unit_price_override, a.tax_percent_override, a.apply_concessions, a.reason, a.status, \
         a.invoice_id, a.dismiss_reason, ru.full_name AS resolved_by_name, a.resolved_at, \
         cu.full_name AS created_by_name, a.created_at, \
-        btrim(concat_ws(' ', p.first_name, p.last_name)) AS patient_name, p.uhid \
+        btrim(concat_ws(' ', p.first_name, p.last_name)) AS patient_name, p.uhid, \
+        a.department_id, d.name AS department_name, a.service_at, \
+        (now()::date - COALESCE(a.service_at, a.created_at)::date)::int4 AS age_days, \
+        a.unit_price_override * a.quantity AS amount \
    FROM charge_attention_items a \
    JOIN patients p ON p.id = a.patient_id AND p.tenant_id = a.tenant_id \
+   LEFT JOIN departments d ON d.id = a.department_id \
    LEFT JOIN users ru ON ru.id = a.resolved_by \
    LEFT JOIN users cu ON cu.id = a.created_by";
 
 #[derive(Debug, Deserialize)]
 pub struct ListChargeAttentionQuery {
     pub status: Option<String>,
+    /// `unbilled` (leakage rows) or `failed` (charges a module could not post).
+    pub kind: Option<String>,
     pub page: Option<i64>,
     pub limit: Option<i64>,
 }
 
-/// `GET /api/billing/charge-attention` — the queue, newest first. The menu
-/// badge reads `meta.total` of `status=open&limit=1`.
+/// Which kinds of row the caller may see (or work): failed charges,
+/// unbilled orders.
+#[derive(Debug, Clone, Copy)]
+struct Kinds {
+    failed: bool,
+    unbilled: bool,
+}
+
+/// The rows' kind filter in SQL, bound as `$n` (failed) and `$n+1` (unbilled).
+fn kind_filter(n: u8) -> String {
+    format!(
+        "(${n} OR a.reason <> 'unbilled_order') AND (${} OR a.reason = 'unbilled_order')",
+        n + 1
+    )
+}
+
+/// Whether the caller holds `perm`. A refusal is `false`; any other fault is
+/// returned, never read as a refusal.
+fn holds(claims: &Claims, perm: &str) -> Result<bool, AppError> {
+    match require_permission(claims, perm) {
+        Ok(()) => Ok(true),
+        Err(KernelError::Forbidden) => Ok(false),
+        Err(other) => Err(other.into()),
+    }
+}
+
+/// The kinds the caller may see (`resolve` false) or work (`resolve` true);
+/// holding neither permission is a 403.
+fn kinds(claims: &Claims, resolve: bool) -> Result<Kinds, AppError> {
+    let (failed, unbilled) = if resolve {
+        (
+            permissions::billing::charge_attention::RESOLVE,
+            permissions::billing::leakage::RESOLVE,
+        )
+    } else {
+        (
+            permissions::billing::charge_attention::VIEW,
+            permissions::billing::leakage::VIEW,
+        )
+    };
+    require_any_permission(claims, &[failed, unbilled])?;
+    Ok(Kinds {
+        failed: holds(claims, failed)?,
+        unbilled: holds(claims, unbilled)?,
+    })
+}
+
+/// The list's filter: tenant, status (`$2`), the patients the caller may
+/// bill (`$3`), the kinds they may see (`$4`, `$5`) and the kind asked (`$6`).
+fn list_filter() -> String {
+    format!(
+        "a.tenant_id = $1 AND a.deleted_at IS NULL \
+         AND ($2::text IS NULL OR a.status = $2) \
+         AND ($3::uuid[] IS NULL OR a.patient_id = ANY($3)) AND {} \
+         AND ($6::text IS NULL OR ($6 = 'unbilled') = (a.reason = 'unbilled_order'))",
+        kind_filter(4)
+    )
+}
+
+/// What a reader of the queue may see: which kinds, whose bills (`None` is
+/// every patient), and whether amounts are hidden from them.
+struct ReadScope {
+    kinds: Kinds,
+    visible: Option<Vec<Uuid>>,
+    hide_amounts: bool,
+}
+
+/// The caller's [`ReadScope`]; 403 when they may see neither kind.
+async fn read_scope(state: &AppState, claims: &Claims) -> Result<ReadScope, AppError> {
+    let kinds = kinds(claims, false)?;
+    let visible = medbrains_authz_gate::require_patient_billing_filter(state, claims, None).await?;
+    let hide_amounts = crate::amounts_hidden(state, claims).await?;
+    Ok(ReadScope {
+        kinds,
+        visible,
+        hide_amounts,
+    })
+}
+
+/// `GET /api/billing/charge-attention` — the queue, largest amount first
+/// (unpriced rows last, newest first among them). The menu badge reads
+/// `meta.total` of `status=open&limit=1`.
 pub async fn list_charge_attention(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
     Query(q): Query<ListChargeAttentionQuery>,
 ) -> Result<Json<Paginated<ChargeAttentionItem>>, AppError> {
-    require_permission(&claims, permissions::billing::charge_attention::VIEW)?;
-    let visible =
-        medbrains_authz_gate::require_patient_billing_filter(&state, &claims, None).await?;
-    let hide_amounts = crate::amounts_hidden(&state, &claims).await?;
+    let ReadScope {
+        kinds,
+        visible,
+        hide_amounts,
+    } = read_scope(&state, &claims).await?;
     let page = Pagination {
         page: q.page,
         limit: q.limit,
     };
     let mut tx = medbrains_kernel::begin(&state.db, Actor::from_claims(&claims)).await?;
-    let filter = "a.tenant_id = $1 AND a.deleted_at IS NULL \
-        AND ($2::text IS NULL OR a.status = $2) \
-        AND ($3::uuid[] IS NULL OR a.patient_id = ANY($3))";
+    let filter = list_filter();
     let total: i64 = sqlx::query_scalar(&format!(
         "SELECT COUNT(*) FROM charge_attention_items a WHERE {filter}"
     ))
     .bind(claims.tenant_id)
     .bind(&q.status)
     .bind(&visible)
+    .bind(kinds.failed)
+    .bind(kinds.unbilled)
+    .bind(&q.kind)
     .fetch_one(&mut *tx)
     .await?;
     let mut rows = sqlx::query_as::<_, ChargeAttentionItem>(&format!(
-        "{ITEM_SELECT} WHERE {filter} ORDER BY a.created_at DESC LIMIT $4 OFFSET $5"
+        "{ITEM_SELECT} WHERE {filter} \
+         ORDER BY a.unit_price_override * a.quantity DESC NULLS LAST, a.created_at DESC \
+         LIMIT $7 OFFSET $8"
     ))
     .bind(claims.tenant_id)
     .bind(&q.status)
     .bind(&visible)
+    .bind(kinds.failed)
+    .bind(kinds.unbilled)
+    .bind(&q.kind)
     .bind(page.limit())
     .bind(page.offset())
     .fetch_all(&mut *tx)
@@ -112,9 +218,60 @@ pub async fn list_charge_attention(
     if hide_amounts {
         for row in &mut rows {
             row.unit_price_override = None;
+            row.amount = None;
         }
     }
     Ok(Json(Paginated::new(rows, total, &page)))
+}
+
+#[derive(Debug, Deserialize)]
+pub struct ChargeAttentionSummaryQuery {
+    pub kind: Option<String>,
+}
+
+/// The open rows the caller may see, as one figure for the top of the screen.
+#[derive(Debug, Serialize, sqlx::FromRow)]
+pub struct ChargeAttentionSummary {
+    pub open_count: i64,
+    /// Sum of the priced rows; `None` when amounts are hidden from the caller.
+    pub open_amount: Option<Decimal>,
+    /// Open rows with no price, so the total is never read as complete.
+    pub unpriced_count: i64,
+}
+
+/// `GET /api/billing/charge-attention/summary` — count and ₹ total of the
+/// open rows the list would show the caller.
+pub async fn charge_attention_summary(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Query(q): Query<ChargeAttentionSummaryQuery>,
+) -> Result<Json<ChargeAttentionSummary>, AppError> {
+    let ReadScope {
+        kinds,
+        visible,
+        hide_amounts,
+    } = read_scope(&state, &claims).await?;
+    let mut tx = medbrains_kernel::begin(&state.db, Actor::from_claims(&claims)).await?;
+    let mut summary = sqlx::query_as::<_, ChargeAttentionSummary>(&format!(
+        "SELECT COUNT(*) AS open_count, \
+                COALESCE(SUM(a.unit_price_override * a.quantity), 0) AS open_amount, \
+                COUNT(*) FILTER (WHERE a.unit_price_override IS NULL) AS unpriced_count \
+           FROM charge_attention_items a WHERE {}",
+        list_filter()
+    ))
+    .bind(claims.tenant_id)
+    .bind("open")
+    .bind(&visible)
+    .bind(kinds.failed)
+    .bind(kinds.unbilled)
+    .bind(&q.kind)
+    .fetch_one(&mut *tx)
+    .await?;
+    tx.commit().await?;
+    if hide_amounts {
+        summary.open_amount = None;
+    }
+    Ok(Json(summary))
 }
 
 /// `PUT /api/billing/charge-attention/{id}/post` — post the queued charge
@@ -125,10 +282,10 @@ pub async fn post_charge_attention(
     Extension(claims): Extension<Claims>,
     Path(id): Path<Uuid>,
 ) -> Result<Json<ChargeAttentionItem>, AppError> {
-    require_permission(&claims, permissions::billing::charge_attention::RESOLVE)?;
+    let kinds = kinds(&claims, true)?;
     crate::require_amount_write(&state, &claims).await?;
     let mut tx = medbrains_kernel::begin(&state.db, Actor::from_claims(&claims)).await?;
-    let item = lock_open(&mut tx, &claims, id).await?;
+    let item = lock_open(&mut tx, &claims, kinds, id).await?;
     medbrains_authz_gate::require_patient_billing_access(&state, &claims, item.patient_id).await?;
     let req = ChargeRequest {
         tenant_id: claims.tenant_id,
@@ -180,7 +337,7 @@ pub async fn dismiss_charge_attention(
     Path(id): Path<Uuid>,
     Json(body): Json<DismissRequest>,
 ) -> Result<Json<ChargeAttentionItem>, AppError> {
-    require_permission(&claims, permissions::billing::charge_attention::RESOLVE)?;
+    let kinds = kinds(&claims, true)?;
     let reason = body.reason.trim();
     if reason.chars().count() < 3 {
         return Err(AppError::BadRequest(
@@ -188,7 +345,7 @@ pub async fn dismiss_charge_attention(
         ));
     }
     let mut tx = medbrains_kernel::begin(&state.db, Actor::from_claims(&claims)).await?;
-    let item = lock_open(&mut tx, &claims, id).await?;
+    let item = lock_open(&mut tx, &claims, kinds, id).await?;
     medbrains_authz_gate::require_patient_billing_access(&state, &claims, item.patient_id).await?;
     sqlx::query(
         "UPDATE charge_attention_items SET status = 'dismissed', dismiss_reason = $3, \
@@ -207,18 +364,22 @@ pub async fn dismiss_charge_attention(
 }
 
 /// The open item, locked for this decision. Already resolved is a conflict;
-/// missing (or another tenant's) is 404.
+/// missing, another tenant's, or of a kind the caller may not work is 404.
 async fn lock_open(
     tx: &mut PgConnection,
     claims: &Claims,
+    kinds: Kinds,
     id: Uuid,
 ) -> Result<ChargeAttentionItem, AppError> {
-    let status: String = sqlx::query_scalar(
-        "SELECT status FROM charge_attention_items \
-          WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL FOR UPDATE",
-    )
+    let status: String = sqlx::query_scalar(&format!(
+        "SELECT status FROM charge_attention_items a \
+          WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL AND {} FOR UPDATE",
+        kind_filter(3)
+    ))
     .bind(id)
     .bind(claims.tenant_id)
+    .bind(kinds.failed)
+    .bind(kinds.unbilled)
     .fetch_optional(&mut *tx)
     .await?
     .ok_or(AppError::NotFound)?;

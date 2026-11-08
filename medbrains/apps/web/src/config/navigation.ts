@@ -1000,6 +1000,8 @@ export const NAV_GROUPS: NavGroupConfig[] = [
           "billing.write_off.approve",
           "billing.charge_attention.view",
           "billing.charge_attention.resolve",
+          "billing.leakage.view",
+          "billing.leakage.resolve",
           "billing.audit.view",
           "billing.credit.list",
           "billing.credit.manage",

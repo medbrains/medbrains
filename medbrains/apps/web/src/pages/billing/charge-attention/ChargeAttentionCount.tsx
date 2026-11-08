@@ -1,7 +1,7 @@
 // The count on the "Charges needing attention" tab: open items the viewer
 // may see. A count that could not be read shows "?", never zero.
 
-import { useHasPermission } from "@medbrains/stores";
+import { useHasAnyPermission } from "@medbrains/stores";
 import { P } from "@medbrains/types";
 import { useQuery } from "@tanstack/react-query";
 import { Badge } from "@/components/ui";
@@ -11,7 +11,7 @@ const OPEN_COUNT = { status: "open", limit: "1" };
 
 /** Badge with the open count; hidden at zero, "?" when the count failed. */
 export function ChargeAttentionCount() {
-  const canView = useHasPermission(P.BILLING.CHARGE_ATTENTION.VIEW);
+  const canView = useHasAnyPermission([P.BILLING.CHARGE_ATTENTION.VIEW, P.BILLING.LEAKAGE.VIEW]);
   const { data, isError } = useQuery({
     queryKey: ["billing", "charge-attention", OPEN_COUNT],
     queryFn: () => billingService.listChargeAttention(OPEN_COUNT),
