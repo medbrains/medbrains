@@ -138,6 +138,7 @@ built. *Proposed* is waiting for the owner. *Rejected* was considered and turned
 | 2026-11-01 | External checks only on domains the hospital has proven it owns | Scanning anything else is not ours to do | Unverified scanning | Plan (RFC-OSINT) |
 | 2026-11-02 | Signed releases with a written compatibility promise and fix timelines | Hospitals and vendors asked how patches ship | Unwritten practice | Done (#5190); no release cut yet |
 | Standing | Nothing is published (tags, releases, npm, PyPI) without the owner | Publishing cannot be taken back | Automatic publishing | In force |
+| 2026-11-08 | npm audit, workspace-wide (`docs/security/npm-audit-2026-11-08.md`): overrides lift sharp to 0.35.5, file-type to 21.3.4, `@opentelemetry/core` to 2.12.0 and sockjs's uuid to 11.1.1; three stale audit ignores (ws, undici, braces) removed because nothing in the lockfile matches them any more. The shipped web app and the website have no finding; what is left is dev or build tooling fed only our own files, or outgoing React Native | Clears all three highs in apps/web and the moderate in the /help docs, each a patch or minor of the version the parent already allows; a stale ignore would silently hide the advisory if the package came back | Forcing valibot 0.13 to 1.x and glob or minimatch to the next major: the parents call APIs those majors changed, and none is reachable. Editing or upgrading the outgoing RN apps | Proposed |
 
 ### How we work
 
