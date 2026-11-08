@@ -66,6 +66,9 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
             permissions::doctor::profile::VIEW_OWN,
             permissions::doctor::profile::UPDATE_OWN,
             permissions::doctor::signature::SIGN,
+            // The consultant's countersignature on a resident's or a
+            // colleague's record (signer_role co_signer).
+            permissions::doctor::signature::CO_SIGN,
             permissions::doctor::signature::VERIFY,
             permissions::doctor::signoffs::VIEW_OWN,
             permissions::doctor::signoffs::VERBAL_REGISTER,

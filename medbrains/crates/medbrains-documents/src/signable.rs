@@ -20,18 +20,23 @@
 //! binds `$1` tenant and `$2` record id. Content only: workflow state that
 //! changes after signing is left out, or the public check would call every
 //! signed document altered. Migration 1418 watches the same columns, on the
-//! record and on the child rows it signs (prescription items, MLC injuries),
-//! and takes the signature off an edited record.
+//! record and on its related rows (child rows such as prescription items and
+//! MLC injuries; parents whose fields it shows, such as the lab order or the
+//! OT booking), and takes the signature off an edited record.
 //!
-//! Before anything is signed: the primary signer is the record's own author
-//! column and nobody else (others co-sign); the signer holds a registration;
+//! Before anything is signed: the primary signer is the record's author and
+//! nobody else (others co-sign). The author is the person who answers for
+//! the document: the validating pathologist for a lab result (ISO 15189 /
+//! NABL authorised signatory), the verifying consultant for a radiology
+//! report or discharge summary when one is named, else the reporter or
+//! preparer. The signer holds a registration;
 //! the signer may see the patient (`require_patient_access`, every role); and
 //! the signer opened the review screen on this exact content within the last
 //! 30 minutes.
 
 use medbrains_core::permissions;
-use medbrains_kernel::{require_any_permission, require_permission};
 use medbrains_health_services::patient::require_patient_access;
+use medbrains_kernel::{require_any_permission, require_permission};
 use medbrains_server_core::{error::AppError, middleware::auth::Claims, state::AppState};
 use medbrains_signing::signing;
 use serde::Serialize;
@@ -74,16 +79,35 @@ pub struct SignableType {
     pub label: &'static str,
     /// The source table; carries `is_signed` and `signed_record_id`.
     pub table: &'static str,
-    /// The column naming the record's author: the only primary signer.
+    /// SQL naming the record's author, the only primary signer, over the
+    /// record as `r`; it may reach a parent (a lab result's validator is on
+    /// its order). Every column it reads is watched by an edit guard.
     pub author: &'static str,
-    /// Child tables the payload signs, with the column naming the record.
-    pub children: &'static [(&'static str, &'static str)],
+    /// The refusal while the author is not yet named (a lab result nobody
+    /// has validated); `None` answers as a missing record.
+    pub unassigned: Option<&'static str>,
+    /// Tables whose rows this record's signature also covers.
+    pub related: &'static [Related],
     pub signer: Signer,
     pub licence: Licence,
     /// The legal class a signature takes when the client names none.
     pub legal_class: &'static str,
     /// The query reading the signable content: `$1` tenant, `$2` record.
     pub payload_sql: &'static str,
+}
+
+/// A table a signed record depends on: a change to a watched column of a
+/// related row takes the record's signature off (migration 1418,
+/// `signable_related_guard`). A child (prescription items) has
+/// `record_col: "id"`; a parent (the lab order) names the record's column
+/// that points at it.
+#[derive(Debug)]
+pub struct Related {
+    pub table: &'static str,
+    /// The record's column matched against `key`.
+    pub record_col: &'static str,
+    /// The related table's column holding the match.
+    pub key: &'static str,
 }
 
 pub mod table;
@@ -116,7 +140,10 @@ pub fn require_sign_permission(
 ) -> Result<(), AppError> {
     let co_sign = permissions::doctor::signature::CO_SIGN;
     let author_rights: &[&str] = if spec.signer == Signer::Nurse {
-        &[permissions::nurse::signature::SIGN, permissions::doctor::signature::SIGN]
+        &[
+            permissions::nurse::signature::SIGN,
+            permissions::doctor::signature::SIGN,
+        ]
     } else {
         &[permissions::doctor::signature::SIGN]
     };
@@ -240,13 +267,16 @@ pub(crate) async fn resolve_signable_payload(
 
 /// Lock the record for signing and say whether it is already signed.
 ///
-/// A primary signer must be the record's own author column; to anyone else
-/// the record answers `NotFound`, the same as a record that does not exist,
-/// so the check is no existence oracle. The row stays locked until the
-/// signature commits, so two signings at the same moment cannot both pass.
+/// A primary signer must be the record's author ([`SignableType::author`]);
+/// to anyone else the record answers `NotFound`, the same as a record that
+/// does not exist, so the check is no existence oracle. A record whose author
+/// is not yet named and whose type says why (an unvalidated lab result) is
+/// refused to every role with that reason (409). The row stays locked until
+/// the signature commits, so two signings at the same moment cannot both
+/// pass.
 ///
 /// # Errors
-/// `NotFound`, or a database error.
+/// `NotFound`, `Conflict`, or a database error.
 pub(crate) async fn lock_for_signing(
     tx: &mut sqlx::PgConnection,
     claims: &Claims,
@@ -254,21 +284,30 @@ pub(crate) async fn lock_for_signing(
     signer_role: &str,
     record_id: Uuid,
 ) -> Result<bool, AppError> {
-    // Dynamic only in the table and column names, from the fixed table.
+    // Dynamic only in the table name and author expression, both from the
+    // fixed table; every value is bound.
     let sql = format!(
-        "SELECT {} IS NOT DISTINCT FROM $3, is_signed FROM {} \
-          WHERE id = $1 AND tenant_id = $2 FOR UPDATE",
-        spec.author, spec.table
+        "SELECT ({author}) IS NOT DISTINCT FROM $3, ({author}) IS NULL, r.is_signed \
+           FROM {table} r WHERE r.id = $1 AND r.tenant_id = $2 FOR UPDATE OF r",
+        author = spec.author,
+        table = spec.table
     );
-    let row: Option<(bool, bool)> = sqlx::query_as(&sql)
+    let row: Option<(bool, bool, bool)> = sqlx::query_as(&sql)
         .bind(record_id)
         .bind(claims.tenant_id)
         .bind(claims.sub)
         .fetch_optional(&mut *tx)
         .await?;
-    match row {
-        Some((is_author, signed)) if is_author || signer_role != "primary" => Ok(signed),
-        _ => Err(AppError::NotFound),
+    let Some((is_author, unnamed, signed)) = row else {
+        return Err(AppError::NotFound);
+    };
+    if let (true, Some(reason)) = (unnamed, spec.unassigned) {
+        return Err(AppError::Conflict(reason.to_owned()));
+    }
+    if is_author || signer_role != "primary" {
+        Ok(signed)
+    } else {
+        Err(AppError::NotFound)
     }
 }
 
@@ -313,7 +352,8 @@ pub(crate) async fn open_for_signing(
 ) -> Result<Opened, AppError> {
     let already_signed = lock_for_signing(tx, claims, spec, signer_role, record_id).await?;
     require_signer_profile(tx, claims, spec, signer_role).await?;
-    let payload = resolve_signable_payload(tx, &claims.tenant_id, spec.record_type, record_id).await?;
+    let payload =
+        resolve_signable_payload(tx, &claims.tenant_id, spec.record_type, record_id).await?;
     require_patient_access(state, claims, patient_of(&payload)?).await?;
     let canonical = signing::canonicalize(&payload)
         .map_err(|e| AppError::BadRequest(format!("canonicalize: {e}")))?;

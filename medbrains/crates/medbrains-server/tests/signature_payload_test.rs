@@ -143,12 +143,13 @@ async fn prescription_with_item(app: &common::TestApp, admin: Uuid, tenant: Uuid
     (rx, item)
 }
 
-/// A lab result the admin entered, on an order whose visit sits in a department.
+/// A lab result the admin entered, on an order `validator` validated (the
+/// report's author), whose visit sits in a department.
 async fn lab_result(
     app: &common::TestApp,
     admin: Uuid,
     tenant: Uuid,
-    entered_by: Option<Uuid>,
+    validator: Option<Uuid>,
 ) -> Uuid {
     let tag = Uuid::new_v4().simple().to_string()[..8].to_owned();
     let test_id: Uuid = sqlx::query_scalar(
@@ -185,8 +186,9 @@ async fn lab_result(
     .await
     .expect("encounter");
     let order: Uuid = sqlx::query_scalar(
-        "INSERT INTO lab_orders (tenant_id, encounter_id, patient_id, test_id, ordered_by, department_id) \
-         VALUES ($1, $2, $3, $4, $5, $6) RETURNING id",
+        "INSERT INTO lab_orders (tenant_id, encounter_id, patient_id, test_id, ordered_by, department_id, \
+            verified_by) \
+         VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id",
     )
     .bind(tenant)
     .bind(encounter)
@@ -194,6 +196,7 @@ async fn lab_result(
     .bind(test_id)
     .bind(admin)
     .bind(dept)
+    .bind(validator)
     .fetch_one(&app.db)
     .await
     .expect("order");
@@ -205,7 +208,7 @@ async fn lab_result(
     )
     .bind(tenant)
     .bind(order)
-    .bind(entered_by)
+    .bind(admin)
     .fetch_one(&app.db)
     .await
     .expect("result")
@@ -317,12 +320,28 @@ async fn only_the_reporter_or_validator_signs_a_report_as_primary() {
     let app = common::spawn_app_as_request_role().await;
     let (csrf, admin, tenant) = signer(&app).await;
 
-    let someone_elses = lab_result(&app, admin, tenant, None).await;
+    // Validated by nobody yet: no one may sign it, whoever entered it.
+    let unvalidated = lab_result(&app, admin, tenant, None).await;
+    assert_eq!(
+        sign(&app, &csrf, "lab_report", unvalidated).await.0,
+        StatusCode::CONFLICT,
+        "a pathologist must validate it first"
+    );
+    // Entered by the admin but validated by someone else: not the admin's.
+    let pathologist: Uuid = sqlx::query_scalar(
+        "SELECT id FROM users WHERE tenant_id = $1 AND id <> $2 ORDER BY created_at LIMIT 1",
+    )
+    .bind(tenant)
+    .bind(admin)
+    .fetch_one(&app.db)
+    .await
+    .expect("another user");
+    let someone_elses = lab_result(&app, admin, tenant, Some(pathologist)).await;
     let (status, _) = sign(&app, &csrf, "lab_report", someone_elses).await;
     assert_eq!(
         status,
         StatusCode::NOT_FOUND,
-        "the admin neither entered nor verified it"
+        "validated by someone else, so not the admin's to sign"
     );
     let own = lab_result(&app, admin, tenant, Some(admin)).await;
     assert_eq!(sign(&app, &csrf, "lab_report", own).await.0, StatusCode::OK);

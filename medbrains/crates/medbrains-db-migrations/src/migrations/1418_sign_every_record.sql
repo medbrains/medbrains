@@ -22,9 +22,15 @@
 --      (finalized summary, closed MLC, voided certificate) a change to a
 --      signed column, or a move out of the finalized state, is refused with
 --      SQLSTATE MB409, answered 409.
---    - `signable_child_guard` on each child row a payload signs (prescription
---      items, MLC injuries): an insert, edit or delete takes the parent's
---      signature off the same way, and is refused under a finalized parent.
+--    - `signable_related_guard` on each related row a record's signature
+--      covers: child rows the payload signs (prescription items, MLC
+--      injuries) and parents whose fields it shows or whose column names
+--      its author (the lab order's test, sample and validator; the
+--      radiology order's body part, indication, contrast and pregnancy
+--      check; the OT booking's side, site and procedure). An insert, edit or
+--      delete takes the record's signature off the same way, and is refused
+--      under a finalized record. A child whose record cannot be read (RLS)
+--      is refused rather than passed.
 --    - The legal amendment path (an MLC amendment, with its reason in the
 --      hash-chained audit log) sets `medbrains.signable_amendment = 'on'` for
 --      its transaction; only that lifts the finalized refusal. The signature
@@ -34,6 +40,10 @@
 --    action prefix, audit entity, the finalized column and value (empty when
 --    the type has none), then the watched columns; a unit test in
 --    signable/tests.rs checks they match the payload SQL.
+--
+--    Authorship: a lab result's author is its order's validator, a
+--    radiology report's and a discharge summary's the verifying consultant
+--    when one is named; those columns are watched too.
 --
 -- 3. `signature_reviews`: the review screen records that the signer opened the
 --    record, with the hash of what they saw. Signing needs a review of the
@@ -232,26 +242,25 @@ BEGIN
 END;
 $$;
 
-CREATE OR REPLACE FUNCTION public.signable_child_guard() RETURNS trigger
+CREATE OR REPLACE FUNCTION public.signable_related_guard() RETURNS trigger
     LANGUAGE plpgsql
     SET search_path = public, pg_catalog
     AS $$
 DECLARE
-    v_old       jsonb := CASE WHEN TG_OP <> 'INSERT' THEN to_jsonb(OLD) END;
-    v_new       jsonb := CASE WHEN TG_OP <> 'DELETE' THEN to_jsonb(NEW) END;
-    v_parent_t  text := TG_ARGV[4];
-    v_fk        text := TG_ARGV[5];
-    v_final_col text := TG_ARGV[6];
-    v_final_val text := TG_ARGV[7];
-    v_edited    boolean := TG_OP <> 'UPDATE';
-    v_parent    uuid;
-    v_tenant    uuid;
-    v_signed    boolean;
-    v_srid      uuid;
-    v_final     text;
+    v_old        jsonb := CASE WHEN TG_OP <> 'INSERT' THEN to_jsonb(OLD) END;
+    v_new        jsonb := CASE WHEN TG_OP <> 'DELETE' THEN to_jsonb(NEW) END;
+    v_record_t   text := TG_ARGV[4];
+    v_record_col text := TG_ARGV[5];
+    v_key        text := TG_ARGV[6];
+    v_final_col  text := TG_ARGV[7];
+    v_final_val  text := TG_ARGV[8];
+    v_edited     boolean := TG_OP <> 'UPDATE';
+    v_value      uuid;
+    v_found      boolean;
+    rec          record;
 BEGIN
     IF TG_OP = 'UPDATE' THEN
-        FOR i IN 8 .. TG_NARGS - 1 LOOP
+        FOR i IN 9 .. TG_NARGS - 1 LOOP
             IF v_old -> TG_ARGV[i] IS DISTINCT FROM v_new -> TG_ARGV[i] THEN
                 v_edited := true;
                 EXIT;
@@ -262,25 +271,37 @@ BEGIN
         RETURN NULL;
     END IF;
 
-    FOR v_parent IN
-        SELECT DISTINCT x FROM unnest(ARRAY[(v_old ->> v_fk)::uuid, (v_new ->> v_fk)::uuid]) AS x
+    FOR v_value IN
+        SELECT DISTINCT x FROM unnest(ARRAY[(v_old ->> v_key)::uuid, (v_new ->> v_key)::uuid]) AS x
          WHERE x IS NOT NULL
     LOOP
-        EXECUTE format(
-            'SELECT tenant_id, is_signed, signed_record_id, to_jsonb(p) ->> %L FROM %I p WHERE id = $1 FOR UPDATE',
-            v_final_col, v_parent_t)
-          INTO v_tenant, v_signed, v_srid, v_final
-          USING v_parent;
-        IF v_final_col <> '' AND v_final = v_final_val AND NOT signable_amending() THEN
-            RAISE EXCEPTION 'This % is % and can no longer be changed, except by an amendment.',
-                replace(TG_ARGV[0], '_', ' '), v_final_val
+        v_found := false;
+        FOR rec IN EXECUTE format(
+            'SELECT id, tenant_id, is_signed, signed_record_id, to_jsonb(r) ->> %L AS final_value '
+            'FROM %I r WHERE %I = $1 FOR UPDATE',
+            v_final_col, v_record_t, v_record_col) USING v_value
+        LOOP
+            v_found := true;
+            IF v_final_col <> '' AND rec.final_value = v_final_val AND NOT signable_amending() THEN
+                RAISE EXCEPTION 'This % is % and can no longer be changed, except by an amendment.',
+                    replace(TG_ARGV[0], '_', ' '), v_final_val
+                    USING ERRCODE = 'MB409';
+            END IF;
+            IF rec.is_signed THEN
+                EXECUTE format('UPDATE %I SET is_signed = false, signed_record_id = NULL WHERE id = $1',
+                               v_record_t)
+                  USING rec.id;
+                PERFORM signable_signature_cleared(rec.tenant_id, TG_ARGV[2], TG_ARGV[3], rec.id,
+                                                   rec.signed_record_id);
+            END IF;
+        END LOOP;
+        -- A child whose record this session cannot see (RLS) must not pass
+        -- unchecked: that would leave a signature over a changed child.
+        IF NOT v_found AND v_record_col = 'id'
+           AND COALESCE(current_setting('app.allow_physical_delete', true), '') <> 'true' THEN
+            RAISE EXCEPTION 'The % this row belongs to cannot be read; refusing the change.',
+                replace(TG_ARGV[0], '_', ' ')
                 USING ERRCODE = 'MB409';
-        END IF;
-        IF v_signed THEN
-            EXECUTE format('UPDATE %I SET is_signed = false, signed_record_id = NULL WHERE id = $1',
-                           v_parent_t)
-              USING v_parent;
-            PERFORM signable_signature_cleared(v_tenant, TG_ARGV[2], TG_ARGV[3], v_parent, v_srid);
         END IF;
     END LOOP;
     RETURN NULL;
@@ -290,18 +311,24 @@ $$;
 DROP TRIGGER IF EXISTS trg_prescriptions_signable_edit ON public.prescriptions;
 CREATE TRIGGER trg_prescriptions_signable_edit BEFORE UPDATE OF deleted_at, doctor_id, encounter_id, notes, patient_id ON public.prescriptions
     FOR EACH ROW EXECUTE FUNCTION public.signable_edit_guard('prescription', 'prescription', 'prescription', '', '', 'deleted_at', 'doctor_id', 'encounter_id', 'notes', 'patient_id');
-DROP TRIGGER IF EXISTS trg_prescription_items_signable_child ON public.prescription_items;
-CREATE TRIGGER trg_prescription_items_signable_child AFTER INSERT OR UPDATE OR DELETE ON public.prescription_items
-    FOR EACH ROW EXECUTE FUNCTION public.signable_child_guard('prescription', 'prescription_items', 'prescription', 'prescription', 'prescriptions', 'prescription_id', '', '', 'catalog_item_id', 'deleted_at', 'dosage', 'drug_name', 'duration', 'end_date', 'frequency', 'instructions', 'prescription_id', 'quantity', 'route', 'time_slots');
+DROP TRIGGER IF EXISTS trg_prescription_items_signable_prescription ON public.prescription_items;
+CREATE TRIGGER trg_prescription_items_signable_prescription AFTER INSERT OR UPDATE OR DELETE ON public.prescription_items
+    FOR EACH ROW EXECUTE FUNCTION public.signable_related_guard('prescription', 'prescription_items', 'prescription', 'prescription', 'prescriptions', 'id', 'prescription_id', '', '', 'catalog_item_id', 'deleted_at', 'dosage', 'drug_name', 'duration', 'end_date', 'frequency', 'instructions', 'prescription_id', 'quantity', 'route', 'time_slots');
 DROP TRIGGER IF EXISTS trg_lab_results_signable_edit ON public.lab_results;
 CREATE TRIGGER trg_lab_results_signable_edit BEFORE UPDATE OF critical_flag, deleted_at, entered_by, flag, is_abnormal, is_auto_validated, is_critical, method, normal_range, notes, numeric_value, order_id, parameter_name, reference_range, result_value, unit, value ON public.lab_results
     FOR EACH ROW EXECUTE FUNCTION public.signable_edit_guard('lab_report', 'lab_report', 'lab_report', '', '', 'critical_flag', 'deleted_at', 'entered_by', 'flag', 'is_abnormal', 'is_auto_validated', 'is_critical', 'method', 'normal_range', 'notes', 'numeric_value', 'order_id', 'parameter_name', 'reference_range', 'result_value', 'unit', 'value');
+DROP TRIGGER IF EXISTS trg_lab_orders_signable_lab_report ON public.lab_orders;
+CREATE TRIGGER trg_lab_orders_signable_lab_report AFTER INSERT OR UPDATE OR DELETE ON public.lab_orders
+    FOR EACH ROW EXECUTE FUNCTION public.signable_related_guard('lab_report', 'lab_orders', 'lab_report', 'lab_report', 'lab_results', 'order_id', 'id', '', '', 'patient_id', 'sample_barcode', 'test_id', 'verified_by');
 DROP TRIGGER IF EXISTS trg_radiology_reports_signable_edit ON public.radiology_reports;
-CREATE TRIGGER trg_radiology_reports_signable_edit BEFORE UPDATE OF deleted_at, findings, impression, is_critical, order_id, recommendations, reported_by, template_name ON public.radiology_reports
-    FOR EACH ROW EXECUTE FUNCTION public.signable_edit_guard('radiology_report', 'radiology_report', 'radiology_report', '', '', 'deleted_at', 'findings', 'impression', 'is_critical', 'order_id', 'recommendations', 'reported_by', 'template_name');
+CREATE TRIGGER trg_radiology_reports_signable_edit BEFORE UPDATE OF deleted_at, findings, impression, is_critical, order_id, recommendations, reported_by, template_name, verified_by ON public.radiology_reports
+    FOR EACH ROW EXECUTE FUNCTION public.signable_edit_guard('radiology_report', 'radiology_report', 'radiology_report', '', '', 'deleted_at', 'findings', 'impression', 'is_critical', 'order_id', 'recommendations', 'reported_by', 'template_name', 'verified_by');
+DROP TRIGGER IF EXISTS trg_radiology_orders_signable_radiology_report ON public.radiology_orders;
+CREATE TRIGGER trg_radiology_orders_signable_radiology_report AFTER INSERT OR UPDATE OR DELETE ON public.radiology_orders
+    FOR EACH ROW EXECUTE FUNCTION public.signable_related_guard('radiology_report', 'radiology_orders', 'radiology_report', 'radiology_report', 'radiology_reports', 'order_id', 'id', '', '', 'body_part', 'clinical_indication', 'contrast_required', 'modality_id', 'patient_id', 'pregnancy_checked');
 DROP TRIGGER IF EXISTS trg_ipd_discharge_summaries_signable_edit ON public.ipd_discharge_summaries;
-CREATE TRIGGER trg_ipd_discharge_summaries_signable_edit BEFORE UPDATE OF activity_restrictions, admission_id, condition_at_discharge, course_in_hospital, deleted_at, dietary_advice, emergency_contact_info, final_diagnosis, follow_up_date, follow_up_instructions, investigation_summary, medications_on_discharge, prepared_by, procedures_performed, status, template_id, treatment_given, warning_signs ON public.ipd_discharge_summaries
-    FOR EACH ROW EXECUTE FUNCTION public.signable_edit_guard('discharge_summary', 'ipd.discharge_summary', 'ipd_discharge_summary', 'status', 'finalized', 'activity_restrictions', 'admission_id', 'condition_at_discharge', 'course_in_hospital', 'deleted_at', 'dietary_advice', 'emergency_contact_info', 'final_diagnosis', 'follow_up_date', 'follow_up_instructions', 'investigation_summary', 'medications_on_discharge', 'prepared_by', 'procedures_performed', 'template_id', 'treatment_given', 'warning_signs');
+CREATE TRIGGER trg_ipd_discharge_summaries_signable_edit BEFORE UPDATE OF activity_restrictions, admission_id, condition_at_discharge, course_in_hospital, deleted_at, dietary_advice, emergency_contact_info, final_diagnosis, follow_up_date, follow_up_instructions, investigation_summary, medications_on_discharge, prepared_by, procedures_performed, status, template_id, treatment_given, verified_by, warning_signs ON public.ipd_discharge_summaries
+    FOR EACH ROW EXECUTE FUNCTION public.signable_edit_guard('discharge_summary', 'ipd.discharge_summary', 'ipd_discharge_summary', 'status', 'finalized', 'activity_restrictions', 'admission_id', 'condition_at_discharge', 'course_in_hospital', 'deleted_at', 'dietary_advice', 'emergency_contact_info', 'final_diagnosis', 'follow_up_date', 'follow_up_instructions', 'investigation_summary', 'medications_on_discharge', 'prepared_by', 'procedures_performed', 'template_id', 'treatment_given', 'verified_by', 'warning_signs');
 DROP TRIGGER IF EXISTS trg_order_basket_signatures_signable_edit ON public.order_basket_signatures;
 CREATE TRIGGER trg_order_basket_signatures_signable_edit BEFORE UPDATE OF created_order_ids, deleted_at, encounter_id, items_count, items_snapshot, override_reasons, patient_id, signed_at, signed_by, warnings_acknowledged ON public.order_basket_signatures
     FOR EACH ROW EXECUTE FUNCTION public.signable_edit_guard('order_basket', 'order_basket', 'order_basket', '', '', 'created_order_ids', 'deleted_at', 'encounter_id', 'items_count', 'items_snapshot', 'override_reasons', 'patient_id', 'signed_at', 'signed_by', 'warnings_acknowledged');
@@ -314,12 +341,21 @@ CREATE TRIGGER trg_vitals_signable_edit BEFORE UPDATE OF bmi, bp_diastolic, bp_s
 DROP TRIGGER IF EXISTS trg_ot_surgical_safety_checklists_signable_edit ON public.ot_surgical_safety_checklists;
 CREATE TRIGGER trg_ot_surgical_safety_checklists_signable_edit BEFORE UPDATE OF booking_id, completed, completed_at, completed_by, deleted_at, items, phase, verified_by ON public.ot_surgical_safety_checklists
     FOR EACH ROW EXECUTE FUNCTION public.signable_edit_guard('ot_safety_checklist', 'ot_safety_checklist', 'ot_safety_checklist', '', '', 'booking_id', 'completed', 'completed_at', 'completed_by', 'deleted_at', 'items', 'phase', 'verified_by');
+DROP TRIGGER IF EXISTS trg_ot_bookings_signable_ot_safety_checklist ON public.ot_bookings;
+CREATE TRIGGER trg_ot_bookings_signable_ot_safety_checklist AFTER INSERT OR UPDATE OR DELETE ON public.ot_bookings
+    FOR EACH ROW EXECUTE FUNCTION public.signable_related_guard('ot_safety_checklist', 'ot_bookings', 'ot_safety_checklist', 'ot_safety_checklist', 'ot_surgical_safety_checklists', 'booking_id', 'id', '', '', 'laterality', 'patient_id', 'procedure_code', 'procedure_name', 'surgical_site');
 DROP TRIGGER IF EXISTS trg_ot_case_records_signable_edit ON public.ot_case_records;
 CREATE TRIGGER trg_ot_case_records_signable_edit BEFORE UPDATE OF blood_loss_ml, booking_id, closure_time, complications, count_discrepancy_action, deleted_at, drains, findings, implants, incision_time, instrument_count_correct_after, instrument_count_correct_before, notes, patient_in_time, patient_out_time, procedure_performed, specimens, sponge_count_correct, surgeon_id, technique ON public.ot_case_records
     FOR EACH ROW EXECUTE FUNCTION public.signable_edit_guard('operation_note', 'operation_note', 'operation_note', '', '', 'blood_loss_ml', 'booking_id', 'closure_time', 'complications', 'count_discrepancy_action', 'deleted_at', 'drains', 'findings', 'implants', 'incision_time', 'instrument_count_correct_after', 'instrument_count_correct_before', 'notes', 'patient_in_time', 'patient_out_time', 'procedure_performed', 'specimens', 'sponge_count_correct', 'surgeon_id', 'technique');
+DROP TRIGGER IF EXISTS trg_ot_bookings_signable_operation_note ON public.ot_bookings;
+CREATE TRIGGER trg_ot_bookings_signable_operation_note AFTER INSERT OR UPDATE OR DELETE ON public.ot_bookings
+    FOR EACH ROW EXECUTE FUNCTION public.signable_related_guard('operation_note', 'ot_bookings', 'operation_note', 'operation_note', 'ot_case_records', 'booking_id', 'id', '', '', 'laterality', 'patient_id', 'procedure_code', 'procedure_name', 'surgical_site');
 DROP TRIGGER IF EXISTS trg_ot_anesthesia_records_signable_edit ON public.ot_anesthesia_records;
 CREATE TRIGGER trg_ot_anesthesia_records_signable_edit BEFORE UPDATE OF adverse_events, airway_details, anesthesia_type, anesthetist_id, asa_class, blood_products, booking_id, complications, deleted_at, drugs_administered, extubation_time, fasting_override_reason, fluids_given, induction_time, intubation_time, monitoring_events, notes ON public.ot_anesthesia_records
     FOR EACH ROW EXECUTE FUNCTION public.signable_edit_guard('anaesthesia_record', 'anaesthesia_record', 'anaesthesia_record', '', '', 'adverse_events', 'airway_details', 'anesthesia_type', 'anesthetist_id', 'asa_class', 'blood_products', 'booking_id', 'complications', 'deleted_at', 'drugs_administered', 'extubation_time', 'fasting_override_reason', 'fluids_given', 'induction_time', 'intubation_time', 'monitoring_events', 'notes');
+DROP TRIGGER IF EXISTS trg_ot_bookings_signable_anaesthesia_record ON public.ot_bookings;
+CREATE TRIGGER trg_ot_bookings_signable_anaesthesia_record AFTER INSERT OR UPDATE OR DELETE ON public.ot_bookings
+    FOR EACH ROW EXECUTE FUNCTION public.signable_related_guard('anaesthesia_record', 'ot_bookings', 'anaesthesia_record', 'anaesthesia_record', 'ot_anesthesia_records', 'booking_id', 'id', '', '', 'laterality', 'patient_id', 'procedure_code', 'procedure_name', 'surgical_site');
 DROP TRIGGER IF EXISTS trg_transfusion_records_signable_edit ON public.transfusion_records;
 CREATE TRIGGER trg_transfusion_records_signable_edit BEFORE UPDATE OF administered_by, completed_at, component_id, crossmatch_id, deleted_at, emergency_reason, emergency_release, has_reaction, notes, patient_id, patient_verified_by, product_verified_by, reaction_details, reaction_severity, reaction_type, started_at, verified_by, volume_transfused_ml ON public.transfusion_records
     FOR EACH ROW EXECUTE FUNCTION public.signable_edit_guard('transfusion_record', 'transfusion_record', 'transfusion_record', '', '', 'administered_by', 'completed_at', 'component_id', 'crossmatch_id', 'deleted_at', 'emergency_reason', 'emergency_release', 'has_reaction', 'notes', 'patient_id', 'patient_verified_by', 'product_verified_by', 'reaction_details', 'reaction_severity', 'reaction_type', 'started_at', 'verified_by', 'volume_transfused_ml');
@@ -338,9 +374,9 @@ CREATE TRIGGER trg_ipd_death_summaries_signable_edit BEFORE UPDATE OF admission_
 DROP TRIGGER IF EXISTS trg_mlc_cases_signable_edit ON public.mlc_cases;
 CREATE TRIGGER trg_mlc_cases_signable_edit BEFORE UPDATE OF admission_id, alleged_history, brought_by, case_type, cause_of_death, condition_on_arrival, date_time_of_incident, deleted_at, er_visit_id, examination_findings, examined_at, examining_doctor_id, fir_number, history_of_incident, informant_contact, informant_name, informant_relation, is_death_case, is_pocso, medical_opinion, mlc_number, nature_of_case, opinion, patient_condition_at_discharge, patient_id, place_of_incident, police_dd_number, police_officer_name, police_officer_rank, police_station, registration_date, registration_time, samples_handed_to, status, treatment_given, weapon_used ON public.mlc_cases
     FOR EACH ROW EXECUTE FUNCTION public.signable_edit_guard('mlc_report', 'mlc_report', 'mlc_report', 'status', 'closed', 'admission_id', 'alleged_history', 'brought_by', 'case_type', 'cause_of_death', 'condition_on_arrival', 'date_time_of_incident', 'deleted_at', 'er_visit_id', 'examination_findings', 'examined_at', 'examining_doctor_id', 'fir_number', 'history_of_incident', 'informant_contact', 'informant_name', 'informant_relation', 'is_death_case', 'is_pocso', 'medical_opinion', 'mlc_number', 'nature_of_case', 'opinion', 'patient_condition_at_discharge', 'patient_id', 'place_of_incident', 'police_dd_number', 'police_officer_name', 'police_officer_rank', 'police_station', 'registration_date', 'registration_time', 'samples_handed_to', 'treatment_given', 'weapon_used');
-DROP TRIGGER IF EXISTS trg_mlc_injuries_signable_child ON public.mlc_injuries;
-CREATE TRIGGER trg_mlc_injuries_signable_child AFTER INSERT OR UPDATE OR DELETE ON public.mlc_injuries
-    FOR EACH ROW EXECUTE FUNCTION public.signable_child_guard('mlc_report', 'mlc_injuries', 'mlc_report', 'mlc_report', 'mlc_cases', 'mlc_case_id', 'status', 'closed', 'body_site_code', 'body_site_laterality', 'deleted_at', 'description', 'injury_number', 'injury_type', 'location', 'mlc_case_id', 'nature', 'probable_age', 'probable_weapon', 'size_cm');
+DROP TRIGGER IF EXISTS trg_mlc_injuries_signable_mlc_report ON public.mlc_injuries;
+CREATE TRIGGER trg_mlc_injuries_signable_mlc_report AFTER INSERT OR UPDATE OR DELETE ON public.mlc_injuries
+    FOR EACH ROW EXECUTE FUNCTION public.signable_related_guard('mlc_report', 'mlc_injuries', 'mlc_report', 'mlc_report', 'mlc_cases', 'id', 'mlc_case_id', 'status', 'closed', 'body_site_code', 'body_site_laterality', 'deleted_at', 'description', 'injury_number', 'injury_type', 'location', 'mlc_case_id', 'nature', 'probable_age', 'probable_weapon', 'size_cm');
 DROP TRIGGER IF EXISTS trg_referrals_signable_edit ON public.referrals;
 CREATE TRIGGER trg_referrals_signable_edit BEFORE UPDATE OF clinical_notes, deleted_at, encounter_id, from_department_id, from_doctor_id, patient_id, reason, to_department_id, to_doctor_id, urgency ON public.referrals
     FOR EACH ROW EXECUTE FUNCTION public.signable_edit_guard('referral', 'referral', 'referral', '', '', 'clinical_notes', 'deleted_at', 'encounter_id', 'from_department_id', 'from_doctor_id', 'patient_id', 'reason', 'to_department_id', 'to_doctor_id', 'urgency');
@@ -354,8 +390,8 @@ DROP TRIGGER IF EXISTS trg_er_triage_assessments_signable_edit ON public.er_tria
 CREATE TRIGGER trg_er_triage_assessments_signable_edit BEFORE UPDATE OF allergies, assessed_at, assessed_by, blood_pressure_diastolic, blood_pressure_systolic, chief_complaint, deleted_at, disability_assessment, er_visit_id, gcs_eye, gcs_motor, gcs_score, gcs_verbal, is_pregnant, notes, pain_score, presenting_symptoms, pulse_rate, respiratory_rate, score, spo2, triage_level, triage_system ON public.er_triage_assessments
     FOR EACH ROW EXECUTE FUNCTION public.signable_edit_guard('er_triage', 'er_triage', 'er_triage', '', '', 'allergies', 'assessed_at', 'assessed_by', 'blood_pressure_diastolic', 'blood_pressure_systolic', 'chief_complaint', 'deleted_at', 'disability_assessment', 'er_visit_id', 'gcs_eye', 'gcs_motor', 'gcs_score', 'gcs_verbal', 'is_pregnant', 'notes', 'pain_score', 'presenting_symptoms', 'pulse_rate', 'respiratory_rate', 'score', 'spo2', 'triage_level', 'triage_system');
 DROP TRIGGER IF EXISTS trg_er_discharge_summaries_signable_edit ON public.er_discharge_summaries;
-CREATE TRIGGER trg_er_discharge_summaries_signable_edit BEFORE UPDATE OF clinical_course, condition_at_discharge, er_visit_id, final_diagnosis, follow_up_date, follow_up_instructions, medications_on_discharge, prepared_by, status, treatment_given, warning_signs ON public.er_discharge_summaries
-    FOR EACH ROW EXECUTE FUNCTION public.signable_edit_guard('er_discharge_summary', 'er_discharge_summary', 'er_discharge_summary', 'status', 'finalized', 'clinical_course', 'condition_at_discharge', 'er_visit_id', 'final_diagnosis', 'follow_up_date', 'follow_up_instructions', 'medications_on_discharge', 'prepared_by', 'treatment_given', 'warning_signs');
+CREATE TRIGGER trg_er_discharge_summaries_signable_edit BEFORE UPDATE OF clinical_course, condition_at_discharge, er_visit_id, final_diagnosis, follow_up_date, follow_up_instructions, medications_on_discharge, prepared_by, status, treatment_given, verified_by, warning_signs ON public.er_discharge_summaries
+    FOR EACH ROW EXECUTE FUNCTION public.signable_edit_guard('er_discharge_summary', 'er_discharge_summary', 'er_discharge_summary', 'status', 'finalized', 'clinical_course', 'condition_at_discharge', 'er_visit_id', 'final_diagnosis', 'follow_up_date', 'follow_up_instructions', 'medications_on_discharge', 'prepared_by', 'treatment_given', 'verified_by', 'warning_signs');
 
 -- 3. Who opened a record to sign it, and what they saw.
 CREATE TABLE public.signature_reviews (

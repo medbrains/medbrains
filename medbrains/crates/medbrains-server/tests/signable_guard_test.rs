@@ -34,7 +34,10 @@ async fn sqlstate(app: &common::TestApp, sql: &str, id: Uuid) -> Option<String> 
         .execute(&app.db)
         .await
         .err()
-        .and_then(|e| e.as_database_error().and_then(|d| d.code().map(|c| c.into_owned())))
+        .and_then(|e| {
+            e.as_database_error()
+                .and_then(|d| d.code().map(|c| c.into_owned()))
+        })
 }
 
 /// A prescription by the admin with one drug; (prescription, item).
@@ -88,18 +91,30 @@ async fn changing_only_the_drugs_of_a_signed_prescription_takes_the_signature_of
     let app = common::spawn_app_as_request_role().await;
     let (csrf, admin, tenant) = admin_signer(&app).await;
     let (rx, item) = prescription(&app, admin, tenant).await;
-    assert_eq!(review_and_sign(&app.client, &app, &csrf, "prescription", rx).await.0, StatusCode::OK);
+    assert_eq!(
+        review_and_sign(&app.client, &app, &csrf, "prescription", rx)
+            .await
+            .0,
+        StatusCode::OK
+    );
 
     sqlx::query("UPDATE prescription_items SET drug_name = 'Tramadol 50mg' WHERE id = $1")
         .bind(item)
         .execute(&app.db)
         .await
         .expect("change the drug");
-    assert!(!is_signed(&app, "prescriptions", rx).await, "a changed drug is not what was signed");
+    assert!(
+        !is_signed(&app, "prescriptions", rx).await,
+        "a changed drug is not what was signed"
+    );
     assert_eq!(audits(&app, "prescription.signature_cleared", rx).await, 1);
 
     let (status, body) = review_and_sign(&app.client, &app, &csrf, "prescription", rx).await;
-    assert_eq!(status, StatusCode::OK, "the doctor signs the corrected prescription: {body}");
+    assert_eq!(
+        status,
+        StatusCode::OK,
+        "the doctor signs the corrected prescription: {body}"
+    );
 
     // Removing a drug (a soft delete) takes it off again.
     sqlx::query("DELETE FROM prescription_items WHERE id = $1")
@@ -116,9 +131,17 @@ async fn an_injury_clears_a_signed_case_and_a_closed_case_changes_only_by_amendm
     let app = common::spawn_app_as_request_role().await;
     let (csrf, admin, tenant) = admin_signer(&app).await;
     let case = mlc_case(&app, tenant, admin, admin).await;
-    assert_eq!(review_and_sign(&app.client, &app, &csrf, "mlc_report", case).await.0, StatusCode::OK);
+    assert_eq!(
+        review_and_sign(&app.client, &app, &csrf, "mlc_report", case)
+            .await
+            .0,
+        StatusCode::OK
+    );
     assert_eq!(sqlstate(&app, &add_injury(1), case).await, None);
-    assert!(!is_signed(&app, "mlc_cases", case).await, "a new injury is not on the signed report");
+    assert!(
+        !is_signed(&app, "mlc_cases", case).await,
+        "a new injury is not on the signed report"
+    );
     assert_eq!(audits(&app, "mlc_report.signature_cleared", case).await, 1);
 
     sqlx::query("UPDATE mlc_cases SET status = 'closed'::mlc_status WHERE id = $1")
@@ -126,9 +149,16 @@ async fn an_injury_clears_a_signed_case_and_a_closed_case_changes_only_by_amendm
         .execute(&app.db)
         .await
         .expect("closing is allowed");
-    assert_eq!(sqlstate(&app, &add_injury(2), case).await.as_deref(), Some("MB409"));
+    assert_eq!(
+        sqlstate(&app, &add_injury(2), case).await.as_deref(),
+        Some("MB409")
+    );
     let reopen = "UPDATE mlc_cases SET status = 'court_pending'::mlc_status WHERE id = $1";
-    assert_eq!(sqlstate(&app, reopen, case).await.as_deref(), Some("MB409"), "no reopening");
+    assert_eq!(
+        sqlstate(&app, reopen, case).await.as_deref(),
+        Some("MB409"),
+        "no reopening"
+    );
 
     // The amendment path (its reason is in the hash-chained audit log).
     let mut tx = app.db.begin().await.expect("tx");
@@ -148,7 +178,11 @@ async fn an_injury_clears_a_signed_case_and_a_closed_case_changes_only_by_amendm
         .expect("an amendment changes the closed report");
     tx.commit().await.expect("commit");
     let after = "UPDATE mlc_cases SET opinion = 'Again' WHERE id = $1";
-    assert_eq!(sqlstate(&app, after, case).await.as_deref(), Some("MB409"), "the flag ends with its transaction");
+    assert_eq!(
+        sqlstate(&app, after, case).await.as_deref(),
+        Some("MB409"),
+        "the flag ends with its transaction"
+    );
 }
 
 #[tokio::test]
@@ -156,10 +190,21 @@ async fn a_soft_delete_clears_a_signature_and_a_final_record_refuses_reopening_o
     let app = common::spawn_app_as_request_role().await;
     let (csrf, admin, tenant) = admin_signer(&app).await;
     let cert = certificate(&app, tenant, admin).await;
-    assert_eq!(review_and_sign(&app.client, &app, &csrf, "medical_certificate", cert).await.0, StatusCode::OK);
-    assert_eq!(sqlstate(&app, "DELETE FROM medical_certificates WHERE id = $1", cert).await, None);
+    assert_eq!(
+        review_and_sign(&app.client, &app, &csrf, "medical_certificate", cert)
+            .await
+            .0,
+        StatusCode::OK
+    );
+    assert_eq!(
+        sqlstate(&app, "DELETE FROM medical_certificates WHERE id = $1", cert).await,
+        None
+    );
     assert!(!is_signed(&app, "medical_certificates", cert).await);
-    assert_eq!(audits(&app, "medical_certificate.signature_cleared", cert).await, 1);
+    assert_eq!(
+        audits(&app, "medical_certificate.signature_cleared", cert).await,
+        1
+    );
 
     let void = certificate(&app, tenant, admin).await;
     sqlx::query("UPDATE medical_certificates SET is_void = true WHERE id = $1")
@@ -179,21 +224,50 @@ async fn signing_needs_a_fresh_review_of_the_same_content() {
     let (csrf, admin, tenant) = admin_signer(&app).await;
     let cert = certificate(&app, tenant, admin).await;
     let target = json!({ "record_type": "medical_certificate", "record_id": cert });
-    let sign = || post(&app.client, &app, &csrf, "/api/signatures/sign", target.clone());
+    let sign = || {
+        post(
+            &app.client,
+            &app,
+            &csrf,
+            "/api/signatures/sign",
+            target.clone(),
+        )
+    };
 
     let (status, body) = sign().await;
     assert_eq!(status, StatusCode::CONFLICT, "no review: {body}");
-    assert!(body.to_string().contains("review it before signing"), "{body}");
+    assert!(
+        body.to_string().contains("review it before signing"),
+        "{body}"
+    );
 
-    post(&app.client, &app, &csrf, "/api/signatures/review", target.clone()).await;
+    post(
+        &app.client,
+        &app,
+        &csrf,
+        "/api/signatures/review",
+        target.clone(),
+    )
+    .await;
     sqlx::query("UPDATE medical_certificates SET remarks = 'Changed after review' WHERE id = $1")
         .bind(cert)
         .execute(&app.db)
         .await
         .expect("edit");
-    assert_eq!(sign().await.0, StatusCode::CONFLICT, "the review was of other content");
+    assert_eq!(
+        sign().await.0,
+        StatusCode::CONFLICT,
+        "the review was of other content"
+    );
 
-    post(&app.client, &app, &csrf, "/api/signatures/review", target.clone()).await;
+    post(
+        &app.client,
+        &app,
+        &csrf,
+        "/api/signatures/review",
+        target.clone(),
+    )
+    .await;
     sqlx::query(
         "UPDATE signature_reviews SET reviewed_at = now() - interval '31 minutes' WHERE record_id = $1",
     )
@@ -201,9 +275,20 @@ async fn signing_needs_a_fresh_review_of_the_same_content() {
     .execute(&app.db)
     .await
     .expect("age the review");
-    assert_eq!(sign().await.0, StatusCode::CONFLICT, "a review older than 30 minutes");
+    assert_eq!(
+        sign().await.0,
+        StatusCode::CONFLICT,
+        "a review older than 30 minutes"
+    );
 
-    post(&app.client, &app, &csrf, "/api/signatures/review", target.clone()).await;
+    post(
+        &app.client,
+        &app,
+        &csrf,
+        "/api/signatures/review",
+        target.clone(),
+    )
+    .await;
     let (status, body) = sign().await;
     assert_eq!(status, StatusCode::OK, "{body}");
 }
@@ -221,19 +306,37 @@ async fn only_the_author_column_signs_as_primary_and_others_co_sign() {
     )
     .await;
     signatures_test::issue_default_credential(&app, &csrf, &registrar.user_id.to_string()).await;
-    app.step_up(&registrar.client, &registrar.csrf, &registrar.password).await;
+    app.step_up(&registrar.client, &registrar.csrf, &registrar.password)
+        .await;
     let case = mlc_case(&app, tenant, admin, registrar.user_id).await;
 
     let (status, _) =
         review_and_sign(&registrar.client, &app, &registrar.csrf, "mlc_report", case).await;
-    assert_eq!(status, StatusCode::NOT_FOUND, "registered_by is not the examining doctor");
+    assert_eq!(
+        status,
+        StatusCode::NOT_FOUND,
+        "registered_by is not the examining doctor"
+    );
 
-    let co_sign = json!({ "record_type": "mlc_report", "record_id": case, "signer_role": "co_signer" });
-    let (status, _) =
-        post(&registrar.client, &app, &registrar.csrf, "/api/signatures/review", co_sign.clone()).await;
+    let co_sign =
+        json!({ "record_type": "mlc_report", "record_id": case, "signer_role": "co_signer" });
+    let (status, _) = post(
+        &registrar.client,
+        &app,
+        &registrar.csrf,
+        "/api/signatures/review",
+        co_sign.clone(),
+    )
+    .await;
     assert_eq!(status, StatusCode::OK);
-    let (status, body) =
-        post(&registrar.client, &app, &registrar.csrf, "/api/signatures/sign", co_sign).await;
+    let (status, body) = post(
+        &registrar.client,
+        &app,
+        &registrar.csrf,
+        "/api/signatures/sign",
+        co_sign,
+    )
+    .await;
     assert_eq!(status, StatusCode::OK, "{body}");
     assert_eq!(body["signed_record"]["signer_role"], json!("co_signer"));
 }
@@ -256,20 +359,43 @@ async fn every_signer_must_see_the_patient_and_a_witness_needs_a_signing_right()
     .fetch_one(&app.db)
     .await
     .expect("certificate");
-    let (status, _) =
-        review_and_sign(&doctor.client, &app, &doctor.csrf, "medical_certificate", cert).await;
+    let (status, _) = review_and_sign(
+        &doctor.client,
+        &app,
+        &doctor.csrf,
+        "medical_certificate",
+        cert,
+    )
+    .await;
     assert!(
         matches!(status, StatusCode::NOT_FOUND | StatusCode::FORBIDDEN),
         "the author who may not see the patient does not sign: {status}"
     );
     attend(&app, tenant, patient, doctor.user_id).await;
-    let (status, _) =
-        review_and_sign(&doctor.client, &app, &doctor.csrf, "medical_certificate", cert).await;
+    let (status, _) = review_and_sign(
+        &doctor.client,
+        &app,
+        &doctor.csrf,
+        "medical_certificate",
+        cert,
+    )
+    .await;
     assert_eq!(status, StatusCode::OK, "with access, the author signs");
 
     let clerk = keyed_staff(&app, &csrf, "receptionist").await;
     attend(&app, tenant, patient, clerk.user_id).await;
     let witness = json!({ "record_type": "medical_certificate", "record_id": cert, "signer_role": "witness" });
-    let (status, _) = post(&clerk.client, &app, &clerk.csrf, "/api/signatures/review", witness).await;
-    assert_eq!(status, StatusCode::FORBIDDEN, "a witness needs a signing right");
+    let (status, _) = post(
+        &clerk.client,
+        &app,
+        &clerk.csrf,
+        "/api/signatures/review",
+        witness,
+    )
+    .await;
+    assert_eq!(
+        status,
+        StatusCode::FORBIDDEN,
+        "a witness needs a signing right"
+    );
 }

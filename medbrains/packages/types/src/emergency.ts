@@ -51,8 +51,10 @@ export interface PatientRadiologyReport {
   verified_at: string | null;
   alert_id: string | null;
   alert_acknowledged_at: string | null;
-  /** Who reported the study: the report's author, who signs it. */
+  /** Who reported the study; signs it when no consultant verified it. */
   reported_by: string | null;
+  /** The consultant who verified the report: its author, who signs it. */
+  verified_by: string | null;
 }
 
 export interface PatientTimelineEvent {
