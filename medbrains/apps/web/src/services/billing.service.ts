@@ -90,6 +90,9 @@ export const billingService = {
     api.getTenantSettings(...args),
   updateTenantSetting: (...args: Parameters<typeof api.updateTenantSetting>) =>
     api.updateTenantSetting(...args),
+  getBillingPaymentSettings: () => api.getBillingPaymentSettings(),
+  updateBillingPaymentSettings: (...args: Parameters<typeof api.updateBillingPaymentSettings>) =>
+    api.updateBillingPaymentSettings(...args),
   listAdvances: (...args: Parameters<typeof api.listAdvances>) => api.listAdvances(...args),
   createAdvance: (...args: Parameters<typeof api.createAdvance>) => api.createAdvance(...args),
   getFinalBillChecklist: (...args: Parameters<typeof api.getFinalBillChecklist>) =>
