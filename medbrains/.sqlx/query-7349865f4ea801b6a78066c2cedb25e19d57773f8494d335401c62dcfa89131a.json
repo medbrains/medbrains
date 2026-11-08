@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT EXISTS(SELECT 1 FROM lab_orders WHERE id = $1 AND tenant_id = $2 AND patient_id = $3) AS \"exists!\"",
+  "query": "SELECT EXISTS(SELECT 1 FROM lab_orders WHERE id = $1 AND tenant_id = $2 AND patient_id = $3 AND deleted_at IS NULL) AS \"exists!\"",
   "describe": {
     "columns": [
       {
@@ -20,5 +20,5 @@
       null
     ]
   },
-  "hash": "f38af9b1d8f6fc7fa782ff801c1ba22f7ec8c0bb5115b2d8f0370de98113554c"
+  "hash": "7349865f4ea801b6a78066c2cedb25e19d57773f8494d335401c62dcfa89131a"
 }

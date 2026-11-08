@@ -17,7 +17,9 @@
 --
 -- Orders raised before this change have no order tuple, so they are handed to
 -- the laboratory here, one per order whose visit had been handed over, before
--- the visit tuples are revoked. Open work keeps working; nothing else does.
+-- the visit tuples are revoked. Every lab order on a handed-over visit is
+-- handed over, open or finished, the same standing grant a new order gets;
+-- the rest of the record (notes, diagnoses, documents) is no longer reached.
 --
 -- Revoked, not deleted, so the grant history stays; marked pending so the
 -- SpiceDB outbox removes the same relationships there (and writes the new

@@ -7,6 +7,9 @@
 
 use crate::common;
 
+use medbrains_authz::{AuthzBackend, AuthzContext, AuthzError, Relation, RelationTuple, Subject};
+use medbrains_server_core::error::AppError;
+use medbrains_server_core::middleware::auth::Claims;
 use reqwest::{Client, StatusCode};
 use serde_json::{Value, json};
 use uuid::Uuid;
@@ -104,6 +107,11 @@ async fn order_cbc(app: &common::TestApp, csrf: &str, patient: Uuid, encounter: 
 
 /// A signed-in lab technician who is a member of the Pathology department.
 async fn pathology_technician(w: &World) -> (Client, String) {
+    lab_technician(w, true).await
+}
+
+/// A signed-in lab technician, in the Pathology department or in none.
+async fn lab_technician(w: &World, in_pathology: bool) -> (Client, String) {
     let pathology: Uuid = sqlx::query_scalar(
         "SELECT d.id FROM departments d JOIN users u ON u.tenant_id = d.tenant_id \
           WHERE u.username = 'admin' AND d.code = 'PATHOLOGY'",
@@ -121,7 +129,7 @@ async fn pathology_technician(w: &World) -> (Client, String) {
         .json(
             &json!({ "username": username, "email": format!("{username}@example.test"),
                        "password": password, "full_name": "Lab Tech", "role": "lab_technician",
-                       "department_ids": [pathology] }),
+                       "department_ids": if in_pathology { vec![pathology] } else { vec![] } }),
         )
         .send()
         .await
@@ -264,6 +272,67 @@ async fn the_lab_works_the_order_and_cannot_open_the_record() {
     }
 }
 
+/// The order opens the order, nothing patient-wide and nothing new: holding
+/// an order does not list the patient's crossmatches, does not let the lab
+/// raise an order on another of the patient's visits, and a technician who
+/// does not hold the order cannot send it out or print it. A bulk print
+/// names at most 100 orders.
+#[tokio::test]
+async fn holding_an_order_opens_nothing_past_it() {
+    let w = world().await;
+    let lab = pathology_technician(&w).await;
+    let order = format!("/api/lab/orders/{}", w.order);
+
+    let crossmatch = lab
+        .0
+        .get(w.app.url(&format!("{order}/crossmatch")))
+        .send()
+        .await
+        .expect("crossmatch")
+        .status();
+    assert_eq!(
+        crossmatch,
+        StatusCode::NOT_FOUND,
+        "crossmatches are patient-wide"
+    );
+
+    let other_visit = open_visit(&w.app, &w.csrf, w.patient).await;
+    let test_id: Uuid = sqlx::query_scalar("SELECT test_id FROM lab_orders WHERE id = $1")
+        .bind(w.order)
+        .fetch_one(&w.app.db)
+        .await
+        .expect("test");
+    let raise = json!({ "encounter_id": other_visit, "patient_id": w.patient, "test_id": test_id });
+    assert_eq!(
+        lab_post(&w, &lab, "/api/lab/orders", raise).await,
+        StatusCode::NOT_FOUND,
+        "an order on a visit needs the patient's care team"
+    );
+
+    let outsider = lab_technician(&w, false).await;
+    let send_out = json!({ "order_id": w.order, "external_lab_name": "Reference Lab" });
+    assert_eq!(
+        lab_post(&w, &outsider, "/api/lab/outsourced", send_out).await,
+        StatusCode::NOT_FOUND
+    );
+    let print = json!({ "order_ids": [w.order] });
+    assert_eq!(
+        lab_post(&w, &outsider, "/api/lab/reports/bulk-print", print).await,
+        StatusCode::NOT_FOUND
+    );
+    let too_many: Vec<Uuid> = (0..101).map(|_| Uuid::new_v4()).collect();
+    assert_eq!(
+        lab_post(
+            &w,
+            &lab,
+            "/api/lab/reports/bulk-print",
+            json!({ "order_ids": too_many })
+        )
+        .await,
+        StatusCode::BAD_REQUEST
+    );
+}
+
 /// When a lab write names an order and a different patient, Then it answers
 /// 404: the body cannot attach the lab's work to somebody else's record.
 #[tokio::test]
@@ -337,4 +406,121 @@ async fn migration_1415_moves_old_visit_handoffs_onto_the_orders() {
     .await
     .expect("revoked row kept");
     assert_eq!((status.as_str(), sync.as_str()), ("revoked", "pending"));
+}
+
+/// An error from the authorization backend: an outage, not a refusal.
+fn unreachable_backend<T>() -> Result<T, AuthzError> {
+    Err(AuthzError::Other("authz backend unreachable".to_owned()))
+}
+
+/// An authorization backend whose care-team answer is `care` (an outage when
+/// `None`) and which always admits `view` on the lab order itself.
+struct OrderOnly {
+    care: Option<bool>,
+}
+
+#[async_trait::async_trait]
+impl AuthzBackend for OrderOnly {
+    async fn check(
+        &self,
+        _: &AuthzContext,
+        _: Relation,
+        object_type: &str,
+        _: Uuid,
+    ) -> Result<bool, AuthzError> {
+        if object_type == "lab_order" {
+            return Ok(true);
+        }
+        self.care.map_or_else(unreachable_backend, Ok)
+    }
+    async fn expand(
+        &self,
+        _: &AuthzContext,
+        _: &str,
+        _: Uuid,
+    ) -> Result<Vec<RelationTuple>, AuthzError> {
+        unreachable_backend()
+    }
+    async fn list_accessible(
+        &self,
+        _: &AuthzContext,
+        _: &str,
+        _: Relation,
+    ) -> Result<Vec<Uuid>, AuthzError> {
+        unreachable_backend()
+    }
+    async fn write_tuple(
+        &self,
+        _: &AuthzContext,
+        _: &str,
+        _: Uuid,
+        _: Relation,
+        _: Subject,
+        _: Option<chrono::DateTime<chrono::Utc>>,
+        _: Option<String>,
+    ) -> Result<Uuid, AuthzError> {
+        unreachable_backend()
+    }
+    async fn grant_raw(
+        &self,
+        _: &AuthzContext,
+        _: &str,
+        _: Uuid,
+        _: &str,
+        _: Subject,
+        _: Option<chrono::DateTime<chrono::Utc>>,
+        _: Option<String>,
+    ) -> Result<Uuid, AuthzError> {
+        unreachable_backend()
+    }
+    async fn revoke_tuple(&self, _: &AuthzContext, _: Uuid) -> Result<(), AuthzError> {
+        unreachable_backend()
+    }
+}
+
+/// The lab order gate for `order`, run against a backend whose care-team
+/// answer is `care`.
+async fn order_gate(w: &World, care: Option<bool>) -> Result<(), AppError> {
+    let (tenant_id,): (Uuid,) =
+        sqlx::query_as("SELECT tenant_id FROM users WHERE username = 'admin'")
+            .fetch_one(&w.app.db)
+            .await
+            .expect("tenant");
+    let claims = Claims {
+        sub: Uuid::new_v4(),
+        tenant_id,
+        role: "lab_technician".to_owned(),
+        permissions: Vec::new(),
+        department_ids: Vec::new(),
+        perm_version: 1,
+        paired_device_id: None,
+        act: None,
+        exp: usize::MAX,
+    };
+    let mut state = w.app.state.clone();
+    state.authz = std::sync::Arc::new(OrderOnly { care });
+    medbrains_authz_gate::require_access_via(
+        &state,
+        &claims,
+        medbrains_authz_gate::links::LAB_ORDER,
+        w.order,
+    )
+    .await
+}
+
+/// When the care-team check cannot be answered, Then the lab order gate
+/// answers 503 and never falls through to the order's own view. The control:
+/// a care-team REFUSAL does fall through, and the same order view admits.
+#[tokio::test]
+async fn an_outage_on_the_care_check_is_503_not_the_fallback() {
+    let w = world().await;
+    assert!(
+        order_gate(&w, Some(false)).await.is_ok(),
+        "a refusal falls through"
+    );
+    let outage = order_gate(&w, None).await;
+    assert!(
+        matches!(outage, Err(AppError::ServiceUnavailable(_))),
+        "an outage must stay an outage: {outage:?}"
+    );
 }

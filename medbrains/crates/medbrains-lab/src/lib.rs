@@ -212,7 +212,8 @@ async fn require_lab_order_of_patient(
     .await?;
     let matches: bool = sqlx::query_scalar!(
         "SELECT EXISTS(SELECT 1 FROM lab_orders \
-          WHERE id = $1 AND tenant_id = $2 AND patient_id = $3) AS \"exists!\"",
+          WHERE id = $1 AND tenant_id = $2 AND patient_id = $3 \
+            AND deleted_at IS NULL) AS \"exists!\"",
         order_id,
         claims.tenant_id,
         patient_id,
@@ -591,6 +592,11 @@ pub async fn create_order(
     Json(body): Json<CreateOrderRequest>,
 ) -> Result<Json<LabOrder>, AppError> {
     require_permission(&claims, permissions::lab::orders::CREATE)?;
+    // Raising an order on a visit hands the order to the laboratory, and the
+    // order then opens its own view: only the patient's care team may add
+    // one. The body's visit is checked against this patient in the tx below.
+    // The lab desk books walk-ins on a visit of its own (`direct.rs`).
+    medbrains_authz_gate::require_patient_access(&state, &claims, body.patient_id).await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -3613,6 +3619,13 @@ pub async fn create_outsourced_order(
     Json(body): Json<CreateOutsourcedOrderRequest>,
 ) -> Result<Json<LabOutsourcedOrder>, AppError> {
     require_permission(&claims, permissions::lab::outsourced::MANAGE)?;
+    medbrains_authz_gate::require_access_via(
+        &state,
+        &claims,
+        medbrains_authz_gate::links::LAB_ORDER,
+        body.order_id,
+    )
+    .await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -5594,15 +5607,6 @@ pub async fn get_order_crossmatch(
 ) -> Result<Json<serde_json::Value>, AppError> {
     require_permission(&claims, permissions::lab::orders::LIST)?;
 
-    // The URL names a child record; the care relationship is one hop away on
-    // its parent. Resolve then authorize — see medbrains_authz_gate::links.
-    medbrains_authz_gate::require_access_via(
-        &state,
-        &claims,
-        medbrains_authz_gate::links::LAB_ORDER,
-        id,
-    )
-    .await?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
@@ -5611,6 +5615,10 @@ pub async fn get_order_crossmatch(
         .fetch_optional(&mut *tx)
         .await?
         .ok_or(AppError::NotFound)?;
+    // Crossmatch requests carry no order link: this lists every one the
+    // patient has, so it needs the patient's care team. Holding this one
+    // order (the laboratory's view) is not enough.
+    medbrains_authz_gate::require_patient_access(&state, &claims, order.patient_id).await?;
 
     let crossmatches = sqlx::query_scalar::<_, serde_json::Value>(
         "SELECT COALESCE(json_agg(r ORDER BY r.created_at DESC), '[]'::json) FROM ( \
@@ -5760,6 +5768,22 @@ pub async fn bulk_print_reports(
     Json(body): Json<BulkPrintRequest>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     require_permission(&claims, permissions::lab::reports::VIEW)?;
+    if body.order_ids.len() > MAX_BULK_PRINT_ORDERS {
+        return Err(AppError::BadRequest(format!(
+            "Print at most {MAX_BULK_PRINT_ORDERS} reports at a time."
+        )));
+    }
+    // ponytail: one gate call per order, bounded by MAX_BULK_PRINT_ORDERS; a
+    // bulk form of the PatientOrOwn gate if this batch grows.
+    for order_id in &body.order_ids {
+        medbrains_authz_gate::require_access_via(
+            &state,
+            &claims,
+            medbrains_authz_gate::links::LAB_ORDER,
+            *order_id,
+        )
+        .await?;
+    }
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
@@ -5779,6 +5803,9 @@ pub async fn bulk_print_reports(
         serde_json::json!({"dispatched": dispatched, "total": body.order_ids.len()}),
     ))
 }
+
+/// The most reports one bulk print may name: each is a record check.
+const MAX_BULK_PRINT_ORDERS: usize = 100;
 
 #[derive(Debug, serde::Deserialize)]
 pub struct BulkPrintRequest {
