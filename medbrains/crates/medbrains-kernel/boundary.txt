@@ -72,7 +72,7 @@ medbrains-home-health not_yet 101 medbrains-db,medbrains-authz,medbrains-authz-g
 medbrains-hr not_yet 111 medbrains-db
 medbrains-hrms-gateway not_yet 5 medbrains-db
 medbrains-identity not_yet 27 medbrains-db,medbrains-authz
-medbrains-indent not_yet 79 medbrains-db,medbrains-authz-gate
+medbrains-indent partial 79 medbrains-db,medbrains-authz-gate
 medbrains-infection-control not_yet 77 medbrains-db
 medbrains-infra-settings not_yet 18 medbrains-db
 medbrains-infra-utils not_yet 26 medbrains-db
@@ -156,4 +156,4 @@ medbrains-tv not_yet 12 medbrains-db
 medbrains-upload not_yet 2 medbrains-db
 medbrains-vpn not_yet 11 medbrains-db
 medbrains-vte on_facade 0 -
-medbrains-ward-stock not_yet 9 medbrains-db
+medbrains-ward-stock partial 7 medbrains-db
