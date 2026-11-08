@@ -48,15 +48,30 @@ pub async fn notify_permission_holders<'a, F>(
 where
     F: Fn(Uuid) -> NewNotification<'a>,
 {
-    let holders: Vec<Uuid> = sqlx::query_scalar(HOLDERS_SQL)
-        .bind(tenant_id)
-        .bind(exclude)
-        .bind(permission)
-        .bind(MAX_HOLDERS)
-        .fetch_all(&mut **tx)
-        .await?;
+    let holders = permission_holders(tx, tenant_id, permission, exclude).await?;
     for user_id in &holders {
         create_notification(tx, tenant_id, make(*user_id)).await?;
     }
     Ok(holders.len())
+}
+
+/// The active holders of `permission` in the tenant except `exclude`, in the
+/// order [`notify_permission_holders`] tells them; for a caller that also
+/// emails them, or works on a bare connection (a kernel unit of work).
+///
+/// # Errors
+/// A database fault.
+pub async fn permission_holders(
+    conn: &mut sqlx::PgConnection,
+    tenant_id: Uuid,
+    permission: &str,
+    exclude: Uuid,
+) -> Result<Vec<Uuid>, AppError> {
+    Ok(sqlx::query_scalar(HOLDERS_SQL)
+        .bind(tenant_id)
+        .bind(exclude)
+        .bind(permission)
+        .bind(MAX_HOLDERS)
+        .fetch_all(conn)
+        .await?)
 }

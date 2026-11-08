@@ -785,6 +785,11 @@ pub mod billing {
         /// Change billing payment settings.
         /// Change the hospital's UPI ID and its payment-link terms.
         pub const MANAGE: &str = "billing.payment_settings.manage";
+        /// Told of payment settings changes.
+        /// Receive a notification, and an email where one is on file, each
+        /// time the UPI ID or the payment-link terms change: what changed,
+        /// who changed it and when. Hospital administrators are always told.
+        pub const NOTIFIED: &str = "billing.payment_settings.notified";
     }
 
     /// Taking a patient's money at a department desk (#4885).

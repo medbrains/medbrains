@@ -610,9 +610,11 @@ export const P = {
     PAYMENTS_VOID: "billing.payments.void",
     PAYMENT_SETTINGS: {
       MANAGE: "billing.payment_settings.manage",
+      NOTIFIED: "billing.payment_settings.notified",
       VIEW: "billing.payment_settings.view",
     },
     PAYMENT_SETTINGS_MANAGE: "billing.payment_settings.manage",
+    PAYMENT_SETTINGS_NOTIFIED: "billing.payment_settings.notified",
     PAYMENT_SETTINGS_VIEW: "billing.payment_settings.view",
     RECEIPTS: {
       PRINT: "billing.receipts.print",

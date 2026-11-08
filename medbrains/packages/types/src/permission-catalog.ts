@@ -19,7 +19,7 @@ export interface PermissionDef {
   module: string;
 }
 
-/** 1227 permissions, one per constant in the Rust source. */
+/** 1228 permissions, one per constant in the Rust source. */
 export const PERMISSIONS: PermissionDef[] = [
   // dashboard
   {
@@ -1127,6 +1127,12 @@ export const PERMISSIONS: PermissionDef[] = [
     code: "billing.payment_settings.manage",
     label: "Change billing payment settings",
     description: "Change the hospital's UPI ID and its payment-link terms.",
+    module: "billing",
+  },
+  {
+    code: "billing.payment_settings.notified",
+    label: "Told of payment settings changes",
+    description: "Receive a notification, and an email where one is on file, each time the UPI ID or the payment-link terms change: what changed, who changed it and when. Hospital administrators are always told.",
     module: "billing",
   },
   {
@@ -9250,6 +9256,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
     label: "Medical Superintendent",
     permissions: [
       P.ADMIN.SETTINGS.READ,
+      P.BILLING.PAYMENT_SETTINGS.NOTIFIED,
       P.DASHBOARD.VIEW,
       P.FLOWS.BUILD,
       P.FLOWS.PUBLISH,
