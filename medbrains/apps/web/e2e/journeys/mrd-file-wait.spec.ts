@@ -72,7 +72,7 @@ test("a registered visit asks for its file, the runner delivers it, and the doct
     .filter({ hasText: file.record_number });
   await expect(card).toBeVisible({ timeout: 15_000 });
   await expect(card).toContainText("Records / Rack 4 / Shelf C / Bin 2");
-  await expect(card).toContainText(`To ${dept.name}`);
+  await expect(card).toContainText(`To ${doctor.fullName}, ${dept.name}`);
   await expect(card).toContainText(/min left/);
   await expectScreenAccessible(runner.page, "mrd-file-requests");
 
@@ -90,6 +90,8 @@ test("a registered visit asks for its file, the runner delivers it, and the doct
   // The doctor starts before the file arrives.
   const clinic = new OpdWorklist(doctor.page);
   await clinic.open(dept.name);
+  await clinic.act(patient.uhid, "call_patient");
+  await clinic.act(patient.uhid, "start_consultation");
   await (await clinic.row(patient.uhid)).getByRole("button", { name: "Open OPD visit" }).click();
   await expect(doctor.page).toHaveURL(/\/opd\/encounters\//, { timeout: 15_000 });
   const panel = doctor.page.getByTestId("visit-file-panel");
