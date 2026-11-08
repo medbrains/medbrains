@@ -157,14 +157,14 @@ async fn bills_by_room(conn: &mut PgConnection, tenant_id: Uuid) -> Result<bool,
 /// Room-linked charges on the visit's live bills: the allowlisted sources
 /// and categories, less implants (by catalogue category or the implant
 /// registry) and bed-days already billed in a critical-care bed type.
-// ponytail: an ICU bed-day is matched by the room-rent line's description,
-// which names the bed type (`services::room_rent`); a bed-type id on the line
-// would be exact if hospitals rename bed types mid-stay.
 async fn associated_so_far(
     conn: &mut PgConnection,
     tenant_id: Uuid,
     encounter_id: Uuid,
 ) -> Result<Decimal, AppError> {
+    // ponytail: an ICU bed-day is matched by the room-rent line's description,
+    // which names the bed type (`services::room_rent`); a bed-type id on the
+    // line would be exact if hospitals rename bed types mid-stay.
     Ok(sqlx::query_scalar::<_, Decimal>(&format!(
         "SELECT COALESCE(SUM(ii.total_price), 0) FROM invoice_items ii \
            JOIN invoices i ON i.id = ii.invoice_id AND i.tenant_id = ii.tenant_id \
