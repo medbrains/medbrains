@@ -14,6 +14,7 @@
 pub mod env;
 pub mod file;
 pub mod sealing;
+pub mod tenant_name;
 
 use async_trait::async_trait;
 use std::fmt;
@@ -54,3 +55,7 @@ pub trait SecretResolver: Send + Sync + fmt::Debug {
 
 pub use env::EnvSecretResolver;
 pub use file::FileSecretResolver;
+pub use tenant_name::{
+    InvalidSecretName, TenantSecretError, check_short_name, resolve_tenant_secret,
+    tenant_secret_name,
+};

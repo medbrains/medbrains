@@ -8,7 +8,8 @@
 //! machine's AWS identity ([`medbrains_anthropic_auth`], see [`anthropic`]).
 //! Other providers' keys resolve through the configured
 //! [`SecretResolver`](medbrains_core::secrets::SecretResolver) when an
-//! `api_key_secret` reference is set, else from their environment variable.
+//! `api_key_secret` short name is set (always inside the hospital's own
+//! namespace, see [`AI_SECRET_PURPOSE`]), else from their environment variable.
 
 use medbrains_core::ai_redact::Redacted;
 use rig::DynModel;
@@ -103,9 +104,7 @@ pub async fn resolve_config(state: &AppState, tenant_id: &Uuid) -> Result<AiConf
         "ollama" => String::new(),
         "anthropic" => anthropic::access_token().await?,
         _ => match str_field("api_key_secret") {
-            Some(secret) => state.secret_resolver.get(secret).await.map_err(|e| {
-                AppError::BadRequest(format!("AI key secret '{secret}' unavailable: {e}"))
-            })?,
+            Some(name) => tenant_key(state, tenant_id, name).await?,
             None => {
                 let env_var = match provider.as_str() {
                     "bedrock" => "BEDROCK_API_KEY",
@@ -125,6 +124,34 @@ pub async fn resolve_config(state: &AppState, tenant_id: &Uuid) -> Result<AiConf
         model,
         api_key,
         enabled,
+    })
+}
+
+/// Secret-store purpose of a hospital's AI provider key: its short name in
+/// `ai.config.api_key_secret` resolves to `medbrains/<env>/<tenant>/ai-<name>`.
+pub const AI_SECRET_PURPOSE: &str = "ai";
+
+/// The hospital's own AI key, named by the short name it stored. A legacy
+/// stored name outside its namespace (an environment variable, a full path) is
+/// refused and logged before the resolver is asked, so a platform secret can
+/// never be sent to a provider as this hospital's key.
+///
+/// # Errors
+/// `BadRequest` when the name is refused or the secret cannot be read.
+async fn tenant_key(state: &AppState, tenant_id: &Uuid, name: &str) -> Result<String, AppError> {
+    use medbrains_core::secrets::{TenantSecretError, resolve_tenant_secret};
+    resolve_tenant_secret(
+        state.secret_resolver.as_ref(),
+        tenant_id,
+        AI_SECRET_PURPOSE,
+        name,
+    )
+    .await
+    .map_err(|e| {
+        if matches!(e, TenantSecretError::Refused(_)) {
+            tracing::warn!(%tenant_id, "ai: stored api_key_secret is outside the hospital's namespace; refused");
+        }
+        AppError::BadRequest(format!("The AI provider key could not be used: {e}"))
     })
 }
 
