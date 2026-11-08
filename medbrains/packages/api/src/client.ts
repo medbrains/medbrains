@@ -298,6 +298,7 @@ import type {
   CensusWardRow,
   Cha2ds2VascRequest,
   Cha2ds2VascResult,
+  ChargeAttentionItem,
   ChargeMaster,
   ChartPage,
   ChartQuery,
@@ -353,7 +354,10 @@ import type {
   CmsSettings,
   CmsSubscriber,
   CmsTag,
+  CodeBlueEventRow,
   CodeBlueResponder,
+  CodeTeamRoster,
+  CodeTeamTier,
   CodeTestRequest,
   CodeTestResult,
   CollectionEfficiencyReport,
@@ -983,6 +987,7 @@ import type {
   DischargeSummary,
   DischargeSummaryPrintData,
   DischargeSummaryTemplate,
+  DismissChargeAttentionRequest,
   DispensingLabelPrintData,
   DisposalQuery,
   DispositionRow,
@@ -1381,6 +1386,7 @@ import type {
   LabCalibration,
   LabCollectionCenter,
   LabCriticalAlert,
+  LabCriticalCall,
   LabCrossmatchLink,
   LabCytologyReport,
   LabEqasResult,
@@ -1973,6 +1979,7 @@ import type {
   RecordAdherenceRequest,
   RecordBedsideVideoViewRequest,
   RecordClaimSettlementRequest,
+  RecordCriticalCallRequest,
   RecordCrsRegistrationRequest,
   RecordCssdIndicatorRequest,
   RecordDeviceDaysRequest,
@@ -6215,6 +6222,17 @@ export const api = {
       method: "PUT",
       body: JSON.stringify(data),
     }),
+  listChargeAttention: (params?: Record<string, string>) => {
+    const qs = params ? `?${new URLSearchParams(params)}` : "";
+    return request<Paginated<ChargeAttentionItem>>(`/billing/charge-attention${qs}`);
+  },
+  postChargeAttention: (id: string) =>
+    request<ChargeAttentionItem>(`/billing/charge-attention/${id}/post`, { method: "PUT" }),
+  dismissChargeAttention: (id: string, data: DismissChargeAttentionRequest) =>
+    request<ChargeAttentionItem>(`/billing/charge-attention/${id}/dismiss`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
   backfillClaimSettlements: (data: { dry_run: boolean }) =>
     request<ClaimSettlementBackfillResult>("/billing/claim-settlements/backfill", {
       method: "POST",
@@ -6557,6 +6575,12 @@ export const api = {
   acknowledgeCriticalAlert: (alertId: string, data: { readback_value: string }) =>
     request<LabCriticalAlert>(`/lab/critical-alerts/${alertId}/acknowledge`, {
       method: "PUT",
+      body: JSON.stringify(data),
+    }),
+  /** Document the lab-to-clinician phone call for a critical value. */
+  recordCriticalCall: (alertId: string, data: RecordCriticalCallRequest) =>
+    request<LabCriticalCall>(`/lab/critical-alerts/${alertId}/phone-call`, {
+      method: "POST",
       body: JSON.stringify(data),
     }),
 
@@ -17624,8 +17648,22 @@ export const api = {
     if (params?.active_only) qs.set("active_only", "true");
     if (params?.limit !== undefined) qs.set("limit", String(params.limit));
     const q = qs.toString();
-    return request<unknown[]>(`/nurse/code-blue${q ? `?${q}` : ""}`);
+    return request<CodeBlueEventRow[]>(`/nurse/code-blue${q ? `?${q}` : ""}`);
   },
+  /** The code-blue roster, who can be added, and the re-page settings. */
+  getCodeBlueTeam: () => request<CodeTeamRoster>("/nurse/code-blue/team"),
+  addCodeBlueTeamMember: (data: { user_id: string; tier: CodeTeamTier; code_type: string }) =>
+    request<{ id: string }>("/nurse/code-blue/team", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  removeCodeBlueTeamMember: (id: string) =>
+    request<{ removed: boolean }>(`/nurse/code-blue/team/${id}`, { method: "DELETE" }),
+  updateCodeBlueTeamSettings: (data: { response_secs: number; max_rounds: number }) =>
+    request<{ updated: boolean }>("/nurse/code-blue/team/settings", {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
   startCodeBlue: (data: Record<string, unknown>) =>
     request<unknown>("/nurse/code-blue", { method: "POST", body: JSON.stringify(data) }),
   appendCodeBlueEntry: (id: string, data: { field: string; entry: unknown }) =>

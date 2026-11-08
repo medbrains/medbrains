@@ -17,6 +17,7 @@ use uuid::Uuid;
 
 use medbrains_server_core::error::AppError;
 use medbrains_server_core::middleware::auth::Claims;
+use medbrains_server_core::middleware::entitlement;
 use medbrains_server_core::middleware::authorization::{
     is_bypass_role, require_any_permission, require_permission,
 };
@@ -2019,6 +2020,8 @@ pub async fn update_role_widget_access(
 
 // ── Modules CRUD ────────────────────────────────────────────
 
+/// `GET /api/setup/modules` — the tenant's app bricks. `depends_on` comes from the brick table
+/// (`medbrains_core::bricks`), not the stored column, so rows created before it agree with it.
 pub async fn list_modules(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
@@ -2028,7 +2031,7 @@ pub async fn list_modules(
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
 
-    let rows = sqlx::query_as::<_, ModuleConfig>(
+    let mut rows = sqlx::query_as::<_, ModuleConfig>(
         "SELECT * FROM module_config WHERE deleted_at IS NULL AND tenant_id = $1 ORDER BY name LIMIT 5000",
     )
     .bind(claims.tenant_id)
@@ -2037,6 +2040,11 @@ pub async fn list_modules(
 
     tx.commit().await?;
 
+    for row in &mut rows {
+        if let Some(brick) = medbrains_core::bricks::find(&row.code) {
+            row.depends_on = brick.depends_on.iter().map(|d| (*d).to_owned()).collect();
+        }
+    }
     Ok(Json(rows))
 }
 
@@ -2045,6 +2053,10 @@ pub struct UpdateModuleRequest {
     pub status: String,
 }
 
+/// `PUT /api/setup/modules/{code}` — switch one app brick on or off.
+///
+/// Refuses (409, naming them) to switch a brick off while bricks that need it are on, or on
+/// while a brick it needs is off. Forgets the tenant's cached module statuses on success.
 pub async fn update_module(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
@@ -2052,6 +2064,18 @@ pub async fn update_module(
     Json(body): Json<UpdateModuleRequest>,
 ) -> Result<Json<ModuleConfig>, AppError> {
     require_permission(&claims, permissions::admin::settings::modules::MANAGE)?;
+    let by_code = entitlement::read_statuses(&state.db, claims.tenant_id).await?;
+    let turning_on = body.status == "enabled";
+    let blockers = entitlement::switch_blockers(&code, turning_on, &by_code);
+    if !blockers.is_empty() {
+        let why = if turning_on { "it needs" } else { "they need it" };
+        return Err(AppError::Conflict(format!(
+            "{} cannot be switched {}: {why} — {}",
+            medbrains_core::bricks::find(&code).map_or(code.as_str(), |b| b.name),
+            if turning_on { "on" } else { "off" },
+            blockers.join(", ")
+        )));
+    }
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
@@ -2068,6 +2092,7 @@ pub async fn update_module(
     .await?;
 
     tx.commit().await?;
+    entitlement::invalidate_modules(claims.tenant_id);
 
     row.map_or_else(|| Err(AppError::NotFound), |r| Ok(Json(r)))
 }

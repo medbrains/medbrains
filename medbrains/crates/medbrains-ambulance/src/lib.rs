@@ -783,39 +783,47 @@ pub async fn update_trip_status(
     if body.status == "completed"
         && row.is_billable
         && let Some(patient_id) = row.patient_id
-        && medbrains_server_services::billing::is_auto_billing_enabled(
+    {
+        // Setting first: the encounter lookup runs only when billing is not off.
+        let setting = medbrains_server_services::billing::read_auto_billing(
             &mut tx,
             &claims.tenant_id,
             "ambulance",
         )
-        .await
-        .unwrap_or(false)
-    {
-        let encounter_id = match row.er_visit_id {
-            Some(visit) => sqlx::query_scalar::<_, Option<Uuid>>(
-                "SELECT encounter_id FROM er_visits WHERE tenant_id = $1 AND id = $2",
+        .await?;
+        if setting != medbrains_server_services::billing::AutoBilling::Off {
+            let encounter_id = match row.er_visit_id {
+                Some(visit) => sqlx::query_scalar::<_, Option<Uuid>>(
+                    "SELECT encounter_id FROM er_visits WHERE tenant_id = $1 AND id = $2",
+                )
+                .bind(claims.tenant_id)
+                .bind(visit)
+                .fetch_optional(&mut *tx)
+                .await?
+                .flatten(),
+                None => None,
+            };
+            medbrains_server_services::billing::settle_charges(
+                &mut tx,
+                setting,
+                &[medbrains_server_services::billing::ChargeRequest {
+                    tenant_id: claims.tenant_id,
+                    requested_by: claims.sub,
+                    setting_module: "ambulance",
+                    charge: medbrains_server_services::billing::AutoChargeInput {
+                        patient_id,
+                        encounter_id,
+                        charge_code: "AMBULANCE_TRANSPORT".to_owned(),
+                        source: "ambulance".to_owned(),
+                        source_id: row.id,
+                        quantity: 1,
+                        ..Default::default()
+                    },
+                    apply_concessions: true,
+                }],
             )
-            .bind(claims.tenant_id)
-            .bind(visit)
-            .fetch_optional(&mut *tx)
-            .await?
-            .flatten(),
-            None => None,
-        };
-        let _ = medbrains_server_services::billing::create_service_charge(
-            &mut tx,
-            medbrains_server_services::billing::ServiceChargeInput {
-                tenant_id: claims.tenant_id,
-                patient_id,
-                encounter_id,
-                charge_code: "AMBULANCE_TRANSPORT",
-                quantity: 1,
-                source_module: "ambulance",
-                source_entity_id: row.id,
-                requested_by: claims.sub,
-            },
-        )
-        .await;
+            .await?;
+        }
     }
 
     tx.commit().await?;

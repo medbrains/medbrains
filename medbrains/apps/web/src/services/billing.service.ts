@@ -203,6 +203,12 @@ export const billingService = {
     api.rejectClaimSettlement(...args),
   reverseClaimSettlement: (...args: Parameters<typeof api.reverseClaimSettlement>) =>
     api.reverseClaimSettlement(...args),
+  listChargeAttention: (...args: Parameters<typeof api.listChargeAttention>) =>
+    api.listChargeAttention(...args),
+  postChargeAttention: (...args: Parameters<typeof api.postChargeAttention>) =>
+    api.postChargeAttention(...args),
+  dismissChargeAttention: (...args: Parameters<typeof api.dismissChargeAttention>) =>
+    api.dismissChargeAttention(...args),
   backfillClaimSettlements: (...args: Parameters<typeof api.backfillClaimSettlements>) =>
     api.backfillClaimSettlements(...args),
 

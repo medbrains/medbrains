@@ -394,6 +394,13 @@ pub mod lab {
         /// guessed. This lets a technologist read them, attach them to the
         /// right order, or dismiss them with a reason.
         pub const ANALYSER_REVIEW: &str = "lab.results.analyser_review";
+        /// Record the critical-value phone call.
+        ///
+        /// NABL and NABH ask for the lab-to-clinician call to be documented:
+        /// who called, who took the call, when, how many attempts, and that
+        /// the value was read back. A technologist makes the call, so this is
+        /// separate from acknowledging, which the clinician does.
+        pub const CRITICAL_CALL: &str = "lab.results.critical_call";
     }
 
     pub mod qc {
@@ -891,6 +898,21 @@ pub mod billing {
     pub mod write_off {
         pub const CREATE: &str = "billing.write_off.create";
         pub const APPROVE: &str = "billing.write_off.approve";
+    }
+
+    /// Automatic charges a clinical action could not post.
+    pub mod charge_attention {
+        /// See charges needing attention.
+        ///
+        /// Open the billing desk's queue of automatic charges — a diet order,
+        /// an OT completion, an ER registration — that could not be posted,
+        /// with why, so nothing done for a patient goes unbilled unseen.
+        pub const VIEW: &str = "billing.charge_attention.view";
+        /// Post or dismiss charges needing attention.
+        ///
+        /// Post a queued charge onto the patient's bill, or dismiss it with a
+        /// reason when it should not be billed. Who and when is recorded.
+        pub const RESOLVE: &str = "billing.charge_attention.resolve";
     }
 
     pub mod claims {
@@ -4159,6 +4181,13 @@ pub mod nurse {
         /// the activation reaches, so the team lead can see who is coming.
         /// The first response is also the arrival time NABH measures.
         pub const RESPOND: &str = "nurse.code_blue.respond";
+        /// Set who a code blue pages.
+        ///
+        /// The code team, the duty medical officer and the medical
+        /// superintendent, in that order of escalation. Without a roster the
+        /// page falls back to the ward's shift team, then to every clinician,
+        /// and says so on the code-blue screen.
+        pub const MANAGE_TEAM: &str = "nurse.code_blue.manage_team";
     }
     pub mod equipment {
         pub const VIEW: &str = "nurse.equipment.view";
