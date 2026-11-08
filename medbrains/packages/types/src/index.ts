@@ -5512,8 +5512,10 @@ export interface EmailSettings {
   from_address: string;
   from_name: string;
   smtp_username: string;
-  /** Reference (not the value) to the SMTP password in the secret backend. */
+  /** Short name (not the value) of the SMTP password in the secret backend. */
   smtp_password_secret: string | null;
+  /** Where that password is kept, in this hospital's namespace; null when unset or a legacy name. */
+  smtp_password_secret_path: string | null;
   env_fallback: boolean;
 }
 
