@@ -900,6 +900,21 @@ pub mod billing {
         pub const APPROVE: &str = "billing.write_off.approve";
     }
 
+    /// Automatic charges a clinical action could not post.
+    pub mod charge_attention {
+        /// See charges needing attention.
+        ///
+        /// Open the billing desk's queue of automatic charges — a diet order,
+        /// an OT completion, an ER registration — that could not be posted,
+        /// with why, so nothing done for a patient goes unbilled unseen.
+        pub const VIEW: &str = "billing.charge_attention.view";
+        /// Post or dismiss charges needing attention.
+        ///
+        /// Post a queued charge onto the patient's bill, or dismiss it with a
+        /// reason when it should not be billed. Who and when is recorded.
+        pub const RESOLVE: &str = "billing.charge_attention.resolve";
+    }
+
     pub mod claims {
         /// Insurer settlements posted against bills.
         pub mod settlement {

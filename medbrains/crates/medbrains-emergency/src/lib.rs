@@ -836,18 +836,13 @@ pub async fn create_visit(
     .await?;
 
     // Auto-bill ER consultation charge
-    if medbrains_server_services::billing::is_auto_billing_enabled(
+    medbrains_server_services::billing::charge_or_queue(
         &mut tx,
-        &claims.tenant_id,
-        "emergency",
-    )
-    .await
-    .unwrap_or(false)
-    {
-        let _ = medbrains_server_services::billing::auto_charge(
-            &mut tx,
-            &claims.tenant_id,
-            medbrains_server_services::billing::AutoChargeInput {
+        medbrains_server_services::billing::ChargeRequest {
+            tenant_id: claims.tenant_id,
+            requested_by: claims.sub,
+            setting_module: "emergency",
+            charge: medbrains_server_services::billing::AutoChargeInput {
                 patient_id: row.patient_id,
                 encounter_id: Some(encounter_id),
                 charge_code: "CON_EMERGENCY".to_owned(),
@@ -858,12 +853,12 @@ pub async fn create_visit(
                     "Emergency consultation - {}",
                     row.visit_number
                 )),
-                unit_price_override: None,
-                tax_percent_override: None,
+                ..Default::default()
             },
-        )
-        .await;
-    }
+            apply_concessions: false,
+        },
+    )
+    .await?;
 
     let event = ClinicalEventEnvelope::new(
         claims.tenant_id,

@@ -472,6 +472,12 @@ export const P = {
       MANAGE: "billing.catalog.manage",
     },
     CATALOG_MANAGE: "billing.catalog.manage",
+    CHARGE_ATTENTION: {
+      RESOLVE: "billing.charge_attention.resolve",
+      VIEW: "billing.charge_attention.view",
+    },
+    CHARGE_ATTENTION_RESOLVE: "billing.charge_attention.resolve",
+    CHARGE_ATTENTION_VIEW: "billing.charge_attention.view",
     CLAIMS: {
       SETTLEMENT: {
         APPROVE: "billing.claims.settlement.approve",

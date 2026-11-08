@@ -1465,15 +1465,14 @@ async fn charge_visit_fees(
         moment,
     )
     .await?;
-    if q.kind == "returned"
-        || !billing_lanes::consult_due_at(tx, claims.tenant_id, moment).await?
-        || !medbrains_server_services::billing::is_auto_billing_enabled(
-            tx,
-            &claims.tenant_id,
-            "opd",
-        )
-        .await?
-    {
+    if q.kind == "returned" || !billing_lanes::consult_due_at(tx, claims.tenant_id, moment).await? {
+        return Ok(());
+    }
+    // Setting first: the department and price lookups run only when billing
+    // is not off.
+    let setting =
+        medbrains_server_services::billing::read_auto_billing(tx, &claims.tenant_id, "opd").await?;
+    if setting == medbrains_server_services::billing::AutoBilling::Off {
         return Ok(());
     }
     let dept_code = sqlx::query_scalar::<_, String>(
@@ -1495,22 +1494,30 @@ async fn charge_visit_fees(
         q.department_id,
     )
     .await?;
-    let _ = medbrains_server_services::billing::auto_charge(
+    // `charge_or_queue` reads `auto_charge_opd`; a consult it cannot post
+    // waits on the billing desk's attention queue.
+    medbrains_server_services::billing::settle_charges(
         tx,
-        &claims.tenant_id,
-        medbrains_server_services::billing::AutoChargeInput {
-            patient_id,
-            encounter_id: Some(q.encounter_id),
-            charge_code,
-            source: "opd".to_owned(),
-            source_id: q.id,
-            quantity: 1,
-            description_override: Some(priced.description),
-            unit_price_override: priced.price,
-            tax_percent_override: None,
-        },
+        setting,
+        &[medbrains_server_services::billing::ChargeRequest {
+            tenant_id: claims.tenant_id,
+            requested_by: claims.sub,
+            setting_module: "opd",
+            charge: medbrains_server_services::billing::AutoChargeInput {
+                patient_id,
+                encounter_id: Some(q.encounter_id),
+                charge_code,
+                source: "opd".to_owned(),
+                source_id: q.id,
+                quantity: 1,
+                description_override: Some(priced.description),
+                unit_price_override: priced.price,
+                tax_percent_override: None,
+            },
+            apply_concessions: false,
+        }],
     )
-    .await;
+    .await?;
     Ok(())
 }
 
