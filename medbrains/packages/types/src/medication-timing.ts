@@ -2179,6 +2179,8 @@ export interface PatientIdentity {
   uhid: string;
   full_name: string;
   gender: Gender;
+  /** Whole years; null when not recorded or not readable whole by the caller. */
+  age_years: number | null;
 }
 
 export interface LabOrderListResponse {
@@ -2222,6 +2224,9 @@ export interface LabOrderDetailResponse {
   /** What the catalogue says this test is measured in. Absent when the
    *  catalogue row has been retired since the order was placed. */
   test: LabTestDefaults | null;
+  /** Who the order is for (name, UHID, sex, age): the lab reaches the order,
+   *  not the patient's record. */
+  patient: PatientIdentity | null;
 }
 
 export interface LabTestDefaults {

@@ -265,25 +265,26 @@ pub(crate) async fn resolve_signable_payload(
         .ok_or(AppError::NotFound)
 }
 
-/// Lock the record for signing and say whether it is already signed.
-///
-/// A primary signer must be the record's author ([`SignableType::author`]);
-/// to anyone else the record answers `NotFound`, the same as a record that
-/// does not exist, so the check is no existence oracle. A record whose author
-/// is not yet named and whose type says why (an unvalidated lab result) is
-/// refused to every role with that reason (409). The row stays locked until
-/// the signature commits, so two signings at the same moment cannot both
-/// pass.
+/// The locked record's authorship and signed state, before anything is
+/// told to the caller.
+struct Locked {
+    is_author: bool,
+    unnamed: bool,
+    signed: bool,
+}
+
+/// Lock the record for signing. The row stays locked until the signature
+/// commits, so two signings at the same moment cannot both pass, and the
+/// content cannot change between being read and being signed.
 ///
 /// # Errors
-/// `NotFound`, `Conflict`, or a database error.
-pub(crate) async fn lock_for_signing(
+/// `NotFound` for a missing record, or a database error.
+async fn lock_record(
     tx: &mut sqlx::PgConnection,
     claims: &Claims,
     spec: &SignableType,
-    signer_role: &str,
     record_id: Uuid,
-) -> Result<bool, AppError> {
+) -> Result<Locked, AppError> {
     // Dynamic only in the table name and author expression, both from the
     // fixed table; every value is bound.
     let sql = format!(
@@ -298,14 +299,33 @@ pub(crate) async fn lock_for_signing(
         .bind(claims.sub)
         .fetch_optional(&mut *tx)
         .await?;
-    let Some((is_author, unnamed, signed)) = row else {
-        return Err(AppError::NotFound);
-    };
-    if let (true, Some(reason)) = (unnamed, spec.unassigned) {
+    let (is_author, unnamed, signed) = row.ok_or(AppError::NotFound)?;
+    Ok(Locked {
+        is_author,
+        unnamed,
+        signed,
+    })
+}
+
+/// Whether this signer may sign the locked record, and whether it is signed.
+///
+/// A record whose author is not yet named and whose type says why (an
+/// unvalidated lab result) is refused to every role with that reason (409).
+/// A primary signer must be the record's author ([`SignableType::author`]);
+/// to anyone else the record answers `NotFound`, as a missing one does.
+///
+/// # Errors
+/// `Conflict` or `NotFound`.
+fn authorise_signer(
+    locked: &Locked,
+    spec: &SignableType,
+    signer_role: &str,
+) -> Result<bool, AppError> {
+    if let (true, Some(reason)) = (locked.unnamed, spec.unassigned) {
         return Err(AppError::Conflict(reason.to_owned()));
     }
-    if is_author || signer_role != "primary" {
-        Ok(signed)
+    if locked.is_author || signer_role != "primary" {
+        Ok(locked.signed)
     } else {
         Err(AppError::NotFound)
     }
@@ -333,11 +353,12 @@ pub(crate) struct Opened {
 }
 
 /// Everything the review screen and the signature check before the record
-/// is shown or signed, in this order: authorship (a primary signer must be
-/// the author; 404 to anyone else, as for a missing record), the signer's
-/// registration, the payload, and the signer's access to the patient, for
-/// every role. The record stays
-/// locked until the caller's transaction ends.
+/// is shown or signed. The record is locked and read first; the signer's
+/// access to the patient (every role) is checked before anything else is
+/// said, so someone who may not see the patient learns nothing about the
+/// record; then authorship (an unvalidated report is 409, a non-author 404),
+/// then the signer's registration. The record stays locked until the
+/// caller's transaction ends.
 ///
 /// # Errors
 /// `ForbiddenReason`, `NotFound`, the patient gate's refusal, or a database
@@ -350,11 +371,12 @@ pub(crate) async fn open_for_signing(
     signer_role: &str,
     record_id: Uuid,
 ) -> Result<Opened, AppError> {
-    let already_signed = lock_for_signing(tx, claims, spec, signer_role, record_id).await?;
-    require_signer_profile(tx, claims, spec, signer_role).await?;
+    let locked = lock_record(tx, claims, spec, record_id).await?;
     let payload =
         resolve_signable_payload(tx, &claims.tenant_id, spec.record_type, record_id).await?;
     require_patient_access(state, claims, patient_of(&payload)?).await?;
+    let already_signed = authorise_signer(&locked, spec, signer_role)?;
+    require_signer_profile(tx, claims, spec, signer_role).await?;
     let canonical = signing::canonicalize(&payload)
         .map_err(|e| AppError::BadRequest(format!("canonicalize: {e}")))?;
     let hash = signing::payload_hash(&canonical);

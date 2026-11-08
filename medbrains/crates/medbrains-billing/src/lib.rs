@@ -12,6 +12,8 @@ mod nhcx_recon;
 pub use insurance::*;
 // Insurer settlements posted against bills under maker-checker (mig 1227).
 pub mod charge_attention;
+// Orders done but never billed, put on the charge attention queue (mig 1416).
+pub mod leakage;
 mod claim_settlement_post;
 mod claim_settlement_reverse;
 pub mod claim_settlements;
@@ -3857,6 +3859,14 @@ pub fn router() -> axum::Router<AppState> {
         .route(
             "/api/billing/charge-attention",
             get(charge_attention::list_charge_attention),
+        )
+        .route(
+            "/api/billing/charge-attention/summary",
+            get(charge_attention::charge_attention_summary),
+        )
+        .route(
+            "/api/billing/charge-attention/unbilled-scan",
+            post(leakage::scan_unbilled_orders),
         )
         .route(
             "/api/billing/charge-attention/{id}/post",

@@ -1,13 +1,22 @@
 // Dismiss a queued charge: the charge should not be billed, and the reason
-// why is required and kept on the record.
+// why is required and kept on the record. An unbilled order offers the usual
+// reasons (package-included, free by policy, duplicate) as one tap each.
 
-import { Stack, Text } from "@mantine/core";
+import { Group, Stack, Text } from "@mantine/core";
 import type { ChargeAttentionItem } from "@medbrains/types";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
-import { Modal, TextArea, toast } from "@/components/ui";
+import { Chip, ChipGroup, Modal, TextArea, toast } from "@/components/ui";
 import { billingService } from "@/services/billing.service";
-import { moduleLabel } from "./charge-attention-labels";
+import { moduleLabel, REASON_UNBILLED } from "./charge-attention-labels";
+
+/** Why an order done for a patient is rightly not billed, as the desk says it. */
+const UNBILLED_REASONS = [
+  "Package-included",
+  "Free by policy",
+  "Duplicate order",
+  "Billed by hand on another bill",
+];
 
 interface DismissChargeModalProps {
   item: ChargeAttentionItem;
@@ -53,6 +62,17 @@ export function DismissChargeModal({ item, onClose }: DismissChargeModalProps) {
         <Text size="sm" c="dimmed">
           The patient will not be billed for this. Say why, for whoever audits it later.
         </Text>
+        {item.reason === REASON_UNBILLED && (
+          <ChipGroup value={reason} onChange={(value) => setReason(String(value))}>
+            <Group gap="xs" aria-label="Common reasons">
+              {UNBILLED_REASONS.map((r) => (
+                <Chip key={r} value={r}>
+                  {r}
+                </Chip>
+              ))}
+            </Group>
+          </ChipGroup>
+        )}
         <TextArea
           label="Reason"
           required
