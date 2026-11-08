@@ -18,7 +18,6 @@ use crate::settings;
 use crate::stt::{Form, form_model};
 use crate::view::{SessionView, load_own};
 
-
 /// Ten minutes, as the browser reports it. Advisory: kept for the KPI, never
 /// trusted as a bound (the size limit below is the bound).
 pub const MAX_DURATION_MS: u32 = 600_000;
@@ -223,16 +222,22 @@ pub async fn retry_dictation(
     let config = settings::load(&mut tx).await?;
     let ai_off = ai_turned_off(&mut tx).await?;
     release_stale(&mut tx, &claims).await?;
-    // Claiming it as processing is what keeps it to one at a time.
-    sqlx::query!(
+    // Claiming it as processing is what keeps it to one at a time; a retry
+    // that lost a race to another finds the row already claimed.
+    let claimed = sqlx::query!(
         "UPDATE dictation_sessions SET status = 'processing', failure = NULL \
-          WHERE id = $1 AND tenant_id = $2",
+          WHERE id = $1 AND tenant_id = $2 AND status IN ('stt_failed', 'llm_failed')",
         id,
         claims.tenant_id,
     )
     .execute(&mut *tx)
     .await
     .map_err(one_at_a_time)?;
+    if claimed.rows_affected() != 1 {
+        return Err(AppError::Conflict(
+            "This dictation is already being tried again".to_owned(),
+        ));
+    }
     tx.commit().await?;
     let form = Form::new(&held.audio, &held.content_type, form_model(&config));
     drop(held);

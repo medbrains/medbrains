@@ -7,14 +7,8 @@ use uuid::Uuid;
 use super::{Problems, SheetTally, text};
 
 const SHEET: &str = "Departments";
-pub(crate) const TYPES: &[&str] = &[
-    "clinical",
-    "pre_clinical",
-    "para_clinical",
-    "administrative",
-    "support",
-    "academic",
-];
+pub(crate) const TYPES: &[&str] =
+    &["clinical", "pre_clinical", "para_clinical", "administrative", "support", "academic"];
 
 #[derive(Debug, Clone, Deserialize, Serialize, sqlx::FromRow)]
 pub struct Row {
@@ -35,35 +29,18 @@ pub(crate) async fn import(
     rows: &[Row],
     problems: &mut Problems,
 ) -> Result<SheetTally, AppError> {
-    let mut tally = SheetTally {
-        sheet: SHEET,
-        added: 0,
-        updated: 0,
-    };
+    let mut tally = SheetTally { sheet: SHEET, added: 0, updated: 0 };
     let mut parents = Vec::new();
     for r in rows {
         let code = text(r.code.as_ref()).map(|c| c.to_uppercase());
         let name = text(r.name.as_ref());
-        let kind = text(r.kind.as_ref()).map_or_else(
-            || "clinical".to_owned(),
-            |k| k.to_lowercase().replace([' ', '-'], "_"),
-        );
+        let kind = text(r.kind.as_ref()).map_or_else(|| "clinical".to_owned(), |k| k.to_lowercase().replace([' ', '-'], "_"));
         let (Some(code), Some(name)) = (code, name) else {
-            problems.add(
-                SHEET,
-                r.row,
-                "Code / Name",
-                "Every department needs a code and a name",
-            );
+            problems.add(SHEET, r.row, "Code / Name", "Every department needs a code and a name");
             continue;
         };
         if !TYPES.contains(&kind.as_str()) {
-            problems.add(
-                SHEET,
-                r.row,
-                "Type",
-                format!("Use one of: {}", TYPES.join(", ")),
-            );
+            problems.add(SHEET, r.row, "Type", format!("Use one of: {}", TYPES.join(", ")));
             continue;
         }
         let inserted: bool = sqlx::query_scalar(
@@ -79,11 +56,7 @@ pub(crate) async fn import(
         .bind(&kind)
         .fetch_one(&mut **tx)
         .await?;
-        if inserted {
-            tally.added += 1
-        } else {
-            tally.updated += 1
-        }
+        if inserted { tally.added += 1 } else { tally.updated += 1 }
         if let Some(parent) = text(r.parent_code.as_ref()) {
             parents.push((r.row, code, parent.to_uppercase()));
         }
@@ -102,12 +75,7 @@ pub(crate) async fn import(
         .await?
         .rows_affected();
         if linked == 0 {
-            problems.add(
-                SHEET,
-                row,
-                "Parent code",
-                format!("No department has the code {parent}"),
-            );
+            problems.add(SHEET, row, "Parent code", format!("No department has the code {parent}"));
         }
     }
     Ok(tally)

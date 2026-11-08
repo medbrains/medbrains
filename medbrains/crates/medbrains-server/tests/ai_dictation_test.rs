@@ -915,3 +915,114 @@ async fn a_closed_visit_takes_no_dictation() {
             .expect("sessions");
     assert_eq!(made, 0);
 }
+
+/// Given a config bundle that carries `dictation/config` (or `abdm`), When an
+/// admin imports it, dry run or not, Then the import is refused and nothing
+/// is written; and an export never carries those categories.
+#[tokio::test]
+async fn a_config_import_cannot_write_dictation() {
+    let app = common::spawn_app().await;
+    let csrf = app.login_admin().await;
+    for (category, dry_run) in [("dictation", false), ("dictation", true), ("abdm", false)] {
+        let resp = app
+            .client
+            .post(app.url("/api/setup/config-import"))
+            .header("x-csrf-token", &csrf)
+            .json(&json!({
+                "dry_run": dry_run,
+                "bundle": {
+                    "bundle_version": 1,
+                    "exported_at": "2026-11-08T00:00:00Z",
+                    "settings": [{ "category": category, "key": "config",
+                                   "value": { "stt_url": "http://evil.example" } }],
+                    "document_templates": [],
+                },
+            }))
+            .send()
+            .await
+            .expect("import");
+        assert_eq!(
+            resp.status(),
+            StatusCode::BAD_REQUEST,
+            "{category} dry_run={dry_run}"
+        );
+    }
+    let stored: i64 = sqlx::query_scalar(
+        "SELECT count(*) FROM tenant_settings \
+          WHERE category = 'dictation' AND value::text LIKE '%evil.example%' AND deleted_at IS NULL",
+    )
+    .fetch_one(&app.db)
+    .await
+    .expect("settings");
+    assert_eq!(stored, 0);
+
+    configure(&app, json!({ "stt_url": "http://127.0.0.1:8178" })).await;
+    let bundle: Value = app
+        .client
+        .get(app.url("/api/setup/config-export"))
+        .send()
+        .await
+        .expect("export")
+        .json()
+        .await
+        .expect("json");
+    let categories: Vec<&str> = bundle["settings"]
+        .as_array()
+        .expect("settings")
+        .iter()
+        .filter_map(|s| s["category"].as_str())
+        .collect();
+    assert!(!categories.contains(&"dictation") && !categories.contains(&"abdm"));
+}
+
+/// Given a logged AI suggestion outcome, When anyone changes what it records
+/// or removes it physically, Then the database refuses; a soft delete, which
+/// names who and why on the row, is the only change allowed.
+#[tokio::test]
+async fn an_ai_suggestion_outcome_cannot_be_changed() {
+    let app = common::spawn_app().await;
+    let csrf = app.login_admin().await;
+    local_machines(&app, "Paracetamol").await;
+    let (_, encounter) = visit(&app, &csrf).await;
+    let (_, session) = dictate(&app, &app.client, &csrf, &encounter).await;
+    let id = session["id"].as_str().expect("id").to_owned();
+    let (status, _) = send_json(
+        &app,
+        &csrf,
+        &format!("/api/opd/dictations/{id}/review"),
+        json!({ "note_id": null, "sections": [], "medicines": [] }),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+
+    let changed = sqlx::query(
+        "UPDATE ai_suggestion_outcomes SET outcome = 'accepted', final_text = 'x' \
+          WHERE source_id = $1::uuid",
+    )
+    .bind(&id)
+    .execute(&app.db)
+    .await;
+    assert!(changed.is_err(), "changing an outcome is refused");
+
+    let mut tx = app.db.begin().await.expect("tx");
+    sqlx::query("SELECT set_config('app.allow_physical_delete', 'true', true)")
+        .execute(&mut *tx)
+        .await
+        .expect("allow");
+    let removed = sqlx::query("DELETE FROM ai_suggestion_outcomes WHERE source_id = $1::uuid")
+        .bind(&id)
+        .execute(&mut *tx)
+        .await;
+    assert!(removed.is_err(), "a physical delete is refused");
+    drop(tx);
+
+    let soft = sqlx::query(
+        "UPDATE ai_suggestion_outcomes SET deleted_at = now(), delete_reason = 'test' \
+          WHERE source_id = $1::uuid",
+    )
+    .bind(&id)
+    .execute(&app.db)
+    .await
+    .expect("a soft delete is allowed");
+    assert!(soft.rows_affected() > 0);
+}

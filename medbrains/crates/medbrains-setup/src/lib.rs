@@ -17,10 +17,10 @@ use uuid::Uuid;
 
 use medbrains_server_core::error::AppError;
 use medbrains_server_core::middleware::auth::Claims;
+use medbrains_server_core::middleware::entitlement;
 use medbrains_server_core::middleware::authorization::{
     is_bypass_role, require_any_permission, require_permission,
 };
-use medbrains_server_core::middleware::entitlement;
 use medbrains_server_core::state::AppState;
 use medbrains_server_core::validation::{self, ValidationErrors};
 
@@ -2068,11 +2068,7 @@ pub async fn update_module(
     let turning_on = body.status == "enabled";
     let blockers = entitlement::switch_blockers(&code, turning_on, &by_code);
     if !blockers.is_empty() {
-        let why = if turning_on {
-            "it needs"
-        } else {
-            "they need it"
-        };
+        let why = if turning_on { "it needs" } else { "they need it" };
         return Err(AppError::Conflict(format!(
             "{} cannot be switched {}: {why} — {}",
             medbrains_core::bricks::find(&code).map_or(code.as_str(), |b| b.name),
@@ -2846,21 +2842,12 @@ pub struct SettingsQuery {
 /// hospital is defended and how long it keeps things.
 const SENSITIVE_SETTING_CATEGORIES: &[&str] = &["email", "security", "retention", "integrations"];
 
-/// Categories with their own screen and endpoint, because they hold secrets
-/// the generic settings API would hand back verbatim, or because their own
-/// endpoint validates, guards and audits what is written (`dictation`: where
-/// doctors' recordings are sent).
-const OWN_ENDPOINT_CATEGORIES: &[&str] = &["abdm", "dictation"];
+// Categories with their own endpoint: one list and one check, shared with
+// the config import (medbrains-server-core/src/settings_categories.rs).
+use medbrains_server_core::settings_categories::refuse_own_endpoint_category;
 
-fn refuse_own_endpoint_category(category: &str) -> Result<(), AppError> {
-    if OWN_ENDPOINT_CATEGORIES.contains(&category) {
-        return Err(AppError::BadRequest(format!(
-            "'{category}' settings are managed on their own screen, not here"
-        )));
-    }
-    Ok(())
-}
-
+/// `GET /api/setup/settings` — one category's settings for the settings
+/// screens; categories with their own endpoint are refused here.
 pub async fn get_settings(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,

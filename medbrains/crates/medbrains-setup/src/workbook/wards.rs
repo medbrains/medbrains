@@ -8,17 +8,8 @@ use super::{Problems, SheetTally, text};
 
 const SHEET: &str = "Wards";
 pub(crate) const WARD_TYPES: &[&str] = &[
-    "general",
-    "private",
-    "semi_private",
-    "icu",
-    "hdu",
-    "nicu",
-    "picu",
-    "emergency",
-    "maternity",
-    "isolation",
-    "day_care",
+    "general", "private", "semi_private", "icu", "hdu", "nicu", "picu", "emergency", "maternity",
+    "isolation", "day_care",
 ];
 pub(crate) const GENDERS: &[&str] = &["any", "male", "female"];
 
@@ -35,15 +26,8 @@ pub struct Row {
 }
 
 fn choice(value: Option<&String>, default: &str, allowed: &[&str]) -> Result<String, String> {
-    let v = text(value).map_or_else(
-        || default.to_owned(),
-        |v| v.to_lowercase().replace([' ', '-'], "_"),
-    );
-    if allowed.contains(&v.as_str()) {
-        Ok(v)
-    } else {
-        Err(format!("Use one of: {}", allowed.join(", ")))
-    }
+    let v = text(value).map_or_else(|| default.to_owned(), |v| v.to_lowercase().replace([' ', '-'], "_"));
+    if allowed.contains(&v.as_str()) { Ok(v) } else { Err(format!("Use one of: {}", allowed.join(", "))) }
 }
 
 pub(crate) async fn import(
@@ -52,37 +36,19 @@ pub(crate) async fn import(
     rows: &[Row],
     problems: &mut Problems,
 ) -> Result<SheetTally, AppError> {
-    let mut tally = SheetTally {
-        sheet: SHEET,
-        added: 0,
-        updated: 0,
-    };
+    let mut tally = SheetTally { sheet: SHEET, added: 0, updated: 0 };
     for r in rows {
-        let (Some(code), Some(name)) = (
-            text(r.code.as_ref()).map(|c| c.to_uppercase()),
-            text(r.name.as_ref()),
-        ) else {
-            problems.add(
-                SHEET,
-                r.row,
-                "Code / Name",
-                "Every ward needs a code and a name",
-            );
+        let (Some(code), Some(name)) = (text(r.code.as_ref()).map(|c| c.to_uppercase()), text(r.name.as_ref())) else {
+            problems.add(SHEET, r.row, "Code / Name", "Every ward needs a code and a name");
             continue;
         };
         let ward_type = match choice(r.ward_type.as_ref(), "general", WARD_TYPES) {
             Ok(v) => v,
-            Err(m) => {
-                problems.add(SHEET, r.row, "Ward type", m);
-                continue;
-            }
+            Err(m) => { problems.add(SHEET, r.row, "Ward type", m); continue; }
         };
         let gender = match choice(r.gender.as_ref(), "any", GENDERS) {
             Ok(v) => v,
-            Err(m) => {
-                problems.add(SHEET, r.row, "Admits", m);
-                continue;
-            }
+            Err(m) => { problems.add(SHEET, r.row, "Admits", m); continue; }
         };
         let department = match text(r.department_code.as_ref()) {
             None => None,
@@ -95,12 +61,7 @@ pub(crate) async fn import(
                 .fetch_optional(&mut **tx)
                 .await?;
                 if id.is_none() {
-                    problems.add(
-                        SHEET,
-                        r.row,
-                        "Department code",
-                        format!("No department has the code {dept}"),
-                    );
+                    problems.add(SHEET, r.row, "Department code", format!("No department has the code {dept}"));
                     continue;
                 }
                 id
@@ -123,11 +84,7 @@ pub(crate) async fn import(
         .bind(&gender)
         .fetch_one(&mut **tx)
         .await?;
-        if inserted {
-            tally.added += 1
-        } else {
-            tally.updated += 1
-        }
+        if inserted { tally.added += 1 } else { tally.updated += 1 }
     }
     Ok(tally)
 }

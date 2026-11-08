@@ -29,7 +29,9 @@
 -- ai_suggestion_outcomes: AI-governance records. Every suggestion the model
 --   made and what the clinician did with it: accepted as written, edited (with
 --   the size of the edit) or rejected. It holds suggestion text, so it has no
---   audit trigger either; rows are written once and never updated.
+--   audit trigger either. Instead it is append-only: a trigger refuses any
+--   change but a soft delete (which records who and why on the row itself) and
+--   refuses a physical delete outright, so a record cannot be altered unseen.
 
 CREATE TABLE public.dictation_sessions (
     id uuid DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY,
@@ -170,3 +172,33 @@ CREATE TRIGGER set_updated_at_ai_suggestion_outcomes BEFORE UPDATE ON public.ai_
     FOR EACH ROW EXECUTE FUNCTION public.update_updated_at();
 CREATE TRIGGER trg_ai_suggestion_outcomes_soft_delete BEFORE DELETE ON public.ai_suggestion_outcomes
     FOR EACH ROW EXECUTE FUNCTION public.soft_delete_guardrail();
+
+-- Append-only: an outcome is never edited. The soft-delete columns (and the
+-- updated_at the guardrail stamps) may change; nothing else may. A physical
+-- delete, which `app.allow_physical_delete` would otherwise let through, is
+-- refused. Named to fire before the soft-delete guardrail.
+CREATE OR REPLACE FUNCTION public.ai_suggestion_outcome_append_only()
+RETURNS trigger
+LANGUAGE plpgsql
+AS $$
+DECLARE
+    mutable CONSTANT text[] := ARRAY['deleted_at', 'deleted_by', 'delete_reason', 'updated_at'];
+BEGIN
+    IF TG_OP = 'DELETE' THEN
+        IF current_setting('app.allow_physical_delete', true) = 'true' THEN
+            RAISE EXCEPTION 'An AI suggestion outcome is a governance record and is never removed'
+                USING ERRCODE = 'check_violation';
+        END IF;
+        RETURN OLD;
+    END IF;
+    IF (to_jsonb(NEW) - mutable) IS DISTINCT FROM (to_jsonb(OLD) - mutable) THEN
+        RAISE EXCEPTION 'An AI suggestion outcome is a governance record: it is never changed, only soft-deleted'
+            USING ERRCODE = 'check_violation';
+    END IF;
+    RETURN NEW;
+END;
+$$;
+
+CREATE TRIGGER trg_ai_suggestion_outcomes_append_only BEFORE UPDATE OR DELETE
+    ON public.ai_suggestion_outcomes
+    FOR EACH ROW EXECUTE FUNCTION public.ai_suggestion_outcome_append_only();

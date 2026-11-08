@@ -49,23 +49,13 @@ pub(crate) async fn import(
     rows: &[Row],
     problems: &mut Problems,
 ) -> Result<SheetTally, AppError> {
-    let mut tally = SheetTally {
-        sheet: SHEET,
-        added: 0,
-        updated: 0,
-    };
+    let mut tally = SheetTally { sheet: SHEET, added: 0, updated: 0 };
     let mut wards_touched: Vec<Uuid> = Vec::new();
     for r in rows {
-        let (Some(code), Some(ward_code)) = (
-            text(r.code.as_ref()).map(|c| c.to_uppercase()),
-            text(r.ward_code.as_ref()).map(|c| c.to_uppercase()),
-        ) else {
-            problems.add(
-                SHEET,
-                r.row,
-                "Bed code / Ward code",
-                "Every bed needs its code and its ward",
-            );
+        let (Some(code), Some(ward_code)) =
+            (text(r.code.as_ref()).map(|c| c.to_uppercase()), text(r.ward_code.as_ref()).map(|c| c.to_uppercase()))
+        else {
+            problems.add(SHEET, r.row, "Bed code / Ward code", "Every bed needs its code and its ward");
             continue;
         };
         let ward: Option<Uuid> = sqlx::query_scalar(
@@ -76,12 +66,7 @@ pub(crate) async fn import(
         .fetch_optional(&mut **tx)
         .await?;
         let Some(ward) = ward else {
-            problems.add(
-                SHEET,
-                r.row,
-                "Ward code",
-                format!("No ward has the code {ward_code}"),
-            );
+            problems.add(SHEET, r.row, "Ward code", format!("No ward has the code {ward_code}"));
             continue;
         };
         // A code already used by a non-bed location would be silently turned into a bed.
@@ -94,20 +79,11 @@ pub(crate) async fn import(
         .fetch_optional(&mut **tx)
         .await?;
         if let Some(level) = clash {
-            problems.add(
-                SHEET,
-                r.row,
-                "Bed code",
-                format!("{code} is already a {level}, not a bed"),
-            );
+            problems.add(SHEET, r.row, "Bed code", format!("{code} is already a {level}, not a bed"));
             continue;
         }
         let room = match text(r.room.as_ref()) {
-            Some(room) => Some(
-                upsert_location(tx, tenant, "room", &room.to_uppercase(), None)
-                    .await?
-                    .0,
-            ),
+            Some(room) => Some(upsert_location(tx, tenant, "room", &room.to_uppercase(), None).await?.0),
             None => None,
         };
         let (bed, inserted) = upsert_location(tx, tenant, "bed", &code, room).await?;
@@ -121,11 +97,7 @@ pub(crate) async fn import(
         .bind(bed)
         .execute(&mut **tx)
         .await?;
-        if inserted {
-            tally.added += 1
-        } else {
-            tally.updated += 1
-        }
+        if inserted { tally.added += 1 } else { tally.updated += 1 }
         if !wards_touched.contains(&ward) {
             wards_touched.push(ward);
         }

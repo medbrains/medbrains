@@ -89,6 +89,9 @@ impl DictationConfig {
         if let Some(name) = self.cloud_api_key_secret.as_deref() {
             require_secret_name(name)?;
         }
+        if let Some(model) = self.cloud_model.as_deref() {
+            require_name("Cloud model", model)?;
+        }
         if self.cloud_enabled {
             let url = self.cloud_url.as_deref().unwrap_or_default();
             require_url("Cloud transcription address", url, true)?;

@@ -213,7 +213,7 @@ impl SpeechToText for CloudStt {
     }
 }
 
-/// The one client: no redirects, no proxy surprises. Built once; if it
+/// The one client: no redirects, no proxy. Built once; if it
 /// cannot be built, every call fails closed as unreachable.
 fn client() -> Result<&'static reqwest::Client, SttFailure> {
     static CLIENT: OnceLock<Option<reqwest::Client>> = OnceLock::new();
@@ -221,6 +221,9 @@ fn client() -> Result<&'static reqwest::Client, SttFailure> {
         .get_or_init(|| {
             reqwest::Client::builder()
                 .redirect(reqwest::redirect::Policy::none())
+                // A proxy from the environment would carry recordings off the
+                // hospital's network; the services are reached directly.
+                .no_proxy()
                 .timeout(STT_TIMEOUT)
                 .build()
                 .ok()

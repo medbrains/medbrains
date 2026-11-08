@@ -63,15 +63,17 @@ Out (later slices):
 | Session metadata | `dictation_sessions` (audited: status, adapter, model, sizes, times; no words) | Kept |
 | Recording | `dictation_audio` (separate table, no audit trigger, no soft delete) | Deleted when the review is saved or everything is rejected, when the transcript is too long to use, or by the purge pass 24 hours after an abandoned recording |
 | Transcript and draft | `dictation_content` (separate table, no audit trigger, no soft delete) | Kept with a saved note, as provenance; deleted when everything is rejected, and by the purge for any session not saved after 24 hours |
-| Decisions | `ai_suggestion_outcomes` (no audit trigger: it holds suggestion text) | Kept: AI-governance records (suggested text, final text, accepted / edited / rejected, word edit distance and ratio, model, who, when) |
+| Decisions | `ai_suggestion_outcomes` (no audit trigger: it holds suggestion text; append-only: a trigger refuses any change but a soft delete, and any physical delete) | Kept: AI-governance records (suggested text, final text, accepted / edited / rejected, word edit distance and ratio, model, who, when) |
 | Use | `audit_log` actions `dictation_used`, `dictation_recordings_purged`, `dictation_settings_saved` | Kept (hash-chained); counts and ids only, never words |
 
-The purge (`purge.rs`) runs every 15 minutes on the worker pool. Each pass
-logs how many sessions older than 24 hours still hold a recording or unsaved
-words (`held_past_limit`, logged even when zero, so a stuck purge shows as a
-count that never falls), then deletes per tenant in a kernel unit of work as
-the system actor and writes one `dictation_recordings_purged` audit row per
-tenant.
+The purge (`purge.rs`) runs every 15 minutes on the worker pool. It lists
+tenants from `tenants`, then counts and deletes each tenant's expired data in
+its own kernel unit of work as the system actor (tenant context set, so it
+sees that tenant's rows under RLS whatever role the pool is), writing one
+`dictation_recordings_purged` audit row for each tenant that had something
+to purge. A tenant that fails is logged and skipped; the pass carries on.
+Each pass logs `held_past_limit`, `purged`, `tenants` and `tenants_failed`,
+even when zero, so a stuck purge shows as a count that never falls.
 
 Deleted rows still sit in PostgreSQL's write-ahead log and in base backups
 until those age out: a recording or transcript deleted here is gone from the
@@ -114,12 +116,18 @@ the doctor did not say, that position must be reassessed first.
   that the visit exists. A session is its creator's alone (404 for anyone
   else). Only the visit's own doctor dictates on it (admins excepted), and only
   while the visit is open.
-- Settings are written only through `/api/admin/dictation/settings`: the
-  generic settings route refuses the `dictation` category. The local speech
-  and model addresses must be loopback, private (RFC 1918, IPv6 unique-local)
-  or link-local IP literals or `localhost`, never the cloud metadata address;
-  a stored value that fails validation is read as the local defaults with the
-  cloud off. The speech client never follows a redirect.
+- Settings are written only through `/api/admin/dictation/settings`. Every
+  generic writer (the settings route and the config import) calls one check,
+  `medbrains_server_core::settings_categories::refuse_own_endpoint_category`,
+  and refuses the `dictation` category; the config export leaves it out. The
+  local speech and model addresses must be loopback or private (RFC 1918,
+  IPv6 unique-local) IP literals or `localhost`. Link-local addresses are
+  refused altogether (cloud metadata and credential services: 169.254.169.254,
+  169.254.170.2), and so is `fd00:ec2::254`. A stored value that fails
+  validation is read as the local defaults with the cloud off. The speech
+  client follows no redirect and uses no proxy. The model call goes through
+  rig's client, which offers neither setting; it carries no credential and its
+  address is held to the same rule.
 
 ## 5a. Bounds
 
