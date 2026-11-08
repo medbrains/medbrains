@@ -416,6 +416,21 @@ export function LabOrderDetail({
           {order.status.replace(/_/g, " ")}
         </Badge>
       </Group>
+      {/* Who the tube is for, from the order itself: the lab reaches the
+          order, not the patient's record, so the banner below stays empty
+          for lab staff while this line always names the patient. */}
+      <Group gap="sm">
+        <PatientNameCell
+          patientId={order.patient_id}
+          identity={data.patient ?? undefined}
+          showGender
+        />
+        {data.patient?.age_years != null && (
+          <Text size="sm" c="dimmed">
+            {data.patient.age_years} y
+          </Text>
+        )}
+      </Group>
       <PatientContextBanner patientId={order.patient_id} hideLoadingState collectLane="lab" />
       {/* The laboratory prints more than any other department, and most of
           these documents had a data endpoint and no renderer. `lab-report` and
@@ -577,7 +592,11 @@ export function LabOrderDetail({
             <Text size="xs" c="dimmed" fw={600}>
               Collecting from
             </Text>
-            <PatientNameCell patientId={order.patient_id} showUhid={false} />
+            <PatientNameCell
+              patientId={order.patient_id}
+              identity={data.patient ?? undefined}
+              showUhid={false}
+            />
           </Card>
 
           <Input

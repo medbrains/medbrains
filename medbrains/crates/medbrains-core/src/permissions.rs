@@ -926,6 +926,22 @@ pub mod billing {
         pub const RESOLVE: &str = "billing.charge_attention.resolve";
     }
 
+    /// Revenue leakage: services done for a patient that were never billed.
+    pub mod leakage {
+        /// See done-but-unbilled orders.
+        ///
+        /// See lab tests, imaging and procedures that were completed for a
+        /// patient but have no charge on any bill, with the tariff amount and
+        /// how many days each has waited.
+        pub const VIEW: &str = "billing.leakage.view";
+        /// Post, dismiss or rescan unbilled orders.
+        ///
+        /// Post an unbilled order's charge onto the patient's bill, dismiss
+        /// it with a reason (package-included, free by policy, duplicate), or
+        /// run the unbilled-orders check now. Who and when is recorded.
+        pub const RESOLVE: &str = "billing.leakage.resolve";
+    }
+
     pub mod claims {
         /// Insurer settlements posted against bills.
         pub mod settlement {
@@ -2454,6 +2470,20 @@ pub mod mrd {
 
     pub mod storage {
         pub const MANAGE: &str = "mrd.storage.manage";
+    }
+
+    pub mod verify_links {
+        /// Show a signed record's public check link.
+        /// Gives the link an outsider (an insurer, a court, another
+        /// hospital) opens from the QR on the paper, minting a new one when
+        /// the last was withdrawn. The page it opens names the document type,
+        /// the signer and whether it is unchanged, never the patient.
+        pub const ISSUE: &str = "mrd.verify_links.issue";
+        /// Withdraw a signed record's public check link.
+        /// The QR on every copy already printed then answers that the
+        /// hospital withdrew it, and on which date. The signature itself is
+        /// untouched.
+        pub const REVOKE: &str = "mrd.verify_links.revoke";
     }
 }
 

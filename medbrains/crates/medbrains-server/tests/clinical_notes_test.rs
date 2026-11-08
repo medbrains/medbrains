@@ -74,6 +74,39 @@ fn soap(subjective: &str, plan: &str) -> Value {
     ]})
 }
 
+/// A session alone does not sign a note: without a fresh step-up the server
+/// answers `step_up_required` and the note stays a draft.
+#[tokio::test]
+async fn signing_a_note_without_a_fresh_step_up_is_refused() {
+    let app = common::spawn_app().await;
+    let csrf = app.login_admin().await;
+    let encounter = encounter(&app, &csrf).await;
+    let (status, note) = call(
+        &app,
+        &csrf,
+        "POST",
+        &format!("/api/encounters/{encounter}/clinical-notes"),
+        json!({ "note_type_code": "consultation" }),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK, "{note}");
+    let id = note["id"].as_str().expect("note id").to_owned();
+    let draft = format!("/api/clinical-notes/{id}/draft");
+    let (status, _) = call(&app, &csrf, "PUT", &draft, soap("Cough", "X-ray")).await;
+    assert_eq!(status, StatusCode::OK);
+
+    let sign = format!("/api/clinical-notes/{id}/sign");
+    let (status, body) = call(&app, &csrf, "POST", &sign, json!({})).await;
+    assert_eq!(status, StatusCode::FORBIDDEN, "{body}");
+    assert_eq!(body["error"], "step_up_required");
+    let after: String = sqlx::query_scalar("SELECT status FROM clinical_notes WHERE id = $1::uuid")
+        .bind(&id)
+        .fetch_one(&app.db)
+        .await
+        .expect("note status");
+    assert_eq!(after, "draft", "a refused signature leaves the draft");
+}
+
 async fn set_grace(app: &common::TestApp, minutes: i64) {
     sqlx::query(
         "INSERT INTO tenant_settings (tenant_id, category, key, value) \
@@ -96,6 +129,8 @@ async fn set_grace(app: &common::TestApp, minutes: i64) {
 async fn a_note_is_signed_revised_in_grace_added_to_and_marked_in_error() {
     let app = common::spawn_app().await;
     let csrf = app.login_admin().await;
+    // Signing a note needs the password again (step-up), not only a session.
+    app.step_up(&app.client, &csrf, "admin123").await;
     set_grace(&app, 30).await;
     let encounter = encounter(&app, &csrf).await;
     let notes = format!("/api/encounters/{encounter}/clinical-notes");
@@ -291,6 +326,8 @@ async fn a_note_is_signed_revised_in_grace_added_to_and_marked_in_error() {
 async fn a_late_entry_says_why() {
     let app = common::spawn_app().await;
     let csrf = app.login_admin().await;
+    // Signing a note needs the password again (step-up), not only a session.
+    app.step_up(&app.client, &csrf, "admin123").await;
     let encounter = encounter(&app, &csrf).await;
     let (_, note) = call(
         &app,
@@ -342,6 +379,8 @@ async fn a_late_entry_says_why() {
 async fn history_ros_and_examination_are_sections_of_the_signed_note() {
     let app = common::spawn_app().await;
     let csrf = app.login_admin().await;
+    // Signing a note needs the password again (step-up), not only a session.
+    app.step_up(&app.client, &csrf, "admin123").await;
     let encounter = encounter(&app, &csrf).await;
     // A consultation recorded before the case sheet existed.
     sqlx::query(
@@ -450,6 +489,8 @@ async fn history_ros_and_examination_are_sections_of_the_signed_note() {
 async fn a_ward_round_is_a_signed_progress_note_billed_once() {
     let app = common::spawn_app().await;
     let csrf = app.login_admin().await;
+    // Signing a note needs the password again (step-up), not only a session.
+    app.step_up(&app.client, &csrf, "admin123").await;
     let encounter = encounter(&app, &csrf).await;
     // The visit becomes an admission — the case sheet keys on the encounter.
     let admission: Uuid = sqlx::query_scalar(
@@ -564,6 +605,8 @@ async fn a_ward_round_is_a_signed_progress_note_billed_once() {
 async fn an_unsigned_note_is_on_the_authors_list_and_holds_up_the_mrd_packet() {
     let app = common::spawn_app().await;
     let csrf = app.login_admin().await;
+    // Signing a note needs the password again (step-up), not only a session.
+    app.step_up(&app.client, &csrf, "admin123").await;
     let encounter = encounter(&app, &csrf).await;
     let (_, note) = call(
         &app,
@@ -693,6 +736,7 @@ async fn doctor(app: &common::TestApp, admin_csrf: &str) -> (String, reqwest::Cl
         .await
         .expect("login json");
     let csrf = login["csrf_token"].as_str().unwrap_or("").to_owned();
+    app.step_up(&client, &csrf, &password).await;
     (
         user["id"].as_str().expect("user id").to_owned(),
         client,
@@ -724,6 +768,8 @@ async fn call_as(
 async fn a_residents_signed_note_waits_on_the_consultants_countersign() {
     let app = common::spawn_app().await;
     let csrf = app.login_admin().await;
+    // Signing a note needs the password again (step-up), not only a session.
+    app.step_up(&app.client, &csrf, "admin123").await;
     let (resident_id, resident, resident_csrf) = doctor(&app, &csrf).await;
     let (consultant_id, consultant, consultant_csrf) = doctor(&app, &csrf).await;
     let as_resident = (&resident, resident_csrf.as_str());
@@ -881,6 +927,8 @@ async fn a_residents_signed_note_waits_on_the_consultants_countersign() {
 async fn chart_review_reads_the_record_newest_care_first() {
     let app = common::spawn_app().await;
     let csrf = app.login_admin().await;
+    // Signing a note needs the password again (step-up), not only a session.
+    app.step_up(&app.client, &csrf, "admin123").await;
     let encounter = encounter(&app, &csrf).await;
     let notes = format!("/api/encounters/{encounter}/clinical-notes");
     let mut signed = Vec::new();
@@ -1005,6 +1053,8 @@ async fn chart_review_reads_the_record_newest_care_first() {
 async fn a_printed_case_sheet_is_filed_on_the_packets_notes_page() {
     let app = common::spawn_app().await;
     let csrf = app.login_admin().await;
+    // Signing a note needs the password again (step-up), not only a session.
+    app.step_up(&app.client, &csrf, "admin123").await;
     let encounter = encounter(&app, &csrf).await;
     let encounter_id: Uuid = encounter.parse().expect("uuid");
     let (status, packet) = call(
@@ -1089,6 +1139,8 @@ async fn a_printed_case_sheet_is_filed_on_the_packets_notes_page() {
 async fn the_visit_reads_as_fhir_compositions() {
     let app = common::spawn_app().await;
     let csrf = app.login_admin().await;
+    // Signing a note needs the password again (step-up), not only a session.
+    app.step_up(&app.client, &csrf, "admin123").await;
     let encounter = encounter(&app, &csrf).await;
     let notes = format!("/api/encounters/{encounter}/clinical-notes");
     let write = |text: &'static str, amends: Option<String>| {
@@ -1212,6 +1264,8 @@ async fn the_visit_reads_as_fhir_compositions() {
 async fn an_unregistered_opd_visit_opens_no_case_sheet_under_the_lock() {
     let app = common::spawn_app().await;
     let csrf = app.login_admin().await;
+    // Signing a note needs the password again (step-up), not only a session.
+    app.step_up(&app.client, &csrf, "admin123").await;
     let registered = encounter(&app, &csrf).await;
     let unregistered: Uuid = sqlx::query_scalar(
         "INSERT INTO encounters (tenant_id, patient_id, encounter_type, status, department_id) \
@@ -1272,6 +1326,8 @@ fn section<'a>(note: &'a Value, code: &str) -> &'a Value {
 async fn accepted_ai_text_is_marked_and_audited_with_who_accepted_it() {
     let app = common::spawn_app().await;
     let csrf = app.login_admin().await;
+    // Signing a note needs the password again (step-up), not only a session.
+    app.step_up(&app.client, &csrf, "admin123").await;
     let encounter = encounter(&app, &csrf).await;
     let notes = format!("/api/encounters/{encounter}/clinical-notes");
     let (status, note) = call(

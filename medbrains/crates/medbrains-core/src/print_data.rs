@@ -23,6 +23,9 @@ pub struct PrescriptionPrintData {
     pub medications: Vec<MedicationLine>,
     pub advice: Option<String>,
     pub follow_up: Option<String>,
+    /// Signatures on the visit's prescriptions; empty when none is signed.
+    #[serde(default)]
+    pub signatures: Vec<PrintSignatureData>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
@@ -208,6 +211,10 @@ pub struct PrintSignatureData {
     pub display_block: Option<String>,
     /// `signed_records.id` as hex — used by verifier endpoint.
     pub verify_ref: String,
+    /// The public check page the print's QR opens (`/verify/signature/…`);
+    /// absent when the record has no live link or no public address is set.
+    #[serde(default)]
+    pub verify_url: Option<String>,
     /// Drives watermark style: "administrative" | "clinical" |
     /// "`medico_legal`" | "`statutory_export`"
     pub legal_class: String,

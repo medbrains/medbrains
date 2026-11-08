@@ -299,6 +299,7 @@ import type {
   Cha2ds2VascRequest,
   Cha2ds2VascResult,
   ChargeAttentionItem,
+  ChargeAttentionSummary,
   ChargeMaster,
   ChartPage,
   ChartQuery,
@@ -1900,6 +1901,7 @@ import type {
   PublicInvite,
   PublicPrivacyContact,
   PublicShareLink,
+  PublicSignatureCheck,
   PublicTenant,
   PublicTokenLink,
   PublicTokenStatus,
@@ -2141,6 +2143,7 @@ import type {
   SharpReplacementRequest,
   ShiftDefinition,
   SignatureCredential,
+  SignatureVerifyLink,
   SignBasketRequest,
   SignBasketResponse,
   SignedRecord,
@@ -2290,6 +2293,7 @@ import type {
   TvDisplay,
   UhiRequest,
   UhiSettingsView,
+  UnbilledScanResult,
   UnifiedAsset,
   UnmatchedStudy,
   UnmatchedStudyStatus,
@@ -6244,6 +6248,12 @@ export const api = {
     const qs = params ? `?${new URLSearchParams(params)}` : "";
     return request<Paginated<ChargeAttentionItem>>(`/billing/charge-attention${qs}`);
   },
+  chargeAttentionSummary: (params?: Record<string, string>) => {
+    const qs = params ? `?${new URLSearchParams(params)}` : "";
+    return request<ChargeAttentionSummary>(`/billing/charge-attention/summary${qs}`);
+  },
+  scanUnbilledOrders: () =>
+    request<UnbilledScanResult>("/billing/charge-attention/unbilled-scan", { method: "POST" }),
   postChargeAttention: (id: string) =>
     request<ChargeAttentionItem>(`/billing/charge-attention/${id}/post`, { method: "PUT" }),
   dismissChargeAttention: (id: string, data: DismissChargeAttentionRequest) =>
@@ -17394,6 +17404,20 @@ export const api = {
       method: "POST",
       body: JSON.stringify(data),
     }),
+  /** Public — the QR on a signed print; answers no patient or clinical detail. */
+  verifySignatureLink: (token: string) =>
+    request<PublicSignatureCheck>(`/public/signatures/verify/${encodeURIComponent(token)}`),
+  /** The signed record's live public check link, minted if the last was withdrawn. */
+  issueSignatureVerifyLink: (signedRecordId: string) =>
+    request<SignatureVerifyLink>(`/signatures/${encodeURIComponent(signedRecordId)}/verify-link`, {
+      method: "POST",
+    }),
+  /** Withdraw the record's public check link; printed copies then say "withdrawn". */
+  revokeSignatureVerifyLink: (signedRecordId: string, reason: string) =>
+    request<{ revoked: boolean }>(
+      `/signatures/${encodeURIComponent(signedRecordId)}/verify-link/revoke`,
+      { method: "POST", body: JSON.stringify({ reason }) },
+    ),
 
   // Doctor Packages (admin)
   adminListDoctorPackages: (params?: { is_active?: boolean; search?: string }) => {

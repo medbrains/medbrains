@@ -19,7 +19,7 @@ export interface PermissionDef {
   module: string;
 }
 
-/** 1222 permissions, one per constant in the Rust source. */
+/** 1226 permissions, one per constant in the Rust source. */
 export const PERMISSIONS: PermissionDef[] = [
   // dashboard
   {
@@ -1319,6 +1319,18 @@ export const PERMISSIONS: PermissionDef[] = [
     code: "billing.charge_attention.resolve",
     label: "Post or dismiss charges needing attention",
     description: "Post a queued charge onto the patient's bill, or dismiss it with a reason when it should not be billed. Who and when is recorded.",
+    module: "billing",
+  },
+  {
+    code: "billing.leakage.view",
+    label: "See done-but-unbilled orders",
+    description: "See lab tests, imaging and procedures that were completed for a patient but have no charge on any bill, with the tariff amount and how many days each has waited.",
+    module: "billing",
+  },
+  {
+    code: "billing.leakage.resolve",
+    label: "Post, dismiss or rescan unbilled orders",
+    description: "Post an unbilled order's charge onto the patient's bill, dismiss it with a reason (package-included, free by policy, duplicate), or run the unbilled-orders check now. Who and when is recorded.",
     module: "billing",
   },
   {
@@ -4132,6 +4144,18 @@ export const PERMISSIONS: PermissionDef[] = [
     code: "mrd.storage.manage",
     label: "Manage MRD Storage",
     description: "Manage MRD rooms, racks, shelves, bins, and barcodes",
+    module: "mrd",
+  },
+  {
+    code: "mrd.verify_links.issue",
+    label: "Show a signed record's public check link",
+    description: "Gives the link an outsider (an insurer, a court, another hospital) opens from the QR on the paper, minting a new one when the last was withdrawn. The page it opens names the document type, the signer and whether it is unchanged, never the patient.",
+    module: "mrd",
+  },
+  {
+    code: "mrd.verify_links.revoke",
+    label: "Withdraw a signed record's public check link",
+    description: "The QR on every copy already printed then answers that the hospital withdrew it, and on which date. The signature itself is untouched.",
     module: "mrd",
   },
   // facilities
@@ -8324,6 +8348,8 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.BILLING.JOURNAL.CREATE,
       P.BILLING.JOURNAL.LIST,
       P.BILLING.JOURNAL.POST,
+      P.BILLING.LEAKAGE.RESOLVE,
+      P.BILLING.LEAKAGE.VIEW,
       P.BILLING.PAYER_SPLIT.MANAGE,
       P.BILLING.PAYMENTS.CREATE,
       P.BILLING.PAYMENTS.RECONCILE,
@@ -8543,6 +8569,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.BILLING.CHARGE_ATTENTION.VIEW,
       P.BILLING.INVOICES.LIST,
       P.BILLING.INVOICES.VIEW,
+      P.BILLING.LEAKAGE.VIEW,
       P.CAMP.LIST,
       P.CONSENT.AUDIT.LIST,
       P.CONSENT.TEMPLATES.LIST,
@@ -8759,6 +8786,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.CLINICAL_NOTES.PRINT,
       P.CLINICAL_NOTES.VIEW,
       P.DASHBOARD.VIEW,
+      P.DOCTOR.SIGNATURE.VERIFY,
       P.IPD.ADMISSIONS.LIST,
       P.IPD.ADMISSIONS.VIEW,
       P.MRD.BIRTHS.CREATE,
@@ -8777,6 +8805,8 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.MRD.RECORDS.MANAGE,
       P.MRD.RECORDS.VIEW_ALL,
       P.MRD.STORAGE.MANAGE,
+      P.MRD.VERIFY_LINKS.ISSUE,
+      P.MRD.VERIFY_LINKS.REVOKE,
       P.NOTES.USE,
       P.OPD.QUEUE.LIST,
       P.OPD.QUEUE.VIEW,
