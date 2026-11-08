@@ -712,25 +712,6 @@ async fn save_settings(app: &common::TestApp, csrf: &str, body: Value) -> Status
         .status()
 }
 
-/// Given an admin with the general settings permission, When they write
-/// `dictation/config` through the generic settings API, Then it is refused:
-/// only the dictation endpoint (validated, guarded, audited) writes it.
-#[tokio::test]
-async fn the_generic_settings_route_cannot_write_dictation() {
-    let app = common::spawn_app().await;
-    let csrf = app.login_admin().await;
-    let resp = app
-        .client
-        .put(app.url("/api/setup/settings"))
-        .header("x-csrf-token", &csrf)
-        .json(&json!({ "category": "dictation", "key": "config",
-                       "value": { "stt_url": "http://evil.example" } }))
-        .send()
-        .await
-        .expect("put");
-    assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
-}
-
 /// Given an admin, When the cloud key secret names a server secret, or a
 /// local service points outside the hospital, Then the settings are refused;
 /// and a value written past the endpoint is ignored for the local defaults.
@@ -916,65 +897,6 @@ async fn a_closed_visit_takes_no_dictation() {
     assert_eq!(made, 0);
 }
 
-/// Given a config bundle that carries `dictation/config` (or `abdm`), When an
-/// admin imports it, dry run or not, Then the import is refused and nothing
-/// is written; and an export never carries those categories.
-#[tokio::test]
-async fn a_config_import_cannot_write_dictation() {
-    let app = common::spawn_app().await;
-    let csrf = app.login_admin().await;
-    for (category, dry_run) in [("dictation", false), ("dictation", true), ("abdm", false)] {
-        let resp = app
-            .client
-            .post(app.url("/api/setup/config-import"))
-            .header("x-csrf-token", &csrf)
-            .json(&json!({
-                "dry_run": dry_run,
-                "bundle": {
-                    "bundle_version": 1,
-                    "exported_at": "2026-11-08T00:00:00Z",
-                    "settings": [{ "category": category, "key": "config",
-                                   "value": { "stt_url": "http://evil.example" } }],
-                    "document_templates": [],
-                },
-            }))
-            .send()
-            .await
-            .expect("import");
-        assert_eq!(
-            resp.status(),
-            StatusCode::BAD_REQUEST,
-            "{category} dry_run={dry_run}"
-        );
-    }
-    let stored: i64 = sqlx::query_scalar(
-        "SELECT count(*) FROM tenant_settings \
-          WHERE category = 'dictation' AND value::text LIKE '%evil.example%' AND deleted_at IS NULL",
-    )
-    .fetch_one(&app.db)
-    .await
-    .expect("settings");
-    assert_eq!(stored, 0);
-
-    configure(&app, json!({ "stt_url": "http://127.0.0.1:8178" })).await;
-    let bundle: Value = app
-        .client
-        .get(app.url("/api/setup/config-export"))
-        .send()
-        .await
-        .expect("export")
-        .json()
-        .await
-        .expect("json");
-    let categories: Vec<&str> = bundle["settings"]
-        .as_array()
-        .expect("settings")
-        .iter()
-        .filter_map(|s| s["category"].as_str())
-        .collect();
-    assert!(!categories.contains(&"dictation") && !categories.contains(&"abdm"));
-}
-
 /// Given a logged AI suggestion outcome, When anyone changes what it records
 /// or removes it physically, Then the database refuses; a soft delete, which
 /// names who and why on the row, is the only change allowed.
@@ -1025,4 +947,100 @@ async fn an_ai_suggestion_outcome_cannot_be_changed() {
     .await
     .expect("a soft delete is allowed");
     assert!(soft.rows_affected() > 0);
+}
+
+/// Given an admin with the general settings permission, When they write any
+/// category that has its own endpoint (the whole guarded list, padded with
+/// whitespace too) through the generic settings route, Then each is refused
+/// and nothing is stored.
+#[tokio::test]
+async fn the_generic_settings_route_refuses_every_guarded_category() {
+    let app = common::spawn_app().await;
+    let csrf = app.login_admin().await;
+    let guarded = medbrains_server_core::settings_guard::OWN_ENDPOINT_CATEGORIES;
+    assert!(guarded.contains(&"dictation"), "dictation stays guarded");
+    for own in guarded {
+        for category in [(*own).to_owned(), format!(" {own} ")] {
+            let resp = app
+                .client
+                .put(app.url("/api/setup/settings"))
+                .header("x-csrf-token", &csrf)
+                .json(&json!({ "category": category, "key": "guard_probe",
+                               "value": { "url": "http://evil.example" } }))
+                .send()
+                .await
+                .expect("put");
+            assert_eq!(resp.status(), StatusCode::BAD_REQUEST, "{category:?}");
+        }
+    }
+    let stored: i64 = sqlx::query_scalar(
+        "SELECT count(*) FROM tenant_settings WHERE key = 'guard_probe' AND deleted_at IS NULL",
+    )
+    .fetch_one(&app.db)
+    .await
+    .expect("settings");
+    assert_eq!(stored, 0);
+}
+
+/// Given a config bundle carrying any guarded category, When an admin
+/// imports it, dry run or not, Then the import is refused and nothing is
+/// written; and an export never carries a guarded category.
+#[tokio::test]
+async fn a_config_import_refuses_every_guarded_category() {
+    let app = common::spawn_app().await;
+    let csrf = app.login_admin().await;
+    let guarded = medbrains_server_core::settings_guard::OWN_ENDPOINT_CATEGORIES;
+    for own in guarded {
+        for dry_run in [false, true] {
+            let resp = app
+                .client
+                .post(app.url("/api/setup/config-import"))
+                .header("x-csrf-token", &csrf)
+                .json(&json!({
+                    "dry_run": dry_run,
+                    "bundle": {
+                        "bundle_version": 1,
+                        "exported_at": "2026-11-08T00:00:00Z",
+                        "settings": [
+                            { "category": "units", "key": "guard_probe_ok", "value": "metric" },
+                            { "category": own, "key": "guard_probe",
+                              "value": { "url": "http://evil.example" } },
+                        ],
+                        "document_templates": [],
+                    },
+                }))
+                .send()
+                .await
+                .expect("import");
+            assert_eq!(resp.status(), StatusCode::BAD_REQUEST, "{own} dry_run={dry_run}");
+        }
+    }
+    let stored: i64 = sqlx::query_scalar(
+        "SELECT count(*) FROM tenant_settings \
+          WHERE key IN ('guard_probe', 'guard_probe_ok') AND deleted_at IS NULL",
+    )
+    .fetch_one(&app.db)
+    .await
+    .expect("settings");
+    assert_eq!(stored, 0, "a refused bundle writes nothing, not even its ordinary rows");
+
+    configure(&app, json!({ "stt_url": "http://127.0.0.1:8178" })).await;
+    let bundle: Value = app
+        .client
+        .get(app.url("/api/setup/config-export"))
+        .send()
+        .await
+        .expect("export")
+        .json()
+        .await
+        .expect("json");
+    let categories: Vec<&str> = bundle["settings"]
+        .as_array()
+        .expect("settings")
+        .iter()
+        .filter_map(|s| s["category"].as_str())
+        .collect();
+    for own in guarded {
+        assert!(!categories.contains(own), "export carried {own}");
+    }
 }

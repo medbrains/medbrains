@@ -111,7 +111,9 @@ pub async fn create_pool_with_config(
                      RESET app.ip_address; \
                      RESET app.user_agent; \
                      RESET app.session_id; \
-                     RESET app.correlation_id",
+                     RESET app.correlation_id; \
+                     RESET medbrains.signable_amendment; \
+                     RESET app.allow_physical_delete",
                 ))
                 .await?;
                 Ok(true)

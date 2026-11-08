@@ -4104,6 +4104,15 @@ pub mod ai {
 }
 
 pub mod nurse {
+    pub mod signature {
+        /// Sign own nursing entries.
+        ///
+        /// Put a digital signature on the medication administrations, vitals,
+        /// ICU chart entries, OT checklists, transfusions and triage this
+        /// nurse recorded. Needs a nurse profile with a licence number and a
+        /// fresh password step-up.
+        pub const SIGN: &str = "nurse.signature.sign";
+    }
     pub mod profile {
         pub const VIEW: &str = "nurse.profile.view";
         pub const MANAGE: &str = "nurse.profile.manage";

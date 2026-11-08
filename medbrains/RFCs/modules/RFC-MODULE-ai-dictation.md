@@ -118,7 +118,7 @@ the doctor did not say, that position must be reassessed first.
   while the visit is open.
 - Settings are written only through `/api/admin/dictation/settings`. Every
   generic writer (the settings route and the config import) calls one check,
-  `medbrains_server_core::settings_categories::refuse_own_endpoint_category`,
+  `medbrains_server_core::settings_guard::refuse_own_endpoint_category`,
   and refuses the `dictation` category; the config export leaves it out. The
   local speech and model addresses must be loopback or private (RFC 1918,
   IPv6 unique-local) IP literals or `localhost`. Link-local addresses are
