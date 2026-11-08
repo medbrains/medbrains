@@ -110,7 +110,8 @@ async fn the_store_recording_an_implant_the_registry_already_billed_cannot_bill_
     );
 
     // Named to that patient, it cannot be posted: the registry has one implant.
-    name(&db, &claims, id, w.v.patient).await.unwrap();
+    let named = name(&db, &claims, id, w.v.patient).await.unwrap().0;
+    assert_eq!(named.patient_id, Some(w.v.patient));
     let posted = post_charge_attention(State(state(db.clone())), Extension(claims), Path(id)).await;
     assert!(matches!(posted, Err(AppError::Conflict(_))), "{posted:?}");
     assert_eq!(
