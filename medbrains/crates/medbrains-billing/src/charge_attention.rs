@@ -288,8 +288,8 @@ pub async fn charge_attention_summary(
 /// onto the patient's bill.
 ///
 /// A charge that still fails answers the error and the item stays open. An
-/// unbilled order is checked again first, in this transaction: see
-/// `leakage::check_unbilled_order`.
+/// order or a use of stock is checked again first, in this transaction, and
+/// bills only what is left of it: see `leakage::check_before_post`.
 pub async fn post_charge_attention(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
@@ -305,11 +305,7 @@ pub async fn post_charge_attention(
             "Name the patient this implant was used on first.".to_owned(),
         ));
     };
-    if item.reason == crate::leakage::REASON_UNBILLED_ORDER
-        || item.reason == crate::leakage::REASON_UNBILLED_CONSUMPTION
-    {
-        tx = crate::leakage::check_unbilled_order(tx, &claims, &item).await?;
-    }
+    let (mut tx, quantity) = crate::leakage::check_before_post(tx, &claims, &item).await?;
     let req = ChargeRequest {
         tenant_id: claims.tenant_id,
         requested_by: claims.sub,
@@ -320,7 +316,7 @@ pub async fn post_charge_attention(
             charge_code: item.charge_code.clone(),
             source: item.source_module.clone(),
             source_id: item.source_entity_id,
-            quantity: item.quantity,
+            quantity,
             description_override: item.description_override.clone(),
             unit_price_override: item.unit_price_override,
             tax_percent_override: item.tax_percent_override,

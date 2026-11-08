@@ -71,7 +71,7 @@ macro_rules! consumed_sql {
            FROM ward_stock_consumptions w \
            JOIN pharmacy_catalog c ON c.id = w.catalog_item_id AND c.tenant_id = w.tenant_id \
           WHERE w.tenant_id = $1 AND w.deleted_at IS NULL AND w.patient_id IS NOT NULL \
-            AND c.is_patient_billable \
+            AND w.is_billable \
          UNION ALL \
          SELECT 'consumable', m.id, m.patient_id, NULL::uuid, m.department_id, sc.code, \
                 ARRAY[sc.code], sc.name, \
@@ -236,7 +236,7 @@ macro_rules! recheck_sql {
             $done!(),
             ") SELECT ",
             billed_sql!(),
-            " AS billed FROM done d WHERE d.module = $2 AND d.order_id = $3"
+            " AS billed, d.quantity FROM done d WHERE d.module = $2 AND d.order_id = $3"
         )
     };
 }

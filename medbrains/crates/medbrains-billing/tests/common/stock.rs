@@ -84,16 +84,23 @@ pub(crate) async fn ward_item(
 
 /// A consignment batch `K-77` of 3 knee implants at ₹85,000. Returns the batch.
 pub(crate) async fn consignment(db: &PgPool, v: &Visit) -> Uuid {
+    consignment_priced(db, v, 85_000).await
+}
+
+/// A consignment batch `K-77` of 3 knee implants (store item `LKKNEE`, 3 on
+/// hand) at ₹`price`. Returns the batch.
+pub(crate) async fn consignment_priced(db: &PgPool, v: &Visit, price: i64) -> Uuid {
     let mut tx = scoped(db, v.tenant).await;
     let batch = sqlx::query_scalar(
         "WITH item AS (INSERT INTO store_catalog (tenant_id, code, name, base_price, \
                          current_stock, is_implant) \
-                       VALUES ($1, 'LKKNEE', 'Knee implant', 85000, 3, true) RETURNING id) \
+                       VALUES ($1, 'LKKNEE', 'Knee implant', $2, 3, true) RETURNING id) \
          INSERT INTO batch_stock (tenant_id, catalog_item_id, batch_number, quantity, \
            unit_cost, is_consignment) \
          SELECT $1, id, 'K-77', 3, 60000, true FROM item RETURNING id",
     )
     .bind(v.tenant)
+    .bind(Decimal::from(price))
     .fetch_one(&mut *tx)
     .await
     .unwrap();
@@ -102,11 +109,17 @@ pub(crate) async fn consignment(db: &PgPool, v: &Visit) -> Uuid {
 }
 
 /// Make every charge line whose code starts `LKFAIL` fail, as a database
-/// fault would. Idempotent; affects no other code.
+/// fault would, until [`lift_fault`] lifts it for one code. Idempotent;
+/// affects no other code.
 pub(crate) async fn refuse_failing_codes(db: &PgPool) {
+    sqlx::query("CREATE TABLE IF NOT EXISTS test_lifted_faults (code text PRIMARY KEY)")
+        .execute(db)
+        .await
+        .unwrap();
     sqlx::query(
         "CREATE OR REPLACE FUNCTION test_refuse_lkfail() RETURNS trigger LANGUAGE plpgsql AS \
-         $$ BEGIN IF NEW.charge_code LIKE 'LKFAIL%' THEN \
+         $$ BEGIN IF NEW.charge_code LIKE 'LKFAIL%' AND NOT EXISTS \
+              (SELECT 1 FROM test_lifted_faults f WHERE f.code = NEW.charge_code) THEN \
               RAISE EXCEPTION 'injected charge fault'; END IF; RETURN NEW; END $$",
     )
     .execute(db)
@@ -121,10 +134,54 @@ pub(crate) async fn refuse_failing_codes(db: &PgPool) {
     .unwrap();
 }
 
+/// Let charges under `code` post again: the fault is over.
+pub(crate) async fn lift_fault(db: &PgPool, code: &str) {
+    sqlx::query("INSERT INTO test_lifted_faults (code) VALUES ($1) ON CONFLICT DO NOTHING")
+        .bind(code)
+        .execute(db)
+        .await
+        .unwrap();
+}
+
+/// A store item `code` at ₹`price` with `stock` on hand. Returns it.
+pub(crate) async fn store_item(db: &PgPool, v: &Visit, code: &str, price: i64) -> Uuid {
+    let mut tx = scoped(db, v.tenant).await;
+    let id = sqlx::query_scalar(
+        "INSERT INTO store_catalog (tenant_id, code, name, base_price, current_stock) \
+         VALUES ($1, $2, $2 || ' item', $3, 20) RETURNING id",
+    )
+    .bind(v.tenant)
+    .bind(code)
+    .bind(Decimal::from(price))
+    .fetch_one(&mut *tx)
+    .await
+    .unwrap();
+    tx.commit().await.unwrap();
+    id
+}
+
+/// The catalogue count of a store item.
+pub(crate) async fn store_stock(db: &PgPool, item: Uuid) -> i32 {
+    sqlx::query_scalar("SELECT current_stock FROM store_catalog WHERE id = $1")
+        .bind(item)
+        .fetch_one(db)
+        .await
+        .unwrap()
+}
+
+/// A code that fails until lifted, unique to the caller.
+pub(crate) fn failing_code() -> String {
+    format!("LKFAIL{}", &Uuid::new_v4().simple().to_string()[..8]).to_uppercase()
+}
+
 /// Move every stock record of the tenant `hours` into the past, past the
 /// detector's grace window.
 pub(crate) async fn age_stock(db: &PgPool, tenant: Uuid, hours: i32) {
-    for table in ["ward_stock_consumptions", "store_stock_movements"] {
+    for table in [
+        "ward_stock_consumptions",
+        "store_stock_movements",
+        "patient_consumable_issues",
+    ] {
         sqlx::query(&format!(
             "UPDATE {table} SET created_at = created_at - make_interval(hours => $2) \
               WHERE tenant_id = $1"

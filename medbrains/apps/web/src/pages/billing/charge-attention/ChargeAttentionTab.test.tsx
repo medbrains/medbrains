@@ -218,6 +218,30 @@ describe("stock used on a patient and implants with no patient", () => {
     );
   });
 
+  it("offers to change a named implant's patient, and will not post a ₹0 implant", async () => {
+    for (const p of LEAKAGE) held.add(p);
+    service.listChargeAttention.mockResolvedValue({
+      data: [
+        implantRow({ patient_id: "patient-9", patient_name: "Ravi K", uhid: "UH-9" }),
+        implantRow({
+          id: "row-free",
+          patient_id: "patient-9",
+          patient_name: "Ravi K",
+          uhid: "UH-9",
+          unit_price_override: "0.00",
+          amount: "0.00",
+        }),
+      ],
+      meta: { total: 2, page: 1, limit: 25 },
+    });
+    render(<ChargeAttentionTab />);
+    const change = await screen.findAllByRole("button", { name: "Change patient" });
+    expect(change).toHaveLength(2);
+    const posts = screen.getAllByRole("button", { name: "Post charge" });
+    expect(posts[0]).toBeEnabled();
+    expect(posts[1]).toBeDisabled();
+  });
+
   it("lets the leakage desk, and only it, post stock used and never billed", async () => {
     held.add("billing.leakage.view");
     held.add("billing.charge_attention.view");

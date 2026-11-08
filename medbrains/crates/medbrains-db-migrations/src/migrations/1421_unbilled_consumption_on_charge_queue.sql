@@ -41,6 +41,10 @@ CREATE TABLE public.ward_stock_consumptions (
     patient_id uuid REFERENCES public.patients(id),
     encounter_id uuid REFERENCES public.encounters(id),
     admission_id uuid REFERENCES public.admissions(id),
+    -- Billable at the moment of use: a patient named and the drug marked
+    -- billable then. The detector reads this, so switching an item on later
+    -- never bills old uses.
+    is_billable boolean NOT NULL DEFAULT false,
     consumed_by uuid NOT NULL REFERENCES public.users(id),
     created_at timestamptz NOT NULL DEFAULT now(),
     deleted_at timestamptz,

@@ -12,6 +12,7 @@ import {
   isLeakageReason,
   moduleLabel,
   NO_TARIFF,
+  REASON_IMPLANT_NO_PATIENT,
   reasonLabel,
   rupees,
   STATUS_LABEL,
@@ -36,14 +37,19 @@ interface ColumnOptions {
 
 /**
  * Post and dismiss buttons, only on an open item and only for its kind's
- * resolver; an implant with no patient offers "Name patient" before Post.
+ * resolver; an implant used without a patient offers "Name patient" before
+ * Post, and "Change patient" while it is open (a wrong pick).
  */
 function Actions({ row, o }: { row: ChargeAttentionItem; o: ColumnOptions }) {
   const allowed = isLeakageReason(row.reason) ? o.canResolveUnbilled : o.canResolve;
   if (row.status !== "open" || !allowed) return null;
-  // An unbilled row with no tariff would post ₹0; the server refuses it too.
-  const unpriced = isDetectedReason(row.reason) && row.unit_price_override === null;
+  const implant = row.reason === REASON_IMPLANT_NO_PATIENT;
+  // A row with no tariff would post ₹0; the server refuses it too.
+  const unpriced =
+    (isDetectedReason(row.reason) || implant) &&
+    (row.unit_price_override === null || (implant && Number(row.unit_price_override) === 0));
   const unnamed = row.patient_id === null;
+  const nameLabel = unnamed ? "Name patient" : "Change patient";
   const postBlocked = unpriced || unnamed;
   const postHint = unnamed
     ? "Name the patient first"
@@ -52,11 +58,11 @@ function Actions({ row, o }: { row: ChargeAttentionItem; o: ColumnOptions }) {
       : "Post this charge to the patient's bill";
   return (
     <Group gap={4} wrap="nowrap">
-      {unnamed && (
+      {implant && (
         <Tooltip label="Name the patient this implant was used on">
           <IconButton
             tone="primary"
-            aria-label="Name patient"
+            aria-label={nameLabel}
             onClick={() => o.onAction("name_patient", row)}
           >
             <IconUserPlus size={16} />

@@ -19,7 +19,7 @@ use medbrains_server_core::error::AppError;
 pub use crate::charge_queue::{
     AutoBilling, ChargeOutcome, ChargeRequest, REASON_IMPLANT_NO_PATIENT,
     REASON_SETTING_UNREADABLE, charge_or_queue, post_charge, queue_patient_unknown,
-    read_auto_billing, settle_charges,
+    read_auto_billing, require_live_patient, settle_charges,
 };
 
 #[derive(Debug, Clone, Default)]

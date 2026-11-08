@@ -1,12 +1,13 @@
 //! A nurse uses ward stock, on a patient or on the ward.
 //!
-//! Every use is a `ward_stock_consumptions` row (migration 1421). When it was
-//! used on a named patient and the drug is marked `is_patient_billable`, the
-//! charge goes through `charge_or_queue` (setting `auto_charge_ward_stock`):
-//! posted to the admission's bill, or queued for the desk when it cannot be
-//! posted. The use itself always saves. An item the hospital treats as
-//! overhead, or one a billing package on the patient's bill already includes,
-//! is not charged.
+//! Every use is a `ward_stock_consumptions` row (migration 1421). It records,
+//! at the moment of use, whether the use is billable: used on a named patient
+//! and the drug marked `is_patient_billable`. Turning the flag on later never
+//! bills old uses. A billable use is charged through `charge_or_queue`
+//! (setting `auto_charge_ward_stock`): posted to the admission's bill, or
+//! queued for the desk when it cannot be posted. One a billing package on the
+//! patient's bill already includes is not charged. The use itself always
+//! saves, even when the billing lookups fail: the daily check raises it then.
 
 use axum::Json;
 use axum::extract::{Extension, State};
@@ -16,7 +17,7 @@ use medbrains_server_core::error::AppError;
 use medbrains_server_core::middleware::auth::Claims;
 use medbrains_server_core::state::AppState;
 use medbrains_server_services::billing::{
-    AutoChargeInput, ChargeOutcome, ChargeRequest, charge_or_queue,
+    AutoChargeInput, ChargeOutcome, ChargeRequest, charge_or_queue, require_live_patient,
 };
 use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
@@ -49,6 +50,8 @@ pub enum ConsumeCharge {
     Queued,
     /// The hospital has ward-stock billing switched off.
     Disabled,
+    /// The charge could not be worked out now; the daily check will raise it.
+    Deferred,
 }
 
 #[derive(Debug, Serialize)]
@@ -58,14 +61,13 @@ pub struct WardStockConsumeResponse {
     pub charge: ConsumeCharge,
 }
 
-/// The drug's billing identity and whether the hospital bills it to patients.
+/// The drug's billing identity.
 #[derive(Debug, sqlx::FromRow)]
 struct Item {
     code: String,
     name: String,
     base_price: Decimal,
     tax_percent: Decimal,
-    is_patient_billable: bool,
 }
 
 /// `POST /api/pharmacy/ward-stock/consume` — record a use of ward stock and,
@@ -85,14 +87,18 @@ pub async fn consume_ward_stock(
             .await?;
     }
     let mut tx = medbrains_kernel::begin(&state.db, Actor::from_claims(&claims)).await?;
-    let remaining = take_from_ward(&mut tx, claims.tenant_id, &body).await?;
     let admission = match body.patient_id {
-        Some(p) => active_admission(&mut tx, claims.tenant_id, p).await?,
+        Some(p) => {
+            require_live_patient(&mut tx, claims.tenant_id, p).await?;
+            active_admission(&mut tx, claims.tenant_id, p).await?
+        }
         None => None,
     };
-    let consumption_id = record_use(&mut tx, &claims, &body, admission).await?;
+    let remaining = take_from_ward(&mut tx, claims.tenant_id, &body).await?;
+    let (consumption_id, is_billable) = record_use(&mut tx, &claims, &body, admission).await?;
     let charge = match body.patient_id {
         None => ConsumeCharge::WardUse,
+        Some(_) if !is_billable => ConsumeCharge::NotBillable,
         Some(patient_id) => {
             let use_ = Use {
                 id: consumption_id,
@@ -151,17 +157,21 @@ async fn active_admission(
 }
 
 /// Write the use: the record the charge, the detector and the shrinkage
-/// check all read.
+/// check all read. Snapshots, now, whether it is billable. Returns its id
+/// and that answer.
 async fn record_use(
     conn: &mut PgConnection,
     claims: &Claims,
     body: &WardStockConsumeRequest,
     admission: Option<(Uuid, Uuid)>,
-) -> Result<Uuid, AppError> {
-    Ok(sqlx::query_scalar(
+) -> Result<(Uuid, bool), AppError> {
+    Ok(sqlx::query_as(
         "INSERT INTO ward_stock_consumptions (tenant_id, department_id, catalog_item_id, \
-           quantity, patient_id, encounter_id, admission_id, consumed_by) \
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id",
+           quantity, patient_id, encounter_id, admission_id, consumed_by, is_billable) \
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, \
+           $5::uuid IS NOT NULL AND COALESCE((SELECT c.is_patient_billable \
+             FROM pharmacy_catalog c WHERE c.id = $3 AND c.tenant_id = $1), false)) \
+         RETURNING id, is_billable",
     )
     .bind(claims.tenant_id)
     .bind(body.department_id)
@@ -175,7 +185,7 @@ async fn record_use(
     .await?)
 }
 
-/// One use on a patient, as the charge needs it.
+/// One billable use on a patient, as the charge needs it.
 #[derive(Debug, Clone, Copy)]
 struct Use {
     id: Uuid,
@@ -185,21 +195,36 @@ struct Use {
     quantity: i32,
 }
 
-/// Charge the use through `charge_or_queue` when the item is billable and no
-/// package on the admission's bill includes it.
+/// Charge a billable use through `charge_or_queue`, unless a package on the
+/// admission's bill includes it. Every billing step runs in one savepoint: a
+/// failed lookup rolls back only the charge, never the nurse's use.
 async fn charge_use(
     tx: &mut medbrains_kernel::Tx,
     claims: &Claims,
     catalog_item_id: Uuid,
     use_: Use,
 ) -> Result<ConsumeCharge, AppError> {
-    let item = item(tx, claims.tenant_id, catalog_item_id).await?;
     let encounter_id = use_.admission.map(|a| a.1);
-    if !item.is_patient_billable
-        || in_package(tx, claims.tenant_id, encounter_id, &item.code).await?
-    {
-        return Ok(ConsumeCharge::NotBillable);
-    }
+    let mut savepoint = sqlx::Acquire::begin(&mut **tx).await?;
+    let lookup = price_use(
+        &mut savepoint,
+        claims.tenant_id,
+        catalog_item_id,
+        encounter_id,
+    )
+    .await;
+    let item = match lookup {
+        Ok(Some(item)) => item,
+        Ok(None) => {
+            savepoint.commit().await?;
+            return Ok(ConsumeCharge::NotBillable);
+        }
+        Err(error) => {
+            savepoint.rollback().await?;
+            tracing::warn!(%error, consumption = %use_.id, "ward-stock charge deferred to the daily check");
+            return Ok(ConsumeCharge::Deferred);
+        }
+    };
     let req = ChargeRequest {
         tenant_id: claims.tenant_id,
         requested_by: claims.sub,
@@ -218,8 +243,6 @@ async fn charge_use(
         },
         apply_concessions: true,
     };
-    // A savepoint on the unit of work: the billing helpers take a transaction.
-    let mut savepoint = sqlx::Acquire::begin(&mut **tx).await?;
     let outcome = charge_or_queue(&mut savepoint, req).await?;
     savepoint.commit().await?;
     Ok(match outcome {
@@ -234,10 +257,24 @@ async fn charge_use(
     })
 }
 
+/// The item to charge, or `None` when a package on the bill includes it.
+async fn price_use(
+    conn: &mut PgConnection,
+    tenant_id: Uuid,
+    catalog_item_id: Uuid,
+    encounter_id: Option<Uuid>,
+) -> Result<Option<Item>, AppError> {
+    let item = item(conn, tenant_id, catalog_item_id).await?;
+    if in_package(conn, tenant_id, encounter_id, &item.code).await? {
+        return Ok(None);
+    }
+    Ok(Some(item))
+}
+
 /// The drug's billing identity.
 async fn item(conn: &mut PgConnection, tenant_id: Uuid, id: Uuid) -> Result<Item, AppError> {
     sqlx::query_as(
-        "SELECT code, name, base_price, tax_percent, is_patient_billable \
+        "SELECT code, name, base_price, tax_percent \
            FROM pharmacy_catalog WHERE id = $1 AND tenant_id = $2",
     )
     .bind(id)

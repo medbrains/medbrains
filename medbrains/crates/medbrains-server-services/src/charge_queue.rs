@@ -183,6 +183,29 @@ pub const fn reason_for(error: &AppError) -> &'static str {
     }
 }
 
+/// Refuse (404) a patient who is not this hospital's or has been deleted,
+/// before a stock record or a charge names them. A bypass role skips the
+/// access gate, so the gate alone does not prove the id is real.
+pub async fn require_live_patient(
+    conn: &mut sqlx::PgConnection,
+    tenant_id: Uuid,
+    patient_id: Uuid,
+) -> Result<(), AppError> {
+    let live: bool = sqlx::query_scalar(
+        "SELECT EXISTS (SELECT 1 FROM patients \
+          WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL)",
+    )
+    .bind(patient_id)
+    .bind(tenant_id)
+    .fetch_one(&mut *conn)
+    .await?;
+    if live {
+        Ok(())
+    } else {
+        Err(AppError::NotFound)
+    }
+}
+
 /// Queue a charge whose patient nobody named: an implant used on no one.
 ///
 /// Queued whatever the auto-billing setting says: the implant is the

@@ -27,15 +27,16 @@ use medbrains_server_core::middleware::authorization::{
 };
 use medbrains_server_services::billing::{
     AutoChargeInput, ChargeOutcome, ChargeRequest, auto_charge, charge_or_queue,
-    queue_patient_unknown,
+    reverse_auto_charge_quantity_for_source,
 };
+
+pub mod consignment;
+pub mod implants;
+
+pub use consignment::{ConsignmentUsageRequest, record_consignment_usage};
 
 /// `auto_charge_consumable`: consumables issued to a patient from the store.
 const SETTING_CONSUMABLE: &str = "consumable";
-/// `auto_charge_consignment`: vendor-owned stock used on a patient.
-const SETTING_CONSIGNMENT: &str = "consignment";
-/// `auto_charge_implant`: an implant entered in the registry.
-const SETTING_IMPLANT: &str = "implant";
 use medbrains_server_core::state::AppState;
 
 // ══════════════════════════════════════════════════════════
@@ -2193,6 +2194,22 @@ pub async fn return_to_store(
                 },
             )
             .await?;
+        } else if issue.is_chargeable {
+            // Not billed yet: its charge is on the queue (failed, or found by
+            // the daily check). Lower it by what came back, or dismiss it when
+            // all of it did, so the desk cannot bill returned stock.
+            reverse_auto_charge_quantity_for_source(
+                &mut tx,
+                &claims.tenant_id,
+                "consumable",
+                issue.id,
+                Some(body.quantity),
+                claims.sub,
+                "Returned to store",
+                "consumable",
+                movement.id,
+            )
+            .await?;
         }
     }
 
@@ -2223,140 +2240,6 @@ pub async fn list_consignment_stock(
 
     tx.commit().await?;
     Ok(Json(batches))
-}
-
-// ══════════════════════════════════════════════════════════
-//  POST /api/indent/consignment-usage
-// ══════════════════════════════════════════════════════════
-
-#[derive(Debug, Deserialize)]
-pub struct ConsignmentUsageRequest {
-    pub batch_stock_id: Uuid,
-    pub quantity: i32,
-    pub patient_id: Option<Uuid>,
-    pub encounter_id: Option<Uuid>,
-    pub admission_id: Option<Uuid>,
-    pub notes: Option<String>,
-}
-
-pub async fn record_consignment_usage(
-    State(state): State<AppState>,
-    Extension(claims): Extension<Claims>,
-    Json(body): Json<ConsignmentUsageRequest>,
-) -> Result<Json<StoreStockMovement>, AppError> {
-    require_permission(&claims, permissions::indent::STOCK_MANAGE)?;
-    // patient_id is optional — consignment stock moves without being used
-    // on anybody — so the guard covers only the case where one is named.
-    if let Some(pid) = body.patient_id {
-        medbrains_authz_gate::require_patient_access(&state, &claims, pid).await?;
-    }
-
-    if body.quantity <= 0 {
-        return Err(AppError::BadRequest("Quantity must be positive".into()));
-    }
-
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
-
-    // Get batch to find catalog_item_id
-    let batch = sqlx::query_as::<_, medbrains_core::procurement::BatchStock>(
-        "SELECT * FROM batch_stock WHERE id = $1 AND tenant_id = $2 AND is_consignment = true",
-    )
-    .bind(body.batch_stock_id)
-    .bind(claims.tenant_id)
-    .fetch_optional(&mut *tx)
-    .await?
-    .ok_or_else(|| AppError::BadRequest("Consignment batch not found".into()))?;
-
-    // Decrement batch stock
-    sqlx::query(
-        "UPDATE batch_stock SET quantity = quantity - $1, updated_at = now() \
-         WHERE id = $2 AND tenant_id = $3",
-    )
-    .bind(body.quantity)
-    .bind(body.batch_stock_id)
-    .bind(claims.tenant_id)
-    .execute(&mut *tx)
-    .await?;
-
-    // Decrement catalog stock, returning the item's billing identity +
-    // selling price (the patient is billed the catalog price, not the
-    // vendor's unit_cost).
-    let (item_code, item_name, base_price) = sqlx::query_as::<_, (String, String, Decimal)>(
-        "UPDATE store_catalog SET current_stock = current_stock - $1, \
-         last_issue_date = now(), updated_at = now() \
-         WHERE id = $2 AND tenant_id = $3 RETURNING code, name, base_price",
-    )
-    .bind(body.quantity)
-    .bind(batch.catalog_item_id)
-    .bind(claims.tenant_id)
-    .fetch_one(&mut *tx)
-    .await?;
-
-    let movement = sqlx::query_as::<_, StoreStockMovement>(
-        "INSERT INTO store_stock_movements \
-         (tenant_id, catalog_item_id, movement_type, quantity, \
-          batch_stock_id, patient_id, reference_type, notes, created_by) \
-         VALUES ($1,$2,'issue',$3,$4,$5,'consignment_usage',$6,$7) RETURNING *",
-    )
-    .bind(claims.tenant_id)
-    .bind(batch.catalog_item_id)
-    .bind(-body.quantity)
-    .bind(body.batch_stock_id)
-    .bind(body.patient_id)
-    .bind(&body.notes)
-    .bind(claims.sub)
-    .fetch_one(&mut *tx)
-    .await?;
-
-    // Bill on use — the defining property of consignment (vendor-owned)
-    // stock. Keyed on the usage movement (which keeps the batch, so the
-    // vendor) for idempotency; lands on the encounter/admission bill when
-    // provided, else a patient-only draft. A charge that cannot post is
-    // queued; a use with no patient named is queued as
-    // `implant_no_patient` for the desk to name one — never skipped.
-    let mut req = ChargeRequest {
-        tenant_id: claims.tenant_id,
-        requested_by: claims.sub,
-        setting_module: SETTING_CONSIGNMENT,
-        charge: AutoChargeInput {
-            patient_id: body.patient_id.unwrap_or_default(),
-            encounter_id: body.encounter_id,
-            charge_code: item_code,
-            source: "consumable".into(),
-            source_id: movement.id,
-            quantity: body.quantity,
-            description_override: Some(format!(
-                "Consignment: {item_name} · batch {}",
-                batch.batch_number
-            )),
-            unit_price_override: Some(base_price),
-            tax_percent_override: None,
-        },
-        apply_concessions: false,
-    };
-    let Some(patient_id) = body.patient_id else {
-        queue_patient_unknown(&mut tx, &req).await?;
-        tx.commit().await?;
-        return Ok(Json(movement));
-    };
-    req.charge.patient_id = patient_id;
-    if let ChargeOutcome::Posted(charge) = charge_or_queue(&mut tx, req).await?
-        && let Some(admission_id) = body.admission_id
-    {
-        sqlx::query(
-            "UPDATE invoices SET admission_id = COALESCE(admission_id, $1), updated_at = now() \
-             WHERE id = $2 AND tenant_id = $3",
-        )
-        .bind(admission_id)
-        .bind(charge.invoice_id)
-        .bind(claims.tenant_id)
-        .execute(&mut *tx)
-        .await?;
-    }
-
-    tx.commit().await?;
-    Ok(Json(movement))
 }
 
 // ══════════════════════════════════════════════════════════
@@ -2400,88 +2283,6 @@ pub async fn list_implant_registry(
 
     tx.commit().await?;
     Ok(Json(rows))
-}
-
-pub async fn create_implant_entry(
-    State(state): State<AppState>,
-    Extension(claims): Extension<Claims>,
-    Json(body): Json<CreateImplantRequest>,
-) -> Result<Json<ImplantRegistryEntry>, AppError> {
-    require_permission(&claims, permissions::indent::IMPLANTS_MANAGE)?;
-    // The implant registry is a lifetime, recallable record of what is
-    // inside a named person.
-    medbrains_authz_gate::require_patient_access(&state, &claims, body.patient_id).await?;
-
-    let implant_date = NaiveDate::parse_from_str(&body.implant_date, "%Y-%m-%d")
-        .map_err(|_| AppError::BadRequest("Invalid implant_date format".into()))?;
-    let warranty = body
-        .warranty_expiry
-        .as_deref()
-        .and_then(|d| NaiveDate::parse_from_str(d, "%Y-%m-%d").ok());
-
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
-
-    let entry = sqlx::query_as::<_, ImplantRegistryEntry>(
-        "INSERT INTO implant_registry \
-         (tenant_id, catalog_item_id, batch_stock_id, patient_id, serial_number, \
-          implant_date, implant_site, surgeon_id, manufacturer, model_number, \
-          warranty_expiry, notes) \
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12) RETURNING *",
-    )
-    .bind(claims.tenant_id)
-    .bind(body.catalog_item_id)
-    .bind(body.batch_stock_id)
-    .bind(body.patient_id)
-    .bind(&body.serial_number)
-    .bind(implant_date)
-    .bind(&body.implant_site)
-    .bind(body.surgeon_id)
-    .bind(&body.manufacturer)
-    .bind(&body.model_number)
-    .bind(warranty)
-    .bind(&body.notes)
-    .fetch_one(&mut *tx)
-    .await?;
-
-    // Decrement stock + get the item's billing details.
-    let (item_code, item_name, base_price) = sqlx::query_as::<_, (String, String, Decimal)>(
-        "UPDATE store_catalog SET current_stock = current_stock - 1, \
-         last_issue_date = now(), updated_at = now() \
-         WHERE id = $1 AND tenant_id = $2 RETURNING code, name, base_price",
-    )
-    .bind(body.catalog_item_id)
-    .bind(claims.tenant_id)
-    .fetch_one(&mut *tx)
-    .await?;
-
-    // Auto-charge the implant (was a silent revenue leak — implants are big-ticket).
-    // Patient-only draft (the registry carries no encounter link); idempotent by entry id.
-    // A charge that cannot post is queued; the registry entry still saves.
-    charge_or_queue(
-        &mut tx,
-        ChargeRequest {
-            tenant_id: claims.tenant_id,
-            requested_by: claims.sub,
-            setting_module: SETTING_IMPLANT,
-            charge: AutoChargeInput {
-                patient_id: body.patient_id,
-                encounter_id: None,
-                charge_code: item_code,
-                source: "ot".into(),
-                source_id: entry.id,
-                quantity: 1,
-                description_override: Some(format!("Implant: {item_name}")),
-                unit_price_override: Some(base_price),
-                tax_percent_override: None,
-            },
-            apply_concessions: false,
-        },
-    )
-    .await?;
-
-    tx.commit().await?;
-    Ok(Json(entry))
 }
 
 pub async fn update_implant_entry(
@@ -2537,6 +2338,7 @@ pub async fn update_implant_entry(
 //  Condemnations
 // ══════════════════════════════════════════════════════════
 
+/// `GET /api/indent/condemnations`: the equipment condemnation requests.
 pub async fn list_condemnations(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
@@ -2662,6 +2464,7 @@ pub async fn update_condemnation_status(
 //  Reorder Alerts
 // ══════════════════════════════════════════════════════════
 
+/// Raise reorder alerts for store items at or below their reorder level.
 pub async fn check_reorder_alerts(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
@@ -2899,7 +2702,7 @@ pub fn router() -> axum::Router<AppState> {
         // ── Indent Assets & Implants ─────────────────────
         .route(
             "/api/indent/implant-registry",
-            get(list_implant_registry).post(create_implant_entry),
+            get(list_implant_registry).post(implants::create_implant_entry),
         )
         .route("/api/indent/implant-registry/{id}", put(update_implant_entry))
         .route(

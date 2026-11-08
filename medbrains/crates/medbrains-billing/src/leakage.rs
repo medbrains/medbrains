@@ -126,79 +126,125 @@ async fn ran_recently(conn: &mut PgConnection, tenant_id: Uuid) -> Result<bool, 
     .await?)
 }
 
-/// Where an unbilled order stands when the desk posts it.
+/// Where a queued order or use of stock stands when the desk posts it.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum OrderNow {
-    /// Still done, and no bill carries it.
-    Unbilled,
+    /// Still done, and no bill carries it; how many are still to bill (net
+    /// of returns, for stock).
+    Unbilled(i32),
     /// A bill already carries it, by its id or by hand.
     Billed,
-    /// No longer done: cancelled, deleted or un-verified.
+    /// No longer stands: cancelled, deleted, un-verified, or all returned.
     Gone,
 }
 
 /// Re-run the detector's "done" and "already billed" checks for one order
-/// (or use of stock, by `reason`), in the caller's transaction, so posting
-/// cannot bill it twice.
+/// or (when `stock`) one use of stock, in the caller's transaction, so
+/// posting cannot bill it twice or bill what came back.
 pub(crate) async fn order_now(
     conn: &mut PgConnection,
     tenant_id: Uuid,
-    (reason, module): (&str, &str),
+    (stock, module): (bool, &str),
     order_id: Uuid,
 ) -> Result<OrderNow, AppError> {
-    let recheck = if reason == REASON_UNBILLED_CONSUMPTION {
+    let recheck = if stock {
         sql::RECHECK_CONSUMPTION
     } else {
         sql::RECHECK
     };
-    let billed: Option<bool> = sqlx::query_scalar(recheck)
+    let now: Option<(bool, i32)> = sqlx::query_as(recheck)
         .bind(tenant_id)
         .bind(module)
         .bind(order_id)
         .fetch_optional(&mut *conn)
         .await?;
-    Ok(match billed {
+    Ok(match now {
         None => OrderNow::Gone,
-        Some(true) => OrderNow::Billed,
-        Some(false) => OrderNow::Unbilled,
+        Some((true, _)) => OrderNow::Billed,
+        Some((false, quantity)) => OrderNow::Unbilled(quantity),
     })
 }
 
-/// Before an unbilled order is posted: it must have a price, still be done,
-/// and still be on no bill. A cancelled order's row is dismissed (committed)
-/// and the post answers 409; a billed one answers 409 and stays open for the
-/// desk to dismiss with that reason. Takes the unit of work so it can commit.
-pub(crate) async fn check_unbilled_order(
+/// Before a queued charge is posted, in the posting unit of work.
+///
+/// - A row the detector found, or an implant with no patient named, must
+///   carry a price (a ₹0 implant is "no tariff").
+/// - An order or a use of stock must still stand and be on no bill. Stock
+///   returned since it was queued posts only what is left (the row is
+///   lowered to match); all of it returned, or an order cancelled, dismisses
+///   the row (committed) and answers 409. One already billed answers 409 and
+///   stays open for the desk to dismiss with that reason.
+///
+/// Returns the unit of work and the quantity to bill.
+pub(crate) async fn check_before_post(
     mut tx: medbrains_kernel::Tx,
     claims: &Claims,
     item: &crate::charge_attention::ChargeAttentionItem,
-) -> Result<medbrains_kernel::Tx, AppError> {
-    if item.unit_price_override.is_none() {
+) -> Result<(medbrains_kernel::Tx, i32), AppError> {
+    let detected =
+        item.reason == REASON_UNBILLED_ORDER || item.reason == REASON_UNBILLED_CONSUMPTION;
+    let stock = item.reason == REASON_UNBILLED_CONSUMPTION || item.source_module == "consumable";
+    require_price(item, detected)?;
+    if !detected && !stock {
+        return Ok((tx, item.quantity));
+    }
+    let key = (stock, item.source_module.as_str());
+    match order_now(&mut tx, claims.tenant_id, key, item.source_entity_id).await? {
+        OrderNow::Unbilled(left) if left < item.quantity => {
+            lower_quantity(&mut tx, claims.tenant_id, item.id, left).await?;
+            Ok((tx, left))
+        }
+        OrderNow::Unbilled(_) => Ok((tx, item.quantity)),
+        OrderNow::Billed => Err(AppError::Conflict(
+            "This is already on a bill. Dismiss it with that reason.".to_owned(),
+        )),
+        OrderNow::Gone => {
+            let why = if stock {
+                "Stock returned or removed"
+            } else {
+                "Order cancelled"
+            };
+            crate::charge_attention::mark_dismissed(&mut tx, claims, item.id, why).await?;
+            tx.commit().await?;
+            Err(AppError::Conflict(format!(
+                "{why} since it was queued, so it has been dismissed."
+            )))
+        }
+    }
+}
+
+/// A found row or an implant with no patient named posts only with a price.
+fn require_price(
+    item: &crate::charge_attention::ChargeAttentionItem,
+    detected: bool,
+) -> Result<(), AppError> {
+    let implant = item.reason == medbrains_server_services::billing::REASON_IMPLANT_NO_PATIENT;
+    let unpriced = match item.unit_price_override {
+        None => detected || implant,
+        Some(price) => implant && price.is_zero(),
+    };
+    if unpriced {
         return Err(AppError::BadRequest(
             "Set a tariff for this service first.".to_owned(),
         ));
     }
-    let now = order_now(
-        &mut tx,
-        claims.tenant_id,
-        (item.reason.as_str(), item.source_module.as_str()),
-        item.source_entity_id,
-    )
-    .await?;
-    match now {
-        OrderNow::Unbilled => Ok(tx),
-        OrderNow::Billed => Err(AppError::Conflict(
-            "This order is already on a bill. Dismiss it with that reason.".to_owned(),
-        )),
-        OrderNow::Gone => {
-            crate::charge_attention::mark_dismissed(&mut tx, claims, item.id, "Order cancelled")
-                .await?;
-            tx.commit().await?;
-            Err(AppError::Conflict(
-                "This order was cancelled, so it has been dismissed.".to_owned(),
-            ))
-        }
-    }
+    Ok(())
+}
+
+/// Lower the queued quantity to what is left to bill.
+async fn lower_quantity(
+    conn: &mut PgConnection,
+    tenant_id: Uuid,
+    id: Uuid,
+    quantity: i32,
+) -> Result<(), AppError> {
+    sqlx::query("UPDATE charge_attention_items SET quantity = $3 WHERE id = $1 AND tenant_id = $2")
+        .bind(id)
+        .bind(tenant_id)
+        .bind(quantity)
+        .execute(&mut *conn)
+        .await?;
+    Ok(())
 }
 
 /// What one run of the check found.

@@ -22,6 +22,7 @@ export const CONSUME_CHARGE_TEXT: Record<WardStockConsumeCharge, string> = {
   posted: "Charged to the patient's bill.",
   queued: "The charge could not post; the billing desk has it.",
   disabled: "Not billed: ward-stock billing is off for this hospital.",
+  deferred: "The charge could not be worked out now; the daily check will send it to billing.",
 };
 
 export function WardStockPage() {
@@ -114,7 +115,8 @@ export function WardStockPage() {
     onSuccess: (r) => {
       void qc.invalidateQueries({ queryKey: ["ward-stock", dept] });
       const text = CONSUME_CHARGE_TEXT[r.charge];
-      if (r.charge === "queued") toast.warning(text, { title: "Consumption recorded" });
+      if (r.charge === "queued" || r.charge === "deferred")
+        toast.warning(text, { title: "Consumption recorded" });
       else toast.success(text, { title: "Consumption recorded" });
       consumeHandlers.close();
     },

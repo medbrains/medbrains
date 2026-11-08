@@ -46,6 +46,11 @@ export function NamePatientModal({ item, onClose }: NamePatientModalProps) {
     >
       <Stack>
         <Text size="sm">{item.description_override ?? item.charge_code}</Text>
+        {item.patient_id !== null && (
+          <Text size="sm">
+            Now named: {item.patient_name} · {item.uhid}. Pick the right patient to change it.
+          </Text>
+        )}
         <Text size="sm" c="dimmed">
           The store recorded this implant as used on no one. Name who received it, so it goes on
           their bill and the vendor's record says who has it.
