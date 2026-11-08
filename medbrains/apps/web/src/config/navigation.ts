@@ -998,6 +998,8 @@ export const NAV_GROUPS: NavGroupConfig[] = [
           "billing.day_close.verify",
           "billing.write_off.create",
           "billing.write_off.approve",
+          "billing.charge_attention.view",
+          "billing.charge_attention.resolve",
           "billing.audit.view",
           "billing.credit.list",
           "billing.credit.manage",

@@ -43,6 +43,7 @@ import { confirmDestructive } from "@/lib/confirm";
 import { statusColor } from "@/lib/status-colors";
 import { labService } from "@/services/lab.service";
 import { AddOnTestSection } from "./add-on-test";
+import { CriticalCall } from "./critical-call";
 import { CumulativeTrendDrawer } from "./cumulative-drawer";
 import {
   flagColors,
@@ -505,18 +506,21 @@ export function LabOrderDetail({
                   `lab.results.update`, which a nurse does not hold. They were
                   shown the NABH read-back control, typed the value a critical
                   result needs documenting against, and got a 403. */}
-              {canUpdateResults && (
-                <Button
-                  tone="subtle-danger"
-                  size="xs"
-                  onClick={() => {
-                    setReadback("");
-                    setAckAlert(a);
-                  }}
-                >
-                  Acknowledge
-                </Button>
-              )}
+              <Group gap="xs">
+                <CriticalCall alert={a} />
+                {canUpdateResults && (
+                  <Button
+                    tone="subtle-danger"
+                    size="xs"
+                    onClick={() => {
+                      setReadback("");
+                      setAckAlert(a);
+                    }}
+                  >
+                    Acknowledge
+                  </Button>
+                )}
+              </Group>
             </Group>
           ))}
         </Alert>

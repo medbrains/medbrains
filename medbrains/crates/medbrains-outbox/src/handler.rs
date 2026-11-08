@@ -54,6 +54,12 @@ pub enum HandlerError {
     /// Razorpay 400 `amount_too_small`, Twilio account suspended, etc.
     #[error("permanent: {0}")]
     Permanent(String),
+
+    /// Nothing acted on the event: no pipeline matched it, or nobody could be
+    /// reached. Terminal like `Permanent`, but recorded as `undelivered`
+    /// rather than `dlq`: nothing failed, and nothing was sent either.
+    #[error("undelivered: {0}")]
+    Undelivered(String),
 }
 
 #[async_trait]
