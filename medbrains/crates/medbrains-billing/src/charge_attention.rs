@@ -358,6 +358,11 @@ pub async fn dismiss_charge_attention(
     Json(body): Json<DismissRequest>,
 ) -> Result<Json<ChargeAttentionItem>, AppError> {
     let kinds = kinds(&claims, true)?;
+    if body.duplicate_usage {
+        // Returning stock is the store's job: a billing-only desk can dismiss,
+        // not restock. Checked before any row is read.
+        require_permission(&claims, permissions::indent::STOCK_MANAGE)?;
+    }
     let reason = body.reason.trim();
     if reason.chars().count() < 3 {
         return Err(AppError::BadRequest(

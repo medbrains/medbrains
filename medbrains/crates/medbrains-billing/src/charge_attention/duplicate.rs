@@ -10,7 +10,17 @@
 //! movements, nets out; puts the units back on the batch and the catalogue;
 //! and audits it, all in the dismissal's transaction. No other dismissal
 //! touches stock.
+//!
+//! A real usage must never be put back on the shelf, so before anything is
+//! written the reversal is refused (409) unless the implant registry has an
+//! entry for the batch within 3 days of the usage (the condition behind the
+//! "may be the same implant" hint), and, when the row names a patient, unless
+//! the patient keeps at least as many units as they have registry entries.
+//! Moving stock also needs the store's stock permission (`indent.stock.manage`):
+//! a billing-only desk can dismiss, not restock.
 
+use medbrains_core::permissions;
+use medbrains_kernel::require_permission;
 use medbrains_server_core::{error::AppError, middleware::auth::Claims};
 use medbrains_server_services::billing::REASON_IMPLANT_NO_PATIENT;
 use uuid::Uuid;
@@ -28,12 +38,15 @@ struct Usage {
     units: i32,
     /// Whether a reversal of it already exists.
     reversed: bool,
+    /// When the store recorded it.
+    created_at: chrono::DateTime<chrono::Utc>,
 }
 
 /// Reverse the row's usage record: a `+units` movement linked to it, the
 /// units back on the batch and the catalogue, and an audit entry. Refused
-/// (400) on any row but an implant used without a patient, and (409) when the
-/// record is gone or already reversed.
+/// (400) on any row but an implant used without a patient; (403) without the
+/// store's stock permission; (409) when the record is gone or already
+/// reversed, or when it cannot be shown to be a duplicate.
 pub(super) async fn reverse_usage(
     tx: &mut medbrains_kernel::Tx,
     claims: &Claims,
@@ -44,15 +57,70 @@ pub(super) async fn reverse_usage(
             "Only an implant used without a patient can be dismissed as a duplicate.".to_owned(),
         ));
     }
+    // Separation of privilege: billing decides the charge, the store moves stock.
+    require_permission(claims, permissions::indent::STOCK_MANAGE)?;
     let usage = lock_usage(tx, claims.tenant_id, item.source_entity_id).await?;
     if usage.reversed || usage.units < 1 {
         return Err(AppError::Conflict(
             "This usage record is already reversed.".to_owned(),
         ));
     }
+    require_registry_duplicate(tx, claims.tenant_id, &usage).await?;
     let reversal = write_reversal(tx, claims, item.source_entity_id, &usage).await?;
     give_back(tx, claims.tenant_id, &usage).await?;
     audit(tx, claims, item, &usage, reversal).await
+}
+
+/// What the registry says about the batch near the usage, and the patient.
+#[derive(Debug, sqlx::FromRow)]
+struct RegistryView {
+    /// A registry entry for the batch within 3 days of the usage.
+    near: bool,
+    /// The named patient's registry entries on the batch.
+    entries: i64,
+    /// The named patient's units of the batch, net of reversals.
+    units: i64,
+}
+
+/// Refuse (409) a reversal the registry does not back: no registry entry for
+/// the batch near the usage, or one that would leave the named patient with
+/// fewer units than registry entries (a usage the registry already claimed).
+async fn require_registry_duplicate(
+    conn: &mut sqlx::PgConnection,
+    tenant_id: Uuid,
+    usage: &Usage,
+) -> Result<(), AppError> {
+    let view: RegistryView = sqlx::query_as(
+        "SELECT EXISTS (SELECT 1 FROM implant_registry r WHERE r.tenant_id = $1 \
+                   AND r.batch_stock_id = $2 AND r.deleted_at IS NULL \
+                   AND r.implant_date BETWEEN $3::date - 3 AND $3::date + 3) AS near, \
+                (SELECT COUNT(*) FROM implant_registry r WHERE r.tenant_id = $1 \
+                   AND r.batch_stock_id = $2 AND r.patient_id = $4 \
+                   AND r.deleted_at IS NULL) AS entries, \
+                (SELECT COALESCE(SUM(-m.quantity), 0)::int8 FROM store_stock_movements m \
+                  WHERE m.tenant_id = $1 AND m.batch_stock_id = $2 AND m.patient_id = $4 \
+                    AND m.reference_type = 'consignment_usage' \
+                    AND m.deleted_at IS NULL) AS units",
+    )
+    .bind(tenant_id)
+    .bind(usage.batch_stock_id)
+    .bind(usage.created_at)
+    .bind(usage.patient_id)
+    .fetch_one(&mut *conn)
+    .await?;
+    if !view.near {
+        return Err(AppError::Conflict(
+            "No registry entry for this batch near this usage, so it is not a known \
+             duplicate. Dismiss it without returning stock."
+                .to_owned(),
+        ));
+    }
+    if usage.patient_id.is_some() && view.units - i64::from(usage.units) < view.entries {
+        return Err(AppError::Conflict(
+            "This usage is the patient's registry implant, not a duplicate.".to_owned(),
+        ));
+    }
+    Ok(())
 }
 
 /// The usage record, locked, with whether it is already reversed. 409 when
@@ -64,7 +132,7 @@ async fn lock_usage(
 ) -> Result<Usage, AppError> {
     sqlx::query_as(
         "SELECT m.catalog_item_id, m.batch_stock_id, m.patient_id, m.department_id, \
-                -m.quantity AS units, \
+                -m.quantity AS units, m.created_at, \
                 EXISTS (SELECT 1 FROM store_stock_movements r WHERE r.tenant_id = m.tenant_id \
                           AND r.reference_type = 'consignment_usage' AND r.reference_id = m.id \
                           AND r.quantity > 0 AND r.deleted_at IS NULL) AS reversed \
