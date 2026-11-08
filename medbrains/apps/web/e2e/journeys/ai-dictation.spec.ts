@@ -11,7 +11,7 @@
  */
 import { createServer, type Server } from "node:http";
 import type { AddressInfo } from "node:net";
-import { loginAsRoleApi } from "../helpers/api";
+import { api, loginAsRoleApi } from "../helpers/api";
 import { createEncounter, createPatientApi } from "../helpers/journey-steps";
 import { getOpdDept } from "../helpers/seed-resolvers";
 import { expectScreenAccessible } from "./support/a11y";
@@ -71,8 +71,17 @@ test("a doctor dictates by upload and only the accepted sections reach the note"
   test.setTimeout(120_000);
   const whisper = await fake(whisperReply);
   const model = await fake(modelReply);
+  let restoreSettings: (() => Promise<unknown>) | null = null;
   try {
-    await hospital.setting("dictation", "config", { stt_url: whisper.url, llm_url: model.url });
+    // Dictation settings have their own endpoint (validated and audited); the
+    // generic settings route refuses them. Put the hospital's back after.
+    const before = await api<Record<string, unknown>>(hospital.admin, "GET", "/api/admin/dictation/settings");
+    await api(hospital.admin, "PUT", "/api/admin/dictation/settings", {
+      ...before,
+      stt_url: whisper.url,
+      llm_url: model.url,
+    });
+    restoreSettings = () => api(hospital.admin, "PUT", "/api/admin/dictation/settings", before);
     const doctorCtx = await loginAsRoleApi(request, "doctor");
     const patient = await createPatientApi(hospital.admin);
     const encounterId = await createEncounter(doctorCtx, patient.id, {
@@ -127,10 +136,15 @@ test("a doctor dictates by upload and only the accepted sections reach the note"
     );
     await expect(page.getByLabel("Plan includes accepted AI text")).toBeVisible();
 
-    // The medicine is a suggestion on the pad, not a prescription.
+    // The medicine is a suggestion, not a prescription. This hospital's
+    // formulary has no drug by the spoken name, so the doctor is asked to pick
+    // one, with what they said read back; nothing is guessed for them.
     await page.getByRole("tab", { name: "Prescriptions" }).click();
-    await expect(page.getByRole("button", { name: /Add dictated medicines \(1\)/ })).toBeVisible();
+    await expect(page.getByText("Pick the drug for these dictated medicines")).toBeVisible();
+    await expect(page.getByText("Cetirizine 10 mg at night 5 days oral")).toBeVisible();
+    await expect(page.getByRole("textbox", { name: "Drug for Cetirizine" })).toBeVisible();
   } finally {
+    await restoreSettings?.();
     whisper.server.close();
     model.server.close();
   }

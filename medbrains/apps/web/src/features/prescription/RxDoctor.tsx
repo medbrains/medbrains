@@ -108,7 +108,7 @@ interface Props {
   /** The patient's last prescription from another visit, if any. */
   lastRx?: LastPrescription | null;
   /** Medicines the doctor accepted from a dictation, waiting to be loaded. */
-  dictated?: { items: RxItem[]; unmatched: string[]; onLoaded: () => void } | null;
+  dictated?: { items: RxItem[]; waiting: string[]; onLoaded: () => void } | null;
   /** Digital-sign control rendered in the card footer (provided when a saved Rx exists). */
   signAction?: ReactNode;
   /** Catalog ids already prescribed on this visit — warns (doesn't block) on re-add. */
@@ -234,13 +234,14 @@ export function RxDoctor({
       });
     }
   };
+  /** Load the dictated lines onto the pad, saying which still need a drug picked. */
   const loadDictated = () => {
     if (!dictated) return;
     loadItems(dictated.items);
-    if (dictated.unmatched.length > 0) {
+    if (dictated.waiting.length > 0) {
       notifications.show({
         title: "Not in the formulary",
-        message: `Prescribe by hand if needed: ${dictated.unmatched.join(", ")}`,
+        message: `Pick the drug above for: ${dictated.waiting.join(", ")}`,
         color: "yellow",
       });
     }
@@ -341,13 +342,13 @@ export function RxDoctor({
                 {reviewCount ? reviewCount : "clear"}
               </span>
             </Button>
-            {dictated && dictated.items.length + dictated.unmatched.length > 0 && (
+            {dictated && dictated.items.length > 0 && (
               <Button
                 tone="accent"
                 leftSection={<IconMicrophone size={15} aria-hidden />}
                 onClick={loadDictated}
               >
-                Add dictated medicines ({dictated.items.length + dictated.unmatched.length})
+                Add dictated medicines ({dictated.items.length})
               </Button>
             )}
             {lastRx && lastRx.items.length > 0 && (

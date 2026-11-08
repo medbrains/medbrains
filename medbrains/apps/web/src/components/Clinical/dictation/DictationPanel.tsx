@@ -35,6 +35,7 @@ function audioDuration(file: File): Promise<number> {
   return new Promise((resolve) => {
     const url = URL.createObjectURL(file);
     const audio = new Audio();
+    /** Settle once with the length read (or 0), releasing the object URL. */
     const done = (ms: number) => {
       clearTimeout(giveUp);
       audio.onloadedmetadata = null;
@@ -98,6 +99,7 @@ export function DictationPanel({ encounterId, notes }: DictationPanelProps) {
 
   if (!canDictate) return null;
 
+  /** Send an uploaded file, refusing one past the size or length limit first. */
   const upload = async (file: File | null) => {
     if (!file) return;
     if (file.size > MAX_UPLOAD_BYTES) {

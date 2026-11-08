@@ -9,6 +9,9 @@ use medbrains_kernel::{Actor, Claims, Tx};
 use medbrains_server_core::error::AppError;
 use medbrains_server_core::state::AppState;
 use serde::{Deserialize, Serialize};
+use uuid::Uuid;
+
+use crate::address::is_local_url;
 
 /// whisper.cpp's `whisper-server`, started on this port by the setup guide.
 const DEFAULT_STT_URL: &str = "http://127.0.0.1:8178";
@@ -16,6 +19,7 @@ const DEFAULT_STT_URL: &str = "http://127.0.0.1:8178";
 const DEFAULT_LLM_URL: &str = "http://127.0.0.1:11434";
 const DEFAULT_LLM_MODEL: &str = "llama3.2";
 const MAX_FIELD_CHARS: usize = 200;
+const MAX_SECRET_NAME_CHARS: usize = 40;
 
 /// The tenant's dictation services. Every field has a default, so a hospital
 /// that never opened the settings dictates against its own machine.
@@ -35,7 +39,9 @@ pub struct DictationConfig {
     pub cloud_url: Option<String>,
     #[serde(default)]
     pub cloud_model: Option<String>,
-    /// The name of the secret holding the cloud key, never the key itself.
+    /// A short name (`stt-key`) for the secret holding the cloud key, never
+    /// the key itself. It is always read from this tenant's own dictation
+    /// namespace ([`cloud_secret_path`]), so it cannot name another secret.
     #[serde(default)]
     pub cloud_api_key_secret: Option<String>,
 }
@@ -77,18 +83,60 @@ impl DictationConfig {
     /// # Errors
     /// `BadRequest` naming the field to fix.
     pub fn validate(&self) -> Result<(), AppError> {
-        require_url("Speech-to-text address", &self.stt_url, false)?;
-        require_url("Model address", &self.llm_url, false)?;
+        require_local("Speech-to-text address", &self.stt_url)?;
+        require_local("Model address", &self.llm_url)?;
         require_name("Model", &self.llm_model)?;
+        if let Some(name) = self.cloud_api_key_secret.as_deref() {
+            require_secret_name(name)?;
+        }
         if self.cloud_enabled {
             let url = self.cloud_url.as_deref().unwrap_or_default();
             require_url("Cloud transcription address", url, true)?;
-            require_name(
-                "Cloud key secret",
-                self.cloud_api_key_secret.as_deref().unwrap_or_default(),
-            )?;
+            if self.cloud_api_key_secret.is_none() {
+                return Err(AppError::BadRequest(
+                    "Name the cloud key's secret".to_owned(),
+                ));
+            }
         }
         Ok(())
+    }
+}
+
+/// Where a tenant's cloud key lives in the secret store: its own dictation
+/// namespace, the same shape the payment keys use. Whatever an admin types,
+/// only `medbrains/<env>/<tenant>/dictation-<name>` is ever read, so the
+/// setting cannot point at the server's own secrets (`DATABASE_URL`, the JWT
+/// key) and send them to a host the admin chose.
+#[must_use]
+pub fn cloud_secret_path(tenant_id: Uuid, name: &str) -> String {
+    let env = std::env::var("MEDBRAINS_ENV").unwrap_or_else(|_| "dev".to_owned());
+    format!("medbrains/{env}/{tenant_id}/dictation-{name}")
+}
+
+/// A secret's short name: lowercase letters, digits and `-`, nothing that
+/// could reach outside the namespace.
+fn require_secret_name(name: &str) -> Result<(), AppError> {
+    let ok = (1..=MAX_SECRET_NAME_CHARS).contains(&name.len())
+        && name
+            .bytes()
+            .all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || b == b'-');
+    if ok {
+        Ok(())
+    } else {
+        Err(AppError::BadRequest(
+            "Cloud key secret is a short name (lowercase letters, digits, -), read from this hospital's own dictation secrets".to_owned(),
+        ))
+    }
+}
+
+/// A service on this machine or the hospital's own network.
+fn require_local(label: &str, url: &str) -> Result<(), AppError> {
+    if url.len() <= MAX_FIELD_CHARS && is_local_url(url) {
+        Ok(())
+    } else {
+        Err(AppError::BadRequest(format!(
+            "{label} must be on this machine or the hospital's own network: an http:// address with a loopback or private IP, or localhost"
+        )))
     }
 }
 
@@ -127,17 +175,29 @@ fn require_name(label: &str, name: &str) -> Result<(), AppError> {
     }
 }
 
-/// The tenant's configuration, or the defaults when none is stored.
+/// The tenant's configuration, or the local defaults when none is stored.
+///
+/// A stored value that does not parse or does not pass [`DictationConfig::validate`]
+/// (written past the dictation screen, or by an older version) fails closed:
+/// the local defaults, cloud off, and a warning in the log. It never sends a
+/// recording to an address that was not checked.
 ///
 /// # Errors
-/// A stored value that no longer parses is an error, never silently the
-/// defaults: it could turn the cloud off or on behind the admin's back.
+/// The database read.
 pub async fn load(tx: &mut Tx) -> Result<DictationConfig, AppError> {
-    match medbrains_kernel::config::get(tx, "dictation/config").await? {
-        // A setting cleared through the generic settings screen is stored as null.
-        None | Some(serde_json::Value::Null) => Ok(DictationConfig::default()),
-        Some(value) => serde_json::from_value(value)
-            .map_err(|e| AppError::Internal(format!("dictation config unreadable: {e}"))),
+    let stored = match medbrains_kernel::config::get(tx, "dictation/config").await? {
+        None | Some(serde_json::Value::Null) => return Ok(DictationConfig::default()),
+        Some(value) => serde_json::from_value::<DictationConfig>(value),
+    };
+    match stored {
+        Ok(config) if config.validate().is_ok() => Ok(config),
+        _ => {
+            tracing::warn!(
+                tenant_id = %tx.actor().tenant_id,
+                "dictation settings invalid; using the local defaults with the cloud off"
+            );
+            Ok(DictationConfig::default())
+        }
     }
 }
 
@@ -207,11 +267,47 @@ mod tests {
     }
 
     #[test]
+    fn a_secret_name_cannot_reach_outside_the_namespace() {
+        for name in ["JWT_PRIVATE_KEY_PEM", "DATABASE_URL", "../jwt", "a/b", ""] {
+            let config = DictationConfig {
+                cloud_api_key_secret: Some(name.to_owned()),
+                ..DictationConfig::default()
+            };
+            assert!(config.validate().is_err(), "{name}");
+        }
+        let tenant = uuid::Uuid::nil();
+        assert!(
+            super::cloud_secret_path(tenant, "stt-key")
+                .ends_with("/00000000-0000-0000-0000-000000000000/dictation-stt-key")
+        );
+    }
+
+    #[test]
+    fn local_services_must_be_local() {
+        for url in [
+            "http://stt.example.com",
+            "http://169.254.169.254",
+            "http://8.8.8.8:8178",
+        ] {
+            let config = DictationConfig {
+                stt_url: url.to_owned(),
+                ..DictationConfig::default()
+            };
+            assert!(config.validate().is_err(), "{url}");
+        }
+        let config = DictationConfig {
+            llm_url: "http://10.0.0.7:11434".to_owned(),
+            ..DictationConfig::default()
+        };
+        assert!(config.validate().is_ok());
+    }
+
+    #[test]
     fn cloud_needs_https_and_a_secret() {
         let mut config = DictationConfig {
             cloud_enabled: true,
             cloud_url: Some("http://stt.example.com".to_owned()),
-            cloud_api_key_secret: Some("dictation/cloud".to_owned()),
+            cloud_api_key_secret: Some("stt-key".to_owned()),
             ..DictationConfig::default()
         };
         assert!(

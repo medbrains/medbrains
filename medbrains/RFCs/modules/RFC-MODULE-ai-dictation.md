@@ -6,7 +6,7 @@
 | Crate | `crates/medbrains-dictation` |
 | Screen | OPD encounter → Consultation tab → "Dictate this consultation"; Settings → Dictation |
 | Permissions | `opd.dictation.use` (doctor), `admin.settings.dictation.manage` (admin) |
-| Migration | `1418_ai_dictation.sql` |
+| Migration | `1419_ai_dictation.sql` |
 
 ## 1. Why
 
@@ -26,7 +26,8 @@ In:
     own machine; its address is a tenant setting;
   - **cloud** (off by default): an OpenAI-compatible
     `/v1/audio/transcriptions` service, used only when an admin turns it on,
-    https only, with the key held as a named secret.
+    https only, with the key read only from this tenant's own dictation
+    secrets (`medbrains/<env>/<tenant>/dictation-<name>`).
 - Structuring through the existing AI layer (`medbrains-server-services::llm`):
   the transcript is redacted with this patient's identifiers
   (`medbrains_ai::session_for`, `ai_redact`), sent to the **local** Ollama
@@ -59,11 +60,25 @@ Out (later slices):
 
 | What | Where | Kept |
 |---|---|---|
-| Recording | `dictation_audio` (separate table, no audit trigger, no soft delete) | Deleted when the review is saved (or everything rejected), or by the purge pass 24 hours after an abandoned recording (`purge.rs`, every 15 minutes, worker pool) |
-| Transcript | `dictation_sessions.transcript` | Kept with a saved note, as provenance; dropped when everything is rejected or the session is abandoned |
-| Draft | `dictation_sessions.draft` | As the transcript |
-| Decisions | `ai_suggestion_outcomes` | Kept: AI-governance records (suggested text, final text, accepted / edited / rejected, word edit distance and ratio, model, who, when) |
-| Use | `audit_log` action `dictation_used` | Kept (hash-chained) |
+| Session metadata | `dictation_sessions` (audited: status, adapter, model, sizes, times; no words) | Kept |
+| Recording | `dictation_audio` (separate table, no audit trigger, no soft delete) | Deleted when the review is saved or everything is rejected, when the transcript is too long to use, or by the purge pass 24 hours after an abandoned recording |
+| Transcript and draft | `dictation_content` (separate table, no audit trigger, no soft delete) | Kept with a saved note, as provenance; deleted when everything is rejected, and by the purge for any session not saved after 24 hours |
+| Decisions | `ai_suggestion_outcomes` (no audit trigger: it holds suggestion text) | Kept: AI-governance records (suggested text, final text, accepted / edited / rejected, word edit distance and ratio, model, who, when) |
+| Use | `audit_log` actions `dictation_used`, `dictation_recordings_purged`, `dictation_settings_saved` | Kept (hash-chained); counts and ids only, never words |
+
+The purge (`purge.rs`) runs every 15 minutes on the worker pool. Each pass
+logs how many sessions older than 24 hours still hold a recording or unsaved
+words (`held_past_limit`, logged even when zero, so a stuck purge shows as a
+count that never falls), then deletes per tenant in a kernel unit of work as
+the system actor and writes one `dictation_recordings_purged` audit row per
+tenant.
+
+Deleted rows still sit in PostgreSQL's write-ahead log and in base backups
+until those age out: a recording or transcript deleted here is gone from the
+live database at once, and from WAL archives and backups only after the
+backup retention period (set in the backup runbook). Backups are encrypted at
+rest and restored only under the recovery procedure; a restore older than 24
+hours is followed by a purge pass before the system is used.
 
 - Purpose limitation: the recording exists only to draft this note.
 - Nothing leaves the hospital by default: both the speech server and the
@@ -97,7 +112,28 @@ the doctor did not say, that position must be reassessed first.
 - Per record: every call checks patient access through the existing gate
   (`require_patient_access`); a doctor with no access gets 404, never a hint
   that the visit exists. A session is its creator's alone (404 for anyone
-  else).
+  else). Only the visit's own doctor dictates on it (admins excepted), and only
+  while the visit is open.
+- Settings are written only through `/api/admin/dictation/settings`: the
+  generic settings route refuses the `dictation` category. The local speech
+  and model addresses must be loopback, private (RFC 1918, IPv6 unique-local)
+  or link-local IP literals or `localhost`, never the cloud metadata address;
+  a stored value that fails validation is read as the local defaults with the
+  cloud off. The speech client never follows a redirect.
+
+## 5a. Bounds
+
+- Upload: 24 MB, enforced by the route's body limit; held as one buffer (the
+  multipart form, with the stored audio a slice of it).
+- `duration_ms` is the browser's measure: used for the KPI only, never as a
+  bound.
+- One dictation at a time per doctor (a unique index on `processing`); a
+  session stuck in `processing` for 5 minutes is released as interrupted.
+- Speech server answer: at most 1 MB read. Transcript: at most 100,000
+  characters, else the session fails as too long and the recording is deleted.
+- Speech call 120 s, model call 90 s.
+- A tenant that has turned AI off (`ai.config.assistant_enabled = false`)
+  still gets transcripts, but nothing is drafted.
 
 ## 6. Failure modes
 
@@ -108,6 +144,9 @@ the doctor did not say, that position must be reassessed first.
 | Model down / times out (90 s) / errors | `llm_failed` | The transcript, and "the note could not be drafted from it: the model is not available" |
 | Model answers with nothing | `llm_failed` (`llm_empty`) | As above: an empty draft is never shown as if nothing was said |
 | Transcript cannot be redacted | `llm_failed` (`llm_unsafe`) | "could not be made safe to send … nothing was sent" |
+| Transcript too long | `stt_failed` (`transcript_too_long`) | "too long to draft a note from, so it was deleted" |
+| AI turned off for the hospital | `llm_failed` (`ai_disabled`) | The transcript, and "AI drafting is turned off" |
+| A dictation already processing | 409 | "Your last dictation is still being transcribed" |
 
 ## 7. Measurement
 
@@ -154,7 +193,8 @@ ollama serve                                    # listens on 127.0.0.1:11434
 
 Then Settings → Dictation: speech-to-text server `http://127.0.0.1:8178`,
 local model server `http://127.0.0.1:11434`, model `llama3.2` (these are also
-the defaults). Check with a dictation on a test visit.
+the defaults). For the cloud service, put its key in the secret store as
+`medbrains/<env>/<tenant id>/dictation-<name>` and enter only `<name>`. Check with a dictation on a test visit.
 
 ## 10. Tests
 

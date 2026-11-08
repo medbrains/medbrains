@@ -40,6 +40,7 @@ export function DictationReview({ session, saving, onSave }: DictationReviewProp
   );
   const undecided = [...sectionCalls, ...medicineCalls].filter((d) => d === null).length;
 
+  /** Hand every decision to the caller; an undecided suggestion counts as rejected. */
   const save = (rejectAll: boolean) =>
     onSave(
       draft.sections.map((s, i) => ({

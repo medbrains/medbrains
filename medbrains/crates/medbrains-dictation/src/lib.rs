@@ -10,12 +10,15 @@
 //! decides, nothing is filed automatically, and drafted medicines reach a
 //! prescription only through the prescription screen and its safety checks.
 
+pub mod address;
+pub mod process;
 pub mod purge;
 pub mod review;
 pub mod session;
 pub mod settings;
 pub mod structure;
 pub mod stt;
+pub mod view;
 
 use axum::extract::DefaultBodyLimit;
 use axum::routing::{get, post};

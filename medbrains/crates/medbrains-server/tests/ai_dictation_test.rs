@@ -201,6 +201,18 @@ async fn send_json(
     (status, resp.json().await.unwrap_or(Value::Null))
 }
 
+/// Audit rows whose recorded values mention `needle`.
+async fn audit_mentions(app: &common::TestApp, needle: &str) -> i64 {
+    sqlx::query_scalar(
+        "SELECT count(*) FROM audit_log \
+          WHERE coalesce(old_values::text, '') || coalesce(new_values::text, '') LIKE '%' || $1 || '%'",
+    )
+    .bind(needle)
+    .fetch_one(&app.db)
+    .await
+    .expect("audit search")
+}
+
 async fn audio_rows(app: &common::TestApp, session: &str) -> i64 {
     sqlx::query_scalar("SELECT count(*) FROM dictation_audio WHERE session_id = $1::uuid")
         .bind(session)
@@ -302,8 +314,9 @@ async fn dictation_drafts_the_note_and_saving_deletes_the_recording() {
         "the recording is deleted at save"
     );
     let (transcript, saved_note, saved): (Option<String>, Option<Uuid>, bool) = sqlx::query_as(
-        "SELECT transcript, note_id, saved_at IS NOT NULL AND audio_deleted_at IS NOT NULL \
-           FROM dictation_sessions WHERE id = $1::uuid",
+        "SELECT c.transcript, s.note_id, s.saved_at IS NOT NULL AND s.audio_deleted_at IS NOT NULL \
+           FROM dictation_sessions s LEFT JOIN dictation_content c ON c.session_id = s.id \
+          WHERE s.id = $1::uuid",
     )
     .bind(&id)
     .fetch_one(&app.db)
@@ -346,6 +359,16 @@ async fn dictation_drafts_the_note_and_saving_deletes_the_recording() {
     .await
     .expect("audit");
     assert_eq!(audited, 1);
+    assert_eq!(
+        audit_mentions(&app, "Throat is congested").await,
+        0,
+        "the transcript never reaches the audit log"
+    );
+    assert_eq!(
+        audit_mentions(&app, "Throat congested").await,
+        0,
+        "nor does a rejected draft section"
+    );
 
     // A review is final: a second one is refused, not double-counted.
     let (status, _) = send_json(
@@ -441,7 +464,7 @@ async fn a_disabled_cloud_adapter_is_never_called() {
     configure(
         &app,
         json!({ "stt_url": dead_address().await, "cloud_enabled": false, "cloud_url": cloud,
-                "cloud_api_key_secret": "dictation/cloud" }),
+                "cloud_api_key_secret": "stt-key" }),
     )
     .await;
     let (_, encounter) = visit(&app, &csrf).await;
@@ -499,12 +522,14 @@ async fn rejecting_everything_files_nothing_and_deletes_the_recording() {
     assert_eq!(notes, 0, "nothing is filed automatically");
     assert_eq!(audio_rows(&app, &id).await, 0);
     let transcript: Option<String> =
-        sqlx::query_scalar("SELECT transcript FROM dictation_sessions WHERE id = $1::uuid")
+        sqlx::query_scalar("SELECT transcript FROM dictation_content WHERE session_id = $1::uuid")
             .bind(&id)
-            .fetch_one(&app.db)
+            .fetch_optional(&app.db)
             .await
-            .expect("session");
+            .expect("content")
+            .flatten();
     assert!(transcript.is_none(), "no note, so no provenance to keep");
+    assert_eq!(audit_mentions(&app, "Throat is congested").await, 0);
 }
 
 /// Given a penicillin-allergic patient, When the dictation drafts amoxicillin
@@ -601,16 +626,36 @@ async fn an_abandoned_recording_is_deleted_after_24_hours() {
     .await
     .expect("age it");
 
-    medbrains_dictation::purge::purge_expired(&app.db, medbrains_dictation::purge::HOLD_HOURS)
-        .await
-        .expect("purge");
-    assert_eq!(audio_rows(&app, &id).await, 0);
-    let (status, transcript): (String, Option<String>) =
-        sqlx::query_as("SELECT status, transcript FROM dictation_sessions WHERE id = $1::uuid")
-            .bind(&id)
-            .fetch_one(&app.db)
+    let audited_before: i64 = sqlx::query_scalar(
+        "SELECT count(*) FROM audit_log WHERE action = 'dictation_recordings_purged'",
+    )
+    .fetch_one(&app.db)
+    .await
+    .expect("audit");
+    let pass =
+        medbrains_dictation::purge::purge_expired(&app.db, medbrains_dictation::purge::HOLD_HOURS)
             .await
-            .expect("session");
+            .expect("purge");
+    assert!(pass.held >= 1 && pass.purged >= 1, "{pass:?}");
+    assert_eq!(audio_rows(&app, &id).await, 0);
+    let audited_after: i64 = sqlx::query_scalar(
+        "SELECT count(*) FROM audit_log WHERE action = 'dictation_recordings_purged'",
+    )
+    .fetch_one(&app.db)
+    .await
+    .expect("audit");
+    assert!(
+        audited_after > audited_before,
+        "each tenant's purge is audited"
+    );
+    let (status, transcript): (String, Option<String>) = sqlx::query_as(
+        "SELECT s.status, c.transcript FROM dictation_sessions s \
+           LEFT JOIN dictation_content c ON c.session_id = s.id WHERE s.id = $1::uuid",
+    )
+    .bind(&id)
+    .fetch_one(&app.db)
+    .await
+    .expect("session");
     assert_eq!(status, "abandoned");
     assert!(transcript.is_none());
 }
@@ -643,7 +688,7 @@ async fn settings_refuse_an_unencrypted_cloud_and_default_to_local() {
     let mut cloud = defaults.clone();
     cloud["cloud_enabled"] = json!(true);
     cloud["cloud_url"] = json!("http://stt.example.com");
-    cloud["cloud_api_key_secret"] = json!("dictation/cloud");
+    cloud["cloud_api_key_secret"] = json!("stt-key");
     let resp = app
         .client
         .put(app.url("/api/admin/dictation/settings"))
@@ -653,4 +698,220 @@ async fn settings_refuse_an_unencrypted_cloud_and_default_to_local() {
         .await
         .expect("put");
     assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
+}
+
+/// PUT the dictation settings as the admin; the status.
+async fn save_settings(app: &common::TestApp, csrf: &str, body: Value) -> StatusCode {
+    app.client
+        .put(app.url("/api/admin/dictation/settings"))
+        .header("x-csrf-token", csrf)
+        .json(&body)
+        .send()
+        .await
+        .expect("put")
+        .status()
+}
+
+/// Given an admin with the general settings permission, When they write
+/// `dictation/config` through the generic settings API, Then it is refused:
+/// only the dictation endpoint (validated, guarded, audited) writes it.
+#[tokio::test]
+async fn the_generic_settings_route_cannot_write_dictation() {
+    let app = common::spawn_app().await;
+    let csrf = app.login_admin().await;
+    let resp = app
+        .client
+        .put(app.url("/api/setup/settings"))
+        .header("x-csrf-token", &csrf)
+        .json(&json!({ "category": "dictation", "key": "config",
+                       "value": { "stt_url": "http://evil.example" } }))
+        .send()
+        .await
+        .expect("put");
+    assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
+}
+
+/// Given an admin, When the cloud key secret names a server secret, or a
+/// local service points outside the hospital, Then the settings are refused;
+/// and a value written past the endpoint is ignored for the local defaults.
+#[tokio::test]
+async fn settings_refuse_server_secrets_and_outside_addresses() {
+    let app = common::spawn_app().await;
+    let csrf = app.login_admin().await;
+    let base = json!({ "stt_url": "http://127.0.0.1:8178", "llm_url": "http://127.0.0.1:11434",
+                       "llm_model": "llama3.2", "cloud_enabled": true,
+                       "cloud_url": "https://stt.example.com", "cloud_model": null });
+    for secret in ["JWT_PRIVATE_KEY_PEM", "DATABASE_URL", "tenants/x/../jwt"] {
+        let mut body = base.clone();
+        body["cloud_api_key_secret"] = json!(secret);
+        assert_eq!(
+            save_settings(&app, &csrf, body).await,
+            StatusCode::BAD_REQUEST,
+            "{secret}"
+        );
+    }
+    for url in [
+        "http://169.254.169.254",
+        "http://stt.example.com",
+        "http://8.8.8.8:8178",
+    ] {
+        let mut body = base.clone();
+        body["cloud_enabled"] = json!(false);
+        body["stt_url"] = json!(url);
+        assert_eq!(
+            save_settings(&app, &csrf, body).await,
+            StatusCode::BAD_REQUEST,
+            "{url}"
+        );
+    }
+
+    // A bad value stored behind the endpoint's back reads as the defaults.
+    configure(&app, json!({ "stt_url": "http://evil.example", "cloud_enabled": true,
+                            "cloud_url": "http://evil.example", "cloud_api_key_secret": "JWT_PRIVATE_KEY_PEM" }))
+        .await;
+    let read: Value = app
+        .client
+        .get(app.url("/api/admin/dictation/settings"))
+        .send()
+        .await
+        .expect("get")
+        .json()
+        .await
+        .expect("json");
+    assert_eq!(read["cloud_enabled"], false);
+    assert_eq!(read["stt_url"], "http://127.0.0.1:8178");
+}
+
+/// Given a speech server that answers with a redirect, When the doctor
+/// dictates, Then the redirect is not followed: the recording never reaches
+/// the other host and the dictation fails plainly.
+#[tokio::test]
+async fn a_redirect_is_never_followed() {
+    let app = common::spawn_app().await;
+    let csrf = app.login_admin().await;
+    let elsewhere_hits = Arc::new(AtomicUsize::new(0));
+    let elsewhere = fake_whisper(TRANSCRIPT, Arc::clone(&elsewhere_hits)).await;
+    let target = format!("{elsewhere}/inference");
+    let redirecting = serve(axum::Router::new().route(
+        "/inference",
+        post(move || {
+            let target = target.clone();
+            async move {
+                (
+                    StatusCode::TEMPORARY_REDIRECT,
+                    [(axum::http::header::LOCATION, target)],
+                )
+            }
+        }),
+    ))
+    .await;
+    configure(&app, json!({ "stt_url": redirecting })).await;
+    let (_, encounter) = visit(&app, &csrf).await;
+    let (_, session) = dictate(&app, &app.client, &csrf, &encounter).await;
+    assert_eq!(session["status"], "stt_failed", "{session}");
+    assert_eq!(session["failure"], "stt_refused");
+    assert_eq!(elsewhere_hits.load(Ordering::SeqCst), 0);
+}
+
+/// Given a doctor whose last dictation is still processing, When they
+/// dictate again, Then it is refused with 409 rather than run alongside.
+#[tokio::test]
+async fn one_dictation_at_a_time() {
+    let app = common::spawn_app().await;
+    let csrf = app.login_admin().await;
+    local_machines(&app, "Paracetamol").await;
+    let (patient, encounter) = visit(&app, &csrf).await;
+    sqlx::query(
+        "INSERT INTO dictation_sessions (tenant_id, encounter_id, patient_id, doctor_id, source, \
+                audio_bytes, duration_ms, started_at, status) \
+         SELECT tenant_id, $1::uuid, $2, id, 'recorded', 1, 0, now(), 'processing' \
+           FROM users WHERE username = 'admin'",
+    )
+    .bind(&encounter)
+    .bind(patient)
+    .execute(&app.db)
+    .await
+    .expect("processing");
+    let (status, body) = dictate(&app, &app.client, &csrf, &encounter).await;
+    assert_eq!(status, StatusCode::CONFLICT, "{body}");
+    sqlx::query("UPDATE dictation_sessions SET status = 'stt_failed' WHERE patient_id = $1")
+        .bind(patient)
+        .execute(&app.db)
+        .await
+        .expect("release");
+}
+
+/// Given a transcript far longer than any consultation, Then the session
+/// fails as too long and the recording is deleted.
+#[tokio::test]
+async fn a_transcript_too_long_fails_and_deletes_the_recording() {
+    let app = common::spawn_app().await;
+    let csrf = app.login_admin().await;
+    let long: &'static str = Box::leak("word ".repeat(30_000).into_boxed_str());
+    let stt = fake_whisper(long, Arc::new(AtomicUsize::new(0))).await;
+    configure(
+        &app,
+        json!({ "stt_url": stt, "llm_url": dead_address().await }),
+    )
+    .await;
+    let (_, encounter) = visit(&app, &csrf).await;
+    let (_, session) = dictate(&app, &app.client, &csrf, &encounter).await;
+    assert_eq!(session["failure"], "transcript_too_long", "{session}");
+    let id = session["id"].as_str().expect("id").to_owned();
+    assert_eq!(audio_rows(&app, &id).await, 0);
+}
+
+/// Given the hospital has turned AI off, When the doctor dictates, Then the
+/// transcript is shown, nothing is drafted and the model is never asked.
+#[tokio::test]
+async fn ai_turned_off_transcribes_but_drafts_nothing() {
+    let app = common::spawn_app().await;
+    let csrf = app.login_admin().await;
+    local_machines(&app, "Paracetamol").await;
+    sqlx::query(
+        "INSERT INTO tenant_settings (tenant_id, category, key, value) \
+         SELECT tenant_id, 'ai', 'config', '{\"assistant_enabled\": false}'::jsonb \
+           FROM users WHERE username = 'admin' \
+         ON CONFLICT (tenant_id, category, key) \
+         DO UPDATE SET value = tenant_settings.value || EXCLUDED.value, deleted_at = NULL",
+    )
+    .execute(&app.db)
+    .await
+    .expect("ai off");
+    let (_, encounter) = visit(&app, &csrf).await;
+    let (_, session) = dictate(&app, &app.client, &csrf, &encounter).await;
+    sqlx::query(
+        "UPDATE tenant_settings SET value = value - 'assistant_enabled' \
+          WHERE category = 'ai' AND key = 'config'",
+    )
+    .execute(&app.db)
+    .await
+    .expect("ai back on");
+    assert_eq!(session["failure"], "ai_disabled", "{session}");
+    assert_eq!(session["transcript"], TRANSCRIPT);
+    assert!(session["draft"].is_null());
+}
+
+/// Given a visit that is closed, When the doctor dictates on it, Then it is
+/// refused with 409 and no session is made.
+#[tokio::test]
+async fn a_closed_visit_takes_no_dictation() {
+    let app = common::spawn_app().await;
+    let csrf = app.login_admin().await;
+    local_machines(&app, "Paracetamol").await;
+    let (patient, encounter) = visit(&app, &csrf).await;
+    sqlx::query("UPDATE encounters SET status = 'completed' WHERE id = $1::uuid")
+        .bind(&encounter)
+        .execute(&app.db)
+        .await
+        .expect("close");
+    let (status, body) = dictate(&app, &app.client, &csrf, &encounter).await;
+    assert_eq!(status, StatusCode::CONFLICT, "{body}");
+    let made: i64 =
+        sqlx::query_scalar("SELECT count(*) FROM dictation_sessions WHERE patient_id = $1")
+            .bind(patient)
+            .fetch_one(&app.db)
+            .await
+            .expect("sessions");
+    assert_eq!(made, 0);
 }

@@ -15,8 +15,8 @@ use medbrains_server_core::state::AppState;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use crate::session::{SessionRow, load_own};
 use crate::structure::{Draft, ModelMedicine};
+use crate::view::{SessionRow, load_own};
 
 /// Words compared per text: a note section holds 20,000 characters at most,
 /// about 3,500 words, so the O(n·m) comparison stays near ten million steps.
@@ -266,8 +266,8 @@ async fn insert_outcome(
     Ok(())
 }
 
-/// Close the session and delete its recording in the same unit of work. A
-/// transcript is kept only with a saved note, as its provenance.
+/// Close the session and delete its recording in the same unit of work. The
+/// transcript and draft are kept only with a saved note, as its provenance.
 async fn finish(
     tx: &mut medbrains_kernel::Tx,
     session: &SessionRow,
@@ -280,11 +280,19 @@ async fn finish(
     )
     .execute(&mut **tx)
     .await?;
+    // Nothing was kept, so nothing needs its provenance: the words go too.
+    if status != "saved" {
+        sqlx::query!(
+            "DELETE FROM dictation_content WHERE session_id = $1",
+            session.id
+        )
+        .execute(&mut **tx)
+        .await?;
+    }
     sqlx::query!(
         "UPDATE dictation_sessions \
             SET status = $2, note_id = $3, \
                 saved_at = CASE WHEN $2 = 'saved' THEN now() END, \
-                transcript = CASE WHEN $2 = 'saved' THEN transcript END, \
                 audio_deleted_at = now() \
           WHERE id = $1",
         session.id,

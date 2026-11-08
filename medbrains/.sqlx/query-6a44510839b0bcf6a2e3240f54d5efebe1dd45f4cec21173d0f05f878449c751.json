@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "UPDATE dictation_sessions SET status = $3, failure = $4, stt_adapter = $5, llm_model = $6, transcript = $7, draft = $8 WHERE id = $1 AND tenant_id = $2 RETURNING id, encounter_id, patient_id, status, failure, stt_adapter, llm_model, transcript, draft, duration_ms, started_at, created_at",
+  "query": "SELECT s.id, s.encounter_id, s.patient_id, s.status, s.failure, s.stt_adapter,\n                  s.llm_model, c.transcript AS \"transcript?\", c.draft AS \"draft?\",\n                  s.duration_ms, s.started_at, s.created_at\n             FROM dictation_sessions s\n             LEFT JOIN dictation_content c ON c.session_id = s.id AND c.tenant_id = s.tenant_id\n            WHERE s.id = $1 AND s.tenant_id = $2 AND s.doctor_id = $3 AND s.deleted_at IS NULL",
   "describe": {
     "columns": [
       {
@@ -40,12 +40,12 @@
       },
       {
         "ordinal": 7,
-        "name": "transcript",
+        "name": "transcript?",
         "type_info": "Text"
       },
       {
         "ordinal": 8,
-        "name": "draft",
+        "name": "draft?",
         "type_info": "Jsonb"
       },
       {
@@ -68,12 +68,7 @@
       "Left": [
         "Uuid",
         "Uuid",
-        "Text",
-        "Text",
-        "Text",
-        "Text",
-        "Text",
-        "Jsonb"
+        "Uuid"
       ]
     },
     "nullable": [
@@ -84,12 +79,12 @@
       true,
       true,
       true,
-      true,
+      false,
       true,
       false,
       false,
       false
     ]
   },
-  "hash": "38e3a7cd9dafa46579044d82160e38ec1f3a3c24eb0cb2c47b622960e91c72c1"
+  "hash": "6a44510839b0bcf6a2e3240f54d5efebe1dd45f4cec21173d0f05f878449c751"
 }

@@ -1,0 +1,29 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT s.tenant_id, count(*) AS \"held!\"\n             FROM dictation_sessions s\n            WHERE s.created_at < now() - make_interval(hours => $1)\n              AND (EXISTS (SELECT 1 FROM dictation_audio a WHERE a.session_id = s.id)\n                   OR (s.status <> 'saved'\n                       AND EXISTS (SELECT 1 FROM dictation_content c WHERE c.session_id = s.id)))\n            GROUP BY s.tenant_id\n            ORDER BY s.tenant_id\n            LIMIT $2",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "tenant_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "held!",
+        "type_info": "Int8"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int4",
+        "Int8"
+      ]
+    },
+    "nullable": [
+      false,
+      null
+    ]
+  },
+  "hash": "d427fe00fe31c33f651ec48ea65124aa0e641880ffa819696077ac17c992f734"
+}

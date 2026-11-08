@@ -26,6 +26,7 @@ export function useRecorder(onRecorded: (recording: Recording) => void) {
   const timer = useRef<ReturnType<typeof setInterval> | null>(null);
   const startedAt = useRef(0);
 
+  /** Stop the clock and the microphone, and forget the recorder. */
   function release() {
     if (timer.current) clearInterval(timer.current);
     timer.current = null;
@@ -33,6 +34,7 @@ export function useRecorder(onRecorded: (recording: Recording) => void) {
     recorder.current = null;
   }
 
+  /** Ask for the microphone and start recording, saying why when it cannot. */
   async function start() {
     if (!navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === "undefined") {
       setState({ kind: "unavailable", reason: "This browser cannot record. Upload a recording." });
@@ -68,6 +70,7 @@ export function useRecorder(onRecorded: (recording: Recording) => void) {
     }, TICK_MS);
   }
 
+  /** End the recording; its `onstop` hands the audio over. */
   function stop() {
     if (recorder.current?.state === "recording") recorder.current.stop();
   }

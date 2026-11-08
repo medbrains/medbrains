@@ -9,19 +9,34 @@ import { Alert, Button, Card, Input, Switch, toast } from "@/components/ui";
 import { dictationService } from "@/services/dictation.service";
 
 const KEY = ["dictation", "settings"];
+/** A trimmed address matching `scheme`, with `hint` as its error. */
 const url = (scheme: RegExp, hint: string) => z.string().trim().regex(scheme, hint).max(200);
-const LOCAL = /^https?:\/\/[^/:]+/;
+/**
+ * On this machine or the hospital's network: localhost, a loopback or private
+ * IPv4 literal. The server checks the full rule (IPv6, link-local, never the
+ * cloud metadata address); this catches the common mistakes early.
+ */
+const LOCAL =
+  /^https?:\/\/(localhost|127\.\d+\.\d+\.\d+|10\.\d+\.\d+\.\d+|192\.168\.\d+\.\d+|172\.(1[6-9]|2\d|3[01])\.\d+\.\d+|\[[0-9a-f:]+\])(:\d{1,5})?(\/.*)?$/i;
+/** A short name; the server reads it only from this hospital's own dictation secrets. */
+const SECRET_NAME = /^[a-z0-9-]{1,40}$/;
 const HTTPS = /^https:\/\/[^/:]+/;
 
 const schema = z
   .object({
-    stt_url: url(LOCAL, "An http:// address, for example http://127.0.0.1:8178"),
-    llm_url: url(LOCAL, "An http:// address, for example http://127.0.0.1:11434"),
+    stt_url: url(LOCAL, "An address on this hospital's network, for example http://127.0.0.1:8178"),
+    llm_url: url(
+      LOCAL,
+      "An address on this hospital's network, for example http://127.0.0.1:11434",
+    ),
     llm_model: z.string().trim().min(1, "Name the local model, for example llama3.2"),
     cloud_enabled: z.boolean(),
     cloud_url: z.string().trim(),
     cloud_model: z.string().trim(),
-    cloud_api_key_secret: z.string().trim(),
+    cloud_api_key_secret: z
+      .string()
+      .trim()
+      .refine((v) => v === "" || SECRET_NAME.test(v), "Lowercase letters, digits and - only"),
   })
   .superRefine((v, ctx) => {
     if (!v.cloud_enabled) return;
@@ -155,7 +170,7 @@ export function DictationSettings() {
             {text(
               "cloud_api_key_secret",
               "Key secret name",
-              "The secret holding the key, not the key.",
+              "A short name such as stt-key. The key is read from this hospital's own dictation secrets (dictation-<name>), never typed here.",
             )}
           </>
         )}

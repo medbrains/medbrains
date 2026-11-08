@@ -20,6 +20,7 @@ import { todayDateString } from "@/lib/date-utils";
 import { ckbService } from "@/services/ckb.service";
 import { clinicalSupportService } from "@/services/clinicalSupport.service";
 import { matchDrugAllergy } from "@/utils/allergyMatch";
+import { DictatedPicks } from "./DictatedPicks";
 import { dictatedToRx } from "./dictatedRx";
 import classes from "./prescription.module.scss";
 import { RxDoctor, type RxSafety } from "./RxDoctor";
@@ -178,16 +179,31 @@ export function RxSuiteWriter({
   // Medicines accepted from a dictation: loaded only when the doctor asks,
   // then prescribed through the same checks as any other line.
   const dictatedMedicines = useDictatedRxStore((s) => s.byEncounter[encounterId]);
+  // The doctor's picks for dictated names the formulary could not settle.
+  const [dictatedPicks, setDictatedPicks] = useState<Record<number, FormularyDrug>>({});
   const clearDictated = useDictatedRxStore((s) => s.clear);
   const dictated = useMemo(
     () =>
       dictatedMedicines && prescriber === "doctor"
+        ? dictatedToRx(dictatedMedicines, formulary, dictatedPicks)
+        : null,
+    [dictatedMedicines, formulary, prescriber, dictatedPicks],
+  );
+  const dictatedForPad = useMemo(
+    () =>
+      dictated
         ? {
-            ...dictatedToRx(dictatedMedicines, formulary),
-            onLoaded: () => clearDictated(encounterId),
+            items: dictated.items,
+            waiting: dictated.picks.map((p) => p.medicine.name),
+            // Spent once every dictated medicine is on the pad.
+            onLoaded: () => {
+              if (dictated.picks.length > 0) return;
+              clearDictated(encounterId);
+              setDictatedPicks({});
+            },
           }
         : null,
-    [dictatedMedicines, formulary, prescriber, clearDictated, encounterId],
+    [dictated, clearDictated, encounterId],
   );
 
   const templateToItems = (tpl: PrescriptionTemplate): RxItem[] =>
@@ -434,6 +450,15 @@ export function RxSuiteWriter({
           controlled={controlledNames(currentItems, formularyById)}
         />
       )}
+      {dictated && (
+        <DictatedPicks
+          picks={dictated.picks}
+          onPick={(index, drug) => {
+            const picked = formularyById[drug.id] ?? catalogToFormulary([drug])[0];
+            if (picked) setDictatedPicks((all) => ({ ...all, [index]: picked }));
+          }}
+        />
+      )}
       <RxDoctor
         formulary={formulary}
         formularyById={formularyById}
@@ -450,7 +475,7 @@ export function RxSuiteWriter({
         templates={templates}
         templateToItems={templateToItems}
         lastRx={lastRx}
-        dictated={dictated}
+        dictated={dictatedForPad}
         onSaveTemplate={(name, items) => saveTemplateMutation.mutate({ name, items })}
         priorDrugIds={priorDrugIds}
         onItemsChange={handleItemsChange}

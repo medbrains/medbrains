@@ -5,23 +5,92 @@
 //! [`CloudStt`], an OpenAI-compatible transcription API. Which one runs is
 //! [`choose`]'s decision alone, so a disabled cloud adapter is never built and
 //! so can never be called.
+//!
+//! Every call is bounded: one shared client that never follows a redirect (a
+//! redirect could carry the recording, or the cloud key, somewhere else), a
+//! timeout, and a cap on how much of the answer is read.
 
 use std::future::Future;
+use std::ops::Range;
+use std::sync::OnceLock;
 use std::time::Duration;
 
+use axum::body::Bytes;
 use serde::Deserialize;
 
 use crate::settings::DictationConfig;
 
 /// A recording of ten minutes takes well under this on a CPU whisper server.
 const STT_TIMEOUT: Duration = Duration::from_secs(120);
+/// A transcript is text: ten minutes of speech is about 10 KB. Anything
+/// larger than this is not a transcript and is not read.
+pub const MAX_RESPONSE_BYTES: usize = 1024 * 1024;
 const BOUNDARY: &str = "medbrains-dictation-7f3a9c";
+const DEFAULT_CLOUD_MODEL: &str = "whisper-1";
 
-/// One recording, as uploaded.
-#[derive(Debug, Clone, Copy)]
-pub struct Audio<'a> {
-    pub bytes: &'a [u8],
-    pub content_type: &'a str,
+/// The recording as the multipart form both services read, built once from
+/// the upload. The audio is a slice of it, so the server holds one copy.
+#[derive(Debug, Clone)]
+pub struct Form {
+    body: Bytes,
+    audio: Range<usize>,
+    content_type: String,
+}
+
+impl Form {
+    /// The form for `audio` of `content_type`. `model` names the cloud
+    /// model; whisper.cpp ignores the field.
+    #[must_use]
+    pub fn new(audio: &[u8], content_type: &str, model: &str) -> Self {
+        let fields = [
+            ("response_format", "json"),
+            ("temperature", "0.0"),
+            ("model", model),
+        ];
+        let mut body = Vec::with_capacity(audio.len() + 640);
+        for (name, value) in fields {
+            body.extend_from_slice(
+                format!(
+                    "--{BOUNDARY}\r\ncontent-disposition: form-data; name=\"{name}\"\r\n\r\n{value}\r\n"
+                )
+                .as_bytes(),
+            );
+        }
+        body.extend_from_slice(
+            format!(
+                "--{BOUNDARY}\r\ncontent-disposition: form-data; name=\"file\"; filename=\"dictation.{}\"\r\ncontent-type: {content_type}\r\n\r\n",
+                extension(content_type),
+            )
+            .as_bytes(),
+        );
+        let start = body.len();
+        body.extend_from_slice(audio);
+        let end = body.len();
+        body.extend_from_slice(format!("\r\n--{BOUNDARY}--\r\n").as_bytes());
+        Self {
+            body: Bytes::from(body),
+            audio: start..end,
+            content_type: content_type.to_owned(),
+        }
+    }
+
+    /// The recording inside the form, to store.
+    #[must_use]
+    pub fn audio(&self) -> &[u8] {
+        self.body.get(self.audio.clone()).unwrap_or_default()
+    }
+
+    /// The recording's media type.
+    #[must_use]
+    pub fn content_type(&self) -> &str {
+        &self.content_type
+    }
+}
+
+/// The model field a tenant's configuration puts in the form.
+#[must_use]
+pub fn form_model(config: &DictationConfig) -> &str {
+    config.cloud_model.as_deref().unwrap_or(DEFAULT_CLOUD_MODEL)
 }
 
 /// Why no transcript came back. Each is a class, stored and shown, never the
@@ -30,7 +99,8 @@ pub struct Audio<'a> {
 pub enum SttFailure {
     Unreachable,
     Timeout,
-    /// The server answered, but not with a transcript.
+    /// The server answered, but not with a transcript (an error, a redirect,
+    /// something too large to be one).
     Refused,
 }
 
@@ -50,11 +120,8 @@ impl SttFailure {
 pub trait SpeechToText {
     /// `local` or `cloud`, stored on the session.
     fn name(&self) -> &'static str;
-    /// The words spoken in `audio`.
-    fn transcribe(
-        &self,
-        audio: Audio<'_>,
-    ) -> impl Future<Output = Result<String, SttFailure>> + Send;
+    /// The words spoken in the recording the form carries.
+    fn transcribe(&self, form: &Form) -> impl Future<Output = Result<String, SttFailure>> + Send;
 }
 
 /// whisper.cpp's server: `POST {base}/inference`, multipart `file`.
@@ -68,7 +135,6 @@ pub struct LocalWhisper {
 pub struct CloudStt {
     pub base_url: String,
     pub api_key: String,
-    pub model: String,
 }
 
 /// The adapter a tenant's configuration selects.
@@ -79,7 +145,7 @@ pub enum Adapter {
 }
 
 /// Local unless the cloud is explicitly enabled; the cloud key is resolved
-/// only then (`resolve_key` is not called otherwise).
+/// only then (`resolve_key` is not called otherwise), by its short name.
 ///
 /// # Errors
 /// Whatever `resolve_key` returns.
@@ -93,14 +159,10 @@ where
             base_url: config.stt_url.clone(),
         }));
     }
-    let secret = config.cloud_api_key_secret.clone().unwrap_or_default();
+    let name = config.cloud_api_key_secret.clone().unwrap_or_default();
     Ok(Adapter::Cloud(CloudStt {
         base_url: config.cloud_url.clone().unwrap_or_default(),
-        api_key: resolve_key(secret).await?,
-        model: config
-            .cloud_model
-            .clone()
-            .unwrap_or_else(|| "whisper-1".to_owned()),
+        api_key: resolve_key(name).await?,
     }))
 }
 
@@ -114,10 +176,10 @@ impl SpeechToText for Adapter {
     }
 
     /// Transcribe with the selected adapter.
-    async fn transcribe(&self, audio: Audio<'_>) -> Result<String, SttFailure> {
+    async fn transcribe(&self, form: &Form) -> Result<String, SttFailure> {
         match self {
-            Self::Local(a) => a.transcribe(audio).await,
-            Self::Cloud(a) => a.transcribe(audio).await,
+            Self::Local(a) => a.transcribe(form).await,
+            Self::Cloud(a) => a.transcribe(form).await,
         }
     }
 }
@@ -129,10 +191,9 @@ impl SpeechToText for LocalWhisper {
     }
 
     /// One `/inference` call; `--convert` on the server decodes webm/ogg.
-    async fn transcribe(&self, audio: Audio<'_>) -> Result<String, SttFailure> {
+    async fn transcribe(&self, form: &Form) -> Result<String, SttFailure> {
         let url = format!("{}/inference", self.base_url.trim_end_matches('/'));
-        let fields = [("response_format", "json"), ("temperature", "0.0")];
-        post_multipart(reqwest::Client::new().post(url), &fields, audio).await
+        post_form(client()?.post(url), form).await
     }
 }
 
@@ -143,15 +204,29 @@ impl SpeechToText for CloudStt {
     }
 
     /// One `/v1/audio/transcriptions` call with the tenant's key.
-    async fn transcribe(&self, audio: Audio<'_>) -> Result<String, SttFailure> {
+    async fn transcribe(&self, form: &Form) -> Result<String, SttFailure> {
         let url = format!(
             "{}/v1/audio/transcriptions",
             self.base_url.trim_end_matches('/')
         );
-        let fields = [("model", self.model.as_str()), ("response_format", "json")];
-        let request = reqwest::Client::new().post(url).bearer_auth(&self.api_key);
-        post_multipart(request, &fields, audio).await
+        post_form(client()?.post(url).bearer_auth(&self.api_key), form).await
     }
+}
+
+/// The one client: no redirects, no proxy surprises. Built once; if it
+/// cannot be built, every call fails closed as unreachable.
+fn client() -> Result<&'static reqwest::Client, SttFailure> {
+    static CLIENT: OnceLock<Option<reqwest::Client>> = OnceLock::new();
+    CLIENT
+        .get_or_init(|| {
+            reqwest::Client::builder()
+                .redirect(reqwest::redirect::Policy::none())
+                .timeout(STT_TIMEOUT)
+                .build()
+                .ok()
+        })
+        .as_ref()
+        .ok_or(SttFailure::Unreachable)
 }
 
 /// Both services answer `{ "text": "…" }`.
@@ -160,20 +235,14 @@ struct Transcription {
     text: String,
 }
 
-/// Send `audio` as multipart form data with `fields`, bounded by
-/// [`STT_TIMEOUT`], and read the transcript.
-async fn post_multipart(
-    request: reqwest::RequestBuilder,
-    fields: &[(&str, &str)],
-    audio: Audio<'_>,
-) -> Result<String, SttFailure> {
-    let response = request
-        .timeout(STT_TIMEOUT)
+/// Send the form and read the transcript, at most [`MAX_RESPONSE_BYTES`].
+async fn post_form(request: reqwest::RequestBuilder, form: &Form) -> Result<String, SttFailure> {
+    let mut response = request
         .header(
             "content-type",
             format!("multipart/form-data; boundary={BOUNDARY}"),
         )
-        .body(multipart_body(fields, audio))
+        .body(form.body.clone())
         .send()
         .await
         .map_err(|e| {
@@ -186,34 +255,27 @@ async fn post_multipart(
     if !response.status().is_success() {
         return Err(SttFailure::Refused);
     }
-    let body: Transcription = response.json().await.map_err(|_| SttFailure::Refused)?;
-    Ok(body.text.trim().to_owned())
-}
-
-/// A `multipart/form-data` body: the text fields, then the recording as
-/// `file`. Written by hand to keep reqwest's multipart feature (and a
-/// workspace-wide rebuild) out for one form.
-fn multipart_body(fields: &[(&str, &str)], audio: Audio<'_>) -> Vec<u8> {
-    let mut body = Vec::with_capacity(audio.bytes.len() + 512);
-    for (name, value) in fields {
-        body.extend_from_slice(
-            format!(
-                "--{BOUNDARY}\r\ncontent-disposition: form-data; name=\"{name}\"\r\n\r\n{value}\r\n"
-            )
-            .as_bytes(),
-        );
+    if response
+        .content_length()
+        .is_some_and(|n| n > MAX_RESPONSE_BYTES as u64)
+    {
+        return Err(SttFailure::Refused);
     }
-    body.extend_from_slice(
-        format!(
-            "--{BOUNDARY}\r\ncontent-disposition: form-data; name=\"file\"; filename=\"dictation.{}\"\r\ncontent-type: {}\r\n\r\n",
-            extension(audio.content_type),
-            audio.content_type
-        )
-        .as_bytes(),
-    );
-    body.extend_from_slice(audio.bytes);
-    body.extend_from_slice(format!("\r\n--{BOUNDARY}--\r\n").as_bytes());
-    body
+    let mut body = Vec::new();
+    while let Some(chunk) = response.chunk().await.map_err(|e| {
+        if e.is_timeout() {
+            SttFailure::Timeout
+        } else {
+            SttFailure::Unreachable
+        }
+    })? {
+        if body.len() + chunk.len() > MAX_RESPONSE_BYTES {
+            return Err(SttFailure::Refused);
+        }
+        body.extend_from_slice(&chunk);
+    }
+    let answer: Transcription = serde_json::from_slice(&body).map_err(|_| SttFailure::Refused)?;
+    Ok(answer.text.trim().to_owned())
 }
 
 /// A file extension the server's decoder recognises for `content_type`.
@@ -231,18 +293,22 @@ fn extension(content_type: &str) -> &'static str {
 
 #[cfg(test)]
 mod tests {
-    use super::{Adapter, Audio, SpeechToText, SttFailure, choose, multipart_body};
+    use super::{Adapter, Form, SpeechToText, SttFailure, choose};
     use crate::settings::DictationConfig;
+    use std::future::Future;
 
-    /// A stand-in service: answers with `reply`, counting nothing.
+    /// A stand-in service: answers with `reply`.
     struct Fake(Result<String, SttFailure>);
 
     impl SpeechToText for Fake {
         fn name(&self) -> &'static str {
             "fake"
         }
-        async fn transcribe(&self, _audio: Audio<'_>) -> Result<String, SttFailure> {
-            self.0.clone()
+        fn transcribe(
+            &self,
+            _form: &Form,
+        ) -> impl Future<Output = Result<String, SttFailure>> + Send {
+            std::future::ready(self.0.clone())
         }
     }
 
@@ -271,30 +337,22 @@ mod tests {
 
     #[tokio::test]
     async fn the_trait_carries_failures_through() {
-        let audio = Audio {
-            bytes: b"x",
-            content_type: "audio/webm",
-        };
+        let form = Form::new(b"x", "audio/webm", "whisper-1");
         assert_eq!(
-            Fake(Err(SttFailure::Timeout)).transcribe(audio).await,
+            Fake(Err(SttFailure::Timeout)).transcribe(&form).await,
             Err(SttFailure::Timeout)
         );
         assert_eq!(
-            Fake(Ok("hi".to_owned())).transcribe(audio).await.as_deref(),
+            Fake(Ok("hi".to_owned())).transcribe(&form).await.as_deref(),
             Ok("hi")
         );
     }
 
     #[test]
-    fn the_body_names_the_file_by_its_type() {
-        let body = multipart_body(
-            &[("response_format", "json")],
-            Audio {
-                bytes: b"RIFF",
-                content_type: "audio/webm;codecs=opus",
-            },
-        );
-        let text = String::from_utf8_lossy(&body);
+    fn the_form_holds_the_audio_once_and_names_the_file_by_its_type() {
+        let form = Form::new(b"RIFF", "audio/webm", "whisper-1");
+        assert_eq!(form.audio(), b"RIFF");
+        let text = String::from_utf8_lossy(&form.body);
         assert!(text.contains("name=\"response_format\"\r\n\r\njson\r\n"));
         assert!(text.contains("filename=\"dictation.webm\""));
         assert!(text.ends_with("--\r\n"));

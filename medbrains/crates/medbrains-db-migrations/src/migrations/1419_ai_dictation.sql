@@ -1,8 +1,8 @@
 -- ====================================================================
--- Migration: 1418_ai_dictation.sql
+-- Migration: 1419_ai_dictation.sql
 -- RLS-Posture: tenant-scoped
 -- Tenant-Column: tenant_id
--- New-Tables: dictation_sessions, dictation_audio, ai_suggestion_outcomes
+-- New-Tables: dictation_sessions, dictation_audio, dictation_content, ai_suggestion_outcomes
 -- Drops: none
 -- ====================================================================
 -- AI notes from dictation, slice 1 (RFCs/modules/RFC-MODULE-ai-dictation.md).
@@ -13,17 +13,23 @@
 -- is filed automatically: the accepted text is saved through the normal
 -- clinical-notes draft and sign path.
 --
--- dictation_sessions: one recording and what became of it. The transcript is
---   kept with the note it went into, as provenance. `started_at` is when the
---   doctor began speaking and `saved_at` when the reviewed draft reached the
---   note: their difference is the time a dictated note took, for the KPI.
--- dictation_audio: the recording itself, apart from the session so that no
---   audit row ever carries it. Deleted (a real DELETE, no soft delete) when the
---   note is saved, or by the purge pass 24 hours after an abandoned recording.
+-- What the patient said never reaches the audit log. The audit trigger copies
+-- a whole row into `audit_log` for good, so only the metadata table carries one:
+--
+-- dictation_sessions: one recording's metadata, audited: status, adapter,
+--   model, sizes and times. `started_at` is when the doctor began speaking and
+--   `saved_at` when the reviewed draft reached the note: their difference is
+--   the time a dictated note took, for the KPI.
+-- dictation_audio: the recording. No audit trigger, no soft delete: deleted
+--   (a real DELETE) at save, at rejection, or by the purge 24 hours after an
+--   abandoned recording.
+-- dictation_content: the transcript and the draft. No audit trigger, no soft
+--   delete. Kept with a saved note as its provenance; deleted when the doctor
+--   rejects everything, and by the purge for anything unsaved after 24 hours.
 -- ai_suggestion_outcomes: AI-governance records. Every suggestion the model
 --   made and what the clinician did with it: accepted as written, edited (with
---   the size of the edit) or rejected. `feature` names the surface so later
---   AI drafting features write here too.
+--   the size of the edit) or rejected. It holds suggestion text, so it has no
+--   audit trigger either; rows are written once and never updated.
 
 CREATE TABLE public.dictation_sessions (
     id uuid DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY,
@@ -33,7 +39,8 @@ CREATE TABLE public.dictation_sessions (
     doctor_id uuid NOT NULL REFERENCES public.users(id),
     source text NOT NULL CHECK (source IN ('recorded', 'uploaded')),
     audio_bytes integer NOT NULL CHECK (audio_bytes > 0),
-    -- Ten minutes at most; the browser stops the recorder at the same limit.
+    -- As the browser reported it: used for the KPI only, never as a bound
+    -- (the server bounds the upload by its size).
     duration_ms integer NOT NULL CHECK (duration_ms BETWEEN 0 AND 600000),
     status text NOT NULL DEFAULT 'processing' CHECK (status IN
         ('processing', 'stt_failed', 'no_speech', 'llm_failed', 'drafted', 'saved', 'rejected',
@@ -42,8 +49,7 @@ CREATE TABLE public.dictation_sessions (
     failure text CHECK (failure IS NULL OR failure ~ '^[a-z_]{3,40}$'),
     stt_adapter text CHECK (stt_adapter IN ('local', 'cloud')),
     llm_model text,
-    transcript text CHECK (transcript IS NULL OR length(transcript) <= 100000),
-    draft jsonb,
+    transcript_chars integer CHECK (transcript_chars IS NULL OR transcript_chars >= 0),
     note_id uuid REFERENCES public.clinical_notes(id),
     started_at timestamptz NOT NULL,
     saved_at timestamptz,
@@ -60,10 +66,14 @@ CREATE TABLE public.dictation_sessions (
 CREATE INDEX idx_dictation_sessions_encounter
     ON public.dictation_sessions (tenant_id, encounter_id, created_at DESC)
     WHERE deleted_at IS NULL;
--- The purge pass looks for recordings still held after 24 hours.
-CREATE INDEX idx_dictation_sessions_audio_held
-    ON public.dictation_sessions (created_at)
-    WHERE audio_deleted_at IS NULL;
+-- The purge pass looks for sessions older than 24 hours still holding data.
+CREATE INDEX idx_dictation_sessions_created
+    ON public.dictation_sessions (created_at);
+-- One dictation at a time per doctor: a second while one is being processed
+-- is refused rather than queued behind it.
+CREATE UNIQUE INDEX uq_dictation_one_processing_per_doctor
+    ON public.dictation_sessions (tenant_id, doctor_id)
+    WHERE status = 'processing';
 
 ALTER TABLE public.dictation_sessions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.dictation_sessions FORCE ROW LEVEL SECURITY;
@@ -95,6 +105,25 @@ ALTER TABLE public.dictation_audio FORCE ROW LEVEL SECURITY;
 CREATE POLICY tenant_isolation_dictation_audio ON public.dictation_audio
     USING (tenant_id = ANY (public.app_visible_tenants()))
     WITH CHECK (tenant_id = ANY (public.app_visible_tenants()));
+
+-- The words: no audit trigger and no soft delete, for the same reason.
+CREATE TABLE public.dictation_content (
+    session_id uuid NOT NULL PRIMARY KEY REFERENCES public.dictation_sessions(id),
+    tenant_id uuid NOT NULL REFERENCES public.tenants(id),
+    transcript text NOT NULL CHECK (length(transcript) <= 100000),
+    draft jsonb,
+    created_at timestamptz NOT NULL DEFAULT now(),
+    updated_at timestamptz NOT NULL DEFAULT now()
+);
+
+ALTER TABLE public.dictation_content ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.dictation_content FORCE ROW LEVEL SECURITY;
+CREATE POLICY tenant_isolation_dictation_content ON public.dictation_content
+    USING (tenant_id = ANY (public.app_visible_tenants()))
+    WITH CHECK (tenant_id = ANY (public.app_visible_tenants()));
+
+CREATE TRIGGER set_updated_at_dictation_content BEFORE UPDATE ON public.dictation_content
+    FOR EACH ROW EXECUTE FUNCTION public.update_updated_at();
 
 CREATE TABLE public.ai_suggestion_outcomes (
     id uuid DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY,
@@ -141,6 +170,3 @@ CREATE TRIGGER set_updated_at_ai_suggestion_outcomes BEFORE UPDATE ON public.ai_
     FOR EACH ROW EXECUTE FUNCTION public.update_updated_at();
 CREATE TRIGGER trg_ai_suggestion_outcomes_soft_delete BEFORE DELETE ON public.ai_suggestion_outcomes
     FOR EACH ROW EXECUTE FUNCTION public.soft_delete_guardrail();
-CREATE TRIGGER audit_ai_suggestion_outcomes AFTER INSERT OR UPDATE OR DELETE
-    ON public.ai_suggestion_outcomes
-    FOR EACH ROW EXECUTE FUNCTION public.audit_trigger_func('opd');
