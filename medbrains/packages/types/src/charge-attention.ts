@@ -69,6 +69,11 @@ export interface UnbilledScanResult {
 
 export interface DismissChargeAttentionRequest {
   reason: string;
+  /**
+   * On an implant used without a patient: the store record duplicates one already
+   * made, so its unit goes back to stock and the vendor usage.
+   */
+  duplicate_usage?: boolean;
 }
 
 /** Name the patient a consignment implant was used on. */

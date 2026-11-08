@@ -30,6 +30,7 @@ use medbrains_server_core::{
 };
 use sqlx::PgConnection;
 
+mod duplicate;
 mod name_patient;
 mod select;
 use name_patient::require_row_access;
@@ -339,10 +340,17 @@ pub async fn post_charge_attention(
 #[derive(Debug, Deserialize)]
 pub struct DismissRequest {
     pub reason: String,
+    /// On an implant used without a patient: the store's record is a
+    /// duplicate of one already made (the registry recorded the implant), so
+    /// the unit it took goes back to stock and the vendor's usage. Refused on
+    /// any other row.
+    #[serde(default)]
+    pub duplicate_usage: bool,
 }
 
 /// `PUT /api/billing/charge-attention/{id}/dismiss` — the charge should not
-/// be billed; the reason is required and kept.
+/// be billed; the reason is required and kept. A duplicate implant usage is
+/// reversed in the same transaction: see `duplicate::reverse_usage`.
 pub async fn dismiss_charge_attention(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
@@ -359,6 +367,9 @@ pub async fn dismiss_charge_attention(
     let mut tx = medbrains_kernel::begin(&state.db, Actor::from_claims(&claims)).await?;
     let item = lock_open(&mut tx, &claims, kinds, id).await?;
     require_row_access(&state, &claims, item.patient_id).await?;
+    if body.duplicate_usage {
+        duplicate::reverse_usage(&mut tx, &claims, &item).await?;
+    }
     mark_dismissed(&mut tx, &claims, id, reason).await?;
     let row = fetch(&mut tx, claims.tenant_id, id).await?;
     tx.commit().await?;

@@ -242,6 +242,28 @@ describe("stock used on a patient and implants with no patient", () => {
     expect(posts[1]).toBeDisabled();
   });
 
+  it("dismisses an implant as a duplicate record only when the desk says so", async () => {
+    for (const p of LEAKAGE) held.add(p);
+    service.listChargeAttention.mockResolvedValue({
+      data: [implantRow()],
+      meta: { total: 1, page: 1, limit: 25 },
+    });
+    service.dismissChargeAttention.mockResolvedValue(implantRow({ status: "dismissed" }));
+    const user = userEvent.setup();
+    render(<ChargeAttentionTab />);
+    await user.click(await screen.findByRole("button", { name: "Dismiss" }));
+    const dialog = await screen.findByRole("dialog");
+    await user.type(within(dialog).getByRole("textbox", { name: /Reason/ }), "Same implant");
+    await user.click(within(dialog).getByRole("checkbox", { name: /Duplicate of a record/ }));
+    await user.click(within(dialog).getByRole("button", { name: "Dismiss" }));
+    await waitFor(() =>
+      expect(service.dismissChargeAttention).toHaveBeenCalledWith("row-implant", {
+        reason: "Same implant",
+        duplicate_usage: true,
+      }),
+    );
+  });
+
   it("tells the desk whose registry entry an unnamed implant may be", async () => {
     for (const p of LEAKAGE) held.add(p);
     service.listChargeAttention.mockResolvedValue({
