@@ -60,6 +60,8 @@ export interface PaperlessReport {
   departments: PaperlessDepartment[];
   doc_types: PaperlessDocType[];
   not_counted: string[];
+  /** Sources a recount in this range could not count, and on how many days. */
+  could_not_count: string[];
 }
 
 /** Query of `GET /api/analytics/paperless`. */

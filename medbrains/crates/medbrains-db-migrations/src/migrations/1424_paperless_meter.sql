@@ -16,13 +16,16 @@
 --
 -- `paperless_days` says which days were counted. A day with no row there was
 -- never measured, which the screen shows as unknown; a counted day with no
--- `paperless_daily` rows had no documents.
+-- `paperless_daily` rows had no documents. The indexes the recount reads by
+-- are migrations 1426-1449, one CONCURRENTLY build each.
 
 CREATE TABLE public.paperless_daily (
     tenant_id uuid NOT NULL REFERENCES public.tenants(id) ON DELETE CASCADE,
     day date NOT NULL,
-    -- Null: the document names no department the meter can reach.
-    department_id uuid REFERENCES public.departments(id) ON DELETE SET NULL,
+    -- Null: the document names no department the meter can reach. No
+    -- foreign key: this is derived data, and one record pointing at a
+    -- missing department must not fail a hospital's whole recount.
+    department_id uuid,
     -- A signable record type (`prescription`, `lab_report`, ...),
     -- `clinical_note`, `case_sheet_scan`, or a printed document's module.
     doc_type text NOT NULL CHECK (doc_type ~ '^[a-z0-9_]{2,60}$'),
@@ -41,6 +44,10 @@ CREATE TABLE public.paperless_days (
     tenant_id uuid NOT NULL REFERENCES public.tenants(id) ON DELETE CASCADE,
     day date NOT NULL,
     computed_at timestamptz NOT NULL DEFAULT now(),
+    -- Sources the recount that counted this day could not count, each
+    -- "label: why" (a statement that failed or ran out of time, a table with
+    -- no signature link). The screen shows them as "could not count".
+    not_counted text[] NOT NULL DEFAULT '{}',
     PRIMARY KEY (tenant_id, day)
 );
 

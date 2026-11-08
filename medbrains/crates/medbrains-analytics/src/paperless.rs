@@ -5,16 +5,22 @@
 //! - **digital**: clinical documents made in the system, over those plus
 //!   paper case sheets scanned in;
 //! - **signed**: of the documents made in the system, those signed digitally
-//!   (a live `signed_records` row; a clinical note's own signature);
+//!   (the record still links a live primary signature, which an edit
+//!   clears; a clinical note's own signature);
 //! - **legally signed**: those carrying an IT Act s.3A/s.5 signature (DSC or
 //!   Aadhaar eSign). No such provider exists yet, so it is 0% of a known
 //!   count and the screen says why, rather than hiding it.
 //!
 //! The counts live in `paperless_daily` (migration 1424), rebuilt for a window
-//! of days in one unit of work: daily for the last [`DAILY_DAYS`] days (a
-//! document signed days after it was made is counted on its day), and on
-//! demand. The rebuild deletes and rewrites the window, so it is idempotent.
-//! A day never rebuilt is unknown, never 0%.
+//! of days in one unit of work (`rebuild`): nightly at [`NIGHTLY_HOUR`]:00
+//! hospital time for the last [`DAILY_DAYS`] days, and on demand. A document
+//! signed within that week is counted on its own day; one signed later, or a
+//! signature taken off by an edit later, changes its day only when someone
+//! recounts further back. The rebuild deletes and rewrites the window, so it
+//! is idempotent. A day never rebuilt is unknown, never 0%.
+
+use std::collections::HashMap;
+use std::hash::BuildHasher;
 
 use axum::extract::{Query, State};
 use axum::{Extension, Json};
@@ -28,6 +34,7 @@ use sqlx::PgPool;
 use uuid::Uuid;
 
 mod read;
+mod rebuild;
 mod route;
 mod sources;
 pub mod summary;
@@ -38,9 +45,8 @@ pub use read::{PaperlessReport, report};
 pub const DAILY_DAYS: i64 = 7;
 /// Most days one rebuild may cover: a backfill of three months.
 pub const MAX_REBUILD_DAYS: i64 = 90;
-/// Every statement in a rebuild stops after this, so one slow table cannot
-/// hold the pass.
-const STATEMENT_TIMEOUT: &str = "60s";
+/// The hospital-local hour the nightly recount runs in: off-peak.
+pub const NIGHTLY_HOUR: i32 = 2;
 /// The audit action every rebuild writes.
 const REBUILD_ACTION: &str = "analytics.paperless.rebuild";
 
@@ -51,9 +57,8 @@ pub struct Rebuilt {
     pub to: NaiveDate,
     /// Rows written to `paperless_daily`.
     pub rows: u64,
-    /// Signable types not counted, with why (a table missing its
-    /// `created_at`): the screen lists them.
-    pub skipped: Vec<&'static str>,
+    /// Sources not counted, each "label: why"; the screen lists them.
+    pub skipped: Vec<String>,
 }
 
 /// The hospital's time zone and today's date on its clock.
@@ -85,100 +90,6 @@ async fn columns(tx: &mut Tx) -> Result<route::Columns, AppError> {
     Ok(map)
 }
 
-/// Run one counting statement for the window into `paperless_daily`.
-async fn insert_counts(
-    tx: &mut Tx,
-    sql: &str,
-    window: (Uuid, NaiveDate, NaiveDate, &str),
-    record_type: Option<&str>,
-) -> Result<u64, AppError> {
-    let sql = format!(
-        "INSERT INTO paperless_daily \
-           (tenant_id, day, department_id, doc_type, created, signed, scanned, printed) {sql}"
-    );
-    let (tenant, from, to, zone) = window;
-    let mut query = sqlx::query(&sql)
-        .bind(tenant)
-        .bind(from)
-        .bind(to)
-        .bind(zone);
-    if let Some(t) = record_type {
-        query = query.bind(t);
-    }
-    Ok(query.execute(&mut **tx).await?.rows_affected())
-}
-
-/// Count every source for days `from..=to` of the transaction's hospital,
-/// replacing what the window held, and mark the days counted.
-async fn rebuild(
-    tx: &mut Tx,
-    tenant: Uuid,
-    from: NaiveDate,
-    to: NaiveDate,
-) -> Result<Rebuilt, AppError> {
-    sqlx::query("SELECT pg_advisory_xact_lock(hashtextextended('analytics.paperless:' || $1, 0))")
-        .bind(tenant.to_string())
-        .execute(&mut **tx)
-        .await?;
-    sqlx::query(&format!(
-        "SET LOCAL statement_timeout = '{STATEMENT_TIMEOUT}'"
-    ))
-    .execute(&mut **tx)
-    .await?;
-    let (zone, _) = clock(tx, tenant).await?;
-    let cols = columns(tx).await?;
-    sqlx::query("DELETE FROM paperless_daily WHERE tenant_id = $1 AND day BETWEEN $2 AND $3")
-        .bind(tenant)
-        .bind(from)
-        .bind(to)
-        .execute(&mut **tx)
-        .await?;
-    let window = (tenant, from, to, zone.as_str());
-    let mut rows = 0;
-    let mut skipped = Vec::new();
-    for spec in SIGNABLE {
-        match route::signable_statement(spec, &cols) {
-            Some(sql) => rows += insert_counts(tx, &sql, window, Some(spec.record_type)).await?,
-            None => skipped.push(spec.label),
-        }
-    }
-    for sql in [
-        sources::CLINICAL_NOTES,
-        sources::CASE_SHEET_SCANS,
-        sources::FIRST_PRINTS,
-    ] {
-        rows += insert_counts(tx, sql, window, None).await?;
-    }
-    mark_counted(tx, tenant, from, to).await?;
-    Ok(Rebuilt {
-        from,
-        to,
-        rows,
-        skipped,
-    })
-}
-
-/// Record days `from..=to` as counted now, so a day with no documents reads
-/// as none rather than as never measured.
-async fn mark_counted(
-    tx: &mut Tx,
-    tenant: Uuid,
-    from: NaiveDate,
-    to: NaiveDate,
-) -> Result<(), AppError> {
-    sqlx::query(
-        "INSERT INTO paperless_days (tenant_id, day) \
-         SELECT $1, d::date FROM generate_series($2::date, $3::date, INTERVAL '1 day') d \
-         ON CONFLICT (tenant_id, day) DO UPDATE SET computed_at = now()",
-    )
-    .bind(tenant)
-    .bind(from)
-    .bind(to)
-    .execute(&mut **tx)
-    .await?;
-    Ok(())
-}
-
 /// Rebuild the last `days` days (1..=[`MAX_REBUILD_DAYS`]) of `actor`'s
 /// hospital in one audited unit of work.
 pub async fn run_for(pool: &PgPool, actor: Actor, days: i64) -> Result<Rebuilt, AppError> {
@@ -186,7 +97,7 @@ pub async fn run_for(pool: &PgPool, actor: Actor, days: i64) -> Result<Rebuilt, 
     let mut tx = medbrains_kernel::begin(pool, actor).await?;
     let (_, today) = clock(&mut tx, actor.tenant_id).await?;
     let from = today - Duration::days(days - 1);
-    let done = rebuild(&mut tx, actor.tenant_id, from, today).await?;
+    let done = rebuild::rebuild(&mut tx, actor.tenant_id, from, today).await?;
     let detail = serde_json::json!({ "from": done.from, "to": done.to, "rows": done.rows });
     let run_by = (!actor.user_id.is_nil()).then_some(actor.user_id);
     medbrains_kernel::audit(
@@ -207,17 +118,35 @@ pub async fn run_for(pool: &PgPool, actor: Actor, days: i64) -> Result<Rebuilt, 
     Ok(done)
 }
 
-/// The nightly pass: every active hospital, one unit of work each. A
-/// hospital that fails is logged and the rest still run. Returns how many
-/// hospitals were counted.
-pub async fn run_daily(pool: &PgPool) -> Result<usize, AppError> {
-    let tenants: Vec<Uuid> = sqlx::query_scalar(
-        "SELECT id FROM tenants WHERE is_active AND deleted_at IS NULL ORDER BY id LIMIT 10000",
+/// Hospitals whose clock is in [`NIGHTLY_HOUR`] now, with their local date.
+async fn due(pool: &PgPool) -> Result<Vec<(Uuid, NaiveDate)>, AppError> {
+    Ok(sqlx::query_as(
+        "SELECT id, timezone(COALESCE(timezone, 'UTC'), now())::date FROM tenants \
+          WHERE is_active AND deleted_at IS NULL \
+            AND extract(hour FROM timezone(COALESCE(timezone, 'UTC'), now()))::int = $1 \
+          ORDER BY id LIMIT 10000",
     )
+    .bind(NIGHTLY_HOUR)
     .fetch_all(pool)
-    .await?;
+    .await?)
+}
+
+/// The nightly pass, called every quarter hour.
+///
+/// Recounts each hospital in its [`NIGHTLY_HOUR`] not yet recounted on its
+/// local date (`done`, kept by the caller), one unit of work each. A hospital
+/// that fails is logged and the rest still run. Returns how many were
+/// recounted.
+pub async fn run_nightly<S: BuildHasher + Send>(
+    pool: &PgPool,
+    done: &mut HashMap<Uuid, NaiveDate, S>,
+) -> Result<usize, AppError> {
     let mut counted = 0;
-    for tenant_id in tenants {
+    for (tenant_id, local_date) in due(pool).await? {
+        if done.get(&tenant_id) == Some(&local_date) {
+            continue;
+        }
+        done.insert(tenant_id, local_date);
         match run_for(pool, Actor::system(tenant_id), DAILY_DAYS).await {
             Ok(_) => counted += 1,
             Err(error) => tracing::error!(%error, %tenant_id, "paperless meter rebuild failed"),

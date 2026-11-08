@@ -6,7 +6,7 @@
  * A failed read is "unknown" with a retry, never 0%; a range never counted
  * says so; the legally-signed share is shown at 0% with its reason.
  */
-import { Group, Stack, Text } from "@mantine/core";
+import { Group, List, Stack, Text } from "@mantine/core";
 import { api } from "@medbrains/api";
 import { useHasPermission } from "@medbrains/stores";
 import { P } from "@medbrains/types";
@@ -75,6 +75,7 @@ export function PaperlessPage() {
             {data.last_counted_at
               ? `${data.measured_days} of ${data.days} days counted, last at ${formatDateTime(data.last_counted_at)}`
               : "No day in this range has been counted yet"}
+            . Recounted nightly at 02:00 for the last 7 days.
           </Text>
         )}
       </Group>
@@ -102,9 +103,22 @@ export function PaperlessPage() {
       {data && (
         <>
           <Text data-testid="paperless-summary">{data.summary}</Text>
+          {data.could_not_count.length > 0 && (
+            <Alert
+              tone="warning"
+              title="Some documents could not be counted"
+              data-testid="paperless-could-not-count"
+            >
+              <List size="sm" spacing={4}>
+                {data.could_not_count.map((n) => (
+                  <List.Item key={n}>{n}</List.Item>
+                ))}
+              </List>
+            </Alert>
+          )}
           <Headline report={data} />
           <TrendCard series={data.series} />
-          <DepartmentsCard departments={data.departments} />
+          <DepartmentsCard departments={data.departments} isCounted={data.measured_days > 0} />
           <PaperCard report={data} />
         </>
       )}

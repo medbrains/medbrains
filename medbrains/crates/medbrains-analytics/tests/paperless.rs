@@ -144,7 +144,10 @@ async fn documents(db: &PgPool, w: &World, dept: Uuid) {
               VALUES ($1, $2, $3, $4) RETURNING id";
     let signed = id(&mut tx, rx, &[w.tenant, visit, w.user], "signed").await;
     id(&mut tx, rx, &[w.tenant, visit, w.user], "unsigned").await;
-    id(
+    // The author's signature and the record's link to it, as
+    // `mark_source_signed` leaves them (the sign path itself is exercised in
+    // medbrains-server `paperless_meter_test`).
+    let signature = id(
         &mut tx,
         "INSERT INTO signed_records (tenant_id, record_type, record_id, signer_user_id, \
             signer_role, payload_hash, signature_bytes, legal_class) \
@@ -153,6 +156,33 @@ async fn documents(db: &PgPool, w: &World, dept: Uuid) {
         "clinical",
     )
     .await;
+    sqlx::query("UPDATE prescriptions SET is_signed = TRUE, signed_record_id = $1 WHERE id = $2")
+        .bind(signature)
+        .bind(signed)
+        .execute(&mut *tx)
+        .await
+        .expect("link the signature");
+    // A witness on the unsigned prescription is not the author's signature.
+    let witness = id(
+        &mut tx,
+        "INSERT INTO signed_records (tenant_id, record_type, record_id, signer_user_id, \
+            signer_role, payload_hash, signature_bytes, legal_class) \
+         SELECT $1, 'prescription', id, $2, 'witness', '\\x00', '\\x00', $4 \
+           FROM prescriptions WHERE tenant_id = $1 AND id <> $3 RETURNING id",
+        &[w.tenant, w.user, signed],
+        "clinical",
+    )
+    .await;
+    sqlx::query(
+        "UPDATE prescriptions SET is_signed = TRUE, signed_record_id = $1 \
+          WHERE tenant_id = $2 AND id <> $3",
+    )
+    .bind(witness)
+    .bind(w.tenant)
+    .bind(signed)
+    .execute(&mut *tx)
+    .await
+    .expect("link the witness");
     let kind = id(
         &mut tx,
         "INSERT INTO note_types (tenant_id, code, name, category, sections) \
@@ -406,8 +436,30 @@ async fn a_new_signable_type_finds_its_department_through_its_parent() {
         "every signable type and clinical notes"
     );
     assert!(
-        !r.not_counted.iter().any(|n| n.contains("no creation time")),
+        r.could_not_count.is_empty(),
         "every registered table is countable: {:?}",
-        r.not_counted
+        r.could_not_count
+    );
+}
+
+/// Given a recount of a hospital is running, When another is asked for, Then
+/// it answers 409 at once instead of waiting behind the first.
+#[tokio::test]
+#[ignore = "needs DATABASE_URL"]
+async fn a_second_recount_while_one_runs_is_refused() {
+    let db = pool().await;
+    let w = world(&db).await;
+    let mut running = db.begin().await.unwrap();
+    sqlx::query("SELECT pg_advisory_xact_lock(hashtextextended('analytics.paperless:' || $1, 0))")
+        .bind(w.tenant.to_string())
+        .execute(&mut *running)
+        .await
+        .unwrap();
+    let second = refresh(&db, &manager(&w), None).await;
+    assert!(matches!(second, Err(AppError::Conflict(_))), "{second:?}");
+    running.rollback().await.unwrap();
+    assert!(
+        refresh(&db, &manager(&w), None).await.is_ok(),
+        "free once the first ends"
     );
 }

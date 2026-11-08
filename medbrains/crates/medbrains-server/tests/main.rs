@@ -162,6 +162,7 @@ mod linkage_lab_critical_test;
 mod linkage_safety_test;
 mod login_hospital_scope_test;
 mod management_kpis_test;
+mod paperless_meter_test;
 mod dashboard_as_of_test;
 mod marketing_call_ingest_test;
 mod marketing_callbacks_test;

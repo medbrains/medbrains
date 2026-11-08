@@ -13,7 +13,7 @@ A row the system made that a clinician answers for, in one of:
 
 | Type | Table | Signed when | Department |
 |---|---|---|---|
-| Every signable type (`medbrains_documents::signable::SIGNABLE`, 21 types since #5259) | the type's `table`, dated by `created_at` (`signed_at` for the order basket) | a live `signed_records` row for `(record_type, record_id)` | the record's `department_id` or `from_department_id`, else its registry parent's (`related` with a link column: lab/radiology order, OT booking), else the encounter's, else the admission's, reached from the record, the parent or its ER visit |
+| Every signable type (`medbrains_documents::signable::SIGNABLE`, 21 types since #5259) | the type's `table`, dated by `created_at` (`signed_at` for the order basket) | its `signed_record_id` points at a live **primary** `signed_records` row: the 1418 edit guard clears the link when the record changes, so an edited record is unsigned; a co-signature or witness alone is not counted | the record's `department_id` or `from_department_id`, else its registry parent's (`related` with a link column: lab/radiology order, OT booking), else the encounter's, else the admission's, reached from the record, the parent or its ER visit |
 | Clinical note (OPD consultation, progress, nursing, ...) | `clinical_notes` (not `entered_in_error`) | `status = 'signed'` (its own ledger) | `service_department_id`, else the encounter's |
 
 The department is found from the columns each table has, read from the
@@ -50,7 +50,8 @@ A share with nothing under it is unknown, never 0%. A day never counted is
 
 - `paperless_daily (tenant_id, day, department_id, doc_type, created, signed,
   scanned, printed)`, unique on the first four (`NULLS NOT DISTINCT`).
-- `paperless_days (tenant_id, day, computed_at)`: which days were counted.
+- `paperless_days (tenant_id, day, computed_at, not_counted)`: which days were counted, and what could not be.
+- `paperless_daily.department_id` has no foreign key: derived data, so a bad link cannot fail a recount.
 
 Both are derived and RLS-forced. A rebuild locks the hospital
 (`pg_advisory_xact_lock`), sets `statement_timeout = 60s`, deletes the
@@ -60,9 +61,24 @@ bounded (one statement per type, at most 90 days).
 
 ## Running
 
-- Daily, every active hospital, last 7 days (a document signed days later is
-  counted on its day): `medbrains-server` `services::paperless_meter`.
+- Nightly at 02:00 hospital time (checked every quarter hour, once per
+  hospital per local day; nothing at startup), every active hospital, the
+  last 7 days: `medbrains-server` `services::paperless_meter`.
+- **The 7-day limit:** a signature added, or taken off by an edit, more than
+  7 days after the document was made does not change that day's count until
+  someone recounts further back. The screen says so.
 - On demand: `POST /api/analytics/paperless/refresh {days?}` (1–90, default 7).
+  A second recount while one runs answers 409 "a recount is already running"
+  (`pg_try_advisory_xact_lock`, after `statement_timeout` is set).
+- Each source runs in its own savepoint: one that fails or passes the 60 s
+  timeout is rolled back alone, logged, and recorded on the days in
+  `paperless_days.not_counted`; the screen lists it as "could not count".
+  A type whose table has no time or no `signed_record_id` is skipped the same
+  way.
+- Indexes: `(tenant_id, created_at)` on every table counted (`signed_at` for
+  the order basket, `first_printed_at` on `document_outputs`), migrations
+  1426–1449, one `CREATE INDEX CONCURRENTLY` per file (`-- no-transaction`:
+  Postgres refuses CONCURRENTLY inside a multi-statement query).
 
 ## API
 

@@ -12,8 +12,8 @@ use serde::Serialize;
 use sqlx::PgPool;
 use uuid::Uuid;
 
+use super::ReportQuery;
 use super::summary::{Counts, Halves, sentence};
-use super::{ReportQuery, route};
 
 /// Days read when the caller names no start.
 const DEFAULT_DAYS: i64 = 30;
@@ -31,6 +31,7 @@ const LEGAL_NOTE: &str = "No IT Act signing provider (DSC or Aadhaar eSign) is c
 const NOT_COUNTED: &[&str] = &[
     "Paper that was never scanned is invisible to the system, so the digital share is an upper bound.",
     "Only a document's first print has a date; reprints are not counted.",
+    "The nightly recount (02:00 hospital time) covers the last 7 days: a signature added, or taken off by an edit, more than 7 days after the document was made does not change its day unless someone recounts further back.",
     "MRD physical file requests are not counted yet: the file-room tracker (PR #5255) is not merged.",
     "Consent forms are signed in the consent module and are not counted yet.",
 ];
@@ -91,6 +92,8 @@ pub struct PaperlessReport {
     pub departments: Vec<DepartmentRow>,
     pub doc_types: Vec<TypeRow>,
     pub not_counted: Vec<String>,
+    /// Sources a recount in this range could not count, and on how many days.
+    pub could_not_count: Vec<String>,
 }
 
 /// `(created, signed, scanned, printed)` sums as a row.
@@ -148,7 +151,7 @@ pub async fn report(
     let days = by_day(&mut tx, scope).await?;
     let depts = by_department(&mut tx, scope, mid).await?;
     let types = by_type(&mut tx, scope).await?;
-    let skipped = skipped_types(&mut tx).await?;
+    let skipped = not_counted(&mut tx, scope).await?;
     tx.commit().await?;
     Ok(assemble(&Parts {
         from,
@@ -238,14 +241,19 @@ async fn by_type(tx: &mut Tx, s: Scope) -> Result<Vec<(String, i64, i64)>, AppEr
     .await?)
 }
 
-/// Signable types the meter cannot count on this database, by label.
-async fn skipped_types(tx: &mut Tx) -> Result<Vec<&'static str>, AppError> {
-    let cols = super::columns(tx).await?;
-    Ok(SIGNABLE
-        .iter()
-        .filter(|t| route::signable_statement(t, &cols).is_none())
-        .map(|t| t.label)
-        .collect())
+/// Each source the recounts could not count, with on how many of the days
+/// read: `("Vitals entry: could not count (...)", 3)`.
+async fn not_counted(tx: &mut Tx, s: Scope) -> Result<Vec<(String, i64)>, AppError> {
+    Ok(sqlx::query_as(
+        "SELECT n, COUNT(*)::int8 FROM paperless_days, unnest(not_counted) AS n \
+          WHERE tenant_id = $1 AND day BETWEEN $2 AND $3 \
+          GROUP BY n ORDER BY n LIMIT 200",
+    )
+    .bind(s.0)
+    .bind(s.1)
+    .bind(s.2)
+    .fetch_all(&mut **tx)
+    .await?)
 }
 
 /// Everything [`assemble`] builds the report from.
@@ -257,7 +265,7 @@ struct Parts {
     days: Vec<(NaiveDate, Sums)>,
     depts: Vec<DeptSums>,
     types: Vec<(String, i64, i64)>,
-    skipped: Vec<&'static str>,
+    skipped: Vec<(String, i64)>,
 }
 
 /// The report from the rows read.
@@ -275,12 +283,12 @@ fn assemble(p: &Parts) -> PaperlessReport {
     totals += after;
     let halves = halves_by_department(&p.depts);
     let movers: Vec<Halves> = halves.iter().map(|(_, h)| h.clone()).collect();
-    let mut not_counted: Vec<String> = NOT_COUNTED.iter().map(|s| (*s).to_owned()).collect();
-    not_counted.extend(
-        p.skipped
-            .iter()
-            .map(|l| format!("{l}: its table has no creation time, so it is not counted.")),
-    );
+    let not_counted: Vec<String> = NOT_COUNTED.iter().map(|s| (*s).to_owned()).collect();
+    let could_not_count = p
+        .skipped
+        .iter()
+        .map(|(n, days)| format!("{n}, on {days} of the days counted; the shares leave it out."))
+        .collect();
     PaperlessReport {
         from: p.from,
         to: p.to,
@@ -296,6 +304,7 @@ fn assemble(p: &Parts) -> PaperlessReport {
         departments: department_rows(halves),
         doc_types: type_rows(&p.types),
         not_counted,
+        could_not_count,
     }
 }
 

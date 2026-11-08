@@ -71,6 +71,7 @@ const report: PaperlessReport = {
   ],
   doc_types: [],
   not_counted: ["MRD physical file requests are not counted yet."],
+  could_not_count: [],
 };
 
 describe("Analytics → Paperless meter", () => {
@@ -135,6 +136,23 @@ describe("Analytics → Paperless meter", () => {
       "Not counted yet",
     );
     expect(screen.getByTestId("paperless-legal-value")).toHaveTextContent("Not counted yet");
+    const surgery = screen.getAllByTestId("paperless-department-row")[1];
+    expect(surgery).toHaveTextContent("Not counted");
+    expect(surgery).not.toHaveTextContent("No documents");
+  });
+
+  it("names a source a recount could not count, rather than reading it as zero", async () => {
+    held.add(VIEW);
+    api.getPaperless.mockResolvedValue({
+      ...report,
+      could_not_count: [
+        "Vitals entry: could not count (the count failed or ran out of time), on 2 of the days counted; the shares leave it out.",
+      ],
+    });
+    render(<PaperlessPage />);
+    expect(await screen.findByTestId("paperless-could-not-count")).toHaveTextContent(
+      /Vitals entry: could not count/,
+    );
   });
 
   it("recounts on demand for a holder of the refresh permission", async () => {

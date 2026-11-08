@@ -12,6 +12,11 @@
 //! the encounter's, reached from the record, the parent or its ER visit; the
 //! admission's, reached the same ways. A record that reaches none (a blood
 //! transfusion record names only the patient) counts under "no department".
+//!
+//! A record is signed while its `signed_record_id` points at a live primary
+//! signature: the edit guard (migration 1418) clears that link when the
+//! record changes, so a signature on content since edited is not counted, and
+//! a co-signature or witness on its own is not the author's signature.
 
 use std::collections::{HashMap, HashSet};
 use std::fmt::Write as _;
@@ -28,6 +33,7 @@ const LOOKED_FOR: &[&str] = &[
     "encounter_id",
     "admission_id",
     "er_visit_id",
+    "signed_record_id",
 ];
 
 /// Columns each table has, of those the routing looks for.
@@ -72,16 +78,44 @@ pub(super) fn is_identifier(name: &str) -> bool {
             .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '_')
 }
 
+/// Why a registered type cannot be counted on this database.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(super) enum Unfit {
+    /// Its table is not there.
+    Missing,
+    /// Its table has no time to date a record by.
+    NoTime,
+    /// Its table has no `signed_record_id`, so a signature cannot be read.
+    NoSignatureLink,
+    /// Its table's name is not a plain identifier.
+    BadName,
+}
+
+impl Unfit {
+    /// The reason in words, for the screen and the log.
+    pub(super) const fn reason(self) -> &'static str {
+        match self {
+            Self::Missing => "its table is missing",
+            Self::NoTime => "its table has no creation time",
+            Self::NoSignatureLink => "its table has no signature link",
+            Self::BadName => "its table name is not plain",
+        }
+    }
+}
+
 /// The statement counting one signable type, binding `$5` its record type,
-/// or `None` when its table is not there or has no time to date it by (it is
-/// reported as not counted).
-pub(super) fn signable_statement(spec: &SignableType, columns: &Columns) -> Option<String> {
-    let own = columns.get(spec.table)?;
+/// or why it cannot be counted (it is reported as not counted).
+pub(super) fn signable_statement(spec: &SignableType, columns: &Columns) -> Result<String, Unfit> {
+    let own = columns.get(spec.table).ok_or(Unfit::Missing)?;
     let at = ["created_at", "signed_at"]
         .into_iter()
-        .find(|c| own.contains(*c))?;
+        .find(|c| own.contains(*c))
+        .ok_or(Unfit::NoTime)?;
+    if !own.contains("signed_record_id") {
+        return Err(Unfit::NoSignatureLink);
+    }
     if !is_identifier(spec.table) {
-        return None;
+        return Err(Unfit::BadName);
     }
     let (joins, department) = department_of(spec, columns);
     let live = if own.contains("deleted_at") {
@@ -89,14 +123,13 @@ pub(super) fn signable_statement(spec: &SignableType, columns: &Columns) -> Opti
     } else {
         ""
     };
-    Some(format!(
+    Ok(format!(
         "SELECT $1, timezone($4, r.{at})::date, {department}, $5, \
-                COUNT(*)::int, \
-                COUNT(*) FILTER (WHERE EXISTS ( \
-                  SELECT 1 FROM signed_records s \
-                   WHERE s.tenant_id = r.tenant_id AND s.record_type = $5 \
-                     AND s.record_id = r.id AND s.deleted_at IS NULL))::int, 0, 0 \
+                COUNT(*)::int, COUNT(*) FILTER (WHERE s.id IS NOT NULL)::int, 0, 0 \
            FROM {table} r {joins} \
+           LEFT JOIN signed_records s ON s.tenant_id = r.tenant_id \
+                 AND s.id = r.signed_record_id AND s.deleted_at IS NULL \
+                 AND s.signer_role = 'primary' \
           WHERE r.tenant_id = $1 \
             AND r.{at} >= ($2::date::timestamp AT TIME ZONE $4) \
             AND r.{at} < (($3::date + 1)::timestamp AT TIME ZONE $4){live} \
@@ -174,7 +207,7 @@ fn department_of(spec: &SignableType, columns: &Columns) -> (String, String) {
 
 #[cfg(test)]
 mod tests {
-    use super::{Columns, is_identifier, signable_statement};
+    use super::{Columns, Unfit, is_identifier, signable_statement};
     use medbrains_documents::signable::{SIGNABLE, SignableType};
 
     fn cols(entries: &[(&str, &[&str])]) -> Columns {
@@ -194,10 +227,15 @@ mod tests {
     #[test]
     fn a_lab_report_takes_its_orders_department_then_its_visits() {
         let c = cols(&[
-            ("lab_results", &["created_at", "deleted_at", "order_id"]),
+            (
+                "lab_results",
+                &["created_at", "deleted_at", "order_id", "signed_record_id"],
+            ),
             ("lab_orders", &["department_id", "encounter_id"]),
         ]);
         let sql = signable_statement(spec("lab_report"), &c).unwrap_or_default();
+        assert!(sql.contains("s.id = r.signed_record_id"), "{sql}");
+        assert!(sql.contains("s.signer_role = 'primary'"), "{sql}");
         assert!(
             sql.contains(
                 "LEFT JOIN lab_orders o ON o.tenant_id = r.tenant_id AND o.id = r.order_id"
@@ -216,7 +254,7 @@ mod tests {
         let c = cols(&[
             (
                 "ot_surgical_safety_checklists",
-                &["created_at", "deleted_at", "booking_id"],
+                &["created_at", "deleted_at", "booking_id", "signed_record_id"],
             ),
             ("ot_bookings", &["admission_id"]),
         ]);
@@ -239,11 +277,17 @@ mod tests {
 
     #[test]
     fn the_order_basket_is_dated_by_its_signing_and_er_records_by_their_visit() {
-        let basket = cols(&[("order_basket_signatures", &["signed_at", "encounter_id"])]);
+        let basket = cols(&[(
+            "order_basket_signatures",
+            &["signed_at", "encounter_id", "signed_record_id"],
+        )]);
         let sql = signable_statement(spec("order_basket"), &basket).unwrap_or_default();
         assert!(sql.contains("timezone($4, r.signed_at)"), "{sql}");
         let er = cols(&[
-            ("er_triage_assessments", &["created_at", "er_visit_id"]),
+            (
+                "er_triage_assessments",
+                &["created_at", "er_visit_id", "signed_record_id"],
+            ),
             ("er_visits", &["encounter_id", "admission_id"]),
         ]);
         let sql = signable_statement(spec("er_triage"), &er).unwrap_or_default();
@@ -258,10 +302,16 @@ mod tests {
     }
 
     #[test]
-    fn a_table_without_a_time_or_missing_is_not_counted() {
+    fn a_table_without_a_time_a_signature_link_or_at_all_is_not_counted() {
         let lab = spec("lab_report");
-        assert!(signable_statement(lab, &cols(&[("lab_results", &["order_id"])])).is_none());
-        assert!(signable_statement(lab, &cols(&[])).is_none());
+        let no_time = cols(&[("lab_results", &["order_id", "signed_record_id"])]);
+        assert_eq!(signable_statement(lab, &no_time), Err(Unfit::NoTime));
+        let no_link = cols(&[("lab_results", &["created_at"])]);
+        assert_eq!(
+            signable_statement(lab, &no_link),
+            Err(Unfit::NoSignatureLink)
+        );
+        assert_eq!(signable_statement(lab, &cols(&[])), Err(Unfit::Missing));
     }
 
     #[test]
