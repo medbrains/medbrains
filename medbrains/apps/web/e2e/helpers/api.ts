@@ -9,7 +9,8 @@
  */
 
 import { expect, type APIRequestContext } from "@playwright/test";
-import { getE2EIdentity } from "./e2e-identities";
+import { statSync } from "node:fs";
+import { authStatePath, getE2EIdentity } from "./e2e-identities";
 import { login, provisionIdentity } from "./identities";
 import type { ApiCallOptions, AuthContext } from "./types";
 
@@ -110,13 +111,19 @@ export async function getAuthContextFromCookies(
 ): Promise<AuthContext> {
   const state = await request.storageState();
   const csrf = state.cookies.find((c) => c.name === "csrf_token")?.value ?? "";
-  // The stored session is global-setup's, and its access cookie lives 15
-  // minutes (gone from the store once expired). A test that starts with less
-  // than a long test's worth left would lose it half-way (a 401 that reads as
-  // a refusal), so sign in again.
+  // The stored session is global-setup's. Its access token lives 15 minutes
+  // on the server, but the cookie carries no expiry, so the store cannot say
+  // when it lapses: a test that started near the 15th minute lost its admin
+  // half-way (a 401 that read as a refusal). Its age is when global setup
+  // wrote the store; with less than a long test's worth left, sign in again.
   const access = state.cookies.find((c) => c.name === "access_token");
-  const stale =
-    !csrf || !access || (access.expires > 0 && access.expires * 1000 - Date.now() < SESSION_MARGIN_MS);
+  const left = ACCESS_TOKEN_LIFETIME_MS - (Date.now() - storedSessionWrittenAt());
+  const stale = !csrf || !access || left < SESSION_MARGIN_MS;
+  if (process.env.E2E_SESSION_LOG) {
+    console.log(
+      `[session] start=${new Date().toISOString()} stored_left_s=${Math.round(left / 1000)} use=${stale ? "fresh" : "stored"}`,
+    );
+  }
   if (stale) {
     return freshSetupAdmin(request);
   }
@@ -157,6 +164,17 @@ export async function getAuthContextFromCookies(
 
 /** A test needs at least this much session left, or it signs in again. */
 const SESSION_MARGIN_MS = 6 * 60_000;
+/** The server's access-token lifetime (`medbrains-auth`, 15 minutes). */
+const ACCESS_TOKEN_LIFETIME_MS = 15 * 60_000;
+
+/** When global setup saved the stored session; long ago when there is none. */
+function storedSessionWrittenAt(): number {
+  try {
+    return statSync(authStatePath).mtimeMs;
+  } catch {
+    return 0;
+  }
+}
 
 /** The setup admin, signed in again for a full session. */
 async function freshSetupAdmin(request: APIRequestContext): Promise<AuthContext> {
