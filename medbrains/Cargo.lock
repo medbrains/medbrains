@@ -6755,6 +6755,7 @@ dependencies = [
  "medbrains-core",
  "medbrains-crypto",
  "medbrains-db",
+ "medbrains-health-services",
  "medbrains-kernel",
  "medbrains-server-core",
  "medbrains-signing",
