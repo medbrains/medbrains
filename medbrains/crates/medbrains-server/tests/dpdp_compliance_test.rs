@@ -34,6 +34,7 @@ fn admin(app: &TestApp, csrf: &str) -> Staff {
         client: app.client.clone(),
         csrf: csrf.to_owned(),
         user_id: Uuid::nil(),
+        password: "admin123".to_owned(),
     }
 }
 

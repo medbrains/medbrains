@@ -775,6 +775,18 @@ pub mod billing {
         pub const CONFIGURE: &str = "billing.payments.configure";
     }
 
+    /// The billing screen's own payment settings: the hospital's UPI ID and
+    /// its payment-link terms. Provider keys are not part of it.
+    pub mod payment_settings {
+        /// View billing payment settings.
+        /// See the hospital's UPI ID and its payment-link terms (part
+        /// payments, least part, days a link stays open, reminders).
+        pub const VIEW: &str = "billing.payment_settings.view";
+        /// Change billing payment settings.
+        /// Change the hospital's UPI ID and its payment-link terms.
+        pub const MANAGE: &str = "billing.payment_settings.manage";
+    }
+
     /// Taking a patient's money at a department desk (#4885).
     ///
     /// Each desk collects its own department's dues; collecting another
@@ -4106,6 +4118,15 @@ pub mod ai {
 }
 
 pub mod nurse {
+    pub mod signature {
+        /// Sign own nursing entries.
+        ///
+        /// Put a digital signature on the medication administrations, vitals,
+        /// ICU chart entries, OT checklists, transfusions and triage this
+        /// nurse recorded. Needs a nurse profile with a licence number and a
+        /// fresh password step-up.
+        pub const SIGN: &str = "nurse.signature.sign";
+    }
     pub mod profile {
         pub const VIEW: &str = "nurse.profile.view";
         pub const MANAGE: &str = "nurse.profile.manage";

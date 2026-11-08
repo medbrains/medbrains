@@ -71,6 +71,7 @@ import { type Column, DataTable, OperationalSignal, useClinicalEmit } from "@/co
 import { DiagnosisCodeSelect } from "@/components/Clinical/DiagnosisCodeSelect";
 import { DoctorSearchSelect } from "@/components/DoctorSearchSelect";
 import { PatientNameCell } from "@/components/PatientNameCell";
+import { SignRecordButton } from "@/components/Signatures/SignRecordButton";
 import { Alert, Badge, type BadgeTone, Button, IconButton, Table, toast } from "@/components/ui";
 import {
   DEFAULT_OPD_FEEDBACK_FORM_VALUES,
@@ -292,9 +293,17 @@ export function CertificatesTab({
                 </Text>
               )}
             </Group>
-            <Text size="xs" c="dimmed">
-              {new Date(cert.issued_date).toLocaleDateString()}
-            </Text>
+            <Group gap={8}>
+              <Text size="xs" c="dimmed">
+                {new Date(cert.issued_date).toLocaleDateString()}
+              </Text>
+              <SignRecordButton
+                recordType="medical_certificate"
+                authorId={cert.doctor_id}
+                recordId={cert.id}
+                summary={cert.certificate_type.replace(/_/g, " ")}
+              />
+            </Group>
           </Group>
           {cert.diagnosis && (
             <Text size="sm">
@@ -1181,6 +1190,12 @@ export function ReferralsTab({
                 {ref.status}
               </Badge>
             </Group>
+            <SignRecordButton
+              recordType="referral"
+              authorId={ref.from_doctor_id}
+              recordId={ref.id}
+              summary={`${ref.from_department_name ?? ""} to ${ref.to_department_name ?? ""}`}
+            />
             <Text size="xs" c="dimmed">
               {new Date(ref.created_at).toLocaleDateString()}
             </Text>

@@ -64,3 +64,16 @@ export interface PaymentLinkSettings {
   expiry_days: number;
   reminders: boolean;
 }
+
+/** `GET /api/billing/payment-settings`: the billing screen's own payment settings. */
+export interface BillingPaymentSettings {
+  upi_vpa: string | null;
+  /** Null until saved; the server's defaults apply meanwhile. */
+  balance_link: Partial<PaymentLinkSettings> | null;
+}
+
+/** `PUT /api/billing/payment-settings`: only the fields present are written; "" clears the UPI ID. */
+export interface UpdateBillingPaymentSettings {
+  upi_vpa?: string;
+  balance_link?: PaymentLinkSettings;
+}
