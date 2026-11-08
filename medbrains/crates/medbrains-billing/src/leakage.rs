@@ -1,8 +1,11 @@
-//! Revenue leakage, first check: orders done for a patient that no bill carries.
+//! Revenue leakage: care given to a patient that no bill carries.
 //!
 //! A lab test verified, an image reported or a procedure completed with no
 //! charge goes on the charge attention queue (migrations 1411, 1416) with
-//! reason `unbilled_order`, priced from the tariff.
+//! reason `unbilled_order`, priced from the tariff. Stock used on a patient
+//! with no charge (a store consumable issued as chargeable, billable ward
+//! stock, consignment stock, a registry implant) goes on it as
+//! `unbilled_consumption` (migration 1421), under the same rules below.
 //!
 //! The discharge final-bill checklist catches these only for inpatients and
 //! only at the end; outpatients and day-care patients were never caught. This
@@ -36,8 +39,14 @@ use uuid::Uuid;
 
 mod sql;
 
-/// The queue reason every row this check writes carries.
+/// The queue reason of an order done and never billed.
 pub const REASON_UNBILLED_ORDER: &str = "unbilled_order";
+/// The queue reason of stock used on a patient and never billed.
+pub const REASON_UNBILLED_CONSUMPTION: &str = "unbilled_consumption";
+/// The rows seen and worked under `billing.leakage.*`, as a SQL list: what
+/// the detector finds, and the implant used with no patient named.
+pub(crate) const LEAKAGE_REASONS_SQL: &str =
+    "('unbilled_order', 'unbilled_consumption', 'implant_no_patient')";
 /// Orders done this recently are still the desk's to bill, not a leak.
 pub const GRACE_HOURS: i32 = 2;
 /// Orders older than this are past any claim window; not raised.
@@ -51,19 +60,32 @@ const THROTTLE_MINUTES: i32 = 10;
 /// The audit action every run writes, and the throttle reads.
 const SCAN_ACTION: &str = "billing.leakage.scan";
 
-/// Queue every done-but-unbilled order of the transaction's hospital, in
-/// batches of [`BATCH`], one statement each. Returns how many were queued.
+/// Queue every done-but-unbilled order and every unbilled use of stock of
+/// the transaction's hospital. Returns how many were queued.
 ///
-/// Re-running adds nothing: an order on the queue in any status is skipped,
+/// Re-running adds nothing: a record on the queue in any status is skipped,
 /// and the open-row unique index answers a concurrent run.
 pub async fn queue_unbilled_orders(
     conn: &mut PgConnection,
     tenant_id: Uuid,
     run_by: Option<Uuid>,
 ) -> Result<u64, AppError> {
+    let orders = queue_batches(conn, sql::QUEUE_BATCH, tenant_id, run_by).await?;
+    let stock = queue_batches(conn, sql::QUEUE_CONSUMPTION_BATCH, tenant_id, run_by).await?;
+    Ok(orders + stock)
+}
+
+/// Run one detector statement in batches of [`BATCH`], at most
+/// [`MAX_BATCHES`] of them. Returns how many rows it queued.
+async fn queue_batches(
+    conn: &mut PgConnection,
+    batch_sql: &str,
+    tenant_id: Uuid,
+    run_by: Option<Uuid>,
+) -> Result<u64, AppError> {
     let mut queued = 0;
     for _ in 0..MAX_BATCHES {
-        let written = sqlx::query(sql::QUEUE_BATCH)
+        let written = sqlx::query(batch_sql)
             .bind(tenant_id)
             .bind(GRACE_HOURS)
             .bind(LOOKBACK_DAYS)
@@ -115,15 +137,21 @@ pub(crate) enum OrderNow {
     Gone,
 }
 
-/// Re-run the detector's "done" and "already billed" checks for one order,
-/// in the caller's transaction, so posting cannot bill it twice.
+/// Re-run the detector's "done" and "already billed" checks for one order
+/// (or use of stock, by `reason`), in the caller's transaction, so posting
+/// cannot bill it twice.
 pub(crate) async fn order_now(
     conn: &mut PgConnection,
     tenant_id: Uuid,
-    module: &str,
+    (reason, module): (&str, &str),
     order_id: Uuid,
 ) -> Result<OrderNow, AppError> {
-    let billed: Option<bool> = sqlx::query_scalar(sql::RECHECK)
+    let recheck = if reason == REASON_UNBILLED_CONSUMPTION {
+        sql::RECHECK_CONSUMPTION
+    } else {
+        sql::RECHECK
+    };
+    let billed: Option<bool> = sqlx::query_scalar(recheck)
         .bind(tenant_id)
         .bind(module)
         .bind(order_id)
@@ -153,7 +181,7 @@ pub(crate) async fn check_unbilled_order(
     let now = order_now(
         &mut tx,
         claims.tenant_id,
-        &item.source_module,
+        (item.reason.as_str(), item.source_module.as_str()),
         item.source_entity_id,
     )
     .await?;

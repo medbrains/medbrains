@@ -22,6 +22,9 @@ use crate::billing::{
 
 /// Queue reason when the `auto_charge_<module>` setting could not be read.
 pub const REASON_SETTING_UNREADABLE: &str = "billing_setting_unreadable";
+/// Queue reason for a consignment implant used with no patient named: the
+/// only row that carries no patient, until the desk names one.
+pub const REASON_IMPLANT_NO_PATIENT: &str = "implant_no_patient";
 
 /// One automatic charge a module wants posted.
 #[derive(Debug)]
@@ -110,10 +113,20 @@ async fn settle(
 ) -> Result<ChargeOutcome, AppError> {
     match setting {
         AutoBilling::Off => Ok(ChargeOutcome::Disabled),
-        AutoBilling::Unknown => queue_charge(tx, req, REASON_SETTING_UNREADABLE).await,
+        AutoBilling::Unknown => {
+            queue_charge(
+                tx,
+                req,
+                Some(req.charge.patient_id),
+                REASON_SETTING_UNREADABLE,
+            )
+            .await
+        }
         AutoBilling::On => match post_charge(tx, req).await {
             Ok(result) => Ok(ChargeOutcome::Posted(result)),
-            Err(error) => queue_charge(tx, req, reason_for(&error)).await,
+            Err(error) => {
+                queue_charge(tx, req, Some(req.charge.patient_id), reason_for(&error)).await
+            }
         },
     }
 }
@@ -170,11 +183,25 @@ pub const fn reason_for(error: &AppError) -> &'static str {
     }
 }
 
+/// Queue a charge whose patient nobody named: an implant used on no one.
+///
+/// Queued whatever the auto-billing setting says: the implant is the
+/// hospital's debt to the vendor either way, so it is never skipped.
+/// `req.charge.patient_id` is ignored; the desk names the patient on the row.
+pub async fn queue_patient_unknown(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    req: &ChargeRequest<'_>,
+) -> Result<ChargeOutcome, AppError> {
+    check_quantity(req)?;
+    queue_charge(tx, req, None, REASON_IMPLANT_NO_PATIENT).await
+}
+
 /// Write the charge to the attention queue in the caller's transaction. A
 /// second failure of the same charge while one is open adds nothing.
 async fn queue_charge(
     tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
     req: &ChargeRequest<'_>,
+    patient_id: Option<Uuid>,
     reason: &str,
 ) -> Result<ChargeOutcome, AppError> {
     let c = &req.charge;
@@ -191,7 +218,7 @@ async fn queue_charge(
     .bind(&c.source)
     .bind(req.setting_module)
     .bind(c.source_id)
-    .bind(c.patient_id)
+    .bind(patient_id)
     .bind(c.encounter_id)
     .bind(&c.charge_code)
     .bind(c.quantity)

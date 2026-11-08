@@ -1570,6 +1570,7 @@ import type {
   NabhRollupResponse,
   NablDocumentSummary,
   NablQualityReportPrintData,
+  NamePatientChargeAttentionRequest,
   NdpsListResponse,
   NdpsRegisterEntry,
   NdpsRegisterPrintData,
@@ -2561,6 +2562,8 @@ import type {
   WardGridResponse,
   WardListRow,
   WardOnDutyRow,
+  WardStockConsumeRequest,
+  WardStockConsumeResponse,
   WardStockRow,
   WaterQualityTestPrintData,
   WebhookDelivery,
@@ -6231,6 +6234,11 @@ export const api = {
       method: "PUT",
       body: JSON.stringify(data),
     }),
+  namePatientChargeAttention: (id: string, data: NamePatientChargeAttentionRequest) =>
+    request<ChargeAttentionItem>(`/billing/charge-attention/${id}/patient`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
   backfillClaimSettlements: (data: { dry_run: boolean }) =>
     request<ClaimSettlementBackfillResult>("/billing/claim-settlements/backfill", {
       method: "POST",
@@ -7436,8 +7444,8 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ department_id: departmentId }),
     }),
-  consumeWardStock: (data: { department_id: string; catalog_item_id: string; quantity: number }) =>
-    request<{ remaining: number }>("/pharmacy/ward-stock/consume", {
+  consumeWardStock: (data: WardStockConsumeRequest) =>
+    request<WardStockConsumeResponse>("/pharmacy/ward-stock/consume", {
       method: "POST",
       body: JSON.stringify(data),
     }),

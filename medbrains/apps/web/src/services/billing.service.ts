@@ -212,6 +212,8 @@ export const billingService = {
   scanUnbilledOrders: () => api.scanUnbilledOrders(),
   dismissChargeAttention: (...args: Parameters<typeof api.dismissChargeAttention>) =>
     api.dismissChargeAttention(...args),
+  namePatientChargeAttention: (...args: Parameters<typeof api.namePatientChargeAttention>) =>
+    api.namePatientChargeAttention(...args),
   backfillClaimSettlements: (...args: Parameters<typeof api.backfillClaimSettlements>) =>
     api.backfillClaimSettlements(...args),
 

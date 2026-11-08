@@ -3877,6 +3877,10 @@ pub fn router() -> axum::Router<AppState> {
             put(charge_attention::dismiss_charge_attention),
         )
         .route(
+            "/api/billing/charge-attention/{id}/patient",
+            put(charge_attention::name_patient_charge_attention),
+        )
+        .route(
             "/api/billing/concessions",
             get(list_concessions).post(create_concession),
         )

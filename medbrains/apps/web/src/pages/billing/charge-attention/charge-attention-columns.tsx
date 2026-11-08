@@ -3,26 +3,30 @@
 
 import { Group, Stack, Text } from "@mantine/core";
 import type { ChargeAttentionItem } from "@medbrains/types";
-import { IconReceipt, IconX } from "@tabler/icons-react";
+import { IconReceipt, IconUserPlus, IconX } from "@tabler/icons-react";
 import type { Column } from "@/components";
 import { Badge, IconButton, Tooltip } from "@/components/ui";
 import {
   ageLabel,
+  isDetectedReason,
+  isLeakageReason,
   moduleLabel,
   NO_TARIFF,
-  REASON_UNBILLED,
   reasonLabel,
   rupees,
   STATUS_LABEL,
   STATUS_TONE,
 } from "./charge-attention-labels";
 
-export type ChargeAttentionAction = "post" | "dismiss";
+export type ChargeAttentionAction = "post" | "dismiss" | "name_patient";
+
+/** What a row with no patient named says in the patient column. */
+export const NO_PATIENT = "No patient named";
 
 interface ColumnOptions {
   /** May work charges a module could not post. */
   canResolve: boolean;
-  /** May work orders done but never billed. */
+  /** May work leakage rows: care or stock never billed, implants with no patient. */
   canResolveUnbilled: boolean;
   /** Amounts are hidden from this viewer: show that, not "No tariff". */
   amountsHidden: boolean;
@@ -30,19 +34,40 @@ interface ColumnOptions {
   onAction: (kind: ChargeAttentionAction, item: ChargeAttentionItem) => void;
 }
 
-/** Post and dismiss buttons, only on an open item and only for its kind's resolver. */
+/**
+ * Post and dismiss buttons, only on an open item and only for its kind's
+ * resolver; an implant with no patient offers "Name patient" before Post.
+ */
 function Actions({ row, o }: { row: ChargeAttentionItem; o: ColumnOptions }) {
-  const allowed = row.reason === REASON_UNBILLED ? o.canResolveUnbilled : o.canResolve;
+  const allowed = isLeakageReason(row.reason) ? o.canResolveUnbilled : o.canResolve;
   if (row.status !== "open" || !allowed) return null;
-  // An unbilled order with no tariff would post ₹0; the server refuses it too.
-  const unpriced = row.reason === REASON_UNBILLED && row.unit_price_override === null;
+  // An unbilled row with no tariff would post ₹0; the server refuses it too.
+  const unpriced = isDetectedReason(row.reason) && row.unit_price_override === null;
+  const unnamed = row.patient_id === null;
+  const postBlocked = unpriced || unnamed;
+  const postHint = unnamed
+    ? "Name the patient first"
+    : unpriced
+      ? NO_TARIFF
+      : "Post this charge to the patient's bill";
   return (
     <Group gap={4} wrap="nowrap">
-      <Tooltip label={unpriced ? NO_TARIFF : "Post this charge to the patient's bill"}>
+      {unnamed && (
+        <Tooltip label="Name the patient this implant was used on">
+          <IconButton
+            tone="primary"
+            aria-label="Name patient"
+            onClick={() => o.onAction("name_patient", row)}
+          >
+            <IconUserPlus size={16} />
+          </IconButton>
+        </Tooltip>
+      )}
+      <Tooltip label={postHint}>
         <IconButton
           tone="success"
           aria-label="Post charge"
-          disabled={unpriced}
+          disabled={postBlocked}
           loading={o.pendingId === row.id}
           onClick={() => o.onAction("post", row)}
         >
@@ -77,10 +102,18 @@ export function chargeAttentionColumns(o: ColumnOptions): Column<ChargeAttention
       label: "Patient",
       render: (r) => (
         <Stack gap={0}>
-          <Text size="sm">{r.patient_name}</Text>
-          <Text size="xs" ff="monospace" c="dimmed">
-            {r.uhid}
-          </Text>
+          {r.patient_id === null ? (
+            <Text size="sm" c="dimmed">
+              {NO_PATIENT}
+            </Text>
+          ) : (
+            <>
+              <Text size="sm">{r.patient_name}</Text>
+              <Text size="xs" ff="monospace" c="dimmed">
+                {r.uhid}
+              </Text>
+            </>
+          )}
         </Stack>
       ),
     },

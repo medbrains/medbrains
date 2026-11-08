@@ -48,6 +48,11 @@ pub struct PharmacyCatalog {
     /// Codeine syrups, benzodiazepines, pregabalin and the like: online they
     /// are pickup only, a unit at a time.
     pub habit_forming: bool,
+    /// Charge the patient when a nurse uses it from ward stock on them. Off
+    /// (the default) for overhead and bed-charge items (migration 1421).
+    #[sqlx(default)]
+    #[serde(default)]
+    pub is_patient_billable: bool,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }

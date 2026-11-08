@@ -1,6 +1,7 @@
 // Billing → Charges needing attention: automatic charges a clinical action
-// (diet order, OT completion, ER registration, …) could not post, and lab
-// tests, imaging and procedures done for a patient that no bill carries. The
+// (diet order, OT completion, ER registration, …) could not post, lab tests,
+// imaging and procedures done for a patient that no bill carries, stock used
+// on a patient and never charged, and implants used with no patient named. The
 // desk posts each one onto the bill or dismisses it with a reason, so nothing
 // done for a patient goes unbilled without someone deciding so. Largest
 // amount first, with the ₹ total of the open work at the top.
@@ -21,6 +22,7 @@ import { billingService } from "@/services/billing.service";
 import { ChargeAttentionTotal } from "./ChargeAttentionTotal";
 import { type ChargeAttentionAction, chargeAttentionColumns } from "./charge-attention-columns";
 import { DismissChargeModal } from "./DismissChargeModal";
+import { NamePatientModal } from "./NamePatientModal";
 
 type StatusFilter = ChargeAttentionStatus | "all";
 type KindFilter = ChargeAttentionKind | "all";
@@ -52,6 +54,7 @@ export function ChargeAttentionTab() {
   const [kindChoice, setKindChoice] = useState<KindFilter>("all");
   const [page, setPage] = useState(1);
   const [dismissing, setDismissing] = useState<ChargeAttentionItem | null>(null);
+  const [naming, setNaming] = useState<ChargeAttentionItem | null>(null);
   // A viewer of one kind only sees that kind; the filter shows only for both.
   const kind: ChargeAttentionKind | null = !canViewFailed
     ? "unbilled"
@@ -100,8 +103,11 @@ export function ChargeAttentionTab() {
         canResolveUnbilled,
         amountsHidden,
         pendingId: post.isPending ? (post.variables ?? null) : null,
-        onAction: (action: ChargeAttentionAction, item) =>
-          action === "post" ? post.mutate(item.id) : setDismissing(item),
+        onAction: (action: ChargeAttentionAction, item) => {
+          if (action === "post") post.mutate(item.id);
+          else if (action === "name_patient") setNaming(item);
+          else setDismissing(item);
+        },
       }),
     [canResolve, canResolveUnbilled, amountsHidden, post.isPending, post.variables, post.mutate],
   );
@@ -140,8 +146,9 @@ export function ChargeAttentionTab() {
         )}
       </Group>
       <Text size="sm" c="dimmed">
-        Care given that the bill did not follow: orders done but never charged, and charges a
-        clinical action could not post. Post each one, or dismiss it with a reason.
+        Care given that the bill did not follow: orders done or stock used but never charged,
+        implants used with no patient named, and charges a clinical action could not post. Post each
+        one, or dismiss it with a reason.
       </Text>
       <DataTable
         columns={columns}
@@ -160,6 +167,7 @@ export function ChargeAttentionTab() {
         captionVisuallyHidden
       />
       {dismissing && <DismissChargeModal item={dismissing} onClose={() => setDismissing(null)} />}
+      {naming && <NamePatientModal item={naming} onClose={() => setNaming(null)} />}
     </Stack>
   );
 }

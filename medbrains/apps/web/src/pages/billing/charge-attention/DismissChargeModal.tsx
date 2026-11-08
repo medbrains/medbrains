@@ -8,7 +8,8 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { Chip, ChipGroup, Modal, TextArea, toast } from "@/components/ui";
 import { billingService } from "@/services/billing.service";
-import { moduleLabel, REASON_UNBILLED } from "./charge-attention-labels";
+import { NO_PATIENT } from "./charge-attention-columns";
+import { isDetectedReason, moduleLabel } from "./charge-attention-labels";
 
 /** Why an order done for a patient is rightly not billed, as the desk says it. */
 const UNBILLED_REASONS = [
@@ -56,13 +57,13 @@ export function DismissChargeModal({ item, onClose }: DismissChargeModalProps) {
     >
       <Stack>
         <Text size="sm">
-          {item.patient_name} · {item.uhid} · {item.description_override ?? item.charge_code} from{" "}
-          {moduleLabel(item.source_module)}
+          {item.patient_id === null ? NO_PATIENT : `${item.patient_name} · ${item.uhid}`} ·{" "}
+          {item.description_override ?? item.charge_code} from {moduleLabel(item.source_module)}
         </Text>
         <Text size="sm" c="dimmed">
           The patient will not be billed for this. Say why, for whoever audits it later.
         </Text>
-        {item.reason === REASON_UNBILLED && (
+        {isDetectedReason(item.reason) && (
           <ChipGroup value={reason} onChange={(value) => setReason(String(value))}>
             <Group gap="xs" aria-label="Common reasons">
               {UNBILLED_REASONS.map((r) => (

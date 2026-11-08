@@ -1,6 +1,6 @@
 import type { ChargeAttentionItem } from "@medbrains/types";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { render, screen } from "@/test/test-utils";
+import { render, screen, userEvent, waitFor, within } from "@/test/test-utils";
 import { ChargeAttentionTab } from "./ChargeAttentionTab";
 
 const held = vi.hoisted(() => new Set<string>());
@@ -17,6 +17,14 @@ const service = vi.hoisted(() => ({
   scanUnbilledOrders: vi.fn(),
   postChargeAttention: vi.fn(),
   dismissChargeAttention: vi.fn(),
+  namePatientChargeAttention: vi.fn(),
+}));
+vi.mock("@/components/PatientSearchSelect", () => ({
+  PatientSearchSelect: ({ onChange }: { onChange: (id: string) => void }) => (
+    <button type="button" onClick={() => onChange("patient-9")}>
+      Pick Ravi
+    </button>
+  ),
 }));
 vi.mock("@/services/billing.service", () => ({ billingService: service }));
 
@@ -150,5 +158,81 @@ describe("orders done but never billed on the charge attention queue", () => {
     expect(screen.getByRole("button", { name: "Post charge" })).toBeDisabled();
     // Dismissing stays open to the desk.
     expect(screen.getByRole("button", { name: "Dismiss" })).toBeEnabled();
+  });
+});
+
+/** A consignment knee implant the store recorded as used on no one, ₹85,000. */
+function implantRow(overrides: Partial<ChargeAttentionItem> = {}): ChargeAttentionItem {
+  return unbilledRow({
+    id: "row-implant",
+    source_module: "consumable",
+    setting_module: "consignment",
+    patient_id: null,
+    patient_name: null,
+    uhid: null,
+    encounter_id: null,
+    charge_code: "IMP-KNEE",
+    description_override: "Consignment: Knee implant · batch K-77",
+    unit_price_override: "85000.00",
+    amount: "85000.00",
+    reason: "implant_no_patient",
+    created_by_name: "Store Keeper",
+    ...overrides,
+  });
+}
+
+describe("stock used on a patient and implants with no patient", () => {
+  it("shows an implant with no patient as such, and will not post it until one is named", async () => {
+    for (const p of LEAKAGE) held.add(p);
+    service.listChargeAttention.mockResolvedValue({
+      data: [implantRow()],
+      meta: { total: 1, page: 1, limit: 25 },
+    });
+    render(<ChargeAttentionTab />);
+    expect(await screen.findByText("No patient named")).toBeInTheDocument();
+    expect(screen.getByText("Implant used without patient")).toBeInTheDocument();
+    expect(screen.getByText(/^Stores and ward stock/)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Post charge" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Name patient" })).toBeEnabled();
+  });
+
+  it("names the patient on the row through the API", async () => {
+    for (const p of LEAKAGE) held.add(p);
+    service.listChargeAttention.mockResolvedValue({
+      data: [implantRow()],
+      meta: { total: 1, page: 1, limit: 25 },
+    });
+    service.namePatientChargeAttention.mockResolvedValue(implantRow({ patient_id: "patient-9" }));
+    const user = userEvent.setup();
+    render(<ChargeAttentionTab />);
+    await user.click(await screen.findByRole("button", { name: "Name patient" }));
+    const dialog = await screen.findByRole("dialog");
+    const confirm = within(dialog).getByRole("button", { name: "Name patient" });
+    expect(confirm).toBeDisabled();
+    await user.click(within(dialog).getByRole("button", { name: "Pick Ravi" }));
+    await user.click(confirm);
+    await waitFor(() =>
+      expect(service.namePatientChargeAttention).toHaveBeenCalledWith("row-implant", {
+        patient_id: "patient-9",
+      }),
+    );
+  });
+
+  it("lets the leakage desk, and only it, post stock used and never billed", async () => {
+    held.add("billing.leakage.view");
+    held.add("billing.charge_attention.view");
+    held.add("billing.charge_attention.resolve");
+    service.listChargeAttention.mockResolvedValue({
+      data: [unbilledRow({ reason: "unbilled_consumption", source_module: "consumable" })],
+      meta: { total: 1, page: 1, limit: 25 },
+    });
+    const { unmount } = render(<ChargeAttentionTab />);
+    expect(await screen.findByText("Used on the patient, not billed")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Post charge" })).not.toBeInTheDocument();
+    unmount();
+
+    held.add("billing.leakage.resolve");
+    render(<ChargeAttentionTab />);
+    expect(await screen.findByRole("button", { name: "Post charge" })).toBeEnabled();
   });
 });

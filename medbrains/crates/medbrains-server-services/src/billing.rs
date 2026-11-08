@@ -17,8 +17,9 @@ use uuid::Uuid;
 use medbrains_server_core::error::AppError;
 
 pub use crate::charge_queue::{
-    AutoBilling, ChargeOutcome, ChargeRequest, REASON_SETTING_UNREADABLE, charge_or_queue,
-    post_charge, read_auto_billing, settle_charges,
+    AutoBilling, ChargeOutcome, ChargeRequest, REASON_IMPLANT_NO_PATIENT,
+    REASON_SETTING_UNREADABLE, charge_or_queue, post_charge, queue_patient_unknown,
+    read_auto_billing, settle_charges,
 };
 
 #[derive(Debug, Clone, Default)]
