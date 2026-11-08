@@ -7134,6 +7134,7 @@ dependencies = [
  "medbrains-authz-gate",
  "medbrains-core",
  "medbrains-db",
+ "medbrains-kernel",
  "medbrains-server-core",
  "medbrains-server-services",
  "medbrains-workflow",
@@ -8953,6 +8954,7 @@ dependencies = [
  "serde",
  "serde_json",
  "sqlx",
+ "tracing",
  "uuid",
 ]
 

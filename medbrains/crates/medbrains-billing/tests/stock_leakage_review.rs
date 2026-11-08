@@ -326,13 +326,14 @@ async fn post_bills_only_what_is_left_of_stock_the_check_found() {
         .execute(&db)
         .await
         .unwrap();
-    post_charge_attention(
+    let posted = post_charge_attention(
         State(state(db.clone())),
         Extension(claims.clone()),
         Path(id),
     )
     .await
     .expect("posted");
+    assert_eq!(posted.0.status, "posted");
     assert_eq!(lines(&db, issue).await, vec![(3, Decimal::from(40))]);
     assert_eq!(row(&db, issue).await.2, 3, "the row says what was billed");
 }
@@ -378,7 +379,8 @@ async fn the_desk_can_change_the_named_patient_and_each_naming_is_audited() {
     let third = insert_patient(&mut tx, w.v.tenant).await;
     tx.commit().await.unwrap();
 
-    name(&db, &claims, id, w.v.patient).await.unwrap();
+    let first = name(&db, &claims, id, w.v.patient).await.unwrap().0;
+    assert_eq!(first.patient_id, Some(w.v.patient));
     let renamed = name(&db, &claims, id, other).await.unwrap().0;
     assert_eq!(renamed.patient_id, Some(other));
     let on_usage: Option<Uuid> =
@@ -436,7 +438,8 @@ async fn an_implant_with_no_price_cannot_be_posted() {
     let batch = consignment_priced(&db, &w.v, 0).await;
     let movement = unnamed_usage(&db, &claims, batch).await;
     let (id, ..) = row(&db, movement).await;
-    name(&db, &claims, id, w.v.patient).await.unwrap();
+    let named = name(&db, &claims, id, w.v.patient).await.unwrap().0;
+    assert_eq!(named.patient_id, Some(w.v.patient));
 
     let posted = post_charge_attention(State(state(db.clone())), Extension(claims), Path(id)).await;
     assert!(matches!(posted, Err(AppError::BadRequest(_))), "{posted:?}");

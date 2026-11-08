@@ -142,8 +142,8 @@ async fn the_detector_finds_unbilled_stock_once() {
     // used on the patient (as before this change, when a failed charge was lost).
     let use_id: Uuid = sqlx::query_scalar(
         "INSERT INTO ward_stock_consumptions (tenant_id, department_id, catalog_item_id, \
-           quantity, patient_id, encounter_id, admission_id, consumed_by) \
-         VALUES ($1, $2, $3, 3, $4, $5, $6, $7) RETURNING id",
+           quantity, patient_id, encounter_id, admission_id, consumed_by, is_billable) \
+         VALUES ($1, $2, $3, 3, $4, $5, $6, $7, true) RETURNING id",
     )
     .bind(w.v.tenant)
     .bind(w.v.department)
