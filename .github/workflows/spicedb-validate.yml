@@ -12,6 +12,7 @@ on:
       - "medbrains/infra/spicedb/schema.zed"
       - ".github/workflows/spicedb-validate.yml"
   pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
     branches: [main, master, develop]
     paths:
       - "medbrains/infra/spicedb/schema.zed"
@@ -23,6 +24,8 @@ concurrency:
 
 jobs:
   zed-validate:
+    # A draft PR spends no build; marking it ready for review runs everything.
+    if: github.event_name != 'pull_request' || !github.event.pull_request.draft
     name: zed validate
     runs-on: ubuntu-latest
     steps:
