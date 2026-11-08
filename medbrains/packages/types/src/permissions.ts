@@ -588,6 +588,12 @@ export const P = {
       MANAGE: "billing.lanes.manage",
     },
     LANES_MANAGE: "billing.lanes.manage",
+    LEAKAGE: {
+      RESOLVE: "billing.leakage.resolve",
+      VIEW: "billing.leakage.view",
+    },
+    LEAKAGE_RESOLVE: "billing.leakage.resolve",
+    LEAKAGE_VIEW: "billing.leakage.view",
     PAYER_SPLIT: {
       MANAGE: "billing.payer_split.manage",
     },

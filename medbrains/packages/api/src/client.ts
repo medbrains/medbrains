@@ -299,6 +299,7 @@ import type {
   Cha2ds2VascRequest,
   Cha2ds2VascResult,
   ChargeAttentionItem,
+  ChargeAttentionSummary,
   ChargeMaster,
   ChartPage,
   ChartQuery,
@@ -2288,6 +2289,7 @@ import type {
   TvDisplay,
   UhiRequest,
   UhiSettingsView,
+  UnbilledScanResult,
   UnifiedAsset,
   UnmatchedStudy,
   UnmatchedStudyStatus,
@@ -6216,6 +6218,12 @@ export const api = {
     const qs = params ? `?${new URLSearchParams(params)}` : "";
     return request<Paginated<ChargeAttentionItem>>(`/billing/charge-attention${qs}`);
   },
+  chargeAttentionSummary: (params?: Record<string, string>) => {
+    const qs = params ? `?${new URLSearchParams(params)}` : "";
+    return request<ChargeAttentionSummary>(`/billing/charge-attention/summary${qs}`);
+  },
+  scanUnbilledOrders: () =>
+    request<UnbilledScanResult>("/billing/charge-attention/unbilled-scan", { method: "POST" }),
   postChargeAttention: (id: string) =>
     request<ChargeAttentionItem>(`/billing/charge-attention/${id}/post`, { method: "PUT" }),
   dismissChargeAttention: (id: string, data: DismissChargeAttentionRequest) =>
