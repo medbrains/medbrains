@@ -33,6 +33,7 @@ const EMPTY: RoomConsentInput = { consented_by_name: "", consenter_relation: "" 
 export function useRoomConsent(bedId: string) {
   const [held, setHeld] = useState<{ bedId: string; consent: RoomConsentInput } | null>(null);
   const consent = held && held.bedId === bedId ? held.consent : undefined;
+  /** Hold `next` against the bed chosen now; undefined drops it. */
   const setConsent = (next: RoomConsentInput | undefined) =>
     setHeld(next ? { bedId, consent: next } : null);
   return [consent, setConsent] as const;
