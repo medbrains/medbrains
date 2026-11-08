@@ -126,7 +126,7 @@ pub(crate) async fn doctor_prescription(app: &common::TestApp, doctor_user_id: &
     let uhid = format!("SIG{}", &uuid::Uuid::new_v4().simple().to_string()[..10]);
     let patient_id: uuid::Uuid = sqlx::query_scalar(
         "INSERT INTO patients (tenant_id, uhid, first_name, last_name, gender, phone) \
-         VALUES ($1, $2, 'Asha', 'Signer', 'female', '9990003003') RETURNING id",
+         VALUES ($1, $2, 'Qrtestpatient', 'Verifyonly', 'female', '9990003003') RETURNING id",
     )
     .bind(tenant_id)
     .bind(&uhid)

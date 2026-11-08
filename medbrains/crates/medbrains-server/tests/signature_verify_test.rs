@@ -98,8 +98,9 @@ async fn an_unchanged_record_verifies_and_names_no_patient() {
         CHECKED_KEYS.iter().copied().collect(),
         "the page answers these keys and no others"
     );
-    // The patient the helper registers is "Asha Signer", phone 9990003003.
-    for leaked in ["Asha", "Signer", "9990003003", "uhid", "patient", "diagnos"] {
+    // The patient the helper registers is "Qrtestpatient Verifyonly", phone 9990003003.
+    // The name is deliberately unlike any seeded staff name: CI seeds a "Dr. Asha Rao".
+    for leaked in ["Qrtestpatient", "Verifyonly", "9990003003", "uhid", "patient", "diagnos"] {
         assert!(!text.contains(leaked), "{leaked} must not appear: {text}");
     }
 }
