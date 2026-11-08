@@ -28,26 +28,55 @@ env:
 
 jobs:
   build-backend:
-    name: Build backend
+    # Every binary a hospital runs, for both server architectures, with
+    # cargo-zigbuild (ENGINEERING.md: the only cross-compile path) against
+    # glibc 2.36 so they run on Debian 12 and later. Dev-only tools (loadtest,
+    # ai-eval, os-test, probes, codegen) are not shipped.
+    name: Build binaries (${{ matrix.arch }})
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { arch: x86-64, triple: x86_64-unknown-linux-gnu }
+          - { arch: arm64, triple: aarch64-unknown-linux-gnu }
     defaults:
       run:
         working-directory: medbrains
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.triple }}
       - uses: actions/cache@v4
         with:
           path: |
             ~/.cargo/registry
             ~/.cargo/git
             medbrains/target
-          key: ${{ runner.os }}-cargo-release-${{ hashFiles('medbrains/**/Cargo.toml') }}
-      - run: cargo build --release -p medbrains-server
+          key: ${{ runner.os }}-cargo-release-${{ matrix.arch }}-${{ hashFiles('medbrains/Cargo.lock') }}
+      - uses: mlugg/setup-zig@v2
+        with:
+          version: 0.15.2
+      - run: cargo install cargo-zigbuild --locked --version 0.24.0
+      - run: >-
+          cargo zigbuild --release --target=${{ matrix.triple }}.2.36
+          -p medbrains-server --bin medbrains-server --bin medbrains-archive
+          -p medbrains-os-setup --bin medbrains-os-setup
+          -p medbrains-agent --bin medbrains-agent
+          -p medbrains-proxy --bin medbrains-front
+          -p medbrains-bridge --bin medbrains-bridge
+          -p medbrains-edge-app --bin medbrains-edge
+      - name: Collect
+        run: |
+          mkdir -p ../bins
+          for b in medbrains-server medbrains-archive medbrains-os-setup medbrains-agent medbrains-front medbrains-bridge medbrains-edge; do
+            cp "target/${{ matrix.triple }}/release/$b" ../bins/
+          done
       - uses: actions/upload-artifact@v4
         with:
-          name: medbrains-server
-          path: medbrains/target/release/medbrains-server
+          name: bins-${{ matrix.arch }}
+          path: bins
           retention-days: 30
 
   build-frontend:
@@ -74,6 +103,114 @@ jobs:
         with:
           name: web-dist
           path: medbrains/apps/web/dist
+          retention-days: 30
+
+  desktop:
+    # The Tauri desktop app for macOS, Windows and Linux. Signed when the Apple
+    # and Windows certificate secrets exist; otherwise the bundles are unsigned.
+    name: Desktop apps
+    uses: ./.github/workflows/desktop.yml
+    secrets: inherit
+    permissions:
+      contents: write
+
+  android:
+    # Staff and patient apps. Release-signed only when the keystore secrets are
+    # set; without them the APKs are marked -unsigned and will not install.
+    name: Android apps
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: medbrains/apps/android
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - uses: android-actions/setup-android@v3
+      - run: ./gradlew --no-daemon :app-staff:assembleRelease :app-patient:assembleRelease
+      - name: Sign, or mark unsigned
+        env:
+          KEYSTORE_B64: ${{ secrets.ANDROID_KEYSTORE_B64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+        run: |
+          mkdir -p "$GITHUB_WORKSPACE/apk"
+          bt=$(ls -d "$ANDROID_HOME"/build-tools/* | sort -V | tail -1)
+          for app in staff patient; do
+            in=$(ls app-$app/build/outputs/apk/release/*.apk | head -1)
+            if [ -n "$KEYSTORE_B64" ]; then
+              echo "$KEYSTORE_B64" | base64 -d > "$RUNNER_TEMP/release.jks"
+              "$bt/zipalign" -f 4 "$in" "$RUNNER_TEMP/aligned.apk"
+              "$bt/apksigner" sign --ks "$RUNNER_TEMP/release.jks" --ks-pass env:KEYSTORE_PASSWORD \
+                --ks-key-alias "$KEY_ALIAS" --out "$GITHUB_WORKSPACE/apk/medbrains-$app-android.apk" "$RUNNER_TEMP/aligned.apk"
+            else
+              cp "$in" "$GITHUB_WORKSPACE/apk/medbrains-$app-android-unsigned.apk"
+            fi
+          done
+          rm -f "$RUNNER_TEMP/release.jks"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: android
+          path: apk
+          retention-days: 30
+
+  os-image:
+    # The appliance disk image (os/README.md), built by mkosi in a Debian
+    # container on a native runner per architecture. PCR-signed only with the
+    # owner's key; never a DEBUG image. Write it to a USB stick or disk.
+    name: OS image (${{ matrix.arch }})
+    needs: [build-backend, build-frontend]
+    runs-on: ${{ matrix.runner }}
+    container:
+      image: debian:trixie
+      options: --privileged
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { arch: x86-64, runner: ubuntu-24.04 }
+          - { arch: arm64, runner: ubuntu-24.04-arm }
+    steps:
+      - name: Build packages
+        run: |
+          apt-get update -q
+          apt-get install -yq --no-install-recommends git mkosi systemd-ukify systemd-repart systemd-boot-efi \
+            systemd-container apt dpkg debian-archive-keyring dosfstools mtools e2fsprogs erofs-utils cpio \
+            kmod zstd xz-utils ca-certificates python3 bubblewrap uidmap openssl
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: bins-${{ matrix.arch }}
+          path: bins
+      - uses: actions/download-artifact@v4
+        with:
+          name: web-dist
+          path: web-dist
+      - name: Build the image
+        env:
+          PCR_KEY: ${{ secrets.OS_PCR_KEY }}
+          PCR_CERT: ${{ secrets.OS_PCR_CERT }}
+          OS_VERSION: ${{ github.ref_name }}
+        run: |
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
+          chmod +x bins/*
+          suffix=-unsigned
+          if [ -n "$PCR_KEY" ]; then
+            printf '%s' "$PCR_KEY" > "$RUNNER_TEMP/pcr.key"; printf '%s' "$PCR_CERT" > "$RUNNER_TEMP/pcr.crt"
+            export OS_PCR_KEY="$RUNNER_TEMP/pcr.key" OS_PCR_CERT="$RUNNER_TEMP/pcr.crt"; suffix=
+          fi
+          MEDBRAINS_SERVER_BIN="$PWD/bins/medbrains-server" MEDBRAINS_WEB_DIST="$PWD/web-dist" \
+            OS_WORK="$RUNNER_TEMP/os" medbrains/os/build.sh --arch ${{ matrix.arch }}
+          rm -f "$RUNNER_TEMP/pcr.key"
+          mkdir -p img
+          raw=$(ls "$RUNNER_TEMP"/os/out-${{ matrix.arch }}/*.raw | head -1)
+          zstd -T0 -19 "$raw" -o "img/medbrains-os-${{ github.ref_name }}-${{ matrix.arch }}$suffix.raw.zst"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: os-${{ matrix.arch }}
+          path: img
           retention-days: 30
 
   docker:
@@ -142,7 +279,7 @@ jobs:
   release:
     name: GitHub release
     runs-on: ubuntu-latest
-    needs: [build-backend, build-frontend, docker]
+    needs: [build-backend, build-frontend, docker, desktop, android, os-image]
     if: startsWith(github.ref, 'refs/tags/v')
     permissions:
       contents: write
@@ -188,8 +325,11 @@ jobs:
           upload-release-assets: false
       - name: Tarballs, SBOMs and checksums
         run: |
-          tar -czf dist/medbrains-server-linux-x64.tar.gz -C artifacts medbrains-server
+          for a in x86-64 arm64; do
+            tar -czf "dist/medbrains-server-bins-linux-$a.tar.gz" -C "artifacts/bins-$a" .
+          done
           tar -czf dist/medbrains-web-dist.tar.gz -C artifacts web-dist
+          find artifacts/desktop-* artifacts/android artifacts/os-* -type f -exec cp {} dist/ \;
           cp artifacts/sbom-image/medbrains-image.cdx.json dist/
           cd dist && sha256sum -- * > SHA256SUMS
       - uses: sigstore/cosign-installer@v3
@@ -198,9 +338,7 @@ jobs:
         run: cosign sign-blob --yes --bundle SHA256SUMS.sigstore.json SHA256SUMS
       - uses: actions/attest-build-provenance@v2
         with:
-          subject-path: |
-            dist/medbrains-server-linux-x64.tar.gz
-            dist/medbrains-web-dist.tar.gz
+          subject-path: dist/*
       # Draft: the owner presses Publish. The image push and signing above are
       # public at tag time regardless.
       - uses: softprops/action-gh-release@v2
