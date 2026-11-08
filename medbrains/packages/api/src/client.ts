@@ -198,6 +198,7 @@ import type {
   BillingLaneInput,
   BillingLaneName,
   BillingPackage,
+  BillingPaymentSettings,
   BillingQueueDisplay,
   BillingServicePackage,
   BillingSummaryReport,
@@ -299,6 +300,7 @@ import type {
   Cha2ds2VascRequest,
   Cha2ds2VascResult,
   ChargeAttentionItem,
+  ChargeAttentionSummary,
   ChargeMaster,
   ChartPage,
   ChartQuery,
@@ -1900,6 +1902,7 @@ import type {
   PublicInvite,
   PublicPrivacyContact,
   PublicShareLink,
+  PublicSignatureCheck,
   PublicTenant,
   PublicTokenLink,
   PublicTokenStatus,
@@ -2137,7 +2140,9 @@ import type {
   SetupUser,
   SharpReplacementRequest,
   ShiftDefinition,
+  SignableTypeInfo,
   SignatureCredential,
+  SignatureVerifyLink,
   SignBasketRequest,
   SignBasketResponse,
   SignedRecord,
@@ -2288,6 +2293,7 @@ import type {
   TvDisplay,
   UhiRequest,
   UhiSettingsView,
+  UnbilledScanResult,
   UnifiedAsset,
   UnmatchedStudy,
   UnmatchedStudyStatus,
@@ -2313,6 +2319,7 @@ import type {
   UpdateBedStatusRequest,
   UpdateBedsideRequestStatusPayload,
   UpdateBedsideVideoRequest,
+  UpdateBillingPaymentSettings,
   UpdateBirthRecordRequest,
   UpdateBmeBreakdownStatusRequest,
   UpdateBmeCalibrationRequest,
@@ -6226,6 +6233,12 @@ export const api = {
     const qs = params ? `?${new URLSearchParams(params)}` : "";
     return request<Paginated<ChargeAttentionItem>>(`/billing/charge-attention${qs}`);
   },
+  chargeAttentionSummary: (params?: Record<string, string>) => {
+    const qs = params ? `?${new URLSearchParams(params)}` : "";
+    return request<ChargeAttentionSummary>(`/billing/charge-attention/summary${qs}`);
+  },
+  scanUnbilledOrders: () =>
+    request<UnbilledScanResult>("/billing/charge-attention/unbilled-scan", { method: "POST" }),
   postChargeAttention: (id: string) =>
     request<ChargeAttentionItem>(`/billing/charge-attention/${id}/post`, { method: "PUT" }),
   dismissChargeAttention: (id: string, data: DismissChargeAttentionRequest) =>
@@ -17071,6 +17084,13 @@ export const api = {
     }),
   cancelPaymentLink: (id: string) =>
     request<PaymentLinkView>(`/payments/links/${id}/cancel`, { method: "POST" }),
+  /** The billing screen's UPI ID and payment-link terms (never provider keys). */
+  getBillingPaymentSettings: () => request<BillingPaymentSettings>("/billing/payment-settings"),
+  updateBillingPaymentSettings: (data: UpdateBillingPaymentSettings) =>
+    request<BillingPaymentSettings>("/billing/payment-settings", {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
   getOnlineSettings: () => request<OnlineSettings>("/payments/online-settings"),
   updateOnlineSettings: (data: ChooseProviders) =>
     request<ChooseProviders>("/payments/online-settings", {
@@ -17353,15 +17373,14 @@ export const api = {
     }),
 
   getMySignatureCredentials: () => request<SignatureCredential[]>("/signatures/my-credentials"),
-  previewSignature: (data: SignPreviewRequest) => {
-    const qs = new URLSearchParams({
-      record_type: data.record_type,
-      record_id: data.record_id,
-    });
-    if (data.signer_role) qs.set("signer_role", data.signer_role);
-    if (data.legal_class) qs.set("legal_class", data.legal_class);
-    return request<SignPreviewResponse>(`/signatures/preview?${qs.toString()}`);
-  },
+  /** Open a record to sign it: its canonical snapshot, and the review is recorded. */
+  reviewSignature: (data: SignPreviewRequest) =>
+    request<SignPreviewResponse>("/signatures/review", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  /** The record types the server signs, so no screen offers one it refuses. */
+  listSignableTypes: () => request<SignableTypeInfo[]>("/signatures/types"),
   signRecord: (data: SignRequest) =>
     request<SignResponse>("/signatures/sign", {
       method: "POST",
@@ -17376,6 +17395,20 @@ export const api = {
       method: "POST",
       body: JSON.stringify(data),
     }),
+  /** Public — the QR on a signed print; answers no patient or clinical detail. */
+  verifySignatureLink: (token: string) =>
+    request<PublicSignatureCheck>(`/public/signatures/verify/${encodeURIComponent(token)}`),
+  /** The signed record's live public check link, minted if the last was withdrawn. */
+  issueSignatureVerifyLink: (signedRecordId: string) =>
+    request<SignatureVerifyLink>(`/signatures/${encodeURIComponent(signedRecordId)}/verify-link`, {
+      method: "POST",
+    }),
+  /** Withdraw the record's public check link; printed copies then say "withdrawn". */
+  revokeSignatureVerifyLink: (signedRecordId: string, reason: string) =>
+    request<{ revoked: boolean }>(
+      `/signatures/${encodeURIComponent(signedRecordId)}/verify-link/revoke`,
+      { method: "POST", body: JSON.stringify({ reason }) },
+    ),
 
   // Doctor Packages (admin)
   adminListDoctorPackages: (params?: { is_active?: boolean; search?: string }) => {

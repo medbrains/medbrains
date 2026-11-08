@@ -29,6 +29,8 @@ A real hospital runs **several providers + POS/QR devices at the same time**, ma
 - `<provider>_config` = `{ enabled: bool, mode: "sandbox" | "live", key_id, key_secret, webhook_secret }` — **many enabled at once**.
 - `default_provider` = fallback when a billing place has no terminal mapping.
 - Existing `razorpay_config` stays valid (read as razorpay). **No migration of existing tenants.**
+- `upi_vpa` (static QR) and `balance_link` (payment-link terms) are read and written only through `GET/PUT /api/billing/payment-settings` (`billing.payment_settings.view` / `.manage`), which validates both. Provider keys only through `PUT /api/payments/online-settings/keys/{provider}` (`billing.payments.configure`); its read reports a secret as set, never its value.
+- The whole `payments` category is managed by these endpoints: the generic `/api/setup/settings` route and the config import refuse it, and the config export leaves it out (`medbrains_server_core::settings_guard`).
 - `GET /api/payments/providers` (built) lists every known provider + configured/mode/methods so admin + the counter UI know what is live vs sandbox.
 
 **`payment_terminals`** (new table) — the per-place registry that makes multi-provider real:

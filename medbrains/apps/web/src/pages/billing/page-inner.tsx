@@ -109,7 +109,10 @@ export function BillingPageInner() {
   const canConcessions = useHasPermission(P.BILLING.CONCESSIONS_LIST);
   const canApproveConcessions = useHasPermission(P.BILLING.CONCESSIONS_APPROVE);
   const canReconcile = useHasPermission(P.BILLING.PAYMENTS_RECONCILE);
-  const canChargeAttention = useHasPermission(P.BILLING.CHARGE_ATTENTION.VIEW);
+  const canChargeAttention = useHasAnyPermission([
+    P.BILLING.CHARGE_ATTENTION.VIEW,
+    P.BILLING.LEAKAGE.VIEW,
+  ]);
   const canSettlements = useHasAnyPermission([
     P.BILLING.CLAIMS.SETTLEMENT.RECORD,
     P.BILLING.CLAIMS.SETTLEMENT.APPROVE,

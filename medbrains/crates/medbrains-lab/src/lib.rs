@@ -105,6 +105,11 @@ pub struct OrderDetailResponse {
     /// same substance incomparable — while a wrong unit on a printed report
     /// is a dosing error waiting to happen.
     pub test: Option<TestDefaults>,
+    /// Who the order is for: name, UHID, sex and age, for the label and the
+    /// identity check at the draw. The lab does not reach the patient's record
+    /// (migration 1415), so the order carries what its work needs. `None`
+    /// only if the patient row is gone.
+    pub patient: Option<medbrains_server_services::patient_identity::PatientIdentity>,
 }
 
 /// The catalogue's answer for a test, used to pre-fill result entry.
@@ -141,11 +146,15 @@ fn has_operational_lab_order_scope(claims: &Claims) -> bool {
     claims_have_any_permission(claims, LAB_OPERATIONAL_ORDER_SCOPE_PERMISSIONS)
 }
 
-/// Link the people who will act on a new lab order. The creator gets Viewer
-/// on the order. The laboratory department gets `dept_member` on the order's
-/// encounter — the lab is on the case once a test is ordered, and without
-/// that link no technician could collect the sample the doctor just asked
-/// for, since every lab route resolves access through the patient.
+/// Link the people who will act on a new lab order.
+///
+/// The creator gets Viewer on the order. The laboratory department gets
+/// `dept_member` on the ORDER,
+/// which is what every lab route checks (`links::LAB_ORDER`: the patient's
+/// care team, or the order's own holders). It used to be handed the order's
+/// encounter, which opened the patient's whole record (notes, diagnoses,
+/// documents) to everyone in the department, with no end; migration 1415
+/// revokes those.
 pub async fn grant_lab_order_access(
     state: &AppState,
     claims: &Claims,
@@ -169,26 +178,56 @@ pub async fn grant_lab_order_access(
             .map_err(|e| AppError::Internal(format!("lab order authz grant failed: {e}")))?;
     }
 
-    let encounter_id: Option<Uuid> = sqlx::query_scalar!(
-        "SELECT encounter_id FROM lab_orders WHERE id = $1 AND tenant_id = $2",
-        order_id,
-        claims.tenant_id,
-    )
-    .fetch_optional(&mut *medbrains_db::pool::tenant_conn(&state.db, &claims.tenant_id).await?)
-    .await?;
-    let Some(encounter_id) = encounter_id else {
-        return Ok(());
-    };
     medbrains_authz_gate::hand_off(
         state,
         claims,
         medbrains_authz_gate::HandOff {
-            object_type: "encounter",
-            object_id: encounter_id,
+            object_type: "lab_order",
+            object_id: order_id,
             department_code: medbrains_authz_gate::PATHOLOGY,
         },
     )
     .await
+}
+
+/// Gate a lab write whose body names both an order and its patient.
+///
+/// The caller must reach the order (the patient's care team, or the
+/// laboratory it was handed to), and the order must be that patient's: a
+/// mismatch answers 404, the same as no order, so the body cannot attach a
+/// report, a draw or a dispatch to somebody else's record. The laboratory does
+/// not reach the patient's record itself any more (migration 1415).
+async fn require_lab_order_of_patient(
+    state: &AppState,
+    claims: &Claims,
+    order_id: Uuid,
+    patient_id: Uuid,
+) -> Result<(), AppError> {
+    medbrains_authz_gate::require_access_via(
+        state,
+        claims,
+        medbrains_authz_gate::links::LAB_ORDER,
+        order_id,
+    )
+    .await?;
+    let matches: bool = sqlx::query_scalar!(
+        "SELECT EXISTS(SELECT 1 FROM lab_orders \
+          WHERE id = $1 AND tenant_id = $2 AND patient_id = $3 \
+            AND deleted_at IS NULL) AS \"exists!\"",
+        order_id,
+        claims.tenant_id,
+        patient_id,
+    )
+    .fetch_one(
+        &mut *medbrains_kernel::begin(&state.db, medbrains_kernel::Actor::from_claims(claims))
+            .await?,
+    )
+    .await?;
+    if matches {
+        Ok(())
+    } else {
+        Err(AppError::NotFound)
+    }
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -553,6 +592,11 @@ pub async fn create_order(
     Json(body): Json<CreateOrderRequest>,
 ) -> Result<Json<LabOrder>, AppError> {
     require_permission(&claims, permissions::lab::orders::CREATE)?;
+    // Raising an order on a visit hands the order to the laboratory, and the
+    // order then opens its own view: only the patient's care team may add
+    // one. The body's visit is checked against this patient in the tx below.
+    // The lab desk books walk-ins on a visit of its own (`direct.rs`).
+    medbrains_authz_gate::require_patient_access(&state, &claims, body.patient_id).await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -832,11 +876,28 @@ pub async fn get_order(
     .fetch_optional(&mut *tx)
     .await?;
 
+    let restricted = medbrains_server_core::middleware::field_access::resolve_restricted_fields(
+        &state.db,
+        claims.tenant_id,
+        claims.sub,
+        &claims.role,
+    )
+    .await?;
+    let patient = medbrains_server_services::patient_identity::patient_identities(
+        &mut tx,
+        claims.tenant_id,
+        &[order.patient_id],
+        &restricted,
+    )
+    .await?
+    .pop();
+
     tx.commit().await?;
     Ok(Json(OrderDetailResponse {
         order,
         results,
         test,
+        patient,
     }))
 }
 
@@ -3428,9 +3489,9 @@ pub async fn create_phlebotomy_entry(
     Json(body): Json<CreatePhlebotomyEntryRequest>,
 ) -> Result<Json<LabPhlebotomyQueue>, AppError> {
     require_permission(&claims, permissions::lab::phlebotomy::MANAGE)?;
-    // This crate already checks the patient on nineteen other paths; these
-    // four were the ones that did not.
-    medbrains_authz_gate::require_patient_access(&state, &claims, body.patient_id).await?;
+    // The draw is the order's work: checked on the order, which must be this
+    // patient's.
+    require_lab_order_of_patient(&state, &claims, body.order_id, body.patient_id).await?;
 
     let priority = normalize_lab_priority(body.priority.as_deref())?;
 
@@ -3558,6 +3619,13 @@ pub async fn create_outsourced_order(
     Json(body): Json<CreateOutsourcedOrderRequest>,
 ) -> Result<Json<LabOutsourcedOrder>, AppError> {
     require_permission(&claims, permissions::lab::outsourced::MANAGE)?;
+    medbrains_authz_gate::require_access_via(
+        &state,
+        &claims,
+        medbrains_authz_gate::links::LAB_ORDER,
+        body.order_id,
+    )
+    .await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -4066,7 +4134,7 @@ pub async fn create_home_collection(
     Json(body): Json<CreateHomeCollectionRequest>,
 ) -> Result<Json<LabHomeCollection>, AppError> {
     require_permission(&claims, permissions::lab::samples::MANAGE)?;
-    medbrains_authz_gate::require_patient_access(&state, &claims, body.patient_id).await?;
+    require_lab_order_of_patient(&state, &claims, body.order_id, body.patient_id).await?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
@@ -4344,7 +4412,7 @@ pub async fn create_sample_archive(
     Json(body): Json<CreateSampleArchiveRequest>,
 ) -> Result<Json<LabSampleArchive>, AppError> {
     require_permission(&claims, permissions::lab::samples::MANAGE)?;
-    medbrains_authz_gate::require_patient_access(&state, &claims, body.patient_id).await?;
+    require_lab_order_of_patient(&state, &claims, body.order_id, body.patient_id).await?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
     let row = sqlx::query_as::<_, LabSampleArchive>(
@@ -4441,7 +4509,7 @@ pub async fn create_report_dispatch(
 ) -> Result<Json<LabReportDispatch>, AppError> {
     require_permission(&claims, permissions::lab::dispatch::MANAGE)?;
     // A dispatch names the patient whose report is being sent out.
-    medbrains_authz_gate::require_patient_access(&state, &claims, body.patient_id).await?;
+    require_lab_order_of_patient(&state, &claims, body.order_id, body.patient_id).await?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
     let row = sqlx::query_as::<_, LabReportDispatch>(
@@ -5048,7 +5116,7 @@ pub async fn create_histopath_report(
     // A pathology report is a diagnosis written onto somebody's record, and the
     // patient came from the request body. `lab.specialized.create` said the
     // caller may write specialised reports, not for whom.
-    medbrains_authz_gate::require_patient_access(&state, &claims, body.patient_id).await?;
+    require_lab_order_of_patient(&state, &claims, body.order_id, body.patient_id).await?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
     let row = sqlx::query_as::<_, LabHistopathReport>(
@@ -5116,7 +5184,7 @@ pub async fn create_cytology_report(
     // A pathology report is a diagnosis written onto somebody's record, and the
     // patient came from the request body. `lab.specialized.create` said the
     // caller may write specialised reports, not for whom.
-    medbrains_authz_gate::require_patient_access(&state, &claims, body.patient_id).await?;
+    require_lab_order_of_patient(&state, &claims, body.order_id, body.patient_id).await?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
     let row = sqlx::query_as::<_, LabCytologyReport>(
@@ -5181,7 +5249,7 @@ pub async fn create_molecular_report(
     // A pathology report is a diagnosis written onto somebody's record, and the
     // patient came from the request body. `lab.specialized.create` said the
     // caller may write specialised reports, not for whom.
-    medbrains_authz_gate::require_patient_access(&state, &claims, body.patient_id).await?;
+    require_lab_order_of_patient(&state, &claims, body.order_id, body.patient_id).await?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
     let row = sqlx::query_as::<_, LabMolecularReport>(
@@ -5539,15 +5607,6 @@ pub async fn get_order_crossmatch(
 ) -> Result<Json<serde_json::Value>, AppError> {
     require_permission(&claims, permissions::lab::orders::LIST)?;
 
-    // The URL names a child record; the care relationship is one hop away on
-    // its parent. Resolve then authorize — see medbrains_authz_gate::links.
-    medbrains_authz_gate::require_access_via(
-        &state,
-        &claims,
-        medbrains_authz_gate::links::LAB_ORDER,
-        id,
-    )
-    .await?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
@@ -5556,6 +5615,10 @@ pub async fn get_order_crossmatch(
         .fetch_optional(&mut *tx)
         .await?
         .ok_or(AppError::NotFound)?;
+    // Crossmatch requests carry no order link: this lists every one the
+    // patient has, so it needs the patient's care team. Holding this one
+    // order (the laboratory's view) is not enough.
+    medbrains_authz_gate::require_patient_access(&state, &claims, order.patient_id).await?;
 
     let crossmatches = sqlx::query_scalar::<_, serde_json::Value>(
         "SELECT COALESCE(json_agg(r ORDER BY r.created_at DESC), '[]'::json) FROM ( \
@@ -5705,6 +5768,22 @@ pub async fn bulk_print_reports(
     Json(body): Json<BulkPrintRequest>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     require_permission(&claims, permissions::lab::reports::VIEW)?;
+    if body.order_ids.len() > MAX_BULK_PRINT_ORDERS {
+        return Err(AppError::BadRequest(format!(
+            "Print at most {MAX_BULK_PRINT_ORDERS} reports at a time."
+        )));
+    }
+    // ponytail: one gate call per order, bounded by MAX_BULK_PRINT_ORDERS; a
+    // bulk form of the PatientOrOwn gate if this batch grows.
+    for order_id in &body.order_ids {
+        medbrains_authz_gate::require_access_via(
+            &state,
+            &claims,
+            medbrains_authz_gate::links::LAB_ORDER,
+            *order_id,
+        )
+        .await?;
+    }
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
@@ -5724,6 +5803,9 @@ pub async fn bulk_print_reports(
         serde_json::json!({"dispatched": dispatched, "total": body.order_ids.len()}),
     ))
 }
+
+/// The most reports one bulk print may name: each is a record check.
+const MAX_BULK_PRINT_ORDERS: usize = 100;
 
 #[derive(Debug, serde::Deserialize)]
 pub struct BulkPrintRequest {

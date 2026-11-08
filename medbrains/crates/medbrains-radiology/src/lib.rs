@@ -1943,6 +1943,10 @@ pub struct PatientRadiologyReport {
     pub verified_at: Option<chrono::DateTime<chrono::Utc>>,
     pub alert_id: Option<Uuid>,
     pub alert_acknowledged_at: Option<chrono::DateTime<chrono::Utc>>,
+    /// Who reported the study; signs it when no consultant verified it.
+    pub reported_by: Option<Uuid>,
+    /// The consultant who verified the report: its author, who signs it.
+    pub verified_by: Option<Uuid>,
 }
 
 /// All of a patient's radiology reports (findings + impression + critical
@@ -1972,7 +1976,8 @@ pub async fn list_patient_reports(
     let rows = sqlx::query_as::<_, PatientRadiologyReport>(
         "SELECT r.id AS report_id, r.order_id, m.name AS modality, o.created_at AS ordered_at, \
                 r.status::text AS status, r.findings, r.impression, r.is_critical, r.verified_at, \
-                ca.id AS alert_id, ca.acknowledged_at AS alert_acknowledged_at \
+                ca.id AS alert_id, ca.acknowledged_at AS alert_acknowledged_at, r.reported_by, \
+                r.verified_by \
          FROM radiology_reports r \
          JOIN radiology_orders o ON o.id = r.order_id AND o.tenant_id = r.tenant_id \
               AND o.deleted_at IS NULL \

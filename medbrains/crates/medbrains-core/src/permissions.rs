@@ -775,6 +775,18 @@ pub mod billing {
         pub const CONFIGURE: &str = "billing.payments.configure";
     }
 
+    /// The billing screen's own payment settings: the hospital's UPI ID and
+    /// its payment-link terms. Provider keys are not part of it.
+    pub mod payment_settings {
+        /// View billing payment settings.
+        /// See the hospital's UPI ID and its payment-link terms (part
+        /// payments, least part, days a link stays open, reminders).
+        pub const VIEW: &str = "billing.payment_settings.view";
+        /// Change billing payment settings.
+        /// Change the hospital's UPI ID and its payment-link terms.
+        pub const MANAGE: &str = "billing.payment_settings.manage";
+    }
+
     /// Taking a patient's money at a department desk (#4885).
     ///
     /// Each desk collects its own department's dues; collecting another
@@ -913,6 +925,22 @@ pub mod billing {
         /// Post a queued charge onto the patient's bill, or dismiss it with a
         /// reason when it should not be billed. Who and when is recorded.
         pub const RESOLVE: &str = "billing.charge_attention.resolve";
+    }
+
+    /// Revenue leakage: services done for a patient that were never billed.
+    pub mod leakage {
+        /// See done-but-unbilled orders.
+        ///
+        /// See lab tests, imaging and procedures that were completed for a
+        /// patient but have no charge on any bill, with the tariff amount and
+        /// how many days each has waited.
+        pub const VIEW: &str = "billing.leakage.view";
+        /// Post, dismiss or rescan unbilled orders.
+        ///
+        /// Post an unbilled order's charge onto the patient's bill, dismiss
+        /// it with a reason (package-included, free by policy, duplicate), or
+        /// run the unbilled-orders check now. Who and when is recorded.
+        pub const RESOLVE: &str = "billing.leakage.resolve";
     }
 
     pub mod claims {
@@ -2443,6 +2471,20 @@ pub mod mrd {
 
     pub mod storage {
         pub const MANAGE: &str = "mrd.storage.manage";
+    }
+
+    pub mod verify_links {
+        /// Show a signed record's public check link.
+        /// Gives the link an outsider (an insurer, a court, another
+        /// hospital) opens from the QR on the paper, minting a new one when
+        /// the last was withdrawn. The page it opens names the document type,
+        /// the signer and whether it is unchanged, never the patient.
+        pub const ISSUE: &str = "mrd.verify_links.issue";
+        /// Withdraw a signed record's public check link.
+        /// The QR on every copy already printed then answers that the
+        /// hospital withdrew it, and on which date. The signature itself is
+        /// untouched.
+        pub const REVOKE: &str = "mrd.verify_links.revoke";
     }
 }
 
@@ -4060,6 +4102,15 @@ pub mod ai {
 }
 
 pub mod nurse {
+    pub mod signature {
+        /// Sign own nursing entries.
+        ///
+        /// Put a digital signature on the medication administrations, vitals,
+        /// ICU chart entries, OT checklists, transfusions and triage this
+        /// nurse recorded. Needs a nurse profile with a licence number and a
+        /// fresh password step-up.
+        pub const SIGN: &str = "nurse.signature.sign";
+    }
     pub mod profile {
         pub const VIEW: &str = "nurse.profile.view";
         pub const MANAGE: &str = "nurse.profile.manage";

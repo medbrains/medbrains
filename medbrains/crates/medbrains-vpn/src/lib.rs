@@ -111,13 +111,13 @@ async fn mint_preauth_key(
 pub async fn enroll(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
-    jar: axum_extra::extract::CookieJar,
+    proof: medbrains_server_core::step_up::StepUpProof,
     Json(req): Json<EnrollRequest>,
 ) -> Result<Json<EnrollResponse>, AppError> {
     require_permission(&claims, permissions::vpn::ENROLL)?;
     // Enrolling a device grants it network access to the HIMS — high-risk, so
     // require a fresh re-auth (the client prompts + retries automatically).
-    medbrains_server_core::step_up::require_step_up(&state, &jar, &claims)?;
+    medbrains_server_core::step_up::require_step_up(&state, &proof, &claims)?;
     let (url, api_key) = headscale_config(&state).await?;
     let (auth_key, expires_at) = mint_preauth_key(&url, &api_key, claims.tenant_id).await?;
 

@@ -6,7 +6,8 @@
 import { api, loginAsRoleApi } from "../helpers/api";
 import { createEncounter, createPatientApi } from "../helpers/journey-steps";
 import { getOpdDept } from "../helpers/seed-resolvers";
-import { expect, test } from "./support/world";
+import { getE2EIdentity } from "../helpers/e2e-identities";
+import { confirmItsYou, expect, test } from "./support/world";
 
 const HPI = "Dry cough for three weeks, worse at night";
 
@@ -33,6 +34,7 @@ test("signing the consultation note keeps the history taken in the same visit", 
   await page.getByRole("textbox", { name: "Plan", exact: true }).click();
   await page.keyboard.type("Chest X-ray, review in one week");
   await page.getByRole("button", { name: "Sign", exact: true }).click();
+  await confirmItsYou(page, getE2EIdentity("doctor").password);
   await expect(page.getByText(/Signed \w+ \d/).first()).toBeVisible({ timeout: 15_000 });
 
   await page.reload();

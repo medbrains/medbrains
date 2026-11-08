@@ -64,6 +64,19 @@ impl TestApp {
         body["csrf_token"].as_str().unwrap_or("").to_owned()
     }
 
+    /// Re-enter `password` on `client`'s session: the five-minute step-up a
+    /// signature needs. The cookie lands in the client's store.
+    pub async fn step_up(&self, client: &Client, csrf: &str, password: &str) {
+        let resp = client
+            .post(self.url("/api/auth/step-up"))
+            .header("x-csrf-token", csrf)
+            .json(&serde_json::json!({ "password": password }))
+            .send()
+            .await
+            .expect("step-up request");
+        assert_eq!(resp.status(), StatusCode::OK, "step-up failed");
+    }
+
     /// POST JSON to an endpoint with the given client.
     pub async fn post_json(
         &self,
@@ -389,6 +402,8 @@ pub struct Staff {
     pub client: Client,
     pub csrf: String,
     pub user_id: uuid::Uuid,
+    /// For the step-up a signature needs.
+    pub password: String,
 }
 
 /// Provision a user of `role` through the admin API (the way a hospital
@@ -461,6 +476,7 @@ pub async fn provision_staff_with(
         client,
         csrf,
         user_id,
+        password,
     }
 }
 

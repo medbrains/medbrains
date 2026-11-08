@@ -1,0 +1,24 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO signature_verify_links (tenant_id, signed_record_id, created_by) VALUES ($1, $2, $3) ON CONFLICT (tenant_id, signed_record_id) WHERE revoked_at IS NULL AND deleted_at IS NULL DO UPDATE SET token = signature_verify_links.token RETURNING token",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "token",
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "a51d4dad109bcb8eccee9d8645aa8ac83d38a9951469d7514f412396276a0ac4"
+}

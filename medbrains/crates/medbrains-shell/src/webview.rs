@@ -4,7 +4,8 @@
 use gtk4::prelude::{Cast, ObjectExt, WidgetExt};
 use webkit6::prelude::{PolicyDecisionExt, WebViewExt};
 use webkit6::{
-    HardwareAccelerationPolicy, NavigationPolicyDecision, NetworkSession, WebView, WebsiteDataTypes,
+    CacheModel, HardwareAccelerationPolicy, MemoryPressureSettings, NavigationPolicyDecision,
+    NetworkSession, WebContext, WebView, WebsiteDataTypes,
 };
 
 use crate::timezone;
@@ -50,6 +51,39 @@ fn leaves_this_app(decision: &NavigationPolicyDecision, origin: &str, sign_in: O
     })
 }
 
+/// Memory WebKit may use before it starts giving memory back, in MB. At half of it the page
+/// process drops its caches; at two thirds it also drops compiled JavaScript. Nothing is killed:
+/// a clinician's page is never ended to save memory. Tune from measurements (OS-BUILD-PLAN D4.11).
+const WEB_PROCESS_LIMIT_MB: u32 = 512;
+/// The same for WebKit's network process, which holds connections and the HTTP cache.
+const NETWORK_PROCESS_LIMIT_MB: u32 = 128;
+/// Share of the limit at which caches are dropped, then compiled code too.
+const CONSERVATIVE_SHARE: f64 = 0.5;
+const STRICT_SHARE: f64 = 0.65;
+
+/// The memory pressure thresholds for one WebKit process.
+fn pressure(limit_mb: u32) -> MemoryPressureSettings {
+    let mut settings = MemoryPressureSettings::new();
+    settings.set_memory_limit(limit_mb);
+    settings.set_conservative_threshold(CONSERVATIVE_SHARE);
+    settings.set_strict_threshold(STRICT_SHARE);
+    settings
+}
+
+thread_local! {
+    /// One WebKit context for every app view, made on first use. "Document viewer" is WebKit's
+    /// smallest cache model: no large memory cache and no back-forward page cache, which an app
+    /// that reloads from its own server does not need.
+    static CONTEXT: WebContext = {
+        NetworkSession::set_memory_pressure_settings(&mut pressure(NETWORK_PROCESS_LIMIT_MB));
+        let context = WebContext::builder()
+            .memory_pressure_settings(&pressure(WEB_PROCESS_LIMIT_MB))
+            .build();
+        context.set_cache_model(CacheModel::DocumentViewer);
+        context
+    };
+}
+
 /// Builds a view with a session of its own, so apps can't read each other's storage. Sessions are
 /// ephemeral, so nothing a page stores reaches the disk, and downloads, printing and uploads are
 /// refused: the appliance has no safe way to do them yet.
@@ -70,13 +104,20 @@ pub(crate) fn new_view(
         &[],
         &[],
     ));
-    let view = WebView::builder()
-        .network_session(&session)
-        .user_content_manager(&content)
-        .build();
+    let view = CONTEXT.with(|context| {
+        WebView::builder()
+            .web_context(context)
+            .network_session(&session)
+            .user_content_manager(&content)
+            .build()
+    });
     if let Some(settings) = WebViewExt::settings(&view) {
         settings.set_hardware_acceleration_policy(HardwareAccelerationPolicy::Never);
         settings.set_enable_developer_extras(false);
+        // Back-forward pages kept in memory and animated scrolling cost memory and CPU on a
+        // shared screen for no clinical gain. WebGL stays on: the 3D body-site picker needs it.
+        settings.set_enable_page_cache(false);
+        settings.set_enable_smooth_scrolling(false);
     }
     view.connect_print(|_, _| true);
     // A file chooser is a second window, and `cage` did not show ours: its modal grab would
@@ -124,7 +165,15 @@ fn forget_sign_in_on_sign_out(view: &WebView, session: &NetworkSession, origin: 
 
 #[cfg(test)]
 mod tests {
-    use super::{is_local_page, is_sign_in_page};
+    use super::{CONSERVATIVE_SHARE, STRICT_SHARE, is_local_page, is_sign_in_page};
+
+    /// Caches go before compiled code, and both well before the limit, so the page slows a
+    /// little rather than running out.
+    #[test]
+    fn memory_is_given_back_in_order_before_the_limit() {
+        assert!(CONSERVATIVE_SHARE < STRICT_SHARE);
+        assert!(STRICT_SHARE < 1.0);
+    }
 
     /// Only the app's own sign-in page clears the view's cookies, not a page that merely looks like it.
     #[test]

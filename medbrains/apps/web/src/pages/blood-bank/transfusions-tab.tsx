@@ -14,6 +14,7 @@ import { PatientContextBanner } from "@/components/Patient/PatientContextBanner"
 import { PatientNameCell } from "@/components/PatientNameCell";
 import { PatientSearchSelect } from "@/components/PatientSearchSelect";
 import { PrintDocumentIconMenu } from "@/components/Print/PrintDocumentIconMenu";
+import { SignRecordButton } from "@/components/Signatures/SignRecordButton";
 import { Alert, Badge, Button, Modal, Switch, TextArea, toast } from "@/components/ui";
 import { useConsentGate } from "@/hooks/useConsentGate";
 import { adminAccessService } from "@/services/adminAccess.service";
@@ -369,6 +370,12 @@ export function TransfusionsTab() {
       label: "Actions",
       render: (t: TransfusionRecord) => (
         <Group gap={4}>
+          <SignRecordButton
+            recordType="transfusion_record"
+            authorId={t.administered_by}
+            recordId={t.id}
+            summary={t.bag_number ?? "Transfusion"}
+          />
           {canCreate && !t.has_reaction && (
             <Button tone="subtle-danger" size="compact-xs" onClick={() => setReactionId(t.id)}>
               Report Reaction
