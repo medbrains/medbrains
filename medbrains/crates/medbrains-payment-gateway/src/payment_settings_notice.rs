@@ -22,11 +22,11 @@ use crate::payment_settings::PaymentSettings;
 
 /// The outbox event an email of this notice is sent under.
 pub const EMAIL_EVENT: &str = "email.payment_settings_changed";
-/// Notification kind and title.
+/// Notification kind and title. No action URL: the medical superintendent,
+/// the default recipient, cannot open the billing settings page, so the body
+/// says everything on its own.
 const KIND: &str = "payment_settings_changed";
 const TITLE: &str = "Billing payment settings changed";
-/// Where the notification leads.
-const ACTION_URL: &str = "/billing?tab=settings";
 
 /// One notification written, to publish live once the work commits.
 #[derive(Debug)]
@@ -39,6 +39,12 @@ pub struct Told {
 /// A UPI ID for a sentence: the value, or "none".
 fn upi_words(upi: Option<&str>) -> &str {
     upi.unwrap_or("none")
+}
+
+/// An amount for a sentence: the stored f64 with no ".0" on a whole number
+/// ("250", "99.5"), or "not set".
+fn rupees(v: &Value) -> String {
+    v.as_f64().map_or_else(|| "not set".to_owned(), |n| n.to_string())
 }
 
 /// Link terms for a sentence, from the stored JSON (or the defaults).
@@ -56,7 +62,7 @@ fn link_words(link: Option<&Value>) -> String {
     format!(
         "part payments {}, least part ₹{}, open {} days, reminders {}",
         yes("accept_partial"),
-        t["min_part_amount"],
+        rupees(&t["min_part_amount"]),
         t["expiry_days"],
         yes("reminders")
     )
@@ -99,7 +105,10 @@ async fn who_and_when(tx: &mut Tx) -> Result<(String, String), AppError> {
 }
 
 /// Tell every holder of the notice permission (except the changer) about
-/// `changes`, in the same unit of work as the change itself.
+/// `changes`, in the same unit of work as the change itself. Hospital
+/// administrators are always among them, a denial notwithstanding. Nobody to
+/// tell (a single-admin hospital whose admin made the change) is logged and
+/// the change still saves.
 ///
 /// # Errors
 /// A database fault, which rolls the change back with it.
@@ -114,6 +123,13 @@ pub async fn tell_management(tx: &mut Tx, changes: &[String]) -> Result<Vec<Told
         actor.user_id,
     )
     .await?;
+    if holders.is_empty() {
+        tracing::warn!(
+            tenant_id = %actor.tenant_id,
+            changed_by = %actor.user_id,
+            "payment settings changed with nobody to tell"
+        );
+    }
     let mut told = Vec::with_capacity(holders.len());
     for user_id in holders {
         let id = create_notification_on(tx, actor.tenant_id, notice(user_id, &body)).await?;
@@ -137,12 +153,14 @@ fn notice(user_id: Uuid, body: &str) -> NewNotification<'_> {
         category: Some("billing"),
         entity_type: Some("billing_payment_settings"),
         entity_id: None,
-        action_url: Some(ACTION_URL),
+        action_url: None,
     }
 }
 
-/// Queue the notice by email when the holder has one on file; keyed on the
-/// notification so a retried request does not email twice.
+/// Queue the notice by email when the holder has one on file. The key is the
+/// notification's id, so it stops the outbox queuing two emails for one
+/// notification; a retried request writes a new notification and gets a new
+/// key, so it does not dedup across requests.
 async fn email(
     tx: &mut Tx,
     tenant_id: Uuid,
@@ -200,13 +218,14 @@ mod tests {
         };
         let after = PaymentSettings {
             upi_vpa: Some("new@ybl".to_owned()),
-            balance_link: Some(json!({ "accept_partial": true, "min_part_amount": 250,
+            balance_link: Some(json!({ "accept_partial": true, "min_part_amount": 250.0,
                                        "expiry_days": 10, "reminders": false })),
         };
         let said = describe(&before, &after);
         assert_eq!(said.len(), 2);
         assert!(said[0].contains("old@okaxis") && said[0].contains("new@ybl"));
-        assert!(said[1].contains("₹250") && said[1].contains("10 days"));
+        assert!(said[1].contains("₹250,") && !said[1].contains("250.0"));
+        assert!(said[1].contains("10 days"));
         assert!(describe(&after, &after).is_empty());
     }
 }
