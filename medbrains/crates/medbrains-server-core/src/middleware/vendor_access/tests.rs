@@ -6,8 +6,7 @@ use std::collections::HashMap;
 use std::time::{Duration, Instant};
 
 use super::{
-    CONFIG_SCOPE, domains_from, is_config_edit, is_valid_scope, mask_value, permissions_for_scope,
-    refusal_due,
+    CONFIG_SCOPE, is_config_edit, is_valid_scope, mask_value, permissions_for_scope, refusal_due,
 };
 use medbrains_core::access::catalogue::{all_codes, module_of};
 use serde_json::{Value, json};
@@ -278,21 +277,6 @@ fn a_restricted_record_is_withheld_whole() {
     assert!(!out.contains("B20") && !out.contains("HIV"), "{out}");
 }
 
-/// The host after the last `@`, trimmed, without a trailing dot, and its
-/// subdomains: the parse half (the SQL half is `app_email_is_vendor`).
-#[test]
-fn the_domain_list_is_normalised_and_hosted_adds_the_seed_admin() {
-    assert_eq!(
-        domains_from(" @MedBrains.in. , ", false),
-        vec!["medbrains.in"]
-    );
-    assert_eq!(domains_from("", false), Vec::<String>::new());
-    assert_eq!(
-        domains_from("medbrains.in", true),
-        vec!["medbrains.in", "medbrains.localhost"]
-    );
-}
-
 /// One refusal row per account per minute, carrying how many it stood for.
 #[test]
 fn refusals_are_written_once_a_minute_with_a_count() {
@@ -335,7 +319,12 @@ async fn text_of(response: axum::response::Response) -> String {
 #[tokio::test]
 async fn files_and_streams_are_refused_under_any_grant() {
     for masked in [true, false] {
-        for kind in ["application/pdf", "text/event-stream", "image/png", "text/csv"] {
+        for kind in [
+            "application/pdf",
+            "text/event-stream",
+            "image/png",
+            "text/csv",
+        ] {
             let out = super::mask::guard_response(answer(200, kind, "x"), masked).await;
             assert_eq!(out.status(), 403, "{kind} masked={masked}");
         }
@@ -351,9 +340,40 @@ async fn json_passes_unmasked_and_is_masked_when_masked_even_on_error() {
     assert_eq!(text_of(open).await, body);
     let shut = super::mask::guard_response(answer(200, "application/json", body), true).await;
     let shut = text_of(shut).await;
-    assert!(!shut.contains("Lakshmi") && shut.contains("active"), "{shut}");
+    assert!(
+        !shut.contains("Lakshmi") && shut.contains("active"),
+        "{shut}"
+    );
     let error = r#"{"error":"conflict","message":"Lakshmi Raman already has a bed"}"#;
     let refused = super::mask::guard_response(answer(409, "application/json", error), true).await;
     assert_eq!(refused.status(), 409);
     assert!(!text_of(refused).await.contains("Lakshmi"));
+}
+
+/// A key that is data — a map keyed by a patient's name or phone — is renamed;
+/// field names and ids keep their keys.
+#[test]
+fn keys_that_are_data_are_masked_too() {
+    let id = "6f1c0a52-0000-4000-8000-000000000001";
+    let out = masked(json!({
+        "Lakshmi Raman": { "status": "active" },
+        "9876501234": 1,
+        "first_name": "Lakshmi",
+        id: { "status": "done" },
+    }));
+    assert!(
+        !out.contains("Lakshmi") && !out.contains("9876501234"),
+        "{out}"
+    );
+    assert!(out.contains("first_name") && out.contains(id), "{out}");
+}
+
+/// `error` keeps only the server's own error codes; any other text there is a
+/// message, and is masked.
+#[test]
+fn only_known_error_codes_survive() {
+    let kept = masked(json!({ "error": "not found" }));
+    assert!(kept.contains("not found"));
+    let other = masked(json!({ "error": "lakshmi raman" }));
+    assert!(!other.contains("lakshmi"), "{other}");
 }

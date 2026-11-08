@@ -52,6 +52,22 @@ const ENUM_KEYS: &[&str] = &[
     "module", "role", "scope", "level", "code",
 ];
 
+/// The `error` codes the server's own error bodies use (`AppError`). Any
+/// other value under `error` is a message, and is masked.
+const ERROR_CODES: &[&str] = &[
+    "unauthorized",
+    "forbidden",
+    "step_up_required",
+    "not found",
+    "not implemented",
+    "bad request",
+    "conflict",
+    "too many requests",
+    "service unavailable",
+    "internal error",
+    "validation_failed",
+];
+
 /// Key fragments that make a value clinical or personal however it is shaped.
 const NEVER_KEPT_FRAGMENTS: &[&str] = &[
     "birth", "dob", "lmp", "death", "icd", "diagnos", "snomed", "loinc", "atc", "drug",
@@ -124,10 +140,14 @@ pub fn mask_value(value: &mut Value) -> Result<usize, String> {
 /// root) that is not kept.
 fn walk(value: &mut Value, key: Option<&str>, today: chrono::NaiveDate) -> usize {
     match value {
-        Value::Object(map) => map
-            .iter_mut()
-            .map(|(k, v)| walk(v, Some(k.as_str()), today))
-            .sum(),
+        Value::Object(map) => {
+            let renamed = mask_keys(map);
+            renamed
+                + map
+                    .iter_mut()
+                    .map(|(k, v)| walk(v, Some(k.as_str()), today))
+                    .sum::<usize>()
+        }
         Value::Array(items) => items.iter_mut().map(|v| walk(v, key, today)).sum(),
         scalar => {
             if key.is_some_and(|k| keep(&snake(k), scalar, today)) {
@@ -138,6 +158,32 @@ fn walk(value: &mut Value, key: Option<&str>, today: chrono::NaiveDate) -> usize
             }
         }
     }
+}
+
+/// Rename every key that is data rather than a field name — a map keyed by a
+/// patient's name or phone — to `masked_1`, `masked_2`, … Kept: keys shaped
+/// like a field name (`first_name`, `displayName`, at most 64 ASCII
+/// characters, starting with a lower-case letter) and UUIDs (maps keyed by
+/// id). Returns how many keys were renamed.
+fn mask_keys(map: &mut serde_json::Map<String, Value>) -> usize {
+    let data_keys: Vec<String> = map.keys().filter(|k| !is_field_name(k)).cloned().collect();
+    for (n, key) in data_keys.iter().enumerate() {
+        if let Some(v) = map.remove(key) {
+            map.insert(format!("masked_{}", n + 1), v);
+        }
+    }
+    data_keys.len()
+}
+
+/// A key shaped like a schema field name, or a UUID.
+fn is_field_name(key: &str) -> bool {
+    if uuid::Uuid::parse_str(key).is_ok() {
+        return true;
+    }
+    let mut chars = key.chars();
+    key.len() <= ENUM_MAX
+        && chars.next().is_some_and(|c| c.is_ascii_lowercase())
+        && chars.all(|c| c.is_ascii_alphanumeric() || c == '_')
 }
 
 /// `displayName` → `display_name`, so camelCase keys meet the same rules.
@@ -171,7 +217,7 @@ fn keep(key: &str, value: &Value, today: chrono::NaiveDate) -> bool {
             } else if is_time_key(key) {
                 is_timestamp(s)
             } else if key == "error" {
-                is_short_phrase(s)
+                ERROR_CODES.contains(&s.as_str())
             } else {
                 is_enum_key(key) && is_enum_word(s) && scan_is_clean(s, today)
             }
@@ -220,13 +266,6 @@ fn is_enum_word(s: &str) -> bool {
         && s.len() <= ENUM_MAX
         && s.chars()
             .all(|c| c.is_ascii_alphanumeric() || matches!(c, '_' | '-' | '.' | ':' | '/'))
-}
-
-/// An error code such as `not found` or `step-up required`.
-fn is_short_phrase(s: &str) -> bool {
-    s.len() <= 40
-        && s.chars()
-            .all(|c| c.is_ascii_lowercase() || matches!(c, ' ' | '-' | '_'))
 }
 
 /// An RFC 3339 timestamp or an ISO date.

@@ -55,47 +55,10 @@ const REFUSAL_WINDOW: Duration = Duration::from_secs(60);
 /// Accounts tracked by the refusal limiter before old windows are dropped.
 const REFUSAL_TRACKED_MAX: usize = 10_000;
 
-/// The address domain the seeded first administrator is created with.
-const SEED_ADMIN_DOMAIN: &str = "medbrains.localhost";
-
-/// Email domains whose accounts are vendor accounts (and their subdomains).
-///
-/// `MEDBRAINS_VENDOR_EMAIL_DOMAINS`, comma-separated, default `medbrains.in`;
-/// an empty string turns the rule off on a tenant the vendor runs for itself.
-/// With `MEDBRAINS_HOSTED=true` — an installation the vendor runs for a
-/// hospital — the seeded administrator's domain is added, so the first-run
-/// `admin@medbrains.localhost` login is gated too. On a hospital's own server
-/// that login is the hospital's, and is left alone.
-static VENDOR_DOMAINS: LazyLock<Vec<String>> = LazyLock::new(|| {
-    let hosted = std::env::var("MEDBRAINS_HOSTED").is_ok_and(|v| v == "true");
-    let configured = std::env::var("MEDBRAINS_VENDOR_EMAIL_DOMAINS")
-        .unwrap_or_else(|_| "medbrains.in".to_owned());
-    domains_from(&configured, hosted)
-});
-
-/// Parse the configured domain list, adding the seeded admin's when hosted.
-fn domains_from(configured: &str, hosted: bool) -> Vec<String> {
-    let mut domains: Vec<String> = configured
-        .split(',')
-        .map(|d| {
-            d.trim()
-                .trim_start_matches('@')
-                .trim_end_matches('.')
-                .to_lowercase()
-        })
-        .filter(|d| !d.is_empty())
-        .collect();
-    if hosted && !domains.iter().any(|d| d == SEED_ADMIN_DOMAIN) {
-        domains.push(SEED_ADMIN_DOMAIN.to_owned());
-    }
-    domains
-}
-
-/// The configured vendor email domains, bound into `app_email_is_vendor`.
-#[must_use]
-pub fn vendor_domains() -> &'static [String] {
-    &VENDOR_DOMAINS
-}
+/// The vendor email domains in force (and their subdomains), bound into
+/// `app_email_is_vendor`. Defined in `medbrains_core::vendor`, where the
+/// outbox worker and the kernel's event gate read it too.
+pub use medbrains_core::vendor::vendor_domains;
 
 /// SQL true for a vendor account in `users u`, with the domains bound at `$n`.
 /// One definition for every query that must leave vendor accounts out.
@@ -283,11 +246,7 @@ type RefusalWindows = HashMap<(Uuid, Uuid), (Instant, u32)>;
 
 /// Whether to write a refusal row for `key` now, and how many refusals since
 /// the last row went unwritten. `None` while the account's window is open.
-fn refusal_due(
-    seen: &mut RefusalWindows,
-    key: (Uuid, Uuid),
-    now: Instant,
-) -> Option<u32> {
+fn refusal_due(seen: &mut RefusalWindows, key: (Uuid, Uuid), now: Instant) -> Option<u32> {
     if seen.len() >= REFUSAL_TRACKED_MAX {
         seen.retain(|_, (start, _)| now.duration_since(*start) < REFUSAL_WINDOW);
     }

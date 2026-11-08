@@ -219,7 +219,9 @@ CREATE TABLE public.vendor_credential_revocations (
     -- The MedBrains account whose credential it was.
     user_id uuid NOT NULL REFERENCES public.users(id),
     kind text NOT NULL
-        CHECK (kind IN ('api_key', 'connected_app', 'paired_device', 'webhook_subscription')),
+        CHECK (kind IN ('api_key', 'connected_app', 'paired_device', 'webhook_subscription',
+                        'integration_pipeline', 'connector', 'automation_workflow',
+                        'eod_digest_subscription')),
     credential_id uuid NOT NULL,
     created_at timestamptz NOT NULL DEFAULT now()
 );
@@ -297,6 +299,42 @@ BEGIN
     INSERT INTO public.vendor_credential_revocations (tenant_id, user_id, kind, credential_id)
     SELECT NEW.tenant_id, NEW.id, 'webhook_subscription', id FROM hooks;
 
+    -- Pipelines and connectors stop; an automation workflow is switched off,
+    -- which also silences its inbound webhooks (the router only runs active
+    -- workflows); a digest subscription stops sending to the account.
+    WITH pipes AS (
+        UPDATE public.integration_pipelines SET status = 'paused'
+         WHERE tenant_id = NEW.tenant_id AND created_by = NEW.id AND status = 'active'
+        RETURNING id
+    )
+    INSERT INTO public.vendor_credential_revocations (tenant_id, user_id, kind, credential_id)
+    SELECT NEW.tenant_id, NEW.id, 'integration_pipeline', id FROM pipes;
+
+    WITH conns AS (
+        UPDATE public.connectors SET status = 'inactive'
+         WHERE tenant_id = NEW.tenant_id AND created_by = NEW.id AND status <> 'inactive'
+        RETURNING id
+    )
+    INSERT INTO public.vendor_credential_revocations (tenant_id, user_id, kind, credential_id)
+    SELECT NEW.tenant_id, NEW.id, 'connector', id FROM conns;
+
+    WITH flows AS (
+        UPDATE public.automation_workflows SET active = false
+         WHERE tenant_id = NEW.tenant_id AND active
+           AND (created_by = NEW.id OR run_as_user_id = NEW.id)
+        RETURNING id
+    )
+    INSERT INTO public.vendor_credential_revocations (tenant_id, user_id, kind, credential_id)
+    SELECT NEW.tenant_id, NEW.id, 'automation_workflow', id FROM flows;
+
+    WITH digests AS (
+        UPDATE public.eod_digest_subscriptions SET is_active = false
+         WHERE tenant_id = NEW.tenant_id AND user_id = NEW.id AND is_active
+        RETURNING id
+    )
+    INSERT INTO public.vendor_credential_revocations (tenant_id, user_id, kind, credential_id)
+    SELECT NEW.tenant_id, NEW.id, 'eod_digest_subscription', id FROM digests;
+
     PERFORM set_config('app.tenant_id', COALESCE(v_prev_tenant, ''), true);
     RETURN NEW;
 END;
@@ -306,6 +344,48 @@ CREATE TRIGGER trg_users_revoke_vendor_credentials
     AFTER INSERT OR UPDATE OF is_vendor_staff ON public.users
     FOR EACH ROW WHEN (NEW.is_vendor_staff)
     EXECUTE FUNCTION public.revoke_vendor_credentials();
+
+-- ── Checks for code that runs without a tenant's row security ────────
+-- The outbox worker, the event gate and connector calls must know whether the
+-- person who set a channel up is a vendor account, and row security must not
+-- turn "could not see the user" into "not a vendor". So the check reads the
+-- one flag it needs as the owner, and answers nothing else. A missing user
+-- (a system-made pipeline, `created_by` NULL) is not a vendor account.
+CREATE OR REPLACE FUNCTION public.app_user_is_vendor(p_user uuid, p_domains text[])
+RETURNS boolean
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = public, pg_temp
+AS $$
+    SELECT COALESCE(
+        (SELECT u.is_vendor_staff OR public.app_email_is_vendor(u.email, p_domains)
+           FROM public.users u WHERE u.id = p_user),
+        false)
+$$;
+
+-- Flag every account on the live domain list, in every hospital: run at each
+-- server start with MEDBRAINS_VENDOR_EMAIL_DOMAINS, because the back-fill
+-- below only knows the default domain. Idempotent (flagged accounts are
+-- skipped); each newly flagged account's revocations go to its hospital's
+-- audit chain through the trigger. Returns how many accounts it flagged.
+CREATE OR REPLACE FUNCTION public.app_flag_vendor_accounts(p_domains text[])
+RETURNS integer
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public, pg_temp
+AS $$
+DECLARE
+    v_flagged integer;
+BEGIN
+    UPDATE public.users SET is_vendor_staff = true
+     WHERE NOT is_vendor_staff AND public.app_email_is_vendor(email, p_domains);
+    GET DIAGNOSTICS v_flagged = ROW_COUNT;
+    RETURN v_flagged;
+END;
+$$;
+
+REVOKE ALL ON FUNCTION public.app_flag_vendor_accounts(text[]) FROM PUBLIC;
 
 -- Back-fill: accounts already on the default MedBrains domain become MedBrains
 -- accounts now, which revokes what they made. A deployment with other domains

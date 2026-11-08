@@ -395,6 +395,18 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // whose roles table was never populated — or was emptied.
     medbrains_seed::reconcile_built_in_roles(&bootstrap_pool).await?;
 
+    // Every account on the live vendor-domain list becomes a vendor account
+    // now, which revokes the keys, channels and devices it set up (audited per
+    // hospital). Migration 1420 only knew the default domain; this run knows
+    // the configured ones. Idempotent, so every start repeats it safely.
+    let flagged: i32 = sqlx::query_scalar("SELECT public.app_flag_vendor_accounts($1)")
+        .bind(medbrains_core::vendor::vendor_domains())
+        .fetch_one(&bootstrap_pool)
+        .await?;
+    if flagged > 0 {
+        tracing::warn!(flagged, "accounts on vendor domains flagged; what they set up is revoked");
+    }
+
     // Every startup check, reported at once; production does not serve on a
     // failure. After seeding, so a fresh database is judged as it will run.
     let findings = medbrains_server::preflight::run(
