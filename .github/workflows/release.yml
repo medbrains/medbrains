@@ -90,8 +90,9 @@ jobs:
       - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
         with:
           package_json_file: medbrains/package.json
-      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
+          package-manager-cache: false
           node-version-file: medbrains/.nvmrc
       - run: pnpm install --frozen-lockfile
       - run: pnpm turbo run build --filter=@medbrains/web...
@@ -347,9 +348,11 @@ jobs:
           subject-path: dist/*
       # Draft: the owner presses Publish. The image push and signing above are
       # public at tag time regardless.
-      - uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2
-        with:
-          body_path: NOTES.md
-          files: dist/*
-          draft: true
-          prerelease: ${{ contains(github.ref, '-alpha') || contains(github.ref, '-beta') || contains(github.ref, '-rc') }}
+      - name: Draft the GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          pre=()
+          case "$TAG" in *-alpha*|*-beta*|*-rc*) pre=(--prerelease) ;; esac
+          gh release create "$TAG" dist/* --repo "$GITHUB_REPOSITORY" --draft --title "$TAG" --notes-file NOTES.md "${pre[@]}"
