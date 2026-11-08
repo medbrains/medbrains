@@ -70,6 +70,7 @@ mod audit_no_credentials_test;
 mod audit_partitioning_test;
 mod auth_me_restrict_copy_test;
 mod auth_test;
+mod billing_payment_settings_test;
 mod blood_bank_safety_test;
 mod calibration_lock_test;
 mod camp_form_field_parity_test;

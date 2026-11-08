@@ -1124,6 +1124,18 @@ export const PERMISSIONS: PermissionDef[] = [
     module: "billing",
   },
   {
+    code: "billing.payment_settings.view",
+    label: "View billing payment settings",
+    description: "See the hospital's UPI ID and its payment-link terms (part payments, least part, days a link stays open, reminders).",
+    module: "billing",
+  },
+  {
+    code: "billing.payment_settings.manage",
+    label: "Change billing payment settings",
+    description: "Change the hospital's UPI ID and its payment-link terms.",
+    module: "billing",
+  },
+  {
     code: "billing.collect.registration",
     label: "Collect registration fees",
     description: "Take the registration fee at the front desk.",
@@ -8359,6 +8371,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.BILLING.LEAKAGE.RESOLVE,
       P.BILLING.LEAKAGE.VIEW,
       P.BILLING.PAYER_SPLIT.MANAGE,
+      P.BILLING.PAYMENT_SETTINGS.VIEW,
       P.BILLING.PAYMENTS.CREATE,
       P.BILLING.PAYMENTS.RECONCILE,
       P.BILLING.PAYMENTS.VOID,

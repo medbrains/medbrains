@@ -20,6 +20,8 @@ use crate::error::AppError;
 /// - `hrms`: the HRMS gateway's base URL and API key.
 /// - `radiology`: the PACS / `DICOMweb` target and its sealed credentials.
 /// - `device_integrations`: device keys kept by the secure-device endpoint.
+/// - `payments`: online provider keys (`/api/payments/online-settings`) and
+///   the billing screen's UPI ID and link terms (`/api/billing/payment-settings`).
 pub const OWN_ENDPOINT_CATEGORIES: &[&str] = &[
     "abdm",
     "ai",
@@ -28,6 +30,7 @@ pub const OWN_ENDPOINT_CATEGORIES: &[&str] = &[
     "hrms",
     "radiology",
     "device_integrations",
+    "payments",
 ];
 
 /// Whether `category` may only be written through its own endpoint.
@@ -57,7 +60,7 @@ mod tests {
 
     #[test]
     fn secret_bearing_categories_are_refused_and_ordinary_ones_pass() {
-        for category in ["ai", "email", "abdm", "dictation", "radiology"] {
+        for category in ["ai", "email", "abdm", "dictation", "radiology", "payments"] {
             assert!(
                 refuse_own_endpoint_category(category).is_err(),
                 "{category}"
@@ -66,7 +69,7 @@ mod tests {
         for category in [" dictation", "abdm ", "\tai\n"] {
             assert!(refuse_own_endpoint_category(category).is_err(), "{category:?}");
         }
-        for category in ["units", "locale", "payments", "regression_test"] {
+        for category in ["units", "locale", "billing", "regression_test"] {
             assert!(refuse_own_endpoint_category(category).is_ok(), "{category}");
         }
     }
