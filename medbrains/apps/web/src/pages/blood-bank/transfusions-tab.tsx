@@ -372,6 +372,7 @@ export function TransfusionsTab() {
         <Group gap={4}>
           <SignRecordButton
             recordType="transfusion_record"
+            authorId={t.administered_by}
             recordId={t.id}
             summary={t.bag_number ?? "Transfusion"}
           />

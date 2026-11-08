@@ -31,6 +31,19 @@ async fn sign(
     record_type: &str,
     record_id: Uuid,
 ) -> (StatusCode, Option<String>) {
+    // Signing needs the review screen opened on the same content first.
+    let reviewed = app
+        .client
+        .post(app.url("/api/signatures/review"))
+        .header("x-csrf-token", csrf)
+        .json(&json!({ "record_type": record_type, "record_id": record_id }))
+        .send()
+        .await
+        .expect("review")
+        .status();
+    if reviewed != StatusCode::OK {
+        return (reviewed, None);
+    }
     let resp = app
         .client
         .post(app.url("/api/signatures/sign"))

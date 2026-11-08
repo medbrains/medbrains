@@ -1,4 +1,4 @@
--- Signable payload: transfusion_record. Binds $1 tenant, $2 record, $3 signer role, $4 signer.
+-- Signable payload: transfusion_record. Binds $1 tenant, $2 record; authorship is checked apart (signable.rs).
 SELECT jsonb_build_object('schema',
     'medbrains.signable.transfusion_record.v2',
     'record_type',
@@ -32,4 +32,3 @@ SELECT jsonb_build_object('schema',
 FROM transfusion_records t
 JOIN patients pat ON pat.tenant_id = t.tenant_id AND pat.id = t.patient_id
 WHERE t.tenant_id = $1 AND t.id = $2 AND t.deleted_at IS NULL
-AND ($3 <> 'primary' OR t.administered_by = $4 OR t.verified_by = $4)

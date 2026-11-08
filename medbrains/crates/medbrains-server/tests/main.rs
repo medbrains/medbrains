@@ -274,6 +274,7 @@ mod seed_race_test;
 mod service_times_test;
 mod sign_in_hardening_test;
 mod sign_in_options_test;
+mod signable_guard_test;
 mod signable_types_test;
 mod signature_payload_test;
 mod signature_verify_test;

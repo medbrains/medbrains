@@ -319,8 +319,8 @@ pub struct SignResponse {
 /// `POST /api/signatures/review` — the signer opens the record to sign it.
 ///
 /// One call when the review screen opens: it returns the canonical snapshot
-/// the signer reads and records that they opened it (`signature_reviews`),
-/// so the signature can say when its signer last reviewed the record.
+/// the signer reads and records that they opened it (`signature_reviews`).
+/// Signing needs this review, of the same content, within 30 minutes.
 pub async fn review_record(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
@@ -334,19 +334,10 @@ pub async fn review_record(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
-    signable::require_signer_profile(&mut tx, &claims, spec, signer_role).await?;
-    let payload_snapshot = signable::resolve_signable_payload(
-        &mut tx,
-        &claims.tenant_id,
-        &claims.sub,
-        signer_role,
-        spec.record_type,
-        body.record_id,
-    )
-    .await?;
-    let canonical = signing::canonicalize(&payload_snapshot)
-        .map_err(|e| AppError::BadRequest(format!("canonicalize: {e}")))?;
-    let payload_hash = signing::payload_hash(&canonical);
+    let opened =
+        signable::open_for_signing(&state, &mut tx, &claims, spec, signer_role, body.record_id)
+            .await?;
+    let (payload_snapshot, payload_hash) = (opened.payload, opened.hash);
     sqlx::query(
         "INSERT INTO signature_reviews (tenant_id, record_type, record_id, reviewer_id, payload_hash) \
          VALUES ($1, $2, $3, $4, $5)",
@@ -396,20 +387,15 @@ pub async fn sign_record(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
-    signable::require_signer_profile(&mut tx, &claims, spec, signer_role).await?;
-    if signer_role == "primary" {
-        signable::require_unsigned(&mut tx, &claims.tenant_id, spec, body.record_id).await?;
+    let opened =
+        signable::open_for_signing(&state, &mut tx, &claims, spec, signer_role, body.record_id)
+            .await?;
+    if signer_role == "primary" && opened.already_signed {
+        return Err(signable::already_signed(spec));
     }
-
-    let payload_snapshot = signable::resolve_signable_payload(
-        &mut tx,
-        &claims.tenant_id,
-        &claims.sub,
-        signer_role,
-        spec.record_type,
-        body.record_id,
-    )
-    .await?;
+    // The signer must have opened this exact content on the review screen.
+    signable::require_reviewed(&mut tx, &claims, spec, body.record_id, &opened.hash).await?;
+    let payload_snapshot = opened.payload;
 
     // Resolve credential — explicit id or doctor's default
     type CredentialRow = (Uuid, Option<Vec<u8>>, Option<String>, Option<String>);

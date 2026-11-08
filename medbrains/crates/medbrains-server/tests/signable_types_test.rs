@@ -17,13 +17,14 @@
 //!   closed case refuses edits; a doctor not allowed to sign MLCs is refused.
 
 use crate::{common, signature_payload_test, signatures_test};
+use medbrains_documents::signable::SIGNABLE;
 
 use reqwest::{Client, StatusCode};
 use serde_json::{Value, json};
 use uuid::Uuid;
 
 /// The admin: stepped up, keyed and registered as a doctor.
-async fn admin_signer(app: &common::TestApp) -> (String, Uuid, Uuid) {
+pub(crate) async fn admin_signer(app: &common::TestApp) -> (String, Uuid, Uuid) {
     let csrf = signatures_test::signer_session(app).await;
     let admin = signatures_test::admin_user_id(app, &csrf).await;
     signatures_test::issue_default_credential(app, &csrf, &admin).await;
@@ -37,7 +38,7 @@ async fn admin_signer(app: &common::TestApp) -> (String, Uuid, Uuid) {
 }
 
 /// POST `path` as `client`; the status and the JSON body.
-async fn post(
+pub(crate) async fn post(
     client: &Client,
     app: &common::TestApp,
     csrf: &str,
@@ -56,7 +57,7 @@ async fn post(
 }
 
 /// Review then sign `record_id` as `client`; the sign status and body.
-async fn review_and_sign(
+pub(crate) async fn review_and_sign(
     client: &Client,
     app: &common::TestApp,
     csrf: &str,
@@ -72,7 +73,7 @@ async fn review_and_sign(
 }
 
 /// The public check token of a signature.
-async fn token_of(app: &common::TestApp, signed: &Value) -> String {
+pub(crate) async fn token_of(app: &common::TestApp, signed: &Value) -> String {
     sqlx::query_scalar(
         "SELECT token FROM signature_verify_links WHERE signed_record_id = $1::uuid AND revoked_at IS NULL",
     )
@@ -82,8 +83,25 @@ async fn token_of(app: &common::TestApp, signed: &Value) -> String {
     .expect("link")
 }
 
-/// A patient with an OPD visit by `doctor`; (patient, encounter, department).
-async fn patient_visit(app: &common::TestApp, tenant: Uuid, doctor: Uuid) -> (Uuid, Uuid, Uuid) {
+/// Make `user` the patient's attending clinician, so they may see the record.
+pub(crate) async fn attend(app: &common::TestApp, tenant: Uuid, patient: Uuid, user: Uuid) {
+    sqlx::query(
+        "INSERT INTO relation_tuples (tenant_id, object_type, object_id, relation, \
+                subject_type, subject_id, granted_by) \
+         VALUES ($1, 'patient', $2, 'attending_physician', 'user', $3::text, $3) \
+         ON CONFLICT DO NOTHING",
+    )
+    .bind(tenant)
+    .bind(patient)
+    .bind(user)
+    .execute(&app.db)
+    .await
+    .expect("attending tuple");
+}
+
+/// A patient with an OPD visit by `doctor`, who attends them;
+/// (patient, encounter, department).
+pub(crate) async fn patient_visit(app: &common::TestApp, tenant: Uuid, doctor: Uuid) -> (Uuid, Uuid, Uuid) {
     let tag = &Uuid::new_v4().simple().to_string()[..10];
     let dept: Uuid = sqlx::query_scalar("SELECT id FROM departments WHERE tenant_id = $1 LIMIT 1")
         .bind(tenant)
@@ -110,11 +128,12 @@ async fn patient_visit(app: &common::TestApp, tenant: Uuid, doctor: Uuid) -> (Uu
     .fetch_one(&app.db)
     .await
     .expect("encounter");
+    attend(app, tenant, patient, doctor).await;
     (patient, encounter, dept)
 }
 
 /// A fitness certificate written by `doctor`.
-async fn certificate(app: &common::TestApp, tenant: Uuid, doctor: Uuid) -> Uuid {
+pub(crate) async fn certificate(app: &common::TestApp, tenant: Uuid, doctor: Uuid) -> Uuid {
     let (patient, encounter, _) = patient_visit(app, tenant, doctor).await;
     sqlx::query_scalar(
         "INSERT INTO medical_certificates (tenant_id, patient_id, encounter_id, doctor_id, \
@@ -133,7 +152,7 @@ async fn certificate(app: &common::TestApp, tenant: Uuid, doctor: Uuid) -> Uuid 
 }
 
 /// The number of `action` audit rows on `entity`.
-async fn audits(app: &common::TestApp, action: &str, entity: Uuid) -> i64 {
+pub(crate) async fn audits(app: &common::TestApp, action: &str, entity: Uuid) -> i64 {
     sqlx::query_scalar("SELECT count(*) FROM audit_log WHERE action = $1 AND entity_id = $2")
         .bind(action)
         .bind(entity)
@@ -143,7 +162,7 @@ async fn audits(app: &common::TestApp, action: &str, entity: Uuid) -> i64 {
 }
 
 /// Whether `table` row `id` is flagged signed.
-async fn is_signed(app: &common::TestApp, table: &str, id: Uuid) -> bool {
+pub(crate) async fn is_signed(app: &common::TestApp, table: &str, id: Uuid) -> bool {
     sqlx::query_scalar(&format!("SELECT is_signed FROM {table} WHERE id = $1"))
         .bind(id)
         .fetch_one(&app.db)
@@ -152,7 +171,7 @@ async fn is_signed(app: &common::TestApp, table: &str, id: Uuid) -> bool {
 }
 
 /// A staff member of `role`, stepped up, with a signing key.
-async fn keyed_staff(app: &common::TestApp, admin_csrf: &str, role: &str) -> common::Staff {
+pub(crate) async fn keyed_staff(app: &common::TestApp, admin_csrf: &str, role: &str) -> common::Staff {
     let staff = common::provision_staff(app, admin_csrf, role, &[]).await;
     signatures_test::issue_key(app, admin_csrf, &staff.user_id.to_string()).await;
     app.step_up(&staff.client, &staff.csrf, &staff.password)
@@ -163,7 +182,7 @@ async fn keyed_staff(app: &common::TestApp, admin_csrf: &str, role: &str) -> com
 #[tokio::test]
 async fn every_signable_type_reads_the_live_schema() {
     let app = common::spawn_app_as_request_role().await;
-    let (csrf, _, _) = admin_signer(&app).await;
+    let (csrf, _, tenant) = admin_signer(&app).await;
     let types: Vec<Value> = app
         .client
         .get(app.url("/api/signatures/types"))
@@ -173,23 +192,30 @@ async fn every_signable_type_reads_the_live_schema() {
         .json()
         .await
         .expect("types json");
-    assert!(types.len() >= 21, "every signable type is published");
+    let published: Vec<&str> = types.iter().filter_map(|t| t["record_type"].as_str()).collect();
+    let table: Vec<&str> = SIGNABLE.iter().map(|t| t.record_type).collect();
+    assert_eq!(published, table, "the server publishes exactly the types it signs");
     for t in &types {
-        assert_eq!(
-            t["step_up"],
-            json!(true),
-            "{t}: every signature needs a step-up"
-        );
-        let record_type = t["record_type"].as_str().unwrap_or_default();
+        assert_eq!(t["step_up"], json!(true), "{t}: every signature needs a step-up");
+    }
+    for t in SIGNABLE {
+        // Every payload query runs against the migrated schema.
+        let row = sqlx::query_scalar::<_, Value>(t.payload_sql)
+            .bind(tenant)
+            .bind(Uuid::new_v4())
+            .fetch_optional(&app.db)
+            .await
+            .unwrap_or_else(|e| panic!("{}: {e}", t.record_type));
+        assert!(row.is_none(), "{}", t.record_type);
         let (status, body) = post(
             &app.client,
             &app,
             &csrf,
             "/api/signatures/review",
-            json!({ "record_type": record_type, "record_id": Uuid::new_v4() }),
+            json!({ "record_type": t.record_type, "record_id": Uuid::new_v4() }),
         )
         .await;
-        assert_eq!(status, StatusCode::NOT_FOUND, "{record_type}: {body}");
+        assert_eq!(status, StatusCode::NOT_FOUND, "{}: {body}", t.record_type);
     }
     let (status, _) = post(
         &app.client,
@@ -199,11 +225,7 @@ async fn every_signable_type_reads_the_live_schema() {
         json!({ "record_type": "progress_note", "record_id": Uuid::new_v4() }),
     )
     .await;
-    assert_eq!(
-        status,
-        StatusCode::BAD_REQUEST,
-        "notes sign through their own ledger"
-    );
+    assert_eq!(status, StatusCode::BAD_REQUEST, "notes sign through their own ledger");
 }
 
 #[tokio::test]
@@ -381,8 +403,9 @@ async fn only_a_registered_licensed_author_signs_a_certificate() {
 }
 
 /// A vitals entry recorded by `nurse`.
-async fn vitals_entry(app: &common::TestApp, tenant: Uuid, admin: Uuid, nurse: Uuid) -> Uuid {
+pub(crate) async fn vitals_entry(app: &common::TestApp, tenant: Uuid, admin: Uuid, nurse: Uuid) -> Uuid {
     let (patient, encounter, _) = patient_visit(app, tenant, admin).await;
+    attend(app, tenant, patient, nurse).await;
     sqlx::query_scalar(
         "INSERT INTO vitals (tenant_id, encounter_id, patient_id, recorded_by, temperature, pulse, \
             systolic_bp, diastolic_bp, respiratory_rate, spo2) \
@@ -398,7 +421,7 @@ async fn vitals_entry(app: &common::TestApp, tenant: Uuid, admin: Uuid, nurse: U
 }
 
 /// Give `nurse` a nurse profile, with `licence` when given.
-async fn nurse_profile(app: &common::TestApp, nurse: Uuid, licence: Option<&str>) {
+pub(crate) async fn nurse_profile(app: &common::TestApp, nurse: Uuid, licence: Option<&str>) {
     sqlx::query(
         "WITH existing AS ( \
             UPDATE nurse_profiles SET license_number = $2 WHERE user_id = $1 RETURNING 1) \
@@ -559,6 +582,7 @@ async fn an_mlc_report_signs_its_injuries_and_a_closed_case_is_final() {
     .fetch_one(&app.db)
     .await
     .expect("their case");
+    attend(&app, tenant, patient, doctor.user_id).await;
     let (status, _) =
         review_and_sign(&doctor.client, &app, &doctor.csrf, "mlc_report", theirs).await;
     assert_eq!(status, StatusCode::FORBIDDEN);

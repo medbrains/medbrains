@@ -1,4 +1,4 @@
--- Signable payload: er_discharge_summary. Binds $1 tenant, $2 record, $3 signer role, $4 signer.
+-- Signable payload: er_discharge_summary. Binds $1 tenant, $2 record; authorship is checked apart (signable.rs).
 SELECT jsonb_build_object('schema',
     'medbrains.signable.er_discharge_summary.v2',
     'record_type',
@@ -32,4 +32,3 @@ FROM er_discharge_summaries s
 JOIN er_visits v ON v.tenant_id = s.tenant_id AND v.id = s.er_visit_id
 JOIN patients pat ON pat.tenant_id = v.tenant_id AND pat.id = v.patient_id
 WHERE s.tenant_id = $1 AND s.id = $2
-AND ($3 <> 'primary' OR s.prepared_by = $4 OR s.verified_by = $4)

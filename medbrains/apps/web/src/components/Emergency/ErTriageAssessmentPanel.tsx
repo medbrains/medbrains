@@ -181,6 +181,7 @@ export function ErTriageAssessmentPanel({
               </Stack>
               <SignRecordButton
                 recordType="er_triage"
+                authorId={a.assessed_by}
                 recordId={a.id}
                 summary={a.chief_complaint ?? "Triage"}
               />

@@ -1,4 +1,4 @@
--- Signable payload: referral. Binds $1 tenant, $2 record, $3 signer role, $4 signer.
+-- Signable payload: referral. Binds $1 tenant, $2 record; authorship is checked apart (signable.rs).
 SELECT jsonb_build_object('schema',
     'medbrains.signable.referral.v2',
     'record_type',
@@ -24,4 +24,3 @@ SELECT jsonb_build_object('schema',
 FROM referrals r
 JOIN patients pat ON pat.tenant_id = r.tenant_id AND pat.id = r.patient_id
 WHERE r.tenant_id = $1 AND r.id = $2 AND r.deleted_at IS NULL
-AND ($3 <> 'primary' OR r.from_doctor_id = $4)

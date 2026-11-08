@@ -65,6 +65,7 @@ function VitalsTimeline({ vitals, isLoading }: { vitals: ScoredVital[]; isLoadin
               )}
               <SignRecordButton
                 recordType="vitals"
+                authorId={row.recorded_by}
                 recordId={row.id}
                 summary={`Vitals ${formatDateTime(row.recorded_at)}`}
               />

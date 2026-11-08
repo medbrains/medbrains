@@ -356,6 +356,7 @@ export function FlowsheetsTab({ admissionId }: { admissionId: string }) {
       render: (r: IcuFlowsheet) => (
         <SignRecordButton
           recordType="icu_flowsheet"
+          authorId={r.recorded_by}
           recordId={r.id}
           summary={`ICU chart ${new Date(r.recorded_at).toLocaleString()}`}
         />

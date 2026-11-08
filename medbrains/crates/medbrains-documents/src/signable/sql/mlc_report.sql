@@ -1,4 +1,4 @@
--- Signable payload: mlc_report. Binds $1 tenant, $2 record, $3 signer role, $4 signer.
+-- Signable payload: mlc_report. Binds $1 tenant, $2 record; authorship is checked apart (signable.rs).
 SELECT jsonb_build_object('schema',
     'medbrains.signable.mlc_report.v2',
     'record_type',
@@ -64,4 +64,3 @@ WHERE i.tenant_id = m.tenant_id AND i.mlc_case_id = m.id AND i.deleted_at IS NUL
 FROM mlc_cases m
 JOIN patients pat ON pat.tenant_id = m.tenant_id AND pat.id = m.patient_id
 WHERE m.tenant_id = $1 AND m.id = $2 AND m.deleted_at IS NULL
-AND ($3 <> 'primary' OR m.examining_doctor_id = $4 OR m.registered_by = $4)

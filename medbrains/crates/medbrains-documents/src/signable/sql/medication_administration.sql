@@ -1,4 +1,4 @@
--- Signable payload: medication_administration. Binds $1 tenant, $2 record, $3 signer role, $4 signer.
+-- Signable payload: medication_administration. Binds $1 tenant, $2 record; authorship is checked apart (signable.rs).
 SELECT jsonb_build_object('schema',
     'medbrains.signable.medication_administration.v2',
     'record_type',
@@ -43,4 +43,3 @@ FROM ipd_medication_administration m
 JOIN admissions a ON a.tenant_id = m.tenant_id AND a.id = m.admission_id
 JOIN patients pat ON pat.tenant_id = a.tenant_id AND pat.id = a.patient_id
 WHERE m.tenant_id = $1 AND m.id = $2 AND m.deleted_at IS NULL
-AND ($3 <> 'primary' OR m.administered_by = $4)

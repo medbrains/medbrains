@@ -129,6 +129,7 @@ export function ErDischargeSummaryPanel({ visitId }: { visitId: string }) {
               )}
               <SignRecordButton
                 recordType="er_discharge_summary"
+                authorId={summary?.prepared_by}
                 recordId={summary?.id}
                 summary="Emergency discharge summary"
               />

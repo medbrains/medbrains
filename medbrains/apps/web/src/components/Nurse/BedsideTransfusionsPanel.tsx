@@ -103,6 +103,7 @@ export function BedsideTransfusionsPanel({ admissionId }: Props) {
         <Group gap={4} wrap="nowrap">
           <SignRecordButton
             recordType="bedside_transfusion"
+            authorId={t.started_by_id}
             recordId={t.id}
             summary={t.bag_number ?? "Transfusion"}
           />

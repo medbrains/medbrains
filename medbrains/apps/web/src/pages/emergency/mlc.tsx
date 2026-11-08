@@ -368,7 +368,12 @@ export function MlcTab({
       label: "Actions",
       render: (r: MlcCase) => (
         <Group gap="xs">
-          <SignRecordButton recordType="mlc_report" recordId={r.id} summary={r.mlc_number} />
+          <SignRecordButton
+            recordType="mlc_report"
+            authorId={r.examining_doctor_id}
+            recordId={r.id}
+            summary={r.mlc_number}
+          />
           {canViewDetails && (
             <Tooltip label="View Details & Documents">
               <IconButton

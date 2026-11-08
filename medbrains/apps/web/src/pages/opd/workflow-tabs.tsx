@@ -299,6 +299,7 @@ export function CertificatesTab({
               </Text>
               <SignRecordButton
                 recordType="medical_certificate"
+                authorId={cert.doctor_id}
                 recordId={cert.id}
                 summary={cert.certificate_type.replace(/_/g, " ")}
               />
@@ -1191,6 +1192,7 @@ export function ReferralsTab({
             </Group>
             <SignRecordButton
               recordType="referral"
+              authorId={ref.from_doctor_id}
               recordId={ref.id}
               summary={`${ref.from_department_name ?? ""} to ${ref.to_department_name ?? ""}`}
             />

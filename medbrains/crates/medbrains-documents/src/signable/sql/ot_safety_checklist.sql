@@ -1,4 +1,4 @@
--- Signable payload: ot_safety_checklist. Binds $1 tenant, $2 record, $3 signer role, $4 signer.
+-- Signable payload: ot_safety_checklist. Binds $1 tenant, $2 record; authorship is checked apart (signable.rs).
 SELECT jsonb_build_object('schema',
     'medbrains.signable.ot_safety_checklist.v2',
     'record_type',
@@ -32,4 +32,3 @@ FROM ot_surgical_safety_checklists c
 JOIN ot_bookings b ON b.tenant_id = c.tenant_id AND b.id = c.booking_id
 JOIN patients pat ON pat.tenant_id = b.tenant_id AND pat.id = b.patient_id
 WHERE c.tenant_id = $1 AND c.id = $2 AND c.deleted_at IS NULL
-AND ($3 <> 'primary' OR c.completed_by = $4 OR c.verified_by = $4)

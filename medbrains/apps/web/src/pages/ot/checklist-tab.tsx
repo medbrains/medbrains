@@ -197,6 +197,7 @@ export function ChecklistTab({ bookingId }: { bookingId: string }) {
                 <Text fw={500}>{phaseLabels[phase]}</Text>
                 <SignRecordButton
                   recordType="ot_safety_checklist"
+                  authorId={checklist?.completed_by}
                   recordId={checklist?.id}
                   summary={phaseLabels[phase]}
                 />

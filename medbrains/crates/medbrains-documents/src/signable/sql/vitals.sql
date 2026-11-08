@@ -1,4 +1,4 @@
--- Signable payload: vitals. Binds $1 tenant, $2 record, $3 signer role, $4 signer.
+-- Signable payload: vitals. Binds $1 tenant, $2 record; authorship is checked apart (signable.rs).
 SELECT jsonb_build_object('schema',
     'medbrains.signable.vitals.v2',
     'record_type',
@@ -42,4 +42,3 @@ FROM vitals vt
 LEFT JOIN encounters e ON e.tenant_id = vt.tenant_id AND e.id = vt.encounter_id
 JOIN patients pat ON pat.tenant_id = vt.tenant_id AND pat.id = COALESCE(vt.patient_id, e.patient_id)
 WHERE vt.tenant_id = $1 AND vt.id = $2 AND vt.deleted_at IS NULL
-AND ($3 <> 'primary' OR vt.recorded_by = $4)

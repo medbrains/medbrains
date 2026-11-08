@@ -187,6 +187,20 @@ pub(crate) async fn doctor_prescription(app: &common::TestApp, doctor_user_id: &
     prescription_id.to_string()
 }
 
+/// Helper: open `record_id` on the review screen as the admin. Signing needs
+/// a review of the same content, by the same signer, within 30 minutes.
+pub(crate) async fn review(app: &common::TestApp, csrf: &str, record_type: &str, record_id: &str) {
+    let resp = app
+        .client
+        .post(app.url("/api/signatures/review"))
+        .header("x-csrf-token", csrf)
+        .json(&json!({ "record_type": record_type, "record_id": record_id }))
+        .send()
+        .await
+        .expect("review");
+    assert_eq!(resp.status(), StatusCode::OK, "review of {record_type}");
+}
+
 /// Admin signed in and stepped up: a signature needs the password again
 /// within five minutes, not only a session.
 pub(crate) async fn signer_session(app: &common::TestApp) -> String {
@@ -240,6 +254,7 @@ async fn test_sign_with_credential_succeeds() {
     let _cred_id = issue_default_credential(&app, &csrf, &admin_id).await;
 
     let record_id = doctor_prescription(&app, &admin_id).await;
+    review(&app, &csrf, "prescription", &record_id).await;
     let resp = app
         .client
         .post(app.url("/api/signatures/sign"))
@@ -273,6 +288,7 @@ async fn test_verify_endpoint_round_trip() {
     issue_default_credential(&app, &csrf, &admin_id).await;
 
     let record_id = doctor_prescription(&app, &admin_id).await;
+    review(&app, &csrf, "prescription", &record_id).await;
 
     // Sign
     let sign_resp = app
@@ -351,13 +367,15 @@ async fn test_revoked_credential_cannot_sign() {
     assert_eq!(r_resp.status(), StatusCode::OK);
 
     // Attempt sign with the now-revoked default → 400
+    let fresh = doctor_prescription(&app, &admin_id).await;
+    review(&app, &csrf, "prescription", &fresh).await;
     let sign_resp = app
         .client
         .post(app.url("/api/signatures/sign"))
         .header("x-csrf-token", &csrf)
         .json(&json!({
             "record_type": "prescription",
-            "record_id": doctor_prescription(&app, &admin_id).await,
+            "record_id": fresh,
         }))
         .send()
         .await
@@ -377,6 +395,7 @@ async fn test_co_signer_creates_separate_row() {
     issue_default_credential(&app, &csrf, &admin_id).await;
 
     let record_id = doctor_prescription(&app, &admin_id).await;
+    review(&app, &csrf, "prescription", &record_id).await;
 
     // Primary sign
     let p_resp = app

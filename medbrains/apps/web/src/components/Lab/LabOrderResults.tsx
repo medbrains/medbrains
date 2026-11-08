@@ -124,6 +124,7 @@ function ResultTable({ results }: { results: LabResult[] }) {
             <Table.Td>
               <SignRecordButton
                 recordType="lab_report"
+                authorId={result.entered_by}
                 recordId={result.id}
                 summary={result.parameter_name}
               />

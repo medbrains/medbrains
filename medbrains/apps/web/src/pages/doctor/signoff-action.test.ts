@@ -1,6 +1,6 @@
 import type { SignableTypeInfo } from "@medbrains/types";
 import { describe, expect, it } from "vitest";
-import { canSignType, type SignableTypes } from "@/hooks/useSignableTypes";
+import { canSignType, isRecordAuthor, type SignableTypes } from "@/hooks/useSignableTypes";
 import { signoffAction, signoffLabel } from "./signoff-action";
 
 /** The server's list, as `GET /api/signatures/types` answers it. */
@@ -67,5 +67,12 @@ describe("the shared Sign control", () => {
 
   it("shows nothing for a type the server does not sign", () => {
     expect(canSignType(SERVER.get("progress_note"), doctor)).toBe(false);
+  });
+
+  it("is offered only to the record's author, the only author the server accepts", () => {
+    expect(isRecordAuthor("u-1", "u-1")).toBe(true);
+    expect(isRecordAuthor("u-2", "u-1")).toBe(false);
+    expect(isRecordAuthor(null, "u-1")).toBe(false);
+    expect(isRecordAuthor("u-1", undefined)).toBe(false);
   });
 });

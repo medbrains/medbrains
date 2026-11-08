@@ -75,6 +75,7 @@ export function DeathSummaryTab({
           <Text fw={600}>Death Summary</Text>
           <SignRecordButton
             recordType="death_certificate"
+            authorId={summary.certifying_doctor_id}
             recordId={summary.id}
             summary="Death certificate (MCCD)"
           />

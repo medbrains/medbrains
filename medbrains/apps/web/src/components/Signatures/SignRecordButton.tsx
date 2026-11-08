@@ -2,20 +2,22 @@
  * The Sign control every record screen uses: opens the review screen (which
  * records that the signer opened the record) and signs with a fresh step-up.
  *
- * It renders only for a type the server signs and a signer whose permission
- * signs it, so no screen offers a signature the server would refuse.
+ * It renders only for the record's author, for a type the server signs and a
+ * signer whose permission signs it, so no screen offers a signature the
+ * server would refuse. Anyone else co-signs from the sign-off workflow.
  */
+import { useAuthStore } from "@medbrains/stores";
 import { IconCheck, IconSignature } from "@tabler/icons-react";
 import { useState } from "react";
 import { SignWorkspace } from "@/components/Doctor/SignWorkspace";
 import { Badge, IconButton, Tooltip } from "@/components/ui";
-import { canSignType, useSignableTypes } from "@/hooks/useSignableTypes";
+import { canSignType, isRecordAuthor, useSignableTypes } from "@/hooks/useSignableTypes";
 
 interface SignRecordButtonProps {
   recordType: string;
   recordId: string | null | undefined;
-  /** The row already carries a signature (`is_signed`), when it says so. */
-  isSigned?: boolean;
+  /** The record's author column: the only person who signs it as author. */
+  authorId: string | null | undefined;
   patientName?: string | null;
   uhid?: string | null;
   summary?: string | null;
@@ -26,7 +28,7 @@ interface SignRecordButtonProps {
 export function SignRecordButton({
   recordType,
   recordId,
-  isSigned,
+  authorId,
   patientName,
   uhid,
   summary,
@@ -35,9 +37,10 @@ export function SignRecordButton({
   const { types, isError, rights } = useSignableTypes();
   const [open, setOpen] = useState(false);
   const [signedHere, setSignedHere] = useState(false);
+  const userId = useAuthStore((state) => state.user?.id);
   const info = types?.get(recordType);
 
-  if (!recordId) return null;
+  if (!recordId || !isRecordAuthor(authorId, userId)) return null;
   if (isError) {
     return (
       <Tooltip label="Signing is unavailable right now. Try again shortly.">
@@ -48,7 +51,7 @@ export function SignRecordButton({
     );
   }
   if (!canSignType(info, rights)) return null;
-  if (isSigned || signedHere) {
+  if (signedHere) {
     return (
       <Badge size="sm" tone="success" leftSection={<IconCheck size={12} />}>
         Signed

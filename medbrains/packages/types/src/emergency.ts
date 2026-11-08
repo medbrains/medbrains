@@ -51,6 +51,8 @@ export interface PatientRadiologyReport {
   verified_at: string | null;
   alert_id: string | null;
   alert_acknowledged_at: string | null;
+  /** Who reported the study: the report's author, who signs it. */
+  reported_by: string | null;
 }
 
 export interface PatientTimelineEvent {

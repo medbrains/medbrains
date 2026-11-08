@@ -68,6 +68,7 @@ export function AnesthesiaTab({ bookingId }: { bookingId: string }) {
           <Text fw={600}>Anesthesia Record</Text>
           <SignRecordButton
             recordType="anaesthesia_record"
+            authorId={record.anesthetist_id}
             recordId={record.id}
             summary={record.anesthesia_type.replace("_", " ")}
           />

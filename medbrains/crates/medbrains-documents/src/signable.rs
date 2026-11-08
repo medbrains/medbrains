@@ -16,16 +16,24 @@
 //! `POST /api/clinical-notes/{id}/sign`, and consents through the consent
 //! module; neither is listed here.
 //!
-//! Payload SQL binds `$1` tenant, `$2` record id, `$3` signer role and `$4`
-//! signer user (`signable/sql/<type>.sql`, listed in `signable/table.rs`). A primary signer must be the record's author (`$3 <>
-//! 'primary' OR <author> = $4`). Content only: workflow state that changes
-//! after signing is left out, or the public check would call every signed
-//! document altered. Migration 1418 lists the same content columns for the
-//! edit guard that takes a signature off an edited record.
+//! Payload SQL (`signable/sql/<type>.sql`, listed in `signable/table.rs`)
+//! binds `$1` tenant and `$2` record id. Content only: workflow state that
+//! changes after signing is left out, or the public check would call every
+//! signed document altered. Migration 1418 watches the same columns, on the
+//! record and on the child rows it signs (prescription items, MLC injuries),
+//! and takes the signature off an edited record.
+//!
+//! Before anything is signed: the primary signer is the record's own author
+//! column and nobody else (others co-sign); the signer holds a registration;
+//! the signer may see the patient (`require_patient_access`, every role); and
+//! the signer opened the review screen on this exact content within the last
+//! 30 minutes.
 
 use medbrains_core::permissions;
 use medbrains_kernel::{require_any_permission, require_permission};
-use medbrains_server_core::{error::AppError, middleware::auth::Claims};
+use medbrains_health_services::patient::require_patient_access;
+use medbrains_server_core::{error::AppError, middleware::auth::Claims, state::AppState};
+use medbrains_signing::signing;
 use serde::Serialize;
 use serde_json::Value;
 use uuid::Uuid;
@@ -38,11 +46,11 @@ pub enum Signer {
     Doctor,
     /// A nurse profile with a licence number, or a doctor's (doctors chart too).
     Nurse,
-    /// A doctor named as the case's anaesthetist.
+    /// A doctor recorded as the anaesthesia record's anaesthetist.
     Anaesthetist,
-    /// A doctor who entered or validated the result.
+    /// A doctor who entered the result.
     Pathologist,
-    /// A doctor who reported or verified the study.
+    /// A doctor who reported the study.
     Radiologist,
 }
 
@@ -66,11 +74,16 @@ pub struct SignableType {
     pub label: &'static str,
     /// The source table; carries `is_signed` and `signed_record_id`.
     pub table: &'static str,
+    /// The column naming the record's author: the only primary signer.
+    pub author: &'static str,
+    /// Child tables the payload signs, with the column naming the record.
+    pub children: &'static [(&'static str, &'static str)],
     pub signer: Signer,
     pub licence: Licence,
     /// The legal class a signature takes when the client names none.
     pub legal_class: &'static str,
-    pub(crate) payload_sql: &'static str,
+    /// The query reading the signable content: `$1` tenant, `$2` record.
+    pub payload_sql: &'static str,
 }
 
 pub mod table;
@@ -90,8 +103,9 @@ pub fn find(record_type: &str) -> Result<&'static SignableType, AppError> {
 /// Refuse a caller whose role does not sign this type.
 ///
 /// A nursing entry takes the nurse signing right or the doctor's (doctors
-/// chart too); everything else the doctor's. Co-signers, attestors and
-/// witnesses need the co-sign right, as before.
+/// chart too); everything else the doctor's. Co-signers and attestors need
+/// the co-sign right. A witness needs the right to sign this type as an
+/// author would, or the co-sign right.
 ///
 /// # Errors
 /// `Forbidden` without the right.
@@ -100,18 +114,16 @@ pub fn require_sign_permission(
     spec: &SignableType,
     signer_role: &str,
 ) -> Result<(), AppError> {
-    let checked = if signer_role != "primary" {
-        require_permission(claims, permissions::doctor::signature::CO_SIGN)
-    } else if spec.signer == Signer::Nurse {
-        require_any_permission(
-            claims,
-            &[
-                permissions::nurse::signature::SIGN,
-                permissions::doctor::signature::SIGN,
-            ],
-        )
+    let co_sign = permissions::doctor::signature::CO_SIGN;
+    let author_rights: &[&str] = if spec.signer == Signer::Nurse {
+        &[permissions::nurse::signature::SIGN, permissions::doctor::signature::SIGN]
     } else {
-        require_permission(claims, permissions::doctor::signature::SIGN)
+        &[permissions::doctor::signature::SIGN]
+    };
+    let checked = match signer_role {
+        "primary" => require_any_permission(claims, author_rights),
+        "witness" => require_any_permission(claims, &[author_rights, &[co_sign]].concat()),
+        _ => require_permission(claims, co_sign),
     };
     checked.map_err(AppError::from)
 }
@@ -206,15 +218,14 @@ fn refusal(spec: &SignableType, licence: Licence) -> String {
 
 /// The canonical content of a signable record, read from its source table.
 ///
-/// `NotFound` when the record is gone or, for a primary signer, not theirs.
+/// The same for every reader: the signer, the review screen and the public
+/// check. `NotFound` when the record is gone.
 ///
 /// # Errors
 /// `BadRequest` for an unknown type, `NotFound`, or a database error.
 pub(crate) async fn resolve_signable_payload(
     tx: &mut sqlx::PgConnection,
     tenant_id: &Uuid,
-    signer_user_id: &Uuid,
-    signer_role: &str,
     record_type: &str,
     record_id: Uuid,
 ) -> Result<Value, AppError> {
@@ -222,44 +233,144 @@ pub(crate) async fn resolve_signable_payload(
     sqlx::query_scalar::<_, Value>(spec.payload_sql)
         .bind(tenant_id)
         .bind(record_id)
-        .bind(signer_role)
-        .bind(signer_user_id)
         .fetch_optional(&mut *tx)
         .await?
         .ok_or(AppError::NotFound)
 }
 
-/// Refuse a second author signature on a record already signed (409).
+/// Lock the record for signing and say whether it is already signed.
 ///
-/// The row stays locked until the signature commits, so two signings at the
-/// same moment cannot both pass. An edit takes the signature off (migration
-/// 1418), after which the record can be signed again.
+/// A primary signer must be the record's own author column; to anyone else
+/// the record answers `NotFound`, the same as a record that does not exist,
+/// so the check is no existence oracle. The row stays locked until the
+/// signature commits, so two signings at the same moment cannot both pass.
 ///
 /// # Errors
-/// `Conflict` when already signed; a database error as itself.
-pub(crate) async fn require_unsigned(
+/// `NotFound`, or a database error.
+pub(crate) async fn lock_for_signing(
     tx: &mut sqlx::PgConnection,
-    tenant_id: &Uuid,
+    claims: &Claims,
     spec: &SignableType,
+    signer_role: &str,
     record_id: Uuid,
-) -> Result<(), AppError> {
-    // Dynamic only in the table name, which comes from the fixed table.
+) -> Result<bool, AppError> {
+    // Dynamic only in the table and column names, from the fixed table.
     let sql = format!(
-        "SELECT is_signed FROM {} WHERE id = $1 AND tenant_id = $2 FOR UPDATE",
-        spec.table
+        "SELECT {} IS NOT DISTINCT FROM $3, is_signed FROM {} \
+          WHERE id = $1 AND tenant_id = $2 FOR UPDATE",
+        spec.author, spec.table
     );
-    let signed: Option<bool> = sqlx::query_scalar(&sql)
+    let row: Option<(bool, bool)> = sqlx::query_as(&sql)
         .bind(record_id)
-        .bind(tenant_id)
+        .bind(claims.tenant_id)
+        .bind(claims.sub)
         .fetch_optional(&mut *tx)
         .await?;
-    if signed == Some(true) {
-        return Err(AppError::Conflict(format!(
-            "This {} is already signed. Edit it to take the signature off, then sign again.",
-            spec.label.to_lowercase()
-        )));
+    match row {
+        Some((is_author, signed)) if is_author || signer_role != "primary" => Ok(signed),
+        _ => Err(AppError::NotFound),
     }
-    Ok(())
+}
+
+/// The patient a payload is about.
+///
+/// # Errors
+/// `Internal` when a payload names no patient, which the table forbids.
+pub(crate) fn patient_of(payload: &Value) -> Result<Uuid, AppError> {
+    payload
+        .pointer("/patient/id")
+        .or_else(|| payload.get("patient_id"))
+        .and_then(Value::as_str)
+        .and_then(|id| id.parse().ok())
+        .ok_or_else(|| AppError::Internal("signable payload names no patient".to_owned()))
+}
+
+/// A record opened for signing: its payload, the payload's hash, and
+/// whether it already carries a signature.
+pub(crate) struct Opened {
+    pub payload: Value,
+    pub hash: [u8; 32],
+    pub already_signed: bool,
+}
+
+/// Everything the review screen and the signature check before the record
+/// is shown or signed, in this order: authorship (a primary signer must be
+/// the author; 404 to anyone else, as for a missing record), the signer's
+/// registration, the payload, and the signer's access to the patient, for
+/// every role. The record stays
+/// locked until the caller's transaction ends.
+///
+/// # Errors
+/// `ForbiddenReason`, `NotFound`, the patient gate's refusal, or a database
+/// error.
+pub(crate) async fn open_for_signing(
+    state: &AppState,
+    tx: &mut sqlx::PgConnection,
+    claims: &Claims,
+    spec: &SignableType,
+    signer_role: &str,
+    record_id: Uuid,
+) -> Result<Opened, AppError> {
+    let already_signed = lock_for_signing(tx, claims, spec, signer_role, record_id).await?;
+    require_signer_profile(tx, claims, spec, signer_role).await?;
+    let payload = resolve_signable_payload(tx, &claims.tenant_id, spec.record_type, record_id).await?;
+    require_patient_access(state, claims, patient_of(&payload)?).await?;
+    let canonical = signing::canonicalize(&payload)
+        .map_err(|e| AppError::BadRequest(format!("canonicalize: {e}")))?;
+    let hash = signing::payload_hash(&canonical);
+    Ok(Opened {
+        payload,
+        hash,
+        already_signed,
+    })
+}
+
+/// How long a review stands: sign within this many minutes of opening it.
+const REVIEW_WINDOW_MINUTES: i32 = 30;
+
+/// Refuse a signature on content the signer has not reviewed (409).
+///
+/// The review screen records what it showed (`signature_reviews`); the
+/// signature must be over that same hash, opened by this signer within
+/// [`REVIEW_WINDOW_MINUTES`].
+///
+/// # Errors
+/// `Conflict` without a matching review; a database error as itself.
+pub(crate) async fn require_reviewed(
+    tx: &mut sqlx::PgConnection,
+    claims: &Claims,
+    spec: &SignableType,
+    record_id: Uuid,
+    payload_hash: &[u8],
+) -> Result<(), AppError> {
+    let reviewed: bool = sqlx::query_scalar(
+        "SELECT EXISTS (SELECT 1 FROM signature_reviews \
+          WHERE tenant_id = $1 AND record_type = $2 AND record_id = $3 \
+            AND reviewer_id = $4 AND payload_hash = $5 AND deleted_at IS NULL \
+            AND reviewed_at > now() - make_interval(mins => $6))",
+    )
+    .bind(claims.tenant_id)
+    .bind(spec.record_type)
+    .bind(record_id)
+    .bind(claims.sub)
+    .bind(payload_hash)
+    .bind(REVIEW_WINDOW_MINUTES)
+    .fetch_one(&mut *tx)
+    .await?;
+    if reviewed {
+        return Ok(());
+    }
+    Err(AppError::Conflict(
+        "Open the document and review it before signing.".to_owned(),
+    ))
+}
+
+/// The refusal of a second author signature on a signed record (409).
+pub(crate) fn already_signed(spec: &SignableType) -> AppError {
+    AppError::Conflict(format!(
+        "This {} is already signed. Edit it to take the signature off, then sign again.",
+        spec.label.to_lowercase()
+    ))
 }
 
 /// Flag the source row as signed and point it at its signature.
@@ -329,101 +440,4 @@ pub async fn list_signable_types(
 }
 
 #[cfg(test)]
-mod tests {
-    use super::SIGNABLE;
-    use std::collections::HashSet;
-
-    /// Each type is listed once, binds all four parameters, filters a
-    /// primary signer to the author, and reads a live row.
-    #[test]
-    fn every_type_is_unique_and_scoped_to_its_author() {
-        let mut seen = HashSet::new();
-        for t in SIGNABLE {
-            assert!(seen.insert(t.record_type), "{} listed twice", t.record_type);
-            for p in ["$1", "$2", "$3", "$4"] {
-                assert!(
-                    t.payload_sql.contains(p),
-                    "{} does not bind {p}",
-                    t.record_type
-                );
-            }
-            assert!(
-                t.payload_sql.contains("$3 <> 'primary'"),
-                "{}: a primary signer must be the author",
-                t.record_type
-            );
-            let flat = t
-                .payload_sql
-                .split_whitespace()
-                .collect::<Vec<_>>()
-                .join(" ");
-            assert!(
-                flat.contains(&format!("'record_type', '{}'", t.record_type)),
-                "{}: the payload names its own type",
-                t.record_type
-            );
-        }
-    }
-
-    /// The columns of `table` (under its alias) that a payload reads.
-    fn signed_columns(sql: &str, table: &str) -> Vec<String> {
-        let from = format!("\nFROM {table} ");
-        let Some(at) = sql.find(&from) else {
-            return vec![format!("<no FROM {table}>")];
-        };
-        let alias: String = sql[at + from.len()..]
-            .chars()
-            .take_while(|c| c.is_ascii_alphanumeric() || *c == '_')
-            .collect();
-        let prefix = format!("{alias}.");
-        let select = &sql[..at];
-        let mut cols: Vec<String> = select
-            .match_indices(&prefix)
-            .filter(|(i, _)| {
-                *i == 0
-                    || !select.as_bytes()[i - 1].is_ascii_alphanumeric()
-                        && select.as_bytes()[i - 1] != b'_'
-            })
-            .map(|(i, _)| {
-                select[i + prefix.len()..]
-                    .chars()
-                    .take_while(|c| c.is_ascii_alphanumeric() || *c == '_')
-                    .collect::<String>()
-            })
-            .filter(|c| !matches!(c.as_str(), "id" | "tenant_id" | "created_at"))
-            .collect();
-        cols.sort();
-        cols.dedup();
-        cols
-    }
-
-    /// The edit guard of migration 1418 watches every column a payload
-    /// signs; a column added to a payload but not to the guard would let an
-    /// edit keep a signature over content it no longer matches.
-    #[test]
-    fn the_edit_guard_watches_every_signed_column() {
-        let migration =
-            include_str!("../../medbrains-db-migrations/src/migrations/1418_sign_every_record.sql");
-        for t in SIGNABLE {
-            let marker = format!("signable_edit_guard('{}',", t.record_type);
-            let line = migration
-                .lines()
-                .find(|l| l.contains(&marker))
-                .unwrap_or_default();
-            assert!(!line.is_empty(), "{} has no edit guard", t.record_type);
-            assert!(
-                migration.contains(&format!("ON public.{}\n    FOR EACH ROW EXECUTE FUNCTION public.signable_edit_guard('{}',", t.table, t.record_type)),
-                "{}: the guard sits on {}",
-                t.record_type,
-                t.table
-            );
-            for col in signed_columns(t.payload_sql, t.table) {
-                assert!(
-                    line.contains(&format!("'{col}'")),
-                    "{}: the edit guard does not watch {col}",
-                    t.record_type
-                );
-            }
-        }
-    }
-}
+mod tests;

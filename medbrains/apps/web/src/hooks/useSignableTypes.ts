@@ -25,6 +25,17 @@ export function canSignType(info: SignableTypeInfo | undefined, rights: SignRigh
 }
 
 /**
+ * Whether the signed-in user is the record's author, the only person the
+ * server lets sign it as author. An unknown user or author is not a match.
+ */
+export function isRecordAuthor(
+  authorId: string | null | undefined,
+  userId: string | null | undefined,
+): boolean {
+  return Boolean(authorId && userId && authorId === userId);
+}
+
+/**
  * The server's list of signable types (`GET /api/signatures/types`), read once
  * per session. The query only runs for someone who may sign or verify, and a
  * failed read is reported as `isError`, never as "nothing is signable".

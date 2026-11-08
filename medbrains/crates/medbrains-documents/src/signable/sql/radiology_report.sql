@@ -1,4 +1,4 @@
--- Signable payload: radiology_report. Binds $1 tenant, $2 record, $3 signer role, $4 signer.
+-- Signable payload: radiology_report. Binds $1 tenant, $2 record; authorship is checked apart (signable.rs).
 SELECT jsonb_build_object(
     'schema',
     'medbrains.signable.radiology_report.v2',
@@ -38,4 +38,3 @@ FROM radiology_reports rr
 JOIN radiology_orders ro ON ro.tenant_id = rr.tenant_id AND ro.id = rr.order_id
 JOIN patients pat ON pat.tenant_id = ro.tenant_id AND pat.id = ro.patient_id
 WHERE rr.tenant_id = $1 AND rr.id = $2 AND rr.deleted_at IS NULL
-AND ($3 <> 'primary' OR rr.reported_by = $4 OR rr.verified_by = $4)

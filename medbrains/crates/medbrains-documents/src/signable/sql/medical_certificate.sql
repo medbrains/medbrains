@@ -1,4 +1,4 @@
--- Signable payload: medical_certificate. Binds $1 tenant, $2 record, $3 signer role, $4 signer.
+-- Signable payload: medical_certificate. Binds $1 tenant, $2 record; authorship is checked apart (signable.rs).
 SELECT jsonb_build_object('schema',
     'medbrains.signable.medical_certificate.v2',
     'record_type',
@@ -26,4 +26,3 @@ SELECT jsonb_build_object('schema',
 FROM medical_certificates c
 JOIN patients pat ON pat.tenant_id = c.tenant_id AND pat.id = c.patient_id
 WHERE c.tenant_id = $1 AND c.id = $2 AND c.deleted_at IS NULL
-AND ($3 <> 'primary' OR c.doctor_id = $4)

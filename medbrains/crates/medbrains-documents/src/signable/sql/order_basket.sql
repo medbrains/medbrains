@@ -1,4 +1,4 @@
--- Signable payload: order_basket. Binds $1 tenant, $2 record, $3 signer role, $4 signer.
+-- Signable payload: order_basket. Binds $1 tenant, $2 record; authorship is checked apart (signable.rs).
 SELECT jsonb_build_object('schema',
     'medbrains.signable.order_basket.v2',
     'record_type',
@@ -24,4 +24,3 @@ SELECT jsonb_build_object('schema',
 FROM order_basket_signatures ob
 JOIN patients pat ON pat.tenant_id = ob.tenant_id AND pat.id = ob.patient_id
 WHERE ob.tenant_id = $1 AND ob.id = $2 AND ob.deleted_at IS NULL
-AND ($3 <> 'primary' OR ob.signed_by = $4)

@@ -1,4 +1,4 @@
--- Signable payload: operation_note. Binds $1 tenant, $2 record, $3 signer role, $4 signer.
+-- Signable payload: operation_note. Binds $1 tenant, $2 record; authorship is checked apart (signable.rs).
 SELECT jsonb_build_object('schema',
     'medbrains.signable.operation_note.v2',
     'record_type',
@@ -44,4 +44,3 @@ FROM ot_case_records cr
 JOIN ot_bookings b ON b.tenant_id = cr.tenant_id AND b.id = cr.booking_id
 JOIN patients pat ON pat.tenant_id = b.tenant_id AND pat.id = b.patient_id
 WHERE cr.tenant_id = $1 AND cr.id = $2 AND cr.deleted_at IS NULL
-AND ($3 <> 'primary' OR cr.surgeon_id = $4 OR b.primary_surgeon_id = $4 OR b.surgeon_id = $4)

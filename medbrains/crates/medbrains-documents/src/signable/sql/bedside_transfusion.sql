@@ -1,4 +1,4 @@
--- Signable payload: bedside_transfusion. Binds $1 tenant, $2 record, $3 signer role, $4 signer.
+-- Signable payload: bedside_transfusion. Binds $1 tenant, $2 record; authorship is checked apart (signable.rs).
 SELECT jsonb_build_object('schema',
     'medbrains.signable.bedside_transfusion.v2',
     'record_type',
@@ -44,4 +44,3 @@ FROM transfusions t
 JOIN admissions a ON a.tenant_id = t.tenant_id AND a.id = t.admission_id
 JOIN patients pat ON pat.tenant_id = a.tenant_id AND pat.id = a.patient_id
 WHERE t.tenant_id = $1 AND t.id = $2 AND t.deleted_at IS NULL
-AND ($3 <> 'primary' OR t.started_by_id = $4 OR t.completed_by_id = $4)

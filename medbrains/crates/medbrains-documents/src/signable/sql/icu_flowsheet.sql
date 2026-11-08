@@ -1,4 +1,4 @@
--- Signable payload: icu_flowsheet. Binds $1 tenant, $2 record, $3 signer role, $4 signer.
+-- Signable payload: icu_flowsheet. Binds $1 tenant, $2 record; authorship is checked apart (signable.rs).
 SELECT jsonb_build_object('schema',
     'medbrains.signable.icu_flowsheet.v2',
     'record_type',
@@ -39,4 +39,3 @@ FROM icu_flowsheets f
 JOIN admissions a ON a.tenant_id = f.tenant_id AND a.id = f.admission_id
 JOIN patients pat ON pat.tenant_id = a.tenant_id AND pat.id = a.patient_id
 WHERE f.tenant_id = $1 AND f.id = $2 AND f.deleted_at IS NULL
-AND ($3 <> 'primary' OR f.recorded_by = $4)

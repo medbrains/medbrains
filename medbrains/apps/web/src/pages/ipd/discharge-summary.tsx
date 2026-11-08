@@ -95,6 +95,7 @@ export function DischargeSummaryTab({
           <Group>
             <SignRecordButton
               recordType="discharge_summary"
+              authorId={summary.prepared_by}
               recordId={summary.id}
               summary="Discharge summary"
             />

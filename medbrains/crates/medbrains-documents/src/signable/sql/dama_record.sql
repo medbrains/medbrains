@@ -1,4 +1,4 @@
--- Signable payload: dama_record. Binds $1 tenant, $2 record, $3 signer role, $4 signer.
+-- Signable payload: dama_record. Binds $1 tenant, $2 record; authorship is checked apart (signable.rs).
 SELECT jsonb_build_object('schema',
     'medbrains.signable.dama_record.v2',
     'record_type',
@@ -39,4 +39,3 @@ FROM ipd_dama_records d
 JOIN admissions a ON a.tenant_id = d.tenant_id AND a.id = d.admission_id
 JOIN patients pat ON pat.tenant_id = a.tenant_id AND pat.id = a.patient_id
 WHERE d.tenant_id = $1 AND d.id = $2 AND d.deleted_at IS NULL
-AND ($3 <> 'primary' OR d.declared_by = $4)

@@ -1,4 +1,4 @@
--- Signable payload: er_triage. Binds $1 tenant, $2 record, $3 signer role, $4 signer.
+-- Signable payload: er_triage. Binds $1 tenant, $2 record; authorship is checked apart (signable.rs).
 SELECT jsonb_build_object('schema',
     'medbrains.signable.er_triage.v2',
     'record_type',
@@ -44,4 +44,3 @@ FROM er_triage_assessments t
 JOIN er_visits v ON v.tenant_id = t.tenant_id AND v.id = t.er_visit_id
 JOIN patients pat ON pat.tenant_id = v.tenant_id AND pat.id = v.patient_id
 WHERE t.tenant_id = $1 AND t.id = $2 AND t.deleted_at IS NULL
-AND ($3 <> 'primary' OR t.assessed_by = $4)

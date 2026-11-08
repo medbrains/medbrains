@@ -354,6 +354,12 @@ pub async fn enforce_amendment(
         },
     )
     .await?;
+    // The signed-record guard (migration 1418) refuses any change to a
+    // closed case except along this path, which has just filed its reason in
+    // the hash-chained audit log. The flag lasts for this transaction only.
+    sqlx::query("SET LOCAL medbrains.signable_amendment = 'on'")
+        .execute(&mut **tx)
+        .await?;
     Ok(())
 }
 

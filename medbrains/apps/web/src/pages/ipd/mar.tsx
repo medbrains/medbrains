@@ -102,6 +102,7 @@ export function MarTab({ admissionId }: { admissionId: string }) {
               <Table.Td>
                 <SignRecordButton
                   recordType="medication_administration"
+                  authorId={m.administered_by}
                   recordId={m.id}
                   summary={`${m.drug_name} ${m.dose}`}
                 />

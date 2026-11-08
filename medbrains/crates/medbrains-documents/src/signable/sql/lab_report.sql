@@ -1,4 +1,4 @@
--- Signable payload: lab_report. Binds $1 tenant, $2 record, $3 signer role, $4 signer.
+-- Signable payload: lab_report. Binds $1 tenant, $2 record; authorship is checked apart (signable.rs).
 SELECT jsonb_build_object(
     'schema',
     'medbrains.signable.lab_result.v2',
@@ -45,4 +45,3 @@ FROM lab_results lr
 JOIN lab_orders lo ON lo.tenant_id = lr.tenant_id AND lo.id = lr.order_id
 JOIN patients pat ON pat.tenant_id = lo.tenant_id AND pat.id = lo.patient_id
 WHERE lr.tenant_id = $1 AND lr.id = $2 AND lr.deleted_at IS NULL
-AND ($3 <> 'primary' OR lr.entered_by = $4 OR lo.verified_by = $4)

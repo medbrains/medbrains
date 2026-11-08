@@ -149,6 +149,7 @@ export function TransferLogTab({ admissionId }: { admissionId: string }) {
                 <Table.Td>
                   <SignRecordButton
                     recordType="transfer_note"
+                    authorId={t.transferred_by}
                     recordId={t.id}
                     summary={t.transfer_type.replace(/_/g, " ")}
                   />

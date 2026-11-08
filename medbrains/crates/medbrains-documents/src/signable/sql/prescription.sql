@@ -1,4 +1,4 @@
--- Signable payload: prescription. Binds $1 tenant, $2 record, $3 signer role, $4 signer.
+-- Signable payload: prescription. Binds $1 tenant, $2 record; authorship is checked apart (signable.rs).
 SELECT jsonb_build_object(
     'schema',
     'medbrains.signable.prescription.v2',
@@ -47,4 +47,3 @@ FROM prescriptions p
 LEFT JOIN encounters e ON e.tenant_id = p.tenant_id AND e.id = p.encounter_id
 LEFT JOIN patients pat ON pat.tenant_id = p.tenant_id AND pat.id = COALESCE(p.patient_id, e.patient_id)
 WHERE p.tenant_id = $1 AND p.id = $2 AND p.deleted_at IS NULL
-AND ($3 <> 'primary' OR p.doctor_id = $4)

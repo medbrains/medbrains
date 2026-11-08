@@ -63,6 +63,7 @@ export function CaseRecordTab({ bookingId }: { bookingId: string }) {
           <Text fw={600}>Surgical Case Record</Text>
           <SignRecordButton
             recordType="operation_note"
+            authorId={record.surgeon_id}
             recordId={record.id}
             summary={record.procedure_performed}
           />

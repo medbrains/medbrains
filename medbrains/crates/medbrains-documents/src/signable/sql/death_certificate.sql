@@ -1,4 +1,4 @@
--- Signable payload: death_certificate. Binds $1 tenant, $2 record, $3 signer role, $4 signer.
+-- Signable payload: death_certificate. Binds $1 tenant, $2 record; authorship is checked apart (signable.rs).
 SELECT jsonb_build_object('schema',
     'medbrains.signable.death_certificate.v2',
     'record_type',
@@ -31,4 +31,3 @@ SELECT jsonb_build_object('schema',
 FROM ipd_death_summaries d
 JOIN patients pat ON pat.tenant_id = d.tenant_id AND pat.id = d.patient_id
 WHERE d.tenant_id = $1 AND d.id = $2 AND d.deleted_at IS NULL
-AND ($3 <> 'primary' OR d.certifying_doctor_id = $4)

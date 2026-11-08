@@ -57,6 +57,7 @@ function ReportCard({
             ))}
           <SignRecordButton
             recordType="radiology_report"
+            authorId={report.reported_by}
             recordId={report.report_id}
             summary={report.modality ?? "Imaging report"}
           />

@@ -181,8 +181,6 @@ async fn check_signed_record(
     let source = SignedSource {
         record_type: &row.record_type,
         record_id: row.record_id,
-        signer_user_id: row.signer_user_id,
-        signer_role: &row.signer_role,
     };
     let hash_matches = checkable
         && current_hash(tx, tenant_id, source)
@@ -230,32 +228,24 @@ const fn key_status(on_record: bool, revoked_at: Option<DateTime<Utc>>) -> &'sta
     }
 }
 
-/// Which source record a signature covers, and whose primary signature it is.
+/// Which source record a signature covers.
 struct SignedSource<'a> {
     record_type: &'a str,
     record_id: Uuid,
-    signer_user_id: Uuid,
-    signer_role: &'a str,
 }
 
 /// The hash of the source record as it is now; `None` when it is gone.
 ///
-/// A record that no longer resolves (deleted, or no longer the signer's) is
-/// not the record that was signed, so the caller reports it as changed.
+/// A record that no longer resolves (deleted) is not the record that was
+/// signed, so the caller reports it as changed. A change of author is a
+/// change of content: every payload signs its author column.
 async fn current_hash(
     tx: &mut PgConnection,
     tenant_id: Uuid,
     source: SignedSource<'_>,
 ) -> Result<Option<[u8; 32]>, AppError> {
-    let payload = match resolve_signable_payload(
-        tx,
-        &tenant_id,
-        &source.signer_user_id,
-        source.signer_role,
-        source.record_type,
-        source.record_id,
-    )
-    .await
+    let payload = match resolve_signable_payload(tx, &tenant_id, source.record_type, source.record_id)
+        .await
     {
         Ok(payload) => payload,
         Err(AppError::NotFound | AppError::BadRequest(_)) => return Ok(None),
