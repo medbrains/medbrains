@@ -100,8 +100,8 @@ medbrains-nursing partial 97 medbrains-db,medbrains-authz,medbrains-authz-gate
 medbrains-oauth not_yet 10 medbrains-db
 medbrains-offline-core not_yet 0 -
 medbrains-onboarding not_yet 36 medbrains-db
-medbrains-opd not_yet 243 medbrains-db,medbrains-authz,medbrains-authz-gate
-medbrains-order-basket not_yet 19 medbrains-db,medbrains-authz-gate
+medbrains-opd not_yet 240 medbrains-db,medbrains-authz,medbrains-authz-gate
+medbrains-order-basket not_yet 16 medbrains-db,medbrains-authz-gate
 medbrains-order-sets not_yet 36 medbrains-db,medbrains-authz-gate
 medbrains-os-setup not_yet 0 -
 medbrains-os-test not_yet 0 -
