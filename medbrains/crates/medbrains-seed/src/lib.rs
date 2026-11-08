@@ -284,10 +284,14 @@ const fn must_change_first_password(production: bool, chosen: bool) -> bool {
     production && !chosen
 }
 
+/// Whether the seed must act as for a live hospital: any environment that is
+/// not development or test, staging included, and an unset one in a release
+/// build. Such a server refuses the default password and makes the seeded
+/// admin change theirs at first sign-in.
 fn production_env() -> bool {
-    std::env::var("MEDBRAINS_ENV")
-        .map(|value| value.eq_ignore_ascii_case("production"))
-        .unwrap_or(false)
+    use medbrains_core::secrets::sealing::{environment_name, is_dev_like};
+    let raw = std::env::var("MEDBRAINS_ENV").ok();
+    !is_dev_like(&environment_name(raw.as_deref()))
 }
 
 fn demo_fixture_seed_enabled() -> bool {

@@ -22,6 +22,22 @@ pub fn environment_name(raw: Option<&str>) -> String {
     })
 }
 
+/// Environment names the owner counts as development or test.
+///
+/// Decided 2026-11-08. Off these, a hazard that development tolerates — a request
+/// pool connected as the database owner, a seeded admin whose first password
+/// someone else knows — refuses to start instead of warning.
+pub const DEV_LIKE_ENVIRONMENTS: &[&str] = &["dev", DEVELOPMENT, "test", "local", "ci"];
+
+/// Whether a resolved environment name is a development or test one.
+///
+/// See [`environment_name`]. Unset resolves to development only in a
+/// debug build, so a release binary nobody configured is treated as live.
+#[must_use]
+pub fn is_dev_like(environment: &str) -> bool {
+    DEV_LIKE_ENVIRONMENTS.contains(&environment)
+}
+
 /// True if this process runs in development mode.
 #[must_use]
 pub fn is_development() -> bool {

@@ -767,3 +767,49 @@ async fn adding_a_medbrains_account_flags_it() {
     let support = account(&app, &csrf, "receptionist", "medbrains.in").await;
     assert!(flag_and_email(&app, support.user_id).await.0);
 }
+
+/// `POST /api/auth/change-password` as `who`; returns the status.
+async fn change_password(app: &TestApp, who: &Account, body: Value) -> StatusCode {
+    who.client
+        .post(app.url("/api/auth/change-password"))
+        .header("x-csrf-token", &who.csrf)
+        .json(&body)
+        .send()
+        .await
+        .expect("change password")
+        .status()
+}
+
+/// Given the seeded admin handed to a hospital (placeholder address, server
+/// not hosted), the first password change needs the administrator's real
+/// address: missing, the placeholder or a MedBrains address is refused; a real
+/// one is saved with the new password.
+#[tokio::test]
+async fn the_handed_over_admin_gives_a_real_address_with_the_new_password() {
+    let app = common::spawn_app().await;
+    let csrf = app.login_admin().await;
+    let admin = account(&app, &csrf, "super_admin", "medbrains.localhost").await;
+    let new_password = "Handed#Over9Pass";
+    let attempt = |email: Option<&str>| json!({ "current_password": admin.password, "new_password": new_password, "email": email });
+    assert_eq!(
+        change_password(&app, &admin, attempt(None)).await,
+        StatusCode::UNPROCESSABLE_ENTITY,
+        "no address"
+    );
+    assert_eq!(
+        change_password(&app, &admin, attempt(Some("other@medbrains.localhost"))).await,
+        StatusCode::BAD_REQUEST,
+        "the placeholder"
+    );
+    assert_eq!(
+        change_password(&app, &admin, attempt(Some("eng@medbrains.in"))).await,
+        StatusCode::BAD_REQUEST,
+        "a MedBrains address"
+    );
+    let real = format!("chief.{}@hospital.example", admin.user_id.simple());
+    assert_eq!(
+        change_password(&app, &admin, attempt(Some(&real))).await,
+        StatusCode::OK
+    );
+    assert_eq!(flag_and_email(&app, admin.user_id).await, (false, real));
+}

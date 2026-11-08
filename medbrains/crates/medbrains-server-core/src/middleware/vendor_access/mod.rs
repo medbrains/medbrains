@@ -42,8 +42,14 @@ pub use scope::{CONFIG_SCOPE, is_config_edit, is_valid_scope, permissions_for_sc
 /// so every role-based shortcut and every role lookup comes back empty.
 pub const VENDOR_ROLE: &str = "vendor_support";
 
-/// What a vendor account may call with no live grant: who it is, and leaving.
-const WITHOUT_A_GRANT: [&str; 3] = ["/api/auth/me", "/api/auth/logout", "/api/auth/logout-all"];
+/// What a vendor account may call with no live grant: who it is, changing its
+/// own temporary password, and leaving.
+const WITHOUT_A_GRANT: [&str; 4] = [
+    "/api/auth/me",
+    "/api/auth/change-password",
+    "/api/auth/logout",
+    "/api/auth/logout-all",
+];
 
 /// The longest path recorded on an event row (the column's limit).
 const PATH_LIMIT: usize = 300;

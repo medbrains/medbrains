@@ -160,6 +160,28 @@ its own duties to the Data Protection Board and to Data Principals.
 T8. *Infrastructure access.* Access to servers or databases outside the application (for hosting or
 recovery) is covered by [separate clause — counsel], and is logged and notified to the Fiduciary.
 
+## The seeded first administrator
+
+Every installation starts with one account, `admin@medbrains.localhost`. Who it belongs to depends
+on who runs the server.
+
+**A hospital's own server (`MEDBRAINS_HOSTED` unset).** The account is the hospital's.
+1. Off development and test environments (`MEDBRAINS_ENV` other than dev, development, test,
+   local or ci), the seed refuses the default password: `install.sh` generates one, or the person
+   at the machine's own setup types one.
+2. A generated password must be changed at first sign-in. Until it is, the account can reach only
+   "who am I", the password change and sign-out. A password typed at the machine's own setup is
+   not forced again, because nobody else has seen it.
+3. At that first password change the screen also asks for the hospital administrator's real email
+   address. The server refuses the placeholder and any MedBrains address, and stores the real one
+   (unverified) with the new password. Password resets and security notices then reach the
+   hospital.
+
+**A hosted installation (`MEDBRAINS_HOSTED=true`).** The account is MedBrains staff: it is
+refused without a grant like any other MedBrains account, and it changes its password without
+being asked for a hospital address. The hospital gets its own administrator through the hand-over
+below.
+
 ## Hand-over on a hosted installation (`MEDBRAINS_HOSTED=true`)
 
 1. Before go-live, MedBrains creates the hospital's own administrator (a `hospital_admin` on the

@@ -116,6 +116,36 @@ pub fn backfill_max() -> i32 {
         .unwrap_or(DEFAULT_BACKFILL_MAX)
 }
 
+/// The host of an address: after the last `@`, trimmed, lower-cased, without
+/// a trailing dot. `None` when there is no `@`.
+fn email_host(email: &str) -> Option<String> {
+    let (_, host) = email.trim().rsplit_once('@')?;
+    Some(host.trim_end_matches('.').to_lowercase())
+}
+
+/// Whether `email` is on one of `domains` or a subdomain of one — the same
+/// rule as `public.app_email_is_vendor`.
+#[must_use]
+pub fn email_on_domains(email: &str, domains: &[String]) -> bool {
+    email_host(email).is_some_and(|host| {
+        domains
+            .iter()
+            .any(|d| host == *d || host.ends_with(&format!(".{d}")))
+    })
+}
+
+/// Whether `email` is the seeded admin's placeholder on a hospital's own server.
+///
+/// That is the account handed to the hospital, which
+/// must be given a real address at its first sign-in. On a hosted server the
+/// placeholder domain is a vendor domain and the account is vendor staff.
+#[must_use]
+pub fn needs_real_admin_email(email: &str) -> bool {
+    let placeholder = [SEED_ADMIN_DOMAIN.to_owned()];
+    email_on_domains(email, &placeholder)
+        && !vendor_domains().iter().any(|d| d == SEED_ADMIN_DOMAIN)
+}
+
 /// The vendor email domains in force, for binding into `app_email_is_vendor`.
 #[must_use]
 pub fn vendor_domains() -> Vec<String> {
@@ -135,7 +165,17 @@ pub fn set_vendor_domains(domains: Vec<String>) {
 
 #[cfg(test)]
 mod tests {
-    use super::{domains_from, parse_domains};
+    use super::{domains_from, email_on_domains, parse_domains};
+
+    /// The host after the last `@`, its subdomains too; nothing else.
+    #[test]
+    fn an_address_matches_its_domain_and_subdomains_only() {
+        let domains = vec!["medbrains.in".to_owned()];
+        assert!(email_on_domains(" Eng@Help.MedBrains.in. ", &domains));
+        assert!(email_on_domains("a@b@medbrains.in", &domains));
+        assert!(!email_on_domains("eng@notmedbrains.in", &domains));
+        assert!(!email_on_domains("medbrains.in", &domains));
+    }
 
     /// A single label or a public suffix would flag every account under it,
     /// so neither is accepted; a real domain is.
