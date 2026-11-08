@@ -673,3 +673,36 @@ async fn permission_holders_never_include_a_vendor_account() {
             .expect("count");
     assert_eq!(told, 0, "a MedBrains account was told");
 }
+
+/// Given a MedBrains account with a live grant, the notification socket still
+/// refuses it: a stream cannot be masked or recorded per request.
+#[tokio::test]
+async fn the_notification_socket_refuses_a_vendor_account() {
+    let app = common::spawn_app().await;
+    let csrf = app.login_admin().await;
+    let vendor = account(&app, &csrf, "hospital_admin", "medbrains.in").await;
+    let (status, _) = grant(&app, &csrf, &vendor.email, &["patients"], true).await;
+    assert_eq!(status, StatusCode::OK);
+    let username = vendor
+        .email
+        .split('@')
+        .next()
+        .unwrap_or_default()
+        .to_owned();
+    let login = Client::new()
+        .post(app.url("/api/auth/login"))
+        .json(&json!({ "username": username, "password": vendor.password }))
+        .send()
+        .await
+        .expect("login");
+    let token = login
+        .cookies()
+        .find(|c| c.name() == "access_token")
+        .map(|c| c.value().to_owned())
+        .expect("access token");
+    let url = format!("ws://{}/api/ws/notifications?token={token}", app.addr);
+    assert!(
+        tokio_tungstenite::connect_async(url).await.is_err(),
+        "a MedBrains account opened the notification socket"
+    );
+}

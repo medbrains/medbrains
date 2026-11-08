@@ -110,33 +110,6 @@ pub async fn live_grant(db: &PgPool, claims: &Claims) -> Result<Option<LiveGrant
     .map_err(|e| unavailable(&e))
 }
 
-/// Whether `claims` names a vendor account. For paths that authenticate
-/// themselves outside the auth middleware (the notification socket).
-///
-/// # Errors
-/// A failed lookup, as 503 — never read as "not a vendor account".
-pub async fn is_vendor_account(db: &PgPool, claims: &Claims) -> Result<bool, AppError> {
-    let unavailable = |e: &dyn std::fmt::Display| {
-        tracing::error!(error = %e, "vendor account lookup failed; refusing as 503");
-        AppError::ServiceUnavailable("MedBrains access could not be checked".to_owned())
-    };
-    let mut conn = medbrains_db::pool::tenant_conn(db, &claims.tenant_id)
-        .await
-        .map_err(|e| unavailable(&e))?;
-    let found: Option<bool> = sqlx::query_scalar(
-        "SELECT COALESCE(is_vendor_staff OR public.app_email_is_vendor(email, $3), false) \
-           FROM users WHERE id = $1 AND tenant_id = $2",
-    )
-    .bind(claims.sub)
-    .bind(claims.tenant_id)
-    .bind(vendor_domains())
-    .fetch_optional(&mut *conn)
-    .await
-    .map_err(|e| unavailable(&e))?;
-    // No row: not this tenant's account at all, so treat it as the stricter kind.
-    Ok(found.unwrap_or(true))
-}
-
 /// Serve one request from a vendor account: refuse it without a live
 /// grant, run it with the grant's permissions and an event row otherwise, and
 /// mask the answer when the grant is masked.
