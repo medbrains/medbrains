@@ -6864,6 +6864,7 @@ dependencies = [
  "medbrains-core",
  "medbrains-db",
  "medbrains-notifications",
+ "medbrains-nursing",
  "medbrains-outbox",
  "medbrains-platform",
  "medbrains-server-core",
@@ -6873,6 +6874,7 @@ dependencies = [
  "serde",
  "serde_json",
  "sqlx",
+ "tokio",
  "tracing",
  "uuid",
 ]
@@ -7330,6 +7332,7 @@ dependencies = [
  "medbrains-core",
  "medbrains-db",
  "medbrains-doctor-payouts",
+ "medbrains-kernel",
  "medbrains-notifications",
  "medbrains-platform",
  "medbrains-server-core",
@@ -7573,6 +7576,7 @@ dependencies = [
 name = "medbrains-nursing"
 version = "0.1.0"
 dependencies = [
+ "async-trait",
  "axum",
  "chrono",
  "medbrains-authz",
@@ -7580,6 +7584,7 @@ dependencies = [
  "medbrains-clinical-scores",
  "medbrains-core",
  "medbrains-db",
+ "medbrains-kernel",
  "medbrains-nabh",
  "medbrains-notifications",
  "medbrains-outbox",
@@ -7589,6 +7594,7 @@ dependencies = [
  "serde",
  "serde_json",
  "sqlx",
+ "tokio",
  "tracing",
  "uuid",
 ]

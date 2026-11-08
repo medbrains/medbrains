@@ -1464,6 +1464,21 @@ pub async fn create_code_activation(
                 "rebac: failed to write code_blue_team#member tuple — backfill will retry");
     }
 
+    // Page the responders now. The insert trigger already queued this round
+    // in the outbox with the activation (the durable copy, which also covers
+    // a Code Pink raised by an infant tag); this sends the in-app alarm
+    // without waiting for the worker, and fills in who was reached.
+    // Off the request path, as for a code blue: the button returns at once.
+    let (pool, resolver, tenant_id) = (
+        state.db.clone(),
+        std::sync::Arc::clone(&state.secret_resolver),
+        claims.tenant_id,
+    );
+    let subject = medbrains_nursing::code_blue_subject::Subject::ErCode(row.id);
+    tokio::spawn(async move {
+        medbrains_nursing::code_blue_alert::page_now(&pool, tenant_id, subject, resolver.as_ref())
+            .await;
+    });
     Ok(Json(row))
 }
 

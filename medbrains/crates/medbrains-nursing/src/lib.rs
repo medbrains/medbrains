@@ -6,7 +6,12 @@ use axum::{
 };
 use medbrains_server_core::state::AppState;
 
+pub mod code_blue_alert;
+pub mod code_blue_escalation;
 pub mod code_blue_response;
+pub mod code_blue_routing;
+pub mod code_blue_subject;
+pub mod code_blue_team;
 pub mod monitor_readings;
 pub mod nurse_clinical;
 pub mod nurse_ews;
@@ -75,6 +80,18 @@ pub fn router() -> Router<AppState> {
         .route(
             "/api/nurse/code-blue",
             get(nurse_handoff::list_code_blue).post(nurse_handoff::start_code_blue),
+        )
+        .route(
+            "/api/nurse/code-blue/team",
+            get(code_blue_team::get_code_team).post(code_blue_team::add_code_team_member),
+        )
+        .route(
+            "/api/nurse/code-blue/team/settings",
+            put(code_blue_team::update_code_team_settings),
+        )
+        .route(
+            "/api/nurse/code-blue/team/{id}",
+            axum::routing::delete(code_blue_team::remove_code_team_member),
         )
         .route(
             "/api/nurse/code-blue/responders",

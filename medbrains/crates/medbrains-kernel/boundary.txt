@@ -82,7 +82,7 @@ medbrains-ipd not_yet 304 medbrains-db,medbrains-authz,medbrains-authz-gate
 medbrains-ipd-post-discharge not_yet 24 medbrains-db,medbrains-authz-gate
 medbrains-it-security not_yet 82 medbrains-db
 medbrains-knowledge not_yet 9 medbrains-db
-medbrains-lab not_yet 280 medbrains-db,medbrains-authz,medbrains-authz-gate
+medbrains-lab partial 278 medbrains-db,medbrains-authz,medbrains-authz-gate
 medbrains-lms not_yet 75 medbrains-db
 medbrains-loadtest not_yet 0 -
 medbrains-mail-provisioning on_facade 0 -
@@ -96,7 +96,7 @@ medbrains-news not_yet 11 medbrains-db
 medbrains-nhcx-callback not_yet 22 medbrains-db,medbrains-authz-gate
 medbrains-notes not_yet 24 medbrains-db
 medbrains-notifications not_yet 13 medbrains-db
-medbrains-nursing not_yet 97 medbrains-db,medbrains-authz,medbrains-authz-gate
+medbrains-nursing partial 97 medbrains-db,medbrains-authz,medbrains-authz-gate
 medbrains-oauth not_yet 10 medbrains-db
 medbrains-offline-core not_yet 0 -
 medbrains-onboarding not_yet 36 medbrains-db
@@ -136,7 +136,7 @@ medbrains-scheduling not_yet 49 medbrains-db,medbrains-authz-gate
 medbrains-security not_yet 74 medbrains-db
 medbrains-security-intel on_facade 0 -
 medbrains-seed not_yet 54 medbrains-db
-medbrains-server partial 561 medbrains-db,medbrains-authz-gate
+medbrains-server partial 559 medbrains-db,medbrains-authz-gate
 medbrains-server-services not_yet 3 medbrains-db
 medbrains-setup not_yet 221 medbrains-db,medbrains-authz
 medbrains-sharing not_yet 18 medbrains-db,medbrains-authz

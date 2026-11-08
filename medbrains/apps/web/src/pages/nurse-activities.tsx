@@ -49,6 +49,7 @@ const NURSE_PAGE_PERMISSIONS = [
   P.NURSE.RESTRAINT_RECORD,
   P.NURSE.CODE_BLUE_VIEW,
   P.NURSE.CODE_BLUE_RECORD,
+  P.NURSE.CODE_BLUE_MANAGE_TEAM,
   P.NURSE.HANDOFF_VIEW,
   P.NURSE.HANDOFF_RECORD,
   P.NURSE.EQUIPMENT_VIEW,
@@ -100,6 +101,7 @@ export function NurseActivitiesPage() {
   const canRecordWound = useHasPermission(P.NURSE.WOUND_RECORD);
   const canViewCodeBlue = useHasPermission(P.NURSE.CODE_BLUE_VIEW);
   const canRecordCodeBlue = useHasPermission(P.NURSE.CODE_BLUE_RECORD);
+  const canManageCodeTeam = useHasPermission(P.NURSE.CODE_BLUE_MANAGE_TEAM);
   const canViewHandoff = useHasPermission(P.NURSE.HANDOFF_VIEW);
   const canRecordHandoff = useHasPermission(P.NURSE.HANDOFF_RECORD);
   const canViewEquipment = useHasPermission(P.NURSE.EQUIPMENT_VIEW);
@@ -117,7 +119,7 @@ export function NurseActivitiesPage() {
     canRecordFallRisk ||
     canViewWound ||
     canRecordWound;
-  const canOpenCodeBlue = canViewCodeBlue || canRecordCodeBlue;
+  const canOpenCodeBlue = canViewCodeBlue || canRecordCodeBlue || canManageCodeTeam;
   const canOpenHandoff = canViewHandoff || canRecordHandoff;
   const canOpenEquipment = canViewEquipment || canRecordEquipment;
   const availableTabs = [

@@ -34,7 +34,23 @@ pub async fn emit_event(
     event_type: &str,
     payload: Value,
 ) -> Result<(), AppError> {
-    dispatch_to_pipelines(pool, tenant_id, user_id, event_type, &payload).await
+    swallow_pipeline_failure(
+        event_type,
+        dispatch_to_pipelines(pool, tenant_id, user_id, event_type, &payload).await,
+    )
+}
+
+/// The in-request callers keep their old contract: a pipeline failure is
+/// logged (by the dispatcher) and does not fail the request that emitted it.
+/// Only the outbox fallback, which can retry, sees the error.
+fn swallow_pipeline_failure(
+    event_type: &str,
+    result: Result<usize, AppError>,
+) -> Result<(), AppError> {
+    if let Err(error) = result {
+        tracing::warn!(event_type, %error, "in-request pipeline dispatch had failures");
+    }
+    Ok(())
 }
 
 /// Emit a typed cross-module clinical/business event.
@@ -47,14 +63,15 @@ pub async fn emit_clinical_event(
     event: ClinicalEventEnvelope,
 ) -> Result<(), AppError> {
     validate_clinical_event_payload(&event)?;
-    dispatch_to_pipelines(
+    let result = dispatch_to_pipelines(
         pool,
         event.tenant_id,
         event.actor_id,
         event.event_name.as_str(),
         &event.payload,
     )
-    .await
+    .await;
+    swallow_pipeline_failure(event.event_name.as_str(), result)
 }
 
 /// Build the durable outbox row for a typed clinical event.
@@ -93,8 +110,10 @@ pub async fn queue_clinical_event_in_tx(
 /// can invoke it for unregistered event_types (`handlers/pipeline_fallback.rs`).
 ///
 /// Same semantics as the original `emit_event` body: find active pipelines
-/// matching the event_type, execute each in its own SAVEPOINT, swallow per-
-/// pipeline errors. Returns `Ok` even if individual pipelines failed.
+/// matching the event_type, execute each in its own transaction. Returns how
+/// many acted (pipelines that succeeded plus partner webhooks queued), so the
+/// outbox never calls an event nothing handled `sent`; and an error when any
+/// pipeline failed, so the outbox retries instead of answering `undelivered`.
 pub async fn dispatch_to_pipelines(
     pool: &PgPool,
     tenant_id: Uuid,
@@ -104,7 +123,7 @@ pub async fn dispatch_to_pipelines(
     _user_id: Uuid,
     event_type: &str,
     payload: &Value,
-) -> Result<(), AppError> {
+) -> Result<usize, AppError> {
     // **Architecture decision (RFC):** dynamic `integration_pipelines`
     // dispatch is removed. Cross-module pipelines are hardcoded Rust
     // in `default_pipelines.rs` — version-controlled, code-reviewed,
@@ -112,8 +131,8 @@ pub async fn dispatch_to_pipelines(
     crate::orchestration::default_pipelines::dispatch_default_pipelines(
         pool, tenant_id, event_type, payload,
     )
-    .await;
-    Ok(())
+    .await
+    .map_err(AppError::Internal)
 }
 
 fn validate_clinical_event_payload(event: &ClinicalEventEnvelope) -> Result<(), AppError> {

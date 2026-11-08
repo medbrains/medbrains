@@ -211,6 +211,10 @@ export interface ErCodeActivation {
   deactivated_by: string | null;
   created_at: string;
   updated_at: string;
+  /** Who the page reached, in words. */
+  routing_note?: string | null;
+  /** What did not go out, e.g. "SMS is not set up: only in-app alerts went out". */
+  delivery_warning?: string | null;
 }
 
 export interface MlcCase {
