@@ -282,6 +282,7 @@ pub async fn check_basket(
 pub async fn sign_basket(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
+    proof: medbrains_server_core::step_up::StepUpProof,
     Json(body): Json<SignBasketRequest>,
 ) -> Result<Json<SignBasketResponse>, AppError> {
     require_permission(&claims, permissions::order_basket::SIGN)?;
@@ -289,6 +290,11 @@ pub async fn sign_basket(
     // require_basket_item_permissions below checks WHICH orders may be
     // signed; nothing checked WHOSE.
     medbrains_authz_gate::require_patient_access(&state, &claims, body.patient_id).await?;
+    // A basket with a drug in it writes a prescription, which needs the same
+    // fresh step-up as prescribing from the visit (opd create_prescription).
+    if body.items.iter().any(|item| matches!(item, BasketItem::Drug(_))) {
+        medbrains_server_core::step_up::require_step_up(&state, &proof, &claims)?;
+    }
 
     if body.items.is_empty() {
         return Err(AppError::BadRequest("basket is empty".to_owned()));

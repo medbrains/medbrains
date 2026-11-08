@@ -1,0 +1,17 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE signature_verify_links SET revoked_at = now(), revoked_by = $3, revoked_reason = $4 WHERE tenant_id = $1 AND signed_record_id = $2 AND revoked_at IS NULL AND deleted_at IS NULL",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Uuid",
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "7812172558936c0b2a88f4a0eeb27ebfa460e88becd283b8ff79eaae2fb1b1fe"
+}

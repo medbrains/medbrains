@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT sr.id, sr.signed_at, sr.signer_user_id, sr.display_image_snapshot, sr.display_block, sr.legal_class, COALESCE(dp.display_name, u.full_name) AS signer_name FROM signed_records sr LEFT JOIN doctor_profiles dp ON dp.user_id = sr.signer_user_id AND dp.tenant_id = sr.tenant_id LEFT JOIN users u ON u.id = sr.signer_user_id WHERE sr.tenant_id = $1 AND sr.record_type = $2 AND sr.record_id = $3 ORDER BY sr.signed_at LIMIT 5000",
+  "query": "SELECT sr.id, sr.signed_at, sr.signer_user_id, sr.display_image_snapshot, sr.display_block, sr.legal_class, COALESCE(dp.display_name, u.full_name) AS signer_name, vl.token AS \"verify_token?\" FROM signed_records sr LEFT JOIN doctor_profiles dp ON dp.user_id = sr.signer_user_id AND dp.tenant_id = sr.tenant_id LEFT JOIN users u ON u.id = sr.signer_user_id LEFT JOIN signature_verify_links vl ON vl.signed_record_id = sr.id AND vl.tenant_id = sr.tenant_id AND vl.revoked_at IS NULL AND vl.deleted_at IS NULL WHERE sr.tenant_id = $1 AND sr.record_type = $2 AND sr.record_id = $3 AND sr.signer_role = 'primary' AND sr.deleted_at IS NULL ORDER BY sr.signed_at DESC LIMIT 1",
   "describe": {
     "columns": [
       {
@@ -37,6 +37,11 @@
         "ordinal": 6,
         "name": "signer_name",
         "type_info": "Text"
+      },
+      {
+        "ordinal": 7,
+        "name": "verify_token?",
+        "type_info": "Text"
       }
     ],
     "parameters": {
@@ -53,8 +58,9 @@
       true,
       true,
       false,
-      null
+      null,
+      false
     ]
   },
-  "hash": "afea578cb131882958c91bc615c0fd4c0975e4ec604538d2d18930eb794d3993"
+  "hash": "624bc735a9de914936718dadf78f3c6edd32f05cc703df419ffeb5a3703486e2"
 }

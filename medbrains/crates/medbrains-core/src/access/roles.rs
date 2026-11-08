@@ -1603,6 +1603,11 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
             permissions::mrd::case_sheets::FILE,
             permissions::mrd::case_sheets::REPRINT,
             permissions::mrd::storage::MANAGE,
+            // Medical records answers "is this paper genuine?" for insurers
+            // and courts, and withdraws a copy's public link when asked.
+            permissions::doctor::signature::VERIFY,
+            permissions::mrd::verify_links::ISSUE,
+            permissions::mrd::verify_links::REVOKE,
             // File-room work needs patient demographics + encounter lookup.
             // Read-only; MRD doesn't create or edit clinical records.
             permissions::patients::LIST,

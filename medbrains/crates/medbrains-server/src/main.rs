@@ -612,6 +612,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         // among thousands.
         .layer(
             TraceLayer::new_for_http()
+                .make_span_with(medbrains_server_core::http_trace::make_span)
                 .on_response(medbrains_server_core::http_trace::on_response),
         )
         // A Sentry hub per request, outside the trace layer so its log lines

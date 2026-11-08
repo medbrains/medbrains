@@ -19,7 +19,7 @@ export interface PermissionDef {
   module: string;
 }
 
-/** 1218 permissions, one per constant in the Rust source. */
+/** 1222 permissions, one per constant in the Rust source. */
 export const PERMISSIONS: PermissionDef[] = [
   // dashboard
   {
@@ -4126,6 +4126,18 @@ export const PERMISSIONS: PermissionDef[] = [
     code: "mrd.storage.manage",
     label: "Manage MRD Storage",
     description: "Manage MRD rooms, racks, shelves, bins, and barcodes",
+    module: "mrd",
+  },
+  {
+    code: "mrd.verify_links.issue",
+    label: "Show a signed record's public check link",
+    description: "Gives the link an outsider (an insurer, a court, another hospital) opens from the QR on the paper, minting a new one when the last was withdrawn. The page it opens names the document type, the signer and whether it is unchanged, never the patient.",
+    module: "mrd",
+  },
+  {
+    code: "mrd.verify_links.revoke",
+    label: "Withdraw a signed record's public check link",
+    description: "The QR on every copy already printed then answers that the hospital withdrew it, and on which date. The signature itself is untouched.",
     module: "mrd",
   },
   // facilities
@@ -8746,6 +8758,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.CLINICAL_NOTES.PRINT,
       P.CLINICAL_NOTES.VIEW,
       P.DASHBOARD.VIEW,
+      P.DOCTOR.SIGNATURE.VERIFY,
       P.IPD.ADMISSIONS.LIST,
       P.IPD.ADMISSIONS.VIEW,
       P.MRD.BIRTHS.CREATE,
@@ -8764,6 +8777,8 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.MRD.RECORDS.MANAGE,
       P.MRD.RECORDS.VIEW_ALL,
       P.MRD.STORAGE.MANAGE,
+      P.MRD.VERIFY_LINKS.ISSUE,
+      P.MRD.VERIFY_LINKS.REVOKE,
       P.NOTES.USE,
       P.OPD.QUEUE.LIST,
       P.OPD.QUEUE.VIEW,
