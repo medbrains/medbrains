@@ -7234,6 +7234,7 @@ dependencies = [
  "medbrains-authz-gate",
  "medbrains-core",
  "medbrains-db",
+ "medbrains-kernel",
  "medbrains-nabh",
  "medbrains-notifications",
  "medbrains-platform",

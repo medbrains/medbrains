@@ -5274,9 +5274,10 @@ pub async fn update_discharge_summary(
     validate_discharge_summary_write_access(&body.final_diagnosis, &restricted_fields)?;
     discharge_medicines::validate(body.medications_on_discharge.as_ref())?;
 
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
-        .await?;
+    // On the kernel: its unit of work sets the tenant and the actor, and its
+    // audit refuses an entry for another tenant or person.
+    let mut tx =
+        medbrains_kernel::begin(&state.db, medbrains_kernel::Actor::from_claims(&claims)).await?;
 
     // The row is locked until the edit commits, so a finalize running at the
     // same moment waits for it, and is read again after it, rather than the
@@ -5345,9 +5346,9 @@ pub async fn update_discharge_summary(
     // discharge medicine.
     if let Some(signed_record_id) = cleared_signature {
         let cleared = serde_json::json!({ "signed_record_id": signed_record_id });
-        medbrains_db::audit::AuditLogger::log(
+        medbrains_kernel::audit(
             &mut tx,
-            &medbrains_db::audit::AuditEntry {
+            &medbrains_kernel::audit::AuditEntry {
                 tenant_id: claims.tenant_id,
                 user_id: Some(claims.sub),
                 action: "ipd.discharge_summary.signature_cleared",
