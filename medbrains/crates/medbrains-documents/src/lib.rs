@@ -8,6 +8,7 @@ pub mod document_ingestion;
 pub mod documents;
 pub mod roi;
 pub mod signature_verify;
+pub mod signable;
 pub mod signatures;
 pub mod storage;
 

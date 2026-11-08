@@ -3861,6 +3861,20 @@ pub mod analytics {
         /// general analytics access.
         pub const VIEW: &str = "analytics.management.view";
     }
+
+    pub mod paperless {
+        /// See the paperless meter.
+        ///
+        /// The share of clinical documents made in the system, signed
+        /// digitally and legally signed, by department and day, and the paper
+        /// still in use. Counts only; no patient or clinician is named.
+        pub const VIEW: &str = "analytics.paperless.view";
+        /// Recount the paperless meter now.
+        ///
+        /// Rebuilds the meter's daily counts for recent days instead of
+        /// waiting for the nightly pass.
+        pub const REFRESH: &str = "analytics.paperless.refresh";
+    }
 }
 
 pub mod command_center {

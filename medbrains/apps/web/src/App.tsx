@@ -287,6 +287,9 @@ const TokenBoardPage = lazy(() =>
 const TokenConsolePage = lazy(() =>
   import("./pages/token-console").then((m) => ({ default: m.TokenConsolePage })),
 );
+const PaperlessPage = lazy(() =>
+  import("./pages/paperless").then((m) => ({ default: m.PaperlessPage })),
+);
 const HealthIntelPage = lazy(() =>
   import("./pages/health-intel").then((m) => ({ default: m.HealthIntelPage })),
 );
@@ -748,6 +751,7 @@ export function App() {
               <Route path="security/intelligence" element={<SecurityIntelligencePage />} />
               <Route path="insurance" element={<InsurancePage />} />
               <Route path="analytics" element={<AnalyticsPage />} />
+              <Route path="analytics/paperless" element={<PaperlessPage />} />
               <Route path="reports" element={<ReportsPage />} />
               <Route path="reports/nabh" element={<NabhIndicatorsPage />} />
               <Route path="audit" element={<AuditPage />} />

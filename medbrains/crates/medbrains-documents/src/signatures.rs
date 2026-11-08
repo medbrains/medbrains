@@ -772,15 +772,15 @@ async fn mark_source_signed(
     record_id: Uuid,
     signed_record_id: Uuid,
 ) -> Result<(), AppError> {
-    // Map record_type → table name; every one carries both columns.
-    let table = match record_type {
-        "prescription" => "prescriptions",
-        "lab_report" => "lab_results",
-        "radiology_report" => "radiology_reports",
-        "discharge_summary" => "ipd_discharge_summaries",
-        _ => return Ok(()),
+    // The source table from the signable registry; every one carries both columns.
+    let Some(spec) = crate::signable::SIGNABLE
+        .iter()
+        .find(|t| t.record_type == record_type)
+    else {
+        return Ok(());
     };
-    // Dynamic only in the table name, which comes from the fixed match above.
+    let table = spec.table;
+    // Dynamic only in the table name, which comes from the fixed registry.
     let sql = format!(
         "UPDATE {table} SET is_signed = TRUE, signed_record_id = $1 \
          WHERE id = $2 AND tenant_id = $3"

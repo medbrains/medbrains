@@ -27,6 +27,7 @@ pub mod restraint_observation_escalation;
 pub mod retention;
 pub mod room_rent;
 pub mod unbilled_orders;
+pub mod paperless_meter;
 pub mod simulator;
 pub mod spicedb_watch;
 pub mod notifiable_report_escalation;

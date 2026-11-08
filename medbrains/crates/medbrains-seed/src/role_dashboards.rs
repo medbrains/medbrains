@@ -1272,6 +1272,22 @@ const ADMIN_WIDGETS: &[WidgetDef] = &[
         sort: 26,
         refresh_ms: Some(60000),
     },
+    WidgetDef {
+        wtype: "stat_card",
+        title: "Signed digitally",
+        subtitle: "Clinical documents signed in the system, 7 days",
+        icon: "IconSignature",
+        color: "indigo",
+        config: r"{}",
+        data_source: r#"{"type": "module_query", "module": "management", "query": "kpi", "params": {"code": "paperless_signed_pct"}}"#,
+        x: 0,
+        y: 23,
+        w: 3,
+        h: 2,
+        perm: "analytics.management.view",
+        sort: 27,
+        refresh_ms: Some(300000),
+    },
 ];
 
 // ── All Role Dashboards ───────────────────────────────────────

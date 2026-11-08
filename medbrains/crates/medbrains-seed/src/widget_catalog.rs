@@ -348,6 +348,13 @@ const KPI_WIDGETS: &[(&str, &str, &str, &str, &str)] = &[
         "IPD",
         "IconAlertTriangle",
     ),
+    (
+        "paperless_signed_pct",
+        "Signed digitally",
+        "Clinical documents signed in the system, 7 days",
+        "Records",
+        "IconSignature",
+    ),
 ];
 /// Who may place or see a management KPI.
 const KPI_PERMISSION: &str = "analytics.management.view";
