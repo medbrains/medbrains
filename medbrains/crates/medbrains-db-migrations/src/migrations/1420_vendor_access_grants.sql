@@ -501,11 +501,14 @@ BEGIN
     -- those equal to or under a platform domain (MedBrains' own site, and the
     -- `hospital-x.medbrains.in` sites MedBrains issues to hospitals). An entry is
     -- refused when it equals one of them, sits under one, or has one under it.
+    -- Only proven domains count: an unverified claim is just text an
+    -- administrator typed, and must not be able to block every boot.
     WITH own AS (
-        SELECT lower(btrim(s.domain)) AS h FROM public.site_domains s
+        SELECT lower(btrim(s.domain)) AS h FROM public.site_domains s WHERE s.is_verified
         UNION
         SELECT lower(btrim(t.custom_domain)) FROM public.tenants t
          WHERE COALESCE(btrim(t.custom_domain), '') <> ''
+           AND t.custom_domain_verified_at IS NOT NULL
     )
     SELECT array_agg(DISTINCT d) INTO v_bad
       FROM unnest(p_domains) AS d, own
@@ -555,6 +558,18 @@ END;
 $$;
 
 REVOKE ALL ON FUNCTION public.app_flag_vendor_accounts(text[], text[], integer, text[]) FROM PUBLIC;
+
+-- Migrations 0981 and 0984 grant EXECUTE on every new function to the request
+-- and worker roles by default, which a REVOKE FROM PUBLIC does not undo. The
+-- owner-only definer functions are taken back from both, so neither role can
+-- rewrite the vendor list or flag accounts; each role keeps only the definer
+-- function it needs (the request role reads the list in the users trigger; the
+-- worker checks webhook creators).
+REVOKE EXECUTE ON FUNCTION public.app_set_vendor_domains(text[])
+    FROM medbrains_app, medbrains_outbox_worker;
+REVOKE EXECUTE ON FUNCTION public.app_flag_vendor_accounts(text[], text[], integer, text[])
+    FROM medbrains_app, medbrains_outbox_worker;
+REVOKE EXECUTE ON FUNCTION public.app_vendor_domains() FROM medbrains_outbox_worker;
 
 -- Back-fill: accounts already on the default MedBrains domain become MedBrains
 -- accounts now, which revokes what they made — through the same guarded

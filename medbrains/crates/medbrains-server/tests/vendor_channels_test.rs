@@ -329,7 +329,7 @@ async fn the_hospitals_own_domain_is_refused() {
     let app = common::spawn_app().await;
     let (tenant, _) = home(&app).await;
     let site = fresh_domain("site");
-    sqlx::query("INSERT INTO site_domains (tenant_id, domain) VALUES ($1, $2)")
+    sqlx::query("INSERT INTO site_domains (tenant_id, domain, is_verified) VALUES ($1, $2, true)")
         .bind(tenant)
         .bind(&site)
         .execute(&app.db)
@@ -505,8 +505,8 @@ async fn platform_issued_sites_do_not_block_the_default_list() {
     );
     for domain in [issued.as_str(), "medbrains.in"] {
         sqlx::query(
-            "INSERT INTO site_domains (tenant_id, domain) VALUES ($1, $2) \
-             ON CONFLICT (tenant_id, domain) DO NOTHING",
+            "INSERT INTO site_domains (tenant_id, domain, is_verified) VALUES ($1, $2, true) \
+             ON CONFLICT (tenant_id, domain) DO UPDATE SET is_verified = true",
         )
         .bind(tenant)
         .bind(domain)
@@ -520,8 +520,8 @@ async fn platform_issued_sites_do_not_block_the_default_list() {
 
     let custom = fresh_domain("custom");
     let other: Uuid = sqlx::query_scalar(
-        "INSERT INTO tenants (code, name, hospital_type, custom_domain) \
-         VALUES ($1, 'Custom', 'standalone_clinic', $2) RETURNING id",
+        "INSERT INTO tenants (code, name, hospital_type, custom_domain, custom_domain_verified_at) \
+         VALUES ($1, 'Custom', 'standalone_clinic', $2, now()) RETURNING id",
     )
     .bind(format!(
         "CD{}",
@@ -555,4 +555,78 @@ async fn a_correct_list_flags_only_vendor_accounts() {
     );
     assert!(flagged(&app, vendor).await);
     assert!(!flagged(&app, colleague).await);
+}
+
+/// Given a site domain a hospital typed but never proved, the back-fill does
+/// not treat it as the hospital's own: an unverified claim cannot block a boot.
+#[tokio::test]
+async fn an_unverified_site_domain_does_not_block_the_list() {
+    let app = common::spawn_app().await;
+    let (tenant, _) = home(&app).await;
+    let claimed = fresh_domain("claimed");
+    sqlx::query("INSERT INTO site_domains (tenant_id, domain, is_verified) VALUES ($1, $2, false)")
+        .bind(tenant)
+        .bind(&claimed)
+        .execute(&app.db)
+        .await
+        .expect("site domain");
+    back_fill(&app, &[claimed.as_str()], 20)
+        .await
+        .expect("an unverified site domain blocked the list");
+}
+
+/// The request role can run none of the owner-only functions, and is not a
+/// member of the role that owns `users` — which is what lets the platform path,
+/// and only it, move an account onto a vendor address.
+#[tokio::test]
+async fn the_request_role_cannot_run_owner_only_vendor_functions() {
+    let app = common::spawn_app().await;
+    for (role, function) in [
+        ("medbrains_app", "public.app_set_vendor_domains(text[])"),
+        (
+            "medbrains_app",
+            "public.app_flag_vendor_accounts(text[], text[], integer, text[])",
+        ),
+        (
+            "medbrains_outbox_worker",
+            "public.app_set_vendor_domains(text[])",
+        ),
+        (
+            "medbrains_outbox_worker",
+            "public.app_flag_vendor_accounts(text[], text[], integer, text[])",
+        ),
+        ("medbrains_outbox_worker", "public.app_vendor_domains()"),
+    ] {
+        let can: bool = sqlx::query_scalar("SELECT has_function_privilege($1, $2, 'EXECUTE')")
+            .bind(role)
+            .bind(function)
+            .fetch_one(&app.db)
+            .await
+            .expect("privilege");
+        assert!(!can, "{role} can execute {function}");
+    }
+    for (role, function) in [
+        ("medbrains_app", "public.app_user_is_vendor(uuid, text[])"),
+        (
+            "medbrains_outbox_worker",
+            "public.app_user_is_vendor(uuid, text[])",
+        ),
+        ("medbrains_app", "public.app_vendor_domains()"),
+    ] {
+        let can: bool = sqlx::query_scalar("SELECT has_function_privilege($1, $2, 'EXECUTE')")
+            .bind(role)
+            .bind(function)
+            .fetch_one(&app.db)
+            .await
+            .expect("privilege");
+        assert!(can, "{role} lost {function}, which it needs");
+    }
+    let member: bool = sqlx::query_scalar(
+        "SELECT pg_has_role('medbrains_app', \
+                (SELECT relowner FROM pg_class WHERE oid = 'public.users'::regclass), 'MEMBER')",
+    )
+    .fetch_one(&app.db)
+    .await
+    .expect("membership");
+    assert!(!member, "the request role is a member of the users owner");
 }
