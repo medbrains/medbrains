@@ -685,6 +685,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     medbrains_server::services::room_rent::spawn(worker_pool.clone());
     // Revenue leakage — daily pass queueing orders done but never billed.
     medbrains_server::services::unbilled_orders::spawn(worker_pool.clone());
+    medbrains_server::services::preauth_sweep::spawn(worker_pool.clone());
     // Humanex HRMS pull (RFC-HRMS-INTEGRATIONS); no-op for tenants without hrms.humanex.
     medbrains_hrms_gateway::spawn(worker_pool.clone());
 

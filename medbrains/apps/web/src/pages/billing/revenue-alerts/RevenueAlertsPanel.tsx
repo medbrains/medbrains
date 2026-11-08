@@ -15,7 +15,14 @@ import { Badge, Button, Card } from "@/components/ui";
 import { billingService } from "@/services/billing.service";
 import { EnhancementModal } from "./EnhancementModal";
 import { RoomConsentModal } from "./RoomConsentModal";
-import { evidenceNumber, inr, isUnknown, percentUsed, REASON_LABEL } from "./revenue-alerts-labels";
+import {
+  evidenceNumber,
+  inr,
+  isUnknown,
+  liveApproval,
+  percentUsed,
+  REASON_LABEL,
+} from "./revenue-alerts-labels";
 
 interface KindCopy {
   title: string;
@@ -54,7 +61,7 @@ const COPY: Record<RevenueAlertKind, KindCopy> = {
 function detail(row: RevenueAlert): string {
   if (row.kind === "preauth_used_up") {
     const used = percentUsed(row);
-    return `Approved ${inr(evidenceNumber(row, "approved_amount"))}${used === null ? "" : ` · ${used}% used`}`;
+    return `Approved ${inr(liveApproval(row))}${used === null ? "" : ` · ${used}% used`}`;
   }
   return `Room ${inr(evidenceNumber(row, "room_rate"))}/day · allowed ${inr(evidenceNumber(row, "eligible_rate"))}`;
 }

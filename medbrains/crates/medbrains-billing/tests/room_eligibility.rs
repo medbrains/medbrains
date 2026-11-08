@@ -22,7 +22,7 @@ use medbrains_ipd::room_eligibility::{RoomEligibilityQuery, get_room_eligibility
 use medbrains_server_core::error::AppError;
 use medbrains_server_core::middleware::auth::Claims;
 use medbrains_server_services::room_eligibility::{
-    RoomAllocation, RoomCheck, RoomConsentInput, record_allocation,
+    ROOM_DISCLOSURE_VERSION, RoomAllocation, RoomCheck, RoomConsentInput, record_allocation,
 };
 use rust_decimal::Decimal;
 use sqlx::PgPool;
@@ -30,7 +30,7 @@ use uuid::Uuid;
 
 mod common;
 
-use common::inpatient::{Inpatient, admit, bed, bill, bill_lines, holding, policy, rows};
+use common::inpatient::{Inpatient, admit, bed, bill, bill_lines, holding, policy, rows, staff};
 use common::{fixture, pool, scoped, state};
 
 const KIND: &str = "room_over_limit";
@@ -79,11 +79,14 @@ async fn allocate(
     check
 }
 
-fn wife() -> RoomConsentInput {
+/// The patient's wife agreeing on a ₹1,00,000 bill, seen by `witness`.
+fn wife(witness: Uuid) -> RoomConsentInput {
     RoomConsentInput {
         consented_by_name: "Meena Rao".to_owned(),
         consenter_relation: "Wife".to_owned(),
         estimated_bill: Some(Decimal::from(100_000)),
+        witness_user_id: witness,
+        disclosure_version: ROOM_DISCLOSURE_VERSION.to_owned(),
     }
 }
 
@@ -96,7 +99,7 @@ async fn a_room_above_the_limit_is_flagged_with_the_proportionate_cut() {
     let deluxe = bed(&db, claims.tenant_id, 8_000, "Deluxe").await;
     let c = check(&db, &claims, patient, deluxe).await.unwrap();
     assert_eq!(c.status, "above");
-    assert_eq!(c.payable_ratio, Some(Decimal::new(6250, 4)));
+    assert_eq!(c.payable_ratio, Some(Decimal::new(625_000, 6)));
 
     // Allocated without consent: an open row for the insurance desk.
     let inp = admit(&db, &claims, patient).await;
@@ -114,7 +117,7 @@ async fn a_room_above_the_limit_is_flagged_with_the_proportionate_cut() {
         State(state(db.clone())),
         Extension(claims.clone()),
         Path(found[0].0),
-        Json(wife()),
+        Json(wife(staff(&db, claims.tenant_id).await)),
     )
     .await
     .unwrap();
@@ -139,7 +142,8 @@ async fn consent_at_admission_closes_the_row_with_the_shown_deduction() {
     policy(&db, claims.tenant_id, patient, (None, Some(1))).await;
     let deluxe = bed(&db, claims.tenant_id, 8_000, "Deluxe").await;
     let inp = admit(&db, &claims, patient).await;
-    allocate(&db, &claims, &inp, deluxe, Some(&wife())).await;
+    let witness = staff(&db, claims.tenant_id).await;
+    allocate(&db, &claims, &inp, deluxe, Some(&wife(witness))).await;
     let found = rows(&db, inp.tenant, KIND).await;
     assert_eq!(found.len(), 1);
     assert_eq!(found[0].2, "actioned");
@@ -209,8 +213,7 @@ async fn a_consent_without_who_agreed_is_refused() {
     let inp = admit(&db, &claims, patient).await;
     let blank = RoomConsentInput {
         consented_by_name: " ".to_owned(),
-        consenter_relation: "Wife".to_owned(),
-        estimated_bill: None,
+        ..wife(staff(&db, claims.tenant_id).await)
     };
     let mut tx = scoped(&db, inp.tenant).await;
     let alloc = RoomAllocation {
@@ -241,7 +244,7 @@ async fn without_the_permission_the_check_and_the_consent_are_refused() {
         State(state(db.clone())),
         Extension(viewer),
         Path(Uuid::new_v4()),
-        Json(wife()),
+        Json(wife(staff(&db, claims.tenant_id).await)),
     )
     .await
     .unwrap_err();

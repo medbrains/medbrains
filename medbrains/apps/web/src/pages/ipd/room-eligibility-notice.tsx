@@ -4,15 +4,15 @@
 // charge, and records their consent if they still choose the room. A failed
 // check is shown as a fault, never as "within limit".
 
-import { Group, Stack, Text } from "@mantine/core";
+import { Group, Text } from "@mantine/core";
 import { useHasPermission } from "@medbrains/stores";
 import { P, type RoomCheck, type RoomConsentInput } from "@medbrains/types";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
-import { isConsentComplete, RoomConsentFields } from "@/components/RoomConsentFields";
-import { Alert, Button, Checkbox, NumberField } from "@/components/ui";
-import { estimateDeduction, inr } from "@/pages/billing/revenue-alerts/revenue-alerts-labels";
+import { Alert, Button } from "@/components/ui";
+import { inr } from "@/pages/billing/revenue-alerts/revenue-alerts-labels";
 import { ipdService } from "@/services/ipd.service";
+import { RoomAboveLimit } from "./room-above-limit";
 import { RoomLimitModal } from "./room-limit-modal";
 
 interface RoomEligibilityNoticeProps {
@@ -23,8 +23,6 @@ interface RoomEligibilityNoticeProps {
   /** The consent to send with the allocation, or undefined for none. */
   onConsentChange: (consent: RoomConsentInput | undefined) => void;
 }
-
-const EMPTY: RoomConsentInput = { consented_by_name: "", consenter_relation: "" };
 
 /**
  * The consent held for the bed now chosen. A consent given for one bed is
@@ -48,6 +46,8 @@ function quietLine(check: RoomCheck): string | null {
       return "This bed has no daily rate, so it was not checked against the policy.";
     case "icu":
       return "ICU bed: the insurer may not cut charges in proportion for ICU.";
+    case "no_differential_billing":
+      return "This hospital charges the same in every room, so there is no deduction here.";
     default:
       return null;
   }
@@ -75,75 +75,6 @@ function NoLimit({ check }: { check: RoomCheck }) {
         />
       )}
     </Group>
-  );
-}
-
-/** The warning, the estimated cut and the consent for a room above the limit. */
-function AboveLimit({
-  check,
-  onConsentChange,
-}: { check: RoomCheck } & Pick<RoomEligibilityNoticeProps, "onConsentChange">) {
-  const ratio = Number(check.payable_ratio);
-  const [bill, setBill] = useState<number | "">(Number(check.associated_so_far ?? 0) || "");
-  const [agreed, setAgreed] = useState(false);
-  const [who, setWho] = useState<RoomConsentInput>(EMPTY);
-  /** Pass the consent up only when it is agreed and names who agreed. */
-  const publish = (nextAgreed: boolean, nextWho: RoomConsentInput, nextBill: number | "") =>
-    onConsentChange(
-      nextAgreed && isConsentComplete(nextWho)
-        ? { ...nextWho, estimated_bill: nextBill === "" ? undefined : nextBill }
-        : undefined,
-    );
-  return (
-    <Alert tone="warning" title="Room above the policy's room rent limit">
-      <Stack gap="xs">
-        <Text size="sm">
-          This room is {inr(check.room_rate)} a day; {check.insurance_provider ?? "the policy"}{" "}
-          allows {inr(check.eligible_rate)}. The insurer may then pay only{" "}
-          {Math.round(ratio * 1000) / 10}% of every room-linked charge (doctor visits, nursing, OT,
-          procedures), not just refuse the rent difference. Medicines, implants and tests are not
-          cut.
-        </Text>
-        <NumberField
-          label="Estimated room-linked bill (₹)"
-          min={0}
-          value={bill}
-          onChange={(v) => {
-            const next = typeof v === "number" ? v : "";
-            setBill(next);
-            publish(agreed, who, next);
-          }}
-        />
-        {bill !== "" && (
-          <Text size="sm" fw={600}>
-            Estimated deduction the family would pay: {inr(estimateDeduction(bill, ratio))}
-          </Text>
-        )}
-        <Checkbox
-          label="The patient or family was shown this and agrees to pay the deduction"
-          checked={agreed}
-          onChange={(e) => {
-            setAgreed(e.currentTarget.checked);
-            publish(e.currentTarget.checked, who, bill);
-          }}
-        />
-        {agreed && (
-          <RoomConsentFields
-            value={who}
-            onChange={(next) => {
-              setWho(next);
-              publish(agreed, next, bill);
-            }}
-          />
-        )}
-        {!agreed && (
-          <Text size="xs" c="dimmed">
-            Without consent the bed is still allocated, and the insurance desk is asked to follow
-            up.
-          </Text>
-        )}
-      </Stack>
-    </Alert>
   );
 }
 
@@ -180,9 +111,17 @@ export function RoomEligibilityNotice({
     );
   }
   if (data.status === "above") {
-    return <AboveLimit key={bedId} check={data} onConsentChange={onConsentChange} />;
+    return <RoomAboveLimit key={bedId} check={data} onConsentChange={onConsentChange} />;
   }
   if (data.status === "no_limit") return <NoLimit check={data} />;
+  if (data.status === "limit_unknown") {
+    return (
+      <Alert tone="danger" title="Could not work out the policy's room limit">
+        The limit is a share of the sum insured, which is not recorded on the policy. Check the
+        e-card before allocating.
+      </Alert>
+    );
+  }
   const line = quietLine(data);
   return line ? (
     <Text size="sm" c="dimmed">

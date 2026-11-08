@@ -11,6 +11,7 @@ mod insurance;
 mod nhcx_recon;
 // Pre-auths nearly used up and rooms above the policy limit (mig 1423).
 pub mod revenue_alerts;
+pub mod preauth_sweep;
 pub mod room_limit;
 pub use insurance::*;
 // Insurer settlements posted against bills under maker-checker (mig 1227).
@@ -3894,6 +3895,10 @@ pub fn router() -> axum::Router<AppState> {
         .route(
             "/api/billing/policies/{id}/room-rent-limit",
             put(room_limit::set_room_rent_limit),
+        )
+        .route(
+            "/api/billing/room-consent/witnesses",
+            get(room_limit::list_room_consent_witnesses),
         )
         .route(
             "/api/billing/concessions",

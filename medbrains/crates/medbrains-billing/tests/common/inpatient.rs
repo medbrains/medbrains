@@ -81,7 +81,13 @@ pub(crate) async fn policy(
 
 /// A bed whose bed type costs `rate` a day; `name` "ICU" makes it an ICU bed.
 pub(crate) async fn bed(db: &PgPool, tenant: Uuid, rate: i64, name: &str) -> Uuid {
+    bed_named(db, tenant, rate, name).await.0
+}
+
+/// As [`bed`], also returning the bed type's full name (room-rent lines name it).
+pub(crate) async fn bed_named(db: &PgPool, tenant: Uuid, rate: i64, name: &str) -> (Uuid, String) {
     let tag = Uuid::new_v4().simple().to_string()[..8].to_uppercase();
+    let type_name = format!("{name} {tag}");
     let mut tx = scoped(db, tenant).await;
     let bed: Uuid = sqlx::query_scalar(
         "WITH bt AS (INSERT INTO bed_types (tenant_id, code, name, daily_rate) \
@@ -96,13 +102,13 @@ pub(crate) async fn bed(db: &PgPool, tenant: Uuid, rate: i64, name: &str) -> Uui
     )
     .bind(tenant)
     .bind(format!("B{tag}"))
-    .bind(format!("{name} {tag}"))
+    .bind(&type_name)
     .bind(Decimal::from(rate))
     .fetch_one(&mut *tx)
     .await
     .unwrap();
     tx.commit().await.unwrap();
-    bed
+    (bed, type_name)
 }
 
 /// An approved pre-auth on the inpatient's visit; `None` is an approval
@@ -207,4 +213,65 @@ pub(crate) fn holding(claims: &Claims, perms: &[&str]) -> Claims {
         permissions: perms.iter().map(|p| (*p).to_owned()).collect(),
         ..claims.clone()
     }
+}
+
+/// A policy in force with a percentage room limit and no sum insured.
+pub(crate) async fn policy_without_si(db: &PgPool, tenant: Uuid, patient: Uuid) -> Uuid {
+    let mut tx = scoped(db, tenant).await;
+    let id: Uuid = sqlx::query_scalar(
+        "INSERT INTO patient_insurance (tenant_id, patient_id, insurance_provider, \
+           policy_number, valid_from, valid_until, room_rent_limit_percent) \
+         VALUES ($1, $2, 'Star Health', 'P-NOSI', current_date - 30, current_date + 300, 1) \
+         RETURNING id",
+    )
+    .bind(tenant)
+    .bind(patient)
+    .fetch_one(&mut *tx)
+    .await
+    .unwrap();
+    tx.commit().await.unwrap();
+    id
+}
+
+/// Another active member of staff, to witness a consent.
+pub(crate) async fn staff(db: &PgPool, tenant: Uuid) -> Uuid {
+    let code = Uuid::new_v4().simple().to_string()[..10].to_owned();
+    let mut tx = scoped(db, tenant).await;
+    let id: Uuid = sqlx::query_scalar(
+        "INSERT INTO users (tenant_id, username, email, full_name, role) \
+         VALUES ($1, $2, $3, 'Ward Sister', 'nurse') RETURNING id",
+    )
+    .bind(tenant)
+    .bind(format!("w{code}"))
+    .bind(format!("w{code}@witness.test"))
+    .fetch_one(&mut *tx)
+    .await
+    .unwrap();
+    tx.commit().await.unwrap();
+    id
+}
+
+/// One bill line: (source, description, amount, the line's source id).
+pub(crate) async fn line(
+    db: &PgPool,
+    tenant: Uuid,
+    invoice: Uuid,
+    (source, description, amount, source_id): (&str, &str, i64, Option<Uuid>),
+) {
+    let mut tx = scoped(db, tenant).await;
+    sqlx::query(
+        "INSERT INTO invoice_items (tenant_id, invoice_id, charge_code, description, source, \
+           source_id, quantity, unit_price, total_price) \
+         VALUES ($1, $2, 'LINE', $3, $4::charge_source, $5, 1, $6, $6)",
+    )
+    .bind(tenant)
+    .bind(invoice)
+    .bind(description)
+    .bind(source)
+    .bind(source_id)
+    .bind(Decimal::from(amount))
+    .execute(&mut *tx)
+    .await
+    .unwrap();
+    tx.commit().await.unwrap();
 }

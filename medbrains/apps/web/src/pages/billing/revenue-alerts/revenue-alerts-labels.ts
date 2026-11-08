@@ -22,9 +22,15 @@ export function evidenceNumber(row: RevenueAlert, key: string): number | null {
   return raw === null || raw === undefined || !Number.isFinite(n) ? null : n;
 }
 
-/** Share of the approval the running bill has used, as a whole percent. */
+/** The pre-auth's approval now, or null when it cannot be read. */
+export function liveApproval(row: RevenueAlert): number | null {
+  const n = Number(row.approved_amount);
+  return row.approved_amount === null || !Number.isFinite(n) ? null : n;
+}
+
+/** Share of the live approval the running bill has used, as a whole percent. */
 export function percentUsed(row: RevenueAlert): number | null {
-  const approved = evidenceNumber(row, "approved_amount");
+  const approved = liveApproval(row);
   const running = evidenceNumber(row, "running_bill");
   if (approved === null || running === null || approved <= 0) return null;
   return Math.round((running / approved) * 100);

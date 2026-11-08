@@ -166,6 +166,8 @@ export const ipdService = {
     api.checkRoomEligibility(...args),
   setRoomRentLimit: (...args: Parameters<typeof api.setRoomRentLimit>) =>
     api.setRoomRentLimit(...args),
+  listRoomConsentWitnesses: (...args: Parameters<typeof api.listRoomConsentWitnesses>) =>
+    api.listRoomConsentWitnesses(...args),
   expectedDischarges: (...args: Parameters<typeof api.expectedDischarges>) =>
     api.expectedDischarges(...args),
   listAnesthesiaComplications: (...args: Parameters<typeof api.listAnesthesiaComplications>) =>

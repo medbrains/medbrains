@@ -218,6 +218,8 @@ export const billingService = {
     api.requestPreauthEnhancement(...args),
   recordRoomConsent: (...args: Parameters<typeof api.recordRoomConsent>) =>
     api.recordRoomConsent(...args),
+  listRoomConsentWitnesses: (...args: Parameters<typeof api.listRoomConsentWitnesses>) =>
+    api.listRoomConsentWitnesses(...args),
   backfillClaimSettlements: (...args: Parameters<typeof api.backfillClaimSettlements>) =>
     api.backfillClaimSettlements(...args),
 

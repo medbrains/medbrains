@@ -8,7 +8,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { Modal, NumberField, TextArea, toast } from "@/components/ui";
 import { billingService } from "@/services/billing.service";
-import { evidenceNumber, inr } from "./revenue-alerts-labels";
+import { inr } from "./revenue-alerts-labels";
 
 interface EnhancementModalProps {
   alert: RevenueAlert;
@@ -20,7 +20,8 @@ export function EnhancementModal({ alert, onClose }: EnhancementModalProps) {
   const queryClient = useQueryClient();
   const [amount, setAmount] = useState<number | "">("");
   const [note, setNote] = useState("");
-  const approved = evidenceNumber(alert, "approved_amount");
+  // The approval as it stands now, not as when the alert was raised.
+  const approved = alert.approved_amount === null ? null : Number(alert.approved_amount);
 
   const mutation = useMutation({
     mutationFn: () =>

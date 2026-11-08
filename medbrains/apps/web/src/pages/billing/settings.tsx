@@ -259,6 +259,26 @@ function BillingTenantSettings() {
           disabled={!canManage || updateMutation.isPending}
         />
       ))}
+
+      <Text fw={600} mt="lg">
+        Room-category pricing
+      </Text>
+      <Switch
+        label="Charges differ by room category (differential billing)"
+        description="On (the default): an insurer may cut room-linked charges in proportion when a patient takes a room above the policy limit, and the desk warns before allocating. Off: this hospital charges the same in every room, so IRDAI allows no such cut."
+        checked={
+          settingsMap.get("differential_billing") !== false &&
+          settingsMap.get("differential_billing") !== "false"
+        }
+        onChange={(e) =>
+          updateMutation.mutate({
+            category: "billing",
+            key: "differential_billing",
+            value: e.currentTarget.checked,
+          })
+        }
+        disabled={!canManage || updateMutation.isPending}
+      />
     </Stack>
   );
 }

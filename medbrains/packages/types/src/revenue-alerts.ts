@@ -23,6 +23,10 @@ export interface RevenueAlert {
   uhid: string;
   payer: string | null;
   pa_number: string | null;
+  /** The pre-auth's approved amount now, not as when the row was raised. */
+  approved_amount: string | null;
+  /** The extra amount already asked for, when an enhancement is pending. */
+  enhancement_amount: string | null;
   /** Running bill (pre-auth) or expected cut (room); null when hidden. */
   amount: string | null;
   evidence: Record<string, unknown> | null;
@@ -41,9 +45,28 @@ export interface RoomConsentInput {
   consented_by_name: string;
   consenter_relation: string;
   estimated_bill?: number;
+  /** A second member of staff who saw the family agree. */
+  witness_user_id: string;
+  /** The disclosure wording shown (`ROOM_DISCLOSURE_VERSION`). */
+  disclosure_version: string;
 }
 
-export type RoomCheckStatus = "not_insured" | "no_limit" | "unpriced" | "icu" | "within" | "above";
+/** A member of staff who may witness a room consent. */
+export interface RoomConsentWitness {
+  id: string;
+  full_name: string;
+  role: string;
+}
+
+export type RoomCheckStatus =
+  | "not_insured"
+  | "no_limit"
+  | "limit_unknown"
+  | "unpriced"
+  | "icu"
+  | "no_differential_billing"
+  | "within"
+  | "above";
 
 export interface RoomCheck {
   status: RoomCheckStatus;

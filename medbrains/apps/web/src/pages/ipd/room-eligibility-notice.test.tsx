@@ -6,6 +6,9 @@ import { RoomEligibilityNotice } from "./room-eligibility-notice";
 const service = vi.hoisted(() => ({ checkRoomEligibility: vi.fn(), setRoomRentLimit: vi.fn() }));
 vi.mock("@/services/ipd.service", () => ({ ipdService: service }));
 
+const billing = vi.hoisted(() => ({ listRoomConsentWitnesses: vi.fn() }));
+vi.mock("@/services/billing.service", () => ({ billingService: billing }));
+
 const held = vi.hoisted(() => new Set<string>());
 vi.mock("@medbrains/stores", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@medbrains/stores")>()),
@@ -30,10 +33,15 @@ beforeEach(() => {
   held.clear();
   service.checkRoomEligibility.mockReset();
   service.setRoomRentLimit.mockReset();
+  billing.listRoomConsentWitnesses.mockReset();
+  billing.listRoomConsentWitnesses.mockResolvedValue([
+    { id: "u-2", full_name: "Ward Sister", role: "nurse" },
+  ]);
 });
 
 describe("the room check before a bed is allocated", () => {
-  it("warns above the limit with the proportionate cut and records consent", async () => {
+  it("warns above the limit with the proportionate cut and records witnessed consent", async () => {
+    held.add("insurance.room_eligibility.resolve");
     service.checkRoomEligibility.mockResolvedValue(above());
     const onConsent = vi.fn();
     render(<RoomEligibilityNotice patientId="p-1" bedId="b-1" onConsentChange={onConsent} />);
@@ -48,11 +56,43 @@ describe("the room check before a bed is allocated", () => {
     expect(onConsent).toHaveBeenLastCalledWith(undefined);
     await user.type(screen.getByLabelText(/Agreed by/), "Meena Rao");
     await user.type(screen.getByLabelText(/Relation to patient/), "Wife");
+    expect(onConsent).toHaveBeenLastCalledWith(undefined);
+    await user.click(screen.getByPlaceholderText("Search staff by name"));
+    await user.click(
+      await screen.findByRole("option", { name: "Ward Sister (nurse)", hidden: true }),
+    );
     expect(onConsent).toHaveBeenLastCalledWith({
       consented_by_name: "Meena Rao",
       consenter_relation: "Wife",
+      witness_user_id: "u-2",
+      disclosure_version: "room-cut-2026-11-v1",
       estimated_bill: 40000,
     });
+  });
+
+  it("leaves consent to the insurance desk for a clerk who may not record it", async () => {
+    service.checkRoomEligibility.mockResolvedValue(above());
+    render(<RoomEligibilityNotice patientId="p-1" bedId="b-1" onConsentChange={vi.fn()} />);
+    expect(
+      await screen.findByText(/the insurance desk records the family's consent/),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole("checkbox")).not.toBeInTheDocument();
+  });
+
+  it("says plainly when the hospital has no room-category pricing or the limit is unknown", async () => {
+    service.checkRoomEligibility.mockResolvedValueOnce(
+      above({ status: "no_differential_billing" }),
+    );
+    const { unmount } = render(
+      <RoomEligibilityNotice patientId="p-1" bedId="b-1" onConsentChange={vi.fn()} />,
+    );
+    expect(await screen.findByText(/no deduction here/)).toBeInTheDocument();
+    unmount();
+    service.checkRoomEligibility.mockResolvedValueOnce(above({ status: "limit_unknown" }));
+    render(<RoomEligibilityNotice patientId="p-1" bedId="b-2" onConsentChange={vi.fn()} />);
+    expect(
+      await screen.findByText("Could not work out the policy's room limit"),
+    ).toBeInTheDocument();
   });
 
   it("says nothing alarming for a room within the limit", async () => {

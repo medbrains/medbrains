@@ -12,7 +12,7 @@ use serde::Deserialize;
 use uuid::Uuid;
 
 use medbrains_core::permissions;
-use medbrains_kernel::{Actor, require_any_permission};
+use medbrains_kernel::{Actor, KernelError, require_any_permission, require_permission};
 use medbrains_server_core::{error::AppError, middleware::auth::Claims, state::AppState};
 use medbrains_server_services::room_eligibility::{
     RoomAllocation, RoomCheck, RoomConsentInput, SOURCE_ADMISSION_ROOM, check_room,
@@ -98,13 +98,19 @@ pub struct Allocated {
 /// It runs in its own savepoint so billing never blocks a bed: a failure leaves an open
 /// `room_eligibility_unknown` row for the insurance desk instead, which
 /// reads as "could not check", never as "within limit". Consent that fails
-/// validation is the caller's 400, not a silent drop.
+/// validation is the caller's 400, not a silent drop. Consent counts only
+/// from someone who may record it (`insurance.room_eligibility.resolve`);
+/// from anyone else the row stays open for the insurance desk.
 pub async fn record_room(
     tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
     claims: &Claims,
     a: &Allocated,
     consent: Option<&RoomConsentInput>,
 ) -> Result<(), AppError> {
+    let consent = match consent {
+        Some(c) => may_record_consent(claims)?.then_some(c),
+        None => None,
+    };
     let alloc = RoomAllocation {
         tenant_id: claims.tenant_id,
         actor: claims.sub,
@@ -126,6 +132,16 @@ pub async fn record_room(
     }
 }
 
+/// Whether the caller may record a room consent: a refusal is `false`, any
+/// other fault is returned, never read as a refusal.
+fn may_record_consent(claims: &Claims) -> Result<bool, AppError> {
+    match require_permission(claims, permissions::insurance::room_eligibility::RESOLVE) {
+        Ok(()) => Ok(true),
+        Err(KernelError::Forbidden) => Ok(false),
+        Err(other) => Err(other.into()),
+    }
+}
+
 /// The open "could not check" row, best effort in its own savepoint.
 async fn unknown_row(
     tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
@@ -140,7 +156,10 @@ async fn unknown_row(
          VALUES ($1, 'room_over_limit', $2, $3, $4, $5, 'room_eligibility_unknown', \
                  jsonb_build_object('bed_id', $6::uuid), now(), $7) \
          ON CONFLICT (tenant_id, source_module, source_entity_id) \
-           WHERE status = 'open' AND deleted_at IS NULL DO NOTHING",
+           WHERE status = 'open' AND deleted_at IS NULL \
+         DO UPDATE SET evidence = COALESCE(charge_attention_items.evidence, '{}'::jsonb) \
+                                  || '{\"last_check\": \"room_eligibility_unknown\"}', \
+                       updated_at = now()",
     )
     .bind(claims.tenant_id)
     .bind(SOURCE_ADMISSION_ROOM)

@@ -31,6 +31,8 @@ function preauthRow(overrides: Partial<RevenueAlert> = {}): RevenueAlert {
     uhid: "UH-1",
     payer: "Star Health",
     pa_number: "PA-1",
+    approved_amount: "100000.00",
+    enhancement_amount: null,
     amount: "85000.00",
     evidence: { approved_amount: 100000, running_bill: 85000, threshold_percent: 80 },
     created_at: "2026-11-08T02:00:00Z",
@@ -115,6 +117,8 @@ describe("the numbers behind the alerts", () => {
 
   it("reads the share used from the evidence, or says nothing", () => {
     expect(percentUsed(preauthRow())).toBe(85);
-    expect(percentUsed(preauthRow({ evidence: { approved_amount: null } }))).toBeNull();
+    expect(percentUsed(preauthRow({ approved_amount: null }))).toBeNull();
+    // The live approval, not the one recorded when the row was raised.
+    expect(percentUsed(preauthRow({ approved_amount: "170000.00" }))).toBe(50);
   });
 });

@@ -1,12 +1,13 @@
-//! A policy's eligible room rent (revenue integrity RFC wave 1.4).
+//! A policy's eligible room rent, and the staff who may witness a room
+//! consent (revenue integrity RFC wave 1.4).
 //!
-//! The insurance desk records it from the policy schedule or e-card, so the
-//! room check at admission and transfer has something to compare with. Until
-//! it is set the check says "no limit recorded", never "within".
+//! The insurance desk records the limit from the policy schedule or e-card,
+//! so the room check at admission and transfer has something to compare
+//! with. Until it is set the check says "no limit recorded", never "within".
 
 use axum::{
     Extension, Json,
-    extract::{Path, State},
+    extract::{Path, Query, State},
 };
 use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
@@ -32,25 +33,24 @@ pub struct RoomRentLimit {
     pub room_rent_limit_percent: Option<Decimal>,
 }
 
-/// 400 unless each given figure is in range: above zero, a percentage at
-/// most 100. Both empty clears the limit.
-fn validate(body: &RoomRentLimitBody) -> Result<(), AppError> {
-    let bad_amount = body
-        .room_rent_limit_per_day
-        .is_some_and(|v| v <= Decimal::ZERO);
-    let bad_percent = body
-        .room_rent_limit_percent
-        .is_some_and(|v| v <= Decimal::ZERO || v > Decimal::ONE_HUNDRED);
+/// The figures as they will be stored (two places), or 400 unless each given
+/// figure is in range once rounded: above zero, a percentage at most 100. A
+/// figure too small to survive rounding is refused here, not by the database.
+fn validated(body: &RoomRentLimitBody) -> Result<(Option<Decimal>, Option<Decimal>), AppError> {
+    let per_day = body.room_rent_limit_per_day.map(|v| v.round_dp(2));
+    let percent = body.room_rent_limit_percent.map(|v| v.round_dp(2));
+    let bad_amount = per_day.is_some_and(|v| v <= Decimal::ZERO);
+    let bad_percent = percent.is_some_and(|v| v <= Decimal::ZERO || v > Decimal::ONE_HUNDRED);
     if bad_amount || bad_percent {
         return Err(AppError::BadRequest(
             "billing.roomLimit.outOfRange".to_owned(),
         ));
     }
-    Ok(())
+    Ok((per_day, percent))
 }
 
 /// `PUT /api/billing/policies/{id}/room-rent-limit` — set the eligible room
-/// rent on a patient's policy.
+/// rent on a patient's policy, on the audit chain with the old and new figures.
 ///
 /// # Errors
 /// 403 without `insurance.room_eligibility.configure` or billing access to
@@ -63,10 +63,11 @@ pub async fn set_room_rent_limit(
     Json(body): Json<RoomRentLimitBody>,
 ) -> Result<Json<RoomRentLimit>, AppError> {
     require_permission(&claims, permissions::insurance::room_eligibility::CONFIGURE)?;
-    validate(&body)?;
+    let (per_day, percent) = validated(&body)?;
     let mut tx = medbrains_kernel::begin(&state.db, Actor::from_claims(&claims)).await?;
-    let patient: Uuid = sqlx::query_scalar(
-        "SELECT patient_id FROM patient_insurance \
+    let (patient, old_day, old_pct): (Uuid, Option<Decimal>, Option<Decimal>) = sqlx::query_as(
+        "SELECT patient_id, room_rent_limit_per_day, room_rent_limit_percent \
+           FROM patient_insurance \
           WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL FOR UPDATE",
     )
     .bind(id)
@@ -83,10 +84,70 @@ pub async fn set_room_rent_limit(
     )
     .bind(id)
     .bind(claims.tenant_id)
-    .bind(body.room_rent_limit_per_day.map(|v| v.round_dp(2)))
-    .bind(body.room_rent_limit_percent.map(|v| v.round_dp(2)))
+    .bind(per_day)
+    .bind(percent)
     .fetch_one(&mut *tx)
+    .await?;
+    let old = serde_json::json!({ "per_day": old_day, "percent": old_pct });
+    let new = serde_json::json!({ "per_day": per_day, "percent": percent });
+    medbrains_kernel::audit(
+        &mut tx,
+        &medbrains_kernel::audit::AuditEntry {
+            tenant_id: claims.tenant_id,
+            user_id: Some(claims.sub),
+            action: "insurance.room_rent_limit.set",
+            entity_type: "patient_insurance",
+            entity_id: Some(id),
+            old_values: Some(&old),
+            new_values: Some(&new),
+            ip_address: None,
+        },
+    )
     .await?;
     tx.commit().await?;
     Ok(Json(saved))
+}
+
+#[derive(Debug, Deserialize)]
+pub struct WitnessQuery {
+    pub search: Option<String>,
+}
+
+/// A member of staff who may witness a room consent.
+#[derive(Debug, Serialize, sqlx::FromRow)]
+pub struct Witness {
+    pub id: Uuid,
+    pub full_name: String,
+    pub role: String,
+}
+
+/// `GET /api/billing/room-consent/witnesses?search=` — who may witness.
+///
+/// Active staff of this hospital other than the caller, by name, at most 20: the people who can
+/// witness a family agreeing to a room above the policy limit.
+///
+/// # Errors
+/// 403 without `insurance.room_eligibility.resolve`.
+#[tracing::instrument(skip_all, fields(tenant_id = %claims.tenant_id))]
+pub async fn list_room_consent_witnesses(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Query(q): Query<WitnessQuery>,
+) -> Result<Json<Vec<Witness>>, AppError> {
+    require_permission(&claims, permissions::insurance::room_eligibility::RESOLVE)?;
+    let needle = q.search.as_deref().map(str::trim).filter(|s| !s.is_empty());
+    let mut tx = medbrains_kernel::begin(&state.db, Actor::from_claims(&claims)).await?;
+    let rows = sqlx::query_as::<_, Witness>(
+        "SELECT id, full_name, role::text AS role FROM users \
+          WHERE tenant_id = $1 AND id <> $2 AND is_active AND deleted_at IS NULL \
+            AND ($3::text IS NULL OR full_name ILIKE '%' || $3 || '%') \
+          ORDER BY full_name LIMIT 20",
+    )
+    .bind(claims.tenant_id)
+    .bind(claims.sub)
+    .bind(needle)
+    .fetch_all(&mut *tx)
+    .await?;
+    tx.commit().await?;
+    Ok(Json(rows))
 }

@@ -2077,6 +2077,7 @@ import type {
   RoiRequest,
   RoomCheck,
   RoomConsentInput,
+  RoomConsentWitness,
   RoomRentLimit,
   RoomRentLimitInput,
   RoomTurnaround,
@@ -6253,6 +6254,11 @@ export const api = {
       method: "PUT",
       body: JSON.stringify(data),
     }),
+  /** Staff who may witness a family's room consent, by name. */
+  listRoomConsentWitnesses: (search?: string) =>
+    request<RoomConsentWitness[]>(
+      `/billing/room-consent/witnesses${search ? `?${new URLSearchParams({ search })}` : ""}`,
+    ),
   /** Set the eligible room rent on a patient's policy (₹ a day or % of sum insured). */
   setRoomRentLimit: (policyId: string, data: RoomRentLimitInput) =>
     request<RoomRentLimit>(`/billing/policies/${policyId}/room-rent-limit`, {

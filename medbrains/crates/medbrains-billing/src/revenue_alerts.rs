@@ -48,6 +48,11 @@ pub struct RevenueAlert {
     pub uhid: String,
     pub payer: Option<String>,
     pub pa_number: Option<String>,
+    /// The pre-auth's approved amount now (not as it was when the row was
+    /// raised), so an enhancement is asked on top of the live approval.
+    pub approved_amount: Option<Decimal>,
+    /// The extra amount already asked for, if an enhancement is pending.
+    pub enhancement_amount: Option<Decimal>,
     /// Rupees at stake: the running bill, or the expected cut.
     pub amount: Option<Decimal>,
     /// The numbers behind the row (approved amount, room rate, ratio, ...).
@@ -60,7 +65,8 @@ pub struct RevenueAlert {
 const ALERT_SELECT: &str = "SELECT a.id, a.kind, a.reason, a.status, a.source_entity_id, \
         a.patient_id, a.encounter_id, \
         btrim(concat_ws(' ', p.first_name, p.last_name)) AS patient_name, p.uhid, \
-        pi.insurance_provider AS payer, pa.pa_number, a.amount, a.evidence, a.created_at, \
+        pi.insurance_provider AS payer, pa.pa_number, pa.approved_amount, \
+        pa.enhancement_amount, a.amount, a.evidence, a.created_at, \
         a.resolved_at, ru.full_name AS resolved_by_name \
    FROM charge_attention_items a \
    JOIN patients p ON p.id = a.patient_id AND p.tenant_id = a.tenant_id \
@@ -222,19 +228,10 @@ pub async fn request_enhancement(
     }
     let mut tx = medbrains_kernel::begin(&state.db, Actor::from_claims(&claims)).await?;
     let (_, prior_auth) = lock_open(&mut tx, (&state, &claims), KIND_PREAUTH, id).await?;
-    let total: Decimal = sqlx::query_scalar(
-        "UPDATE prior_auth_requests SET request_stage = 'enhancement', \
-                estimated_cost = COALESCE(approved_amount, 0) + $3, updated_at = now() \
-          WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL RETURNING estimated_cost",
-    )
-    .bind(prior_auth)
-    .bind(claims.tenant_id)
-    .bind(body.additional_amount.round_dp(2))
-    .fetch_optional(&mut *tx)
-    .await?
-    .ok_or(AppError::NotFound)?;
+    let extra = body.additional_amount.round_dp(2);
+    let total = mark_enhancement(&mut tx, &claims, prior_auth, extra).await?;
     let what = serde_json::json!({ "enhancement": {
-        "additional_amount": body.additional_amount.round_dp(2),
+        "additional_amount": extra,
         "requested_total": total,
         "note": note,
     }});
@@ -242,6 +239,35 @@ pub async fn request_enhancement(
     let row = fetch(&mut tx, claims.tenant_id, id).await?;
     tx.commit().await?;
     Ok(Json(row))
+}
+
+/// Mark the pre-auth as asking for `extra` more and return the total asked
+/// (the live approval plus `extra`). The original estimate is left as it was.
+/// 409 unless the pre-auth is approved (fully or in part) and has no
+/// enhancement waiting on the payer, i.e. none asked since its last answer.
+async fn mark_enhancement(
+    conn: &mut PgConnection,
+    claims: &Claims,
+    prior_auth: Uuid,
+    extra: Decimal,
+) -> Result<Decimal, AppError> {
+    sqlx::query_scalar::<_, Decimal>(
+        "UPDATE prior_auth_requests SET request_stage = 'enhancement', \
+                enhancement_amount = $3, enhancement_requested_at = now(), \
+                enhancement_requested_by = $4, updated_at = now() \
+          WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL \
+            AND status IN ('approved', 'partially_approved') \
+            AND NOT (request_stage = 'enhancement' AND enhancement_requested_at IS NOT NULL \
+                     AND enhancement_requested_at > COALESCE(responded_at, '-infinity')) \
+          RETURNING COALESCE(approved_amount, 0) + enhancement_amount",
+    )
+    .bind(prior_auth)
+    .bind(claims.tenant_id)
+    .bind(extra)
+    .bind(claims.sub)
+    .fetch_optional(conn)
+    .await?
+    .ok_or_else(|| AppError::Conflict("billing.revenueAlerts.enhancementNotOpen".to_owned()))
 }
 
 /// `PUT /api/billing/revenue-alerts/{id}/room-consent` — record room consent.
@@ -268,7 +294,7 @@ pub async fn record_room_consent(
             "billing.revenueAlerts.roomNotChecked".to_owned(),
         ));
     }
-    consent_on_row(&mut tx, claims.tenant_id, claims.sub, id, &body).await?;
+    consent_on_row(&mut tx, (claims.tenant_id, claims.sub), id, &body).await?;
     let row = fetch(&mut tx, claims.tenant_id, id).await?;
     tx.commit().await?;
     Ok(Json(row))

@@ -148,7 +148,7 @@ async fn requesting_an_enhancement_closes_the_row_until_the_approval_changes() {
     .unwrap();
     assert_eq!(done.status, "actioned");
     let (stage, asked): (String, Decimal) = sqlx::query_as(
-        "SELECT request_stage, estimated_cost FROM prior_auth_requests WHERE id = $1",
+        "SELECT request_stage, enhancement_amount FROM prior_auth_requests WHERE id = $1",
     )
     .bind(pa)
     .fetch_one(&db)
@@ -156,7 +156,7 @@ async fn requesting_an_enhancement_closes_the_row_until_the_approval_changes() {
     .unwrap();
     assert_eq!(
         (stage.as_str(), asked),
-        ("enhancement", Decimal::from(150_000))
+        ("enhancement", Decimal::from(50_000))
     );
 
     // Asking again on the closed row is a conflict, not a second request.

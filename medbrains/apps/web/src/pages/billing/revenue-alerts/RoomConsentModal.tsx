@@ -5,7 +5,8 @@ import { Stack, Text } from "@mantine/core";
 import type { RevenueAlert, RoomConsentInput } from "@medbrains/types";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
-import { isConsentComplete, RoomConsentFields } from "@/components/RoomConsentFields";
+import { emptyConsent, isConsentComplete, RoomConsentFields } from "@/components/RoomConsentFields";
+import { roomDisclosure } from "@/components/room-disclosure";
 import { Modal, toast } from "@/components/ui";
 import { billingService } from "@/services/billing.service";
 import { evidenceNumber, inr } from "./revenue-alerts-labels";
@@ -18,10 +19,7 @@ interface RoomConsentModalProps {
 /** Shows the cut the family is agreeing to and records who agreed. */
 export function RoomConsentModal({ alert, onClose }: RoomConsentModalProps) {
   const queryClient = useQueryClient();
-  const [who, setWho] = useState<RoomConsentInput>({
-    consented_by_name: "",
-    consenter_relation: "",
-  });
+  const [who, setWho] = useState<RoomConsentInput>(emptyConsent);
   const ratio = evidenceNumber(alert, "payable_ratio");
 
   const mutation = useMutation({
@@ -55,6 +53,7 @@ export function RoomConsentModal({ alert, onClose }: RoomConsentModalProps) {
           {ratio === null ? "less" : `${Math.round(ratio * 1000) / 10}%`} of room-linked charges;
           expected deduction {inr(alert.amount)}.
         </Text>
+        {ratio !== null && <Text size="sm">{roomDisclosure(Math.floor(ratio * 1000) / 10)}</Text>}
         <RoomConsentFields value={who} onChange={setWho} />
       </Stack>
     </Modal>
