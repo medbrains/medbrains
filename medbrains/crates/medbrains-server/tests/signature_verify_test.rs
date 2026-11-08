@@ -36,6 +36,7 @@ async fn signed_prescription(app: &common::TestApp) -> (String, String, String) 
     let admin_id = signatures_test::admin_user_id(app, &csrf).await;
     signatures_test::issue_default_credential(app, &csrf, &admin_id).await;
     let record_id = signatures_test::doctor_prescription(app, &admin_id).await;
+    signatures_test::review(app, &csrf, "prescription", &record_id).await;
     let signed = app
         .client
         .post(app.url("/api/signatures/sign"))

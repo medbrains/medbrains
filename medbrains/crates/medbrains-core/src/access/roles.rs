@@ -66,6 +66,9 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
             permissions::doctor::profile::VIEW_OWN,
             permissions::doctor::profile::UPDATE_OWN,
             permissions::doctor::signature::SIGN,
+            // The consultant's countersignature on a resident's or a
+            // colleague's record (signer_role co_signer).
+            permissions::doctor::signature::CO_SIGN,
             permissions::doctor::signature::VERIFY,
             permissions::doctor::signoffs::VIEW_OWN,
             permissions::doctor::signoffs::VERBAL_REGISTER,
@@ -440,6 +443,8 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
             permissions::clinical_notes::VIEW,
             permissions::clinical_notes::WRITE,
             permissions::clinical_notes::SIGN,
+            // Signs the MAR, vitals and charting she recorded (signable.rs).
+            permissions::nurse::signature::SIGN,
             permissions::clinical_notes::MARK_IN_ERROR,
             permissions::home_health::LIST,
             permissions::home_health::MANAGE,
@@ -1043,6 +1048,7 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
             permissions::billing::payments::CREATE,
             permissions::billing::payments::VOID,
             permissions::billing::payments::RECONCILE,
+            permissions::billing::payment_settings::VIEW,
             // The central cashier collects every department's dues (#4885).
             permissions::billing::collect::CROSS,
             permissions::billing::counter_display::PUBLISH,

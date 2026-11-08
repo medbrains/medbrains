@@ -19,7 +19,7 @@ export interface PermissionDef {
   module: string;
 }
 
-/** 1229 permissions, one per constant in the Rust source. */
+/** 1232 permissions, one per constant in the Rust source. */
 export const PERMISSIONS: PermissionDef[] = [
   // dashboard
   {
@@ -1115,6 +1115,18 @@ export const PERMISSIONS: PermissionDef[] = [
     code: "billing.payments.configure",
     label: "Configure online payment providers",
     description: "Choose the hospital's online payment provider (Razorpay, Cashfree, PhonePe, PayU), a fallback for when it is down, a different one for a counter, set its keys and test that it answers. Keys are write-only: no screen ever shows a stored secret.",
+    module: "billing",
+  },
+  {
+    code: "billing.payment_settings.view",
+    label: "View billing payment settings",
+    description: "See the hospital's UPI ID and its payment-link terms (part payments, least part, days a link stays open, reminders).",
+    module: "billing",
+  },
+  {
+    code: "billing.payment_settings.manage",
+    label: "Change billing payment settings",
+    description: "Change the hospital's UPI ID and its payment-link terms.",
     module: "billing",
   },
   {
@@ -6915,6 +6927,12 @@ export const PERMISSIONS: PermissionDef[] = [
   },
   // nurse
   {
+    code: "nurse.signature.sign",
+    label: "Sign own nursing entries",
+    description: "Put a digital signature on the medication administrations, vitals, ICU chart entries, OT checklists, transfusions and triage this nurse recorded. Needs a nurse profile with a licence number and a fresh password step-up.",
+    module: "nurse",
+  },
+  {
     code: "nurse.profile.view",
     label: "View Nurse Profile",
     description: "View nurse profiles",
@@ -7537,6 +7555,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.DOCTOR.PROFILE.UPDATE_OWN,
       P.DOCTOR.PROFILE.VIEW_OWN,
       P.DOCTOR.REFILL_REQUESTS.DECIDE,
+      P.DOCTOR.SIGNATURE.CO_SIGN,
       P.DOCTOR.SIGNATURE.SIGN,
       P.DOCTOR.SIGNATURE.VERIFY,
       P.DOCTOR.SIGNOFFS.VERBAL_REGISTER,
@@ -7977,6 +7996,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.NURSE.SHIFT.VIEW,
       P.NURSE.SHIFT_NOTES.EDIT,
       P.NURSE.SHIFT_NOTES.VIEW,
+      P.NURSE.SIGNATURE.SIGN,
       P.NURSE.TRANSFUSION.ADMINISTER,
       P.NURSE.TRANSFUSION.VIEW,
       P.NURSE.VITALS.RECORD,
@@ -8368,6 +8388,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.BILLING.LEAKAGE.RESOLVE,
       P.BILLING.LEAKAGE.VIEW,
       P.BILLING.PAYER_SPLIT.MANAGE,
+      P.BILLING.PAYMENT_SETTINGS.VIEW,
       P.BILLING.PAYMENTS.CREATE,
       P.BILLING.PAYMENTS.RECONCILE,
       P.BILLING.PAYMENTS.VOID,

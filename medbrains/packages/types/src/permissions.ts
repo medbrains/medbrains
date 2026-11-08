@@ -608,6 +608,12 @@ export const P = {
     PAYMENTS_CREATE: "billing.payments.create",
     PAYMENTS_RECONCILE: "billing.payments.reconcile",
     PAYMENTS_VOID: "billing.payments.void",
+    PAYMENT_SETTINGS: {
+      MANAGE: "billing.payment_settings.manage",
+      VIEW: "billing.payment_settings.view",
+    },
+    PAYMENT_SETTINGS_MANAGE: "billing.payment_settings.manage",
+    PAYMENT_SETTINGS_VIEW: "billing.payment_settings.view",
     RECEIPTS: {
       PRINT: "billing.receipts.print",
       REPRINT: "billing.receipts.reprint",
@@ -2260,6 +2266,10 @@ export const P = {
     SHIFT_NOTES_EDIT: "nurse.shift_notes.edit",
     SHIFT_NOTES_VIEW: "nurse.shift_notes.view",
     SHIFT_VIEW: "nurse.shift.view",
+    SIGNATURE: {
+      SIGN: "nurse.signature.sign",
+    },
+    SIGNATURE_SIGN: "nurse.signature.sign",
     TRANSFUSION: {
       ADMINISTER: "nurse.transfusion.administer",
       VIEW: "nurse.transfusion.view",
