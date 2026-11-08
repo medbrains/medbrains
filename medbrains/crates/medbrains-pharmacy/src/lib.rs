@@ -3694,8 +3694,10 @@ async fn enforce_schedule_compliance(
         discharge_rx::discharge_medicines(tx, *tenant_id, order_id).await?
     };
 
+    // The catalogue's own names, not the line's free-text `drug_name`: the
+    // stock that leaves is the catalogue item's.
     let scheduled_items: Vec<(Uuid, String, String, Option<String>)> = sqlx::query_as(
-        "SELECT c.id, c.name, oi.drug_name, c.drug_schedule::text \
+        "SELECT c.id, c.name, COALESCE(c.generic_name, ''), c.drug_schedule::text \
          FROM pharmacy_order_items oi \
          JOIN pharmacy_catalog c ON c.id = oi.catalog_item_id \
          WHERE oi.order_id = $1 AND oi.tenant_id = $2 \
@@ -3716,10 +3718,10 @@ async fn enforce_schedule_compliance(
 
     // Anything Schedule H/H1/X requires a prescription source on the order.
     if !has_prescription {
-        for (catalog_id, name, line_name, sched) in &scheduled_items {
+        for (catalog_id, name, generic_name, sched) in &scheduled_items {
             let on_summary = sched.as_deref() != Some("X")
                 && discharge_listed.as_deref().is_some_and(|listed| {
-                    discharge_rx::lists(listed, *catalog_id, [name.as_str(), line_name.as_str()])
+                    discharge_rx::lists(listed, *catalog_id, [name.as_str(), generic_name.as_str()])
                 });
             if on_summary {
                 continue;

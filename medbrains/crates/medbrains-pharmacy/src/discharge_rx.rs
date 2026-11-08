@@ -7,11 +7,14 @@
 //!
 //! - the order is a discharge dispense;
 //! - the summary is this patient's (checked again when the order is created);
-//! - the doctor finalized it, or it carries a signature by someone with a
-//!   doctor profile;
+//! - it was finalized, or carries a signature, by someone with a doctor
+//!   profile (finalizing needs only a permission a custom role may hold, so
+//!   `finalized_by` is checked like the signer; a summary finalized before
+//!   that column existed names nobody and counts for nothing);
 //! - it is recent: the patient was discharged, or the summary finalized or
 //!   signed, within `DISCHARGE_RX_DAYS`;
-//! - the drug itself is listed in `medications_on_discharge`.
+//! - the drug itself is listed in `medications_on_discharge`, matched on the
+//!   catalogue item the stock leaves from, never on the line's free-text name.
 
 use medbrains_server_core::error::AppError;
 use serde::Deserialize;
@@ -79,7 +82,9 @@ pub async fn discharge_medicines(
                 AND sr.tenant_id = ds.tenant_id AND sr.deleted_at IS NULL \
           WHERE o.id = $1 AND o.tenant_id = $2 \
             AND o.dispensing_type::text = 'discharge' \
-            AND (ds.status::text = 'finalized' \
+            AND ((ds.status::text = 'finalized' \
+                  AND EXISTS (SELECT 1 FROM doctor_profiles dp \
+                               WHERE dp.user_id = ds.finalized_by AND dp.tenant_id = ds.tenant_id)) \
                  OR (ds.is_signed AND EXISTS (SELECT 1 FROM doctor_profiles dp \
                                                WHERE dp.user_id = sr.signer_user_id \
                                                  AND dp.tenant_id = ds.tenant_id))) \
@@ -95,18 +100,23 @@ pub async fn discharge_medicines(
     Ok(listed.map(|value| serde_json::from_value(value).unwrap_or_default()))
 }
 
-/// Whether the summary lists this order line, by catalogue id or, failing
-/// that, by name (either the catalogue's or the line's), ignoring case.
+/// Whether the summary lists the catalogue item an order line dispenses.
+///
+/// A listed medicine with a catalogue id matches that id only. One without
+/// (written before the screen picked from the formulary) matches by name,
+/// against the catalogue item's own names (`names`: name and generic name),
+/// ignoring case. The order line's free-text name is never compared: a line
+/// for Tramadol stock named "Paracetamol 500mg" must not pass as paracetamol.
 pub fn lists(listed: &[ListedMedicine], catalog_item_id: Uuid, names: [&str; 2]) -> bool {
+    let matches_name = |entry: &str| {
+        let entry = entry.trim();
+        !entry.is_empty() && names.iter().any(|n| n.trim().eq_ignore_ascii_case(entry))
+    };
     listed.iter().any(|m| {
-        m.catalog_item_id == Some(catalog_item_id)
-            || m.drug_name.as_deref().is_some_and(|listed_name| {
-                let listed_name = listed_name.trim();
-                !listed_name.is_empty()
-                    && names
-                        .iter()
-                        .any(|n| n.trim().eq_ignore_ascii_case(listed_name))
-            })
+        m.catalog_item_id.map_or_else(
+            || m.drug_name.as_deref().is_some_and(matches_name),
+            |id| id == catalog_item_id,
+        )
     })
 }
 
@@ -123,7 +133,33 @@ mod tests {
             drug_name: Some("Amoxicillin 500mg".into()),
         }];
         assert!(lists(&listed, amox, ["Anything", ""]));
-        assert!(lists(&listed, other, ["amoxicillin 500MG", ""]));
+        // A listing with an id matches that id only, whatever the names say.
+        assert!(!lists(&listed, other, ["amoxicillin 500MG", ""]));
+        // Tramadol stock on a line named after the listed paracetamol: the
+        // caller passes the catalogue's names, and the id decides.
+        let paracetamol = Uuid::from_u128(3);
+        let tramadol = Uuid::from_u128(4);
+        let para = vec![ListedMedicine {
+            catalog_item_id: Some(paracetamol),
+            drug_name: Some("Paracetamol 500mg".into()),
+        }];
+        assert!(!lists(&para, tramadol, ["Tramadol 50mg", "Tramadol"]));
+        assert!(lists(
+            &para,
+            paracetamol,
+            ["Paracetamol 500mg", "Paracetamol"]
+        ));
+        // No id on the listing: the catalogue's own names, never the line's.
+        let by_name = vec![ListedMedicine {
+            catalog_item_id: None,
+            drug_name: Some("Paracetamol 500mg".into()),
+        }];
+        assert!(!lists(&by_name, tramadol, ["Tramadol 50mg", "Tramadol"]));
+        assert!(lists(
+            &by_name,
+            paracetamol,
+            ["PARACETAMOL 500MG", "Paracetamol"]
+        ));
         assert!(!lists(&listed, other, ["Cefixime", "Cefixime 200"]));
         assert!(!lists(&[], amox, ["Amoxicillin 500mg", ""]));
         let unnamed = vec![ListedMedicine {

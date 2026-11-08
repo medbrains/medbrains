@@ -99,6 +99,19 @@ export interface IpdNoDuesCertificate {
   updated_at: string;
 }
 
+/**
+ * One medicine on an IPD discharge summary, picked from the formulary. The
+ * catalogue id is what the pharmacy matches a Schedule H/H1 discharge line to;
+ * the server refuses an entry without one.
+ */
+export interface DischargeMedicine {
+  catalog_item_id: string;
+  drug_name: string;
+  quantity: number;
+  /** How to take it, as the patient will read it on the summary. */
+  instructions?: string;
+}
+
 export interface IpdDischargeSummary {
   id: string;
   tenant_id: string;
@@ -111,7 +124,7 @@ export interface IpdDischargeSummary {
   treatment_given: string | null;
   procedures_performed: unknown[];
   investigation_summary: string | null;
-  medications_on_discharge: unknown[];
+  medications_on_discharge: DischargeMedicine[];
   follow_up_instructions: string | null;
   follow_up_date: string | null;
   dietary_advice: string | null;
@@ -242,7 +255,7 @@ export interface CreateDischargeSummaryRequest {
   treatment_given?: string;
   procedures_performed?: unknown[];
   investigation_summary?: string;
-  medications_on_discharge?: unknown[];
+  medications_on_discharge?: DischargeMedicine[];
   follow_up_instructions?: string;
   follow_up_date?: string;
   dietary_advice?: string;
@@ -258,7 +271,7 @@ export interface UpdateDischargeSummaryRequest {
   treatment_given?: string;
   procedures_performed?: unknown[];
   investigation_summary?: string;
-  medications_on_discharge?: unknown[];
+  medications_on_discharge?: DischargeMedicine[];
   follow_up_instructions?: string;
   follow_up_date?: string;
   dietary_advice?: string;

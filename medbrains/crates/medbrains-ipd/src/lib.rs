@@ -91,6 +91,7 @@ use medbrains_server_core::middleware::authorization::{
 use medbrains_server_core::middleware::field_access;
 use medbrains_server_core::state::AppState;
 
+mod discharge_medicines;
 mod nursing_safety;
 
 // ══════════════════════════════════════════════════════════
@@ -5207,6 +5208,7 @@ pub async fn create_discharge_summary(
     medbrains_authz_gate::require_admission_access(&state, &claims, admission_id).await?;
     let restricted_fields = resolve_ipd_restricted_fields(&state, &claims).await?;
     validate_discharge_summary_write_access(&body.final_diagnosis, &restricted_fields)?;
+    discharge_medicines::validate(body.medications_on_discharge.as_ref())?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -5270,6 +5272,7 @@ pub async fn update_discharge_summary(
     medbrains_authz_gate::require_admission_access(&state, &claims, admission_id).await?;
     let restricted_fields = resolve_ipd_restricted_fields(&state, &claims).await?;
     validate_discharge_summary_write_access(&body.final_diagnosis, &restricted_fields)?;
+    discharge_medicines::validate(body.medications_on_discharge.as_ref())?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -5418,7 +5421,7 @@ pub async fn finalize_discharge_summary(
     let row = sqlx::query_as::<_, IpdDischargeSummary>(
         "UPDATE ipd_discharge_summaries SET \
            status = 'finalized'::discharge_summary_status, \
-           verified_by = $3, finalized_at = NOW() \
+           verified_by = $3, finalized_by = $3, finalized_at = NOW() \
          WHERE admission_id = $1 AND tenant_id = $2 \
            AND status = 'draft'::discharge_summary_status \
          RETURNING *",

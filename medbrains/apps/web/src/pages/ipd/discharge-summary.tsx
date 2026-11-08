@@ -6,6 +6,7 @@ import { Group, Stack, Text, Textarea, TextInput } from "@mantine/core";
 import { useHasPermission } from "@medbrains/stores";
 import type {
   CreateDischargeSummaryRequest,
+  DischargeMedicine,
   IpdDischargeSummary,
   UpdateDischargeSummaryRequest,
 } from "@medbrains/types";
@@ -16,6 +17,7 @@ import { useState } from "react";
 import { useClinicalEmit } from "@/components";
 import { Badge, Button, toast } from "@/components/ui";
 import { ipdService } from "@/services/ipd.service";
+import { DischargeMedicinesEditor } from "./discharge-medicines-editor";
 
 export function DischargeSummaryTab({
   admissionId,
@@ -45,6 +47,7 @@ export function DischargeSummaryTab({
   const [dietaryAdvice, setDietaryAdvice] = useState("");
   const [activityRestrictions, setActivityRestrictions] = useState("");
   const [warningSigns, setWarningSigns] = useState("");
+  const [medicines, setMedicines] = useState<DischargeMedicine[]>([]);
   const [editing, setEditing] = useState(false);
 
   const summary = existing as IpdDischargeSummary | null;
@@ -108,6 +111,7 @@ export function DischargeSummaryTab({
                   setDietaryAdvice(summary.dietary_advice ?? "");
                   setActivityRestrictions(summary.activity_restrictions ?? "");
                   setWarningSigns(summary.warning_signs ?? "");
+                  setMedicines(summary.medications_on_discharge ?? []);
                   setEditing(true);
                 }}
               >
@@ -176,6 +180,19 @@ export function DischargeSummaryTab({
             <b>Warning Signs:</b> {summary.warning_signs}
           </Text>
         )}
+        {summary.medications_on_discharge?.length > 0 && (
+          <Stack gap={4}>
+            <Text size="sm" fw={600}>
+              Medicines on discharge
+            </Text>
+            {summary.medications_on_discharge.map((m) => (
+              <Text key={m.catalog_item_id} size="sm">
+                {m.drug_name} × {m.quantity}
+                {m.instructions ? ` — ${m.instructions}` : ""}
+              </Text>
+            ))}
+          </Stack>
+        )}
         {summary.finalized_at && (
           <Text size="xs" c="dimmed">
             Finalized: {new Date(summary.finalized_at).toLocaleString()}
@@ -205,6 +222,7 @@ export function DischargeSummaryTab({
       dietary_advice: dietaryAdvice || undefined,
       activity_restrictions: activityRestrictions || undefined,
       warning_signs: warningSigns || undefined,
+      medications_on_discharge: medicines,
     };
     if (summary) {
       updateMutation.mutate(payload);
@@ -275,6 +293,7 @@ export function DischargeSummaryTab({
         value={warningSigns}
         onChange={(e) => setWarningSigns(e.currentTarget.value)}
       />
+      <DischargeMedicinesEditor value={medicines} onChange={setMedicines} />
       <Group>
         <Button
           tone="primary"
