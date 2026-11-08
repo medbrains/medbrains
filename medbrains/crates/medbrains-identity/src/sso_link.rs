@@ -11,12 +11,9 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use medbrains_core::permissions::admin::users::LINK_IDENTITY;
+use medbrains_kernel::{Actor, Claims, Tx, require_permission};
 use medbrains_notifications::publish_notification;
-use medbrains_server_core::{
-    error::AppError,
-    middleware::{auth::Claims, authorization::require_permission},
-    state::AppState,
-};
+use medbrains_server_core::{error::AppError, state::AppState};
 
 mod target;
 
@@ -64,9 +61,7 @@ pub struct LinkRequest {
 }
 
 /// The Kanidm provider of this hospital: its id and discovery URL. `NotFound` when Kanidm is not set up.
-async fn kanidm_provider(
-    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
-) -> Result<(Uuid, String), AppError> {
+async fn kanidm_provider(tx: &mut Tx) -> Result<(Uuid, String), AppError> {
     sqlx::query_as::<_, (Uuid, Option<String>)>(
         "SELECT id, discovery_url FROM identity_providers WHERE code = $1 LIMIT 1",
     )
@@ -137,8 +132,7 @@ pub async fn list_kanidm_people(
         .chars()
         .take(MAX_QUERY_CHARS)
         .collect();
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let mut tx = medbrains_kernel::begin(&state.db, Actor::from_claims(&claims)).await?;
     let (provider_id, discovery_url) = kanidm_provider(&mut tx).await?;
     let origin = origin_of(&discovery_url)
         .ok_or(AppError::NotFound)?
@@ -184,8 +178,7 @@ pub async fn get_link(
     Path(user_id): Path<Uuid>,
 ) -> Result<Json<Option<SsoLink>>, AppError> {
     require_permission(&claims, LINK_IDENTITY)?;
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let mut tx = medbrains_kernel::begin(&state.db, Actor::from_claims(&claims)).await?;
     let link = sqlx::query_as::<_, (Option<Uuid>, Option<String>)>(
         "SELECT idp_id, external_subject FROM users WHERE id = $1",
     )
@@ -205,15 +198,15 @@ pub async fn get_link(
 
 /// Writes one audit row for a link change, in the change's own transaction.
 async fn audit_link(
-    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    tx: &mut Tx,
     claims: &Claims,
     user_id: Uuid,
     action: &str,
     details: &serde_json::Value,
 ) -> Result<(), AppError> {
-    medbrains_db::audit::AuditLogger::log(
+    medbrains_kernel::audit(
         tx,
-        &medbrains_db::audit::AuditEntry {
+        &medbrains_kernel::audit::AuditEntry {
             tenant_id: claims.tenant_id,
             user_id: Some(claims.sub),
             action,
@@ -241,8 +234,7 @@ pub async fn set_link(
             "That is not a Kanidm person's ID.".to_owned(),
         ));
     }
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let mut tx = medbrains_kernel::begin(&state.db, Actor::from_claims(&claims)).await?;
     let target = guard_target(&state, &mut tx, &claims, user_id).await?;
     let (provider_id, _) = kanidm_provider(&mut tx).await?;
     let current = target.subject.as_deref().map(|s| (target.idp_id, s));
@@ -309,8 +301,7 @@ pub async fn remove_link(
     Path(user_id): Path<Uuid>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     require_permission(&claims, LINK_IDENTITY)?;
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let mut tx = medbrains_kernel::begin(&state.db, Actor::from_claims(&claims)).await?;
     let target = guard_target(&state, &mut tx, &claims, user_id).await?;
     if target.subject.is_none() {
         tx.commit().await?;

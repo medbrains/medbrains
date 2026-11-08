@@ -2,13 +2,9 @@
 
 use std::collections::HashSet;
 
+use medbrains_kernel::{Claims, Tx, authz::BYPASS_ROLES};
 use medbrains_notifications::{NewNotification, create_notification};
-use medbrains_server_core::{
-    error::AppError,
-    middleware::{auth::Claims, authorization::BYPASS_ROLES},
-    permissions::resolve_permissions,
-    state::AppState,
-};
+use medbrains_server_core::{error::AppError, permissions::resolve_permissions, state::AppState};
 use uuid::Uuid;
 
 /// The account a link change is aimed at, as read and locked in the change's own transaction.
@@ -72,7 +68,7 @@ pub(super) fn needs_link_write(
 /// Reads and locks the target account, and refuses the change unless [`may_manage_link`] allows it.
 pub(super) async fn guard_target(
     state: &AppState,
-    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    tx: &mut Tx,
     claims: &Claims,
     user_id: Uuid,
 ) -> Result<Target, AppError> {
@@ -143,7 +139,7 @@ pub(super) const fn holder_notice(user_id: Uuid, linked: bool) -> NewNotificatio
 /// outbox sends it when email is configured). In the change's own transaction; returns the notice's id for the
 /// caller to publish live after commit.
 pub(super) async fn notify_holder(
-    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    tx: &mut Tx,
     tenant_id: Uuid,
     user_id: Uuid,
     email: Option<&str>,
@@ -153,7 +149,7 @@ pub(super) async fn notify_holder(
     let (title, body) = (notice.title, notice.body.unwrap_or_default());
     let id = create_notification(tx, tenant_id, notice).await?;
     if let Some(to) = email.filter(|to| !to.is_empty()) {
-        medbrains_outbox::queue::queue_in_tx(
+        medbrains_outbox::queue::queue_on(
             tx,
             medbrains_outbox::queue::OutboxRow {
                 tenant_id,

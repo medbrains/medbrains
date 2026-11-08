@@ -7154,6 +7154,7 @@ dependencies = [
  "medbrains-core",
  "medbrains-crypto",
  "medbrains-db",
+ "medbrains-kernel",
  "medbrains-notifications",
  "medbrains-outbox",
  "medbrains-server-core",

@@ -11,6 +11,7 @@ medbrains-outbox = { path = "../medbrains-outbox" }
 medbrains-server-core = { path = "../medbrains-server-core" }
 medbrains-core = { path = "../medbrains-core" }
 medbrains-db = { path = "../medbrains-db" }
+medbrains-kernel = { path = "../medbrains-kernel" }
 medbrains-authz = { version = "0.1.0", path = "../medbrains-authz" }
 medbrains-crypto = { path = "../medbrains-crypto" }
 axum = { workspace = true }
