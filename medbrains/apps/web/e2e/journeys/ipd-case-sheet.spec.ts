@@ -8,7 +8,8 @@
 import type { Page } from "@playwright/test";
 import { api, loginAsRoleApi } from "../helpers/api";
 import { admitToIpd, createPatientApi, freshWardBeds } from "../helpers/journey-steps";
-import { expect, test } from "./support/world";
+import { getE2EIdentity } from "../helpers/e2e-identities";
+import { confirmItsYou, expect, test } from "./support/world";
 
 async function openNotes(page: Page, admissionId: string) {
   await page.goto(`/ipd/admissions/${admissionId}#notes`);
@@ -38,6 +39,7 @@ test("the ward round and the nursing note are signed on the admission's case she
   await doctor.getByRole("textbox", { name: "Subjective", exact: true }).click();
   await doctor.keyboard.type("Afebrile overnight, tolerating orals");
   await doctor.getByRole("button", { name: "Sign", exact: true }).click();
+  await confirmItsYou(doctor, getE2EIdentity("doctor").password);
   const round = doctor.getByLabel(`Progress note by ${drA.fullName}`);
   await expect(round).toContainText(/Signed \w+ \d/, { timeout: 15_000 });
 
@@ -49,6 +51,7 @@ test("the ward round and the nursing note are signed on the admission's case she
   await nurse.getByRole("textbox", { name: "Observation", exact: true }).click();
   await nurse.keyboard.type("Pain 2/10, ambulating");
   await nurse.getByRole("button", { name: "Sign", exact: true }).click();
+  await confirmItsYou(nurse, getE2EIdentity("nurse").password);
   await expect(nurse.getByLabel(/^Nursing note by/)).toContainText(/Signed \w+ \d/, {
     timeout: 15_000,
   });

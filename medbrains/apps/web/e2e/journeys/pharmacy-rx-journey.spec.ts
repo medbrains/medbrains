@@ -706,7 +706,7 @@ async function dischargeWithSummary(hospital: Hospital, request: APIRequestConte
   const admissionId = await admitToIpd(hospital.admin, {
     patientId: patient.id,
     bedId: bed?.bed_id,
-    doctorId: doctor.id,
+    admittingDoctorId: doctor.id,
   });
   const base = `/api/ipd/admissions/${admissionId}/discharge-summary`;
   const summary = await api<{ id: string }>(hospital.admin, "POST", base, {
@@ -771,7 +771,7 @@ test("the doctor lists discharge medicines from the formulary, and a Schedule H 
   const patient = await createPatientApi(hospital.admin);
   const [bed] = await freshWardBeds(hospital.admin, 1);
   const doctor = await hospital.colleague(await hospital.department("Rx Ward"));
-  const admissionId = await admitToIpd(hospital.admin, { patientId: patient.id, bedId: bed?.bed_id, doctorId: doctor.id });
+  const admissionId = await admitToIpd(hospital.admin, { patientId: patient.id, bedId: bed?.bed_id, admittingDoctorId: doctor.id });
 
   // The doctor writes the summary on the admission screen, picking the
   // medicine from the formulary.

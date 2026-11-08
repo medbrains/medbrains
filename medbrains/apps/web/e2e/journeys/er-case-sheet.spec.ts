@@ -5,7 +5,7 @@
  */
 import { api } from "../helpers/api";
 import { createEmergencyVisit, createPatientApi } from "../helpers/journey-steps";
-import { expect, test } from "./support/world";
+import { confirmItsYou, expect, test } from "./support/world";
 
 test("the emergency doctor signs their note on the ER visit's case sheet", async ({
   hospital,
@@ -35,6 +35,7 @@ test("the emergency doctor signs their note on the ER visit's case sheet", async
   await sheet.getByRole("textbox", { name: "Subjective", exact: true }).click();
   await page.keyboard.type("Central chest pain, radiating to left arm, sweating");
   await sheet.getByRole("button", { name: "Sign", exact: true }).click();
+  await confirmItsYou(page, drA.password);
   await expect(sheet.getByLabel(`Consultation by ${drA.fullName}`)).toContainText(
     /Signed \w+ \d/,
     { timeout: 15_000 },

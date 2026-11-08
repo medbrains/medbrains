@@ -24,13 +24,34 @@ pub async fn is_locked(
     (user_id, tenant_id): (Uuid, Uuid),
 ) -> Result<bool, AppError> {
     let mut conn = medbrains_db::pool::tenant_conn(&state.db, &tenant_id).await?;
-    Ok(sqlx::query_scalar::<_, bool>(
+    sqlx::query_scalar::<_, bool>(
         "SELECT locked_until IS NOT NULL AND locked_until > now() FROM users WHERE id = $1",
     )
     .bind(user_id)
     .fetch_optional(&mut *conn)
     .await?
-    .unwrap_or(false))
+    .ok_or(AppError::NotFound)
+}
+
+/// Clear the wrong-password count after a correct password, unless the
+/// account is locked. Without this, four old typos and one new one locked a
+/// doctor out in the middle of signing.
+///
+/// # Errors
+/// The database could not be written.
+pub async fn clear_failed_passwords(
+    state: &AppState,
+    (user_id, tenant_id): (Uuid, Uuid),
+) -> Result<(), AppError> {
+    sqlx::query(
+        "UPDATE users SET failed_login_attempts = 0 \
+         WHERE id = $1 AND failed_login_attempts > 0 \
+           AND (locked_until IS NULL OR locked_until <= now())",
+    )
+    .bind(user_id)
+    .execute(&mut *medbrains_db::pool::tenant_conn(&state.db, &tenant_id).await?)
+    .await?;
+    Ok(())
 }
 
 /// Count a wrong password, lock the account at the threshold, and audit it.
@@ -90,25 +111,4 @@ pub async fn record_failed_password(
         tracing::warn!(%user_id, action, "account locked after repeated wrong passwords");
     }
     Ok(now_locked)
-}
-
-/// Clear the count after a right password, as sign-in does.
-///
-/// Without it, wrong passwords spread over a day would add up to a lock even
-/// though the person kept getting it right in between.
-///
-/// # Errors
-/// The database could not be written.
-pub async fn clear_failed_passwords(
-    state: &AppState,
-    (user_id, tenant_id): (Uuid, Uuid),
-) -> Result<(), AppError> {
-    sqlx::query(
-        "UPDATE users SET failed_login_attempts = 0, locked_until = NULL \
-         WHERE id = $1 AND (failed_login_attempts > 0 OR locked_until IS NOT NULL)",
-    )
-    .bind(user_id)
-    .execute(&mut *medbrains_db::pool::tenant_conn(&state.db, &tenant_id).await?)
-    .await?;
-    Ok(())
 }

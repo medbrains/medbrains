@@ -461,6 +461,8 @@ async fn picking_a_pack_and_collect_order_runs_the_safety_gate() {
 async fn basket_reserve_antibiotic_needs_an_indication_and_raises_a_request() {
     let app = common::spawn_app().await;
     let csrf = app.login_admin().await;
+    // A basket with a drug writes a prescription: it needs the step-up.
+    app.step_up(&app.client, &csrf, "admin123").await;
     let tenant: Uuid = sqlx::query_scalar("SELECT tenant_id FROM users WHERE username = 'admin'")
         .fetch_one(&app.db)
         .await

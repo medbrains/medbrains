@@ -14,7 +14,7 @@ import { api } from "../helpers/api";
 import { OpdWorklist } from "./pages/opd-worklist";
 import { RegistrationDesk } from "./pages/registration-desk";
 import { expectScreenAccessible } from "./support/a11y";
-import { expect, freshPerson, test } from "./support/world";
+import { confirmItsYou, expect, freshPerson, test } from "./support/world";
 
 /**
  * Every read this page sends that the server refuses. A screen must not ask
@@ -109,6 +109,7 @@ test("a patient is registered, has vitals taken, is seen, prescribed and tested,
   await visit.getByRole("textbox", { name: "Plan", exact: true }).click();
   await visit.keyboard.type("Paracetamol for fever, CBC today, review in three days");
   await visit.getByRole("button", { name: "Sign", exact: true }).click();
+  await confirmItsYou(visit, doctor.password);
   await expect(visit.getByText(/Signed \w+ \d/).first()).toBeVisible({ timeout: 15_000 });
 
   // The diagnosis.
@@ -132,11 +133,9 @@ test("a patient is registered, has vitals taken, is seen, prescribed and tested,
   const rx = visit.getByRole("row").filter({ hasText: "Paracetamol 500mg" });
   await rx.getByText("TID", { exact: true }).click();
   await expect(rx.getByRole("radio", { name: "TID" })).toBeChecked();
+  // No second prompt: the doctor confirmed it was them signing the note, and
+  // that step-up holds for five minutes.
   await visit.getByRole("button", { name: "Sign & save" }).click();
-  const confirm = visit.getByRole("dialog", { name: "Confirm it's you" });
-  await confirm.getByLabel("Password").fill(doctor.password);
-  await confirm.getByRole("button", { name: "Confirm" }).click();
-  await expect(confirm).toBeHidden({ timeout: 15_000 });
 
   // The lab order.
   await visit.getByRole("tab", { name: "Investigations" }).click();

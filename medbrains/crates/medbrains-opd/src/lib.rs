@@ -2644,7 +2644,7 @@ pub async fn create_prescription(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
     Path(encounter_id): Path<Uuid>,
-    jar: axum_extra::extract::CookieJar,
+    proof: medbrains_server_core::step_up::StepUpProof,
     Json(body): Json<CreatePrescriptionRequest>,
 ) -> Result<Json<PrescriptionWithItems>, AppError> {
     // Doctors prescribe directly; nurses may draft (Rx routes to MD countersign).
@@ -2657,7 +2657,7 @@ pub async fn create_prescription(
     )?;
     medbrains_authz_gate::require_encounter_access(&state, &claims, encounter_id).await?;
     // Prescribing — require fresh re-auth (the 5-min window keeps it light).
-    medbrains_server_core::step_up::require_step_up(&state, &jar, &claims)?;
+    medbrains_server_core::step_up::require_step_up(&state, &proof, &claims)?;
 
     if body.items.is_empty() {
         return Err(AppError::BadRequest(
@@ -3187,7 +3187,7 @@ pub async fn update_prescription(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
     Path(id): Path<Uuid>,
-    jar: axum_extra::extract::CookieJar,
+    proof: medbrains_server_core::step_up::StepUpProof,
     Json(body): Json<UpdatePrescriptionRequest>,
 ) -> Result<Json<PrescriptionWithItems>, AppError> {
     // Doctors prescribe directly; nurses may draft (Rx routes to MD countersign).
@@ -3209,7 +3209,7 @@ pub async fn update_prescription(
     )
     .await?;
     // Prescribing — require fresh re-auth (the 5-min window keeps it light).
-    medbrains_server_core::step_up::require_step_up(&state, &jar, &claims)?;
+    medbrains_server_core::step_up::require_step_up(&state, &proof, &claims)?;
 
     if body.items.is_empty() {
         return Err(AppError::BadRequest(
@@ -6138,6 +6138,7 @@ pub struct AdmitFromOpdResponse {
 pub async fn admit_from_opd(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
+    proof: medbrains_server_core::step_up::StepUpProof,
     Path(encounter_id): Path<Uuid>,
     Json(body): Json<AdmitFromOpdRequest>,
 ) -> Result<Json<AdmitFromOpdResponse>, AppError> {
@@ -6301,11 +6302,27 @@ pub async fn admit_from_opd(
     .execute(&mut *tx)
     .await?;
 
-    // 7. Copy prescriptions from OPD to IPD (prescriptions + items)
+    // 7. Copy prescriptions from OPD to IPD (prescriptions + items). Copying
+    // writes prescriptions on the inpatient visit, so a visit that has any
+    // needs the admitting user's fresh step-up, as prescribing does; one with
+    // none admits without the password. Refused, the transaction is dropped.
+    // The gate and the copy read the same rows (live prescriptions only): a
+    // deleted OPD prescription is never revived as a live inpatient one.
+    let has_prescriptions = sqlx::query_scalar!(
+        r#"SELECT EXISTS(SELECT 1 FROM prescriptions
+            WHERE encounter_id = $1 AND tenant_id = $2 AND deleted_at IS NULL) AS "exists!""#,
+        encounter_id,
+        claims.tenant_id,
+    )
+    .fetch_one(&mut *tx)
+    .await?;
+    if has_prescriptions {
+        medbrains_server_core::step_up::require_step_up(&state, &proof, &claims)?;
+    }
     let prescriptions_result = sqlx::query(
         "WITH src AS ( \
            SELECT id AS old_id FROM prescriptions \
-           WHERE encounter_id = $1 AND tenant_id = $3 \
+           WHERE encounter_id = $1 AND tenant_id = $3 AND deleted_at IS NULL \
          ), new_rx AS ( \
            INSERT INTO prescriptions (tenant_id, encounter_id, doctor_id, notes) \
            SELECT p.tenant_id, $2, p.doctor_id, p.notes \
