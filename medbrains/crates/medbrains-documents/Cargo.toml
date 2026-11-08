@@ -9,6 +9,7 @@ rust-version.workspace = true
 medbrains-authz-gate = { path = "../medbrains-authz-gate" }
 medbrains-signing = { path = "../medbrains-signing" }
 medbrains-server-core = { path = "../medbrains-server-core" }
+medbrains-kernel = { path = "../medbrains-kernel" }
 medbrains-core = { path = "../medbrains-core" }
 medbrains-db = { path = "../medbrains-db" }
 medbrains-authz = { version = "0.1.0", path = "../medbrains-authz" }

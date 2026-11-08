@@ -526,7 +526,7 @@ pub async fn sign_record(
 /// document changing, and a public check would then call every signed
 /// document altered. Schema `v2` marks payloads built this way.
 pub(crate) async fn resolve_signable_payload(
-    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    tx: &mut sqlx::PgConnection,
     tenant_id: &Uuid,
     signer_user_id: &Uuid,
     signer_role: &str,
@@ -593,7 +593,7 @@ pub(crate) async fn resolve_signable_payload(
             .bind(record_id)
             .bind(signer_role)
             .bind(signer_user_id)
-            .fetch_optional(&mut **tx)
+            .fetch_optional(&mut *tx)
             .await?
         }
         "lab_report" => {
@@ -649,7 +649,7 @@ pub(crate) async fn resolve_signable_payload(
             .bind(record_id)
             .bind(signer_role)
             .bind(signer_user_id)
-            .fetch_optional(&mut **tx)
+            .fetch_optional(&mut *tx)
             .await?
         }
         "radiology_report" => {
@@ -698,7 +698,7 @@ pub(crate) async fn resolve_signable_payload(
             .bind(record_id)
             .bind(signer_role)
             .bind(signer_user_id)
-            .fetch_optional(&mut **tx)
+            .fetch_optional(&mut *tx)
             .await?
         }
         "discharge_summary" => {
@@ -751,7 +751,7 @@ pub(crate) async fn resolve_signable_payload(
             .bind(record_id)
             .bind(signer_role)
             .bind(signer_user_id)
-            .fetch_optional(&mut **tx)
+            .fetch_optional(&mut *tx)
             .await?
         }
         _ => {

@@ -37,11 +37,10 @@ use medbrains_core::permissions;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use medbrains_server_core::{
-    error::AppError, middleware::auth::Claims, middleware::authorization::require_permission,
-    state::AppState,
-};
+use medbrains_kernel::{Actor, require_permission};
+use medbrains_server_core::{error::AppError, middleware::auth::Claims, state::AppState};
 use medbrains_signing::signing;
+use sqlx::PgConnection;
 
 use crate::signatures::resolve_signable_payload;
 
@@ -109,14 +108,19 @@ pub async fn verify_signature_public(
     }
     // The token is how the hospital is found; `app_signature_verify_link`
     // (migration 1406) reads it before any tenant is known.
+    // No hospital is known yet, so the lookup runs as the system with the nil
+    // tenant: row level security shows it nothing, and the definer function
+    // is the only way in.
+    let mut lookup = medbrains_kernel::begin(&state.db, Actor::system(Uuid::nil())).await?;
     let link = sqlx::query!(
         r#"SELECT tenant_id AS "tenant_id!", signed_record_id AS "signed_record_id!", revoked_at
            FROM app_signature_verify_link($1)"#,
         token,
     )
-    .fetch_optional(&state.db)
+    .fetch_optional(&mut *lookup)
     .await?
     .ok_or(AppError::NotFound)?;
+    drop(lookup);
 
     if let Some(revoked_at) = link.revoked_at {
         return Ok(Json(PublicSignatureCheck::Withdrawn(WithdrawnLink {
@@ -125,8 +129,9 @@ pub async fn verify_signature_public(
         })));
     }
 
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &link.tenant_id).await?;
+    // The reader is nobody this hospital knows: the check runs as the system
+    // for the token's hospital, with the same tenant context signing had.
+    let mut tx = medbrains_kernel::begin(&state.db, Actor::system(link.tenant_id)).await?;
     let check = check_signed_record(&mut tx, link.tenant_id, link.signed_record_id).await?;
     sqlx::query!(
         "UPDATE signature_verify_links \
@@ -143,7 +148,7 @@ pub async fn verify_signature_public(
 
 /// Recompute the record's hash from its source and verify the signature.
 async fn check_signed_record(
-    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    tx: &mut PgConnection,
     tenant_id: Uuid,
     signed_record_id: Uuid,
 ) -> Result<SignedDocumentCheck, AppError> {
@@ -168,7 +173,7 @@ async fn check_signed_record(
         signed_record_id,
         tenant_id,
     )
-    .fetch_optional(&mut **tx)
+    .fetch_optional(&mut *tx)
     .await?
     .ok_or(AppError::NotFound)?;
 
@@ -238,7 +243,7 @@ struct SignedSource<'a> {
 /// A record that no longer resolves (deleted, or no longer the signer's) is
 /// not the record that was signed, so the caller reports it as changed.
 async fn current_hash(
-    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    tx: &mut PgConnection,
     tenant_id: Uuid,
     source: SignedSource<'_>,
 ) -> Result<Option<[u8; 32]>, AppError> {
@@ -266,7 +271,7 @@ async fn current_hash(
 /// Runs inside the caller's transaction, so signing and its link land
 /// together; one live link per record (the partial unique index in 1406).
 pub(crate) async fn issue_link_in_tx(
-    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    tx: &mut PgConnection,
     claims: &Claims,
     signed_record_id: Uuid,
 ) -> Result<String, AppError> {
@@ -281,7 +286,7 @@ pub(crate) async fn issue_link_in_tx(
         signed_record_id,
         claims.sub,
     )
-    .fetch_one(&mut **tx)
+    .fetch_one(&mut *tx)
     .await?;
     Ok(token)
 }
@@ -303,8 +308,7 @@ pub async fn issue_verify_link(
     Path(signed_record_id): Path<Uuid>,
 ) -> Result<Json<VerifyLink>, AppError> {
     require_permission(&claims, permissions::mrd::verify_links::ISSUE)?;
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let mut tx = medbrains_kernel::begin(&state.db, Actor::from_claims(&claims)).await?;
     require_signed_record(&mut tx, claims.tenant_id, signed_record_id).await?;
     let token = issue_link_in_tx(&mut tx, &claims, signed_record_id).await?;
     tx.commit().await?;
@@ -336,8 +340,7 @@ pub async fn revoke_verify_link(
             "Say why the link is withdrawn".to_owned(),
         ));
     }
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let mut tx = medbrains_kernel::begin(&state.db, Actor::from_claims(&claims)).await?;
     require_signed_record(&mut tx, claims.tenant_id, signed_record_id).await?;
     let done = sqlx::query!(
         "UPDATE signature_verify_links \
@@ -359,7 +362,7 @@ pub async fn revoke_verify_link(
 
 /// 404 unless the signed record exists in this hospital.
 async fn require_signed_record(
-    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    tx: &mut PgConnection,
     tenant_id: Uuid,
     signed_record_id: Uuid,
 ) -> Result<(), AppError> {
@@ -369,7 +372,7 @@ async fn require_signed_record(
         signed_record_id,
         tenant_id,
     )
-    .fetch_one(&mut **tx)
+    .fetch_one(&mut *tx)
     .await?;
     if exists {
         Ok(())
