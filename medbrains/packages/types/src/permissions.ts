@@ -209,6 +209,10 @@ export const P = {
       DEPARTMENTS_DELETE: "admin.settings.departments.delete",
       DEPARTMENTS_LIST: "admin.settings.departments.list",
       DEPARTMENTS_UPDATE: "admin.settings.departments.update",
+      DICTATION: {
+        MANAGE: "admin.settings.dictation.manage",
+      },
+      DICTATION_MANAGE: "admin.settings.dictation.manage",
       FACILITIES: {
         CREATE: "admin.settings.facilities.create",
         DELETE: "admin.settings.facilities.delete",
@@ -268,6 +272,7 @@ export const P = {
     SETTINGS_DEPARTMENTS_DELETE: "admin.settings.departments.delete",
     SETTINGS_DEPARTMENTS_LIST: "admin.settings.departments.list",
     SETTINGS_DEPARTMENTS_UPDATE: "admin.settings.departments.update",
+    SETTINGS_DICTATION_MANAGE: "admin.settings.dictation.manage",
     SETTINGS_FACILITIES_CREATE: "admin.settings.facilities.create",
     SETTINGS_FACILITIES_DELETE: "admin.settings.facilities.delete",
     SETTINGS_FACILITIES_LIST: "admin.settings.facilities.list",
@@ -2330,6 +2335,10 @@ export const P = {
     DIAGNOSES_DELETE: "opd.diagnoses.delete",
     DIAGNOSES_LIST: "opd.diagnoses.list",
     DIAGNOSES_UPDATE: "opd.diagnoses.update",
+    DICTATION: {
+      USE: "opd.dictation.use",
+    },
+    DICTATION_USE: "opd.dictation.use",
     FEEDBACK: {
       CREATE: "opd.feedback.create",
       LIST: "opd.feedback.list",

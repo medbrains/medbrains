@@ -741,6 +741,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // check reaches the on-call nurse and whoever started the restraint
     // (MHCA 2017 s.97).
     medbrains_server::services::restraint_observation_escalation::spawn(worker_pool.clone());
+    // Dictation recordings never outlive 24 hours unsaved.
+    medbrains_dictation::purge::spawn(worker_pool.clone());
 
     // Early-warning scores — an urgent or emergency NEWS2/PEWS/MEOWS nobody
     // acknowledges goes to the duty doctor, then wider (NABH/IPSG).

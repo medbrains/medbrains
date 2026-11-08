@@ -327,6 +327,8 @@ pub fn build_router(state: AppState) -> Router {
         .merge(gated("pharmacy", medbrains_pharmacy::router(), &state))
         .merge(gated("pharmacy", medbrains_ward_stock::router(), &state))
         .merge(medbrains_clinical_notes::router())
+        // ── AI notes from dictation (RFC-MODULE-ai-dictation) ──
+        .merge(medbrains_dictation::router())
         // ── Pharmacy Finance (credit notes + store indents) ──
         .merge(gated("pharmacy", medbrains_pharmacy_finance::router(), &state))
         .merge(gated("pharmacy", medbrains_pharmacy_fulfilment::router(), &state))

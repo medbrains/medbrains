@@ -319,6 +319,17 @@ pub mod opd {
         pub const LIST: &str = "opd.schedule.list";
         pub const MANAGE: &str = "opd.schedule.manage";
     }
+
+    pub mod dictation {
+        /// Dictate a consultation note.
+        ///
+        /// Record or upload the doctor's own voice on an OPD visit they can
+        /// see. It is transcribed on the hospital's machine and drafted into
+        /// the consultation note for the doctor to accept, edit or reject
+        /// section by section; nothing is filed until they save, and
+        /// medicines still go through the prescription safety checks.
+        pub const USE: &str = "opd.dictation.use";
+    }
 }
 
 pub mod lab {
@@ -3556,6 +3567,16 @@ pub mod admin {
 
         pub mod regulatory {
             pub const MANAGE: &str = "admin.settings.regulatory.manage";
+        }
+
+        pub mod dictation {
+            /// Configure note dictation services.
+            ///
+            /// Where speech is transcribed (the hospital's own whisper server
+            /// by default) and which local model drafts the note. Turning on
+            /// the cloud transcription service sends doctors' recordings off
+            /// the premises, so it is a separate, deliberate setting.
+            pub const MANAGE: &str = "admin.settings.dictation.manage";
         }
 
         /// Read tenant configuration.
