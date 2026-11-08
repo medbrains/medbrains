@@ -516,6 +516,8 @@ export async function admitToIpd(
     encounterId?: string;
     admissionType?: string;
     provisionalDiagnosis?: string;
+    /** The admitting doctor; required unless the caller is a doctor admitting their own patient. */
+    doctorId?: string;
   },
 ): Promise<string> {
   const departmentId = args.departmentId ?? (await getIpdDept(ctx)).id;
@@ -537,6 +539,7 @@ export async function admitToIpd(
       admission_source: "opd",
       admission_type: args.admissionType,
       provisional_diagnosis: args.provisionalDiagnosis,
+      doctor_id: args.doctorId,
     },
   );
   return resp.admission.id;

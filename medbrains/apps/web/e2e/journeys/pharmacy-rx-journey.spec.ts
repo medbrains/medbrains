@@ -702,7 +702,12 @@ test("discharge medicines on Schedule H dispense once the doctor has finalized t
   await receiveBatch(hospital.admin, drug, { number: `DIS-${stamp()}`, expiry: inDays(300), quantity: 30 });
   const patient = await createPatientApi(hospital.admin);
   const [bed] = await freshWardBeds(hospital.admin, 1);
-  const admissionId = await admitToIpd(hospital.admin, { patientId: patient.id, bedId: bed?.bed_id });
+  const doctor = await hospital.colleague(await hospital.department("Rx Ward"));
+  const admissionId = await admitToIpd(hospital.admin, {
+    patientId: patient.id,
+    bedId: bed?.bed_id,
+    doctorId: doctor.id,
+  });
   const base = `/api/ipd/admissions/${admissionId}/discharge-summary`;
   const summary = await api<{ id: string }>(hospital.admin, "POST", base, {
     final_diagnosis: "Community-acquired pneumonia",
