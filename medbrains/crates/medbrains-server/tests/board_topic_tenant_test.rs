@@ -78,8 +78,15 @@ async fn a_bypass_session_hears_only_its_own_hospitals_boards() {
     let (mut socket, _) = tokio_tungstenite::connect_async(socket_url(&app, &token))
         .await
         .expect("socket");
-    // Let the subscription register before anything is published.
-    tokio::time::sleep(Duration::from_millis(300)).await;
+    // Publish only once the socket has really subscribed to its own board.
+    let own_board = medbrains_server_core::notification_hub::board_topic(home, "lab");
+    tokio::time::timeout(Duration::from_secs(5), async {
+        while app.state.notifications.receiver_count(&own_board).await == 0 {
+            tokio::task::yield_now().await;
+        }
+    })
+    .await
+    .expect("the socket subscribed to its own lab board");
 
     let theirs = Uuid::new_v4();
     medbrains_notifications::publish_surface_board_signal(
@@ -112,11 +119,8 @@ async fn a_bypass_session_hears_only_its_own_hospitals_boards() {
     assert_eq!(frame["entity_id"], ours.to_string());
 }
 
-/// Given an account deactivated after it signed in, its token no longer
-/// opens the socket.
-#[tokio::test]
-async fn a_deactivated_account_cannot_open_the_socket() {
-    let app = common::spawn_app().await;
+/// A nurse made through the setup screen; returns (username, token).
+async fn nurse(app: &common::TestApp) -> (String, String) {
     let csrf = app.login_admin().await;
     let tag = &Uuid::new_v4().simple().to_string()[..10];
     let (username, password) = (format!("ws{tag}"), format!("Socket#{tag}Aa9"));
@@ -132,20 +136,78 @@ async fn a_deactivated_account_cannot_open_the_socket() {
         .await
         .expect("provision");
     assert_eq!(resp.status(), StatusCode::OK);
-    let token = token_for(&app, &username, &password).await;
-    let (live, _) = tokio_tungstenite::connect_async(socket_url(&app, &token))
+    let token = token_for(app, &username, &password).await;
+    (username, token)
+}
+
+/// Change the nurse's row with `set`, then try to open a socket with the
+/// token minted before the change.
+async fn opens_after(app: &common::TestApp, set: &str) -> bool {
+    let (username, token) = nurse(app).await;
+    let (live, _) = tokio_tungstenite::connect_async(socket_url(app, &token))
         .await
         .expect("an active account's socket opens");
     drop(live);
+    sqlx::query(&format!("UPDATE users SET {set} WHERE username = $1"))
+        .bind(&username)
+        .execute(&app.db)
+        .await
+        .expect("change the account");
+    tokio_tungstenite::connect_async(socket_url(app, &token))
+        .await
+        .is_ok()
+}
 
+/// Given an account deactivated after it signed in, its token no longer
+/// opens the socket.
+#[tokio::test]
+async fn a_deactivated_account_cannot_open_the_socket() {
+    let app = common::spawn_app().await;
+    assert!(!opens_after(&app, "is_active = false").await);
+}
+
+/// Given an account deleted after it signed in, its token no longer opens the
+/// socket.
+#[tokio::test]
+async fn a_deleted_account_cannot_open_the_socket() {
+    let app = common::spawn_app().await;
+    assert!(!opens_after(&app, "deleted_at = now()").await);
+}
+
+/// Given an account whose permissions changed after it signed in, the old
+/// token no longer opens the socket.
+#[tokio::test]
+async fn a_stale_permission_version_cannot_open_the_socket() {
+    let app = common::spawn_app().await;
+    assert!(!opens_after(&app, "perm_version = perm_version + 1").await);
+}
+
+/// Given an open socket, when its account is deactivated, the socket is closed
+/// within one re-check interval.
+#[tokio::test]
+async fn an_open_socket_closes_when_its_account_is_deactivated() {
+    let app = common::spawn_app().await;
+    app.state
+        .notifications
+        .set_recheck_interval(Duration::from_millis(300));
+    let (username, token) = nurse(&app).await;
+    let (mut socket, _) = tokio_tungstenite::connect_async(socket_url(&app, &token))
+        .await
+        .expect("socket");
     sqlx::query("UPDATE users SET is_active = false WHERE username = $1")
         .bind(&username)
         .execute(&app.db)
         .await
         .expect("deactivate");
-    let refused = tokio_tungstenite::connect_async(socket_url(&app, &token)).await;
+    let closed = tokio::time::timeout(Duration::from_secs(5), async {
+        while let Some(Ok(_)) = socket.next().await {}
+    })
+    .await;
+    app.state
+        .notifications
+        .set_recheck_interval(Duration::from_secs(300));
     assert!(
-        refused.is_err(),
-        "a deactivated account's token opened the socket"
+        closed.is_ok(),
+        "the socket stayed open after the account was deactivated"
     );
 }

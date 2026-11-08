@@ -407,7 +407,7 @@ pub async fn notifications_ws_handler(
     // the board topics are chosen by are the account's real ones.
     medbrains_server_core::middleware::auth::verify_decoded(&state.db, &mut claims).await?;
     let topics = socket_topics(&claims);
-    Ok(ws.on_upgrade(move |socket| handle_notifications_socket(socket, state, topics)))
+    Ok(ws.on_upgrade(move |socket| handle_notifications_socket(socket, state, topics, claims)))
 }
 
 /// A socket never names its own topics. Subscribing to a department stream is
@@ -482,7 +482,24 @@ const SURFACE_BOARD_PERMISSIONS: &[(&str, &[&str])] = &[
     ),
 ];
 
-async fn handle_notifications_socket(socket: WebSocket, state: AppState, topics: Vec<String>) {
+/// How long until the token's `exp`, from now. Zero when it has passed.
+fn until_expiry(exp: usize) -> std::time::Duration {
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map_or(0, |d| d.as_secs());
+    let exp = u64::try_from(exp).unwrap_or(0);
+    std::time::Duration::from_secs(exp.saturating_sub(now))
+}
+
+/// Serve one socket until the client leaves, its token expires, or a
+/// periodic re-check of the account refuses it (or cannot be answered —
+/// fail closed: the client reconnects and is checked afresh).
+async fn handle_notifications_socket(
+    socket: WebSocket,
+    state: AppState,
+    topics: Vec<String>,
+    claims: Claims,
+) {
     let (mut sender, mut receiver) = socket.split();
 
     // One broadcast receiver per topic, merged into a single bounded queue so
@@ -522,11 +539,28 @@ async fn handle_notifications_socket(socket: WebSocket, state: AppState, topics:
         }
     });
 
-    // Drain inbound (ping/close) until the client disconnects.
-    while let Some(result) = receiver.next().await {
-        match result {
-            Ok(Message::Close(_)) | Err(_) => break,
-            _ => {}
+    // Drain inbound (ping/close) until the client disconnects, the token
+    // expires, or the account no longer passes the checks it passed at connect.
+    let expiry = tokio::time::sleep(until_expiry(claims.exp));
+    tokio::pin!(expiry);
+    let every = state.notifications.recheck_interval();
+    let mut recheck = tokio::time::interval_at(tokio::time::Instant::now() + every, every);
+    loop {
+        tokio::select! {
+            inbound = receiver.next() => match inbound {
+                Some(Ok(Message::Close(_)) | Err(_)) | None => break,
+                Some(Ok(_)) => {}
+            },
+            () = &mut expiry => break,
+            _ = recheck.tick() => {
+                let mut current = claims.clone();
+                if medbrains_server_core::middleware::auth::verify_decoded(&state.db, &mut current)
+                    .await
+                    .is_err()
+                {
+                    break;
+                }
+            }
         }
     }
     for forwarder in forwarders {
@@ -538,6 +572,7 @@ async fn handle_notifications_socket(socket: WebSocket, state: AppState, topics:
 #[cfg(test)]
 mod tests {
     use super::{SURFACE_BOARD_PERMISSIONS, socket_topics};
+    use medbrains_server_core::notification_hub::board_topic;
     use medbrains_server_core::middleware::auth::Claims;
     use uuid::Uuid;
 
@@ -562,9 +597,11 @@ mod tests {
     fn a_socket_only_joins_boards_its_claims_allow() {
         let lab = claims("lab_technician", &["lab.orders.list"], &[]);
         let topics = socket_topics(&lab);
-        assert!(topics.iter().any(|t| t == "board:lab"));
+        let lab_board = board_topic(lab.tenant_id, "lab");
+        let pharmacy_board = board_topic(lab.tenant_id, "pharmacy");
+        assert!(topics.contains(&lab_board), "{topics:?}");
         assert!(
-            !topics.iter().any(|t| t == "board:pharmacy"),
+            !topics.contains(&pharmacy_board),
             "lab permissions must not open the pharmacy board: {topics:?}"
         );
     }
