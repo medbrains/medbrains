@@ -240,11 +240,11 @@ async fn the_startup_back_fill_switches_off_what_vendor_accounts_set_up() {
 
     let domains = ["partner-support.example"];
     assert!(
-        back_fill(&app, &domains, 20).await.expect("flag") >= 1,
+        back_fill(&app, &domains, 20).await.expect("flag").0 >= 1,
         "nothing was flagged"
     );
     assert_eq!(
-        back_fill(&app, &domains, 20).await.expect("flag"),
+        back_fill(&app, &domains, 20).await.expect("flag").0,
         0,
         "a second run flagged again"
     );
@@ -275,15 +275,18 @@ async fn the_startup_back_fill_switches_off_what_vendor_accounts_set_up() {
     );
 }
 
-/// Run the start-up back-fill with `domains` and a ceiling of `max`.
-async fn back_fill(app: &TestApp, domains: &[&str], max: i32) -> Result<i32, String> {
-    sqlx::query_scalar::<_, i32>("SELECT public.app_flag_vendor_accounts($1, $2, $3)")
-        .bind(domains)
-        .bind(medbrains_core::vendor::PUBLIC_SUFFIXES)
-        .bind(max)
-        .fetch_one(&app.db)
-        .await
-        .map_err(|e| e.to_string())
+/// Run the start-up back-fill with `domains` and a ceiling of `max`; returns
+/// how many it flagged and which accounts it skipped.
+async fn back_fill(app: &TestApp, domains: &[&str], max: i32) -> Result<(i32, Vec<Uuid>), String> {
+    sqlx::query_as::<_, (i32, Vec<Uuid>)>(
+        "SELECT flagged, skipped FROM public.app_flag_vendor_accounts($1, $2, $3)",
+    )
+    .bind(domains)
+    .bind(medbrains_core::vendor::PUBLIC_SUFFIXES)
+    .bind(max)
+    .fetch_one(&app.db)
+    .await
+    .map_err(|e| e.to_string())
 }
 
 /// Whether `user` is flagged as a vendor account.
@@ -318,8 +321,8 @@ async fn a_public_suffix_is_refused() {
     assert_eq!(medbrains_core::vendor::parse_domains("in").1, vec!["in"]);
 }
 
-/// Given a domain that is the hospital's own (its site domain, or the domain
-/// its administrator signs in with), the back-fill refuses and flags no one.
+/// Given a domain that is the hospital's own site domain, the back-fill
+/// refuses (a mistake in the list) and flags no one.
 #[tokio::test]
 async fn the_hospitals_own_domain_is_refused() {
     let app = common::spawn_app().await;
@@ -335,21 +338,8 @@ async fn the_hospitals_own_domain_is_refused() {
     let refused = back_fill(&app, &[site.as_str()], 20)
         .await
         .expect_err("site domain accepted");
-    assert!(refused.contains("own domain"), "{refused}");
+    assert!(refused.contains("own site domain"), "{refused}");
     assert!(!flagged(&app, staff).await);
-
-    let mail = fresh_domain("mail");
-    let admin = user_with_email(&app, tenant, &format!("chief@{mail}")).await;
-    sqlx::query("UPDATE users SET role = 'hospital_admin' WHERE id = $1")
-        .bind(admin)
-        .execute(&app.db)
-        .await
-        .expect("admin");
-    let refused = back_fill(&app, &[mail.as_str()], 20)
-        .await
-        .expect_err("admin domain accepted");
-    assert!(refused.contains("own domain"), "{refused}");
-    assert!(!flagged(&app, admin).await);
 }
 
 /// Given more matching accounts than the ceiling, the back-fill refuses and
@@ -372,16 +362,20 @@ async fn the_ceiling_stops_the_back_fill() {
     }
 }
 
-/// Given the seeded admin as a hospital's only administrator, adding its
-/// domain (what `MEDBRAINS_HOSTED=true` does) is refused rather than locking
-/// the hospital out.
+/// Given a hospital whose only administrator is on a vendor domain (what
+/// `MEDBRAINS_HOSTED=true` does to the seeded admin), the back-fill skips that
+/// account and reports it, and does not stop the boot.
 #[tokio::test]
-async fn hosted_mode_never_locks_a_hospital_out() {
+async fn the_last_administrator_is_skipped_and_the_boot_goes_on() {
     let app = common::spawn_app().await;
     let other: Uuid = sqlx::query_scalar(
-        "INSERT INTO tenants (code, name, hospital_type) VALUES ($1, 'Lone', 'standalone_clinic') RETURNING id",
+        "INSERT INTO tenants (code, name, hospital_type) VALUES ($1, 'Lone', 'standalone_clinic') \
+         RETURNING id",
     )
-    .bind(format!("LN{}", &Uuid::new_v4().simple().to_string()[..8].to_uppercase()))
+    .bind(format!(
+        "LN{}",
+        &Uuid::new_v4().simple().to_string()[..8].to_uppercase()
+    ))
     .fetch_one(&app.db)
     .await
     .expect("tenant");
@@ -392,11 +386,67 @@ async fn hosted_mode_never_locks_a_hospital_out() {
         .execute(&app.db)
         .await
         .expect("admin");
-    let refused = back_fill(&app, &[lone.as_str()], 20)
+    let (flagged_now, skipped) = back_fill(&app, &[lone.as_str()], 20)
         .await
-        .expect_err("lock-out accepted");
-    assert!(refused.contains("no administrator"), "{refused}");
+        .expect("boot went on");
+    assert_eq!(flagged_now, 0);
+    assert_eq!(skipped, vec![only_admin]);
     assert!(!flagged(&app, only_admin).await);
+}
+
+/// Given a hospital administrator on a vendor domain in a hospital that has
+/// other administrators — active or not, the boot does not stop: the account
+/// is flagged. A deactivated one does not count as the hospital's
+/// administrator, so it neither blocks the boot nor keeps a hospital "covered".
+#[tokio::test]
+async fn a_vendor_domain_administrator_does_not_stop_the_boot() {
+    let app = common::spawn_app().await;
+    let (tenant, _) = home(&app).await;
+    let eng = fresh_domain("onboard");
+    let engineer = user_with_email(&app, tenant, &format!("eng@{eng}")).await;
+    let gone = user_with_email(&app, tenant, &format!("old@{eng}")).await;
+    sqlx::query(
+        "UPDATE users SET role = 'hospital_admin', is_active = (id = $1) WHERE id IN ($1, $2)",
+    )
+    .bind(engineer)
+    .bind(gone)
+    .execute(&app.db)
+    .await
+    .expect("admins");
+    let (flagged_now, skipped) = back_fill(&app, &[eng.as_str()], 20)
+        .await
+        .expect("boot went on");
+    assert_eq!(flagged_now, 2);
+    assert!(skipped.is_empty(), "{skipped:?}");
+    assert!(flagged(&app, engineer).await && flagged(&app, gone).await);
+}
+
+/// Given the stored list (`medbrains.in` by default), an administrator created
+/// after the migration on that domain is flagged as it is written, and so is
+/// an account whose address moves onto it.
+#[tokio::test]
+async fn a_vendor_domain_account_is_flagged_when_written() {
+    let app = common::spawn_app().await;
+    let (tenant, _) = home(&app).await;
+    let onboarding = user_with_email(&app, tenant, "onboarding@medbrains.in").await;
+    sqlx::query("UPDATE users SET role = 'hospital_admin' WHERE id = $1")
+        .bind(onboarding)
+        .execute(&app.db)
+        .await
+        .expect("admin");
+    assert!(flagged(&app, onboarding).await, "not flagged on insert");
+
+    let moved = user_with_email(&app, tenant, "desk@example.test").await;
+    assert!(!flagged(&app, moved).await);
+    sqlx::query("UPDATE users SET email = 'moved.' || id || '@help.medbrains.in' WHERE id = $1")
+        .bind(moved)
+        .execute(&app.db)
+        .await
+        .expect("move");
+    assert!(
+        flagged(&app, moved).await,
+        "not flagged when the address moved"
+    );
 }
 
 /// Given a correct list, only the accounts on it are flagged.
@@ -410,7 +460,8 @@ async fn a_correct_list_flags_only_vendor_accounts() {
     assert_eq!(
         back_fill(&app, &[support.as_str()], 20)
             .await
-            .expect("flag"),
+            .expect("flag")
+            .0,
         1
     );
     assert!(flagged(&app, vendor).await);

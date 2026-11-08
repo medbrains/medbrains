@@ -1,8 +1,8 @@
 -- ====================================================================
 -- Migration: 1420_vendor_access_grants.sql
--- RLS-Posture: tenant-scoped
+-- RLS-Posture: tenant-scoped (vendor_email_domains is a global catalog the boot writes)
 -- Tenant-Column: tenant_id
--- New-Tables: vendor_access_grants, vendor_access_events, vendor_credential_revocations
+-- New-Tables: vendor_access_grants, vendor_access_events, vendor_credential_revocations, vendor_email_domains
 -- Drops: none
 -- ====================================================================
 -- MedBrains staff reaching a hospital's data, only with that hospital's say.
@@ -368,28 +368,76 @@ REVOKE ALL ON FUNCTION public.app_user_is_vendor(uuid, text[]) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION public.app_user_is_vendor(uuid, text[])
     TO medbrains_app, medbrains_outbox_worker;
 
+-- ── The live vendor-domain list, for code inside the database ─────────
+-- Global, not per hospital: the server writes the list it runs with at every
+-- boot (`app_set_vendor_domains`), so the trigger below flags an account the
+-- moment it is created or renamed onto a vendor domain. Seeded with the
+-- default so a server that has not booted since this migration still flags.
+CREATE TABLE public.vendor_email_domains (
+    domain text PRIMARY KEY CHECK (domain ~ '^[a-z0-9-]+(\.[a-z0-9-]+)+$')
+);
+INSERT INTO public.vendor_email_domains (domain) VALUES ('medbrains.in');
+REVOKE ALL ON public.vendor_email_domains FROM PUBLIC, medbrains_app, medbrains_outbox_worker;
+-- Read and written only through the SECURITY DEFINER functions below, which run
+-- as the owner; row security without FORCE lets the owner through and no one
+-- else.
+ALTER TABLE public.vendor_email_domains ENABLE ROW LEVEL SECURITY;
+CREATE POLICY vendor_email_domains_owner_only ON public.vendor_email_domains USING (false);
+
+-- Replace the stored list with the one the server runs with.
+CREATE OR REPLACE FUNCTION public.app_set_vendor_domains(p_domains text[])
+RETURNS void
+LANGUAGE sql
+SECURITY DEFINER
+SET search_path = public, pg_temp
+AS $$
+    DELETE FROM public.vendor_email_domains WHERE domain <> ALL (p_domains);
+    INSERT INTO public.vendor_email_domains (domain)
+    SELECT DISTINCT d FROM unnest(p_domains) AS d ON CONFLICT DO NOTHING;
+$$;
+REVOKE ALL ON FUNCTION public.app_set_vendor_domains(text[]) FROM PUBLIC;
+
+-- An account created on, or moved to, a vendor domain is flagged then and
+-- there; the AFTER trigger above revokes what it holds. Never clears a flag.
+CREATE OR REPLACE FUNCTION public.users_flag_vendor_on_write()
+RETURNS trigger
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public, pg_temp
+AS $$
+BEGIN
+    IF NOT NEW.is_vendor_staff
+       AND public.app_email_is_vendor(
+               NEW.email, ARRAY(SELECT domain FROM public.vendor_email_domains)) THEN
+        NEW.is_vendor_staff := true;
+    END IF;
+    RETURN NEW;
+END;
+$$;
+
+CREATE TRIGGER trg_users_flag_vendor_on_write BEFORE INSERT OR UPDATE OF email ON public.users
+    FOR EACH ROW EXECUTE FUNCTION public.users_flag_vendor_on_write();
+
 -- Flag every account on the live domain list, in every hospital: run at each
--- server start with MEDBRAINS_VENDOR_EMAIL_DOMAINS, because the back-fill
--- below only knows the default domain. Idempotent (flagged accounts are
--- skipped); each newly flagged account's revocations go to its hospital's
--- audit chain through the trigger. Returns how many accounts it flagged.
+-- server start, because accounts made before this migration, or before a
+-- domain joined the list, were never flagged. Idempotent; each newly flagged
+-- account's revocations go to its hospital's audit chain through the trigger.
 --
--- Flagging is permanent and revokes everything an account set up, so a wrong
--- list would do lasting harm on the next boot. It refuses, raising an error
--- that stops the boot and flags nothing, when:
---   * an entry has no dot or is a public suffix (`in`, `co.in`, ...);
---   * an entry is, or is a parent of, a hospital's own site domain;
---   * an entry matches an email domain a hospital's own administrator uses;
---   * it would flag more than `p_max` accounts, or any `hospital_admin`;
---   * it would leave a hospital with no administrator who is not a vendor
---     account (`MEDBRAINS_HOSTED=true` on a hospital's own server, whose only
---     administrator is the seeded `admin@medbrains.localhost`).
+-- Only a mistake in the list itself stops the boot (raises, flagging no one):
+--   * an entry with no dot, or a public suffix (`in`, `co.in`, ...);
+--   * an entry that is, or is a parent of, a hospital's own site domain;
+--   * a list that would flag more than `p_max` accounts.
+-- Anything about one account is not a reason to take every hospital offline.
+-- An account whose flag would leave its hospital with no active, non-deleted
+-- administrator who is not a vendor account is skipped instead (still gated at
+-- request time by the domain rule) and returned in `skipped`, for the server
+-- to log as an error.
 CREATE OR REPLACE FUNCTION public.app_flag_vendor_accounts(
     p_domains text[],
     p_public_suffixes text[],
     p_max integer
 )
-RETURNS integer
+RETURNS TABLE (flagged integer, skipped uuid[])
 LANGUAGE plpgsql
 SECURITY DEFINER
 SET search_path = public, pg_temp
@@ -397,8 +445,9 @@ AS $$
 DECLARE
     v_bad text[];
     v_count integer;
-    v_admins integer;
-    v_flagged integer;
+    v_flagged integer := 0;
+    v_skipped uuid[] := '{}';
+    r record;
 BEGIN
     SELECT array_agg(d) INTO v_bad FROM unnest(p_domains) AS d
      WHERE position('.' IN d) = 0 OR d = ANY (p_public_suffixes);
@@ -409,62 +458,60 @@ BEGIN
 
     SELECT array_agg(DISTINCT d) INTO v_bad FROM unnest(p_domains) AS d
      WHERE EXISTS (SELECT 1 FROM public.site_domains s
-                    WHERE public.app_email_is_vendor('x@' || s.domain, ARRAY[d]))
-        OR EXISTS (SELECT 1 FROM public.users u
-                    WHERE u.role::text = 'hospital_admin' AND NOT u.is_vendor_staff
-                      AND u.deleted_at IS NULL
-                      AND public.app_email_is_vendor(u.email, ARRAY[d]));
+                    WHERE public.app_email_is_vendor('x@' || s.domain, ARRAY[d]));
     IF v_bad IS NOT NULL THEN
-        RAISE EXCEPTION 'vendor domain list refused: % is a hospital''s own domain or its '
-            'administrators'' email domain', v_bad;
+        RAISE EXCEPTION 'vendor domain list refused: % is a hospital''s own site domain', v_bad;
     END IF;
 
-    SELECT count(*), count(*) FILTER (WHERE role::text = 'hospital_admin')
-      INTO v_count, v_admins
-      FROM public.users
+    SELECT count(*) INTO v_count FROM public.users
      WHERE NOT is_vendor_staff AND deleted_at IS NULL
        AND public.app_email_is_vendor(email, p_domains);
-    IF v_admins > 0 THEN
-        RAISE EXCEPTION 'vendor back-fill refused: it would flag % hospital administrator(s)',
-            v_admins;
-    END IF;
     IF v_count > p_max THEN
         RAISE EXCEPTION 'vendor back-fill refused: it would flag % accounts, over the ceiling '
             'of % (MEDBRAINS_VENDOR_BACKFILL_MAX); check MEDBRAINS_VENDOR_EMAIL_DOMAINS',
             v_count, p_max;
     END IF;
 
-    IF EXISTS (
-        SELECT 1 FROM public.tenants t
-         WHERE EXISTS (SELECT 1 FROM public.users u
-                        WHERE u.tenant_id = t.id AND NOT u.is_vendor_staff
-                          AND u.deleted_at IS NULL AND u.is_active
-                          AND u.role::text IN ('super_admin', 'hospital_admin')
-                          AND public.app_email_is_vendor(u.email, p_domains))
-           AND NOT EXISTS (SELECT 1 FROM public.users u
-                            WHERE u.tenant_id = t.id AND u.deleted_at IS NULL AND u.is_active
-                              AND u.role::text IN ('super_admin', 'hospital_admin')
-                              AND NOT (u.is_vendor_staff
-                                       OR public.app_email_is_vendor(u.email, p_domains)))
-    ) THEN
-        RAISE EXCEPTION 'vendor back-fill refused: it would leave a hospital with no '
-            'administrator of its own; hand over an administrator account first '
-            '(docs/compliance/vendor-access.md)';
-    END IF;
+    FOR r IN
+        SELECT u.id, u.tenant_id,
+               (u.is_active AND u.role::text IN ('super_admin', 'hospital_admin')) AS is_admin
+          FROM public.users u
+         WHERE NOT u.is_vendor_staff AND u.deleted_at IS NULL
+           AND public.app_email_is_vendor(u.email, p_domains)
+         ORDER BY 3, u.id
+    LOOP
+        IF r.is_admin AND NOT EXISTS (
+            SELECT 1 FROM public.users o
+             WHERE o.tenant_id = r.tenant_id AND o.id <> r.id
+               AND o.is_active AND o.deleted_at IS NULL
+               AND o.role::text IN ('super_admin', 'hospital_admin')
+               AND NOT (o.is_vendor_staff OR public.app_email_is_vendor(o.email, p_domains))
+        ) THEN
+            v_skipped := v_skipped || r.id;
+            CONTINUE;
+        END IF;
+        UPDATE public.users SET is_vendor_staff = true WHERE id = r.id;
+        v_flagged := v_flagged + 1;
+    END LOOP;
 
-    UPDATE public.users SET is_vendor_staff = true
-     WHERE NOT is_vendor_staff AND public.app_email_is_vendor(email, p_domains);
-    GET DIAGNOSTICS v_flagged = ROW_COUNT;
-    RETURN v_flagged;
+    flagged := v_flagged;
+    skipped := v_skipped;
+    RETURN NEXT;
 END;
 $$;
 
 REVOKE ALL ON FUNCTION public.app_flag_vendor_accounts(text[], text[], integer) FROM PUBLIC;
 
 -- Back-fill: accounts already on the default MedBrains domain become MedBrains
--- accounts now, which revokes what they made. A deployment with other domains
--- in MEDBRAINS_VENDOR_EMAIL_DOMAINS is gated at sign-in by the domain rule and
--- its credentials by the API-key and device checks; flagging those accounts is
--- the operator's step (docs/compliance/vendor-access.md).
-UPDATE public.users SET is_vendor_staff = true
- WHERE NOT is_vendor_staff AND public.app_email_is_vendor(email, ARRAY['medbrains.in']);
+-- accounts now, which revokes what they made — through the same guarded
+-- function the boot uses, so a hospital's last administrator is skipped, not
+-- locked out. A refusal here never fails the migration: the boot runs the same
+-- pass with the configured list and stops there, with its reason, if the list
+-- is wrong.
+DO $$
+BEGIN
+    PERFORM public.app_flag_vendor_accounts(ARRAY['medbrains.in'], ARRAY[]::text[], 2147483647);
+EXCEPTION WHEN raise_exception THEN
+    RAISE WARNING 'vendor back-fill skipped in migration 1420: %', SQLERRM;
+END;
+$$;

@@ -395,14 +395,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // whose roles table was never populated — or was emptied.
     medbrains_seed::reconcile_built_in_roles(&bootstrap_pool).await?;
 
-    // Every account on the live vendor-domain list becomes a vendor account
-    // now, which revokes the keys, channels and devices it set up (audited per
-    // hospital). Migration 1420 only knew the default domain; this run knows
-    // the configured ones. Idempotent, so every start repeats it safely.
-    // A list entry that is a single label or public suffix is refused loudly
-    // rather than dropped quietly; the database refuses the rest (a hospital's
-    // own domain, too many accounts, an administrator, a hospital left with
-    // no administrator) and the boot stops with its reason.
+    // The live vendor-domain list, then the back-fill. Only a mistake in the
+    // list itself stops the boot: a single label or public suffix, a
+    // hospital's own site domain, or more accounts than the ceiling. One
+    // account never takes every hospital offline: an account whose flag would
+    // leave its hospital with no administrator of its own is skipped (it is
+    // still gated at request time by the domain rule) and logged as an error,
+    // which the error-tracking layer raises to platform operators.
     let refused = medbrains_core::vendor::configured_refusals();
     if !refused.is_empty() {
         return Err(format!(
@@ -412,15 +411,29 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         )
         .into());
     }
-    let flagged: i32 = sqlx::query_scalar("SELECT public.app_flag_vendor_accounts($1, $2, $3)")
-        .bind(medbrains_core::vendor::vendor_domains())
-        .bind(medbrains_core::vendor::PUBLIC_SUFFIXES)
-        .bind(medbrains_core::vendor::backfill_max())
-        .fetch_one(&bootstrap_pool)
-        .await
-        .map_err(|e| format!("vendor-account back-fill refused, server not started: {e}"))?;
+    let domains = medbrains_core::vendor::vendor_domains();
+    let (flagged, skipped): (i32, Vec<uuid::Uuid>) =
+        sqlx::query_as("SELECT flagged, skipped FROM public.app_flag_vendor_accounts($1, $2, $3)")
+            .bind(&domains)
+            .bind(medbrains_core::vendor::PUBLIC_SUFFIXES)
+            .bind(medbrains_core::vendor::backfill_max())
+            .fetch_one(&bootstrap_pool)
+            .await
+            .map_err(|e| format!("vendor-domain list refused, server not started: {e}"))?;
+    sqlx::query("SELECT public.app_set_vendor_domains($1)")
+        .bind(&domains)
+        .execute(&bootstrap_pool)
+        .await?;
     if flagged > 0 {
         tracing::warn!(flagged, "accounts on vendor domains flagged; what they set up is revoked");
+    }
+    for user_id in skipped {
+        tracing::error!(
+            %user_id,
+            "vendor-domain account not flagged: it is its hospital's last administrator. It is \
+             still refused without a grant; hand the hospital an administrator account of its \
+             own (docs/compliance/vendor-access.md)"
+        );
     }
 
     // Every startup check, reported at once; production does not serve on a
