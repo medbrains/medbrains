@@ -19,7 +19,7 @@ export interface PermissionDef {
   module: string;
 }
 
-/** 1224 permissions, one per constant in the Rust source. */
+/** 1226 permissions, one per constant in the Rust source. */
 export const PERMISSIONS: PermissionDef[] = [
   // dashboard
   {
@@ -1115,6 +1115,18 @@ export const PERMISSIONS: PermissionDef[] = [
     code: "billing.payments.configure",
     label: "Configure online payment providers",
     description: "Choose the hospital's online payment provider (Razorpay, Cashfree, PhonePe, PayU), a fallback for when it is down, a different one for a counter, set its keys and test that it answers. Keys are write-only: no screen ever shows a stored secret.",
+    module: "billing",
+  },
+  {
+    code: "billing.payment_settings.view",
+    label: "View billing payment settings",
+    description: "See the hospital's UPI ID and its payment-link terms (part payments, least part, days a link stays open, reminders).",
+    module: "billing",
+  },
+  {
+    code: "billing.payment_settings.manage",
+    label: "Change billing payment settings",
+    description: "Change the hospital's UPI ID and its payment-link terms.",
     module: "billing",
   },
   {
@@ -8338,6 +8350,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.BILLING.LEAKAGE.RESOLVE,
       P.BILLING.LEAKAGE.VIEW,
       P.BILLING.PAYER_SPLIT.MANAGE,
+      P.BILLING.PAYMENT_SETTINGS.VIEW,
       P.BILLING.PAYMENTS.CREATE,
       P.BILLING.PAYMENTS.RECONCILE,
       P.BILLING.PAYMENTS.VOID,

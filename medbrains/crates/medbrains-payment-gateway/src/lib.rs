@@ -2,6 +2,7 @@ pub mod balance_link;
 pub mod checkout;
 pub mod online;
 pub mod payment_link;
+pub mod payment_settings;
 pub mod pos;
 pub mod razorpay;
 pub mod refund;
@@ -1190,6 +1191,10 @@ fn mask_key_id(key_id: &str) -> String {
 /// Payment gateway (orders, POS, refunds, exceptions, provider webhooks) authed routes.
 pub fn router() -> axum::Router<AppState> {
     axum::Router::new()
+        .route(
+            "/api/billing/payment-settings",
+            get(payment_settings::get_payment_settings).put(payment_settings::put_payment_settings),
+        )
         .route("/api/payments/create-order", post(checkout::create_order))
         .route("/api/payments/pos-sale", post(pos::start::start_sale))
         .route("/api/payments/pos-sale/{id}", get(pos::sale::sale_status))

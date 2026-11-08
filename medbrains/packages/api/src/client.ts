@@ -198,6 +198,7 @@ import type {
   BillingLaneInput,
   BillingLaneName,
   BillingPackage,
+  BillingPaymentSettings,
   BillingQueueDisplay,
   BillingServicePackage,
   BillingSummaryReport,
@@ -2315,6 +2316,7 @@ import type {
   UpdateBedStatusRequest,
   UpdateBedsideRequestStatusPayload,
   UpdateBedsideVideoRequest,
+  UpdateBillingPaymentSettings,
   UpdateBirthRecordRequest,
   UpdateBmeBreakdownStatusRequest,
   UpdateBmeCalibrationRequest,
@@ -17069,6 +17071,13 @@ export const api = {
     }),
   cancelPaymentLink: (id: string) =>
     request<PaymentLinkView>(`/payments/links/${id}/cancel`, { method: "POST" }),
+  /** The billing screen's UPI ID and payment-link terms (never provider keys). */
+  getBillingPaymentSettings: () => request<BillingPaymentSettings>("/billing/payment-settings"),
+  updateBillingPaymentSettings: (data: UpdateBillingPaymentSettings) =>
+    request<BillingPaymentSettings>("/billing/payment-settings", {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
   getOnlineSettings: () => request<OnlineSettings>("/payments/online-settings"),
   updateOnlineSettings: (data: ChooseProviders) =>
     request<ChooseProviders>("/payments/online-settings", {
