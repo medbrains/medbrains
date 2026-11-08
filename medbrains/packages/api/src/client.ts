@@ -17766,7 +17766,8 @@ export const api = {
   getMyActiveCashDrawer: () => request<unknown | null>("/pharmacy/cash-drawers/me/active"),
 
   // Day close
-  listCounterDays: () => request<CounterDay[]>("/pharmacy/day-close"),
+  listCounterDays: (q?: string) =>
+    request<CounterDay[]>(`/pharmacy/day-close${q ? `?q=${encodeURIComponent(q)}` : ""}`),
   getDayCloseReport: (params: { pharmacy_location_id: string; business_date: string }) =>
     request<DayReport>(`/pharmacy/day-close/report?${new URLSearchParams(params)}`),
   closeCounterDay: (data: CloseDayRequest) =>

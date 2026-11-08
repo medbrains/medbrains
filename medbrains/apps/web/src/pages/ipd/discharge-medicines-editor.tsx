@@ -17,8 +17,10 @@ const MAX_MEDICINES = 50;
 
 /** Edits the medicines a patient goes home with, one formulary drug per row. */
 export function DischargeMedicinesEditor({ value, onChange }: DischargeMedicinesEditorProps) {
+  /** Changes one row's quantity or instructions. */
   const update = (index: number, patch: Partial<DischargeMedicine>) =>
     onChange(value.map((m, i) => (i === index ? { ...m, ...patch } : m)));
+  /** Adds a picked formulary drug once; picking it again keeps the existing row. */
   const add = (catalogItemId: string, drugName: string) => {
     if (!catalogItemId || value.some((m) => m.catalog_item_id === catalogItemId)) return;
     onChange([...value, { catalog_item_id: catalogItemId, drug_name: drugName, quantity: 1 }]);

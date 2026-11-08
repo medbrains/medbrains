@@ -292,6 +292,8 @@ test("a prescription is reviewed, dispensed from the earliest-expiring batch, bi
   await expect(cashUp).toBeHidden();
 
   await page.goto("/pharmacy/finance?tab=day-close");
+  // A hospital with many counters finds its own by name.
+  await page.getByRole("textbox", { name: "Find a counter" }).fill(counter);
   const day = page.getByRole("row").filter({ hasText: counter });
   await day.getByRole("button", { name: "Open day" }).click();
   const panel = page.getByRole("dialog", { name: new RegExp(counter) });

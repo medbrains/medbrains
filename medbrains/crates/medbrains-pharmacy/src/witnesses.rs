@@ -19,8 +19,8 @@ use axum::{
 use medbrains_core::permissions;
 use medbrains_kernel::{Actor, Claims, require_permission};
 use medbrains_server_core::error::AppError;
-use medbrains_server_core::step_up::{PasswordCheck, check_user_password};
 use medbrains_server_core::state::AppState;
+use medbrains_server_core::step_up::{PasswordCheck, check_user_password};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -48,12 +48,7 @@ pub async fn list_dispense_witnesses(
     Extension(claims): Extension<Claims>,
     Query(query): Query<WitnessQuery>,
 ) -> Result<Json<Vec<DispenseWitness>>, AppError> {
-    let name = query
-        .q
-        .as_deref()
-        .map(str::trim)
-        .filter(|q| !q.is_empty())
-        .map(|q| format!("%{}%", q.replace('\\', "\\\\").replace('%', "\\%").replace('_', "\\_")));
+    let name = medbrains_server_core::search::contains_pattern(query.q.as_deref());
     require_permission(&claims, permissions::pharmacy::dispensing::CREATE)?;
     let mut tx = medbrains_kernel::begin(&state.db, Actor::from_claims(&claims)).await?;
     let rows = sqlx::query_as!(
@@ -151,9 +146,12 @@ pub async fn verify_witness(
                 .to_owned(),
         ));
     };
-    let password = password.map(str::trim).filter(|p| !p.is_empty()).ok_or_else(|| {
-        AppError::BadRequest("The witness must confirm with their own password.".to_owned())
-    })?;
+    let password = password
+        .map(str::trim)
+        .filter(|p| !p.is_empty())
+        .ok_or_else(|| {
+            AppError::BadRequest("The witness must confirm with their own password.".to_owned())
+        })?;
     match check_user_password(
         state,
         (witness_id, claims.tenant_id),
