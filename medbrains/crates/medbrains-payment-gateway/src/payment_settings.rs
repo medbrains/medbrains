@@ -17,6 +17,8 @@ use medbrains_server_core::state::AppState;
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 
+use crate::payment_settings_notice as notice;
+
 /// Setting key of the hospital's UPI ID.
 const UPI_KEY: &str = "upi_vpa";
 /// Setting key of the payment-link terms.
@@ -159,7 +161,8 @@ pub async fn put_payment_settings(
         check_terms(terms)?;
     }
     let actor = Actor::from_claims(&claims);
-    medbrains_kernel::work::<_, AppError, _>(&state.db, actor, async |tx| {
+    let (saved, told) = medbrains_kernel::work::<_, AppError, _>(&state.db, actor, async |tx| {
+        let before = current(tx).await?;
         if let Some(vpa) = upi {
             write(tx, UPI_KEY, &json!(Some(vpa).filter(|v| !v.is_empty()))).await?;
         }
@@ -167,24 +170,44 @@ pub async fn put_payment_settings(
             write(tx, LINK_KEY, &json!(terms)).await?;
         }
         let saved = current(tx).await?;
-        let values = json!({ "upi_vpa": saved.upi_vpa, "balance_link": saved.balance_link });
-        audit(
-            tx,
-            &AuditEntry {
-                tenant_id: actor.tenant_id,
-                user_id: Some(actor.user_id),
-                action: "update",
-                entity_type: "billing_payment_settings",
-                entity_id: None,
-                old_values: None,
-                new_values: Some(&values),
-                ip_address: None,
-            },
-        )
-        .await?;
-        Ok(Json(saved))
+        record(tx, &before, &saved).await?;
+        let changes = notice::describe(&before, &saved);
+        let told = if changes.is_empty() {
+            Vec::new()
+        } else {
+            notice::tell_management(tx, &changes).await?
+        };
+        Ok((saved, told))
     })
-    .await
+    .await?;
+    notice::publish(&state, actor.tenant_id, &told);
+    Ok(Json(saved))
+}
+
+/// Put the change on the audit chain, old and new values both.
+async fn record(
+    tx: &mut Tx,
+    before: &PaymentSettings,
+    after: &PaymentSettings,
+) -> Result<(), AppError> {
+    let actor = tx.actor();
+    let old = json!({ "upi_vpa": before.upi_vpa, "balance_link": before.balance_link });
+    let new = json!({ "upi_vpa": after.upi_vpa, "balance_link": after.balance_link });
+    audit(
+        tx,
+        &AuditEntry {
+            tenant_id: actor.tenant_id,
+            user_id: Some(actor.user_id),
+            action: "update",
+            entity_type: "billing_payment_settings",
+            entity_id: None,
+            old_values: Some(&old),
+            new_values: Some(&new),
+            ip_address: None,
+        },
+    )
+    .await?;
+    Ok(())
 }
 
 #[cfg(test)]

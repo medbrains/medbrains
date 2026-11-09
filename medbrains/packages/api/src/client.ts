@@ -976,6 +976,7 @@ import type {
   DialysisSession,
   DialysisSlot,
   Dialyzer,
+  DictationConfig,
   DietOrder,
   // Diet & Kitchen
   DietTemplate,
@@ -2067,8 +2068,10 @@ import type {
   ReviewIndwellingDeviceRequest,
   ReviewPharmacyPrescriptionRequest,
   ReviewPostAction,
+  ReviewRequest,
   ReviewRoiInput,
   ReviewStewardshipRequest,
+  ReviewSummary,
   RevokeConsentRequest,
   RevokeCredentialRequest,
   RevokePassRequest,
@@ -2130,6 +2133,7 @@ import type {
   ServiceBondAgreementPrintData,
   ServiceRow,
   ServiceTimeStats,
+  SessionView,
   SetCampusFenceRequest,
   SetDiagnosisCodingRequest,
   SetDonorDeferralRequest,
@@ -5385,6 +5389,32 @@ export const api = {
     request<Note>(`/clinical-notes/${noteId}/entered-in-error`, {
       method: "POST",
       body: JSON.stringify({ reason }),
+    }),
+
+  // ── AI notes from dictation (RFC-MODULE-ai-dictation) ──
+  /** The recording is the body; the server transcribes it and drafts the note. */
+  createDictation: (
+    encounterId: string,
+    audio: Blob,
+    durationMs: number,
+    source: "recorded" | "uploaded",
+  ) =>
+    request<SessionView>(
+      `/opd/encounters/${encounterId}/dictations?duration_ms=${Math.round(durationMs)}&source=${source}`,
+      { method: "POST", body: audio, headers: { "Content-Type": audio.type || "audio/webm" } },
+    ),
+  retryDictation: (dictationId: string) =>
+    request<SessionView>(`/opd/dictations/${dictationId}/retry`, { method: "POST", body: "{}" }),
+  reviewDictation: (dictationId: string, data: ReviewRequest) =>
+    request<ReviewSummary>(`/opd/dictations/${dictationId}/review`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  getDictationSettings: () => request<DictationConfig>("/admin/dictation/settings"),
+  saveDictationSettings: (data: DictationConfig) =>
+    request<DictationConfig>("/admin/dictation/settings", {
+      method: "PUT",
+      body: JSON.stringify(data),
     }),
 
   // ── Procedure Catalog & Orders ──────────────────────────

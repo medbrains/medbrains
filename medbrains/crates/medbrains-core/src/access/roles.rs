@@ -119,6 +119,9 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
             permissions::opd::consents::PRINT,
             permissions::opd::consents::REPRINT,
             permissions::opd::consents::REVOKE,
+            // Dictates their own consultation notes; a draft only, reviewed
+            // section by section before it is saved.
+            permissions::opd::dictation::USE,
             // Emergency clinical work
             permissions::emergency::visits::LIST,
             permissions::emergency::visits::UPDATE,
@@ -2158,6 +2161,8 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
         name: "Medical Superintendent",
         description: "Clinical head of the hospital — second approver of clinical flow changes",
         permissions: &[
+            // Management is told when the hospital's UPI ID or link terms change.
+            permissions::billing::payment_settings::NOTIFIED,
             // This week vs usual, public notices, heat and air (RFC-OSINT §4).
             permissions::health::intel::VIEW,
             // Clinical flows (discharge, referrals, admission, orders) change
