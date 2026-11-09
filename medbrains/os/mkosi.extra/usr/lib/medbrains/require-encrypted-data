@@ -1,0 +1,31 @@
+#!/bin/bash
+# Refuses to let the identity provider start if its signing keys would sit on an unencrypted disk: Kanidm
+# keeps them unsealed, so a copy of that disk can forge a token for anyone. Only a debug image, whose build
+# leaves a marker on the system partition, may go on without encryption, and it says so.
+#
+# Passing needs two things: the data partition is dm-crypt, and disk-setup recorded that it is sealed. The
+# second matters because a machine with no TPM can choose to store data unencrypted, and that is still
+# dm-crypt, with an empty key. An answer we cannot read counts as not encrypted.
+#
+# GUARD_ROOT is for tests/kanidm-disk-guard-test.sh.
+set -uo pipefail
+
+ROOT="${GUARD_ROOT:-}"
+DATA="${GUARD_DATA_PATH:-/var/lib/kanidm}"
+DEBUG_MARKER="$ROOT/usr/lib/medbrains/debug-image"
+RECORD="$ROOT/var/lib/medbrains/config/disk-protection"
+
+if [[ -e "$DEBUG_MARKER" ]]; then
+    echo "debug image: not checking that $DATA is encrypted" >&2
+    exit 0
+fi
+
+source_device="$(findmnt -no SOURCE --target "$DATA" 2>/dev/null)" || source_device=""
+if ! lsblk -sno TYPE "$source_device" 2>/dev/null | grep -qx crypt; then
+    echo "Sign-in through the identity provider is off: $DATA is not on an encrypted disk." >&2
+    exit 1
+fi
+if ! grep -qE '^encrypted-' "$RECORD" 2>/dev/null; then
+    echo "Sign-in through the identity provider is off: this disk is not recorded as sealed ($RECORD)." >&2
+    exit 1
+fi

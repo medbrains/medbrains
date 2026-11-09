@@ -12,6 +12,9 @@ set -euo pipefail
 
 REPO_ROOT="${REPO_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
 TARGET="${STARTER_TARGET:-aarch64-unknown-linux-gnu}"
+# jemalloc builds with autoconf, which takes macOS ar and ranlib unless told; they index the
+# Linux objects as Mach-O and the link then fails with undefined _rjem_* symbols.
+export AR="zig ar" RANLIB="zig ranlib"
 
 cd "$REPO_ROOT"
 

@@ -1372,6 +1372,7 @@ import type {
   JobStats,
   JournalEntry,
   JournalEntryDetail,
+  KanidmPerson,
   KernelHealth,
   KioskCheckinResult,
   KitchenAudit,
@@ -2204,6 +2205,7 @@ import type {
   // Specialty Clinical: Other Specialties
   SpecialtyTemplate,
   SsoGroupMapping,
+  SsoLink,
   SsoProvider,
   SsoPublicProvider,
   StaffAttendanceReportPrintData,
@@ -5012,6 +5014,16 @@ export const api = {
     }),
   deleteSsoProvider: (id: string) =>
     request<{ deleted: boolean }>(`/admin/sso/providers/${id}`, { method: "DELETE" }),
+  listKanidmPeople: (q: string) =>
+    request<KanidmPerson[]>(`/admin/identity/kanidm/people?q=${encodeURIComponent(q)}`),
+  getUserSsoLink: (userId: string) => request<SsoLink | null>(`/admin/users/${userId}/sso-link`),
+  linkUserSso: (userId: string, subject: string) =>
+    request<SsoLink>(`/admin/users/${userId}/sso-link`, {
+      method: "PUT",
+      body: JSON.stringify({ subject }),
+    }),
+  unlinkUserSso: (userId: string) =>
+    request<{ unlinked: boolean }>(`/admin/users/${userId}/sso-link`, { method: "DELETE" }),
   listSsoGroupMappings: (providerId: string) =>
     request<SsoGroupMapping[]>(`/admin/sso/providers/${providerId}/mappings`),
   createSsoGroupMapping: (providerId: string, data: CreateSsoGroupMappingRequest) =>

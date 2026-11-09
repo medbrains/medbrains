@@ -958,6 +958,8 @@ fn build_outbox_registry() -> Arc<medbrains_outbox::Registry> {
 
     // Email — real SendGrid HTTP API (falls back to stub if creds unset).
     registry.register(email_stub::SmtpSendHandler::new("email.discharge_summary"));
+    // Tells an account holder their sign-in was linked to, or unlinked from, a Kanidm person.
+    registry.register(email_stub::SmtpSendHandler::new("email.account_link"));
     registry.register(email_stub::SmtpSendHandler::new("email.mis_daily_export"));
     registry.register(email_stub::SmtpSendHandler::new(
         "email.appointment_confirmation",

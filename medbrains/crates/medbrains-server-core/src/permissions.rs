@@ -5,7 +5,7 @@
 //!   ∪ active temporary_grants) − access_matrix.denied`.
 
 use chrono::{DateTime, Utc};
-use sqlx::PgPool;
+use sqlx::{PgConnection, PgPool};
 use uuid::Uuid;
 
 use crate::error::AppError;
@@ -19,6 +19,20 @@ pub async fn resolve_permissions(
     user_id: Uuid,
     role: &str,
 ) -> Result<Vec<String>, AppError> {
+    let mut conn = medbrains_db::pool::tenant_conn(db, &tenant_id).await?;
+    resolve_permissions_on(&mut conn, tenant_id, user_id, role).await
+}
+
+/// [`resolve_permissions`] on a connection the caller already holds.
+///
+/// It sees that connection's uncommitted writes, so a sign-in reads the access groups it synced in
+/// its own transaction. The connection must already carry the tenant context.
+pub async fn resolve_permissions_on(
+    conn: &mut PgConnection,
+    tenant_id: Uuid,
+    user_id: Uuid,
+    role: &str,
+) -> Result<Vec<String>, AppError> {
     // Bypass roles don't need permissions in the token. A vendor session's
     // permissions are its grant's and nothing else: re-applying the account's
     // own `access_matrix.extra` here would hand back what the grant withheld.
@@ -28,7 +42,7 @@ pub async fn resolve_permissions(
     {
         return Ok(Vec::new());
     }
-    resolve_granted_permissions(db, tenant_id, user_id, role).await
+    resolve_granted_permissions_on(conn, tenant_id, user_id, role).await
 }
 
 /// The codes a user is granted by name, bypass role or not.
@@ -46,7 +60,17 @@ pub async fn resolve_granted_permissions(
     role: &str,
 ) -> Result<Vec<String>, AppError> {
     let mut conn = medbrains_db::pool::tenant_conn(db, &tenant_id).await?;
+    resolve_granted_permissions_on(&mut conn, tenant_id, user_id, role).await
+}
 
+/// [`resolve_granted_permissions`] on a connection the caller already holds, which must carry
+/// the tenant context.
+async fn resolve_granted_permissions_on(
+    conn: &mut PgConnection,
+    tenant_id: Uuid,
+    user_id: Uuid,
+    role: &str,
+) -> Result<Vec<String>, AppError> {
     // Get role permissions from roles table
     let role_perms_json = sqlx::query_scalar!(
         "SELECT permissions FROM roles WHERE tenant_id = $1 AND code = $2 AND is_active = true",

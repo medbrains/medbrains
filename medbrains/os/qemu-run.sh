@@ -8,6 +8,7 @@
 # (a brand-new box); without it, a reboot keeps its data.
 #
 #   Web:     https://localhost:8443  (OS_WEB_PORT to change it)
+#   Sign-in: https://localhost:9443  (OS_IDP_PORT to change it)
 #   Serial:  $OS_WORK/vm/serial.sock   (socat -,raw,echo=0 UNIX:<path>)
 #   Monitor: $OS_WORK/vm/monitor.sock  (screendump /path/to/shot.png -f png)
 #   Screen:  $OS_WORK/vm/vnc.sock; size OS_SCREEN_W x OS_SCREEN_H (1280x800)
@@ -36,7 +37,7 @@ esac
 
 # One word per argument, because a caller's devices arrive as a single string.
 # shellcheck disable=SC2086
-NET_ARGS="${OS_NET_ARGS:--netdev user,id=net0,hostfwd=tcp:127.0.0.1:${OS_WEB_PORT:-8443}-:443 -device virtio-net-pci,netdev=net0}"
+NET_ARGS="${OS_NET_ARGS:--netdev user,id=net0,hostfwd=tcp:127.0.0.1:${OS_WEB_PORT:-8443}-:443,hostfwd=tcp:127.0.0.1:${OS_IDP_PORT:-9443}-:9443 -device virtio-net-pci,netdev=net0}"
 exec qemu-system-aarch64 \
     -machine virt -accel "$ACCEL" -cpu host -smp 4 -m 4096 \
     -drive "if=pflash,format=raw,readonly=on,file=$QEMU_SHARE/edk2-aarch64-code.fd" \
