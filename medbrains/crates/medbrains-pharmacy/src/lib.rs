@@ -69,6 +69,9 @@ pub struct ListOrdersQuery {
     pub per_page: Option<i64>,
     pub status: Option<String>,
     pub patient_id: Option<Uuid>,
+    /// Only camp dispenses that failed the schedule gate at sync and were
+    /// filed for review (`CAMP_DISPENSE_EXCEPTION`); needs `pharmacy.safety.view`.
+    pub camp_exceptions: Option<bool>,
     /// Column key to sort by (allowlisted server-side). Defaults to created_at.
     pub sort: Option<String>,
     /// Sort direction: "asc" or "desc" (default desc).
@@ -1649,6 +1652,9 @@ pub async fn list_orders(
     Query(params): Query<ListOrdersQuery>,
 ) -> Result<Json<OrderListResponse>, AppError> {
     require_permission(&claims, permissions::pharmacy::prescriptions::LIST)?;
+    if params.camp_exceptions == Some(true) {
+        require_permission(&claims, permissions::pharmacy::safety::VIEW)?;
+    }
 
     let page = params.page.unwrap_or(1).max(1);
     let per_page = params.per_page.unwrap_or(20).clamp(1, 100);
@@ -1714,6 +1720,17 @@ pub async fn list_orders(
             string_val: Some(status.clone()),
         });
         bind_idx += 1;
+    }
+    if params.camp_exceptions == Some(true) {
+        conditions.push(format!(
+            "EXISTS (SELECT 1 FROM cpoe_safety_audit a \
+                      WHERE a.tenant_id = pharmacy_orders.tenant_id \
+                        AND a.source_module = 'pharmacy' \
+                        AND a.source_record_id = pharmacy_orders.id \
+                        AND a.warning_code = '{}' AND a.action_taken = 'blocked' \
+                        AND a.deleted_at IS NULL)",
+            rx_safety::CAMP_DISPENSE_EXCEPTION
+        ));
     }
     if let Some(pid) = params.patient_id {
         conditions.push(format!("patient_id = ${bind_idx}"));
@@ -1794,8 +1811,12 @@ pub async fn list_orders(
 
 /// A pharmacy order is the pharmacy's work: its department reaches it
 /// (`pharmacy_order.dispense = dept_member` in the schema), so it shows on the
-/// pharmacy's Orders list whoever created it.
-async fn hand_order_to_pharmacy(
+/// pharmacy's Orders list whoever created it. Camp sync calls it for the
+/// dispenses it posts.
+///
+/// # Errors
+/// The authorisation store could not record the hand-off.
+pub async fn hand_order_to_pharmacy(
     state: &AppState,
     claims: &Claims,
     order_id: Uuid,
@@ -2450,6 +2471,7 @@ async fn bill_order_items_in_tx(
 //  GET /api/pharmacy/orders/{id}
 // ══════════════════════════════════════════════════════════
 
+/// One pharmacy order with its lines, as the dispense screen opens it.
 pub async fn get_order(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
@@ -3117,7 +3139,7 @@ pub async fn dispense_order(
                 return Err(refusal);
             }
             Some(reason) => {
-                let refusal = if !rx_safety::may_skip_ndps_witness(&mut tx, &claims).await? {
+                let refusal = if !rx_safety::may_skip_ndps_witness(&state.db, &claims).await? {
                     Some(AppError::ForbiddenReason(
                         "Dispensing a controlled drug without a witness needs the NDPS witness \
                          override right, which the hospital grants by name."
@@ -3937,6 +3959,13 @@ pub async fn create_otc_sale(
     // and controlled drugs (Schedule H/H1/X/NDPS or is_controlled) may NOT be sold
     // here — they require the prescription-backed dispense_order path, which enforces
     // schedule compliance (witness, authorised prescriber) and the NDPS register write.
+    let free_text: Vec<String> = body
+        .items
+        .iter()
+        .filter(|i| i.catalog_item_id.is_none())
+        .map(|i| i.drug_name.clone())
+        .collect();
+    schedule_gate::refuse_gated_free_text(&mut tx, claims.tenant_id, &free_text).await?;
     let catalog_ids: Vec<Uuid> = body
         .items
         .iter()
@@ -4085,6 +4114,8 @@ pub async fn create_otc_sale(
 //  POST /api/pharmacy/discharge-dispensing
 // ══════════════════════════════════════════════════════════
 
+/// Raises the medicines a discharged patient takes home, as an order backed
+/// by the discharge summary that lists them.
 pub async fn create_discharge_dispensing(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,

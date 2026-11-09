@@ -45,6 +45,9 @@ pub const LASA: &str = "LASA_LOOK_ALIKE";
 pub const SCHEDULE_GATE: &str = "SCHEDULE_DISPENSE_REFUSED";
 /// A controlled (NDPS) dispense with no witness: refused, or overridden with a reason.
 pub const NDPS_WITNESS: &str = "NDPS_WITNESS_MISSING";
+/// A camp's offline dispense that had already happened and failed the
+/// Schedule H/H1 gate at sync: posted, and filed as refused for review.
+pub const CAMP_DISPENSE_EXCEPTION: &str = "CAMP_DISPENSE_EXCEPTION";
 /// A witness confirmed a controlled dispense with their own password.
 pub const WITNESS_CONFIRMED: &str = "WITNESS_CONFIRMED";
 /// Medicines handed over on an open bill, on a reason.
@@ -99,34 +102,26 @@ fn holds(claims: &Claims, permission: &str) -> bool {
 /// explicit grant of `pharmacy.ndps.witness_override`, never the bypass a
 /// super or hospital admin has for everything else.
 ///
-/// A bypass role's token carries no permissions, so its grant is read from
-/// the role row and the user's own `access_matrix` (extra, less denied).
+/// A bypass role's token carries no permissions, so its grant is resolved the
+/// way a token's is (`resolve_granted_permissions`: an active role, access
+/// groups, `access_matrix` extra and temporary grants, less denied), so it
+/// agrees with [`holds`] for everyone else.
 ///
 /// # Errors
 /// The database could not be read; the caller refuses, never assumes.
-pub async fn may_skip_ndps_witness(
-    tx: &mut Transaction<'_, Postgres>,
-    claims: &Claims,
-) -> Result<bool, AppError> {
+pub async fn may_skip_ndps_witness(db: &sqlx::PgPool, claims: &Claims) -> Result<bool, AppError> {
     let permission = permissions::pharmacy::ndps::WITNESS_OVERRIDE;
     if !is_bypass_role(claims) {
         return Ok(holds(claims, permission));
     }
-    let granted: Option<bool> = sqlx::query_scalar(
-        "SELECT (COALESCE(r.permissions ? $3, false) \
-                 OR COALESCE(u.access_matrix->'extra' ? $3, false)) \
-                AND NOT COALESCE(u.access_matrix->'denied' ? $3, false) \
-           FROM users u \
-           LEFT JOIN roles r ON r.code = u.role::text AND r.tenant_id = u.tenant_id \
-                            AND r.deleted_at IS NULL \
-          WHERE u.id = $1 AND u.tenant_id = $2",
+    let granted = medbrains_server_core::permissions::resolve_granted_permissions(
+        db,
+        claims.tenant_id,
+        claims.sub,
+        &claims.role,
     )
-    .bind(claims.sub)
-    .bind(claims.tenant_id)
-    .bind(permission)
-    .fetch_optional(&mut **tx)
     .await?;
-    Ok(granted.unwrap_or(false))
+    Ok(granted.iter().any(|p| p == permission))
 }
 
 /// Whether `claims` may override a blocking finding with this code.
@@ -294,7 +289,12 @@ fn lasa_caution(line: &RxLine, row: &LinePolicyRow) -> MedicationSafetyWarning {
         .map(str::trim)
         .filter(|g| !g.is_empty());
     let message = group.map_or_else(
-        || format!("{} is a look-alike sound-alike medicine: check the label", line.drug_name),
+        || {
+            format!(
+                "{} is a look-alike sound-alike medicine: check the label",
+                line.drug_name
+            )
+        },
         |g| {
             format!(
                 "{} is a look-alike sound-alike medicine (group {g}): check the label",
@@ -631,6 +631,37 @@ pub fn unpaid_dispense_finding(complaint: &str) -> MedicationSafetyWarning {
     }
 }
 
+/// A refusal as the blocking finding it is filed as.
+fn refusal_finding(code: &str, refusal: &AppError) -> MedicationSafetyWarning {
+    let message = match refusal {
+        AppError::BadRequest(m) | AppError::Conflict(m) => m.clone(),
+        other => other.to_string(),
+    };
+    MedicationSafetyWarning {
+        code: code.to_owned(),
+        severity: MedicationSafetySeverity::Block,
+        message,
+        catalog_item_id: None,
+        drug_name: String::new(),
+        detail: json!({}),
+    }
+}
+
+/// File a refusal as `blocked` in the caller's transaction, for a release
+/// that commits anyway: a camp dispense that already happened.
+///
+/// # Errors
+/// A database error, which aborts the caller's transaction.
+pub async fn file_dispense_refusal_in_tx(
+    tx: &mut Transaction<'_, Postgres>,
+    claims: &Claims,
+    subject: &Subject,
+    code: &str,
+    refusal: &AppError,
+) -> Result<(), AppError> {
+    record_in_tx(tx, claims, subject, &[refusal_finding(code, refusal)], None).await
+}
+
 /// File a refused scheduled or controlled dispense as `blocked`.
 ///
 /// In its own transaction: the dispense's transaction rolls back with the
@@ -642,18 +673,7 @@ pub async fn file_dispense_refusal(
     code: &str,
     refusal: &AppError,
 ) {
-    let message = match refusal {
-        AppError::BadRequest(m) | AppError::Conflict(m) => m.clone(),
-        other => other.to_string(),
-    };
-    let finding = MedicationSafetyWarning {
-        code: code.to_owned(),
-        severity: MedicationSafetySeverity::Block,
-        message,
-        catalog_item_id: None,
-        drug_name: String::new(),
-        detail: json!({}),
-    };
+    let finding = refusal_finding(code, refusal);
     if let Err(error) = audit_refusal(state, claims, subject, &[finding]).await {
         tracing::error!(
             %error,
@@ -893,10 +913,16 @@ mod tests {
         let findings = policy_findings(std::slice::from_ref(&line), std::slice::from_ref(&row));
         assert_eq!(findings.len(), 1);
         assert_eq!(findings[0].code, LASA);
-        assert!(matches!(findings[0].severity, MedicationSafetySeverity::Warn));
+        assert!(matches!(
+            findings[0].severity,
+            MedicationSafetySeverity::Warn
+        ));
         assert!(findings[0].message.contains("AMOX-AMOXAPINE"));
         // A caution never stops the pharmacist.
-        assert!(matches!(authorize(&claims_with(&[]), &findings, None), Ok(None)));
+        assert!(matches!(
+            authorize(&claims_with(&[]), &findings, None),
+            Ok(None)
+        ));
     }
 
     #[test]

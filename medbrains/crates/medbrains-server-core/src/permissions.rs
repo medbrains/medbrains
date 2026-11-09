@@ -19,11 +19,24 @@ pub async fn resolve_permissions(
     user_id: Uuid,
     role: &str,
 ) -> Result<Vec<String>, AppError> {
-    let mut conn = medbrains_db::pool::tenant_conn(db, &tenant_id).await?;
     // Bypass roles don't need permissions in the token
     if role == "super_admin" || role == "hospital_admin" {
         return Ok(Vec::new());
     }
+    resolve_granted_permissions(db, tenant_id, user_id, role).await
+}
+
+/// The codes a user is granted by name, bypass role or not.
+///
+/// What the token of a non-bypass user carries. For the few rights a bypass role does not
+/// carry (the NDPS witness override), read for a super or hospital admin.
+pub async fn resolve_granted_permissions(
+    db: &PgPool,
+    tenant_id: Uuid,
+    user_id: Uuid,
+    role: &str,
+) -> Result<Vec<String>, AppError> {
+    let mut conn = medbrains_db::pool::tenant_conn(db, &tenant_id).await?;
 
     // Get role permissions from roles table
     let role_perms_json = sqlx::query_scalar!(
@@ -84,7 +97,8 @@ pub async fn resolve_permissions(
                 if !temporary_grant_is_active(grant) {
                     continue;
                 }
-                if let Some(serde_json::Value::Array(permission_values)) = grant.get("permissions") {
+                if let Some(serde_json::Value::Array(permission_values)) = grant.get("permissions")
+                {
                     for val in permission_values {
                         if let serde_json::Value::String(s) = val {
                             perms.insert(s.clone());

@@ -25,6 +25,10 @@
 //!   one, a verbal order not yet countersigned among them, backs nothing.
 //!   X, NDPS and controlled drugs are never dispensed on a verbal or telephone
 //!   order.
+//! - A line typed as free text, with no catalogue item, never carries a gated
+//!   drug: its name is looked up, trimmed and case-insensitively, against the
+//!   catalogue's names and generic names, and a match on any gated row
+//!   refuses it (`refuse_gated_free_text`, shared with OTC and POS sales).
 //! - Schedule X also needs a doctor allowed to prescribe it, a witness who is
 //!   not that doctor, and the reference of the duplicate the pharmacy retains
 //!   (Rule 65(11)).
@@ -108,6 +112,16 @@ pub async fn enforce_schedule_compliance(
     order_id: Uuid,
     input: &GateInput<'_>,
 ) -> Result<Passed, AppError> {
+    let free_text: Vec<String> = sqlx::query_scalar(
+        "SELECT drug_name FROM pharmacy_order_items \
+          WHERE order_id = $1 AND tenant_id = $2 AND removed_at IS NULL \
+            AND catalog_item_id IS NULL",
+    )
+    .bind(order_id)
+    .bind(tenant_id)
+    .fetch_all(&mut **tx)
+    .await?;
+    refuse_gated_free_text(tx, tenant_id, &free_text).await?;
     let rx = read_prescription(tx, tenant_id, order_id).await?;
     let lines = scheduled_lines(tx, tenant_id, order_id).await?;
     let has_schedule_x = lines.iter().any(|l| l.schedule == "X");
@@ -134,6 +148,50 @@ pub async fn enforce_schedule_compliance(
             blocks.join("; ")
         )))
     }
+}
+
+/// Refuses free-text lines that name a gated drug.
+///
+/// A line with no catalogue item is refused when its name, trimmed and
+/// case-insensitively, is the name or generic name of any Schedule H, H1, X,
+/// NDPS or controlled catalogue row: typed instead of picked, a gated drug
+/// would pass every check keyed on the catalogue. The counter, OTC and POS
+/// all call this one helper.
+///
+/// # Errors
+/// `BadRequest` naming each such line; a database error as itself.
+pub async fn refuse_gated_free_text(
+    tx: &mut Transaction<'_, Postgres>,
+    tenant_id: Uuid,
+    names: &[String],
+) -> Result<(), AppError> {
+    if names.is_empty() {
+        return Ok(());
+    }
+    // ponytail: unindexed lower() scan of the tenant's catalogue; add an
+    // expression index on lower(btrim(name)) if catalogues grow past ~50k rows.
+    let gated: Vec<String> = sqlx::query_scalar(
+        "SELECT DISTINCT btrim(n.name) FROM unnest($2::text[]) AS n(name) \
+          WHERE EXISTS (SELECT 1 FROM pharmacy_catalog c \
+                         WHERE c.tenant_id = $1 \
+                           AND (c.drug_schedule::text IN ('H', 'H1', 'X', 'NDPS') \
+                                OR c.is_controlled) \
+                           AND lower(btrim(n.name)) IN (lower(btrim(c.name)), \
+                                                       lower(btrim(c.generic_name)))) \
+          ORDER BY 1",
+    )
+    .bind(tenant_id)
+    .bind(names)
+    .fetch_all(&mut **tx)
+    .await?;
+    if gated.is_empty() {
+        return Ok(());
+    }
+    Err(AppError::BadRequest(format!(
+        "{}: Choose the drug from the catalogue. A Schedule H, H1, X, NDPS or controlled \
+         drug cannot be dispensed on a line typed as free text",
+        gated.join(", ")
+    )))
 }
 
 /// The order's prescription, when it is this patient's and not deleted, and

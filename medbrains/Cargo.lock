@@ -6243,6 +6243,7 @@ dependencies = [
  "medbrains-authz-gate",
  "medbrains-core",
  "medbrains-db",
+ "medbrains-documents",
  "medbrains-pharmacy",
  "medbrains-server-core",
  "medbrains-server-services",

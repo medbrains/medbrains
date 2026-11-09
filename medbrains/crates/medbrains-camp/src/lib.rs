@@ -3626,10 +3626,13 @@ fn calculate_bmi(weight_kg: Option<Decimal>, height_cm: Option<Decimal>) -> Opti
     }
 }
 
+/// Applies one synced camp event inside its own transaction. `stepped_up`
+/// says the sync carried a fresh step-up, which signing a prescription needs.
 async fn apply_camp_sync_event(
+    state: &AppState,
     tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
     claims: &Claims,
-    camp_id: Uuid,
+    (camp_id, stepped_up): (Uuid, bool),
     event: &CampSyncInboundEvent,
 ) -> Result<AppliedSyncEvent, AppError> {
     match event.event_type.as_str() {
@@ -3919,6 +3922,15 @@ async fn apply_camp_sync_event(
             .execute(&mut **tx)
             .await;
 
+            let note = pharmacy_sync::sign_synced_prescription(
+                state,
+                tx,
+                claims,
+                (body.doctor_id, prescription_id),
+                stepped_up,
+            )
+            .await?;
+
             Ok(AppliedSyncEvent {
                 server_entity_type: "prescription".to_owned(),
                 server_entity_id: prescription_id,
@@ -3926,6 +3938,7 @@ async fn apply_camp_sync_event(
                     "patient_id": patient_id,
                     "encounter_id": encounter_id,
                     "prescription_id": prescription_id,
+                    "note": note,
                 }),
             })
         }
@@ -3975,12 +3988,16 @@ async fn apply_camp_sync_event(
                 .collect();
 
             // Schedule X, NDPS and controlled drugs never leave a camp's shelf on
-            // an offline record: every such line is named, and none is taken.
+            // an offline record, and neither does a line with no catalogue item:
+            // every such line is named, and none is taken.
             let refused: Vec<String> = body
                 .items
                 .iter()
                 .filter_map(|item| {
-                    let row = safety_by_id.get(&item.catalog_item_id?)?;
+                    let Some(catalog_item_id) = item.catalog_item_id else {
+                        return Some(pharmacy_sync::free_text_line_refusal(&item.drug_name));
+                    };
+                    let row = safety_by_id.get(&catalog_item_id)?;
                     pharmacy_sync::controlled_line_refusal(
                         &item.drug_name,
                         row.drug_schedule.as_deref(),
@@ -4105,14 +4122,15 @@ async fn apply_camp_sync_event(
 
             // Schedule H and H1 lines: on the synced prescription, within what
             // it prescribes across every order on it, signed and in date. The
-            // order's lines count as released (`quantity_dispensed` above).
-            medbrains_pharmacy::schedule_gate::enforce_schedule_compliance(
-                tx,
-                claims.tenant_id,
-                order_id,
-                &medbrains_pharmacy::schedule_gate::GateInput::default(),
-            )
-            .await?;
+            // order's lines count as released (`quantity_dispensed` above). A
+            // camp dispense already happened, so a refusal is filed for review
+            // and the dispense stands.
+            let subject = medbrains_pharmacy::rx_safety::Subject {
+                patient_id,
+                encounter_id: body.encounter_id,
+                record_id: Some(order_id),
+            };
+            let note = pharmacy_sync::gate_camp_dispense(tx, claims, &subject).await?;
 
             Ok(AppliedSyncEvent {
                 server_entity_type: "pharmacy_order".to_owned(),
@@ -4121,6 +4139,7 @@ async fn apply_camp_sync_event(
                     "patient_id": patient_id,
                     "encounter_id": body.encounter_id,
                     "pharmacy_order_id": order_id,
+                    "note": note,
                 }),
             })
         }
@@ -5310,9 +5329,18 @@ pub async fn get_camp_packet(
 pub async fn sync_camp_inbound(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
+    proof: medbrains_server_core::step_up::StepUpProof,
     Json(body): Json<CampSyncInboundRequest>,
 ) -> Result<Json<CampSyncInboundResponse>, AppError> {
     require_permission(&claims, permissions::camp::LIST)?;
+    // A fresh step-up lets the sync sign the syncing doctor's own
+    // prescriptions; without one they stay unsigned, and nothing fails.
+    let stepped_up = match medbrains_server_core::step_up::require_step_up(&state, &proof, &claims)
+    {
+        Ok(()) => true,
+        Err(AppError::StepUpRequired) => false,
+        Err(fault) => return Err(fault),
+    };
 
     if body.events.is_empty() {
         return Err(AppError::BadRequest(
@@ -5433,7 +5461,9 @@ pub async fn sync_camp_inbound(
         .execute(&mut *tx)
         .await?;
 
-        match apply_camp_sync_event(&mut tx, &claims, body.camp_id, event).await {
+        match apply_camp_sync_event(&state, &mut tx, &claims, (body.camp_id, stepped_up), event)
+            .await
+        {
             Ok(applied_event) => {
                 // Owner on a patient is the strongest relation there is, and it
                 // belongs only to the person whose registration CREATED that
@@ -5468,6 +5498,21 @@ pub async fn sync_camp_inbound(
                 applied += 1;
                 tx.commit().await?;
 
+                // A synced dispense is the pharmacy's record: its staff reach it,
+                // and a flagged one shows on their Camp exceptions list.
+                if applied_event.server_entity_type == "pharmacy_order" {
+                    let order_id = applied_event.server_entity_id;
+                    if let Err(err) =
+                        medbrains_pharmacy::hand_order_to_pharmacy(&state, &claims, order_id).await
+                    {
+                        tracing::error!(
+                            error = %err,
+                            order_id = %applied_event.server_entity_id,
+                            "camp sync could not hand the dispense to the pharmacy"
+                        );
+                    }
+                }
+
                 if let Some(patient_id) = patient_grant_id {
                     let authz_ctx =
                         medbrains_server_core::middleware::authorization::authz_context(&claims);
@@ -5496,10 +5541,14 @@ pub async fn sync_camp_inbound(
                     idempotency_key: event.idempotency_key.clone(),
                     event_type: event.event_type.clone(),
                     status: "applied".to_owned(),
+                    message: applied_event
+                        .server_entities
+                        .get("note")
+                        .and_then(Value::as_str)
+                        .map(str::to_owned),
                     server_entity_type: Some(applied_event.server_entity_type),
                     server_entity_id: Some(applied_event.server_entity_id),
                     server_entities: Some(applied_event.server_entities),
-                    message: None,
                 });
             }
             Err(err)

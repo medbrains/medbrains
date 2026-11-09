@@ -6,7 +6,11 @@
 //! doses (PRN, SOS, "if needed", "as required") and words it does not know.
 //! "stat" is one dose. Intervals are read as numbers — "every 48 hours" and
 //! `q4h` are 24/N doses a day — not by spotting a substring, which read
-//! "every 4 days" as six doses a day and "twice weekly" as two.
+//! "every 4 days" as six doses a day and "twice weekly" as two; "N hours"
+//! counts only as "every N hours", "qN h" or "N hourly". Only a dose in a
+//! discrete unit (tablet, capsule, sachet, suppository, patch, vial, ampoule)
+//! is counted: "5 ml" or "2 puffs" says nothing about how many bottles or
+//! inhalers leave the shelf, so the doctor states the quantity.
 
 /// How often a dose is taken, as far as the words say.
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -69,28 +73,35 @@ fn dash_frequency_units_per_day(text: &str) -> Option<f64> {
     (sum > 0.0).then_some(sum)
 }
 
-/// A number with an hour unit glued on ("8h", "6hourly"), or `q<N>h`.
-fn glued_hours(word: &str) -> Option<f64> {
-    let rest = word.strip_prefix('q').unwrap_or(word);
+/// A number with an hour unit glued on ("8h", "6hourly", "q4h"), and whether
+/// the word itself says it is an interval (a `q` prefix or "hourly").
+fn glued_hours(word: &str) -> Option<(f64, bool)> {
+    let (rest, q) = word.strip_prefix('q').map_or((word, false), |r| (r, true));
     let split = rest.find(|c: char| !c.is_ascii_digit())?;
     let (number, unit) = rest.split_at(split);
     if number.is_empty() || !HOUR_WORDS.contains(&unit) {
         return None;
     }
-    number.parse().ok()
+    Some((number.parse().ok()?, q || unit.ends_with("ly")))
 }
 
 /// Doses a day from an interval: every N hours (`q4h`, "8 hourly", "every 48
 /// hours") is 24/N; every N days ("every 4 days", "every other day") is 1/N.
+/// "N hours" is an interval only after "every" or "q", or spelt "hourly":
+/// "once daily at 8 hrs" is a time of day, not every eight hours.
 fn interval_per_day(words: &[&str]) -> Option<f64> {
     for (i, word) in words.iter().enumerate() {
         let next = words.get(i + 1).copied().unwrap_or_default();
-        let after_every = i > 0 && words[i - 1] == "every";
-        let hours = glued_hours(word).or_else(|| {
-            word.parse::<f64>()
-                .ok()
-                .filter(|_| HOUR_WORDS.contains(&next))
-        });
+        let prev = if i > 0 { words[i - 1] } else { "" };
+        let after_every = prev == "every";
+        let introduced = after_every || prev == "q";
+        let hours = glued_hours(word)
+            .and_then(|(n, says)| (says || introduced).then_some(n))
+            .or_else(|| {
+                word.parse::<f64>()
+                    .ok()
+                    .filter(|_| HOUR_WORDS.contains(&next) && (introduced || next.ends_with("ly")))
+            });
         if let Some(n) = hours.filter(|n| *n > 0.0) {
             return Some(24.0 / n);
         }
@@ -161,53 +172,75 @@ fn duration_days(duration: &str) -> f64 {
     }
 }
 
-/// Countable units (tablets, ml, puffs) per dose; one for a strength ("500 mg").
-fn dose_units_per_administration(dosage: &str) -> f64 {
-    const COUNTABLE_UNITS: [&str; 13] = [
-        "tab",
-        "tablet",
-        "cap",
-        "capsule",
-        "vial",
-        "amp",
-        "ampoule",
-        "puff",
-        "drop",
-        "sachet",
-        "suppository",
-        "patch",
-        "ml",
-    ];
+/// Discrete dispensing units a dose can be counted in. A vial or ampoule
+/// counts when the dose is stated in vials or ampoules, i.e. the item is one.
+const DISCRETE_UNITS: [&str; 22] = [
+    "tab",
+    "tabs",
+    "tablet",
+    "tablets",
+    "cap",
+    "caps",
+    "capsule",
+    "capsules",
+    "sachet",
+    "sachets",
+    "suppository",
+    "suppositories",
+    "supp",
+    "patch",
+    "patches",
+    "vial",
+    "vials",
+    "amp",
+    "amps",
+    "ampoule",
+    "ampoules",
+    "ampule",
+];
+
+/// Discrete units per dose ("2 tabs" is 2), or `None` when the dose is not
+/// stated in a discrete dispensing unit: "5 ml", "2 drops", "2 puffs", "1 g",
+/// "500 mg", "10 units" say nothing about how many packs leave the shelf.
+fn dose_units_per_administration(dosage: &str) -> Option<f64> {
     let d = dosage.trim().to_ascii_lowercase();
-    match first_number(&d) {
-        Some(value) if COUNTABLE_UNITS.iter().any(|unit| d.contains(unit)) => value.max(1.0),
-        _ => 1.0,
+    let discrete = d
+        .split(|c: char| !c.is_ascii_alphabetic())
+        .any(|w| DISCRETE_UNITS.contains(&w));
+    if !discrete {
+        return None;
     }
+    Some(first_number(&d).map_or(1.0, |v| v.max(1.0)))
 }
 
 /// Units for a counted frequency: one dose for stat, else per day x days.
-fn units(dosage: &str, frequency: Frequency, duration: &str) -> i32 {
+fn units(per_dose: f64, frequency: Frequency, duration: &str) -> i32 {
     let doses = match frequency {
         Frequency::Stat => 1.0,
         Frequency::PerDay(per_day) => per_day * duration_days(duration),
     };
-    (dose_units_per_administration(dosage) * doses)
-        .ceil()
-        .clamp(1.0, 9_999.0) as i32
+    (per_dose * doses).ceil().clamp(1.0, 9_999.0) as i32
 }
 
-/// The quantity a prescription line adds up to, when its frequency is one the
-/// cap can count: the Schedule H/H1 gate's ceiling for a line that states no
-/// quantity of its own. `None` means the line cannot back a scheduled dispense.
+/// The quantity a prescription line adds up to, when its dose is in a
+/// discrete unit and its frequency is one the cap can count: the Schedule
+/// H/H1 gate's ceiling for a line that states no quantity of its own. `None`
+/// means the line cannot back a scheduled dispense: the doctor states it.
 pub(crate) fn countable_rx_quantity(dosage: &str, frequency: &str, duration: &str) -> Option<i32> {
-    read_frequency(frequency).map(|f| units(dosage, f, duration))
+    let per_dose = dose_units_per_administration(dosage)?;
+    read_frequency(frequency).map(|f| units(per_dose, f, duration))
 }
 
 /// The dispense-quantity estimate: one dose a day for a spelling the cap
-/// cannot count, which the pharmacist corrects at review.
+/// cannot count, and one unit a dose for a dose not in a discrete unit, which
+/// the pharmacist corrects at review.
 pub(crate) fn estimate_rx_dispense_quantity(dosage: &str, frequency: &str, duration: &str) -> i32 {
     let frequency = read_frequency(frequency).unwrap_or(Frequency::PerDay(1.0));
-    units(dosage, frequency, duration)
+    units(
+        dose_units_per_administration(dosage).unwrap_or(1.0),
+        frequency,
+        duration,
+    )
 }
 
 #[cfg(test)]
@@ -259,5 +292,37 @@ mod tests {
         assert_eq!(count("once daily", "1 week"), Some(7));
         // "bd" inside another word is not twice a day.
         assert_eq!(count("abdominal", "5 days"), None);
+    }
+
+    #[test]
+    fn an_hour_is_an_interval_only_after_every_or_q() {
+        assert_eq!(count("once daily at 8 hrs", "5 days"), Some(5));
+        assert_eq!(count("OD at 8h", "5 days"), Some(5));
+        assert_eq!(count("q 6 h", "1 day"), Some(4));
+        assert_eq!(count("6 hrly", "1 day"), Some(4));
+    }
+
+    #[test]
+    fn only_a_discrete_dispensing_unit_is_counted() {
+        for dose in [
+            "5 ml", "2 drops", "2 puffs", "1 g", "500 mg", "10 units", "1", "",
+        ] {
+            assert_eq!(
+                countable_rx_quantity(dose, "tds", "5 days"),
+                None,
+                "{dose:?}"
+            );
+        }
+        assert_eq!(countable_rx_quantity("2 tabs", "bd", "5 days"), Some(20));
+        assert_eq!(
+            countable_rx_quantity("1 cap (500 mg)", "tds", "5 days"),
+            Some(15)
+        );
+        assert_eq!(countable_rx_quantity("1 sachet", "od", "3 days"), Some(3));
+        assert_eq!(countable_rx_quantity("1 vial", "bd", "2 days"), Some(4));
+        assert_eq!(
+            countable_rx_quantity("1 patch", "every 3 days", "9 days"),
+            Some(3)
+        );
     }
 }

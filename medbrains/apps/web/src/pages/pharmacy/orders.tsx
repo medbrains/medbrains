@@ -11,7 +11,7 @@ import { useState } from "react";
 import { useNavigate, useSearchParams } from "react-router";
 import type { Column, SortState } from "@/components";
 import { DataTable, StatusDot, TableValueBadge, useClinicalEmit } from "@/components";
-import { Alert, Button, IconButton, toast } from "@/components/ui";
+import { Alert, Button, IconButton, Switch, toast } from "@/components/ui";
 import { confirmDestructive } from "@/lib/confirm-destructive";
 import { pharmacyService } from "@/services/pharmacy.service";
 import { ReasonModal } from "./reason-modal";
@@ -53,6 +53,9 @@ export function PharmacyOrdersTab({
   const [page, setPage] = useState(1);
   const [orderSort, setOrderSort] = useState<SortState | null>(null);
   const [filterStatus, setFilterStatus] = useState<string | null>(null);
+  // Camp dispenses that failed the schedule gate at sync, filed for review.
+  const canViewSafety = useHasPermission(P.PHARMACY.SAFETY_VIEW);
+  const [campExceptions, setCampExceptions] = useState(false);
   const patientIdFilter = searchParams.get("patient_id") ?? "";
   const isDispenseHandoff = searchParams.get("action") === "dispense";
   const effectiveFilterStatus = filterStatus ?? (isDispenseHandoff ? "ordered" : null);
@@ -71,6 +74,7 @@ export function PharmacyOrdersTab({
   const params: Record<string, string> = { page: String(page), per_page: "20" };
   if (effectiveFilterStatus) params.status = effectiveFilterStatus;
   if (patientIdFilter) params.patient_id = patientIdFilter;
+  if (canViewSafety && campExceptions) params.camp_exceptions = "true";
   if (orderSort) {
     params.sort = orderSort.key;
     params.order = orderSort.dir;
@@ -270,14 +274,28 @@ export function PharmacyOrdersTab({
     <Stack>
       <Group justify="space-between" align="flex-end">
         {canViewOrders ? (
-          <Select
-            placeholder="Status"
-            data={PHARMACY_ORDER_STATUS_OPTIONS}
-            value={effectiveFilterStatus}
-            onChange={setOrderStatusFilter}
-            clearable
-            w={160}
-          />
+          <Group gap="md" align="center">
+            <Select
+              placeholder="Status"
+              aria-label="Filter by status"
+              data={PHARMACY_ORDER_STATUS_OPTIONS}
+              value={effectiveFilterStatus}
+              onChange={setOrderStatusFilter}
+              clearable
+              w={160}
+            />
+            {canViewSafety && (
+              <Switch
+                label="Camp exceptions to review"
+                description="Camp dispenses the schedule gate refused at sync"
+                checked={campExceptions}
+                onChange={(e) => {
+                  setCampExceptions(e.currentTarget.checked);
+                  setPage(1);
+                }}
+              />
+            )}
+          </Group>
         ) : (
           <Text size="sm" c="dimmed">
             Order queue requires prescription-list permission.

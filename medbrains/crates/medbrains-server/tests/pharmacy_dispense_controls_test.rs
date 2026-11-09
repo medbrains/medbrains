@@ -137,6 +137,63 @@ async fn the_ndps_witness_override_is_granted_by_name_even_to_a_hospital_admin()
     );
 }
 
+/// A hospital admin's grant of the override through an access group counts,
+/// as it would on a pharmacist's token; a denial on their record still wins.
+#[tokio::test]
+async fn the_ndps_witness_override_reaches_a_hospital_admin_through_a_group() {
+    let d = dispense_world::desk().await;
+    let drug = d.drug(Some("NDPS"), true).await;
+    d.ndps_receipt(drug, 50).await;
+    let rx = d.prescription(&[(drug, Some(10), "BD")]).await;
+    let reason = json!({ "ndps_override_reason": "Night shift, no second pharmacist on duty" });
+    let admin = staff(&d.app, &d.admin_csrf, ("hospital_admin", d.department), &[]).await;
+    let group: Uuid = sqlx::query_scalar(
+        "INSERT INTO access_groups (tenant_id, code, name, permissions) \
+         VALUES ($1, $2, 'Night NDPS', jsonb_build_array('pharmacy.ndps.witness_override')) \
+         RETURNING id",
+    )
+    .bind(d.tenant)
+    .bind(format!("ndps-{}", dispense_world::tag()))
+    .fetch_one(&d.app.db)
+    .await
+    .expect("group");
+    sqlx::query(
+        "INSERT INTO access_group_members (group_id, user_id, tenant_id) VALUES ($1, $2, $3)",
+    )
+    .bind(group)
+    .bind(admin.user_id)
+    .bind(d.tenant)
+    .execute(&d.app.db)
+    .await
+    .expect("member");
+    // A new membership ends the admin's sessions: sign in again.
+    let admin = dispense_world::sign_in(
+        &d.app,
+        (
+            admin.user_id,
+            admin.username.clone(),
+            admin.password.clone(),
+        ),
+    )
+    .await;
+
+    let order = d.order(Some(rx), drug, 2).await;
+    let (status, body) = dispense_as(&d.app, &admin, order, reason.clone()).await;
+    assert_eq!(status, StatusCode::OK, "{body}");
+
+    sqlx::query(
+        "UPDATE users SET access_matrix = jsonb_build_object('extra', '[]'::jsonb, \
+                 'denied', jsonb_build_array('pharmacy.ndps.witness_override')) WHERE id = $1",
+    )
+    .bind(admin.user_id)
+    .execute(&d.app.db)
+    .await
+    .expect("deny");
+    let order = d.order(Some(rx), drug, 2).await;
+    let denied = dispense_as(&d.app, &admin, order, reason).await;
+    refused(&denied, StatusCode::FORBIDDEN, "NDPS witness override");
+}
+
 #[tokio::test]
 async fn a_morphine_counter_dispense_with_no_prescription_is_refused() {
     let d = dispense_world::desk().await;

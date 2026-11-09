@@ -13,8 +13,10 @@
 --    entries) and, on the dispense screen, `is_controlled OR X OR H1`. A
 --    Schedule X drug entered without the flag was received onto the NDPS
 --    register but dispensed without a witness and without a register entry.
---    The flag now follows from the schedule: a Schedule X or NDPS drug is
---    always controlled, so `is_controlled` alone is the one predicate.
+--    The flag now follows from the schedule and the narcotic class: a Schedule
+--    X or NDPS drug, or one with a `narcotic_class`, is always controlled, so
+--    `is_controlled` alone is the one predicate (camp sync, which also read
+--    `narcotic_class`, and the counter agree).
 --
 -- 2. Drugs Rules 65(11): a Schedule X prescription is issued in duplicate and
 --    the pharmacy retains one copy for two years. The dispense now records the
@@ -23,13 +25,15 @@
 
 UPDATE pharmacy_catalog
    SET is_controlled = true
- WHERE drug_schedule IN ('X', 'NDPS') AND NOT is_controlled;
+ WHERE (drug_schedule IN ('X', 'NDPS') OR NULLIF(btrim(narcotic_class), '') IS NOT NULL)
+   AND NOT is_controlled;
 
 CREATE OR REPLACE FUNCTION public.pharmacy_catalog_derive_controlled() RETURNS trigger
     LANGUAGE plpgsql
     AS $$
 BEGIN
-    IF NEW.drug_schedule IN ('X', 'NDPS') THEN
+    IF NEW.drug_schedule IN ('X', 'NDPS')
+       OR NULLIF(btrim(NEW.narcotic_class), '') IS NOT NULL THEN
         NEW.is_controlled := true;
     END IF;
     RETURN NEW;
@@ -38,14 +42,16 @@ $$;
 
 DROP TRIGGER IF EXISTS trg_pharmacy_catalog_derive_controlled ON public.pharmacy_catalog;
 CREATE TRIGGER trg_pharmacy_catalog_derive_controlled
-    BEFORE INSERT OR UPDATE OF drug_schedule, is_controlled ON public.pharmacy_catalog
+    BEFORE INSERT OR UPDATE OF drug_schedule, is_controlled, narcotic_class ON public.pharmacy_catalog
     FOR EACH ROW EXECUTE FUNCTION public.pharmacy_catalog_derive_controlled();
 
 ALTER TABLE public.pharmacy_catalog
     DROP CONSTRAINT IF EXISTS pharmacy_catalog_schedule_x_ndps_controlled;
 ALTER TABLE public.pharmacy_catalog
     ADD CONSTRAINT pharmacy_catalog_schedule_x_ndps_controlled
-    CHECK (is_controlled OR drug_schedule IS NULL OR drug_schedule NOT IN ('X', 'NDPS'));
+    CHECK (is_controlled
+           OR ((drug_schedule IS NULL OR drug_schedule NOT IN ('X', 'NDPS'))
+               AND NULLIF(btrim(narcotic_class), '') IS NULL));
 
 ALTER TABLE public.pharmacy_orders
     ADD COLUMN IF NOT EXISTS schedule_x_duplicate_ref text;

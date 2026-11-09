@@ -93,8 +93,14 @@ a pack-and-collect order and a camp's synced offline dispense run the same
 Schedule H/H1/X and NDPS gate (`crates/medbrains-pharmacy/src/schedule_gate.rs`).
 A line is gated when its drug is Schedule H, H1, X or NDPS, or controlled. A
 refusal names every reason and, at the counter and the pick, is filed on the
-order's Safety record (`SCHEDULE_DISPENSE_REFUSED`); a camp sync marks the event
-failed with the same text.
+order's Safety record (`SCHEDULE_DISPENSE_REFUSED`). A camp's H/H1 dispense
+had already happened when it syncs, so a gate refusal there does not fail the
+event: the dispense is posted (the stock left the shelf), filed on the order as
+`CAMP_DISPENSE_EXCEPTION`, and returned as the event's note; a pharmacist
+reviews it under Pharmacy → Orders → **Camp exceptions to review** (needs
+`pharmacy.safety.view`) and the order's Safety record. Schedule X, NDPS and
+controlled lines, and lines with no catalogue item, are still refused at camp
+sync and the event fails.
 
 | Rule | Where | Refusal |
 |---|---|---|
@@ -106,6 +112,10 @@ failed with the same text.
 | Schedule X: prescriber with `can_prescribe_schedule_x`, a witness who is not the prescriber, and the retained duplicate's reference (Rule 65(11)), trimmed, at least 6 characters, stored as `pharmacy_orders.schedule_x_duplicate_ref`; a blank field uses the one already stored | gate | named per condition |
 | A visit or admission alone is never a prescription; H/H1 may stand on a verified upload (one order per drug for one uploaded file) or a recent doctor-signed discharge summary that lists the drug (every order on the summary together within the listed quantity); X, NDPS and controlled never do | gate | "no prescription for this patient" / "already backed an earlier order" / "the discharge summary allows" |
 | A camp's synced dispense never carries Schedule X, NDPS or controlled lines | camp sync | "cannot be dispensed through camp offline sync" |
+| A camp dispense line carries its catalogue item (camp stock is the catalogue's) | camp sync | "choose the drug from the catalogue" |
+| A free-text line (no catalogue item) whose name, trimmed and in any case, is the name or generic name of any H, H1, X, NDPS or controlled catalogue row | counter, pick, OTC, POS | "Choose the drug from the catalogue" |
+| A camp prescription synced by the doctor who wrote it (no other `doctor_id`), on a sync carrying a fresh step-up, is signed through the signing path (a `signed_records` row with the doctor's key); otherwise it stays unsigned and the event's note says so, for the doctor's sign-off inbox | camp sync | "Prescription not signed" |
+| A quantity is counted from dose x frequency x duration only for a dose in a discrete unit (tab, cap, sachet, suppository, patch, vial, ampoule); ml, drops, puffs, g, mg and units need a stated quantity. "N hours" is an interval only as "every N hours", "qN h" or "N hourly" ("once daily at 8 hrs" is once a day) | gate | "prescribed quantity cannot be read" |
 | Controlled (`is_controlled`, which a Schedule X or NDPS drug always carries, migration 1450) needs a witness who types their own password, or a reason from a holder of `pharmacy.ndps.witness_override`, granted by name only (no built-in role; a super or hospital admin's bypass does not carry it; never for X) | dispense | filed as `NDPS_WITNESS_MISSING` |
 | A witness whose sign-in is locked, or whose account is disabled, cannot witness | dispense | "sign-in is locked" |
 | Wrong witness passwords: their own counter (`witness_password_failed` on the audit chain, with the dispenser and their address); 5 in 15 minutes stops the dispenser, 5 against one witness pauses that witness; sign-in is never locked by it | dispense | 429 |
@@ -132,12 +142,25 @@ Before the first controlled dispense, for each controlled drug on the shelf:
 Receipts recorded through goods receipt after that post to the register on
 their own.
 
+**Verified uploads.** An uploaded prescription backs an H/H1 order only once
+a pharmacist has verified it (`pharmacy_store_orders.verified_at`), and the
+gate does not read its lines or cap its quantities: the verifying pharmacist
+reads the drug, strength and quantity off the image and answers for it. Verify
+an upload only after checking each line against it.
+
+**Camp devices (requirement, not yet built).** The native staff apps do not
+dispense at camps today (iOS and Android cover camp registration and station
+tokens only). When camp dispensing is added, the device must refuse to hand
+over a Schedule H or H1 drug offline unless the prescription it is against is
+signed on the device, and must never offer Schedule X, NDPS or controlled
+drugs; the server's sync rules above stay the backstop.
+
 **Not checked, follow-ups:** dose against weight, renal function or age
 (there are no dose checks of any kind); the witness confirming from their own
 session; an append-only, hash-chained NDPS record with the witness's user id;
 a quantity cap on a verified upload (the pharmacist reads its lines; it is
-limited to one order per drug); free-text camp lines with no catalogue item;
-the POS
+limited to one order per drug); closing a camp exception once reviewed (it
+stays on the list); the POS
 counter sale of H/H1 against an outside paper prescription (Rule 65(9)) is a
 separate path and keeps its own checks.
 
