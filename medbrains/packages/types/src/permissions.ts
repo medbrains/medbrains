@@ -302,6 +302,13 @@ export const P = {
     SIGNATURE_CREDENTIALS_ISSUE: "admin.signature_credentials.issue",
     SIGNATURE_CREDENTIALS_LIST: "admin.signature_credentials.list",
     SIGNATURE_CREDENTIALS_REVOKE: "admin.signature_credentials.revoke",
+    SSO: {
+      PROVIDERS: {
+        MANAGE: "admin.sso.providers.manage",
+      },
+      PROVIDERS_MANAGE: "admin.sso.providers.manage",
+    },
+    SSO_PROVIDERS_MANAGE: "admin.sso.providers.manage",
     SYSTEM_STATE: {
       MANAGE: "admin.system_state.manage",
       VIEW: "admin.system_state.view",

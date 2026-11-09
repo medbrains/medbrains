@@ -361,6 +361,15 @@ does not ask Kanidm again until it is renewed. A new sign-in through Kanidm goes
 "The sign-in service is not answering…" with what to do; calls to Kanidm give up after 10 seconds instead of hanging. While it is
 down only the first administrator can sign in, by MedBrains' local form.
 
+**The break-glass: the setup administrator's password.** An account linked to Kanidm signs in through Kanidm only. Linking it
+(`set_link`) removes its local password, and MedBrains' password form refuses any account with a Kanidm link, saying to use
+"Sign in with MedBrains account", even one whose password survived from before this rule. One account is the exception: the
+setup administrator, the hospital's first account, made by the seed from the password typed at setup (`start_main_machine`
+hashes it; the seed stores the hash) and still a `super_admin` (`SETUP_ADMIN_SQL` in `medbrains-server-core/src/os_identity.rs`).
+It keeps that password beside its link, so a Kanidm outage cannot lock the hospital out. Each use is audited as
+`break_glass_password_login`, not `login`, so every one is found by one action; it still needs its MFA code when MFA is on.
+Relinking it keeps the password; changing its role away from `super_admin` ends the exception. No setting names another account.
+
 **Emergency sign-in, designed and not built** (for an independent review before any of it ships; revised after the first review).
 The problem: Kanidm is down for longer than a shift change, and a nurse who was not signed in must chart. The design:
 - **Turned on by people, never by an outage alone.** An outage could be caused from the LAN (flooding the front, or anything that
@@ -385,13 +394,26 @@ Open for the reviewer: whether a code or a second person's approval should be th
 may make a Kanidm person can give it any address, and Kanidm calls every primary address verified. Whatever it says, an email
 never claims a `super_admin` or `hospital_admin` account. The first administrator is linked at setup by its Kanidm UUID
 (`kanidm-first-admin` records it; `kanidm-setup` links it). **Existing staff are linked by hand:** Admin → Users → Link to
-sign-in, with the permission `admin.users.link_identity` (administrators, and the IT security officer role, who cannot link an
-administrator's account). It searches Kanidm's people by name, display name or mail through a read-only directory account
-(`mb_directory`, in `idm_account_mail_read`, its token readable by the server alone), shows each person's UUID and any account
+sign-in, with the permission `admin.users.link_identity` (administrators, and the IT security officer role). Whoever controls the
+Kanidm person controls the account, so someone who is not an administrator links only an account that holds nothing they do
+not: no bypass role, no signing permission (`*.sign`, `*.cosign`, `*_sign`), no `admin.*` power, no permission, access group,
+department or active relationship (care team, attending, ward) of the caller's lacking, and no open break-glass session. An
+administrator's account (a bypass role or any `admin.*` power) links, whoever links it, only to a Kanidm person in
+`mb_it_admins`, the group that must use a second step, as the directory's `memberof` says; a directory that does not answer,
+or does not show `memberof`, refuses. It searches Kanidm's people by name, display name or mail through a read-only directory account
+(`mb_directory`, in `idm_account_mail_read`, its token readable by the server alone), always on Kanidm's loopback listener
+(`https://idm.medbrains.local:8444`, pinned in the server, never read from the provider row), shows each person's UUID and any account
 already linked to them, and links or unlinks, audited as `sso_link` and `sso_unlink`. A new account from a sign-in is named after
 the Kanidm name; if that name is reserved (`admin`, `root`, and those with digits after them) or an account already has it, no
 account is made and the sign-in page says to ask IT to link it, so no look-alike grows beside an existing account. The new-staff
 notice names the Kanidm person and its UUID.
+
+**The Kanidm provider row is the OS's.** `kanidm-setup` writes the `kanidm` row in `identity_providers`; the admin API refuses to
+create, change or delete it (Admin → Single sign-on shows it as set up by the OS). Sign-in through it ignores the row's discovery
+URL, client and secret: the server reads discovery on loopback, holds the issuer to `https://idm.medbrains.local:9443/oauth2/openid/medbrains`
+and the client to `medbrains`, and makes its token and key calls on loopback too. It trusts Kanidm's own certificate for that,
+which `front-certs` adds to the server's trust file (`idp-front.pem`). Other providers are added, changed and removed with
+`admin.sso.providers.manage` (administrators and the IT security officer role).
 
 **Signing out.** Every sign-in through the OS's Kanidm asks for a fresh login (`prompt=login`), on the screen and in
 browsers. On the screen, when the MedBrains view comes back to its sign-in page it forgets every cookie, Kanidm's session among

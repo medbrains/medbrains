@@ -5,7 +5,7 @@
 
 use crate::config::SiteConfig;
 use crate::limits::RateLimiter;
-use crate::names::{Names, canonical_ip, normalize_path};
+use crate::names::{Names, canonical_ip, is_machine, normalize_path};
 use async_trait::async_trait;
 use bytes::Bytes;
 use pingora_core::protocols::tls::CaType;
@@ -173,7 +173,7 @@ impl Site {
             return Some(Refused::new(404, "Not found."));
         }
         if !self.lan_paths.is_empty()
-            && !canonical_ip(client).is_loopback()
+            && !is_machine(client)
             && !self
                 .lan_paths
                 .iter()

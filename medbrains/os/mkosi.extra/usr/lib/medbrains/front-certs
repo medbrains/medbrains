@@ -303,7 +303,22 @@ ensure_identity() {
     # Fails soft: the LAN certificate below must still renew when Kanidm is broken, and the front keeps the copy
     # it already has.
     copy_kanidm_certificate || echo "front-certs: kept the last copy of Kanidm's certificate" >&2
-    cmp -s "$CA/ca.pem" "$IDP_SERVER_TRUST" || install -m 0644 "$CA/ca.pem" "$IDP_SERVER_TRUST"
+    server_trust
+}
+
+# What the server trusts: this machine's authority for the front, and Kanidm's own certificate, because the
+# server reaches Kanidm on loopback (8444) for sign-in and the people directory, never through the front.
+server_trust() {
+    local trust="$IDP/server-trust.pem.new"
+    cat "$CA/ca.pem" > "$trust" || return 1
+    if [[ -s "$IDP/kanidm-back.pem" ]]; then
+        cat "$IDP/kanidm-back.pem" >> "$trust" || return 1
+    fi
+    if cmp -s "$trust" "$IDP_SERVER_TRUST"; then
+        rm -f "$trust"
+    else
+        install -m 0644 "$trust" "$IDP_SERVER_TRUST" && rm -f "$trust"
+    fi
 }
 
 # The identity provider's certificate, signed by this machine's authority, written beside and then renamed over

@@ -2,6 +2,7 @@ import { Group, Stack, Text } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
 import { api } from "@medbrains/api";
+import { useHasPermission } from "@medbrains/stores";
 import type { CreateSsoProviderRequest, SsoProvider } from "@medbrains/types";
 import { P, ROLE_TEMPLATES } from "@medbrains/types";
 import { IconPlus, IconTrash } from "@tabler/icons-react";
@@ -21,13 +22,17 @@ const EMPTY: CreateSsoProviderRequest = {
   jit_enabled: true,
 };
 
+/** The OS's own Kanidm: set up by the OS and pinned by the server, so this page shows it read only. */
+const OS_PROVIDER_CODE = "kanidm";
+
 /** Every built-in role except those that bypass permission checks. */
 const DEFAULT_ROLE_OPTIONS = Object.entries(ROLE_TEMPLATES)
   .filter(([code]) => code !== "super_admin" && code !== "hospital_admin")
   .map(([value, role]) => ({ value, label: role.label }));
 
 export function SsoSettingsPage() {
-  useRequirePermission(P.ADMIN.SETTINGS.GENERAL.MANAGE);
+  useRequirePermission([P.ADMIN.SETTINGS.GENERAL.MANAGE, P.ADMIN.SSO.PROVIDERS.MANAGE]);
+  const canManage = useHasPermission(P.ADMIN.SSO.PROVIDERS.MANAGE);
   const qc = useQueryClient();
   const [formOpen, form] = useDisclosure(false);
   const [draft, setDraft] = useState<CreateSsoProviderRequest>(EMPTY);
@@ -92,6 +97,7 @@ export function SsoSettingsPage() {
       render: (p) => (
         <Switch
           checked={p.is_active}
+          disabled={!canManage || p.code === OS_PROVIDER_CODE}
           onChange={(e) => toggleMut.mutate({ id: p.id, is_active: e.currentTarget.checked })}
           aria-label="Active"
         />
@@ -105,19 +111,25 @@ export function SsoSettingsPage() {
           <Button tone="ghost" size="xs" onClick={() => setMappingsFor(p)}>
             Group mappings
           </Button>
-          <IconButton
-            tone="danger"
-            aria-label="Delete provider"
-            onClick={() =>
-              confirmDestructive({
-                title: "Delete provider",
-                message: `Delete "${p.name}"? Users will no longer be able to sign in through it.`,
-                onConfirm: () => deleteMut.mutate(p.id),
-              })
-            }
-          >
-            <IconTrash size={14} />
-          </IconButton>
+          {p.code === OS_PROVIDER_CODE ? (
+            <Badge tone="neutral">Set up by the OS</Badge>
+          ) : (
+            canManage && (
+              <IconButton
+                tone="danger"
+                aria-label="Delete provider"
+                onClick={() =>
+                  confirmDestructive({
+                    title: "Delete provider",
+                    message: `Delete "${p.name}"? Users will no longer be able to sign in through it.`,
+                    onConfirm: () => deleteMut.mutate(p.id),
+                  })
+                }
+              >
+                <IconTrash size={14} />
+              </IconButton>
+            )
+          )}
         </Group>
       ),
     },
@@ -131,16 +143,18 @@ export function SsoSettingsPage() {
         title="Single Sign-On"
         subtitle="Federate login to a corporate identity provider and map AD groups to roles & access groups"
         actions={
-          <Button
-            tone="primary"
-            leftSection={<IconPlus size={15} />}
-            onClick={() => {
-              setDraft(EMPTY);
-              form.open();
-            }}
-          >
-            Add provider
-          </Button>
+          canManage ? (
+            <Button
+              tone="primary"
+              leftSection={<IconPlus size={15} />}
+              onClick={() => {
+                setDraft(EMPTY);
+                form.open();
+              }}
+            >
+              Add provider
+            </Button>
+          ) : undefined
         }
       />
       <DataTable columns={columns} data={providers} loading={isLoading} rowKey={(p) => p.id} />
@@ -242,13 +256,14 @@ export function SsoSettingsPage() {
         title={mappingsFor ? `Group mappings — ${mappingsFor.name}` : ""}
         fullScreen
       >
-        {mappingsFor && <GroupMappings provider={mappingsFor} />}
+        {mappingsFor && <GroupMappings provider={mappingsFor} canManage={canManage} />}
       </Modal>
     </div>
   );
 }
 
-function GroupMappings({ provider }: { provider: SsoProvider }) {
+/** A provider's directory-group mappings; adding or removing one needs the provider-management permission. */
+function GroupMappings({ provider, canManage }: { provider: SsoProvider; canManage: boolean }) {
   const qc = useQueryClient();
   const [idpGroup, setIdpGroup] = useState("");
   const [roleCode, setRoleCode] = useState("");
@@ -305,50 +320,54 @@ function GroupMappings({ provider }: { provider: SsoProvider }) {
               <Table.Td>{m.role_code ?? "—"}</Table.Td>
               <Table.Td>{groups.find((g) => g.id === m.access_group_id)?.name ?? "—"}</Table.Td>
               <Table.Td>
-                <IconButton
-                  tone="danger"
-                  aria-label="Delete mapping"
-                  onClick={() => delMut.mutate(m.id)}
-                >
-                  <IconTrash size={14} />
-                </IconButton>
+                {canManage && (
+                  <IconButton
+                    tone="danger"
+                    aria-label="Delete mapping"
+                    onClick={() => delMut.mutate(m.id)}
+                  >
+                    <IconTrash size={14} />
+                  </IconButton>
+                )}
               </Table.Td>
             </Table.Tr>
           ))}
         </Table.Tbody>
       </Table>
 
-      <Stack gap="xs">
-        <Input
-          label="IdP group"
-          value={idpGroup}
-          onChange={(e) => setIdpGroup(e.currentTarget.value)}
-        />
-        <Input
-          label="Role code"
-          placeholder="e.g. doctor (optional)"
-          value={roleCode}
-          onChange={(e) => setRoleCode(e.currentTarget.value)}
-        />
-        <Select
-          label="Access group"
-          placeholder="(optional)"
-          clearable
-          value={accessGroupId}
-          onChange={setAccessGroupId}
-          data={groups.map((g) => ({ value: g.id, label: g.name }))}
-        />
-        <Group justify="flex-end">
-          <Button
-            tone="primary"
-            loading={addMut.isPending}
-            disabled={!idpGroup.trim() || (!roleCode.trim() && !accessGroupId)}
-            onClick={() => addMut.mutate()}
-          >
-            Add mapping
-          </Button>
-        </Group>
-      </Stack>
+      {canManage && (
+        <Stack gap="xs">
+          <Input
+            label="IdP group"
+            value={idpGroup}
+            onChange={(e) => setIdpGroup(e.currentTarget.value)}
+          />
+          <Input
+            label="Role code"
+            placeholder="e.g. doctor (optional)"
+            value={roleCode}
+            onChange={(e) => setRoleCode(e.currentTarget.value)}
+          />
+          <Select
+            label="Access group"
+            placeholder="(optional)"
+            clearable
+            value={accessGroupId}
+            onChange={setAccessGroupId}
+            data={groups.map((g) => ({ value: g.id, label: g.name }))}
+          />
+          <Group justify="flex-end">
+            <Button
+              tone="primary"
+              loading={addMut.isPending}
+              disabled={!idpGroup.trim() || (!roleCode.trim() && !accessGroupId)}
+              onClick={() => addMut.mutate()}
+            >
+              Add mapping
+            </Button>
+          </Group>
+        </Stack>
+      )}
     </Stack>
   );
 }

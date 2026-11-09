@@ -3409,6 +3409,20 @@ pub mod admin {
         pub const LINK_IDENTITY: &str = "admin.users.link_identity";
     }
 
+    /// Single sign-on providers.
+    pub mod sso {
+        /// The identity providers staff sign in through.
+        pub mod providers {
+            /// Add, change or remove sign-in providers.
+            ///
+            /// Add, change, switch off or delete an outside identity provider,
+            /// and map its directory groups to roles and access groups. Whoever
+            /// holds this decides who can sign in and as what. The machine's own
+            /// sign-in service is pinned by the OS and cannot be changed here.
+            pub const MANAGE: &str = "admin.sso.providers.manage";
+        }
+    }
+
     /// Oversight of the approvals platform.
     ///
     /// Without this you see an approval request only if you raised it, are an

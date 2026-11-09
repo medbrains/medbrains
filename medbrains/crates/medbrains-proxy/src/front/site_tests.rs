@@ -378,6 +378,14 @@ fn the_lan_reaches_only_its_paths_and_the_machine_reaches_all() -> anyhow::Resul
         None,
         "the machine itself"
     );
+    assert_eq!(ask("/v1/raw/search", "::1")?, None, "the machine itself");
+    for forged in ["127.0.0.2", "127.5.6.7"] {
+        assert_eq!(
+            ask("/v1/raw/search", forged)?,
+            Some(404),
+            "{forged} is not the machine"
+        );
+    }
     assert_eq!(
         ask("/v1/raw/search", "::1")?,
         None,

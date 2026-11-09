@@ -13,28 +13,62 @@ pub(super) struct Target {
     /// The provider and subject it is linked to now, if any.
     pub(super) idp_id: Option<Uuid>,
     pub(super) subject: Option<String>,
+    /// An administrator's account (a bypass role, or any `admin.*` power): it links only to a Kanidm person in
+    /// the high-privilege group, whoever makes the link.
+    pub(super) needs_high_privilege: bool,
 }
 
-/// True when the caller may change the link of an account with this role and these effective permissions.
-/// Whoever controls the Kanidm person controls the account, so a link must never hand anyone more than the
-/// caller already holds. An administrator (bypass role) may link anyone; everyone else only an account that is
-/// not an administrator's, holds no administrative `admin.*` power, and holds nothing the caller does not.
-fn may_manage_link(
-    caller_is_admin: bool,
+/// What the target account reaches beyond its permission codes that the caller does not: each is a way in the
+/// codes alone do not show.
+#[derive(Debug, Default, Clone, Copy)]
+pub(super) struct ExtraScope {
+    /// An access group the caller is not in.
+    groups: bool,
+    /// A department the caller is not scoped to, or no department limit when the caller has one.
+    departments: bool,
+    /// A care-team or other relationship (an active `relation_tuples` row) the caller does not hold.
+    relations: bool,
+    /// An open break-glass session.
+    break_glass: bool,
+}
+
+/// Why a non-administrator may not change the link of this account, or `None` when they may. Whoever controls
+/// the Kanidm person controls the account, so a link must never hand the caller more than they already hold:
+/// not an administrator's account, not one that signs clinical records, no `admin.*` power, no code, group,
+/// department or relationship the caller lacks, and not an account inside break-glass.
+fn link_refusal(
     caller_permissions: &[String],
     target_role: &str,
     target_permissions: &[String],
-) -> bool {
-    if caller_is_admin {
-        return true;
-    }
-    if BYPASS_ROLES.contains(&target_role) {
-        return false;
-    }
+    scope: ExtraScope,
+) -> Option<&'static str> {
     let held: HashSet<&str> = caller_permissions.iter().map(String::as_str).collect();
-    target_permissions
+    if BYPASS_ROLES.contains(&target_role) {
+        Some("Only an administrator may link an administrator's account.")
+    } else if target_permissions.iter().any(|code| is_signing(code)) {
+        Some("Only an administrator may link an account that signs clinical records.")
+    } else if !target_permissions
         .iter()
         .all(|code| !is_admin_power(code) && held.contains(code.as_str()))
+    {
+        Some("This account holds permissions you do not. Ask an administrator to link it.")
+    } else {
+        scope_refusal(scope)
+    }
+}
+
+/// The refusal for scope the target holds and the caller does not, if any.
+const fn scope_refusal(scope: ExtraScope) -> Option<&'static str> {
+    if scope.break_glass {
+        Some("This account is in an open break-glass session. Ask an administrator to link it.")
+    } else if scope.groups || scope.departments || scope.relations {
+        Some(
+            "This account reaches access groups, departments or care teams you do not. Ask an \
+             administrator to link it.",
+        )
+    } else {
+        None
+    }
 }
 
 /// True for an `admin.*` code that changes something. Read-only ones (`.read`, `.list`, `.view`) are not
@@ -45,6 +79,13 @@ fn is_admin_power(code: &str) -> bool {
         && ![".read", ".list", ".view"]
             .iter()
             .any(|read| code.ends_with(read))
+}
+
+/// True for a code that puts the holder's signature on a record: `sign`, `cosign`, `co_sign` and the like as
+/// its action. Taking over such an account forges a clinician's signature.
+fn is_signing(code: &str) -> bool {
+    let action = code.rsplit('.').next().unwrap_or(code);
+    matches!(action, "sign" | "cosign" | "countersign") || action.ends_with("_sign")
 }
 
 /// Whether a link to `requested` must be written, given the account's link now. Re-pointing a linked account
@@ -65,7 +106,45 @@ pub(super) fn needs_link_write(
     }
 }
 
-/// Reads and locks the target account, and refuses the change unless [`may_manage_link`] allows it.
+/// What `target` reaches that `caller` does not, in one round trip: access groups, departments, active
+/// relationships (care teams, attending, ward) and an open break-glass. A department answer that is missing
+/// counts as more, so a fault refuses.
+async fn extra_scope(tx: &mut Tx, caller: Uuid, target: Uuid) -> Result<ExtraScope, AppError> {
+    let row = sqlx::query_as::<_, (bool, Option<bool>, bool, bool)>(EXTRA_SCOPE_SQL)
+        .bind(caller)
+        .bind(target)
+        .fetch_one(&mut **tx)
+        .await?;
+    Ok(ExtraScope {
+        groups: row.0,
+        departments: row.1.unwrap_or(true),
+        relations: row.2,
+        break_glass: row.3,
+    })
+}
+
+/// `$1` the caller, `$2` the target. An empty `department_ids` means "every department".
+const EXTRA_SCOPE_SQL: &str = "SELECT \
+    EXISTS (SELECT 1 FROM access_group_members t \
+            JOIN access_groups g ON g.id = t.group_id AND g.is_active AND g.deleted_at IS NULL \
+            WHERE t.user_id = $2 AND t.deleted_at IS NULL AND (t.expires_at IS NULL OR t.expires_at > now()) \
+              AND NOT EXISTS (SELECT 1 FROM access_group_members c WHERE c.user_id = $1 \
+                  AND c.group_id = t.group_id AND c.deleted_at IS NULL \
+                  AND (c.expires_at IS NULL OR c.expires_at > now()))), \
+    (SELECT cardinality(c.department_ids) > 0 \
+            AND (cardinality(t.department_ids) = 0 OR NOT t.department_ids <@ c.department_ids) \
+       FROM users c, users t WHERE c.id = $1 AND t.id = $2), \
+    EXISTS (SELECT 1 FROM relation_tuples t WHERE t.subject_type = 'user' AND t.subject_id = $2::text \
+              AND t.status = 'active' AND t.deleted_at IS NULL AND (t.expires_at IS NULL OR t.expires_at > now()) \
+              AND NOT EXISTS (SELECT 1 FROM relation_tuples c WHERE c.subject_type = 'user' \
+                  AND c.subject_id = $1::text AND c.status = 'active' AND c.deleted_at IS NULL \
+                  AND (c.expires_at IS NULL OR c.expires_at > now()) AND c.object_type = t.object_type \
+                  AND c.object_id = t.object_id AND c.relation = t.relation)), \
+    EXISTS (SELECT 1 FROM break_glass_events b WHERE b.user_id = $2 AND b.is_active \
+              AND b.expires_at > now())";
+
+/// Reads and locks the target account, and refuses the change unless the caller is an administrator or
+/// [`link_refusal`] finds nothing.
 pub(super) async fn guard_target(
     state: &AppState,
     tx: &mut Tx,
@@ -82,24 +161,23 @@ pub(super) async fn guard_target(
     .fetch_optional(&mut **tx)
     .await?
     .ok_or(AppError::NotFound)?;
-    let caller_is_admin = is_admin(claims);
-    let target_permissions = if caller_is_admin || BYPASS_ROLES.contains(&role.as_str()) {
+    let is_bypass = BYPASS_ROLES.contains(&role.as_str());
+    let target_permissions = if is_bypass {
         Vec::new()
     } else {
         resolve_permissions(&state.db, claims.tenant_id, user_id, &role).await?
     };
-    if !may_manage_link(
-        caller_is_admin,
-        &claims.permissions,
-        &role,
-        &target_permissions,
-    ) {
-        return Err(AppError::Forbidden);
+    if !is_admin(claims) {
+        let scope = extra_scope(tx, claims.sub, user_id).await?;
+        if let Some(reason) = link_refusal(&claims.permissions, &role, &target_permissions, scope) {
+            return Err(AppError::ForbiddenReason(reason.to_owned()));
+        }
     }
     Ok(Target {
         email,
         idp_id,
         subject,
+        needs_high_privilege: is_bypass || target_permissions.iter().any(|c| is_admin_power(c)),
     })
 }
 
@@ -173,15 +251,19 @@ pub(super) async fn notify_holder(
 
 #[cfg(test)]
 mod tests {
-    use super::{holder_notice, may_manage_link, needs_link_write};
+    use super::{ExtraScope, holder_notice, is_signing, link_refusal, needs_link_write};
     use uuid::Uuid;
 
     fn codes(list: &[&str]) -> Vec<String> {
         list.iter().map(|&c| c.to_owned()).collect()
     }
 
-    /// A non-administrator may link only an account that holds nothing they do not, and no `admin.*` at all;
-    /// an administrator may link anyone.
+    /// The refusal a non-administrator gets for this target, with no extra scope.
+    fn refused(caller: &[String], role: &str, target: &[String]) -> Option<&'static str> {
+        link_refusal(caller, role, target, ExtraScope::default())
+    }
+
+    /// A non-administrator may link only an account that holds nothing they do not, and no `admin.*` at all.
     #[test]
     fn a_link_never_hands_the_caller_more_than_they_hold() {
         let it_officer = codes(&[
@@ -190,46 +272,94 @@ mod tests {
             "lab.result.view",
         ]);
         let nurse = codes(&["opd.visit.view"]);
-        assert!(may_manage_link(false, &it_officer, "nurse", &nurse));
-        assert!(!may_manage_link(
-            false,
-            &it_officer,
-            "doctor",
-            &codes(&["opd.visit.view", "pharmacy.dispense"])
-        ));
+        assert_eq!(refused(&it_officer, "nurse", &nurse), None);
+        assert!(
+            refused(
+                &it_officer,
+                "doctor",
+                &codes(&["opd.visit.view", "pharmacy.dispense"])
+            )
+            .is_some()
+        );
         // Holding the admin code yourself does not make an admin's account linkable.
-        assert!(!may_manage_link(
-            false,
-            &it_officer,
-            "it_security_officer",
-            &codes(&["admin.users.link_identity"])
-        ));
-        assert!(!may_manage_link(false, &it_officer, "hospital_admin", &[]));
-        assert!(!may_manage_link(false, &it_officer, "super_admin", &[]));
-        assert!(may_manage_link(
-            true,
-            &[],
-            "hospital_admin",
-            &codes(&["admin.users.create"])
-        ));
-        assert!(may_manage_link(false, &it_officer, "receptionist", &[]));
+        assert!(
+            refused(
+                &it_officer,
+                "it_security_officer",
+                &codes(&["admin.users.link_identity"])
+            )
+            .is_some()
+        );
+        assert!(refused(&it_officer, "hospital_admin", &[]).is_some());
+        assert!(refused(&it_officer, "super_admin", &[]).is_some());
+        assert_eq!(refused(&it_officer, "receptionist", &[]), None);
         // A read-only admin code every clinical role has is no power; a write one is, even when IT holds it.
         let with_settings = codes(&["opd.visit.view", "admin.settings.read"]);
         let mut it_reader = it_officer.clone();
         it_reader.extend(codes(&["admin.settings.read", "admin.users.create"]));
-        assert!(may_manage_link(false, &it_reader, "nurse", &with_settings));
-        assert!(!may_manage_link(
-            false,
-            &it_officer,
-            "nurse",
-            &with_settings
-        ));
-        assert!(!may_manage_link(
-            false,
-            &it_reader,
-            "nurse",
-            &codes(&["admin.users.create"])
-        ));
+        assert_eq!(refused(&it_reader, "nurse", &with_settings), None);
+        assert!(refused(&it_officer, "nurse", &with_settings).is_some());
+        assert!(refused(&it_reader, "nurse", &codes(&["admin.users.create"])).is_some());
+    }
+
+    /// An account that signs clinical records is never linked by a non-administrator, even one who signs too.
+    #[test]
+    fn a_signing_account_needs_an_administrator() {
+        let signer = codes(&["opd.visit.view", "clinical_notes.sign"]);
+        assert_eq!(
+            refused(&signer, "doctor", &signer),
+            Some("Only an administrator may link an account that signs clinical records.")
+        );
+        for code in [
+            "doctor.signature.co_sign",
+            "clinical_notes.cosign",
+            "opd.consents.sign",
+        ] {
+            assert!(is_signing(code), "{code}");
+        }
+        for code in [
+            "case_mgmt.assignments.create",
+            "doctor.signature.verify",
+            "consent.signatures.list",
+        ] {
+            assert!(!is_signing(code), "{code}");
+        }
+    }
+
+    /// Codes are not the whole of an account: a group, department, relationship or break-glass it holds and
+    /// the caller does not refuses the link.
+    #[test]
+    fn scope_beyond_the_callers_refuses_the_link() {
+        let it = codes(&["admin.users.link_identity", "opd.visit.view"]);
+        let nurse = codes(&["opd.visit.view"]);
+        let each = [
+            ExtraScope {
+                groups: true,
+                ..ExtraScope::default()
+            },
+            ExtraScope {
+                departments: true,
+                ..ExtraScope::default()
+            },
+            ExtraScope {
+                relations: true,
+                ..ExtraScope::default()
+            },
+            ExtraScope {
+                break_glass: true,
+                ..ExtraScope::default()
+            },
+        ];
+        for scope in each {
+            assert!(
+                link_refusal(&it, "nurse", &nurse, scope).is_some(),
+                "{scope:?}"
+            );
+        }
+        assert_eq!(
+            link_refusal(&it, "nurse", &nurse, ExtraScope::default()),
+            None
+        );
     }
 
     /// Linking the same person again changes nothing; linking a linked account to anyone else is refused.

@@ -1541,7 +1541,7 @@ export const NAV_GROUPS: NavGroupConfig[] = [
             i18nKey: "sso",
             path: "/admin/sso",
             icon: "IconLockSquareRounded",
-            requiredPermission: "admin.settings.general.manage",
+            requiredPermission: "admin.sso.providers.manage",
           },
           {
             i18nKey: "accessRequests",

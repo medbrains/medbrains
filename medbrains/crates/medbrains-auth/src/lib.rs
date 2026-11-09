@@ -19,6 +19,7 @@ use medbrains_server_core::{
         cookies::{build_access_cookie, build_csrf_cookie, build_refresh_cookie, clear_cookie},
         field_access,
     },
+    os_identity::{KANIDM_CODE, SETUP_ADMIN_SQL},
     state::AppState,
 };
 
@@ -253,6 +254,24 @@ async fn password_login_blocked(
     Ok(break_glass.as_deref() != Some(username))
 }
 
+/// The audit action of a password sign-in through the setup administrator's break-glass.
+pub const BREAK_GLASS_LOGIN: &str = "break_glass_password_login";
+
+/// Whether a password may open this account, and whether doing so is the break-glass. An account linked to
+/// the OS's Kanidm signs in there, with its second step and lockout; only the setup administrator keeps a
+/// password beside the link, so an outage of Kanidm cannot lock the hospital out (os/README.md).
+fn password_route(kanidm_linked: bool, setup_admin: bool) -> Result<bool, AppError> {
+    match (kanidm_linked, setup_admin) {
+        (false, _) => Ok(false),
+        (true, true) => Ok(true),
+        (true, false) => Err(AppError::BadRequest(KANIDM_SIGN_IN.to_owned())),
+    }
+}
+
+/// What a linked account sees when it tries a password.
+const KANIDM_SIGN_IN: &str = "This account signs in with your MedBrains account, not a password here. \
+     Choose \"Sign in with MedBrains account\" on this page.";
+
 #[allow(clippy::too_many_lines)]
 pub async fn login(
     State(state): State<AppState>,
@@ -310,12 +329,18 @@ pub async fn login(
     // Per-account lockout — independent of the per-IP rate limit so a
     // distributed credential-stuffing run still locks the account.
     // The account's hospital is known from here on; `users` needs it under RLS.
-    let locked: bool = sqlx::query_scalar(
-        "SELECT locked_until IS NOT NULL AND locked_until > now() FROM users WHERE id = $1",
-    )
+    // Read with it: whether the account is linked to the OS's Kanidm, and whether
+    // it is the setup administrator, the one linked account a password still opens.
+    let (locked, kanidm_linked, setup_admin): (bool, bool, bool) = sqlx::query_as(&format!(
+        "SELECT u.locked_until IS NOT NULL AND u.locked_until > now(), \
+         EXISTS (SELECT 1 FROM identity_providers p WHERE p.id = u.idp_id AND p.code = $2), \
+         {SETUP_ADMIN_SQL} FROM users u WHERE u.id = $1"
+    ))
     .bind(row.id)
+    .bind(KANIDM_CODE)
     .fetch_one(&mut *medbrains_db::pool::tenant_conn(&state.db, &row.tenant_id).await?)
     .await?;
+    let break_glass = password_route(kanidm_linked, setup_admin)?;
     if locked {
         return Err(AppError::BadRequest(
             "Account temporarily locked after repeated failed logins. Try again later.".to_owned(),
@@ -449,17 +474,23 @@ pub async fn login(
     .execute(&mut *tx)
     .await?;
 
-    // Audit log
+    // Audit log. The break-glass is named in it, so every use is found by one action.
+    let break_glass_details =
+        serde_json::json!({ "route": "setup administrator password beside Kanidm" });
     medbrains_db::audit::AuditLogger::log(
         &mut tx,
         &medbrains_db::audit::AuditEntry {
             tenant_id: row.tenant_id,
             user_id: Some(row.id),
-            action: "login",
+            action: if break_glass {
+                BREAK_GLASS_LOGIN
+            } else {
+                "login"
+            },
             entity_type: "user",
             entity_id: Some(row.id),
             old_values: None,
-            new_values: None,
+            new_values: break_glass.then_some(&break_glass_details),
             ip_address: None,
         },
     )

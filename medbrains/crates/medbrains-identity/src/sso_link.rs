@@ -13,21 +13,20 @@ use uuid::Uuid;
 use medbrains_core::permissions::admin::users::LINK_IDENTITY;
 use medbrains_kernel::{Actor, Claims, Tx, require_permission};
 use medbrains_notifications::publish_notification;
-use medbrains_server_core::{error::AppError, state::AppState};
+use medbrains_server_core::{
+    error::AppError,
+    os_identity::{KANIDM_CODE, SETUP_ADMIN_SQL},
+    state::AppState,
+};
 
+mod directory;
 mod target;
 
+use directory::{read_directory, require_high_privilege_person};
 use target::{guard_target, holder_notice, is_admin, needs_link_write, notify_holder};
 
-/// The OS's own Kanidm, as kanidm-setup registers it.
-const KANIDM_CODE: &str = "kanidm";
-/// A read-only Kanidm token, made by kanidm-setup for a service account that may read names, UUIDs and mail.
-const DIRECTORY_TOKEN_ENV: &str = "MEDBRAINS_IDP_DIRECTORY_TOKEN_FILE";
-const DIRECTORY_TOKEN_FILE: &str = "/var/lib/medbrains/config/idp-directory-token";
 /// At most this many people come back from a search: enough to find one, never a whole directory dump.
 const MAX_PEOPLE: usize = 50;
-/// How long the directory may take before the screen says it is not answering.
-const DIRECTORY_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(10);
 /// The longest search text taken.
 const MAX_QUERY_CHARS: usize = 64;
 
@@ -60,23 +59,14 @@ pub struct LinkRequest {
     pub subject: String,
 }
 
-/// The Kanidm provider of this hospital: its id and discovery URL. `NotFound` when Kanidm is not set up.
-async fn kanidm_provider(tx: &mut Tx) -> Result<(Uuid, String), AppError> {
-    sqlx::query_as::<_, (Uuid, Option<String>)>(
-        "SELECT id, discovery_url FROM identity_providers WHERE code = $1 LIMIT 1",
-    )
-    .bind(KANIDM_CODE)
-    .fetch_optional(&mut **tx)
-    .await?
-    .and_then(|(id, url)| url.map(|url| (id, url)))
-    .ok_or(AppError::NotFound)
-}
-
-/// `https://host:port` from a discovery URL.
-fn origin_of(discovery_url: &str) -> Option<&str> {
-    let rest = discovery_url.strip_prefix("https://")?;
-    let end = rest.find('/').unwrap_or(rest.len());
-    Some(&discovery_url[..8 + end])
+/// The id of this hospital's Kanidm provider. Only the id: where Kanidm is reached is pinned by the server
+/// (`os_identity`), never read from the row. `NotFound` when Kanidm is not set up.
+async fn kanidm_provider(tx: &mut Tx) -> Result<Uuid, AppError> {
+    sqlx::query_scalar::<_, Uuid>("SELECT id FROM identity_providers WHERE code = $1 LIMIT 1")
+        .bind(KANIDM_CODE)
+        .fetch_optional(&mut **tx)
+        .await?
+        .ok_or(AppError::NotFound)
 }
 
 /// True for a Kanidm UUID: what a subject must look like before it is stored.
@@ -133,25 +123,8 @@ pub async fn list_kanidm_people(
         .take(MAX_QUERY_CHARS)
         .collect();
     let mut tx = medbrains_kernel::begin(&state.db, Actor::from_claims(&claims)).await?;
-    let (provider_id, discovery_url) = kanidm_provider(&mut tx).await?;
-    let origin = origin_of(&discovery_url)
-        .ok_or(AppError::NotFound)?
-        .to_owned();
-    let token_file =
-        std::env::var(DIRECTORY_TOKEN_ENV).unwrap_or_else(|_| DIRECTORY_TOKEN_FILE.to_owned());
-    let token = std::fs::read_to_string(&token_file)
-        .map_err(|_| AppError::Internal("the Kanidm directory token is not readable".to_owned()))?;
-    let answer = reqwest::Client::new()
-        .get(format!("{origin}/v1/person"))
-        .bearer_auth(token.trim())
-        .timeout(DIRECTORY_TIMEOUT)
-        .send()
-        .await
-        .and_then(reqwest::Response::error_for_status)
-        .map_err(|e| AppError::Internal(format!("Kanidm's directory did not answer: {e}")))?
-        .json::<serde_json::Value>()
-        .await
-        .map_err(|e| AppError::Internal(format!("Kanidm's directory answer: {e}")))?;
+    let provider_id = kanidm_provider(&mut tx).await?;
+    let answer = read_directory("/v1/person").await?;
     let mut people = matching_people(&answer, &text);
     let uuids: Vec<String> = people.iter().map(|p| p.uuid.clone()).collect();
     let linked = sqlx::query_as::<_, (String, String)>(
@@ -236,7 +209,7 @@ pub async fn set_link(
     }
     let mut tx = medbrains_kernel::begin(&state.db, Actor::from_claims(&claims)).await?;
     let target = guard_target(&state, &mut tx, &claims, user_id).await?;
-    let (provider_id, _) = kanidm_provider(&mut tx).await?;
+    let provider_id = kanidm_provider(&mut tx).await?;
     let current = target.subject.as_deref().map(|s| (target.idp_id, s));
     if !needs_link_write(current, (provider_id, &req.subject))? {
         tx.commit().await?;
@@ -258,15 +231,23 @@ pub async fn set_link(
             "This Kanidm person is already linked to {other}. Unlink it there first."
         )));
     }
-    sqlx::query(
-        "UPDATE users SET idp_id = $2, external_subject = $3, perm_version = perm_version + 1, \
-         updated_at = now() WHERE id = $1",
-    )
+    if target.needs_high_privilege {
+        require_high_privilege_person(&req.subject).await?;
+    }
+    // A linked account signs in through Kanidm only, so its local password goes: a password left beside the
+    // link would be a second way in that Kanidm's second step and lockout never see. The setup administrator
+    // keeps theirs as the named break-glass (os/README.md).
+    sqlx::query(&format!(
+        "UPDATE users u SET idp_id = $2, external_subject = $3, perm_version = u.perm_version + 1, \
+         password_hash = CASE WHEN {SETUP_ADMIN_SQL} THEN u.password_hash END, \
+         updated_at = now() WHERE u.id = $1"
+    ))
     .bind(user_id)
     .bind(provider_id)
     .bind(&req.subject)
     .execute(&mut *tx)
-    .await?;
+    .await
+    .map_err(already_linked)?;
     let details =
         serde_json::json!({ "provider_id": provider_id, "external_subject": req.subject });
     audit_link(&mut tx, &claims, user_id, "sso_link", &details).await?;
@@ -289,6 +270,19 @@ pub async fn set_link(
         provider_id,
         subject: req.subject,
     }))
+}
+
+/// A race the check above lost: another account took the same Kanidm person first. A 409 in plain words.
+fn already_linked(error: sqlx::Error) -> AppError {
+    match &error {
+        sqlx::Error::Database(db) if db.constraint() == Some("uq_users_idp_subject") => {
+            AppError::Conflict(
+                "This Kanidm person was just linked to another account. Unlink it there first."
+                    .to_owned(),
+            )
+        }
+        _ => error.into(),
+    }
 }
 
 /// DELETE /api/admin/users/{id}/sso-link — removes the account's link to Kanidm.
@@ -341,7 +335,7 @@ pub async fn remove_link(
 
 #[cfg(test)]
 mod tests {
-    use super::{is_subject, matching_people, origin_of};
+    use super::{is_subject, matching_people};
 
     /// Only a hyphenated UUID is stored as a subject, so a typo cannot link an account to nobody.
     #[test]
@@ -350,14 +344,6 @@ mod tests {
         assert!(!is_subject("026C6E42-4127-4946-9C6E-841B0670998B"));
         assert!(!is_subject("asha_admin"));
         assert!(!is_subject(""));
-    }
-
-    /// The directory's origin comes from the provider's discovery URL, never from the request.
-    #[test]
-    fn the_directory_origin_comes_from_the_discovery_url() {
-        let url = "https://idm.medbrains.local:9443/oauth2/openid/medbrains/.well-known/openid-configuration";
-        assert_eq!(origin_of(url), Some("https://idm.medbrains.local:9443"));
-        assert_eq!(origin_of("http://idm.medbrains.local/x"), None);
     }
 
     /// A search matches name, display name or mail, case aside, and drops entries without a name or UUID.

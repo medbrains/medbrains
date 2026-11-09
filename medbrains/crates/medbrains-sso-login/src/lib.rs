@@ -33,6 +33,7 @@ use medbrains_server_core::{
     middleware::auth::{Claims, encode_jwt},
     middleware::authorization::BYPASS_ROLES,
     middleware::cookies::{build_access_cookie, build_csrf_cookie, build_refresh_cookie},
+    os_identity,
     state::AppState,
 };
 
@@ -67,6 +68,7 @@ fn callback_uri(base: &str) -> String {
     format!("{base}/api/auth/sso/callback")
 }
 
+/// The key that seals SSO client secrets at rest: the same one on write (admin) and read (sign-in).
 async fn secret_key(state: &AppState) -> Result<Vec<u8>, AppError> {
     medbrains_core::secrets::sealing::sealing_key(
         state.secret_resolver.as_ref(),
@@ -111,15 +113,35 @@ struct LoginProvider {
     link_by_email: bool,
 }
 
+/// The provider a sign-in uses. The OS's own Kanidm keeps only its id and settings from the row: where it is
+/// reached and which client `MedBrains` is are pinned by the server (`os_identity`), so an edited row cannot send
+/// a sign-in elsewhere.
 async fn load_provider(state: &AppState, id: Uuid) -> Result<LoginProvider, AppError> {
-    sqlx::query_as::<_, LoginProvider>(
+    let mut provider = sqlx::query_as::<_, LoginProvider>(
         "SELECT id, tenant_id, protocol, discovery_url, client_id, client_secret_enc, \
          group_claim, default_role, jit_enabled, code, link_by_email FROM sso_provider_for_login($1)",
     )
     .bind(id)
     .fetch_optional(&state.db)
     .await?
-    .ok_or(AppError::NotFound)
+    .ok_or(AppError::NotFound)?;
+    if provider.code == OS_KANIDM_CODE {
+        "oidc".clone_into(&mut provider.protocol);
+        provider.discovery_url = Some(os_identity::discovery_url());
+        provider.client_id = Some(os_identity::CLIENT_ID.to_owned());
+        provider.client_secret_enc = None;
+    }
+    Ok(provider)
+}
+
+/// The HTTP client for a provider's server-side calls: the OS's Kanidm only ever on loopback.
+fn provider_client(provider: &LoginProvider) -> Result<reqwest::Client, AppError> {
+    if provider.code == OS_KANIDM_CODE {
+        os_identity::kanidm_client(PROVIDER_TIMEOUT)
+    } else {
+        reqwest::Client::builder().timeout(PROVIDER_TIMEOUT).build()
+    }
+    .map_err(|e| AppError::Internal(format!("http client: {e}")))
 }
 
 /// How long a call to the identity provider may take. A provider that hangs must not hang the sign-in page.
@@ -132,7 +154,7 @@ const PROVIDER_REFUSED: &str = "/login?sso_error=1";
 const LINK_NEEDED: &str = "/login?sso_error=link";
 /// The OS's own Kanidm, as kanidm-setup registers it. Every sign-in through it asks for a fresh login, because
 /// its pages run on shared computers and its session would otherwise sign the next person in.
-const OS_KANIDM_CODE: &str = "kanidm";
+const OS_KANIDM_CODE: &str = os_identity::KANIDM_CODE;
 /// Accounts an email address never claims, whatever the provider says: a takeover of one is the whole hospital.
 const NEVER_LINKED_BY_EMAIL: [&str; 2] = ["super_admin", "hospital_admin"];
 /// Names a new account never takes, nor these with digits or underscores after them: they read as the system's
@@ -178,16 +200,41 @@ struct Discovery {
     jwks_uri: String,
 }
 
-async fn fetch_discovery(url: &str) -> Result<Discovery, AppError> {
-    reqwest::Client::new()
+/// The provider's `OpenID` discovery document. For the OS's Kanidm it must name the pinned issuer, and its
+/// server-side endpoints move onto loopback; a document naming any other host is refused.
+async fn fetch_discovery(
+    client: &reqwest::Client,
+    url: &str,
+    is_kanidm: bool,
+) -> Result<Discovery, AppError> {
+    let discovery = client
         .get(url)
-        .timeout(PROVIDER_TIMEOUT)
         .send()
         .await
         .map_err(|e| AppError::Internal(format!("oidc discovery: {e}")))?
         .json::<Discovery>()
         .await
-        .map_err(|e| AppError::Internal(format!("oidc discovery parse: {e}")))
+        .map_err(|e| AppError::Internal(format!("oidc discovery parse: {e}")))?;
+    if !is_kanidm {
+        return Ok(discovery);
+    }
+    pin_kanidm(discovery).ok_or_else(|| {
+        AppError::Internal("Kanidm's discovery names another issuer or host".to_owned())
+    })
+}
+
+/// Kanidm's discovery document held to the pinned issuer, with its token and key endpoints on loopback. The
+/// authorization endpoint stays public, because the browser follows it, but must be Kanidm's own.
+fn pin_kanidm(discovery: Discovery) -> Option<Discovery> {
+    if discovery.issuer != os_identity::issuer() {
+        return None;
+    }
+    os_identity::to_loopback(&discovery.authorization_endpoint)?;
+    Some(Discovery {
+        token_endpoint: os_identity::to_loopback(&discovery.token_endpoint)?,
+        jwks_uri: os_identity::to_loopback(&discovery.jwks_uri)?,
+        ..discovery
+    })
 }
 
 // ── public providers list (login page) ──────────────────────────────────────
@@ -252,7 +299,9 @@ pub async fn oidc_authorize(
         .client_id
         .as_deref()
         .ok_or_else(|| AppError::BadRequest("provider has no client_id".to_owned()))?;
-    let Ok(discovery) = fetch_discovery(discovery_url).await.inspect_err(|e| {
+    let client = provider_client(&provider)?;
+    let is_kanidm = provider.code == OS_KANIDM_CODE;
+    let Ok(discovery) = fetch_discovery(&client, discovery_url, is_kanidm).await.inspect_err(|e| {
         tracing::warn!(error = %e, "identity provider not answering; sending the person back to sign-in");
     }) else {
         return Ok(Redirect::to(&format!("{}{PROVIDER_UNAVAILABLE}", base_for(&headers))));
@@ -393,11 +442,14 @@ pub async fn oidc_callback(
     .ok_or(AppError::Unauthorized)?;
 
     let provider = load_provider(&state, auth.provider_id).await?;
+    let client = provider_client(&provider)?;
     let Ok(discovery) = fetch_discovery(
+        &client,
         provider
             .discovery_url
             .as_deref()
             .ok_or(AppError::Unauthorized)?,
+        provider.code == OS_KANIDM_CODE,
     )
     .await
     .inspect_err(|e| tracing::warn!(error = %e, "identity provider not answering on the way back")) else {
@@ -419,7 +471,9 @@ pub async fn oidc_callback(
     };
 
     // Exchange the code for tokens (PKCE verifier proves this is the same client).
-    let tokens = exchange_code(
+    // A provider that stops answering here reads as "not answering", never as a refused sign-in.
+    let tokens = match exchange_code(
+        &client,
         &discovery.token_endpoint,
         &code,
         &client_id,
@@ -427,18 +481,26 @@ pub async fn oidc_callback(
         &auth.pkce_verifier,
         &callback_uri(&base),
     )
-    .await?;
+    .await
+    {
+        Err(AppError::ServiceUnavailable(e)) => return Ok(unavailable(&base, &e)),
+        other => other?,
+    };
 
     // Validate the id_token end-to-end and pull the identity + groups.
-    let identity = validate_id_token(
-        &discovery.jwks_uri,
-        &discovery.issuer,
+    let identity = match validate_id_token(
+        &client,
+        &discovery,
         &tokens.id_token,
         &client_id,
         &auth.nonce,
         &provider.group_claim,
     )
-    .await?;
+    .await
+    {
+        Err(AppError::ServiceUnavailable(e)) => return Ok(unavailable(&base, &e)),
+        other => other?,
+    };
 
     // Federate (find / link / JIT-create + group sync), mint a session.
     let mut tx = state.db.begin().await?;
@@ -536,7 +598,19 @@ pub async fn oidc_callback(
     Ok((jar, Redirect::to(&target)))
 }
 
+/// Logs why the provider is not answering and sends the person back to sign-in, which says so in plain words.
+fn unavailable(base: &str, why: &str) -> (CookieJar, Redirect) {
+    tracing::warn!(error = %why, "identity provider not answering on the way back");
+    (
+        CookieJar::new(),
+        Redirect::to(&format!("{base}{PROVIDER_UNAVAILABLE}")),
+    )
+}
+
+/// Exchanges the authorization code for tokens. A transport failure is `ServiceUnavailable`; a refusal by the
+/// provider is `Unauthorized`, with the provider's own reason logged.
 async fn exchange_code(
+    client: &reqwest::Client,
     token_endpoint: &str,
     code: &str,
     client_id: &str,
@@ -554,13 +628,12 @@ async fn exchange_code(
     if let Some(secret) = client_secret {
         form.push(("client_secret", secret));
     }
-    let response = reqwest::Client::new()
+    let response = client
         .post(token_endpoint)
-        .timeout(PROVIDER_TIMEOUT)
         .form(&form)
         .send()
         .await
-        .map_err(|e| AppError::Internal(format!("token exchange: {e}")))?;
+        .map_err(|e| AppError::ServiceUnavailable(format!("token exchange: {e}")))?;
 
     // The identity provider explains its own refusals — "invalid_client" when
     // the app is confidential and we sent no secret, "invalid_grant" for a
@@ -572,7 +645,7 @@ async fn exchange_code(
     let body = response
         .text()
         .await
-        .map_err(|e| AppError::Internal(format!("token exchange body: {e}")))?;
+        .map_err(|e| AppError::ServiceUnavailable(format!("token exchange body: {e}")))?;
 
     serde_json::from_str::<TokenResponse>(&body).map_err(|_| {
         tracing::warn!(
@@ -584,23 +657,25 @@ async fn exchange_code(
     })
 }
 
+/// Checks the id token against the provider's keys, issuer, client and nonce. A key set that cannot be fetched
+/// is `ServiceUnavailable`; a token that fails any check is `Unauthorized`.
 async fn validate_id_token(
-    jwks_uri: &str,
-    issuer: &str,
+    client: &reqwest::Client,
+    discovery: &Discovery,
     id_token: &str,
     client_id: &str,
     expected_nonce: &str,
     group_claim: &str,
 ) -> Result<SsoIdentity, AppError> {
-    let jwks = reqwest::Client::new()
-        .get(jwks_uri)
-        .timeout(PROVIDER_TIMEOUT)
+    let issuer = discovery.issuer.as_str();
+    let jwks = client
+        .get(&discovery.jwks_uri)
         .send()
         .await
-        .map_err(|e| AppError::Internal(format!("jwks fetch: {e}")))?
+        .map_err(|e| AppError::ServiceUnavailable(format!("jwks fetch: {e}")))?
         .json::<JwkSet>()
         .await
-        .map_err(|e| AppError::Internal(format!("jwks parse: {e}")))?;
+        .map_err(|e| AppError::ServiceUnavailable(format!("jwks parse: {e}")))?;
 
     let header = decode_header(id_token).map_err(|_| AppError::Unauthorized)?;
     let kid = header.kid.ok_or(AppError::Unauthorized)?;
@@ -1061,9 +1136,10 @@ mod tests {
     use uuid::Uuid;
 
     use super::{
-        IdClaims, NEVER_LINKED_BY_EMAIL, PROVIDER_REFUSED, PROVIDER_UNAVAILABLE, STAFF_ROLE,
-        SsoIdentity, base_username, callback_error_target, extract_groups, is_reserved_username,
-        new_user_role, pkce_challenge, resolve_group_targets, screen_base, tenant_matches_issuer,
+        Discovery, IdClaims, NEVER_LINKED_BY_EMAIL, PROVIDER_REFUSED, PROVIDER_UNAVAILABLE,
+        STAFF_ROLE, SsoIdentity, base_username, callback_error_target, extract_groups,
+        is_reserved_username, new_user_role, pin_kanidm, pkce_challenge, resolve_group_targets,
+        screen_base, tenant_matches_issuer,
     };
 
     fn groups(items: &[&str]) -> HashSet<String> {
@@ -1200,6 +1276,34 @@ mod tests {
             assert!(!is_reserved_username(name), "{name}");
         }
         assert_eq!(NEVER_LINKED_BY_EMAIL, ["super_admin", "hospital_admin"]);
+    }
+
+    /// Kanidm's discovery must name the pinned issuer and its own host; its server-side endpoints go to loopback.
+    #[test]
+    fn kanidms_discovery_is_held_to_the_pinned_issuer_and_host() {
+        let doc = |issuer: &str, token: &str| Discovery {
+            issuer: issuer.to_owned(),
+            authorization_endpoint: "https://idm.medbrains.local:9443/ui/oauth2".to_owned(),
+            token_endpoint: token.to_owned(),
+            jwks_uri: "https://idm.medbrains.local:9443/oauth2/openid/medbrains/public_key.jwk"
+                .to_owned(),
+        };
+        let issuer = "https://idm.medbrains.local:9443/oauth2/openid/medbrains";
+        let pinned = pin_kanidm(doc(issuer, "https://idm.medbrains.local:9443/oauth2/token"));
+        assert!(pinned.as_ref().is_some_and(|d| {
+            d.token_endpoint == "https://idm.medbrains.local:8444/oauth2/token"
+                && d.jwks_uri.starts_with("https://idm.medbrains.local:8444/")
+                && d.authorization_endpoint
+                    .starts_with("https://idm.medbrains.local:9443/")
+        }));
+        assert!(
+            pin_kanidm(doc(
+                "https://evil.example/oauth2/openid/medbrains",
+                "https://idm.medbrains.local:9443/oauth2/token"
+            ))
+            .is_none()
+        );
+        assert!(pin_kanidm(doc(issuer, "https://evil.example/oauth2/token")).is_none());
     }
 
     /// The provider's own outage on the way back reads as "not answering", anything else as refused.

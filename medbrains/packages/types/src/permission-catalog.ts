@@ -19,7 +19,7 @@ export interface PermissionDef {
   module: string;
 }
 
-/** 1228 permissions, one per constant in the Rust source. */
+/** 1232 permissions, one per constant in the Rust source. */
 export const PERMISSIONS: PermissionDef[] = [
   // dashboard
   {
@@ -5594,6 +5594,12 @@ export const PERMISSIONS: PermissionDef[] = [
     module: "admin",
   },
   {
+    code: "admin.sso.providers.manage",
+    label: "Add, change or remove sign-in providers",
+    description: "Add, change, switch off or delete an outside identity provider, and map its directory groups to roles and access groups. Whoever holds this decides who can sign in and as what. The machine's own sign-in service is pinned by the OS and cannot be changed here.",
+    module: "admin",
+  },
+  {
     code: "admin.approvals.oversee",
     label: "Oversee Approvals",
     description: "See every request in the tenant, not just your own.",
@@ -9292,6 +9298,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
   it_security_officer: {
     label: "IT Security Officer",
     permissions: [
+      P.ADMIN.SSO.PROVIDERS.MANAGE,
       P.ADMIN.USERS.LINK_IDENTITY,
       P.DASHBOARD.VIEW,
       P.DEVICES.MACHINES.REMOVE,

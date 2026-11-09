@@ -2199,6 +2199,8 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
             permissions::devices::machines::REMOVE,
             // Links existing staff to their sign-in; never an administrator's account (the server refuses).
             permissions::admin::users::LINK_IDENTITY,
+            // Owns outside sign-in providers; the machine's own Kanidm is pinned and refused.
+            permissions::admin::sso::providers::MANAGE,
             permissions::dashboard::VIEW,
         ],
     },
