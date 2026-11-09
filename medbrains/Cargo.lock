@@ -6693,6 +6693,28 @@ dependencies = [
 ]
 
 [[package]]
+name = "medbrains-dictation"
+version = "0.1.0"
+dependencies = [
+ "axum",
+ "chrono",
+ "medbrains-ai",
+ "medbrains-core",
+ "medbrains-health-services",
+ "medbrains-kernel",
+ "medbrains-server-core",
+ "medbrains-server-services",
+ "reqwest 0.13.5",
+ "schemars 1.2.3",
+ "serde",
+ "serde_json",
+ "sqlx",
+ "tokio",
+ "tracing",
+ "uuid",
+]
+
+[[package]]
 name = "medbrains-diet"
 version = "0.1.0"
 dependencies = [
@@ -8433,6 +8455,7 @@ dependencies = [
  "medbrains-db-topology",
  "medbrains-device-pairing",
  "medbrains-devices",
+ "medbrains-dictation",
  "medbrains-diet",
  "medbrains-doctor-packages",
  "medbrains-doctor-payouts",

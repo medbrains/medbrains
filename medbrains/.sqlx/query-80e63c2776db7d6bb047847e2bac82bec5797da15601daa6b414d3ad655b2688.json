@@ -1,0 +1,26 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO ai_suggestion_outcomes (tenant_id, feature, source_id, patient_id, kind, item_key, model, suggested, final_text, outcome, edit_distance, edit_ratio, decided_by) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12::float8::numeric(6,4), $13) ON CONFLICT (tenant_id, feature, source_id, kind, item_key) WHERE deleted_at IS NULL DO NOTHING",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Text",
+        "Uuid",
+        "Uuid",
+        "Text",
+        "Text",
+        "Text",
+        "Text",
+        "Text",
+        "Text",
+        "Int4",
+        "Float8",
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "80e63c2776db7d6bb047847e2bac82bec5797da15601daa6b414d3ad655b2688"
+}

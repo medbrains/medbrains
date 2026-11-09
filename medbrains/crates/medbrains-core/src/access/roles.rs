@@ -119,6 +119,9 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
             permissions::opd::consents::PRINT,
             permissions::opd::consents::REPRINT,
             permissions::opd::consents::REVOKE,
+            // Dictates their own consultation notes; a draft only, reviewed
+            // section by section before it is saved.
+            permissions::opd::dictation::USE,
             // Emergency clinical work
             permissions::emergency::visits::LIST,
             permissions::emergency::visits::UPDATE,

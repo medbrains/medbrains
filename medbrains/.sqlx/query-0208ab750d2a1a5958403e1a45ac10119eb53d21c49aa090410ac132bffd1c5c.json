@@ -1,0 +1,16 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE dictation_sessions SET status = $2, note_id = $3, saved_at = CASE WHEN $2 = 'saved' THEN now() END, audio_deleted_at = now() WHERE id = $1",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Text",
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "0208ab750d2a1a5958403e1a45ac10119eb53d21c49aa090410ac132bffd1c5c"
+}
