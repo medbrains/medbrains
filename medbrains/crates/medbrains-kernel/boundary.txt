@@ -24,7 +24,7 @@ medbrains-auth not_yet 44 medbrains-db
 medbrains-automation not_yet 0 -
 medbrains-automation-api not_yet 2 medbrains-db
 medbrains-automation-store not_yet 25 medbrains-db
-medbrains-billing partial 382 medbrains-db,medbrains-authz,medbrains-authz-gate
+medbrains-billing partial 381 medbrains-db,medbrains-authz,medbrains-authz-gate
 medbrains-blood-bank not_yet 102 medbrains-db,medbrains-authz-gate
 medbrains-bme not_yet 55 medbrains-db
 medbrains-bridge not_yet 0 -
@@ -78,7 +78,7 @@ medbrains-infra-settings not_yet 18 medbrains-db
 medbrains-infra-utils not_yet 26 medbrains-db
 medbrains-integration-hub not_yet 0 -
 medbrains-invitations not_yet 11 medbrains-db
-medbrains-ipd not_yet 304 medbrains-db,medbrains-authz,medbrains-authz-gate
+medbrains-ipd partial 303 medbrains-db,medbrains-authz,medbrains-authz-gate
 medbrains-ipd-post-discharge not_yet 24 medbrains-db,medbrains-authz-gate
 medbrains-it-security not_yet 82 medbrains-db
 medbrains-knowledge not_yet 9 medbrains-db
