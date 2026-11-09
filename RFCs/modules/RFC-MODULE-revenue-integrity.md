@@ -741,6 +741,7 @@ in the UI, per Permissions First. Existing codes are reused where they fit exact
 | `revenue_integrity.recovery.view` | Money-recovered figures | Management |
 | `revenue_integrity.scorecards.view` | Per-doctor and per-ward scorecards | Names staff; management and quality only |
 | `insurance.enhancement.request` | Raise an enhancement from a used-up row | |
+| `insurance.preauth_missing.dismiss` | Dismiss a "no usable pre-auth" row with a reason | **Exists** (#5270); billing clerk, insurance officer |
 | `insurance.claim_readiness.view` | Bill-ready and document check at discharge | |
 | `pharmacy.stock_plan.manage` | Transfer, return or first-out a near-expiry batch | |
 | `pharmacy.price_compliance.manage` | NPPA ceiling rows; reprice | |
@@ -995,6 +996,19 @@ rows follow field classes and masking. An outage shows as unknown, never as an e
   approved increase is recorded as recovered.
 - Given the payer's approval cannot be read, When the check runs, Then the row says "approval
   unknown", not "within limit".
+- Given a used-up stay is discharged with its bill still owed, When the final room charge takes
+  the bill past the approval, Then the 100% row is raised; the stay's rows (the pre-auth's too)
+  close only once its final bill exists and every bill is paid, cancelled or refunded, or a claim
+  is submitted (`settled`). Paid interim bills alone do not settle a stay.
+- Given the check could not run on a visit ("could not check"), When a later check reads the
+  approval, Then that row closes as the system (`check_ok`), and a used-up row follows if the bill
+  is past the threshold.
+- Given a stay discharged more than 90 days ago (the leakage lookback) and still unsettled, When
+  the hourly pass runs, Then it is no longer re-checked.
+- Given more than 200 open alerts of a kind, When the desk opens the list, Then it shows the
+  largest 200 and says "Showing 200 of N".
+- Given the desk dismissed a "no usable pre-auth" row (needs `insurance.preauth_missing.dismiss`),
+  When a pre-auth for the patient is created after it, Then the stay is checked and raised again.
 
 **1.4 Room eligibility**
 - Given a policy room limit of ₹5,000 a day and an admission to a ₹8,000 room, When the bed is

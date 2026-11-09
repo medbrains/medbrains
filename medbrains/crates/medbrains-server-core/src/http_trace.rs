@@ -148,8 +148,14 @@ pub fn redact_verify_tokens(path: &str) -> String {
     path.split('/')
         .map(|segment| {
             let looks_like_token = segment.len() >= 24
-                && segment.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'-' || b == b'_');
-            let shown = if after_verify && looks_like_token { ":token" } else { segment };
+                && segment
+                    .bytes()
+                    .all(|b| b.is_ascii_alphanumeric() || b == b'-' || b == b'_');
+            let shown = if after_verify && looks_like_token {
+                ":token"
+            } else {
+                segment
+            };
             after_verify = after_verify || segment == "verify";
             shown
         })
@@ -187,8 +193,14 @@ mod tests {
             redact_verify_tokens(&format!("/api/public/signatures/verify/{token}")),
             "/api/public/signatures/verify/:token"
         );
-        assert_eq!(redact_verify_tokens(&format!("/verify/rx/{token}")), "/verify/rx/:token");
-        assert_eq!(redact_verify_tokens("/api/patients/123"), "/api/patients/123");
+        assert_eq!(
+            redact_verify_tokens(&format!("/verify/rx/{token}")),
+            "/verify/rx/:token"
+        );
+        assert_eq!(
+            redact_verify_tokens("/api/patients/123"),
+            "/api/patients/123"
+        );
     }
 
     fn status(code: u16) -> StatusCode {
@@ -250,7 +262,11 @@ mod tests {
         let shades = [200, 301, 404, 429, 500].map(|c| shade(status(c)));
         let unique: std::collections::BTreeSet<_> = shades.iter().collect();
 
-        assert_eq!(unique.len(), shades.len(), "two classes share a colour: {shades:?}");
+        assert_eq!(
+            unique.len(),
+            shades.len(),
+            "two classes share a colour: {shades:?}"
+        );
     }
 
     #[test]

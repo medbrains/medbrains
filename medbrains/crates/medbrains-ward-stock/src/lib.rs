@@ -2,7 +2,9 @@
 //! up to par (replenish, decrementing the pharmacy_catalog aggregate); nurses consume against
 //! ward stock. Powers the inpatient ward-stock workflow (hospital editions).
 
-use axum::routing::{get,post};
+pub mod consume;
+
+use axum::routing::{get, post};
 use axum::Json;
 use axum::extract::{Extension, Query, State};
 use medbrains_core::permissions;
@@ -165,46 +167,7 @@ pub async fn replenish_ward(
     })))
 }
 
-#[derive(Debug, Deserialize)]
-pub struct WardStockConsumeRequest {
-    pub department_id: Uuid,
-    pub catalog_item_id: Uuid,
-    pub quantity: i32,
-}
-
-/// `POST /api/pharmacy/ward-stock/consume` — a ward consumes stock (nurse administration).
-pub async fn consume_ward_stock(
-    State(state): State<AppState>,
-    Extension(claims): Extension<Claims>,
-    Json(body): Json<WardStockConsumeRequest>,
-) -> Result<Json<serde_json::Value>, AppError> {
-    require_permission(&claims, permissions::pharmacy::stores::MANAGE)?;
-    if body.quantity <= 0 {
-        return Err(AppError::BadRequest("quantity must be positive".to_owned()));
-    }
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
-    let remaining: Option<i32> = sqlx::query_scalar!(
-        "UPDATE ward_stock SET quantity = quantity - $1, updated_at = now() \
-         WHERE tenant_id = $2 AND department_id = $3 AND catalog_item_id = $4 \
-           AND quantity >= $1 RETURNING quantity",
-        body.quantity,
-        claims.tenant_id,
-        body.department_id,
-        body.catalog_item_id,
-    )
-    .fetch_optional(&mut *tx)
-    .await?;
-    let Some(remaining) = remaining else {
-        return Err(AppError::BadRequest(
-            "Insufficient ward stock for this item".to_owned(),
-        ));
-    };
-    tx.commit().await?;
-    Ok(Json(serde_json::json!({ "remaining": remaining })))
-}
-
-/// ward_stock routes.
+/// The `ward_stock` routes.
 pub fn router() -> axum::Router<AppState> {
     axum::Router::new()
         .route(
@@ -218,6 +181,6 @@ pub fn router() -> axum::Router<AppState> {
         )
         .route(
             "/api/pharmacy/ward-stock/consume",
-            post(consume_ward_stock),
+            post(consume::consume_ward_stock),
         )
 }

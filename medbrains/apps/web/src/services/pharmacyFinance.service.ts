@@ -3,7 +3,7 @@ import { api } from "@medbrains/api";
 export const pharmacyFinanceService = {
   getMyActiveCashDrawer: (...args: Parameters<typeof api.getMyActiveCashDrawer>) =>
     api.getMyActiveCashDrawer(...args),
-  listCounterDays: () => api.listCounterDays(),
+  listCounterDays: (q?: string) => api.listCounterDays(q),
   getDayCloseReport: (...args: Parameters<typeof api.getDayCloseReport>) =>
     api.getDayCloseReport(...args),
   closeCounterDay: (...args: Parameters<typeof api.closeCounterDay>) =>

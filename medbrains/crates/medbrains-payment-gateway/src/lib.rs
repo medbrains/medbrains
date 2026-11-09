@@ -3,6 +3,7 @@ pub mod checkout;
 pub mod online;
 pub mod payment_link;
 pub mod payment_settings;
+pub mod payment_settings_notice;
 pub mod pos;
 pub mod razorpay;
 pub mod refund;

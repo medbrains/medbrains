@@ -2,7 +2,7 @@
 //! points, and which Host the server gets to believe. Pure functions.
 
 use std::collections::HashSet;
-use std::net::{IpAddr, Ipv6Addr};
+use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
 
 /// The set of names and addresses this machine answers to, the same set its certificate covers.
 #[derive(Debug, Clone)]
@@ -197,6 +197,13 @@ fn percent_decode(input: &[u8]) -> Vec<u8> {
 /// and the server stores what it gets, so the same machine must not become two addresses.
 pub(crate) const fn canonical_ip(ip: IpAddr) -> IpAddr {
     ip.to_canonical()
+}
+
+/// True for the machine itself: exactly `127.0.0.1` or `::1`, as given or IPv4-mapped. Any local program can
+/// connect from another `127.x.y.z`, so the rest of loopback is not the machine.
+pub(crate) fn is_machine(ip: IpAddr) -> bool {
+    let ip = canonical_ip(ip);
+    ip == IpAddr::V4(Ipv4Addr::LOCALHOST) || ip == IpAddr::V6(Ipv6Addr::LOCALHOST)
 }
 
 #[cfg(test)]

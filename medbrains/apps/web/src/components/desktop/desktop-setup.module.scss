@@ -1,0 +1,13 @@
+// Layout only: one card centred on the page.
+.page {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--mantine-spacing-xl);
+}
+
+.card {
+  width: 100%;
+  max-width: 480px;
+}

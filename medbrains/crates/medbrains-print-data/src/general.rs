@@ -79,7 +79,10 @@ pub async fn get_prescription_print_data(
 
     // Medication lines from ALL prescriptions for this encounter
     let medications = sqlx::query_as::<_, MedicationLine>(
-        "SELECT pi.drug_name, pi.dosage, pi.route, pi.frequency, \
+        "SELECT CASE WHEN pi.buy_outside \
+                     THEN pi.drug_name || ' (Buy from outside the hospital)' \
+                     ELSE pi.drug_name END AS drug_name, \
+                pi.dosage, pi.route, pi.frequency, \
                 pi.duration, pi.instructions \
          FROM prescription_items pi \
          JOIN prescriptions pr ON pr.id = pi.prescription_id \

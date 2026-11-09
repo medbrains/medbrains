@@ -10,6 +10,7 @@ import { SignRecordButton } from "@/components/Signatures/SignRecordButton";
 import type { BadgeTone } from "@/components/ui";
 import { Badge, Table } from "@/components/ui";
 import { ipdService } from "@/services/ipd.service";
+import { PATIENTS_OWN_LABEL } from "@/utils/buyOutside";
 
 export function MarTab({ admissionId }: { admissionId: string }) {
   // The tab rides in on ipd.admissions.view; the medication administration record carries its own
@@ -65,6 +66,11 @@ export function MarTab({ admissionId }: { admissionId: string }) {
                   {m.is_cytotoxic && (
                     <Badge tone="danger" size="xs">
                       Chemotherapy
+                    </Badge>
+                  )}
+                  {m.patients_own && (
+                    <Badge tone="neutral" size="xs">
+                      {PATIENTS_OWN_LABEL}
                     </Badge>
                   )}
                 </Group>

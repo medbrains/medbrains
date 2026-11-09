@@ -1,0 +1,90 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT s.id, s.encounter_id, s.patient_id, s.status, s.failure, s.stt_adapter,\n                  s.llm_model, c.transcript AS \"transcript?\", c.draft AS \"draft?\",\n                  s.duration_ms, s.started_at, s.created_at\n             FROM dictation_sessions s\n             LEFT JOIN dictation_content c ON c.session_id = s.id AND c.tenant_id = s.tenant_id\n            WHERE s.id = $1 AND s.tenant_id = $2 AND s.doctor_id = $3 AND s.deleted_at IS NULL",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "encounter_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 2,
+        "name": "patient_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 3,
+        "name": "status",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 4,
+        "name": "failure",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 5,
+        "name": "stt_adapter",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 6,
+        "name": "llm_model",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 7,
+        "name": "transcript?",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 8,
+        "name": "draft?",
+        "type_info": "Jsonb"
+      },
+      {
+        "ordinal": 9,
+        "name": "duration_ms",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 10,
+        "name": "started_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 11,
+        "name": "created_at",
+        "type_info": "Timestamptz"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      true,
+      true,
+      true,
+      false,
+      true,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "6a44510839b0bcf6a2e3240f54d5efebe1dd45f4cec21173d0f05f878449c751"
+}

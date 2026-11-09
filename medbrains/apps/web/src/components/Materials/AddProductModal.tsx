@@ -18,7 +18,8 @@ type ProductType = "consumable" | "stationery" | "drug";
 const PHARMACY_PERM = "pharmacy.stock.manage";
 const STORE_PERM = "indent.stock.manage";
 
-const DRUG_SCHEDULES = ["", "H", "H1", "X", "G", "OTC"] as const;
+/** The schedules a drug may carry; the server refuses a drug with none. */
+const DRUG_SCHEDULES = ["OTC", "G", "H", "H1", "X", "NDPS"] as const;
 
 const schema = z.object({
   name: z.string().min(1, "Name is required"),
@@ -110,7 +111,15 @@ export function AddProductModal() {
 
   return (
     <Modal opened={opened} onClose={close} title="Add product" size="lg">
-      <form onSubmit={form.handleSubmit((v) => mutation.mutate(v))}>
+      <form
+        onSubmit={form.handleSubmit((v) => {
+          if (effectiveType === "drug" && !v.drug_schedule) {
+            form.setError("drug_schedule", { message: "Choose the drug schedule" });
+            return;
+          }
+          mutation.mutate(v);
+        })}
+      >
         <Stack gap="md">
           {availableTypes.length > 1 && (
             <SegmentedControl
@@ -149,9 +158,11 @@ export function AddProductModal() {
                 render={({ field }) => (
                   <Select
                     label="Drug schedule"
-                    data={DRUG_SCHEDULES.map((s) => ({ value: s, label: s || "None" }))}
-                    value={field.value ?? ""}
-                    onChange={(v) => field.onChange(v ?? "")}
+                    required
+                    data={DRUG_SCHEDULES.map((s) => ({ value: s, label: s }))}
+                    value={field.value ?? null}
+                    onChange={(v) => field.onChange(v ?? undefined)}
+                    error={form.formState.errors.drug_schedule?.message}
                   />
                 )}
               />

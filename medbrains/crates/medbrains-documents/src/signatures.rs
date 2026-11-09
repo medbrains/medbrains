@@ -395,11 +395,74 @@ pub async fn sign_record(
     }
     // The signer must have opened this exact content on the review screen.
     signable::require_reviewed(&mut tx, &claims, spec, body.record_id, &opened.hash).await?;
-    let payload_snapshot = opened.payload;
+    let with = SignWith {
+        signer_role,
+        legal_class,
+        credential_id: body.credential_id,
+        notes: body.notes.as_deref(),
+    };
+    let (row, signed) = write_signature(
+        &state,
+        &mut tx,
+        &claims,
+        spec,
+        body.record_id,
+        &opened.payload,
+        &with,
+    )
+    .await?;
+    tx.commit().await?;
 
-    // Resolve credential — explicit id or doctor's default
+    let payload_hash_hex = to_hex(&signed.hash);
+    let signature_hex = to_hex(&signed.signature);
+
+    Ok(Json(SignResponse {
+        signed_record: row,
+        payload_hash_hex,
+        signature_hex,
+    }))
+}
+
+/// What the PDF stamps on top of the signature image.
+fn display_block(claims: &Claims, hash: &[u8], cred_id: Uuid) -> String {
+    let short = hash.iter().take(4).fold(String::new(), |mut acc, b| {
+        use std::fmt::Write;
+        let _ = write!(acc, "{b:02x}");
+        acc
+    });
+    format!(
+        "Digitally signed by user {} on {short} • Verify ref: {cred_id}",
+        claims.sub
+    )
+}
+
+/// How a signature is made, beyond the record it is over.
+struct SignWith<'a> {
+    signer_role: &'a str,
+    legal_class: &'a str,
+    /// The signer's credential; `None` for their default one.
+    credential_id: Option<Uuid>,
+    notes: Option<&'a str>,
+}
+
+/// Sign `payload_snapshot` (the opened record) with the signer's key, write
+/// the `signed_records` row and its public verify link, and flag the source
+/// row signed. The one writer of a signature, behind the sign endpoint's
+/// review and step-up checks.
+///
+/// # Errors
+/// `BadRequest` without an active credential and key; a database error.
+async fn write_signature(
+    state: &AppState,
+    tx: &mut sqlx::PgConnection,
+    claims: &Claims,
+    spec: &signable::SignableType,
+    record_id: Uuid,
+    payload_snapshot: &Value,
+    with: &SignWith<'_>,
+) -> Result<(SignedRecord, signing::SignedPayload), AppError> {
     type CredentialRow = (Uuid, Option<Vec<u8>>, Option<String>, Option<String>);
-    let cred_row: Option<CredentialRow> = if let Some(cid) = body.credential_id {
+    let cred_row: Option<CredentialRow> = if let Some(cid) = with.credential_id {
         sqlx::query_as(
             "SELECT id, encrypted_private_key, display_image_url, display_font \
              FROM doctor_signature_credentials \
@@ -426,7 +489,7 @@ pub async fn sign_record(
         .await?
     };
 
-    let (cred_id, priv_key_opt, display_image, display_font) = cred_row.ok_or_else(|| {
+    let (cred_id, priv_key_opt, display_image, _) = cred_row.ok_or_else(|| {
         AppError::BadRequest(
             "no active default signature credential for this user — admin must issue one"
                 .to_owned(),
@@ -439,7 +502,7 @@ pub async fn sign_record(
         )
     })?;
 
-    let key_encryption_key = signature_key_encryption_key(&state).await?;
+    let key_encryption_key = signature_key_encryption_key(state).await?;
     let key_context = signature_key_context(&claims.tenant_id, &claims.sub);
     let priv_key_bytes = decrypt_signature_private_key(
         &key_encryption_key,
@@ -453,27 +516,11 @@ pub async fn sign_record(
         .try_into()
         .map_err(|_| AppError::Internal("invalid stored private key".to_owned()))
         .map(|arr: &[u8; 32]| arr.to_vec())?;
-
-    let signed = signing::sign_payload(&priv_key, &payload_snapshot)
+    let signed = signing::sign_payload(&priv_key, payload_snapshot)
         .map_err(|e| AppError::Internal(format!("sign: {e}")))?;
 
-    // Build display block — what the PDF stamps on top of the signature image
-    let display_block = format!(
-        "Digitally signed by user {} on {} • Verify ref: {}",
-        claims.sub,
-        signed
-            .hash
-            .iter()
-            .take(4)
-            .fold(String::new(), |mut acc, b| {
-                use std::fmt::Write;
-                let _ = write!(acc, "{b:02x}");
-                acc
-            }),
-        cred_id,
-    );
+    let display_block = display_block(claims, &signed.hash, cred_id);
 
-    // Insert signed_records row
     let row = sqlx::query_as::<_, SignedRecord>(
         "INSERT INTO signed_records ( \
             tenant_id, record_type, record_id, signer_user_id, signer_role, \
@@ -490,39 +537,28 @@ pub async fn sign_record(
     )
     .bind(claims.tenant_id)
     .bind(spec.record_type)
-    .bind(body.record_id)
+    .bind(record_id)
     .bind(claims.sub)
-    .bind(signer_role)
+    .bind(with.signer_role)
     .bind(cred_id)
-    .bind(&payload_snapshot)
+    .bind(payload_snapshot)
     .bind(signed.hash.as_slice())
     .bind(signed.signature.as_slice())
     .bind(display_image.as_deref())
     .bind(&display_block)
-    .bind(legal_class)
-    .bind(body.notes.as_deref())
+    .bind(with.legal_class)
+    .bind(with.notes)
     .fetch_one(&mut *tx)
     .await?;
 
-    crate::signature_verify::issue_link_in_tx(&mut tx, &claims, row.id).await?;
+    crate::signature_verify::issue_link_in_tx(&mut *tx, claims, row.id).await?;
 
     // Every signable table carries `is_signed` and `signed_record_id`. A
     // failure here aborts the transaction, so it is returned, never swallowed:
     // swallowed, the commit below would roll the signature back in silence.
-    signable::mark_source_signed(&mut tx, &claims.tenant_id, spec, body.record_id, row.id).await?;
+    signable::mark_source_signed(&mut *tx, &claims.tenant_id, spec, record_id, row.id).await?;
 
-    tx.commit().await?;
-
-    let _ = display_font; // reserved for future text-rendered-block path
-
-    let payload_hash_hex = to_hex(&signed.hash);
-    let signature_hex = to_hex(&signed.signature);
-
-    Ok(Json(SignResponse {
-        signed_record: row,
-        payload_hash_hex,
-        signature_hex,
-    }))
+    Ok((row, signed))
 }
 
 // ══════════════════════════════════════════════════════════
@@ -535,6 +571,8 @@ pub struct ListSignaturesQuery {
     pub record_id: Uuid,
 }
 
+/// `GET /api/signatures/list` — every signature on one record, oldest first, for
+/// the verify panel.
 pub async fn list_signatures(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,

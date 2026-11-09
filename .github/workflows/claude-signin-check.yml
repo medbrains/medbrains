@@ -1,0 +1,40 @@
+# Manual check that GitHub can sign in to the Claude API by workload identity
+# federation (no stored key). One token exchange, no model call, so it costs
+# nothing. Run it from Actions → "Check Claude sign-in" → Run workflow, on main:
+# the Anthropic federation rule accepts main only.
+name: Check Claude sign-in
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  exchange:
+    name: Exchange a GitHub token for Claude API access
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+    steps:
+      - name: Fetch the GitHub OIDC token
+        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8
+        with:
+          script: |
+            const token = await core.getIDToken('https://api.anthropic.com');
+            core.setSecret(token);
+            core.exportVariable('JWT', token);
+      - name: Exchange it, and fail unless Anthropic issues a token
+        env:
+          RULE: ${{ vars.ANTHROPIC_FEDERATION_RULE_ID }}
+          ORG: ${{ vars.ANTHROPIC_ORGANIZATION_ID }}
+          SVAC: ${{ vars.ANTHROPIC_SERVICE_ACCOUNT_ID }}
+          WS: ${{ vars.ANTHROPIC_WORKSPACE_ID }}
+        run: |
+          set -euo pipefail
+          out=$(jq -n --arg a "$JWT" --arg r "$RULE" --arg o "$ORG" --arg s "$SVAC" --arg w "$WS" \
+            '{grant_type:"urn:ietf:params:oauth:grant-type:jwt-bearer",assertion:$a,federation_rule_id:$r,organization_id:$o,service_account_id:$s,workspace_id:$w}' \
+            | curl -sS https://api.anthropic.com/v1/oauth/token -H "content-type: application/json" --data @-)
+          # Never print the token itself.
+          echo "$out" | jq 'with_entries(if (.key | test("token$")) then .value = "<redacted>" else . end)'
+          echo "$out" | jq -e '.access_token' >/dev/null

@@ -1,0 +1,65 @@
+# The identity provider (Kanidm). Loopback only, behind medbrains-front on 9443. It may talk to this machine
+# alone: an upstream directory is a deliberate drop-in that lifts IPAddressDeny, never the default.
+# All its data, keys and backups are under /var, the partition disk-setup encrypts.
+[Unit]
+Description=MedBrains identity provider
+# Either: setup needs it to make the first administrator. It is on loopback, and the front is not running yet.
+ConditionPathExists=|/var/lib/medbrains/config/role-main
+ConditionPathExists=|/run/medbrains-console/kanidm-for-setup
+After=medbrains-firstboot.service network.target
+# Restarted however it ends, at most 30 times an hour. Past that the unit fails, and the screen's health card names it.
+StartLimitIntervalSec=3600
+StartLimitBurst=30
+
+[Service]
+Type=notify
+User=kanidm
+Group=kanidm
+RuntimeDirectory=kanidmd
+RuntimeDirectoryMode=0755
+WorkingDirectory=/var/lib/kanidm
+# Its keys are unsealed on disk, so a release image will not run it on an unencrypted one.
+ExecStartPre=+/usr/lib/medbrains/require-encrypted-data
+# As kanidm, not root: it writes in Kanidm's own folder.
+ExecStartPre=/usr/lib/medbrains/kanidm-tls
+ExecStart=/usr/bin/kanidmd server
+ExecReload=/usr/bin/kanidmd scripting reload
+Restart=always
+RestartSec=5s
+LimitNOFILE=4096
+MemoryMax=512M
+UMask=0027
+
+ProtectSystem=strict
+ReadWritePaths=/var/lib/kanidm
+ProtectHome=yes
+PrivateTmp=yes
+PrivateDevices=yes
+PrivateUsers=yes
+NoNewPrivileges=yes
+CapabilityBoundingSet=
+AmbientCapabilities=
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectKernelLogs=yes
+ProtectControlGroups=yes
+ProtectClock=yes
+ProtectHostname=yes
+ProtectProc=invisible
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX AF_NETLINK
+RestrictNamespaces=yes
+RestrictRealtime=yes
+RestrictSUIDSGID=yes
+LockPersonality=yes
+MemoryDenyWriteExecute=yes
+RemoveIPC=yes
+DevicePolicy=closed
+SystemCallArchitectures=native
+SystemCallFilter=@system-service
+SystemCallFilter=~@privileged @resources
+IPAddressDeny=any
+IPAddressAllow=localhost
+IPAccounting=yes
+
+[Install]
+WantedBy=multi-user.target

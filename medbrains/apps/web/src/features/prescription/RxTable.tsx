@@ -111,6 +111,7 @@ export function RxTable({
                   <span className={classes.rxTFlag}>low stock</span>
                 )}
                 {it.pendingMD && <span className={classes.rxTFlag}>pending MD</span>}
+                {it.buyOutside && <span className={classes.rxTFlag}>Buy outside</span>}
                 {isNlem(d) && (
                   <span
                     className={`${classes.rxTFlag} ${classes.rxTFlagNlem}`}

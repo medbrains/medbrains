@@ -130,4 +130,5 @@ pub mod tenant;
 pub mod topology;
 pub mod user;
 pub mod utilization_review;
+pub mod vendor;
 pub mod workflow;

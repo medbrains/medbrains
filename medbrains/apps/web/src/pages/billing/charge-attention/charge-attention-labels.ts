@@ -6,6 +6,7 @@ import type { BadgeTone } from "@/components/ui";
 
 const MODULE_LABELS: Record<string, string> = {
   ambulance: "Ambulance",
+  consumable: "Stores and ward stock",
   cssd: "CSSD",
   diet: "Diet",
   emergency: "Emergency",
@@ -19,9 +20,32 @@ const MODULE_LABELS: Record<string, string> = {
 
 /** The leakage check's reason: the order was done and never billed. */
 export const REASON_UNBILLED = "unbilled_order";
+/** The leakage check's reason: stock used on a patient and never charged. */
+export const REASON_UNBILLED_CONSUMPTION = "unbilled_consumption";
+/** A consignment implant recorded as used on no named patient. */
+export const REASON_IMPLANT_NO_PATIENT = "implant_no_patient";
+
+/** Rows worked under the leakage grant, not the failed-charge one. */
+const LEAKAGE_REASONS = new Set([
+  REASON_UNBILLED,
+  REASON_UNBILLED_CONSUMPTION,
+  REASON_IMPLANT_NO_PATIENT,
+]);
+
+/** Whether the row is leakage (found by a check, or an implant with no patient). */
+export function isLeakageReason(reason: string): boolean {
+  return LEAKAGE_REASONS.has(reason);
+}
+
+/** Whether the row was found by the daily check and must carry a tariff to post. */
+export function isDetectedReason(reason: string): boolean {
+  return reason === REASON_UNBILLED || reason === REASON_UNBILLED_CONSUMPTION;
+}
 
 const REASON_LABELS: Record<string, string> = {
   [REASON_UNBILLED]: "Done, not billed",
+  [REASON_UNBILLED_CONSUMPTION]: "Used on the patient, not billed",
+  [REASON_IMPLANT_NO_PATIENT]: "Implant used without patient",
   billing_setting_unreadable: "Auto-billing setting could not be read",
   "charge_failed:database": "Charge could not be saved",
   "charge_failed:rejected": "Charge refused: details did not match",

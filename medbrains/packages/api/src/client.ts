@@ -861,6 +861,7 @@ import type {
   CreateUrReviewRequest,
   CreateUserHospitalAssignment,
   CreateVaccinationRequest,
+  CreateVendorAccessGrant,
   CreateVendorRequest,
   CreateVirtualAccountRequest,
   CreateVirtualAccountResponse,
@@ -976,6 +977,7 @@ import type {
   DialysisSession,
   DialysisSlot,
   Dialyzer,
+  DictationConfig,
   DietOrder,
   // Diet & Kitchen
   DietTemplate,
@@ -990,6 +992,9 @@ import type {
   DischargeSummaryPrintData,
   DischargeSummaryTemplate,
   DismissChargeAttentionRequest,
+  DismissPreauthRequest,
+  // Pharmacy Phase 2
+  DispenseWitness,
   DispensingLabelPrintData,
   DisposalQuery,
   DispositionRow,
@@ -1367,6 +1372,7 @@ import type {
   JobStats,
   JournalEntry,
   JournalEntryDetail,
+  KanidmPerson,
   KernelHealth,
   KioskCheckinResult,
   KitchenAudit,
@@ -1551,17 +1557,24 @@ import type {
   MpiMatchRequest,
   MpiMatchResult,
   MrdAdmissionDischargeSummary,
+  // MRD
+  MrdBackscanItem,
   MrdBirthRegister,
   MrdCaseSheetCompletenessResponse,
   MrdCaseSheetPacket,
   MrdCaseSheetPage,
   MrdDeathRegister,
-  // MRD
+  MrdDeliveryTimeRow,
+  MrdDigitalSummary,
+  MrdFileRequest,
+  MrdFileScanRequest,
   MrdMedicalRecord,
   MrdMorbidityMortalityResponse,
+  MrdPullListBuilt,
   MrdRecordMovement,
   MrdRetentionPolicy,
   MrdStorageLocation,
+  MrdVisitFileStatus,
   MyDayResponse,
   MyProfileResponse,
   MyShiftResponse,
@@ -1571,6 +1584,7 @@ import type {
   NabhRollupResponse,
   NablDocumentSummary,
   NablQualityReportPrintData,
+  NamePatientChargeAttentionRequest,
   NdpsListResponse,
   NdpsRegisterEntry,
   NdpsRegisterPrintData,
@@ -1793,6 +1807,7 @@ import type {
   PharmacyDeliveryList,
   PharmacyDestructionLog,
   PharmacyDispatchStatus,
+  PharmacyDispenseContext,
   PharmacyDrugRecall,
   PharmacyEmergencyKit,
   PharmacyOrder,
@@ -1807,13 +1822,13 @@ import type {
   PharmacyQueueDisplay,
   PharmacyReturn,
   PharmacyRxDetailResponse,
+  PharmacySafetyRecordRow,
   PharmacySalesRow,
   PharmacyStockTransaction,
   PharmacyStoreAssignment,
   PharmacyStoreIndent,
   PharmacySubstitute,
   PharmacyTransferRequest,
-  // Pharmacy Phase 2
   PharmacyValidationResult,
   PickLine,
   PincodeResult,
@@ -1845,6 +1860,7 @@ import type {
   PostopOrdersPrintData,
   PostureReport,
   PreAuthorizationRequest,
+  PreauthAlertSettings,
   PreauthNhcxView,
   PredictionAccuracyReport,
   PreopAssessmentPrintData,
@@ -2032,6 +2048,7 @@ import type {
   RepeatRow,
   ReportCatalogResponse,
   ReportDataResponse,
+  RequestEnhancementRequest,
   Requisition,
   RescheduleAppointmentRequest,
   ResearchConsentPrintData,
@@ -2060,12 +2077,16 @@ import type {
   ReturnResult,
   ReturnToStoreRequest,
   ReturnToWorkClearanceRequest,
+  RevenueAlert,
+  RevenueAlertKind,
   ReviewBreakGlassRequest,
   ReviewIndwellingDeviceRequest,
   ReviewPharmacyPrescriptionRequest,
   ReviewPostAction,
+  ReviewRequest,
   ReviewRoiInput,
   ReviewStewardshipRequest,
+  ReviewSummary,
   RevokeConsentRequest,
   RevokeCredentialRequest,
   RevokePassRequest,
@@ -2073,6 +2094,11 @@ import type {
   RoiAccessInput,
   RoiAccessLogRow,
   RoiRequest,
+  RoomCheck,
+  RoomConsentInput,
+  RoomConsentWitness,
+  RoomRentLimit,
+  RoomRentLimitInput,
   RoomTurnaround,
   RoomUtilization,
   RunPayoutsRequest,
@@ -2127,6 +2153,7 @@ import type {
   ServiceBondAgreementPrintData,
   ServiceRow,
   ServiceTimeStats,
+  SessionView,
   SetCampusFenceRequest,
   SetDiagnosisCodingRequest,
   SetDonorDeferralRequest,
@@ -2178,6 +2205,7 @@ import type {
   // Specialty Clinical: Other Specialties
   SpecialtyTemplate,
   SsoGroupMapping,
+  SsoLink,
   SsoProvider,
   SsoPublicProvider,
   StaffAttendanceReportPrintData,
@@ -2451,6 +2479,7 @@ import type {
   UpdatePipelineStatusRequest,
   UpdatePostopRecordRequest,
   UpdatePreAuthRequest,
+  UpdatePreauthAlertSettings,
   UpdatePreopAssessmentRequest,
   UpdatePrescriptionRequest,
   UpdatePrimaryNurseRequest,
@@ -2511,6 +2540,7 @@ import type {
   UrStatusConversion,
   UserFacilityAssignment,
   UserHospitalAssignment,
+  UserImportResult,
   UserWithAssignments,
   // Utilization Review
   UtilizationReview,
@@ -2518,6 +2548,8 @@ import type {
   VedAnalysisRow,
   // Procurement
   Vendor,
+  VendorAccessEvent,
+  VendorAccessGrant,
   VendorComparisonRow,
   VendorPerformanceRow,
   VerbalOrderEntry,
@@ -2564,6 +2596,8 @@ import type {
   WardGridResponse,
   WardListRow,
   WardOnDutyRow,
+  WardStockConsumeRequest,
+  WardStockConsumeResponse,
   WardStockRow,
   WaterQualityTestPrintData,
   WebhookDelivery,
@@ -2585,6 +2619,7 @@ import type {
   WoundCertificatePrintData,
   WristbandPrintData,
 } from "@medbrains/types";
+
 import { getApiBase } from "./config.js";
 
 // Re-export type guards for use by consumers
@@ -3394,7 +3429,7 @@ export const api = {
       method: "POST",
       body: JSON.stringify(user_id ? { user_id } : {}),
     }),
-  changePassword: (data: { current_password: string; new_password: string }) =>
+  changePassword: (data: { current_password: string; new_password: string; email?: string }) =>
     request<{ status: string }>("/auth/change-password", {
       method: "POST",
       body: JSON.stringify(data),
@@ -4450,7 +4485,7 @@ export const api = {
       body: JSON.stringify(data),
     }),
   importUsers: (data: CsvImportRequest) =>
-    request<CsvImportResult>("/setup/users/import", {
+    request<UserImportResult>("/setup/users/import", {
       method: "POST",
       body: JSON.stringify(data),
     }),
@@ -4980,6 +5015,16 @@ export const api = {
     }),
   deleteSsoProvider: (id: string) =>
     request<{ deleted: boolean }>(`/admin/sso/providers/${id}`, { method: "DELETE" }),
+  listKanidmPeople: (q: string) =>
+    request<KanidmPerson[]>(`/admin/identity/kanidm/people?q=${encodeURIComponent(q)}`),
+  getUserSsoLink: (userId: string) => request<SsoLink | null>(`/admin/users/${userId}/sso-link`),
+  linkUserSso: (userId: string, subject: string) =>
+    request<SsoLink>(`/admin/users/${userId}/sso-link`, {
+      method: "PUT",
+      body: JSON.stringify({ subject }),
+    }),
+  unlinkUserSso: (userId: string) =>
+    request<{ unlinked: boolean }>(`/admin/users/${userId}/sso-link`, { method: "DELETE" }),
   listSsoGroupMappings: (providerId: string) =>
     request<SsoGroupMapping[]>(`/admin/sso/providers/${providerId}/mappings`),
   createSsoGroupMapping: (providerId: string, data: CreateSsoGroupMappingRequest) =>
@@ -5382,6 +5427,32 @@ export const api = {
     request<Note>(`/clinical-notes/${noteId}/entered-in-error`, {
       method: "POST",
       body: JSON.stringify({ reason }),
+    }),
+
+  // ── AI notes from dictation (RFC-MODULE-ai-dictation) ──
+  /** The recording is the body; the server transcribes it and drafts the note. */
+  createDictation: (
+    encounterId: string,
+    audio: Blob,
+    durationMs: number,
+    source: "recorded" | "uploaded",
+  ) =>
+    request<SessionView>(
+      `/opd/encounters/${encounterId}/dictations?duration_ms=${Math.round(durationMs)}&source=${source}`,
+      { method: "POST", body: audio, headers: { "Content-Type": audio.type || "audio/webm" } },
+    ),
+  retryDictation: (dictationId: string) =>
+    request<SessionView>(`/opd/dictations/${dictationId}/retry`, { method: "POST", body: "{}" }),
+  reviewDictation: (dictationId: string, data: ReviewRequest) =>
+    request<ReviewSummary>(`/opd/dictations/${dictationId}/review`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  getDictationSettings: () => request<DictationConfig>("/admin/dictation/settings"),
+  saveDictationSettings: (data: DictationConfig) =>
+    request<DictationConfig>("/admin/dictation/settings", {
+      method: "PUT",
+      body: JSON.stringify(data),
     }),
 
   // ── Procedure Catalog & Orders ──────────────────────────
@@ -6231,6 +6302,51 @@ export const api = {
     request<ChargeAttentionItem>(`/billing/charge-attention/${id}/post`, { method: "PUT" }),
   dismissChargeAttention: (id: string, data: DismissChargeAttentionRequest) =>
     request<ChargeAttentionItem>(`/billing/charge-attention/${id}/dismiss`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
+  /** Pre-auths nearly used up or rooms above the policy limit, by kind. */
+  listRevenueAlerts: (params: { kind: RevenueAlertKind; status?: string }) =>
+    request<Paginated<RevenueAlert>>(`/billing/revenue-alerts?${new URLSearchParams(params)}`),
+  /** Ask the payer for more on a pre-auth nearly used up; closes the alert. */
+  requestPreauthEnhancement: (id: string, data: RequestEnhancementRequest) =>
+    request<RevenueAlert>(`/billing/revenue-alerts/${id}/request-enhancement`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
+  /** Dismiss a "no usable pre-auth" alert with why none is needed. */
+  dismissPreauthAlert: (id: string, data: DismissPreauthRequest) =>
+    request<RevenueAlert>(`/billing/revenue-alerts/${id}/dismiss`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
+  /** The hospital's pre-auth alert threshold, and whether the stored one is unreadable. */
+  getPreauthAlertSettings: () => request<PreauthAlertSettings>("/billing/preauth-alert-settings"),
+  /** Save the pre-auth alert threshold (1 to 100%). */
+  updatePreauthAlertSettings: (data: UpdatePreauthAlertSettings) =>
+    request<PreauthAlertSettings>("/billing/preauth-alert-settings", {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
+  /** Record the family's consent to a room above the policy limit; closes the alert. */
+  recordRoomConsent: (id: string, data: RoomConsentInput) =>
+    request<RevenueAlert>(`/billing/revenue-alerts/${id}/room-consent`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
+  /** Staff who may witness a family's room consent, by name. */
+  listRoomConsentWitnesses: (search?: string) =>
+    request<RoomConsentWitness[]>(
+      `/billing/room-consent/witnesses${search ? `?${new URLSearchParams({ search })}` : ""}`,
+    ),
+  /** Set the eligible room rent on a patient's policy (₹ a day or % of sum insured). */
+  setRoomRentLimit: (policyId: string, data: RoomRentLimitInput) =>
+    request<RoomRentLimit>(`/billing/policies/${policyId}/room-rent-limit`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
+  namePatientChargeAttention: (id: string, data: NamePatientChargeAttentionRequest) =>
+    request<ChargeAttentionItem>(`/billing/charge-attention/${id}/patient`, {
       method: "PUT",
       body: JSON.stringify(data),
     }),
@@ -7299,11 +7415,17 @@ export const api = {
     data?: {
       items?: unknown[];
       witnessed_by?: string;
+      /** The witness's own password, typed by them; checked on the server. */
+      witness_password?: string;
       allergy_override_reason?: string;
       ndps_override_reason?: string;
       unpaid_override_reason?: string;
       /** Clinical reason for dispensing past a blocking safety finding. */
       safety_override_reason?: string;
+      /** Scan id or serial of the retained Schedule X duplicate prescription. */
+      schedule_x_duplicate_ref?: string;
+      /** The pharmacist asked: the patient's allergy status was unknown. */
+      allergy_status_acknowledged?: boolean;
     },
   ) =>
     request<PharmacyOrder>(`/pharmacy/orders/${id}/dispense`, {
@@ -7377,6 +7499,17 @@ export const api = {
     request<PharmacyValidationResult>(`/pharmacy/orders/${id}/validate`, {
       method: "POST",
     }),
+
+  getPharmacyOrderSafetyRecord: (id: string) =>
+    request<PharmacySafetyRecordRow[]>(`/pharmacy/orders/${id}/safety-record`),
+
+  listDispenseWitnesses: (q?: string) =>
+    request<DispenseWitness[]>(
+      `/pharmacy/dispense-witnesses${q ? `?q=${encodeURIComponent(q)}` : ""}`,
+    ),
+
+  getPharmacyDispenseContext: (patientId: string) =>
+    request<PharmacyDispenseContext>(`/pharmacy/patients/${patientId}/dispense-context`),
   createOtcSale: (data: CreateOtcSaleRequest) =>
     request<PharmacyOrderDetailResponse>("/pharmacy/otc-sale", {
       method: "POST",
@@ -7439,8 +7572,8 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ department_id: departmentId }),
     }),
-  consumeWardStock: (data: { department_id: string; catalog_item_id: string; quantity: number }) =>
-    request<{ remaining: number }>("/pharmacy/ward-stock/consume", {
+  consumeWardStock: (data: WardStockConsumeRequest) =>
+    request<WardStockConsumeResponse>("/pharmacy/ward-stock/consume", {
       method: "POST",
       body: JSON.stringify(data),
     }),
@@ -7657,8 +7790,14 @@ export const api = {
   },
   getFulfilmentPickList: (orderId: string) =>
     request<PickLine[]>(`/pharmacy/fulfilment/${orderId}/pick-list`),
-  /** Claim for picking. A reason is needed only to override a medication safety block. */
-  claimFulfilmentOrder: (orderId: string, data?: { safety_override_reason?: string }) =>
+  /**
+   * Claim for picking. A reason is needed only to override a medication safety
+   * block; the acknowledgement only when the patient's allergy status is unknown.
+   */
+  claimFulfilmentOrder: (
+    orderId: string,
+    data?: { safety_override_reason?: string; allergy_status_acknowledged?: boolean },
+  ) =>
     request<FulfilmentStageResponse>(`/pharmacy/fulfilment/${orderId}/claim`, {
       method: "POST",
       ...(data ? { body: JSON.stringify(data) } : {}),
@@ -7831,6 +7970,13 @@ export const api = {
   listAdmissions: (params?: Record<string, string>) => {
     const qs = params ? `?${new URLSearchParams(params)}` : "";
     return request<AdmissionListResponse>(`/ipd/admissions${qs}`);
+  },
+  /** The bed's rate against the patient's policy room-rent limit, before allocating it. */
+  checkRoomEligibility: (params: { patient_id: string; bed_id: string; admission_id?: string }) => {
+    const qs = new URLSearchParams(
+      Object.entries(params).filter((e): e is [string, string] => Boolean(e[1])),
+    );
+    return request<RoomCheck>(`/ipd/room-eligibility?${qs}`);
   },
   createAdmission: (data: CreateAdmissionRequest) =>
     request<CreateAdmissionResponse>("/ipd/admissions", {
@@ -12048,6 +12194,40 @@ export const api = {
       body: JSON.stringify(body),
     }),
 
+  // File requests: the paper file a patient waits for
+  listMrdFileRequests: (params?: { date?: string }) =>
+    request<MrdFileRequest[]>(
+      `/mrd/file-requests${params?.date ? `?date=${encodeURIComponent(params.date)}` : ""}`,
+    ),
+  scanMrdFileRequest: (id: string, body: MrdFileScanRequest) =>
+    request<MrdFileRequest>(`/mrd/file-requests/${id}/scan`, {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+  markMrdFileNotFound: (id: string) =>
+    request<MrdFileRequest>(`/mrd/file-requests/${id}/not-found`, { method: "POST" }),
+  returnMrdFileToShelf: (id: string) =>
+    request<MrdFileRequest>(`/mrd/file-requests/${id}/return`, { method: "POST" }),
+  buildMrdPullList: (body: { date?: string }) =>
+    request<MrdPullListBuilt>("/mrd/file-requests/pull-list", {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+  listMrdBackscanOrder: (days?: number) =>
+    request<MrdBackscanItem[]>(`/mrd/file-requests/backscan${days ? `?days=${days}` : ""}`),
+  getMrdFileDeliveryTimes: (from: string, to: string) =>
+    request<MrdDeliveryTimeRow[]>(
+      `/mrd/file-requests/delivery-times?${new URLSearchParams({ from, to })}`,
+    ),
+  getVisitFileStatus: (encounterId: string) =>
+    request<MrdVisitFileStatus>(`/mrd/file-requests/by-encounter/${encounterId}`),
+  requestVisitFile: (encounterId: string) =>
+    request<MrdVisitFileStatus>(`/mrd/file-requests/by-encounter/${encounterId}/request`, {
+      method: "POST",
+    }),
+  getVisitDigitalSummary: (encounterId: string) =>
+    request<MrdDigitalSummary>(`/mrd/file-requests/by-encounter/${encounterId}/summary`),
+
   // Record Movements
   listMrdMovements: (recordId: string) =>
     request<MrdRecordMovement[]>(`/mrd/records/${recordId}/movements`),
@@ -16219,6 +16399,28 @@ export const api = {
     request<FormTemplate>(`/forms/templates/${id}/retire`, { method: "POST" }),
   getLiveForm: (code: string) => request<LiveForm>(`/forms/live/${code}`),
   getFormVersion: (id: string) => request<FormTemplateVersion>(`/forms/versions/${id}`),
+  // ── Security → MedBrains access (vendor support access) ──
+  listVendorAccessGrants: (page = 1) =>
+    request<Paginated<VendorAccessGrant>>(`/security/vendor-access/grants?page=${page}&limit=50`),
+  createVendorAccessGrant: (data: CreateVendorAccessGrant) =>
+    request<VendorAccessGrant>("/security/vendor-access/grants", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  approveVendorAccessGrant: (id: string) =>
+    request<VendorAccessGrant>(`/security/vendor-access/grants/${id}/approve`, {
+      method: "POST",
+      body: JSON.stringify({}),
+    }),
+  revokeVendorAccessGrant: (id: string, reason?: string) =>
+    request<VendorAccessGrant>(`/security/vendor-access/grants/${id}/revoke`, {
+      method: "POST",
+      body: JSON.stringify({ reason }),
+    }),
+  listVendorAccessEvents: (id: string, page = 1) =>
+    request<Paginated<VendorAccessEvent>>(
+      `/security/vendor-access/grants/${id}/events?page=${page}&limit=200`,
+    ),
   listDataProcessors: () => request<DataProcessor[]>("/data-processors"),
   createDataProcessor: (data: DataProcessorInput) =>
     request<DataProcessor>("/data-processors", { method: "POST", body: JSON.stringify(data) }),
@@ -17783,7 +17985,8 @@ export const api = {
   getMyActiveCashDrawer: () => request<unknown | null>("/pharmacy/cash-drawers/me/active"),
 
   // Day close
-  listCounterDays: () => request<CounterDay[]>("/pharmacy/day-close"),
+  listCounterDays: (q?: string) =>
+    request<CounterDay[]>(`/pharmacy/day-close${q ? `?q=${encodeURIComponent(q)}` : ""}`),
   getDayCloseReport: (params: { pharmacy_location_id: string; business_date: string }) =>
     request<DayReport>(`/pharmacy/day-close/report?${new URLSearchParams(params)}`),
   closeCounterDay: (data: CloseDayRequest) =>

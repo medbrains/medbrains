@@ -1,5 +1,8 @@
 import type { StickyNote } from "@medbrains/types";
 
+/** The notes list query key, here so the dashboard widget can share it without loading the panel. */
+export const NOTES_KEY = ["notes"];
+
 export type MineFilter = "active" | "resolved";
 
 /** My notes under one filter: notes that cleared themselves only under "resolved". */
