@@ -19,7 +19,7 @@ export interface PermissionDef {
   module: string;
 }
 
-/** 1227 permissions, one per constant in the Rust source. */
+/** 1228 permissions, one per constant in the Rust source. */
 export const PERMISSIONS: PermissionDef[] = [
   // dashboard
   {
@@ -494,6 +494,12 @@ export const PERMISSIONS: PermissionDef[] = [
     code: "opd.schedule.manage",
     label: "Manage Schedules",
     description: "Create and modify doctor schedules",
+    module: "opd",
+  },
+  {
+    code: "opd.dictation.use",
+    label: "Dictate a consultation note",
+    description: "Record or upload the doctor's own voice on an OPD visit they can see. It is transcribed on the hospital's machine and drafted into the consultation note for the doctor to accept, edit or reject section by section; nothing is filed until they save, and medicines still go through the prescription safety checks.",
     module: "opd",
   },
   // lab
@@ -1127,6 +1133,12 @@ export const PERMISSIONS: PermissionDef[] = [
     code: "billing.payment_settings.manage",
     label: "Change billing payment settings",
     description: "Change the hospital's UPI ID and its payment-link terms.",
+    module: "billing",
+  },
+  {
+    code: "billing.payment_settings.notified",
+    label: "Told of payment settings changes",
+    description: "Receive a notification, and an email where one is on file, each time the UPI ID or the payment-link terms change: what changed, who changed it and when. Hospital administrators are always told.",
     module: "billing",
   },
   {
@@ -5912,6 +5924,12 @@ export const PERMISSIONS: PermissionDef[] = [
     module: "admin",
   },
   {
+    code: "admin.settings.dictation.manage",
+    label: "Configure note dictation services",
+    description: "Where speech is transcribed (the hospital's own whisper server by default) and which local model drafts the note. Turning on the cloud transcription service sends doctors' recordings off the premises, so it is a separate, deliberate setting.",
+    module: "admin",
+  },
+  {
     code: "admin.settings.read",
     label: "Read tenant configuration",
     description: "Not an administrative act. This is the configuration the application itself runs on — which vitals a ward captures, whether weights are metric, which locale to format in — and every clinical screen reads it on load. Reading was gated on `settings.modules.manage`, which no role holds, so for every non-bypass user the read failed and the screen fell back to defaults without saying so. A ward that configured its vitals set had that configuration ignored, and a hospital on imperial units was shown metric. Sensitive categories are NOT covered by this and still require `general.manage` — see `SENSITIVE_SETTING_CATEGORIES`.",
@@ -7655,6 +7673,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.OPD.DIAGNOSES.DELETE,
       P.OPD.DIAGNOSES.LIST,
       P.OPD.DIAGNOSES.UPDATE,
+      P.OPD.DICTATION.USE,
       P.OPD.FEEDBACK.CREATE,
       P.OPD.FEEDBACK.LIST,
       P.OPD.PROCEDURES.CANCEL,
@@ -9250,6 +9269,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
     label: "Medical Superintendent",
     permissions: [
       P.ADMIN.SETTINGS.READ,
+      P.BILLING.PAYMENT_SETTINGS.NOTIFIED,
       P.DASHBOARD.VIEW,
       P.FLOWS.BUILD,
       P.FLOWS.PUBLISH,

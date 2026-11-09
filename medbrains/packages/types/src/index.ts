@@ -121,6 +121,7 @@ export * from "./dashboard-widget-builder";
 export * from "./device-binding";
 export * from "./device-integration";
 export * from "./diagnosis-coding";
+export * from "./dictation";
 export * from "./doctor-payouts";
 export * from "./documents-module";
 export * from "./dpdp-compliance";
