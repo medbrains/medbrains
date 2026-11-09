@@ -71,6 +71,7 @@ pub async fn run(
     );
     found.push(note_types(pools.owner).await);
     found.push(default_admin(pools.owner).await);
+    found.push(named_break_glass(pools.owner).await);
     found
 }
 
@@ -360,6 +361,36 @@ async fn note_types(pool: &PgPool) -> Finding {
     }
 }
 
+/// Hospitals still holding `tenant_settings(auth, break_glass_username)`: it is no longer read, so whoever it
+/// named lost the password route the SSO-only policy left them. Said here, not silently.
+async fn named_break_glass(pool: &PgPool) -> Finding {
+    let held = sqlx::query_scalar::<_, i64>(
+        "SELECT count(DISTINCT tenant_id) FROM tenant_settings \
+          WHERE category = 'auth' AND key = 'break_glass_username' AND deleted_at IS NULL",
+    )
+    .fetch_one(pool)
+    .await;
+    match held {
+        Ok(0) => Finding::ok(
+            "auth.break_glass",
+            "no hospital names a break-glass account",
+        ),
+        Ok(n) => Finding::warn(
+            "auth.break_glass",
+            format!(
+                "{n} hospital(s) set break_glass_username: the named break-glass setting is no longer \
+                 used; the setup administrator is the break-glass account"
+            ),
+            "Delete the auth/break_glass_username setting, and keep the setup administrator's password safe",
+        ),
+        Err(e) => Finding::warn(
+            "auth.break_glass",
+            format!("could not check the break-glass setting: {e}"),
+            "Check the owner connection",
+        ),
+    }
+}
+
 async fn default_admin(pool: &PgPool) -> Finding {
     // ponytail: Argon2 verify is ~50 ms; the administrators are a handful, capped at 20.
     let hashes = sqlx::query_as::<_, (String, String)>(
@@ -461,7 +492,10 @@ mod tests {
         for key in REQUIRED_KEYS.into_iter().skip(1) {
             let found = key_check(&OnlyIdentifierKey, key, true).await;
             assert_eq!(found.level, Level::Fail, "{key}");
-            assert_ne!(found.check, "secret.abdm_key", "{key} needs its own check name");
+            assert_ne!(
+                found.check, "secret.abdm_key",
+                "{key} needs its own check name"
+            );
         }
     }
 

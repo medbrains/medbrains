@@ -3511,6 +3511,28 @@ pub mod admin {
         pub const UPDATE: &str = "admin.users.update";
         pub const DELETE: &str = "admin.users.delete";
         pub const FORCE_LOGOUT: &str = "admin.users.force_logout";
+        /// Link an account to a sign-in person.
+        ///
+        /// Link or unlink a MedBrains account to a person in the hospital's own
+        /// sign-in service, chosen by name and ID. An email address never links
+        /// an account there, so existing staff are linked here. Administrators
+        /// only; the server also requires a bypass role.
+        pub const LINK_IDENTITY: &str = "admin.users.link_identity";
+    }
+
+    /// Single sign-on providers.
+    pub mod sso {
+        /// The identity providers staff sign in through.
+        pub mod providers {
+            /// Add, change or remove sign-in providers.
+            ///
+            /// Add, change, switch off or delete an outside identity provider,
+            /// and map its directory groups to roles and access groups. Whoever
+            /// holds this decides who can sign in and as what. The machine's own
+            /// sign-in service is pinned by the OS and cannot be changed here.
+            /// Administrators only; the server also requires a bypass role.
+            pub const MANAGE: &str = "admin.sso.providers.manage";
+        }
     }
 
     /// Oversight of the approvals platform.

@@ -1,0 +1,183 @@
+/* Kanidm's pages in the MedBrains design: the one stylesheet Kanidm loads after its own, so its templates stay
+   untouched. Colours only from the --mb-* tokens that os/kanidm-tokens.py puts ahead of this file, for Kanidm's
+   light and dark themes; `kanidm-tokens.py --check` proves each pair used here meets WCAG 2.2 AA. Shapes follow
+   the design system: no rounded corners, bottom-rule fields, IBM Plex, 14px body text, 2px focus outline. */
+
+@font-face { font-family: "IBM Plex Sans"; font-weight: 400; font-display: swap; src: url("fonts/plex-sans-400.woff2") format("woff2"); }
+@font-face { font-family: "IBM Plex Sans"; font-weight: 500; font-display: swap; src: url("fonts/plex-sans-500.woff2") format("woff2"); }
+@font-face { font-family: "IBM Plex Sans"; font-weight: 600; font-display: swap; src: url("fonts/plex-sans-600.woff2") format("woff2"); }
+@font-face { font-family: "IBM Plex Mono"; font-weight: 400; font-display: swap; src: url("fonts/plex-mono-400.woff2") format("woff2"); }
+
+/* The page and its raised parts differ by theme, as in the app. */
+:root, [data-bs-theme="light"] { --mbk-page: var(--mb-surface); --mbk-card: var(--mb-surface-container-lowest); }
+[data-bs-theme="dark"] { --mbk-page: var(--mb-surface); --mbk-card: var(--mb-surface-container-low); }
+
+:root, [data-bs-theme="light"], [data-bs-theme="dark"] {
+    --bs-font-sans-serif: "IBM Plex Sans", -apple-system, "Segoe UI", Roboto, "Noto Sans", sans-serif;
+    --bs-font-monospace: "IBM Plex Mono", ui-monospace, Menlo, monospace;
+    --bs-body-font-size: 0.875rem;
+    --bs-body-line-height: 1.43;
+    --bs-border-radius: 0; --bs-border-radius-sm: 0; --bs-border-radius-lg: 0; --bs-border-radius-xl: 0;
+    --bs-border-radius-xxl: 0; --bs-border-radius-pill: 0;
+    --bs-body-bg: var(--mbk-page);
+    --bs-body-color: var(--mb-on-surface);
+    --bs-emphasis-color: var(--mb-on-surface);
+    --bs-heading-color: var(--mb-on-surface);
+    --bs-secondary-color: var(--mb-on-surface-variant);
+    --bs-tertiary-color: var(--mb-on-surface-variant);
+    --bs-secondary-bg: var(--mb-surface-container);
+    --bs-tertiary-bg: var(--mb-surface-container-low);
+    --bs-border-color: var(--mb-outline-variant);
+    --bs-link-color: var(--mb-primary-text);
+    --bs-link-hover-color: var(--mb-primary-text);
+    --bs-primary: var(--mb-primary);
+    --bs-danger: var(--mb-error);
+    --bs-form-invalid-color: var(--mb-error);
+    --bs-form-invalid-border-color: var(--mb-error);
+    --bs-form-valid-color: var(--mb-success);
+    --bs-form-valid-border-color: var(--mb-success);
+    --bs-focus-ring-color: var(--mb-primary-text);
+}
+
+body { background: var(--mbk-page); color: var(--mb-on-surface); }
+/* Bootstrap draws links from an rgb triple, which a token cannot fill, so links are set here directly. */
+a, a:hover, .breadcrumb-item a { color: var(--mb-primary-text); }
+h1, h2, h3, .h1, .h2, .h3 { font-weight: 400; letter-spacing: 0; }
+h4, h5, h6 { font-weight: 600; }
+h1, .h1 { font-size: 2rem; }
+h2, .h2 { font-size: 1.5rem; }
+h3, .h3 { font-size: 1.25rem; }
+hr { border-color: var(--mb-outline-variant); opacity: 1; }
+.text-muted, .text-secondary, .text-body-secondary { color: var(--mb-on-surface-variant) !important; }
+.font-monospace, code { font-family: var(--bs-font-monospace); }
+
+/* One visible focus everywhere (WCAG 2.2, 2.4.13), instead of Bootstrap's soft glow. */
+:focus-visible, .form-control:focus, .btn:focus-visible, .form-check-input:focus, .list-group-item-action:focus-visible {
+    outline: 2px solid var(--mb-primary-text) !important;
+    outline-offset: 2px;
+    box-shadow: none !important;
+}
+
+/* The bar across the top. */
+.navbar, nav.bg-body-tertiary, .bg-body-tertiary {
+    background-color: var(--mb-surface-container-low) !important;
+    border-bottom: 1px solid var(--mb-outline-variant);
+}
+.navbar .nav-link { color: var(--mb-on-surface); min-height: 2.5rem; display: flex; align-items: center; }
+.navbar .nav-link:hover, .navbar .nav-link.active { color: var(--mb-primary-text); }
+
+/* Buttons: flat, square, 40px tall, one colour each. */
+.btn {
+    border-radius: 0;
+    min-height: 2.5rem;
+    padding: 0.5rem 1rem;
+    font-weight: 500;
+    border-width: 1px;
+    transition: none;
+}
+.btn-sm, .btn-tiny { min-height: 1.5rem; padding: 0.125rem 0.5rem; font-size: 0.8125rem; }
+.btn-primary {
+    --bs-btn-bg: var(--mb-primary); --bs-btn-border-color: var(--mb-primary); --bs-btn-color: var(--mb-on-primary);
+    --bs-btn-hover-bg: var(--mb-primary); --bs-btn-hover-border-color: var(--mb-primary); --bs-btn-hover-color: var(--mb-on-primary);
+    --bs-btn-active-bg: var(--mb-primary); --bs-btn-active-border-color: var(--mb-primary); --bs-btn-active-color: var(--mb-on-primary);
+    --bs-btn-disabled-bg: var(--mb-primary); --bs-btn-disabled-border-color: var(--mb-primary); --bs-btn-disabled-color: var(--mb-on-primary);
+}
+.btn-danger, .btn-warning {
+    --bs-btn-bg: var(--mb-error); --bs-btn-border-color: var(--mb-error); --bs-btn-color: var(--mb-on-error);
+    --bs-btn-hover-bg: var(--mb-error); --bs-btn-hover-border-color: var(--mb-error); --bs-btn-hover-color: var(--mb-on-error);
+    --bs-btn-active-bg: var(--mb-error); --bs-btn-active-border-color: var(--mb-error); --bs-btn-active-color: var(--mb-on-error);
+}
+.btn-success {
+    --bs-btn-bg: var(--mb-success); --bs-btn-border-color: var(--mb-success); --bs-btn-color: var(--mb-on-success);
+    --bs-btn-hover-bg: var(--mb-success); --bs-btn-hover-border-color: var(--mb-success); --bs-btn-hover-color: var(--mb-on-success);
+}
+.btn-secondary {
+    --bs-btn-bg: transparent; --bs-btn-border-color: var(--mb-outline); --bs-btn-color: var(--mb-on-surface);
+    --bs-btn-hover-bg: transparent; --bs-btn-hover-border-color: var(--mb-on-surface); --bs-btn-hover-color: var(--mb-on-surface);
+    --bs-btn-active-bg: transparent; --bs-btn-active-border-color: var(--mb-on-surface); --bs-btn-active-color: var(--mb-on-surface);
+}
+.btn-outline-danger {
+    --bs-btn-color: var(--mb-error); --bs-btn-border-color: var(--mb-error);
+    --bs-btn-hover-bg: var(--mb-error); --bs-btn-hover-border-color: var(--mb-error); --bs-btn-hover-color: var(--mb-on-error);
+}
+/* A hover the eye can see without a second colour: the state layer the app uses. */
+.btn:hover { background-image: linear-gradient(var(--mb-state-on-surface-12), var(--mb-state-on-surface-12)); }
+
+/* Fields: a filled box with a rule underneath. The rule is the edge, so it meets 3:1. */
+.form-control, .form-select, .input-group-text {
+    border-radius: 0;
+    min-height: 2.5rem;
+    background-color: var(--mb-surface-container);
+    color: var(--mb-on-surface);
+    border: 0;
+    border-bottom: 1px solid var(--mb-outline);
+}
+.form-control::placeholder { color: var(--mb-on-surface-variant); opacity: 1; }
+.form-control:focus { background-color: var(--mb-surface-container); color: var(--mb-on-surface); }
+.form-control.is-invalid, .was-validated .form-control:invalid {
+    border-bottom: 2px solid var(--mb-error);
+    background-image: none;
+    padding-right: 0.75rem;
+}
+.form-control-plaintext { color: var(--mb-on-surface); }
+.form-label, .col-form-label { font-size: 0.8125rem; color: var(--mb-on-surface-variant); margin-bottom: 0.25rem; }
+.invalid-feedback { color: var(--mb-error); font-size: 0.8125rem; }
+.form-check-input { border-radius: 0; border-color: var(--mb-outline); background-color: var(--mbk-card); }
+.form-check-input:checked { background-color: var(--mb-primary); border-color: var(--mb-primary); }
+.input-group > .form-control, .input-group > .btn { border-radius: 0 !important; }
+
+/* The sign-in box, as a card on the page. */
+.form-signin, main .login-container {
+    background: var(--mbk-card);
+    border: 1px solid var(--mb-outline-variant);
+    padding: 2rem;
+}
+
+/* Side menus: the selected entry carries a rule on its left, not a full blue block. */
+.side-menu-item { border-radius: 0 !important; color: var(--mb-on-surface) !important; min-height: 2.5rem; padding: 0.5rem 0.75rem; }
+.side-menu-item.active, .side-menu-item:hover {
+    background: var(--mb-surface-container) !important;
+    box-shadow: inset 3px 0 0 var(--mb-primary-text);
+}
+.list-group {
+    --bs-list-group-bg: var(--mbk-card); --bs-list-group-color: var(--mb-on-surface);
+    --bs-list-group-border-color: var(--mb-outline-variant); --bs-list-group-border-radius: 0;
+    --bs-list-group-action-hover-bg: var(--mb-surface-container); --bs-list-group-action-hover-color: var(--mb-on-surface);
+    --bs-list-group-active-bg: var(--mb-surface-container); --bs-list-group-active-color: var(--mb-on-surface);
+    --bs-list-group-active-border-color: var(--mb-outline-variant);
+}
+.list-group-item { min-height: 2.5rem; }
+.list-group-item.active { box-shadow: inset 3px 0 0 var(--mb-primary-text); font-weight: 600; }
+
+/* Tables: a header band, quiet stripes, a hover. */
+.table {
+    --bs-table-bg: var(--mbk-card); --bs-table-color: var(--mb-on-surface);
+    --bs-table-border-color: var(--mb-outline-variant);
+    --bs-table-striped-bg: var(--mb-surface-container-low); --bs-table-striped-color: var(--mb-on-surface);
+    --bs-table-hover-bg: var(--mb-surface-container); --bs-table-hover-color: var(--mb-on-surface);
+}
+.table thead th, .table > :not(caption) > tr > th {
+    background: var(--mb-surface-container-high);
+    color: var(--mb-on-surface);
+    font-weight: 600;
+}
+
+/* Messages. Each says what it is in words as well, so colour is never the only sign. */
+.alert { border-radius: 0; border: 0; border-left: 3px solid; }
+.alert-info { background: var(--mb-primary-container); color: var(--mb-on-primary-container); border-left-color: var(--mb-primary-text); }
+.alert-danger { background: var(--mb-error-container); color: var(--mb-on-error-container); border-left-color: var(--mb-error); }
+.alert-success { background: var(--mb-success-container); color: var(--mb-on-success-container); border-left-color: var(--mb-success); }
+.alert-warning { background: var(--mb-warning-container); color: var(--mb-on-warning-container); border-left-color: var(--mb-warning); }
+.badge { background: var(--mb-primary-container) !important; color: var(--mb-on-primary-container) !important; font-weight: 600; }
+.badge, .toast, .modal-content, .card, .dropdown-menu, .breadcrumb { border-radius: 0; }
+.toast, .modal-content, .card, .dropdown-menu { background: var(--mbk-card); color: var(--mb-on-surface); border-color: var(--mb-outline-variant); }
+.breadcrumb { --bs-breadcrumb-item-active-color: var(--mb-on-surface-variant); }
+.oauth2-img, .kanidm_logo { border-radius: 0; }
+
+@media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { transition: none !important; animation: none !important; }
+}
+
+footer.footer { display: none; }
+/* Closed at the front, and unused. */
+a[href="/ui/radius"] { display: none !important; }

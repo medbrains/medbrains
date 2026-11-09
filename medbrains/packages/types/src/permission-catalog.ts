@@ -19,7 +19,7 @@ export interface PermissionDef {
   module: string;
 }
 
-/** 1248 permissions, one per constant in the Rust source. */
+/** 1250 permissions, one per constant in the Rust source. */
 export const PERMISSIONS: PermissionDef[] = [
   // dashboard
   {
@@ -5693,6 +5693,18 @@ export const PERMISSIONS: PermissionDef[] = [
     code: "admin.users.force_logout",
     label: "Force User Logout",
     description: "Force a user to be logged out of all devices and re-authenticate",
+    module: "admin",
+  },
+  {
+    code: "admin.users.link_identity",
+    label: "Link an account to a sign-in person",
+    description: "Link or unlink a MedBrains account to a person in the hospital's own sign-in service, chosen by name and ID. An email address never links an account there, so existing staff are linked here. Administrators only; the server also requires a bypass role.",
+    module: "admin",
+  },
+  {
+    code: "admin.sso.providers.manage",
+    label: "Add, change or remove sign-in providers",
+    description: "Add, change, switch off or delete an outside identity provider, and map its directory groups to roles and access groups. Whoever holds this decides who can sign in and as what. The machine's own sign-in service is pinned by the OS and cannot be changed here. Administrators only; the server also requires a bypass role.",
     module: "admin",
   },
   {
