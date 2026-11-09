@@ -41,5 +41,11 @@ jobs:
           persist-credentials: false
           # Full history, so new-code detection and blame work.
           fetch-depth: 0
+      - name: Read the release version
+        id: version
+        if: env.SONAR_TOKEN != ''
+        run: echo "version=$(grep -m1 -E '^version *=' medbrains/Cargo.toml | cut -d'"' -f2)" >> "$GITHUB_OUTPUT"
       - uses: SonarSource/sonarqube-scan-action@d209202bc7d53ff1cc128f7f907dac145c9d6ae9 # v8.3.0
         if: env.SONAR_TOKEN != ''
+        with:
+          args: -Dsonar.projectVersion=${{ steps.version.outputs.version }}
