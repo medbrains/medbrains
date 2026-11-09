@@ -1,116 +1,88 @@
 # MedBrains Desktop
 
-Native desktop shell for the MedBrains HMS — Tauri 2 wrapping the
-existing React SPA at `apps/web/`. Same UI, native installers.
+The MedBrains desktop client for Windows and Mac PCs: Tauri 2, app ID
+`in.medbrains.desktop`. It ships no hospital's address. At first launch it asks
+which hospital server to open, then opens that server's own web app, and adds
+what a browser cannot: silent printing and the system keychain.
 
-## Why Tauri (vs Electron)
+## Which server it opens
 
-- ~10MB binary vs ~100-200MB Electron
-- ~50MB RAM vs ~250MB
-- Same Rust toolchain as the backend
-- Capability-based security (deny-by-default)
-- Built-in signed auto-updater
-- macOS / Windows / Linux from one codebase
+1. First launch shows the setup screen (bundled with the app, `apps/web`
+   `components/desktop/DesktopSetup.tsx`). The person types the server address,
+   or scans the hospital QR from the appliance screen with the desk's QR scanner
+   (or pastes it). The QR is the same `medbrains://bind?t=<JWS>` code the phone
+   apps scan; the desktop reads the hospital name and server address from it.
+2. The address must be `https://`. Plain `http://` is accepted only for this
+   computer: `localhost`, `127.0.0.1`, `[::1]` and `*.localhost`.
+3. The desktop asks the server's `/api/health` before it leaves the setup
+   screen, keeps the origin in the Tauri store (`desktop.json` in the app data
+   directory), and opens it.
+4. To change it: **Change server** on the sign-in page, or the **Server →
+   Change hospital server…** menu (works even when the server does not answer).
+   Both forget the server and restart into setup.
 
-## Targets
+## Security
 
-| OS | Format | Signing |
-|---|---|---|
-| macOS | `.dmg`, `.app` | Apple Developer ID + Notarization |
-| Windows | `.msi`, `.exe` | Authenticode (EV preferred) |
-| Linux | `.AppImage`, `.deb`, `.rpm` | GPG-signed |
+- **Navigation lock.** The window may navigate only to the bundled setup screen
+  and the chosen server's origin (`src/commands/server.rs`, `may_navigate`).
+- **IPC.** `withGlobalTauri` is off. The setup screen may call only the two
+  setup commands (`capabilities/main.json`). The chosen server gets keyring,
+  printing, system info, notifications and "forget server" through a capability
+  added at runtime for its origin only; a static config cannot name a server
+  chosen after install. No file-system or shell-open permission exists.
+- **CSP.** `tauri.conf.json` holds the CSP for the bundled setup screen, with
+  no remote or dev origins. Dev origins (Vite's websocket) are in
+  `tauri.dev.conf.json`. The server's pages carry the server's own CSP.
 
 ## Develop
 
 ```sh
-make dev                  # terminal 1: backend + web + local Pingora proxy
-make desktop-dev          # terminal 2: Tauri window at https://medbrains-desktop.localhost
-make desktop-reports-dev  # optional: open directly at /reports
-```
-
-`pnpm dev` runs `tauri dev` which:
-- Starts `cd ../web && pnpm dev` in parallel
-- Opens a webview pointing at the dev server
-- Hot-reloads on SPA changes
-
-For normal local desktop testing, keep `make dev` running and use the
-Pingora local domain:
-
-- browser web: `https://medbrains.localhost`
-- desktop webview: `https://medbrains-desktop.localhost`
-- shared API: `https://medbrains.localhost/api`
-
-Useful runtime switches:
-
-```sh
+make dev                # terminal 1: backend + web + local Pingora proxy
+make desktop-dev        # terminal 2: desktop window on https://medbrains.localhost
+make desktop-setup-dev  # the first-launch setup screen instead (starts Vite)
 ROUTE=/reports make desktop-dev
-MEDBRAINS_DESKTOP_DEV_URL=https://medbrains-desktop.localhost ROUTE=/reports make desktop-dev
-MEDBRAINS_DESKTOP_API_BASE=https://medbrains.localhost/api make desktop-dev
 ```
 
-Desktop can take API configuration from either runtime or build-time env:
-
-- `MEDBRAINS_DESKTOP_API_BASE` — runtime desktop API base injected by Tauri into the webview.
-- `VITE_DESKTOP_API_BASE` — build-time fallback for packaged desktop web assets.
-- Default desktop API is `https://medbrains.localhost/api`, the same backend origin used by web.
+Debug builds only: `MEDBRAINS_DESKTOP_SERVER` opens that server instead of the
+stored one, and `MEDBRAINS_DESKTOP_START_ROUTE` opens a route on it.
 
 ## Build
 
 ```sh
-pnpm build:macos      # produces .dmg
-pnpm build:windows    # produces .msi (requires Windows host)
-pnpm build:linux      # produces .deb + .AppImage + .rpm (requires Linux host)
+pnpm build:macos      # .dmg (macOS host)
+pnpm build:windows    # .msi / .exe (Windows host)
+pnpm tauri build --debug --bundles app   # quick unsigned local build
 ```
 
-CI matrix in `.github/workflows/desktop.yml` builds all three on push to a release tag.
+## Releases and auto-update
 
-## Architecture
+`release.yml` calls `desktop.yml` on every `v*` tag. The macOS, Windows and
+Linux installers, their updater signatures and `latest.json` are uploaded to the
+same GitHub release as the server. The app checks
+`https://github.com/medbrains/medbrains/releases/latest/download/latest.json`
+at launch and offers to install and restart. The updater refuses any package
+not signed by the key whose public half is `plugins.updater.pubkey` in
+`tauri.conf.json`.
 
-```
-┌────────────────────────────────────┐
-│ Tauri 2 shell (Rust, this crate)   │
-│ • Plugins: fs, dialog, shell,      │
-│   notification, updater, deep-link │
-│ • Commands: system_info, printer   │
-│ ↓                                  │
-│ Webview (system: WKWebView /       │
-│ WebView2 / WebKitGTK)              │
-│ ↓                                  │
-│ React SPA (apps/web/dist)          │
-│ ↓                                  │
-│ HTTP/WebSocket → medbrains-server  │
-└────────────────────────────────────┘
+Signing key:
+
+```sh
+pnpm tauri signer generate -w ~/.tauri/medbrains-desktop.key
 ```
 
-The desktop is intentionally **thin** — all business logic stays in
-`crates/medbrains-server`. Native commands are limited to:
+Put the public key (`~/.tauri/medbrains-desktop.key.pub`, one line) in
+`plugins.updater.pubkey`, and set the repository secrets
+`TAURI_SIGNING_PRIVATE_KEY` (the private key file's contents) and
+`TAURI_SIGNING_PRIVATE_KEY_PASSWORD`. Without the secret, CI still builds the
+installers, with no updater artifacts and no `latest.json`
+(`tauri.updater.conf.json` turns them on only when the key is present).
 
-- `system_info()` — OS / arch / locale
-- `open_settings_dir()` — open app-data folder in OS file manager
-- `list_printers()` / `print_pdf()` — Phase A2 (hardware bridge)
+Clients that hold an old public key cannot update past a key rotation; they
+need a manual reinstall.
 
-## Capabilities
+## Linux and the `glib` advisory
 
-`src-tauri/capabilities/main.json` is the deny-by-default ACL:
-- File system scoped to `$APPDATA/medbrains/`, `$DOCUMENT/MedBrains/`
-- Shell open allow-listed: `hims.amh.org.in`, `medbrains.dev`, `*.razorpay.com`
-- Remote dev webviews allow-listed: `localhost:5173/*`, `127.0.0.1:5173/*`, `medbrains.localhost/*`, `medbrains-desktop.localhost/*`
-- Updater plugin pinned to our Ed25519 public key
-
-## Auto-update
-
-`tauri-plugin-updater` is enabled and pinned to the public key in `tauri.conf.json`. Local debug builds do not create updater artifacts. Release CI should set the private key through `TAURI_SIGNING_PRIVATE_KEY` or `TAURI_SIGNING_PRIVATE_KEY_PATH`, then publish signed release JSON to `https://hims.amh.org.in/.well-known/medbrains-desktop-updates/...`. The installer refuses unsigned updates.
-
-To rotate the signing key:
-1. `tauri signer generate -w ~/.tauri/medbrains-desktop.key`
-2. Replace `pubkey` in `tauri.conf.json` with new public key
-3. Add private key to CI secrets (`TAURI_SIGNING_PRIVATE_KEY`, `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`)
-4. Bump app version + push release
-
-Old clients with the old pubkey CAN'T update past the rotation — they need a manual reinstall.
-
-## Phase status (from master plan, Track 2B)
-
-- ✅ Phase A — shell + capabilities + auto-update
-- ⏳ Phase A2 — hardware bridge (USB serial, label printers, DICOMweb)
-- ⏳ Phase E — all-in-one clinic edition (bundle medbrains-server + portable postgres)
+Tauri 2 on Linux uses the GTK 3 bindings (`gtk` 0.18, `glib` 0.18.5).
+GHSA-wrw7-89jp-8q8g is fixed in `glib` 0.20, which no Tauri 2 release (nor the
+3.0 alphas) can use. It affects only the Linux build; Windows and macOS do not
+compile `glib`.

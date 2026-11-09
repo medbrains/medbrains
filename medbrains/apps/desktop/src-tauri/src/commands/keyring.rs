@@ -12,7 +12,7 @@
 //! unambiguously supported there. Borrowing to save a few bytes per keyring
 //! call is not worth a risk to the desktop client's IPC.
 
-const SERVICE: &str = "com.medbrains.hms";
+const SERVICE: &str = "in.medbrains.desktop";
 
 /// Store `value` under `key` in the OS keyring (overwrites any existing entry).
 #[tauri::command]

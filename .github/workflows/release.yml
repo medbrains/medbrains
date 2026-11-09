@@ -147,6 +147,8 @@ jobs:
       contents: write
       id-token: write
       attestations: write
+    outputs:
+      release-id: ${{ steps.release.outputs.id }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -214,3 +216,20 @@ jobs:
           else
             gh release create "$TAG" dist/* --repo "$GITHUB_REPOSITORY" --draft --title "$TAG" --notes-file NOTES.md "${pre[@]}"
           fi
+      # The desktop job uploads its installers, signatures and latest.json here.
+      - name: Release id
+        id: release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+        run: echo "id=$(gh release view "$TAG" --repo "$GITHUB_REPOSITORY" --json databaseId --jq .databaseId)" >> "$GITHUB_OUTPUT"
+
+  desktop:
+    name: Desktop client
+    needs: [release]
+    permissions:
+      contents: write
+    uses: ./.github/workflows/desktop.yml
+    with:
+      release-id: ${{ needs.release.outputs.release-id }}
+    secrets: inherit

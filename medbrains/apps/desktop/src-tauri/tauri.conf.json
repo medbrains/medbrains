@@ -1,8 +1,8 @@
 {
   "$schema": "https://schema.tauri.app/config/2.0.0",
-  "productName": "MedBrains HMS",
+  "productName": "MedBrains",
   "version": "0.1.0",
-  "identifier": "in.amh.hims.medbrains",
+  "identifier": "in.medbrains.desktop",
   "build": {
     "beforeDevCommand": "cd ../web && pnpm dev",
     "beforeBuildCommand": "cd ../web && pnpm build",
@@ -10,23 +10,21 @@
     "frontendDist": "../../web/dist"
   },
   "app": {
-    "withGlobalTauri": true,
+    "withGlobalTauri": false,
     "windows": [],
     "security": {
-      "csp": "default-src 'self'; script-src 'self' 'wasm-unsafe-eval' https://*.razorpay.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; img-src 'self' data: blob: https: tauri:; font-src 'self' data: https://fonts.gstatic.com; connect-src 'self' https://*.razorpay.com https://hims.amh.org.in https://medbrains.localhost https://medbrains-desktop.localhost http://localhost:3000 http://127.0.0.1:3000 http://localhost:5173 http://127.0.0.1:5173 ws://localhost:5173 ws://127.0.0.1:5173 wss://medbrains.localhost wss://medbrains-desktop.localhost wss: ipc: ipc://localhost http://ipc.localhost; frame-src https://*.razorpay.com; object-src 'none'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'",
-      "capabilities": ["main-capability"],
-      "assetProtocol": {
-        "enable": true,
-        "scope": []
-      }
+      "csp": "default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self' ipc: http://ipc.localhost; object-src 'none'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'",
+      "capabilities": [
+        "main-capability"
+      ]
     }
   },
   "bundle": {
     "active": true,
     "targets": "all",
     "category": "Medical",
-    "shortDescription": "Hospital Management System",
-    "longDescription": "MedBrains HMS — secure, NABH-compliant hospital management system. Multi-module, multi-tenant, offline-capable.",
+    "shortDescription": "MedBrains desktop client",
+    "longDescription": "MedBrains for Windows and Mac PCs. Connects to your hospital's MedBrains server and adds silent printing and the system keychain.",
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",
@@ -36,14 +34,17 @@
     ],
     "macOS": {
       "minimumSystemVersion": "11.0",
-      "exceptionDomain": "hims.amh.org.in",
       "signingIdentity": null,
       "entitlements": null,
       "providerShortName": null
     },
     "windows": {
       "wix": {
-        "language": ["en-IN", "ta-IN", "hi-IN"]
+        "language": [
+          "en-IN",
+          "ta-IN",
+          "hi-IN"
+        ]
       },
       "nsis": null,
       "certificateThumbprint": null,
@@ -64,13 +65,15 @@
     "updater": {
       "active": true,
       "endpoints": [
-        "https://hims.amh.org.in/.well-known/medbrains-desktop-updates/{{target}}/{{arch}}/{{current_version}}"
+        "https://github.com/medbrains/medbrains/releases/latest/download/latest.json"
       ],
       "dialog": false,
-      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDNFNTYyQjBDQzE4QjE2MUMKUldRY0ZvdkJEQ3RXUHM5cDJ2Y0dTaEl3MWFCOEE4c2xyN0w3bzl4aDZDa2NIVUZFcmlLRzRWSHAK"
+      "pubkey": "REPLACE_WITH_TAURI_UPDATER_PUBLIC_KEY"
     },
     "deep-link": {
-      "schemes": ["medbrains"]
+      "schemes": [
+        "medbrains"
+      ]
     }
   }
 }

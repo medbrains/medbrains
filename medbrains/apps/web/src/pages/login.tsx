@@ -17,7 +17,7 @@ import { isTauriDesktopRuntime } from "@/lib/desktop-runtime";
 import { getRememberedHospitalCode, rememberHospitalCode } from "@/lib/hospital-code";
 import classes from "./login.module.scss";
 
-/** `/login?hospital=AMH` — the hospital step 1 chose. */
+/** `/login?hospital=CITY` — the hospital step 1 chose. */
 const HOSPITAL_PARAM = "hospital";
 
 /**

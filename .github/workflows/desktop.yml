@@ -1,11 +1,21 @@
 name: Desktop Build
 
-# Moved from medbrains/.github/workflows/ (never read there). Tags and manual
-# runs only: a 3-OS Tauri matrix (~35 min) on every master push and web PR is
-# not affordable while CI minutes are the constraint.
+# The MedBrains desktop client (medbrains/apps/desktop). Called by release.yml
+# for a version tag, so the installers, their updater signatures and
+# latest.json land on the same GitHub release as the server: the updater reads
+# https://github.com/medbrains/medbrains/releases/latest/download/latest.json,
+# and a separate desktop-only release would move "latest" away from it.
+# A manual run builds the installers as workflow artifacts and publishes nothing.
+#
+# Updates are signed with TAURI_SIGNING_PRIVATE_KEY. Without that secret the
+# installers are still built, with no updater artifacts and no latest.json.
 on:
-  push:
-    tags: ['desktop-v*']
+  workflow_call:
+    inputs:
+      release-id:
+        description: The GitHub release (database id) to upload to.
+        type: string
+        required: true
   workflow_dispatch:
 
 permissions:
@@ -63,6 +73,21 @@ jobs:
         working-directory: medbrains
         run: pnpm --filter "@medbrains/types" --filter "@medbrains/utils" --filter "@medbrains/schemas" --filter "@medbrains/api" --filter "@medbrains/stores" --filter "@medbrains/expressions" --filter "@medbrains/crdt" build && pnpm --filter @medbrains/web exec vite build
 
+      # Updater artifacts need the signing key; a build without it still ships.
+      - name: Updater signing
+        id: updater
+        shell: bash
+        env:
+          KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+        run: |
+          if [ -n "$KEY" ]; then
+            echo "args=--config src-tauri/tauri.updater.conf.json" >> "$GITHUB_OUTPUT"
+            echo "signed=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "::warning::TAURI_SIGNING_PRIVATE_KEY is not set: building without updater artifacts or latest.json"
+            echo "signed=false" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Build Tauri app
         uses: tauri-apps/tauri-action@1deb371b0cd8bd54025b384f1cd735e725c4060f # v1.0.0
         env:
@@ -82,8 +107,20 @@ jobs:
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         with:
           projectPath: medbrains/apps/desktop
-          args: ${{ matrix.target.args }}
-          tagName: ${{ startsWith(github.ref, 'refs/tags/desktop-v') && github.ref_name || '' }}
-          releaseName: ${{ startsWith(github.ref, 'refs/tags/desktop-v') && format('Desktop {0}', github.ref_name) || '' }}
-          releaseDraft: true
-          prerelease: false
+          args: ${{ matrix.target.args }} ${{ steps.updater.outputs.args }}
+          releaseId: ${{ inputs.release-id }}
+          includeUpdaterJson: ${{ steps.updater.outputs.signed == 'true' }}
+
+      - name: Keep the installers (manual runs)
+        if: inputs.release-id == ''
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: desktop-${{ matrix.target.os }}
+          path: |
+            medbrains/target/**/release/bundle/**/*.dmg
+            medbrains/target/**/release/bundle/**/*.msi
+            medbrains/target/**/release/bundle/**/*.exe
+            medbrains/target/**/release/bundle/**/*.deb
+            medbrains/target/**/release/bundle/**/*.AppImage
+            medbrains/target/**/release/bundle/**/*.rpm
+          retention-days: 14
