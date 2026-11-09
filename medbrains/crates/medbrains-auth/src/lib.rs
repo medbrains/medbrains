@@ -903,6 +903,10 @@ pub struct LogoutAllRequest {
     pub user_id: Option<Uuid>,
 }
 
+/// Sign a user out everywhere: revoke their refresh tokens and bump their
+/// `perm_version`. The caller by default; another user needs
+/// `admin.users.force_logout` and a fresh step-up, and an administrator's
+/// account only another bypass administrator may sign out.
 pub async fn logout_all(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
@@ -926,6 +930,20 @@ pub async fn logout_all(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
+    if target_user != claims.sub {
+        // Signing an administrator out is locking them out of the screen that
+        // could undo it; only another bypass administrator may.
+        let role = sqlx::query_scalar!(
+            r#"SELECT role::text AS "role!" FROM users
+               WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL"#,
+            target_user,
+            claims.tenant_id
+        )
+        .fetch_optional(&mut *tx)
+        .await?
+        .ok_or(AppError::NotFound)?;
+        medbrains_server_core::permissions::refuse_bypass_target(&claims, &role)?;
+    }
 
     sqlx::query!(
         "UPDATE refresh_tokens SET revoked = true \
