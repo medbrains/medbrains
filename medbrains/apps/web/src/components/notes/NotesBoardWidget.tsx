@@ -4,7 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useMemo } from "react";
 import { notesService } from "@/services/notes.service";
 import { NoteCard } from "./NoteCard";
-import { NOTES_KEY } from "./NotesPanel";
+import { NOTES_KEY } from "./notes-logic";
 
 /** How many notes the dashboard tile shows; the rest are in the Notes panel. */
 const SHOWN = 5;

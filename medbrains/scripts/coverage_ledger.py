@@ -48,6 +48,13 @@ from check_api_contract import (  # noqa: E402  (repo-root script, imported for 
 E2E = MEDBRAINS / "apps" / "web" / "e2e"
 SMOKE_DIR = E2E / "smoke" / "api"
 APP_TSX = MEDBRAINS / "apps" / "web" / "src" / "App.tsx"
+# The signed-in routes live in their own lazy module, mounted by App under `/*`.
+AUTHED_ROUTES_TSX = MEDBRAINS / "apps" / "web" / "src" / "AuthedRoutes.tsx"
+
+
+def route_source() -> str:
+    """App.tsx followed by AuthedRoutes.tsx: the whole route table, in mount order."""
+    return "\n".join(f.read_text() for f in (APP_TSX, AUTHED_ROUTES_TSX) if f.exists())
 BASELINE = MEDBRAINS / "scripts" / "coverage_ledger.baseline.json"
 
 RE_API_LITERAL = re.compile(r"""["'`](/api/[^"'`\s]*)["'`]""")
@@ -110,12 +117,12 @@ def app_routes() -> list[tuple[str, str | None]]:
         return []
     stack: list[str] = []
     out: list[tuple[str, str | None]] = []
-    for line in APP_TSX.read_text().splitlines():
+    for line in route_source().splitlines():
         s = line.strip()
         m = RE_ROUTE_OPEN.search(s)
         if m:
             path, attrs = m.group(1), m.group(2)
-            if path in ("*", ""):
+            if path in ("*", "", "/*"):
                 continue
             segments = [p.strip("/") for p in [*stack, path] if p.strip("/")]
             full = "/" + "/".join(segments) if not path.startswith("/") else path
@@ -192,7 +199,7 @@ def page_gates() -> dict[str, dict[str, object]]:
     """
     if not APP_TSX.exists():
         return {"gates": {}, "aliases": {}}
-    app = APP_TSX.read_text()
+    app = route_source()
     lazy = {name: file for name, file in RE_LAZY.findall(app)}
     accessors = p_accessor_map()
     pages_dir = MEDBRAINS / "apps" / "web" / "src" / "pages"
