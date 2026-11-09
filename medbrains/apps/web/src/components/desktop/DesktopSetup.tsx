@@ -7,7 +7,10 @@ import { Alert, Button, Card, TextArea } from "@/components/ui";
 import { desktopInvoke } from "@/lib/desktop-runtime";
 import classes from "./desktop-setup.module.scss";
 
-/** The hospital a scanned QR names (`BindingInfo` in apps/desktop). */
+/**
+ * What a scanned QR says (`BindingInfo` in apps/desktop). The desktop checks
+ * the address; the name is unsigned text, shown only as a hint.
+ */
 interface BindingInfo {
   hospital: string;
   address: string;
@@ -95,16 +98,17 @@ export function DesktopSetup() {
               Read the code
             </Button>
             {read.data && (
-              <Alert tone="info" title={read.data.hospital}>
+              <Alert tone="info" title={`Connect to ${read.data.address}`}>
                 <Stack gap="xs" align="flex-start">
-                  <Text size="sm">{read.data.address}</Text>
+                  <Text size="sm">Name from the QR code (not verified): {read.data.hospital}</Text>
+                  <Text size="sm">Check this address with your IT desk before you connect.</Text>
                   <Button
                     tone="primary"
                     size="xs"
                     loading={open.isPending}
                     onClick={() => read.data && open.mutate(read.data.address)}
                   >
-                    Connect to {read.data.hospital}
+                    Connect to {read.data.address}
                   </Button>
                 </Stack>
               </Alert>

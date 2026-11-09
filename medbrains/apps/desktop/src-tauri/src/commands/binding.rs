@@ -8,7 +8,8 @@
 //! and cannot be pinned. So the signature is not checked either — with the
 //! issuer key carried inside the code and no redeem to prove the server holds
 //! it, a valid signature would prove nothing. Trust comes from https and from
-//! the person confirming the address the setup screen shows them.
+//! the person confirming the address the setup screen shows them. For the
+//! same reason the code's expiry is not checked: anyone can write a fresh one.
 
 use base64::Engine;
 use base64::engine::general_purpose::URL_SAFE_NO_PAD;
@@ -24,8 +25,6 @@ const TOKEN_TYPE: &str = "mb-binding+jws";
 const AUDIENCE: &str = "medbrains-app";
 /// The payload version this build reads.
 const VERSION: u8 = 1;
-/// Clock difference tolerated between the appliance and this PC.
-const CLOCK_SKEW_SECONDS: i64 = 60;
 
 #[derive(Deserialize)]
 struct Header {
@@ -38,10 +37,10 @@ struct Claims {
     aud: String,
     tenant_name: String,
     api_base: String,
-    exp: i64,
 }
 
-/// The hospital a QR names, for the person to confirm before connecting.
+/// The hospital a QR names, for the person to confirm before connecting. The
+/// name is unverified text from the code; only the address is checked.
 #[derive(Debug, Serialize, PartialEq, Eq)]
 pub(crate) struct BindingInfo {
     pub(crate) hospital: String,
@@ -57,14 +56,12 @@ pub(crate) enum BindingError {
     Damaged,
     #[error("This hospital code is for a different app version.")]
     WrongVersion,
-    #[error("This hospital code has expired. Ask for a new one.")]
-    Expired,
     #[error("{0}")]
     Server(#[from] ServerError),
 }
 
 /// Decode a scanned or pasted hospital QR into the hospital and its server.
-pub(crate) fn read_binding(code: &str, now: i64) -> Result<BindingInfo, BindingError> {
+pub(crate) fn read_binding(code: &str) -> Result<BindingInfo, BindingError> {
     let token = code
         .trim()
         .strip_prefix(QR_PREFIX)
@@ -81,9 +78,6 @@ pub(crate) fn read_binding(code: &str, now: i64) -> Result<BindingInfo, BindingE
     let claims = decode::<Claims>(payload)?;
     if claims.v != VERSION || claims.aud != AUDIENCE {
         return Err(BindingError::WrongVersion);
-    }
-    if now > claims.exp + CLOCK_SKEW_SECONDS {
-        return Err(BindingError::Expired);
     }
     let address = server::parse_server(&claims.api_base)?;
     Ok(BindingInfo {
@@ -105,12 +99,10 @@ mod tests {
     use super::{BindingError, BindingInfo, QR_PREFIX, URL_SAFE_NO_PAD, read_binding};
     use base64::Engine;
 
-    const NOW: i64 = 1_800_000_000;
-
-    fn code(api_base: &str, exp: i64) -> String {
+    fn code(api_base: &str) -> String {
         let header = URL_SAFE_NO_PAD.encode(r#"{"alg":"EdDSA","typ":"mb-binding+jws","kid":"k"}"#);
         let payload = URL_SAFE_NO_PAD.encode(format!(
-            r#"{{"v":1,"iss":"x","aud":"medbrains-app","tenant":"t","tenant_name":"City Hospital","api_base":"{api_base}","ik":"k","jti":"j","iat":0,"exp":{exp}}}"#
+            r#"{{"v":1,"iss":"x","aud":"medbrains-app","tenant":"t","tenant_name":"City Hospital","api_base":"{api_base}","ik":"k","jti":"j","iat":0,"exp":0}}"#
         ));
         format!("{QR_PREFIX}{header}.{payload}.c2ln")
     }
@@ -118,7 +110,7 @@ mod tests {
     #[test]
     fn a_hospital_code_names_the_hospital_and_its_server() {
         assert_eq!(
-            read_binding(&code("https://hims.example.org/", NOW), NOW),
+            read_binding(&code("https://hims.example.org/")),
             Ok(BindingInfo {
                 hospital: "City Hospital".into(),
                 address: "https://hims.example.org".into(),
@@ -127,21 +119,21 @@ mod tests {
     }
 
     #[test]
-    fn an_expired_foreign_or_cleartext_code_is_refused() {
+    fn a_foreign_damaged_or_cleartext_code_is_refused() {
         assert_eq!(
-            read_binding(&code("https://h.example.org", NOW - 120), NOW),
-            Err(BindingError::Expired)
-        );
-        assert_eq!(
-            read_binding("https://h.example.org", NOW),
+            read_binding("https://h.example.org"),
             Err(BindingError::NotBinding)
         );
         assert_eq!(
-            read_binding(&format!("{QR_PREFIX}a.b"), NOW),
+            read_binding(&format!("{QR_PREFIX}a.b")),
             Err(BindingError::Damaged)
         );
         assert!(matches!(
-            read_binding(&code("http://h.example.org", NOW), NOW),
+            read_binding(&code("http://h.example.org")),
+            Err(BindingError::Server(_))
+        ));
+        assert!(matches!(
+            read_binding(&code("https://*.example.org")),
             Err(BindingError::Server(_))
         ));
     }

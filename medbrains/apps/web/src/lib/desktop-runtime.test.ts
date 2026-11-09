@@ -31,6 +31,6 @@ describe("desktop runtime", () => {
   });
 
   it("refuses off the desktop instead of calling nothing", async () => {
-    await expect(desktopInvoke("keyring_get")).rejects.toThrow("desktop app");
+    await expect(desktopInvoke("desktop_server_forget")).rejects.toThrow("desktop app");
   });
 });

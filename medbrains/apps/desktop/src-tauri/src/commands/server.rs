@@ -7,10 +7,11 @@
 //! its CSP all come from the one server, at the version that server runs.
 //!
 //! The chosen server is the only remote origin the window may navigate to and
-//! the only one granted IPC (keyring, printing, notifications), through a
+//! the only one granted IPC (notifications and forgetting the server), through a
 //! capability added at runtime, because a static `tauri.conf.json` cannot name
 //! a server chosen after install.
 
+use std::net::{Ipv4Addr, Ipv6Addr};
 use std::sync::Mutex;
 use std::time::Duration;
 
@@ -18,6 +19,7 @@ use serde_json::Value;
 use tauri::ipc::CapabilityBuilder;
 use tauri::{AppHandle, Manager, Runtime, Url};
 use tauri_plugin_store::StoreExt;
+use url::Host;
 
 use super::binding::{self, BindingInfo};
 
@@ -40,18 +42,11 @@ pub(crate) const MAIN_WINDOW: &str = "main";
 /// The bundled setup screen (`apps/web` renders it for this query).
 pub(crate) const SETUP_PAGE: &str = "index.html?desktopSetup=1";
 
-/// What the chosen server's pages may call. Nothing that reads or writes files
-/// or opens other programs: the server's web app needs only these.
-const REMOTE_PERMISSIONS: &[&str] = &[
-    "allow-keyring-get",
-    "allow-keyring-set",
-    "allow-keyring-delete",
-    "allow-list-printers",
-    "allow-print-pdf",
-    "allow-system-info",
-    "allow-desktop-server-forget",
-    "notification:default",
-];
+/// What the chosen server's pages may call: forget the server (the sign-in
+/// page's "Change server") and show notifications. Nothing that prints, reads
+/// or writes files, holds secrets or opens other programs; a command is added
+/// here only with the web app code that calls it.
+const REMOTE_PERMISSIONS: &[&str] = &["allow-desktop-server-forget", "notification:default"];
 
 /// The server this window may open, once one is chosen.
 #[derive(Debug, Default)]
@@ -62,7 +57,7 @@ pub(crate) struct ChosenServer(Mutex<Option<Url>>);
 pub(crate) enum ServerError {
     #[error("Enter the hospital server's address, such as https://hims.example.org.")]
     Invalid,
-    #[error("Use an https:// address. Plain http is allowed only for this computer (localhost).")]
+    #[error("Use an https:// address.")]
     Insecure,
     #[error("The server at {0} did not answer as a MedBrains server.")]
     Unreachable(String),
@@ -70,9 +65,18 @@ pub(crate) enum ServerError {
     Storage(String),
 }
 
-/// Reduce an address to the server's origin: https, or http on this computer.
+/// Reduce an address to the server's origin, with the rules of this build.
 /// A bare host gets `https://`; any path, query or credentials are dropped.
 pub(crate) fn parse_server(input: &str) -> Result<Url, ServerError> {
+    parse_origin(input, cfg!(debug_assertions))
+}
+
+/// [`parse_server`] with the build's rules made explicit, so tests can check
+/// the release rules from a debug test run. https always; plain http only in a
+/// debug build, and only to this computer. The host must be a plain hostname
+/// (after IDNA) or an IP literal, because it goes verbatim into the runtime
+/// capability's URL pattern, where `*`, `(` or `{` would widen it.
+fn parse_origin(input: &str, debug: bool) -> Result<Url, ServerError> {
     let input = input.trim();
     let with_scheme = if input.contains("://") {
         input.to_owned()
@@ -80,27 +84,38 @@ pub(crate) fn parse_server(input: &str) -> Result<Url, ServerError> {
         format!("https://{input}")
     };
     let url = Url::parse(&with_scheme).map_err(|_| ServerError::Invalid)?;
-    let host = url
-        .host_str()
-        .filter(|h| !h.is_empty())
-        .ok_or(ServerError::Invalid)?;
+    let is_local = match url.host().ok_or(ServerError::Invalid)? {
+        Host::Domain(name) if is_hostname(name) => is_dev_host(name),
+        Host::Domain(_) => return Err(ServerError::Invalid),
+        Host::Ipv4(ip) => ip == Ipv4Addr::LOCALHOST,
+        Host::Ipv6(ip) => ip == Ipv6Addr::LOCALHOST,
+    };
     match url.scheme() {
         "https" => {}
-        "http" if is_this_computer(host) => {}
+        "http" if debug && is_local => {}
         "http" => return Err(ServerError::Insecure),
         _ => return Err(ServerError::Invalid),
     }
     Url::parse(&url.origin().ascii_serialization()).map_err(|_| ServerError::Invalid)
 }
 
+/// Letters, digits, hyphens and dots only: what DNS names are made of once
+/// IDNA has turned any Unicode into punycode.
+fn is_hostname(name: &str) -> bool {
+    !name.is_empty()
+        && name
+            .bytes()
+            .all(|b| b.is_ascii_alphanumeric() || b == b'-' || b == b'.')
+}
+
+/// `localhost` and `*.localhost`, which debug builds may reach over http.
+fn is_dev_host(name: &str) -> bool {
+    name == "localhost" || name.ends_with(".localhost")
+}
+
 /// The origin as the person reads it, without the trailing slash.
 pub(crate) fn display(origin: &Url) -> String {
     origin.origin().ascii_serialization()
-}
-
-/// Loopback and `*.localhost` names, the only ones allowed plain http.
-fn is_this_computer(host: &str) -> bool {
-    matches!(host, "localhost" | "127.0.0.1" | "[::1]") || host.ends_with(".localhost")
 }
 
 /// The server to open at launch: the debug override, else the stored choice.
@@ -155,14 +170,23 @@ pub(crate) fn may_navigate<R: Runtime>(app: &AppHandle<R>, url: &Url) -> bool {
         .unwrap_or(false)
 }
 
-/// The app's own assets: `tauri://localhost` (macOS, Linux), the
-/// `tauri.localhost` host (Windows), and the dev server in debug builds.
+/// The app's own assets, plus the dev server in debug builds.
 fn is_bundled<R: Runtime>(app: &AppHandle<R>, url: &Url) -> bool {
     let dev = cfg!(debug_assertions)
         .then(|| app.config().build.dev_url.as_ref())
         .flatten()
         .is_some_and(|dev| dev.origin() == url.origin());
-    dev || url.scheme() == "tauri" || url.host_str() == Some("tauri.localhost")
+    dev || is_bundled_origin(url)
+}
+
+/// Exactly the two origins Tauri serves the bundle from: `tauri://localhost`
+/// (macOS, Linux) and `http://tauri.localhost` on its default port (Windows).
+/// Compared in parts because a `tauri:` URL has an opaque origin.
+fn is_bundled_origin(url: &Url) -> bool {
+    matches!(
+        (url.scheme(), url.host_str(), url.port()),
+        ("tauri", Some("localhost"), None) | ("http", Some("tauri.localhost"), None)
+    )
 }
 
 /// Ask the server's health endpoint, so a typo is caught on the setup screen
@@ -189,10 +213,7 @@ async fn check_health(origin: &Url) -> Result<(), ServerError> {
 /// Read a scanned or pasted hospital QR, for the person to confirm.
 #[tauri::command]
 pub(crate) fn desktop_server_read_code(code: String) -> Result<BindingInfo, String> {
-    let now = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .map_or(0, |d| i64::try_from(d.as_secs()).unwrap_or(i64::MAX));
-    binding::read_binding(&code, now).map_err(|e| e.to_string())
+    binding::read_binding(&code).map_err(|e| e.to_string())
 }
 
 /// Check, remember and open the hospital server the person chose.
@@ -243,48 +264,106 @@ pub(crate) fn forget<R: Runtime>(app: &AppHandle<R>) -> Result<(), String> {
 
 #[cfg(test)]
 mod tests {
-    use super::{ServerError, display, parse_server};
+    use super::{ServerError, display, is_bundled_origin, parse_origin};
+    use tauri::Url;
 
-    fn origin(input: &str) -> Result<String, ServerError> {
-        parse_server(input).map(|url| display(&url))
+    /// The origin a release build would keep for `input`.
+    fn release(input: &str) -> Result<String, ServerError> {
+        parse_origin(input, false).map(|url| display(&url))
+    }
+
+    /// The origin a debug build would keep for `input`.
+    fn debug(input: &str) -> Result<String, ServerError> {
+        parse_origin(input, true).map(|url| display(&url))
     }
 
     #[test]
     fn an_address_becomes_an_https_origin() {
         assert_eq!(
-            origin("hims.example.org"),
+            release("hims.example.org"),
             Ok("https://hims.example.org".into())
         );
         assert_eq!(
-            origin(" https://user:pw@hims.example.org:8443/login?x=1 "),
+            release(" https://user:pw@hims.example.org:8443/login?x=1 "),
             Ok("https://hims.example.org:8443".into())
+        );
+        assert_eq!(release("https://10.0.0.5"), Ok("https://10.0.0.5".into()));
+        assert_eq!(
+            release("https://[fd00::5]:8443"),
+            Ok("https://[fd00::5]:8443".into())
         );
     }
 
     #[test]
-    fn plain_http_is_only_for_this_computer() {
+    fn a_host_is_a_plain_hostname_or_an_ip() {
         assert_eq!(
-            origin("http://localhost:3000/api"),
+            release("https://bücher.example"),
+            Ok("https://xn--bcher-kva.example".into())
+        );
+        for bad in [
+            "https://*.example.org",
+            "https://hims(1).example.org",
+            "https://{a,b}.example.org",
+            "https://hims_1.example.org",
+            "https://hims!.example.org",
+        ] {
+            assert_eq!(release(bad), Err(ServerError::Invalid), "{bad}");
+        }
+    }
+
+    #[test]
+    fn release_builds_refuse_all_plain_http() {
+        for http in [
+            "http://localhost:3000",
+            "http://127.0.0.1:5173",
+            "http://[::1]:3000",
+            "http://medbrains.localhost",
+            "http://hims.example.org",
+        ] {
+            assert_eq!(release(http), Err(ServerError::Insecure), "{http}");
+        }
+    }
+
+    #[test]
+    fn debug_builds_allow_plain_http_to_this_computer_only() {
+        assert_eq!(
+            debug("http://localhost:3000/api"),
             Ok("http://localhost:3000".into())
         );
         assert_eq!(
-            origin("http://medbrains.localhost"),
+            debug("http://medbrains.localhost"),
             Ok("http://medbrains.localhost".into())
         );
         assert_eq!(
-            origin("http://127.0.0.1:5173"),
+            debug("http://127.0.0.1:5173"),
             Ok("http://127.0.0.1:5173".into())
         );
+        assert_eq!(debug("http://[::1]:3000"), Ok("http://[::1]:3000".into()));
+        assert_eq!(debug("http://127.0.0.2"), Err(ServerError::Insecure));
+        assert_eq!(debug("http://hims.example.org"), Err(ServerError::Insecure));
         assert_eq!(
-            origin("http://hims.example.org"),
+            debug("http://localhost.example.org"),
             Err(ServerError::Insecure)
         );
-        assert_eq!(
-            origin("http://localhost.example.org"),
-            Err(ServerError::Insecure)
-        );
-        assert_eq!(origin("ftp://hims.example.org"), Err(ServerError::Invalid));
-        assert_eq!(origin(""), Err(ServerError::Invalid));
-        assert_eq!(origin("javascript:alert(1)"), Err(ServerError::Invalid));
+        assert_eq!(debug("ftp://hims.example.org"), Err(ServerError::Invalid));
+        assert_eq!(debug(""), Err(ServerError::Invalid));
+        assert_eq!(debug("javascript:alert(1)"), Err(ServerError::Invalid));
+    }
+
+    #[test]
+    fn only_the_two_bundle_origins_count_as_the_app() {
+        let bundled = |url: &str| Url::parse(url).is_ok_and(|url| is_bundled_origin(&url));
+        assert!(bundled("tauri://localhost/index.html?desktopSetup=1"));
+        assert!(bundled("http://tauri.localhost/index.html"));
+        assert!(bundled("http://tauri.localhost:80/"));
+        for other in [
+            "tauri://evil.example",
+            "https://tauri.localhost/",
+            "http://tauri.localhost:8080/",
+            "http://evil.tauri.localhost/",
+            "http://tauri.localhost.evil.example/",
+        ] {
+            assert!(!bundled(other), "{other}");
+        }
     }
 }

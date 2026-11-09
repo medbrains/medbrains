@@ -229,7 +229,8 @@ jobs:
     needs: [release]
     permissions:
       contents: write
+    # No secrets passed: the desktop job reads its signing secrets from the
+    # `release` environment (tag-only), which a caller cannot pass anyway.
     uses: ./.github/workflows/desktop.yml
     with:
       release-id: ${{ needs.release.outputs.release-id }}
-    secrets: inherit

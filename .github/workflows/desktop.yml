@@ -9,6 +9,11 @@ name: Desktop Build
 #
 # Updates are signed with TAURI_SIGNING_PRIVATE_KEY. Without that secret the
 # installers are still built, with no updater artifacts and no latest.json.
+# The signing secrets live only in the `release` environment, whose
+# deployment rule admits `v*` tags; a job joins it only when it has a release
+# to upload to, so a manual run never signs and never sees the secrets.
+# release.yml passes no secrets: a caller cannot hand environment secrets to a
+# reusable workflow, the job reads them from the environment itself.
 on:
   workflow_call:
     inputs:
@@ -25,6 +30,8 @@ jobs:
   build:
     name: ${{ matrix.target.os }} (${{ matrix.target.arch }})
     runs-on: ${{ matrix.target.runner }}
+    # An empty name runs the job outside any environment (manual runs).
+    environment: ${{ inputs.release-id != '' && 'release' || '' }}
     strategy:
       fail-fast: false
       matrix:
@@ -65,6 +72,29 @@ jobs:
             librsvg2-dev \
             patchelf
 
+      # The updater compares this version with latest.json's, so a release
+      # must carry the tag's version, not the 0.1.0 in tauri.conf.json.
+      - name: App version from the tag
+        if: inputs.release-id != ''
+        shell: bash
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          version="${TAG#v}"
+          semver='^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-[0-9A-Za-z.-]+)?(\+[0-9A-Za-z.-]+)?$'
+          if [[ "$TAG" != v* || ! "$version" =~ $semver ]]; then
+            echo "::error::Release tag '$TAG' is not v<semver>; refusing to build an app the updater cannot order"
+            exit 1
+          fi
+          node -e '
+            const fs = require("fs");
+            const path = "medbrains/apps/desktop/src-tauri/tauri.conf.json";
+            const conf = JSON.parse(fs.readFileSync(path, "utf8"));
+            conf.version = process.argv[1];
+            fs.writeFileSync(path, JSON.stringify(conf, null, 2) + "\n");
+          ' "$version"
+          echo "Desktop version $version"
+
       - name: Install JS deps
         working-directory: medbrains
         run: pnpm install --frozen-lockfile
@@ -73,14 +103,19 @@ jobs:
         working-directory: medbrains
         run: pnpm --filter "@medbrains/types" --filter "@medbrains/utils" --filter "@medbrains/schemas" --filter "@medbrains/api" --filter "@medbrains/stores" --filter "@medbrains/expressions" --filter "@medbrains/crdt" build && pnpm --filter @medbrains/web exec vite build
 
-      # Updater artifacts need the signing key; a build without it still ships.
+      # Updater artifacts need the signing key and a release; a build without
+      # them still ships installers.
       - name: Updater signing
         id: updater
         shell: bash
         env:
           KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          RELEASE_ID: ${{ inputs.release-id }}
         run: |
-          if [ -n "$KEY" ]; then
+          if [ -z "$RELEASE_ID" ]; then
+            echo "Manual run without a release: building unsigned, with no updater artifacts"
+            echo "signed=false" >> "$GITHUB_OUTPUT"
+          elif [ -n "$KEY" ]; then
             echo "args=--config src-tauri/tauri.updater.conf.json" >> "$GITHUB_OUTPUT"
             echo "signed=true" >> "$GITHUB_OUTPUT"
           else
@@ -110,6 +145,30 @@ jobs:
           args: ${{ matrix.target.args }} ${{ steps.updater.outputs.args }}
           releaseId: ${{ inputs.release-id }}
           includeUpdaterJson: ${{ steps.updater.outputs.signed == 'true' }}
+
+      # Checksums for the installers tauri-action uploaded, by the names it
+      # uploads them under. One file per platform so the three jobs never
+      # overwrite each other.
+      - name: Installer checksums
+        if: inputs.release-id != ''
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+          OS: ${{ matrix.target.os }}
+        run: |
+          sums="$RUNNER_TEMP/SHA256SUMS-desktop-$OS"
+          shopt -s globstar nullglob
+          files=(medbrains/target/**/release/bundle/**/*.{dmg,msi,exe,deb,AppImage,rpm})
+          if [ "${#files[@]}" -eq 0 ]; then
+            echo "::error::No installers found to checksum"
+            exit 1
+          fi
+          for file in "${files[@]}"; do
+            (cd "$(dirname "$file")" && sha256sum -- "$(basename "$file")")
+          done > "$sums"
+          cat "$sums"
+          gh release upload "$TAG" "$sums" --repo "$GITHUB_REPOSITORY" --clobber
 
       - name: Keep the installers (manual runs)
         if: inputs.release-id == ''

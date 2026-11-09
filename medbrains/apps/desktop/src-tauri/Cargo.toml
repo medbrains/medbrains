@@ -28,25 +28,10 @@ tauri-plugin-dialog = "2.8.3"
 tauri-plugin-notification = "2.7.0"
 tauri-plugin-updater = "2.14.1"
 tauri-plugin-process = "2.4.0"
-tauri-plugin-os = "2.4.0"
 tauri-plugin-deep-link = "2.6.2"
 tauri-plugin-single-instance = "2.5.4"
 # Remembers the hospital server this desktop opens.
 tauri-plugin-store = "2.5.0"
-
-# OS-native secure credential storage — macOS Keychain, Windows Credential
-# Manager, Linux Secret Service (libsecret/D-Bus). Holds the session/SSO token
-# off webview storage.
-keyring = { version = "3", features = [
-    "apple-native",
-    "windows-native",
-    "sync-secret-service",
-    "crypto-rust",
-] }
-
-# Printing lives in its own crate so it is testable without a printer attached
-# and reusable by any other surface that grows one.
-medbrains-printing = { path = "../../../crates/medbrains-printing" }
 
 base64 = { workspace = true }
 # Checks a hospital server answers before the window is sent to it.
@@ -60,9 +45,5 @@ tracing-subscriber = { workspace = true }
 url = { workspace = true }
 
 [features]
-# By default we ship a full-featured desktop. The "thin" feature
-# disables hardware/USB access for kiosk-style deployments where
-# additional capabilities increase attack surface.
 default = ["custom-protocol"]
 custom-protocol = ["tauri/custom-protocol"]
-thin = []

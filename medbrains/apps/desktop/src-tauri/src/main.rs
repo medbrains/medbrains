@@ -38,17 +38,9 @@ fn main() -> tauri::Result<()> {
         .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_process::init())
-        .plugin(tauri_plugin_os::init())
         .plugin(tauri_plugin_deep_link::init())
         .manage(ChosenServer::default())
         .invoke_handler(tauri::generate_handler![
-            commands::system::system_info,
-            commands::system::open_settings_dir,
-            commands::printer::list_printers,
-            commands::printer::print_pdf,
-            commands::keyring::keyring_set,
-            commands::keyring::keyring_get,
-            commands::keyring::keyring_delete,
             server::desktop_server_read_code,
             server::desktop_server_connect,
             server::desktop_server_forget,

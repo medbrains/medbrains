@@ -2,8 +2,10 @@
 
 The MedBrains desktop client for Windows and Mac PCs: Tauri 2, app ID
 `in.medbrains.desktop`. It ships no hospital's address. At first launch it asks
-which hospital server to open, then opens that server's own web app, and adds
-what a browser cannot: silent printing and the system keychain.
+which hospital server to open, then opens that server's own web app in its own
+window, with signed auto-updates. Silent printing is not wired yet: the
+`medbrains-printing` crate is kept for it, and the command comes back with the
+web app code that calls it.
 
 ## Which server it opens
 
@@ -12,8 +14,13 @@ what a browser cannot: silent printing and the system keychain.
    or scans the hospital QR from the appliance screen with the desk's QR scanner
    (or pastes it). The QR is the same `medbrains://bind?t=<JWS>` code the phone
    apps scan; the desktop reads the hospital name and server address from it.
-2. The address must be `https://`. Plain `http://` is accepted only for this
-   computer: `localhost`, `127.0.0.1`, `[::1]` and `*.localhost`.
+   The code is not signature-checked, so the screen asks the person to confirm
+   the address and shows the name only as "not verified". Its expiry is not
+   checked either.
+2. The address must be `https://`, with a plain hostname (letters, digits,
+   hyphens, dots, after punycode) or an IP address. Release builds refuse plain
+   `http://` entirely. Debug builds accept it for this computer only:
+   `localhost`, `127.0.0.1`, `[::1]` and `*.localhost`.
 3. The desktop asks the server's `/api/health` before it leaves the setup
    screen, keeps the origin in the Tauri store (`desktop.json` in the app data
    directory), and opens it.
@@ -26,13 +33,14 @@ what a browser cannot: silent printing and the system keychain.
 - **Navigation lock.** The window may navigate only to the bundled setup screen
   and the chosen server's origin (`src/commands/server.rs`, `may_navigate`).
 - **IPC.** `withGlobalTauri` is off. The setup screen may call only the two
-  setup commands (`capabilities/main.json`). The chosen server gets keyring,
-  printing, system info, notifications and "forget server" through a capability
-  added at runtime for its origin only; a static config cannot name a server
-  chosen after install. No file-system or shell-open permission exists.
-- **CSP.** `tauri.conf.json` holds the CSP for the bundled setup screen, with
-  no remote or dev origins. Dev origins (Vite's websocket) are in
-  `tauri.dev.conf.json`. The server's pages carry the server's own CSP.
+  setup commands (`capabilities/main.json`). The chosen server gets only
+  notifications and "forget server", through a capability added at runtime for
+  its origin only; a static config cannot name a server chosen after install.
+  No printing, keychain, file-system or shell-open permission exists.
+- **CSP.** The CSP in `tauri.conf.json` covers only the bundled setup screen,
+  with no remote or dev origins. Dev origins (Vite's websocket) are in
+  `tauri.dev.conf.json`. The hospital server's pages run under the CSP that
+  server sends, not this one.
 
 ## Develop
 
@@ -71,14 +79,40 @@ pnpm tauri signer generate -w ~/.tauri/medbrains-desktop.key
 ```
 
 Put the public key (`~/.tauri/medbrains-desktop.key.pub`, one line) in
-`plugins.updater.pubkey`, and set the repository secrets
-`TAURI_SIGNING_PRIVATE_KEY` (the private key file's contents) and
-`TAURI_SIGNING_PRIVATE_KEY_PASSWORD`. Without the secret, CI still builds the
-installers, with no updater artifacts and no `latest.json`
-(`tauri.updater.conf.json` turns them on only when the key is present).
+`plugins.updater.pubkey`. The private key goes in a GitHub environment, not the
+repository's secrets:
+
+1. Settings → Environments → New environment `release`.
+2. Deployment branches and tags → Selected → add a tag rule `v*`.
+3. Add the environment secrets `TAURI_SIGNING_PRIVATE_KEY` (the private key
+   file's contents) and `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`, plus the Apple
+   and Windows code-signing secrets `desktop.yml` names, and delete any copies
+   at repository level.
+
+The desktop job joins `release` only when it has a release to upload to, so
+manual runs build unsigned. Without the key, CI still builds the installers,
+with no updater artifacts and no `latest.json` (`tauri.updater.conf.json` turns
+them on only when the key is present).
+
+The release sets the app version from the tag (`v3.33.0` → `3.33.0`) before
+building, and fails on a tag that is not semver, because the updater compares
+that version with `latest.json`. Each platform also uploads
+`SHA256SUMS-desktop-<os>` for its installers to the release.
 
 Clients that hold an old public key cannot update past a key rotation; they
 need a manual reinstall.
+
+## Data left by earlier builds
+
+Earlier builds used a different app identifier, so this app does not see their
+data and does not remove it. On a PC that had one, the old data directory (the
+store, WebView cache and cookies) stays until deleted: under
+`~/Library/Application Support/`, `~/Library/Caches/` and `~/Library/WebKit/` on
+macOS, `%APPDATA%` and `%LOCALAPPDATA%` on Windows, and `~/.local/share/`,
+`~/.config/` and `~/.cache/` on Linux, in a folder named after the old
+identifier. Builds that had the keychain commands may also have left entries
+under the service `in.medbrains.desktop` in the macOS Keychain or Windows
+Credential Manager. Nothing reads them any more, so deleting them is safe.
 
 ## Linux and the `glib` advisory
 

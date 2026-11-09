@@ -1,9 +1,6 @@
-// Command handlers exposed to the SPA via tauri::invoke. Each
-// submodule registers a small, narrow set — desktop is a thin
-// shell, all real business logic stays in medbrains-server.
+// Command handlers exposed to the desktop's pages via tauri::invoke. The
+// desktop is a thin shell: these only choose and remember the hospital server;
+// all real business logic stays in medbrains-server.
 
 mod binding;
-pub(crate) mod keyring;
-pub(crate) mod printer;
 pub(crate) mod server;
-pub(crate) mod system;
