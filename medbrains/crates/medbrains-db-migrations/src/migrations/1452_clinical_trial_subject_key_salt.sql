@@ -1,5 +1,5 @@
 -- ====================================================================
--- Migration: 1423_clinical_trial_subject_key_salt.sql
+-- Migration: 1452_clinical_trial_subject_key_salt.sql
 -- RLS-Posture: tenant-scoped
 -- Tenant-Column: tenant_id
 -- New-Tables: none
