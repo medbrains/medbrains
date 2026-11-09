@@ -77,7 +77,8 @@ async fn the_bill_reaching_80_percent_raises_one_row_that_follows_the_bill() {
     )
     .await
     .unwrap();
-    assert_eq!(listed.len(), 1);
+    assert_eq!((listed.data.len(), listed.meta.total), (1, 1));
+    let listed = listed.data;
     assert_eq!(listed[0].payer.as_deref(), Some("Star Health"));
     let approved = listed[0].evidence.as_ref().unwrap()["approved_amount"].as_f64();
     assert_eq!(approved, Some(100_000.0));

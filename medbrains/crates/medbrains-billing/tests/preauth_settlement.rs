@@ -88,7 +88,7 @@ async fn room_list(db: &PgPool, claims: &Claims) -> Vec<RevenueAlert> {
     )
     .await
     .unwrap();
-    listed
+    listed.data
 }
 
 #[tokio::test]

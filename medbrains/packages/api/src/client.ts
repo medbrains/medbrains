@@ -6284,7 +6284,7 @@ export const api = {
     }),
   /** Pre-auths nearly used up or rooms above the policy limit, by kind. */
   listRevenueAlerts: (params: { kind: RevenueAlertKind; status?: string }) =>
-    request<RevenueAlert[]>(`/billing/revenue-alerts?${new URLSearchParams(params)}`),
+    request<Paginated<RevenueAlert>>(`/billing/revenue-alerts?${new URLSearchParams(params)}`),
   /** Ask the payer for more on a pre-auth nearly used up; closes the alert. */
   requestPreauthEnhancement: (id: string, data: RequestEnhancementRequest) =>
     request<RevenueAlert>(`/billing/revenue-alerts/${id}/request-enhancement`, {

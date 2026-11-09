@@ -123,8 +123,10 @@ ALTER TABLE public.charge_attention_items
     -- discharged, and every bill paid, cancelled or refunded, or a claim
     -- submitted), or the admission was deleted (`admission_deleted`). On a
     -- used-up row of a pre-auth: it expired and the visit's "no usable
-    -- pre-auth" row took over (`preauth_expired`). Nobody acted, so nobody
-    -- is named.
+    -- pre-auth" row took over (`preauth_expired`). On a "could not check"
+    -- row of a pre-auth: a later check read the approval (`check_ok`). On
+    -- any row of a pre-auth: the stay is over and settled (`settled`).
+    -- Nobody acted, so nobody is named.
     DROP CONSTRAINT IF EXISTS charge_attention_resolved_has_who,
     ADD CONSTRAINT charge_attention_resolved_has_who
         CHECK (status = 'open'
@@ -139,8 +141,11 @@ ALTER TABLE public.charge_attention_items
                                      AND evidence ->> 'resolution' IN
                                          ('settled', 'admission_deleted'))
                                  OR (source_module = 'prior_auth'
-                                     AND reason = 'preauth_used_up'
-                                     AND evidence ->> 'resolution' = 'preauth_expired'))))));
+                                     AND ((reason = 'preauth_used_up'
+                                           AND evidence ->> 'resolution' = 'preauth_expired')
+                                          OR (reason = 'preauth_approval_unknown'
+                                              AND evidence ->> 'resolution' = 'check_ok')
+                                          OR evidence ->> 'resolution' = 'settled')))))));
 
 CREATE INDEX idx_charge_attention_kind_open
     ON public.charge_attention_items (tenant_id, kind, created_at DESC)
@@ -229,11 +234,13 @@ CREATE TRIGGER trg_preauth_check_failures_soft_delete BEFORE DELETE
 -- ── Pre-auth used up: the check ────────────────────────────────────
 
 -- Whether the visit's money is settled: a claim on one of its bills has gone
--- to the payer, or none of its live bills is still owed (each is paid,
--- cancelled or refunded; `invoice_status` also has draft, issued and
--- partially_paid). Discharge is not the end of the bill: the room, the
--- pharmacy return and the final charges are posted at discharge or after, so
--- the checks keep running on a discharged stay until this is true.
+-- to the payer, or its final bill (not an interim one) exists and none of its
+-- live bills is still owed (each is paid, cancelled or refunded;
+-- `invoice_status` also has draft, issued and partially_paid). Discharge is
+-- not the end of the bill: the room, the pharmacy return and the final
+-- charges are posted at discharge or after, and paid interim bills are not
+-- the last of them, so the checks keep running on a discharged stay until
+-- this is true.
 CREATE OR REPLACE FUNCTION public.preauth_visit_settled(p_tenant uuid, p_encounter uuid)
 RETURNS boolean
 LANGUAGE sql
@@ -247,11 +254,16 @@ AS $$
                   AND c.deleted_at IS NULL
                   AND c.status IN ('claim_submitted', 'claim_approved', 'claim_rejected',
                                    'settled', 'partially_settled'))
-        OR NOT EXISTS (
+        OR (EXISTS (
+               SELECT 1 FROM invoices i
+                WHERE i.tenant_id = p_tenant AND i.encounter_id = p_encounter
+                  AND i.deleted_at IS NULL AND i.is_interim IS NOT TRUE
+                  AND i.status <> 'cancelled')
+            AND NOT EXISTS (
                SELECT 1 FROM invoices i
                 WHERE i.tenant_id = p_tenant AND i.encounter_id = p_encounter
                   AND i.deleted_at IS NULL
-                  AND i.status NOT IN ('paid', 'cancelled', 'refunded'));
+                  AND i.status NOT IN ('paid', 'cancelled', 'refunded')));
 $$;
 
 -- The share of the approval at which the desk is warned: `tenant_settings`
@@ -392,12 +404,18 @@ $$;
 -- finding), and an insured patient gets the "no usable pre-auth"
 -- row above. A threshold that cannot be read warns at the default and marks
 -- the row `threshold_invalid`. With one, that row (if any) closes, and the bill is
--- placed in a band: the hospital's threshold (default 80% of the approval)
+-- placed in a band, once a readable approval has closed the visit's open
+-- "could not check" rows (`check_ok`): the hospital's threshold (default 80% of the approval)
 -- or 100% (the approval used up). Reaching a band raises (or refreshes) the
--- open row. A row already closed at this approved amount and at this band or
--- a higher one is not raised again, so a denied or pending enhancement asked
+-- open row. A row the desk closed at this approved amount and at this band or
+-- a higher one is not raised again (one the system closed is no answer from
+-- the desk), so a denied or pending enhancement asked
 -- at the threshold still warns again once the bill passes the approval.
 -- Returns what it did.
+--
+-- `medbrains.fault_inject = 'preauth_check'` makes the check fail on purpose
+-- (in the trigger and in the sweep alike), so a test can prove a failure is
+-- counted, shown as "could not check", and closed by the next good check.
 CREATE OR REPLACE FUNCTION public.preauth_usage_raise(
     p_tenant uuid, p_encounter uuid, p_patient uuid)
 RETURNS text
@@ -414,6 +432,9 @@ DECLARE
     v_reason    text;
     v_invalid   boolean;
 BEGIN
+    IF current_setting('medbrains.fault_inject', true) = 'preauth_check' THEN
+        RAISE EXCEPTION 'fault injected' USING ERRCODE = 'P0001';
+    END IF;
     SELECT a.id INTO v_admission
       FROM admissions a
      WHERE a.tenant_id = p_tenant AND a.encounter_id = p_encounter AND a.deleted_at IS NULL
@@ -462,21 +483,30 @@ BEGIN
     IF v_approved IS NULL OR v_approved <= 0 THEN
         v_reason := 'preauth_approval_unknown';
         v_approved := NULL;
-    ELSIF v_running >= v_approved THEN
-        v_reason := 'preauth_used_up';
-        v_band := 100;
-    ELSIF v_running >= v_approved * v_threshold / 100 THEN
-        v_reason := 'preauth_used_up';
-        v_band := v_threshold;
     ELSE
-        RETURN 'within';
+        UPDATE charge_attention_items
+           SET status = 'actioned', resolved_at = now(), updated_at = now(),
+               evidence = COALESCE(evidence, '{}'::jsonb)
+                          || jsonb_build_object('resolution', 'check_ok')
+         WHERE tenant_id = p_tenant AND source_module = 'prior_auth'
+           AND reason = 'preauth_approval_unknown'
+           AND encounter_id = p_encounter AND status = 'open' AND deleted_at IS NULL;
+        IF v_running >= v_approved THEN
+            v_reason := 'preauth_used_up';
+            v_band := 100;
+        ELSIF v_running >= v_approved * v_threshold / 100 THEN
+            v_reason := 'preauth_used_up';
+            v_band := v_threshold;
+        ELSE
+            RETURN 'within';
+        END IF;
     END IF;
 
     IF EXISTS (
         SELECT 1 FROM charge_attention_items c
          WHERE c.tenant_id = p_tenant AND c.source_module = 'prior_auth'
            AND c.source_entity_id = v_pa AND c.deleted_at IS NULL
-           AND c.status <> 'open'
+           AND c.status <> 'open' AND c.resolved_by IS NOT NULL
            AND (c.evidence ->> 'approved_amount')::numeric IS NOT DISTINCT FROM v_approved
            AND COALESCE((c.evidence ->> 'band')::numeric, -1) >= COALESCE(v_band, -1)) THEN
         RETURN 'already_actioned';
@@ -506,9 +536,6 @@ $$;
 -- `preauth_check_failures` (the SQLSTATE only, never the message, which can
 -- quote the row), and only if even that cannot be written does it fall back
 -- to a server-log WARNING. The sweep re-checks the visit either way.
---
--- `medbrains.fault_inject = 'preauth_check'` makes the check fail on purpose,
--- so a test can prove the failure is counted and the sweep still raises the row.
 CREATE OR REPLACE FUNCTION public.preauth_usage_check()
 RETURNS trigger
 LANGUAGE plpgsql
@@ -531,9 +558,6 @@ BEGIN
         RETURN NULL;
     END IF;
     BEGIN
-        IF current_setting('medbrains.fault_inject', true) = 'preauth_check' THEN
-            RAISE EXCEPTION 'fault injected' USING ERRCODE = 'P0001';
-        END IF;
         PERFORM preauth_usage_raise(NEW.tenant_id, NEW.encounter_id, NEW.patient_id);
     EXCEPTION WHEN OTHERS THEN
         v_state := SQLSTATE;

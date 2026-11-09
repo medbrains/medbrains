@@ -24,7 +24,12 @@ use uuid::Uuid;
 
 use medbrains_core::permissions;
 use medbrains_kernel::{Actor, require_permission};
-use medbrains_server_core::{error::AppError, middleware::auth::Claims, state::AppState};
+use medbrains_server_core::{
+    error::AppError,
+    middleware::auth::Claims,
+    pagination::{Paginated, Pagination},
+    state::AppState,
+};
 use medbrains_server_services::room_eligibility::{
     RoomConsentInput, consent_on_row, linked_charges_sql, mark_actioned, payable_ratio_sql,
 };
@@ -33,6 +38,8 @@ use medbrains_server_services::room_eligibility::{
 pub const KIND_PREAUTH: &str = "preauth_used_up";
 /// Room above the policy's room rent limit.
 pub const KIND_ROOM: &str = "room_over_limit";
+/// Rows one list returns, largest first; `meta.total` says how many there are.
+const LIST_LIMIT: i64 = 200;
 /// A pre-auth row's reason when its approval was read and is nearly used:
 /// the only one an enhancement can be asked on.
 const REASON_USED_UP: &str = "preauth_used_up";
@@ -131,9 +138,11 @@ pub struct ListRevenueAlertsQuery {
 
 /// `GET /api/billing/revenue-alerts?kind=` — the kind's rows, largest first.
 ///
-/// Then oldest. Amounts (and the approval behind them) are hidden from a
-/// caller who may not see them, as on the charge queue, and that caller's
-/// list is oldest first, so its order does not give the amounts away.
+/// Then oldest. At most [`LIST_LIMIT`] rows, with `meta.total` the count of
+/// every matching row, so a cut list says so. Amounts (and the approval
+/// behind them) are hidden from a caller who may not see them, as on the
+/// charge queue, and that caller's list is oldest first, so its order does
+/// not give the amounts away.
 ///
 /// # Errors
 /// 403 without the kind's view permission; 400 for an unknown kind.
@@ -142,7 +151,7 @@ pub async fn list_revenue_alerts(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
     Query(q): Query<ListRevenueAlertsQuery>,
-) -> Result<Json<Vec<RevenueAlert>>, AppError> {
+) -> Result<Json<Paginated<RevenueAlert>>, AppError> {
     require_permission(&claims, kind_permission(&q.kind, false)?)?;
     let visible =
         medbrains_authz_gate::require_patient_billing_filter(&state, &claims, None).await?;
@@ -159,11 +168,20 @@ pub async fn list_revenue_alerts(
     } else {
         "amount DESC NULLS LAST, a.created_at"
     };
-    let mut rows = sqlx::query_as::<_, RevenueAlert>(&format!(
-        "{} WHERE a.tenant_id = $1 AND a.kind = $2 AND a.deleted_at IS NULL \
+    let filter = "a.tenant_id = $1 AND a.kind = $2 AND a.deleted_at IS NULL \
            AND ($3::text IS NULL OR a.status = $3) \
-           AND ($4::uuid[] IS NULL OR a.patient_id = ANY($4)) \
-         ORDER BY {order} LIMIT 200",
+           AND ($4::uuid[] IS NULL OR a.patient_id = ANY($4))";
+    let total: i64 = sqlx::query_scalar(&format!(
+        "SELECT count(*) FROM charge_attention_items a WHERE {filter}"
+    ))
+    .bind(claims.tenant_id)
+    .bind(&q.kind)
+    .bind(status)
+    .bind(&visible)
+    .fetch_one(&mut *tx)
+    .await?;
+    let mut rows = sqlx::query_as::<_, RevenueAlert>(&format!(
+        "{} WHERE {filter} ORDER BY {order} LIMIT {LIST_LIMIT}",
         alert_select()
     ))
     .bind(claims.tenant_id)
@@ -176,7 +194,11 @@ pub async fn list_revenue_alerts(
     if hide_amounts {
         hide(&mut rows);
     }
-    Ok(Json(rows))
+    let page = Pagination {
+        page: None,
+        limit: Some(LIST_LIMIT),
+    };
+    Ok(Json(Paginated::new(rows, total, &page)))
 }
 
 /// Blank every figure on the rows: the amount, the numbers behind it, and

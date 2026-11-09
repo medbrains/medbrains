@@ -196,6 +196,8 @@ export function RevenueAlertsPanel({ kind }: { kind: RevenueAlertKind }) {
     [copy, canAct, canDismiss],
   );
   if (!canView) return null;
+  const shown = data?.data ?? [];
+  const total = data?.meta.total ?? 0;
   return (
     <Card padding="md">
       <Stack gap="xs">
@@ -205,7 +207,7 @@ export function RevenueAlertsPanel({ kind }: { kind: RevenueAlertKind }) {
         </Text>
         <DataTable
           columns={cols}
-          data={data ?? []}
+          data={shown}
           loading={isLoading}
           error={error}
           onRetry={() => refetch()}
@@ -214,6 +216,12 @@ export function RevenueAlertsPanel({ kind }: { kind: RevenueAlertKind }) {
           caption={copy.title}
           captionVisuallyHidden
         />
+        {total > shown.length && (
+          <Text size="sm" c="dimmed">
+            Showing {shown.length} of {total} alerts, largest first. Work these, and the rest move
+            up.
+          </Text>
+        )}
       </Stack>
       {acting?.dismiss && (
         <DismissPreauthModal alert={acting.row} onClose={() => setActing(null)} />

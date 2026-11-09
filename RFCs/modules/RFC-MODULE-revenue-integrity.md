@@ -997,8 +997,16 @@ rows follow field classes and masking. An outage shows as unknown, never as an e
 - Given the payer's approval cannot be read, When the check runs, Then the row says "approval
   unknown", not "within limit".
 - Given a used-up stay is discharged with its bill still owed, When the final room charge takes
-  the bill past the approval, Then the 100% row is raised; the stay's rows close only once every
-  bill is paid, cancelled or refunded, or a claim is submitted (`settled`).
+  the bill past the approval, Then the 100% row is raised; the stay's rows (the pre-auth's too)
+  close only once its final bill exists and every bill is paid, cancelled or refunded, or a claim
+  is submitted (`settled`). Paid interim bills alone do not settle a stay.
+- Given the check could not run on a visit ("could not check"), When a later check reads the
+  approval, Then that row closes as the system (`check_ok`), and a used-up row follows if the bill
+  is past the threshold.
+- Given a stay discharged more than 90 days ago (the leakage lookback) and still unsettled, When
+  the hourly pass runs, Then it is no longer re-checked.
+- Given more than 200 open alerts of a kind, When the desk opens the list, Then it shows the
+  largest 200 and says "Showing 200 of N".
 - Given the desk dismissed a "no usable pre-auth" row (needs `insurance.preauth_missing.dismiss`),
   When a pre-auth for the patient is created after it, Then the stay is checked and raised again.
 

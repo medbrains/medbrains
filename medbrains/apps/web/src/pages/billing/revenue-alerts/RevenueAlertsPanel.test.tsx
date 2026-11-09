@@ -43,10 +43,15 @@ function preauthRow(overrides: Partial<RevenueAlert> = {}): RevenueAlert {
   };
 }
 
+/** The list endpoint's `{ data, meta }`: `total` rows match, `rows` came back. */
+function page(rows: RevenueAlert[], total = rows.length) {
+  return { data: rows, meta: { total, page: 1, limit: 200 } };
+}
+
 beforeEach(() => {
   held.clear();
   for (const fn of Object.values(service)) fn.mockReset();
-  service.listRevenueAlerts.mockResolvedValue([preauthRow()]);
+  service.listRevenueAlerts.mockResolvedValue(page([preauthRow()]));
 });
 
 describe("pre-auths nearly used up on the TPA screen", () => {
@@ -84,6 +89,20 @@ describe("pre-auths nearly used up on the TPA screen", () => {
     expect(screen.queryByRole("button", { name: "Request enhancement" })).not.toBeInTheDocument();
   });
 
+  it("says when the list is cut short", async () => {
+    held.add("insurance.enhancement.view");
+    service.listRevenueAlerts.mockResolvedValue(page([preauthRow()], 450));
+    render(<RevenueAlertsPanel kind="preauth_used_up" />);
+    expect(await screen.findByText(/Showing 1 of 450 alerts/)).toBeInTheDocument();
+  });
+
+  it("adds no note when every alert is shown", async () => {
+    held.add("insurance.enhancement.view");
+    render(<RevenueAlertsPanel kind="preauth_used_up" />);
+    await screen.findByText("Asha Rao");
+    expect(screen.queryByText(/Showing .* of .* alerts/)).not.toBeInTheDocument();
+  });
+
   it("is hidden and never fetched without the view permission", () => {
     render(<RevenueAlertsPanel kind="preauth_used_up" />);
     expect(screen.queryByText("Pre-auths nearly used up")).not.toBeInTheDocument();
@@ -92,9 +111,11 @@ describe("pre-auths nearly used up on the TPA screen", () => {
 
   it("shows an unreadable approval as a fault, not as fine", async () => {
     held.add("insurance.enhancement.view");
-    service.listRevenueAlerts.mockResolvedValue([
-      preauthRow({ reason: "preauth_approval_unknown", evidence: { approved_amount: null } }),
-    ]);
+    service.listRevenueAlerts.mockResolvedValue(
+      page([
+        preauthRow({ reason: "preauth_approval_unknown", evidence: { approved_amount: null } }),
+      ]),
+    );
     render(<RevenueAlertsPanel kind="preauth_used_up" />);
     expect(await screen.findByText("Approval amount unknown")).toBeInTheDocument();
   });
@@ -102,9 +123,11 @@ describe("pre-auths nearly used up on the TPA screen", () => {
   it("offers no enhancement on an approval that could not be read", async () => {
     held.add("insurance.enhancement.view");
     held.add("insurance.enhancement.request");
-    service.listRevenueAlerts.mockResolvedValue([
-      preauthRow({ reason: "preauth_approval_unknown", evidence: { approved_amount: null } }),
-    ]);
+    service.listRevenueAlerts.mockResolvedValue(
+      page([
+        preauthRow({ reason: "preauth_approval_unknown", evidence: { approved_amount: null } }),
+      ]),
+    );
     render(<RevenueAlertsPanel kind="preauth_used_up" />);
     await screen.findByText("Approval amount unknown");
     expect(screen.queryByRole("button", { name: "Request enhancement" })).not.toBeInTheDocument();
@@ -112,10 +135,15 @@ describe("pre-auths nearly used up on the TPA screen", () => {
 
   it("names the hospital's threshold and warns again once the approval is used up", async () => {
     held.add("insurance.enhancement.view");
-    service.listRevenueAlerts.mockResolvedValue([
-      preauthRow({ id: "a", evidence: { running_bill: 90000, threshold_percent: 90, band: 90 } }),
-      preauthRow({ id: "b", evidence: { running_bill: 101000, threshold_percent: 90, band: 100 } }),
-    ]);
+    service.listRevenueAlerts.mockResolvedValue(
+      page([
+        preauthRow({ id: "a", evidence: { running_bill: 90000, threshold_percent: 90, band: 90 } }),
+        preauthRow({
+          id: "b",
+          evidence: { running_bill: 101000, threshold_percent: 90, band: 100 },
+        }),
+      ]),
+    );
     render(<RevenueAlertsPanel kind="preauth_used_up" />);
     expect(await screen.findByText("90% of approval used")).toBeInTheDocument();
     expect(screen.getByText("Approval used up")).toBeInTheDocument();
@@ -124,14 +152,16 @@ describe("pre-auths nearly used up on the TPA screen", () => {
   it("flags an insured inpatient whose pre-auth expired, with no enhancement offered", async () => {
     held.add("insurance.enhancement.view");
     held.add("insurance.enhancement.request");
-    service.listRevenueAlerts.mockResolvedValue([
-      preauthRow({
-        reason: "preauth_missing_or_expired",
-        pa_number: null,
-        approved_amount: null,
-        evidence: { cause: "expired", running_bill: 40000 },
-      }),
-    ]);
+    service.listRevenueAlerts.mockResolvedValue(
+      page([
+        preauthRow({
+          reason: "preauth_missing_or_expired",
+          pa_number: null,
+          approved_amount: null,
+          evidence: { cause: "expired", running_bill: 40000 },
+        }),
+      ]),
+    );
     render(<RevenueAlertsPanel kind="preauth_used_up" />);
     expect(await screen.findByText("Pre-auth expired")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Request enhancement" })).not.toBeInTheDocument();
@@ -140,9 +170,9 @@ describe("pre-auths nearly used up on the TPA screen", () => {
   it("dismisses a no-usable-pre-auth alert with why none is needed", async () => {
     held.add("insurance.enhancement.view");
     held.add("insurance.preauth_missing.dismiss");
-    service.listRevenueAlerts.mockResolvedValue([
-      preauthRow({ reason: "preauth_missing_or_expired", evidence: { cause: "none" } }),
-    ]);
+    service.listRevenueAlerts.mockResolvedValue(
+      page([preauthRow({ reason: "preauth_missing_or_expired", evidence: { cause: "none" } })]),
+    );
     service.dismissPreauthAlert.mockResolvedValue(preauthRow({ status: "dismissed" }));
     render(<RevenueAlertsPanel kind="preauth_used_up" />);
     const user = userEvent.setup();
@@ -166,9 +196,9 @@ describe("pre-auths nearly used up on the TPA screen", () => {
   it("offers no dismissal to a desk that may request but not dismiss", async () => {
     held.add("insurance.enhancement.view");
     held.add("insurance.enhancement.request");
-    service.listRevenueAlerts.mockResolvedValue([
-      preauthRow({ reason: "preauth_missing_or_expired", evidence: { cause: "none" } }),
-    ]);
+    service.listRevenueAlerts.mockResolvedValue(
+      page([preauthRow({ reason: "preauth_missing_or_expired", evidence: { cause: "none" } })]),
+    );
     render(<RevenueAlertsPanel kind="preauth_used_up" />);
     await screen.findByText("No pre-auth for this stay");
     expect(screen.queryByRole("button", { name: "No pre-auth needed" })).not.toBeInTheDocument();
@@ -177,9 +207,9 @@ describe("pre-auths nearly used up on the TPA screen", () => {
   it("flags a row raised while the saved threshold was unreadable", async () => {
     held.add("insurance.enhancement.view");
     held.add("insurance.enhancement.request");
-    service.listRevenueAlerts.mockResolvedValue([
-      preauthRow({ evidence: { running_bill: 85000, band: 80, threshold_invalid: true } }),
-    ]);
+    service.listRevenueAlerts.mockResolvedValue(
+      page([preauthRow({ evidence: { running_bill: 85000, band: 80, threshold_invalid: true } })]),
+    );
     render(<RevenueAlertsPanel kind="preauth_used_up" />);
     expect(
       await screen.findByText("Alert threshold unreadable: warned at 80%"),
