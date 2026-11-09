@@ -54,8 +54,9 @@ pub async fn visit_file_status(
 ///
 /// Ask for the visit's file by hand, when the chip reads "not requested". Writes
 /// what the visit trigger would have (`mrd_request_file_for_visit`, so a
-/// pre-pulled request is taken over and a second click asks nothing more).
-/// A cancelled visit, or a patient with no paper file, answers 409.
+/// pre-pulled request is taken over and a second click asks nothing more), and
+/// only for a visit the trigger would have asked for. A visit that needs no
+/// file, or a patient with no paper file, answers 409.
 pub async fn request_visit_file(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
@@ -64,30 +65,55 @@ pub async fn request_visit_file(
     require_permission(&claims, permissions::mrd::file_request::CREATE)?;
     open_encounter(&state, &claims, encounter_id).await?;
     let mut tx = medbrains_kernel::begin(&state.db, Actor::from_claims(&claims)).await?;
-    let (cancelled, request): (bool, Option<Uuid>) = sqlx::query_as(
-        "SELECT e.status = 'cancelled', \
-                CASE WHEN e.status <> 'cancelled' THEN public.mrd_request_file_for_visit(e) END \
-           FROM encounters e WHERE e.id = $1 AND e.tenant_id = $2 AND e.deleted_at IS NULL",
+    // `refusal` is the trigger's WHEN predicate plus a visit still to be seen.
+    let (refusal, request): (Option<String>, Option<Uuid>) = sqlx::query_as(
+        "WITH v AS (SELECT e, CASE \
+                    WHEN e.status = 'cancelled' THEN 'cancelled' \
+                    WHEN e.status = 'completed' THEN 'completed' \
+                    WHEN e.encounter_type <> 'opd' OR e.is_dummy OR e.is_retrospective \
+                      OR COALESCE(e.visit_type, '') IN ('camp', 'teleconsultation') \
+                    THEN 'not_fetched' END AS refusal \
+                FROM encounters e \
+               WHERE e.id = $1 AND e.tenant_id = $2 AND e.deleted_at IS NULL) \
+         SELECT refusal, \
+                CASE WHEN refusal IS NULL THEN public.mrd_request_file_for_visit(v.e) END \
+           FROM v",
     )
     .bind(encounter_id)
     .bind(claims.tenant_id)
     .fetch_optional(&mut *tx)
     .await?
     .ok_or(AppError::NotFound)?;
+    if let Some(refusal) = refusal {
+        return Err(AppError::Conflict(refusal_message(&refusal).to_owned()));
+    }
     let Some(request) = request else {
-        return Err(AppError::Conflict(
-            if cancelled {
-                "This visit was cancelled; it needs no file."
-            } else {
-                "This patient has no paper file on the shelf to request."
-            }
-            .to_owned(),
-        ));
+        // A concurrent request for this visit won the insert: answer with it.
+        let status = read_status(&mut tx, claims.tenant_id, encounter_id).await?;
+        tx.commit().await?;
+        return match status.request {
+            Some(ref live) if live.status != "cancelled" => Ok(Json(status)),
+            _ => Err(AppError::Conflict(
+                "This patient has no paper file on the shelf to request.".to_owned(),
+            )),
+        };
     };
     super::scan::record(&mut tx, &claims, request, "mrd_file_requested_by_hand").await?;
     let status = read_status(&mut tx, claims.tenant_id, encounter_id).await?;
     tx.commit().await?;
     Ok(Json(status))
+}
+
+/// Why a visit asks for no paper file, in words for the clinic.
+fn refusal_message(refusal: &str) -> &'static str {
+    match refusal {
+        "cancelled" => "This visit was cancelled; it needs no file.",
+        "completed" => "This visit is completed; it needs no file now.",
+        _ => {
+            "This visit is a camp, teleconsultation, back-dated or test visit; \
+             its file is not fetched."
+        }
+    }
 }
 
 /// The chip's read: whether the patient has a paper file, and the visit's

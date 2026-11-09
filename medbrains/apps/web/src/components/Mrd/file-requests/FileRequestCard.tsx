@@ -11,6 +11,8 @@ interface FileRequestCardProps {
   onScan: (request: MrdFileRequest, step: MrdFileScanStep) => void;
   onNotFound: (request: MrdFileRequest) => void;
   onReturn: (request: MrdFileRequest) => void;
+  /** This card's return to the shelf is in flight. */
+  isReturning: boolean;
 }
 
 /**
@@ -25,6 +27,7 @@ export function FileRequestCard({
   onScan,
   onNotFound,
   onReturn,
+  isReturning,
 }: FileRequestCardProps) {
   const due = dueLabel(request.due_at, now);
   const isOpen = request.status === "requested" || request.status === "picked";
@@ -83,6 +86,7 @@ export function FileRequestCard({
               <Button
                 tone="primary"
                 leftSection={<IconArrowBackUp size={16} />}
+                loading={isReturning}
                 onClick={() => onReturn(request)}
               >
                 Return to shelf

@@ -143,11 +143,13 @@ RETURNS integer LANGUAGE sql STABLE AS $$
 $$;
 
 -- Ask for the file of an OPD visit. Takes over today's pre-pulled request for
--- the patient if there is one still waiting at the shelf (`requested` or
--- `not_found`; the visit's own appointment first), otherwise writes a new one;
--- idempotent per visit. A pre-pulled file already picked or delivered is
--- another errand's and is never taken over. Returns the request id, or NULL
--- when the patient has no physical file.
+-- the patient: the visit's own appointment's whatever its state (a file
+-- already fetched for this visit is this visit's), otherwise one still
+-- waiting at the shelf (`requested` or `not_found`); else writes a new one.
+-- Idempotent per visit. Another appointment's file already picked or
+-- delivered is that errand's and is never taken over. Returns the request
+-- id, or NULL when the patient has no physical file (or a concurrent insert
+-- for the same visit won).
 -- Takes the visit's row, so the trigger never reads back the row it was handed.
 CREATE OR REPLACE FUNCTION public.mrd_request_file_for_visit(e public.encounters)
 RETURNS uuid LANGUAGE plpgsql AS $$
@@ -179,10 +181,17 @@ BEGIN
                   WHERE pr.tenant_id = e.tenant_id AND pr.patient_id = e.patient_id
                     AND pr.source = 'pull_list' AND pr.encounter_id IS NULL
                     AND pr.visit_date = e.encounter_date
-                    AND pr.status IN ('requested', 'not_found')
                     AND pr.deleted_at IS NULL
-                  -- The visit's own appointment first: linked to it, or (as check-in
-                  -- does, before it links) checked in with the visit's doctor.
+                    -- A waiting row is any appointment's; a picked or delivered
+                    -- file only the visit's own appointment's (linked to it,
+                    -- or, as check-in does before it links, checked in with
+                    -- the visit's doctor).
+                    AND (pr.status IN ('requested', 'not_found')
+                         OR (pr.status IN ('picked', 'delivered')
+                             AND (a.encounter_id = e.id
+                                  OR (a.encounter_id IS NULL AND a.status = 'checked_in'
+                                      AND a.doctor_id = e.doctor_id))))
+                  -- The visit's own appointment first.
                   ORDER BY a.encounter_id = e.id DESC NULLS LAST,
                            (a.encounter_id IS NULL AND a.status = 'checked_in'
                             AND a.doctor_id = e.doctor_id) DESC NULLS LAST,

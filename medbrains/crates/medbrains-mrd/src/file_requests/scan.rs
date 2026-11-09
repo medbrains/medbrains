@@ -217,11 +217,16 @@ pub async fn return_file_to_shelf(
     )
     .await?;
     let current = fetch(&mut tx, claims.tenant_id, id).await?;
-    if locked.status != "picked" || !current.visit_cancelled {
+    if locked.status != "picked" {
         return Err(AppError::Conflict(format!(
-            "This file is {} and its visit is still on; it cannot be returned to the shelf here.",
+            "This file is {}; only a file a runner has picked up goes back to the shelf here.",
             locked.status
         )));
+    }
+    if !current.visit_cancelled {
+        return Err(AppError::Conflict(
+            "This file's visit is still on; take it to the clinic instead.".to_owned(),
+        ));
     }
     sqlx::query(
         "UPDATE mrd_record_movements SET returned_at = now(), status = 'returned' \

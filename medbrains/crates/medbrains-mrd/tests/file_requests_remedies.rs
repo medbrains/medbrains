@@ -1,8 +1,8 @@
 //! MRD file requests: the remedies added after the second review. A file a
 //! runner already picked up is not closed by cancelling its visit, is flagged
 //! out overnight, and goes back to its shelf by hand; a visit whose file was
-//! never requested can ask for it; the visit never takes over a pre-pulled
-//! file another errand already has.
+//! never requested can ask for it; the visit takes over its own pre-pulled
+//! file, never one another appointment's errand already has.
 //!
 //! ```text
 //! DATABASE_URL=… cargo test -p medbrains-mrd --test file_requests_remedies -- --ignored --test-threads=1
@@ -130,6 +130,11 @@ async fn cancelling_after_the_pick_keeps_the_file_picked_flags_it_and_it_goes_ba
     let viewer = claims_with(&w.claims, &[permissions::mrd::file_request::VIEW]);
     let refused = return_file_to_shelf(State(state(db.clone())), Extension(viewer), Path(id)).await;
     assert!(matches!(refused, Err(AppError::Forbidden)), "{refused:?}");
+    // FULFIL alone, without access to this patient's record, is refused per record.
+    let stranger = claims_with(&w.claims, &[permissions::mrd::file_request::FULFIL]);
+    let hidden = return_file_to_shelf(State(state(db.clone())), Extension(stranger), Path(id)).await;
+    assert!(matches!(hidden, Err(AppError::NotFound)), "{hidden:?}");
+    assert_eq!(state_of(&db, &w, id).await, ("picked".to_owned(), None));
 
     assert_eq!(open_movements(&db, &w).await, 1, "the runner holds it");
     let Json(row) = return_file_to_shelf(
@@ -193,6 +198,28 @@ async fn a_visit_whose_file_was_never_requested_can_ask_for_it_once() {
         .unwrap();
     assert_eq!(again.request.map(|r| r.id), Some(first.id), "asked once");
     assert_eq!(requests_for(&db, &w, encounter).await.len(), 1);
+
+    // Only a visit the trigger would ask for: not a teleconsultation, not a
+    // visit already over.
+    let tele = visit(&db, &w, patient, 0).await;
+    exec(
+        &db,
+        &w,
+        "UPDATE encounters SET visit_type = 'teleconsultation' WHERE id = $1",
+        tele,
+    )
+    .await;
+    let remote = request_visit_file(app(), Extension(w.claims.clone()), Path(tele)).await;
+    assert!(matches!(remote, Err(AppError::Conflict(_))), "{remote:?}");
+    exec(
+        &db,
+        &w,
+        "UPDATE encounters SET status = 'completed' WHERE id = $1",
+        encounter,
+    )
+    .await;
+    let over = request_visit_file(app(), Extension(w.claims.clone()), Path(encounter)).await;
+    assert!(matches!(over, Err(AppError::Conflict(_))), "{over:?}");
 
     exec(
         &db,
@@ -294,27 +321,30 @@ async fn pulled(db: &sqlx::PgPool, w: &World, appt: Uuid) -> (Uuid, String, Opti
     row
 }
 
+/// Write tomorrow's pull list for the world's hospital; returns the rows written.
+async fn pull_tomorrow(db: &sqlx::PgPool, w: &World) -> u64 {
+    let mut tx = scoped(db, w.claims.tenant_id).await;
+    let date: chrono::NaiveDate = sqlx::query_scalar("SELECT CURRENT_DATE + 1")
+        .fetch_one(&mut *tx)
+        .await
+        .unwrap();
+    let n = pull_list::generate(&mut tx, w.claims.tenant_id, date, None)
+        .await
+        .unwrap();
+    tx.commit().await.unwrap();
+    n
+}
+
 #[tokio::test]
 #[ignore = "needs DATABASE_URL"]
-async fn a_visit_takes_over_its_own_waiting_pull_list_row_never_a_delivered_one() {
+async fn a_visit_takes_over_its_own_pull_list_row_never_another_appointments_delivered_one() {
     let _serial = SERIAL.lock().await;
     let db = pool().await;
     let w = world(&db).await;
     let (morning_doctor, noon_doctor) = (doctor(&db, &w).await, doctor(&db, &w).await);
     let morning = appointment(&db, &w, morning_doctor, "09:00").await;
     let noon = appointment(&db, &w, noon_doctor, "12:00").await;
-    let mut tx = scoped(&db, w.claims.tenant_id).await;
-    let date: chrono::NaiveDate = sqlx::query_scalar("SELECT CURRENT_DATE + 1")
-        .fetch_one(&mut *tx)
-        .await
-        .unwrap();
-    assert_eq!(
-        pull_list::generate(&mut tx, w.claims.tenant_id, date, None)
-            .await
-            .unwrap(),
-        2
-    );
-    tx.commit().await.unwrap();
+    assert_eq!(pull_tomorrow(&db, &w).await, 2);
 
     // The noon patient checks in first: the noon row, not the earlier-due one.
     let noon_visit = check_in(&db, &w, noon, noon_doctor).await;
@@ -328,14 +358,71 @@ async fn a_visit_takes_over_its_own_waiting_pull_list_row_never_a_delivered_one(
         scan(&db, &w, morning_row, ScanStep::Delivered).await,
         "delivered"
     );
-    let morning_visit = check_in(&db, &w, morning, morning_doctor).await;
+
+    // A walk-in visit is not the morning appointment: it asks for its own.
+    let walk_in = visit(&db, &w, w.patient, 1).await;
     let (_, status, taken) = pulled(&db, &w, morning).await;
     assert_eq!(
         (status.as_str(), taken),
         ("delivered", None),
-        "never taken over"
+        "another appointment's delivered file is never taken over"
     );
-    let own = requests_for(&db, &w, morning_visit).await;
+    let own = requests_for(&db, &w, walk_in).await;
     assert_eq!(own.len(), 1);
-    assert_eq!(own[0].2, "visit", "the visit asked for its own file");
+    assert_eq!(own[0].2, "visit", "the walk-in asked for its own file");
+
+    // The morning visit takes over its own delivered file: arrived, asked once.
+    let morning_visit = check_in(&db, &w, morning, morning_doctor).await;
+    assert_eq!(
+        pulled(&db, &w, morning).await,
+        (morning_row, "delivered".to_owned(), Some(morning_visit))
+    );
+    assert_eq!(requests_for(&db, &w, morning_visit).await.len(), 1);
+    let Json(chip) = visit_file_status(
+        State(state(db.clone())),
+        Extension(w.claims.clone()),
+        Path(morning_visit),
+    )
+    .await
+    .unwrap();
+    assert_eq!(
+        chip.request.map(|r| (r.id, r.status)),
+        Some((morning_row, "delivered".to_owned())),
+        "the chip reads arrived"
+    );
+}
+
+#[tokio::test]
+#[ignore = "needs DATABASE_URL"]
+async fn a_picked_pull_list_file_goes_back_to_its_shelf_when_its_appointment_is_cancelled() {
+    let _serial = SERIAL.lock().await;
+    let db = pool().await;
+    let w = world(&db).await;
+    let booked = doctor(&db, &w).await;
+    let appt = appointment(&db, &w, booked, "10:00").await;
+    assert_eq!(pull_tomorrow(&db, &w).await, 1);
+    let row = pulled(&db, &w, appt).await.0;
+    assert_eq!(scan(&db, &w, row, ScanStep::Picked).await, "picked");
+
+    exec(
+        &db,
+        &w,
+        "UPDATE appointments SET status = 'cancelled' WHERE id = $1",
+        appt,
+    )
+    .await;
+    assert_eq!(state_of(&db, &w, row).await, ("picked".to_owned(), None));
+    let Json(back) = return_file_to_shelf(
+        State(state(db.clone())),
+        Extension(w.claims.clone()),
+        Path(row),
+    )
+    .await
+    .unwrap();
+    assert_eq!(back.status, "cancelled");
+    assert_eq!(
+        state_of(&db, &w, row).await,
+        ("cancelled".to_owned(), Some("returned_to_shelf".to_owned()))
+    );
+    assert_eq!(open_movements(&db, &w).await, 0, "the movement is closed");
 }

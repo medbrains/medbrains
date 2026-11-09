@@ -101,6 +101,7 @@ export function FileRequestsTab() {
             onScan={(r, step) => setScanning({ row: r, step })}
             onNotFound={(r) => notFound.mutate(r)}
             onReturn={(r) => returnToShelf.mutate(r)}
+            isReturning={returnToShelf.isPending && returnToShelf.variables?.id === row.id}
           />
         ))}
 
