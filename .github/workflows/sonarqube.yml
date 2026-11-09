@@ -41,6 +41,27 @@ jobs:
           persist-credentials: false
           # Full history, so new-code detection and blame work.
           fetch-depth: 0
+      # Web coverage for SonarQube. The web tests already run in ci.yml; this run only
+      # adds the LCOV report, so a failing test here never blocks the analysis.
+      - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
+        if: env.SONAR_TOKEN != ''
+        with:
+          package_json_file: medbrains/package.json
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        if: env.SONAR_TOKEN != ''
+        with:
+          node-version-file: medbrains/.nvmrc
+          package-manager-cache: false
+      - name: Web test coverage
+        if: env.SONAR_TOKEN != ''
+        continue-on-error: true
+        working-directory: medbrains
+        run: |
+          pnpm install --frozen-lockfile
+          pnpm turbo run build --filter=@medbrains/web^...
+          pnpm --filter @medbrains/web exec vitest run --coverage --coverage.reporter=lcov --coverage.reportOnFailure=true
+          # LCOV paths are relative to apps/web; SonarQube resolves them from the repo root.
+          sed -i 's#^SF:src/#SF:medbrains/apps/web/src/#' apps/web/coverage/lcov.info
       - name: Read the release version
         id: version
         if: env.SONAR_TOKEN != ''
