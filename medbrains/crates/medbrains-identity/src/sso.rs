@@ -16,18 +16,39 @@ use medbrains_server_core::{
     error::AppError,
     middleware::{
         auth::Claims,
-        authorization::{BYPASS_ROLES, require_permission},
+        authorization::{BYPASS_ROLES, require_any_permission},
     },
+    os_identity::KANIDM_CODE,
     state::AppState,
 };
 
+use crate::require_identity_admin;
+
+mod mappings;
+
+pub use mappings::{create_mapping, delete_mapping, list_mappings};
+
+/// Seeing the providers and their mappings, with [`MANAGE_PROVIDERS`] as the other way in.
 const MANAGE: &str = "admin.settings.general.manage";
+/// Adding, changing or removing a provider or a mapping: who can sign in, and as what. Administrators only
+/// ([`require_identity_admin`]).
+const MANAGE_PROVIDERS: &str = medbrains_core::permissions::admin::sso::providers::MANAGE;
+/// The refusal for any change to the OS's own Kanidm through this API.
+const KANIDM_PINNED: &str =
+    "The machine's own sign-in service is set up by the OS and cannot be changed here.";
 const SSO_SECRET_KEY: &str = "MEDBRAINS_OAUTH_TOKEN_KEY";
 const DEV_SSO_SECRET_KEY: &[u8] = b"medbrains-dev-oauth-token-key-32";
 const SSO_SECRET_CONTEXT: &[u8] = b"sso-client-secret";
 
+/// The key that seals SSO client secrets at rest: the same one on write (admin) and read (sign-in).
 async fn secret_key(state: &AppState) -> Result<Vec<u8>, AppError> {
-    medbrains_core::secrets::sealing::sealing_key(state.secret_resolver.as_ref(), SSO_SECRET_KEY, DEV_SSO_SECRET_KEY).await.map_err(AppError::from)
+    medbrains_core::secrets::sealing::sealing_key(
+        state.secret_resolver.as_ref(),
+        SSO_SECRET_KEY,
+        DEV_SSO_SECRET_KEY,
+    )
+    .await
+    .map_err(AppError::from)
 }
 
 fn encrypt_secret(key: &[u8], secret: &str) -> Result<String, AppError> {
@@ -216,6 +237,7 @@ struct ProviderRow {
     group_claim: String,
     default_role: Option<String>,
     jit_enabled: bool,
+    link_by_email: bool,
     config: serde_json::Value,
     created_at: DateTime<Utc>,
     updated_at: DateTime<Utc>,
@@ -237,6 +259,8 @@ pub struct ProviderResponse {
     pub group_claim: String,
     pub default_role: Option<String>,
     pub jit_enabled: bool,
+    /// A verified email from this provider may find an existing local account; never an administrator's.
+    pub link_by_email: bool,
     pub config: serde_json::Value,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
@@ -257,6 +281,7 @@ impl From<ProviderRow> for ProviderResponse {
             group_claim: r.group_claim,
             default_role: r.default_role,
             jit_enabled: r.jit_enabled,
+            link_by_email: r.link_by_email,
             config: r.config,
             created_at: r.created_at,
             updated_at: r.updated_at,
@@ -277,6 +302,7 @@ pub struct CreateProviderRequest {
     pub group_claim: Option<String>,
     pub default_role: Option<String>,
     pub jit_enabled: Option<bool>,
+    pub link_by_email: Option<bool>,
     pub is_active: Option<bool>,
     pub config: Option<serde_json::Value>,
 }
@@ -292,6 +318,7 @@ pub struct UpdateProviderRequest {
     pub group_claim: Option<String>,
     pub default_role: Option<String>,
     pub jit_enabled: Option<bool>,
+    pub link_by_email: Option<bool>,
     pub is_active: Option<bool>,
     pub config: Option<serde_json::Value>,
 }
@@ -320,17 +347,33 @@ fn validate_protocol(p: &str) -> Result<(), AppError> {
     }
 }
 
+/// Refuses any change to the OS's own Kanidm row: `kanidm-setup` writes it, and the server pins where it points.
+async fn refuse_if_kanidm(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    id: Uuid,
+) -> Result<(), AppError> {
+    let code: Option<String> =
+        sqlx::query_scalar("SELECT code FROM identity_providers WHERE id = $1")
+            .bind(id)
+            .fetch_optional(&mut **tx)
+            .await?;
+    if code.as_deref() == Some(KANIDM_CODE) {
+        return Err(AppError::ForbiddenReason(KANIDM_PINNED.to_owned()));
+    }
+    Ok(())
+}
+
 /// GET /api/admin/sso/providers
 pub async fn list_providers(
     Extension(claims): Extension<Claims>,
     State(state): State<AppState>,
 ) -> Result<Json<Vec<ProviderResponse>>, AppError> {
-    require_permission(&claims, MANAGE)?;
+    require_any_permission(&claims, &[MANAGE, MANAGE_PROVIDERS])?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
     let rows = sqlx::query_as::<_, ProviderRow>(
         "SELECT id, code, name, protocol, is_active, discovery_url, metadata_url, client_id, \
-         client_secret_enc, group_claim, default_role, jit_enabled, config, created_at, updated_at \
+         client_secret_enc, group_claim, default_role, jit_enabled, link_by_email, config, created_at, updated_at \
          FROM identity_providers ORDER BY name LIMIT 200",
     )
     .fetch_all(&mut *tx)
@@ -345,8 +388,11 @@ pub async fn create_provider(
     State(state): State<AppState>,
     req: Result<Json<CreateProviderRequest>, JsonRejection>,
 ) -> Result<Json<ProviderResponse>, AppError> {
-    require_permission(&claims, MANAGE)?;
+    require_identity_admin(&claims, MANAGE_PROVIDERS)?;
     let Json(req) = req?;
+    if req.code == KANIDM_CODE {
+        return Err(AppError::ForbiddenReason(KANIDM_PINNED.to_owned()));
+    }
     validate_protocol(&req.protocol)?;
     validate_default_role(req.default_role.as_deref())?;
 
@@ -363,11 +409,11 @@ pub async fn create_provider(
     let row = sqlx::query_as::<_, ProviderRow>(
         "INSERT INTO identity_providers
             (tenant_id, code, name, protocol, is_active, discovery_url, metadata_url, client_id,
-             client_secret_enc, group_claim, default_role, jit_enabled, config)
+             client_secret_enc, group_claim, default_role, jit_enabled, config, link_by_email)
          VALUES ($1,$2,$3,$4,COALESCE($5,true),$6,$7,$8,$9,COALESCE($10,'groups'),$11,
-                 COALESCE($12,true),COALESCE($13,'{}'::jsonb))
+                 COALESCE($12,true),COALESCE($13,'{}'::jsonb),COALESCE($14,false))
          RETURNING id, code, name, protocol, is_active, discovery_url, metadata_url, client_id,
-                   client_secret_enc, group_claim, default_role, jit_enabled, config,
+                   client_secret_enc, group_claim, default_role, jit_enabled, link_by_email, config,
                    created_at, updated_at",
     )
     .bind(claims.tenant_id)
@@ -383,6 +429,7 @@ pub async fn create_provider(
     .bind(&req.default_role)
     .bind(req.jit_enabled)
     .bind(&req.config)
+    .bind(req.link_by_email)
     .fetch_one(&mut *tx)
     .await?;
     tx.commit().await?;
@@ -396,7 +443,7 @@ pub async fn update_provider(
     Path(id): Path<Uuid>,
     req: Result<Json<UpdateProviderRequest>, JsonRejection>,
 ) -> Result<Json<ProviderResponse>, AppError> {
-    require_permission(&claims, MANAGE)?;
+    require_identity_admin(&claims, MANAGE_PROVIDERS)?;
     let Json(req) = req?;
     validate_default_role(req.default_role.as_deref())?;
 
@@ -410,6 +457,7 @@ pub async fn update_provider(
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    refuse_if_kanidm(&mut tx, id).await?;
     // COALESCE keeps existing values when a field is omitted; the secret is only
     // overwritten when a non-empty new one is supplied.
     let row = sqlx::query_as::<_, ProviderRow>(
@@ -424,10 +472,11 @@ pub async fn update_provider(
             jit_enabled = COALESCE($9, jit_enabled),
             is_active = COALESCE($10, is_active),
             config = COALESCE($11, config),
+            link_by_email = COALESCE($12, link_by_email),
             updated_at = now()
-         WHERE id = $1
+         WHERE id = $1 AND code <> 'kanidm'
          RETURNING id, code, name, protocol, is_active, discovery_url, metadata_url, client_id,
-                   client_secret_enc, group_claim, default_role, jit_enabled, config,
+                   client_secret_enc, group_claim, default_role, jit_enabled, link_by_email, config,
                    created_at, updated_at",
     )
     .bind(id)
@@ -441,6 +490,7 @@ pub async fn update_provider(
     .bind(req.jit_enabled)
     .bind(req.is_active)
     .bind(&req.config)
+    .bind(req.link_by_email)
     .fetch_optional(&mut *tx)
     .await?
     .ok_or(AppError::NotFound)?;
@@ -454,98 +504,11 @@ pub async fn delete_provider(
     State(state): State<AppState>,
     Path(id): Path<Uuid>,
 ) -> Result<Json<serde_json::Value>, AppError> {
-    require_permission(&claims, MANAGE)?;
+    require_identity_admin(&claims, MANAGE_PROVIDERS)?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
-    sqlx::query("DELETE FROM identity_providers WHERE id = $1")
-        .bind(id)
-        .execute(&mut *tx)
-        .await?;
-    tx.commit().await?;
-    Ok(Json(serde_json::json!({ "deleted": true })))
-}
-
-// ── Group mappings ──────────────────────────────────────────────────────────
-
-#[derive(Debug, Serialize, sqlx::FromRow)]
-pub struct GroupMapping {
-    pub id: Uuid,
-    pub provider_id: Uuid,
-    pub idp_group: String,
-    pub role_code: Option<String>,
-    pub access_group_id: Option<Uuid>,
-    pub created_at: DateTime<Utc>,
-}
-
-#[derive(Debug, Deserialize)]
-pub struct CreateMappingRequest {
-    pub idp_group: String,
-    pub role_code: Option<String>,
-    pub access_group_id: Option<Uuid>,
-}
-
-/// GET /api/admin/sso/providers/{id}/mappings
-pub async fn list_mappings(
-    Extension(claims): Extension<Claims>,
-    State(state): State<AppState>,
-    Path(provider_id): Path<Uuid>,
-) -> Result<Json<Vec<GroupMapping>>, AppError> {
-    require_permission(&claims, MANAGE)?;
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
-    let rows = sqlx::query_as::<_, GroupMapping>(
-        "SELECT id, provider_id, idp_group, role_code, access_group_id, created_at \
-         FROM idp_group_mappings WHERE provider_id = $1 ORDER BY idp_group LIMIT 500",
-    )
-    .bind(provider_id)
-    .fetch_all(&mut *tx)
-    .await?;
-    tx.commit().await?;
-    Ok(Json(rows))
-}
-
-/// POST /api/admin/sso/providers/{id}/mappings
-pub async fn create_mapping(
-    Extension(claims): Extension<Claims>,
-    State(state): State<AppState>,
-    Path(provider_id): Path<Uuid>,
-    req: Result<Json<CreateMappingRequest>, JsonRejection>,
-) -> Result<Json<GroupMapping>, AppError> {
-    require_permission(&claims, MANAGE)?;
-    let Json(req) = req?;
-    if req.role_code.is_none() && req.access_group_id.is_none() {
-        return Err(AppError::BadRequest(
-            "a mapping must set role_code and/or access_group_id".to_owned(),
-        ));
-    }
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
-    let row = sqlx::query_as::<_, GroupMapping>(
-        "INSERT INTO idp_group_mappings (tenant_id, provider_id, idp_group, role_code, access_group_id)
-         VALUES ($1, $2, $3, $4, $5)
-         RETURNING id, provider_id, idp_group, role_code, access_group_id, created_at",
-    )
-    .bind(claims.tenant_id)
-    .bind(provider_id)
-    .bind(&req.idp_group)
-    .bind(&req.role_code)
-    .bind(req.access_group_id)
-    .fetch_one(&mut *tx)
-    .await?;
-    tx.commit().await?;
-    Ok(Json(row))
-}
-
-/// DELETE /api/admin/sso/mappings/{id}
-pub async fn delete_mapping(
-    Extension(claims): Extension<Claims>,
-    State(state): State<AppState>,
-    Path(id): Path<Uuid>,
-) -> Result<Json<serde_json::Value>, AppError> {
-    require_permission(&claims, MANAGE)?;
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
-    sqlx::query("DELETE FROM idp_group_mappings WHERE id = $1")
+    refuse_if_kanidm(&mut tx, id).await?;
+    sqlx::query("DELETE FROM identity_providers WHERE id = $1 AND code <> 'kanidm'")
         .bind(id)
         .execute(&mut *tx)
         .await?;

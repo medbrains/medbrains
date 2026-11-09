@@ -1,0 +1,28 @@
+#!/bin/bash
+# DEBUG IMAGES ONLY, for tests. A marked person with a password anyone may know. It meets Kanidm's real rule,
+# with no exception. build.sh puts this only in debug images, and it refuses to run without the debug marker.
+set -euo pipefail
+
+[[ -e /usr/lib/medbrains/debug-image ]] || { echo "not a debug image" >&2; exit 1; }
+# Root's own folder: root never writes in Kanidm's.
+MARK=/var/lib/medbrains/config/kanidm/debug-account-done
+[[ ! -e "$MARK" ]] || exit 0
+
+. /usr/lib/medbrains/kanidm-lib.sh
+
+NAME=debug.test
+PASSWORD='blue river test'
+
+wait_for_kanidm
+admin="$(admin_token idm_admin)"
+printf '{"attrs":{"name":["%s"],"displayname":["TEST ACCOUNT, debug image only"],"mail":["debug.test@hospital.test"]}}' "$NAME" |
+    json_body_as "$admin" -o /dev/null "$ORIGIN/v1/person"
+intent="$(api_as "$admin" "$ORIGIN/v1/person/$NAME/_credential/_update_intent/900" | sed -n 's/.*"token":"\([^"]*\)".*/\1/p')"
+exchanged="$(printf '"%s"' "$intent" | json_body "$ORIGIN/v1/credential/_exchange_intent")"
+session="${exchanged#\[}"
+session="${session%%,\{\"spn\"*}"
+printf '[{"password":"%s"},%s]' "$PASSWORD" "$session" | json_body -o /dev/null "$ORIGIN/v1/credential/_update"
+printf '%s' "$session" | json_body -o /dev/null "$ORIGIN/v1/credential/_commit"
+install -d -m 0750 "${MARK%/*}"
+touch "$MARK"
+echo "debug test account ready: $NAME"

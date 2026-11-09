@@ -12,7 +12,7 @@
     "uuid"
   ],
   "kernel_closure": 282,
-  "packages": 1323,
+  "packages": 1328,
   "crates": 166,
   "web_first_load_gzip_limit": 342479
 }

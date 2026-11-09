@@ -43,6 +43,8 @@ systemctl disable iwd 2>/dev/null || true
 # would hold the boot for the internet, which setup must never need.
 systemctl disable chronyd-restricted chrony-wait 2>/dev/null || true
 systemctl disable systemd-networkd-wait-online.service 2>/dev/null || true
+# Debug images only: build.sh stages this unit nowhere else.
+if [[ -e /usr/lib/systemd/system/kanidm-debug-account.service ]]; then systemctl enable kanidm-debug-account; fi
 systemctl set-default graphical.target
 
 # The screen's own fonts, installed by mkosi.build.chroot.

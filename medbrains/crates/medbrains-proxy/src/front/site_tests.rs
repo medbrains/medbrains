@@ -328,3 +328,68 @@ fn a_slow_body_is_judged_only_after_its_grace() {
     );
     assert!(body_too_slow(1024, Duration::from_secs(60)));
 }
+
+/// With `lan_paths`, the LAN reaches only those prefixes; the machine itself reaches the rest.
+#[test]
+fn the_lan_reaches_only_its_paths_and_the_machine_reaches_all() -> anyhow::Result<()> {
+    let text = r#"
+        names_file = "/n"
+        redirect_listen = []
+        [[sites]]
+        name = "identity"
+        upstream = "127.0.0.1:8444"
+        error_page = "Sign-in is not answering."
+        lan_paths = ["/ui", "/v1/auth"]
+        [[sites.listen]]
+        addr = "0.0.0.0:9443"
+        cert = "/c"
+        key = "/k"
+        reserved_for_machine = 1
+    "#;
+    let config = Config::parse(text)?;
+    let site = Site::new(
+        config
+            .sites
+            .first()
+            .ok_or_else(|| anyhow::anyhow!("site"))?,
+        names()?,
+    )?;
+    let host = [("Host", "idm.medbrains.local:9443")];
+    let ask = |path: &str, client: &str| -> anyhow::Result<Option<u16>> {
+        let req = request(path, &host)?;
+        Ok(site
+            .refusal(&req, client.parse()?, Instant::now())
+            .map(|r| r.status))
+    };
+    assert_eq!(ask("/ui/login", CLIENT)?, None);
+    assert_eq!(ask("/v1/auth", CLIENT)?, None);
+    for path in [
+        "/v1/raw/search",
+        "/v1/person",
+        "/%761/raw",
+        "/scim/v1",
+        "/uix",
+        "/v1/authority",
+    ] {
+        assert_eq!(ask(path, CLIENT)?, Some(404), "{path} from the LAN");
+    }
+    assert_eq!(
+        ask("/v1/raw/search", "127.0.0.1")?,
+        None,
+        "the machine itself"
+    );
+    assert_eq!(ask("/v1/raw/search", "::1")?, None, "the machine itself");
+    for forged in ["127.0.0.2", "127.5.6.7"] {
+        assert_eq!(
+            ask("/v1/raw/search", forged)?,
+            Some(404),
+            "{forged} is not the machine"
+        );
+    }
+    assert_eq!(
+        ask("/v1/raw/search", "::1")?,
+        None,
+        "the machine itself over IPv6"
+    );
+    Ok(())
+}
