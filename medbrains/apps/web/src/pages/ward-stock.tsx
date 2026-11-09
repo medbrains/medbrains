@@ -48,7 +48,14 @@ export function WardStockPage() {
     enabled: !!dept,
   });
 
-  const { data: locations = [] } = useQuery({
+  // Hidden without its permission, and loading until it answers: an empty
+  // table here reads as "no stock anywhere".
+  const {
+    data: locations = [],
+    isLoading: locationsLoading,
+    error: locationsError,
+    refetch: refetchLocations,
+  } = useQuery({
     queryKey: ["pharmacy-location-stock"],
     queryFn: () => pharmacyService.getLocationStockDashboard(),
     enabled: canReadStockDashboard,
@@ -163,13 +170,20 @@ export function WardStockPage() {
         subtitle="Per-location stock health + ward par / imprest stock"
       />
 
-      <Text fw={600}>Stock by location</Text>
-      <DataTable
-        columns={locationCols}
-        data={locations}
-        rowKey={(r) => r.location_id}
-        emptyTitle="No pharmacy locations with stock yet."
-      />
+      {canReadStockDashboard && (
+        <>
+          <Text fw={600}>Stock by location</Text>
+          <DataTable
+            columns={locationCols}
+            data={locations}
+            loading={locationsLoading}
+            error={locationsError}
+            onRetry={() => void refetchLocations()}
+            rowKey={(r) => r.location_id}
+            emptyTitle="No pharmacy locations with stock yet."
+          />
+        </>
+      )}
 
       <Text fw={600} mt="md">
         Ward par stock
