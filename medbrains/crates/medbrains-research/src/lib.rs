@@ -22,6 +22,7 @@ pub mod datasets;
 pub mod deid;
 pub mod omop;
 pub mod trial_export;
+pub mod trial_subject;
 
 use axum::{
     Extension, Json,

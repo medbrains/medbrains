@@ -29,7 +29,7 @@ function statusTone(s: string): BadgeTone {
 
 export function ClinicalTrialsPage() {
   useRequirePermission(P.SPECIALTY.CLINICAL_TRIALS.LIST);
-  // The sponsor export leaves the hospital (de-identified), so it has its own code.
+  // The sponsor export leaves the hospital (pseudonymised), so it has its own code.
   const canExport = useHasPermission(P.SPECIALTY.CLINICAL_TRIALS.EXPORT);
   const qc = useQueryClient();
   const [filter, setFilter] = useState<string | null>(null);
@@ -64,10 +64,10 @@ export function ClinicalTrialsPage() {
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = `trial-${trial.protocol_number}-deidentified.json`;
+      a.download = `trial-${trial.protocol_number}-pseudonymised.json`;
       a.click();
       URL.revokeObjectURL(url);
-      toast.success("De-identified export downloaded", { title: "Clinical trials" });
+      toast.success("Pseudonymised export downloaded", { title: "Clinical trials" });
     },
     onError: (e: Error) => toast.error(e.message, { title: "Export failed" }),
   });

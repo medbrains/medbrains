@@ -8316,6 +8316,7 @@ dependencies = [
  "hmac 0.13.0",
  "medbrains-core",
  "medbrains-db",
+ "medbrains-db-migrations",
  "medbrains-kernel",
  "medbrains-server-core",
  "serde",

@@ -2919,7 +2919,7 @@ pub mod specialty {
         ///
         /// The export leaves the hospital, so it is not listing. It was gated
         /// on `list`, and returned every participant's name. It is now
-        /// de-identified (subject keys and trial numbers, never names or
+        /// pseudonymised (subject keys and trial numbers, never names or
         /// identifiers) and each export is audited with its subject count.
         /// Held by no built-in role: grant it to the trial coordinator.
         pub const EXPORT: &str = "specialty.clinical_trials.export";

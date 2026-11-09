@@ -10,8 +10,13 @@
 //! their protocol by definition, and filtering the roster to the caller's own
 //! patients would show a monitor a trial with fewer arms than it has.
 //! The sponsor export is not here: it lives in medbrains-research
-//! (`trial_export`), de-identified, behind `specialty.clinical_trials.export`,
-//! and audited.
+//! (`trial_export`), behind `specialty.clinical_trials.export`, and audited.
+//! It is pseudonymised, not anonymous: each participant is a keyed subject key
+//! the hospital can link back; their consents, visits, adverse events and
+//! randomisations go out with dates and coded fields, and the three typed
+//! fields that leave (visit name, event term, randomisation code) are redacted
+//! when they hold that participant's UHID, name, phone, ABHA or Aadhaar last
+//! four. That is why a randomisation code containing the UHID is refused here.
 //!
 //! What that argument does NOT cover, and what is therefore guarded:
 //!
@@ -751,6 +756,34 @@ pub struct RandomizeRequest {
     pub randomization_code: Option<String>,
 }
 
+/// 400 when `code` contains the patient's UHID. The code goes to the sponsor,
+/// so it must be the trial's own number, not the hospital's id for the person.
+async fn refuse_code_with_uhid(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    patient_id: Uuid,
+    code: Option<&str>,
+) -> Result<(), AppError> {
+    let Some(code) = code.filter(|c| !c.trim().is_empty()) else {
+        return Ok(());
+    };
+    let has_uhid: Option<bool> = sqlx::query_scalar(
+        "SELECT strpos(lower($2), lower(uhid)) > 0 FROM patients \
+         WHERE id = $1 AND btrim(uhid) <> ''",
+    )
+    .bind(patient_id)
+    .bind(code)
+    .fetch_optional(&mut **tx)
+    .await?;
+    if has_uhid == Some(true) {
+        return Err(AppError::BadRequest(
+            "The randomisation code contains the patient's UHID, and it is sent to the sponsor. \
+             Use the trial's own randomisation number instead."
+                .to_owned(),
+        ));
+    }
+    Ok(())
+}
+
 /// `POST /api/clinical-trials/{id}/randomizations` — record a patient's (concealed) arm assignment.
 pub async fn randomize_patient(
     State(state): State<AppState>,
@@ -768,6 +801,7 @@ pub async fn randomize_patient(
     }
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    refuse_code_with_uhid(&mut tx, body.patient_id, body.randomization_code.as_deref()).await?;
     let new_id: Uuid = sqlx::query_scalar(
         "INSERT INTO trial_randomizations \
          (tenant_id, trial_id, patient_id, arm, randomization_code, randomized_by) \

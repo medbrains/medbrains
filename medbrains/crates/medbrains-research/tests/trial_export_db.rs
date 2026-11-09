@@ -1,17 +1,23 @@
 //! The sponsor export against a real database: a trial user who may only
-//! list is refused, an export names subjects only by key, and each export
-//! leaves an audit row. Runs when `RESEARCH_TEST_DATABASE_URL` names a
-//! migrated scratch database (each run plants its own hospital); does nothing
-//! otherwise.
+//! list is refused, another hospital's trial is not found, an export names
+//! subjects only by key, keeps the blind, redacts typed text that names its
+//! participant, and each export leaves an audit row. Runs against
+//! [`common::database`] (each run plants its own hospital).
 
 #![allow(clippy::panic, clippy::format_push_string)]
+
+mod common;
 
 use medbrains_core::permissions::specialty::clinical_trials;
 use medbrains_kernel::Claims;
 use medbrains_research::trial_export::{AUDIT_ACTION, export};
+use medbrains_research::trial_subject::REDACTED;
 use medbrains_server_core::error::AppError;
 use sqlx::PgPool;
 use uuid::Uuid;
+
+/// The server key the tests derive subject keys from.
+const KEY: &[u8] = b"trial-export-test-server-key-000";
 
 /// What the planted participants are called and numbered; none may leave.
 const IDENTIFIERS: [&str; 6] = [
@@ -35,10 +41,16 @@ fn plant(t: Uuid, user: Uuid, trial: Uuid) -> String {
          INSERT INTO users (id, tenant_id, username, email, full_name, role)
            VALUES ('{user}', '{t}', 'tx{code}', 'tx{code}@t.test', 'Coordinator', 'doctor');
          INSERT INTO clinical_trials (id, tenant_id, protocol_number, title, sponsor)
-           VALUES ('{trial}', '{t}', 'PROTO-{code}', 'Statin trial', 'Sponsor Ltd');"
+           VALUES ('{trial}', '{t}', 'PROTO-{code}', 'Lipid trial', 'Sponsor Ltd');"
     );
     for i in 1..=2_u32 {
         let p = Uuid::new_v4();
+        // The second participant's typed text names them; it must be redacted.
+        let (visit, rand) = if i == 1 {
+            ("Week 4".to_owned(), "R-001".to_owned())
+        } else {
+            ("Week 4 kavitha2".to_owned(), format!("R-uhid-tx-{code}-2"))
+        };
         sql.push_str(&format!(
             "INSERT INTO patients (id, tenant_id, uhid, first_name, last_name, gender, phone,
                 date_of_birth, address, attributes)
@@ -49,9 +61,9 @@ fn plant(t: Uuid, user: Uuid, trial: Uuid) -> String {
                 signed_by_patient, patient_signed_at)
                VALUES ('{t}', '{p}', 'research', '{user}', '{trial}', true, now());
              INSERT INTO trial_visits (tenant_id, trial_id, patient_id, visit_name, scheduled_date, notes)
-               VALUES ('{t}', '{trial}', '{p}', 'Week 4', '2026-11-01', 'Kavitha{i} came with her son');
+               VALUES ('{t}', '{trial}', '{p}', '{visit}', '2026-11-01', 'Kavitha{i} came with her son');
              INSERT INTO trial_randomizations (tenant_id, trial_id, patient_id, arm, randomization_code)
-               VALUES ('{t}', '{trial}', '{p}', 'statin', 'R-00{i}');"
+               VALUES ('{t}', '{trial}', '{p}', 'statin', '{rand}');"
         ));
         if i == 1 {
             sql.push_str(&format!(
@@ -80,12 +92,9 @@ fn claims(t: Uuid, user: Uuid, perms: &[&str]) -> Claims {
     }
 }
 
-/// The scratch database with a fresh hospital, or `None` when none is named.
+/// The test database with a fresh hospital, or `None` when none is named.
 async fn world() -> Option<(PgPool, Uuid, Uuid, Uuid)> {
-    let url = std::env::var("RESEARCH_TEST_DATABASE_URL").ok()?;
-    let db = PgPool::connect(&url)
-        .await
-        .unwrap_or_else(|e| panic!("{e}"));
+    let db = common::database().await?;
     let (t, user, trial) = (Uuid::new_v4(), Uuid::new_v4(), Uuid::new_v4());
     sqlx::raw_sql(&plant(t, user, trial))
         .execute(&db)
@@ -114,7 +123,7 @@ async fn a_user_who_may_only_list_trials_cannot_export_one() {
         return;
     };
     let lister = claims(t, user, &[clinical_trials::LIST, clinical_trials::CREATE]);
-    let refused = export(&db, &lister, trial).await;
+    let refused = export(&db, KEY, &lister, trial).await;
     assert!(matches!(refused, Err(AppError::Forbidden)), "{refused:?}");
     assert_eq!(
         audited(&db, t, trial).await.0,
@@ -129,7 +138,7 @@ async fn an_export_names_subjects_only_by_key_and_is_audited() {
         return;
     };
     let coordinator = claims(t, user, &[clinical_trials::EXPORT]);
-    let bundle = export(&db, &coordinator, trial)
+    let bundle = export(&db, KEY, &coordinator, trial)
         .await
         .unwrap_or_else(|e| panic!("{e:?}"));
     let json = serde_json::to_string(&bundle).unwrap_or_else(|e| panic!("{e}"));
@@ -147,6 +156,32 @@ async fn an_export_names_subjects_only_by_key_and_is_audited() {
     assert_eq!(bundle.subject_count, 2);
     assert!(json.contains("R-001"), "the trial's own numbers go out");
     assert!(json.contains("Myalgia"), "the event term goes out");
+    assert!(
+        !json.to_lowercase().contains("statin"),
+        "a blinded arm stays concealed: {json}"
+    );
+    let codes: Vec<Option<&str>> = bundle
+        .randomizations
+        .iter()
+        .map(|r| r.row.randomization_code.as_deref())
+        .collect();
+    assert!(
+        codes.contains(&Some(REDACTED)),
+        "the UHID in a code is redacted"
+    );
+    let visits: Vec<&str> = bundle
+        .visits
+        .iter()
+        .map(|v| v.row.visit_name.as_str())
+        .collect();
+    assert!(
+        visits.contains(&REDACTED),
+        "a name in a visit name is redacted"
+    );
+    assert!(
+        visits.contains(&"Week 4"),
+        "a visit name that names nobody goes out"
+    );
     // One subject, one key, in every list.
     let keys = |v: &serde_json::Value, list: &str| -> Vec<String> {
         let mut k: Vec<String> = v[list]
@@ -163,7 +198,7 @@ async fn an_export_names_subjects_only_by_key_and_is_audited() {
     assert_eq!(keys(&v, "consents"), keys(&v, "visits"));
     assert_eq!(keys(&v, "consents"), keys(&v, "randomizations"));
     // The same subject keeps the same key in the next transfer.
-    let again = export(&db, &coordinator, trial)
+    let again = export(&db, KEY, &coordinator, trial)
         .await
         .unwrap_or_else(|e| panic!("{e:?}"));
     assert_eq!(
@@ -179,4 +214,17 @@ async fn an_export_names_subjects_only_by_key_and_is_audited() {
             .collect::<Vec<_>>()
     );
     assert_eq!(audited(&db, t, trial).await, (2, Some(2)));
+}
+
+#[tokio::test]
+async fn another_hospitals_trial_is_not_found() {
+    let Some((db, _, _, trial)) = world().await else {
+        return;
+    };
+    let Some((_, other, other_user, _)) = world().await else {
+        return;
+    };
+    let outsider = claims(other, other_user, &[clinical_trials::EXPORT]);
+    let refused = export(&db, KEY, &outsider, trial).await;
+    assert!(matches!(refused, Err(AppError::NotFound)), "{refused:?}");
 }
