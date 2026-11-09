@@ -914,6 +914,9 @@ fn build_outbox_registry() -> Arc<medbrains_outbox::Registry> {
         "email.appointment_confirmation",
     ));
     registry.register(email_stub::SmtpSendHandler::new("email.invoice_receipt"));
+    registry.register(email_stub::SmtpSendHandler::new(
+        medbrains_payment_gateway::payment_settings_notice::EMAIL_EVENT,
+    ));
     registry.register(email_stub::SmtpSendHandler::new("email.lab_report"));
     registry.register(email_stub::SmtpSendHandler::new(
         "email.refund_notification",

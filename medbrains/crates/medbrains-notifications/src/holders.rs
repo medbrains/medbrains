@@ -12,7 +12,8 @@ use crate::{NewNotification, create_notification};
 const MAX_HOLDERS: i64 = 50;
 
 /// Holders of the permission by role, group or extra grant, minus denials —
-/// the same sources `resolve_permissions` reads — plus the bypass roles.
+/// the same sources `resolve_permissions` reads — plus the bypass roles, who
+/// are always holders: a denial does not bind them, as in `require_permission`.
 /// Those who hold it by name come first, then hospital administrators, then
 /// platform administrators; within each, whoever signed in most recently.
 const HOLDERS_SQL: &str = "\
@@ -21,16 +22,17 @@ const HOLDERS_SQL: &str = "\
                        AND r.is_active = true \
      WHERE u.tenant_id = $1 AND u.is_active = true AND u.deleted_at IS NULL \
        AND u.id <> $2 \
-       AND NOT COALESCE(u.access_matrix -> 'denied' ? $3, false) \
        AND (u.role::text IN ('super_admin', 'hospital_admin') \
-            OR COALESCE(r.permissions ? $3, false) \
-            OR COALESCE(u.access_matrix -> 'extra' ? $3, false) \
-            OR EXISTS (SELECT 1 FROM access_group_members m \
-                         JOIN access_groups g ON g.id = m.group_id AND g.tenant_id = m.tenant_id \
-                        WHERE m.tenant_id = u.tenant_id AND m.user_id = u.id \
-                          AND g.is_active = true \
-                          AND (m.expires_at IS NULL OR m.expires_at > now()) \
-                          AND g.permissions ? $3)) \
+            OR (NOT COALESCE(u.access_matrix -> 'denied' ? $3, false) \
+                AND (COALESCE(r.permissions ? $3, false) \
+                     OR COALESCE(u.access_matrix -> 'extra' ? $3, false) \
+                     OR EXISTS (SELECT 1 FROM access_group_members m \
+                                  JOIN access_groups g ON g.id = m.group_id \
+                                                      AND g.tenant_id = m.tenant_id \
+                                 WHERE m.tenant_id = u.tenant_id AND m.user_id = u.id \
+                                   AND g.is_active = true \
+                                   AND (m.expires_at IS NULL OR m.expires_at > now()) \
+                                   AND g.permissions ? $3)))) \
      ORDER BY u.role::text = 'super_admin', u.role::text = 'hospital_admin', \
               (SELECT MAX(rt.created_at) FROM refresh_tokens rt WHERE rt.user_id = u.id) \
                 DESC NULLS LAST, u.id \
@@ -48,15 +50,30 @@ pub async fn notify_permission_holders<'a, F>(
 where
     F: Fn(Uuid) -> NewNotification<'a>,
 {
-    let holders: Vec<Uuid> = sqlx::query_scalar(HOLDERS_SQL)
-        .bind(tenant_id)
-        .bind(exclude)
-        .bind(permission)
-        .bind(MAX_HOLDERS)
-        .fetch_all(&mut **tx)
-        .await?;
+    let holders = permission_holders(tx, tenant_id, permission, exclude).await?;
     for user_id in &holders {
         create_notification(tx, tenant_id, make(*user_id)).await?;
     }
     Ok(holders.len())
+}
+
+/// The active holders of `permission` in the tenant except `exclude`, in the
+/// order [`notify_permission_holders`] tells them; for a caller that also
+/// emails them, or works on a bare connection (a kernel unit of work).
+///
+/// # Errors
+/// A database fault.
+pub async fn permission_holders(
+    conn: &mut sqlx::PgConnection,
+    tenant_id: Uuid,
+    permission: &str,
+    exclude: Uuid,
+) -> Result<Vec<Uuid>, AppError> {
+    Ok(sqlx::query_scalar(HOLDERS_SQL)
+        .bind(tenant_id)
+        .bind(exclude)
+        .bind(permission)
+        .bind(MAX_HOLDERS)
+        .fetch_all(conn)
+        .await?)
 }

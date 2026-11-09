@@ -7863,6 +7863,7 @@ dependencies = [
  "medbrains-db",
  "medbrains-doctor-payouts",
  "medbrains-kernel",
+ "medbrains-notifications",
  "medbrains-outbox",
  "medbrains-pharmacy-delivery",
  "medbrains-server-core",
