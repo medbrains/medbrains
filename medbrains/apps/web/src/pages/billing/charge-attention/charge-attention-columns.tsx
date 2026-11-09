@@ -3,46 +3,82 @@
 
 import { Group, Stack, Text } from "@mantine/core";
 import type { ChargeAttentionItem } from "@medbrains/types";
-import { IconReceipt, IconX } from "@tabler/icons-react";
+import { IconReceipt, IconUserPlus, IconX } from "@tabler/icons-react";
 import type { Column } from "@/components";
 import { Badge, IconButton, Tooltip } from "@/components/ui";
 import {
   ageLabel,
+  isDetectedReason,
+  isLeakageReason,
   moduleLabel,
   NO_TARIFF,
-  REASON_UNBILLED,
+  REASON_IMPLANT_NO_PATIENT,
   reasonLabel,
   rupees,
   STATUS_LABEL,
   STATUS_TONE,
 } from "./charge-attention-labels";
 
-export type ChargeAttentionAction = "post" | "dismiss";
+export type ChargeAttentionAction = "post" | "dismiss" | "name_patient";
+
+/** The lead-in to who the implant registry has an implant of this batch for. */
+export const REGISTRY_HINT = "May be the same implant as the registry entry for:";
+
+/** What a row with no patient named says in the patient column. */
+export const NO_PATIENT = "No patient named";
 
 interface ColumnOptions {
   /** May work charges a module could not post. */
   canResolve: boolean;
-  /** May work orders done but never billed. */
+  /** May work leakage rows: care or stock never billed, implants with no patient. */
   canResolveUnbilled: boolean;
+  /** May name the patient on an unnamed implant (rewrites the store's record). */
+  canNameRecipient: boolean;
   /** Amounts are hidden from this viewer: show that, not "No tariff". */
   amountsHidden: boolean;
   pendingId: string | null;
   onAction: (kind: ChargeAttentionAction, item: ChargeAttentionItem) => void;
 }
 
-/** Post and dismiss buttons, only on an open item and only for its kind's resolver. */
+/**
+ * Post and dismiss buttons, only on an open item and only for its kind's
+ * resolver; an implant used without a patient offers "Name patient" before
+ * Post, and "Change patient" while it is open (a wrong pick).
+ */
 function Actions({ row, o }: { row: ChargeAttentionItem; o: ColumnOptions }) {
-  const allowed = row.reason === REASON_UNBILLED ? o.canResolveUnbilled : o.canResolve;
+  const allowed = isLeakageReason(row.reason) ? o.canResolveUnbilled : o.canResolve;
   if (row.status !== "open" || !allowed) return null;
-  // An unbilled order with no tariff would post ₹0; the server refuses it too.
-  const unpriced = row.reason === REASON_UNBILLED && row.unit_price_override === null;
+  const implant = row.reason === REASON_IMPLANT_NO_PATIENT;
+  // A row with no tariff would post ₹0; the server refuses it too.
+  const unpriced =
+    (isDetectedReason(row.reason) || implant) &&
+    (row.unit_price_override === null || (implant && Number(row.unit_price_override) === 0));
+  const unnamed = row.patient_id === null;
+  const nameLabel = unnamed ? "Name patient" : "Change patient";
+  const postBlocked = unpriced || unnamed;
+  const postHint = unnamed
+    ? "Name the patient first"
+    : unpriced
+      ? NO_TARIFF
+      : "Post this charge to the patient's bill";
   return (
     <Group gap={4} wrap="nowrap">
-      <Tooltip label={unpriced ? NO_TARIFF : "Post this charge to the patient's bill"}>
+      {implant && o.canNameRecipient && (
+        <Tooltip label="Name the patient this implant was used on">
+          <IconButton
+            tone="primary"
+            aria-label={nameLabel}
+            onClick={() => o.onAction("name_patient", row)}
+          >
+            <IconUserPlus size={16} />
+          </IconButton>
+        </Tooltip>
+      )}
+      <Tooltip label={postHint}>
         <IconButton
           tone="success"
           aria-label="Post charge"
-          disabled={unpriced}
+          disabled={postBlocked}
           loading={o.pendingId === row.id}
           onClick={() => o.onAction("post", row)}
         >
@@ -77,10 +113,23 @@ export function chargeAttentionColumns(o: ColumnOptions): Column<ChargeAttention
       label: "Patient",
       render: (r) => (
         <Stack gap={0}>
-          <Text size="sm">{r.patient_name}</Text>
-          <Text size="xs" ff="monospace" c="dimmed">
-            {r.uhid}
-          </Text>
+          {r.patient_id === null ? (
+            <Text size="sm" c="dimmed">
+              {NO_PATIENT}
+            </Text>
+          ) : (
+            <>
+              <Text size="sm">{r.patient_name}</Text>
+              <Text size="xs" ff="monospace" c="dimmed">
+                {r.uhid}
+              </Text>
+            </>
+          )}
+          {r.registry_patients && (
+            <Text size="xs" c="dimmed">
+              {REGISTRY_HINT} {r.registry_patients}
+            </Text>
+          )}
         </Stack>
       ),
     },

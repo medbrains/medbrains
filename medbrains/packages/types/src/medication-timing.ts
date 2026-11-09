@@ -3702,6 +3702,8 @@ export interface PharmacyCatalog {
   sold_online: boolean;
   /** Online: pickup only, a unit at a time. */
   habit_forming: boolean;
+  /** Charge the patient when used from ward stock; off for overhead items. */
+  is_patient_billable: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -3957,6 +3959,8 @@ export interface UpdatePharmacyCatalogRequest {
   barcode?: string;
   refill_policy?: RefillPolicy;
   needs_cold_chain?: boolean;
+  /** Charge the patient when used from ward stock. */
+  is_patient_billable?: boolean;
 }
 
 export interface CreateStockTransactionRequest {

@@ -861,6 +861,7 @@ import type {
   CreateUrReviewRequest,
   CreateUserHospitalAssignment,
   CreateVaccinationRequest,
+  CreateVendorAccessGrant,
   CreateVendorRequest,
   CreateVirtualAccountRequest,
   CreateVirtualAccountResponse,
@@ -991,6 +992,7 @@ import type {
   DischargeSummaryPrintData,
   DischargeSummaryTemplate,
   DismissChargeAttentionRequest,
+  DismissPreauthRequest,
   // Pharmacy Phase 2
   DispenseWitness,
   DispensingLabelPrintData,
@@ -1554,17 +1556,24 @@ import type {
   MpiMatchRequest,
   MpiMatchResult,
   MrdAdmissionDischargeSummary,
+  // MRD
+  MrdBackscanItem,
   MrdBirthRegister,
   MrdCaseSheetCompletenessResponse,
   MrdCaseSheetPacket,
   MrdCaseSheetPage,
   MrdDeathRegister,
-  // MRD
+  MrdDeliveryTimeRow,
+  MrdDigitalSummary,
+  MrdFileRequest,
+  MrdFileScanRequest,
   MrdMedicalRecord,
   MrdMorbidityMortalityResponse,
+  MrdPullListBuilt,
   MrdRecordMovement,
   MrdRetentionPolicy,
   MrdStorageLocation,
+  MrdVisitFileStatus,
   MyDayResponse,
   MyProfileResponse,
   MyShiftResponse,
@@ -1574,6 +1583,7 @@ import type {
   NabhRollupResponse,
   NablDocumentSummary,
   NablQualityReportPrintData,
+  NamePatientChargeAttentionRequest,
   NdpsListResponse,
   NdpsRegisterEntry,
   NdpsRegisterPrintData,
@@ -1849,6 +1859,7 @@ import type {
   PostopOrdersPrintData,
   PostureReport,
   PreAuthorizationRequest,
+  PreauthAlertSettings,
   PreauthNhcxView,
   PredictionAccuracyReport,
   PreopAssessmentPrintData,
@@ -2036,6 +2047,7 @@ import type {
   RepeatRow,
   ReportCatalogResponse,
   ReportDataResponse,
+  RequestEnhancementRequest,
   Requisition,
   RescheduleAppointmentRequest,
   ResearchConsentPrintData,
@@ -2064,6 +2076,8 @@ import type {
   ReturnResult,
   ReturnToStoreRequest,
   ReturnToWorkClearanceRequest,
+  RevenueAlert,
+  RevenueAlertKind,
   ReviewBreakGlassRequest,
   ReviewIndwellingDeviceRequest,
   ReviewPharmacyPrescriptionRequest,
@@ -2079,6 +2093,11 @@ import type {
   RoiAccessInput,
   RoiAccessLogRow,
   RoiRequest,
+  RoomCheck,
+  RoomConsentInput,
+  RoomConsentWitness,
+  RoomRentLimit,
+  RoomRentLimitInput,
   RoomTurnaround,
   RoomUtilization,
   RunPayoutsRequest,
@@ -2458,6 +2477,7 @@ import type {
   UpdatePipelineStatusRequest,
   UpdatePostopRecordRequest,
   UpdatePreAuthRequest,
+  UpdatePreauthAlertSettings,
   UpdatePreopAssessmentRequest,
   UpdatePrescriptionRequest,
   UpdatePrimaryNurseRequest,
@@ -2525,6 +2545,8 @@ import type {
   VedAnalysisRow,
   // Procurement
   Vendor,
+  VendorAccessEvent,
+  VendorAccessGrant,
   VendorComparisonRow,
   VendorPerformanceRow,
   VerbalOrderEntry,
@@ -2571,6 +2593,8 @@ import type {
   WardGridResponse,
   WardListRow,
   WardOnDutyRow,
+  WardStockConsumeRequest,
+  WardStockConsumeResponse,
   WardStockRow,
   WaterQualityTestPrintData,
   WebhookDelivery,
@@ -2592,6 +2616,7 @@ import type {
   WoundCertificatePrintData,
   WristbandPrintData,
 } from "@medbrains/types";
+
 import { getApiBase } from "./config.js";
 
 // Re-export type guards for use by consumers
@@ -3401,7 +3426,7 @@ export const api = {
       method: "POST",
       body: JSON.stringify(user_id ? { user_id } : {}),
     }),
-  changePassword: (data: { current_password: string; new_password: string }) =>
+  changePassword: (data: { current_password: string; new_password: string; email?: string }) =>
     request<{ status: string }>("/auth/change-password", {
       method: "POST",
       body: JSON.stringify(data),
@@ -6267,6 +6292,51 @@ export const api = {
       method: "PUT",
       body: JSON.stringify(data),
     }),
+  /** Pre-auths nearly used up or rooms above the policy limit, by kind. */
+  listRevenueAlerts: (params: { kind: RevenueAlertKind; status?: string }) =>
+    request<Paginated<RevenueAlert>>(`/billing/revenue-alerts?${new URLSearchParams(params)}`),
+  /** Ask the payer for more on a pre-auth nearly used up; closes the alert. */
+  requestPreauthEnhancement: (id: string, data: RequestEnhancementRequest) =>
+    request<RevenueAlert>(`/billing/revenue-alerts/${id}/request-enhancement`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
+  /** Dismiss a "no usable pre-auth" alert with why none is needed. */
+  dismissPreauthAlert: (id: string, data: DismissPreauthRequest) =>
+    request<RevenueAlert>(`/billing/revenue-alerts/${id}/dismiss`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
+  /** The hospital's pre-auth alert threshold, and whether the stored one is unreadable. */
+  getPreauthAlertSettings: () => request<PreauthAlertSettings>("/billing/preauth-alert-settings"),
+  /** Save the pre-auth alert threshold (1 to 100%). */
+  updatePreauthAlertSettings: (data: UpdatePreauthAlertSettings) =>
+    request<PreauthAlertSettings>("/billing/preauth-alert-settings", {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
+  /** Record the family's consent to a room above the policy limit; closes the alert. */
+  recordRoomConsent: (id: string, data: RoomConsentInput) =>
+    request<RevenueAlert>(`/billing/revenue-alerts/${id}/room-consent`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
+  /** Staff who may witness a family's room consent, by name. */
+  listRoomConsentWitnesses: (search?: string) =>
+    request<RoomConsentWitness[]>(
+      `/billing/room-consent/witnesses${search ? `?${new URLSearchParams({ search })}` : ""}`,
+    ),
+  /** Set the eligible room rent on a patient's policy (₹ a day or % of sum insured). */
+  setRoomRentLimit: (policyId: string, data: RoomRentLimitInput) =>
+    request<RoomRentLimit>(`/billing/policies/${policyId}/room-rent-limit`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
+  namePatientChargeAttention: (id: string, data: NamePatientChargeAttentionRequest) =>
+    request<ChargeAttentionItem>(`/billing/charge-attention/${id}/patient`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
   backfillClaimSettlements: (data: { dry_run: boolean }) =>
     request<ClaimSettlementBackfillResult>("/billing/claim-settlements/backfill", {
       method: "POST",
@@ -7489,8 +7559,8 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ department_id: departmentId }),
     }),
-  consumeWardStock: (data: { department_id: string; catalog_item_id: string; quantity: number }) =>
-    request<{ remaining: number }>("/pharmacy/ward-stock/consume", {
+  consumeWardStock: (data: WardStockConsumeRequest) =>
+    request<WardStockConsumeResponse>("/pharmacy/ward-stock/consume", {
       method: "POST",
       body: JSON.stringify(data),
     }),
@@ -7887,6 +7957,13 @@ export const api = {
   listAdmissions: (params?: Record<string, string>) => {
     const qs = params ? `?${new URLSearchParams(params)}` : "";
     return request<AdmissionListResponse>(`/ipd/admissions${qs}`);
+  },
+  /** The bed's rate against the patient's policy room-rent limit, before allocating it. */
+  checkRoomEligibility: (params: { patient_id: string; bed_id: string; admission_id?: string }) => {
+    const qs = new URLSearchParams(
+      Object.entries(params).filter((e): e is [string, string] => Boolean(e[1])),
+    );
+    return request<RoomCheck>(`/ipd/room-eligibility?${qs}`);
   },
   createAdmission: (data: CreateAdmissionRequest) =>
     request<CreateAdmissionResponse>("/ipd/admissions", {
@@ -12104,6 +12181,40 @@ export const api = {
       body: JSON.stringify(body),
     }),
 
+  // File requests: the paper file a patient waits for
+  listMrdFileRequests: (params?: { date?: string }) =>
+    request<MrdFileRequest[]>(
+      `/mrd/file-requests${params?.date ? `?date=${encodeURIComponent(params.date)}` : ""}`,
+    ),
+  scanMrdFileRequest: (id: string, body: MrdFileScanRequest) =>
+    request<MrdFileRequest>(`/mrd/file-requests/${id}/scan`, {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+  markMrdFileNotFound: (id: string) =>
+    request<MrdFileRequest>(`/mrd/file-requests/${id}/not-found`, { method: "POST" }),
+  returnMrdFileToShelf: (id: string) =>
+    request<MrdFileRequest>(`/mrd/file-requests/${id}/return`, { method: "POST" }),
+  buildMrdPullList: (body: { date?: string }) =>
+    request<MrdPullListBuilt>("/mrd/file-requests/pull-list", {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+  listMrdBackscanOrder: (days?: number) =>
+    request<MrdBackscanItem[]>(`/mrd/file-requests/backscan${days ? `?days=${days}` : ""}`),
+  getMrdFileDeliveryTimes: (from: string, to: string) =>
+    request<MrdDeliveryTimeRow[]>(
+      `/mrd/file-requests/delivery-times?${new URLSearchParams({ from, to })}`,
+    ),
+  getVisitFileStatus: (encounterId: string) =>
+    request<MrdVisitFileStatus>(`/mrd/file-requests/by-encounter/${encounterId}`),
+  requestVisitFile: (encounterId: string) =>
+    request<MrdVisitFileStatus>(`/mrd/file-requests/by-encounter/${encounterId}/request`, {
+      method: "POST",
+    }),
+  getVisitDigitalSummary: (encounterId: string) =>
+    request<MrdDigitalSummary>(`/mrd/file-requests/by-encounter/${encounterId}/summary`),
+
   // Record Movements
   listMrdMovements: (recordId: string) =>
     request<MrdRecordMovement[]>(`/mrd/records/${recordId}/movements`),
@@ -16275,6 +16386,28 @@ export const api = {
     request<FormTemplate>(`/forms/templates/${id}/retire`, { method: "POST" }),
   getLiveForm: (code: string) => request<LiveForm>(`/forms/live/${code}`),
   getFormVersion: (id: string) => request<FormTemplateVersion>(`/forms/versions/${id}`),
+  // ── Security → MedBrains access (vendor support access) ──
+  listVendorAccessGrants: (page = 1) =>
+    request<Paginated<VendorAccessGrant>>(`/security/vendor-access/grants?page=${page}&limit=50`),
+  createVendorAccessGrant: (data: CreateVendorAccessGrant) =>
+    request<VendorAccessGrant>("/security/vendor-access/grants", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  approveVendorAccessGrant: (id: string) =>
+    request<VendorAccessGrant>(`/security/vendor-access/grants/${id}/approve`, {
+      method: "POST",
+      body: JSON.stringify({}),
+    }),
+  revokeVendorAccessGrant: (id: string, reason?: string) =>
+    request<VendorAccessGrant>(`/security/vendor-access/grants/${id}/revoke`, {
+      method: "POST",
+      body: JSON.stringify({ reason }),
+    }),
+  listVendorAccessEvents: (id: string, page = 1) =>
+    request<Paginated<VendorAccessEvent>>(
+      `/security/vendor-access/grants/${id}/events?page=${page}&limit=200`,
+    ),
   listDataProcessors: () => request<DataProcessor[]>("/data-processors"),
   createDataProcessor: (data: DataProcessorInput) =>
     request<DataProcessor>("/data-processors", { method: "POST", body: JSON.stringify(data) }),

@@ -22,6 +22,7 @@
 //! a restricted diagnosis, which is the thing it exists to hide.
 
 mod break_glass_notify;
+pub mod vendor_access;
 
 use axum::routing::{delete, get, patch, post};
 use axum::{
@@ -1868,6 +1869,7 @@ pub async fn list_backups(
 /// IT security & compliance routes.
 pub fn router() -> axum::Router<AppState> {
     axum::Router::new()
+        .merge(vendor_access::routes())
         .route(
             "/api/break-glass",
             post(start_break_glass).get(list_break_glass),

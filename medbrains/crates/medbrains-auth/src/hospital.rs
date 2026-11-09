@@ -37,11 +37,10 @@ pub(crate) async fn login_tenant(
         .ok_or(AppError::Unauthorized);
     }
     if is_single_hospital() {
-        let rows = sqlx::query_scalar::<_, Uuid>(
-            "SELECT id FROM tenants WHERE is_active = true LIMIT 2",
-        )
-        .fetch_all(db)
-        .await?;
+        let rows =
+            sqlx::query_scalar::<_, Uuid>("SELECT id FROM tenants WHERE is_active = true LIMIT 2")
+                .fetch_all(db)
+                .await?;
         // Not exactly one active hospital: refuse, rather than fall through to a
         // search across every hospital, which is what this mode exists to prevent.
         return only_hospital(rows).map(Some).ok_or(AppError::Unauthorized);

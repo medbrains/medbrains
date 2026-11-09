@@ -10,6 +10,7 @@ medbrains-server-core = { path = "../medbrains-server-core" }
 
 medbrains-core = { path = "../medbrains-core" }
 medbrains-db = { path = "../medbrains-db" }
+medbrains-kernel = { path = "../medbrains-kernel" }
 axum = { workspace = true }
 axum-extra = { version = "0.10", features = ["cookie"] }
 serde = { workspace = true }

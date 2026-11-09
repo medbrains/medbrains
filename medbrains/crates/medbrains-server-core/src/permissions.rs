@@ -19,8 +19,13 @@ pub async fn resolve_permissions(
     user_id: Uuid,
     role: &str,
 ) -> Result<Vec<String>, AppError> {
-    // Bypass roles don't need permissions in the token
-    if role == "super_admin" || role == "hospital_admin" {
+    // Bypass roles don't need permissions in the token. A vendor session's
+    // permissions are its grant's and nothing else: re-applying the account's
+    // own `access_matrix.extra` here would hand back what the grant withheld.
+    if role == "super_admin"
+        || role == "hospital_admin"
+        || role == crate::middleware::vendor_access::VENDOR_ROLE
+    {
         return Ok(Vec::new());
     }
     resolve_granted_permissions(db, tenant_id, user_id, role).await

@@ -304,6 +304,8 @@ pub struct UpdateCatalogRequest {
     pub black_box_warning: Option<String>,
     pub refill_policy: Option<String>,
     pub needs_cold_chain: Option<bool>,
+    /// Bill the patient when used from ward stock (migration 1421).
+    pub is_patient_billable: Option<bool>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -4484,6 +4486,7 @@ pub async fn update_catalog_entry(
          barcode = COALESCE($26, barcode), \
          refill_policy = COALESCE($27, refill_policy), \
          needs_cold_chain = COALESCE($28, needs_cold_chain), \
+         is_patient_billable = COALESCE($29, is_patient_billable), \
          updated_at = now() \
          WHERE id = $10 AND tenant_id = $11 \
          RETURNING *",
@@ -4516,6 +4519,7 @@ pub async fn update_catalog_entry(
     .bind(trimmed_barcode(body.barcode.as_deref()))
     .bind(&body.refill_policy)
     .bind(body.needs_cold_chain)
+    .bind(body.is_patient_billable)
     .fetch_optional(&mut *tx)
     .await?;
 
