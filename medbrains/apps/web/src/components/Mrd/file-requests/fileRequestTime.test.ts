@@ -1,6 +1,13 @@
 import type { MrdFileRequest } from "@medbrains/types";
 import { describe, expect, it } from "vitest";
-import { dueLabel, groupByDoctor, holderText, tomorrowIso, visitChip } from "./fileRequestTime";
+import {
+  dueLabel,
+  groupByDoctor,
+  holderText,
+  isFileRequestable,
+  tomorrowIso,
+  visitChip,
+} from "./fileRequestTime";
 
 const NOW = Date.parse("2026-11-08T10:00:00Z");
 
@@ -48,6 +55,17 @@ describe("visitChip", () => {
 
   it("shows no chip for a patient with no paper file", () => {
     expect(visitChip({ has_physical_file: false, request: null })).toBeNull();
+  });
+
+  it("offers a request by hand only for a paper file with no live request", () => {
+    expect(isFileRequestable({ has_physical_file: true, request: null })).toBe(true);
+    expect(
+      isFileRequestable({ has_physical_file: true, request: { ...request, status: "cancelled" } }),
+    ).toBe(true);
+    expect(
+      isFileRequestable({ has_physical_file: true, request: { ...request, status: "picked" } }),
+    ).toBe(false);
+    expect(isFileRequestable({ has_physical_file: false, request: null })).toBe(false);
   });
 });
 

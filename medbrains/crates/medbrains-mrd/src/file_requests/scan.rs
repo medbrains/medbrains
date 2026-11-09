@@ -196,6 +196,55 @@ pub async fn mark_file_not_found(
     Ok(Json(row))
 }
 
+/// `POST /api/mrd/file-requests/{id}/return` — shelve a cancelled visit's file.
+///
+/// For a picked file whose visit was cancelled: the runner's movement is
+/// closed and the request ends `cancelled` / `returned_to_shelf`. Any other
+/// request answers 409: a file for a visit still on is delivered, not shelved.
+pub async fn return_file_to_shelf(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Path(id): Path<Uuid>,
+) -> Result<Json<FileRequest>, AppError> {
+    require_permission(&claims, permissions::mrd::file_request::FULFIL)?;
+    let mut tx = medbrains_kernel::begin(&state.db, Actor::from_claims(&claims)).await?;
+    let locked = lock(&mut tx, claims.tenant_id, id).await?;
+    crate::access::open_record(
+        &state,
+        &claims,
+        locked.medical_record_id,
+        "file request return",
+    )
+    .await?;
+    let current = fetch(&mut tx, claims.tenant_id, id).await?;
+    if locked.status != "picked" || !current.visit_cancelled {
+        return Err(AppError::Conflict(format!(
+            "This file is {} and its visit is still on; it cannot be returned to the shelf here.",
+            locked.status
+        )));
+    }
+    sqlx::query(
+        "UPDATE mrd_record_movements SET returned_at = now(), status = 'returned' \
+          WHERE tenant_id = $1 AND id = $2 AND returned_at IS NULL AND deleted_at IS NULL",
+    )
+    .bind(claims.tenant_id)
+    .bind(locked.pick_movement_id)
+    .execute(&mut *tx)
+    .await?;
+    sqlx::query(
+        "UPDATE mrd_file_requests SET status = 'cancelled', closed_reason = 'returned_to_shelf' \
+          WHERE id = $1 AND tenant_id = $2",
+    )
+    .bind(id)
+    .bind(claims.tenant_id)
+    .execute(&mut *tx)
+    .await?;
+    record(&mut tx, &claims, id, "mrd_file_returned_to_shelf").await?;
+    let row = fetch(&mut tx, claims.tenant_id, id).await?;
+    tx.commit().await?;
+    Ok(Json(row))
+}
+
 /// The request, locked for this change. Missing (or another tenant's) is 404.
 async fn lock(conn: &mut PgConnection, tenant_id: Uuid, id: Uuid) -> Result<Locked, AppError> {
     sqlx::query_as::<_, Locked>(
@@ -288,8 +337,14 @@ async fn move_file(
     Ok(movement)
 }
 
-/// The scan in the tenant's audit chain.
-async fn record(tx: &mut Tx, claims: &Claims, id: Uuid, action: &str) -> Result<(), AppError> {
+/// A file-request action (a scan, a return, a request by hand) in the
+/// tenant's audit chain.
+pub(super) async fn record(
+    tx: &mut Tx,
+    claims: &Claims,
+    id: Uuid,
+    action: &str,
+) -> Result<(), AppError> {
     let values = json!({ "action": action });
     let entry = medbrains_kernel::audit::AuditEntry {
         tenant_id: claims.tenant_id,

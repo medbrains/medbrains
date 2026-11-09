@@ -2494,6 +2494,12 @@ pub mod mrd {
         /// for visits the caller can open. Nothing clinical: the summary
         /// beside it needs `opd.diagnoses.list` and `patients.view`.
         pub const STATUS: &str = "mrd.file_request.status";
+        /// Ask for a visit's paper file by hand.
+        /// The remedy when a visit reads "File: not requested" (the
+        /// automatic request failed or the file was shelved after the visit
+        /// was created): writes the request the visit would have written,
+        /// for a visit the caller can open.
+        pub const CREATE: &str = "mrd.file_request.create";
     }
 
     pub mod verify_links {

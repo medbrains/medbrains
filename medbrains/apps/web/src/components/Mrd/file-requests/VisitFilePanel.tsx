@@ -1,11 +1,12 @@
 import { Group, List, SimpleGrid, Stack, Text } from "@mantine/core";
 import { useHasAllPermissions, useHasPermission } from "@medbrains/stores";
 import { P } from "@medbrains/types";
-import { useQuery } from "@tanstack/react-query";
+import { IconFileSearch } from "@tabler/icons-react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { QueryError } from "@/components/QueryError";
-import { Alert, Badge, Card } from "@/components/ui";
+import { Alert, Badge, Button, Card, toast } from "@/components/ui";
 import { mrdService } from "@/services/mrd.service";
-import { visitChip } from "./fileRequestTime";
+import { isFileRequestable, visitChip } from "./fileRequestTime";
 
 /** The chip follows the runner without a reload. */
 const STATUS_REFRESH_MS = 30_000;
@@ -22,10 +23,14 @@ interface VisitFilePanelProps {
  * Each read is gated on the permission its endpoint enforces: the chip on
  * `mrd.file_request.status`, the clinical summary on `opd.diagnoses.list`
  * and `patients.view`. A role without one sends that read not at all.
+ * "File: not requested" carries a "Request file" button for roles holding
+ * `mrd.file_request.create`, the permission its endpoint enforces.
  */
 export function VisitFilePanel({ encounterId }: VisitFilePanelProps) {
   const canSeeChip = useHasPermission(P.MRD.FILE_REQUEST.STATUS);
   const canSeeSummary = useHasAllPermissions([P.OPD.DIAGNOSES_LIST, P.PATIENTS.VIEW]);
+  const canRequest = useHasPermission(P.MRD.FILE_REQUEST.CREATE);
+  const qc = useQueryClient();
   const status = useQuery({
     queryKey: ["visit-file-status", encounterId],
     queryFn: () => mrdService.getVisitFileStatus(encounterId),
@@ -38,6 +43,14 @@ export function VisitFilePanel({ encounterId }: VisitFilePanelProps) {
     enabled: canSeeSummary,
     staleTime: 300_000,
   });
+  const requestFile = useMutation({
+    mutationFn: () => mrdService.requestVisitFile(encounterId),
+    onSuccess: (data) => {
+      qc.setQueryData(["visit-file-status", encounterId], data);
+      toast.success("The records room has been asked for the file");
+    },
+    onError: (error: Error) => toast.error(error.message, { title: "File not requested" }),
+  });
   if (!canSeeChip && !canSeeSummary) return null;
   const chip = status.data ? visitChip(status.data) : null;
 
@@ -46,11 +59,24 @@ export function VisitFilePanel({ encounterId }: VisitFilePanelProps) {
       <Stack gap="xs">
         <Group justify="space-between" wrap="wrap">
           <Text fw={600}>From the digital record</Text>
-          {chip && (
-            <Badge tone={chip.tone} data-testid="visit-file-chip">
-              {chip.label}
-            </Badge>
-          )}
+          <Group gap="xs">
+            {chip && (
+              <Badge tone={chip.tone} data-testid="visit-file-chip">
+                {chip.label}
+              </Badge>
+            )}
+            {canRequest && status.data && isFileRequestable(status.data) && (
+              <Button
+                tone="secondary"
+                size="xs"
+                leftSection={<IconFileSearch size={16} />}
+                loading={requestFile.isPending}
+                onClick={() => requestFile.mutate()}
+              >
+                Request file
+              </Button>
+            )}
+          </Group>
         </Group>
         {status.isError && (
           <Alert tone="warning" title="File status unavailable">

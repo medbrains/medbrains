@@ -33,6 +33,8 @@ export interface MrdFileRequest {
   holder_department: string | null;
   holder_user: string | null;
   holder_since: string | null;
+  /** The visit (or its appointment) was cancelled: a picked file goes back to its shelf. */
+  visit_cancelled: boolean;
 }
 
 export type MrdFileScanStep = "picked" | "delivered";

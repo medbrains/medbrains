@@ -12067,6 +12067,8 @@ export const api = {
     }),
   markMrdFileNotFound: (id: string) =>
     request<MrdFileRequest>(`/mrd/file-requests/${id}/not-found`, { method: "POST" }),
+  returnMrdFileToShelf: (id: string) =>
+    request<MrdFileRequest>(`/mrd/file-requests/${id}/return`, { method: "POST" }),
   buildMrdPullList: (body: { date?: string }) =>
     request<MrdPullListBuilt>("/mrd/file-requests/pull-list", {
       method: "POST",
@@ -12080,6 +12082,10 @@ export const api = {
     ),
   getVisitFileStatus: (encounterId: string) =>
     request<MrdVisitFileStatus>(`/mrd/file-requests/by-encounter/${encounterId}`),
+  requestVisitFile: (encounterId: string) =>
+    request<MrdVisitFileStatus>(`/mrd/file-requests/by-encounter/${encounterId}/request`, {
+      method: "POST",
+    }),
   getVisitDigitalSummary: (encounterId: string) =>
     request<MrdDigitalSummary>(`/mrd/file-requests/by-encounter/${encounterId}/summary`),
 

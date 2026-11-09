@@ -1,6 +1,6 @@
 import { Group, Stack, Text } from "@mantine/core";
 import type { MrdFileRequest, MrdFileScanStep } from "@medbrains/types";
-import { IconAlertTriangle, IconMapPin, IconScan } from "@tabler/icons-react";
+import { IconAlertTriangle, IconArrowBackUp, IconMapPin, IconScan } from "@tabler/icons-react";
 import { Badge, Button, Card } from "@/components/ui";
 import { dueLabel, holderText, STATUS_LABEL, STATUS_TONE } from "./fileRequestTime";
 
@@ -10,6 +10,7 @@ interface FileRequestCardProps {
   canFulfil: boolean;
   onScan: (request: MrdFileRequest, step: MrdFileScanStep) => void;
   onNotFound: (request: MrdFileRequest) => void;
+  onReturn: (request: MrdFileRequest) => void;
 }
 
 /**
@@ -23,10 +24,12 @@ export function FileRequestCard({
   canFulfil,
   onScan,
   onNotFound,
+  onReturn,
 }: FileRequestCardProps) {
   const due = dueLabel(request.due_at, now);
   const isOpen = request.status === "requested" || request.status === "picked";
   const holder = request.status === "requested" ? holderText(request) : null;
+  const isReturnable = request.status === "picked" && request.visit_cancelled;
   const destination = [request.doctor_name, request.department_name].filter(Boolean).join(", ");
 
   return (
@@ -50,7 +53,13 @@ export function FileRequestCard({
           <IconMapPin size={16} aria-hidden />
           <Text size="sm">{request.location_label ?? "Shelf not recorded"}</Text>
         </Group>
-        <Text size="sm">To {destination || "the clinic"}</Text>
+        {isReturnable ? (
+          <Text size="sm" fw={600}>
+            Visit cancelled — return the file to its shelf
+          </Text>
+        ) : (
+          <Text size="sm">To {destination || "the clinic"}</Text>
+        )}
         {holder && (
           <Group gap={4} wrap="nowrap">
             <IconAlertTriangle size={16} aria-hidden />
@@ -70,7 +79,16 @@ export function FileRequestCard({
                 Scan at shelf
               </Button>
             )}
-            {request.status === "picked" && (
+            {isReturnable && (
+              <Button
+                tone="primary"
+                leftSection={<IconArrowBackUp size={16} />}
+                onClick={() => onReturn(request)}
+              >
+                Return to shelf
+              </Button>
+            )}
+            {request.status === "picked" && !isReturnable && (
               <Button
                 tone="primary"
                 leftSection={<IconScan size={16} />}

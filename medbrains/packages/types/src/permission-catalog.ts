@@ -19,7 +19,7 @@ export interface PermissionDef {
   module: string;
 }
 
-/** 1231 permissions, one per constant in the Rust source. */
+/** 1232 permissions, one per constant in the Rust source. */
 export const PERMISSIONS: PermissionDef[] = [
   // dashboard
   {
@@ -4177,6 +4177,12 @@ export const PERMISSIONS: PermissionDef[] = [
     module: "mrd",
   },
   {
+    code: "mrd.file_request.create",
+    label: "Ask for a visit's paper file by hand",
+    description: "The remedy when a visit reads \"File: not requested\" (the automatic request failed or the file was shelved after the visit was created): writes the request the visit would have written, for a visit the caller can open.",
+    module: "mrd",
+  },
+  {
     code: "mrd.verify_links.issue",
     label: "Show a signed record's public check link",
     description: "Gives the link an outsider (an insurer, a court, another hospital) opens from the QR on the paper, minting a new one when the last was withdrawn. The page it opens names the document type, the signer and whether it is unchanged, never the patient.",
@@ -7658,6 +7664,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.MRD.CASE_SHEETS.GENERATE,
       P.MRD.CASE_SHEETS.PRINT,
       P.MRD.CASE_SHEETS.VIEW,
+      P.MRD.FILE_REQUEST.CREATE,
       P.MRD.FILE_REQUEST.STATUS,
       P.NOTES.USE,
       P.NURSE.CODE_BLUE.RESPOND,
@@ -8151,6 +8158,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.MARKETING.PIPELINE.MOVE,
       P.MARKETING.PIPELINE.VIEW,
       P.MARKETING.SUPPRESSION_MANAGE,
+      P.MRD.FILE_REQUEST.CREATE,
       P.NOTES.USE,
       P.OPD.APPOINTMENT.CANCEL,
       P.OPD.APPOINTMENT.CREATE,

@@ -7,6 +7,7 @@ const service = vi.hoisted(() => ({
   listMrdFileRequests: vi.fn(),
   scanMrdFileRequest: vi.fn(),
   markMrdFileNotFound: vi.fn(),
+  returnMrdFileToShelf: vi.fn(),
   buildMrdPullList: vi.fn(),
 }));
 vi.mock("@/services/mrd.service", () => ({ mrdService: service }));
@@ -46,6 +47,16 @@ const request: MrdFileRequest = {
   holder_department: "Orthopaedics OPD",
   holder_user: null,
   holder_since: new Date().toISOString(),
+  visit_cancelled: false,
+};
+
+const pickedForCancelledVisit: MrdFileRequest = {
+  ...request,
+  status: "picked",
+  picked_at: new Date().toISOString(),
+  picked_by_name: "Runner Ravi",
+  holder_department: null,
+  visit_cancelled: true,
 };
 
 const silentClient = () =>
@@ -92,6 +103,28 @@ describe("FileRequestsTab", () => {
     });
   });
 
+  it("sends a picked file for a cancelled visit back to its shelf, not on to the clinic", async () => {
+    service.listMrdFileRequests.mockResolvedValue([pickedForCancelledVisit]);
+    service.returnMrdFileToShelf.mockResolvedValue({
+      ...pickedForCancelledVisit,
+      status: "cancelled",
+    });
+    render(<FileRequestsTab />);
+    expect(await screen.findByText(/Visit cancelled/)).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Scan at clinic" })).toBeNull();
+    await userEvent.click(screen.getByRole("button", { name: "Return to shelf" }));
+    expect(service.returnMrdFileToShelf).toHaveBeenCalledWith("fr1");
+  });
+
+  it("offers a picked file for a visit still on the clinic scan, never a return", async () => {
+    service.listMrdFileRequests.mockResolvedValue([
+      { ...pickedForCancelledVisit, visit_cancelled: false },
+    ]);
+    render(<FileRequestsTab />);
+    expect(await screen.findByRole("button", { name: "Scan at clinic" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Return to shelf" })).toBeNull();
+  });
+
   it("offers no scan or not-found to a role that cannot fulfil", async () => {
     perms.fulfil = false;
     service.listMrdFileRequests.mockResolvedValue([request]);
@@ -99,5 +132,13 @@ describe("FileRequestsTab", () => {
     await screen.findByText("Lakshmi Devi");
     expect(screen.queryByRole("button", { name: "Scan at shelf" })).toBeNull();
     expect(screen.queryByRole("button", { name: "Not found" })).toBeNull();
+  });
+
+  it("offers no return to a role that cannot fulfil", async () => {
+    perms.fulfil = false;
+    service.listMrdFileRequests.mockResolvedValue([pickedForCancelledVisit]);
+    render(<FileRequestsTab />);
+    await screen.findByText("Lakshmi Devi");
+    expect(screen.queryByRole("button", { name: "Return to shelf" })).toBeNull();
   });
 });

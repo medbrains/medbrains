@@ -144,6 +144,7 @@ pub(crate) async fn world(db: &PgPool) -> World {
             permissions::mrd::file_request::VIEW.to_owned(),
             permissions::mrd::file_request::FULFIL.to_owned(),
             permissions::mrd::file_request::STATUS.to_owned(),
+            permissions::mrd::file_request::CREATE.to_owned(),
         ],
         department_ids: Vec::new(),
         perm_version: 1,

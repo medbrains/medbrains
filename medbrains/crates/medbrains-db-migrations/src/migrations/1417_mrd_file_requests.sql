@@ -27,7 +27,9 @@
 -- * The night-before pull list writes `pull_list` rows for tomorrow's
 --   appointments (`uq_mrd_file_requests_appointment`); the visit, when it is
 --   created, takes over that row instead of asking again.
--- * Cancelling the visit (or the appointment) closes the request. After its
+-- * Cancelling the visit (or the appointment) closes a request not yet picked
+--   up; a picked file stays `picked` until a runner returns it to its shelf
+--   (closed as `cancelled` / `returned_to_shelf`). After its
 --   visit day, the MRD job closes a request that was never picked up as
 --   `cancelled` / `day_ended` once its visit is over (completed or cancelled,
 --   or it never had one), so yesterday's errands never crowd today's queue but
@@ -141,8 +143,11 @@ RETURNS integer LANGUAGE sql STABLE AS $$
 $$;
 
 -- Ask for the file of an OPD visit. Takes over today's pre-pulled request for
--- the patient if there is one, otherwise writes a new one; idempotent per
--- visit. Returns the request id, or NULL when the patient has no physical file.
+-- the patient if there is one still waiting at the shelf (`requested` or
+-- `not_found`; the visit's own appointment first), otherwise writes a new one;
+-- idempotent per visit. A pre-pulled file already picked or delivered is
+-- another errand's and is never taken over. Returns the request id, or NULL
+-- when the patient has no physical file.
 -- Takes the visit's row, so the trigger never reads back the row it was handed.
 CREATE OR REPLACE FUNCTION public.mrd_request_file_for_visit(e public.encounters)
 RETURNS uuid LANGUAGE plpgsql AS $$
@@ -168,13 +173,21 @@ BEGIN
            department_id = COALESCE(e.department_id, department_id),
            doctor_id = COALESCE(e.doctor_id, doctor_id),
            due_at = LEAST(due_at, now() + make_interval(mins => due_mins))
-     WHERE id = (SELECT id FROM public.mrd_file_requests
-                  WHERE tenant_id = e.tenant_id AND patient_id = e.patient_id
-                    AND source = 'pull_list' AND encounter_id IS NULL
-                    AND visit_date = e.encounter_date
-                    AND status IN ('requested', 'picked', 'delivered', 'not_found')
-                    AND deleted_at IS NULL
-                  ORDER BY due_at LIMIT 1 FOR UPDATE)
+     WHERE id = (SELECT pr.id FROM public.mrd_file_requests pr
+                  LEFT JOIN public.appointments a
+                         ON a.id = pr.appointment_id AND a.tenant_id = pr.tenant_id
+                  WHERE pr.tenant_id = e.tenant_id AND pr.patient_id = e.patient_id
+                    AND pr.source = 'pull_list' AND pr.encounter_id IS NULL
+                    AND pr.visit_date = e.encounter_date
+                    AND pr.status IN ('requested', 'not_found')
+                    AND pr.deleted_at IS NULL
+                  -- The visit's own appointment first: linked to it, or (as check-in
+                  -- does, before it links) checked in with the visit's doctor.
+                  ORDER BY a.encounter_id = e.id DESC NULLS LAST,
+                           (a.encounter_id IS NULL AND a.status = 'checked_in'
+                            AND a.doctor_id = e.doctor_id) DESC NULLS LAST,
+                           pr.due_at
+                  LIMIT 1 FOR UPDATE OF pr)
     RETURNING id INTO req;
     IF req IS NOT NULL THEN
         RETURN req;
@@ -213,14 +226,16 @@ CREATE TRIGGER trg_mrd_file_request_on_visit AFTER INSERT ON public.encounters
           AND COALESCE(NEW.visit_type, '') NOT IN ('camp', 'teleconsultation'))
     EXECUTE FUNCTION public.mrd_file_request_on_visit();
 
--- A cancelled visit (or a no-show) does not need its file.
+-- A cancelled visit (or a no-show) does not need its file. A file a runner
+-- already picked up stays `picked`: it is in someone's hands, so it stays in
+-- the queue (with "Return to shelf") and is flagged overnight if nobody does.
 CREATE OR REPLACE FUNCTION public.mrd_file_request_on_visit_cancel() RETURNS trigger
 LANGUAGE plpgsql AS $$
 BEGIN
     UPDATE public.mrd_file_requests
        SET status = 'cancelled', closed_reason = 'visit_cancelled'
      WHERE tenant_id = NEW.tenant_id AND encounter_id = NEW.id
-       AND status IN ('requested', 'picked', 'not_found') AND deleted_at IS NULL;
+       AND status IN ('requested', 'not_found') AND deleted_at IS NULL;
     RETURN NULL;
 EXCEPTION WHEN OTHERS THEN
     RAISE WARNING 'mrd_file_request_on_visit_cancel: request left open for encounter % (SQLSTATE %)',
@@ -240,7 +255,7 @@ BEGIN
     UPDATE public.mrd_file_requests
        SET status = 'cancelled', closed_reason = 'appointment_cancelled'
      WHERE tenant_id = NEW.tenant_id AND appointment_id = NEW.id AND encounter_id IS NULL
-       AND status IN ('requested', 'picked', 'not_found') AND deleted_at IS NULL;
+       AND status IN ('requested', 'not_found') AND deleted_at IS NULL;
     RETURN NULL;
 EXCEPTION WHEN OTHERS THEN
     RAISE WARNING 'mrd_file_request_on_appointment_cancel: request left open for appointment % (SQLSTATE %)',

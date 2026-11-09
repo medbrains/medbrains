@@ -37,8 +37,16 @@ export function visitChip(status: MrdVisitFileStatus): { label: string; tone: Ba
     const s = status.request.status;
     return { label: `File: ${STATUS_LABEL[s].toLowerCase()}`, tone: STATUS_TONE[s] };
   }
-  if (!status.has_physical_file) return null;
+  if (!isFileRequestable(status)) return null;
   return { label: "File: not requested", tone: "warning" };
+}
+
+/**
+ * The patient has a paper file and the visit has no live request for it:
+ * the chip reads "not requested" and the file can be asked for by hand.
+ */
+export function isFileRequestable(status: MrdVisitFileStatus): boolean {
+  return status.has_physical_file && (!status.request || status.request.status === "cancelled");
 }
 
 /** Where the file is now, when someone other than the shelf holds it. */

@@ -41,6 +41,8 @@ export const mrdService = {
     api.scanMrdFileRequest(...args),
   markMrdFileNotFound: (...args: Parameters<typeof api.markMrdFileNotFound>) =>
     api.markMrdFileNotFound(...args),
+  returnMrdFileToShelf: (...args: Parameters<typeof api.returnMrdFileToShelf>) =>
+    api.returnMrdFileToShelf(...args),
   buildMrdPullList: (...args: Parameters<typeof api.buildMrdPullList>) =>
     api.buildMrdPullList(...args),
   listMrdBackscanOrder: (...args: Parameters<typeof api.listMrdBackscanOrder>) =>
@@ -49,6 +51,8 @@ export const mrdService = {
     api.getMrdFileDeliveryTimes(...args),
   getVisitFileStatus: (...args: Parameters<typeof api.getVisitFileStatus>) =>
     api.getVisitFileStatus(...args),
+  requestVisitFile: (...args: Parameters<typeof api.requestVisitFile>) =>
+    api.requestVisitFile(...args),
   getVisitDigitalSummary: (...args: Parameters<typeof api.getVisitDigitalSummary>) =>
     api.getVisitDigitalSummary(...args),
   listMrdBirths: (...args: Parameters<typeof api.listMrdBirths>) => api.listMrdBirths(...args),

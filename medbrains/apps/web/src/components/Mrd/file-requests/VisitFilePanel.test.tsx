@@ -1,16 +1,18 @@
 import { QueryCache, QueryClient } from "@tanstack/react-query";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { render, screen } from "@/test/test-utils";
+import { render, screen, userEvent } from "@/test/test-utils";
 
 const service = vi.hoisted(() => ({
   getVisitFileStatus: vi.fn(),
   getVisitDigitalSummary: vi.fn(),
+  requestVisitFile: vi.fn(),
 }));
 vi.mock("@/services/mrd.service", () => ({ mrdService: service }));
-const perms = vi.hoisted(() => ({ chip: true, summary: true }));
+const perms = vi.hoisted(() => ({ chip: true, summary: true, create: true }));
 vi.mock("@medbrains/stores", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@medbrains/stores")>()),
-  useHasPermission: () => perms.chip,
+  useHasPermission: (code: string) =>
+    code === "mrd.file_request.create" ? perms.create : perms.chip,
   useHasAllPermissions: () => perms.summary,
 }));
 
@@ -84,6 +86,7 @@ describe("VisitFilePanel", () => {
   beforeEach(() => {
     perms.chip = true;
     perms.summary = true;
+    perms.create = true;
     vi.clearAllMocks();
   });
 
@@ -137,6 +140,36 @@ describe("VisitFilePanel", () => {
     render(<VisitFilePanel encounterId="e1" />);
     expect(await screen.findByText("File: arrived")).toBeInTheDocument();
     expect(service.getVisitDigitalSummary).not.toHaveBeenCalled();
+  });
+
+  it("lets the doctor ask for a file that was never requested, and shows the new state", async () => {
+    perms.summary = false;
+    service.getVisitFileStatus.mockResolvedValue({ has_physical_file: true, request: null });
+    service.requestVisitFile.mockResolvedValue({
+      has_physical_file: true,
+      request: { ...delivered.request, status: "requested" },
+    });
+    render(<VisitFilePanel encounterId="e1" />);
+    expect(await screen.findByText("File: not requested")).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Request file" }));
+    expect(service.requestVisitFile).toHaveBeenCalledWith("e1");
+    expect(await screen.findByText("File: requested")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Request file" })).toBeNull();
+  });
+
+  it("offers no request button without the permission, or once the file is asked for", async () => {
+    perms.summary = false;
+    perms.create = false;
+    service.getVisitFileStatus.mockResolvedValue({ has_physical_file: true, request: null });
+    const { unmount } = render(<VisitFilePanel encounterId="e1" />);
+    expect(await screen.findByText("File: not requested")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Request file" })).toBeNull();
+    unmount();
+    perms.create = true;
+    service.getVisitFileStatus.mockResolvedValue(delivered);
+    render(<VisitFilePanel encounterId="e2" />);
+    expect(await screen.findByText("File: arrived")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Request file" })).toBeNull();
   });
 
   it("sends neither read for a role with neither permission", () => {

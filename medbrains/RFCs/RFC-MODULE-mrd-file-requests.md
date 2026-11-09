@@ -33,7 +33,10 @@ system asks for it, so the request travels by word of mouth and patients wait 30
    doctor, requested now and due in the tenant's due time (default 10 minutes).
 2. **Appointment, pre-pulled.** Given a booked appointment tomorrow, when the evening pull list runs
    (or MRD presses Build pull list), then a pre-pulled request due at the slot time is written once;
-   when the patient checks in, the visit takes over that request instead of asking again.
+   when the patient checks in, the visit takes over that request instead of asking again: only one
+   still waiting at the shelf (requested or not found), its own appointment first (linked to the
+   visit, or checked in with the visit's doctor). A pre-pulled file already picked up or delivered
+   is never taken over; the visit asks for its own.
 3. **File not found / missing.** Given the file is marked missing, the visit's request is written as
    not found. When a runner cannot find a requested file, they mark it not found. Either way the
    supervisors are told; a later pick-up scan still closes it as found.
@@ -45,7 +48,11 @@ system asks for it, so the request travels by word of mouth and patients wait 30
    second request (the file must travel again); asking again for the same visit returns the same
    request.
 6. **Cancellation and day end.** When the visit is cancelled (or the patient is a no-show, or a
-   pre-pulled appointment is cancelled), the open request is closed as cancelled. After its visit
+   pre-pulled appointment is cancelled), a request not yet picked up is closed as cancelled. A file
+   a runner already picked up stays picked: it stays in the queue, reading "Visit cancelled —
+   return the file to its shelf", with a "Return to shelf" action (fulfil) that closes the runner's
+   movement and the request (`cancelled` / `returned_to_shelf`); left there, it is flagged out
+   overnight. After its visit
    day, a request never picked up is closed as `cancelled` / `day_ended` once its visit is over
    (completed or cancelled, or a pull-list row that never got a visit); an evening clinic running
    past midnight keeps its request. A picked-up file is never closed by the job: the supervisor is
@@ -61,7 +68,9 @@ system asks for it, so the request travels by word of mouth and patients wait 30
    with no paper file. Beside it, a summary from the digital record (allergies, recent diagnoses,
    current medicines, abnormal results in the last 90 days), each list saying how many it left out.
    A mental-health diagnosis the doctor may not see (MHCA 2017 s.23) reads "Restricted entry", as on
-   the diagnosis list. The consultation is open in every state.
+   the diagnosis list. The consultation is open in every state. "File: not requested" carries a
+   "Request file" button (`mrd.file_request.create`) that writes the request the visit would have
+   written; asking twice asks once, and a cancelled visit or a patient with no file is refused (409).
 10. **Permission denied.** Without the code, every route answers 403 and the screen sends no read.
     The summary needs `opd.diagnoses.list` and `patients.view`; the MRD officer, who holds the chip's
     code only, is refused it.
@@ -78,6 +87,7 @@ system asks for it, so the request travels by word of mouth and patients wait 30
 | `mrd.file_request.fulfil` | MRD officer | Scans, not found, build the pull list |
 | `mrd.file_request.supervise` | MRD officer | Receives late / not-found escalations |
 | `mrd.file_request.status` | Doctor, MRD officer | The consultation chip (nothing clinical) |
+| `mrd.file_request.create` | Doctor, receptionist | Ask for a visit's file by hand from the chip |
 | `opd.diagnoses.list` + `patients.view` | Doctor, nurse (existing) | The digital summary |
 
 ## Data
@@ -94,10 +104,12 @@ Setting: `tenant_settings` category `mrd`, key `file_request_due_minutes`.
 | GET | `/api/mrd/file-requests[?date=]` | view |
 | POST | `/api/mrd/file-requests/{id}/scan` | fulfil |
 | POST | `/api/mrd/file-requests/{id}/not-found` | fulfil |
+| POST | `/api/mrd/file-requests/{id}/return` | fulfil (picked file, visit cancelled) |
 | POST | `/api/mrd/file-requests/pull-list` | fulfil |
 | GET | `/api/mrd/file-requests/backscan?days=` | view |
 | GET | `/api/mrd/file-requests/delivery-times?from=&to=` | view |
 | GET | `/api/mrd/file-requests/by-encounter/{id}` | status + encounter access |
+| POST | `/api/mrd/file-requests/by-encounter/{id}/request` | create + encounter access, audited |
 | GET | `/api/mrd/file-requests/by-encounter/{id}/summary` | `opd.diagnoses.list` + `patients.view` + encounter access, audited |
 
 Jobs (`file_requests::jobs::spawn`): escalation every minute (at most 20 per hospital per pass);

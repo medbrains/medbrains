@@ -63,6 +63,9 @@ pub struct FileRequest {
     pub holder_department: Option<String>,
     pub holder_user: Option<String>,
     pub holder_since: Option<DateTime<Utc>>,
+    /// The visit (or, before one exists, the appointment) was cancelled: a
+    /// picked file goes back to its shelf rather than on to the clinic.
+    pub visit_cancelled: bool,
 }
 
 /// The queue's one query: the request, patient, file, people and where the
@@ -74,7 +77,10 @@ pub(crate) const REQUEST_SELECT: &str = "SELECT f.id, f.patient_id, \
         f.location_label, f.visit_date, a.slot_start, f.status, f.requested_at, f.due_at, \
         f.picked_at, pu.full_name AS picked_by_name, f.delivered_at, \
         vu.full_name AS delivered_by_name, f.escalated_at, \
-        h.holder_department, h.holder_user, h.holder_since \
+        h.holder_department, h.holder_user, h.holder_since, \
+        COALESCE(e.status = 'cancelled', \
+                 f.encounter_id IS NULL AND a.status IN ('cancelled', 'no_show'), \
+                 false) AS visit_cancelled \
    FROM mrd_file_requests f \
    JOIN patients p ON p.id = f.patient_id AND p.tenant_id = f.tenant_id \
    JOIN mrd_medical_records r ON r.id = f.medical_record_id AND r.tenant_id = f.tenant_id \
@@ -83,6 +89,7 @@ pub(crate) const REQUEST_SELECT: &str = "SELECT f.id, f.patient_id, \
    LEFT JOIN users pu ON pu.id = f.picked_by \
    LEFT JOIN users vu ON vu.id = f.delivered_by \
    LEFT JOIN appointments a ON a.id = f.appointment_id \
+   LEFT JOIN encounters e ON e.id = f.encounter_id AND e.tenant_id = f.tenant_id \
    LEFT JOIN LATERAL ( \
         SELECT hd.name AS holder_department, hu.full_name AS holder_user, \
                m.issued_at AS holder_since \
@@ -160,6 +167,10 @@ pub fn router() -> axum::Router<AppState> {
             post(scan::mark_file_not_found),
         )
         .route(
+            "/api/mrd/file-requests/{id}/return",
+            post(scan::return_file_to_shelf),
+        )
+        .route(
             "/api/mrd/file-requests/pull-list",
             post(pull_list::build_pull_list),
         )
@@ -174,6 +185,10 @@ pub fn router() -> axum::Router<AppState> {
         .route(
             "/api/mrd/file-requests/by-encounter/{encounter_id}",
             get(visit::visit_file_status),
+        )
+        .route(
+            "/api/mrd/file-requests/by-encounter/{encounter_id}/request",
+            post(visit::request_visit_file),
         )
         .route(
             "/api/mrd/file-requests/by-encounter/{encounter_id}/summary",

@@ -273,6 +273,8 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
             permissions::mrd::case_sheets::PRINT,
             // The consultation's paper-file chip and digital summary.
             permissions::mrd::file_request::STATUS,
+            // Ask for the file by hand when the chip reads "not requested".
+            permissions::mrd::file_request::CREATE,
             // Order Sets
             permissions::order_sets::templates::LIST,
             permissions::order_sets::templates::VIEW,
@@ -757,6 +759,9 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
             permissions::opd::queue::LIST,
             permissions::opd::queue::VIEW,
             permissions::opd::visit::CREATE,
+            // The front desk that registered the visit asks for its file
+            // when the automatic request did not happen.
+            permissions::mrd::file_request::CREATE,
             permissions::opd::TOKEN_MANAGE,
             permissions::opd::appointment::LIST,
             permissions::opd::appointment::CREATE,

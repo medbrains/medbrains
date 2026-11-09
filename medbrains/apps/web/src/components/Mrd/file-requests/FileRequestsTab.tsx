@@ -51,6 +51,14 @@ export function FileRequestsTab() {
     },
     onError: (error: Error) => toast.error(error.message, { title: "Not recorded" }),
   });
+  const returnToShelf = useMutation({
+    mutationFn: (row: MrdFileRequest) => mrdService.returnMrdFileToShelf(row.id),
+    onSuccess: (row) => {
+      void qc.invalidateQueries({ queryKey: ["mrd-file-requests"] });
+      toast.success(`File ${row.record_number} returned to its shelf`);
+    },
+    onError: (error: Error) => toast.error(error.message, { title: "Not returned" }),
+  });
 
   return (
     <Stack gap="md">
@@ -92,6 +100,7 @@ export function FileRequestsTab() {
             canFulfil={canFulfil}
             onScan={(r, step) => setScanning({ row: r, step })}
             onNotFound={(r) => notFound.mutate(r)}
+            onReturn={(r) => returnToShelf.mutate(r)}
           />
         ))}
 
