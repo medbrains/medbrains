@@ -58,10 +58,6 @@ pub fn router() -> Router<AppState> {
             put(clinical_trials::update_irb_submission),
         )
         .route(
-            "/api/clinical-trials/{id}/export",
-            get(clinical_trials::export_trial),
-        )
-        .route(
             "/api/front-office/visiting-hours",
             get(front_office::list_visiting_hours)
                 .post(front_office::upsert_visiting_hours),

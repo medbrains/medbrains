@@ -2924,6 +2924,14 @@ pub mod specialty {
         /// diagnosis — the disclosure is the diagnosis, not the trial. It was
         /// gated on `list`, which every trial user holds.
         pub const SCREEN: &str = "specialty.clinical_trials.screen";
+        /// Send a trial's data to its sponsor.
+        ///
+        /// The export leaves the hospital, so it is not listing. It was gated
+        /// on `list`, and returned every participant's name. It is now
+        /// pseudonymised (subject keys and trial numbers, never names or
+        /// identifiers) and each export is audited with its subject count.
+        /// Held by no built-in role: grant it to the trial coordinator.
+        pub const EXPORT: &str = "specialty.clinical_trials.export";
     }
 
     /// Health packages — priced bundles sold at the front desk.
