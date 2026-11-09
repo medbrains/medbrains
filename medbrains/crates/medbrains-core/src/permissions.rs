@@ -481,6 +481,13 @@ pub mod pharmacy {
         pub const PARTIAL: &str = "pharmacy.dispensing.partial";
         pub const CANCEL: &str = "pharmacy.dispensing.cancel";
         pub const VOID: &str = "pharmacy.dispensing.void";
+        /// Hand over an unpaid bill's medicines on a reason.
+        ///
+        /// Credit patients, scheme beneficiaries and staff are served before
+        /// they pay. The reason is written with the dispense, against the
+        /// patient, for the cashier and the auditor to see. Without this grant
+        /// an open bill means payment first.
+        pub const UNPAID_OVERRIDE: &str = "pharmacy.dispensing.unpaid_override";
     }
 
     pub mod stock {
@@ -564,6 +571,13 @@ pub mod pharmacy {
     pub mod ndps {
         pub const LIST: &str = "pharmacy.ndps.list";
         pub const MANAGE: &str = "pharmacy.ndps.manage";
+        /// Dispense a controlled drug with no witness.
+        ///
+        /// The NDPS dual lock may be bypassed only on a recorded reason, and
+        /// only by someone the hospital names for it: the medication-safety
+        /// override every pharmacist holds no longer covers it. Granted to no
+        /// built-in role. Never covers Schedule X, which always needs a witness.
+        pub const WITNESS_OVERRIDE: &str = "pharmacy.ndps.witness_override";
     }
 
     pub mod stores {

@@ -11,7 +11,10 @@
 
 use std::collections::HashMap;
 
-use medbrains_authz::{AuthzBackend, AuthzContext, AuthzError, Relation};
+use medbrains_authz::{AuthzBackend, AuthzContext, AuthzError};
+/// The relation an [`authorize`] call asks about, so callers need not reach
+/// past the kernel for it.
+pub use medbrains_authz::Relation;
 use uuid::Uuid;
 
 use crate::{Claims, KernelError};

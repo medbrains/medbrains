@@ -87,7 +87,7 @@ async fn a_hospital_imports_its_history_before_go_live() {
         &app,
         &csrf,
         "/api/pharmacy/catalog",
-        &json!({ "code": format!("HD{t}"), "name": "Paracetamol", "base_price": 2 }),
+        &json!({ "code": format!("HD{t}"), "name": "Paracetamol", "base_price": 2, "drug_schedule": "OTC" }),
     )
     .await;
     assert_eq!(s, StatusCode::OK, "{drug}");

@@ -43,8 +43,9 @@ def test_rule_on_the_screen():
 
 
 def machine_state():
-    """Whether setup left a mark: the role marker and any seed lines."""
-    return serial("ls /var/lib/medbrains/config/role-main 2>/dev/null | wc -l; grep -c MEDBRAINS_SEED /var/lib/medbrains/config/env; true", 10).split()[-2:]
+    """Whether setup left a mark: the role marker and any seed lines. A missing env file counts as no seed
+    lines, so grep must not print its own error where the count is read."""
+    return serial("ls /var/lib/medbrains/config/role-main 2>/dev/null | wc -l; cat /var/lib/medbrains/config/env 2>/dev/null | grep -c MEDBRAINS_SEED; true", 10).split()[-2:]
 
 
 def test_failed_step_is_safe():
@@ -64,7 +65,7 @@ def test_nothing_left_on_disk():
     found = serial(f"grep -rlF -- '{secret}' /var/lib/medbrains /var/lib/kanidm /etc/kanidm /run/medbrains-console /var/log 2>/dev/null | wc -l; "
                    f"journalctl -b --no-pager | grep -cF -- '{secret}'; true", 90).split()[-2:]
     check("the password is in no file and no log", found == ["0", "0"], str(found))
-    print("INFO  env holds only its hash until the server has read it:", serial("grep -c MEDBRAINS_SEED /var/lib/medbrains/config/env; true", 8)[-3:].strip(), flush=True)
+    print("INFO  env holds only its hash until the server has read it:", serial("cat /var/lib/medbrains/config/env 2>/dev/null | grep -c MEDBRAINS_SEED; true", 8)[-3:].strip(), flush=True)
 
 
 def test_login():

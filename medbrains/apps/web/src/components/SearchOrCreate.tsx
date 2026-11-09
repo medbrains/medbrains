@@ -35,6 +35,8 @@ interface SearchOrCreateProps<T> {
   /** The lookup failed. Shown instead of the empty label: a fault is not "no results". */
   fetchError?: string | null;
   canCreate?: boolean;
+  /** Said under the empty label when this user cannot create: who can. */
+  cannotCreateHint?: string;
   createButtonLabel?: string;
   createModalTitle?: string;
   createModalSize?: string;
@@ -69,6 +71,7 @@ export function SearchOrCreate<T>({
   loading = false,
   fetchError = null,
   canCreate = false,
+  cannotCreateHint,
   createButtonLabel = "Create new",
   createModalTitle = "Create new",
   createModalSize = "lg",
@@ -170,6 +173,7 @@ export function SearchOrCreate<T>({
                   <Text size="sm" c="dimmed">
                     {emptyLabel}
                   </Text>
+                  {!canShowCreate && cannotCreateHint && <Text size="sm">{cannotCreateHint}</Text>}
                   {canShowCreate && (
                     <Button
                       size="xs"

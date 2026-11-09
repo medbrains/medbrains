@@ -31,6 +31,7 @@ The Pharmacy module covers the full drug dispensing cycle: prescription receipt 
 1. Doctor searches for drug by INN name, brand name, or ATC code.
 2. Selects drug → system displays: drug schedule (H / H1 / X / G), formulary status (on/off formulary), AWaRe category (Access / Watch / Reserve).
 3. Doctor fills: dose, frequency, route, duration, and indication.
+   A medicine the hospital does not stock: type its name, choose **Buy outside: "name"**, give strength and dose. The line says "Buy outside" and prints "Buy from outside the hospital"; it is never dispensed or billed here. A nurse can do the same when writing for a doctor (the line waits for the doctor's sign-off).
 4. System runs DDI check against current medication list and flags interactions (severity: Major / Moderate / Minor).
 5. System runs allergy cross-check against patient's recorded allergies and LASA flag check.
 6. Doctor acknowledges any warnings and confirms prescription.
@@ -73,7 +74,7 @@ The Pharmacy module covers the full drug dispensing cycle: prescription receipt 
 **Steps**:
 1. Pharmacist opens prescription; system displays a red "CONTROLLED SUBSTANCE" banner with drug schedule and NDPS flag.
 2. System enforces that a second pharmacist (witness) must be present — prompts to select witness from active pharmacist list.
-3. Both pharmacist and witness authenticate (login or PIN).
+3. The witness types their own password at the dispensing screen; the server checks it (see "What the dispense checks" below). For Schedule X the pharmacist also enters the reference of the retained duplicate prescription.
 4. Pharmacist retrieves drug from dual-lock cabinet and records retrieval in NDPS register (drug name, batch, quantity retrieved, patient UHID, prescription ID, prescriber name, date/time).
 5. Quantity dispensed recorded against prescription; stock decremented.
 6. Witness confirms dispense in the register.
@@ -83,6 +84,99 @@ The Pharmacy module covers the full drug dispensing cycle: prescription receipt 
 **Exit / Outcome**: NDPS register entry created and linked to dispense; dual-witness authentication logged; drug dispensed; stock decremented.  
 **Regulatory note**: NDPS Act 1985 §§8, 9 — NDPS register mandatory; dual-custody for Schedule X; D&C Act — Schedule H1 requires written Rx retained for 3 years.  
 **Existing test**: `— needs test`
+
+---
+
+## What the dispense checks, and what it does not (2026-11-09)
+
+The counter dispense (`PUT /api/pharmacy/orders/{id}/dispense`), the pick of
+a pack-and-collect order and a camp's synced offline dispense run the same
+Schedule H/H1/X and NDPS gate (`crates/medbrains-pharmacy/src/schedule_gate.rs`).
+A line is gated when its drug is Schedule H, H1, X or NDPS, or controlled. A
+refusal names every reason and, at the counter and the pick, is filed on the
+order's Safety record (`SCHEDULE_DISPENSE_REFUSED`). A camp's H/H1 dispense
+had already happened when it syncs, so a gate refusal there does not fail the
+event: the dispense is posted (the stock left the shelf), filed on the order as
+`CAMP_DISPENSE_EXCEPTION`, and returned as the event's note; a pharmacist
+reviews it under Pharmacy → Orders → **Camp exceptions to review** (needs
+`pharmacy.safety.view`) and the order's Safety record. Schedule X, NDPS and
+controlled lines, and lines with no catalogue item, are still refused at camp
+sync and the event fails.
+
+| Rule | Where | Refusal |
+|---|---|---|
+| Each gated line is an item on the order's prescription: by catalogue id where the prescription line has one, else by the catalogue's full name (which carries the strength), never the generic name alone; 0.25 mg does not release 2 mg | gate | "not on the prescription" |
+| This order plus earlier orders on the same prescription stay within what each item prescribes, one item's quantity shared by every catalogue item it matches (stated quantity, else dose x frequency x duration; one fill per issued repeat, none for X, NDPS or controlled) | gate | "the prescription allows N and M already went out" |
+| A line with no quantity and a frequency the cap cannot count: weekly, monthly, PRN, SOS, "if needed", or an unknown spelling. "stat" is one dose; "every N hours" and `qNh` are 24/N a day, "every N days" 1/N. X, NDPS and controlled drugs need a stated quantity | gate | "prescribed quantity cannot be read" / "no quantity stated" |
+| The prescription is signed (`is_signed`) and in date (`valid_until`) | gate | "not signed by the doctor" / "expired on" |
+| X, NDPS and controlled: a written order only, never verbal or telephone | gate | "need a written prescription" |
+| Schedule X: prescriber with `can_prescribe_schedule_x`, a witness who is not the prescriber, and the retained duplicate's reference (Rule 65(11)), trimmed, at least 6 characters, stored as `pharmacy_orders.schedule_x_duplicate_ref`; a blank field uses the one already stored | gate | named per condition |
+| A visit or admission alone is never a prescription; H/H1 may stand on a verified upload (one order per drug for one uploaded file) or a recent doctor-signed discharge summary that lists the drug (every order on the summary together within the listed quantity); X, NDPS and controlled never do | gate | "no prescription for this patient" / "already backed an earlier order" / "the discharge summary allows" |
+| A camp's synced dispense never carries Schedule X, NDPS or controlled lines | camp sync | "cannot be dispensed through camp offline sync" |
+| A camp dispense line carries its catalogue item (camp stock is the catalogue's) | camp sync | "Pick the item from the catalogue" |
+| A camp dispense naming a prescription names one on record for this patient; otherwise that event alone fails and the rest of the sync goes on | camp sync | "not on record for this patient" |
+| Every OTC and POS sale line and every camp dispense line is a catalogue item, whatever it names. There is no free text where medicine is sold (owner, 2026-11-09). The database refuses the same lines (migration 1453) | OTC, POS, camp | "Pick the item from the catalogue. If it is not there, ask a pharmacist to add it with its schedule." |
+| "Buy outside" is chosen, never inferred (owner, 2026-11-09). The doctor, or a nurse writing for one, picks "Buy outside" under the drug search and gives the name, strength and dose; it prints "Buy from outside the hospital" on the Rx and the discharge summary. At Rx-queue review each unmapped line is mapped to the catalogue or ticked "Mark buy outside" by the pharmacist (recorded with who confirmed it); a doctor-marked line needs nothing. Outside lines go on the order at price 0, show as "Buy outside, not dispensed here" on the order page and the dispense screen, are never dispensed, picked, verified or billed, and never block the catalogue lines. They go on the MAR as "Patient's own, brought from outside". An order or prescription with nothing in the catalogue cannot be approved, dispensed or picked | Rx writer, Rx queue, counter, pick, MAR | "Map ... or mark it buy outside" / "Nothing on this prescription is in the catalogue" / "Nothing on this order is in the catalogue" |
+| A medicine not in the catalogue carries no price on an order, and only catalogue lines are billed, at review, dispense and the encounter sweep | orders, billing | "carries no price" |
+| A new catalogue item states its schedule (OTC, G, H, H1, X, NDPS) | catalogue | "Give the medicine's schedule" |
+| A camp prescription names its doctor (`doctor_id`), or the event is refused; it is never signed at sync, and stays unsigned for that doctor to sign from the sign-off inbox on the review screen. A camp H/H1 dispense on it before then is posted as a camp exception; signing later does not clear the exception, which the pharmacist closes on review | camp sync | "Prescription saved unsigned"; "prescription sync requires doctor_id" |
+| A quantity is counted from dose x frequency x duration only for a dose in a discrete unit (tab, cap, sachet, suppository, patch, vial, ampoule); ml, drops, puffs, g, mg and units need a stated quantity. "N hours" is an interval only as "every N hours", "qN h" or "N hourly" ("once daily at 8 hrs" is once a day) | gate | "prescribed quantity cannot be read" |
+| Controlled (`is_controlled`, which a Schedule X or NDPS drug always carries, migration 1450) needs a witness who types their own password, or a reason from a holder of `pharmacy.ndps.witness_override`, granted by name only (no built-in role; a super or hospital admin's bypass does not carry it; never for X) | dispense | filed as `NDPS_WITNESS_MISSING` |
+| A witness whose sign-in is locked, or whose account is disabled, cannot witness | dispense | "sign-in is locked" |
+| Wrong witness passwords: their own counter (`witness_password_failed` on the audit chain, with the dispenser and their address); 5 in 15 minutes stops the dispenser, 5 against one witness pauses that witness; sign-in is never locked by it | dispense | 429 |
+| Allergy status unknown (no drug allergy recorded, "no known allergies" never noted) needs the pharmacist's acknowledgement, at the counter and at the pick (the fulfilment queue asks) | dispense, pick | filed as `ALLERGY_STATUS_UNKNOWN` |
+| The NDPS register is posted under a per-drug lock and never goes below zero | dispense | 409 |
+
+When the item search at the OTC or POS screen finds nothing, it says **Not in
+the catalogue**. A user holding `pharmacy.stock.manage` (the pharmacist) gets
+**Add to catalogue**: the catalogue form opens with the typed name filled in,
+and the drug schedule must be chosen (there is no default). Anyone else is told
+**Ask a pharmacist to add it.** Nothing can be sold as a typed line. A fixed-dose combination (Amoxicillin + Clavulanic acid) is one catalogue
+item: its generic parts go in the one "Generic / INN" field, joined with
+`+`. A compounded or extemporaneous mixture made in the pharmacy has no flow
+yet (known gap, see DECISIONS).
+
+An unknown frequency spelling is shown on the dispensing view and the label as
+"Frequency not recognised — read the prescription", never as "as needed".
+
+### Opening balance before the first controlled dispense
+
+Controlled stock already on the shelf when this release goes in, with no
+receipt in the NDPS register, cannot be dispensed: the register would go below
+zero and the dispense is refused (409, "Record the receipt in the register").
+Before the first controlled dispense, for each controlled drug on the shelf:
+
+1. Count the stock physically, with a second pharmacist.
+2. Pharmacy → NDPS register → **Manual Entry**: action **Adjustment**, the
+   counted quantity, and a note "Opening balance, counted by A and B on
+   <date>". The entry needs a fresh sign-in (step-up) and
+   `pharmacy.ndps.manage`.
+3. Check the drug's balance on the register's balance view matches the count.
+
+Receipts recorded through goods receipt after that post to the register on
+their own.
+
+**Verified uploads.** An uploaded prescription backs an H/H1 order only once
+a pharmacist has verified it (`pharmacy_store_orders.verified_at`), and the
+gate does not read its lines or cap its quantities: the verifying pharmacist
+reads the drug, strength and quantity off the image and answers for it. Verify
+an upload only after checking each line against it.
+
+**Camp devices (requirement, not yet built).** The native staff apps do not
+dispense at camps today (iOS and Android cover camp registration and station
+tokens only). When camp dispensing is added, the device must refuse to hand
+over a Schedule H or H1 drug offline unless the prescription it is against is
+signed on the device, and must never offer Schedule X, NDPS or controlled
+drugs; the server's sync rules above stay the backstop.
+
+**Not checked, follow-ups:** dose against weight, renal function or age
+(there are no dose checks of any kind); the witness confirming from their own
+session; an append-only, hash-chained NDPS record with the witness's user id;
+a quantity cap on a verified upload (the pharmacist reads its lines; it is
+limited to one order per drug); closing a camp exception once reviewed (it
+stays on the list); the POS
+counter sale of H/H1 against an outside paper prescription (Rule 65(9)) is a
+separate path and keeps its own checks.
 
 ---
 
