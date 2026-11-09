@@ -10,8 +10,11 @@
 # access. Fork PRs are skipped. Its commits go through the same required checks
 # and independent review as any other. It follows CLAUDE.md / ENGINEERING.md.
 #
-# Off until the owner adds CLAUDE_CODE_OAUTH_TOKEN (from `claude setup-token`) or
-# ANTHROPIC_API_KEY as a repository secret. Until then every job skips.
+# Off until the owner sets up auth. Preferred: workload identity federation, with no
+# stored key. Set the repository *variables* ANTHROPIC_FEDERATION_RULE_ID and
+# ANTHROPIC_ORGANIZATION_ID (plus ANTHROPIC_SERVICE_ACCOUNT_ID / ANTHROPIC_WORKSPACE_ID
+# if the rule needs them); these are IDs, not secrets. Fallback: a CLAUDE_CODE_OAUTH_TOKEN
+# or ANTHROPIC_API_KEY secret. Until one is set, every job skips.
 
 name: Claude PR agent
 
@@ -51,11 +54,11 @@ jobs:
       actions: read
       id-token: write
     env:
-      HAS_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN != '' || secrets.ANTHROPIC_API_KEY != '' }}
+      HAS_TOKEN: ${{ vars.ANTHROPIC_FEDERATION_RULE_ID != '' || secrets.CLAUDE_CODE_OAUTH_TOKEN != '' || secrets.ANTHROPIC_API_KEY != '' }}
     steps:
       - name: Skip until a Claude token is set
         if: env.HAS_TOKEN != 'true'
-        run: echo "::notice::No CLAUDE_CODE_OAUTH_TOKEN or ANTHROPIC_API_KEY secret; skipped."
+        run: echo "::notice::No Claude federation rule or token set; skipped."
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         if: env.HAS_TOKEN == 'true'
         with:
@@ -66,6 +69,11 @@ jobs:
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          # Preferred: keyless. GitHub's OIDC token is exchanged for API access per run.
+          anthropic_federation_rule_id: ${{ vars.ANTHROPIC_FEDERATION_RULE_ID }}
+          anthropic_organization_id: ${{ vars.ANTHROPIC_ORGANIZATION_ID }}
+          anthropic_service_account_id: ${{ vars.ANTHROPIC_SERVICE_ACCOUNT_ID }}
+          anthropic_workspace_id: ${{ vars.ANTHROPIC_WORKSPACE_ID }}
           trigger_phrase: "@claude"
           track_progress: true
           claude_args: --max-turns 60
@@ -89,13 +97,13 @@ jobs:
       actions: read
       id-token: write
     env:
-      HAS_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN != '' || secrets.ANTHROPIC_API_KEY != '' }}
+      HAS_TOKEN: ${{ vars.ANTHROPIC_FEDERATION_RULE_ID != '' || secrets.CLAUDE_CODE_OAUTH_TOKEN != '' || secrets.ANTHROPIC_API_KEY != '' }}
       BRANCH: ${{ github.event.workflow_run.head_branch }}
       RUN_ID: ${{ github.event.workflow_run.id }}
     steps:
       - name: Skip until a Claude token is set
         if: env.HAS_TOKEN != 'true'
-        run: echo "::notice::No CLAUDE_CODE_OAUTH_TOKEN or ANTHROPIC_API_KEY secret; skipped."
+        run: echo "::notice::No Claude federation rule or token set; skipped."
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         if: env.HAS_TOKEN == 'true'
         with:
@@ -107,6 +115,11 @@ jobs:
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          # Preferred: keyless. GitHub's OIDC token is exchanged for API access per run.
+          anthropic_federation_rule_id: ${{ vars.ANTHROPIC_FEDERATION_RULE_ID }}
+          anthropic_organization_id: ${{ vars.ANTHROPIC_ORGANIZATION_ID }}
+          anthropic_service_account_id: ${{ vars.ANTHROPIC_SERVICE_ACCOUNT_ID }}
+          anthropic_workspace_id: ${{ vars.ANTHROPIC_WORKSPACE_ID }}
           claude_args: --max-turns 60
           prompt: |
             CI run ${{ github.event.workflow_run.id }} failed on branch ${{ github.event.workflow_run.head_branch }}.
