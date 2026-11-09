@@ -165,6 +165,34 @@ export interface WardStockRow {
   gap: number;
 }
 
+/** A nurse's use of ward stock, on a patient or on the ward. */
+export interface WardStockConsumeRequest {
+  department_id: string;
+  catalog_item_id: string;
+  quantity: number;
+  /** Who it was used on; omitted for ward use. */
+  patient_id?: string;
+}
+
+/**
+ * What became of the patient's charge: `ward_use` (no patient), `not_billable`
+ * (overhead item, or in the patient's package), `posted`, `queued` (on the
+ * billing desk's queue), `disabled` (ward-stock billing is off). `deferred` (could not be worked out now; the daily check raises it).
+ */
+export type WardStockConsumeCharge =
+  | "ward_use"
+  | "not_billable"
+  | "posted"
+  | "queued"
+  | "disabled"
+  | "deferred";
+
+export interface WardStockConsumeResponse {
+  consumption_id: string;
+  remaining: number;
+  charge: WardStockConsumeCharge;
+}
+
 export type CaseSheetScanStatus =
   | "uploaded"
   | "parsing"

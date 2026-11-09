@@ -861,6 +861,7 @@ import type {
   CreateUrReviewRequest,
   CreateUserHospitalAssignment,
   CreateVaccinationRequest,
+  CreateVendorAccessGrant,
   CreateVendorRequest,
   CreateVirtualAccountRequest,
   CreateVirtualAccountResponse,
@@ -1553,17 +1554,24 @@ import type {
   MpiMatchRequest,
   MpiMatchResult,
   MrdAdmissionDischargeSummary,
+  // MRD
+  MrdBackscanItem,
   MrdBirthRegister,
   MrdCaseSheetCompletenessResponse,
   MrdCaseSheetPacket,
   MrdCaseSheetPage,
   MrdDeathRegister,
-  // MRD
+  MrdDeliveryTimeRow,
+  MrdDigitalSummary,
+  MrdFileRequest,
+  MrdFileScanRequest,
   MrdMedicalRecord,
   MrdMorbidityMortalityResponse,
+  MrdPullListBuilt,
   MrdRecordMovement,
   MrdRetentionPolicy,
   MrdStorageLocation,
+  MrdVisitFileStatus,
   MyDayResponse,
   MyProfileResponse,
   MyShiftResponse,
@@ -1573,6 +1581,7 @@ import type {
   NabhRollupResponse,
   NablDocumentSummary,
   NablQualityReportPrintData,
+  NamePatientChargeAttentionRequest,
   NdpsListResponse,
   NdpsRegisterEntry,
   NdpsRegisterPrintData,
@@ -2524,6 +2533,8 @@ import type {
   VedAnalysisRow,
   // Procurement
   Vendor,
+  VendorAccessEvent,
+  VendorAccessGrant,
   VendorComparisonRow,
   VendorPerformanceRow,
   VerbalOrderEntry,
@@ -2570,6 +2581,8 @@ import type {
   WardGridResponse,
   WardListRow,
   WardOnDutyRow,
+  WardStockConsumeRequest,
+  WardStockConsumeResponse,
   WardStockRow,
   WaterQualityTestPrintData,
   WebhookDelivery,
@@ -2591,6 +2604,7 @@ import type {
   WoundCertificatePrintData,
   WristbandPrintData,
 } from "@medbrains/types";
+
 import { getApiBase } from "./config.js";
 
 // Re-export type guards for use by consumers
@@ -3400,7 +3414,7 @@ export const api = {
       method: "POST",
       body: JSON.stringify(user_id ? { user_id } : {}),
     }),
-  changePassword: (data: { current_password: string; new_password: string }) =>
+  changePassword: (data: { current_password: string; new_password: string; email?: string }) =>
     request<{ status: string }>("/auth/change-password", {
       method: "POST",
       body: JSON.stringify(data),
@@ -6276,6 +6290,11 @@ export const api = {
       method: "PUT",
       body: JSON.stringify(data),
     }),
+  namePatientChargeAttention: (id: string, data: NamePatientChargeAttentionRequest) =>
+    request<ChargeAttentionItem>(`/billing/charge-attention/${id}/patient`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
   backfillClaimSettlements: (data: { dry_run: boolean }) =>
     request<ClaimSettlementBackfillResult>("/billing/claim-settlements/backfill", {
       method: "POST",
@@ -7481,8 +7500,8 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ department_id: departmentId }),
     }),
-  consumeWardStock: (data: { department_id: string; catalog_item_id: string; quantity: number }) =>
-    request<{ remaining: number }>("/pharmacy/ward-stock/consume", {
+  consumeWardStock: (data: WardStockConsumeRequest) =>
+    request<WardStockConsumeResponse>("/pharmacy/ward-stock/consume", {
       method: "POST",
       body: JSON.stringify(data),
     }),
@@ -12090,6 +12109,40 @@ export const api = {
       body: JSON.stringify(body),
     }),
 
+  // File requests: the paper file a patient waits for
+  listMrdFileRequests: (params?: { date?: string }) =>
+    request<MrdFileRequest[]>(
+      `/mrd/file-requests${params?.date ? `?date=${encodeURIComponent(params.date)}` : ""}`,
+    ),
+  scanMrdFileRequest: (id: string, body: MrdFileScanRequest) =>
+    request<MrdFileRequest>(`/mrd/file-requests/${id}/scan`, {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+  markMrdFileNotFound: (id: string) =>
+    request<MrdFileRequest>(`/mrd/file-requests/${id}/not-found`, { method: "POST" }),
+  returnMrdFileToShelf: (id: string) =>
+    request<MrdFileRequest>(`/mrd/file-requests/${id}/return`, { method: "POST" }),
+  buildMrdPullList: (body: { date?: string }) =>
+    request<MrdPullListBuilt>("/mrd/file-requests/pull-list", {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+  listMrdBackscanOrder: (days?: number) =>
+    request<MrdBackscanItem[]>(`/mrd/file-requests/backscan${days ? `?days=${days}` : ""}`),
+  getMrdFileDeliveryTimes: (from: string, to: string) =>
+    request<MrdDeliveryTimeRow[]>(
+      `/mrd/file-requests/delivery-times?${new URLSearchParams({ from, to })}`,
+    ),
+  getVisitFileStatus: (encounterId: string) =>
+    request<MrdVisitFileStatus>(`/mrd/file-requests/by-encounter/${encounterId}`),
+  requestVisitFile: (encounterId: string) =>
+    request<MrdVisitFileStatus>(`/mrd/file-requests/by-encounter/${encounterId}/request`, {
+      method: "POST",
+    }),
+  getVisitDigitalSummary: (encounterId: string) =>
+    request<MrdDigitalSummary>(`/mrd/file-requests/by-encounter/${encounterId}/summary`),
+
   // Record Movements
   listMrdMovements: (recordId: string) =>
     request<MrdRecordMovement[]>(`/mrd/records/${recordId}/movements`),
@@ -16261,6 +16314,28 @@ export const api = {
     request<FormTemplate>(`/forms/templates/${id}/retire`, { method: "POST" }),
   getLiveForm: (code: string) => request<LiveForm>(`/forms/live/${code}`),
   getFormVersion: (id: string) => request<FormTemplateVersion>(`/forms/versions/${id}`),
+  // ── Security → MedBrains access (vendor support access) ──
+  listVendorAccessGrants: (page = 1) =>
+    request<Paginated<VendorAccessGrant>>(`/security/vendor-access/grants?page=${page}&limit=50`),
+  createVendorAccessGrant: (data: CreateVendorAccessGrant) =>
+    request<VendorAccessGrant>("/security/vendor-access/grants", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  approveVendorAccessGrant: (id: string) =>
+    request<VendorAccessGrant>(`/security/vendor-access/grants/${id}/approve`, {
+      method: "POST",
+      body: JSON.stringify({}),
+    }),
+  revokeVendorAccessGrant: (id: string, reason?: string) =>
+    request<VendorAccessGrant>(`/security/vendor-access/grants/${id}/revoke`, {
+      method: "POST",
+      body: JSON.stringify({ reason }),
+    }),
+  listVendorAccessEvents: (id: string, page = 1) =>
+    request<Paginated<VendorAccessEvent>>(
+      `/security/vendor-access/grants/${id}/events?page=${page}&limit=200`,
+    ),
   listDataProcessors: () => request<DataProcessor[]>("/data-processors"),
   createDataProcessor: (data: DataProcessorInput) =>
     request<DataProcessor>("/data-processors", { method: "POST", body: JSON.stringify(data) }),

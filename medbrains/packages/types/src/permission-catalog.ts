@@ -19,7 +19,7 @@ export interface PermissionDef {
   module: string;
 }
 
-/** 1232 permissions, one per constant in the Rust source. */
+/** 1242 permissions, one per constant in the Rust source. */
 export const PERMISSIONS: PermissionDef[] = [
   // dashboard
   {
@@ -1349,6 +1349,12 @@ export const PERMISSIONS: PermissionDef[] = [
     code: "billing.leakage.resolve",
     label: "Post, dismiss or rescan unbilled orders",
     description: "Post an unbilled order's charge onto the patient's bill, dismiss it with a reason (package-included, free by policy, duplicate), or run the unbilled-orders check now. Who and when is recorded.",
+    module: "billing",
+  },
+  {
+    code: "billing.leakage.name_implant_recipient",
+    label: "Name the patient on an unnamed implant",
+    description: "Name or change the patient a consignment implant was used on when the store recorded it on no one. This rewrites the store's consignment usage record, which the vendor is paid from, so it is kept apart from posting and dismissing. Every naming is audited.",
     module: "billing",
   },
   {
@@ -4165,6 +4171,36 @@ export const PERMISSIONS: PermissionDef[] = [
     module: "mrd",
   },
   {
+    code: "mrd.file_request.view",
+    label: "See the paper-file requests queue",
+    description: "Every open request for a patient's physical file — who it is for, where it is shelved, where it must go and how long is left — plus the night-before pull list, the back-scanning order and the delivery times.",
+    module: "mrd",
+  },
+  {
+    code: "mrd.file_request.fulfil",
+    label: "Pick up and deliver requested paper files",
+    description: "The runner's scans: the file barcode at the shelf (\"picked\") and at the clinic (\"delivered\"), each written as a record movement; marking a file not found; and building the pull list on demand.",
+    module: "mrd",
+  },
+  {
+    code: "mrd.file_request.supervise",
+    label: "Be told when a requested file is late or missing",
+    description: "Receives the escalation when a file request passes its due time or a runner cannot find the file.",
+    module: "mrd",
+  },
+  {
+    code: "mrd.file_request.status",
+    label: "See whether a visit's paper file has arrived",
+    description: "The consultation's file chip (requested, on the way, arrived), for visits the caller can open. Nothing clinical: the summary beside it needs `opd.diagnoses.list` and `patients.view`.",
+    module: "mrd",
+  },
+  {
+    code: "mrd.file_request.create",
+    label: "Ask for a visit's paper file by hand",
+    description: "The remedy when a visit reads \"File: not requested\" (the automatic request failed or the file was shelved after the visit was created): writes the request the visit would have written, for a visit the caller can open.",
+    module: "mrd",
+  },
+  {
     code: "mrd.verify_links.issue",
     label: "Show a signed record's public check link",
     description: "Gives the link an outsider (an insurer, a court, another hospital) opens from the QR on the paper, minting a new one when the last was withdrawn. The page it opens names the document type, the signer and whether it is unchanged, never the patient.",
@@ -4362,6 +4398,30 @@ export const PERMISSIONS: PermissionDef[] = [
     code: "security.intel.manage",
     label: "Assign, close and escalate security findings",
     description: "Takes ownership of a finding, changes its status (in progress, resolved, risk accepted) and opens an incident from it in the breach register (opening also needs security.incidents.create).",
+    module: "security",
+  },
+  {
+    code: "security.vendor_access.view",
+    label: "See MedBrains access grants and their actions",
+    description: "Security → MedBrains access: every grant this hospital gave MedBrains support or engineering staff, active and past, and every request made under each one.",
+    module: "security",
+  },
+  {
+    code: "security.vendor_access.grant",
+    label: "Give MedBrains staff time-limited access",
+    description: "Names the MedBrains person, the reason, the modules (or configuration only) and an expiry of at most 72 hours. Patient data stays masked unless a second person approves unmasked access.",
+    module: "security",
+  },
+  {
+    code: "security.vendor_access.approve_unmasked",
+    label: "Approve unmasked MedBrains access",
+    description: "The second approval an unmasked grant needs before it opens. The approver must be a different person from the one who asked for it.",
+    module: "security",
+  },
+  {
+    code: "security.vendor_access.revoke",
+    label: "End MedBrains access at once",
+    description: "Revokes a grant; the MedBrains person's next request is refused.",
     module: "security",
   },
   // integration
@@ -7664,6 +7724,8 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.MRD.CASE_SHEETS.GENERATE,
       P.MRD.CASE_SHEETS.PRINT,
       P.MRD.CASE_SHEETS.VIEW,
+      P.MRD.FILE_REQUEST.CREATE,
+      P.MRD.FILE_REQUEST.STATUS,
       P.NOTES.USE,
       P.NURSE.CODE_BLUE.RESPOND,
       P.NURSE.CODE_BLUE.VIEW,
@@ -8157,6 +8219,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.MARKETING.PIPELINE.MOVE,
       P.MARKETING.PIPELINE.VIEW,
       P.MARKETING.SUPPRESSION_MANAGE,
+      P.MRD.FILE_REQUEST.CREATE,
       P.NOTES.USE,
       P.OPD.APPOINTMENT.CANCEL,
       P.OPD.APPOINTMENT.CREATE,
@@ -8669,6 +8732,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.SECURITY.INCIDENTS.LIST,
       P.SECURITY.INTEL.VIEW,
       P.SECURITY.PATIENT_SAFETY.LIST,
+      P.SECURITY.VENDOR_ACCESS.VIEW,
       P.TERMINOLOGY.SNOMED.ANALYTICS,
     ],
   },
@@ -8839,6 +8903,10 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.MRD.CRS.MANAGE,
       P.MRD.DEATHS.CREATE,
       P.MRD.DEATHS.LIST,
+      P.MRD.FILE_REQUEST.FULFIL,
+      P.MRD.FILE_REQUEST.STATUS,
+      P.MRD.FILE_REQUEST.SUPERVISE,
+      P.MRD.FILE_REQUEST.VIEW,
       P.MRD.RECORDS.CREATE,
       P.MRD.RECORDS.LIST,
       P.MRD.RECORDS.MANAGE,
@@ -9293,6 +9361,8 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.KNOWLEDGE.CHANGE_SETS.LIST,
       P.NOTES.USE,
       P.QUALITY.INDICATORS.LIST,
+      P.SECURITY.VENDOR_ACCESS.APPROVE_UNMASKED,
+      P.SECURITY.VENDOR_ACCESS.VIEW,
     ],
   },
   it_security_officer: {
@@ -9306,6 +9376,10 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.SECURITY.INCIDENTS.UPDATE,
       P.SECURITY.INTEL.MANAGE,
       P.SECURITY.INTEL.VIEW,
+      P.SECURITY.VENDOR_ACCESS.APPROVE_UNMASKED,
+      P.SECURITY.VENDOR_ACCESS.GRANT,
+      P.SECURITY.VENDOR_ACCESS.REVOKE,
+      P.SECURITY.VENDOR_ACCESS.VIEW,
     ],
   },
   insurance_officer: {

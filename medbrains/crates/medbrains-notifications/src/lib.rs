@@ -418,7 +418,9 @@ pub async fn notifications_ws_handler(
     // The upgrade skips the auth middleware, so its checks run here: a token
     // for a deactivated or deleted account, a stale permission version or a
     // revoked device is refused before the socket opens, and the permissions
-    // the board topics are chosen by are the account's real ones.
+    // the board topics are chosen by are the account's real ones. A MedBrains
+    // account is refused too: a stream cannot be masked or recorded per
+    // request, so it gets none, grant or no grant.
     medbrains_server_core::middleware::auth::verify_decoded(&state.db, &mut claims).await?;
     let topics = socket_topics(&claims);
     Ok(ws.on_upgrade(move |socket| handle_notifications_socket(socket, state, topics, claims)))

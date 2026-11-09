@@ -395,8 +395,12 @@ fi
 if [[ "$ENV_CREATED" == "1" || -n "$(env_value MIGRATION_DATABASE_URL)" \
       || "${DB_ROLE_SPLIT:-0}" == "1" ]]; then
     if ! db_roles_configure /etc/medbrains/env; then
-        echo "ERROR: database roles not configured — the server will connect as the owner,"
-        echo "       and row level security will not apply. See docs/ops/DB-ROLES.md."
+        # Stop here rather than start a server whose env names a role that was
+        # never created, or that connects as the owner where row level
+        # security does not apply.
+        echo "ERROR: the database roles could not be configured, so the server cannot start"
+        echo "       until they are fixed. See docs/ops/DB-ROLES.md, then re-run install.sh."
+        exit 1
     fi
 else
     echo "    NOTE: this install connects as the database owner; row level security does"

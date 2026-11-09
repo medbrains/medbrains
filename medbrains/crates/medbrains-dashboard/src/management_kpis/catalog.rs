@@ -390,7 +390,7 @@ pub(super) fn kpi(code: &str) -> Option<Kpi> {
                     AND timezone($3, discharged_at)::date BETWEEN $1 AND $2 \
                   GROUP BY 1",
         },
-        _ => return None,
+        _ => return super::file_delivery::kpi(code),
     })
 }
 

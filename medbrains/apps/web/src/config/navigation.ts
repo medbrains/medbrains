@@ -1214,6 +1214,12 @@ export const NAV_GROUPS: NavGroupConfig[] = [
         requiredPermission: "security.intel.view",
       },
       {
+        i18nKey: "medbrainsAccess",
+        path: "/security/medbrains-access",
+        icon: "IconShieldLock",
+        requiredPermission: "security.vendor_access.view",
+      },
+      {
         i18nKey: "hr",
         moduleCode: "hr",
         path: "/hr",

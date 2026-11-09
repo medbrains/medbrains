@@ -326,3 +326,5 @@ mod history_import_audit_skip_test;
 mod leave_calendar_window_test;
 mod leave_rules_test;
 mod board_topic_tenant_test;
+mod vendor_access_test;
+mod vendor_channels_test;

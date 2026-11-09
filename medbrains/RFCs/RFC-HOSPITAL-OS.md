@@ -958,7 +958,8 @@ Published with every release. Targets below that have no figure yet get one when
   TLS or scoped tokens), so being on the network grants nothing.
 - **No open inbound for remote access.** Site links and remote support use WireGuard, which is in the
   Linux kernel. Support access is off by default, time-limited, approved by the hospital and audited.
-  There is no vendor backdoor.
+  There is no vendor backdoor. In the application this is built: a MedBrains account is refused on
+  every request without the hospital's grant (`docs/compliance/vendor-access.md`).
 - **Authenticated time.** Clinical records depend on the clock: move from `systemd-timesyncd` to
   `chrony` with NTS, and warn when the clock drifts. The appliance keeps serving the LAN its time when
   the internet is gone.

@@ -72,8 +72,8 @@ medbrains-history-import not_yet 8 medbrains-db
 medbrains-home-health not_yet 101 medbrains-db,medbrains-authz,medbrains-authz-gate
 medbrains-hr not_yet 111 medbrains-db
 medbrains-hrms-gateway not_yet 5 medbrains-db
-medbrains-identity partial 27 medbrains-db,medbrains-authz
-medbrains-indent not_yet 79 medbrains-db,medbrains-authz-gate
+medbrains-identity not_yet 27 medbrains-db,medbrains-authz
+medbrains-indent partial 79 medbrains-db,medbrains-authz-gate
 medbrains-infection-control not_yet 77 medbrains-db
 medbrains-infra-settings not_yet 18 medbrains-db
 medbrains-infra-utils not_yet 26 medbrains-db
@@ -81,7 +81,7 @@ medbrains-integration-hub not_yet 0 -
 medbrains-invitations not_yet 11 medbrains-db
 medbrains-ipd not_yet 304 medbrains-db,medbrains-authz,medbrains-authz-gate
 medbrains-ipd-post-discharge not_yet 24 medbrains-db,medbrains-authz-gate
-medbrains-it-security not_yet 82 medbrains-db
+medbrains-it-security partial 82 medbrains-db
 medbrains-knowledge not_yet 9 medbrains-db
 medbrains-lab partial 276 medbrains-db,medbrains-authz,medbrains-authz-gate
 medbrains-lms not_yet 75 medbrains-db
@@ -91,7 +91,7 @@ medbrains-marketing not_yet 131 medbrains-db
 medbrains-materials not_yet 154 medbrains-db,medbrains-authz
 medbrains-mfa not_yet 10 medbrains-db
 medbrains-microsite not_yet 32 medbrains-db,medbrains-authz-gate
-medbrains-mrd not_yet 78 medbrains-db,medbrains-authz-gate
+medbrains-mrd partial 78 medbrains-db,medbrains-authz-gate
 medbrains-nabh not_yet 0 -
 medbrains-news not_yet 11 medbrains-db
 medbrains-nhcx-callback not_yet 22 medbrains-db,medbrains-authz-gate
@@ -157,4 +157,4 @@ medbrains-tv not_yet 12 medbrains-db
 medbrains-upload not_yet 2 medbrains-db
 medbrains-vpn not_yet 11 medbrains-db
 medbrains-vte on_facade 0 -
-medbrains-ward-stock not_yet 9 medbrains-db
+medbrains-ward-stock partial 7 medbrains-db

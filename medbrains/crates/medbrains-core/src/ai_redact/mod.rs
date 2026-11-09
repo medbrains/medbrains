@@ -446,19 +446,7 @@ impl Redactor {
     }
 
     fn redact_fields(&mut self, text: &str) -> Result<String, RedactError> {
-        let keys: Vec<&str> = patterns::IDENTITY_KEYS
-            .iter()
-            .map(|(k, _)| *k)
-            .chain([
-                "date_of_birth",
-                "dob",
-                "city",
-                "village",
-                "district",
-                "street",
-            ])
-            .chain(patterns::ATTACHMENT_KEYS.iter().copied())
-            .collect();
+        let keys: Vec<&str> = identity_field_names().collect();
         let re = Regex::new(&format!(
             r#""({})"\s*:\s*("(?:[^"\\]|\\.)*"?|-?\d[\d.]*)"#,
             keys.join("|")
@@ -679,6 +667,27 @@ pub fn redact_for_record(text: &str, today: NaiveDate) -> String {
     Redactor::new(PseudonymMap::default(), &KnownIdentifiers::default(), today)
         .redact(text)
         .map_or_else(|_| "[withheld: could not be redacted]".to_owned(), |r| r.0)
+}
+
+/// Every JSON key whose value says who a person is or where they live, and
+/// every attachment key: the fields this module pseudonymises in a record.
+///
+/// Public so a caller that masks whole records by key — a masked MedBrains
+/// support session (`medbrains-server-core::middleware::vendor_access`) —
+/// masks exactly the fields the AI door does, not a second list that drifts.
+pub fn identity_field_names() -> impl Iterator<Item = &'static str> {
+    patterns::IDENTITY_KEYS
+        .iter()
+        .map(|(k, _)| *k)
+        .chain([
+            "date_of_birth",
+            "dob",
+            "city",
+            "village",
+            "district",
+            "street",
+        ])
+        .chain(patterns::ATTACHMENT_KEYS.iter().copied())
 }
 
 /// A literal as a whole-word pattern: word boundaries only where the literal

@@ -45,6 +45,7 @@ pub(crate) async fn notify(
                 'break_glass_event', $3, '/audit?tab=break-glass' \
            FROM users u \
           WHERE u.tenant_id = $1 AND u.is_active AND u.deleted_at IS NULL AND u.id <> $4 \
+            AND NOT (u.is_vendor_staff OR public.app_email_is_vendor(u.email, $9)) \
             AND ( \
                  u.role::text IN ('super_admin', 'hospital_admin') \
               OR COALESCE(u.access_matrix -> 'extra', '[]'::jsonb) ? $5 \
@@ -73,6 +74,7 @@ pub(crate) async fn notify(
     .bind(started.user_department_ids)
     .bind(started.patient_id)
     .bind(MAX_RECIPIENTS)
+    .bind(medbrains_server_core::middleware::vendor_access::vendor_domains())
     .execute(&mut **tx)
     .await?;
     Ok(sent.rows_affected())
