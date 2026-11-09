@@ -26,9 +26,10 @@ def check(name, ok, detail=""):
 
 
 def first_admin(username, password):
-    """Runs setup's first-admin helper the way setup does: as a transient unit, the login on stdin."""
+    """Runs setup's first-admin helper's first step the way setup does: as a transient unit, the login on stdin.
+    What it prints, the authenticator secret, goes nowhere."""
     out = serial(f"printf '%s\\n%s\\n' '{username}' '{password}' | systemd-run --wait --pipe --quiet --collect "
-                 "/usr/lib/medbrains/kanidm-first-admin; echo rc=$?", 200)
+                 "/usr/lib/medbrains/kanidm-first-admin begin >/dev/null; echo rc=$?", 200)
     return out.rsplit("rc=", 1)[-1].strip()[:1]
 
 
@@ -45,6 +46,8 @@ def test_retry_with_another_name():
     check("the earlier login is gone and the new one is there", lines == ["0", "1"], str(lines))
     record = serial("cat /var/lib/medbrains/config/kanidm/first-admin; stat -c '%U %a' /var/lib/medbrains/config/kanidm", 10)
     check("the record names the new login, in root's folder", "newuser" in record and "root 750" in record, record[-80:])
+    groups = serial("bash -c '. /usr/lib/medbrains/kanidm-lib.sh; api_as \"$(admin_token idm_admin)\" \"$ORIGIN/v1/group/mb_it_admins/_attr/member\"'", 40)
+    check("the login joins mb_it_admins before it has a credential, so Kanidm requires the code", "newuser@" in groups, groups[-80:])
 
 
 def sso_as(username, password):
@@ -147,7 +150,7 @@ def test_lan_paths():
     for path in ["/v1/raw/search", "/v1/person", "/v1/group", "/v1/oauth2", "/v1/self"]:
         check(f"the LAN gets 404 for {path}", curl(f"{IDP}{path}", token=token)[0] == 404)
     check("the LAN reaches the sign-in page", curl(f"{IDP}/ui/login")[0] == 200)
-    check("the LAN reaches the sign-in API", bool(kanidm_auth(*ADMIN, privileged=False)[0]))
+    check("the LAN reaches the sign-in API, with password and code", bool(kanidm_auth(*ADMIN, privileged=False)[0]))
     on_machine = serial("curl -sk -o /dev/null -w '%{http_code}' --resolve idm.medbrains.local:9443:127.0.0.1 https://idm.medbrains.local:9443/v1/self", 15)
     check("the machine itself still reaches /v1", on_machine.strip().endswith("401"), on_machine[-5:])
 

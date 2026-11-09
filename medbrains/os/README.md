@@ -95,7 +95,10 @@ partial, so expect gaps; that is what D2 is for.
    - **"What are you doing with this machine?"** "Setting up a new hospital" continues. "Connecting to my
      hospital" looks for main machines; see [Joining a machine](#joining-a-machine).
    - **Three fields:** hospital name, username, password, with the rules shown under each.
-   - **Review,** then **Start the main machine**. Nothing is final before this.
+   - **Review,** then **Start the main machine**.
+   - **Authenticator app:** a QR code and the same secret as text, for an authenticator app on the
+     administrator's phone (Google Authenticator, Microsoft Authenticator, FreeOTP), then one 6-digit code from it.
+     **Confirm and start** starts the machine. Nothing is final before this. See [One login](#identity-provider-kanidm).
 4. **The desktop:** wallpaper in MedBrains blue with a faint grid (no GPU needed), a top bar (hospital name,
    role, clock opening a calendar, firewall state, network, power), a greeting with a plain status sentence,
    a dock, a launcher with search, and machine widgets with real figures (health, network, storage). It
@@ -134,7 +137,8 @@ finished, not before.
    the connecting program with the kernel: root or `/usr/bin/medbrains-shell`, nothing else. A process running as
    the screen's user could still start that program under its own control, so this raises the bar without closing
    the matter. It has no database and no web framework, and every helper it runs has a time limit.
-4. **Review** writes the three fields into the env as `MEDBRAINS_SEED_*`, the password only as its Argon2 hash, then the role marker
+4. **Review** makes the first administrator's Kanidm login (`POST /hospital/admin`, answering the authenticator's
+   QR code and secret). **Confirm and start** (`POST /hospital`, with the code) saves it, then writes the three fields into the env as `MEDBRAINS_SEED_*`, the password only as its Argon2 hash, then the role marker
    `/var/lib/medbrains/config/role-main`, then starts `medbrains-main.target`.
 2. `medbrains-os-setup` listens on `127.0.0.1:3100`, as root, with a token only the screen's group can
    read (`/run/medbrains-console/setup-token`). It has no database and no web framework.
@@ -236,11 +240,23 @@ it can restrict sign-in to approved key models; see `docs/DECISIONS.md`.
 for `medbrains_groups`, then add the provider and group mappings in MedBrains' SSO settings.
 `tests/kanidm-acceptance.py` does all of it. Control does not do this yet.
 
-**One login.** The username and password chosen at setup are the same login for MedBrains and Identity. Setup gives
-them to `kanidm-first-admin` on stdin, never in arguments, a file or a log, and it makes the person through Kanidm's own
-API, so Kanidm's own check decides. That happens before the role marker: if it fails, setup says so, nothing is left and
-it can be tried again. Release images have no default password and no test account. That admin can add staff and reset
-their passwords, and has no second step, so it is not an `idm_admins` member.
+**One login.** The username and password chosen at setup are the same login for MedBrains and Identity, and in Identity
+it also needs an authenticator app's code (TOTP), because the first administrator is in `mb_it_admins` and the SSO callback
+refuses an administrator outside it (`sso_error=admin_group`). Setup gives the login to `kanidm-first-admin` on stdin, never
+in arguments, a file or a log, in two steps through Kanidm's own credential-update API, so Kanidm's own checks decide:
+- `begin` (Review's button) makes the person, adds them to `mb_it_admins` **before** any credential exists, so Kanidm's `mfa`
+  rule refuses to save the password alone, sets the password and asks Kanidm for a TOTP (`totpgenerate`). Its status goes
+  to the setup service on stdout only; the service turns the secret into the `otpauth:` URI's QR code and the secret in groups
+  of four, answers the screen, and wipes its copies. The credential-update session waits in `/run/medbrains-kanidm`
+  (root, 0600, tmpfs); it is not the secret, which Kanidm keeps in memory.
+- `finish` (**Confirm and start**) sends the code (`totpverify`), saves password and code as one credential, removes the
+  session, then grants `idm_people_on_boarding` and `idm_service_desk`. A wrong code answers "That code did not match" and the
+  same QR code stays good. An app that ignores the SHA-256 Kanidm asks for (Google Authenticator, Authy) still works: its SHA-1
+  code proves the phone, so setup accepts it. After 15 minutes, or a Kanidm restart, the step has expired: Back, then Start
+  again gives a new QR code. Starting again also clears any credential an abandoned attempt left.
+All of this happens before the role marker: if it fails, setup says so, nothing is left and it can be tried again.
+Release images have no default password and no test account. That admin can add staff and reset their passwords; it is
+not an `idm_admins` member.
 
 **The password rule, measured.** Kanidm has **no setting** that loosens this, and we do not patch it. A password with no second
 step needs 15 characters (`PW_SFA_MIN_LENGTH_NIST`; setting `auth_password_minimum_length` to 1 changed nothing, measured), its strength check
@@ -277,7 +293,13 @@ was not tried on this path. There is no screen for this yet, and nothing notices
   `/v1/person/<username>/_credential/_update_intent/3600`. Either gives a link for that person to choose a new password.
   There is no button for this on a screen yet.
 - The administrator who forgets: as root on the machine, `kanidmd scripting recover-account <username>`, which prints a new
-  password once, then change it on Identity's Credentials page. **A release image has no root shell, so this needs a button in
+  password once, then change it on Identity's Credentials page.
+- **The administrator who loses the phone** with the authenticator: sign in to MedBrains with the setup password on its own
+  form, the break-glass below, audited as `break_glass_password_login`. In Identity, as root on the machine,
+  `kanidmd scripting recover-account <username>` replaces the whole credential, the lost phone's code included, with a
+  password printed once. Sign in to Identity with it and add a new authenticator on its Credentials page at once: Kanidm
+  checks `mb_it_admins`' rule only when a credential is saved (see Second step for IT), so until then that password alone
+  signs in. A release image has no root shell, so the same gap as a forgotten password applies. **A release image has no root shell, so this needs a button in
   Settings or in Control that does not exist yet.** Until then a release machine's forgotten administrator is unrecoverable.
 
 **Hardware keys.** To allow only approved models, an administrator sets a list of makers' CAs and AAGUIDs on a group:
