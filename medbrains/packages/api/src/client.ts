@@ -2537,6 +2537,7 @@ import type {
   UrStatusConversion,
   UserFacilityAssignment,
   UserHospitalAssignment,
+  UserImportResult,
   UserWithAssignments,
   // Utilization Review
   UtilizationReview,
@@ -4481,7 +4482,7 @@ export const api = {
       body: JSON.stringify(data),
     }),
   importUsers: (data: CsvImportRequest) =>
-    request<CsvImportResult>("/setup/users/import", {
+    request<UserImportResult>("/setup/users/import", {
       method: "POST",
       body: JSON.stringify(data),
     }),

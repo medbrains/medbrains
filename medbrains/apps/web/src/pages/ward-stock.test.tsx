@@ -2,9 +2,10 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { render, screen, userEvent, waitFor, within } from "@/test/test-utils";
 import { WardStockPage } from "./ward-stock";
 
+const denied = vi.hoisted(() => new Set<string>());
 vi.mock("@medbrains/stores", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@medbrains/stores")>()),
-  useHasPermission: () => true,
+  useHasPermission: (code: string) => !denied.has(code),
 }));
 vi.mock("@/hooks/useRequirePermission", () => ({ useRequirePermission: () => undefined }));
 vi.mock("@/components/DepartmentSelect", () => ({
@@ -39,6 +40,7 @@ const service = vi.hoisted(() => ({
 vi.mock("@/services/pharmacy.service", () => ({ pharmacyService: service }));
 
 beforeEach(() => {
+  denied.clear();
   for (const fn of [...Object.values(service), ...Object.values(toast)]) fn.mockReset();
   service.getLocationStockDashboard.mockResolvedValue([]);
   service.listWardStock.mockResolvedValue([
@@ -100,5 +102,22 @@ describe("ward stock used on a patient", () => {
       ),
     );
     expect(toast.success).toHaveBeenCalledWith("Recorded as ward use.", expect.anything());
+  });
+});
+
+describe("the stock dashboard on ward stock", () => {
+  it("shows the stock dashboard loading, not as no stock anywhere", async () => {
+    service.getLocationStockDashboard.mockReturnValue(new Promise(() => {}));
+    render(<WardStockPage />);
+    expect(await screen.findByText("Stock by location")).toBeInTheDocument();
+    expect(screen.queryByText("No pharmacy locations with stock yet.")).not.toBeInTheDocument();
+  });
+
+  it("hides, and never asks for, the stock dashboard the role may not read", async () => {
+    denied.add("pharmacy.analytics.view");
+    render(<WardStockPage />);
+    expect(screen.queryByText("Stock by location")).not.toBeInTheDocument();
+    expect(screen.queryByText("No pharmacy locations with stock yet.")).not.toBeInTheDocument();
+    expect(service.getLocationStockDashboard).not.toHaveBeenCalled();
   });
 });

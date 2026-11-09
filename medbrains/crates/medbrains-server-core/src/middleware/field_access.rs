@@ -17,7 +17,8 @@ use crate::error::AppError;
 /// Resolve field-level restrictions from role defaults plus user overrides.
 ///
 /// The returned map contains only non-edit restrictions. A user-level
-/// `"edit"` entry removes a role-level restriction for that field.
+/// `"edit"` entry removes a role-level restriction for that field. A deleted
+/// role contributes no defaults.
 pub async fn resolve_restricted_fields(
     db: &PgPool,
     tenant_id: Uuid,
@@ -31,7 +32,7 @@ pub async fn resolve_restricted_fields(
 
     let role_field_access = sqlx::query_scalar!(
         "SELECT field_access_defaults FROM roles \
-         WHERE tenant_id = $1 AND code = $2 AND is_active = true",
+         WHERE tenant_id = $1 AND code = $2 AND is_active = true AND deleted_at IS NULL",
         tenant_id,
         role
     )
