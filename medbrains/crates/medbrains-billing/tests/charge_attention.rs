@@ -211,6 +211,7 @@ async fn dismissing_needs_a_reason() {
         Path(id),
         Json(DismissRequest {
             reason: "  ".to_owned(),
+            duplicate_usage: false,
         }),
     )
     .await;
@@ -222,6 +223,7 @@ async fn dismissing_needs_a_reason() {
         Path(id),
         Json(DismissRequest {
             reason: "Charged by hand on the IP bill".to_owned(),
+            duplicate_usage: false,
         }),
     )
     .await

@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE dictation_sessions SET status = 'processing', failure = NULL WHERE id = $1 AND tenant_id = $2 AND status IN ('stt_failed', 'llm_failed')",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "6c335565979e0d493667ce1290874b28000803a5d67bbcd80c470d2256b8b816"
+}

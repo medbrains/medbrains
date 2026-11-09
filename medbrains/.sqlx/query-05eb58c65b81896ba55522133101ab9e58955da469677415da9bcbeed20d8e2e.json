@@ -1,0 +1,17 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO dictation_content (session_id, tenant_id, transcript, draft) VALUES ($1, $2, $3, $4) ON CONFLICT (session_id) DO UPDATE SET transcript = EXCLUDED.transcript, draft = EXCLUDED.draft",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Text",
+        "Jsonb"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "05eb58c65b81896ba55522133101ab9e58955da469677415da9bcbeed20d8e2e"
+}

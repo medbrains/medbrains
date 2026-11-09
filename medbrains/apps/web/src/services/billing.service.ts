@@ -228,6 +228,8 @@ export const billingService = {
     api.recordRoomConsent(...args),
   listRoomConsentWitnesses: (...args: Parameters<typeof api.listRoomConsentWitnesses>) =>
     api.listRoomConsentWitnesses(...args),
+  namePatientChargeAttention: (...args: Parameters<typeof api.namePatientChargeAttention>) =>
+    api.namePatientChargeAttention(...args),
   backfillClaimSettlements: (...args: Parameters<typeof api.backfillClaimSettlements>) =>
     api.backfillClaimSettlements(...args),
 

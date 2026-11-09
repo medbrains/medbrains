@@ -3,27 +3,8 @@
 //! Single source of truth for all permission codes, mirroring
 //! the frontend `P` object in `packages/types/src/permissions.ts`.
 //!
-//! TODO (next iteration): add a flat `PERMISSIONS: &[PermissionDef]`
-//! array alongside the hierarchical const modules so the access
-//! manifest can iterate them without macros. See
-//! `crates/medbrains-core/src/access/mod.rs` for the consolidated
-//! access table this should plug into.
-
-/// Permission count surfaced to the runtime manifest API. Hardcoded
-/// for now until the hierarchical `pub const` tree is consolidated
-/// into a flat array (see TODO above). Mirrors the count in
-/// `packages/types/src/permissions.ts::PERMISSIONS.length`.
-pub const PERMISSION_COUNT: usize = 848;
-
-/// Returns all known permission codes. Currently hardcoded — see
-/// TODO above. The CI check `make check-permissions-sync` (planned)
-/// will validate this against `packages/types/src/permissions.ts`.
-#[must_use]
-pub const fn all_codes() -> Vec<&'static str> {
-    // Placeholder — once the flat array lands this returns &[&str].
-    // For now the manifest API just exposes the count.
-    Vec::new()
-}
+//! The flat list of every code, for questions such as "every code in module
+//! `opd`", is `crate::access::catalogue::all_codes`, read from this file.
 
 pub mod dashboard {
     pub const VIEW: &str = "dashboard.view";
@@ -318,6 +299,17 @@ pub mod opd {
     pub mod schedule {
         pub const LIST: &str = "opd.schedule.list";
         pub const MANAGE: &str = "opd.schedule.manage";
+    }
+
+    pub mod dictation {
+        /// Dictate a consultation note.
+        ///
+        /// Record or upload the doctor's own voice on an OPD visit they can
+        /// see. It is transcribed on the hospital's machine and drafted into
+        /// the consultation note for the doctor to accept, edit or reject
+        /// section by section; nothing is filed until they save, and
+        /// medicines still go through the prescription safety checks.
+        pub const USE: &str = "opd.dictation.use";
     }
 }
 
@@ -785,6 +777,11 @@ pub mod billing {
         /// Change billing payment settings.
         /// Change the hospital's UPI ID and its payment-link terms.
         pub const MANAGE: &str = "billing.payment_settings.manage";
+        /// Told of payment settings changes.
+        /// Receive a notification, and an email where one is on file, each
+        /// time the UPI ID or the payment-link terms change: what changed,
+        /// who changed it and when. Hospital administrators are always told.
+        pub const NOTIFIED: &str = "billing.payment_settings.notified";
     }
 
     /// When the insurance desk is warned that a pre-auth is nearly used up.
@@ -950,6 +947,13 @@ pub mod billing {
         /// it with a reason (package-included, free by policy, duplicate), or
         /// run the unbilled-orders check now. Who and when is recorded.
         pub const RESOLVE: &str = "billing.leakage.resolve";
+        /// Name the patient on an unnamed implant.
+        ///
+        /// Name or change the patient a consignment implant was used on when
+        /// the store recorded it on no one. This rewrites the store's
+        /// consignment usage record, which the vendor is paid from, so it is
+        /// kept apart from posting and dismissing. Every naming is audited.
+        pub const NAME_IMPLANT_RECIPIENT: &str = "billing.leakage.name_implant_recipient";
     }
 
     pub mod claims {
@@ -2608,6 +2612,35 @@ pub mod security {
         /// breach register (opening also needs security.incidents.create).
         pub const MANAGE: &str = "security.intel.manage";
     }
+
+    /// MedBrains staff reaching this hospital's data. Under DPDP the hospital
+    /// is the Data Fiduciary and MedBrains its Data Processor, so every
+    /// support or engineering session needs the hospital's own, scoped,
+    /// time-limited grant (`docs/compliance/vendor-access.md`). No grant, no
+    /// access — whatever role the MedBrains account holds.
+    pub mod vendor_access {
+        /// See MedBrains access grants and their actions.
+        ///
+        /// Security → MedBrains access: every grant this hospital gave
+        /// MedBrains support or engineering staff, active and past, and every
+        /// request made under each one.
+        pub const VIEW: &str = "security.vendor_access.view";
+        /// Give MedBrains staff time-limited access.
+        ///
+        /// Names the MedBrains person, the reason, the modules (or
+        /// configuration only) and an expiry of at most 72 hours. Patient data
+        /// stays masked unless a second person approves unmasked access.
+        pub const GRANT: &str = "security.vendor_access.grant";
+        /// Approve unmasked MedBrains access.
+        ///
+        /// The second approval an unmasked grant needs before it opens. The
+        /// approver must be a different person from the one who asked for it.
+        pub const APPROVE_UNMASKED: &str = "security.vendor_access.approve_unmasked";
+        /// End MedBrains access at once.
+        ///
+        /// Revokes a grant; the MedBrains person's next request is refused.
+        pub const REVOKE: &str = "security.vendor_access.revoke";
+    }
 }
 
 pub mod integration {
@@ -3655,6 +3688,16 @@ pub mod admin {
 
         pub mod regulatory {
             pub const MANAGE: &str = "admin.settings.regulatory.manage";
+        }
+
+        pub mod dictation {
+            /// Configure note dictation services.
+            ///
+            /// Where speech is transcribed (the hospital's own whisper server
+            /// by default) and which local model drafts the note. Turning on
+            /// the cloud transcription service sends doctors' recordings off
+            /// the premises, so it is a separate, deliberate setting.
+            pub const MANAGE: &str = "admin.settings.dictation.manage";
         }
 
         /// Read tenant configuration.

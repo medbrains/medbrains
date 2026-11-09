@@ -20,7 +20,12 @@ pub use medbrains_kernel::{ActingAgent, ActorKind, Claims};
 /// written for this request record it. An agent may only read: a write it
 /// asks for is refused here, before any handler runs — agent changes go
 /// through a proposal a person approves, never straight to a record.
-async fn run_as(state: &AppState, claims: &Claims, request: Request, next: Next) -> Response {
+pub(crate) async fn run_as(
+    state: &AppState,
+    claims: &Claims,
+    request: Request,
+    next: Next,
+) -> Response {
     let Some(agent) = claims.act.clone() else {
         return next.run(request).await;
     };
@@ -108,11 +113,14 @@ pub async fn auth_middleware(
 
     if let Some(ref token) = cookie_token {
         let mut claims = decode_and_validate(token, &state.jwt_decoding_key)?;
-        let must_change = verify_perm_version(&state.db, &claims).await?;
-        refuse_until_password_changed(must_change, request.uri().path())?;
+        let account = verify_perm_version(&state.db, &claims).await?;
+        refuse_until_password_changed(account.must_change_password, request.uri().path())?;
         let device_variant = verify_device_not_revoked(&state.db, &claims).await?;
-        hydrate_permissions(&state.db, &mut claims, device_variant.as_deref()).await?;
         request.extensions_mut().insert(AuthMethod::Cookie);
+        if account.is_vendor {
+            return Ok(super::vendor_access::serve(&state, claims, request, next).await);
+        }
+        hydrate_permissions(&state.db, &mut claims, device_variant.as_deref()).await?;
         request.extensions_mut().insert(claims.clone());
         return Ok(run_as(&state, &claims, request, next).await);
     }
@@ -167,11 +175,14 @@ pub async fn auth_middleware(
 
     if let Some(token) = bearer_token {
         let mut claims = decode_and_validate(token, &state.jwt_decoding_key)?;
-        let must_change = verify_perm_version(&state.db, &claims).await?;
-        refuse_until_password_changed(must_change, request.uri().path())?;
+        let account = verify_perm_version(&state.db, &claims).await?;
+        refuse_until_password_changed(account.must_change_password, request.uri().path())?;
         let device_variant = verify_device_not_revoked(&state.db, &claims).await?;
-        hydrate_permissions(&state.db, &mut claims, device_variant.as_deref()).await?;
         request.extensions_mut().insert(AuthMethod::Bearer);
+        if account.is_vendor {
+            return Ok(super::vendor_access::serve(&state, claims, request, next).await);
+        }
+        hydrate_permissions(&state.db, &mut claims, device_variant.as_deref()).await?;
         request.extensions_mut().insert(claims.clone());
         return Ok(run_as(&state, &claims, request, next).await);
     }
@@ -184,16 +195,24 @@ pub async fn auth_middleware(
 /// itself — a WebSocket upgrade, which no middleware sees.
 ///
 /// Refuses a deactivated or deleted account and a stale permission version
-/// (401), a temporary password not yet changed (403) and a revoked device
-/// (401), then fills in the account's permissions.
+/// (401), a temporary password not yet changed or a vendor account (403) and
+/// a revoked device (401), then fills in the account's permissions.
 ///
 /// # Errors
 /// Any refusal above, or a database failure.
 pub async fn verify_decoded(db: &PgPool, claims: &mut Claims) -> Result<(), AppError> {
-    let must_change = verify_perm_version(db, claims).await?;
-    if must_change {
+    let account = verify_perm_version(db, claims).await?;
+    if account.must_change_password {
         return Err(AppError::ForbiddenReason(
             "Change your temporary password to continue.".to_owned(),
+        ));
+    }
+    // A path that decodes its own token (a socket) cannot be masked or
+    // recorded per request the way the vendor gate does, so a vendor account
+    // is refused on it outright.
+    if account.is_vendor {
+        return Err(AppError::ForbiddenReason(
+            "This is not available to MedBrains accounts.".to_owned(),
         ));
     }
     let device_variant = verify_device_not_revoked(db, claims).await?;
@@ -297,12 +316,19 @@ async fn verify_device_not_revoked(
     // Runtime query rather than the checked macro: this crate's queries are
     // runtime by convention, and a macro here would need `.sqlx` metadata
     // regenerated against a migrated database to build at all.
+    //
+    // A device issued to a vendor account is refused like a revoked one: a
+    // tablet paired by a support engineer must not outlive their grant.
     let row: Option<(bool, String)> = sqlx::query_as(
-        "SELECT revoked_at IS NULL, app_variant FROM paired_devices \
-          WHERE id = $1 AND tenant_id = $2",
+        "SELECT d.revoked_at IS NULL AND NOT COALESCE(u.is_vendor_staff \
+                    OR public.app_email_is_vendor(u.email, $3), false), \
+                d.app_variant \
+           FROM paired_devices d LEFT JOIN users u ON u.id = d.issued_to_user_id \
+          WHERE d.id = $1 AND d.tenant_id = $2",
     )
     .bind(device_id)
     .bind(claims.tenant_id)
+    .bind(super::vendor_access::vendor_domains())
     .fetch_optional(&mut *conn)
     .await?;
 
@@ -340,6 +366,15 @@ const fn device_admitted(live: Option<bool>) -> bool {
     matches!(live, Some(true))
 }
 
+/// What the per-request `users` lookup says about the account.
+struct AccountState {
+    /// A temporary password still has to be changed.
+    must_change_password: bool,
+    /// A vendor account: served only under a hospital grant
+    /// (`vendor_access`), whatever its role.
+    is_vendor: bool,
+}
+
 /// Reject tokens whose `perm_version` is stale, or whose user is gone.
 ///
 /// Compares the JWT's `perm_version` against the current DB value.
@@ -348,25 +383,34 @@ const fn device_admitted(live: Option<bool>) -> bool {
 /// user soft-deletes the row and leaves `perm_version` untouched, so a live
 /// token stayed valid until it expired — the account was gone from every
 /// list while its phone kept a ward screen.
-async fn verify_perm_version(db: &PgPool, claims: &Claims) -> Result<bool, AppError> {
+///
+/// The same round trip says whether a password change is owed and whether
+/// this is a vendor account, so neither costs a query of its own.
+async fn verify_perm_version(db: &PgPool, claims: &Claims) -> Result<AccountState, AppError> {
     let mut conn = medbrains_db::pool::tenant_conn(db, &claims.tenant_id).await?;
     if claims.perm_version <= 0 {
         return Err(AppError::Unauthorized);
     }
 
-    // Runtime query: the same round trip also answers whether a password change
-    // is still owed, so enforcing it costs no extra query.
-    let current: Option<(i32, bool)> = sqlx::query_as(
-        "SELECT perm_version, must_change_password FROM users \
+    let current: Option<(i32, bool, bool)> = sqlx::query_as(
+        "SELECT perm_version, must_change_password, \
+                COALESCE(is_vendor_staff OR public.app_email_is_vendor(email, $3), false) \
+           FROM users \
          WHERE id = $1 AND tenant_id = $2 AND is_active AND deleted_at IS NULL",
     )
     .bind(claims.sub)
     .bind(claims.tenant_id)
+    .bind(super::vendor_access::vendor_domains())
     .fetch_optional(&mut *conn)
     .await?;
 
     match current {
-        Some((version, must_change)) if version == claims.perm_version => Ok(must_change),
+        Some((version, must_change_password, is_vendor)) if version == claims.perm_version => {
+            Ok(AccountState {
+                must_change_password,
+                is_vendor,
+            })
+        }
         Some(_) | None => Err(AppError::Unauthorized),
     }
 }

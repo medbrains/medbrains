@@ -16,7 +16,9 @@ use sqlx::postgres::PgPoolOptions;
 use uuid::Uuid;
 
 pub(crate) mod inpatient;
+pub(crate) mod implants;
 pub(crate) mod orders;
+pub(crate) mod stock;
 
 pub(crate) type Tx = sqlx::Transaction<'static, sqlx::Postgres>;
 

@@ -382,6 +382,11 @@ const SecurityIntelligencePage = lazy(() =>
     default: m.SecurityIntelligencePage,
   })),
 );
+const MedbrainsAccessPage = lazy(() =>
+  import("./pages/security/medbrains-access/MedbrainsAccessPage").then((m) => ({
+    default: m.MedbrainsAccessPage,
+  })),
+);
 const RegulatoryPage = lazy(() =>
   import("./pages/regulatory").then((m) => ({ default: m.RegulatoryPage })),
 );
@@ -746,6 +751,7 @@ export function App() {
               <Route path="mrd" element={<MrdPage />} />
               <Route path="security" element={<SecurityPage />} />
               <Route path="security/intelligence" element={<SecurityIntelligencePage />} />
+              <Route path="security/medbrains-access" element={<MedbrainsAccessPage />} />
               <Route path="insurance" element={<InsurancePage />} />
               <Route path="analytics" element={<AnalyticsPage />} />
               <Route path="reports" element={<ReportsPage />} />

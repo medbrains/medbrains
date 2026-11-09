@@ -17,3 +17,4 @@ pub mod rate_limit;
 pub mod request_id;
 pub mod system_state;
 pub mod tenant;
+pub mod vendor_access;

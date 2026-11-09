@@ -59,10 +59,14 @@ pub(super) async fn emit_before_event(
          WHERE tenant_id = $1 \
            AND status = 'active' \
            AND trigger_type = 'internal_event' \
-           AND trigger_config @> $2",
+           AND trigger_config @> $2 \
+           AND NOT public.app_user_is_vendor(created_by, $3)",
     )
     .bind(tenant_id)
     .bind(&trigger_match)
+    // A pipeline a vendor account set up never runs: it would act on, or send
+    // out, tenant data after the support grant that allowed it had ended.
+    .bind(medbrains_core::vendor::vendor_domains())
     .fetch_all(&mut *conn)
     .await?;
 

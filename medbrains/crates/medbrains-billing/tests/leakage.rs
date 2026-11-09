@@ -263,6 +263,7 @@ async fn rerunning_adds_nothing_and_a_dismissed_order_stays_dismissed() {
         Path(id),
         Json(DismissRequest {
             reason: "Package-included".to_owned(),
+            duplicate_usage: false,
         }),
     )
     .await

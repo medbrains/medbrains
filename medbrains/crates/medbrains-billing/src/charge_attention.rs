@@ -30,6 +30,13 @@ use medbrains_server_core::{
 };
 use sqlx::PgConnection;
 
+mod duplicate;
+mod name_patient;
+mod select;
+use name_patient::require_row_access;
+pub use name_patient::{NamePatientRequest, name_patient_charge_attention};
+use select::ITEM_SELECT;
+
 /// One queued charge, with the patient and people joined.
 #[derive(Debug, Serialize, sqlx::FromRow)]
 pub struct ChargeAttentionItem {
@@ -37,7 +44,9 @@ pub struct ChargeAttentionItem {
     pub source_module: String,
     pub setting_module: String,
     pub source_entity_id: Uuid,
-    pub patient_id: Uuid,
+    /// `None` only on an implant used with no patient named, until the desk
+    /// names one.
+    pub patient_id: Option<Uuid>,
     pub encounter_id: Option<Uuid>,
     pub charge_code: String,
     pub quantity: i32,
@@ -53,8 +62,8 @@ pub struct ChargeAttentionItem {
     pub resolved_at: Option<DateTime<Utc>>,
     pub created_by_name: Option<String>,
     pub created_at: DateTime<Utc>,
-    pub patient_name: String,
-    pub uhid: String,
+    pub patient_name: Option<String>,
+    pub uhid: Option<String>,
     pub department_id: Option<Uuid>,
     pub department_name: Option<String>,
     /// When the service was done (leakage rows); the age counts from here.
@@ -63,23 +72,11 @@ pub struct ChargeAttentionItem {
     pub age_days: i32,
     /// Unit price × quantity, when the row carries a price.
     pub amount: Option<Decimal>,
+    /// On an implant used without a patient: who the implant registry has
+    /// an implant of the same batch for, near the usage date. A hint that
+    /// it may be the same implant. Only in the list, for an unscoped desk.
+    pub registry_patients: Option<String>,
 }
-
-/// The queue's one query: item, patient and both people joined once.
-const ITEM_SELECT: &str = "SELECT a.id, a.source_module, a.setting_module, a.source_entity_id, \
-        a.patient_id, a.encounter_id, a.charge_code, a.quantity, a.description_override, \
-        a.unit_price_override, a.tax_percent_override, a.apply_concessions, a.reason, a.status, \
-        a.invoice_id, a.dismiss_reason, ru.full_name AS resolved_by_name, a.resolved_at, \
-        cu.full_name AS created_by_name, a.created_at, \
-        btrim(concat_ws(' ', p.first_name, p.last_name)) AS patient_name, p.uhid, \
-        a.department_id, d.name AS department_name, a.service_at, \
-        (now()::date - COALESCE(a.service_at, a.created_at)::date)::int4 AS age_days, \
-        a.unit_price_override * a.quantity AS amount \
-   FROM charge_attention_items a \
-   JOIN patients p ON p.id = a.patient_id AND p.tenant_id = a.tenant_id \
-   LEFT JOIN departments d ON d.id = a.department_id \
-   LEFT JOIN users ru ON ru.id = a.resolved_by \
-   LEFT JOIN users cu ON cu.id = a.created_by";
 
 #[derive(Debug, Deserialize)]
 pub struct ListChargeAttentionQuery {
@@ -98,13 +95,15 @@ struct Kinds {
     unbilled: bool,
 }
 
-/// The rows' kind filter in SQL, bound as `$n` (failed) and `$n+1` (unbilled).
+/// The rows' kind filter in SQL, bound as `$n` (failed) and `$n+1`
+/// (leakage: unbilled orders and stock, implants with no patient).
 /// Charge rows only: the insurance kinds on the same table are
 /// `revenue_alerts`', under their own permissions.
 fn kind_filter(n: u8) -> String {
+    let leak = crate::leakage::LEAKAGE_REASONS_SQL;
     format!(
         "a.kind = 'charge_not_posted' \
-         AND (${n} OR a.reason <> 'unbilled_order') AND (${} OR a.reason = 'unbilled_order')",
+         AND (${n} OR a.reason NOT IN {leak}) AND (${} OR a.reason IN {leak})",
         n + 1
     )
 }
@@ -147,8 +146,9 @@ fn list_filter() -> String {
         "a.tenant_id = $1 AND a.deleted_at IS NULL \
          AND ($2::text IS NULL OR a.status = $2) \
          AND ($3::uuid[] IS NULL OR a.patient_id = ANY($3)) AND {} \
-         AND ($6::text IS NULL OR ($6 = 'unbilled') = (a.reason = 'unbilled_order'))",
-        kind_filter(4)
+         AND ($6::text IS NULL OR ($6 = 'unbilled') = (a.reason IN {}))",
+        kind_filter(4),
+        crate::leakage::LEAKAGE_REASONS_SQL
     )
 }
 
@@ -218,10 +218,14 @@ pub async fn list_charge_attention(
     .fetch_all(&mut *tx)
     .await?;
     tx.commit().await?;
-    if hide_amounts {
-        for row in &mut rows {
+    for row in &mut rows {
+        if hide_amounts {
             row.unit_price_override = None;
             row.amount = None;
+        }
+        // The hint names other patients: only for a desk that bills everyone.
+        if visible.is_some() {
+            row.registry_patients = None;
         }
     }
     Ok(Json(Paginated::new(rows, total, &page)))
@@ -281,8 +285,8 @@ pub async fn charge_attention_summary(
 /// onto the patient's bill.
 ///
 /// A charge that still fails answers the error and the item stays open. An
-/// unbilled order is checked again first, in this transaction: see
-/// `leakage::check_unbilled_order`.
+/// order or a use of stock is checked again first, in this transaction, and
+/// bills only what is left of it: see `leakage::check_before_post`.
 pub async fn post_charge_attention(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
@@ -292,21 +296,24 @@ pub async fn post_charge_attention(
     crate::require_amount_write(&state, &claims).await?;
     let mut tx = medbrains_kernel::begin(&state.db, Actor::from_claims(&claims)).await?;
     let item = lock_open(&mut tx, &claims, kinds, id).await?;
-    medbrains_authz_gate::require_patient_billing_access(&state, &claims, item.patient_id).await?;
-    if item.reason == crate::leakage::REASON_UNBILLED_ORDER {
-        tx = crate::leakage::check_unbilled_order(tx, &claims, &item).await?;
-    }
+    require_row_access(&state, &claims, item.patient_id).await?;
+    let Some(patient_id) = item.patient_id else {
+        return Err(AppError::Conflict(
+            "Name the patient this implant was used on first.".to_owned(),
+        ));
+    };
+    let (mut tx, quantity) = crate::leakage::check_before_post(tx, &claims, &item).await?;
     let req = ChargeRequest {
         tenant_id: claims.tenant_id,
         requested_by: claims.sub,
         setting_module: &item.setting_module,
         charge: AutoChargeInput {
-            patient_id: item.patient_id,
+            patient_id,
             encounter_id: item.encounter_id,
             charge_code: item.charge_code.clone(),
             source: item.source_module.clone(),
             source_id: item.source_entity_id,
-            quantity: item.quantity,
+            quantity,
             description_override: item.description_override.clone(),
             unit_price_override: item.unit_price_override,
             tax_percent_override: item.tax_percent_override,
@@ -336,10 +343,17 @@ pub async fn post_charge_attention(
 #[derive(Debug, Deserialize)]
 pub struct DismissRequest {
     pub reason: String,
+    /// On an implant used without a patient: the store's record is a
+    /// duplicate of one already made (the registry recorded the implant), so
+    /// the unit it took goes back to stock and the vendor's usage. Refused on
+    /// any other row.
+    #[serde(default)]
+    pub duplicate_usage: bool,
 }
 
 /// `PUT /api/billing/charge-attention/{id}/dismiss` — the charge should not
-/// be billed; the reason is required and kept.
+/// be billed; the reason is required and kept. A duplicate implant usage is
+/// reversed in the same transaction: see `duplicate::reverse_usage`.
 pub async fn dismiss_charge_attention(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
@@ -347,6 +361,11 @@ pub async fn dismiss_charge_attention(
     Json(body): Json<DismissRequest>,
 ) -> Result<Json<ChargeAttentionItem>, AppError> {
     let kinds = kinds(&claims, true)?;
+    if body.duplicate_usage {
+        // Returning stock is the store's job: a billing-only desk can dismiss,
+        // not restock. Checked before any row is read.
+        require_permission(&claims, permissions::indent::STOCK_MANAGE)?;
+    }
     let reason = body.reason.trim();
     if reason.chars().count() < 3 {
         return Err(AppError::BadRequest(
@@ -355,7 +374,10 @@ pub async fn dismiss_charge_attention(
     }
     let mut tx = medbrains_kernel::begin(&state.db, Actor::from_claims(&claims)).await?;
     let item = lock_open(&mut tx, &claims, kinds, id).await?;
-    medbrains_authz_gate::require_patient_billing_access(&state, &claims, item.patient_id).await?;
+    require_row_access(&state, &claims, item.patient_id).await?;
+    if body.duplicate_usage {
+        duplicate::reverse_usage(&mut tx, &claims, &item).await?;
+    }
     mark_dismissed(&mut tx, &claims, id, reason).await?;
     let row = fetch(&mut tx, claims.tenant_id, id).await?;
     tx.commit().await?;
@@ -411,17 +433,20 @@ async fn lock_open(
     fetch(tx, claims.tenant_id, id).await
 }
 
-/// One item by id, joined as the list shows it.
+/// One item by id, joined as the list shows it, without the registry hint
+/// (it names other patients; the list carries it, scoped).
 async fn fetch(
     tx: &mut PgConnection,
     tenant_id: Uuid,
     id: Uuid,
 ) -> Result<ChargeAttentionItem, AppError> {
-    Ok(sqlx::query_as::<_, ChargeAttentionItem>(&format!(
+    let mut item = sqlx::query_as::<_, ChargeAttentionItem>(&format!(
         "{ITEM_SELECT} WHERE a.id = $1 AND a.tenant_id = $2"
     ))
     .bind(id)
     .bind(tenant_id)
     .fetch_one(&mut *tx)
-    .await?)
+    .await?;
+    item.registry_patients = None;
+    Ok(item)
 }
