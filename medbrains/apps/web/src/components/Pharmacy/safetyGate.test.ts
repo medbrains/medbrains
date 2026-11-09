@@ -1,7 +1,12 @@
 import { ApiError } from "@medbrains/api";
 import type { MedicationSafetyFinding } from "@medbrains/types";
 import { describe, expect, it } from "vitest";
-import { isSafetyRefusal, overridePermissions, safetyGate } from "./safetyGate";
+import {
+  isAllergyUnknownRefusal,
+  isSafetyRefusal,
+  overridePermissions,
+  safetyGate,
+} from "./safetyGate";
 
 function finding(
   code: string,
@@ -70,5 +75,16 @@ describe("pharmacy safety gate", () => {
     expect(isSafetyRefusal(new ApiError("Medication safety check: X × Y — major", 409))).toBe(true);
     expect(isSafetyRefusal(new ApiError("Insufficient stock for X", 409))).toBe(false);
     expect(isSafetyRefusal(new ApiError("Medication safety check: X", 403))).toBe(false);
+  });
+
+  it("tells the unknown-allergy refusal on a claim from any other refusal", () => {
+    const unknown =
+      "This patient's allergy status is unknown: no allergy is recorded and nobody has noted";
+    expect(isAllergyUnknownRefusal(new ApiError(unknown, 400))).toBe(true);
+    expect(isAllergyUnknownRefusal(new ApiError(unknown, 409))).toBe(false);
+    expect(isAllergyUnknownRefusal(new ApiError("Schedule H/H1/X gate failed: x", 400))).toBe(
+      false,
+    );
+    expect(isAllergyUnknownRefusal(new Error(unknown))).toBe(false);
   });
 });

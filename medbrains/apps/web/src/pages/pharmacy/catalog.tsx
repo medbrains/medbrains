@@ -438,11 +438,11 @@ export function PharmacyCatalogTab({
                 <Select
                   label="Drug Schedule"
                   placeholder="Select schedule"
+                  required
                   data={drugScheduleOptions}
                   value={field.value ?? null}
                   onChange={(value) => field.onChange(value ?? undefined)}
                   error={errors.drug_schedule?.message}
-                  clearable
                 />
               )}
             />

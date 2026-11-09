@@ -47,7 +47,35 @@ pub async fn resolve_permissions_on(
     {
         return Ok(Vec::new());
     }
+    resolve_granted_permissions_on(conn, tenant_id, user_id, role).await
+}
 
+/// The codes a user is granted by name, bypass role or not.
+///
+/// What the token of a non-bypass user carries. For the few rights a bypass role does not
+/// carry (the NDPS witness override), read for a super or hospital admin.
+///
+/// # Errors
+/// A database error reading the role, the access groups or the user's
+/// `access_matrix`, or setting the tenant context.
+pub async fn resolve_granted_permissions(
+    db: &PgPool,
+    tenant_id: Uuid,
+    user_id: Uuid,
+    role: &str,
+) -> Result<Vec<String>, AppError> {
+    let mut conn = medbrains_db::pool::tenant_conn(db, &tenant_id).await?;
+    resolve_granted_permissions_on(&mut conn, tenant_id, user_id, role).await
+}
+
+/// [`resolve_granted_permissions`] on a connection the caller already holds, which must carry
+/// the tenant context.
+async fn resolve_granted_permissions_on(
+    conn: &mut PgConnection,
+    tenant_id: Uuid,
+    user_id: Uuid,
+    role: &str,
+) -> Result<Vec<String>, AppError> {
     // Get role permissions from roles table
     let role_perms_json = sqlx::query_scalar!(
         "SELECT permissions FROM roles WHERE tenant_id = $1 AND code = $2 AND is_active = true \

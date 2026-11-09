@@ -23,11 +23,17 @@ export function serializeTiming(timing: Omit<MedicationTiming, "_v">): string {
 
 // ── Frequency → Default Time Slots ──────────────────────────
 
+// Every spelling the prescriber's screen writes. TID was missing, so a
+// three-times-a-day antibiotic was filed under "as needed — take only when
+// required" on the pharmacist's dispensing view.
 const FREQ_SLOT_MAP: Record<string, TimeOfDay[]> = {
   OD: ["morning"],
   BD: ["morning", "evening"],
+  BID: ["morning", "evening"],
   TDS: ["morning", "afternoon", "evening"],
+  TID: ["morning", "afternoon", "evening"],
   QID: ["morning", "afternoon", "evening", "bedtime"],
+  QDS: ["morning", "afternoon", "evening", "bedtime"],
   HS: ["bedtime"],
   STAT: [],
   SOS: [],
@@ -37,6 +43,18 @@ const FREQ_SLOT_MAP: Record<string, TimeOfDay[]> = {
 /** Map a frequency code to default time-of-day slots */
 export function frequencyToDefaultSlots(freq: string): TimeOfDay[] {
   return FREQ_SLOT_MAP[freq.toUpperCase()] ?? [];
+}
+
+/** What a dispensing view or label says for a frequency it cannot read. */
+export const FREQUENCY_NOT_RECOGNISED = "Frequency not recognised — read the prescription";
+
+/**
+ * Whether the frequency is a spelling the timing map knows — scheduled, or
+ * as needed (STAT/SOS/PRN). An unknown one yields no slots, exactly like PRN,
+ * so callers ask this before filing a medicine under "as needed".
+ */
+export function isRecognisedFrequency(freq: string): boolean {
+  return Object.hasOwn(FREQ_SLOT_MAP, freq.trim().toUpperCase());
 }
 
 // ── Display Labels ──────────────────────────────────────────

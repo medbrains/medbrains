@@ -69,8 +69,8 @@ pub async fn list(
                 .replace('%', "\\%")
                 .replace('_', "\\_")
         });
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let mut tx =
+        medbrains_kernel::begin(&state.db, medbrains_kernel::Actor::from_claims(&claims)).await?;
     let rows = sqlx::query_as::<_, CeilingRow>(
         "SELECT id, code, name, strength, mrp, nppa_ceiling_price, nppa_notification, \
                 nppa_ceiling_source, nppa_updated_at \

@@ -129,6 +129,9 @@ def main(argv: list[str] | None = None) -> int:
         raise SystemExit("set MEDBRAINS_PASSWORD or pass --password")
 
     session = Session.login(args.username, args.password)
+    # A synced prescription names its doctor; the forms are transcribed as
+    # the doctor this loader signs in as.
+    args.doctor_id = session.call("GET", "/api/auth/me")["id"]
     print("authenticated")
 
     department_id = session.first_department()
@@ -233,7 +236,7 @@ def load_batch(
     prescriptions = [
         event
         for (row, pid), eid in zip(pairs, encounter_ids)
-        if (event := journey.prescription_event(row, pid, eid)) is not None
+        if (event := journey.prescription_event(row, pid, eid, args.doctor_id)) is not None
     ]
     if prescriptions:
         tally.absorb(session.sync(camp_id, prescriptions))

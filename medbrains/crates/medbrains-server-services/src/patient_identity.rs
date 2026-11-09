@@ -13,7 +13,7 @@ use std::collections::HashMap;
 use medbrains_core::form::FieldAccessLevel;
 use medbrains_core::privacy::{mask_identifier_keep_last, mask_name};
 use serde::Serialize;
-use sqlx::{Postgres, Transaction};
+use sqlx::PgConnection;
 use uuid::Uuid;
 
 #[derive(Debug, Clone, Serialize)]
@@ -94,7 +94,7 @@ fn identity(row: Row, restricted: &HashMap<String, FieldAccessLevel>) -> Patient
 /// has already decided these rows are theirs to see.
 #[allow(clippy::implicit_hasher)]
 pub async fn patient_identities(
-    tx: &mut Transaction<'_, Postgres>,
+    conn: &mut PgConnection,
     tenant_id: Uuid,
     ids: &[Uuid],
     restricted: &HashMap<String, FieldAccessLevel>,
@@ -109,7 +109,7 @@ pub async fn patient_identities(
     )
     .bind(tenant_id)
     .bind(ids)
-    .fetch_all(&mut **tx)
+    .fetch_all(conn)
     .await?;
     Ok(rows.into_iter().map(|r| identity(r, restricted)).collect())
 }

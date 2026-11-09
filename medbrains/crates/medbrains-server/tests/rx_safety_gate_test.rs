@@ -299,7 +299,7 @@ async fn review_and_dispense_run_interaction_and_stewardship_checks() {
         &csrf,
         "PUT",
         &format!("/api/pharmacy/orders/{mero_order}/dispense"),
-        json!({}),
+        json!({ "allergy_status_acknowledged": true }),
     )
     .await;
     assert_eq!(status, StatusCode::CONFLICT, "{body}");
@@ -428,7 +428,18 @@ async fn picking_a_pack_and_collect_order_runs_the_safety_gate() {
     let pick = orders[1];
     let claim = format!("/api/pharmacy/fulfilment/{pick}/claim");
 
+    // Allergy status unknown on this patient: asked and acknowledged first.
     let (status, body) = send(&app, &csrf, "POST", &claim, json!({})).await;
+    assert_eq!(status, StatusCode::BAD_REQUEST, "{body}");
+    assert!(body.to_string().contains("allergy status is unknown"), "{body}");
+    let (status, body) = send(
+        &app,
+        &csrf,
+        "POST",
+        &claim,
+        json!({ "allergy_status_acknowledged": true }),
+    )
+    .await;
     assert_eq!(status, StatusCode::CONFLICT, "{body}");
     assert!(body.to_string().contains("contraindicated"), "{body}");
     let still: String = sqlx::query_scalar("SELECT status FROM pharmacy_orders WHERE id = $1")
@@ -447,7 +458,10 @@ async fn picking_a_pack_and_collect_order_runs_the_safety_gate() {
         &csrf,
         "POST",
         &claim,
-        json!({ "safety_override_reason": "Prescriber switched to pantoprazole tomorrow" }),
+        json!({
+            "safety_override_reason": "Prescriber switched to pantoprazole tomorrow",
+            "allergy_status_acknowledged": true,
+        }),
     )
     .await;
     assert_eq!(status, StatusCode::OK, "{body}");
