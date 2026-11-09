@@ -993,6 +993,8 @@ import type {
   DischargeSummaryTemplate,
   DismissChargeAttentionRequest,
   DismissPreauthRequest,
+  // Pharmacy Phase 2
+  DispenseWitness,
   DispensingLabelPrintData,
   DisposalQuery,
   DispositionRow,
@@ -1805,6 +1807,7 @@ import type {
   PharmacyDeliveryList,
   PharmacyDestructionLog,
   PharmacyDispatchStatus,
+  PharmacyDispenseContext,
   PharmacyDrugRecall,
   PharmacyEmergencyKit,
   PharmacyOrder,
@@ -1819,13 +1822,13 @@ import type {
   PharmacyQueueDisplay,
   PharmacyReturn,
   PharmacyRxDetailResponse,
+  PharmacySafetyRecordRow,
   PharmacySalesRow,
   PharmacyStockTransaction,
   PharmacyStoreAssignment,
   PharmacyStoreIndent,
   PharmacySubstitute,
   PharmacyTransferRequest,
-  // Pharmacy Phase 2
   PharmacyValidationResult,
   PickLine,
   PincodeResult,
@@ -2537,6 +2540,7 @@ import type {
   UrStatusConversion,
   UserFacilityAssignment,
   UserHospitalAssignment,
+  UserImportResult,
   UserWithAssignments,
   // Utilization Review
   UtilizationReview,
@@ -4481,7 +4485,7 @@ export const api = {
       body: JSON.stringify(data),
     }),
   importUsers: (data: CsvImportRequest) =>
-    request<CsvImportResult>("/setup/users/import", {
+    request<UserImportResult>("/setup/users/import", {
       method: "POST",
       body: JSON.stringify(data),
     }),
@@ -7411,11 +7415,17 @@ export const api = {
     data?: {
       items?: unknown[];
       witnessed_by?: string;
+      /** The witness's own password, typed by them; checked on the server. */
+      witness_password?: string;
       allergy_override_reason?: string;
       ndps_override_reason?: string;
       unpaid_override_reason?: string;
       /** Clinical reason for dispensing past a blocking safety finding. */
       safety_override_reason?: string;
+      /** Scan id or serial of the retained Schedule X duplicate prescription. */
+      schedule_x_duplicate_ref?: string;
+      /** The pharmacist asked: the patient's allergy status was unknown. */
+      allergy_status_acknowledged?: boolean;
     },
   ) =>
     request<PharmacyOrder>(`/pharmacy/orders/${id}/dispense`, {
@@ -7489,6 +7499,17 @@ export const api = {
     request<PharmacyValidationResult>(`/pharmacy/orders/${id}/validate`, {
       method: "POST",
     }),
+
+  getPharmacyOrderSafetyRecord: (id: string) =>
+    request<PharmacySafetyRecordRow[]>(`/pharmacy/orders/${id}/safety-record`),
+
+  listDispenseWitnesses: (q?: string) =>
+    request<DispenseWitness[]>(
+      `/pharmacy/dispense-witnesses${q ? `?q=${encodeURIComponent(q)}` : ""}`,
+    ),
+
+  getPharmacyDispenseContext: (patientId: string) =>
+    request<PharmacyDispenseContext>(`/pharmacy/patients/${patientId}/dispense-context`),
   createOtcSale: (data: CreateOtcSaleRequest) =>
     request<PharmacyOrderDetailResponse>("/pharmacy/otc-sale", {
       method: "POST",
@@ -7769,8 +7790,14 @@ export const api = {
   },
   getFulfilmentPickList: (orderId: string) =>
     request<PickLine[]>(`/pharmacy/fulfilment/${orderId}/pick-list`),
-  /** Claim for picking. A reason is needed only to override a medication safety block. */
-  claimFulfilmentOrder: (orderId: string, data?: { safety_override_reason?: string }) =>
+  /**
+   * Claim for picking. A reason is needed only to override a medication safety
+   * block; the acknowledgement only when the patient's allergy status is unknown.
+   */
+  claimFulfilmentOrder: (
+    orderId: string,
+    data?: { safety_override_reason?: string; allergy_status_acknowledged?: boolean },
+  ) =>
     request<FulfilmentStageResponse>(`/pharmacy/fulfilment/${orderId}/claim`, {
       method: "POST",
       ...(data ? { body: JSON.stringify(data) } : {}),
@@ -17958,7 +17985,8 @@ export const api = {
   getMyActiveCashDrawer: () => request<unknown | null>("/pharmacy/cash-drawers/me/active"),
 
   // Day close
-  listCounterDays: () => request<CounterDay[]>("/pharmacy/day-close"),
+  listCounterDays: (q?: string) =>
+    request<CounterDay[]>(`/pharmacy/day-close${q ? `?q=${encodeURIComponent(q)}` : ""}`),
   getDayCloseReport: (params: { pharmacy_location_id: string; business_date: string }) =>
     request<DayReport>(`/pharmacy/day-close/report?${new URLSearchParams(params)}`),
   closeCounterDay: (data: CloseDayRequest) =>

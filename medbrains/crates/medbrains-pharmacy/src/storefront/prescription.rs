@@ -100,14 +100,17 @@ pub async fn order_prescription(
         // At most the hospital's days of supply for one online order
         // (`max_days_supply_online`, 30 by default): a longer course comes in
         // refills.
-        let quantity =
-            crate::estimate_rx_dispense_quantity(&line.dosage, &line.frequency, &line.duration)
-                .min(crate::estimate_rx_dispense_quantity(
-                    &line.dosage,
-                    &line.frequency,
-                    &supply_cap,
-                ))
-                .max(1);
+        let quantity = crate::rx_quantity::estimate_rx_dispense_quantity(
+            &line.dosage,
+            &line.frequency,
+            &line.duration,
+        )
+        .min(crate::rx_quantity::estimate_rx_dispense_quantity(
+            &line.dosage,
+            &line.frequency,
+            &supply_cap,
+        ))
+        .max(1);
         let quantity = super::cart::line_max(row, &settings, Some(quantity));
         match check_line(row, quantity, &settings, Some(quantity)) {
             Ok(()) => put_line(tx, tenant_id, cart, row, quantity, Some(quantity)).await?,

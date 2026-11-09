@@ -19,7 +19,7 @@ export interface PermissionDef {
   module: string;
 }
 
-/** 1250 permissions, one per constant in the Rust source. */
+/** 1252 permissions, one per constant in the Rust source. */
 export const PERMISSIONS: PermissionDef[] = [
   // dashboard
   {
@@ -733,6 +733,12 @@ export const PERMISSIONS: PermissionDef[] = [
     module: "pharmacy",
   },
   {
+    code: "pharmacy.dispensing.unpaid_override",
+    label: "Hand over an unpaid bill's medicines on a reason",
+    description: "Credit patients, scheme beneficiaries and staff are served before they pay. The reason is written with the dispense, against the patient, for the cashier and the auditor to see. Without this grant an open bill means payment first.",
+    module: "pharmacy",
+  },
+  {
     code: "pharmacy.stock.manage",
     label: "Manage Stock",
     description: "Manage pharmacy inventory",
@@ -808,6 +814,12 @@ export const PERMISSIONS: PermissionDef[] = [
     code: "pharmacy.ndps.manage",
     label: "Manage NDPS Register",
     description: "Record and reconcile controlled-drug register entries",
+    module: "pharmacy",
+  },
+  {
+    code: "pharmacy.ndps.witness_override",
+    label: "Dispense a controlled drug with no witness",
+    description: "The NDPS dual lock may be bypassed only on a recorded reason, and only by someone the hospital names for it: the medication-safety override every pharmacist holds no longer covers it. Granted to no built-in role. Never covers Schedule X, which always needs a witness.",
     module: "pharmacy",
   },
   {
@@ -8385,6 +8397,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.PHARMACY.DISPENSING.CANCEL,
       P.PHARMACY.DISPENSING.CREATE,
       P.PHARMACY.DISPENSING.PARTIAL,
+      P.PHARMACY.DISPENSING.UNPAID_OVERRIDE,
       P.PHARMACY.DISPENSING.VOID,
       P.PHARMACY.FORMULARY.APPROVE,
       P.PHARMACY.FULFILMENT.DISPATCH,

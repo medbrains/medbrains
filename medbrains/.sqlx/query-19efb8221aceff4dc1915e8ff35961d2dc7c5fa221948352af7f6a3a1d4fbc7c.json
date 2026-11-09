@@ -1,0 +1,31 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT u.full_name, u.password_hash FROM users u JOIN roles r ON r.code = u.role::text AND r.tenant_id = u.tenant_id AND r.deleted_at IS NULL WHERE u.id = $1 AND u.tenant_id = $2 AND u.is_active AND u.deleted_at IS NULL AND u.department_ids && $4::uuid[] AND (r.permissions ? $3 OR COALESCE(u.access_matrix->'extra' ? $3, false)) AND NOT COALESCE(u.access_matrix->'denied' ? $3, false)",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "full_name",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 1,
+        "name": "password_hash",
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Text",
+        "UuidArray"
+      ]
+    },
+    "nullable": [
+      false,
+      true
+    ]
+  },
+  "hash": "19efb8221aceff4dc1915e8ff35961d2dc7c5fa221948352af7f6a3a1d4fbc7c"
+}

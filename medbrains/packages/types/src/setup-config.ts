@@ -17,6 +17,17 @@ export interface CsvImportResult {
   errors: string[];
 }
 
+/** One imported account's one-time password, returned once by a user import. */
+export interface ImportedPassword {
+  username: string;
+  password: string;
+}
+
+/** A user import's result: every new account must change its password first. */
+export interface UserImportResult extends CsvImportResult {
+  one_time_passwords: ImportedPassword[];
+}
+
 // ── Module Masters Seeding ──────────────────────────────────
 
 export interface SeedModuleMastersRequest {

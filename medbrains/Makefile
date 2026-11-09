@@ -11,7 +11,7 @@
        check-ui-api check-types check-print-types check-ui-seam check-raw-html check-secrets check-all \
        check-field-classes check-authz-collapse check-ui-slop check-docs check-kernel-boundary check-kernel-no-domain check-file-lengths check-size-budgets check-ai-label check-query-collapse check-boundary-filter check-conditional-authz check-permission-codes check-permission-reachable check-ui-permission-match check-ui-permission-match-strict check-ui-permission-match-update-baseline check-relation-parity check-parent-id-scoping check-soft-delete-filter check-phi-audit-coverage authz-ledger coverage-ledger coverage-ledger-check coverage-ledger-update-baseline \
        check-rls check-sharing check-authz-posture check-print-placeholders check-requirement-flags check-surface-drift check-role-templates check-tx-error-discard check-pg-enum-parity check-default-parity check-unbounded-reads check-permission-enforcement check-tenant-registry-reads check-pool-reads check-rls-only-writes check-tenant-leak check-runtime-sqlx check-audit check-tracing \
-       check-migration-headers check-migration-immutable e2e-generate e2e-screens e2e-linkages e2e-writes e2e-writes-generate e2e-rbac-generate native-tokens native-core native-ios native-ios-test native-android \
+       check-migration-headers check-migration-immutable perf-web e2e-generate e2e-screens e2e-linkages e2e-writes e2e-writes-generate e2e-rbac-generate native-tokens native-core native-ios native-ios-test native-android \
        check-region-pinning check-no-card-logging check-egress-allowlist check-cert-readiness check-encryption-at-rest check-redaction-masking \
        smoke-test e2e-test e2e-smoke e2e-crud e2e-forms e2e-analytics e2e-rbac e2e-journeys e2e-ui-aaa e2e-full e2e-all generate-smoke generate-e2e \
        test-rust test-unit test-ts test-all test-coverage \
@@ -19,7 +19,7 @@
        docker-build \
        packer-build packer-destroy packer-destroy-dry \
        deploy deploy-plan deploy-bootstrap \
-       desktop desktop-dev desktop-reports-dev desktop-build desktop-build-macos desktop-build-windows desktop-build-linux \
+       desktop desktop-dev desktop-setup-dev desktop-reports-dev desktop-build desktop-build-macos desktop-build-windows desktop-build-linux \
        icd-up icd-down icd-logs icd-open \
        clean logs db-shell seed
 
@@ -622,11 +622,14 @@ deploy-bootstrap: ## terraform apply bootstrap (state buckets, run ONCE per regi
 
 desktop: desktop-dev ## Start desktop app against the running make dev stack
 
-desktop-dev: ## Start desktop app against https://medbrains-desktop.localhost
-	cd apps/desktop && pnpm install && MEDBRAINS_DESKTOP_DEV_URL=$(DEV_DESKTOP_HTTPS_ORIGIN) MEDBRAINS_DESKTOP_API_BASE=$(DEV_HTTPS_ORIGIN)/api MEDBRAINS_DESKTOP_START_ROUTE=$(ROUTE) pnpm tauri dev --config '{"build":{"beforeDevCommand":"","devUrl":"$(DEV_DESKTOP_HTTPS_ORIGIN)"}}'
+desktop-dev: ## Start desktop app against the make dev server (https://medbrains.localhost)
+	cd apps/desktop && pnpm install && MEDBRAINS_DESKTOP_SERVER=$(DEV_HTTPS_ORIGIN) MEDBRAINS_DESKTOP_START_ROUTE=$(ROUTE) pnpm tauri dev --config src-tauri/tauri.dev.conf.json --config '{"build":{"beforeDevCommand":""}}'
+
+desktop-setup-dev: ## Start desktop app on its first-launch server setup screen
+	cd apps/desktop && pnpm install && pnpm dev
 
 desktop-reports-dev: ## Run desktop app directly on the reports command center
-	cd apps/desktop && pnpm install && MEDBRAINS_DESKTOP_DEV_URL=$(DEV_DESKTOP_HTTPS_ORIGIN) MEDBRAINS_DESKTOP_API_BASE=$(DEV_HTTPS_ORIGIN)/api MEDBRAINS_DESKTOP_START_ROUTE=/reports pnpm tauri dev --config '{"build":{"beforeDevCommand":"","devUrl":"$(DEV_DESKTOP_HTTPS_ORIGIN)"}}'
+	cd apps/desktop && pnpm install && MEDBRAINS_DESKTOP_SERVER=$(DEV_HTTPS_ORIGIN) MEDBRAINS_DESKTOP_START_ROUTE=/reports pnpm tauri dev --config src-tauri/tauri.dev.conf.json --config '{"build":{"beforeDevCommand":""}}'
 
 desktop-build: ## Build desktop bundle for current OS
 	cd apps/desktop && pnpm install && pnpm build
@@ -743,6 +746,9 @@ e2e-rbac: ## Layer 6 — RBAC matrix (REST, multi-role)
 
 e2e-journeys: ## Layer 5 — End-to-end journeys (hybrid UI + REST)
 	cd apps/web && pnpm exec playwright test --project=journeys
+
+perf-web: ## Web startup JS, heap, CPU and a shift-long heap slope (needs the backend on :3000)
+	bash apps/web/e2e/perf/run.sh
 
 e2e-linkages: ## Layer 5b — Cross-module linkages (an action in one module, its effect asserted in another)
 	cd apps/web && pnpm exec playwright test --project=linkages

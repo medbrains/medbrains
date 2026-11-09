@@ -4,6 +4,7 @@ import {
   foodTimingLabel,
   frequencyToDefaultSlots,
   instructionsDisplayText,
+  isRecognisedFrequency,
   parseInstructions,
   serializeTiming,
   timeSlotHour,
@@ -76,6 +77,24 @@ describe("frequencyToDefaultSlots", () => {
     expect(frequencyToDefaultSlots("HS")).toEqual(["bedtime"]);
   });
 
+  it("reads TID, BID and QDS as the scheduled doses they are, never as as-needed", () => {
+    // The prescriber's screen writes TID; the dispensing view filed it under
+    // "as needed — take only when required".
+    expect(frequencyToDefaultSlots("TID")).toEqual(["morning", "afternoon", "evening"]);
+    expect(frequencyToDefaultSlots("BID")).toEqual(["morning", "evening"]);
+    expect(frequencyToDefaultSlots("QDS")).toEqual(["morning", "afternoon", "evening", "bedtime"]);
+  });
+
+  it("tells a frequency it cannot read from one that means as needed", () => {
+    // Both yield no slots; only the second may be filed as "as needed".
+    expect(isRecognisedFrequency("SOS")).toBe(true);
+    expect(isRecognisedFrequency(" prn ")).toBe(true);
+    expect(isRecognisedFrequency("TID")).toBe(true);
+    expect(isRecognisedFrequency("Q6H")).toBe(false);
+    expect(isRecognisedFrequency("typo")).toBe(false);
+    expect(isRecognisedFrequency("")).toBe(false);
+  });
+
   it("is case-insensitive", () => {
     expect(frequencyToDefaultSlots("bd")).toEqual(["morning", "evening"]);
     expect(frequencyToDefaultSlots("Tds")).toHaveLength(3);
@@ -95,7 +114,7 @@ describe("frequencyToDefaultSlots", () => {
    * Q6H and QDS are real prescribing codes that are not in the map.
    */
   it("QUIRK: an unknown frequency yields no slots, exactly like PRN", () => {
-    for (const freq of ["Q6H", "QDS", "BDS", "typo", ""]) {
+    for (const freq of ["Q6H", "BDS", "typo", ""]) {
       expect(frequencyToDefaultSlots(freq)).toEqual([]);
     }
     expect(frequencyToDefaultSlots("Q6H")).toEqual(frequencyToDefaultSlots("PRN"));

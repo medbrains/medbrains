@@ -1,0 +1,32 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT COUNT(*) FILTER (WHERE user_id = $2) AS \"by_dispenser!\", COUNT(*) FILTER (WHERE entity_id = $3) AS \"against_witness!\" FROM audit_log WHERE tenant_id = $1 AND action = $4 AND created_at > now() - make_interval(mins => $5)",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "by_dispenser!",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 1,
+        "name": "against_witness!",
+        "type_info": "Int8"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Uuid",
+        "Text",
+        "Int4"
+      ]
+    },
+    "nullable": [
+      null,
+      null
+    ]
+  },
+  "hash": "d92902c10967d667a32c5384270e1fcda8b0977375832478910e579aec1a90e1"
+}

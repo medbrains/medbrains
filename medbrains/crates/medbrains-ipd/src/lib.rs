@@ -91,6 +91,7 @@ use medbrains_server_core::middleware::authorization::{
 use medbrains_server_core::middleware::field_access;
 use medbrains_server_core::state::AppState;
 
+mod discharge_medicines;
 mod nursing_safety;
 pub mod room_eligibility;
 
@@ -419,6 +420,9 @@ pub struct CreateMarRequest {
     pub frequency: Option<String>,
     pub scheduled_at: chrono::DateTime<Utc>,
     pub is_high_alert: Option<bool>,
+    /// The patient's own medicine, brought from outside (no batch here).
+    #[serde(default)]
+    pub patients_own: bool,
 }
 
 #[derive(Debug, Deserialize)]
@@ -1338,7 +1342,10 @@ pub async fn list_admissions(
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
 
-    let mut conditions = vec!["a.tenant_id = $1".to_owned(), "a.deleted_at IS NULL".to_owned()];
+    let mut conditions = vec![
+        "a.tenant_id = $1".to_owned(),
+        "a.deleted_at IS NULL".to_owned(),
+    ];
     let mut bind_idx: usize = 2;
     if let Some(ref ids) = visible_ids {
         if ids.is_empty() {
@@ -1499,7 +1506,9 @@ async fn admitting_doctor(
         if claims.role == "doctor" {
             return Ok(claims.sub);
         }
-        return Err(AppError::BadRequest("Choose the admitting doctor.".to_owned()));
+        return Err(AppError::BadRequest(
+            "Choose the admitting doctor.".to_owned(),
+        ));
     };
     let is_doctor = sqlx::query_scalar::<_, bool>(
         "SELECT EXISTS(SELECT 1 FROM users WHERE id = $1 AND tenant_id = $2 \
@@ -2822,6 +2831,8 @@ pub async fn list_mar(
 //  POST /api/ipd/admissions/{id}/mar
 // ══════════════════════════════════════════════════════════
 
+/// Schedules one MAR dose by hand, for a medicine the dispense did not
+/// chart (a patient's own one among them).
 pub async fn create_mar(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
@@ -2843,8 +2854,8 @@ pub async fn create_mar(
     let row = sqlx::query_as::<_, IpdMedicationAdministration>(
         "INSERT INTO ipd_medication_administration \
            (tenant_id, admission_id, prescription_item_id, drug_name, dose, route, \
-            frequency, scheduled_at, status, is_high_alert) \
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'scheduled'::mar_status, $9) \
+            frequency, scheduled_at, status, is_high_alert, patients_own) \
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'scheduled'::mar_status, $9, $10) \
          RETURNING *",
     )
     .bind(claims.tenant_id)
@@ -2856,6 +2867,7 @@ pub async fn create_mar(
     .bind(&body.frequency)
     .bind(body.scheduled_at)
     .bind(body.is_high_alert.unwrap_or(false))
+    .bind(body.patients_own)
     .fetch_one(&mut *tx)
     .await?;
 
@@ -3090,6 +3102,8 @@ pub struct MarDueRow {
     pub is_cytotoxic: bool,
     pub batch_number: Option<String>,
     pub batch_expiry: Option<NaiveDate>,
+    /// The patient's own medicine, brought from outside: no batch here.
+    pub patients_own: bool,
 }
 
 /// `GET /api/nurse/mar/due-now` — scheduled doses due within the window across
@@ -3121,7 +3135,8 @@ pub async fn list_mar_due_now(
         "SELECT m.id, m.admission_id, a.patient_id, \
                 (p.first_name || ' ' || p.last_name) AS patient_name, a.bed_id, \
                 m.drug_name, m.dose, m.route, m.frequency, m.scheduled_at, m.status, \
-                m.is_high_alert, {} AS is_cytotoxic, m.batch_number, m.batch_expiry \
+                m.is_high_alert, {} AS is_cytotoxic, m.batch_number, m.batch_expiry, \
+                m.patients_own \
          FROM ipd_medication_administration m \
          JOIN admissions a ON a.id = m.admission_id AND a.tenant_id = m.tenant_id \
               AND a.deleted_at IS NULL \
@@ -4681,14 +4696,12 @@ pub async fn update_ward_bed(
 
     // The class must be one of this hospital's own bed types.
     if let Some(bed_type_id) = body.bed_type_id {
-        sqlx::query_scalar::<_, Uuid>(
-            "SELECT id FROM bed_types WHERE id = $1 AND tenant_id = $2",
-        )
-        .bind(bed_type_id)
-        .bind(claims.tenant_id)
-        .fetch_optional(&mut *tx)
-        .await?
-        .ok_or_else(|| AppError::BadRequest("Unknown bed class".to_owned()))?;
+        sqlx::query_scalar::<_, Uuid>("SELECT id FROM bed_types WHERE id = $1 AND tenant_id = $2")
+            .bind(bed_type_id)
+            .bind(claims.tenant_id)
+            .fetch_optional(&mut *tx)
+            .await?
+            .ok_or_else(|| AppError::BadRequest("Unknown bed class".to_owned()))?;
     }
 
     let mapping = sqlx::query_as::<_, WardBedMapping>(
@@ -5240,6 +5253,7 @@ pub async fn create_discharge_summary(
     medbrains_authz_gate::require_admission_access(&state, &claims, admission_id).await?;
     let restricted_fields = resolve_ipd_restricted_fields(&state, &claims).await?;
     validate_discharge_summary_write_access(&body.final_diagnosis, &restricted_fields)?;
+    discharge_medicines::validate(body.medications_on_discharge.as_ref())?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -5293,6 +5307,8 @@ pub async fn create_discharge_summary(
     )))
 }
 
+/// Saves changes to a discharge summary, its medicines on discharge checked
+/// (formulary, or marked buy outside); a signed one loses its signature.
 pub async fn update_discharge_summary(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
@@ -5303,26 +5319,33 @@ pub async fn update_discharge_summary(
     medbrains_authz_gate::require_admission_access(&state, &claims, admission_id).await?;
     let restricted_fields = resolve_ipd_restricted_fields(&state, &claims).await?;
     validate_discharge_summary_write_access(&body.final_diagnosis, &restricted_fields)?;
+    discharge_medicines::validate(body.medications_on_discharge.as_ref())?;
 
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
-        .await?;
+    // On the kernel: its unit of work sets the tenant and the actor, and its
+    // audit refuses an entry for another tenant or person.
+    let mut tx =
+        medbrains_kernel::begin(&state.db, medbrains_kernel::Actor::from_claims(&claims)).await?;
 
-    // Check status is draft
-    let current_status = sqlx::query_scalar::<_, DischargeSummaryStatus>(
-        "SELECT status FROM ipd_discharge_summaries \
-         WHERE admission_id = $1 AND tenant_id = $2",
+    // The row is locked until the edit commits, so a finalize running at the
+    // same moment waits for it, and is read again after it, rather than the
+    // edit landing on a summary that has just been finalized.
+    let (summary_id, current_status, cleared_signature): (
+        Uuid,
+        DischargeSummaryStatus,
+        Option<Uuid>,
+    ) = sqlx::query_as(
+        "SELECT id, status, CASE WHEN is_signed THEN signed_record_id END \
+           FROM ipd_discharge_summaries \
+          WHERE admission_id = $1 AND tenant_id = $2 AND deleted_at IS NULL \
+          FOR UPDATE",
     )
     .bind(admission_id)
     .bind(claims.tenant_id)
     .fetch_optional(&mut *tx)
     .await?
-    .ok_or_else(|| AppError::NotFound)?;
-
+    .ok_or(AppError::NotFound)?;
     if current_status == DischargeSummaryStatus::Finalized {
-        return Err(AppError::BadRequest(
-            "Cannot update a finalized discharge summary".to_owned(),
-        ));
+        return Err(finalized_summary_conflict());
     }
 
     let row = sqlx::query_as::<_, IpdDischargeSummary>(
@@ -5339,8 +5362,10 @@ pub async fn update_discharge_summary(
            dietary_advice = COALESCE($12, dietary_advice), \
            activity_restrictions = COALESCE($13, activity_restrictions), \
            warning_signs = COALESCE($14, warning_signs), \
-           emergency_contact_info = COALESCE($15, emergency_contact_info) \
+           emergency_contact_info = COALESCE($15, emergency_contact_info), \
+           is_signed = false, signed_record_id = NULL \
          WHERE admission_id = $1 AND tenant_id = $2 \
+           AND status = 'draft'::discharge_summary_status \
          RETURNING *",
     )
     .bind(admission_id)
@@ -5360,7 +5385,29 @@ pub async fn update_discharge_summary(
     .bind(&body.emergency_contact_info)
     .fetch_optional(&mut *tx)
     .await?
-    .ok_or_else(|| AppError::NotFound)?;
+    .ok_or_else(finalized_summary_conflict)?;
+
+    // A signed draft that is edited is no longer what the doctor signed: the
+    // signature is taken off (its record stays in `signed_records` as
+    // history) and the summary must be signed again before it backs any
+    // discharge medicine.
+    if let Some(signed_record_id) = cleared_signature {
+        let cleared = serde_json::json!({ "signed_record_id": signed_record_id });
+        medbrains_kernel::audit(
+            &mut tx,
+            &medbrains_kernel::audit::AuditEntry {
+                tenant_id: claims.tenant_id,
+                user_id: Some(claims.sub),
+                action: "ipd.discharge_summary.signature_cleared",
+                entity_type: "ipd_discharge_summary",
+                entity_id: Some(summary_id),
+                old_values: Some(&cleared),
+                new_values: None,
+                ip_address: None,
+            },
+        )
+        .await?;
+    }
 
     tx.commit().await?;
 
@@ -5368,6 +5415,13 @@ pub async fn update_discharge_summary(
         row,
         &restricted_fields,
     )))
+}
+
+/// The answer to an edit of a finalized discharge summary (409).
+fn finalized_summary_conflict() -> AppError {
+    AppError::Conflict(
+        "This discharge summary is finalized and can no longer be edited.".to_owned(),
+    )
 }
 
 /// NABH-mandatory discharge-summary elements that must be present before a summary can be finalized.
@@ -5451,7 +5505,7 @@ pub async fn finalize_discharge_summary(
     let row = sqlx::query_as::<_, IpdDischargeSummary>(
         "UPDATE ipd_discharge_summaries SET \
            status = 'finalized'::discharge_summary_status, \
-           verified_by = $3, finalized_at = NOW() \
+           verified_by = $3, finalized_by = $3, finalized_at = NOW() \
          WHERE admission_id = $1 AND tenant_id = $2 \
            AND status = 'draft'::discharge_summary_status \
          RETURNING *",

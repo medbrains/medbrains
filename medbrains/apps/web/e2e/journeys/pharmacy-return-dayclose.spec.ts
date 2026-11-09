@@ -97,6 +97,7 @@ test("a cashier cashes up, explains a short count, and closes the counter day", 
   await closeDrawer(page, "536");
 
   await page.goto("/pharmacy/finance?tab=day-close");
+  await page.getByRole("textbox", { name: "Find a counter" }).fill(counter);
   const row = page.getByRole("row").filter({ hasText: counter });
   await expect(row.getByText("Not closed")).toBeVisible();
   await row.getByRole("button", { name: "Open day" }).click();

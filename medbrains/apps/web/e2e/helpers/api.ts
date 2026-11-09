@@ -9,8 +9,9 @@
  */
 
 import { expect, type APIRequestContext } from "@playwright/test";
-import { getE2EIdentity } from "./e2e-identities";
-import { provisionIdentity } from "./identities";
+import { statSync } from "node:fs";
+import { authStatePath, getE2EIdentity } from "./e2e-identities";
+import { login, provisionIdentity } from "./identities";
 import type { ApiCallOptions, AuthContext } from "./types";
 
 export const E2E_BACKEND_URL =
@@ -110,12 +111,27 @@ export async function getAuthContextFromCookies(
 ): Promise<AuthContext> {
   const state = await request.storageState();
   const csrf = state.cookies.find((c) => c.name === "csrf_token")?.value ?? "";
-  if (!csrf) return loginAsAdmin(request);
+  // The stored session is global-setup's. Its access token lives 15 minutes
+  // on the server, but the cookie carries no expiry, so the store cannot say
+  // when it lapses: a test that started near the 15th minute lost its admin
+  // half-way (a 401 that read as a refusal). Its age is when global setup
+  // wrote the store; with less than a long test's worth left, sign in again.
+  const access = state.cookies.find((c) => c.name === "access_token");
+  const left = ACCESS_TOKEN_LIFETIME_MS - (Date.now() - storedSessionWrittenAt());
+  const stale = !csrf || !access || left < SESSION_MARGIN_MS;
+  if (process.env.E2E_SESSION_LOG) {
+    console.log(
+      `[session] start=${new Date().toISOString()} stored_left_s=${Math.round(left / 1000)} use=${stale ? "fresh" : "stored"}`,
+    );
+  }
+  if (stale) {
+    return freshSetupAdmin(request);
+  }
   const cookieHeader = cookieHeaderFromStorageState(state.cookies);
   const me = await request.get(`${E2E_BACKEND_URL}/api/auth/me`, {
     headers: { "x-csrf-token": csrf, cookie: cookieHeader },
   });
-  if (!me.ok()) return loginAsAdmin(request);
+  if (!me.ok()) return freshSetupAdmin(request);
   const body = await me.json().catch(() => ({}));
   const userId = body.user?.id ?? body.id ?? "";
 
@@ -143,6 +159,39 @@ export async function getAuthContextFromCookies(
     userId,
     tenantId: body.user?.tenant_id ?? body.tenant_id ?? "",
     password,
+  };
+}
+
+/** A test needs at least this much session left, or it signs in again. */
+const SESSION_MARGIN_MS = 6 * 60_000;
+/** The server's access-token lifetime (`medbrains-auth`, 15 minutes). */
+const ACCESS_TOKEN_LIFETIME_MS = 15 * 60_000;
+
+/** When global setup saved the stored session; long ago when there is none. */
+function storedSessionWrittenAt(): number {
+  try {
+    return statSync(authStatePath).mtimeMs;
+  } catch {
+    return 0;
+  }
+}
+
+/** The setup admin, signed in again for a full session. */
+async function freshSetupAdmin(request: APIRequestContext): Promise<AuthContext> {
+  let identity: ReturnType<typeof getE2EIdentity>;
+  try {
+    identity = getE2EIdentity("super_admin");
+  } catch {
+    return loginAsAdmin(request);
+  }
+  const session = await login(request, identity.username, identity.password);
+  return {
+    csrfToken: session.csrf,
+    cookieHeader: session.cookieHeader,
+    request,
+    userId: session.user?.id ?? "",
+    tenantId: session.user?.tenant_id ?? "",
+    password: identity.password,
   };
 }
 
@@ -183,8 +232,27 @@ export async function api<T = unknown>(
     `${method} ${path} → ${result.status}\nbody: ${result.bodyText}` +
       (options.variants
         ? `\nvariants tried: ${options.variants.join(", ")}`
-        : ""),
+        : "") +
+      (result.status === 401 ? `\n${describeSession(ctx)}` : ""),
   );
+}
+
+/**
+ * What the refused session was, for a 401: the access token's issue and
+ * expiry times, user and permission version, against the time of the call.
+ * The body only says "unauthorized"; this tells an expired token from a
+ * revoked one.
+ */
+function describeSession(ctx: AuthContext): string {
+  const token = /(?:^|;\s*)access_token=([^;]+)/.exec(ctx.cookieHeader)?.[1];
+  if (!token) return `session: no access_token cookie sent (at ${new Date().toISOString()})`;
+  try {
+    const claims = JSON.parse(Buffer.from(token.split(".")[1] ?? "", "base64url").toString("utf8"));
+    const at = (seconds: number) => new Date(seconds * 1000).toISOString();
+    return `session: iat=${at(claims.iat)} exp=${at(claims.exp)} now=${new Date().toISOString()} sub=${claims.sub} perm_version=${claims.perm_version}`;
+  } catch {
+    return "session: access_token is not a readable JWT";
+  }
 }
 
 /** Make an unauthenticated public API call. */

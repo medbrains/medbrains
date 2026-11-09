@@ -46,6 +46,38 @@ permissions:
   contents: read
 
 jobs:
+  # What changed, so each job runs only when its part of the tree did. A skipped job
+  # counts as passing for required checks. Anything unexpected (a new branch, a
+  # force-push, a diff that cannot be computed) runs everything.
+  changes:
+    if: github.event_name != 'pull_request' || !github.event.pull_request.draft
+    name: "What changed"
+    runs-on: ubuntu-latest
+    outputs:
+      rust: ${{ steps.diff.outputs.rust }}
+      web: ${{ steps.diff.outputs.web }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - id: diff
+        env:
+          BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
+          HEAD: ${{ github.sha }}
+        run: |
+          set -u
+          if [ -z "$BASE" ] || [ "$BASE" = 0000000000000000000000000000000000000000 ] \
+             || ! files=$(git diff --name-only "$BASE" "$HEAD"); then
+            echo "rust=true" >> "$GITHUB_OUTPUT"; echo "web=true" >> "$GITHUB_OUTPUT"; exit 0
+          fi
+          printf '%s\n' "$files"
+          ci='^\.github/workflows/ci\.yml$'
+          rust='^medbrains/(crates/|Cargo\.(toml|lock)|\.sqlx/|rust-toolchain|rustfmt|deny\.toml|clippy\.toml|\.cargo/)'
+          web='^medbrains/(apps/web/|packages/|package\.json|pnpm-(lock|workspace)\.yaml|turbo\.json|biome\.json|\.nvmrc|tsconfig)'
+          echo "rust=$(grep -qE "$rust|$ci" <<<"$files" && echo true || echo false)" >> "$GITHUB_OUTPUT"
+          echo "web=$(grep -qE "$web|$ci" <<<"$files" && echo true || echo false)" >> "$GITHUB_OUTPUT"
+
   # ── Blocking: run against master and verified green ──────────────
 
   audit-checks:
@@ -145,7 +177,8 @@ jobs:
 
   rust-fmt:
     # A draft PR spends no build; marking it ready for review runs everything.
-    if: github.event_name != 'pull_request' || !github.event.pull_request.draft
+    needs: changes
+    if: needs.changes.outputs.rust == 'true'
     name: "Rust format (TODO: 1053 diffs on master)"
     runs-on: ubuntu-latest
     continue-on-error: true
@@ -166,7 +199,8 @@ jobs:
 
   web:
     # A draft PR spends no build; marking it ready for review runs everything.
-    if: github.event_name != 'pull_request' || !github.event.pull_request.draft
+    needs: changes
+    if: needs.changes.outputs.web == 'true'
     name: Web typecheck, lint, test, build
     runs-on: ubuntu-latest
     defaults:
@@ -207,7 +241,8 @@ jobs:
 
   web-lint:
     # A draft PR spends no build; marking it ready for review runs everything.
-    if: github.event_name != 'pull_request' || !github.event.pull_request.draft
+    needs: changes
+    if: needs.changes.outputs.web == 'true'
     name: "Web lint"
     runs-on: ubuntu-latest
     continue-on-error: true
@@ -231,7 +266,8 @@ jobs:
 
   rust-clippy:
     # A draft PR spends no build; marking it ready for review runs everything.
-    if: github.event_name != 'pull_request' || !github.event.pull_request.draft
+    needs: changes
+    if: needs.changes.outputs.rust == 'true'
     name: "Rust clippy"
     runs-on: ubuntu-latest
     continue-on-error: true
@@ -261,7 +297,8 @@ jobs:
 
   schema-and-tenancy:
     # A draft PR spends no build; marking it ready for review runs everything.
-    if: github.event_name != 'pull_request' || !github.event.pull_request.draft
+    needs: changes
+    if: needs.changes.outputs.rust == 'true'
     name: "Schema + tenancy"
     runs-on: ubuntu-latest
     continue-on-error: true
@@ -300,7 +337,8 @@ jobs:
 
   rust-test:
     # A draft PR spends no build; marking it ready for review runs everything.
-    if: github.event_name != 'pull_request' || !github.event.pull_request.draft
+    needs: changes
+    if: needs.changes.outputs.rust == 'true'
     name: "Rust tests"
     runs-on: ubuntu-latest
     continue-on-error: true

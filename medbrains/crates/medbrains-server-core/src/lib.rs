@@ -17,6 +17,7 @@ pub mod pagination;
 pub mod permissions;
 pub mod queue_broadcast;
 pub mod s3_presign;
+pub mod search;
 pub mod settings_guard;
 pub mod state;
 pub mod step_up;

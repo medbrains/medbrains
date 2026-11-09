@@ -412,14 +412,17 @@ fn checks() -> Vec<Check> {
 }
 
 /// Makes this machine a main machine, as the screen's Review does: nothing runs before that. The
-/// password is made fresh, so none is written down, and the machine is thrown away.
+/// password is made fresh, so none is written down, and the machine is thrown away. The username is
+/// not `admin`, which setup refuses because Kanidm keeps it, and the password is a phrase, because
+/// Kanidm's strength check is what setup applies.
 fn set_up_main(vm: &mut Vm) -> Result<(), String> {
     let stamp = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .map_err(|e| e.to_string())?
         .as_millis();
-    let body =
-        format!(r#"{{"hospital":"Test Hospital","username":"admin","password":"Os-{stamp}-Aa!"}}"#);
+    let body = format!(
+        r#"{{"hospital":"Test Hospital","username":"os_test_admin","password":"Night porter {stamp} keeps blue lanterns"}}"#
+    );
     let deadline = Instant::now() + vm::scaled(SETUP_LIMIT);
     while vm.run(&format!("test -S {SETUP_SOCKET}; echo $?"))? != "0" {
         ensure(Instant::now() < deadline, "the setup service never started")?;

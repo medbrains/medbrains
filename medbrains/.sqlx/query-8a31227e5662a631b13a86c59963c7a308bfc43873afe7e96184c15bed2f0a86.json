@@ -1,11 +1,11 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT permissions FROM roles WHERE tenant_id = $1 AND code = $2 AND is_active = true",
+  "query": "SELECT field_access_defaults FROM roles WHERE tenant_id = $1 AND code = $2 AND is_active = true AND deleted_at IS NULL",
   "describe": {
     "columns": [
       {
         "ordinal": 0,
-        "name": "permissions",
+        "name": "field_access_defaults",
         "type_info": "Jsonb"
       }
     ],
@@ -19,5 +19,5 @@
       false
     ]
   },
-  "hash": "ce1ba6dd726f65f4d7558bebd93d4b82135d39a29b292ff8765f6c09e5f40bc2"
+  "hash": "8a31227e5662a631b13a86c59963c7a308bfc43873afe7e96184c15bed2f0a86"
 }

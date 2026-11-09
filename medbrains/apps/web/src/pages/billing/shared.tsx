@@ -18,11 +18,9 @@ import {
   billingInvoiceStatusLabel as sharedBillingInvoiceStatusLabel,
 } from "@medbrains/types";
 import { fieldAccessText } from "@medbrains/utils";
-import { QRCodeSVG } from "qrcode.react";
-import { createElement } from "react";
-import { renderToStaticMarkup } from "react-dom/server";
 import type { useTranslation } from "react-i18next";
 import type { BadgeTone } from "@/components/ui";
+import { qrSvgMarkup } from "@/lib/print/qr-svg";
 import { buildCopyPrintHtml, copyPrintStyles, PRINT_COPY_PACKETS } from "@/utils/printCopies";
 
 export const toBadgeTone = (color: string | undefined): BadgeTone => {
@@ -215,19 +213,12 @@ export const BILLING_RECEIPT_PRINT_COPIES = PRINT_COPY_PACKETS.billingReceipt;
  * the patient's own banking app — no new route to build and nothing to log in
  * to. Any UPI app fills in payee, amount and the invoice reference from it.
  *
- * Rendered from `qrcode.react`, the same dependency the prescription print
- * uses, into static markup because this print path writes an HTML string into
- * a popup rather than mounting React.
+ * Drawn by `qrSvgMarkup` (the same helper the signed-document print uses),
+ * because this print path writes an HTML string into a popup rather than
+ * mounting React.
  */
 function invoicePayQrHtml(upiUri: string): string {
-  const svg = renderToStaticMarkup(
-    createElement(QRCodeSVG, {
-      value: upiUri,
-      size: 128,
-      // A printed bill gets scanned off paper that has been folded and handled.
-      level: "M",
-    }),
-  );
+  const svg = qrSvgMarkup(upiUri, 128);
   return `
     <section class="pay-qr">
       ${svg}

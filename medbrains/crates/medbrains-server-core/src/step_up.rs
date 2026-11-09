@@ -254,3 +254,21 @@ fn check_subject(data: &StepUpClaims, claims: &Claims) -> Result<(), AppError> {
     }
     Ok(())
 }
+
+/// Whether `password` is the one `hash` (a stored Argon2 hash) was made from.
+///
+/// For a second person who confirms an action at the first person's screen:
+/// the witness to a controlled-drug dispense types their own password. Counts
+/// nothing and locks nothing: the caller keeps its own counter, so a witness's
+/// wrong passwords never lock them out of signing in. No hash (an SSO-only
+/// user, or nobody) never matches. The password is compared exactly as typed.
+#[must_use]
+pub fn password_matches(hash: Option<&str>, password: &str) -> bool {
+    hash.is_some_and(|hash| {
+        PasswordHash::new(hash).is_ok_and(|parsed| {
+            Argon2::default()
+                .verify_password(password.as_bytes(), &parsed)
+                .is_ok()
+        })
+    })
+}

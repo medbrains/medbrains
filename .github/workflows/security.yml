@@ -27,9 +27,50 @@ permissions:
   contents: read
 
 jobs:
+  # Dependency audits matter when dependencies change; new advisories against unchanged
+  # code are caught by the nightly run. The secrets scan always runs.
+  changes:
+    if: github.event_name != 'pull_request' || !github.event.pull_request.draft
+    name: "What changed"
+    runs-on: ubuntu-latest
+    outputs:
+      cargo: ${{ steps.diff.outputs.cargo }}
+      js: ${{ steps.diff.outputs.js }}
+      website: ${{ steps.diff.outputs.website }}
+      code: ${{ steps.diff.outputs.code }}
+      infra: ${{ steps.diff.outputs.infra }}
+      workflows: ${{ steps.diff.outputs.workflows }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - id: diff
+        env:
+          EVENT: ${{ github.event_name }}
+          BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
+          HEAD: ${{ github.sha }}
+        run: |
+          set -u
+          all() { for k in cargo js website code infra workflows; do echo "$k=true" >> "$GITHUB_OUTPUT"; done; }
+          if [ "$EVENT" = schedule ] || [ "$EVENT" = workflow_dispatch ] || [ -z "$BASE" ] \
+             || [ "$BASE" = 0000000000000000000000000000000000000000 ] \
+             || ! files=$(git diff --name-only "$BASE" "$HEAD"); then all; exit 0; fi
+          sec='^\.github/workflows/security\.yml$'
+          has() { grep -qE "$1|$sec" <<<"$files" && echo true || echo false; }
+          {
+            echo "cargo=$(has '(^|/)(Cargo\.(toml|lock)|deny\.toml)$')"
+            echo "js=$(has '(^|/)(package\.json|pnpm-lock\.yaml|pnpm-workspace\.yaml)$')"
+            echo "website=$(has '^website/')"
+            echo "code=$(has '\.(rs|ts|tsx|js|py|kt|swift)$')"
+            echo "infra=$(has '^medbrains/(infra|deploy|os)/|Dockerfile|\.tf$')"
+            echo "workflows=$(has '^\.github/')"
+          } >> "$GITHUB_OUTPUT"
+
   cargo-audit:
     # A draft PR spends no build; marking it ready for review runs everything.
-    if: github.event_name != 'pull_request' || !github.event.pull_request.draft
+    needs: changes
+    if: needs.changes.outputs.cargo == 'true'
     name: Cargo audit (RustSec advisories)
     runs-on: ubuntu-latest
     defaults:
@@ -50,7 +91,8 @@ jobs:
 
   cargo-deny:
     # A draft PR spends no build; marking it ready for review runs everything.
-    if: github.event_name != 'pull_request' || !github.event.pull_request.draft
+    needs: changes
+    if: needs.changes.outputs.cargo == 'true'
     name: Cargo deny (advisories, licences, bans, sources)
     runs-on: ubuntu-latest
     steps:
@@ -66,7 +108,8 @@ jobs:
 
   pnpm-audit:
     # A draft PR spends no build; marking it ready for review runs everything.
-    if: github.event_name != 'pull_request' || !github.event.pull_request.draft
+    needs: changes
+    if: needs.changes.outputs.js == 'true'
     name: "pnpm audit (production, high+)"
     runs-on: ubuntu-latest
     defaults:
@@ -91,7 +134,8 @@ jobs:
 
   website-audit:
     # A draft PR spends no build; marking it ready for review runs everything.
-    if: github.event_name != 'pull_request' || !github.event.pull_request.draft
+    needs: changes
+    if: needs.changes.outputs.website == 'true'
     name: "pnpm audit, website (production, high+)"
     runs-on: ubuntu-latest
     defaults:
@@ -143,7 +187,8 @@ jobs:
 
   codeql:
     # A draft PR spends no build; marking it ready for review runs everything.
-    if: github.event_name != 'pull_request' || !github.event.pull_request.draft
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
     name: CodeQL (${{ matrix.language }})
     runs-on: ubuntu-latest
     permissions:
@@ -174,7 +219,8 @@ jobs:
   osv-scanner:
     # CVEs in every lockfile cargo-audit and pnpm audit cannot see: uv.lock, r8r,
     # the native apps (Gradle, SwiftPM), Python requirements, the OS image.
-    if: github.event_name != 'pull_request' || !github.event.pull_request.draft
+    needs: changes
+    if: needs.changes.outputs.cargo == 'true' || needs.changes.outputs.js == 'true'
     name: "OSV scan, every lockfile (report-only)"
     runs-on: ubuntu-latest
     continue-on-error: true
@@ -205,7 +251,8 @@ jobs:
   iac-compliance:
     # Terraform and Dockerfiles against CIS benchmarks: open buckets, unencrypted
     # volumes, public databases, missing logging.
-    if: github.event_name != 'pull_request' || !github.event.pull_request.draft
+    needs: changes
+    if: needs.changes.outputs.infra == 'true'
     name: "IaC compliance, Checkov (report-only)"
     runs-on: ubuntu-latest
     continue-on-error: true
@@ -230,7 +277,8 @@ jobs:
   workflow-audit:
     # The workflows themselves: script injection from PR titles, over-broad tokens,
     # unpinned third-party actions, credentials left in checkouts.
-    if: github.event_name != 'pull_request' || !github.event.pull_request.draft
+    needs: changes
+    if: needs.changes.outputs.workflows == 'true'
     name: "Workflow audit, zizmor (report-only)"
     runs-on: ubuntu-latest
     continue-on-error: true

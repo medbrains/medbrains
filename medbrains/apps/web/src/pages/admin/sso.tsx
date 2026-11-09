@@ -76,10 +76,14 @@ export function SsoSettingsPage() {
     mutationFn: ({ id, is_active }: { id: string; is_active: boolean }) =>
       api.updateSsoProvider(id, { is_active }),
     onSuccess: invalidate,
+    onError: (err: Error) =>
+      notifications.show({ title: "Provider not changed", message: err.message, color: "danger" }),
   });
   const deleteMut = useMutation({
     mutationFn: (id: string) => api.deleteSsoProvider(id),
     onSuccess: invalidate,
+    onError: (err: Error) =>
+      notifications.show({ title: "Provider not deleted", message: err.message, color: "danger" }),
   });
 
   // Capture the input value in the handler body — reading e.currentTarget inside
@@ -107,14 +111,17 @@ export function SsoSettingsPage() {
     {
       key: "active",
       label: "Active",
-      render: (p) => (
-        <Switch
-          checked={p.is_active}
-          disabled={!canManage || p.code === OS_PROVIDER_CODE}
-          onChange={(e) => toggleMut.mutate({ id: p.id, is_active: e.currentTarget.checked })}
-          aria-label="Active"
-        />
-      ),
+      render: (p) =>
+        canManage ? (
+          <Switch
+            checked={p.is_active}
+            disabled={p.code === OS_PROVIDER_CODE}
+            onChange={(e) => toggleMut.mutate({ id: p.id, is_active: e.currentTarget.checked })}
+            aria-label="Active"
+          />
+        ) : (
+          <Badge tone={p.is_active ? "success" : "neutral"}>{p.is_active ? "On" : "Off"}</Badge>
+        ),
     },
     {
       key: "actions",

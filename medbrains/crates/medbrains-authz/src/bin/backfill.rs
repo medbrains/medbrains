@@ -220,7 +220,7 @@ async fn main() -> anyhow::Result<()> {
         "access_group",
         "member",
         "SELECT group_id, user_id FROM access_group_members",
-        "AND (expires_at IS NULL OR expires_at > now())",
+        "AND deleted_at IS NULL AND (expires_at IS NULL OR expires_at > now())",
         |(g, u)| (*g, Subject::User(*u)),
         "access_group_members",
     )

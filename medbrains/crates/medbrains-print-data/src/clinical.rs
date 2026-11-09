@@ -781,8 +781,11 @@ struct DischargeSummaryRow {
     investigation_summary: Option<String>,
     condition_at_discharge: Option<String>,
     follow_up_instructions: Option<String>,
+    medications_on_discharge: Option<Vec<String>>,
 }
 
+/// The discharge summary as printed (`GET /api/print-data/discharge/{id}`):
+/// the structured summary, the medicines on discharge, and its signatures.
 pub async fn get_discharge_print_data(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
@@ -816,7 +819,15 @@ pub async fn get_discharge_print_data(
            s.final_diagnosis, s.course_in_hospital, s.treatment_given, \
            (SELECT string_agg(COALESCE(pp->>'name', pp #>> '{}'), '; ') \
               FROM jsonb_array_elements(s.procedures_performed) pp) AS procedures_performed, \
-           s.investigation_summary, s.condition_at_discharge, s.follow_up_instructions \
+           s.investigation_summary, s.condition_at_discharge, s.follow_up_instructions, \
+           CASE WHEN jsonb_typeof(s.medications_on_discharge) = 'array' THEN ( \
+             SELECT array_agg(concat_ws(' — ', \
+                      concat_ws(' × ', m->>'drug_name', m->>'quantity'), \
+                      NULLIF(btrim(m->>'instructions'), ''), \
+                      CASE WHEN m->>'buy_outside' = 'true' \
+                           THEN 'Buy from outside the hospital' END) ORDER BY ord) \
+               FROM jsonb_array_elements(s.medications_on_discharge) \
+                    WITH ORDINALITY AS md(m, ord)) END AS medications_on_discharge \
          FROM admissions a \
          JOIN patients p ON p.id = a.patient_id AND p.tenant_id = a.tenant_id \
          LEFT JOIN ipd_discharge_summaries s ON s.admission_id = a.id \
@@ -893,6 +904,7 @@ pub async fn get_discharge_print_data(
         investigation_summary: row.investigation_summary,
         condition_at_discharge: row.condition_at_discharge,
         follow_up_instructions: row.follow_up_instructions,
+        medications_on_discharge: row.medications_on_discharge.unwrap_or_default(),
         signatures: medbrains_signing::signed_documents::to_print_signatures(sigs),
     }))
 }
@@ -1979,9 +1991,11 @@ pub async fn get_opd_prescription_print_data(
     .await?
     .ok_or(AppError::NotFound)?;
 
+    // A medicine the doctor marked buy outside says so on its own line.
     let medications = sqlx::query_as::<_, PrescriptionMedicationRow>(
         "SELECT \
-           pi.drug_name, \
+           CASE WHEN pi.buy_outside THEN pi.drug_name || ' (Buy from outside the hospital)' \
+                ELSE pi.drug_name END AS drug_name, \
            pc.generic_name, \
            pi.dosage AS dose, \
            COALESCE(pi.route, '') AS route, \

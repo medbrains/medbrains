@@ -20,7 +20,7 @@ use axum::extract::{Path, Query, State};
 use axum::routing::{get, post};
 use axum::{Extension, Json, Router};
 use medbrains_core::permissions;
-use medbrains_pharmacy::rx_safety;
+use medbrains_pharmacy::{dispense_context, rx_safety, schedule_gate};
 use medbrains_server_core::error::AppError;
 use medbrains_server_core::middleware::auth::Claims;
 use medbrains_server_core::middleware::authorization::require_permission;
@@ -107,7 +107,8 @@ async fn load_for_transition(
     let unverified: i64 = sqlx::query_scalar(
         "SELECT COUNT(*) FROM pharmacy_order_items \
          WHERE order_id = $1 AND tenant_id = $2 AND removed_at IS NULL \
-           AND deleted_at IS NULL AND verified_at IS NULL",
+           AND deleted_at IS NULL AND verified_at IS NULL \
+           AND catalog_item_id IS NOT NULL AND NOT buy_outside",
     )
     .bind(order_id)
     .bind(tenant_id)
@@ -255,7 +256,9 @@ pub async fn fulfilment_queue(
                 p.first_name || ' ' || p.last_name AS patient_name, \
                 p.uhid, \
                 COUNT(i.id) FILTER (WHERE i.removed_at IS NULL) AS line_count, \
-                COUNT(i.id) FILTER (WHERE i.removed_at IS NULL AND i.verified_at IS NULL) \
+                COUNT(i.id) FILTER (WHERE i.removed_at IS NULL AND i.verified_at IS NULL \
+                                      AND i.catalog_item_id IS NOT NULL \
+                                      AND NOT i.buy_outside) \
                   AS unverified_lines, \
                 COUNT(i.id) FILTER (WHERE i.removed_at IS NULL \
                                       AND b.expiry_date IS NOT NULL \
@@ -334,6 +337,7 @@ pub async fn pick_list(
                 ON b.id = i.batch_stock_id AND b.tenant_id = i.tenant_id \
          WHERE i.order_id = $1 AND i.tenant_id = $2 \
            AND i.removed_at IS NULL AND i.deleted_at IS NULL \
+           AND i.catalog_item_id IS NOT NULL AND NOT i.buy_outside \
          ORDER BY b.rack_number NULLS LAST, b.shelf_number NULLS LAST, \
                   b.bin_number NULLS LAST, i.drug_name",
     )
@@ -363,7 +367,7 @@ async fn simple_transition(
     claims: &Claims,
     order_id: Uuid,
     to: Stage,
-    safety_override_reason: Option<&str>,
+    claim: Option<&ClaimRequest>,
 ) -> Result<Json<StageResponse>, AppError> {
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -383,22 +387,9 @@ async fn simple_transition(
     // point this module controls. Moving it is one call once billing creates
     // pack-and-collect orders itself.
     if to == Stage::Picking {
-        // Picking is where this medicine leaves the shelf for the patient, so
-        // it passes the same safety gate as a counter dispense.
-        let (encounter_id, lines) = release_lines(&mut tx, claims.tenant_id, order_id).await?;
-        rx_safety::gate_release_in_tx(
-            state,
-            &mut tx,
-            claims,
-            &rx_safety::Release {
-                patient_id: Some(ctx.patient_id),
-                encounter_id,
-                order_id: Some(order_id),
-                lines: &lines,
-                override_reason: safety_override_reason,
-            },
-        )
-        .await?;
+        let unasked = ClaimRequest::default();
+        let claim = claim.unwrap_or(&unasked);
+        gate_pick(state, &mut tx, claims, (order_id, ctx.patient_id), claim).await?;
         commit_stock(&mut tx, claims.tenant_id, order_id, ctx.store_location_id).await?;
     }
 
@@ -430,10 +421,63 @@ async fn simple_transition(
     }))
 }
 
-/// Body of a claim: only needed to override a medication safety block.
-#[derive(Debug, Deserialize)]
+/// Body of a claim: a reason to override a medication safety block, and the
+/// picker's acknowledgement that the patient's allergy status is unknown.
+#[derive(Debug, Default, Deserialize)]
 pub struct ClaimRequest {
     pub safety_override_reason: Option<String>,
+    pub allergy_status_acknowledged: Option<bool>,
+}
+
+/// Picking is where the medicine leaves the shelf for the patient, so it
+/// passes what a counter dispense passes: the Schedule H/H1/X and NDPS gate
+/// (on the prescription, within its quantity, signed and in date; a Schedule
+/// X line has no witness here, so it is refused and goes to the counter),
+/// with each refusal filed on the order's safety record; the allergy status
+/// question; and the medication safety gate.
+async fn gate_pick(
+    state: &AppState,
+    tx: &mut Transaction<'_, Postgres>,
+    claims: &Claims,
+    (order_id, patient_id): (Uuid, Uuid),
+    claim: &ClaimRequest,
+) -> Result<(), AppError> {
+    let (encounter_id, lines) = release_lines(tx, claims.tenant_id, order_id).await?;
+    let subject = rx_safety::Subject {
+        patient_id,
+        encounter_id,
+        record_id: Some(order_id),
+    };
+    let gate = schedule_gate::GateInput::default();
+    if let Err(refusal) =
+        schedule_gate::enforce_schedule_compliance(tx, claims.tenant_id, order_id, &gate).await
+    {
+        rx_safety::file_dispense_refusal(
+            state,
+            claims,
+            &subject,
+            rx_safety::SCHEDULE_GATE,
+            &refusal,
+        )
+        .await;
+        return Err(refusal);
+    }
+    let acknowledged = claim.allergy_status_acknowledged.unwrap_or(false);
+    dispense_context::require_allergy_status_known(state, tx, claims, &subject, acknowledged)
+        .await?;
+    rx_safety::gate_release_in_tx(
+        state,
+        tx,
+        claims,
+        &rx_safety::Release {
+            patient_id: Some(patient_id),
+            encounter_id,
+            order_id: Some(order_id),
+            lines: &lines,
+            override_reason: claim.safety_override_reason.as_deref(),
+        },
+    )
+    .await
 }
 
 /// `POST /api/pharmacy/fulfilment/{id}/claim` — a picker takes the order.
@@ -444,10 +488,8 @@ pub async fn claim_order(
     body: Option<Json<ClaimRequest>>,
 ) -> Result<Json<StageResponse>, AppError> {
     require_permission(&claims, permissions::pharmacy::fulfilment::PICK)?;
-    let reason = body
-        .as_ref()
-        .and_then(|Json(b)| b.safety_override_reason.as_deref());
-    simple_transition(&state, &claims, id, Stage::Picking, reason).await
+    let claim = body.as_ref().map(|Json(b)| b);
+    simple_transition(&state, &claims, id, Stage::Picking, claim).await
 }
 
 /// The order's encounter and its live lines, as the safety gate reads them.
@@ -633,10 +675,10 @@ pub async fn verify_line(
         )));
     }
 
-    let (drug_name, catalog_item_id): (String, Option<Uuid>) = sqlx::query_as(
-        "SELECT drug_name, catalog_item_id FROM pharmacy_order_items \
-         WHERE id = $1 AND order_id = $2 AND tenant_id = $3 \
-           AND removed_at IS NULL AND deleted_at IS NULL",
+    let (drug_name, catalog_item_id, buy_outside): (String, Option<Uuid>, bool) = sqlx::query_as(
+        "SELECT drug_name, catalog_item_id, buy_outside FROM pharmacy_order_items \
+             WHERE id = $1 AND order_id = $2 AND tenant_id = $3 \
+               AND removed_at IS NULL AND deleted_at IS NULL",
     )
     .bind(body.order_item_id)
     .bind(id)
@@ -644,6 +686,12 @@ pub async fn verify_line(
     .fetch_optional(&mut *tx)
     .await?
     .ok_or(AppError::NotFound)?;
+    // Nothing of a bought-outside or typed line is in the bag to check.
+    if buy_outside || catalog_item_id.is_none() {
+        return Err(AppError::BadRequest(format!(
+            "{drug_name} is bought outside, not packed here: there is nothing to check"
+        )));
+    }
 
     let method = resolve_check_method(
         &mut tx,
@@ -676,7 +724,8 @@ pub async fn verify_line(
     let outstanding: i64 = sqlx::query_scalar(
         "SELECT COUNT(*) FROM pharmacy_order_items \
          WHERE order_id = $1 AND tenant_id = $2 AND removed_at IS NULL \
-           AND deleted_at IS NULL AND verified_at IS NULL",
+           AND deleted_at IS NULL AND verified_at IS NULL \
+           AND catalog_item_id IS NOT NULL AND NOT buy_outside",
     )
     .bind(id)
     .bind(claims.tenant_id)
@@ -891,12 +940,18 @@ async fn commit_stock(
         "SELECT id, catalog_item_id, drug_name, quantity, batch_stock_id \
          FROM pharmacy_order_items \
          WHERE order_id = $1 AND tenant_id = $2 \
-           AND removed_at IS NULL AND deleted_at IS NULL",
+           AND removed_at IS NULL AND deleted_at IS NULL \
+           AND catalog_item_id IS NOT NULL AND NOT buy_outside",
     )
     .bind(order_id)
     .bind(tenant_id)
     .fetch_all(&mut **tx)
     .await?;
+    if lines.is_empty() {
+        return Err(AppError::Conflict(
+            medbrains_pharmacy::NOTHING_SOLD_HERE.to_owned(),
+        ));
+    }
 
     for (item_id, catalog_item_id, drug_name, quantity, already_taken) in lines {
         // A line that already names a batch has been through here (or through
@@ -904,9 +959,9 @@ async fn commit_stock(
         if already_taken.is_some() || quantity <= 0 {
             continue;
         }
+        // The query above reads catalogue lines only: a bought-outside or
+        // typed line is never picked, so nothing leaves the shelf for it.
         let Some(catalog_item_id) = catalog_item_id else {
-            // Free-text lines hold no stock, so there is nothing to take. They
-            // are still picked and still verified.
             continue;
         };
 

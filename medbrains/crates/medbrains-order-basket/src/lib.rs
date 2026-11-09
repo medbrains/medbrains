@@ -424,18 +424,9 @@ pub async fn sign_basket(
         )
         .await?;
     }
-    if created.iter().any(|item| item.order_type == "prescription") {
-        medbrains_authz_gate::hand_off(
-            &state,
-            &claims,
-            medbrains_authz_gate::HandOff {
-                object_type: "encounter",
-                object_id: body.encounter_id,
-                department_code: medbrains_authz_gate::PHARMACY,
-            },
-        )
-        .await?;
-    }
+    // A prescription from the basket reaches the pharmacy's queue, which its
+    // permission scopes; the visit is not handed to the Pharmacy department
+    // (that opened the whole record, with no end — migration 1413).
 
     // Post-commit side-effects via outbox (durable, non-blocking).
     // SMS to patient + pharmacy notification queued; failures here do not
@@ -1211,6 +1202,7 @@ async fn create_prescription_from_basket_drug_in_tx(
         route: Some(item.route.clone()),
         instructions: instructions.clone(),
         catalog_item_id: Some(item.drug_id),
+        buy_outside: false,
     };
     medbrains_opd::rx_policy::enforce_rx_policy(
         tx,
