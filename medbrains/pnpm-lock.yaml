@@ -24,10 +24,10 @@ overrides:
   image-size@>=0.6.3 <2.0.3: 2.0.4
   glob@>=9.0.0 <14.0.2: 14.0.2
   minimatch@>=7.0.0 <11.0.1: 11.0.1
-  stream-json@<3.6.0: 3.6.0
   valibot@<1.4.2: 1.4.2
   uuid@<11.1.1: 11.1.1
-  deepmerge@>=4.2.0 <=4.3.1: 4.3.1
+  stream-json@<3.7.0: 3.7.0
+  deepmerge@>=4.2.0 <=4.3.1: 4.1.1
 
 importers:
 
@@ -7893,8 +7893,8 @@ packages:
     resolution: {integrity: sha512-GRQOafGHwMHpjPx9iCvTgpu9NojZ49q794EEL94JVEw6VaeA8XTUyBKvAkOOjBX9oJNiV6G3P+T+tihFjo2TqA==}
     engines: {node: '>=0.10.0'}
 
-  deepmerge@4.3.1:
-    resolution: {integrity: sha512-3sUqbMEc77XqpdNO7FRyRog+eW3ph+GYCbj+rK+uYyRMuwsVy0rMiVtPn+QJlKFvWP/1PYpapqYn0Me2knFn+A==}
+  deepmerge@4.1.1:
+    resolution: {integrity: sha512-+qO5WbNBKBaZez95TffdUDnGIo4+r5kmsX8aOb7PDHvXsTbghAmleuxjs6ytNaf5Eg4FGBXDS5vqO61TRi6BMg==}
     engines: {node: '>=0.10.0'}
 
   default-browser-id@5.0.1:
@@ -12690,8 +12690,8 @@ packages:
   stream-chain@4.4.1:
     resolution: {integrity: sha512-4MWXw+Si0RW3HAYQN3MdxpgTJA6Te9StiLtdkZO248DLPsRipqBbuiQSkyYLpCDEuvqGfqb2B5dEGxiEfHYkNQ==}
 
-  stream-json@3.6.0:
-    resolution: {integrity: sha512-NiJdqxKyau579z/E8vfqcjWfSDWxW/AT99javFXdPXF147Z5za85LRXSHEmSX9TKOakB7gaIccfD0fOIctb7KQ==}
+  stream-json@3.7.0:
+    resolution: {integrity: sha512-rCSBdcBP/bPk6T8QFcxAj1MSzAuc5i49cYW6IE7sYObNEPccBJIUiL6fU9c9BWt40aJK0siVynLX7lWaW8alXw==}
 
   strict-event-emitter@0.5.1:
     resolution: {integrity: sha512-vMgjE/GGEPEFnhFub6pa4FmJBRBVOLpIII2hvCZ8Kzb7K0hlHo7mQv6xYrBvCL2LtAIBwFUK8wvuJgTVSQ5MFQ==}
@@ -17190,7 +17190,7 @@ snapshots:
       '@expo/config-plugins': 54.0.6
       '@expo/config-types': 54.0.10
       '@expo/json-file': 10.2.0
-      deepmerge: 4.3.1
+      deepmerge: 4.1.1
       getenv: 2.0.0
       glob: 14.0.2
       require-from-string: 2.0.2
@@ -19974,7 +19974,7 @@ snapshots:
     dependencies:
       '@svgr/core': 8.1.0(typescript@7.0.2)
       cosmiconfig: 8.3.6(typescript@7.0.2)
-      deepmerge: 4.3.1
+      deepmerge: 4.1.1
       svgo: 3.3.5
     transitivePeerDependencies:
       - typescript
@@ -21676,7 +21676,7 @@ snapshots:
     dependencies:
       '@flatten-js/interval-tree': 1.1.4
       multi-sort-stream: 1.0.4
-      stream-json: 3.6.0
+      stream-json: 3.7.0
       trace-event-lib: 1.4.1
     optionalDependencies:
       '@types/bunyan': 1.8.11
@@ -22470,7 +22470,7 @@ snapshots:
 
   deepmerge@3.3.0: {}
 
-  deepmerge@4.3.1: {}
+  deepmerge@4.1.1: {}
 
   default-browser-id@5.0.1: {}
 
@@ -22550,7 +22550,7 @@ snapshots:
       serialize-error: 8.1.0
       shell-quote: 1.12.0
       signal-exit: 3.0.7
-      stream-json: 3.6.0
+      stream-json: 3.7.0
       strip-ansi: 6.0.1
       telnet-client: 1.2.8
       tmp: 0.2.7
@@ -24636,7 +24636,7 @@ snapshots:
       babel-jest: 29.7.0(@babel/core@7.29.7)
       chalk: 4.1.2
       ci-info: 3.9.0
-      deepmerge: 4.3.1
+      deepmerge: 4.1.1
       glob: 7.2.3
       graceful-fs: 4.2.11
       jest-circus: 29.7.0
@@ -29008,7 +29008,7 @@ snapshots:
 
   stream-chain@4.4.1: {}
 
-  stream-json@3.6.0:
+  stream-json@3.7.0:
     dependencies:
       stream-chain: 4.4.1
 
