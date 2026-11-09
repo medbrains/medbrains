@@ -105,9 +105,7 @@ function BillingTenantSettings() {
     onSuccess: (_, data) => {
       void queryClient.invalidateQueries({ queryKey: ["tenant-settings", data.category] });
     },
-    onError: () => {
-      toast.error("Failed to update setting", { title: "Error" });
-    },
+    onError: (err: Error) => toast.error(err.message, { title: "Setting not saved" }),
   });
 
   const isEnabled = (key: string) =>
@@ -225,7 +223,16 @@ function BillingTenantSettings() {
             disabled={!canManagePayments}
             onBlur={(e) => {
               const next = e.currentTarget.value.trim();
-              if (next !== upiVpa) paymentsMutation.mutate({ upi_vpa: next });
+              if (next === upiVpa) return;
+              paymentsMutation.mutate(
+                { upi_vpa: next },
+                {
+                  onSuccess: () =>
+                    toast.success("Management has been told of the change.", {
+                      title: "UPI ID saved",
+                    }),
+                },
+              );
             }}
           />
         )}

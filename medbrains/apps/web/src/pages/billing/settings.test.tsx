@@ -18,6 +18,12 @@ const service = vi.hoisted(() => ({
 }));
 vi.mock("@/services/billing.service", () => ({ billingService: service }));
 
+const toast = vi.hoisted(() => ({ success: vi.fn(), error: vi.fn() }));
+vi.mock("@/components/ui", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/components/ui")>()),
+  toast,
+}));
+
 // The tab's other sections load their own data; this file is about the
 // settings block, so they render nothing here.
 vi.mock("./lanes-settings", () => ({ BillingLanesSettings: () => null }));
@@ -36,7 +42,7 @@ const GSTIN = { key: "gst_number", value: "33AABCU9603R1ZM", category: "billing"
 
 beforeEach(() => {
   held.clear();
-  for (const fn of Object.values(service)) fn.mockReset();
+  for (const fn of [...Object.values(service), ...Object.values(toast)]) fn.mockReset();
 });
 
 describe("billing settings when a read fails", () => {
@@ -77,6 +83,43 @@ describe("billing settings when a read fails", () => {
         category: "billing",
         key: "gst_number",
         value: "33AAAAA0000A1Z5",
+      }),
+    );
+  });
+});
+
+describe("saving billing settings", () => {
+  it("confirms a UPI ID change and that management was told", async () => {
+    for (const code of [READ, MANAGE, PAY_VIEW, PAY_MANAGE]) held.add(code);
+    service.getTenantSettings.mockResolvedValue([GSTIN]);
+    service.getBillingPaymentSettings.mockResolvedValue({ upi_vpa: "old@okaxis" });
+    service.updateBillingPaymentSettings.mockResolvedValue({ upi_vpa: "new@okaxis" });
+    render(<BillingSettingsTab />);
+    const field = await screen.findByLabelText(/UPI ID/);
+    const user = userEvent.setup();
+    await user.clear(field);
+    await user.type(field, "new@okaxis");
+    await user.tab();
+    await waitFor(() =>
+      expect(toast.success).toHaveBeenCalledWith("Management has been told of the change.", {
+        title: "UPI ID saved",
+      }),
+    );
+    expect(service.updateBillingPaymentSettings).toHaveBeenCalledWith({ upi_vpa: "new@okaxis" });
+  });
+
+  it("says why a setting was refused, not just that it failed", async () => {
+    for (const code of [READ, MANAGE]) held.add(code);
+    service.getTenantSettings.mockResolvedValue([GSTIN]);
+    service.updateTenantSetting.mockRejectedValue(new ApiError("GSTIN must be 15 characters", 422));
+    render(<BillingSettingsTab />);
+    const field = await screen.findByLabelText("GSTIN");
+    const user = userEvent.setup();
+    await user.type(field, "X");
+    await user.tab();
+    await waitFor(() =>
+      expect(toast.error).toHaveBeenCalledWith("GSTIN must be 15 characters", {
+        title: "Setting not saved",
       }),
     );
   });
