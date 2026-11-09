@@ -209,6 +209,9 @@ fn confirm_row(problem: &gtk::Label) -> gtk::Box {
     let send = ui::button("Confirm", "suggested-action");
     row.append(&send);
     row.set_visible(false);
+    // A new join must not start with the last attempt's digits already typed.
+    let typed = digits.clone();
+    row.connect_hide(move |_| typed.set_text(""));
     let problem = problem.clone();
     send.connect_clicked(move |_| {
         let request = json!({ "op": "confirm", "code": digits.text().to_string() });
