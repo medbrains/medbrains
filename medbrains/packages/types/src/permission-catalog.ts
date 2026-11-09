@@ -19,7 +19,7 @@ export interface PermissionDef {
   module: string;
 }
 
-/** 1234 permissions, one per constant in the Rust source. */
+/** 1235 permissions, one per constant in the Rust source. */
 export const PERMISSIONS: PermissionDef[] = [
   // dashboard
   {
@@ -1349,6 +1349,12 @@ export const PERMISSIONS: PermissionDef[] = [
     code: "billing.leakage.resolve",
     label: "Post, dismiss or rescan unbilled orders",
     description: "Post an unbilled order's charge onto the patient's bill, dismiss it with a reason (package-included, free by policy, duplicate), or run the unbilled-orders check now. Who and when is recorded.",
+    module: "billing",
+  },
+  {
+    code: "billing.leakage.name_implant_recipient",
+    label: "Name the patient on an unnamed implant",
+    description: "Name or change the patient a consignment implant was used on when the store recorded it on no one. This rewrites the store's consignment usage record, which the vendor is paid from, so it is kept apart from posting and dismissing. Every naming is audited.",
     module: "billing",
   },
   {
