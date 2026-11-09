@@ -17,6 +17,7 @@
 
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache_2.0-0F62FE.svg)](./LICENSE)
 [![CI](https://github.com/medbrains/medbrains/actions/workflows/ci.yml/badge.svg)](https://github.com/medbrains/medbrains/actions/workflows/ci.yml)
+[![Quality gate status](https://sonarcloud.io/api/project_badges/measure?project=medbrains_medbrains&metric=alert_status)](https://sonarcloud.io/summary/new_code?id=medbrains_medbrains)
 [![Rust](https://img.shields.io/badge/Rust-2024_·_1.85+-0F62FE?logo=rust&logoColor=white)](#why-rust)
 [![PRs welcome](https://img.shields.io/badge/PRs-welcome-0F62FE.svg)](./CONTRIBUTING.md)
 
