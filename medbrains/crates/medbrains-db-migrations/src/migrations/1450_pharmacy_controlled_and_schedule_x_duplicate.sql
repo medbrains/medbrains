@@ -1,5 +1,5 @@
 -- ====================================================================
--- Migration: 1423_pharmacy_controlled_and_schedule_x_duplicate.sql
+-- Migration: 1450_pharmacy_controlled_and_schedule_x_duplicate.sql
 -- RLS-Posture: not-applicable
 -- Tenant-Column: N/A
 -- New-Tables: none
