@@ -15,6 +15,7 @@ import {
   IconHeartRateMonitor,
   IconMapPin,
   IconMedicalCross,
+  IconMicrophone,
   IconNotebook,
   IconPalette,
   IconPill,
@@ -49,6 +50,7 @@ import { CriticalValueRulesSettings } from "@/pages/admin/settings/CriticalValue
 import { DepartmentsSettings } from "@/pages/admin/settings/DepartmentsSettings";
 import { DeviceIntegrationsSettings } from "@/pages/admin/settings/DeviceIntegrationsSettings";
 import { DiagnosisCodingSettings } from "@/pages/admin/settings/DiagnosisCodingSettings";
+import { DictationSettings } from "@/pages/admin/settings/DictationSettings";
 import { DrugInteractionsSettings } from "@/pages/admin/settings/DrugInteractionsSettings";
 import { ErrorTrackingSettings } from "@/pages/admin/settings/ErrorTrackingSettings";
 import { EwsPolicySettings } from "@/pages/admin/settings/EwsPolicySettings";
@@ -417,6 +419,13 @@ export const SETTINGS_TABS: SettingsTabConfig[] = [
     component: ClinicalNotesSettings,
   },
   {
+    value: "dictation",
+    i18nKey: "settings.dictation",
+    icon: "IconMicrophone",
+    requiredPermission: "admin.settings.dictation.manage",
+    component: DictationSettings,
+  },
+  {
     value: "system-health",
     i18nKey: "settings.systemHealth",
     icon: "IconHeartRateMonitor",
@@ -440,6 +449,7 @@ export const SETTINGS_TABS: SettingsTabConfig[] = [
 ];
 
 export const SETTINGS_TAB_ICON_MAP: Record<string, ComponentType<{ size?: number }>> = {
+  IconMicrophone,
   IconBinaryTree,
   IconClockCog,
   IconSettings,

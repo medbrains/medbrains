@@ -1,0 +1,26 @@
+// Dictation panel: layout, and the recording dot's pulse (motion only when
+// the user has not asked for less; the "Recording" text carries the meaning).
+
+.transcript {
+  white-space: pre-wrap;
+}
+
+.recordingDot {
+  width: var(--mantine-spacing-xs);
+  height: var(--mantine-spacing-xs);
+  border-radius: 50%;
+  background: var(--mb-support-error);
+  flex-shrink: 0;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .recordingDot {
+    animation: pulse 1.2s var(--mb-easing-standard, ease-in-out) infinite;
+  }
+}
+
+@keyframes pulse {
+  50% {
+    opacity: 0.35;
+  }
+}
