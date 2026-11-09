@@ -19,7 +19,7 @@ const MAX_HOLDERS: i64 = 50;
 const HOLDERS_SQL: &str = "\
     SELECT u.id FROM users u \
       LEFT JOIN roles r ON r.tenant_id = u.tenant_id AND r.code = u.role::text \
-                       AND r.is_active = true \
+                       AND r.is_active = true AND r.deleted_at IS NULL \
      WHERE u.tenant_id = $1 AND u.is_active = true AND u.deleted_at IS NULL \
        AND u.id <> $2 \
        AND NOT (u.is_vendor_staff OR public.app_email_is_vendor(u.email, $5)) \
@@ -31,7 +31,8 @@ const HOLDERS_SQL: &str = "\
                                   JOIN access_groups g ON g.id = m.group_id \
                                                       AND g.tenant_id = m.tenant_id \
                                  WHERE m.tenant_id = u.tenant_id AND m.user_id = u.id \
-                                   AND g.is_active = true \
+                                   AND g.is_active = true AND g.deleted_at IS NULL \
+                                   AND m.deleted_at IS NULL \
                                    AND (m.expires_at IS NULL OR m.expires_at > now()) \
                                    AND g.permissions ? $3)))) \
      ORDER BY u.role::text = 'super_admin', u.role::text = 'hospital_admin', \

@@ -17,7 +17,7 @@ import { isTauriDesktopRuntime } from "@/lib/desktop-runtime";
 import { getRememberedHospitalCode, rememberHospitalCode } from "@/lib/hospital-code";
 import classes from "./login.module.scss";
 
-/** `/login?hospital=CITY` — the hospital step 1 chose. */
+/** `/login?hospital=CITYHOSP` — the hospital step 1 chose. */
 const HOSPITAL_PARAM = "hospital";
 /** `/login?sso_error=…` — the server sent the person back from the identity provider. */
 const SSO_ERROR_PARAM = "sso_error";
@@ -229,7 +229,7 @@ function LoginFooter({ needsSetup, trialOpen }: { needsSetup: boolean; trialOpen
           )}
         </Box>
       )}
-      <Box className={classes.version}>MedBrains HMS v0.1.0</Box>
+      <Box className={classes.version}>MedBrains v{__APP_VERSION__}</Box>
       <Text size="xs" c="var(--mb-text-secondary)" ta="center" mt={4}>
         <Anchor component={Link} to="/terms" c="inherit">
           Terms
