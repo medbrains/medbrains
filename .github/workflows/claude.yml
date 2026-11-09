@@ -2,9 +2,17 @@
 #
 #   1. "@claude ..." in a PR or review comment: answers or makes the change asked
 #      for, as commits on that PR's branch.
-#   2. A failed CI run on a PR: reads the failing log, fixes the cause and
-#      pushes a commit to the branch. It runs once per failed run and never on
-#      drafts.
+#   2. Once a day: reviews only what landed on main in the last 24 hours, plus
+#      the new findings the free scanners raised, and files deduplicated issues.
+#
+# Cost control (tokens are paid for, every day):
+#   - Nothing runs by itself on PRs. A failed CI is fixed only when someone asks
+#     ("@claude fix the failing check").
+#   - The daily review skips entirely when nothing landed. It reads the diff of
+#     the day, never the whole repo, and lets the free tools (clippy, CodeQL,
+#     SonarQube, OSV, zizmor) find things first; Claude only triages and files.
+#   - Sonnet by default, hard turn caps, and a narrow tool allow-list. Set a
+#     monthly spend cap on the Anthropic workspace as well.
 #
 # It never merges, never pushes to main, and never acts for anyone without write
 # access. Fork PRs are skipped. Its commits go through the same required checks
@@ -23,12 +31,13 @@ on:
     types: [created]
   pull_request_review_comment:
     types: [created]
-  workflow_run:
-    workflows: [CI]
-    types: [completed]
+  schedule:
+    # Daily review of what landed on main in the last day (02:30 UTC, 08:00 IST).
+    - cron: "30 2 * * *"
+  workflow_dispatch:
 
 concurrency:
-  group: claude-${{ github.event.issue.number || github.event.pull_request.number || github.event.workflow_run.head_branch }}
+  group: claude-${{ github.event.issue.number || github.event.pull_request.number || github.workflow }}
   cancel-in-progress: false
 
 permissions:
@@ -76,58 +85,82 @@ jobs:
           anthropic_workspace_id: ${{ vars.ANTHROPIC_WORKSPACE_ID }}
           trigger_phrase: "@claude"
           track_progress: true
-          claude_args: --max-turns 60
+          claude_args: --model claude-sonnet-5-5 --max-turns 30
 
-  fix-ci:
-    # Only same-repo PR branches (their authors have write access), only real
-    # failures, never drafts, and never main.
-    if: >-
-      github.event_name == 'workflow_run' &&
-      github.event.workflow_run.event == 'pull_request' &&
-      github.event.workflow_run.conclusion == 'failure' &&
-      github.event.workflow_run.head_repository.full_name == github.repository &&
-      github.event.workflow_run.head_branch != 'main' &&
-      github.event.workflow_run.run_attempt == 1
-    name: Fix the failed CI run
+  daily-review:
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    name: Review the day on main
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    timeout-minutes: 30
     permissions:
-      contents: write
-      pull-requests: write
-      actions: read
+      contents: read
+      issues: write
+      security-events: read
       id-token: write
     env:
       HAS_TOKEN: ${{ vars.ANTHROPIC_FEDERATION_RULE_ID != '' || secrets.CLAUDE_CODE_OAUTH_TOKEN != '' || secrets.ANTHROPIC_API_KEY != '' }}
-      BRANCH: ${{ github.event.workflow_run.head_branch }}
-      RUN_ID: ${{ github.event.workflow_run.id }}
+      GH_TOKEN: ${{ github.token }}
     steps:
-      - name: Skip until a Claude token is set
+      - name: Skip until Claude auth is set
         if: env.HAS_TOKEN != 'true'
         run: echo "::notice::No Claude federation rule or token set; skipped."
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         if: env.HAS_TOKEN == 'true'
         with:
-          ref: ${{ github.event.workflow_run.head_branch }}
-          fetch-depth: 0
+          ref: main
+          fetch-depth: 200
           persist-credentials: false
-      - uses: anthropics/claude-code-action@925afb53776cf1a2b738c6bdbed37b4d4000ef13 # v1.0.262
+      # Free, deterministic inputs first. Claude reads these files, not the repo.
+      - name: Collect the day's changes and new findings
+        id: day
         if: env.HAS_TOKEN == 'true'
+        run: |
+          set -euo pipefail
+          since=$(date -u -d '25 hours ago' +%Y-%m-%dT%H:%M:%SZ)
+          mkdir -p review
+          git log --since="$since" --format='%h %s' main > review/commits.txt
+          if [ ! -s review/commits.txt ]; then echo "skip=true" >> "$GITHUB_OUTPUT"; exit 0; fi
+          first=$(git log --since="$since" --format=%H main | tail -1)
+          git diff --stat "$first^" main > review/diffstat.txt
+          # The diff itself, capped so one huge day cannot run up the bill.
+          git diff "$first^" main -- '*.rs' '*.ts' '*.tsx' '*.sql' '*.swift' '*.kt' '*.py' '*.yml' | head -c 400000 > review/diff.patch
+          gh api "repos/$GITHUB_REPOSITORY/code-scanning/alerts?state=open&per_page=100" \
+            -q "[.[] | select(.created_at > \"$since\") | {rule: .rule.id, severity: .rule.security_severity_level, tool: .tool.name, path: .most_recent_instance.location.path, line: .most_recent_instance.location.start_line}]" > review/new_alerts.json
+          curl -fsS "https://sonarcloud.io/api/issues/search?componentKeys=medbrains_medbrains&branch=main&resolved=false&createdAfter=$since&ps=100" \
+            | python3 -c 'import json,sys; d=json.load(sys.stdin); print(json.dumps([{k:i.get(k) for k in ("rule","severity","type","component","line","message")} for i in d.get("issues",[])]))' > review/new_sonar.json || echo "[]" > review/new_sonar.json
+          gh issue list --repo "$GITHUB_REPOSITORY" --label daily-review --state open --limit 200 --json title > review/open_issues.json
+          wc -c review/*
+      - uses: anthropics/claude-code-action@925afb53776cf1a2b738c6bdbed37b4d4000ef13 # v1.0.262
+        if: env.HAS_TOKEN == 'true' && steps.day.outputs.skip != 'true'
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
-          # Preferred: keyless. GitHub's OIDC token is exchanged for API access per run.
           anthropic_federation_rule_id: ${{ vars.ANTHROPIC_FEDERATION_RULE_ID }}
           anthropic_organization_id: ${{ vars.ANTHROPIC_ORGANIZATION_ID }}
           anthropic_service_account_id: ${{ vars.ANTHROPIC_SERVICE_ACCOUNT_ID }}
           anthropic_workspace_id: ${{ vars.ANTHROPIC_WORKSPACE_ID }}
-          claude_args: --max-turns 60
+          claude_args: >-
+            --model claude-sonnet-5-5 --max-turns 25
+            --allowedTools "Read,Grep,Glob,Bash(gh issue create:*),Bash(gh issue list:*),Bash(gh label create:*)"
           prompt: |
-            CI run ${{ github.event.workflow_run.id }} failed on branch ${{ github.event.workflow_run.head_branch }}.
-            Read the failed jobs' logs with `gh run view ${{ github.event.workflow_run.id }} --log-failed`.
-            Fix the root cause in the code on this branch, following CLAUDE.md and ENGINEERING.md:
-            no weakened checks, no skipped tests, no baseline --update, no edits to generated files
-            except by running their generator. Ignore the checks that are not required and fail on
-            main too (Rust format, Schema + tenancy). Commit with a plain imperative message saying
-            why, signed off, with no Co-Authored-By line, and push to this branch only. If the
-            failure needs a human decision, or a baseline update, push nothing and comment on the
-            PR explaining what is needed.
+            You are the daily reviewer for MedBrains, a hospital system. Review ONLY what
+            landed on main in the last day, from the files in review/:
+              commits.txt, diffstat.txt, diff.patch (capped), new_alerts.json (code scanning),
+              new_sonar.json (SonarQube), open_issues.json (issues you filed before).
+            Open repo files only when the diff needs context. Do not read the whole repo.
+
+            Check the day's changes against ENGINEERING.md, in this order of importance:
+            1. Patient safety and regulation (NDPS, Schedule H/H1/X, allergies, consent, MHCA).
+            2. Authorization: a permission defined in Rust before use; no authz error collapsed to
+               false; per-record checks on PHI; the UI gating both query and control.
+            3. Money: double charges, wrong patient or invoice, tax.
+            4. Tenant isolation and RLS on new tables; migration safety.
+            5. New high or critical scanner findings in new_alerts.json and new_sonar.json.
+            Ignore style, formatting and anything the existing CI already blocks.
+
+            For each real problem with a concrete failure scenario, file ONE issue, unless an
+            issue in open_issues.json already covers it:
+              gh issue create --label daily-review --title "<plain sentence naming the defect>" --body "<file:line, the scenario, the fix, the commit>"
+            (create the label first with gh label create if it is missing.) File at most 5 issues,
+            most severe first. Describe the class of problem; never write exploit steps, because
+            the repo is public. If nothing real turned up, file nothing and say so in one line.
