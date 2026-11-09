@@ -114,6 +114,7 @@ members = [
     "crates/medbrains-pharmacy-delivery",
     "crates/medbrains-ward-stock",
     "crates/medbrains-clinical-notes",
+    "crates/medbrains-dictation",
     "crates/medbrains-app-manifest",
     "crates/medbrains-invitations",
     "crates/medbrains-news",

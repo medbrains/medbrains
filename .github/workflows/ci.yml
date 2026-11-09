@@ -24,6 +24,7 @@ on:
   push:
     branches: [master, main]
   pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
     branches: [master, main]
     # Words alone cannot break the product, so they do not spend a build.
     paths-ignore:
@@ -45,16 +46,50 @@ permissions:
   contents: read
 
 jobs:
+  # What changed, so each job runs only when its part of the tree did. A skipped job
+  # counts as passing for required checks. Anything unexpected (a new branch, a
+  # force-push, a diff that cannot be computed) runs everything.
+  changes:
+    if: github.event_name != 'pull_request' || !github.event.pull_request.draft
+    name: "What changed"
+    runs-on: ubuntu-latest
+    outputs:
+      rust: ${{ steps.diff.outputs.rust }}
+      web: ${{ steps.diff.outputs.web }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - id: diff
+        env:
+          BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
+          HEAD: ${{ github.sha }}
+        run: |
+          set -u
+          if [ -z "$BASE" ] || [ "$BASE" = 0000000000000000000000000000000000000000 ] \
+             || ! files=$(git diff --name-only "$BASE" "$HEAD"); then
+            echo "rust=true" >> "$GITHUB_OUTPUT"; echo "web=true" >> "$GITHUB_OUTPUT"; exit 0
+          fi
+          printf '%s\n' "$files"
+          ci='^\.github/workflows/ci\.yml$'
+          rust='^medbrains/(crates/|Cargo\.(toml|lock)|\.sqlx/|rust-toolchain|rustfmt|deny\.toml|clippy\.toml|\.cargo/)'
+          web='^medbrains/(apps/web/|packages/|package\.json|pnpm-(lock|workspace)\.yaml|turbo\.json|biome\.json|\.nvmrc|tsconfig)'
+          echo "rust=$(grep -qE "$rust|$ci" <<<"$files" && echo true || echo false)" >> "$GITHUB_OUTPUT"
+          echo "web=$(grep -qE "$web|$ci" <<<"$files" && echo true || echo false)" >> "$GITHUB_OUTPUT"
+
   # ── Blocking: run against master and verified green ──────────────
 
   audit-checks:
+    # A draft PR spends no build; marking it ready for review runs everything.
+    if: github.event_name != 'pull_request' || !github.event.pull_request.draft
     name: Audit checks (RLS, sharing, egress, PCI)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           python-version: "3.12"
 
@@ -69,9 +104,9 @@ jobs:
   docs:
     name: Every new function is documented
     runs-on: ubuntu-latest
-    if: github.event_name == 'pull_request'
+    if: github.event_name == 'pull_request' && !github.event.pull_request.draft
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
           fetch-depth: 0
@@ -81,13 +116,15 @@ jobs:
           BASE_REF: ${{ github.base_ref }}
 
   contracts:
+    # A draft PR spends no build; marking it ready for review runs everything.
+    if: github.event_name != 'pull_request' || !github.event.pull_request.draft
     name: API + UI contracts
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           python-version: "3.12"
 
@@ -134,6 +171,9 @@ jobs:
         run: python3 -m unittest discover -s tests
 
   rust-fmt:
+    # A draft PR spends no build; marking it ready for review runs everything.
+    needs: changes
+    if: needs.changes.outputs.rust == 'true'
     name: "Rust format (TODO: 1053 diffs on master)"
     runs-on: ubuntu-latest
     continue-on-error: true
@@ -141,7 +181,7 @@ jobs:
       run:
         working-directory: medbrains
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
       - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable
@@ -153,23 +193,26 @@ jobs:
       - run: cargo fmt --all -- --check
 
   web:
+    # A draft PR spends no build; marking it ready for review runs everything.
+    needs: changes
+    if: needs.changes.outputs.web == 'true'
     name: Web typecheck, lint, test, build
     runs-on: ubuntu-latest
     defaults:
       run:
         working-directory: medbrains
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
       # `with:` inputs are resolved from the repo root — `defaults.run` does not
       # apply to them — so every path here is root-relative even though the
       # steps below run in `medbrains/`. There is an untracked `.nvmrc` at the
       # root that would resolve locally and not exist on a runner.
-      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
+      - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
         with:
           package_json_file: medbrains/package.json
-      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version-file: medbrains/.nvmrc
           cache: pnpm
@@ -192,6 +235,9 @@ jobs:
         run: python3 scripts/check_size_budgets.py
 
   web-lint:
+    # A draft PR spends no build; marking it ready for review runs everything.
+    needs: changes
+    if: needs.changes.outputs.web == 'true'
     name: "Web lint"
     runs-on: ubuntu-latest
     continue-on-error: true
@@ -199,13 +245,13 @@ jobs:
       run:
         working-directory: medbrains
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
+      - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
         with:
           package_json_file: medbrains/package.json
-      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version-file: medbrains/.nvmrc
           cache: pnpm
@@ -214,6 +260,9 @@ jobs:
       - run: pnpm turbo run lint --filter=@medbrains/web...
 
   rust-clippy:
+    # A draft PR spends no build; marking it ready for review runs everything.
+    needs: changes
+    if: needs.changes.outputs.rust == 'true'
     name: "Rust clippy"
     runs-on: ubuntu-latest
     continue-on-error: true
@@ -221,13 +270,13 @@ jobs:
       run:
         working-directory: medbrains
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
       - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable
         with:
           components: clippy
-      - uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: |
             ~/.cargo/registry
@@ -242,14 +291,17 @@ jobs:
       - run: cargo clippy --workspace --exclude medbrains-desktop
 
   schema-and-tenancy:
+    # A draft PR spends no build; marking it ready for review runs everything.
+    needs: changes
+    if: needs.changes.outputs.rust == 'true'
     name: "Schema + tenancy"
     runs-on: ubuntu-latest
     continue-on-error: true
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           python-version: "3.12"
 
@@ -279,6 +331,9 @@ jobs:
         run: python3 scripts/check_tracing_spans.py
 
   rust-test:
+    # A draft PR spends no build; marking it ready for review runs everything.
+    needs: changes
+    if: needs.changes.outputs.rust == 'true'
     name: "Rust tests"
     runs-on: ubuntu-latest
     continue-on-error: true
@@ -286,11 +341,11 @@ jobs:
       run:
         working-directory: medbrains
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
       - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable
-      - uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: |
             ~/.cargo/registry

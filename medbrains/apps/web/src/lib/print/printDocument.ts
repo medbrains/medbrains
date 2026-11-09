@@ -1,7 +1,5 @@
-import { QRCodeSVG } from "qrcode.react";
-import { createElement } from "react";
-import { renderToStaticMarkup } from "react-dom/server";
 import { printDocumentDef } from "./print-registry";
+import { qrSvgMarkup } from "./qr-svg";
 
 /**
  * Print any document, from anywhere, in one call.
@@ -83,11 +81,11 @@ function renderFields(data: Record<string, unknown>): string {
 /**
  * A signature's public check link, drawn as the QR an outsider scans (an
  * insurer, a court, another hospital), not printed as a URL nobody types.
- * Static markup from `qrcode.react`, as the bill print does, because this path
- * writes an HTML string into a popup rather than mounting React.
+ * Markup from `qrSvgMarkup`, as the bill print does, because this path writes
+ * an HTML string into a popup rather than mounting React.
  */
 function verifyQrHtml(url: string): string {
-  const svg = renderToStaticMarkup(createElement(QRCodeSVG, { value: url, size: 88, level: "M" }));
+  const svg = qrSvgMarkup(url, 88);
   return `<div class="verify-qr">${svg}<p>Scan to check this document is unchanged</p></div>`;
 }
 

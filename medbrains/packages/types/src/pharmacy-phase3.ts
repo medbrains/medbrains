@@ -70,7 +70,9 @@ export interface PharmacyRxDetailItem {
   taxable_amount: number;
   tax_amount: number;
   line_total: number;
-  price_source: "catalog" | "unmatched";
+  /** `buy_outside`: the prescriber marked it bought outside; never billed. */
+  price_source: "catalog" | "unmatched" | "buy_outside";
+  buy_outside: boolean;
 }
 
 export interface PharmacyRxDetailResponse {
@@ -90,6 +92,7 @@ export interface MedicationSafetyFinding {
     | "DRUG_INTERACTION"
     | "RESERVE_ANTIBIOTIC_APPROVAL_REQUIRED"
     | "NON_FORMULARY_APPROVAL_REQUIRED"
+    | "LASA_LOOK_ALIKE"
     | (string & {});
   severity: "warn" | "block";
   message: string;
@@ -111,6 +114,8 @@ export interface PharmacyRxReviewItemInput {
   catalog_item_id?: string | null;
   quantity: number;
   unit_price: number;
+  /** The pharmacist confirms an unmapped line is bought outside. */
+  buy_outside?: boolean;
 }
 
 export interface ReviewPharmacyPrescriptionRequest {
@@ -794,4 +799,32 @@ export interface JobStats {
   failed: number;
   dead_letter: number;
   total: number;
+}
+
+/** One finding filed against a pharmacy order: refused, overridden or warned. */
+export interface PharmacySafetyRecordRow {
+  id: string;
+  warning_code: string;
+  severity: "warn" | "block";
+  action_taken: "blocked" | "warned" | "overridden";
+  message: string;
+  override_reason: string | null;
+  checked_by_name: string | null;
+  checked_at: string;
+}
+
+/** A colleague who may witness a controlled (Schedule X / NDPS) dispense. */
+export interface DispenseWitness {
+  id: string;
+  full_name: string;
+}
+
+/** The patient as the dispensing pharmacist sees them: identity and drug allergies only. */
+export interface PharmacyDispenseContext {
+  patient_id: string;
+  uhid: string;
+  full_name: string;
+  /** null when nobody has asked; true only when recorded as none. */
+  no_known_allergies: boolean | null;
+  drug_allergies: { allergen_name: string; severity: string | null; reaction: string | null }[];
 }

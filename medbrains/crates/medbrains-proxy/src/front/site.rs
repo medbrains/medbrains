@@ -5,7 +5,7 @@
 
 use crate::config::SiteConfig;
 use crate::limits::RateLimiter;
-use crate::names::{Names, canonical_ip, normalize_path};
+use crate::names::{Names, canonical_ip, is_machine, normalize_path};
 use async_trait::async_trait;
 use bytes::Bytes;
 use pingora_core::protocols::tls::CaType;
@@ -68,6 +68,8 @@ pub(crate) struct Site {
     error_page: Bytes,
     only_hosts: Vec<String>,
     block_paths: Vec<String>,
+    /// When not empty, all the LAN may reach.
+    lan_paths: Vec<String>,
     max_body_bytes: u64,
     limits: Vec<PathLimit>,
     names: Names,
@@ -125,6 +127,11 @@ impl Site {
                 .iter()
                 .map(|p| p.to_ascii_lowercase())
                 .collect(),
+            lan_paths: config
+                .lan_paths
+                .iter()
+                .map(|p| p.to_ascii_lowercase())
+                .collect(),
             max_body_bytes: config.max_body_bytes,
             limits: limits.collect(),
             names,
@@ -165,6 +172,15 @@ impl Site {
         {
             return Some(Refused::new(404, "Not found."));
         }
+        if !self.lan_paths.is_empty()
+            && !is_machine(client)
+            && !self
+                .lan_paths
+                .iter()
+                .any(|allowed| under_path(&path, allowed))
+        {
+            return Some(Refused::new(404, "Not found."));
+        }
         if content_length(req).is_some_and(|length| length > self.max_body_bytes) {
             return Some(Refused::new(413, "That upload is too large."));
         }
@@ -181,6 +197,12 @@ impl Site {
             _ => None,
         }
     }
+}
+
+/// True when `path` is `prefix` or below it, segment by segment: `/ui` covers `/ui` and `/ui/login`, never `/uix`.
+fn under_path(path: &str, prefix: &str) -> bool {
+    path.strip_prefix(prefix)
+        .is_some_and(|rest| rest.is_empty() || rest.starts_with('/') || prefix.ends_with('/'))
 }
 
 /// The raw Host header.

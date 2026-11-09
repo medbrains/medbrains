@@ -6,6 +6,7 @@ import { Group, Stack, Text, Textarea, TextInput } from "@mantine/core";
 import { useHasPermission } from "@medbrains/stores";
 import type {
   CreateDischargeSummaryRequest,
+  DischargeMedicine,
   IpdDischargeSummary,
   UpdateDischargeSummaryRequest,
 } from "@medbrains/types";
@@ -16,7 +17,10 @@ import { useState } from "react";
 import { useClinicalEmit } from "@/components";
 import { SignRecordButton } from "@/components/Signatures/SignRecordButton";
 import { Badge, Button, toast } from "@/components/ui";
+import { BUY_OUTSIDE_PRINT } from "@/features/prescription/rxBuyOutside";
+import { confirmDestructive } from "@/lib/confirm-destructive";
 import { ipdService } from "@/services/ipd.service";
+import { DischargeMedicinesEditor } from "./discharge-medicines-editor";
 
 export function DischargeSummaryTab({
   admissionId,
@@ -46,6 +50,7 @@ export function DischargeSummaryTab({
   const [dietaryAdvice, setDietaryAdvice] = useState("");
   const [activityRestrictions, setActivityRestrictions] = useState("");
   const [warningSigns, setWarningSigns] = useState("");
+  const [medicines, setMedicines] = useState<DischargeMedicine[]>([]);
   const [editing, setEditing] = useState(false);
 
   const summary = existing as IpdDischargeSummary | null;
@@ -66,6 +71,7 @@ export function DischargeSummaryTab({
       void queryClient.invalidateQueries({ queryKey: ["ipd-discharge-summary", admissionId] });
       setEditing(false);
     },
+    onError: (e: Error) => toast.error(e.message, { title: "Cannot save" }),
   });
 
   const finalizeMutation = useMutation({
@@ -89,9 +95,16 @@ export function DischargeSummaryTab({
     return (
       <Stack>
         <Group justify="space-between">
-          <Badge size="lg" tone={summary.status === "finalized" ? "success" : "warning"}>
-            {summary.status}
-          </Badge>
+          <Group gap="xs">
+            <Badge size="lg" tone={summary.status === "finalized" ? "success" : "warning"}>
+              {summary.status}
+            </Badge>
+            {summary.is_signed && (
+              <Badge size="lg" tone="success">
+                Signed
+              </Badge>
+            )}
+          </Group>
           <Group>
             <SignRecordButton
               recordType="discharge_summary"
@@ -115,6 +128,7 @@ export function DischargeSummaryTab({
                   setDietaryAdvice(summary.dietary_advice ?? "");
                   setActivityRestrictions(summary.activity_restrictions ?? "");
                   setWarningSigns(summary.warning_signs ?? "");
+                  setMedicines(summary.medications_on_discharge ?? []);
                   setEditing(true);
                 }}
               >
@@ -183,6 +197,20 @@ export function DischargeSummaryTab({
             <b>Warning Signs:</b> {summary.warning_signs}
           </Text>
         )}
+        {summary.medications_on_discharge?.length > 0 && (
+          <Stack gap={4}>
+            <Text size="sm" fw={600}>
+              Medicines on discharge
+            </Text>
+            {summary.medications_on_discharge.map((m, i) => (
+              <Text key={m.catalog_item_id ?? `outside-${i}`} size="sm">
+                {m.drug_name} × {m.quantity}
+                {m.instructions ? ` — ${m.instructions}` : ""}
+                {m.buy_outside ? ` — ${BUY_OUTSIDE_PRINT}` : ""}
+              </Text>
+            ))}
+          </Stack>
+        )}
         {summary.finalized_at && (
           <Text size="xs" c="dimmed">
             Finalized: {new Date(summary.finalized_at).toLocaleString()}
@@ -212,8 +240,18 @@ export function DischargeSummaryTab({
       dietary_advice: dietaryAdvice || undefined,
       activity_restrictions: activityRestrictions || undefined,
       warning_signs: warningSigns || undefined,
+      medications_on_discharge: medicines,
     };
-    if (summary) {
+    if (summary?.is_signed) {
+      // The signature is for what the doctor read; saving changes takes it off.
+      confirmDestructive({
+        title: "Remove the signature?",
+        message:
+          "This removes the signature. The summary must be signed again before its medicines can be dispensed.",
+        confirmLabel: "Save and remove signature",
+        onConfirm: () => updateMutation.mutate(payload),
+      });
+    } else if (summary) {
       updateMutation.mutate(payload);
     } else {
       createMutation.mutate(payload);
@@ -282,6 +320,7 @@ export function DischargeSummaryTab({
         value={warningSigns}
         onChange={(e) => setWarningSigns(e.currentTarget.value)}
       />
+      <DischargeMedicinesEditor value={medicines} onChange={setMedicines} />
       <Group>
         <Button
           tone="primary"

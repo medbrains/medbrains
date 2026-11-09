@@ -48,6 +48,11 @@ pub struct PharmacyCatalog {
     /// Codeine syrups, benzodiazepines, pregabalin and the like: online they
     /// are pickup only, a unit at a time.
     pub habit_forming: bool,
+    /// Charge the patient when a nurse uses it from ward stock on them. Off
+    /// (the default) for overhead and bed-charge items (migration 1421).
+    #[sqlx(default)]
+    #[serde(default)]
+    pub is_patient_billable: bool,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }
@@ -106,6 +111,23 @@ pub struct PharmacyOrderItem {
     pub removed_by: Option<Uuid>,
     pub remove_reason: Option<String>,
     pub created_at: DateTime<Utc>,
+    /// Bought outside, not dispensed here: no catalogue item, no price.
+    #[sqlx(default)]
+    #[serde(default)]
+    pub buy_outside: bool,
+    /// Who chose or confirmed it: the prescriber, or the reviewing pharmacist.
+    #[sqlx(default)]
+    #[serde(default)]
+    pub buy_outside_by: Option<Uuid>,
+}
+
+impl PharmacyOrderItem {
+    /// Whether this line is sold here: a catalogue item, not bought outside.
+    /// Only such a line is dispensed, picked, verified or billed.
+    #[must_use]
+    pub const fn is_sold_here(&self) -> bool {
+        self.catalog_item_id.is_some() && !self.buy_outside
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]

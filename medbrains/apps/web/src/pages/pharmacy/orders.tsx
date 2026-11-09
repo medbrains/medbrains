@@ -1,6 +1,7 @@
 // Pharmacy PharmacyOrdersTab — split from pharmacy.tsx (pure move).
 
 import { Group, Select, Stack, Text, Tooltip } from "@mantine/core";
+import { useHasPermission } from "@medbrains/stores";
 import type { PharmacyOrder } from "@medbrains/types";
 import { P, PATIENT_BASIC_IDENTITY_FIELD_ACCESS_KEYS } from "@medbrains/types";
 import { IconCheck, IconEye, IconPlus, IconShoppingCart, IconX } from "@tabler/icons-react";
@@ -10,7 +11,7 @@ import { useState } from "react";
 import { useNavigate, useSearchParams } from "react-router";
 import type { Column, SortState } from "@/components";
 import { DataTable, StatusDot, TableValueBadge, useClinicalEmit } from "@/components";
-import { Alert, Button, IconButton, toast } from "@/components/ui";
+import { Alert, Button, IconButton, Switch, toast } from "@/components/ui";
 import { confirmDestructive } from "@/lib/confirm-destructive";
 import { pharmacyService } from "@/services/pharmacy.service";
 import { ReasonModal } from "./reason-modal";
@@ -21,6 +22,7 @@ import {
   PharmacyPatientContext,
   pharmacyOrderEventItems,
   statusColors,
+  UNPAID_REASON_REQUIRED,
 } from "./shared";
 
 interface DispenseInput {
@@ -29,7 +31,6 @@ interface DispenseInput {
 }
 
 /** The server's refusal when a bill is short and no reason was given. */
-const UNPAID_REASON_REQUIRED = "Provide a reason to dispense unpaid";
 
 export function PharmacyOrdersTab({
   canViewOrders,
@@ -52,6 +53,9 @@ export function PharmacyOrdersTab({
   const [page, setPage] = useState(1);
   const [orderSort, setOrderSort] = useState<SortState | null>(null);
   const [filterStatus, setFilterStatus] = useState<string | null>(null);
+  // Camp dispenses that failed the schedule gate at sync, filed for review.
+  const canViewSafety = useHasPermission(P.PHARMACY.SAFETY_VIEW);
+  const [campExceptions, setCampExceptions] = useState(false);
   const patientIdFilter = searchParams.get("patient_id") ?? "";
   const isDispenseHandoff = searchParams.get("action") === "dispense";
   const effectiveFilterStatus = filterStatus ?? (isDispenseHandoff ? "ordered" : null);
@@ -70,6 +74,7 @@ export function PharmacyOrdersTab({
   const params: Record<string, string> = { page: String(page), per_page: "20" };
   if (effectiveFilterStatus) params.status = effectiveFilterStatus;
   if (patientIdFilter) params.patient_id = patientIdFilter;
+  if (canViewSafety && campExceptions) params.camp_exceptions = "true";
   if (orderSort) {
     params.sort = orderSort.key;
     params.order = orderSort.dir;
@@ -84,6 +89,8 @@ export function PharmacyOrdersTab({
   const emit = useClinicalEmit();
 
   const [unpaidOrder, setUnpaidOrder] = useState<{ id: string; complaint: string } | null>(null);
+  // Only someone granted it hands over an unpaid bill; others see the refusal.
+  const canUnpaidOverride = useHasPermission(P.PHARMACY.DISPENSING_UNPAID_OVERRIDE);
   const dispenseMutation = useMutation({
     mutationFn: async ({ id, unpaidReason }: DispenseInput) => {
       const detail = await pharmacyService.getPharmacyOrder(id);
@@ -115,7 +122,7 @@ export function PharmacyOrdersTab({
     onError: (e: Error, { id, unpaidReason }) => {
       // An unpaid bill is not a wall: credit patients, schemes and staff are
       // dispensed on a recorded reason. Ask for it rather than dead-end.
-      if (!unpaidReason && e.message.includes(UNPAID_REASON_REQUIRED)) {
+      if (canUnpaidOverride && !unpaidReason && e.message.includes(UNPAID_REASON_REQUIRED)) {
         setUnpaidOrder({ id, complaint: e.message });
         return;
       }
@@ -267,14 +274,28 @@ export function PharmacyOrdersTab({
     <Stack>
       <Group justify="space-between" align="flex-end">
         {canViewOrders ? (
-          <Select
-            placeholder="Status"
-            data={PHARMACY_ORDER_STATUS_OPTIONS}
-            value={effectiveFilterStatus}
-            onChange={setOrderStatusFilter}
-            clearable
-            w={160}
-          />
+          <Group gap="md" align="center">
+            <Select
+              placeholder="Status"
+              aria-label="Filter by status"
+              data={PHARMACY_ORDER_STATUS_OPTIONS}
+              value={effectiveFilterStatus}
+              onChange={setOrderStatusFilter}
+              clearable
+              w={160}
+            />
+            {canViewSafety && (
+              <Switch
+                label="Camp exceptions to review"
+                description="Camp dispenses the schedule gate refused at sync"
+                checked={campExceptions}
+                onChange={(e) => {
+                  setCampExceptions(e.currentTarget.checked);
+                  setPage(1);
+                }}
+              />
+            )}
+          </Group>
         ) : (
           <Text size="sm" c="dimmed">
             Order queue requires prescription-list permission.

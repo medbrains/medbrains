@@ -1,0 +1,34 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT u.id, u.tenant_id, u.role::text AS \"role!\" FROM user_invitations i\n           JOIN users u ON u.id = i.invited_by AND u.tenant_id = i.tenant_id\n           WHERE i.token_hash = $1 AND u.is_active AND u.deleted_at IS NULL",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "tenant_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 2,
+        "name": "role!",
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      null
+    ]
+  },
+  "hash": "b7b9bad5c20db34910b152b9f811d5220f551a0339f0c5b65cc0f262391ed359"
+}

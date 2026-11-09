@@ -1,4 +1,5 @@
 // Chronic care program/enrollment/adherence types — split from index.ts, barrel-re-exported.
+
 import type {
   AdherenceEventType,
   ChronicProgramType,
@@ -6,6 +7,7 @@ import type {
   MedicationEventType,
   TransferType,
 } from "./index";
+import type { RoomConsentInput } from "./revenue-alerts";
 
 // ── Chronic Care Requests ────────────────────────────────
 
@@ -1263,6 +1265,8 @@ export interface BedTransferRequest {
   to_bed_id: string;
   reason: string;
   notes?: string;
+  /** Consent for a room above the policy's room rent limit. */
+  room_consent?: RoomConsentInput;
 }
 
 export interface BedTransferResponse {

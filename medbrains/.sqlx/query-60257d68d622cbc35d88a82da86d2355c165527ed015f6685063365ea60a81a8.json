@@ -1,0 +1,20 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE dictation_sessions SET status = $3, failure = $4, stt_adapter = $5, llm_model = $6, transcript_chars = $7 WHERE id = $1 AND tenant_id = $2",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Text",
+        "Text",
+        "Text",
+        "Text",
+        "Int4"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "60257d68d622cbc35d88a82da86d2355c165527ed015f6685063365ea60a81a8"
+}
