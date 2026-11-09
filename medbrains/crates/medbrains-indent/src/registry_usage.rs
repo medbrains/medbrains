@@ -67,14 +67,16 @@ pub(crate) async fn registry_usage(
         return Ok(Some(RegistryUsage::AlreadyRecorded));
     }
     // The admission's bill, not a patient-only draft: the discharge desk
-    // settles the admission's invoice.
+    // settles the admission's invoice. Only the encounter is sent: the
+    // charge derives the admission from it, so a second admission row on
+    // the same encounter cannot refuse the OT nurse's entry.
     let admission = current_admission(tx, claims.tenant_id, entry.patient_id).await?;
     let body = ConsignmentUsageRequest {
         batch_stock_id: batch_id,
         quantity: 1,
         patient_id: Some(entry.patient_id),
         encounter_id: admission.map(|a| a.encounter_id),
-        admission_id: admission.map(|a| a.id),
+        admission_id: None,
         notes: Some("Recorded from the implant registry".to_owned()),
     };
     let movement = use_consignment(tx, claims, &body).await?;
@@ -230,7 +232,8 @@ async fn current_admission(
 ) -> Result<Option<CurrentAdmission>, AppError> {
     Ok(sqlx::query_as(
         "SELECT id, encounter_id FROM admissions WHERE tenant_id = $1 AND patient_id = $2 \
-           AND status = 'admitted' ORDER BY admitted_at DESC LIMIT 1",
+           AND status = 'admitted' AND deleted_at IS NULL AND NOT is_dummy \
+         ORDER BY admitted_at DESC LIMIT 1",
     )
     .bind(tenant_id)
     .bind(patient_id)

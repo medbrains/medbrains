@@ -53,8 +53,12 @@ macro_rules! done_sql {
 /// consignment stock used, and registry implants not on a consignment batch
 /// (those bill through their consignment usage, so are not counted twice).
 /// Migration 1421. The catalogue price is the issue's own price, else the
-/// item's; `catalog_tax` is the pharmacy item's GST (ward stock), the store
-/// catalogue carrying none.
+/// item's. `catalog_tax` is the pharmacy item's GST for ward stock, and an
+/// explicit 0 for the store-catalogue rows (consumable issue, consignment,
+/// implant): `store_catalog` has no GST column, and the live store paths
+/// post with no tax override, which is 0%. So the store paths bill 0% GST,
+/// live and detected alike, until #5291 adds GST to `store_catalog`. This
+/// keeps one rule on both paths; it does not make either right.
 macro_rules! consumed_sql {
     () => {
         "SELECT 'consumable'::text AS module, pci.id AS order_id, pci.patient_id, \
@@ -63,7 +67,7 @@ macro_rules! consumed_sql {
                 COALESCE(NULLIF(pci.unit_price, 0), sc.base_price) AS catalog_price, \
                 pci.created_at AS service_at, NULL::uuid AS test_id, NULL::uuid AS procedure_id, \
                 'consumable'::text AS setting, pci.quantity - pci.returned_qty AS quantity, \
-                NULL::numeric AS catalog_tax \
+                0::numeric AS catalog_tax \
            FROM patient_consumable_issues pci \
            JOIN store_catalog sc ON sc.id = pci.catalog_item_id AND sc.tenant_id = pci.tenant_id \
           WHERE pci.tenant_id = $1 AND pci.deleted_at IS NULL AND pci.is_chargeable \
@@ -80,7 +84,7 @@ macro_rules! consumed_sql {
          SELECT 'consumable', m.id, m.patient_id, NULL::uuid, m.department_id, sc.code, \
                 ARRAY[sc.code], sc.name, \
                 'Consignment: ' || sc.name || ' · batch ' || b.batch_number, sc.base_price, \
-                m.created_at, NULL::uuid, NULL::uuid, 'consignment', -m.quantity, NULL::numeric \
+                m.created_at, NULL::uuid, NULL::uuid, 'consignment', -m.quantity, 0::numeric \
            FROM store_stock_movements m \
            JOIN batch_stock b ON b.id = m.batch_stock_id AND b.tenant_id = m.tenant_id \
            JOIN store_catalog sc ON sc.id = m.catalog_item_id AND sc.tenant_id = m.tenant_id \
@@ -90,7 +94,7 @@ macro_rules! consumed_sql {
          UNION ALL \
          SELECT 'ot', ir.id, ir.patient_id, NULL::uuid, NULL::uuid, sc.code, ARRAY[sc.code], \
                 sc.name, 'Implant: ' || sc.name, sc.base_price, ir.created_at, NULL::uuid, \
-                NULL::uuid, 'implant', 1, NULL::numeric \
+                NULL::uuid, 'implant', 1, 0::numeric \
            FROM implant_registry ir \
            JOIN store_catalog sc ON sc.id = ir.catalog_item_id AND sc.tenant_id = ir.tenant_id \
            LEFT JOIN batch_stock b ON b.id = ir.batch_stock_id AND b.tenant_id = ir.tenant_id \
@@ -146,28 +150,12 @@ macro_rules! stock_price_sql {
     };
 }
 
-/// One batch: find done, unbilled, uncovered orders and queue them, priced.
-/// `$1` tenant, `$2` grace hours, `$3` look-back days, `$4` batch size, `$5`
-/// the person running it (NULL for the daily pass).
-///
-/// Price: `$price` ([`order_price_sql`] or [`stock_price_sql`]). A catalogue
-/// or charge-master ₹0 is "not set", never "free"; only an explicit ₹0 on a
-/// rate card or rate plan is an exemption and is skipped.
-///
-/// `$done` names the macro giving the rows to check, `$reason` the quoted
-/// queue reason they are raised under.
-macro_rules! queue_batch_sql {
-    ($done:ident, $reason:literal, $price:ident) => {
-        concat!(
-            "WITH done AS (",
-            $done!(),
-            "), due AS ( \
-       SELECT d.*, price.unit_price, price.tax_percent \
-         FROM done d \
-         LEFT JOIN patients p ON p.id = d.patient_id AND p.tenant_id = $1 \
-         LEFT JOIN charge_master cm ON cm.tenant_id = $1 AND cm.code = d.charge_code \
-              AND cm.is_active AND cm.deleted_at IS NULL \
-         LEFT JOIN LATERAL ( \
+/// The patient's payer rate card for the order's code, as `payer`: the
+/// first active cover and its rate card on the service date. Orders only;
+/// the stock paths never read a rate card ([`stock_price_sql`]).
+macro_rules! payer_rate_sql {
+    () => {
+        "LEFT JOIN LATERAL ( \
            SELECT rpi.override_price AS price, rpi.override_tax_percent AS tax \
              FROM patient_insurance pi \
              JOIN tpa_rate_cards rc ON rc.tenant_id = pi.tenant_id \
@@ -186,8 +174,41 @@ macro_rules! queue_batch_sql {
               AND d.service_at::date BETWEEN pi.valid_from AND pi.valid_until \
             ORDER BY pi.priority, (NULLIF(btrim(rc.tpa_name), '') IS NULL), \
                      rc.valid_from DESC NULLS LAST, rc.id, pi.id \
-            LIMIT 1) payer ON true \
-         LEFT JOIN LATERAL ( \
+            LIMIT 1) payer ON true"
+    };
+}
+
+/// No payer rate card: the stock rows join none.
+macro_rules! no_payer_sql {
+    () => {
+        ""
+    };
+}
+
+/// One batch: find done, unbilled, uncovered orders and queue them, priced.
+/// `$1` tenant, `$2` grace hours, `$3` look-back days, `$4` batch size, `$5`
+/// the person running it (NULL for the daily pass).
+///
+/// Price: `$price` ([`order_price_sql`] or [`stock_price_sql`]). A catalogue
+/// or charge-master ₹0 is "not set", never "free"; only an explicit ₹0 on a
+/// rate card or rate plan is an exemption and is skipped.
+///
+/// `$done` names the macro giving the rows to check, `$reason` the quoted
+/// queue reason they are raised under, `$payer` the rate-card join
+/// ([`payer_rate_sql`] or [`no_payer_sql`]).
+macro_rules! queue_batch_sql {
+    ($done:ident, $reason:literal, $price:ident, $payer:ident) => {
+        concat!(
+            "WITH done AS (",
+            $done!(),
+            "), due AS ( \
+       SELECT d.*, price.unit_price, price.tax_percent \
+         FROM done d \
+         LEFT JOIN patients p ON p.id = d.patient_id AND p.tenant_id = $1 \
+         LEFT JOIN charge_master cm ON cm.tenant_id = $1 AND cm.code = d.charge_code \
+              AND cm.is_active AND cm.deleted_at IS NULL ",
+            $payer!(),
+            " LEFT JOIN LATERAL ( \
            SELECT rpi.override_price AS price, rpi.override_tax_percent AS tax \
              FROM rate_plan_items rpi \
              JOIN rate_plans rp ON rp.id = rpi.rate_plan_id AND rp.tenant_id = rpi.tenant_id \
@@ -246,14 +267,22 @@ macro_rules! queue_batch_sql {
 }
 
 /// One batch of orders done and never billed, raised as `unbilled_order`.
-pub(super) const QUEUE_BATCH: &str =
-    queue_batch_sql!(done_sql, "'unbilled_order'", order_price_sql);
+pub(super) const QUEUE_BATCH: &str = queue_batch_sql!(
+    done_sql,
+    "'unbilled_order'",
+    order_price_sql,
+    payer_rate_sql
+);
 
 /// One batch of stock used on a patient and never billed, raised as
 /// `unbilled_consumption` (migration 1421). Same rules and packages; priced
 /// as the live stock paths price it ([`stock_price_sql`]).
-pub(super) const QUEUE_CONSUMPTION_BATCH: &str =
-    queue_batch_sql!(consumed_sql, "'unbilled_consumption'", stock_price_sql);
+pub(super) const QUEUE_CONSUMPTION_BATCH: &str = queue_batch_sql!(
+    consumed_sql,
+    "'unbilled_consumption'",
+    stock_price_sql,
+    no_payer_sql
+);
 
 /// The record `$2`/`$3` (module, id) of the rows `$done` gives, as it stands
 /// now: no row when it is no longer done (cancelled, deleted, un-verified,

@@ -14,7 +14,7 @@
 mod common;
 
 use common::stock::{
-    age_stock, consume, lines, queue, refuse_failing_codes, scan, ward, ward_item,
+    age_stock, consignment, consume, lines, queue, refuse_failing_codes, scan, ward, ward_item,
 };
 use common::{pool, scoped};
 use medbrains_ward_stock::consume::ConsumeCharge;
@@ -238,4 +238,95 @@ async fn a_deferred_ward_stock_use_posts_at_the_catalogue_price_and_gst() {
     .await
     .unwrap();
     assert_eq!(billed, (Decimal::from(120), Decimal::from(12)));
+}
+
+#[tokio::test]
+#[ignore = "needs DATABASE_URL"]
+async fn a_deferred_consignment_use_posts_the_live_paths_tax() {
+    use axum::extract::{Path, State};
+    use axum::{Extension, Json};
+    use medbrains_indent::{ConsignmentUsageRequest, record_consignment_usage};
+    let db = pool().await;
+    let (claims, w) = ward(&db, "LKCONSTAX", 100, true).await;
+    let batch = consignment(&db, &w.v).await;
+    // A charge-master entry of the implant's code carries 18% GST; the store
+    // catalogue carries none (#5291), and neither path may take the 18%.
+    sqlx::query(
+        "INSERT INTO charge_master (tenant_id, code, name, category, base_price, tax_percent) \
+         VALUES ($1, 'LKKNEE', 'Knee implant', 'consumable', 90000, 18)",
+    )
+    .bind(w.v.tenant)
+    .execute(&db)
+    .await
+    .unwrap();
+    let tax_of = |source: Uuid| {
+        let db = db.clone();
+        async move {
+            sqlx::query_scalar::<_, Decimal>(
+                "SELECT tax_percent FROM invoice_items \
+                  WHERE source = 'consumable' AND source_id = $1",
+            )
+            .bind(source)
+            .fetch_one(&db)
+            .await
+            .unwrap()
+        }
+    };
+
+    // Live: the store records the use on the patient and it bills at once.
+    let live = record_consignment_usage(
+        State(common::state(db.clone())),
+        Extension(claims.clone()),
+        Json(ConsignmentUsageRequest {
+            batch_stock_id: batch,
+            quantity: 1,
+            patient_id: Some(w.v.patient),
+            encounter_id: Some(w.v.encounter),
+            admission_id: None,
+            notes: None,
+        }),
+    )
+    .await
+    .expect("usage saves")
+    .0
+    .id;
+
+    // Deferred: a use recorded with no charge, found by the daily check.
+    let deferred: Uuid = sqlx::query_scalar(
+        "INSERT INTO store_stock_movements (tenant_id, catalog_item_id, movement_type, \
+           quantity, batch_stock_id, patient_id, reference_type, created_by) \
+         SELECT $1, catalog_item_id, 'issue', -1, id, $3, 'consignment_usage', $4 \
+           FROM batch_stock WHERE id = $2 RETURNING id",
+    )
+    .bind(w.v.tenant)
+    .bind(batch)
+    .bind(w.v.patient)
+    .bind(w.v.user)
+    .fetch_one(&db)
+    .await
+    .unwrap();
+    age_stock(&db, w.v.tenant, 5).await;
+    assert_eq!(scan(&db, &claims).await, 1);
+    let row: Uuid =
+        sqlx::query_scalar("SELECT id FROM charge_attention_items WHERE source_entity_id = $1")
+            .bind(deferred)
+            .fetch_one(&db)
+            .await
+            .unwrap();
+    let posted = medbrains_billing::charge_attention::post_charge_attention(
+        State(common::state(db.clone())),
+        Extension(claims.clone()),
+        Path(row),
+    )
+    .await
+    .expect("posts");
+    assert_eq!(posted.0.status, "posted");
+
+    let live_tax = tax_of(live).await;
+    assert_eq!(live_tax, Decimal::ZERO, "the live store path bills 0% GST");
+    assert_eq!(
+        tax_of(deferred).await,
+        live_tax,
+        "the detector posts the same"
+    );
 }

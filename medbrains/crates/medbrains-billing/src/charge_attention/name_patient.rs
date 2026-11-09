@@ -59,6 +59,7 @@ pub async fn name_patient_charge_attention(
                 encounter_id = (SELECT ad.encounter_id FROM admissions ad \
                                  WHERE ad.tenant_id = $2 AND ad.patient_id = $3 \
                                    AND ad.status = 'admitted' \
+                                   AND ad.deleted_at IS NULL AND NOT ad.is_dummy \
                                  ORDER BY ad.admitted_at DESC LIMIT 1) \
           WHERE id = $1 AND tenant_id = $2",
     )
