@@ -6,6 +6,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useMemo } from "react";
 import { useNavigate } from "react-router";
 import { PageHeader } from "@/components";
+import { QueryError } from "@/components/QueryError";
 import { Badge, type BadgeTone, Card } from "@/components/ui";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
 import { billingService } from "@/services/billing.service";
@@ -89,7 +90,12 @@ export function BillingTpaPipelinePage() {
   useRequirePermission(P.BILLING.CORPORATE_LIST);
   const navigate = useNavigate();
 
-  const { data: claims = [], isLoading } = useQuery({
+  const {
+    data: claims = [],
+    isLoading,
+    error,
+    refetch,
+  } = useQuery({
     queryKey: ["tpa-pipeline-claims"],
     queryFn: () => billingService.listInsuranceClaims(),
     refetchInterval: 60_000,
@@ -126,69 +132,76 @@ export function BillingTpaPipelinePage() {
       />
       <RevenueAlertsPanel kind="preauth_used_up" />
       <RevenueAlertsPanel kind="room_over_limit" />
-      <ScrollArea>
-        <Group align="flex-start" gap="md" wrap="nowrap" style={{ minWidth: "min-content" }}>
-          {STAGES.map((stage) => {
-            const list = byStage.get(stage.key) ?? [];
-            return (
-              <Stack key={stage.key} gap="xs" style={{ width: 280, flex: "0 0 280px" }}>
-                <Group justify="space-between">
-                  <Text size="xs" fw={700} c="dimmed">
-                    {stage.label}
-                  </Text>
-                  <Badge tone={stage.accent} size="sm">
-                    {list.length}
-                  </Badge>
-                </Group>
-                {isLoading && (
-                  <Text c="dimmed" size="sm">
-                    Loading…
-                  </Text>
-                )}
-                {!isLoading && list.length === 0 && (
-                  <Text c="dimmed" size="xs">
-                    Nothing here.
-                  </Text>
-                )}
-                {list.map((claim) => (
-                  <Card
-                    key={claim.id}
-                    padding="sm"
-                    className="clickable-card"
-                    onClick={() => navigate(`/billing?tab=insurance&claim_id=${claim.id}`)}
-                  >
-                    <Stack gap={4}>
-                      <Group justify="space-between" wrap="nowrap">
-                        <Text size="sm" fw={600} truncate>
-                          {claim.claim_number ?? claim.insurance_provider}
+      {/* A failed read is a fault, never five empty columns: "nothing here"
+          on a pre-auth board reads as no patient waiting on an insurer. */}
+      {error && (
+        <QueryError title="Claims did not load" error={error} onRetry={() => void refetch()} />
+      )}
+      {!(error && claims.length === 0) && (
+        <ScrollArea>
+          <Group align="flex-start" gap="md" wrap="nowrap" style={{ minWidth: "min-content" }}>
+            {STAGES.map((stage) => {
+              const list = byStage.get(stage.key) ?? [];
+              return (
+                <Stack key={stage.key} gap="xs" style={{ width: 280, flex: "0 0 280px" }}>
+                  <Group justify="space-between">
+                    <Text size="xs" fw={700} c="dimmed">
+                      {stage.label}
+                    </Text>
+                    <Badge tone={stage.accent} size="sm">
+                      {list.length}
+                    </Badge>
+                  </Group>
+                  {isLoading && (
+                    <Text c="dimmed" size="sm">
+                      Loading…
+                    </Text>
+                  )}
+                  {!isLoading && list.length === 0 && (
+                    <Text c="dimmed" size="xs">
+                      Nothing here.
+                    </Text>
+                  )}
+                  {list.map((claim) => (
+                    <Card
+                      key={claim.id}
+                      padding="sm"
+                      className="clickable-card"
+                      onClick={() => navigate(`/billing?tab=insurance&claim_id=${claim.id}`)}
+                    >
+                      <Stack gap={4}>
+                        <Group justify="space-between" wrap="nowrap">
+                          <Text size="sm" fw={600} truncate>
+                            {claim.claim_number ?? claim.insurance_provider}
+                          </Text>
+                          {stage.slaMinutes && (
+                            <SlaBadge claim={claim} sla={stage.slaMinutes} now={now} />
+                          )}
+                        </Group>
+                        <Text size="xs" c="dimmed" truncate>
+                          {claim.tpa_name ?? claim.insurance_provider}
                         </Text>
-                        {stage.slaMinutes && (
-                          <SlaBadge claim={claim} sla={stage.slaMinutes} now={now} />
-                        )}
-                      </Group>
-                      <Text size="xs" c="dimmed" truncate>
-                        {claim.tpa_name ?? claim.insurance_provider}
-                      </Text>
-                      <Group gap="xs">
-                        {claim.pre_auth_amount && (
-                          <Text size="xs" ff="monospace">
-                            req ₹{money(claim.pre_auth_amount)}
-                          </Text>
-                        )}
-                        {claim.approved_amount && (
-                          <Text size="xs" ff="monospace" c="var(--mb-success-fg)">
-                            appr ₹{money(claim.approved_amount)}
-                          </Text>
-                        )}
-                      </Group>
-                    </Stack>
-                  </Card>
-                ))}
-              </Stack>
-            );
-          })}
-        </Group>
-      </ScrollArea>
+                        <Group gap="xs">
+                          {claim.pre_auth_amount && (
+                            <Text size="xs" ff="monospace">
+                              req ₹{money(claim.pre_auth_amount)}
+                            </Text>
+                          )}
+                          {claim.approved_amount && (
+                            <Text size="xs" ff="monospace" c="var(--mb-success-fg)">
+                              appr ₹{money(claim.approved_amount)}
+                            </Text>
+                          )}
+                        </Group>
+                      </Stack>
+                    </Card>
+                  ))}
+                </Stack>
+              );
+            })}
+          </Group>
+        </ScrollArea>
+      )}
     </Stack>
   );
 }
