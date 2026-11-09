@@ -2229,6 +2229,7 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
             // Can cut a suspect machine off at once, and cannot let a new one in.
             permissions::devices::machines::VIEW,
             permissions::devices::machines::REMOVE,
+            // Not LINK_IDENTITY or admin.sso.providers.manage: identity management is administrators only.
             permissions::dashboard::VIEW,
         ],
     },
