@@ -1,7 +1,8 @@
 // The insurance desk's alerts on the TPA screen: pre-auths whose running bill
 // has reached the hospital's alert share of the approval, or all of it
 // (action: request an enhancement), insured inpatients with no usable pre-auth
-// (action: raise or renew it on the pre-auth screen), and rooms above the
+// (action: raise or renew it on the pre-auth screen, or dismiss the alert with
+// why none is needed: cash, not covered), and rooms above the
 // policy's room rent limit (action: record the family's consent).
 // Hidden, and never fetched, without the kind's view permission. A failed
 // load is shown as a fault, never as "nothing here".
@@ -9,16 +10,18 @@
 import { Stack, Text } from "@mantine/core";
 import { useHasPermission } from "@medbrains/stores";
 import { P, type RevenueAlert, type RevenueAlertKind } from "@medbrains/types";
-import { IconArrowUpRight, IconSignature } from "@tabler/icons-react";
+import { IconArrowUpRight, IconSignature, IconX } from "@tabler/icons-react";
 import { useQuery } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { type Column, DataTable } from "@/components";
 import { Badge, Button, Card } from "@/components/ui";
 import { billingService } from "@/services/billing.service";
+import { DismissPreauthModal } from "./DismissPreauthModal";
 import { EnhancementModal } from "./EnhancementModal";
 import { RoomConsentModal } from "./RoomConsentModal";
 import {
   evidenceNumber,
+  hasInvalidThreshold,
   inr,
   isMissingPreauth,
   isUnknown,
@@ -80,11 +83,46 @@ function canActOn(row: RevenueAlert): boolean {
   return row.reason === "preauth_used_up" || row.reason === "room_over_limit";
 }
 
+/** What the desk chose to do on a row. */
+interface Acting {
+  row: RevenueAlert;
+  dismiss: boolean;
+}
+
+/** The row's action button, or nothing when it has none. */
+function actionFor(copy: KindCopy, r: RevenueAlert, onAct: (a: Acting) => void) {
+  if (isMissingPreauth(r)) {
+    return (
+      <Button
+        tone="secondary"
+        size="xs"
+        leftSection={<IconX size={16} />}
+        onClick={() => onAct({ row: r, dismiss: true })}
+      >
+        No pre-auth needed
+      </Button>
+    );
+  }
+  if (!canActOn(r)) return null;
+  return (
+    <Button
+      tone="secondary"
+      size="xs"
+      leftSection={
+        r.kind === "preauth_used_up" ? <IconArrowUpRight size={16} /> : <IconSignature size={16} />
+      }
+      onClick={() => onAct({ row: r, dismiss: false })}
+    >
+      {copy.actionLabel}
+    </Button>
+  );
+}
+
 /** The kind's columns; the action shows only to someone who may take it. */
 function columns(
   copy: KindCopy,
   canAct: boolean,
-  onAct: (r: RevenueAlert) => void,
+  onAct: (a: Acting) => void,
 ): Column<RevenueAlert>[] {
   return [
     {
@@ -112,6 +150,11 @@ function columns(
               {detail(r)}
             </Text>
           )}
+          {hasInvalidThreshold(r) && (
+            <Badge tone="danger" size="sm">
+              Alert threshold unreadable: warned at 80%
+            </Badge>
+          )}
         </Stack>
       ),
     },
@@ -127,23 +170,7 @@ function columns(
     {
       key: "action",
       label: "Action",
-      render: (r) =>
-        canAct && canActOn(r) ? (
-          <Button
-            tone="secondary"
-            size="xs"
-            leftSection={
-              r.kind === "preauth_used_up" ? (
-                <IconArrowUpRight size={16} />
-              ) : (
-                <IconSignature size={16} />
-              )
-            }
-            onClick={() => onAct(r)}
-          >
-            {copy.actionLabel}
-          </Button>
-        ) : null,
+      render: (r) => (canAct ? actionFor(copy, r, onAct) : null),
     },
   ];
 }
@@ -153,7 +180,7 @@ export function RevenueAlertsPanel({ kind }: { kind: RevenueAlertKind }) {
   const copy = COPY[kind];
   const canView = useHasPermission(copy.view);
   const canAct = useHasPermission(copy.act);
-  const [acting, setActing] = useState<RevenueAlert | null>(null);
+  const [acting, setActing] = useState<Acting | null>(null);
   const { data, isLoading, error, refetch } = useQuery({
     queryKey: ["billing", "revenue-alerts", kind],
     queryFn: () => billingService.listRevenueAlerts({ kind }),
@@ -181,11 +208,14 @@ export function RevenueAlertsPanel({ kind }: { kind: RevenueAlertKind }) {
           captionVisuallyHidden
         />
       </Stack>
-      {acting && kind === "preauth_used_up" && (
-        <EnhancementModal alert={acting} onClose={() => setActing(null)} />
+      {acting?.dismiss && (
+        <DismissPreauthModal alert={acting.row} onClose={() => setActing(null)} />
+      )}
+      {acting && !acting.dismiss && kind === "preauth_used_up" && (
+        <EnhancementModal alert={acting.row} onClose={() => setActing(null)} />
       )}
       {acting && kind === "room_over_limit" && (
-        <RoomConsentModal alert={acting} onClose={() => setActing(null)} />
+        <RoomConsentModal alert={acting.row} onClose={() => setActing(null)} />
       )}
     </Card>
   );

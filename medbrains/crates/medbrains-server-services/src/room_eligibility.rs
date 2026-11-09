@@ -98,9 +98,13 @@ pub fn payable_ratio(room: Decimal, eligible: Decimal) -> Option<Decimal> {
 }
 
 /// The rupees the insurer may cut from `bill` of room-linked charges.
+///
+/// Half a paisa rounds away from zero, as PostgreSQL's `round` does, so the
+/// inbox's live figure (computed in SQL) and the consent's agree.
 #[must_use]
 pub fn deduction(bill: Decimal, ratio: Decimal) -> Decimal {
-    (bill * (Decimal::ONE - ratio)).round_dp(2)
+    (bill * (Decimal::ONE - ratio))
+        .round_dp_with_strategy(2, RoundingStrategy::MidpointAwayFromZero)
 }
 
 /// The active policy in force today, primary first.
@@ -156,23 +160,20 @@ async fn bills_by_room(conn: &mut PgConnection, tenant_id: Uuid) -> Result<bool,
     Ok(value.is_none_or(|v| v.as_bool().unwrap_or_else(|| v.as_str() != Some("false"))))
 }
 
-/// Room-linked charges on each visit's live bills, in one grouped query.
-///
-/// The allowlisted sources and categories, less implants (by catalogue
-/// category or the implant registry) and bed-days already billed in a
-/// critical-care bed type. A visit with no such charges is absent.
-pub async fn associated_by_encounter(
-    conn: &mut PgConnection,
-    tenant_id: Uuid,
-    encounters: &[Uuid],
-) -> Result<HashMap<Uuid, Decimal>, AppError> {
+/// The live bill lines of visits matching `encounter` (SQL after
+/// `i.encounter_id`) for tenant `tenant` (a SQL expression) that the cut may
+/// touch: the allowlisted sources and categories, less implants (by
+/// catalogue category or the implant registry) and bed-days already billed
+/// in a critical-care bed type. One definition for the grouped read below
+/// and the inbox's ranking ([`linked_charges_sql`]).
+fn linked_lines(tenant: &str, encounter: &str) -> String {
     // ponytail: an ICU bed-day is matched by the room-rent line's description,
     // which names the bed type (`services::room_rent`); a bed-type id on the
     // line would be exact if hospitals rename bed types mid-stay.
-    let rows: Vec<(Uuid, Decimal)> = sqlx::query_as(&format!(
-        "SELECT i.encounter_id, COALESCE(SUM(ii.total_price), 0) FROM invoice_items ii \
+    format!(
+        "FROM invoice_items ii \
            JOIN invoices i ON i.id = ii.invoice_id AND i.tenant_id = ii.tenant_id \
-          WHERE i.tenant_id = $1 AND i.encounter_id = ANY($2) AND i.deleted_at IS NULL \
+          WHERE i.tenant_id = {tenant} AND i.encounter_id {encounter} AND i.deleted_at IS NULL \
             AND ii.deleted_at IS NULL AND i.status NOT IN ('cancelled', 'refunded') \
             AND (ii.source::text IN {LINKED_SOURCES} OR ii.category IN {LINKED_CATEGORIES}) \
             AND COALESCE(ii.category, '') NOT ILIKE '%implant%' \
@@ -180,8 +181,32 @@ pub async fn associated_by_encounter(
                              WHERE ir.tenant_id = ii.tenant_id AND ir.id = ii.source_id) \
             AND NOT EXISTS (SELECT 1 FROM bed_types bt \
                              WHERE bt.tenant_id = ii.tenant_id AND bt.is_critical_care \
-                               AND ii.description LIKE 'Room rent — ' || bt.name || ' (%') \
-          GROUP BY i.encounter_id"
+                               AND ii.description LIKE 'Room rent — ' || bt.name || ' (%')"
+    )
+}
+
+/// A scalar SQL subquery of one visit's room-linked charges.
+///
+/// `tenant` and `encounter` are SQL expressions over the enclosing query, so
+/// a list can rank open room rows by their live cut before it limits.
+#[must_use]
+pub fn linked_charges_sql(tenant: &str, encounter: &str) -> String {
+    format!(
+        "(SELECT COALESCE(SUM(ii.total_price), 0) {})",
+        linked_lines(tenant, &format!("= {encounter}"))
+    )
+}
+
+/// Room-linked charges on each visit's live bills, in one grouped query
+/// (see [`linked_lines`]). A visit with no such charges is absent.
+pub async fn associated_by_encounter(
+    conn: &mut PgConnection,
+    tenant_id: Uuid,
+    encounters: &[Uuid],
+) -> Result<HashMap<Uuid, Decimal>, AppError> {
+    let rows: Vec<(Uuid, Decimal)> = sqlx::query_as(&format!(
+        "SELECT i.encounter_id, COALESCE(SUM(ii.total_price), 0) {} GROUP BY i.encounter_id",
+        linked_lines("$1", "= ANY($2)")
     ))
     .bind(tenant_id)
     .bind(encounters)

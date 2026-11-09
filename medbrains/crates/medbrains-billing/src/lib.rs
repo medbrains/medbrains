@@ -10,6 +10,8 @@ pub use accounting::*;
 mod insurance;
 mod nhcx_recon;
 // Pre-auths nearly used up and rooms above the policy limit (mig 1423).
+pub mod preauth_alert_settings;
+pub mod preauth_dismiss;
 pub mod preauth_sweep;
 pub mod revenue_alerts;
 pub mod room_limit;
@@ -3891,6 +3893,15 @@ pub fn router() -> axum::Router<AppState> {
         .route(
             "/api/billing/revenue-alerts/{id}/room-consent",
             put(revenue_alerts::record_room_consent),
+        )
+        .route(
+            "/api/billing/revenue-alerts/{id}/dismiss",
+            put(preauth_dismiss::dismiss_preauth_alert),
+        )
+        .route(
+            "/api/billing/preauth-alert-settings",
+            get(preauth_alert_settings::get_preauth_alert_settings)
+                .put(preauth_alert_settings::put_preauth_alert_settings),
         )
         .route(
             "/api/billing/policies/{id}/room-rent-limit",

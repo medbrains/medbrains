@@ -219,6 +219,11 @@ export const billingService = {
     api.listRevenueAlerts(...args),
   requestPreauthEnhancement: (...args: Parameters<typeof api.requestPreauthEnhancement>) =>
     api.requestPreauthEnhancement(...args),
+  dismissPreauthAlert: (...args: Parameters<typeof api.dismissPreauthAlert>) =>
+    api.dismissPreauthAlert(...args),
+  getPreauthAlertSettings: () => api.getPreauthAlertSettings(),
+  updatePreauthAlertSettings: (...args: Parameters<typeof api.updatePreauthAlertSettings>) =>
+    api.updatePreauthAlertSettings(...args),
   recordRoomConsent: (...args: Parameters<typeof api.recordRoomConsent>) =>
     api.recordRoomConsent(...args),
   listRoomConsentWitnesses: (...args: Parameters<typeof api.listRoomConsentWitnesses>) =>

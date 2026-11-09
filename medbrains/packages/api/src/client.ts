@@ -990,6 +990,7 @@ import type {
   DischargeSummaryPrintData,
   DischargeSummaryTemplate,
   DismissChargeAttentionRequest,
+  DismissPreauthRequest,
   DispensingLabelPrintData,
   DisposalQuery,
   DispositionRow,
@@ -1845,6 +1846,7 @@ import type {
   PostopOrdersPrintData,
   PostureReport,
   PreAuthorizationRequest,
+  PreauthAlertSettings,
   PreauthNhcxView,
   PredictionAccuracyReport,
   PreopAssessmentPrintData,
@@ -2459,6 +2461,7 @@ import type {
   UpdatePipelineStatusRequest,
   UpdatePostopRecordRequest,
   UpdatePreAuthRequest,
+  UpdatePreauthAlertSettings,
   UpdatePreopAssessmentRequest,
   UpdatePrescriptionRequest,
   UpdatePrimaryNurseRequest,
@@ -6248,6 +6251,20 @@ export const api = {
   /** Ask the payer for more on a pre-auth nearly used up; closes the alert. */
   requestPreauthEnhancement: (id: string, data: RequestEnhancementRequest) =>
     request<RevenueAlert>(`/billing/revenue-alerts/${id}/request-enhancement`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
+  /** Dismiss a "no usable pre-auth" alert with why none is needed. */
+  dismissPreauthAlert: (id: string, data: DismissPreauthRequest) =>
+    request<RevenueAlert>(`/billing/revenue-alerts/${id}/dismiss`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
+  /** The hospital's pre-auth alert threshold, and whether the stored one is unreadable. */
+  getPreauthAlertSettings: () => request<PreauthAlertSettings>("/billing/preauth-alert-settings"),
+  /** Save the pre-auth alert threshold (1 to 100%). */
+  updatePreauthAlertSettings: (data: UpdatePreauthAlertSettings) =>
+    request<PreauthAlertSettings>("/billing/preauth-alert-settings", {
       method: "PUT",
       body: JSON.stringify(data),
     }),

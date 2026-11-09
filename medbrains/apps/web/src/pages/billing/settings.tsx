@@ -5,24 +5,14 @@ import { useHasAnyPermission, useHasPermission } from "@medbrains/stores";
 import type { TenantSettingsRow, UpdateBillingPaymentSettings } from "@medbrains/types";
 import { P } from "@medbrains/types";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Alert, NumberField, toast } from "@/components/ui";
+import { Alert, toast } from "@/components/ui";
 import { billingService } from "@/services/billing.service";
 import { ExchangeRatesSection } from "./exchange-rates-section";
 import { BillingLanesSettings } from "./lanes-settings";
 import { NonPayablesCard } from "./NonPayablesCard";
 import { PaymentLinkSettingsCard } from "./PaymentLinkSettingsCard";
+import { PreauthAlertThresholdCard } from "./PreauthAlertThresholdCard";
 import { RevisitWindowCard } from "./RevisitWindowCard";
-
-/** The approval share that warns the insurance desk when none is set (matches `preauth_alert_threshold`, migration 1423). */
-const PREAUTH_ALERT_DEFAULT_PERCENT = 80;
-
-/** A saved threshold as a number, or the default when unset or unreadable. */
-function thresholdOf(value: unknown): number {
-  const n = Number(value);
-  return value === undefined || value === null || !Number.isFinite(n)
-    ? PREAUTH_ALERT_DEFAULT_PERCENT
-    : n;
-}
 
 const AUTO_BILLING_KEYS = [
   {
@@ -304,30 +294,7 @@ function BillingTenantSettings() {
         disabled={!canManage || updateMutation.isPending}
       />
 
-      <Text fw={600} mt="lg">
-        Pre-auth alerts
-      </Text>
-      <NumberField
-        label="Warn the insurance desk when the bill reaches this share of the approval (%)"
-        description="An insured inpatient's running bill against the pre-auth's approved amount. The desk is warned at this share and again when the bill passes the approval, so it can ask for an enhancement in time."
-        min={1}
-        max={100}
-        allowDecimal={false}
-        clampBehavior="strict"
-        defaultValue={thresholdOf(settingsMap.get("preauth_alert_threshold_percent"))}
-        disabled={!canManage || updateMutation.isPending}
-        onBlur={(e) => {
-          const next = Number(e.currentTarget.value);
-          const saved = thresholdOf(settingsMap.get("preauth_alert_threshold_percent"));
-          if (Number.isInteger(next) && next >= 1 && next <= 100 && next !== saved) {
-            updateMutation.mutate({
-              category: "billing",
-              key: "preauth_alert_threshold_percent",
-              value: next,
-            });
-          }
-        }}
-      />
+      <PreauthAlertThresholdCard />
     </Stack>
   );
 }

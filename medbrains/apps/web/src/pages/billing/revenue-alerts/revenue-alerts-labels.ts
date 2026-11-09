@@ -78,6 +78,14 @@ export function isMissingPreauth(row: RevenueAlert): boolean {
   return row.reason === "preauth_missing_or_expired";
 }
 
+/**
+ * Whether the hospital's saved alert threshold could not be read when the row
+ * was raised: the row warned at the default, and the setting needs saving again.
+ */
+export function hasInvalidThreshold(row: RevenueAlert): boolean {
+  return row.evidence?.threshold_invalid === true;
+}
+
 /** Whether the row is a fault rather than a finding. */
 export function isUnknown(row: RevenueAlert): boolean {
   return row.reason.endsWith("_unknown");

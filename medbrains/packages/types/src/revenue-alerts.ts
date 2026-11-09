@@ -40,6 +40,29 @@ export interface RevenueAlert {
   resolved_by_name: string | null;
 }
 
+/** Why a "no usable pre-auth" row needs none: cash, not covered, or the note says. */
+export type DismissPreauthReason = "self_pay" | "not_covered" | "other";
+
+export interface DismissPreauthRequest {
+  reason: DismissPreauthReason;
+  /** Required for `other`. */
+  note?: string;
+}
+
+/** The share of a pre-auth's approval that warns the insurance desk. */
+export interface PreauthAlertSettings {
+  /** The saved threshold; null when unset or unreadable. */
+  threshold_percent: number | null;
+  /** Used while none is saved or the saved one is unreadable. */
+  default_percent: number;
+  /** A stored value is not a number from 1 to 100. */
+  invalid: boolean;
+}
+
+export interface UpdatePreauthAlertSettings {
+  threshold_percent: number;
+}
+
 export interface RequestEnhancementRequest {
   additional_amount: number;
   note?: string;

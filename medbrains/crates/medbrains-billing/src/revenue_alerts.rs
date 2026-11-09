@@ -9,7 +9,8 @@
 //! invoice trigger and the hourly sweep (migration 1423, `preauth_sweep`),
 //! `room_over_limit` by the IPD allocation
 //! (`medbrains_server_services::room_eligibility`). Here the desk lists them
-//! and acts: request an enhancement, or record the family's room consent.
+//! and acts: request an enhancement, record the family's room consent, or
+//! dismiss a "no usable pre-auth" row with a reason (`dismiss`).
 
 use axum::{
     Extension, Json,
@@ -25,7 +26,7 @@ use medbrains_core::permissions;
 use medbrains_kernel::{Actor, require_permission};
 use medbrains_server_core::{error::AppError, middleware::auth::Claims, state::AppState};
 use medbrains_server_services::room_eligibility::{
-    RoomConsentInput, associated_by_encounter, consent_on_row, deduction, mark_actioned,
+    RoomConsentInput, consent_on_row, linked_charges_sql, mark_actioned,
 };
 
 /// Pre-auth nearly used up (or its approval unreadable).
@@ -70,23 +71,42 @@ pub struct RevenueAlert {
     pub resolved_by_name: Option<String>,
 }
 
-const ALERT_SELECT: &str = "SELECT a.id, a.kind, a.reason, a.status, a.source_entity_id, \
-        a.patient_id, a.encounter_id, \
-        btrim(concat_ws(' ', p.first_name, p.last_name)) AS patient_name, p.uhid, \
-        pi.insurance_provider AS payer, pa.pa_number, pa.approved_amount, \
-        pa.enhancement_amount, a.amount, a.evidence, a.created_at, \
-        a.resolved_at, ru.full_name AS resolved_by_name \
-   FROM charge_attention_items a \
-   JOIN patients p ON p.id = a.patient_id AND p.tenant_id = a.tenant_id \
-   LEFT JOIN prior_auth_requests pa \
-     ON a.source_module = 'prior_auth' AND pa.id = a.source_entity_id AND pa.tenant_id = a.tenant_id \
-   LEFT JOIN patient_insurance pi ON pi.tenant_id = a.tenant_id \
-     AND pi.id = COALESCE(pa.patient_insurance_id, (a.evidence->>'patient_insurance_id')::uuid) \
-   LEFT JOIN users ru ON ru.id = a.resolved_by";
+/// The row's columns with the patient and payer joined. An open room row's
+/// amount is its cut on the visit's room-linked charges now (the cut stored
+/// at allocation is often ₹0), worked out here so a list ranks and limits by
+/// it, with the bill it is worked on in the evidence.
+fn alert_select() -> String {
+    format!(
+        "SELECT a.id, a.kind, a.reason, a.status, a.source_entity_id, \
+            a.patient_id, a.encounter_id, \
+            btrim(concat_ws(' ', p.first_name, p.last_name)) AS patient_name, p.uhid, \
+            pi.insurance_provider AS payer, pa.pa_number, pa.approved_amount, \
+            pa.enhancement_amount, \
+            COALESCE(round(lc.bill * (1 - (a.evidence->>'payable_ratio')::numeric), 2), \
+                     a.amount) AS amount, \
+            CASE WHEN lc.bill IS NULL THEN a.evidence \
+                 ELSE a.evidence || jsonb_build_object('estimated_bill', lc.bill) END \
+              AS evidence, \
+            a.created_at, a.resolved_at, ru.full_name AS resolved_by_name \
+       FROM charge_attention_items a \
+       JOIN patients p ON p.id = a.patient_id AND p.tenant_id = a.tenant_id \
+       LEFT JOIN prior_auth_requests pa \
+         ON a.source_module = 'prior_auth' AND pa.id = a.source_entity_id \
+        AND pa.tenant_id = a.tenant_id \
+       LEFT JOIN patient_insurance pi ON pi.tenant_id = a.tenant_id \
+         AND pi.id = COALESCE(pa.patient_insurance_id, (a.evidence->>'patient_insurance_id')::uuid) \
+       LEFT JOIN LATERAL (SELECT {} AS bill \
+                           WHERE a.status = 'open' AND a.reason = '{KIND_ROOM}' \
+                             AND a.encounter_id IS NOT NULL \
+                             AND a.evidence ? 'payable_ratio') lc ON true \
+       LEFT JOIN users ru ON ru.id = a.resolved_by",
+        linked_charges_sql("a.tenant_id", "a.encounter_id")
+    )
+}
 
 /// The permission that lets the caller see (`act` false) or work a kind;
 /// an unknown kind is a 400.
-fn kind_permission(kind: &str, act: bool) -> Result<&'static str, AppError> {
+pub(crate) fn kind_permission(kind: &str, act: bool) -> Result<&'static str, AppError> {
     use permissions::insurance::{enhancement, room_eligibility};
     Ok(match (kind, act) {
         (KIND_PREAUTH, false) => enhancement::VIEW,
@@ -131,11 +151,13 @@ pub async fn list_revenue_alerts(
         Some(other) => Some(other),
     };
     let mut tx = medbrains_kernel::begin(&state.db, Actor::from_claims(&claims)).await?;
+    // `amount` here is the output column: an open room row's live cut.
     let mut rows = sqlx::query_as::<_, RevenueAlert>(&format!(
-        "{ALERT_SELECT} WHERE a.tenant_id = $1 AND a.kind = $2 AND a.deleted_at IS NULL \
+        "{} WHERE a.tenant_id = $1 AND a.kind = $2 AND a.deleted_at IS NULL \
            AND ($3::text IS NULL OR a.status = $3) \
            AND ($4::uuid[] IS NULL OR a.patient_id = ANY($4)) \
-         ORDER BY a.amount DESC NULLS LAST, a.created_at LIMIT 200"
+         ORDER BY amount DESC NULLS LAST, a.created_at LIMIT 200",
+        alert_select()
     ))
     .bind(claims.tenant_id)
     .bind(&q.kind)
@@ -143,7 +165,6 @@ pub async fn list_revenue_alerts(
     .bind(&visible)
     .fetch_all(&mut *tx)
     .await?;
-    live_room_cuts(&mut tx, claims.tenant_id, &mut rows).await?;
     tx.commit().await?;
     if hide_amounts {
         hide(&mut rows);
@@ -162,62 +183,10 @@ fn hide(rows: &mut [RevenueAlert]) {
     }
 }
 
-/// A decimal from a row's evidence field (stored as a string or a number).
-fn evidence_decimal(row: &RevenueAlert, key: &str) -> Option<Decimal> {
-    match row.evidence.as_ref()?.get(key)? {
-        serde_json::Value::String(s) => s.parse().ok(),
-        serde_json::Value::Number(n) => n.to_string().parse().ok(),
-        _ => None,
-    }
-}
-
-/// Whether the row is an open room finding, whose cut grows with the bill.
-fn is_open_room(row: &RevenueAlert) -> bool {
-    row.status == "open" && row.reason == KIND_ROOM
-}
-
-/// Each open room row's expected cut from the visit's room-linked charges
-/// now, in one grouped query over the page's visits, then the page sorted
-/// again by amount. The cut stored at allocation is often ₹0.
-async fn live_room_cuts(
-    conn: &mut PgConnection,
-    tenant_id: Uuid,
-    rows: &mut [RevenueAlert],
-) -> Result<(), AppError> {
-    // ponytail: the SQL LIMIT picks the page by the stored amount; past 200 open
-    // rows a stale low one can miss the page. Store the cut on each bill change then.
-    let visits: Vec<Uuid> = rows
-        .iter()
-        .filter(|r| is_open_room(r))
-        .filter_map(|r| r.encounter_id)
-        .collect();
-    if visits.is_empty() {
-        return Ok(());
-    }
-    let sums = associated_by_encounter(conn, tenant_id, &visits).await?;
-    for row in rows.iter_mut().filter(|r| is_open_room(r)) {
-        let (Some(visit), Some(ratio)) = (row.encounter_id, evidence_decimal(row, "payable_ratio"))
-        else {
-            continue;
-        };
-        let bill = sums.get(&visit).copied().unwrap_or_default();
-        row.amount = Some(deduction(bill, ratio));
-        if let Some(serde_json::Value::Object(evidence)) = row.evidence.as_mut() {
-            evidence.insert("estimated_bill".to_owned(), serde_json::json!(bill));
-        }
-    }
-    rows.sort_by(|a, b| {
-        b.amount
-            .cmp(&a.amount)
-            .then(a.created_at.cmp(&b.created_at))
-    });
-    Ok(())
-}
-
 /// The open row of `kind`, locked for this decision, once the caller has
 /// billing access to its patient: 404 if missing or of another kind, 409 once
 /// acted on. Returns the row's reason and subject.
-async fn lock_open(
+pub(crate) async fn lock_open(
     conn: &mut PgConnection,
     (state, claims): (&AppState, &Claims),
     kind: &str,
@@ -242,19 +211,24 @@ async fn lock_open(
     Ok((reason, subject))
 }
 
-/// One row by id, as the list shows it.
-async fn fetch(
+/// One row by id, as the list shows it: the figures hidden when `hidden`.
+pub(crate) async fn fetch(
     conn: &mut PgConnection,
-    tenant_id: Uuid,
-    id: Uuid,
+    (tenant_id, id): (Uuid, Uuid),
+    hidden: bool,
 ) -> Result<RevenueAlert, AppError> {
-    Ok(sqlx::query_as::<_, RevenueAlert>(&format!(
-        "{ALERT_SELECT} WHERE a.id = $1 AND a.tenant_id = $2"
+    let mut row = sqlx::query_as::<_, RevenueAlert>(&format!(
+        "{} WHERE a.id = $1 AND a.tenant_id = $2",
+        alert_select()
     ))
     .bind(id)
     .bind(tenant_id)
     .fetch_one(conn)
-    .await?)
+    .await?;
+    if hidden {
+        hide(std::slice::from_mut(&mut row));
+    }
+    Ok(row)
 }
 
 #[derive(Debug, Deserialize)]
@@ -312,7 +286,8 @@ pub async fn request_enhancement(
         "note": note,
     }});
     mark_actioned(&mut tx, claims.tenant_id, claims.sub, id, what).await?;
-    let row = fetch(&mut tx, claims.tenant_id, id).await?;
+    let hidden = crate::amounts_hidden(&state, &claims).await?;
+    let row = fetch(&mut tx, (claims.tenant_id, id), hidden).await?;
     tx.commit().await?;
     Ok(Json(row))
 }
@@ -371,7 +346,8 @@ pub async fn record_room_consent(
         ));
     }
     consent_on_row(&mut tx, (claims.tenant_id, claims.sub), id, &body).await?;
-    let row = fetch(&mut tx, claims.tenant_id, id).await?;
+    let hidden = crate::amounts_hidden(&state, &claims).await?;
+    let row = fetch(&mut tx, (claims.tenant_id, id), hidden).await?;
     tx.commit().await?;
     Ok(Json(row))
 }

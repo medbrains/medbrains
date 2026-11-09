@@ -228,7 +228,7 @@ async fn the_hospital_sets_the_share_of_the_approval_that_warns() {
     let mut tx = scoped(&db, inp.tenant).await;
     sqlx::query(
         "INSERT INTO tenant_settings (tenant_id, category, key, value) \
-         VALUES ($1, 'billing', 'preauth_alert_threshold_percent', '90')",
+         VALUES ($1, 'preauth_alerts', 'threshold_percent', '90')",
     )
     .bind(inp.tenant)
     .execute(&mut *tx)
@@ -253,10 +253,11 @@ async fn the_hospital_sets_the_share_of_the_approval_that_warns() {
     .unwrap();
     assert_eq!(pct, Some(90.0), "the row says which share warned");
 
-    // A threshold out of range is a fault the trigger records, never a guess.
+    // A threshold out of range is its own visible fault: the row still warns
+    // (at the default) and says so, and nothing is recorded as a failed check.
     sqlx::query(
         "UPDATE tenant_settings SET value = '0' WHERE tenant_id = $1 \
-            AND key = 'preauth_alert_threshold_percent'",
+            AND category = 'preauth_alerts' AND key = 'threshold_percent'",
     )
     .bind(inp.tenant)
     .execute(&db)
@@ -269,7 +270,16 @@ async fn the_hospital_sets_the_share_of_the_approval_that_warns() {
             .fetch_one(&db)
             .await
             .unwrap();
-    assert_eq!(failures, 1);
+    assert_eq!(failures, 0);
+    let (reason, invalid): (String, Option<bool>) = sqlx::query_as(
+        "SELECT reason, (evidence->>'threshold_invalid')::boolean \
+           FROM charge_attention_items WHERE id = $1",
+    )
+    .bind(found[0].0)
+    .fetch_one(&db)
+    .await
+    .unwrap();
+    assert_eq!((reason.as_str(), invalid), ("preauth_used_up", Some(true)));
 }
 
 #[tokio::test]

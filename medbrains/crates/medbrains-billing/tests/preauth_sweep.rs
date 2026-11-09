@@ -3,8 +3,10 @@
 //! counted and the sweep still raises the row; a bill created with a total
 //! fires the check; an expired, unlinked or missing pre-auth is flagged until
 //! a usable one is on the visit; an enhancement keeps the original estimate
-//! and is refused when not open; and the inbox's "who may be unattributed"
-//! constraint admits every detector reason.
+//! and is refused when not open; the inbox's "who may be unattributed"
+//! constraint admits every detector reason; the sweep's cursor continues
+//! where its last page stopped; and a pre-auth that expires closes its
+//! used-up row as the stay is flagged.
 //!
 //! ```text
 //! DATABASE_URL=… cargo test -p medbrains-billing --test preauth_sweep -- --ignored
@@ -15,7 +17,7 @@
 use axum::Extension;
 use axum::Json;
 use axum::extract::{Path, State};
-use medbrains_billing::preauth_sweep::sweep_for;
+use medbrains_billing::preauth_sweep::{VISITS_PER_PASS, sweep_for};
 use medbrains_billing::revenue_alerts::{RequestEnhancementBody, request_enhancement};
 use medbrains_server_core::error::AppError;
 use rust_decimal::Decimal;
@@ -24,7 +26,7 @@ use uuid::Uuid;
 mod common;
 
 use common::inpatient::{admit, approved_preauth, bill, policy, raise_bill, rows};
-use common::{fixture, pool, scoped, state};
+use common::{fixture, insert_patient, pool, scoped, state};
 
 const KIND: &str = "preauth_used_up";
 
@@ -63,7 +65,9 @@ async fn a_failed_trigger_is_counted_and_the_sweep_still_raises_the_row() {
     .unwrap();
     assert_eq!(failures, 1);
 
-    let report = sweep_for(&db, inp.tenant, None).await.unwrap();
+    let report = sweep_for(&db, inp.tenant, (None, VISITS_PER_PASS))
+        .await
+        .unwrap();
     assert_eq!(
         (report.checked, report.used_up, report.trigger_failures),
         (1, 1, 1)
@@ -72,7 +76,9 @@ async fn a_failed_trigger_is_counted_and_the_sweep_still_raises_the_row() {
     assert_eq!(found.len(), 1);
     assert_eq!(found[0].3, Some(Decimal::from(90_000)));
     // A second pass finds nothing new to report and raises nothing twice.
-    let again = sweep_for(&db, inp.tenant, None).await.unwrap();
+    let again = sweep_for(&db, inp.tenant, (None, VISITS_PER_PASS))
+        .await
+        .unwrap();
     assert_eq!(again.trigger_failures, 0);
     assert_eq!(rows(&db, inp.tenant, KIND).await.len(), 1);
 }
@@ -143,7 +149,9 @@ async fn an_insured_inpatient_with_no_usable_preauth_is_flagged_until_one_is_lin
     let pol = policy(&db, inp.tenant, patient, (None, None)).await;
 
     // Insured, admitted, no pre-auth at all: the sweep finds it with no bill.
-    let report = sweep_for(&db, inp.tenant, None).await.unwrap();
+    let report = sweep_for(&db, inp.tenant, (None, VISITS_PER_PASS))
+        .await
+        .unwrap();
     assert_eq!((report.checked, report.missing), (1, 1));
     let found = rows(&db, inp.tenant, KIND).await;
     assert_eq!(found.len(), 1);
@@ -314,4 +322,71 @@ async fn every_detector_reason_may_be_unattributed_and_a_failed_charge_may_not()
     }
     let refused = insert("charge_not_posted", "charge_failed:database", Some("DIET")).await;
     assert!(refused.is_err(), "a failed charge names who raised it");
+}
+
+#[tokio::test]
+#[ignore = "needs DATABASE_URL"]
+async fn the_sweep_continues_from_where_its_last_page_stopped() {
+    let db = pool().await;
+    let (claims, patient) = fixture(&db).await;
+    let t = claims.tenant_id;
+    let mut tx = scoped(&db, t).await;
+    let other = insert_patient(&mut tx, t).await;
+    tx.commit().await.unwrap();
+    for p in [patient, other] {
+        admit(&db, &claims, p).await;
+        policy(&db, t, p, (None, None)).await;
+    }
+    let first = sweep_for(&db, t, (None, 1)).await.unwrap();
+    assert_eq!(first.checked, 1);
+    let cursor = first.next_after.expect("a full page leaves a cursor");
+    let second = sweep_for(&db, t, (Some(cursor), 1)).await.unwrap();
+    assert_eq!(second.checked, 1);
+    assert_ne!(second.next_after, Some(cursor), "the cursor moved on");
+    let third = sweep_for(&db, t, (second.next_after, 1)).await.unwrap();
+    assert_eq!((third.checked, third.next_after), (0, None));
+    assert_eq!(
+        rows(&db, t, KIND).await.len(),
+        2,
+        "both visits were checked"
+    );
+}
+
+#[tokio::test]
+#[ignore = "needs DATABASE_URL"]
+async fn a_preauth_that_expires_closes_its_used_up_row_and_the_stay_is_flagged() {
+    let db = pool().await;
+    let (claims, patient) = fixture(&db).await;
+    let t = claims.tenant_id;
+    let inp = admit(&db, &claims, patient).await;
+    let pol = policy(&db, t, patient, (None, None)).await;
+    let pa = approved_preauth(&db, &inp, pol, Some(10_000)).await;
+    let invoice = bill(&db, &inp).await;
+    raise_bill(&db, t, invoice, 9_000).await;
+    let used = rows(&db, t, KIND).await[0].0;
+    sqlx::query(
+        "UPDATE prior_auth_requests SET expires_at = now() - interval '1 hour' WHERE id = $1",
+    )
+    .bind(pa)
+    .execute(&db)
+    .await
+    .unwrap();
+    sweep_for(&db, t, (None, VISITS_PER_PASS)).await.unwrap();
+    let how: (String, Option<String>) = sqlx::query_as(
+        "SELECT status, evidence->>'resolution' FROM charge_attention_items WHERE id = $1",
+    )
+    .bind(used)
+    .fetch_one(&db)
+    .await
+    .unwrap();
+    assert_eq!(
+        (how.0.as_str(), how.1.as_deref()),
+        ("actioned", Some("preauth_expired"))
+    );
+    let found = rows(&db, t, KIND).await;
+    assert_eq!(found.len(), 2, "{found:?}");
+    assert_eq!(
+        (found[1].1.as_str(), found[1].2.as_str()),
+        ("preauth_missing_or_expired", "open")
+    );
 }

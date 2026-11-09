@@ -14,6 +14,7 @@ const service = vi.hoisted(() => ({
   listRevenueAlerts: vi.fn(),
   requestPreauthEnhancement: vi.fn(),
   recordRoomConsent: vi.fn(),
+  dismissPreauthAlert: vi.fn(),
 }));
 vi.mock("@/services/billing.service", () => ({ billingService: service }));
 
@@ -134,6 +135,56 @@ describe("pre-auths nearly used up on the TPA screen", () => {
     render(<RevenueAlertsPanel kind="preauth_used_up" />);
     expect(await screen.findByText("Pre-auth expired")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Request enhancement" })).not.toBeInTheDocument();
+  });
+
+  it("dismisses a no-usable-pre-auth alert with why none is needed", async () => {
+    held.add("insurance.enhancement.view");
+    held.add("insurance.enhancement.request");
+    service.listRevenueAlerts.mockResolvedValue([
+      preauthRow({ reason: "preauth_missing_or_expired", evidence: { cause: "none" } }),
+    ]);
+    service.dismissPreauthAlert.mockResolvedValue(preauthRow({ status: "dismissed" }));
+    render(<RevenueAlertsPanel kind="preauth_used_up" />);
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole("button", { name: "No pre-auth needed" }));
+    const dismiss = screen.getByRole("button", { name: "Dismiss alert" });
+    expect(dismiss).toBeDisabled();
+    Element.prototype.scrollIntoView = vi.fn();
+    await user.click(screen.getAllByLabelText(/Why no pre-auth/)[0] as HTMLElement);
+    await user.click(
+      await screen.findByRole("option", { name: "The patient is paying cash", hidden: true }),
+    );
+    await user.click(dismiss);
+    await waitFor(() =>
+      expect(service.dismissPreauthAlert).toHaveBeenCalledWith("alert-1", {
+        reason: "self_pay",
+        note: undefined,
+      }),
+    );
+  });
+
+  it("offers no dismissal to a viewer who may not act", async () => {
+    held.add("insurance.enhancement.view");
+    service.listRevenueAlerts.mockResolvedValue([
+      preauthRow({ reason: "preauth_missing_or_expired", evidence: { cause: "none" } }),
+    ]);
+    render(<RevenueAlertsPanel kind="preauth_used_up" />);
+    await screen.findByText("No pre-auth for this stay");
+    expect(screen.queryByRole("button", { name: "No pre-auth needed" })).not.toBeInTheDocument();
+  });
+
+  it("flags a row raised while the saved threshold was unreadable", async () => {
+    held.add("insurance.enhancement.view");
+    held.add("insurance.enhancement.request");
+    service.listRevenueAlerts.mockResolvedValue([
+      preauthRow({ evidence: { running_bill: 85000, band: 80, threshold_invalid: true } }),
+    ]);
+    render(<RevenueAlertsPanel kind="preauth_used_up" />);
+    expect(
+      await screen.findByText("Alert threshold unreadable: warned at 80%"),
+    ).toBeInTheDocument();
+    // Still a finding the desk can act on, not an unknown.
+    expect(screen.getByRole("button", { name: "Request enhancement" })).toBeInTheDocument();
   });
 
   it("shows a failed load as a fault, not as an empty list", async () => {

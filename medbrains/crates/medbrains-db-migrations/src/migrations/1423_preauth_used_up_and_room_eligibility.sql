@@ -11,7 +11,8 @@
 -- amount the payer approved, nobody asks for an enhancement, and the excess
 -- is short-paid at discharge. When the bill reaches 80% of the approved
 -- pre-authorisation (the hospital's threshold, `tenant_settings`
--- billing/`preauth_alert_threshold_percent`, default 80) and again at 100%,
+-- preauth_alerts/`threshold_percent`, default 80, written only through
+-- `/api/billing/preauth-alert-settings`) and again at 100%,
 -- a `preauth_used_up` row goes on the inbox for the insurance desk, whose
 -- action is "request an enhancement". An admitted patient with a policy in
 -- force but no usable pre-auth on the visit (expired, unlinked, not approved
@@ -109,26 +110,25 @@ ALTER TABLE public.charge_attention_items
         CHECK (status IN ('open', 'posted', 'dismissed', 'actioned')),
     ADD CONSTRAINT charge_attention_actioned_not_a_charge
         CHECK (status <> 'actioned' OR kind <> 'charge_not_posted'),
-    -- A detector acts for the hospital, not for a person. The charge
-    -- detectors are named (1416 unbilled orders, 1421 unbilled consumption);
-    -- the new kinds are raised by a trigger, a sweep or the check itself, so
-    -- they may be unattributed too. A superset of every earlier definition,
-    -- dropped IF EXISTS and re-added here whatever an earlier migration left
-    -- (1421 re-adds it without the `kind` clause).
-    DROP CONSTRAINT IF EXISTS charge_attention_only_detector_unattributed,
-    ADD CONSTRAINT charge_attention_only_detector_unattributed
-        CHECK (created_by IS NOT NULL
-               OR reason IN ('unbilled_order', 'unbilled_consumption')
-               OR kind <> 'charge_not_posted'),
-    -- A closed row names who closed it, except an admission's "no usable
-    -- pre-auth" row, which the check itself closes once a usable pre-auth is
-    -- on the visit: nobody acted, the fact it reported stopped being true.
+    -- Rows of the new kinds are raised by a trigger, a sweep or the check
+    -- itself, so they may be unattributed: migration 1425 widens
+    -- `charge_attention_only_detector_unattributed` for them. It is numbered
+    -- above every migration that redefines that constraint, so it is last.
+    -- A closed row names who closed it, except one the system closed because
+    -- the fact it reported stopped being true: a usable pre-auth is now on the
+    -- visit (`preauth_found`), the patient has no policy in force
+    -- (`not_insured`), the patient left (`discharged`), or the pre-auth the
+    -- row was about expired and the visit's "no usable pre-auth" row took
+    -- over (`preauth_expired`). Nobody acted, so nobody is named.
     DROP CONSTRAINT IF EXISTS charge_attention_resolved_has_who,
     ADD CONSTRAINT charge_attention_resolved_has_who
         CHECK (status = 'open'
                OR (resolved_at IS NOT NULL
                    AND (resolved_by IS NOT NULL
-                        OR (source_module = 'admission_preauth' AND status = 'actioned'))));
+                        OR (status = 'actioned' AND kind <> 'charge_not_posted'
+                            AND evidence ->> 'resolution' IN
+                                ('preauth_found', 'not_insured', 'discharged',
+                                 'preauth_expired')))));
 
 CREATE INDEX idx_charge_attention_kind_open
     ON public.charge_attention_items (tenant_id, kind, created_at DESC)
@@ -217,10 +217,11 @@ CREATE TRIGGER trg_preauth_check_failures_soft_delete BEFORE DELETE
 -- ── Pre-auth used up: the check ────────────────────────────────────
 
 -- The share of the approval at which the desk is warned: `tenant_settings`
--- billing/`preauth_alert_threshold_percent` (Billing settings), 80 when the
--- hospital has not set one. A value that is not a number from 1 to 100 is an
--- error, never a guess: the trigger records it as a failure and the sweep
--- raises "approval unknown".
+-- preauth_alerts/`threshold_percent` (Billing settings, its own endpoint,
+-- which refuses anything but 1 to 100), 80 when the hospital has not set one.
+-- A stored value that is not a number from 1 to 100 returns NULL: the caller
+-- warns at the default and marks the row `threshold_invalid`, so the fault is
+-- seen on every row it touches without hiding the warning itself.
 CREATE OR REPLACE FUNCTION public.preauth_alert_threshold(p_tenant uuid)
 RETURNS numeric
 LANGUAGE plpgsql
@@ -229,21 +230,25 @@ SET search_path TO 'public'
 AS $$
 DECLARE
     v_value jsonb;
-    v_percent numeric;
+    v_text  text;
 BEGIN
     SELECT s.value INTO v_value
       FROM tenant_settings s
-     WHERE s.tenant_id = p_tenant AND s.category = 'billing'
-       AND s.key = 'preauth_alert_threshold_percent' AND s.deleted_at IS NULL;
+     WHERE s.tenant_id = p_tenant AND s.category = 'preauth_alerts'
+       AND s.key = 'threshold_percent' AND s.deleted_at IS NULL;
     IF v_value IS NULL OR v_value = 'null'::jsonb THEN
         RETURN 80;
     END IF;
-    v_percent := (v_value #>> '{}')::numeric;
-    IF v_percent < 1 OR v_percent > 100 THEN
-        RAISE EXCEPTION 'preauth_alert_threshold_percent must be 1 to 100'
-            USING ERRCODE = '22023';
+    v_text := v_value #>> '{}';
+    -- Nested, not one OR: SQL does not promise to test the shape first.
+    IF jsonb_typeof(v_value) NOT IN ('number', 'string')
+       OR v_text !~ '^[0-9]{1,3}(\.[0-9]+)?$' THEN
+        RETURN NULL;
     END IF;
-    RETURN v_percent;
+    IF v_text::numeric < 1 OR v_text::numeric > 100 THEN
+        RETURN NULL;
+    END IF;
+    RETURN v_text::numeric;
 END;
 $$;
 
@@ -253,7 +258,10 @@ $$;
 -- believes the stay is covered), `unlinked` (an approval for the patient is
 -- not linked to this visit), `not_approved` (one is on the visit but not
 -- approved), or `none` (no pre-auth at all). A patient with no policy in
--- force is self-pay: nothing to raise.
+-- force is self-pay: nothing to raise, and an open row raised while a policy
+-- was in force closes, as the system (`not_insured`). Once the desk has
+-- dismissed the admission's row (the patient pays cash, the treatment is not
+-- covered), it is not raised again for that admission.
 CREATE OR REPLACE FUNCTION public.preauth_missing_raise(
     p_tenant uuid, p_admission uuid, p_encounter uuid, p_patient uuid, p_running numeric)
 RETURNS text
@@ -275,7 +283,20 @@ BEGIN
      ORDER BY pi.priority, pi.created_at
      LIMIT 1;
     IF v_policy IS NULL THEN
+        UPDATE charge_attention_items
+           SET status = 'actioned', resolved_at = now(),
+               evidence = COALESCE(evidence, '{}'::jsonb)
+                          || jsonb_build_object('resolution', 'not_insured')
+         WHERE tenant_id = p_tenant AND source_module = 'admission_preauth'
+           AND source_entity_id = p_admission AND status = 'open' AND deleted_at IS NULL;
         RETURN 'not_insured';
+    END IF;
+    IF EXISTS (
+        SELECT 1 FROM charge_attention_items c
+         WHERE c.tenant_id = p_tenant AND c.source_module = 'admission_preauth'
+           AND c.source_entity_id = p_admission AND c.status = 'dismissed'
+           AND c.deleted_at IS NULL) THEN
+        RETURN 'dismissed';
     END IF;
 
     SELECT p.id, p.status::text, p.expires_at INTO v_pa, v_status, v_expires
@@ -316,9 +337,13 @@ END;
 $$;
 
 -- The check for one visit, shared by the invoice trigger and the sweep.
--- Finds the approved, unexpired pre-auth for the admitted visit and sums the
--- visit's live bills. Without one, an insured patient gets the "no usable
--- pre-auth" row above. With one, that row (if any) closes, and the bill is
+-- Finds the approved, unexpired pre-auth for the visit, while the patient is
+-- still admitted (a discharged stay raises nothing; the sweep closes its
+-- admission rows), and sums the visit's live bills. Without one, an open
+-- used-up row on a pre-auth of the visit (one that has since expired) closes
+-- as `preauth_expired`, and an insured patient gets the "no usable pre-auth"
+-- row above. A threshold that cannot be read warns at the default and marks
+-- the row `threshold_invalid`. With one, that row (if any) closes, and the bill is
 -- placed in a band: the hospital's threshold (default 80% of the approval)
 -- or 100% (the approval used up). Reaching a band raises (or refreshes) the
 -- open row. A row already closed at this approved amount and at this band or
@@ -339,10 +364,12 @@ DECLARE
     v_threshold numeric;
     v_band      numeric;
     v_reason    text;
+    v_invalid   boolean;
 BEGIN
     SELECT a.id INTO v_admission
       FROM admissions a
      WHERE a.tenant_id = p_tenant AND a.encounter_id = p_encounter AND a.deleted_at IS NULL
+       AND a.status IN ('admitted', 'transferred')
      ORDER BY a.created_at DESC
      LIMIT 1;
     IF v_admission IS NULL THEN
@@ -363,6 +390,12 @@ BEGIN
      ORDER BY p.responded_at DESC NULLS LAST, p.created_at DESC
      LIMIT 1;
     IF v_pa IS NULL THEN
+        UPDATE charge_attention_items
+           SET status = 'actioned', resolved_at = now(),
+               evidence = COALESCE(evidence, '{}'::jsonb)
+                          || jsonb_build_object('resolution', 'preauth_expired')
+         WHERE tenant_id = p_tenant AND source_module = 'prior_auth'
+           AND encounter_id = p_encounter AND status = 'open' AND deleted_at IS NULL;
         RETURN preauth_missing_raise(p_tenant, v_admission, p_encounter, p_patient, v_running);
     END IF;
 
@@ -374,6 +407,8 @@ BEGIN
        AND source_entity_id = v_admission AND status = 'open' AND deleted_at IS NULL;
 
     v_threshold := preauth_alert_threshold(p_tenant);
+    v_invalid := v_threshold IS NULL;
+    v_threshold := COALESCE(v_threshold, 80);
     IF v_approved IS NULL OR v_approved <= 0 THEN
         v_reason := 'preauth_approval_unknown';
         v_approved := NULL;
@@ -403,7 +438,8 @@ BEGIN
     VALUES (p_tenant, 'preauth_used_up', 'prior_auth', v_pa, p_patient,
             p_encounter, v_reason, v_running,
             jsonb_build_object('approved_amount', v_approved, 'running_bill', v_running,
-                               'threshold_percent', v_threshold, 'band', v_band),
+                               'threshold_percent', v_threshold, 'band', v_band,
+                               'threshold_invalid', v_invalid),
             now())
     ON CONFLICT (tenant_id, source_module, source_entity_id)
         WHERE status = 'open' AND deleted_at IS NULL

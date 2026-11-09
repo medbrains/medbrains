@@ -787,6 +787,15 @@ pub mod billing {
         pub const MANAGE: &str = "billing.payment_settings.manage";
     }
 
+    /// When the insurance desk is warned that a pre-auth is nearly used up.
+    pub mod preauth_alerts {
+        /// Set the pre-auth alert threshold.
+        /// Choose the share of a pre-auth's approved amount, 1 to 100%, at
+        /// which the insurance desk is warned that an inpatient's running
+        /// bill is nearing it (80% until set). Hospital-wide.
+        pub const CONFIGURE: &str = "billing.preauth_alerts.configure";
+    }
+
     /// Taking a patient's money at a department desk (#4885).
     ///
     /// Each desk collects its own department's dues; collecting another

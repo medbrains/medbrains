@@ -19,7 +19,7 @@ export interface PermissionDef {
   module: string;
 }
 
-/** 1232 permissions, one per constant in the Rust source. */
+/** 1233 permissions, one per constant in the Rust source. */
 export const PERMISSIONS: PermissionDef[] = [
   // dashboard
   {
@@ -1127,6 +1127,12 @@ export const PERMISSIONS: PermissionDef[] = [
     code: "billing.payment_settings.manage",
     label: "Change billing payment settings",
     description: "Change the hospital's UPI ID and its payment-link terms.",
+    module: "billing",
+  },
+  {
+    code: "billing.preauth_alerts.configure",
+    label: "Set the pre-auth alert threshold",
+    description: "Choose the share of a pre-auth's approved amount, 1 to 100%, at which the insurance desk is warned that an inpatient's running bill is nearing it (80% until set). Hospital-wide.",
     module: "billing",
   },
   {

@@ -614,6 +614,10 @@ export const P = {
     },
     PAYMENT_SETTINGS_MANAGE: "billing.payment_settings.manage",
     PAYMENT_SETTINGS_VIEW: "billing.payment_settings.view",
+    PREAUTH_ALERTS: {
+      CONFIGURE: "billing.preauth_alerts.configure",
+    },
+    PREAUTH_ALERTS_CONFIGURE: "billing.preauth_alerts.configure",
     RECEIPTS: {
       PRINT: "billing.receipts.print",
       REPRINT: "billing.receipts.reprint",

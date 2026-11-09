@@ -22,6 +22,8 @@ use crate::error::AppError;
 /// - `device_integrations`: device keys kept by the secure-device endpoint.
 /// - `payments`: online provider keys (`/api/payments/online-settings`) and
 ///   the billing screen's UPI ID and link terms (`/api/billing/payment-settings`).
+/// - `preauth_alerts`: the share of a pre-auth's approval that warns the
+///   insurance desk (`/api/billing/preauth-alert-settings`, 1 to 100 only).
 pub const OWN_ENDPOINT_CATEGORIES: &[&str] = &[
     "abdm",
     "ai",
@@ -31,6 +33,7 @@ pub const OWN_ENDPOINT_CATEGORIES: &[&str] = &[
     "radiology",
     "device_integrations",
     "payments",
+    "preauth_alerts",
 ];
 
 /// Whether `category` may only be written through its own endpoint.
@@ -58,7 +61,15 @@ mod tests {
 
     #[test]
     fn secret_bearing_categories_are_refused_and_ordinary_ones_pass() {
-        for category in ["ai", "email", "abdm", "dictation", "radiology", "payments"] {
+        for category in [
+            "ai",
+            "email",
+            "abdm",
+            "dictation",
+            "radiology",
+            "payments",
+            "preauth_alerts",
+        ] {
             assert!(
                 refuse_own_endpoint_category(category).is_err(),
                 "{category}"
