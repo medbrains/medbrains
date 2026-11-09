@@ -1,10 +1,10 @@
-//! The last ways round "grant only what you hold": who a sign-in provider
-//! trusts, adopting an administrator by email, deleting or offboarding an
+//! The last ways round "grant only what you hold" (who a provider trusts:
+//! `sso_mapping_guard_test`): adopting an administrator by email, deleting or offboarding an
 //! administrator or yourself, invitations from someone narrowed since, and a
 //! Staff sheet that must re-import as it was exported.
 
 use crate::common::{self, Staff};
-use crate::no_self_grant_test::{MANAGER, admin, assert_refused_naming, send};
+use crate::no_self_grant_test::{MANAGER, admin, send};
 
 use reqwest::StatusCode;
 use serde_json::{Value, json};
@@ -19,46 +19,6 @@ fn tag() -> String {
 async fn manager_with(app: &common::TestApp, admin: &Staff, more: &[&str]) -> Staff {
     let codes: Vec<&str> = MANAGER.iter().chain(more).copied().collect();
     common::provision_staff_with(app, &admin.csrf, "receptionist", &codes, &[]).await
-}
-
-/// Given a manager who manages settings, When they add a sign-in provider or
-/// change whom one trusts, Then each is refused; its name they may change, and
-/// a default role only within their codes.
-#[tokio::test]
-async fn only_a_bypass_admin_decides_whom_sso_trusts() {
-    let app = common::spawn_app().await;
-    let admin = admin(&app).await;
-    let manager = manager_with(&app, &admin, &["admin.settings.general.manage"]).await;
-    let t = tag();
-    let providers = app.url("/api/admin/sso/providers");
-    let new = json!({ "code": format!("n{t}"), "name": "New IdP", "protocol": "oidc" });
-
-    let (status, body) = send(&manager, manager.client.post(&providers), new.clone()).await;
-    assert_eq!(status, StatusCode::FORBIDDEN, "a new provider: {body}");
-    let (status, provider) = send(&admin, admin.client.post(&providers), new).await;
-    assert_eq!(status, StatusCode::OK, "{provider}");
-    let one = app.url(&format!(
-        "/api/admin/sso/providers/{}",
-        provider["id"].as_str().unwrap_or_default()
-    ));
-    let edit = |body: Value| send(&manager, manager.client.put(&one), body);
-
-    for trust in [
-        json!({ "discovery_url": "https://idp.example.test/.well-known/openid-configuration" }),
-        json!({ "client_id": "other" }),
-        json!({ "client_secret": "other" }),
-        json!({ "group_claim": "nickname" }),
-        json!({ "is_active": false }),
-        json!({ "jit_enabled": true }),
-        json!({ "config": { "issuer": "https://idp.example.test" } }),
-    ] {
-        let (status, body) = edit(trust.clone()).await;
-        assert_eq!(status, StatusCode::FORBIDDEN, "{trust}: {body}");
-    }
-    let (status, body) = edit(json!({ "default_role": "lab_technician" })).await;
-    assert_refused_naming(status, &body, "a wider default role");
-    let (status, body) = edit(json!({ "name": "Renamed IdP" })).await;
-    assert_eq!(status, StatusCode::OK, "the name: {body}");
 }
 
 /// Given a hospital administrator and an ordinary account, When an SSO

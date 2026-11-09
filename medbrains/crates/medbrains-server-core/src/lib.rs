@@ -12,6 +12,7 @@ pub mod http_trace;
 pub mod lockout;
 pub mod middleware;
 pub mod notification_hub;
+pub mod os_identity;
 pub mod pagination;
 pub mod permissions;
 pub mod queue_broadcast;

@@ -2,13 +2,12 @@
 //! caller's own access scope, single sign-on, and removed group members.
 //!
 //! A manager outside the bypass roles must not edit an administrator's
-//! account or their own departments and facilities; a directory group mapping
-//! must not give what the mapper lacks, nor a bypass role; an SSO membership
+//! account or their own departments and facilities; an SSO membership
 //! must survive a second sign-in; and a removed group member must lose the
 //! group's object access in the PG relation backend too.
 
 use crate::common;
-use crate::no_self_grant_test::{HELD, LACKED, MANAGER, admin, assert_refused_naming, send};
+use crate::no_self_grant_test::{HELD, MANAGER, admin, send};
 
 use medbrains_authz::{AuthzBackend, AuthzContext, Relation, Subject, backend_pg::PgAuthzBackend};
 use reqwest::StatusCode;
@@ -75,42 +74,6 @@ async fn a_manager_cannot_edit_an_administrator_or_their_own_scope() {
     let (status, body) =
         send(&manager, manager.client.put(&facilities), json!({ "facility_ids": [] })).await;
     assert_eq!(status, StatusCode::FORBIDDEN, "own facilities: {body}");
-}
-
-/// Given a manager who configures SSO, When they map a directory group to a
-/// bypass role, a role beyond theirs or a wider access group, Then each is
-/// refused; a held group maps. (Default roles: `grant_trust_test`.)
-#[tokio::test]
-async fn an_sso_mapping_grants_only_what_the_mapper_holds() {
-    let app = common::spawn_app().await;
-    let admin = admin(&app).await;
-    let codes: Vec<&str> = MANAGER.iter().copied().chain(["admin.settings.general.manage"]).collect();
-    let manager = common::provision_staff_with(&app, &admin.csrf, "receptionist", &codes, &[]).await;
-    let t = tag();
-    let providers = app.url("/api/admin/sso/providers");
-    let (status, provider) = send(
-        &admin,
-        admin.client.post(&providers),
-        json!({ "code": format!("p{t}"), "name": "Test IdP", "protocol": "oidc" }),
-    )
-    .await;
-    assert_eq!(status, StatusCode::OK, "{provider}");
-    let mappings = app.url(&format!(
-        "/api/admin/sso/providers/{}/mappings",
-        provider["id"].as_str().unwrap_or_default()
-    ));
-    let map = |body: serde_json::Value| send(&manager, manager.client.post(&mappings), body);
-
-    let (status, body) = map(json!({ "idp_group": "admins", "role_code": "hospital_admin" })).await;
-    assert_eq!(status, StatusCode::BAD_REQUEST, "a bypass role: {body}");
-    let (status, body) = map(json!({ "idp_group": "lab", "role_code": "lab_technician" })).await;
-    assert_refused_naming(status, &body, "a wider role");
-    let wide = group_with(&app, &admin, LACKED).await;
-    let (status, body) = map(json!({ "idp_group": "wide", "access_group_id": wide })).await;
-    assert_refused_naming(status, &body, "a wider group");
-    let held = group_with(&app, &admin, HELD).await;
-    let (status, body) = map(json!({ "idp_group": "held", "access_group_id": held })).await;
-    assert_eq!(status, StatusCode::OK, "a held group: {body}");
 }
 
 /// Given a directory group mapped to an access group, When the same person

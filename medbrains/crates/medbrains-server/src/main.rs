@@ -729,6 +729,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     medbrains_server::services::room_rent::spawn(worker_pool.clone());
     // Revenue leakage — daily pass queueing orders done but never billed.
     medbrains_server::services::unbilled_orders::spawn(worker_pool.clone());
+    medbrains_server::services::preauth_sweep::spawn(worker_pool.clone());
     // Humanex HRMS pull (RFC-HRMS-INTEGRATIONS); no-op for tenants without hrms.humanex.
     medbrains_hrms_gateway::spawn(worker_pool.clone());
 
@@ -957,6 +958,8 @@ fn build_outbox_registry() -> Arc<medbrains_outbox::Registry> {
 
     // Email — real SendGrid HTTP API (falls back to stub if creds unset).
     registry.register(email_stub::SmtpSendHandler::new("email.discharge_summary"));
+    // Tells an account holder their sign-in was linked to, or unlinked from, a Kanidm person.
+    registry.register(email_stub::SmtpSendHandler::new("email.account_link"));
     registry.register(email_stub::SmtpSendHandler::new("email.mis_daily_export"));
     registry.register(email_stub::SmtpSendHandler::new(
         "email.appointment_confirmation",

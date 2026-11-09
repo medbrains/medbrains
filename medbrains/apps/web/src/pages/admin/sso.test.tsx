@@ -22,6 +22,7 @@ const provider: SsoProvider = {
   group_claim: "groups",
   default_role: null,
   jit_enabled: true,
+  link_by_email: false,
   config: {},
   created_at: "2026-11-01T10:00:00Z",
   updated_at: "2026-11-01T10:00:00Z",

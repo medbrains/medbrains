@@ -92,6 +92,7 @@ use medbrains_server_core::middleware::field_access;
 use medbrains_server_core::state::AppState;
 
 mod nursing_safety;
+pub mod room_eligibility;
 
 // ══════════════════════════════════════════════════════════
 //  Query / Request / Response types
@@ -167,9 +168,12 @@ pub struct CreateAdmissionRequest {
     pub admission_height_cm: Option<Decimal>,
     pub expected_discharge_date: Option<NaiveDate>,
     pub ward_id: Option<Uuid>,
-    /// Internal training / simulator flag. See OPD CreateEncounterRequest.
+    /// Internal training / simulator flag. See OPD `CreateEncounterRequest`.
     #[serde(default)]
     pub is_dummy: Option<bool>,
+    /// The family's consent to pay the proportionate deduction for a room
+    /// above the policy's room rent limit (`GET /api/ipd/room-eligibility`).
+    pub room_consent: Option<medbrains_server_services::room_eligibility::RoomConsentInput>,
 }
 
 #[derive(Debug, Serialize)]
@@ -199,6 +203,8 @@ pub struct TransferBedRequest {
     pub bed_id: Uuid,
     pub notes: Option<String>,
     pub reason: Option<String>,
+    /// Consent for a room above the policy limit, as on admission.
+    pub room_consent: Option<medbrains_server_services::room_eligibility::RoomConsentInput>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -1663,6 +1669,18 @@ pub async fn create_admission(
             },
         )
         .await?;
+        room_eligibility::record_room(
+            &mut tx,
+            &claims,
+            &room_eligibility::Allocated {
+                admission_id: admission.id,
+                patient_id: admission.patient_id,
+                encounter_id: admission.encounter_id,
+                bed_id: bid,
+            },
+            body.room_consent.as_ref(),
+        )
+        .await?;
     }
 
     if let Some(bed_id) = body.bed_id {
@@ -1995,6 +2013,18 @@ pub async fn transfer_bed(
             changed_by: claims.sub,
             reason: "IPD bed transfer",
         },
+    )
+    .await?;
+    room_eligibility::record_room(
+        &mut tx,
+        &claims,
+        &room_eligibility::Allocated {
+            admission_id: admission.id,
+            patient_id: admission.patient_id,
+            encounter_id: admission.encounter_id,
+            bed_id: body.bed_id,
+        },
+        body.room_consent.as_ref(),
     )
     .await?;
 
@@ -5103,15 +5133,18 @@ pub async fn delete_attender(
 //  Discharge Summary Templates & Summaries
 // ══════════════════════════════════════════════════════════
 
+/// `GET /api/ipd/discharge-templates` — the hospital's active discharge
+/// summary templates, the default first.
 pub async fn list_discharge_templates(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
 ) -> Result<Json<Vec<DischargeSummaryTemplate>>, AppError> {
     require_permission(&claims, permissions::ipd::admissions::LIST)?;
 
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
-        .await?;
+    // Templates are the hospital's, not a department's: the kernel's tenant
+    // transaction is the whole scope.
+    let mut tx =
+        medbrains_kernel::begin(&state.db, medbrains_kernel::Actor::from_claims(&claims)).await?;
 
     let rows = sqlx::query_as::<_, DischargeSummaryTemplate>(
         "SELECT * FROM discharge_summary_templates \
@@ -8373,6 +8406,8 @@ pub struct StructuredBedTransferRequest {
     pub transfer_type: Option<String>,
     pub reason: String,
     pub notes: Option<String>,
+    /// Consent for a room above the policy limit, as on admission.
+    pub room_consent: Option<medbrains_server_services::room_eligibility::RoomConsentInput>,
 }
 
 pub async fn bed_transfer(
@@ -8502,6 +8537,18 @@ pub async fn bed_transfer(
             changed_by: claims.sub,
             reason: "IPD bed transfer",
         },
+    )
+    .await?;
+    room_eligibility::record_room(
+        &mut tx,
+        &claims,
+        &room_eligibility::Allocated {
+            admission_id: updated.id,
+            patient_id: updated.patient_id,
+            encounter_id: updated.encounter_id,
+            bed_id: body.to_bed_id,
+        },
+        body.room_consent.as_ref(),
     )
     .await?;
 
@@ -8681,6 +8728,10 @@ pub fn router() -> axum::Router<AppState> {
             get(report_discharge_stats),
         )
         .route("/api/ipd/beds/available", get(list_available_beds))
+        .route(
+            "/api/ipd/room-eligibility",
+            get(room_eligibility::get_room_eligibility),
+        )
         .route(
             "/api/ipd/admissions",
             get(list_admissions).post(create_admission),

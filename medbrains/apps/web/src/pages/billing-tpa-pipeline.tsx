@@ -9,6 +9,7 @@ import { PageHeader } from "@/components";
 import { Badge, type BadgeTone, Card } from "@/components/ui";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
 import { billingService } from "@/services/billing.service";
+import { RevenueAlertsPanel } from "./billing/revenue-alerts/RevenueAlertsPanel";
 
 /** Pipeline columns map claim statuses to a TPA-desk stage. */
 interface Stage {
@@ -123,6 +124,8 @@ export function BillingTpaPipelinePage() {
         icon={<IconShieldHalf size={20} stroke={1.5} />}
         color="primary"
       />
+      <RevenueAlertsPanel kind="preauth_used_up" />
+      <RevenueAlertsPanel kind="room_over_limit" />
       <ScrollArea>
         <Group align="flex-start" gap="md" wrap="nowrap" style={{ minWidth: "min-content" }}>
           {STAGES.map((stage) => {

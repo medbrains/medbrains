@@ -1,0 +1,14 @@
+# DEBUG IMAGES ONLY. See /usr/lib/medbrains/kanidm-debug-account.
+[Unit]
+Description=MedBrains debug image's test sign-in
+ConditionPathExists=/var/lib/medbrains/config/role-main
+Requires=kanidmd.service
+After=kanidmd.service kanidm-setup.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/lib/medbrains/kanidm-debug-account
+
+[Install]
+WantedBy=medbrains-main.target

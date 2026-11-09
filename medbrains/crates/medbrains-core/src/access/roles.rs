@@ -1131,6 +1131,13 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
             permissions::insurance::prior_auth::CREATE,
             permissions::insurance::prior_auth::UPDATE,
             permissions::insurance::prior_auth::SUBMIT,
+            // Pre-auths nearly used up and rooms above the policy limit.
+            permissions::insurance::enhancement::VIEW,
+            permissions::insurance::enhancement::REQUEST,
+            permissions::insurance::preauth_missing::DISMISS,
+            permissions::insurance::room_eligibility::VIEW,
+            permissions::insurance::room_eligibility::RESOLVE,
+            permissions::insurance::room_eligibility::CONFIGURE,
             permissions::insurance::appeals::LIST,
             permissions::insurance::appeals::CREATE,
             permissions::insurance::rules::LIST,
@@ -2222,6 +2229,7 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
             // Can cut a suspect machine off at once, and cannot let a new one in.
             permissions::devices::machines::VIEW,
             permissions::devices::machines::REMOVE,
+            // Not LINK_IDENTITY or admin.sso.providers.manage: identity management is administrators only.
             permissions::dashboard::VIEW,
         ],
     },
@@ -2241,6 +2249,13 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
             permissions::insurance::prior_auth::CREATE,
             permissions::insurance::prior_auth::UPDATE,
             permissions::insurance::prior_auth::SUBMIT,
+            // Pre-auths nearly used up and rooms above the policy limit.
+            permissions::insurance::enhancement::VIEW,
+            permissions::insurance::enhancement::REQUEST,
+            permissions::insurance::preauth_missing::DISMISS,
+            permissions::insurance::room_eligibility::VIEW,
+            permissions::insurance::room_eligibility::RESOLVE,
+            permissions::insurance::room_eligibility::CONFIGURE,
             permissions::insurance::appeals::LIST,
             permissions::insurance::appeals::CREATE,
             permissions::insurance::dashboard::VIEW,

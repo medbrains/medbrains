@@ -302,6 +302,13 @@ export const P = {
     SIGNATURE_CREDENTIALS_ISSUE: "admin.signature_credentials.issue",
     SIGNATURE_CREDENTIALS_LIST: "admin.signature_credentials.list",
     SIGNATURE_CREDENTIALS_REVOKE: "admin.signature_credentials.revoke",
+    SSO: {
+      PROVIDERS: {
+        MANAGE: "admin.sso.providers.manage",
+      },
+      PROVIDERS_MANAGE: "admin.sso.providers.manage",
+    },
+    SSO_PROVIDERS_MANAGE: "admin.sso.providers.manage",
     SYSTEM_STATE: {
       MANAGE: "admin.system_state.manage",
       VIEW: "admin.system_state.view",
@@ -329,6 +336,7 @@ export const P = {
       CREATE: "admin.users.create",
       DELETE: "admin.users.delete",
       FORCE_LOGOUT: "admin.users.force_logout",
+      LINK_IDENTITY: "admin.users.link_identity",
       LIST: "admin.users.list",
       UPDATE: "admin.users.update",
       VIEW: "admin.users.view",
@@ -336,6 +344,7 @@ export const P = {
     USERS_CREATE: "admin.users.create",
     USERS_DELETE: "admin.users.delete",
     USERS_FORCE_LOGOUT: "admin.users.force_logout",
+    USERS_LINK_IDENTITY: "admin.users.link_identity",
     USERS_LIST: "admin.users.list",
     USERS_UPDATE: "admin.users.update",
     USERS_VIEW: "admin.users.view",
@@ -623,6 +632,10 @@ export const P = {
     PAYMENT_SETTINGS_MANAGE: "billing.payment_settings.manage",
     PAYMENT_SETTINGS_NOTIFIED: "billing.payment_settings.notified",
     PAYMENT_SETTINGS_VIEW: "billing.payment_settings.view",
+    PREAUTH_ALERTS: {
+      CONFIGURE: "billing.preauth_alerts.configure",
+    },
+    PREAUTH_ALERTS_CONFIGURE: "billing.preauth_alerts.configure",
     RECEIPTS: {
       PRINT: "billing.receipts.print",
       REPRINT: "billing.receipts.reprint",
@@ -1659,6 +1672,12 @@ export const P = {
       VIEW: "insurance.dashboard.view",
     },
     DASHBOARD_VIEW: "insurance.dashboard.view",
+    ENHANCEMENT: {
+      REQUEST: "insurance.enhancement.request",
+      VIEW: "insurance.enhancement.view",
+    },
+    ENHANCEMENT_REQUEST: "insurance.enhancement.request",
+    ENHANCEMENT_VIEW: "insurance.enhancement.view",
     NHCX: {
       CANCEL: "insurance.nhcx.cancel",
       CONFIGURE: "insurance.nhcx.configure",
@@ -1673,6 +1692,10 @@ export const P = {
     NHCX_RESPOND: "insurance.nhcx.respond",
     NHCX_SUBMIT: "insurance.nhcx.submit",
     NHCX_VIEW: "insurance.nhcx.view",
+    PREAUTH_MISSING: {
+      DISMISS: "insurance.preauth_missing.dismiss",
+    },
+    PREAUTH_MISSING_DISMISS: "insurance.preauth_missing.dismiss",
     PRIOR_AUTH: {
       CREATE: "insurance.prior_auth.create",
       LIST: "insurance.prior_auth.list",
@@ -1683,6 +1706,14 @@ export const P = {
     PRIOR_AUTH_LIST: "insurance.prior_auth.list",
     PRIOR_AUTH_SUBMIT: "insurance.prior_auth.submit",
     PRIOR_AUTH_UPDATE: "insurance.prior_auth.update",
+    ROOM_ELIGIBILITY: {
+      CONFIGURE: "insurance.room_eligibility.configure",
+      RESOLVE: "insurance.room_eligibility.resolve",
+      VIEW: "insurance.room_eligibility.view",
+    },
+    ROOM_ELIGIBILITY_CONFIGURE: "insurance.room_eligibility.configure",
+    ROOM_ELIGIBILITY_RESOLVE: "insurance.room_eligibility.resolve",
+    ROOM_ELIGIBILITY_VIEW: "insurance.room_eligibility.view",
     RULES: {
       LIST: "insurance.rules.list",
       MANAGE: "insurance.rules.manage",

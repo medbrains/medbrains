@@ -97,10 +97,13 @@ struct Kinds {
 
 /// The rows' kind filter in SQL, bound as `$n` (failed) and `$n+1`
 /// (leakage: unbilled orders and stock, implants with no patient).
+/// Charge rows only: the insurance kinds on the same table are
+/// `revenue_alerts`', under their own permissions.
 fn kind_filter(n: u8) -> String {
     let leak = crate::leakage::LEAKAGE_REASONS_SQL;
     format!(
-        "(${n} OR a.reason NOT IN {leak}) AND (${} OR a.reason IN {leak})",
+        "a.kind = 'charge_not_posted' \
+         AND (${n} OR a.reason NOT IN {leak}) AND (${} OR a.reason IN {leak})",
         n + 1
     )
 }

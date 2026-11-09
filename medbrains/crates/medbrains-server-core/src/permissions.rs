@@ -5,7 +5,7 @@
 //!   ∪ active temporary_grants) − access_matrix.denied`.
 
 use chrono::{DateTime, Utc};
-use sqlx::PgPool;
+use sqlx::{PgConnection, PgPool};
 use uuid::Uuid;
 
 use crate::error::AppError;
@@ -25,6 +25,19 @@ pub async fn resolve_permissions(
     role: &str,
 ) -> Result<Vec<String>, AppError> {
     let mut conn = medbrains_db::pool::tenant_conn(db, &tenant_id).await?;
+    resolve_permissions_on(&mut conn, tenant_id, user_id, role).await
+}
+
+/// [`resolve_permissions`] on a connection the caller already holds.
+///
+/// It sees that connection's uncommitted writes, so a sign-in reads the access groups it synced in
+/// its own transaction. The connection must already carry the tenant context.
+pub async fn resolve_permissions_on(
+    conn: &mut PgConnection,
+    tenant_id: Uuid,
+    user_id: Uuid,
+    role: &str,
+) -> Result<Vec<String>, AppError> {
     // Bypass roles don't need permissions in the token. A vendor session's
     // permissions are its grant's and nothing else: re-applying the account's
     // own `access_matrix.extra` here would hand back what the grant withheld.
@@ -258,29 +271,6 @@ pub async fn refuse_roles_beyond_own(
     }
     let codes: Vec<String> = codes.into_iter().collect();
     refuse_escalation_now(db, claims, &codes, "a user's role").await
-}
-
-/// Refuse giving access group `group`'s codes beyond the caller's own.
-/// Answers 400 for a group that does not exist in the caller's hospital.
-pub async fn refuse_group_beyond_own(
-    db: &PgPool,
-    claims: &Claims,
-    group: Uuid,
-    what: &str,
-) -> Result<(), AppError> {
-    let mut conn = medbrains_db::pool::tenant_conn(db, &claims.tenant_id).await?;
-    let permissions = sqlx::query_scalar!(
-        "SELECT permissions FROM access_groups WHERE id = $1 AND tenant_id = $2",
-        group,
-        claims.tenant_id
-    )
-    .fetch_optional(&mut *conn)
-    .await?
-    .ok_or_else(|| AppError::BadRequest("That access group does not exist".to_owned()))?;
-    let mut codes = std::collections::HashSet::new();
-    insert_permissions_from_value(&mut codes, &permissions);
-    let codes: Vec<String> = codes.into_iter().collect();
-    refuse_escalation_now(db, claims, &codes, what).await
 }
 
 /// Refuse a non-bypass caller changing their own role, access matrix or

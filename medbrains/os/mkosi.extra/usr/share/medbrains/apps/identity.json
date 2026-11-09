@@ -1,0 +1,8 @@
+{
+  "id": "identity",
+  "name": "Identity",
+  "icon": "dialog-password-symbolic",
+  "url": "https://idm.medbrains.local:9443/",
+  "role": "main",
+  "unit": "kanidmd.service"
+}
