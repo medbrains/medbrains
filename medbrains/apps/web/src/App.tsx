@@ -3,10 +3,7 @@ import { BrowserRouter, Navigate, Route, Routes, useLocation } from "react-route
 import { RouteErrorBoundary } from "./components/AppErrorBoundary";
 import { PageSkeleton } from "./components/PageSkeleton";
 import { ProtectedRoute } from "./components/ProtectedRoute";
-import { SpotlightProvider } from "./components/SpotlightProvider";
 import { TopProgressBar } from "./components/TopProgressBar";
-import { AppLayout } from "./layouts/AppLayout";
-import { TenantConfigProvider } from "./providers/TenantConfigProvider";
 
 function ScrollToTop() {
   const { pathname } = useLocation();
@@ -16,6 +13,17 @@ function ScrollToTop() {
   }, [pathname]);
   return null;
 }
+
+// The signed-in shell is lazy too: sign-in, the kiosk, the public pages and
+// the TV board never draw it, so they must not download or parse it (the
+// shell pulls navigation, spotlight, payments and the header widgets).
+const AppLayout = lazy(() => import("./layouts/AppLayout").then((m) => ({ default: m.AppLayout })));
+const SpotlightProvider = lazy(() =>
+  import("./components/SpotlightProvider").then((m) => ({ default: m.SpotlightProvider })),
+);
+const TenantConfigProvider = lazy(() =>
+  import("./providers/TenantConfigProvider").then((m) => ({ default: m.TenantConfigProvider })),
+);
 
 const LoginPage = lazy(() => import("./pages/login").then((m) => ({ default: m.LoginPage })));
 const TermsPage = lazy(() => import("./pages/legal").then((m) => ({ default: m.TermsPage })));
