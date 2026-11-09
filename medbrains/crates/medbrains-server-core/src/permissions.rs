@@ -30,6 +30,10 @@ pub async fn resolve_permissions(
 ///
 /// What the token of a non-bypass user carries. For the few rights a bypass role does not
 /// carry (the NDPS witness override), read for a super or hospital admin.
+///
+/// # Errors
+/// A database error reading the role, the access groups or the user's
+/// `access_matrix`, or setting the tenant context.
 pub async fn resolve_granted_permissions(
     db: &PgPool,
     tenant_id: Uuid,

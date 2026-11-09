@@ -25,10 +25,11 @@
 //!   one, a verbal order not yet countersigned among them, backs nothing.
 //!   X, NDPS and controlled drugs are never dispensed on a verbal or telephone
 //!   order.
-//! - A line typed as free text, with no catalogue item, never carries a gated
-//!   drug: its name is looked up, trimmed and case-insensitively, against the
-//!   catalogue's names and generic names, and a match on any gated row
-//!   refuses it (`refuse_gated_free_text`, shared with OTC and POS sales).
+//! - Every line carries its catalogue item. A line typed as free text is
+//!   refused here outright ("Choose the drug from the catalogue"): a
+//!   prescription-backed dispense, a pack-and-collect pick and a camp
+//!   dispense take catalogue lines only. Free text is for OTC and POS sales,
+//!   where `refuse_gated_free_text` keeps a gated drug off it.
 //! - Schedule X also needs a doctor allowed to prescribe it, a witness who is
 //!   not that doctor, and the reference of the duplicate the pharmacy retains
 //!   (Rule 65(11)).
@@ -121,7 +122,13 @@ pub async fn enforce_schedule_compliance(
     .bind(tenant_id)
     .fetch_all(&mut **tx)
     .await?;
-    refuse_gated_free_text(tx, tenant_id, &free_text).await?;
+    if !free_text.is_empty() {
+        return Err(AppError::BadRequest(format!(
+            "{}: {CHOOSE_FROM_CATALOGUE}. A dispense against a prescription takes catalogue \
+             lines only",
+            free_text.join(", ")
+        )));
+    }
     let rx = read_prescription(tx, tenant_id, order_id).await?;
     let lines = scheduled_lines(tx, tenant_id, order_id).await?;
     let has_schedule_x = lines.iter().any(|l| l.schedule == "X");
@@ -150,13 +157,21 @@ pub async fn enforce_schedule_compliance(
     }
 }
 
-/// Refuses free-text lines that name a gated drug.
+/// What every free-text refusal tells the pharmacist to do.
+pub const CHOOSE_FROM_CATALOGUE: &str = "Choose the drug from the catalogue";
+
+/// Refuses free-text lines that name a gated drug, at an OTC or POS sale.
 ///
-/// A line with no catalogue item is refused when its name, trimmed and
-/// case-insensitively, is the name or generic name of any Schedule H, H1, X,
-/// NDPS or controlled catalogue row: typed instead of picked, a gated drug
-/// would pass every check keyed on the catalogue. The counter, OTC and POS
-/// all call this one helper.
+/// Both sides are normalised (lowercase, punctuation to spaces, whitespace
+/// collapsed), and a catalogue name loses its strength (everything from the
+/// first word that starts with a digit). A line is refused when:
+/// - it contains, as a whole word or phrase, the generic or catalogue name of
+///   a Schedule X, NDPS or controlled row ("Morphine sulphate 10mg tab"); or
+/// - after a leading dosage form ("tab", "inj", ...), it starts with the
+///   generic or catalogue name of a Schedule H or H1 row ("tab tramadol 50").
+///
+/// Typed instead of picked, a gated drug would pass every check keyed on the
+/// catalogue.
 ///
 /// # Errors
 /// `BadRequest` naming each such line; a database error as itself.
@@ -168,17 +183,29 @@ pub async fn refuse_gated_free_text(
     if names.is_empty() {
         return Ok(());
     }
-    // ponytail: unindexed lower() scan of the tenant's catalogue; add an
-    // expression index on lower(btrim(name)) if catalogues grow past ~50k rows.
+    // ponytail: every typed line against every gated catalogue name, in one
+    // query; a trigram index on the normalised names if catalogues pass ~50k.
     let gated: Vec<String> = sqlx::query_scalar(
-        "SELECT DISTINCT btrim(n.name) FROM unnest($2::text[]) AS n(name) \
-          WHERE EXISTS (SELECT 1 FROM pharmacy_catalog c \
-                         WHERE c.tenant_id = $1 \
-                           AND (c.drug_schedule::text IN ('H', 'H1', 'X', 'NDPS') \
-                                OR c.is_controlled) \
-                           AND lower(btrim(n.name)) IN (lower(btrim(c.name)), \
-                                                       lower(btrim(c.generic_name)))) \
-          ORDER BY 1",
+        "WITH typed AS ( \
+            SELECT btrim(n.name) AS shown, \
+                   btrim(regexp_replace(lower(n.name), '[^a-z0-9]+', ' ', 'g')) AS t \
+              FROM unnest($2::text[]) AS n(name)), \
+         gated AS ( \
+            SELECT (c.drug_schedule::text IN ('X', 'NDPS') OR c.is_controlled) AS strict, \
+                   btrim(regexp_replace( \
+                       btrim(regexp_replace(lower(v.name), '[^a-z0-9]+', ' ', 'g')), \
+                       '(^| )[0-9].*$', '')) AS g \
+              FROM pharmacy_catalog c \
+              CROSS JOIN LATERAL (VALUES (c.name), (c.generic_name)) AS v(name) \
+             WHERE c.tenant_id = $1 AND v.name IS NOT NULL \
+               AND (c.drug_schedule::text IN ('H', 'H1', 'X', 'NDPS') OR c.is_controlled)) \
+         SELECT DISTINCT typed.shown FROM typed JOIN gated ON gated.g <> '' AND ( \
+             (gated.strict AND ' ' || typed.t || ' ' LIKE '% ' || gated.g || ' %') \
+          OR (NOT gated.strict \
+              AND regexp_replace(typed.t, \
+                    '^((tab|tabs|tablet|tablets|cap|caps|capsule|capsules|inj|injection|syp|syrup|susp|suspension) )+', \
+                    '') || ' ' LIKE gated.g || ' %')) \
+         ORDER BY 1",
     )
     .bind(tenant_id)
     .bind(names)
@@ -188,8 +215,8 @@ pub async fn refuse_gated_free_text(
         return Ok(());
     }
     Err(AppError::BadRequest(format!(
-        "{}: Choose the drug from the catalogue. A Schedule H, H1, X, NDPS or controlled \
-         drug cannot be dispensed on a line typed as free text",
+        "{}: {CHOOSE_FROM_CATALOGUE}. A Schedule H, H1, X, NDPS or controlled drug cannot be \
+         sold on a line typed as free text",
         gated.join(", ")
     )))
 }

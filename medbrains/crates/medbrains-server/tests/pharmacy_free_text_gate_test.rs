@@ -1,9 +1,11 @@
-//! A gated drug typed as free text is refused at the counter, OTC and POS.
+//! Free text never carries a gated drug.
 //!
-//! Every Schedule H/H1/X/NDPS check keys on the catalogue item, so a line
-//! with no catalogue item whose name is a gated drug's (its name or generic
-//! name, trimmed, any case) would pass them all. It is refused with "Choose
-//! the drug from the catalogue"; a free-text line naming nothing gated is not.
+//! Every Schedule H/H1/X/NDPS check keys on the catalogue item. A
+//! prescription-backed dispense takes catalogue lines only, so any free-text
+//! line there is refused with "Choose the drug from the catalogue". At OTC
+//! and POS, free text naming a gated drug is refused: an X, NDPS or
+//! controlled name anywhere in it as a word or phrase, an H or H1 name at its
+//! start (after a dosage form); a line naming nothing gated is sold.
 
 use crate::dispense_world::{self, Desk};
 
@@ -40,11 +42,10 @@ async fn post(d: &Desk, path: &str, body: Value) -> (StatusCode, String) {
 }
 
 #[tokio::test]
-async fn a_counter_order_line_typed_as_a_gated_drug_is_refused_and_filed() {
+async fn any_free_text_line_on_a_prescription_order_is_refused_and_filed() {
     let d = dispense_world::desk().await;
     let h = d.drug(Some("H"), false).await;
     let rx = d.prescription(&[(h, Some(10), "BD")]).await;
-    let name = typed_generic(&d, h).await;
     let order: Uuid = sqlx::query_scalar(
         "INSERT INTO pharmacy_orders (tenant_id, prescription_id, patient_id, encounter_id, \
                                       ordered_by, status) \
@@ -64,7 +65,7 @@ async fn a_counter_order_line_typed_as_a_gated_drug_is_refused_and_filed() {
     )
     .bind(d.tenant)
     .bind(order)
-    .bind(&name)
+    .bind("Cotton roll")
     .execute(&d.app.db)
     .await
     .expect("free-text line");
@@ -123,5 +124,49 @@ async fn a_pos_sale_of_a_gated_drug_typed_as_free_text_is_refused() {
         sale("Cotton roll".to_owned()),
     )
     .await;
+    assert!(!plain.contains(CHOOSE), "nothing gated is named: {plain}");
+}
+
+/// A catalogue drug named `name`, generic `generic`, of `schedule`.
+async fn named_drug(d: &Desk, (name, generic): (&str, &str), schedule: &str, controlled: bool) {
+    sqlx::query(
+        "INSERT INTO pharmacy_catalog (tenant_id, code, name, generic_name, drug_schedule, \
+                                       is_controlled, base_price, current_stock) \
+         VALUES ($1, $2, $3, $4, $5, $6, 10.00, 500)",
+    )
+    .bind(d.tenant)
+    .bind(format!("FT-{}", dispense_world::tag()))
+    .bind(name)
+    .bind(generic)
+    .bind(schedule)
+    .bind(controlled)
+    .execute(&d.app.db)
+    .await
+    .expect("catalog");
+}
+
+#[tokio::test]
+async fn an_otc_line_naming_a_gated_drug_in_other_words_is_refused() {
+    let d = dispense_world::desk().await;
+    named_drug(
+        &d,
+        ("Morphine Sulphate 10mg Tablet", "Morphine"),
+        "NDPS",
+        true,
+    )
+    .await;
+    named_drug(&d, ("Tramadol 50mg Tablet", "Tramadol"), "H1", false).await;
+    let sale = |drug_name: &str| json!({ "items": [{ "catalog_item_id": null, "drug_name": drug_name, "quantity": 1, "unit_price": 10 }] });
+
+    for typed in [
+        "Morphine sulphate 10mg tab",
+        "tab tramadol 50",
+        "Inj Tramadol",
+    ] {
+        let (status, text) = post(&d, "/api/pharmacy/otc-sale", sale(typed)).await;
+        assert_eq!(status, StatusCode::BAD_REQUEST, "{typed}: {text}");
+        assert!(text.contains(CHOOSE), "{typed}: {text}");
+    }
+    let (_, plain) = post(&d, "/api/pharmacy/otc-sale", sale("Cotton roll")).await;
     assert!(!plain.contains(CHOOSE), "nothing gated is named: {plain}");
 }

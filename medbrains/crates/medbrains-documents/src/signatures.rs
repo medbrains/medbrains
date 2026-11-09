@@ -447,8 +447,8 @@ struct SignWith<'a> {
 
 /// Sign `payload_snapshot` (the opened record) with the signer's key, write
 /// the `signed_records` row and its public verify link, and flag the source
-/// row signed. The one writer of a signature: the sign endpoint and the
-/// camp sync's author signature both come through here.
+/// row signed. The one writer of a signature, behind the sign endpoint's
+/// review and step-up checks.
 ///
 /// # Errors
 /// `BadRequest` without an active credential and key; a database error.
@@ -561,41 +561,6 @@ async fn write_signature(
     Ok((row, signed))
 }
 
-/// Sign a record its author has just written, as that author, inside the
-/// caller's transaction: a camp doctor's prescription at sync.
-///
-/// Every check the sign endpoint makes, but the review screen: the author
-/// composed this content, on the device, and the sync carries it unchanged.
-/// The caller has already required a fresh step-up. An already-signed record
-/// is left as it is.
-///
-/// # Errors
-/// The signing right, patient access, authorship (a non-author answers
-/// `NotFound`), registration and credential refusals; a database error.
-pub async fn sign_as_author_in_tx(
-    state: &AppState,
-    tx: &mut sqlx::PgConnection,
-    claims: &Claims,
-    record_type: &str,
-    record_id: Uuid,
-    notes: &str,
-) -> Result<(), AppError> {
-    let spec = signable::find(record_type)?;
-    signable::require_sign_permission(claims, spec, "primary")?;
-    let opened = signable::open_for_signing(state, tx, claims, spec, "primary", record_id).await?;
-    if opened.already_signed {
-        return Ok(());
-    }
-    let with = SignWith {
-        signer_role: "primary",
-        legal_class: spec.legal_class,
-        credential_id: None,
-        notes: Some(notes),
-    };
-    write_signature(state, tx, claims, spec, record_id, &opened.payload, &with).await?;
-    Ok(())
-}
-
 // ══════════════════════════════════════════════════════════
 //  List signatures for a record
 // ══════════════════════════════════════════════════════════
@@ -606,6 +571,8 @@ pub struct ListSignaturesQuery {
     pub record_id: Uuid,
 }
 
+/// `GET /api/signatures/list` — every signature on one record, oldest first, for
+/// the verify panel.
 pub async fn list_signatures(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,

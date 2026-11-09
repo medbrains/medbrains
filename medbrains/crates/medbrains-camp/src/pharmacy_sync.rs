@@ -14,15 +14,17 @@
 //! lists under "Camp exceptions" for review, instead of failing the event
 //! and leaving the device to retry it for ever.
 //!
-//! A prescription synced by the doctor who wrote it is signed at sync, by the
-//! signing path (`medbrains_documents::signatures::sign_as_author_in_tx`),
-//! when the sync carries a fresh step-up; one written for another doctor, or
-//! synced by anyone else, stays unsigned for its doctor's sign-off inbox.
+//! A synced prescription is never signed at sync: a signature is the
+//! doctor's word that they reviewed the record, given on the review screen
+//! under a fresh step-up. It stays unsigned for the doctor's sign-off inbox,
+//! and a camp H/H1 dispense on it meanwhile is posted as an exception. Signing
+//! it later does not clear that exception; the pharmacist closes it on review.
+//! A synced prescription names its doctor (`doctor_id`), or is refused: the
+//! syncing device's user is not assumed to be the prescriber.
 
 use medbrains_pharmacy::{rx_safety, schedule_gate};
-use medbrains_server_core::{error::AppError, middleware::auth::Claims, state::AppState};
+use medbrains_server_core::{error::AppError, middleware::auth::Claims};
 use sqlx::{Postgres, Transaction};
-use uuid::Uuid;
 
 /// The sync error for a line with no catalogue item.
 pub(crate) fn free_text_line_refusal(drug_name: &str) -> String {
@@ -32,85 +34,50 @@ pub(crate) fn free_text_line_refusal(drug_name: &str) -> String {
     )
 }
 
-/// Signs a synced prescription as its author, or says why it was not.
-///
-/// Only the syncing doctor's own prescription (`doctor_id` absent or theirs),
-/// and only under a fresh step-up; the signing path checks the rest (the
-/// signing right, a registered doctor profile, a signing key). A refusal
-/// leaves the prescription unsigned, inside a savepoint, and is returned as
-/// the event's note; a fault aborts the event.
-///
-/// # Errors
-/// A database or other server fault.
-pub(crate) async fn sign_synced_prescription(
-    state: &AppState,
-    tx: &mut Transaction<'_, Postgres>,
-    claims: &Claims,
-    (doctor_id, prescription_id): (Option<Uuid>, Uuid),
-    stepped_up: bool,
-) -> Result<Option<String>, AppError> {
-    if doctor_id.is_some_and(|d| d != claims.sub) {
-        return Ok(Some(
-            "Prescription not signed: it names another doctor, who signs it from their \
-             sign-off inbox"
-                .to_owned(),
-        ));
-    }
-    if !stepped_up {
-        return Ok(Some(
-            "Prescription not signed: confirm your password on the device before syncing, or \
-             sign it from the sign-off inbox"
-                .to_owned(),
-        ));
-    }
-    let mut savepoint = sqlx::Connection::begin(&mut **tx).await?;
-    let signed = medbrains_documents::signatures::sign_as_author_in_tx(
-        state,
-        &mut savepoint,
-        claims,
-        "prescription",
-        prescription_id,
-        "Signed by its author at camp sync",
-    )
-    .await;
-    match signed {
-        Ok(()) => {
-            savepoint.commit().await?;
-            Ok(None)
-        }
-        Err(
-            refusal @ (AppError::Forbidden
-            | AppError::ForbiddenReason(_)
-            | AppError::BadRequest(_)
-            | AppError::NotFound
-            | AppError::Conflict(_)),
-        ) => {
-            savepoint.rollback().await?;
-            let why = match refusal {
-                AppError::ForbiddenReason(m) | AppError::BadRequest(m) | AppError::Conflict(m) => m,
-                AppError::NotFound => "it is not yours to sign".to_owned(),
-                _ => "you do not hold the doctor's signing right".to_owned(),
-            };
-            Ok(Some(format!(
-                "Prescription not signed ({why}); sign it from the sign-off inbox"
-            )))
-        }
-        Err(fault) => Err(fault),
-    }
-}
+/// The sync error for a prescription that names no doctor.
+pub(crate) const NO_PRESCRIBER: &str =
+    "prescription sync requires doctor_id: a prescription names the doctor who wrote it";
+
+/// The note on every synced prescription.
+pub(crate) const UNSIGNED_NOTE: &str =
+    "Prescription saved unsigned; its doctor signs it from the sign-off inbox";
 
 /// Runs the schedule gate on a camp dispense that already happened. A pass
 /// is `None`; a refusal is filed on the order as a `CAMP_DISPENSE_EXCEPTION`
 /// and returned as the event's note, and the dispense stands.
 ///
+/// Only an H/H1 refusal may be posted that way: the sync refuses Schedule X,
+/// NDPS, controlled and free-text lines before the order exists, and this
+/// checks that none reached it rather than post one as an exception.
+///
 /// # Errors
-/// A database fault, or a gate error that is not a refusal.
+/// `Internal` when such a line reached the gate; a database fault, or a gate
+/// error that is not a refusal.
 pub(crate) async fn gate_camp_dispense(
     tx: &mut Transaction<'_, Postgres>,
     claims: &Claims,
     subject: &rx_safety::Subject,
 ) -> Result<Option<String>, AppError> {
     let order_id = subject.record_id.ok_or(AppError::NotFound)?;
+    let strict: bool = sqlx::query_scalar(
+        "SELECT EXISTS (SELECT 1 FROM pharmacy_order_items oi \
+                          LEFT JOIN pharmacy_catalog c \
+                            ON c.id = oi.catalog_item_id AND c.tenant_id = oi.tenant_id \
+                         WHERE oi.order_id = $1 AND oi.tenant_id = $2 AND oi.removed_at IS NULL \
+                           AND (c.id IS NULL OR c.is_controlled \
+                                OR c.drug_schedule::text IN ('X', 'NDPS') \
+                                OR COALESCE(btrim(c.narcotic_class), '') <> ''))",
+    )
+    .bind(order_id)
+    .bind(claims.tenant_id)
+    .fetch_one(&mut **tx)
+    .await?;
+    if strict {
+        return Err(AppError::Internal(
+            "a Schedule X, NDPS, controlled or free-text line reached the camp H/H1 gate"
+                .to_owned(),
+        ));
+    }
     let gate = schedule_gate::enforce_schedule_compliance(
         tx,
         claims.tenant_id,

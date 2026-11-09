@@ -3626,13 +3626,11 @@ fn calculate_bmi(weight_kg: Option<Decimal>, height_cm: Option<Decimal>) -> Opti
     }
 }
 
-/// Applies one synced camp event inside its own transaction. `stepped_up`
-/// says the sync carried a fresh step-up, which signing a prescription needs.
+/// Applies one synced camp event inside the caller's transaction.
 async fn apply_camp_sync_event(
-    state: &AppState,
     tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
     claims: &Claims,
-    (camp_id, stepped_up): (Uuid, bool),
+    camp_id: Uuid,
     event: &CampSyncInboundEvent,
 ) -> Result<AppliedSyncEvent, AppError> {
     match event.event_type.as_str() {
@@ -3816,6 +3814,11 @@ async fn apply_camp_sync_event(
                     "prescription sync requires at least one item".to_owned(),
                 ));
             }
+            // A prescription names the doctor who wrote it; the syncing
+            // device's user is not assumed to be that doctor.
+            let doctor_id = body
+                .doctor_id
+                .ok_or_else(|| AppError::BadRequest(pharmacy_sync::NO_PRESCRIBER.to_owned()))?;
             if let Some(registration_id) = body.registration_id {
                 ensure_registration_belongs_to_camp(tx, claims.tenant_id, camp_id, registration_id)
                     .await?;
@@ -3850,7 +3853,7 @@ async fn apply_camp_sync_event(
             )
             .bind(claims.tenant_id)
             .bind(encounter_id)
-            .bind(body.doctor_id.unwrap_or(claims.sub))
+            .bind(doctor_id)
             .bind(&body.notes)
             .fetch_one(&mut **tx)
             .await?;
@@ -3907,7 +3910,7 @@ async fn apply_camp_sync_event(
                 )
             });
 
-            let _ = sqlx::query(
+            sqlx::query(
                 "INSERT INTO pharmacy_prescriptions \
                  (tenant_id, prescription_id, patient_id, encounter_id, doctor_id, source, status, priority, review_notes) \
                  VALUES ($1, $2, $3, $4, $5, 'opd', 'pending_review', 'normal', $6) \
@@ -3917,18 +3920,9 @@ async fn apply_camp_sync_event(
             .bind(prescription_id)
             .bind(patient_id)
             .bind(encounter_id)
-            .bind(body.doctor_id.unwrap_or(claims.sub))
+            .bind(doctor_id)
             .bind(allergy_review_note)
             .execute(&mut **tx)
-            .await;
-
-            let note = pharmacy_sync::sign_synced_prescription(
-                state,
-                tx,
-                claims,
-                (body.doctor_id, prescription_id),
-                stepped_up,
-            )
             .await?;
 
             Ok(AppliedSyncEvent {
@@ -3938,7 +3932,7 @@ async fn apply_camp_sync_event(
                     "patient_id": patient_id,
                     "encounter_id": encounter_id,
                     "prescription_id": prescription_id,
-                    "note": note,
+                    "note": pharmacy_sync::UNSIGNED_NOTE,
                 }),
             })
         }
@@ -5329,18 +5323,9 @@ pub async fn get_camp_packet(
 pub async fn sync_camp_inbound(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
-    proof: medbrains_server_core::step_up::StepUpProof,
     Json(body): Json<CampSyncInboundRequest>,
 ) -> Result<Json<CampSyncInboundResponse>, AppError> {
     require_permission(&claims, permissions::camp::LIST)?;
-    // A fresh step-up lets the sync sign the syncing doctor's own
-    // prescriptions; without one they stay unsigned, and nothing fails.
-    let stepped_up = match medbrains_server_core::step_up::require_step_up(&state, &proof, &claims)
-    {
-        Ok(()) => true,
-        Err(AppError::StepUpRequired) => false,
-        Err(fault) => return Err(fault),
-    };
 
     if body.events.is_empty() {
         return Err(AppError::BadRequest(
@@ -5414,6 +5399,15 @@ pub async fn sync_camp_inbound(
 
         if let Some(existing) = existing.filter(|_| !retrying) {
             duplicates += 1;
+            tx.commit().await?;
+            // The hand-off runs after its event commits, so a fault there
+            // fails the batch with the event already applied: the device's
+            // retry lands here, and the hand-off (idempotent) is made again.
+            if existing.server_entity_type.as_deref() == Some("pharmacy_order")
+                && let Some(order_id) = existing.server_entity_id
+            {
+                medbrains_pharmacy::hand_order_to_pharmacy(&state, &claims, order_id).await?;
+            }
             results.push(CampSyncEventResult {
                 idempotency_key: event.idempotency_key.clone(),
                 event_type: existing.event_type,
@@ -5425,7 +5419,6 @@ pub async fn sync_camp_inbound(
                     .error
                     .or(Some(format!("already processed as {}", existing.status))),
             });
-            tx.commit().await?;
             continue;
         }
 
@@ -5461,9 +5454,7 @@ pub async fn sync_camp_inbound(
         .execute(&mut *tx)
         .await?;
 
-        match apply_camp_sync_event(&state, &mut tx, &claims, (body.camp_id, stepped_up), event)
-            .await
-        {
+        match apply_camp_sync_event(&mut tx, &claims, body.camp_id, event).await {
             Ok(applied_event) => {
                 // Owner on a patient is the strongest relation there is, and it
                 // belongs only to the person whose registration CREATED that
@@ -5499,18 +5490,12 @@ pub async fn sync_camp_inbound(
                 tx.commit().await?;
 
                 // A synced dispense is the pharmacy's record: its staff reach it,
-                // and a flagged one shows on their Camp exceptions list.
+                // and a flagged one shows on their Camp exceptions list. A
+                // failed hand-off fails the batch; the retry hands it off again
+                // from the duplicate path above.
                 if applied_event.server_entity_type == "pharmacy_order" {
                     let order_id = applied_event.server_entity_id;
-                    if let Err(err) =
-                        medbrains_pharmacy::hand_order_to_pharmacy(&state, &claims, order_id).await
-                    {
-                        tracing::error!(
-                            error = %err,
-                            order_id = %applied_event.server_entity_id,
-                            "camp sync could not hand the dispense to the pharmacy"
-                        );
-                    }
+                    medbrains_pharmacy::hand_order_to_pharmacy(&state, &claims, order_id).await?;
                 }
 
                 if let Some(patient_id) = patient_grant_id {

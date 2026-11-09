@@ -199,18 +199,46 @@ const DISCRETE_UNITS: [&str; 22] = [
     "ampule",
 ];
 
-/// Discrete units per dose ("2 tabs" is 2), or `None` when the dose is not
-/// stated in a discrete dispensing unit: "5 ml", "2 drops", "2 puffs", "1 g",
-/// "500 mg", "10 units" say nothing about how many packs leave the shelf.
+/// Byte offset of the first word in `d` that is a discrete dispensing unit.
+fn unit_word_at(d: &str) -> Option<usize> {
+    let mut start = None;
+    for (i, c) in d.char_indices().chain(std::iter::once((d.len(), ' '))) {
+        match (c.is_ascii_alphabetic(), start) {
+            (true, None) => start = Some(i),
+            (false, Some(s)) => {
+                if DISCRETE_UNITS.contains(&&d[s..i]) {
+                    return Some(s);
+                }
+                start = None;
+            }
+            _ => {}
+        }
+    }
+    None
+}
+
+/// Discrete units per dose, read from the number just before the unit word
+/// ("2 tabs" is 2, "500 mg 1 tab" is 1, "1/2 tab" counts as 1, a unit with
+/// no number before it as 1), or `None` when the dose is not stated in a
+/// discrete dispensing unit: "5 ml", "2 drops", "2 puffs", "1 g", "500 mg",
+/// "10 units" say nothing about how many packs leave the shelf.
 fn dose_units_per_administration(dosage: &str) -> Option<f64> {
     let d = dosage.trim().to_ascii_lowercase();
-    let discrete = d
-        .split(|c: char| !c.is_ascii_alphabetic())
-        .any(|w| DISCRETE_UNITS.contains(&w));
-    if !discrete {
-        return None;
-    }
-    Some(first_number(&d).map_or(1.0, |v| v.max(1.0)))
+    let before = d[..unit_word_at(&d)?].trim_end();
+    let digits = before.len()
+        - before
+            .trim_end_matches(|c: char| c.is_ascii_digit() || c == '.' || c == '/')
+            .len();
+    let number = &before[before.len() - digits..];
+    let value = match number.split_once('/') {
+        Some((n, m)) => n
+            .parse::<f64>()
+            .ok()
+            .zip(m.parse::<f64>().ok())
+            .map(|(n, m)| n / m),
+        None => number.parse::<f64>().ok(),
+    };
+    Some(value.filter(|v| v.is_finite()).map_or(1.0, |v| v.max(1.0)))
 }
 
 /// Units for a counted frequency: one dose for stat, else per day x days.
@@ -319,6 +347,13 @@ mod tests {
             Some(15)
         );
         assert_eq!(countable_rx_quantity("1 sachet", "od", "3 days"), Some(3));
+        assert_eq!(
+            countable_rx_quantity("500 mg 1 tab", "bd", "5 days"),
+            Some(10),
+            "the number before the unit, not the strength"
+        );
+        assert_eq!(countable_rx_quantity("2tabs", "od", "3 days"), Some(6));
+        assert_eq!(countable_rx_quantity("1/2 tab", "od", "4 days"), Some(4));
         assert_eq!(countable_rx_quantity("1 vial", "bd", "2 days"), Some(4));
         assert_eq!(
             countable_rx_quantity("1 patch", "every 3 days", "9 days"),

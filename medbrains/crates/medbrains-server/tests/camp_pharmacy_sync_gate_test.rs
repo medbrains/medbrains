@@ -1,7 +1,8 @@
 //! A camp's offline work, synced later, is held to the hospital's rules.
 //!
-//! The doctor's own prescription is signed at sync through the signing path
-//! when the sync carries a fresh step-up; one naming another doctor is not.
+//! A synced prescription names its doctor or is refused, and is never
+//! signed at sync: it waits, unsigned, until the doctor signs it on the
+//! review screen. A dispense on it before then is a camp exception.
 //! A pharmacist with the built-in role syncs the dispenses: Schedule X, NDPS
 //! and controlled lines, and lines with no catalogue item, are refused and
 //! named, and nothing leaves the shelf. A Schedule H dispense that already
@@ -11,8 +12,11 @@
 
 use crate::{
     dispense_world::{self, Signed, staff},
+    signable_types_test::review_and_sign,
     signatures_test::issue_default_credential,
 };
+
+use reqwest::StatusCode;
 
 use serde_json::{Value, json};
 use uuid::Uuid;
@@ -220,7 +224,7 @@ async fn camp_exceptions(d: &dispense_world::Desk) -> Vec<Uuid> {
 }
 
 #[tokio::test]
-async fn a_camp_sync_signs_its_doctors_prescription_and_flags_what_the_gate_refuses() {
+async fn a_camp_prescription_waits_for_its_doctor_and_the_gate_flags_what_it_refuses() {
     let d = dispense_world::desk().await;
     let camp = camp(&d).await;
     let x = d.drug(Some("X"), true).await;
@@ -236,6 +240,7 @@ async fn a_camp_sync_signs_its_doctors_prescription_and_flags_what_the_gate_refu
     .await;
     issue_default_credential(&d.app, &d.admin_csrf, &doctor.user_id.to_string()).await;
     let visit = camp_visit(&d, camp, doctor.user_id).await;
+    // A step-up on the sync signs nothing.
     d.app
         .step_up(&doctor.client, &doctor.csrf, &doctor.password)
         .await;
@@ -244,29 +249,48 @@ async fn a_camp_sync_signs_its_doctors_prescription_and_flags_what_the_gate_refu
         &doctor,
         camp,
         vec![
+            prescription_event(&d, visit, Some(doctor.user_id), h),
             prescription_event(&d, visit, None, h),
-            prescription_event(&d, visit, Some(d.doctor), h),
         ],
     )
     .await;
-    let [own, others] = written.as_slice() else {
+    let [own, nobody] = written.as_slice() else {
         panic!("two results: {written:?}");
     };
     assert_eq!(own.status, "applied", "{own:?}");
-    assert_eq!(own.message, "", "signed without a note: {own:?}");
+    assert!(own.message.contains("saved unsigned"), "{own:?}");
     let rx = created(own, "prescription_id");
+    assert_eq!(signed(&d, rx).await, (false, false), "not signed at sync");
+    assert_eq!(nobody.status, "failed", "{nobody:?}");
+    assert!(nobody.message.contains("doctor_id"), "{nobody:?}");
+
+    let pharmacist = staff(
+        &d.app,
+        &d.admin_csrf,
+        ("pharmacist", d.department),
+        &["camp.list"],
+    )
+    .await;
+    let before_signing = sync(
+        &d,
+        &pharmacist,
+        camp,
+        vec![dispense_event(&d, Some(rx), &[(Some(h), 1)])],
+    )
+    .await;
+    let [unsigned] = before_signing.as_slice() else {
+        panic!("one result: {before_signing:?}");
+    };
+
+    // The doctor signs it from the inbox, through the review screen.
+    let (status, body) =
+        review_and_sign(&doctor.client, &d.app, &doctor.csrf, "prescription", rx).await;
+    assert_eq!(status, StatusCode::OK, "{body}");
     assert_eq!(
         signed(&d, rx).await,
         (true, true),
         "signed by the signing path"
     );
-    assert_eq!(others.status, "applied", "{others:?}");
-    assert!(
-        others.message.contains("names another doctor"),
-        "{others:?}"
-    );
-    let unsigned_rx = created(others, "prescription_id");
-    assert_eq!(signed(&d, unsigned_rx).await, (false, false));
 
     let pharmacist = staff(
         &d.app,
@@ -283,14 +307,13 @@ async fn a_camp_sync_signs_its_doctors_prescription_and_flags_what_the_gate_refu
             dispense_event(&d, Some(rx), &[(Some(x), 1), (Some(ndps), 1), (Some(h), 1)]),
             dispense_event(&d, Some(rx), &[(None, 1)]),
             dispense_event(&d, None, &[(Some(h), 2)]),
-            dispense_event(&d, Some(rx), &[(Some(h), 10)]),
+            dispense_event(&d, Some(rx), &[(Some(h), 9)]),
             dispense_event(&d, Some(rx), &[(Some(h), 1)]),
-            dispense_event(&d, Some(unsigned_rx), &[(Some(h), 1)]),
         ],
     )
     .await;
-    let [controlled, free_text, unprescribed, within, over, unsigned] = results.as_slice() else {
-        panic!("six results: {results:?}");
+    let [controlled, free_text, unprescribed, within, over] = results.as_slice() else {
+        panic!("five results: {results:?}");
     };
 
     assert_eq!(controlled.status, "failed", "{controlled:?}");
@@ -351,7 +374,7 @@ async fn a_camp_sync_signs_its_doctors_prescription_and_flags_what_the_gate_refu
     assert_eq!(stock(&d, ndps).await, 500);
     assert_eq!(
         stock(&d, h).await,
-        486,
-        "2 + 10 + 1 + 1 were handed over at the camp"
+        487,
+        "1 + 2 + 9 + 1 were handed over at the camp"
     );
 }
