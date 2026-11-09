@@ -42,11 +42,18 @@ GENERATED = {
     "packages/types/src/permissions.ts",
     "packages/types/src/permission-catalog.ts",
 }
+# Registries that every feature must append to by rule (Permissions First; the API
+# contract rule). A ratchet here would block every new permission or endpoint.
+# ponytail: exempt until they are split per module (planned with kernel adoption).
+REGISTRIES = {
+    "crates/medbrains-core/src/permissions.rs",
+    "packages/api/src/client.ts",
+}
 
 
 def is_generated(rel: str) -> bool:
-    """Generated files are written by tools, so their length is the tool's business."""
-    return rel in GENERATED or "generated" in Path(rel).name
+    """Generated files and append-only registries are skipped; see GENERATED and REGISTRIES."""
+    return rel in GENERATED or rel in REGISTRIES or "generated" in Path(rel).name
 
 
 def source_files(only: list[str] | None = None) -> dict[str, int]:
