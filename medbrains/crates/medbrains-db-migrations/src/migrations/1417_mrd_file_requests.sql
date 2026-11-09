@@ -183,19 +183,24 @@ BEGIN
                     AND pr.visit_date = e.encounter_date
                     AND pr.deleted_at IS NULL
                     -- A waiting row is any appointment's; a picked or delivered
-                    -- file only the visit's own appointment's (linked to it,
-                    -- or, as check-in does before it links, checked in with
-                    -- the visit's doctor).
+                    -- file only the visit's own appointment's: named in the
+                    -- visit's attributes (the OPD route writes
+                    -- `appointment_id` there and links only afterwards),
+                    -- linked to it, or, as appointment check-in does before it
+                    -- links, checked in with the visit's doctor.
                     AND (pr.status IN ('requested', 'not_found')
                          OR (pr.status IN ('picked', 'delivered')
-                             AND (a.encounter_id = e.id
+                             AND (a.id::text = e.attributes->>'appointment_id'
+                                  OR a.encounter_id = e.id
                                   OR (a.encounter_id IS NULL AND a.status = 'checked_in'
                                       AND a.doctor_id = e.doctor_id))))
-                  -- The visit's own appointment first.
-                  ORDER BY a.encounter_id = e.id DESC NULLS LAST,
+                  -- The visit's own appointment first; slot and id make the
+                  -- order total, so two equal rows never race.
+                  ORDER BY a.id::text = e.attributes->>'appointment_id' DESC NULLS LAST,
+                           a.encounter_id = e.id DESC NULLS LAST,
                            (a.encounter_id IS NULL AND a.status = 'checked_in'
                             AND a.doctor_id = e.doctor_id) DESC NULLS LAST,
-                           pr.due_at
+                           pr.due_at, a.slot_start, pr.id
                   LIMIT 1 FOR UPDATE OF pr)
     RETURNING id INTO req;
     IF req IS NOT NULL THEN

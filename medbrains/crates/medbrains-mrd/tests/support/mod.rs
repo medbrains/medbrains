@@ -10,9 +10,12 @@
 
 use std::sync::Arc;
 
+use chrono::NaiveDate;
 use jsonwebtoken::{DecodingKey, EncodingKey};
 use medbrains_authz::backend_test::InMemoryBackend;
 use medbrains_core::permissions;
+use medbrains_mrd::file_requests::pull_list;
+use medbrains_mrd::file_requests::scan::{ScanRequest, ScanStep, scan_file_request};
 use medbrains_server_core::middleware::auth::Claims;
 use medbrains_server_core::state::{AppState, CookieConfig};
 use sqlx::PgPool;
@@ -250,4 +253,107 @@ pub(crate) async fn requests_for(
     .unwrap();
     tx.commit().await.unwrap();
     rows
+}
+
+/// Scan the world's file for request `id` at `step`, as its runner.
+pub(crate) async fn scan(db: &PgPool, w: &World, id: Uuid, step: ScanStep) -> String {
+    let axum::Json(row) = scan_file_request(
+        axum::extract::State(state(db.clone())),
+        axum::Extension(w.claims.clone()),
+        axum::extract::Path(id),
+        axum::Json(ScanRequest {
+            barcode: w.record_number.clone(),
+            step,
+        }),
+    )
+    .await
+    .unwrap();
+    row.status
+}
+
+/// The hospital's date `offset_days` from its own today.
+pub(crate) async fn hospital_day(db: &PgPool, w: &World, offset_days: i64) -> NaiveDate {
+    let today = medbrains_server_core::hospital_time::tenant_local_today(db, w.claims.tenant_id)
+        .await
+        .unwrap();
+    today + chrono::Duration::days(offset_days)
+}
+
+/// The database's `CURRENT_DATE + 1`, the day the older visit helpers use.
+pub(crate) async fn tomorrow(db: &PgPool) -> NaiveDate {
+    sqlx::query_scalar("SELECT CURRENT_DATE + 1")
+        .fetch_one(db)
+        .await
+        .unwrap()
+}
+
+/// A doctor in the world's hospital.
+pub(crate) async fn doctor(db: &PgPool, w: &World) -> Uuid {
+    let tag = Uuid::new_v4().simple().to_string()[..10].to_owned();
+    let mut tx = scoped(db, w.claims.tenant_id).await;
+    let id = sqlx::query_scalar(
+        "INSERT INTO users (tenant_id, username, email, full_name, role) \
+         VALUES ($1, $2, $3, $4, 'doctor') RETURNING id",
+    )
+    .bind(w.claims.tenant_id)
+    .bind(format!("mf{tag}"))
+    .bind(format!("mf{tag}@mrd.test"))
+    .bind(format!("Dr {tag}"))
+    .fetch_one(&mut *tx)
+    .await
+    .unwrap();
+    tx.commit().await.unwrap();
+    id
+}
+
+/// A booked appointment on `day` at `slot` for the world's patient with `doctor`.
+pub(crate) async fn appointment(
+    db: &PgPool,
+    w: &World,
+    doctor: Uuid,
+    (day, slot): (NaiveDate, &str),
+) -> Uuid {
+    let mut tx = scoped(db, w.claims.tenant_id).await;
+    let id = sqlx::query_scalar(
+        "INSERT INTO appointments (tenant_id, patient_id, doctor_id, department_id, \
+                                   appointment_date, slot_start, slot_end, created_by) \
+         VALUES ($1, $2, $3, $4, $5, $6::time, $6::time + interval '15 min', $3) \
+         RETURNING id",
+    )
+    .bind(w.claims.tenant_id)
+    .bind(w.patient)
+    .bind(doctor)
+    .bind(w.department)
+    .bind(day)
+    .bind(slot)
+    .fetch_one(&mut *tx)
+    .await
+    .unwrap();
+    tx.commit().await.unwrap();
+    id
+}
+
+/// The pre-pulled request for `appt`: `(id, status, encounter)`.
+pub(crate) async fn pulled(db: &PgPool, w: &World, appt: Uuid) -> (Uuid, String, Option<Uuid>) {
+    let mut tx = scoped(db, w.claims.tenant_id).await;
+    let row = sqlx::query_as(
+        "SELECT id, status, encounter_id FROM mrd_file_requests \
+          WHERE appointment_id = $1 AND status <> 'cancelled'",
+    )
+    .bind(appt)
+    .fetch_one(&mut *tx)
+    .await
+    .unwrap();
+    tx.commit().await.unwrap();
+    row
+}
+
+/// Write the pull list for `day` for the world's hospital; returns the rows written.
+pub(crate) async fn pull(db: &PgPool, w: &World, day: NaiveDate) -> u64 {
+    let mut tx = scoped(db, w.claims.tenant_id).await;
+    let n = pull_list::generate(&mut tx, w.claims.tenant_id, day, None)
+        .await
+        .unwrap();
+    tx.commit().await.unwrap();
+    n
 }

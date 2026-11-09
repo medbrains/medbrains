@@ -7491,6 +7491,7 @@ dependencies = [
  "medbrains-db-topology",
  "medbrains-kernel",
  "medbrains-notifications",
+ "medbrains-opd",
  "medbrains-outbox",
  "medbrains-platform",
  "medbrains-server-core",
