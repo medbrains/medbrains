@@ -3,6 +3,12 @@
   "private": true,
   "version": "1.0.0",
   "type": "module",
+  "sideEffects": [
+    "*.css",
+    "*.scss",
+    "./src/i18n.ts",
+    "./src/main.tsx"
+  ],
   "scripts": {
     "dev": "vite",
     "gen:crabs": "node scripts/build-crab-lottie.mjs",
