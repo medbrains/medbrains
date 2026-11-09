@@ -90,7 +90,7 @@ medbrains-marketing not_yet 131 medbrains-db
 medbrains-materials not_yet 154 medbrains-db,medbrains-authz
 medbrains-mfa not_yet 10 medbrains-db
 medbrains-microsite not_yet 32 medbrains-db,medbrains-authz-gate
-medbrains-mrd not_yet 78 medbrains-db,medbrains-authz-gate
+medbrains-mrd partial 78 medbrains-db,medbrains-authz-gate
 medbrains-nabh not_yet 0 -
 medbrains-news not_yet 11 medbrains-db
 medbrains-nhcx-callback not_yet 22 medbrains-db,medbrains-authz-gate
