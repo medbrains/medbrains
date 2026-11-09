@@ -33,6 +33,7 @@ const WEEKDAY_SAMPLES: i64 = 4;
 const WEEK_DAYS: i64 = 7;
 
 mod catalog;
+mod file_delivery;
 
 pub use catalog::Better;
 use catalog::{Shape, kpi};
