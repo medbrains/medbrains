@@ -20,13 +20,28 @@ use uuid::Uuid;
 const KEY: &[u8] = b"trial-export-test-server-key-000";
 
 /// What the planted participants are called and numbered; none may leave.
-const IDENTIFIERS: [&str; 6] = [
+const IDENTIFIERS: [&str; 9] = [
     "Kavitha",
     "Ramanathan",
     "UHID-TX",
     "+9198450",
     "Aadhaar",
     "Anna Nagar",
+    "@example.in",
+    "@sbx",
+    "KR-778",
+];
+
+/// Adverse-event terms the second participant's coordinator typed, each naming
+/// them by one identifier; every one must be redacted.
+const NAMING_TERMS: [&str; 7] = [
+    "Kavitha2 fainted",        // first name
+    "Devi2 dizzy",             // middle name
+    "Rash, ref 0122",          // masked Aadhaar's last four
+    "call 98450 22002",        // second phone
+    "mail kavi2.r@example.in", // email
+    "abha kr77822290",         // ABHA id
+    "linked KAVITHA2.R@SBX",   // ABHA address
 ];
 
 /// A hospital, a trial coordinator, a trial and two consented, visited,
@@ -52,11 +67,15 @@ fn plant(t: Uuid, user: Uuid, trial: Uuid) -> String {
             ("Week 4 kavitha2".to_owned(), format!("R-uhid-tx-{code}-2"))
         };
         sql.push_str(&format!(
-            "INSERT INTO patients (id, tenant_id, uhid, first_name, last_name, gender, phone,
-                date_of_birth, address, attributes)
-             VALUES ('{p}', '{t}', 'UHID-TX-{code}-{i}', 'Kavitha{i}', 'Ramanathan', 'female',
-                '+91984501120{i}', '1980-06-01', '{{\"line1\": \"Anna Nagar\"}}',
-                '{{\"Aadhaar\": \"2345 6789 012{i}\"}}');
+            "INSERT INTO patients (id, tenant_id, uhid, first_name, middle_name, last_name, gender,
+                phone, phone_secondary, email, abha_id, abha_address, date_of_birth, address,
+                attributes)
+             VALUES ('{p}', '{t}', 'UHID-TX-{code}-{i}', 'Kavitha{i}', 'Devi{i}', 'Ramanathan',
+                'female', '+91984501120{i}', '+91984502200{i}', 'kavi{i}.r@example.in',
+                'KR-778{i}-2290', 'kavitha{i}.r@sbx', '1980-06-01',
+                '{{\"line1\": \"Anna Nagar\"}}', '{{\"Aadhaar\": \"2345 6789 012{i}\"}}');
+             INSERT INTO patient_identifiers (tenant_id, patient_id, id_type, id_number)
+               VALUES ('{t}', '{p}', 'aadhaar', 'XXXX-XXXX-012{i}');
              INSERT INTO consent_records (tenant_id, patient_id, consent_type, created_by, trial_id,
                 signed_by_patient, patient_signed_at)
                VALUES ('{t}', '{p}', 'research', '{user}', '{trial}', true, now());
@@ -71,6 +90,13 @@ fn plant(t: Uuid, user: Uuid, trial: Uuid) -> String {
                     description)
                  VALUES ('{t}', '{trial}', '{p}', 'Myalgia', 'Kavitha1 Ramanathan, UHID-TX');"
             ));
+        } else {
+            for term in NAMING_TERMS {
+                sql.push_str(&format!(
+                    "INSERT INTO trial_adverse_events (tenant_id, trial_id, patient_id, event_term)
+                     VALUES ('{t}', '{trial}', '{p}', '{term}');"
+                ));
+            }
         }
     }
     sql.push_str("SET session_replication_role = origin;");
@@ -156,6 +182,16 @@ async fn an_export_names_subjects_only_by_key_and_is_audited() {
     assert_eq!(bundle.subject_count, 2);
     assert!(json.contains("R-001"), "the trial's own numbers go out");
     assert!(json.contains("Myalgia"), "the event term goes out");
+    let terms: Vec<&str> = bundle
+        .adverse_events
+        .iter()
+        .map(|e| e.row.event_term.as_str())
+        .collect();
+    assert_eq!(
+        terms.iter().filter(|t| **t == REDACTED).count(),
+        NAMING_TERMS.len(),
+        "every event term naming its participant is redacted: {terms:?}"
+    );
     assert!(
         !json.to_lowercase().contains("statin"),
         "a blinded arm stays concealed: {json}"

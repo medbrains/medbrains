@@ -5865,12 +5865,14 @@ dependencies = [
  "medbrains-authz-gate",
  "medbrains-core",
  "medbrains-db",
+ "medbrains-db-migrations",
  "medbrains-server-core",
  "rust_decimal",
  "schemars 1.2.3",
  "serde",
  "serde_json",
  "sqlx",
+ "tokio",
  "uuid",
 ]
 

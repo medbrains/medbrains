@@ -756,9 +756,13 @@ pub struct RandomizeRequest {
     pub randomization_code: Option<String>,
 }
 
-/// 400 when `code` contains the patient's UHID. The code goes to the sponsor,
-/// so it must be the trial's own number, not the hospital's id for the person.
-async fn refuse_code_with_uhid(
+/// 400 when `code` contains the patient's UHID.
+///
+/// The code goes to the sponsor, so it must be the trial's own number, not the
+/// hospital's id for the person. Both sides are compared as lowercase letters
+/// and digits only, so `UHID 00042` and `uhid_00042` are caught as
+/// `UHID-00042`; the bare number alone is not.
+pub async fn refuse_code_with_uhid(
     tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
     patient_id: Uuid,
     code: Option<&str>,
@@ -767,8 +771,9 @@ async fn refuse_code_with_uhid(
         return Ok(());
     };
     let has_uhid: Option<bool> = sqlx::query_scalar(
-        "SELECT strpos(lower($2), lower(uhid)) > 0 FROM patients \
-         WHERE id = $1 AND btrim(uhid) <> ''",
+        "SELECT strpos(regexp_replace(lower($2), '[^a-z0-9]', '', 'g'), u) > 0 \
+         FROM patients, regexp_replace(lower(uhid), '[^a-z0-9]', '', 'g') AS u \
+         WHERE id = $1 AND u <> ''",
     )
     .bind(patient_id)
     .bind(code)

@@ -344,7 +344,8 @@ async fn trial_and_salt(
 /// check its typed text against; all NULL if the patient cannot be read.
 macro_rules! person {
     () => {
-        "p.uhid, p.first_name, p.last_name, p.phone, p.abha_number, \
+        "p.uhid, p.first_name, p.middle_name, p.last_name, p.phone, p.phone_secondary, \
+         p.email, p.abha_number, p.abha_id, p.abha_address, \
          ARRAY(SELECT right(regexp_replace(pi.id_number, '\\D', '', 'g'), 4) \
                FROM patient_identifiers pi WHERE pi.tenant_id = x.tenant_id \
                AND pi.patient_id = x.patient_id AND pi.id_type = 'aadhaar' \
