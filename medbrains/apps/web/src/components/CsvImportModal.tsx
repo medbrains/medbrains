@@ -12,7 +12,12 @@ import {
   Text,
 } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
-import type { CsvImportRequest, CsvImportResult } from "@medbrains/types";
+import type {
+  CsvImportRequest,
+  CsvImportResult,
+  ImportedPassword,
+  UserImportResult,
+} from "@medbrains/types";
 import { IconAlertCircle, IconCheck, IconDownload, IconFileUpload } from "@tabler/icons-react";
 import { useCallback, useState } from "react";
 
@@ -22,7 +27,7 @@ interface Props {
   title: string;
   requiredColumns: string[];
   optionalColumns?: string[];
-  onImport: (data: CsvImportRequest) => Promise<CsvImportResult>;
+  onImport: (data: CsvImportRequest) => Promise<CsvImportResult | UserImportResult>;
   /** Rows per background batch. Large files stream in chunks so the UI stays responsive. */
   chunkSize?: number;
 }
@@ -59,6 +64,7 @@ export function CsvImportModal({
   const [parsed, setParsed] = useState<{ headers: string[]; rows: string[][] } | null>(null);
   const [importing, setImporting] = useState(false);
   const [result, setResult] = useState<CsvImportResult | null>(null);
+  const [passwords, setPasswords] = useState<ImportedPassword[]>([]);
   const [parseError, setParseError] = useState<string | null>(null);
   const [processed, setProcessed] = useState(0);
 
@@ -104,6 +110,7 @@ export function CsvImportModal({
     setImporting(true);
     setProcessed(0);
     const agg: CsvImportResult = { imported: 0, skipped: 0, errors: [] };
+    const issued: ImportedPassword[] = [];
     try {
       // Stream rows to the server in chunks so very large files report real
       // progress and never block the UI thread on one giant request.
@@ -116,10 +123,12 @@ export function CsvImportModal({
         agg.imported += res.imported;
         agg.skipped += res.skipped;
         agg.errors.push(...res.errors);
+        if ("one_time_passwords" in res) issued.push(...res.one_time_passwords);
         setProcessed(Math.min(start + slice.length, total));
         await nextFrame();
       }
       setResult(agg);
+      setPasswords(issued);
       if (agg.imported > 0) {
         notifications.show({
           title: "Import successful",
@@ -153,6 +162,7 @@ export function CsvImportModal({
     setFile(null);
     setParsed(null);
     setResult(null);
+    setPasswords([]);
     setParseError(null);
     setProcessed(0);
     onClose();
@@ -275,6 +285,33 @@ export function CsvImportModal({
               </ScrollArea>
             )}
           </Alert>
+        )}
+
+        {passwords.length > 0 && (
+          <Stack gap="xs">
+            <Alert color="warning" icon={<IconAlertCircle size={16} />}>
+              These one-time passwords are shown only now. Give each person theirs; they must choose
+              a new password when they first sign in.
+            </Alert>
+            <ScrollArea h={200}>
+              <Table striped withTableBorder aria-label="One-time passwords">
+                <Table.Thead>
+                  <Table.Tr>
+                    <Table.Th>Username</Table.Th>
+                    <Table.Th>One-time password</Table.Th>
+                  </Table.Tr>
+                </Table.Thead>
+                <Table.Tbody>
+                  {passwords.map((p) => (
+                    <Table.Tr key={p.username}>
+                      <Table.Td>{p.username}</Table.Td>
+                      <Table.Td ff="monospace">{p.password}</Table.Td>
+                    </Table.Tr>
+                  ))}
+                </Table.Tbody>
+              </Table>
+            </ScrollArea>
+          </Stack>
         )}
       </Stack>
     </Modal>

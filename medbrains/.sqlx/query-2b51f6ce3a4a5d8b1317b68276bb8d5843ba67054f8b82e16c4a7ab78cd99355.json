@@ -1,0 +1,20 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO users (id, tenant_id, username, full_name, email, password_hash, role, must_change_password) VALUES ($1, $2, $3, $4, $5, $6, $7::text::user_role, true) ON CONFLICT (tenant_id, username) DO NOTHING",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Text",
+        "Text",
+        "Text",
+        "Text",
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "2b51f6ce3a4a5d8b1317b68276bb8d5843ba67054f8b82e16c4a7ab78cd99355"
+}

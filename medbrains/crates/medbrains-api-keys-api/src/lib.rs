@@ -30,7 +30,7 @@ use chrono::{DateTime, Duration, Utc};
 use medbrains_core::permissions;
 use medbrains_server_core::{
     error::AppError,
-    middleware::{auth::Claims, authorization::is_bypass_role, authorization::require_permission},
+    middleware::{auth::Claims, authorization::require_permission},
     state::AppState,
 };
 use serde::{Deserialize, Serialize};
@@ -117,23 +117,12 @@ pub struct KeySummary {
 /// What they still cannot do is put a wildcard or a bypass role on a key;
 /// `mint` refuses those regardless of who is asking.
 fn refuse_escalation(claims: &Claims, requested: &[String]) -> Result<(), AppError> {
-    if is_bypass_role(claims) {
-        return Ok(());
-    }
-    let mut missing: Vec<&str> = requested
-        .iter()
-        .map(String::as_str)
-        .filter(|code| !claims.permissions.iter().any(|held| held == code))
-        .collect();
-
-    if missing.is_empty() {
-        return Ok(());
-    }
-    missing.sort_unstable();
-    Err(AppError::ForbiddenReason(format!(
-        "You cannot grant a key permissions you do not hold yourself: {}.",
-        missing.join(", ")
-    )))
+    medbrains_server_core::permissions::refuse_escalation(
+        claims,
+        &claims.permissions,
+        requested,
+        "a key",
+    )
 }
 
 /// The longest name slug that still fits `svc_<slug>_<8-char id>` in 30.

@@ -92,6 +92,9 @@ pub async fn create(
     if !USER_ROLES.contains(&role) {
         return Err(AppError::BadRequest(format!("Unknown role '{role}'")));
     }
+    // An invitation gives its role on acceptance, so it is a grant now.
+    medbrains_server_core::permissions::refuse_roles_beyond_own(&state.db, &claims, &[role])
+        .await?;
 
     let mut buf = [0u8; 32];
     getrandom::fill(&mut buf).map_err(|e| AppError::Internal(format!("rng: {e}")))?;

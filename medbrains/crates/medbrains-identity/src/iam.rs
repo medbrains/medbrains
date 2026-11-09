@@ -274,6 +274,13 @@ pub async fn approve_access_request(
         ));
     }
     validate_review_authority(&claims, &row)?;
+    medbrains_server_core::permissions::refuse_escalation_now(
+        &state.db,
+        &claims,
+        &row.requested_permissions,
+        "a temporary grant",
+    )
+    .await?;
 
     let access_matrix = sqlx::query_scalar::<_, Value>(
         "SELECT access_matrix FROM users WHERE id = $1 AND tenant_id = $2",

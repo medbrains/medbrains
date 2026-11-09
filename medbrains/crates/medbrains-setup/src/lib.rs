@@ -1,4 +1,5 @@
 use argon2::{Argon2, PasswordHasher};
+mod grants;
 pub mod workbook;
 use axum::routing::{delete, get, post, put};
 use axum::{
@@ -17,9 +18,12 @@ use uuid::Uuid;
 
 use medbrains_server_core::error::AppError;
 use medbrains_server_core::middleware::auth::Claims;
-use medbrains_server_core::middleware::entitlement;
 use medbrains_server_core::middleware::authorization::{
     is_bypass_role, require_any_permission, require_permission,
+};
+use medbrains_server_core::middleware::entitlement;
+use medbrains_server_core::permissions::{
+    refuse_bypass_role, refuse_escalation_now, refuse_roles_beyond_own, refuse_self_change,
 };
 use medbrains_server_core::settings_guard::refuse_own_endpoint_category;
 use medbrains_server_core::state::AppState;
@@ -1130,6 +1134,8 @@ pub async fn create_role(
     if errors.has_errors() {
         return Err(AppError::ValidationFailed(errors));
     }
+    let granted = grants::codes_in(body.permissions.as_ref());
+    refuse_escalation_now(&state.db, &claims, &granted, "a role").await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -1368,6 +1374,12 @@ pub async fn create_user(
         .clone()
         .unwrap_or_else(|| serde_json::json!({}));
 
+    // The new account's role, extras and groups are all codes this caller gives.
+    refuse_roles_beyond_own(&state.db, &claims, &[body.role.as_str()]).await?;
+    let mut granted = grants::codes_in(access_matrix.get("extra"));
+    granted.extend(grants::group_codes(&mut tx, claims.tenant_id, group_ids).await?);
+    refuse_escalation_now(&state.db, &claims, &granted, "a new user").await?;
+
     let row = sqlx::query_as::<_, SetupUserRow>(
         "INSERT INTO users \
          (tenant_id, username, email, password_hash, full_name, role, \
@@ -1474,6 +1486,14 @@ pub async fn update_user(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
+
+    if let Some(role) = body.role.as_deref() {
+        let current = grants::user_role(&mut tx, claims.tenant_id, id).await?;
+        if current.as_deref() != Some(role) {
+            refuse_self_change(&claims, id)?;
+            refuse_roles_beyond_own(&state.db, &claims, &[role]).await?;
+        }
+    }
 
     let fee = body
         .consultation_fee
@@ -1600,6 +1620,21 @@ pub struct AdminResetPasswordRequest {
     pub new_password: Option<String>,
 }
 
+/// A random one-time password for an account an administrator sets up.
+///
+/// Twelve characters from an unambiguous alphabet, because these get read out
+/// loud. The account it goes on must carry `must_change_password`.
+fn temporary_password() -> Result<String, AppError> {
+    const ALPHABET: &[u8] = b"abcdefghjkmnpqrstuvwxyzABCDEFGHJKMNPQRSTUVWXYZ23456789";
+    let mut buf = [0u8; 12];
+    getrandom::fill(&mut buf)
+        .map_err(|e| AppError::Internal(format!("password generation failed: {e}")))?;
+    Ok(buf
+        .iter()
+        .map(|b| ALPHABET[usize::from(*b) % ALPHABET.len()] as char)
+        .collect())
+}
+
 /// Admin-mediated reset — the offline path (no SMS/email dependency).
 /// The account is flagged must_change_password so the temporary
 /// credential cannot be kept.
@@ -1610,6 +1645,7 @@ pub async fn reset_user_password(
     Json(body): Json<AdminResetPasswordRequest>,
 ) -> Result<Json<Value>, AppError> {
     require_permission(&claims, permissions::admin::users::UPDATE)?;
+    refuse_self_change(&claims, id)?;
 
     let (password, generated) = match body.new_password {
         Some(provided) => {
@@ -1620,18 +1656,7 @@ pub async fn reset_user_password(
             }
             (provided, false)
         }
-        None => {
-            let mut buf = [0u8; 12];
-            getrandom::fill(&mut buf)
-                .map_err(|e| AppError::Internal(format!("password generation failed: {e}")))?;
-            // Unambiguous alphabet — temp passwords get read out loud.
-            const ALPHABET: &[u8] = b"abcdefghjkmnpqrstuvwxyzABCDEFGHJKMNPQRSTUVWXYZ23456789";
-            let password: String = buf
-                .iter()
-                .map(|b| ALPHABET[usize::from(*b) % ALPHABET.len()] as char)
-                .collect();
-            (password, true)
-        }
+        None => (temporary_password()?, true),
     };
 
     let password_hash = Argon2::default()
@@ -1642,6 +1667,10 @@ pub async fn reset_user_password(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
+    if let Some(role) = grants::user_role(&mut tx, claims.tenant_id, id).await? {
+        // Resetting an administrator's password is signing in as them.
+        refuse_bypass_role(&claims, &role)?;
+    }
 
     let updated = sqlx::query(
         "UPDATE users SET password_hash = $1, must_change_password = true, \
@@ -1728,6 +1757,11 @@ pub async fn update_role(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
+    if body.permissions.is_some() {
+        let old = grants::role_codes_by_id(&mut tx, claims.tenant_id, id).await?;
+        let new = grants::codes_in(body.permissions.as_ref());
+        refuse_escalation_now(&state.db, &claims, &grants::added(&old, &new), "a role").await?;
+    }
 
     let row = sqlx::query_as::<_, CustomRole>(
         "UPDATE roles SET code = $1, name = $2, description = $3, \
@@ -1787,6 +1821,10 @@ pub async fn update_role_permissions(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
+
+    let old = grants::role_codes_by_id(&mut tx, claims.tenant_id, id).await?;
+    let granted = grants::added(&old, &body.permissions);
+    refuse_escalation_now(&state.db, &claims, &granted, "a role").await?;
 
     // Store permissions as a JSON array
     let perms_json = Value::Array(
@@ -1870,6 +1908,7 @@ pub async fn update_user_access_matrix(
     Json(body): Json<UpdateUserAccessMatrixRequest>,
 ) -> Result<Json<Value>, AppError> {
     require_permission(&claims, permissions::admin::users::UPDATE)?;
+    refuse_self_change(&claims, id)?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
@@ -1882,6 +1921,13 @@ pub async fn update_user_access_matrix(
     .fetch_optional(&mut *tx)
     .await?
     .ok_or(AppError::NotFound)?;
+
+    // An added extra grants a code; so does lifting a denial.
+    let old_extra = grants::codes_in(existing_matrix.get("extra"));
+    let old_denied = grants::codes_in(existing_matrix.get("denied"));
+    let mut granted = grants::added(&old_extra, &body.extra_permissions);
+    granted.extend(grants::added(&body.denied_permissions, &old_denied));
+    refuse_escalation_now(&state.db, &claims, &granted, "a user").await?;
 
     let mut matrix = serde_json::json!({
         "extra": body.extra_permissions,
@@ -2069,7 +2115,11 @@ pub async fn update_module(
     let turning_on = body.status == "enabled";
     let blockers = entitlement::switch_blockers(&code, turning_on, &by_code);
     if !blockers.is_empty() {
-        let why = if turning_on { "it needs" } else { "they need it" };
+        let why = if turning_on {
+            "it needs"
+        } else {
+            "they need it"
+        };
         return Err(AppError::Conflict(format!(
             "{} cannot be switched {}: {why} — {}",
             medbrains_core::bricks::find(&code).map_or(code.as_str(), |b| b.name),
@@ -2842,7 +2892,6 @@ pub struct SettingsQuery {
 /// `email` holds the SMTP credentials, and the other three describe how the
 /// hospital is defended and how long it keeps things.
 const SENSITIVE_SETTING_CATEGORIES: &[&str] = &["email", "security", "retention", "integrations"];
-
 
 pub async fn get_settings(
     State(state): State<AppState>,
@@ -4590,106 +4639,175 @@ pub async fn import_departments(
 
 // ── POST /api/setup/users/import ────────────────────────────
 
-pub async fn import_users(
-    State(state): State<AppState>,
-    Extension(claims): Extension<Claims>,
-    Json(body): Json<CsvImportRequest>,
-) -> Result<Json<CsvImportResult>, AppError> {
-    require_permission(&claims, permissions::admin::users::CREATE)?;
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
-        .await?;
+/// What a user import did, with each new account's one-time password.
+#[derive(Debug, Serialize)]
+pub struct UserImportResult {
+    pub imported: i64,
+    pub skipped: i64,
+    pub errors: Vec<String>,
+    /// Returned this once for the administrator to hand out; never logged,
+    /// never stored in clear. Every imported account must change it at first
+    /// sign-in.
+    pub one_time_passwords: Vec<ImportedPassword>,
+}
 
-    let col_idx = |name: &str| -> Option<usize> {
+/// One imported account's one-time password.
+#[derive(Debug, Serialize)]
+pub struct ImportedPassword {
+    pub username: String,
+    pub password: String,
+}
+
+/// One CSV row as the import reads it.
+struct ImportRow<'a> {
+    row_num: usize,
+    username: &'a str,
+    full_name: &'a str,
+    email: &'a str,
+    password: Option<&'a str>,
+    role: &'a str,
+}
+
+/// Read the import's rows, recording a reason for each one it cannot use.
+fn read_import_rows<'a>(
+    body: &'a CsvImportRequest,
+    errors: &mut Vec<String>,
+) -> Result<Vec<ImportRow<'a>>, AppError> {
+    let col_idx = |name: &str| {
         body.headers
             .iter()
             .position(|h| h.eq_ignore_ascii_case(name))
     };
+    let required = |name: &str| {
+        col_idx(name)
+            .ok_or_else(|| AppError::BadRequest(format!("CSV must have a '{name}' column")))
+    };
+    let (username_idx, full_name_idx, email_idx) = (
+        required("username")?,
+        required("full_name")?,
+        required("email")?,
+    );
+    let (password_idx, role_idx) = (col_idx("password"), col_idx("role"));
+    let cell = |values: &'a [String], idx: Option<usize>| {
+        idx.and_then(|i| values.get(i))
+            .map(|v| v.trim())
+            .filter(|v| !v.is_empty())
+    };
 
-    let username_idx = col_idx("username")
-        .ok_or_else(|| AppError::BadRequest("CSV must have a 'username' column".to_string()))?;
-    let full_name_idx = col_idx("full_name")
-        .ok_or_else(|| AppError::BadRequest("CSV must have a 'full_name' column".to_string()))?;
-    let email_idx = col_idx("email")
-        .ok_or_else(|| AppError::BadRequest("CSV must have an 'email' column".to_string()))?;
-    let password_idx = col_idx("password");
-    let role_idx = col_idx("role");
-
-    let mut imported: i64 = 0;
-    let mut skipped: i64 = 0;
-    let mut errors: Vec<String> = Vec::new();
-
-    let argon2 = Argon2::default();
-
+    let mut rows = Vec::with_capacity(body.rows.len());
     for (i, row) in body.rows.iter().enumerate() {
         let row_num = i + 2;
-        if row.values.len() <= username_idx
-            || row.values.len() <= full_name_idx
-            || row.values.len() <= email_idx
-        {
-            errors.push(format!("Row {row_num}: insufficient columns"));
-            skipped += 1;
-            continue;
-        }
-
-        let username = row.values[username_idx].trim();
-        let full_name = row.values[full_name_idx].trim();
-        let email = row.values[email_idx].trim();
-
-        if username.is_empty() || full_name.is_empty() || email.is_empty() {
+        let values = row.values.as_slice();
+        let (Some(username), Some(full_name), Some(email)) = (
+            cell(values, Some(username_idx)),
+            cell(values, Some(full_name_idx)),
+            cell(values, Some(email_idx)),
+        ) else {
             errors.push(format!(
                 "Row {row_num}: username, full_name, and email are required"
             ));
-            skipped += 1;
             continue;
-        }
+        };
+        rows.push(ImportRow {
+            row_num,
+            username,
+            full_name,
+            email,
+            password: cell(values, password_idx),
+            role: cell(values, role_idx).unwrap_or("receptionist"),
+        });
+    }
+    Ok(rows)
+}
 
-        let password = password_idx
-            .and_then(|idx| row.values.get(idx))
-            .map_or_else(
-                || format!("Welcome@{}", &username),
-                |v| v.trim().to_string(),
-            );
+/// Import staff accounts from CSV.
+///
+/// A row without a password gets a random one-time password, returned once in
+/// the result. A row with one keeps it only if it passes the password rules.
+/// Either way the account must change it at first sign-in: whoever filled the
+/// sheet knows it. The roles in the sheet are grants, so the caller must be
+/// able to give every one of them.
+pub async fn import_users(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Json(body): Json<CsvImportRequest>,
+) -> Result<Json<UserImportResult>, AppError> {
+    require_permission(&claims, permissions::admin::users::CREATE)?;
+    let mut errors: Vec<String> = Vec::new();
+    let rows = read_import_rows(&body, &mut errors)?;
+    let mut skipped = i64::try_from(errors.len()).unwrap_or(i64::MAX);
 
-        let role = role_idx
-            .and_then(|idx| row.values.get(idx))
-            .map_or_else(|| "receptionist".to_string(), |v| v.trim().to_string());
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
+    let mut roles: Vec<&str> = rows.iter().map(|r| r.role).collect();
+    roles.sort_unstable();
+    roles.dedup();
+    refuse_roles_beyond_own(&state.db, &claims, &roles).await?;
 
-        // Hash password
+    let mut imported: i64 = 0;
+    let mut one_time_passwords = Vec::new();
+    let argon2 = Argon2::default();
+    for row in rows {
+        let row_num = row.row_num;
+        let (password, generated) = match row.password {
+            Some(given) => {
+                let mut check = ValidationErrors::new();
+                validation::validate_password(&mut check, "password", given);
+                if check.has_errors() {
+                    errors.push(format!("Row {row_num}: password does not meet the rules"));
+                    skipped += 1;
+                    continue;
+                }
+                (given.to_owned(), false)
+            }
+            None => (temporary_password()?, true),
+        };
         let password_hash = argon2
             .hash_password(password.as_bytes())
             .map_err(|e| AppError::Internal(format!("Row {row_num}: password hash failed: {e}")))?
             .to_string();
 
-        let result = sqlx::query(
-            "INSERT INTO users (id, tenant_id, username, full_name, email, password_hash, role) \
-             VALUES ($1, $2, $3, $4, $5, $6, $7) \
+        let result = sqlx::query!(
+            "INSERT INTO users \
+             (id, tenant_id, username, full_name, email, password_hash, role, must_change_password) \
+             VALUES ($1, $2, $3, $4, $5, $6, $7::text::user_role, true) \
              ON CONFLICT (tenant_id, username) DO NOTHING",
+            Uuid::new_v4(),
+            claims.tenant_id,
+            row.username,
+            row.full_name,
+            row.email,
+            password_hash,
+            row.role,
         )
-        .bind(Uuid::new_v4())
-        .bind(claims.tenant_id)
-        .bind(username)
-        .bind(full_name)
-        .bind(email)
-        .bind(&password_hash)
-        .bind(&role)
         .execute(&mut *tx)
         .await?;
 
         if result.rows_affected() > 0 {
             imported += 1;
+            if generated {
+                one_time_passwords.push(ImportedPassword {
+                    username: row.username.to_owned(),
+                    password,
+                });
+            }
         } else {
             skipped += 1;
-            errors.push(format!("Row {row_num}: duplicate username '{username}'"));
+            errors.push(format!(
+                "Row {row_num}: duplicate username '{}'",
+                row.username
+            ));
         }
     }
 
     tx.commit().await?;
 
-    Ok(Json(CsvImportResult {
+    Ok(Json(UserImportResult {
         imported,
         skipped,
         errors,
+        one_time_passwords,
     }))
 }
 
@@ -5032,6 +5150,10 @@ pub async fn bulk_create_users(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
+    let mut roles: Vec<&str> = body.users.iter().map(|u| u.role.as_str()).collect();
+    roles.sort_unstable();
+    roles.dedup();
+    refuse_roles_beyond_own(&state.db, &claims, &roles).await?;
 
     let mut created: i64 = 0;
     let mut errors: Vec<String> = Vec::new();
@@ -5667,10 +5789,12 @@ pub async fn create_access_group(
     Json(body): Json<UpsertAccessGroupRequest>,
 ) -> Result<Json<AccessGroupRow>, AppError> {
     require_permission(&claims, permissions::admin::users::CREATE)?;
+    let permissions = normalized_permissions_value(body.permissions);
+    let granted = grants::codes_in(Some(&permissions));
+    refuse_escalation_now(&state.db, &claims, &granted, "an access group").await?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
-    let permissions = normalized_permissions_value(body.permissions);
     let row = sqlx::query_as::<_, AccessGroupRow>(
         "INSERT INTO access_groups (tenant_id, code, name, description, permissions, is_active) \
          VALUES ($1, $2, $3, $4, $5, true) \
@@ -5700,6 +5824,11 @@ pub async fn update_access_group(
     let permissions = body
         .permissions
         .map(|permissions| normalized_permissions_value(Some(permissions)));
+    if let Some(new) = &permissions {
+        let old = grants::group_codes(&mut tx, claims.tenant_id, &[id]).await?;
+        let granted = grants::added(&old, &grants::codes_in(Some(new)));
+        refuse_escalation_now(&state.db, &claims, &granted, "an access group").await?;
+    }
     let row = sqlx::query_as::<_, AccessGroupRow>(
         "UPDATE access_groups SET name = $3, description = $4, \
              permissions = COALESCE($5::jsonb, permissions), updated_at = now() \
@@ -5796,9 +5925,12 @@ pub async fn add_access_group_member(
     Json(body): Json<AddAccessGroupMemberRequest>,
 ) -> Result<Json<Value>, AppError> {
     require_permission(&claims, permissions::admin::users::UPDATE)?;
+    refuse_self_change(&claims, body.user_id)?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
+    let granted = grants::group_codes(&mut tx, claims.tenant_id, &[group_id]).await?;
+    refuse_escalation_now(&state.db, &claims, &granted, "a group member").await?;
     let member_write = sqlx::query(
         "INSERT INTO access_group_members (group_id, user_id, tenant_id, expires_at) \
          SELECT $1, $2, $3, $4 \
@@ -5946,6 +6078,7 @@ pub async fn remove_access_group_member(
     Path((group_id, user_id)): Path<(Uuid, Uuid)>,
 ) -> Result<Json<Value>, AppError> {
     require_permission(&claims, permissions::admin::users::UPDATE)?;
+    refuse_self_change(&claims, user_id)?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;

@@ -193,6 +193,7 @@ mod nhcx_conformance_test;
 mod nhcx_eligibility_preauth_test;
 mod nhcx_submit_gate_test;
 mod nhcx_transport_test;
+mod no_self_grant_test;
 mod note_types_seed_test;
 mod notes_notifications_test;
 mod notice_pipelines_test;

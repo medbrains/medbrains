@@ -5,7 +5,6 @@ use axum::extract::rejection::JsonRejection;
 use axum::extract::{Path, State};
 use axum::{Extension, Json};
 use medbrains_core::permissions;
-use medbrains_kernel::authz::is_bypass_role;
 use medbrains_kernel::{Actor, Claims, require_permission};
 use medbrains_server_core::error::AppError;
 use medbrains_server_core::middleware::connected_app::new_client_secret;
@@ -17,21 +16,12 @@ use crate::{IssuedCredentials, RevokeRequest, record};
 /// A person may not let in an app wider than themselves; otherwise
 /// `connected_apps.manage` is a route to every permission in the system.
 fn refuse_escalation(claims: &Claims, granted: &[String]) -> Result<(), AppError> {
-    if is_bypass_role(claims) {
-        return Ok(());
-    }
-    let missing: Vec<&str> = granted
-        .iter()
-        .map(String::as_str)
-        .filter(|code| !claims.permissions.iter().any(|held| held == code))
-        .collect();
-    if missing.is_empty() {
-        return Ok(());
-    }
-    Err(AppError::ForbiddenReason(format!(
-        "You cannot approve an app with permissions you do not hold yourself: {}.",
-        missing.join(", ")
-    )))
+    medbrains_server_core::permissions::refuse_escalation(
+        claims,
+        &claims.permissions,
+        granted,
+        "an app",
+    )
 }
 
 pub(crate) async fn approve(
