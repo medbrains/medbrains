@@ -119,6 +119,9 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
             permissions::opd::consents::PRINT,
             permissions::opd::consents::REPRINT,
             permissions::opd::consents::REVOKE,
+            // Dictates their own consultation notes; a draft only, reviewed
+            // section by section before it is saved.
+            permissions::opd::dictation::USE,
             // Emergency clinical work
             permissions::emergency::visits::LIST,
             permissions::emergency::visits::UPDATE,
@@ -1320,6 +1323,8 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
         permissions: &[
             // Read-only: security intelligence findings and check health.
             permissions::security::intel::VIEW,
+            // Read-only: what MedBrains staff were allowed and what they did.
+            permissions::security::vendor_access::VIEW,
             // Auditors read knowledge changes and download their proofs.
             permissions::knowledge::change_sets::LIST,
             // Read-only: the privacy pack and its gaps.
@@ -2169,6 +2174,8 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
         name: "Medical Superintendent",
         description: "Clinical head of the hospital — second approver of clinical flow changes",
         permissions: &[
+            // Management is told when the hospital's UPI ID or link terms change.
+            permissions::billing::payment_settings::NOTIFIED,
             // This week vs usual, public notices, heat and air (RFC-OSINT §4).
             permissions::health::intel::VIEW,
             // Clinical flows (discharge, referrals, admission, orders) change
@@ -2180,6 +2187,10 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
             permissions::flows::BUILD,
             permissions::knowledge::change_sets::LIST,
             permissions::knowledge::change_sets::APPROVE,
+            // The clinical head is the second approver before MedBrains staff
+            // see patient data unmasked (docs/compliance/vendor-access.md).
+            permissions::security::vendor_access::VIEW,
+            permissions::security::vendor_access::APPROVE_UNMASKED,
             // Sees who is in discharge from the control room.
             permissions::ipd::admissions::LIST,
             permissions::ipd::admissions::VIEW,
@@ -2197,6 +2208,13 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
             // Security → Intelligence (RFC-OSINT §6).
             permissions::security::intel::VIEW,
             permissions::security::intel::MANAGE,
+            // Gives, approves and ends MedBrains support access. Approving
+            // their own request is refused by the server, so one officer alone
+            // cannot open patient data unmasked.
+            permissions::security::vendor_access::VIEW,
+            permissions::security::vendor_access::GRANT,
+            permissions::security::vendor_access::APPROVE_UNMASKED,
+            permissions::security::vendor_access::REVOKE,
             // Opens and follows incidents raised from findings.
             permissions::security::incidents::LIST,
             permissions::security::incidents::CREATE,

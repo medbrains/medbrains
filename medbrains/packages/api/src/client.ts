@@ -861,6 +861,7 @@ import type {
   CreateUrReviewRequest,
   CreateUserHospitalAssignment,
   CreateVaccinationRequest,
+  CreateVendorAccessGrant,
   CreateVendorRequest,
   CreateVirtualAccountRequest,
   CreateVirtualAccountResponse,
@@ -976,6 +977,7 @@ import type {
   DialysisSession,
   DialysisSlot,
   Dialyzer,
+  DictationConfig,
   DietOrder,
   // Diet & Kitchen
   DietTemplate,
@@ -2071,8 +2073,10 @@ import type {
   ReviewIndwellingDeviceRequest,
   ReviewPharmacyPrescriptionRequest,
   ReviewPostAction,
+  ReviewRequest,
   ReviewRoiInput,
   ReviewStewardshipRequest,
+  ReviewSummary,
   RevokeConsentRequest,
   RevokeCredentialRequest,
   RevokePassRequest,
@@ -2134,6 +2138,7 @@ import type {
   ServiceBondAgreementPrintData,
   ServiceRow,
   ServiceTimeStats,
+  SessionView,
   SetCampusFenceRequest,
   SetDiagnosisCodingRequest,
   SetDonorDeferralRequest,
@@ -2525,6 +2530,8 @@ import type {
   VedAnalysisRow,
   // Procurement
   Vendor,
+  VendorAccessEvent,
+  VendorAccessGrant,
   VendorComparisonRow,
   VendorPerformanceRow,
   VerbalOrderEntry,
@@ -2592,6 +2599,7 @@ import type {
   WoundCertificatePrintData,
   WristbandPrintData,
 } from "@medbrains/types";
+
 import { getApiBase } from "./config.js";
 
 // Re-export type guards for use by consumers
@@ -3401,7 +3409,7 @@ export const api = {
       method: "POST",
       body: JSON.stringify(user_id ? { user_id } : {}),
     }),
-  changePassword: (data: { current_password: string; new_password: string }) =>
+  changePassword: (data: { current_password: string; new_password: string; email?: string }) =>
     request<{ status: string }>("/auth/change-password", {
       method: "POST",
       body: JSON.stringify(data),
@@ -5389,6 +5397,32 @@ export const api = {
     request<Note>(`/clinical-notes/${noteId}/entered-in-error`, {
       method: "POST",
       body: JSON.stringify({ reason }),
+    }),
+
+  // ── AI notes from dictation (RFC-MODULE-ai-dictation) ──
+  /** The recording is the body; the server transcribes it and drafts the note. */
+  createDictation: (
+    encounterId: string,
+    audio: Blob,
+    durationMs: number,
+    source: "recorded" | "uploaded",
+  ) =>
+    request<SessionView>(
+      `/opd/encounters/${encounterId}/dictations?duration_ms=${Math.round(durationMs)}&source=${source}`,
+      { method: "POST", body: audio, headers: { "Content-Type": audio.type || "audio/webm" } },
+    ),
+  retryDictation: (dictationId: string) =>
+    request<SessionView>(`/opd/dictations/${dictationId}/retry`, { method: "POST", body: "{}" }),
+  reviewDictation: (dictationId: string, data: ReviewRequest) =>
+    request<ReviewSummary>(`/opd/dictations/${dictationId}/review`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  getDictationSettings: () => request<DictationConfig>("/admin/dictation/settings"),
+  saveDictationSettings: (data: DictationConfig) =>
+    request<DictationConfig>("/admin/dictation/settings", {
+      method: "PUT",
+      body: JSON.stringify(data),
     }),
 
   // ── Procedure Catalog & Orders ──────────────────────────
@@ -16260,6 +16294,28 @@ export const api = {
     request<FormTemplate>(`/forms/templates/${id}/retire`, { method: "POST" }),
   getLiveForm: (code: string) => request<LiveForm>(`/forms/live/${code}`),
   getFormVersion: (id: string) => request<FormTemplateVersion>(`/forms/versions/${id}`),
+  // ── Security → MedBrains access (vendor support access) ──
+  listVendorAccessGrants: (page = 1) =>
+    request<Paginated<VendorAccessGrant>>(`/security/vendor-access/grants?page=${page}&limit=50`),
+  createVendorAccessGrant: (data: CreateVendorAccessGrant) =>
+    request<VendorAccessGrant>("/security/vendor-access/grants", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  approveVendorAccessGrant: (id: string) =>
+    request<VendorAccessGrant>(`/security/vendor-access/grants/${id}/approve`, {
+      method: "POST",
+      body: JSON.stringify({}),
+    }),
+  revokeVendorAccessGrant: (id: string, reason?: string) =>
+    request<VendorAccessGrant>(`/security/vendor-access/grants/${id}/revoke`, {
+      method: "POST",
+      body: JSON.stringify({ reason }),
+    }),
+  listVendorAccessEvents: (id: string, page = 1) =>
+    request<Paginated<VendorAccessEvent>>(
+      `/security/vendor-access/grants/${id}/events?page=${page}&limit=200`,
+    ),
   listDataProcessors: () => request<DataProcessor[]>("/data-processors"),
   createDataProcessor: (data: DataProcessorInput) =>
     request<DataProcessor>("/data-processors", { method: "POST", body: JSON.stringify(data) }),

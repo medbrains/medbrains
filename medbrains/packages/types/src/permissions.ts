@@ -209,6 +209,10 @@ export const P = {
       DEPARTMENTS_DELETE: "admin.settings.departments.delete",
       DEPARTMENTS_LIST: "admin.settings.departments.list",
       DEPARTMENTS_UPDATE: "admin.settings.departments.update",
+      DICTATION: {
+        MANAGE: "admin.settings.dictation.manage",
+      },
+      DICTATION_MANAGE: "admin.settings.dictation.manage",
       FACILITIES: {
         CREATE: "admin.settings.facilities.create",
         DELETE: "admin.settings.facilities.delete",
@@ -268,6 +272,7 @@ export const P = {
     SETTINGS_DEPARTMENTS_DELETE: "admin.settings.departments.delete",
     SETTINGS_DEPARTMENTS_LIST: "admin.settings.departments.list",
     SETTINGS_DEPARTMENTS_UPDATE: "admin.settings.departments.update",
+    SETTINGS_DICTATION_MANAGE: "admin.settings.dictation.manage",
     SETTINGS_FACILITIES_CREATE: "admin.settings.facilities.create",
     SETTINGS_FACILITIES_DELETE: "admin.settings.facilities.delete",
     SETTINGS_FACILITIES_LIST: "admin.settings.facilities.list",
@@ -610,9 +615,11 @@ export const P = {
     PAYMENTS_VOID: "billing.payments.void",
     PAYMENT_SETTINGS: {
       MANAGE: "billing.payment_settings.manage",
+      NOTIFIED: "billing.payment_settings.notified",
       VIEW: "billing.payment_settings.view",
     },
     PAYMENT_SETTINGS_MANAGE: "billing.payment_settings.manage",
+    PAYMENT_SETTINGS_NOTIFIED: "billing.payment_settings.notified",
     PAYMENT_SETTINGS_VIEW: "billing.payment_settings.view",
     RECEIPTS: {
       PRINT: "billing.receipts.print",
@@ -2364,6 +2371,10 @@ export const P = {
     DIAGNOSES_DELETE: "opd.diagnoses.delete",
     DIAGNOSES_LIST: "opd.diagnoses.list",
     DIAGNOSES_UPDATE: "opd.diagnoses.update",
+    DICTATION: {
+      USE: "opd.dictation.use",
+    },
+    DICTATION_USE: "opd.dictation.use",
     FEEDBACK: {
       CREATE: "opd.feedback.create",
       LIST: "opd.feedback.list",
@@ -3176,6 +3187,16 @@ export const P = {
     PATIENT_SAFETY_MANAGE: "security.patient_safety.manage",
     PATIENT_SAFETY_REPORT_EVENT: "security.patient_safety.report_event",
     PATIENT_SAFETY_VERIFY_MATCH: "security.patient_safety.verify_match",
+    VENDOR_ACCESS: {
+      APPROVE_UNMASKED: "security.vendor_access.approve_unmasked",
+      GRANT: "security.vendor_access.grant",
+      REVOKE: "security.vendor_access.revoke",
+      VIEW: "security.vendor_access.view",
+    },
+    VENDOR_ACCESS_APPROVE_UNMASKED: "security.vendor_access.approve_unmasked",
+    VENDOR_ACCESS_GRANT: "security.vendor_access.grant",
+    VENDOR_ACCESS_REVOKE: "security.vendor_access.revoke",
+    VENDOR_ACCESS_VIEW: "security.vendor_access.view",
   },
   SPECIALTY: {
     CATH_LAB: {

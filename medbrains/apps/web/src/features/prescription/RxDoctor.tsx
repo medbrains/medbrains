@@ -16,6 +16,7 @@ import {
   IconAlertTriangle,
   IconCheck,
   IconExclamationCircle,
+  IconMicrophone,
   IconRepeat,
   IconShieldCheck,
   IconTemplate,
@@ -106,6 +107,8 @@ interface Props {
   onSaveTemplate: (name: string, items: RxItem[]) => void;
   /** The patient's last prescription from another visit, if any. */
   lastRx?: LastPrescription | null;
+  /** Medicines the doctor accepted from a dictation, waiting to be loaded. */
+  dictated?: { items: RxItem[]; waiting: string[]; onLoaded: () => void } | null;
   /** Digital-sign control rendered in the card footer (provided when a saved Rx exists). */
   signAction?: ReactNode;
   /** Catalog ids already prescribed on this visit — warns (doesn't block) on re-add. */
@@ -134,6 +137,7 @@ export function RxDoctor({
   templateToItems,
   onSaveTemplate,
   lastRx,
+  dictated,
   signAction,
   priorDrugIds,
   onItemsChange,
@@ -230,6 +234,19 @@ export function RxDoctor({
       });
     }
   };
+  /** Load the dictated lines onto the pad, saying which still need a drug picked. */
+  const loadDictated = () => {
+    if (!dictated) return;
+    loadItems(dictated.items);
+    if (dictated.waiting.length > 0) {
+      notifications.show({
+        title: "Not in the formulary",
+        message: `Pick the drug above for: ${dictated.waiting.join(", ")}`,
+        color: "yellow",
+      });
+    }
+    dictated.onLoaded();
+  };
   const saveTemplate = () => {
     if (!setName.trim()) return;
     onSaveTemplate(setName.trim(), items);
@@ -325,6 +342,15 @@ export function RxDoctor({
                 {reviewCount ? reviewCount : "clear"}
               </span>
             </Button>
+            {dictated && dictated.items.length > 0 && (
+              <Button
+                tone="accent"
+                leftSection={<IconMicrophone size={15} aria-hidden />}
+                onClick={loadDictated}
+              >
+                Add dictated medicines ({dictated.items.length})
+              </Button>
+            )}
             {lastRx && lastRx.items.length > 0 && (
               <Button
                 tone="ghost"

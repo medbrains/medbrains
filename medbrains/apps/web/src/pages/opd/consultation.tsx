@@ -13,6 +13,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { useClinicalEmit } from "@/components";
 import { CaseSheet } from "@/components/Clinical/case-sheet/CaseSheet";
+import { DictationPanel } from "@/components/Clinical/dictation/DictationPanel";
 import { SoapTimeline } from "@/components/Clinical/SoapTimeline";
 import { VisitFilePanel } from "@/components/Mrd/file-requests/VisitFilePanel";
 import { toast } from "@/components/ui";
@@ -102,6 +103,8 @@ export function ConsultationTab({
           maw={400}
         />
       )}
+      {/* Dictation drafts into the doctor's note; they review before it is saved. */}
+      <DictationPanel encounterId={encounterId} notes={notes} />
       <CaseSheet encounterId={encounterId} />
       {soapAccess !== "hidden" && (
         <SoapTimeline

@@ -1023,12 +1023,24 @@ pub async fn me(
         return Err(AppError::NotFound);
     };
 
-    let permissions = resolve_permissions(&state.db, row.tenant_id, row.id, &row.role).await?;
-
-    let field_access = field_access_to_wire(
-        field_access::resolve_restricted_fields(&state.db, row.tenant_id, row.id, &row.role)
-            .await?,
-    );
+    // A MedBrains account is what its grant makes it this request — the
+    // grant's codes and no bypass — not the role on its row, which would have
+    // the web app draw every screen and the server refuse each one.
+    let is_vendor = claims.role == medbrains_server_core::middleware::vendor_access::VENDOR_ROLE;
+    let (role, permissions, field_access) = if is_vendor {
+        (
+            claims.role.clone(),
+            claims.permissions.clone(),
+            HashMap::new(),
+        )
+    } else {
+        let permissions = resolve_permissions(&state.db, row.tenant_id, row.id, &row.role).await?;
+        let field_access = field_access_to_wire(
+            field_access::resolve_restricted_fields(&state.db, row.tenant_id, row.id, &row.role)
+                .await?,
+        );
+        (row.role.clone(), permissions, field_access)
+    };
 
     let must_change_password = fetch_must_change_password(&state.db, row.tenant_id, row.id).await?;
 
@@ -1049,7 +1061,7 @@ pub async fn me(
             username: row.username,
             email: row.email,
             full_name: row.full_name,
-            role: row.role,
+            role,
             must_change_password,
             email_verified,
         },
@@ -1064,10 +1076,57 @@ pub async fn me(
 
 // ── Change Password ─────────────────────────────────────────
 
+/// The real address the seeded admin must give at first sign-in on a
+/// hospital's own server, checked; `None` when the account needs none.
+///
+/// The hand-over (`docs/compliance/vendor-access.md`): the account seeded as
+/// `admin@medbrains.localhost` becomes the hospital's administrator, so it gets
+/// the hospital's own address — never the placeholder and never a vendor
+/// domain, which would make it a vendor account.
+async fn handed_over_email(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    user_id: Uuid,
+    given: Option<&str>,
+) -> Result<Option<String>, AppError> {
+    let current: Option<String> = sqlx::query_scalar("SELECT email FROM users WHERE id = $1")
+        .bind(user_id)
+        .fetch_optional(&mut **tx)
+        .await?;
+    if !current
+        .as_deref()
+        .is_some_and(medbrains_core::vendor::needs_real_admin_email)
+    {
+        return Ok(None);
+    }
+    let email = given.map(str::trim).unwrap_or_default().to_lowercase();
+    let mut errors = medbrains_server_core::validation::ValidationErrors::new();
+    medbrains_server_core::validation::validate_email(&mut errors, "email", &email);
+    if errors.has_errors() {
+        return Err(AppError::ValidationFailed(errors));
+    }
+    let placeholder = [medbrains_core::vendor::SEED_ADMIN_DOMAIN.to_owned()];
+    if medbrains_core::vendor::email_on_domains(&email, &placeholder)
+        || medbrains_core::vendor::email_on_domains(
+            &email,
+            &medbrains_core::vendor::vendor_domains(),
+        )
+    {
+        return Err(AppError::BadRequest(
+            "Enter the hospital administrator's own email address.".to_owned(),
+        ));
+    }
+    Ok(Some(email))
+}
+
 #[derive(Debug, Deserialize)]
 pub struct ChangePasswordRequest {
     pub current_password: String,
     pub new_password: String,
+    /// A real address for the seeded admin handed to a hospital: required
+    /// while the account still has the `@medbrains.localhost` placeholder on a
+    /// server the hospital runs itself, ignored otherwise.
+    #[serde(default)]
+    pub email: Option<String>,
 }
 
 pub async fn change_password(
@@ -1088,6 +1147,8 @@ pub async fn change_password(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
+
+    let new_email = handed_over_email(&mut tx, claims.sub, body.email.as_deref()).await?;
 
     // Get current hash
     let current_hash =
@@ -1131,6 +1192,13 @@ pub async fn change_password(
         .bind(claims.sub)
         .execute(&mut *tx)
         .await?;
+    if let Some(email) = new_email {
+        sqlx::query("UPDATE users SET email = $1, email_verified = false WHERE id = $2")
+            .bind(email)
+            .bind(claims.sub)
+            .execute(&mut *tx)
+            .await?;
+    }
 
     // Revoke every active refresh token for this user — a password change
     // implies any token previously issued is potentially compromised.

@@ -193,7 +193,7 @@ function BillingTenantSettings() {
         {canViewPayments && (
           <TextInput
             label="UPI ID"
-            description="Payments to this ID go to the hospital's account"
+            description="Payments to this ID go to the hospital's account. Management is told of every change."
             placeholder="e.g. hospital@okaxis"
             defaultValue={upiVpa}
             disabled={!canManagePayments}
