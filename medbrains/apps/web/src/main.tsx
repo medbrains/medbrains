@@ -11,7 +11,7 @@ import { createRoot } from "react-dom/client";
 import { useTranslation } from "react-i18next";
 import { App } from "./App";
 import { EcgLoader } from "./components/EcgLoader";
-import { toast } from "./components/ui";
+import { toast } from "./components/ui/toast";
 import i18n, { RTL_LANGUAGES } from "./i18n";
 import {
   defaultDesktopApiBase,
