@@ -5,7 +5,7 @@
 //!   ∪ active temporary_grants) − access_matrix.denied`.
 
 use chrono::{DateTime, Utc};
-use sqlx::PgPool;
+use sqlx::{PgConnection, PgPool};
 use uuid::Uuid;
 
 use crate::error::AppError;
@@ -20,6 +20,19 @@ pub async fn resolve_permissions(
     role: &str,
 ) -> Result<Vec<String>, AppError> {
     let mut conn = medbrains_db::pool::tenant_conn(db, &tenant_id).await?;
+    resolve_permissions_on(&mut conn, tenant_id, user_id, role).await
+}
+
+/// [`resolve_permissions`] on a connection the caller already holds.
+///
+/// It sees that connection's uncommitted writes, so a sign-in reads the access groups it synced in
+/// its own transaction. The connection must already carry the tenant context.
+pub async fn resolve_permissions_on(
+    conn: &mut PgConnection,
+    tenant_id: Uuid,
+    user_id: Uuid,
+    role: &str,
+) -> Result<Vec<String>, AppError> {
     // Bypass roles don't need permissions in the token
     if role == "super_admin" || role == "hospital_admin" {
         return Ok(Vec::new());
@@ -84,7 +97,8 @@ pub async fn resolve_permissions(
                 if !temporary_grant_is_active(grant) {
                     continue;
                 }
-                if let Some(serde_json::Value::Array(permission_values)) = grant.get("permissions") {
+                if let Some(serde_json::Value::Array(permission_values)) = grant.get("permissions")
+                {
                     for val in permission_values {
                         if let serde_json::Value::String(s) = val {
                             perms.insert(s.clone());

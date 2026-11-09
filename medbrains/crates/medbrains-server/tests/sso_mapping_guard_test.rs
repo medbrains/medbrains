@@ -223,8 +223,11 @@ async fn a_kanidm_sign_in_to_an_administrators_account_needs_the_high_privilege_
     let decide = |user: Uuid, role: &'static str, answer: Result<bool, AppError>| {
         let db = app.db.clone();
         async move {
+            let mut conn = medbrains_db::pool::tenant_conn(&db, &tenant)
+                .await
+                .expect("conn");
             medbrains_sso_login::admin_sign_in_refusal(
-                &db,
+                &mut conn,
                 (tenant, user),
                 role,
                 move || async move { answer },
@@ -252,8 +255,11 @@ async fn a_kanidm_sign_in_to_an_administrators_account_needs_the_high_privilege_
 
     let asked = AtomicBool::new(false);
     let flag = &asked;
+    let mut conn = medbrains_db::pool::tenant_conn(&app.db, &tenant)
+        .await
+        .expect("conn");
     let ordinary = medbrains_sso_login::admin_sign_in_refusal(
-        &app.db,
+        &mut conn,
         (tenant, nurse.user_id),
         "nurse",
         move || async move {
@@ -265,6 +271,52 @@ async fn a_kanidm_sign_in_to_an_administrators_account_needs_the_high_privilege_
     .expect("decision");
     assert_eq!(ordinary, None);
     assert!(!asked.load(Ordering::SeqCst));
+    drop_provider(&app, tenant, made_provider).await;
+}
+
+/// An admin power that arrives through an access group synced by this same sign-in counts on the first
+/// sign-in: the check reads the sign-in's own, still uncommitted, transaction.
+#[tokio::test]
+async fn an_admin_power_synced_by_this_sign_in_is_refused_on_the_first_sign_in() {
+    let app = common::spawn_app().await;
+    let admin_csrf = app.login_admin().await;
+    let (tenant, _, made_provider) = kanidm_provider(&app).await;
+    let nurse = common::provision_staff(&app, &admin_csrf, "nurse", &[]).await;
+    let tag = &Uuid::new_v4().simple().to_string()[..8];
+
+    let mut tx = app.db.begin().await.expect("tx");
+    medbrains_db::pool::set_tenant_context(&mut tx, &tenant)
+        .await
+        .expect("tenant");
+    let group: Uuid = sqlx::query_scalar(
+        "INSERT INTO access_groups (tenant_id, code, name, permissions, is_active) \
+         VALUES ($1, $2, $2, '[\"admin.users.create\"]'::jsonb, true) RETURNING id",
+    )
+    .bind(tenant)
+    .bind(format!("sso_synced_{tag}"))
+    .fetch_one(&mut *tx)
+    .await
+    .expect("group");
+    sqlx::query(
+        "INSERT INTO access_group_members (group_id, user_id, tenant_id) VALUES ($1, $2, $3)",
+    )
+    .bind(group)
+    .bind(nurse.user_id)
+    .bind(tenant)
+    .execute(&mut *tx)
+    .await
+    .expect("member");
+
+    let refused = medbrains_sso_login::admin_sign_in_refusal(
+        &mut tx,
+        (tenant, nurse.user_id),
+        "nurse",
+        || async { Ok(false) },
+    )
+    .await
+    .expect("decision");
+    assert_eq!(refused, Some("/login?sso_error=admin_group"));
+    tx.rollback().await.expect("rollback");
     drop_provider(&app, tenant, made_provider).await;
 }
 

@@ -34,7 +34,7 @@ use medbrains_server_core::{
     middleware::authorization::BYPASS_ROLES,
     middleware::cookies::{build_access_cookie, build_csrf_cookie, build_refresh_cookie},
     os_identity,
-    permissions::resolve_permissions,
+    permissions::resolve_permissions_on,
     state::AppState,
 };
 
@@ -528,7 +528,7 @@ pub async fn oidc_callback(
 
     if provider.code == OS_KANIDM_CODE
         && let Some(target) = admin_sign_in_refusal(
-            &state.db,
+            &mut tx,
             (provider.tenant_id, fed.user_id),
             &fed.role,
             || os_identity::is_high_privilege_person(&identity.subject, &identity.groups),
@@ -623,12 +623,13 @@ pub async fn oidc_callback(
 /// the high-privilege group, or when that cannot be read. Checked at
 /// every sign-in, not only when the account was linked, so a person later dropped from the group, or an
 /// account later made an administrator, does not keep the way in. `is_member` asks Kanidm, and is asked only
-/// for an administrator's account; the callback passes [`os_identity::is_high_privilege_person`].
+/// for an administrator's account; the callback passes [`os_identity::is_high_privilege_person`]. `conn` is
+/// the sign-in's own transaction, so an admin power from an access group this sign-in just synced counts.
 ///
 /// # Errors
 /// When the account's permissions cannot be resolved.
 pub async fn admin_sign_in_refusal<F, Fut>(
-    db: &sqlx::PgPool,
+    conn: &mut sqlx::PgConnection,
     (tenant_id, user_id): (Uuid, Uuid),
     role: &str,
     is_member: F,
@@ -637,9 +638,7 @@ where
     F: FnOnce() -> Fut,
     Fut: Future<Output = Result<bool, AppError>>,
 {
-    // ponytail: permissions are read outside the federation transaction, so a directory-group access group
-    // synced by this same sign-in is not yet counted; only an administrator may map one.
-    let permissions = resolve_permissions(db, tenant_id, user_id, role).await?;
+    let permissions = resolve_permissions_on(conn, tenant_id, user_id, role).await?;
     if !os_identity::needs_high_privilege(role, &permissions) {
         return Ok(None);
     }

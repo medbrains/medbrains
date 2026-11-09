@@ -286,8 +286,9 @@ fn already_linked(error: sqlx::Error) -> AppError {
 
 /// DELETE /api/admin/users/{id}/sso-link — removes the account's link to Kanidm.
 ///
-/// Removing a link is how an account is re-pointed. Audited, and the holder is told. An account with no password of its own (one made by sign-in) cannot sign in afterwards
-/// until it is linked again or given one.
+/// Removing a link is how an account is re-pointed. Audited, and the holder is told. An account
+/// with no password of its own (one made by sign-in) cannot sign in afterwards until it is linked
+/// again or given one.
 pub async fn remove_link(
     Extension(claims): Extension<Claims>,
     State(state): State<AppState>,
