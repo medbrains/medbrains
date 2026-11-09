@@ -395,6 +395,50 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // whose roles table was never populated — or was emptied.
     medbrains_seed::reconcile_built_in_roles(&bootstrap_pool).await?;
 
+    // The live vendor-domain list, then the back-fill. Only a mistake in the
+    // list itself stops the boot: a single label or public suffix, a
+    // hospital's own site domain, or more accounts than the ceiling. One
+    // account never takes every hospital offline: an account whose flag would
+    // leave its hospital with no administrator of its own is skipped (it is
+    // still gated at request time by the domain rule) and logged as an error,
+    // which the error-tracking layer raises to platform operators.
+    let refused = medbrains_core::vendor::configured_refusals();
+    if !refused.is_empty() {
+        return Err(format!(
+            "MEDBRAINS_VENDOR_EMAIL_DOMAINS refused: {refused:?} is a single label or a public \
+             suffix, which would make every account under it a MedBrains account. Fix the \
+             setting and restart."
+        )
+        .into());
+    }
+    let domains = medbrains_core::vendor::vendor_domains();
+    let (flagged, skipped): (i32, Vec<uuid::Uuid>) =
+        sqlx::query_as(
+            "SELECT flagged, skipped FROM public.app_flag_vendor_accounts($1, $2, $3, $4)",
+        )
+            .bind(&domains)
+            .bind(medbrains_core::vendor::PUBLIC_SUFFIXES)
+            .bind(medbrains_core::vendor::backfill_max())
+            .bind(medbrains_core::vendor::PLATFORM_DOMAINS)
+            .fetch_one(&bootstrap_pool)
+            .await
+            .map_err(|e| format!("vendor-domain list refused, server not started: {e}"))?;
+    sqlx::query("SELECT public.app_set_vendor_domains($1)")
+        .bind(&domains)
+        .execute(&bootstrap_pool)
+        .await?;
+    if flagged > 0 {
+        tracing::warn!(flagged, "accounts on vendor domains flagged; what they set up is revoked");
+    }
+    for user_id in skipped {
+        tracing::error!(
+            %user_id,
+            "vendor-domain account not flagged: it is its hospital's last administrator. It is \
+             still refused without a grant; hand the hospital an administrator account of its \
+             own (docs/compliance/vendor-access.md)"
+        );
+    }
+
     // Every startup check, reported at once; production does not serve on a
     // failure. After seeding, so a fresh database is judged as it will run.
     let findings = medbrains_server::preflight::run(
@@ -744,6 +788,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // check reaches the on-call nurse and whoever started the restraint
     // (MHCA 2017 s.97).
     medbrains_server::services::restraint_observation_escalation::spawn(worker_pool.clone());
+    // Dictation recordings never outlive 24 hours unsaved.
+    medbrains_dictation::purge::spawn(worker_pool.clone());
 
     // Early-warning scores — an urgent or emergency NEWS2/PEWS/MEOWS nobody
     // acknowledges goes to the duty doctor, then wider (NABH/IPSG).
@@ -914,6 +960,9 @@ fn build_outbox_registry() -> Arc<medbrains_outbox::Registry> {
         "email.appointment_confirmation",
     ));
     registry.register(email_stub::SmtpSendHandler::new("email.invoice_receipt"));
+    registry.register(email_stub::SmtpSendHandler::new(
+        medbrains_payment_gateway::payment_settings_notice::EMAIL_EVENT,
+    ));
     registry.register(email_stub::SmtpSendHandler::new("email.lab_report"));
     registry.register(email_stub::SmtpSendHandler::new(
         "email.refund_notification",

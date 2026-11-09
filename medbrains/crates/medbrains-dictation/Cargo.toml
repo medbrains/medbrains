@@ -1,0 +1,28 @@
+[package]
+name = "medbrains-dictation"
+publish = false
+description = "AI notes from dictation: transcribe on the hospital's machine, draft locally, the doctor decides (RFCs/modules/RFC-MODULE-ai-dictation.md)"
+version = "0.1.0"
+edition = "2024"
+rust-version.workspace = true
+
+[dependencies]
+medbrains-ai = { path = "../medbrains-ai" }
+medbrains-core = { path = "../medbrains-core" }
+medbrains-health-services = { path = "../medbrains-health-services" }
+medbrains-kernel = { path = "../medbrains-kernel" }
+medbrains-server-core = { path = "../medbrains-server-core" }
+medbrains-server-services = { path = "../medbrains-server-services" }
+axum = { workspace = true }
+chrono = { workspace = true }
+reqwest = { workspace = true }
+schemars = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+sqlx = { workspace = true }
+tokio = { workspace = true }
+tracing = { workspace = true }
+uuid = { workspace = true }
+
+[lints]
+workspace = true

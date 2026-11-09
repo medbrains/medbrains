@@ -97,10 +97,13 @@ async fn send_push(pool: &PgPool, http: &reqwest::Client, payload: &Payload) {
             return;
         }
         let tokens = sqlx::query_scalar::<_, String>(
-            "SELECT expo_token FROM device_push_tokens \
-             WHERE user_id = $1 AND revoked = false LIMIT 100",
+            "SELECT t.expo_token FROM device_push_tokens t JOIN users u ON u.id = t.user_id \
+             WHERE t.user_id = $1 AND t.revoked = false \
+               AND NOT (u.is_vendor_staff OR public.app_email_is_vendor(u.email, $2)) \
+             LIMIT 100",
         )
         .bind(payload.user_id)
+        .bind(medbrains_server_core::middleware::vendor_access::vendor_domains())
         .fetch_all(&mut *tx)
         .await
         .unwrap_or_default();

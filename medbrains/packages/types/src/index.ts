@@ -121,6 +121,7 @@ export * from "./dashboard-widget-builder";
 export * from "./device-binding";
 export * from "./device-integration";
 export * from "./diagnosis-coding";
+export * from "./dictation";
 export * from "./doctor-payouts";
 export * from "./documents-module";
 export * from "./dpdp-compliance";
@@ -381,6 +382,7 @@ export {
   tokenBoardSurfaceFlowLabelKey,
 } from "./token-board-surfaces.js";
 export * from "./uhi";
+export * from "./vendor-access";
 export type {
   WorkflowSignalShape,
   WorkflowSignalShapeDefinition,

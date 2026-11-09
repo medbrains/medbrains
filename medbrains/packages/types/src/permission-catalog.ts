@@ -19,7 +19,7 @@ export interface PermissionDef {
   module: string;
 }
 
-/** 1228 permissions, one per constant in the Rust source. */
+/** 1235 permissions, one per constant in the Rust source. */
 export const PERMISSIONS: PermissionDef[] = [
   // dashboard
   {
@@ -494,6 +494,12 @@ export const PERMISSIONS: PermissionDef[] = [
     code: "opd.schedule.manage",
     label: "Manage Schedules",
     description: "Create and modify doctor schedules",
+    module: "opd",
+  },
+  {
+    code: "opd.dictation.use",
+    label: "Dictate a consultation note",
+    description: "Record or upload the doctor's own voice on an OPD visit they can see. It is transcribed on the hospital's machine and drafted into the consultation note for the doctor to accept, edit or reject section by section; nothing is filed until they save, and medicines still go through the prescription safety checks.",
     module: "opd",
   },
   // lab
@@ -1127,6 +1133,12 @@ export const PERMISSIONS: PermissionDef[] = [
     code: "billing.payment_settings.manage",
     label: "Change billing payment settings",
     description: "Change the hospital's UPI ID and its payment-link terms.",
+    module: "billing",
+  },
+  {
+    code: "billing.payment_settings.notified",
+    label: "Told of payment settings changes",
+    description: "Receive a notification, and an email where one is on file, each time the UPI ID or the payment-link terms change: what changed, who changed it and when. Hospital administrators are always told.",
     module: "billing",
   },
   {
@@ -4358,6 +4370,30 @@ export const PERMISSIONS: PermissionDef[] = [
     description: "Takes ownership of a finding, changes its status (in progress, resolved, risk accepted) and opens an incident from it in the breach register (opening also needs security.incidents.create).",
     module: "security",
   },
+  {
+    code: "security.vendor_access.view",
+    label: "See MedBrains access grants and their actions",
+    description: "Security → MedBrains access: every grant this hospital gave MedBrains support or engineering staff, active and past, and every request made under each one.",
+    module: "security",
+  },
+  {
+    code: "security.vendor_access.grant",
+    label: "Give MedBrains staff time-limited access",
+    description: "Names the MedBrains person, the reason, the modules (or configuration only) and an expiry of at most 72 hours. Patient data stays masked unless a second person approves unmasked access.",
+    module: "security",
+  },
+  {
+    code: "security.vendor_access.approve_unmasked",
+    label: "Approve unmasked MedBrains access",
+    description: "The second approval an unmasked grant needs before it opens. The approver must be a different person from the one who asked for it.",
+    module: "security",
+  },
+  {
+    code: "security.vendor_access.revoke",
+    label: "End MedBrains access at once",
+    description: "Revokes a grant; the MedBrains person's next request is refused.",
+    module: "security",
+  },
   // integration
   {
     code: "integration.list",
@@ -5915,6 +5951,12 @@ export const PERMISSIONS: PermissionDef[] = [
     code: "admin.settings.regulatory.manage",
     label: "Manage Regulatory",
     description: "Configure regulatory compliance settings",
+    module: "admin",
+  },
+  {
+    code: "admin.settings.dictation.manage",
+    label: "Configure note dictation services",
+    description: "Where speech is transcribed (the hospital's own whisper server by default) and which local model drafts the note. Turning on the cloud transcription service sends doctors' recordings off the premises, so it is a separate, deliberate setting.",
     module: "admin",
   },
   {
@@ -7661,6 +7703,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.OPD.DIAGNOSES.DELETE,
       P.OPD.DIAGNOSES.LIST,
       P.OPD.DIAGNOSES.UPDATE,
+      P.OPD.DICTATION.USE,
       P.OPD.FEEDBACK.CREATE,
       P.OPD.FEEDBACK.LIST,
       P.OPD.PROCEDURES.CANCEL,
@@ -8644,6 +8687,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.SECURITY.INCIDENTS.LIST,
       P.SECURITY.INTEL.VIEW,
       P.SECURITY.PATIENT_SAFETY.LIST,
+      P.SECURITY.VENDOR_ACCESS.VIEW,
       P.TERMINOLOGY.SNOMED.ANALYTICS,
     ],
   },
@@ -9256,6 +9300,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
     label: "Medical Superintendent",
     permissions: [
       P.ADMIN.SETTINGS.READ,
+      P.BILLING.PAYMENT_SETTINGS.NOTIFIED,
       P.DASHBOARD.VIEW,
       P.FLOWS.BUILD,
       P.FLOWS.PUBLISH,
@@ -9267,6 +9312,8 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.KNOWLEDGE.CHANGE_SETS.LIST,
       P.NOTES.USE,
       P.QUALITY.INDICATORS.LIST,
+      P.SECURITY.VENDOR_ACCESS.APPROVE_UNMASKED,
+      P.SECURITY.VENDOR_ACCESS.VIEW,
     ],
   },
   it_security_officer: {
@@ -9280,6 +9327,10 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.SECURITY.INCIDENTS.UPDATE,
       P.SECURITY.INTEL.MANAGE,
       P.SECURITY.INTEL.VIEW,
+      P.SECURITY.VENDOR_ACCESS.APPROVE_UNMASKED,
+      P.SECURITY.VENDOR_ACCESS.GRANT,
+      P.SECURITY.VENDOR_ACCESS.REVOKE,
+      P.SECURITY.VENDOR_ACCESS.VIEW,
     ],
   },
   insurance_officer: {
