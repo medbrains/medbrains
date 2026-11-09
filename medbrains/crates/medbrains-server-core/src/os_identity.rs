@@ -135,7 +135,7 @@ pub async fn is_high_privilege_person(
 /// Read-only ones (`.read`, `.list`, `.view`) are not powers: every clinical role holds `admin.settings.read`, so counting them would put every member of staff
 /// behind the high-privilege group.
 #[must_use]
-pub fn is_admin_power(code: &str) -> bool {
+fn is_admin_power(code: &str) -> bool {
     code.starts_with("admin.")
         && ![".read", ".list", ".view"]
             .iter()

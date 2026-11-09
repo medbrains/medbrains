@@ -1,26 +1,25 @@
-//! What a directory-group mapping or a provider's flags hand out, and what a Kanidm link keeps once made.
+//! What a directory-group mapping or a provider hands out, and what a Kanidm sign-in into an administrator's
+//! account must show.
 //!
-//! A mapping grants its role or access group to everyone in the group at every sign-in, so it never names an
-//! administrator role, and a non-administrator (IT with `admin.sso.providers.manage`) maps only what they hold
-//! and nothing on the OS's own Kanidm; only an administrator lets a provider create accounts or link them by
-//! email. A linked account keeps its password for step-up inside a session but cannot sign in with it, and a
-//! link a non-administrator made is dropped, with its sessions, once the account's access changes.
+//! Only an administrator (a bypass role, on top of `admin.sso.providers.manage`) creates, changes or deletes a
+//! provider or a mapping; the permission granted any other way is refused. A mapping never names an
+//! administrator role, and one stored some other way grants nothing at sign-in. A Kanidm sign-in into an
+//! administrator's account goes on only when its person is in `mb_it_admins`, and stops when that cannot be
+//! read. A linked account keeps its password for step-up inside a session but cannot sign in with it.
 
 use crate::common;
 use crate::sso_link_guard_test::{
-    NURSE_SIGNING, drop_provider, kanidm_provider, link_state, password_login, put_link,
-    username_of,
+    drop_provider, kanidm_provider, link_state, password_login, put_link, username_of,
 };
 
-use medbrains_core::permissions::admin::{sso::providers::MANAGE, users::LINK_IDENTITY};
+use medbrains_core::permissions::admin::sso::providers::MANAGE;
+use medbrains_server_core::error::AppError;
 use reqwest::{Client, StatusCode};
+use std::sync::atomic::{AtomicBool, Ordering};
 use uuid::Uuid;
 
 const PERSON_F: &str = "0f0f0f0f-0000-4000-8000-00000000000f";
 const PERSON_G: &str = "10101010-0000-4000-8000-000000000010";
-const PERSON_H: &str = "11111111-0000-4000-8000-000000000011";
-const PERSON_I: &str = "12121212-0000-4000-8000-000000000012";
-const PERSON_J: &str = "13131313-0000-4000-8000-000000000013";
 
 /// POSTs `body` to `path` as this client, returning the status and the JSON answer.
 async fn post(
@@ -72,193 +71,200 @@ async fn delete_status(
         .status()
 }
 
-/// A new active access group in this tenant.
-async fn new_group(app: &common::TestApp, tenant: Uuid) -> Uuid {
-    sqlx::query_scalar(
-        "INSERT INTO access_groups (tenant_id, code, name) VALUES ($1, $2, 'Mapping test group') RETURNING id",
-    )
-    .bind(tenant)
-    .bind(format!("map_test_{}", &Uuid::new_v4().simple().to_string()[..8]))
-    .fetch_one(&app.db)
-    .await
-    .expect("group")
-}
-
-async fn join_group(app: &common::TestApp, tenant: Uuid, group: Uuid, user: Uuid) {
-    sqlx::query(
-        "INSERT INTO access_group_members (group_id, user_id, tenant_id) VALUES ($1, $2, $3)",
-    )
-    .bind(group)
-    .bind(user)
-    .bind(tenant)
-    .execute(&app.db)
-    .await
-    .expect("member");
-}
-
-/// Signs `staff` in again on its own client: a new group membership bumps `perm_version`, ending its session.
-async fn sign_in_again(app: &common::TestApp, staff: &mut common::Staff) {
-    let username = username_of(app, staff.user_id).await;
-    let login: serde_json::Value = staff
-        .client
-        .post(app.url("/api/auth/login"))
-        .json(&serde_json::json!({ "username": username, "password": staff.password }))
-        .send()
-        .await
-        .expect("login")
-        .json()
-        .await
-        .expect("login json");
-    staff.csrf = login["csrf_token"].as_str().unwrap_or_default().to_owned();
-}
-
 #[tokio::test]
-async fn a_mapping_or_provider_flag_never_hands_out_more_than_its_maker_holds() {
+async fn only_an_administrator_manages_providers_and_mappings() {
     let app = common::spawn_app().await;
     let admin_csrf = app.login_admin().await;
     let (tenant, kanidm, made_provider) = kanidm_provider(&app).await;
-    let mut it = common::provision_staff_with(&app, &admin_csrf, "nurse", &[MANAGE], &[]).await;
+    let it = common::provision_staff_with(&app, &admin_csrf, "nurse", &[MANAGE], &[]).await;
     let tag = &Uuid::new_v4().simple().to_string()[..8];
+    let partner_body =
+        serde_json::json!({ "code": format!("p_{tag}"), "name": "Partner", "protocol": "oidc" });
 
-    // Provider flags: IT may not turn on new accounts or email linking; left out, new accounts are off.
-    for flags in [
-        serde_json::json!({ "jit_enabled": true }),
-        serde_json::json!({ "link_by_email": true }),
-    ] {
-        let mut body = serde_json::json!({ "code": format!("p_{tag}_x"), "name": "Partner", "protocol": "oidc" });
-        body.as_object_mut()
-            .expect("object")
-            .extend(flags.as_object().expect("flags").clone());
-        let (status, _) = post(&app, &it.client, &it.csrf, "/api/admin/sso/providers", body).await;
-        assert_eq!(status, StatusCode::FORBIDDEN);
-    }
-    let (status, provider) = post(
+    // The permission through `access_matrix.extra` is not enough: no provider is made, changed or deleted.
+    let (status, _) = post(
         &app,
         &it.client,
         &it.csrf,
         "/api/admin/sso/providers",
-        serde_json::json!({ "code": format!("p_{tag}"), "name": "Partner", "protocol": "oidc" }),
-    )
-    .await;
-    assert_eq!(status, StatusCode::OK, "{provider}");
-    assert_eq!(provider["jit_enabled"], false);
-    let partner = provider["id"].as_str().expect("id").to_owned();
-    let provider_path = format!("/api/admin/sso/providers/{partner}");
-    assert_eq!(
-        put_status(
-            &app,
-            &it.client,
-            &it.csrf,
-            &provider_path,
-            serde_json::json!({ "jit_enabled": true })
-        )
-        .await,
-        StatusCode::FORBIDDEN
-    );
-    assert_eq!(
-        put_status(
-            &app,
-            &app.client,
-            &admin_csrf,
-            &provider_path,
-            serde_json::json!({ "jit_enabled": true })
-        )
-        .await,
-        StatusCode::OK
-    );
-
-    // A bypass role is never mapped, by anyone.
-    let mappings = format!("/api/admin/sso/providers/{partner}/mappings");
-    for (client, csrf) in [(&it.client, &it.csrf), (&app.client, &admin_csrf)] {
-        let (status, _) = post(
-            &app,
-            client,
-            csrf,
-            &mappings,
-            serde_json::json!({ "idp_group": "it", "role_code": "super_admin" }),
-        )
-        .await;
-        assert_eq!(status, StatusCode::BAD_REQUEST);
-    }
-    // IT maps only a role within its codes, and only an access group it is in.
-    let map = |role: Option<&str>, group: Option<Uuid>| serde_json::json!({ "idp_group": "staff", "role_code": role, "access_group_id": group });
-    let (status, _) = post(
-        &app,
-        &it.client,
-        &it.csrf,
-        &mappings,
-        map(Some("doctor"), None),
+        partner_body.clone(),
     )
     .await;
     assert_eq!(status, StatusCode::FORBIDDEN);
-    let (status, body) = post(
-        &app,
-        &it.client,
-        &it.csrf,
-        &mappings,
-        map(Some("nurse"), None),
-    )
-    .await;
-    assert_eq!(status, StatusCode::OK, "{body}");
-    let group = new_group(&app, tenant).await;
-    let (status, _) = post(
-        &app,
-        &it.client,
-        &it.csrf,
-        &mappings,
-        map(None, Some(group)),
-    )
-    .await;
-    assert_eq!(status, StatusCode::FORBIDDEN);
-    join_group(&app, tenant, group, it.user_id).await;
-    sign_in_again(&app, &mut it).await;
-    let (status, _) = post(
-        &app,
-        &it.client,
-        &it.csrf,
-        &mappings,
-        map(None, Some(group)),
-    )
-    .await;
-    assert_eq!(status, StatusCode::OK);
-
-    // On the OS's Kanidm, only an administrator creates or deletes a mapping.
-    let kanidm_mappings = format!("/api/admin/sso/providers/{kanidm}/mappings");
-    let (status, _) = post(
-        &app,
-        &it.client,
-        &it.csrf,
-        &kanidm_mappings,
-        map(Some("nurse"), None),
-    )
-    .await;
-    assert_eq!(status, StatusCode::FORBIDDEN);
-    let (status, mapping) = post(
+    let (status, provider) = post(
         &app,
         &app.client,
         &admin_csrf,
-        &kanidm_mappings,
-        map(Some("nurse"), None),
+        "/api/admin/sso/providers",
+        partner_body,
     )
     .await;
-    assert_eq!(status, StatusCode::OK, "{mapping}");
-    let mapping_path = format!(
-        "/api/admin/sso/mappings/{}",
-        mapping["id"].as_str().expect("id")
-    );
+    assert_eq!(status, StatusCode::OK, "{provider}");
+    let partner = provider["id"].as_str().expect("id").to_owned();
+    let provider_path = format!("/api/admin/sso/providers/{partner}");
+    let edit = serde_json::json!({ "jit_enabled": false });
     assert_eq!(
-        delete_status(&app, &it.client, &it.csrf, &mapping_path).await,
+        put_status(&app, &it.client, &it.csrf, &provider_path, edit.clone()).await,
         StatusCode::FORBIDDEN
     );
     assert_eq!(
-        delete_status(&app, &app.client, &admin_csrf, &mapping_path).await,
+        delete_status(&app, &it.client, &it.csrf, &provider_path).await,
+        StatusCode::FORBIDDEN
+    );
+    assert_eq!(
+        put_status(&app, &app.client, &admin_csrf, &provider_path, edit).await,
         StatusCode::OK
     );
+
+    // Mappings: never to a bypass role, and only an administrator makes or removes one, on Kanidm too.
+    let map = |role: &str| serde_json::json!({ "idp_group": "staff", "role_code": role });
+    for provider_id in [partner.as_str(), &kanidm.to_string()] {
+        let mappings = format!("/api/admin/sso/providers/{provider_id}/mappings");
+        let (status, _) = post(&app, &it.client, &it.csrf, &mappings, map("nurse")).await;
+        assert_eq!(status, StatusCode::FORBIDDEN);
+        let (status, _) = post(
+            &app,
+            &app.client,
+            &admin_csrf,
+            &mappings,
+            map("super_admin"),
+        )
+        .await;
+        assert_eq!(status, StatusCode::BAD_REQUEST);
+        let (status, mapping) = post(&app, &app.client, &admin_csrf, &mappings, map("nurse")).await;
+        assert_eq!(status, StatusCode::OK, "{mapping}");
+        let mapping_path = format!(
+            "/api/admin/sso/mappings/{}",
+            mapping["id"].as_str().expect("id")
+        );
+        assert_eq!(
+            delete_status(&app, &it.client, &it.csrf, &mapping_path).await,
+            StatusCode::FORBIDDEN
+        );
+        assert_eq!(
+            delete_status(&app, &app.client, &admin_csrf, &mapping_path).await,
+            StatusCode::OK
+        );
+    }
 
     assert_eq!(
         delete_status(&app, &app.client, &admin_csrf, &provider_path).await,
         StatusCode::OK
     );
+    drop_provider(&app, tenant, made_provider).await;
+}
+
+/// A mapping to a bypass role written past the API (an old row, or SQL) grants nothing at sign-in; the
+/// person's other mapped groups still count.
+#[tokio::test]
+async fn a_stored_bypass_role_mapping_grants_nothing_at_sign_in() {
+    let app = common::spawn_app().await;
+    let _ = app.login_admin().await;
+    let (tenant, provider, made_provider) = kanidm_provider(&app).await;
+    let tag = Uuid::new_v4().simple().to_string();
+    let (admins, staff) = (format!("admins_{tag}"), format!("staff_{tag}"));
+    for (group, role) in [
+        (&admins, "super_admin"),
+        (&admins, "hospital_admin"),
+        (&staff, "nurse"),
+    ] {
+        sqlx::query(
+            "INSERT INTO idp_group_mappings (tenant_id, provider_id, idp_group, role_code) VALUES ($1, $2, $3, $4)",
+        )
+        .bind(tenant)
+        .bind(provider)
+        .bind(group)
+        .bind(role)
+        .execute(&app.db)
+        .await
+        .expect("mapping");
+    }
+
+    let mut tx = app.db.begin().await.expect("tx");
+    medbrains_db::pool::set_tenant_context(&mut tx, &tenant)
+        .await
+        .expect("tenant");
+    let only_admins = medbrains_sso_login::mapped_targets(&mut tx, provider, &[admins.clone()])
+        .await
+        .expect("targets");
+    assert_eq!(only_admins, (None, Vec::new()));
+    let both =
+        medbrains_sso_login::mapped_targets(&mut tx, provider, &[admins.clone(), staff.clone()])
+            .await
+            .expect("targets");
+    assert_eq!(both.0.as_deref(), Some("nurse"));
+    tx.rollback().await.expect("rollback");
+
+    sqlx::query("DELETE FROM idp_group_mappings WHERE provider_id = $1 AND idp_group = ANY($2)")
+        .bind(provider)
+        .bind(vec![admins, staff])
+        .execute(&app.db)
+        .await
+        .expect("clean");
+    drop_provider(&app, tenant, made_provider).await;
+}
+
+/// A Kanidm sign-in into an administrator's account (a bypass role, or an `admin.*` power from any source) is
+/// refused unless the person is in `mb_it_admins`, and stopped, never let through, when the directory cannot be
+/// read; an ordinary account never asks the directory.
+#[tokio::test]
+async fn a_kanidm_sign_in_to_an_administrators_account_needs_the_high_privilege_group() {
+    let app = common::spawn_app().await;
+    let admin_csrf = app.login_admin().await;
+    let (tenant, _, made_provider) = kanidm_provider(&app).await;
+    let admin_id: Uuid = sqlx::query_scalar("SELECT id FROM users WHERE username = 'admin'")
+        .fetch_one(&app.db)
+        .await
+        .expect("admin");
+    let powered =
+        common::provision_staff_with(&app, &admin_csrf, "nurse", &["admin.users.create"], &[])
+            .await;
+    let nurse = common::provision_staff(&app, &admin_csrf, "nurse", &[]).await;
+    let decide = |user: Uuid, role: &'static str, answer: Result<bool, AppError>| {
+        let db = app.db.clone();
+        async move {
+            medbrains_sso_login::admin_sign_in_refusal(
+                &db,
+                (tenant, user),
+                role,
+                move || async move { answer },
+            )
+            .await
+            .expect("decision")
+        }
+    };
+
+    for (user, role) in [(admin_id, "super_admin"), (powered.user_id, "nurse")] {
+        assert_eq!(
+            decide(user, role, Ok(false)).await,
+            Some("/login?sso_error=admin_group"),
+            "{role}"
+        );
+        let unreachable =
+            AppError::ServiceUnavailable("Kanidm's directory did not answer".to_owned());
+        assert_eq!(
+            decide(user, role, Err(unreachable)).await,
+            Some("/login?sso_error=admin_group_unchecked"),
+            "{role}"
+        );
+        assert_eq!(decide(user, role, Ok(true)).await, None, "{role}");
+    }
+
+    let asked = AtomicBool::new(false);
+    let flag = &asked;
+    let ordinary = medbrains_sso_login::admin_sign_in_refusal(
+        &app.db,
+        (tenant, nurse.user_id),
+        "nurse",
+        move || async move {
+            flag.store(true, Ordering::SeqCst);
+            Ok(false)
+        },
+    )
+    .await
+    .expect("decision");
+    assert_eq!(ordinary, None);
+    assert!(!asked.load(Ordering::SeqCst));
     drop_provider(&app, tenant, made_provider).await;
 }
 
@@ -312,104 +318,5 @@ async fn a_linked_account_steps_up_with_its_password_but_cannot_sign_in_with_it(
         .execute(&app.db)
         .await
         .expect("unlink");
-    drop_provider(&app, tenant, made_provider).await;
-}
-
-/// Who linked, and whether an administrator: a link IT made is dropped, and its sessions ended, when the
-/// account's department, role or access groups change; an administrator's link stays.
-#[tokio::test]
-async fn a_link_it_made_is_dropped_when_the_accounts_access_changes() {
-    let app = common::spawn_app().await;
-    let admin_csrf = app.login_admin().await;
-    let (tenant, _, made_provider) = kanidm_provider(&app).await;
-    let mut it =
-        common::provision_staff_with(&app, &admin_csrf, "nurse", &[LINK_IDENTITY], &[]).await;
-    let mut nurses = Vec::new();
-    for _ in 0..4 {
-        nurses.push(
-            common::provision_staff(&app, &admin_csrf, "nurse", &NURSE_SIGNING)
-                .await
-                .user_id,
-        );
-    }
-    let [by_department, by_role, by_membership, by_group_codes]: [Uuid; 4] =
-        nurses.clone().try_into().expect("four nurses");
-    let doctor = common::provision_staff(&app, &admin_csrf, "doctor", &[])
-        .await
-        .user_id;
-    let shared = new_group(&app, tenant).await;
-    join_group(&app, tenant, shared, it.user_id).await;
-    sign_in_again(&app, &mut it).await;
-    join_group(&app, tenant, shared, by_group_codes).await;
-
-    for (target, person) in [
-        (by_department, PERSON_F),
-        (by_role, PERSON_G),
-        (by_membership, PERSON_H),
-        (by_group_codes, PERSON_I),
-    ] {
-        assert_eq!(
-            put_link(&app, &it.client, &it.csrf, target, person).await,
-            StatusCode::OK
-        );
-    }
-    assert_eq!(
-        put_link(&app, &app.client, &admin_csrf, doctor, PERSON_J).await,
-        StatusCode::OK
-    );
-    let linked_by: (Option<Uuid>, Option<bool>) =
-        sqlx::query_as("SELECT sso_linked_by, sso_linked_by_admin FROM users WHERE id = $1")
-            .bind(by_role)
-            .fetch_one(&app.db)
-            .await
-            .expect("linked by");
-    assert_eq!(linked_by, (Some(it.user_id), Some(false)));
-
-    let run = |sql: &'static str, id: Uuid| sqlx::query(sql).bind(id).execute(&app.db);
-    run(
-        "UPDATE users SET department_ids = ARRAY[gen_random_uuid()] WHERE id = $1",
-        by_department,
-    )
-    .await
-    .expect("department");
-    run(
-        "UPDATE users SET role = 'receptionist' WHERE id = $1",
-        by_role,
-    )
-    .await
-    .expect("role");
-    join_group(&app, tenant, new_group(&app, tenant).await, by_membership).await;
-    run(
-        "UPDATE access_groups SET permissions = '[\"opd.visit.view\"]'::jsonb WHERE id = $1",
-        shared,
-    )
-    .await
-    .expect("group codes");
-    run(
-        "UPDATE users SET department_ids = ARRAY[gen_random_uuid()] WHERE id = $1",
-        doctor,
-    )
-    .await
-    .expect("doctor department");
-
-    for target in nurses {
-        assert_eq!(link_state(&app, target).await.0, None, "{target}");
-        let live: i64 = sqlx::query_scalar(
-            "SELECT count(*) FROM refresh_tokens WHERE user_id = $1 AND revoked = false",
-        )
-        .bind(target)
-        .fetch_one(&app.db)
-        .await
-        .expect("sessions");
-        assert_eq!(live, 0, "{target}");
-    }
-    assert_eq!(link_state(&app, doctor).await.0.as_deref(), Some(PERSON_J));
-
-    run(
-        "UPDATE users SET idp_id = NULL, external_subject = NULL WHERE id = $1",
-        doctor,
-    )
-    .await
-    .expect("unlink");
     drop_provider(&app, tenant, made_provider).await;
 }

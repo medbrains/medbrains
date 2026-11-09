@@ -16,13 +16,13 @@ use medbrains_server_core::{
     error::AppError,
     middleware::{
         auth::Claims,
-        authorization::{BYPASS_ROLES, require_any_permission, require_permission},
+        authorization::{BYPASS_ROLES, require_any_permission},
     },
     os_identity::KANIDM_CODE,
     state::AppState,
 };
 
-use crate::sso_link::target::is_admin;
+use crate::require_identity_admin;
 
 mod mappings;
 
@@ -30,7 +30,8 @@ pub use mappings::{create_mapping, delete_mapping, list_mappings};
 
 /// Seeing the providers and their mappings, with [`MANAGE_PROVIDERS`] as the other way in.
 const MANAGE: &str = "admin.settings.general.manage";
-/// Adding, changing or removing a provider or a mapping: who can sign in, and as what.
+/// Adding, changing or removing a provider or a mapping: who can sign in, and as what. Administrators only
+/// ([`require_identity_admin`]).
 const MANAGE_PROVIDERS: &str = medbrains_core::permissions::admin::sso::providers::MANAGE;
 /// The refusal for any change to the OS's own Kanidm through this API.
 const KANIDM_PINNED: &str =
@@ -336,22 +337,6 @@ fn validate_default_role(role: Option<&str>) -> Result<(), AppError> {
     }
 }
 
-/// Refuses a non-administrator turning on `link_by_email` or `jit_enabled`: either lets the provider decide
-/// who becomes, or takes over, an account here, which is an administrator's call.
-fn validate_provider_flags(
-    claims: &Claims,
-    link_by_email: Option<bool>,
-    jit_enabled: Option<bool>,
-) -> Result<(), AppError> {
-    if is_admin(claims) || (link_by_email != Some(true) && jit_enabled != Some(true)) {
-        return Ok(());
-    }
-    Err(AppError::ForbiddenReason(
-        "Only an administrator may let a provider link accounts by email or create accounts."
-            .to_owned(),
-    ))
-}
-
 fn validate_protocol(p: &str) -> Result<(), AppError> {
     if p == "oidc" || p == "saml" {
         Ok(())
@@ -403,16 +388,13 @@ pub async fn create_provider(
     State(state): State<AppState>,
     req: Result<Json<CreateProviderRequest>, JsonRejection>,
 ) -> Result<Json<ProviderResponse>, AppError> {
-    require_permission(&claims, MANAGE_PROVIDERS)?;
+    require_identity_admin(&claims, MANAGE_PROVIDERS)?;
     let Json(req) = req?;
     if req.code == KANIDM_CODE {
         return Err(AppError::ForbiddenReason(KANIDM_PINNED.to_owned()));
     }
     validate_protocol(&req.protocol)?;
     validate_default_role(req.default_role.as_deref())?;
-    validate_provider_flags(&claims, req.link_by_email, req.jit_enabled)?;
-    // Left out, new accounts are on for an administrator's provider and off for anyone else's.
-    let jit_enabled = req.jit_enabled.unwrap_or_else(|| is_admin(&claims));
 
     let secret_enc = match req.client_secret.as_deref().filter(|s| !s.is_empty()) {
         Some(secret) => {
@@ -445,7 +427,7 @@ pub async fn create_provider(
     .bind(&secret_enc)
     .bind(&req.group_claim)
     .bind(&req.default_role)
-    .bind(jit_enabled)
+    .bind(req.jit_enabled)
     .bind(&req.config)
     .bind(req.link_by_email)
     .fetch_one(&mut *tx)
@@ -461,10 +443,9 @@ pub async fn update_provider(
     Path(id): Path<Uuid>,
     req: Result<Json<UpdateProviderRequest>, JsonRejection>,
 ) -> Result<Json<ProviderResponse>, AppError> {
-    require_permission(&claims, MANAGE_PROVIDERS)?;
+    require_identity_admin(&claims, MANAGE_PROVIDERS)?;
     let Json(req) = req?;
     validate_default_role(req.default_role.as_deref())?;
-    validate_provider_flags(&claims, req.link_by_email, req.jit_enabled)?;
 
     let new_secret_enc = match req.client_secret.as_deref().filter(|s| !s.is_empty()) {
         Some(secret) => {
@@ -523,7 +504,7 @@ pub async fn delete_provider(
     State(state): State<AppState>,
     Path(id): Path<Uuid>,
 ) -> Result<Json<serde_json::Value>, AppError> {
-    require_permission(&claims, MANAGE_PROVIDERS)?;
+    require_identity_admin(&claims, MANAGE_PROVIDERS)?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
     refuse_if_kanidm(&mut tx, id).await?;

@@ -2197,10 +2197,7 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
             // Can cut a suspect machine off at once, and cannot let a new one in.
             permissions::devices::machines::VIEW,
             permissions::devices::machines::REMOVE,
-            // Links existing staff to their sign-in; never an administrator's account (the server refuses).
-            permissions::admin::users::LINK_IDENTITY,
-            // Owns outside sign-in providers; the machine's own Kanidm is pinned and refused.
-            permissions::admin::sso::providers::MANAGE,
+            // Not LINK_IDENTITY or admin.sso.providers.manage: identity management is administrators only.
             permissions::dashboard::VIEW,
         ],
     },

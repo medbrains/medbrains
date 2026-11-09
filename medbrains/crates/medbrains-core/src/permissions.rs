@@ -3404,8 +3404,8 @@ pub mod admin {
         ///
         /// Link or unlink a MedBrains account to a person in the hospital's own
         /// sign-in service, chosen by name and ID. An email address never links
-        /// an account there, so existing staff are linked here. Linking an
-        /// administrator's account needs an administrator.
+        /// an account there, so existing staff are linked here. Administrators
+        /// only; the server also requires a bypass role.
         pub const LINK_IDENTITY: &str = "admin.users.link_identity";
     }
 
@@ -3419,6 +3419,7 @@ pub mod admin {
             /// and map its directory groups to roles and access groups. Whoever
             /// holds this decides who can sign in and as what. The machine's own
             /// sign-in service is pinned by the OS and cannot be changed here.
+            /// Administrators only; the server also requires a bypass role.
             pub const MANAGE: &str = "admin.sso.providers.manage";
         }
     }

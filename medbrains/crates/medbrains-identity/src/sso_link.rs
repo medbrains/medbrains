@@ -1,7 +1,8 @@
 //! Linking a MedBrains account to a person in the OS's own Kanidm, by hand. Kanidm's email is never trusted to
 //! link (anyone who may make a person can give it any address), so an existing member of staff who signs in
 //! through Kanidm is linked here by an administrator, who picks the Kanidm person by name and UUID. The UUID is
-//! the `sub` MedBrains receives, so it is what is stored.
+//! the `sub` MedBrains receives, so it is what is stored. Every route here is an administrator's alone
+//! ([`require_identity_admin`]): whoever links an account hands it to whoever controls the Kanidm person.
 
 use axum::{
     Extension, Json,
@@ -11,15 +12,17 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use medbrains_core::permissions::admin::users::LINK_IDENTITY;
-use medbrains_kernel::{Actor, Claims, Tx, require_permission};
+use medbrains_kernel::{Actor, Claims, Tx};
 use medbrains_notifications::publish_notification;
 use medbrains_server_core::{error::AppError, os_identity::KANIDM_CODE, state::AppState};
 
 mod directory;
-pub mod target;
+mod target;
 
 use directory::{read_directory, require_high_privilege_person};
-use target::{guard_target, holder_notice, is_admin, needs_link_write, notify_holder};
+use target::{holder_notice, needs_link_write, notify_holder, read_target};
+
+use crate::require_identity_admin;
 
 /// At most this many people come back from a search: enough to find one, never a whole directory dump.
 const MAX_PEOPLE: usize = 50;
@@ -111,7 +114,7 @@ pub async fn list_kanidm_people(
     State(state): State<AppState>,
     Query(query): Query<PeopleQuery>,
 ) -> Result<Json<Vec<KanidmPerson>>, AppError> {
-    require_permission(&claims, LINK_IDENTITY)?;
+    require_identity_admin(&claims, LINK_IDENTITY)?;
     let text: String = query
         .q
         .unwrap_or_default()
@@ -146,7 +149,7 @@ pub async fn get_link(
     State(state): State<AppState>,
     Path(user_id): Path<Uuid>,
 ) -> Result<Json<Option<SsoLink>>, AppError> {
-    require_permission(&claims, LINK_IDENTITY)?;
+    require_identity_admin(&claims, LINK_IDENTITY)?;
     let mut tx = medbrains_kernel::begin(&state.db, Actor::from_claims(&claims)).await?;
     let link = sqlx::query_as::<_, (Option<Uuid>, Option<String>)>(
         "SELECT idp_id, external_subject FROM users WHERE id = $1",
@@ -197,14 +200,14 @@ pub async fn set_link(
     Path(user_id): Path<Uuid>,
     Json(req): Json<LinkRequest>,
 ) -> Result<Json<SsoLink>, AppError> {
-    require_permission(&claims, LINK_IDENTITY)?;
+    require_identity_admin(&claims, LINK_IDENTITY)?;
     if !is_subject(&req.subject) {
         return Err(AppError::BadRequest(
             "That is not a Kanidm person's ID.".to_owned(),
         ));
     }
     let mut tx = medbrains_kernel::begin(&state.db, Actor::from_claims(&claims)).await?;
-    let target = guard_target(&state, &mut tx, &claims, user_id).await?;
+    let target = read_target(&state, &mut tx, &claims, user_id).await?;
     let provider_id = kanidm_provider(&mut tx).await?;
     let current = target.subject.as_deref().map(|s| (target.idp_id, s));
     if !needs_link_write(current, (provider_id, &req.subject))? {
@@ -231,25 +234,20 @@ pub async fn set_link(
         require_high_privilege_person(&req.subject).await?;
     }
     // The local password stays: password sign-in refuses a linked account (`medbrains-auth`), and step-up
-    // inside a Kanidm session still checks it, so a clinician can sign. Who made the link, and whether they
-    // were an administrator, is kept: a non-administrator's link is dropped when the account's access changes
-    // (migration 1451).
+    // inside a Kanidm session still checks it, so a clinician can sign. Who linked is the audit row's user.
     sqlx::query(
-        "UPDATE users u SET idp_id = $2, external_subject = $3, sso_linked_by = $4, \
-         sso_linked_by_admin = $5, perm_version = u.perm_version + 1, updated_at = now() WHERE u.id = $1",
+        "UPDATE users u SET idp_id = $2, external_subject = $3, perm_version = u.perm_version + 1, \
+         updated_at = now() WHERE u.id = $1",
     )
     .bind(user_id)
     .bind(provider_id)
     .bind(&req.subject)
-    .bind(claims.sub)
-    .bind(is_admin(&claims))
     .execute(&mut *tx)
     .await
     .map_err(already_linked)?;
     let details = serde_json::json!({
         "provider_id": provider_id,
         "external_subject": req.subject,
-        "linked_by_admin": is_admin(&claims),
     });
     audit_link(&mut tx, &claims, user_id, "sso_link", &details).await?;
     let notice = notify_holder(
@@ -288,27 +286,22 @@ fn already_linked(error: sqlx::Error) -> AppError {
 
 /// DELETE /api/admin/users/{id}/sso-link — removes the account's link to Kanidm.
 ///
-/// Only an administrator may remove a link, since removing one is how an account is re-pointed. Audited, and
-/// the holder is told. An account with no password of its own (one made by sign-in) cannot sign in afterwards
+/// Removing a link is how an account is re-pointed. Audited, and the holder is told. An account with no password of its own (one made by sign-in) cannot sign in afterwards
 /// until it is linked again or given one.
 pub async fn remove_link(
     Extension(claims): Extension<Claims>,
     State(state): State<AppState>,
     Path(user_id): Path<Uuid>,
 ) -> Result<Json<serde_json::Value>, AppError> {
-    require_permission(&claims, LINK_IDENTITY)?;
+    require_identity_admin(&claims, LINK_IDENTITY)?;
     let mut tx = medbrains_kernel::begin(&state.db, Actor::from_claims(&claims)).await?;
-    let target = guard_target(&state, &mut tx, &claims, user_id).await?;
+    let target = read_target(&state, &mut tx, &claims, user_id).await?;
     if target.subject.is_none() {
         tx.commit().await?;
         return Ok(Json(serde_json::json!({ "unlinked": false })));
     }
-    if !is_admin(&claims) {
-        return Err(AppError::Forbidden);
-    }
     let previous = sqlx::query_as::<_, (Option<Uuid>, Option<String>)>(
-        "UPDATE users u SET idp_id = NULL, external_subject = NULL, sso_linked_by = NULL, \
-         sso_linked_by_admin = NULL, perm_version = u.perm_version + 1, \
+        "UPDATE users u SET idp_id = NULL, external_subject = NULL, perm_version = u.perm_version + 1, \
          updated_at = now() FROM users old WHERE u.id = $1 AND old.id = u.id \
          RETURNING old.idp_id, old.external_subject",
     )

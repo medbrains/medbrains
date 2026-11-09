@@ -1,16 +1,14 @@
 /**
  * Link a MedBrains account to a person in the hospital's own sign-in service (Kanidm), or remove the link.
  * An email address never links an account there, so an existing member of staff who signs in through it is
- * linked here by IT, who picks the person by name and ID. The server refuses a link that would hand the caller
- * more than they hold (an administrator's account, any `admin.*` permission, anything the caller lacks), and
- * never re-points a linked account: an administrator removes the link first. The holder is told either way.
+ * linked here by an administrator, who picks the person by name and ID (the server requires a bypass role). It
+ * never re-points a linked account: the link is removed first. The holder is told either way.
  */
 
 import { Group, Stack, Text } from "@mantine/core";
 import { useDebouncedValue } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
 import { api } from "@medbrains/api";
-import { BYPASS_ROLES, usePermissionStore } from "@medbrains/stores";
 import type { KanidmPerson } from "@medbrains/types";
 import { IconLink, IconLinkOff, IconSearch } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -35,8 +33,6 @@ interface KanidmLinkModalProps {
 /** The link screen for one account: its current link, and the people it may be linked to. */
 export function KanidmLinkModal({ user, onClose }: KanidmLinkModalProps) {
   const queryClient = useQueryClient();
-  const userRole = usePermissionStore((state) => state.userRole);
-  const canUnlink = userRole !== null && BYPASS_ROLES.has(userRole);
   const [search, setSearch] = useState("");
   const [query] = useDebouncedValue(search.trim(), SEARCH_DELAY_MS);
   const linkKey = ["sso-link", user.id];
@@ -80,7 +76,6 @@ export function KanidmLinkModal({ user, onClose }: KanidmLinkModalProps) {
           subject={link.data?.subject ?? null}
           loading={link.isPending}
           failed={link.isError}
-          canUnlink={canUnlink}
           onUnlink={confirmUnlink}
           unlinking={unlink.isPending}
         />
@@ -108,23 +103,14 @@ interface CurrentLinkProps {
   subject: string | null;
   loading: boolean;
   failed: boolean;
-  canUnlink: boolean;
   onUnlink: () => void;
   unlinking: boolean;
 }
 
 /**
- * The account's link now: to whom, and, for an administrator, the way to remove it. A failed read says so,
- * never "not linked".
+ * The account's link now: to whom, and the way to remove it. A failed read says so, never "not linked".
  */
-function CurrentLink({
-  subject,
-  loading,
-  failed,
-  canUnlink,
-  onUnlink,
-  unlinking,
-}: CurrentLinkProps) {
+function CurrentLink({ subject, loading, failed, onUnlink, unlinking }: CurrentLinkProps) {
   if (failed) {
     return (
       <Alert tone="danger">The account's link could not be read. Close this and try again.</Alert>
@@ -149,22 +135,16 @@ function CurrentLink({
             {subject}
           </Text>
         </Text>
-        {canUnlink && (
-          <Button
-            tone="danger"
-            leftSection={<IconLinkOff size={16} />}
-            loading={unlinking}
-            onClick={onUnlink}
-          >
-            Remove link
-          </Button>
-        )}
+        <Button
+          tone="danger"
+          leftSection={<IconLinkOff size={16} />}
+          loading={unlinking}
+          onClick={onUnlink}
+        >
+          Remove link
+        </Button>
       </Group>
-      <Text size="xs">
-        {canUnlink
-          ? "To link a different person, remove this link first."
-          : "Only an administrator can remove this link or link a different person."}
-      </Text>
+      <Text size="xs">To link a different person, remove this link first.</Text>
     </Stack>
   );
 }

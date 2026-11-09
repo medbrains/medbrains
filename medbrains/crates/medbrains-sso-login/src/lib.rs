@@ -527,7 +527,13 @@ pub async fn oidc_callback(
     };
 
     if provider.code == OS_KANIDM_CODE
-        && let Some(target) = kanidm_privilege_refusal(&state, &provider, &identity, &fed).await?
+        && let Some(target) = admin_sign_in_refusal(
+            &state.db,
+            (provider.tenant_id, fed.user_id),
+            &fed.role,
+            || os_identity::is_high_privilege_person(&identity.subject, &identity.groups),
+        )
+        .await?
     {
         let _ = tx.rollback().await;
         audit_sso_denied(&state, &provider, &identity, NOT_HIGH_PRIVILEGE).await;
@@ -611,26 +617,33 @@ pub async fn oidc_callback(
     Ok((jar, Redirect::to(&target)))
 }
 
-/// Where a Kanidm sign-in to an administrator's account (a bypass role or any `admin.*` power) is sent when its
-/// person is not in the high-privilege group, or when that cannot be read; `None` when it may go on. Checked at
+/// Where a Kanidm sign-in to an administrator's account is refused to, or `None` when it may go on.
+///
+/// An administrator's account is a bypass role or any `admin.*` power; it is refused when its person is not in
+/// the high-privilege group, or when that cannot be read. Checked at
 /// every sign-in, not only when the account was linked, so a person later dropped from the group, or an
-/// account later made an administrator, does not keep the way in.
-// ponytail: permissions are read outside the federation transaction, so a directory-group access group synced
-// by this same sign-in is not yet counted; on Kanidm only an administrator may map one.
-async fn kanidm_privilege_refusal(
-    state: &AppState,
-    provider: &LoginProvider,
-    identity: &SsoIdentity,
-    fed: &Federated,
-) -> Result<Option<&'static str>, AppError> {
-    let permissions =
-        resolve_permissions(&state.db, provider.tenant_id, fed.user_id, &fed.role).await?;
-    if !os_identity::needs_high_privilege(&fed.role, &permissions) {
+/// account later made an administrator, does not keep the way in. `is_member` asks Kanidm, and is asked only
+/// for an administrator's account; the callback passes [`os_identity::is_high_privilege_person`].
+///
+/// # Errors
+/// When the account's permissions cannot be resolved.
+pub async fn admin_sign_in_refusal<F, Fut>(
+    db: &sqlx::PgPool,
+    (tenant_id, user_id): (Uuid, Uuid),
+    role: &str,
+    is_member: F,
+) -> Result<Option<&'static str>, AppError>
+where
+    F: FnOnce() -> Fut,
+    Fut: Future<Output = Result<bool, AppError>>,
+{
+    // ponytail: permissions are read outside the federation transaction, so a directory-group access group
+    // synced by this same sign-in is not yet counted; only an administrator may map one.
+    let permissions = resolve_permissions(db, tenant_id, user_id, role).await?;
+    if !os_identity::needs_high_privilege(role, &permissions) {
         return Ok(None);
     }
-    Ok(privilege_target(
-        os_identity::is_high_privilege_person(&identity.subject, &identity.groups).await,
-    ))
+    Ok(privilege_target(is_member().await))
 }
 
 /// The high-privilege answer as a sign-in outcome: a member goes on, a non-member is refused, and a directory
@@ -844,6 +857,28 @@ fn resolve_group_targets(
     (role, access_groups)
 }
 
+/// The role and access groups this provider's mappings give a person in `groups`.
+///
+/// Read in the sign-in's own transaction (tenant context set). A stored mapping to a bypass role gives nothing
+/// ([`resolve_group_targets`]).
+///
+/// # Errors
+/// When the mappings cannot be read.
+pub async fn mapped_targets(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    provider_id: Uuid,
+    groups: &[String],
+) -> Result<(Option<String>, Vec<Uuid>), AppError> {
+    let mappings = sqlx::query_as::<_, (String, Option<String>, Option<Uuid>)>(
+        "SELECT idp_group, role_code, access_group_id FROM idp_group_mappings WHERE provider_id = $1",
+    )
+    .bind(provider_id)
+    .fetch_all(&mut **tx)
+    .await?;
+    let user_groups: HashSet<String> = groups.iter().cloned().collect();
+    Ok(resolve_group_targets(&mappings, &user_groups))
+}
+
 struct Federated {
     user_id: Uuid,
     role: String,
@@ -863,14 +898,7 @@ async fn federate_user(
 ) -> Result<Federated, AppError> {
     medbrains_db::pool::set_tenant_context(tx, &provider.tenant_id).await?;
 
-    let mappings = sqlx::query_as::<_, (String, Option<String>, Option<Uuid>)>(
-        "SELECT idp_group, role_code, access_group_id FROM idp_group_mappings WHERE provider_id = $1",
-    )
-    .bind(provider.id)
-    .fetch_all(&mut **tx)
-    .await?;
-    let user_groups: HashSet<String> = identity.groups.iter().cloned().collect();
-    let (mapped_role, access_groups) = resolve_group_targets(&mappings, &user_groups);
+    let (mapped_role, access_groups) = mapped_targets(tx, provider.id, &identity.groups).await?;
 
     // A mapped directory group decides the role. Without one, a returning or
     // linked account keeps the role an administrator gave it — overwriting it

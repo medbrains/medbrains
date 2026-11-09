@@ -263,8 +263,9 @@ fn password_route(kanidm_linked: bool, setup_admin: bool) -> Result<bool, AppErr
 const KANIDM_SIGN_IN: &str = "This account signs in with your MedBrains account, not a password here. \
      Choose \"Sign in with MedBrains account\" on this page.";
 
-/// POST /api/auth/login — password sign-in: finds the account in the named hospital, applies lockout, the
-/// SSO-only policy and the Kanidm-link rule (only after the password is proven), checks MFA, and opens a session.
+/// POST /api/auth/login — password sign-in: finds the account in the named hospital, applies lockout, then the
+/// SSO-only policy and the Kanidm-link rule (both only after the password is proven), checks MFA, and opens a
+/// session.
 #[allow(clippy::too_many_lines)]
 pub async fn login(
     State(state): State<AppState>,
@@ -324,14 +325,6 @@ pub async fn login(
     .bind(KANIDM_CODE)
     .fetch_one(&mut *medbrains_db::pool::tenant_conn(&state.db, &row.tenant_id).await?)
     .await?;
-    // SSO-first policy: when the tenant disables password login, only the
-    // setup administrator may still use a password — everyone else must sign
-    // in via SSO (so an IdP outage can't lock the hospital out).
-    if password_login_blocked(&state.db, row.tenant_id, setup_admin).await? {
-        return Err(AppError::BadRequest(
-            "This organization requires single sign-on. Please sign in with SSO.".to_owned(),
-        ));
-    }
     if locked {
         return Err(AppError::BadRequest(
             "Account temporarily locked after repeated failed logins. Try again later.".to_owned(),
@@ -354,8 +347,18 @@ pub async fn login(
         record_failed_login(&state, (row.id, row.tenant_id), ip.as_deref()).await?;
         return Err(AppError::Unauthorized);
     }
-    // Only now, with the password proven, does a linked account hear it must use Kanidm: said before, the
-    // answer would tell anyone which accounts are linked.
+    // Only now, with the password proven, does the account hear that a password is not its way in: said
+    // before, the SSO-only answer would point at the one account it exempts (the break-glass), and the Kanidm
+    // one at every linked account.
+    //
+    // SSO-first policy: when the tenant disables password login, only the
+    // setup administrator may still use a password — everyone else must sign
+    // in via SSO (so an IdP outage can't lock the hospital out).
+    if password_login_blocked(&state.db, row.tenant_id, setup_admin).await? {
+        return Err(AppError::BadRequest(
+            "This organization requires single sign-on. Please sign in with SSO.".to_owned(),
+        ));
+    }
     let break_glass = password_route(kanidm_linked, setup_admin)?;
 
     // MFA gate — when enabled, credentials alone never open a session.

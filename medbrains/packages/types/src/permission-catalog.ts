@@ -5590,13 +5590,13 @@ export const PERMISSIONS: PermissionDef[] = [
   {
     code: "admin.users.link_identity",
     label: "Link an account to a sign-in person",
-    description: "Link or unlink a MedBrains account to a person in the hospital's own sign-in service, chosen by name and ID. An email address never links an account there, so existing staff are linked here. Linking an administrator's account needs an administrator.",
+    description: "Link or unlink a MedBrains account to a person in the hospital's own sign-in service, chosen by name and ID. An email address never links an account there, so existing staff are linked here. Administrators only; the server also requires a bypass role.",
     module: "admin",
   },
   {
     code: "admin.sso.providers.manage",
     label: "Add, change or remove sign-in providers",
-    description: "Add, change, switch off or delete an outside identity provider, and map its directory groups to roles and access groups. Whoever holds this decides who can sign in and as what. The machine's own sign-in service is pinned by the OS and cannot be changed here.",
+    description: "Add, change, switch off or delete an outside identity provider, and map its directory groups to roles and access groups. Whoever holds this decides who can sign in and as what. The machine's own sign-in service is pinned by the OS and cannot be changed here. Administrators only; the server also requires a bypass role.",
     module: "admin",
   },
   {
@@ -9298,8 +9298,6 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
   it_security_officer: {
     label: "IT Security Officer",
     permissions: [
-      P.ADMIN.SSO.PROVIDERS.MANAGE,
-      P.ADMIN.USERS.LINK_IDENTITY,
       P.DASHBOARD.VIEW,
       P.DEVICES.MACHINES.REMOVE,
       P.DEVICES.MACHINES.VIEW,

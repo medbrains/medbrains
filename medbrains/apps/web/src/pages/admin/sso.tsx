@@ -10,7 +10,17 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { type ChangeEvent, useState } from "react";
 import { DataTable, PageHeader } from "@/components";
 import type { Column } from "@/components/DataTable";
-import { Badge, Button, IconButton, Input, Modal, Select, Switch, Table } from "@/components/ui";
+import {
+  Alert,
+  Badge,
+  Button,
+  IconButton,
+  Input,
+  Modal,
+  Select,
+  Switch,
+  Table,
+} from "@/components/ui";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
 import { confirmDestructive } from "@/lib/confirm";
 
@@ -32,9 +42,10 @@ const DEFAULT_ROLE_OPTIONS = Object.entries(ROLE_TEMPLATES)
 
 export function SsoSettingsPage() {
   useRequirePermission([P.ADMIN.SETTINGS.GENERAL.MANAGE, P.ADMIN.SSO.PROVIDERS.MANAGE]);
-  const canManage = useHasPermission(P.ADMIN.SSO.PROVIDERS.MANAGE);
-  // New accounts and email linking let a provider decide who gets in: an administrator's call only.
+  // Who can sign in, and as what, is an administrator's call: the server requires a bypass role as well.
+  const hasPermission = useHasPermission(P.ADMIN.SSO.PROVIDERS.MANAGE);
   const isAdmin = usePermissionStore((s) => s.userRole !== null && BYPASS_ROLES.has(s.userRole));
+  const canManage = isAdmin && hasPermission;
   const qc = useQueryClient();
   const [formOpen, form] = useDisclosure(false);
   const [draft, setDraft] = useState<CreateSsoProviderRequest>(EMPTY);
@@ -150,7 +161,7 @@ export function SsoSettingsPage() {
               tone="primary"
               leftSection={<IconPlus size={15} />}
               onClick={() => {
-                setDraft({ ...EMPTY, jit_enabled: isAdmin });
+                setDraft(EMPTY);
                 form.open();
               }}
             >
@@ -159,6 +170,7 @@ export function SsoSettingsPage() {
           ) : undefined
         }
       />
+      {!canManage && <Alert tone="info">Administrators manage sign-in providers.</Alert>}
       <DataTable columns={columns} data={providers} loading={isLoading} rowKey={(p) => p.id} />
 
       <Modal opened={formOpen} onClose={form.close} title="Add identity provider" fullScreen>
@@ -219,27 +231,23 @@ export function SsoSettingsPage() {
             clearable
             searchable
           />
-          {isAdmin && (
-            <>
-              <Switch
-                label="Just-in-time provisioning"
-                checked={draft.jit_enabled ?? true}
-                onChange={(e) => {
-                  const checked = e.currentTarget.checked;
-                  setDraft((d) => ({ ...d, jit_enabled: checked }));
-                }}
-              />
-              <Switch
-                label="Link existing accounts by verified email"
-                description="Only for a provider you trust to own its addresses. Never links an administrator's account. Otherwise link people in Users."
-                checked={draft.link_by_email ?? false}
-                onChange={(e) => {
-                  const checked = e.currentTarget.checked;
-                  setDraft((d) => ({ ...d, link_by_email: checked }));
-                }}
-              />
-            </>
-          )}
+          <Switch
+            label="Just-in-time provisioning"
+            checked={draft.jit_enabled ?? true}
+            onChange={(e) => {
+              const checked = e.currentTarget.checked;
+              setDraft((d) => ({ ...d, jit_enabled: checked }));
+            }}
+          />
+          <Switch
+            label="Link existing accounts by verified email"
+            description="Only for a provider you trust to own its addresses. Never links an administrator's account. Otherwise link people in Users."
+            checked={draft.link_by_email ?? false}
+            onChange={(e) => {
+              const checked = e.currentTarget.checked;
+              setDraft((d) => ({ ...d, link_by_email: checked }));
+            }}
+          />
           <Group justify="flex-end">
             <Button tone="secondary" onClick={form.close}>
               Cancel
@@ -262,21 +270,16 @@ export function SsoSettingsPage() {
         title={mappingsFor ? `Group mappings — ${mappingsFor.name}` : ""}
         fullScreen
       >
-        {mappingsFor && (
-          <GroupMappings
-            provider={mappingsFor}
-            canManage={canManage && (mappingsFor.code !== OS_PROVIDER_CODE || isAdmin)}
-          />
-        )}
+        {mappingsFor && <GroupMappings provider={mappingsFor} canManage={canManage} />}
       </Modal>
     </div>
   );
 }
 
 /**
- * A provider's directory-group mappings; adding or removing one needs the provider-management permission, and on
- * the OS's own Kanidm an administrator. The server refuses an administrator role, and anyone else's mapping to a
- * role or group beyond their own, with the reason shown here.
+ * A provider's directory-group mappings; adding or removing one is an administrator's alone (the role and the
+ * provider-management permission). The server refuses a mapping to an administrator role, with the reason shown
+ * here.
  */
 function GroupMappings({ provider, canManage }: { provider: SsoProvider; canManage: boolean }) {
   const qc = useQueryClient();

@@ -375,10 +375,9 @@ account, and the SSO-only policy (`password_login_disabled`) never blocks it.
 
 **Administrators through Kanidm.** An administrator's account (a bypass role, or any `admin.*` power) links only to a Kanidm
 person in `mb_it_admins`, and signs in through Kanidm only while that person is still in it, read from the token's groups or
-the directory at every sign-in; when the directory cannot be read, the sign-in stops and says so. A link made by someone who
-is not an administrator is dropped, with its sessions, as soon as the account's role, permissions, access groups or
-departments change (migration 1451), so an administrator links it again. Directory-group mappings never grant an
-administrator role, and on Kanidm only an administrator may create or delete one.
+the directory at every sign-in; when the directory cannot be read, the sign-in stops and says so. Only an administrator (a
+bypass role) links or unlinks an account, or creates or deletes a directory-group mapping, and mappings never grant an
+administrator role.
 
 **Emergency sign-in, designed and not built** (for an independent review before any of it ships; revised after the first review).
 The problem: Kanidm is down for longer than a shift change, and a nurse who was not signed in must chart. The design:
@@ -404,11 +403,8 @@ Open for the reviewer: whether a code or a second person's approval should be th
 may make a Kanidm person can give it any address, and Kanidm calls every primary address verified. Whatever it says, an email
 never claims a `super_admin` or `hospital_admin` account. The first administrator is linked at setup by its Kanidm UUID
 (`kanidm-first-admin` records it; `kanidm-setup` links it). **Existing staff are linked by hand:** Admin → Users → Link to
-sign-in, with the permission `admin.users.link_identity` (administrators, and the IT security officer role). Whoever controls the
-Kanidm person controls the account, so someone who is not an administrator links only an account that holds nothing they do
-not: no bypass role, no signing permission (`*.sign`, `*.cosign`, `*_sign`), no `admin.*` power, no permission, access group,
-department or active relationship (care team, attending, ward) of the caller's lacking, and no open break-glass session. An
-administrator's account (a bypass role or any `admin.*` power) links, whoever links it, only to a Kanidm person in
+sign-in, by an administrator: the server requires a bypass role as well as `admin.users.link_identity`, whatever a role or
+override grants, because whoever controls the Kanidm person controls the account. An administrator's account (a bypass role or any `admin.*` power) links, whoever links it, only to a Kanidm person in
 `mb_it_admins`, the group that must use a second step, as the directory's `memberof` says; a directory that does not answer,
 or does not show `memberof`, refuses. It searches Kanidm's people by name, display name or mail through a read-only directory account
 (`mb_directory`, in `idm_account_mail_read`, its token readable by the server alone), always on Kanidm's loopback listener
@@ -423,7 +419,7 @@ create, change or delete it (Admin → Single sign-on shows it as set up by the 
 URL, client and secret: the server reads discovery on loopback, holds the issuer to `https://idm.medbrains.local:9443/oauth2/openid/medbrains`
 and the client to `medbrains`, and makes its token and key calls on loopback too. It trusts Kanidm's own certificate for that,
 which `front-certs` adds to the server's trust file (`idp-front.pem`). Other providers are added, changed and removed with
-`admin.sso.providers.manage` (administrators and the IT security officer role).
+`admin.sso.providers.manage`, by administrators only: the server requires a bypass role as well.
 
 **Signing out.** Every sign-in through the OS's Kanidm asks for a fresh login (`prompt=login`), on the screen and in
 browsers. On the screen, when the MedBrains view comes back to its sign-in page it forgets every cookie, Kanidm's session among
